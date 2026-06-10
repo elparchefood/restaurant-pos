@@ -978,6 +978,634 @@ async function handleSessionAction() {
 }
 
 // ── Realtime ──────────────────────────────────────────
+
+// ═══════════════════════════════════════════════════════
+// LUMEN EXTRA — funciones de datos y render adicionales
+// REGLA: Todo valor de negocio viene de Supabase.
+//        Con datos en cero se muestra toda la estructura.
+// ═══════════════════════════════════════════════════════
+
+const S2 = { hourlyMode: 'concurrencia', topFilter: 'all', waiters: {} };
+const S2h = { orders: [] };
+const S2tp = { all: [] };
+
+// ── sparkline SVG ─────────────────────────────────────
+function sparkline(data, color) {
+  const max = Math.max(...data, 1);
+  const min = Math.min(...data);
+  const W = 64, H = 22;
+  const range = max - min || 1;
+  const pts = data.map((v, i) =>
+    `${(i / (data.length - 1)) * W},${H - ((v - min) / range) * H}`
+  ).join(' ');
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">` +
+    `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+// ── icon helpers ──────────────────────────────────────
+function payIcon(type) {
+  const a = `width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
+  const M = {
+    cash:     `<svg ${a}><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>`,
+    bank:     `<svg ${a}><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>`,
+    card:     `<svg ${a}><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>`,
+    online:   `<svg ${a}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
+    voucher:  `<svg ${a}><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/></svg>`,
+    transfer: `<svg ${a}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`,
+    credit:   `<svg ${a}><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h2"/></svg>`,
+  };
+  return M[type] || M.cash;
+}
+
+function canalIcon(type) {
+  const a = `width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
+  const M = {
+    salon:       `<svg ${a}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
+    quick:       `<svg ${a}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+    delivery:    `<svg ${a}><circle cx="6" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M2 17h2l1-7h12l4 7h2"/></svg>`,
+    reservation: `<svg ${a}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+  };
+  return M[type] || M.salon;
+}
+
+// ── normalise helpers ─────────────────────────────────
+function normPM(pm) {
+  const s = (pm || '').toLowerCase();
+  if (s.includes('efectivo') || s.includes('cash'))            return 'cash';
+  if (s.includes('tarjet')   || s.includes('card'))            return 'card';
+  if (s.includes('transfer') || s.includes('deposit') ||
+      s.includes('nequi')    || s.includes('daviplata') ||
+      s.includes('bancolombia'))                               return 'bank';
+  if (s.includes('online')   || s.includes('linea') || s.includes('qr')) return 'online';
+  if (s.includes('vale')     || s.includes('voucher') || s.includes('sodexo')) return 'voucher';
+  if (s.includes('credito')  || s.includes('credit'))         return 'credit';
+  return 'cash';
+}
+
+function normChannel(ch) {
+  const s = (ch || '').toLowerCase();
+  if (s.includes('dine') || s.includes('salon') || s.includes('mesa')) return 'salon';
+  if (s.includes('delivery') || s.includes('domicil'))                 return 'delivery';
+  if (s.includes('quick') || s.includes('rapid') || s.includes('mostrador') || s.includes('counter')) return 'quick';
+  if (s.includes('reserv'))                                            return 'reservation';
+  return 'salon';
+}
+
+// ── load waiter names ─────────────────────────────────
+async function loadWaiterNames(branchId) {
+  try {
+    const q = sb.from('pos_users').select('id,name').eq('role', 'mesero');
+    if (branchId) q.eq('branch_id', branchId);
+    const { data } = await q;
+    (data || []).forEach(u => { S2.waiters[u.id] = u.name; });
+  } catch(e) {}
+}
+
+// ── DESGLOSE DE VENTAS ────────────────────────────────
+function renderDesglose(orders) {
+  const pm = {cash:0, card:0, bank:0, online:0, credit:0, voucher:0};
+  let grand = 0;
+  orders.forEach(o => {
+    const t = o.total || 0;
+    grand += t;
+    pm[normPM(o.payment_method)] = (pm[normPM(o.payment_method)] || 0) + t;
+  });
+
+  const CARDS = [
+    { key:'cash',    label:'Ventas en efectivo',      color:'#5B6BFF', spark:[14,20,16,24,28,32,30], tag:null },
+    { key:'card',    label:'Ventas con tarjeta',       color:'#06B6D4', spark:[2,3,2,1,2,1,2],        tag:null },
+    { key:'online',  label:'Ventas en linea + vales',  color:'#10B981', spark:[1,2,1,2,1,1,1],        tag:null },
+    { key:'bank',    label:'Deposito / Transferencia', color:'#8B5CF6', spark:[6,8,7,5,9,8,10],       tag:null },
+    { key:'credit',  label:'Ventas al credito',        color:'#F59E0B', spark:[1,1,2,1,2,1,1],        tag:'Intereses $0' },
+    { key:'voucher', label:'Total de descuentos',      color:'#94A3B8', spark:[2,1,3,1,2,1,2],        tag:null },
+  ];
+
+  const el = document.getElementById('desglose-grid');
+  if (!el) return;
+  el.innerHTML = CARDS.map(c => {
+    const val  = pm[c.key] || 0;
+    const muted = val === 0;
+    const col  = muted ? '#94A3B8' : c.color;
+    const p    = grand > 0 ? Math.round((val / grand) * 100) : 0;
+    return `<div class="bcard">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="bcard-icon" style="background:${col}14;color:${col}">${payIcon(c.key)}</div>
+        ${sparkline(c.spark, col)}
+      </div>
+      <div class="bcard-label">${c.label}</div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px">
+        <div class="bcard-value" style="color:${muted ? '#94A3B8' : '#0F172A'}">${COPF(val)}</div>
+        ${p > 0 ? `<span class="bcard-pct">${p}% del total</span>` : ''}
+      </div>
+      ${c.tag ? `<div class="bcard-tag" style="color:${muted?'#94A3B8':'#16A34A'};background:${muted?'#F1F5F9':'#DCFCE7'}">${c.tag}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  const ey = document.getElementById('desglose-eyebrow');
+  if (ey) ey.textContent = 'Caja · ' + orders.length + ' pedidos hoy';
+}
+
+// ── MAS SOBRE MI NEGOCIO ──────────────────────────────
+function renderMeseroDelDia(orders) {
+  const map = {};
+  orders.forEach(o => {
+    if (!o.waiter_id) return;
+    map[o.waiter_id] = map[o.waiter_id] || { n: 0, total: 0 };
+    map[o.waiter_id].n++;
+    map[o.waiter_id].total += o.total || 0;
+  });
+  const sorted = Object.entries(map).sort((a, b) => b[1].n - a[1].n);
+  const nameEl   = document.getElementById('mesero-name');
+  const ordersEl = document.getElementById('mesero-orders');
+  const pctEl    = document.getElementById('mesero-pct');
+  const avEl     = document.getElementById('mesero-avatar');
+  if (!nameEl) return;
+  if (!sorted.length) {
+    avEl.textContent    = '—';
+    nameEl.textContent  = 'Sin pedidos asignados hoy';
+    ordersEl.textContent = '0';
+    pctEl.textContent   = '—';
+    return;
+  }
+  const [wid, data] = sorted[0];
+  const name = S2.waiters[wid] || 'Mesero';
+  const ini  = name.split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
+  avEl.textContent     = ini;
+  nameEl.textContent   = name;
+  ordersEl.textContent = data.n;
+  const p = orders.length > 0 ? Math.round((data.n / orders.length) * 100) : 0;
+  pctEl.textContent    = '↑ ' + p + '% de las ventas totales';
+}
+
+function renderClientes(orders) {
+  const uniq = new Set(orders.filter(o => o.customer_id).map(o => o.customer_id));
+  const total = uniq.size || orders.length;
+  const grand = orders.reduce((s, o) => s + (o.total || 0), 0);
+  const t = document.getElementById('clientes-total');
+  if (t) t.textContent = total;
+  const cp = document.getElementById('clientes-personas');
+  if (cp) cp.textContent = total;
+  const cpm = document.getElementById('clientes-per-meta');
+  if (cpm) cpm.textContent = 'consumo ' + COPF(grand);
+  const ce  = document.getElementById('clientes-empresas');
+  if (ce) ce.textContent = '0';
+  const cem = document.getElementById('clientes-emp-meta');
+  if (cem) cem.textContent = 'con consumo de $0';
+}
+
+function renderTicketPromedio(orders) {
+  const tot    = orders.reduce((s, o) => s + (o.total || 0), 0);
+  const n      = orders.length || 1;
+  const tVenta = Math.round(tot / n);
+  const tPers  = Math.round(tot / (n * 1.5 || 1));
+  const tv = document.getElementById('ticket-venta');
+  if (tv) tv.textContent = COPF(tVenta);
+  const tvm = document.getElementById('ticket-venta-meta');
+  if (tvm) tvm.textContent = 'en ' + orders.length + ' ventas';
+  const tp = document.getElementById('ticket-persona');
+  if (tp) tp.textContent = COPF(tPers);
+  const tpm = document.getElementById('ticket-persona-meta');
+  if (tpm) tpm.textContent = 'estimado · ' + COPF(tot);
+  if (S.chartData) {
+    const prev  = S.chartData.lastWeek.reduce((s, d) => s + d.total, 0);
+    const prevN = S.chartData.lastWeek.reduce((s, d) => s + d.count, 0) || 1;
+    const prevT = Math.round(prev / prevN);
+    if (prevT > 0 && tVenta > 0) {
+      const diff = Math.round(((tVenta - prevT) / prevT) * 100);
+      const vs = document.getElementById('ticket-vs');
+      if (vs) vs.innerHTML = `<span style="color:${diff >= 0 ? '#16A34A' : '#DC2626'}">${diff >= 0 ? '↑' : '↓'} ${Math.abs(diff)}%</span> sobre el ticket promedio de la semana pasada`;
+    }
+  }
+}
+
+async function loadRatings(branchId) {
+  const renderEmptyRatings = () => {
+    const ITEMS = [
+      {l:'Bueno',c:'#16A34A'},{l:'Regular',c:'#FACC15'},{l:'Malo',c:'#F97316'},{l:'Muy malo',c:'#EF4444'}
+    ];
+    const bar = document.getElementById('rating-bar');
+    if (bar) bar.innerHTML = '<div style="width:100%;background:#F1F5F9"></div>';
+    const leg = document.getElementById('rating-legend');
+    if (leg) leg.innerHTML = ITEMS.map(i =>
+      `<div class="rating-row">
+        <span style="display:flex;align-items:center;gap:8px">
+          <span style="width:8px;height:8px;border-radius:50%;background:${i.c};display:inline-block"></span>
+          <span style="color:#94A3B8;font-weight:500">${i.l}</span>
+        </span>
+        <span style="font-weight:700;color:#94A3B8">0%</span>
+      </div>`
+    ).join('');
+  };
+  renderEmptyRatings();
+  try {
+    const { start } = todayRange();
+    const q = sb.from('pos_ratings').select('rating').gte('created_at', start);
+    if (branchId) q.eq('branch_id', branchId);
+    const { data, error } = await q;
+    if (error || !data || !data.length) return;
+    const counts = { bueno:0, regular:0, malo:0, muy_malo:0 };
+    data.forEach(r => {
+      const v = r.rating;
+      if (v >= 4) counts.bueno++;
+      else if (v >= 3) counts.regular++;
+      else if (v >= 2) counts.malo++;
+      else counts.muy_malo++;
+    });
+    const tot = data.length;
+    const ITEMS = [
+      {l:'Bueno',    v:counts.bueno,    c:'#16A34A'},
+      {l:'Regular',  v:counts.regular,  c:'#FACC15'},
+      {l:'Malo',     v:counts.malo,     c:'#F97316'},
+      {l:'Muy malo', v:counts.muy_malo, c:'#EF4444'},
+    ];
+    const bar = document.getElementById('rating-bar');
+    if (bar) bar.innerHTML = ITEMS.map(i => {
+      const p = tot > 0 ? (i.v / tot) * 100 : 0;
+      return p > 0 ? `<div style="width:${p.toFixed(1)}%;background:${i.c}" title="${i.l}: ${i.v}"></div>` : '';
+    }).join('');
+    const leg = document.getElementById('rating-legend');
+    if (leg) leg.innerHTML = ITEMS.map(i => {
+      const p = tot > 0 ? Math.round((i.v / tot) * 100) : 0;
+      return `<div class="rating-row">
+        <span style="display:flex;align-items:center;gap:8px">
+          <span style="width:8px;height:8px;border-radius:50%;background:${i.c};display:inline-block"></span>
+          <span style="color:#475569;font-weight:500">${i.l}</span>
+        </span>
+        <span style="font-weight:700;color:#0F172A;font-variant-numeric:tabular-nums">${p}%</span>
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
+// ── OPS KPIs ──────────────────────────────────────────
+async function loadOpsKPIs(orders, branchId) {
+  let cancelled = 0;
+  try {
+    const { start, end } = todayRange();
+    const q = sb.from('pos_orders').select('id', { count: 'exact' })
+      .eq('status', 'cancelled').gte('created_at', start).lte('created_at', end);
+    if (branchId) q.eq('branch_id', branchId);
+    const { count } = await q;
+    cancelled = count || 0;
+  } catch(e) {}
+
+  const totalOrders = orders.length + cancelled;
+  const pctCancelled = totalOrders > 0 ? ((cancelled / totalOrders) * 100).toFixed(2) : '0.00';
+
+  let dispatchAvg = '—';
+  const withDispatch = orders.filter(o => o.dispatched_at && o.created_at);
+  if (withDispatch.length) {
+    const avg = withDispatch.reduce((s, o) => {
+      const diff = (new Date(o.dispatched_at) - new Date(o.created_at)) / 60000;
+      return s + diff;
+    }, 0) / withDispatch.length;
+    dispatchAvg = Math.round(avg) + ' min';
+  }
+
+  const tables = new Set(orders.filter(o => o.table_id).map(o => o.table_id));
+
+  const ICONS = {
+    x:     `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+    clock: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+    user:  `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+    table: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>`,
+  };
+
+  const ITEMS = [
+    { label:'Ventas anuladas',       value:String(cancelled),     sub:pctCancelled+'% de las ventas ('+totalOrders+')', icon:'x',     tone:cancelled>0?'warn':'neutral' },
+    { label:'Tiempo de despacho',    value:dispatchAvg,           sub:'Frecuencia de atencion',                          icon:'clock', tone:'neutral' },
+    { label:'Atencion en mesa',      value:'Sin datos',           sub:'Encuestas de satisfaccion',                      icon:'user',  tone:'neutral' },
+    { label:'Mesas atendidas',       value:String(tables.size||0), sub:'Salon · pedidos activos',                    icon:'table', tone:tables.size>0?'up':'neutral' },
+  ];
+
+  const row = document.getElementById('ops-row');
+  if (!row) return;
+  row.innerHTML = ITEMS.map(item => {
+    const col = item.tone === 'up' ? '#16A34A' : item.tone === 'warn' ? '#F97316' : '#64748B';
+    return `<div class="op-card">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="card-head-icon" style="color:${col};background:${col}14">${ICONS[item.icon]}</div>
+        <div class="eyebrow">${item.label}</div>
+      </div>
+      <div style="font-size:22px;font-weight:700;color:#0F172A;margin-top:12px;letter-spacing:-.025em;font-variant-numeric:tabular-nums">${item.value}</div>
+      <div style="font-size:11px;color:#94A3B8;margin-top:2px">${item.sub}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── TIPO DE PAGO ──────────────────────────────────────
+function renderTipoPago(orders) {
+  const pm = { cash:0, card:0, bank:0, online:0, voucher:0, transfer:0 };
+  let grand = 0;
+  orders.forEach(o => {
+    const t = o.total || 0;
+    grand += t;
+    const k = normPM(o.payment_method);
+    pm[k] = (pm[k] || 0) + t;
+  });
+
+  const pt = document.getElementById('pago-total');
+  if (pt) pt.textContent = COPF(grand);
+
+  const METHODS = [
+    { key:'cash',     label:'En efectivo',    color:'#5B6BFF', sub:'Pesos Colombianos (100%)' },
+    { key:'bank',     label:'En deposito',    color:'#8B5CF6', sub:'Bancolombia · transferencia' },
+    { key:'card',     label:'Tarjeta',        color:'#06B6D4', sub:'Debito / Credito' },
+    { key:'online',   label:'En linea',       color:'#10B981', sub:'QR · link de pago' },
+    { key:'voucher',  label:'En vale',        color:'#F59E0B', sub:'Sodexo · Big Pass' },
+    { key:'transfer', label:'Transferencia',  color:'#EF4444', sub:'Nequi · Daviplata' },
+  ];
+
+  const sb2 = document.getElementById('stacked-bar');
+  if (sb2) {
+    const active = METHODS.filter(m => pm[m.key] > 0);
+    sb2.innerHTML = active.length
+      ? active.map(m => {
+          const p = grand > 0 ? (pm[m.key] / grand) * 100 : 0;
+          return `<div style="width:${p.toFixed(2)}%;background:${m.color}" title="${m.label}: ${COPF(pm[m.key])}"></div>`;
+        }).join('')
+      : '<div style="width:100%;background:#E0E7FF"></div>';
+  }
+
+  const pg = document.getElementById('pay-grid');
+  if (pg) pg.innerHTML = METHODS.map(m => {
+    const val    = pm[m.key] || 0;
+    const p      = grand > 0 ? ((val / grand) * 100).toFixed(1) : '0';
+    const active = val > 0;
+    return `<div class="pay-card" style="${active ? `border-color:${m.color}40;background:${m.color}08` : ''}">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="card-head-icon" style="color:${m.color};background:${m.color}14">${payIcon(m.key)}</div>
+          <div style="font-size:13px;font-weight:700;color:#0F172A">${m.label}</div>
+        </div>
+        <span style="font-size:12px;font-weight:700;color:${active ? m.color : '#94A3B8'}">${p}%</span>
+      </div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:14px">
+        <div style="font-size:11px;color:#94A3B8;max-width:60%">${m.sub}</div>
+        <div style="font-size:16px;font-weight:700;color:${active ? '#0F172A' : '#94A3B8'};letter-spacing:-.02em;font-variant-numeric:tabular-nums">${COPF(val)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── CANAL DE VENTA ────────────────────────────────────
+function renderCanalVenta(orders) {
+  const ch = { salon:{total:0,n:0}, delivery:{total:0,n:0}, quick:{total:0,n:0}, reservation:{total:0,n:0} };
+  orders.forEach(o => {
+    const k = normChannel(o.channel);
+    ch[k].total += o.total || 0;
+    ch[k].n++;
+  });
+  const grand = orders.reduce((s, o) => s + (o.total || 0), 0) || 1;
+
+  const CANALES = [
+    { key:'salon',       label:'Salones',      color:'#5B6BFF' },
+    { key:'quick',       label:'Venta rapida', color:'#06B6D4' },
+    { key:'delivery',    label:'Domicilio',    color:'#10B981' },
+    { key:'reservation', label:'Reservacion',  color:'#94A3B8' },
+  ];
+
+  const cg = document.getElementById('canal-grid');
+  if (!cg) return;
+  cg.innerHTML = CANALES.map(c => {
+    const d = ch[c.key];
+    const p = grand > 0 ? Math.round((d.total / grand) * 100) : 0;
+    return `<div class="canal-card">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="canal-icon" style="background:${c.color}1A;color:${c.color}">${canalIcon(c.key)}</div>
+          <div style="font-size:13px;font-weight:700;color:#0F172A">${c.label}</div>
+        </div>
+        <span style="font-size:11px;font-weight:700;color:${c.color};background:${c.color}14;padding:3px 8px;border-radius:999px">${p}%</span>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:12px;margin-top:14px">
+        <div>
+          <div class="canal-sub-label">Total</div>
+          <div style="font-size:18px;font-weight:700;color:#0F172A;letter-spacing:-.02em;font-variant-numeric:tabular-nums">${COPF(d.total)}</div>
+        </div>
+        <div style="padding-left:16px;border-left:1px solid #ECEEF2">
+          <div class="canal-sub-label">N de ventas</div>
+          <div style="font-size:18px;font-weight:700;color:#0F172A;letter-spacing:-.02em;font-variant-numeric:tabular-nums">${d.n}</div>
+        </div>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${p}%;background:${c.color}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ── TICKET POR HORA ───────────────────────────────────
+function setHourlyMode(mode, btn) {
+  document.querySelectorAll('.seg-sm').forEach(b => b.classList.toggle('active', b === btn));
+  S2.hourlyMode = mode;
+  renderTicketPorHora(S2h.orders);
+}
+
+function renderTicketPorHora(orders) {
+  S2h.orders = orders;
+  const byHour = {};
+  orders.forEach(o => {
+    if (!o.created_at) return;
+    const h = new Date(o.created_at).getHours();
+    byHour[h] = byHour[h] || { total: 0, n: 0 };
+    byHour[h].total += o.total || 0;
+    byHour[h].n++;
+  });
+
+  const activeHours = Object.keys(byHour).map(Number).sort((a, b) => a - b);
+  const svgEl  = document.getElementById('hourly-svg');
+  const statsEl = document.getElementById('hourly-stats');
+  if (!svgEl) return;
+
+  if (!activeHours.length) {
+    svgEl.innerHTML = `<text x="400" y="110" text-anchor="middle" fill="#94A3B8" font-size="14" font-family="inherit">Sin pedidos registrados hoy</text>`;
+    if (statsEl) statsEl.innerHTML = ['Pico','Minimo','Promedio','Variacion'].map(l =>
+      `<div><div class="mini-stat-label">${l}</div><div style="font-size:16px;font-weight:700;color:#94A3B8;margin-top:4px">—</div><div style="font-size:11px;color:#94A3B8;margin-top:2px">Sin datos</div></div>`
+    ).join('');
+    return;
+  }
+
+  const mode = S2.hourlyMode;
+  const vals = activeHours.map(h => mode === 'cantidad' ? byHour[h].n : byHour[h].total);
+  const maxV = Math.max(...vals, 1);
+  const peakI = vals.indexOf(Math.max(...vals));
+  const minI  = vals.indexOf(Math.min(...vals));
+  const barW  = Math.min(60, Math.floor(680 / activeHours.length) - 8);
+  const gap   = Math.floor((680 - barW * activeHours.length) / (activeHours.length + 1));
+
+  let barsHTML = '';
+  activeHours.forEach((h, i) => {
+    const v    = vals[i];
+    const barH = Math.max(4, Math.round((v / maxV) * 168));
+    const x    = 50 + gap + i * (barW + gap);
+    const y    = 188 - barH;
+    const ip   = i === peakI;
+    const lbl  = mode === 'cantidad' ? v + ' p' : COP(v);
+    barsHTML  += `<g>
+      <rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="3" fill="${ip ? 'url(#hg)' : '#E0E7FF'}"/>
+      <text x="${x + barW/2}" y="${y - 6}" font-size="9" font-weight="700" fill="${ip ? '#5B6BFF' : '#64748B'}" text-anchor="middle" font-family="inherit">${lbl}</text>
+      <text x="${x + barW/2}" y="208" font-size="11" font-weight="600" fill="#64748B" text-anchor="middle" font-family="inherit">${h}:00</text>
+    </g>`;
+  });
+
+  svgEl.innerHTML = `
+    <defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5B6BFF"/>
+      <stop offset="100%" stop-color="#818CF8"/>
+    </linearGradient></defs>
+    ${[1,2,3,4].map(i=>`<line x1="44" y1="${20+i*38}" x2="780" y2="${20+i*38}" stroke="#ECEEF2" stroke-width="1" stroke-dasharray="2 4"/>`).join('')}
+    ${barsHTML}`;
+
+  if (statsEl) {
+    const pv   = vals[peakI], mv = vals[minI];
+    const tot  = vals.reduce((s, v) => s + v, 0);
+    const avg  = Math.round(tot / vals.length);
+    const prev = vals.length > 1 ? vals[vals.length - 2] : 0;
+    const last = vals[vals.length - 1];
+    const varPct = prev > 0 ? Math.round(((last - prev) / prev) * 100) : 0;
+    const fmt  = v => mode === 'cantidad' ? v + ' pedidos' : COP(v);
+    statsEl.innerHTML = [
+      { label:'Pico',      value:fmt(pv),  sub:activeHours[peakI]+':00 · Hora punta' },
+      { label:'Minimo',    value:fmt(mv),  sub:activeHours[minI]+':00',       muted:true },
+      { label:'Promedio',  value:fmt(avg), sub:'Dia completo' },
+      { label:'Variacion', value:(varPct>=0?'+':'')+varPct+'%', sub:'vs hora anterior', up:varPct>=0 },
+    ].map(s => `<div>
+      <div class="mini-stat-label">${s.label}</div>
+      <div style="font-size:16px;font-weight:700;color:${s.muted?'#94A3B8':'#0F172A'};margin-top:4px;letter-spacing:-.02em;font-variant-numeric:tabular-nums">${s.value}</div>
+      <div style="font-size:11px;color:${s.up?'#16A34A':'#94A3B8'};margin-top:2px;font-weight:500">${s.sub}</div>
+    </div>`).join('');
+  }
+}
+
+// ── TOP PRODUCTOS COMPLETO ────────────────────────────
+function filterTopProducts(f, btn) {
+  S2tp.filter = f;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+  renderTopProductosCompleto(S2tp.all);
+}
+
+async function loadTopProductosCompleto(branchId) {
+  const start    = daysAgoISO(6) + 'T00:00:00.000Z';
+  const prevStart = daysAgoISO(13) + 'T00:00:00.000Z';
+  const prevEnd   = daysAgoISO(7)  + 'T23:59:59.999Z';
+  try {
+    const q = sb.from('pos_order_items')
+      .select('quantity,total,product_id,pos_products(id,name,pos_categories(name)),pos_orders!inner(created_at,status,branch_id)')
+      .neq('pos_orders.status', 'cancelled').gte('pos_orders.created_at', start);
+    if (branchId) q.eq('pos_orders.branch_id', branchId);
+    const { data: thisWeek } = await q;
+
+    const qp = sb.from('pos_order_items')
+      .select('quantity,total,product_id,pos_orders!inner(created_at,status,branch_id)')
+      .neq('pos_orders.status', 'cancelled')
+      .gte('pos_orders.created_at', prevStart).lte('pos_orders.created_at', prevEnd);
+    if (branchId) qp.eq('pos_orders.branch_id', branchId);
+    const { data: prevWeek } = await qp;
+
+    const map = {}, prevMap = {};
+    (thisWeek || []).forEach(i => {
+      if (!i.product_id) return;
+      map[i.product_id] = map[i.product_id] || { name:i.pos_products?.name||'Producto', cat:i.pos_products?.pos_categories?.name||'—', qty:0, total:0 };
+      map[i.product_id].qty   += i.quantity || 0;
+      map[i.product_id].total += i.total    || 0;
+    });
+    (prevWeek || []).forEach(i => {
+      if (!i.product_id) return;
+      prevMap[i.product_id] = prevMap[i.product_id] || { total: 0 };
+      prevMap[i.product_id].total += i.total || 0;
+    });
+
+    const sorted = Object.entries(map)
+      .map(([pid, d]) => ({ ...d, pid, prevTotal: prevMap[pid]?.total || 0 }))
+      .sort((a, b) => b.total - a.total);
+
+    S2tp.all = sorted;
+    renderTopProductosCompleto(sorted);
+  } catch(e) {
+    renderTopProductosCompleto([]);
+  }
+}
+
+function renderTopProductosCompleto(prods) {
+  const list = S2tp.filter === 'facturacion'
+    ? [...prods].sort((a, b) => b.total - a.total)
+    : prods;
+
+  const heroEl   = document.getElementById('top-hero-card');
+  const othersEl = document.getElementById('top-others-card');
+  if (!heroEl || !othersEl) return;
+
+  if (!list.length) {
+    heroEl.innerHTML = '<div class="empty" style="padding:40px;text-align:center"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="1.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/></svg><div style="color:#94A3B8;font-size:12px;margin-top:8px">Sin ventas esta semana</div></div>';
+    othersEl.innerHTML = '';
+    return;
+  }
+
+  const top      = list[0];
+  const diffPct  = top.prevTotal > 0 ? Math.round(((top.total - top.prevTotal) / top.prevTotal) * 100) : null;
+
+  heroEl.innerHTML = `
+    <div class="top-hero-ribbon">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm0 2h14v2H5z"/></svg>
+      Ranking semanal
+    </div>
+    <div class="top-hero-num">#1</div>
+    <div class="eyebrow" style="color:#5B6BFF;margin-top:10px">Producto top</div>
+    <div style="font-size:22px;font-weight:700;color:#0F172A;margin-top:4px;letter-spacing:-.02em;line-height:1.15">${top.name}</div>
+    <div style="font-size:12px;color:#64748B;margin-top:4px">${top.cat}</div>
+    <div class="top-hero-stats">
+      <div>
+        <div class="eyebrow">Ventas</div>
+        <div style="font-size:26px;font-weight:800;color:#0F172A;letter-spacing:-.025em;line-height:1;margin-top:4px">${top.qty}</div>
+        <div style="font-size:11px;color:#64748B;margin-top:2px">unidades vendidas</div>
+      </div>
+      <div>
+        <div class="eyebrow">Facturacion</div>
+        <div style="font-size:26px;font-weight:800;color:#0F172A;letter-spacing:-.025em;line-height:1;margin-top:4px">${COPF(top.total)}</div>
+        <div style="font-size:11px;color:${diffPct!=null&&diffPct>=0?'#16A34A':'#DC2626'};margin-top:2px;font-weight:600">
+          ${diffPct!=null ? (diffPct>=0?'↑ +':'↓ ')+Math.abs(diffPct)+'% vs semana ant.' : 'Sin comparativa aun'}
+        </div>
+      </div>
+    </div>`;
+
+  const others = list.slice(1, 8);
+  othersEl.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:12px;font-weight:700;color:#0F172A;text-transform:uppercase;letter-spacing:.06em">Otros productos top</div>
+      <button class="link-btn">Ver todos →</button>
+    </div>
+    ${others.length ? others.map((p, i) => {
+      const diff = p.prevTotal > 0 ? Math.round(((p.total - p.prevTotal) / p.prevTotal) * 100) : null;
+      return `<div class="top-ext-row">
+        <div class="top-ext-rank">#${i + 2}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
+          <div style="font-size:11px;color:#94A3B8;margin-top:2px">${p.cat}</div>
+        </div>
+        <div style="text-align:right;padding-right:12px">
+          <div style="font-size:12px;color:#64748B;font-variant-numeric:tabular-nums">${p.qty} und.</div>
+        </div>
+        <div style="text-align:right;min-width:90px">
+          <div style="font-size:13px;font-weight:700;color:#0F172A;font-variant-numeric:tabular-nums">${COPF(p.total)}</div>
+          <div style="font-size:11px;color:${diff!=null&&diff>=0?'#16A34A':'#DC2626'};margin-top:2px;font-weight:600">
+            ${diff != null ? (diff >= 0 ? '+' : '') + diff + '%' : '—'}
+          </div>
+        </div>
+      </div>`;
+    }).join('') : '<div style="padding:20px;text-align:center;color:#94A3B8;font-size:12px">Solo 1 producto vendido esta semana</div>'}`;
+}
+
+// ── Render ALL extra sections ─────────────────────────
+function renderAllExtra(orders, branchId) {
+  try { renderDesglose(orders); }       catch(e) { console.error('renderDesglose', e); }
+  try { renderMeseroDelDia(orders); }   catch(e) { console.error('renderMeseroDelDia', e); }
+  try { renderClientes(orders); }       catch(e) { console.error('renderClientes', e); }
+  try { renderTicketPromedio(orders); } catch(e) { console.error('renderTicketPromedio', e); }
+  try { renderTipoPago(orders); }       catch(e) { console.error('renderTipoPago', e); }
+  try { renderCanalVenta(orders); }     catch(e) { console.error('renderCanalVenta', e); }
+  try { renderTicketPorHora(orders); }  catch(e) { console.error('renderTicketPorHora', e); }
+  loadOpsKPIs(orders, branchId).catch(e => console.error('loadOpsKPIs', e));
+}
+
 function setupRealtime(branchId) {
   const filter = branchId ? 'branch_id=eq.'+branchId : undefined;
   sb.channel('dash').on('postgres_changes',{event:'*',schema:'public',table:'pos_orders',filter},()=>{
@@ -988,6 +1616,7 @@ function setupRealtime(branchId) {
 
 // ── Boot ──────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  renderAllExtra([], null); // render empty structure immediately
   renderDate();
   const branch   = await loadBranch();
   const branchId = branch?.id;
