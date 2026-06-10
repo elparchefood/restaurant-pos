@@ -596,6 +596,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,system-ui,sans-serif
           <div><span class="eyebrow">Catalogo · Esta semana</span><h3 class="section-title">Top productos</h3></div>
           <div class="tabs-line">
             <button class="tab-btn active" onclick="filterTopProducts('all',this)">Todos mis productos</button>
+            <button class="tab-btn" onclick="filterTopProducts('area',this)">Por &aacute;rea de producci&oacute;n</button>
             <button class="tab-btn" onclick="filterTopProducts('facturacion',this)">Mejor facturacion</button>
           </div>
         </div>
@@ -1416,30 +1417,26 @@ function renderTicketPorHora(orders) {
   const statsEl = document.getElementById('hourly-stats');
   if (!svgEl) return;
 
-  if (!activeHours.length) {
-    svgEl.innerHTML = `<text x="400" y="110" text-anchor="middle" fill="#94A3B8" font-size="14" font-family="inherit">Sin pedidos registrados hoy</text>`;
-    if (statsEl) statsEl.innerHTML = ['Pico','Minimo','Promedio','Variacion'].map(l =>
-      `<div><div class="mini-stat-label">${l}</div><div style="font-size:16px;font-weight:700;color:#94A3B8;margin-top:4px">—</div><div style="font-size:11px;color:#94A3B8;margin-top:2px">Sin datos</div></div>`
-    ).join('');
-    return;
-  }
+  // Si no hay datos usar horas por defecto para mostrar estructura visual
+  const displayHours = activeHours.length ? activeHours : [10,11,12,13,14,15,16,17,18,19,20,21];
+  const noData = activeHours.length === 0;
 
   const mode = S2.hourlyMode;
-  const vals = activeHours.map(h => mode === 'cantidad' ? byHour[h].n : byHour[h].total);
+  const vals = displayHours.map(h => byHour[h] ? (mode === 'cantidad' ? byHour[h].n : byHour[h].total) : 0);
   const maxV = Math.max(...vals, 1);
   const peakI = vals.indexOf(Math.max(...vals));
   const minI  = vals.indexOf(Math.min(...vals));
-  const barW  = Math.min(60, Math.floor(680 / activeHours.length) - 8);
-  const gap   = Math.floor((680 - barW * activeHours.length) / (activeHours.length + 1));
+  const barW  = Math.min(60, Math.floor(680 / displayHours.length) - 8);
+  const gap   = Math.floor((680 - barW * displayHours.length) / (displayHours.length + 1));
 
   let barsHTML = '';
-  activeHours.forEach((h, i) => {
+  displayHours.forEach((h, i) => {
     const v    = vals[i];
-    const barH = Math.max(4, Math.round((v / maxV) * 168));
+    const barH = noData ? 0 : Math.max(2, Math.round((v / maxV) * 168));
     const x    = 50 + gap + i * (barW + gap);
     const y    = 188 - barH;
     const ip   = i === peakI;
-    const lbl  = mode === 'cantidad' ? v + ' p' : COP(v);
+    const lbl  = noData || v === 0 ? '' : (mode === 'cantidad' ? v + ' p' : COP(v));
     barsHTML  += `<g>
       <rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="3" fill="${ip ? 'url(#hg)' : '#E0E7FF'}"/>
       <text x="${x + barW/2}" y="${y - 6}" font-size="9" font-weight="700" fill="${ip ? '#5B6BFF' : '#64748B'}" text-anchor="middle" font-family="inherit">${lbl}</text>
@@ -1455,6 +1452,14 @@ function renderTicketPorHora(orders) {
     ${[1,2,3,4].map(i=>`<line x1="44" y1="${20+i*38}" x2="780" y2="${20+i*38}" stroke="#ECEEF2" stroke-width="1" stroke-dasharray="2 4"/>`).join('')}
     ${barsHTML}`;
 
+  // Y-axis grid lines label when no data show "Sin pedidos" overlay
+  if (noData) {
+    svgEl.innerHTML += `<text x="400" y="114" text-anchor="middle" fill="#CBD5E1" font-size="12" font-family="inherit" font-style="italic">Sin pedidos registrados hoy</text>`;
+    if (statsEl) statsEl.innerHTML = ['Pico','M&iacute;nimo','Promedio','Variaci&oacute;n'].map(l =>
+      `<div><div class="mini-stat-label">${l}</div><div style="font-size:16px;font-weight:700;color:#94A3B8;margin-top:4px">—</div><div style="font-size:11px;color:#94A3B8;margin-top:2px">Sin datos</div></div>`
+    ).join('');
+    return;
+  }
   if (statsEl) {
     const pv   = vals[peakI], mv = vals[minI];
     const tot  = vals.reduce((s, v) => s + v, 0);
@@ -1526,9 +1531,16 @@ async function loadTopProductosCompleto(branchId) {
 }
 
 function renderTopProductosCompleto(prods) {
-  const list = S2tp.filter === 'facturacion'
-    ? [...prods].sort((a, b) => b.total - a.total)
-    : prods;
+  let list;
+  if (S2tp.filter === 'facturacion') {
+    list = [...prods].sort((a, b) => b.total - a.total);
+  } else if (S2tp.filter === 'area') {
+    const byArea = {};
+    prods.forEach(p => { const a = p.cat || 'General'; if (!byArea[a] || p.total > byArea[a].total) byArea[a] = p; });
+    list = Object.values(byArea).sort((a, b) => b.total - a.total);
+  } else {
+    list = prods;
+  }
 
   const heroEl   = document.getElementById('top-hero-card');
   const othersEl = document.getElementById('top-others-card');
