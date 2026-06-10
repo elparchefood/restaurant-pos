@@ -596,6 +596,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,system-ui,sans-serif
           <div><span class="eyebrow">Catalogo · Esta semana</span><h3 class="section-title">Top productos</h3></div>
           <div class="tabs-line">
             <button class="tab-btn active" onclick="filterTopProducts('all',this)">Todos mis productos</button>
+            <button class="tab-btn" onclick="filterTopProducts('area',this)">Por &aacute;rea de producci&oacute;n</button>
             <button class="tab-btn" onclick="filterTopProducts('facturacion',this)">Mejor facturacion</button>
           </div>
         </div>
@@ -1411,39 +1412,57 @@ function renderTicketPorHora(orders) {
     byHour[h].n++;
   });
 
-  const activeHours = Object.keys(byHour).map(Number).sort((a, b) => a - b);
-  const svgEl  = document.getElementById('hourly-svg');
+  const svgEl   = document.getElementById('hourly-svg');
   const statsEl = document.getElementById('hourly-stats');
   if (!svgEl) return;
 
-  if (!activeHours.length) {
-    svgEl.innerHTML = `<text x="400" y="110" text-anchor="middle" fill="#94A3B8" font-size="14" font-family="inherit">Sin pedidos registrados hoy</text>`;
-    if (statsEl) statsEl.innerHTML = ['Pico','Minimo','Promedio','Variacion'].map(l =>
-      `<div><div class="mini-stat-label">${l}</div><div style="font-size:16px;font-weight:700;color:#94A3B8;margin-top:4px">—</div><div style="font-size:11px;color:#94A3B8;margin-top:2px">Sin datos</div></div>`
-    ).join('');
-    return;
-  }
-
   const mode = S2.hourlyMode;
-  const vals = activeHours.map(h => mode === 'cantidad' ? byHour[h].n : byHour[h].total);
-  const maxV = Math.max(...vals, 1);
+
+  // Always show a chart — if no data, show empty axes with zero bars
+  const activeHours = Object.keys(byHour).map(Number).sort((a, b) => a - b);
+  // When empty, show a default range so chart structure is visible
+  const displayHours = activeHours.length
+    ? activeHours
+    : [10,11,12,13,14,15,16,17,18,19,20,21];
+
+  const vals  = displayHours.map(h => byHour[h] ? (mode === 'cantidad' ? byHour[h].n : byHour[h].total) : 0);
+  const maxV  = Math.max(...vals, 1);
   const peakI = vals.indexOf(Math.max(...vals));
-  const minI  = vals.indexOf(Math.min(...vals));
-  const barW  = Math.min(60, Math.floor(680 / activeHours.length) - 8);
-  const gap   = Math.floor((680 - barW * activeHours.length) / (activeHours.length + 1));
+  const minI  = vals.indexOf(Math.min(...vals.filter(v => v > 0).length ? vals.filter(v => v > 0) : [0]));
+
+  // Chart dimensions
+  const svgW  = 800, svgH = 220;
+  const lPad  = 56, rPad = 12, tPad = 30, bPad = 40;
+  const chartW = svgW - lPad - rPad;
+  const chartH = svgH - tPad - bPad;
+
+  const nBars  = displayHours.length;
+  const barW   = Math.max(16, Math.min(52, Math.floor(chartW / nBars) - 6));
+  const barGap = Math.floor((chartW - barW * nBars) / (nBars + 1));
+
+  // Y-axis ticks (4 steps)
+  const ySteps = 4;
+  const yTick  = maxV / ySteps;
+  const gridLines = Array.from({ length: ySteps + 1 }, (_, i) => {
+    const val = i * yTick;
+    const y   = tPad + chartH - (i / ySteps) * chartH;
+    const lbl = mode === 'cantidad' ? String(Math.round(val)) : Math.round(val).toLocaleString('es-CO');
+    return `<line x1="${lPad}" y1="${y.toFixed(1)}" x2="${svgW - rPad}" y2="${y.toFixed(1)}" stroke="#ECEEF2" stroke-width="1" stroke-dasharray="2 4"/>
+    <text x="${lPad - 6}" y="${(y + 3).toFixed(1)}" font-size="10" fill="#94A3B8" text-anchor="end" font-family="inherit">${lbl}</text>`;
+  }).join('');
 
   let barsHTML = '';
-  activeHours.forEach((h, i) => {
+  displayHours.forEach((h, i) => {
     const v    = vals[i];
-    const barH = Math.max(4, Math.round((v / maxV) * 168));
-    const x    = 50 + gap + i * (barW + gap);
-    const y    = 188 - barH;
-    const ip   = i === peakI;
-    const lbl  = mode === 'cantidad' ? v + ' p' : COP(v);
+    const barH = maxV > 0 ? Math.max(activeHours.length ? 2 : 0, Math.round((v / maxV) * chartH)) : 0;
+    const x    = lPad + barGap + i * (barW + barGap);
+    const y    = tPad + chartH - barH;
+    const ip   = activeHours.length > 0 && i === peakI && v > 0;
+    const lbl  = v > 0 ? (mode === 'cantidad' ? v + ' p' : '$' + Math.round(v).toLocaleString('es-CO')) : '';
     barsHTML  += `<g>
-      <rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="3" fill="${ip ? 'url(#hg)' : '#E0E7FF'}"/>
-      <text x="${x + barW/2}" y="${y - 6}" font-size="9" font-weight="700" fill="${ip ? '#5B6BFF' : '#64748B'}" text-anchor="middle" font-family="inherit">${lbl}</text>
-      <text x="${x + barW/2}" y="208" font-size="11" font-weight="600" fill="#64748B" text-anchor="middle" font-family="inherit">${h}:00</text>
+      <rect x="${x}" y="${y.toFixed(1)}" width="${barW}" height="${Math.max(0,barH).toFixed(1)}" rx="3" fill="${ip ? 'url(#hg)' : activeHours.length ? '#E0E7FF' : '#F1F5F9'}"/>
+      ${lbl ? `<text x="${(x + barW/2).toFixed(1)}" y="${(y - 5).toFixed(1)}" font-size="9" font-weight="700" fill="${ip ? '#5B6BFF' : '#64748B'}" text-anchor="middle" font-family="inherit">${lbl}</text>` : ''}
+      <text x="${(x + barW/2).toFixed(1)}" y="${(svgH - bPad + 16).toFixed(1)}" font-size="11" font-weight="600" fill="#64748B" text-anchor="middle" font-family="inherit">${h}:00</text>
     </g>`;
   });
 
@@ -1452,28 +1471,49 @@ function renderTicketPorHora(orders) {
       <stop offset="0%" stop-color="#5B6BFF"/>
       <stop offset="100%" stop-color="#818CF8"/>
     </linearGradient></defs>
-    ${[1,2,3,4].map(i=>`<line x1="44" y1="${20+i*38}" x2="780" y2="${20+i*38}" stroke="#ECEEF2" stroke-width="1" stroke-dasharray="2 4"/>`).join('')}
-    ${barsHTML}`;
+    ${gridLines}
+    <line x1="${lPad}" y1="${tPad}" x2="${lPad}" y2="${tPad + chartH}" stroke="#ECEEF2" stroke-width="1"/>
+    <line x1="${lPad}" y1="${tPad + chartH}" x2="${svgW - rPad}" y2="${tPad + chartH}" stroke="#ECEEF2" stroke-width="1"/>
+    ${barsHTML}
+    ${!activeHours.length ? `<text x="${(lPad + chartW/2).toFixed(1)}" y="${(tPad + chartH/2 - 4).toFixed(1)}" text-anchor="middle" fill="#CBD5E1" font-size="12" font-family="inherit">Sin pedidos registrados hoy</text>` : ''}`;
 
   if (statsEl) {
-    const pv   = vals[peakI], mv = vals[minI];
-    const tot  = vals.reduce((s, v) => s + v, 0);
-    const avg  = Math.round(tot / vals.length);
-    const prev = vals.length > 1 ? vals[vals.length - 2] : 0;
-    const last = vals[vals.length - 1];
-    const varPct = prev > 0 ? Math.round(((last - prev) / prev) * 100) : 0;
-    const fmt  = v => mode === 'cantidad' ? v + ' pedidos' : COP(v);
-    statsEl.innerHTML = [
-      { label:'Pico',      value:fmt(pv),  sub:activeHours[peakI]+':00 · Hora punta' },
-      { label:'Minimo',    value:fmt(mv),  sub:activeHours[minI]+':00',       muted:true },
-      { label:'Promedio',  value:fmt(avg), sub:'Dia completo' },
-      { label:'Variacion', value:(varPct>=0?'+':'')+varPct+'%', sub:'vs hora anterior', up:varPct>=0 },
-    ].map(s => `<div>
-      <div class="mini-stat-label">${s.label}</div>
-      <div style="font-size:16px;font-weight:700;color:${s.muted?'#94A3B8':'#0F172A'};margin-top:4px;letter-spacing:-.02em;font-variant-numeric:tabular-nums">${s.value}</div>
-      <div style="font-size:11px;color:${s.up?'#16A34A':'#94A3B8'};margin-top:2px;font-weight:500">${s.sub}</div>
-    </div>`).join('');
+    if (!activeHours.length) {
+      statsEl.innerHTML = [
+        { label:'Pico',      value:'—', sub:'Sin datos' },
+        { label:'M&iacute;nimo',    value:'—', sub:'Sin datos', muted:true },
+        { label:'Promedio',  value:'—', sub:'D&iacute;a completo' },
+        { label:'Variaci&oacute;n', value:'—', sub:'vs hora anterior' },
+      ].map(s => `<div>
+        <div class="mini-stat-label">${s.label}</div>
+        <div style="font-size:16px;font-weight:700;color:#94A3B8;margin-top:4px">—</div>
+        <div style="font-size:11px;color:#94A3B8;margin-top:2px;font-weight:500">${s.sub}</div>
+      </div>`).join('');
+    } else {
+      const pv   = vals[peakI];
+      const totV = vals.reduce((s, v) => s + v, 0);
+      const avg  = Math.round(totV / vals.filter(v=>v>0).length || 1);
+      const prev = vals.length > 1 ? vals[vals.length - 2] : 0;
+      const last = vals[vals.length - 1];
+      const varPct = prev > 0 ? Math.round(((last - prev) / prev) * 100) : 0;
+      const nonZero = vals.filter(v => v > 0);
+      const mv   = nonZero.length ? Math.min(...nonZero) : 0;
+      const mvIdx = vals.indexOf(mv);
+      const fmt  = v => mode === 'cantidad' ? v + ' pedidos' : '$' + Math.round(v).toLocaleString('es-CO');
+      statsEl.innerHTML = [
+        { label:'Pico',      value:fmt(pv), sub:displayHours[peakI]+':00 · Hora punta' },
+        { label:'M&iacute;nimo',    value:fmt(mv), sub:displayHours[mvIdx]+':00', muted:true },
+        { label:'Promedio',  value:fmt(avg), sub:'D&iacute;a completo' },
+        { label:'Variaci&oacute;n', value:(varPct>=0?'+':'')+varPct+'%', sub:'vs hora anterior', up:varPct>=0 },
+      ].map(s => `<div>
+        <div class="mini-stat-label">${s.label}</div>
+        <div style="font-size:16px;font-weight:700;color:${s.muted?'#94A3B8':'#0F172A'};margin-top:4px;letter-spacing:-.02em;font-variant-numeric:tabular-nums">${s.value}</div>
+        <div style="font-size:11px;color:${s.up?'#16A34A':'#94A3B8'};margin-top:2px;font-weight:500">${s.sub}</div>
+      </div>`).join('');
+    }
   }
+}
+
 }
 
 // ── TOP PRODUCTOS COMPLETO ────────────────────────────
@@ -1526,9 +1566,20 @@ async function loadTopProductosCompleto(branchId) {
 }
 
 function renderTopProductosCompleto(prods) {
-  const list = S2tp.filter === 'facturacion'
-    ? [...prods].sort((a, b) => b.total - a.total)
-    : prods;
+  let list;
+  if (S2tp.filter === 'facturacion') {
+    list = [...prods].sort((a, b) => b.total - a.total);
+  } else if (S2tp.filter === 'area') {
+    // Group by category area — show top product per category
+    const byArea = {};
+    prods.forEach(p => {
+      const area = p.cat || 'General';
+      if (!byArea[area] || p.total > byArea[area].total) byArea[area] = p;
+    });
+    list = Object.values(byArea).sort((a, b) => b.total - a.total);
+  } else {
+    list = prods;
+  }
 
   const heroEl   = document.getElementById('top-hero-card');
   const othersEl = document.getElementById('top-others-card');
