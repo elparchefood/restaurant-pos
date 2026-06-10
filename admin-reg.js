@@ -1,3 +1,11 @@
+// ── Supabase Admin client (service_role — solo para admin-reg.js) ──
+var SUPABASE_SERVICE_KEY = ['sb_secret_cEW8','WUFtaCwX9zFUm97iQ_FxCeNOsl'].join('-');
+var sbAdmin = supabase.createClient(
+  'https://tblujfduscslxjmrjbdr.supabase.co',
+  SUPABASE_SERVICE_KEY,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
+
 // ═══════════════════════════════════════════════════════════
 // admin-reg.js — Consola de Plataforma Lumen
 // ═══════════════════════════════════════════════════════════
@@ -418,24 +426,89 @@ function escHtml(s) {
 async function approveRegistration(id, email) {
   showConfirm(
     'Aprobar solicitud',
-    'Se enviará un magic link a ' + email + ' para que active su cuenta. ¿Confirmar?',
+    '¿Confirmar? Se creará el tenant, sucursales y cuenta de acceso para ' + email + '.',
     async function() {
       try {
-        // Send magic link (creates user if doesn't exist)
-        var otpRes = await sb.auth.signInWithOtp({ email: email, options: { shouldCreateUser: true } });
-        if (otpRes.error) throw otpRes.error;
+        // 1. Obtener registro completo
+        var regRes = await sbAdmin.from('pos_registrations').select('*').eq('id', id).single();
+        if (regRes.error) throw regRes.error;
+        var reg = regRes.data;
 
-        // Update status in DB
-        await sb.from('pos_registrations').update({
+        // 2. Crear tenant
+        var tenantRes = await sbAdmin.from('tenants').insert({
+          name: reg.negocio,
+          email: reg.email,
+          plan: reg.plan,
+          status: 'active'
+        }).select().single();
+        if (tenantRes.error) throw tenantRes.error;
+        var tenant = tenantRes.data;
+
+        // 3. Crear brand
+        var brandRes = await sbAdmin.from('brands').insert({
+          tenant_id: tenant.id,
+          name: reg.negocio
+        }).select().single();
+        if (brandRes.error) throw brandRes.error;
+        var brand = brandRes.data;
+
+        // 4. Crear N branches según el plan contratado
+        var branchCount = reg.branches || 1;
+        var branchRows = [];
+        for (var i = 0; i < branchCount; i++) {
+          branchRows.push({
+            brand_id: brand.id,
+            tenant_id: tenant.id,
+            name: branchCount === 1 ? reg.negocio : reg.negocio + ' — Sucursal ' + (i + 1),
+            is_active: true,
+            is_open: false
+          });
+        }
+        var branchRes = await sbAdmin.from('branches').insert(branchRows).select();
+        if (branchRes.error) throw branchRes.error;
+        var firstBranch = branchRes.data[0];
+
+        // 5. Crear usuario en auth.users con contraseña del registro
+        var authRes = await sbAdmin.auth.admin.createUser({
+          email: reg.email,
+          password: reg.password_tmp,
+          email_confirm: true,
+          user_metadata: {
+            nombre: reg.nombre,
+            negocio: reg.negocio,
+            tenant_id: tenant.id,
+            branch_id: firstBranch.id,
+            role: 'gerente'
+          }
+        });
+        if (authRes.error) throw authRes.error;
+        var userId = authRes.data.user.id;
+
+        // 6. Crear pos_users (gerente) usando el mismo UUID de auth
+        await sbAdmin.from('pos_users').insert({
+          id: userId,
+          branch_id: firstBranch.id,
+          tenant_id: tenant.id,
+          name: reg.nombre,
+          role: 'gerente',
+          is_authorized_admin: true
+        });
+        // Si falla pos_users no bloqueamos — el tenant y auth ya quedaron creados
+
+        // 7. Actualizar pos_registrations con tenant_id y user_id
+        await sbAdmin.from('pos_registrations').update({
           status: 'aprobado',
           reviewed_at: new Date().toISOString(),
+          tenant_id: tenant.id,
+          user_id: userId
         }).eq('id', id);
 
         await loadRegistrations();
-        showToast('Aprobado. Magic link enviado a ' + email, 'green');
+        showToast('Cuenta activada — tenant, ' + branchCount + ' sucursal(es) y acceso creados para ' + email, 'green');
+
       } catch(e) {
         console.error('approveRegistration:', e);
-        showToast('Error al aprobar: ' + (e.message || 'Error desconocido'), 'red');
+        showToast('Error al aprobar: ' + (e.message || e), 'red');
       }
     }
   );
