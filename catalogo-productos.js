@@ -45,7 +45,7 @@ const AI_STEPS = [
 ];
 
 const S = {
-  userId:null, tab:'productos', cats:[], products:[], combos:[], mods:[],
+  tenantId:null, branchId:null, tab:'productos', cats:[], products:[], combos:[], mods:[],
   filterCat:null, query:'', overlay:null,
   editProd:null, editCombo:null, editMod:null, editCat:null,
   aiStage:'source', aiTab:'file', aiFile:null, aiUrl:'', aiStepIdx:0,
@@ -56,7 +56,7 @@ const S = {
 async function uploadPhoto(file, entityId) {
   try {
     const ext = file.name.split('.').pop() || 'jpg';
-    const path = S.userId+'/'+entityId+'.'+ext;
+    const path = S.tenantId+'/'+entityId+'.'+ext;
     const { error } = await sb.storage.from('catalog-photos').upload(path, file, {upsert:true});
     if (error) throw error;
     const { data } = sb.storage.from('catalog-photos').getPublicUrl(path);
@@ -69,14 +69,14 @@ async function uploadPhoto(file, entityId) {
 // ── Loaders ───────────────────────────────────────────────────────────────
 async function loadCategories() {
   try {
-    const {data,error} = await sb.from('pos_categories').select('*').eq('user_id',S.userId).order('name');
+    const {data,error} = await sb.from('pos_categories').select('*').eq('tenant_id',S.tenantId).order('name');
     if(error||!data) return;
     S.cats = data.map((c,i)=>({...c,color:c.color||CAT_PALETTE[i%8].color,tint:c.color_tint||CAT_PALETTE[i%8].tint,ring:c.color_ring||CAT_PALETTE[i%8].ring}));
   } catch(e){}
 }
 async function loadProducts() {
   try {
-    const {data,error} = await sb.from('pos_products').select('*').eq('user_id',S.userId).order('name');
+    const {data,error} = await sb.from('pos_products').select('*').eq('tenant_id',S.tenantId).order('name');
     if(error||!data) return;
     S.products = data.map(p=>({
       id:p.id, cat:p.category_id||'_', name:p.name, desc:p.description||'',
@@ -88,14 +88,14 @@ async function loadProducts() {
 }
 async function loadCombos() {
   try {
-    const {data,error} = await sb.from('pos_combos').select('*').eq('user_id',S.userId).order('name');
+    const {data,error} = await sb.from('pos_combos').select('*').eq('tenant_id',S.tenantId).order('name');
     if(error||!data) return;
     S.combos = data.map(c=>({id:c.id,name:c.name,desc:c.description||'',price:c.price||0,active:c.active!==false,photo:c.photo_url||null,items:c.items||[]}));
   } catch(e){}
 }
 async function loadModifierGroups() {
   try {
-    const {data,error} = await sb.from('pos_modifier_groups').select('*').eq('user_id',S.userId).order('name');
+    const {data,error} = await sb.from('pos_modifier_groups').select('*').eq('tenant_id',S.tenantId).order('name');
     if(error||!data) return;
     S.mods = data.map(g=>({id:g.id,name:g.name,rule:g.rule||'opcional',multi:g.multi!==false,options:g.options||[]}));
   } catch(e){}
@@ -105,40 +105,40 @@ async function loadModifierGroups() {
 async function saveProductToSupabase(p) {
   try {
     const basePrice = p.presentations&&p.presentations.length?Math.min(...p.presentations.map(x=>x.price||0)):0;
-    const row={user_id:S.userId,name:p.name,price:basePrice,category_id:p.cat==='_'?null:p.cat,available:p.active,description:p.desc||null,photo_url:p.photo||null,presentations:p.presentations||[],variables:p.variables||[],mod_group_ids:p.modGroupIds||[]};
+    const row={tenant_id:S.tenantId,branch_id:S.branchId,name:p.name,price:basePrice,category_id:p.cat==='_'?null:p.cat,available:p.active,description:p.desc||null,photo_url:p.photo||null,presentations:p.presentations||[],variables:p.variables||[],mod_group_ids:p.modGroupIds||[]};
     const isNew=!p.id||p.id.startsWith('p_');
     if(isNew){const {data,error}=await sb.from('pos_products').insert([row]).select().single();if(error)throw error;return data.id;}
-    else{await sb.from('pos_products').update(row).eq('id',p.id).eq('user_id',S.userId);return p.id;}
+    else{await sb.from('pos_products').update(row).eq('id',p.id).eq('tenant_id',S.tenantId);return p.id;}
   } catch(e){console.error('saveProduct:',e);return p.id;}
 }
 async function saveCategoryToSupabase(c) {
   try {
-    const row={user_id:S.userId,name:c.name,color:c.color,color_tint:c.tint,color_ring:c.ring};
+    const row={tenant_id:S.tenantId,branch_id:S.branchId,name:c.name,color:c.color,color_tint:c.tint,color_ring:c.ring};
     const isNew=!c.id||c.id.startsWith('cat_');
     if(isNew){const {data,error}=await sb.from('pos_categories').insert([row]).select().single();if(error)throw error;return{...c,id:data.id};}
-    else{await sb.from('pos_categories').update(row).eq('id',c.id).eq('user_id',S.userId);return c;}
+    else{await sb.from('pos_categories').update(row).eq('id',c.id).eq('tenant_id',S.tenantId);return c;}
   } catch(e){console.error('saveCat:',e);return c;}
 }
 async function saveComboToSupabase(c) {
   try {
-    const row={user_id:S.userId,name:c.name,description:c.desc||null,price:c.price||0,active:c.active!==false,photo_url:c.photo||null,items:c.items||[]};
+    const row={tenant_id:S.tenantId,branch_id:S.branchId,name:c.name,description:c.desc||null,price:c.price||0,active:c.active!==false,photo_url:c.photo||null,items:c.items||[]};
     const isNew=!c.id||c.id.startsWith('c_');
     if(isNew){const {data,error}=await sb.from('pos_combos').insert([row]).select().single();if(error)throw error;return data.id;}
-    else{await sb.from('pos_combos').update(row).eq('id',c.id).eq('user_id',S.userId);return c.id;}
+    else{await sb.from('pos_combos').update(row).eq('id',c.id).eq('tenant_id',S.tenantId);return c.id;}
   } catch(e){console.error('saveCombo:',e);return c.id;}
 }
 async function saveModGroupToSupabase(g) {
   try {
-    const row={user_id:S.userId,name:g.name,rule:g.rule||'opcional',multi:g.multi!==false,options:g.options||[]};
+    const row={tenant_id:S.tenantId,branch_id:S.branchId,name:g.name,rule:g.rule||'opcional',multi:g.multi!==false,options:g.options||[]};
     const isNew=!g.id||g.id.startsWith('mg_');
     if(isNew){const {data,error}=await sb.from('pos_modifier_groups').insert([row]).select().single();if(error)throw error;return data.id;}
-    else{await sb.from('pos_modifier_groups').update(row).eq('id',g.id).eq('user_id',S.userId);return g.id;}
+    else{await sb.from('pos_modifier_groups').update(row).eq('id',g.id).eq('tenant_id',S.tenantId);return g.id;}
   } catch(e){console.error('saveMod:',e);return g.id;}
 }
-async function deleteCategoryFromSupabase(id){try{await sb.from('pos_categories').delete().eq('id',id).eq('user_id',S.userId);}catch(e){}}
-async function deleteProductFromSupabase(id){try{await sb.from('pos_products').delete().eq('id',id).eq('user_id',S.userId);}catch(e){}}
-async function deleteComboFromSupabase(id){try{await sb.from('pos_combos').delete().eq('id',id).eq('user_id',S.userId);}catch(e){}}
-async function deleteModGroupFromSupabase(id){try{await sb.from('pos_modifier_groups').delete().eq('id',id).eq('user_id',S.userId);}catch(e){}}
+async function deleteCategoryFromSupabase(id){try{await sb.from('pos_categories').delete().eq('id',id).eq('tenant_id',S.tenantId);}catch(e){}}
+async function deleteProductFromSupabase(id){try{await sb.from('pos_products').delete().eq('id',id).eq('tenant_id',S.tenantId);}catch(e){}}
+async function deleteComboFromSupabase(id){try{await sb.from('pos_combos').delete().eq('id',id).eq('tenant_id',S.tenantId);}catch(e){}}
+async function deleteModGroupFromSupabase(id){try{await sb.from('pos_modifier_groups').delete().eq('id',id).eq('tenant_id',S.tenantId);}catch(e){}}
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 async function signOut(){await sb.auth.signOut();window.location.href='login.html';}
@@ -278,7 +278,7 @@ function productCardHTML(p){
 async function toggleProduct(id){
   const p=S.products.find(x=>x.id===id);if(!p)return;
   p.active=!p.active;
-  await sb.from('pos_products').update({available:p.active}).eq('id',id).eq('user_id',S.userId);
+  await sb.from('pos_products').update({available:p.active}).eq('id',id).eq('tenant_id',S.tenantId);
   renderBody();
 }
 
@@ -293,7 +293,7 @@ function comboCardHTML(c){
   const items=(c.items||[]).map(it=>'<div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#475569"><span style="color:#8B5CF6;display:flex">'+icon('check',12,3)+'</span>'+escHtml(it.name)+'</div>').join('');
   return '<div class="cp-card" style="'+(c.active?'':'opacity:.72')+'" onclick="openEditor(\''+c.id+'\',\'combo\')">'+'<div class="cp-thumb">'+thumb+'<span class="cp-cat-chip" style="color:#8B5CF6;background:#F5F3FF">Combo</span>'+inactive+'</div>'+'<div class="cp-card-body"><div class="cp-card-row"><div class="cp-card-name">'+escHtml(c.name)+'</div><div class="cp-card-price">'+fmt(c.price)+'</div></div>'+(c.desc?'<div class="cp-card-desc">'+escHtml(c.desc)+'</div>':'')+'<div style="display:flex;flex-direction:column;gap:4px;margin-top:10px">'+items+'</div></div>'+'<div class="cp-card-foot" onclick="event.stopPropagation()"><button class="cp-switch'+(c.active?' on':'')+'" onclick="toggleCombo(\''+c.id+'\')"><span class="cp-switch-lbl">'+(c.active?'Activo':'Inactivo')+'</span><span class="cp-switch-track"><span class="cp-switch-knob"></span></span></button><button class="cp-card-edit-btn" onclick="openEditor(\''+c.id+'\',\'combo\')">Editar '+icon('chevron',13)+'</button></div></div>';
 }
-async function toggleCombo(id){const c=S.combos.find(x=>x.id===id);if(!c)return;c.active=!c.active;await sb.from('pos_combos').update({active:c.active}).eq('id',id).eq('user_id',S.userId);renderBody();}
+async function toggleCombo(id){const c=S.combos.find(x=>x.id===id);if(!c)return;c.active=!c.active;await sb.from('pos_combos').update({active:c.active}).eq('id',id).eq('tenant_id',S.tenantId);renderBody();}
 
 // ── Categories view ───────────────────────────────────────────────────────
 function renderCategoriesView(body){
@@ -507,11 +507,13 @@ async function importFromAI(){
 document.addEventListener('DOMContentLoaded', async () => {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { window.location.href = 'login.html'; return; }
-  S.userId = session.user.id;
+  const { data: { user } } = await sb.auth.getUser();
+  S.tenantId = user.user_metadata?.tenant_id || null;
+  S.branchId  = user.user_metadata?.branch_id  || null;
 
   // Mostrar nombre en topbar
   const chip = document.getElementById('cp-user-chip-name');
-  if (chip) chip.textContent = session.user.email.split('@')[0];
+  if (chip) chip.textContent = (user.user_metadata?.name || user.email || '').split('@')[0];
 
   // Render inmediato con estructura vacía
   renderPage();
