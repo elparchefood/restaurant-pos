@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard · Comanda POS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+  <style>
+    /* ─── Reset & Variables ─────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #0b1120;
+      --surface:     #141e2e;
+      --surface-2:   #1c2840;
+      --border:      rgba(255,255,255,0.08);
+      --text:        #f0f4ff;
+      --text-muted:  #8898b4;
+      --text-dim:    #4a5a74;
+      --green:       #22c55e;
+      --green-dim:   rgba(34,197,94,0.12);
+      --amber:       #f59e0b;
+      --amber-dim:   rgba(245,158,11,0.12);
+      --red:         #ef4444;
+      --red-dim:     rgba(239,68,68,0.12);
+      --blue:        #3b82f6;
+      --blue-dim:    rgba(59,130,246,0.12);
+      --purple:      #a855f7;
+      --purple-dim:  rgba(168,85,247,0.12);
+      --radius:      12px;
+      --radius-sm:   8px;
+      --font:        'DM Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── Layout ────────────────────────────────────── */
+    .dash-wrap {
+      display: grid;
+      grid-template-rows: 64px 1fr;
+      min-height: 100vh;
+    }
+
+    /* ─── Header ────────────────────────────────────── */
+    .dash-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      gap: 16px;
+    }
+    .dash-header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .dash-logo {
+      width: 32px;
+      height: 32px;
+      background: var(--green);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 700;
+      color: #000;
+      flex-shrink: 0;
+    }
+    .dash-brand {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+    .dash-date {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .dash-header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--green);
+      background: var(--green-dim);
+      border: 1px solid rgba(34,197,94,0.2);
+      border-radius: 20px;
+      padding: 4px 12px;
+    }
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.8); }
+    }
+    .dash-nav-link {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: all 0.15s;
+      border: 1px solid transparent;
+    }
+    .dash-nav-link:hover {
+      background: var(--surface-2);
+      color: var(--text);
+      border-color: var(--border);
+    }
+    .dash-nav-link.active {
+      background: var(--surface-2);
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    /* ─── Body ──────────────────────────────────────── */
+    .dash-body {
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      overflow-y: auto;
+    }
+
+    /* ─── KPI Row ───────────────────────────────────── */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    @media (max-width: 900px) {
+      .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 500px) {
+      .kpi-row { grid-template-columns: 1fr; }
+    }
+
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      border-radius: 2px 2px 0 0;
+    }
+    .kpi-card.green::before { background: var(--green); }
+    .kpi-card.amber::before { background: var(--amber); }
+    .kpi-card.blue::before  { background: var(--blue); }
+    .kpi-card.purple::before { background: var(--purple); }
+
+    .kpi-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .kpi-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .kpi-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+    .kpi-icon.green  { background: var(--green-dim); }
+    .kpi-icon.amber  { background: var(--amber-dim); }
+    .kpi-icon.blue   { background: var(--blue-dim); }
+    .kpi-icon.purple { background: var(--purple-dim); }
+
+    .kpi-value {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      color: var(--text);
+    }
+    .kpi-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .kpi-loading {
+      height: 28px;
+      background: var(--surface-2);
+      border-radius: 6px;
+      animation: shimmer 1.5s ease-in-out infinite;
+    }
+    @keyframes shimmer {
+      0%, 100% { opacity: 0.5; }
+      50%       { opacity: 1; }
+    }
+
+    /* ─── Main grid ─────────────────────────────────── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 16px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ─── Panel card ────────────────────────────────── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .panel-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-count {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: var(--surface-2);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+    .panel-body {
+      padding: 0;
+    }
+
+    /* ─── Orders list ───────────────────────────────── */
+    .order-row {
+      display: grid;
+      grid-template-columns: 48px 1fr auto auto;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    .order-row:last-child { border-bottom: none; }
+    .order-row:hover { background: var(--surface-2); }
+
+    .order-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+    .order-info-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .order-info-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .order-total {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      text-align: right;
+      white-space: nowrap;
+    }
+    .order-time {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: right;
+      margin-top: 2px;
+    }
+
+    /* ─── Status badge ──────────────────────────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+    .badge.open     { background: var(--blue-dim);   color: var(--blue);   }
+    .badge.pending  { background: var(--amber-dim);  color: var(--amber);  }
+    .badge.ready    { background: var(--green-dim);  color: var(--green);  }
+    .badge.closed   { background: rgba(255,255,255,0.05); color: var(--text-muted); }
+
+    /* ─── Tables grid ───────────────────────────────── */
+    .tables-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      padding: 16px;
+    }
+    .table-cell {
+      border-radius: 10px;
+      padding: 14px 12px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      cursor: default;
+      transition: all 0.15s;
+      text-align: center;
+    }
+    .table-cell.free     { border-color: rgba(34,197,94,0.2);  background: rgba(34,197,94,0.06); }
+    .table-cell.occupied { border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.08);}
+    .table-cell.reserved { border-color: rgba(59,130,246,0.3); background: rgba(59,130,246,0.08);}
+
+    .table-num {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .table-cell.free     .table-num { color: var(--green); }
+    .table-cell.occupied .table-num { color: var(--amber); }
+    .table-cell.reserved .table-num { color: var(--blue); }
+
+    .table-status-label {
+      font-size: 10px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 4px;
+    }
+    .table-cell.free     .table-status-label { color: rgba(34,197,94,0.7); }
+    .table-cell.occupied .table-status-label { color: rgba(245,158,11,0.7);}
+    .table-cell.reserved .table-status-label { color: rgba(59,130,246,0.7);}
+
+    .table-cap {
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    /* ─── Empty state ───────────────────────────────── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 20px;
+      color: var(--text-dim);
+      gap: 8px;
+      text-align: center;
+    }
+    .empty-state-icon { font-size: 28px; opacity: 0.4; }
+    .empty-state-text { font-size: 13px; }
+
+    /* ─── Skeleton rows ─────────────────────────────── */
+    .skeleton-row {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .skeleton-row:last-child { border-bottom: none; }
+    .sk-circle {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      background: var(--surface-2);
+      flex-shrink: 0;
+      animation: shimmer 1.5s ease-in-out infinite;
+    }
+    .sk-lines { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+    .sk-line {
+      height: 12px;
+      border-radius: 4px;
+      background: var(--surface-2);
+      animation: shimmer 1.5s ease-in-out infinite;
+    }
+    .sk-line.short { width: 60%; }
+
+    /* ─── Last updated ──────────────────────────────── */
+    .last-updated {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: right;
+      padding: 0;
+    }
+  </style>
+</head>
+<body>
+
+<div class="dash-wrap">
+
+  <!-- Header -->
+  <header class="dash-header">
+    <div class="dash-header-left">
+      <div class="dash-logo">C</div>
+      <div>
+        <div class="dash-brand" id="hdr-brand">Cargando...</div>
+        <div class="dash-date" id="hdr-date"></div>
+      </div>
+    </div>
+    <div class="dash-header-right">
+      <div class="live-badge">
+        <div class="live-dot"></div>
+        En vivo
+      </div>
+      <a href="index.html?rol=waiter" class="dash-nav-link">🧑‍🍳 Mesero</a>
+      <a href="index.html?rol=kitchen" class="dash-nav-link">👨‍🍳 Cocina</a>
+      <a href="index.html?rol=cashier" class="dash-nav-link">💳 Caja</a>
+    </div>
+  </header>
+
+  <!-- Body -->
+  <main class="dash-body">
+
+    <!-- KPIs -->
+    <div class="kpi-row">
+      <div class="kpi-card green">
+        <div class="kpi-top">
+          <span class="kpi-label">Ventas del día</span>
+          <div class="kpi-icon green">💰</div>
+        </div>
+        <div class="kpi-loading" id="kpi-ventas-skeleton"></div>
+        <div class="kpi-value" id="kpi-ventas" style="display:none"></div>
+        <div class="kpi-sub" id="kpi-ventas-sub"></div>
+      </div>
+      <div class="kpi-card amber">
+        <div class="kpi-top">
+          <span class="kpi-label">Pedidos activos</span>
+          <div class="kpi-icon amber">📋</div>
+        </div>
+        <div class="kpi-loading" id="kpi-pedidos-skeleton"></div>
+        <div class="kpi-value" id="kpi-pedidos" style="display:none"></div>
+        <div class="kpi-sub" id="kpi-pedidos-sub"></div>
+      </div>
+      <div class="kpi-card blue">
+        <div class="kpi-top">
+          <span class="kpi-label">Mesas ocupadas</span>
+          <div class="kpi-icon blue">🪑</div>
+        </div>
+        <div class="kpi-loading" id="kpi-mesas-skeleton"></div>
+        <div class="kpi-value" id="kpi-mesas" style="display:none"></div>
+        <div class="kpi-sub" id="kpi-mesas-sub"></div>
+      </div>
+      <div class="kpi-card purple">
+        <div class="kpi-top">
+          <span class="kpi-label">Ticket promedio</span>
+          <div class="kpi-icon purple">📊</div>
+        </div>
+        <div class="kpi-loading" id="kpi-ticket-skeleton"></div>
+        <div class="kpi-value" id="kpi-ticket" style="display:none"></div>
+        <div class="kpi-sub" id="kpi-ticket-sub"></div>
+      </div>
+    </div>
+
+    <!-- Main grid -->
+    <div class="main-grid">
+
+      <!-- Pedidos activos -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            📋 Pedidos activos
+            <span class="panel-count" id="orders-count">—</span>
+          </div>
+          <span class="last-updated" id="orders-ts"></span>
+        </div>
+        <div class="panel-body" id="orders-list">
+          <!-- skeleton -->
+          <div class="skeleton-row"><div class="sk-circle"></div><div class="sk-lines"><div class="sk-line"></div><div class="sk-line short"></div></div></div>
+          <div class="skeleton-row"><div class="sk-circle"></div><div class="sk-lines"><div class="sk-line"></div><div class="sk-line short"></div></div></div>
+          <div class="skeleton-row"><div class="sk-circle"></div><div class="sk-lines"><div class="sk-line"></div><div class="sk-line short"></div></div></div>
+        </div>
+      </div>
+
+      <!-- Estado de mesas -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            🪑 Estado de mesas
+            <span class="panel-count" id="tables-count">—</span>
+          </div>
+        </div>
+        <div class="tables-grid" id="tables-grid">
+          <!-- skeleton -->
+          <div class="table-cell"><div class="kpi-loading" style="height:14px;margin-bottom:4px"></div><div class="kpi-loading" style="height:10px;width:60%;margin:0 auto"></div></div>
+          <div class="table-cell"><div class="kpi-loading" style="height:14px;margin-bottom:4px"></div><div class="kpi-loading" style="height:10px;width:60%;margin:0 auto"></div></div>
+          <div class="table-cell"><div class="kpi-loading" style="height:14px;margin-bottom:4px"></div><div class="kpi-loading" style="height:10px;width:60%;margin:0 auto"></div></div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<!-- Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ─── Config ────────────────────────────────────────────
+const SUPABASE_URL = 'https://tblujfduscslxjmrjbdr.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ─── Helpers ────────────────────────────────────────────
+function fmt(n) {
+  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(n || 0);
+}
+function timeAgo(iso) {
+  if (!iso) return '';
+  const diff = Math.floor((Date.now() - new Date(iso)) / 60000);
+  if (diff < 1) return 'ahora mismo';
+  if (diff === 1) return 'hace 1 min';
+  if (diff < 60) return `hace ${diff} min`;
+  const h = Math.floor(diff / 60);
+  return h === 1 ? 'hace 1 hora' : `hace ${h} h`;
+}
+function nowStr() {
+  return new Intl.DateTimeFormat('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date());
+}
+function todayStart() {
+  const d = new Date();
+  d.setHours(0,0,0,0);
+  return d.toISOString();
+}
+
+// Status labels for orders
+const STATUS_LABELS = {
+  open:      { label: 'Abierto',   cls: 'open'    },
+  pending:   { label: 'Pendiente', cls: 'pending'  },
+  in_progress:{ label: 'En curso', cls: 'open'    },
+  ready:     { label: 'Listo',     cls: 'ready'   },
+  closed:    { label: 'Cerrado',   cls: 'closed'  },
+  cancelled: { label: 'Cancelado', cls: 'closed'  },
+};
+function getStatusBadge(status) {
+  const s = STATUS_LABELS[status] || { label: status || '—', cls: 'closed' };
+  return `<span class="badge ${s.cls}">${s.label}</span>`;
+}
+
+// Table status labels
+const TABLE_STATUS = {
+  free:     { label: 'Libre',     cls: 'free'     },
+  occupied: { label: 'Ocupada',   cls: 'occupied' },
+  reserved: { label: 'Reservada', cls: 'reserved' },
+};
+
+// ─── Render helpers ─────────────────────────────────────
+function showKpi(id, value) {
+  document.getElementById(id + '-skeleton').style.display = 'none';
+  const el = document.getElementById(id);
+  el.textContent = value;
+  el.style.display = 'block';
+}
+
+function renderOrders(orders) {
+  const list = document.getElementById('orders-list');
+  document.getElementById('orders-count').textContent = orders.length;
+  document.getElementById('orders-ts').textContent = 'Actualizado: ' + nowStr();
+
+  if (!orders.length) {
+    list.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📋</div>
+        <div class="empty-state-text">No hay pedidos activos en este momento</div>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = orders.map(o => {
+    const tableLabel = o.pos_tables ? `Mesa ${o.pos_tables.number || o.pos_tables.name || o.table_id}` : `Mesa ${o.table_id || '—'}`;
+    const itemCount  = o.pos_order_items ? o.pos_order_items.length : 0;
+    const total      = o.total || o.pos_order_items?.reduce((s, i) => s + (i.subtotal || i.unit_price * i.quantity || 0), 0) || 0;
+
+    return `
+    <div class="order-row">
+      <div class="order-avatar">${(o.pos_tables?.number || o.pos_tables?.name || '?').toString().slice(0,2)}</div>
+      <div>
+        <div class="order-info-name">${tableLabel}</div>
+        <div class="order-info-sub">${itemCount} ítem${itemCount !== 1 ? 's' : ''} · ${getStatusBadge(o.status)}</div>
+      </div>
+      <div>
+        <div class="order-total">${fmt(total)}</div>
+        <div class="order-time">${timeAgo(o.created_at)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderTables(tables) {
+  const grid = document.getElementById('tables-grid');
+  const free = tables.filter(t => (t.status || 'free') === 'free').length;
+  document.getElementById('tables-count').textContent = `${tables.length - free} / ${tables.length}`;
+
+  if (!tables.length) {
+    grid.innerHTML = `
+      <div class="empty-state" style="grid-column:1/-1">
+        <div class="empty-state-icon">🪑</div>
+        <div class="empty-state-text">No hay mesas configuradas</div>
+      </div>`;
+    return;
+  }
+
+  const sorted = [...tables].sort((a, b) => {
+    const an = parseInt(a.number || a.name || '0') || 0;
+    const bn = parseInt(b.number || b.name || '0') || 0;
+    return an - bn;
+  });
+
+  grid.innerHTML = sorted.map(t => {
+    const status = t.status || 'free';
+    const s = TABLE_STATUS[status] || { label: status, cls: 'free' };
+    const label = t.number ? `${t.number}` : (t.name || '—');
+    const cap = t.capacity ? `${t.capacity} pers.` : '';
+    return `
+    <div class="table-cell ${s.cls}">
+      <div class="table-num">${label}</div>
+      <div class="table-status-label">${s.label}</div>
+      ${cap ? `<div class="table-cap">${cap}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ─── Data fetching ──────────────────────────────────────
+async function loadKpis() {
+  // Orders of today
+  const { data: todayOrders } = await sb
+    .from('pos_orders')
+    .select('total, status, created_at')
+    .gte('created_at', todayStart());
+
+  const closed  = (todayOrders || []).filter(o => o.status === 'closed' || o.status === 'completed');
+  const active  = (todayOrders || []).filter(o => o.status !== 'closed' && o.status !== 'completed' && o.status !== 'cancelled');
+  const ventas  = closed.reduce((s, o) => s + (o.total || 0), 0);
+  const ticket  = closed.length ? ventas / closed.length : 0;
+
+  showKpi('kpi-ventas', fmt(ventas));
+  document.getElementById('kpi-ventas-sub').textContent = `${closed.length} pedido${closed.length !== 1 ? 's' : ''} cerrado${closed.length !== 1 ? 's' : ''}`;
+
+  showKpi('kpi-pedidos', active.length);
+  document.getElementById('kpi-pedidos-sub').textContent = active.length
+    ? `${active.length} pedido${active.length !== 1 ? 's' : ''} en curso`
+    : 'Sin pedidos activos';
+
+  showKpi('kpi-ticket', fmt(ticket));
+  document.getElementById('kpi-ticket-sub').textContent = ticket ? `Promedio hoy` : 'Sin ventas aún';
+}
+
+async function loadOrders() {
+  const { data: orders, error } = await sb
+    .from('pos_orders')
+    .select('*, pos_tables(number, name), pos_order_items(quantity, unit_price, subtotal)')
+    .not('status', 'in', '("closed","completed","cancelled")')
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  renderOrders(orders || []);
+}
+
+async function loadTables() {
+  const { data: tables, error } = await sb
+    .from('pos_tables')
+    .select('*')
+    .order('number', { ascending: true });
+
+  const list = tables || [];
+
+  // KPI mesas
+  const occupied = list.filter(t => (t.status || 'free') !== 'free').length;
+  showKpi('kpi-mesas', `${occupied}/${list.length}`);
+  document.getElementById('kpi-mesas-sub').textContent = list.length
+    ? `${list.length - occupied} libre${list.length - occupied !== 1 ? 's' : ''} ahora mismo`
+    : 'Sin mesas configuradas';
+
+  renderTables(list);
+}
+
+// ─── Init ───────────────────────────────────────────────
+async function init() {
+  // Header: fecha
+  const now = new Date();
+  document.getElementById('hdr-date').textContent = now.toLocaleDateString('es-CO', {
+    weekday: 'long', day: 'numeric', month: 'long'
+  });
+
+  // Fetch restaurant name from config table if exists, else default
+  const { data: cfg } = await sb.from('pos_config').select('value').eq('key', 'restaurant_name').maybeSingle();
+  document.getElementById('hdr-brand').textContent = cfg?.value || 'Mi Restaurante';
+  document.title = `Dashboard · ${cfg?.value || 'Comanda POS'}`;
+
+  // Load all data
+  await Promise.all([loadKpis(), loadOrders(), loadTables()]);
+
+  // ─── Realtime subscriptions ──────────────────────────
+  // Orders channel
+  sb.channel('dashboard-orders')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_orders' }, () => {
+      loadKpis();
+      loadOrders();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_order_items' }, () => {
+      loadOrders();
+    })
+    .subscribe();
+
+  // Tables channel
+  sb.channel('dashboard-tables')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_tables' }, () => {
+      loadTables();
+      loadKpis();
+    })
+    .subscribe();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
