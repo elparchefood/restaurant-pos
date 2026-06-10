@@ -1,319 +1,456 @@
-// ── Estado ─────────────────────────────────────────────────────────────
-var MODE        = 'login';
-var REMEMBER    = true;
-var AGREE       = false;
-var PASS_SHOW   = false;
-var SUBMITTING  = false;
+/* ═══════════════════════════════════════
+   login.js — Lumen POS Auth + Registro
+   ═══════════════════════════════════════ */
 
-// ── Boot ─────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', function () {
-  initMockCard();
-  checkExistingSession();
-  bindForm();
-  bindEmail();
-});
+/* ── Estado global ── */
+var STEP = 'login';
+var PLAN = 'pro';
+var BRANCHES = 1;
+var UPLOAD_FILE = null;
+var REF_CODE = '';
+var FORM = {};
 
-// ── Sesión activa ─────────────────────────────────────────────────────────
-async function checkExistingSession() {
-  try {
-    var res = await sb.auth.getSession();
-    if (res.data && res.data.session) {
-      window.location.href = 'dashboard.html';
+var PLANS = {
+  starter: {
+    name: 'Starter',
+    base: 99000,
+    tag: 'Para negocios que comienzan',
+    feats: ['1 punto de venta','Menú digital ilimitado','Reportes básicos','Soporte por chat','App mesero','Gestión de mesas']
+  },
+  pro: {
+    name: 'Pro',
+    base: 249000,
+    tag: 'Para negocios en crecimiento',
+    feats: ['Todo lo de Starter','Múltiples puntos de venta','Reportes avanzados','Dashboard en tiempo real','Chat IA integrado','Soporte prioritario']
+  }
+};
+
+/* ── Descuentos por volumen ── */
+function getDiscount(branches) {
+  if (branches >= 10) return 0.30;
+  if (branches >= 4)  return 0.20;
+  if (branches >= 2)  return 0.10;
+  return 0;
+}
+
+function calcTotal(planId, branches) {
+  var base = PLANS[planId].base;
+  var disc = getDiscount(branches);
+  return Math.round(base * branches * (1 - disc));
+}
+
+function COPF(n) {
+  return '$' + Math.round(n || 0).toLocaleString('es-CO');
+}
+
+/* ── Navegación entre pasos ── */
+function goStep(step) {
+  var views = ['login','plan','datos','pago','confirmado'];
+  views.forEach(function(v) {
+    var el = document.getElementById('view-' + v);
+    if (el) el.style.display = 'none';
+  });
+
+  var panel = document.getElementById('form-panel');
+  var el = document.getElementById('view-' + step);
+  if (el) el.style.display = '';
+  STEP = step;
+
+  // Dark mode en pasos de registro
+  if (step === 'login') {
+    panel.classList.remove('dark-mode');
+  } else {
+    panel.classList.add('dark-mode');
+  }
+
+  // Al entrar a plan, renderizar tarjetas
+  if (step === 'plan') {
+    renderPlanCards();
+    updateBranchUI();
+  }
+
+  // Al entrar a pago, actualizar monto
+  if (step === 'pago') {
+    updatePagoUI();
+  }
+
+  // Al entrar a confirmado, llenar resumen
+  if (step === 'confirmado') {
+    fillConfirm();
+  }
+
+  // Scroll top
+  var fp = document.getElementById('form-panel');
+  if (fp) fp.scrollTop = 0;
+}
+
+/* ══════════════════════════════════════
+   PLAN STEP
+   ══════════════════════════════════════ */
+function renderPlanCards() {
+  var grid = document.getElementById('pm-grid');
+  if (!grid) return;
+  var disc = getDiscount(BRANCHES);
+  var html = '';
+
+  ['starter','pro'].forEach(function(id) {
+    var p = PLANS[id];
+    var total = calcTotal(id, BRANCHES);
+    var orig  = p.base * BRANCHES;
+    var isOn  = PLAN === id;
+    var isPro = id === 'pro';
+
+    var priceHtml = disc > 0
+      ? '<span class="pm-strike">' + COPF(orig) + '</span><span class="pm-price">' + COPF(total) + '</span>'
+      : '<span class="pm-price">' + COPF(total) + '</span>';
+
+    html += '<button class="pm-card ' + (isPro ? 'pro ' : '') + (isOn ? 'selected' : '') + '" onclick="selectPlan(\'' + id + '\')">';
+    if (isPro) html += '<div class="pm-popular-tag">⭐ Más popular</div>';
+    html += '<div class="pm-card-head">';
+    html += '<div class="pm-radio">' + (isOn ? '<svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="currentColor"/></svg>' : '') + '</div>';
+    html += '<div><div class="pm-plan-name">' + p.name + '</div><div class="pm-plan-tag">' + p.tag + '</div></div>';
+    html += '</div>';
+    html += '<div class="pm-price-block"><div class="pm-price-row">' + priceHtml + '<span class="pm-per">/mes</span></div>';
+    if (BRANCHES > 1) {
+      html += '<div class="pm-card-total">Total: <strong>' + COPF(total) + '</strong> · ' + BRANCHES + ' suc.</div>';
     }
-  } catch (e) {}
-}
-
-// ── Enlazar formulario ────────────────────────────────────────────────────
-function bindForm() {
-  var form = document.getElementById('auth-form');
-  if (form) form.addEventListener('submit', handleSubmit);
-  var btnGoogle = document.getElementById('btn-google');
-  if (btnGoogle) btnGoogle.addEventListener('click', handleGoogle);
-}
-
-// ── Email: validación en tiempo real ─────────────────────────────────────
-function bindEmail() {
-  var inp = document.getElementById('inp-email');
-  if (!inp) return;
-  inp.addEventListener('input', function () {
-    var valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inp.value.trim());
-    var icon = document.getElementById('email-valid');
-    if (icon) icon.style.display = valid ? 'flex' : 'none';
-  });
-}
-
-// ── Toggle login / registro ───────────────────────────────────────────────
-function toggleMode() {
-  MODE = MODE === 'login' ? 'register' : 'login';
-  hideError();
-  var isReg = MODE === 'register';
-
-  setTxt('form-title',      isReg ? 'Crea tu cuenta' : 'Inicia sesión');
-  setTxt('form-sub',        isReg ? 'Completa el formulario para comenzar.' : 'Ingresa para administrar tu punto de venta.');
-  setTxt('btn-submit-txt',  isReg ? 'Crear cuenta' : 'Iniciar sesión');
-  setTxt('toggle-txt',      isReg ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?');
-  setTxt('toggle-btn-txt',  isReg ? 'Inicia sesión' : 'Crear una cuenta');
-  setTxt('btn-google-txt',  isReg ? 'Registrarse con Google' : 'Continuar con Google');
-
-  document.querySelectorAll('.register-only').forEach(function (el) {
-    el.style.display = isReg ? 'block' : 'none';
-  });
-  document.querySelectorAll('.login-only').forEach(function (el) {
-    el.style.display = isReg ? 'none' : 'flex';
+    html += '</div>';
+    if (isPro) {
+      html += '<div class="pm-inherit"><svg width="14" height="14" fill="none" viewBox="0 0 14 14"><path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Incluye todo Starter, más:</div>';
+    }
+    html += '<ul class="pm-feats">';
+    p.feats.forEach(function(f) {
+      html += '<li><span class="pm-tick"><svg width="8" height="7" fill="none" viewBox="0 0 8 7"><path d="M1 3.5l2 2L7 1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' + f + '</li>';
+    });
+    html += '</ul></button>';
   });
 
-  var passInp = document.getElementById('inp-pass');
-  if (passInp) passInp.placeholder = isReg ? 'Mínimo 8 caracteres' : 'Tu contraseña';
-
-  var btnForgot = document.getElementById('btn-forgot');
-  if (btnForgot) btnForgot.style.display = isReg ? 'none' : 'block';
+  grid.innerHTML = html;
+  updateFooter();
 }
 
-// ── Mostrar / ocultar contraseña ──────────────────────────────────────────
-function togglePass() {
-  PASS_SHOW = !PASS_SHOW;
-  var inp  = document.getElementById('inp-pass');
-  var inpC = document.getElementById('inp-confirm');
-  if (inp)  inp.type  = PASS_SHOW ? 'text' : 'password';
-  if (inpC) inpC.type = PASS_SHOW ? 'text' : 'password';
-  var icon = document.getElementById('eye-icon');
-  if (!icon) return;
-  if (PASS_SHOW) {
-    icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>';
-  } else {
-    icon.innerHTML = '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>';
+function selectPlan(id) {
+  PLAN = id;
+  renderPlanCards();
+}
+
+function setPreset(n) {
+  BRANCHES = n;
+  updateBranchUI();
+  renderPlanCards();
+}
+
+function stepBranch(delta) {
+  BRANCHES = Math.max(1, Math.min(99, BRANCHES + delta));
+  updateBranchUI();
+  renderPlanCards();
+}
+
+function updateBranchUI() {
+  var count = document.getElementById('pm-count');
+  if (count) count.textContent = BRANCHES;
+
+  // Presets highlight
+  var presets = document.querySelectorAll('.pm-chip');
+  presets.forEach(function(btn) {
+    var v = parseInt(btn.textContent);
+    btn.classList.toggle('on', v === BRANCHES && BRANCHES <= 3);
+  });
+
+  // Discount badge
+  var disc = getDiscount(BRANCHES);
+  var badge = document.getElementById('pm-discount-badge');
+  if (badge) {
+    if (disc > 0) {
+      badge.className = 'pm-discount live';
+      badge.textContent = (disc * 100) + '% descuento';
+    } else {
+      badge.className = 'pm-discount flat';
+      badge.textContent = 'Sin descuento';
+    }
   }
 }
 
-// ── Checkboxes ────────────────────────────────────────────────────────────
-function toggleRemember() {
-  REMEMBER = !REMEMBER;
-  var el = document.getElementById('chk-remember');
-  if (!el) return;
-  if (REMEMBER) {
-    el.classList.add('on');
-    el.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-  } else {
-    el.classList.remove('on');
-    el.innerHTML = '';
+function updateFooter() {
+  var disc   = getDiscount(BRANCHES);
+  var total  = calcTotal(PLAN, BRANCHES);
+  var planEl = document.getElementById('pm-plan-name');
+  var totEl  = document.getElementById('pm-total-amount');
+  var offB   = document.getElementById('pm-off-badge');
+  var offT   = document.getElementById('pm-off-text');
+  if (planEl) planEl.textContent = PLANS[PLAN].name;
+  if (totEl)  totEl.textContent  = COPF(total);
+  if (offB) {
+    offB.style.display = disc > 0 ? 'inline-flex' : 'none';
+    if (offT) offT.textContent = (disc * 100) + '% OFF';
   }
 }
 
-function toggleAgree() {
-  AGREE = !AGREE;
-  var el = document.getElementById('chk-agree');
-  if (!el) return;
-  if (AGREE) {
-    el.classList.add('on');
-    el.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-  } else {
-    el.classList.remove('on');
-    el.innerHTML = '';
-  }
-}
+/* ══════════════════════════════════════
+   DATOS STEP
+   ══════════════════════════════════════ */
+function handleDatos() {
+  var nombre   = document.getElementById('reg-nombre').value.trim();
+  var negocio  = document.getElementById('reg-negocio').value.trim();
+  var email    = document.getElementById('reg-email').value.trim();
+  var pass     = document.getElementById('reg-pass').value;
+  var confirm  = document.getElementById('reg-confirm').value;
+  var termsChk = document.getElementById('chk-terms');
+  var errEl    = document.getElementById('datos-error');
+  var errTxt   = document.getElementById('datos-error-text');
 
-// ── Submit ────────────────────────────────────────────────────────────────
-async function handleSubmit(e) {
-  e.preventDefault();
-  if (SUBMITTING) return;
-  hideError();
-  var email = (document.getElementById('inp-email') || {}).value || '';
-  var pass  = (document.getElementById('inp-pass')  || {}).value || '';
-  email = email.trim();
-  if (!email || !pass) { showError('Completa todos los campos.'); return; }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showError('Correo inválido.'); return; }
-  if (MODE === 'register') {
-    await submitRegister(email, pass);
-  } else {
-    await submitLogin(email, pass);
-  }
-}
-
-async function submitLogin(email, pass) {
-  setLoading(true);
-  try {
-    var res = await sb.auth.signInWithPassword({ email: email, password: pass });
-    if (res.error) { showError(friendlyError(res.error.message)); return; }
-    showToast('Bienvenido de vuelta. Entrando...');
-    setTimeout(function () { window.location.href = 'dashboard.html'; }, 900);
-  } catch (e) {
-    showError('Error de conexión. Intenta de nuevo.');
-  } finally {
-    setLoading(false);
-  }
-}
-
-async function submitRegister(email, pass) {
-  var nombre  = ((document.getElementById('inp-nombre')  || {}).value || '').trim();
-  var negocio = ((document.getElementById('inp-negocio') || {}).value || '').trim();
-  var confirm = (document.getElementById('inp-confirm') || {}).value || '';
-  if (!nombre)  { showError('Ingresa tu nombre completo.'); return; }
-  if (!negocio) { showError('Ingresa el nombre del negocio.'); return; }
-  if (pass.length < 8) { showError('La contraseña debe tener mínimo 8 caracteres.'); return; }
+  // Validar
+  var hintConf = document.getElementById('hint-confirm');
   if (pass !== confirm) {
-    var hint = document.getElementById('confirm-hint');
-    if (hint) hint.style.display = 'block';
-    showError('Las contraseñas no coinciden.');
+    hintConf.style.display = '';
     return;
   }
-  if (!AGREE) { showError('Debes aceptar los términos y condiciones.'); return; }
+  hintConf.style.display = 'none';
 
-  setLoading(true);
+  if (!nombre || !negocio || !email || !pass) {
+    errTxt.textContent = 'Completa todos los campos.';
+    errEl.classList.add('show');
+    return;
+  }
+  if (pass.length < 8) {
+    errTxt.textContent = 'La contraseña debe tener al menos 8 caracteres.';
+    errEl.classList.add('show');
+    return;
+  }
+  if (!termsChk.classList.contains('on')) {
+    errTxt.textContent = 'Acepta los términos para continuar.';
+    errEl.classList.add('show');
+    return;
+  }
+
+  errEl.classList.remove('show');
+
+  FORM = { nombre: nombre, negocio: negocio, email: email, pass: pass };
+  // Generar referencia
+  REF_CODE = 'LUMEN-' + Math.random().toString(36).substr(2,6).toUpperCase();
+  goStep('pago');
+}
+
+/* ══════════════════════════════════════
+   PAGO STEP
+   ══════════════════════════════════════ */
+function updatePagoUI() {
+  var total = calcTotal(PLAN, BRANCHES);
+  var montoEl = document.getElementById('pago-monto');
+  var refEl   = document.getElementById('pago-ref');
+  if (montoEl) montoEl.textContent = COPF(total);
+  if (refEl)   refEl.textContent   = REF_CODE;
+}
+
+function handleFileSelect(file) {
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('El archivo supera 5MB');
+    return;
+  }
+  UPLOAD_FILE = file;
+  var zone     = document.getElementById('upload-zone');
+  var textEl   = document.getElementById('upload-text');
+  if (zone) zone.classList.add('has-file');
+  if (textEl) {
+    textEl.innerHTML = '<div class="uploaded-file"><svg width="16" height="16" fill="none" viewBox="0 0 16 16"><path d="M4 13V8a2 2 0 012-2h4a2 2 0 012 2v5M2 13h12" stroke="#A9B2FF" stroke-width="1.3" stroke-linecap="round"/></svg>' + file.name + '</div>';
+  }
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.add('dragover');
+}
+function onDragLeave(e) {
+  document.getElementById('upload-zone').classList.remove('dragover');
+}
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('dragover');
+  var file = e.dataTransfer.files[0];
+  if (file) handleFileSelect(file);
+}
+
+async function handlePago() {
+  var hintUp = document.getElementById('hint-upload');
+  if (!UPLOAD_FILE) {
+    hintUp.style.display = '';
+    return;
+  }
+  hintUp.style.display = 'none';
+
+  var btn = document.getElementById('btn-pago');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spin"></span>Enviando...';
+
   try {
-    var res = await sb.auth.signUp({
-      email: email,
-      password: pass,
-      options: { data: { full_name: nombre, business_name: negocio } }
-    });
-    if (res.error) { showError(friendlyError(res.error.message)); return; }
-    showToast('Cuenta creada. Revisa tu correo para verificarla.');
-    setTimeout(function () {
-      setTxt('form-title', 'Revisa tu correo');
-      setTxt('form-sub', 'Enviamos un enlace a ' + email + '. Confírmalo para ingresar.');
-      var form = document.getElementById('auth-form');
-      if (form) form.style.display = 'none';
-      var toggle = document.querySelector('.toggle-row');
-      if (toggle) toggle.style.display = 'none';
-      var google = document.getElementById('btn-google');
-      if (google) google.style.display = 'none';
-      var divider = document.querySelector('.divider');
-      if (divider) divider.style.display = 'none';
-    }, 1300);
+    // 1. Subir comprobante a Storage
+    var ext      = UPLOAD_FILE.name.split('.').pop();
+    var fileName = REF_CODE + '.' + ext;
+    var { error: upErr } = await sb.storage
+      .from('comprobantes')
+      .upload(fileName, UPLOAD_FILE, { upsert: true });
+    if (upErr) throw upErr;
+
+    var { data: urlData } = sb.storage.from('comprobantes').getPublicUrl(fileName);
+    var compUrl = urlData.publicUrl;
+
+    // 2. Insertar en pos_registrations
+    var total = calcTotal(PLAN, BRANCHES);
+    var { error: dbErr } = await sb
+      .from('pos_registrations')
+      .insert({
+        nombre:       FORM.nombre,
+        negocio:      FORM.negocio,
+        email:        FORM.email,
+        password_tmp: FORM.pass,
+        plan:         PLAN,
+        branches:     BRANCHES,
+        total_mes:    total,
+        ref_code:     REF_CODE,
+        comprobante_url: compUrl,
+        status:       'pendiente'
+      });
+    if (dbErr) throw dbErr;
+
+    goStep('confirmado');
   } catch (e) {
-    showError('Error de conexión. Intenta de nuevo.');
-  } finally {
-    setLoading(false);
+    console.error('handlePago:', e);
+    showToast('Error al enviar: ' + (e.message || 'Intenta de nuevo'));
+    btn.disabled = false;
+    btn.textContent = 'Enviar solicitud';
   }
 }
 
-// ── Google OAuth ──────────────────────────────────────────────────────────
-async function handleGoogle() {
+/* ══════════════════════════════════════
+   CONFIRMACIÓN
+   ══════════════════════════════════════ */
+function fillConfirm() {
+  var total = calcTotal(PLAN, BRANCHES);
+  var set = function(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
+  set('cv-negocio', FORM.negocio || '—');
+  set('cv-plan',    PLANS[PLAN] ? PLANS[PLAN].name : '—');
+  set('cv-suc',     BRANCHES + (BRANCHES === 1 ? ' sucursal' : ' sucursales'));
+  set('cv-total',   COPF(total) + '/mes');
+  set('cv-email',   FORM.email || '—');
+}
+
+/* ══════════════════════════════════════
+   LOGIN
+   ══════════════════════════════════════ */
+async function handleLogin() {
+  var email = (document.getElementById('login-email').value || '').trim();
+  var pass  = document.getElementById('login-pass').value;
+  var errEl = document.getElementById('login-error');
+  var errTxt = document.getElementById('login-error-text');
+  var btn   = document.getElementById('btn-login');
+
+  if (!email || !pass) {
+    errTxt.textContent = 'Ingresa tu correo y contraseña.';
+    errEl.classList.add('show');
+    return;
+  }
+
+  errEl.classList.remove('show');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spin"></span>Ingresando...';
+
   try {
-    var res = await sb.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin + '/dashboard.html' }
-    });
-    if (res.error) showError(friendlyError(res.error.message));
-  } catch (e) {
-    showError('No se pudo conectar con Google.');
-  }
-}
+    var { data, error } = await sb.auth.signInWithPassword({ email: email, password: pass });
+    if (error) throw error;
 
-// ── Recuperar contraseña ──────────────────────────────────────────────────
-async function forgotPassword() {
-  var email = ((document.getElementById('inp-email') || {}).value || '').trim();
-  if (!email) { showError('Escribe tu correo para recuperar la contraseña.'); return; }
-  try {
-    var res = await sb.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/login.html'
-    });
-    if (res.error) { showError(friendlyError(res.error.message)); return; }
-    showToast('Enviamos un correo para restablecer tu contraseña.');
-  } catch (e) {
-    showError('Error al enviar el correo. Intenta de nuevo.');
-  }
-}
-
-// ── Helpers de UI ─────────────────────────────────────────────────────────
-function setLoading(on) {
-  SUBMITTING = on;
-  var btn  = document.getElementById('btn-submit');
-  var txt  = document.getElementById('btn-submit-txt');
-  var spin = document.getElementById('btn-spin');
-  var arr  = document.getElementById('btn-arrow');
-  if (!btn) return;
-  btn.disabled = on;
-  if (txt)  txt.style.opacity  = on ? '0' : '1';
-  if (spin) spin.style.display = on ? 'block' : 'none';
-  if (arr)  arr.style.display  = on ? 'none' : 'block';
-}
-
-function showError(msg) {
-  var banner = document.getElementById('error-banner');
-  var txt    = document.getElementById('error-msg');
-  if (!banner || !txt) return;
-  txt.textContent = msg;
-  banner.style.display = 'flex';
-  var card = document.getElementById('form-card');
-  if (card) {
-    card.classList.add('shake');
-    setTimeout(function () { card.classList.remove('shake'); }, 400);
-  }
-}
-
-function hideError() {
-  var banner = document.getElementById('error-banner');
-  if (banner) banner.style.display = 'none';
-  var hint = document.getElementById('confirm-hint');
-  if (hint) hint.style.display = 'none';
-}
-
-var _toastTimer = null;
-function showToast(msg) {
-  var toast = document.getElementById('toast');
-  var msgEl = document.getElementById('toast-msg');
-  if (!toast || !msgEl) return;
-  msgEl.textContent = msg;
-  toast.style.display = 'flex';
-  requestAnimationFrame(function () { toast.classList.add('visible'); });
-  if (_toastTimer) clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(function () {
-    toast.classList.remove('visible');
-    setTimeout(function () { toast.style.display = 'none'; }, 350);
-  }, 3200);
-}
-
-function setTxt(id, txt) {
-  var el = document.getElementById(id);
-  if (el) el.textContent = txt;
-}
-
-function friendlyError(msg) {
-  if (!msg) return 'Error desconocido.';
-  var m = msg.toLowerCase();
-  if (m.includes('invalid login') || m.includes('invalid credentials')) return 'Correo o contraseña incorrectos.';
-  if (m.includes('email not confirmed'))     return 'Verifica tu correo antes de ingresar.';
-  if (m.includes('user already registered')) return 'Ya existe una cuenta con este correo.';
-  if (m.includes('password'))                return 'La contraseña debe tener mínimo 8 caracteres.';
-  if (m.includes('rate limit'))              return 'Demasiados intentos. Espera unos minutos.';
-  return msg;
-}
-
-// ── Mock card animada del panel brand ─────────────────────────────────────
-function initMockCard() {
-  var container = document.getElementById('card-bars');
-  if (!container) return;
-  var heights = [28, 52, 38, 68, 48, 82, 58, 42, 76, 62, 88, 52];
-  var bars = '';
-  heights.forEach(function (h, i) {
-    var delay = (i * 0.06).toFixed(2);
-    bars += '<div style="flex:1;background:rgba(255,255,255,.18);border-radius:3px 3px 0 0;height:' + h + '%;align-self:flex-end;transition:height .7s ease ' + delay + 's"></div>';
-  });
-  container.innerHTML = bars;
-  // Animar counter
-  animateSalesNumber();
-  // Notificación
-  setTimeout(function () {
-    var notif = document.getElementById('card-notif');
-    if (notif) {
-      var span = notif.querySelectorAll('span');
-      if (span[1]) span[1].textContent = 'Mesa 04 · Pagada';
+    // Verificar rol
+    var { data: profile } = await sb.from('user_profiles').select('role').eq('id', data.user.id).single();
+    if (profile && profile.role === 'admin') {
+      window.location.href = 'admin-reg.html';
+    } else {
+      window.location.href = 'dashboard.html';
     }
-  }, 700);
+  } catch (e) {
+    errTxt.textContent = e.message === 'Invalid login credentials'
+      ? 'Correo o contraseña incorrectos.'
+      : (e.message || 'Error al iniciar sesión.');
+    errEl.classList.add('show');
+    btn.disabled = false;
+    btn.textContent = 'Iniciar sesión';
+  }
 }
 
-function animateSalesNumber() {
-  var el = document.getElementById('card-sales');
-  if (!el) return;
-  var target = 847300;
-  var dur    = 1100;
-  var begin  = null;
-  function step(ts) {
-    if (!begin) begin = ts;
-    var p    = Math.min((ts - begin) / dur, 1);
-    var ease = 1 - Math.pow(1 - p, 3);
-    el.textContent = Math.round(ease * target).toLocaleString('es-CO');
-    if (p < 1) requestAnimationFrame(step);
-  }
-  requestAnimationFrame(step);
+function showForgot() {
+  showToast('Función en desarrollo · Contacta a soporte');
 }
+
+/* ══════════════════════════════════════
+   HELPERS UI
+   ══════════════════════════════════════ */
+function togglePwd(inputId, btn) {
+  var inp = document.getElementById(inputId);
+  if (!inp) return;
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function toggleChk(el) {
+  el.classList.toggle('on');
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(function() {
+    showToast('Copiado: ' + text);
+  }).catch(function() {
+    showToast(text);
+  });
+}
+
+function copyRef() {
+  copyText(REF_CODE);
+}
+
+function showToast(msg) {
+  var t = document.getElementById('auth-toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, 2800);
+}
+
+/* ══════════════════════════════════════
+   ODOMETER ANIMATION
+   ══════════════════════════════════════ */
+(function() {
+  var digits = [
+    { id: 'odo-m', dur: 6.2 },
+    { id: 'odo-c', dur: 4.8 },
+    { id: 'odo-u', dur: 3.4 }
+  ];
+  digits.forEach(function(d) {
+    var el = document.getElementById(d.id);
+    if (!el) return;
+    el.style.animation = 'paRoll ' + d.dur + 's linear infinite';
+  });
+})();
+
+/* ══════════════════════════════════════
+   BOOT
+   ══════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', function() {
+  // Si ya hay sesión activa, redirigir
+  sb.auth.getSession().then(function(res) {
+    if (res.data.session) {
+      sb.from('user_profiles').select('role').eq('id', res.data.session.user.id).single().then(function(r) {
+        if (r.data && r.data.role === 'admin') {
+          window.location.href = 'admin-reg.html';
+        } else if (res.data.session) {
+          window.location.href = 'dashboard.html';
+        }
+      });
+    }
+  });
+
+  // Enter key en login
+  document.getElementById('login-pass').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') handleLogin();
+  });
+  document.getElementById('login-email').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') document.getElementById('login-pass').focus();
+  });
+});

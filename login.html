@@ -2,221 +2,454 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Acceso — Lumen POS</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Lumen POS — Acceso</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="login.css">
 </head>
 <body>
 <div class="auth-root" id="auth-root">
 
-  <!-- ── Panel izquierdo — brand ── -->
-  <aside class="brand-panel">
-    <div class="brand-grain"></div>
-    <div class="brand-glow"></div>
-    <div class="brand-blob-bottom"></div>
+  <!-- ══════════════════════════════════════════
+       BRAND PANEL — PanelMidnight
+       ══════════════════════════════════════════ -->
+  <div class="brand-panel">
+    <div class="pa-grain"></div>
+    <div class="pa-glow"></div>
 
     <!-- Logo -->
-    <div class="brand-top">
-      <div class="brand-logo">L</div>
+    <div class="bp-logo-row">
+      <div class="bp-logo-box">L</div>
       <div>
-        <div class="brand-name">Lumen POS</div>
-        <div class="brand-sub" id="brand-branch">El Parche Food · Caja 01</div>
+        <div class="bp-logo-name">Lumen POS</div>
+        <div class="bp-logo-sub">Sistema de gestión</div>
       </div>
     </div>
 
-    <!-- Contenido central -->
-    <div class="brand-mid">
+    <!-- Hero copy + animated card -->
+    <div class="bp-mid">
       <div>
-        <div class="brand-eyebrow">Para restaurantes con carácter</div>
-        <h1 class="brand-headline">Todo tu restaurante,<br>en una sola pantalla.</h1>
-        <p class="brand-desc">Vende más rápido, controla tus mesas y arma tu menú con ayuda de la IA.</p>
+        <div class="bp-eyebrow">Plataforma de ventas</div>
+        <h1 class="bp-headline">Gestiona tu<br>restaurante<br>con precisión</h1>
+        <p class="bp-sub">Control total de ventas, pedidos y equipo en tiempo real desde cualquier dispositivo.</p>
       </div>
 
-      <!-- Mockup card -->
-      <div class="brand-card">
-        <div class="brand-card-sheen"></div>
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <span class="card-label">Ventas de hoy</span>
-          <span class="card-live"><span class="card-dot"></span> En vivo</span>
-        </div>
-        <div class="card-amount">
-          <span class="card-amount-muted">$</span>
-          <span id="card-sales">—</span>
-        </div>
-        <div class="card-bars" id="card-bars"></div>
-        <div class="card-notif" id="card-notif">
-          <span style="width:22px;height:22px;border-radius:7px;background:rgba(52,211,153,.16);color:#34D399;display:flex;align-items:center;justify-content:center">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      <!-- Animated sales card -->
+      <div class="pa-card">
+        <div class="pa-card-sheen"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <span class="pa-card-label">Ventas hoy</span>
+          <span class="pa-live">
+            <span class="pa-dot"></span>En vivo
           </span>
-          <span style="font-size:12px;font-weight:600">Cargando...</span>
+        </div>
+        <!-- Odometer -->
+        <div class="pa-amount">
+          <span class="pa-amount-prefix">$</span>
+          <div class="pa-odo" style="--d:0s"><span id="odo-m"><b>1</b><b>2</b><b>3</b><b>4</b><b>5</b><b>6</b><b>7</b><b>8</b><b>9</b><b>0</b></span></div>
+          <div class="pa-odo" style="--d:.4s"><span id="odo-c"><b>8</b><b>9</b><b>0</b><b>1</b><b>2</b><b>3</b><b>4</b><b>5</b><b>6</b><b>7</b></span></div>
+          <div class="pa-odo" style="--d:.8s"><span id="odo-u"><b>5</b><b>6</b><b>7</b><b>8</b><b>9</b><b>0</b><b>1</b><b>2</b><b>3</b><b>4</b></span></div>
+          <span class="pa-amount-suffix">,00</span>
+        </div>
+        <!-- Spark bars -->
+        <div class="pa-spark">
+          <div class="pa-bar" style="height:62%;animation-delay:0s"></div>
+          <div class="pa-bar" style="height:88%;animation-delay:.2s"></div>
+          <div class="pa-bar" style="height:45%;animation-delay:.4s"></div>
+          <div class="pa-bar" style="height:75%;animation-delay:.6s"></div>
+          <div class="pa-bar" style="height:100%;animation-delay:.8s"></div>
+          <div class="pa-bar" style="height:58%;animation-delay:1s"></div>
+          <div class="pa-bar" style="height:82%;animation-delay:1.2s"></div>
+          <div class="pa-bar" style="height:69%;animation-delay:1.4s"></div>
+        </div>
+        <!-- Notification -->
+        <div class="pa-notif">
+          <div class="pa-notif-ic">
+            <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M6 1l1.24 2.52L10 4l-2 1.95.47 2.75L6 7.39l-2.47 1.31L4 5.95 2 4l2.76-.48L6 1z" fill="currentColor"/></svg>
+          </div>
+          <span style="font-size:12px;font-weight:600;color:rgba(255,255,255,.85)">Nuevo pedido · Mesa 4 · <span style="color:#34D399">+$48.000</span></span>
         </div>
       </div>
 
-      <!-- Feature pills -->
-      <div class="feat-row">
-        <div class="feat-item">
-          <span class="feat-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
-          Pedidos en segundos
-        </div>
-        <div class="feat-item">
-          <span class="feat-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.2L19 10l-5.1 1.8L12 17l-1.9-5.2L5 10l5.1-1.8L12 3z"/></svg></span>
-          Catálogo con IA
-        </div>
-        <div class="feat-item">
-          <span class="feat-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
-          Salón en vivo
-        </div>
+      <!-- Features -->
+      <div class="bp-feats">
+        <span class="bp-feat">
+          <span class="bp-feat-ic">
+            <svg width="13" height="13" fill="none" viewBox="0 0 13 13"><path d="M6.5 1L7.9 4.06 11 4.52 8.75 6.71 9.3 9.81 6.5 8.35 3.7 9.81l.55-3.1L2 4.52l3.1-.46L6.5 1z" fill="currentColor"/></svg>
+          </span>
+          Ventas en tiempo real
+        </span>
+        <span class="bp-feat">
+          <span class="bp-feat-ic">
+            <svg width="13" height="13" fill="none" viewBox="0 0 13 13"><rect x="2" y="2" width="4" height="4" rx="1" fill="currentColor"/><rect x="7" y="2" width="4" height="4" rx="1" fill="currentColor"/><rect x="2" y="7" width="4" height="4" rx="1" fill="currentColor"/><rect x="7" y="7" width="4" height="4" rx="1" fill="currentColor"/></svg>
+          </span>
+          Multi-sucursal
+        </span>
+        <span class="bp-feat">
+          <span class="bp-feat-ic">
+            <svg width="13" height="13" fill="none" viewBox="0 0 13 13"><path d="M2 9l3-3 2 2 4-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          Informes avanzados
+        </span>
       </div>
     </div>
 
     <!-- Footer -->
-    <div class="brand-foot">
-      <span class="seal">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        Conexión cifrada
-      </span>
-      <span>v776.0.10</span>
+    <div class="bp-foot">
+      <div class="bp-seal">
+        <svg width="13" height="13" fill="none" viewBox="0 0 13 13"><path d="M6.5 1l1.5 2h2.5l-1 2.5L11 8l-2.5-.5L6.5 9 4.5 7.5 2 8l1.5-2.5L2.5 3H5L6.5 1z" fill="rgba(255,255,255,.6)"/></svg>
+        Lumen POS v2.0
+      </div>
+      <span>© 2025 Lumen</span>
     </div>
-  </aside>
+  </div>
 
-  <!-- ── Panel derecho — formulario ── -->
-  <main class="form-wrap">
-    <div class="form-card" id="form-card">
+  <!-- ══════════════════════════════════════════
+       FORM PANEL — derecho
+       ══════════════════════════════════════════ -->
+  <div class="form-panel" id="form-panel">
+    <!-- Mobile logo -->
+    <div class="m-logo">
+      <div class="m-logo-box">L</div>
+    </div>
 
-      <!-- Logo móvil -->
-      <div class="m-logo">
-        <div class="m-logo-inner">L</div>
+    <!-- ── VISTA: LOGIN ── -->
+    <div class="form-card" id="view-login">
+      <div class="form-head">
+        <h2 class="form-title light">Bienvenido de vuelta</h2>
+        <p class="form-sub light">Ingresa tus credenciales para continuar</p>
       </div>
 
-      <!-- Título -->
-      <h2 class="form-title" id="form-title">Inicia sesión</h2>
-      <p class="form-sub" id="form-sub">Ingresa para administrar tu punto de venta.</p>
-
-      <!-- Error banner -->
-      <div class="error-banner" id="error-banner">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <span id="error-msg"></span>
+      <div class="error-banner" id="login-error">
+        <svg width="16" height="16" fill="none" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" stroke="#DC2626" stroke-width="1.5"/><path d="M8 5v3.5M8 11h.01" stroke="#DC2626" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span id="login-error-text">Error al iniciar sesión.</span>
       </div>
 
-      <!-- Google -->
-      <button class="btn-google" id="btn-google">
-        <svg width="18" height="18" viewBox="0 0 48 48">
-          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-        </svg>
-        <span id="btn-google-txt">Continuar con Google</span>
-      </button>
-
-      <!-- Divider -->
-      <div class="divider">
-        <span class="divider-line"></span>
-        <span>o con tu correo</span>
-        <span class="divider-line"></span>
-      </div>
-
-      <!-- Formulario -->
-      <form id="auth-form" autocomplete="on">
-
-        <!-- Registro: nombre -->
-        <div class="field-wrap register-only" id="field-nombre">
-          <div class="field-label"><label>Nombre completo</label></div>
-          <div class="field">
-            <span class="field-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
-            <input type="text" id="inp-nombre" placeholder="Sergio Andrés Abadía" autocomplete="name">
+      <div class="field-group">
+        <div>
+          <label class="field-label">Correo electrónico</label>
+          <div class="field-wrap" id="fw-email">
+            <span class="field-ic"><svg width="16" height="16" fill="none" viewBox="0 0 16 16"><rect x="2" y="4" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M2 5.5l6 4 6-4" stroke="currentColor" stroke-width="1.3"/></svg></span>
+            <input type="email" id="login-email" placeholder="hola@restaurante.com" autocomplete="email">
           </div>
         </div>
-
-        <!-- Registro: negocio -->
-        <div class="field-wrap register-only" id="field-negocio">
-          <div class="field-label"><label>Nombre del negocio</label></div>
-          <div class="field">
-            <span class="field-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><path d="M3 9h18"/><path d="M8 21v-6h4v6"/></svg></span>
-            <input type="text" id="inp-negocio" placeholder="El Parche Food" autocomplete="organization">
+        <div>
+          <div class="field-label-row">
+            <label class="field-label" style="margin:0">Contraseña</label>
+            <button class="btn-forgot" onclick="showForgot()">¿Olvidaste tu clave?</button>
           </div>
-        </div>
-
-        <!-- Email -->
-        <div class="field-wrap">
-          <div class="field-label"><label>Correo electrónico</label></div>
-          <div class="field" id="field-email">
-            <span class="field-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg></span>
-            <input type="email" id="inp-email" placeholder="tucorreo@ejemplo.com" autocomplete="email">
-            <span class="field-valid" id="email-valid" style="display:none">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            </span>
-          </div>
-        </div>
-
-        <!-- Contraseña -->
-        <div class="field-wrap">
-          <div class="field-label">
-            <label>Contraseña</label>
-            <button type="button" class="link" id="btn-forgot" onclick="forgotPassword()">¿Olvidaste tu contraseña?</button>
-          </div>
-          <div class="field" id="field-pass">
-            <span class="field-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
-            <input type="password" id="inp-pass" placeholder="Tu contraseña" autocomplete="current-password">
-            <button type="button" class="btn-eye" id="btn-eye" onclick="togglePass()">
-              <svg id="eye-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+          <div class="field-wrap" id="fw-pass">
+            <span class="field-ic"><svg width="16" height="16" fill="none" viewBox="0 0 16 16"><rect x="4" y="7" width="8" height="6" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>
+            <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+            <button class="btn-eye" onclick="togglePwd('login-pass',this)" tabindex="-1">
+              <svg width="15" height="15" fill="none" viewBox="0 0 15 15"><path d="M1 7.5S3.5 3 7.5 3s6.5 4.5 6.5 4.5-2.5 4.5-6.5 4.5S1 7.5 1 7.5z" stroke="currentColor" stroke-width="1.2"/><circle cx="7.5" cy="7.5" r="1.8" stroke="currentColor" stroke-width="1.2"/></svg>
             </button>
           </div>
         </div>
+        <label class="check-row">
+          <div class="au-check on" id="chk-remember" onclick="toggleChk(this)"><svg width="10" height="8" fill="none" viewBox="0 0 10 8"><path d="M1 4l3 3 5-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <span class="check-label">Mantener sesión iniciada</span>
+        </label>
+      </div>
 
-        <!-- Registro: confirmar contraseña -->
-        <div class="field-wrap register-only" id="field-confirm">
-          <div class="field-label"><label>Confirmar contraseña</label></div>
-          <div class="field" id="field-confirm-inner">
-            <span class="field-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
-            <input type="password" id="inp-confirm" placeholder="Repite la contraseña" autocomplete="new-password">
+      <button class="btn-submit" id="btn-login" onclick="handleLogin()" style="margin-top:18px">
+        Iniciar sesión
+      </button>
+
+      <div class="toggle-row">
+        ¿No tienes cuenta?
+        <button class="btn-toggle" onclick="goStep('plan')">Crear una cuenta</button>
+      </div>
+      <p class="legal-line">Al ingresar aceptas nuestros <a href="#" class="au-link">Términos</a> y <a href="#" class="au-link">Privacidad</a></p>
+    </div>
+
+    <!-- ── VISTA: PASO 1 — PLANES ── -->
+    <div class="form-card wide" id="view-plan" style="display:none">
+      <!-- Stepper -->
+      <div class="reg-stepper">
+        <div class="reg-step active" id="st1">1</div>
+        <div class="reg-step-line" id="sl1"></div>
+        <div class="reg-step pending" id="st2">2</div>
+        <div class="reg-step-line" id="sl2"></div>
+        <div class="reg-step pending" id="st3">3</div>
+        <div class="reg-step-line" id="sl3"></div>
+        <div class="reg-step pending" id="st4">4</div>
+      </div>
+
+      <div class="plan-step">
+        <div class="pm-eyebrow">
+          <svg width="11" height="11" fill="none" viewBox="0 0 11 11"><path d="M5.5 1L6.74 3.52 9.5 3.98 7.5 5.93 7.97 8.73 5.5 7.37 3.03 8.73l.47-2.8L1.5 3.98l2.76-.46L5.5 1z" fill="currentColor"/></svg>
+          Selecciona tu plan
+        </div>
+        <h2 class="pm-title">Elige el plan perfecto para tu negocio</h2>
+        <p class="pm-sub">Todos los planes incluyen acceso completo. Sin permanencia forzada.</p>
+
+        <!-- Branch bar -->
+        <div class="pm-branchbar">
+          <div class="pm-branch-left">
+            <div class="pm-branch-ic">
+              <svg width="20" height="20" fill="none" viewBox="0 0 20 20"><path d="M3 7h14M7 3v4M13 3v4M4 11h3v3H4v-3zM4 7h12a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V8a1 1 0 011-1z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            </div>
+            <div>
+              <div class="pm-branch-title">Número de sucursales</div>
+              <div class="pm-branch-hint">El precio se ajusta automáticamente</div>
+            </div>
           </div>
-          <div class="field-hint" id="confirm-hint" style="display:none">No coincide</div>
+          <div class="pm-branch-right">
+            <div class="pm-presets" id="pm-presets">
+              <button class="pm-chip on" onclick="setPreset(1)">1</button>
+              <button class="pm-chip" onclick="setPreset(2)">2</button>
+              <button class="pm-chip" onclick="setPreset(3)">3</button>
+            </div>
+            <div class="pm-stepper">
+              <button onclick="stepBranch(-1)"><svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M8 6H4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+              <span class="pm-count" id="pm-count">1</span>
+              <button onclick="stepBranch(1)"><svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M6 4v4M8 6H4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+            </div>
+            <span class="pm-discount flat" id="pm-discount-badge">Sin descuento</span>
+          </div>
         </div>
 
-        <!-- Checkbox login: recordar -->
-        <label class="check-row login-only" id="row-remember">
-          <div class="checkbox on" id="chk-remember" onclick="toggleRemember()">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <!-- Plan cards -->
+        <div class="pm-grid" id="pm-grid">
+          <!-- renderPlanCards() lo llena -->
+        </div>
+
+        <!-- Footer -->
+        <div class="pm-footer">
+          <div>
+            <div class="pm-foot-label">
+              Total mensual · <span id="pm-plan-name">Pro</span>
+              <span class="pm-foot-off" id="pm-off-badge" style="display:none">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 8l6-6M7 8H2V3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                <span id="pm-off-text">10% OFF</span>
+              </span>
+            </div>
+            <div class="pm-foot-total">
+              <span class="pm-foot-amount" id="pm-total-amount">$249.000</span>
+              <span class="pm-foot-cycle">/mes</span>
+            </div>
           </div>
-          <span>Mantener la sesión iniciada</span>
-        </label>
+          <div class="pm-foot-actions">
+            <button class="btn-ghost-sm" onclick="goStep('login')">Cancelar</button>
+            <button class="btn-submit" style="width:auto;padding:0 24px;height:44px;margin:0" onclick="goStep('datos')">
+              Continuar
+              <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="pm-trust">
+          <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M6 1l1.5 3.5L11 5l-2.5 2.5.5 3.5L6 9.5 3 11l.5-3.5L1 5l3.5-.5L6 1z" fill="rgba(255,255,255,.4)"/></svg>
+          Sin permanencia · Cancela cuando quieras
+        </div>
+      </div>
+    </div>
 
-        <!-- Checkbox registro: términos -->
-        <label class="check-row register-only" id="row-agree">
-          <div class="checkbox" id="chk-agree" onclick="toggleAgree()"></div>
-          <span>Acepto los <a class="link" href="#" onclick="return false">Términos</a> y la <a class="link" href="#" onclick="return false">Política de privacidad</a>.</span>
-        </label>
+    <!-- ── VISTA: PASO 2 — DATOS ── -->
+    <div class="form-card" id="view-datos" style="display:none">
+      <div class="reg-stepper">
+        <div class="reg-step done" id="st1b">
+          <svg width="10" height="8" fill="none" viewBox="0 0 10 8"><path d="M1 4l3 3 5-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="reg-step-line done" id="sl1b"></div>
+        <div class="reg-step active" id="st2b">2</div>
+        <div class="reg-step-line" id="sl2b"></div>
+        <div class="reg-step pending" id="st3b">3</div>
+        <div class="reg-step-line" id="sl3b"></div>
+        <div class="reg-step pending" id="st4b">4</div>
+      </div>
 
-        <!-- Submit -->
-        <button type="submit" class="btn-submit" id="btn-submit">
-          <span id="btn-submit-txt">Iniciar sesión</span>
-          <svg id="btn-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          <span class="spin" id="btn-spin" style="display:none"></span>
+      <div class="form-head">
+        <h2 class="form-title dark">Datos de tu negocio</h2>
+        <p class="form-sub dark">Esta información se usará para configurar tu cuenta</p>
+      </div>
+
+      <div class="error-banner" id="datos-error">
+        <svg width="16" height="16" fill="none" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" stroke="#DC2626" stroke-width="1.5"/><path d="M8 5v3.5M8 11h.01" stroke="#DC2626" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span id="datos-error-text">Completa todos los campos.</span>
+      </div>
+
+      <div class="field-group">
+        <div>
+          <label class="field-label dark">Nombre completo</label>
+          <div class="field-wrap dark-field">
+            <span class="field-ic"><svg width="16" height="16" fill="none" viewBox="0 0 16 16"><circle cx="8" cy="5" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 13c0-3.038 2.462-5.5 5.5-5.5s5.5 2.462 5.5 5.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>
+            <input type="text" id="reg-nombre" placeholder="Juan García">
+          </div>
+        </div>
+        <div>
+          <label class="field-label dark">Nombre del negocio</label>
+          <div class="field-wrap dark-field">
+            <span class="field-ic"><svg width="16" height="16" fill="none" viewBox="0 0 16 16"><rect x="2" y="6" width="12" height="8" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 6V4a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>
+            <input type="text" id="reg-negocio" placeholder="Restaurante El Parche">
+          </div>
+        </div>
+        <div>
+          <label class="field-label dark">Correo electrónico</label>
+          <div class="field-wrap dark-field">
+            <span class="field-ic"><svg width="16" height="16" fill="none" viewBox="0 0 16 16"><rect x="2" y="4" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M2 5.5l6 4 6-4" stroke="currentColor" stroke-width="1.3"/></svg></span>
+            <input type="email" id="reg-email" placeholder="hola@restaurante.com">
+          </div>
+        </div>
+        <div>
+          <label class="field-label dark">Contraseña</label>
+          <div class="field-wrap dark-field">
+            <span class="field-ic"><svg width="16" height="16" fill="none" viewBox="0 0 16 16"><rect x="4" y="7" width="8" height="6" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>
+            <input type="password" id="reg-pass" placeholder="Mínimo 8 caracteres">
+            <button class="btn-eye" onclick="togglePwd('reg-pass',this)" tabindex="-1">
+              <svg width="15" height="15" fill="none" viewBox="0 0 15 15"><path d="M1 7.5S3.5 3 7.5 3s6.5 4.5 6.5 4.5-2.5 4.5-6.5 4.5S1 7.5 1 7.5z" stroke="currentColor" stroke-width="1.2"/><circle cx="7.5" cy="7.5" r="1.8" stroke="currentColor" stroke-width="1.2"/></svg>
+            </button>
+          </div>
+        </div>
+        <div>
+          <label class="field-label dark">Confirmar contraseña</label>
+          <div class="field-wrap dark-field">
+            <span class="field-ic"><svg width="16" height="16" fill="none" viewBox="0 0 16 16"><rect x="4" y="7" width="8" height="6" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>
+            <input type="password" id="reg-confirm" placeholder="Repite tu contraseña">
+            <button class="btn-eye" onclick="togglePwd('reg-confirm',this)" tabindex="-1">
+              <svg width="15" height="15" fill="none" viewBox="0 0 15 15"><path d="M1 7.5S3.5 3 7.5 3s6.5 4.5 6.5 4.5-2.5 4.5-6.5 4.5S1 7.5 1 7.5z" stroke="currentColor" stroke-width="1.2"/><circle cx="7.5" cy="7.5" r="1.8" stroke="currentColor" stroke-width="1.2"/></svg>
+            </button>
+          </div>
+          <div class="field-hint" id="hint-confirm" style="display:none">Las contraseñas no coinciden</div>
+        </div>
+        <label class="check-row">
+          <div class="au-check" id="chk-terms" onclick="toggleChk(this)"><svg width="10" height="8" fill="none" viewBox="0 0 10 8"><path d="M1 4l3 3 5-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <span class="check-label dark">Acepto los <a href="#" class="au-link">Términos de servicio</a> y la <a href="#" class="au-link">Política de privacidad</a></span>
+        </label>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:18px">
+        <button class="btn-ghost-sm" onclick="goStep('plan')" style="height:46px">
+          <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><path d="M11 7H3M6 4L3 7l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Atrás
         </button>
-      </form>
+        <button class="btn-submit" id="btn-datos" onclick="handleDatos()" style="flex:1;margin:0">
+          Continuar al pago
+        </button>
+      </div>
+      <div class="toggle-row dark">
+        ¿Ya tienes cuenta?
+        <button class="btn-toggle" onclick="goStep('login')">Iniciar sesión</button>
+      </div>
+    </div>
 
-      <!-- Toggle modo -->
-      <div class="toggle-row">
-        <span id="toggle-txt">¿No tienes cuenta?</span>
-        <button class="btn-toggle" onclick="window.location.href='register.html'">
-          <span id="toggle-btn-txt">Crear una cuenta</span>
+    <!-- ── VISTA: PASO 3 — PAGO ── -->
+    <div class="form-card" id="view-pago" style="display:none">
+      <div class="reg-stepper">
+        <div class="reg-step done"><svg width="10" height="8" fill="none" viewBox="0 0 10 8"><path d="M1 4l3 3 5-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="reg-step-line done"></div>
+        <div class="reg-step done"><svg width="10" height="8" fill="none" viewBox="0 0 10 8"><path d="M1 4l3 3 5-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="reg-step-line done"></div>
+        <div class="reg-step active">3</div>
+        <div class="reg-step-line"></div>
+        <div class="reg-step pending">4</div>
+      </div>
+
+      <div class="form-head">
+        <h2 class="form-title dark">Instrucciones de pago</h2>
+        <p class="form-sub dark">Realiza la transferencia y adjunta el comprobante</p>
+      </div>
+
+      <div class="bank-card">
+        <div class="bank-row">
+          <span class="bank-key">Banco</span>
+          <span class="bank-val">Bancolombia</span>
+        </div>
+        <div class="bank-row">
+          <span class="bank-key">Tipo de cuenta</span>
+          <span class="bank-val">Ahorros</span>
+        </div>
+        <div class="bank-row">
+          <span class="bank-key">Nequi / Llave</span>
+          <button class="bank-copy-btn" onclick="copyText('0092571225')">
+            <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><rect x="4" y="4" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M2 8V3a1 1 0 011-1h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            0092571225
+          </button>
+        </div>
+        <div class="bank-row">
+          <span class="bank-key">Monto exacto</span>
+          <span class="bank-val" id="pago-monto" style="color:#A9B2FF">$249.000</span>
+        </div>
+        <div class="bank-row" style="border:none">
+          <span class="bank-key">Referencia</span>
+          <button class="bank-copy-btn" onclick="copyRef()">
+            <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><rect x="4" y="4" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M2 8V3a1 1 0 011-1h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            <span id="pago-ref">LUMEN-XXXXXX</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Upload zone -->
+      <div style="margin-top:14px">
+        <label class="field-label dark">Comprobante de pago</label>
+        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+          <input type="file" id="file-input" accept="image/jpeg,image/png,application/pdf" style="display:none" onchange="handleFileSelect(this.files[0])">
+          <div class="upload-zone-icon" id="upload-icon">
+            <svg width="22" height="22" fill="none" viewBox="0 0 22 22"><path d="M11 14V4M7 8l4-4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16v.5A1.5 1.5 0 005.5 18h11a1.5 1.5 0 001.5-1.5V16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+          <div id="upload-text" class="upload-zone-text">Haz clic o arrastra el comprobante</div>
+          <div class="upload-zone-sub">JPG, PNG o PDF · máx 5MB</div>
+        </div>
+        <div class="field-hint" id="hint-upload" style="display:none">Adjunta el comprobante para continuar</div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:18px">
+        <button class="btn-ghost-sm" onclick="goStep('datos')" style="height:46px">
+          <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><path d="M11 7H3M6 4L3 7l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Atrás
+        </button>
+        <button class="btn-submit" id="btn-pago" onclick="handlePago()" style="flex:1;margin:0">
+          Enviar solicitud
         </button>
       </div>
     </div>
 
-    <div class="legal">© 2026 Lumen POS · El Parche Food</div>
-  </main>
-</div>
+    <!-- ── VISTA: PASO 4 — CONFIRMACIÓN ── -->
+    <div class="form-card" id="view-confirmado" style="display:none">
+      <div style="text-align:center;padding:10px 0">
+        <div class="confirm-icon">
+          <svg width="28" height="28" fill="none" viewBox="0 0 28 28"><path d="M6 14l5 5 11-11" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h2 class="form-title dark" style="margin-bottom:8px">¡Solicitud enviada!</h2>
+        <p class="form-sub dark" style="margin-bottom:22px">Revisaremos tu comprobante y activaremos tu cuenta en máximo <strong style="color:#fff">24 horas hábiles</strong></p>
+      </div>
 
-<!-- Toast -->
-<div class="toast" id="toast" style="display:none">
-  <span class="toast-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-  <span id="toast-msg"></span>
-</div>
+      <div class="confirm-summary" id="confirm-summary">
+        <div class="confirm-row">
+          <span class="confirm-key">Negocio</span>
+          <span class="confirm-val" id="cv-negocio">—</span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-key">Plan</span>
+          <span class="confirm-val" id="cv-plan">—</span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-key">Sucursales</span>
+          <span class="confirm-val" id="cv-suc">—</span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-key">Total / mes</span>
+          <span class="confirm-val" id="cv-total">—</span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-key">Correo</span>
+          <span class="confirm-val" id="cv-email">—</span>
+        </div>
+      </div>
+
+      <button class="btn-submit" onclick="goStep('login')" style="margin-top:18px">
+        Volver al inicio de sesión
+      </button>
+
+      <div class="toggle-row dark" style="margin-top:14px">
+        <span style="color:rgba(255,255,255,.5);font-size:12px">Te enviaremos un correo cuando tu cuenta esté activa.</span>
+      </div>
+    </div>
+  </div><!-- /form-panel -->
+
+</div><!-- /auth-root -->
+
+<div class="auth-toast" id="auth-toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-core.js"></script>

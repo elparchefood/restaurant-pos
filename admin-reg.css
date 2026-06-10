@@ -212,7 +212,7 @@ body { font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, system-ui, san
 .rs-plan-mix-val { font-weight: 800; }
 
 .rs-mrr-chart { display: flex; align-items: flex-end; gap: 14px; height: 150px; padding: 18px 20px 20px; }
-.rs-mrr-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;
+.rs-mrr-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%;
   height: 100%; justify-content: flex-end; }
 .rs-mrr-bar-val { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .rs-mrr-bar { width: 100%; max-width: 38px; border-radius: 8px 8px 4px 4px; }

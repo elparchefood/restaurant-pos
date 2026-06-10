@@ -291,14 +291,18 @@ function renderDonut(pro, starter) {
 function renderMrrChart() {
   var data = [3.2, 3.9, 4.6, 5.4, 6.5, 7.4];
   var labels = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'];
-  var max = 8;
+  var maxVal = 8;
+  var maxPx = 72; // max bar height in pixels
   $('rs-mrr-chart').innerHTML = data.map(function(v, i) {
     var isLast = i === data.length - 1;
+    var h = Math.max(4, Math.round((v / maxVal) * maxPx));
     return '<div class="rs-mrr-bar-wrap">' +
       '<div class="rs-mrr-bar-val" style="color:' + (isLast ? '#5B6BFF' : '#94A3B8') + '">$' + v.toFixed(1) + 'M</div>' +
-      '<div class="rs-mrr-bar" style="height:' + (v / max * 100) + '%;' +
-        'background:' + (isLast ? 'linear-gradient(180deg,#5B6BFF,#818CF8)' : '#C7D2FE') + ';' +
-        (isLast ? 'box-shadow:0 6px 16px -8px rgba(91,107,255,.5)' : '') + '"></div>' +
+      '<div style="flex:1;display:flex;align-items:flex-end;">' +
+        '<div class="rs-mrr-bar" style="height:' + h + 'px;width:100%;' +
+          'background:' + (isLast ? 'linear-gradient(180deg,#5B6BFF,#818CF8)' : '#C7D2FE') + ';' +
+          (isLast ? 'box-shadow:0 6px 16px -8px rgba(91,107,255,.5)' : '') + '"></div>' +
+      '</div>' +
       '<div class="rs-mrr-bar-label">' + labels[i] + '</div>' +
     '</div>';
   }).join('');
