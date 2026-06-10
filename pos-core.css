@@ -120,3 +120,16 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,system-ui,sans-serif
 .empty svg{opacity:.35}
 
 /* ── LumenExtra sections ── */
+
+/* ── User dropdown ── */
+.user-menu-wrap{position:relative}
+.user-info:hover{background:#F8FAFC}
+.user-dropdown{position:absolute;top:calc(100% + 8px);right:0;width:240px;background:#fff;border:1px solid #ECEEF2;border-radius:12px;box-shadow:0 8px 28px -8px rgba(15,23,42,.18);z-index:200;display:none;overflow:hidden;animation:dd-in .15s ease}
+.user-dropdown.open{display:block}
+@keyframes dd-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.user-dropdown-header{display:flex;align-items:center;gap:10px;padding:14px 16px}
+.user-dropdown-divider{height:1px;background:#F1F5F9;margin:0}
+.user-dropdown-item{display:flex;align-items:center;gap:10px;width:100%;padding:11px 16px;background:none;border:none;font-family:inherit;font-size:13px;font-weight:500;color:#334155;cursor:pointer;transition:background .12s;text-align:left}
+.user-dropdown-item:hover{background:#F8FAFC}
+.user-dropdown-item--danger{color:#DC2626}
+.user-dropdown-item--danger:hover{background:#FEF2F2}

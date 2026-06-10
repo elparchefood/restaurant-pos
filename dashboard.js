@@ -53,11 +53,21 @@ async function loadUser(branchId) {
     $('tb-avatar').textContent = ini;
     $('tb-uname').textContent  = data.name;
     $('tb-urole').textContent  = (data.role==='gerente'?'Gerente':'Cajera') + (data.phone?' · '+data.phone:'');
+    // dropdown
+    $('dd-avatar').textContent = ini;
+    $('dd-uname').textContent  = data.name;
+    var authUserR = await sb.auth.getUser();
+    $('dd-email').textContent  = authUserR.data?.user?.email || '—';
     $('hero-title').textContent = greeting + ', ' + data.name.split(' ')[0] + '.';
   } else {
     $('tb-avatar').textContent  = 'A';
     $('tb-uname').textContent   = 'Administrador';
     $('tb-urole').textContent   = 'Sin usuario configurado';
+    // dropdown
+    $('dd-avatar').textContent = 'A';
+    $('dd-uname').textContent  = 'Administrador';
+    var authUser = await sb.auth.getUser();
+    $('dd-email').textContent  = authUser.data?.user?.email || '—';
     $('hero-title').textContent = greeting + '.';
   }
 }
@@ -1033,3 +1043,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadPrintTimes();
   }, 5 * 60 * 1000);
 });
+
+// ── User menu dropdown ──
+function toggleUserMenu() {
+  var dd = document.getElementById('user-dropdown');
+  var chevron = document.getElementById('user-chevron');
+  var open = dd.classList.toggle('open');
+  chevron.style.transform = open ? 'rotate(180deg)' : '';
+}
+
+document.addEventListener('click', function(e) {
+  var wrap = document.getElementById('user-menu-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('user-dropdown').classList.remove('open');
+    document.getElementById('user-chevron').style.transform = '';
+  }
+});
+
+async function signOutUser() {
+  document.getElementById('user-dropdown').classList.remove('open');
+  await sb.auth.signOut();
+  window.location.href = 'login.html';
+}
+
+function goToAdmin() {
+  document.getElementById('user-dropdown').classList.remove('open');
+  window.location.href = 'admin-reg.html';
+}
