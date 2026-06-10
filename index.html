@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POS Restaurant</title>
+  <link rel="stylesheet" href="styles/pos-base.css">
+  <link rel="stylesheet" href="styles/pos-shell.css">
+</head>
+<body>
+
+  <!-- Loader inicial -->
+  <div id="pos-loader">
+    <div class="loader-spinner"></div>
+    <p>Cargando sistema...</p>
+  </div>
+
+  <!-- Contenedor principal — los módulos renderizan aquí -->
+  <div id="pos-app" style="display:none;"></div>
+
+  <!-- ============================================ -->
+  <!-- ORDEN DE CARGA — NUNCA CAMBIAR               -->
+  <!-- ============================================ -->
+  <!-- 1. Supabase CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- 2. Core del sistema (window._pos) -->
+  <script src="pos-core.js"></script>
+  <!-- 3. Bus de eventos -->
+  <script src="pos-events.js"></script>
+  <!-- 4. Realtime -->
+  <script src="pos-realtime.js"></script>
+  <!-- 5. Router (carga módulos según ?rol=) -->
+  <script src="pos-router.js"></script>
+
+</body>
+</html>
