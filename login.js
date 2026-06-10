@@ -1,466 +1,389 @@
-/* ═══════════════════════════════════════
-   login.js — Lumen POS Auth + Registro
-   ═══════════════════════════════════════ */
+/* =====================================================
+   login.js — Auth + Registro multi-paso Lumen POS
+   pos-core.js ya define: sb, $, COPF, COP
+   ===================================================== */
 
-/* ── Estado global ── */
-var STEP = 'login';
-var PLAN = 'pro';
-var BRANCHES = 1;
-var UPLOAD_FILE = null;
-var REF_CODE = '';
-var FORM = {};
-
-var PLANS = {
-  starter: {
-    name: 'Starter',
-    base: 99000,
-    tag: 'Para negocios que comienzan',
-    feats: ['1 punto de venta','Menú digital ilimitado','Reportes básicos','Soporte por chat','App mesero','Gestión de mesas']
-  },
-  pro: {
-    name: 'Pro',
-    base: 249000,
-    tag: 'Para negocios en crecimiento',
-    feats: ['Todo lo de Starter','Múltiples puntos de venta','Reportes avanzados','Dashboard en tiempo real','Chat IA integrado','Soporte prioritario']
-  }
+// ── Estado de registro ──────────────────────────────
+const REG = {
+  nombre: '', negocio: '', email: '', pass: '',
+  refCode: '', plan: 'pro', branches: 1,
+  billing: 'annual', totalMes: 0, totalCiclo: 0
 };
 
-/* ── Descuentos por volumen ── */
-function getDiscount(branches) {
-  if (branches >= 10) return 0.30;
-  if (branches >= 4)  return 0.20;
-  if (branches >= 2)  return 0.10;
+// Precios base (COP/mes/sucursal)
+const PRECIOS_BASE = { starter: 149000, pro: 249000 };
+
+// Descuento por volumen
+function volDiscount(n) {
+  if (n >= 10) return .30;
+  if (n >= 4)  return .20;
+  if (n >= 2)  return .10;
   return 0;
 }
 
-function calcTotal(planId, branches) {
-  var base = PLANS[planId].base;
-  var disc = getDiscount(branches);
-  return Math.round(base * branches * (1 - disc));
-}
-
-// COPF() provided by pos-core.js
-
-/* ── Navegación entre pasos ── */
+// ── Navegación entre vistas ─────────────────────────
 function goStep(step) {
-  var views = ['login','plan','datos','pago','confirmado'];
-  views.forEach(function(v) {
-    var el = document.getElementById('view-' + v);
-    if (el) el.style.display = 'none';
-  });
-
-  var panel = document.getElementById('form-panel');
-  var el = document.getElementById('view-' + step);
-  if (el) el.style.display = '';
-  STEP = step;
-
-  // Dark mode en pasos de registro
-  if (step === 'login') {
-    panel.classList.remove('dark-mode');
-  } else {
-    panel.classList.add('dark-mode');
-  }
-
-  // Al entrar a plan, renderizar tarjetas
-  if (step === 'plan') {
-    renderPlanCards();
-    updateBranchUI();
-  }
-
-  // Al entrar a pago, actualizar monto
-  if (step === 'pago') {
-    updatePagoUI();
-  }
-
-  // Al entrar a confirmado, llenar resumen
-  if (step === 'confirmado') {
-    fillConfirm();
-  }
-
-  // Scroll top
-  var fp = document.getElementById('form-panel');
-  if (fp) fp.scrollTop = 0;
+  $('auth-root').hidden  = (step === 'plan');
+  $('plan-root').hidden  = (step !== 'plan');
+  $('view-login').hidden     = (step !== 'login');
+  $('view-datos').hidden     = (step !== 'datos');
+  $('view-pago').hidden      = (step !== 'pago');
+  $('view-confirmado').hidden = (step !== 'confirmado');
+  window.scrollTo(0, 0);
 }
 
-/* ══════════════════════════════════════
-   PLAN STEP
-   ══════════════════════════════════════ */
-function renderPlanCards() {
-  var grid = document.getElementById('pm-grid');
-  if (!grid) return;
-  var disc = getDiscount(BRANCHES);
-  var html = '';
-
-  ['starter','pro'].forEach(function(id) {
-    var p = PLANS[id];
-    var total = calcTotal(id, BRANCHES);
-    var orig  = p.base * BRANCHES;
-    var isOn  = PLAN === id;
-    var isPro = id === 'pro';
-
-    var priceHtml = disc > 0
-      ? '<span class="pm-strike">' + COPF(orig) + '</span><span class="pm-price">' + COPF(total) + '</span>'
-      : '<span class="pm-price">' + COPF(total) + '</span>';
-
-    html += '<button class="pm-card ' + (isPro ? 'pro ' : '') + (isOn ? 'selected' : '') + '" onclick="selectPlan(\'' + id + '\')">';
-    if (isPro) html += '<div class="pm-popular-tag">⭐ Más popular</div>';
-    html += '<div class="pm-card-head">';
-    html += '<div class="pm-radio">' + (isOn ? '<svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="currentColor"/></svg>' : '') + '</div>';
-    html += '<div><div class="pm-plan-name">' + p.name + '</div><div class="pm-plan-tag">' + p.tag + '</div></div>';
-    html += '</div>';
-    html += '<div class="pm-price-block"><div class="pm-price-row">' + priceHtml + '<span class="pm-per">/mes</span></div>';
-    if (BRANCHES > 1) {
-      html += '<div class="pm-card-total">Total: <strong>' + COPF(total) + '</strong> · ' + BRANCHES + ' suc.</div>';
-    }
-    html += '</div>';
-    if (isPro) {
-      html += '<div class="pm-inherit"><svg width="14" height="14" fill="none" viewBox="0 0 14 14"><path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Incluye todo Starter, más:</div>';
-    }
-    html += '<ul class="pm-feats">';
-    p.feats.forEach(function(f) {
-      html += '<li><span class="pm-tick"><svg width="8" height="7" fill="none" viewBox="0 0 8 7"><path d="M1 3.5l2 2L7 1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' + f + '</li>';
-    });
-    html += '</ul></button>';
-  });
-
-  grid.innerHTML = html;
-  updateFooter();
+// ── Helpers UI ──────────────────────────────────────
+function togglePwd(id, btn) {
+  const inp = document.getElementById(id);
+  const isText = inp.type === 'text';
+  inp.type = isText ? 'password' : 'text';
+  btn.querySelector('svg').style.opacity = isText ? '1' : '.4';
 }
 
-function selectPlan(id) {
-  PLAN = id;
-  renderPlanCards();
-}
-
-function setPreset(n) {
-  BRANCHES = n;
-  updateBranchUI();
-  renderPlanCards();
-}
-
-function stepBranch(delta) {
-  BRANCHES = Math.max(1, Math.min(99, BRANCHES + delta));
-  updateBranchUI();
-  renderPlanCards();
-}
-
-function updateBranchUI() {
-  var count = document.getElementById('pm-count');
-  if (count) count.textContent = BRANCHES;
-
-  // Presets highlight
-  var presets = document.querySelectorAll('.pm-chip');
-  presets.forEach(function(btn) {
-    var v = parseInt(btn.textContent);
-    btn.classList.toggle('on', v === BRANCHES && BRANCHES <= 3);
-  });
-
-  // Discount badge
-  var disc = getDiscount(BRANCHES);
-  var badge = document.getElementById('pm-discount-badge');
-  if (badge) {
-    if (disc > 0) {
-      badge.className = 'pm-discount live';
-      badge.textContent = (disc * 100) + '% descuento';
-    } else {
-      badge.className = 'pm-discount flat';
-      badge.textContent = 'Sin descuento';
-    }
-  }
-}
-
-function updateFooter() {
-  var disc   = getDiscount(BRANCHES);
-  var total  = calcTotal(PLAN, BRANCHES);
-  var planEl = document.getElementById('pm-plan-name');
-  var totEl  = document.getElementById('pm-total-amount');
-  var offB   = document.getElementById('pm-off-badge');
-  var offT   = document.getElementById('pm-off-text');
-  if (planEl) planEl.textContent = PLANS[PLAN].name;
-  if (totEl)  totEl.textContent  = COPF(total);
-  if (offB) {
-    offB.style.display = disc > 0 ? 'inline-flex' : 'none';
-    if (offT) offT.textContent = (disc * 100) + '% OFF';
-  }
-}
-
-/* ══════════════════════════════════════
-   DATOS STEP
-   ══════════════════════════════════════ */
-function handleDatos() {
-  var nombre   = document.getElementById('reg-nombre').value.trim();
-  var negocio  = document.getElementById('reg-negocio').value.trim();
-  var email    = document.getElementById('reg-email').value.trim();
-  var pass     = document.getElementById('reg-pass').value;
-  var confirm  = document.getElementById('reg-confirm').value;
-  var termsChk = document.getElementById('chk-terms');
-  var errEl    = document.getElementById('datos-error');
-  var errTxt   = document.getElementById('datos-error-text');
-
-  // Validar
-  var hintConf = document.getElementById('hint-confirm');
-  if (pass !== confirm) {
-    hintConf.style.display = '';
-    return;
-  }
-  hintConf.style.display = 'none';
-
-  if (!nombre || !negocio || !email || !pass) {
-    errTxt.textContent = 'Completa todos los campos.';
-    errEl.classList.add('show');
-    return;
-  }
-  if (pass.length < 8) {
-    errTxt.textContent = 'La contraseña debe tener al menos 8 caracteres.';
-    errEl.classList.add('show');
-    return;
-  }
-  if (!termsChk.classList.contains('on')) {
-    errTxt.textContent = 'Acepta los términos para continuar.';
-    errEl.classList.add('show');
-    return;
-  }
-
-  errEl.classList.remove('show');
-
-  FORM = { nombre: nombre, negocio: negocio, email: email, pass: pass };
-  // Generar referencia
-  REF_CODE = 'LUMEN-' + Math.random().toString(36).substr(2,6).toUpperCase();
-  goStep('pago');
-}
-
-/* ══════════════════════════════════════
-   PAGO STEP
-   ══════════════════════════════════════ */
-function updatePagoUI() {
-  var total = calcTotal(PLAN, BRANCHES);
-  var montoEl = document.getElementById('pago-monto');
-  var refEl   = document.getElementById('pago-ref');
-  if (montoEl) montoEl.textContent = COPF(total);
-  if (refEl)   refEl.textContent   = REF_CODE;
-}
-
-function handleFileSelect(file) {
-  if (!file) return;
-  if (file.size > 5 * 1024 * 1024) {
-    showToast('El archivo supera 5MB');
-    return;
-  }
-  UPLOAD_FILE = file;
-  var zone     = document.getElementById('upload-zone');
-  var textEl   = document.getElementById('upload-text');
-  if (zone) zone.classList.add('has-file');
-  if (textEl) {
-    textEl.innerHTML = '<div class="uploaded-file"><svg width="16" height="16" fill="none" viewBox="0 0 16 16"><path d="M4 13V8a2 2 0 012-2h4a2 2 0 012 2v5M2 13h12" stroke="#A9B2FF" stroke-width="1.3" stroke-linecap="round"/></svg>' + file.name + '</div>';
-  }
-}
-
-function onDragOver(e) {
-  e.preventDefault();
-  document.getElementById('upload-zone').classList.add('dragover');
-}
-function onDragLeave(e) {
-  document.getElementById('upload-zone').classList.remove('dragover');
-}
-function onDrop(e) {
-  e.preventDefault();
-  document.getElementById('upload-zone').classList.remove('dragover');
-  var file = e.dataTransfer.files[0];
-  if (file) handleFileSelect(file);
-}
-
-async function handlePago() {
-  var hintUp = document.getElementById('hint-upload');
-  if (!UPLOAD_FILE) {
-    hintUp.style.display = '';
-    return;
-  }
-  hintUp.style.display = 'none';
-
-  var btn = document.getElementById('btn-pago');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="btn-spin"></span>Enviando...';
-
-  try {
-    // 1. Subir comprobante a Storage
-    var ext      = UPLOAD_FILE.name.split('.').pop();
-    var fileName = REF_CODE + '.' + ext;
-    var { error: upErr } = await sb.storage
-      .from('comprobantes')
-      .upload(fileName, UPLOAD_FILE, { upsert: true });
-    if (upErr) throw upErr;
-
-    var { data: urlData } = sb.storage.from('comprobantes').getPublicUrl(fileName);
-    var compUrl = urlData.publicUrl;
-
-    // 2. Insertar en pos_registrations
-    var total = calcTotal(PLAN, BRANCHES);
-    var { error: dbErr } = await sb
-      .from('pos_registrations')
-      .insert({
-        nombre:       FORM.nombre,
-        negocio:      FORM.negocio,
-        email:        FORM.email,
-        password_tmp: FORM.pass,
-        plan:         PLAN,
-        branches:     BRANCHES,
-        total_mes:    total,
-        ref_code:     REF_CODE,
-        comprobante_url: compUrl,
-        status:       'pendiente'
-      });
-    if (dbErr) throw dbErr;
-
-    goStep('confirmado');
-  } catch (e) {
-    console.error('handlePago:', e);
-    showToast('Error al enviar: ' + (e.message || 'Intenta de nuevo'));
-    btn.disabled = false;
-    btn.textContent = 'Enviar solicitud';
-  }
-}
-
-/* ══════════════════════════════════════
-   CONFIRMACIÓN
-   ══════════════════════════════════════ */
-function fillConfirm() {
-  var total = calcTotal(PLAN, BRANCHES);
-  var set = function(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
-  set('cv-negocio', FORM.negocio || '—');
-  set('cv-plan',    PLANS[PLAN] ? PLANS[PLAN].name : '—');
-  set('cv-suc',     BRANCHES + (BRANCHES === 1 ? ' sucursal' : ' sucursales'));
-  set('cv-total',   COPF(total) + '/mes');
-  set('cv-email',   FORM.email || '—');
-}
-
-/* ══════════════════════════════════════
-   LOGIN
-   ══════════════════════════════════════ */
-async function handleGoogleLogin() {
-  try {
-    var { error } = await sb.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin + '/restaurant-pos/dashboard.html' }
-    });
-    if (error) throw error;
-  } catch(e) {
-    showToast('Error al conectar con Google: ' + (e.message || ''));
-  }
-}
-
-async function handleLogin() {
-  var email = (document.getElementById('login-email').value || '').trim();
-  var pass  = document.getElementById('login-pass').value;
-  var errEl = document.getElementById('login-error');
-  var errTxt = document.getElementById('login-error-text');
-  var btn   = document.getElementById('btn-login');
-
-  if (!email || !pass) {
-    errTxt.textContent = 'Ingresa tu correo y contraseña.';
-    errEl.classList.add('show');
-    return;
-  }
-
-  errEl.classList.remove('show');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="btn-spin"></span>Ingresando...';
-
-  try {
-    var { data, error } = await sb.auth.signInWithPassword({ email: email, password: pass });
-    if (error) throw error;
-
-    // Verificar rol
-    var { data: profile } = await sb.from('user_profiles').select('role').eq('id', data.user.id).single();
-    if (profile && profile.role === 'admin') {
-      window.location.href = 'admin-reg.html';
-    } else {
-      window.location.href = 'dashboard.html';
-    }
-  } catch (e) {
-    errTxt.textContent = e.message === 'Invalid login credentials'
-      ? 'Correo o contraseña incorrectos.'
-      : (e.message || 'Error al iniciar sesión.');
-    errEl.classList.add('show');
-    btn.disabled = false;
-    btn.textContent = 'Iniciar sesión';
-  }
-}
-
-function showForgot() {
-  showToast('Función en desarrollo · Contacta a soporte');
-}
-
-/* ══════════════════════════════════════
-   HELPERS UI
-   ══════════════════════════════════════ */
-function togglePwd(inputId, btn) {
-  var inp = document.getElementById(inputId);
-  if (!inp) return;
-  inp.type = inp.type === 'password' ? 'text' : 'password';
-}
-
-function toggleChk(el) {
+function toggleCheck(el) {
   el.classList.toggle('on');
 }
 
-function copyText(text) {
-  navigator.clipboard.writeText(text).then(function() {
-    showToast('Copiado: ' + text);
-  }).catch(function() {
-    showToast(text);
-  });
-}
-
-function copyRef() {
-  copyText(REF_CODE);
+function showError(wrapperId, msgId, msg) {
+  const el = $(wrapperId); if (!el) return;
+  el.classList.add('show');
+  const m = $(msgId); if (m) m.textContent = msg;
+  setTimeout(() => el.classList.remove('show'), 5000);
 }
 
 function showToast(msg) {
-  var t = document.getElementById('auth-toast');
-  if (!t) return;
+  const t = $('auth-toast');
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(function() { t.classList.remove('show'); }, 2800);
+  setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-/* ══════════════════════════════════════
-   ODOMETER ANIMATION
-   ══════════════════════════════════════ */
-(function() {
-  var digits = [
-    { id: 'odo-m', dur: 6.2 },
-    { id: 'odo-c', dur: 4.8 },
-    { id: 'odo-u', dur: 3.4 }
-  ];
-  digits.forEach(function(d) {
-    var el = document.getElementById(d.id);
-    if (!el) return;
-    el.style.animation = 'paRoll ' + d.dur + 's linear infinite';
-  });
-})();
+function copyText(txt) {
+  navigator.clipboard.writeText(txt).catch(() => {});
+  showToast('Copiado al portapapeles');
+}
 
-/* ══════════════════════════════════════
-   BOOT
-   ══════════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', function() {
-  // Si ya hay sesión activa, redirigir
-  sb.auth.getSession().then(function(res) {
-    if (res.data.session) {
-      sb.from('user_profiles').select('role').eq('id', res.data.session.user.id).single().then(function(r) {
-        if (r.data && r.data.role === 'admin') {
-          window.location.href = 'admin-reg.html';
-        } else if (res.data.session) {
-          window.location.href = 'dashboard.html';
-        }
-      });
+// ── LOGIN ────────────────────────────────────────────
+async function handleLogin() {
+  const email = $('login-email').value.trim();
+  const pass  = $('login-pass').value;
+  if (!email || !pass) { showError('login-error','login-error-msg','Completa todos los campos'); return; }
+  const btn = $('btn-login'); const txt = $('btn-login-text');
+  btn.disabled = true;
+  txt.innerHTML = '<span class="au-spin"></span>';
+  try {
+    const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if (error) throw error;
+    window.location.href = 'dashboard.html';
+  } catch(e) {
+    btn.disabled = false; txt.textContent = 'Iniciar sesión';
+    showError('login-error','login-error-msg', e.message === 'Invalid login credentials' ? 'Correo o contraseña incorrectos' : (e.message || 'Error al iniciar sesión'));
+  }
+}
+
+async function handleGoogleLogin() {
+  try {
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/dashboard.html' }
+    });
+    if (error) throw error;
+  } catch(e) { showToast('Error con Google: ' + e.message); }
+}
+
+async function handleForgot() {
+  const email = $('login-email').value.trim();
+  if (!email) { showError('login-error','login-error-msg','Ingresa tu correo primero'); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/login.html' });
+  if (error) showError('login-error','login-error-msg', error.message);
+  else showToast('Revisa tu correo para restablecer tu contraseña');
+}
+
+// ── DATOS (paso 1) ───────────────────────────────────
+function handleDatos() {
+  const nombre  = $('reg-nombre').value.trim();
+  const negocio = $('reg-negocio').value.trim();
+  const email   = $('reg-email').value.trim();
+  const pass    = $('reg-pass').value;
+  const ref     = $('reg-ref').value.trim();
+  const terms   = $('chk-terms').classList.contains('on');
+
+  if (!nombre || !negocio || !email || !pass)
+    return showError('datos-error','datos-error-msg','Completa todos los campos obligatorios');
+  if (pass.length < 8)
+    return showError('datos-error','datos-error-msg','La contraseña debe tener al menos 8 caracteres');
+  if (!terms)
+    return showError('datos-error','datos-error-msg','Debes aceptar los términos de servicio');
+
+  REG.nombre = nombre; REG.negocio = negocio;
+  REG.email = email;   REG.pass = pass;
+  REG.refCode = ref;
+
+  goStep('plan');
+  calcPrices();
+}
+
+// ── PLAN ─────────────────────────────────────────────
+
+// Seleccionar plan
+function selectPlan(plan) {
+  REG.plan = plan;
+  $('card-starter').classList.toggle('on', plan === 'starter');
+  $('card-pro').classList.toggle('on', plan === 'pro');
+  $('radio-starter').classList.toggle('on', plan === 'starter');
+  $('radio-pro').classList.toggle('on', plan === 'pro');
+  $('radio-starter').innerHTML = plan === 'starter'
+    ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>'
+    : '';
+  $('radio-pro').innerHTML = plan === 'pro'
+    ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>'
+    : '';
+  calcPrices();
+}
+
+// Chips de sucursales
+function setChip(n) {
+  REG.branches = n;
+  $('branch-count').textContent = n;
+  [1,2,5,10].forEach(v => {
+    const c = $('chip-' + v);
+    if (c) c.classList.toggle('on', v === n);
+  });
+  updateDiscountNote();
+  calcPrices();
+}
+
+// Stepper ±1
+function stepBranch(delta) {
+  const n = Math.max(1, Math.min(50, REG.branches + delta));
+  REG.branches = n;
+  $('branch-count').textContent = n;
+  // sincronizar chips
+  [1,2,5,10].forEach(v => {
+    const c = $('chip-' + v);
+    if (c) c.classList.toggle('on', v === n);
+  });
+  updateDiscountNote();
+  calcPrices();
+}
+
+// Billing toggle
+function setBilling(mode) {
+  REG.billing = mode;
+  $('bill-monthly').classList.toggle('on', mode === 'monthly');
+  $('bill-annual').classList.toggle('on', mode === 'annual');
+  calcPrices();
+}
+
+// Discount note
+function updateDiscountNote() {
+  const note = $('discount-note');
+  const pct  = Math.round(volDiscount(REG.branches) * 100);
+  if (pct > 0) {
+    note.hidden = false;
+    $('discount-note-text').innerHTML = 'Estás ahorrando <strong>' + pct + '%</strong> por volumen';
+  } else {
+    note.hidden = true;
+  }
+}
+
+// Compare toggle
+function toggleCompare() {
+  const body = $('compare-body');
+  const chev = $('compare-chev');
+  const isOpen = body.classList.toggle('open');
+  chev.classList.toggle('up', isOpen);
+}
+
+// Cálculo de precios
+function calcPrices() {
+  const b = REG.branches;
+  const annual = REG.billing === 'annual';
+  const disc = volDiscount(b);
+
+  ['starter', 'pro'].forEach(plan => {
+    const base = PRECIOS_BASE[plan];
+    const conVol = base * (1 - disc);
+    const unitMes = annual ? conVol * (10 / 12) : conVol;
+    const totalCiclo = annual ? unitMes * 12 * b : unitMes * b;
+    const ahorroMes = (base * b) - (unitMes * b);
+    const porDia = unitMes / 30;
+
+    const strikeEl  = $(plan + '-strike');
+    const priceEl   = $(plan + '-price');
+    const perdayEl  = $(plan + '-perday');
+    const saveEl    = $(plan + '-save');
+    const saveAmtEl = $(plan + '-save-amount');
+    const totalEl   = $(plan + '-total');
+    const totalCEl  = $(plan + '-total-cycle');
+    const totalBEl  = $(plan + '-total-branches');
+
+    // precio tachado: solo si hay descuento (volumen O anual)
+    const hasDisc = disc > 0 || annual;
+    if (strikeEl) {
+      strikeEl.hidden = !hasDisc;
+      strikeEl.textContent = hasDisc ? COPF(base) : '';
     }
+
+    if (priceEl) priceEl.textContent = COPF(unitMes);
+    if (perdayEl) perdayEl.textContent = 'Equiv. ' + COPF(porDia) + '/día';
+
+    // ahorro badge
+    if (saveEl) {
+      saveEl.hidden = ahorroMes <= 0;
+      if (saveAmtEl) saveAmtEl.textContent = COPF(ahorroMes);
+    }
+
+    // total
+    if (totalEl) totalEl.textContent = COPF(totalCiclo);
+    if (totalCEl) totalCEl.textContent = annual ? '/año' : '/mes';
+    if (totalBEl) totalBEl.textContent = b + (b === 1 ? ' sucursal' : ' sucursales');
   });
 
-  // Enter key en login
-  document.getElementById('login-pass').addEventListener('keydown', function(e) {
+  // guardar para el plan seleccionado
+  const selBase = PRECIOS_BASE[REG.plan];
+  const selDisc = volDiscount(b);
+  const selVol  = selBase * (1 - selDisc);
+  const selUnit = annual ? selVol * (10 / 12) : selVol;
+  const selTotal = annual ? selUnit * 12 * b : selUnit * b;
+  REG.totalMes  = selUnit;
+  REG.totalCiclo = selTotal;
+
+  updateFooter();
+}
+
+function updateFooter() {
+  const annual = REG.billing === 'annual';
+  const disc = volDiscount(REG.branches);
+  const pct  = Math.round((disc + (annual ? (2/12) : 0)) * 100);
+
+  $('foot-plan').textContent     = REG.plan === 'pro' ? 'Pro' : 'Starter';
+  $('foot-branches').textContent = REG.branches + (REG.branches === 1 ? ' sucursal' : ' sucursales');
+  $('foot-billing').textContent  = annual ? 'Anual' : 'Mensual';
+  $('foot-amount').textContent   = COPF(REG.totalMes);
+  $('foot-cycle').textContent    = '/mes';
+
+  const eqEl = $('foot-eq');
+  if (annual) {
+    eqEl.textContent = '· Total ' + COPF(REG.totalCiclo) + '/año';
+  } else {
+    eqEl.textContent = '';
+  }
+
+  const offEl = $('foot-off');
+  const offPctEl = $('foot-off-pct');
+  if (pct > 0) {
+    offEl.hidden = false;
+    offPctEl.textContent = pct + '%';
+  } else {
+    offEl.hidden = true;
+  }
+}
+
+// Continuar desde plan → pago
+function handlePlanContinue() {
+  const btn = $('btn-continue');
+  const txt = $('btn-continue-text');
+  btn.classList.add('loading');
+  btn.disabled = true;
+  txt.innerHTML = '<span class="ps-spin"></span> Un momento…';
+
+  setTimeout(() => {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    txt.textContent = 'Continuar con este plan';
+
+    // Actualizar vista de pago
+    const annual = REG.billing === 'annual';
+    $('pago-sub').textContent =
+      'Plan ' + (REG.plan === 'pro' ? 'Pro' : 'Starter') +
+      ' · ' + REG.branches + ' sucursal' + (REG.branches > 1 ? 'es' : '') +
+      ' · ' + (annual ? 'Anual' : 'Mensual');
+    $('pago-monto').textContent = COPF(REG.totalCiclo);
+
+    goStep('pago');
+  }, 800);
+}
+
+// ── PAGO (paso 3) ────────────────────────────────────
+let uploadedFile = null;
+let uploadedUrl  = '';
+
+function handleFile(file) {
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024)
+    return showToast('Archivo demasiado grande (máx 5 MB)');
+
+  uploadedFile = file;
+  const zone = $('upload-zone');
+  zone.classList.add('has-file');
+  $('upload-text').innerHTML =
+    '<div class="upload-name">' +
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' +
+    file.name + '</div>';
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  $('upload-zone').classList.remove('dragover');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+}
+
+async function handlePago() {
+  if (!uploadedFile)
+    return showError('pago-error','pago-error-msg','Adjunta el comprobante de pago');
+
+  const btn = $('btn-pago'); const txt = $('btn-pago-text');
+  btn.disabled = true; txt.innerHTML = '<span class="au-spin"></span> Subiendo…';
+
+  try {
+    // 1. Subir comprobante a storage
+    const ext = uploadedFile.name.split('.').pop();
+    const path = `${Date.now()}_${REG.email.replace('@','_')}.${ext}`;
+    const { error: upErr } = await sb.storage.from('comprobantes').upload(path, uploadedFile, { upsert: false });
+    if (upErr) throw upErr;
+    const { data: urlData } = sb.storage.from('comprobantes').getPublicUrl(path);
+    uploadedUrl = urlData.publicUrl;
+
+    // 2. Insertar en pos_registrations
+    const { error: dbErr } = await sb.from('pos_registrations').insert({
+      nombre: REG.nombre,
+      negocio: REG.negocio,
+      email: REG.email,
+      password_tmp: REG.pass,
+      plan: REG.plan,
+      branches: REG.branches,
+      total_mes: Math.round(REG.totalMes),
+      total_ciclo: Math.round(REG.totalCiclo),
+      billing: REG.billing,
+      ref_code: REG.refCode || null,
+      comprobante_url: uploadedUrl,
+      status: 'pending'
+    });
+    if (dbErr) throw dbErr;
+
+    fillConfirm();
+    goStep('confirmado');
+  } catch(e) {
+    btn.disabled = false; txt.textContent = 'Enviar comprobante';
+    showError('pago-error','pago-error-msg', e.message || 'Error al enviar');
+  }
+}
+
+function fillConfirm() {
+  const annual = REG.billing === 'annual';
+  $('cf-plan').textContent     = REG.plan === 'pro' ? 'Pro' : 'Starter';
+  $('cf-branches').textContent = REG.branches + ' sucursal' + (REG.branches > 1 ? 'es' : '');
+  $('cf-ciclo').textContent    = annual ? 'Anual' : 'Mensual';
+  $('cf-monto').textContent    = COPF(REG.totalCiclo) + (annual ? '/año' : '/mes');
+  $('cf-email').textContent    = REG.email;
+}
+
+// ── Enter key ────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('login-pass').addEventListener('keydown', e => {
     if (e.key === 'Enter') handleLogin();
   });
-  document.getElementById('login-email').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') document.getElementById('login-pass').focus();
-  });
+  // estado inicial
+  calcPrices();
 });
