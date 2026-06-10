@@ -1,769 +1,1394 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard · Comanda POS</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
-  <style>
-    /* ─── Reset & Variables ─────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg:          #0b1120;
-      --surface:     #141e2e;
-      --surface-2:   #1c2840;
-      --border:      rgba(255,255,255,0.08);
-      --text:        #f0f4ff;
-      --text-muted:  #8898b4;
-      --text-dim:    #4a5a74;
-      --green:       #22c55e;
-      --green-dim:   rgba(34,197,94,0.12);
-      --amber:       #f59e0b;
-      --amber-dim:   rgba(245,158,11,0.12);
-      --red:         #ef4444;
-      --red-dim:     rgba(239,68,68,0.12);
-      --blue:        #3b82f6;
-      --blue-dim:    rgba(59,130,246,0.12);
-      --purple:      #a855f7;
-      --purple-dim:  rgba(168,85,247,0.12);
-      --radius:      12px;
-      --radius-sm:   8px;
-      --font:        'DM Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-    }
-
-    body {
-      font-family: var(--font);
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    /* ─── Layout ────────────────────────────────────── */
-    .dash-wrap {
-      display: grid;
-      grid-template-rows: 64px 1fr;
-      min-height: 100vh;
-    }
-
-    /* ─── Header ────────────────────────────────────── */
-    .dash-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 28px;
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
-      gap: 16px;
-    }
-    .dash-header-left {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .dash-logo {
-      width: 32px;
-      height: 32px;
-      background: var(--green);
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-      font-weight: 700;
-      color: #000;
-      flex-shrink: 0;
-    }
-    .dash-brand {
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--text);
-      letter-spacing: -0.01em;
-    }
-    .dash-date {
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-    .dash-header-right {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .live-badge {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--green);
-      background: var(--green-dim);
-      border: 1px solid rgba(34,197,94,0.2);
-      border-radius: 20px;
-      padding: 4px 12px;
-    }
-    .live-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--green);
-      animation: pulse 2s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50%       { opacity: 0.5; transform: scale(0.8); }
-    }
-    .dash-nav-link {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 7px 14px;
-      border-radius: var(--radius-sm);
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-muted);
-      text-decoration: none;
-      transition: all 0.15s;
-      border: 1px solid transparent;
-    }
-    .dash-nav-link:hover {
-      background: var(--surface-2);
-      color: var(--text);
-      border-color: var(--border);
-    }
-    .dash-nav-link.active {
-      background: var(--surface-2);
-      color: var(--text);
-      border-color: var(--border);
-    }
-
-    /* ─── Body ──────────────────────────────────────── */
-    .dash-body {
-      padding: 28px;
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
-      overflow-y: auto;
-    }
-
-    /* ─── KPI Row ───────────────────────────────────── */
-    .kpi-row {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-    }
-    @media (max-width: 900px) {
-      .kpi-row { grid-template-columns: repeat(2, 1fr); }
-    }
-    @media (max-width: 500px) {
-      .kpi-row { grid-template-columns: 1fr; }
-    }
-
-    .kpi-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px 22px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      position: relative;
-      overflow: hidden;
-      transition: border-color 0.2s;
-    }
-    .kpi-card::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 2px;
-      border-radius: 2px 2px 0 0;
-    }
-    .kpi-card.green::before { background: var(--green); }
-    .kpi-card.amber::before { background: var(--amber); }
-    .kpi-card.blue::before  { background: var(--blue); }
-    .kpi-card.purple::before { background: var(--purple); }
-
-    .kpi-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .kpi-label {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-    .kpi-icon {
-      width: 34px;
-      height: 34px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-    }
-    .kpi-icon.green  { background: var(--green-dim); }
-    .kpi-icon.amber  { background: var(--amber-dim); }
-    .kpi-icon.blue   { background: var(--blue-dim); }
-    .kpi-icon.purple { background: var(--purple-dim); }
-
-    .kpi-value {
-      font-size: 28px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      line-height: 1;
-      color: var(--text);
-    }
-    .kpi-sub {
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-    .kpi-loading {
-      height: 28px;
-      background: var(--surface-2);
-      border-radius: 6px;
-      animation: shimmer 1.5s ease-in-out infinite;
-    }
-    @keyframes shimmer {
-      0%, 100% { opacity: 0.5; }
-      50%       { opacity: 1; }
-    }
-
-    /* ─── Main grid ─────────────────────────────────── */
-    .main-grid {
-      display: grid;
-      grid-template-columns: 1fr 340px;
-      gap: 16px;
-      align-items: start;
-    }
-    @media (max-width: 900px) {
-      .main-grid { grid-template-columns: 1fr; }
-    }
-
-    /* ─── Panel card ────────────────────────────────── */
-    .panel {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
-    }
-    .panel-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--border);
-    }
-    .panel-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .panel-count {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-muted);
-      background: var(--surface-2);
-      padding: 2px 8px;
-      border-radius: 10px;
-    }
-    .panel-body {
-      padding: 0;
-    }
-
-    /* ─── Orders list ───────────────────────────────── */
-    .order-row {
-      display: grid;
-      grid-template-columns: 48px 1fr auto auto;
-      align-items: center;
-      gap: 12px;
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--border);
-      transition: background 0.15s;
-    }
-    .order-row:last-child { border-bottom: none; }
-    .order-row:hover { background: var(--surface-2); }
-
-    .order-avatar {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-muted);
-    }
-    .order-info-name {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text);
-    }
-    .order-info-sub {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-    .order-total {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text);
-      text-align: right;
-      white-space: nowrap;
-    }
-    .order-time {
-      font-size: 11px;
-      color: var(--text-dim);
-      text-align: right;
-      margin-top: 2px;
-    }
-
-    /* ─── Status badge ──────────────────────────────── */
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 11px;
-      font-weight: 500;
-      padding: 3px 8px;
-      border-radius: 6px;
-      white-space: nowrap;
-    }
-    .badge.open     { background: var(--blue-dim);   color: var(--blue);   }
-    .badge.pending  { background: var(--amber-dim);  color: var(--amber);  }
-    .badge.ready    { background: var(--green-dim);  color: var(--green);  }
-    .badge.closed   { background: rgba(255,255,255,0.05); color: var(--text-muted); }
-
-    /* ─── Tables grid ───────────────────────────────── */
-    .tables-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      padding: 16px;
-    }
-    .table-cell {
-      border-radius: 10px;
-      padding: 14px 12px;
-      border: 1px solid var(--border);
-      background: var(--surface-2);
-      cursor: default;
-      transition: all 0.15s;
-      text-align: center;
-    }
-    .table-cell.free     { border-color: rgba(34,197,94,0.2);  background: rgba(34,197,94,0.06); }
-    .table-cell.occupied { border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.08);}
-    .table-cell.reserved { border-color: rgba(59,130,246,0.3); background: rgba(59,130,246,0.08);}
-
-    .table-num {
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-    }
-    .table-cell.free     .table-num { color: var(--green); }
-    .table-cell.occupied .table-num { color: var(--amber); }
-    .table-cell.reserved .table-num { color: var(--blue); }
-
-    .table-status-label {
-      font-size: 10px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-top: 4px;
-    }
-    .table-cell.free     .table-status-label { color: rgba(34,197,94,0.7); }
-    .table-cell.occupied .table-status-label { color: rgba(245,158,11,0.7);}
-    .table-cell.reserved .table-status-label { color: rgba(59,130,246,0.7);}
-
-    .table-cap {
-      font-size: 10px;
-      color: var(--text-dim);
-      margin-top: 2px;
-    }
-
-    /* ─── Empty state ───────────────────────────────── */
-    .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 48px 20px;
-      color: var(--text-dim);
-      gap: 8px;
-      text-align: center;
-    }
-    .empty-state-icon { font-size: 28px; opacity: 0.4; }
-    .empty-state-text { font-size: 13px; }
-
-    /* ─── Skeleton rows ─────────────────────────────── */
-    .skeleton-row {
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .skeleton-row:last-child { border-bottom: none; }
-    .sk-circle {
-      width: 36px; height: 36px;
-      border-radius: 10px;
-      background: var(--surface-2);
-      flex-shrink: 0;
-      animation: shimmer 1.5s ease-in-out infinite;
-    }
-    .sk-lines { flex: 1; display: flex; flex-direction: column; gap: 6px; }
-    .sk-line {
-      height: 12px;
-      border-radius: 4px;
-      background: var(--surface-2);
-      animation: shimmer 1.5s ease-in-out infinite;
-    }
-    .sk-line.short { width: 60%; }
-
-    /* ─── Last updated ──────────────────────────────── */
-    .last-updated {
-      font-size: 11px;
-      color: var(--text-dim);
-      text-align: right;
-      padding: 0;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Escritorio · Comanda POS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ─── Reset ──────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+/* ─── Tokens ─────────────────────────────────────────── */
+:root{
+  --ink:#0F172A;
+  --brand:#5B6BFF;
+  --brand-light:#818CF8;
+  --brand-tint1:#EEF2FF;
+  --brand-tint2:#E0E7FF;
+  --brand-tint3:#C7D2FE;
+  --slate5:#64748B;
+  --slate4:#94A3B8;
+  --slate3:#CBD5E1;
+  --border:#ECEEF2;
+  --surface1:#F1F5F9;
+  --surface2:#FAFAFB;
+  --white:#FFFFFF;
+  --danger:#EF4444;
+  --warning-text:#B45309;
+  --warning-bg:#FEF3C7;
+  --success:#16A34A;
+  --shadow:rgba(15,23,42,0.06);
+  --font:'DM Sans',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --r8:8px;--r9:9px;--r12:12px;
+}
+body{font-family:var(--font);background:var(--surface2);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased}
+button{cursor:pointer;border:none;font-family:var(--font);background:none}
+/* ─── Shell ──────────────────────────────────────────── */
+.shell{display:flex;min-height:100vh}
+/* ─── Sidebar ────────────────────────────────────────── */
+.sidebar{
+  width:224px;flex-shrink:0;background:var(--white);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;height:100vh;
+  position:sticky;top:0;overflow-y:auto
+}
+.sb-logo{
+  display:flex;align-items:center;gap:10px;
+  padding:18px 16px 14px;border-bottom:1px solid var(--border)
+}
+.sb-logo-icon{
+  width:32px;height:32px;background:var(--ink);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0
+}
+.sb-logo-name{font-size:14px;font-weight:700;color:var(--ink);line-height:1.2}
+.sb-logo-ver{font-size:10px;font-weight:500;color:var(--slate4);margin-top:1px}
+.sb-nav{padding:12px 8px;flex:1}
+.sb-section-label{
+  font-size:10px;font-weight:600;color:var(--slate4);
+  text-transform:uppercase;letter-spacing:.06em;
+  padding:8px 8px 4px
+}
+.sb-item{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 10px;border-radius:8px;
+  font-size:13px;font-weight:500;color:var(--slate5);
+  text-decoration:none;cursor:pointer;
+  transition:background .12s,color .12s;
+  margin-bottom:1px
+}
+.sb-item:hover{background:var(--surface1);color:var(--ink)}
+.sb-item.active{background:var(--brand-tint1);color:var(--brand);font-weight:600}
+.sb-item.active svg{stroke:var(--brand)}
+.sb-item svg{flex-shrink:0;opacity:.85}
+.sb-footer{
+  padding:12px 16px;border-top:1px solid var(--border);
+  font-size:10px;color:var(--slate4)
+}
+.sb-online{display:flex;align-items:center;gap:5px;font-weight:600}
+.sb-dot{width:6px;height:6px;border-radius:50%;background:#16A34A;display:inline-block}
+/* ─── Main ───────────────────────────────────────────── */
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+/* ─── Header ─────────────────────────────────────────── */
+.hdr{
+  height:64px;background:var(--white);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;gap:16px;position:sticky;top:0;z-index:10
+}
+.hdr-left{display:flex;align-items:center;gap:10px;min-width:0}
+.hdr-rest-label{font-size:11px;color:var(--slate4);font-weight:500}
+.hdr-rest-name{font-size:14px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr-badge{font-size:11px;font-weight:600;color:var(--slate5);background:var(--surface1);border-radius:6px;padding:3px 8px;flex-shrink:0}
+.hdr-search{
+  flex:1;max-width:260px;
+  display:flex;align-items:center;gap:8px;
+  background:var(--surface1);border-radius:8px;
+  padding:0 12px;height:34px;
+}
+.hdr-search input{
+  border:none;background:none;outline:none;font-family:var(--font);
+  font-size:13px;color:var(--ink);flex:1;min-width:0
+}
+.hdr-search input::placeholder{color:var(--slate4)}
+.hdr-search kbd{
+  font-size:10px;font-weight:600;color:var(--slate4);
+  border:1px solid var(--border);border-radius:4px;padding:1px 5px;
+  font-family:var(--font);flex-shrink:0
+}
+.hdr-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.icon-btn{
+  width:32px;height:32px;border-radius:8px;
+  border:1px solid var(--border);color:var(--slate5);
+  display:inline-flex;align-items:center;justify-content:center;
+  cursor:pointer;background:var(--white);transition:background .12s
+}
+.icon-btn:hover{background:var(--surface1);color:var(--ink)}
+.notif-wrap{position:relative}
+.notif-dot{
+  position:absolute;top:6px;right:6px;
+  width:6px;height:6px;border-radius:50%;
+  background:var(--brand);border:1.5px solid #fff
+}
+.hdr-divider{width:1px;height:24px;background:var(--border);margin:0 4px}
+.hdr-user{display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 6px;border-radius:8px;transition:background .12s}
+.hdr-user:hover{background:var(--surface1)}
+.hdr-avatar{
+  width:32px;height:32px;border-radius:8px;background:var(--ink);
+  color:#fff;font-size:12px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0
+}
+.hdr-uname{font-size:13px;font-weight:700;color:var(--ink)}
+.hdr-urole{font-size:11px;color:var(--slate4)}
+/* ─── Content ────────────────────────────────────────── */
+.content{padding:24px;display:flex;flex-direction:column;gap:16px}
+/* ─── Banner caja ────────────────────────────────────── */
+.banner{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:var(--r12);padding:24px 28px;
+  display:flex;flex-direction:column;gap:12px
+}
+.banner-date{font-size:12px;color:var(--slate4);font-weight:500}
+.banner-title{font-size:22px;font-weight:700;color:var(--ink);letter-spacing:-.02em}
+.banner-sub{font-size:14px;color:var(--slate5)}
+.banner-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn-primary{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--brand);color:#fff;border-radius:8px;
+  padding:9px 16px;font-size:13px;font-weight:600;
+  font-family:var(--font);transition:opacity .15s
+}
+.btn-primary:hover{opacity:.9}
+.btn-ghost{
+  display:inline-flex;align-items:center;gap:8px;
+  background:none;border:1px solid var(--border);color:var(--slate5);
+  border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;
+  font-family:var(--font);transition:background .12s
+}
+.btn-ghost:hover{background:var(--surface1);color:var(--ink)}
+.banner-pills{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pill{font-size:12px;color:var(--slate5);font-weight:500;display:flex;align-items:center;gap:5px}
+.pill::before{content:'';width:1px;height:12px;background:var(--border)}
+.pill:first-child::before{display:none}
+/* ─── Quick Actions ──────────────────────────────────── */
+.quick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.quick{
+  display:flex;align-items:center;gap:12px;
+  padding:14px 16px;background:var(--white);
+  border:1px solid var(--border);border-radius:var(--r12);
+  cursor:pointer;font-family:var(--font);
+  transition:border-color .12s,background .12s
+}
+.quick:hover{border-color:var(--brand-tint3);background:#FAFAFF}
+.quick.is-active{border-color:var(--brand);background:var(--brand-tint1)}
+.quick.is-active .quick-icon{background:var(--brand);color:#fff}
+.quick.is-disabled{opacity:.55;cursor:not-allowed}
+.quick-icon{
+  width:36px;height:36px;border-radius:9px;
+  background:var(--surface1);color:var(--brand);
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:background .12s
+}
+.quick-name{font-size:13px;font-weight:600;color:var(--ink)}
+.quick-sub{font-size:11px;color:var(--slate4);margin-top:2px}
+/* ─── 2-col grid ─────────────────────────────────────── */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid2-left{display:flex;flex-direction:column;gap:16px}
+.grid2-right{display:flex;flex-direction:column;gap:16px}
+/* ─── Card ───────────────────────────────────────────── */
+.card{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:var(--r12);overflow:hidden
+}
+.card-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px;border-bottom:1px solid var(--border)
+}
+.card-title{font-size:13px;font-weight:600;color:var(--ink)}
+.card-sub{font-size:11px;color:var(--slate4);margin-top:2px}
+.card-body{padding:20px}
+.lumen-link{
+  font-size:12px;font-weight:600;color:var(--brand);
+  background:none;border:none;cursor:pointer;font-family:var(--font)
+}
+/* ─── Segmented ──────────────────────────────────────── */
+.seg-wrap{display:flex;background:var(--surface1);border-radius:8px;padding:3px;gap:2px}
+.seg{
+  padding:5px 12px;border-radius:6px;
+  background:transparent;border:none;
+  color:var(--slate5);font-size:12px;font-weight:600;
+  cursor:pointer;font-family:var(--font);transition:background .12s
+}
+.seg.active{background:var(--white);color:var(--ink);box-shadow:0 1px 2px var(--shadow)}
+/* ─── Chart sales ────────────────────────────────────── */
+.chart-kpi{display:flex;align-items:baseline;gap:8px;padding:0 20px 12px}
+.chart-kpi-val{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.chart-kpi-badge{
+  font-size:11px;font-weight:600;color:var(--success);
+  background:#DCFCE7;border-radius:4px;padding:2px 6px
+}
+.chart-meta{display:flex;align-items:center;gap:16px;padding:0 20px 12px}
+.chart-meta-date{font-size:12px;color:var(--slate4);font-weight:500}
+.chart-legend{display:flex;align-items:center;gap:12px;margin-left:auto}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--slate5)}
+.legend-line{width:16px;height:2px;border-radius:1px}
+.legend-dashed{width:16px;height:0;border-top:2px dashed var(--slate3)}
+.chart-wrap{padding:0 12px 8px;overflow-x:auto}
+.chart-stats{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  border-top:1px solid var(--border)
+}
+.chart-stat{padding:12px 20px;border-right:1px solid var(--border)}
+.chart-stat:last-child{border-right:none}
+.chart-stat-label{font-size:10px;font-weight:600;color:var(--slate4);text-transform:uppercase;letter-spacing:.05em}
+.chart-stat-val{font-size:14px;font-weight:700;color:var(--ink);margin-top:3px}
+.chart-stat-sub{font-size:10px;color:var(--slate4);margin-top:1px}
+/* ─── Top products ───────────────────────────────────── */
+.prod-row{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 20px;border-bottom:1px solid var(--surface1)
+}
+.prod-row:last-child{border-bottom:none}
+.prod-rank{
+  width:20px;font-size:12px;font-weight:700;
+  color:var(--slate4);text-align:center;flex-shrink:0
+}
+.prod-bar-wrap{flex:1;min-width:0}
+.prod-name{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prod-cat{font-size:11px;color:var(--slate4);margin-top:2px}
+.prod-bar{height:3px;background:var(--brand-tint2);border-radius:2px;margin-top:6px;overflow:hidden}
+.prod-bar-fill{height:100%;background:var(--brand);border-radius:2px;transition:width .6s}
+.prod-right{text-align:right;flex-shrink:0}
+.prod-price{font-size:13px;font-weight:700;color:var(--ink)}
+.prod-units{font-size:11px;color:var(--slate4);margin-top:2px}
+/* ─── Meta ───────────────────────────────────────────── */
+.meta-main{display:flex;align-items:baseline;gap:6px;padding:16px 20px 8px}
+.meta-val{font-size:18px;font-weight:700;color:var(--ink)}
+.meta-of{font-size:13px;color:var(--slate4)}
+.meta-bar-wrap{padding:0 20px 12px}
+.meta-bar{height:8px;background:var(--surface1);border-radius:4px;overflow:hidden}
+.meta-bar-fill{height:100%;background:var(--brand);border-radius:4px;transition:width .6s}
+.meta-pct{font-size:12px;font-weight:600;color:var(--brand);margin-top:6px}
+.meta-sub{font-size:11px;color:var(--success);margin-top:2px}
+.meta-rows{border-top:1px solid var(--border)}
+.meta-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 20px;border-bottom:1px solid var(--surface1);font-size:12px
+}
+.meta-row:last-child{border-bottom:none}
+.meta-row-name{color:var(--slate5);font-weight:500}
+.meta-row-val{font-weight:700;color:var(--ink)}
+.meta-row-pct{color:var(--slate4)}
+/* ─── Stock ──────────────────────────────────────────── */
+.stock-hdr{display:flex;align-items:center;gap:10px;padding:16px 20px}
+.stock-icon{
+  width:32px;height:32px;border-radius:8px;
+  background:var(--warning-bg);display:flex;align-items:center;justify-content:center;flex-shrink:0
+}
+.stock-title{font-size:13px;font-weight:600;color:var(--ink)}
+.stock-sub{font-size:11px;color:var(--slate4)}
+.stock-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 20px;border-top:1px solid var(--border);gap:8px
+}
+.stock-row-name{font-size:12px;font-weight:600;color:var(--ink)}
+.stock-row-hint{font-size:11px;color:var(--slate4);margin-top:2px}
+.stock-qty{font-size:13px;font-weight:700;color:var(--danger)}
+.stock-min{font-size:10px;color:var(--slate4);text-align:right;margin-top:2px}
+/* ─── Help ───────────────────────────────────────────── */
+.help-body{padding:20px;display:flex;flex-direction:column;gap:12px}
+.help-icon-wrap{
+  width:36px;height:36px;border-radius:9px;
+  background:var(--brand-tint1);display:flex;align-items:center;justify-content:center
+}
+.help-title{font-size:13px;font-weight:600;color:var(--ink)}
+.help-hours{font-size:11px;color:var(--slate4);line-height:1.5}
+.help-btns{display:flex;gap:8px;flex-wrap:wrap}
+/* ─── Desglose ───────────────────────────────────────── */
+.desglose-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  border-top:1px solid var(--border)
+}
+.desglose-cell{
+  padding:16px 20px;border-right:1px solid var(--border);border-bottom:1px solid var(--border)
+}
+.desglose-cell:nth-child(3n){border-right:none}
+.desglose-cell:nth-last-child(-n+3){border-bottom:none}
+.desglose-label{font-size:11px;color:var(--slate4);font-weight:500}
+.desglose-val{font-size:16px;font-weight:700;color:var(--ink);margin-top:6px}
+.desglose-pct{font-size:11px;color:var(--slate5);margin-top:2px}
+.desglose-spark{margin-top:8px}
+/* ─── Sparkline ──────────────────────────────────────── */
+svg.spark{display:block}
+/* ─── Más sobre negocio ──────────────────────────────── */
+.op-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid var(--border)}
+.op-cell{padding:16px 20px;border-right:1px solid var(--border)}
+.op-cell:last-child{border-right:none}
+.op-cell-label{font-size:10px;font-weight:600;color:var(--slate4);text-transform:uppercase;letter-spacing:.05em}
+.op-cell-val{font-size:18px;font-weight:700;color:var(--ink);margin-top:6px}
+.op-cell-sub{font-size:11px;color:var(--slate4);margin-top:3px}
+.op-cell-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:11px;font-weight:600;color:var(--success);margin-top:4px
+}
+.op-stats{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  border-top:1px solid var(--border)
+}
+.op-stat{padding:12px 20px;border-right:1px solid var(--border);font-size:11px;color:var(--slate5)}
+.op-stat:last-child{border-right:none}
+.op-stat-val{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:2px}
+/* ─── Pago ───────────────────────────────────────────── */
+.pago-total{font-size:20px;font-weight:700;color:var(--ink);padding:16px 20px 8px}
+.pago-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 20px;border-top:1px solid var(--border)
+}
+.pago-name{font-size:13px;font-weight:600;color:var(--ink)}
+.pago-sub{font-size:11px;color:var(--slate4);margin-top:2px}
+.pago-right{text-align:right}
+.pago-val{font-size:13px;font-weight:700;color:var(--ink)}
+.pago-pct{font-size:11px;color:var(--slate4);margin-top:2px}
+.pago-bar{height:4px;background:var(--surface1);border-radius:2px;margin-top:8px;overflow:hidden;width:100%}
+.pago-bar-fill{height:100%;background:var(--brand);border-radius:2px;transition:width .6s}
+/* ─── Canal ──────────────────────────────────────────── */
+.canal-grid{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border)}
+.canal-cell{padding:16px 20px;border-right:1px solid var(--border)}
+.canal-cell:last-child{border-right:none}
+.canal-label{font-size:12px;font-weight:600;color:var(--ink)}
+.canal-val{font-size:18px;font-weight:700;color:var(--ink);margin-top:8px}
+.canal-sub{font-size:11px;color:var(--slate4);margin-top:3px}
+.canal-bar{height:4px;background:var(--surface1);border-radius:2px;margin-top:10px;overflow:hidden}
+.canal-bar-fill{height:100%;background:var(--brand);border-radius:2px}
+/* ─── Barras hora ────────────────────────────────────── */
+.hour-chart-wrap{padding:16px 20px 8px;overflow-x:auto}
+.hour-stats{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  border-top:1px solid var(--border)
+}
+.hour-stat{padding:12px 20px;border-right:1px solid var(--border)}
+.hour-stat:last-child{border-right:none}
+.hour-stat-label{font-size:10px;font-weight:600;color:var(--slate4);text-transform:uppercase;letter-spacing:.05em}
+.hour-stat-val{font-size:14px;font-weight:700;color:var(--ink);margin-top:3px}
+.hour-stat-sub{font-size:10px;color:var(--slate4);margin-top:1px}
+/* ─── Catálogo ───────────────────────────────────────── */
+.cat-featured{
+  margin:16px 20px;padding:16px;
+  background:var(--brand-tint1);border-radius:var(--r12);
+  border:1px solid var(--brand-tint3);
+  display:flex;align-items:center;gap:14px
+}
+.cat-featured-rank{
+  width:36px;height:36px;background:var(--brand);border-radius:9px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;font-weight:700;color:#fff;flex-shrink:0
+}
+.cat-featured-name{font-size:14px;font-weight:700;color:var(--ink)}
+.cat-featured-cat{font-size:11px;color:var(--slate5);margin-top:2px}
+.cat-featured-right{margin-left:auto;text-align:right}
+.cat-featured-val{font-size:15px;font-weight:700;color:var(--ink)}
+.cat-featured-units{font-size:11px;color:var(--slate4);margin-top:2px}
+.cat-featured-pct{font-size:12px;font-weight:600;color:var(--success);margin-top:3px}
+.top-row{
+  display:flex;align-items:center;gap:12px;
+  padding:10px 20px;border-bottom:1px solid var(--surface1)
+}
+.top-row:last-child{border-bottom:none}
+.top-rank{font-size:12px;font-weight:700;color:var(--slate4);width:20px;text-align:center}
+.top-name{font-size:13px;font-weight:600;color:var(--ink)}
+.top-cat{font-size:11px;color:var(--slate4)}
+.top-right{margin-left:auto;text-align:right}
+.top-val{font-size:13px;font-weight:700;color:var(--ink)}
+.top-units{font-size:11px;color:var(--slate4)}
+.top-pct-pos{font-size:11px;font-weight:600;color:var(--success)}
+.top-pct-neg{font-size:11px;font-weight:600;color:var(--danger)}
+/* ─── Empty states ───────────────────────────────────── */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--slate4);gap:8px;text-align:center}
+.empty-icon{font-size:24px;opacity:.5}
+.empty-text{font-size:13px}
+/* ─── Skeletons ──────────────────────────────────────── */
+@keyframes shimmer{0%,100%{opacity:.4}50%{opacity:1}}
+.sk{background:var(--surface1);border-radius:4px;animation:shimmer 1.5s ease-in-out infinite}
+</style>
 </head>
 <body>
+<div class="shell">
 
-<div class="dash-wrap">
+<!-- ═══ SIDEBAR ════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-icon">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 2v6a3 3 0 0 0 6 0V2"/><line x1="9" y1="2" x2="9" y2="20"/>
+        <path d="M17 2v10c0 5 4 5 4 0V2h-4"/>
+      </svg>
+    </div>
+    <div>
+      <div class="sb-logo-name">Comanda</div>
+      <div class="sb-logo-ver">POS · v1.0</div>
+    </div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-section-label">Operación</div>
+    <a class="sb-item active" href="dashboard.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Escritorio
+    </a>
+    <a class="sb-item" href="index.html?rol=waiter">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+      Ventas
+    </a>
+    <a class="sb-item" href="index.html?rol=waiter">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Domicilio
+    </a>
+    <a class="sb-item" href="#">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Reservas
+    </a>
+    <div class="sb-section-label" style="margin-top:8px">Backoffice</div>
+    <a class="sb-item" href="index.html?rol=cashier">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+      Caja
+    </a>
+    <a class="sb-item" href="index.html?rol=kitchen">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+      Cocina
+    </a>
+    <a class="sb-item" href="#">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+      Productos
+    </a>
+    <a class="sb-item" href="#">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Informes
+    </a>
+  </nav>
+  <div class="sb-footer">
+    <div class="sb-online">
+      <span class="sb-dot"></span>
+      <span>Sistema en línea</span>
+    </div>
+    <div style="margin-top:4px;font-size:10px;color:var(--slate4)" id="sb-session-info">v1.0.0</div>
+  </div>
+</aside>
+
+<!-- ═══ MAIN ════════════════════════════════════════════ -->
+<div class="main">
 
   <!-- Header -->
-  <header class="dash-header">
-    <div class="dash-header-left">
-      <div class="dash-logo">C</div>
+  <header class="hdr">
+    <div class="hdr-left">
       <div>
-        <div class="dash-brand" id="hdr-brand">Cargando...</div>
-        <div class="dash-date" id="hdr-date"></div>
+        <div class="hdr-rest-label">Restaurante</div>
+        <div class="hdr-rest-name" id="hdr-name">Cargando...</div>
       </div>
+      <span class="hdr-badge">Modo Administrador</span>
     </div>
-    <div class="dash-header-right">
-      <div class="live-badge">
-        <div class="live-dot"></div>
-        En vivo
+    <div class="hdr-search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" placeholder="Buscar producto, mesa, pedido…">
+      <kbd>⌘K</kbd>
+    </div>
+    <div class="hdr-right">
+      <button class="icon-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </button>
+      <div class="notif-wrap">
+        <button class="icon-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </button>
+        <span class="notif-dot"></span>
       </div>
-      <a href="index.html?rol=waiter" class="dash-nav-link">🧑‍🍳 Mesero</a>
-      <a href="index.html?rol=kitchen" class="dash-nav-link">👨‍🍳 Cocina</a>
-      <a href="index.html?rol=cashier" class="dash-nav-link">💳 Caja</a>
+      <div class="hdr-divider"></div>
+      <div class="hdr-user">
+        <div class="hdr-avatar" id="hdr-avatar">?</div>
+        <div>
+          <div class="hdr-uname" id="hdr-uname">...</div>
+          <div class="hdr-urole" id="hdr-urole">Administrador</div>
+        </div>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2" style="margin-left:2px"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
     </div>
   </header>
 
-  <!-- Body -->
-  <main class="dash-body">
+  <!-- Content -->
+  <div class="content">
 
-    <!-- KPIs -->
-    <div class="kpi-row">
-      <div class="kpi-card green">
-        <div class="kpi-top">
-          <span class="kpi-label">Ventas del día</span>
-          <div class="kpi-icon green">💰</div>
-        </div>
-        <div class="kpi-loading" id="kpi-ventas-skeleton"></div>
-        <div class="kpi-value" id="kpi-ventas" style="display:none"></div>
-        <div class="kpi-sub" id="kpi-ventas-sub"></div>
+    <!-- Banner -->
+    <div class="banner">
+      <div class="banner-date" id="banner-date"></div>
+      <div class="banner-title" id="banner-greeting">Buenos días.</div>
+      <div class="banner-sub" id="banner-sub">Cargando estado de caja...</div>
+      <div class="banner-actions">
+        <button class="btn-primary" id="btn-apertura">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+          Aperturar caja
+        </button>
+        <button class="btn-ghost">Ver turno anterior</button>
       </div>
-      <div class="kpi-card amber">
-        <div class="kpi-top">
-          <span class="kpi-label">Pedidos activos</span>
-          <div class="kpi-icon amber">📋</div>
+      <div class="banner-pills" id="banner-pills"></div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-grid">
+      <button class="quick is-active" onclick="location.href='index.html?rol=waiter'">
+        <div class="quick-icon">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         </div>
-        <div class="kpi-loading" id="kpi-pedidos-skeleton"></div>
-        <div class="kpi-value" id="kpi-pedidos" style="display:none"></div>
-        <div class="kpi-sub" id="kpi-pedidos-sub"></div>
+        <div>
+          <div class="quick-name">Meseros</div>
+          <div class="quick-sub" id="q-meseros">Cargando...</div>
+        </div>
+      </button>
+      <button class="quick" onclick="window.print()">
+        <div class="quick-icon">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        </div>
+        <div>
+          <div class="quick-name">Imprimir productos</div>
+          <div class="quick-sub">Carta del menú</div>
+        </div>
+      </button>
+      <button class="quick">
+        <div class="quick-icon">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        </div>
+        <div>
+          <div class="quick-name">Imprimir comprobantes</div>
+          <div class="quick-sub">Resumen del día</div>
+        </div>
+      </button>
+      <button class="quick is-disabled" disabled>
+        <div class="quick-icon">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+        </div>
+        <div>
+          <div class="quick-name">Publicidad</div>
+          <div class="quick-sub">Próximamente</div>
+        </div>
+      </button>
+    </div>
+
+    <!-- 2 columnas -->
+    <div class="grid2">
+      <div class="grid2-left">
+
+        <!-- Ventas chart -->
+        <div class="card">
+          <div class="card-hdr">
+            <div>
+              <div class="card-title">Ventas · <span id="chart-caja-label">Caja 01</span></div>
+              <div class="card-sub" id="chart-subtitle">Últimos 7 días</div>
+            </div>
+            <div class="seg-wrap">
+              <button class="seg active" onclick="switchChartMode('amount',this)">Dinero</button>
+              <button class="seg" onclick="switchChartMode('count',this)">Cantidad</button>
+            </div>
+          </div>
+          <div class="chart-kpi">
+            <span class="chart-kpi-val" id="chart-total">—</span>
+            <span class="chart-kpi-badge" id="chart-badge" style="display:none"></span>
+          </div>
+          <div class="chart-meta">
+            <span class="chart-meta-date" id="chart-daterange"></span>
+            <div class="chart-legend">
+              <div class="legend-item"><div class="legend-line" style="background:var(--brand)"></div>Esta semana</div>
+              <div class="legend-item"><div class="legend-dashed"></div>Semana pasada</div>
+            </div>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="sales-chart" width="700" height="160" style="display:block"></canvas>
+          </div>
+          <div class="chart-stats">
+            <div class="chart-stat">
+              <div class="chart-stat-label">Hora punta</div>
+              <div class="chart-stat-val" id="stat-hora-punta">—</div>
+              <div class="chart-stat-sub">Mayor actividad</div>
+            </div>
+            <div class="chart-stat">
+              <div class="chart-stat-label">Hora valle</div>
+              <div class="chart-stat-val" id="stat-hora-valle">—</div>
+              <div class="chart-stat-sub">Menor actividad</div>
+            </div>
+            <div class="chart-stat">
+              <div class="chart-stat-label">Pedidos hoy</div>
+              <div class="chart-stat-val" id="stat-pedidos-hoy">—</div>
+              <div class="chart-stat-sub" id="stat-pedidos-vs">vs ayer</div>
+            </div>
+            <div class="chart-stat">
+              <div class="chart-stat-label">Ticket promedio</div>
+              <div class="chart-stat-val" id="stat-ticket">—</div>
+              <div class="chart-stat-sub">Tendencia ↗</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top productos -->
+        <div class="card">
+          <div class="card-hdr">
+            <div>
+              <div class="card-title">Productos más vendidos hoy</div>
+              <div class="card-sub" id="top-updated">actualizado ahora</div>
+            </div>
+            <button class="lumen-link">Ver todos →</button>
+          </div>
+          <div id="top-productos-list">
+            <div class="empty"><div class="empty-icon">📦</div><div class="empty-text">Cargando productos...</div></div>
+          </div>
+        </div>
+
+      </div><!-- /grid2-left -->
+      <div class="grid2-right">
+
+        <!-- Meta diaria -->
+        <div class="card">
+          <div class="card-hdr">
+            <div>
+              <div class="card-title">Meta diaria</div>
+              <div class="card-sub" id="meta-date">Hoy</div>
+            </div>
+          </div>
+          <div class="meta-main">
+            <span class="meta-val" id="meta-actual">$0</span>
+            <span class="meta-of" id="meta-of">de $0</span>
+          </div>
+          <div class="meta-bar-wrap">
+            <div class="meta-bar"><div class="meta-bar-fill" id="meta-bar" style="width:0%"></div></div>
+            <div class="meta-pct" id="meta-pct">0% completado</div>
+            <div class="meta-sub" id="meta-sub"></div>
+          </div>
+          <div class="meta-rows" id="meta-channels">
+            <div class="empty"><div class="empty-text">Sin datos de canales</div></div>
+          </div>
+        </div>
+
+        <!-- Alertas stock -->
+        <div class="card" id="stock-card">
+          <div class="stock-hdr">
+            <div class="stock-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B45309" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div>
+              <div class="stock-title" id="stock-title">Alertas de stock</div>
+              <div class="stock-sub" id="stock-sub">Verificando inventario...</div>
+            </div>
+            <button class="lumen-link" style="margin-left:auto">Ver inventario →</button>
+          </div>
+          <div id="stock-list"></div>
+        </div>
+
+        <!-- Ayuda -->
+        <div class="card">
+          <div class="help-body">
+            <div class="help-icon-wrap">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <div>
+              <div class="help-title">¿Necesitas ayuda?</div>
+              <div class="help-hours">Contacta a un asesor de Comanda.<br>Lun a Sáb: 08:00am – 09:00pm · Dom: 09:00am – 06:00pm</div>
+            </div>
+            <div class="help-btns">
+              <button class="btn-primary" style="font-size:12px;padding:7px 14px">Chatear ahora</button>
+              <button class="btn-ghost" style="font-size:12px;padding:7px 14px">Centro de ayuda</button>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /grid2-right -->
+    </div><!-- /grid2 -->
+
+    <!-- Desglose de ventas -->
+    <div class="card">
+      <div class="card-hdr">
+        <div>
+          <div class="card-title">Desglose de ventas · Hoy</div>
+          <div class="card-sub">Todos los medios de pago</div>
+        </div>
+        <button class="lumen-link">Exportar reporte →</button>
       </div>
-      <div class="kpi-card blue">
-        <div class="kpi-top">
-          <span class="kpi-label">Mesas ocupadas</span>
-          <div class="kpi-icon blue">🪑</div>
-        </div>
-        <div class="kpi-loading" id="kpi-mesas-skeleton"></div>
-        <div class="kpi-value" id="kpi-mesas" style="display:none"></div>
-        <div class="kpi-sub" id="kpi-mesas-sub"></div>
-      </div>
-      <div class="kpi-card purple">
-        <div class="kpi-top">
-          <span class="kpi-label">Ticket promedio</span>
-          <div class="kpi-icon purple">📊</div>
-        </div>
-        <div class="kpi-loading" id="kpi-ticket-skeleton"></div>
-        <div class="kpi-value" id="kpi-ticket" style="display:none"></div>
-        <div class="kpi-sub" id="kpi-ticket-sub"></div>
+      <div class="desglose-grid" id="desglose-grid">
+        <div class="desglose-cell"><div class="sk" style="height:12px;width:80px;margin-bottom:8px"></div><div class="sk" style="height:20px;width:120px"></div></div>
+        <div class="desglose-cell"><div class="sk" style="height:12px;width:80px;margin-bottom:8px"></div><div class="sk" style="height:20px;width:120px"></div></div>
+        <div class="desglose-cell"><div class="sk" style="height:12px;width:80px;margin-bottom:8px"></div><div class="sk" style="height:20px;width:120px"></div></div>
+        <div class="desglose-cell"><div class="sk" style="height:12px;width:80px;margin-bottom:8px"></div><div class="sk" style="height:20px;width:120px"></div></div>
+        <div class="desglose-cell"><div class="sk" style="height:12px;width:80px;margin-bottom:8px"></div><div class="sk" style="height:20px;width:120px"></div></div>
+        <div class="desglose-cell"><div class="sk" style="height:12px;width:80px;margin-bottom:8px"></div><div class="sk" style="height:20px;width:120px"></div></div>
       </div>
     </div>
 
-    <!-- Main grid -->
-    <div class="main-grid">
-
-      <!-- Pedidos activos -->
-      <div class="panel">
-        <div class="panel-header">
-          <div class="panel-title">
-            📋 Pedidos activos
-            <span class="panel-count" id="orders-count">—</span>
-          </div>
-          <span class="last-updated" id="orders-ts"></span>
-        </div>
-        <div class="panel-body" id="orders-list">
-          <!-- skeleton -->
-          <div class="skeleton-row"><div class="sk-circle"></div><div class="sk-lines"><div class="sk-line"></div><div class="sk-line short"></div></div></div>
-          <div class="skeleton-row"><div class="sk-circle"></div><div class="sk-lines"><div class="sk-line"></div><div class="sk-line short"></div></div></div>
-          <div class="skeleton-row"><div class="sk-circle"></div><div class="sk-lines"><div class="sk-line"></div><div class="sk-line short"></div></div></div>
+    <!-- Más sobre el negocio -->
+    <div class="card">
+      <div class="card-hdr">
+        <div>
+          <div class="card-title">Más sobre mi negocio · Operación · Hoy</div>
         </div>
       </div>
-
-      <!-- Estado de mesas -->
-      <div class="panel">
-        <div class="panel-header">
-          <div class="panel-title">
-            🪑 Estado de mesas
-            <span class="panel-count" id="tables-count">—</span>
-          </div>
-        </div>
-        <div class="tables-grid" id="tables-grid">
-          <!-- skeleton -->
-          <div class="table-cell"><div class="kpi-loading" style="height:14px;margin-bottom:4px"></div><div class="kpi-loading" style="height:10px;width:60%;margin:0 auto"></div></div>
-          <div class="table-cell"><div class="kpi-loading" style="height:14px;margin-bottom:4px"></div><div class="kpi-loading" style="height:10px;width:60%;margin:0 auto"></div></div>
-          <div class="table-cell"><div class="kpi-loading" style="height:14px;margin-bottom:4px"></div><div class="kpi-loading" style="height:10px;width:60%;margin:0 auto"></div></div>
-        </div>
+      <div class="op-grid" id="op-grid">
+        <div class="op-cell"><div class="op-cell-label">Mesero del día</div><div class="op-cell-val" id="op-mesero">—</div><div class="op-cell-sub" id="op-mesero-sub"></div></div>
+        <div class="op-cell"><div class="op-cell-label">Clientes hoy</div><div class="op-cell-val" id="op-clientes">—</div><div class="op-cell-sub" id="op-clientes-sub"></div></div>
+        <div class="op-cell"><div class="op-cell-label">Ticket promedio</div><div class="op-cell-val" id="op-ticket">—</div><div class="op-cell-sub" id="op-ticket-sub"></div></div>
+        <div class="op-cell" style="border-right:none"><div class="op-cell-label">Mesas atendidas</div><div class="op-cell-val" id="op-mesas">—</div><div class="op-cell-sub" id="op-mesas-sub"></div></div>
       </div>
-
+      <div class="op-stats">
+        <div class="op-stat"><div class="op-stat-val" id="ost-anuladas">0</div>Ventas anuladas</div>
+        <div class="op-stat"><div class="op-stat-val" id="ost-despacho">—</div>Tiempo despacho</div>
+        <div class="op-stat"><div class="op-stat-val" id="ost-atencion">—</div>Atención en mesa</div>
+        <div class="op-stat" style="border-right:none"><div class="op-stat-val" id="ost-ocupacion">—</div>Ocupación mesas</div>
+      </div>
     </div>
 
-  </main>
-</div>
+    <!-- Tipo de pago -->
+    <div class="card">
+      <div class="card-hdr">
+        <div><div class="card-title">Tipo de pago · Distribución · Hoy</div></div>
+      </div>
+      <div class="pago-total" id="pago-total">$0</div>
+      <div id="pago-rows">
+        <div class="empty"><div class="empty-text">Sin ventas registradas hoy</div></div>
+      </div>
+    </div>
 
-<!-- Supabase -->
+    <!-- Canal de venta -->
+    <div class="card">
+      <div class="card-hdr">
+        <div><div class="card-title">Canal de venta · Distribución · Hoy</div></div>
+      </div>
+      <div class="canal-grid" id="canal-grid">
+        <div class="canal-cell"><div class="canal-label">Salón</div><div class="canal-val" id="c-salon">$0</div><div class="canal-sub" id="c-salon-sub">0 ventas</div><div class="canal-bar"><div class="canal-bar-fill" id="c-salon-bar" style="width:0%"></div></div></div>
+        <div class="canal-cell"><div class="canal-label">Venta rápida</div><div class="canal-val" id="c-rapida">$0</div><div class="canal-sub" id="c-rapida-sub">0 ventas</div><div class="canal-bar"><div class="canal-bar-fill" id="c-rapida-bar" style="width:0%"></div></div></div>
+        <div class="canal-cell"><div class="canal-label">Domicilio</div><div class="canal-val" id="c-domicilio">$0</div><div class="canal-sub" id="c-domicilio-sub">0 ventas</div><div class="canal-bar"><div class="canal-bar-fill" id="c-domicilio-bar" style="width:0%"></div></div></div>
+        <div class="canal-cell" style="border-right:none"><div class="canal-label">Reservación</div><div class="canal-val" id="c-reserva">$0</div><div class="canal-sub" id="c-reserva-sub">0 ventas</div><div class="canal-bar"><div class="canal-bar-fill" id="c-reserva-bar" style="width:0%"></div></div></div>
+      </div>
+    </div>
+
+    <!-- Ticket por hora -->
+    <div class="card">
+      <div class="card-hdr">
+        <div><div class="card-title">Ticket promedio por hora · Comportamiento · Hoy</div></div>
+        <div class="seg-wrap">
+          <button class="seg active">Cantidad</button>
+          <button class="seg">Concurrencia</button>
+        </div>
+      </div>
+      <div class="hour-chart-wrap">
+        <canvas id="hour-chart" width="700" height="200" style="display:block"></canvas>
+      </div>
+      <div class="hour-stats">
+        <div class="hour-stat"><div class="hour-stat-label">Pico</div><div class="hour-stat-val" id="hs-pico">—</div><div class="hour-stat-sub" id="hs-pico-sub">Hora punta</div></div>
+        <div class="hour-stat"><div class="hour-stat-label">Mínimo</div><div class="hour-stat-val" id="hs-min">—</div><div class="hour-stat-sub">Hora valle</div></div>
+        <div class="hour-stat"><div class="hour-stat-label">Promedio</div><div class="hour-stat-val" id="hs-avg">—</div><div class="hour-stat-sub">Día completo</div></div>
+        <div class="hour-stat" style="border-right:none"><div class="hour-stat-label">Variación</div><div class="hour-stat-val" id="hs-var">—</div><div class="hour-stat-sub">vs hora anterior</div></div>
+      </div>
+    </div>
+
+    <!-- Catálogo -->
+    <div class="card">
+      <div class="card-hdr">
+        <div>
+          <div class="card-title">Catálogo · Esta semana</div>
+          <div class="card-sub">Top productos</div>
+        </div>
+        <div class="seg-wrap">
+          <button class="seg active">Todos los productos</button>
+          <button class="seg">Mejor facturación</button>
+        </div>
+      </div>
+      <div id="cat-featured"></div>
+      <div id="cat-list"></div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /shell -->
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-// ─── Config ────────────────────────────────────────────
+// ══════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════
 const SUPABASE_URL = 'https://tblujfduscslxjmrjbdr.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ─── Helpers ────────────────────────────────────────────
-function fmt(n) {
-  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(n || 0);
-}
-function timeAgo(iso) {
-  if (!iso) return '';
-  const diff = Math.floor((Date.now() - new Date(iso)) / 60000);
-  if (diff < 1) return 'ahora mismo';
-  if (diff === 1) return 'hace 1 min';
-  if (diff < 60) return `hace ${diff} min`;
-  const h = Math.floor(diff / 60);
-  return h === 1 ? 'hace 1 hora' : `hace ${h} h`;
-}
-function nowStr() {
-  return new Intl.DateTimeFormat('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date());
-}
-function todayStart() {
-  const d = new Date();
-  d.setHours(0,0,0,0);
-  return d.toISOString();
-}
-
-// Status labels for orders
-const STATUS_LABELS = {
-  open:      { label: 'Abierto',   cls: 'open'    },
-  pending:   { label: 'Pendiente', cls: 'pending'  },
-  in_progress:{ label: 'En curso', cls: 'open'    },
-  ready:     { label: 'Listo',     cls: 'ready'   },
-  closed:    { label: 'Cerrado',   cls: 'closed'  },
-  cancelled: { label: 'Cancelado', cls: 'closed'  },
+// ══════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════
+const COP = n => new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(n||0);
+const COP_SHORT = n => {
+  if(!n) return '$0';
+  if(n>=1000000) return '$'+(n/1000000).toFixed(1).replace(/\.0$/,'')+'M';
+  if(n>=1000) return '$'+(n/1000).toFixed(0)+'k';
+  return COP(n);
 };
-function getStatusBadge(status) {
-  const s = STATUS_LABELS[status] || { label: status || '—', cls: 'closed' };
-  return `<span class="badge ${s.cls}">${s.label}</span>`;
-}
+const todayStart = () => { const d=new Date(); d.setHours(0,0,0,0); return d.toISOString(); };
+const weekAgo    = () => { const d=new Date(); d.setDate(d.getDate()-7); d.setHours(0,0,0,0); return d.toISOString(); };
+const twoWeeksAgo= () => { const d=new Date(); d.setDate(d.getDate()-14); d.setHours(0,0,0,0); return d.toISOString(); };
 
-// Table status labels
-const TABLE_STATUS = {
-  free:     { label: 'Libre',     cls: 'free'     },
-  occupied: { label: 'Ocupada',   cls: 'occupied' },
-  reserved: { label: 'Reservada', cls: 'reserved' },
-};
+function dayName(iso){ return new Date(iso).toLocaleDateString('es-CO',{weekday:'short'}); }
+function hourLabel(h){ return String(h).padStart(2,'0')+':00'; }
 
-// ─── Render helpers ─────────────────────────────────────
-function showKpi(id, value) {
-  document.getElementById(id + '-skeleton').style.display = 'none';
-  const el = document.getElementById(id);
-  el.textContent = value;
-  el.style.display = 'block';
-}
+// ══════════════════════════════════════════════════════
+// HEADER & BANNER — datos del restaurante y sesión
+// ══════════════════════════════════════════════════════
+async function loadHeader() {
+  const now = new Date();
+  const h = now.getHours();
+  const greeting = h<12 ? 'Buenos días' : h<18 ? 'Buenas tardes' : 'Buenas noches';
 
-function renderOrders(orders) {
-  const list = document.getElementById('orders-list');
-  document.getElementById('orders-count').textContent = orders.length;
-  document.getElementById('orders-ts').textContent = 'Actualizado: ' + nowStr();
+  // Fecha en banner
+  const dateStr = now.toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const banner_date = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+  document.getElementById('banner-date').textContent = banner_date;
 
-  if (!orders.length) {
-    list.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">📋</div>
-        <div class="empty-state-text">No hay pedidos activos en este momento</div>
-      </div>`;
-    return;
+  // Config del restaurante
+  const { data: cfg } = await sb.from('pos_config').select('key,value');
+  const conf = {};
+  (cfg||[]).forEach(r => conf[r.key] = r.value);
+  const restName = conf.restaurant_name || 'Mi Restaurante';
+  const branch   = conf.branch_name     || 'Sede Principal';
+  document.getElementById('hdr-name').textContent = restName + ' · ' + branch;
+  document.getElementById('banner-greeting').textContent = greeting + ', ' + (conf.owner_name || 'Administrador') + '.';
+  document.title = 'Escritorio · ' + restName;
+
+  // Sesión de caja activa
+  const { data: session } = await sb.from('pos_sessions').select('*').eq('status','open').maybeSingle();
+  if (session) {
+    document.getElementById('banner-sub').textContent = 'Caja abierta. Turno activo desde las ' + new Date(session.opened_at||session.created_at).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'}) + '.';
+    document.getElementById('btn-apertura').textContent = '✓ Caja abierta';
+    document.getElementById('btn-apertura').style.background = '#16A34A';
+    const pills = document.getElementById('banner-pills');
+    pills.innerHTML = `<span class="pill">${session.name||'Caja 01'}</span><span class="pill">Turno activo</span>`;
+  } else {
+    document.getElementById('banner-sub').textContent = 'Tu caja está cerrada. Aperturala para comenzar a registrar ventas de hoy.';
   }
 
-  list.innerHTML = orders.map(o => {
-    const tableLabel = o.pos_tables ? `Mesa ${o.pos_tables.number || o.pos_tables.name || o.table_id}` : `Mesa ${o.table_id || '—'}`;
-    const itemCount  = o.pos_order_items ? o.pos_order_items.length : 0;
-    const total      = o.total || o.pos_order_items?.reduce((s, i) => s + (i.subtotal || i.unit_price * i.quantity || 0), 0) || 0;
+  // Avatar: iniciales del owner
+  const name = conf.owner_name || 'A';
+  const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('hdr-avatar').textContent = initials;
+  document.getElementById('hdr-uname').textContent = conf.owner_name || 'Administrador';
 
-    return `
-    <div class="order-row">
-      <div class="order-avatar">${(o.pos_tables?.number || o.pos_tables?.name || '?').toString().slice(0,2)}</div>
-      <div>
-        <div class="order-info-name">${tableLabel}</div>
-        <div class="order-info-sub">${itemCount} ítem${itemCount !== 1 ? 's' : ''} · ${getStatusBadge(o.status)}</div>
-      </div>
-      <div>
-        <div class="order-total">${fmt(total)}</div>
-        <div class="order-time">${timeAgo(o.created_at)}</div>
-      </div>
-    </div>`;
-  }).join('');
+  // Quick: meseros activos
+  const { data: activeOrders } = await sb.from('pos_orders').select('waiter_id').not('status','in','("closed","completed","cancelled")');
+  const uniqueWaiters = new Set((activeOrders||[]).map(o=>o.waiter_id).filter(Boolean)).size;
+  document.getElementById('q-meseros').textContent = uniqueWaiters > 0 ? `${uniqueWaiters} activo${uniqueWaiters!==1?'s':''}` : 'Sin meseros activos';
 }
 
-function renderTables(tables) {
-  const grid = document.getElementById('tables-grid');
-  const free = tables.filter(t => (t.status || 'free') === 'free').length;
-  document.getElementById('tables-count').textContent = `${tables.length - free} / ${tables.length}`;
+// ══════════════════════════════════════════════════════
+// VENTAS CHART (7 días)
+// ══════════════════════════════════════════════════════
+let chartMode = 'amount';
+let chartDataWeek = [];
+let chartDataPrev = [];
 
-  if (!tables.length) {
-    grid.innerHTML = `
-      <div class="empty-state" style="grid-column:1/-1">
-        <div class="empty-state-icon">🪑</div>
-        <div class="empty-state-text">No hay mesas configuradas</div>
-      </div>`;
-    return;
+async function loadSalesChart() {
+  const { data: thisWeek } = await sb.from('pos_orders')
+    .select('total,created_at,status')
+    .gte('created_at', weekAgo())
+    .in('status',['closed','completed']);
+  const { data: prevWeek } = await sb.from('pos_orders')
+    .select('total,created_at,status')
+    .gte('created_at', twoWeeksAgo())
+    .lt('created_at', weekAgo())
+    .in('status',['closed','completed']);
+
+  // Agrupa por día (últimos 7 días)
+  const days = [];
+  for(let i=6;i>=0;i--){
+    const d = new Date(); d.setDate(d.getDate()-i); d.setHours(0,0,0,0);
+    days.push(d);
   }
-
-  const sorted = [...tables].sort((a, b) => {
-    const an = parseInt(a.number || a.name || '0') || 0;
-    const bn = parseInt(b.number || b.name || '0') || 0;
-    return an - bn;
+  chartDataWeek = days.map(d => {
+    const iso = d.toISOString().split('T')[0];
+    const rows = (thisWeek||[]).filter(r => r.created_at.startsWith(iso));
+    return { label: d.toLocaleDateString('es-CO',{weekday:'short'}), amount: rows.reduce((s,r)=>s+(r.total||0),0), count: rows.length };
+  });
+  chartDataPrev = days.map((d,i) => {
+    const pd = new Date(d); pd.setDate(pd.getDate()-7);
+    const iso = pd.toISOString().split('T')[0];
+    const rows = (prevWeek||[]).filter(r => r.created_at.startsWith(iso));
+    return { amount: rows.reduce((s,r)=>s+(r.total||0),0), count: rows.length };
   });
 
-  grid.innerHTML = sorted.map(t => {
-    const status = t.status || 'free';
-    const s = TABLE_STATUS[status] || { label: status, cls: 'free' };
-    const label = t.number ? `${t.number}` : (t.name || '—');
-    const cap = t.capacity ? `${t.capacity} pers.` : '';
-    return `
-    <div class="table-cell ${s.cls}">
-      <div class="table-num">${label}</div>
-      <div class="table-status-label">${s.label}</div>
-      ${cap ? `<div class="table-cap">${cap}</div>` : ''}
-    </div>`;
-  }).join('');
+  // Totales
+  const totalAmount = chartDataWeek.reduce((s,d)=>s+d.amount,0);
+  const prevAmount  = chartDataPrev.reduce((s,d)=>s+d.amount,0);
+  document.getElementById('chart-total').textContent = COP(totalAmount);
+  if(prevAmount > 0){
+    const pct = Math.round((totalAmount-prevAmount)/prevAmount*100);
+    const badge = document.getElementById('chart-badge');
+    badge.style.display = '';
+    badge.textContent = (pct>=0?'↑':'↓')+Math.abs(pct)+'% vs sem. ant.';
+    badge.style.color = pct>=0 ? 'var(--success)' : 'var(--danger)';
+    badge.style.background = pct>=0 ? '#DCFCE7' : '#FEE2E2';
+  }
+
+  // Date range
+  const from = days[0].toLocaleDateString('es-CO',{day:'numeric',month:'short'});
+  const to   = days[6].toLocaleDateString('es-CO',{day:'numeric',month:'short'});
+  document.getElementById('chart-daterange').textContent = from + ' — ' + to;
+
+  // Stats
+  const today = (thisWeek||[]).filter(r => r.created_at.startsWith(new Date().toISOString().split('T')[0]));
+  document.getElementById('stat-pedidos-hoy').textContent = today.length;
+  const ticket = today.length ? Math.round(today.reduce((s,r)=>s+(r.total||0),0)/today.length) : 0;
+  document.getElementById('stat-ticket').textContent = COP_SHORT(ticket);
+
+  drawSalesChart();
+  loadHourStats(thisWeek||[]);
 }
 
-// ─── Data fetching ──────────────────────────────────────
-async function loadKpis() {
-  // Orders of today
-  const { data: todayOrders } = await sb
-    .from('pos_orders')
-    .select('total, status, created_at')
+function switchChartMode(mode, btn){
+  chartMode = mode;
+  document.querySelectorAll('.seg').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  drawSalesChart();
+}
+
+function drawSalesChart(){
+  const canvas = document.getElementById('sales-chart');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const PAD = { top:20, right:20, bottom:28, left:40 };
+  ctx.clearRect(0,0,W,H);
+
+  const vals = chartDataWeek.map(d => chartMode==='amount' ? d.amount : d.count);
+  const prevVals = chartDataPrev.map(d => chartMode==='amount' ? d.amount : d.count);
+  const maxVal = Math.max(...vals, ...prevVals, 1);
+
+  const toX = i => PAD.left + i*(W-PAD.left-PAD.right)/(vals.length-1||1);
+  const toY = v => PAD.top + (1-v/maxVal)*(H-PAD.top-PAD.bottom);
+
+  // Grid lines
+  ctx.strokeStyle = '#ECEEF2'; ctx.lineWidth = 1;
+  for(let i=0;i<4;i++){
+    const y = PAD.top + i*(H-PAD.top-PAD.bottom)/3;
+    ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(W-PAD.right,y); ctx.stroke();
+    const label = chartMode==='amount' ? COP_SHORT(maxVal*(1-i/3)) : Math.round(maxVal*(1-i/3));
+    ctx.fillStyle='#94A3B8'; ctx.font='10px DM Sans,sans-serif'; ctx.textAlign='right';
+    ctx.fillText(label, PAD.left-4, y+4);
+  }
+
+  // X labels
+  ctx.fillStyle='#94A3B8'; ctx.font='10px DM Sans,sans-serif'; ctx.textAlign='center';
+  chartDataWeek.forEach((d,i) => ctx.fillText(d.label, toX(i), H-4));
+
+  // Prev week dashed
+  if(prevVals.some(v=>v>0)){
+    ctx.strokeStyle='#CBD5E1'; ctx.lineWidth=1.5; ctx.setLineDash([4,4]);
+    ctx.beginPath();
+    prevVals.forEach((v,i) => i===0 ? ctx.moveTo(toX(i),toY(v)) : ctx.lineTo(toX(i),toY(v)));
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  // Area fill
+  if(vals.some(v=>v>0)){
+    const grad = ctx.createLinearGradient(0,PAD.top,0,H-PAD.bottom);
+    grad.addColorStop(0,'rgba(91,107,255,0.18)');
+    grad.addColorStop(1,'rgba(91,107,255,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    vals.forEach((v,i) => i===0 ? ctx.moveTo(toX(i),toY(v)) : ctx.lineTo(toX(i),toY(v)));
+    ctx.lineTo(toX(vals.length-1),H-PAD.bottom);
+    ctx.lineTo(toX(0),H-PAD.bottom);
+    ctx.closePath(); ctx.fill();
+
+    // Line
+    ctx.strokeStyle='#5B6BFF'; ctx.lineWidth=2.4; ctx.setLineDash([]);
+    ctx.beginPath();
+    vals.forEach((v,i) => i===0 ? ctx.moveTo(toX(i),toY(v)) : ctx.lineTo(toX(i),toY(v)));
+    ctx.stroke();
+
+    // Dots
+    vals.forEach((v,i) => {
+      ctx.fillStyle='#5B6BFF';
+      ctx.beginPath(); ctx.arc(toX(i),toY(v),3.5,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#fff';
+      ctx.beginPath(); ctx.arc(toX(i),toY(v),1.5,0,Math.PI*2); ctx.fill();
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// STATS POR HORA
+// ══════════════════════════════════════════════════════
+async function loadHourStats(todayOrders){
+  // Group by hour
+  const hourMap = {};
+  (todayOrders||[]).filter(r => r.created_at.startsWith(new Date().toISOString().split('T')[0])).forEach(r => {
+    const h = new Date(r.created_at).getHours();
+    if(!hourMap[h]) hourMap[h] = { count:0, total:0 };
+    hourMap[h].count++; hourMap[h].total += (r.total||0);
+  });
+  const hours = Object.keys(hourMap).map(Number).sort((a,b)=>a-b);
+  if(!hours.length){
+    document.getElementById('stat-hora-punta').textContent = '—';
+    document.getElementById('stat-hora-valle').textContent = '—';
+    drawHourChart({});
+    return;
+  }
+  const maxH = hours.reduce((m,h) => hourMap[h].count>hourMap[m].count ? h : m, hours[0]);
+  const minH = hours.reduce((m,h) => hourMap[h].count<hourMap[m].count ? h : m, hours[0]);
+  document.getElementById('stat-hora-punta').textContent = hourLabel(maxH);
+  document.getElementById('stat-hora-valle').textContent = hourLabel(minH);
+
+  // Ticket promedio
+  const avgTickets = hours.map(h => hourMap[h].count>0 ? Math.round(hourMap[h].total/hourMap[h].count) : 0);
+  const avgAll = avgTickets.length ? Math.round(avgTickets.reduce((s,v)=>s+v,0)/avgTickets.length) : 0;
+  const maxTicket = Math.max(...avgTickets);
+  const minTicket = Math.min(...avgTickets.filter(v=>v>0));
+  const lastTwo = avgTickets.slice(-2);
+  const variation = lastTwo.length===2 && lastTwo[0]>0 ? Math.round((lastTwo[1]-lastTwo[0])/lastTwo[0]*100) : 0;
+
+  document.getElementById('hs-pico').textContent = COP_SHORT(maxTicket);
+  document.getElementById('hs-pico-sub').textContent = hourLabel(maxH) + ' · Hora punta';
+  document.getElementById('hs-min').textContent = COP_SHORT(minTicket||0);
+  document.getElementById('hs-avg').textContent = COP_SHORT(avgAll);
+  document.getElementById('hs-var').textContent = (variation>=0?'+':'')+variation+'%';
+
+  drawHourChart(hourMap);
+}
+
+function drawHourChart(hourMap){
+  const canvas = document.getElementById('hour-chart');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height;
+  const PAD={top:20,right:20,bottom:32,left:50};
+  ctx.clearRect(0,0,W,H);
+
+  const hours = Object.keys(hourMap).map(Number).sort((a,b)=>a-b);
+  if(!hours.length){
+    ctx.fillStyle='#94A3B8'; ctx.font='13px DM Sans,sans-serif'; ctx.textAlign='center';
+    ctx.fillText('Sin datos de ventas por hora hoy',W/2,H/2);
+    return;
+  }
+  const vals = hours.map(h => hourMap[h].count>0 ? Math.round(hourMap[h].total/hourMap[h].count) : 0);
+  const maxVal = Math.max(...vals,1);
+  const barW = Math.max(16, Math.min(60, (W-PAD.left-PAD.right)/hours.length - 10));
+  const toX = i => PAD.left + (W-PAD.left-PAD.right)/(hours.length)*(i+0.5);
+  const toH = v => (v/maxVal)*(H-PAD.top-PAD.bottom);
+
+  // Grid
+  ctx.strokeStyle='#ECEEF2'; ctx.lineWidth=1;
+  for(let i=0;i<4;i++){
+    const y=PAD.top+i*(H-PAD.top-PAD.bottom)/3;
+    ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(W-PAD.right,y); ctx.stroke();
+    ctx.fillStyle='#94A3B8'; ctx.font='10px DM Sans,sans-serif'; ctx.textAlign='right';
+    ctx.fillText(COP_SHORT(maxVal*(1-i/3)),PAD.left-4,y+4);
+  }
+
+  // Bars
+  vals.forEach((v,i) => {
+    const x=toX(i), barH=toH(v);
+    const isMax = v===maxVal;
+    const grad = ctx.createLinearGradient(0,H-PAD.bottom-barH,0,H-PAD.bottom);
+    grad.addColorStop(0, isMax ? '#5B6BFF' : '#818CF8');
+    grad.addColorStop(1, isMax ? '#818CF8' : '#E0E7FF');
+    ctx.fillStyle=grad;
+    ctx.beginPath();
+    const r=4;
+    ctx.roundRect(x-barW/2, H-PAD.bottom-barH, barW, barH, [r,r,0,0]);
+    ctx.fill();
+    // X label
+    ctx.fillStyle='#94A3B8'; ctx.font='10px DM Sans,sans-serif'; ctx.textAlign='center';
+    ctx.fillText(hourLabel(hours[i]),x,H-8);
+  });
+}
+
+// ══════════════════════════════════════════════════════
+// TOP PRODUCTOS
+// ══════════════════════════════════════════════════════
+async function loadTopProductos(){
+  const today = new Date().toISOString().split('T')[0];
+  const { data: items } = await sb.from('pos_order_items')
+    .select('product_id, quantity, subtotal, pos_products(name, pos_categories(name))')
     .gte('created_at', todayStart());
 
-  const closed  = (todayOrders || []).filter(o => o.status === 'closed' || o.status === 'completed');
-  const active  = (todayOrders || []).filter(o => o.status !== 'closed' && o.status !== 'completed' && o.status !== 'cancelled');
-  const ventas  = closed.reduce((s, o) => s + (o.total || 0), 0);
-  const ticket  = closed.length ? ventas / closed.length : 0;
+  if(!items || !items.length){
+    document.getElementById('top-productos-list').innerHTML = '<div class="empty"><div class="empty-icon">📦</div><div class="empty-text">Sin ventas hoy</div></div>';
+    document.getElementById('top-updated').textContent = 'Sin datos hoy';
+    return;
+  }
 
-  showKpi('kpi-ventas', fmt(ventas));
-  document.getElementById('kpi-ventas-sub').textContent = `${closed.length} pedido${closed.length !== 1 ? 's' : ''} cerrado${closed.length !== 1 ? 's' : ''}`;
+  // Aggregate by product
+  const map = {};
+  items.forEach(it => {
+    const pid = it.product_id;
+    if(!map[pid]) map[pid] = { name: it.pos_products?.name||'Producto', cat: it.pos_products?.pos_categories?.name||'Sin categoría', units:0, total:0 };
+    map[pid].units += (it.quantity||1);
+    map[pid].total += (it.subtotal||0);
+  });
+  const sorted = Object.values(map).sort((a,b)=>b.units-a.units).slice(0,5);
+  const maxUnits = sorted[0]?.units||1;
 
-  showKpi('kpi-pedidos', active.length);
-  document.getElementById('kpi-pedidos-sub').textContent = active.length
-    ? `${active.length} pedido${active.length !== 1 ? 's' : ''} en curso`
-    : 'Sin pedidos activos';
-
-  showKpi('kpi-ticket', fmt(ticket));
-  document.getElementById('kpi-ticket-sub').textContent = ticket ? `Promedio hoy` : 'Sin ventas aún';
+  document.getElementById('top-productos-list').innerHTML = sorted.map((p,i)=>`
+    <div class="prod-row">
+      <div class="prod-rank">${i+1}</div>
+      <div class="prod-bar-wrap">
+        <div class="prod-name">${p.name}</div>
+        <div class="prod-cat">${p.cat}</div>
+        <div class="prod-bar"><div class="prod-bar-fill" style="width:${Math.round(p.units/maxUnits*100)}%"></div></div>
+      </div>
+      <div class="prod-right">
+        <div class="prod-price">${COP(p.total)}</div>
+        <div class="prod-units">${p.units} und</div>
+      </div>
+    </div>`).join('');
+  document.getElementById('top-updated').textContent = 'actualizado hace unos segundos';
 }
 
-async function loadOrders() {
-  const { data: orders, error } = await sb
-    .from('pos_orders')
-    .select('*, pos_tables(number, name), pos_order_items(quantity, unit_price, subtotal)')
-    .not('status', 'in', '("closed","completed","cancelled")')
-    .order('created_at', { ascending: false })
-    .limit(20);
+// ══════════════════════════════════════════════════════
+// META DIARIA
+// ══════════════════════════════════════════════════════
+async function loadMeta(){
+  const { data: cfg } = await sb.from('pos_config').select('key,value');
+  const conf = {}; (cfg||[]).forEach(r => conf[r.key]=r.value);
+  const goal = parseFloat(conf.daily_goal||0);
 
-  renderOrders(orders || []);
+  const { data: orders } = await sb.from('pos_orders').select('total,channel').gte('created_at',todayStart()).in('status',['closed','completed']);
+  const total = (orders||[]).reduce((s,o)=>s+(o.total||0),0);
+  const pct = goal>0 ? Math.min(100,Math.round(total/goal*100)) : 0;
+
+  document.getElementById('meta-actual').textContent = COP_SHORT(total);
+  document.getElementById('meta-of').textContent = goal>0 ? 'de '+COP_SHORT(goal) : '(sin meta configurada)';
+  document.getElementById('meta-bar').style.width = pct+'%';
+  document.getElementById('meta-pct').textContent = pct+'% completado';
+  document.getElementById('meta-date').textContent = 'Hoy · '+new Date().toLocaleDateString('es-CO',{day:'numeric',month:'short'});
+
+  // Canales
+  const channels = { salon:0, domicilio:0, rapida:0 };
+  (orders||[]).forEach(o => {
+    const ch = (o.channel||'salon').toLowerCase();
+    if(ch.includes('domicilio')) channels.domicilio += (o.total||0);
+    else if(ch.includes('rapida')||ch.includes('mostrador')) channels.rapida += (o.total||0);
+    else channels.salon += (o.total||0);
+  });
+  if(total>0){
+    document.getElementById('meta-channels').innerHTML = Object.entries(channels)
+      .filter(([,v])=>v>0)
+      .map(([k,v])=>`<div class="meta-row"><span class="meta-row-name">${k==='salon'?'Salón':k==='domicilio'?'Domicilio':'Mostrador'}</span><span><span class="meta-row-val">${COP_SHORT(v)}</span> <span class="meta-row-pct">${Math.round(v/total*100)}%</span></span></div>`)
+      .join('') || '<div class="empty"><div class="empty-text">Sin datos de canales</div></div>';
+  }
 }
 
-async function loadTables() {
-  const { data: tables, error } = await sb
-    .from('pos_tables')
-    .select('*')
-    .order('number', { ascending: true });
-
-  const list = tables || [];
-
-  // KPI mesas
-  const occupied = list.filter(t => (t.status || 'free') !== 'free').length;
-  showKpi('kpi-mesas', `${occupied}/${list.length}`);
-  document.getElementById('kpi-mesas-sub').textContent = list.length
-    ? `${list.length - occupied} libre${list.length - occupied !== 1 ? 's' : ''} ahora mismo`
-    : 'Sin mesas configuradas';
-
-  renderTables(list);
+// ══════════════════════════════════════════════════════
+// ALERTAS STOCK
+// ══════════════════════════════════════════════════════
+async function loadStock(){
+  const { data: prods } = await sb.from('pos_products').select('name, stock, min_stock').not('stock','is',null).not('min_stock','is',null);
+  const low = (prods||[]).filter(p => (p.stock||0) <= (p.min_stock||0));
+  document.getElementById('stock-title').textContent = low.length ? `${low.length} producto${low.length!==1?'s':''} requiere${low.length!==1?'n':''} atención` : 'Stock en orden';
+  document.getElementById('stock-sub').textContent = low.length ? 'Por debajo del mínimo' : 'Todos los productos tienen stock suficiente';
+  document.getElementById('stock-list').innerHTML = low.length
+    ? low.slice(0,4).map(p=>`<div class="stock-row"><div><div class="stock-row-name">${p.name}</div><div class="stock-row-hint">Mín. recomendado: ${p.min_stock} und</div></div><div><div class="stock-qty">${p.stock} und</div></div></div>`).join('')
+    : '<div class="empty" style="padding:16px 20px"><div class="empty-text">Sin alertas activas</div></div>';
 }
 
-// ─── Init ───────────────────────────────────────────────
-async function init() {
-  // Header: fecha
-  const now = new Date();
-  document.getElementById('hdr-date').textContent = now.toLocaleDateString('es-CO', {
-    weekday: 'long', day: 'numeric', month: 'long'
+// ══════════════════════════════════════════════════════
+// DESGLOSE VENTAS
+// ══════════════════════════════════════════════════════
+async function loadDesglose(){
+  const { data: orders } = await sb.from('pos_orders').select('total,payment_method').gte('created_at',todayStart()).in('status',['closed','completed']);
+  const totalVentas = (orders||[]).reduce((s,o)=>s+(o.total||0),0);
+
+  const methods = [
+    { key:'cash',     label:'Ventas en efectivo',        color:'#5B6BFF' },
+    { key:'card',     label:'Ventas con tarjeta',        color:'#94A3B8' },
+    { key:'online',   label:'Ventas en línea / vales',   color:'#94A3B8' },
+    { key:'credit',   label:'Ventas al crédito',         color:'#94A3B8' },
+    { key:'egress',   label:'Egresos de caja',           color:'#EF4444' },
+    { key:'discount', label:'Total de descuentos',       color:'#94A3B8' },
+  ];
+  const map = {};
+  (orders||[]).forEach(o => {
+    const m = (o.payment_method||'cash').toLowerCase();
+    if(!map[m]) map[m]=0; map[m]+=(o.total||0);
   });
 
-  // Fetch restaurant name from config table if exists, else default
-  const { data: cfg } = await sb.from('pos_config').select('value').eq('key', 'restaurant_name').maybeSingle();
-  document.getElementById('hdr-brand').textContent = cfg?.value || 'Mi Restaurante';
-  document.title = `Dashboard · ${cfg?.value || 'Comanda POS'}`;
-
-  // Load all data
-  await Promise.all([loadKpis(), loadOrders(), loadTables()]);
-
-  // ─── Realtime subscriptions ──────────────────────────
-  // Orders channel
-  sb.channel('dashboard-orders')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_orders' }, () => {
-      loadKpis();
-      loadOrders();
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_order_items' }, () => {
-      loadOrders();
-    })
-    .subscribe();
-
-  // Tables channel
-  sb.channel('dashboard-tables')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_tables' }, () => {
-      loadTables();
-      loadKpis();
-    })
-    .subscribe();
+  document.getElementById('desglose-grid').innerHTML = methods.map(m => {
+    const val = m.key==='cash' ? (map.cash||map.efectivo||0)
+              : m.key==='card' ? (map.card||map.tarjeta||0)
+              : m.key==='online' ? (map.online||map['en línea']||0)
+              : m.key==='credit' ? (map.credit||map.credito||0)
+              : 0;
+    const pct = totalVentas>0 ? Math.round(val/totalVentas*100) : 0;
+    const spark = makeSpark([val/5,val/3,val/2.5,val/2,val/1.5,val], m.color, 64, 22);
+    return `<div class="desglose-cell">
+      <div class="desglose-label">${m.label}</div>
+      <div class="desglose-val">${COP(val)}</div>
+      ${pct>0?`<div class="desglose-pct">${pct}% del total</div>`:'<div class="desglose-pct">—</div>'}
+      <div class="desglose-spark">${spark}</div>
+    </div>`;
+  }).join('');
 }
 
+function makeSpark(vals, color, w, h){
+  const max = Math.max(...vals,1);
+  const pts = vals.map((v,i)=>`${Math.round(i*(w-1)/(vals.length-1))},${Math.round(h-1-(v/max)*(h-4))}`).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" class="spark"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+// ══════════════════════════════════════════════════════
+// OPERACIÓN
+// ══════════════════════════════════════════════════════
+async function loadOperacion(){
+  const { data: orders } = await sb.from('pos_orders').select('total,table_id,waiter_id,waiter_name').gte('created_at',todayStart()).in('status',['closed','completed']);
+  const count = (orders||[]).length;
+  const total = (orders||[]).reduce((s,o)=>s+(o.total||0),0);
+  const ticket = count>0 ? Math.round(total/count) : 0;
+
+  // Mesero del día
+  const waiterMap={};
+  (orders||[]).forEach(o => {
+    const w=o.waiter_name||o.waiter_id||'Sin nombre';
+    if(!waiterMap[w]) waiterMap[w]=0; waiterMap[w]++;
+  });
+  const topWaiter = Object.entries(waiterMap).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('op-mesero').textContent = topWaiter ? topWaiter[0] : '—';
+  document.getElementById('op-mesero-sub').textContent = topWaiter ? `${topWaiter[1]} pedido${topWaiter[1]!==1?'s':''}` : 'Sin datos';
+
+  document.getElementById('op-clientes').textContent = count;
+  document.getElementById('op-clientes-sub').textContent = count>0 ? COP(total) : 'Sin ventas aún';
+  document.getElementById('op-ticket').textContent = COP_SHORT(ticket);
+  document.getElementById('op-ticket-sub').textContent = `en ${count} venta${count!==1?'s':''}`;
+
+  // Mesas
+  const { data: tables } = await sb.from('pos_tables').select('status');
+  const occupied = (tables||[]).filter(t=>(t.status||'free')!=='free').length;
+  const total_t = (tables||[]).length;
+  document.getElementById('op-mesas').textContent = occupied;
+  document.getElementById('op-mesas-sub').textContent = total_t>0 ? `${Math.round(occupied/total_t*100)}% ocupación` : 'Sin mesas';
+
+  document.getElementById('ost-anuladas').textContent = '0';
+  document.getElementById('ost-despacho').textContent = '—';
+  document.getElementById('ost-atencion').textContent = '—';
+  document.getElementById('ost-ocupacion').textContent = total_t>0 ? `${Math.round(occupied/total_t*100)}%` : '—';
+}
+
+// ══════════════════════════════════════════════════════
+// TIPO DE PAGO
+// ══════════════════════════════════════════════════════
+async function loadPago(){
+  const { data: orders } = await sb.from('pos_orders').select('total,payment_method').gte('created_at',todayStart()).in('status',['closed','completed']);
+  const total = (orders||[]).reduce((s,o)=>s+(o.total||0),0);
+  document.getElementById('pago-total').textContent = COP(total);
+  if(!orders||!orders.length||total===0){
+    document.getElementById('pago-rows').innerHTML='<div class="empty"><div class="empty-text">Sin ventas registradas hoy</div></div>';
+    return;
+  }
+  const map={};
+  (orders||[]).forEach(o=>{const m=(o.payment_method||'Efectivo');if(!map[m])map[m]=0;map[m]+=(o.total||0);});
+  const pagoList=[
+    {label:'En efectivo',      key:'cash',    sub:'Pesos colombianos'},
+    {label:'Tarjeta débito/crédito',key:'card', sub:'Datafono'},
+    {label:'En depósito',      key:'deposit', sub:'Bancolombia · Nequi'},
+    {label:'En línea / QR',    key:'online',  sub:'QR / link de pago'},
+    {label:'En vale',          key:'vale',    sub:'Sodexo · Big Pass'},
+    {label:'Transferencia',    key:'transfer',sub:'Daviplata · PSE'},
+  ];
+  const keyMap={'cash':['cash','efectivo'],'card':['card','tarjeta'],'deposit':['deposit','deposito'],'online':['online','en línea','qr'],'vale':['vale'],'transfer':['transfer','transferencia']};
+  document.getElementById('pago-rows').innerHTML = pagoList.map(pm=>{
+    const keys=keyMap[pm.key]||[pm.key];
+    const val=Object.entries(map).filter(([k])=>keys.some(kk=>k.toLowerCase().includes(kk))).reduce((s,[,v])=>s+v,0);
+    const pct=Math.round(val/total*100);
+    return `<div class="pago-row">
+      <div><div class="pago-name">${pm.label}</div><div class="pago-sub">${pm.sub}</div>
+      <div class="pago-bar"><div class="pago-bar-fill" style="width:${pct}%"></div></div></div>
+      <div class="pago-right"><div class="pago-val">${COP(val)}</div><div class="pago-pct">${pct}%</div></div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════
+// CANAL DE VENTA
+// ══════════════════════════════════════════════════════
+async function loadCanal(){
+  const { data: orders } = await sb.from('pos_orders').select('total,channel').gte('created_at',todayStart()).in('status',['closed','completed']);
+  const totalVentas=(orders||[]).reduce((s,o)=>s+(o.total||0),0);
+  const channels={ salon:{total:0,count:0}, rapida:{total:0,count:0}, domicilio:{total:0,count:0}, reserva:{total:0,count:0} };
+  (orders||[]).forEach(o=>{
+    const ch=(o.channel||'salon').toLowerCase();
+    const key=ch.includes('domicilio')?'domicilio':ch.includes('rapida')||ch.includes('mostrador')?'rapida':ch.includes('reserva')?'reserva':'salon';
+    channels[key].total+=(o.total||0); channels[key].count++;
+  });
+  const setCanal=(id,ch)=>{
+    const pct=totalVentas>0?Math.round(ch.total/totalVentas*100):0;
+    document.getElementById('c-'+id).textContent=COP_SHORT(ch.total);
+    document.getElementById('c-'+id+'-sub').textContent=`${pct}% · N° ${ch.count}`;
+    document.getElementById('c-'+id+'-bar').style.width=pct+'%';
+  };
+  setCanal('salon',channels.salon); setCanal('rapida',channels.rapida);
+  setCanal('domicilio',channels.domicilio); setCanal('reserva',channels.reserva);
+}
+
+// ══════════════════════════════════════════════════════
+// CATÁLOGO SEMANAL
+// ══════════════════════════════════════════════════════
+async function loadCatalogo(){
+  const { data: items } = await sb.from('pos_order_items')
+    .select('product_id,quantity,subtotal,pos_products(name,pos_categories(name))')
+    .gte('created_at', weekAgo());
+  if(!items||!items.length){
+    document.getElementById('cat-featured').innerHTML='<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">Sin ventas esta semana</div></div>';
+    return;
+  }
+  const map={};
+  items.forEach(it=>{
+    const pid=it.product_id;
+    if(!map[pid]) map[pid]={name:it.pos_products?.name||'Producto',cat:it.pos_products?.pos_categories?.name||'',units:0,total:0};
+    map[pid].units+=(it.quantity||1); map[pid].total+=(it.subtotal||0);
+  });
+  const sorted=Object.values(map).sort((a,b)=>b.units-a.units);
+  const top=sorted[0];
+  document.getElementById('cat-featured').innerHTML=`
+    <div class="cat-featured">
+      <div class="cat-featured-rank">#1</div>
+      <div>
+        <div class="cat-featured-name">${top.name}</div>
+        <div class="cat-featured-cat">${top.cat}</div>
+      </div>
+      <div class="cat-featured-right">
+        <div class="cat-featured-val">${COP(top.total)}</div>
+        <div class="cat-featured-units">${top.units} unidades vendidas</div>
+      </div>
+    </div>`;
+  document.getElementById('cat-list').innerHTML = sorted.slice(1,8).map((p,i)=>`
+    <div class="top-row">
+      <div class="top-rank">#${i+2}</div>
+      <div><div class="top-name">${p.name}</div><div class="top-cat">${p.cat}</div></div>
+      <div class="top-right">
+        <div class="top-val">${COP(p.total)}</div>
+        <div class="top-units">${p.units} und</div>
+      </div>
+    </div>`).join('') + `<div style="padding:12px 20px;border-top:1px solid var(--surface1)"><button class="lumen-link">Ver los ${sorted.length} →</button></div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// REALTIME
+// ══════════════════════════════════════════════════════
+function subscribeRealtime(){
+  sb.channel('dash-orders').on('postgres_changes',{event:'*',schema:'public',table:'pos_orders'},()=>{
+    loadSalesChart(); loadTopProductos(); loadMeta(); loadDesglose(); loadOperacion(); loadPago(); loadCanal();
+  }).subscribe();
+  sb.channel('dash-tables').on('postgres_changes',{event:'*',schema:'public',table:'pos_tables'},()=>{
+    loadOperacion();
+  }).subscribe();
+  sb.channel('dash-items').on('postgres_changes',{event:'*',schema:'public',table:'pos_order_items'},()=>{
+    loadTopProductos(); loadCatalogo();
+  }).subscribe();
+}
+
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+async function init(){
+  await loadHeader();
+  await Promise.all([
+    loadSalesChart(),
+    loadTopProductos(),
+    loadMeta(),
+    loadStock(),
+    loadDesglose(),
+    loadOperacion(),
+    loadPago(),
+    loadCanal(),
+    loadCatalogo(),
+  ]);
+  subscribeRealtime();
+}
 document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
