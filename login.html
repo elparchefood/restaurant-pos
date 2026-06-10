@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceso — Lumen POS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="login.css">
+</head>
+<body>
+<div class="auth-root" id="auth-root">
+
+  <!-- ── Panel izquierdo — brand ── -->
+  <aside class="brand-panel">
+    <div class="brand-grain"></div>
+    <div class="brand-glow"></div>
+    <div class="brand-blob-bottom"></div>
+
+    <!-- Logo -->
+    <div class="brand-top">
+      <div class="brand-logo">L</div>
+      <div>
+        <div class="brand-name">Lumen POS</div>
+        <div class="brand-sub" id="brand-branch">El Parche Food · Caja 01</div>
+      </div>
+    </div>
+
+    <!-- Contenido central -->
+    <div class="brand-mid">
+      <div>
+        <div class="brand-eyebrow">Para restaurantes con carácter</div>
+        <h1 class="brand-headline">Todo tu restaurante,<br>en una sola pantalla.</h1>
+        <p class="brand-desc">Vende más rápido, controla tus mesas y arma tu menú con ayuda de la IA.</p>
+      </div>
+
+      <!-- Mockup card -->
+      <div class="brand-card">
+        <div class="brand-card-sheen"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span class="card-label">Ventas de hoy</span>
+          <span class="card-live"><span class="card-dot"></span> En vivo</span>
+        </div>
+        <div class="card-amount">
+          <span class="card-amount-muted">$</span>
+          <span id="card-sales">—</span>
+        </div>
+        <div class="card-bars" id="card-bars"></div>
+        <div class="card-notif" id="card-notif">
+          <span style="width:22px;height:22px;border-radius:7px;background:rgba(52,211,153,.16);color:#34D399;display:flex;align-items:center;justify-content:center">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+          <span style="font-size:12px;font-weight:600">Cargando...</span>
+        </div>
+      </div>
+
+      <!-- Feature pills -->
+      <div class="feat-row">
+        <div class="feat-item">
+          <span class="feat-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+          Pedidos en segundos
+        </div>
+        <div class="feat-item">
+          <span class="feat-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.2L19 10l-5.1 1.8L12 17l-1.9-5.2L5 10l5.1-1.8L12 3z"/></svg></span>
+          Catálogo con IA
+        </div>
+        <div class="feat-item">
+          <span class="feat-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+          Salón en vivo
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="brand-foot">
+      <span class="seal">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Conexión cifrada
+      </span>
+      <span>v776.0.10</span>
+    </div>
+  </aside>
+
+  <!-- ── Panel derecho — formulario ── -->
+  <main class="form-wrap">
+    <div class="form-card" id="form-card">
+
+      <!-- Logo móvil -->
+      <div class="m-logo">
+        <div class="m-logo-inner">L</div>
+      </div>
+
+      <!-- Título -->
+      <h2 class="form-title" id="form-title">Inicia sesión</h2>
+      <p class="form-sub" id="form-sub">Ingresa para administrar tu punto de venta.</p>
+
+      <!-- Error banner -->
+      <div class="error-banner" id="error-banner">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="error-msg"></span>
+      </div>
+
+      <!-- Google -->
+      <button class="btn-google" id="btn-google">
+        <svg width="18" height="18" viewBox="0 0 48 48">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        <span id="btn-google-txt">Continuar con Google</span>
+      </button>
+
+      <!-- Divider -->
+      <div class="divider">
+        <span class="divider-line"></span>
+        <span>o con tu correo</span>
+        <span class="divider-line"></span>
+      </div>
+
+      <!-- Formulario -->
+      <form id="auth-form" autocomplete="on">
+
+        <!-- Registro: nombre -->
+        <div class="field-wrap register-only" id="field-nombre">
+          <div class="field-label"><label>Nombre completo</label></div>
+          <div class="field">
+            <span class="field-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+            <input type="text" id="inp-nombre" placeholder="Sergio Andrés Abadía" autocomplete="name">
+          </div>
+        </div>
+
+        <!-- Registro: negocio -->
+        <div class="field-wrap register-only" id="field-negocio">
+          <div class="field-label"><label>Nombre del negocio</label></div>
+          <div class="field">
+            <span class="field-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><path d="M3 9h18"/><path d="M8 21v-6h4v6"/></svg></span>
+            <input type="text" id="inp-negocio" placeholder="El Parche Food" autocomplete="organization">
+          </div>
+        </div>
+
+        <!-- Email -->
+        <div class="field-wrap">
+          <div class="field-label"><label>Correo electrónico</label></div>
+          <div class="field" id="field-email">
+            <span class="field-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg></span>
+            <input type="email" id="inp-email" placeholder="tucorreo@ejemplo.com" autocomplete="email">
+            <span class="field-valid" id="email-valid" style="display:none">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+          </div>
+        </div>
+
+        <!-- Contraseña -->
+        <div class="field-wrap">
+          <div class="field-label">
+            <label>Contraseña</label>
+            <button type="button" class="link" id="btn-forgot" onclick="forgotPassword()">¿Olvidaste tu contraseña?</button>
+          </div>
+          <div class="field" id="field-pass">
+            <span class="field-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+            <input type="password" id="inp-pass" placeholder="Tu contraseña" autocomplete="current-password">
+            <button type="button" class="btn-eye" id="btn-eye" onclick="togglePass()">
+              <svg id="eye-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Registro: confirmar contraseña -->
+        <div class="field-wrap register-only" id="field-confirm">
+          <div class="field-label"><label>Confirmar contraseña</label></div>
+          <div class="field" id="field-confirm-inner">
+            <span class="field-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+            <input type="password" id="inp-confirm" placeholder="Repite la contraseña" autocomplete="new-password">
+          </div>
+          <div class="field-hint" id="confirm-hint" style="display:none">No coincide</div>
+        </div>
+
+        <!-- Checkbox login: recordar -->
+        <label class="check-row login-only" id="row-remember">
+          <div class="checkbox on" id="chk-remember" onclick="toggleRemember()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <span>Mantener la sesión iniciada</span>
+        </label>
+
+        <!-- Checkbox registro: términos -->
+        <label class="check-row register-only" id="row-agree">
+          <div class="checkbox" id="chk-agree" onclick="toggleAgree()"></div>
+          <span>Acepto los <a class="link" href="#" onclick="return false">Términos</a> y la <a class="link" href="#" onclick="return false">Política de privacidad</a>.</span>
+        </label>
+
+        <!-- Submit -->
+        <button type="submit" class="btn-submit" id="btn-submit">
+          <span id="btn-submit-txt">Iniciar sesión</span>
+          <svg id="btn-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <span class="spin" id="btn-spin" style="display:none"></span>
+        </button>
+      </form>
+
+      <!-- Toggle modo -->
+      <div class="toggle-row">
+        <span id="toggle-txt">¿No tienes cuenta?</span>
+        <button class="btn-toggle" onclick="toggleMode()">
+          <span id="toggle-btn-txt">Crear una cuenta</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="legal">© 2026 Lumen POS · El Parche Food</div>
+  </main>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast" style="display:none">
+  <span class="toast-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+  <span id="toast-msg"></span>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="pos-core.js"></script>
+<script src="login.js"></script>
+</body>
+</html>
