@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Catálogo de Productos — Lumen POS</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="catalogo-productos.css">
+</head>
+<body>
+
+<div class="cp-root">
+
+  <!-- ── Sidebar ── -->
+  <nav class="cp-sidebar">
+    <div class="cp-brand">
+      <div class="cp-brand-mark">L</div>
+      <span class="cp-brand-name">Lumen POS</span>
+    </div>
+    <div class="cp-nav-section-label">Catálogo</div>
+    <div id="cp-nav"><!-- renderNav() --></div>
+    <div class="cp-sidebar-footer">
+      <div class="cp-stat-row">
+        <span class="cp-stat"><span id="stat-products">0</span><span class="cp-stat-label">productos</span></span>
+        <span class="cp-stat-sep"></span>
+        <span class="cp-stat"><span id="stat-cats">0</span><span class="cp-stat-label">categorías</span></span>
+        <span class="cp-stat-sep"></span>
+        <span class="cp-stat"><span id="stat-mods">0</span><span class="cp-stat-label">grupos</span></span>
+      </div>
+      <div class="cp-user-row">
+        <div class="cp-avatar">EP</div>
+        <div class="cp-user-info">
+          <span class="cp-user-name">El Parche Food</span>
+          <span class="cp-user-role">Administrador</span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Main ── -->
+  <div class="cp-main">
+
+    <!-- Topbar -->
+    <header class="cp-topbar">
+      <div class="cp-topbar-left">
+        <span class="cp-mode-badge">Admin</span>
+        <span class="cp-crumb-sep"></span>
+        <span class="cp-crumb-base">Menú</span>
+        <span class="cp-crumb-arrow">›</span>
+        <span class="cp-crumb-current" id="crumb-title">Catálogo</span>
+      </div>
+      <div class="cp-topbar-right">
+        <div class="cp-sync-pill">
+          <span class="cp-sync-dot"></span>Sincronizado
+        </div>
+        <div class="cp-ram-chip">RAM libre</div>
+        <div class="cp-user-chip">
+          <div class="cp-chip-avatar">EP</div>
+          <span class="cp-chip-name">El Parche</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Page content -->
+    <div class="cp-content">
+      <div class="cp-page-head">
+        <div class="cp-head-text">
+          <div class="cp-eyebrow">Menú · El Parche Food</div>
+          <h1 class="cp-page-title" id="page-title">Catálogo de productos</h1>
+        </div>
+        <div class="cp-page-actions" id="page-actions"><!-- renderPageHead() --></div>
+      </div>
+
+      <div class="cp-tabs-row" id="cp-tabs-row"><!-- renderTabsRow() --></div>
+      <div class="cp-filter-row" id="cp-filter-row"><!-- renderFilterRow() --></div>
+      <div class="cp-body" id="cp-body"><!-- renderBody() --></div>
+    </div>
+
+  </div><!-- /cp-main -->
+
+</div><!-- /cp-root -->
+
+<!-- Overlay root -->
+<div id="cp-overlay"></div>
+
+<!-- Toast -->
+<div id="cp-toast" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0F172A;color:#fff;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:600;display:none;align-items:center;gap:8px;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.22);white-space:nowrap"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="catalogo-productos.js"></script>
+
+</body>
+</html>
