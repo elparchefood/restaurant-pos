@@ -39,9 +39,7 @@ function calcTotal(planId, branches) {
   return Math.round(base * branches * (1 - disc));
 }
 
-function COPF(n) {
-  return '$' + Math.round(n || 0).toLocaleString('es-CO');
-}
+// COPF() provided by pos-core.js
 
 /* ── Navegación entre pasos ── */
 function goStep(step) {
@@ -338,6 +336,18 @@ function fillConfirm() {
 /* ══════════════════════════════════════
    LOGIN
    ══════════════════════════════════════ */
+async function handleGoogleLogin() {
+  try {
+    var { error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/restaurant-pos/dashboard.html' }
+    });
+    if (error) throw error;
+  } catch(e) {
+    showToast('Error al conectar con Google: ' + (e.message || ''));
+  }
+}
+
 async function handleLogin() {
   var email = (document.getElementById('login-email').value || '').trim();
   var pass  = document.getElementById('login-pass').value;
