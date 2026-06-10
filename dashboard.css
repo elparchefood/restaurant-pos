@@ -1,0 +1,59 @@
+/* dashboard.css — Estilos exclusivos del dashboard */
+.section-wrap{display:flex;flex-direction:column;gap:14px;margin-top:0}
+.section-header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:4px}
+.section-title{font-size:18px;font-weight:700;color:#0F172A;letter-spacing:-.02em;margin:2px 0 0}
+.eyebrow{font-size:10px;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em;font-weight:600;display:block}
+.date-range-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#64748B;background:#fff;border:1px solid #ECEEF2;padding:6px 12px;border-radius:8px}
+.card-head{display:flex;align-items:center;gap:10px}
+.card-head-icon{width:28px;height:28px;border-radius:8px;background:#EEF2FF;color:#5B6BFF;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+/* desglose */
+.desglose-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+.bcard{background:#fff;border:1px solid #ECEEF2;border-radius:12px;padding:16px}
+.bcard-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.bcard-label{font-size:11px;color:#64748B;font-weight:600;margin-top:14px;text-transform:uppercase;letter-spacing:.04em}
+.bcard-value{font-size:20px;font-weight:700;color:#0F172A;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.bcard-pct{font-size:11px;font-weight:600;color:#64748B}
+.bcard-tag{display:inline-block;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;margin-top:8px}
+/* negocio */
+.negocio-grid{display:grid;grid-template-columns:1.1fr 1fr 1fr 1fr;gap:12px}
+.mesero-card{background:linear-gradient(180deg,#fff 0%,#FAFAFF 100%);border:1px solid #ECEEF2;border-radius:14px;padding:18px;position:relative;overflow:hidden}
+.mesero-ribbon{display:inline-flex;align-items:center;gap:6px;position:absolute;top:14px;right:14px;background:#5B6BFF;color:#fff;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+.mesero-avatar{width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg,#5B6BFF,#8B5CF6);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px}
+.mesero-border{margin-top:16px;padding-top:16px;border-top:1px dashed #ECEEF2}
+.split-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;padding-top:14px;border-top:1px solid #ECEEF2}
+.split-label{font-size:10px;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.split-value{font-size:18px;font-weight:700;color:#0F172A;margin-top:4px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.split-meta{font-size:11px;color:#94A3B8;margin-top:2px}
+.mini-note{font-size:11px;color:#64748B;margin-top:12px;padding-top:12px;border-top:1px dashed #ECEEF2}
+.rating-bar-wrap{display:flex;height:8px;border-radius:999px;overflow:hidden;margin-top:16px;background:#F1F5F9}
+.rating-legend{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.rating-row{display:flex;align-items:center;justify-content:space-between;font-size:12px}
+/* ops kpis */
+.ops-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.op-card{background:#fff;border:1px solid #ECEEF2;border-radius:12px;padding:16px}
+/* tipo pago */
+.stacked-bar-wrap{display:flex;height:14px;border-radius:999px;overflow:hidden;background:#F1F5F9;border:1px solid #ECEEF2;margin:8px 0 14px}
+.pay-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.pay-card{border:1px solid #ECEEF2;border-radius:12px;padding:16px;background:#fff;transition:border-color .15s}
+/* canal + hora */
+.two-col{display:grid;grid-template-columns:1fr 1.1fr;gap:22px;align-items:flex-start}
+.canal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.canal-card{background:#fff;border:1px solid #ECEEF2;border-radius:12px;padding:16px}
+.canal-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.canal-sub-label{font-size:10px;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.segmented-sm{display:inline-flex;background:#F1F5F9;padding:3px;border-radius:8px;gap:2px}
+.seg-sm{padding:5px 12px;border-radius:6px;background:transparent;border:none;color:#64748B;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.seg-sm.active{background:#fff;color:#0F172A;box-shadow:0 1px 2px rgba(15,23,42,.06)}
+/* top productos */
+.tabs-line{display:flex;gap:4px;background:#F1F5F9;padding:4px;border-radius:10px}
+.tab-btn{padding:6px 14px;border-radius:7px;background:transparent;border:none;font-family:inherit;font-size:12px;font-weight:600;color:#64748B;cursor:pointer}
+.tab-btn.active{background:#fff;color:#0F172A;box-shadow:0 1px 2px rgba(15,23,42,.06)}
+.top-ext-grid{display:grid;grid-template-columns:1fr 1.6fr;gap:14px;margin-top:14px}
+.top-hero-card{background:linear-gradient(160deg,#EEF2FF,#FFFFFF 60%);border:1px solid #C7D2FE;border-radius:14px;padding:22px;position:relative}
+.top-hero-ribbon{display:inline-flex;align-items:center;gap:6px;background:#FACC15;color:#713F12;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;position:absolute;top:16px;right:16px}
+.top-hero-num{font-size:60px;font-weight:800;color:#5B6BFF;letter-spacing:-.05em;line-height:1;margin-top:14px}
+.top-hero-stats{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px;padding-top:18px;border-top:1px solid #C7D2FE}
+.top-others-card{background:#fff;border:1px solid #ECEEF2;border-radius:14px;padding:14px 18px}
+.top-ext-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #F1F5F9}
+.top-ext-row:last-child{border-bottom:none}
+.top-ext-rank{width:30px;font-size:11px;font-weight:700;color:#94A3B8;flex-shrink:0}

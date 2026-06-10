@@ -1,67 +1,36 @@
-// =================================================
-// pos-core.js — Núcleo del sistema POS
-// Crea window._pos y conecta Supabase
-// NUNCA modificar el orden de inicialización
-// =================================================
+/* pos-core.js — Helpers compartidos por todas las páginas del POS */
+/* Incluye: Supabase client, $(), COPF(), COP(), todayRange(), daysAgoISO() */
+
+// dashboard.js — Panel principal Comanda POS
+// REGLA: Nada hardcodeado. Todo dato viene de Supabase.
+// =====================================================
 
 const SUPABASE_URL = 'https://tblujfduscslxjmrjbdr.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Crear cliente Supabase
-const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-// Bus de eventos interno
-const _listeners = {};
-
-// Estado global del sistema
-const _state = {
-  tables:       [],   // mesas del local
-  activeOrders: {},   // pedidos activos { [tableId]: order }
-  session:      null, // sesión de caja activa
-  role:         null, // rol del dispositivo: waiter | kitchen | cashier | admin
+// ── Helpers ──────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const COP = n => {
+  if (n == null) return '—';
+  if (n >= 1e6)  return '$' + (n/1e6).toFixed(n%1e6===0?0:1) + 'M';
+  if (n >= 1e3)  return '$' + Math.round(n/1e3) + 'k';
+  return '$' + Math.round(n).toLocaleString('es-CO');
 };
+const COPF = n => '$' + Math.round(n||0).toLocaleString('es-CO');
+const pct  = (a,b) => b ? Math.min(100, Math.round((a/b)*100)) : 0;
 
-// =================================================
-// window._pos — API global accesible por todos los módulos
-// =================================================
-window._pos = {
+function todayISO() {
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+function todayRange() {
+  const t = todayISO();
+  return { start: t + 'T00:00:00.000Z', end: t + 'T23:59:59.999Z' };
+}
+function daysAgoISO(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0,10);
+}
 
-  sb: _sb,
-  state: _state,
-
-  // Emitir un evento interno
-  emit(event, data) {
-    (_listeners[event] || []).forEach(fn => fn(data));
-  },
-
-  // Escuchar un evento interno
-  on(event, fn) {
-    if (!_listeners[event]) _listeners[event] = [];
-    _listeners[event].push(fn);
-  },
-
-  // Obtener el rol del dispositivo desde la URL (?rol=waiter)
-  getRole() {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('rol') || 'waiter'; // por defecto: mesero
-  },
-
-  // Ocultar loader y mostrar la app
-  showApp() {
-    document.getElementById('pos-loader').style.display = 'none';
-    document.getElementById('pos-app').style.display = 'block';
-  }
-
-};
-
-// =================================================
-// Inicialización al cargar el DOM
-// =================================================
-document.addEventListener('DOMContentLoaded', () => {
-  const role = window._pos.getRole();
-  _state.role = role;
-  document.body.dataset.role = role; // permite CSS por rol: body[data-role="kitchen"]
-
-  console.log('[POS Core] Iniciado. Rol:', role);
-  window._pos.emit('core:ready', { role });
-});
