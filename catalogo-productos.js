@@ -249,9 +249,30 @@ function productCardHTML(p){
   const thumb=p.photo?'<img class="cp-thumb-img" src="'+escHtml(p.photo)+'" alt="">':'<div class="cp-thumb-placeholder"><span class="cp-thumb-label">foto · '+escHtml(cat.name.toLowerCase())+'</span></div>';
   const inactive=p.active?'':'<span class="cp-inactive-chip">Inactivo</span>';
   const varTag=varGroups.length?'<span class="cp-meta-tag var">'+icon('sliders',12)+' '+varGroups.reduce((a,v)=>a+v.options.length,0)+' variables</span>':'';
-  return '<div class="cp-card" style="'+(p.active?'':'opacity:.72')+'" onclick="openEditor(\''+p.id+'\',\'product\')">'+'<div class="cp-thumb">'+thumb+'<span class="cp-cat-chip" style="color:'+cat.color+';background:'+cat.tint+'">'+escHtml(cat.name)+'</span>'+inactive+'</div>'+'<div class="cp-card-body"><div class="cp-card-row"><div class="cp-card-name">'+escHtml(p.name)+'</div><div class="cp-card-price">'+range+'</div></div>'+(p.desc?'<div class="cp-card-desc">'+escHtml(p.desc)+'</div>':'')+'<div class="cp-meta-row"><span class="cp-meta-tag">'+icon('layers',12)+' '+p.presentations.length+' '+(p.presentations.length===1?'presentación':'presentaciones')+'</span>'+varTag+'<span class="cp-meta-tag">'+icon('tag',12)+' '+(groups.length?(groups.length+' '+(groups.length===1?'grupo':'grupos')+' · '+opts+' adic.'):'Sin adiciones')+'</span></div></div>'+'<div class="cp-card-foot" onclick="event.stopPropagation()"><button class="cp-switch'+(p.active?' on':'')+'" onclick="toggleProduct(\''+p.id+'\')"><span class="cp-switch-lbl">'+(p.active?'Activo':'Inactivo')+'</span><span class="cp-switch-track"><span class="cp-switch-knob"></span></span></button><button class="cp-card-edit-btn" onclick="openEditor(\''+p.id+'\',\'product\')">Editar '+icon('chevron',13)+'</button></div></div>';
+  return '<div class="cp-card" style="'+(p.active?'':'opacity:.72')+'" onclick="openEditor(\''+p.id+'\',\'product\')">'+'<div class="cp-thumb">'+thumb+'<span class="cp-cat-chip" style="color:'+cat.color+';background:'+cat.tint+'">'+escHtml(cat.name)+'</span>'+inactive+'</div>'+'<div class="cp-card-body"><div class="cp-card-row"><div class="cp-card-name">'+escHtml(p.name)+'</div><div class="cp-card-price">'+range+'</div></div>'+(p.desc?'<div class="cp-card-desc">'+escHtml(p.desc)+'</div>':'')+'<div class="cp-meta-row"><span class="cp-meta-tag">'+icon('layers',12)+' '+p.presentations.length+' '+(p.presentations.length===1?'presentación':'presentaciones')+'</span>'+varTag+'<span class="cp-meta-tag">'+icon('tag',12)+' '+(groups.length?(groups.length+' '+(groups.length===1?'grupo':'grupos')+' · '+opts+' adic.'):'Sin adiciones')+'</span></div></div>'+'<div class="cp-card-foot" onclick="event.stopPropagation()"><button class="cp-switch'+(p.active?' on':'')+'" onclick="toggleProduct(\''+p.id+'\')"><span class="cp-switch-lbl">'+(p.active?'Activo':'Inactivo')+'</span><span class="cp-switch-track"><span class="cp-switch-knob"></span></span></button><div style="display:flex;gap:5px;align-items:center"><button class="cp-card-del-btn" onclick="confirmDeleteProduct(\''+p.id+'\')" title="Eliminar">'+icon('trash',13)+'</button><button class="cp-card-edit-btn" onclick="openEditor(\''+p.id+'\',\'product\')">Editar '+icon('chevron',13)+'</button></div></div></div>';
 }
 
+function confirmDeleteProduct(id){
+  const p=S.products.find(x=>x.id===id);if(!p)return;
+  openOverlay('<div class="cc-overlay center" onmousedown="handleOverlayClose(event)">'
+    +'<div class="cc-modal" style="width:340px;max-width:92vw" onmousedown="event.stopPropagation()">'
+    +'<div class="cc-modal-head" style="border-bottom:none;padding-bottom:6px">'
+    +'<div style="display:flex;align-items:center;gap:10px">'
+    +'<span style="width:36px;height:36px;border-radius:10px;background:#FFF1F2;color:#F43F5E;display:flex;align-items:center;justify-content:center">'+icon('trash',16)+'</span>'
+    +'<div style="font-size:14px;font-weight:800;color:#0F172A">Eliminar producto</div></div>'
+    +'<button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div>'
+    +'<div style="padding:2px 20px 20px">'
+    +'<div style="font-size:13px;color:#475569;line-height:1.55">¿Eliminar <strong>'+escHtml(p.name)+'</strong>? Esta acción no se puede deshacer.</div>'
+    +'<div style="display:flex;gap:8px;margin-top:16px">'
+    +'<button class="lm-btn-ghost" style="flex:1" onclick="closeOverlay()">Cancelar</button>'
+    +'<button style="flex:1;background:#EF4444;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;height:38px;cursor:pointer;font-family:inherit" onclick="doDeleteProduct(\''+p.id+'\')">' + 'Eliminar</button>'
+    +'</div></div></div></div>');
+}
+async function doDeleteProduct(id){
+  await deleteProductFromSupabase(id);
+  S.products=S.products.filter(x=>x.id!==id);
+  closeOverlay();renderPage();toast('Producto eliminado');
+}
 async function toggleProduct(id){
   const p=S.products.find(x=>x.id===id);if(!p)return;
   p.active=!p.active;
