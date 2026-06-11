@@ -20,35 +20,12 @@ const fmt = n => '$' + (n||0).toLocaleString('es-CO');
 const fmtDelta = n => n===0?'Incluido':(n>0?'+':'−')+'$'+Math.abs(n).toLocaleString('es-CO');
 const uid = p => (p||'id')+'_'+Math.random().toString(36).slice(2,8);
 
-const AI_EXTRACTION = {
-  source:'menu.pdf',
-  stats:{categorias:6,productos:23,presentaciones:38,modificadores:11},
-  categories:[
-    {name:'Salchipapas',products:[
-      {name:'Sencilla',pres:['Personal · $14.000','Familiar · $24.000'],mods:2},
-      {name:'Premium Mixta',pres:['Personal · $16.000','Familiar · $28.000'],mods:3},
-    ]},
-    {name:'Hamburguesas',products:[
-      {name:'Clásica',pres:['Sencilla · $18.000','Doble · $26.000'],mods:2},
-      {name:'El Parche',pres:['Sencilla · $28.000','Doble · $38.000'],mods:3},
-    ]},
-    {name:'Bebidas',products:[
-      {name:'Gaseosa',pres:['350 ml · $4.500','1.5 L · $8.000'],mods:0},
-    ]},
-  ],
-};
-const AI_STEPS = [
-  {label:'Leyendo el documento',detail:'Procesando páginas…'},
-  {label:'Detectando categorías',detail:'Identificando secciones…'},
-  {label:'Extrayendo productos y precios',detail:'Leyendo productos…'},
-  {label:'Identificando modificadores',detail:'Detectando adiciones…'},
-];
 
 const S = {
   tenantId:null, branchId:null, tab:'productos', cats:[], products:[], combos:[], mods:[],
   filterCat:null, query:'', overlay:null,
   editProd:null, editCombo:null, editMod:null, editCat:null,
-  aiStage:'source', aiTab:'file', aiFile:null, aiUrl:'', aiStepIdx:0,
+  aiStage:'source', aiTab:'file', aiFile:null, aiUrl:'', aiResult:null, aiError:null,
   aiExcluded:{}, aiOpenCat:null, aiTimers:[],
 };
 
@@ -454,39 +431,86 @@ async function saveCat(){
 }
 
 // ── AI Import ─────────────────────────────────────────────────────────────
-function openAIImport(){S.aiStage='source';S.aiTab='file';S.aiFile=null;S.aiUrl='';S.aiStepIdx=0;S.aiExcluded={};S.aiOpenCat=AI_EXTRACTION.categories[0]?.name||null;S.aiTimers.forEach(clearTimeout);S.aiTimers=[];renderAIImport();}
+function openAIImport(){S.aiStage='source';S.aiTab='file';S.aiFile=null;S.aiUrl='';S.aiResult=null;S.aiError=null;S.aiExcluded={};S.aiOpenCat=null;S.aiTimers.forEach(clearTimeout);S.aiTimers=[];renderAIImport();}
 function renderAIImport(){
   const stage=S.aiStage,stageMap=['source','analyzing','review'],steps=['Fuente','Análisis','Revisión'];
   const stepDots=steps.map((s,i)=>{const cur=stageMap.indexOf(stage),state=i<cur?'done':i===cur?'active':'todo',bg=state==='todo'?'#F1F5F9':'#8B5CF6',col=state==='todo'?'#94A3B8':'#fff',inner=state==='done'?icon('check',12,3):i+1;return '<div style="display:flex;align-items:center;gap:8px"><span class="cc-step-dot" style="background:'+bg+';color:'+col+'">'+inner+'</span><span style="font-size:12px;font-weight:700;color:'+(state==='todo'?'#94A3B8':'#0F172A')+'">'+s+'</span></div>'+(i<2?'<span style="flex:1;height:2px;background:'+(i<cur?'#8B5CF6':'#ECEEF2')+';border-radius:2px"></span>':'');}).join('');
   let bodyHTML='',footHTML='';
+
   if(stage==='source'){
+    const errBanner=S.aiError?'<div style="background:#FFF1F2;border:1px solid #FECDD3;border-radius:10px;padding:12px 16px;display:flex;align-items:flex-start;gap:10px;margin-bottom:14px"><span style="color:#F43F5E;flex-shrink:0;display:flex">'+icon('x',16)+'</span><div style="font-size:12.5px;color:#9F1239;line-height:1.5">'+escHtml(S.aiError)+'</div></div>':'';
     const fileContent=S.aiFile?'<div class="cc-file-card"><span class="cc-file-icon">'+icon('file',20)+'</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(S.aiFile.name)+'</div><div style="font-size:11px;color:#94A3B8">'+(S.aiFile.size/1024).toFixed(0)+' KB</div></div><button class="lm-icon-sm" onclick="S.aiFile=null;renderAIImport()">'+icon('x',14)+'</button></div>':'<div class="cc-drop big" ondragover="event.preventDefault();this.classList.add(\'over\')" ondragleave="this.classList.remove(\'over\')" ondrop="handleAIFileDrop(event)" onclick="document.getElementById(\'ai-file-input\').click()"><div style="width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,#F5F3FF,#EEF2FF);color:#8B5CF6;display:flex;align-items:center;justify-content:center;margin-bottom:12px">'+icon('upload',24)+'</div><div style="font-size:14px;font-weight:700;color:#0F172A">Arrastra tu menú aquí</div><div style="font-size:12px;color:#94A3B8;margin-top:4px">PDF o imagen · o <span style="color:#8B5CF6;font-weight:700">búscalo en tu equipo</span></div></div>';
-    bodyHTML='<input type="file" id="ai-file-input" accept="application/pdf,image/*" style="display:none" onchange="handleAIFileSelect(this)"><div class="cc-seg lg" style="margin-bottom:16px"><button class="'+(S.aiTab==='file'?'on':'')+'" onclick="S.aiTab=\'file\';renderAIImport()">'+icon('upload',14)+' Archivo</button><button class="'+(S.aiTab==='drive'?'on':'')+'" onclick="S.aiTab=\'drive\';renderAIImport()">'+icon('drive',14)+' Google Drive</button></div>'+(S.aiTab==='file'?fileContent:'<div class="cc-input-wrap"><span style="color:#94A3B8;display:flex">'+icon('drive',16)+'</span><input id="ai-drive-url" value="'+escHtml(S.aiUrl)+'" placeholder="https://drive.google.com/file/d/…" oninput="S.aiUrl=this.value"></div>')+'<div class="cc-tip-box"><span class="cc-tip-icon">'+icon('sparkle',14)+'</span><div style="font-size:12px;color:#5B21B6;line-height:1.5">La IA detecta <strong>categorías, productos, presentaciones y adiciones</strong>.</div></div>';
+    bodyHTML='<input type="file" id="ai-file-input" accept="application/pdf,image/*" style="display:none" onchange="handleAIFileSelect(this)">'+errBanner+'<div class="cc-seg lg" style="margin-bottom:16px"><button class="'+(S.aiTab==='file'?'on':'')+'" onclick="S.aiTab=\'file\';renderAIImport()">'+icon('upload',14)+' Archivo</button><button class="'+(S.aiTab==='drive'?'on':'')+'" onclick="S.aiTab=\'drive\';renderAIImport()">'+icon('drive',14)+' Google Drive</button></div>'+(S.aiTab==='file'?fileContent:'<div class="cc-input-wrap"><span style="color:#94A3B8;display:flex">'+icon('drive',16)+'</span><input id="ai-drive-url" value="'+escHtml(S.aiUrl)+'" placeholder="https://drive.google.com/file/d/…" oninput="S.aiUrl=this.value"></div>')+'<div class="cc-tip-box"><span class="cc-tip-icon">'+icon('sparkle',14)+'</span><div style="font-size:12px;color:#5B21B6;line-height:1.5">GPT-4o detecta <strong>categorías, productos, presentaciones, variables y adiciones</strong> automáticamente.</div></div>';
     const ready=(S.aiTab==='file'&&!!S.aiFile)||(S.aiTab==='drive'&&S.aiUrl.trim().length>6);
     footHTML='<span style="font-size:11.5px;color:#94A3B8">Tus datos no se publican hasta confirmar.</span><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button><button class="cc-btn-ai" '+(ready?'':'disabled')+' onclick="startAIAnalysis()">'+icon('sparkle',14)+' Analizar con IA</button></div>';
+
   } else if(stage==='analyzing'){
-    const aiSteps=AI_STEPS.map((s,i)=>{const done=i<S.aiStepIdx,active=i===S.aiStepIdx,dotBg=done?'#ECFDF5':active?'#F5F3FF':'#F1F5F9',dotCol=done?'#10B981':active?'#8B5CF6':'#CBD5E1',inner=done?icon('check',13,3):active?'<span class="cc-pulse" style="background:currentColor"></span>':'<span style="width:6px;height:6px;border-radius:999px;background:currentColor"></span>';return '<div class="cc-ai-step" style="opacity:'+(i<=S.aiStepIdx?1:.45)+'"><span class="cc-ai-step-dot" style="background:'+dotBg+';color:'+dotCol+'">'+inner+'</span><div style="flex:1"><div style="font-size:13px;font-weight:700;color:'+(done||active?'#0F172A':'#94A3B8')+'">'+s.label+'</div>'+(done||active?'<div style="font-size:11px;color:#94A3B8;margin-top:1px">'+s.detail+'</div>':'')+'</div></div>';}).join('');
-    bodyHTML='<div style="padding:8px 0"><div style="display:flex;align-items:center;gap:14px;margin-bottom:22px"><div class="cc-spinner"></div><div><div style="font-size:15px;font-weight:800;color:#0F172A">Analizando tu menú…</div><div style="font-size:12px;color:#94A3B8">Esto toma unos segundos</div></div></div><div style="display:flex;flex-direction:column;gap:4px">'+aiSteps+'</div></div>';
-    footHTML='<span style="font-size:11.5px;color:#94A3B8">Procesando con IA…</span><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button>';
+    bodyHTML='<div style="padding:8px 0"><div style="display:flex;align-items:center;gap:16px;margin-bottom:22px"><div class="cc-spinner" style="width:36px;height:36px;border-width:4px"></div><div><div style="font-size:15px;font-weight:800;color:#0F172A">Analizando tu menú con GPT-4o…</div><div style="font-size:12px;color:#94A3B8;margin-top:3px">Esto puede tomar entre 15 y 30 segundos</div></div></div><div class="cc-tip-box" style="margin-top:0"><span class="cc-tip-icon">'+icon('sparkle',14)+'</span><div style="font-size:12px;color:#5B21B6;line-height:1.6">GPT-4o está leyendo tu carta y organizando <strong>categorías</strong>, <strong>productos</strong>, <strong>presentaciones</strong> y <strong>adiciones</strong>.</div></div></div>';
+    footHTML='<span style="font-size:11.5px;color:#94A3B8">Procesando con GPT-4o…</span><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button>';
+
   } else {
-    const ex=AI_EXTRACTION,incl=ex.categories.filter(c=>!S.aiExcluded[c.name]),inclProds=incl.reduce((a,c)=>a+c.products.length,0);
-    const catBlocks=ex.categories.map(c=>{const off=!!S.aiExcluded[c.name],open=S.aiOpenCat===c.name;const prodRows=open&&!off?c.products.map(pr=>'<div class="cc-prod-row"><span style="font-size:12.5px;font-weight:600;color:#0F172A;min-width:130px">'+escHtml(pr.name)+'</span><div style="display:flex;gap:5px;flex-wrap:wrap;flex:1">'+pr.pres.map(p=>'<span class="cc-pres-tag">'+escHtml(p)+'</span>').join('')+'</div></div>').join(''):'';return '<div class="cc-cat-block" style="opacity:'+(off?.55:1)+';border-color:'+(open&&!off?'#DDD6FE':'#ECEEF2')+'"><div class="cc-cat-row"><button class="cc-check'+(off?'':' on')+'" onclick="toggleAICat(\''+escHtml(c.name)+'\')" style="'+(off?'':'background:#8B5CF6;border-color:#8B5CF6;color:#fff')+'">'+(off?'':icon('check',12,3))+'</button><button class="cc-cat-toggle" onclick="S.aiOpenCat=S.aiOpenCat===\''+escHtml(c.name)+'\'?null:\''+escHtml(c.name)+'\';renderAIImport()"><span style="font-size:13.5px;font-weight:700;color:#0F172A">'+escHtml(c.name)+'</span><span class="cc-cat-count">'+c.products.length+' productos</span><span style="margin-left:auto;color:#CBD5E1;transform:'+(open?'rotate(90deg)':'none')+';transition:transform .15s;display:flex">'+icon('chevron',15)+'</span></button></div>'+(prodRows?'<div class="cc-prod-list">'+prodRows+'</div>':'')+'</div>';}).join('');
-    bodyHTML='<div class="cc-result-banner"><span style="color:#10B981;display:flex">'+icon('checkc',18)+'</span><div style="flex:1"><div style="font-size:13.5px;font-weight:800;color:#0F172A">Menú analizado con éxito</div><div style="font-size:11.5px;color:#64748B;margin-top:1px">'+ex.stats.categorias+' categorías · '+ex.stats.productos+' productos</div></div></div><div style="font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin:4px 2px 8px">Revisa antes de importar</div><div style="display:flex;flex-direction:column;gap:8px">'+catBlocks+'</div>';
+    const ex=S.aiResult||{categories:[]};
+    const incl=ex.categories.filter(c=>!S.aiExcluded[c.name]),inclProds=incl.reduce((a,c)=>a+c.products.length,0);
+    const catBlocks=ex.categories.map(c=>{
+      const off=!!S.aiExcluded[c.name],open=S.aiOpenCat===c.name;
+      const prodRows=open&&!off?c.products.map(pr=>{
+        const pTags=(pr.presentations||[]).map(p=>'<span class="cc-pres-tag">'+escHtml(p.name)+' · $'+Number(p.price).toLocaleString('es-CO')+'</span>').join('');
+        const vTag=pr.variables?.length?'<span class="cc-pres-tag" style="background:#F5F3FF;color:#8B5CF6">'+pr.variables.length+' variable'+(pr.variables.length>1?'s':'')+'</span>':'';
+        const mTag=pr.modifiers?.length?'<span class="cc-pres-tag" style="background:#FFFBEB;color:#F59E0B">'+pr.modifiers.length+' mod.</span>':'';
+        return '<div class="cc-prod-row"><span style="font-size:12.5px;font-weight:600;color:#0F172A;min-width:130px">'+escHtml(pr.name)+'</span><div style="display:flex;gap:5px;flex-wrap:wrap;flex:1">'+pTags+vTag+mTag+'</div></div>';
+      }).join(''):'';
+      return '<div class="cc-cat-block" style="opacity:'+(off?.55:1)+';border-color:'+(open&&!off?'#DDD6FE':'#ECEEF2')+'"><div class="cc-cat-row"><button class="cc-check'+(off?'':' on')+'" onclick="toggleAICat(\''+escHtml(c.name)+'\')" style="'+(off?'':'background:#8B5CF6;border-color:#8B5CF6;color:#fff')+'">'+(off?'':icon('check',12,3))+'</button><button class="cc-cat-toggle" onclick="S.aiOpenCat=S.aiOpenCat===\''+escHtml(c.name)+'\'?null:\''+escHtml(c.name)+'\';renderAIImport()"><span style="font-size:13.5px;font-weight:700;color:#0F172A">'+escHtml(c.name)+'</span><span class="cc-cat-count">'+c.products.length+' productos</span><span style="margin-left:auto;color:#CBD5E1;transform:'+(open?'rotate(90deg)':'none')+';transition:transform .15s;display:flex">'+icon('chevron',15)+'</span></button></div>'+(prodRows?'<div class="cc-prod-list">'+prodRows+'</div>':'')+'</div>';
+    }).join('');
+    const stats=ex._stats||{};
+    bodyHTML='<div class="cc-result-banner"><span style="color:#10B981;display:flex">'+icon('checkc',18)+'</span><div style="flex:1"><div style="font-size:13.5px;font-weight:800;color:#0F172A">Menú analizado con GPT-4o</div><div style="font-size:11.5px;color:#64748B;margin-top:1px">'+(stats.categories||incl.length)+' categorías · '+(stats.products||inclProds)+' productos detectados</div></div></div><div style="font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin:4px 2px 8px">Revisa antes de importar — desmarca lo que no quieras</div><div style="display:flex;flex-direction:column;gap:8px">'+catBlocks+'</div>';
     footHTML='<span style="font-size:12px;color:#64748B;font-weight:600">'+incl.length+' categorías · '+inclProds+' productos</span><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="S.aiStage=\'source\';renderAIImport()">Volver</button><button class="cc-btn-ai" '+(inclProds?'':'disabled')+' onclick="importFromAI()">'+icon('check',14)+' Importar al catálogo</button></div>';
   }
-  openOverlay('<div class="cc-overlay center" onmousedown="handleOverlayClose(event)"><div class="cc-modal wide" onmousedown="event.stopPropagation()"><div class="cc-modal-head"><div style="display:flex;align-items:center;gap:11px"><span class="cc-modal-glyph" style="background:linear-gradient(135deg,#8B5CF6,#5B6BFF);color:#fff;box-shadow:0 4px 12px -3px rgba(139,92,246,.5)">'+icon('sparkle',18)+'</span><div><div style="font-size:15px;font-weight:800;color:#0F172A;letter-spacing:-.02em">Importar menú con IA</div><div style="font-size:11.5px;color:#94A3B8">Sube tu carta y la convertimos en catálogo automáticamente</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div class="cc-steps-bar">'+stepDots+'</div><div class="cc-modal-body">'+bodyHTML+'</div><div class="cc-modal-foot">'+footHTML+'</div></div></div>');
+  openOverlay('<div class="cc-overlay center" onmousedown="handleOverlayClose(event)"><div class="cc-modal wide" onmousedown="event.stopPropagation()"><div class="cc-modal-head"><div style="display:flex;align-items:center;gap:11px"><span class="cc-modal-glyph" style="background:linear-gradient(135deg,#8B5CF6,#5B6BFF);color:#fff;box-shadow:0 4px 12px -3px rgba(139,92,246,.5)">'+icon('sparkle',18)+'</span><div><div style="font-size:15px;font-weight:800;color:#0F172A;letter-spacing:-.02em">Importar menú con IA</div><div style="font-size:11.5px;color:#94A3B8">Sube tu carta y GPT-4o la convierte en catálogo automáticamente</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div class="cc-steps-bar">'+stepDots+'</div><div class="cc-modal-body">'+bodyHTML+'</div><div class="cc-modal-foot">'+footHTML+'</div></div></div>');
 }
+
 function handleAIFileSelect(inp){if(inp.files[0]){S.aiFile=inp.files[0];renderAIImport();}}
 function handleAIFileDrop(e){e.preventDefault();e.currentTarget.classList.remove('over');if(e.dataTransfer.files[0]){S.aiFile=e.dataTransfer.files[0];renderAIImport();}}
 function toggleAICat(name){S.aiExcluded[name]=!S.aiExcluded[name];renderAIImport();}
-function startAIAnalysis(){
-  S.aiStage='analyzing';S.aiStepIdx=0;S.aiTimers.forEach(clearTimeout);S.aiTimers=[];
-  AI_STEPS.forEach((_,i)=>{S.aiTimers.push(setTimeout(()=>{S.aiStepIdx=i+1;renderAIImport();},750*(i+1)));});
-  S.aiTimers.push(setTimeout(()=>{S.aiStage='review';renderAIImport();},750*(AI_STEPS.length+1)));
-  renderAIImport();
+async function fileToBase64Ai(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});}
+async function pdfToImages(file){
+  if(!window.pdfjsLib){
+    await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+  const buf=await file.arrayBuffer();
+  const pdf=await window.pdfjsLib.getDocument({data:buf}).promise;
+  const imgs=[];const max=Math.min(pdf.numPages,4);
+  for(let i=1;i<=max;i++){const page=await pdf.getPage(i);const vp=page.getViewport({scale:2});const cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;imgs.push({data:cv.toDataURL('image/jpeg',0.9).split(',')[1],mimeType:'image/jpeg'});}
+  return imgs;
+}
+async function startAIAnalysis(){
+  S.aiStage='analyzing';S.aiError=null;S.aiTimers.forEach(clearTimeout);S.aiTimers=[];renderAIImport();
+  try{
+    let body;
+    if(S.aiTab==='drive'){
+      body={driveUrl:S.aiUrl};
+    } else {
+      const file=S.aiFile;
+      const images=file.type==='application/pdf'?await pdfToImages(file):[{data:await fileToBase64Ai(file),mimeType:file.type||'image/jpeg'}];
+      body={images};
+    }
+    const {data:{session}}=await sb.auth.getSession();
+    const res=await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/analyze-menu',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':SUPABASE_KEY},
+      body:JSON.stringify(body),
+    });
+    const data=await res.json();
+    if(data.error)throw new Error(data.error);
+    if(!data.categories?.length)throw new Error('No se detectaron productos. Intenta con una imagen más clara o mejor iluminada.');
+    S.aiResult=data;S.aiExcluded={};S.aiOpenCat=data.categories[0]?.name||null;S.aiStage='review';renderAIImport();
+  } catch(e){
+    S.aiError=e.message;S.aiStage='source';renderAIImport();
+  }
 }
 async function importFromAI(){
-  const incl=AI_EXTRACTION.categories.filter(c=>!S.aiExcluded[c.name]);
+  const ex=S.aiResult||{categories:[]};
+  const incl=ex.categories.filter(c=>!S.aiExcluded[c.name]);
   const newCats=[],newProds=[],nameToCat={};
   S.cats.forEach(c=>nameToCat[c.name.toLowerCase()]=c.id);
   let palI=S.cats.length;
@@ -494,13 +518,21 @@ async function importFromAI(){
     let catId=nameToCat[c.name.toLowerCase()];
     if(!catId){const pal=CAT_PALETTE[palI%8];const saved=await saveCategoryToSupabase({id:uid('cat'),name:c.name,...pal});catId=saved.id;newCats.push({...saved,...pal});nameToCat[c.name.toLowerCase()]=catId;palI++;}
     for(const pr of c.products){
-      const pres=pr.pres.map(s=>{const parts=s.split(' · ');const raw=parts[1]||parts[0];return{id:uid('pr'),name:parts[1]?parts[0]:'Unico',price:parseInt(raw.replace(/[^0-9]/g,''),10)||0};});
-      const prod={id:uid('p'),cat:catId,name:pr.name,desc:'',active:true,photo:null,presentations:pres,variables:[],modGroupIds:[]};
+      const presentations=(pr.presentations||[{name:'Único',price:0}]).map(p=>({id:uid('pr'),name:p.name||'Único',price:p.price||0}));
+      const variables=(pr.variables||[]).map(v=>({id:uid('vg'),name:v.name,options:(v.options||[]).map(o=>({id:uid('vo'),name:o.name,price:o.price||0}))}));
+      const modGroupIds=[];
+      for(const m of (pr.modifiers||[])){
+        const group={id:uid('mg'),name:m.name,rule:m.rule||'opcional',multi:m.multi!==false,options:(m.options||[]).map(o=>({id:uid('op'),name:o.name,price:o.price||0}))};
+        const savedId=await saveModGroupToSupabase(group);group.id=savedId;
+        const idx=S.mods.findIndex(x=>x.id===group.id);if(idx>=0)S.mods[idx]=group;else S.mods.push(group);
+        modGroupIds.push(savedId);
+      }
+      const prod={id:uid('p'),cat:catId,name:pr.name,desc:pr.description||'',active:true,photo:null,presentations,variables,modGroupIds};
       const savedId=await saveProductToSupabase(prod);prod.id=savedId;newProds.push(prod);
     }
   }
   S.cats=[...S.cats,...newCats];S.products=[...newProds,...S.products];
-  closeOverlay();S.tab='productos';S.filterCat=null;renderPage();toast(newProds.length+' productos importados con IA');
+  closeOverlay();S.tab='productos';S.filterCat=null;renderPage();toast(newProds.length+' productos importados con IA ✓');
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────
