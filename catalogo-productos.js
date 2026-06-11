@@ -541,6 +541,17 @@ async function startAIAnalysis(){
 async function importFromAI(){
   const ex=S.aiResult||{categories:[]};
   const incl=ex.categories.filter(c=>!S.aiExcluded[c.name]);
+
+  // 1. Guardar grupos de modificadores globales primero (nuevo formato)
+  const modNameToId={};
+  for(const m of (ex.modifier_groups||[])){
+    const group={id:uid('mg'),name:m.name,rule:m.rule||'opcional',multi:m.multi!==false,options:(m.options||[]).map(o=>({id:uid('op'),name:o.name,price:o.price||0}))};
+    const savedId=await saveModGroupToSupabase(group);group.id=savedId;
+    const idx=S.mods.findIndex(x=>x.name===m.name);if(idx>=0)S.mods[idx]=group;else S.mods.push(group);
+    modNameToId[m.name]=savedId;
+  }
+
+  // 2. Guardar categorías y productos
   const newCats=[],newProds=[],nameToCat={};
   S.cats.forEach(c=>nameToCat[c.name.toLowerCase()]=c.id);
   let palI=S.cats.length;
@@ -549,13 +560,18 @@ async function importFromAI(){
     if(!catId){const pal=CAT_PALETTE[palI%8];const saved=await saveCategoryToSupabase({id:uid('cat'),name:c.name,...pal});catId=saved.id;newCats.push({...saved,...pal});nameToCat[c.name.toLowerCase()]=catId;palI++;}
     for(const pr of c.products){
       const presentations=(pr.presentations||[{name:'Único',price:0}]).map(p=>({id:uid('pr'),name:p.name||'Único',price:p.price||0}));
-      const variables=(pr.variables||[]).map(v=>({id:uid('vg'),name:v.name,options:(v.options||[]).map(o=>({id:uid('vo'),name:o.name,price:o.price||0}))}));
-      const modGroupIds=[];
-      for(const m of (pr.modifiers||[])){
-        const group={id:uid('mg'),name:m.name,rule:m.rule||'opcional',multi:m.multi!==false,options:(m.options||[]).map(o=>({id:uid('op'),name:o.name,price:o.price||0}))};
-        const savedId=await saveModGroupToSupabase(group);group.id=savedId;
-        const idx=S.mods.findIndex(x=>x.id===group.id);if(idx>=0)S.mods[idx]=group;else S.mods.push(group);
-        modGroupIds.push(savedId);
+      const variables=(pr.variables||[]).map(v=>({id:uid('vg'),name:v.name||'Tipo',options:(v.options||[]).map(o=>({id:uid('vo'),name:typeof o==='string'?o:o.name,price:o.price||0}))}));
+      // Resolver IDs de modificadores: nuevo formato (por nombre) o fallback formato antiguo (por objeto)
+      let modGroupIds=[];
+      if((pr.modifier_group_names||[]).length>0){
+        modGroupIds=pr.modifier_group_names.map(n=>modNameToId[n]).filter(Boolean);
+      } else {
+        for(const m of (pr.modifiers||[])){
+          const group={id:uid('mg'),name:m.name,rule:m.rule||'opcional',multi:m.multi!==false,options:(m.options||[]).map(o=>({id:uid('op'),name:o.name,price:o.price||0}))};
+          const savedId=await saveModGroupToSupabase(group);group.id=savedId;
+          const idx=S.mods.findIndex(x=>x.id===group.id);if(idx>=0)S.mods[idx]=group;else S.mods.push(group);
+          modGroupIds.push(savedId);
+        }
       }
       const prod={id:uid('p'),cat:catId,name:pr.name,desc:pr.description||'',active:true,photo:null,presentations,variables,modGroupIds};
       const savedId=await saveProductToSupabase(prod);prod.id=savedId;newProds.push(prod);
