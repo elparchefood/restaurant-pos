@@ -34,3 +34,55 @@ function daysAgoISO(n) {
   return d.toISOString().slice(0,10);
 }
 
+// ── window._pos — Bus de eventos y estado global ──────────────────────────
+(function () {
+  const listeners = {};
+
+  window._pos = {
+    sb: sb,
+    state: { user: null, branchId: null, tenantId: null },
+
+    on(event, fn) {
+      if (!listeners[event]) listeners[event] = [];
+      listeners[event].push(fn);
+    },
+
+    emit(event, data) {
+      (listeners[event] || []).forEach(fn => { try { fn(data); } catch(e) { console.error('[_pos.emit]', event, e); } });
+    },
+
+    modules: {}
+  };
+
+  // Inicializar: leer sesión, poblar state, emitir core:ready
+  async function boot() {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) {
+        // Sin sesión → redirigir a login (solo si no estamos ya ahí)
+        if (!window.location.pathname.includes('login')) {
+          window.location.href = 'login.html';
+        }
+        return;
+      }
+      const { data: { user } } = await sb.auth.getUser();
+      window._pos.state.user     = user;
+      window._pos.state.tenantId = user.user_metadata?.tenant_id || null;
+      window._pos.state.branchId = user.user_metadata?.branch_id || null;
+
+      sb.auth.onAuthStateChange((event) => {
+        if (event === 'SIGNED_OUT') window.location.href = 'login.html';
+      });
+
+      window._pos.emit('core:ready', { user });
+    } catch (e) {
+      console.error('[pos-core] Error en boot:', e);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
