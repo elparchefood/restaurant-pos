@@ -106,17 +106,63 @@
   }
 
   // ─── Supabase — fetch data ────────────────────────────
+
+  // Devuelve mesas del config localStorage enriquecidas con estado live de Supabase
   async function fetchTables() {
-    const sb = window._pos && window._pos.sb;
-    if (!sb) return [];
+    // 1. Base: mesas configuradas en localStorage
+    const localConfig = (function() {
+      try {
+        var raw = localStorage.getItem(CONFIG_KEY);
+        if (raw) { var c = JSON.parse(raw); if (c.tables) return c; }
+      } catch(e) {}
+      return { zones: [], tables: [] };
+    })();
 
-    const branchId = window._pos.state && window._pos.state.branchId;
-    let query = sb.from('pos_tables').select('*').order('number', { ascending: true });
-    if (branchId) query = query.eq('branch_id', branchId);
+    const baseTables = localConfig.tables.map(function(t, i) {
+      return {
+        id: t.id,
+        name: t.name,
+        number: parseInt(t.name, 10) || (i + 1),
+        seats: t.seats,
+        zone_id: t.zoneId,
+        status: 'libre',
+        total: 0,
+        items_count: 0,
+        minutes: 0,
+        mesero_initials: '',
+        persons: 0,
+      };
+    });
 
-    const { data, error } = await query;
-    if (error) { console.error('[ventas-salon] fetchTables:', error); return []; }
-    return data || [];
+    if (!baseTables.length) return [];
+
+    // 2. Enriquecer con datos live de Supabase (status, total, etc.)
+    try {
+      const sb = window._pos && window._pos.sb;
+      if (sb) {
+        const ids = baseTables.map(function(t){ return t.id; });
+        const { data } = await sb.from('pos_tables').select('*').in('id', ids);
+        const liveMap = {};
+        (data || []).forEach(function(r){ liveMap[r.id] = r; });
+
+        return baseTables.map(function(t) {
+          const live = liveMap[t.id];
+          if (!live) return t;
+          return Object.assign({}, t, {
+            status: live.status || t.status,
+            total: live.total || 0,
+            items_count: live.items_count || 0,
+            minutes: live.minutes || 0,
+            mesero_initials: live.mesero_initials || '',
+            persons: live.persons || 0,
+          });
+        });
+      }
+    } catch(e) {
+      console.warn('[ventas-salon] Supabase enrichment failed:', e.message || e);
+    }
+
+    return baseTables;
   }
 
   async function fetchOrderItems(tableId) {
