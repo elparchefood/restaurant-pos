@@ -472,19 +472,23 @@ function renderAIImport(){
   } else {
     const ex=S.aiResult||{categories:[]};
     const incl=ex.categories.filter(c=>!S.aiExcluded[c.name]),inclProds=incl.reduce((a,c)=>a+c.products.length,0);
-    const catBlocks=ex.categories.map(c=>{
+    const catBlocks=ex.categories.map((c,ci)=>{
       const off=!!S.aiExcluded[c.name],open=S.aiOpenCat===c.name;
-      const prodRows=open&&!off?c.products.map(pr=>{
-        const pTags=(pr.presentations||[]).map(p=>'<span class="cc-pres-tag">'+escHtml(p.name)+' · $'+Number(p.price).toLocaleString('es-CO')+'</span>').join('');
-        const vTag=pr.variables?.length?'<span class="cc-pres-tag" style="background:#F5F3FF;color:#8B5CF6">'+pr.variables.length+' variable'+(pr.variables.length>1?'s':'')+'</span>':'';
-        const mTag=pr.modifiers?.length?'<span class="cc-pres-tag" style="background:#FFFBEB;color:#F59E0B">'+pr.modifiers.length+' mod.</span>':'';
-        return '<div class="cc-prod-row"><span style="font-size:12.5px;font-weight:600;color:#0F172A;min-width:130px">'+escHtml(pr.name)+'</span><div style="display:flex;gap:5px;flex-wrap:wrap;flex:1">'+pTags+vTag+mTag+'</div></div>';
-      }).join(''):'';
-      return '<div class="cc-cat-block" style="opacity:'+(off?.55:1)+';border-color:'+(open&&!off?'#DDD6FE':'#ECEEF2')+'"><div class="cc-cat-row"><button class="cc-check'+(off?'':' on')+'" onclick="toggleAICat(\''+escHtml(c.name)+'\')" style="'+(off?'':'background:#8B5CF6;border-color:#8B5CF6;color:#fff')+'">'+(off?'':icon('check',12,3))+'</button><button class="cc-cat-toggle" onclick="S.aiOpenCat=S.aiOpenCat===\''+escHtml(c.name)+'\'?null:\''+escHtml(c.name)+'\';renderAIImport()"><span style="font-size:13.5px;font-weight:700;color:#0F172A">'+escHtml(c.name)+'</span><span class="cc-cat-count">'+c.products.length+' productos</span><span style="margin-left:auto;color:#CBD5E1;transform:'+(open?'rotate(90deg)':'none')+';transition:transform .15s;display:flex">'+icon('chevron',15)+'</span></button></div>'+(prodRows?'<div class="cc-prod-list">'+prodRows+'</div>':'')+'</div>';
+      let prodRows='';
+      if(open&&!off){
+        prodRows=c.products.map((pr,pi)=>{
+          const presEdits=(pr.presentations||[]).map((p,xi)=>{
+            const rmBtn=pr.presentations.length>1?'<button class="cc-ai-rm" onclick="removeAIPres('+ci+','+pi+','+xi+')">&#xD7;</button>':'';
+            return '<div style="display:flex;align-items:center;gap:3px;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:7px;padding:2px 6px"><input class="cc-ai-mini" value="'+escHtml(p.name)+'" style="width:70px" oninput="S.aiResult.categories['+ci+'].products['+pi+'].presentations['+xi+'].name=this.value"><span style="color:#CBD5E1;font-size:10px;margin:0 1px">&#xB7;$</span><input class="cc-ai-mini" type="number" value="'+p.price+'" style="width:58px;text-align:right" oninput="S.aiResult.categories['+ci+'].products['+pi+'].presentations['+xi+'].price=parseInt(this.value)||0">'+rmBtn+'</div>';
+          }).join('');
+          return '<div class="cc-prod-edit-row"><input class="cc-ai-name-input sm" value="'+escHtml(pr.name)+'" oninput="S.aiResult.categories['+ci+'].products['+pi+'].name=this.value"><div style="display:flex;flex-wrap:wrap;gap:4px;flex:1">'+presEdits+'<button class="cc-ai-add-btn" onclick="addAIPres('+ci+','+pi+')">+precio</button></div><button class="cc-ai-rm" style="flex-shrink:0;margin-top:2px" onclick="removeAIProd('+ci+','+pi+')">&#xD7;</button></div>';
+        }).join('');
+      }
+      return '<div class="cc-cat-block" style="opacity:'+(off?.55:1)+';border-color:'+(open&&!off?'#DDD6FE':'#ECEEF2')+'"><div class="cc-cat-row"><button class="cc-check'+(off?'':' on')+'" onclick="toggleAICatIdx('+ci+')" style="'+(off?'':'background:#8B5CF6;border-color:#8B5CF6;color:#fff')+'">'+(off?'':icon('check',12,3))+'</button><input class="cc-ai-name-input" value="'+escHtml(c.name)+'" onclick="event.stopPropagation()" oninput="setAICatName('+ci+',this.value)"><span class="cc-cat-count">'+c.products.length+' prod.</span><button class="cc-cat-toggle" style="margin-left:auto;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;cursor:pointer;border-radius:6px" onclick="S.aiOpenCat=S.aiOpenCat===S.aiResult.categories['+ci+'].name?null:S.aiResult.categories['+ci+'].name;renderAIImport()"><span style="color:#CBD5E1;transform:'+(open?'rotate(90deg)':'none')+';transition:transform .15s;display:flex">'+icon('chevron',15)+'</span></button></div>'+(prodRows?'<div class="cc-prod-list">'+prodRows+'</div>':'')+'</div>';
     }).join('');
     const stats=ex._stats||{};
-    bodyHTML='<div class="cc-result-banner"><span style="color:#10B981;display:flex">'+icon('checkc',18)+'</span><div style="flex:1"><div style="font-size:13.5px;font-weight:800;color:#0F172A">Menú analizado con GPT-4o</div><div style="font-size:11.5px;color:#64748B;margin-top:1px">'+(stats.categories||incl.length)+' categorías · '+(stats.products||inclProds)+' productos detectados</div></div></div><div style="font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin:4px 2px 8px">Revisa antes de importar — desmarca lo que no quieras</div><div style="display:flex;flex-direction:column;gap:8px">'+catBlocks+'</div>';
-    footHTML='<span style="font-size:12px;color:#64748B;font-weight:600">'+incl.length+' categorías · '+inclProds+' productos</span><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="S.aiStage=\'source\';renderAIImport()">Volver</button><button class="cc-btn-ai" '+(inclProds?'':'disabled')+' onclick="importFromAI()">'+icon('check',14)+' Importar al catálogo</button></div>';
+    bodyHTML='<div class="cc-result-banner"><span style="color:#10B981;display:flex">'+icon('checkc',18)+'</span><div style="flex:1"><div style="font-size:13.5px;font-weight:800;color:#0F172A">Menu analizado con GPT-4o</div><div style="font-size:11.5px;color:#64748B;margin-top:1px">'+(stats.categories||incl.length)+' categorias · '+(stats.products||inclProds)+' productos detectados</div></div></div><div style="font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin:4px 2px 8px">Edita lo que necesites y desmarca lo que no quieras</div><div style="display:flex;flex-direction:column;gap:8px">'+catBlocks+'</div>';
+    footHTML='<span style="font-size:12px;color:#64748B;font-weight:600">'+incl.length+' categorias · '+inclProds+' productos</span><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="S.aiStage=\'source\';renderAIImport()">Volver</button><button class="cc-btn-ai" '+(inclProds?'':'disabled')+' onclick="importFromAI()">'+icon('check',14)+' Importar al catalogo</button></div>';
   }
   openOverlay('<div class="cc-overlay center" onmousedown="handleOverlayClose(event)"><div class="cc-modal wide" onmousedown="event.stopPropagation()"><div class="cc-modal-head"><div style="display:flex;align-items:center;gap:11px"><span class="cc-modal-glyph" style="background:linear-gradient(135deg,#8B5CF6,#5B6BFF);color:#fff;box-shadow:0 4px 12px -3px rgba(139,92,246,.5)">'+icon('sparkle',18)+'</span><div><div style="font-size:15px;font-weight:800;color:#0F172A;letter-spacing:-.02em">Importar menú con IA</div><div style="font-size:11.5px;color:#94A3B8">Sube tu carta y GPT-4o la convierte en catálogo automáticamente</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div class="cc-steps-bar">'+stepDots+'</div><div class="cc-modal-body">'+bodyHTML+'</div><div class="cc-modal-foot">'+footHTML+'</div></div></div>');
 }
@@ -492,6 +496,11 @@ function renderAIImport(){
 function handleAIFileSelect(inp){if(inp.files[0]){S.aiFile=inp.files[0];renderAIImport();}}
 function handleAIFileDrop(e){e.preventDefault();e.currentTarget.classList.remove('over');if(e.dataTransfer.files[0]){S.aiFile=e.dataTransfer.files[0];renderAIImport();}}
 function toggleAICat(name){S.aiExcluded[name]=!S.aiExcluded[name];renderAIImport();}
+function toggleAICatIdx(ci){const n=S.aiResult.categories[ci].name;S.aiExcluded[n]=!S.aiExcluded[n];renderAIImport();}
+function setAICatName(ci,name){const old=S.aiResult.categories[ci].name;if(S.aiExcluded[old]!==undefined){S.aiExcluded[name]=S.aiExcluded[old];delete S.aiExcluded[old];}if(S.aiOpenCat===old)S.aiOpenCat=name;S.aiResult.categories[ci].name=name;}
+function removeAIProd(ci,pi){S.aiResult.categories[ci].products.splice(pi,1);if(!S.aiResult.categories[ci].products.length)S.aiResult.categories.splice(ci,1);renderAIImport();}
+function addAIPres(ci,pi){S.aiResult.categories[ci].products[pi].presentations.push({name:'Nueva',price:0});renderAIImport();}
+function removeAIPres(ci,pi,xi){S.aiResult.categories[ci].products[pi].presentations.splice(xi,1);renderAIImport();}
 async function fileToBase64Ai(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});}
 async function pdfToImages(file){
   if(!window.pdfjsLib){
