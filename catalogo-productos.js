@@ -26,7 +26,7 @@ const S = {
   filterCat:null, query:'', overlay:null,
   editProd:null, editCombo:null, editMod:null, editCat:null,
   aiStage:'source', aiTab:'file', aiFile:null, aiUrl:'', aiResult:null, aiError:null,
-  aiExcluded:{}, aiOpenCat:null, aiTimers:[],
+  aiExcluded:{}, aiOpenCat:null, aiTimers:[], aiReviewTab:'productos',
 };
 
 // ── Fotos Supabase Storage ──────────────────────────────────────────────
@@ -472,23 +472,52 @@ function renderAIImport(){
   } else {
     const ex=S.aiResult||{categories:[]};
     const incl=ex.categories.filter(c=>!S.aiExcluded[c.name]),inclProds=incl.reduce((a,c)=>a+c.products.length,0);
-    const catBlocks=ex.categories.map((c,ci)=>{
-      const off=!!S.aiExcluded[c.name],open=S.aiOpenCat===c.name;
-      let prodRows='';
-      if(open&&!off){
-        prodRows=c.products.map((pr,pi)=>{
-          const presEdits=(pr.presentations||[]).map((p,xi)=>{
-            const rmBtn=pr.presentations.length>1?'<button class="cc-ai-rm" onclick="removeAIPres('+ci+','+pi+','+xi+')">&#xD7;</button>':'';
-            return '<div style="display:flex;align-items:center;gap:3px;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:7px;padding:2px 6px"><input class="cc-ai-mini" value="'+escHtml(p.name)+'" style="width:70px" oninput="S.aiResult.categories['+ci+'].products['+pi+'].presentations['+xi+'].name=this.value"><span style="color:#CBD5E1;font-size:10px;margin:0 1px">&#xB7;$</span><input class="cc-ai-mini" type="number" value="'+p.price+'" style="width:58px;text-align:right" oninput="S.aiResult.categories['+ci+'].products['+pi+'].presentations['+xi+'].price=parseInt(this.value)||0">'+rmBtn+'</div>';
+    const tab=S.aiReviewTab||'productos';
+    const tabBar='<div style="display:flex;gap:4px;background:#F1F5F9;border-radius:10px;padding:4px;margin-bottom:14px"><button class="cc-rtab'+(tab==='productos'?' on':'')+'" onclick="S.aiReviewTab=\'productos\';renderAIImport()">Productos</button><button class="cc-rtab'+(tab==='modificadores'?' on':'')+'" onclick="S.aiReviewTab=\'modificadores\';renderAIImport()">Modificadores <span style="background:#8B5CF6;color:#fff;border-radius:5px;padding:1px 6px;font-size:10px;margin-left:3px">'+((ex.modifier_groups||[]).length)+'</span></button></div>';
+
+    let tabContent='';
+    if(tab==='productos'){
+      const catNames=ex.categories.map(c=>c.name);
+      const catBlocks=ex.categories.map((c,ci)=>{
+        const off=!!S.aiExcluded[c.name],open=S.aiOpenCat===c.name;
+        let prodRows='';
+        if(open&&!off){
+          prodRows=c.products.map((pr,pi)=>{
+            // Presentations
+            const presEdits=(pr.presentations||[]).map((p,xi)=>{
+              const rmBtn=pr.presentations.length>1?'<button class="cc-ai-rm" onclick="removeAIPres('+ci+','+pi+','+xi+')">&#xD7;</button>':'';
+              return '<div style="display:flex;align-items:center;gap:3px;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:7px;padding:2px 6px"><input class="cc-ai-mini" value="'+escHtml(p.name)+'" style="width:70px" oninput="S.aiResult.categories['+ci+'].products['+pi+'].presentations['+xi+'].name=this.value"><span style="color:#CBD5E1;font-size:10px;margin:0 1px">&#xB7;$</span><input class="cc-ai-mini" type="number" value="'+p.price+'" style="width:58px;text-align:right" oninput="S.aiResult.categories['+ci+'].products['+pi+'].presentations['+xi+'].price=parseInt(this.value)||0">'+rmBtn+'</div>';
+            }).join('');
+            // Variables
+            const varEdits=(pr.variables||[]).map((v,vi)=>{
+              const opts=v.options.map((o,oi)=>'<div style="display:flex;align-items:center;gap:3px"><input class="cc-ai-mini" value="'+escHtml(typeof o==='string'?o:o.name)+'" style="width:70px;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:5px;padding:2px 5px" oninput="setAIVarOpt('+ci+','+pi+','+vi+','+oi+',this.value)"><button class="cc-ai-rm" onclick="removeAIVarOpt('+ci+','+pi+','+vi+','+oi+')">&#xD7;</button></div>').join('');
+              return '<div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:8px;padding:6px 10px;margin-top:5px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><input class="cc-ai-mini" value="'+escHtml(v.name||'Tipo')+'" style="font-weight:700;color:#7C3AED;font-size:11px;flex:1;background:transparent" oninput="S.aiResult.categories['+ci+'].products['+pi+'].variables['+vi+'].name=this.value"><button class="cc-ai-rm" onclick="removeAIVar('+ci+','+pi+','+vi+')">&#xD7;</button></div><div style="display:flex;flex-wrap:wrap;gap:4px">'+opts+'<button class="cc-ai-add-btn" style="font-size:10px" onclick="addAIVarOpt('+ci+','+pi+','+vi+')">+opción</button></div></div>';
+            }).join('');
+            // Category select
+            const catOpts=catNames.map(n=>'<option value="'+escHtml(n)+'"'+(n===c.name?' selected':'')+'>'+escHtml(n)+'</option>').join('');
+            // Image
+            const hasImg=!!pr._imgData;
+            const imgBtn='<label style="cursor:pointer;width:26px;height:26px;border-radius:6px;border:1.5px solid '+(hasImg?'#10B981':'#ECEEF2')+';background:'+(hasImg?'#ECFDF5':'#F8FAFC')+';display:flex;align-items:center;justify-content:center;flex-shrink:0" title="Subir foto"><input type="file" accept="image/*" style="display:none" onchange="setAIProdImg('+ci+','+pi+',this)">'+icon('image',13)+'</label>';
+            return '<div class="cc-prod-edit-row"><div style="display:flex;flex-direction:column;gap:5px;flex:1"><div style="display:flex;align-items:center;gap:6px"><input class="cc-ai-name-input sm" value="'+escHtml(pr.name)+'" oninput="S.aiResult.categories['+ci+'].products['+pi+'].name=this.value"><div class="cc-select" style="height:24px;min-width:90px;font-size:10.5px"><select style="font-size:10.5px;padding:0 4px;height:24px" onchange="moveAIProd('+ci+','+pi+',this.value)">'+catOpts+'</select><span class="cc-sel-arrow" style="right:4px">'+icon('down',10)+'</span></div>'+imgBtn+'<button class="cc-ai-rm" style="flex-shrink:0;margin-left:auto" onclick="removeAIProd('+ci+','+pi+')">&#xD7;</button></div><div style="display:flex;flex-wrap:wrap;gap:4px">'+presEdits+'<button class="cc-ai-add-btn" onclick="addAIPres('+ci+','+pi+')">+precio</button></div>'+varEdits+'<button class="cc-ai-add-btn" style="margin-top:4px;width:fit-content" onclick="addAIVar('+ci+','+pi+')">+ variable</button></div></div>';
           }).join('');
-          return '<div class="cc-prod-edit-row"><input class="cc-ai-name-input sm" value="'+escHtml(pr.name)+'" oninput="S.aiResult.categories['+ci+'].products['+pi+'].name=this.value"><div style="display:flex;flex-wrap:wrap;gap:4px;flex:1">'+presEdits+'<button class="cc-ai-add-btn" onclick="addAIPres('+ci+','+pi+')">+precio</button></div><button class="cc-ai-rm" style="flex-shrink:0;margin-top:2px" onclick="removeAIProd('+ci+','+pi+')">&#xD7;</button></div>';
-        }).join('');
-      }
-      return '<div class="cc-cat-block" style="opacity:'+(off?.55:1)+';border-color:'+(open&&!off?'#DDD6FE':'#ECEEF2')+'"><div class="cc-cat-row"><button class="cc-check'+(off?'':' on')+'" onclick="toggleAICatIdx('+ci+')" style="'+(off?'':'background:#8B5CF6;border-color:#8B5CF6;color:#fff')+'">'+(off?'':icon('check',12,3))+'</button><input class="cc-ai-name-input" value="'+escHtml(c.name)+'" onclick="event.stopPropagation()" oninput="setAICatName('+ci+',this.value)"><span class="cc-cat-count">'+c.products.length+' prod.</span><button class="cc-cat-toggle" style="margin-left:auto;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;cursor:pointer;border-radius:6px" onclick="S.aiOpenCat=S.aiOpenCat===S.aiResult.categories['+ci+'].name?null:S.aiResult.categories['+ci+'].name;renderAIImport()"><span style="color:#CBD5E1;transform:'+(open?'rotate(90deg)':'none')+';transition:transform .15s;display:flex">'+icon('chevron',15)+'</span></button></div>'+(prodRows?'<div class="cc-prod-list">'+prodRows+'</div>':'')+'</div>';
-    }).join('');
+        }
+        return '<div class="cc-cat-block" style="opacity:'+(off?.55:1)+';border-color:'+(open&&!off?'#DDD6FE':'#ECEEF2')+'"><div class="cc-cat-row"><button class="cc-check'+(off?'':' on')+'" onclick="toggleAICatIdx('+ci+')" style="'+(off?'':'background:#8B5CF6;border-color:#8B5CF6;color:#fff')+'">'+(off?'':icon('check',12,3))+'</button><input class="cc-ai-name-input" value="'+escHtml(c.name)+'" onclick="event.stopPropagation()" oninput="setAICatName('+ci+',this.value)"><span class="cc-cat-count">'+c.products.length+' prod.</span><button class="cc-cat-toggle" style="margin-left:auto;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;cursor:pointer;border-radius:6px" onclick="S.aiOpenCat=S.aiOpenCat===S.aiResult.categories['+ci+'].name?null:S.aiResult.categories['+ci+'].name;renderAIImport()"><span style="color:#CBD5E1;transform:'+(open?'rotate(90deg)':'none')+';transition:transform .15s;display:flex">'+icon('chevron',15)+'</span></button></div>'+(prodRows?'<div class="cc-prod-list">'+prodRows+'</div>':'')+'</div>';
+      }).join('');
+      tabContent=catBlocks;
+    } else {
+      // ── Modificadores tab ─────────────────────────────────────────────
+      const groups=ex.modifier_groups||[];
+      const groupBlocks=groups.map((g,gi)=>{
+        const rc=g.rule==='obligatorio'?{c:'#B45309',bg:'#FEF3C7'}:{c:'#64748B',bg:'#F1F5F9'};
+        const opts=(g.options||[]).map((o,oi)=>'<div class="cc-mod-opt-row" draggable="true" ondragstart="aiDragStart('+gi+','+oi+')" ondragover="event.preventDefault()" ondrop="event.preventDefault()"><span class="cc-grip" style="cursor:grab">'+icon('grip',13)+'</span><input class="cc-ai-mini" value="'+escHtml(o.name)+'" style="flex:1;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:5px;padding:3px 6px" oninput="setAIModOpt('+gi+','+oi+',\'name\',this.value)"><span style="color:#CBD5E1;font-size:10px;margin:0 3px">$</span><input class="cc-ai-mini" type="number" value="'+(o.price||0)+'" style="width:64px;text-align:right;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:5px;padding:3px 5px" oninput="setAIModOpt('+gi+','+oi+',\'price\',parseInt(this.value)||0)"><button class="cc-ai-rm" onclick="removeAIModOpt('+gi+','+oi+')">&#xD7;</button></div>').join('');
+        return '<div class="cc-mod-group-card" ondragover="event.preventDefault()" ondrop="aiDropTo('+gi+')"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input class="cc-ai-name-input" value="'+escHtml(g.name)+'" oninput="S.aiResult.modifier_groups['+gi+'].name=this.value" style="flex:1"><span class="cc-rule-chip" style="color:'+rc.c+';background:'+rc.bg+';cursor:pointer" onclick="setAIModRule('+gi+',\''+(g.rule==='opcional'?'obligatorio':'opcional')+'\')">'+escHtml(g.rule==='opcional'?'Opcional':'Obligatorio')+'</span><span class="cc-rule-chip" style="cursor:pointer" onclick="setAIModMulti('+gi+','+(g.multi?'false':'true')+')">'+( g.multi?'Varias':'Una')+'</span><button class="cc-ai-rm" onclick="removeAIModGroup('+gi+')" title="Eliminar grupo">'+icon('trash',12)+'</button></div><div style="display:flex;flex-direction:column;gap:4px">'+opts+'</div><button class="cc-ai-add-btn" style="margin-top:8px" onclick="addAIModOpt('+gi+')">+ opción</button></div>';
+      }).join('');
+      tabContent=groupBlocks+'<button class="cc-ai-add-btn" style="width:100%;margin-top:8px;padding:8px;font-size:12px" onclick="addAIModGroup()">+ Nuevo grupo de modificadores</button>';
+    }
+
     const stats=ex._stats||{};
-    bodyHTML='<div class="cc-result-banner"><span style="color:#10B981;display:flex">'+icon('checkc',18)+'</span><div style="flex:1"><div style="font-size:13.5px;font-weight:800;color:#0F172A">Menu analizado con GPT-4o</div><div style="font-size:11.5px;color:#64748B;margin-top:1px">'+(stats.categories||incl.length)+' categorias · '+(stats.products||inclProds)+' productos detectados</div></div></div><div style="font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin:4px 2px 8px">Edita lo que necesites y desmarca lo que no quieras</div><div style="display:flex;flex-direction:column;gap:8px">'+catBlocks+'</div>';
-    footHTML='<span style="font-size:12px;color:#64748B;font-weight:600">'+incl.length+' categorias · '+inclProds+' productos</span><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="S.aiStage=\'source\';renderAIImport()">Volver</button><button class="cc-btn-ai" '+(inclProds?'':'disabled')+' onclick="importFromAI()">'+icon('check',14)+' Importar al catalogo</button></div>';
+    bodyHTML='<div class="cc-result-banner"><span style="color:#10B981;display:flex">'+icon('checkc',18)+'</span><div style="flex:1"><div style="font-size:13.5px;font-weight:800;color:#0F172A">Menu analizado con GPT-4o</div><div style="font-size:11.5px;color:#64748B;margin-top:1px">'+(stats.categories||incl.length)+' categorias · '+(stats.products||inclProds)+' productos · '+((ex.modifier_groups||[]).length)+' grupos mod.</div></div></div>'+tabBar+'<div style="display:flex;flex-direction:column;gap:8px">'+tabContent+'</div>';
+    footHTML='<span style="font-size:12px;color:#64748B;font-weight:600">'+incl.length+' cat. · '+inclProds+' prod.</span><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="S.aiStage=\'source\';renderAIImport()">Volver</button><button class="cc-btn-ai" '+(inclProds?'':'disabled')+' onclick="importFromAI()">'+icon('check',14)+' Importar al catalogo</button></div>';
   }
   openOverlay('<div class="cc-overlay center" onmousedown="handleOverlayClose(event)"><div class="cc-modal wide" onmousedown="event.stopPropagation()"><div class="cc-modal-head"><div style="display:flex;align-items:center;gap:11px"><span class="cc-modal-glyph" style="background:linear-gradient(135deg,#8B5CF6,#5B6BFF);color:#fff;box-shadow:0 4px 12px -3px rgba(139,92,246,.5)">'+icon('sparkle',18)+'</span><div><div style="font-size:15px;font-weight:800;color:#0F172A;letter-spacing:-.02em">Importar menú con IA</div><div style="font-size:11.5px;color:#94A3B8">Sube tu carta y GPT-4o la convierte en catálogo automáticamente</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div class="cc-steps-bar">'+stepDots+'</div><div class="cc-modal-body">'+bodyHTML+'</div><div class="cc-modal-foot">'+footHTML+'</div></div></div>');
 }
@@ -501,6 +530,27 @@ function setAICatName(ci,name){const old=S.aiResult.categories[ci].name;if(S.aiE
 function removeAIProd(ci,pi){S.aiResult.categories[ci].products.splice(pi,1);if(!S.aiResult.categories[ci].products.length)S.aiResult.categories.splice(ci,1);renderAIImport();}
 function addAIPres(ci,pi){S.aiResult.categories[ci].products[pi].presentations.push({name:'Nueva',price:0});renderAIImport();}
 function removeAIPres(ci,pi,xi){S.aiResult.categories[ci].products[pi].presentations.splice(xi,1);renderAIImport();}
+// AI review — variables
+function addAIVar(ci,pi){if(!S.aiResult.categories[ci].products[pi].variables)S.aiResult.categories[ci].products[pi].variables=[];S.aiResult.categories[ci].products[pi].variables.push({name:'Tipo',options:[{name:'Opción 1'}]});renderAIImport();}
+function removeAIVar(ci,pi,vi){S.aiResult.categories[ci].products[pi].variables.splice(vi,1);renderAIImport();}
+function addAIVarOpt(ci,pi,vi){S.aiResult.categories[ci].products[pi].variables[vi].options.push({name:'Nueva'});renderAIImport();}
+function removeAIVarOpt(ci,pi,vi,oi){const opts=S.aiResult.categories[ci].products[pi].variables[vi].options;if(opts.length>1)opts.splice(oi,1);renderAIImport();}
+function setAIVarOpt(ci,pi,vi,oi,val){const o=S.aiResult.categories[ci].products[pi].variables[vi].options[oi];if(typeof o==='string')S.aiResult.categories[ci].products[pi].variables[vi].options[oi]=val;else o.name=val;}
+// AI review — move product between categories
+function moveAIProd(ci,pi,newCatName){if(S.aiResult.categories[ci].name===newCatName)return;const prod=S.aiResult.categories[ci].products.splice(pi,1)[0];if(!S.aiResult.categories[ci].products.length)S.aiResult.categories.splice(ci,1);let target=S.aiResult.categories.find(c=>c.name===newCatName);if(!target){target={name:newCatName,products:[]};S.aiResult.categories.push(target);}target.products.push(prod);renderAIImport();}
+// AI review — product image
+function setAIProdImg(ci,pi,input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{S.aiResult.categories[ci].products[pi]._imgData=e.target.result;S.aiResult.categories[ci].products[pi]._imgFile=f;renderAIImport();};r.readAsDataURL(f);}
+// AI review — modifier groups
+let _aiDragSrc=null;
+function aiDragStart(gi,oi){_aiDragSrc={gi,oi};}
+function aiDropTo(targetGi){if(!_aiDragSrc||_aiDragSrc.gi===targetGi)return;const {gi,oi}=_aiDragSrc;_aiDragSrc=null;const opt=S.aiResult.modifier_groups[gi].options.splice(oi,1)[0];S.aiResult.modifier_groups[targetGi].options.push(opt);if(!S.aiResult.modifier_groups[gi].options.length)S.aiResult.modifier_groups.splice(gi,1);renderAIImport();}
+function addAIModGroup(){if(!S.aiResult.modifier_groups)S.aiResult.modifier_groups=[];S.aiResult.modifier_groups.push({name:'Nuevo grupo',rule:'opcional',multi:true,options:[{name:'Opción',price:0}]});S.aiReviewTab='modificadores';renderAIImport();}
+function removeAIModGroup(gi){if(S.aiResult.modifier_groups[gi].options.length>0&&!confirm('¿Eliminar este grupo y sus opciones?'))return;S.aiResult.modifier_groups.splice(gi,1);renderAIImport();}
+function setAIModRule(gi,r){S.aiResult.modifier_groups[gi].rule=r;renderAIImport();}
+function setAIModMulti(gi,v){S.aiResult.modifier_groups[gi].multi=v;renderAIImport();}
+function addAIModOpt(gi){S.aiResult.modifier_groups[gi].options.push({name:'Nueva opción',price:0});renderAIImport();}
+function removeAIModOpt(gi,oi){if(S.aiResult.modifier_groups[gi].options.length<=1)return;S.aiResult.modifier_groups[gi].options.splice(oi,1);renderAIImport();}
+function setAIModOpt(gi,oi,field,val){S.aiResult.modifier_groups[gi].options[oi][field]=val;}
 async function fileToBase64Ai(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});}
 async function pdfToImages(file){
   if(!window.pdfjsLib){
