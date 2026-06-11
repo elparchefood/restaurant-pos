@@ -51,6 +51,62 @@ function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ zones: S.zones, tables: S.tables }));
   } catch(e) {}
+  syncToSupabase(); // fire-and-forget
+}
+
+// ── Sync a Supabase pos_tables ────────────────────────
+async function syncToSupabase() {
+  try {
+    var res = await sb.auth.getUser();
+    var user = res.data && res.data.user;
+    if (!user) return;
+    var branchId = user.user_metadata && user.user_metadata.branch_id;
+    if (!branchId) return;
+
+    // IDs actuales en Supabase
+    var exRes = await sb.from('pos_tables').select('id, status').eq('branch_id', branchId);
+    var existing = exRes.data || [];
+    var existingMap = {};
+    existing.forEach(function(r){ existingMap[r.id] = r.status; });
+
+    var localIds = S.tables.map(function(t){ return t.id; });
+
+    // 1. Insertar mesas nuevas (no existen en Supabase)
+    var toInsert = S.tables.filter(function(t){ return !existingMap[t.id]; }).map(function(t, idx){
+      return {
+        id: t.id,
+        name: t.name,
+        number: parseInt(t.name, 10) || (idx + 1),
+        seats: t.seats,
+        zone_id: t.zoneId,
+        branch_id: branchId,
+        status: 'libre'
+      };
+    });
+    if (toInsert.length) {
+      await sb.from('pos_tables').insert(toInsert);
+    }
+
+    // 2. Actualizar mesas existentes (solo campos estructurales, no status)
+    var toUpdate = S.tables.filter(function(t){ return !!existingMap[t.id]; });
+    for (var i = 0; i < toUpdate.length; i++) {
+      var t = toUpdate[i];
+      await sb.from('pos_tables')
+        .update({ name: t.name, number: parseInt(t.name, 10) || i + 1, seats: t.seats, zone_id: t.zoneId })
+        .eq('id', t.id);
+    }
+
+    // 3. Eliminar mesas borradas — solo si estan libres
+    var toDelete = Object.keys(existingMap).filter(function(id){
+      return !localIds.includes(id) && existingMap[id] === 'libre';
+    });
+    if (toDelete.length) {
+      await sb.from('pos_tables').delete().in('id', toDelete);
+    }
+
+  } catch(e) {
+    console.warn('[configuracion] syncToSupabase:', e.message || e);
+  }
 }
 
 // ── Utilidades ──────────────────────────────────────────

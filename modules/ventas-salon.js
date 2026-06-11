@@ -17,13 +17,15 @@
   };
 
   const CHIP_ORDER_KEY = 'lumen.ventas.chipOrder';
+  const CONFIG_KEY = 'lumen.config.salon.v1';
   const DEFAULT_CHIP_ORDER = ['libre', 'esperando', 'comiendo', 'paga'];
 
   const MESERO_NAMES = { SA: 'Sergio Andrés', JM: 'Juan Manuel', AC: 'Andrea Castro', LM: 'Laura Mejía' };
 
   // ─── Estado del módulo ───────────────────────────────
   let state = {
-    floor: 'adentro',
+    floor: null,
+    zones: [],
     selectedTableId: null,
     tables: [],
     orderItems: [],
@@ -90,6 +92,17 @@
   }
   function SVG_OK(size, sw) {
     return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="${sw||2.4}" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
+  }
+
+  function loadZonesFromConfig() {
+    try {
+      var raw = localStorage.getItem(CONFIG_KEY);
+      if (raw) {
+        var c = JSON.parse(raw);
+        if (c.zones && c.zones.length) return c.zones;
+      }
+    } catch(e) {}
+    return [{ id: 'z_adentro', name: 'Adentro' }];
   }
 
   // ─── Supabase — fetch data ────────────────────────────
@@ -458,18 +471,17 @@
 
   // ─── Render: Salon tabs ───────────────────────────────
   function renderSalonTabs() {
-    const floors = [
-      { id: 'adentro',    label: 'Adentro',    count: state.tables.length },
-      { id: 'antejardin', label: 'Antejardín', count: 0 },
-      { id: 'terraza',    label: 'Terraza',    count: 0 },
-    ];
+    const zones = state.zones.length ? state.zones : loadZonesFromConfig();
 
-    const tabsHtml = floors.map(f => `
-      <button class="lm-tab ${state.floor === f.id ? 'is-active' : ''}" data-floor="${f.id}">
-        ${f.label}
-        <span class="vs-tab-count">${f.count}</span>
-      </button>
-    `).join('');
+    const tabsHtml = zones.map(z => {
+      const count = state.tables.filter(t => t.zone_id === z.id).length;
+      return `
+        <button class="lm-tab ${state.floor === z.id ? 'is-active' : ''}" data-floor="${z.id}">
+          ${z.name}
+          <span class="vs-tab-count">${count}</span>
+        </button>
+      `;
+    }).join('');
 
     const legendHtml = Object.entries(STATE_META).map(([k, m]) => `
       <span class="vs-legend-item">
@@ -492,18 +504,23 @@
       return `<div class="vs-grid"><div class="vs-loading">Cargando mesas…</div></div>`;
     }
 
-    if (!state.tables.length) {
+    // Filtrar por zona activa
+    const visible = state.floor
+      ? state.tables.filter(t => t.zone_id === state.floor)
+      : state.tables;
+
+    if (!visible.length) {
       return `
         <div class="vs-grid">
           <div class="vs-empty-grid">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            <span>No hay mesas configuradas</span>
+            <span>No hay mesas en esta zona</span>
           </div>
         </div>
       `;
     }
 
-    const cards = state.tables.map(t => renderMesaCard(t)).join('');
+    const cards = visible.map(t => renderMesaCard(t)).join('');
     return `<div class="vs-grid" id="vs-grid">${cards}</div>`;
   }
 
@@ -511,7 +528,7 @@
     const meta = STATE_META[t.status] || STATE_META.libre;
     const isLibre = t.status === 'libre';
     const isSelected = t.id === state.selectedTableId;
-    const numStr = pad2(t.number || t.n || 0);
+    const numStr = t.name || pad2(t.number || t.n || 0);
 
     const selectedStyle = isSelected
       ? `border-color:${meta.color};box-shadow:0 0 0 3px ${meta.color}22`
@@ -717,9 +734,8 @@
     container.querySelectorAll('[data-floor]').forEach(btn => {
       btn.addEventListener('click', () => {
         state.floor = btn.dataset.floor;
-        container.querySelectorAll('[data-floor]').forEach(b => {
-          b.classList.toggle('is-active', b.dataset.floor === state.floor);
-        });
+        state.selectedTableId = null;
+        render();
       });
     });
 
@@ -850,6 +866,10 @@
       link.href = 'styles/modules/ventas-salon.css';
       document.head.appendChild(link);
     }
+
+    // Cargar zonas desde localStorage de configuracion
+    state.zones = loadZonesFromConfig();
+    state.floor = state.zones.length ? state.zones[0].id : null;
 
     // Initial render (loading state)
     render();
