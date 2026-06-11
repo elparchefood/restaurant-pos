@@ -486,7 +486,7 @@ function renderAIImport(){
             const priceMode=pr.priceMode||'simple';
             const hasVars=(pr.variables||[]).length>0;
             // Price mode toggle
-            const pmToggle=hasVars?'<div style="display:flex;gap:3px;background:#F1F5F9;border-radius:7px;padding:3px;margin-bottom:6px"><button class="cc-rtab'+(priceMode==='simple'?' on':'')+'" style="font-size:10.5px;padding:3px 10px" onclick="setProdPriceMode('+ci+','+pi+','simple')">Precio único</button><button class="cc-rtab'+(priceMode==='matrix'?' on':'')+'" style="font-size:10.5px;padding:3px 10px" onclick="setProdPriceMode('+ci+','+pi+','matrix')">Precio por variable</button></div>':'';
+            const pmToggle=hasVars?'<div style="display:flex;gap:3px;background:#F1F5F9;border-radius:7px;padding:3px;margin-bottom:6px"><button class="cc-rtab'+(priceMode==='simple'?' on':'')+'" style="font-size:10.5px;padding:3px 10px" onclick="setProdPriceMode('+ci+','+pi+',\'simple\')">Precio único</button><button class="cc-rtab'+(priceMode==='matrix'?' on':'')+'" style="font-size:10.5px;padding:3px 10px" onclick="setProdPriceMode('+ci+','+pi+',\'matrix\')">Precio por variable</button></div>':'';
             // Price section
             let priceSection='';
             if(priceMode==='matrix'&&hasVars){
