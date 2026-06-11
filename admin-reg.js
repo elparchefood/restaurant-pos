@@ -612,7 +612,8 @@ async function approveRegistration(id, email) {
           status: 'aprobado',
           reviewed_at: new Date().toISOString(),
           tenant_id: tenant.id,
-          user_id: userId
+          user_id: userId,
+          password_tmp: null
         }).eq('id', id);
 
         await loadRegistrations();
