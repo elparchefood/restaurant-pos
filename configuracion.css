@@ -1,0 +1,207 @@
+/* ============================================================
+   LUMEN POS · CONFIGURACIÓN — Mesas y zonas — Hoja de estilos
+   Tema claro. Fuente 'DM Sans'. Acento #5B6BFF / violeta #8B5CF6.
+   Valores EXACTOS (hex, px, radios, sombras, curvas).
+   Secciones: 1) reset + tokens  2) shell (sidebar + topbar)
+   3) cabecera + pestañas de zona  4) grilla de mesas
+   5) panel lateral (zonas / inspector)  6) controles  7) toast
+   ============================================================ */
+
+/* ===== 1) RESET + TOKENS ===== */
+:root {
+  --bg:        #FAFAFB;
+  --surface:   #FFFFFF;
+  --border:    #ECEEF2;
+  --line-soft: #DCE0E8;   /* bordes punteados */
+  --ink:       #0F172A;
+  --ink-2:     #475569;
+  --ink-3:     #64748B;
+  --ink-4:     #94A3B8;
+  --ink-5:     #CBD5E1;
+  --accent:    #5B6BFF;
+  --accent-hover: #4F5BE3;
+  --accent-2:  #8B5CF6;   /* segundo color del gradiente de marca */
+  --accent-50: #EEF2FF;
+  --accent-bg: #F8FAFF;
+  --accent-ring: rgba(91,107,255,.12);
+  --accent-ring-strong: rgba(91,107,255,.16);
+  --soft:      #F1F5F9;
+  --soft-2:    #F8FAFC;
+  --soft-3:    #FBFBFD;
+  --success:   #16A34A;
+  --success-bg:#DCFCE7;
+  --danger:    #DC2626;
+  --danger-bd: #FECACA;
+  --danger-bg: #FEF2F2;
+  --r-card:    16px;
+  --r-md:      12px;
+  --r-sm:      9px;
+  --shadow-primary: 0 2px 8px -2px rgba(91,107,255,.45);
+  --shadow-hover:   0 10px 22px -12px rgba(15,23,42,.2);
+  --shadow-toast:   0 12px 30px -8px rgba(15,23,42,.5);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; width: 100%; background: var(--bg); font-family: 'DM Sans', system-ui, sans-serif; }
+[hidden] { display: none !important; }
+
+/* alternancia de vistas internas (secciones del hub) */
+.cf-screen { display: none; flex-direction: column; min-height: 0; flex: 1; }
+.cf-screen.on { display: flex; }
+/* alternancia del panel lateral: zonas (defecto) vs inspector de mesa */
+.cf-rail-pane { display: none; flex-direction: column; min-height: 0; flex: 1; }
+.cf-rail-pane.on { display: flex; }
+
+/* ===== SHELL RAÍZ ===== */
+.cf-root { width: 100%; height: 100vh; display: flex; background: var(--bg); font-family: 'DM Sans', system-ui, sans-serif; color: var(--ink); overflow: hidden; font-size: 13px; }
+.cf-root * { box-sizing: border-box; }
+
+/* ===== 2a) SIDEBAR ===== */
+.cf-side { width: 232px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+.cf-brand { display: flex; align-items: center; gap: 10px; padding: 18px 18px 16px; border-bottom: 1px solid var(--border); }
+.cf-brand-logo { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex-shrink: 0; }
+.cf-brand-name { font-size: 13px; font-weight: 700; color: var(--ink); }
+.cf-brand-sub { font-size: 10px; color: var(--ink-4); font-weight: 500; }
+.cf-nav { padding: 12px; overflow-y: auto; flex: 1; }
+.cf-navgroup-wrap { margin-top: 14px; }
+.cf-navgroup { font-size: 10px; font-weight: 700; color: var(--ink-4); text-transform: uppercase; letter-spacing: 0.1em; padding: 0 12px 6px; }
+
+.lm-nav { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border-radius: 9px; border: none; background: transparent; color: var(--ink-2); cursor: pointer; font-family: inherit; font-size: 13px; width: 100%; text-align: left; transition: background .15s; }
+.lm-nav:hover { background: var(--soft-2); }
+.lm-nav .cf-nav-l { display: flex; align-items: center; gap: 12px; }
+.lm-nav .cf-nav-label { font-weight: 500; }
+/* ítem activo */
+.lm-nav.on { background: var(--accent-50); color: var(--accent); }
+.lm-nav.on .cf-nav-label { font-weight: 700; }
+/* chip "Pronto" en ítems no funcionales */
+.cf-soon { font-size: 9px; font-weight: 700; color: var(--ink-4); background: var(--soft); padding: 2px 7px; border-radius: 999px; text-transform: uppercase; letter-spacing: .03em; }
+
+/* ===== 2b) MAIN + TOPBAR ===== */
+.cf-main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.cf-topbar { height: 60px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; flex-shrink: 0; }
+.cf-top-left { display: flex; align-items: center; gap: 16px; }
+.cf-top-right { display: flex; align-items: center; gap: 14px; }
+.cf-modebadge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--ink-3); background: var(--soft); padding: 5px 10px; border-radius: 999px; }
+.cf-mode-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--success); }
+.cf-crumbs { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-5); }
+.cf-crumb-mut { color: var(--ink-4); }
+.cf-crumb-on { color: var(--ink); font-weight: 600; }
+.cf-pill-success { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--success); background: var(--success-bg); padding: 5px 10px; border-radius: 999px; }
+.cf-user { display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; }
+.cf-user:hover { background: var(--soft-2); }
+.cf-user-av { width: 28px; height: 28px; border-radius: 7px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.cf-user-name { font-size: 12px; font-weight: 600; color: var(--ink); }
+.cf-user-role { font-size: 10px; color: var(--accent); font-weight: 600; }
+
+/* ===== 3) CABECERA DE PÁGINA + PESTAÑAS DE ZONA ===== */
+.cf-pagehead { display: flex; align-items: flex-end; justify-content: space-between; padding: 18px 24px 12px; }
+.cf-eyebrow { font-size: 10px; color: var(--ink-4); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+.cf-pagetitle { font-size: 24px; font-weight: 800; color: var(--ink); margin: 4px 0 0; letter-spacing: -0.025em; }
+
+.cf-zonetabs { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 24px 12px; }
+.cf-tabsgroup { display: flex; gap: 4px; background: var(--soft); padding: 4px; border-radius: 10px; flex-wrap: wrap; }
+.cf-ztab { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; background: transparent; border: none; border-radius: 7px; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--ink-3); cursor: pointer; }
+.cf-ztab.on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(15,23,42,.1); }
+.cf-ztab-n { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: var(--border); color: var(--ink-3); }
+.cf-ztab.on .cf-ztab-n { background: var(--accent-50); color: var(--accent); }
+
+/* ===== 4) CUERPO + GRILLA DE MESAS ===== */
+.cf-body { flex: 1; display: grid; grid-template-columns: 1fr 320px; gap: 18px; padding: 0 24px 24px; min-height: 0; overflow: hidden; }
+.cf-gridpanel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); padding: 16px; overflow-y: auto; min-height: 0; position: relative; }
+.cf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(152px, 1fr)); grid-auto-rows: minmax(128px, auto); gap: 12px; align-content: start; }
+
+/* tarjeta de mesa */
+.lm-mesa { display: flex; flex-direction: column; align-items: stretch; text-align: left; background: #fff; border: 1px solid var(--border); border-radius: var(--r-md); padding: 13px 14px; font-family: inherit; cursor: pointer; transition: transform .14s, box-shadow .15s, border-color .14s; min-height: 128px; }
+.lm-mesa:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+.lm-mesa-top { display: flex; align-items: center; justify-content: space-between; }
+.cf-mesa-eyebrow { font-size: 10px; font-weight: 700; color: var(--ink-4); text-transform: uppercase; letter-spacing: 0.08em; }
+.cf-seats-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--ink-3); background: var(--soft); padding: 4px 9px; border-radius: 999px; }
+.cf-mesa-name { font-size: 34px; font-weight: 800; color: var(--ink); letter-spacing: -0.03em; line-height: 1.1; margin-top: 12px; }
+.cf-mesa-name.long { font-size: 22px; }     /* nombre con más de 3 caracteres (ej. "Barra") */
+.cf-mesa-foot { margin-top: auto; padding-top: 12px; border-top: 1px dashed var(--border); font-size: 11px; color: var(--ink-4); font-weight: 500; }
+/* mesa seleccionada */
+.lm-mesa.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring-strong); background: var(--accent-bg); }
+.lm-mesa.selected .cf-mesa-name { color: var(--accent); }
+
+/* tile "Nueva mesa" */
+.cf-add-mesa { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 128px; border: 1.5px dashed var(--line-soft); border-radius: var(--r-md); background: var(--soft-3); cursor: pointer; font-family: inherit; transition: all .15s; }
+.cf-add-mesa:hover { border-color: var(--accent); background: var(--accent-bg); }
+.cf-add-mesa-icon { width: 38px; height: 38px; border-radius: 10px; background: var(--accent-50); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+.cf-add-mesa-label { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+
+/* estado vacío de la zona */
+.cf-grid-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.cf-empty-icon { width: 60px; height: 60px; border-radius: 15px; background: var(--accent-50); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+.cf-empty-title { font-size: 14px; font-weight: 700; color: var(--ink); }
+.cf-empty-desc { font-size: 12.5px; color: var(--ink-3); margin: 6px 0 14px; }
+
+/* ===== 5) PANEL LATERAL (rail) ===== */
+.cf-rail { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+.cf-rail-head { display: flex; align-items: flex-start; justify-content: space-between; padding: 16px 18px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.cf-rail-title { font-size: 18px; font-weight: 800; color: var(--ink); letter-spacing: -0.02em; margin-top: 2px; }
+.cf-rail-title.lg { font-size: 22px; }   /* "Mesa NN" en el inspector */
+.cf-rail-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px; }
+.cf-rail-foot { display: flex; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--border); background: var(--soft-3); flex-shrink: 0; }
+
+/* — panel ZONAS (defecto) — */
+.cf-stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cf-stat-box { background: var(--soft-2); border: 1px solid var(--border); border-radius: 11px; padding: 12px 14px; }
+.cf-stat-big { font-size: 22px; font-weight: 800; color: var(--ink); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.cf-stat-lbl { font-size: 10.5px; color: var(--ink-4); font-weight: 600; margin-top: 2px; }
+.cf-rail-sublabel { font-size: 10.5px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: .05em; margin: 18px 2px 8px; }
+.cf-zonelist { display: flex; flex-direction: column; gap: 8px; }
+.cf-zonerow { display: flex; align-items: center; gap: 9px; padding: 8px 10px; background: #fff; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; transition: border-color .12s, background .12s; }
+.cf-zonerow:hover { border-color: var(--line-soft); }
+.cf-zonerow.on { border-color: #C7D2FE; background: var(--accent-bg); }
+.cf-zone-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--ink-5); flex-shrink: 0; }
+.cf-zonerow.on .cf-zone-dot { background: var(--accent); }
+.cf-zoneinput { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--ink); padding: 2px 0; }
+.cf-zone-count { font-size: 11px; font-weight: 700; color: var(--ink-3); background: var(--soft); padding: 2px 8px; border-radius: 999px; flex-shrink: 0; }
+.cf-mini-del { width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--border); background: #fff; color: var(--ink-4); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.cf-mini-del:hover { color: var(--danger); border-color: var(--danger-bd); background: var(--danger-bg); }
+.cf-add-zone { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 7px; margin-top: 10px; padding: 11px; border: 1.5px dashed var(--line-soft); border-radius: 10px; background: var(--soft-3); color: var(--ink-3); font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: all .15s; }
+.cf-add-zone:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+.cf-rail-hint { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--ink-4); }
+
+/* — panel INSPECTOR de mesa — */
+.cf-field { display: block; margin-bottom: 16px; }
+.cf-field-label { font-size: 10.5px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 7px; }
+.cf-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); font-family: inherit; font-size: 13.5px; font-weight: 600; color: var(--ink); outline: none; background: #fff; transition: border-color .15s, box-shadow .15s; }
+.cf-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.cf-stepper-row { display: flex; align-items: center; gap: 10px; background: var(--soft-2); border: 1px solid var(--border); border-radius: 11px; padding: 6px; }
+.cf-step { width: 40px; height: 40px; border-radius: 9px; border: 1px solid var(--border); background: #fff; color: var(--ink-2); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.cf-step:hover { color: var(--accent); border-color: #C7D2FE; }
+.cf-step-value { flex: 1; text-align: center; }
+.cf-step-num { font-size: 22px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+.cf-step-unit { font-size: 11px; color: var(--ink-4); margin-left: 6px; }
+.cf-select { position: relative; }
+.cf-select select { width: 100%; padding: 10px 32px 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); font-family: inherit; font-size: 13px; font-weight: 600; color: var(--ink); outline: none; background: #fff; cursor: pointer; appearance: none; -webkit-appearance: none; }
+.cf-select select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.cf-select > svg { position: absolute; right: 11px; top: 50%; transform: translateY(-50%); color: var(--ink-4); pointer-events: none; }
+
+/* ===== 6) CONTROLES (botones compartidos) ===== */
+.cf-icon-sm { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border); background: #fff; color: var(--ink-3); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.cf-icon-sm:hover { background: var(--soft-2); color: var(--ink); }
+.lm-btn-primary { display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; background: var(--accent); color: #fff; border: none; border-radius: var(--r-sm); font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap; box-shadow: var(--shadow-primary); }
+.lm-btn-primary:hover { background: var(--accent-hover); }
+.lm-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 13px; background: #fff; color: var(--ink-2); border: 1px solid var(--border); border-radius: var(--r-sm); font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.lm-btn-ghost:hover { background: var(--soft-2); color: var(--ink); }
+.lm-btn-ghost.sm { padding: 7px 11px; font-size: 12px; }
+.cf-btn-danger { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 13px; background: #fff; color: var(--danger); border: 1px solid var(--danger-bd); border-radius: var(--r-sm); font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.cf-btn-danger:hover { background: var(--danger-bg); }
+
+/* ===== PLACEHOLDER (secciones "Pronto") ===== */
+.cf-placeholder { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+.cf-placeholder-icon { width: 72px; height: 72px; border-radius: 18px; background: var(--soft); color: var(--ink-5); display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+.cf-placeholder-title { font-size: 17px; font-weight: 700; color: var(--ink); }
+.cf-placeholder-desc { font-size: 13px; color: var(--ink-3); margin: 6px 0 0; max-width: 380px; text-align: center; line-height: 1.5; }
+
+/* ===== 7) TOAST ===== */
+.cf-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; align-items: center; gap: 9px; padding: 11px 18px; background: var(--ink); color: #fff; border-radius: var(--r-md); font-size: 13px; font-weight: 600; box-shadow: var(--shadow-toast); }
+.cf-toast[hidden] { display: none; }
+
+/* utilidades */
+input::placeholder { color: var(--ink-4); }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-5); }
