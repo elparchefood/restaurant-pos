@@ -483,22 +483,47 @@ function renderAIImport(){
         let prodRows='';
         if(open&&!off){
           prodRows=c.products.map((pr,pi)=>{
-            // Presentations
-            const presEdits=(pr.presentations||[]).map((p,xi)=>{
-              const rmBtn=pr.presentations.length>1?'<button class="cc-ai-rm" onclick="removeAIPres('+ci+','+pi+','+xi+')">&#xD7;</button>':'';
-              return '<div style="display:flex;align-items:center;gap:3px;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:7px;padding:2px 6px"><input class="cc-ai-mini" value="'+escHtml(p.name)+'" style="width:70px" oninput="S.aiResult.categories['+ci+'].products['+pi+'].presentations['+xi+'].name=this.value"><span style="color:#CBD5E1;font-size:10px;margin:0 1px">&#xB7;$</span><input class="cc-ai-mini" type="number" value="'+p.price+'" style="width:58px;text-align:right" oninput="S.aiResult.categories['+ci+'].products['+pi+'].presentations['+xi+'].price=parseInt(this.value)||0">'+rmBtn+'</div>';
-            }).join('');
-            // Variables
-            const varEdits=(pr.variables||[]).map((v,vi)=>{
+            const priceMode=pr.priceMode||'simple';
+            const hasVars=(pr.variables||[]).length>0;
+            // Price mode toggle
+            const pmToggle=hasVars?'<div style="display:flex;gap:3px;background:#F1F5F9;border-radius:7px;padding:3px;margin-bottom:6px"><button class="cc-rtab'+(priceMode==='simple'?' on':'')+'" style="font-size:10.5px;padding:3px 10px" onclick="setProdPriceMode('+ci+','+pi+','simple')">Precio único</button><button class="cc-rtab'+(priceMode==='matrix'?' on':'')+'" style="font-size:10.5px;padding:3px 10px" onclick="setProdPriceMode('+ci+','+pi+','matrix')">Precio por variable</button></div>':'';
+            // Price section
+            let priceSection='';
+            if(priceMode==='matrix'&&hasVars){
+              const pv=pr.variables[0];
+              const presChips=(pr.presentations||[]).map((p,xi)=>'<div style="display:flex;align-items:center;gap:2px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:7px;padding:2px 6px"><input class="cc-ai-mini" value="'+escHtml(p.name)+'" style="width:62px" oninput="S.aiResult.categories['+ci+'].products['+pi+'].presentations['+xi+'].name=this.value"><button class="cc-ai-rm" '+(pr.presentations.length>1?'':'disabled')+' onclick="removeAIPres('+ci+','+pi+','+xi+')">&#xD7;</button></div>').join('');
+              const colH=(pr.presentations||[]).map(p=>'<th style="font-size:10px;font-weight:700;color:#64748B;padding:3px 10px;text-align:right">'+escHtml(p.name)+'</th>').join('');
+              const matRows=(pv.options||[]).map((opt,oi)=>{
+                const oName=typeof opt==='string'?opt:(opt.name||'');
+                const cells=(pr.presentations||[]).map((p,xi)=>{
+                  const price=Array.isArray(opt.prices)?(opt.prices[xi]||0):0;
+                  return '<td style="padding:2px 4px"><input class="cc-ai-mini" type="number" value="'+price+'" style="width:64px;text-align:right;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:5px;padding:3px 5px" oninput="setMatrixPrice('+ci+','+pi+','+oi+','+xi+',parseInt(this.value)||0)"></td>';
+                }).join('');
+                return '<tr><td style="padding:3px 10px 3px 0"><input class="cc-ai-mini" value="'+escHtml(oName)+'" style="font-weight:600;color:#7C3AED;background:#F5F3FF;border:1px solid #DDD6FE;border-radius:5px;padding:2px 6px;width:80px" oninput="setAIVarOpt('+ci+','+pi+',0,'+oi+',this.value)"></td>'+cells+'<td><button class="cc-ai-rm" onclick="removeAIVarOpt('+ci+','+pi+',0,'+oi+')">&#xD7;</button></td></tr>';
+              }).join('');
+              priceSection='<div style="margin-bottom:5px"><div style="font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Tamaños</div><div style="display:flex;flex-wrap:wrap;gap:4px">'+presChips+'<button class="cc-ai-add-btn" onclick="addAIPres('+ci+','+pi+')">+tamaño</button></div></div><div style="font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em;margin:0 0 4px">Precios por variante</div><div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11px"><thead><tr><th style="text-align:left;color:#94A3B8;font-size:10px;font-weight:700;padding-bottom:3px">Variante</th>'+colH+'<th></th></tr></thead><tbody>'+matRows+'</tbody></table></div><button class="cc-ai-add-btn" style="margin-top:5px" onclick="addAIVarOpt('+ci+','+pi+',0)">+ variante</button>';
+            } else {
+              const presEdits=(pr.presentations||[]).map((p,xi)=>{
+                const rmBtn=pr.presentations.length>1?'<button class="cc-ai-rm" onclick="removeAIPres('+ci+','+pi+','+xi+')">&#xD7;</button>':'';
+                return '<div style="display:flex;align-items:center;gap:3px;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:7px;padding:2px 6px"><input class="cc-ai-mini" value="'+escHtml(p.name)+'" style="width:70px" oninput="S.aiResult.categories['+ci+'].products['+pi+'].presentations['+xi+'].name=this.value"><span style="color:#CBD5E1;font-size:10px;margin:0 1px">&#xB7;$</span><input class="cc-ai-mini" type="number" value="'+p.price+'" style="width:58px;text-align:right" oninput="S.aiResult.categories['+ci+'].products['+pi+'].presentations['+xi+'].price=parseInt(this.value)||0">'+rmBtn+'</div>';
+              }).join('');
+              priceSection='<div style="display:flex;flex-wrap:wrap;gap:4px">'+presEdits+'<button class="cc-ai-add-btn" onclick="addAIPres('+ci+','+pi+')">+precio</button></div>';
+            }
+            // Variables section
+            let varSection='';
+            const varsToShow=priceMode==='matrix'?(pr.variables||[]).slice(1):(pr.variables||[]);
+            const varOffset=priceMode==='matrix'?1:0;
+            const varEdits=varsToShow.map((v,idx)=>{
+              const vi=idx+varOffset;
               const opts=v.options.map((o,oi)=>'<div style="display:flex;align-items:center;gap:3px"><input class="cc-ai-mini" value="'+escHtml(typeof o==='string'?o:o.name)+'" style="width:70px;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:5px;padding:2px 5px" oninput="setAIVarOpt('+ci+','+pi+','+vi+','+oi+',this.value)"><button class="cc-ai-rm" onclick="removeAIVarOpt('+ci+','+pi+','+vi+','+oi+')">&#xD7;</button></div>').join('');
               return '<div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:8px;padding:6px 10px;margin-top:5px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><input class="cc-ai-mini" value="'+escHtml(v.name||'Tipo')+'" style="font-weight:700;color:#7C3AED;font-size:11px;flex:1;background:transparent" oninput="S.aiResult.categories['+ci+'].products['+pi+'].variables['+vi+'].name=this.value"><button class="cc-ai-rm" onclick="removeAIVar('+ci+','+pi+','+vi+')">&#xD7;</button></div><div style="display:flex;flex-wrap:wrap;gap:4px">'+opts+'<button class="cc-ai-add-btn" style="font-size:10px" onclick="addAIVarOpt('+ci+','+pi+','+vi+')">+opción</button></div></div>';
             }).join('');
-            // Category select
+            varSection=varEdits+'<button class="cc-ai-add-btn" style="margin-top:4px;width:fit-content" onclick="addAIVar('+ci+','+pi+')">'+(priceMode==='matrix'?'+ variable adicional':'+ variable')+'</button>';
+            // Header row
             const catOpts=catNames.map(n=>'<option value="'+escHtml(n)+'"'+(n===c.name?' selected':'')+'>'+escHtml(n)+'</option>').join('');
-            // Image
             const hasImg=!!pr._imgData;
             const imgBtn='<label style="cursor:pointer;width:26px;height:26px;border-radius:6px;border:1.5px solid '+(hasImg?'#10B981':'#ECEEF2')+';background:'+(hasImg?'#ECFDF5':'#F8FAFC')+';display:flex;align-items:center;justify-content:center;flex-shrink:0" title="Subir foto"><input type="file" accept="image/*" style="display:none" onchange="setAIProdImg('+ci+','+pi+',this)">'+icon('image',13)+'</label>';
-            return '<div class="cc-prod-edit-row"><div style="display:flex;flex-direction:column;gap:5px;flex:1"><div style="display:flex;align-items:center;gap:6px"><input class="cc-ai-name-input sm" value="'+escHtml(pr.name)+'" oninput="S.aiResult.categories['+ci+'].products['+pi+'].name=this.value"><div class="cc-select" style="height:24px;min-width:90px;font-size:10.5px"><select style="font-size:10.5px;padding:0 4px;height:24px" onchange="moveAIProd('+ci+','+pi+',this.value)">'+catOpts+'</select><span class="cc-sel-arrow" style="right:4px">'+icon('down',10)+'</span></div>'+imgBtn+'<button class="cc-ai-rm" style="flex-shrink:0;margin-left:auto" onclick="removeAIProd('+ci+','+pi+')">&#xD7;</button></div><div style="display:flex;flex-wrap:wrap;gap:4px">'+presEdits+'<button class="cc-ai-add-btn" onclick="addAIPres('+ci+','+pi+')">+precio</button></div>'+varEdits+'<button class="cc-ai-add-btn" style="margin-top:4px;width:fit-content" onclick="addAIVar('+ci+','+pi+')">+ variable</button></div></div>';
+            return '<div class="cc-prod-edit-row"><div style="display:flex;flex-direction:column;gap:5px;flex:1"><div style="display:flex;align-items:center;gap:6px"><input class="cc-ai-name-input sm" value="'+escHtml(pr.name)+'" oninput="S.aiResult.categories['+ci+'].products['+pi+'].name=this.value"><div class="cc-select" style="height:24px;min-width:90px;font-size:10.5px"><select style="font-size:10.5px;padding:0 4px;height:24px" onchange="moveAIProd('+ci+','+pi+',this.value)">'+catOpts+'</select><span class="cc-sel-arrow" style="right:4px">'+icon('down',10)+'</span></div>'+imgBtn+'<button class="cc-ai-rm" style="flex-shrink:0;margin-left:auto" onclick="removeAIProd('+ci+','+pi+')">&#xD7;</button></div>'+pmToggle+priceSection+varSection+'</div></div>';
           }).join('');
         }
         return '<div class="cc-cat-block" style="opacity:'+(off?.55:1)+';border-color:'+(open&&!off?'#DDD6FE':'#ECEEF2')+'"><div class="cc-cat-row"><button class="cc-check'+(off?'':' on')+'" onclick="toggleAICatIdx('+ci+')" style="'+(off?'':'background:#8B5CF6;border-color:#8B5CF6;color:#fff')+'">'+(off?'':icon('check',12,3))+'</button><input class="cc-ai-name-input" value="'+escHtml(c.name)+'" onclick="event.stopPropagation()" oninput="setAICatName('+ci+',this.value)"><span class="cc-cat-count">'+c.products.length+' prod.</span><button class="cc-cat-toggle" style="margin-left:auto;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;cursor:pointer;border-radius:6px" onclick="S.aiOpenCat=S.aiOpenCat===S.aiResult.categories['+ci+'].name?null:S.aiResult.categories['+ci+'].name;renderAIImport()"><span style="color:#CBD5E1;transform:'+(open?'rotate(90deg)':'none')+';transition:transform .15s;display:flex">'+icon('chevron',15)+'</span></button></div>'+(prodRows?'<div class="cc-prod-list">'+prodRows+'</div>':'')+'</div>';
@@ -551,6 +576,30 @@ function setAIModMulti(gi,v){S.aiResult.modifier_groups[gi].multi=v;renderAIImpo
 function addAIModOpt(gi){S.aiResult.modifier_groups[gi].options.push({name:'Nueva opción',price:0});renderAIImport();}
 function removeAIModOpt(gi,oi){if(S.aiResult.modifier_groups[gi].options.length<=1)return;S.aiResult.modifier_groups[gi].options.splice(oi,1);renderAIImport();}
 function setAIModOpt(gi,oi,field,val){S.aiResult.modifier_groups[gi].options[oi][field]=val;}
+function setProdPriceMode(ci,pi,mode){
+  const pr=S.aiResult.categories[ci].products[pi];
+  pr.priceMode=mode;
+  if(mode==='matrix'&&(pr.variables||[]).length>0){
+    const pv=pr.variables[0];
+    pv.isPricing=true;
+    pv.options=(pv.options||[]).map(o=>{
+      const name=typeof o==='string'?o:(o.name||'');
+      const prices=Array.isArray(o.prices)?o.prices:(pr.presentations||[]).map(()=>0);
+      return {name,prices};
+    });
+    (pr.presentations||[]).forEach(p=>p.price=0);
+  }
+  renderAIImport();
+}
+function setMatrixPrice(ci,pi,oi,xi,price){
+  const pr=S.aiResult.categories[ci].products[pi];
+  const pv=(pr.variables||[])[0];
+  if(!pv)return;
+  const opt=pv.options[oi];
+  if(!opt)return;
+  if(!Array.isArray(opt.prices))opt.prices=(pr.presentations||[]).map(()=>0);
+  opt.prices[xi]=price;
+}
 async function fileToBase64Ai(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});}
 async function pdfToImages(file){
   if(!window.pdfjsLib){
