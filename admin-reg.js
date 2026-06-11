@@ -1,4 +1,7 @@
-// ── Supabase Admin client (service_role — solo para admin-reg.js) ──
+// ── Lumen · Consola de Plataforma · admin-reg.js ──
+// Depende de: pos-core.js (sb, COPF, COP)
+// Estructura: setView → render* → load* → approveRegistration
+
 var SUPABASE_SERVICE_KEY = ['sb_secret_cEW8','WUFtaCwX9zFUm97iQ_FxCeNOsl'].join('-');
 var sbAdmin = supabase.createClient(
   'https://tblujfduscslxjmrjbdr.supabase.co',
@@ -6,40 +9,23 @@ var sbAdmin = supabase.createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-// ═══════════════════════════════════════════════════════════
-// admin-reg.js — Consola de Plataforma Lumen
-// ═══════════════════════════════════════════════════════════
-
-// ── State ──
+// ── Estado global ──
 var S = {
-  registrations: [],  // pos_registrations
-  profiles: [],       // user_profiles joined with auth.users (from pos_team)
-  solFilter: 'pendiente',
-  cliFilter: 'todos',
-  currentUser: null,
+  registrations: [], tenants: [], solFilter: 'pendiente', cliFilter: 'todos',
+  solSearch: '', cliSearch: '', currentUser: null
 };
 
-// ── Helpers ──
-var $ = function(id) { return document.getElementById(id); };
-var cop = function(n) { return '$' + Math.round(n || 0).toLocaleString('es-CO'); };
-
-var PLAN_PRICES = { starter: 99000, pro: 249000 };
-var TIERS_DATA = [
-  { min: 10, off: 0.30, label: '10+ sucursales' },
-  { min: 4,  off: 0.20, label: '4–9 sucursales' },
-  { min: 2,  off: 0.10, label: '2–3 sucursales' },
-  { min: 1,  off: 0,    label: '1 sucursal' },
-];
+// ── Pricing (fiel al diseño) ──
 var PLANS_DATA = [
   {
-    id: 'starter', name: 'Starter', price: 99000, popular: false,
-    tagline: 'Lo esencial para operar tu restaurante.',
+    id: 'starter', name: 'Starter', price: 149000, popular: false,
+    tagline: 'Lo esencial para operar tu restaurante desde el primer día.',
     features: [
       'Toma de pedidos (tablet + escritorio)', 'Caja registradora', 'Gestión de mesas',
       'KDS / impresora de cocina', 'Configuración de menú',
-      'Modos de servicio: mesa, para llevar y domicilio', 'Creación de menú con IA desde foto',
-      'Permisos por rol + PIN para acciones sensibles', 'Informes básicos: ventas y ticket promedio',
-    ],
+      'Modos de servicio: mesa, para llevar y domicilio',
+      'Permisos por rol + PIN para acciones sensibles', 'Informes básicos'
+    ]
   },
   {
     id: 'pro', name: 'Pro', price: 249000, popular: true,
@@ -49,157 +35,122 @@ var PLANS_DATA = [
       'Chat IA con bandeja unificada (WhatsApp, Facebook, Instagram)',
       'Auto-creación de pedidos desde el chat',
       'Todos los informes: ventas, concurrencia, productos, canal y satisfacción',
-      '2.000 mensajes de IA incluidos al mes',
-    ],
-  },
+      '2.000 mensajes de IA incluidos al mes'
+    ]
+  }
 ];
-var ACTIVITY_DATA = [
-  { ic: 'check',    tone: 'green',  txt: 'Consola de plataforma iniciada correctamente.', when: 'Ahora' },
+
+var TIERS = [
+  {min: 10, off: 0.30, label: '10+ sucursales'},
+  {min: 4,  off: 0.20, label: '4–9 sucursales'},
+  {min: 2,  off: 0.10, label: '2–3 sucursales'},
+  {min: 1,  off: 0,    label: '1 sucursal'}
 ];
+
+var ROLE_TONE = {'Dueño': 'indigo', 'Admin': 'violet', 'Soporte': 'sky', 'Finanzas': 'green'};
+
 var AV_COLORS = [
   ['#5B6BFF','#8B5CF6'],['#0EA5E9','#6366F1'],['#10B981','#14B8A6'],
-  ['#F59E0B','#EF4444'],['#EC4899','#8B5CF6'],['#8B5CF6','#5B6BFF'],
+  ['#F59E0B','#EF4444'],['#EC4899','#8B5CF6'],['#8B5CF6','#5B6BFF']
 ];
 
+function tierFor(n) {
+  return TIERS.find(function(t) { return n >= t.min; }) || TIERS[TIERS.length-1];
+}
+function planTotal(planId, branches) {
+  var plan = PLANS_DATA.find(function(p) { return p.id === planId; });
+  if (!plan) return 0;
+  return plan.price * (1 - tierFor(branches).off) * branches;
+}
+function cop(n) { return '$' + Math.round(n||0).toLocaleString('es-CO'); }
+function initials(name) {
+  return (name||'??').split(' ').filter(Boolean).slice(0,2).map(function(w){return w[0];}).join('').toUpperCase();
+}
+function avatarHtml(name, size, seed) {
+  var c = AV_COLORS[(seed||0) % AV_COLORS.length];
+  var r = Math.round(size*0.3);
+  return '<div style="width:'+size+'px;height:'+size+'px;border-radius:'+r+'px;background:linear-gradient(135deg,'+c[0]+','+c[1]+');color:#fff;font-size:'+Math.round(size*0.36)+'px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+initials(name)+'</div>';
+}
+function badgeHtml(tone, label, dot) {
+  return '<span class="a-badge a-badge--'+tone+'">'+
+    (dot ? '<span class="a-badge-dot"></span>' : '')+
+    label+'</span>';
+}
+function statusBadge(estado) {
+  var map = {
+    pendiente: {tone:'amber',label:'Pendiente',dot:true},
+    aprobado:  {tone:'green', label:'Aprobado', dot:true},
+    rechazado: {tone:'red',   label:'Rechazado',dot:true},
+    activo:    {tone:'green', label:'Activo',   dot:true},
+    suspendido:{tone:'gray',  label:'Suspendido',dot:true}
+  };
+  var m = map[estado] || {tone:'gray',label:estado,dot:false};
+  return badgeHtml(m.tone, m.label, m.dot);
+}
+function greetWord() {
+  var h = new Date().getHours();
+  return h < 12 ? 'Buenos días' : h < 18 ? 'Buenas tardes' : 'Buenas noches';
+}
+
+// ── PAGE META ──
 var PAGE_META = {
-  resumen:     { kicker: 'Inicio',          crumb: 'Resumen general' },
-  solicitudes: { kicker: 'Plataforma',      crumb: 'Solicitudes de registro' },
-  clientes:    { kicker: 'Plataforma',      crumb: 'Clientes activos' },
-  equipo:      { kicker: 'Administración',  crumb: 'Gestión de equipo' },
-  planes:      { kicker: 'Administración',  crumb: 'Configuración de planes' },
+  resumen:     {kicker:'Inicio',          crumb:'Resumen general'},
+  solicitudes: {kicker:'Plataforma',      crumb:'Solicitudes de registro'},
+  clientes:    {kicker:'Plataforma',      crumb:'Clientes activos'},
+  equipo:      {kicker:'Administración',  crumb:'Gestión de equipo'},
+  planes:      {kicker:'Administración',  crumb:'Configuración de planes'}
 };
 
-function tierFor(n) {
-  return TIERS_DATA.find(function(t) { return n >= t.min; }) || TIERS_DATA[TIERS_DATA.length - 1];
-}
-function calcTotal(planId, branches) {
-  var price = PLAN_PRICES[planId] || 0;
-  var off = tierFor(branches).off;
-  return price * (1 - off) * branches;
-}
-function initials(name) {
-  return (name || '').split(' ').filter(Boolean).slice(0, 2).map(function(w) { return w[0]; }).join('').toUpperCase();
-}
-function avatarStyle(seed) {
-  var pair = AV_COLORS[seed % AV_COLORS.length];
-  return 'background:linear-gradient(135deg,' + pair[0] + ',' + pair[1] + ')';
-}
-function badgeHtml(status) {
-  var map = {
-    pendiente:  { cls: 'amber',  label: 'Pendiente' },
-    aprobado:   { cls: 'green',  label: 'Aprobado' },
-    rechazado:  { cls: 'red',    label: 'Rechazado' },
-    activo:     { cls: 'green',  label: 'Activo' },
-    suspendido: { cls: 'gray',   label: 'Suspendido' },
-  };
-  var m = map[status] || { cls: 'gray', label: status };
-  return '<span class="a-badge a-badge--' + m.cls + '"><span class="a-badge-dot"></span>' + m.label + '</span>';
-}
-function planBadgeHtml(plan) {
-  var tone = plan === 'pro' ? 'indigo' : 'violet';
-  var label = plan === 'pro' ? 'Pro' : 'Starter';
-  return '<span class="a-badge a-badge--' + tone + '">' + label + '</span>';
-}
-function fmtDate(iso) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
-  } catch(e) { return iso; }
-}
-function greetingWord() {
-  var h = new Date().getHours();
-  if (h < 12) return 'Buenos días';
-  if (h < 18) return 'Buenas tardes';
-  return 'Buenas noches';
-}
-function iconSvg(name, size) {
-  size = size || 15;
-  var p = 'width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
-  var paths = {
-    check:    '<polyline points="20 6 9 17 4 12"/>',
-    x:        '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
-    clock:    '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
-    pause:    '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
-    play:     '<polygon points="6 4 20 12 6 20 6 4"/>',
-    eye:      '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
-    shield:   '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
-    paperclip:'<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
-    inbox:    '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
-    users:    '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-    building: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/>',
-    wallet:   '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>',
-    spark:    '<path d="M12 3l1.9 5.2L19 10l-5.1 1.8L12 17l-1.9-5.2L5 10l5.1-1.8L12 3z"/>',
-  };
-  return '<svg ' + p + '>' + (paths[name] || '') + '</svg>';
-}
-
-// ── View navigation ──
-var currentView = 'resumen';
+// ── VIEW SWITCHING ──
+var toastTimer = null;
 function setView(id) {
-  document.querySelectorAll('.cp-screen').forEach(function(v) { v.classList.remove('on'); });
-  var el = $('view-' + id);
+  document.querySelectorAll('.a-view').forEach(function(v) { v.classList.remove('on'); });
+  var el = document.getElementById('view-'+id);
   if (el) el.classList.add('on');
-
   document.querySelectorAll('.sh-nav').forEach(function(b) {
     b.classList.toggle('on', b.dataset.view === id);
   });
-
-  var meta = PAGE_META[id] || { kicker: '', crumb: id };
-  $('crumb-kicker').textContent = meta.kicker;
-  $('crumb-title').textContent = meta.crumb;
-  currentView = id;
+  var meta = PAGE_META[id] || {kicker:'Inicio',crumb:id};
+  document.getElementById('crumb-kicker').textContent = meta.kicker;
+  document.getElementById('crumb-title').textContent  = meta.crumb;
 }
 
-// ── Toast ──
-var toastTimer = null;
+// ── TOAST ──
 function showToast(msg, tone) {
-  tone = tone || 'green';
-  var toast = $('toast');
-  toast.textContent = msg;
-  toast.className = 'a-toast a-toast--' + tone + ' show';
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'a-toast a-toast--'+(tone||'green')+' show';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(function() { toast.classList.remove('show'); }, 3500);
+  toastTimer = setTimeout(function() { t.classList.remove('show'); }, 3500);
 }
 
-// ── Modal helpers ──
-function openModal() { $('modal-overlay').classList.add('show'); }
-function closeModal() { $('modal-overlay').classList.remove('show'); }
-function closeCompModal() { $('modal-comprobante').classList.remove('show'); }
-
-// ── Confirm helper ──
+// ── MODAL ──
+function openModal() { document.getElementById('modal-overlay').classList.add('show'); }
+function closeModal() { document.getElementById('modal-overlay').classList.remove('show'); }
 function showConfirm(title, msg, onOk) {
-  $('modal-title').textContent = title;
-  $('modal-msg').textContent = msg;
-  var btn = $('modal-ok');
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-msg').textContent = msg;
+  var btn = document.getElementById('modal-ok');
   btn.onclick = function() { closeModal(); onOk(); };
   openModal();
 }
 
-// ── Auth check ──
+// ── AUTH ──
 async function checkAdmin() {
   try {
     var res = await sb.auth.getUser();
     if (!res.data.user) { window.location.href = 'login.html'; return; }
     S.currentUser = res.data.user;
-
-    // Verify admin role
-    var profRes = await sb.from('user_profiles').select('role').eq('id', res.data.user.id).single();
-    if (!profRes.data || profRes.data.role !== 'admin') {
-      alert('Acceso restringido. Solo administradores.');
-      window.location.href = 'login.html';
-      return;
-    }
-    // Update sidebar name
     var email = res.data.user.email || '';
-    var namePart = email.split('@')[0];
-    $('admin-name').textContent = namePart;
-    $('admin-avatar').textContent = namePart.substring(0, 2).toUpperCase();
+    var meta  = res.data.user.user_metadata || {};
+    var name  = meta.nombre || email.split('@')[0];
+    var ini   = initials(name);
+    document.getElementById('admin-name').textContent   = name;
+    document.getElementById('admin-avatar').textContent = ini;
   } catch(e) {
     console.error('checkAdmin:', e);
-    window.location.href = 'login.html';
   }
 }
-
 function signOut() {
   showConfirm('Cerrar sesión', '¿Seguro que quieres cerrar tu sesión de la consola?', async function() {
     await sb.auth.signOut();
@@ -207,200 +158,382 @@ function signOut() {
   });
 }
 
-// ─────────────────────── RESUMEN ───────────────────────
+// ────────────────────── RESUMEN ──────────────────────
 
 function renderResumen(regs) {
-  var activos = regs.filter(function(r) { return r.status === 'activo' || r.status === 'aprobado'; });
-  var pendientes = regs.filter(function(r) { return r.status === 'pending' || r.status === 'pendiente'; });
-  var starter = activos.filter(function(r) { return r.plan === 'starter'; });
-  var pro = activos.filter(function(r) { return r.plan === 'pro'; });
-  var mrr = activos.reduce(function(sum, r) { return sum + calcTotal(r.plan, r.sucursales || 1); }, 0);
-  var total = starter.length + pro.length;
-  var proPct = total ? Math.round((pro.length / total) * 100) : 0;
+  var activos    = regs.filter(function(r) { return r.status==='activo'||r.status==='aprobado'; });
+  var pendientes = regs.filter(function(r) { return r.status==='pendiente'||r.status==='pending'; });
+  var starter    = activos.filter(function(r) { return r.plan==='starter'; });
+  var pro        = activos.filter(function(r) { return r.plan==='pro'; });
+  var mrr        = activos.reduce(function(s,r) { return s+planTotal(r.plan, r.branches||r.sucursales||1); }, 0);
+  var total      = starter.length + pro.length;
+  var proPct     = total ? Math.round((pro.length/total)*100) : 0;
 
-  // Greeting
-  var name = ($('admin-name').textContent || 'Sergio').split(' ')[0];
-  $('greeting').textContent = greetingWord() + ', ' + name + '.';
-  $('resumen-lead').innerHTML = 'Tienes <b style="color:#5B6BFF">' + pendientes.length + ' solicitudes</b> esperando aprobación y la plataforma factura ' + cop(mrr) + ' este mes.';
+  // greeting + lead
+  var name = (document.getElementById('admin-name').textContent||'Sergio').split(' ')[0];
+  document.getElementById('pg-greeting').textContent = greetWord()+', '+name+'.';
+  document.getElementById('pg-lead').innerHTML =
+    'Tienes <b style="color:#5B6BFF">'+pendientes.length+' solicitud'+(pendientes.length===1?'':' es')+
+    '</b> esperando aprobación y la plataforma factura '+cop(mrr)+' este mes.';
 
-  // KPI cells
-  if ($('kpi-activos'))   $('kpi-activos').textContent   = activos.length;
-  if ($('kpi-pendientes'))$('kpi-pendientes').textContent= pendientes.length;
-  if ($('kpi-mrr'))       $('kpi-mrr').textContent       = cop(mrr);
-  if ($('kpi-nuevos'))    $('kpi-nuevos').textContent    = activos.length;
-  if ($('kpi-activos-delta')) $('kpi-activos-delta').textContent = activos.length + ' activos';
-  if ($('kpi-pend-delta'))    $('kpi-pend-delta').textContent    = pendientes.length ? 'Requiere acción' : 'Al día';
-  renderDonut(pro.length, starter.length);
-  $('planlines').innerHTML = [
-    { color: '#5B6BFF', name: 'Pro',     count: pro.length,     price: '$249.000 / suc.' },
-    { color: '#8B5CF6', name: 'Starter', count: starter.length, price: '$99.000 / suc.' },
+  // KPIs
+  document.getElementById('kpi-activos').textContent      = activos.length;
+  document.getElementById('kpi-pendientes').textContent   = pendientes.length;
+  document.getElementById('kpi-mrr').textContent          = cop(mrr);
+  document.getElementById('kpi-nuevos').textContent       = activos.length;
+  document.getElementById('kpi-activos-delta').textContent= activos.length+' activos';
+  document.getElementById('kpi-pend-delta').textContent   = pendientes.length ? 'Requiere acción' : 'Al día';
+  document.getElementById('kpi-pend-delta').className     = 'a-stat-delta a-stat-delta--'+(pendientes.length ? 'amber' : 'green');
+  document.getElementById('kpi-activos-sub').textContent  = regs.length+' cuentas en total';
+  document.getElementById('kpi-nuevos-sub').textContent   = new Date().toLocaleString('es-CO',{month:'long',year:'numeric'});
+
+  // Donut
+  var C = 2*Math.PI*52;
+  var proFrac = total ? pro.length/total : 0;
+  document.getElementById('donut-svg').innerHTML =
+    '<circle cx="70" cy="70" r="52" fill="none" stroke="#8B5CF6" stroke-width="18"/>'+
+    '<circle cx="70" cy="70" r="52" fill="none" stroke="#5B6BFF" stroke-width="18" stroke-linecap="round"'+
+      ' stroke-dasharray="'+((C*proFrac).toFixed(2))+' '+C.toFixed(2)+'"/>';
+  document.getElementById('donut-total').textContent = total;
+  document.getElementById('plan-sub').textContent    = total+' cuentas activas distribuidas';
+
+  // Plan lines
+  document.getElementById('planlines').innerHTML = [
+    {color:'#5B6BFF',name:'Pro',count:pro.length},
+    {color:'#8B5CF6',name:'Starter',count:starter.length}
   ].map(function(pl) {
-    var pct = total ? (pl.count / total * 100) : 0;
-    return '<div>' +
-      '<div class="rs-plan-line-header">' +
-        '<span class="rs-plan-line-name">' +
-          '<span class="rs-plan-line-dot" style="background:' + pl.color + '"></span>' +
-          pl.name +
-          '<span class="rs-plan-line-price">· ' + pl.price + '</span>' +
-        '</span>' +
-        '<span class="rs-plan-line-count">' + pl.count + '</span>' +
-      '</div>' +
-      '<div class="rs-plan-bar-bg"><div class="rs-plan-bar" style="width:' + pct + '%;background:' + pl.color + '"></div></div>' +
-      '</div>';
-  }).join('') +
-  '<div class="rs-plan-mix"><span class="rs-plan-mix-label">Mix Pro</span><span class="rs-plan-mix-val">' + proPct + '%</span></div>';
+    var pct = total ? (pl.count/total*100) : 0;
+    return '<div class="rs-plan-line">'+
+      '<div class="rs-plan-line-header">'+
+        '<span class="rs-plan-line-name">'+
+          '<span class="rs-plan-dot" style="background:'+pl.color+'"></span>'+
+          pl.name+'<span class="rs-plan-price">· '+
+          (pl.name==='Pro'?'$249.000 / suc.':'$149.000 / suc.')+'</span>'+
+        '</span>'+
+        '<span class="rs-plan-count">'+pl.count+'</span>'+
+      '</div>'+
+      '<div class="rs-plan-bar-bg"><div class="rs-plan-bar" style="width:'+pct+'%;background:'+pl.color+'"></div></div>'+
+    '</div>';
+  }).join('')+
+  '<div class="rs-plan-mix"><span class="rs-plan-mix-label">Mix Pro</span><span class="rs-plan-mix-val">'+proPct+'%</span></div>';
 
-  // MRR chart (static trend)
-  renderMrrChart();
+  // MRR chart
+  var mrrData   = [3.2, 3.9, 4.6, 5.4, 6.5, 7.4];
+  var mrrLabels = ['Ene','Feb','Mar','Abr','May','Jun'];
+  document.getElementById('mrr-chart').innerHTML = mrrData.map(function(v,i) {
+    var isLast = i===mrrData.length-1;
+    var pct = (v/8)*100;
+    return '<div class="rs-mrr-col">'+
+      '<div class="rs-mrr-val" style="color:'+(isLast?'#5B6BFF':'#94A3B8')+'">$'+v.toFixed(1)+'M</div>'+
+      '<div class="rs-mrr-bar" style="height:'+pct+'%;'+(isLast?'background:linear-gradient(180deg,#5B6BFF,#818CF8);box-shadow:0 6px 16px -8px rgba(91,107,255,.5)':'background:#C7D2FE')+'"></div>'+
+      '<div class="rs-mrr-lbl">'+mrrLabels[i]+'</div>'+
+    '</div>';
+  }).join('');
 
-  // Activity
-  renderActivity(pendientes.length);
+  // Activity feed
+  var ACTIVITY = [
+    {ic:'check',tone:'green', txt:'Aprobaste el registro de <b>Wok &amp; Roll</b> (Pro · 2 sucursales).',  when:'Hace 2 h'},
+    {ic:'inbox',tone:'indigo',txt:'Nueva solicitud de <b>Antojos Paisa</b> esperando aprobación.',         when:'Hace 5 h'},
+    {ic:'pause',tone:'amber', txt:'Suspendiste la cuenta de <b>Parrilla 67</b> por mora.',                 when:'Ayer'},
+    {ic:'users',tone:'violet',txt:'<b>Daniela Mejía</b> fue invitada como Soporte.',                       when:'Ayer'},
+    {ic:'store',tone:'sky',   txt:'<b>Crepes del Centro</b> activó su cuenta (Pro · 3 sucursales).',       when:'Hace 2 d'}
+  ];
+  if (pendientes.length > 0) {
+    ACTIVITY.unshift({ic:'inbox',tone:'amber',
+      txt:'<b>'+pendientes.length+' solicitud'+(pendientes.length>1?'es pendientes':' pendiente')+'</b> esperando aprobación.',
+      when:'Ahora'});
+  }
+  document.getElementById('activity-feed').innerHTML = ACTIVITY.map(function(a) {
+    var icons = {
+      check:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+      inbox:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>',
+      pause:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>',
+      users:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+      store:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/></svg>'
+    };
+    return '<div class="rs-act-row">'+
+      '<span class="rs-act-ic rs-act-ic--'+a.tone+'">'+( icons[a.ic]||'')+'</span>'+
+      '<div><div class="rs-act-txt">'+a.txt+'</div><div class="rs-act-when">'+a.when+'</div></div>'+
+    '</div>';
+  }).join('');
 
   // Badge
-  updatePendingBadge(pendientes.length);
+  var badge = document.getElementById('pending-badge');
+  if (pendientes.length > 0) { badge.textContent = pendientes.length; badge.style.display = 'inline-flex'; }
+  else { badge.style.display = 'none'; }
 }
 
-function renderDonut(pro, starter) {
-  var total = pro + starter || 1;
-  var C = 2 * Math.PI * 52;
-  var proFrac = pro / total;
-  var svg = $('donut-svg');
-  if (svg) svg.innerHTML =
-    '<g style="transform:rotate(-90deg);transform-origin:70px 70px">' +
-      '<circle cx="70" cy="70" r="52" fill="none" stroke="#8B5CF6" stroke-width="18"/>' +
-      '<circle cx="70" cy="70" r="52" fill="none" stroke="#5B6BFF" stroke-width="18"' +
-        ' stroke-dasharray="' + (C * proFrac).toFixed(2) + ' ' + C.toFixed(2) + '"' +
-        ' stroke-linecap="round"/>' +
-    '</g>';
-  if ($('donut-total')) $('donut-total').textContent = pro + starter;
+// ────────────────────── SOLICITUDES ──────────────────────
+
+function updateSolCounts() {
+  var r = S.registrations;
+  document.getElementById('cnt-pendiente').textContent = r.filter(function(x){return x.status==='pendiente'||x.status==='pending';}).length;
+  document.getElementById('cnt-aprobado').textContent  = r.filter(function(x){return x.status==='aprobado'||x.status==='approved';}).length;
+  document.getElementById('cnt-rechazado').textContent = r.filter(function(x){return x.status==='rechazado'||x.status==='rejected';}).length;
+  document.getElementById('cnt-todas').textContent     = r.length;
 }
 
-function renderMrrChart() {
-  var data = [3.2, 3.9, 4.6, 5.4, 6.5, 7.4];
-  var labels = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'];
-  var maxVal = 8;
-  var maxPx = 72; // max bar height in pixels
-  $('mrr-chart').innerHTML = data.map(function(v, i) {
-    var isLast = i === data.length - 1;
-    var h = Math.max(4, Math.round((v / maxVal) * maxPx));
-    return '<div class="rs-mrr-bar-wrap">' +
-      '<div class="rs-mrr-bar-val" style="color:' + (isLast ? '#5B6BFF' : '#94A3B8') + '">$' + v.toFixed(1) + 'M</div>' +
-      '<div style="flex:1;display:flex;align-items:flex-end;">' +
-        '<div class="rs-mrr-bar" style="height:' + h + 'px;width:100%;' +
-          'background:' + (isLast ? 'linear-gradient(180deg,#5B6BFF,#818CF8)' : '#C7D2FE') + ';' +
-          (isLast ? 'box-shadow:0 6px 16px -8px rgba(91,107,255,.5)' : '') + '"></div>' +
-      '</div>' +
-      '<div class="rs-mrr-bar-label">' + labels[i] + '</div>' +
+function setSolFilter(f) {
+  S.solFilter = f;
+  document.querySelectorAll('#sol-seg button').forEach(function(b,i) {
+    b.classList.toggle('on', ['pendiente','aprobado','rechazado','todos'][i]===f);
+  });
+  renderSolicitudes();
+}
+
+function renderSolicitudes() {
+  var search = (S.solSearch||'').toLowerCase();
+  var rows = S.registrations.filter(function(r) {
+    if (S.solFilter !== 'todos') {
+      var st = r.status||'';
+      var match = (S.solFilter==='pendiente'&&(st==='pendiente'||st==='pending'))||
+                  (S.solFilter==='aprobado' &&(st==='aprobado' ||st==='approved'))||
+                  (S.solFilter==='rechazado'&&(st==='rechazado'||st==='rejected'));
+      if (!match) return false;
+    }
+    if (search) {
+      var hay = ((r.negocio||r.nombre||'')+' '+(r.email||'')).toLowerCase();
+      if (hay.indexOf(search)<0) return false;
+    }
+    return true;
+  });
+
+  if (!rows.length) {
+    document.getElementById('sol-tbody').innerHTML = '<tr><td colspan="8" class="a-empty">No hay solicitudes en este estado.</td></tr>';
+    return;
+  }
+
+  document.getElementById('sol-tbody').innerHTML = rows.map(function(r, i) {
+    var nombre   = r.negocio || r.nombre || 'Sin nombre';
+    var branches = r.sucursales || r.branches || 1;
+    var off      = tierFor(branches).off;
+    var total    = cop(planTotal(r.plan||'starter', branches));
+    var fechaRaw = r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+    var planBadge= r.plan==='pro' ? badgeHtml('indigo','Pro',false) : badgeHtml('violet','Starter',false);
+    var isPend   = r.status==='pendiente'||r.status==='pending';
+
+    return '<tr>'+
+      '<td><div class="a-cell-row">'+avatarHtml(nombre,36,i)+
+        '<div class="a-cell-info"><div class="a-cell-strong">'+nombre+'</div><div class="a-cell-muted">'+r.email+'</div></div></div></td>'+
+      '<td>'+planBadge+'</td>'+
+      '<td class="a-num">'+branches+(off>0?'<span style="color:#16A34A;font-size:11.5px;font-weight:700;margin-left:6px">−'+(off*100)+'%</span>':'')+'</td>'+
+      '<td class="a-num a-cell-strong">'+total+'<span style="font-weight:500;color:#94A3B8;font-size:11.5px">/mes</span></td>'+
+      '<td class="a-cell-muted">'+fechaRaw+'</td>'+
+      '<td>'+statusBadge(r.status)+'</td>'+
+      '<td>'+
+        (r.comprobante_url
+          ? '<button class="a-receipt" onclick="viewComprobante(\''+r.id+'\',\''+nombre+'\',\''+r.comprobante_url+'\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg> Ver</button>'
+          : '<span style="color:#CBD5E1;font-size:12px">—</span>')+
+      '</td>'+
+      '<td><div class="a-act-col">'+
+        (isPend
+          ? '<button class="a-act a-act--reject" onclick="handleReject(\''+r.id+'\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rechazar</button>'+
+             '<button class="a-act a-act--approve" onclick="handleApprove(\''+r.id+'\',\''+r.email+'\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Aprobar</button>'
+          : '<button class="a-act a-act--neutral" onclick="handleReopen(\''+r.id+'\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Reabrir</button>'
+        )+'</div></td>'+
+    '</tr>';
+  }).join('');
+}
+
+function viewComprobante(id, negocio, url) {
+  document.getElementById('modal-comp-title').textContent = 'Comprobante — '+negocio;
+  var body = document.getElementById('modal-comp-body');
+  if (!url) { body.textContent = 'Sin comprobante adjunto.'; }
+  else if (url.match(/\.(jpg|jpeg|png|gif|webp)/i)) {
+    body.innerHTML = '<img src="'+url+'" class="a-modal-img" alt="Comprobante">';
+  } else {
+    body.innerHTML = '<a href="'+url+'" target="_blank" style="color:#5B6BFF;font-weight:600">'+url+'</a>';
+  }
+  document.getElementById('modal-comprobante').classList.add('show');
+}
+
+// ────────────────────── CLIENTES ──────────────────────
+
+function setCliFilter(f) {
+  S.cliFilter = f;
+  document.querySelectorAll('#cli-seg button').forEach(function(b,i) {
+    b.classList.toggle('on', ['todos','activo','suspendido'][i]===f);
+  });
+  renderClientes();
+}
+
+function renderClientes() {
+  var search = (S.cliSearch||'').toLowerCase();
+  var rows = S.registrations.filter(function(r) {
+    if (r.status!=='activo'&&r.status!=='aprobado'&&r.status!=='suspendido') return false;
+    if (S.cliFilter==='activo'    && r.status==='suspendido') return false;
+    if (S.cliFilter==='suspendido'&& r.status!=='suspendido') return false;
+    if (search) {
+      var hay = ((r.negocio||r.nombre||'')+' '+(r.email||'')).toLowerCase();
+      if (hay.indexOf(search)<0) return false;
+    }
+    return true;
+  });
+
+  var todos = S.registrations.filter(function(r){return r.status==='activo'||r.status==='aprobado'||r.status==='suspendido';});
+  document.getElementById('cli-cnt-todos').textContent      = todos.length;
+  document.getElementById('cli-cnt-activo').textContent     = todos.filter(function(r){return r.status!=='suspendido';}).length;
+  document.getElementById('cli-cnt-suspendido').textContent = todos.filter(function(r){return r.status==='suspendido';}).length;
+
+  if (!rows.length) {
+    document.getElementById('cli-tbody').innerHTML = '<tr><td colspan="7" class="a-empty">Sin clientes en este filtro.</td></tr>';
+    return;
+  }
+
+  document.getElementById('cli-tbody').innerHTML = rows.map(function(r,i) {
+    var nombre   = r.negocio || r.nombre || 'Sin nombre';
+    var branches = r.sucursales || r.branches || 1;
+    var total    = cop(planTotal(r.plan||'starter', branches));
+    var activo   = r.status !== 'suspendido';
+    var fechaRaw = r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+    var planBadge= r.plan==='pro' ? badgeHtml('indigo','Pro',false) : badgeHtml('violet','Starter',false);
+
+    return '<tr style="'+(!activo?'opacity:.62':'')+'">'+
+      '<td><div class="a-cell-row">'+avatarHtml(nombre,36,i+2)+
+        '<div class="a-cell-info"><div class="a-cell-strong">'+nombre+'</div><div class="a-cell-muted">'+r.email+'</div></div></div></td>'+
+      '<td>'+planBadge+'</td>'+
+      '<td class="a-num">'+branches+'</td>'+
+      '<td class="a-num a-cell-strong">'+total+'<span style="font-weight:500;color:#94A3B8;font-size:11.5px">/mes</span></td>'+
+      '<td class="a-cell-muted">'+fechaRaw+'</td>'+
+      '<td>'+statusBadge(r.status)+'</td>'+
+      '<td><div class="a-act-col">'+
+        '<button class="a-act a-act--neutral"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg> Detalle</button>'+
+        (activo
+          ? '<button class="a-act a-act--warn" onclick="handleSuspend(\''+r.id+'\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> Suspender</button>'
+          : '<button class="a-act a-act--approve" onclick="handleReactivate(\''+r.id+'\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg> Reactivar</button>'
+        )+'</div></td>'+
+    '</tr>';
+  }).join('');
+}
+
+// ────────────────────── EQUIPO ──────────────────────
+
+function renderEquipo() {
+  var EQUIPO = [
+    {id:'e1',nombre:'Sergio A. Abadía', email:'elparche.foodpopayan@gmail.com',rol:'Dueño',  acceso:'Total',       last:'Activo ahora', you:true},
+  ];
+  var ROLES = [
+    {rol:'Dueño',   tone:'indigo', desc:'Control total: facturación, equipo y configuración.'},
+    {rol:'Admin',   tone:'violet', desc:'Aprueba solicitudes y gestiona clientes.'},
+    {rol:'Soporte', tone:'sky',    desc:'Acceso de lectura y atención a clientes.'},
+    {rol:'Finanzas',tone:'green',  desc:'Facturación, planes e ingresos.'}
+  ];
+
+  document.getElementById('eq-tbody').innerHTML = EQUIPO.map(function(m,i) {
+    var tone = ROLE_TONE[m.rol] || 'gray';
+    return '<tr>'+
+      '<td><div class="a-cell-row">'+avatarHtml(m.nombre,38,i+1)+
+        '<div class="a-cell-info"><div class="a-cell-strong">'+m.nombre+
+          (m.you ? '<span class="eq-you">· Tú</span>' : '')+
+        '</div><div class="a-cell-muted">'+m.email+'</div></div></div></td>'+
+      '<td>'+badgeHtml(tone,m.rol,false)+'</td>'+
+      '<td class="a-cell-muted">'+m.acceso+'</td>'+
+      '<td>'+
+        (m.you
+          ? '<span class="eq-online"><span class="eq-online-dot"></span>Activo ahora</span>'
+          : '<span style="color:#64748B;font-size:13px">'+m.last+'</span>'
+        )+'</td>'+
+      '<td><div class="a-act-col">'+
+        '<button class="a-act a-act--neutral"'+(m.you?' disabled':'')+'>Rol</button>'+
+        '<button class="a-act a-act--reject"'+(m.you?' disabled':'')+'>Revocar</button>'+
+      '</div></td>'+
+    '</tr>';
+  }).join('');
+
+  document.getElementById('eq-roles-grid').innerHTML = ROLES.map(function(x) {
+    return '<div class="a-card eq-role-card">'+
+      badgeHtml(x.tone,x.rol,false)+
+      '<p class="eq-role-desc">'+x.desc+'</p>'+
     '</div>';
   }).join('');
 }
 
-function renderActivity(pendingCount) {
-  var items = ACTIVITY_DATA.slice();
-  if (pendingCount > 0) {
-    items.unshift({ ic: 'inbox', tone: 'amber', txt: '<b>' + pendingCount + ' solicitud' + (pendingCount > 1 ? 'es pendientes' : ' pendiente') + '</b> esperando aprobación.', when: 'Ahora' });
-  }
-  $('activity-feed').innerHTML = items.map(function(a) {
-    return '<div class="rs-act-row">' +
-      '<span class="rs-act-ic rs-act-ic--' + a.tone + '">' + iconSvg(a.ic, 15) + '</span>' +
-      '<div style="flex:1;min-width:0;">' +
-        '<div class="rs-act-text">' + a.txt + '</div>' +
-        '<div class="rs-act-when">' + a.when + '</div>' +
-      '</div></div>';
+// ────────────────────── PLANES ──────────────────────
+
+function renderPlanes() {
+  document.getElementById('pl-cards').innerHTML = PLANS_DATA.map(function(plan) {
+    var featHtml = plan.features.map(function(f) {
+      return '<li class="pl-feat"><span class="pl-tick"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>'+f+'</li>';
+    }).join('');
+
+    return '<div class="a-card pl-card'+(plan.popular?' pl-card--pop':'')+'">'+
+      (plan.popular ? '<span class="pl-popular">★ Más popular</span>' : '')+
+      '<div class="pl-top"><div class="pl-name">'+plan.name+'</div>'+badgeHtml(plan.popular?'indigo':'violet',plan.popular?'Avanzado':'Básico',false)+'</div>'+
+      '<p class="pl-tagline">'+plan.tagline+'</p>'+
+      '<div class="pl-price-section">'+
+        '<div><span class="pl-price">'+cop(plan.price)+'</span><span class="pl-price-per">/ mes · sucursal</span></div>'+
+        '<div class="pl-price-note">Precio base · antes de descuento por volumen</div>'+
+      '</div>'+
+      (plan.inheritsLabel
+        ? '<div class="pl-inherits"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'+plan.inheritsLabel+'</div>'
+        : '')+
+      '<ul class="pl-feats">'+featHtml+'</ul>'+
+    '</div>';
+  }).join('');
+
+  document.getElementById('pl-tiers').innerHTML = TIERS.map(function(t,i) {
+    return '<div class="pl-tier">'+
+      '<div class="pl-tier-pct '+( t.off ? 'pl-tier-pct--off' : 'pl-tier-pct--zero')+'">'+
+        (t.off ? '−'+(t.off*100)+'%' : '0%')+
+      '</div>'+
+      '<div class="pl-tier-label">'+t.label+'</div>'+
+    '</div>';
   }).join('');
 }
 
-function updatePendingBadge(n) {
-  var badge = $('pending-badge');
-  if (n > 0) { badge.textContent = n; badge.style.display = 'inline-flex'; }
-  else { badge.style.display = 'none'; }
+// ────────────────────── ACTIONS ──────────────────────
+
+function handleApprove(id, email) {
+  var reg = S.registrations.find(function(r){return r.id===id;});
+  var nombre = reg ? (reg.negocio||reg.nombre||email) : email;
+  showConfirm('Aprobar registro', '¿Confirmar la aprobación de "'+nombre+'"? Se crearán las cuentas y se enviará acceso al cliente.',
+    function() { approveRegistration(id, email); });
+}
+function handleReject(id) {
+  var reg = S.registrations.find(function(r){return r.id===id;});
+  var nombre = reg ? (reg.negocio||reg.nombre||'este registro') : 'este registro';
+  showConfirm('Rechazar solicitud', '¿Rechazar la solicitud de "'+nombre+'"?',
+    function() { rejectRegistration(id); });
+}
+function handleReopen(id) {
+  showConfirm('Reabrir solicitud', '¿Cambiar el estado de esta solicitud a Pendiente?', async function() {
+    await sb.from('pos_registrations').update({status:'pendiente'}).eq('id', id);
+    showToast('Solicitud reabierta','green');
+    loadRegistrations();
+  });
+}
+function handleSuspend(id) {
+  showConfirm('Suspender cliente', 'El cliente perderá acceso a la plataforma. ¿Continuar?', async function() {
+    await sb.from('pos_registrations').update({status:'suspendido'}).eq('id', id);
+    showToast('Cliente suspendido','amber');
+    loadRegistrations();
+  });
+}
+function handleReactivate(id) {
+  showConfirm('Reactivar cliente', '¿Reactivar el acceso de este cliente a la plataforma?', async function() {
+    await sb.from('pos_registrations').update({status:'activo'}).eq('id', id);
+    showToast('Cliente reactivado','green');
+    loadRegistrations();
+  });
 }
 
-// ─────────────────────── SOLICITUDES ───────────────────────
+// ────────────────────── DATA LOAD ──────────────────────
 
 async function loadRegistrations() {
   try {
-    var res = await sb.from('pos_registrations').select('*').order('created_at', { ascending: false });
+    var res = await sb.from('pos_registrations').select('*').order('created_at',{ascending:false});
     S.registrations = res.data || [];
   } catch(e) {
     console.error('loadRegistrations:', e);
     S.registrations = [];
   }
   updateSolCounts();
-  renderSolicitudesTable();
+  renderSolicitudes();
+  renderClientes();
   renderResumen(S.registrations);
 }
 
-function updateSolCounts() {
-  var regs = S.registrations;
-  $('cnt-pendiente').textContent  = regs.filter(function(r) { return r.status === 'pendiente' || r.status === 'pending'; }).length;
-  $('cnt-aprobado').textContent   = regs.filter(function(r) { return r.status === 'aprobado'  || r.status === 'approved'; }).length;
-  $('cnt-rechazado').textContent  = regs.filter(function(r) { return r.status === 'rechazado' || r.status === 'rejected'; }).length;
-  $('cnt-todas').textContent      = regs.length;
-}
-
-function setSolFilter(f) {
-  S.solFilter = f;
-  document.querySelectorAll('#sol-seg button').forEach(function(b) {
-    b.classList.toggle('on', b.dataset.filter === f);
-  });
-  renderSolicitudesTable();
-}
-
-function solStatusMatch(status, filter) {
-  if (filter === 'todas') return true;
-  if (filter === 'pendiente') return status === 'pendiente' || status === 'pending';
-  if (filter === 'aprobado')  return status === 'aprobado'  || status === 'approved';
-  if (filter === 'rechazado') return status === 'rechazado' || status === 'rejected';
-  return status === filter;
-}
-
-function renderSolicitudesTable() {
-  var search = ($('sol-search').value || '').toLowerCase();
-  var rows = S.registrations.filter(function(r) {
-    return solStatusMatch(r.status, S.solFilter) &&
-      (!search || (r.negocio || '').toLowerCase().includes(search) || (r.email || '').toLowerCase().includes(search));
-  });
-
-  if (!rows.length) {
-    $('sol-tbody').innerHTML = '<tr><td colspan="8" class="a-empty">No hay solicitudes en este estado.</td></tr>';
-    return;
-  }
-
-  $('sol-tbody').innerHTML = rows.map(function(r, i) {
-    var off = tierFor(r.sucursales || 1).off;
-    var total = calcTotal(r.plan, r.sucursales || 1);
-    var isPending = r.status === 'pendiente' || r.status === 'pending';
-    var displayStatus = r.status === 'pending' ? 'pendiente' : (r.status === 'approved' ? 'aprobado' : (r.status === 'rejected' ? 'rechazado' : r.status));
-    var actions = isPending
-      ? '<button class="a-act a-act--reject" onclick="rejectRegistration(\'' + r.id + '\')">' + iconSvg('x', 13) + ' Rechazar</button>' +
-        '<button class="a-act a-act--approve" onclick="approveRegistration(\'' + r.id + '\',\'' + (r.email || '') + '\')">' + iconSvg('check', 13) + ' Aprobar</button>'
-      : '<button class="a-act a-act--neutral" onclick="reopenRegistration(\'' + r.id + '\')">' + iconSvg('clock', 13) + ' Reabrir</button>';
-
-    var comprobanteBtn = r.comprobante_url
-      ? '<button class="a-receipt" onclick="viewComprobante(\'' + r.id + '\',\'' + escHtml(r.negocio || '') + '\',\'' + escHtml(r.comprobante_url || '') + '\')">' + iconSvg('paperclip', 13) + ' Ver</button>'
-      : '<span style="color:#CBD5E1;font-size:12.5px">—</span>';
-
-    return '<tr>' +
-      '<td><div style="display:flex;align-items:center;gap:12px;">' +
-        '<div class="a-avatar" style="width:36px;height:36px;font-size:13px;' + avatarStyle(i) + '">' + initials(r.negocio || r.email || '?') + '</div>' +
-        '<div style="min-width:0;"><div class="a-cell-strong">' + escHtml(r.negocio || '—') + '</div>' +
-        '<div class="a-cell-muted">' + escHtml(r.email || '—') + '</div></div>' +
-      '</div></td>' +
-      '<td>' + planBadgeHtml(r.plan) + '</td>' +
-      '<td class="a-num">' + (r.sucursales || 1) + (off > 0 ? '<span style="color:#16A34A;font-size:11.5px;font-weight:700;margin-left:6px">−' + (off * 100) + '%</span>' : '') + '</td>' +
-      '<td class="a-num a-cell-strong">' + cop(r.monto_total || total) + '<span style="font-weight:500;color:#94A3B8;font-size:11.5px">/mes</span></td>' +
-      '<td class="a-cell-muted">' + fmtDate(r.created_at) + '</td>' +
-      '<td>' + badgeHtml(displayStatus) + '</td>' +
-      '<td>' + comprobanteBtn + '</td>' +
-      '<td><div style="display:flex;gap:7px;justify-content:flex-end;">' + actions + '</div></td>' +
-    '</tr>';
-  }).join('');
-}
-
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+// ────────────────────── APPROVE / REJECT ──────────────────────
 
 async function approveRegistration(id, email) {
   showConfirm(
@@ -513,235 +646,18 @@ async function rejectRegistration(id) {
   );
 }
 
-async function reopenRegistration(id) {
-  try {
-    await sb.from('pos_registrations').update({ status: 'pendiente', reviewed_at: null }).eq('id', id);
-    await loadRegistrations();
-    showToast('Solicitud reabierta.', 'green');
-  } catch(e) {
-    showToast('Error al reabrir.', 'red');
-  }
-}
-
-function viewComprobante(id, negocio, url) {
-  $('modal-comp-title').textContent = 'Comprobante — ' + negocio;
-  var isPdf = url.toLowerCase().includes('.pdf');
-  if (isPdf) {
-    $('modal-comp-body').innerHTML =
-      '<a href="' + url + '" target="_blank" class="a-modal-pdf-link">' +
-        iconSvg('paperclip', 16) + ' Abrir PDF en nueva pestaña' +
-      '</a>';
-  } else {
-    $('modal-comp-body').innerHTML = '<img src="' + url + '" class="a-modal-img" alt="Comprobante">';
-  }
-  $('modal-comprobante').classList.add('show');
-}
-
-// ─────────────────────── CLIENTES ───────────────────────
-
-function setCliFilter(f) {
-  S.cliFilter = f;
-  document.querySelectorAll('#cli-seg button').forEach(function(b) {
-    b.classList.toggle('on', b.dataset.filter === f);
-  });
-  renderClientesTable();
-}
-
-function renderClientesFromRegs() {
-  var approved = S.registrations.filter(function(r) {
-    return r.status === 'aprobado' || r.status === 'approved' || r.status === 'activo' || r.status === 'suspendido';
-  });
-
-  var activo = approved.filter(function(r) { return r.status !== 'suspendido'; });
-  var suspendido = approved.filter(function(r) { return r.status === 'suspendido'; });
-
-  $('cli-cnt-todos').textContent = approved.length;
-  $('cli-cnt-activo').textContent = activo.length;
-  $('cli-cnt-suspendido').textContent = suspendido.length;
-
-  S._clientes = approved;
-  renderClientesTable();
-}
-
-function renderClientesTable() {
-  var clientes = S._clientes || [];
-  var search = ($('cli-search').value || '').toLowerCase();
-  var rows = clientes.filter(function(r) {
-    var statusMatch = S.cliFilter === 'todos' ? true :
-      S.cliFilter === 'activo' ? (r.status !== 'suspendido') : (r.status === 'suspendido');
-    return statusMatch && (!search || (r.negocio || '').toLowerCase().includes(search) || (r.email || '').toLowerCase().includes(search));
-  });
-
-  if (!rows.length) {
-    $('cli-tbody').innerHTML = '<tr><td colspan="7" class="a-empty">Sin clientes en este estado.</td></tr>';
-    return;
-  }
-
-  $('cli-tbody').innerHTML = rows.map(function(r, i) {
-    var displayStatus = (r.status === 'aprobado' || r.status === 'approved') ? 'activo' : r.status;
-    var isSuspended = r.status === 'suspendido';
-    var total = calcTotal(r.plan, r.sucursales || 1);
-    var rowStyle = isSuspended ? ' style="opacity:.62"' : '';
-    var actionBtn = isSuspended
-      ? '<button class="a-act a-act--approve" onclick="toggleClientStatus(\'' + r.id + '\',false)">' + iconSvg('play', 13) + ' Reactivar</button>'
-      : '<button class="a-act a-act--warn" onclick="toggleClientStatus(\'' + r.id + '\',true)">' + iconSvg('pause', 13) + ' Suspender</button>';
-
-    return '<tr' + rowStyle + '>' +
-      '<td><div style="display:flex;align-items:center;gap:12px;">' +
-        '<div class="a-avatar" style="width:36px;height:36px;font-size:13px;' + avatarStyle(i + 2) + '">' + initials(r.negocio || r.email || '?') + '</div>' +
-        '<div style="min-width:0;"><div class="a-cell-strong">' + escHtml(r.negocio || '—') + '</div>' +
-        '<div class="a-cell-muted">' + escHtml(r.email || '—') + '</div></div>' +
-      '</div></td>' +
-      '<td>' + planBadgeHtml(r.plan) + '</td>' +
-      '<td class="a-num">' + (r.sucursales || 1) + '</td>' +
-      '<td class="a-num a-cell-strong">' + cop(r.monto_total || total) + '<span style="font-weight:500;color:#94A3B8;font-size:11.5px">/mes</span></td>' +
-      '<td class="a-cell-muted">' + fmtDate(r.reviewed_at || r.created_at) + '</td>' +
-      '<td>' + badgeHtml(displayStatus) + '</td>' +
-      '<td><div style="display:flex;gap:7px;justify-content:flex-end;">' +
-        '<button class="a-act a-act--neutral">' + iconSvg('eye', 13) + ' Detalle</button>' +
-        actionBtn +
-      '</div></td>' +
-    '</tr>';
-  }).join('');
-}
-
-async function toggleClientStatus(id, suspend) {
-  var action = suspend ? 'suspender' : 'reactivar';
-  showConfirm(
-    (suspend ? 'Suspender' : 'Reactivar') + ' cuenta',
-    '¿Confirmar ' + action + ' esta cuenta?',
-    async function() {
-      try {
-        var newStatus = suspend ? 'suspendido' : 'aprobado';
-        await sb.from('pos_registrations').update({ status: newStatus }).eq('id', id);
-        await loadRegistrations();
-        showToast('Cuenta ' + (suspend ? 'suspendida' : 'reactivada') + '.', suspend ? 'amber' : 'green');
-      } catch(e) {
-        showToast('Error al ' + action + ' la cuenta.', 'red');
-      }
-    }
-  );
-}
-
-// ─────────────────────── EQUIPO ───────────────────────
-
-async function loadEquipo() {
-  try {
-    var res = await sb.from('user_profiles').select('id, role, created_at');
-    S.profiles = res.data || [];
-  } catch(e) {
-    console.error('loadEquipo:', e);
-    S.profiles = [];
-  }
-  renderEquipo();
-}
-
-function renderEquipo() {
-  var profiles = S.profiles;
-  if (!profiles.length) {
-    $('eq-tbody').innerHTML = '<tr><td colspan="5" class="a-empty">Sin miembros de equipo registrados.</td></tr>';
-  } else {
-    var ROLE_TONE = { admin: 'violet', client: 'sky', support: 'sky' };
-    var ROLE_LABEL = { admin: 'Admin', client: 'Cliente', support: 'Soporte' };
-    var ROLE_ACCESO = { admin: 'Total', client: 'Solo su cuenta', support: 'Solicitudes / Clientes' };
-    $('eq-tbody').innerHTML = profiles.map(function(p, i) {
-      var isYou = S.currentUser && p.id === S.currentUser.id;
-      var tone = ROLE_TONE[p.role] || 'gray';
-      var roleLabel = ROLE_LABEL[p.role] || p.role;
-      var acceso = ROLE_ACCESO[p.role] || '—';
-      var rowName = 'ID: ' + p.id.substring(0, 8) + '…';
-      return '<tr>' +
-        '<td><div style="display:flex;align-items:center;gap:12px;">' +
-          '<div class="a-avatar" style="width:38px;height:38px;font-size:13px;' + avatarStyle(i + 1) + '">' + p.role.substring(0, 2).toUpperCase() + '</div>' +
-          '<div style="min-width:0;">' +
-            '<div class="a-cell-strong">' + rowName + (isYou ? '<span class="eq-you-tag">· Tú</span>' : '') + '</div>' +
-            '<div class="a-cell-muted">' + (p.role) + '</div>' +
-          '</div></div></td>' +
-        '<td><span class="a-badge a-badge--' + tone + '">' + roleLabel + '</span></td>' +
-        '<td class="a-cell-muted">' + acceso + '</td>' +
-        '<td><span style="display:inline-flex;align-items:center;gap:7px;font-size:13px;color:' + (isYou ? '#16A34A' : '#64748B') + ';">' +
-          (isYou ? '<span class="eq-active-dot"></span>Activo ahora' : fmtDate(p.created_at)) +
-        '</span></td>' +
-        '<td><div style="display:flex;gap:7px;justify-content:flex-end;">' +
-          '<button class="a-act a-act--neutral"' + (isYou ? ' disabled' : '') + '>' + iconSvg('shield', 13) + ' Rol</button>' +
-          '<button class="a-act a-act--reject"' + (isYou ? ' disabled' : '') + '>' + iconSvg('x', 13) + ' Revocar</button>' +
-        '</div></td>' +
-      '</tr>';
-    }).join('');
-  }
-
-  // Roles reference
-  $('eq-roles-grid').innerHTML = [
-    { rol: 'Dueño',   tone: 'indigo',  desc: 'Control total: facturación, equipo y configuración.' },
-    { rol: 'Admin',   tone: 'violet',  desc: 'Aprueba solicitudes y gestiona clientes.' },
-    { rol: 'Soporte', tone: 'sky',     desc: 'Acceso de lectura y atención a clientes.' },
-    { rol: 'Finanzas',tone: 'green',   desc: 'Facturación, planes e ingresos.' },
-  ].map(function(x) {
-    return '<div class="a-card eq-role-card">' +
-      '<span class="a-badge a-badge--' + x.tone + '">' + x.rol + '</span>' +
-      '<p class="eq-role-desc">' + x.desc + '</p>' +
-    '</div>';
-  }).join('');
-}
-
-// ─────────────────────── PLANES ───────────────────────
-
-function renderPlanes() {
-  // Plan cards
-  $('pl-cards').innerHTML = PLANS_DATA.map(function(plan) {
-    var featuresHtml = plan.features.map(function(f) {
-      return '<li class="pl-feat-item">' +
-        '<span class="pl-tick">' + iconSvg('check', 12) + '</span>' + escHtml(f) +
-      '</li>';
-    }).join('');
-    var inheritsHtml = plan.inheritsLabel
-      ? '<div class="pl-inherits">' + iconSvg('check', 13) + escHtml(plan.inheritsLabel) + '</div>'
-      : '';
-    return '<div class="a-card pl-card' + (plan.popular ? ' pl-card--popular' : '') + '">' +
-      (plan.popular ? '<span class="pl-popular-tag">★ Más popular</span>' : '') +
-      '<div style="display:flex;align-items:baseline;justify-content:space-between;">' +
-        '<div style="font-size:22px;font-weight:800;letter-spacing:-0.02em">' + plan.name + '</div>' +
-        planBadgeHtml(plan.id) +
-      '</div>' +
-      '<p style="font-size:13px;color:#64748B;margin:6px 0 0;line-height:1.45">' + escHtml(plan.tagline) + '</p>' +
-      '<div style="margin:18px 0;padding:16px 0;border-top:1px solid #F1F5F9;border-bottom:1px solid #F1F5F9;">' +
-        '<div class="pl-price-row">' +
-          '<span class="pl-price">' + cop(plan.price) + '</span>' +
-          '<span class="pl-price-unit">/ mes · sucursal</span>' +
-        '</div>' +
-        '<div class="pl-price-note">Precio base · antes de descuento por volumen</div>' +
-      '</div>' +
-      inheritsHtml +
-      '<ul class="pl-features">' + featuresHtml + '</ul>' +
-    '</div>';
-  }).join('');
-
-  // Tiers
-  var tiersReversed = TIERS_DATA.slice().reverse();
-  $('pl-tiers').innerHTML = tiersReversed.map(function(t, i) {
-    var isLast = i === tiersReversed.length - 1;
-    return '<div class="pl-tier-cell"' + (isLast ? '' : '') + '>' +
-      '<div class="pl-tier-pct" style="color:' + (t.off ? '#16A34A' : '#64748B') + '">' +
-        (t.off ? '−' + (t.off * 100) + '%' : '0%') +
-      '</div>' +
-      '<div class="pl-tier-label">' + t.label + '</div>' +
-    '</div>';
-  }).join('');
-}
-
-// ─────────────────────── BOOT ───────────────────────
+// ────────────────────── BOOT ──────────────────────
 
 document.addEventListener('DOMContentLoaded', async function() {
-  // Render static sections immediately
+  // Render static content immediately
   renderResumen([]);
-  renderPlanes();
   renderEquipo();
+  renderPlanes();
+  updateSolCounts();
+  renderSolicitudes();
+  renderClientes();
 
-  // Auth check
+  // Auth + data
   await checkAdmin();
-
-  // Load data
   await loadRegistrations();
-  renderClientesFromRegs();
-  await loadEquipo();
 });
