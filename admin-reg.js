@@ -136,17 +136,17 @@ function iconSvg(name, size) {
 // ── View navigation ──
 var currentView = 'resumen';
 function setView(id) {
-  document.querySelectorAll('.a-view').forEach(function(v) { v.classList.remove('active'); });
+  document.querySelectorAll('.cp-screen').forEach(function(v) { v.classList.remove('on'); });
   var el = $('view-' + id);
-  if (el) el.classList.add('active');
+  if (el) el.classList.add('on');
 
   document.querySelectorAll('.sh-nav').forEach(function(b) {
     b.classList.toggle('on', b.dataset.view === id);
   });
 
   var meta = PAGE_META[id] || { kicker: '', crumb: id };
-  $('topbar-kicker').textContent = meta.kicker;
-  $('topbar-crumb').textContent = meta.crumb;
+  $('crumb-kicker').textContent = meta.kicker;
+  $('crumb-title').textContent = meta.crumb;
   currentView = id;
 }
 
@@ -154,30 +154,25 @@ function setView(id) {
 var toastTimer = null;
 function showToast(msg, tone) {
   tone = tone || 'green';
-  $('toast-msg').textContent = msg;
-  var ic = $('toast-ic');
-  ic.className = 'a-toast-ic a-toast-ic--' + tone;
-  var iconHtml = tone === 'green'
-    ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
-    : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-  ic.innerHTML = iconHtml;
-  var toast = $('app-toast');
-  toast.classList.add('show');
+  var toast = $('toast');
+  toast.textContent = msg;
+  toast.className = 'a-toast a-toast--' + tone + ' show';
   clearTimeout(toastTimer);
   toastTimer = setTimeout(function() { toast.classList.remove('show'); }, 3500);
 }
 
 // ── Modal helpers ──
-function openModal(id) { $(id).classList.add('open'); }
-function closeModal(id) { $(id).classList.remove('open'); }
+function openModal() { $('modal-overlay').classList.add('show'); }
+function closeModal() { $('modal-overlay').classList.remove('show'); }
+function closeCompModal() { $('modal-comprobante').classList.remove('show'); }
 
 // ── Confirm helper ──
 function showConfirm(title, msg, onOk) {
-  $('confirm-title').textContent = title;
-  $('confirm-msg').textContent = msg;
-  var btn = $('confirm-ok');
-  btn.onclick = function() { closeModal('modal-confirm'); onOk(); };
-  openModal('modal-confirm');
+  $('modal-title').textContent = title;
+  $('modal-msg').textContent = msg;
+  var btn = $('modal-ok');
+  btn.onclick = function() { closeModal(); onOk(); };
+  openModal();
 }
 
 // ── Auth check ──
@@ -225,32 +220,18 @@ function renderResumen(regs) {
 
   // Greeting
   var name = ($('admin-name').textContent || 'Sergio').split(' ')[0];
-  $('rs-greeting').textContent = greetingWord() + ', ' + name + '.';
-  $('rs-lead').innerHTML = 'Tienes <b style="color:#5B6BFF">' + pendientes.length + ' solicitudes</b> esperando aprobación y la plataforma factura ' + cop(mrr) + ' este mes.';
+  $('greeting').textContent = greetingWord() + ', ' + name + '.';
+  $('resumen-lead').innerHTML = 'Tienes <b style="color:#5B6BFF">' + pendientes.length + ' solicitudes</b> esperando aprobación y la plataforma factura ' + cop(mrr) + ' este mes.';
 
-  // KPI grid
-  var kpiData = [
-    { icon: 'building', label: 'Clientes activos',        value: activos.length,       delta: '+' + activos.length + ' activos',  tone: 'green', accent: true,  sub: regs.length + ' cuentas en total' },
-    { icon: 'inbox',    label: 'Solicitudes pendientes',  value: pendientes.length,    delta: pendientes.length ? 'Requiere acción' : 'Al día', tone: pendientes.length ? 'amber' : 'green', sub: 'Tiempo prom. de respuesta: 6 h' },
-    { icon: 'wallet',   label: 'MRR estimado',            value: cop(mrr),             delta: '+12,4%', tone: 'green', sub: 'Ingresos recurrentes / mes' },
-    { icon: 'spark',    label: 'Nuevos este mes',         value: activos.length,       delta: 'Este mes', tone: 'green', sub: new Date().toLocaleString('es-CO', { month: 'long', year: 'numeric' }) },
-  ];
-  $('rs-kpi-grid').innerHTML = kpiData.map(function(k) {
-    return '<div class="a-stat">' +
-      '<div class="a-stat-top">' +
-        '<span class="a-stat-ic' + (k.accent ? ' a-stat-ic--accent' : '') + '">' + iconSvg(k.icon, 17) + '</span>' +
-        '<span class="a-stat-delta a-stat-delta--' + k.tone + '">' + k.delta + '</span>' +
-      '</div>' +
-      '<div class="a-stat-value">' + k.value + '</div>' +
-      '<div class="a-stat-label">' + k.label + '</div>' +
-      '<div class="a-stat-sub">' + k.sub + '</div>' +
-      '</div>';
-  }).join('');
-
-  // Plan split
-  $('rs-plan-sub').textContent = total + ' cuentas activas distribuidas';
+  // KPI cells
+  if ($('kpi-activos'))   $('kpi-activos').textContent   = activos.length;
+  if ($('kpi-pendientes'))$('kpi-pendientes').textContent= pendientes.length;
+  if ($('kpi-mrr'))       $('kpi-mrr').textContent       = cop(mrr);
+  if ($('kpi-nuevos'))    $('kpi-nuevos').textContent    = activos.length;
+  if ($('kpi-activos-delta')) $('kpi-activos-delta').textContent = activos.length + ' activos';
+  if ($('kpi-pend-delta'))    $('kpi-pend-delta').textContent    = pendientes.length ? 'Requiere acción' : 'Al día';
   renderDonut(pro.length, starter.length);
-  $('rs-plan-lines').innerHTML = [
+  $('planlines').innerHTML = [
     { color: '#5B6BFF', name: 'Pro',     count: pro.length,     price: '$249.000 / suc.' },
     { color: '#8B5CF6', name: 'Starter', count: starter.length, price: '$99.000 / suc.' },
   ].map(function(pl) {
@@ -283,17 +264,15 @@ function renderDonut(pro, starter) {
   var total = pro + starter || 1;
   var C = 2 * Math.PI * 52;
   var proFrac = pro / total;
-  $('rs-donut').innerHTML =
-    '<svg width="140" height="140" viewBox="0 0 140 140" style="transform:rotate(-90deg)">' +
+  var svg = $('donut-svg');
+  if (svg) svg.innerHTML =
+    '<g style="transform:rotate(-90deg);transform-origin:70px 70px">' +
       '<circle cx="70" cy="70" r="52" fill="none" stroke="#8B5CF6" stroke-width="18"/>' +
       '<circle cx="70" cy="70" r="52" fill="none" stroke="#5B6BFF" stroke-width="18"' +
         ' stroke-dasharray="' + (C * proFrac).toFixed(2) + ' ' + C.toFixed(2) + '"' +
         ' stroke-linecap="round"/>' +
-    '</svg>' +
-    '<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">' +
-      '<div style="font-size:30px;font-weight:800;letter-spacing:-0.03em;line-height:1">' + (pro + starter) + '</div>' +
-      '<div style="font-size:11px;color:#94A3B8;margin-top:2px">activos</div>' +
-    '</div>';
+    '</g>';
+  if ($('donut-total')) $('donut-total').textContent = pro + starter;
 }
 
 function renderMrrChart() {
@@ -301,7 +280,7 @@ function renderMrrChart() {
   var labels = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'];
   var maxVal = 8;
   var maxPx = 72; // max bar height in pixels
-  $('rs-mrr-chart').innerHTML = data.map(function(v, i) {
+  $('mrr-chart').innerHTML = data.map(function(v, i) {
     var isLast = i === data.length - 1;
     var h = Math.max(4, Math.round((v / maxVal) * maxPx));
     return '<div class="rs-mrr-bar-wrap">' +
@@ -321,7 +300,7 @@ function renderActivity(pendingCount) {
   if (pendingCount > 0) {
     items.unshift({ ic: 'inbox', tone: 'amber', txt: '<b>' + pendingCount + ' solicitud' + (pendingCount > 1 ? 'es pendientes' : ' pendiente') + '</b> esperando aprobación.', when: 'Ahora' });
   }
-  $('rs-activity').innerHTML = items.map(function(a) {
+  $('activity-feed').innerHTML = items.map(function(a) {
     return '<div class="rs-act-row">' +
       '<span class="rs-act-ic rs-act-ic--' + a.tone + '">' + iconSvg(a.ic, 15) + '</span>' +
       '<div style="flex:1;min-width:0;">' +
@@ -555,7 +534,7 @@ function viewComprobante(id, negocio, url) {
   } else {
     $('modal-comp-body').innerHTML = '<img src="' + url + '" class="a-modal-img" alt="Comprobante">';
   }
-  openModal('modal-comprobante');
+  $('modal-comprobante').classList.add('show');
 }
 
 // ─────────────────────── CLIENTES ───────────────────────
