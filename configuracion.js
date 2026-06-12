@@ -786,8 +786,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // USUARIOS Y ROLES — conectado a Supabase Auth + pos_roles
 // ════════════════════════════════════════════════════════════
 
-// Service role key (split para protección GitHub)
-var SB_SVC = ['eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTEwNTc1NywiZXhwIjoyMDk2NjgxNzU3fQ','8UKJSuLisx_BKW3Wz6nM3yTqsy1Fvlb8VjYNzSPhsSM'].join('.');
+// SB_URL reutiliza la URL del cliente Supabase existente (pos-core.js)
 var SB_URL = 'https://tblujfduscslxjmrjbdr.supabase.co';
 
 var UR_PERMS = [
@@ -843,32 +842,23 @@ function urShowToast(msg) {
   setTimeout(function(){ t.setAttribute('hidden',''); }, 2400);
 }
 
-// ── Supabase fetch helpers ────────────────────────────────────
-function sbSvc(path, method, body) {
-  return fetch(SB_URL + path, {
-    method: method || 'GET',
+// ── Edge Function helper — manage-user ───────────────────────
+// Evita CORS al llamar Admin Auth API directamente desde el browser.
+// La Edge Function corre server-side con service_role.
+async function manageUser(payload) {
+  var { data: { session } } = await sb.auth.getSession();
+  var token = session ? session.access_token : SB_SVC;
+  var res = await fetch(SB_URL + '/functions/v1/manage-user', {
+    method: 'POST',
     headers: {
-      'apikey': SB_SVC,
-      'Authorization': 'Bearer ' + SB_SVC,
-      'Content-Type': 'application/json',
-      'Prefer': method === 'POST' ? 'return=representation' : ''
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'application/json'
     },
-    body: body ? JSON.stringify(body) : undefined
-  }).then(function(r){ return r.json(); });
-}
-
-function sbAnon(path, method, body) {
-  var ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
-  return fetch(SB_URL + path, {
-    method: method || 'GET',
-    headers: {
-      'apikey': ANON,
-      'Authorization': 'Bearer ' + SB_SVC,
-      'Content-Type': 'application/json',
-      'Prefer': 'return=representation'
-    },
-    body: body ? JSON.stringify(body) : undefined
-  }).then(function(r){ return r.json(); });
+    body: JSON.stringify(payload)
+  });
+  var json = await res.json();
+  if (json.error) throw new Error(json.error);
+  return json;
 }
 
 // ── Carga inicial desde Supabase ─────────────────────────────
@@ -921,21 +911,19 @@ async function urLoad() {
 // ── Crear usuario en Auth + pos_users ────────────────────────
 async function urCreateAuthUser(u, tenantId, branchId) {
   var role = urRoleById(u.roleId);
-  // 1. Crear en Supabase Auth (admin)
-  var authRes = await sbSvc('/auth/v1/admin/users', 'POST', {
+  // 1. Crear en Supabase Auth via Edge Function (evita CORS)
+  var authRes = await manageUser({
+    action: 'create',
     email: u.email,
     password: u.pass || urGenPass(),
-    email_confirm: true,
-    user_metadata: {
+    metadata: {
       tenant_id: tenantId,
       branch_id: branchId,
       role: role ? role.name.toLowerCase() : 'empleado',
       nombre: u.name
     }
   });
-  if (authRes.error || !authRes.id) {
-    throw new Error(authRes.error || authRes.message || 'Error creando usuario en Auth');
-  }
+  if (!authRes.id) throw new Error('Error creando usuario en Auth');
   var authUserId = authRes.id;
 
   // 2. Insertar en pos_users
@@ -978,7 +966,7 @@ async function urUpdateAuthUser(u) {
       user_metadata: { nombre: u.name, role: upd.role }
     };
     if (u.pass && u.pass.length >= 6) authUpd.password = u.pass;
-    await sbSvc('/auth/v1/admin/users/' + u.authId, 'PUT', authUpd);
+    await manageUser({ action: 'update', userId: u.authId, email: authUpd.email, password: authUpd.password, metadata: authUpd.user_metadata });
   }
 }
 
@@ -986,7 +974,7 @@ async function urUpdateAuthUser(u) {
 async function urDeleteAuthUser(u) {
   await sb.from('pos_users').delete().eq('id', u.id);
   if (u.authId) {
-    await sbSvc('/auth/v1/admin/users/' + u.authId, 'DELETE');
+    await manageUser({ action: 'delete', userId: u.authId });
   }
 }
 
