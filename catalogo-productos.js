@@ -27,6 +27,7 @@ const S = {
   editProd:null, editCombo:null, editMod:null, editCat:null,
   aiStage:'source', aiTab:'file', aiFile:null, aiUrl:'', aiResult:null, aiError:null,
   aiExcluded:{}, aiOpenCat:null, aiTimers:[],
+  selectMode:false, selected:new Set(), loading:true,
 };
 
 // ── Fotos Supabase Storage ──────────────────────────────────────────────
@@ -235,6 +236,10 @@ function renderBody(){
 function renderProductGrid(body){
   const q=S.query.trim().toLowerCase();
   const filtered=S.products.filter(p=>(!S.filterCat||p.cat===S.filterCat)&&(!q||p.name.toLowerCase().includes(q)||catOf(p.cat).name.toLowerCase().includes(q)));
+  if(S.loading){
+    body.innerHTML='<div class="cp-loading-grid">'+'<div class="cp-skel-card"></div>'.repeat(8)+'</div>';
+    return;
+  }
   if(!filtered.length){
     body.innerHTML='<div class="cp-empty"><div class="cp-empty-icon">'+icon('box',28,1.6)+'</div><h3>No hay productos en esta vista</h3><p>Crea tu primer producto o importa tu carta con IA.</p><div class="cp-empty-actions"><button class="cc-btn-ai" onclick="openAIImport()">'+icon('sparkle',14)+' Importar con IA</button><button class="lm-btn-ghost" onclick="openEditor(null,\'product\')">'+icon('plus',14)+' Nuevo producto</button></div></div>';
     return;
@@ -582,6 +587,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadCategories(), loadModifierGroups()]);
   await loadProducts();
   await loadCombos();
+  S.loading=false;
   renderPage();
 
   // Redirigir si la sesión expira

@@ -342,3 +342,8 @@ textarea.cc-input{resize:none;line-height:1.5;}
 .cp-sel-toggle:hover{background:#F8FAFC;}
 .lm-btn-danger{padding:8px 18px;border-radius:8px;border:none;background:#F43F5E;color:#fff;font-size:13px;font-weight:600;cursor:pointer;}
 .lm-btn-danger:hover{background:#E11D48;}
+
+/* Loading skeleton */
+.cp-loading-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;padding:4px 0;}
+.cp-skel-card{height:220px;border-radius:14px;background:linear-gradient(90deg,#f1f5f9 25%,#e8edf3 50%,#f1f5f9 75%);background-size:200% 100%;animation:cp-shimmer 1.4s infinite;}
+@keyframes cp-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
