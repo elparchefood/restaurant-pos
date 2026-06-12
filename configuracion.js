@@ -932,7 +932,7 @@ async function urCreateAuthUser(u, tenantId, branchId) {
     email:        u.email,
     phone:        '',
     role:         role ? role.name.toLowerCase() : 'empleado',
-    role_id:      u.roleId  || null,
+    role_id:      (function(){ var re=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i; return re.test(u.roleId)?u.roleId:null; })(),
     branch_id:    branchId  || null,
     active:       u.active !== false,
     sucursales:   u.sucursales || [],
@@ -1146,7 +1146,8 @@ function urSelectUser(id) {
   var sel=$('ur-u-rol');
   if(sel){
     sel.innerHTML='';
-    UR.roles.forEach(function(r){
+    var uuidReS=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    UR.roles.filter(function(r){return uuidReS.test(r.id);}).forEach(function(r){
       var opt=document.createElement('option');
       opt.value=r.id; opt.textContent=r.name;
       if(r.id===u.roleId) opt.selected=true;
@@ -1429,7 +1430,9 @@ function urRenderPerms(r) {
 
 // ── CRUD ─────────────────────────────────────────────────────
 async function urAddUser() {
-  var defaultRole=UR.roles.find(function(r){return !r.system;})||UR.roles[0];
+  var uuidRe=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  var savedRoles=UR.roles.filter(function(r){return uuidRe.test(r.id);});
+  var defaultRole=savedRoles.find(function(r){return !r.system;})||savedRoles[0]||null;
   var u={ id: urGenId('u'), name:'', email:'', pass: urGenPass(), roleId: defaultRole?defaultRole.id:'', sucursales:[], active:true, _isNew:true };
   UR.users.push(u);
   urRenderUsers();
