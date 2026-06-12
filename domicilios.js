@@ -474,10 +474,18 @@ function openProductModal(id) {
 }
 
 function mpComputePrice() {
-  const base     = WIP.pres ? (WIP.pres.price||0) : (WIP.prod ? WIP.prod.price||0 : 0);
-  const varExtra = Object.values(WIP.vars).reduce((s,v) => s+(v.price||0), 0);
+  const p = WIP.prod;
+  const isMatrix = p && p.price_mode === 'matrix';
+  let base;
+  if (isMatrix) {
+    // Precio real viene de las variables (no de la presentación)
+    base = Object.values(WIP.vars).reduce((s,v) => s+(v.price||0), 0);
+  } else {
+    base = WIP.pres ? (WIP.pres.price||0) : (p ? p.price||0 : 0);
+    base += Object.values(WIP.vars).reduce((s,v) => s+(v.price||0), 0);
+  }
   const modExtra = Object.values(WIP.mods).reduce((s,m) => s+(m.price||0), 0);
-  return (base + varExtra + modExtra) * WIP.qty;
+  return (base + modExtra) * WIP.qty;
 }
 
 function renderMP() {
@@ -496,7 +504,7 @@ function mpStep1(body, foot, title) {
     <div class="mp-pres-grid">
       ${pres.map(pr=>`<button class="mp-pres-btn${WIP.pres&&WIP.pres.id===pr.id?' on':''}" onclick="mpSelPres('${pr.id}')">
         <span class="mp-pres-name">${pr.name}</span>
-        <span class="mp-pres-price">${fmt(pr.price)}</span>
+        ${p.price_mode!=='matrix'?`<span class="mp-pres-price">${fmt(pr.price)}</span>`:''}
       </button>`).join('')}
     </div></div>`;
   const hasVars = (p.variables||[]).length > 0;

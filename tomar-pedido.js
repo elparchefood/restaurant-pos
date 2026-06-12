@@ -377,10 +377,16 @@ function tpOpenProductModal(prodId) {
 }
 
 function tpComputePrice(){
-  const base=TP_WIP.pres?(TP_WIP.pres.price||0):(TP_WIP.prod?parseFloat(TP_WIP.prod.price)||0:0);
-  const varX=Object.values(TP_WIP.vars).reduce((s,v)=>s+(v.price||0),0);
+  const p=TP_WIP.prod, isMatrix=p&&p.price_mode==='matrix';
+  let base;
+  if(isMatrix){
+    base=Object.values(TP_WIP.vars).reduce((s,v)=>s+(v.price||0),0);
+  } else {
+    base=TP_WIP.pres?(TP_WIP.pres.price||0):(p?parseFloat(p.price)||0:0);
+    base+=Object.values(TP_WIP.vars).reduce((s,v)=>s+(v.price||0),0);
+  }
   const modX=Object.values(TP_WIP.mods).reduce((s,m)=>s+(m.price||0),0);
-  return (base+varX+modX)*TP_WIP.qty;
+  return (base+modX)*TP_WIP.qty;
 }
 
 function tpRenderMP(){
@@ -396,7 +402,8 @@ function tpMPStep1(body,foot,title){
   title.textContent=p.name+' · Presentación';
   body.innerHTML=`<div class="mp-step"><div class="mp-step-lbl">¿Cuál presentación quieres?</div>
     <div class="mp-pres-grid">${pres.map(pr=>`<button class="mp-pres-btn${TP_WIP.pres&&TP_WIP.pres.id===pr.id?' on':''}" onclick="tpSelPres('${pr.id}')">
-      <span class="mp-pres-name">${pr.name}</span><span class="mp-pres-price">${tp_fmt(pr.price)}</span>
+      <span class="mp-pres-name">${pr.name}</span>
+      ${p.price_mode!=='matrix'?`<span class="mp-pres-price">${tp_fmt(pr.price)}</span>`:''}
     </button>`).join('')}</div></div>`;
   const hasVars=(p.variables||[]).length>0;
   foot.innerHTML=`<button class="tp-foot-cancel" onclick="tpCloseMP()">Cancelar</button>
