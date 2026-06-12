@@ -74,6 +74,7 @@ const S = {
   cats:      [],
   products:  [],
   favorites: [],
+  modGroups: [],
   domiciliarios: [],
   clientes:  JSON.parse(localStorage.getItem('lumen.domi.clientes') || '[]'),
   deliveries: DOMI_SEED.map(d => Object.assign({ createdAt: Date.now() - d.min * 60000 }, d)),
@@ -107,6 +108,7 @@ function svgInline(name, size, sw) {
   switch (name) {
     case 'back':     return `<svg ${p}><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>`;
     case 'back2':    return `<svg ${p}><polyline points="15 18 9 12 15 6"/></svg>`;
+    case 'chevron-r':return `<svg ${p}><polyline points="9 18 15 12 9 6"/></svg>`;
     case 'scooter':  return `<svg ${p}><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 18H15"/><path d="M4 7h4l3 8"/><path d="M14 9h3l3 6"/><path d="M14 9V6h2"/></svg>`;
     case 'list':     return `<svg ${p}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`;
     case 'cart':     return `<svg ${p}><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>`;
@@ -200,14 +202,16 @@ async function loadData() {
   S.cats = cats || [];
 
   const { data: prods } = await sb.from('pos_products')
-    .select('id,name,price,category_id,photo_url,available')
+    .select('id,name,price,price_mode,category_id,photo_url,available,presentations,variables,mod_group_ids')
     .eq('tenant_id', S.tenantId)
     .eq('available', true)
     .order('name');
   S.products  = (prods || []).map(p => ({
-    id: p.id, name: p.name, price: p.price,
-    category_id: p.category_id,
-    photo_url: p.photo_url || null,
+    id: p.id, name: p.name, price: p.price, price_mode: p.price_mode || 'fixed',
+    category_id: p.category_id, photo_url: p.photo_url || null,
+    presentations: Array.isArray(p.presentations) ? p.presentations : [],
+    variables:     Array.isArray(p.variables)     ? p.variables     : [],
+    mod_group_ids: Array.isArray(p.mod_group_ids) ? p.mod_group_ids : [],
   }));
   S.favorites = [];
 
@@ -222,6 +226,18 @@ async function loadData() {
     tel:    u.phone || '',
     estado: 'Disponible',
   }));
+
+  // Cargar grupos modificadores en segundo plano (no bloquea el catálogo)
+  sb.from('pos_modifier_groups')
+    .select('id,name,rule,multi,options')
+    .eq('tenant_id', S.tenantId)
+    .then(({ data }) => {
+      S.modGroups = (data || []).map(g => ({
+        id: g.id, name: g.name,
+        rule: g.rule || 'opcional', multi: !!g.multi,
+        options: Array.isArray(g.options) ? g.options : [],
+      }));
+    });
 }
 
 // ── Navegación y vistas ────────────────────────────────────────────────
@@ -435,28 +451,192 @@ function renderBusqResults(q) {
 }
 
 // ── Carrito ────────────────────────────────────────────────────────────
-function addToCart(id) {
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── Modal flujo de producto (presentación → variable → modificadores) ──
+// ═══════════════════════════════════════════════════════════════════════
+
+let WIP = { prod:null, step:1, pres:null, vars:{}, mods:{}, qty:1, note:'' };
+
+function openProductModal(id) {
   const p = S.products.find(x => x.id === id);
   if (!p) return;
-  const existing = S.cart.find(i => i.id === id);
-  if (existing) {
-    existing.qty++;
-  } else {
-    const cat = S.cats.find(c => c.id === p.category_id);
-    S.cart.push({ id, name: p.name, price: p.price, qty: 1,
-                  catName: cat ? cat.name : '', catColor: (cat && cat.color) || '#94A3B8' });
+  WIP = { prod:p, step:1, pres:null, vars:{}, mods:{}, qty:1, note:'' };
+  const hasPres = (p.presentations||[]).length > 1;
+  const hasVars = (p.variables||[]).length > 0;
+  if (!hasPres) {
+    const pArr = p.presentations || [];
+    WIP.pres = pArr.length === 1 ? pArr[0] : { id:'_base', name:'', price: p.price||0 };
+    WIP.step = hasVars ? 2 : 3;
   }
-  renderCart();
-  renderDetBtn();
-  refreshBrowserQtys();
-  // Pulse visual
-  clearTimeout(addToCart._pt);
-  addToCart._pid = id;
-  addToCart._pt  = setTimeout(() => { addToCart._pid = null; }, 420);
+  openModal('modal-producto');
+  renderMP();
+}
+
+function mpComputePrice() {
+  const base     = WIP.pres ? (WIP.pres.price||0) : (WIP.prod ? WIP.prod.price||0 : 0);
+  const varExtra = Object.values(WIP.vars).reduce((s,v) => s+(v.price||0), 0);
+  const modExtra = Object.values(WIP.mods).reduce((s,m) => s+(m.price||0), 0);
+  return (base + varExtra + modExtra) * WIP.qty;
+}
+
+function renderMP() {
+  const body=$('mp-body'), foot=$('mp-foot'), title=$('mp-title');
+  if (!body) return;
+  if (WIP.step===1) mpStep1(body,foot,title);
+  else if (WIP.step===2) mpStep2(body,foot,title);
+  else mpStep3(body,foot,title);
+}
+
+function mpStep1(body, foot, title) {
+  const p = WIP.prod, pres = p.presentations||[];
+  title.textContent = p.name + ' · Presentación';
+  body.innerHTML = `<div class="mp-step">
+    <div class="mp-step-lbl">¿Cuál presentación quieres?</div>
+    <div class="mp-pres-grid">
+      ${pres.map(pr=>`<button class="mp-pres-btn${WIP.pres&&WIP.pres.id===pr.id?' on':''}" onclick="mpSelPres('${pr.id}')">
+        <span class="mp-pres-name">${pr.name}</span>
+        <span class="mp-pres-price">${fmt(pr.price)}</span>
+      </button>`).join('')}
+    </div></div>`;
+  const hasVars = (p.variables||[]).length > 0;
+  foot.innerHTML = `
+    <button class="d-foot-cancel" onclick="closeModal('modal-producto')">Cancelar</button>
+    <button class="d-foot-next" id="mp-next" onclick="mpAdvance()" ${WIP.pres?'':'disabled'}>
+      ${hasVars?'Siguiente':'Personalizar'} ${svgInline('chevron-r',14)}</button>`;
+}
+
+function mpSelPres(presId) {
+  WIP.pres = (WIP.prod.presentations||[]).find(x=>x.id===presId)||null;
+  document.querySelectorAll('.mp-pres-btn').forEach(b=>b.classList.remove('on'));
+  const t=document.querySelector(`.mp-pres-btn[onclick*="'${presId}'"]`);
+  if(t) t.classList.add('on');
+  const btn=$('mp-next'); if(btn) btn.disabled=false;
+}
+
+function mpStep2(body, foot, title) {
+  const p=WIP.prod, vars=p.variables||[];
+  title.textContent = p.name + ' · Variante';
+  const allDone = vars.every(v=>WIP.vars[v.id]);
+  body.innerHTML = `<div class="mp-step">
+    <div class="mp-step-lbl">Personaliza tu producto</div>
+    ${vars.map(v=>`<div class="mp-var-group">
+      <div class="mp-var-name">${v.name}</div>
+      <div class="mp-var-opts">
+        ${(v.options||[]).map(o=>{
+          const sel=WIP.vars[v.id]&&WIP.vars[v.id].id===o.id;
+          return `<button class="mp-var-opt${sel?' on':''}" onclick="mpSelVar('${v.id}','${o.id}','${(o.name||'').replace(/'/g,"\'")}',${o.price||0})">
+            ${o.name}${o.price?` <span class="mp-opt-price">+${fmt(o.price)}</span>`:''}
+          </button>`;
+        }).join('')}
+      </div></div>`).join('')}
+  </div>`;
+  const hasPres=(p.presentations||[]).length>1;
+  foot.innerHTML = `
+    <button class="d-foot-cancel" onclick="${hasPres?'mpBack()':'closeModal(\'modal-producto\')'}">${hasPres?svgInline('back2',14)+' Atrás':'Cancelar'}</button>
+    <button class="d-foot-next" id="mp-next" onclick="mpAdvance()" ${allDone?'':'disabled'}>Personalizar ${svgInline('chevron-r',14)}</button>`;
+}
+
+function mpSelVar(varId,optId,optName,optPrice) {
+  WIP.vars[varId]={id:optId,name:optName,price:optPrice}; renderMP();
+}
+
+function mpStep3(body, foot, title) {
+  const p=WIP.prod;
+  title.textContent=p.name;
+  const modGroups=(p.mod_group_ids||[]).map(gid=>S.modGroups.find(g=>g.id===gid)).filter(Boolean);
+  const presLabel=WIP.pres&&WIP.pres.name?WIP.pres.name:'';
+  const varLabels=Object.values(WIP.vars).map(v=>v.name).join(' · ');
+  const summary=[presLabel,varLabels].filter(Boolean).join(' · ');
+  const photoHTML=p.photo_url
+    ?`<img src="${p.photo_url}" class="mp-photo" loading="lazy">`
+    :`<div class="mp-photo-placeholder">${(p.name||'?')[0].toUpperCase()}</div>`;
+  const modsHTML=modGroups.length?modGroups.map(g=>`
+    <div class="mp-mod-group">
+      <div class="mp-mod-head">
+        <span class="mp-mod-name">${g.name}</span>
+        <span class="mp-mod-rule${g.rule==='obligatorio'?' req':''}">${g.rule==='obligatorio'?'Obligatorio':'Opcional'}</span>
+      </div>
+      <div class="mp-mod-opts">
+        ${(g.options||[]).map(o=>{
+          const sel=!!WIP.mods[o.id];
+          return `<button class="mp-mod-opt${sel?' on':''}" onclick="mpToggleMod('${o.id}','${(o.name||'').replace(/'/g,"\'")}',${o.price||0})">
+            <span>${o.name}</span>${o.price?`<span class="mp-mod-oprice">+${fmt(o.price)}</span>`:''}
+          </button>`;
+        }).join('')}
+      </div></div>`).join('')
+    :`<div class="mp-no-mods">Sin adiciones disponibles</div>`;
+  body.innerHTML=`<div class="mp-step3">
+    <div class="mp-s3-left">
+      ${photoHTML}
+      <div><div class="mp-s3-name">${p.name}</div>${summary?`<div class="mp-s3-sub">${summary}</div>`:''}</div>
+      <div class="mp-qty-row">
+        <button class="mp-qty-btn" onclick="mpQty(-1)">−</button>
+        <span class="mp-qty-val" id="mp-qty-disp">${WIP.qty}</span>
+        <button class="mp-qty-btn" onclick="mpQty(1)">+</button>
+        <span class="mp-price-live" id="mp-price-disp">${fmt(mpComputePrice())}</span>
+      </div>
+      <div><div class="mp-note-lbl">Nota para cocina</div>
+      <textarea class="mp-note-input" placeholder="Ej: sin cebolla, extra salsa…" oninput="WIP.note=this.value">${WIP.note}</textarea></div>
+    </div>
+    <div class="mp-s3-right">${modsHTML}</div>
+  </div>`;
+  const hasPrev=(p.presentations||[]).length>1||(p.variables||[]).length>0;
+  foot.innerHTML=`
+    <button class="d-foot-cancel" onclick="${hasPrev?'mpBack()':'closeModal(\'modal-producto\')'}">${hasPrev?svgInline('back2',14)+' Atrás':'Cancelar'}</button>
+    <button class="mp-guardar" onclick="mpAddToCart()">${svgInline('check',14)} Agregar al pedido</button>`;
+}
+
+function mpToggleMod(optId,optName,optPrice) {
+  if(WIP.mods[optId]){delete WIP.mods[optId];}else{WIP.mods[optId]={name:optName,price:optPrice};}
+  const btn=document.querySelector(`.mp-mod-opt[onclick*="'${optId}'"]`);
+  if(btn) btn.classList.toggle('on',!!WIP.mods[optId]);
+  const pd=$('mp-price-disp'); if(pd) pd.textContent=fmt(mpComputePrice());
+}
+
+function mpQty(delta) {
+  WIP.qty=Math.max(1,WIP.qty+delta);
+  const qd=$('mp-qty-disp'); if(qd) qd.textContent=WIP.qty;
+  const pd=$('mp-price-disp'); if(pd) pd.textContent=fmt(mpComputePrice());
+}
+
+function mpAdvance() {
+  const p=WIP.prod, hasVars=(p.variables||[]).length>0;
+  if(WIP.step===1){WIP.step=hasVars?2:3;}else if(WIP.step===2){WIP.step=3;}
+  renderMP();
+}
+
+function mpBack() {
+  const p=WIP.prod,hasPres=(p.presentations||[]).length>1,hasVars=(p.variables||[]).length>0;
+  if(WIP.step===3){WIP.step=hasVars?2:(hasPres?1:3);}else if(WIP.step===2){WIP.step=hasPres?1:2;}
+  renderMP();
+}
+
+function mpAddToCart() {
+  const p=WIP.prod, cat=S.cats.find(c=>c.id===p.category_id);
+  const unitPrice=mpComputePrice()/WIP.qty;
+  const presLabel=WIP.pres&&WIP.pres.name?WIP.pres.name:'';
+  const varLabels=Object.values(WIP.vars).map(v=>v.name).join(' · ');
+  const displayName=[p.name,presLabel,varLabels].filter(Boolean).join(' · ');
+  const modSummary=Object.values(WIP.mods).map(m=>m.name).join(', ');
+  const lineId='li_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  S.cart.push({
+    lineId, id:p.id, name:displayName, price:unitPrice, qty:WIP.qty,
+    catName:cat?cat.name:'', catColor:(cat&&cat.color)||'#94A3B8',
+    note:WIP.note||'', modSummary,
+    pres:WIP.pres, vars:{...WIP.vars}, mods:{...WIP.mods},
+  });
+  closeModal('modal-producto');
+  renderCart(); renderDetBtn(); refreshBrowserQtys();
+  toast('Agregado: '+p.name);
+}
+
+function addToCart(id) {
+  openProductModal(id);
 }
 
 function updateQty(id, delta) {
-  const idx = S.cart.findIndex(i => i.id === id);
+  const idx = S.cart.findIndex(i => (i.lineId||i.id) === id);
   if (idx === -1) return;
   S.cart[idx].qty += delta;
   if (S.cart[idx].qty <= 0) S.cart.splice(idx, 1);
@@ -526,15 +706,17 @@ function renderCart() {
   lines.innerHTML = S.cart.map(item => {
     const lineTotal   = item.price * item.qty;
     const iconDec = item.qty === 1 ? svgInline('trash', 12) : svgInline('minus', 12);
-    return `<div class="d-cartline" data-line="${item.id}">
+    return `<div class="d-cartline" data-line="${item.lineId||item.id}">
       <div style="flex:1;min-width:0">
         <div class="d-cl-name">${item.name}</div>
         <div class="d-cl-meta"><span class="dot" style="background:${item.catColor}"></span><span class="txt">${item.catName} · ${fmt(item.price)}</span></div>
+        ${item.modSummary ? `<div class="d-cl-mods">${item.modSummary}</div>` : ''}
+        ${item.note ? `<div class="d-cl-note">📝 ${item.note}</div>` : ''}
       </div>
       <div class="d-line-step">
-        <button class="lm-step sm" data-dec="${item.id}">${iconDec}</button>
+        <button class="lm-step sm" data-dec="${item.lineId||item.id}">${iconDec}</button>
         <span class="num">${item.qty}</span>
-        <button class="lm-step sm" data-inc="${item.id}">${svgInline('plus', 12)}</button>
+        <button class="lm-step sm" data-inc="${item.lineId||item.id}">${svgInline('plus', 12)}</button>
       </div>
       <div class="d-cl-total">${fmt(lineTotal)}</div></div>`;
   }).join('');
@@ -1170,6 +1352,7 @@ function attachEvents() {
       return;
     }
     // Backdrop click en overlay (modal-registro no se cierra si gate está activo)
+    if (e.target.dataset.mpCancel !== undefined) { closeModal('modal-producto'); return; }
     if (e.target.classList.contains('d-overlay')) {
       if (e.target.id === 'modal-registro' && document.body.classList.contains('d-gate')) return;
       e.target.hidden = true; return;

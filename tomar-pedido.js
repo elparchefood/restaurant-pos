@@ -11,6 +11,7 @@ const S = {
   cats: [], products: [],
   order: null,  // registro en pos_orders (si ya existe)
   cart: [],     // [{id, productId, name, qty, unitPrice, catColor, selections:{pres,var,mods}}]
+  modGroups: [],
   favs: new Set(JSON.parse(localStorage.getItem('pos_favs') || '[]')),
   personas: 2,
   openAt: null,
@@ -103,7 +104,20 @@ async function loadCatalog() {
       color: c.color || CAT_PALETTE[i % CAT_PALETTE.length].color,
       tint:  c.color_tint || CAT_PALETTE[i % CAT_PALETTE.length].tint,
     }));
-    S.products = prods || [];
+    S.products = (prods || []).map(p => ({
+      ...p,
+      presentations: Array.isArray(p.presentations) ? p.presentations : [],
+      variables:     Array.isArray(p.variables)     ? p.variables     : [],
+      mod_group_ids: Array.isArray(p.mod_group_ids) ? p.mod_group_ids : [],
+    }));
+    // Cargar modificadores en segundo plano (no bloquea catálogo)
+    sb.from('pos_modifier_groups').select('id,name,rule,multi,options').eq('tenant_id', S.tenantId)
+      .then(({data}) => {
+        S.modGroups = (data||[]).map(g => ({
+          id:g.id, name:g.name, rule:g.rule||'opcional', multi:!!g.multi,
+          options: Array.isArray(g.options)?g.options:[],
+        }));
+      });
   } catch(e) {
     console.error('loadCatalog:', e);
   }
@@ -312,7 +326,9 @@ function paintCartState() {
       <div class="tp-cartline-name">${escHtml(it.name)}</div>
       <div class="tp-cartline-meta">
         <span class="dot" style="background:${it.catColor || '#94A3B8'}"></span>
-        <span class="txt">${COPF(it.unitPrice)} c/u${it.selections?.pres ? ' · ' + escHtml(it.selections.pres) : ''}${it.selections?.var ? ' · ' + escHtml(it.selections.var) : ''}</span>
+        <span class="txt">${COPF(it.unitPrice)} c/u${it.selections?.pres ? ' · ' + escHtml(it.selections.pres) : ''}</span>
+        ${it.modSummary ? `<div class="tp-cartline-mods">${escHtml(it.modSummary)}</div>` : ''}
+        ${it.note ? `<div class="tp-cartline-note">📝 ${escHtml(it.note)}</div>` : ''}
       </div>
     </div>
     <div class="tp-line-stepper">
@@ -329,29 +345,190 @@ function paintCartState() {
 }
 
 // ── Agregar al carrito ────────────────────────────────────────
-function addToCart(prodId) {
-  const prod = S.products.find(p => p.id === prodId);
-  if (!prod) return;
-  const color = catColorFor(prodId);
-  const price = basePrice(prod);
-  const existing = S.cart.find(it => it.productId === prodId && !it.selections?.pres && !it.selections?.var);
-  if (existing) {
-    existing.qty++;
-  } else {
-    S.cart.push({
-      id: null,
-      productId: prodId,
-      name: prod.name,
-      qty: 1,
-      unitPrice: price,
-      catColor: color,
-      selections: {},
-    });
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── Modal flujo de producto ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+function tp_fmt(n){ return '$'+Math.round(n||0).toLocaleString('es-CO'); }
+function tp_svg(name,size){
+  size=size||14;
+  const p=`width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
+  if(name==='chevron-r') return `<svg ${p}><polyline points="9 18 15 12 9 6"/></svg>`;
+  if(name==='back2')     return `<svg ${p}><polyline points="15 18 9 12 15 6"/></svg>`;
+  if(name==='check')     return `<svg ${p}><polyline points="20 6 9 12 4 9"/></svg>`;
+  return '';
+}
+
+let TP_WIP = { prod:null, step:1, pres:null, vars:{}, mods:{}, qty:1, note:'', forHere:true };
+
+function tpOpenProductModal(prodId) {
+  const p = S.products.find(x=>x.id===prodId);
+  if(!p) return;
+  TP_WIP = { prod:p, step:1, pres:null, vars:{}, mods:{}, qty:1, note:'', forHere:true };
+  const hasPres=(p.presentations||[]).length>1, hasVars=(p.variables||[]).length>0;
+  if(!hasPres){
+    const pArr=p.presentations||[];
+    TP_WIP.pres = pArr.length===1?pArr[0]:{id:'_base',name:'',price:parseFloat(p.price)||0};
+    TP_WIP.step = hasVars?2:3;
   }
-  paintCartState();
-  // Pulso visual en la tarjeta
-  const btn = document.querySelector(`[data-prod-id="${prodId}"]`);
-  if (btn) { btn.classList.add('pulse'); setTimeout(() => btn.classList.remove('pulse'), 600); }
+  const el=document.getElementById('tp-modal-producto'); if(el) el.hidden=false;
+  tpRenderMP();
+}
+
+function tpComputePrice(){
+  const base=TP_WIP.pres?(TP_WIP.pres.price||0):(TP_WIP.prod?parseFloat(TP_WIP.prod.price)||0:0);
+  const varX=Object.values(TP_WIP.vars).reduce((s,v)=>s+(v.price||0),0);
+  const modX=Object.values(TP_WIP.mods).reduce((s,m)=>s+(m.price||0),0);
+  return (base+varX+modX)*TP_WIP.qty;
+}
+
+function tpRenderMP(){
+  const body=document.getElementById('tp-mp-body'), foot=document.getElementById('tp-mp-foot'), title=document.getElementById('tp-mp-title');
+  if(!body) return;
+  if(TP_WIP.step===1) tpMPStep1(body,foot,title);
+  else if(TP_WIP.step===2) tpMPStep2(body,foot,title);
+  else tpMPStep3(body,foot,title);
+}
+
+function tpMPStep1(body,foot,title){
+  const p=TP_WIP.prod, pres=p.presentations||[];
+  title.textContent=p.name+' · Presentación';
+  body.innerHTML=`<div class="mp-step"><div class="mp-step-lbl">¿Cuál presentación quieres?</div>
+    <div class="mp-pres-grid">${pres.map(pr=>`<button class="mp-pres-btn${TP_WIP.pres&&TP_WIP.pres.id===pr.id?' on':''}" onclick="tpSelPres('${pr.id}')">
+      <span class="mp-pres-name">${pr.name}</span><span class="mp-pres-price">${tp_fmt(pr.price)}</span>
+    </button>`).join('')}</div></div>`;
+  const hasVars=(p.variables||[]).length>0;
+  foot.innerHTML=`<button class="tp-foot-cancel" onclick="tpCloseMP()">Cancelar</button>
+    <button class="tp-foot-next" id="tp-mp-next" onclick="tpMPAdvance()" ${TP_WIP.pres?'':'disabled'}>${hasVars?'Siguiente':'Personalizar'} ${tp_svg('chevron-r')}</button>`;
+}
+
+function tpSelPres(presId){
+  TP_WIP.pres=(TP_WIP.prod.presentations||[]).find(x=>x.id===presId)||null;
+  document.querySelectorAll('.mp-pres-btn').forEach(b=>b.classList.remove('on'));
+  const t=document.querySelector(`.mp-pres-btn[onclick*="'${presId}'"]`); if(t) t.classList.add('on');
+  const btn=document.getElementById('tp-mp-next'); if(btn) btn.disabled=false;
+}
+
+function tpMPStep2(body,foot,title){
+  const p=TP_WIP.prod, vars=p.variables||[];
+  title.textContent=p.name+' · Variante';
+  const allDone=vars.every(v=>TP_WIP.vars[v.id]);
+  body.innerHTML=`<div class="mp-step"><div class="mp-step-lbl">Personaliza tu producto</div>
+    ${vars.map(v=>`<div class="mp-var-group"><div class="mp-var-name">${v.name}</div>
+      <div class="mp-var-opts">${(v.options||[]).map(o=>{
+        const sel=TP_WIP.vars[v.id]&&TP_WIP.vars[v.id].id===o.id;
+        return `<button class="mp-var-opt${sel?' on':''}" onclick="tpSelVar('${v.id}','${o.id}','${(o.name||'').replace(/'/g,"\'")}',${o.price||0})">
+          ${o.name}${o.price?` <span class="mp-opt-price">+${tp_fmt(o.price)}</span>`:''}
+        </button>`;
+      }).join('')}</div></div>`).join('')}
+  </div>`;
+  const hasPres=(p.presentations||[]).length>1;
+  foot.innerHTML=`<button class="tp-foot-cancel" onclick="${hasPres?'tpMPBack()':'tpCloseMP()'}">
+    ${hasPres?tp_svg('back2')+' Atrás':'Cancelar'}</button>
+    <button class="tp-foot-next" id="tp-mp-next" onclick="tpMPAdvance()" ${allDone?'':'disabled'}>Personalizar ${tp_svg('chevron-r')}</button>`;
+}
+
+function tpSelVar(varId,optId,optName,optPrice){
+  TP_WIP.vars[varId]={id:optId,name:optName,price:optPrice}; tpRenderMP();
+}
+
+function tpMPStep3(body,foot,title){
+  const p=TP_WIP.prod;
+  title.textContent=p.name;
+  const modGroups=(p.mod_group_ids||[]).map(gid=>(S.modGroups||[]).find(g=>g.id===gid)).filter(Boolean);
+  const presLabel=TP_WIP.pres&&TP_WIP.pres.name?TP_WIP.pres.name:'';
+  const varLabels=Object.values(TP_WIP.vars).map(v=>v.name).join(' · ');
+  const summary=[presLabel,varLabels].filter(Boolean).join(' · ');
+  const photoHTML=p.photo_url
+    ?`<img src="${p.photo_url}" class="mp-photo" loading="lazy">`
+    :`<div class="mp-photo-placeholder">${(p.name||'?')[0].toUpperCase()}</div>`;
+  const modsHTML=modGroups.length?modGroups.map(g=>`
+    <div class="mp-mod-group">
+      <div class="mp-mod-head"><span class="mp-mod-name">${g.name}</span>
+        <span class="mp-mod-rule${g.rule==='obligatorio'?' req':''}">${g.rule==='obligatorio'?'Obligatorio':'Opcional'}</span></div>
+      <div class="mp-mod-opts">${(g.options||[]).map(o=>{
+        const sel=!!TP_WIP.mods[o.id];
+        return `<button class="mp-mod-opt${sel?' on':''}" onclick="tpToggleMod('${o.id}','${(o.name||'').replace(/'/g,"\'")}',${o.price||0})">
+          <span>${o.name}</span>${o.price?`<span class="mp-mod-oprice">+${tp_fmt(o.price)}</span>`:''}
+        </button>`;
+      }).join('')}</div></div>`).join('')
+    :`<div class="mp-no-mods">Sin adiciones disponibles</div>`;
+  body.innerHTML=`<div class="mp-step3">
+    <div class="mp-s3-left">
+      ${photoHTML}
+      <div><div class="mp-s3-name">${escHtml(p.name)}</div>${summary?`<div class="mp-s3-sub">${escHtml(summary)}</div>`:''}</div>
+      <div class="mp-qty-row">
+        <button class="mp-qty-btn" onclick="tpMPQty(-1)">−</button>
+        <span class="mp-qty-val" id="tp-mp-qty">${TP_WIP.qty}</span>
+        <button class="mp-qty-btn" onclick="tpMPQty(1)">+</button>
+        <span class="mp-price-live" id="tp-mp-price">${tp_fmt(tpComputePrice())}</span>
+      </div>
+      <div class="mp-toggle-row">
+        <button class="mp-toggle-opt${TP_WIP.forHere?' on':''}" onclick="tpToggleForHere(true)">🍽 Mesa</button>
+        <button class="mp-toggle-opt${!TP_WIP.forHere?' on':''}" onclick="tpToggleForHere(false)">📦 Para llevar</button>
+      </div>
+      <div><div class="mp-note-lbl">Nota para cocina</div>
+        <textarea class="mp-note-input" placeholder="Ej: sin cebolla, extra salsa…" oninput="TP_WIP.note=this.value">${TP_WIP.note}</textarea></div>
+    </div>
+    <div class="mp-s3-right">${modsHTML}</div>
+  </div>`;
+  const hasPrev=(p.presentations||[]).length>1||(p.variables||[]).length>0;
+  foot.innerHTML=`<button class="tp-foot-cancel" onclick="${hasPrev?'tpMPBack()':'tpCloseMP()'}">
+    ${hasPrev?tp_svg('back2')+' Atrás':'Cancelar'}</button>
+    <button class="tp-guardar" onclick="tpMPAddToCart()">${tp_svg('check')} Agregar al pedido</button>`;
+}
+
+function tpToggleMod(optId,optName,optPrice){
+  if(TP_WIP.mods[optId]){delete TP_WIP.mods[optId];}else{TP_WIP.mods[optId]={name:optName,price:optPrice};}
+  const btn=document.querySelector(`.mp-mod-opt[onclick*="'${optId}'"]`); if(btn) btn.classList.toggle('on',!!TP_WIP.mods[optId]);
+  const pd=document.getElementById('tp-mp-price'); if(pd) pd.textContent=tp_fmt(tpComputePrice());
+}
+
+function tpMPQty(delta){
+  TP_WIP.qty=Math.max(1,TP_WIP.qty+delta);
+  const qd=document.getElementById('tp-mp-qty'); if(qd) qd.textContent=TP_WIP.qty;
+  const pd=document.getElementById('tp-mp-price'); if(pd) pd.textContent=tp_fmt(tpComputePrice());
+}
+
+function tpToggleForHere(val){
+  TP_WIP.forHere=val;
+  document.querySelectorAll('.mp-toggle-opt').forEach((b,i)=>b.classList.toggle('on',i===(val?0:1)));
+}
+
+function tpMPAdvance(){
+  const p=TP_WIP.prod, hasVars=(p.variables||[]).length>0;
+  if(TP_WIP.step===1){TP_WIP.step=hasVars?2:3;}else if(TP_WIP.step===2){TP_WIP.step=3;}
+  tpRenderMP();
+}
+
+function tpMPBack(){
+  const p=TP_WIP.prod, hasPres=(p.presentations||[]).length>1, hasVars=(p.variables||[]).length>0;
+  if(TP_WIP.step===3){TP_WIP.step=hasVars?2:(hasPres?1:3);}else if(TP_WIP.step===2){TP_WIP.step=hasPres?1:2;}
+  tpRenderMP();
+}
+
+function tpCloseMP(){ const el=document.getElementById('tp-modal-producto'); if(el) el.hidden=true; }
+
+function tpMPAddToCart(){
+  const p=TP_WIP.prod;
+  const presLabel=TP_WIP.pres&&TP_WIP.pres.name?TP_WIP.pres.name:'';
+  const varLabels=Object.values(TP_WIP.vars).map(v=>v.name).join(' · ');
+  const displayName=[p.name,presLabel,varLabels].filter(Boolean).join(' · ');
+  const modSummary=Object.values(TP_WIP.mods).map(m=>m.name).join(', ');
+  const unitPrice=tpComputePrice()/TP_WIP.qty;
+  const lineId='li_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  S.cart.push({
+    id:null, lineId, productId:p.id, name:displayName, qty:TP_WIP.qty,
+    unitPrice, catColor:catColorFor(p.id), modSummary, note:TP_WIP.note||'',
+    forHere:TP_WIP.forHere,
+    selections:{pres:presLabel||null,vars:{...TP_WIP.vars},mods:{...TP_WIP.mods}},
+  });
+  tpCloseMP(); paintCartState();
+}
+
+function addToCart(prodId) {
+  tpOpenProductModal(prodId);
 }
 
 // ── Guardar orden ─────────────────────────────────────────────
@@ -592,6 +769,8 @@ function bindEvents() {
     }
 
     // Decrementar en carrito
+    if(e.target.closest('[data-tp-mp-cancel]')){tpCloseMP();return;}
+    if(e.target.id==='tp-modal-producto'){tpCloseMP();return;}
     const decBtn = e.target.closest('[data-cart-dec]');
     if (decBtn) {
       const idx = parseInt(decBtn.dataset.cartDec);
