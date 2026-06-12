@@ -158,44 +158,44 @@ function colorTint(hex) { return hex + '18'; }
 function colorRing(hex)  { return hex + '66'; }
 
 // ── Boot ───────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
-  // ── Auth ──────────────────────────────────────────────────────────────
-  let authed = false;
-  try {
-    const { data: { session } } = await sb.auth.getSession();
-    if (!session) { window.location.href = 'login.html'; return; }
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user)    { window.location.href = 'login.html'; return; }
-    S.tenantId = (user.user_metadata && user.user_metadata.tenant_id) || user.id;
-    const name = (user.user_metadata && user.user_metadata.full_name) || user.email || 'Usuario';
-    const role = (user.user_metadata && user.user_metadata.role)      || 'Operador';
-    if ($('topbar-name'))   $('topbar-name').textContent   = name;
-    if ($('topbar-role'))   $('topbar-role').textContent   = role;
-    if ($('topbar-role2'))  $('topbar-role2').textContent  = role;
-    if ($('topbar-avatar')) $('topbar-avatar').textContent = initials(name);
-    authed = true;
-  } catch(e) {
-    console.error('domicilios auth error:', e);
-  }
-  if (!authed) { window.location.href = 'login.html'; return; }
-
-  // ── Data ──────────────────────────────────────────────────────────────
-  try { await loadData(); } catch(e) { console.error('domicilios loadData:', e); }
-
-  // ── Render (cada uno con guard propio para no bloquear el siguiente) ──
-  try { renderCatGrid();       } catch(e) { console.error('renderCatGrid:', e); }
-  try { renderMenuPane();      } catch(e) { console.error('renderMenuPane:', e); }
-  try { renderFavPane();       } catch(e) { console.error('renderFavPane:', e); }
-  try { renderCart();          } catch(e) { console.error('renderCart:', e); }
-  try { renderDetBtn();        } catch(e) { console.error('renderDetBtn:', e); }
-  try { renderAsigList();      } catch(e) { console.error('renderAsigList:', e); }
-  try { renderContextHeader(); } catch(e) { console.error('renderContextHeader:', e); }
-  try { renderMonitor();       } catch(e) { console.error('renderMonitor:', e); }
-  try { updateMonitorBadge();  } catch(e) { console.error('updateMonitorBadge:', e); }
-
-  // ── Eventos y modal — SIEMPRE se ejecutan ─────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // ── Eventos: síncrono, sin await, siempre se ejecuta primero ──────────
   attachEvents();
-  openModal('modal-registro');
+
+  // ── Auth + datos: async por separado ─────────────────────────────────
+  (async () => {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { window.location.href = 'login.html'; return; }
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user)    { window.location.href = 'login.html'; return; }
+      S.tenantId = (user.user_metadata && user.user_metadata.tenant_id) || user.id;
+      const name = (user.user_metadata && user.user_metadata.full_name) || user.email || 'Usuario';
+      const role = (user.user_metadata && user.user_metadata.role)      || 'Operador';
+      if ($('topbar-name'))   $('topbar-name').textContent   = name;
+      if ($('topbar-role'))   $('topbar-role').textContent   = role;
+      if ($('topbar-role2'))  $('topbar-role2').textContent  = role;
+      if ($('topbar-avatar')) $('topbar-avatar').textContent = initials(name);
+    } catch(e) {
+      console.error('domicilios auth:', e);
+      window.location.href = 'login.html';
+      return;
+    }
+
+    try { await loadData(); } catch(e) { console.error('loadData:', e); }
+
+    try { renderCatGrid();       } catch(e) { console.error('renderCatGrid:', e); }
+    try { renderMenuPane();      } catch(e) { console.error('renderMenuPane:', e); }
+    try { renderFavPane();       } catch(e) { console.error('renderFavPane:', e); }
+    try { renderCart();          } catch(e) { console.error('renderCart:', e); }
+    try { renderDetBtn();        } catch(e) { console.error('renderDetBtn:', e); }
+    try { renderAsigList();      } catch(e) { console.error('renderAsigList:', e); }
+    try { renderContextHeader(); } catch(e) { console.error('renderContextHeader:', e); }
+    try { renderMonitor();       } catch(e) { console.error('renderMonitor:', e); }
+    try { updateMonitorBadge();  } catch(e) { console.error('updateMonitorBadge:', e); }
+
+    openModal('modal-registro');
+  })();
 });
 
 // ── Cargar datos desde Supabase ────────────────────────────────────────
