@@ -78,8 +78,8 @@ async function handleLogin() {
     // 2. Leer perfil para obtener rol
     const { data: profile, error: profileError } =
       await sb.from('pos_users')
-        .select('role, branch_id, tenant_id, full_name')
-        .eq('auth_id', userId)
+        .select('role, branch_id, tenant_id, name')
+        .eq('auth_user_id', userId)
         .maybeSingle();
 
     if (profileError || !profile) {
@@ -102,7 +102,7 @@ async function handleLogin() {
       sessionStorage.setItem('lumen_role',      role);
       sessionStorage.setItem('lumen_branch_id', profile.branch_id  || '');
       sessionStorage.setItem('lumen_tenant_id', profile.tenant_id  || '');
-      sessionStorage.setItem('lumen_name',      profile.full_name  || email);
+      sessionStorage.setItem('lumen_name',      profile.name  || email);
     } catch (_) { /* sessionStorage bloqueado — no crítico */ }
 
     // 4. Redirigir
