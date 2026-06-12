@@ -1443,12 +1443,7 @@ async function urConfirmCreateUser(u) {
     var { data: { user: me } } = await sb.auth.getUser();
     var tenantId = me.user_metadata.tenant_id;
     var branchId = me.user_metadata.branch_id;
-    // Validar que el rol seleccionado ya tiene UUID real de Supabase
-    var uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (u.roleId && !uuidRe.test(u.roleId)) {
-      urShowToast('El rol seleccionado aún se está guardando, espera un momento e intenta de nuevo');
-      return;
-    }
+    // role_id inválido → null (manejado en el insert con || null)
     var dbUser = await urCreateAuthUser(u, tenantId, branchId);
     u.id = dbUser.id;
     u.authId = dbUser.auth_user_id;
