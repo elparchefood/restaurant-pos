@@ -87,7 +87,7 @@ async function saveProductToSupabase(p) {
     const isNew=!p.id||p.id.startsWith('p_');
     if(isNew){const {data,error}=await sb.from('pos_products').insert([row]).select().single();if(error)throw error;return data.id;}
     else{await sb.from('pos_products').update(row).eq('id',p.id).eq('tenant_id',S.tenantId);return p.id;}
-  } catch(e){console.error('saveProduct error:',e?.message||e?.code||e);return p.id;}
+  } catch(e){const msg=e?.message||e?.code||JSON.stringify(e)||'error desconocido';console.error('saveProduct:',msg);toast('Error producto: '+msg,'error');return p.id;}
 }
 async function saveCategoryToSupabase(c) {
   try {
@@ -95,7 +95,7 @@ async function saveCategoryToSupabase(c) {
     const isNew=!c.id||c.id.startsWith('cat_');
     if(isNew){const {data,error}=await sb.from('pos_categories').insert([row]).select().single();if(error)throw error;return{...c,id:data.id};}
     else{await sb.from('pos_categories').update(row).eq('id',c.id).eq('tenant_id',S.tenantId);return c;}
-  } catch(e){console.error('saveCat error:',e?.message||e?.code||e);return c;}
+  } catch(e){const msg=e?.message||e?.code||JSON.stringify(e)||'error desconocido';console.error('saveCat:',msg);toast('Error categoría: '+msg,'error');return c;}
 }
 async function saveComboToSupabase(c) {
   try {
@@ -103,7 +103,7 @@ async function saveComboToSupabase(c) {
     const isNew=!c.id||c.id.startsWith('c_');
     if(isNew){const {data,error}=await sb.from('pos_combos').insert([row]).select().single();if(error)throw error;return data.id;}
     else{await sb.from('pos_combos').update(row).eq('id',c.id).eq('tenant_id',S.tenantId);return c.id;}
-  } catch(e){console.error('saveCombo:',e);return c.id;}
+  } catch(e){const msg=e?.message||e?.code||JSON.stringify(e)||'error desconocido';console.error('saveCombo:',msg);toast('Error combo: '+msg,'error');return c.id;}
 }
 async function saveModGroupToSupabase(g) {
   try {
@@ -111,7 +111,7 @@ async function saveModGroupToSupabase(g) {
     const isNew=!g.id||g.id.startsWith('mg_');
     if(isNew){const {data,error}=await sb.from('pos_modifier_groups').insert([row]).select().single();if(error)throw error;return data.id;}
     else{await sb.from('pos_modifier_groups').update(row).eq('id',g.id).eq('tenant_id',S.tenantId);return g.id;}
-  } catch(e){console.error('saveMod:',e);return g.id;}
+  } catch(e){const msg=e?.message||e?.code||JSON.stringify(e)||'error desconocido';console.error('saveMod:',msg);toast('Error modificador: '+msg,'error');return g.id;}
 }
 async function deleteCategoryFromSupabase(id){try{await sb.from('pos_categories').delete().eq('id',id).eq('tenant_id',S.tenantId);}catch(e){}}
 async function deleteProductFromSupabase(id){try{await sb.from('pos_products').delete().eq('id',id).eq('tenant_id',S.tenantId);}catch(e){}}
