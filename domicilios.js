@@ -603,47 +603,54 @@ function renderDetBtn() {
   if (!btn) return;
 
   const recogo     = S.modalidad === 'recogo';
-  const externo    = S.courier === 'externo';
+  const externo    = S.courier   === 'externo';
+  const extDirecto = externo && !S.cobramos;
   const hasCliente = !!S.cliente;
+  const hasDir     = recogo || !S.cliente || !!S.cliente.dir; // recogo no necesita dir
   const courierOk  = recogo || externo || !!S.asignado;
-  const incompleto = !hasCliente || !courierOk;
+  const incompleto = !hasCliente || !courierOk || !hasDir;
 
   btn.className = 'd-detbtn' + (incompleto ? ' warn' : '');
 
-  // Status badge
-  if (incompleto) {
-    statusEl.innerHTML = `<span class="d-detbtn-alert">${svgInline('alert', 12)} Faltan datos</span>${svgInline('chevron', 15)}`;
-  } else {
-    statusEl.innerHTML = `<span class="d-detbtn-ok">${svgInline('check', 12)} Completo</span>${svgInline('chevron', 15)}`;
+  // Badge compacto
+  statusEl.innerHTML = incompleto
+    ? `<span class="d-detbtn-alert">${svgInline('alert', 10)} Incompleto</span>${svgInline('chevron', 12)}`
+    : `<span class="d-detbtn-ok">${svgInline('check', 10)} Listo</span>${svgInline('chevron', 12)}`;
+
+  // Chips compactos
+  const dm = S.domiciliarios.find(x => S.asignado && x.id === S.asignado);
+  const chips = [];
+
+  // Cliente
+  chips.push(`<span class="d-detbtn-chip${hasCliente ? '' : ' miss'}">${svgInline('user', 10)}${S.cliente ? S.cliente.nombre : 'Sin cliente'}</span>`);
+
+  // Dirección faltante (naranja urgente)
+  if (S.cliente && !S.cliente.dir && !recogo) {
+    chips.push(`<span class="d-detbtn-chip miss">${svgInline('mappin', 10)} Sin dirección</span>`);
   }
 
-  // Chips
-  const dm = S.domiciliarios.find(x => S.asignado && x.id === S.asignado);
+  // Courier
   const courierTxt = recogo ? 'Recogo en tienda'
-    : externo ? (S.cobramos ? 'Externo · lo cobramos' : 'Externo · paga el cliente')
-    : (dm ? dm.nombre : 'Sin asignar');
-  const extDirecto = externo && !S.cobramos;
-  const pagoTxt = extDirecto
-    ? 'Lo cobra el repartidor'
-    : (S.cobramos
-      ? `Transferencia · ${S.pago.status === 'pagado' ? 'pagado' : 'por pagar'}`
-      : `${S.pago.status === 'pagado' ? 'Pagado' : 'Por pagar'} · ${S.pago.metodo}`);
+    : externo ? (S.cobramos ? 'Ext · cobramos' : 'Ext · cliente paga')
+    : (dm ? dm.nombre : 'Sin domiciliario');
+  chips.push(`<span class="d-detbtn-chip${courierOk ? '' : ' miss'}">${svgInline(externo ? 'truck' : recogo ? 'store' : 'scooter', 10)}${courierTxt}</span>`);
 
-  const courierIcon = externo ? 'truck' : recogo ? 'store' : 'scooter';
-  const pagoIcon    = extDirecto ? 'truck' : (S.pago.status === 'pagado' ? 'check' : 'clock');
+  // Pago (solo si no es externo directo, ya se entiende)
+  if (!extDirecto) {
+    const pagoTxt = S.pago.status === 'pagado'
+      ? `Pagado · ${S.pago.metodo}`
+      : `Por pagar · ${S.pago.metodo}`;
+    chips.push(`<span class="d-detbtn-chip">${svgInline(S.pago.status === 'pagado' ? 'check' : 'clock', 10)}${pagoTxt}</span>`);
+  }
 
-  chipsEl.innerHTML = [
-    `<span class="d-detbtn-chip${hasCliente ? '' : ' miss'}">${svgInline('user', 12)}${S.cliente ? S.cliente.nombre : 'Sin cliente'}</span>`,
-    `<span class="d-detbtn-chip${courierOk ? '' : ' miss'}">${svgInline(courierIcon, 12)}${courierTxt}</span>`,
-    `<span class="d-detbtn-chip">${svgInline(pagoIcon, 12)}${pagoTxt}</span>`,
-  ].join('');
+  chipsEl.innerHTML = chips.join('');
 
   // Enviar button
   const btnEnviar = $('btn-enviar');
   if (btnEnviar) {
-    const count   = S.cart.reduce((a, x) => a + x.qty, 0);
+    const count    = S.cart.reduce((a, x) => a + x.qty, 0);
     const needAsig = !recogo && !externo;
-    const canSend = count > 0 && hasCliente && (!needAsig || !!S.asignado);
+    const canSend  = count > 0 && hasCliente && hasDir && (!needAsig || !!S.asignado);
     btnEnviar.disabled = !canSend;
   }
 }
