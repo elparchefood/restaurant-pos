@@ -90,8 +90,6 @@ const S = {
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────
-function $(id) { return document.getElementById(id); }
-
 function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
 }
