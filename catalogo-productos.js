@@ -26,8 +26,7 @@ const S = {
   filterCat:null, query:'', overlay:null,
   editProd:null, editCombo:null, editMod:null, editCat:null,
   aiStage:'source', aiTab:'file', aiFile:null, aiUrl:'', aiResult:null, aiError:null,
-  aiExcluded:{}, aiOpenCat:null, aiTimers:[], aiReviewTab:'productos',
-  aiImporting:false, aiProgress:'',
+  aiExcluded:{}, aiOpenCat:null, aiTimers:[],
 };
 
 // ── Fotos Supabase Storage ──────────────────────────────────────────────
@@ -60,7 +59,7 @@ async function loadProducts() {
       id:p.id, cat:p.category_id||'_', name:p.name, desc:p.description||'',
       active:p.available!==false, photo:p.photo_url||null, price:p.price||0,
       presentations:p.presentations||[{id:uid('pr'),name:'Unico',price:p.price||0}],
-      variables:p.variables||[], modGroupIds:p.mod_group_ids||[],
+      variables:p.variables||[], modGroupIds:p.mod_group_ids||[], priceMode:p.price_mode||'simple', priceMode:p.price_mode||'simple',
     }));
   } catch(e){}
 }
@@ -82,12 +81,14 @@ async function loadModifierGroups() {
 // ── Saves ──────────────────────────────────────────────────────────────────
 async function saveProductToSupabase(p) {
   try {
-    const basePrice = p.presentations&&p.presentations.length?Math.min(...p.presentations.map(x=>x.price||0)):0;
-    const row={tenant_id:S.tenantId,branch_id:S.branchId,name:p.name,price:basePrice,category_id:(p.cat&&p.cat!=='_'&&!p.cat.startsWith('cat_'))?p.cat:null,available:p.active,description:p.desc||null,photo_url:p.photo||null,presentations:p.presentations||[],variables:p.variables||[],mod_group_ids:p.modGroupIds||[]};
+    const isMatrix=p.priceMode==='matrix';
+    const matrixPrices=isMatrix?(p.variables||[]).flatMap(v=>v.isPricing?(v.options||[]).flatMap(o=>o.prices||[]):[]).filter(Boolean):[];
+    const basePrice=isMatrix?(matrixPrices.length?Math.min(...matrixPrices):0):(p.presentations&&p.presentations.length?Math.min(...p.presentations.map(x=>x.price||0)):0);
+    const row={tenant_id:S.tenantId,branch_id:S.branchId,name:p.name,price:basePrice,price_mode:p.priceMode||'simple',category_id:p.cat==='_'?null:p.cat,available:p.active,description:p.desc||null,photo_url:p.photo||null,presentations:p.presentations||[],variables:p.variables||[],mod_group_ids:p.modGroupIds||[]};
     const isNew=!p.id||p.id.startsWith('p_');
     if(isNew){const {data,error}=await sb.from('pos_products').insert([row]).select().single();if(error)throw error;return data.id;}
     else{await sb.from('pos_products').update(row).eq('id',p.id).eq('tenant_id',S.tenantId);return p.id;}
-  } catch(e){const msg=e?.message||e?.code||JSON.stringify(e)||'error desconocido';console.error('saveProduct:',msg);toast('Error producto: '+msg,'error');return p.id;}
+  } catch(e){console.error('saveProduct:',e);return p.id;}
 }
 async function saveCategoryToSupabase(c) {
   try {
@@ -95,7 +96,7 @@ async function saveCategoryToSupabase(c) {
     const isNew=!c.id||c.id.startsWith('cat_');
     if(isNew){const {data,error}=await sb.from('pos_categories').insert([row]).select().single();if(error)throw error;return{...c,id:data.id};}
     else{await sb.from('pos_categories').update(row).eq('id',c.id).eq('tenant_id',S.tenantId);return c;}
-  } catch(e){const msg=e?.message||e?.code||JSON.stringify(e)||'error desconocido';console.error('saveCat:',msg);toast('Error categoría: '+msg,'error');return c;}
+  } catch(e){console.error('saveCat:',e);return c;}
 }
 async function saveComboToSupabase(c) {
   try {
@@ -103,7 +104,7 @@ async function saveComboToSupabase(c) {
     const isNew=!c.id||c.id.startsWith('c_');
     if(isNew){const {data,error}=await sb.from('pos_combos').insert([row]).select().single();if(error)throw error;return data.id;}
     else{await sb.from('pos_combos').update(row).eq('id',c.id).eq('tenant_id',S.tenantId);return c.id;}
-  } catch(e){const msg=e?.message||e?.code||JSON.stringify(e)||'error desconocido';console.error('saveCombo:',msg);toast('Error combo: '+msg,'error');return c.id;}
+  } catch(e){console.error('saveCombo:',e);return c.id;}
 }
 async function saveModGroupToSupabase(g) {
   try {
@@ -111,7 +112,7 @@ async function saveModGroupToSupabase(g) {
     const isNew=!g.id||g.id.startsWith('mg_');
     if(isNew){const {data,error}=await sb.from('pos_modifier_groups').insert([row]).select().single();if(error)throw error;return data.id;}
     else{await sb.from('pos_modifier_groups').update(row).eq('id',g.id).eq('tenant_id',S.tenantId);return g.id;}
-  } catch(e){const msg=e?.message||e?.code||JSON.stringify(e)||'error desconocido';console.error('saveMod:',msg);toast('Error modificador: '+msg,'error');return g.id;}
+  } catch(e){console.error('saveMod:',e);return g.id;}
 }
 async function deleteCategoryFromSupabase(id){try{await sb.from('pos_categories').delete().eq('id',id).eq('tenant_id',S.tenantId);}catch(e){}}
 async function deleteProductFromSupabase(id){try{await sb.from('pos_products').delete().eq('id',id).eq('tenant_id',S.tenantId);}catch(e){}}
@@ -122,7 +123,7 @@ async function deleteModGroupFromSupabase(id){try{await sb.from('pos_modifier_gr
 async function signOut(){await sb.auth.signOut();window.location.href='login.html';}
 
 // ── UI helpers ────────────────────────────────────────────────────────────
-function toast(msg,type){const el=$('cp-toast');if(!el)return;const isErr=type==='error';el.style.background=isErr?'#EF4444':'#0F172A';el.innerHTML=(isErr?'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>':'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="16 9 11 14 8.5 11.5"/></svg>')+' '+msg;el.style.display='flex';clearTimeout(el._t);el._t=setTimeout(()=>{el.style.display='none';},isErr?4500:2600);}
+function toast(msg){const el=$('cp-toast');if(!el)return;el.innerHTML='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="16 9 11 14 8.5 11.5"/></svg> '+msg;el.style.display='flex';clearTimeout(el._t);el._t=setTimeout(()=>{el.style.display='none';},2600);}
 function catOf(id){return S.cats.find(c=>c.id===id)||{id:'_',name:'Sin categoria',color:'#94A3B8',tint:'#F1F5F9',ring:'#ECEEF2'};}
 function modById(id){return S.mods.find(m=>m.id===id);}
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
@@ -242,7 +243,8 @@ function renderProductGrid(body){
 
 function productCardHTML(p){
   const cat=catOf(p.cat);
-  const prices=p.presentations.map(x=>x.price).filter(Boolean);
+  const _mxPrices=p.priceMode==='matrix'?(p.variables||[]).flatMap(v=>v.isPricing?(v.options||[]).flatMap(o=>o.prices||[]):[]).filter(Boolean):p.presentations.map(x=>x.price).filter(Boolean);
+  const prices=_mxPrices;
   const range=prices.length?(Math.min(...prices)===Math.max(...prices)?fmt(prices[0]):(fmt(Math.min(...prices))+' – '+fmt(Math.max(...prices)))):'--';
   const groups=(p.modGroupIds||[]).map(modById).filter(Boolean);
   const opts=groups.reduce((a,g)=>a+g.options.length,0);
@@ -333,14 +335,14 @@ function openEditor(id,type){
 
 function renderProductEditor(){
   const p=S.editProd,isNew=!S.products.find(x=>x.id===p.id),cat=catOf(p.cat);
-  const priceRange=()=>{const ps=p.presentations.map(x=>x.price).filter(Boolean);if(!ps.length)return '--';const lo=Math.min(...ps),hi=Math.max(...ps);return lo===hi?fmt(lo):(fmt(lo)+' – '+fmt(hi));};
-  const canSave=p.name.trim()&&p.presentations.some(x=>x.name.trim()&&x.price>0);
+  const priceRange=()=>{const ps=p.priceMode==='matrix'?(p.variables||[]).flatMap(v=>v.isPricing?(v.options||[]).flatMap(o=>o.prices||[]):[]).filter(Boolean):p.presentations.map(x=>x.price).filter(Boolean);if(!ps.length)return '--';const lo=Math.min(...ps),hi=Math.max(...ps);return lo===hi?fmt(lo):(fmt(lo)+' – '+fmt(hi));};
+  const canSave=p.name.trim()&&(p.priceMode==='matrix'?p.presentations.some(x=>x.name.trim())&&(p.variables||[]).some(v=>v.isPricing&&(v.options||[]).some(o=>(o.prices||[]).some(pr=>pr>0))):p.presentations.some(x=>x.name.trim()&&x.price>0));
   const catOptions=S.cats.map(c=>'<option value="'+c.id+'" '+(p.cat===c.id?'selected':'')+'>'+escHtml(c.name)+'</option>').join('');
   const presRows=p.presentations.map(pr=>'<div class="cp-pres-row"><span class="cc-grip">'+icon('grip',14)+'</span><input class="cc-input flat" value="'+escHtml(pr.name)+'" placeholder="Nombre (ej. Familiar)" style="flex:1" oninput="setPres(\''+pr.id+'\',\'name\',this.value)"><div class="cc-money"><span class="cc-money-sym">$</span><input type="number" min="0" step="500" value="'+(pr.price||'')+'" placeholder="0" oninput="setPres(\''+pr.id+'\',\'price\',parseInt(this.value)||0)"></div><button class="cc-mini-del" '+(p.presentations.length===1?'disabled':'')+' onclick="delPres(\''+pr.id+'\')">'+icon('trash',13)+'</button></div>').join('');
   const varSections=p.variables.length===0?'<button class="cc-add-group" onclick="addVar()">'+icon('sliders',15)+' Agregar una variable (ej. Proteína: Pollo / Carne / Mixta)</button>':p.variables.map(v=>'<div class="cc-var-card"><div class="cc-var-head"><span class="cc-var-tag">'+icon('sliders',12)+' Elección única</span><input class="cc-input flat" style="flex:1;font-weight:700" value="'+escHtml(v.name)+'" placeholder="Nombre" oninput="setVar(\''+v.id+'\',\'name\',this.value)"><button class="cc-mini-del" onclick="delVar(\''+v.id+'\')">'+icon('trash',13)+'</button></div><div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">'+v.options.map(o=>'<div class="cp-pres-row"><span class="cc-var-dot"></span><input class="cc-input flat" style="flex:1" value="'+escHtml(o.name)+'" placeholder="Opción" oninput="setVarOpt(\''+v.id+'\',\''+o.id+'\',\'name\',this.value)"><div class="cc-money"><span class="cc-money-sym">$</span><input type="number" min="0" step="500" value="'+(o.price||'')+'" placeholder="0" oninput="setVarOpt(\''+v.id+'\',\''+o.id+'\',\'price\',parseInt(this.value)||0)"></div><button class="cc-mini-del" '+(v.options.length===1?'disabled':'')+' onclick="delVarOpt(\''+v.id+'\',\''+o.id+'\')">'+icon('x',13)+'</button></div>').join('')+'</div><button class="lm-link" style="margin-top:8px" onclick="addVarOpt(\''+v.id+'\')">+ Agregar opción</button></div>').join('');
   const modRows=S.mods.length===0?'<button class="cc-add-group" onclick="openModEditorInProduct()">'+icon('plus',15)+' Crear el primer grupo de modificadores</button>':S.mods.map(g=>{const on=(p.modGroupIds||[]).includes(g.id);return '<button class="cc-modtoggle'+(on?' on':'')+'" onclick="toggleModGroup(\''+g.id+'\')"><span class="cc-check'+(on?' on':'')+'">'+( on?icon('check',12,3):'')+'</span><div style="flex:1;min-width:0;text-align:left"><div style="display:flex;align-items:center;gap:7px"><span style="font-size:13px;font-weight:700;color:#0F172A">'+escHtml(g.name)+'</span><span class="cc-tiny-chip">'+RULE_LABEL[g.rule]+'</span><span class="cc-tiny-chip">'+(g.multi?'Varias':'Una')+'</span></div><div style="font-size:11px;color:#94A3B8;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+g.options.map(o=>o.name).join(' · ')+'</div></div><span style="font-size:10.5px;font-weight:700;color:#94A3B8;flex-shrink:0">'+g.options.length+' opc.</span></button>';}).join('');
   const photoHTML=p.photo?'<div class="cc-photo-wrap"><img src="'+escHtml(p.photo)+'" alt=""><div class="cc-photo-overlay"><button class="cc-pill-btn" onclick="document.getElementById(\'prod-photo-input\').click()">'+icon('image',13)+' Cambiar</button><button class="cc-pill-btn danger" onclick="clearProdPhoto()">'+icon('trash',13)+' Quitar</button></div></div>':'<div class="cc-drop" ondragover="event.preventDefault();this.classList.add(\'over\')" ondragleave="this.classList.remove(\'over\')" ondrop="handleProdPhotoDrop(event)" onclick="document.getElementById(\'prod-photo-input\').click()"><div class="cc-drop-icon">'+icon('upload',20)+'</div><div style="font-size:13px;font-weight:700;color:#0F172A">Foto del producto</div><div style="font-size:11.5px;color:#94A3B8;margin-top:3px">Arrastra una imagen o <span style="color:#5B6BFF;font-weight:700">búscala en tu equipo</span></div></div><div class="cc-url-row"><span style="color:#94A3B8;display:flex">'+icon('link',14)+'</span><input id="prod-photo-url" placeholder="…o pega un enlace de imagen" style="flex:1;border:none;outline:none;background:transparent;font-family:inherit;font-size:12.5px"><button class="lm-link" onclick="useProdPhotoUrl()">Usar</button></div>';
-  openOverlay('<div class="cc-overlay" onmousedown="handleOverlayClose(event)"><aside class="cc-drawer" onmousedown="event.stopPropagation()"><div class="cc-drawer-head"><div style="display:flex;align-items:center;gap:10px"><span class="cc-drawer-glyph" style="color:'+cat.color+';background:'+cat.tint+'">'+icon('box',17)+'</span><div><div class="cc-drawer-eyebrow">'+(isNew?'Nuevo producto':'Editar producto')+'</div><div class="cc-drawer-title" id="ed-prod-title">'+(escHtml(p.name)||'Sin nombre')+'</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div class="cc-drawer-body"><input type="file" id="prod-photo-input" accept="image/*" style="display:none" onchange="handleProdPhotoFile(this)">'+photoHTML+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px"><label><span class="field-label">Nombre del producto</span><input class="cc-input" value="'+escHtml(p.name)+'" placeholder="Ej. Premium Mixta" oninput="setProdName(this.value)"></label><label><span class="field-label">Categoría</span><div class="cc-select"><select onchange="setProdCat(this.value)">'+catOptions+'</select><span class="cc-sel-arrow">'+icon('down',14)+'</span></div></label></div><div style="margin-top:12px"><label><span class="field-label">Descripción <span class="hint">· opcional</span></span><textarea class="cc-input" rows="2" placeholder="Ingredientes, detalles…" oninput="setProdDesc(this.value)">'+escHtml(p.desc||'')+'</textarea></label></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Presentaciones</div><div class="cc-section-sub">Tamaño o variante del producto. Cada una con su precio.</div></div><button class="lm-btn-ghost sm" onclick="addPres()">'+icon('plus',13)+' Agregar</button></div><div id="pres-list" style="display:flex;flex-direction:column;gap:8px">'+presRows+'</div></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Variables</div><div class="cc-section-sub">El cliente elige <strong>una</strong> opción por grupo.</div></div><button class="lm-btn-ghost sm" onclick="addVar()">'+icon('plus',13)+' Variable</button></div><div id="var-list">'+varSections+'</div></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Modificadores</div><div class="cc-section-sub">Activa los grupos que aplican a este producto.</div></div><button class="lm-btn-ghost sm" onclick="openModEditorInProduct()">'+icon('plus',13)+' Crear grupo</button></div><div id="mod-list">'+modRows+'</div></div></div><div class="cc-drawer-foot"><div style="display:flex;flex-direction:column"><span style="font-size:10.5px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Rango de precio</span><span id="ed-price-range" style="font-size:15px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">'+priceRange()+'</span></div><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button><button class="lm-btn-primary" id="save-prod-btn" '+(canSave?'':'disabled')+' onclick="saveProduct()">'+icon('check',14)+' Guardar</button></div></div></aside></div>');
+  openOverlay('<div class="cc-overlay" onmousedown="handleOverlayClose(event)"><aside class="cc-drawer" onmousedown="event.stopPropagation()"><div class="cc-drawer-head"><div style="display:flex;align-items:center;gap:10px"><span class="cc-drawer-glyph" style="color:'+cat.color+';background:'+cat.tint+'">'+icon('box',17)+'</span><div><div class="cc-drawer-eyebrow">'+(isNew?'Nuevo producto':'Editar producto')+'</div><div class="cc-drawer-title" id="ed-prod-title">'+escHtml(p.name)||'Sin nombre'+'</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div class="cc-drawer-body"><input type="file" id="prod-photo-input" accept="image/*" style="display:none" onchange="handleProdPhotoFile(this)">'+photoHTML+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px"><label><span class="field-label">Nombre del producto</span><input class="cc-input" value="'+escHtml(p.name)+'" placeholder="Ej. Premium Mixta" oninput="setProdName(this.value)"></label><label><span class="field-label">Categoría</span><div class="cc-select"><select onchange="setProdCat(this.value)">'+catOptions+'</select><span class="cc-sel-arrow">'+icon('down',14)+'</span></div></label></div><div style="margin-top:12px"><label><span class="field-label">Descripción <span class="hint">· opcional</span></span><textarea class="cc-input" rows="2" placeholder="Ingredientes, detalles…" oninput="setProdDesc(this.value)">'+escHtml(p.desc||'')+'</textarea></label></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Presentaciones</div><div class="cc-section-sub">Tamaño o variante del producto. Cada una con su precio.</div></div><button class="lm-btn-ghost sm" onclick="addPres()">'+icon('plus',13)+' Agregar</button></div><div id="pres-list" style="display:flex;flex-direction:column;gap:8px">'+presRows+'</div></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Variables</div><div class="cc-section-sub">El cliente elige <strong>una</strong> opción por grupo.</div></div><button class="lm-btn-ghost sm" onclick="addVar()">'+icon('plus',13)+' Variable</button></div><div id="var-list">'+varSections+'</div></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Modificadores</div><div class="cc-section-sub">Activa los grupos que aplican a este producto.</div></div><button class="lm-btn-ghost sm" onclick="openModEditorInProduct()">'+icon('plus',13)+' Crear grupo</button></div><div id="mod-list">'+modRows+'</div></div></div><div class="cc-drawer-foot"><div style="display:flex;flex-direction:column"><span style="font-size:10.5px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Rango de precio</span><span id="ed-price-range" style="font-size:15px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">'+priceRange()+'</span></div><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button><button class="lm-btn-primary" id="save-prod-btn" '+(canSave?'':'disabled')+' onclick="saveProduct()">'+icon('check',14)+' Guardar</button></div></div></aside></div>');
 }
 
 function setProdName(v){S.editProd.name=v;const t=$('ed-prod-title');if(t)t.textContent=v||'Sin nombre';updateSaveProdBtn();}
@@ -473,77 +475,19 @@ function renderAIImport(){
   } else {
     const ex=S.aiResult||{categories:[]};
     const incl=ex.categories.filter(c=>!S.aiExcluded[c.name]),inclProds=incl.reduce((a,c)=>a+c.products.length,0);
-    const tab=S.aiReviewTab||'productos';
-    const tabBar='<div style="display:flex;gap:4px;background:#F1F5F9;border-radius:10px;padding:4px;margin-bottom:14px"><button class="cc-rtab'+(tab==='productos'?' on':'')+'" onclick="S.aiReviewTab=\'productos\';renderAIImport()">Productos</button><button class="cc-rtab'+(tab==='modificadores'?' on':'')+'" onclick="S.aiReviewTab=\'modificadores\';renderAIImport()">Modificadores <span style="background:#8B5CF6;color:#fff;border-radius:5px;padding:1px 6px;font-size:10px;margin-left:3px">'+((ex.modifier_groups||[]).length)+'</span></button></div>';
-
-    let tabContent='';
-    if(tab==='productos'){
-      const catNames=ex.categories.map(c=>c.name);
-      const catBlocks=ex.categories.map((c,ci)=>{
-        const off=!!S.aiExcluded[c.name],open=S.aiOpenCat===c.name;
-        let prodRows='';
-        if(open&&!off){
-          prodRows=c.products.map((pr,pi)=>{
-            const priceMode=pr.priceMode||'simple';
-            const hasVars=(pr.variables||[]).length>0;
-            // Price mode toggle
-            const pmToggle=hasVars?'<div style="display:flex;gap:3px;background:#F1F5F9;border-radius:7px;padding:3px;margin-bottom:6px"><button class="cc-rtab'+(priceMode==='simple'?' on':'')+'" style="font-size:10.5px;padding:3px 10px" onclick="setProdPriceMode('+ci+','+pi+',\'simple\')">Precio único</button><button class="cc-rtab'+(priceMode==='matrix'?' on':'')+'" style="font-size:10.5px;padding:3px 10px" onclick="setProdPriceMode('+ci+','+pi+',\'matrix\')">Precio por variable</button></div>':'';
-            // Price section
-            let priceSection='';
-            if(priceMode==='matrix'&&hasVars){
-              const pv=pr.variables[0];
-              const presChips=(pr.presentations||[]).map((p,xi)=>'<div style="display:flex;align-items:center;gap:2px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:7px;padding:2px 6px"><input class="cc-ai-mini" value="'+escHtml(p.name)+'" style="width:62px" oninput="S.aiResult.categories['+ci+'].products['+pi+'].presentations['+xi+'].name=this.value"><button class="cc-ai-rm" '+(pr.presentations.length>1?'':'disabled')+' onclick="removeAIPres('+ci+','+pi+','+xi+')">&#xD7;</button></div>').join('');
-              const colH=(pr.presentations||[]).map(p=>'<th style="font-size:10px;font-weight:700;color:#64748B;padding:3px 10px;text-align:right">'+escHtml(p.name)+'</th>').join('');
-              const matRows=(pv.options||[]).map((opt,oi)=>{
-                const oName=typeof opt==='string'?opt:(opt.name||'');
-                const cells=(pr.presentations||[]).map((p,xi)=>{
-                  const price=Array.isArray(opt.prices)?(opt.prices[xi]||0):0;
-                  return '<td style="padding:2px 4px"><input class="cc-ai-mini" type="number" value="'+price+'" style="width:64px;text-align:right;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:5px;padding:3px 5px" oninput="setMatrixPrice('+ci+','+pi+','+oi+','+xi+',parseInt(this.value)||0)"></td>';
-                }).join('');
-                return '<tr><td style="padding:3px 10px 3px 0"><input class="cc-ai-mini" value="'+escHtml(oName)+'" style="font-weight:600;color:#7C3AED;background:#F5F3FF;border:1px solid #DDD6FE;border-radius:5px;padding:2px 6px;width:80px" oninput="setAIVarOpt('+ci+','+pi+',0,'+oi+',this.value)"></td>'+cells+'<td><button class="cc-ai-rm" onclick="removeAIVarOpt('+ci+','+pi+',0,'+oi+')">&#xD7;</button></td></tr>';
-              }).join('');
-              priceSection='<div style="margin-bottom:5px"><div style="font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Tamaños</div><div style="display:flex;flex-wrap:wrap;gap:4px">'+presChips+'<button class="cc-ai-add-btn" onclick="addAIPres('+ci+','+pi+')">+tamaño</button></div></div><div style="font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em;margin:0 0 4px">Precios por variante</div><div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11px"><thead><tr><th style="text-align:left;color:#94A3B8;font-size:10px;font-weight:700;padding-bottom:3px">Variante</th>'+colH+'<th></th></tr></thead><tbody>'+matRows+'</tbody></table></div><button class="cc-ai-add-btn" style="margin-top:5px" onclick="addAIVarOpt('+ci+','+pi+',0)">+ variante</button>';
-            } else {
-              const presEdits=(pr.presentations||[]).map((p,xi)=>{
-                const rmBtn=pr.presentations.length>1?'<button class="cc-ai-rm" onclick="removeAIPres('+ci+','+pi+','+xi+')">&#xD7;</button>':'';
-                return '<div style="display:flex;align-items:center;gap:3px;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:7px;padding:2px 6px"><input class="cc-ai-mini" value="'+escHtml(p.name)+'" style="width:70px" oninput="S.aiResult.categories['+ci+'].products['+pi+'].presentations['+xi+'].name=this.value"><span style="color:#CBD5E1;font-size:10px;margin:0 1px">&#xB7;$</span><input class="cc-ai-mini" type="number" value="'+p.price+'" style="width:58px;text-align:right" oninput="S.aiResult.categories['+ci+'].products['+pi+'].presentations['+xi+'].price=parseInt(this.value)||0">'+rmBtn+'</div>';
-              }).join('');
-              priceSection='<div style="display:flex;flex-wrap:wrap;gap:4px">'+presEdits+'<button class="cc-ai-add-btn" onclick="addAIPres('+ci+','+pi+')">+precio</button></div>';
-            }
-            // Variables section
-            let varSection='';
-            const varsToShow=priceMode==='matrix'?(pr.variables||[]).slice(1):(pr.variables||[]);
-            const varOffset=priceMode==='matrix'?1:0;
-            const varEdits=varsToShow.map((v,idx)=>{
-              const vi=idx+varOffset;
-              const opts=v.options.map((o,oi)=>'<div style="display:flex;align-items:center;gap:3px"><input class="cc-ai-mini" value="'+escHtml(typeof o==='string'?o:o.name)+'" style="width:70px;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:5px;padding:2px 5px" oninput="setAIVarOpt('+ci+','+pi+','+vi+','+oi+',this.value)"><button class="cc-ai-rm" onclick="removeAIVarOpt('+ci+','+pi+','+vi+','+oi+')">&#xD7;</button></div>').join('');
-              return '<div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:8px;padding:6px 10px;margin-top:5px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><input class="cc-ai-mini" value="'+escHtml(v.name||'Tipo')+'" style="font-weight:700;color:#7C3AED;font-size:11px;flex:1;background:transparent" oninput="S.aiResult.categories['+ci+'].products['+pi+'].variables['+vi+'].name=this.value"><button class="cc-ai-rm" onclick="removeAIVar('+ci+','+pi+','+vi+')">&#xD7;</button></div><div style="display:flex;flex-wrap:wrap;gap:4px">'+opts+'<button class="cc-ai-add-btn" style="font-size:10px" onclick="addAIVarOpt('+ci+','+pi+','+vi+')">+opción</button></div></div>';
-            }).join('');
-            varSection=varEdits+'<button class="cc-ai-add-btn" style="margin-top:4px;width:fit-content" onclick="addAIVar('+ci+','+pi+')">'+(priceMode==='matrix'?'+ variable adicional':'+ variable')+'</button>';
-            // Header row
-            const catOpts=catNames.map(n=>'<option value="'+escHtml(n)+'"'+(n===c.name?' selected':'')+'>'+escHtml(n)+'</option>').join('');
-            const hasImg=!!pr._imgData;
-            const imgBtn='<label style="cursor:pointer;width:26px;height:26px;border-radius:6px;border:1.5px solid '+(hasImg?'#10B981':'#ECEEF2')+';background:'+(hasImg?'#ECFDF5':'#F8FAFC')+';display:flex;align-items:center;justify-content:center;flex-shrink:0" title="Subir foto"><input type="file" accept="image/*" style="display:none" onchange="setAIProdImg('+ci+','+pi+',this)">'+icon('image',13)+'</label>';
-            return '<div class="cc-prod-edit-row"><div style="display:flex;flex-direction:column;gap:5px;flex:1"><div style="display:flex;align-items:center;gap:6px"><input class="cc-ai-name-input sm" value="'+escHtml(pr.name)+'" oninput="S.aiResult.categories['+ci+'].products['+pi+'].name=this.value"><div class="cc-select" style="height:24px;min-width:90px;font-size:10.5px"><select style="font-size:10.5px;padding:0 4px;height:24px" onchange="moveAIProd('+ci+','+pi+',this.value)">'+catOpts+'</select><span class="cc-sel-arrow" style="right:4px">'+icon('down',10)+'</span></div>'+imgBtn+'<button class="cc-ai-rm" style="flex-shrink:0;margin-left:auto" onclick="removeAIProd('+ci+','+pi+')">&#xD7;</button></div>'+pmToggle+priceSection+varSection+'</div></div>';
-          }).join('');
-        }
-        return '<div class="cc-cat-block" style="opacity:'+(off?.55:1)+';border-color:'+(open&&!off?'#DDD6FE':'#ECEEF2')+'"><div class="cc-cat-row"><button class="cc-check'+(off?'':' on')+'" onclick="toggleAICatIdx('+ci+')" style="'+(off?'':'background:#8B5CF6;border-color:#8B5CF6;color:#fff')+'">'+(off?'':icon('check',12,3))+'</button><input class="cc-ai-name-input" value="'+escHtml(c.name)+'" onclick="event.stopPropagation()" oninput="setAICatName('+ci+',this.value)"><span class="cc-cat-count">'+c.products.length+' prod.</span><button class="cc-cat-toggle" style="margin-left:auto;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;cursor:pointer;border-radius:6px" onclick="S.aiOpenCat=S.aiOpenCat===S.aiResult.categories['+ci+'].name?null:S.aiResult.categories['+ci+'].name;renderAIImport()"><span style="color:#CBD5E1;transform:'+(open?'rotate(90deg)':'none')+';transition:transform .15s;display:flex">'+icon('chevron',15)+'</span></button></div>'+(prodRows?'<div class="cc-prod-list">'+prodRows+'</div>':'')+'</div>';
-      }).join('');
-      tabContent=catBlocks;
-    } else {
-      // ── Modificadores tab ─────────────────────────────────────────────
-      const groups=ex.modifier_groups||[];
-      const groupBlocks=groups.map((g,gi)=>{
-        const rc=g.rule==='obligatorio'?{c:'#B45309',bg:'#FEF3C7'}:{c:'#64748B',bg:'#F1F5F9'};
-        const opts=(g.options||[]).map((o,oi)=>'<div class="cc-mod-opt-row" draggable="true" ondragstart="aiDragStart('+gi+','+oi+')" ondragover="event.preventDefault()" ondrop="event.preventDefault()"><span class="cc-grip" style="cursor:grab">'+icon('grip',13)+'</span><input class="cc-ai-mini" value="'+escHtml(o.name)+'" style="flex:1;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:5px;padding:3px 6px" oninput="setAIModOpt('+gi+','+oi+',\'name\',this.value)"><span style="color:#CBD5E1;font-size:10px;margin:0 3px">$</span><input class="cc-ai-mini" type="number" value="'+(o.price||0)+'" style="width:64px;text-align:right;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:5px;padding:3px 5px" oninput="setAIModOpt('+gi+','+oi+',\'price\',parseInt(this.value)||0)"><button class="cc-ai-rm" onclick="removeAIModOpt('+gi+','+oi+')">&#xD7;</button></div>').join('');
-        return '<div class="cc-mod-group-card" ondragover="event.preventDefault()" ondrop="aiDropTo('+gi+')"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input class="cc-ai-name-input" value="'+escHtml(g.name)+'" oninput="S.aiResult.modifier_groups['+gi+'].name=this.value" style="flex:1"><span class="cc-rule-chip" style="color:'+rc.c+';background:'+rc.bg+';cursor:pointer" onclick="setAIModRule('+gi+',\''+(g.rule==='opcional'?'obligatorio':'opcional')+'\')">'+escHtml(g.rule==='opcional'?'Opcional':'Obligatorio')+'</span><span class="cc-rule-chip" style="cursor:pointer" onclick="setAIModMulti('+gi+','+(g.multi?'false':'true')+')">'+( g.multi?'Varias':'Una')+'</span><button class="cc-ai-rm" onclick="removeAIModGroup('+gi+')" title="Eliminar grupo">'+icon('trash',12)+'</button></div><div style="display:flex;flex-direction:column;gap:4px">'+opts+'</div><button class="cc-ai-add-btn" style="margin-top:8px" onclick="addAIModOpt('+gi+')">+ opción</button></div>';
-      }).join('');
-      tabContent=groupBlocks+'<button class="cc-ai-add-btn" style="width:100%;margin-top:8px;padding:8px;font-size:12px" onclick="addAIModGroup()">+ Nuevo grupo de modificadores</button>';
-    }
-
+    const catBlocks=ex.categories.map(c=>{
+      const off=!!S.aiExcluded[c.name],open=S.aiOpenCat===c.name;
+      const prodRows=open&&!off?c.products.map(pr=>{
+        const pTags=(pr.presentations||[]).map(p=>'<span class="cc-pres-tag">'+escHtml(p.name)+' · $'+Number(p.price).toLocaleString('es-CO')+'</span>').join('');
+        const vTag=pr.variables?.length?'<span class="cc-pres-tag" style="background:#F5F3FF;color:#8B5CF6">'+pr.variables.length+' variable'+(pr.variables.length>1?'s':'')+'</span>':'';
+        const mTag=pr.modifiers?.length?'<span class="cc-pres-tag" style="background:#FFFBEB;color:#F59E0B">'+pr.modifiers.length+' mod.</span>':'';
+        return '<div class="cc-prod-row"><span style="font-size:12.5px;font-weight:600;color:#0F172A;min-width:130px">'+escHtml(pr.name)+'</span><div style="display:flex;gap:5px;flex-wrap:wrap;flex:1">'+pTags+vTag+mTag+'</div></div>';
+      }).join(''):'';
+      return '<div class="cc-cat-block" style="opacity:'+(off?.55:1)+';border-color:'+(open&&!off?'#DDD6FE':'#ECEEF2')+'"><div class="cc-cat-row"><button class="cc-check'+(off?'':' on')+'" onclick="toggleAICat(\''+escHtml(c.name)+'\')" style="'+(off?'':'background:#8B5CF6;border-color:#8B5CF6;color:#fff')+'">'+(off?'':icon('check',12,3))+'</button><button class="cc-cat-toggle" onclick="S.aiOpenCat=S.aiOpenCat===\''+escHtml(c.name)+'\'?null:\''+escHtml(c.name)+'\';renderAIImport()"><span style="font-size:13.5px;font-weight:700;color:#0F172A">'+escHtml(c.name)+'</span><span class="cc-cat-count">'+c.products.length+' productos</span><span style="margin-left:auto;color:#CBD5E1;transform:'+(open?'rotate(90deg)':'none')+';transition:transform .15s;display:flex">'+icon('chevron',15)+'</span></button></div>'+(prodRows?'<div class="cc-prod-list">'+prodRows+'</div>':'')+'</div>';
+    }).join('');
     const stats=ex._stats||{};
-    bodyHTML='<div class="cc-result-banner"><span style="color:#10B981;display:flex">'+icon('checkc',18)+'</span><div style="flex:1"><div style="font-size:13.5px;font-weight:800;color:#0F172A">Menu analizado con GPT-4o</div><div style="font-size:11.5px;color:#64748B;margin-top:1px">'+(stats.categories||incl.length)+' categorias · '+(stats.products||inclProds)+' productos · '+((ex.modifier_groups||[]).length)+' grupos mod.</div></div></div>'+tabBar+'<div style="display:flex;flex-direction:column;gap:8px">'+tabContent+'</div>';
-    footHTML='<span style="font-size:12px;color:#64748B;font-weight:600">'+incl.length+' cat. · '+inclProds+' prod.</span><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="S.aiStage=\'source\';renderAIImport()">Volver</button><button class="cc-btn-ai" '+(inclProds?'':'disabled')+' onclick="importFromAI()">'+(S.aiImporting?'<span style="display:inline-flex;align-items:center;gap:6px"><svg style="animation:spin .8s linear infinite" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>'+S.aiProgress+'</span>':icon('check',14)+' Importar al catálogo')+'</button></div>';
+    bodyHTML='<div class="cc-result-banner"><span style="color:#10B981;display:flex">'+icon('checkc',18)+'</span><div style="flex:1"><div style="font-size:13.5px;font-weight:800;color:#0F172A">Menú analizado con GPT-4o</div><div style="font-size:11.5px;color:#64748B;margin-top:1px">'+(stats.categories||incl.length)+' categorías · '+(stats.products||inclProds)+' productos detectados</div></div></div><div style="font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin:4px 2px 8px">Revisa antes de importar — desmarca lo que no quieras</div><div style="display:flex;flex-direction:column;gap:8px">'+catBlocks+'</div>';
+    footHTML='<span style="font-size:12px;color:#64748B;font-weight:600">'+incl.length+' categorías · '+inclProds+' productos</span><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="S.aiStage=\'source\';renderAIImport()">Volver</button><button class="cc-btn-ai" '+(inclProds?'':'disabled')+' onclick="importFromAI()">'+icon('check',14)+' Importar al catálogo</button></div>';
   }
   openOverlay('<div class="cc-overlay center" onmousedown="handleOverlayClose(event)"><div class="cc-modal wide" onmousedown="event.stopPropagation()"><div class="cc-modal-head"><div style="display:flex;align-items:center;gap:11px"><span class="cc-modal-glyph" style="background:linear-gradient(135deg,#8B5CF6,#5B6BFF);color:#fff;box-shadow:0 4px 12px -3px rgba(139,92,246,.5)">'+icon('sparkle',18)+'</span><div><div style="font-size:15px;font-weight:800;color:#0F172A;letter-spacing:-.02em">Importar menú con IA</div><div style="font-size:11.5px;color:#94A3B8">Sube tu carta y GPT-4o la convierte en catálogo automáticamente</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div class="cc-steps-bar">'+stepDots+'</div><div class="cc-modal-body">'+bodyHTML+'</div><div class="cc-modal-foot">'+footHTML+'</div></div></div>');
 }
@@ -551,56 +495,6 @@ function renderAIImport(){
 function handleAIFileSelect(inp){if(inp.files[0]){S.aiFile=inp.files[0];renderAIImport();}}
 function handleAIFileDrop(e){e.preventDefault();e.currentTarget.classList.remove('over');if(e.dataTransfer.files[0]){S.aiFile=e.dataTransfer.files[0];renderAIImport();}}
 function toggleAICat(name){S.aiExcluded[name]=!S.aiExcluded[name];renderAIImport();}
-function toggleAICatIdx(ci){const n=S.aiResult.categories[ci].name;S.aiExcluded[n]=!S.aiExcluded[n];renderAIImport();}
-function setAICatName(ci,name){const old=S.aiResult.categories[ci].name;if(S.aiExcluded[old]!==undefined){S.aiExcluded[name]=S.aiExcluded[old];delete S.aiExcluded[old];}if(S.aiOpenCat===old)S.aiOpenCat=name;S.aiResult.categories[ci].name=name;}
-function removeAIProd(ci,pi){S.aiResult.categories[ci].products.splice(pi,1);if(!S.aiResult.categories[ci].products.length)S.aiResult.categories.splice(ci,1);renderAIImport();}
-function addAIPres(ci,pi){S.aiResult.categories[ci].products[pi].presentations.push({name:'Nueva',price:0});renderAIImport();}
-function removeAIPres(ci,pi,xi){S.aiResult.categories[ci].products[pi].presentations.splice(xi,1);renderAIImport();}
-// AI review — variables
-function addAIVar(ci,pi){if(!S.aiResult.categories[ci].products[pi].variables)S.aiResult.categories[ci].products[pi].variables=[];S.aiResult.categories[ci].products[pi].variables.push({name:'Tipo',options:[{name:'Opción 1'}]});renderAIImport();}
-function removeAIVar(ci,pi,vi){S.aiResult.categories[ci].products[pi].variables.splice(vi,1);renderAIImport();}
-function addAIVarOpt(ci,pi,vi){S.aiResult.categories[ci].products[pi].variables[vi].options.push({name:'Nueva'});renderAIImport();}
-function removeAIVarOpt(ci,pi,vi,oi){const opts=S.aiResult.categories[ci].products[pi].variables[vi].options;if(opts.length>1)opts.splice(oi,1);renderAIImport();}
-function setAIVarOpt(ci,pi,vi,oi,val){const o=S.aiResult.categories[ci].products[pi].variables[vi].options[oi];if(typeof o==='string')S.aiResult.categories[ci].products[pi].variables[vi].options[oi]=val;else o.name=val;}
-// AI review — move product between categories
-function moveAIProd(ci,pi,newCatName){if(S.aiResult.categories[ci].name===newCatName)return;const prod=S.aiResult.categories[ci].products.splice(pi,1)[0];if(!S.aiResult.categories[ci].products.length)S.aiResult.categories.splice(ci,1);let target=S.aiResult.categories.find(c=>c.name===newCatName);if(!target){target={name:newCatName,products:[]};S.aiResult.categories.push(target);}target.products.push(prod);renderAIImport();}
-// AI review — product image
-function setAIProdImg(ci,pi,input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{S.aiResult.categories[ci].products[pi]._imgData=e.target.result;S.aiResult.categories[ci].products[pi]._imgFile=f;renderAIImport();};r.readAsDataURL(f);}
-// AI review — modifier groups
-let _aiDragSrc=null;
-function aiDragStart(gi,oi){_aiDragSrc={gi,oi};}
-function aiDropTo(targetGi){if(!_aiDragSrc||_aiDragSrc.gi===targetGi)return;const {gi,oi}=_aiDragSrc;_aiDragSrc=null;const opt=S.aiResult.modifier_groups[gi].options.splice(oi,1)[0];S.aiResult.modifier_groups[targetGi].options.push(opt);if(!S.aiResult.modifier_groups[gi].options.length)S.aiResult.modifier_groups.splice(gi,1);renderAIImport();}
-function addAIModGroup(){if(!S.aiResult.modifier_groups)S.aiResult.modifier_groups=[];S.aiResult.modifier_groups.push({name:'Nuevo grupo',rule:'opcional',multi:true,options:[{name:'Opción',price:0}]});S.aiReviewTab='modificadores';renderAIImport();}
-function removeAIModGroup(gi){if(S.aiResult.modifier_groups[gi].options.length>0&&!confirm('¿Eliminar este grupo y sus opciones?'))return;S.aiResult.modifier_groups.splice(gi,1);renderAIImport();}
-function setAIModRule(gi,r){S.aiResult.modifier_groups[gi].rule=r;renderAIImport();}
-function setAIModMulti(gi,v){S.aiResult.modifier_groups[gi].multi=v;renderAIImport();}
-function addAIModOpt(gi){S.aiResult.modifier_groups[gi].options.push({name:'Nueva opción',price:0});renderAIImport();}
-function removeAIModOpt(gi,oi){if(S.aiResult.modifier_groups[gi].options.length<=1)return;S.aiResult.modifier_groups[gi].options.splice(oi,1);renderAIImport();}
-function setAIModOpt(gi,oi,field,val){S.aiResult.modifier_groups[gi].options[oi][field]=val;}
-function setProdPriceMode(ci,pi,mode){
-  const pr=S.aiResult.categories[ci].products[pi];
-  pr.priceMode=mode;
-  if(mode==='matrix'&&(pr.variables||[]).length>0){
-    const pv=pr.variables[0];
-    pv.isPricing=true;
-    pv.options=(pv.options||[]).map(o=>{
-      const name=typeof o==='string'?o:(o.name||'');
-      const prices=Array.isArray(o.prices)?o.prices:(pr.presentations||[]).map(()=>0);
-      return {name,prices};
-    });
-    (pr.presentations||[]).forEach(p=>p.price=0);
-  }
-  renderAIImport();
-}
-function setMatrixPrice(ci,pi,oi,xi,price){
-  const pr=S.aiResult.categories[ci].products[pi];
-  const pv=(pr.variables||[])[0];
-  if(!pv)return;
-  const opt=pv.options[oi];
-  if(!opt)return;
-  if(!Array.isArray(opt.prices))opt.prices=(pr.presentations||[]).map(()=>0);
-  opt.prices[xi]=price;
-}
 async function fileToBase64Ai(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});}
 async function pdfToImages(file){
   if(!window.pdfjsLib){
@@ -635,26 +529,12 @@ async function startAIAnalysis(){
     if(!data.categories?.length)throw new Error('No se detectaron productos. Intenta con una imagen más clara o mejor iluminada.');
     S.aiResult=data;S.aiExcluded={};S.aiOpenCat=data.categories[0]?.name||null;S.aiStage='review';renderAIImport();
   } catch(e){
-    S.aiImporting=false;S.aiProgress='';S.aiError=e.message;S.aiStage='source';renderAIImport();
+    S.aiError=e.message;S.aiStage='source';renderAIImport();
   }
 }
 async function importFromAI(){
-  S.aiImporting=true;S.aiProgress='Preparando...';renderAIImport();
   const ex=S.aiResult||{categories:[]};
   const incl=ex.categories.filter(c=>!S.aiExcluded[c.name]);
-  const totalProds=incl.reduce((a,cat)=>a+(cat.products||[]).length,0);
-  let savedCount=0,failCount=0;
-
-  // 1. Guardar grupos de modificadores globales primero (nuevo formato)
-  const modNameToId={};
-  for(const m of (ex.modifier_groups||[])){
-    const group={id:uid('mg'),name:m.name,rule:m.rule||'opcional',multi:m.multi!==false,options:(m.options||[]).map(o=>({id:uid('op'),name:o.name,price:o.price||0}))};
-    const savedId=await saveModGroupToSupabase(group);group.id=savedId;
-    const idx=S.mods.findIndex(x=>x.name===m.name);if(idx>=0)S.mods[idx]=group;else S.mods.push(group);
-    modNameToId[m.name]=savedId;
-  }
-
-  // 2. Guardar categorías y productos
   const newCats=[],newProds=[],nameToCat={};
   S.cats.forEach(c=>nameToCat[c.name.toLowerCase()]=c.id);
   let palI=S.cats.length;
@@ -663,28 +543,20 @@ async function importFromAI(){
     if(!catId){const pal=CAT_PALETTE[palI%8];const saved=await saveCategoryToSupabase({id:uid('cat'),name:c.name,...pal});catId=saved.id;newCats.push({...saved,...pal});nameToCat[c.name.toLowerCase()]=catId;palI++;}
     for(const pr of c.products){
       const presentations=(pr.presentations||[{name:'Único',price:0}]).map(p=>({id:uid('pr'),name:p.name||'Único',price:p.price||0}));
-      const variables=(pr.variables||[]).map(v=>({id:uid('vg'),name:v.name||'Tipo',options:(v.options||[]).map(o=>({id:uid('vo'),name:typeof o==='string'?o:o.name,price:o.price||0}))}));
-      // Resolver IDs de modificadores: nuevo formato (por nombre) o fallback formato antiguo (por objeto)
-      let modGroupIds=[];
-      if((pr.modifier_group_names||[]).length>0){
-        modGroupIds=pr.modifier_group_names.map(n=>modNameToId[n]).filter(Boolean);
-      } else {
-        for(const m of (pr.modifiers||[])){
-          const group={id:uid('mg'),name:m.name,rule:m.rule||'opcional',multi:m.multi!==false,options:(m.options||[]).map(o=>({id:uid('op'),name:o.name,price:o.price||0}))};
-          const savedId=await saveModGroupToSupabase(group);group.id=savedId;
-          const idx=S.mods.findIndex(x=>x.id===group.id);if(idx>=0)S.mods[idx]=group;else S.mods.push(group);
-          modGroupIds.push(savedId);
-        }
+      const variables=(pr.variables||[]).map(v=>({id:uid('vg'),name:v.name,isPricing:v.isPricing||false,options:(v.options||[]).map(o=>({id:uid('vo'),name:o.name,price:o.price||0,prices:o.prices||null}))}));
+      const modGroupIds=[];
+      for(const m of (pr.modifiers||[])){
+        const group={id:uid('mg'),name:m.name,rule:m.rule||'opcional',multi:m.multi!==false,options:(m.options||[]).map(o=>({id:uid('op'),name:o.name,price:o.price||0}))};
+        const savedId=await saveModGroupToSupabase(group);group.id=savedId;
+        const idx=S.mods.findIndex(x=>x.id===group.id);if(idx>=0)S.mods[idx]=group;else S.mods.push(group);
+        modGroupIds.push(savedId);
       }
-      const prod={id:uid('p'),cat:catId,name:pr.name,desc:pr.description||'',active:true,photo:null,presentations,variables,modGroupIds};
-      savedCount++;S.aiProgress='Guardando '+savedCount+' de '+totalProds+'...';
-      const _btn=document.querySelector('.cc-btn-ai[onclick="importFromAI()"]');
-      if(_btn)_btn.innerHTML='<svg style="animation:spin .8s linear infinite;vertical-align:middle" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Guardando '+savedCount+' de '+totalProds+'...';
-      const savedId=await saveProductToSupabase(prod);if(savedId&&savedId!==prod.id)prod.id=savedId;else if(!savedId||savedId===prod.id)failCount++;newProds.push(prod);
+      const prod={id:uid('p'),cat:catId,name:pr.name,desc:pr.description||'',active:true,photo:null,presentations,variables,modGroupIds,priceMode:pr.priceMode||'simple'};
+      const savedId=await saveProductToSupabase(prod);prod.id=savedId;newProds.push(prod);
     }
   }
   S.cats=[...S.cats,...newCats];S.products=[...newProds,...S.products];
-  S.aiImporting=false;S.aiProgress='';closeOverlay();S.tab='productos';S.filterCat=null;renderPage();toast(newProds.length+' productos'+(!failCount?'':' ('+failCount+' sin guardar en BD)')+' importados ✓');
+  closeOverlay();S.tab='productos';S.filterCat=null;renderPage();toast(newProds.length+' productos importados con IA ✓');
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────
@@ -692,16 +564,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { window.location.href = 'login.html'; return; }
   const { data: { user } } = await sb.auth.getUser();
-  S.tenantId = user.user_metadata?.tenant_id || user.id || null;
+  S.tenantId = user.user_metadata?.tenant_id || null;
   S.branchId  = user.user_metadata?.branch_id  || null;
-
-  // Garantizar que existe un registro en tenants (FK requerida)
-  if (S.tenantId) {
-    await sb.from('tenants').upsert(
-      { id: S.tenantId, name: user.user_metadata?.business_name || user.email || 'Mi Negocio', email: user.email },
-      { onConflict: 'id', ignoreDuplicates: true }
-    );
-  }
 
   // Mostrar nombre en topbar
   const chip = document.getElementById('cp-user-chip-name');
