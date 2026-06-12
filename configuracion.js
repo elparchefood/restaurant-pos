@@ -1002,6 +1002,7 @@ async function urSaveRole(r) {
       tenant_id: tenantId, name: r.name, color: r.color,
       system_role: !!r.system, perms: r.perms
     }).select().single();
+    if (res.error) { r._isNew = true; throw new Error(res.error.message); }
     if (res.data) r.id = res.data.id;
   } else {
     var safeRoleId = safeUUID(r.id);
