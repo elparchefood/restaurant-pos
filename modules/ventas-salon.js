@@ -831,6 +831,9 @@
       case 'nav-back':
         window._pos && window._pos.emit && window._pos.emit('nav:back');
         break;
+      case 'nav-domicilio':
+        window.location.href = 'domicilios.html';
+        break;
       default:
         break;
     }
