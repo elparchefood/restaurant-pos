@@ -35,20 +35,9 @@ const ESTADO_OF   = id => ESTADOS.find(e => e.id === id) || ESTADOS[0];
 const ESTADO_NEXT = id => { const i = ESTADOS.findIndex(e => e.id === id); return i >= 0 && i < ESTADOS.length - 1 ? ESTADOS[i + 1].id : null; };
 const KAN_BTN     = { recibido: 'En preparación', preparacion: 'Listo', listo: 'En camino', camino: 'Entregado', entregado: null };
 
-const DOMICILIARIOS = [
-  { id: 'dm1', nombre: 'Felipe Ríos',     tel: '301 555 2210', estado: 'Disponible' },
-  { id: 'dm2', nombre: 'Daniel Quintero', tel: '312 880 4471', estado: 'Disponible' },
-  { id: 'dm3', nombre: 'Mateo Salas',     tel: '318 224 9930', estado: 'En ruta'    },
-];
 
-const CLIENTES_SEED = [
-  { id: 'c1', nombre: 'Jesús Gómez',               tel: '300 412 8890', dir: 'Cra. 45 #12-30, Centro'          },
-  { id: 'c2', nombre: 'Karen Juliana San Ignacio',  tel: '311 765 2210', dir: 'Cl. 116 #18-30, Norte'           },
-  { id: 'c3', nombre: 'Víctor Raúl Llanos',         tel: '320 998 1145', dir: 'Av. 1 de Mayo #34-12, Sur'       },
-  { id: 'c4', nombre: 'Adriana Eraso',              tel: '301 220 7788', dir: 'Cl. 63 #11-20, Chapinero'        },
-  { id: 'c5', nombre: 'Camilo Restrepo',            tel: '315 644 0091', dir: 'Cra. 9 #70-15, Quinta Camacho'  },
-  { id: 'c6', nombre: 'Mariana Ortiz',              tel: '318 330 5566', dir: 'Cl. 53 #24-60, Galerías'         },
-];
+
+
 
 const DOMI_SEED = [
   { id: 'D-1042', cliente: 'Jesús Gómez',      canal: 'whatsapp',  items: 3, productos: 49000, fee: 5000, estado: 'recibido',    payStatus: 'pendiente', payWhen: 'contraentrega', metodo: 'efectivo',      courier: 'interno', domiciliario: 'Felipe Ríos', min: 4 },
@@ -85,7 +74,8 @@ const S = {
   cats:      [],
   products:  [],
   favorites: [],
-  clientes:  CLIENTES_SEED.map(c => Object.assign({}, c)),
+  domiciliarios: [],
+  clientes:  JSON.parse(localStorage.getItem('lumen.domi.clientes') || '[]'),
   deliveries: DOMI_SEED.map(d => Object.assign({ createdAt: Date.now() - d.min * 60000 }, d)),
 };
 
@@ -217,6 +207,18 @@ async function loadData() {
     photo_url: p.photo_url || null,
   }));
   S.favorites = [];
+
+  const { data: domis } = await sb.from('pos_users')
+    .select('id,name,phone,role')
+    .eq('tenant_id', S.tenantId)
+    .eq('role', 'domiciliario')
+    .eq('active', true);
+  S.domiciliarios = (domis || []).map(u => ({
+    id:     u.id,
+    nombre: u.name,
+    tel:    u.phone || '',
+    estado: 'Disponible',
+  }));
 }
 
 // ── Navegación y vistas ────────────────────────────────────────────────
@@ -613,7 +615,7 @@ function renderDetBtn() {
   }
 
   // Chips
-  const dm = DOMICILIARIOS.find(x => S.asignado && x.id === S.asignado);
+  const dm = S.domiciliarios.find(x => S.asignado && x.id === S.asignado);
   const courierTxt = recogo ? 'Recogo en tienda'
     : externo ? (S.cobramos ? 'Externo · lo cobramos' : 'Externo · paga el cliente')
     : (dm ? dm.nombre : 'Sin asignar');
@@ -671,7 +673,15 @@ function renderClienteCard() {
 function renderAsigList() {
   const el = $('asig-list');
   if (!el) return;
-  el.innerHTML = DOMICILIARIOS.map(dm => {
+  if (!S.domiciliarios.length) {
+    el.innerHTML = `<div style="text-align:center;padding:24px 16px;color:#94A3B8;font-size:13px">
+      ${svgInline('scooter', 28)}<br>
+      <span style="display:block;margin-top:8px;font-weight:600;color:#CBD5E1">Sin domiciliarios configurados</span>
+      <span style="display:block;margin-top:4px">Ve a Configuración > Usuarios y roles<br>y crea un usuario con rol <b>Domiciliario</b>.</span>
+    </div>`;
+    return;
+  }
+  el.innerHTML = S.domiciliarios.map(dm => {
     const isOn    = S.asignado === dm.id;
     const statusOk = dm.estado === 'Disponible';
     return `<button class="d-asig${isOn ? ' on' : ''}" data-asignar="${dm.id}">
@@ -809,6 +819,7 @@ function guardarCliente() {
     S.cliente = newCli;
   }
 
+  localStorage.setItem('lumen.domi.clientes', JSON.stringify(S.clientes));
   closeModal('modal-nuevocli');
   renderCliList('');
   renderClienteCard();
@@ -846,7 +857,7 @@ function enviarACocina() {
   const metodo   = extCobra ? 'transferencia' : S.pago.metodo;
   const payStatus = extDirect ? 'externo'     : S.pago.status;
 
-  const dm = DOMICILIARIOS.find(x => x.id === S.asignado);
+  const dm = S.domiciliarios.find(x => x.id === S.asignado);
 
   const nuevo = {
     id,
