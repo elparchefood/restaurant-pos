@@ -27,6 +27,7 @@ const S = {
   editProd:null, editCombo:null, editMod:null, editCat:null,
   aiStage:'source', aiTab:'file', aiFile:null, aiUrl:'', aiResult:null, aiError:null,
   aiExcluded:{}, aiOpenCat:null, aiTimers:[], aiReviewTab:'productos',
+  aiImporting:false, aiProgress:'',
 };
 
 // ── Fotos Supabase Storage ──────────────────────────────────────────────
@@ -86,7 +87,7 @@ async function saveProductToSupabase(p) {
     const isNew=!p.id||p.id.startsWith('p_');
     if(isNew){const {data,error}=await sb.from('pos_products').insert([row]).select().single();if(error)throw error;return data.id;}
     else{await sb.from('pos_products').update(row).eq('id',p.id).eq('tenant_id',S.tenantId);return p.id;}
-  } catch(e){console.error('saveProduct:',e);return p.id;}
+  } catch(e){console.error('saveProduct:',e);toast('⚠ Error al guardar: '+( e.message||e.code||'tabla sin columnas requeridas'),'error');return p.id;}
 }
 async function saveCategoryToSupabase(c) {
   try {
@@ -121,7 +122,7 @@ async function deleteModGroupFromSupabase(id){try{await sb.from('pos_modifier_gr
 async function signOut(){await sb.auth.signOut();window.location.href='login.html';}
 
 // ── UI helpers ────────────────────────────────────────────────────────────
-function toast(msg){const el=$('cp-toast');if(!el)return;el.innerHTML='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="16 9 11 14 8.5 11.5"/></svg> '+msg;el.style.display='flex';clearTimeout(el._t);el._t=setTimeout(()=>{el.style.display='none';},2600);}
+function toast(msg,type){const el=$('cp-toast');if(!el)return;const isErr=type==='error';el.style.background=isErr?'#EF4444':'#0F172A';el.innerHTML=(isErr?'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>':'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="16 9 11 14 8.5 11.5"/></svg>')+' '+msg;el.style.display='flex';clearTimeout(el._t);el._t=setTimeout(()=>{el.style.display='none';},isErr?4500:2600);}
 function catOf(id){return S.cats.find(c=>c.id===id)||{id:'_',name:'Sin categoria',color:'#94A3B8',tint:'#F1F5F9',ring:'#ECEEF2'};}
 function modById(id){return S.mods.find(m=>m.id===id);}
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
@@ -542,7 +543,7 @@ function renderAIImport(){
 
     const stats=ex._stats||{};
     bodyHTML='<div class="cc-result-banner"><span style="color:#10B981;display:flex">'+icon('checkc',18)+'</span><div style="flex:1"><div style="font-size:13.5px;font-weight:800;color:#0F172A">Menu analizado con GPT-4o</div><div style="font-size:11.5px;color:#64748B;margin-top:1px">'+(stats.categories||incl.length)+' categorias · '+(stats.products||inclProds)+' productos · '+((ex.modifier_groups||[]).length)+' grupos mod.</div></div></div>'+tabBar+'<div style="display:flex;flex-direction:column;gap:8px">'+tabContent+'</div>';
-    footHTML='<span style="font-size:12px;color:#64748B;font-weight:600">'+incl.length+' cat. · '+inclProds+' prod.</span><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="S.aiStage=\'source\';renderAIImport()">Volver</button><button class="cc-btn-ai" '+(inclProds?'':'disabled')+' onclick="importFromAI()">'+icon('check',14)+' Importar al catalogo</button></div>';
+    footHTML='<span style="font-size:12px;color:#64748B;font-weight:600">'+incl.length+' cat. · '+inclProds+' prod.</span><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="S.aiStage=\'source\';renderAIImport()">Volver</button><button class="cc-btn-ai" '+(inclProds?'':'disabled')+' onclick="importFromAI()">'+(S.aiImporting?'<span style="display:inline-flex;align-items:center;gap:6px"><svg style="animation:spin .8s linear infinite" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>'+S.aiProgress+'</span>':icon('check',14)+' Importar al catálogo')+'</button></div>';
   }
   openOverlay('<div class="cc-overlay center" onmousedown="handleOverlayClose(event)"><div class="cc-modal wide" onmousedown="event.stopPropagation()"><div class="cc-modal-head"><div style="display:flex;align-items:center;gap:11px"><span class="cc-modal-glyph" style="background:linear-gradient(135deg,#8B5CF6,#5B6BFF);color:#fff;box-shadow:0 4px 12px -3px rgba(139,92,246,.5)">'+icon('sparkle',18)+'</span><div><div style="font-size:15px;font-weight:800;color:#0F172A;letter-spacing:-.02em">Importar menú con IA</div><div style="font-size:11.5px;color:#94A3B8">Sube tu carta y GPT-4o la convierte en catálogo automáticamente</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div class="cc-steps-bar">'+stepDots+'</div><div class="cc-modal-body">'+bodyHTML+'</div><div class="cc-modal-foot">'+footHTML+'</div></div></div>');
 }
@@ -634,12 +635,15 @@ async function startAIAnalysis(){
     if(!data.categories?.length)throw new Error('No se detectaron productos. Intenta con una imagen más clara o mejor iluminada.');
     S.aiResult=data;S.aiExcluded={};S.aiOpenCat=data.categories[0]?.name||null;S.aiStage='review';renderAIImport();
   } catch(e){
-    S.aiError=e.message;S.aiStage='source';renderAIImport();
+    S.aiImporting=false;S.aiProgress='';S.aiError=e.message;S.aiStage='source';renderAIImport();
   }
 }
 async function importFromAI(){
+  S.aiImporting=true;S.aiProgress='Preparando...';renderAIImport();
   const ex=S.aiResult||{categories:[]};
   const incl=ex.categories.filter(c=>!S.aiExcluded[c.name]);
+  const totalProds=incl.reduce((a,cat)=>a+(cat.products||[]).length,0);
+  let savedCount=0;
 
   // 1. Guardar grupos de modificadores globales primero (nuevo formato)
   const modNameToId={};
@@ -673,11 +677,12 @@ async function importFromAI(){
         }
       }
       const prod={id:uid('p'),cat:catId,name:pr.name,desc:pr.description||'',active:true,photo:null,presentations,variables,modGroupIds};
+      savedCount++;S.aiProgress='Guardando '+savedCount+' de '+totalProds+'...';renderAIImport();
       const savedId=await saveProductToSupabase(prod);prod.id=savedId;newProds.push(prod);
     }
   }
   S.cats=[...S.cats,...newCats];S.products=[...newProds,...S.products];
-  closeOverlay();S.tab='productos';S.filterCat=null;renderPage();toast(newProds.length+' productos importados con IA ✓');
+  S.aiImporting=false;S.aiProgress='';closeOverlay();S.tab='productos';S.filterCat=null;renderPage();toast(newProds.length+' productos importados ✓');
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────

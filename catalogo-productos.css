@@ -319,3 +319,5 @@ textarea.cc-input{resize:none;line-height:1.5;}
 .cc-mod-group-card{background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:12px;padding:14px;transition:border-color .15s;}
 .cc-mod-group-card:hover{border-color:#F59E0B;}
 .cc-mod-opt-row{display:flex;align-items:center;gap:6px;padding:4px 0;}
+
+@keyframes spin{to{transform:rotate(360deg);}}
