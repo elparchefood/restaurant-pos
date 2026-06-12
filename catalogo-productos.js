@@ -83,11 +83,11 @@ async function loadModifierGroups() {
 async function saveProductToSupabase(p) {
   try {
     const basePrice = p.presentations&&p.presentations.length?Math.min(...p.presentations.map(x=>x.price||0)):0;
-    const row={tenant_id:S.tenantId,branch_id:S.branchId,name:p.name,price:basePrice,category_id:p.cat==='_'?null:p.cat,available:p.active,description:p.desc||null,photo_url:p.photo||null,presentations:p.presentations||[],variables:p.variables||[],mod_group_ids:p.modGroupIds||[]};
+    const row={tenant_id:S.tenantId,branch_id:S.branchId,name:p.name,price:basePrice,category_id:(p.cat&&p.cat!=='_'&&!p.cat.startsWith('cat_'))?p.cat:null,available:p.active,description:p.desc||null,photo_url:p.photo||null,presentations:p.presentations||[],variables:p.variables||[],mod_group_ids:p.modGroupIds||[]};
     const isNew=!p.id||p.id.startsWith('p_');
     if(isNew){const {data,error}=await sb.from('pos_products').insert([row]).select().single();if(error)throw error;return data.id;}
     else{await sb.from('pos_products').update(row).eq('id',p.id).eq('tenant_id',S.tenantId);return p.id;}
-  } catch(e){console.error('saveProduct:',e);toast('⚠ Error al guardar: '+( e.message||e.code||'tabla sin columnas requeridas'),'error');return p.id;}
+  } catch(e){console.error('saveProduct error:',e?.message||e?.code||e);return p.id;}
 }
 async function saveCategoryToSupabase(c) {
   try {
@@ -95,7 +95,7 @@ async function saveCategoryToSupabase(c) {
     const isNew=!c.id||c.id.startsWith('cat_');
     if(isNew){const {data,error}=await sb.from('pos_categories').insert([row]).select().single();if(error)throw error;return{...c,id:data.id};}
     else{await sb.from('pos_categories').update(row).eq('id',c.id).eq('tenant_id',S.tenantId);return c;}
-  } catch(e){console.error('saveCat:',e);return c;}
+  } catch(e){console.error('saveCat error:',e?.message||e?.code||e);return c;}
 }
 async function saveComboToSupabase(c) {
   try {
@@ -643,7 +643,7 @@ async function importFromAI(){
   const ex=S.aiResult||{categories:[]};
   const incl=ex.categories.filter(c=>!S.aiExcluded[c.name]);
   const totalProds=incl.reduce((a,cat)=>a+(cat.products||[]).length,0);
-  let savedCount=0;
+  let savedCount=0,failCount=0;
 
   // 1. Guardar grupos de modificadores globales primero (nuevo formato)
   const modNameToId={};
@@ -677,12 +677,14 @@ async function importFromAI(){
         }
       }
       const prod={id:uid('p'),cat:catId,name:pr.name,desc:pr.description||'',active:true,photo:null,presentations,variables,modGroupIds};
-      savedCount++;S.aiProgress='Guardando '+savedCount+' de '+totalProds+'...';renderAIImport();
-      const savedId=await saveProductToSupabase(prod);prod.id=savedId;newProds.push(prod);
+      savedCount++;S.aiProgress='Guardando '+savedCount+' de '+totalProds+'...';
+      const _btn=document.querySelector('.cc-btn-ai[onclick="importFromAI()"]');
+      if(_btn)_btn.innerHTML='<svg style="animation:spin .8s linear infinite;vertical-align:middle" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Guardando '+savedCount+' de '+totalProds+'...';
+      const savedId=await saveProductToSupabase(prod);if(savedId&&savedId!==prod.id)prod.id=savedId;else if(!savedId||savedId===prod.id)failCount++;newProds.push(prod);
     }
   }
   S.cats=[...S.cats,...newCats];S.products=[...newProds,...S.products];
-  S.aiImporting=false;S.aiProgress='';closeOverlay();S.tab='productos';S.filterCat=null;renderPage();toast(newProds.length+' productos importados ✓');
+  S.aiImporting=false;S.aiProgress='';closeOverlay();S.tab='productos';S.filterCat=null;renderPage();toast(newProds.length+' productos'+(!failCount?'':' ('+failCount+' sin guardar en BD)')+' importados ✓');
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────
