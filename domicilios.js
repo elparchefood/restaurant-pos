@@ -1,293 +1,448 @@
-/* domicilios.js — Módulo Domicilios Express · Lumen POS
+/* domicilios.js — Módulo Domicilios · Lumen POS
    Stack: HTML/CSS/JS vanilla + Supabase
    Credenciales: definidas en pos-core.js (sb ya disponible)
+   Fuente: convertido desde JSX (domicilios-src-2552bc74, 35f24634, 9f4f6970)
    Reglas: nada hardcodeado de negocio, productos de Supabase,
            clientes semilla local, sin sesión → login.html
 */
 
-// ── Canales config ────────────────────────────────────────────────────
-var CANALES = {
-  whatsapp:  { mono: 'WA',  label: 'WhatsApp',   color: '#25D366', bg: '#E7F8EE' },
-  instagram: { mono: 'IG',  label: 'Instagram',  color: '#E1306C', bg: '#FCE7F0' },
-  facebook:  { mono: 'FB',  label: 'Facebook',   color: '#1877F2', bg: '#E7F0FE' },
-  tiktok:    { mono: 'TT',  label: 'TikTok',     color: '#111827', bg: '#EEF0F3' },
-  llamada:   { mono: 'Tel', label: 'Llamada',    color: '#5B6BFF', bg: '#EEF2FF' },
-  web:       { mono: 'Web', label: 'Página web', color: '#0EA5E9', bg: '#F0F9FF' }
-};
+// ── Datos estáticos (extraídos del JSX fuente) ─────────────────────────
 
-var MODALIDADES = {
-  express:    'Domicilio express',
-  programado: 'Domicilio programado',
-  recogo:     'Recogo en tienda'
-};
+const CHANNELS = [
+  { id: 'whatsapp',  name: 'WhatsApp',   mono: 'WA',  color: '#25D366', tint: '#E7F8EE' },
+  { id: 'instagram', name: 'Instagram',  mono: 'IG',  color: '#E1306C', tint: '#FCE7F0' },
+  { id: 'facebook',  name: 'Facebook',   mono: 'FB',  color: '#1877F2', tint: '#E7F0FE' },
+  { id: 'tiktok',    name: 'TikTok',     mono: 'TT',  color: '#111827', tint: '#EEF0F3' },
+  { id: 'llamada',   name: 'Llamada',    mono: 'Tel', color: '#5B6BFF', tint: '#EEF2FF' },
+  { id: 'web',       name: 'Página web', mono: 'Web', color: '#0EA5E9', tint: '#F0F9FF' },
+];
+const CHAN_OF = id => CHANNELS.find(c => c.id === id) || CHANNELS[0];
 
-var KAN_ORDEN = ['recibido', 'preparacion', 'listo', 'camino', 'entregado'];
-var KAN_NEXT  = { recibido: 'preparacion', preparacion: 'listo', listo: 'camino', camino: 'entregado', entregado: null };
-var KAN_BTN   = { recibido: 'En preparación', preparacion: 'Listo', listo: 'En camino', camino: 'Entregado', entregado: null };
+const MODALITIES = [
+  { id: 'express',    name: 'Domicilio express',    icon: 'scooter'  },
+  { id: 'programado', name: 'Domicilio programado', icon: 'calendar' },
+  { id: 'recogo',     name: 'Recogo en tienda',     icon: 'store'    },
+];
 
-// ── Estado global ─────────────────────────────────────────────────────
-var S = {
+const ESTADOS = [
+  { id: 'recibido',    name: 'Recibido',       color: '#64748B', tint: '#F1F5F9' },
+  { id: 'preparacion', name: 'En preparación', color: '#F59E0B', tint: '#FFFBEB' },
+  { id: 'listo',       name: 'Listo',          color: '#8B5CF6', tint: '#F5F3FF' },
+  { id: 'camino',      name: 'En camino',      color: '#5B6BFF', tint: '#EEF2FF' },
+  { id: 'entregado',   name: 'Entregado',      color: '#16A34A', tint: '#DCFCE7' },
+];
+const ESTADO_OF   = id => ESTADOS.find(e => e.id === id) || ESTADOS[0];
+const ESTADO_NEXT = id => { const i = ESTADOS.findIndex(e => e.id === id); return i >= 0 && i < ESTADOS.length - 1 ? ESTADOS[i + 1].id : null; };
+const KAN_BTN     = { recibido: 'En preparación', preparacion: 'Listo', listo: 'En camino', camino: 'Entregado', entregado: null };
+
+const DOMICILIARIOS = [
+  { id: 'dm1', nombre: 'Felipe Ríos',     tel: '301 555 2210', estado: 'Disponible' },
+  { id: 'dm2', nombre: 'Daniel Quintero', tel: '312 880 4471', estado: 'Disponible' },
+  { id: 'dm3', nombre: 'Mateo Salas',     tel: '318 224 9930', estado: 'En ruta'    },
+];
+
+const CLIENTES_SEED = [
+  { id: 'c1', nombre: 'Jesús Gómez',               tel: '300 412 8890', dir: 'Cra. 45 #12-30, Centro'          },
+  { id: 'c2', nombre: 'Karen Juliana San Ignacio',  tel: '311 765 2210', dir: 'Cl. 116 #18-30, Norte'           },
+  { id: 'c3', nombre: 'Víctor Raúl Llanos',         tel: '320 998 1145', dir: 'Av. 1 de Mayo #34-12, Sur'       },
+  { id: 'c4', nombre: 'Adriana Eraso',              tel: '301 220 7788', dir: 'Cl. 63 #11-20, Chapinero'        },
+  { id: 'c5', nombre: 'Camilo Restrepo',            tel: '315 644 0091', dir: 'Cra. 9 #70-15, Quinta Camacho'  },
+  { id: 'c6', nombre: 'Mariana Ortiz',              tel: '318 330 5566', dir: 'Cl. 53 #24-60, Galerías'         },
+];
+
+const DOMI_SEED = [
+  { id: 'D-1042', cliente: 'Jesús Gómez',      canal: 'whatsapp',  items: 3, productos: 49000, fee: 5000, estado: 'recibido',    payStatus: 'pendiente', payWhen: 'contraentrega', metodo: 'efectivo',      courier: 'interno', domiciliario: 'Felipe Ríos', min: 4 },
+  { id: 'D-1041', cliente: 'Adriana Eraso',    canal: 'instagram', items: 2, productos: 36000, fee: 6000, estado: 'preparacion', payStatus: 'pagado',    payWhen: 'adelantado',    metodo: 'transferencia', courier: 'interno', domiciliario: 'Felipe Ríos', min: 9 },
+  { id: 'D-1040', cliente: 'Camilo Restrepo',  canal: 'web',       items: 5, productos: 78000, fee: 7000, estado: 'listo',       payStatus: 'pagado',    payWhen: 'adelantado',    metodo: 'tarjeta',       courier: 'interno', domiciliario: '—',           min: 14 },
+  { id: 'D-1039', cliente: 'Karen J. San I.',  canal: 'whatsapp',  items: 4, productos: 52000, fee: 8000, estado: 'camino',      payStatus: 'pendiente', payWhen: 'contraentrega', metodo: 'efectivo',      courier: 'externo', domiciliario: 'Rappi',       min: 22, cobramos: false },
+  { id: 'D-1038', cliente: 'Víctor R. Llanos', canal: 'facebook',  items: 2, productos: 30000, fee: 6000, estado: 'camino',      payStatus: 'pagado',    payWhen: 'adelantado',    metodo: 'transferencia', courier: 'externo', domiciliario: 'Picap',       min: 27, cobramos: true  },
+  { id: 'D-1037', cliente: 'Mariana Ortiz',    canal: 'tiktok',    items: 6, productos: 96000, fee: 5000, estado: 'entregado',   payStatus: 'pagado',    payWhen: 'contraentrega', metodo: 'efectivo',      courier: 'interno', domiciliario: 'Felipe Ríos', min: 41 },
+];
+
+let DCOUNT = 1043;
+
+// ── Estado global S ────────────────────────────────────────────────────
+const S = {
+  tenantId:  null,
+  // Contexto del domicilio
   canal:     'whatsapp',
   modalidad: 'express',
   fee:       0,
+  // Carrito
   cart:      [],
+  // Cliente
   cliente:   null,
+  // Courier
   courier:   'interno',
   cobramos:  false,
   asignado:  null,
+  // Pago
   pago:      { when: 'contraentrega', status: 'pendiente', metodo: 'efectivo' },
+  // UI
   kpRaw:     '',
   editCliId: null,
-  products:  [],
+  // Datos
   cats:      [],
-  deliveries: [],
-  tenantId:  null,
+  products:  [],
   favorites: [],
-  clientes: [
-    { id: 'c1', nombres: 'Jesús',          apellidos: 'Gómez',          telefono: '300 412 8890', direccion: 'Cra. 45 #12-30, Centro' },
-    { id: 'c2', nombres: 'Karen Juliana',  apellidos: 'San Ignacio',    telefono: '311 765 2210', direccion: 'Cl. 116 #18-30, Norte' },
-    { id: 'c3', nombres: 'Víctor Raúl',    apellidos: 'Llanos',         telefono: '320 998 1145', direccion: 'Av. 1 de Mayo #34-12, Sur' },
-    { id: 'c4', nombres: 'Adriana',        apellidos: 'Eraso',          telefono: '301 220 7788', direccion: 'Cl. 63 #11-20, Chapinero' },
-    { id: 'c5', nombres: 'Camilo',         apellidos: 'Restrepo',       telefono: '315 644 0091', direccion: 'Cra. 9 #70-15, Quinta Camacho' },
-    { id: 'c6', nombres: 'Mariana',        apellidos: 'Ortiz',          telefono: '318 330 5566', direccion: 'Cl. 53 #24-60, Galerías' }
-  ],
-  couriers: [
-    { id: 'dm1', initials: 'FR', name: 'Felipe Ríos',      phone: '301 555 2210', status: 'ok',  statusLbl: 'Disponible' },
-    { id: 'dm2', initials: 'DQ', name: 'Daniel Quintero',  phone: '312 880 4471', status: 'ok',  statusLbl: 'Disponible' },
-    { id: 'dm3', initials: 'MS', name: 'Mateo Salas',      phone: '318 224 9930', status: '',    statusLbl: 'En ruta' }
-  ]
+  clientes:  CLIENTES_SEED.map(c => Object.assign({}, c)),
+  deliveries: DOMI_SEED.map(d => Object.assign({ createdAt: Date.now() - d.min * 60000 }, d)),
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────
 function $(id) { return document.getElementById(id); }
 
 function fmt(n) {
-  if (!n) return '$0';
-  return '$' + Math.round(n).toLocaleString('es-CO');
+  return '$' + Math.round(n || 0).toLocaleString('es-CO');
 }
 
-function initials(nombre) {
-  var parts = (nombre || '').trim().split(/\s+/);
+function initials(s) {
+  const parts = (s || '?').trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   return (parts[0] || '?').slice(0, 2).toUpperCase();
 }
 
-function cliFullName(c) {
-  return (c.nombres + ' ' + c.apellidos).trim();
-}
-
 function toast(msg, duration) {
-  var el = $('toast');
-  el.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ' + msg;
+  const el = $('toast');
+  if (!el) return;
+  el.innerHTML = svgInline('check', 15) + ' ' + msg;
   el.hidden = false;
-  setTimeout(function () { el.hidden = true; }, duration || 2200);
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { el.hidden = true; }, duration || 2200);
 }
 
-function svgCheck() {
-  return '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+// ── SVG helpers (inline, no dependencia externa) ───────────────────────
+function svgInline(name, size, sw) {
+  size = size || 16;
+  sw   = sw || 2;
+  const p = `width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"`;
+  switch (name) {
+    case 'back':     return `<svg ${p}><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>`;
+    case 'back2':    return `<svg ${p}><polyline points="15 18 9 12 15 6"/></svg>`;
+    case 'scooter':  return `<svg ${p}><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 18H15"/><path d="M4 7h4l3 8"/><path d="M14 9h3l3 6"/><path d="M14 9V6h2"/></svg>`;
+    case 'list':     return `<svg ${p}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`;
+    case 'cart':     return `<svg ${p}><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>`;
+    case 'plus':     return `<svg ${p}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+    case 'minus':    return `<svg ${p}><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+    case 'trash':    return `<svg ${p}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
+    case 'chevron':  return `<svg ${p}><polyline points="9 18 15 12 9 6"/></svg>`;
+    case 'search':   return `<svg ${p}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
+    case 'star':     return `<svg ${p}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+    case 'fire':     return `<svg ${p}><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`;
+    case 'note':     return `<svg ${p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+    case 'user':     return `<svg ${p}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+    case 'userplus': return `<svg ${p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>`;
+    case 'edit':     return `<svg ${p}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>`;
+    case 'x':        return `<svg ${p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+    case 'check':    return `<svg ${p}><polyline points="20 6 9 17 4 12"/></svg>`;
+    case 'phone':    return `<svg ${p}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+    case 'mappin':   return `<svg ${p}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
+    case 'clock':    return `<svg ${p}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+    case 'calendar': return `<svg ${p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
+    case 'store':    return `<svg ${p}><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><path d="M3 9h18"/></svg>`;
+    case 'cash':     return `<svg ${p}><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><line x1="6" y1="12" x2="6.01" y2="12"/><line x1="18" y1="12" x2="18.01" y2="12"/></svg>`;
+    case 'transfer': return `<svg ${p}><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`;
+    case 'card':     return `<svg ${p}><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>`;
+    case 'truck':    return `<svg ${p}><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>`;
+    case 'save':     return `<svg ${p}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>`;
+    case 'alert':    return `<svg ${p}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+    case 'info':     return `<svg ${p}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+    case 'bag':      return `<svg ${p}><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`;
+    case 'arrowr':   return `<svg ${p}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>`;
+    case 'sliders':  return `<svg ${p}><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>`;
+    default: return '';
+  }
 }
 
-function svgClock() {
-  return '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
-}
+function colorTint(hex) { return hex + '18'; }
+function colorRing(hex)  { return hex + '66'; }
 
-function svgUser() {
-  return '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
-}
+// ── Boot ───────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { window.location.href = 'login.html'; return; }
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) { window.location.href = 'login.html'; return; }
 
-function svgScoot() {
-  return '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 18H15"/><path d="M4 7h4l3 8"/><path d="M14 9h3l3 6"/><path d="M14 9V6h2"/></svg>';
-}
+  S.tenantId = (user.user_metadata && user.user_metadata.tenant_id) || null;
+  const name = (user.user_metadata && user.user_metadata.full_name) || user.email || 'Usuario';
+  const role = (user.user_metadata && user.user_metadata.role) || 'Operador';
+  if ($('topbar-name'))   $('topbar-name').textContent   = name;
+  if ($('topbar-role'))   $('topbar-role').textContent   = role;
+  if ($('topbar-role2'))  $('topbar-role2').textContent  = role;
+  if ($('topbar-avatar')) $('topbar-avatar').textContent = initials(name);
 
-// ── Boot ──────────────────────────────────────────────────────────────
-function boot() {
-  sb.auth.getSession().then(function (res) {
-    var session = res.data && res.data.session;
-    if (!session) {
-      window.location.href = 'login.html';
-      return;
-    }
-    sb.auth.getUser().then(function (r) {
-      var user = r.data && r.data.user;
-      if (!user) { window.location.href = 'login.html'; return; }
-      S.tenantId = (user.user_metadata && user.user_metadata.tenant_id) || null;
-      var name = (user.user_metadata && user.user_metadata.full_name) || user.email || 'Usuario';
-      var role = (user.user_metadata && user.user_metadata.role) || 'Operador';
-      $('topbar-name').textContent = name;
-      $('topbar-role').textContent = role;
-      $('topbar-role2').textContent = role;
-      $('topbar-avatar').textContent = initials(name);
-      loadProducts();
-    });
-  });
+  await loadData();
 
-  bindAll();
-  renderAsigList();
   renderCatGrid();
+  renderMenuPane();
+  renderFavPane();
   renderCart();
   renderDetBtn();
-  openModal('modal-registro');
-}
+  renderAsigList();
+  renderContextHeader();
+  renderMonitor();
+  updateMonitorBadge();
 
-// ── Cargar productos ──────────────────────────────────────────────────
-function loadProducts() {
+  attachEvents();
+  openModal('modal-registro');
+});
+
+// ── Cargar datos desde Supabase ────────────────────────────────────────
+async function loadData() {
   if (!S.tenantId) return;
-  sb.from('pos_categories')
+
+  const { data: cats } = await sb.from('pos_categories')
     .select('id,name,color,image_url')
     .eq('tenant_id', S.tenantId)
     .eq('is_active', true)
-    .order('name')
-    .then(function (r) {
-      S.cats = r.data || [];
-      renderCatGrid();
-      renderMenuPane();
-    });
+    .order('name');
+  S.cats = cats || [];
 
-  sb.from('pos_products')
+  const { data: prods } = await sb.from('pos_products')
     .select('id,name,price,category_id,is_favorite,image_url')
     .eq('tenant_id', S.tenantId)
     .eq('is_active', true)
-    .order('name')
-    .then(function (r) {
-      S.products = r.data || [];
-      S.favorites = S.products.filter(function (p) { return p.is_favorite; });
-      renderCatGrid();
-      renderMenuPane();
-      renderFavPane();
-    });
+    .order('name');
+  S.products  = prods || [];
+  S.favorites = S.products.filter(p => p.is_favorite);
 }
 
-// ── Render catgrid ────────────────────────────────────────────────────
+// ── Navegación y vistas ────────────────────────────────────────────────
+function setView(v) {
+  document.querySelectorAll('.d-navitem[data-nav]').forEach(b => {
+    b.classList.toggle('on', b.dataset.nav === v);
+    // Monitor badge invierte colores cuando está activo
+    const badge = b.querySelector('#monitor-badge');
+    if (badge) {
+      badge.style.background = v === 'monitor' ? '#fff' : '#5B6BFF';
+      badge.style.color      = v === 'monitor' ? '#5B6BFF' : '#fff';
+    }
+  });
+  const pedidoEl  = $('view-pedido');
+  const monitorEl = $('view-monitor');
+  if (pedidoEl)  { pedidoEl.hidden  = (v !== 'pedido');  pedidoEl.classList.toggle('on', v === 'pedido'); }
+  if (monitorEl) { monitorEl.hidden = (v !== 'monitor'); monitorEl.classList.toggle('on', v === 'monitor'); }
+  if (v === 'monitor') { renderMonitor(); updateMonitorBadge(); }
+}
+
+function setBrowserTab(tab) {
+  document.querySelectorAll('.lm-bigtab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  if ($('cat-grid'))          $('cat-grid').hidden          = (tab !== 'categoria');
+  if ($('subview-products'))  $('subview-products').hidden  = true;
+  if ($('pane-menu'))         $('pane-menu').hidden         = (tab !== 'menu');
+  if ($('pane-busqueda'))     $('pane-busqueda').hidden     = (tab !== 'busqueda');
+  if ($('pane-favoritos'))    $('pane-favoritos').hidden    = (tab !== 'favoritos');
+  if (tab === 'menu')      renderMenuPane();
+  if (tab === 'favoritos') renderFavPane();
+}
+
+function flipToDetalles() {
+  const pd = document.querySelector('[data-face="pedido"]');
+  const dd = document.querySelector('[data-face="detalles"]');
+  if (pd) pd.classList.remove('on');
+  if (dd) dd.classList.add('on');
+  renderClienteCard();
+}
+
+function flipToPedido() {
+  const pd = document.querySelector('[data-face="pedido"]');
+  const dd = document.querySelector('[data-face="detalles"]');
+  if (dd) dd.classList.remove('on');
+  if (pd) pd.classList.add('on');
+  renderDetBtn();
+  renderTotals();
+}
+
+// ── Modal helpers ──────────────────────────────────────────────────────
+function openModal(id)  { const el = $(id); if (el) el.hidden = false; }
+function closeModal(id) { const el = $(id); if (el) el.hidden = true;  }
+function closeAllModals() {
+  document.querySelectorAll('.d-overlay').forEach(el => { el.hidden = true; });
+}
+
+// ── Contexto header ────────────────────────────────────────────────────
+function renderContextHeader() {
+  const ch = CHAN_OF(S.canal);
+  const el_badge = $('chan-badge');
+  const el_mono  = $('chan-mono');
+  const el_name  = $('chan-name');
+  const el_mod   = $('modalidad-title');
+  const el_fee   = $('fee-display');
+  if (el_badge) { el_badge.style.color = ch.color; el_badge.style.background = ch.tint; }
+  if (el_mono)  { el_mono.textContent = ch.mono; el_mono.style.background = ch.color; }
+  if (el_name)  el_name.textContent  = ch.name;
+  const mod = MODALITIES.find(m => m.id === S.modalidad) || MODALITIES[0];
+  if (el_mod) el_mod.textContent = mod.name;
+  if (el_fee) el_fee.textContent = fmt(S.fee);
+  renderTotals();
+}
+
+// ── Keypad ─────────────────────────────────────────────────────────────
+function kpPress(k) {
+  if (k === 'C' || k === 'clear') {
+    S.kpRaw = '0';
+  } else if (k === 'bksp') {
+    S.kpRaw = S.kpRaw.length <= 1 ? '0' : S.kpRaw.slice(0, -1);
+  } else {
+    const next = (S.kpRaw === '0' ? '' : S.kpRaw) + k;
+    S.kpRaw = next.slice(0, 9) || '0';
+  }
+  const num = parseInt(S.kpRaw, 10) || 0;
+  if ($('kp-display'))  $('kp-display').textContent  = fmt(num);
+  if ($('fee-preview')) $('fee-preview').textContent = num.toLocaleString('es-CO');
+}
+
+function kpOk() {
+  const num = parseInt(S.kpRaw, 10) || 0;
+  S.fee    = num;
+  S.kpRaw  = '0';
+  closeModal('modal-keypad');
+  renderContextHeader();
+}
+
+function openKeypad() {
+  S.kpRaw = S.fee ? String(S.fee) : '0';
+  if ($('kp-display'))  $('kp-display').textContent  = fmt(S.fee);
+  if ($('fee-preview')) $('fee-preview').textContent = S.fee.toLocaleString('es-CO');
+  openModal('modal-keypad');
+}
+
+// ── Browser – catálogo ─────────────────────────────────────────────────
 function renderCatGrid() {
-  var el = $('cat-grid');
+  const el = $('cat-grid');
   if (!el) return;
   if (!S.cats.length) {
-    el.innerHTML = '<div class="d-empty" style="grid-column:1/-1"><div class="d-empty-ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></div><div style="font-size:13px;font-weight:600;color:var(--ink-2)">Sin categorías</div></div>';
+    el.innerHTML = `<div class="d-empty" style="grid-column:1/-1"><div class="d-empty-ic">${svgInline('bag', 28, 1.5)}</div><div style="font-size:13px;font-weight:600;color:var(--ink-2)">Sin categorías</div></div>`;
     return;
   }
-  el.innerHTML = S.cats.map(function (c) {
-    var color = c.color || '#5B6BFF';
-    var count = S.products.filter(function (p) { return p.category_id === c.id; }).length;
-    var border = colorToLight(color);
-    return '<button class="lm-cat" data-open-cat="' + c.id + '" style="border-color:' + border + '">' +
-      '<div class="d-thumb" style="height:108px">' +
-      (c.image_url ? '<img src="' + c.image_url + '" style="width:100%;height:100%;object-fit:cover;border-radius:9px">' : '<span class="d-thumb-lbl">' + c.name + '</span>') +
-      '</div>' +
-      '<div class="d-cat-foot">' +
-        '<div><div class="d-cat-name">' + c.name + '</div><div class="d-cat-count">' + count + ' productos</div></div>' +
-        '<span class="d-cat-badge" style="color:' + color + ';background:' + colorTint(color) + '"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>' +
-      '</div></button>';
+  el.innerHTML = S.cats.map(c => {
+    const color = c.color || '#5B6BFF';
+    const count = S.products.filter(p => p.category_id === c.id).length;
+    const thumb = c.image_url
+      ? `<img src="${c.image_url}" style="width:100%;height:100%;object-fit:cover;border-radius:9px">`
+      : `<span class="d-thumb-lbl">${c.name}</span>`;
+    return `<button class="lm-cat" data-open-cat="${c.id}" style="border-color:${colorRing(color)}">
+      <div class="d-thumb" style="height:108px">${thumb}</div>
+      <div class="d-cat-foot">
+        <div><div class="d-cat-name">${c.name}</div><div class="d-cat-count">${count} productos</div></div>
+        <span class="d-cat-badge" style="color:${color};background:${colorTint(color)}">${svgInline('chevron', 14)}</span>
+      </div></button>`;
   }).join('');
 }
 
-function colorToLight(hex) {
-  return hex + '66';
-}
-
-function colorTint(hex) {
-  return hex + '18';
-}
-
-// ── Abrir categoría ───────────────────────────────────────────────────
 function openCat(catId) {
-  var cat = S.cats.find(function (c) { return c.id === catId; });
-  var prods = S.products.filter(function (p) { return p.category_id === catId; });
-  var color = (cat && cat.color) || '#5B6BFF';
-  $('prod-catdot').style.background = color;
-  $('prod-catname').textContent = cat ? cat.name : '—';
-  $('prod-catcount').textContent = prods.length;
+  const cat   = S.cats.find(c => c.id === catId);
+  const prods = S.products.filter(p => p.category_id === catId);
+  const color = (cat && cat.color) || '#5B6BFF';
+  if ($('prod-catdot'))   $('prod-catdot').style.background = color;
+  if ($('prod-catname'))  $('prod-catname').textContent     = cat ? cat.name : '—';
+  if ($('prod-catcount')) $('prod-catcount').textContent    = prods.length;
   renderProdGrid($('prod-grid'), prods);
-  $('cat-grid').hidden = true;
-  $('subview-products').hidden = false;
+  if ($('cat-grid'))         $('cat-grid').hidden         = true;
+  if ($('subview-products')) $('subview-products').hidden = false;
 }
 
 function renderProdGrid(el, prods) {
+  if (!el) return;
   if (!prods.length) {
-    el.innerHTML = '<div class="d-softempty" style="grid-column:1/-1"><div class="d-softempty-ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></div><div style="font-size:13px;font-weight:600;color:var(--ink-2)">Sin productos</div></div>';
+    el.innerHTML = `<div class="d-softempty" style="grid-column:1/-1"><div class="d-softempty-ic">${svgInline('bag', 24, 1.5)}</div><div style="font-size:13px;font-weight:600;color:var(--ink-2)">Sin productos</div></div>`;
     return;
   }
-  el.innerHTML = prods.map(function (p) {
-    var inCart = S.cart.find(function (i) { return i.id === p.id; });
-    var qty = inCart ? inCart.qty : 0;
-    return '<button class="lm-prod" data-add="' + p.id + '">' +
-      '<div style="position:relative">' +
-        '<div class="d-thumb" style="height:84px">' +
-          (p.image_url ? '<img src="' + p.image_url + '" style="width:100%;height:100%;object-fit:cover;border-radius:9px">' : '<span class="d-thumb-lbl">' + p.name + '</span>') +
-        '</div>' +
-        (p.is_favorite ? '<span class="d-star"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>' : '') +
-        (qty > 0 ? '<span class="d-qty">' + qty + '</span>' : '') +
-      '</div>' +
-      '<div class="d-prod-foot">' +
-        '<div class="d-prod-name">' + p.name + '</div>' +
-        '<div class="d-prod-row"><span class="d-prod-price">' + fmt(p.price) + '</span><span class="d-add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span></div>' +
-      '</div></button>';
+  el.innerHTML = prods.map(p => {
+    const inCart = S.cart.find(i => i.id === p.id);
+    const qty    = inCart ? inCart.qty : 0;
+    const thumb  = p.image_url
+      ? `<img src="${p.image_url}" style="width:100%;height:100%;object-fit:cover;border-radius:9px">`
+      : `<span class="d-thumb-lbl">${p.name}</span>`;
+    return `<button class="lm-prod" data-add="${p.id}">
+      <div style="position:relative">
+        <div class="d-thumb" style="height:84px">${thumb}</div>
+        ${p.is_favorite ? `<span class="d-star">${svgInline('star', 11)}</span>` : ''}
+        ${qty > 0 ? `<span class="d-qty">${qty}</span>` : ''}
+      </div>
+      <div class="d-prod-foot">
+        <div class="d-prod-name">${p.name}</div>
+        <div class="d-prod-row"><span class="d-prod-price">${fmt(p.price)}</span><span class="d-add">${svgInline('plus', 14, 2.5)}</span></div>
+      </div></button>`;
   }).join('');
 }
 
-// ── Render menu pane ──────────────────────────────────────────────────
 function renderMenuPane() {
-  var el = $('menu-scroll');
+  const el = $('menu-scroll');
   if (!el) return;
-  if (!S.cats.length) { el.innerHTML = '<div class="d-softempty" style="padding:24px;text-align:center;color:var(--muted)">Sin categorías</div>'; return; }
-  el.innerHTML = S.cats.map(function (cat) {
-    var prods = S.products.filter(function (p) { return p.category_id === cat.id; });
+  if (!S.cats.length) { el.innerHTML = `<div class="d-softempty" style="padding:24px;text-align:center;color:var(--muted)">Sin categorías</div>`; return; }
+  el.innerHTML = S.cats.map(cat => {
+    const prods = S.products.filter(p => p.category_id === cat.id);
     if (!prods.length) return '';
-    var rows = prods.map(function (p) {
-      var inCart = S.cart.find(function (i) { return i.id === p.id; });
-      var qty = inCart ? inCart.qty : 0;
-      return '<button class="lm-menurow" data-add="' + p.id + '">' +
-        '<span class="d-menuqty" style="' + (qty > 0 ? '' : 'visibility:hidden') + '">' + qty + '</span>' +
-        '<span style="flex:1;font-size:12.5px;font-weight:600;color:var(--ink)">' + p.name + '</span>' +
-        '<span style="font-size:13px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums">' + fmt(p.price) + '</span>' +
-        '<span class="d-add-sm"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>' +
-        '</button>';
+    const color = cat.color || '#5B6BFF';
+    const rows = prods.map(p => {
+      const inCart = S.cart.find(i => i.id === p.id);
+      const qty    = inCart ? inCart.qty : 0;
+      return `<button class="lm-menurow" data-add="${p.id}">
+        <span class="d-menuqty" style="${qty > 0 ? '' : 'visibility:hidden'}">${qty}</span>
+        <span style="flex:1;font-size:12.5px;font-weight:600;color:var(--ink)">${p.name}</span>
+        ${p.is_favorite ? `<span style="font-size:10px;color:#F59E0B;font-weight:700;margin-right:4px">${svgInline('star', 9)} Favorito</span>` : ''}
+        <span style="font-size:13px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;margin-right:4px">${fmt(p.price)}</span>
+        <span class="d-add-sm">${svgInline('plus', 13, 2.5)}</span>
+        </button>`;
     }).join('');
-    return '<div class="d-menugroup">' +
-      '<div class="d-menughead"><span class="d-menugname" style="color:' + (cat.color || '#5B6BFF') + '">' + cat.name + '</span><div class="d-menugrule"></div></div>' +
-      '<div class="d-menurows">' + rows + '</div></div>';
+    return `<div class="d-menugroup">
+      <div class="d-menughead"><span class="d-catdot" style="background:${color}"></span><span class="d-menugname">${cat.name}</span><span class="d-menugrule"></span></div>
+      <div class="d-menurows">${rows}</div></div>`;
   }).join('');
 }
 
-// ── Render fav pane ───────────────────────────────────────────────────
 function renderFavPane() {
-  var el = $('fav-grid');
+  const el    = $('fav-grid');
+  const empty = $('fav-empty');
   if (!el) return;
-  var favs = S.products.filter(function (p) { return p.is_favorite; });
-  $('fav-empty').hidden = favs.length > 0;
-  if (favs.length) renderProdGrid(el, favs);
+  const favs = S.products.filter(p => p.is_favorite);
+  if (empty) empty.hidden = favs.length > 0;
+  if (favs.length) {
+    renderProdGrid(el, favs);
+  } else {
+    el.innerHTML = '';
+  }
 }
 
-// ── Búsqueda ──────────────────────────────────────────────────────────
 function renderBusqResults(q) {
-  var grid = $('busq-grid');
-  var empty = $('busq-empty');
-  if (!q) { grid.innerHTML = ''; empty.hidden = true; return; }
-  var results = S.products.filter(function (p) {
-    return p.name.toLowerCase().includes(q.toLowerCase());
-  });
-  empty.hidden = results.length > 0;
+  const grid  = $('busq-grid');
+  const empty = $('busq-empty');
+  if (!q.trim()) {
+    if (grid)  grid.innerHTML = '';
+    if (empty) empty.hidden   = true;
+    return;
+  }
+  const results = S.products.filter(p => p.name.toLowerCase().includes(q.toLowerCase()));
+  if (empty) empty.hidden = results.length > 0;
   if (results.length) renderProdGrid(grid, results);
-  else grid.innerHTML = '';
+  else if (grid) grid.innerHTML = '';
 }
 
-// ── Cart ──────────────────────────────────────────────────────────────
+// ── Carrito ────────────────────────────────────────────────────────────
 function addToCart(id) {
-  var p = S.products.find(function (x) { return x.id === id; });
+  const p = S.products.find(x => x.id === id);
   if (!p) return;
-  var existing = S.cart.find(function (i) { return i.id === id; });
+  const existing = S.cart.find(i => i.id === id);
   if (existing) {
     existing.qty++;
   } else {
-    var cat = S.cats.find(function (c) { return c.id === p.category_id; });
-    S.cart.push({ id: id, name: p.name, price: p.price, qty: 1, catName: cat ? cat.name : '', catColor: (cat && cat.color) || '#94A3B8' });
+    const cat = S.cats.find(c => c.id === p.category_id);
+    S.cart.push({ id, name: p.name, price: p.price, qty: 1,
+                  catName: cat ? cat.name : '', catColor: (cat && cat.color) || '#94A3B8' });
   }
   renderCart();
   renderDetBtn();
   refreshBrowserQtys();
+  // Pulse visual
+  clearTimeout(addToCart._pt);
+  addToCart._pid = id;
+  addToCart._pt  = setTimeout(() => { addToCart._pid = null; }, 420);
 }
 
 function updateQty(id, delta) {
-  var idx = S.cart.findIndex(function (i) { return i.id === id; });
+  const idx = S.cart.findIndex(i => i.id === id);
   if (idx === -1) return;
   S.cart[idx].qty += delta;
   if (S.cart[idx].qty <= 0) S.cart.splice(idx, 1);
@@ -304,29 +459,29 @@ function clearCart() {
 }
 
 function refreshBrowserQtys() {
-  // Update qty badges in visible prod grids
-  document.querySelectorAll('[data-add]').forEach(function (btn) {
-    var id = btn.dataset.add;
-    var item = S.cart.find(function (i) { return i.id === id; });
-    var qty = item ? item.qty : 0;
-    var qtyEl = btn.querySelector('.d-qty');
+  document.querySelectorAll('[data-add]').forEach(btn => {
+    const id   = btn.dataset.add;
+    const item = S.cart.find(i => i.id === id);
+    const qty  = item ? item.qty : 0;
+
+    // card badge
+    let qtyEl = btn.querySelector('.d-qty');
     if (qty > 0) {
       if (!qtyEl) {
-        var rel = btn.querySelector('[style*="position:relative"]') || btn.querySelector('.d-thumb');
-        if (rel && rel.parentElement) {
-          var span = document.createElement('span');
-          span.className = 'd-qty';
-          span.textContent = qty;
-          rel.parentElement.appendChild(span);
+        const rel = btn.querySelector('[style*="position:relative"]');
+        if (rel) {
+          qtyEl = document.createElement('span');
+          qtyEl.className = 'd-qty';
+          rel.appendChild(qtyEl);
         }
-      } else {
-        qtyEl.textContent = qty;
       }
+      if (qtyEl) qtyEl.textContent = qty;
     } else {
       if (qtyEl) qtyEl.remove();
     }
-    // menu rows
-    var mqty = btn.querySelector('.d-menuqty');
+
+    // menu row badge
+    const mqty = btn.querySelector('.d-menuqty');
     if (mqty) {
       mqty.textContent = qty;
       mqty.style.visibility = qty > 0 ? 'visible' : 'hidden';
@@ -335,291 +490,311 @@ function refreshBrowserQtys() {
 }
 
 function renderCart() {
-  var lines = $('cart-lines');
-  var emptyEl = $('cart-empty');
-  var lbl = $('cart-count-lbl');
-  var total = computeProductsTotal();
+  const lines = $('cart-lines');
+  const lbl   = $('cart-count-lbl');
+  if (!lines) return;
+
+  const prod  = computeProductsTotal();
 
   if (!S.cart.length) {
-    if (!$('cart-empty')) lines.innerHTML = '<div class="d-empty" id="cart-empty"><div class="d-empty-ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div><div style="font-size:13px;font-weight:600;color:var(--ink-2)">Sin productos aún</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">Selecciona del catálogo</div></div>';
-    lbl.textContent = 'Pedido · 0 ítems';
-    $('total-productos').textContent = '$0';
+    lines.innerHTML = `<div class="d-empty" id="cart-empty">
+      <div class="d-empty-ic">${svgInline('bag', 28, 1.5)}</div>
+      <div style="font-size:13px;font-weight:600;color:var(--ink-2)">Sin productos aún</div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:4px">Selecciona del catálogo</div></div>`;
+    if (lbl) lbl.textContent = 'Pedido · 0 ítems';
     renderTotals();
     return;
   }
 
-  var totalItems = S.cart.reduce(function (a, i) { return a + i.qty; }, 0);
-  lbl.textContent = 'Pedido · ' + totalItems + ' ítem' + (totalItems !== 1 ? 's' : '');
+  const totalItems = S.cart.reduce((a, i) => a + i.qty, 0);
+  if (lbl) lbl.textContent = `Pedido · ${totalItems} ítem${totalItems !== 1 ? 's' : ''}`;
 
-  var html = S.cart.map(function (item) {
-    var lineTotal = item.price * item.qty;
-    return '<div class="d-cartline" data-line="' + item.id + '">' +
-      '<div style="flex:1;min-width:0">' +
-        '<div class="d-cl-name">' + item.name + '</div>' +
-        '<div class="d-cl-meta"><span class="dot" style="background:' + item.catColor + '"></span><span class="txt">' + item.catName + ' · ' + fmt(item.price) + '</span></div>' +
-      '</div>' +
-      '<div class="d-line-step">' +
-        '<button class="lm-step sm" data-dec="' + item.id + '">' +
-          (item.qty === 1
-            ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>'
-            : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>'
-          ) +
-        '</button>' +
-        '<span class="num">' + item.qty + '</span>' +
-        '<button class="lm-step sm" data-inc="' + item.id + '"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>' +
-      '</div>' +
-      '<div class="d-cl-total">' + fmt(lineTotal) + '</div>' +
-    '</div>';
+  lines.innerHTML = S.cart.map(item => {
+    const lineTotal   = item.price * item.qty;
+    const iconDec = item.qty === 1 ? svgInline('trash', 12) : svgInline('minus', 12);
+    return `<div class="d-cartline" data-line="${item.id}">
+      <div style="flex:1;min-width:0">
+        <div class="d-cl-name">${item.name}</div>
+        <div class="d-cl-meta"><span class="dot" style="background:${item.catColor}"></span><span class="txt">${item.catName} · ${fmt(item.price)}</span></div>
+      </div>
+      <div class="d-line-step">
+        <button class="lm-step sm" data-dec="${item.id}">${iconDec}</button>
+        <span class="num">${item.qty}</span>
+        <button class="lm-step sm" data-inc="${item.id}">${svgInline('plus', 12)}</button>
+      </div>
+      <div class="d-cl-total">${fmt(lineTotal)}</div></div>`;
   }).join('');
 
-  lines.innerHTML = html;
-  $('total-productos').textContent = fmt(total);
+  if ($('total-productos')) $('total-productos').textContent = fmt(prod);
   renderTotals();
 }
 
+// ── Dinero ─────────────────────────────────────────────────────────────
 function computeProductsTotal() {
-  return S.cart.reduce(function (a, i) { return a + i.price * i.qty; }, 0);
+  return S.cart.reduce((a, i) => a + i.price * i.qty, 0);
 }
 
+// Retorna { cobrar, ingreso, feeLabel, feeShown, feeMuted, gasto, mode }
+// mode: 'interno' | 'ext-cobra' | 'ext-directo'
 function computeMoney() {
-  var prods = computeProductsTotal();
-  var fee = S.fee;
-  var domicilioLine = fee;
-  var totalCobrar = prods;
-  var note = null;
+  const prod    = computeProductsTotal();
+  const fee     = S.fee;
+  const courier = S.courier;
+  const cobra   = S.cobramos;
 
-  if (S.courier === 'interno') {
-    // Nosotros cobramos el domicilio + productos
-    totalCobrar = prods + fee;
-  } else {
-    // Externo
-    if (!S.cobramos) {
-      // El cliente le paga al repartidor: el fee no entra como venta
-      totalCobrar = prods;
-      domicilioLine = fee;
-      note = { type: 'warn', text: 'El cliente paga el domicilio (<b>' + fmt(fee) + '</b>) directamente al repartidor. No entra como ingreso tuyo.' };
-    } else {
-      // Lo cobramos nosotros (transferencia)
-      totalCobrar = prods + fee;
-      note = { type: 'info', text: 'Cobras el domicilio (<b>' + fmt(fee) + '</b>) y luego se lo pagas al repartidor en efectivo.' };
-    }
+  if (courier === 'interno') {
+    return { cobrar: prod + fee, ingreso: prod + fee, feeLabel: 'Domicilio', feeShown: fee, feeMuted: false, gasto: 0, mode: 'interno' };
   }
-  return { prods: prods, fee: domicilioLine, total: totalCobrar, note: note };
+  if (cobra) {
+    return { cobrar: prod + fee, ingreso: prod, feeLabel: 'Domicilio (externo)', feeShown: fee, feeMuted: false, gasto: fee, mode: 'ext-cobra' };
+  }
+  return { cobrar: prod, ingreso: prod, feeLabel: 'Domicilio (lo paga el cliente)', feeShown: fee, feeMuted: true, gasto: 0, mode: 'ext-directo' };
 }
 
 function renderTotals() {
-  var m = computeMoney();
-  $('total-productos').textContent = fmt(m.prods);
-  $('total-domicilio').textContent = fmt(m.fee);
-  $('total-grand').textContent = fmt(m.total);
+  const M = computeMoney();
+  if ($('total-productos')) $('total-productos').textContent = fmt(M.ingreso > 0 ? computeProductsTotal() : 0);
+  if ($('total-domicilio')) {
+    const trow = $('trow-domicilio');
+    const span = $('total-domicilio');
+    const lbl  = trow && trow.querySelector('span');
+    if (lbl) lbl.textContent = M.feeLabel;
+    if (span) {
+      span.textContent = M.feeMuted ? `(${fmt(M.feeShown)})` : fmt(M.feeShown);
+      span.style.textDecoration = M.feeMuted ? 'line-through' : '';
+      span.style.color          = M.feeMuted ? 'var(--muted)'  : '';
+    }
+  }
+  if ($('total-grand')) $('total-grand').textContent = fmt(M.cobrar);
 
-  var noteArea = $('money-note-area');
-  if (m.note) {
-    noteArea.innerHTML = '<div class="d-moneynote ' + m.note.type + '"><span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span><span>' + m.note.text + '</span></div>';
+  // Nota de dinero
+  const noteArea = $('money-note-area');
+  if (!noteArea) return;
+  if (M.mode === 'ext-directo') {
+    noteArea.innerHTML = `<div class="d-moneynote warn"><span class="ic">${svgInline('alert', 14)}</span><span>El domicilio <b>${fmt(M.feeShown)}</b> lo paga el cliente directamente al repartidor externo. <b>No entra como ingreso nuestro.</b></span></div>`;
+  } else if (M.mode === 'ext-cobra') {
+    noteArea.innerHTML = `<div class="d-moneynote info"><span class="ic">${svgInline('transfer', 14)}</span><span>Cobramos <b>${fmt(M.cobrar)}</b> (incluye domicilio). El domicilio <b>${fmt(M.feeShown)}</b> se le paga al repartidor en efectivo → venta neta <b>${fmt(M.ingreso)}</b>.</span></div>`;
   } else {
     noteArea.innerHTML = '';
   }
 }
 
-// ── DetBtn ────────────────────────────────────────────────────────────
+// ── Botón resumen "Detalles del domicilio" ─────────────────────────────
 function renderDetBtn() {
-  var btn = $('detbtn');
-  var statusEl = $('detbtn-status');
-  var chipsEl = $('detbtn-chips');
+  const btn      = $('detbtn');
+  const statusEl = $('detbtn-status');
+  const chipsEl  = $('detbtn-chips');
   if (!btn) return;
 
-  var hasCliente  = !!S.cliente;
-  var hasCourier  = S.courier === 'externo' || !!S.asignado;
-  var isComplete  = hasCliente && hasCourier;
+  const recogo     = S.modalidad === 'recogo';
+  const externo    = S.courier === 'externo';
+  const hasCliente = !!S.cliente;
+  const courierOk  = recogo || externo || !!S.asignado;
+  const incompleto = !hasCliente || !courierOk;
 
-  btn.className = 'd-detbtn' + (isComplete ? '' : ' warn');
+  btn.className = 'd-detbtn' + (incompleto ? ' warn' : '');
 
-  if (isComplete) {
-    statusEl.innerHTML = '<span class="d-detbtn-ok">' + svgCheck() + ' Completo</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+  // Status badge
+  if (incompleto) {
+    statusEl.innerHTML = `<span class="d-detbtn-alert">${svgInline('alert', 12)} Faltan datos</span>${svgInline('chevron', 15)}`;
   } else {
-    statusEl.innerHTML = '<span class="d-detbtn-alert"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Faltan datos</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+    statusEl.innerHTML = `<span class="d-detbtn-ok">${svgInline('check', 12)} Completo</span>${svgInline('chevron', 15)}`;
   }
 
-  var chips = [];
-  if (hasCliente) {
-    chips.push('<span class="d-detbtn-chip">' + svgUser() + cliFullName(S.cliente) + '</span>');
-  } else {
-    chips.push('<span class="d-detbtn-chip miss">' + svgUser() + 'Sin cliente</span>');
+  // Chips
+  const dm = DOMICILIARIOS.find(x => S.asignado && x.id === S.asignado);
+  const courierTxt = recogo ? 'Recogo en tienda'
+    : externo ? (S.cobramos ? 'Externo · lo cobramos' : 'Externo · paga el cliente')
+    : (dm ? dm.nombre : 'Sin asignar');
+  const extDirecto = externo && !S.cobramos;
+  const pagoTxt = extDirecto
+    ? 'Lo cobra el repartidor'
+    : (S.cobramos
+      ? `Transferencia · ${S.pago.status === 'pagado' ? 'pagado' : 'por pagar'}`
+      : `${S.pago.status === 'pagado' ? 'Pagado' : 'Por pagar'} · ${S.pago.metodo}`);
+
+  const courierIcon = externo ? 'truck' : recogo ? 'store' : 'scooter';
+  const pagoIcon    = extDirecto ? 'truck' : (S.pago.status === 'pagado' ? 'check' : 'clock');
+
+  chipsEl.innerHTML = [
+    `<span class="d-detbtn-chip${hasCliente ? '' : ' miss'}">${svgInline('user', 12)}${S.cliente ? S.cliente.nombre : 'Sin cliente'}</span>`,
+    `<span class="d-detbtn-chip${courierOk ? '' : ' miss'}">${svgInline(courierIcon, 12)}${courierTxt}</span>`,
+    `<span class="d-detbtn-chip">${svgInline(pagoIcon, 12)}${pagoTxt}</span>`,
+  ].join('');
+
+  // Enviar button
+  const btnEnviar = $('btn-enviar');
+  if (btnEnviar) {
+    const count   = S.cart.reduce((a, x) => a + x.qty, 0);
+    const needAsig = !recogo && !externo;
+    const canSend = count > 0 && hasCliente && (!needAsig || !!S.asignado);
+    btnEnviar.disabled = !canSend;
   }
-
-  if (hasCourier) {
-    var courierLabel = S.courier === 'externo' ? 'Externo' : (S.asignado ? S.asignado.name : '—');
-    chips.push('<span class="d-detbtn-chip">' + svgScoot() + courierLabel + '</span>');
-  } else {
-    chips.push('<span class="d-detbtn-chip miss">' + svgScoot() + 'Sin domiciliario</span>');
-  }
-
-  var pagoLabel = (S.pago.status === 'pagado' ? 'Pagado' : 'Por pagar') + ' · ' + S.pago.metodo;
-  chips.push('<span class="d-detbtn-chip">' + svgClock() + pagoLabel + '</span>');
-
-  chipsEl.innerHTML = chips.join('');
 }
 
-// ── Cliente card ──────────────────────────────────────────────────────
+// ── Cliente card ───────────────────────────────────────────────────────
 function renderClienteCard() {
-  var el = $('cliente-card');
+  const el = $('cliente-card');
+  if (!el) return;
   if (!S.cliente) {
-    el.innerHTML = '<button class="d-cliente" data-open-cliente><span class="d-cli-avatar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="d-cli-empty">Seleccionar cliente</span></button>';
+    el.innerHTML = `<button class="d-cliente" data-open-cliente>
+      <span class="d-cli-avatar">${svgInline('user', 18)}</span>
+      <span class="d-cli-empty">Seleccionar cliente</span>
+      ${svgInline('chevron', 15)}</button>`;
     return;
   }
-  var c = S.cliente;
-  var ini = initials(cliFullName(c));
-  el.innerHTML = '<div class="d-cliente has">' +
-    '<span class="d-cli-avatar">' + ini + '</span>' +
-    '<div style="flex:1;min-width:0">' +
-      '<div class="d-cli-name">' + cliFullName(c) + '</div>' +
-      '<div class="d-cli-meta"><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span>' + (c.telefono || '—') + '</div>' +
-      '<div class="d-cli-addr"><span style="color:var(--faint);flex-shrink:0;margin-top:1px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>' + (c.direccion || '—') + '</div>' +
-    '</div>' +
-    '<button class="lm-icon-sm" data-edit-cliente><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button>' +
-    '</div>';
+  const c   = S.cliente;
+  const ini = initials(c.nombre);
+  el.innerHTML = `<div class="d-cliente has">
+    <span class="d-cli-avatar">${ini}</span>
+    <div style="flex:1;min-width:0">
+      <div class="d-cli-name">${c.nombre}</div>
+      <div class="d-cli-meta"><span class="ic">${svgInline('phone', 12)}</span>${c.tel || 'Sin teléfono'}</div>
+      <div class="d-cli-addr"><span style="color:var(--faint);flex-shrink:0;margin-top:1px">${svgInline('mappin', 12)}</span>${c.dir || 'Sin dirección'}</div>
+    </div>
+    <button class="lm-icon-sm" data-edit-cliente>${svgInline('edit', 14)}</button>
+    </div>`;
 }
 
-// ── Asig list ─────────────────────────────────────────────────────────
+// ── Asig list ──────────────────────────────────────────────────────────
 function renderAsigList() {
-  var el = $('asig-list');
+  const el = $('asig-list');
   if (!el) return;
-  el.innerHTML = S.couriers.map(function (dm) {
-    var isOn = S.asignado && S.asignado.id === dm.id;
-    return '<button class="d-asig ' + (isOn ? 'on' : '') + '" data-asignar="' + dm.id + '">' +
-      '<span class="d-asig-av">' + dm.initials + '</span>' +
-      '<span style="flex:1;min-width:0;text-align:left">' +
-        '<span class="d-asig-name">' + dm.name + '</span>' +
-        '<span class="d-asig-sub"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> ' + dm.phone + '<span class="d-asig-est ' + dm.status + '">' + dm.statusLbl + '</span></span>' +
-      '</span>' +
-      '<span class="d-radio"></span>' +
-    '</button>';
+  el.innerHTML = DOMICILIARIOS.map(dm => {
+    const isOn    = S.asignado === dm.id;
+    const statusOk = dm.estado === 'Disponible';
+    return `<button class="d-asig${isOn ? ' on' : ''}" data-asignar="${dm.id}">
+      <span class="d-asig-av">${initials(dm.nombre)}</span>
+      <span style="flex:1;min-width:0;text-align:left">
+        <span class="d-asig-name">${dm.nombre}</span>
+        <span class="d-asig-sub">${svgInline('phone', 10)} ${dm.tel}<span class="d-asig-est${statusOk ? ' ok' : ''}">${dm.estado}</span></span>
+      </span>
+      <span class="d-radio"></span></button>`;
   }).join('');
 }
 
-// ── Context header sync ───────────────────────────────────────────────
-function renderContextHeader() {
-  var ch = CANALES[S.canal] || CANALES.whatsapp;
-  var badge = $('chan-badge');
-  if (badge) { badge.style.color = ch.color; badge.style.background = ch.bg; }
-  var mono = $('chan-mono');
-  if (mono) { mono.textContent = ch.mono; mono.style.background = ch.color; }
-  var nm = $('chan-name');
-  if (nm) nm.textContent = ch.label;
-  var mt = $('modalidad-title');
-  if (mt) mt.textContent = MODALIDADES[S.modalidad] || S.modalidad;
-  var fd = $('fee-display');
-  if (fd) fd.textContent = fmt(S.fee);
+// ── Courier toggle ─────────────────────────────────────────────────────
+function toggleCourier() {
+  S.courier = S.courier === 'interno' ? 'externo' : 'interno';
+  const sw  = $('courier-switch');
+  const row = $('courier-row');
+  const lbl = $('courier-label');
+  const sub = $('courier-sub');
+  const ext = S.courier === 'externo';
+  if (sw)  { sw.classList.toggle('on', ext); sw.setAttribute('aria-pressed', ext); }
+  if (row) row.classList.toggle('on', ext);
+  if (lbl) lbl.textContent = ext ? 'Domiciliario externo' : 'Domiciliario interno';
+  if (sub) sub.textContent = ext ? 'Reparte una empresa externa' : 'Reparte un domiciliario de El Parche';
+
+  const panesInt = document.querySelector('[data-courier-pane="interno"]');
+  const panesExt = document.querySelector('[data-courier-pane="externo"]');
+  if (panesInt) panesInt.hidden = ext;
+  if (panesExt) panesExt.hidden = !ext;
+
+  if (!ext) S.cobramos = false;
+  renderDetBtn();
   renderTotals();
 }
 
-// ── Modal helpers ─────────────────────────────────────────────────────
-function openModal(id) {
-  var el = $(id);
-  if (el) el.hidden = false;
-}
-
-function closeModal(id) {
-  var el = $(id);
-  if (el) el.hidden = true;
-}
-
-function closeAllModals() {
-  document.querySelectorAll('.d-overlay').forEach(function (el) { el.hidden = true; });
-}
-
-// ── Cliente list render ───────────────────────────────────────────────
+// ── Clientes – lista ───────────────────────────────────────────────────
 function renderCliList(q) {
-  var el = $('cli-list');
+  const el = $('cli-list');
   if (!el) return;
-  var list = S.clientes;
-  if (q) {
-    var lq = q.toLowerCase();
-    list = list.filter(function (c) {
-      return cliFullName(c).toLowerCase().includes(lq) ||
-             (c.telefono || '').includes(lq) ||
-             (c.direccion || '').toLowerCase().includes(lq);
-    });
-  }
+  const lq   = (q || '').trim().toLowerCase();
+  const list = lq
+    ? S.clientes.filter(c => (c.nombre + ' ' + (c.tel || '') + ' ' + (c.dir || '')).toLowerCase().includes(lq))
+    : S.clientes;
+
   if (!list.length) {
-    el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">No se encontraron clientes</div>';
+    el.innerHTML = `<div class="d-softempty"><div class="d-softempty-ic">${svgInline('user', 20)}</div><div style="font-size:13px;font-weight:700">Sin coincidencias</div></div>`;
     return;
   }
-  el.innerHTML = list.map(function (c) {
-    var ini = initials(cliFullName(c));
-    return '<button class="d-clirow" data-cliente="' + c.id + '">' +
-      '<span class="d-cli-avatar">' + ini + '</span>' +
-      '<span class="d-clirow-main">' +
-        '<span class="d-clirow-name">' + cliFullName(c) + '</span>' +
-        '<span class="d-clirow-sub"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> ' + (c.telefono || '—') + ' · <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ' + (c.direccion || '—') + '</span>' +
-      '</span>' +
-      '<span class="d-clirow-edit" data-edit="' + c.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg> Editar</span>' +
-    '</button>';
+  el.innerHTML = list.map(c => {
+    const ini = initials(c.nombre);
+    return `<button class="d-clirow" data-cliente="${c.id}">
+      <span class="d-cli-avatar">${ini}</span>
+      <span class="d-clirow-main">
+        <span class="d-clirow-name">${c.nombre}</span>
+        <span class="d-clirow-sub">${svgInline('phone', 11)} ${c.tel || '—'} <span class="d-cl-meta" style="margin:0">·</span> ${svgInline('mappin', 11)} ${c.dir || 'Sin dirección'}</span>
+      </span>
+      <span class="d-clirow-edit" data-edit="${c.id}">${svgInline('edit', 13)} Editar</span></button>`;
   }).join('');
 }
 
-// ── Open nuevo cliente form ───────────────────────────────────────────
+// ── Nuevo / Editar cliente ─────────────────────────────────────────────
 function openNuevoCli(editId) {
   S.editCliId = editId || null;
-  var title = $('nuevocli-title');
+  const title = $('nuevocli-title');
   if (title) title.textContent = editId ? 'Editar cliente' : 'Nuevo cliente';
 
-  // Clear / fill form
   if (editId) {
-    var c = S.clientes.find(function (x) { return x.id === editId; });
+    // Descomponer nombre en partes para los campos separados del HTML
+    const c = S.clientes.find(x => x.id === editId);
     if (c) {
-      $('cli-nombres').value   = c.nombres   || '';
-      $('cli-apellidos').value = c.apellidos || '';
-      $('cli-telefono').value  = c.telefono  || '';
-      $('cli-direccion').value = c.direccion || '';
-      $('cli-tipdoc').value    = c.tipdoc    || 'CC';
-      $('cli-numdoc').value    = c.numdoc    || '';
-      $('cli-email').value     = c.email     || '';
-      $('cli-notas').value     = c.notas     || '';
+      const parts    = (c.nombre || '').trim().split(/\s+/);
+      const nombres  = parts.slice(0, 1).join(' ');
+      const apellidos= parts.slice(1).join(' ');
+      if ($('cli-nombres'))   $('cli-nombres').value   = nombres;
+      if ($('cli-apellidos')) $('cli-apellidos').value = apellidos;
+      if ($('cli-telefono'))  $('cli-telefono').value  = c.tel   || '';
+      if ($('cli-direccion')) $('cli-direccion').value = c.dir   || '';
+      if ($('cli-tipdoc'))    $('cli-tipdoc').value    = c.tipdoc || 'CC';
+      if ($('cli-numdoc'))    $('cli-numdoc').value    = c.numdoc || '';
+      if ($('cli-email'))     $('cli-email').value     = c.email  || '';
+      if ($('cli-notas'))     $('cli-notas').value     = c.notas  || '';
     }
   } else {
-    ['cli-nombres','cli-apellidos','cli-telefono','cli-direccion','cli-numdoc','cli-email','cli-notas'].forEach(function (id) {
+    ['cli-nombres','cli-apellidos','cli-telefono','cli-direccion','cli-numdoc','cli-email','cli-notas'].forEach(id => {
       if ($(id)) $(id).value = '';
     });
     if ($('cli-tipdoc')) $('cli-tipdoc').value = 'CC';
   }
-  // Activate tab Básico
-  document.querySelectorAll('#modal-nuevocli [data-clitab]').forEach(function (b) { b.classList.toggle('on', b.dataset.clitab === 'basico'); });
-  document.querySelectorAll('#modal-nuevocli [data-clipane]').forEach(function (p) { p.hidden = (p.dataset.clipane !== 'basico'); });
+
+  // Reset a tab básico
+  document.querySelectorAll('[data-clitab]').forEach(b => b.classList.toggle('on', b.dataset.clitab === 'basico'));
+  document.querySelectorAll('[data-clipane]').forEach(p => { p.hidden = (p.dataset.clipane !== 'basico'); });
 
   closeModal('modal-cliente');
   openModal('modal-nuevocli');
 }
 
 function guardarCliente() {
-  var nombres   = ($('cli-nombres').value   || '').trim();
-  var apellidos = ($('cli-apellidos').value || '').trim();
-  var telefono  = ($('cli-telefono').value  || '').trim();
-  var direccion = ($('cli-direccion').value || '').trim();
+  const nombres   = ($('cli-nombres')   && $('cli-nombres').value   || '').trim();
+  const apellidos = ($('cli-apellidos') && $('cli-apellidos').value || '').trim();
+  const telefono  = ($('cli-telefono')  && $('cli-telefono').value  || '').trim();
+  const direccion = ($('cli-direccion') && $('cli-direccion').value || '').trim();
+
   if (!nombres) { alert('El nombre es obligatorio.'); return; }
 
+  const nombre = (nombres + (apellidos ? ' ' + apellidos : '')).trim();
+
   if (S.editCliId) {
-    var idx = S.clientes.findIndex(function (c) { return c.id === S.editCliId; });
+    const idx = S.clientes.findIndex(c => c.id === S.editCliId);
     if (idx !== -1) {
-      S.clientes[idx].nombres   = nombres;
-      S.clientes[idx].apellidos = apellidos;
-      S.clientes[idx].telefono  = telefono;
-      S.clientes[idx].direccion = direccion;
-      S.clientes[idx].tipdoc    = ($('cli-tipdoc').value || '').trim();
-      S.clientes[idx].numdoc    = ($('cli-numdoc').value || '').trim();
-      S.clientes[idx].email     = ($('cli-email').value  || '').trim();
-      S.clientes[idx].notas     = ($('cli-notas').value  || '').trim();
+      Object.assign(S.clientes[idx], {
+        nombre,
+        tel:    telefono,
+        dir:    direccion,
+        tipdoc: ($('cli-tipdoc') && $('cli-tipdoc').value || '').trim(),
+        numdoc: ($('cli-numdoc') && $('cli-numdoc').value || '').trim(),
+        email:  ($('cli-email')  && $('cli-email').value  || '').trim(),
+        notas:  ($('cli-notas')  && $('cli-notas').value  || '').trim(),
+      });
+      // Actualizar el cliente seleccionado si es el mismo
       if (S.cliente && S.cliente.id === S.editCliId) S.cliente = S.clientes[idx];
     }
   } else {
-    var newId = 'c' + Date.now();
-    var newCli = { id: newId, nombres: nombres, apellidos: apellidos, telefono: telefono, direccion: direccion,
-                   tipdoc: ($('cli-tipdoc').value || '').trim(),
-                   numdoc: ($('cli-numdoc').value || '').trim(),
-                   email:  ($('cli-email').value  || '').trim(),
-                   notas:  ($('cli-notas').value  || '').trim() };
+    const newCli = {
+      id:     'c' + Date.now(),
+      nombre,
+      tel:    telefono,
+      dir:    direccion,
+      tipdoc: ($('cli-tipdoc') && $('cli-tipdoc').value || '').trim(),
+      numdoc: ($('cli-numdoc') && $('cli-numdoc').value || '').trim(),
+      email:  ($('cli-email')  && $('cli-email').value  || '').trim(),
+      notas:  ($('cli-notas')  && $('cli-notas').value  || '').trim(),
+    };
     S.clientes.unshift(newCli);
-    // auto-select
     S.cliente = newCli;
   }
 
@@ -630,417 +805,224 @@ function guardarCliente() {
   toast('Cliente guardado');
 }
 
-// ── Enviar a cocina ───────────────────────────────────────────────────
+// ── Enviar a cocina ────────────────────────────────────────────────────
+function canEnviar() {
+  const count    = S.cart.reduce((a, x) => a + x.qty, 0);
+  const recogo   = S.modalidad === 'recogo';
+  const externo  = S.courier === 'externo';
+  const needAsig = !recogo && !externo;
+  return count > 0 && !!S.cliente && (!needAsig || !!S.asignado);
+}
+
 function enviarACocina() {
-  if (!S.cart.length) { toast('Agrega productos al pedido'); return; }
-  if (!S.cliente) { toast('Selecciona un cliente'); return; }
+  if (!canEnviar()) {
+    const count = S.cart.reduce((a, x) => a + x.qty, 0);
+    if (count === 0)    { toast('Agrega productos al pedido'); return; }
+    if (!S.cliente)     { toast('Selecciona un cliente');      return; }
+    toast('Asigna un domiciliario');
+    return;
+  }
 
-  var m = computeMoney();
-  var courierName = S.courier === 'externo' ? 'Externo' : (S.asignado ? S.asignado.name : '—');
-  var ch = CANALES[S.canal] || CANALES.whatsapp;
-  var domId = 'D-' + (1000 + S.deliveries.length + 1);
+  const prod      = computeProductsTotal();
+  const count     = S.cart.reduce((a, x) => a + x.qty, 0);
+  const id        = 'D-' + (DCOUNT++);
+  const externo   = S.courier === 'externo';
+  const extCobra  = externo && S.cobramos;
+  const extDirect = externo && !S.cobramos;
 
-  var delivery = {
-    id:         domId,
-    status:     'recibido',
-    clientName: cliFullName(S.cliente),
-    canal:      S.canal,
-    canalLabel: ch.label,
-    canalMono:  ch.mono,
-    canalColor: ch.color,
-    canalBg:    ch.bg,
-    items:      S.cart.length,
-    courier:    courierName,
-    courierExt: S.courier === 'externo',
-    pago:       S.pago,
-    cobramos:   S.cobramos,
-    total:      m.total,
-    domFee:     m.fee,
-    createdAt:  Date.now()
+  // Coherencia pago según modo (igual que la lógica JSX)
+  const payWhen  = extCobra ? 'adelantado'    : S.pago.when;
+  const metodo   = extCobra ? 'transferencia' : S.pago.metodo;
+  const payStatus = extDirect ? 'externo'     : S.pago.status;
+
+  const dm = DOMICILIARIOS.find(x => x.id === S.asignado);
+
+  const nuevo = {
+    id,
+    cliente:      S.cliente.nombre,
+    canal:        S.canal,
+    items:        count,
+    productos:    prod,
+    fee:          S.fee,
+    estado:       'recibido',
+    payStatus,
+    payWhen,
+    metodo,
+    courier:      S.courier,
+    cobramos:     S.cobramos,
+    domiciliario: externo ? 'Externo' : (dm ? dm.nombre : '—'),
+    min:          0,
+    createdAt:    Date.now(),
   };
 
-  S.deliveries.push(delivery);
+  S.deliveries.unshift(nuevo);
 
-  // Clear pedido
+  // Reset pedido
   S.cart     = [];
   S.cliente  = null;
   S.asignado = null;
+  S.courier  = 'interno';
+  S.cobramos = false;
   S.pago     = { when: 'contraentrega', status: 'pendiente', metodo: 'efectivo' };
+
   renderCart();
   renderClienteCard();
   renderDetBtn();
   renderContextHeader();
+  renderAsigList();
   refreshBrowserQtys();
   renderMonitor();
   updateMonitorBadge();
-  toast('Domicilio ' + domId + ' enviado a cocina');
+
+  // Resetear courier UI
+  const sw  = $('courier-switch');
+  const row = $('courier-row');
+  const lbl = $('courier-label');
+  const sub = $('courier-sub');
+  if (sw)  { sw.classList.remove('on'); sw.setAttribute('aria-pressed', 'false'); }
+  if (row) row.classList.remove('on');
+  if (lbl) lbl.textContent = 'Domiciliario interno';
+  if (sub) sub.textContent = 'Reparte un domiciliario de El Parche';
+  const panesInt = document.querySelector('[data-courier-pane="interno"]');
+  const panesExt = document.querySelector('[data-courier-pane="externo"]');
+  if (panesInt) panesInt.hidden = false;
+  if (panesExt) panesExt.hidden = true;
+
+  // Resetear cobro opts
+  document.querySelectorAll('[data-cobro]').forEach(b => b.classList.toggle('on', b.dataset.cobro === 'cliente'));
+
+  // Resetear pago segs
+  document.querySelectorAll('[data-when]').forEach(b => b.classList.toggle('on', b.dataset.when === 'contraentrega'));
+  document.querySelectorAll('[data-status]').forEach(b => b.classList.toggle('on', b.dataset.status === 'pendiente'));
+  document.querySelectorAll('[data-metodo]').forEach(b => b.classList.toggle('on', b.dataset.metodo === 'efectivo'));
+
+  flipToPedido();
+
+  toast(`${id} enviado a cocina`);
+  setView('monitor');
 }
 
-// ── Monitor ───────────────────────────────────────────────────────────
+// ── Monitor kanban ─────────────────────────────────────────────────────
 function renderMonitor() {
-  var activos = 0, camino = 0, porpagar = 0;
-  KAN_ORDEN.forEach(function (col) {
-    var items = S.deliveries.filter(function (d) { return d.status === col; });
-    var bodyEl = $('kan-' + col);
-    var nEl = $('kan-n-' + col);
+  let activos = 0, enCamino = 0, porPagar = 0;
+
+  ESTADOS.forEach(e => {
+    const col    = e.id;
+    const items  = S.deliveries.filter(d => d.estado === col);
+    const bodyEl = $('kan-' + col);
+    const nEl    = $('kan-n-' + col);
     if (nEl) nEl.textContent = items.length;
-    if (!bodyEl) return;
-    if (!items.length) {
-      bodyEl.innerHTML = '<div class="d-kan-empty">Sin domicilios</div>';
-    } else {
-      bodyEl.innerHTML = items.map(function (d) { return renderKanCard(d); }).join('');
+    if (bodyEl) {
+      bodyEl.innerHTML = items.length === 0
+        ? '<div class="d-kan-empty">Sin domicilios</div>'
+        : items.map(d => renderKanCard(d)).join('');
     }
     if (col !== 'entregado') activos += items.length;
-    if (col === 'camino') camino += items.length;
-    if (d_porpagar(items)) porpagar += d_porpagar(items);
+    if (col === 'camino')    enCamino += items.length;
+    porPagar += items.filter(d => d.payStatus === 'pendiente').length;
   });
-  if ($('mon-activos')) $('mon-activos').textContent = activos;
-  if ($('mon-camino')) $('mon-camino').textContent = camino;
-  if ($('mon-porpagar')) $('mon-porpagar').textContent = porpagar;
-}
 
-function d_porpagar(items) {
-  return items.filter(function (d) { return d.pago && d.pago.status === 'pendiente'; }).length;
+  if ($('mon-activos'))  $('mon-activos').textContent  = activos;
+  if ($('mon-camino'))   $('mon-camino').textContent   = enCamino;
+  if ($('mon-porpagar')) $('mon-porpagar').textContent = porPagar;
 }
 
 function renderKanCard(d) {
-  var ch = CANALES[d.canal] || CANALES.whatsapp;
-  var mins = Math.round((Date.now() - d.createdAt) / 60000);
-  var timeLabel = mins < 1 ? 'ahora' : 'hace ' + mins + 'm';
-  var pagoColor = d.pago.status === 'pagado' ? '#16A34A' : '#B45309';
-  var pagoBg    = d.pago.status === 'pagado' ? '#DCFCE7' : '#FEF3C7';
-  var pagoLabel = d.pago.status === 'pagado' ? 'Pagado' : 'Por pagar';
-  var whenLabel = d.pago.when === 'adelantado' ? 'Adelantado' : 'Contra entrega';
-  var metodIcon = metodoIcon(d.pago.metodo);
+  const ch   = CHAN_OF(d.canal);
+  const mins = Math.max(0, Math.round((Date.now() - (d.createdAt || Date.now())) / 60000));
+  const timeLabel = mins < 1 ? 'ahora' : `hace ${mins}m`;
+  const next = ESTADO_NEXT(d.estado);
+  const M    = computeMoneyForCard(d);
 
-  var nextLabel = KAN_BTN[d.status];
-  var subNote = '';
-  if (d.courierExt && !d.cobramos) subNote = '<div class="d-domi-row"><span class="d-tag" style="color:#92660C;background:#FEF3C7"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> Lo cobra el repartidor</span></div>';
-  var courierBadge = '';
-  if (d.courier !== '—') {
-    courierBadge = '<span class="d-extbadge" style="color:#5B6BFF;background:#EEF2FF"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 18H15"/><path d="M4 7h4l3 8"/><path d="M14 9h3l3 6"/><path d="M14 9V6h2"/></svg> ' + d.courier + '</span>';
+  // pago row
+  let pagoRow = '';
+  if (d.payStatus === 'externo') {
+    pagoRow = `<span class="d-tag" style="color:#92660C;background:#FEF3C7">${svgInline('truck', 11)} Lo cobra el repartidor</span>`;
+  } else {
+    const pagoColor = d.payStatus === 'pagado' ? '#16A34A' : '#B45309';
+    const pagoBg    = d.payStatus === 'pagado' ? '#DCFCE7' : '#FEF3C7';
+    const pagoLabel = d.payStatus === 'pagado' ? 'Pagado' : 'Por pagar';
+    const pagoIc    = svgInline(d.payStatus === 'pagado' ? 'check' : 'clock', 11);
+    const whenLabel = d.payWhen === 'adelantado' ? 'Adelantado' : 'Contra entrega';
+    const metodIc   = svgInline(d.metodo === 'efectivo' ? 'cash' : d.metodo === 'transferencia' ? 'transfer' : 'card', 11);
+    pagoRow = `<span class="d-tag" style="color:${pagoColor};background:${pagoBg}">${pagoIc} ${pagoLabel}</span>
+               <span class="d-tag" style="color:#64748B;background:#F1F5F9">${whenLabel}</span>
+               <span class="d-tag" style="color:#64748B;background:#F1F5F9">${metodIc} ${d.metodo}</span>`;
   }
-  var totalSub = (!d.cobramos && d.courierExt) ? ' <span class="sub">· dom. aparte</span>' : '';
 
-  return '<div class="d-domi" data-domi="' + d.id + '">' +
-    '<div class="d-domi-top"><span class="d-domi-id">' + d.id + '</span><span class="d-domi-time"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ' + timeLabel + '</span></div>' +
-    '<div class="d-domi-cli">' + d.clientName + '</div>' +
-    '<div class="d-domi-row">' +
-      '<span class="d-chanchip" style="color:' + ch.color + ';background:' + ch.bg + '"><span class="mn" style="background:' + ch.color + '">' + ch.mono + '</span>' + ch.label + '</span>' +
-      '<span class="d-tag" style="color:#475569;background:#F1F5F9"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg> ' + d.items + '</span>' +
-      courierBadge +
-    '</div>' +
-    '<div class="d-domi-row">' +
-      '<span class="d-tag" style="color:' + pagoColor + ';background:' + pagoBg + '">' + (d.pago.status === 'pagado' ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>') + ' ' + pagoLabel + '</span>' +
-      '<span class="d-tag" style="color:#64748B;background:#F1F5F9">' + whenLabel + '</span>' +
-      '<span class="d-tag" style="color:#64748B;background:#F1F5F9">' + metodIcon + ' ' + d.pago.metodo + '</span>' +
-    '</div>' +
-    subNote +
-    '<div class="d-domi-tot">' +
-      '<div class="d-domi-money">' + fmt(d.total) + totalSub + '</div>' +
-      (nextLabel ? '<button class="d-adv" data-advance="' + d.id + '">' + nextLabel + ' <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>' : '<span class="d-tag" style="color:#16A34A;background:#DCFCE7"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Listo</span>') +
-    '</div>' +
-    '</div>';
+  // courier badge
+  let courierBadge = '';
+  if (d.domiciliario && d.domiciliario !== '—') {
+    if (d.courier === 'externo') {
+      courierBadge = `<span class="d-extbadge">${svgInline('truck', 11)} ${d.domiciliario}</span>`;
+    } else {
+      courierBadge = `<span class="d-extbadge" style="color:#5B6BFF;background:#EEF2FF">${svgInline('scooter', 11)} ${d.domiciliario}</span>`;
+    }
+  }
+
+  const totalSub = (d.courier === 'externo' && !d.cobramos) ? ' <span class="sub">· dom. aparte</span>' : '';
+  const advBtn   = next
+    ? `<button class="d-adv" data-advance="${d.id}">${KAN_BTN[d.estado] || ''} ${svgInline('arrowr', 12)}</button>`
+    : `<span class="d-tag" style="color:#16A34A;background:#DCFCE7">${svgInline('check', 11)} Listo</span>`;
+
+  return `<div class="d-domi" data-domi="${d.id}">
+    <div class="d-domi-top"><span class="d-domi-id">${d.id}</span><span class="d-domi-time">${svgInline('clock', 11)} ${timeLabel}</span></div>
+    <div class="d-domi-cli">${d.cliente}</div>
+    <div class="d-domi-row">
+      <span class="d-chanchip" style="color:${ch.color};background:${ch.tint}"><span class="mn" style="background:${ch.color}">${ch.mono}</span>${ch.name}</span>
+      <span class="d-tag" style="color:#475569;background:#F1F5F9">${svgInline('bag', 11)} ${d.items}</span>
+      ${courierBadge}
+    </div>
+    <div class="d-domi-row">${pagoRow}</div>
+    <div class="d-domi-tot">
+      <div class="d-domi-money">${fmt(M.cobrar)}${totalSub}</div>
+      ${advBtn}
+    </div></div>`;
 }
 
-function metodoIcon(m) {
-  if (m === 'efectivo') return '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><line x1="6" y1="12" x2="6.01" y2="12"/><line x1="18" y1="12" x2="18.01" y2="12"/></svg>';
-  if (m === 'tarjeta')  return '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>';
-  return '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>';
+// computeMoney para tarjetas del monitor (usa datos del delivery, no S)
+function computeMoneyForCard(d) {
+  const prod   = d.productos || 0;
+  const fee    = d.fee || 0;
+  const cobra  = d.cobramos;
+  const ext    = d.courier === 'externo';
+  if (!ext) return { cobrar: prod + fee };
+  if (cobra) return { cobrar: prod + fee };
+  return { cobrar: prod };
 }
 
 function advanceDelivery(id) {
-  var d = S.deliveries.find(function (x) { return x.id === id; });
+  const d = S.deliveries.find(x => x.id === id);
   if (!d) return;
-  var next = KAN_NEXT[d.status];
+  const next = ESTADO_NEXT(d.estado);
   if (!next) return;
-  d.status = next;
+  d.estado = next;
   renderMonitor();
   updateMonitorBadge();
-  toast(id + ' → ' + next);
+  toast(`${id} → ${ESTADO_OF(next).name}`);
 }
 
 function updateMonitorBadge() {
-  var active = S.deliveries.filter(function (d) { return d.status !== 'entregado'; }).length;
-  var badge = $('monitor-badge');
+  const active = S.deliveries.filter(d => d.estado !== 'entregado').length;
+  const badge  = $('monitor-badge');
   if (badge) {
     badge.textContent = active;
     badge.style.display = active > 0 ? 'flex' : 'none';
   }
 }
 
-// ── Keypad ────────────────────────────────────────────────────────────
-function kpAppend(k) {
-  if (k === 'bksp') {
-    S.kpRaw = S.kpRaw.slice(0, -1);
-  } else if (k === '00') {
-    S.kpRaw = S.kpRaw + '00';
-  } else {
-    S.kpRaw = S.kpRaw + k;
-  }
-  // Max 8 digits
-  if (S.kpRaw.length > 8) S.kpRaw = S.kpRaw.slice(0, 8);
-  var num = parseInt(S.kpRaw, 10) || 0;
-  var el = $('kp-display');
-  if (el) el.textContent = fmt(num);
-  var prev = $('fee-preview');
-  if (prev) prev.textContent = Math.round(num).toLocaleString('es-CO');
-}
-
-function kpOk() {
-  var num = parseInt(S.kpRaw, 10) || 0;
-  S.fee = num;
-  S.kpRaw = '';
-  closeModal('modal-keypad');
-  renderContextHeader();
-  var fp = $('fee-preview');
-  if (fp) fp.textContent = Math.round(num).toLocaleString('es-CO');
-}
-
-// ── Nav tabs ──────────────────────────────────────────────────────────
-function switchNav(nav) {
-  document.querySelectorAll('.d-navitem[data-nav]').forEach(function (b) {
-    b.classList.toggle('on', b.dataset.nav === nav);
-  });
-  $('view-pedido').classList.toggle('on', nav === 'pedido');
-  $('view-pedido').hidden = (nav !== 'pedido');
-  $('view-monitor').hidden = (nav !== 'monitor');
-  $('view-monitor').classList.toggle('on', nav === 'monitor');
-  if (nav === 'monitor') renderMonitor();
-}
-
-function switchBrowserTab(tab) {
-  document.querySelectorAll('.lm-bigtab').forEach(function (b) {
-    b.classList.toggle('on', b.dataset.tab === tab);
-  });
-  $('cat-grid').hidden        = (tab !== 'categoria');
-  $('subview-products').hidden = true;
-  $('pane-menu').hidden       = (tab !== 'menu');
-  $('pane-busqueda').hidden   = (tab !== 'busqueda');
-  $('pane-favoritos').hidden  = (tab !== 'favoritos');
-  if (tab === 'menu') renderMenuPane();
-  if (tab === 'favoritos') renderFavPane();
-}
-
-// ── Cara flip ─────────────────────────────────────────────────────────
-function flipToDetalles() {
-  document.querySelector('[data-face="pedido"]').classList.remove('on');
-  document.querySelector('[data-face="detalles"]').classList.add('on');
-  renderClienteCard();
-}
-
-function flipToPedido() {
-  document.querySelector('[data-face="detalles"]').classList.remove('on');
-  document.querySelector('[data-face="pedido"]').classList.add('on');
-  renderDetBtn();
-  renderTotals();
-}
-
-// ── Bind all events ───────────────────────────────────────────────────
-function bindAll() {
-  document.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-action]');
-    if (t) handleAction(t.dataset.action, t, e);
-
-    if (e.target.closest('[data-nav]')) {
-      switchNav(e.target.closest('[data-nav]').dataset.nav);
-      return;
-    }
-    if (e.target.closest('[data-tab]')) {
-      switchBrowserTab(e.target.closest('[data-tab]').dataset.tab);
-      return;
-    }
-    if (e.target.closest('[data-open-detalles]')) { flipToDetalles(); return; }
-    if (e.target.closest('[data-close-detalles]')) { flipToPedido(); return; }
-
-    if (e.target.closest('[data-add]')) {
-      var id = e.target.closest('[data-add]').dataset.add;
-      addToCart(id);
-      return;
-    }
-    if (e.target.closest('[data-inc]')) {
-      updateQty(e.target.closest('[data-inc]').dataset.inc, 1); return;
-    }
-    if (e.target.closest('[data-dec]')) {
-      updateQty(e.target.closest('[data-dec]').dataset.dec, -1); return;
-    }
-    if (e.target.closest('[data-open-cat]')) {
-      openCat(e.target.closest('[data-open-cat]').dataset.openCat); return;
-    }
-    if (e.target.closest('[data-sub-back]')) {
-      $('subview-products').hidden = true;
-      $('cat-grid').hidden = false;
-      return;
-    }
-    if (e.target.closest('[data-key]')) {
-      kpAppend(e.target.closest('[data-key]').dataset.key); return;
-    }
-    if (e.target.closest('[data-open-keypad]')) {
-      S.kpRaw = S.fee ? String(S.fee) : '';
-      if ($('kp-display')) $('kp-display').textContent = fmt(S.fee);
-      openModal('modal-keypad'); return;
-    }
-    if (e.target.closest('[data-close]')) {
-      var modal = e.target.closest('.d-overlay');
-      if (modal) modal.hidden = true; return;
-    }
-    if (e.target.closest('[data-open-cliente]')) {
-      renderCliList('');
-      if ($('cli-search-input')) $('cli-search-input').value = '';
-      openModal('modal-cliente'); return;
-    }
-    if (e.target.closest('[data-open-nuevocli]')) {
-      openNuevoCli(null); return;
-    }
-    if (e.target.closest('[data-back-cliente]')) {
-      closeModal('modal-nuevocli');
-      openModal('modal-cliente'); return;
-    }
-    var cliBtn = e.target.closest('[data-cliente]');
-    if (cliBtn && !e.target.closest('[data-edit]')) {
-      var cid = cliBtn.dataset.cliente;
-      S.cliente = S.clientes.find(function (c) { return c.id === cid; });
-      closeModal('modal-cliente');
-      renderClienteCard();
-      renderDetBtn();
-      return;
-    }
-    var editBtn = e.target.closest('[data-edit]');
-    if (editBtn && editBtn.closest('#modal-cliente')) {
-      openNuevoCli(editBtn.dataset.edit); return;
-    }
-    var editCliBtnInCard = e.target.closest('[data-edit-cliente]');
-    if (editCliBtnInCard && S.cliente) {
-      openNuevoCli(S.cliente.id); return;
-    }
-    if (e.target.closest('[data-toggle-courier]')) {
-      toggleCourier(); return;
-    }
-    var asigBtn = e.target.closest('[data-asignar]');
-    if (asigBtn) {
-      var did = asigBtn.dataset.asignar;
-      S.asignado = S.couriers.find(function (c) { return c.id === did; }) || null;
-      renderAsigList();
-      renderDetBtn();
-      return;
-    }
-    var cobroBtn = e.target.closest('[data-cobro]');
-    if (cobroBtn) {
-      S.cobramos = (cobroBtn.dataset.cobro === 'nosotros');
-      document.querySelectorAll('[data-cobro]').forEach(function (b) {
-        b.classList.toggle('on', b.dataset.cobro === cobroBtn.dataset.cobro);
-      });
-      renderDetBtn();
-      renderTotals();
-      return;
-    }
-    // pago segments
-    var whenBtn = e.target.closest('[data-when]');
-    if (whenBtn) {
-      S.pago.when = whenBtn.dataset.when;
-      document.querySelectorAll('[data-when]').forEach(function (b) { b.classList.toggle('on', b.dataset.when === S.pago.when); });
-      return;
-    }
-    var statusBtn = e.target.closest('[data-status]');
-    if (statusBtn) {
-      S.pago.status = statusBtn.dataset.status;
-      document.querySelectorAll('[data-status]').forEach(function (b) { b.classList.toggle('on', b.dataset.status === S.pago.status); });
-      renderDetBtn();
-      return;
-    }
-    var metodoBtn = e.target.closest('[data-metodo]');
-    if (metodoBtn) {
-      S.pago.metodo = metodoBtn.dataset.metodo;
-      document.querySelectorAll('[data-metodo]').forEach(function (b) { b.classList.toggle('on', b.dataset.metodo === S.pago.metodo); });
-      return;
-    }
-    // Chan selection in modal-registro
-    var chanBtn = e.target.closest('[data-chan]');
-    if (chanBtn) {
-      document.querySelectorAll('[data-chan]').forEach(function (b) { b.classList.toggle('on', b.dataset.chan === chanBtn.dataset.chan); });
-      S.canal = chanBtn.dataset.chan;
-      return;
-    }
-    // Modalidad
-    var modBtn = e.target.closest('[data-modalidad]');
-    if (modBtn) {
-      document.querySelectorAll('[data-modalidad]').forEach(function (b) { b.classList.toggle('on', b.dataset.modalidad === modBtn.dataset.modalidad); });
-      S.modalidad = modBtn.dataset.modalidad;
-      return;
-    }
-    // cli tabs in nuevocli
-    var cliTab = e.target.closest('[data-clitab]');
-    if (cliTab) {
-      var pane = cliTab.dataset.clitab;
-      document.querySelectorAll('[data-clitab]').forEach(function (b) { b.classList.toggle('on', b.dataset.clitab === pane); });
-      document.querySelectorAll('[data-clipane]').forEach(function (p) { p.hidden = (p.dataset.clipane !== pane); });
-      return;
-    }
-    // advance kanban
-    var advBtn = e.target.closest('[data-advance]');
-    if (advBtn) { advanceDelivery(advBtn.dataset.advance); return; }
-  });
-
-  // busq input
-  var busqInput = $('busq-input');
-  if (busqInput) {
-    busqInput.addEventListener('input', function () {
-      renderBusqResults(this.value);
-    });
-  }
-  // cli search input
-  var cliSearchInput = $('cli-search-input');
-  if (cliSearchInput) {
-    cliSearchInput.addEventListener('input', function () {
-      renderCliList(this.value);
-    });
-  }
-}
-
-function handleAction(action, el, e) {
-  if (action === 'regresar')      { window.location.href = 'ventas.html'; }
-  else if (action === 'nuevo')    { resetPedido(); openModal('modal-registro'); }
-  else if (action === 'editar-ctx') { openModal('modal-registro'); }
-  else if (action === 'vaciar')   { clearCart(); }
-  else if (action === 'guardar')  { toast('Pedido guardado (borrador)'); }
-  else if (action === 'enviar')   { enviarACocina(); }
-  else if (action === 'registro-next') {
-    closeModal('modal-registro');
-    renderContextHeader();
-  }
-  else if (action === 'keypad-ok')      { kpOk(); }
-  else if (action === 'guardar-cliente') { guardarCliente(); }
-}
-
-function toggleCourier() {
-  S.courier = (S.courier === 'interno') ? 'externo' : 'interno';
-  var sw = $('courier-switch');
-  var row = $('courier-row');
-  var lbl = $('courier-label');
-  var sub = $('courier-sub');
-  if (sw) { sw.classList.toggle('on', S.courier === 'externo'); sw.setAttribute('aria-pressed', S.courier === 'externo'); }
-  if (row) row.classList.toggle('on', S.courier === 'externo');
-  if (lbl) lbl.textContent = S.courier === 'externo' ? 'Domiciliario externo' : 'Domiciliario interno';
-  if (sub) sub.textContent = S.courier === 'externo' ? 'Usa un servicio de mensajería externo' : 'Reparte un domiciliario de El Parche';
-
-  document.querySelector('[data-courier-pane="interno"]').hidden = (S.courier === 'externo');
-  document.querySelector('[data-courier-pane="externo"]').hidden = (S.courier === 'interno');
-
-  if (S.courier === 'interno') S.cobramos = false;
-  renderDetBtn();
-  renderTotals();
-}
-
+// ── Reset pedido ───────────────────────────────────────────────────────
 function resetPedido() {
-  S.cart     = [];
-  S.cliente  = null;
-  S.asignado = null;
-  S.canal    = 'whatsapp';
+  S.cart      = [];
+  S.cliente   = null;
+  S.asignado  = null;
+  S.canal     = 'whatsapp';
   S.modalidad = 'express';
-  S.fee      = 0;
-  S.courier  = 'interno';
-  S.cobramos = false;
-  S.pago     = { when: 'contraentrega', status: 'pendiente', metodo: 'efectivo' };
+  S.fee       = 0;
+  S.courier   = 'interno';
+  S.cobramos  = false;
+  S.pago      = { when: 'contraentrega', status: 'pendiente', metodo: 'efectivo' };
+
   renderCart();
   renderClienteCard();
   renderDetBtn();
@@ -1048,11 +1030,199 @@ function resetPedido() {
   renderAsigList();
   refreshBrowserQtys();
   flipToPedido();
-  // Restore modal defaults
-  document.querySelectorAll('[data-chan]').forEach(function (b) { b.classList.toggle('on', b.dataset.chan === 'whatsapp'); });
-  document.querySelectorAll('[data-modalidad]').forEach(function (b) { b.classList.toggle('on', b.dataset.modalidad === 'express'); });
+
+  // Resetear UI modal registro
+  document.querySelectorAll('[data-chan]').forEach(b => b.classList.toggle('on', b.dataset.chan === 'whatsapp'));
+  document.querySelectorAll('[data-modalidad]').forEach(b => b.classList.toggle('on', b.dataset.modalidad === 'express'));
   if ($('fee-preview')) $('fee-preview').textContent = '0';
 }
 
-// ── Init ──────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', boot);
+// ── handleAction ───────────────────────────────────────────────────────
+function handleAction(action) {
+  if      (action === 'regresar')        { window.location.href = 'ventas.html'; }
+  else if (action === 'nuevo')           { resetPedido(); openModal('modal-registro'); }
+  else if (action === 'editar-ctx')      { openModal('modal-registro'); }
+  else if (action === 'vaciar')          { clearCart(); }
+  else if (action === 'guardar')         { toast('Pedido guardado (borrador)'); }
+  else if (action === 'enviar')          { enviarACocina(); }
+  else if (action === 'registro-next')   { closeModal('modal-registro'); renderContextHeader(); }
+  else if (action === 'keypad-ok')       { kpOk(); }
+  else if (action === 'guardar-cliente') { guardarCliente(); }
+}
+
+// ── attachEvents ───────────────────────────────────────────────────────
+function attachEvents() {
+
+  // Delegated click en body
+  document.body.addEventListener('click', e => {
+    // [data-action]
+    const actionEl = e.target.closest('[data-action]');
+    if (actionEl) { handleAction(actionEl.dataset.action); return; }
+
+    // Nav rail
+    const navEl = e.target.closest('[data-nav]');
+    if (navEl) { setView(navEl.dataset.nav); return; }
+
+    // Browser tabs
+    const tabEl = e.target.closest('[data-tab]');
+    if (tabEl) { setBrowserTab(tabEl.dataset.tab); return; }
+
+    // Flip comanda
+    if (e.target.closest('[data-open-detalles]'))  { flipToDetalles(); return; }
+    if (e.target.closest('[data-close-detalles]')) { flipToPedido();   return; }
+
+    // Agregar al carrito
+    const addEl = e.target.closest('[data-add]');
+    if (addEl) { addToCart(addEl.dataset.add); return; }
+
+    // +/- carrito
+    const incEl = e.target.closest('[data-inc]');
+    if (incEl) { updateQty(incEl.dataset.inc,  1); return; }
+    const decEl = e.target.closest('[data-dec]');
+    if (decEl) { updateQty(decEl.dataset.dec, -1); return; }
+
+    // Abrir categoría
+    const catEl = e.target.closest('[data-open-cat]');
+    if (catEl) { openCat(catEl.dataset.openCat); return; }
+
+    // Volver desde sub-categoría
+    if (e.target.closest('[data-sub-back]')) {
+      if ($('subview-products')) $('subview-products').hidden = true;
+      if ($('cat-grid'))         $('cat-grid').hidden         = false;
+      return;
+    }
+
+    // Keypad keys
+    const keyEl = e.target.closest('[data-key]');
+    if (keyEl) { kpPress(keyEl.dataset.key); return; }
+
+    // Abrir keypad
+    if (e.target.closest('[data-open-keypad]')) { openKeypad(); return; }
+
+    // Cerrar modal (overlay backdrop o botón data-close)
+    const closeEl = e.target.closest('[data-close]');
+    if (closeEl) {
+      const overlay = closeEl.closest('.d-overlay');
+      if (overlay) overlay.hidden = true;
+      return;
+    }
+    // Backdrop click en overlay
+    if (e.target.classList.contains('d-overlay')) { e.target.hidden = true; return; }
+
+    // Abrir modal cliente
+    if (e.target.closest('[data-open-cliente]')) {
+      if ($('cli-search-input')) $('cli-search-input').value = '';
+      renderCliList('');
+      openModal('modal-cliente');
+      return;
+    }
+
+    // Abrir nuevo cliente
+    if (e.target.closest('[data-open-nuevocli]')) { openNuevoCli(null); return; }
+
+    // Back a lista desde nuevo cliente
+    if (e.target.closest('[data-back-cliente]')) { closeModal('modal-nuevocli'); openModal('modal-cliente'); return; }
+
+    // Seleccionar cliente (no clicar en botón editar)
+    const cliBtn = e.target.closest('[data-cliente]');
+    if (cliBtn && !e.target.closest('[data-edit]')) {
+      const cid = cliBtn.dataset.cliente;
+      S.cliente = S.clientes.find(c => c.id === cid) || null;
+      closeModal('modal-cliente');
+      renderClienteCard();
+      renderDetBtn();
+      return;
+    }
+
+    // Editar cliente desde lista
+    const editEl = e.target.closest('[data-edit]');
+    if (editEl && editEl.closest('#modal-cliente')) { openNuevoCli(editEl.dataset.edit); return; }
+
+    // Editar cliente desde card
+    if (e.target.closest('[data-edit-cliente]') && S.cliente) { openNuevoCli(S.cliente.id); return; }
+
+    // Toggle courier
+    if (e.target.closest('[data-toggle-courier]')) { toggleCourier(); return; }
+
+    // Asignar domiciliario
+    const asigEl = e.target.closest('[data-asignar]');
+    if (asigEl) {
+      S.asignado = asigEl.dataset.asignar;
+      renderAsigList();
+      renderDetBtn();
+      return;
+    }
+
+    // Cobro externo
+    const cobroEl = e.target.closest('[data-cobro]');
+    if (cobroEl) {
+      S.cobramos = (cobroEl.dataset.cobro === 'nosotros');
+      document.querySelectorAll('[data-cobro]').forEach(b => b.classList.toggle('on', b.dataset.cobro === cobroEl.dataset.cobro));
+      renderDetBtn();
+      renderTotals();
+      return;
+    }
+
+    // Pago — cuando
+    const whenEl = e.target.closest('[data-when]');
+    if (whenEl) {
+      S.pago.when = whenEl.dataset.when;
+      document.querySelectorAll('[data-when]').forEach(b => b.classList.toggle('on', b.dataset.when === S.pago.when));
+      return;
+    }
+
+    // Pago — estado
+    const statusEl = e.target.closest('[data-status]');
+    if (statusEl) {
+      S.pago.status = statusEl.dataset.status;
+      document.querySelectorAll('[data-status]').forEach(b => b.classList.toggle('on', b.dataset.status === S.pago.status));
+      renderDetBtn();
+      return;
+    }
+
+    // Pago — método
+    const metEl = e.target.closest('[data-metodo]');
+    if (metEl) {
+      S.pago.metodo = metEl.dataset.metodo;
+      document.querySelectorAll('[data-metodo]').forEach(b => b.classList.toggle('on', b.dataset.metodo === S.pago.metodo));
+      return;
+    }
+
+    // Canal en modal-registro
+    const chanEl = e.target.closest('[data-chan]');
+    if (chanEl) {
+      S.canal = chanEl.dataset.chan;
+      document.querySelectorAll('[data-chan]').forEach(b => b.classList.toggle('on', b.dataset.chan === S.canal));
+      return;
+    }
+
+    // Modalidad
+    const modEl = e.target.closest('[data-modalidad]');
+    if (modEl) {
+      S.modalidad = modEl.dataset.modalidad;
+      document.querySelectorAll('[data-modalidad]').forEach(b => b.classList.toggle('on', b.dataset.modalidad === S.modalidad));
+      return;
+    }
+
+    // Tabs de nuevo-cliente (básico / avanzado)
+    const cliTab = e.target.closest('[data-clitab]');
+    if (cliTab) {
+      const pane = cliTab.dataset.clitab;
+      document.querySelectorAll('[data-clitab]').forEach(b => b.classList.toggle('on', b.dataset.clitab === pane));
+      document.querySelectorAll('[data-clipane]').forEach(p => { p.hidden = (p.dataset.clipane !== pane); });
+      return;
+    }
+
+    // Avanzar kanban
+    const advEl = e.target.closest('[data-advance]');
+    if (advEl) { advanceDelivery(advEl.dataset.advance); return; }
+  });
+
+  // Input búsqueda de productos
+  const busqInput = $('busq-input');
+  if (busqInput) busqInput.addEventListener('input', function () { renderBusqResults(this.value); });
+
+  // Input búsqueda de clientes
+  const cliSearchInput = $('cli-search-input');
+  if (cliSearchInput) cliSearchInput.addEventListener('input', function () { renderCliList(this.value); });
+}
