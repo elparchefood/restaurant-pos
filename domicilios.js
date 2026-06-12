@@ -147,6 +147,10 @@ function colorRing(hex)  { return hex + '66'; }
 
 // ── Boot ───────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  // ── Gate: mostrar modal de registro ANTES de cargar nada ─────────────
+  document.body.classList.add('d-gate');
+  openModal('modal-registro');
+
   // ── Eventos: síncrono, sin await, siempre se ejecuta primero ──────────
   attachEvents();
 
@@ -182,7 +186,6 @@ document.addEventListener('DOMContentLoaded', () => {
     try { renderMonitor();       } catch(e) { console.error('renderMonitor:', e); }
     try { updateMonitorBadge();  } catch(e) { console.error('updateMonitorBadge:', e); }
 
-    openModal('modal-registro');
   })();
 });
 
@@ -1067,7 +1070,7 @@ function handleAction(action) {
   else if (action === 'vaciar')          { clearCart(); }
   else if (action === 'guardar')         { toast('Pedido guardado (borrador)'); }
   else if (action === 'enviar')          { enviarACocina(); }
-  else if (action === 'registro-next')   { closeModal('modal-registro'); renderContextHeader(); }
+  else if (action === 'registro-next')   { document.body.classList.remove('d-gate'); closeModal('modal-registro'); renderContextHeader(); }
   else if (action === 'keypad-ok')       { kpOk(); }
   else if (action === 'guardar-cliente') { guardarCliente(); }
 }
@@ -1128,8 +1131,11 @@ function attachEvents() {
       if (overlay) overlay.hidden = true;
       return;
     }
-    // Backdrop click en overlay
-    if (e.target.classList.contains('d-overlay')) { e.target.hidden = true; return; }
+    // Backdrop click en overlay (modal-registro no se cierra si gate está activo)
+    if (e.target.classList.contains('d-overlay')) {
+      if (e.target.id === 'modal-registro' && document.body.classList.contains('d-gate')) return;
+      e.target.hidden = true; return;
+    }
 
     // Abrir modal cliente
     if (e.target.closest('[data-open-cliente]')) {
