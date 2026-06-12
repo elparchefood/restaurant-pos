@@ -1181,12 +1181,28 @@ function urSelectUser(id) {
     u.name=nameIn.value;
     var av2=$('ur-user-avatar'); if(av2) av2.textContent=urInitials(u.name);
     var ti2=$('ur-user-title'); if(ti2) ti2.textContent=u.name||'–';
-    urRenderUsers(); urSaveUserDebounced(u);
+    urRenderUsers(); if(!u._isNew) urSaveUserDebounced(u);
   };
   var emailIn=$('ur-u-email');
-  if(emailIn) emailIn.onblur=function(){ u.email=emailIn.value; urSaveUserDebounced(u); };
+  if(emailIn) emailIn.oninput=function(){ u.email=emailIn.value; };
   var passIn=$('ur-u-pass');
-  if(passIn) passIn.onblur=function(){ u.pass=passIn.value; urSaveUserDebounced(u); };
+  if(passIn) passIn.oninput=function(){ u.pass=passIn.value; };
+  // Botón "Crear usuario" — visible solo para usuarios nuevos
+  var confirmBtn=$('ur-u-confirm');
+  var dupBtn=$('ur-u-dup');
+  var delBtn=$('ur-u-del');
+  if(confirmBtn){
+    if(u._isNew){
+      confirmBtn.style.display=''; // mostrar
+      if(dupBtn) dupBtn.style.display='none';
+      if(delBtn) delBtn.style.display='none';
+      confirmBtn.onclick=function(){ urConfirmCreateUser(u); };
+    } else {
+      confirmBtn.style.display='none'; // ocultar
+      if(dupBtn) dupBtn.style.display='';
+      if(delBtn) delBtn.style.display='';
+    }
+  }
   urShowPane('ur-pane-user');
 }
 
@@ -1370,6 +1386,10 @@ async function urConfirmCreateUser(u) {
     u.id = dbUser.id;
     u.authId = dbUser.auth_user_id;
     delete u._isNew;
+    // Restaurar botones footer
+    var cb=$('ur-u-confirm'); if(cb) cb.style.display='none';
+    var db=$('ur-u-dup'); if(db) db.style.display='';
+    var dl=$('ur-u-del'); if(dl) dl.style.display='';
     urRenderUsers();
     urShowToast('Usuario creado ✓');
   } catch(e) {
@@ -1467,16 +1487,7 @@ async function urInit() {
   });
   var rD=$('ur-r-dup'); if(rD) rD.addEventListener('click', function(){ if(UR.selectedRoleId) urDupRole(UR.selectedRoleId); });
   var rDel=$('ur-r-del'); if(rDel) rDel.addEventListener('click', function(){ if(UR.selectedRoleId) urDeleteRole(UR.selectedRoleId); });
-  // Botón guardar usuario nuevo (save btn en inspector)
-  // Cuando hay usuario nuevo (_isNew) y se pierde el foco del email/pass → crear
-  document.addEventListener('focusout', function(e){
-    if(!UR.selectedUserId) return;
-    var u=urUserById(UR.selectedUserId);
-    if(!u||!u._isNew) return;
-    if(e.target.id==='ur-u-email'||e.target.id==='ur-u-pass'){
-      if(u.email && u.pass && u.pass.length>=6) urConfirmCreateUser(u);
-    }
-  });
+  // Guardado de usuario nuevo: via botón ur-u-confirm (ver urSelectUser)
   urBindPassControls();
   urRenderUsers();
   urRenderRoles();
