@@ -164,7 +164,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) { window.location.href = 'login.html'; return; }
 
-  S.tenantId = (user.user_metadata && user.user_metadata.tenant_id) || null;
+  S.tenantId = (user.user_metadata && user.user_metadata.tenant_id) || user.id;
   const name = (user.user_metadata && user.user_metadata.full_name) || user.email || 'Usuario';
   const role = (user.user_metadata && user.user_metadata.role) || 'Operador';
   if ($('topbar-name'))   $('topbar-name').textContent   = name;
@@ -172,7 +172,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('topbar-role2'))  $('topbar-role2').textContent  = role;
   if ($('topbar-avatar')) $('topbar-avatar').textContent = initials(name);
 
-  await loadData();
+  try {
+    await loadData();
+  } catch(e) {
+    console.error('domicilios loadData error:', e);
+  }
 
   renderCatGrid();
   renderMenuPane();
@@ -193,19 +197,22 @@ async function loadData() {
   if (!S.tenantId) return;
 
   const { data: cats } = await sb.from('pos_categories')
-    .select('id,name,color,image_url')
+    .select('id,name,color,photo_url')
     .eq('tenant_id', S.tenantId)
-    .eq('is_active', true)
     .order('name');
   S.cats = cats || [];
 
   const { data: prods } = await sb.from('pos_products')
-    .select('id,name,price,category_id,is_favorite,image_url')
+    .select('id,name,price,category_id,photo_url,available')
     .eq('tenant_id', S.tenantId)
-    .eq('is_active', true)
+    .eq('available', true)
     .order('name');
-  S.products  = prods || [];
-  S.favorites = S.products.filter(p => p.is_favorite);
+  S.products  = (prods || []).map(p => ({
+    id: p.id, name: p.name, price: p.price,
+    category_id: p.category_id,
+    photo_url: p.photo_url || null,
+  }));
+  S.favorites = [];
 }
 
 // ── Navegación y vistas ────────────────────────────────────────────────
@@ -319,8 +326,8 @@ function renderCatGrid() {
   el.innerHTML = S.cats.map(c => {
     const color = c.color || '#5B6BFF';
     const count = S.products.filter(p => p.category_id === c.id).length;
-    const thumb = c.image_url
-      ? `<img src="${c.image_url}" style="width:100%;height:100%;object-fit:cover;border-radius:9px">`
+    const thumb = c.photo_url
+      ? `<img src="${c.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:9px">`
       : `<span class="d-thumb-lbl">${c.name}</span>`;
     return `<button class="lm-cat" data-open-cat="${c.id}" style="border-color:${colorRing(color)}">
       <div class="d-thumb" style="height:108px">${thumb}</div>
@@ -352,13 +359,13 @@ function renderProdGrid(el, prods) {
   el.innerHTML = prods.map(p => {
     const inCart = S.cart.find(i => i.id === p.id);
     const qty    = inCart ? inCart.qty : 0;
-    const thumb  = p.image_url
-      ? `<img src="${p.image_url}" style="width:100%;height:100%;object-fit:cover;border-radius:9px">`
+    const thumb  = p.photo_url
+      ? `<img src="${p.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:9px">`
       : `<span class="d-thumb-lbl">${p.name}</span>`;
     return `<button class="lm-prod" data-add="${p.id}">
       <div style="position:relative">
         <div class="d-thumb" style="height:84px">${thumb}</div>
-        ${p.is_favorite ? `<span class="d-star">${svgInline('star', 11)}</span>` : ''}
+
         ${qty > 0 ? `<span class="d-qty">${qty}</span>` : ''}
       </div>
       <div class="d-prod-foot">
@@ -382,7 +389,7 @@ function renderMenuPane() {
       return `<button class="lm-menurow" data-add="${p.id}">
         <span class="d-menuqty" style="${qty > 0 ? '' : 'visibility:hidden'}">${qty}</span>
         <span style="flex:1;font-size:12.5px;font-weight:600;color:var(--ink)">${p.name}</span>
-        ${p.is_favorite ? `<span style="font-size:10px;color:#F59E0B;font-weight:700;margin-right:4px">${svgInline('star', 9)} Favorito</span>` : ''}
+
         <span style="font-size:13px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;margin-right:4px">${fmt(p.price)}</span>
         <span class="d-add-sm">${svgInline('plus', 13, 2.5)}</span>
         </button>`;
@@ -397,7 +404,7 @@ function renderFavPane() {
   const el    = $('fav-grid');
   const empty = $('fav-empty');
   if (!el) return;
-  const favs = S.products.filter(p => p.is_favorite);
+  const favs = S.favorites;
   if (empty) empty.hidden = favs.length > 0;
   if (favs.length) {
     renderProdGrid(el, favs);
