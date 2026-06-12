@@ -833,6 +833,8 @@ function urGenPass() {
 }
 function urRoleById(id) { return UR.roles.find(function(r){ return r.id===id; }); }
 function urUserById(id) { return UR.users.find(function(u){ return u.id===id; }); }
+var _uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function safeUUID(v) { return (_uuidRe.test(v) ? v : null); }
 
 function urShowToast(msg) {
   var t=$('toast'), m=$('toast-msg');
@@ -932,17 +934,18 @@ async function urCreateAuthUser(u, tenantId, branchId) {
   if (!authRes.id) throw new Error('Error creando usuario en Auth');
   var authUserId = authRes.id;
 
-  // 2. Insertar en pos_users — UUIDs vacíos → null para evitar error de tipo
+  // 2. Insertar en pos_users — safeUUID() en todos los campos UUID
   var insertRes = await sb.from('pos_users').insert({
     name:         u.name,
     email:        u.email,
     phone:        '',
     role:         role ? role.name.toLowerCase() : 'empleado',
-    role_id:      (function(){ var re=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i; return re.test(u.roleId)?u.roleId:null; })(),
-    branch_id:    branchId  || null,
+    role_id:      safeUUID(u.roleId),
+    tenant_id:    safeUUID(tenantId),
+    branch_id:    safeUUID(branchId),
     active:       u.active !== false,
     sucursales:   u.sucursales || [],
-    auth_user_id: authUserId   || null,
+    auth_user_id: safeUUID(authUserId),
     pass_temp:    u.pass
   }).select().single();
 
@@ -958,12 +961,14 @@ async function urUpdateAuthUser(u) {
     name:       u.name,
     email:      u.email,
     role:       role ? role.name.toLowerCase() : 'empleado',
-    role_id:    (function(v){ var re=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i; return re.test(v)?v:null; })(u.roleId),
+    role_id:    safeUUID(u.roleId),
     active:     u.active !== false,
     sucursales: u.sucursales || [],
     pass_temp:  u.pass
   };
-  await sb.from('pos_users').update(upd).eq('id', u.id);
+  var safeId = safeUUID(u.id);
+  if (!safeId) { console.warn('urUpdateAuthUser: u.id no es UUID valido:', u.id); return; }
+  await sb.from('pos_users').update(upd).eq('id', safeId);
 
   // Actualizar Auth si tiene authId
   if (u.authId) {
@@ -999,9 +1004,11 @@ async function urSaveRole(r) {
     }).select().single();
     if (res.data) r.id = res.data.id;
   } else {
+    var safeRoleId = safeUUID(r.id);
+    if (!safeRoleId) { console.warn('urSaveRole: r.id no es UUID valido:', r.id); return; }
     await sb.from('pos_roles').update({
       name: r.name, color: r.color, perms: r.perms
-    }).eq('id', r.id);
+    }).eq('id', safeRoleId);
   }
 }
 
