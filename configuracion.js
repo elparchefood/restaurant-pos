@@ -1458,8 +1458,14 @@ async function urConfirmCreateUser(u) {
   if (!u.email || !u.pass) { urShowToast('Completa correo y contraseña primero'); return; }
   try {
     var { data: { user: me } } = await sb.auth.getUser();
-    var tenantId = me.user_metadata.tenant_id;
-    var branchId = me.user_metadata.branch_id;
+    if (!me) {
+      var { data: { session } } = await sb.auth.getSession();
+      me = session ? session.user : null;
+    }
+    if (!me) { urShowToast('Sesión expirada — recarga la página'); return; }
+    var tenantId = me.user_metadata && me.user_metadata.tenant_id;
+    var branchId = me.user_metadata && me.user_metadata.branch_id;
+    if (!tenantId) { urShowToast('Error: no se encontró tenant_id en la sesión'); return; }
     // role_id inválido → null (manejado en el insert con || null)
     var dbUser = await urCreateAuthUser(u, tenantId, branchId);
     u.id = dbUser.id;
