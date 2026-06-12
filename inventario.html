@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventario · Comanda POS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="inventario.css">
+</head>
+<body>
+<div class="iv-root">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="iv-sidebar">
+    <div class="iv-brand">
+      <div class="iv-brand-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 2v6a3 3 0 0 0 6 0V2"/><path d="M9 2v20"/><path d="M17 2v10"/><path d="M17 12c0 5 4 5 4 0V2h-4"/>
+        </svg>
+      </div>
+      <div>
+        <div class="iv-brand-name" id="sb-brand">Comanda</div>
+        <div class="iv-brand-sub">POS · v1.0</div>
+      </div>
+    </div>
+
+    <div class="iv-side-section-wrap"><div class="iv-side-section">Inventario</div></div>
+    <nav class="iv-nav">
+      <button class="iv-nav-item" id="nav-regresar" onclick="window.location.href='dashboard.html'">
+        <span class="lbl">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+          Regresar
+        </span>
+      </button>
+    </nav>
+
+    <div class="iv-side-section-wrap gap"><div class="iv-side-section">Configuración</div></div>
+    <nav class="iv-nav">
+      <button class="iv-nav-item" id="nav-unidades" data-screen="unidades">
+        <span class="lbl">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/></svg>
+          Unidades de medida
+        </span>
+        <span class="iv-nav-badge" id="nav-unidades-badge" style="display:none">0</span>
+      </button>
+      <button class="iv-nav-item" id="nav-params">
+        <span class="lbl">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
+          Parámetros de costeo
+        </span>
+      </button>
+    </nav>
+
+    <div class="iv-side-spacer"></div>
+
+    <button class="iv-side-alert is-hidden" id="side-alert">
+      <span style="display:flex;color:#DC2626">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </span>
+      <div style="text-align:left">
+        <div class="t1" id="side-alert-txt">0 insumos en alerta</div>
+        <div class="t2">Toca para revisar y reponer</div>
+      </div>
+    </button>
+
+    <div class="iv-side-footer">
+      <div class="iv-stat-mini">
+        <div class="iv-stat-big" id="inv-valor-total">$0</div>
+        <div class="iv-stat-lbl">valor inventario</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <main class="iv-main">
+    <!-- topbar -->
+    <header class="iv-topbar">
+      <div style="display:flex;align-items:center;gap:16px">
+        <div class="iv-kpis" id="iv-kpis">
+          <div class="iv-kpi" id="kpi-alerta">
+            <span class="kv" id="kpi-alerta-n">0</span>
+            <span class="kl">Insumos en alerta</span>
+          </div>
+          <div class="iv-kpi-sep"></div>
+          <div class="iv-kpi" id="kpi-pausados">
+            <span class="kv" id="kpi-pausados-n">0</span>
+            <span class="kl">Platos pausados</span>
+          </div>
+          <div class="iv-kpi-sep"></div>
+          <div class="iv-kpi">
+            <span class="kv" id="kpi-margen-n">—</span>
+            <span class="kl">Margen promedio</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px">
+        <div class="iv-crumbs">
+          <span style="color:#94A3B8">Backoffice</span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="here" id="crumb-title">Productos</span>
+        </div>
+        <div class="iv-pill-success">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Sincronizado
+        </div>
+        <div class="iv-user">
+          <div class="iv-user-avatar" id="tb-avatar">?</div>
+          <div><div class="n1" id="tb-uname">Cargando...</div><div class="n2" id="tb-urole">—</div></div>
+        </div>
+      </div>
+    </header>
+
+    <!-- page head + tabs -->
+    <section class="iv-pagehead">
+      <div class="iv-pagehead-row">
+        <div>
+          <div class="iv-eyebrow" id="page-eyebrow">Control de inventario</div>
+          <h1 class="iv-page-title" id="page-title">Productos</h1>
+        </div>
+        <div class="iv-tabs" id="iv-tabs">
+          <button class="iv-tab on" data-screen="productos">Productos</button>
+          <button class="iv-tab" data-screen="insumos">Insumos</button>
+          <button class="iv-tab" data-screen="recetas">Recetas y costeo</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- body with screens -->
+    <div class="iv-body" id="iv-body">
+
+      <!-- ======= SCREEN: PRODUCTOS ======= -->
+      <div class="screen on" id="screen-productos">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+          <div class="iv-legend">
+            <span><span class="dot" style="background:#22C55E"></span>Saludable ≤30%</span>
+            <span><span class="dot" style="background:#EAB308"></span>Aceptable ≤38%</span>
+            <span><span class="dot" style="background:#F97316"></span>Cuidado ≤45%</span>
+            <span><span class="dot" style="background:#EF4444"></span>No rentable</span>
+          </div>
+        </div>
+        <div class="iv-prod-grid" id="prod-grid">
+          <!-- tarjetas generadas por JS -->
+        </div>
+      </div>
+
+      <!-- ======= SCREEN: INSUMOS ======= -->
+      <div class="screen" id="screen-insumos">
+        <div class="iv-toolbar">
+          <div class="iv-search" style="flex:1;max-width:320px">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="ins-search" placeholder="Buscar insumo...">
+          </div>
+          <div class="grow"></div>
+          <button class="iv-btn-ghost" id="btn-registrar-compra">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+            Registrar compra
+          </button>
+          <button class="iv-btn-primary" id="btn-nuevo-insumo">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nuevo insumo
+          </button>
+        </div>
+        <div class="iv-filters" id="ins-filters">
+          <!-- chips por JS -->
+        </div>
+        <div id="ins-groups">
+          <!-- grupos por JS -->
+        </div>
+      </div>
+
+      <!-- ======= SCREEN: RECETAS ======= -->
+      <div class="screen" id="screen-recetas">
+        <div class="iv-rec-layout">
+          <!-- lista -->
+          <div>
+            <div class="iv-rec-list" id="rec-list">
+              <!-- items por JS -->
+            </div>
+          </div>
+          <!-- detalle -->
+          <div id="receta-detalle" class="iv-rec-detail">
+            <div style="text-align:center;padding:60px 20px;color:#94A3B8">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 12px;display:block"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+              <div style="font-size:14px;font-weight:600">Selecciona un plato</div>
+              <div style="font-size:12px;margin-top:4px">para ver su receta y costeo</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======= SCREEN: UNIDADES ======= -->
+      <div class="screen" id="screen-unidades">
+        <div class="iv-units">
+          <p class="iv-units-help">Administra las unidades de medida propias. Las <strong>predeterminadas</strong> son de solo lectura y siempre están disponibles.</p>
+          <div class="iv-units-sechead">
+            <div class="iv-units-sectitle">
+              Tus unidades
+              <span class="iv-units-count" id="units-count">0</span>
+            </div>
+            <button class="iv-btn-primary" id="btn-nueva-unidad">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Nueva unidad
+            </button>
+          </div>
+          <div class="iv-units-card" id="units-card">
+            <div class="iv-units-emptywrap">
+              <div class="iv-units-empty-ic">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/></svg>
+              </div>
+              <div style="font-size:14px;font-weight:700;color:#0F172A;margin-bottom:6px">Sin unidades propias</div>
+              <p style="font-size:12px;color:#94A3B8;max-width:280px;margin:0 auto">Crea unidades personalizadas como "porción", "bandeja" o cualquier medida específica de tu restaurante.</p>
+            </div>
+          </div>
+          <div class="iv-units-sechead" style="margin-top:24px">
+            <div class="iv-units-sectitle">Predeterminadas <span class="iv-units-readonly">Solo lectura</span></div>
+          </div>
+          <div class="iv-preset-list">
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>unidad</span>
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>libra</span>
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>kg</span>
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>gramo</span>
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>litro</span>
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>ml</span>
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>galón</span>
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>lata</span>
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>frasco</span>
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>paq.×10</span>
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>paq.×12</span>
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>paq.×24</span>
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>paq.×50</span>
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>paq.×100</span>
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>caja×12</span>
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>caja×24</span>
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>loncha</span>
+            <span class="iv-preset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>porción</span>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /iv-body -->
+  </main>
+</div>
+
+<!-- ===================== PANELES ===================== -->
+
+<!-- PANEL: REPONER (1 insumo) -->
+<div class="iv-overlay is-hidden" id="panel-reponer">
+  <div class="iv-modal w460">
+    <div class="iv-panel-head">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="iv-panel-ic indigo">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        </div>
+        <div>
+          <div class="iv-panel-title" id="rep-title">Reponer · —</div>
+          <div class="iv-panel-sub" id="rep-cat">—</div>
+        </div>
+      </div>
+      <button class="iv-close" onclick="closePanel('panel-reponer')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="iv-panel-body">
+      <div class="iv-rep-stock">
+        <div>
+          <div class="k">Tienes ahora</div>
+          <div class="v"><span id="rep-stock-val">0</span> <span class="u" id="rep-stock-unit">und</span></div>
+        </div>
+        <div style="text-align:right">
+          <span class="iv-badge" id="rep-badge">—</span>
+          <div style="font-size:10.5px;color:#94A3B8;margin-top:4px">mínimo <span id="rep-min">0</span></div>
+        </div>
+      </div>
+      <div style="margin-bottom:18px">
+        <div class="iv-field-label" style="margin-bottom:10px">¿Cuántas unidades llegaron?</div>
+        <div style="display:flex;justify-content:center">
+          <div class="iv-step lg">
+            <button onclick="repStep(-1)">−</button>
+            <input type="number" id="rep-qty" value="0" min="0" oninput="updateRepResult()">
+            <button onclick="repStep(1)">+</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap" id="rep-shortcuts">
+          <button class="iv-chip" onclick="repAdd(10)">+10</button>
+          <button class="iv-chip" onclick="repAdd(20)">+20</button>
+          <button class="iv-chip" onclick="repAdd(50)">+50</button>
+          <button class="iv-chip" id="rep-surtir-btn" onclick="repSurtir()">+0 · surtir</button>
+        </div>
+      </div>
+      <div style="margin-bottom:14px">
+        <div class="iv-field-label" style="margin-bottom:6px">Precio por <span id="rep-price-unit">und</span></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="iv-money" style="flex:1">
+            <span class="cur">$</span>
+            <input type="number" id="rep-price" min="0" placeholder="0" oninput="updateRepResult()">
+          </div>
+        </div>
+      </div>
+      <div class="iv-rep-result is-hidden" id="rep-result">
+        <div>
+          <div class="rt" id="rep-result-title">Quedará en 0</div>
+          <div class="rx" id="rep-result-sub">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="iv-panel-foot">
+      <div style="font-size:12px;color:#64748B">Costo: <strong id="rep-costo">$0</strong></div>
+      <button class="iv-btn-primary" id="btn-reponer-ok" onclick="aplicarReponer()" disabled>Reponer</button>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: REGISTRAR COMPRA (varios) -->
+<div class="iv-overlay is-hidden" id="panel-compra">
+  <div class="iv-drawer">
+    <div class="iv-panel-head">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="iv-panel-ic indigo">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        </div>
+        <div>
+          <div class="iv-panel-title">Registrar compra</div>
+          <div class="iv-panel-sub">Actualiza el stock de varios insumos</div>
+        </div>
+      </div>
+      <button class="iv-close" onclick="closePanel('panel-compra')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="iv-panel-body">
+      <div class="iv-search" style="margin-bottom:14px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="compra-search" placeholder="Buscar insumo..." oninput="filterCompra()">
+      </div>
+      <div id="compra-list" style="display:flex;flex-direction:column;gap:8px">
+        <!-- rows by JS -->
+      </div>
+    </div>
+    <div class="iv-panel-foot">
+      <div style="font-size:12px;color:#64748B" id="compra-summary">0 insumos · $0</div>
+      <button class="iv-btn-primary" id="btn-compra-ok" onclick="aplicarCompra()" disabled>Registrar compra</button>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: EDITOR INSUMO -->
+<div class="iv-overlay is-hidden" id="panel-insumo">
+  <div class="iv-drawer">
+    <div class="iv-panel-head">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="iv-panel-ic indigo">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </div>
+        <div>
+          <div class="iv-panel-title" id="ins-panel-title">Nuevo insumo</div>
+          <div class="iv-panel-sub">Completa los datos del insumo</div>
+        </div>
+      </div>
+      <button class="iv-close" onclick="closePanel('panel-insumo')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="iv-panel-body">
+      <input type="hidden" id="ins-edit-id">
+      <div class="iv-field">
+        <div class="iv-field-label">Nombre del insumo</div>
+        <input class="iv-input" type="text" id="ins-nombre" placeholder="Ej. Pollo, Queso, Salsa BBQ...">
+      </div>
+      <div class="iv-field">
+        <div class="iv-field-label">Categoría</div>
+        <select class="iv-input" id="ins-cat">
+          <option value="">Seleccionar categoría...</option>
+        </select>
+      </div>
+      <div class="iv-divider" style="margin:16px 0"></div>
+      <div class="iv-section-label">Unidad de compra</div>
+      <div class="iv-form-2">
+        <div class="iv-field">
+          <div class="iv-field-label">Unidad de compra</div>
+          <select class="iv-input" id="ins-buy-unit">
+            <option value="unidad">unidad</option>
+            <option value="libra">libra</option>
+            <option value="kg">kg</option>
+            <option value="gramo">gramo</option>
+            <option value="litro">litro</option>
+            <option value="ml">ml</option>
+            <option value="galón">galón</option>
+            <option value="lata">lata</option>
+            <option value="frasco">frasco</option>
+            <option value="paq.×10">paq.×10</option>
+            <option value="paq.×12">paq.×12</option>
+            <option value="paq.×24">paq.×24</option>
+            <option value="paq.×50">paq.×50</option>
+            <option value="paq.×100">paq.×100</option>
+            <option value="caja×12">caja×12</option>
+            <option value="caja×24">caja×24</option>
+            <option value="loncha">loncha</option>
+            <option value="porción">porción</option>
+          </select>
+        </div>
+        <div class="iv-field">
+          <div class="iv-field-label">Precio por unidad de compra</div>
+          <div class="iv-money"><span class="cur">$</span><input type="number" id="ins-precio" min="0" placeholder="0" oninput="updateCostHint()"></div>
+        </div>
+      </div>
+      <div class="iv-divider" style="margin:16px 0"></div>
+      <div class="iv-section-label">Unidad de receta</div>
+      <div class="iv-form-2">
+        <div class="iv-field">
+          <div class="iv-field-label">Unidad de receta</div>
+          <select class="iv-input" id="ins-use-unit">
+            <option value="unidad">unidad</option>
+            <option value="gramo">gramo</option>
+            <option value="ml">ml</option>
+            <option value="libra">libra</option>
+            <option value="kg">kg</option>
+            <option value="litro">litro</option>
+            <option value="loncha">loncha</option>
+            <option value="porción">porción</option>
+          </select>
+        </div>
+        <div class="iv-field">
+          <div class="iv-field-label">Conversión (unid. receta / unid. compra)</div>
+          <input class="iv-input" type="number" id="ins-conversion" min="0.001" step="any" placeholder="Ej. 453" oninput="updateCostHint()">
+          <div class="iv-field-hint">Ej. 1 libra = 453 gramos</div>
+        </div>
+      </div>
+      <div class="iv-info is-hidden" id="ins-cost-hint">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="ins-cost-hint-txt">—</span>
+      </div>
+      <div class="iv-divider" style="margin:16px 0"></div>
+      <div class="iv-section-label">Stock</div>
+      <div class="iv-form-2">
+        <div class="iv-field">
+          <div class="iv-field-label">Stock actual (unid. compra)</div>
+          <input class="iv-input" type="number" id="ins-stock" min="0" step="any" placeholder="0">
+        </div>
+        <div class="iv-field">
+          <div class="iv-field-label">Stock mínimo (unid. compra)</div>
+          <input class="iv-input" type="number" id="ins-min" min="0" step="any" placeholder="0">
+        </div>
+      </div>
+      <div class="iv-divider" style="margin:16px 0"></div>
+      <div class="iv-toggle" id="toggle-prep" onclick="togglePrep()">
+        <div class="iv-sw" id="toggle-prep-sw"></div>
+        <div>
+          <div class="tt">Entra en preparaciones</div>
+          <div class="tx" id="toggle-prep-desc">Si está activo, este insumo puede usarse en recetas</div>
+        </div>
+      </div>
+    </div>
+    <div class="iv-panel-foot">
+      <button class="iv-btn-danger is-hidden" id="btn-ins-eliminar" onclick="eliminarInsumo()">Eliminar</button>
+      <button class="iv-btn-primary" id="btn-ins-guardar" onclick="guardarInsumo()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: PARÁMETROS -->
+<div class="iv-overlay center is-hidden" id="panel-params">
+  <div class="iv-modal w440">
+    <div class="iv-panel-head">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="iv-panel-ic indigo">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
+        </div>
+        <div>
+          <div class="iv-panel-title">Parámetros de costeo</div>
+          <div class="iv-panel-sub">Afectan el costeo de todos los platos</div>
+        </div>
+      </div>
+      <button class="iv-close" onclick="closePanel('panel-params')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="iv-panel-body">
+      <div class="iv-slider">
+        <div class="iv-slider-top"><span class="iv-slider-lbl">Meta de materia prima (food cost objetivo)</span><span class="iv-slider-val" id="param-fc-val">30%</span></div>
+        <input type="range" id="param-fc" min="20" max="45" value="30" oninput="document.getElementById('param-fc-val').textContent=this.value+'%'">
+      </div>
+      <div class="iv-slider">
+        <div class="iv-slider-top"><span class="iv-slider-lbl">Otros costos de operación</span><span class="iv-slider-val" id="param-op-val">32%</span></div>
+        <input type="range" id="param-op" min="10" max="50" value="32" oninput="document.getElementById('param-op-val').textContent=this.value+'%'">
+      </div>
+      <div class="iv-slider">
+        <div class="iv-slider-top"><span class="iv-slider-lbl">Inflación anual estimada</span><span class="iv-slider-val" id="param-inf-val">10%</span></div>
+        <input type="range" id="param-inf" min="0" max="25" value="10" oninput="document.getElementById('param-inf-val').textContent=this.value+'%'">
+      </div>
+      <div class="iv-toggle on" id="toggle-merma" onclick="toggleMerma()" style="margin-top:4px">
+        <div class="iv-sw on" id="toggle-merma-sw"></div>
+        <div>
+          <div class="tt">Incluir merma (desperdicio)</div>
+          <div class="tx">Aplica el % de merma en el costeo de cada línea de receta</div>
+        </div>
+      </div>
+    </div>
+    <div class="iv-panel-foot">
+      <span style="font-size:12px;color:#64748B">Los cambios aplican a todos los platos</span>
+      <button class="iv-btn-primary" onclick="guardarParams()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="iv-toast is-hidden" id="iv-toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="pos-core.js"></script>
+<script src="inventario.js"></script>
+</body>
+</html>
