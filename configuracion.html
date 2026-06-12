@@ -463,7 +463,11 @@
               <div class="cf-marcas" id="ur-u-marcas"></div>
             </div>
             <div class="cf-railfoot">
+              <!-- Usuario NUEVO -->
               <button class="lm-btn-primary" id="ur-u-confirm" style="width:100%;display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Crear usuario</button>
+              <button class="lm-btn-ghost" id="ur-u-cancel" style="display:none;flex:1">Cancelar</button>
+              <!-- Usuario EXISTENTE -->
+              <button class="lm-btn-primary" id="ur-u-save" style="display:none;flex:1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Guardar cambios</button>
               <button class="lm-btn-ghost" style="flex:1" id="ur-u-dup"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Duplicar</button>
               <button class="cf-btn-danger" id="ur-u-del"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Eliminar</button>
             </div>
@@ -526,6 +530,11 @@
               <div id="ur-r-perms"></div>
             </div>
             <div class="cf-railfoot" id="ur-role-foot">
+              <!-- Botones para rol NUEVO -->
+              <button class="lm-btn-primary" id="ur-r-confirm" style="display:none;width:100%"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Guardar rol</button>
+              <button class="lm-btn-ghost" id="ur-r-cancel" style="display:none;flex:1">Cancelar</button>
+              <!-- Botones para rol EXISTENTE -->
+              <button class="lm-btn-primary" id="ur-r-save" style="display:none;flex:1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Guardar cambios</button>
               <button class="lm-btn-ghost" style="flex:1" id="ur-r-dup"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Duplicar</button>
               <button class="cf-btn-danger" id="ur-r-del"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Eliminar</button>
             </div>

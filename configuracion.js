@@ -1155,13 +1155,13 @@ function urSelectUser(id) {
     urUpdateRolDot(u.roleId);
     sel.onchange=function(){
       u.roleId=sel.value; urUpdateRolDot(sel.value);
-      urRenderUsers(); urSaveUserDebounced(u);
+      urRenderUsers();
     };
   }
   urSetUserStateUI(u);
   var sw=$('ur-u-state-sw');
   if(sw) sw.onclick=function(){
-    u.active=!u.active; urSetUserStateUI(u); urRenderUsers(); urSaveUserDebounced(u);
+    u.active=!u.active; urSetUserStateUI(u); urRenderUsers();
   };
   urRenderAccessPanel(u);
   var nameIn=$('ur-u-name');
@@ -1169,38 +1169,34 @@ function urSelectUser(id) {
     u.name=nameIn.value;
     var av2=$('ur-user-avatar'); if(av2) av2.textContent=urInitials(u.name);
     var ti2=$('ur-user-title'); if(ti2) ti2.textContent=u.name||'–';
-    urRenderUsers(); if(!u._isNew) urSaveUserDebounced(u);
+    urRenderUsers();
   };
   var emailIn=$('ur-u-email');
   if(emailIn) emailIn.oninput=function(){ u.email=emailIn.value; };
   var passIn=$('ur-u-pass');
   if(passIn) passIn.oninput=function(){ u.pass=passIn.value; };
   // Botón "Crear usuario" — visible solo para usuarios nuevos
-  var confirmBtn=$('ur-u-confirm');
-  var dupBtn=$('ur-u-dup');
-  var delBtn=$('ur-u-del');
-  if(confirmBtn){
-    if(u._isNew){
-      confirmBtn.style.display=''; // mostrar
-      if(dupBtn) dupBtn.style.display='none';
-      if(delBtn) delBtn.style.display='none';
-      confirmBtn.onclick=function(){ urConfirmCreateUser(u); };
-    } else {
-      confirmBtn.style.display='none'; // ocultar
-      if(dupBtn) dupBtn.style.display='';
-      if(delBtn) delBtn.style.display='';
-    }
+  // Botones footer según estado usuario
+  var confirmBtn=$('ur-u-confirm'), cancelBtn=$('ur-u-cancel');
+  var saveBtn=$('ur-u-save'), dupBtn=$('ur-u-dup'), delBtn=$('ur-u-del');
+  if(u._isNew){
+    if(confirmBtn){ confirmBtn.style.display=''; confirmBtn.onclick=function(){ urConfirmCreateUser(u); }; }
+    if(cancelBtn) { cancelBtn.style.display=''; cancelBtn.onclick=function(){ urCancelNewUser(u); }; }
+    if(saveBtn)   saveBtn.style.display='none';
+    if(dupBtn)    dupBtn.style.display='none';
+    if(delBtn)    delBtn.style.display='none';
+  } else {
+    if(confirmBtn) confirmBtn.style.display='none';
+    if(cancelBtn)  cancelBtn.style.display='none';
+    if(saveBtn)   { saveBtn.style.display=''; saveBtn.onclick=function(){ urSaveExistingUser(u); }; }
+    if(dupBtn)    dupBtn.style.display='';
+    if(delBtn)    delBtn.style.display='';
   }
   urShowPane('ur-pane-user');
 }
 
 var _urSaveTimer = {};
-function urSaveUserDebounced(u) {
-  clearTimeout(_urSaveTimer[u.id]);
-  _urSaveTimer[u.id] = setTimeout(function(){
-    urUpdateAuthUser(u).then(function(){ urShowToast('Guardado'); }).catch(function(e){ urShowToast('Error: '+e.message); });
-  }, 800);
-}
+// urSaveUserDebounced eliminado — guardado solo por botón explícito
 
 function urUpdateRolDot(roleId) {
   var role=urRoleById(roleId), dot=$('ur-u-rol-dot');
@@ -1223,7 +1219,7 @@ function urRenderAccessPanel(u) {
   if(master) master.onclick=function(){
     var allSelected=(u.sucursales||[]).length===total;
     u.sucursales=allSelected?[]:UR_ALL_SUCS.map(function(s){return s.id;});
-    urRenderAccessPanel(u); urRenderUsers(); urSaveUserDebounced(u);
+    urRenderAccessPanel(u); urRenderUsers();
   };
   var marcasEl=$('ur-u-marcas'); if(!marcasEl) return;
   marcasEl.innerHTML='';
@@ -1249,13 +1245,13 @@ function urRenderAccessPanel(u) {
       var allSel=allBrandSucs.every(function(sid){return (u.sucursales||[]).indexOf(sid)>=0;});
       if(allSel){ u.sucursales=(u.sucursales||[]).filter(function(sid){return allBrandSucs.indexOf(sid)<0;}); }
       else { allBrandSucs.forEach(function(sid){ if((u.sucursales||[]).indexOf(sid)<0) u.sucursales.push(sid); }); }
-      urRenderAccessPanel(u); urRenderUsers(); urSaveUserDebounced(u);
+      urRenderAccessPanel(u); urRenderUsers();
     });
     div.querySelectorAll('.cf-access-suc').forEach(function(btn){
       btn.addEventListener('click', function(){
         var sid=btn.dataset.suc, idx=(u.sucursales||[]).indexOf(sid);
         if(idx>=0) u.sucursales.splice(idx,1); else { if(!u.sucursales) u.sucursales=[]; u.sucursales.push(sid); }
-        urRenderAccessPanel(u); urRenderUsers(); urSaveUserDebounced(u);
+        urRenderAccessPanel(u); urRenderUsers();
       });
     });
     marcasEl.appendChild(div);
@@ -1281,14 +1277,14 @@ function urSelectRole(id) {
   var ey=$('ur-role-eyebrow'); if(ey) ey.textContent=r.system?'Rol del sistema':'Rol';
   var ti=$('ur-role-title'); if(ti) ti.textContent=r.name;
   var nm=$('ur-r-name');
-  if(nm){ nm.value=r.name; nm.oninput=function(){ r.name=nm.value; var t2=$('ur-role-title');if(t2)t2.textContent=r.name; urRenderRoles(); urSaveRoleDebounced(r); }; }
+  if(nm){ nm.value=r.name; nm.oninput=function(){ r.name=nm.value; var t2=$('ur-role-title');if(t2)t2.textContent=r.name; urRenderRoles(); }; }
   document.querySelectorAll('#ur-r-swatches .cf-swatch').forEach(function(sw){
     sw.classList.toggle('on', sw.dataset.color===r.color);
     sw.onclick=function(){
       r.color=sw.dataset.color;
       document.querySelectorAll('#ur-r-swatches .cf-swatch').forEach(function(s){s.classList.toggle('on',s.dataset.color===r.color);});
       var ic=$('ur-role-icon'); if(ic){ic.style.color=r.color;ic.style.background=r.color+'1A';}
-      urRenderRoles(); urSaveRoleDebounced(r);
+      urRenderRoles();
     };
   });
   urRenderPerms(r);
@@ -1302,15 +1298,92 @@ function urSelectRole(id) {
       var ln2=foot.querySelector('.cf-lockednote'); if(ln2) ln2.remove();
     }
   }
+  // Botones footer según estado del rol
+  var rConfirm=$('ur-r-confirm'), rCancel=$('ur-r-cancel'), rSave=$('ur-r-save');
+  var rDup=$('ur-r-dup'), rDel=$('ur-r-del');
+  if(r._isNew){
+    if(rConfirm) rConfirm.style.display='';
+    if(rCancel)  rCancel.style.display='';
+    if(rSave)    rSave.style.display='none';
+    if(rDup)     rDup.style.display='none';
+    if(rDel)     rDel.style.display='none';
+  } else {
+    if(rConfirm) rConfirm.style.display='none';
+    if(rCancel)  rCancel.style.display='none';
+    if(rSave)    rSave.style.display='';
+    if(rDup)     rDup.style.display='';
+    if(rDel)     rDel.style.display='';
+  }
   urShowPane('ur-pane-role');
 }
 
 var _urRoleTimer = {};
-function urSaveRoleDebounced(r) {
-  clearTimeout(_urRoleTimer[r.id]);
-  _urRoleTimer[r.id] = setTimeout(function(){
-    urSaveRole(r).then(function(){ urShowToast('Rol guardado'); }).catch(function(e){ urShowToast('Error: '+e.message); });
-  }, 800);
+// urSaveRoleDebounced eliminado — guardado solo por botón explícito
+
+// ── Confirmar guardado de rol nuevo ──────────────────────────
+async function urConfirmSaveRole(r) {
+  if (!r.name || !r.name.trim()) { urShowToast('Escribe un nombre para el rol'); return; }
+  var btn=$('ur-r-confirm'); if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
+  try {
+    await urSaveRole(r);
+    // Mostrar botones de rol existente
+    var rConfirm=$('ur-r-confirm'), rCancel=$('ur-r-cancel'), rSave=$('ur-r-save');
+    var rDup=$('ur-r-dup'), rDel=$('ur-r-del');
+    if(rConfirm) rConfirm.style.display='none';
+    if(rCancel)  rCancel.style.display='none';
+    if(rSave)    rSave.style.display='';
+    if(rDup)     rDup.style.display='';
+    if(rDel)     rDel.style.display='';
+    urRenderRoles();
+    urShowToast('Rol creado ✓');
+  } catch(e) {
+    var btn2=$('ur-r-confirm'); if(btn2){ btn2.disabled=false; btn2.textContent='Guardar rol'; }
+    urShowToast('Error: ' + e.message);
+  }
+}
+
+// ── Cancelar rol nuevo (descartarlo) ─────────────────────────
+function urCancelNewRole(r) {
+  UR.roles = UR.roles.filter(function(x){ return x.id !== r.id; });
+  UR.selectedRoleId = null;
+  urRenderRoles();
+  urShowDefaultPane('roles');
+}
+
+// ── Guardar cambios de rol existente ─────────────────────────
+async function urSaveExistingRole(r) {
+  var btn=$('ur-r-save'); if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
+  try {
+    await urSaveRole(r);
+    urRenderRoles();
+    urShowToast('Rol guardado ✓');
+  } catch(e) {
+    urShowToast('Error: ' + e.message);
+  } finally {
+    var btn2=$('ur-r-save'); if(btn2){ btn2.disabled=false; btn2.textContent='Guardar cambios'; }
+  }
+}
+
+// ── Cancelar usuario nuevo (descartarlo) ─────────────────────
+function urCancelNewUser(u) {
+  UR.users = UR.users.filter(function(x){ return x.id !== u.id; });
+  UR.selectedUserId = null;
+  urRenderUsers();
+  urShowDefaultPane('usuarios');
+}
+
+// ── Guardar cambios de usuario existente ─────────────────────
+async function urSaveExistingUser(u) {
+  var btn=$('ur-u-save'); if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
+  try {
+    await urUpdateAuthUser(u);
+    urRenderUsers();
+    urShowToast('Usuario guardado ✓');
+  } catch(e) {
+    urShowToast('Error: ' + e.message);
+  } finally {
+    var btn2=$('ur-u-save'); if(btn2){ btn2.disabled=false; btn2.textContent='Guardar cambios'; }
+  }
 }
 
 function urRenderPerms(r) {
@@ -1323,7 +1396,7 @@ function urRenderPerms(r) {
     allBtn.textContent=perms.length===UR_TOTAL_PERMS?'Quitar todos':'Activar todos';
     allBtn.onclick=function(){
       r.perms=r.perms.length===UR_TOTAL_PERMS?[]:allIds.slice();
-      urRenderPerms(r); urRenderRoles(); urSaveRoleDebounced(r);
+      urRenderPerms(r); urRenderRoles();
     };
   }
   container.innerHTML='';
@@ -1347,7 +1420,7 @@ function urRenderPerms(r) {
         var ng=wrap.querySelector('.cf-permgroup-n');
         var an=group.items.filter(function(i){return r.perms.indexOf(i.id)>=0;}).length;
         if(ng) ng.textContent=an+'/'+group.items.length;
-        urRenderRoles(); urSaveRoleDebounced(r);
+        urRenderRoles();
       });
     });
     container.appendChild(wrap);
@@ -1461,7 +1534,7 @@ function urBindPassControls() {
   if(gen&&inp) gen.onclick=function(){
     var np=urGenPass(); inp.value=np; inp.type='text';
     var u=urUserById(UR.selectedUserId);
-    if(u){ u.pass=np; urSaveUserDebounced(u); }
+    if(u){ u.pass=np; }
   };
 }
 
@@ -1492,6 +1565,19 @@ async function urInit() {
   });
   var rD=$('ur-r-dup'); if(rD) rD.addEventListener('click', function(){ if(UR.selectedRoleId) urDupRole(UR.selectedRoleId); });
   var rDel=$('ur-r-del'); if(rDel) rDel.addEventListener('click', function(){ if(UR.selectedRoleId) urDeleteRole(UR.selectedRoleId); });
+  // Botones rol: Guardar rol nuevo / Cancelar / Guardar cambios
+  var rConfirmBtn=$('ur-r-confirm');
+  if(rConfirmBtn) rConfirmBtn.addEventListener('click', function(){
+    var r=urRoleById(UR.selectedRoleId); if(r) urConfirmSaveRole(r);
+  });
+  var rCancelBtn=$('ur-r-cancel');
+  if(rCancelBtn) rCancelBtn.addEventListener('click', function(){
+    var r=urRoleById(UR.selectedRoleId); if(r) urCancelNewRole(r);
+  });
+  var rSaveBtn=$('ur-r-save');
+  if(rSaveBtn) rSaveBtn.addEventListener('click', function(){
+    var r=urRoleById(UR.selectedRoleId); if(r) urSaveExistingRole(r);
+  });
   // Guardado de usuario nuevo: via botón ur-u-confirm (ver urSelectUser)
   urBindPassControls();
   urRenderUsers();
