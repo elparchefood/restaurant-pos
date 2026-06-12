@@ -534,6 +534,7 @@ function bindEvents() {
     btn.addEventListener('click', () => {
       switch (btn.dataset.action) {
         case 'back':         window.location.href = 'ventas.html'; break;
+        case 'nav-domicilio': window.location.href = 'domicilios.html'; break;
         case 'guardar':      saveOrder(); break;
         case 'enviar-cocina':sendToKitchen(); break;
         case 'pago':         toast('Módulo de pago próximamente', 'warn'); break;
