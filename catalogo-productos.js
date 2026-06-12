@@ -584,11 +584,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderPage();
 
   // Cargar datos del usuario autenticado
-  await Promise.all([loadCategories(), loadModifierGroups()]);
-  await loadProducts();
-  await loadCombos();
-  S.loading=false;
-  renderPage();
+  try {
+    await Promise.all([loadCategories(), loadModifierGroups()]);
+    await loadProducts();
+    await loadCombos();
+  } catch(e) {
+    console.error('Boot load error:', e);
+  } finally {
+    S.loading=false;
+    renderPage();
+  }
 
   // Redirigir si la sesión expira
   sb.auth.onAuthStateChange((event) => {
