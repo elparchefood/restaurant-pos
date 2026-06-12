@@ -1370,6 +1370,12 @@ async function urConfirmCreateUser(u) {
     var { data: { user: me } } = await sb.auth.getUser();
     var tenantId = me.user_metadata.tenant_id;
     var branchId = me.user_metadata.branch_id;
+    // Validar que el rol seleccionado ya tiene UUID real de Supabase
+    var uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (u.roleId && !uuidRe.test(u.roleId)) {
+      urShowToast('El rol seleccionado aún se está guardando, espera un momento e intenta de nuevo');
+      return;
+    }
     var dbUser = await urCreateAuthUser(u, tenantId, branchId);
     u.id = dbUser.id;
     u.authId = dbUser.auth_user_id;
@@ -1392,8 +1398,19 @@ async function urAddRole() {
   UR.roles.push(r);
   urRenderRoles();
   urSelectRole(r.id);
-  // Guardar en Supabase inmediatamente
-  urSaveRole(r).then(function(){ urRenderRoles(); }).catch(function(e){ urShowToast('Error: '+e.message); });
+  // Guardar en Supabase inmediatamente; tras guardar, actualizar cualquier selector de rol abierto
+  urSaveRole(r).then(function(){
+    urRenderRoles();
+    // Si hay un usuario nuevo abierto cuyo roleId aún es el temp, actualizarlo al UUID real
+    if (UR.selectedUserId) {
+      var u = urUserById(UR.selectedUserId);
+      if (u && u.roleId && u.roleId === r.id) {
+        // r.id ya fue actualizado por urSaveRole al UUID real
+        var sel = document.getElementById('ur-u-rol');
+        if (sel) { sel.innerHTML=''; UR.roles.forEach(function(rx){ var o=document.createElement('option'); o.value=rx.id; o.textContent=rx.name; if(rx.id===u.roleId) o.selected=true; sel.appendChild(o); }); }
+      }
+    }
+  }).catch(function(e){ urShowToast('Error guardando rol: '+e.message); });
 }
 
 async function urDeleteUser(id) {
