@@ -154,6 +154,7 @@ function icon(name,size,sw){
     case 'sliders': return '<svg '+p+'><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>';
     case 'file':    return '<svg '+p+'><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
     case 'grip':    return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 10 16" fill="currentColor"><circle cx="2.5" cy="3" r="1.4"/><circle cx="7.5" cy="3" r="1.4"/><circle cx="2.5" cy="8" r="1.4"/><circle cx="7.5" cy="8" r="1.4"/><circle cx="2.5" cy="13" r="1.4"/><circle cx="7.5" cy="13" r="1.4"/></svg>';
+    case 'check-square': return '<svg '+p+'><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>';
     case 'logout':  return '<svg '+p+'><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>';
     default: return '';
   }
@@ -252,7 +253,10 @@ function productCardHTML(p){
   const thumb=p.photo?'<img class="cp-thumb-img" src="'+escHtml(p.photo)+'" alt="">':'<div class="cp-thumb-placeholder"><span class="cp-thumb-label">foto · '+escHtml(cat.name.toLowerCase())+'</span></div>';
   const inactive=p.active?'':'<span class="cp-inactive-chip">Inactivo</span>';
   const varTag=varGroups.length?'<span class="cp-meta-tag var">'+icon('sliders',12)+' '+varGroups.reduce((a,v)=>a+v.options.length,0)+' variables</span>':'';
-  return '<div class="cp-card" style="'+(p.active?'':'opacity:.72')+'" onclick="openEditor(\''+p.id+'\',\'product\')">'+'<div class="cp-thumb">'+thumb+'<span class="cp-cat-chip" style="color:'+cat.color+';background:'+cat.tint+'">'+escHtml(cat.name)+'</span>'+inactive+'</div>'+'<div class="cp-card-body"><div class="cp-card-row"><div class="cp-card-name">'+escHtml(p.name)+'</div><div class="cp-card-price">'+range+'</div></div>'+(p.desc?'<div class="cp-card-desc">'+escHtml(p.desc)+'</div>':'')+'<div class="cp-meta-row"><span class="cp-meta-tag">'+icon('layers',12)+' '+p.presentations.length+' '+(p.presentations.length===1?'presentación':'presentaciones')+'</span>'+varTag+'<span class="cp-meta-tag">'+icon('tag',12)+' '+(groups.length?(groups.length+' '+(groups.length===1?'grupo':'grupos')+' · '+opts+' adic.'):'Sin adiciones')+'</span></div></div>'+'<div class="cp-card-foot" onclick="event.stopPropagation()"><button class="cp-switch'+(p.active?' on':'')+'" onclick="toggleProduct(\''+p.id+'\')"><span class="cp-switch-lbl">'+(p.active?'Activo':'Inactivo')+'</span><span class="cp-switch-track"><span class="cp-switch-knob"></span></span></button><div style="display:flex;gap:5px;align-items:center"><button class="cp-card-del-btn" onclick="confirmDeleteProduct(\''+p.id+'\')" title="Eliminar">'+icon('trash',13)+'</button><button class="cp-card-edit-btn" onclick="openEditor(\''+p.id+'\',\'product\')">Editar '+icon('chevron',13)+'</button></div></div></div>';
+  const _selClass=S.selectMode&&S.selected.has(p.id)?' cp-selected':'';
+  const _chkHtml=S.selectMode?'<div class="cp-card-check">'+(S.selected.has(p.id)?'<svg width="16" height="16" viewBox="0 0 24 24" fill="#8B5CF6"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4" stroke="#fff" stroke-width="2.5" fill="none"/></svg>':'<svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#CBD5E1" stroke-width="2"/></svg>')+'</div>':'';
+  const _cardClick=S.selectMode?('toggleSelect(\''+p.id+'\')'):('openEditor(\''+p.id+'\''+',\'product\')');
+  return '<div class="cp-card'+_selClass+'" style="'+(p.active?'':'opacity:.72')+'" onclick="'+_cardClick+'">'+_chkHtml+'<div class="cp-thumb">'+thumbp.id+'\',\'product\')">'+'<div class="cp-thumb">'+thumb+'<span class="cp-cat-chip" style="color:'+cat.color+';background:'+cat.tint+'">'+escHtml(cat.name)+'</span>'+inactive+'</div>'+'<div class="cp-card-body"><div class="cp-card-row"><div class="cp-card-name">'+escHtml(p.name)+'</div><div class="cp-card-price">'+range+'</div></div>'+(p.desc?'<div class="cp-card-desc">'+escHtml(p.desc)+'</div>':'')+'<div class="cp-meta-row"><span class="cp-meta-tag">'+icon('layers',12)+' '+p.presentations.length+' '+(p.presentations.length===1?'presentación':'presentaciones')+'</span>'+varTag+'<span class="cp-meta-tag">'+icon('tag',12)+' '+(groups.length?(groups.length+' '+(groups.length===1?'grupo':'grupos')+' · '+opts+' adic.'):'Sin adiciones')+'</span></div></div>'+'<div class="cp-card-foot" onclick="event.stopPropagation()"><button class="cp-switch'+(p.active?' on':'')+'" onclick="toggleProduct(\''+p.id+'\')"><span class="cp-switch-lbl">'+(p.active?'Activo':'Inactivo')+'</span><span class="cp-switch-track"><span class="cp-switch-knob"></span></span></button><div style="display:flex;gap:5px;align-items:center"><button class="cp-card-del-btn" onclick="confirmDeleteProduct(\''+p.id+'\')" title="Eliminar">'+icon('trash',13)+'</button><button class="cp-card-edit-btn" onclick="openEditor(\''+p.id+'\',\'product\')">Editar '+icon('chevron',13)+'</button></div></div></div>';
 }
 
 function confirmDeleteProduct(id){
@@ -585,3 +589,80 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (event === 'SIGNED_OUT') window.location.href = 'login.html';
   });
 });
+
+// ---- Bulk delete ----
+function toggleSelectMode(){
+  S.selectMode=!S.selectMode;
+  if(!S.selectMode) S.selected.clear();
+  renderPage();
+}
+
+function toggleSelect(id){
+  if(S.selected.has(id)) S.selected.delete(id);
+  else S.selected.add(id);
+  // Update card style + bar count without full re-render
+  const card=document.querySelector('.cp-card-grid .cp-card[onclick*="'+id+'"]');
+  if(card){
+    if(S.selected.has(id)) card.classList.add('cp-selected');
+    else card.classList.remove('cp-selected');
+  }
+  // Update checkmark icon
+  renderProductGrid(document.getElementById('cp-body'));
+  const bar=document.getElementById('cp-sel-bar');
+  if(bar){
+    const span=bar.querySelector('span');
+    if(span) span.textContent=S.selected.size+' seleccionado'+(S.selected.size!==1?'s':'');
+  }
+}
+
+async function deleteSelected(){
+  if(!S.selected.size) return;
+  const ids=[...S.selected];
+  showConfirmModal(
+    'Eliminar '+ids.length+' producto'+(ids.length!==1?'s':''),
+    'Esta acción no se puede deshacer.',
+    async ()=>{
+      for(const id of ids){ await deleteProductFromSupabase(id); S.products=S.products.filter(x=>x.id!==id); }
+      S.selected.clear();
+      S.selectMode=false;
+      renderPage();
+      toast('Productos eliminados');
+    }
+  );
+}
+
+function confirmDeleteAll(){
+  if(!S.products.length) return;
+  showConfirmModal(
+    'Borrar todo el catálogo',
+    'Se eliminarán '+S.products.length+' producto'+(S.products.length!==1?'s':'')+'. Esta acción no se puede deshacer.',
+    async ()=>{
+      for(const p of [...S.products]){ await deleteProductFromSupabase(p.id); }
+      S.products=[];
+      S.selected.clear();
+      S.selectMode=false;
+      renderPage();
+      toast('Catálogo borrado');
+    }
+  );
+}
+
+function showConfirmModal(title, msg, onConfirm){
+  openOverlay(
+    '<div class="cc-overlay center" onmousedown="handleOverlayClose(event)">'
+    +'<div class="cc-modal" style="width:340px;max-width:92vw" onmousedown="event.stopPropagation()">'
+    +'<div class="cc-modal-head" style="border-bottom:none;padding-bottom:6px">'
+    +'<div style="display:flex;align-items:center;gap:10px">'
+    +'<span style="width:36px;height:36px;border-radius:10px;background:#FFF1F2;color:#F43F5E;display:flex;align-items:center;justify-content:center">'+icon('trash',16)+'</span>'
+    +'<div style="font-size:14px;font-weight:800;color:#0F172A">'+escHtml(title)+'</div></div></div>'
+    +'<div style="padding:0 20px 8px;font-size:13px;color:#64748B">'+escHtml(msg)+'</div>'
+    +'<div class="cc-modal-foot">'
+    +'<button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button>'
+    +'<button class="lm-btn-danger" id="confirm-del-btn">Sí, eliminar</button>'
+    +'</div></div></div>'
+  );
+  setTimeout(()=>{
+    const btn=document.getElementById('confirm-del-btn');
+    if(btn) btn.onclick=async()=>{ closeOverlay(); await onConfirm(); };
+  },0);
+}
