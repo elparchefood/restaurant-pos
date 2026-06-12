@@ -1466,19 +1466,7 @@ async function urAddRole() {
   UR.roles.push(r);
   urRenderRoles();
   urSelectRole(r.id);
-  // Guardar en Supabase inmediatamente; tras guardar, actualizar cualquier selector de rol abierto
-  urSaveRole(r).then(function(){
-    urRenderRoles();
-    // Si hay un usuario nuevo abierto cuyo roleId aún es el temp, actualizarlo al UUID real
-    if (UR.selectedUserId) {
-      var u = urUserById(UR.selectedUserId);
-      if (u && u.roleId && u.roleId === r.id) {
-        // r.id ya fue actualizado por urSaveRole al UUID real
-        var sel = document.getElementById('ur-u-rol');
-        if (sel) { sel.innerHTML=''; UR.roles.forEach(function(rx){ var o=document.createElement('option'); o.value=rx.id; o.textContent=rx.name; if(rx.id===u.roleId) o.selected=true; sel.appendChild(o); }); }
-      }
-    }
-  }).catch(function(e){ urShowToast('Error guardando rol: '+e.message); });
+  // NO se guarda automáticamente — el usuario debe hacer clic en "Guardar rol"
 }
 
 async function urDeleteUser(id) {
@@ -1520,7 +1508,9 @@ async function urDupRole(id) {
   var clone=JSON.parse(JSON.stringify(r));
   clone.id=urGenId('r'); clone.name=r.name+' (copia)'; clone.system=false; clone._isNew=true;
   UR.roles.push(clone);
-  urSaveRole(clone).then(function(){ urRenderRoles(); urSelectRole(clone.id); });
+  urRenderRoles();
+  urSelectRole(clone.id);
+  // NO auto-save — el usuario debe hacer clic en "Guardar rol"
 }
 
 function urBindPassControls() {
