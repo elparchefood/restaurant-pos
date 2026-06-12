@@ -154,17 +154,17 @@
 
       <!-- QUICK ACTIONS -->
       <div class="quick-grid">
-        <button class="quick-btn" id="qb-waiters">
+        <button class="quick-btn" id="qb-waiters" data-modal="meseros">
           <div class="quick-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
           <div><div class="quick-label">Meseros</div><div class="quick-sub" id="qb-waiters-sub">—</div></div>
         </button>
-        <button class="quick-btn">
-          <div class="quick-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></div>
-          <div><div class="quick-label">Imprimir productos</div><div class="quick-sub" id="qb-print-sub">—</div></div>
+        <button class="quick-btn" data-modal="inventario">
+          <div class="quick-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
+          <div><div class="quick-label">Inventario rápido</div><div class="quick-sub" id="qb-inv-sub">—</div></div>
         </button>
-        <button class="quick-btn">
+        <button class="quick-btn" data-modal="comprobantes">
           <div class="quick-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></div>
-          <div><div class="quick-label">Imprimir comprobantes</div><div class="quick-sub" id="qb-receipt-sub">—</div></div>
+          <div><div class="quick-label">Imprimir comprobantes</div><div class="quick-sub" id="qb-receipt-sub">Reimprimir pedidos</div></div>
         </button>
         <button class="quick-btn qdisabled">
           <div class="quick-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg></div>
@@ -475,5 +475,120 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="pos-core.js"></script>
   <script src="dashboard.js"></script>
+
+  <!-- ══════════════════════════════════════════════════════════
+       QUICK ACTION PANELS — Overlay con los 3 paneles modales
+       ══════════════════════════════════════════════════════════ -->
+  <div class="qm-overlay" id="qmOverlay" role="dialog" aria-modal="true">
+    <div class="qm-stop">
+
+      <!-- ─── 1 · MESEROS ─── -->
+      <section class="qm-card qm-card--meseros qm-modal" id="modal-meseros" aria-label="Meseros en turno">
+        <header class="qm-head">
+          <div class="qm-head-left">
+            <div class="qm-head-icon qm-head-icon--indigo">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div>
+              <div class="qm-title">Meseros en turno</div>
+              <div class="qm-sub" id="qmMeserosSub">Cargando...</div>
+            </div>
+          </div>
+          <button class="qm-close" aria-label="Cerrar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </header>
+        <div class="qm-body">
+          <div class="qm-list" id="qmMeserosList">
+            <div style="text-align:center;color:#94A3B8;font-size:13px;padding:20px">Cargando meseros...</div>
+          </div>
+        </div>
+        <footer class="qm-foot">
+          <span class="qm-foot-note" id="qmMeserosNote">—</span>
+          <button class="qm-link" onclick="window.location.href='configuracion.html'">Ir a gestión de usuarios →</button>
+        </footer>
+      </section>
+
+      <!-- ─── 2 · INVENTARIO RÁPIDO ─── -->
+      <section class="qm-card qm-card--inventario qm-modal" id="modal-inventario" aria-label="Inventario rápido">
+        <header class="qm-head">
+          <div class="qm-head-left">
+            <div class="qm-head-icon qm-head-icon--amber">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            </div>
+            <div>
+              <div class="qm-title">Inventario rápido</div>
+              <div class="qm-sub" id="invSub">Cargando...</div>
+            </div>
+          </div>
+          <button class="qm-close" aria-label="Cerrar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </header>
+        <div class="qm-body">
+          <div id="invContent">
+            <div class="qm-filters" id="invFilters">
+              <button class="qm-filter is-active" data-filter="todos">Todos <span class="qm-filter-n" id="invFnTodos">0</span></button>
+              <button class="qm-filter" data-filter="criticos">Crítico <span class="qm-filter-n" id="invFnCriticos">0</span></button>
+              <button class="qm-filter" data-filter="bajos">Stock bajo <span class="qm-filter-n" id="invFnBajos">0</span></button>
+            </div>
+            <div class="qm-inv-list" id="invList"></div>
+          </div>
+          <div id="invEmpty" class="qm-empty is-hidden">
+            <div class="qm-empty-circle">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div class="qm-empty-title">Inventario al día</div>
+            <p class="qm-empty-text">Ningún producto está por debajo del mínimo. No hay nada que reponer por ahora.</p>
+          </div>
+        </div>
+        <footer class="qm-foot" id="invFootDefault">
+          <button class="qm-link-muted" id="invMarkReviewed">Marcar todo revisado</button>
+          <button class="qm-link">Ir a inventario completo →</button>
+        </footer>
+        <footer class="qm-foot is-hidden" id="invFootEmpty">
+          <span class="qm-foot-note">Revisado hace instantes</span>
+          <button class="qm-link" id="invShowAlerts">Ver alertas</button>
+        </footer>
+      </section>
+
+      <!-- ─── 3 · IMPRIMIR COMPROBANTES ─── -->
+      <section class="qm-card qm-card--comprobantes qm-modal" id="modal-comprobantes" aria-label="Imprimir comprobantes">
+        <header class="qm-head">
+          <div class="qm-head-left">
+            <div class="qm-head-icon qm-head-icon--indigo">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            </div>
+            <div>
+              <div class="qm-title">Imprimir comprobantes</div>
+              <div class="qm-sub">Busca un pedido y reimprime sus documentos</div>
+            </div>
+          </div>
+          <button class="qm-close" aria-label="Cerrar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </header>
+        <div class="qm-body">
+          <div class="qm-print-split">
+            <div class="qm-print-list">
+              <div class="qm-search">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input class="qm-search-input" id="orderSearch" placeholder="Buscar por #pedido o hora..." autocomplete="off">
+              </div>
+              <div class="qm-print-rows" id="orderList"></div>
+            </div>
+            <div class="qm-print-detail" id="orderDetail">
+              <div class="qm-detail-empty">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span>Selecciona un pedido</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
 </body>
 </html>

@@ -1070,3 +1070,400 @@ function goToAdmin() {
   document.getElementById('user-dropdown').classList.remove('open');
   window.location.href = 'admin-reg.html';
 }
+
+// ══════════════════════════════════════════════════════════════
+// QUICK ACTION PANELS — lógica de los 3 paneles modales
+// ══════════════════════════════════════════════════════════════
+
+var QM = {
+  overlay: null,
+  activeModal: null,
+  ordersCache: [],
+  selectedOrderId: null
+};
+
+function qmInit() {
+  QM.overlay = document.getElementById('qmOverlay');
+
+  // Botones disparadores
+  document.querySelectorAll('.quick-btn[data-modal]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      qmOpen(btn.dataset.modal, btn);
+    });
+  });
+
+  // Cerrar: botón X
+  document.querySelectorAll('.qm-close').forEach(function(btn) {
+    btn.addEventListener('click', qmClose);
+  });
+
+  // Cerrar: clic en fondo oscuro
+  QM.overlay.addEventListener('click', function(e) {
+    if (e.target === QM.overlay) qmClose();
+  });
+
+  // Cerrar: Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && QM.overlay.classList.contains('is-open')) qmClose();
+  });
+
+  // Filtros inventario
+  document.querySelectorAll('.qm-filter').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.qm-filter').forEach(function(b) { b.classList.remove('is-active'); });
+      btn.classList.add('is-active');
+      var f = btn.dataset.filter;
+      document.querySelectorAll('.qm-inv-row').forEach(function(row) {
+        if (f === 'todos') { row.classList.remove('is-hidden'); return; }
+        var s = row.dataset.status;
+        var show = (f === 'criticos' && (s === 'out' || s === 'critical')) ||
+                   (f === 'bajos' && s === 'low');
+        row.classList.toggle('is-hidden', !show);
+      });
+    });
+  });
+
+  // Marcar revisado (inventario)
+  var markBtn = document.getElementById('invMarkReviewed');
+  if (markBtn) markBtn.addEventListener('click', function() {
+    document.getElementById('invContent').classList.add('is-hidden');
+    document.getElementById('invEmpty').classList.remove('is-hidden');
+    document.getElementById('invFootDefault').classList.add('is-hidden');
+    document.getElementById('invFootEmpty').classList.remove('is-hidden');
+    document.getElementById('invSub').textContent = 'Todo en orden';
+  });
+  var showBtn = document.getElementById('invShowAlerts');
+  if (showBtn) showBtn.addEventListener('click', function() {
+    document.getElementById('invContent').classList.remove('is-hidden');
+    document.getElementById('invEmpty').classList.add('is-hidden');
+    document.getElementById('invFootDefault').classList.remove('is-hidden');
+    document.getElementById('invFootEmpty').classList.add('is-hidden');
+  });
+
+  // Búsqueda comprobantes
+  var searchInput = document.getElementById('orderSearch');
+  if (searchInput) searchInput.addEventListener('input', function() {
+    qmFilterOrders(searchInput.value.trim());
+  });
+}
+
+function qmOpen(modalId, triggerBtn) {
+  // Quitar is-active de todos los botones
+  document.querySelectorAll('.quick-btn[data-modal]').forEach(function(b) {
+    b.classList.remove('qactive');
+  });
+  if (triggerBtn) triggerBtn.classList.add('qactive');
+
+  // Mostrar overlay y el panel correcto
+  document.querySelectorAll('.qm-modal').forEach(function(m) { m.classList.remove('is-open'); });
+  var modal = document.getElementById('modal-' + modalId);
+  if (modal) modal.classList.add('is-open');
+  QM.overlay.classList.add('is-open');
+  QM.activeModal = modalId;
+
+  // Cargar datos según el panel
+  if (modalId === 'meseros')       qmLoadMeseros();
+  if (modalId === 'inventario')    qmLoadInventario();
+  if (modalId === 'comprobantes')  qmLoadComprobantes();
+}
+
+function qmClose() {
+  QM.overlay.classList.remove('is-open');
+  document.querySelectorAll('.quick-btn[data-modal]').forEach(function(b) { b.classList.remove('qactive'); });
+  QM.activeModal = null;
+}
+
+// ── MESEROS ───────────────────────────────────────────────────
+async function qmLoadMeseros() {
+  var list = document.getElementById('qmMeserosList');
+  var sub  = document.getElementById('qmMeserosSub');
+  var note = document.getElementById('qmMeserosNote');
+  list.innerHTML = '<div style="text-align:center;color:#94A3B8;font-size:13px;padding:20px">Cargando...</div>';
+
+  var branchId = window._branchId || null;
+  var q = sb.from('pos_users').select('*').eq('role', 'mesero').eq('active', true);
+  if (branchId) q = q.eq('branch_id', branchId);
+  var { data: meseros } = await q;
+  meseros = meseros || [];
+
+  // Contar mesas activas por mesero
+  var { data: openOrders } = await sb.from('pos_orders')
+    .select('waiter_id, table_id')
+    .eq('status', 'open')
+    .not('table_id', 'is', null);
+  openOrders = openOrders || [];
+
+  var tablesByWaiter = {};
+  openOrders.forEach(function(o) {
+    if (!o.waiter_id) return;
+    if (!tablesByWaiter[o.waiter_id]) tablesByWaiter[o.waiter_id] = [];
+    if (o.table_id && tablesByWaiter[o.waiter_id].indexOf(o.table_id) < 0)
+      tablesByWaiter[o.waiter_id].push(o.table_id);
+  });
+
+  // Ordenar por mesas (desc)
+  meseros.sort(function(a,b) {
+    return (tablesByWaiter[b.id]||[]).length - (tablesByWaiter[a.id]||[]).length;
+  });
+
+  var totalMesas = Object.values(tablesByWaiter).reduce(function(s,t){return s+t.length;},0);
+  sub.textContent = meseros.length + ' activo' + (meseros.length!==1?'s':'') + ' · ' + totalMesas + ' mesa' + (totalMesas!==1?'s':'') + ' en servicio';
+  note.textContent = 'Actualizado ahora';
+
+  var gradients = [
+    'linear-gradient(135deg,#5B6BFF,#8B5CF6)',
+    'linear-gradient(135deg,#06B6D4,#3B82F6)',
+    'linear-gradient(135deg,#8B5CF6,#EC4899)',
+    'linear-gradient(135deg,#10B981,#06B6D4)',
+    'linear-gradient(135deg,#F59E0B,#EF4444)',
+    'linear-gradient(135deg,#EC4899,#F43F5E)'
+  ];
+
+  if (!meseros.length) {
+    list.innerHTML = '<div style="text-align:center;color:#94A3B8;font-size:13px;padding:20px">No hay meseros activos en turno</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  meseros.forEach(function(m, i) {
+    var tables = tablesByWaiter[m.id] || [];
+    var nombre = m.name || 'Mesero';
+    var initials = nombre.trim().split(/\s+/).map(function(p){return p[0]||'';}).slice(0,2).join('').toUpperCase();
+    var isTop = i === 0 && tables.length > 0;
+    var chips = tables.slice(0,6).map(function(tid){ return '<span class="qm-chip">M' + (typeof tid==='number'?tid:tid) + '</span>'; }).join('');
+    var grad = gradients[i % gradients.length];
+    var row = document.createElement('div');
+    row.className = 'qm-mesero';
+    row.innerHTML =
+      '<div class="qm-avatar-wrap">' +
+        '<div class="qm-avatar" style="background:' + grad + '">' + initials + '</div>' +
+        '<span class="qm-online"></span>' +
+      '</div>' +
+      '<div class="qm-mesero-info">' +
+        '<div class="qm-mesero-top">' +
+          '<span class="qm-mesero-name">' + nombre + '</span>' +
+          (isTop ? '<span class="qm-tag-gold">★ Mesero del día</span>' : '') +
+        '</div>' +
+        '<div class="qm-mesero-since">' + (m.role || 'Mesero') + '</div>' +
+        (chips ? '<div class="qm-mesas">' + chips + '</div>' : '') +
+      '</div>' +
+      '<div class="qm-mesero-count">' +
+        '<div class="qm-count-num">' + tables.length + '</div>' +
+        '<div class="qm-count-label">mesas</div>' +
+      '</div>';
+    list.appendChild(row);
+  });
+
+  // Actualizar sub-texto del botón en el dashboard
+  var sub2 = document.getElementById('qb-waiters-sub');
+  if (sub2) sub2.textContent = meseros.length + ' en turno';
+}
+
+// ── INVENTARIO ────────────────────────────────────────────────
+async function qmLoadInventario() {
+  var invList = document.getElementById('invList');
+  var invSub  = document.getElementById('invSub');
+  invList.innerHTML = '<div style="text-align:center;color:#94A3B8;font-size:13px;padding:20px">Cargando...</div>';
+
+  var branchId = window._branchId || null;
+  var q = sb.from('pos_ingredients').select('*');
+  if (branchId) q = q.eq('branch_id', branchId);
+  var { data: items } = await q;
+  items = (items || []).filter(function(it){ return it.min_stock && it.stock < it.min_stock; });
+  items.sort(function(a,b){ return (a.stock/a.min_stock) - (b.stock/b.min_stock); });
+
+  var nOut   = items.filter(function(i){ return i.stock <= 0; }).length;
+  var nCrit  = items.filter(function(i){ return i.stock > 0 && i.stock/i.min_stock < 0.2; }).length;
+  var nLow   = items.filter(function(i){ return i.stock/i.min_stock >= 0.2; }).length;
+
+  document.getElementById('invFnTodos').textContent   = items.length;
+  document.getElementById('invFnCriticos').textContent = nOut + nCrit;
+  document.getElementById('invFnBajos').textContent   = nLow;
+
+  // Botón en dashboard
+  var invSub2 = document.getElementById('qb-inv-sub');
+  if (items.length) {
+    invSub.textContent = (nOut+nCrit) + ' agotado' + ((nOut+nCrit)!==1?'s':'') + ' · ' + nLow + ' con stock bajo';
+    if (invSub2) invSub2.textContent = items.length + ' por revisar';
+  } else {
+    invSub.textContent = 'Todo en orden';
+    if (invSub2) invSub2.textContent = 'Todo en orden';
+  }
+
+  if (!items.length) {
+    document.getElementById('invContent').classList.add('is-hidden');
+    document.getElementById('invEmpty').classList.remove('is-hidden');
+    document.getElementById('invFootDefault').classList.add('is-hidden');
+    document.getElementById('invFootEmpty').classList.remove('is-hidden');
+    return;
+  }
+  document.getElementById('invContent').classList.remove('is-hidden');
+  document.getElementById('invEmpty').classList.add('is-hidden');
+  document.getElementById('invFootDefault').classList.remove('is-hidden');
+  document.getElementById('invFootEmpty').classList.add('is-hidden');
+
+  invList.innerHTML = '';
+  items.forEach(function(it) {
+    var pct = it.min_stock > 0 ? Math.round(it.stock / it.min_stock * 100) : 0;
+    pct = Math.min(pct, 100);
+    var status = it.stock <= 0 ? 'out' : (pct < 20 ? 'critical' : 'low');
+    var badgeLabel = status === 'out' ? 'Agotado' : status === 'critical' ? 'Crítico' : 'Stock bajo';
+    var cls = status === 'low' ? 'is-low' : (status === 'out' ? 'is-out' : 'is-critical');
+    var stockFmt = Number.isInteger(it.stock) ? String(it.stock) : String(it.stock).replace('.', ',');
+    var row = document.createElement('div');
+    row.className = 'qm-inv-row';
+    row.dataset.status = status;
+    row.innerHTML =
+      '<div class="qm-inv-main">' +
+        '<div class="qm-inv-top">' +
+          '<span class="qm-inv-name">' + (it.name||'Producto') + '</span>' +
+          '<span class="qm-badge ' + cls + '">' + badgeLabel + '</span>' +
+        '</div>' +
+        '<div class="qm-inv-cat">' + (it.category||'') + '</div>' +
+        '<div class="qm-inv-track"><div class="qm-inv-fill ' + cls + '" style="width:' + pct + '%"></div></div>' +
+      '</div>' +
+      '<div class="qm-inv-stock">' +
+        '<div class="qm-inv-current ' + cls + '">' + stockFmt + '</div>' +
+        '<div class="qm-inv-min">de ' + it.min_stock + ' ' + (it.unit||'und') + '</div>' +
+      '</div>';
+    invList.appendChild(row);
+  });
+}
+
+// ── COMPROBANTES ──────────────────────────────────────────────
+async function qmLoadComprobantes() {
+  var orderList = document.getElementById('orderList');
+  orderList.innerHTML = '<div style="padding:16px;text-align:center;color:#94A3B8;font-size:13px">Cargando...</div>';
+
+  var branchId = window._branchId || null;
+  var today = new Date(); today.setHours(0,0,0,0);
+  var q = sb.from('pos_orders')
+    .select('id,total,status,channel,created_at,table_id,customer_name,delivery_address,delivery_person,payment_method')
+    .gte('created_at', today.toISOString())
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (branchId) q = q.eq('branch_id', branchId);
+  var { data: orders } = await q;
+  QM.ordersCache = orders || [];
+
+  qmRenderOrderList(QM.ordersCache);
+  if (QM.ordersCache.length) qmSelectOrder(QM.ordersCache[0].id);
+}
+
+function qmFilterOrders(q) {
+  var term = q.toLowerCase().replace('#','');
+  var filtered = QM.ordersCache.filter(function(o){
+    var id = String(o.id || '').padStart(4,'0');
+    var t = new Date(o.created_at).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+    return id.includes(term) || t.includes(term);
+  });
+  qmRenderOrderList(filtered);
+  if (filtered.length) qmSelectOrder(filtered[0].id);
+}
+
+function qmRenderOrderList(orders) {
+  var list = document.getElementById('orderList');
+  list.innerHTML = '';
+  if (!orders.length) {
+    list.innerHTML = '<div class="qm-noresults">Sin resultados</div>';
+    return;
+  }
+  orders.forEach(function(o) {
+    var id = String(o.id || '').padStart(4, '0');
+    var ch = o.channel || 'salon';
+    var chCls = ch === 'delivery' ? 'is-domicilio' : ch === 'counter' ? 'is-mostrador' : 'is-salon';
+    var chLabel = ch === 'delivery' ? 'Domicilio' : ch === 'counter' ? 'Mostrador' : 'Salón' + (o.table_id ? ' · Mesa ' + o.table_id : '');
+    var who = ch === 'delivery' ? (o.delivery_address || o.customer_name || 'Domicilio') : (o.customer_name || (ch === 'counter' ? 'Venta rápida' : 'Mesa ' + (o.table_id||'')));
+    var t = new Date(o.created_at).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+    var total = '$' + Math.round(o.total||0).toLocaleString('es-CO');
+    var btn = document.createElement('button');
+    btn.className = 'qm-order' + (o.id === QM.selectedOrderId ? ' is-active' : '');
+    btn.dataset.id = o.id;
+    btn.innerHTML =
+      '<div class="qm-order-main">' +
+        '<div class="qm-order-top">' +
+          '<span class="qm-order-id">#' + id + '</span>' +
+          '<span class="qm-type ' + chCls + '">' + chLabel + '</span>' +
+        '</div>' +
+        '<div class="qm-order-who">' + who + '</div>' +
+      '</div>' +
+      '<div class="qm-order-right">' +
+        '<div class="qm-order-total">' + total + '</div>' +
+        '<div class="qm-order-time">' + t + '</div>' +
+      '</div>';
+    btn.addEventListener('click', function() { qmSelectOrder(o.id); });
+    list.appendChild(btn);
+  });
+}
+
+function qmSelectOrder(id) {
+  QM.selectedOrderId = id;
+  document.querySelectorAll('.qm-order').forEach(function(b){ b.classList.toggle('is-active', b.dataset.id == id); });
+  var o = QM.ordersCache.find(function(x){ return x.id == id; });
+  if (!o) return;
+
+  var ch = o.channel || 'salon';
+  var chCls = ch === 'delivery' ? 'is-domicilio' : ch === 'counter' ? 'is-mostrador' : 'is-salon';
+  var chLabel = ch === 'delivery' ? 'Domicilio' : ch === 'counter' ? 'Mostrador' : 'Salón' + (o.table_id ? ' · Mesa ' + o.table_id : '');
+  var who = ch === 'delivery' ? (o.delivery_address || o.customer_name || 'Domicilio') : (o.customer_name || (ch === 'counter' ? 'Venta rápida' : 'Mesa ' + (o.table_id||'')));
+  var t = new Date(o.created_at).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+  var total = '$' + Math.round(o.total||0).toLocaleString('es-CO');
+  var idStr = String(o.id||'').padStart(4,'0');
+  var thirdMeta = ch === 'delivery'
+    ? '<div><span class="qm-meta-k">Domiciliario</span><span class="qm-meta-v">' + (o.delivery_person || 'Por asignar') + '</span></div>'
+    : '<div><span class="qm-meta-k">Canal</span><span class="qm-meta-v">' + chLabel + '</span></div>';
+  var driverBtn = ch === 'delivery' ? (
+    '<button class="qm-reprint qm-reprint-driver" data-doc="Copia para domiciliario">' +
+      '<span class="qm-reprint-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M2 17h2l1-7h12l4 7h2"/><path d="M9 17h6"/></svg></span>' +
+      '<span class="qm-reprint-text"><span class="qm-reprint-name">Copia para domiciliario</span><span class="qm-reprint-desc">Incluye dirección y ruta · ' + (o.delivery_person||'Domiciliario') + '</span></span>' +
+      '<svg class="qm-reprint-chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>' +
+    '</button>'
+  ) : '';
+
+  var detail = document.getElementById('orderDetail');
+  detail.innerHTML =
+    '<div class="qm-detail-head">' +
+      '<div>' +
+        '<div class="qm-detail-headline">' +
+          '<span class="qm-detail-id">Pedido #' + idStr + '</span>' +
+          '<span class="qm-type ' + chCls + '">' + chLabel + '</span>' +
+        '</div>' +
+        '<div class="qm-detail-who">' + who + ' · ' + t + '</div>' +
+      '</div>' +
+      '<div class="qm-detail-total">' + total + '</div>' +
+    '</div>' +
+    '<div class="qm-detail-meta">' +
+      '<div><span class="qm-meta-k">Pago</span><span class="qm-meta-v">' + (o.payment_method || '—') + '</span></div>' +
+      '<div><span class="qm-meta-k">Estado</span><span class="qm-meta-v">' + (o.status || '—') + '</span></div>' +
+      thirdMeta +
+    '</div>' +
+    '<div class="qm-reprint-label">Reimprimir</div>' +
+    '<div class="qm-reprint-grid">' +
+      qmReprintBtn('Comanda','Ticket de cocina · Impresora Cocina','M9 4H5a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-4') +
+      qmReprintBtn('Precuenta','Cuenta previa al pago · Impresora Caja','M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z') +
+      qmReprintBtn('Recibo','Comprobante de venta · Impresora Caja','M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z') +
+      driverBtn +
+    '</div>' +
+    '<div class="qm-toast is-hidden" id="printToast"></div>';
+
+  detail.querySelectorAll('.qm-reprint').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var doc = btn.dataset.doc;
+      var toast = document.getElementById('printToast');
+      toast.innerHTML = '✓ Enviando <strong>' + doc + '</strong> del pedido #' + idStr + ' a la impresora...';
+      toast.classList.remove('is-hidden');
+      setTimeout(function(){ toast.classList.add('is-hidden'); }, 2600);
+    });
+  });
+}
+
+function qmReprintBtn(name, desc, svgPath) {
+  return '<button class="qm-reprint" data-doc="' + name + '">' +
+    '<span class="qm-reprint-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="' + svgPath + '"/></svg></span>' +
+    '<span class="qm-reprint-text"><span class="qm-reprint-name">' + name + '</span><span class="qm-reprint-desc">' + desc + '</span></span>' +
+    '<svg class="qm-reprint-chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>' +
+  '</button>';
+}
+
+// Inicializar cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', function(){ qmInit(); });
