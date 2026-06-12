@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tomar pedido — Lumen POS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="tomar-pedido.css">
+</head>
+<body>
+<div class="tp-root">
+
+  <!-- ════════ SIDEBAR ACCIONES ════════ -->
+  <aside class="tp-side">
+    <div class="tp-brand">
+      <div class="tp-brand-logo">L</div>
+      <div>
+        <div class="tp-brand-name">Lumen POS</div>
+        <div class="tp-brand-sub" id="tp-branch-name">Cargando…</div>
+      </div>
+    </div>
+
+    <div class="tp-side-section-wrap">
+      <div class="tp-side-section">Mesa</div>
+    </div>
+    <nav class="tp-nav">
+      <button class="lm-nav" data-action="back">
+        <span class="tp-nav-l">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          <span>Regresar al salón</span>
+        </span>
+      </button>
+      <button class="lm-nav is-accent" data-action="pago">
+        <span class="tp-nav-l">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          <span>Opciones de pago</span>
+        </span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+      <div class="tp-nav-divider"></div>
+      <button class="lm-nav" data-action="edit">
+        <span class="tp-nav-l">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <span>Editar mesa</span>
+        </span>
+      </button>
+      <button class="lm-nav" data-action="release">
+        <span class="tp-nav-l">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          <span>Liberar mesa</span>
+        </span>
+      </button>
+      <div class="tp-nav-divider"></div>
+      <button class="lm-nav" data-action="split" id="btn-split" disabled>
+        <span class="tp-nav-l">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <span>Dividir cuentas</span>
+        </span>
+      </button>
+      <button class="lm-nav" data-action="merge">
+        <span class="tp-nav-l">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          <span>Unir mesas</span>
+        </span>
+      </button>
+      <button class="lm-nav" data-action="move" id="btn-move" disabled>
+        <span class="tp-nav-l">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/></svg>
+          <span>Mover pedidos</span>
+        </span>
+      </button>
+      <button class="lm-nav" data-action="discount" id="btn-discount" disabled>
+        <span class="tp-nav-l">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
+          <span>Descuento</span>
+        </span>
+      </button>
+    </nav>
+
+    <div class="tp-side-foot">
+      <div class="tp-cartmini">
+        <div class="tp-cartmini-icon is-empty" id="cartmini-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+        </div>
+        <div>
+          <div class="tp-cartmini-title" id="cartmini-title">0 ítems en cuenta</div>
+          <div class="tp-cartmini-sub" id="cartmini-sub">Sin productos aún</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ════════ MAIN ════════ -->
+  <div class="tp-main">
+
+    <!-- Topbar -->
+    <header class="tp-topbar">
+      <div class="tp-topbar-l">
+        <div class="tp-crumbs">
+          <span class="muted">Ventas</span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="muted">Por salón</span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="here" id="tp-crumb-mesa">Mesa</span>
+        </div>
+        <div class="tp-modebadge">
+          <span class="dot"></span>
+          <span id="tp-open-pill-text">Mesa abierta</span>
+        </div>
+      </div>
+      <div class="tp-topbar-r">
+        <div class="tp-ramchip">Mesero <strong id="tp-waiter-name">—</strong></div>
+        <div class="tp-user" id="tp-user-chip">
+          <div class="tp-user-avatar" id="tp-user-avatar">?</div>
+          <div>
+            <div class="tp-user-name" id="tp-user-name">—</div>
+            <div class="tp-user-role">Gerente</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Body: comanda | browser -->
+    <div class="tp-body">
+
+      <!-- ════ COMANDA ════ -->
+      <section class="tp-comanda">
+        <!-- Cabecera mesa -->
+        <div class="tp-comanda-head">
+          <div class="tp-comanda-headtop">
+            <div class="tp-mesa-id">
+              <div class="tp-mesa-glyph">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18M3 14h18M10 10V4M14 10V4M10 20v-6M14 20v-6"/></svg>
+              </div>
+              <div>
+                <div class="tp-mesa-title" id="tp-mesa-title">—</div>
+                <div class="tp-open-pill is-empty" id="tp-open-pill">
+                  <span class="dot"></span>
+                  <span id="tp-open-pill-label">Mesa abierta</span>
+                </div>
+              </div>
+            </div>
+            <button class="lm-icon-sm" data-action="edit">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+          </div>
+          <!-- Personas + meta -->
+          <div class="tp-meta-row">
+            <div class="tp-meta-cell">
+              <div class="tp-meta-label">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                Personas
+              </div>
+              <div class="tp-stepper">
+                <button class="lm-step" data-personas="dec">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
+                <span class="tp-stepper-num" id="personas-num">2</span>
+                <button class="lm-step" data-personas="inc">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="tp-meta-cell bordered">
+              <div class="tp-meta-label">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Hora apertura
+              </div>
+              <div class="tp-meta-value" id="tp-hora-apertura">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fila cliente -->
+        <div class="tp-cliente" id="cliente-row">
+          <div class="tp-cliente-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <span class="tp-cliente-placeholder" id="cliente-placeholder">Selecciona un cliente</span>
+          <input class="tp-cliente-input" id="cliente-input" placeholder="Nombre del cliente…" style="display:none">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="cliente-chevron"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+
+        <!-- Estado vacío -->
+        <div class="tp-empty" id="comanda-empty">
+          <div class="tp-empty-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          </div>
+          <div class="tp-empty-title">Comanda vacía</div>
+          <div class="tp-empty-text">Agrega productos desde el catálogo para comenzar el pedido.</div>
+        </div>
+
+        <!-- Lista de ítems -->
+        <div class="tp-cart-scroll" id="cart-scroll" hidden>
+          <div class="tp-comanda-listhead">
+            <span class="tp-section-micro" id="cart-count-label">Comanda · 0 ítems</span>
+            <button class="lm-link" data-action="vaciar">Vaciar</button>
+          </div>
+          <div id="cart-lines"></div>
+        </div>
+
+        <!-- Pie totales -->
+        <div class="tp-comanda-foot" id="comanda-foot" hidden>
+          <div class="tp-totals">
+            <div class="tp-total-row">
+              <span>Subtotal</span>
+              <span id="t-subtotal">$0</span>
+            </div>
+            <div class="tp-total-row">
+              <span>Servicio 10%</span>
+              <span id="t-servicio">$0</span>
+            </div>
+            <div class="tp-total-grand">
+              <div class="tp-total-row" style="font-size:inherit;font-weight:inherit;color:inherit">
+                <span>Total</span>
+                <span id="t-total">$0</span>
+              </div>
+            </div>
+          </div>
+          <div class="tp-comanda-actions">
+            <button class="lm-btn-ghost" data-action="guardar" style="flex:1">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Guardar
+            </button>
+            <button class="lm-btn-primary" data-action="enviar-cocina" style="flex:2">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              Enviar a cocina
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════ BROWSER ════ -->
+      <section class="tp-browser">
+        <!-- Pestañas -->
+        <div class="tp-browser-tabs">
+          <button class="lm-bigtab is-active" data-tab="categoria">Categorías</button>
+          <button class="lm-bigtab" data-tab="menu">Menú</button>
+          <button class="lm-bigtab" data-tab="busqueda">Búsqueda</button>
+          <button class="lm-bigtab" data-tab="favoritos">Favoritos</button>
+        </div>
+
+        <div class="tp-browser-body">
+
+          <!-- PANE: Categorías -->
+          <div class="tp-pane on" data-pane="categoria">
+            <!-- Sub: grid de categorías -->
+            <div class="tp-sub on" data-sub="grid">
+              <div class="tp-catgrid" id="cat-grid">
+                <div style="color:#94A3B8;font-size:13px;grid-column:1/-1;padding:24px 0;text-align:center">Cargando categorías…</div>
+              </div>
+            </div>
+            <!-- Sub: productos de categoría -->
+            <div class="tp-sub" data-sub="products">
+              <div class="tp-gridhead">
+                <button class="lm-back" data-sub-back>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                  Categorías
+                </button>
+                <div class="tp-gridhead-info">
+                  <span class="tp-catdot" id="prod-cat-dot"></span>
+                  <span class="tp-gridhead-title" id="prod-cat-name"></span>
+                  <span class="tp-countpill" id="prod-cat-count"></span>
+                </div>
+              </div>
+              <div class="tp-prodgrid" id="prod-grid"></div>
+            </div>
+          </div>
+
+          <!-- PANE: Menú completo -->
+          <div class="tp-pane" data-pane="menu">
+            <div class="tp-menuscroll" id="menu-scroll">
+              <div style="color:#94A3B8;font-size:13px;padding:24px 0;text-align:center">Cargando menú…</div>
+            </div>
+          </div>
+
+          <!-- PANE: Búsqueda -->
+          <div class="tp-pane" data-pane="busqueda">
+            <div class="tp-searchbig">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="search-input" placeholder="Buscar producto…" autocomplete="off">
+              <button class="lm-link" id="search-clear" style="display:none">Limpiar</button>
+            </div>
+            <div class="tp-soft-empty" id="search-empty">
+              <div class="tp-soft-empty-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              </div>
+              <div class="tp-soft-empty-title">Escribe para buscar</div>
+              <div class="tp-soft-empty-text" id="search-hint">Busca entre los productos del menú</div>
+            </div>
+            <div class="tp-prodgrid" id="search-results" style="display:none"></div>
+          </div>
+
+          <!-- PANE: Favoritos -->
+          <div class="tp-pane" data-pane="favoritos">
+            <div class="tp-gridhead" style="padding-bottom:14px;flex-shrink:0">
+              <span class="tp-catdot" style="background:#F59E0B"></span>
+              <span class="tp-gridhead-title">Favoritos</span>
+              <span class="tp-countpill" id="fav-count">0</span>
+            </div>
+            <div class="tp-prodgrid" id="fav-grid"></div>
+          </div>
+
+        </div>
+      </section>
+
+    </div><!-- /.tp-body -->
+  </div><!-- /.tp-main -->
+</div><!-- /.tp-root -->
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="pos-core.js"></script>
+<script src="tomar-pedido.js"></script>
+</body>
+</html>
