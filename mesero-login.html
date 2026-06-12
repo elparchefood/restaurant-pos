@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <!-- Fuerza landscape en tablet / sin zoom táctil -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Iniciar sesión · Lumen POS</title>
+
+  <!-- PWA básico -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#5B6BFF">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="mesero-login.css">
+</head>
+<body>
+
+  <div class="login-backdrop">
+    <div class="login-card">
+
+      <!-- Panel izquierdo: marca -->
+      <div class="login-brand">
+        <div class="login-logo">L</div>
+        <div class="login-brand-name">Lumen POS</div>
+        <div class="login-brand-sub">Sistema de toma de pedidos<br>para tu restaurante</div>
+        <div class="login-brand-badge">Tablet · Mesero</div>
+      </div>
+
+      <!-- Panel derecho: formulario -->
+      <div class="login-form-panel">
+
+        <div class="login-eyebrow">Bienvenido</div>
+        <h1 class="login-title">Inicia sesión</h1>
+        <p class="login-sub">Ingresa con los datos que te dio el administrador.</p>
+
+        <!-- Error -->
+        <div id="login-error" class="login-error" role="alert"></div>
+
+        <!-- Correo -->
+        <div class="login-field">
+          <label class="login-label" for="login-email">Correo electrónico</label>
+          <div class="login-input-wrap">
+            <input
+              id="login-email"
+              class="login-input"
+              type="email"
+              inputmode="email"
+              autocomplete="email"
+              autocorrect="off"
+              autocapitalize="none"
+              spellcheck="false"
+              placeholder="tu@correo.com"
+            >
+          </div>
+        </div>
+
+        <!-- Contraseña -->
+        <div class="login-field">
+          <label class="login-label" for="login-pass">Contraseña</label>
+          <div class="login-input-wrap">
+            <input
+              id="login-pass"
+              class="login-input"
+              type="password"
+              autocomplete="current-password"
+              placeholder="••••••••"
+              style="padding-right: 48px;"
+            >
+            <button id="login-eye" class="login-eye" type="button" aria-label="Mostrar/ocultar contraseña"></button>
+          </div>
+        </div>
+
+        <!-- Botón -->
+        <button id="login-btn" class="login-btn" type="button">
+          <div id="btn-spinner" class="btn-spinner"></div>
+          <span id="btn-text">Ingresar</span>
+        </button>
+
+        <p class="login-footer">
+          ¿Problemas para entrar? Contacta al administrador de tu restaurante.
+        </p>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Supabase CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Lógica de login -->
+  <script src="mesero-login.js"></script>
+
+</body>
+</html>
