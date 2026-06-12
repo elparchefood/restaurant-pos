@@ -97,13 +97,15 @@ async function handleLogin() {
       return;
     }
 
-    // 3. Guardar contexto mínimo para las demás páginas
-    try {
-      sessionStorage.setItem('lumen_role',      role);
-      sessionStorage.setItem('lumen_branch_id', profile.branch_id  || '');
-      sessionStorage.setItem('lumen_tenant_id', profile.tenant_id  || '');
-      sessionStorage.setItem('lumen_name',      profile.name  || email);
-    } catch (_) { /* sessionStorage bloqueado — no crítico */ }
+    // 3. Escribir branch_id y tenant_id en user_metadata para que pos-core.js los encuentre
+    await sb.auth.updateUser({
+      data: {
+        tenant_id: profile.tenant_id || null,
+        branch_id: profile.branch_id || null,
+        role:      role,
+        name:      profile.name || email,
+      }
+    });
 
     // 4. Redirigir
     window.location.href = route;
