@@ -598,3 +598,146 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
   .ci-chan-row { justify-content: center; }
   .ci-list { width: 300px; }
 }
+
+/* ══════════════════════════════════════════════
+   CANALES DESCONECTADOS — sidebar
+══════════════════════════════════════════════ */
+.ci-chan-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 10px; border-radius: 8px;
+  font-size: 12.5px; color: var(--text-2);
+  cursor: pointer; border: none; background: transparent;
+  width: 100%; font-family: var(--font);
+  transition: background .14s;
+}
+.ci-chan-row:hover { background: var(--bg); }
+.ci-chan-row.ci-chan-disconnected { color: var(--text-4); }
+.ci-chan-row.ci-chan-disconnected:hover { background: var(--bg); }
+
+.ci-glyph-gray { filter: grayscale(1); opacity: .45; }
+
+.ci-connect-tag {
+  font-size: 10px; font-weight: 600;
+  color: var(--accent); background: var(--accent-bg);
+  padding: 2px 6px; border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* ══════════════════════════════════════════════
+   MODAL DE CONEXIÓN
+══════════════════════════════════════════════ */
+.ci-modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(15,23,42,.45);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+  animation: fadeIn .18s ease;
+}
+@keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+
+.ci-modal {
+  background: var(--surface);
+  border-radius: 20px;
+  padding: 32px 28px 28px;
+  width: 380px; max-width: calc(100vw - 32px);
+  position: relative;
+  box-shadow: 0 24px 64px -12px rgba(15,23,42,.3);
+  animation: slideUp .22s cubic-bezier(.34,1.56,.64,1);
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center; gap: 12px;
+}
+@keyframes slideUp { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:translateY(0) } }
+
+.ci-modal-close {
+  position: absolute; top: 14px; right: 14px;
+  width: 28px; height: 28px; border-radius: 8px;
+  border: none; background: var(--bg);
+  color: var(--text-3); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .14s;
+}
+.ci-modal-close:hover { background: var(--border); color: var(--text-1); }
+
+.ci-modal-icon {
+  width: 64px; height: 64px; border-radius: 18px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 4px;
+}
+.ci-modal-icon--wa { background: #25D366; }
+.ci-modal-icon--ig { background: linear-gradient(135deg,#FEDA75,#FA7E1E 25%,#D62976 55%,#962FBF 80%,#4F5BD5); }
+.ci-modal-icon--fb { background: #0866FF; }
+.ci-modal-icon--tk { background: #111418; }
+
+.ci-modal-title { font-size: 18px; font-weight: 800; color: var(--text-1); margin: 0; }
+.ci-modal-desc  { font-size: 13px; color: var(--text-3); line-height: 1.5; margin: 0; max-width: 300px; }
+
+.ci-modal-steps {
+  width: 100%; background: var(--bg);
+  border-radius: 12px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+  text-align: left;
+}
+.ci-modal-step { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-2); }
+.ci-step-n {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  font-size: 11px; font-weight: 700; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.ci-modal-btn {
+  width: 100%; padding: 12px;
+  border-radius: 12px; border: none;
+  font-family: var(--font); font-size: 14px; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center;
+  justify-content: center; gap: 8px;
+  transition: opacity .14s, transform .1s;
+  margin-top: 4px;
+}
+.ci-modal-btn:hover   { opacity: .88; }
+.ci-modal-btn:active  { transform: scale(.97); }
+
+.ci-modal-btn--tk     { background: #111418; color: #fff; }
+.ci-modal-btn--wa     { background: #25D366; color: #fff; }
+.ci-modal-btn--ig     { background: linear-gradient(135deg,#D62976,#4F5BD5); color: #fff; }
+.ci-modal-btn--fb     { background: #0866FF; color: #fff; }
+.ci-modal-btn--danger { background: #FFF1F2; color: #F43F5E; }
+.ci-modal-btn--danger:hover { background: #FECDD3; }
+
+.ci-modal-coming {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--text-4); font-size: 13px; font-weight: 600;
+  padding: 10px 16px; background: var(--bg);
+  border-radius: 10px; width: 100%; justify-content: center;
+}
+
+/* Canal conectado — info */
+.ci-modal-connected-info {
+  width: 100%; background: var(--bg);
+  border-radius: 12px; overflow: hidden;
+}
+.ci-modal-info-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px; font-size: 12.5px;
+  border-bottom: 1px solid var(--border);
+}
+.ci-modal-info-row:last-child { border-bottom: none; }
+.ci-modal-info-row span  { color: var(--text-3); }
+.ci-modal-info-row strong { color: var(--text-1); font-weight: 600; }
+.ci-status-ok { color: #16A34A !important; }
+
+/* ══════════════════════════════════════════════
+   TOAST
+══════════════════════════════════════════════ */
+.ci-toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+  padding: 10px 20px; border-radius: 12px;
+  font-family: var(--font); font-size: 13.5px; font-weight: 600;
+  box-shadow: 0 8px 24px -4px rgba(15,23,42,.2);
+  z-index: 2000; transition: transform .3s cubic-bezier(.34,1.56,.64,1), opacity .3s;
+  opacity: 0; white-space: nowrap;
+}
+.ci-toast--show { transform: translateX(-50%) translateY(0); opacity: 1; }
+.ci-toast--success { background: #111418; color: #fff; }
+.ci-toast--error   { background: #F43F5E; color: #fff; }
+.ci-toast--info    { background: var(--accent); color: #fff; }
