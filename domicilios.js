@@ -194,7 +194,7 @@ async function loadData() {
   if (!S.tenantId) return;
 
   const { data: cats } = await sb.from('pos_categories')
-    .select('id,name,color,photo_url')
+    .select('id,name,color,color_tint,color_ring')
     .eq('tenant_id', S.tenantId)
     .order('name');
   S.cats = cats || [];
@@ -335,9 +335,7 @@ function renderCatGrid() {
   el.innerHTML = S.cats.map(c => {
     const color = c.color || '#5B6BFF';
     const count = S.products.filter(p => p.category_id === c.id).length;
-    const thumb = c.photo_url
-      ? `<img src="${c.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:9px">`
-      : `<span class="d-thumb-lbl">${c.name}</span>`;
+    const thumb = `<span class="d-thumb-lbl">${c.name}</span>`;
     return `<button class="lm-cat" data-open-cat="${c.id}" style="border-color:${colorRing(color)}">
       <div class="d-thumb" style="height:108px">${thumb}</div>
       <div class="d-cat-foot">
