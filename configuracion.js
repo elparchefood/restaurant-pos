@@ -686,8 +686,11 @@ async function saveGeneral() {
     var brData = await sb.from('branches').select('brand_id').eq('id', branchId).single();
     var brandId = brData.data && brData.data.brand_id;
 
-    // Actualizar branch (solo name y address; city/phone/country en metadata)
-    await sb.from('branches').update({ name: branchName, address: addr }).eq('id', branchId);
+    // Actualizar branch
+    await sb.from('branches').update({
+      name: branchName, address: addr,
+      city: city, phone: fullPhone, daily_goal: dailyGoal, country: country
+    }).eq('id', branchId);
 
     // Actualizar brand
     if (brandId) {
