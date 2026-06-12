@@ -205,3 +205,162 @@ input::placeholder { color: var(--ink-4); }
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--ink-5); }
+
+/* ===== PANTALLA GENERAL — Formulario de marca y sucursal ===== */
+.cf-body-form {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 680px;
+  overflow-y: auto;
+}
+
+.cf-pagehead-sub {
+  font-size: 13px;
+  color: var(--ink-3, #64748B);
+  margin: 2px 0 0;
+  font-weight: 500;
+}
+
+.cf-form-card {
+  background: #fff;
+  border: 1px solid #ECEEF2;
+  border-radius: 14px;
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cf-form-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0 0 4px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #ECEEF2;
+}
+
+.cf-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.cf-form-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.cf-form-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cf-form-opt {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #94A3B8;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.cf-form-input {
+  width: 100%;
+  padding: 10px 13px;
+  border: 1px solid #ECEEF2;
+  border-radius: 9px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #0F172A;
+  font-family: inherit;
+  outline: none;
+  background: #fff;
+  transition: border-color .15s, box-shadow .15s;
+}
+.cf-form-input:focus {
+  border-color: #5B6BFF;
+  box-shadow: 0 0 0 3px rgba(91,107,255,.1);
+}
+.cf-form-input::placeholder { color: #CBD5E1; }
+
+.cf-form-inputwrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.cf-form-pfx {
+  position: absolute;
+  left: 13px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #94A3B8;
+  pointer-events: none;
+}
+.cf-form-inputwrap.has-pfx .cf-form-input { padding-left: 30px; }
+
+.cf-form-hint {
+  font-size: 11px;
+  color: #94A3B8;
+  font-weight: 500;
+}
+
+/* Selector tipo de negocio */
+.cf-type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.cf-type-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 8px;
+  border: 1px solid #ECEEF2;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  transition: .14s;
+  font-family: inherit;
+}
+.cf-type-btn:hover {
+  border-color: #DCE0E8;
+  background: #F8FAFC;
+}
+.cf-type-btn.on {
+  border-color: #5B6BFF;
+  background: #F4F6FF;
+  box-shadow: 0 0 0 3px rgba(91,107,255,.1);
+}
+.cf-type-ic {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #F1F5F9;
+  color: #64748B;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: .14s;
+}
+.cf-type-btn.on .cf-type-ic {
+  background: #5B6BFF;
+  color: #fff;
+}
+.cf-type-lbl {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+.cf-type-btn.on .cf-type-lbl {
+  color: #5B6BFF;
+  font-weight: 700;
+}

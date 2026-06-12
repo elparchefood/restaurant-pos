@@ -154,16 +154,23 @@ function setSection(sec) {
     b.classList.toggle('on', b.dataset.section === sec);
   });
 
-  var screenMesas = $('screen-mesas');
-  var screenPh    = $('screen-placeholder');
+  var screenMesas    = $('screen-mesas');
+  var screenGeneral  = $('screen-general');
+  var screenPh       = $('screen-placeholder');
+
+  screenMesas.classList.remove('on');
+  screenGeneral.classList.remove('on');
+  screenPh.classList.remove('on');
 
   if (sec === 'mesas') {
     screenMesas.classList.add('on');
-    screenPh.classList.remove('on');
     $('crumb').textContent = 'Mesas y zonas';
     deselectTable();
+  } else if (sec === 'general') {
+    screenGeneral.classList.add('on');
+    $('crumb').textContent = 'General';
+    if (!window._generalLoaded) { loadGeneral(); window._generalLoaded = true; }
   } else {
-    screenMesas.classList.remove('on');
     screenPh.classList.add('on');
     $('placeholder-title').textContent = SECTION_LABELS[sec] || sec;
     $('crumb').textContent = SECTION_LABELS[sec] || sec;
@@ -551,6 +558,135 @@ async function loadUser() {
   }
 }
 
+
+/* ── General — tipo de negocio seleccionado ───────────────── */
+var G_TYPE = 'Restaurante';
+
+function initGenTypeGrid() {
+  var grid = $('gen-type-grid');
+  if (!grid) return;
+  grid.addEventListener('click', function(e) {
+    var btn = e.target.closest('.cf-type-btn');
+    if (!btn) return;
+    grid.querySelectorAll('.cf-type-btn').forEach(function(b){ b.classList.remove('on'); });
+    btn.classList.add('on');
+    G_TYPE = btn.dataset.type;
+  });
+}
+
+function setGenType(type) {
+  G_TYPE = type || 'Restaurante';
+  var grid = $('gen-type-grid');
+  if (!grid) return;
+  grid.querySelectorAll('.cf-type-btn').forEach(function(b){
+    b.classList.toggle('on', b.dataset.type === G_TYPE);
+  });
+}
+
+function initGoalFormat() {
+  var input = $('gen-goal');
+  if (!input) return;
+  input.addEventListener('input', function() {
+    var raw = input.value.replace(/\D/g, '');
+    input.value = raw ? Number(raw).toLocaleString('es-CO') : '';
+  });
+}
+
+async function loadGeneral() {
+  try {
+    var res = await sb.auth.getUser();
+    var user = res.data && res.data.user;
+    if (!user) return;
+    var meta = user.user_metadata || {};
+    var brandId  = null;
+    var branchId = meta.branch_id;
+
+    // Cargar branch
+    if (branchId) {
+      var br = await sb.from('branches').select('id,name,address,city,phone,daily_goal,brand_id').eq('id', branchId).single();
+      if (br.data) {
+        var b = br.data;
+        brandId = b.brand_id;
+        $('gen-branch-name').value = b.name || '';
+        $('gen-addr').value        = b.address || '';
+        $('gen-city').value        = b.city || '';
+        $('gen-phone').value       = (b.phone || '').replace('+57', '').trim();
+        if (b.daily_goal) {
+          $('gen-goal').value = Number(b.daily_goal).toLocaleString('es-CO');
+        }
+      }
+    }
+
+    // Cargar brand
+    if (brandId) {
+      var bd = await sb.from('brands').select('id,name').eq('id', brandId).single();
+      if (bd.data) {
+        $('gen-brand-name').value = bd.data.name || '';
+      }
+    }
+
+    // Tipo de negocio desde user_metadata
+    setGenType(meta.tipo || 'Restaurante');
+
+  } catch(e) {
+    console.error('loadGeneral:', e);
+  }
+}
+
+async function saveGeneral() {
+  var btn = $('btn-save-general');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+  try {
+    var res = await sb.auth.getUser();
+    var user = res.data && res.data.user;
+    if (!user) throw new Error('Sin sesion');
+    var meta     = user.user_metadata || {};
+    var branchId = meta.branch_id;
+    var brandName   = ($('gen-brand-name').value || '').trim();
+    var branchName  = ($('gen-branch-name').value || '').trim();
+    var addr        = ($('gen-addr').value || '').trim();
+    var city        = ($('gen-city').value || '').trim();
+    var phone       = ($('gen-phone').value || '').trim();
+    var goalRaw     = ($('gen-goal').value || '').replace(/\D/g, '');
+    var dailyGoal   = goalRaw ? Number(goalRaw) : null;
+
+    if (!brandName || !branchName) {
+      showToast('Completa el nombre del restaurante y la sucursal');
+      return;
+    }
+
+    // Obtener brand_id desde branch
+    var brData = await sb.from('branches').select('brand_id').eq('id', branchId).single();
+    var brandId = brData.data && brData.data.brand_id;
+
+    // Actualizar branch
+    var branchUpdate = { name: branchName, address: addr, city: city };
+    if (phone) branchUpdate.phone = '+57 ' + phone;
+    if (dailyGoal) branchUpdate.daily_goal = dailyGoal;
+    else branchUpdate.daily_goal = null;
+    await sb.from('branches').update(branchUpdate).eq('id', branchId);
+
+    // Actualizar brand
+    if (brandId) {
+      await sb.from('brands').update({ name: brandName }).eq('id', brandId);
+    }
+
+    // Actualizar user_metadata
+    await sb.auth.updateUser({ data: { negocio: brandName, tipo: G_TYPE } });
+
+    // Refrescar topbar
+    $('brand-sub').textContent = branchName;
+
+    showToast('Cambios guardados');
+  } catch(e) {
+    console.error('saveGeneral:', e);
+    showToast('Error al guardar. Intenta de nuevo.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar cambios'; }
+  }
+}
+
 // ── Boot ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
   loadState();
@@ -579,4 +715,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // cargar usuario async
   loadUser();
+  initGenTypeGrid();
+  initGoalFormat();
+  var btnSave = $('btn-save-general');
+  if (btnSave) btnSave.addEventListener('click', saveGeneral);
 });

@@ -244,6 +244,91 @@
     </div>
 
     <!-- ─────── SECCIÓN PLACEHOLDER "Pronto" ─────── -->
+    <div class="cf-screen" id="screen-general">
+      <section class="cf-pagehead">
+        <div>
+          <h2 class="cf-pagehead-title">General</h2>
+          <p class="cf-pagehead-sub">Edita la información de tu marca y sucursal</p>
+        </div>
+        <button class="lm-btn-primary" id="btn-save-general">Guardar cambios</button>
+      </section>
+      <section class="cf-body cf-body-form">
+
+        <!-- MARCA / RESTAURANTE -->
+        <div class="cf-form-card">
+          <h3 class="cf-form-card-title">Marca / Restaurante</h3>
+          <div class="cf-form-field">
+            <label class="cf-form-label" for="gen-brand-name">Nombre del restaurante</label>
+            <input class="cf-form-input" id="gen-brand-name" placeholder="Ej. El Parche Food" autocomplete="off">
+          </div>
+          <div class="cf-form-field">
+            <label class="cf-form-label">Tipo de negocio</label>
+            <div class="cf-type-grid" id="gen-type-grid">
+              <button type="button" class="cf-type-btn on" data-type="Restaurante">
+                <span class="cf-type-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h0a2 2 0 0 0 2-2V2"/><path d="M5 2v20"/><path d="M19 2v20"/><path d="M19 9c1.7 0 3-1.8 3-4s-1.3-3-3-3"/></svg></span>
+                <span class="cf-type-lbl">Restaurante</span>
+              </button>
+              <button type="button" class="cf-type-btn" data-type="Cafeteria">
+                <span class="cf-type-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z"/></svg></span>
+                <span class="cf-type-lbl">Cafeteria</span>
+              </button>
+              <button type="button" class="cf-type-btn" data-type="Bar">
+                <span class="cf-type-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="22" x2="16" y2="22"/><line x1="12" y1="11" x2="12" y2="22"/><path d="M3 3l9 8 9-8z"/></svg></span>
+                <span class="cf-type-lbl">Bar</span>
+              </button>
+              <button type="button" class="cf-type-btn" data-type="Fast food">
+                <span class="cf-type-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18a8 8 0 0 0-18 0z"/><path d="M2 16h20"/><path d="M4 20h16"/></svg></span>
+                <span class="cf-type-lbl">Fast food</span>
+              </button>
+              <button type="button" class="cf-type-btn" data-type="Food truck">
+                <span class="cf-type-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17h4V5H2v12h2"/><path d="M14 9h4l4 4v4h-2"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/></svg></span>
+                <span class="cf-type-lbl">Food truck</span>
+              </button>
+              <button type="button" class="cf-type-btn" data-type="Otro">
+                <span class="cf-type-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="12" r="1.5"/></svg></span>
+                <span class="cf-type-lbl">Otro</span>
+              </button>
+            </div>
+          </div>
+          <div class="cf-form-grid2">
+            <div class="cf-form-field">
+              <label class="cf-form-label" for="gen-phone">Telefono de contacto</label>
+              <div class="cf-form-inputwrap has-pfx">
+                <span class="cf-form-pfx">+57</span>
+                <input class="cf-form-input" id="gen-phone" inputmode="tel" placeholder="300 000 0000" autocomplete="off">
+              </div>
+            </div>
+            <div class="cf-form-field">
+              <label class="cf-form-label" for="gen-city">Ciudad</label>
+              <input class="cf-form-input" id="gen-city" placeholder="Ej. Medellin" autocomplete="off">
+            </div>
+          </div>
+        </div>
+
+        <!-- SUCURSAL -->
+        <div class="cf-form-card">
+          <h3 class="cf-form-card-title">Sucursal</h3>
+          <div class="cf-form-field">
+            <label class="cf-form-label" for="gen-branch-name">Nombre de la sucursal</label>
+            <input class="cf-form-input" id="gen-branch-name" placeholder="Sede Principal" autocomplete="off">
+          </div>
+          <div class="cf-form-field">
+            <label class="cf-form-label" for="gen-addr">Direccion</label>
+            <input class="cf-form-input" id="gen-addr" placeholder="Ej. Cra. 70 # 44-21" autocomplete="off">
+          </div>
+          <div class="cf-form-field">
+            <label class="cf-form-label" for="gen-goal">Meta de ventas diaria <span class="cf-form-opt">Opcional</span></label>
+            <div class="cf-form-inputwrap has-pfx">
+              <span class="cf-form-pfx">$</span>
+              <input class="cf-form-input" id="gen-goal" inputmode="numeric" placeholder="1.500.000" autocomplete="off">
+            </div>
+            <div class="cf-form-hint">En pesos colombianos (COP)</div>
+          </div>
+        </div>
+
+      </section>
+    </div>
+
     <div class="cf-screen" id="screen-placeholder">
       <div class="cf-placeholder">
         <div class="cf-placeholder-icon">
