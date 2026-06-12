@@ -357,3 +357,12 @@ svg{display:block;}
 
 /* gate: blura el contenido mientras modal-registro es obligatorio */
 body.d-gate .d-root{filter:blur(5px);opacity:.45;pointer-events:none;user-select:none;transition:filter .3s,opacity .3s;}
+
+/* botón ⓘ de nota de dinero */
+.d-info-btn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;border:none;cursor:pointer;padding:0;transition:background .15s,color .15s;background:transparent;color:var(--muted);}
+.d-info-btn:hover,.d-info-btn.active{color:#fff;}
+.d-info-btn.warn{color:#EA580C;}
+.d-info-btn.warn:hover,.d-info-btn.warn.active{background:#EA580C;color:#fff;}
+.d-info-btn.info{color:#5B6BFF;}
+.d-info-btn.info:hover,.d-info-btn.info.active{background:#5B6BFF;color:#fff;}
+.d-moneynote{margin-top:6px;}

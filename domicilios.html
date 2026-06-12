@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="pos-core.css">
-  <link rel="stylesheet" href="domicilios.css?v=15">
+  <link rel="stylesheet" href="domicilios.css?v=16">
   <title>Domicilios — Lumen POS</title>
 </head>
 <body>
@@ -83,7 +83,7 @@
             <div class="d-totals">
               <div class="d-trow"><span>Productos</span><span id="total-productos">$0</span></div>
               <div class="d-trow" id="trow-domicilio"><span>Domicilio</span><span id="total-domicilio">$0</span></div>
-              <div class="d-trow d-tgrand"><span style="display:inline-flex;align-items:center;gap:6px">Total a cobrar</span><span id="total-grand">$0</span></div>
+              <div class="d-trow d-tgrand"><span style="display:inline-flex;align-items:center;gap:6px">Total a cobrar<button class="d-info-btn" id="btn-money-info" hidden title="Ver detalle" data-action="toggle-money-note"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button></span><span id="total-grand">$0</span></div>
             </div>
             <div id="money-note-area"></div>
             <div class="d-foot-actions" style="margin-top:12px">
@@ -349,7 +349,7 @@
 <div class="d-toast" id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="pos-core.js?v=15"></script>
-<script src="domicilios.js?v=15"></script>
+<script src="pos-core.js?v=16"></script>
+<script src="domicilios.js?v=16"></script>
 </body>
 </html>

@@ -583,15 +583,22 @@ function renderTotals() {
   }
   if ($('total-grand')) $('total-grand').textContent = fmt(M.cobrar);
 
-  // Nota de dinero
-  const noteArea = $('money-note-area');
+  // Nota de dinero — toggleable, arranca oculta
+  const noteArea  = $('money-note-area');
+  const infoBtn   = $('btn-money-info');
   if (!noteArea) return;
+
   if (M.mode === 'ext-directo') {
-    noteArea.innerHTML = `<div class="d-moneynote warn"><span class="ic">${svgInline('alert', 14)}</span><span>El domicilio <b>${fmt(M.feeShown)}</b> lo paga el cliente directamente al repartidor externo. <b>No entra como ingreso nuestro.</b></span></div>`;
+    noteArea.dataset.note = `<div class="d-moneynote warn"><span class="ic">${svgInline('alert', 14)}</span><span>El domicilio <b>${fmt(M.feeShown)}</b> lo paga el cliente directamente al repartidor externo. <b>No entra como ingreso nuestro.</b></span></div>`;
+    if (infoBtn) { infoBtn.hidden = false; infoBtn.classList.add('warn'); infoBtn.classList.remove('info'); }
   } else if (M.mode === 'ext-cobra') {
-    noteArea.innerHTML = `<div class="d-moneynote info"><span class="ic">${svgInline('transfer', 14)}</span><span>Cobramos <b>${fmt(M.cobrar)}</b> (incluye domicilio). El domicilio <b>${fmt(M.feeShown)}</b> se le paga al repartidor en efectivo → venta neta <b>${fmt(M.ingreso)}</b>.</span></div>`;
+    noteArea.dataset.note = `<div class="d-moneynote info"><span class="ic">${svgInline('transfer', 14)}</span><span>Cobramos <b>${fmt(M.cobrar)}</b> (incluye domicilio). El domicilio <b>${fmt(M.feeShown)}</b> se le paga al repartidor en efectivo → venta neta <b>${fmt(M.ingreso)}</b>.</span></div>`;
+    if (infoBtn) { infoBtn.hidden = false; infoBtn.classList.add('info'); infoBtn.classList.remove('warn'); }
   } else {
+    noteArea.dataset.note = '';
     noteArea.innerHTML = '';
+    if (infoBtn) { infoBtn.hidden = true; infoBtn.classList.remove('warn','info'); }
+    noteArea.dataset.open = 'false';
   }
 }
 
@@ -1079,6 +1086,21 @@ function handleAction(action) {
   else if (action === 'enviar')          { enviarACocina(); }
   else if (action === 'registro-next')   { document.body.classList.remove('d-gate'); closeModal('modal-registro'); renderContextHeader(); }
   else if (action === 'keypad-ok')       { kpOk(); }
+  else if (action === 'toggle-money-note') {
+    const noteArea = $('money-note-area');
+    const infoBtn  = $('btn-money-info');
+    if (!noteArea) return;
+    const open = noteArea.dataset.open === 'true';
+    if (open) {
+      noteArea.innerHTML = '';
+      noteArea.dataset.open = 'false';
+      if (infoBtn) infoBtn.classList.remove('active');
+    } else {
+      noteArea.innerHTML = noteArea.dataset.note || '';
+      noteArea.dataset.open = 'true';
+      if (infoBtn) infoBtn.classList.add('active');
+    }
+  }
   else if (action === 'guardar-cliente') { guardarCliente(); }
 }
 
