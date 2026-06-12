@@ -1,6 +1,13 @@
 /* inventario.js — Lógica completa del módulo de inventario Comanda POS */
 
 // ═══════════════════════════════════════════════════
+// SUPABASE (inicialización directa, sin pos-core.js)
+// ═══════════════════════════════════════════════════
+const SUPABASE_URL = 'https://tblujfduscslxjmrjbdr.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
+const iv_sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ═══════════════════════════════════════════════════
 // ESTADO GLOBAL
 // ═══════════════════════════════════════════════════
 let params = { fc: 30, op: 32, inf: 10, merma: true };
@@ -73,7 +80,7 @@ let repInsumoId = null;
 // ═══════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════
-function COP(n) {
+function ivCOP(n) {
   if (isNaN(n) || n === null) return '$0';
   return '$' + Math.round(n).toLocaleString('es-CO');
 }
@@ -167,7 +174,7 @@ function updateKPIs() {
 
   // valor inventario
   const valorTotal = insumos.reduce((s, i) => s + i.stock * i.precio, 0);
-  document.getElementById('inv-valor-total').textContent = COP(valorTotal);
+  document.getElementById('inv-valor-total').textContent = ivCOP(valorTotal);
 }
 
 // ═══════════════════════════════════════════════════
@@ -233,7 +240,7 @@ function buildProdCard(prod) {
     </div>
     <div style="text-align:right">
       <div class="iv-prod-price-lbl">Precio</div>
-      <div class="iv-prod-price">${COP(prod.precio)}</div>
+      <div class="iv-prod-price">${ivCOP(prod.precio)}</div>
     </div>`;
 
   // state band
@@ -268,7 +275,7 @@ function buildProdCard(prod) {
       </div>
       <div class="sep"></div>
       <div class="col">
-        <div class="v">${COP(r.margen)}</div>
+        <div class="v">${ivCOP(r.margen)}</div>
         <div class="l">Margen contrib.</div>
       </div>
       <div class="sep"></div>
@@ -384,7 +391,7 @@ function buildInsRow(ins) {
   el.innerHTML = `
     <div class="iv-ins-main">
       <div class="iv-ins-name">${ins.nombre} ${tagHTML}</div>
-      <div class="iv-ins-meta">Compra: <strong>${COP(ins.precio)}</strong>/${ins.buyUnit} · usa en ${ins.useUnit}</div>
+      <div class="iv-ins-meta">Compra: <strong>${ivCOP(ins.precio)}</strong>/${ins.buyUnit} · usa en ${ins.useUnit}</div>
     </div>
     <div class="iv-ins-stock">
       <div class="iv-ins-stock-top">
@@ -462,7 +469,7 @@ function updateRepResult() {
   if (!ins) return;
 
   const costo = qty * price;
-  document.getElementById('rep-costo').textContent = COP(costo);
+  document.getElementById('rep-costo').textContent = ivCOP(costo);
   document.getElementById('btn-reponer-ok').disabled = qty <= 0;
 
   if (qty > 0) {
@@ -473,7 +480,7 @@ function updateRepResult() {
     res.classList.remove('is-hidden');
     res.style.background = colors.bg;
     res.querySelector('.rt').textContent = 'Quedará en ' + nuevoStock + ' ' + ins.buyUnit + ' · ' + stateLabel(nuevoState);
-    res.querySelector('.rx').textContent = ins.stock + ' + ' + qty + ' ' + ins.buyUnit + ' · costo ' + COP(costo);
+    res.querySelector('.rx').textContent = ins.stock + ' + ' + qty + ' ' + ins.buyUnit + ' · costo ' + ivCOP(costo);
     res.querySelector('.rt').style.color = colors.txt;
   } else {
     document.getElementById('rep-result').classList.add('is-hidden');
@@ -558,7 +565,7 @@ function updateCompraRow(insId, qty, price) {
 function updateCompraSummary() {
   const active = Object.entries(compraQty).filter(([,v]) => v > 0);
   const total = active.reduce((s, [id, q]) => s + q * (compraPrices[id] || 0), 0);
-  document.getElementById('compra-summary').textContent = active.length + ' insumos · ' + COP(total);
+  document.getElementById('compra-summary').textContent = active.length + ' insumos · ' + ivCOP(total);
   document.getElementById('btn-compra-ok').disabled = active.length === 0;
 }
 
@@ -636,7 +643,7 @@ function updateCostHint() {
   const txt = document.getElementById('ins-cost-hint-txt');
   if (precio > 0 && conv > 0) {
     const cpu = precio / conv;
-    txt.textContent = `Costo por ${useUnit}: ${COP(cpu)} (${COP(precio)} ÷ ${conv} ${useUnit}/${buyUnit})`;
+    txt.textContent = `Costo por ${useUnit}: ${ivCOP(cpu)} (${ivCOP(precio)} ÷ ${conv} ${useUnit}/${buyUnit})`;
     hint.classList.remove('is-hidden');
   } else {
     hint.classList.add('is-hidden');
@@ -735,8 +742,8 @@ function abrirRecetaDetalle(prodId) {
   } else {
     const alertColors = { Aceptable:{bg:'#FEF9C3',border:'#FDE68A',ink:'#854D0E'}, Cuidado:{bg:'#FFEDD5',border:'#FED7AA',ink:'#9A3412'}, 'No rentable':{bg:'#FEE2E2',border:'#FECACA',ink:'#991B1B'} };
     const ac = alertColors[sem.label] || alertColors['No rentable'];
-    const reco = r.fc > 0.45 ? `Sube el precio a ${COP(r.sugerido)} o reduce porciones para llegar al 30%.`
-      : r.fc > 0.38 ? `Considera subir ${COP(r.sugerido - prod.precio)} (a ${COP(r.sugerido)}) o renegociar el insumo más caro.`
+    const reco = r.fc > 0.45 ? `Sube el precio a ${ivCOP(r.sugerido)} o reduce porciones para llegar al 30%.`
+      : r.fc > 0.38 ? `Considera subir ${ivCOP(r.sugerido - prod.precio)} (a ${ivCOP(r.sugerido)}) o renegociar el insumo más caro.`
       : `Vigila el insumo de mayor peso; un alza podría pasarte de 38%.`;
     bannerHTML = `<div class="iv-alert" style="background:${ac.bg};border:1px solid ${ac.border}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${ac.ink}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><div><div class="at" style="color:${ac.ink}">${sem.label} · ${fcPct}% food cost</div><div class="ax" style="color:${ac.ink}">${reco}</div></div></div>`;
   }
@@ -753,12 +760,12 @@ function abrirRecetaDetalle(prodId) {
     recetaRows += `<div class="iv-recipe-row">
       <div style="flex:1">
         <div class="iv-recipe-name">${ins.nombre}</div>
-        <div class="iv-recipe-sub">${COP(cpu)}/${ins.useUnit}${l.merma > 0 && params.merma ? ' · merma '+l.merma+'%' : ''} · ${linePct}% del costo</div>
+        <div class="iv-recipe-sub">${ivCOP(cpu)}/${ins.useUnit}${l.merma > 0 && params.merma ? ' · merma '+l.merma+'%' : ''} · ${linePct}% del costo</div>
       </div>
       <div style="width:80px;text-align:center">
         <div style="font-size:13px;font-weight:700">${l.qty} ${ins.useUnit}</div>
       </div>
-      <div class="iv-recipe-cost">${COP(lineCost)}</div>
+      <div class="iv-recipe-cost">${ivCOP(lineCost)}</div>
     </div>`;
   }
 
@@ -779,29 +786,29 @@ function abrirRecetaDetalle(prodId) {
       </div>
       <div style="text-align:right">
         <div class="iv-rec-pricelbl">Precio</div>
-        <div style="font-size:22px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">${COP(prod.precio)}</div>
+        <div style="font-size:22px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">${ivCOP(prod.precio)}</div>
       </div>
     </div>
     ${bannerHTML}
     <div class="iv-metrics">
       <div class="iv-metric">
         <div class="ml">Materia prima</div>
-        <div class="mv" style="color:${sem.color}">${COP(r.raw)}</div>
+        <div class="mv" style="color:${sem.color}">${ivCOP(r.raw)}</div>
         <div class="ms">${fcPct}% food cost</div>
       </div>
       <div class="iv-metric">
         <div class="ml">Margen contrib.</div>
-        <div class="mv">${COP(r.margen)}</div>
+        <div class="mv">${ivCOP(r.margen)}</div>
         <div class="ms">${margenPct}%</div>
       </div>
       <div class="iv-metric">
         <div class="ml">Otros costos op.</div>
-        <div class="mv">${COP(r.otros)}</div>
+        <div class="mv">${ivCOP(r.otros)}</div>
         <div class="ms">${opPct}%</div>
       </div>
       <div class="iv-metric hl">
         <div class="ml">Ganancia neta</div>
-        <div class="mv" style="color:#16A34A">${COP(r.neta)}</div>
+        <div class="mv" style="color:#16A34A">${ivCOP(r.neta)}</div>
         <div class="ms">${netaPct}%</div>
       </div>
     </div>
@@ -814,7 +821,7 @@ function abrirRecetaDetalle(prodId) {
       ${recetaRows}
       <div class="iv-recipe-total">
         <div style="font-size:12px;font-weight:700;color:#64748B">${prod.receta.length} ingredientes</div>
-        <div style="font-size:14px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">${COP(r.raw)}</div>
+        <div style="font-size:14px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">${ivCOP(r.raw)}</div>
       </div>
     </div>
     <div class="iv-cards2">
@@ -823,9 +830,9 @@ function abrirRecetaDetalle(prodId) {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           Precio sugerido (meta ${params.fc}%)
         </div>
-        <div class="v">${COP(Math.ceil(r.sugerido / 100) * 100)}</div>
+        <div class="v">${ivCOP(Math.ceil(r.sugerido / 100) * 100)}</div>
         <div class="x">Con este precio la materia prima sería el ${params.fc}% del precio de venta.</div>
-        <button class="iv-btn-primary" style="margin-top:10px;font-size:12px;padding:7px 12px" onclick="aplicarPrecioSugerido(${prod.id}, ${Math.ceil(r.sugerido/100)*100})">Aplicar ${COP(Math.ceil(r.sugerido/100)*100)}</button>
+        <button class="iv-btn-primary" style="margin-top:10px;font-size:12px;padding:7px 12px" onclick="aplicarPrecioSugerido(${prod.id}, ${Math.ceil(r.sugerido/100)*100})">Aplicar ${ivCOP(Math.ceil(r.sugerido/100)*100)}</button>
       </div>
       <div class="iv-proj">
         <div class="h">
@@ -834,17 +841,17 @@ function abrirRecetaDetalle(prodId) {
         </div>
         <div class="iv-proj-row base">
           <div class="pl">Hoy</div>
-          <div class="praw">${COP(r.raw)}</div>
+          <div class="praw">${ivCOP(r.raw)}</div>
           <div style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:999px;background:${dotColor(r.fc)}"></span><span style="width:44px;text-align:right;font-size:12px;font-weight:700">${fcPct}%</span></div>
         </div>
         <div class="iv-proj-row">
           <div class="pl">+6 meses</div>
-          <div class="praw">${COP(raw6)}</div>
+          <div class="praw">${ivCOP(raw6)}</div>
           <div style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:999px;background:${dotColor(fc6)}"></span><span style="width:44px;text-align:right;font-size:12px;font-weight:700">${(fc6*100).toFixed(1)}%</span></div>
         </div>
         <div class="iv-proj-row">
           <div class="pl">+12 meses</div>
-          <div class="praw">${COP(raw12)}</div>
+          <div class="praw">${ivCOP(raw12)}</div>
           <div style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:999px;background:${dotColor(fc12)}"></span><span style="width:44px;text-align:right;font-size:12px;font-weight:700">${(fc12*100).toFixed(1)}%</span></div>
         </div>
         <div class="iv-proj-note">Inflación ${params.inf}%/año aplicada al costo de materia prima.</div>
@@ -857,7 +864,7 @@ function aplicarPrecioSugerido(prodId, precio) {
   if (!prod) return;
   prod.precio = precio;
   abrirRecetaDetalle(prodId);
-  showToast('✓ Precio actualizado a ' + COP(precio));
+  showToast('✓ Precio actualizado a ' + ivCOP(precio));
 }
 
 // ═══════════════════════════════════════════════════
@@ -973,7 +980,7 @@ document.getElementById('ins-search')?.addEventListener('input', () => renderIns
 function init() {
   // Cargar nombre de usuario desde pos-core.js si está disponible
   try {
-    const sb = window._sb || window.supabaseClient;
+    const sb = iv_sb;
     if (sb) {
       sb.auth.getUser().then(({ data }) => {
         if (data?.user) {
