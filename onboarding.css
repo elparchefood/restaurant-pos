@@ -1,0 +1,132 @@
+/* ============================================================
+   LUMEN POS · ONBOARDING — Primer ingreso (wizard 3 pasos)
+   Modal centrado. Tema claro. Fuente 'DM Sans'. Acento #5B6BFF.
+   Valores EXACTOS (hex, px, radios, sombras, curvas).
+   Secciones: 1) reset + tokens  2) backdrop + tarjeta
+   3) encabezado + barra de progreso  4) cuerpo + pasos
+   5) campos  6) stepper  7) selector tipo de negocio
+   8) confirmación (paso 3)  9) pie / botones
+   ============================================================ */
+
+/* ===== 1) RESET + TOKENS ===== */
+:root{
+  --bg:#FAFAFB; --surface:#FFFFFF; --border:#ECEEF2; --line-soft:#DCE0E8;
+  --ink:#0F172A; --ink-2:#475569; --ink-3:#64748B; --ink-4:#94A3B8; --ink-5:#CBD5E1;
+  --accent:#5B6BFF; --accent-hover:#4F5BE3; --accent-2:#8B5CF6; --accent-50:#EEF2FF; --accent-bg:#F4F6FF;
+  --soft:#F1F5F9; --soft-2:#F8FAFC; --soft-3:#FBFBFD;
+  --success:#16A34A; --success-bg:#DCFCE7; --danger:#DC2626; --danger-bd:#FECACA; --danger-bg:#FEF2F2;
+  --r-card:20px; --r-md:12px; --r-sm:9px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;width:100%;font-family:'DM Sans',system-ui,sans-serif;color:var(--ink);}
+button{font-family:inherit;cursor:pointer;}
+input,select{font-family:inherit;}
+input::placeholder{color:var(--ink-4);}
+
+/* ===== 2) BACKDROP + TARJETA ===== */
+/* fondo: velo con halos de marca */
+.ob-backdrop{position:fixed;inset:0;background:
+  radial-gradient(1100px 620px at 18% -10%, #EEF2FF 0%, rgba(238,242,255,0) 60%),
+  radial-gradient(900px 560px at 108% 120%, #F3EEFF 0%, rgba(243,238,255,0) 55%),
+  var(--bg);
+  display:flex;align-items:center;justify-content:center;padding:28px;overflow:auto;}
+
+/* tarjeta del modal */
+.ob-card{width:100%;max-width:560px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);box-shadow:0 36px 90px -30px rgba(15,23,42,.32),0 8px 24px -12px rgba(15,23,42,.12);overflow:hidden;display:flex;flex-direction:column;max-height:calc(100vh - 56px);}
+
+/* ===== 3) ENCABEZADO + BARRA DE PROGRESO ===== */
+.ob-head{padding:24px 32px 20px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.ob-brandrow{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+.ob-brand{display:flex;align-items:center;gap:11px;}
+.ob-logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;box-shadow:0 4px 12px -3px rgba(91,107,255,.5);}
+.ob-brand-name{font-size:14px;font-weight:700;}
+.ob-brand-sub{font-size:11px;color:var(--ink-4);font-weight:500;}
+.ob-stepcount{font-size:12px;font-weight:700;color:var(--accent);background:var(--accent-50);padding:5px 11px;border-radius:999px;}
+
+/* barra de progreso segmentada (3 segmentos) */
+.ob-progress{display:flex;gap:7px;}
+.ob-seg{flex:1;height:6px;border-radius:999px;background:var(--soft);overflow:hidden;position:relative;}
+/* relleno: se controla con transform:scaleX (0 vacío · 1 lleno), NO con width.
+   La transición vive en .anim y se añade tras el primer render para que el
+   estado base siempre sea correcto aunque la animación no alcance a correr. */
+.ob-seg-fill{position:absolute;left:0;top:0;height:100%;width:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:999px;transform:scaleX(0);transform-origin:left center;}
+.ob-seg-fill.anim{transition:transform .45s cubic-bezier(.4,0,.2,1);}
+.ob-steplabels{display:flex;justify-content:space-between;margin-top:10px;}
+.ob-slabel{font-size:11px;font-weight:600;color:var(--ink-4);flex:1;text-align:center;transition:color .25s;}
+.ob-slabel:first-child{text-align:left;} .ob-slabel:last-child{text-align:right;}
+.ob-slabel.on{color:var(--accent);font-weight:700;}     /* paso actual */
+.ob-slabel.done{color:var(--ink-2);}                    /* pasos completados */
+
+/* ===== 4) CUERPO + PASOS ===== */
+.ob-body{padding:26px 32px 8px;overflow-y:auto;flex:1;min-height:0;}
+.ob-step{display:none;animation:obFade .35s cubic-bezier(.4,0,.2,1);}
+.ob-step.on{display:block;}                              /* paso visible */
+@keyframes obFade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+.ob-eyebrow{font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;}
+.ob-title{font-size:23px;font-weight:800;letter-spacing:-0.025em;margin:5px 0 3px;}
+.ob-sub{font-size:13.5px;color:var(--ink-3);line-height:1.5;margin:0 0 22px;}
+
+/* ===== 5) CAMPOS ===== */
+.ob-field{margin-bottom:17px;}
+.ob-grid2{display:grid;grid-template-columns:1fr 1fr;gap:13px;}
+.ob-label{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--ink-2);margin-bottom:7px;}
+.ob-req{color:var(--accent);font-size:13px;line-height:1;}   /* asterisco requerido */
+.ob-opt{font-size:10.5px;font-weight:600;color:var(--ink-4);text-transform:uppercase;letter-spacing:.04em;} /* etiqueta "Opcional" */
+.ob-input,.ob-select{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13.5px;font-weight:500;color:var(--ink);outline:none;background:#fff;transition:border-color .15s,box-shadow .15s;}
+.ob-input:focus,.ob-select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,107,255,.12);}
+.ob-input.err{border-color:var(--danger);box-shadow:0 0 0 3px rgba(220,38,38,.1);}  /* campo inválido */
+.ob-inputwrap{position:relative;display:flex;align-items:center;}
+.ob-inputwrap .pfx{position:absolute;left:13px;font-size:13.5px;font-weight:600;color:var(--ink-4);pointer-events:none;} /* prefijo +57 / $ */
+.ob-inputwrap.has-pfx .ob-input{padding-left:30px;}
+.ob-selectwrap{position:relative;}
+.ob-select{appearance:none;-webkit-appearance:none;padding-right:34px;cursor:pointer;}
+.ob-selectwrap>svg{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--ink-4);pointer-events:none;}
+.ob-hint{font-size:11px;color:var(--ink-4);margin-top:6px;font-weight:500;}
+.ob-errmsg{display:none;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--danger);margin-top:6px;}
+.ob-errmsg.on{display:flex;}                              /* mensaje de error visible */
+
+/* ===== 6) STEPPER DE MESAS ===== */
+.ob-stepper{display:flex;align-items:center;gap:12px;background:var(--soft-2);border:1px solid var(--border);border-radius:var(--r-md);padding:7px;}
+.ob-stepbtn{width:44px;height:44px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--ink-2);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.14s;}
+.ob-stepbtn:hover:not(:disabled){color:var(--accent);border-color:#C7D2FE;background:var(--accent-bg);}
+.ob-stepbtn:disabled{opacity:.4;cursor:not-allowed;}     /* en el límite (1 ó 50) */
+.ob-stepval{flex:1;text-align:center;}
+.ob-stepnum{font-size:25px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-0.02em;}
+.ob-stepunit{font-size:11px;color:var(--ink-4);margin-left:6px;font-weight:600;}
+
+/* ===== 7) SELECTOR TIPO DE NEGOCIO ===== */
+.ob-typegrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;}
+.ob-type{display:flex;flex-direction:column;align-items:center;gap:7px;padding:13px 8px;border:1px solid var(--border);border-radius:var(--r-md);background:#fff;transition:.14s;}
+.ob-type:hover{border-color:var(--line-soft);background:var(--soft-2);}
+.ob-type.on{border-color:var(--accent);background:var(--accent-bg);box-shadow:0 0 0 3px rgba(91,107,255,.1);} /* seleccionado */
+.ob-type-ic{width:34px;height:34px;border-radius:9px;background:var(--soft);color:var(--ink-3);display:flex;align-items:center;justify-content:center;transition:.14s;}
+.ob-type.on .ob-type-ic{background:var(--accent);color:#fff;}
+.ob-type-lbl{font-size:12px;font-weight:600;color:var(--ink-2);}
+.ob-type.on .ob-type-lbl{color:var(--accent);font-weight:700;}
+
+/* ===== 8) CONFIRMACIÓN (PASO 3) ===== */
+.ob-done{text-align:center;padding:8px 0 4px;}
+.ob-check{width:84px;height:84px;border-radius:26px;margin:0 auto 22px;background:linear-gradient(135deg,var(--success),#22C55E);display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 16px 34px -12px rgba(22,163,74,.6);animation:obPop .5s cubic-bezier(.34,1.56,.64,1);position:relative;}
+.ob-check::after{content:"";position:absolute;inset:-9px;border-radius:32px;border:2px solid var(--success-bg);}
+@keyframes obPop{0%{transform:scale(.4);opacity:0;}60%{transform:scale(1.08);}100%{transform:scale(1);opacity:1;}}
+.ob-done-title{font-size:26px;font-weight:800;letter-spacing:-0.03em;margin:0 0 6px;}
+.ob-done-sub{font-size:14px;color:var(--ink-3);line-height:1.5;margin:0 auto 24px;max-width:380px;}
+.ob-summary{text-align:left;background:var(--soft-2);border:1px solid var(--border);border-radius:var(--r-md);padding:6px 16px;margin-bottom:6px;}
+.ob-srow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;border-bottom:1px dashed var(--line-soft);}
+.ob-srow:last-child{border-bottom:none;}
+.ob-srow .k{display:flex;align-items:center;gap:10px;font-size:12.5px;font-weight:600;color:var(--ink-3);}
+.ob-srow .k-ic{width:30px;height:30px;border-radius:8px;background:var(--accent-50);color:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.ob-srow .v{font-size:13.5px;font-weight:700;color:var(--ink);text-align:right;}
+
+/* ===== 9) PIE / BOTONES ===== */
+.ob-foot{display:flex;align-items:center;gap:12px;padding:18px 32px 24px;border-top:1px solid var(--border);flex-shrink:0;background:var(--soft-3);}
+.ob-foot .spacer{flex:1;}
+.ob-foot.center{justify-content:center;}                 /* paso 3: botón único centrado */
+.ob-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;border-radius:var(--r-sm);font-size:13.5px;font-weight:700;border:1px solid transparent;transition:.15s;}
+.ob-btn-primary{background:var(--accent);color:#fff;box-shadow:0 4px 14px -4px rgba(91,107,255,.55);}
+.ob-btn-primary:hover{background:var(--accent-hover);box-shadow:0 6px 18px -5px rgba(91,107,255,.6);}
+.ob-btn-ghost{background:#fff;color:var(--ink-2);border-color:var(--border);}
+.ob-btn-ghost:hover{background:var(--soft-2);color:var(--ink);}
+.ob-btn-success{background:var(--success);color:#fff;box-shadow:0 4px 14px -4px rgba(22,163,74,.55);}
+.ob-btn-success:hover{background:#15803D;}
+.ob-btn.block{width:100%;padding:14px;font-size:14px;}

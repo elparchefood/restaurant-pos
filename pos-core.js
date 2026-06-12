@@ -70,6 +70,17 @@ function daysAgoISO(n) {
       window._pos.state.tenantId = user.user_metadata?.tenant_id || null;
       window._pos.state.branchId = user.user_metadata?.branch_id || null;
 
+      // Guard: si no tiene tenant/branch y no está en onboarding → redirigir
+      var currentPath = window.location.pathname;
+      var isOnboarding = currentPath.includes('onboarding');
+      var isLogin = currentPath.includes('login');
+      if (!window._pos.state.tenantId || !window._pos.state.branchId) {
+        if (!isOnboarding && !isLogin) {
+          window.location.href = 'onboarding.html';
+          return;
+        }
+      }
+
       sb.auth.onAuthStateChange((event) => {
         if (event === 'SIGNED_OUT') window.location.href = 'login.html';
       });
