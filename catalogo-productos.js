@@ -695,6 +695,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   S.tenantId = user.user_metadata?.tenant_id || user.id || null;
   S.branchId  = user.user_metadata?.branch_id  || null;
 
+  // Garantizar que existe un registro en tenants (FK requerida)
+  if (S.tenantId) {
+    await sb.from('tenants').upsert(
+      { id: S.tenantId, name: user.user_metadata?.business_name || user.email || 'Mi Negocio', email: user.email },
+      { onConflict: 'id', ignoreDuplicates: true }
+    );
+  }
+
   // Mostrar nombre en topbar
   const chip = document.getElementById('cp-user-chip-name');
   if (chip) chip.textContent = (user.user_metadata?.name || user.email || '').split('@')[0];
