@@ -1077,6 +1077,17 @@ function handleAction(action) {
 
 // ── attachEvents ───────────────────────────────────────────────────────
 function attachEvents() {
+  // Teclado físico para el keypad numérico
+  document.addEventListener('keydown', function(e) {
+    const kp = $('modal-keypad');
+    if (!kp || kp.hidden) return;           // solo cuando el keypad está abierto
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key >= '0' && e.key <= '9')       { kpPress(e.key); e.preventDefault(); return; }
+    if (e.key === 'Backspace')              { kpPress('bksp'); e.preventDefault(); return; }
+    if (e.key === 'Delete' || e.key === 'Escape') { kpPress('C'); e.preventDefault(); return; }
+    if (e.key === 'Enter')                  { kpOk(); e.preventDefault(); return; }
+  });
+
 
   // Delegated click en body
   document.body.addEventListener('click', e => {
