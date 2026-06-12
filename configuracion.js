@@ -161,6 +161,8 @@ function setSection(sec) {
   screenMesas.classList.remove('on');
   screenGeneral.classList.remove('on');
   screenPh.classList.remove('on');
+  var _screenUr = $('screen-usuarios');
+  if (_screenUr) _screenUr.classList.remove('on');
 
   if (sec === 'mesas') {
     screenMesas.classList.add('on');
@@ -170,6 +172,13 @@ function setSection(sec) {
     screenGeneral.classList.add('on');
     $('crumb').textContent = 'General';
     if (!window._generalLoaded) { loadGeneral(); window._generalLoaded = true; }
+  } else if (sec === 'usuarios') {
+    var screenUr = $('screen-usuarios');
+    if (screenUr) {
+      screenUr.classList.add('on');
+      $('crumb').textContent = 'Usuarios y roles';
+      if (!window._urLoaded) { urInit(); window._urLoaded = true; }
+    }
   } else {
     screenPh.classList.add('on');
     $('placeholder-title').textContent = SECTION_LABELS[sec] || sec;
@@ -770,3 +779,633 @@ document.addEventListener('DOMContentLoaded', function() {
   var btnSave = $('btn-save-general');
   if (btnSave) btnSave.addEventListener('click', saveGeneral);
 });
+
+// ════════════════════════════════════════════════════════════
+// USUARIOS Y ROLES — lógica completa
+// ════════════════════════════════════════════════════════════
+
+var UR_KEY = 'lumen.config.equipo.v1';
+
+var UR_PERMS = [
+  { group: 'Ventas', items: [
+    { id: 'ventas.crear',     label: 'Tomar pedidos',          desc: 'Abrir mesas y crear comandas' },
+    { id: 'ventas.cocina',    label: 'Enviar a cocina',         desc: 'Mandar comandas a preparación' },
+    { id: 'ventas.cobrar',    label: 'Cobrar y procesar pagos', desc: 'Cerrar la cuenta y registrar el pago' },
+    { id: 'ventas.descuento', label: 'Aplicar descuentos',      desc: 'Modificar precios y dar cortesías' },
+    { id: 'ventas.anular',    label: 'Anular ítems y pedidos',  desc: 'Eliminar productos o cancelar comandas' }
+  ]},
+  { group: 'Salón', items: [
+    { id: 'mesas.editar',   label: 'Editar y liberar mesas', desc: 'Cambiar estado y datos de la mesa' },
+    { id: 'mesas.dividir',  label: 'Dividir y unir cuentas', desc: 'Separar o combinar comandas' },
+    { id: 'mesas.mover',    label: 'Mover pedidos',          desc: 'Trasladar comandas entre mesas' }
+  ]},
+  { group: 'Caja', items: [
+    { id: 'caja.abrir',    label: 'Abrir y cerrar caja',    desc: 'Gestionar el turno de caja' },
+    { id: 'caja.reportes', label: 'Ver reportes de ventas', desc: 'Acceder a cierres e informes' }
+  ]},
+  { group: 'Catálogo y ajustes', items: [
+    { id: 'catalogo.editar',  label: 'Gestionar productos',        desc: 'Crear y editar el menú y precios' },
+    { id: 'config.salon',     label: 'Configurar mesas y zonas',   desc: 'Editar el plano del salón' },
+    { id: 'config.usuarios',  label: 'Gestionar usuarios y roles', desc: 'Administrar el equipo y permisos' }
+  ]}
+];
+var UR_TOTAL_PERMS = 13;
+var UR_SWATCH_COLORS = ['#5B6BFF','#0EA5E9','#10B981','#F59E0B','#F43F5E','#8B5CF6','#EC4899','#0D9488'];
+
+var UR_BRANDS = [
+  { id: 'm_parche', name: 'El Parche Food',   sucursales: [
+    { id: 's_centro', name: 'Centro',    addr: 'Cra. 7 #45-12' },
+    { id: 's_norte',  name: 'Norte',     addr: 'Cl. 116 #18-30' },
+    { id: 's_sur',    name: 'Sur',       addr: 'Av. 1 de Mayo #34' }
+  ]},
+  { id: 'm_pizza', name: 'Pizza del Parche', sucursales: [
+    { id: 's_chapi', name: 'Chapinero', addr: 'Cl. 63 #11-20' }
+  ]}
+];
+var UR_ALL_SUCS = UR_BRANDS.reduce(function(a, m) { return a.concat(m.sucursales); }, []);
+
+var UR_SEED_ROLES = [
+  { id: 'r_admin',  name: 'Administrador', color: '#5B6BFF', system: true,  perms: UR_PERMS.reduce(function(a,g){return a.concat(g.items.map(function(i){return i.id;}));}, []) },
+  { id: 'r_cajero', name: 'Cajero',        color: '#0EA5E9', system: false, perms: ['ventas.crear','ventas.cocina','ventas.cobrar','ventas.descuento','caja.abrir','caja.reportes'] },
+  { id: 'r_mesero', name: 'Mesero',        color: '#10B981', system: false, perms: ['ventas.crear','ventas.cocina','mesas.dividir','mesas.mover'] },
+  { id: 'r_domi',   name: 'Domiciliario',  color: '#F59E0B', system: false, perms: ['ventas.crear','ventas.cobrar'] }
+];
+var UR_SEED_USERS = [
+  { id: 'u_sergio', name: 'Sergio Andrés',     email: 'sergio@elparche.co',  roleId: 'r_admin',  sucursales: ['s_centro','s_norte','s_sur','s_chapi'], active: true,  pass: 'admin1234' },
+  { id: 'u_caro',   name: 'Carolina Restrepo', email: 'caro@elparche.co',    roleId: 'r_cajero', sucursales: ['s_centro','s_norte'],                   active: true,  pass: 'caja1234' },
+  { id: 'u_andres', name: 'Andrés Mesa',       email: 'andres@elparche.co',  roleId: 'r_mesero', sucursales: ['s_centro'],                             active: true,  pass: 'mesa1234' },
+  { id: 'u_juli',   name: 'Juliana Gómez',     email: 'juli@elparche.co',    roleId: 'r_cajero', sucursales: ['s_sur','s_chapi'],                      active: true,  pass: 'caja5678' },
+  { id: 'u_felipe', name: 'Felipe Ríos',       email: 'felipe@elparche.co',  roleId: 'r_domi',   sucursales: ['s_centro','s_norte','s_sur'],           active: false, pass: 'domi1234' }
+];
+
+var UR = { users: [], roles: [], activeTab: 'usuarios', selectedUserId: null, selectedRoleId: null };
+
+function urLoad() {
+  try {
+    var raw = localStorage.getItem(UR_KEY);
+    if (raw) {
+      var parsed = JSON.parse(raw);
+      UR.users = parsed.users || JSON.parse(JSON.stringify(UR_SEED_USERS));
+      UR.roles = parsed.roles || JSON.parse(JSON.stringify(UR_SEED_ROLES));
+    } else {
+      UR.users = JSON.parse(JSON.stringify(UR_SEED_USERS));
+      UR.roles = JSON.parse(JSON.stringify(UR_SEED_ROLES));
+    }
+  } catch(e) {
+    UR.users = JSON.parse(JSON.stringify(UR_SEED_USERS));
+    UR.roles = JSON.parse(JSON.stringify(UR_SEED_ROLES));
+  }
+}
+
+function urSave() {
+  localStorage.setItem(UR_KEY, JSON.stringify({ users: UR.users, roles: UR.roles }));
+}
+
+function urRoleById(id) { return UR.roles.find(function(r){ return r.id === id; }); }
+function urUserById(id) { return UR.users.find(function(u){ return u.id === id; }); }
+function urInitials(name) { var p = (name||'').trim().split(/\s+/); return (p[0]?p[0][0]:'')+(p[1]?p[1][0]:''); }
+function urGenId(prefix) { return prefix + '_' + Date.now().toString(36); }
+function urGenPass() {
+  var ch='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; var s='';
+  for(var i=0;i<8;i++) s+=ch[Math.floor(Math.random()*ch.length)]; return s;
+}
+
+function urShowToast(msg) {
+  var t = $('toast'); var m = $('toast-msg');
+  if (!t || !m) return;
+  m.textContent = msg || 'Cambios guardados';
+  t.removeAttribute('hidden');
+  setTimeout(function(){ t.setAttribute('hidden',''); }, 2200);
+}
+
+// ── Tabs ────────────────────────────────────────────────────
+function urSetTab(tab) {
+  UR.activeTab = tab;
+  UR.selectedUserId = null;
+  UR.selectedRoleId = null;
+  ['usuarios','roles'].forEach(function(t){
+    var btn = $('ur-tab-' + t);
+    if (btn) btn.classList.toggle('on', t === tab);
+    var scr = $('ur-screen-' + t);
+    if (scr) scr.classList.toggle('on', t === tab);
+  });
+  var addLbl = $('ur-btn-add-label');
+  if (addLbl) addLbl.textContent = tab === 'usuarios' ? 'Nuevo usuario' : 'Nuevo rol';
+  var addBtn = $('ur-btn-add');
+  if (addBtn) addBtn.dataset.uradd = tab === 'usuarios' ? 'usuario' : 'rol';
+  urShowDefaultPane(tab);
+}
+
+function urShowDefaultPane(tab) {
+  var panes = ['ur-pane-team','ur-pane-user','ur-pane-roles','ur-pane-role'];
+  panes.forEach(function(id){ var el=$( id); if(el) el.classList.remove('on'); });
+  var def = tab === 'usuarios' ? 'ur-pane-team' : 'ur-pane-roles';
+  var el = $(def); if (el) el.classList.add('on');
+}
+
+function urShowPane(pane) {
+  var panes = ['ur-pane-team','ur-pane-user','ur-pane-roles','ur-pane-role'];
+  panes.forEach(function(id){ var el=$(id); if(el) el.classList.remove('on'); });
+  var el = $(pane); if (el) el.classList.add('on');
+}
+
+// ── Render lista usuarios ────────────────────────────────────
+function urRenderUsers() {
+  var list = $('ur-list-usuarios');
+  if (!list) return;
+  var n = $('ur-n-usuarios'); if (n) n.textContent = UR.users.length;
+  list.innerHTML = '';
+  UR.users.forEach(function(u) {
+    var role = urRoleById(u.roleId);
+    var color = role ? role.color : '#94A3B8';
+    var avatarBg = u.active ? color : '#CBD5E1';
+    var sucs = u.sucursales || [];
+    var chips = sucs.slice(0,2).map(function(sid){
+      var s = UR_ALL_SUCS.find(function(x){return x.id===sid;});
+      return s ? '<span class="cf-chip">' + s.name + '</span>' : '';
+    }).join('');
+    if (sucs.length > 2) chips += '<span class="cf-chip more">+' + (sucs.length-2) + '</span>';
+    if (!sucs.length) chips = '<span style="font-size:11px;color:#CBD5E1;font-weight:600">Sin acceso</span>';
+    var statusHtml = u.active
+      ? '<span class="cf-status-ur on"><span class="dot"></span>Activo</span>'
+      : '<span class="cf-status-ur"><span class="dot"></span>Inactivo</span>';
+    var pillHtml = role
+      ? '<span class="cf-pill-ur" style="color:'+color+';background:'+color+'1A"><span class="dot" style="background:'+color+'"></span>'+role.name+'</span>'
+      : '';
+    var row = document.createElement('button');
+    row.className = 'cf-userrow' + (u.id === UR.selectedUserId ? ' on' : '');
+    row.dataset.userid = u.id;
+    row.innerHTML =
+      '<span class="cf-avatar" style="background:'+avatarBg+'">' + urInitials(u.name) + '</span>' +
+      '<span class="cf-userrow-main">' +
+        '<span class="cf-userrow-l1">' +
+          '<span class="cf-userrow-name">' + (u.name||'') + '</span>' +
+          pillHtml +
+          '<span class="cf-userrow-spacer"></span>' + statusHtml +
+        '</span>' +
+        '<span class="cf-userrow-l2">' +
+          '<span class="cf-userrow-mail"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,6 12,13 2,6"/></svg>' + (u.email||'') + '</span>' +
+          '<span class="cf-dotsep"></span>' +
+          '<span class="cf-chips">' + chips + '</span>' +
+        '</span>' +
+      '</span>' +
+      '<span class="cf-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>';
+    row.addEventListener('click', function(){ urSelectUser(u.id); });
+    list.appendChild(row);
+  });
+  // Botón agregar
+  var addBtn = document.createElement('button');
+  addBtn.className = 'cf-add';
+  addBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Agregar usuario';
+  addBtn.addEventListener('click', function(){ urAddUser(); });
+  list.appendChild(addBtn);
+  urUpdateTeamSummary();
+}
+
+// ── Render lista roles ───────────────────────────────────────
+function urRenderRoles() {
+  var list = $('ur-list-roles');
+  if (!list) return;
+  var n = $('ur-n-roles'); if (n) n.textContent = UR.roles.length;
+  list.innerHTML = '';
+  UR.roles.forEach(function(r) {
+    var cnt = UR.users.filter(function(u){ return u.roleId === r.id; }).length;
+    var row = document.createElement('button');
+    row.className = 'cf-rolerow' + (r.id === UR.selectedRoleId ? ' on' : '');
+    row.dataset.roleid = r.id;
+    row.innerHTML =
+      '<span class="cf-roleicon" style="color:'+r.color+';background:'+r.color+'1A"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>' +
+      '<span class="cf-rolerow-main">' +
+        '<span class="cf-rolerow-l1">' +
+          '<span class="cf-rolerow-name">' + r.name + '</span>' +
+          (r.system ? '<span class="cf-systag">Sistema</span>' : '') +
+        '</span>' +
+        '<span class="cf-rolerow-sub">' + (r.perms||[]).length + ' de ' + UR_TOTAL_PERMS + ' permisos</span>' +
+      '</span>' +
+      '<span class="cf-countpill"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> ' + cnt + '</span>' +
+      '<span class="cf-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>';
+    row.addEventListener('click', function(){ urSelectRole(r.id); });
+    list.appendChild(row);
+  });
+  var addBtn = document.createElement('button');
+  addBtn.className = 'cf-add';
+  addBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Crear rol';
+  addBtn.addEventListener('click', function(){ urAddRole(); });
+  list.appendChild(addBtn);
+  urUpdateRolesSummary();
+}
+
+// ── Resúmenes ────────────────────────────────────────────────
+function urUpdateTeamSummary() {
+  var total = UR.users.length;
+  var activos = UR.users.filter(function(u){ return u.active; }).length;
+  var t = $('ur-stat-total'); if (t) t.textContent = total;
+  var a = $('ur-stat-activos'); if (a) a.textContent = activos;
+  var legend = $('ur-legend-roles');
+  if (legend) {
+    legend.innerHTML = '';
+    UR.roles.forEach(function(r){
+      var cnt = UR.users.filter(function(u){ return u.roleId === r.id; }).length;
+      if (!cnt) return;
+      var row = document.createElement('div');
+      row.className = 'cf-legendrow';
+      row.innerHTML = '<span class="cf-legenddot" style="background:'+r.color+'"></span><span class="cf-legendname">'+r.name+'</span><span class="cf-statlbl">'+cnt+' usuario'+(cnt>1?'s':'')+'</span>';
+      legend.appendChild(row);
+    });
+  }
+}
+
+function urUpdateRolesSummary() {
+  var sr = $('ur-stat-roles'); if (sr) sr.textContent = UR.roles.length;
+  var legend = $('ur-legend-roles-list');
+  if (legend) {
+    legend.innerHTML = '';
+    UR.roles.forEach(function(r){
+      var row = document.createElement('div');
+      row.className = 'cf-legendrow clickable';
+      row.innerHTML = '<span class="cf-roleicon sm" style="color:'+r.color+';background:'+r.color+'1A"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><span class="cf-legendname">'+r.name+'</span><span class="cf-statlbl">'+(r.perms||[]).length+' permisos</span>';
+      row.addEventListener('click', function(){ urSelectRole(r.id); });
+      legend.appendChild(row);
+    });
+  }
+}
+
+// ── Inspector usuario ────────────────────────────────────────
+function urSelectUser(id) {
+  UR.selectedUserId = id;
+  UR.selectedRoleId = null;
+  urRenderUsers();
+  var u = urUserById(id);
+  if (!u) return;
+  var role = urRoleById(u.roleId);
+  var color = role ? role.color : '#94A3B8';
+  var av = $('ur-user-avatar');
+  if (av) { av.textContent = urInitials(u.name); av.style.background = u.active ? color : '#CBD5E1'; }
+  var ti = $('ur-user-title'); if (ti) ti.textContent = u.name || '–';
+  var nm = $('ur-u-name');    if (nm) nm.value = u.name || '';
+  var em = $('ur-u-email');   if (em) em.value = u.email || '';
+  var ps = $('ur-u-pass');    if (ps) ps.value = u.pass || '';
+  // Rol select
+  var sel = $('ur-u-rol');
+  if (sel) {
+    sel.innerHTML = '';
+    UR.roles.forEach(function(r){
+      var opt = document.createElement('option');
+      opt.value = r.id; opt.textContent = r.name;
+      if (r.id === u.roleId) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    urUpdateRolDot(u.roleId);
+    sel.onchange = function(){
+      u.roleId = sel.value;
+      urUpdateRolDot(sel.value);
+      urRenderUsers();
+      urSave();
+    };
+  }
+  // Estado
+  urSetUserStateUI(u);
+  var sw = $('ur-u-state-sw');
+  if (sw) {
+    sw.onclick = function(){
+      u.active = !u.active;
+      urSetUserStateUI(u);
+      urRenderUsers();
+      urSave();
+    };
+  }
+  // Acceso marcas
+  urRenderAccessPanel(u);
+  // Live edit
+  var nameIn = $('ur-u-name');
+  if (nameIn) nameIn.oninput = function(){
+    u.name = nameIn.value;
+    var av2=$('ur-user-avatar'); if(av2) av2.textContent=urInitials(u.name);
+    var ti2=$('ur-user-title'); if(ti2) ti2.textContent=u.name||'–';
+    urRenderUsers(); urSave();
+  };
+  var emailIn = $('ur-u-email');
+  if (emailIn) emailIn.onblur = function(){ u.email = emailIn.value; urRenderUsers(); urSave(); };
+  var passIn = $('ur-u-pass');
+  if (passIn) passIn.onblur = function(){ u.pass = passIn.value; urSave(); };
+  urShowPane('ur-pane-user');
+}
+
+function urUpdateRolDot(roleId) {
+  var role = urRoleById(roleId);
+  var dot = $('ur-u-rol-dot');
+  if (dot && role) dot.style.background = role.color;
+}
+
+function urSetUserStateUI(u) {
+  var sw = $('ur-u-state-sw');
+  var dot = $('ur-u-state-dot');
+  var txt = $('ur-u-state-txt');
+  if (sw)  sw.classList.toggle('on', u.active);
+  if (dot) { dot.classList.toggle('on', u.active); }
+  if (txt) { txt.classList.toggle('on', u.active); txt.textContent = u.active ? 'Activo' : 'Inactivo'; }
+}
+
+function urRenderAccessPanel(u) {
+  var total = UR_ALL_SUCS.length;
+  var cnt = (u.sucursales||[]).length;
+  var countEl = $('ur-u-access-count'); if (countEl) countEl.textContent = cnt + ' de ' + total;
+  var totalEl = $('ur-u-access-total'); if (totalEl) totalEl.textContent = total;
+  // Master check
+  urUpdateMasterCheck(u);
+  var master = $('ur-u-access-all');
+  if (master) {
+    master.onclick = function(){
+      var allSelected = (u.sucursales||[]).length === total;
+      u.sucursales = allSelected ? [] : UR_ALL_SUCS.map(function(s){ return s.id; });
+      urRenderAccessPanel(u);
+      urRenderUsers(); urSave();
+    };
+  }
+  // Marcas
+  var marcasEl = $('ur-u-marcas');
+  if (!marcasEl) return;
+  marcasEl.innerHTML = '';
+  UR_BRANDS.forEach(function(brand){
+    var div = document.createElement('div');
+    div.className = 'cf-marca';
+    var allBrandSucs = brand.sucursales.map(function(s){ return s.id; });
+    var selBrand = allBrandSucs.filter(function(sid){ return (u.sucursales||[]).indexOf(sid) >= 0; }).length;
+    var brandState = selBrand === 0 ? '' : selBrand === allBrandSucs.length ? 'on' : 'partial';
+    var brandChkHtml = brandState === 'on'
+      ? '<span class="cf-check on"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>'
+      : brandState === 'partial'
+      ? '<span class="cf-check partial"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="5" y1="12" x2="19" y2="12"/></svg></span>'
+      : '<span class="cf-check"></span>';
+    var sucItems = brand.sucursales.map(function(s){
+      var isOn = (u.sucursales||[]).indexOf(s.id) >= 0;
+      return '<button class="cf-access-suc'+(isOn?' on':'')+'" data-suc="'+s.id+'">' +
+        (isOn ? '<span class="cf-check on"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>'
+               : '<span class="cf-check"></span>') +
+        '<span class="cf-suc-main"><span class="cf-suc-name">'+s.name+'</span><span class="cf-suc-addr">'+s.addr+'</span></span>' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>' +
+      '</button>';
+    }).join('');
+    div.innerHTML =
+      '<button class="cf-marca-head" data-marca="'+brand.id+'">' +
+        brandChkHtml +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><path d="M3 9h18"/><path d="M8 21v-6h4v6"/></svg>' +
+        '<span class="cf-marca-name">'+brand.name+'</span>' +
+        '<span class="cf-marca-n">'+selBrand+'/'+allBrandSucs.length+'</span>' +
+      '</button>' +
+      '<div class="cf-marca-list">' + sucItems + '</div>';
+    // Brand toggle
+    div.querySelector('.cf-marca-head').addEventListener('click', function(){
+      var allSel = allBrandSucs.every(function(sid){ return (u.sucursales||[]).indexOf(sid) >= 0; });
+      if (allSel) {
+        u.sucursales = (u.sucursales||[]).filter(function(sid){ return allBrandSucs.indexOf(sid) < 0; });
+      } else {
+        allBrandSucs.forEach(function(sid){
+          if ((u.sucursales||[]).indexOf(sid) < 0) u.sucursales.push(sid);
+        });
+      }
+      urRenderAccessPanel(u); urRenderUsers(); urSave();
+    });
+    // Sucursal toggles
+    div.querySelectorAll('.cf-access-suc').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var sid = btn.dataset.suc;
+        var idx = (u.sucursales||[]).indexOf(sid);
+        if (idx >= 0) u.sucursales.splice(idx, 1);
+        else { if (!u.sucursales) u.sucursales=[]; u.sucursales.push(sid); }
+        urRenderAccessPanel(u); urRenderUsers(); urSave();
+      });
+    });
+    marcasEl.appendChild(div);
+  });
+}
+
+function urUpdateMasterCheck(u) {
+  var total = UR_ALL_SUCS.length;
+  var cnt = (u.sucursales||[]).length;
+  var el = $('ur-u-master-chk');
+  if (!el) return;
+  if (cnt === 0) {
+    el.className = 'cf-check'; el.innerHTML = '';
+  } else if (cnt === total) {
+    el.className = 'cf-check on'; el.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
+  } else {
+    el.className = 'cf-check partial'; el.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+  }
+  var countEl = $('ur-u-access-count'); if (countEl) countEl.textContent = cnt + ' de ' + total;
+}
+
+// ── Inspector rol ────────────────────────────────────────────
+function urSelectRole(id) {
+  UR.selectedRoleId = id;
+  UR.selectedUserId = null;
+  urRenderRoles();
+  var r = urRoleById(id);
+  if (!r) return;
+  var icon = $('ur-role-icon');
+  if (icon) { icon.style.color = r.color; icon.style.background = r.color + '1A'; }
+  var eyebrow = $('ur-role-eyebrow');
+  if (eyebrow) eyebrow.textContent = r.system ? 'Rol del sistema' : 'Rol';
+  var ti = $('ur-role-title'); if (ti) ti.textContent = r.name;
+  var nm = $('ur-r-name'); if (nm) { nm.value = r.name; nm.oninput = function(){ r.name=$('ur-r-name').value; $('ur-role-title').textContent=r.name; urRenderRoles(); urSave(); }; }
+  // Swatches
+  document.querySelectorAll('#ur-r-swatches .cf-swatch').forEach(function(sw){
+    sw.classList.toggle('on', sw.dataset.color === r.color);
+    sw.onclick = function(){
+      r.color = sw.dataset.color;
+      document.querySelectorAll('#ur-r-swatches .cf-swatch').forEach(function(s){ s.classList.toggle('on', s.dataset.color===r.color); });
+      var ic=$('ur-role-icon'); if(ic){ ic.style.color=r.color; ic.style.background=r.color+'1A'; }
+      urRenderRoles(); urSave();
+    };
+  });
+  // Permisos
+  urRenderPerms(r);
+  // Footer: locked note vs delete
+  var foot = $('ur-role-foot');
+  if (foot) {
+    var delBtn = $('ur-r-del');
+    if (r.system) {
+      if (delBtn) { delBtn.style.display = 'none'; }
+      var locked = foot.querySelector('.cf-lockednote');
+      if (!locked) {
+        locked = document.createElement('div');
+        locked.className = 'cf-lockednote';
+        locked.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Rol del sistema';
+        foot.appendChild(locked);
+      }
+    } else {
+      if (delBtn) delBtn.style.display = '';
+      var locked2 = foot.querySelector('.cf-lockednote');
+      if (locked2) locked2.remove();
+    }
+  }
+  urShowPane('ur-pane-role');
+}
+
+function urRenderPerms(r) {
+  var container = $('ur-r-perms');
+  if (!container) return;
+  var perms = r.perms || [];
+  var sub = $('ur-perm-sub'); if (sub) sub.textContent = perms.length + ' de ' + UR_TOTAL_PERMS + ' permisos activos';
+  var allBtn = $('ur-perm-all-toggle');
+  if (allBtn) {
+    var allPermsIds = UR_PERMS.reduce(function(a,g){ return a.concat(g.items.map(function(i){ return i.id; })); }, []);
+    allBtn.textContent = perms.length === UR_TOTAL_PERMS ? 'Quitar todos' : 'Activar todos';
+    allBtn.onclick = function(){
+      if (r.perms.length === UR_TOTAL_PERMS) { r.perms = []; } else { r.perms = allPermsIds.slice(); }
+      urRenderPerms(r); urRenderRoles(); urSave();
+    };
+  }
+  container.innerHTML = '';
+  UR_PERMS.forEach(function(group){
+    var active = group.items.filter(function(i){ return perms.indexOf(i.id) >= 0; }).length;
+    var wrap = document.createElement('div');
+    wrap.className = 'cf-permgroup-wrap';
+    var header = '<div class="cf-permgroup"><span>'+group.group+'</span><span class="cf-permgroup-n">'+active+'/'+group.items.length+'</span></div>';
+    var items = group.items.map(function(perm){
+      var on = perms.indexOf(perm.id) >= 0;
+      return '<div class="cf-perm" data-permid="'+perm.id+'"><div class="cf-perm-main"><div class="cf-perm-label">'+perm.label+'</div><div class="cf-perm-desc">'+perm.desc+'</div></div><button type="button" class="cf-switch'+(on?' on':'')+'" aria-pressed="'+(on?'true':'false')+'"></button></div>';
+    }).join('');
+    wrap.innerHTML = header + items;
+    wrap.querySelectorAll('.cf-perm').forEach(function(pDiv){
+      var sw = pDiv.querySelector('.cf-switch');
+      var pid = pDiv.dataset.permid;
+      sw.addEventListener('click', function(){
+        var idx = r.perms.indexOf(pid);
+        if (idx >= 0) r.perms.splice(idx,1); else r.perms.push(pid);
+        sw.classList.toggle('on', r.perms.indexOf(pid)>=0);
+        sw.setAttribute('aria-pressed', r.perms.indexOf(pid)>=0 ? 'true':'false');
+        var sub2=$('ur-perm-sub'); if(sub2) sub2.textContent=r.perms.length+' de '+UR_TOTAL_PERMS+' permisos activos';
+        var allBtn2=$('ur-perm-all-toggle'); if(allBtn2) allBtn2.textContent=r.perms.length===UR_TOTAL_PERMS?'Quitar todos':'Activar todos';
+        var ng = wrap.querySelector('.cf-permgroup-n');
+        var activeNow = group.items.filter(function(i){ return r.perms.indexOf(i.id)>=0; }).length;
+        if (ng) ng.textContent = activeNow+'/'+group.items.length;
+        urRenderRoles(); urSave();
+      });
+    });
+    container.appendChild(wrap);
+  });
+}
+
+// ── Acciones CRUD ────────────────────────────────────────────
+function urAddUser() {
+  var newRoleId = UR.roles.filter(function(r){ return !r.system; })[0];
+  newRoleId = newRoleId ? newRoleId.id : (UR.roles[0] ? UR.roles[0].id : '');
+  var u = { id: urGenId('u'), name: '', email: '', pass: urGenPass(), roleId: newRoleId, sucursales: [], active: true };
+  UR.users.push(u);
+  urRenderUsers();
+  urSelectUser(u.id);
+  urSave();
+}
+
+function urAddRole() {
+  var usedColors = UR.roles.map(function(r){ return r.color; });
+  var nextColor = UR_SWATCH_COLORS.find(function(c){ return usedColors.indexOf(c) < 0; }) || UR_SWATCH_COLORS[0];
+  var r = { id: urGenId('r'), name: 'Nuevo rol', color: nextColor, system: false, perms: [] };
+  UR.roles.push(r);
+  urRenderRoles();
+  urSelectRole(r.id);
+  urSave();
+}
+
+function urDeleteUser(id) {
+  UR.users = UR.users.filter(function(u){ return u.id !== id; });
+  UR.selectedUserId = null;
+  urRenderUsers();
+  urShowDefaultPane('usuarios');
+  urSave();
+  urShowToast('Usuario eliminado');
+}
+
+function urDeleteRole(id) {
+  var r = urRoleById(id);
+  if (!r) return;
+  if (r.system) { urShowToast('No puedes eliminar un rol del sistema'); return; }
+  var cnt = UR.users.filter(function(u){ return u.roleId === id; }).length;
+  if (cnt > 0) { urShowToast('Reasigna los ' + cnt + ' usuarios primero'); return; }
+  UR.roles = UR.roles.filter(function(r){ return r.id !== id; });
+  UR.selectedRoleId = null;
+  urRenderRoles();
+  urShowDefaultPane('roles');
+  urSave();
+  urShowToast('Rol eliminado');
+}
+
+function urDupUser(id) {
+  var u = urUserById(id);
+  if (!u) return;
+  var clone = JSON.parse(JSON.stringify(u));
+  clone.id = urGenId('u');
+  clone.name = (u.name || 'Usuario') + ' (copia)';
+  clone.email = '';
+  clone.pass = urGenPass();
+  UR.users.push(clone);
+  urRenderUsers();
+  urSelectUser(clone.id);
+  urSave();
+}
+
+function urDupRole(id) {
+  var r = urRoleById(id);
+  if (!r) return;
+  var clone = JSON.parse(JSON.stringify(r));
+  clone.id = urGenId('r');
+  clone.name = r.name + ' (copia)';
+  clone.system = false;
+  UR.roles.push(clone);
+  urRenderRoles();
+  urSelectRole(clone.id);
+  urSave();
+}
+
+// ── Pass toggle / gen ────────────────────────────────────────
+function urBindPassControls() {
+  var tog = $('ur-pass-toggle');
+  var gen = $('ur-pass-gen');
+  var inp = $('ur-u-pass');
+  if (tog && inp) tog.onclick = function(){ inp.type = inp.type==='password' ? 'text' : 'password'; };
+  if (gen && inp) gen.onclick = function(){
+    var np = urGenPass();
+    inp.value = np;
+    inp.type = 'text';
+    var u = urUserById(UR.selectedUserId);
+    if (u) { u.pass = np; urSave(); }
+  };
+}
+
+// ── Init ─────────────────────────────────────────────────────
+function urInit() {
+  urLoad();
+  // Tabs
+  document.querySelectorAll('[data-urtab]').forEach(function(btn){
+    btn.addEventListener('click', function(){ urSetTab(btn.dataset.urtab); });
+  });
+  // Botón nuevo
+  var addBtn = $('ur-btn-add');
+  if (addBtn) addBtn.addEventListener('click', function(){
+    if (UR.activeTab === 'usuarios') urAddUser(); else urAddRole();
+  });
+  // Cerrar inspectores
+  var closeUser = $('ur-close-user');
+  if (closeUser) closeUser.addEventListener('click', function(){
+    UR.selectedUserId = null; urRenderUsers(); urShowDefaultPane('usuarios');
+  });
+  var closeRole = $('ur-close-role');
+  if (closeRole) closeRole.addEventListener('click', function(){
+    UR.selectedRoleId = null; urRenderRoles(); urShowDefaultPane('roles');
+  });
+  // Duplicar / eliminar
+  var uDup = $('ur-u-dup');
+  if (uDup) uDup.addEventListener('click', function(){ if (UR.selectedUserId) urDupUser(UR.selectedUserId); });
+  var uDel = $('ur-u-del');
+  if (uDel) uDel.addEventListener('click', function(){ if (UR.selectedUserId) urDeleteUser(UR.selectedUserId); });
+  var rDup = $('ur-r-dup');
+  if (rDup) rDup.addEventListener('click', function(){ if (UR.selectedRoleId) urDupRole(UR.selectedRoleId); });
+  var rDel = $('ur-r-del');
+  if (rDel) rDel.addEventListener('click', function(){ if (UR.selectedRoleId) urDeleteRole(UR.selectedRoleId); });
+  urBindPassControls();
+  // Render inicial
+  urRenderUsers();
+  urRenderRoles();
+  urSetTab('usuarios');
+}
