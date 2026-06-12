@@ -887,7 +887,13 @@ async function urLoad() {
       name:        u.name || '',
       email:       u.email || '',
       pass:        u.pass_temp || '',
-      roleId:      u.role_id || (role ? role.id : (UR.roles[0]||{}).id),
+      roleId:      (function(){
+        var re=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        var base = u.role_id || (role ? role.id : null);
+        if(re.test(base)) return base;
+        var saved = UR.roles.find(function(r){ return re.test(r.id) && !r.system; });
+        return saved ? saved.id : null;
+      })(),
       sucursales:  u.sucursales || [],
       active:      u.active !== false
     };
@@ -952,7 +958,7 @@ async function urUpdateAuthUser(u) {
     name:       u.name,
     email:      u.email,
     role:       role ? role.name.toLowerCase() : 'empleado',
-    role_id:    u.roleId || null,
+    role_id:    (function(v){ var re=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i; return re.test(v)?v:null; })(u.roleId),
     active:     u.active !== false,
     sucursales: u.sucursales || [],
     pass_temp:  u.pass
