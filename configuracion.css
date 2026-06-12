@@ -364,3 +364,42 @@ input::placeholder { color: var(--ink-4); }
   color: #5B6BFF;
   font-weight: 700;
 }
+
+/* ===== SELECTOR DE INDICATIVO (dial) en pantalla General ===== */
+.cf-form-inputwrap.has-dial {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid #ECEEF2;
+  border-radius: 9px;
+  overflow: hidden;
+  background: #fff;
+  transition: border-color .15s, box-shadow .15s;
+}
+.cf-form-inputwrap.has-dial:focus-within {
+  border-color: #5B6BFF;
+  box-shadow: 0 0 0 3px rgba(91,107,255,.1);
+}
+.cf-dial {
+  border: none;
+  border-right: 1px solid #ECEEF2;
+  background: #F8FAFC;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 0 10px;
+  cursor: pointer;
+  outline: none;
+  flex-shrink: 0;
+  min-width: 130px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.cf-dial:focus { background: #F4F6FF; }
+.cf-form-inputwrap.has-dial .cf-form-input {
+  border: none;
+  border-radius: 0;
+  box-shadow: none !important;
+  flex: 1;
+  padding-left: 12px;
+}

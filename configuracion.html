@@ -258,6 +258,10 @@
         <div class="cf-form-card">
           <h3 class="cf-form-card-title">Marca / Restaurante</h3>
           <div class="cf-form-field">
+            <label class="cf-form-label" for="gen-nombre">Nombre del gerente</label>
+            <input class="cf-form-input" id="gen-nombre" placeholder="Ej. Juan Garcia" autocomplete="off">
+          </div>
+          <div class="cf-form-field">
             <label class="cf-form-label" for="gen-brand-name">Nombre del restaurante</label>
             <input class="cf-form-input" id="gen-brand-name" placeholder="Ej. El Parche Food" autocomplete="off">
           </div>
@@ -290,17 +294,41 @@
               </button>
             </div>
           </div>
-          <div class="cf-form-grid2">
-            <div class="cf-form-field">
+          <div class="cf-form-field">
               <label class="cf-form-label" for="gen-phone">Telefono de contacto</label>
-              <div class="cf-form-inputwrap has-pfx">
-                <span class="cf-form-pfx">+57</span>
+              <div class="cf-form-inputwrap has-dial">
+                <select class="cf-dial" id="gen-dial">
+              <option value="57" selected>&#127464;&#127476; +57 Colombia</option>
+              <option value="52">&#127474;&#127485; +52 Mexico</option>
+              <option value="54">&#127462;&#127479; +54 Argentina</option>
+              <option value="56">&#127464;&#127473; +56 Chile</option>
+              <option value="51">&#127477;&#127466; +51 Peru</option>
+              <option value="58">&#127483;&#127466; +58 Venezuela</option>
+              <option value="593">&#127466;&#127464; +593 Ecuador</option>
+              <option value="591">&#127463;&#127476; +591 Bolivia</option>
+              <option value="595">&#127477;&#127486; +595 Paraguay</option>
+              <option value="598">&#127482;&#127486; +598 Uruguay</option>
+              <option value="507">&#127477;&#127462; +507 Panama</option>
+              <option value="506">&#127464;&#127479; +506 Costa Rica</option>
+              <option value="502">&#127468;&#127481; +502 Guatemala</option>
+              <option value="503">&#127480;&#127483; +503 El Salvador</option>
+              <option value="504">&#127469;&#127475; +504 Honduras</option>
+              <option value="505">&#127475;&#127470; +505 Nicaragua</option>
+              <option value="1">&#127482;&#127480; +1 EE.UU.</option>
+              <option value="34">&#127466;&#127480; +34 Espana</option>
+              <option value="44">&#127468;&#127463; +44 Reino Unido</option>
+                </select>
                 <input class="cf-form-input" id="gen-phone" inputmode="tel" placeholder="300 000 0000" autocomplete="off">
               </div>
             </div>
+          <div class="cf-form-grid2">
             <div class="cf-form-field">
               <label class="cf-form-label" for="gen-city">Ciudad</label>
               <input class="cf-form-input" id="gen-city" placeholder="Ej. Medellin" autocomplete="off">
+            </div>
+            <div class="cf-form-field">
+              <label class="cf-form-label" for="gen-country">Pais</label>
+              <input class="cf-form-input" id="gen-country" placeholder="Colombia" autocomplete="off">
             </div>
           </div>
         </div>

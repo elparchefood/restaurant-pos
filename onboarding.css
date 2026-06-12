@@ -130,3 +130,42 @@ input::placeholder{color:var(--ink-4);}
 .ob-btn-success{background:var(--success);color:#fff;box-shadow:0 4px 14px -4px rgba(22,163,74,.55);}
 .ob-btn-success:hover{background:#15803D;}
 .ob-btn.block{width:100%;padding:14px;font-size:14px;}
+
+/* ===== SELECTOR DE INDICATIVO (dial) ===== */
+.ob-inputwrap.has-dial {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: #fff;
+  transition: border-color .15s, box-shadow .15s;
+}
+.ob-inputwrap.has-dial:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(91,107,255,.12);
+}
+.ob-dial {
+  border: none;
+  border-right: 1px solid var(--border);
+  background: var(--soft-2, #F8FAFC);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 0 10px;
+  cursor: pointer;
+  outline: none;
+  flex-shrink: 0;
+  min-width: 130px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.ob-dial:focus { background: var(--accent-bg, #F4F6FF); }
+.ob-inputwrap.has-dial .ob-input {
+  border: none;
+  border-radius: 0;
+  box-shadow: none !important;
+  flex: 1;
+  padding-left: 12px;
+}

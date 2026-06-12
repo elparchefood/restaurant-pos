@@ -197,9 +197,12 @@
 
   /* ── Crear tenant / brand / branch en Supabase ───────────────── */
   async function createRestaurant() {
+    var nombre_gerente = val('f-nombre');
     var nombre    = val('f-name');
-    var telefono  = '+57 ' + val('f-phone');
+    var dial      = (document.getElementById('f-dial') || {value:'57'}).value;
+    var telefono  = '+' + dial + ' ' + val('f-phone');
     var ciudad    = val('f-city');
+    var pais      = val('f-country') || 'Colombia';
     var branchNom = val('f-branch');
     var direccion = val('f-addr');
     var goalRaw   = (byId('f-goal').value || '').replace(/\D/g, '');
@@ -246,8 +249,9 @@
         id:                  user.id,
         branch_id:           branch.id,
         tenant_id:           tenant.id,
-        name:                user.user_metadata?.nombre || nombre,
+        name:                nombre_gerente || nombre,
         role:                'gerente',
+        phone:               telefono,
         is_authorized_admin: true
       });
     } catch (e) {
@@ -260,7 +264,12 @@
         tenant_id: tenant.id,
         branch_id: branch.id,
         negocio:   nombre,
-        tipo:      S.type
+        tipo:      S.type,
+        nombre:    nombre_gerente,
+        ciudad:    ciudad,
+        pais:      pais,
+        telefono:  telefono,
+        daily_goal: metaDiaria
       }
     });
     if (metaErr) console.warn('[onboarding] updateUser meta error:', metaErr);

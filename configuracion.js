@@ -597,35 +597,57 @@ async function loadGeneral() {
     var res = await sb.auth.getUser();
     var user = res.data && res.data.user;
     if (!user) return;
-    var meta = user.user_metadata || {};
-    var brandId  = null;
+    var meta     = user.user_metadata || {};
     var branchId = meta.branch_id;
+    var brandId  = null;
 
-    // Cargar branch
+    // Nombre del gerente desde pos_users, fallback metadata
+    var puRes = await sb.from('pos_users').select('name,phone').eq('id', user.id).maybeSingle();
+    if (puRes.data && puRes.data.name) {
+      $('gen-nombre').value = puRes.data.name;
+    } else {
+      $('gen-nombre').value = meta.nombre || '';
+    }
+
+    // Cargar branch (nombre + direccion)
     if (branchId) {
-      var br = await sb.from('branches').select('id,name,address,city,phone,daily_goal,brand_id').eq('id', branchId).single();
+      var br = await sb.from('branches').select('id,name,address,brand_id').eq('id', branchId).single();
       if (br.data) {
-        var b = br.data;
-        brandId = b.brand_id;
-        $('gen-branch-name').value = b.name || '';
-        $('gen-addr').value        = b.address || '';
-        $('gen-city').value        = b.city || '';
-        $('gen-phone').value       = (b.phone || '').replace('+57', '').trim();
-        if (b.daily_goal) {
-          $('gen-goal').value = Number(b.daily_goal).toLocaleString('es-CO');
-        }
+        brandId = br.data.brand_id;
+        $('gen-branch-name').value = br.data.name    || '';
+        $('gen-addr').value        = br.data.address || '';
       }
     }
 
     // Cargar brand
     if (brandId) {
       var bd = await sb.from('brands').select('id,name').eq('id', brandId).single();
-      if (bd.data) {
-        $('gen-brand-name').value = bd.data.name || '';
+      if (bd.data) $('gen-brand-name').value = bd.data.name || '';
+    }
+
+    // Ciudad, pais, meta diaria desde user_metadata
+    $('gen-city').value    = meta.ciudad || '';
+    $('gen-country').value = meta.pais   || 'Colombia';
+    if (meta.daily_goal) {
+      $('gen-goal').value = Number(meta.daily_goal).toLocaleString('es-CO');
+    }
+
+    // Telefono: separar indicativo del numero
+    var telFull = meta.telefono || (puRes.data && puRes.data.phone) || '';
+    var dialSel = $('gen-dial');
+    if (telFull && dialSel) {
+      var m = telFull.match(/^\+(\d{1,4})\s*(.*)/);
+      if (m) {
+        for (var i = 0; i < dialSel.options.length; i++) {
+          if (dialSel.options[i].value === m[1]) { dialSel.selectedIndex = i; break; }
+        }
+        $('gen-phone').value = m[2];
+      } else {
+        $('gen-phone').value = telFull;
       }
     }
 
-    // Tipo de negocio desde user_metadata
+    // Tipo de negocio
     setGenType(meta.tipo || 'Restaurante');
 
   } catch(e) {
@@ -641,14 +663,18 @@ async function saveGeneral() {
     var res = await sb.auth.getUser();
     var user = res.data && res.data.user;
     if (!user) throw new Error('Sin sesion');
-    var meta     = user.user_metadata || {};
-    var branchId = meta.branch_id;
+    var meta        = user.user_metadata || {};
+    var branchId    = meta.branch_id;
+    var nombre      = ($('gen-nombre').value     || '').trim();
     var brandName   = ($('gen-brand-name').value || '').trim();
     var branchName  = ($('gen-branch-name').value || '').trim();
-    var addr        = ($('gen-addr').value || '').trim();
-    var city        = ($('gen-city').value || '').trim();
-    var phone       = ($('gen-phone').value || '').trim();
-    var goalRaw     = ($('gen-goal').value || '').replace(/\D/g, '');
+    var addr        = ($('gen-addr').value        || '').trim();
+    var city        = ($('gen-city').value        || '').trim();
+    var country     = ($('gen-country').value     || 'Colombia').trim();
+    var dialCode    = $('gen-dial') ? $('gen-dial').value : '57';
+    var phoneNum    = ($('gen-phone').value       || '').trim();
+    var fullPhone   = phoneNum ? ('+' + dialCode + ' ' + phoneNum) : '';
+    var goalRaw     = ($('gen-goal').value        || '').replace(/\D/g, '');
     var dailyGoal   = goalRaw ? Number(goalRaw) : null;
 
     if (!brandName || !branchName) {
@@ -660,23 +686,44 @@ async function saveGeneral() {
     var brData = await sb.from('branches').select('brand_id').eq('id', branchId).single();
     var brandId = brData.data && brData.data.brand_id;
 
-    // Actualizar branch
-    var branchUpdate = { name: branchName, address: addr, city: city };
-    if (phone) branchUpdate.phone = '+57 ' + phone;
-    if (dailyGoal) branchUpdate.daily_goal = dailyGoal;
-    else branchUpdate.daily_goal = null;
-    await sb.from('branches').update(branchUpdate).eq('id', branchId);
+    // Actualizar branch (solo name y address; city/phone/country en metadata)
+    await sb.from('branches').update({ name: branchName, address: addr }).eq('id', branchId);
 
     // Actualizar brand
     if (brandId) {
       await sb.from('brands').update({ name: brandName }).eq('id', brandId);
     }
 
-    // Actualizar user_metadata
-    await sb.auth.updateUser({ data: { negocio: brandName, tipo: G_TYPE } });
+    // Actualizar pos_users (nombre + teléfono del gerente)
+    try {
+      var puUpdate = {};
+      if (nombre)    puUpdate.name  = nombre;
+      if (fullPhone) puUpdate.phone = fullPhone;
+      if (Object.keys(puUpdate).length) {
+        await sb.from('pos_users').update(puUpdate).eq('id', user.id);
+      }
+    } catch(e) { console.warn('pos_users update:', e); }
 
-    // Refrescar topbar
+    // Actualizar user_metadata
+    await sb.auth.updateUser({
+      data: {
+        nombre:     nombre,
+        negocio:    brandName,
+        tipo:       G_TYPE,
+        ciudad:     city,
+        pais:       country,
+        telefono:   fullPhone,
+        daily_goal: dailyGoal
+      }
+    });
+
+    // Refrescar topbar inmediatamente
     $('brand-sub').textContent = branchName;
+    if (nombre) {
+      $('user-name').textContent = nombre;
+      var ini = nombre.split(' ').map(function(w){ return w[0]; }).slice(0,2).join('').toUpperCase();
+      $('user-av').textContent = ini || 'G';
+    }
 
     showToast('Cambios guardados');
   } catch(e) {
