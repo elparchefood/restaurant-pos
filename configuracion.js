@@ -926,17 +926,17 @@ async function urCreateAuthUser(u, tenantId, branchId) {
   if (!authRes.id) throw new Error('Error creando usuario en Auth');
   var authUserId = authRes.id;
 
-  // 2. Insertar en pos_users
+  // 2. Insertar en pos_users — UUIDs vacíos → null para evitar error de tipo
   var insertRes = await sb.from('pos_users').insert({
     name:         u.name,
     email:        u.email,
     phone:        '',
     role:         role ? role.name.toLowerCase() : 'empleado',
-    role_id:      u.roleId,
-    branch_id:    branchId,
+    role_id:      u.roleId  || null,
+    branch_id:    branchId  || null,
     active:       u.active !== false,
     sucursales:   u.sucursales || [],
-    auth_user_id: authUserId,
+    auth_user_id: authUserId   || null,
     pass_temp:    u.pass
   }).select().single();
 
@@ -952,7 +952,7 @@ async function urUpdateAuthUser(u) {
     name:       u.name,
     email:      u.email,
     role:       role ? role.name.toLowerCase() : 'empleado',
-    role_id:    u.roleId,
+    role_id:    u.roleId || null,
     active:     u.active !== false,
     sucursales: u.sucursales || [],
     pass_temp:  u.pass
