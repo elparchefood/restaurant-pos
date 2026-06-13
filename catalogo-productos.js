@@ -30,6 +30,7 @@ const S = {
   aiProgress:0, aiStepKey:'inventory', aiMsgIdx:0,
   aiEditKey:null, aiExcludedMods:{},
   selectMode:false, selected:new Set(), loading:true,
+  bases:[], editBase:null,
 };
 
 // ── Fotos Supabase Storage ──────────────────────────────────────────────
@@ -130,6 +131,69 @@ function toast(msg){const el=$('cp-toast');if(!el)return;el.innerHTML='<svg widt
 function catOf(id){return S.cats.find(c=>c.id===id)||{id:'_',name:'Sin categoria',color:'#94A3B8',tint:'#F1F5F9',ring:'#ECEEF2'};}
 function modById(id){return S.mods.find(m=>m.id===id);}
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+
+function descWithBase(desc){
+  if(!desc)return'';
+  return escHtml(desc).replace(/\bbase\b/gi,function(m){return'<span class="cc-base-link" onclick="openBaseModal(\''+m+'\')" title="Ver/editar ingredientes de esta base">'+m+'</span>';});
+}
+
+function openBaseModal(baseName){
+  const key=(baseName||'base').toLowerCase().trim();
+  const found=(S.bases||[]).find(b=>b.name.toLowerCase()===key);
+  S.editBase=JSON.parse(JSON.stringify(found||{id:null,name:baseName||'Base',ingredients:[]}));
+  renderBaseModal();
+}
+function renderBaseModal(){
+  const b=S.editBase;
+  const rows=b.ingredients.map((ing,i)=>
+    '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">'
+    +'<input class="cc-input" style="flex:1;font-size:13px" value="'+escHtml(ing)+'" placeholder="Ej. Arroz blanco" oninput="setBaseIng('+i+',this.value)">'
+    +'<button class="cc-mini-del" onclick="removeBaseIng('+i+')">'+icon('x',13)+'</button>'
+    +'</div>'
+  ).join('');
+  openOverlay(
+    '<div class="cc-overlay" onmousedown="handleOverlayClose(event)">'
+    +'<aside class="cc-drawer" onmousedown="event.stopPropagation()" style="max-width:420px">'
+    +'<div class="cc-drawer-head">'
+    +'<div style="display:flex;align-items:center;gap:10px">'
+    +'<span class="cc-drawer-glyph" style="color:#8B5CF6;background:#F5F3FF">'+icon('layers',17)+'</span>'
+    +'<div><div class="cc-drawer-eyebrow">Receta compartida</div>'
+    +'<div class="cc-drawer-title">'+escHtml(b.name)+'</div></div></div>'
+    +'<button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div>'
+    +'<div class="cc-drawer-body">'
+    +'<p style="font-size:12.5px;color:#64748B;margin-bottom:16px;line-height:1.55">Define los ingredientes que lleva esta base. Todos los productos que la mencionen la usarán en el módulo de inventario.</p>'
+    +'<div id="base-ing-list">'+rows+'</div>'
+    +'<button class="lm-btn-ghost" style="margin-top:8px;width:100%" onclick="addBaseIng()">'+icon('plus',13)+' Agregar ingrediente</button>'
+    +'</div>'
+    +'<div class="cc-drawer-foot"><div></div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button>'
+    +'<button class="lm-btn-primary" onclick="saveBase()">'+icon('check',14)+' Guardar base</button>'
+    +'</div></div>'
+    +'</aside></div>'
+  );
+}
+function setBaseIng(i,val){if(S.editBase)S.editBase.ingredients[i]=val;}
+function addBaseIng(){if(!S.editBase)return;S.editBase.ingredients.push('');renderBaseModal();}
+function removeBaseIng(i){if(!S.editBase)return;S.editBase.ingredients.splice(i,1);renderBaseModal();}
+async function saveBase(){
+  const b=S.editBase;if(!b)return;
+  b.ingredients=b.ingredients.filter(x=>x.trim());
+  const row={tenant_id:S.tenantId,name:b.name,ingredients:b.ingredients};
+  let savedId=b.id;
+  try{
+    if(b.id){await sb.from('pos_bases').update(row).eq('id',b.id).eq('tenant_id',S.tenantId);}
+    else{const{data,error}=await sb.from('pos_bases').insert([row]).select().single();if(error)throw error;savedId=data.id;}
+  }catch(e){console.error('saveBase:',e);toast('Error al guardar base');return;}
+  b.id=savedId;
+  const idx=(S.bases||[]).findIndex(x=>x.name.toLowerCase()===b.name.toLowerCase());
+  if(idx>=0)S.bases[idx]=b;else{S.bases=S.bases||[];S.bases.push(b);}
+  closeOverlay();toast('Base "'+b.name+'" guardada ✓');
+}
+async function loadBases(){
+  try{const{data}=await sb.from('pos_bases').select('*').eq('tenant_id',S.tenantId);S.bases=data||[];}
+  catch(e){}
+}
 
 function icon(name,size,sw){
   size=size||16;sw=sw||2;
@@ -276,7 +340,7 @@ function productCardHTML(p){
   const _selClass=S.selectMode&&S.selected.has(p.id)?' cp-selected':'';
   const _chkHtml=S.selectMode?'<div class="cp-card-check">'+(S.selected.has(p.id)?'<svg width="16" height="16" viewBox="0 0 24 24" fill="#8B5CF6"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4" stroke="#fff" stroke-width="2.5" fill="none"/></svg>':'<svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#CBD5E1" stroke-width="2"/></svg>')+'</div>':'';
   const _cardClick=S.selectMode?('toggleSelect(\''+p.id+'\')'):('openEditor(\''+p.id+'\''+',\'product\')');
-  return '<div class="cp-card'+_selClass+'" style="'+(p.active?'':'opacity:.72')+'" onclick="'+_cardClick+'">'+_chkHtml+'<div class="cp-thumb">'+thumb+'<span class="cp-cat-chip" style="color:'+cat.color+';background:'+cat.tint+'">'+escHtml(cat.name)+'</span>'+inactive+'</div>'+'<div class="cp-card-body"><div class="cp-card-row"><div class="cp-card-name">'+escHtml(p.name)+'</div><div class="cp-card-price">'+range+'</div></div>'+(p.desc?'<div class="cp-card-desc">'+escHtml(p.desc)+'</div>':'')+'<div class="cp-meta-row"><span class="cp-meta-tag">'+icon('layers',12)+' '+p.presentations.length+' '+(p.presentations.length===1?'presentación':'presentaciones')+'</span>'+varTag+'<span class="cp-meta-tag">'+icon('tag',12)+' '+(groups.length?(groups.length+' '+(groups.length===1?'grupo':'grupos')+' · '+opts+' adic.'):'Sin adiciones')+'</span></div></div>'+'<div class="cp-card-foot" onclick="event.stopPropagation()"><button class="cp-switch'+(p.active?' on':'')+'" onclick="toggleProduct(\''+p.id+'\')"><span class="cp-switch-lbl">'+(p.active?'Activo':'Inactivo')+'</span><span class="cp-switch-track"><span class="cp-switch-knob"></span></span></button><div style="display:flex;gap:5px;align-items:center"><button class="cp-card-del-btn" onclick="confirmDeleteProduct(\''+p.id+'\')" title="Eliminar">'+icon('trash',13)+'</button><button class="cp-card-edit-btn" onclick="openEditor(\''+p.id+'\',\'product\')">Editar '+icon('chevron',13)+'</button></div></div></div>';
+  return '<div class="cp-card'+_selClass+'" style="'+(p.active?'':'opacity:.72')+'" onclick="'+_cardClick+'">'+_chkHtml+'<div class="cp-thumb">'+thumb+'<span class="cp-cat-chip" style="color:'+cat.color+';background:'+cat.tint+'">'+escHtml(cat.name)+'</span>'+inactive+'</div>'+'<div class="cp-card-body"><div class="cp-card-row"><div class="cp-card-name">'+escHtml(p.name)+'</div><div class="cp-card-price">'+range+'</div></div>'+(p.desc?'<div class="cp-card-desc">'+descWithBase(p.desc)+'</div>':'')+'<div class="cp-meta-row"><span class="cp-meta-tag">'+icon('layers',12)+' '+p.presentations.length+' '+(p.presentations.length===1?'presentación':'presentaciones')+'</span>'+varTag+'<span class="cp-meta-tag">'+icon('tag',12)+' '+(groups.length?(groups.length+' '+(groups.length===1?'grupo':'grupos')+' · '+opts+' adic.'):'Sin adiciones')+'</span></div></div>'+'<div class="cp-card-foot" onclick="event.stopPropagation()"><button class="cp-switch'+(p.active?' on':'')+'" onclick="toggleProduct(\''+p.id+'\')"><span class="cp-switch-lbl">'+(p.active?'Activo':'Inactivo')+'</span><span class="cp-switch-track"><span class="cp-switch-knob"></span></span></button><div style="display:flex;gap:5px;align-items:center"><button class="cp-card-del-btn" onclick="confirmDeleteProduct(\''+p.id+'\')" title="Eliminar">'+icon('trash',13)+'</button><button class="cp-card-edit-btn" onclick="openEditor(\''+p.id+'\',\'product\')">Editar '+icon('chevron',13)+'</button></div></div></div>';
 }
 
 function confirmDeleteProduct(id){
@@ -767,7 +831,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Cargar datos del usuario autenticado
   try {
-    await Promise.all([loadCategories(), loadModifierGroups()]);
+    await Promise.all([loadCategories(), loadModifierGroups(), loadBases()]);
     await loadProducts();
     await loadCombos();
   } catch(e) {
