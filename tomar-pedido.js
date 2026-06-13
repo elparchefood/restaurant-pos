@@ -380,7 +380,17 @@ function tpComputePrice(){
   const p=TP_WIP.prod, isMatrix=p&&p.price_mode==='matrix';
   let base;
   if(isMatrix){
-    base=Object.values(TP_WIP.vars).reduce((s,v)=>s+(v.price||0),0);
+    const presIdx=(p.presentations||[]).findIndex(pr=>pr.id===TP_WIP.pres?.id);
+    base=Object.values(TP_WIP.vars).reduce((s,v)=>{
+      let price=v.price||0;
+      if(presIdx>=0){
+        for(const vg of p.variables||[]){
+          const o=(vg.options||[]).find(o=>o.id===v.id);
+          if(o&&Array.isArray(o.prices)&&o.prices.length){price=o.prices[presIdx]||0;break;}
+        }
+      }
+      return s+price;
+    },0);
   } else {
     // If pres.price is 0/null, fall back to product base price
     const baseP = p ? parseFloat(p.price)||0 : 0;
@@ -462,15 +472,17 @@ function tpRenderMP(){
 
 function pmBuildPresPane(p){
   const pres=p.presentations||[];
+  const hasVars=(p.variables||[]).length>0;
   return '<div class="pm-choice-grid">'+pres.map(pr=>{
     const on=TP_WIP.pres&&TP_WIP.pres.id===pr.id;
     const thumb=pr.photo_url
       ?'<div class="pm-choice-thumb"><img src="'+pmAttr(pr.photo_url)+'" style="width:100%;height:100%;object-fit:cover"></div>'
       :'<div class="pm-choice-thumb ph"><span>'+pmEsc(pr.name)+'</span></div>';
+    const priceLabel=hasVars?'Incluido':(pr.price?pmFmt(pr.price):'Incluido');
     return '<button class="pm-choice'+(on?' on':'')+'" data-pres-id="'+pmAttr(pr.id)+'" data-pres-name="'+pmAttr(pr.name)+'" data-pres-price="'+(pr.price||0)+'">'
       +thumb
       +'<div class="pm-choice-body"><div class="pm-choice-name">'+pmEsc(pr.name)+'</div>'
-      +'<div class="pm-choice-price">'+(pr.price?pmFmt(pr.price):'Incluido')+'</div></div>'
+      +'<div class="pm-choice-price">'+priceLabel+'</div></div>'
       +'<span class="pm-radio">'+(on?PM_SVG.check:'')+'</span>'
       +'</button>';
   }).join('')+'</div>';
@@ -478,13 +490,17 @@ function pmBuildPresPane(p){
 
 function pmBuildVarPane(p){
   const vars=p.variables||[];
+  const isMatrix=p.price_mode==='matrix';
+  const presIdx=(p.presentations||[]).findIndex(pr=>pr.id===TP_WIP.pres?.id);
   return '<div style="display:flex;flex-direction:column;gap:20px">'+vars.map(v=>{
     return '<div><div style="font-size:12px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">'+pmEsc(v.name)+'</div>'
       +'<div class="pm-choice-grid">'+(v.options||[]).map(o=>{
         const sel=TP_WIP.vars[v.id]&&TP_WIP.vars[v.id].id===o.id;
-        return '<button class="pm-choice compact'+(sel?' on':'')+'" data-var-id="'+pmAttr(v.id)+'" data-opt-id="'+pmAttr(o.id)+'" data-opt-name="'+pmAttr(o.name)+'" data-opt-price="'+(o.price||0)+'">'
+        const optPrice=isMatrix&&Array.isArray(o.prices)&&presIdx>=0?(o.prices[presIdx]||0):o.price||0;
+        const priceLabel=optPrice?(isMatrix?pmFmt(optPrice):'+'+pmFmt(optPrice)):'Incluido';
+        return '<button class="pm-choice compact'+(sel?' on':'')+'" data-var-id="'+pmAttr(v.id)+'" data-opt-id="'+pmAttr(o.id)+'" data-opt-name="'+pmAttr(o.name)+'" data-opt-price="'+optPrice+'">'
           +'<div class="pm-choice-body"><div class="pm-choice-name">'+pmEsc(o.name)+'</div>'
-          +'<div class="pm-choice-price">'+(o.price?'+'+pmFmt(o.price):'Incluido')+'</div></div>'
+          +'<div class="pm-choice-price">'+priceLabel+'</div></div>'
           +'<span class="pm-radio">'+(sel?PM_SVG.check:'')+'</span>'
           +'</button>';
       }).join('')+'</div></div>';
