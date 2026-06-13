@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Mi turno · Lumen POS</title>
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#5B6BFF">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="mesero-turno.css">
+</head>
+<body>
+
+  <div class="turno-backdrop">
+    <div class="turno-card">
+
+      <!-- Header -->
+      <div class="turno-header">
+        <div class="turno-brand">
+          <div class="turno-logo">L</div>
+          <span class="turno-brand-name">Lumen POS</span>
+        </div>
+        <div id="turno-time" class="turno-time">--:--</div>
+      </div>
+
+      <!-- Cuerpo -->
+      <div class="turno-body">
+
+        <div id="turno-avatar" class="turno-avatar">?</div>
+
+        <div class="turno-saludo">Hola de nuevo</div>
+        <div id="turno-nombre" class="turno-nombre">Cargando…</div>
+        <div id="turno-rol" class="turno-rol">—</div>
+
+        <!-- Info turno activo -->
+        <div id="turno-activo-info" class="turno-activo-info">
+          <span class="turno-activo-label">● Turno activo</span>
+          <span id="turno-activo-hora" class="turno-activo-hora"></span>
+          <span id="turno-activo-duracion" class="turno-activo-duracion"></span>
+        </div>
+
+        <!-- Botón principal -->
+        <button id="turno-btn-primary" class="turno-btn-primary">
+          <div id="turno-btn-primary-spinner" class="btn-spinner"></div>
+          <span id="turno-btn-primary-text">Iniciar turno</span>
+        </button>
+
+        <!-- Botón cerrar turno -->
+        <button id="turno-btn-cerrar" class="turno-btn-danger">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Cerrar turno
+        </button>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="turno-footer">
+        <span class="turno-footer-info">Tablet · Mesero</span>
+        <button id="turno-logout" class="turno-logout">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Cerrar sesión
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="turno-toast" class="turno-toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="mesero-turno.js"></script>
+
+</body>
+</html>

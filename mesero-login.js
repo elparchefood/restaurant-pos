@@ -14,10 +14,10 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 // Rutas por rol — ajustar cuando existan las demás páginas
 const ROLE_ROUTES = {
-  mesero:  'ventas.html',
-  cajera:  'ventas.html',   // temporal hasta que exista cajera.html
-  admin:   'ventas.html',   // temporal hasta que exista dashboard.html
-  cocina:  'ventas.html',   // temporal hasta que exista cocina.html
+  mesero:  'mesero-turno.html',
+  cajera:  'mesero-turno.html',  // temporal hasta que exista cajera.html
+  admin:   'mesero-turno.html',  // temporal hasta que exista dashboard.html
+  cocina:  'mesero-turno.html',  // temporal hasta que exista cocina.html
 };
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -30,6 +30,13 @@ const loginBtn    = document.getElementById('login-btn');
 const btnText     = document.getElementById('btn-text');
 const btnSpinner  = document.getElementById('btn-spinner');
 const errorBanner = document.getElementById('login-error');
+
+
+// ── Guard: si ya hay sesión activa, saltar el login ──────
+(async function checkSession() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) window.location.href = 'mesero-turno.html';
+})();
 
 // ── Toggle ver/ocultar contraseña ─────────────────────────
 eyeBtn.addEventListener('click', () => {

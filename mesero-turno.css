@@ -1,0 +1,266 @@
+/* ============================================================
+   LUMEN POS · TABLET MESERO — Pantalla de turno
+   Tokens idénticos al sistema (DM Sans, #5B6BFF, #FAFAFB).
+   Layout centrado, optimizado para tablet horizontal.
+   ============================================================ */
+
+:root {
+  --bg:        #FAFAFB;
+  --surface:   #FFFFFF;
+  --border:    #ECEEF2;
+  --ink:       #0F172A;
+  --ink-2:     #475569;
+  --ink-3:     #64748B;
+  --ink-4:     #94A3B8;
+  --accent:    #5B6BFF;
+  --accent-2:  #8B5CF6;
+  --accent-50: #EEF2FF;
+  --success:   #10B981;
+  --success-bg:#ECFDF5;
+  --success-bd:#A7F3D0;
+  --danger:    #DC2626;
+  --danger-bg: #FEF2F2;
+  --danger-bd: #FECACA;
+  --r-card:    20px;
+  --r-md:      12px;
+  --r-sm:      9px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%; width: 100%;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+button { font-family: inherit; cursor: pointer; }
+
+/* ── Fondo con halos ── */
+.turno-backdrop {
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(800px 500px at 10% 50%, #EEF2FF 0%, rgba(238,242,255,0) 65%),
+    radial-gradient(600px 400px at 95% 50%, #F3EEFF 0%, rgba(243,238,255,0) 60%),
+    var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+/* ── Tarjeta central ── */
+.turno-card {
+  width: 100%;
+  max-width: 540px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow:
+    0 36px 90px -30px rgba(15,23,42,.24),
+    0 8px 24px -12px rgba(15,23,42,.08);
+  overflow: hidden;
+}
+
+/* ── Header de la tarjeta ── */
+.turno-header {
+  padding: 28px 36px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.turno-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.turno-logo {
+  width: 38px; height: 38px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 800; color: #fff;
+}
+
+.turno-brand-name {
+  font-size: 15px; font-weight: 700; color: var(--ink);
+}
+
+.turno-time {
+  font-size: 13px; font-weight: 600;
+  color: var(--ink-3);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  letter-spacing: .01em;
+}
+
+/* ── Cuerpo ── */
+.turno-body {
+  padding: 36px 36px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  text-align: center;
+}
+
+/* Avatar del mesero */
+.turno-avatar {
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 30px; font-weight: 800; color: #fff;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 24px -8px rgba(91,107,255,.45);
+}
+
+.turno-saludo {
+  font-size: 12px; font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase; letter-spacing: .08em;
+  margin-bottom: 6px;
+}
+
+.turno-nombre {
+  font-size: 26px; font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+.turno-rol {
+  font-size: 13px; font-weight: 600;
+  color: var(--ink-4);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 14px;
+  margin-bottom: 32px;
+}
+
+/* Info de turno activo (cuando ya tiene uno) */
+.turno-activo-info {
+  display: none;
+  width: 100%;
+  background: var(--success-bg);
+  border: 1px solid var(--success-bd);
+  border-radius: var(--r-md);
+  padding: 14px 18px;
+  margin-bottom: 24px;
+  flex-direction: column;
+  gap: 4px;
+}
+.turno-activo-info.show { display: flex; }
+
+.turno-activo-label {
+  font-size: 11px; font-weight: 700;
+  color: var(--success);
+  text-transform: uppercase; letter-spacing: .06em;
+}
+
+.turno-activo-hora {
+  font-size: 15px; font-weight: 700;
+  color: var(--ink);
+}
+
+.turno-activo-duracion {
+  font-size: 12px; color: var(--ink-3); font-weight: 500;
+}
+
+/* ── Botones ── */
+.turno-btn-primary {
+  width: 100%;
+  padding: 16px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border: none;
+  border-radius: var(--r-md);
+  font-size: 16px; font-weight: 700;
+  color: #fff;
+  box-shadow: 0 4px 14px -3px rgba(91,107,255,.45);
+  transition: opacity .15s, transform .1s;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 56px;
+  margin-bottom: 12px;
+}
+.turno-btn-primary:active { transform: scale(.98); }
+.turno-btn-primary:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+.turno-btn-danger {
+  width: 100%;
+  padding: 14px;
+  background: var(--danger-bg);
+  border: 1.5px solid var(--danger-bd);
+  border-radius: var(--r-md);
+  font-size: 14px; font-weight: 700;
+  color: var(--danger);
+  transition: background .15s, transform .1s;
+  display: none;
+  align-items: center; justify-content: center; gap: 8px;
+  min-height: 52px;
+}
+.turno-btn-danger.show { display: flex; }
+.turno-btn-danger:active { transform: scale(.98); }
+
+/* spinner */
+.btn-spinner {
+  display: none;
+  width: 18px; height: 18px;
+  border: 2.5px solid rgba(255,255,255,.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .65s linear infinite;
+}
+.btn-spinner.show { display: block; }
+.btn-spinner.dark {
+  border-color: rgba(220,38,38,.25);
+  border-top-color: var(--danger);
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Footer ── */
+.turno-footer {
+  padding: 16px 36px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.turno-footer-info {
+  font-size: 12px; color: var(--ink-4); font-weight: 500;
+}
+
+.turno-logout {
+  background: none; border: none;
+  font-size: 12px; font-weight: 600;
+  color: var(--ink-4);
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 0;
+  transition: color .15s;
+}
+.turno-logout:hover { color: var(--danger); }
+
+/* ── Toast de error ── */
+.turno-toast {
+  display: none;
+  position: fixed;
+  bottom: 32px; left: 50%; transform: translateX(-50%);
+  background: var(--ink);
+  color: #fff;
+  font-size: 13px; font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 999px;
+  box-shadow: 0 8px 24px -8px rgba(0,0,0,.3);
+  white-space: nowrap;
+  z-index: 999;
+}
+.turno-toast.show { display: block; }
