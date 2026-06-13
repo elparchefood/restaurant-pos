@@ -474,17 +474,20 @@ function updateStatusBar() {
 
 // ── Navegación ─────────────────────────────────────────────────
 const CRUMB_LABELS = { caja:'Apertura y cierre', movimientos:'Ingresos y egresos', cierres:'Cierres de caja', historial:'Historial de ventas' };
-document.querySelectorAll('.cj-nav-item[data-screen]').forEach(btn => {
-  btn.addEventListener('click', function() {
-    document.querySelectorAll('.cj-nav-item[data-screen]').forEach(b=>b.classList.remove('on'));
-    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
-    this.classList.add('on');
-    const sc = document.getElementById('screen-'+this.dataset.screen);
-    if (sc) sc.classList.add('on');
-    const crumb = document.getElementById('crumb');
-    if (crumb) crumb.textContent = CRUMB_LABELS[this.dataset.screen]||this.dataset.screen;
+function initNav() {
+  document.querySelectorAll('.cj-nav-item[data-screen]').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.cj-nav-item[data-screen]').forEach(b=>b.classList.remove('on'));
+      document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+      this.classList.add('on');
+      const sc = document.getElementById('screen-'+this.dataset.screen);
+      if (sc) sc.classList.add('on');
+      const crumb = document.getElementById('crumb');
+      if (crumb) crumb.textContent = CRUMB_LABELS[this.dataset.screen]||this.dataset.screen;
+    });
   });
-});
+}
+document.addEventListener('DOMContentLoaded', initNav);
 
 // ── Paneles ────────────────────────────────────────────────────
 function openPanel(id) { document.getElementById(id)?.classList.remove('is-hidden'); }
