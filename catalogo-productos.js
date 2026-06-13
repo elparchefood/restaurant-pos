@@ -218,7 +218,7 @@ async function saveBase(){
 function openBaseAssign(){
   const b=S.editBase;
   // Productos que tienen "base" en descripción
-  const candidates=(S.products||[]).filter(p=>/base/i.test(p.desc||''));
+  const candidates=(S.products||[]).filter(p=>/base/i.test((p.desc||p.description||''));
   const assigned=b.product_ids||[];
   const rows=candidates.length?candidates.map(p=>{
     const checked=assigned.includes(p.id);
@@ -252,7 +252,7 @@ function openBaseAssign(){
 }
 async function saveBaseAssign(){
   const b=S.editBase;if(!b)return;
-  const candidates=(S.products||[]).filter(p=>/base/i.test(p.desc||''));
+  const candidates=(S.products||[]).filter(p=>/base/i.test((p.desc||p.description||''));
   const selected=candidates.filter(p=>{const el=document.getElementById('ba-'+p.id);return el&&el.checked;}).map(p=>p.id);
   b.product_ids=selected;
   if(b.id){
