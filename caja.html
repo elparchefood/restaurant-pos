@@ -16,39 +16,21 @@
   <aside class="cj-sidebar">
     <div class="cj-brand">
       <div class="cj-brand-logo">L</div>
-      <div><div class="cj-brand-name">Lumen POS</div><div class="cj-brand-sub" id="brand-sub">El Parche Food · Caja</div></div>
+      <div><div class="cj-brand-name">Lumen POS</div><div class="cj-brand-sub">El Parche Food · Caja 01</div></div>
     </div>
     <div class="cj-side-section">Caja</div>
     <nav class="cj-nav">
-      <button class="cj-nav-item" id="nav-regresar" onclick="window.location.href='dashboard.html'">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-        Regresar
-      </button>
+      <button class="cj-nav-item" onclick="window.location.href='dashboard.html'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Regresar</button>
       <div class="cj-nav-divider"></div>
-      <button class="cj-nav-item on" data-screen="caja">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-        Apertura y cierre
-      </button>
-      <button class="cj-nav-item" data-screen="movimientos">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-        Ingresos y egresos
-      </button>
-      <button class="cj-nav-item" data-screen="cierres">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 14l6 0"/></svg>
-        Cierres de caja
-      </button>
-      <button class="cj-nav-item" data-screen="historial">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
-        Historial de ventas
-      </button>
+      <button class="cj-nav-item on" data-screen="caja"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg> Apertura y cierre</button>
+      <button class="cj-nav-item" data-screen="movimientos"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg> Ingresos y egresos</button>
+      <button class="cj-nav-item" data-screen="cierres"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 14l6 0"/></svg> Cierres de caja</button>
+      <button class="cj-nav-item" data-screen="historial"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg> Historial de ventas</button>
     </nav>
     <div class="cj-side-spacer"></div>
     <div class="cj-side-footer">
       <div class="cj-status closed" id="cj-status-indicator">
-        <div class="cj-status-top">
-          <span id="status-dot" style="width:8px;height:8px;border-radius:999px;background:#94A3B8"></span>
-          <span id="status-label">Caja cerrada</span>
-        </div>
+        <div class="cj-status-top"><span id="status-dot" style="width:8px;height:8px;border-radius:999px;background:#94A3B8"></span> <span id="status-label">Caja cerrada</span></div>
         <div class="cj-status-sub" id="status-sub">—</div>
       </div>
     </div>
@@ -59,20 +41,11 @@
     <header class="cj-topbar">
       <div style="display:flex;align-items:center;gap:16px">
         <div class="cj-mode-badge"><span style="width:6px;height:6px;border-radius:999px;background:#16A34A"></span> Modo Administrador</div>
-        <div class="cj-crumbs"><span style="color:#94A3B8">Operación</span>
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          <span class="here" id="crumb">Apertura y cierre</span>
-        </div>
+        <div class="cj-crumbs"><span style="color:#94A3B8">Operación</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg><span class="here" id="crumb">Apertura y cierre</span></div>
       </div>
       <div style="display:flex;align-items:center;gap:14px">
-        <div class="cj-pill-success">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          Sincronizado
-        </div>
-        <div class="cj-user">
-          <div class="cj-user-avatar" id="user-avatar">??</div>
-          <div><div class="n1" id="user-name">—</div><div class="n2" id="user-role">—</div></div>
-        </div>
+        <div class="cj-pill-success"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Sincronizado</div>
+        <div class="cj-user"><div class="cj-user-avatar" id="user-avatar">??</div><div><div class="n1" id="user-name">—</div><div class="n2" id="user-role">—</div></div></div>
       </div>
     </header>
 
@@ -80,57 +53,31 @@
 
       <!-- ============ APERTURA Y CIERRE ============ -->
       <div class="screen on" id="screen-caja">
-        <!-- estado: CAJA ABIERTA -->
+
+        <!-- ESTADO: CAJA ABIERTA -->
         <div id="caja-open-view">
           <div class="cj-pagehead">
-            <div>
-              <div class="cj-eyebrow">Caja · El Parche Food</div>
-              <h1 class="cj-pagetitle">Apertura y cierre</h1>
-            </div>
-            <button class="cj-btn-danger" id="btn-cerrar">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 14l6 0"/></svg>
-              Cerrar caja
-            </button>
+            <div><div class="cj-eyebrow">Caja · El Parche Food</div><h1 class="cj-pagetitle">Apertura y cierre</h1></div>
+            <button class="cj-btn-danger" id="btn-cerrar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 14l6 0"/></svg> Cerrar caja</button>
           </div>
+
           <!-- HERO -->
           <div class="cj-card cj-hero">
             <div class="cj-hero-left">
-              <div class="cj-caja-badge">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="12" rx="2"/><path d="M3 9l2-5h14l2 5"/></svg>
-                Caja 01
-              </div>
+              <div class="cj-caja-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="12" rx="2"/><path d="M3 9l2-5h14l2 5"/></svg> Caja 01</div>
               <div class="cj-hero-lbl">Efectivo en caja</div>
               <div class="cj-hero-amount" id="hero-efectivo">$0</div>
               <div class="cj-hero-meta">
-                <div class="cj-meta">
-                  <span style="color:#16A34A;display:flex"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/></svg></span>
-                  Apertura <strong style="color:#0F172A;margin-left:2px" id="hero-apertura">$0</strong>
-                </div>
-                <div class="cj-meta">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                  <span id="hero-fecha">—</span>
-                </div>
-                <div class="cj-meta">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                  <span id="hero-cajero">—</span>
-                </div>
-                <div class="cj-turno" id="hero-turno">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-                  Turno —
-                </div>
+                <div class="cj-meta"><span style="color:#16A34A;display:flex"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/></svg></span> Apertura <strong style="color:#0F172A;margin-left:2px" id="hero-apertura">$0</strong></div>
+                <div class="cj-meta"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> <span id="hero-fecha">—</span></div>
+                <div class="cj-meta"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> <span id="hero-cajero">—</span></div>
+                <div class="cj-turno" id="hero-turno"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg> Turno —</div>
               </div>
               <div class="cj-hero-actions">
-                <button class="cj-btn-ghost" id="btn-arqueo">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/><path d="m5 7-3 6h6Z"/><path d="m19 7-3 6h6Z"/><path d="M8 21h8"/></svg>
-                  Arqueo de caja
-                </button>
-                <button class="cj-btn-ghost" id="btn-paloteo" onclick="window.print()">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                  Imprimir paloteo
-                </button>
+                <button class="cj-btn-ghost" id="btn-arqueo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/><path d="m5 7-3 6h6Z"/><path d="m19 7-3 6h6Z"/><path d="M8 21h8"/></svg> Arqueo de caja</button>
+                <button class="cj-btn-ghost" id="btn-paloteo" onclick="window.print()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Imprimir paloteo</button>
               </div>
             </div>
-            <!-- composición del efectivo -->
             <div class="cj-compose">
               <div class="cj-compose-title">Cómo se compone</div>
               <div class="cj-compose-row">Base de apertura <span class="v" id="compose-base">$0</span></div>
@@ -141,21 +88,14 @@
               <div class="cj-compose-total"><span class="t">Total en caja</span><span class="v" id="compose-total">$0</span></div>
             </div>
           </div>
+
           <!-- KPIs -->
           <div class="cj-kpis">
-            <div class="cj-card cj-stat">
-              <div class="cj-stat-ic" style="background:#5B6BFF18;color:#5B6BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
-              <div><div class="cj-stat-val" id="kpi-ventas">$0</div><div class="cj-stat-lbl">Total de ventas</div><div class="cj-stat-sub" id="kpi-ventas-sub">0 ventas en el turno</div></div>
-            </div>
-            <div class="cj-card cj-stat">
-              <div class="cj-stat-ic" style="background:#0EA5E918;color:#0EA5E9"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="12" rx="2"/><path d="M3 9l2-5h14l2 5"/></svg></div>
-              <div><div class="cj-stat-val" id="kpi-ticket">$0</div><div class="cj-stat-lbl">Ticket promedio</div><div class="cj-stat-sub">por venta realizada</div></div>
-            </div>
-            <div class="cj-card cj-stat">
-              <div class="cj-stat-ic" style="background:#16A34A18;color:#16A34A"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></div>
-              <div><div class="cj-stat-val" id="kpi-trans">0</div><div class="cj-stat-lbl">Transacciones</div><div class="cj-stat-sub" id="kpi-trans-sub">0 anuladas</div></div>
-            </div>
+            <div class="cj-card cj-stat"><div class="cj-stat-ic" style="background:#5B6BFF18;color:#5B6BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div><div><div class="cj-stat-val" id="kpi-ventas">$0</div><div class="cj-stat-lbl">Total de ventas</div><div class="cj-stat-sub" id="kpi-ventas-sub">0 ventas en el turno</div></div></div>
+            <div class="cj-card cj-stat"><div class="cj-stat-ic" style="background:#0EA5E918;color:#0EA5E9"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="12" rx="2"/><path d="M3 9l2-5h14l2 5"/></svg></div><div><div class="cj-stat-val" id="kpi-ticket">$0</div><div class="cj-stat-lbl">Ticket promedio</div><div class="cj-stat-sub">por venta realizada</div></div></div>
+            <div class="cj-card cj-stat"><div class="cj-stat-ic" style="background:#16A34A18;color:#16A34A"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></div><div><div class="cj-stat-val" id="kpi-trans">0</div><div class="cj-stat-lbl">Transacciones</div><div class="cj-stat-sub" id="kpi-trans-sub">0 anuladas</div></div></div>
           </div>
+
           <!-- desglose pago + canales -->
           <div class="cj-2col">
             <div class="cj-card" style="padding:18px 20px">
@@ -172,29 +112,23 @@
               </div>
             </div>
           </div>
+
           <!-- Top ventas -->
           <div class="cj-card" style="padding:18px 20px">
             <div class="cj-card-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Top ventas del turno</div>
             <div class="cj-top-grid" id="top-ventas"></div>
           </div>
         </div>
-        <!-- estado: CAJA CERRADA -->
+
+        <!-- ESTADO: CAJA CERRADA -->
         <div id="caja-closed-view" class="is-hidden">
-          <div style="margin-bottom:18px">
-            <div class="cj-eyebrow">Caja · El Parche Food</div>
-            <h1 class="cj-pagetitle">Apertura y cierre</h1>
-          </div>
+          <div style="margin-bottom:18px"><div class="cj-eyebrow">Caja · El Parche Food</div><h1 class="cj-pagetitle">Apertura y cierre</h1></div>
           <div class="cj-empty">
             <div class="cj-empty-inner">
-              <div class="cj-empty-ic">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              </div>
+              <div class="cj-empty-ic"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
               <div style="font-size:18px;font-weight:800;color:#0F172A;margin-bottom:8px">La caja está cerrada</div>
               <div style="font-size:13px;color:#64748B;margin-bottom:24px">Abre la caja para comenzar a registrar ventas y movimientos del turno.</div>
-              <button class="cj-btn-primary" onclick="openPanel('panel-abrir')">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-                Abrir caja
-              </button>
+              <button class="cj-btn-primary lg" onclick="openPanel('panel-abrir')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg> Abrir caja</button>
             </div>
           </div>
         </div>
@@ -203,15 +137,8 @@
       <!-- ============ INGRESOS Y EGRESOS ============ -->
       <div class="screen" id="screen-movimientos">
         <div class="cj-pagehead">
-          <div>
-            <div class="cj-eyebrow">Caja · El Parche Food</div>
-            <h1 class="cj-pagetitle">Ingresos y egresos</h1>
-            <p class="cj-pagesub">Movimientos de efectivo del turno que no son ventas (compras, abonos, gastos…).</p>
-          </div>
-          <button class="cj-btn-primary" id="btn-mov">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Registrar movimiento
-          </button>
+          <div><div class="cj-eyebrow">Caja · El Parche Food</div><h1 class="cj-pagetitle">Ingresos y egresos</h1><p class="cj-pagesub">Movimientos de efectivo del turno que no son ventas (compras, abonos, gastos…).</p></div>
+          <button class="cj-btn-primary" id="btn-mov"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Registrar movimiento</button>
         </div>
         <div class="cj-mv-summary">
           <div class="cj-card cj-mv-card"><div class="cj-mv-k" style="color:#16A34A"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg> Ingresos</div><div class="cj-mv-v" style="color:#166534" id="mv-total-in">$0</div></div>
@@ -226,30 +153,17 @@
 
       <!-- ============ CIERRES DE CAJA ============ -->
       <div class="screen" id="screen-cierres">
-        <div style="margin-bottom:18px">
-          <div class="cj-eyebrow">Caja · El Parche Food</div>
-          <h1 class="cj-pagetitle">Cierres de caja</h1>
-          <p class="cj-pagesub">Historial de todas las aperturas y cierres del negocio.</p>
-        </div>
+        <div style="margin-bottom:18px"><div class="cj-eyebrow">Caja · El Parche Food</div><h1 class="cj-pagetitle">Cierres de caja</h1><p class="cj-pagesub">Historial de todas las aperturas y cierres del negocio.</p></div>
         <div class="cj-cierres-grid" id="cierres-grid"></div>
       </div>
 
       <!-- ============ HISTORIAL DE VENTAS ============ -->
       <div class="screen" id="screen-historial">
         <div class="cj-pagehead" style="margin-bottom:14px">
-          <div>
-            <div class="cj-eyebrow">Caja · El Parche Food</div>
-            <h1 class="cj-pagetitle">Historial de ventas</h1>
-          </div>
-          <div class="cj-search" style="width:250px">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input id="hist-search" placeholder="Buscar #venta, cliente, hora…">
-          </div>
+          <div><div class="cj-eyebrow">Caja · El Parche Food</div><h1 class="cj-pagetitle">Historial de ventas</h1></div>
+          <div class="cj-card cj-search" style="width:250px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="hist-search" placeholder="Buscar #venta, cliente, hora…"></div>
         </div>
-        <div class="cj-hist-banner">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-          Este historial es solo de la <strong style="font-weight:700;margin:0 3px">sesión actual</strong>. Al cerrar la caja se reinicia; los totales quedan guardados en el cierre.
-        </div>
+        <div class="cj-hist-banner"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Este historial es solo de la <strong style="font-weight:700;margin:0 3px">sesión actual</strong>. Al cerrar la caja se reinicia; los totales quedan guardados en el cierre.</div>
         <div class="cj-card" style="overflow:hidden">
           <div class="cj-hist-head"><span class="c" id="hist-count">0 ventas · 0 anuladas</span><span class="t" id="hist-total">$0</span></div>
           <div id="hist-lista"></div>
@@ -262,16 +176,10 @@
 
 <!-- ===================== PANELES ===================== -->
 
-<!-- ABRIR CAJA -->
+<!-- ① ABRIR CAJA -->
 <div class="cj-overlay is-hidden" id="panel-abrir">
   <div class="cj-modal">
-    <div class="cj-modal-head">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div class="cj-modal-ic indigo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></div>
-        <div><div class="cj-modal-title">Abrir caja</div><div class="cj-modal-sub" id="panel-abrir-sub">Caja 01</div></div>
-      </div>
-      <button class="cj-close" onclick="closePanel('panel-abrir')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    </div>
+    <div class="cj-modal-head"><div style="display:flex;align-items:center;gap:12px"><div class="cj-modal-ic indigo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></div><div><div class="cj-modal-title">Abrir caja</div><div class="cj-modal-sub" id="panel-abrir-sub">Caja 01</div></div></div><button class="cj-close" onclick="closePanel('panel-abrir')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
     <div class="cj-modal-body">
       <div class="cj-field-label">Base inicial en efectivo</div>
       <label class="cj-money" style="width:100%"><span class="cur">$</span><input type="number" id="abrir-monto" value="200000"></label>
@@ -287,69 +195,48 @@
         <button onclick="segSelect(this,'seg-turno')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/></svg> Tarde</button>
         <button class="on" onclick="segSelect(this,'seg-turno')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg> Noche</button>
       </div>
-      <div class="cj-info" style="margin-top:18px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> La base es el efectivo con el que arrancas para dar cambio.</div>
+      <div class="cj-info" style="margin-top:18px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> La base es el efectivo con el que arrancas para dar cambio. Se descuenta al cuadrar la caja.</div>
     </div>
-    <div class="cj-modal-foot" style="justify-content:flex-end">
-      <button class="cj-btn-ghost" onclick="closePanel('panel-abrir')">Cancelar</button>
-      <button class="cj-btn-primary" id="btn-confirmar-abrir">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-        Abrir caja
-      </button>
-    </div>
+    <div class="cj-modal-foot" style="justify-content:flex-end"><button class="cj-btn-ghost" onclick="closePanel('panel-abrir')">Cancelar</button><button class="cj-btn-primary" id="btn-confirmar-abrir"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg> Abrir caja</button></div>
   </div>
 </div>
 
-<!-- REGISTRAR MOVIMIENTO -->
+<!-- ② REGISTRAR MOVIMIENTO -->
 <div class="cj-overlay is-hidden" id="panel-movimiento">
   <div class="cj-modal">
-    <div class="cj-modal-head">
-      <div class="cj-modal-title">Registrar movimiento</div>
-      <button class="cj-close" onclick="closePanel('panel-movimiento')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    </div>
+    <div class="cj-modal-head"><div class="cj-modal-title">Registrar movimiento</div><button class="cj-close" onclick="closePanel('panel-movimiento')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
     <div class="cj-modal-body">
       <div class="cj-seg" id="seg-tipo-mov" style="margin-bottom:18px">
         <button onclick="segSelect(this,'seg-tipo-mov');document.getElementById('mov-btn-txt').textContent='Registrar ingreso'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg> Ingreso</button>
-        <button class="on" onclick="segSelect(this,'seg-tipo-mov');document.getElementById('mov-btn-txt').textContent='Registrar egreso'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg> Egreso</button>
+        <button class="on" style="color:#DC2626" onclick="segSelect(this,'seg-tipo-mov');document.getElementById('mov-btn-txt').textContent='Registrar egreso'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg> Egreso</button>
       </div>
       <div class="cj-field-label">Monto</div>
       <label class="cj-money" style="width:100%"><span class="cur">$</span><input type="number" id="mov-monto" placeholder="0"></label>
       <div class="cj-field-label" style="margin-top:18px">Concepto</div>
       <input class="cj-input" id="mov-concepto" placeholder="Ej. Compra de gaseosas">
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-        <button class="cj-btn-ghost sm" onclick="document.getElementById('mov-concepto').value=this.textContent">Compra de insumos</button>
-        <button class="cj-btn-ghost sm" onclick="document.getElementById('mov-concepto').value=this.textContent">Gasolina domiciliario</button>
-        <button class="cj-btn-ghost sm" onclick="document.getElementById('mov-concepto').value=this.textContent">Pago servicios</button>
-        <button class="cj-btn-ghost sm" onclick="document.getElementById('mov-concepto').value=this.textContent">Retiro de efectivo</button>
+        <button class="cj-btn-ghost sm" onclick="document.getElementById('mov-concepto').value=this.textContent.trim()">Compra de insumos</button>
+        <button class="cj-btn-ghost sm" onclick="document.getElementById('mov-concepto').value=this.textContent.trim()">Gasolina domiciliario</button>
+        <button class="cj-btn-ghost sm" onclick="document.getElementById('mov-concepto').value=this.textContent.trim()">Pago servicios</button>
+        <button class="cj-btn-ghost sm" onclick="document.getElementById('mov-concepto').value=this.textContent.trim()">Retiro de efectivo</button>
       </div>
       <div class="cj-field-label" style="margin-top:18px">Medio</div>
-      <div id="mov-medio-chips" style="display:flex;gap:7px;flex-wrap:wrap">
-        <button class="cj-btn-ghost sm mov-medio-btn active-medio" data-medio="Efectivo" style="background:#DCFCE7;border-color:#16A34A;color:#16A34A" onclick="selectMedio(this)">Efectivo</button>
+      <div style="display:flex;gap:7px;flex-wrap:wrap">
+        <button class="cj-btn-ghost sm mov-medio-btn" data-medio="Efectivo" style="background:#DCFCE7;border-color:#16A34A;color:#16A34A" onclick="selectMedio(this)">Efectivo</button>
         <button class="cj-btn-ghost sm mov-medio-btn" data-medio="Tarjeta" onclick="selectMedio(this)">Tarjeta</button>
         <button class="cj-btn-ghost sm mov-medio-btn" data-medio="Transferencia" onclick="selectMedio(this)">Transferencia</button>
         <button class="cj-btn-ghost sm mov-medio-btn" data-medio="Nequi" onclick="selectMedio(this)">Nequi</button>
         <button class="cj-btn-ghost sm mov-medio-btn" data-medio="Daviplata" onclick="selectMedio(this)">Daviplata</button>
       </div>
     </div>
-    <div class="cj-modal-foot" style="justify-content:flex-end">
-      <button class="cj-btn-ghost" onclick="closePanel('panel-movimiento')">Cancelar</button>
-      <button class="cj-btn-primary" id="btn-confirmar-mov">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        <span id="mov-btn-txt">Registrar egreso</span>
-      </button>
-    </div>
+    <div class="cj-modal-foot" style="justify-content:flex-end"><button class="cj-btn-ghost" onclick="closePanel('panel-movimiento')">Cancelar</button><button class="cj-btn-primary" id="btn-confirmar-mov"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> <span id="mov-btn-txt">Registrar egreso</span></button></div>
   </div>
 </div>
 
-<!-- ARQUEO DE CAJA -->
+<!-- ③ ARQUEO DE CAJA -->
 <div class="cj-overlay is-hidden" id="panel-arqueo">
   <div class="cj-modal wide">
-    <div class="cj-modal-head">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div class="cj-modal-ic indigo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/><path d="m5 7-3 6h6Z"/><path d="m19 7-3 6h6Z"/><path d="M8 21h8"/></svg></div>
-        <div><div class="cj-modal-title">Arqueo de caja</div><div class="cj-modal-sub">Cuenta el efectivo físico y compáralo con el sistema</div></div>
-      </div>
-      <button class="cj-close" onclick="closePanel('panel-arqueo')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    </div>
+    <div class="cj-modal-head"><div style="display:flex;align-items:center;gap:12px"><div class="cj-modal-ic indigo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/><path d="m5 7-3 6h6Z"/><path d="m19 7-3 6h6Z"/><path d="M8 21h8"/></svg></div><div><div class="cj-modal-title">Arqueo de caja</div><div class="cj-modal-sub">Cuenta el efectivo físico y compáralo con el sistema</div></div></div><button class="cj-close" onclick="closePanel('panel-arqueo')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
     <div class="cj-modal-body">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
         <div>
@@ -363,7 +250,7 @@
             <div class="cj-denom-row"><span class="cj-denom-name">$20.000</span><span style="width:84px;display:flex;justify-content:center"><input class="cj-num denom-input" type="number" placeholder="0" data-val="20000"></span><span class="cj-denom-total">$0</span></div>
             <div class="cj-denom-row"><span class="cj-denom-name">$50.000</span><span style="width:84px;display:flex;justify-content:center"><input class="cj-num denom-input" type="number" placeholder="0" data-val="50000"></span><span class="cj-denom-total">$0</span></div>
             <div class="cj-denom-row"><span class="cj-denom-name">$100.000</span><span style="width:84px;display:flex;justify-content:center"><input class="cj-num denom-input" type="number" placeholder="0" data-val="100000"></span><span class="cj-denom-total">$0</span></div>
-            <div class="cj-denom-foot"><span style="font-size:12px;font-weight:700;color:#475569">Subtotal billetes</span><span id="subtotal-billetes" style="font-size:13.5px;font-weight:800;color:#0F172A">$0</span></div>
+            <div class="cj-denom-foot"><span style="font-size:12px;font-weight:700;color:#475569">Subtotal</span><span style="font-size:13.5px;font-weight:800;color:#0F172A" id="subtotal-billetes">$0</span></div>
           </div>
         </div>
         <div>
@@ -375,7 +262,7 @@
             <div class="cj-denom-row"><span class="cj-denom-name">$200</span><span style="width:84px;display:flex;justify-content:center"><input class="cj-num denom-input" type="number" placeholder="0" data-val="200"></span><span class="cj-denom-total">$0</span></div>
             <div class="cj-denom-row"><span class="cj-denom-name">$500</span><span style="width:84px;display:flex;justify-content:center"><input class="cj-num denom-input" type="number" placeholder="0" data-val="500"></span><span class="cj-denom-total">$0</span></div>
             <div class="cj-denom-row"><span class="cj-denom-name">$1.000</span><span style="width:84px;display:flex;justify-content:center"><input class="cj-num denom-input" type="number" placeholder="0" data-val="1000"></span><span class="cj-denom-total">$0</span></div>
-            <div class="cj-denom-foot"><span style="font-size:12px;font-weight:700;color:#475569">Subtotal monedas</span><span id="subtotal-monedas" style="font-size:13.5px;font-weight:800;color:#0F172A">$0</span></div>
+            <div class="cj-denom-foot"><span style="font-size:12px;font-weight:700;color:#475569">Subtotal</span><span style="font-size:13.5px;font-weight:800;color:#0F172A" id="subtotal-monedas">$0</span></div>
           </div>
         </div>
       </div>
@@ -386,49 +273,26 @@
       </div>
       <div style="margin-top:18px">
         <div class="cj-field-label">Observación <span style="color:#94A3B8;font-weight:500">(opcional)</span></div>
-        <textarea class="cj-input" id="arqueo-obs" rows="2" placeholder="Ej. faltante por vuelto mal entregado…" style="resize:vertical"></textarea>
+        <textarea class="cj-input" id="arqueo-obs" rows="2" placeholder="Ej. faltante por vuelto mal entregado en la mesa 7…" style="resize:vertical"></textarea>
       </div>
     </div>
-    <div class="cj-modal-foot">
-      <span style="font-size:12px;color:#64748B">Contado: <strong style="color:#0F172A" id="arqueo-pie">$0</strong></span>
-      <div style="display:flex;gap:8px">
-        <button class="cj-btn-ghost" onclick="closePanel('panel-arqueo')">Cancelar</button>
-        <button class="cj-btn-primary" id="btn-guardar-arqueo">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          Guardar arqueo
-        </button>
-      </div>
-    </div>
+    <div class="cj-modal-foot"><span style="font-size:12px;color:#64748B">Contado: <strong style="color:#0F172A" id="arqueo-pie">$0</strong></span><div style="display:flex;gap:8px"><button class="cj-btn-ghost" onclick="closePanel('panel-arqueo')">Cancelar</button><button class="cj-btn-primary" id="btn-guardar-arqueo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Guardar arqueo</button></div></div>
   </div>
 </div>
 
-<!-- CERRAR CAJA -->
+<!-- ④ CERRAR CAJA -->
 <div class="cj-overlay is-hidden" id="panel-cerrar">
   <div class="cj-modal">
-    <div class="cj-modal-head">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div class="cj-modal-ic danger"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 14l6 0"/></svg></div>
-        <div><div class="cj-modal-title">Cerrar caja</div><div class="cj-modal-sub" id="cerrar-sub">Caja 01</div></div>
-      </div>
-      <button class="cj-close" onclick="closePanel('panel-cerrar')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    </div>
+    <div class="cj-modal-head"><div style="display:flex;align-items:center;gap:12px"><div class="cj-modal-ic danger"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 14l6 0"/></svg></div><div><div class="cj-modal-title">Cerrar caja</div><div class="cj-modal-sub" id="cerrar-sub">Caja 01</div></div></div><button class="cj-close" onclick="closePanel('panel-cerrar')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
     <div class="cj-modal-body">
       <div id="cerrar-resumen" style="display:flex;flex-direction:column;gap:2px;margin-bottom:14px"></div>
       <div class="cj-expected">
         <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;font-weight:700;color:#0F172A">Efectivo esperado en caja</span><span style="font-size:17px;font-weight:800;color:#0F172A" id="cerrar-esperado">$0</span></div>
-        <div id="cerrar-arqueo-row">
-          <button class="cj-btn-ghost sm" style="margin-top:10px;width:100%;justify-content:center" onclick="openPanel('panel-arqueo')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/><path d="m5 7-3 6h6Z"/><path d="m19 7-3 6h6Z"/><path d="M8 21h8"/></svg> Hacer arqueo (contar efectivo)</button>
-        </div>
+        <button class="cj-btn-ghost sm" style="margin-top:10px;width:100%;justify-content:center" onclick="openPanel('panel-arqueo')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/><path d="m5 7-3 6h6Z"/><path d="m19 7-3 6h6Z"/><path d="M8 21h8"/></svg> Hacer arqueo (contar efectivo)</button>
       </div>
       <div class="cj-warn" style="margin-top:14px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Al cerrar, el turno se guarda en <strong style="font-weight:700;margin:0 3px">Cierres de caja</strong> y el historial de ventas se reinicia. Esta acción no se puede deshacer.</div>
     </div>
-    <div class="cj-modal-foot" style="justify-content:flex-end">
-      <button class="cj-btn-ghost" onclick="closePanel('panel-cerrar')">Cancelar</button>
-      <button class="cj-btn-danger" id="btn-confirmar-cerrar">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 14l6 0"/></svg>
-        Cerrar caja
-      </button>
-    </div>
+    <div class="cj-modal-foot" style="justify-content:flex-end"><button class="cj-btn-ghost" onclick="closePanel('panel-cerrar')">Cancelar</button><button class="cj-btn-danger" id="btn-confirmar-cerrar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 14l6 0"/></svg> Cerrar caja</button></div>
   </div>
 </div>
 
