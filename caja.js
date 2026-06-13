@@ -184,55 +184,34 @@ function renderKPIs(orders) {
 
 // ── Desglose por medio de pago ─────────────────────────────────
 function renderDesglosePago(orders) {
-  const cont   = document.getElementById('desglose-pago');
-  if (!cont) return;
   const active = orders.filter(o=>o.status!=='cancelled');
   const total  = active.reduce((s,o)=>s+(o.total||0),0);
-
-  cont.innerHTML = METODOS.map(m => {
-    const sub = active.filter(o=>(o.payment_method||'').toLowerCase()===m.key);
-    const amt = sub.reduce((s,o)=>s+(o.total||0),0);
+  METODOS.forEach(m => {
+    const amt = active.filter(o=>(o.payment_method||'').toLowerCase()===m.key).reduce((s,o)=>s+(o.total||0),0);
     const pct = total > 0 ? (amt/total*100).toFixed(1) : 0;
-    const svg = MEDIO_SVG[m.key] || MEDIO_SVG.efectivo;
-    return `
-      <div class="cj-method-row">
-        <div class="cj-method-ic" style="background:${m.bg};color:${m.color}">${svg}</div>
-        <div style="flex:1;min-width:0">
-          <div class="cj-method-top">
-            <span class="cj-method-name">${m.label}</span>
-            <span class="cj-method-val">${COPF(amt)}</span>
-          </div>
-          <div class="cj-track"><i style="width:${pct}%;background:${m.color}"></i></div>
-        </div>
-      </div>`;
-  }).join('');
+    const valEl = document.getElementById('dp-'+m.key+'-val');
+    const barEl = document.getElementById('dp-'+m.key+'-bar');
+    if (valEl) valEl.textContent = COPF(amt);
+    if (barEl) barEl.style.width = pct + '%';
+  });
 }
 
 // ── Canales de venta ───────────────────────────────────────────
 function renderCanalVentas(orders, moves) {
-  const cont   = document.getElementById('canales-lista');
-  if (!cont) return;
   const active = orders.filter(o=>o.status!=='cancelled');
-
-  cont.innerHTML = CANALES.map(c => {
-    const sub = active.filter(o=>(o.channel||'').toLowerCase()===c.key);
-    const amt = sub.reduce((s,o)=>s+(o.total||0),0);
-    return `
-      <div class="cj-channel-row">
-        <span style="display:inline-flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:#0F172A">
-          <span style="width:9px;height:9px;border-radius:999px;background:${c.color}"></span>${c.label}
-        </span>
-        <span style="font-size:13.5px;font-weight:800;color:#0F172A">${COPF(amt)}</span>
-      </div>`;
-  }).join('');
-
-  const ingresos = moves.filter(m=>m.type==='ingreso').reduce((s,m)=>s+(m.amount||0),0);
-  const egresos  = moves.filter(m=>m.type==='egreso').reduce((s,m)=>s+(m.amount||0),0);
+  CANALES.forEach(c => {
+    const amt = active.filter(o=>(o.channel||'').toLowerCase()===c.key).reduce((s,o)=>s+(o.total||0),0);
+    const el = document.getElementById('canal-'+c.key);
+    if (el) el.textContent = COPF(amt);
+  });
+  const ingresos = (moves||[]).filter(m=>m.type==='ingreso').reduce((s,m)=>s+(m.amount||0),0);
+  const egresos  = (moves||[]).filter(m=>m.type==='egreso').reduce((s,m)=>s+(m.amount||0),0);
   const eli = document.getElementById('ie-ingresos');
   const ele = document.getElementById('ie-egresos');
   if (eli) eli.textContent = COPF(ingresos);
   if (ele) ele.textContent = COPF(egresos);
 }
+
 
 // ── Top ventas ─────────────────────────────────────────────────
 function renderTopVentas(items) {
