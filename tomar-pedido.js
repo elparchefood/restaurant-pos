@@ -372,7 +372,7 @@ function tpOpenProductModal(prodId) {
     TP_WIP.pres = pArr.length===1?pArr[0]:{id:'_base',name:'',price:parseFloat(p.price)||0};
     TP_WIP.step = hasVars?2:3;
   }
-  const el=document.getElementById('tp-modal-producto'); if(el) el.hidden=false;
+  const el=document.getElementById('tp-modal-producto'); if(el) el.style.display='flex';
   tpRenderMP();
 }
 
@@ -389,119 +389,239 @@ function tpComputePrice(){
   return (base+modX)*TP_WIP.qty;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   MODAL PRODUCTO — diseño 3 pasos (pm-*)
+   ───────────────────────────────────────────────────────────── */
+const PM_SVG = {
+  check: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  x:     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  back:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>',
+  cart:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>',
+  chev:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>',
+  plus:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  minus: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  srch:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  food:  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h0a2 2 0 0 0 2-2V2M5 2v20M17 2v20M21 7c0-3-2-5-4-5v9c2 0 4-1 4-4z"/></svg>',
+  note:  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>',
+  table: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10h18"/><path d="M5 10V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3"/><path d="M6 10v9M18 10v9"/></svg>',
+  bag:   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>',
+};
+function pmFmt(n){ return '$'+Number(Math.round(n||0)).toLocaleString('es-CO'); }
+function pmEsc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function pmAttr(s){ return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
 function tpRenderMP(){
-  const body=document.getElementById('tp-mp-body'), foot=document.getElementById('tp-mp-foot'), title=document.getElementById('tp-mp-title');
-  if(!body) return;
-  if(TP_WIP.step===1) tpMPStep1(body,foot,title);
-  else if(TP_WIP.step===2) tpMPStep2(body,foot,title);
-  else tpMPStep3(body,foot,title);
+  const p=TP_WIP.prod; if(!p) return;
+  const inner=document.getElementById('pm-modal-inner'); if(!inner) return;
+  const hasPres=(p.presentations||[]).length>1, hasVars=(p.variables||[]).length>0;
+  const steps=[];
+  if(hasPres) steps.push({id:'pres',label:p.presLabel||'Presentacion'});
+  if(hasVars) steps.push({id:'var',label:p.varLabel||(p.variables[0]&&p.variables[0].name)||'Variante'});
+  steps.push({id:'custom',label:'Personalizar'});
+  const curId=TP_WIP.step===1&&hasPres?'pres':TP_WIP.step===2&&hasVars?'var':'custom';
+  const curIdx=steps.findIndex(s=>s.id===curId);
+  const stepperHTML=steps.length>1?'<div class="pm-steps">'+steps.map((s,i)=>{
+    const done=i<curIdx,on=i===curIdx;
+    return '<button class="pm-step'+(done?' done':on?' on':'')+'" data-step-id="'+s.id+'">'
+      +'<span class="pm-step-dot">'+(done?PM_SVG.check:String(i+1))+'</span>'
+      +'<span class="pm-step-lbl">'+s.label+'</span></button>'
+      +(i<steps.length-1?'<span class="pm-step-line'+(done?' done':'')+'"></span>':'');
+  }).join('')+'</div>':'';
+  const presLabel=TP_WIP.pres&&TP_WIP.pres.name?TP_WIP.pres.name:'';
+  const varLabels=Object.values(TP_WIP.vars).map(v=>v.name).join(' · ');
+  const selParts=[presLabel,varLabels].filter(Boolean).join(' · ');
+  let paneHTML='';
+  if(curId==='pres') paneHTML=pmBuildPresPane(p);
+  else if(curId==='var') paneHTML=pmBuildVarPane(p);
+  else paneHTML=pmBuildCustomPane(p);
+  const canNext=curId==='pres'?!!TP_WIP.pres:curId==='var'?(p.variables||[]).every(v=>TP_WIP.vars[v.id]):true;
+  const isFirst=curIdx===0;
+  const footLeft=isFirst
+    ?'<button class="pm-btn-ghost" onclick="tpCloseMP()">Cancelar</button>'
+    :'<button class="pm-btn-ghost" onclick="tpMPBack()">'+PM_SVG.back+' Atras</button>';
+  const isLast=curId==='custom';
+  const footRight=isLast
+    ?'<button class="pm-btn-primary" onclick="tpMPAddToCart()">'+PM_SVG.cart+' Agregar al pedido &middot; <span id="pm-foot-price">'+pmFmt(tpComputePrice())+'</span></button>'
+    :'<button class="pm-btn-primary" id="tp-mp-next"'+(canNext?'':' disabled')+' onclick="tpMPAdvance()">Continuar '+PM_SVG.chev+'</button>';
+  const subTxt=selParts?pmEsc(p.category||'')+' &middot; <strong style="color:#0F172A">'+pmEsc(selParts)+'</strong>':pmEsc(p.category||'');
+  inner.innerHTML=
+    '<div class="pm-head">'
+    +'<div style="display:flex;align-items:center;gap:12px;min-width:0">'
+    +'<div class="pm-head-ic">'+PM_SVG.food+'</div>'
+    +'<div style="min-width:0"><div class="pm-title">'+pmEsc(p.name)+'</div>'
+    +'<div class="pm-sub">'+subTxt+'</div></div></div>'
+    +'<button class="pm-close" onclick="tpCloseMP()">'+PM_SVG.x+'</button>'
+    +'</div>'
+    +stepperHTML
+    +'<div class="pm-body">'+paneHTML+'</div>'
+    +'<div class="pm-foot">'+footLeft+footRight+'</div>';
+  pmAttachHandlers(inner,p,curId);
 }
 
-function tpMPStep1(body,foot,title){
-  const p=TP_WIP.prod, pres=p.presentations||[];
-  title.textContent=p.name+' · Presentación';
-  body.innerHTML=`<div class="mp-step"><div class="mp-step-lbl">¿Cuál presentación quieres?</div>
-    <div class="mp-pres-grid">${pres.map(pr=>`<button class="mp-pres-btn${TP_WIP.pres&&TP_WIP.pres.id===pr.id?' on':''}" onclick="tpSelPres('${pr.id}')">
-      <span class="mp-pres-name">${pr.name}</span>
-      ${(pr.price>0)?`<span class="mp-pres-price">${tp_fmt(pr.price)}</span>`:''}
-    </button>`).join('')}</div></div>`;
-  const hasVars=(p.variables||[]).length>0;
-  foot.innerHTML=`<button class="tp-foot-cancel" onclick="tpCloseMP()">Cancelar</button>
-    <button class="tp-foot-next" id="tp-mp-next" onclick="tpMPAdvance()" ${TP_WIP.pres?'':'disabled'}>${hasVars?'Siguiente':'Personalizar'} ${tp_svg('chevron-r')}</button>`;
+function pmBuildPresPane(p){
+  const pres=p.presentations||[];
+  return '<div class="pm-choice-grid">'+pres.map(pr=>{
+    const on=TP_WIP.pres&&TP_WIP.pres.id===pr.id;
+    const thumb=pr.photo_url
+      ?'<div class="pm-choice-thumb"><img src="'+pmAttr(pr.photo_url)+'" style="width:100%;height:100%;object-fit:cover"></div>'
+      :'<div class="pm-choice-thumb ph"><span>'+pmEsc(pr.name)+'</span></div>';
+    return '<button class="pm-choice'+(on?' on':'')+'" data-pres-id="'+pmAttr(pr.id)+'" data-pres-name="'+pmAttr(pr.name)+'" data-pres-price="'+(pr.price||0)+'">'
+      +thumb
+      +'<div class="pm-choice-body"><div class="pm-choice-name">'+pmEsc(pr.name)+'</div>'
+      +'<div class="pm-choice-price">'+(pr.price?pmFmt(pr.price):'Incluido')+'</div></div>'
+      +'<span class="pm-radio">'+(on?PM_SVG.check:'')+'</span>'
+      +'</button>';
+  }).join('')+'</div>';
 }
 
-function tpSelPres(presId){
-  TP_WIP.pres=(TP_WIP.prod.presentations||[]).find(x=>x.id===presId)||null;
-  document.querySelectorAll('.mp-pres-btn').forEach(b=>b.classList.remove('on'));
-  const t=document.querySelector(`.mp-pres-btn[onclick*="'${presId}'"]`); if(t) t.classList.add('on');
-  const btn=document.getElementById('tp-mp-next'); if(btn) btn.disabled=false;
-}
-
-function tpMPStep2(body,foot,title){
-  const p=TP_WIP.prod, vars=p.variables||[];
-  title.textContent=p.name+' · Variante';
-  const allDone=vars.every(v=>TP_WIP.vars[v.id]);
-  body.innerHTML=`<div class="mp-step"><div class="mp-step-lbl">Personaliza tu producto</div>
-    ${vars.map(v=>`<div class="mp-var-group"><div class="mp-var-name">${v.name}</div>
-      <div class="mp-var-opts">${(v.options||[]).map(o=>{
+function pmBuildVarPane(p){
+  const vars=p.variables||[];
+  return '<div style="display:flex;flex-direction:column;gap:20px">'+vars.map(v=>{
+    return '<div><div style="font-size:12px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">'+pmEsc(v.name)+'</div>'
+      +'<div class="pm-choice-grid">'+(v.options||[]).map(o=>{
         const sel=TP_WIP.vars[v.id]&&TP_WIP.vars[v.id].id===o.id;
-        return `<button class="mp-var-opt${sel?' on':''}" onclick="tpSelVar('${v.id}','${o.id}','${(o.name||'').replace(/'/g,"\'")}',${o.price||0})">
-          ${o.name}${o.price?` <span class="mp-opt-price">+${tp_fmt(o.price)}</span>`:''}
-        </button>`;
-      }).join('')}</div></div>`).join('')}
-  </div>`;
-  const hasPres=(p.presentations||[]).length>1;
-  foot.innerHTML=`<button class="tp-foot-cancel" onclick="${hasPres?'tpMPBack()':'tpCloseMP()'}">
-    ${hasPres?tp_svg('back2')+' Atrás':'Cancelar'}</button>
-    <button class="tp-foot-next" id="tp-mp-next" onclick="tpMPAdvance()" ${allDone?'':'disabled'}>Personalizar ${tp_svg('chevron-r')}</button>`;
+        return '<button class="pm-choice compact'+(sel?' on':'')+'" data-var-id="'+pmAttr(v.id)+'" data-opt-id="'+pmAttr(o.id)+'" data-opt-name="'+pmAttr(o.name)+'" data-opt-price="'+(o.price||0)+'">'
+          +'<div class="pm-choice-body"><div class="pm-choice-name">'+pmEsc(o.name)+'</div>'
+          +'<div class="pm-choice-price">'+(o.price?'+'+pmFmt(o.price):'Incluido')+'</div></div>'
+          +'<span class="pm-radio">'+(sel?PM_SVG.check:'')+'</span>'
+          +'</button>';
+      }).join('')+'</div></div>';
+  }).join('')+'</div>';
 }
 
-function tpSelVar(varId,optId,optName,optPrice){
-  TP_WIP.vars[varId]={id:optId,name:optName,price:optPrice}; tpRenderMP();
-}
-
-function tpMPStep3(body,foot,title){
-  const p=TP_WIP.prod;
-  title.textContent=p.name;
+function pmBuildCustomPane(p){
   const modGroups=(p.mod_group_ids||[]).map(gid=>(S.modGroups||[]).find(g=>g.id===gid)).filter(Boolean);
   const presLabel=TP_WIP.pres&&TP_WIP.pres.name?TP_WIP.pres.name:'';
   const varLabels=Object.values(TP_WIP.vars).map(v=>v.name).join(' · ');
-  const summary=[presLabel,varLabels].filter(Boolean).join(' · ');
+  const selParts=[presLabel,varLabels].filter(Boolean);
   const photoHTML=p.photo_url
-    ?`<img src="${p.photo_url}" class="mp-photo" loading="lazy">`
-    :`<div class="mp-photo-placeholder">${(p.name||'?')[0].toUpperCase()}</div>`;
-  const modsHTML=modGroups.length?modGroups.map(g=>`
-    <div class="mp-mod-group">
-      <div class="mp-mod-head"><span class="mp-mod-name">${g.name}</span>
-        <span class="mp-mod-rule${g.rule==='obligatorio'?' req':''}">${g.rule==='obligatorio'?'Obligatorio':'Opcional'}</span></div>
-      <div class="mp-mod-opts">${(g.options||[]).map(o=>{
-        const sel=!!TP_WIP.mods[o.id];
-        return `<button class="mp-mod-opt${sel?' on':''}" onclick="tpToggleMod('${o.id}','${(o.name||'').replace(/'/g,"\'")}',${o.price||0})">
-          <span>${o.name}</span>${o.price?`<span class="mp-mod-oprice">+${tp_fmt(o.price)}</span>`:''}
-        </button>`;
-      }).join('')}</div></div>`).join('')
-    :`<div class="mp-no-mods">Sin adiciones disponibles</div>`;
-  body.innerHTML=`<div class="mp-step3">
-    <div class="mp-s3-left">
-      ${photoHTML}
-      <div><div class="mp-s3-name">${escHtml(p.name)}</div>${summary?`<div class="mp-s3-sub">${escHtml(summary)}</div>`:''}</div>
-      <div class="mp-qty-row">
-        <button class="mp-qty-btn" onclick="tpMPQty(-1)">−</button>
-        <span class="mp-qty-val" id="tp-mp-qty">${TP_WIP.qty}</span>
-        <button class="mp-qty-btn" onclick="tpMPQty(1)">+</button>
-        <span class="mp-price-live" id="tp-mp-price">${tp_fmt(tpComputePrice())}</span>
-      </div>
-      <div class="mp-toggle-row">
-        <button class="mp-toggle-opt${TP_WIP.forHere?' on':''}" onclick="tpToggleForHere(true)">🍽 Mesa</button>
-        <button class="mp-toggle-opt${!TP_WIP.forHere?' on':''}" onclick="tpToggleForHere(false)">📦 Para llevar</button>
-      </div>
-      <div><div class="mp-note-lbl">Nota para cocina</div>
-        <textarea class="mp-note-input" placeholder="Ej: sin cebolla, extra salsa…" oninput="TP_WIP.note=this.value">${TP_WIP.note}</textarea></div>
-    </div>
-    <div class="mp-s3-right">${modsHTML}</div>
-  </div>`;
-  const hasPrev=(p.presentations||[]).length>1||(p.variables||[]).length>0;
-  foot.innerHTML=`<button class="tp-foot-cancel" onclick="${hasPrev?'tpMPBack()':'tpCloseMP()'}">
-    ${hasPrev?tp_svg('back2')+' Atrás':'Cancelar'}</button>
-    <button class="tp-guardar" onclick="tpMPAddToCart()">${tp_svg('check')} Agregar al pedido</button>`;
+    ?'<div class="pm-photo"><img src="'+pmAttr(p.photo_url)+'" style="width:100%;height:100%;object-fit:cover"></div>'
+    :'<div class="pm-photo ph"><span style="font-size:40px;color:#CBD5E1">'+pmEsc((p.name||'?')[0].toUpperCase())+'</span></div>';
+  const selSummary=selParts.length
+    ?pmEsc(p.name)+' &middot; <span class="sel">'+pmEsc(selParts.join(' · '))+'</span>'
+    :pmEsc(p.name);
+  const modSumTxt=Object.values(TP_WIP.mods).map(m=>m.name).join(', ')||'Sin adiciones seleccionadas';
+  const groupsHTML=modGroups.length
+    ?modGroups.map(g=>{
+        const maxHint=g.multi?'Max. '+(g.options||[]).length:'Elige una';
+        const optRows=(g.options||[]).map(o=>{
+          const sel=!!TP_WIP.mods[o.id];
+          return '<button class="pm-mod'+(sel?' on':'')+'" data-mod-id="'+pmAttr(o.id)+'" data-mod-name="'+pmAttr(o.name)+'" data-mod-price="'+(o.price||0)+'">'
+            +'<div style="min-width:0;text-align:left"><div class="pm-mod-name">'+pmEsc(o.name)+'</div>'
+            +'<div class="pm-mod-price">'+(o.price?'+ '+pmFmt(o.price):'Gratis')+'</div></div>'
+            +'<span class="pm-mod-add">'+(sel?PM_SVG.check:PM_SVG.plus)+'</span>'
+            +'</button>';
+        }).join('');
+        return '<div style="margin-top:14px">'
+          +'<div class="pm-group-head"><span>'+pmEsc(g.name)+'</span><span class="pm-group-hint">'+maxHint+'</span></div>'
+          +'<div class="pm-mods-grid">'+optRows+'</div></div>';
+      }).join('')
+    :'<div class="pm-nomods"><p>Sin adiciones disponibles para este producto.</p></div>';
+  return '<div class="pm-custom">'
+    +'<div class="pm-left">'
+    +photoHTML
+    +'<div class="pm-prodname">'+selSummary+'</div>'
+    +'<div class="pm-modsum" id="pm-mod-sum">'+pmEsc(modSumTxt)+'</div>'
+    +'<div class="pm-field-lbl">'+PM_SVG.note+' Nota para cocina</div>'
+    +'<textarea class="pm-note" placeholder="Ej. caliente, con aji, sin salsa..." id="pm-note-input">'+pmEsc(TP_WIP.note)+'</textarea>'
+    +'<div class="pm-field-lbl">Para donde es?</div>'
+    +'<div class="pm-seg">'
+    +'<button class="'+(TP_WIP.forHere?'on':'')+'" data-dest="here">'+PM_SVG.table+' Para mesa</button>'
+    +'<button class="'+(!TP_WIP.forHere?'on':'')+'" data-dest="go">'+PM_SVG.bag+' Para llevar</button>'
+    +'</div></div>'
+    +'<div class="pm-right">'
+    +'<div class="pm-qty-row">'
+    +'<div style="display:flex;align-items:center;gap:12px">'
+    +'<span style="font-size:13px;font-weight:600;color:#475569">Cantidad</span>'
+    +'<div class="pm-stepper"><button id="pm-qty-dec">'+PM_SVG.minus+'</button>'
+    +'<span id="pm-qty-val">'+TP_WIP.qty+'</span>'
+    +'<button id="pm-qty-inc">'+PM_SVG.plus+'</button></div></div>'
+    +'<div style="text-align:right"><div class="pm-pf-lbl">Precio del producto</div>'
+    +'<div class="pm-pf-val" id="pm-price-val">'+pmFmt(tpComputePrice())+'</div></div></div>'
+    +'<div class="pm-search">'+PM_SVG.srch+'<input placeholder="Buscar adiciones..." id="pm-search-inp"></div>'
+    +groupsHTML
+    +'</div></div>';
 }
 
-function tpToggleMod(optId,optName,optPrice){
-  if(TP_WIP.mods[optId]){delete TP_WIP.mods[optId];}else{TP_WIP.mods[optId]={name:optName,price:optPrice};}
-  const btn=document.querySelector(`.mp-mod-opt[onclick*="'${optId}'"]`); if(btn) btn.classList.toggle('on',!!TP_WIP.mods[optId]);
-  const pd=document.getElementById('tp-mp-price'); if(pd) pd.textContent=tp_fmt(tpComputePrice());
+function pmAttachHandlers(inner,p,curId){
+  inner.querySelectorAll('.pm-step.done').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const sid=btn.dataset.stepId;
+      TP_WIP.step=sid==='pres'?1:sid==='var'?2:3;
+      tpRenderMP();
+    });
+  });
+  if(curId==='pres'){
+    inner.querySelectorAll('.pm-choice[data-pres-id]').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const id=btn.dataset.presId,name=btn.dataset.presName,price=+btn.dataset.presPrice;
+        TP_WIP.pres={id,name,price};
+        inner.querySelectorAll('.pm-choice[data-pres-id]').forEach(b=>{
+          const on=b.dataset.presId===id;
+          b.classList.toggle('on',on);
+          b.querySelector('.pm-radio').innerHTML=on?PM_SVG.check:'';
+        });
+        const nb=document.getElementById('tp-mp-next'); if(nb) nb.disabled=false;
+      });
+    });
+  }
+  if(curId==='var'){
+    inner.querySelectorAll('.pm-choice[data-var-id]').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const vid=btn.dataset.varId,oid=btn.dataset.optId,oname=btn.dataset.optName,oprice=+btn.dataset.optPrice;
+        TP_WIP.vars[vid]={id:oid,name:oname,price:oprice};
+        inner.querySelectorAll('.pm-choice[data-var-id="'+vid+'"]').forEach(b=>{
+          const on=b.dataset.optId===oid;
+          b.classList.toggle('on',on);
+          b.querySelector('.pm-radio').innerHTML=on?PM_SVG.check:'';
+        });
+        const allDone=(p.variables||[]).every(v=>TP_WIP.vars[v.id]);
+        const nb=document.getElementById('tp-mp-next'); if(nb) nb.disabled=!allDone;
+      });
+    });
+  }
+  if(curId==='custom'){
+    const qdec=document.getElementById('pm-qty-dec'),qinc=document.getElementById('pm-qty-inc');
+    if(qdec) qdec.addEventListener('click',()=>{ TP_WIP.qty=Math.max(1,TP_WIP.qty-1); pmUpdatePrices(); });
+    if(qinc) qinc.addEventListener('click',()=>{ TP_WIP.qty++; pmUpdatePrices(); });
+    const noteEl=document.getElementById('pm-note-input');
+    if(noteEl){ noteEl.value=TP_WIP.note; noteEl.addEventListener('input',function(){ TP_WIP.note=this.value; }); }
+    inner.querySelectorAll('.pm-seg button').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        TP_WIP.forHere=btn.dataset.dest==='here';
+        inner.querySelectorAll('.pm-seg button').forEach(b=>b.classList.toggle('on',b.dataset.dest===(TP_WIP.forHere?'here':'go')));
+      });
+    });
+    inner.querySelectorAll('.pm-mod').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const id=btn.dataset.modId,name=btn.dataset.modName,price=+btn.dataset.modPrice;
+        if(TP_WIP.mods[id]) delete TP_WIP.mods[id]; else TP_WIP.mods[id]={name,price};
+        const on=!!TP_WIP.mods[id];
+        btn.classList.toggle('on',on);
+        btn.querySelector('.pm-mod-add').innerHTML=on?PM_SVG.check:PM_SVG.plus;
+        pmUpdatePrices();
+        const ms=document.getElementById('pm-mod-sum');
+        if(ms) ms.textContent=Object.values(TP_WIP.mods).map(m=>m.name).join(', ')||'Sin adiciones seleccionadas';
+      });
+    });
+    const sinp=document.getElementById('pm-search-inp');
+    if(sinp) sinp.addEventListener('input',function(){
+      const q=this.value.toLowerCase().trim();
+      inner.querySelectorAll('.pm-mod').forEach(b=>{
+        const nm=b.querySelector('.pm-mod-name')?b.querySelector('.pm-mod-name').textContent.toLowerCase():'';
+        b.style.display=q&&!nm.includes(q)?'none':'';
+      });
+    });
+  }
 }
 
-function tpMPQty(delta){
-  TP_WIP.qty=Math.max(1,TP_WIP.qty+delta);
-  const qd=document.getElementById('tp-mp-qty'); if(qd) qd.textContent=TP_WIP.qty;
-  const pd=document.getElementById('tp-mp-price'); if(pd) pd.textContent=tp_fmt(tpComputePrice());
+function pmUpdatePrices(){
+  const p=document.getElementById('pm-price-val'); if(p) p.textContent=pmFmt(tpComputePrice());
+  const f=document.getElementById('pm-foot-price'); if(f) f.textContent=pmFmt(tpComputePrice());
+  const q=document.getElementById('pm-qty-val'); if(q) q.textContent=TP_WIP.qty;
 }
 
-function tpToggleForHere(val){
-  TP_WIP.forHere=val;
-  document.querySelectorAll('.mp-toggle-opt').forEach((b,i)=>b.classList.toggle('on',i===(val?0:1)));
-}
+function tpCheckOverlayClose(e){ if(e.target===e.currentTarget) tpCloseMP(); }
 
 function tpMPAdvance(){
   const p=TP_WIP.prod, hasVars=(p.variables||[]).length>0;
@@ -515,7 +635,7 @@ function tpMPBack(){
   tpRenderMP();
 }
 
-function tpCloseMP(){ const el=document.getElementById('tp-modal-producto'); if(el) el.hidden=true; }
+function tpCloseMP(){ const el=document.getElementById('tp-modal-producto'); if(el) el.style.display='none'; }
 
 function tpMPAddToCart(){
   const p=TP_WIP.prod;
