@@ -343,7 +343,10 @@ function openEditor(id,type){
 }
 
 function renderProductEditor(){
+  console.log('[CAT] renderProductEditor called, editProd:', S.editProd && S.editProd.name);
+  if(!S.editProd){console.error('[CAT] editProd is null!');return;}
   const p=S.editProd,isNew=!S.products.find(x=>x.id===p.id),cat=catOf(p.cat);
+  console.log('[CAT] p.presentations:', p.presentations, 'p.variables:', p.variables);
   const priceRange=()=>{let ps;if(p.priceMode==='matrix'){ps=(p.variables||[]).flatMap(v=>v.isPricing?(v.options||[]).flatMap(o=>o.prices||[]):[]).filter(Boolean);}else{const pres=p.presentations.map(x=>x.price).filter(Boolean);const vars=(p.variables||[]).flatMap(v=>(v.options||[]).map(o=>o.price||0)).filter(Boolean);ps=pres.length?pres:vars;}if(!ps.length)return '--';const lo=Math.min(...ps),hi=Math.max(...ps);return lo===hi?fmt(lo):(fmt(lo)+' – '+fmt(hi));};
   const hasPres_=p.presentations.some(x=>x.name.trim()&&x.price>0);const hasVar_=(p.variables||[]).some(v=>(v.options||[]).some(o=>o.price>0));const canSave=p.name.trim()&&p.presentations.some(x=>x.name.trim())&&(p.priceMode==='matrix'?(p.variables||[]).some(v=>v.isPricing&&(v.options||[]).some(o=>(o.prices||[]).some(pr=>pr>0))):(hasPres_||hasVar_));
   const catOptions=S.cats.map(c=>'<option value="'+c.id+'" '+(p.cat===c.id?'selected':'')+'>'+escHtml(c.name)+'</option>').join('');
