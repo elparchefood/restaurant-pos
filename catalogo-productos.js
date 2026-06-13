@@ -478,7 +478,7 @@ async function saveCat(){
 }
 
 // ── AI Import ─────────────────────────────────────────────────────────────
-function openAIImport(){S.aiStage='source';S.aiTab='file';S.aiFile=null;S.aiUrl='';S.aiResult=null;S.aiError=null;S.aiExcluded={};S.aiOpenCat=null;S.aiTimers.forEach(clearTimeout);S.aiTimers=[];renderAIImport();}
+function openAIImport(){S.aiStage='source';S.aiTab='file';S.aiFile=null;S.aiUrl='';S.aiResult=null;S.aiError=null;S.aiExcluded={};S.aiExcludedMods={};S.aiOpenCat=null;S.aiEditKey=null;S.aiTimers.forEach(clearInterval);S.aiTimers=[];renderAIImport();}
 function renderAIImport(){
   const stage=S.aiStage,stageMap=['source','analyzing','review'],steps=['Fuente','Análisis','Revisión'];
   const stepDots=steps.map((s,i)=>{const cur=stageMap.indexOf(stage),state=i<cur?'done':i===cur?'active':'todo',bg=state==='todo'?'#F1F5F9':'#8B5CF6',col=state==='todo'?'#94A3B8':'#fff',inner=state==='done'?icon('check',12,3):i+1;return '<div style="display:flex;align-items:center;gap:8px"><span class="cc-step-dot" style="background:'+bg+';color:'+col+'">'+inner+'</span><span style="font-size:12px;font-weight:700;color:'+(state==='todo'?'#94A3B8':'#0F172A')+'">'+s+'</span></div>'+(i<2?'<span style="flex:1;height:2px;background:'+(i<cur?'#8B5CF6':'#ECEEF2')+';border-radius:2px"></span>':'');}).join('');
@@ -518,40 +518,75 @@ function renderAIImport(){
     footHTML='<span style="font-size:11.5px;color:#94A3B8">No cierres esta ventana mientras analiza.</span><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button>';
 
   } else {
-    const ex=S.aiResult||{categories:[]};
+    const ex=S.aiResult||{categories:[],modifier_groups:[]};
     const incl=ex.categories.filter(c=>!S.aiExcluded[c.name]),inclProds=incl.reduce((a,c)=>a+c.products.length,0);
-    const catBlocks=ex.categories.map(c=>{
+    const inclMods=(ex.modifier_groups||[]).filter(g=>!S.aiExcludedMods[g.name]);
+
+    // Category + product blocks
+    const catBlocks=ex.categories.map((c,ci)=>{
       const off=!!S.aiExcluded[c.name],open=S.aiOpenCat===c.name;
-      const prodRows=open&&!off?c.products.map(pr=>{
-        const pTags=(pr.presentations||[]).map(p=>{
-          const price=p.price>0?(' · $'+Number(p.price).toLocaleString('es-CO')):'';
-          return '<span class="cc-pres-tag" style="background:#F0FDF4;color:#16A34A;border:1px solid #BBF7D0">'+escHtml(p.name)+price+'</span>';
-        }).join('');
-        const vRows=(pr.variables||[]).map(v=>{
-          const optTags=v.options.map(o=>{
-            const oprice=(v.isPricing||o.price>0)?'':('');
-            return '<span class="cc-pres-tag" style="background:#F5F3FF;color:#7C3AED;border:1px solid #DDD6FE">'+escHtml(o.name)+'</span>';
+      const prodRows=open&&!off?c.products.map((pr,pi)=>{
+        const editKey=ci+':'+pi;
+        const isEditing=S.aiEditKey===editKey;
+        if(isEditing){
+          const presInputs=(pr.presentations||[]).map((p,psi)=>{
+            return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">'
+              +'<input class="cc-input" style="flex:1;font-size:12px;padding:5px 9px" value="'+escHtml(p.name)+'" placeholder="Nombre" oninput="aiUpdatePresName('+ci+','+pi+','+psi+',this.value)">'
+              +'<input class="cc-input" type="number" style="width:90px;font-size:12px;padding:5px 9px;text-align:right" value="'+p.price+'" placeholder="Precio" oninput="aiUpdatePresPrice('+ci+','+pi+','+psi+',+this.value)">'
+              +'<button class="lm-icon-sm" style="flex-shrink:0" onclick="aiRemovePres('+ci+','+pi+','+psi+')">'+icon('x',13)+'</button>'
+              +'</div>';
           }).join('');
-          return '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap"><span style="font-size:9.5px;font-weight:800;color:#8B5CF6;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">'+escHtml(v.name)+':</span>'+optTags+'</div>';
-        }).join('');
-        const mTag=(pr.modifiers||[]).length?'<span class="cc-pres-tag" style="background:#FFFBEB;color:#F59E0B;border:1px solid #FDE68A">'+(pr.modifiers||[]).length+' mod.</span>':'';
+          const varInputs=(pr.variables||[]).map((v,vi)=>{
+            const optInputs=v.options.map((o,oi)=>{
+              const priceInp=v.isPricing?'<input class="cc-input" type="number" style="width:75px;font-size:11px;padding:4px 7px;text-align:right" value="'+(o.prices?o.prices[0]||0:o.price||0)+'" placeholder="$" oninput="aiUpdateVarOptPrice('+ci+','+pi+','+vi+','+oi+',+this.value)">':'';
+              return '<div style="display:flex;align-items:center;gap:5px;margin-bottom:4px"><input class="cc-input" style="flex:1;font-size:11.5px;padding:4px 9px" value="'+escHtml(o.name)+'" oninput="aiUpdateVarOptName('+ci+','+pi+','+vi+','+oi+',this.value)">'+priceInp+'<button class="lm-icon-sm" style="flex-shrink:0" onclick="aiRemoveVarOpt('+ci+','+pi+','+vi+','+oi+')">'+icon('x',13)+'</button></div>';
+            }).join('');
+            return '<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:#8B5CF6;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Variable: '+escHtml(v.name)+'</div>'+optInputs+'<button class="lm-btn-ghost" style="font-size:11px;padding:3px 9px;margin-top:2px" onclick="aiAddVarOpt('+ci+','+pi+','+vi+')">+ Opción</button></div>';
+          }).join('');
+          return '<div class="cc-prod-row" style="flex-direction:column;align-items:stretch;gap:6px;padding:10px 0">'
+            +'<div style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;font-weight:700;color:#8B5CF6;flex:1">'+escHtml(pr.name)+'</span>'
+            +'<button class="lm-btn-primary" style="font-size:11px;padding:4px 12px" onclick="S.aiEditKey=null;renderAIImport()">'+icon('check',12)+' Listo</button></div>'
+            +'<div><div style="font-size:10px;font-weight:700;color:#16A34A;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Presentaciones y precios</div>'+presInputs
+            +'<button class="lm-btn-ghost" style="font-size:11px;padding:3px 9px" onclick="aiAddPres('+ci+','+pi+')">+ Presentación</button></div>'
+            +(varInputs?'<div>'+varInputs+'</div>':'')+'</div>';
+        }
+        const pTags=(pr.presentations||[]).map(p=>'<span class="cc-pres-tag" style="background:#F0FDF4;color:#16A34A;border:1px solid #BBF7D0">'+escHtml(p.name)+(p.price>0?' · $'+Number(p.price).toLocaleString('es-CO'):'')+'</span>').join('');
+        const vRows=(pr.variables||[]).map(v=>'<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap"><span style="font-size:9.5px;font-weight:800;color:#8B5CF6;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">'+escHtml(v.name)+':</span>'+v.options.map(o=>'<span class="cc-pres-tag" style="background:#F5F3FF;color:#7C3AED;border:1px solid #DDD6FE">'+escHtml(o.name)+'</span>').join('')+'</div>').join('');
         const presRow=pTags?'<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap"><span style="font-size:9.5px;font-weight:800;color:#16A34A;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Pres.:</span>'+pTags+'</div>':'';
         const modeChip=pr.priceMode==='matrix'?'<span style="font-size:9px;font-weight:700;background:#EDE9FE;color:#7C3AED;padding:2px 6px;border-radius:99px">MATRIZ</span>':'';
         const varChip=pr.variables?.length?'<span style="font-size:9px;font-weight:700;background:#F5F3FF;color:#8B5CF6;padding:2px 6px;border-radius:99px">'+pr.variables.length+' var.</span>':'';
-        return '<div class="cc-prod-row" style="flex-direction:column;align-items:flex-start;gap:3px"><div style="display:flex;align-items:center;gap:6px;width:100%"><span style="font-size:12.5px;font-weight:700;color:#0F172A;flex:1">'+escHtml(pr.name)+'</span>'+modeChip+varChip+mTag+'</div>'+presRow+vRows+'</div>';
+        return '<div class="cc-prod-row" style="flex-direction:column;align-items:flex-start;gap:3px"><div style="display:flex;align-items:center;gap:6px;width:100%"><span style="font-size:12.5px;font-weight:700;color:#0F172A;flex:1">'+escHtml(pr.name)+'</span>'+modeChip+varChip+'<button class="lm-icon-sm" title="Editar" onclick="S.aiEditKey=''+editKey+'';renderAIImport()" style="opacity:.55">'+icon('edit',13)+'</button></div>'+presRow+vRows+'</div>';
       }).join(''):'';
-      return '<div class="cc-cat-block" style="opacity:'+(off?.55:1)+';border-color:'+(open&&!off?'#DDD6FE':'#ECEEF2')+'"><div class="cc-cat-row"><button class="cc-check'+(off?'':' on')+'" onclick="toggleAICat(\''+escHtml(c.name)+'\')" style="'+(off?'':'background:#8B5CF6;border-color:#8B5CF6;color:#fff')+'">'+(off?'':icon('check',12,3))+'</button><button class="cc-cat-toggle" onclick="S.aiOpenCat=S.aiOpenCat===\''+escHtml(c.name)+'\'?null:\''+escHtml(c.name)+'\';renderAIImport()"><span style="font-size:13.5px;font-weight:700;color:#0F172A">'+escHtml(c.name)+'</span><span class="cc-cat-count">'+c.products.length+' productos</span><span style="margin-left:auto;color:#CBD5E1;transform:'+(open?'rotate(90deg)':'none')+';transition:transform .15s;display:flex">'+icon('chevron',15)+'</span></button></div>'+(prodRows?'<div class="cc-prod-list">'+prodRows+'</div>':'')+'</div>';
+      return '<div class="cc-cat-block" style="opacity:'+(off?.55:1)+';border-color:'+(open&&!off?'#DDD6FE':'#ECEEF2')+'"><div class="cc-cat-row"><button class="cc-check'+(off?'':' on')+'" onclick="toggleAICat(''+escHtml(c.name)+'')" style="'+(off?'':'background:#8B5CF6;border-color:#8B5CF6;color:#fff')+'">'+(off?'':icon('check',12,3))+'</button><button class="cc-cat-toggle" onclick="S.aiOpenCat=S.aiOpenCat===''+escHtml(c.name)+''?null:''+escHtml(c.name)+'';renderAIImport()"><span style="font-size:13.5px;font-weight:700;color:#0F172A">'+escHtml(c.name)+'</span><span class="cc-cat-count">'+c.products.length+' productos</span><span style="margin-left:auto;color:#CBD5E1;transform:'+(open?'rotate(90deg)':'none')+';transition:transform .15s;display:flex">'+icon('chevron',15)+'</span></button></div>'+(prodRows?'<div class="cc-prod-list">'+prodRows+'</div>':'')+'</div>';
     }).join('');
+
+    // Modifier groups block
+    const mgroups=ex.modifier_groups||[];
+    const modBlock=mgroups.length?'<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Grupos de adiciones detectados</div>'
+      +mgroups.map(g=>{
+        const off=!!S.aiExcludedMods[g.name];
+        const optList=(g.options||[]).map(o=>'<span class="cc-pres-tag" style="background:#FFFBEB;color:#92400E;border:1px solid #FDE68A">'+escHtml(o.name)+(o.price?' · $'+Number(o.price).toLocaleString('es-CO'):'')+'</span>').join('');
+        return '<div class="cc-cat-block" style="opacity:'+(off?.55:1)+';border-color:#FDE68A"><div class="cc-cat-row"><button class="cc-check'+(off?'':' on')+'" onclick="toggleAIMod(''+escHtml(g.name)+'')" style="'+(off?'':'background:#F59E0B;border-color:#F59E0B;color:#fff')+'">'+(off?'':icon('check',12,3))+'</button><div style="flex:1"><span style="font-size:13px;font-weight:700;color:#0F172A">'+escHtml(g.name)+'</span><span class="cc-cat-count">'+(g.options||[]).length+' opciones</span></div></div>'+(optList?'<div class="cc-prod-list" style="padding:8px 12px"><div style="display:flex;gap:5px;flex-wrap:wrap">'+optList+'</div></div>':'')+'</div>';
+      }).join('')+'</div>':'';
+
     const stats=ex._stats||{};
-    bodyHTML='<div class="cc-result-banner"><span style="color:#10B981;display:flex">'+icon('checkc',18)+'</span><div style="flex:1"><div style="font-size:13.5px;font-weight:800;color:#0F172A">Menú analizado con GPT-4o</div><div style="font-size:11.5px;color:#64748B;margin-top:1px">'+(stats.categories||incl.length)+' categorías · '+(stats.products||inclProds)+' productos detectados</div></div></div><div style="font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin:4px 2px 8px">Revisa antes de importar — desmarca lo que no quieras</div><div style="display:flex;flex-direction:column;gap:8px">'+catBlocks+'</div>';
-    footHTML='<span style="font-size:12px;color:#64748B;font-weight:600">'+incl.length+' categorías · '+inclProds+' productos</span><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="S.aiStage=\'source\';renderAIImport()">Volver</button><button class="cc-btn-ai" '+(inclProds?'':'disabled')+' onclick="importFromAI()">'+icon('check',14)+' Importar al catálogo</button></div>';
-  }
+    bodyHTML='<div class="cc-result-banner"><span style="color:#10B981;display:flex">'+icon('checkc',18)+'</span><div style="flex:1"><div style="font-size:13.5px;font-weight:800;color:#0F172A">Menú analizado con GPT-4o</div><div style="font-size:11.5px;color:#64748B;margin-top:1px">'+(stats.categories||incl.length)+' categorías · '+(stats.products||inclProds)+' productos'+(mgroups.length?' · '+mgroups.length+' grupos de adiciones':'')+'</div></div></div><div style="font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin:4px 2px 8px">Revisa y edita antes de importar</div><div style="display:flex;flex-direction:column;gap:8px">'+catBlocks+'</div>'+modBlock;
+    footHTML='<span style="font-size:12px;color:#64748B;font-weight:600">'+incl.length+' cat. · '+inclProds+' prods'+(inclMods.length?' · '+inclMods.length+' grupos mod.':'')+'</span><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="S.aiStage='source';renderAIImport()">Volver</button><button class="cc-btn-ai" '+(inclProds?'':'disabled')+' onclick="importFromAI()">'+icon('check',14)+' Importar al catálogo</button></div>';
   openOverlay('<div class="cc-overlay center" onmousedown="handleOverlayClose(event)"><div class="cc-modal wide" onmousedown="event.stopPropagation()"><div class="cc-modal-head"><div style="display:flex;align-items:center;gap:11px"><span class="cc-modal-glyph" style="background:linear-gradient(135deg,#8B5CF6,#5B6BFF);color:#fff;box-shadow:0 4px 12px -3px rgba(139,92,246,.5)">'+icon('sparkle',18)+'</span><div><div style="font-size:15px;font-weight:800;color:#0F172A;letter-spacing:-.02em">Importar menú con IA</div><div style="font-size:11.5px;color:#94A3B8">Sube tu carta y GPT-4o la convierte en catálogo automáticamente</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div class="cc-steps-bar">'+stepDots+'</div><div class="cc-modal-body">'+bodyHTML+'</div><div class="cc-modal-foot">'+footHTML+'</div></div></div>');
 }
 
 function handleAIFileSelect(inp){if(inp.files[0]){S.aiFile=inp.files[0];renderAIImport();}}
 function handleAIFileDrop(e){e.preventDefault();e.currentTarget.classList.remove('over');if(e.dataTransfer.files[0]){S.aiFile=e.dataTransfer.files[0];renderAIImport();}}
 function toggleAICat(name){S.aiExcluded[name]=!S.aiExcluded[name];renderAIImport();}
+function toggleAIMod(name){S.aiExcludedMods[name]=!S.aiExcludedMods[name];renderAIImport();}
+function aiUpdatePresName(ci,pi,psi,v){S.aiResult.categories[ci].products[pi].presentations[psi].name=v;}
+function aiUpdatePresPrice(ci,pi,psi,v){S.aiResult.categories[ci].products[pi].presentations[psi].price=v;}
+function aiRemovePres(ci,pi,psi){S.aiResult.categories[ci].products[pi].presentations.splice(psi,1);renderAIImport();}
+function aiAddPres(ci,pi){S.aiResult.categories[ci].products[pi].presentations.push({name:'Nueva',price:0});renderAIImport();}
+function aiUpdateVarOptName(ci,pi,vi,oi,v){S.aiResult.categories[ci].products[pi].variables[vi].options[oi].name=v;}
+function aiUpdateVarOptPrice(ci,pi,vi,oi,v){const opt=S.aiResult.categories[ci].products[pi].variables[vi].options[oi];if(opt.prices)opt.prices=opt.prices.map(()=>v);else opt.price=v;}
+function aiRemoveVarOpt(ci,pi,vi,oi){S.aiResult.categories[ci].products[pi].variables[vi].options.splice(oi,1);renderAIImport();}
+function aiAddVarOpt(ci,pi,vi){S.aiResult.categories[ci].products[pi].variables[vi].options.push({name:'Nueva opción',price:0});renderAIImport();}
 async function fileToBase64Ai(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});}
 async function pdfToImages(file){
   if(!window.pdfjsLib){
@@ -657,8 +692,15 @@ async function importFromAI(){
       const savedId=await saveProductToSupabase(prod);prod.id=savedId;newProds.push(prod);
     }
   }
+  const inclModsArr=(ex.modifier_groups||[]).filter(g=>!S.aiExcludedMods[g.name]);
+  for(const g of inclModsArr){
+    const group={id:uid('mg'),name:g.name,rule:g.rule||'opcional',multi:g.multi!==false,options:(g.options||[]).map(o=>({id:uid('op'),name:o.name,price:o.price||0}))};
+    const savedId=await saveModGroupToSupabase(group);group.id=savedId;
+    const idx=S.mods.findIndex(x=>x.id===group.id);if(idx>=0)S.mods[idx]=group;else S.mods.push(group);
+  }
   S.cats=[...S.cats,...newCats];S.products=[...newProds,...S.products];
-  closeOverlay();S.tab='productos';S.filterCat=null;renderPage();toast(newProds.length+' productos importados con IA ✓');
+  closeOverlay();S.tab='productos';S.filterCat=null;renderPage();
+  toast(newProds.length+' productos'+(inclModsArr.length?' y '+inclModsArr.length+' grupos de adiciones':'')+' importados con IA ✓');
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────
