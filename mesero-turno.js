@@ -153,7 +153,7 @@ async function iniciarTurno() {
       .select('id, started_at')
       .single();
 
-    if (error) throw error;
+    if (error) { console.error('[turno] insert error:', JSON.stringify(error)); showToast('Error: ' + (error.message || error.code || JSON.stringify(error))); setLoadingPrimary(false); return; }
 
     turnoActivo = data;
     mostrarTurnoActivo(data);
