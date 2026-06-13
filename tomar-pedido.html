@@ -311,15 +311,10 @@
 </div><!-- /.tp-root -->
 
 
-<!-- Modal: Flujo de producto -->
-<div class="tp-overlay" id="tp-modal-producto" hidden>
-  <div class="tp-modal mp-modal">
-    <div class="tp-modal-head">
-      <div class="tp-modal-title" id="tp-mp-title">Personaliza tu pedido</div>
-      <button class="tp-modal-x" data-tp-mp-cancel title="Cerrar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    </div>
-    <div class="mp-body" id="tp-mp-body"></div>
-    <div class="tp-modal-foot mp-foot-grid" id="tp-mp-foot"></div>
+<!-- Modal: Flujo de producto (pm-* design) -->
+<div class="pm-overlay" id="tp-modal-producto" style="display:none" onclick="tpCheckOverlayClose(event)">
+  <div class="pm-modal" id="pm-modal-inner">
+    <!-- JS fills: pm-head + pm-steps + pm-body + pm-foot -->
   </div>
 </div>
 
