@@ -1234,6 +1234,7 @@ async function iaGuardarReceta() {
     insumo_id:  l.insId,
     cantidad:   l.qty,
     merma:      0,
+    updated_at: new Date().toISOString(),
   }));
 
   if (recetaRows.length) {
