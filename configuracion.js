@@ -835,6 +835,16 @@ function urRoleById(id) { return UR.roles.find(function(r){ return r.id===id; })
 function urUserById(id) { return UR.users.find(function(u){ return u.id===id; }); }
 var _uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function safeUUID(v) { return (_uuidRe.test(v) ? v : null); }
+function slugNegocio() {
+  var meta = window._pos && window._pos.state && window._pos.state.negocio;
+  if (!meta) {
+    try { var u = JSON.parse(localStorage.getItem('sb-tblujfduscslxjmrjbdr-auth-token')||'{}');
+      meta = u.user && u.user.user_metadata && u.user.user_metadata.negocio; } catch(e){}
+  }
+  return (meta||'restaurante').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-z0-9]/g,'');
+}
 
 function urShowToast(msg) {
   var t=$('toast'), m=$('toast-msg');
@@ -1154,7 +1164,10 @@ function urSelectUser(id) {
   var av=$('ur-user-avatar'); if(av){ av.textContent=urInitials(u.name); av.style.background=u.active?color:'#CBD5E1'; }
   var ti=$('ur-user-title'); if(ti) ti.textContent=u.name||'–';
   var nm=$('ur-u-name');  if(nm) nm.value=u.name||'';
-  var em=$('ur-u-email'); if(em) em.value=u.email||'';
+  var emailDomain = '@' + slugNegocio();
+  var prefixVal = (u.email||'').replace(/@.*/,'');
+  var em=$('ur-u-email'); if(em) em.value=prefixVal;
+  var domLbl=$('ur-u-email-domain'); if(domLbl) domLbl.textContent=emailDomain;
   var ps=$('ur-u-pass');  if(ps) ps.value=u.pass||'';
   // Rol select
   var sel=$('ur-u-rol');
@@ -1187,7 +1200,9 @@ function urSelectUser(id) {
     urRenderUsers();
   };
   var emailIn=$('ur-u-email');
-  if(emailIn) emailIn.oninput=function(){ u.email=emailIn.value; };
+  if(emailIn) emailIn.oninput=function(){
+    u.email = emailIn.value.trim().toLowerCase().replace(/@.*/,'') + '@' + slugNegocio();
+  };
   var passIn=$('ur-u-pass');
   if(passIn) passIn.oninput=function(){ u.pass=passIn.value; };
   // Botón "Crear usuario" — visible solo para usuarios nuevos
@@ -1455,7 +1470,9 @@ async function urAddUser() {
 
 async function urConfirmCreateUser(u) {
   if (!u._isNew) return;
-  if (!u.email || !u.pass) { urShowToast('Completa correo y contraseña primero'); return; }
+  var prefixCheck = (u.email||'').replace(/@.*/,'').trim();
+  if (!prefixCheck || !u.pass) { urShowToast('Completa el nombre de usuario y la contrasena'); return; }
+  u.email = prefixCheck + '@' + slugNegocio();
   try {
     var { data: { user: me } } = await sb.auth.getUser();
     if (!me) {
