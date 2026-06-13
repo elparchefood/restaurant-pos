@@ -199,18 +199,27 @@ function setTab(tab){if(tab==='ai'){openAIImport();return;}S.tab=tab;S.filterCat
 function renderPage(){renderNav();updateStats();renderPageHead();renderTabsRow();renderFilterRow();renderBody();}
 
 function renderPageHead(){
-  const titles={productos:'Catálogo de productos',combos:'Combos',categorias:'Categorías',modificadores:'Modificadores'};
+  const titles={productos:'Catálogo de productos',combos:'Combos',categorias:'Categorías',modificadores:'Modificadores'};;
   const t=$('page-title');if(t)t.textContent=titles[S.tab]||'Catálogo';
   const crumb=$('crumb-title');if(crumb)crumb.textContent=titles[S.tab]||'Catálogo';
   const isManage=S.tab==='categorias'||S.tab==='modificadores';
   const actions=$('page-actions');if(!actions)return;
   if(isManage){actions.innerHTML='';return;}
+  const isProd=S.tab==='productos';
   let search='';
-  if(S.tab==='productos')search='<div class="cp-search">'+icon('search',14)+'<input id="cp-search-input" placeholder="Buscar producto…" value="'+escHtml(S.query)+'" oninput="onSearch(this.value)"></div>';
-  if(S.tab==='productos'&&S.selectMode){
-    actions.innerHTML=search+'<button class="lm-btn-ghost sm" onclick="selectAll()">'+icon('check',13)+' Todo</button><button class="lm-btn-ghost sm" style="color:#EF4444" '+(S.selected.size===0?'disabled':'')+' onclick="deleteSelected()">'+icon('trash',13)+' Eliminar ('+S.selected.size+')</button><button class="lm-btn-ghost sm" onclick="toggleSelectMode()">Cancelar</button>';
+  if(isProd)search='<div class="cp-search">'+icon('search',14)+'<input id="cp-search-input" placeholder="Buscar producto…" oninput="S.query=this.value;renderBody()" value="'+escHtml(S.query||'')+'"></div>';
+  if(isProd&&S.selectMode){
+    actions.innerHTML=search
+      +'<button class="lm-btn-ghost sm" onclick="selectAll()">'+icon('check',13)+' Todo</button>'
+      +'<button class="lm-btn-ghost sm" style="color:#EF4444" '+(S.selected.size===0?'disabled':'')+' onclick="deleteSelected()">'+icon('trash',13)+' Eliminar ('+S.selected.size+')</button>'
+      +'<button class="lm-btn-ghost sm" onclick="toggleSelectMode()">Cancelar</button>';
   } else {
-    actions.innerHTML=search+(S.tab==='productos'?'<button class="lm-btn-ghost sm" onclick="toggleSelectMode()">'+icon('check',13)+' Seleccionar</button>':'')+'<button class="cc-btn-ai ghost" onclick="openAIImport()">'+icon('sparkle',14)+' Importar con IA</button><button class="lm-btn-primary" onclick="openEditor(null,\'+(S.tab===\'productos\'?\'product\':\'combo\')+\')">'+icon('plus',14)+' '+(S.tab==='productos'?'Nuevo producto':'Nuevo combo')+'</button>';
+    const type=isProd?'product':'combo';
+    const label=isProd?'Nuevo producto':'Nuevo combo';
+    actions.innerHTML=search
+      +(isProd?'<button class="lm-btn-ghost sm" onclick="toggleSelectMode()">'+icon('check',13)+' Seleccionar</button>':'')
+      +'<button class="cc-btn-ai ghost" onclick="openAIImport()">'+icon('sparkle',14)+' Importar con IA</button>'
+      +'<button class="lm-btn-primary" onclick="openEditor(null,\''+type+'\')">'+icon('plus',14)+' '+label+'</button>';
   }
 }
 
