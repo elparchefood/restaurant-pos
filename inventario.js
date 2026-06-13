@@ -978,16 +978,31 @@ async function generarRecetaIA(prodId) {
   // Mostrar modal
   document.getElementById('panel-ia-receta').classList.remove('is-hidden');
 
-  // Obtener base del producto
+  // 1. Obtener descripcion fresca del producto (directo por ID, sin filtros tenant/branch)
+  let freshDesc = prod.descripcion || '';
   try {
-    const { data: bases } = await iv_sb
+    const { data: pRow } = await iv_sb
+      .from('pos_products')
+      .select('description')
+      .eq('id', prodId)
+      .single();
+    if (pRow && pRow.description) freshDesc = pRow.description;
+  } catch(e) { console.warn('[IA] desc fetch:', e); }
+  document.getElementById('ia-prod-desc').textContent = freshDesc || '(sin descripción)';
+  console.log('[IA] descripcion:', freshDesc);
+
+  // 2. Obtener base del producto desde pos_bases
+  try {
+    const { data: bases, error: bErr } = await iv_sb
       .from('pos_bases')
       .select('name, ingredients, product_ids');
 
+    if (bErr) console.warn('[IA] pos_bases error:', bErr);
     const baseRow = (bases || []).find(b =>
       Array.isArray(b.product_ids) && b.product_ids.includes(prodId)
     );
     iaState.baseIngrs = baseRow ? (baseRow.ingredients || []) : [];
+    console.log('[IA] base encontrada:', baseRow ? baseRow.name : 'ninguna', '→', iaState.baseIngrs);
   } catch(e) {
     console.warn('[IA] No se pudo cargar pos_bases:', e);
   }
@@ -1001,23 +1016,26 @@ async function generarRecetaIA(prodId) {
     if (msgEl) { msgEl.style.opacity = '0'; setTimeout(() => { if(msgEl) { msgEl.textContent = IA_MSGS[msgIdx]; msgEl.style.opacity = '1'; } }, 200); }
   }, 2200);
 
-  // Llamar Edge Function
+  // 3. Llamar Edge Function
   try {
     const body = {
-      mode:           'recipe',
-      productName:    prod.nombre,
-      description:    prod.descripcion || '',
+      mode:            'recipe',
+      productName:     prod.nombre,
+      description:     freshDesc,
       baseIngredients: iaState.baseIngrs,
       existingInsumos: insumos.map(i => i.nombre),
     };
+    console.log('[IA] enviando a Edge Function:', JSON.stringify(body).slice(0,300));
     const res  = await fetch(EDGE_URL, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
       body:    JSON.stringify(body),
     });
     const data = await res.json();
+    console.log('[IA] respuesta Edge Function:', JSON.stringify(data).slice(0,500));
     if (data.error) throw new Error(data.error);
     iaState.iaIngredients = data.ingredients || [];
+    console.log('[IA] ingredientes recibidos:', iaState.iaIngredients.length);
   } catch(e) {
     clearInterval(iaMsgTimer);
     showToast('Error al analizar con IA: ' + e.message);
