@@ -504,7 +504,7 @@ function mpStep1(body, foot, title) {
     <div class="mp-pres-grid">
       ${pres.map(pr=>`<button class="mp-pres-btn${WIP.pres&&WIP.pres.id===pr.id?' on':''}" onclick="mpSelPres('${pr.id}')">
         <span class="mp-pres-name">${pr.name}</span>
-        ${p.price_mode!=='matrix'?`<span class="mp-pres-price">${fmt(pr.price)}</span>`:''}
+        ${(pr.price>0)?`<span class="mp-pres-price">${fmt(pr.price)}</span>`:''}
       </button>`).join('')}
     </div></div>`;
   const hasVars = (p.variables||[]).length > 0;

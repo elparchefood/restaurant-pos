@@ -403,7 +403,7 @@ function tpMPStep1(body,foot,title){
   body.innerHTML=`<div class="mp-step"><div class="mp-step-lbl">¿Cuál presentación quieres?</div>
     <div class="mp-pres-grid">${pres.map(pr=>`<button class="mp-pres-btn${TP_WIP.pres&&TP_WIP.pres.id===pr.id?' on':''}" onclick="tpSelPres('${pr.id}')">
       <span class="mp-pres-name">${pr.name}</span>
-      ${p.price_mode!=='matrix'?`<span class="mp-pres-price">${tp_fmt(pr.price)}</span>`:''}
+      ${(pr.price>0)?`<span class="mp-pres-price">${tp_fmt(pr.price)}</span>`:''}
     </button>`).join('')}</div></div>`;
   const hasVars=(p.variables||[]).length>0;
   foot.innerHTML=`<button class="tp-foot-cancel" onclick="tpCloseMP()">Cancelar</button>
