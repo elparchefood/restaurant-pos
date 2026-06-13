@@ -27,6 +27,7 @@ const S = {
   editProd:null, editCombo:null, editMod:null, editCat:null,
   aiStage:'source', aiTab:'file', aiFile:null, aiUrl:'', aiResult:null, aiError:null,
   aiExcluded:{}, aiOpenCat:null, aiTimers:[],
+  aiProgress:0, aiStepKey:'inventory', aiMsgIdx:0,
   selectMode:false, selected:new Set(), loading:true,
 };
 
@@ -491,8 +492,30 @@ function renderAIImport(){
     footHTML='<span style="font-size:11.5px;color:#94A3B8">Tus datos no se publican hasta confirmar.</span><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button><button class="cc-btn-ai" '+(ready?'':'disabled')+' onclick="startAIAnalysis()">'+icon('sparkle',14)+' Analizar con IA</button></div>';
 
   } else if(stage==='analyzing'){
-    bodyHTML='<div style="padding:8px 0"><div style="display:flex;align-items:center;gap:16px;margin-bottom:22px"><div class="cc-spinner" style="width:36px;height:36px;border-width:4px"></div><div><div style="font-size:15px;font-weight:800;color:#0F172A">Analizando tu menú con GPT-4o…</div><div style="font-size:12px;color:#94A3B8;margin-top:3px">Esto puede tomar entre 15 y 30 segundos</div></div></div><div class="cc-tip-box" style="margin-top:0"><span class="cc-tip-icon">'+icon('sparkle',14)+'</span><div style="font-size:12px;color:#5B21B6;line-height:1.6">GPT-4o está leyendo tu carta y organizando <strong>categorías</strong>, <strong>productos</strong>, <strong>presentaciones</strong> y <strong>adiciones</strong>.</div></div></div>';
-    footHTML='<span style="font-size:11.5px;color:#94A3B8">Procesando con GPT-4o…</span><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button>';
+    const AI_MSGS={'inventory':['Estudiando el menú de arriba abajo, sin saltarse nada…','Memorizando cada sección como mesero nuevo el primer día…','Identificando todas las categorías, una por una…','Buscando cada plato hasta el último de la columna…'],'prices':['Calculando precios como abuela que sabe cuánto cuesta todo…','Diferenciando el Personal del Familiar con ojo de experto…','Convirtiendo cada $K a número real más rápido que el cajero…','Anotando el valor de cada presentación en la libreta mental…'],'variables':['Detectando qué platos son familia, como en reunión de fin de año…','Buscando variaciones: mixta, carne o pollo… decisión difícil…','Agrupando los primos del menú que comparten apellido…','Analizando relaciones entre productos con ojo de sommelier…'],'modifiers':['Encontrando los extras que hacen la diferencia en el plato…','Buscando las adiciones que le suben el sabor al pedido…','Identificando todo lo que se puede personalizar…','Revisando cada ingrediente opcional con ojo de chef…']};
+    const stepKey=S.aiStepKey||'inventory';
+    const msgs=AI_MSGS[stepKey]||AI_MSGS['inventory'];
+    const msg=msgs[S.aiMsgIdx%msgs.length];
+    const stepNum={inventory:1,prices:2,variables:3,modifiers:4}[stepKey]||1;
+    const stepLabel={inventory:'Inventario de la carta',prices:'Precios y presentaciones',variables:'Variables y agrupaciones',modifiers:'Adiciones y extras'}[stepKey]||'Iniciando';
+    const progress=S.aiProgress||0;
+    bodyHTML='<div style="padding:8px 0">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'
+      +'<span style="font-size:10.5px;font-weight:800;color:#8B5CF6;text-transform:uppercase;letter-spacing:.07em">Paso '+stepNum+' de 4 — '+stepLabel+'</span>'
+      +'<span style="font-size:12px;font-weight:800;color:#8B5CF6">'+progress+'%</span>'
+      +'</div>'
+      +'<div style="height:7px;background:#F1F5F9;border-radius:99px;overflow:hidden;margin-bottom:20px">'
+      +'<div style="height:100%;width:'+progress+'%;background:linear-gradient(90deg,#8B5CF6,#5B6BFF);border-radius:99px;transition:width .9s ease"></div>'
+      +'</div>'
+      +'<div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:20px">'
+      +'<div class="cc-spinner" style="width:30px;height:30px;border-width:3px;flex-shrink:0;margin-top:2px"></div>'
+      +'<div><div id="ai-creative-msg" style="font-size:14px;font-weight:700;color:#0F172A;line-height:1.45;min-height:42px">'+msg+'</div>'
+      +'<div style="font-size:11.5px;color:#94A3B8;margin-top:5px">GPT-4o en el paso '+stepNum+' de 4…</div>'
+      +'</div></div>'
+      +'<div class="cc-tip-box" style="margin-top:0"><span class="cc-tip-icon">'+icon('sparkle',14)+'</span>'
+      +'<div style="font-size:11.5px;color:#5B21B6;line-height:1.5">Este análisis en 4 pasos tarda <strong>30–60 segundos</strong>. Cada paso se enfoca en una sola cosa para no perderse ningún producto.</div>'
+      +'</div></div>';
+    footHTML='<span style="font-size:11.5px;color:#94A3B8">No cierres esta ventana mientras analiza.</span><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button>';
 
   } else {
     const ex=S.aiResult||{categories:[]};
@@ -500,10 +523,22 @@ function renderAIImport(){
     const catBlocks=ex.categories.map(c=>{
       const off=!!S.aiExcluded[c.name],open=S.aiOpenCat===c.name;
       const prodRows=open&&!off?c.products.map(pr=>{
-        const pTags=(pr.presentations||[]).map(p=>'<span class="cc-pres-tag">'+escHtml(p.name)+' · $'+Number(p.price).toLocaleString('es-CO')+'</span>').join('');
-        const vTag=pr.variables?.length?'<span class="cc-pres-tag" style="background:#F5F3FF;color:#8B5CF6">'+pr.variables.length+' variable'+(pr.variables.length>1?'s':'')+'</span>':'';
-        const mTag=pr.modifiers?.length?'<span class="cc-pres-tag" style="background:#FFFBEB;color:#F59E0B">'+pr.modifiers.length+' mod.</span>':'';
-        return '<div class="cc-prod-row"><span style="font-size:12.5px;font-weight:600;color:#0F172A;min-width:130px">'+escHtml(pr.name)+'</span><div style="display:flex;gap:5px;flex-wrap:wrap;flex:1">'+pTags+vTag+mTag+'</div></div>';
+        const pTags=(pr.presentations||[]).map(p=>{
+          const price=p.price>0?(' · $'+Number(p.price).toLocaleString('es-CO')):'';
+          return '<span class="cc-pres-tag" style="background:#F0FDF4;color:#16A34A;border:1px solid #BBF7D0">'+escHtml(p.name)+price+'</span>';
+        }).join('');
+        const vRows=(pr.variables||[]).map(v=>{
+          const optTags=v.options.map(o=>{
+            const oprice=(v.isPricing||o.price>0)?'':('');
+            return '<span class="cc-pres-tag" style="background:#F5F3FF;color:#7C3AED;border:1px solid #DDD6FE">'+escHtml(o.name)+'</span>';
+          }).join('');
+          return '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap"><span style="font-size:9.5px;font-weight:800;color:#8B5CF6;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">'+escHtml(v.name)+':</span>'+optTags+'</div>';
+        }).join('');
+        const mTag=(pr.modifiers||[]).length?'<span class="cc-pres-tag" style="background:#FFFBEB;color:#F59E0B;border:1px solid #FDE68A">'+(pr.modifiers||[]).length+' mod.</span>':'';
+        const presRow=pTags?'<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap"><span style="font-size:9.5px;font-weight:800;color:#16A34A;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Pres.:</span>'+pTags+'</div>':'';
+        const modeChip=pr.priceMode==='matrix'?'<span style="font-size:9px;font-weight:700;background:#EDE9FE;color:#7C3AED;padding:2px 6px;border-radius:99px">MATRIZ</span>':'';
+        const varChip=pr.variables?.length?'<span style="font-size:9px;font-weight:700;background:#F5F3FF;color:#8B5CF6;padding:2px 6px;border-radius:99px">'+pr.variables.length+' var.</span>':'';
+        return '<div class="cc-prod-row" style="flex-direction:column;align-items:flex-start;gap:3px"><div style="display:flex;align-items:center;gap:6px;width:100%"><span style="font-size:12.5px;font-weight:700;color:#0F172A;flex:1">'+escHtml(pr.name)+'</span>'+modeChip+varChip+mTag+'</div>'+presRow+vRows+'</div>';
       }).join(''):'';
       return '<div class="cc-cat-block" style="opacity:'+(off?.55:1)+';border-color:'+(open&&!off?'#DDD6FE':'#ECEEF2')+'"><div class="cc-cat-row"><button class="cc-check'+(off?'':' on')+'" onclick="toggleAICat(\''+escHtml(c.name)+'\')" style="'+(off?'':'background:#8B5CF6;border-color:#8B5CF6;color:#fff')+'">'+(off?'':icon('check',12,3))+'</button><button class="cc-cat-toggle" onclick="S.aiOpenCat=S.aiOpenCat===\''+escHtml(c.name)+'\'?null:\''+escHtml(c.name)+'\';renderAIImport()"><span style="font-size:13.5px;font-weight:700;color:#0F172A">'+escHtml(c.name)+'</span><span class="cc-cat-count">'+c.products.length+' productos</span><span style="margin-left:auto;color:#CBD5E1;transform:'+(open?'rotate(90deg)':'none')+';transition:transform .15s;display:flex">'+icon('chevron',15)+'</span></button></div>'+(prodRows?'<div class="cc-prod-list">'+prodRows+'</div>':'')+'</div>';
     }).join('');
@@ -529,28 +564,73 @@ async function pdfToImages(file){
   for(let i=1;i<=max;i++){const page=await pdf.getPage(i);const vp=page.getViewport({scale:2});const cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;imgs.push({data:cv.toDataURL('image/jpeg',0.9).split(',')[1],mimeType:'image/jpeg'});}
   return imgs;
 }
+function setAIProgress(progress,stepKey,resetMsg){
+  S.aiProgress=progress;S.aiStepKey=stepKey;
+  if(resetMsg)S.aiMsgIdx=0;
+  renderAIImport();
+  S.aiTimers.forEach(clearInterval);S.aiTimers=[];
+  const AI_MSGS={'inventory':['Estudiando el menu de arriba abajo, sin saltarse nada…','Memorizando cada seccion como mesero nuevo el primer dia…','Identificando todas las categorias, una por una…','Buscando cada plato hasta el ultimo de la columna…'],'prices':['Calculando precios como abuela que sabe cuanto cuesta todo…','Diferenciando el Personal del Familiar con ojo de experto…','Convirtiendo cada $K a numero real mas rapido que el cajero…','Anotando el valor de cada presentacion en la libreta mental…'],'variables':['Detectando que platos son familia, como en reunion de fin de ano…','Buscando variaciones: mixta, carne o pollo… decision dificil…','Agrupando los primos del menu que comparten apellido…','Analizando relaciones entre productos con ojo de sommelier…'],'modifiers':['Encontrando los extras que hacen la diferencia en el plato…','Buscando las adiciones que le suben el sabor al pedido…','Identificando todo lo que se puede personalizar…','Revisando cada ingrediente opcional con ojo de chef…']};
+  const msgs=AI_MSGS[stepKey]||[];
+  if(msgs.length>1){
+    const iv=setInterval(()=>{
+      S.aiMsgIdx++;
+      const el=document.getElementById('ai-creative-msg');
+      if(el)el.textContent=msgs[S.aiMsgIdx%msgs.length];
+    },3500);
+    S.aiTimers.push(iv);
+  }
+}
 async function startAIAnalysis(){
-  S.aiStage='analyzing';S.aiError=null;S.aiTimers.forEach(clearTimeout);S.aiTimers=[];renderAIImport();
+  S.aiStage='analyzing';S.aiError=null;S.aiProgress=0;S.aiStepKey='inventory';S.aiMsgIdx=0;
+  S.aiTimers.forEach(clearInterval);S.aiTimers=[];
+  renderAIImport();
   try{
-    let body;
+    let images;
     if(S.aiTab==='drive'){
-      body={driveUrl:S.aiUrl};
+      throw new Error('Google Drive aun no soportado en el pipeline. Usa imagen o PDF.');
     } else {
       const file=S.aiFile;
-      const images=file.type==='application/pdf'?await pdfToImages(file):[{data:await fileToBase64Ai(file),mimeType:file.type||'image/jpeg'}];
-      body={images};
+      images=file.type==='application/pdf'?await pdfToImages(file):[{data:await fileToBase64Ai(file),mimeType:file.type||'image/jpeg'}];
     }
     const {data:{session}}=await sb.auth.getSession();
-    const res=await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/analyze-menu',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':SUPABASE_KEY},
-      body:JSON.stringify(body),
-    });
-    const data=await res.json();
-    if(data.error)throw new Error(data.error);
-    if(!data.categories?.length)throw new Error('No se detectaron productos. Intenta con una imagen más clara o mejor iluminada.');
-    S.aiResult=data;S.aiExcluded={};S.aiOpenCat=data.categories[0]?.name||null;S.aiStage='review';renderAIImport();
+    const hdrs={'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':SUPABASE_KEY};
+    const ep='https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/analyze-menu';
+
+    // Paso 1 — Inventario
+    setAIProgress(5,'inventory',true);
+    const inv=await fetch(ep,{method:'POST',headers:hdrs,body:JSON.stringify({mode:'inventory',images})}).then(r=>r.json());
+    if(inv.error)throw new Error('Paso 1: '+inv.error);
+    if(!inv.categories?.length)throw new Error('No se detectaron categorias. Intenta con una imagen mas clara.');
+
+    // Paso 2 — Precios y presentaciones
+    setAIProgress(28,'prices',true);
+    const priced=await fetch(ep,{method:'POST',headers:hdrs,body:JSON.stringify({mode:'prices',images,context:inv})}).then(r=>r.json());
+    if(priced.error)throw new Error('Paso 2: '+priced.error);
+
+    // Paso 3 — Variables y agrupacion
+    setAIProgress(54,'variables',true);
+    let withVars=priced;
+    try{
+      const vres=await fetch(ep,{method:'POST',headers:hdrs,body:JSON.stringify({mode:'variables',images,context:priced})}).then(r=>r.json());
+      if(!vres.error&&vres.categories?.length)withVars=vres;
+    }catch(e){console.warn('Variables step failed, using prices result',e);}
+
+    // Paso 4 — Modificadores
+    setAIProgress(78,'modifiers',true);
+    let mods={modifier_groups:[]};
+    try{
+      const mres=await fetch(ep,{method:'POST',headers:hdrs,body:JSON.stringify({mode:'modifiers',images})}).then(r=>r.json());
+      if(!mres.error)mods=mres;
+    }catch(e){console.warn('Modifiers step failed',e);}
+
+    setAIProgress(100,'modifiers',false);
+    S.aiTimers.forEach(clearInterval);S.aiTimers=[];
+
+    const finalResult={categories:withVars.categories||[],modifier_groups:mods.modifier_groups||[]};
+    S.aiResult=finalResult;S.aiExcluded={};S.aiOpenCat=finalResult.categories[0]?.name||null;
+    S.aiStage='review';renderAIImport();
   } catch(e){
+    S.aiTimers.forEach(clearInterval);S.aiTimers=[];
     S.aiError=e.message;S.aiStage='source';renderAIImport();
   }
 }
