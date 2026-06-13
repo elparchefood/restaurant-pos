@@ -563,6 +563,14 @@ svg { display: block; }
 
 /* ──────────────────────────────────────────────
    MODAL PRODUCTO — pm-* (diseño 3 pasos)
+/* ── Variables CSS modal pm-* ─────────── */
+:root{
+  --bg:#FAFAFB;--card:#FFFFFF;--border:#ECEEF2;--hairline:#F1F5F9;
+  --ink:#0F172A;--muted:#64748B;--faint:#94A3B8;--slate:#475569;
+  --indigo:#5B6BFF;--indigo-600:#4F5BE3;--indigo-soft:#EEF2FF;--indigo-100:#C7D2FE;--indigo-hover:#FAFAFF;
+  --green:#16A34A;--green-bg:#DCFCE7;--green-ring:#BBF7D0;
+  --r-card:14px;
+}
    ────────────────────────────────────────────── */
 .pm-overlay{position:fixed;inset:0;background:rgba(15,23,42,.40);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;animation:pmFade .18s ease;}
 @keyframes pmFade{from{opacity:0}to{opacity:1}}
