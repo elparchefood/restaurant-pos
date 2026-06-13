@@ -543,9 +543,12 @@ function renderAIImport(){
             }).join('');
             return '<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:#8B5CF6;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Variable: '+escHtml(v.name)+'</div>'+optInputs+'<button class="lm-btn-ghost" style="font-size:11px;padding:3px 9px;margin-top:2px" onclick="aiAddVarOpt('+ci+','+pi+','+vi+')">+ Opción</button></div>';
           }).join('');
+          const catOptions=ex.categories.map((cat,idx)=>'<option value="'+idx+'"'+(idx===ci?' selected':'')+'>'+escHtml(cat.name)+'</option>').join('');
           return '<div class="cc-prod-row" style="flex-direction:column;align-items:stretch;gap:6px;padding:10px 0">'
             +'<div style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;font-weight:700;color:#8B5CF6;flex:1">'+escHtml(pr.name)+'</span>'
             +'<button class="lm-btn-primary" style="font-size:11px;padding:4px 12px" onclick="S.aiEditKey=null;renderAIImport()">'+icon('check',12)+' Listo</button></div>'
+            +'<div><div style="font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Categoría</div>'
+            +'<select class="cc-input" style="width:100%;font-size:12px;padding:5px 9px" onchange="aiMoveProd('+ci+','+pi+',+this.value)">'+catOptions+'</select></div>'
             +'<div><div style="font-size:10px;font-weight:700;color:#16A34A;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Presentaciones y precios</div>'+presInputs
             +'<button class="lm-btn-ghost" style="font-size:11px;padding:3px 9px" onclick="aiAddPres('+ci+','+pi+')">+ Presentación</button></div>'
             +(varInputs?'<div>'+varInputs+'</div>':'')+'</div>';
@@ -587,6 +590,12 @@ function aiUpdateVarOptName(ci,pi,vi,oi,v){S.aiResult.categories[ci].products[pi
 function aiUpdateVarOptPrice(ci,pi,vi,oi,v){const opt=S.aiResult.categories[ci].products[pi].variables[vi].options[oi];if(opt.prices)opt.prices=opt.prices.map(()=>v);else opt.price=v;}
 function aiRemoveVarOpt(ci,pi,vi,oi){S.aiResult.categories[ci].products[pi].variables[vi].options.splice(oi,1);renderAIImport();}
 function aiAddVarOpt(ci,pi,vi){S.aiResult.categories[ci].products[pi].variables[vi].options.push({name:'Nueva opción',price:0});renderAIImport();}
+function aiMoveProd(ci,pi,newCi){
+  if(newCi===ci)return;
+  const prod=S.aiResult.categories[ci].products.splice(pi,1)[0];
+  S.aiResult.categories[newCi].products.push(prod);
+  S.aiEditKey=null;renderAIImport();
+}
 async function fileToBase64Ai(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});}
 async function pdfToImages(file){
   if(!window.pdfjsLib){
