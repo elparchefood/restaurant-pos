@@ -207,7 +207,11 @@ function renderPageHead(){
   if(isManage){actions.innerHTML='';return;}
   let search='';
   if(S.tab==='productos')search='<div class="cp-search">'+icon('search',14)+'<input id="cp-search-input" placeholder="Buscar producto…" value="'+escHtml(S.query)+'" oninput="onSearch(this.value)"></div>';
-  actions.innerHTML=search+'<button class="cc-btn-ai ghost" onclick="openAIImport()">'+icon('sparkle',14)+' Importar con IA</button><button class="lm-btn-primary" onclick="openEditor(null,\''+(S.tab==='productos'?'product':'combo')+'\')">'+icon('plus',14)+' '+(S.tab==='productos'?'Nuevo producto':'Nuevo combo')+'</button>';
+  if(S.tab==='productos'&&S.selectMode){
+    actions.innerHTML=search+'<button class="lm-btn-ghost sm" onclick="selectAll()">'+icon('check',13)+' Todo</button><button class="lm-btn-ghost sm" style="color:#EF4444" '+(S.selected.size===0?'disabled':'')+' onclick="deleteSelected()">'+icon('trash',13)+' Eliminar ('+S.selected.size+')</button><button class="lm-btn-ghost sm" onclick="toggleSelectMode()">Cancelar</button>';
+  } else {
+    actions.innerHTML=search+(S.tab==='productos'?'<button class="lm-btn-ghost sm" onclick="toggleSelectMode()">'+icon('check',13)+' Seleccionar</button>':'')+'<button class="cc-btn-ai ghost" onclick="openAIImport()">'+icon('sparkle',14)+' Importar con IA</button><button class="lm-btn-primary" onclick="openEditor(null,\'+(S.tab===\'productos\'?\'product\':\'combo\')+\')">'+icon('plus',14)+' '+(S.tab==='productos'?'Nuevo producto':'Nuevo combo')+'</button>';
+  }
 }
 
 function renderTabsRow(){
@@ -221,7 +225,7 @@ function renderFilterRow(){
   if(S.tab!=='productos'){row.style.display='none';return;}
   row.style.display='flex';
   row.innerHTML='<button class="cp-fchip'+(!S.filterCat?' on':'')+'" onclick="setFilter(null)">Todas <span class="chip-count">'+S.products.length+'</span></button>'+
-    S.cats.map(c=>'<button class="cp-fchip'+(S.filterCat===c.id?' on':'')+'" onclick="setFilter(\''+c.id+'\')" style="'+(S.filterCat===c.id?'border-color:'+c.color+';color:'+c.color+';background:'+c.tint:'')+'"><span class="chip-dot" style="background:'+c.color+'"></span>'+escHtml(c.name)+' <span class="chip-count">'+S.products.filter(p=>p.cat===c.id).length+'</span></button>').join('');
+    S.cats.map(c=>{const cnt=S.products.filter(p=>p.cat===c.id).length;const isOn=S.filterCat===c.id;return '<span style="display:inline-flex;align-items:center;gap:2px"><button class="cp-fchip'+(isOn?' on':'')+' " onclick="setFilter(\''+c.id+'\')" style="'+(isOn?'border-color:'+c.color+';color:'+c.color+';background:'+c.tint:'')+'"><span class="chip-dot" style="background:'+c.color+'"></span>'+escHtml(c.name)+' <span class="chip-count">'+cnt+'</span></button>'+(cnt>0?'<button class="cp-cat-del-chip" title="Borrar todos los productos de '+escHtml(c.name)+'" onclick="deleteByCat(\''+c.id+'\',\''+escHtml(c.name)+'\','+cnt+')">'+icon('trash',11)+'</button>':'')+'</span>';}).join('');
 }
 
 function renderBody(){
@@ -602,10 +606,34 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ---- Bulk delete ----
+function selectAll(){
+  const filtered=S.products.filter(p=>!S.filterCat||p.cat===S.filterCat);
+  const allSel=filtered.length&&filtered.every(p=>S.selected.has(p.id));
+  if(allSel){filtered.forEach(p=>S.selected.delete(p.id));}
+  else{filtered.forEach(p=>S.selected.add(p.id));}
+  renderPage();renderPageHead();
+}
+
+function deleteByCat(catId,catName,count){
+  showConfirmModal(
+    'Borrar '+count+' producto'+(count!==1?'s':'')+' de "'+catName+'"',
+    'Se eliminarán todos los productos de esta categoría. Esta acción no se puede deshacer.',
+    async ()=>{
+      const ids=S.products.filter(p=>p.cat===catId).map(p=>p.id);
+      for(const id of ids){await deleteProductFromSupabase(id);}
+      S.products=S.products.filter(p=>p.cat!==catId);
+      if(S.filterCat===catId)S.filterCat=null;
+      renderPage();
+      toast(count+' producto'+(count!==1?'s':'')+' eliminado'+(count!==1?'s':''));
+    }
+  );
+}
+
 function toggleSelectMode(){
   S.selectMode=!S.selectMode;
   if(!S.selectMode) S.selected.clear();
   renderPage();
+  renderPageHead();
 }
 
 function toggleSelect(id){

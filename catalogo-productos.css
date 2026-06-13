@@ -78,6 +78,8 @@ input,select,textarea,button{font-family:inherit;}
 .cp-fchip.on{background:#EEF2FF;border-color:#5B6BFF;color:#5B6BFF;}
 .cp-fchip .chip-count{font-size:10.5px;font-weight:700;opacity:.7;}
 .cp-fchip .chip-dot{width:8px;height:8px;border-radius:999px;}
+.cp-cat-del-chip{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;border:none;background:transparent;color:#94A3B8;cursor:pointer;padding:0;transition:all .12s;}
+.cp-cat-del-chip:hover{background:#FFF1F2;color:#F43F5E;}
 
 /* ─── Body scroll ─── */
 .cp-body{flex:1;min-height:0;overflow-y:auto;padding:16px 24px 28px;}
