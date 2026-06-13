@@ -126,7 +126,7 @@ async function loadProductos() {
   if (!tenantId || !branchId) return;
   const { data, error } = await iv_sb
     .from('pos_products')
-    .select('id, name, price, available, pos_categories(name)')
+    .select('id, name, description, price, available, pos_categories(name)')
     .eq('tenant_id', tenantId)
     .eq('branch_id', branchId)
     .order('name');
@@ -136,8 +136,9 @@ async function loadProductos() {
     nombre:  p.name,
     cat:     p.pos_categories?.name || 'Sin categoría',
     precio:  parseFloat(p.price) || 0,
-    visible: p.available !== false,
-    receta:  [],
+    visible:     p.available !== false,
+    descripcion: p.description || '',
+    receta:      [],
   }));
 }
 
@@ -939,3 +940,547 @@ document.getElementById('btn-nueva-unidad')?.addEventListener('click',()=>{
 // INIT
 // ═══════════════════════════════════════════════════
 loadData();
+
+// ═══════════════════════════════════════════════════
+// MODAL IA RECETA
+// ═══════════════════════════════════════════════════
+
+const EDGE_URL = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/analyze-menu';
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
+
+const IA_MSGS = [
+  'Identificando ingredientes de la descripción…',
+  'Expandiendo los ingredientes de la Base…',
+  'Calculando cantidades típicas por porción…',
+  'Sugiriendo unidades de medida…',
+  'Verificando ingredientes existentes en tu inventario…',
+];
+
+let iaState = {
+  prodId:        null,
+  prod:          null,
+  baseIngrs:     [],     // string[] de la base
+  iaIngredients: [],     // resultado del GPT: [{name,qty,unit,category,isBase,existingName,nota}]
+  dedupChoices:  {},     // {name: 'link'|'new'} para ingredientes con existingName
+};
+let iaMsgTimer = null;
+
+// ── Abrir modal ────────────────────────────────────
+async function generarRecetaIA(prodId) {
+  const prod = productos.find(p => p.id === prodId);
+  if (!prod) return;
+
+  // Reset state
+  iaState = { prodId, prod, baseIngrs: [], iaIngredients: [], dedupChoices: {} };
+
+  // Poblar banner del producto
+  document.getElementById('ia-prod-cat').textContent  = prod.cat;
+  document.getElementById('ia-prod-name').textContent = prod.nombre;
+  document.getElementById('ia-prod-desc').textContent = prod.descripcion || '(sin descripción)';
+
+  // Ir a paso 1
+  iaSetStep(1);
+
+  // Mostrar modal
+  document.getElementById('panel-ia-receta').classList.remove('is-hidden');
+
+  // Obtener base del producto
+  try {
+    const { data: bases } = await iv_sb
+      .from('pos_bases')
+      .select('name, ingredients, product_ids');
+
+    const baseRow = (bases || []).find(b =>
+      Array.isArray(b.product_ids) && b.product_ids.includes(prodId)
+    );
+    iaState.baseIngrs = baseRow ? (baseRow.ingredients || []) : [];
+  } catch(e) {
+    console.warn('[IA] No se pudo cargar pos_bases:', e);
+  }
+
+  // Iniciar mensajes rotatorios
+  let msgIdx = 0;
+  const msgEl = document.getElementById('ia-msg');
+  if (iaMsgTimer) clearInterval(iaMsgTimer);
+  iaMsgTimer = setInterval(() => {
+    msgIdx = (msgIdx + 1) % IA_MSGS.length;
+    if (msgEl) { msgEl.style.opacity = '0'; setTimeout(() => { if(msgEl) { msgEl.textContent = IA_MSGS[msgIdx]; msgEl.style.opacity = '1'; } }, 200); }
+  }, 2200);
+
+  // Llamar Edge Function
+  try {
+    const body = {
+      mode:           'recipe',
+      productName:    prod.nombre,
+      description:    prod.descripcion || '',
+      baseIngredients: iaState.baseIngrs,
+      existingInsumos: insumos.map(i => i.nombre),
+    };
+    const res  = await fetch(EDGE_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+      body:    JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    iaState.iaIngredients = data.ingredients || [];
+  } catch(e) {
+    clearInterval(iaMsgTimer);
+    showToast('Error al analizar con IA: ' + e.message);
+    closeIAReceta();
+    return;
+  }
+
+  clearInterval(iaMsgTimer);
+
+  // Si no hay ingredientes
+  if (!iaState.iaIngredients.length) {
+    showToast('La IA no detectó ingredientes. Revisa la descripción del producto.');
+    closeIAReceta();
+    return;
+  }
+
+  // Ir a paso 2
+  iaSetStep(2);
+  iaRenderPaso2();
+}
+
+// ── Paso 2: Revisar medidas ────────────────────────
+function iaRenderPaso2() {
+  const UNITS = ['g','kg','ml','l','unidad','porción','cucharada','cucharadita','taza','rodaja','trozo','paquete','lata','sobre'];
+  const list  = document.getElementById('ia-ingr-list');
+  list.innerHTML = '';
+
+  for (let i = 0; i < iaState.iaIngredients.length; i++) {
+    const ing  = iaState.iaIngredients[i];
+    const row  = document.createElement('div');
+    row.className = 'ia-ingr-row' + (ing.isBase ? ' is-base' : '');
+
+    const badgeType = ing.isBase ? 'base' : 'extra';
+    const badgeTxt  = ing.isBase ? 'B'    : '+';
+
+    const unitOpts = UNITS.map(u => `<option value="${u}" ${u===ing.unit?'selected':''}>${u}</option>`).join('');
+
+    row.innerHTML = `
+      <span class="ia-ingr-badge ${badgeType}">${badgeTxt}</span>
+      <div>
+        <div class="ia-ingr-name">${ing.name}</div>
+        ${ing.nota ? `<div class="ia-ingr-nota">⚡ ${ing.nota}</div>` : ''}
+      </div>
+      <input  class="ia-ingr-qty"  type="number" min="0" step="any" value="${ing.qty}" 
+              oninput="iaState.iaIngredients[${i}].qty=parseFloat(this.value)||0">
+      <select class="ia-ingr-unit" onchange="iaState.iaIngredients[${i}].unit=this.value">
+        ${unitOpts}
+      </select>`;
+
+    list.appendChild(row);
+  }
+
+  // Mostrar botón continuar
+  document.getElementById('ia-btn-next').classList.remove('is-hidden');
+  document.getElementById('ia-btn-save').classList.add('is-hidden');
+}
+
+// ── Paso 3: Deduplicación ──────────────────────────
+function iaRenderPaso3() {
+  const withMatch = iaState.iaIngredients.filter(ing => ing.existingName);
+  const list      = document.getElementById('ia-dedup-list');
+  list.innerHTML  = '';
+
+  if (!withMatch.length) {
+    // Nada que deduplicar → guardar directo
+    iaGuardarReceta();
+    return;
+  }
+
+  for (const ing of withMatch) {
+    iaState.dedupChoices[ing.name] = 'link'; // default: vincular al existente
+    const row = document.createElement('div');
+    row.className = 'ia-dedup-row';
+    row.innerHTML = `
+      <div class="ia-dedup-label">Ingrediente detectado</div>
+      <div class="ia-dedup-ingr">${ing.name}</div>
+      <div class="ia-dedup-match">Ya existe como: <strong>${ing.existingName}</strong></div>
+      <div class="ia-dedup-opts">
+        <button class="ia-dedup-btn link sel" id="dedup-link-${CSS.escape(ing.name)}"
+          onclick="iaToggleDedup('${ing.name}','link')">
+          Vincular al existente
+        </button>
+        <button class="ia-dedup-btn new" id="dedup-new-${CSS.escape(ing.name)}"
+          onclick="iaToggleDedup('${ing.name}','new')">
+          Crear nuevo insumo
+        </button>
+      </div>`;
+    list.appendChild(row);
+  }
+
+  document.getElementById('ia-btn-next').classList.add('is-hidden');
+  document.getElementById('ia-btn-save').classList.remove('is-hidden');
+}
+
+function iaToggleDedup(name, choice) {
+  iaState.dedupChoices[name] = choice;
+  const linkBtn = document.getElementById('dedup-link-' + CSS.escape(name));
+  const newBtn  = document.getElementById('dedup-new-'  + CSS.escape(name));
+  if (linkBtn) linkBtn.classList.toggle('sel', choice === 'link');
+  if (newBtn)  newBtn.classList.toggle('sel',  choice === 'new');
+}
+
+// ── Navegación entre pasos ─────────────────────────
+function iaSetStep(n) {
+  [1,2,3].forEach(i => {
+    const step  = document.getElementById('ia-step-' + i);
+    const dot   = document.getElementById('iadot-' + i);
+    if (step) step.classList.toggle('is-hidden', i !== n);
+    if (dot) {
+      dot.className = 'ia-step-dot' + (i < n ? ' done' : i === n ? ' active' : '');
+      dot.textContent = i < n
+        ? '✓'
+        : String(i);
+    }
+    const line = document.getElementById('iadot-line-' + i);
+    if (line) line.classList.toggle('done', i < n);
+  });
+
+  const titles = { 1: 'Analizando receta', 2: 'Confirma las medidas', 3: 'Ingredientes existentes' };
+  document.getElementById('ia-head-title').textContent = titles[n] || '';
+}
+
+function iaNext() {
+  if (document.getElementById('ia-step-2').classList.contains('is-hidden')) return;
+  // Pasamos de paso 2 → paso 3
+  iaSetStep(3);
+  iaRenderPaso3();
+}
+
+// ── Guardar receta ─────────────────────────────────
+async function iaGuardarReceta() {
+  if (!iaState.prodId) return;
+  document.getElementById('ia-btn-save').disabled = true;
+  document.getElementById('ia-btn-save').textContent = 'Guardando…';
+
+  const newInsumosToCreate = [];
+  const recetaLinks        = [];  // {insId, qty, unit}
+
+  for (const ing of iaState.iaIngredients) {
+    const choice = iaState.dedupChoices[ing.name] || (ing.existingName ? 'link' : 'new');
+
+    if (ing.existingName && choice === 'link') {
+      // Vincular al insumo existente
+      const ins = insumos.find(i => i.nombre === ing.existingName);
+      if (ins) recetaLinks.push({ insId: ins.id, qty: ing.qty, unit: ing.unit });
+
+    } else {
+      // Verificar si ya existe por nombre exacto (por si la IA no detectó existingName)
+      const existing = insumos.find(i => i.nombre.toLowerCase() === ing.name.toLowerCase());
+      if (existing) {
+        recetaLinks.push({ insId: existing.id, qty: ing.qty, unit: ing.unit });
+      } else {
+        // Crear nuevo insumo
+        newInsumosToCreate.push(ing);
+      }
+    }
+  }
+
+  // Crear insumos nuevos
+  const CAT_COLORS_LOCAL = {
+    'Materia prima': '#E11D48', 'Lácteos y quesos': '#F59E0B',
+    'Salsas y abarrotes': '#8B5CF6', 'Bebidas envasadas': '#0EA5E9',
+    'Desechables': '#64748B', 'Aseo y limpieza': '#14B8A6',
+  };
+
+  for (const ing of newInsumosToCreate) {
+    const catColor = CAT_COLORS_LOCAL[ing.category] || '#64748B';
+    const payload  = {
+      tenant_id: tenantId, branch_id: branchId, activo: true,
+      nombre:    ing.name,
+      categoria: ing.category || 'Materia prima',
+      cat_color: catColor,
+      prep_requerido: true,
+      buy_unit:  ing.unit, use_unit: ing.unit,
+      precio:    0, conversion: 1, stock: 0, min_stock: 0,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await iv_sb.from('iv_insumos').insert(payload).select().single();
+    if (error) { console.error('[IA] crear insumo:', error); continue; }
+    const newIns = {
+      id: data.id, nombre: ing.name, cat: ing.category || 'Materia prima',
+      catColor, prep: true, buyUnit: ing.unit, useUnit: ing.unit,
+      precio: 0, conversion: 1, stock: 0, min: 0,
+    };
+    insumos.push(newIns);
+    recetaLinks.push({ insId: data.id, qty: ing.qty, unit: ing.unit });
+  }
+
+  // Borrar receta anterior si existía
+  await iv_sb.from('iv_recetas').delete().eq('product_id', iaState.prodId);
+
+  // Insertar nuevas líneas de receta
+  const recetaRows = recetaLinks.map(l => ({
+    tenant_id:  tenantId, branch_id: branchId,
+    product_id: iaState.prodId,
+    insumo_id:  l.insId,
+    cantidad:   l.qty,
+    merma:      0,
+    updated_at: new Date().toISOString(),
+  }));
+
+  if (recetaRows.length) {
+    const { error } = await iv_sb.from('iv_recetas').insert(recetaRows);
+    if (error) { console.error('[IA] guardar receta:', error); showToast('Error al guardar receta'); return; }
+  }
+
+  // Actualizar estado local
+  const prod   = productos.find(p => p.id === iaState.prodId);
+  if (prod) {
+    prod.receta = recetaLinks.map(l => ({ insId: l.insId, qty: l.qty, merma: 0 }));
+    // También actualizar descripcion local si no existía
+    if (!prod.descripcion) {
+      const dbProd = await iv_sb.from('pos_products').select('description').eq('id', iaState.prodId).single();
+      if (dbProd.data) prod.descripcion = dbProd.data.description;
+    }
+  }
+
+  closeIAReceta();
+  showToast('✓ Receta generada con ' + recetaLinks.length + ' ingredientes');
+  updateTabBadges();
+  renderProductos();
+  updateKPIs();
+}
+
+// ── Cerrar modal ───────────────────────────────────
+function closeIAReceta() {
+  document.getElementById('panel-ia-receta').classList.add('is-hidden');
+  if (iaMsgTimer) { clearInterval(iaMsgTimer); iaMsgTimer = null; }
+  document.getElementById('ia-btn-next').classList.add('is-hidden');
+  document.getElementById('ia-btn-save').classList.add('is-hidden');
+  const btn = document.getElementById('ia-btn-save');
+  if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Guardar receta'; }
+}
+
+// ═══════════════════════════════════════════════════
+// MODAL IA RECETA
+// ═══════════════════════════════════════════════════
+
+const EDGE_URL = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/analyze-menu';
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
+
+const IA_MSGS = [
+  'Identificando ingredientes de la descripcion…',
+  'Expandiendo los ingredientes de la Base…',
+  'Calculando cantidades tipicas por porcion…',
+  'Sugiriendo unidades de medida…',
+  'Verificando ingredientes existentes en tu inventario…',
+];
+
+let iaState = { prodId:null, prod:null, baseIngrs:[], iaIngredients:[], dedupChoices:{} };
+let iaMsgTimer = null;
+
+async function generarRecetaIA(prodId) {
+  const prod = productos.find(p => p.id === prodId);
+  if (!prod) return;
+  iaState = { prodId, prod, baseIngrs:[], iaIngredients:[], dedupChoices:{} };
+
+  document.getElementById('ia-prod-cat').textContent  = prod.cat;
+  document.getElementById('ia-prod-name').textContent = prod.nombre;
+  document.getElementById('ia-prod-desc').textContent = prod.descripcion || prod.nombre;
+  iaSetStep(1);
+  document.getElementById('panel-ia-receta').classList.remove('is-hidden');
+
+  try {
+    const { data: bases } = await iv_sb.from('pos_bases').select('name, ingredients, product_ids');
+    const baseRow = (bases||[]).find(b => Array.isArray(b.product_ids) && b.product_ids.includes(prodId));
+    iaState.baseIngrs = baseRow ? (baseRow.ingredients||[]) : [];
+  } catch(e) { console.warn('[IA] pos_bases:', e); }
+
+  let msgIdx = 0;
+  const msgEl = document.getElementById('ia-msg');
+  if (iaMsgTimer) clearInterval(iaMsgTimer);
+  iaMsgTimer = setInterval(function() {
+    msgIdx = (msgIdx+1) % IA_MSGS.length;
+    if (msgEl) { msgEl.style.opacity='0'; setTimeout(function(){ if(msgEl){msgEl.textContent=IA_MSGS[msgIdx];msgEl.style.opacity='1';} },200); }
+  }, 2200);
+
+  try {
+    const res = await fetch(EDGE_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':ANON_KEY},
+      body:JSON.stringify({
+        mode:'recipe',
+        productName:prod.nombre,
+        description:prod.descripcion||'',
+        baseIngredients:iaState.baseIngrs,
+        existingInsumos:insumos.map(i=>i.nombre),
+      }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    iaState.iaIngredients = data.ingredients||[];
+  } catch(e) {
+    clearInterval(iaMsgTimer);
+    showToast('Error al analizar con IA: '+e.message);
+    closeIAReceta();
+    return;
+  }
+  clearInterval(iaMsgTimer);
+
+  if (!iaState.iaIngredients.length) {
+    showToast('La IA no detecto ingredientes. Revisa la descripcion del producto.');
+    closeIAReceta();
+    return;
+  }
+  iaSetStep(2);
+  iaRenderPaso2();
+}
+
+function iaRenderPaso2() {
+  const UNITS = ['g','kg','ml','l','unidad','porcion','cucharada','cucharadita','taza','rodaja','trozo','paquete','lata','sobre'];
+  const list  = document.getElementById('ia-ingr-list');
+  list.innerHTML = '';
+  iaState.iaIngredients.forEach(function(ing, i) {
+    const row = document.createElement('div');
+    row.className = 'ia-ingr-row'+(ing.isBase?' is-base':'');
+    const unitOpts = UNITS.map(function(u){ return '<option value="'+u+'"'+(u===ing.unit?' selected':'')+'>'+u+'</option>'; }).join('');
+    row.innerHTML =
+      '<span class="ia-ingr-badge '+(ing.isBase?'base':'extra')+'">'+(ing.isBase?'B':'+')+' </span>'+
+      '<div>'+
+        '<div class="ia-ingr-name">'+ing.name+'</div>'+
+        (ing.nota?'<div class="ia-ingr-nota">'+ing.nota+'</div>':'')+
+      '</div>'+
+      '<input class="ia-ingr-qty" type="number" min="0" step="any" value="'+ing.qty+'" data-idx="'+i+'">'+
+      '<select class="ia-ingr-unit" data-idx="'+i+'">'+unitOpts+'</select>';
+    list.appendChild(row);
+  });
+  list.querySelectorAll('.ia-ingr-qty').forEach(function(el){
+    el.addEventListener('input',function(){ iaState.iaIngredients[+this.dataset.idx].qty=parseFloat(this.value)||0; });
+  });
+  list.querySelectorAll('.ia-ingr-unit').forEach(function(el){
+    el.addEventListener('change',function(){ iaState.iaIngredients[+this.dataset.idx].unit=this.value; });
+  });
+  document.getElementById('ia-btn-next').classList.remove('is-hidden');
+  document.getElementById('ia-btn-save').classList.add('is-hidden');
+}
+
+function iaRenderPaso3() {
+  const withMatch = iaState.iaIngredients.filter(function(ing){ return ing.existingName; });
+  const list      = document.getElementById('ia-dedup-list');
+  list.innerHTML  = '';
+  if (!withMatch.length) { iaGuardarReceta(); return; }
+  withMatch.forEach(function(ing) {
+    iaState.dedupChoices[ing.name] = 'link';
+    const row = document.createElement('div');
+    row.className = 'ia-dedup-row';
+    const safeName = ing.name.replace(/'/g,"\\'");
+    row.innerHTML =
+      '<div class="ia-dedup-label">Ingrediente detectado</div>'+
+      '<div class="ia-dedup-ingr">'+ing.name+'</div>'+
+      '<div class="ia-dedup-match">Ya existe como: <strong>'+ing.existingName+'</strong></div>'+
+      '<div class="ia-dedup-opts">'+
+        '<button class="ia-dedup-btn link sel" onclick="iaToggleDedup(\''+safeName+'\',\'link\')">Vincular al existente</button>'+
+        '<button class="ia-dedup-btn new"      onclick="iaToggleDedup(\''+safeName+'\',\'new\')">Crear nuevo insumo</button>'+
+      '</div>';
+    list.appendChild(row);
+  });
+  document.getElementById('ia-btn-next').classList.add('is-hidden');
+  document.getElementById('ia-btn-save').classList.remove('is-hidden');
+}
+
+function iaToggleDedup(name, choice) {
+  iaState.dedupChoices[name] = choice;
+  const rows = document.querySelectorAll('.ia-dedup-row');
+  rows.forEach(function(row) {
+    const title = row.querySelector('.ia-dedup-ingr');
+    if (!title || title.textContent !== name) return;
+    const btns = row.querySelectorAll('.ia-dedup-btn');
+    btns.forEach(function(b){ b.classList.remove('sel'); });
+    const target = row.querySelector('.ia-dedup-btn.'+choice);
+    if (target) target.classList.add('sel');
+  });
+}
+
+function iaSetStep(n) {
+  [1,2,3].forEach(function(i) {
+    const step = document.getElementById('ia-step-'+i);
+    const dot  = document.getElementById('iadot-'+i);
+    if (step) step.classList.toggle('is-hidden', i!==n);
+    if (dot) {
+      dot.className = 'ia-step-dot'+(i<n?' done':i===n?' active':'');
+      dot.textContent = i<n?'v':String(i);
+    }
+    const line = document.getElementById('iadot-line-'+i);
+    if (line) line.classList.toggle('done', i<n);
+  });
+  const titles = {1:'Analizando receta',2:'Confirma las medidas',3:'Ingredientes existentes'};
+  document.getElementById('ia-head-title').textContent = titles[n]||'';
+}
+
+function iaNext() {
+  if (document.getElementById('ia-step-2').classList.contains('is-hidden')) return;
+  iaSetStep(3);
+  iaRenderPaso3();
+}
+
+async function iaGuardarReceta() {
+  if (!iaState.prodId) return;
+  const saveBtn = document.getElementById('ia-btn-save');
+  if (saveBtn) { saveBtn.disabled=true; saveBtn.textContent='Guardando…'; }
+
+  const newToCreate = [], recetaLinks = [];
+
+  for (var idx=0; idx<iaState.iaIngredients.length; idx++) {
+    var ing    = iaState.iaIngredients[idx];
+    var choice = iaState.dedupChoices[ing.name] || (ing.existingName?'link':'new');
+    if (ing.existingName && choice==='link') {
+      var ins = insumos.find(function(i){ return i.nombre===ing.existingName; });
+      if (ins) recetaLinks.push({insId:ins.id,qty:ing.qty,unit:ing.unit});
+    } else {
+      var existing = insumos.find(function(i){ return i.nombre.toLowerCase()===ing.name.toLowerCase(); });
+      if (existing) { recetaLinks.push({insId:existing.id,qty:ing.qty,unit:ing.unit}); }
+      else          { newToCreate.push(ing); }
+    }
+  }
+
+  var CAT_COL = {'Materia prima':'#E11D48','Lacteos y quesos':'#F59E0B','Salsas y abarrotes':'#8B5CF6','Bebidas envasadas':'#0EA5E9','Desechables':'#64748B','Aseo y limpieza':'#14B8A6'};
+
+  for (var j=0; j<newToCreate.length; j++) {
+    var ing2 = newToCreate[j];
+    var catC = CAT_COL[ing2.category]||'#64748B';
+    var payload = {
+      tenant_id:tenantId,branch_id:branchId,activo:true,
+      nombre:ing2.name, categoria:ing2.category||'Materia prima', cat_color:catC,
+      prep_requerido:true, buy_unit:ing2.unit, use_unit:ing2.unit,
+      precio:0,conversion:1,stock:0,min_stock:0,
+      updated_at:new Date().toISOString(),
+    };
+    var res2 = await iv_sb.from('iv_insumos').insert(payload).select().single();
+    if (res2.error) { console.error('[IA] crear insumo:',res2.error); continue; }
+    insumos.push({id:res2.data.id,nombre:ing2.name,cat:ing2.category||'Materia prima',catColor:catC,prep:true,buyUnit:ing2.unit,useUnit:ing2.unit,precio:0,conversion:1,stock:0,min:0});
+    recetaLinks.push({insId:res2.data.id,qty:ing2.qty,unit:ing2.unit});
+  }
+
+  await iv_sb.from('iv_recetas').delete().eq('product_id',iaState.prodId);
+
+  if (recetaLinks.length) {
+    var rows = recetaLinks.map(function(l){ return {tenant_id:tenantId,branch_id:branchId,product_id:iaState.prodId,insumo_id:l.insId,cantidad:l.qty,merma:0,updated_at:new Date().toISOString()}; });
+    var insRes = await iv_sb.from('iv_recetas').insert(rows);
+    if (insRes.error) { console.error('[IA] guardar receta:',insRes.error); showToast('Error al guardar receta'); return; }
+  }
+
+  var prod = productos.find(function(p){ return p.id===iaState.prodId; });
+  if (prod) prod.receta = recetaLinks.map(function(l){ return {insId:l.insId,qty:l.qty,merma:0}; });
+
+  closeIAReceta();
+  showToast('Receta generada con '+recetaLinks.length+' ingredientes');
+  updateTabBadges();
+  renderProductos();
+  updateKPIs();
+}
+
+function closeIAReceta() {
+  document.getElementById('panel-ia-receta').classList.add('is-hidden');
+  if (iaMsgTimer) { clearInterval(iaMsgTimer); iaMsgTimer=null; }
+  document.getElementById('ia-btn-next').classList.add('is-hidden');
+  document.getElementById('ia-btn-save').classList.add('is-hidden');
+  var btn = document.getElementById('ia-btn-save');
+  if (btn) { btn.disabled=false; btn.innerHTML='Guardar receta'; }
+}
