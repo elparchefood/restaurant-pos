@@ -769,3 +769,14 @@ function showToast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(()=>{ t.style.opacity='0'; }, 3000);
 }
+
+// ── Render inicial (estructura visible sin esperar core:ready) ──
+// Corre inmediatamente al cargar el script. Cuando core:ready dispare,
+// refreshAll() reemplazará con datos reales.
+renderDesglosePago([]);
+renderCanalVentas([], []);
+renderTopVentas([]);
+renderMovimientos([]);
+renderMovimientosSummary([]);
+renderCierres([]);
+renderHistorial([]);
