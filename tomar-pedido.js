@@ -382,8 +382,10 @@ function tpComputePrice(){
   if(isMatrix){
     base=Object.values(TP_WIP.vars).reduce((s,v)=>s+(v.price||0),0);
   } else {
-    base=TP_WIP.pres?(TP_WIP.pres.price||0):(p?parseFloat(p.price)||0:0);
-    base+=Object.values(TP_WIP.vars).reduce((s,v)=>s+(v.price||0),0);
+    // If pres.price is 0/null, fall back to product base price
+    const baseP = p ? parseFloat(p.price)||0 : 0;
+    base = TP_WIP.pres ? (TP_WIP.pres.price || baseP) : baseP;
+    base += Object.values(TP_WIP.vars).reduce((s,v)=>s+(v.price||0),0);
   }
   const modX=Object.values(TP_WIP.mods).reduce((s,m)=>s+(m.price||0),0);
   return (base+modX)*TP_WIP.qty;
@@ -496,7 +498,8 @@ function pmBuildCustomPane(p){
   const selParts=[presLabel,varLabels].filter(Boolean);
   const photoHTML=p.photo_url
     ?'<div class="pm-photo"><img src="'+pmAttr(p.photo_url)+'" style="width:100%;height:100%;object-fit:cover"></div>'
-    :'<div class="pm-photo ph"><span style="font-size:40px;color:#CBD5E1">'+pmEsc((p.name||'?')[0].toUpperCase())+'</span></div>';
+    :'<div class="pm-photo" style="display:flex;align-items:center;justify-content:center;background:repeating-linear-gradient(135deg,#F1F5F9 0 10px,#F8FAFC 10px 20px)">'
+    +'<span style="font-size:40px;color:#CBD5E1">'+pmEsc((p.name||'?')[0].toUpperCase())+'</span></div>';
   const selSummary=selParts.length
     ?pmEsc(p.name)+' &middot; <span class="sel">'+pmEsc(selParts.join(' · '))+'</span>'
     :pmEsc(p.name);
