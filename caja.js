@@ -7,7 +7,6 @@ const S = {
   branchId: null, tenantId: null, user: null, arqueoContado: null
 };
 
-const COPF = n => '$' + Math.round(n || 0).toLocaleString('es-CO');
 
 // SVGs de medios de pago (coinciden con el diseño)
 const MEDIO_SVG = {
