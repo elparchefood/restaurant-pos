@@ -187,6 +187,9 @@ function renderBaseModal(){
     +'<div id="base-ing-list">'+rows+'</div>'
     +'<button class="lm-btn-ghost" style="margin-top:8px;width:100%" onclick="addBaseIng()">'+icon('plus',13)+' Agregar ingrediente</button>'
     +'</div>'
+    +'<div style="margin-top:12px;border-top:1px solid #F1F5F9;padding-top:12px">'
+    +'<button class="lm-btn-ghost" style="width:100%;justify-content:center" onclick="openBaseAssign()">'+icon('users',13)+' Asignar a otros productos</button>'
+    +'</div>'
     +'<div class="cc-drawer-foot"><div></div>'
     +'<div style="display:flex;gap:8px">'
     +'<button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button>'
@@ -201,7 +204,7 @@ function removeBaseIng(i){if(!S.editBase)return;S.editBase.ingredients.splice(i,
 async function saveBase(){
   const b=S.editBase;if(!b)return;
   b.ingredients=b.ingredients.filter(x=>x.trim());
-  const row={tenant_id:S.tenantId,name:b.name,ingredients:b.ingredients};
+  const row={tenant_id:S.tenantId,name:b.name,ingredients:b.ingredients,product_ids:b.product_ids||[]};
   let savedId=b.id;
   try{
     if(b.id){await sb.from('pos_bases').update(row).eq('id',b.id).eq('tenant_id',S.tenantId);}
@@ -212,8 +215,60 @@ async function saveBase(){
   if(idx>=0)S.bases[idx]=b;else{S.bases=S.bases||[];S.bases.push(b);}
   closeOverlay();toast('Base "'+b.name+'" guardada ✓');
 }
+function openBaseAssign(){
+  const b=S.editBase;
+  // Productos que tienen "base" en descripción
+  const candidates=(S.products||[]).filter(p=>/base/i.test(p.desc||''));
+  const assigned=b.product_ids||[];
+  const rows=candidates.length?candidates.map(p=>{
+    const checked=assigned.includes(p.id);
+    return '<label style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F1F5F9;cursor:pointer">'
+      +'<input type="checkbox" id="ba-'+p.id+'" '+(checked?'checked':'')+' style="width:16px;height:16px;accent-color:#8B5CF6">'
+      +'<span style="font-size:13.5px;color:#0F172A;font-weight:600">'+escHtml(p.name)+'</span>'
+      +(p.desc?'<span style="font-size:11.5px;color:#94A3B8;margin-left:auto;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(p.desc.substring(0,40))+'</span>':'')
+      +'</label>';
+  }).join('')
+  :'<p style="font-size:13px;color:#94A3B8;text-align:center;padding:20px 0">No hay productos con la palabra "base" en su descripción.</p>';
+  openOverlay(
+    '<div class="cc-overlay" onmousedown="handleOverlayClose(event)">'
+    +'<aside class="cc-drawer" onmousedown="event.stopPropagation()" style="max-width:420px">'
+    +'<div class="cc-drawer-head">'
+    +'<div style="display:flex;align-items:center;gap:10px">'
+    +'<span class="cc-drawer-glyph" style="color:#8B5CF6;background:#F5F3FF">'+icon('users',17)+'</span>'
+    +'<div><div class="cc-drawer-eyebrow">Asignar base</div>'
+    +'<div class="cc-drawer-title">'+escHtml(b.name)+'</div></div></div>'
+    +'<button class="lm-icon-sm" onclick="renderBaseModal()">'+icon('x',15)+'</button></div>'
+    +'<div class="cc-drawer-body">'
+    +'<p style="font-size:12.5px;color:#64748B;margin-bottom:14px;line-height:1.55">Selecciona los productos que usan esta base. Solo aparecen productos cuya descripción contiene la palabra "base".</p>'
+    +'<div>'+rows+'</div>'
+    +'</div>'
+    +'<div class="cc-drawer-foot"><div></div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button class="lm-btn-ghost" onclick="renderBaseModal()">Volver</button>'
+    +'<button class="lm-btn-primary" onclick="saveBaseAssign()">'+icon('check',14)+' Guardar asignación</button>'
+    +'</div></div>'
+    +'</aside></div>'
+  );
+}
+async function saveBaseAssign(){
+  const b=S.editBase;if(!b)return;
+  const candidates=(S.products||[]).filter(p=>/base/i.test(p.desc||''));
+  const selected=candidates.filter(p=>{const el=document.getElementById('ba-'+p.id);return el&&el.checked;}).map(p=>p.id);
+  b.product_ids=selected;
+  if(b.id){
+    try{
+      await sb.from('pos_bases').update({product_ids:selected}).eq('id',b.id).eq('tenant_id',S.tenantId);
+      const idx=(S.bases||[]).findIndex(x=>x.id===b.id);
+      if(idx>=0)S.bases[idx].product_ids=selected;
+      toast('Asignación guardada ✓');
+    }catch(e){toast('Error al guardar asignación');return;}
+  }else{
+    toast('Guarda la base primero antes de asignar productos');
+  }
+  renderBaseModal();
+}
 async function loadBases(){
-  try{const{data}=await sb.from('pos_bases').select('*').eq('tenant_id',S.tenantId);S.bases=data||[];}
+  try{const{data}=await sb.from('pos_bases').select('*').eq('tenant_id',S.tenantId);S.bases=(data||[]).map(b=>({...b,product_ids:b.product_ids||[]}));}
   catch(e){}
 }
 
