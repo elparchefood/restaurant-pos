@@ -1262,8 +1262,6 @@ function closeIAReceta() {
 // MODAL IA RECETA
 // ═══════════════════════════════════════════════════
 
-const EDGE_URL = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/analyze-menu';
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
 
 const IA_MSGS = [
   'Identificando ingredientes de la descripcion…',
