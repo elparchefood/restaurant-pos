@@ -15,12 +15,10 @@ let branchId  = null;
 let params    = { fc: 30, op: 32, inf: 10, merma: true };
 let customUnits = [];
 
-// Datos cargados desde Supabase (nunca hardcodeados)
 let insumos   = [];
 let productos = [];
 let recetas   = [];
 
-// Estado de paneles
 let repInsumoId = null;
 let activeFilter = 'todos';
 let togglePrepOn = true;
@@ -89,7 +87,7 @@ function countRecipes(insId) {
 }
 
 // ═══════════════════════════════════════════════════
-// CARGA DE DATOS DESDE SUPABASE
+// CARGA DE DATOS
 // ═══════════════════════════════════════════════════
 async function loadData() {
   mostrarCargando(true);
@@ -99,12 +97,16 @@ async function loadData() {
     tenantId = user.user_metadata?.tenant_id || null;
     branchId = user.user_metadata?.branch_id || null;
 
-    const meta = user.user_metadata || {};
-    const initials = (meta.full_name || user.email || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
-    document.getElementById('tb-avatar').textContent = initials;
-    document.getElementById('tb-uname').textContent  = meta.full_name || user.email;
-    document.getElementById('tb-urole').textContent  = meta.role || 'Usuario';
-    document.getElementById('sb-brand').textContent  = meta.restaurant_name || 'Comanda';
+    const meta     = user.user_metadata || {};
+    const fullName = meta.full_name || user.email || 'Usuario';
+    const initials = fullName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
+
+    document.getElementById('tb-avatar').textContent  = initials;
+    document.getElementById('tb-uname').textContent   = fullName;
+    document.getElementById('tb-urole').textContent   = meta.role || 'Administrador';
+    const restaurantName = meta.restaurant_name || 'El Parche Food';
+    document.getElementById('sb-brand').textContent   = 'Lumen POS';
+    document.getElementById('sb-subbrand').textContent = restaurantName + ' · Caja 01';
 
     await loadProductos();
     await loadInsumos();
@@ -114,6 +116,7 @@ async function loadData() {
     console.error('[inventario] loadData:', e);
   } finally {
     mostrarCargando(false);
+    updateTabBadges();
     showScreen('productos');
     updateKPIs();
   }
@@ -195,6 +198,16 @@ function mostrarCargando(on) {
   if (el) el.classList.toggle('is-hidden', !on);
 }
 
+function updateTabBadges() {
+  const conReceta = productos.filter(p => p.receta && p.receta.length > 0);
+  document.getElementById('tab-n-productos').textContent = productos.length;
+  document.getElementById('tab-n-insumos').textContent   = insumos.length;
+  document.getElementById('tab-n-recetas').textContent   = conReceta.length;
+  const unidades = customUnits.length;
+  const badge = document.getElementById('nav-unidades-badge');
+  if (badge) badge.textContent = unidades;
+}
+
 // ═══════════════════════════════════════════════════
 // KPIs GLOBALES
 // ═══════════════════════════════════════════════════
@@ -207,27 +220,41 @@ function updateKPIs() {
 
   document.getElementById('kpi-alerta-n').textContent   = enAlerta;
   document.getElementById('kpi-pausados-n').textContent  = pausados;
-  document.getElementById('kpi-margen-n').textContent   = margenProm.toFixed(1) + '%';
-  document.getElementById('kpi-alerta').classList.toggle('alert', enAlerta > 0);
-  document.getElementById('kpi-pausados').classList.toggle('warn', pausados > 0);
+  document.getElementById('kpi-margen-n').textContent   = margenes.length > 0 ? margenProm.toFixed(1) + '%' : '—';
+
+  // Tono KPI alerta: rojo si hay alertas, verde si no
+  const kpiAlerta = document.getElementById('kpi-alerta');
+  if (kpiAlerta) {
+    kpiAlerta.classList.toggle('tone-red', enAlerta > 0);
+    kpiAlerta.classList.toggle('tone-green', enAlerta === 0);
+  }
+  // Tono KPI pausados: rojo si hay pausados
+  const kpiPausados = document.getElementById('kpi-pausados');
+  if (kpiPausados) {
+    kpiPausados.classList.toggle('tone-red', pausados > 0);
+    kpiPausados.classList.toggle('tone-green', pausados === 0);
+  }
 
   const sideAlert = document.getElementById('side-alert');
   if (enAlerta > 0) {
     sideAlert.classList.remove('is-hidden');
     document.getElementById('side-alert-txt').textContent = enAlerta + ' insumo' + (enAlerta>1?'s':'') + ' en alerta';
-  } else { sideAlert.classList.add('is-hidden'); }
+  } else {
+    sideAlert.classList.add('is-hidden');
+  }
 
   document.getElementById('inv-valor-total').textContent = ivCOP(insumos.reduce((s,i)=>s+i.stock*i.precio,0));
+  updateTabBadges();
 }
 
 // ═══════════════════════════════════════════════════
 // NAVEGACIÓN
 // ═══════════════════════════════════════════════════
 const screens = {
-  productos: { title:'Productos',          eyebrow:'Control de inventario · Platos' },
-  insumos:   { title:'Insumos',            eyebrow:'Control de inventario · Materias primas' },
-  recetas:   { title:'Recetas y costeo',   eyebrow:'Control de inventario · Costeo' },
-  unidades:  { title:'Unidades de medida', eyebrow:'Configuración' },
+  productos: { title:'Productos',          eyebrow:'Control de inventario · El Parche Food', crumb:'Productos' },
+  insumos:   { title:'Insumos',            eyebrow:'Control de inventario · El Parche Food', crumb:'Insumos' },
+  recetas:   { title:'Recetas y costeo',   eyebrow:'Control de inventario · El Parche Food', crumb:'Recetas y costeo' },
+  unidades:  { title:'Unidades de medida', eyebrow:'Configuración', crumb:'Unidades de medida' },
 };
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('on'));
@@ -242,7 +269,7 @@ function showScreen(name) {
   const info = screens[name] || {};
   document.getElementById('page-title').textContent   = info.title || name;
   document.getElementById('page-eyebrow').textContent = info.eyebrow || '';
-  document.getElementById('crumb-title').textContent  = info.title || name;
+  document.getElementById('crumb-title').textContent  = info.crumb || info.title || name;
   if (name === 'productos') renderProductos();
   if (name === 'insumos')   renderInsumos();
   if (name === 'recetas')   renderRecetasList();
@@ -257,14 +284,24 @@ function renderProductos() {
   grid.innerHTML = '';
   if (productos.length === 0) {
     grid.innerHTML = `<div class="iv-empty" style="grid-column:1/-1">
-      <div class="iv-empty-ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg></div>
+      <div class="iv-empty-ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
       <div class="iv-empty-t">Sin productos en catálogo</div>
-      <div class="iv-empty-s">Agrega productos desde el módulo de Catálogo y aparecerán aquí automáticamente.</div>
     </div>`;
     updateKPIs(); return;
   }
   for (const prod of productos) grid.appendChild(buildProdCard(prod));
   updateKPIs();
+}
+
+function filterProductos(q) {
+  const grid = document.getElementById('prod-grid');
+  const cards = grid.querySelectorAll('.iv-prod-card');
+  const lq = (q || '').toLowerCase();
+  cards.forEach(card => {
+    const name = (card.querySelector('.iv-prod-name')?.textContent || '').toLowerCase();
+    const cat  = (card.querySelector('.iv-prod-cat')?.textContent || '').toLowerCase();
+    card.style.display = (!lq || name.includes(lq) || cat.includes(lq)) ? '' : 'none';
+  });
 }
 
 function buildProdCard(prod) {
@@ -274,22 +311,27 @@ function buildProdCard(prod) {
   const sem         = r ? semaforo(r.fc) : null;
   const el          = document.createElement('div');
   el.className      = 'iv-prod-card' + (!prod.visible ? ' off' : '');
+  el.dataset.product = prod.id;
 
+  // HEAD: exacto del diseño (cat + name izq, precio der)
   const headHTML = `
-    <div>
-      <div class="iv-prod-cat">${prod.cat}</div>
-      <div class="iv-prod-name">${prod.nombre}</div>
-    </div>
-    <div style="text-align:right">
-      <div class="iv-prod-price-lbl">Precio</div>
-      <div class="iv-prod-price">${ivCOP(prod.precio)}</div>
+    <div class="iv-prod-head">
+      <div style="min-width:0">
+        <div class="iv-prod-cat">${prod.cat}</div>
+        <div class="iv-prod-name">${prod.nombre}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div class="iv-prod-price">${ivCOP(prod.precio)}</div>
+        <div class="iv-prod-price-lbl">precio venta</div>
+      </div>
     </div>`;
 
+  // STATE BAND
   let stateHTML = '';
   if (!tieneReceta) {
     stateHTML = `<div class="iv-state sin-receta">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-      Sin receta · el costeo no está disponible</div>`;
+      Sin receta · agrega insumos para costear</div>`;
   } else if (paused) {
     const faltante = prod.receta.find(l => { const i=insumos.find(x=>x.id===l.insId); return i&&i.prep&&i.stock<=0; });
     const nomFalt  = faltante ? (insumos.find(x=>x.id===faltante.insId)?.nombre||'—') : '—';
@@ -298,34 +340,49 @@ function buildProdCard(prod) {
       Pausado · falta ${nomFalt}</div>`;
   } else {
     stateHTML = `<div class="iv-state ok">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       Disponible · insumos en stock</div>`;
   }
 
+  // MINICOST: labels exactos del diseño
   let minicostHTML = '';
   if (tieneReceta && r) {
     const fcPct   = (r.fc*100).toFixed(1);
-    const netaPct = (r.neta/prod.precio*100).toFixed(1);
+    const netaPct = prod.precio > 0 ? (r.neta/prod.precio*100).toFixed(1) : '0';
+    const semColor = sem.color;
+    // color de texto según semáforo (más oscuro)
+    const inkMap = {'#22C55E':'#166534','#EAB308':'#854D0E','#F97316':'#9A3412','#EF4444':'#991B1B'};
+    const fcInk = inkMap[semColor] || '#0F172A';
     minicostHTML = `<div class="iv-minicost">
-      <div class="col"><div class="v" style="color:${sem.color}"><span style="width:8px;height:8px;border-radius:999px;background:${sem.color};display:inline-block"></span>${fcPct}%</div><div class="l">Food cost</div></div>
+      <div class="col">
+        <div class="v" style="color:${fcInk}"><span style="width:9px;height:9px;border-radius:999px;background:${semColor};display:inline-block"></span>${fcPct}%</div>
+        <div class="l">materia prima</div>
+      </div>
       <div class="sep"></div>
-      <div class="col"><div class="v">${ivCOP(r.margen)}</div><div class="l">Margen contrib.</div></div>
+      <div class="col">
+        <div class="v" style="color:#0F172A">${ivCOP(r.margen)}</div>
+        <div class="l">margen contrib.</div>
+      </div>
       <div class="sep"></div>
-      <div class="col"><div class="v">${netaPct}%</div><div class="l">Ganancia neta</div></div>
+      <div class="col">
+        <div class="v" style="color:#16A34A">${netaPct}%</div>
+        <div class="l">ganancia neta</div>
+      </div>
     </div>`;
   } else {
     minicostHTML = `<div class="iv-minicost empty">
-      <div class="col"><div class="v" style="color:#CBD5E1">—</div><div class="l">Food cost</div></div>
+      <div class="col"><div class="v" style="color:#CBD5E1">—</div><div class="l">materia prima</div></div>
       <div class="sep"></div>
-      <div class="col"><div class="v" style="color:#CBD5E1">—</div><div class="l">Margen contrib.</div></div>
+      <div class="col"><div class="v" style="color:#CBD5E1">—</div><div class="l">margen contrib.</div></div>
       <div class="sep"></div>
-      <div class="col"><div class="v" style="color:#CBD5E1">—</div><div class="l">Ganancia neta</div></div>
+      <div class="col"><div class="v" style="color:#CBD5E1">—</div><div class="l">ganancia neta</div></div>
     </div>`;
   }
 
+  // FOOT
   let footHTML = '';
   if (!tieneReceta) {
-    footHTML = `
+    footHTML = `<div class="iv-prod-foot" style="gap:8px">
       <button class="iv-btn-sm primary" onclick="abrirEditorInsumoReceta('${prod.id}')">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Agregar insumos
@@ -333,17 +390,27 @@ function buildProdCard(prod) {
       <button class="iv-btn-sm ia" onclick="generarRecetaIA('${prod.id}')">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12"/><path d="M12 6v6l4 2"/></svg>
         Generar con IA
-      </button>`;
+      </button>
+    </div>`;
   } else if (paused) {
-    footHTML = `<div class="iv-prod-pausedlbl"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>Pausado por stock</div>
-    <button class="iv-btn-link" onclick="irAInsumos()">Ver insumos →</button>`;
+    footHTML = `<div class="iv-prod-foot">
+      <div class="iv-prod-pausedlbl">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        Pausado por stock
+      </div>
+      <button class="iv-link" onclick="irAInsumos()">Ver insumos <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+    </div>`;
   } else {
-    footHTML = `<button class="iv-switch ${prod.visible?'on':''}" title="Visible al mesero" onclick="toggleVisible('${prod.id}', this)"></button>
-    <span style="font-size:11px;color:#64748B;font-weight:600">Visible al mesero</span>
-    <button class="iv-btn-link" onclick="abrirRecetaDetalle('${prod.id}')">Ver receta →</button>`;
+    footHTML = `<div class="iv-prod-foot">
+      <button class="iv-switch ${prod.visible?'on':''}" onclick="toggleVisible('${prod.id}', this)">
+        <span class="iv-switch-label">${prod.visible?'Visible al mesero':'Oculto al mesero'}</span>
+        <span class="iv-switch-track"><span class="iv-switch-knob"></span></span>
+      </button>
+      <button class="iv-link" onclick="abrirRecetaDetalle('${prod.id}')">Ver receta <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+    </div>`;
   }
 
-  el.innerHTML = `<div class="iv-prod-head">${headHTML}</div>${stateHTML}${minicostHTML}<div class="iv-prod-foot">${footHTML}</div>`;
+  el.innerHTML = headHTML + stateHTML + minicostHTML + footHTML;
   return el;
 }
 
@@ -352,6 +419,8 @@ async function toggleVisible(prodId, btn) {
   if (!prod) return;
   prod.visible = !prod.visible;
   btn.classList.toggle('on', prod.visible);
+  const label = btn.querySelector('.iv-switch-label');
+  if (label) label.textContent = prod.visible ? 'Visible al mesero' : 'Oculto al mesero';
   await iv_sb.from('pos_products').update({ available: prod.visible }).eq('id', prodId);
   showToast(prod.nombre + (prod.visible ? ' visible al mesero' : ' ocultado al mesero'));
 }
@@ -383,9 +452,8 @@ function renderInsumos(filtro) {
 
   if (insumos.length === 0) {
     container.innerHTML = `<div class="iv-empty">
-      <div class="iv-empty-ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>
+      <div class="iv-empty-ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 3h6"/><path d="M10 3v6.5L5.5 18a2 2 0 0 0 1.8 3h9.4a2 2 0 0 0 1.8-3L14 9.5V3"/><path d="M7.5 14h9"/></svg></div>
       <div class="iv-empty-t">Sin insumos registrados</div>
-      <div class="iv-empty-s">Crea tu primer insumo con el botón "Nuevo insumo" para empezar a costear tus productos.</div>
     </div>`;
     return;
   }
@@ -395,7 +463,8 @@ function renderInsumos(filtro) {
   for (const cat of cats) {
     let catIns = insumos.filter(i => i.cat === cat);
     if (filtro === 'alerta') catIns = catIns.filter(i => getStockState(i) !== 'ok');
-    if (searchVal)           catIns = catIns.filter(i => i.nombre.toLowerCase().includes(searchVal));
+    if (filtro !== 'todos' && filtro !== 'alerta') catIns = catIns.filter(i => i.cat === filtro);
+    if (searchVal) catIns = catIns.filter(i => i.nombre.toLowerCase().includes(searchVal));
     if (catIns.length === 0) continue;
     shown += catIns.length;
     const sample = catIns[0];
@@ -404,10 +473,10 @@ function renderInsumos(filtro) {
     groupEl.className = 'iv-group';
     groupEl.innerHTML = `
       <div class="iv-group-head">
-        <span class="iv-catdot" style="background:${sample.catColor}"></span>
+        <span class="iv-catdot" style="width:9px;height:9px;background:${sample.catColor}"></span>
         <span class="iv-group-title">${cat}</span>
         <span class="iv-group-count">${catIns.length}</span>
-        ${noPrep?'<span class="iv-group-noprep">Sin preparaciones</span>':''}
+        ${noPrep ? '<span class="iv-group-noprep">No entra en preparaciones</span>' : ''}
       </div>
       <div class="iv-ins-list" id="list-${cat.replace(/\s/g,'-')}"></div>`;
     container.appendChild(groupEl);
@@ -415,7 +484,7 @@ function renderInsumos(filtro) {
     for (const ins of catIns) listEl.appendChild(buildInsRow(ins));
   }
   if (shown === 0) {
-    container.innerHTML = `<div class="iv-empty"><div class="iv-empty-ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div><div class="iv-empty-t">Sin resultados</div></div>`;
+    container.innerHTML = `<div class="iv-empty"><div class="iv-empty-t">Sin resultados</div></div>`;
   }
 }
 
@@ -425,13 +494,28 @@ function buildFiltersChips() {
   const alertaCount = insumos.filter(i => getStockState(i) !== 'ok').length;
   let html = `
     <button class="iv-chip ${activeFilter==='todos'?'on':''}" onclick="renderInsumos('todos')">Todos <span class="n">${insumos.length}</span></button>
-    <button class="iv-chip ${activeFilter==='alerta'?'on':''}" onclick="renderInsumos('alerta')">En alerta <span class="n">${alertaCount}</span></button>
-    <span class="iv-chip" style="border-color:transparent;background:none;width:1px;padding:0"></span>`;
+    <button class="iv-chip ${activeFilter==='alerta'?'on':''}" style="color:#DC2626" onclick="renderInsumos('alerta')">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      En alerta <span class="n">${alertaCount}</span>
+    </button>
+    <div class="vsep"></div>`;
   for (const cat of cats) {
     const cnt = insumos.filter(i => i.cat === cat).length;
-    html += `<button class="iv-chip ${activeFilter===cat?'on':''}" onclick="renderInsumos('${cat}')">${cat} <span class="n">${cnt}</span></button>`;
+    const col = insumos.find(i=>i.cat===cat)?.catColor||'#64748B';
+    html += `<button class="iv-chip ${activeFilter===cat?'on':''}" onclick="renderInsumos('${cat}')">
+      <span class="iv-catdot" style="background:${col}"></span>${cat} <span class="n">${cnt}</span>
+    </button>`;
   }
+  html += `<button class="iv-chip dashed" id="btn-nueva-cat" onclick="abrirNuevaCat()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Categoría
+  </button>`;
   container.innerHTML = html;
+}
+
+function abrirNuevaCat() {
+  const nombre = prompt('Nombre de la nueva categoría:')?.trim();
+  if (!nombre) return;
+  showToast('Categoría "' + nombre + '" disponible al crear el próximo insumo');
 }
 
 function buildInsRow(ins) {
@@ -440,19 +524,19 @@ function buildInsRow(ins) {
   const pct      = ins.min > 0 ? Math.min(100, ins.stock/ins.min*100) : 100;
   const usedCount = countRecipes(ins.id);
   const tagHTML  = ins.prep
-    ? (usedCount > 0 ? `<span class="iv-tag-recipe">${usedCount} recetas</span>` : '')
-    : `<span class="iv-tag-direct"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Venta directa</span>`;
+    ? (usedCount > 0 ? `<span class="iv-tag-recipe">${usedCount} receta${usedCount>1?'s':''}</span>` : '')
+    : `<span class="iv-tag-direct"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4Z"/></svg>Venta directa</span>`;
   const el = document.createElement('div');
   el.className = 'iv-ins-row';
   el.innerHTML = `
     <div class="iv-ins-main">
-      <div class="iv-ins-name">${ins.nombre} ${tagHTML}</div>
-      <div class="iv-ins-meta">Compra: <strong>${ivCOP(ins.precio)}</strong>/${ins.buyUnit} · usa en ${ins.useUnit}</div>
+      <div style="display:flex;align-items:center;gap:8px"><span class="iv-ins-name">${ins.nombre}</span>${tagHTML}</div>
+      <div class="iv-ins-meta">Compra: <strong>${ivCOP(ins.precio)}</strong> / ${ins.buyUnit} · usa en ${ins.useUnit}</div>
     </div>
     <div class="iv-ins-stock">
       <div class="iv-ins-stock-top">
-        <div class="iv-ins-stock-val" style="color:${colors.txt}">${ins.stock}<span class="u"> ${ins.buyUnit}</span></div>
-        <div class="iv-ins-min">mín ${ins.min}</div>
+        <span class="iv-ins-stock-val" style="color:${colors.txt}">${ins.stock} <span class="u">${ins.buyUnit}</span></span>
+        <span class="iv-ins-min">mín ${ins.min}</span>
       </div>
       <div class="iv-bar"><i style="width:${pct}%;background:${colors.bar}"></i></div>
     </div>
@@ -460,9 +544,12 @@ function buildInsRow(ins) {
       <span class="iv-badge" style="color:${colors.txt};background:${colors.bg}">${stateLabel(state)}</span>
     </div>
     <div class="iv-ins-actions">
-      <button class="iv-btn-sm primary" onclick="abrirReponer('${ins.id}')">＋ Reponer</button>
-      <button class="iv-btn-sm" onclick="abrirEditorInsumo('${ins.id}')">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      <button class="iv-btn-ghost sm btn-reponer" onclick="abrirReponer('${ins.id}')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Reponer
+      </button>
+      <button class="iv-row-btn btn-edit-insumo" onclick="abrirEditorInsumo('${ins.id}')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
       </button>
     </div>`;
   return el;
@@ -481,8 +568,9 @@ function abrirReponer(insId) {
   document.getElementById('rep-stock-unit').textContent = ins.buyUnit;
   document.getElementById('rep-min').textContent        = ins.min;
   document.getElementById('rep-price-unit').textContent = ins.buyUnit;
-  document.getElementById('rep-qty').value              = '0';
   document.getElementById('rep-price').value            = ins.precio;
+  document.getElementById('rep-price-display').textContent = ivCOP(ins.precio);
+  document.getElementById('rep-qty').value              = '0';
   const state  = getStockState(ins);
   const colors = stateColors(state);
   const badge  = document.getElementById('rep-badge');
@@ -517,10 +605,12 @@ function updateRepResult() {
     const nuevoState = getStockState({...ins, stock:nuevoStock});
     const colors     = stateColors(nuevoState);
     const res        = document.getElementById('rep-result');
-    res.classList.remove('is-hidden'); res.style.background = colors.bg;
+    res.classList.remove('is-hidden');
+    res.style.background = colors.bg; res.style.border = '1px solid ' + colors.ring;
     res.querySelector('.rt').textContent = 'Quedará en '+nuevoStock+' '+ins.buyUnit+' · '+stateLabel(nuevoState);
     res.querySelector('.rx').textContent = ins.stock+' + '+qty+' '+ins.buyUnit+' · costo '+ivCOP(qty*price);
     res.querySelector('.rt').style.color = colors.txt;
+    res.querySelector('.rx').style.color = colors.txt;
   } else { document.getElementById('rep-result').classList.add('is-hidden'); }
 }
 async function aplicarReponer() {
@@ -547,7 +637,7 @@ function abrirCompra() {
   insumos.forEach(i=>{compraPrices[i.id]=i.precio;});
   filterCompra();
   document.getElementById('compra-search').value='';
-  document.getElementById('compra-summary').textContent='0 insumos · $0';
+  document.getElementById('compra-summary').textContent='Indica cuánto compraste';
   document.getElementById('btn-compra-ok').disabled=true;
   document.getElementById('panel-compra').classList.remove('is-hidden');
 }
@@ -556,7 +646,7 @@ function filterCompra() {
   const list   = document.getElementById('compra-list');
   list.innerHTML='';
   if (insumos.length===0) {
-    list.innerHTML=`<div style="padding:32px;text-align:center;color:#94A3B8;font-size:13px">Sin insumos registrados.<br>Crea insumos primero.</div>`;
+    list.innerHTML=`<div style="padding:32px;text-align:center;color:#94A3B8;font-size:13px">Sin insumos registrados.</div>`;
     return;
   }
   const sorted = [...insumos].sort((a,b)=>{
@@ -570,31 +660,31 @@ function filterCompra() {
     row.className='iv-buy-row'+(qty>0?' active':''); row.id='buy-row-'+ins.id;
     row.innerHTML=`
       <div style="flex:1;min-width:0">
-        <div class="iv-buy-name">${ins.nombre}</div>
-        <div class="iv-buy-sub" style="color:${colors.txt}">Hay ${ins.stock} ${ins.buyUnit} · ${stateLabel(state)}</div>
+        <div style="display:flex;align-items:center;gap:7px"><span class="iv-catdot" style="width:7px;height:7px;background:${ins.catColor}"></span><span class="iv-buy-name">${ins.nombre}</span></div>
+        <div class="iv-buy-sub">Hay ${ins.stock} ${ins.buyUnit} · <span style="color:${colors.txt};font-weight:700">${stateLabel(state)}</span></div>
       </div>
-      <input type="number" min="0" step="any" placeholder="0" value="${qty||''}"
-        style="width:64px;padding:6px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:700;text-align:center;font-family:inherit;outline:none"
-        oninput="updateCompraRow('${ins.id}',this.value,null)">
-      <div class="iv-money" style="width:110px">
-        <span class="cur">$</span>
-        <input type="number" min="0" placeholder="0" value="${compraPrices[ins.id]||''}" oninput="updateCompraRow('${ins.id}',null,this.value)">
-      </div>`;
+      <span class="iv-step"><button onclick="updateCompraRow('${ins.id}',null,-1)">−</button><input type="number" min="0" step="any" placeholder="0" value="${qty||''}" oninput="updateCompraRow('${ins.id}',this.value,null)"><button onclick="updateCompraRow('${ins.id}',null,1)">＋</button></span>
+      <label class="iv-money" style="width:116px"><span class="cur">$</span><input type="number" min="0" placeholder="0" value="${compraPrices[ins.id]||''}" oninput="updateCompraPrice('${ins.id}',this.value)"></label>`;
     list.appendChild(row);
   }
   updateCompraSummary();
 }
-function updateCompraRow(insId,qty,price) {
-  if (qty!==null)   compraQty[insId]=parseFloat(qty)||0;
-  if (price!==null) compraPrices[insId]=parseFloat(price)||0;
+function updateCompraRow(insId,qty,delta) {
+  if (qty!==null) compraQty[insId]=Math.max(0,parseFloat(qty)||0);
+  if (delta!==null) compraQty[insId]=Math.max(0,(compraQty[insId]||0)+delta);
   const row=document.getElementById('buy-row-'+insId);
-  if (row) row.classList.toggle('active',(compraQty[insId]||0)>0);
+  if (row) {
+    row.classList.toggle('active',(compraQty[insId]||0)>0);
+    const inp=row.querySelector('input[type=number]');
+    if (inp&&delta!==null) inp.value=compraQty[insId]||'';
+  }
   updateCompraSummary();
 }
+function updateCompraPrice(insId,price) { compraPrices[insId]=parseFloat(price)||0; updateCompraSummary(); }
 function updateCompraSummary() {
   const active=Object.entries(compraQty).filter(([,v])=>v>0);
   const total=active.reduce((s,[id,q])=>s+q*(compraPrices[id]||0),0);
-  document.getElementById('compra-summary').textContent=active.length+' insumos · '+ivCOP(total);
+  document.getElementById('compra-summary').textContent=active.length>0?(active.length+' insumos · '+ivCOP(total)):'Indica cuánto compraste';
   document.getElementById('btn-compra-ok').disabled=active.length===0;
 }
 async function aplicarCompra() {
@@ -626,11 +716,11 @@ function abrirEditorInsumo(insId) {
   togglePrepOn = ins?ins.prep:true;
   const catSel = document.getElementById('ins-cat');
   const cats   = [...new Set(insumos.map(i=>i.cat))];
-  catSel.innerHTML='<option value="">Seleccionar categoría...</option>'+
+  catSel.innerHTML='<option value="">Seleccionar categoría…</option>'+
     cats.map(c=>`<option value="${c}" ${ins&&ins.cat===c?'selected':''}>${c}</option>`).join('')+
-    '<option value="__new__">＋ Nueva categoría...</option>';
+    '<option value="__new__">＋ Nueva categoría…</option>';
   setSelectVal(document.getElementById('ins-buy-unit'), ins?.buyUnit||'unidad');
-  setSelectVal(document.getElementById('ins-use-unit'), ins?.useUnit||'gramo');
+  setSelectVal(document.getElementById('ins-use-unit'), ins?.useUnit||'g');
   updateTogglePrepUI();
   document.getElementById('ins-cost-hint').classList.add('is-hidden');
   document.getElementById('btn-ins-eliminar').classList.toggle('is-hidden',!ins);
@@ -642,20 +732,24 @@ function setSelectVal(sel,val) {
 function togglePrep() { togglePrepOn=!togglePrepOn; updateTogglePrepUI(); }
 function updateTogglePrepUI() {
   document.getElementById('toggle-prep').classList.toggle('on',togglePrepOn);
-  document.getElementById('toggle-prep-sw').classList.toggle('on',togglePrepOn);
-  document.getElementById('toggle-prep-desc').textContent=togglePrepOn?'Activo — puede usarse en recetas':'Desactivado — venta directa';
+  const sw=document.getElementById('toggle-prep-sw');
+  if (sw) {
+    sw.classList.toggle('on',togglePrepOn);
+    const lbl=sw.querySelector('.iv-switch-label');
+    if (lbl) lbl.textContent=togglePrepOn?'Sí':'No';
+  }
 }
 function updateCostHint() {
   const precio=parseFloat(document.getElementById('ins-precio').value)||0;
   const conv=parseFloat(document.getElementById('ins-conversion').value)||0;
-  const buyUnit=document.getElementById('ins-buy-unit').value;
   const useUnit=document.getElementById('ins-use-unit').value;
+  const buyUnit=document.getElementById('ins-buy-unit').value;
   const hint=document.getElementById('ins-cost-hint');
   const txt=document.getElementById('ins-cost-hint-txt');
   if (precio>0&&conv>0) { txt.textContent=`Costo por ${useUnit}: ${ivCOP(precio/conv)} (${ivCOP(precio)} ÷ ${conv} ${useUnit}/${buyUnit})`; hint.classList.remove('is-hidden'); }
   else { hint.classList.add('is-hidden'); }
 }
-const CAT_COLORS = {'Materia prima':'#E11D48','Lácteos':'#F59E0B','Salsas':'#8B5CF6','Bebidas envasadas':'#0EA5E9','Desechables':'#64748B','Aseo':'#14B8A6'};
+const CAT_COLORS = {'Materia prima':'#E11D48','Lácteos y quesos':'#F59E0B','Salsas y abarrotes':'#8B5CF6','Bebidas envasadas':'#0EA5E9','Desechables':'#64748B','Aseo y limpieza':'#14B8A6'};
 async function guardarInsumo() {
   const nombre  = document.getElementById('ins-nombre').value.trim();
   let   cat     = document.getElementById('ins-cat').value;
@@ -685,7 +779,7 @@ async function guardarInsumo() {
 }
 async function eliminarInsumo() {
   const editId=document.getElementById('ins-edit-id').value;
-  if (!editId||!confirm('¿Eliminar este insumo? Esta acción no se puede deshacer.')) return;
+  if (!editId||!confirm('¿Eliminar este insumo?')) return;
   await iv_sb.from('iv_insumos').update({activo:false}).eq('id',editId);
   insumos=insumos.filter(i=>i.id!==editId);
   closePanel('panel-insumo'); showToast('Insumo eliminado');
@@ -710,7 +804,7 @@ function renderRecetasList() {
     btn.innerHTML=`
       <span style="width:10px;height:10px;border-radius:999px;background:${sem.color};flex-shrink:0"></span>
       <div style="flex:1;min-width:0"><div class="nm">${prod.nombre}</div><div class="ct">${prod.cat}</div></div>
-      <div class="fc" style="color:${sem.color}">${(r.fc*100).toFixed(1)}%</div>`;
+      <span class="fc" style="color:${sem.color}">${(r.fc*100).toFixed(1)}%</span>`;
     btn.onclick=()=>{document.querySelectorAll('.iv-rec-listitem').forEach(b=>b.classList.remove('on'));btn.classList.add('on');abrirRecetaDetalle(prod.id);};
     list.appendChild(btn);
   }
@@ -719,72 +813,45 @@ function renderRecetasList() {
 function abrirRecetaDetalle(prodId) {
   const prod=productos.find(p=>p.id===prodId);
   if (!prod||!prod.receta||prod.receta.length===0) return;
-  if (document.getElementById('screen-recetas').classList.contains('on')) {
-    document.querySelectorAll('.iv-rec-listitem').forEach(b=>b.classList.toggle('on',b.dataset.receta===prodId));
-  } else {
+  if (!document.getElementById('screen-recetas').classList.contains('on')) {
     showScreen('recetas');
-    setTimeout(()=>{
-      document.querySelectorAll('.iv-rec-listitem').forEach(b=>b.classList.toggle('on',b.dataset.receta===prodId));
-      abrirRecetaDetalle(prodId);
-    },50);
+    setTimeout(()=>{document.querySelectorAll('.iv-rec-listitem').forEach(b=>b.classList.toggle('on',b.dataset.receta===prodId));abrirRecetaDetalle(prodId);},50);
     return;
   }
+  document.querySelectorAll('.iv-rec-listitem').forEach(b=>b.classList.toggle('on',b.dataset.receta===prodId));
   const r=calcReceta(prod); const sem=semaforo(r.fc);
   const fcPct=(r.fc*100).toFixed(1); const netaPct=(r.neta/prod.precio*100).toFixed(1);
   const margenPct=(r.margen/prod.precio*100).toFixed(1); const opPct=(r.otros/prod.precio*100).toFixed(1);
   let bannerHTML='';
   if (r.fc<=0.30) {
-    bannerHTML=`<div class="iv-alert okbox"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div><div class="at">Plato rentable · ${fcPct}% en materia prima</div></div></div>`;
+    bannerHTML=`<div class="iv-alert okbox"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg><div><div class="at">Plato rentable · ${fcPct}% materia prima</div></div></div>`;
   } else {
-    const ac={Aceptable:{bg:'#FEF9C3',border:'#FDE68A',ink:'#854D0E'},Cuidado:{bg:'#FFEDD5',border:'#FED7AA',ink:'#9A3412'},'No rentable':{bg:'#FEE2E2',border:'#FECACA',ink:'#991B1B'}}[sem.label]||{bg:'#FEE2E2',border:'#FECACA',ink:'#991B1B'};
-    const reco=r.fc>0.45?`Sube el precio a ${ivCOP(r.sugerido)} o reduce porciones para llegar al 30%.`:r.fc>0.38?`Considera subir ${ivCOP(r.sugerido-prod.precio)} (a ${ivCOP(r.sugerido)}) o renegociar el insumo más caro.`:`Vigila el insumo de mayor peso; un alza podría pasarte de 38%.`;
-    bannerHTML=`<div class="iv-alert" style="background:${ac.bg};border:1px solid ${ac.border}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${ac.ink}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><div><div class="at" style="color:${ac.ink}">${sem.label} · ${fcPct}% food cost</div><div class="ax" style="color:${ac.ink}">${reco}</div></div></div>`;
+    const lvl={Aceptable:{bg:'#FEF9C3',border:'#FDE68A',ink:'#854D0E'},Cuidado:{bg:'#FFEDD5',border:'#FED7AA',ink:'#9A3412'},'No rentable':{bg:'#FEE2E2',border:'#FECACA',ink:'#991B1B'}}[sem.label]||{bg:'#FEE2E2',border:'#FECACA',ink:'#991B1B'};
+    bannerHTML=`<div class="iv-alert" style="background:${lvl.bg};border:1px solid ${lvl.border}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${lvl.ink}" stroke-width="2.2" stroke-linecap="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><div><div class="at" style="color:${lvl.ink}">${sem.label} · ${fcPct}% en materia prima</div><div class="ax" style="color:${lvl.ink}">Considera subir el precio a ${ivCOP(Math.ceil(r.sugerido/100)*100)} para llegar al ${params.fc}% de meta.</div></div></div>`;
   }
   let recetaRows='';
   for (const l of prod.receta) {
     const ins=insumos.find(i=>i.id===l.insId); if (!ins) continue;
     const cpu=costoPorUr(ins); const lineCost=l.qty*cpu*(params.merma?(1+l.merma/100):1);
     const linePct=r.raw>0?(lineCost/r.raw*100).toFixed(1):'0';
-    recetaRows+=`<div class="iv-recipe-row">
-      <div style="flex:1"><div class="iv-recipe-name">${ins.nombre}</div><div class="iv-recipe-sub">${ivCOP(cpu)}/${ins.useUnit}${l.merma>0&&params.merma?' · merma '+l.merma+'%':''} · ${linePct}% del costo</div></div>
-      <div style="width:80px;text-align:center"><div style="font-size:13px;font-weight:700">${l.qty} ${ins.useUnit}</div></div>
-      <div class="iv-recipe-cost">${ivCOP(lineCost)}</div>
-    </div>`;
+    recetaRows+=`<div class="iv-recipe-row"><div style="flex:1"><div class="iv-recipe-name">${ins.nombre}</div><div class="iv-recipe-sub">${ivCOP(cpu)}/${ins.useUnit} · ${linePct}% del costo</div></div><div style="width:80px;text-align:center;font-size:13px;font-weight:700">${l.qty} ${ins.useUnit}</div><div class="iv-recipe-cost">${ivCOP(lineCost)}</div></div>`;
   }
   const inf=params.inf/100; const raw6=r.raw*Math.pow(1+inf,0.5); const raw12=r.raw*(1+inf);
   const fc6=raw6/prod.precio; const fc12=raw12/prod.precio;
-  const dotColor=fc=>fc<=0.30?'#22C55E':fc<=0.38?'#EAB308':fc<=0.45?'#F97316':'#EF4444';
+  const dot=fc=>fc<=0.30?'#22C55E':fc<=0.38?'#EAB308':fc<=0.45?'#F97316':'#EF4444';
   document.getElementById('receta-detalle').innerHTML=`
-    <div class="iv-rec-head">
-      <div><div class="iv-rec-pricelbl">Precio de venta</div><div class="iv-rec-title">${prod.nombre}</div></div>
-      <div style="text-align:right"><div class="iv-rec-pricelbl">Precio</div><div style="font-size:22px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">${ivCOP(prod.precio)}</div></div>
-    </div>
+    <div class="iv-rec-head"><div><div class="iv-prod-cat">${prod.cat}</div><div class="iv-rec-title">${prod.nombre}</div></div><div style="text-align:right"><div class="iv-rec-pricelbl">Precio de venta</div><div style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums">${ivCOP(prod.precio)}</div></div></div>
     ${bannerHTML}
     <div class="iv-metrics">
-      <div class="iv-metric"><div class="ml">Materia prima</div><div class="mv" style="color:${sem.color}">${ivCOP(r.raw)}</div><div class="ms">${fcPct}% food cost</div></div>
-      <div class="iv-metric"><div class="ml">Margen contrib.</div><div class="mv">${ivCOP(r.margen)}</div><div class="ms">${margenPct}%</div></div>
+      <div class="iv-metric"><div class="ml">Materia prima</div><div class="mv" style="color:${sem.color}">${ivCOP(r.raw)}</div><div class="ms">${fcPct}% del precio</div><div class="iv-bar" style="margin-top:8px"><i style="width:${Math.min(100,r.fc*100)}%;background:${sem.color}"></i></div></div>
+      <div class="iv-metric"><div class="ml">Margen contribución</div><div class="mv">${ivCOP(r.margen)}</div><div class="ms">${margenPct}%</div></div>
       <div class="iv-metric"><div class="ml">Otros costos op.</div><div class="mv">${ivCOP(r.otros)}</div><div class="ms">${opPct}%</div></div>
       <div class="iv-metric hl"><div class="ml">Ganancia neta</div><div class="mv" style="color:#16A34A">${ivCOP(r.neta)}</div><div class="ms">${netaPct}%</div></div>
     </div>
-    <div class="iv-recipe">
-      <div class="iv-recipe-head"><div style="flex:1">Ingrediente</div><div style="width:80px;text-align:center">Cantidad</div><div>Costo</div></div>
-      ${recetaRows}
-      <div class="iv-recipe-total"><div style="font-size:12px;font-weight:700;color:#64748B">${prod.receta.length} ingredientes</div><div style="font-size:14px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">${ivCOP(r.raw)}</div></div>
-    </div>
+    <div class="iv-recipe"><div class="iv-recipe-head"><span style="flex:1">Ingrediente</span><span style="width:80px;text-align:center">Cantidad</span><span>Costo</span></div>${recetaRows}<div class="iv-recipe-total"><span style="font-size:12.5px;font-weight:700;color:#475569">Costo total materia prima</span><span style="font-size:15px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">${ivCOP(r.raw)}</span></div></div>
     <div class="iv-cards2">
-      <div class="iv-suggest">
-        <div class="h"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Precio sugerido (meta ${params.fc}%)</div>
-        <div class="v">${ivCOP(Math.ceil(r.sugerido/100)*100)}</div>
-        <div class="x">Con este precio la materia prima sería el ${params.fc}% del precio de venta.</div>
-        <button class="iv-btn-primary" style="margin-top:10px;font-size:12px;padding:7px 12px" onclick="aplicarPrecioSugerido('${prod.id}',${Math.ceil(r.sugerido/100)*100})">Aplicar ${ivCOP(Math.ceil(r.sugerido/100)*100)}</button>
-      </div>
-      <div class="iv-proj">
-        <div class="h"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Proyección (inflación ${params.inf}%/año)</div>
-        <div class="iv-proj-row base"><div class="pl">Hoy</div><div class="praw">${ivCOP(r.raw)}</div><div style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:999px;background:${dotColor(r.fc)}"></span><span style="width:44px;text-align:right;font-size:12px;font-weight:700">${fcPct}%</span></div></div>
-        <div class="iv-proj-row"><div class="pl">+6 meses</div><div class="praw">${ivCOP(raw6)}</div><div style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:999px;background:${dotColor(fc6)}"></span><span style="width:44px;text-align:right;font-size:12px;font-weight:700">${(fc6*100).toFixed(1)}%</span></div></div>
-        <div class="iv-proj-row"><div class="pl">+12 meses</div><div class="praw">${ivCOP(raw12)}</div><div style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:999px;background:${dotColor(fc12)}"></span><span style="width:44px;text-align:right;font-size:12px;font-weight:700">${(fc12*100).toFixed(1)}%</span></div></div>
-        <div class="iv-proj-note">Inflación ${params.inf}%/año aplicada al costo de materia prima.</div>
-      </div>
+      <div class="iv-suggest"><div class="h"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5"/></svg> Precio sugerido</div><div class="v">${ivCOP(Math.ceil(r.sugerido/100)*100)}</div><div class="x">Para que la materia prima sea ${params.fc}% del precio (tu meta).</div><button class="iv-btn-primary" style="margin-top:12px;width:100%;justify-content:center" onclick="aplicarPrecioSugerido('${prod.id}',${Math.ceil(r.sugerido/100)*100})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Aplicar ${ivCOP(Math.ceil(r.sugerido/100)*100)}</button></div>
+      <div class="iv-proj"><div class="h">Proyección · inflación ${params.inf}%/año</div><div style="display:flex;flex-direction:column;gap:10px"><div class="iv-proj-row base"><span class="pl">Hoy</span><span class="praw">${ivCOP(r.raw)}</span><span class="pfc"><span class="d" style="background:${dot(r.fc)}"></span><span class="vv" style="color:${dot(r.fc)}">${fcPct}%</span></span></div><div class="iv-proj-row"><span class="pl">+6 meses</span><span class="praw">${ivCOP(raw6)}</span><span class="pfc"><span class="d" style="background:${dot(fc6)}"></span><span class="vv" style="color:${dot(fc6)}">${(fc6*100).toFixed(1)}%</span></span></div><div class="iv-proj-row"><span class="pl">+12 meses</span><span class="praw">${ivCOP(raw12)}</span><span class="pfc"><span class="d" style="background:${dot(fc12)}"></span><span class="vv" style="color:${dot(fc12)}">${(fc12*100).toFixed(1)}%</span></span></div></div><div class="iv-proj-note">Si mantienes el precio actual, la materia prima subirá y tu margen bajará.</div></div>
     </div>`;
 }
 
@@ -799,8 +866,9 @@ function aplicarPrecioSugerido(prodId,precio) {
 // ═══════════════════════════════════════════════════
 function toggleMerma() {
   mermaOn=!mermaOn; params.merma=mermaOn;
-  document.getElementById('toggle-merma-sw').classList.toggle('on',mermaOn);
   document.getElementById('toggle-merma').classList.toggle('on',mermaOn);
+  const sw=document.getElementById('toggle-merma-sw');
+  if (sw) { sw.classList.toggle('on',mermaOn); const lbl=sw.querySelector('.iv-switch-label'); if(lbl) lbl.textContent=mermaOn?'Sí':'No'; }
 }
 async function guardarParams() {
   params.fc=parseInt(document.getElementById('param-fc').value);
@@ -825,29 +893,16 @@ function renderUnidades() {
   }
   card.innerHTML=customUnits.map(u=>{
     const uses=insumos.filter(i=>i.buyUnit===u.nombre||i.useUnit===u.nombre).length;
-    return `<div class="iv-unit-row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/></svg><div class="iv-unit-name">${u.nombre} <span style="font-size:11px;color:#94A3B8">· propia</span></div>${uses>0?`<span class="iv-unit-use">En uso · ${uses} insumos</span>`:'<span class="iv-unit-nouse">Sin uso</span>'}<button class="iv-btn-sm" onclick="eliminarUnidad('${u.nombre}')" ${uses>0?'disabled title="En uso"':''}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button></div>`;
+    return `<div class="iv-unit-row"><span class="iv-unit-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/></svg></span><span class="iv-unit-name">${u.nombre}</span>${uses>0?`<span class="iv-unit-use">En uso · ${uses} insumos</span>`:'<span class="iv-unit-nouse">Sin uso</span>'}<button class="iv-row-btn btn-edit-unit" onclick="editarUnidad('${u.nombre}')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button><button class="iv-row-btn danger btn-del-unit" onclick="eliminarUnidad('${u.nombre}')" ${uses>0?'disabled style="opacity:.4;cursor:not-allowed"':''}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div>`;
   }).join('');
 }
-function eliminarUnidad(nombre) {
-  customUnits=customUnits.filter(u=>u.nombre!==nombre);
-  renderUnidades(); showToast('Unidad eliminada');
-}
-document.getElementById('btn-nueva-unidad')?.addEventListener('click',()=>{
-  const nombre=prompt('Nombre de la nueva unidad:')?.trim();
-  if (!nombre) return;
-  if (customUnits.find(u=>u.nombre===nombre)){alert('Esa unidad ya existe');return;}
-  customUnits.push({nombre}); renderUnidades(); showToast('✓ Unidad "'+nombre+'" creada');
-});
+function eliminarUnidad(nombre) { customUnits=customUnits.filter(u=>u.nombre!==nombre); renderUnidades(); showToast('Unidad eliminada'); }
+function editarUnidad(nombre) { const nuevo=prompt('Nuevo nombre:',nombre)?.trim(); if(!nuevo||nuevo===nombre) return; customUnits=customUnits.map(u=>u.nombre===nombre?{...u,nombre:nuevo}:u); renderUnidades(); }
 
 // ═══════════════════════════════════════════════════
 // PANELES
 // ═══════════════════════════════════════════════════
-function closePanel(id) { document.getElementById(id).classList.add('is-hidden'); }
-document.getElementById('btn-registrar-compra')?.addEventListener('click',abrirCompra);
-document.getElementById('btn-nuevo-insumo')?.addEventListener('click',()=>abrirEditorInsumo(null));
-document.getElementById('nav-params')?.addEventListener('click',()=>document.getElementById('panel-params').classList.remove('is-hidden'));
-document.getElementById('side-alert')?.addEventListener('click',()=>{showScreen('insumos');renderInsumos('alerta');});
-document.getElementById('nav-unidades')?.addEventListener('click',()=>showScreen('unidades'));
+function closePanel(id) { document.getElementById(id)?.classList.add('is-hidden'); }
 document.querySelectorAll('.iv-overlay').forEach(overlay=>{
   overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.classList.add('is-hidden');});
 });
@@ -864,12 +919,21 @@ function showToast(msg) {
 }
 
 // ═══════════════════════════════════════════════════
-// TABS + SEARCH
+// EVENTOS
 // ═══════════════════════════════════════════════════
 document.querySelectorAll('.iv-tab').forEach(tab=>{
   tab.addEventListener('click',()=>showScreen(tab.dataset.screen));
 });
-document.getElementById('ins-search')?.addEventListener('input',()=>renderInsumos(activeFilter));
+document.getElementById('nav-unidades')?.addEventListener('click',()=>showScreen('unidades'));
+document.getElementById('nav-params')?.addEventListener('click',()=>document.getElementById('panel-params').classList.remove('is-hidden'));
+document.getElementById('btn-nuevo-insumo')?.addEventListener('click',()=>abrirEditorInsumo(null));
+document.getElementById('btn-registrar-compra')?.addEventListener('click',abrirCompra);
+document.getElementById('btn-nueva-unidad')?.addEventListener('click',()=>{
+  const nombre=prompt('Nombre de la nueva unidad:')?.trim();
+  if (!nombre) return;
+  if (customUnits.find(u=>u.nombre===nombre)){alert('Esa unidad ya existe');return;}
+  customUnits.push({nombre}); renderUnidades(); showToast('✓ Unidad "'+nombre+'" creada');
+});
 
 // ═══════════════════════════════════════════════════
 // INIT
