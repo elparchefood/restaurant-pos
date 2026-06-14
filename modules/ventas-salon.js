@@ -765,10 +765,10 @@
             <div class="lm-avatar lm-avatar-xs">${t.mesero_initials || '?'}</div>
             <span class="vs-mesa-items">${t.items_count || 0} ítems</span>
           </div>
-          <button class="vs-entregue-btn" data-action="mark-entregado" data-table-id="${t.id}" title="Ya entregué los platos">
+          <div class="vs-entregue-btn" role="button" data-action="mark-entregado" data-table-id="${t.id}" title="Ya entregué los platos">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             Entregado
-          </button>
+          </div>
         </div>`
       : `<div class="vs-mesa-footer-active">
           <div class="vs-mesa-footer-left">
@@ -1106,6 +1106,14 @@
           selectTable(btn.dataset.tableId);
         });
       }
+    });
+
+    // Botón "Entregado" en tarjeta (div, no button — evita nesting inválido)
+    container.querySelectorAll('.vs-entregue-btn').forEach(div => {
+      div.addEventListener('click', e => {
+        e.stopPropagation(); // no seleccionar la mesa
+        confirmEntregado(div.dataset.tableId);
+      });
     });
 
     // Floor tabs
