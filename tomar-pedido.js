@@ -936,7 +936,7 @@ function bindEvents() {
         case 'enviar-cocina':sendToKitchen(); break;
         case 'pago':
           if (!S.order?.id) { toast('No hay pedido activo', 'warn'); break; }
-          window.location.href = `pagos.html?order=${S.order.id}&table=${S.tableId}`;
+          window.location.href = `pagos.html?order=${S.order.id}&table=${S.tableId}${S.serviceEnabled ? '&servicio=1' : ''}`;
           break;
         case 'vaciar':       clearCart(); break;
         case 'release':      releaseTable(); break;

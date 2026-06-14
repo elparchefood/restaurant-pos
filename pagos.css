@@ -819,3 +819,62 @@ svg { display: block; }
   transition: color .15s, background .15s;
 }
 .pg-payment-row-del:hover { color: #EF4444; background: #FEF2F2; }
+
+/* ── Modal PIN ───────────────────────────────────────────────────────────── */
+.pg-pin-dots {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.pg-pin-dot {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border, #ECEEF2);
+  background: transparent;
+  transition: background .15s, border-color .15s;
+}
+.pg-pin-dot.filled {
+  background: var(--accent, #5B6BFF);
+  border-color: var(--accent, #5B6BFF);
+}
+.pg-pin-dot.error {
+  background: #EF4444;
+  border-color: #EF4444;
+}
+.pg-pin-error {
+  font-size: 12px;
+  color: #EF4444;
+  margin-bottom: 12px;
+  min-height: 18px;
+}
+.pg-pin-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 16px;
+}
+.pg-pin-key {
+  height: 52px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border, #ECEEF2);
+  background: var(--surface, #F8FAFC);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink, #0F172A);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .12s, transform .08s;
+}
+.pg-pin-key:active { background: var(--accent-tint, #EEF0FF); transform: scale(.95); }
+.pg-pin-clear { font-size: 13px; font-weight: 700; color: var(--muted); }
+.pg-pin-back  { color: var(--muted); }
+
+/* Toggle propina bloqueado */
+#tip-toggle.is-locked { cursor: not-allowed; opacity: .75; position: relative; }
+#tip-toggle.is-locked::after {
+  content: '🔒';
+  font-size: 10px;
+  position: absolute;
+  top: -6px; right: -6px;
+}

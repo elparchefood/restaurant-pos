@@ -13,6 +13,7 @@ const SP = {
   entry: 0,
   payments: [],   // [{id, method, amount, received}]
   tip: false,
+  tipLocked: false,
   discount: 0,
 };
 
@@ -115,7 +116,10 @@ function renderTotals() {
   }
 
   // Propina toggle
-  document.getElementById('tip-toggle').classList.toggle('is-on', SP.tip);
+  const tipToggleEl = document.getElementById('tip-toggle');
+  tipToggleEl.classList.toggle('is-on', SP.tip);
+  tipToggleEl.classList.toggle('is-locked', SP.tipLocked);
+  tipToggleEl.title = SP.tipLocked ? 'Requiere PIN de administrador para desactivar' : '';
 
   // Falta / cuenta cubierta
   if (cubierto) {
@@ -305,9 +309,11 @@ async function finalizarPago() {
 
 // ── Event delegation ──────────────────────────────────────────────────────
 document.addEventListener('click', e => {
+  if (e.target.dataset.pinDigit !== undefined) { pinDigit(e.target.dataset.pinDigit); return; }
   const el = e.target.closest('[data-action],[data-digit],[data-bill],[data-method],[data-dtype],[data-dval],[data-motivo],[data-smode],[data-item-id]');
   // Cerrar modales al hacer click en el overlay
   if (e.target.id === 'payments-modal')  { closePaymentsModal(); return; }
+  if (e.target.id === 'pin-modal')        { closePinModal();       return; }
   if (e.target.id === 'discount-modal') { closeDiscountModal(); return; }
   if (e.target.id === 'split-modal')    { closeSplitModal();    return; }
 
@@ -383,6 +389,7 @@ document.addEventListener('click', e => {
       break;
     }
     case 'tip':
+      if (SP.tipLocked) { openPinModal(); break; }
       SP.tip = !SP.tip;
       renderAll();
       break;
@@ -409,6 +416,9 @@ document.addEventListener('click', e => {
     case 'discount':       openDiscountModal(); break;
     case 'view-payments':    openPaymentsModal();   break;
     case 'close-payments':   closePaymentsModal();  break;
+    case 'close-pin':        closePinModal();       break;
+    case 'pin-clear': _pinBuffer = ''; renderPinDots(); document.getElementById('pin-error').hidden=true; break;
+    case 'pin-back':  _pinBuffer = _pinBuffer.slice(0,-1); renderPinDots(); break;
     case 'modal-remove-payment':
       removePayment(el.dataset.id);
       if (!SP.payments.length) closePaymentsModal();
@@ -572,6 +582,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 4. Params de URL
   const params = new URLSearchParams(window.location.search);
   SP.orderId  = params.get('order');
+  if (params.get('servicio') === '1') {
+    SP.tip       = true;
+    SP.tipLocked = true;
+  }
   SP.tableId  = params.get('table');
 
   if (!SP.orderId || !SP.tableId) {
@@ -858,3 +872,61 @@ document.addEventListener('keydown', e => {
   }
   e.preventDefault();
 });
+
+// ── Modal PIN administrador ───────────────────────────────────────────────
+let _pinBuffer = '';
+
+function openPinModal() {
+  _pinBuffer = '';
+  renderPinDots();
+  document.getElementById('pin-error').hidden = true;
+  document.getElementById('pin-modal').hidden = false;
+}
+function closePinModal() {
+  _pinBuffer = '';
+  document.getElementById('pin-modal').hidden = true;
+}
+function renderPinDots(shake) {
+  document.querySelectorAll('.pg-pin-dot').forEach((d, i) => {
+    d.classList.toggle('filled', i < _pinBuffer.length);
+    d.classList.toggle('error', !!shake);
+  });
+}
+async function validatePin() {
+  if (_pinBuffer.length < 4) return;
+  try {
+    const { data, error } = await sb
+      .from('pos_users')
+      .select('id')
+      .eq('tenant_id', SP.tenantId)
+      .eq('pin', _pinBuffer)
+      .eq('is_authorized_admin', true)
+      .limit(1)
+      .maybeSingle();
+
+    if (data && !error) {
+      // PIN correcto → desbloquear propina y desactivarla
+      SP.tipLocked = false;
+      SP.tip       = false;
+      closePinModal();
+      renderAll();
+    } else {
+      // PIN incorrecto
+      renderPinDots(true);
+      document.getElementById('pin-error').hidden = false;
+      setTimeout(() => {
+        _pinBuffer = '';
+        renderPinDots(false);
+      }, 800);
+    }
+  } catch(e) {
+    console.error('validatePin:', e);
+  }
+}
+function pinDigit(d) {
+  if (_pinBuffer.length >= 4) return;
+  _pinBuffer += d;
+  document.getElementById('pin-error').hidden = true;
+  renderPinDots();
+  if (_pinBuffer.length === 4) validatePin();
+}
