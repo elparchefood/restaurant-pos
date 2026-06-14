@@ -604,3 +604,139 @@ svg { display: block; }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+
+/* ════════ MODALES (descuento + dividir) ════════ */
+.pg-modal-card {
+  width: 404px; background: #fff; border-radius: var(--r-card);
+  padding: 22px; box-shadow: var(--sh-overlay);
+  animation: lmPop .25s cubic-bezier(.2,.9,.3,1.3);
+  max-height: 88vh; overflow-y: auto;
+}
+.pg-modal-head {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 18px;
+}
+.pg-modal-icon {
+  width: 38px; height: 38px; border-radius: var(--r-3xl); flex-shrink: 0;
+  background: var(--brand-tint); color: var(--brand);
+  display: flex; align-items: center; justify-content: center;
+}
+.pg-modal-title { font-size: 15px; font-weight: 800; color: var(--ink); letter-spacing: -0.01em; }
+.pg-modal-sub   { font-size: 11.5px; color: var(--muted); font-weight: 500; margin-top: 2px; }
+.pg-modal-head .pg-modal-title-wrap { flex: 1; }
+.pg-seg-row {
+  display: flex; gap: 4px; padding: 4px;
+  background: var(--surface-3); border-radius: var(--r-3xl);
+  margin-bottom: 16px;
+}
+.lm-seg {
+  flex: 1; padding: 9px; border: none; background: transparent;
+  border-radius: var(--r-2xl); font-family: inherit; font-size: 13px;
+  font-weight: 700; color: var(--muted); cursor: pointer;
+  transition: color .15s, background .15s;
+}
+.lm-seg:hover { color: var(--ink); }
+.lm-seg.is-on  { background: #fff; color: var(--brand); box-shadow: 0 1px 3px rgba(15,23,42,.12); }
+.pg-chip-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px;
+}
+.pg-chip-wrap  { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.lm-chip {
+  padding: 11px 6px; background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: var(--r-2xl); font-family: inherit; font-size: 13px;
+  font-weight: 700; color: var(--ink-2); cursor: pointer;
+  transition: border-color .15s, background .15s;
+  font-variant-numeric: tabular-nums;
+}
+.lm-chip:hover { border-color: var(--brand-ring); }
+.lm-chip.sm    { padding: 8px 12px; font-size: 12px; font-weight: 600; }
+.lm-chip.is-on { border-color: var(--brand); background: var(--brand-tint); color: var(--brand); }
+.pg-field-label {
+  font-size: 10.5px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 8px;
+}
+.pg-modal-summary {
+  margin-top: 18px; padding: 12px 14px; border-radius: var(--r-4xl);
+  background: var(--bg-soft); border: 1px solid var(--border);
+}
+.pg-modal-summary-row {
+  display: flex; justify-content: space-between;
+  font-size: 12.5px; color: var(--ink-4); font-variant-numeric: tabular-nums;
+}
+.pg-modal-summary-row + .pg-modal-summary-row { margin-top: 6px; }
+.pg-modal-summary-row.is-danger  { color: var(--danger); }
+.pg-modal-summary-row.is-total   { font-size: 16px; font-weight: 800; color: var(--ink); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.pg-modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+.pg-modal-actions .lm-btn-ghost    { flex: 1; }
+.pg-modal-actions .lm-btn-primary  { flex: 1.4; }
+
+/* Split — stepper */
+.pg-split-n-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.pg-split-n-row > span { font-size: 13px; font-weight: 600; color: var(--ink-3); }
+.pg-stepper {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-xl); padding: 3px;
+}
+.pg-stepper span {
+  font-size: 15px; font-weight: 800; min-width: 22px;
+  text-align: center; font-variant-numeric: tabular-nums;
+}
+.lm-step {
+  width: 26px; height: 26px; border-radius: var(--r-md); border: none;
+  background: #fff; color: var(--ink-3); display: flex;
+  align-items: center; justify-content: center; cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15,23,42,.06); font-size: 16px; font-weight: 700;
+}
+.lm-step:hover { color: var(--brand); }
+
+/* Split — partes */
+.pg-part-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 12px;
+}
+.pg-part-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: var(--r-3xl);
+  border: 1px solid var(--border); background: var(--surface);
+}
+.pg-part-dot {
+  width: 24px; height: 24px; border-radius: var(--r-pill); flex-shrink: 0;
+  color: #fff; font-size: 11px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+}
+.pg-part-label { font-size: 10.5px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.pg-part-value { font-size: 15px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* Split — asignación por producto */
+.pg-assign-list { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: auto; padding-right: 4px; margin-bottom: 4px; }
+.pg-assign-row  { display: flex; align-items: center; gap: 10px; padding: 8px 2px; border-bottom: 1px solid var(--border-soft); }
+.lm-person {
+  width: 27px; height: 27px; border-radius: var(--r-md);
+  border: 1.5px solid var(--border); background: var(--surface);
+  color: var(--ink-4); font-family: inherit; font-size: 12px;
+  font-weight: 700; cursor: pointer;
+  transition: border-color .12s, background .12s;
+  font-variant-numeric: tabular-nums;
+  display: flex; align-items: center; justify-content: center;
+}
+.lm-person:hover { border-color: var(--brand-ring); }
+.lm-person.is-on { color: #fff; }
+
+/* Split strip (en panel cobro) */
+.pg-split-strip {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px; padding: 10px 12px; border-radius: var(--r-4xl);
+  background: var(--brand-tint); border: 1px solid var(--brand-ring);
+}
+.pg-split-strip-l { display: flex; align-items: center; gap: 10px; }
+.pg-split-glyph {
+  width: 30px; height: 30px; border-radius: var(--r-lg); flex-shrink: 0;
+  background: #fff; color: var(--brand);
+  display: flex; align-items: center; justify-content: center;
+}
+.pg-split-strip-title { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.pg-split-strip-sub   { font-size: 11px; color: var(--ink-4); margin-top: 1px; }
+.pg-split-dots { display: flex; gap: 4px; align-items: center; }
+.pg-split-dot  { width: 8px; height: 8px; border-radius: var(--r-pill); }

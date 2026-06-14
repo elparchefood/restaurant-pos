@@ -287,7 +287,11 @@ async function finalizarPago() {
 
 // ── Event delegation ──────────────────────────────────────────────────────
 document.addEventListener('click', e => {
-  const el = e.target.closest('[data-action],[data-digit],[data-bill],[data-method]');
+  const el = e.target.closest('[data-action],[data-digit],[data-bill],[data-method],[data-dtype],[data-dval],[data-motivo],[data-smode],[data-item-id]');
+  // Cerrar modales al hacer click en el overlay
+  if (e.target.id === 'discount-modal') { closeDiscountModal(); return; }
+  if (e.target.id === 'split-modal')    { closeSplitModal();    return; }
+
   if (!el) return;
 
   // Teclado numérico
@@ -309,6 +313,37 @@ document.addEventListener('click', e => {
     SP.method = el.dataset.method;
     SP.entry  = 0;
     renderAll();
+    return;
+  }
+
+  // ── Atributos de modales ──────────────────────────────────────────────────
+  if (el.dataset.dtype) {
+    DM.type  = el.dataset.dtype;
+    DM.value = DM.type === 'pct' ? 10 : 10000;
+    renderDiscountModal();
+    return;
+  }
+  if (el.dataset.dval !== undefined) {
+    DM.value = Number(el.dataset.dval);
+    renderDiscountModal();
+    return;
+  }
+  if (el.dataset.motivo) {
+    DM.motivo = el.dataset.motivo;
+    renderDiscountModal();
+    return;
+  }
+  if (el.dataset.smode) {
+    SM.mode = el.dataset.smode;
+    if (SM.mode === 'producto') {
+      SP.items.forEach(it => { if (SM.assign[it.id] == null) SM.assign[it.id] = 0; });
+    }
+    renderSplitModal();
+    return;
+  }
+  if (el.dataset.itemId !== undefined && el.dataset.person !== undefined) {
+    SM.assign[el.dataset.itemId] = Number(el.dataset.person);
+    renderSplitModal();
     return;
   }
 
@@ -353,21 +388,28 @@ document.addEventListener('click', e => {
     case 'print-receipt':
       window.print();
       break;
-    case 'split':
+    case 'split':          openSplitModal();    break;
+    case 'discount':       openDiscountModal(); break;
+    case 'close-discount': closeDiscountModal(); break;
+    case 'discount-apply': applyDiscount();      break;
+    case 'discount-quitar': quitarDiscount();    break;
+    case 'close-split':    closeSplitModal();    break;
+    case 'split-apply':    applySplit();         break;
+    case 'split-quitar':
+    case 'split-remove':   quitarSplit();        break;
+    case 'split-minus':
+      SM.n = Math.max(2, SM.n - 1);
+      renderSplitModal();
+      break;
+    case 'split-plus':
+      SM.n = Math.min(8, SM.n + 1);
+      renderSplitModal();
+      break;
     case 'voucher':
     case 'credit':
     case 'cliente':
       // Módulos futuros
       break;
-    case 'discount': {
-      const val = prompt('Ingresa el descuento en pesos:');
-      const n = parseInt(val, 10);
-      if (!isNaN(n) && n >= 0) {
-        SP.discount = n;
-        renderAll();
-      }
-      break;
-    }
   }
 });
 
@@ -481,3 +523,274 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderItems();
   renderAll();
 });
+
+// ════════ MODAL DESCUENTO ════════════════════════════════════════════════
+
+const NCOLORS = ['#5B6BFF','#10B981','#F59E0B','#0EA5E9','#8B5CF6','#F43F5E','#14B8A6','#EC4899'];
+const PCTS    = [5, 10, 15, 20];
+const MONTOS  = [5000, 10000, 20000, 50000];
+const MOTIVOS = ['Cortesía', 'Cliente frecuente', 'Promoción', 'Ajuste'];
+
+// Estado local del modal (se inicializa al abrir)
+let DM = { type: 'pct', value: 10, motivo: 'Cortesía' };
+
+function discountCalcAmt() {
+  const { subtotal, tipAmt } = calc();
+  const base = subtotal + tipAmt;
+  return DM.type === 'pct'
+    ? Math.round(base * Math.min(DM.value, 100) / 100)
+    : Math.min(DM.value, base);
+}
+
+function renderDiscountModal() {
+  const { subtotal, tipAmt } = calc();
+  const base = subtotal + tipAmt;
+  const amount = discountCalcAmt();
+
+  // Segmented control
+  document.querySelectorAll('#discount-seg .lm-seg').forEach(b => {
+    b.classList.toggle('is-on', b.dataset.dtype === DM.type);
+  });
+
+  // Chips de valores
+  const chipsEl = document.getElementById('discount-chips');
+  const vals = DM.type === 'pct' ? PCTS : MONTOS;
+  chipsEl.innerHTML = vals.map(v =>
+    `<button class="lm-chip${v === DM.value ? ' is-on' : ''}" data-dval="${v}">
+      ${DM.type === 'pct' ? v + '%' : fmt(v)}
+    </button>`
+  ).join('');
+
+  // Chips de motivo
+  const motivoEl = document.getElementById('motivo-chips');
+  motivoEl.innerHTML = MOTIVOS.map(m =>
+    `<button class="lm-chip sm${m === DM.motivo ? ' is-on' : ''}" data-motivo="${m}">${m}</button>`
+  ).join('');
+
+  // Resumen
+  document.getElementById('discount-summary').innerHTML = `
+    <div class="pg-modal-summary-row"><span>Total actual</span><span>${fmt(base)}</span></div>
+    <div class="pg-modal-summary-row is-danger"><span>Descuento${DM.type === 'pct' ? ' ' + DM.value + '%' : ''}</span><span>− ${fmt(amount)}</span></div>
+    <div class="pg-modal-summary-row is-total"><span>Nuevo total</span><span>${fmt(Math.max(0, base - amount))}</span></div>`;
+
+  // Botón quitar
+  document.getElementById('discount-quitar').hidden = !SP.discountObj;
+
+  // Botón aplicar
+  document.getElementById('discount-apply').disabled = amount <= 0;
+}
+
+function openDiscountModal() {
+  // Inicializar estado desde discountObj actual si existe
+  if (SP.discountObj) {
+    DM = { type: SP.discountObj.type, value: SP.discountObj.value, motivo: SP.discountObj.motivo };
+  } else {
+    DM = { type: 'pct', value: 10, motivo: 'Cortesía' };
+  }
+  renderDiscountModal();
+  document.getElementById('discount-modal').hidden = false;
+}
+
+function closeDiscountModal() {
+  document.getElementById('discount-modal').hidden = true;
+}
+
+function applyDiscount() {
+  const amount = discountCalcAmt();
+  if (amount <= 0) return;
+  SP.discountObj = { type: DM.type, value: DM.value, motivo: DM.motivo, amount };
+  SP.discount    = amount;
+  closeDiscountModal();
+  renderAll();
+}
+
+function quitarDiscount() {
+  SP.discountObj = null;
+  SP.discount    = 0;
+  closeDiscountModal();
+  renderAll();
+}
+
+// ════════ MODAL DIVIDIR CUENTA ═══════════════════════════════════════════
+
+let SM = { mode: 'iguales', n: 2, assign: {} };
+
+function splitEqualParts(total, n) {
+  const per = Math.floor(total / n);
+  const parts = Array(n).fill(per);
+  parts[n - 1] += total - per * n;
+  return parts;
+}
+
+function splitItemParts(total, subtotal, n) {
+  const sums = Array(n).fill(0);
+  SP.items.forEach(it => {
+    const idx = Math.min(SM.assign[it.id] ?? 0, n - 1);
+    sums[idx] += it.qty * it.unitPrice;
+  });
+  const parts = sums.map(s => subtotal > 0 ? Math.round(s / subtotal * total) : 0);
+  const diff = total - parts.reduce((a, b) => a + b, 0);
+  const idx = parts.findIndex(p => p > 0);
+  if (idx >= 0) parts[idx] += diff;
+  return parts;
+}
+
+function getSplitParts() {
+  const { total, subtotal } = calc();
+  return SM.mode === 'iguales'
+    ? splitEqualParts(total, SM.n)
+    : splitItemParts(total, subtotal, SM.n);
+}
+
+function partCard(i, amt) {
+  return `<div class="pg-part-card">
+    <div class="pg-part-dot" style="background:${NCOLORS[i % 8]}">${i + 1}</div>
+    <div>
+      <div class="pg-part-label">Cuenta ${i + 1}</div>
+      <div class="pg-part-value">${fmt(amt)}</div>
+    </div>
+  </div>`;
+}
+
+function renderSplitModal() {
+  const { total } = calc();
+  const parts = getSplitParts();
+
+  document.getElementById('split-modal-sub').textContent = fmt(total) + ' en total';
+  document.getElementById('split-n-display').textContent = SM.n;
+
+  // Segmented
+  document.querySelectorAll('#split-seg .lm-seg').forEach(b => {
+    b.classList.toggle('is-on', b.dataset.smode === SM.mode);
+  });
+
+  // Contenido
+  const content = document.getElementById('split-content');
+  if (SM.mode === 'iguales') {
+    content.innerHTML = `<div class="pg-part-grid">${parts.map((p, i) => partCard(i, p)).join('')}</div>`;
+  } else {
+    // Lista de ítems con botones de persona
+    const rows = SP.items.map(it => {
+      const cur = Math.min(SM.assign[it.id] ?? 0, SM.n - 1);
+      const btns = Array.from({length: SM.n}).map((_, i) => {
+        const on = cur === i;
+        return `<button class="lm-person${on ? ' is-on' : ''}"
+          style="${on ? 'background:' + NCOLORS[i % 8] + ';border-color:' + NCOLORS[i % 8] : ''}"
+          data-item-id="${it.id}" data-person="${i}">${i + 1}</button>`;
+      }).join('');
+      return `<div class="pg-assign-row">
+        <span class="pg-tline-qty">${it.qty}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.name}</div>
+          <div style="font-size:10.5px;color:var(--muted)">${fmt(it.qty * it.unitPrice)}</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">${btns}</div>
+      </div>`;
+    }).join('');
+    content.innerHTML = `<div class="pg-assign-list">${rows}</div>
+      <div class="pg-part-grid">${parts.map((p, i) => partCard(i, p)).join('')}</div>`;
+  }
+
+  // Botón quitar
+  document.getElementById('split-quitar').hidden = !SP.splitObj;
+}
+
+function openSplitModal() {
+  if (SP.splitObj) {
+    SM = { mode: SP.splitObj.mode, n: SP.splitObj.n, assign: Object.assign({}, SP.splitObj.assign) };
+  } else {
+    SM = { mode: 'iguales', n: 2, assign: {} };
+    // Inicializar assign con persona 0 para todos los ítems
+    SP.items.forEach(it => { SM.assign[it.id] = 0; });
+  }
+  renderSplitModal();
+  document.getElementById('split-modal').hidden = false;
+}
+
+function closeSplitModal() {
+  document.getElementById('split-modal').hidden = true;
+}
+
+function applySplit() {
+  const parts = getSplitParts();
+  SP.splitObj = { mode: SM.mode, n: SM.n, parts, assign: Object.assign({}, SM.assign) };
+  closeSplitModal();
+  renderAll();
+}
+
+function quitarSplit() {
+  SP.splitObj = null;
+  closeSplitModal();
+  renderAll();
+}
+
+// ════════ SPLIT STRIP (en panel cobro) ═══════════════════════════════════
+
+function calcSplitInfo() {
+  if (!SP.splitObj) return null;
+  const { paid } = calc();
+  const parts = SP.splitObj.parts;
+  let cum = 0;
+  const rows = parts.map((amt, i) => { cum += amt; return { i, amt, cum }; });
+  const cur  = rows.find(r => paid < r.cum) || rows[rows.length - 1];
+  return {
+    rows,
+    curIndex:      cur.i,
+    partRemaining: Math.max(0, cur.cum - paid),
+    paidParts:     rows.filter(r => paid >= r.cum).length,
+    n:             rows.length,
+  };
+}
+
+function renderSplitStrip() {
+  const strip = document.getElementById('split-strip');
+  if (!SP.splitObj) { strip.hidden = true; return; }
+
+  const info = calcSplitInfo();
+  if (!info) { strip.hidden = true; return; }
+
+  strip.hidden = false;
+  document.getElementById('split-strip-title').textContent =
+    'Cobrando parte ' + (info.curIndex + 1) + ' de ' + info.n;
+  document.getElementById('split-strip-sub').textContent =
+    'Faltan ' + fmt(info.partRemaining) + ' · ' + info.paidParts + '/' + info.n + ' cobradas';
+
+  document.getElementById('split-dots').innerHTML = info.rows.map(r => {
+    const color = info.paid >= r.cum ? '#16A34A'
+      : r.i === info.curIndex ? '#5B6BFF' : '#CBD5E1';
+    return `<span class="pg-split-dot" style="background:${color}"></span>`;
+  }).join('');
+}
+
+// ════════ PARCHAR renderTotals PARA USAR exactTarget DE SPLIT ═══════════
+
+const _origRenderTotals = renderTotals;
+function renderTotals() {
+  _origRenderTotals();
+  // Override el botón exacto con el target de split si aplica
+  if (SP.splitObj) {
+    const info = calcSplitInfo();
+    if (info) {
+      document.getElementById('exact-amt').textContent = fmt(info.partRemaining);
+      const btnExact = document.getElementById('btn-exact');
+      btnExact.disabled = info.partRemaining === 0;
+      // Override la acción exact para usar partRemaining
+      btnExact.dataset.splitExact = info.partRemaining;
+    }
+  } else {
+    delete document.getElementById('btn-exact').dataset.splitExact;
+  }
+  renderSplitStrip();
+}
+
+// ════════ PARCHAR applyPayment PARA USAR splitExact ══════════════════════
+
+const _origApply = applyPayment;
+function applyPayment() {
+  const btnExact = document.getElementById('btn-exact');
+  if (SP.entry === 0 && btnExact.dataset.splitExact) {
+    // no aplica, entry debe venir del teclado
+  }
+  _origApply();
+}
+

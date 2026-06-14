@@ -139,6 +139,20 @@
           </div>
         </div>
 
+        <!-- Split strip (visible solo cuando hay división activa) -->
+        <div class="pg-split-strip" id="split-strip" hidden>
+          <div class="pg-split-strip-l">
+            <div class="pg-split-glyph"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></div>
+            <div>
+              <div class="pg-split-strip-title" id="split-strip-title">Cobrando parte 1 de 2</div>
+              <div class="pg-split-strip-sub" id="split-strip-sub">Faltan — de esta parte</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="pg-split-dots" id="split-dots"></div>
+            <button class="lm-clear" data-action="split-remove" style="display:inline">Quitar</button>
+          </div>
+        </div>
         <div class="pg-method-row">
           <button class="lm-method is-active" data-method="efectivo">
             <span class="pg-method-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg></span>
@@ -261,6 +275,64 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-core.js"></script>
-<script src="pagos.js?v=1781460000"></script>
+<script src="pagos.js?v=1781457150"></script>
+
+  <!-- ════ MODAL: DESCUENTO ════ -->
+  <div class="pg-overlay" id="discount-modal" hidden>
+    <div class="pg-modal-card">
+      <div class="pg-modal-head">
+        <div class="pg-modal-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div>
+        <div class="pg-modal-title-wrap">
+          <div class="pg-modal-title">Aplicar descuento</div>
+          <div class="pg-modal-sub">Sobre el total de la cuenta</div>
+        </div>
+        <button class="lm-icon-sm" data-action="close-discount" style="margin-left:auto;flex-shrink:0">✕</button>
+      </div>
+      <div class="pg-seg-row" id="discount-seg">
+        <button class="lm-seg is-on" data-dtype="pct">Porcentaje</button>
+        <button class="lm-seg" data-dtype="amount">Monto fijo</button>
+      </div>
+      <div class="pg-chip-grid" id="discount-chips"></div>
+      <div class="pg-field-label">Motivo</div>
+      <div class="pg-chip-wrap" id="motivo-chips"></div>
+      <div class="pg-modal-summary" id="discount-summary"></div>
+      <div class="pg-modal-actions">
+        <button class="lm-btn-ghost" id="discount-quitar" hidden data-action="discount-quitar">Quitar</button>
+        <button class="lm-btn-primary" id="discount-apply" data-action="discount-apply">Aplicar descuento</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ MODAL: DIVIDIR CUENTA ════ -->
+  <div class="pg-overlay" id="split-modal" hidden>
+    <div class="pg-modal-card" style="width:468px">
+      <div class="pg-modal-head">
+        <div class="pg-modal-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></div>
+        <div class="pg-modal-title-wrap">
+          <div class="pg-modal-title">Dividir la cuenta</div>
+          <div class="pg-modal-sub" id="split-modal-sub">— en total</div>
+        </div>
+        <button class="lm-icon-sm" data-action="close-split" style="margin-left:auto;flex-shrink:0">✕</button>
+      </div>
+      <div class="pg-seg-row" id="split-seg">
+        <button class="lm-seg is-on" data-smode="iguales">Partes iguales</button>
+        <button class="lm-seg" data-smode="producto">Por producto</button>
+      </div>
+      <div class="pg-split-n-row">
+        <span>Número de cuentas</span>
+        <div class="pg-stepper">
+          <button class="lm-step" data-action="split-minus">−</button>
+          <span id="split-n-display">2</span>
+          <button class="lm-step" data-action="split-plus">+</button>
+        </div>
+      </div>
+      <div id="split-content"></div>
+      <div class="pg-modal-actions">
+        <button class="lm-btn-ghost" id="split-quitar" hidden data-action="split-quitar">Quitar división</button>
+        <button class="lm-btn-primary" data-action="split-apply">Cobrar por partes</button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
