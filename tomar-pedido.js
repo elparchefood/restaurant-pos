@@ -80,22 +80,40 @@ function capitalizeRole(r){ if(!r)return'Mesero'; return r.charAt(0).toUpperCase
 // ── Carga de mesa ────────────────────────────────────────────
 async function loadTable() {
   try {
-    const { data } = await sb.from('pos_tables').select('*').eq('id', S.tableId).single();
-    S.table = data;
-    paintTableInfo(data);
+    const { data } = await sb.from('pos_tables').select('*').eq('id', S.tableId).maybeSingle();
+    if (data) {
+      S.table = data;
+      paintTableInfo(data);
+    } else {
+      // Fallback: leer de localStorage (configuracion.js guarda mesas ahí)
+      const local = JSON.parse(localStorage.getItem('lumen.config.salon.v1') || '{}');
+      const t = (local.tables || []).find(t => t.id === S.tableId);
+      if (t) {
+        S.table = t;
+        paintTableInfo(t);
+      }
+    }
   } catch(e) {
-    console.error('loadTable:', e);
+    // Intentar localStorage si Supabase falla
+    try {
+      const local = JSON.parse(localStorage.getItem('lumen.config.salon.v1') || '{}');
+      const t = (local.tables || []).find(t => t.id === S.tableId);
+      if (t) { S.table = t; paintTableInfo(t); }
+    } catch(_) {}
   }
 }
 
 function paintTableInfo(t) {
   if (!t) return;
   const name = t.name || 'Mesa';
-  $('tp-mesa-title').textContent     = name;
-  $('tp-crumb-mesa').textContent      = name;
-  $('tp-branch-name').textContent     = t.zone || '—';
-  S.openAt = t.opened_at || new Date().toISOString();
-  $('tp-hora-apertura').textContent   = fmtTime(S.openAt);
+  $('tp-mesa-title').textContent   = name;
+  $('tp-crumb-mesa').textContent   = name;
+  $('tp-branch-name').textContent  = t.zone || t.zoneId || '—';
+  // hora apertura: usar la del pedido activo; por ahora marcar now como fallback
+  if (!S.openAt) {
+    S.openAt = new Date().toISOString();
+    $('tp-hora-apertura').textContent = fmtTime(S.openAt);
+  }
 }
 
 // ── Catálogo ─────────────────────────────────────────────────
