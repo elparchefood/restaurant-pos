@@ -301,7 +301,7 @@ async function finalizarPago() {
     document.getElementById('done-paid').textContent   = fmt(paid);
     document.getElementById('done-vuelto').textContent = fmt(vuelto);
     document.getElementById('done-text').innerHTML = SP.adelantado
-      ? `El pago de la <strong id="done-mesa">${mesaName}</strong> fue registrado. La mesa continúa abierta para nuevos pedidos.`
+      ? `El pago de la <strong id="done-mesa">${mesaName}</strong> fue registrado. La mesa sigue abierta por si piden algo más.`
       : `La cuenta de la <strong id="done-mesa">${mesaName}</strong> quedó saldada. La mesa se liberará automáticamente.`;
     document.getElementById('done-overlay').hidden     = false;
 
