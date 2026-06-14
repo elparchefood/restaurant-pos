@@ -164,6 +164,7 @@
   justify-content: space-between;
   padding: 0 24px;
   flex-shrink: 0;
+  margin-bottom: 16px;
 }
 .vs-topbar-left {
   display: flex;
