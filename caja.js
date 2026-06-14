@@ -64,7 +64,7 @@ async function refreshAll() {
     S.orders = await loadOrders(S.branchId, S.session.opened_at);
     S.items  = await loadOrderItems(S.branchId, S.session.opened_at);
   } else { S.orders = []; S.items = []; }
-  const moves = getMoves();
+  const moves = await getMoves();
   renderCajaState();
   renderHero(S.orders, moves);
   renderKPIs(S.orders);
@@ -118,14 +118,40 @@ async function loadAllSessions(branchId) {
   } catch(e) { console.error('loadAllSessions:',e); return []; }
 }
 
-// ── localStorage ───────────────────────────────────────────────
-function getMoves() {
-  const key = 'lumen.caja.moves.' + (S.session ? S.session.id : 'tmp');
-  try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch(e) { return []; }
+// ── pos_cash_moves (Supabase) ──────────────────────────────────
+async function getMoves() {
+  try {
+    if (!S.session) return [];
+    const { data } = await sb.from('pos_cash_moves')
+      .select('*')
+      .eq('session_id', S.session.id)
+      .order('created_at', { ascending: true });
+    return (data || []).map(m => ({
+      id:      m.id,
+      type:    m.type,
+      amount:  parseFloat(m.amount) || 0,
+      concept: m.concept || '',
+      medio:   m.medio  || 'Efectivo',
+      ts:      m.created_at,
+    }));
+  } catch(e) { console.error('getMoves:', e); return []; }
 }
-function saveMoves(moves) {
-  const key = 'lumen.caja.moves.' + (S.session ? S.session.id : 'tmp');
-  localStorage.setItem(key, JSON.stringify(moves));
+async function addMove(type, amount, concept, medio) {
+  if (!S.session) return null;
+  const { data, error } = await sb.from('pos_cash_moves').insert({
+    tenant_id:  S.tenantId,
+    branch_id:  S.branchId,
+    session_id: S.session.id,
+    type, amount, concept,
+    medio:      medio || 'Efectivo',
+    created_by: S.user?.id || null,
+  }).select().single();
+  if (error) throw error;
+  return data;
+}
+async function deleteMove(id) {
+  const { error } = await sb.from('pos_cash_moves').delete().eq('id', id);
+  if (error) throw error;
 }
 
 // ── Estado caja abierta/cerrada ────────────────────────────────
@@ -520,9 +546,9 @@ document.getElementById('btn-confirmar-abrir').addEventListener('click', async f
   closePanel('panel-abrir');
 });
 
-document.getElementById('btn-cerrar').addEventListener('click', function() {
+document.getElementById('btn-cerrar').addEventListener('click', async function() {
   if (!S.session) return;
-  const moves    = getMoves();
+  const moves    = await getMoves();
   const active   = S.orders.filter(o=>o.status!=='cancelled');
   const ventasEf = active.filter(o=>(o.payment_method||'').toLowerCase()==='efectivo').reduce((s,o)=>s+(o.total||0),0);
   const ingresos = moves.filter(m=>m.type==='ingreso').reduce((s,m)=>s+(m.amount||0),0);
@@ -561,7 +587,7 @@ document.getElementById('btn-cerrar').addEventListener('click', function() {
 
 document.getElementById('btn-confirmar-cerrar').addEventListener('click', async function() {
   if (!S.session) { showToast('No hay sesión activa'); return; }
-  const moves    = getMoves();
+  const moves    = await getMoves();
   const active   = S.orders.filter(o=>o.status!=='cancelled');
   const ventasEf = active.filter(o=>(o.payment_method||'').toLowerCase()==='efectivo').reduce((s,o)=>s+(o.total||0),0);
   const ingresos = moves.filter(m=>m.type==='ingreso').reduce((s,m)=>s+(m.amount||0),0);
@@ -647,8 +673,8 @@ function getArqueoContado() {
   return t;
 }
 
-function updateArqueoEsperado() {
-  const moves    = getMoves();
+async function updateArqueoEsperado() {
+  const moves    = await getMoves();
   const active   = S.orders.filter(o=>o.status!=='cancelled');
   const ventasEf = active.filter(o=>(o.payment_method||'').toLowerCase()==='efectivo').reduce((s,o)=>s+(o.total||0),0);
   const ingresos = moves.filter(m=>m.type==='ingreso').reduce((s,m)=>s+(m.amount||0),0);
@@ -700,27 +726,28 @@ async function handleCloseSession(closingCash, totalSales) {
   } catch(e) { console.error(e); showToast('Error al cerrar caja'); }
 }
 
-function handleAddMovimiento(type, amount, concept, medio) {
-  const moves = getMoves();
-  moves.push({ id: Date.now().toString(), type, amount, concept, medio, ts: new Date().toISOString() });
-  saveMoves(moves);
-  const current = getMoves();
-  renderHero(S.orders, current);
-  renderCanalVentas(S.orders, current);
-  renderMovimientos(current);
-  renderMovimientosSummary(current);
-  showToast((type==='ingreso'?'Ingreso':'Egreso') + ' registrado: ' + COPF(amount));
+async function handleAddMovimiento(type, amount, concept, medio) {
+  try {
+    await addMove(type, amount, concept, medio);
+    const current = await getMoves();
+    renderHero(S.orders, current);
+    renderCanalVentas(S.orders, current);
+    renderMovimientos(current);
+    renderMovimientosSummary(current);
+    showToast((type==='ingreso'?'Ingreso':'Egreso') + ' registrado: ' + COPF(amount));
+  } catch(e) { console.error(e); showToast('Error al registrar movimiento'); }
 }
 
-function deleteMov(id) {
-  const moves = getMoves().filter(m => m.id !== id);
-  saveMoves(moves);
-  const current = getMoves();
-  renderHero(S.orders, current);
-  renderCanalVentas(S.orders, current);
-  renderMovimientos(current);
-  renderMovimientosSummary(current);
-  showToast('Movimiento eliminado');
+async function deleteMov(id) {
+  try {
+    await deleteMove(id);
+    const current = await getMoves();
+    renderHero(S.orders, current);
+    renderCanalVentas(S.orders, current);
+    renderMovimientos(current);
+    renderMovimientosSummary(current);
+    showToast('Movimiento eliminado');
+  } catch(e) { console.error(e); showToast('Error al eliminar movimiento'); }
 }
 window.deleteMov = deleteMov;
 
