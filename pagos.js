@@ -14,6 +14,7 @@ const SP = {
   payments: [],   // [{id, method, amount, received}]
   tip: false,
   tipLocked: false,
+  adelantado: false,
   discount: 0,
 };
 
@@ -285,18 +286,23 @@ async function finalizarPago() {
       payment_method: payMethod,
     }).eq('id', SP.orderId);
 
-    // 2. Liberar mesa
-    await sb.from('pos_tables').update({
-      status:           'libre',
-      current_order_id: null,
-    }).eq('id', SP.tableId);
+    // 2. Liberar mesa (solo si pago al final)
+    if (!SP.adelantado) {
+      await sb.from('pos_tables').update({
+        status:           'libre',
+        current_order_id: null,
+      }).eq('id', SP.tableId);
+    }
 
-    // 3. Mostrar overlay
+    // 3. Mostrar overlay con mensaje según modo
     const mesaName = document.getElementById('mesa-title').textContent;
     document.getElementById('done-mesa').textContent   = mesaName;
     document.getElementById('done-total').textContent  = fmt(total);
     document.getElementById('done-paid').textContent   = fmt(paid);
     document.getElementById('done-vuelto').textContent = fmt(vuelto);
+    document.getElementById('done-text').innerHTML = SP.adelantado
+      ? `El pago de la <strong id="done-mesa">${mesaName}</strong> fue registrado. La mesa continúa abierta para nuevos pedidos.`
+      : `La cuenta de la <strong id="done-mesa">${mesaName}</strong> quedó saldada. La mesa se liberará automáticamente.`;
     document.getElementById('done-overlay').hidden     = false;
 
   } catch(e) {
@@ -582,6 +588,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 4. Params de URL
   const params = new URLSearchParams(window.location.search);
   SP.orderId  = params.get('order');
+  SP.adelantado = params.get('adelantado') === '1';
   if (params.get('servicio') === '1') {
     SP.tip       = true;
     SP.tipLocked = true;
