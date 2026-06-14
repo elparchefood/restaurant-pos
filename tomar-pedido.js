@@ -7,7 +7,8 @@
 // ── Estado global ────────────────────────────────────────────
 const S = {
   userId: null, tenantId: null, branchId: null,
-  waiterName: '—', tableId: null, table: null,
+  waiterName: '—', userRole: '—', tableId: null, table: null,
+  serviceEnabled: true,
   cats: [], products: [],
   order: null,  // registro en pos_orders (si ya existe)
   cart: [],     // [{id, productId, name, qty, unitPrice, catColor, selections:{pres,var,mods}}]
@@ -34,7 +35,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   S.userId    = user.id;
   S.tenantId  = user.user_metadata?.tenant_id || user.id;
   S.branchId  = user.user_metadata?.branch_id || null;
-  S.waiterName= user.user_metadata?.nombre || user.user_metadata?.name || user.email?.split('@')[0] || '—';
+  const { data: posUser } = await sb.from('pos_users').select('name, role').eq('auth_user_id', user.id).maybeSingle();
+  S.waiterName = posUser?.name || user.user_metadata?.nombre || user.user_metadata?.name || user.email?.split('@')[0] || '—';
+  S.userRole   = posUser?.role || user.user_metadata?.role || 'Administrador';
 
   // 2. Leer tableId de la URL
   const params = new URLSearchParams(window.location.search);
@@ -65,31 +68,52 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ── Shell inmediato ──────────────────────────────────────────
 function paintShell() {
-  $('tp-user-name').textContent = S.waiterName;
+  $('tp-user-name').textContent   = S.waiterName;
   $('tp-waiter-name').textContent = S.waiterName;
-  const initials = S.waiterName.slice(0,2).toUpperCase();
+  $('tp-user-role').textContent   = capitalizeRole(S.userRole);
+  const parts = S.waiterName.replace(/\s+/g,' ').trim().split(' ');
+  const initials = parts.map(w=>w[0]).slice(0,2).join('').toUpperCase() || '?';
   $('tp-user-avatar').textContent = initials;
 }
+function capitalizeRole(r){ if(!r)return'Mesero'; return r.charAt(0).toUpperCase()+r.slice(1).toLowerCase(); }
 
 // ── Carga de mesa ────────────────────────────────────────────
 async function loadTable() {
   try {
-    const { data } = await sb.from('pos_tables').select('*').eq('id', S.tableId).single();
-    S.table = data;
-    paintTableInfo(data);
+    const { data } = await sb.from('pos_tables').select('*').eq('id', S.tableId).maybeSingle();
+    if (data) {
+      S.table = data;
+      paintTableInfo(data);
+    } else {
+      // Fallback: leer de localStorage (configuracion.js guarda mesas ahí)
+      const local = JSON.parse(localStorage.getItem('lumen.config.salon.v1') || '{}');
+      const t = (local.tables || []).find(t => t.id === S.tableId);
+      if (t) {
+        S.table = t;
+        paintTableInfo(t);
+      }
+    }
   } catch(e) {
-    console.error('loadTable:', e);
+    // Intentar localStorage si Supabase falla
+    try {
+      const local = JSON.parse(localStorage.getItem('lumen.config.salon.v1') || '{}');
+      const t = (local.tables || []).find(t => t.id === S.tableId);
+      if (t) { S.table = t; paintTableInfo(t); }
+    } catch(_) {}
   }
 }
 
 function paintTableInfo(t) {
   if (!t) return;
   const name = t.name || 'Mesa';
-  $('tp-mesa-title').textContent     = name;
-  $('tp-crumb-mesa').textContent      = name;
-  $('tp-branch-name').textContent     = t.zone || '—';
-  S.openAt = t.opened_at || new Date().toISOString();
-  $('tp-hora-apertura').textContent   = fmtTime(S.openAt);
+  $('tp-mesa-title').textContent   = name;
+  $('tp-crumb-mesa').textContent   = name;
+  $('tp-branch-name').textContent  = t.zone || t.zoneId || '—';
+  // hora apertura: usar la del pedido activo; por ahora marcar now como fallback
+  if (!S.openAt) {
+    S.openAt = new Date().toISOString();
+    $('tp-hora-apertura').textContent = fmtTime(S.openAt);
+  }
 }
 
 // ── Catálogo ─────────────────────────────────────────────────
@@ -287,6 +311,11 @@ function prodCard(p, color) {
 }
 
 // ── RENDER: Comanda ───────────────────────────────────────────
+function toggleService(){
+  S.serviceEnabled = !S.serviceEnabled;
+  paintCartState();
+}
+
 function paintCartState() {
   const empty   = $('comanda-empty');
   const scroll  = $('cart-scroll');
@@ -309,12 +338,14 @@ function paintCartState() {
   mini.classList.remove('is-empty');
 
   const total   = cartTotal();
-  const service = total * 0.10;
+  const service = S.serviceEnabled ? total * 0.10 : 0;
   const grand   = total + service;
 
   $('t-subtotal').textContent = COPF(total);
-  $('t-servicio').textContent = COPF(service);
+  $('t-servicio').textContent = S.serviceEnabled ? COPF(service) : '—';
   $('t-total').textContent    = COPF(grand);
+  const tog = $('service-toggle');
+  if(tog) tog.classList.toggle('on', S.serviceEnabled);
 
   $('cart-count-label').textContent = `Comanda · ${S.cart.length} ítem${S.cart.length !== 1 ? 's' : ''}`;
   $('cartmini-title').textContent   = `${S.cart.length} ítem${S.cart.length !== 1 ? 's' : ''} en cuenta`;
@@ -682,7 +713,7 @@ async function saveOrder() {
   if (!S.cart.length) { toast('Agrega productos antes de guardar', 'warn'); return; }
   try {
     const total   = cartTotal();
-    const service = total * 0.10;
+    const service = S.serviceEnabled ? total * 0.10 : 0;
     const grand   = total + service;
 
     let orderId = S.order?.id;
@@ -690,14 +721,16 @@ async function saveOrder() {
     // Upsert pos_orders
     if (!orderId) {
       const { data, error } = await sb.from('pos_orders').insert({
-        tenant_id:  S.tenantId,
-        branch_id:  S.branchId,
-        table_id:   S.tableId,
-        waiter_id:  S.userId,
-        status:     'open',
-        channel:    'salon',
-        total:      grand,
-        guests:     S.personas,
+        tenant_id:   S.tenantId,
+        branch_id:   S.branchId,
+        table_id:    S.tableId,
+        waiter_id:   S.userId,
+        waiter_name: S.waiterName,
+        status:      'open',
+        channel:     'salon',
+        total:       grand,
+        guests:      S.personas,
+        opened_at:   new Date().toISOString(),
       }).select().single();
       if (error) throw error;
       S.order = data;
@@ -712,15 +745,19 @@ async function saveOrder() {
     // Eliminar ítems con id (guardados) y re-insertar todos (simple y seguro)
     await sb.from('pos_order_items').delete().eq('order_id', orderId);
     const rows = S.cart.map(it => ({
-      tenant_id:  S.tenantId,
-      branch_id:  S.branchId,
-      order_id:   orderId,
-      product_id: it.productId,
-      name:       it.name,
-      quantity:   it.qty,
-      unit_price: it.unitPrice,
-      total:      it.unitPrice * it.qty,
-      selections: it.selections || {},
+      tenant_id:     S.tenantId,
+      branch_id:     S.branchId,
+      order_id:      orderId,
+      product_id:    it.productId,
+      name:          it.name,
+      product_name:  it.name,
+      unit_price:    it.unitPrice,
+      product_price: it.unitPrice,
+      quantity:      it.qty,
+      total:         it.unitPrice * it.qty,
+      notes:         it.note || null,
+      status:        'pending',
+      selections:    it.selections || {},
     }));
     const { error: itemsErr } = await sb.from('pos_order_items').insert(rows);
     if (itemsErr) throw itemsErr;
@@ -744,18 +781,40 @@ async function saveOrder() {
 // ── Enviar a cocina ───────────────────────────────────────────
 async function sendToKitchen() {
   if (!S.cart.length) { toast('Agrega productos antes de enviar', 'warn'); return; }
+  // Deshabilitar botón inmediatamente para evitar doble envío
+  const btn = document.querySelector('[data-action="enviar-cocina"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
   await saveOrder();
-  if (!S.order?.id) return;
+  if (!S.order?.id) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Enviar a cocina'; }
+    return;
+  }
   try {
+    // 1. Actualizar pedido a in_progress
     await sb.from('pos_orders').update({ status: 'in_progress' }).eq('id', S.order.id);
     S.order.status = 'in_progress';
-    toast('¡Enviado a cocina!', 'ok');
-    // Pulso visual breve en comanda
-    const foot = $('comanda-foot');
-    if (foot) { foot.style.background = '#DCFCE7'; setTimeout(() => foot.style.background = '', 900); }
+
+    // 2. Upsert mesa en pos_tables para que ventas-salon.js vea el estado correcto
+    const tableData = S.table || {};
+    const tableRow = {
+      id:         S.tableId,
+      name:       tableData.name || S.tableId,
+      number:     parseInt(tableData.name, 10) || 0,
+      status:     'esperando',
+      branch_id:  S.branchId,
+      tenant_id:  S.tenantId,
+      current_order_id: S.order.id,
+    };
+    await sb.from('pos_tables').upsert(tableRow, { onConflict: 'id' });
+
+    // 3. Toast + redirect a ventas
+    toast('¡Enviado a cocina! Volviendo…', 'ok');
+    if (btn) { btn.textContent = '✓ En cocina'; }
+    setTimeout(() => { window.location.href = 'ventas.html'; }, 1500);
   } catch(e) {
     console.error('sendToKitchen:', e);
     toast('Error al enviar: ' + (e?.message || e), 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Enviar a cocina'; }
   }
 }
 
