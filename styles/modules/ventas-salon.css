@@ -25,11 +25,13 @@
   flex-shrink: 0;
 }
 .vs-brand-mark {
+  height: 64px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 18px 18px 16px;
+  padding: 0 18px;
   border-bottom: 1px solid #ECEEF2;
+  box-sizing: border-box;
 }
 .vs-brand-logo {
   width: 30px;
@@ -156,12 +158,13 @@
 
 /* ─── Topbar ─── */
 .vs-topbar {
+  height: 64px;
   background: #FFFFFF;
   border-bottom: 1px solid #ECEEF2;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 24px 16px;
+  padding: 0 24px;
   flex-shrink: 0;
   margin-bottom: 16px;
 }
