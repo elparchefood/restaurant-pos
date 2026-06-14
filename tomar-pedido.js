@@ -362,6 +362,24 @@ function tpCheckEsperandoToast() {
 }
 
 // ── Botón proactivo "Ya entregué" en topbar de la comanda ────────────────
+function tpConfirm({ title, msg, okLabel = 'Confirmar', variant = 'brand', cancelLabel = 'Cancelar' }) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'vs-confirm-overlay';
+    const iconSvg = {
+      green:  '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+      danger: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>',
+      brand:  '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+    }[variant] || '';
+    overlay.innerHTML = `<div class="vs-confirm-card"><div class="vs-confirm-icon ${variant}">${iconSvg}</div><div class="vs-confirm-title">${title}</div><div class="vs-confirm-msg">${msg}</div><div class="vs-confirm-actions"><button class="vs-c-cancel">${cancelLabel}</button><button class="vs-c-ok ${variant}">${okLabel}</button></div></div>`;
+    document.body.appendChild(overlay);
+    const close = r => { overlay.remove(); resolve(r); };
+    overlay.querySelector('.vs-c-ok').addEventListener('click', () => close(true));
+    overlay.querySelector('.vs-c-cancel').addEventListener('click', () => close(false));
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(false); });
+  });
+}
+
 function tpRenderEntregueBtn() {
   if (!S.table || S.table.status !== 'esperando') return;
   // Buscar contenedor del topbar para inyectar el botón
@@ -374,8 +392,14 @@ function tpRenderEntregueBtn() {
   btn.id = 'tp-btn-entregue';
   btn.className = 'tp-entregue-topbar-btn';
   btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Ya entregué los platos`;
-  btn.addEventListener('click', function() {
-    if (!confirm('¿Confirmar que ya entregaste los platos en ' + (S.table && S.table.name || 'esta mesa') + '?')) return;
+  btn.addEventListener('click', async function() {
+    const ok = await tpConfirm({
+      title: 'Confirmar entrega',
+      msg: '¿Ya entregaste los platos en <strong>' + (S.table && S.table.name || 'esta mesa') + '</strong>?',
+      okLabel: 'Sí, ya entregué',
+      variant: 'green',
+    });
+    if (!ok) return;
     tpMarcarComiendo('proactive');
     btn.remove();
     const t = document.getElementById('tp-esperando-toast');
@@ -1116,16 +1140,20 @@ function toggleFav(prodId, btn) {
 }
 
 // ── Vaciar carrito ────────────────────────────────────────────
-function clearCart() {
+async function clearCart() {
   if (!S.cart.length) return;
-  if (!confirm('¿Vaciar toda la comanda?')) return;
+  const okClear = await tpConfirm({ title: 'Vaciar comanda', msg: '¿Eliminar todos los productos de la comanda?', okLabel: 'Vaciar', variant: 'danger' });
+  if (!okClear) return;
   S.cart = [];
   paintCartState();
 }
 
 // ── Liberar mesa ──────────────────────────────────────────────
 async function releaseTable() {
-  if (S.cart.length && !confirm('¿Liberar la mesa? Se perderá la comanda no guardada.')) return;
+  if (S.cart.length) {
+    const okRelease = await tpConfirm({ title: 'Liberar mesa', msg: 'La comanda tiene ítems sin guardar. ¿Seguro que quieres liberar la mesa?', okLabel: 'Liberar mesa', variant: 'danger' });
+    if (!okRelease) return;
+  }
   try {
     await sb.from('pos_tables').update({ status: 'libre' }).eq('id', S.tableId);
     if (S.order?.id && S.order.status === 'open') {

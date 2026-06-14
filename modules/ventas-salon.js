@@ -1382,11 +1382,50 @@
     setInterval(update, 5000);
   }
 
+  // ─── Modal de confirmación personalizado ──────────────────────────────
+  function vsConfirm({ title, msg, okLabel = 'Confirmar', variant = 'brand', cancelLabel = 'Cancelar' }) {
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.className = 'vs-confirm-overlay';
+
+      const iconSvg = {
+        green:  '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+        danger: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>',
+        brand:  '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+      }[variant] || '';
+
+      overlay.innerHTML = `
+        <div class="vs-confirm-card">
+          <div class="vs-confirm-icon ${variant}">${iconSvg}</div>
+          <div class="vs-confirm-title">${title}</div>
+          <div class="vs-confirm-msg">${msg}</div>
+          <div class="vs-confirm-actions">
+            <button class="vs-c-cancel">${cancelLabel}</button>
+            <button class="vs-c-ok ${variant}">${okLabel}</button>
+          </div>
+        </div>`;
+
+      document.body.appendChild(overlay);
+
+      function close(result) { overlay.remove(); resolve(result); }
+
+      overlay.querySelector('.vs-c-ok').addEventListener('click', () => close(true));
+      overlay.querySelector('.vs-c-cancel').addEventListener('click', () => close(false));
+      overlay.addEventListener('click', e => { if (e.target === overlay) close(false); });
+    });
+  }
+
   // ─── Confirmar entrega de platos (botón en tarjeta) ──────────────────
-  function confirmEntregado(tableId) {
+  async function confirmEntregado(tableId) {
     const mesa = state.tables.find(t => t.id === tableId);
     const numStr = mesa ? (mesa.name || String(mesa.number || '')) : tableId;
-    if (!confirm('¿Confirmar que ya entregaste los platos en la Mesa ' + numStr + '?')) return;
+    const ok = await vsConfirm({
+      title: 'Confirmar entrega',
+      msg: '¿Ya entregaste los platos en la <strong>Mesa ' + numStr + '</strong>?',
+      okLabel: 'Sí, ya entregué',
+      variant: 'green',
+    });
+    if (!ok) return;
     marcarComiendo(tableId, 'proactive');
   }
 
@@ -1407,7 +1446,13 @@
   async function liberarMesa(tableId) {
     const mesa = state.tables.find(t => t.id === tableId);
     const numStr = mesa ? (mesa.name || String(mesa.number || '')) : tableId;
-    if (!confirm('¿Liberar la Mesa ' + numStr + '? Esto cerrará la sesión de la mesa.')) return;
+    const ok = await vsConfirm({
+      title: 'Liberar mesa',
+      msg: '¿Liberar la <strong>Mesa ' + numStr + '</strong>? Esto cerrará la sesión y la dejará disponible.',
+      okLabel: 'Liberar mesa',
+      variant: 'danger',
+    });
+    if (!ok) return;
     try {
       const sbRef = window._pos && window._pos.sb;
       if (!sbRef) return;

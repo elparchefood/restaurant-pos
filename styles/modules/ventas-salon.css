@@ -1082,3 +1082,47 @@
 .tp-toast-btn-later:hover { background: #F1F5F9; }
 .tp-toast-btn-close   { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #ECEEF2; background: transparent; color: #94A3B8; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .tp-toast-btn-close:hover { color: #475569; }
+
+/* ── Modal de confirmación personalizado ── */
+.vs-confirm-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(15,23,42,.45);
+  display: flex; align-items: center; justify-content: center;
+  animation: vsOverlayIn .15s ease;
+}
+@keyframes vsOverlayIn { from { opacity:0 } to { opacity:1 } }
+.vs-confirm-card {
+  background: #fff; border-radius: 16px; width: 100%; max-width: 360px;
+  box-shadow: 0 20px 60px -10px rgba(15,23,42,.25);
+  padding: 24px; position: relative;
+  animation: vsCardIn .18s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes vsCardIn { from { opacity:0; transform:scale(.93) } to { opacity:1; transform:scale(1) } }
+.vs-confirm-icon {
+  width: 44px; height: 44px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 14px;
+}
+.vs-confirm-icon.green  { background: #ECFDF5; color: #10B981; }
+.vs-confirm-icon.danger { background: #FEF2F2; color: #DC2626; }
+.vs-confirm-icon.brand  { background: #EEF2FF; color: #5B6BFF; }
+.vs-confirm-title { font-size: 15px; font-weight: 800; color: #0F172A; letter-spacing: -0.01em; }
+.vs-confirm-msg   { font-size: 13px; color: #64748B; margin-top: 6px; line-height: 1.5; }
+.vs-confirm-actions { display: flex; gap: 8px; margin-top: 20px; }
+.vs-confirm-actions .vs-c-cancel {
+  flex: 1; padding: 10px; border-radius: 9px; border: 1px solid #ECEEF2;
+  background: #F8FAFC; color: #475569; font-family: inherit;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.vs-confirm-actions .vs-c-cancel:hover { background: #F1F5F9; }
+.vs-confirm-actions .vs-c-ok {
+  flex: 1.4; padding: 10px; border-radius: 9px; border: none;
+  font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 2px 8px -2px rgba(0,0,0,.18);
+}
+.vs-confirm-actions .vs-c-ok.green  { background: #10B981; color: #fff; }
+.vs-confirm-actions .vs-c-ok.danger { background: #DC2626; color: #fff; }
+.vs-confirm-actions .vs-c-ok.brand  { background: #5B6BFF; color: #fff; }
+.vs-confirm-actions .vs-c-ok.green:hover  { background: #059669; }
+.vs-confirm-actions .vs-c-ok.danger:hover { background: #B91C1C; }
+.vs-confirm-actions .vs-c-ok.brand:hover  { background: #4F5BE3; }
