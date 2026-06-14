@@ -74,29 +74,32 @@
   let timerInterval = null;
 
   function fmtElapsed(startIso) {
-    if (!startIso) return '—';
-    const mins = Math.round((Date.now() - new Date(startIso).getTime()) / 60000);
+    if (!startIso || startIso === 'null') return null;
+    const ms = Date.now() - new Date(startIso).getTime();
+    if (isNaN(ms) || ms < 0) return null;
+    const mins = Math.floor(ms / 60000);
     if (mins < 60) return mins + ' min';
     const h = Math.floor(mins / 60);
     const m = mins % 60;
-    return m > 0 ? h + ' h ' + m + ' min' : h + ' h';
+    return m > 0 ? h + 'h ' + m + 'm' : h + 'h';
   }
 
   function startLiveTimers() {
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
-      document.querySelectorAll('[data-timer]').forEach(el => {
+      if (!container) return;
+      container.querySelectorAll('[data-timer]').forEach(el => {
         const iso = el.dataset.timer;
-        if (!iso) return;
+        const formatted = fmtElapsed(iso);
+        if (!formatted) return;
         const val = el.querySelector('.vs-timer-val');
-        if (val) val.textContent = fmtElapsed(iso);
-        // update alert class on rail info value
+        if (val) val.textContent = formatted;
         if (el.dataset.timerAlert) {
-          const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+          const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
           el.classList.toggle('vs-info-value--alert', mins > parseInt(el.dataset.timerAlert));
         }
       });
-    }, 10000); // update every 10 seconds
+    }, 1000); // every second — user sees it move
   }
 
   // ─── Helpers ─────────────────────────────────────────
@@ -354,7 +357,7 @@
   // ─── Render: Full page ───────────────────────────────
   function render() {
     if (!container) return;
-    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+
 
     // Get user info from _pos state
     const user = (window._pos && window._pos.state && window._pos.state.user) || {};
@@ -772,7 +775,7 @@
             <span class="vs-state-dot" style="background:${meta.color}"></span>
             ${meta.label}
           </span>
-          ${!isLibre && t.openedAt ? `<span class="vs-time-badge" data-timer="${t.openedAt}">${SVG_CLOCK(10)} <span class="vs-timer-val">${t.minutes || 0} min</span></span>` : (!isLibre ? `<span class="vs-time-badge">${SVG_CLOCK(10)} ${t.minutes || 0} min</span>` : '')}
+          ${!isLibre ? `<span class="vs-time-badge" data-timer="${t.openedAt || new Date(Date.now() - (t.minutes||0)*60000).toISOString()}">${SVG_CLOCK(10)} <span class="vs-timer-val">${t.minutes || 0} min</span></span>` : ''}
         </div>
         <div class="vs-mesa-num-row">
           <div class="vs-mesa-num ${isLibre ? 'vs-mesa-num--libre' : 'vs-mesa-num--active'}">${numStr}</div>
@@ -1033,7 +1036,7 @@
           </div>
           <div class="vs-info-cell">
             <div class="vs-info-label">Tiempo</div>
-            <div class="vs-info-value ${minutesElapsed > 60 ? 'vs-info-value--alert' : ''}" data-timer="${openedAt || ''}" data-timer-alert="60"><span class="vs-timer-val">${minutesElapsed} min</span></div>
+            <div class="vs-info-value ${minutesElapsed > 60 ? 'vs-info-value--alert' : ''}" data-timer="${openedAt || new Date(Date.now() - minutesElapsed*60000).toISOString()}" data-timer-alert="60"><span class="vs-timer-val">${minutesElapsed} min</span></div>
           </div>
           <div class="vs-info-cell">
             <div class="vs-info-label">Ítems</div>
