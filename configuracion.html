@@ -70,6 +70,12 @@
           </span>
           <span class="cf-soon">Pronto</span>
         </button>
+        <button class="lm-nav" id="nav-operacion" data-section="operacion">
+          <span class="cf-nav-l">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+            <span class="cf-nav-label">Operación</span>
+          </span>
+        </button>
         <button class="lm-nav" id="nav-impresora" data-section="impresora">
           <span class="cf-nav-l">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
@@ -541,6 +547,157 @@
           </div>
         </aside>
       </section>
+    </div>
+
+    <div class="cf-screen" id="screen-operacion">
+      <section class="cf-pagehead">
+        <div>
+          <div class="cf-eyebrow">Configuración operativa</div>
+          <h1 class="cf-pagetitle">Operación</h1>
+        </div>
+      </section>
+      <div class="op-scroll">
+        <div class="op-inner">
+
+          <!-- SECCIÓN 1 · Tiempos de servicio -->
+          <div class="op-card">
+            <div class="op-card-head">
+              <div class="op-card-icon indigo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+              <div>
+                <div class="op-card-num">Sección 1</div>
+                <div class="op-card-title">Tiempos de servicio</div>
+                <div class="op-card-sub">Ritmos del salón y de la cocina.</div>
+              </div>
+            </div>
+            <div class="op-card-body">
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">Tiempo promedio de entrega de platos</div>
+                  <div class="op-hint">El sistema auto-avanza una mesa de "esperando" a "comiendo" pasado este tiempo.</div>
+                </div>
+                <div class="num-stepper" data-field="entregaMin" data-min="1" data-max="120">
+                  <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <div class="num-val"><b id="op-entregaMin">12</b><span>min</span></div>
+                  <button class="cf-step sm" data-step="1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                </div>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">Tiempo máximo en cocina</div>
+                  <div class="op-hint">Genera una alerta si un pedido lleva este tiempo sin marcarse como listo.</div>
+                </div>
+                <div class="num-stepper" data-field="cocinaMax" data-min="1" data-max="120">
+                  <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <div class="num-val"><b id="op-cocinaMax">20</b><span>min</span></div>
+                  <button class="cf-step sm" data-step="1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECCIÓN 2 · Configuración financiera -->
+          <div class="op-card">
+            <div class="op-card-head">
+              <div class="op-card-icon green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg></div>
+              <div>
+                <div class="op-card-num">Sección 2</div>
+                <div class="op-card-title">Configuración financiera</div>
+                <div class="op-card-sub">Propinas y meta de ventas.</div>
+              </div>
+            </div>
+            <div class="op-card-body">
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">Propina sugerida por defecto</div>
+                  <div class="op-hint">Se precarga en la pantalla de cobro.</div>
+                </div>
+                <div class="num-stepper" data-field="propinaPct" data-min="0" data-max="30">
+                  <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <div class="num-val"><b id="op-propinaPct">10</b><span>%</span></div>
+                  <button class="cf-step sm" data-step="1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                </div>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">Propina obligatoria</div>
+                  <div class="op-hint" id="op-propina-hint">El cliente puede aceptar o rechazar la propina libremente.</div>
+                  <div class="op-warn" id="op-propina-warn" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Configura un PIN de administrador abajo para poder exigirla.</div>
+                </div>
+                <div class="op-control">
+                  <span class="op-state off" id="op-propina-state">Voluntaria</span>
+                  <button class="cf-switch" id="op-sw-propina" role="switch" aria-checked="false" data-field="propinaObligatoria"><span class="cf-switch-knob"></span></button>
+                </div>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">Meta diaria de ventas</div>
+                  <div class="op-hint">Referencia para el panel de caja y los reportes.</div>
+                </div>
+                <div class="money-input">
+                  <span class="cur">$</span>
+                  <input class="cf-bareinput" id="op-metaDiaria" inputmode="numeric" value="1.500.000" />
+                  <span class="iso">COP</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECCIÓN 3 · Acceso y seguridad operativa -->
+          <div class="op-card">
+            <div class="op-card-head">
+              <div class="op-card-icon violet"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+              <div>
+                <div class="op-card-num">Sección 3</div>
+                <div class="op-card-title">Acceso y seguridad operativa</div>
+                <div class="op-card-sub">Cobro adelantado y PIN de administrador.</div>
+              </div>
+            </div>
+            <div class="op-card-body">
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">Modo cobro adelantado</div>
+                  <div class="op-hint">Cuando está activo, toda la sucursal cobra antes de enviar el pedido a cocina.</div>
+                </div>
+                <div class="op-control">
+                  <span class="op-state off" id="op-cobro-state">Desactivado</span>
+                  <button class="cf-switch" id="op-sw-cobro" role="switch" aria-checked="false" data-field="cobroAdelantado"><span class="cf-switch-knob"></span></button>
+                </div>
+              </div>
+              <div class="op-row col">
+                <div class="op-row-text">
+                  <div class="op-label">PIN de administrador</div>
+                  <div class="op-hint">4 dígitos. Compártelo solo con empleados de confianza; se solicita para acciones sensibles.</div>
+                  <div class="pin-status none" id="op-pin-status"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Sin PIN configurado</div>
+                </div>
+                <div class="pin-controls">
+                  <div class="pin-wrap">
+                    <input class="cf-pin" id="op-pin-input" type="password" inputmode="numeric" maxlength="4" placeholder="0000" />
+                    <button class="cf-pin-eye" id="op-pin-eye" type="button" aria-label="Mostrar/ocultar PIN"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                  </div>
+                  <button class="lm-btn-primary" id="op-pin-save"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> <span id="op-pin-btn-label">Establecer PIN</span></button>
+                </div>
+                <div class="pin-info">
+                  <div class="pin-info-head"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Acciones que piden este PIN</div>
+                  <ul class="pin-list">
+                    <li><span class="bullet"></span>Cancelar pedidos</li>
+                    <li><span class="bullet"></span>Eliminar ítems de una comanda</li>
+                    <li><span class="bullet"></span>Cambiar la propina obligatoria</li>
+                    <li><span class="bullet"></span>Aplicar descuentos manuales</li>
+                    <li><span class="bullet"></span>Reabrir o reimprimir cuentas</li>
+                    <li><span class="bullet"></span>Anular un pago registrado</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Footer guardar -->
+          <div class="op-footer">
+            <button class="lm-btn-ghost" id="op-btn-discard" hidden>Descartar cambios</button>
+            <button class="lm-btn-primary lg" id="op-btn-save" disabled><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Guardar cambios</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="cf-screen" id="screen-placeholder">

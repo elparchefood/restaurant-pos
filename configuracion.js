@@ -144,6 +144,7 @@ var SECTION_LABELS = {
   pagos:     'Métodos de pago',
   impuesto:  'Impuestos y propina',
   impresora: 'Impresoras',
+  operacion: 'Operación',
   usuarios:  'Usuarios y roles'
 };
 
@@ -163,6 +164,8 @@ function setSection(sec) {
   screenPh.classList.remove('on');
   var _screenUr = $('screen-usuarios');
   if (_screenUr) _screenUr.classList.remove('on');
+  var _screenOp = $('screen-operacion');
+  if (_screenOp) _screenOp.classList.remove('on');
 
   if (sec === 'mesas') {
     screenMesas.classList.add('on');
@@ -172,6 +175,13 @@ function setSection(sec) {
     screenGeneral.classList.add('on');
     $('crumb').textContent = 'General';
     if (!window._generalLoaded) { loadGeneral(); window._generalLoaded = true; }
+  } else if (sec === 'operacion') {
+    var screenOp = $('screen-operacion');
+    if (screenOp) {
+      screenOp.classList.add('on');
+      $('crumb').textContent = 'Operación';
+      if (!window._opLoaded) { opInit(); window._opLoaded = true; }
+    }
   } else if (sec === 'usuarios') {
     var screenUr = $('screen-usuarios');
     if (screenUr) {
@@ -1608,4 +1618,210 @@ async function urInit() {
   urRenderUsers();
   urRenderRoles();
   urSetTab('usuarios');
+}
+
+// ════════════════════════════════════════════════════════════
+// MÓDULO OPERACIÓN — lumen.config.operacion.v1
+// ════════════════════════════════════════════════════════════
+
+var OP_KEY = 'lumen.config.operacion.v1';
+var OP_DEFAULTS = { entregaMin: 12, cocinaMax: 20, propinaPct: 10, propinaObligatoria: false, metaDiaria: 1500000, cobroAdelantado: false, pin: '' };
+
+var _opSaved  = null;  // último guardado
+var _opDraft  = null;  // borrador en edición
+
+function opLoad() {
+  try { return Object.assign({}, OP_DEFAULTS, JSON.parse(localStorage.getItem(OP_KEY) || '{}')); }
+  catch(e) { return Object.assign({}, OP_DEFAULTS); }
+}
+
+function opSave(data) {
+  localStorage.setItem(OP_KEY, JSON.stringify(data));
+  // Sync claves heredadas para compatibilidad con otros módulos
+  localStorage.setItem('lumen.config.cobro_adelantado', data.cobroAdelantado ? 'true' : 'false');
+}
+
+// ── Init ──────────────────────────────────────────────────
+function opInit() {
+  _opSaved = opLoad();
+  _opDraft = Object.assign({}, _opSaved);
+  opRender();
+  opBindEvents();
+}
+
+// ── Render completo desde el borrador ─────────────────────
+function opRender() {
+  var d = _opDraft;
+
+  // Sección 1
+  var elEntrega = $('op-entregaMin');
+  var elCocina  = $('op-cocinaMax');
+  if (elEntrega) elEntrega.textContent = d.entregaMin;
+  if (elCocina)  elCocina.textContent  = d.cocinaMax;
+
+  // Sección 2 — propina %
+  var elPct = $('op-propinaPct');
+  if (elPct) elPct.textContent = d.propinaPct;
+
+  // Propina toggle
+  opSetToggle('op-sw-propina', d.propinaObligatoria);
+  var stEl = $('op-propina-state');
+  var hintEl = $('op-propina-hint');
+  var warnEl = $('op-propina-warn');
+  if (stEl) { stEl.textContent = d.propinaObligatoria ? 'Obligatoria' : 'Voluntaria'; stEl.className = 'op-state ' + (d.propinaObligatoria ? 'on' : 'off'); }
+  if (hintEl) hintEl.textContent = d.propinaObligatoria ? 'El empleado necesita el PIN de administrador para desmarcarla durante el cobro.' : 'El cliente puede aceptar o rechazar la propina libremente.';
+  if (warnEl) warnEl.hidden = !(d.propinaObligatoria && !d.pin);
+
+  // Meta diaria
+  var elMeta = $('op-metaDiaria');
+  if (elMeta) elMeta.value = (d.metaDiaria || 0).toLocaleString('es-CO');
+
+  // Sección 3 — cobro adelantado
+  opSetToggle('op-sw-cobro', d.cobroAdelantado);
+  var cobroSt = $('op-cobro-state');
+  if (cobroSt) { cobroSt.textContent = d.cobroAdelantado ? 'Activado' : 'Desactivado'; cobroSt.className = 'op-state ' + (d.cobroAdelantado ? 'on' : 'off'); }
+
+  // PIN status
+  var pinSt = $('op-pin-status');
+  var pinBtn = $('op-pin-btn-label');
+  if (pinSt) {
+    if (d.pin) {
+      pinSt.className = 'pin-status ok';
+      pinSt.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> PIN configurado';
+    } else {
+      pinSt.className = 'pin-status none';
+      pinSt.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Sin PIN configurado';
+    }
+  }
+  if (pinBtn) pinBtn.textContent = d.pin ? 'Cambiar PIN' : 'Establecer PIN';
+
+  opCheckDirty();
+}
+
+function opSetToggle(id, on) {
+  var sw = $(id);
+  if (!sw) return;
+  sw.classList.toggle('on', !!on);
+  sw.setAttribute('aria-checked', on ? 'true' : 'false');
+}
+
+// ── Dirty tracking ────────────────────────────────────────
+function opCheckDirty() {
+  var dirty = JSON.stringify(_opDraft) !== JSON.stringify(_opSaved);
+  var btnSave    = $('op-btn-save');
+  var btnDiscard = $('op-btn-discard');
+  if (btnSave)    btnSave.disabled = !dirty;
+  if (btnDiscard) btnDiscard.hidden = !dirty;
+}
+
+// ── Toast ─────────────────────────────────────────────────
+function opToast(msg) {
+  var t = $('toast'); var m = $('toast-msg');
+  if (!t || !m) return;
+  m.textContent = msg;
+  t.hidden = false;
+  clearTimeout(opToast._tid);
+  opToast._tid = setTimeout(function(){ t.hidden = true; }, 2200);
+}
+
+// ── Bind events ───────────────────────────────────────────
+function opBindEvents() {
+  var screen = $('screen-operacion');
+  if (!screen || screen._opBound) return;
+  screen._opBound = true;
+
+  // Steppers
+  screen.querySelectorAll('.num-stepper').forEach(function(stepper) {
+    var field = stepper.dataset.field;
+    var min   = parseInt(stepper.dataset.min, 10);
+    var max   = parseInt(stepper.dataset.max, 10);
+    stepper.querySelectorAll('.cf-step').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var delta = parseInt(btn.dataset.step, 10);
+        var cur   = _opDraft[field] || 0;
+        _opDraft[field] = Math.min(max, Math.max(min, cur + delta));
+        opRender();
+      });
+    });
+  });
+
+  // Toggle propina obligatoria
+  var swPropina = $('op-sw-propina');
+  if (swPropina) swPropina.addEventListener('click', function() {
+    _opDraft.propinaObligatoria = !_opDraft.propinaObligatoria;
+    opRender();
+  });
+
+  // Toggle cobro adelantado
+  var swCobro = $('op-sw-cobro');
+  if (swCobro) swCobro.addEventListener('click', function() {
+    _opDraft.cobroAdelantado = !_opDraft.cobroAdelantado;
+    opRender();
+  });
+
+  // Meta diaria — formateo en tiempo real
+  var metaInput = $('op-metaDiaria');
+  if (metaInput) {
+    metaInput.addEventListener('input', function() {
+      var raw = metaInput.value.replace(/\D/g, '');
+      _opDraft.metaDiaria = parseInt(raw, 10) || 0;
+      // Re-formatear sin mover el cursor
+      metaInput.value = (_opDraft.metaDiaria).toLocaleString('es-CO');
+      opCheckDirty();
+    });
+  }
+
+  // PIN — solo dígitos
+  var pinInput = $('op-pin-input');
+  if (pinInput) {
+    pinInput.addEventListener('input', function() {
+      pinInput.value = pinInput.value.replace(/\D/g, '').slice(0, 4);
+    });
+  }
+
+  // PIN — mostrar/ocultar
+  var pinEye = $('op-pin-eye');
+  if (pinEye && pinInput) {
+    pinEye.addEventListener('click', function() {
+      pinInput.type = pinInput.type === 'password' ? 'text' : 'password';
+    });
+  }
+
+  // PIN — guardar
+  var pinSaveBtn = $('op-pin-save');
+  if (pinSaveBtn && pinInput) {
+    pinSaveBtn.addEventListener('click', function() {
+      var val = pinInput.value.trim();
+      if (!/^\d{4}$/.test(val)) { opToast('El PIN debe tener exactamente 4 dígitos'); return; }
+      var wasPin = !!_opDraft.pin;
+      _opDraft.pin = val;
+      // El PIN se guarda de inmediato (igual que guardar todo)
+      _opSaved = Object.assign({}, _opDraft);
+      opSave(_opSaved);
+      pinInput.value = '';
+      pinInput.type = 'password';
+      opRender();
+      opToast(wasPin ? 'PIN actualizado' : 'PIN establecido');
+    });
+  }
+
+  // Guardar todo
+  var btnSave = $('op-btn-save');
+  if (btnSave) {
+    btnSave.addEventListener('click', function() {
+      _opSaved = Object.assign({}, _opDraft);
+      opSave(_opSaved);
+      opRender();
+      opToast('Cambios de operación guardados');
+    });
+  }
+
+  // Descartar
+  var btnDiscard = $('op-btn-discard');
+  if (btnDiscard) {
+    btnDiscard.addEventListener('click', function() {
+      _opDraft = Object.assign({}, _opSaved);
+      opRender();
+    });
+  }
 }
