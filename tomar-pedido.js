@@ -781,40 +781,55 @@ async function saveOrder() {
 // ── Enviar a cocina ───────────────────────────────────────────
 async function sendToKitchen() {
   if (!S.cart.length) { toast('Agrega productos antes de enviar', 'warn'); return; }
-  // Deshabilitar botón inmediatamente para evitar doble envío
   const btn = document.querySelector('[data-action="enviar-cocina"]');
+  const iconSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>';
   if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
+
+  // Leer modo cobro desde localStorage (sincronizado por ventas-salon)
+  const cobroAdelantado = localStorage.getItem('lumen.config.cobro_adelantado') === 'true';
+
   await saveOrder();
   if (!S.order?.id) {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Enviar a cocina'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = iconSvg + ' Enviar a cocina'; }
     return;
   }
   try {
-    // 1. Actualizar pedido a in_progress
-    await sb.from('pos_orders').update({ status: 'in_progress' }).eq('id', S.order.id);
+    // Determinar estado según modo cobro:
+    // Cobro adelantado: mesa → pendiente_pago, pedido NO visible en cocina aún
+    // Cobro al final:   mesa → esperando,       pedido visible en cocina de una
+    const tableSt     = cobroAdelantado ? 'pendiente_pago' : 'esperando';
+    const visibleCoc  = !cobroAdelantado;
+
+    // 1. Actualizar pedido
+    await sb.from('pos_orders')
+      .update({ status: 'in_progress', visible_cocina: visibleCoc })
+      .eq('id', S.order.id);
     S.order.status = 'in_progress';
 
-    // 2. Upsert mesa en pos_tables para que ventas-salon.js vea el estado correcto
+    // 2. Upsert mesa en pos_tables
     const tableData = S.table || {};
     const tableRow = {
-      id:         S.tableId,
-      name:       tableData.name || S.tableId,
-      number:     parseInt(tableData.name, 10) || 0,
-      status:     'esperando',
-      branch_id:  S.branchId,
-      tenant_id:  S.tenantId,
+      id:               S.tableId,
+      name:             tableData.name || S.tableId,
+      number:           parseInt(tableData.name, 10) || 0,
+      status:           tableSt,
+      branch_id:        S.branchId,
+      tenant_id:        S.tenantId,
       current_order_id: S.order.id,
     };
     await sb.from('pos_tables').upsert(tableRow, { onConflict: 'id' });
 
-    // 3. Toast + redirect a ventas
-    toast('¡Enviado a cocina! Volviendo…', 'ok');
-    if (btn) { btn.textContent = '✓ En cocina'; }
+    // 3. Toast + redirect
+    const msg = cobroAdelantado
+      ? '¡Pedido creado! Pendiente de cobro.'
+      : '¡Enviado a cocina! Volviendo…';
+    toast(msg, 'ok');
+    if (btn) { btn.textContent = cobroAdelantado ? '✓ Pendiente cobro' : '✓ En cocina'; }
     setTimeout(() => { window.location.href = 'ventas.html'; }, 1500);
   } catch(e) {
     console.error('sendToKitchen:', e);
     toast('Error al enviar: ' + (e?.message || e), 'error');
-    if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Enviar a cocina'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = iconSvg + ' Enviar a cocina'; }
   }
 }
 

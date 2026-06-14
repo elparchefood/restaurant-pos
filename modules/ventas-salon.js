@@ -10,15 +10,16 @@
 
   // ─── Constantes de estado de mesa ───────────────────
   const STATE_META = {
-    libre:     { label: 'Mesa libre',       short: 'Libres',    color: '#94A3B8', tint: '#F8FAFC', ring: '#ECEEF2', hint: 'disponibles',        icon: SVG_PLUS },
-    esperando: { label: 'Esperando pedido', short: 'Esperando', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA', hint: 'pedido en cocina',    icon: SVG_CLOCK },
-    comiendo:  { label: 'Comiendo',         short: 'Comiendo',  color: '#5B6BFF', tint: '#EEF2FF', ring: '#C7D2FE', hint: 'servidas en mesa',    icon: SVG_FOOD },
-    paga:      { label: 'Paga',             short: 'Pagas',     color: '#10B981', tint: '#ECFDF5', ring: '#A7F3D0', hint: 'cuenta saldada',      icon: SVG_CHECK },
+    libre:          { label: 'Mesa libre',        short: 'Libres',    color: '#94A3B8', tint: '#F8FAFC', ring: '#ECEEF2', hint: 'disponibles',        icon: SVG_PLUS },
+    pendiente_pago: { label: 'Pendiente de pago', short: 'Pendiente', color: '#EF4444', tint: '#FEF2F2', ring: '#FECACA', hint: 'esperando cobro',     icon: SVG_DOLLAR },
+    esperando:      { label: 'Esperando pedido',  short: 'Esperando', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA', hint: 'pedido en cocina',    icon: SVG_CLOCK },
+    comiendo:       { label: 'Comiendo',          short: 'Comiendo',  color: '#5B6BFF', tint: '#EEF2FF', ring: '#C7D2FE', hint: 'servidas en mesa',    icon: SVG_FOOD },
   };
 
   const CHIP_ORDER_KEY = 'lumen.ventas.chipOrder';
   const CONFIG_KEY = 'lumen.config.salon.v1';
-  const DEFAULT_CHIP_ORDER = ['libre', 'esperando', 'comiendo', 'paga'];
+  const COBRO_KEY = 'lumen.config.cobro_adelantado';
+  const DEFAULT_CHIP_ORDER = ['libre', 'pendiente_pago', 'esperando', 'comiendo'];
 
   const MESERO_NAMES = { SA: 'Sergio Andrés', JM: 'Juan Manuel', AC: 'Andrea Castro', LM: 'Laura Mejía' };
 
@@ -32,6 +33,8 @@
     loading: true,
     chipOrder: loadChipOrder(),
     dragKey: null,
+    cobroAdelantado: false,
+    userRole: 'mesero',
   };
 
   let container = null;
@@ -450,6 +453,12 @@
             ${SVG_PLUS(14)}
             Abrir mesa
           </button>
+          <button class="vs-cobro-toggle ${state.cobroAdelantado ? 'vs-cobro-on' : ''}"
+            id="vs-cobro-toggle"
+            title="${state.cobroAdelantado ? 'Cobro adelantado activo' : 'Cobro al final activo'}">
+            <span class="vs-cobro-dot"></span>
+            <span class="vs-cobro-label">${state.cobroAdelantado ? 'Cobro adelantado' : 'Cobro al final'}</span>
+          </button>
         </div>
       </section>
     `;
@@ -647,7 +656,7 @@
   function renderRailDetail(mesa) {
     const meta = STATE_META[mesa.status] || STATE_META.libre;
     const isLibre = mesa.status === 'libre';
-    const isPaga = mesa.status === 'paga';
+    const isPendientePago = mesa.status === 'pendiente_pago';
     const numStr = pad2(mesa.number || mesa.n || 0);
 
     if (isLibre) {
@@ -693,15 +702,25 @@
         `).join('')
       : `<div style="font-size:12px;color:#94A3B8;padding:16px 0;text-align:center">Sin ítems registrados</div>`;
 
-    const actionsHtml = isPaga
-      ? `<div class="vs-paid-notice">${SVG_OK(14)} <span>Cuenta pagada · en efectivo</span></div>
-         <div class="vs-actions-paid">
-           <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir recibo</button>
-           <button class="lm-btn-primary" data-action="free-table" data-table-id="${mesa.id}">Liberar mesa</button>
+    const actionsHtml = isPendientePago
+      ? `<div class="vs-pending-notice">
+           ${SVG_DOLLAR(14)} <span>Esperando cobro — pedido en preparación</span>
+         </div>
+         <div class="vs-actions">
+           <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
+           <button class="lm-btn-primary vs-cobrar-btn" data-action="cobrar" data-table-id="${mesa.id}">
+             ${SVG_DOLLAR(14)} Cobrar y enviar a cocina
+           </button>
+         </div>`
+      : mesa.status === 'comiendo'
+      ? `<div class="vs-actions">
+           <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
+           <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
+           <button class="lm-btn-primary" data-action="collect" data-table-id="${mesa.id}">Cobrar</button>
          </div>`
       : `<div class="vs-actions">
            <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
-           <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
+           <button class="lm-btn-ghost" data-action="add-item" data-table-id="${mesa.id}">+ Ítem</button>
            <button class="lm-btn-primary" data-action="collect" data-table-id="${mesa.id}">Cobrar</button>
          </div>`;
 
@@ -767,6 +786,10 @@
   function attachEvents() {
     if (!container) return;
 
+    // Toggle cobro adelantado
+    const cobroToggle = document.getElementById('vs-cobro-toggle');
+    if (cobroToggle) cobroToggle.addEventListener('click', toggleCobro);
+
     // Mesa cards
     container.querySelectorAll('[data-table-id]').forEach(btn => {
       if (btn.classList.contains('lm-mesa')) {
@@ -809,6 +832,9 @@
         break;
       case 'reserve-table':
         window._pos && window._pos.emit && window._pos.emit('table:reserve', { tableId });
+        break;
+      case 'cobrar':
+        cobrarMesa(tableId);
         break;
       case 'collect':
         window._pos && window._pos.emit && window._pos.emit('table:collect', { tableId });
@@ -889,6 +915,73 @@
     });
   }
 
+  // ─── Cobro adelantado ────────────────────────────────
+  async function loadCobroAdelantado() {
+    // 1. localStorage primero (respuesta inmediata)
+    state.cobroAdelantado = localStorage.getItem(COBRO_KEY) === 'true';
+    // 2. Sincronizar con Supabase (fuente de verdad)
+    try {
+      const sb = window._pos && window._pos.sb;
+      const branchId = window._pos && window._pos.state && window._pos.state.branchId;
+      if (sb && branchId) {
+        const { data } = await sb.from('branches').select('cobro_adelantado').eq('id', branchId).maybeSingle();
+        if (data) {
+          state.cobroAdelantado = !!data.cobro_adelantado;
+          localStorage.setItem(COBRO_KEY, String(state.cobroAdelantado));
+        }
+      }
+    } catch(e) { /* usa el valor de localStorage */ }
+  }
+
+  async function toggleCobro() {
+    const sb = window._pos && window._pos.sb;
+    const role = (window._pos && window._pos.state && window._pos.state.role) || 'mesero';
+    // Si no es admin, pedir PIN (flujo de PIN deferred — por ahora solo admins)
+    if (role !== 'admin' && role !== 'administrador' && role !== 'gerente') {
+      alert('Solo el administrador puede cambiar el modo de cobro.');
+      return;
+    }
+    const nuevoValor = !state.cobroAdelantado;
+    state.cobroAdelantado = nuevoValor;
+    localStorage.setItem(COBRO_KEY, String(nuevoValor));
+    // Persistir en Supabase
+    try {
+      const branchId = window._pos && window._pos.state && window._pos.state.branchId;
+      if (sb && branchId) {
+        await sb.from('branches').update({ cobro_adelantado: nuevoValor }).eq('id', branchId);
+      }
+    } catch(e) { /* ignore */ }
+    // Re-render header para reflejar cambio de toggle
+    const pageHead = container && container.querySelector('.vs-page-head');
+    if (pageHead) {
+      pageHead.outerHTML = renderPageHead();
+      // Re-attach toggle event
+      const btn = container.getElementById ? container.getElementById('vs-cobro-toggle') : document.getElementById('vs-cobro-toggle');
+      if (btn) btn.addEventListener('click', toggleCobro);
+    }
+  }
+
+  async function cobrarMesa(tableId) {
+    const sb = window._pos && window._pos.sb;
+    if (!sb) return;
+    try {
+      // Marcar mesa como esperando (cocina puede verlo)
+      await sb.from('pos_tables').update({ status: 'esperando' }).eq('id', tableId);
+      // Hacer visible en cocina el pedido activo de esta mesa
+      await sb.from('pos_orders')
+        .update({ visible_cocina: true })
+        .eq('table_id', tableId)
+        .eq('status', 'in_progress');
+      // Actualizar local y re-render
+      const t = state.tables.find(t => t.id === tableId);
+      if (t) t.status = 'esperando';
+      selectTable(tableId);
+      render();
+    } catch(e) {
+      alert('Error al cobrar: ' + (e.message || e));
+    }
+  }
+
   // ─── RAM chip (live) ──────────────────────────────────
   function startRamMonitor() {
     function update() {
@@ -919,6 +1012,9 @@
     // Cargar zonas desde localStorage de configuracion
     state.zones = loadZonesFromConfig();
     state.floor = state.zones.length ? state.zones[0].id : null;
+
+    // Cargar modo cobro
+    await loadCobroAdelantado();
 
     // Initial render (loading state)
     render();
