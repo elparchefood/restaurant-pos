@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ventas · Pago — Cobra POS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="pagos.css">
+</head>
+<body>
+<div class="pg-root">
+
+  <!-- ════ SIDEBAR ════ -->
+  <aside class="pg-side">
+    <div class="pg-brand">
+      <div class="pg-brand-logo">C</div>
+      <div>
+        <div class="pg-brand-name">Cobra POS</div>
+        <div class="pg-brand-sub" id="sb-branch">—</div>
+      </div>
+    </div>
+    <div class="pg-side-section-wrap">
+      <div class="pg-side-section" id="sb-section">Mesa — Opciones de pago</div>
+    </div>
+    <nav class="pg-nav">
+      <button class="lm-nav" data-action="back">
+        <span class="pg-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg><span>Volver a la comanda</span></span>
+      </button>
+      <div class="pg-nav-divider"></div>
+      <button class="lm-nav" data-action="split">
+        <span class="pg-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg><span>Dividir cuentas</span></span>
+      </button>
+      <button class="lm-nav" data-action="discount">
+        <span class="pg-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg><span>Aplicar descuento</span></span>
+        <span class="pg-nav-flag" id="discount-flag" hidden>Activo</span>
+      </button>
+      <button class="lm-nav" data-action="voucher">
+        <span class="pg-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4z"/><line x1="12" y1="7" x2="12" y2="17" stroke-dasharray="2 3"/></svg><span>Vale de pago</span></span>
+      </button>
+      <button class="lm-nav" data-action="credit">
+        <span class="pg-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>Dejar a crédito</span></span>
+      </button>
+    </nav>
+    <div class="pg-side-spacer"></div>
+    <div class="pg-side-foot">
+      <div class="pg-totalmini">
+        <div class="pg-totalmini-label">Total a pagar</div>
+        <div class="pg-totalmini-value" id="side-total">$0</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ════ MAIN ════ -->
+  <main class="pg-main">
+    <header class="pg-topbar">
+      <div class="pg-topbar-l">
+        <div class="pg-modebadge"><span class="dot"></span>Modo Servidor</div>
+        <div class="pg-crumbs">
+          <span class="muted">Ventas</span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="muted" id="crumb-mesa">Mesa</span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="here">Cobrar</span>
+        </div>
+      </div>
+      <div class="pg-topbar-r">
+        <div class="pg-pill-success"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>En vivo</div>
+        <div class="pg-user">
+          <div class="pg-user-avatar" id="user-avatar">—</div>
+          <div>
+            <div class="pg-user-name" id="user-name">—</div>
+            <div class="pg-user-role" id="user-role">—</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="pg-body">
+
+      <!-- ════ TICKET ════ -->
+      <aside class="pg-ticket">
+        <div class="pg-ticket-head">
+          <div class="pg-ticket-id">
+            <div class="pg-mesa-glyph"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 11V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6"/><path d="M4 11h16l-1 5H5z"/><line x1="6" y1="16" x2="6" y2="21"/><line x1="18" y1="16" x2="18" y2="21"/></svg></div>
+            <div>
+              <h1 class="pg-mesa-title" id="mesa-title">—</h1>
+              <span class="pg-open-pill"><span class="dot"></span>Cuenta solicitada</span>
+            </div>
+          </div>
+          <button class="lm-icon-sm" data-action="print"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>
+        </div>
+        <div class="pg-meta-row">
+          <div class="pg-meta-cell">
+            <span class="pg-meta-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Mesero</span>
+            <span class="pg-meta-value" id="meta-mesero">—</span>
+          </div>
+          <div class="pg-meta-cell bordered">
+            <span class="pg-meta-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> Personas</span>
+            <span class="pg-meta-value" id="meta-personas">—</span>
+          </div>
+        </div>
+        <button class="pg-cliente" id="cliente-row" data-action="cliente">
+          <div class="pg-cliente-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+          <span class="pg-cliente-name" id="cliente-name">Consumidor final</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <div class="pg-ticket-scroll" id="ticket-scroll">
+          <div class="pg-ticket-listhead">
+            <span class="pg-section-micro">Detalle · <span id="items-count">0 ítems</span></span>
+          </div>
+          <!-- JS renderiza los .pg-tline aquí -->
+        </div>
+        <div class="pg-ticket-foot">
+          <div class="pg-trow"><span>Subtotal</span><span id="t-subtotal">$0</span></div>
+          <div class="pg-trow is-discount" id="t-discount-row" hidden><span>Descuento</span><span id="t-discount">−$0</span></div>
+          <button class="lm-tip" id="tip-toggle" data-action="tip">
+            <span class="lm-tip-l">
+              <span class="pg-tipbox"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <span class="pg-tip-text">Propina sugerida 10%</span>
+            </span>
+            <span class="pg-tip-amt" id="tip-amt">$0</span>
+          </button>
+          <div class="pg-trow pg-tgrand"><span>Total a pagar</span><span id="t-total">$0</span></div>
+        </div>
+      </aside>
+
+      <!-- ════ COBRO ════ -->
+      <div class="pg-cobro" id="cobro" data-method="efectivo">
+        <div class="pg-cobro-head">
+          <div>
+            <div class="pg-cobro-eyebrow">Registrar cobro</div>
+            <div class="pg-cobro-title">¿Cómo va a pagar el cliente?</div>
+          </div>
+          <div class="pg-cobro-head-r">
+            <div class="pg-falta-label" id="falta-label">Falta por pagar</div>
+            <div class="pg-falta-value" id="falta-value">$0</div>
+          </div>
+        </div>
+
+        <div class="pg-method-row">
+          <button class="lm-method is-active" data-method="efectivo">
+            <span class="pg-method-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg></span>
+            <span class="pg-method-txt"><span class="pg-method-label">Efectivo</span><span class="pg-method-sub">Billetes y monedas</span></span>
+            <span class="pg-method-check"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          </button>
+          <button class="lm-method" data-method="tarjeta">
+            <span class="pg-method-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span>
+            <span class="pg-method-txt"><span class="pg-method-label">Tarjeta</span><span class="pg-method-sub">Débito o crédito</span></span>
+            <span class="pg-method-check"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          </button>
+          <button class="lm-method" data-method="transferencia">
+            <span class="pg-method-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></span>
+            <span class="pg-method-txt"><span class="pg-method-label">Transferencia</span><span class="pg-method-sub">PSE · bancos</span></span>
+            <span class="pg-method-check"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          </button>
+          <button class="lm-method" data-method="nequi">
+            <span class="pg-method-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v.01M14 21h.01M17 21h4v-4"/></svg></span>
+            <span class="pg-method-txt"><span class="pg-method-label">Nequi / QR</span><span class="pg-method-sub">Billetera digital</span></span>
+            <span class="pg-method-check"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          </button>
+        </div>
+
+        <div class="pg-entry-grid">
+          <div class="pg-entry-left">
+            <div class="pg-amount-card" id="amount-card">
+              <div class="pg-amount-top">
+                <span class="pg-amount-method" id="amount-method">
+                  <span class="pg-amount-chip" id="amount-chip"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg></span>
+                  <span id="amount-method-name">Efectivo</span>
+                </span>
+                <button class="lm-clear" id="btn-clear" data-action="clear">Borrar</button>
+              </div>
+              <div class="pg-amount-value" id="amount-value">$0</div>
+              <div class="pg-amount-hint" id="amount-hint">Monto recibido del cliente</div>
+            </div>
+            <div class="pg-denom-label">Atajos rápidos</div>
+            <div class="pg-denom-grid">
+              <button class="lm-exact" id="btn-exact" data-action="exact"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Exacto · <span id="exact-amt">$0</span></button>
+              <button class="lm-bill" data-bill="5000">+ $5.000</button>
+              <button class="lm-bill" data-bill="10000">+ $10.000</button>
+              <button class="lm-bill" data-bill="20000">+ $20.000</button>
+              <button class="lm-bill" data-bill="50000">+ $50.000</button>
+              <button class="lm-bill" data-bill="100000">+ $100.000</button>
+            </div>
+            <div class="pg-vuelto-card" id="vuelto-card" hidden>
+              <span class="pg-vuelto-label"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.5 9.5a2.5 2.5 0 0 0-2.5-1.5c-1.4 0-2.5.7-2.5 2s1.1 1.6 2.5 2 2.5.6 2.5 2-1.1 2-2.5 2a2.5 2.5 0 0 1-2.5-1.5M12 6.5v1.5M12 16v1.5"/></svg> Vuelto a entregar</span>
+              <span class="pg-vuelto-amt" id="vuelto-card-amt">$0</span>
+            </div>
+          </div>
+          <div class="pg-keypad">
+            <button class="lm-key" data-digit="1">1</button>
+            <button class="lm-key" data-digit="2">2</button>
+            <button class="lm-key" data-digit="3">3</button>
+            <button class="lm-key" data-digit="4">4</button>
+            <button class="lm-key" data-digit="5">5</button>
+            <button class="lm-key" data-digit="6">6</button>
+            <button class="lm-key" data-digit="7">7</button>
+            <button class="lm-key" data-digit="8">8</button>
+            <button class="lm-key" data-digit="9">9</button>
+            <button class="lm-key" data-digit="00">00</button>
+            <button class="lm-key" data-digit="0">0</button>
+            <button class="lm-key lm-key-del" data-action="backspace"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg></button>
+          </div>
+        </div>
+
+        <button class="lm-apply" id="btn-apply" data-action="apply" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span id="apply-label">Agregar pago</span>
+        </button>
+
+        <div class="pg-applied" id="applied">
+          <div class="pg-applied-empty" id="applied-empty">
+            <span class="pg-applied-empty-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg></span>
+            <span class="pg-applied-empty-text">Elige un método, ingresa el monto y pulsa <strong>Agregar pago</strong>.</span>
+          </div>
+          <div class="pg-applied-list" id="applied-list" hidden></div>
+        </div>
+
+        <div class="pg-cobro-foot">
+          <div class="pg-foot-stat">
+            <span class="pg-foot-label">Pagado</span>
+            <span class="pg-foot-value" id="foot-paid">$0</span>
+          </div>
+          <div class="pg-foot-stat bordered">
+            <span class="pg-foot-label">Falta</span>
+            <span class="pg-foot-value is-falta" id="foot-falta">$0</span>
+          </div>
+          <div class="pg-foot-stat bordered">
+            <span class="pg-foot-label">Vuelto</span>
+            <span class="pg-foot-value is-muted" id="foot-vuelto">$0</span>
+          </div>
+          <button class="lm-finish" id="btn-finish" data-action="finish" disabled>
+            Finalizar pago <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </button>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- ════ OVERLAY PAGO REGISTRADO ════ -->
+  <div class="pg-overlay" id="done-overlay" hidden>
+    <div class="pg-done-card">
+      <div class="pg-done-ring"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="pg-done-title">Pago registrado</div>
+      <p class="pg-done-text">La cuenta de la <strong id="done-mesa">mesa</strong> quedó saldada. La mesa se liberará automáticamente.</p>
+      <div class="pg-done-stats">
+        <div class="pg-done-stat"><span class="pg-done-stat-l">Total cobrado</span><span class="pg-done-stat-v" id="done-total">$0</span></div>
+        <div class="pg-done-stat bordered"><span class="pg-done-stat-l">Recibido</span><span class="pg-done-stat-v" id="done-paid">$0</span></div>
+        <div class="pg-done-stat bordered"><span class="pg-done-stat-l">Vuelto</span><span class="pg-done-stat-v is-vuelto" id="done-vuelto">$0</span></div>
+      </div>
+      <div class="pg-done-actions">
+        <button class="lm-btn-ghost" style="flex:1" data-action="print-receipt"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Imprimir recibo</button>
+        <button class="lm-btn-primary" style="flex:1.3" data-action="new-sale"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Nueva venta</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="pos-core.js"></script>
+<script src="pagos.js?v=1781460000"></script>
+</body>
+</html>

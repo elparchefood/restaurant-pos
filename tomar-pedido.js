@@ -934,7 +934,10 @@ function bindEvents() {
         case 'nav-domicilio': window.location.href = 'domicilios.html'; break;
         case 'guardar':      saveOrder(); break;
         case 'enviar-cocina':sendToKitchen(); break;
-        case 'pago':         toast('Módulo de pago próximamente', 'warn'); break;
+        case 'pago':
+          if (!S.order?.id) { toast('No hay pedido activo', 'warn'); break; }
+          window.location.href = `pagos.html?order=${S.order.id}&table=${S.tableId}`;
+          break;
         case 'vaciar':       clearCart(); break;
         case 'release':      releaseTable(); break;
         default: break;
