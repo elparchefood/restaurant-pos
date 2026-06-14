@@ -39,17 +39,6 @@ const KAN_BTN     = { recibido: 'En preparación', preparacion: 'Listo', listo: 
 
 
 
-const DOMI_SEED = [
-  { id: 'D-1042', cliente: 'Jesús Gómez',      canal: 'whatsapp',  items: 3, productos: 49000, fee: 5000, estado: 'recibido',    payStatus: 'pendiente', payWhen: 'contraentrega', metodo: 'efectivo',      courier: 'interno', domiciliario: 'Felipe Ríos', min: 4 },
-  { id: 'D-1041', cliente: 'Adriana Eraso',    canal: 'instagram', items: 2, productos: 36000, fee: 6000, estado: 'preparacion', payStatus: 'pagado',    payWhen: 'adelantado',    metodo: 'transferencia', courier: 'interno', domiciliario: 'Felipe Ríos', min: 9 },
-  { id: 'D-1040', cliente: 'Camilo Restrepo',  canal: 'web',       items: 5, productos: 78000, fee: 7000, estado: 'listo',       payStatus: 'pagado',    payWhen: 'adelantado',    metodo: 'tarjeta',       courier: 'interno', domiciliario: '—',           min: 14 },
-  { id: 'D-1039', cliente: 'Karen J. San I.',  canal: 'whatsapp',  items: 4, productos: 52000, fee: 8000, estado: 'camino',      payStatus: 'pendiente', payWhen: 'contraentrega', metodo: 'efectivo',      courier: 'externo', domiciliario: 'Rappi',       min: 22, cobramos: false },
-  { id: 'D-1038', cliente: 'Víctor R. Llanos', canal: 'facebook',  items: 2, productos: 30000, fee: 6000, estado: 'camino',      payStatus: 'pagado',    payWhen: 'adelantado',    metodo: 'transferencia', courier: 'externo', domiciliario: 'Picap',       min: 27, cobramos: true  },
-  { id: 'D-1037', cliente: 'Mariana Ortiz',    canal: 'tiktok',    items: 6, productos: 96000, fee: 5000, estado: 'entregado',   payStatus: 'pagado',    payWhen: 'contraentrega', metodo: 'efectivo',      courier: 'interno', domiciliario: 'Felipe Ríos', min: 41 },
-];
-
-let DCOUNT = 1043;
-
 // ── Estado global S ────────────────────────────────────────────────────
 const S = {
   tenantId:  null,
@@ -77,7 +66,7 @@ const S = {
   modGroups: [],
   domiciliarios: [],
   clientes:  JSON.parse(localStorage.getItem('lumen.domi.clientes') || '[]'),
-  deliveries: DOMI_SEED.map(d => Object.assign({ createdAt: Date.now() - d.min * 60000 }, d)),
+  deliveries: [],
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -1052,7 +1041,7 @@ function enviarACocina() {
 
   const prod      = computeProductsTotal();
   const count     = S.cart.reduce((a, x) => a + x.qty, 0);
-  const id        = 'D-' + (DCOUNT++);
+  const id        = 'D-' + Date.now().toString().slice(-5);
   const externo   = S.courier === 'externo';
   const extCobra  = externo && S.cobramos;
   const extDirect = externo && !S.cobramos;
