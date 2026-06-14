@@ -606,6 +606,19 @@ svg { display: block; }
 ::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 
 /* ════════ MODALES (descuento + dividir) ════════ */
+.pg-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,.45);
+  backdrop-filter: blur(2px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.pg-modal-overlay[hidden] { display: none !important; }
+
 .pg-modal-card {
   width: 404px; background: #fff; border-radius: var(--r-card);
   padding: 22px; box-shadow: var(--sh-overlay);
