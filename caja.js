@@ -546,6 +546,38 @@ document.getElementById('btn-confirmar-abrir').addEventListener('click', async f
   closePanel('panel-abrir');
 });
 
+// ── Verificar turnos abiertos de meseros ───────────────────────
+async function checkOpenShifts() {
+  try {
+    const q = sb.from('pos_shifts').select('id, waiter_id, started_at, pos_users!waiter_id(name, role)')
+      .eq('status', 'active');
+    if (S.branchId) q.eq('branch_id', S.branchId);
+    const { data } = await q;
+    return data || [];
+  } catch(e) { console.error('checkOpenShifts:', e); return []; }
+}
+
+async function closeShift(shiftId, rowEl) {
+  try {
+    const { error } = await sb.from('pos_shifts')
+      .update({ status: 'closed', ended_at: new Date().toISOString() })
+      .eq('id', shiftId);
+    if (error) throw error;
+    rowEl.style.opacity = '0.4';
+    rowEl.querySelector('.cj-shift-close-btn').disabled = true;
+    rowEl.querySelector('.cj-shift-close-btn').textContent = 'Cerrado';
+    // Re-check si quedan turnos abiertos
+    const remaining = document.querySelectorAll('.cj-shift-row:not([data-closed])');
+    rowEl.dataset.closed = '1';
+    const open = document.querySelectorAll('.cj-shift-row:not([data-closed="1"])');
+    if (!open.length) {
+      document.getElementById('shifts-warn').style.display = 'none';
+      document.getElementById('btn-confirmar-cerrar').disabled = false;
+    }
+  } catch(e) { showToast('Error al cerrar turno'); }
+}
+window.closeShift = closeShift;
+
 document.getElementById('btn-cerrar').addEventListener('click', async function() {
   if (!S.session) return;
   const moves    = await getMoves();
@@ -582,6 +614,30 @@ document.getElementById('btn-cerrar').addEventListener('click', async function()
     return `<div class="cj-kv"><span class="k${cls||''}">${k}</span><span class="v${cls||''}">${v}</span></div>`;
   }).join('');
 
+  // Verificar turnos de meseros abiertos
+  const openShifts = await checkOpenShifts();
+  const shiftsWarn = document.getElementById('shifts-warn');
+  const shiftsList = document.getElementById('shifts-list');
+  const confirmBtn = document.getElementById('btn-confirmar-cerrar');
+  if (openShifts.length > 0) {
+    shiftsList.innerHTML = openShifts.map(sh => {
+      const nombre = sh.pos_users?.name || 'Mesero';
+      const rol    = sh.pos_users?.role || 'mesero';
+      const desde  = sh.started_at ? new Date(sh.started_at).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'}) : '—';
+      return `<div class="cj-shift-row" data-shift-id="${sh.id}">
+        <div style="display:flex;align-items:center;gap:10px;flex:1">
+          <div style="width:30px;height:30px;border-radius:8px;background:#FEF3C7;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#92400E">${nombre[0].toUpperCase()}</div>
+          <div><div style="font-size:13px;font-weight:600;color:#0F172A">${nombre}</div><div style="font-size:11px;color:#64748B">${rol} · desde ${desde}</div></div>
+        </div>
+        <button class="cj-shift-close-btn cj-btn-ghost sm" onclick="closeShift('${sh.id}', this.closest('.cj-shift-row'))">Cerrar turno</button>
+      </div>`;
+    }).join('');
+    shiftsWarn.style.display = 'block';
+    confirmBtn.disabled = true;
+  } else {
+    shiftsWarn.style.display = 'none';
+    confirmBtn.disabled = false;
+  }
   openPanel('panel-cerrar');
 });
 

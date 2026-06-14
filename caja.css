@@ -306,3 +306,7 @@ button{font-family:inherit;}
 .cj-empty-row{padding:28px 18px;text-align:center;font-size:13px;color:var(--faint);font-weight:500;}
 .cj-bar-wrap{height:5px;background:var(--hairline);border-radius:999px;overflow:hidden;}
 .cj-bar-fill{height:100%;border-radius:999px;transition:width .4s;}
+
+/* ── Turnos abiertos en panel cerrar ─────────────────────── */
+.cj-shift-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#FAFAFA;border:1px solid #ECEEF2;border-radius:10px;}
+.cj-shift-close-btn{font-size:12px;padding:5px 12px;border-radius:8px;white-space:nowrap;cursor:pointer;}
