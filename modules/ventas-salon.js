@@ -19,9 +19,7 @@
 
   // ─── Constantes de estado de domicilio ──────────────
   const DELIVERY_META = {
-    recibido:    { label: 'Recibido',       color: '#94A3B8', tint: '#F8FAFC', ring: '#E2E8F0' },
     preparacion: { label: 'En preparación', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA' },
-    listo:       { label: 'Listo',          color: '#8B5CF6', tint: '#F5F3FF', ring: '#DDD6FE' },
     camino:      { label: 'En camino',      color: '#3B82F6', tint: '#EFF6FF', ring: '#BFDBFE' },
     entregado:   { label: 'Entregado',      color: '#22C55E', tint: '#F0FDF4', ring: '#BBF7D0' },
   };
@@ -36,16 +34,16 @@
   };
 
   const DOMI_SEED = [
-    { id: 'D-1042', cliente: 'Jesús Gómez',      canal: 'whatsapp',  items: 3, total: 54000, estado: 'recibido',    payStatus: 'pendiente', payWhen: 'contraentrega', metodo: 'efectivo',      domiciliario: 'Felipe Ríos', min: 4 },
-    { id: 'D-1041', cliente: 'Adriana Eraso',    canal: 'instagram', items: 2, total: 42000, estado: 'preparacion', payStatus: 'pagado',    payWhen: 'adelantado',    metodo: 'transferencia', domiciliario: 'Felipe Ríos', min: 9 },
-    { id: 'D-1040', cliente: 'Camilo Restrepo',  canal: 'web',       items: 5, total: 85000, estado: 'listo',       payStatus: 'pagado',    payWhen: 'adelantado',    metodo: 'tarjeta',       domiciliario: '—',           min: 14 },
-    { id: 'D-1039', cliente: 'Karen J. San I.',  canal: 'whatsapp',  items: 4, total: 52000, estado: 'camino',      payStatus: 'pendiente', payWhen: 'contraentrega', metodo: 'efectivo',      domiciliario: 'Rappi',       min: 22 },
-    { id: 'D-1038', cliente: 'Víctor R. Llanos', canal: 'facebook',  items: 2, total: 36000, estado: 'camino',      payStatus: 'pagado',    payWhen: 'adelantado',    metodo: 'transferencia', domiciliario: 'Picap',       min: 27 },
-    { id: 'D-1037', cliente: 'Mariana Ortiz',    canal: 'tiktok',    items: 6, total: 101000, estado: 'entregado',  payStatus: 'pagado',    payWhen: 'contraentrega', metodo: 'efectivo',      domiciliario: 'Felipe Ríos', min: 41 },
+    { id: 'D-1042', cliente: 'Jesús Gómez',      canal: 'whatsapp',  items: 3, total: 54000, estado: 'preparacion', payStatus: 'pendiente', metodo: 'efectivo',      domiciliario: 'Felipe Ríos', min: 4 },
+    { id: 'D-1041', cliente: 'Adriana Eraso',    canal: 'instagram', items: 2, total: 42000, estado: 'preparacion', payStatus: 'pagado',    metodo: 'transferencia', domiciliario: 'Felipe Ríos', min: 9 },
+    { id: 'D-1040', cliente: 'Camilo Restrepo',  canal: 'web',       items: 5, total: 85000, estado: 'camino',      payStatus: 'pagado',    metodo: 'tarjeta',       domiciliario: '—',           min: 14 },
+    { id: 'D-1039', cliente: 'Karen J. San I.',  canal: 'whatsapp',  items: 4, total: 52000, estado: 'camino',      payStatus: 'pendiente', metodo: 'efectivo',      domiciliario: 'Rappi',       min: 22 },
+    { id: 'D-1038', cliente: 'Víctor R. Llanos', canal: 'facebook',  items: 2, total: 36000, estado: 'entregado',   payStatus: 'pagado',    metodo: 'transferencia', domiciliario: 'Picap',       min: 27 },
+    { id: 'D-1037', cliente: 'Mariana Ortiz',    canal: 'tiktok',    items: 6, total: 101000, estado: 'entregado',  payStatus: 'pagado',    metodo: 'efectivo',      domiciliario: 'Felipe Ríos', min: 41 },
   ];
 
-  const DELIVERY_NEXT = { recibido: 'preparacion', preparacion: 'listo', listo: 'camino', camino: 'entregado' };
-  const DELIVERY_BTN  = { recibido: 'En preparación', preparacion: 'Listo', listo: 'En camino', camino: 'Entregado' };
+  const DELIVERY_NEXT = { preparacion: 'camino', camino: 'entregado' };
+  const DELIVERY_BTN  = { preparacion: 'En camino', camino: 'Entregado' };
 
   const CHIP_ORDER_KEY = 'lumen.ventas.chipOrder';
   const CONFIG_KEY = 'lumen.config.salon.v1';
