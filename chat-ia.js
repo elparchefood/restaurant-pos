@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   Chat IA — Lumen POS
+   Chat IA — Cobra POS
    Bandeja omnicanal: WhatsApp · Instagram · Facebook · TikTok
    ═══════════════════════════════════════════════════════════ */
 

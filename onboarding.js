@@ -1,4 +1,4 @@
-/* onboarding.js — Wizard de primer ingreso · Lumen POS */
+/* onboarding.js — Wizard de primer ingreso · Cobra POS */
 /* 3 pasos: Restaurante → Sucursal → Confirmacion */
 /* Crea tenant/brand/branch en Supabase, inicializa localStorage */
 

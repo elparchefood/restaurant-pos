@@ -1,4 +1,4 @@
-/* domicilios.js — Módulo Domicilios · Lumen POS
+/* domicilios.js — Módulo Domicilios · Cobra POS
    Stack: HTML/CSS/JS vanilla + Supabase
    Credenciales: definidas en pos-core.js (sb ya disponible)
    Fuente: convertido desde JSX (domicilios-src-2552bc74, 35f24634, 9f4f6970)

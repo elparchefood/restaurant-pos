@@ -1,5 +1,5 @@
 /* =====================================================
-   login.js — Auth + Registro multi-paso Lumen POS
+   login.js — Auth + Registro multi-paso Cobra POS
    pos-core.js ya define: sb, $, COPF, COP
    ===================================================== */
 

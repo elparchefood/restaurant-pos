@@ -1,4 +1,4 @@
-/* configuracion.js — Mesas y zonas · Lumen POS */
+/* configuracion.js — Mesas y zonas · Cobra POS */
 /* Depende de: pos-core.js (sb, $) */
 
 // ── Estado ──────────────────────────────────────────────

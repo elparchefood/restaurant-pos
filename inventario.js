@@ -105,7 +105,7 @@ async function loadData() {
     document.getElementById('tb-uname').textContent   = fullName;
     document.getElementById('tb-urole').textContent   = meta.role || 'Administrador';
     const restaurantName = meta.restaurant_name || 'El Parche Food';
-    document.getElementById('sb-brand').textContent   = 'Lumen POS';
+    document.getElementById('sb-brand').textContent   = 'Cobra POS';
     document.getElementById('sb-subbrand').textContent = restaurantName + ' · Caja 01';
 
     await loadProductos();

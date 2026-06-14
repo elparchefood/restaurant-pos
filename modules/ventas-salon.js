@@ -392,7 +392,7 @@
         <div class="vs-brand-mark">
           <div class="vs-brand-logo">L</div>
           <div>
-            <div class="vs-brand-name">Lumen POS</div>
+            <div class="vs-brand-name">Cobra POS</div>
             <div class="vs-brand-sub">${branch.name || 'El Parche Food'} · Caja 01</div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-// register.js — Flujo de registro Lumen POS
+// register.js — Flujo de registro Cobra POS
 
 // ── Estado global ──────────────────────────────────────────────────────
 var PLAN     = 'pro';
