@@ -140,25 +140,38 @@
 
     if (!baseTables.length) return [];
 
-    // 2. Enriquecer con datos live de Supabase (status, total, etc.)
+    // 2. Enriquecer con estado de pos_tables y datos reales de pos_orders
     try {
       const sb = window._pos && window._pos.sb;
       if (sb) {
         const ids = baseTables.map(function(t){ return t.id; });
-        const { data } = await sb.from('pos_tables').select('*').in('id', ids);
-        const liveMap = {};
-        (data || []).forEach(function(r){ liveMap[r.id] = r; });
-
+        const { data: tablesData } = await sb.from('pos_tables').select('id, status, current_order_id').in('id', ids);
+        const tableMap = {};
+        (tablesData || []).forEach(function(r){ tableMap[r.id] = r; });
+        const { data: ordersData } = await sb
+          .from('pos_orders')
+          .select('id, table_id, total, guests, waiter_name, opened_at, created_at')
+          .in('table_id', ids)
+          .not('status', 'eq', 'completed')
+          .not('status', 'eq', 'cancelled');
+        const orderMap = {};
+        (ordersData || []).forEach(function(o){ orderMap[o.table_id] = o; });
         return baseTables.map(function(t) {
-          const live = liveMap[t.id];
-          if (!live) return t;
+          const live = tableMap[t.id];
+          const ord  = orderMap[t.id];
+          const now  = Date.now();
+          const openedAt = ord?.opened_at || ord?.created_at;
+          const minutes = openedAt ? Math.round((now - new Date(openedAt).getTime()) / 60000) : 0;
+          const initials = ord?.waiter_name
+            ? ord.waiter_name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2)
+            : '';
           return Object.assign({}, t, {
-            status: live.status || t.status,
-            total: live.total || 0,
-            items_count: live.items_count || 0,
-            minutes: live.minutes || 0,
-            mesero_initials: live.mesero_initials || '',
-            persons: live.persons || 0,
+            status:          live?.status || t.status,
+            total:           ord?.total   || 0,
+            items_count:     0,
+            minutes:         minutes,
+            mesero_initials: initials,
+            persons:         ord?.guests  || 0,
           });
         });
       }
@@ -187,7 +200,7 @@
     const order = orders[0];
     const { data: items, error: itemErr } = await sb
       .from('pos_order_items')
-      .select('id, quantity, product_name, name, product_price, unit_price, notes')
+      .select('id, quantity, product_name, name, product_price, unit_price, notes, product_id, pos_products(category_id, pos_categories(name))')
       .eq('order_id', order.id)
       .order('created_at', { ascending: true });
 
@@ -228,7 +241,11 @@
     }
 
     state.loading = false;
-    state.currentOrder = null;
+    if (state.selectedTableId) {
+      const { order, items } = await fetchOrderData(state.selectedTableId);
+      state.currentOrder = order;
+      state.orderItems   = items;
+    }
     render();
   }
 
@@ -711,12 +728,13 @@
       ? state.orderItems.map(it => {
           const itemName = it.product_name || it.name || '—';
           const itemPrice = it.product_price || it.unit_price || 0;
-          return `
+          const categoryName = it.pos_products?.pos_categories?.name || '';
+        return `
           <div class="vs-order-item">
             <span class="vs-order-qty">${it.quantity}×</span>
             <div class="vs-order-item-info">
               <div class="vs-order-item-name">${itemName}</div>
-              ${it.notes ? `<div class="vs-order-item-area">${it.notes}</div>` : ''}
+              ${categoryName ? `<div class="vs-order-item-area">${categoryName}</div>` : (it.notes ? `<div class="vs-order-item-area">${it.notes}</div>` : '')}
             </div>
             <div class="vs-order-item-price">${fmt(itemPrice * it.quantity)}</div>
           </div>`;
@@ -741,7 +759,7 @@
          </div>`
       : `<div class="vs-actions">
            <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
-           <button class="lm-btn-ghost" data-action="add-item" data-table-id="${mesa.id}">+ Ítem</button>
+           <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
            <button class="lm-btn-primary" data-action="collect" data-table-id="${mesa.id}">Cobrar</button>
          </div>`;
 
