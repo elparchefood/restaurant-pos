@@ -476,6 +476,98 @@
   </div>
 </div>
 
+
+<!-- MODAL IA RECETA -->
+<div class="iv-overlay center is-hidden" id="panel-ia-receta" onclick="if(event.target===this)closeIAReceta()">
+  <div class="ia-modal" onclick="event.stopPropagation()">
+
+    <!-- HEAD -->
+    <div class="ia-modal-head">
+      <div class="ia-steps">
+        <span class="ia-step-dot active" id="iadot-1">1</span>
+        <span class="ia-step-line" id="iadot-line-1"></span>
+        <span class="ia-step-dot" id="iadot-2">2</span>
+        <span class="ia-step-line" id="iadot-line-2"></span>
+        <span class="ia-step-dot" id="iadot-3">3</span>
+        <span class="ia-modal-head-title" id="ia-head-title">Analizando receta</span>
+      </div>
+      <button class="iv-close" onclick="closeIAReceta()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- PROD INFO -->
+    <div class="ia-prod-banner" id="ia-prod-banner">
+      <div>
+        <div class="ia-prod-cat" id="ia-prod-cat">Categoría</div>
+        <div class="ia-prod-name" id="ia-prod-name">Producto</div>
+      </div>
+      <div class="ia-prod-desc" id="ia-prod-desc">Descripción del plato</div>
+    </div>
+
+    <!-- BODY STEPS -->
+    <div class="ia-modal-body">
+
+      <!-- PASO 1: Analizando -->
+      <div class="ia-step" id="ia-step-1">
+        <div class="ia-analyzing">
+          <div class="ia-spin-wrap">
+            <svg class="ia-spinner" viewBox="0 0 50 50"><circle class="ia-spinner-track" cx="25" cy="25" r="20" fill="none" stroke-width="4"/><circle class="ia-spinner-arc" cx="25" cy="25" r="20" fill="none" stroke-width="4"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute"><path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10"/><path d="m4.93 4.93 4.24 4.24"/></svg>
+          </div>
+          <div class="ia-analyzing-title">GPT-4o está analizando…</div>
+          <div class="ia-analyzing-msg" id="ia-msg">Identificando ingredientes de la descripción…</div>
+          <div class="ia-step-tags">
+            <span class="ia-tag base">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+              Base detectada
+            </span>
+            <span class="ia-tag ingr">Extrayendo ingredientes</span>
+            <span class="ia-tag units">Sugiriendo medidas</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 2: Revisar medidas -->
+      <div class="ia-step is-hidden" id="ia-step-2">
+        <div class="ia-step-header">
+          <div class="ia-step-title">Confirma las medidas</div>
+          <div class="ia-step-sub">Ajusta cantidades y unidades para una porción · la IA sugiere valores típicos</div>
+        </div>
+        <div class="ia-ingr-list" id="ia-ingr-list">
+          <!-- rows inyectados por JS -->
+        </div>
+      </div>
+
+      <!-- PASO 3: Duplicados -->
+      <div class="ia-step is-hidden" id="ia-step-3">
+        <div class="ia-step-header">
+          <div class="ia-step-title">Ingredientes ya en tu inventario</div>
+          <div class="ia-step-sub">Elige si vincularlos al insumo existente o crear uno nuevo</div>
+        </div>
+        <div class="ia-dedup-list" id="ia-dedup-list">
+          <!-- rows inyectados por JS -->
+        </div>
+      </div>
+
+    </div><!-- /ia-modal-body -->
+
+    <!-- FOOT -->
+    <div class="ia-modal-foot">
+      <button class="iv-btn-ghost" onclick="closeIAReceta()" id="ia-btn-cancel">Cancelar</button>
+      <button class="iv-btn-primary is-hidden" id="ia-btn-next" onclick="iaNext()">
+        Continuar
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+      <button class="iv-btn-primary is-hidden" id="ia-btn-save" onclick="iaGuardarReceta()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Guardar receta
+      </button>
+    </div>
+
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="iv-toast is-hidden" id="iv-toast"></div>
 
