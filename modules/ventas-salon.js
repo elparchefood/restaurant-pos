@@ -16,6 +16,37 @@
     comiendo:       { label: 'Comiendo',          short: 'Comiendo',  color: '#5B6BFF', tint: '#EEF2FF', ring: '#C7D2FE', hint: 'servidas en mesa',    icon: SVG_FOOD },
   };
 
+
+  // ─── Constantes de estado de domicilio ──────────────
+  const DELIVERY_META = {
+    recibido:    { label: 'Recibido',       color: '#94A3B8', tint: '#F8FAFC', ring: '#E2E8F0' },
+    preparacion: { label: 'En preparación', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA' },
+    listo:       { label: 'Listo',          color: '#8B5CF6', tint: '#F5F3FF', ring: '#DDD6FE' },
+    camino:      { label: 'En camino',      color: '#3B82F6', tint: '#EFF6FF', ring: '#BFDBFE' },
+    entregado:   { label: 'Entregado',      color: '#22C55E', tint: '#F0FDF4', ring: '#BBF7D0' },
+  };
+
+  const CANAL_META = {
+    whatsapp: { label: 'WhatsApp', color: '#22C55E', bg: '#DCFCE7' },
+    instagram: { label: 'Instagram', color: '#E1306C', bg: '#FCE7F3' },
+    web:      { label: 'Página web', color: '#3B82F6', bg: '#DBEAFE' },
+    facebook: { label: 'Facebook', color: '#1877F2', bg: '#DBEAFE' },
+    tiktok:   { label: 'TikTok', color: '#0F172A', bg: '#F1F5F9' },
+    telefono: { label: 'Teléfono', color: '#64748B', bg: '#F1F5F9' },
+  };
+
+  const DOMI_SEED = [
+    { id: 'D-1042', cliente: 'Jesús Gómez',      canal: 'whatsapp',  items: 3, total: 54000, estado: 'recibido',    payStatus: 'pendiente', payWhen: 'contraentrega', metodo: 'efectivo',      domiciliario: 'Felipe Ríos', min: 4 },
+    { id: 'D-1041', cliente: 'Adriana Eraso',    canal: 'instagram', items: 2, total: 42000, estado: 'preparacion', payStatus: 'pagado',    payWhen: 'adelantado',    metodo: 'transferencia', domiciliario: 'Felipe Ríos', min: 9 },
+    { id: 'D-1040', cliente: 'Camilo Restrepo',  canal: 'web',       items: 5, total: 85000, estado: 'listo',       payStatus: 'pagado',    payWhen: 'adelantado',    metodo: 'tarjeta',       domiciliario: '—',           min: 14 },
+    { id: 'D-1039', cliente: 'Karen J. San I.',  canal: 'whatsapp',  items: 4, total: 52000, estado: 'camino',      payStatus: 'pendiente', payWhen: 'contraentrega', metodo: 'efectivo',      domiciliario: 'Rappi',       min: 22 },
+    { id: 'D-1038', cliente: 'Víctor R. Llanos', canal: 'facebook',  items: 2, total: 36000, estado: 'camino',      payStatus: 'pagado',    payWhen: 'adelantado',    metodo: 'transferencia', domiciliario: 'Picap',       min: 27 },
+    { id: 'D-1037', cliente: 'Mariana Ortiz',    canal: 'tiktok',    items: 6, total: 101000, estado: 'entregado',  payStatus: 'pagado',    payWhen: 'contraentrega', metodo: 'efectivo',      domiciliario: 'Felipe Ríos', min: 41 },
+  ];
+
+  const DELIVERY_NEXT = { recibido: 'preparacion', preparacion: 'listo', listo: 'camino', camino: 'entregado' };
+  const DELIVERY_BTN  = { recibido: 'En preparación', preparacion: 'Listo', listo: 'En camino', camino: 'Entregado' };
+
   const CHIP_ORDER_KEY = 'lumen.ventas.chipOrder';
   const CONFIG_KEY = 'lumen.config.salon.v1';
   const COBRO_KEY = 'lumen.config.cobro_adelantado';
@@ -36,6 +67,7 @@
     cobroAdelantado: false,
     userRole: 'mesero',
     currentOrder: null,
+    deliveries: DOMI_SEED.map(d => Object.assign({}, d)),
   };
 
   let container = null;
@@ -305,14 +337,12 @@
         ${renderSidebar(user, branch)}
         <main class="vs-main">
           ${renderTopbar(user)}
-          ${renderSummaryRow()}
+          ${state.floor === '__domicilios__' ? '' : renderSummaryRow()}
           <section class="vs-body">
             <div class="vs-body-left">
-              ${renderGrid()}
+              ${state.floor === '__domicilios__' ? renderDomicilioGrid() : renderGrid()}
             </div>
-            <aside class="vs-rail" id="vs-rail">
-              ${renderRailContent()}
-            </aside>
+            ${state.floor === '__domicilios__' ? '' : `<aside class="vs-rail" id="vs-rail">${renderRailContent()}</aside>`}
           </section>
         </main>
       </div>
@@ -407,7 +437,9 @@
       const count = state.tables.filter(t => t.zone_id === z.id).length;
       return `<button class="lm-tab ${state.floor === z.id ? 'is-active' : ''}" data-floor="${z.id}">${z.name}<span class="vs-tab-count">${count}</span></button>`;
     }).join('');
-    const legendHtml = Object.entries(STATE_META).map(([k, m]) => `
+    const isDomicilios = state.floor === '__domicilios__';
+    const legendSrc = isDomicilios ? DELIVERY_META : STATE_META;
+    const legendHtml = Object.entries(legendSrc).map(([k, m]) => `
       <span class="vs-legend-item">
         <span class="vs-legend-dot" style="background:${m.color}"></span>
         ${m.label}
@@ -415,7 +447,13 @@
     return `
       <header class="vs-topbar" id="vs-salon-tabs">
         <div class="vs-topbar-left">
-          <div class="vs-tabs-group">${tabsHtml}</div>
+          <div class="vs-tabs-group">
+            ${tabsHtml}
+            <button class="lm-tab vs-tab-domicilios ${state.floor === '__domicilios__' ? 'is-active' : ''}" data-floor="__domicilios__">
+              Domicilios
+              <span class="vs-tab-count">${state.deliveries.filter(d => d.estado !== 'entregado').length}</span>
+            </button>
+          </div>
         </div>
         <div class="vs-topbar-right">
           <div class="vs-legend">${legendHtml}</div>
@@ -549,6 +587,57 @@
         <div class="vs-tabs-group">${tabsHtml}</div>
         <div class="vs-legend">${legendHtml}</div>
       </div>
+    `;
+  }
+
+
+  // ─── Render: Domicilio grid ───────────────────────
+  function renderDomicilioGrid() {
+    const list = state.deliveries;
+    if (!list.length) {
+      return `<div class="vs-grid" style="grid-auto-rows:160px;align-content:start"><div class="vs-loading">Sin domicilios activos</div></div>`;
+    }
+    const cards = list.map(d => renderDomicilioCard(d)).join('');
+    return `<div class="vs-grid vs-domi-grid" id="vs-grid" style="grid-auto-rows:160px;align-content:start">${cards}</div>`;
+  }
+
+  function renderDomicilioCard(d) {
+    const meta  = DELIVERY_META[d.estado] || DELIVERY_META.recibido;
+    const canal = CANAL_META[d.canal] || { label: d.canal, color: '#64748B', bg: '#F1F5F9' };
+    const mins  = d.min || 0;
+    const timeStr = mins < 60 ? `hace ${mins}m` : `hace ${Math.floor(mins/60)}h ${mins%60}m`;
+    const isPagado = d.payStatus === 'pagado';
+    const payLabel = isPagado ? 'Pagado' : 'Por pagar';
+    const payColor = isPagado ? '#16A34A' : '#D97706';
+    const payBg    = isPagado ? '#DCFCE7' : '#FEF3C7';
+    const nextLabel = DELIVERY_BTN[d.estado];
+    const hasNext = !!nextLabel;
+
+    return `
+      <button class="lm-mesa vs-domi-card" data-domi-id="${d.id}"
+        style="background:${meta.tint};border-color:${meta.ring};height:160px;max-height:160px;min-height:0;overflow:hidden;text-align:left;cursor:pointer;display:flex;flex-direction:column;padding:10px 12px;gap:4px;border-radius:12px;border:1.5px solid ${meta.ring};width:100%">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;font-weight:600;color:#64748B">${d.id}</span>
+          <span style="font-size:10px;color:#94A3B8">${timeStr}</span>
+        </div>
+        <div style="font-size:13px;font-weight:700;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.cliente}</div>
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+          <span style="font-size:10px;font-weight:600;color:${canal.color};background:${canal.bg};padding:2px 6px;border-radius:4px">${canal.label}</span>
+          <span style="font-size:10px;color:#64748B">✦ ${d.items} ítem${d.items !== 1 ? 's' : ''}</span>
+          ${d.domiciliario && d.domiciliario !== '—' ? `<span style="font-size:10px;color:#64748B">· ${d.domiciliario}</span>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:5px">
+          <span style="font-size:10px;font-weight:600;color:${payColor};background:${payBg};padding:2px 6px;border-radius:4px">${payLabel}</span>
+          <span style="font-size:10px;color:#94A3B8">${d.metodo}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:auto">
+          <span style="font-size:14px;font-weight:700;color:#0F172A">${fmt(d.total)}</span>
+          ${hasNext
+            ? `<button class="lm-btn-ghost vs-domi-advance" data-domi-id="${d.id}" style="font-size:10px;padding:3px 8px;height:auto;border-color:${meta.color};color:${meta.color}">${nextLabel} →</button>`
+            : `<span style="font-size:10px;font-weight:600;color:${meta.color}">✓ ${meta.label}</span>`
+          }
+        </div>
+      </button>
     `;
   }
 
@@ -822,6 +911,19 @@
         state.floor = btn.dataset.floor;
         state.selectedTableId = null;
         render();
+      });
+    });
+
+    // Domicilio advance buttons
+    container.querySelectorAll('.vs-domi-advance').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.domiId;
+        const d = state.deliveries.find(x => x.id === id);
+        if (d && DELIVERY_NEXT[d.estado]) {
+          d.estado = DELIVERY_NEXT[d.estado];
+          render();
+        }
       });
     });
 
