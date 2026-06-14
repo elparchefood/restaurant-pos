@@ -740,3 +740,54 @@ svg { display: block; }
 .pg-split-strip-sub   { font-size: 11px; color: var(--ink-4); margin-top: 1px; }
 .pg-split-dots { display: flex; gap: 4px; align-items: center; }
 .pg-split-dot  { width: 8px; height: 8px; border-radius: var(--r-pill); }
+
+/* ── Botón Ver pagos ─────────────────────────────────────────────────── */
+.lm-view-payments {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-tint, #EEF0FF);
+  border: none;
+  border-radius: 20px;
+  padding: 4px 10px 4px 8px;
+  cursor: pointer;
+  margin-bottom: 6px;
+  transition: opacity .15s;
+}
+.lm-view-payments:hover { opacity: .8; }
+
+/* ── Modal resumen pagos ─────────────────────────────────────────────── */
+#payments-modal .pg-modal-card {
+  width: 100%;
+}
+.pg-payment-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--surface, #F8FAFC);
+  border: 1px solid var(--border, #ECEEF2);
+  border-radius: 10px;
+}
+.pg-payment-row-icon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-tint, #EEF0FF);
+  color: var(--accent, #5B6BFF);
+  flex-shrink: 0;
+}
+.pg-payment-row-info { flex: 1; min-width: 0; }
+.pg-payment-row-method { font-size: 12px; font-weight: 600; color: var(--ink); }
+.pg-payment-row-sub    { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.pg-payment-row-amt    { font-size: 14px; font-weight: 700; color: var(--ink); }
+.pg-payment-row-del {
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); padding: 4px; border-radius: 6px;
+  display: flex; align-items: center;
+  transition: color .15s, background .15s;
+}
+.pg-payment-row-del:hover { color: #EF4444; background: #FEF2F2; }

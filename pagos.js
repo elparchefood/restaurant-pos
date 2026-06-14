@@ -184,13 +184,19 @@ function renderApplied() {
   const list  = document.getElementById('applied-list');
   const empty = document.getElementById('applied-empty');
 
+  const btnView = document.getElementById('btn-view-payments');
   if (!SP.payments.length) {
-    empty.hidden = false;
-    list.hidden  = true;
+    empty.hidden   = false;
+    list.hidden    = true;
+    if (btnView) btnView.hidden = true;
     return;
   }
   empty.hidden = true;
   list.hidden  = false;
+  if (btnView) {
+    btnView.hidden = false;
+    btnView.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Ver pagos (${SP.payments.length})`;
+  }
 
   list.innerHTML = SP.payments.map(p => {
     const hasCambio = p.received > p.amount;
@@ -301,6 +307,7 @@ async function finalizarPago() {
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-action],[data-digit],[data-bill],[data-method],[data-dtype],[data-dval],[data-motivo],[data-smode],[data-item-id]');
   // Cerrar modales al hacer click en el overlay
+  if (e.target.id === 'payments-modal')  { closePaymentsModal(); return; }
   if (e.target.id === 'discount-modal') { closeDiscountModal(); return; }
   if (e.target.id === 'split-modal')    { closeSplitModal();    return; }
 
@@ -400,6 +407,13 @@ document.addEventListener('click', e => {
       break;
     case 'split':          openSplitModal();    break;
     case 'discount':       openDiscountModal(); break;
+    case 'view-payments':    openPaymentsModal();   break;
+    case 'close-payments':   closePaymentsModal();  break;
+    case 'modal-remove-payment':
+      removePayment(el.dataset.id);
+      if (!SP.payments.length) closePaymentsModal();
+      else openPaymentsModal();
+      break;
     case 'close-discount': closeDiscountModal(); break;
     case 'discount-apply': applyDiscount();      break;
     case 'discount-quitar': quitarDiscount();    break;
@@ -491,6 +505,46 @@ async function loadOrder() {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────
+// ── Modal resumen de pagos ────────────────────────────────────────────────
+function openPaymentsModal() {
+  const { subtotal, tipAmt, total, paid, falta } = calc();
+  const list = document.getElementById('payments-modal-list');
+  const summary = document.getElementById('payments-modal-summary');
+
+  if (!SP.payments.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:16px 0">Sin pagos registrados aún.</div>';
+  } else {
+    list.innerHTML = SP.payments.map(p => `
+      <div class="pg-payment-row">
+        <div class="pg-payment-row-icon">${APPLIED_ICONS[p.method] || ''}</div>
+        <div class="pg-payment-row-info">
+          <div class="pg-payment-row-method">${METHOD_META[p.method]?.label || p.method}</div>
+          ${p.received && p.received !== p.amount
+            ? `<div class="pg-payment-row-sub">Recibido: ${fmt(p.received)} · Vuelto: ${fmt(p.received - p.amount)}</div>`
+            : ''}
+        </div>
+        <div class="pg-payment-row-amt">${fmt(p.amount)}</div>
+        <button class="pg-payment-row-del" data-action="modal-remove-payment" data-id="${p.id}" title="Eliminar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      </div>`).join('');
+  }
+
+  summary.innerHTML = `
+    <div class="pg-modal-summary-row"><span>Subtotal</span><span>${fmt(subtotal)}</span></div>
+    ${SP.discount > 0 ? `<div class="pg-modal-summary-row is-danger"><span>Descuento</span><span>− ${fmt(SP.discount)}</span></div>` : ''}
+    ${tipAmt > 0 ? `<div class="pg-modal-summary-row"><span>Propina 10 %</span><span>${fmt(tipAmt)}</span></div>` : ''}
+    <div class="pg-modal-summary-row is-total"><span>Total</span><span>${fmt(total)}</span></div>
+    <div class="pg-modal-summary-row" style="margin-top:4px"><span>Pagado</span><span style="color:#16A34A;font-weight:700">${fmt(paid)}</span></div>
+    ${falta > 0 ? `<div class="pg-modal-summary-row is-danger"><span>Falta</span><span>${fmt(falta)}</span></div>` : ''}`;
+
+  document.getElementById('payments-modal').hidden = false;
+}
+
+function closePaymentsModal() {
+  document.getElementById('payments-modal').hidden = true;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   // 1. Auth
   const { data: { user } } = await sb.auth.getUser();
