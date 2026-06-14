@@ -305,7 +305,6 @@
         ${renderSidebar(user, branch)}
         <main class="vs-main">
           ${renderTopbar(user)}
-          ${renderPageHead()}
           ${renderSummaryRow()}
           <section class="vs-body">
             <div class="vs-body-left">
@@ -435,6 +434,7 @@
           <button class="lm-icon" title="Caja">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h.01M18 12h.01"/></svg>
           </button>
+          <button class="vs-cobro-toggle ${state.cobroAdelantado ? 'vs-cobro-on' : ''}" id="vs-cobro-toggle" title="${state.cobroAdelantado ? 'Cobro adelantado activo' : 'Cobro al final activo'}"><span class="vs-cobro-dot"></span><span class="vs-cobro-label">${state.cobroAdelantado ? 'Cobro adelantado' : 'Cobro al final'}</span></button>
           <div class="vs-ram-chip" id="vs-ram">RAM —</div>
           <div class="vs-user-info">
             <div class="lm-avatar lm-avatar-sm">${initials}</div>
@@ -991,13 +991,13 @@
         await sb.from('branches').update({ cobro_adelantado: nuevoValor }).eq('id', branchId);
       }
     } catch(e) { /* ignore */ }
-    // Re-render header para reflejar cambio de toggle
-    const pageHead = container && container.querySelector('.vs-page-head');
-    if (pageHead) {
-      pageHead.outerHTML = renderPageHead();
-      // Re-attach toggle event
-      const btn = container.getElementById ? container.getElementById('vs-cobro-toggle') : document.getElementById('vs-cobro-toggle');
-      if (btn) btn.addEventListener('click', toggleCobro);
+    // Update toggle button in topbar
+    const btn = document.getElementById('vs-cobro-toggle');
+    if (btn) {
+      btn.className = 'vs-cobro-toggle' + (nuevoValor ? ' vs-cobro-on' : '');
+      btn.title = nuevoValor ? 'Cobro adelantado activo' : 'Cobro al final activo';
+      btn.querySelector('.vs-cobro-label').textContent = nuevoValor ? 'Cobro adelantado' : 'Cobro al final';
+      btn.addEventListener('click', toggleCobro);
     }
   }
 
