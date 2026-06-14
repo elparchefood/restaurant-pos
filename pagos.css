@@ -620,6 +620,7 @@ svg { display: block; }
 .pg-modal-overlay[hidden] { display: none !important; }
 
 .pg-modal-card {
+  position: relative;
   width: 404px; background: #fff; border-radius: var(--r-card);
   padding: 22px; box-shadow: var(--sh-overlay);
   animation: lmPop .25s cubic-bezier(.2,.9,.3,1.3);
@@ -634,6 +635,20 @@ svg { display: block; }
   display: flex; align-items: center; justify-content: center;
 }
 .pg-modal-title { font-size: 15px; font-weight: 800; color: var(--ink); letter-spacing: -0.01em; }
+.pg-modal-close {
+  position: absolute;
+  top: 14px; right: 14px;
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: var(--surface, #F8FAFC);
+  color: var(--muted, #94A3B8);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  flex-shrink: 0;
+}
+.pg-modal-close:hover { background: #FEE2E2; color: #EF4444; }
 .pg-modal-sub   { font-size: 11.5px; color: var(--muted); font-weight: 500; margin-top: 2px; }
 .pg-modal-head .pg-modal-title-wrap { flex: 1; }
 .pg-seg-row {
