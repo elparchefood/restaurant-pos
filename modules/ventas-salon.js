@@ -1296,12 +1296,14 @@
   async function init(mountContainer) {
     container = mountContainer;
 
-    // Inject stylesheet if not already present
-    if (!document.getElementById('vs-styles')) {
+    // Inject stylesheet (always fresh)
+    const existingStyle = document.getElementById('vs-styles');
+    if (existingStyle) existingStyle.remove();
+    if (true) {
       const link = document.createElement('link');
       link.id = 'vs-styles';
       link.rel = 'stylesheet';
-      link.href = 'styles/modules/ventas-salon.css';
+      link.href = 'styles/modules/ventas-salon.css?v=' + Date.now();
       document.head.appendChild(link);
     }
 
