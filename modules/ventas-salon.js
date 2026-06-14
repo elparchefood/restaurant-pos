@@ -308,7 +308,6 @@
           ${renderSummaryRow()}
           <section class="vs-body">
             <div class="vs-body-left">
-              ${renderSalonTabs()}
               ${renderGrid()}
             </div>
             <aside class="vs-rail" id="vs-rail">
@@ -403,46 +402,24 @@
 
   // ─── Render: Topbar ──────────────────────────────────
   function renderTopbar(user) {
-    const name = user.name || 'Usuario';
-    const initials = user.initials || (name ? name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() : '??');
-    const role = user.role_label || 'Mesero';
-
+    const zones = state.zones.length ? state.zones : loadZonesFromConfig();
+    const tabsHtml = zones.map(z => {
+      const count = state.tables.filter(t => t.zone_id === z.id).length;
+      return `<button class="lm-tab ${state.floor === z.id ? 'is-active' : ''}" data-floor="${z.id}">${z.name}<span class="vs-tab-count">${count}</span></button>`;
+    }).join('');
+    const legendHtml = Object.entries(STATE_META).map(([k, m]) => `
+      <span class="vs-legend-item">
+        <span class="vs-legend-dot" style="background:${m.color}"></span>
+        ${m.label}
+      </span>`).join('');
     return `
-      <header class="vs-topbar">
+      <header class="vs-topbar" id="vs-salon-tabs">
         <div class="vs-topbar-left">
-          <div class="vs-mode-badge">
-            <span class="vs-mode-dot"></span>
-            Modo Servidor
-          </div>
-          <div class="vs-crumbs">
-            <span class="vs-crumb-parent">Ventas</span>
-            ${SVG_CHEVRON(10).replace('stroke="currentColor"','stroke="#CBD5E1"')}
-            <span class="vs-crumb-current">Por salón</span>
-          </div>
+          <div class="vs-tabs-group">${tabsHtml}</div>
         </div>
         <div class="vs-topbar-right">
-          <div class="vs-pill-success">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            Actualizado
-          </div>
-          <button class="lm-icon" title="Ayuda">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          </button>
-          <button class="lm-icon" title="Cocina">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
-          </button>
-          <button class="lm-icon" title="Caja">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h.01M18 12h.01"/></svg>
-          </button>
+          <div class="vs-legend">${legendHtml}</div>
           <button class="vs-cobro-toggle ${state.cobroAdelantado ? 'vs-cobro-on' : ''}" id="vs-cobro-toggle" title="${state.cobroAdelantado ? 'Cobro adelantado activo' : 'Cobro al final activo'}"><span class="vs-cobro-dot"></span><span class="vs-cobro-label">${state.cobroAdelantado ? 'Cobro adelantado' : 'Cobro al final'}</span></button>
-          <div class="vs-ram-chip" id="vs-ram">RAM —</div>
-          <div class="vs-user-info">
-            <div class="lm-avatar lm-avatar-sm">${initials}</div>
-            <div>
-              <div class="vs-user-name">${name}</div>
-              <div class="vs-user-role">${role}</div>
-            </div>
-          </div>
         </div>
       </header>
     `;
