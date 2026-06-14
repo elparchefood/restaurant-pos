@@ -156,7 +156,7 @@
 
 /* ─── Topbar ─── */
 .vs-topbar {
-  height: 60px;
+  height: 64px;
   background: #FFFFFF;
   border-bottom: 1px solid #ECEEF2;
   display: flex;
