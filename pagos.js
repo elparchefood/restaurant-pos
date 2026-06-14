@@ -278,15 +278,38 @@ async function finalizarPago() {
   btnFinish.textContent = 'Procesando…';
 
   try {
-    const payMethod = SP.payments.length === 1 ? SP.payments[0].method : 'multiple';
+    const { subtotal, tipAmt, total } = calc();
+    const payMethod   = SP.payments.length === 1 ? SP.payments[0].method : 'multiple';
+    const vueltoTotal = SP.payments.reduce((s, p) => s + Math.max(0, (p.received || p.amount) - p.amount), 0);
+    const now         = new Date().toISOString();
 
-    // 1. Marcar pedido como pagado
+    // 1. Marcar pedido como pagado con todos los datos financieros
     await sb.from('pos_orders').update({
-      status:         'paid',
-      payment_method: payMethod,
+      status:          'paid',
+      payment_method:  payMethod,
+      closed_at:       now,
+      total_final:     total,
+      discount_amount: SP.discount || 0,
+      discount_motivo: SP.discountObj?.motivo || null,
+      tip_amount:      tipAmt,
+      vuelto_total:    vueltoTotal,
     }).eq('id', SP.orderId);
 
-    // 2. Liberar mesa (solo si pago al final)
+    // 2. Insertar desglose de pagos (uno por método)
+    if (SP.payments.length > 0) {
+      const payRows = SP.payments.map(p => ({
+        order_id:  SP.orderId,
+        branch_id: SP.branchId,
+        tenant_id: SP.tenantId,
+        method:    p.method,
+        amount:    p.amount,
+        received:  p.received || p.amount,
+        vuelto:    Math.max(0, (p.received || p.amount) - p.amount),
+      }));
+      await sb.from('pos_payments').insert(payRows);
+    }
+
+    // 3. Liberar mesa (solo si pago al final)
     if (!SP.adelantado) {
       await sb.from('pos_tables').update({
         status:           'libre',
