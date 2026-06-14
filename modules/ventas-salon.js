@@ -1075,7 +1075,9 @@
       <div class="vs-rail-scroll">
         <div class="vs-order-head">
           <div class="vs-order-section-label">Comanda</div>
-          <button class="lm-link" data-action="add-item" data-table-id="${mesa.id}">+ Agregar ítem</button>
+          ${isPendientePago
+            ? `<span class="vs-rail-locked">${SVG_DOLLAR(12)} Esperando cobro</span>`
+            : `<button class="lm-link" data-action="add-item" data-table-id="${mesa.id}">+ Agregar ítem</button>`}
         </div>
         <div class="vs-order-list">${itemsHtml}</div>
       </div>
@@ -1234,9 +1236,15 @@
       case 'split':
         window._pos && window._pos.emit && window._pos.emit('table:split', { tableId });
         break;
-      case 'add-item':
+      case 'add-item': {
+        const mesaAdd = state.tables.find(t => t.id === tableId);
+        if (mesaAdd && mesaAdd.status === 'pendiente_pago') {
+          vsToast('Esta mesa aún no ha sido cobrada. Primero cobra antes de agregar ítems.');
+          return;
+        }
         window._pos && window._pos.emit && window._pos.emit('table:addItem', { tableId });
         break;
+      }
       case 'reassign':
         window._pos && window._pos.emit && window._pos.emit('table:reassign', { tableId });
         break;
@@ -1383,6 +1391,14 @@
   }
 
   // ─── Modal de confirmación personalizado ──────────────────────────────
+  function vsToast(msg) {
+    const t = document.createElement('div');
+    t.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#0F172A;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.25);animation:vsOverlayIn .2s ease';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+  }
+
   function vsConfirm({ title, msg, okLabel = 'Confirmar', variant = 'brand', cancelLabel = 'Cancelar' }) {
     return new Promise(resolve => {
       const overlay = document.createElement('div');
