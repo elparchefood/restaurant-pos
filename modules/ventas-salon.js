@@ -1169,9 +1169,31 @@
       case 'cobrar':
         cobrarMesa(tableId);
         break;
-      case 'collect':
-        window._pos && window._pos.emit && window._pos.emit('table:collect', { tableId });
+      case 'collect': {
+        // Buscar el order activo de esta mesa y navegar a pagos
+        const mesa = state.tables.find(t => t.id === tableId);
+        const orderId = mesa && mesa.current_order_id;
+        if (orderId) {
+          window.location.href = `pagos.html?order=${orderId}&table=${tableId}`;
+        } else {
+          // Si no hay current_order_id, buscar en Supabase
+          const sbRef = window._pos && window._pos.sb;
+          if (sbRef) {
+            sbRef.from('pos_orders')
+              .select('id')
+              .eq('table_id', tableId)
+              .in('status', ['open', 'in_progress'])
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+              .then(({ data }) => {
+                if (data) window.location.href = `pagos.html?order=${data.id}&table=${tableId}`;
+                else alert('No se encontró un pedido activo para esta mesa.');
+              });
+          }
+        }
         break;
+      }
       case 'free-table':
         window._pos && window._pos.emit && window._pos.emit('table:free', { tableId });
         break;
