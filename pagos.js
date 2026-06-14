@@ -167,6 +167,17 @@ function renderTotals() {
   // Botón finalizar
   const btnFinish = document.getElementById('btn-finish');
   btnFinish.disabled = !cubierto;
+
+  // Split: mostrar importe de la parte actual en botón Exacto
+  if (SP.splitObj && typeof calcSplitInfo === 'function') {
+    const info = calcSplitInfo();
+    if (info) {
+      const eAmt = document.getElementById('exact-amt');
+      if (eAmt) eAmt.textContent = fmt(info.partRemaining);
+      const bEx = document.getElementById('btn-exact');
+      if (bEx) bEx.disabled = info.partRemaining === 0;
+    }
+  }
 }
 
 function renderApplied() {
@@ -230,6 +241,7 @@ function renderAll() {
   renderMethodUI();
   renderTotals();
   renderApplied();
+  if (typeof renderSplitStrip === 'function') renderSplitStrip();
 }
 
 // ── Acciones ──────────────────────────────────────────────────────────────
@@ -763,34 +775,4 @@ function renderSplitStrip() {
 }
 
 // ════════ PARCHAR renderTotals PARA USAR exactTarget DE SPLIT ═══════════
-
-const _origRenderTotals = renderTotals;
-function renderTotals() {
-  _origRenderTotals();
-  // Override el botón exacto con el target de split si aplica
-  if (SP.splitObj) {
-    const info = calcSplitInfo();
-    if (info) {
-      document.getElementById('exact-amt').textContent = fmt(info.partRemaining);
-      const btnExact = document.getElementById('btn-exact');
-      btnExact.disabled = info.partRemaining === 0;
-      // Override la acción exact para usar partRemaining
-      btnExact.dataset.splitExact = info.partRemaining;
-    }
-  } else {
-    delete document.getElementById('btn-exact').dataset.splitExact;
-  }
-  renderSplitStrip();
-}
-
-// ════════ PARCHAR applyPayment PARA USAR splitExact ══════════════════════
-
-const _origApply = applyPayment;
-function applyPayment() {
-  const btnExact = document.getElementById('btn-exact');
-  if (SP.entry === 0 && btnExact.dataset.splitExact) {
-    // no aplica, entry debe venir del teclado
-  }
-  _origApply();
-}
 
