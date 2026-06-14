@@ -776,3 +776,33 @@ function renderSplitStrip() {
 
 // ════════ PARCHAR renderTotals PARA USAR exactTarget DE SPLIT ═══════════
 
+
+// ── Teclado físico → teclado numérico en pantalla ─────────────────────────
+document.addEventListener('keydown', e => {
+  // No interferir si hay un input/textarea enfocado
+  const tag = document.activeElement?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+  // No interferir si hay un modal abierto
+  if (!document.getElementById('discount-modal')?.hidden === false) return;
+  if (!document.getElementById('split-modal')?.hidden    === false) return;
+
+  switch (e.key) {
+    case '0': SP.entry = Math.min(99999999, Number(String(SP.entry) + '0')); renderAll(); break;
+    case '1': SP.entry = Math.min(99999999, Number(String(SP.entry) + '1')); renderAll(); break;
+    case '2': SP.entry = Math.min(99999999, Number(String(SP.entry) + '2')); renderAll(); break;
+    case '3': SP.entry = Math.min(99999999, Number(String(SP.entry) + '3')); renderAll(); break;
+    case '4': SP.entry = Math.min(99999999, Number(String(SP.entry) + '4')); renderAll(); break;
+    case '5': SP.entry = Math.min(99999999, Number(String(SP.entry) + '5')); renderAll(); break;
+    case '6': SP.entry = Math.min(99999999, Number(String(SP.entry) + '6')); renderAll(); break;
+    case '7': SP.entry = Math.min(99999999, Number(String(SP.entry) + '7')); renderAll(); break;
+    case '8': SP.entry = Math.min(99999999, Number(String(SP.entry) + '8')); renderAll(); break;
+    case '9': SP.entry = Math.min(99999999, Number(String(SP.entry) + '9')); renderAll(); break;
+    case 'Backspace': SP.entry = Math.floor(SP.entry / 10); renderAll(); break;
+    case 'Delete':    SP.entry = 0; renderAll(); break;
+    case 'Enter':     applyPayment(); break;
+    case 'Escape':    SP.entry = 0; renderAll(); break;
+    default: return;
+  }
+  e.preventDefault();
+});
