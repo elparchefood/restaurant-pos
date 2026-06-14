@@ -607,9 +607,10 @@
     const isSelected = t.id === state.selectedTableId;
     const numStr = t.name || pad2(t.number || t.n || 0);
 
-    const selectedStyle = isSelected
-      ? `border-color:${meta.color};box-shadow:0 0 0 3px ${meta.color}22`
-      : `border-color:${meta.ring}`;
+    const bgColor = isLibre ? '#fff' : meta.tint;
+    const borderColor = isSelected ? meta.color : (isLibre ? '#ECEEF2' : meta.ring);
+    const boxShadow = isSelected ? `0 0 0 3px ${meta.color}33` : 'none';
+    const selectedStyle = `background:${bgColor};border-color:${borderColor};box-shadow:${boxShadow}`;
 
     const footerHtml = isLibre
       ? `<div class="vs-mesa-footer-libre">Disponible · Toca para abrir</div>`
