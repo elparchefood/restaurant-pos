@@ -614,8 +614,8 @@
     const hasNext = !!nextLabel;
 
     return `
-      <button class="lm-mesa vs-domi-card" data-domi-id="${d.id}"
-        style="background:${meta.tint};border-color:${meta.ring};height:160px;max-height:160px;min-height:0;overflow:hidden;text-align:left;cursor:pointer;display:flex;flex-direction:column;padding:10px 12px;gap:4px;border-radius:12px;border:1.5px solid ${meta.ring};box-sizing:border-box">
+      <div class="lm-mesa vs-domi-card" data-domi-id="${d.id}"
+        style="background:${meta.tint};border-color:${meta.ring};height:160px;max-height:160px;min-height:0;overflow:hidden;text-align:left;cursor:default;display:flex;flex-direction:column;padding:10px 12px;gap:4px;border-radius:12px;border:1.5px solid ${meta.ring};box-sizing:border-box">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span style="font-size:11px;font-weight:600;color:#64748B">${d.id}</span>
           <span style="font-size:10px;color:#94A3B8">${timeStr}</span>
@@ -637,7 +637,7 @@
             : `<span style="font-size:10px;font-weight:600;color:${meta.color}">✓ ${meta.label}</span>`
           }
         </div>
-      </button>
+      </div>
     `;
   }
 
