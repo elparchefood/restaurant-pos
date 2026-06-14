@@ -156,13 +156,12 @@
 
 /* ─── Topbar ─── */
 .vs-topbar {
-  height: 64px;
   background: #FFFFFF;
   border-bottom: 1px solid #ECEEF2;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 18px 24px 16px;
   flex-shrink: 0;
   margin-bottom: 16px;
 }
