@@ -679,3 +679,14 @@ svg { display: block; }
   box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: left .2s;
 }
 .svc-toggle.on .svc-toggle-knob { left: 16px; }
+
+/* ── Botón proactivo Ya entregué (topbar) ── */
+.tp-entregue-topbar-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: 999px;
+  border: 1.5px solid #10B981; background: #ECFDF5;
+  color: #10B981; font-family: inherit; font-size: 12px;
+  font-weight: 700; cursor: pointer; white-space: nowrap;
+  transition: background .15s;
+}
+.tp-entregue-topbar-btn:hover { background: #D1FAE5; }

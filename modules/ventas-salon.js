@@ -756,8 +756,20 @@
     const boxShadow = isSelected ? `0 0 0 3px ${meta.color}33` : 'none';
     const selectedStyle = `background:${bgColor};border-color:${borderColor};box-shadow:${boxShadow}`;
 
+    const isEsperando = t.status === 'esperando';
     const footerHtml = isLibre
       ? `<div class="vs-mesa-footer-libre">Disponible · Toca para abrir</div>`
+      : isEsperando
+      ? `<div class="vs-mesa-footer-active">
+          <div class="vs-mesa-footer-left">
+            <div class="lm-avatar lm-avatar-xs">${t.mesero_initials || '?'}</div>
+            <span class="vs-mesa-items">${t.items_count || 0} ítems</span>
+          </div>
+          <button class="vs-entregue-btn" data-action="mark-entregado" data-table-id="${t.id}" title="Ya entregué los platos">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Entregado
+          </button>
+        </div>`
       : `<div class="vs-mesa-footer-active">
           <div class="vs-mesa-footer-left">
             <div class="lm-avatar lm-avatar-xs">${t.mesero_initials || '?'}</div>
@@ -1005,11 +1017,16 @@
            </button>
          </div>`
       : mesa.status === 'comiendo'
-      ? `<div class="vs-actions">
-           <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
-           <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
-           <button class="lm-btn-primary" data-action="collect" data-table-id="${mesa.id}">Cobrar</button>
-         </div>`
+      ? state.cobroAdelantado
+        ? `<div class="vs-actions">
+             <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
+             <button class="lm-btn-danger" data-action="liberar-mesa" data-table-id="${mesa.id}">Liberar mesa</button>
+           </div>`
+        : `<div class="vs-actions">
+             <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
+             <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
+             <button class="lm-btn-primary" data-action="collect" data-table-id="${mesa.id}">Cobrar</button>
+           </div>`
       : `<div class="vs-actions">
            <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
            <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
@@ -1194,6 +1211,12 @@
         }
         break;
       }
+      case 'mark-entregado':
+        confirmEntregado(tableId);
+        break;
+      case 'liberar-mesa':
+        liberarMesa(tableId);
+        break;
       case 'free-table':
         window._pos && window._pos.emit && window._pos.emit('table:free', { tableId });
         break;
@@ -1351,6 +1374,80 @@
     setInterval(update, 5000);
   }
 
+  // ─── Confirmar entrega de platos (botón en tarjeta) ──────────────────
+  function confirmEntregado(tableId) {
+    const mesa = state.tables.find(t => t.id === tableId);
+    const numStr = mesa ? (mesa.name || String(mesa.number || '')) : tableId;
+    if (!confirm('¿Confirmar que ya entregaste los platos en la Mesa ' + numStr + '?')) return;
+    marcarComiendo(tableId, 'proactive');
+  }
+
+  async function marcarComiendo(tableId, method) {
+    try {
+      const sbRef = window._pos && window._pos.sb;
+      if (!sbRef) return;
+      await sbRef.from('pos_tables').update({
+        status:          'comiendo',
+        comiendo_method: method,
+      }).eq('id', tableId);
+      const t = state.tables.find(x => x.id === tableId);
+      if (t) { t.status = 'comiendo'; t.comiendo_method = method; }
+      render();
+    } catch(e) { console.error('[VS] marcarComiendo:', e); }
+  }
+
+  async function liberarMesa(tableId) {
+    const mesa = state.tables.find(t => t.id === tableId);
+    const numStr = mesa ? (mesa.name || String(mesa.number || '')) : tableId;
+    if (!confirm('¿Liberar la Mesa ' + numStr + '? Esto cerrará la sesión de la mesa.')) return;
+    try {
+      const sbRef = window._pos && window._pos.sb;
+      if (!sbRef) return;
+      await sbRef.from('pos_tables').update({
+        status:           'libre',
+        current_order_id: null,
+        esperando_at:     null,
+        comiendo_method:  null,
+      }).eq('id', tableId);
+      const t = state.tables.find(x => x.id === tableId);
+      if (t) { t.status = 'libre'; t.current_order_id = null; }
+      state.selectedTableId = null;
+      render();
+    } catch(e) { console.error('[VS] liberarMesa:', e); }
+  }
+
+  // ─── Auto-avance esperando→comiendo ───────────────────────────────────
+  function startAutoAvance() {
+    setInterval(async function() {
+      try {
+        const cfg = JSON.parse(localStorage.getItem('lumen.config.operacion.v1') || '{}');
+        const mins = cfg.entregaMin || 12;
+        const cutoff = new Date(Date.now() - mins * 60 * 1000).toISOString();
+        const sbRef = window._pos && window._pos.sb;
+        if (!sbRef) return;
+        // Mesas en esperando cuyo esperando_at supera el umbral
+        const { data } = await sbRef
+          .from('pos_tables')
+          .select('id')
+          .eq('status', 'esperando')
+          .not('esperando_at', 'is', null)
+          .lt('esperando_at', cutoff);
+        if (!data || !data.length) return;
+        const ids = data.map(r => r.id);
+        await sbRef.from('pos_tables').update({
+          status:          'comiendo',
+          comiendo_method: 'auto',
+        }).in('id', ids);
+        // Actualizar estado local
+        ids.forEach(id => {
+          const t = state.tables.find(x => x.id === id);
+          if (t) { t.status = 'comiendo'; t.comiendo_method = 'auto'; }
+        });
+        if (ids.length) render();
+      } catch(e) { console.error('[VS] autoAvance:', e); }
+    }, 60 * 1000); // cada 60 segundos
+  }
+
   // ─── Init ─────────────────────────────────────────────
   async function init(mountContainer) {
     container = mountContainer;
@@ -1384,6 +1481,8 @@
 
     // Subscribe to realtime updates
     subscribeRealtime();
+    // Auto-avance esperando→comiendo
+    startAutoAvance();
   }
 
   // ─── Destroy ──────────────────────────────────────────

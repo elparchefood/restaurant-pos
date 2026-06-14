@@ -1042,3 +1042,43 @@
   flex: 1;
 }
 .vs-cobrar-btn:hover { background: #DC2626 !important; }
+
+/* ── Botón Ya entregué (tarjeta esperando) ── */
+.vs-entregue-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 999px; border: 1px solid #10B981;
+  background: #ECFDF5; color: #10B981; font-size: 10.5px; font-weight: 700;
+  cursor: pointer; font-family: inherit; white-space: nowrap;
+  transition: background .15s;
+}
+.vs-entregue-btn:hover { background: #D1FAE5; }
+
+/* ── Botón Liberar mesa (peligro) ── */
+.lm-btn-danger {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 14px; border-radius: 9px; border: none;
+  background: #FEF2F2; color: #DC2626; font-family: inherit;
+  font-size: 12.5px; font-weight: 700; cursor: pointer;
+  border: 1px solid #FECACA; transition: background .15s;
+}
+.lm-btn-danger:hover { background: #FEE2E2; }
+
+/* ── Toast no-bloqueante tomar-pedido ── */
+.tp-delivery-toast {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  z-index: 9000; background: #fff; border: 1px solid #ECEEF2;
+  border-radius: 14px; box-shadow: 0 8px 24px -4px rgba(15,23,42,.18);
+  padding: 14px 16px; min-width: 300px; max-width: 380px;
+  display: flex; flex-direction: column; gap: 10px;
+  animation: toastIn .2s ease;
+}
+@keyframes toastIn { from { opacity:0; transform: translateX(-50%) translateY(-8px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
+.tp-delivery-toast-title { font-size: 13px; font-weight: 700; color: #0F172A; display: flex; align-items: center; gap: 6px; }
+.tp-delivery-toast-sub   { font-size: 12px; color: #64748B; margin-top: 2px; }
+.tp-delivery-toast-actions { display: flex; gap: 8px; }
+.tp-toast-btn-confirm { flex: 1; padding: 8px; border-radius: 8px; border: none; background: #10B981; color: #fff; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.tp-toast-btn-confirm:hover { background: #059669; }
+.tp-toast-btn-later   { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #ECEEF2; background: #F8FAFC; color: #475569; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.tp-toast-btn-later:hover { background: #F1F5F9; }
+.tp-toast-btn-close   { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #ECEEF2; background: transparent; color: #94A3B8; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.tp-toast-btn-close:hover { color: #475569; }

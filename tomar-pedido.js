@@ -62,6 +62,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderFavs();
   paintCartState();
 
+  // 6b. Toast si la mesa está en esperando
+  tpCheckEsperandoToast();
+
+  // 6c. Botón proactivo Ya entregué
+  tpRenderEntregueBtn();
+
   // 7. Listeners
   bindEvents();
 });
@@ -314,6 +320,84 @@ function prodCard(p, color) {
 function toggleService(){
   S.serviceEnabled = !S.serviceEnabled;
   paintCartState();
+}
+
+// ── Toast no-bloqueante: mesa en esperando ───────────────────────────────
+function tpCheckEsperandoToast() {
+  if (!S.table || S.table.status !== 'esperando') return;
+  // No mostrar si ya está en comiendo o libre
+  const existing = document.getElementById('tp-esperando-toast');
+  if (existing) return; // ya visible
+
+  const mesa = S.table.name || 'esta mesa';
+  const toast = document.createElement('div');
+  toast.id = 'tp-esperando-toast';
+  toast.className = 'tp-delivery-toast';
+  toast.innerHTML = `
+    <div>
+      <div class="tp-delivery-toast-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        ${mesa} — pedido en cocina
+      </div>
+      <div class="tp-delivery-toast-sub">¿Ya entregaste los platos en esta mesa?</div>
+    </div>
+    <div class="tp-delivery-toast-actions">
+      <button class="tp-toast-btn-confirm" id="tp-toast-confirm">Ya se entregó</button>
+      <button class="tp-toast-btn-later"   id="tp-toast-later">Aún no</button>
+      <button class="tp-toast-btn-close"   id="tp-toast-close">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>`;
+
+  document.body.appendChild(toast);
+
+  function closeToast() { toast.remove(); }
+
+  document.getElementById('tp-toast-confirm').addEventListener('click', function() {
+    closeToast();
+    tpMarcarComiendo('toast');
+  });
+  document.getElementById('tp-toast-later').addEventListener('click', closeToast);
+  document.getElementById('tp-toast-close').addEventListener('click', closeToast);
+}
+
+// ── Botón proactivo "Ya entregué" en topbar de la comanda ────────────────
+function tpRenderEntregueBtn() {
+  if (!S.table || S.table.status !== 'esperando') return;
+  // Buscar contenedor del topbar para inyectar el botón
+  const topbar = document.querySelector('.tp-topbar-r');
+  if (!topbar) return;
+  const existing = document.getElementById('tp-btn-entregue');
+  if (existing) return;
+
+  const btn = document.createElement('button');
+  btn.id = 'tp-btn-entregue';
+  btn.className = 'tp-entregue-topbar-btn';
+  btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Ya entregué los platos`;
+  btn.addEventListener('click', function() {
+    if (!confirm('¿Confirmar que ya entregaste los platos en ' + (S.table && S.table.name || 'esta mesa') + '?')) return;
+    tpMarcarComiendo('proactive');
+    btn.remove();
+    const t = document.getElementById('tp-esperando-toast');
+    if (t) t.remove();
+  });
+  topbar.insertBefore(btn, topbar.firstChild);
+}
+
+// ── Marcar mesa como comiendo desde tomar-pedido ─────────────────────────
+async function tpMarcarComiendo(method) {
+  try {
+    await sb.from('pos_tables').update({
+      status:          'comiendo',
+      comiendo_method: method,
+    }).eq('id', S.tableId);
+    if (S.table) S.table.status = 'comiendo';
+    // Quitar toast y botón si siguen visibles
+    const t = document.getElementById('tp-esperando-toast');
+    if (t) t.remove();
+    const b = document.getElementById('tp-btn-entregue');
+    if (b) b.remove();
+  } catch(e) { console.error('[TP] marcarComiendo:', e); }
 }
 
 function paintCartState() {

@@ -309,11 +309,20 @@ async function finalizarPago() {
       await sb.from('pos_payments').insert(payRows);
     }
 
-    // 3. Liberar mesa (solo si pago al final)
+    // 3. Actualizar mesa según modo de cobro
     if (!SP.adelantado) {
+      // Pago al final → liberar mesa
       await sb.from('pos_tables').update({
         status:           'libre',
         current_order_id: null,
+        esperando_at:     null,
+        comiendo_method:  null,
+      }).eq('id', SP.tableId);
+    } else {
+      // Cobro adelantado → mesa pasa a "esperando" (comida en preparación)
+      await sb.from('pos_tables').update({
+        status:       'esperando',
+        esperando_at: new Date().toISOString(),
       }).eq('id', SP.tableId);
     }
 
