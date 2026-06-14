@@ -784,8 +784,8 @@ document.addEventListener('keydown', e => {
   if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
   // No interferir si hay un modal abierto
-  if (!document.getElementById('discount-modal')?.hidden === false) return;
-  if (!document.getElementById('split-modal')?.hidden    === false) return;
+  if (document.getElementById('discount-modal')?.hidden === false) return;
+  if (document.getElementById('split-modal')?.hidden    === false) return;
 
   switch (e.key) {
     case '0': SP.entry = Math.min(99999999, Number(String(SP.entry) + '0')); renderAll(); break;
