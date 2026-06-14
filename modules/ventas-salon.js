@@ -576,7 +576,7 @@
     }
 
     const cards = visible.map(t => renderMesaCard(t)).join('');
-    return `<div class="vs-grid" id="vs-grid">${cards}</div>`;
+    return `<div class="vs-grid" id="vs-grid" style="grid-auto-rows:160px;align-content:start">${cards}</div>`;
   }
 
   function renderMesaCard(t) {
@@ -604,7 +604,7 @@
       : '';
 
     return `
-      <button class="lm-mesa" data-table-id="${t.id}" style="${selectedStyle}">
+      <button class="lm-mesa" data-table-id="${t.id}" style="${selectedStyle};height:160px;max-height:160px;min-height:0;overflow:hidden">
         <div class="vs-mesa-header">
           <span class="vs-state-pill" style="color:${meta.color};background:${meta.tint}">
             <span class="vs-state-dot" style="background:${meta.color}"></span>
