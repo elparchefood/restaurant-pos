@@ -598,7 +598,7 @@
       return `<div class="vs-grid" style="grid-auto-rows:160px;align-content:start"><div class="vs-loading">Sin domicilios activos</div></div>`;
     }
     const cards = list.map(d => renderDomicilioCard(d)).join('');
-    return `<div class="vs-grid vs-domi-grid" id="vs-grid" style="grid-auto-rows:160px;align-content:start">${cards}</div>`;
+    return `<div class="vs-grid vs-domi-grid" id="vs-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));grid-auto-rows:160px;align-content:start;display:grid;gap:12px">${cards}</div>`;
   }
 
   function renderDomicilioCard(d) {
@@ -615,7 +615,7 @@
 
     return `
       <button class="lm-mesa vs-domi-card" data-domi-id="${d.id}"
-        style="background:${meta.tint};border-color:${meta.ring};height:160px;max-height:160px;min-height:0;overflow:hidden;text-align:left;cursor:pointer;display:flex;flex-direction:column;padding:10px 12px;gap:4px;border-radius:12px;border:1.5px solid ${meta.ring};width:100%">
+        style="background:${meta.tint};border-color:${meta.ring};height:160px;max-height:160px;min-height:0;overflow:hidden;text-align:left;cursor:pointer;display:flex;flex-direction:column;padding:10px 12px;gap:4px;border-radius:12px;border:1.5px solid ${meta.ring};box-sizing:border-box">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span style="font-size:11px;font-weight:600;color:#64748B">${d.id}</span>
           <span style="font-size:10px;color:#94A3B8">${timeStr}</span>
