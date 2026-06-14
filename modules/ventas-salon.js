@@ -35,6 +35,7 @@
     dragKey: null,
     cobroAdelantado: false,
     userRole: 'mesero',
+    currentOrder: null,
   };
 
   let container = null;
@@ -168,29 +169,30 @@
     return baseTables;
   }
 
-  async function fetchOrderItems(tableId) {
+  async function fetchOrderData(tableId) {
     const sb = window._pos && window._pos.sb;
-    if (!sb || !tableId) return [];
+    if (!sb || !tableId) return { order: null, items: [] };
 
     const { data: orders, error: ordErr } = await sb
       .from('pos_orders')
-      .select('id, status, total, created_at, mesero_initials, persons')
+      .select('id, status, total, created_at, opened_at, waiter_name, guests')
       .eq('table_id', tableId)
       .not('status', 'eq', 'completed')
+      .not('status', 'eq', 'cancelled')
       .order('created_at', { ascending: false })
       .limit(1);
 
-    if (ordErr || !orders || !orders.length) return [];
+    if (ordErr || !orders || !orders.length) return { order: null, items: [] };
 
-    const orderId = orders[0].id;
+    const order = orders[0];
     const { data: items, error: itemErr } = await sb
       .from('pos_order_items')
-      .select('id, quantity, name, area, unit_price')
-      .eq('order_id', orderId)
+      .select('id, quantity, product_name, name, product_price, unit_price, notes')
+      .eq('order_id', order.id)
       .order('created_at', { ascending: true });
 
-    if (itemErr) { console.error('[ventas-salon] fetchOrderItems:', itemErr); return []; }
-    return items || [];
+    if (itemErr) { console.error('[ventas-salon] fetchOrderData:', itemErr); }
+    return { order, items: items || [] };
   }
 
   // ─── Realtime subscription ───────────────────────────
@@ -226,12 +228,15 @@
     }
 
     state.loading = false;
+    state.currentOrder = null;
     render();
   }
 
   async function selectTable(tableId) {
     state.selectedTableId = tableId;
-    state.orderItems = await fetchOrderItems(tableId);
+    const { order, items } = await fetchOrderData(tableId);
+    state.currentOrder = order;
+    state.orderItems = items;
     renderRail();
     renderGrid(); // update selected highlight
   }
@@ -685,21 +690,37 @@
       `;
     }
 
-    const subtotal = mesa.total || 0;
+    const ord = state.currentOrder;
+    const subtotal = ord?.total || mesa.total || 0;
     const servicio = Math.round(subtotal * 0.10);
     const total = subtotal + servicio;
+    const waiterName = ord?.waiter_name || '—';
+    const waiterInitials = waiterName !== '—'
+      ? waiterName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2)
+      : '?';
+    const guests = ord?.guests || mesa.persons || 0;
+    const itemsCount = state.orderItems.length || mesa.items_count || 0;
+
+    // Calcular minutos transcurridos
+    const openedAt = ord?.opened_at || ord?.created_at || mesa.openedAt;
+    const minutesElapsed = openedAt
+      ? Math.round((Date.now() - new Date(openedAt).getTime()) / 60000)
+      : (mesa.minutes || 0);
 
     const itemsHtml = state.orderItems.length
-      ? state.orderItems.map(it => `
+      ? state.orderItems.map(it => {
+          const itemName = it.product_name || it.name || '—';
+          const itemPrice = it.product_price || it.unit_price || 0;
+          return `
           <div class="vs-order-item">
             <span class="vs-order-qty">${it.quantity}×</span>
             <div class="vs-order-item-info">
-              <div class="vs-order-item-name">${it.name || '—'}</div>
-              <div class="vs-order-item-area">${it.area || ''}</div>
+              <div class="vs-order-item-name">${itemName}</div>
+              ${it.notes ? `<div class="vs-order-item-area">${it.notes}</div>` : ''}
             </div>
-            <div class="vs-order-item-price">${fmt((it.unit_price || 0) * it.quantity)}</div>
-          </div>
-        `).join('')
+            <div class="vs-order-item-price">${fmt(itemPrice * it.quantity)}</div>
+          </div>`;
+        }).join('')
       : `<div style="font-size:12px;color:#94A3B8;padding:16px 0;text-align:center">Sin ítems registrados</div>`;
 
     const actionsHtml = isPendientePago
