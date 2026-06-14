@@ -116,7 +116,7 @@
           <div class="tp-user-avatar" id="tp-user-avatar">?</div>
           <div>
             <div class="tp-user-name" id="tp-user-name">—</div>
-            <div class="tp-user-role">Gerente</div>
+            <div class="tp-user-role" id="tp-user-role">—</div>
           </div>
         </div>
       </div>
@@ -209,7 +209,12 @@
               <span id="t-subtotal">$0</span>
             </div>
             <div class="tp-total-row">
-              <span>Servicio 10%</span>
+              <span style="display:flex;align-items:center;gap:8px">
+                Servicio 10%
+                <button id="service-toggle" class="svc-toggle on" onclick="toggleService()" title="Activar/desactivar servicio">
+                  <span class="svc-toggle-knob"></span>
+                </button>
+              </span>
               <span id="t-servicio">$0</span>
             </div>
             <div class="tp-total-grand">

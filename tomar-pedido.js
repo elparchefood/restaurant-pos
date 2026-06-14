@@ -7,7 +7,8 @@
 // ── Estado global ────────────────────────────────────────────
 const S = {
   userId: null, tenantId: null, branchId: null,
-  waiterName: '—', tableId: null, table: null,
+  waiterName: '—', userRole: '—', tableId: null, table: null,
+  serviceEnabled: true,
   cats: [], products: [],
   order: null,  // registro en pos_orders (si ya existe)
   cart: [],     // [{id, productId, name, qty, unitPrice, catColor, selections:{pres,var,mods}}]
@@ -34,7 +35,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   S.userId    = user.id;
   S.tenantId  = user.user_metadata?.tenant_id || user.id;
   S.branchId  = user.user_metadata?.branch_id || null;
-  S.waiterName= user.user_metadata?.nombre || user.user_metadata?.name || user.email?.split('@')[0] || '—';
+  const { data: posUser } = await sb.from('pos_users').select('name, role').eq('auth_user_id', user.id).maybeSingle();
+  S.waiterName = posUser?.name || user.user_metadata?.nombre || user.user_metadata?.name || user.email?.split('@')[0] || '—';
+  S.userRole   = posUser?.role || user.user_metadata?.role || 'Administrador';
 
   // 2. Leer tableId de la URL
   const params = new URLSearchParams(window.location.search);
@@ -65,11 +68,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ── Shell inmediato ──────────────────────────────────────────
 function paintShell() {
-  $('tp-user-name').textContent = S.waiterName;
+  $('tp-user-name').textContent   = S.waiterName;
   $('tp-waiter-name').textContent = S.waiterName;
-  const initials = S.waiterName.slice(0,2).toUpperCase();
+  $('tp-user-role').textContent   = capitalizeRole(S.userRole);
+  const parts = S.waiterName.replace(/\s+/g,' ').trim().split(' ');
+  const initials = parts.map(w=>w[0]).slice(0,2).join('').toUpperCase() || '?';
   $('tp-user-avatar').textContent = initials;
 }
+function capitalizeRole(r){ if(!r)return'Mesero'; return r.charAt(0).toUpperCase()+r.slice(1).toLowerCase(); }
 
 // ── Carga de mesa ────────────────────────────────────────────
 async function loadTable() {
@@ -287,6 +293,11 @@ function prodCard(p, color) {
 }
 
 // ── RENDER: Comanda ───────────────────────────────────────────
+function toggleService(){
+  S.serviceEnabled = !S.serviceEnabled;
+  paintCartState();
+}
+
 function paintCartState() {
   const empty   = $('comanda-empty');
   const scroll  = $('cart-scroll');
@@ -309,12 +320,14 @@ function paintCartState() {
   mini.classList.remove('is-empty');
 
   const total   = cartTotal();
-  const service = total * 0.10;
+  const service = S.serviceEnabled ? total * 0.10 : 0;
   const grand   = total + service;
 
   $('t-subtotal').textContent = COPF(total);
-  $('t-servicio').textContent = COPF(service);
+  $('t-servicio').textContent = S.serviceEnabled ? COPF(service) : '—';
   $('t-total').textContent    = COPF(grand);
+  const tog = $('service-toggle');
+  if(tog) tog.classList.toggle('on', S.serviceEnabled);
 
   $('cart-count-label').textContent = `Comanda · ${S.cart.length} ítem${S.cart.length !== 1 ? 's' : ''}`;
   $('cartmini-title').textContent   = `${S.cart.length} ítem${S.cart.length !== 1 ? 's' : ''} en cuenta`;
@@ -682,7 +695,7 @@ async function saveOrder() {
   if (!S.cart.length) { toast('Agrega productos antes de guardar', 'warn'); return; }
   try {
     const total   = cartTotal();
-    const service = total * 0.10;
+    const service = S.serviceEnabled ? total * 0.10 : 0;
     const grand   = total + service;
 
     let orderId = S.order?.id;
