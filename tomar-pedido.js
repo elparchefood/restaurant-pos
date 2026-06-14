@@ -721,14 +721,16 @@ async function saveOrder() {
     // Upsert pos_orders
     if (!orderId) {
       const { data, error } = await sb.from('pos_orders').insert({
-        tenant_id:  S.tenantId,
-        branch_id:  S.branchId,
-        table_id:   S.tableId,
-        waiter_id:  S.userId,
-        status:     'open',
-        channel:    'salon',
-        total:      grand,
-        guests:     S.personas,
+        tenant_id:   S.tenantId,
+        branch_id:   S.branchId,
+        table_id:    S.tableId,
+        waiter_id:   S.userId,
+        waiter_name: S.waiterName,
+        status:      'open',
+        channel:     'salon',
+        total:       grand,
+        guests:      S.personas,
+        opened_at:   new Date().toISOString(),
       }).select().single();
       if (error) throw error;
       S.order = data;
@@ -743,15 +745,19 @@ async function saveOrder() {
     // Eliminar ítems con id (guardados) y re-insertar todos (simple y seguro)
     await sb.from('pos_order_items').delete().eq('order_id', orderId);
     const rows = S.cart.map(it => ({
-      tenant_id:  S.tenantId,
-      branch_id:  S.branchId,
-      order_id:   orderId,
-      product_id: it.productId,
-      name:       it.name,
-      quantity:   it.qty,
-      unit_price: it.unitPrice,
-      total:      it.unitPrice * it.qty,
-      selections: it.selections || {},
+      tenant_id:     S.tenantId,
+      branch_id:     S.branchId,
+      order_id:      orderId,
+      product_id:    it.productId,
+      name:          it.name,
+      product_name:  it.name,
+      unit_price:    it.unitPrice,
+      product_price: it.unitPrice,
+      quantity:      it.qty,
+      total:         it.unitPrice * it.qty,
+      notes:         it.note || null,
+      status:        'pending',
+      selections:    it.selections || {},
     }));
     const { error: itemsErr } = await sb.from('pos_order_items').insert(rows);
     if (itemsErr) throw itemsErr;
