@@ -77,11 +77,13 @@
     if (!startIso || startIso === 'null') return null;
     const ms = Date.now() - new Date(startIso).getTime();
     if (isNaN(ms) || ms < 0) return null;
-    const mins = Math.floor(ms / 60000);
-    if (mins < 60) return mins + ' min';
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return m > 0 ? h + 'h ' + m + 'm' : h + 'h';
+    const totalSecs = Math.floor(ms / 1000);
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+    const mm = String(m).padStart(2, '0');
+    const ss = String(s).padStart(2, '0');
+    return h > 0 ? h + ':' + mm + ':' + ss : m + ':' + ss;
   }
 
   function startLiveTimers() {
