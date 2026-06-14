@@ -71,6 +71,33 @@
 
   let container = null;
   let realtimeSub = null;
+  let timerInterval = null;
+
+  function fmtElapsed(startIso) {
+    if (!startIso) return '—';
+    const mins = Math.round((Date.now() - new Date(startIso).getTime()) / 60000);
+    if (mins < 60) return mins + ' min';
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? h + ' h ' + m + ' min' : h + ' h';
+  }
+
+  function startLiveTimers() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      document.querySelectorAll('[data-timer]').forEach(el => {
+        const iso = el.dataset.timer;
+        if (!iso) return;
+        const val = el.querySelector('.vs-timer-val');
+        if (val) val.textContent = fmtElapsed(iso);
+        // update alert class on rail info value
+        if (el.dataset.timerAlert) {
+          const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+          el.classList.toggle('vs-info-value--alert', mins > parseInt(el.dataset.timerAlert));
+        }
+      });
+    }, 10000); // update every 10 seconds
+  }
 
   // ─── Helpers ─────────────────────────────────────────
   function fmt(n) {
@@ -197,6 +224,7 @@
             ? ord.waiter_name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2)
             : '';
           return Object.assign({}, t, {
+            openedAt:        openedAt || null,
             status:          live?.status || t.status,
             total:           ord?.total   || 0,
             items_count:     0,
@@ -326,6 +354,7 @@
   // ─── Render: Full page ───────────────────────────────
   function render() {
     if (!container) return;
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
 
     // Get user info from _pos state
     const user = (window._pos && window._pos.state && window._pos.state.user) || {};
@@ -667,7 +696,7 @@
             <span class="vs-state-dot" style="background:${meta.color}"></span>
             ${meta.label}
           </span>
-          <span class="vs-time-badge">${SVG_CLOCK(10)} ${timeStr}</span>
+          <span class="vs-time-badge" data-timer="${new Date(Date.now() - (d.min||0)*60000).toISOString()}">${SVG_CLOCK(10)} <span class="vs-timer-val">${timeStr}</span></span>
         </div>
         <div class="vs-mesa-num-row">
           <div class="vs-mesa-num vs-mesa-num--active" style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${d.cliente}</div>
@@ -743,7 +772,7 @@
             <span class="vs-state-dot" style="background:${meta.color}"></span>
             ${meta.label}
           </span>
-          ${!isLibre ? `<span class="vs-time-badge">${SVG_CLOCK(10)} ${t.minutes || 0} min</span>` : ''}
+          ${!isLibre && t.openedAt ? `<span class="vs-time-badge" data-timer="${t.openedAt}">${SVG_CLOCK(10)} <span class="vs-timer-val">${t.minutes || 0} min</span></span>` : (!isLibre ? `<span class="vs-time-badge">${SVG_CLOCK(10)} ${t.minutes || 0} min</span>` : '')}
         </div>
         <div class="vs-mesa-num-row">
           <div class="vs-mesa-num ${isLibre ? 'vs-mesa-num--libre' : 'vs-mesa-num--active'}">${numStr}</div>
@@ -825,7 +854,7 @@
           </div>
           <div class="vs-info-cell">
             <div class="vs-info-label">Tiempo</div>
-            <div class="vs-info-value">${d.min || 0} min</div>
+            <div class="vs-info-value" data-timer="${new Date(Date.now() - (d.min||0)*60000).toISOString()}"><span class="vs-timer-val">${d.min || 0} min</span></div>
           </div>
           <div class="vs-info-cell">
             <div class="vs-info-label">Ítems</div>
@@ -1004,7 +1033,7 @@
           </div>
           <div class="vs-info-cell">
             <div class="vs-info-label">Tiempo</div>
-            <div class="vs-info-value ${(mesa.minutes || 0) > 60 ? 'vs-info-value--alert' : ''}">${mesa.minutes || 0} min</div>
+            <div class="vs-info-value ${minutesElapsed > 60 ? 'vs-info-value--alert' : ''}" data-timer="${openedAt || ''}" data-timer-alert="60"><span class="vs-timer-val">${minutesElapsed} min</span></div>
           </div>
           <div class="vs-info-cell">
             <div class="vs-info-label">Ítems</div>
@@ -1089,6 +1118,9 @@
 
     // Rail events
     attachRailEvents();
+
+    // Live timers
+    startLiveTimers();
   }
 
   function attachRailEvents() {
