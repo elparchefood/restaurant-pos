@@ -66,6 +66,7 @@
     userRole: 'mesero',
     currentOrder: null,
     deliveries: DOMI_SEED.map(d => Object.assign({}, d)),
+    selectedDomiId: null,
   };
 
   let container = null;
@@ -340,7 +341,7 @@
             <div class="vs-body-left">
               ${state.floor === '__domicilios__' ? renderDomicilioGrid() : renderGrid()}
             </div>
-            ${state.floor === '__domicilios__' ? '' : `<aside class="vs-rail" id="vs-rail">${renderRailContent()}</aside>`}
+            <aside class="vs-rail" id="vs-rail">${state.floor === '__domicilios__' ? renderDomiRailContent() : renderRailContent()}</aside>
           </section>
         </main>
       </div>
@@ -753,6 +754,114 @@
     `;
   }
 
+
+  // ─── Render: Domicilio rail ───────────────────────────
+  function renderDomiRailContent() {
+    if (!state.selectedDomiId) return renderDomiRailEmpty();
+    const d = state.deliveries.find(x => x.id === state.selectedDomiId);
+    if (!d) return renderDomiRailEmpty();
+    return renderDomiRailDetail(d);
+  }
+
+  function renderDomiRailEmpty() {
+    return `
+      <div class="vs-rail-head">
+        <div>
+          <div class="vs-eyebrow">Domicilio seleccionado</div>
+          <div class="vs-rail-title-row">
+            <h2 class="vs-rail-title">—</h2>
+          </div>
+        </div>
+      </div>
+      <div class="vs-empty-rail">
+        <div class="vs-empty-icon">${SVG_PLUS(22)}</div>
+        <div class="vs-empty-title">Selecciona un domicilio</div>
+        <p class="vs-empty-desc">Elige un domicilio para ver su detalle, comanda y estado de entrega.</p>
+      </div>
+    `;
+  }
+
+  function renderDomiRailDetail(d) {
+    const meta   = DELIVERY_META[d.estado] || DELIVERY_META.preparacion;
+    const canal  = CANAL_META[d.canal] || { label: d.canal, color: '#64748B', bg: '#F1F5F9' };
+    const isPagado = d.payStatus === 'pagado';
+    const payColor = isPagado ? '#16A34A' : '#D97706';
+    const payBg    = isPagado ? '#DCFCE7' : '#FEF3C7';
+    const subtotal = d.total || 0;
+    const domiFee  = 5000;
+    const total    = subtotal + (isPagado ? 0 : 0); // total ya incluye domicilio en seed
+    const hasNext  = !!DELIVERY_NEXT[d.estado];
+    const nextLabel = DELIVERY_BTN[d.estado];
+
+    const actionsHtml = hasNext
+      ? `<div class="vs-actions">
+           <button class="lm-btn-ghost" data-domi-action="print" data-domi-id="${d.id}">Imprimir</button>
+           <button class="lm-btn-primary" data-domi-action="advance" data-domi-id="${d.id}">${nextLabel} →</button>
+         </div>`
+      : `<div class="vs-actions">
+           <button class="lm-btn-ghost" data-domi-action="print" data-domi-id="${d.id}">Imprimir</button>
+           <button class="lm-btn-primary" style="background:#22C55E" data-domi-action="close" data-domi-id="${d.id}">✓ Entregado</button>
+         </div>`;
+
+    return `
+      <div class="vs-rail-head">
+        <div>
+          <div class="vs-eyebrow">Domicilio seleccionado</div>
+          <div class="vs-rail-title-row">
+            <h2 class="vs-rail-title">${d.cliente}</h2>
+            <span class="vs-state-pill" style="color:${meta.color};background:${meta.tint}">
+              <span class="vs-state-dot" style="background:${meta.color}"></span>${meta.label}
+            </span>
+          </div>
+        </div>
+        <button class="lm-icon-sm">${SVG_DOTS(14)}</button>
+      </div>
+
+      <div class="vs-rail-fixed-top">
+        <div class="vs-info-row">
+          <div class="vs-info-cell">
+            <div class="vs-info-label">Canal</div>
+            <div class="vs-info-value" style="font-size:12px;color:${canal.color}">${canal.label}</div>
+          </div>
+          <div class="vs-info-cell">
+            <div class="vs-info-label">Tiempo</div>
+            <div class="vs-info-value">${d.min || 0} min</div>
+          </div>
+          <div class="vs-info-cell">
+            <div class="vs-info-label">Ítems</div>
+            <div class="vs-info-value">${d.items}</div>
+          </div>
+        </div>
+        <div class="vs-mesero-row">
+          <div class="lm-avatar lm-avatar-md">${(d.domiciliario || '?')[0].toUpperCase()}</div>
+          <div class="vs-mesero-spacer">
+            <div class="vs-mesero-label">Domiciliario</div>
+            <div class="vs-mesero-name">${d.domiciliario || '—'}</div>
+          </div>
+          <span style="font-size:11px;font-weight:600;color:${payColor};background:${payBg};padding:3px 8px;border-radius:6px">${isPagado ? 'Pagado' : 'Por pagar'}</span>
+        </div>
+      </div>
+
+      <div class="vs-rail-scroll">
+        <div class="vs-order-head">
+          <div class="vs-order-section-label">Comanda</div>
+          <span style="font-size:11px;color:#94A3B8">${d.metodo}</span>
+        </div>
+        <div class="vs-order-list">
+          <div style="font-size:12px;color:#94A3B8;padding:16px 0;text-align:center">${d.items} ítem${d.items !== 1 ? 's' : ''} — detalle pendiente de integración</div>
+        </div>
+      </div>
+
+      <div class="vs-rail-footer">
+        <div class="vs-totals">
+          <div class="vs-total-row"><span>Subtotal</span><span>${fmt(subtotal)}</span></div>
+          <div class="vs-total-row vs-total-grand"><span>Total</span><span>${fmt(subtotal)}</span></div>
+        </div>
+        ${actionsHtml}
+      </div>
+    `;
+  }
+
   // ─── Render: Rail ─────────────────────────────────────
   function renderRail() {
     const el = document.getElementById('vs-rail');
@@ -957,17 +1066,23 @@
       });
     });
 
-    // Domicilio cards: click advances state
+    // Domicilio cards: click selects + shows rail
     container.querySelectorAll('.vs-domi-card').forEach(btn => {
       btn.addEventListener('click', () => {
-        const id = btn.dataset.domiId;
-        const d = state.deliveries.find(x => x.id === id);
-        if (d && DELIVERY_NEXT[d.estado]) {
-          d.estado = DELIVERY_NEXT[d.estado];
-          render();
-        }
+        state.selectedDomiId = btn.dataset.domiId;
+        const rail = document.getElementById('vs-rail');
+        if (rail) { rail.innerHTML = renderDomiRailContent(); attachDomiRailEvents(); }
+        // highlight selected
+        container.querySelectorAll('.vs-domi-card').forEach(c => {
+          const m = DELIVERY_META[state.deliveries.find(x=>x.id===c.dataset.domiId)?.estado] || DELIVERY_META.preparacion;
+          c.style.boxShadow = c.dataset.domiId === state.selectedDomiId ? `0 0 0 3px ${m.color}33` : 'none';
+          c.style.borderColor = c.dataset.domiId === state.selectedDomiId ? m.color : m.ring;
+        });
       });
     });
+
+    // Domi rail action buttons
+    attachDomiRailEvents();
 
     // Chip drag-to-reorder
     attachChipDragEvents();
@@ -980,6 +1095,26 @@
     if (!container) return;
     container.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', handleAction);
+    });
+  }
+
+
+  function attachDomiRailEvents() {
+    if (!container) return;
+    container.querySelectorAll('[data-domi-action]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const action = btn.dataset.domiAction;
+        const id = btn.dataset.domiId;
+        const d = state.deliveries.find(x => x.id === id);
+        if (!d) return;
+        if (action === 'advance' && DELIVERY_NEXT[d.estado]) {
+          d.estado = DELIVERY_NEXT[d.estado];
+          render();
+        } else if (action === 'close') {
+          d.estado = 'entregado';
+          render();
+        }
+      });
     });
   }
 
