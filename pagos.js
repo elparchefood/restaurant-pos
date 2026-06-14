@@ -392,9 +392,7 @@ document.addEventListener('click', e => {
       window.location.href = 'ventas.html';
       break;
     case 'back':
-      window.location.href = SP.tableId
-        ? `tomar-pedido.html?table=${SP.tableId}`
-        : 'ventas.html';
+      window.location.href = 'ventas-salon.html';
       break;
     case 'print':
     case 'print-receipt':
