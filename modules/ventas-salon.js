@@ -337,7 +337,7 @@
         ${renderSidebar(user, branch)}
         <main class="vs-main">
           ${renderTopbar(user)}
-          ${state.floor === '__domicilios__' ? '' : renderSummaryRow()}
+          ${state.floor === '__domicilios__' ? renderDomicilioSummaryRow() : renderSummaryRow()}
           <section class="vs-body">
             <div class="vs-body-left">
               ${state.floor === '__domicilios__' ? renderDomicilioGrid() : renderGrid()}
@@ -561,6 +561,55 @@
     `;
   }
 
+
+  // ─── Render: Domicilio summary row (chips) ────────────
+  function renderDomicilioSummaryRow() {
+    const counts = {};
+    Object.keys(DELIVERY_META).forEach(k => { counts[k] = 0; });
+    state.deliveries.forEach(d => { if (counts[d.estado] !== undefined) counts[d.estado]++; });
+
+    const chipsHtml = Object.entries(DELIVERY_META).map(([key, meta]) => {
+      const count = counts[key] || 0;
+      return `
+        <div class="lm-chip" style="border-left:3px solid ${meta.color}">
+          <span class="lm-chip-icon" style="color:${meta.color};background:${meta.tint}">
+            <span style="width:8px;height:8px;border-radius:50%;background:${meta.color};display:inline-block"></span>
+          </span>
+          <div style="min-width:0;flex:1">
+            <div style="display:flex;align-items:baseline;gap:6px">
+              <span class="lm-chip-count">${count}</span>
+              <span class="lm-chip-label">${meta.label}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const activos = state.deliveries.filter(d => d.estado !== 'entregado').length;
+    const totalVal = state.deliveries.filter(d => d.estado !== 'entregado').reduce((s, d) => s + (d.total || 0), 0);
+
+    return `
+      <section class="vs-summary-row">
+        <div class="vs-chips-track" id="vs-chips-track">
+          ${chipsHtml}
+        </div>
+        <div class="vs-metric-strip">
+          <div class="vs-metric-cell">
+            <div class="vs-metric-label">Domicilios activos</div>
+            <div class="vs-metric-value">${activos}</div>
+            <div class="vs-metric-hint">en curso ahora</div>
+          </div>
+          <div class="vs-metric-divider"></div>
+          <div class="vs-metric-cell">
+            <div class="vs-metric-label">Total en curso</div>
+            <div class="vs-metric-value">${fmt(totalVal)}</div>
+            <div class="vs-metric-hint">sin entregados</div>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
   // ─── Render: Salon tabs ───────────────────────────────
   function renderSalonTabs() {
     const zones = state.zones.length ? state.zones : loadZonesFromConfig();
@@ -607,37 +656,33 @@
     const mins  = d.min || 0;
     const timeStr = mins < 60 ? `hace ${mins}m` : `hace ${Math.floor(mins/60)}h ${mins%60}m`;
     const isPagado = d.payStatus === 'pagado';
-    const payLabel = isPagado ? 'Pagado' : 'Por pagar';
     const payColor = isPagado ? '#16A34A' : '#D97706';
     const payBg    = isPagado ? '#DCFCE7' : '#FEF3C7';
-    const nextLabel = DELIVERY_BTN[d.estado];
-    const hasNext = !!nextLabel;
+    const hasNext  = !!DELIVERY_NEXT[d.estado];
 
     return `
-      <div class="lm-mesa vs-domi-card" data-domi-id="${d.id}"
-        style="background:${meta.tint};border-color:${meta.ring};height:160px;max-height:160px;min-height:0;overflow:hidden;text-align:left;cursor:default;display:flex;flex-direction:column;padding:10px 12px;gap:4px;border-radius:12px;border:1.5px solid ${meta.ring};box-sizing:border-box">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:11px;font-weight:600;color:#64748B">${d.id}</span>
-          <span style="font-size:10px;color:#94A3B8">${timeStr}</span>
+      <button class="lm-mesa vs-domi-card" data-domi-id="${d.id}"
+        style="background:${meta.tint};border-color:${meta.ring};height:160px;max-height:160px;min-height:0;overflow:hidden">
+        <div class="vs-mesa-header">
+          <span class="vs-state-pill" style="color:${meta.color};background:${meta.tint}">
+            <span class="vs-state-dot" style="background:${meta.color}"></span>
+            ${meta.label}
+          </span>
+          <span class="vs-time-badge">${SVG_CLOCK(10)} ${timeStr}</span>
         </div>
-        <div style="font-size:13px;font-weight:700;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.cliente}</div>
-        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-          <span style="font-size:10px;font-weight:600;color:${canal.color};background:${canal.bg};padding:2px 6px;border-radius:4px">${canal.label}</span>
-          <span style="font-size:10px;color:#64748B">✦ ${d.items} ítem${d.items !== 1 ? 's' : ''}</span>
-          ${d.domiciliario && d.domiciliario !== '—' ? `<span style="font-size:10px;color:#64748B">· ${d.domiciliario}</span>` : ''}
+        <div class="vs-mesa-num-row">
+          <div class="vs-mesa-num vs-mesa-num--active" style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${d.cliente}</div>
+          <span style="font-size:10px;font-weight:600;color:${canal.color};background:${canal.bg};padding:1px 6px;border-radius:4px;flex-shrink:0">${canal.label}</span>
         </div>
-        <div style="display:flex;align-items:center;gap:5px">
-          <span style="font-size:10px;font-weight:600;color:${payColor};background:${payBg};padding:2px 6px;border-radius:4px">${payLabel}</span>
-          <span style="font-size:10px;color:#94A3B8">${d.metodo}</span>
+        <div class="vs-mesa-footer">
+          <div class="vs-mesa-footer-active">
+            <div class="vs-mesa-footer-left">
+              <span class="vs-mesa-items">${d.items} ítems · <span style="color:${payColor};font-weight:600">${isPagado ? 'Pagado' : 'Por pagar'}</span></span>
+            </div>
+            <div class="vs-mesa-total">${fmt(d.total)}</div>
+          </div>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:auto">
-          <span style="font-size:14px;font-weight:700;color:#0F172A">${fmt(d.total)}</span>
-          ${hasNext
-            ? `<button class="lm-btn-ghost vs-domi-advance" data-domi-id="${d.id}" style="font-size:10px;padding:3px 8px;height:auto;border-color:${meta.color};color:${meta.color}">${nextLabel} →</button>`
-            : `<span style="font-size:10px;font-weight:600;color:${meta.color}">✓ ${meta.label}</span>`
-          }
-        </div>
-      </div>
+      </button>
     `;
   }
 
@@ -914,10 +959,9 @@
       });
     });
 
-    // Domicilio advance buttons
-    container.querySelectorAll('.vs-domi-advance').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
+    // Domicilio cards: click advances state
+    container.querySelectorAll('.vs-domi-card').forEach(btn => {
+      btn.addEventListener('click', () => {
         const id = btn.dataset.domiId;
         const d = state.deliveries.find(x => x.id === id);
         if (d && DELIVERY_NEXT[d.estado]) {
