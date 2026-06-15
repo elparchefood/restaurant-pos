@@ -832,11 +832,14 @@
 
     // Insertar ítems
     const items = S.cart.map(i => ({
-      order_id:   S.orderId,
-      product_id: i.productId || i.id,
-      quantity:   i.qty,
-      unit_price: i.price,
-      total:      i.price * i.qty,
+      order_id:      S.orderId,
+      product_id:    i.productId || i.id,
+      product_name:  i.name,
+      product_price: i.price,
+      quantity:      i.qty,
+      unit_price:    i.price,
+      total:         i.price * i.qty,
+      branch_id:     S.branchId,
     }));
     if (items.length) {
       const { error: itemErr } = await sb.from('pos_order_items').insert(items);
@@ -1162,11 +1165,4 @@
     // Esperar a que pos-core esté listo
     if (window._pos) {
       window._pos.on('core:ready', async function() {
-        await loadBranch();
-        await loadCatalog();
-        refreshBadges();
-      });
-    }
-  });
-
-})();
+    

@@ -534,7 +534,7 @@ async function loadOrder() {
     const cat  = prod.pos_categories || {};
     return {
       id:        it.id,
-      name:      it.name || 'Producto',
+      name:      it.name || it.product_name || 'Producto',
       qty:       it.quantity || 1,
       unitPrice: parseFloat(it.unit_price) || 0,
       catName:   cat.name  || '',
@@ -979,4 +979,3 @@ function pinDigit(d) {
   if (_pinBuffer.length >= 4) return;
   _pinBuffer += d;
   document.getElementById('pin-error').hidden = true;
-  renderPinDots();
