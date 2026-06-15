@@ -454,6 +454,9 @@ document.addEventListener('click', e => {
     case 'finish':
       finalizarPago();
       break;
+    case 'cobrar-despues':
+      cobrarDespues();
+      break;
     case 'new-sale':
       window.location.href = 'ventas.html';
       break;
@@ -647,6 +650,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   SP.tableId  = params.get('table');
   SP.channel  = params.get('channel') || 'salon';
+
+  // Mostrar botón Cobrar después solo en canal rapido
+  const btnCobrarDespues = document.getElementById('btn-cobrar-despues');
+  if (btnCobrarDespues && SP.channel === 'rapido') btnCobrarDespues.style.display = '';
 
   // canal rapido no tiene mesa
   if (!SP.orderId || (!SP.tableId && SP.channel !== 'rapido')) {
