@@ -165,23 +165,26 @@
 
   /* ─── Acciones carrito ───────────────────────────────────────── */
   function addToCart(productId) {
+    // Si el id es de una linea en carrito (modal items usan lineId), incrementar esa linea
+    const lineIdx = S.cart.findIndex(i => String(i.id) === String(productId));
+    if (lineIdx >= 0) {
+      S.cart[lineIdx].qty += 1;
+      saveCart(); renderComanda(); pulseItem(productId);
+      return;
+    }
+    // Si no, buscar producto por product.id y agregar
     const prod = S.products.find(p => p.id === productId || String(p.id) === String(productId));
     if (!prod) return;
-    const idx = S.cart.findIndex(i => String(i.id) === String(prod.id));
-    if (idx >= 0) {
-      S.cart[idx].qty += 1;
-    } else {
-      S.cart.push({
-        id:       prod.id,
-        name:     prod.name,
-        price:    prod.price,
-        catId:    prod.category_id,
-        catName:  prod.catName || '',
-        catColor: prod.catColor || '#94A3B8',
-        fav:      !!prod.is_favorite,
-        qty:      1,
-      });
-    }
+    S.cart.push({
+      id:       prod.id,
+      name:     prod.name,
+      price:    prod.price,
+      catId:    prod.category_id,
+      catName:  prod.catName || '',
+      catColor: prod.catColor || '#94A3B8',
+      fav:      !!prod.is_favorite,
+      qty:      1,
+    });
     saveCart();
     renderComanda();
     pulseItem(prod.id);
@@ -867,9 +870,11 @@
   function vrOpenProductModal(prodId) {
     const p = S.products.find(x => String(x.id) === String(prodId));
     if (!p) return;
-    VR_WIP = { prod:p, step:1, pres:null, vars:{}, mods:{}, qty:1, note:'' };
     const hasPres = (p.presentations||[]).length > 1;
     const hasVars = (p.variables||[]).length > 0;
+    // Producto simple: agregar directo sin abrir modal
+    if (!hasPres && !hasVars) { addToCart(prodId); return; }
+    VR_WIP = { prod:p, step:1, pres:null, vars:{}, mods:{}, qty:1, note:'' };
     if (!hasPres) {
       const pArr = p.presentations || [];
       VR_WIP.pres = pArr.length === 1 ? pArr[0] : { id:'_base', name:'', price: parseFloat(p.price)||0 };
