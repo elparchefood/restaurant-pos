@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Historial · Lumen POS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="pos-core.css">
+<link rel="stylesheet" href="historial.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ════ SIDEBAR ════ -->
+  <aside id="sidebar">
+    <div class="brand-mark">
+      <div class="brand-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <div>
+        <div class="brand-name" id="sb-brand-name">Cobra POS</div>
+        <div class="brand-ver" id="sb-branch-name">—</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Operación</div>
+      <nav class="lm-navlist" style="display:flex;flex-direction:column;gap:2px">
+        <button class="nav-item" onclick="location.href='ventas.html'">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          Ventas
+        </button>
+        <button class="nav-item active">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Historial
+        </button>
+      </nav>
+    </div>
+
+    <div class="sidebar-section" style="margin-top:8px">
+      <div class="sidebar-label">Sistema</div>
+      <nav class="lm-navlist" style="display:flex;flex-direction:column;gap:2px">
+        <button class="nav-item" onclick="location.href='configuracion.html'">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 9.4a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82-1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9H20a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+          Configuración
+        </button>
+      </nav>
+    </div>
+
+    <div class="sys-status" style="margin-top:auto">
+      <div class="sys-row"><span id="sb-user-name">—</span><span id="sb-role">—</span></div>
+      <div class="sys-meta"><span id="sb-date">—</span><span id="sb-time">—</span></div>
+    </div>
+  </aside>
+
+  <!-- ════ MAIN ════ -->
+  <div id="main">
+
+    <!-- Topbar -->
+    <div id="topbar">
+      <div class="topbar-left">
+        <span class="mode-badge"><span class="mode-dot"></span>Turno abierto</span>
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted,#94A3B8)">
+          <span>Operación</span>
+          <span>/</span>
+          <span style="color:#0F172A;font-weight:600">Historial</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="user-info">
+          <div class="user-avatar" id="tb-avatar">—</div>
+          <div>
+            <div class="user-name" id="tb-user">—</div>
+            <div class="user-role" id="tb-role">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page head -->
+    <div class="hs-pagehead">
+      <div class="hs-pagehead-top">
+        <div>
+          <div class="lm-eyebrow">Operación</div>
+          <h1 class="lm-pagetitle">Historial de pedidos</h1>
+        </div>
+        <div class="hs-filters">
+          <button class="cc-fchip on" data-range="today">Hoy</button>
+          <button class="cc-fchip" data-range="yesterday">Ayer</button>
+          <button class="cc-fchip" data-range="7d">7 días</button>
+          <div class="hs-canal-wrap">
+            <button class="cc-fchip" id="btn-canal-filter">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
+              Canal
+            </button>
+            <div class="hs-canal-dropdown" id="canal-dropdown">
+              <div class="hs-canal-opt on" data-canal="all"><span class="hs-canal-dot" style="background:#94A3B8"></span>Todos</div>
+              <div class="hs-canal-opt" data-canal="salon"><span class="hs-canal-dot" style="background:#3B82F6"></span>Salón</div>
+              <div class="hs-canal-opt" data-canal="rapido"><span class="hs-canal-dot" style="background:#F97316"></span>Venta rápida</div>
+              <div class="hs-canal-opt" data-canal="domicilio"><span class="hs-canal-dot" style="background:#22C55E"></span>Domicilio</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Barra de búsqueda -->
+      <div class="hs-search-bar">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="hs-search" type="text" placeholder="Buscar por mesa, cliente, repartidor, producto…">
+        <span id="hs-search-clear" class="hs-search-clear" hidden>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </span>
+      </div>
+    </div>
+
+    <!-- Split layout -->
+    <div class="hs-split">
+
+      <!-- Lista de pedidos -->
+      <div class="hs-list">
+        <div class="hs-list-head">
+          <span class="hs-list-count" id="hs-count">Cargando…</span>
+          <span class="hs-list-total" id="hs-total"></span>
+        </div>
+        <div class="hs-list-scroll" id="hs-order-list">
+          <div class="hs-empty">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <p>Cargando pedidos…</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detalle -->
+      <div class="hs-detail" id="hs-detail">
+        <div class="hs-placeholder">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          <p>Selecciona un pedido</p>
+          <span>Toca cualquier pedido de la lista para ver su detalle completo</span>
+        </div>
+      </div>
+
+    </div><!-- /hs-split -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- Templates ocultos -->
+<div id="hs-print-area" style="display:none"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="pos-core.js"></script>
+<script src="historial.js"></script>
+</body>
+</html>

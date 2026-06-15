@@ -440,6 +440,12 @@
               <span style="font-weight:500">Domicilio express</span>
             </span>
           </button>
+          <button class="lm-nav" style="color:#475569" onclick="location.href='historial.html'">
+            <span class="lm-nav-inner">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span style="font-weight:500">Historial</span>
+            </span>
+          </button>
           <button class="lm-nav" style="color:#475569" data-action="nav-entregados">
             <span class="lm-nav-inner">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
