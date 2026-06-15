@@ -1290,14 +1290,21 @@
     const descuento = o.discount || 0;
     const hora = new Date(o.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 
+    const isPendientePagoQ = o.status === 'pendiente_pago';
     let actionsHtml;
     if (isPaid) {
       actionsHtml = `<div class="vs-actions">
           <button class="lm-btn-ghost" data-action="quick-nueva" data-quick-id="${o.id}">Nueva venta</button>
           <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-entregar" data-quick-id="${o.id}">Ya entregué</button>
         </div>`;
+    } else if (isPendientePagoQ) {
+      // Pendiente de pago: ir a cobrar (regresa a pagos.html)
+      actionsHtml = `<div class="vs-actions">
+          <button class="lm-btn-ghost" data-action="quick-cancelar" data-quick-id="${o.id}">Cancelar</button>
+          <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-cobrar" data-quick-id="${o.id}">Cobrar</button>
+        </div>`;
     } else if (state.cobroAdelantado) {
-      // Cobro adelantado: ya fue pagado al crear, solo entregar
+      // Cobro adelantado + en preparación: ya fue pagado, solo entregar
       actionsHtml = `<div class="vs-actions">
           <button class="lm-btn-ghost" data-action="quick-cancelar" data-quick-id="${o.id}">Cancelar</button>
           <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-entregar" data-quick-id="${o.id}">Ya entregué</button>
