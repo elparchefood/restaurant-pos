@@ -490,7 +490,7 @@
         </div>
         <div class="vs-topbar-right">
           <div class="vs-legend">${legendHtml}</div>
-          <button class="vs-cobro-toggle ${state.cobroAdelantado ? 'vs-cobro-on' : ''}" id="vs-cobro-toggle" title="${state.cobroAdelantado ? 'Cobro adelantado activo' : 'Cobro al final activo'}"><span class="vs-cobro-dot"></span><span class="vs-cobro-label">${state.cobroAdelantado ? 'Cobro adelantado' : 'Cobro al final'}</span></button>
+          <button class="vs-cobro-toggle ${state.cobroAdelantado ? 'vs-cobro-on' : ''}" id="vs-cobro-toggle" title="${state.cobroAdelantado ? 'Desactivar cobro adelantado' : 'Activar cobro adelantado'}"><span class="vs-cobro-track"><span class="vs-cobro-thumb"></span></span><span class="vs-cobro-label">${state.cobroAdelantado ? 'Cobro adelantado' : 'Cobro al final'}</span></button>
         </div>
       </header>
     `;
@@ -523,12 +523,7 @@
             ${SVG_PLUS(14)}
             Abrir mesa
           </button>
-          <button class="vs-cobro-toggle ${state.cobroAdelantado ? 'vs-cobro-on' : ''}"
-            id="vs-cobro-toggle"
-            title="${state.cobroAdelantado ? 'Cobro adelantado activo' : 'Cobro al final activo'}">
-            <span class="vs-cobro-dot"></span>
-            <span class="vs-cobro-label">${state.cobroAdelantado ? 'Cobro adelantado' : 'Cobro al final'}</span>
-          </button>
+                    <button class="vs-cobro-toggle ${state.cobroAdelantado ? 'vs-cobro-on' : ''}" id="vs-cobro-toggle" title="${state.cobroAdelantado ? 'Desactivar cobro adelantado' : 'Activar cobro adelantado'}"><span class="vs-cobro-track"><span class="vs-cobro-thumb"></span></span><span class="vs-cobro-label">${state.cobroAdelantado ? 'Cobro adelantado' : 'Cobro al final'}</span></button>
         </div>
       </section>
     `;
@@ -1353,7 +1348,7 @@
     const btn = document.getElementById('vs-cobro-toggle');
     if (btn) {
       btn.className = 'vs-cobro-toggle' + (nuevoValor ? ' vs-cobro-on' : '');
-      btn.title = nuevoValor ? 'Cobro adelantado activo' : 'Cobro al final activo';
+      btn.title = nuevoValor ? 'Desactivar cobro adelantado' : 'Activar cobro adelantado';
       btn.querySelector('.vs-cobro-label').textContent = nuevoValor ? 'Cobro adelantado' : 'Cobro al final';
       btn.addEventListener('click', toggleCobro);
     }

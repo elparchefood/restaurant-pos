@@ -995,10 +995,10 @@
 
 /* ─── Toggle cobro adelantado ─── */
 .vs-cobro-toggle {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
+  gap: 8px;
+  padding: 5px 10px 5px 6px;
   border-radius: 20px;
   border: 1.5px solid #ECEEF2;
   background: #F8FAFC;
@@ -1006,22 +1006,43 @@
   font-size: 11.5px;
   font-weight: 600;
   color: #64748B;
-  transition: all .18s;
+  transition: border-color .2s, background .2s, color .2s;
   white-space: nowrap;
+  user-select: none;
 }
 .vs-cobro-toggle:hover { border-color: #CBD5E1; background: #F1F5F9; }
-.vs-cobro-dot {
-  width: 7px; height: 7px;
+
+/* Track — el carril del interruptor */
+.vs-cobro-track {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  border-radius: 9px;
+  background: #CBD5E1;
+  flex-shrink: 0;
+  transition: background .25s;
+}
+/* Thumb — la bolita que desliza */
+.vs-cobro-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  background: #94A3B8;
-  transition: background .18s;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,.18);
+  transition: transform .25s cubic-bezier(.4,0,.2,1);
 }
+
+/* Estado ON — cobro adelantado activo */
 .vs-cobro-toggle.vs-cobro-on {
-  border-color: #FCA5A5;
-  background: #FEF2F2;
-  color: #EF4444;
+  border-color: #FED7AA;
+  background: #FFF7ED;
+  color: #EA580C;
 }
-.vs-cobro-toggle.vs-cobro-on .vs-cobro-dot { background: #EF4444; }
+.vs-cobro-toggle.vs-cobro-on .vs-cobro-track { background: #F97316; }
+.vs-cobro-toggle.vs-cobro-on .vs-cobro-thumb { transform: translateX(14px); }
 
 /* ─── Pendiente de pago notice ─── */
 .vs-pending-notice {
