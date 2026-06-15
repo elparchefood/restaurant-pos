@@ -271,7 +271,16 @@ function removePayment(id) {
   renderAll();
 }
 
-async function finalizarPago() {
+async function cobrarDespues() {
+    try {
+      await sb.from('pos_orders').update({ status: 'pendiente_pago' }).eq('id', SP.orderId);
+      window.location.href = 'ventas.html';
+    } catch(e) {
+      alert('Error al actualizar estado: ' + e.message);
+    }
+  }
+
+  async function finalizarPago() {
   const { total, paid, vuelto } = calc();
   const btnFinish = document.getElementById('btn-finish');
   btnFinish.disabled = true;
