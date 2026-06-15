@@ -623,14 +623,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // 4. Params de URL
+  // 4. Params de URL (SP.adelantado ya fue sobrescrito por branch query en paso 3)
   const params = new URLSearchParams(window.location.search);
   SP.orderId  = params.get('order');
-  // adelantado: URL param O config guardada en localStorage
-  const _opCfg = JSON.parse(localStorage.getItem('lumen.config.operacion.v1') || '{}');
-  SP.adelantado = params.get('adelantado') === '1'
-    || localStorage.getItem('lumen.config.cobro_adelantado') === 'true'
-    || !!_opCfg.cobroAdelantado;
   if (params.get('servicio') === '1') {
     SP.tip       = true;
     SP.tipLocked = true;
