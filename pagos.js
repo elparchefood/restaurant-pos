@@ -979,3 +979,6 @@ function pinDigit(d) {
   if (_pinBuffer.length >= 4) return;
   _pinBuffer += d;
   document.getElementById('pin-error').hidden = true;
+  renderPinDots();
+  if (_pinBuffer.length === 4) validatePin();
+}
