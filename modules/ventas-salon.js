@@ -440,12 +440,6 @@
               <span style="font-weight:500">Domicilio express</span>
             </span>
           </button>
-          <button class="lm-nav" style="color:#475569" data-action="nav-manual">
-            <span class="lm-nav-inner">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0v5"/><path d="M14 10V4a2 2 0 0 0-4 0v6"/><path d="M10 10.5V6a2 2 0 0 0-4 0v9"/><path d="M18 8a2 2 0 0 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>
-              <span style="font-weight:500">Venta manual</span>
-            </span>
-          </button>
           <button class="lm-nav" style="color:#475569" data-action="nav-entregados">
             <span class="lm-nav-inner">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
