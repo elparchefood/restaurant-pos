@@ -1139,3 +1139,23 @@
   border-radius: 6px;
   padding: 2px 8px;
 }
+
+/* Botón "Ya entregué los platos" en el rail (arriba del detalle) */
+.vs-rail-entregue-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 16px;
+  background: #ECFDF5;
+  color: #059669;
+  border: 1.5px solid #6EE7B7;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 4px;
+  transition: background .15s, border-color .15s;
+}
+.vs-rail-entregue-btn:hover { background: #D1FAE5; border-color: #34D399; }

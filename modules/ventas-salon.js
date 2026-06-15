@@ -765,10 +765,7 @@
             <div class="lm-avatar lm-avatar-xs">${t.mesero_initials || '?'}</div>
             <span class="vs-mesa-items">${t.items_count || 0} ítems</span>
           </div>
-          <div class="vs-entregue-btn" role="button" data-action="mark-entregado" data-table-id="${t.id}" title="Ya entregué los platos">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            Entregado
-          </div>
+          <div class="vs-mesa-total">${fmt(t.total)}</div>
         </div>`
       : `<div class="vs-mesa-footer-active">
           <div class="vs-mesa-footer-left">
@@ -1046,6 +1043,12 @@
         </div>
         <button class="lm-icon-sm">${SVG_DOTS(14)}</button>
       </div>
+      ${mesa.status === 'esperando' && state.cobroAdelantado
+        ? `<button class="vs-rail-entregue-btn" data-action="mark-entregado" data-table-id="${mesa.id}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Ya entregué los platos
+          </button>`
+        : ''}
 
       <div class="vs-rail-fixed-top">
         <div class="vs-info-row">
