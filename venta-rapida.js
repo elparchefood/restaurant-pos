@@ -813,7 +813,7 @@
         waiter_id:      userId,
         table_id:       null,
         channel:        'rapido',
-        status:         'esperando',
+        status:         'in_progress',
         total:          total,
         subtotal:       sub,
         discount:       S.descuento,

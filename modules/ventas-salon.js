@@ -25,6 +25,7 @@
   };
 
   const QUICK_STATE_META = {
+    in_progress:    { label: 'Esperando pedido',  short: 'Esperando', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA' },
     esperando:      { label: 'Esperando pedido',  short: 'Esperando', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA' },
     pendiente_pago: { label: 'Pendiente de pago', short: 'Pendiente', color: '#EF4444', tint: '#FEF2F2', ring: '#FECACA' },
     paid:           { label: 'Cobrado',            short: 'Cobrado',  color: '#22C55E', tint: '#F0FDF4', ring: '#BBF7D0' },
@@ -1136,9 +1137,13 @@
     const active = state.quickOrders.filter(o => o.status !== 'paid');
     const total = state.quickOrders.reduce((s, o) => s + (o.total || 0), 0);
     const counts = {};
-    state.quickOrders.forEach(o => { counts[o.status] = (counts[o.status] || 0) + 1; });
+    state.quickOrders.forEach(o => {
+      const k = (o.status === 'in_progress' || o.status === 'esperando') ? 'in_progress' : o.status;
+      counts[k] = (counts[k] || 0) + 1;
+    });
 
-    const chipsHtml = Object.entries(QUICK_STATE_META).map(([key, meta]) => {
+    const chipsHtml = ['in_progress', 'pendiente_pago', 'paid'].map(key => {
+      const meta = QUICK_STATE_META[key]; if (!meta) return '';
       const count = counts[key] || 0;
       return `
         <div class="lm-chip" style="border-left:3px solid ${meta.color};opacity:${count ? 1 : 0.4}">
