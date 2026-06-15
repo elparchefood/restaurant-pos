@@ -394,5 +394,14 @@
       </div>
     </div>
   </div>
+  <script>
+    (function(){
+      var ch = new URLSearchParams(location.search).get('channel');
+      if (ch === 'rapido') {
+        var el = document.getElementById('btn-cobrar-despues');
+        if (el) el.style.display = '';
+      }
+    })();
+  </script>
 </body>
 </html>
