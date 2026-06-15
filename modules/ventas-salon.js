@@ -1203,8 +1203,9 @@
         // Buscar el order activo de esta mesa y navegar a pagos
         const mesa = state.tables.find(t => t.id === tableId);
         const orderId = mesa && mesa.current_order_id;
+        const adelantadoParam = state.cobroAdelantado ? '&adelantado=1' : '';
         if (orderId) {
-          window.location.href = `pagos.html?order=${orderId}&table=${tableId}`;
+          window.location.href = `pagos.html?order=${orderId}&table=${tableId}${adelantadoParam}`;
         } else {
           // Si no hay current_order_id, buscar en Supabase
           const sbRef = window._pos && window._pos.sb;
@@ -1217,7 +1218,7 @@
               .limit(1)
               .maybeSingle()
               .then(({ data }) => {
-                if (data) window.location.href = `pagos.html?order=${data.id}&table=${tableId}`;
+                if (data) window.location.href = `pagos.html?order=${data.id}&table=${tableId}${adelantadoParam}`;
                 else alert('No se encontró un pedido activo para esta mesa.');
               });
           }
