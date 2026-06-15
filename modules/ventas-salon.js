@@ -1206,8 +1206,8 @@
         } else {
           const sbRef2 = window._pos && window._pos.sb;
           if (sbRef2) {
-            const { data: od } = await sbRef2.from('pos_orders').select('id').eq('table_id', tableId).in('status', ['open','in_progress']).order('created_at',{ascending:false}).limit(1).maybeSingle();
-            if (od) window.location.href = `pagos.html?order=${od.id}&table=${tableId}&adelantado=1`;
+            sbRef2.from('pos_orders').select('id').eq('table_id', tableId).in('status', ['open','in_progress']).order('created_at',{ascending:false}).limit(1).maybeSingle()
+              .then(function(r){ if (r.data) window.location.href = `pagos.html?order=${r.data.id}&table=${tableId}&adelantado=1`; });
           }
         }
         break;
