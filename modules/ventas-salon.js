@@ -1197,9 +1197,21 @@
       case 'reserve-table':
         window._pos && window._pos.emit && window._pos.emit('table:reserve', { tableId });
         break;
-      case 'cobrar':
-        cobrarMesa(tableId);
+      case 'cobrar': {
+        // Cobro adelantado: navegar a pagos.html con adelantado=1
+        const mesaCobrar = state.tables.find(t => t.id === tableId);
+        const orderIdCobrar = mesaCobrar && mesaCobrar.current_order_id;
+        if (orderIdCobrar) {
+          window.location.href = `pagos.html?order=${orderIdCobrar}&table=${tableId}&adelantado=1`;
+        } else {
+          const sbRef2 = window._pos && window._pos.sb;
+          if (sbRef2) {
+            const { data: od } = await sbRef2.from('pos_orders').select('id').eq('table_id', tableId).in('status', ['open','in_progress']).order('created_at',{ascending:false}).limit(1).maybeSingle();
+            if (od) window.location.href = `pagos.html?order=${od.id}&table=${tableId}&adelantado=1`;
+          }
+        }
         break;
+      }
       case 'collect': {
         // Buscar el order activo de esta mesa y navegar a pagos
         const mesa = state.tables.find(t => t.id === tableId);

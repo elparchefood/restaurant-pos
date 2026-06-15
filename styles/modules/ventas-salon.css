@@ -1061,6 +1061,8 @@
 .vs-cobrar-btn {
   background: #EF4444 !important;
   flex: 1;
+  white-space: nowrap;
+  font-size: 13px;
 }
 .vs-cobrar-btn:hover { background: #DC2626 !important; }
 
