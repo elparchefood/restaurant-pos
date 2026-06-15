@@ -7,51 +7,11 @@
 const CPL = { 58: 32, 80: 48 };
 
 /* ── Estado ── */
-let sb, currentUser, branchId, tenantId, brandName, branchName, userName, userInitials;
-let printers   = [];   // pos_printers rows
-let config     = null; // pos_print_config row
+// sb es global de pos-core.js
+let currentUser, branchId, tenantId, brandName, branchName, userName, userInitials;
+let printers   = [];
+let config     = null;
 let dirty      = false;
-
-/* ════════════════════════════════════════
-   INIT — esperar Supabase listo
-════════════════════════════════════════ */
-function waitForPos(cb) {
-  if (window._pos && window._pos.sb && window._pos.state && window._pos.state.user) {
-    cb();
-  } else {
-    document.addEventListener('pos:ready', cb, { once: true });
-    window.addEventListener('pos:ready', cb, { once: true });
-    if (window._pos) {
-      window._pos.on && window._pos.on('core:ready', cb);
-    }
-    setTimeout(() => { if (!sb) initFallback(); }, 3000);
-  }
-}
-
-async function initFallback() {
-  // Si pos-core no dispara el evento, inicializar Supabase directamente
-  const SUPA_URL = 'https://tblujfduscslxjmrjbdr.supabase.co';
-  const SUPA_KEY = document.querySelector('meta[name="supa-key"]')?.content
-    || (window._pos?.sb ? null : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU2NzcwMjgsImV4cCI6MjA1MTI1MzAyOH0.YlRBe1WEyFX_xBKkAEaJOvjTIovQwODIHjOHVzxMOBE');
-  if (!SUPA_KEY) return;
-  if (!window.supabase) return;
-  sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
-  const { data: { session } } = await sb.auth.getSession();
-  if (!session) { window.location.href = 'login.html'; return; }
-  currentUser = session.user;
-  branchId    = currentUser.user_metadata?.branch_id;
-  tenantId    = currentUser.user_metadata?.tenant_id;
-  await loadAndRender();
-}
-
-async function onPosReady() {
-  sb        = window._pos.sb;
-  currentUser = window._pos.state.user;
-  branchId  = currentUser?.user_metadata?.branch_id;
-  tenantId  = currentUser?.user_metadata?.tenant_id;
-  if (!branchId || !tenantId) { window.location.href = 'login.html'; return; }
-  await loadAndRender();
-}
 
 /* ════════════════════════════════════════
    CARGA DE DATOS
@@ -569,16 +529,21 @@ function esc(str) {
    AJUSTE HTML: mover rcpt-stage al DOM
 ════════════════════════════════════════ */
 function patchPreviewStage() {
-  // Reemplazar el contenido fijo del recibo por un div dinámico
   const stage = document.querySelector('.imp-preview-stage');
   if (!stage) return;
   stage.innerHTML = `<div id="rcpt-stage"></div>`;
 }
 
 /* ════════════════════════════════════════
-   ARRANQUE
+   ARRANQUE — patrón idéntico a caja.js
 ════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
   patchPreviewStage();
-  waitForPos(onPosReady);
+});
+
+window._pos.on('core:ready', async function({ user }) {
+  currentUser = user;
+  branchId    = window._pos.state.branchId;
+  tenantId    = window._pos.state.tenantId;
+  await loadAndRender();
 });
