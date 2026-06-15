@@ -273,7 +273,8 @@ function removePayment(id) {
 
 async function cobrarDespues() {
     try {
-      await sb.from('pos_orders').update({ status: 'pendiente_pago' }).eq('id', SP.orderId);
+      const { error } = await sb.from('pos_orders').update({ status: 'pendiente_pago' }).eq('id', SP.orderId);
+      if (error) throw error;
       window.location.href = 'ventas.html';
     } catch(e) {
       alert('Error al actualizar estado: ' + e.message);
