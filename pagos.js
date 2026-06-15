@@ -551,7 +551,7 @@ async function loadOrder() {
   }
 
   // Topbar + meta
-  const mesaName = table?.name || 'Mesa';
+  const mesaName = SP.table?.name || (SP.channel === 'rapido' ? 'Venta Rápida' : 'Mesa');
   document.getElementById('mesa-title').textContent  = mesaName;
   document.getElementById('crumb-mesa').textContent  = mesaName;
   document.getElementById('sb-section').textContent  = mesaName + ' · Opciones de pago';
@@ -980,5 +980,3 @@ function pinDigit(d) {
   _pinBuffer += d;
   document.getElementById('pin-error').hidden = true;
   renderPinDots();
-  if (_pinBuffer.length === 4) validatePin();
-}
