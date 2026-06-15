@@ -1268,6 +1268,9 @@
       case 'nav-back':
         window._pos && window._pos.emit && window._pos.emit('nav:back');
         break;
+      case 'nav-rapida':
+        window.location.href = 'venta-rapida.html';
+        break;
       case 'nav-domicilio':
         window.location.href = 'domicilios.html';
         break;

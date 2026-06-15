@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Venta rápida — Cobra POS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="venta-rapida.css">
+</head>
+<body>
+<div class="tp-root">
+
+  <!-- ════════ SIDEBAR ACCIONES ════════ -->
+  <aside class="tp-side">
+    <div class="tp-brand">
+      <div class="tp-brand-logo">L</div>
+      <div>
+        <div class="tp-brand-name">Cobra POS</div>
+        <div class="tp-brand-sub" id="vr-branch-name">Cargando…</div>
+      </div>
+    </div>
+
+    <div class="tp-side-section-wrap">
+      <div class="tp-side-section">Venta</div>
+    </div>
+    <nav class="tp-nav">
+
+      <button class="lm-nav" data-action="back">
+        <span class="tp-nav-l">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          <span>Regresar al salón</span>
+        </span>
+      </button>
+
+      <button class="lm-nav is-accent" id="vr-btn-pago" data-action="pago" disabled>
+        <span class="tp-nav-l">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          <span>Opciones de pago</span>
+        </span>
+      </button>
+
+      <button class="lm-nav" data-action="cliente">
+        <span class="tp-nav-l">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>Datos del cliente</span>
+        </span>
+      </button>
+
+      <div class="tp-nav-divider"></div>
+
+      <button class="lm-nav" id="vr-btn-vale" data-action="vale" disabled>
+        <span class="tp-nav-l">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>Vale de pago</span>
+        </span>
+      </button>
+
+      <button class="lm-nav" id="vr-btn-discount" data-action="discount" disabled>
+        <span class="tp-nav-l">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <span>Descuento</span>
+        </span>
+      </button>
+
+      <button class="lm-nav" id="vr-btn-cancelar" data-action="cancelar" disabled style="color:#EF4444">
+        <span class="tp-nav-l">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          <span>Cancelar venta</span>
+        </span>
+      </button>
+
+    </nav>
+
+    <!-- mini tarjeta -->
+    <div class="tp-side-foot">
+      <div class="tp-cartmini">
+        <div class="tp-cartmini-icon is-empty" id="vr-mini-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        </div>
+        <div>
+          <div class="tp-cartmini-title" id="vr-mini-title">Venta rápida</div>
+          <div class="tp-cartmini-sub" id="vr-mini-sub">Sin productos aún</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ════════ MAIN ════════ -->
+  <div class="tp-main">
+
+    <!-- topbar -->
+    <header class="tp-topbar">
+      <div class="tp-topbar-l">
+        <nav class="tp-crumbs">
+          <span>Ventas</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          <span>Por salón</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="here">Venta rápida</span>
+        </nav>
+      </div>
+      <div class="tp-topbar-r">
+        <div class="tp-modebadge">
+          <span class="dot"></span>
+          <span>Para llevar</span>
+        </div>
+        <div class="tp-user" id="vr-user-chip">
+          <div class="tp-user-avatar" id="vr-user-avatar">SA</div>
+          <div>
+            <div class="tp-user-name" id="vr-user-name">Cargando…</div>
+            <div class="tp-user-role" id="vr-user-role">—</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- body grid -->
+    <div class="tp-body">
+
+      <!-- ════ COMANDA ════ -->
+      <section class="tp-comanda">
+        <div class="tp-comanda-head">
+          <div class="tp-comanda-headtop">
+            <div class="tp-mesa-id">
+              <div class="tp-mesa-glyph">
+                <!-- bolsa icon -->
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+              </div>
+              <div>
+                <div class="tp-mesa-title">Venta rápida</div>
+                <div class="tp-open-pill" id="vr-open-pill">
+                  <span class="dot"></span>
+                  <span>Para llevar</span>
+                </div>
+              </div>
+            </div>
+            <span class="tp-turno-chip" id="vr-turno">#001</span>
+          </div>
+
+          <div class="tp-meta-row">
+            <div class="tp-meta-cell">
+              <span class="tp-meta-label">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                Cliente
+              </span>
+              <span class="tp-meta-value" id="vr-meta-cliente">—</span>
+            </div>
+            <div class="tp-meta-cell bordered">
+              <span class="tp-meta-label">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                Ítems
+              </span>
+              <span class="tp-meta-value" id="vr-meta-count">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- fila cliente -->
+        <div class="tp-cliente" id="vr-cliente-row">
+          <div class="tp-cliente-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <span class="tp-cliente-placeholder" id="vr-cliente-placeholder">Selecciona un cliente</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="vr-cliente-chevron"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+
+        <!-- vacío -->
+        <div class="tp-empty" id="vr-empty">
+          <div class="tp-empty-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          </div>
+          <div class="tp-empty-title">Agrega un producto</div>
+          <div class="tp-empty-text">Selecciona productos del catálogo para comenzar la venta.</div>
+        </div>
+
+        <!-- lista ítems -->
+        <div class="tp-cart-scroll" id="vr-cart-scroll" hidden>
+          <div class="tp-comanda-listhead">
+            <span class="tp-section-micro">Pedido · <span id="vr-count-label">0</span> ítems</span>
+            <button class="lm-link" id="vr-btn-vaciar">Vaciar</button>
+          </div>
+          <div id="vr-cart-list"></div>
+        </div>
+
+        <!-- pie totales -->
+        <div class="tp-comanda-foot" id="vr-comanda-foot" hidden>
+          <div class="tp-totals">
+            <div class="tp-total-row">
+              <span>Subtotal</span>
+              <span id="vr-subtotal">$0</span>
+            </div>
+            <div class="tp-total-row" id="vr-descuento-row" hidden>
+              <span style="color:#E11D48">Descuento</span>
+              <span id="vr-descuento-val" style="color:#E11D48">-$0</span>
+            </div>
+            <div class="tp-total-grand">
+              <span>Total a pagar</span>
+              <span id="vr-total">$0</span>
+            </div>
+          </div>
+          <div class="tp-comanda-actions">
+            <button class="lm-btn-ghost" id="vr-btn-guardar">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Guardar
+            </button>
+            <button class="lm-btn-primary" style="flex:1" id="vr-btn-enviar">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.76h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 10.91a16 16 0 0 0 5.61 5.61l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.73 17z"/></svg>
+              Enviar a cocina
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════ BROWSER (catálogo) ════ -->
+      <section class="tp-browser">
+        <div class="tp-browser-tabs">
+          <button class="lm-bigtab is-active" data-tab="categoria">Categoría</button>
+          <button class="lm-bigtab" data-tab="menu">Menú</button>
+          <button class="lm-bigtab" data-tab="busqueda">Búsqueda</button>
+          <button class="lm-bigtab" data-tab="favoritos">Favoritos</button>
+        </div>
+
+        <div class="tp-browser-body">
+
+          <!-- PANE: Categoría -->
+          <div class="tp-pane on" data-pane="categoria">
+            <!-- Sub: grid categorías -->
+            <div class="tp-sub on" data-sub="grid">
+              <div class="tp-catgrid" id="vr-catgrid">
+                <div style="color:#94A3B8;font-size:12px;grid-column:1/-1;padding:20px 0;text-align:center">Cargando categorías…</div>
+              </div>
+            </div>
+            <!-- Sub: productos de categoría -->
+            <div class="tp-sub" data-sub="products">
+              <div class="tp-gridhead">
+                <button class="lm-back" id="vr-back-cats">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                  Categorías
+                </button>
+                <div class="tp-gridhead-info">
+                  <span class="tp-catdot" id="vr-cat-dot"></span>
+                  <span class="tp-gridhead-title" id="vr-cat-title"></span>
+                  <span class="tp-countpill" id="vr-cat-count"></span>
+                </div>
+              </div>
+              <div class="tp-prodgrid" id="vr-prodgrid"></div>
+            </div>
+          </div>
+
+          <!-- PANE: Menú -->
+          <div class="tp-pane" data-pane="menu">
+            <div class="tp-menuscroll" id="vr-menuscroll">
+              <div style="color:#94A3B8;font-size:12px;padding:20px 0;text-align:center">Cargando menú…</div>
+            </div>
+          </div>
+
+          <!-- PANE: Búsqueda -->
+          <div class="tp-pane" data-pane="busqueda">
+            <div class="tp-searchbig">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="vr-search-input" placeholder="Buscar por nombre de producto…" autocomplete="off">
+              <button class="lm-link" id="vr-search-clear" hidden>Limpiar</button>
+            </div>
+            <div id="vr-search-empty" class="tp-soft-empty">
+              <div class="tp-soft-empty-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              </div>
+              <div class="tp-soft-empty-title">Escribe para buscar</div>
+              <div class="tp-soft-empty-text" id="vr-search-hint">Busca entre los productos del catálogo.</div>
+            </div>
+            <div class="tp-prodgrid" id="vr-search-results" hidden></div>
+          </div>
+
+          <!-- PANE: Favoritos -->
+          <div class="tp-pane" data-pane="favoritos">
+            <div class="tp-gridhead">
+              <span class="tp-catdot" style="background:#F59E0B"></span>
+              <span class="tp-gridhead-title">Favoritos</span>
+              <span class="tp-countpill" id="vr-fav-count">0</span>
+            </div>
+            <div class="tp-prodgrid" id="vr-favgrid"></div>
+          </div>
+
+        </div>
+      </section>
+    </div><!-- /tp-body -->
+  </div><!-- /tp-main -->
+
+</div><!-- /tp-root -->
+
+<!-- ════ MODAL: Descuento ════ -->
+<div class="vr-overlay" data-modal="discount" hidden>
+  <div class="vr-modal">
+    <div class="vr-modal-head">
+      <div class="vr-modal-icon" style="background:#FFF1F2;color:#E11D48">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+      </div>
+      <div class="vr-modal-head-txt">
+        <div class="vr-modal-title">Aplicar descuento</div>
+        <div class="vr-modal-sub">Porcentaje o monto fijo sobre el total</div>
+      </div>
+      <button class="lm-icon-sm" data-action="modal-close">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="vr-modal-body">
+      <div class="vr-mini-label">Porcentaje rápido</div>
+      <div class="vr-chip-grid">
+        <button class="lm-chip" data-pct="5">5%</button>
+        <button class="lm-chip" data-pct="10">10%</button>
+        <button class="lm-chip" data-pct="15">15%</button>
+        <button class="lm-chip" data-pct="20">20%</button>
+      </div>
+      <div class="vr-mini-label" style="margin-top:14px">Monto fijo</div>
+      <div class="vr-fixed">
+        <span class="cur">$</span>
+        <input class="vr-bareinput" type="number" id="vr-discount-input" placeholder="0" min="0">
+      </div>
+      <div class="vr-modal-actions">
+        <button class="lm-btn-ghost" style="flex:1" data-action="modal-close">Cancelar</button>
+        <button class="lm-btn-primary" style="flex:1;background:#E11D48;box-shadow:none" id="vr-discount-apply">Aplicar descuento</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ MODAL: Vale ════ -->
+<div class="vr-overlay" data-modal="vale" hidden>
+  <div class="vr-modal">
+    <div class="vr-modal-head">
+      <div class="vr-modal-icon" style="background:#EEF2FF;color:#5B6BFF">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      </div>
+      <div class="vr-modal-head-txt">
+        <div class="vr-modal-title">Vale de pago</div>
+        <div class="vr-modal-sub">Comprobante para el cliente</div>
+      </div>
+      <button class="lm-icon-sm" data-action="modal-close">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="vr-modal-body">
+      <div class="vr-voucher">
+        <div class="vr-voucher-row"><span>Turno</span><strong id="vr-vale-turno">#001</strong></div>
+        <div class="vr-voucher-row"><span>Cliente</span><strong id="vr-vale-cliente">Consumidor final</strong></div>
+        <div class="vr-voucher-row"><span>Ítems</span><strong id="vr-vale-items">0 productos</strong></div>
+        <div class="vr-voucher-total"><span>Total</span><span id="vr-vale-total">$0</span></div>
+        <div class="vr-voucher-note">Presenta este vale para recoger tu pedido cuando sea llamado tu turno.</div>
+      </div>
+      <div class="vr-modal-actions">
+        <button class="lm-btn-ghost" style="flex:1" data-action="modal-close">Cerrar</button>
+        <button class="lm-btn-primary" style="flex:1">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          Imprimir vale
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ MODAL: Cancelar ════ -->
+<div class="vr-overlay" data-modal="cancelar" hidden>
+  <div class="vr-modal">
+    <div class="vr-modal-head" style="border:none">
+      <button class="lm-icon-sm" data-action="modal-close" style="margin-left:auto">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="vr-cancel">
+      <div class="vr-cancel-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      </div>
+      <div class="vr-cancel-title">¿Cancelar esta venta?</div>
+      <div class="vr-cancel-text">Se eliminarán todos los productos del pedido actual. Esta acción no se puede deshacer.</div>
+    </div>
+    <div class="vr-modal-body">
+      <div class="vr-modal-actions">
+        <button class="lm-btn-ghost" style="flex:1" data-action="modal-close">No, volver</button>
+        <button class="vr-btn-danger" style="flex:1" id="vr-cancelar-confirm">Sí, cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="pos-core.js"></script>
+<script src="venta-rapida.js"></script>
+</body>
+</html>
