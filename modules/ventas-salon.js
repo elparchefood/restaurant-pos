@@ -1328,7 +1328,8 @@
 
   async function toggleCobro() {
     const sb = window._pos && window._pos.sb;
-    const role = (window._pos && window._pos.state && window._pos.state.role) || 'mesero';
+    const _posUser = window._pos && window._pos.state && window._pos.state.user;
+    const role = (_posUser && (_posUser.user_metadata?.role || _posUser.app_metadata?.role)) || 'mesero';
     // Si no es admin, pedir PIN (flujo de PIN deferred — por ahora solo admins)
     if (role !== 'admin' && role !== 'administrador' && role !== 'gerente') {
       alert('Solo el administrador puede cambiar el modo de cobro.');
