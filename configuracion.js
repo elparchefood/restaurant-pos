@@ -189,6 +189,8 @@ function setSection(sec) {
       $('crumb').textContent = 'Usuarios y roles';
       if (!window._urLoaded) { urInit(); window._urLoaded = true; }
     }
+  } else if (sec === 'impresora') {
+    window.location.href = 'impresoras.html';
   } else {
     screenPh.classList.add('on');
     $('placeholder-title').textContent = SECTION_LABELS[sec] || sec;
