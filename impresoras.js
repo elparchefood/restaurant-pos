@@ -564,7 +564,18 @@ function patchPreviewStage() {
 ════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
   patchPreviewStage();
+  bindNavEvents();
 });
+
+function bindNavEvents() {
+  const back = document.getElementById('nav-back');
+  if (back) back.addEventListener('click', () => { window.location.href = 'configuracion.html'; });
+  document.querySelectorAll('.lm-nav[data-section]').forEach(btn => {
+    if (btn.dataset.section !== 'impresora') {
+      btn.addEventListener('click', () => { window.location.href = 'configuracion.html'; });
+    }
+  });
+}
 
 window._pos.on('core:ready', async function({ user }) {
   currentUser = user;
