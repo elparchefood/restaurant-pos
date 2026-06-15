@@ -734,7 +734,7 @@
     }
 
     // Cargar productos
-    let query = sb.from('pos_products').select('*').eq('active', true).order('name');
+    let query = sb.from('pos_products').select('*').eq('available', true).order('name');
     if (S.branchId) query = query.eq('branch_id', S.branchId);
     const { data: prods } = await query;
     if (prods) {
