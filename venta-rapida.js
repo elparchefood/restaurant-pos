@@ -712,23 +712,24 @@
     const sb = getSb();
     if (!sb) return;
 
-    // Cargar categorías
-    const { data: cats } = await sb.from('pos_categories').select('*').order('name');
+    // Cargar categorías (filtrar por branch_id)
+    const PALETA = [
+      { color:'#5B6BFF', tint:'#EEF2FF', ring:'#C7D2FE' },
+      { color:'#10B981', tint:'#ECFDF5', ring:'#A7F3D0' },
+      { color:'#F59E0B', tint:'#FFFBEB', ring:'#FDE68A' },
+      { color:'#0EA5E9', tint:'#F0F9FF', ring:'#BAE6FD' },
+      { color:'#F43F5E', tint:'#FFF1F2', ring:'#FECDD3' },
+      { color:'#8B5CF6', tint:'#F5F3FF', ring:'#DDD6FE' },
+    ];
+    let catQuery = sb.from('pos_categories').select('*').eq('active', true).order('name');
+    if (S.branchId) catQuery = catQuery.eq('branch_id', S.branchId);
+    const { data: cats } = await catQuery;
     if (cats) {
-      // Asignar colores por índice si no existen
-      const PALETA = [
-        { color:'#5B6BFF', tint:'#EEF2FF', ring:'#C7D2FE' },
-        { color:'#10B981', tint:'#ECFDF5', ring:'#A7F3D0' },
-        { color:'#F59E0B', tint:'#FFFBEB', ring:'#FDE68A' },
-        { color:'#0EA5E9', tint:'#F0F9FF', ring:'#BAE6FD' },
-        { color:'#F43F5E', tint:'#FFF1F2', ring:'#FECDD3' },
-        { color:'#8B5CF6', tint:'#F5F3FF', ring:'#DDD6FE' },
-      ];
       S.categories = cats.map((c, i) => ({
         ...c,
-        color: c.color || PALETA[i % PALETA.length].color,
-        tint:  c.tint  || PALETA[i % PALETA.length].tint,
-        ring:  c.ring  || PALETA[i % PALETA.length].ring,
+        color: c.color      || PALETA[i % PALETA.length].color,
+        tint:  c.color_tint || PALETA[i % PALETA.length].tint,
+        ring:  c.color_ring || PALETA[i % PALETA.length].ring,
       }));
     }
 
