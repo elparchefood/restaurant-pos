@@ -10,36 +10,101 @@
 
   // ─── Constantes de estado de mesa ───────────────────
   const STATE_META = {
-    libre:     { label: 'Mesa libre',       short: 'Libres',    color: '#94A3B8', tint: '#F8FAFC', ring: '#ECEEF2', hint: 'disponibles',        icon: SVG_PLUS },
-    esperando: { label: 'Esperando pedido', short: 'Esperando', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA', hint: 'pedido en cocina',    icon: SVG_CLOCK },
-    comiendo:  { label: 'Comiendo',         short: 'Comiendo',  color: '#5B6BFF', tint: '#EEF2FF', ring: '#C7D2FE', hint: 'servidas en mesa',    icon: SVG_FOOD },
-    paga:      { label: 'Paga',             short: 'Pagas',     color: '#10B981', tint: '#ECFDF5', ring: '#A7F3D0', hint: 'cuenta saldada',      icon: SVG_CHECK },
+    libre:          { label: 'Mesa libre',        short: 'Libres',    color: '#94A3B8', tint: '#F8FAFC', ring: '#ECEEF2', hint: 'disponibles',        icon: SVG_PLUS },
+    pendiente_pago: { label: 'Pendiente de pago', short: 'Pendiente', color: '#EF4444', tint: '#FEF2F2', ring: '#FECACA', hint: 'esperando cobro',     icon: SVG_DOLLAR },
+    esperando:      { label: 'Esperando pedido',  short: 'Esperando', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA', hint: 'pedido en cocina',    icon: SVG_CLOCK },
+    comiendo:       { label: 'Comiendo',          short: 'Comiendo',  color: '#5B6BFF', tint: '#EEF2FF', ring: '#C7D2FE', hint: 'servidas en mesa',    icon: SVG_FOOD },
   };
+
+
+  // ─── Constantes de estado de domicilio ──────────────
+  const DELIVERY_META = {
+    preparacion: { label: 'En preparación', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA' },
+    camino:      { label: 'En camino',      color: '#3B82F6', tint: '#EFF6FF', ring: '#BFDBFE' },
+    entregado:   { label: 'Entregado',      color: '#22C55E', tint: '#F0FDF4', ring: '#BBF7D0' },
+  };
+
+  const CANAL_META = {
+    whatsapp: { label: 'WhatsApp', color: '#22C55E', bg: '#DCFCE7' },
+    instagram: { label: 'Instagram', color: '#E1306C', bg: '#FCE7F3' },
+    web:      { label: 'Página web', color: '#3B82F6', bg: '#DBEAFE' },
+    facebook: { label: 'Facebook', color: '#1877F2', bg: '#DBEAFE' },
+    tiktok:   { label: 'TikTok', color: '#0F172A', bg: '#F1F5F9' },
+    telefono: { label: 'Teléfono', color: '#64748B', bg: '#F1F5F9' },
+  };
+
+  const DOMI_SEED = [
+    { id: 'D-1042', cliente: 'Jesús Gómez',      canal: 'whatsapp',  items: 3, total: 54000, estado: 'preparacion', payStatus: 'pendiente', metodo: 'efectivo',      domiciliario: 'Felipe Ríos', min: 4 },
+    { id: 'D-1041', cliente: 'Adriana Eraso',    canal: 'instagram', items: 2, total: 42000, estado: 'preparacion', payStatus: 'pagado',    metodo: 'transferencia', domiciliario: 'Felipe Ríos', min: 9 },
+    { id: 'D-1040', cliente: 'Camilo Restrepo',  canal: 'web',       items: 5, total: 85000, estado: 'camino',      payStatus: 'pagado',    metodo: 'tarjeta',       domiciliario: '—',           min: 14 },
+    { id: 'D-1039', cliente: 'Karen J. San I.',  canal: 'whatsapp',  items: 4, total: 52000, estado: 'camino',      payStatus: 'pendiente', metodo: 'efectivo',      domiciliario: 'Rappi',       min: 22 },
+    { id: 'D-1038', cliente: 'Víctor R. Llanos', canal: 'facebook',  items: 2, total: 36000, estado: 'entregado',   payStatus: 'pagado',    metodo: 'transferencia', domiciliario: 'Picap',       min: 27 },
+    { id: 'D-1037', cliente: 'Mariana Ortiz',    canal: 'tiktok',    items: 6, total: 101000, estado: 'entregado',  payStatus: 'pagado',    metodo: 'efectivo',      domiciliario: 'Felipe Ríos', min: 41 },
+  ];
+
+  const DELIVERY_NEXT = { preparacion: 'camino', camino: 'entregado' };
+  const DELIVERY_BTN  = { preparacion: 'En camino', camino: 'Entregado' };
 
   const CHIP_ORDER_KEY = 'lumen.ventas.chipOrder';
-  const DEFAULT_CHIP_ORDER = ['libre', 'esperando', 'comiendo', 'paga'];
-
-  const QUICK_STATE_META = {
-    in_progress:    { label: 'En preparación', short: 'Preparando', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA' },
-    pendiente_pago: { label: 'Pendiente pago', short: 'Pendiente',  color: '#EF4444', tint: '#FEF2F2', ring: '#FECACA' },
-    paid:           { label: 'Cobrado',         short: 'Cobrado',   color: '#22C55E', tint: '#F0FDF4', ring: '#BBF7D0' },
-  };
+  const CONFIG_KEY = 'lumen.config.salon.v1';
+  const COBRO_KEY = 'lumen.config.cobro_adelantado';
+  const DEFAULT_CHIP_ORDER = ['libre', 'pendiente_pago', 'esperando', 'comiendo'];
 
   const MESERO_NAMES = { SA: 'Sergio Andrés', JM: 'Juan Manuel', AC: 'Andrea Castro', LM: 'Laura Mejía' };
 
   // ─── Estado del módulo ───────────────────────────────
   let state = {
-    floor: 'adentro',
+    floor: null,
+    zones: [],
     selectedTableId: null,
     tables: [],
     orderItems: [],
     loading: true,
     chipOrder: loadChipOrder(),
     dragKey: null,
+    cobroAdelantado: false,
+    userRole: 'mesero',
+    currentOrder: null,
+    deliveries: DOMI_SEED.map(d => Object.assign({}, d)),
+    selectedDomiId: null,
+    quickOrders: [],
+    selectedQuickId: null,
   };
 
   let container = null;
   let realtimeSub = null;
+  let timerInterval = null;
+
+  function fmtElapsed(startIso) {
+    if (!startIso || startIso === 'null') return null;
+    const ms = Date.now() - new Date(startIso).getTime();
+    if (isNaN(ms) || ms < 0) return null;
+    const totalSecs = Math.floor(ms / 1000);
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+    const mm = String(m).padStart(2, '0');
+    const ss = String(s).padStart(2, '0');
+    return h > 0 ? h + ':' + mm + ':' + ss : m + ':' + ss;
+  }
+
+  function startLiveTimers() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      if (!container) return;
+      container.querySelectorAll('[data-timer]').forEach(el => {
+        const iso = el.dataset.timer;
+        const formatted = fmtElapsed(iso);
+        if (!formatted) return;
+        const val = el.querySelector('.vs-timer-val');
+        if (val) val.textContent = formatted;
+        if (el.dataset.timerAlert) {
+          const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+          el.classList.toggle('vs-info-value--alert', mins > parseInt(el.dataset.timerAlert));
+        }
+      });
+    }, 1000); // every second — user sees it move
+  }
 
   // ─── Helpers ─────────────────────────────────────────
   function fmt(n) {
@@ -98,43 +163,115 @@
     return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="${sw||2.4}" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
   }
 
-  // ─── Supabase — fetch data ────────────────────────────
-  async function fetchTables() {
-    const sb = window._pos && window._pos.sb;
-    if (!sb) return [];
-
-    const branchId = window._pos.state && window._pos.state.branchId;
-    let query = sb.from('pos_tables').select('*').order('number', { ascending: true });
-    if (branchId) query = query.eq('branch_id', branchId);
-
-    const { data, error } = await query;
-    if (error) { console.error('[ventas-salon] fetchTables:', error); return []; }
-    return data || [];
+  function loadZonesFromConfig() {
+    try {
+      var raw = localStorage.getItem(CONFIG_KEY);
+      if (raw) {
+        var c = JSON.parse(raw);
+        if (c.zones && c.zones.length) return c.zones;
+      }
+    } catch(e) {}
+    return [{ id: 'z_adentro', name: 'Adentro' }];
   }
 
-  async function fetchOrderItems(tableId) {
+  // ─── Supabase — fetch data ────────────────────────────
+
+  // Devuelve mesas del config localStorage enriquecidas con estado live de Supabase
+  async function fetchTables() {
+    // 1. Base: mesas configuradas en localStorage
+    const localConfig = (function() {
+      try {
+        var raw = localStorage.getItem(CONFIG_KEY);
+        if (raw) { var c = JSON.parse(raw); if (c.tables) return c; }
+      } catch(e) {}
+      return { zones: [], tables: [] };
+    })();
+
+    const baseTables = localConfig.tables.map(function(t, i) {
+      return {
+        id: t.id,
+        name: t.name,
+        number: parseInt(t.name, 10) || (i + 1),
+        seats: t.seats,
+        zone_id: t.zoneId,
+        status: 'libre',
+        total: 0,
+        items_count: 0,
+        minutes: 0,
+        mesero_initials: '',
+        persons: 0,
+      };
+    });
+
+    if (!baseTables.length) return [];
+
+    // 2. Enriquecer con estado de pos_tables y datos reales de pos_orders
+    try {
+      const sb = window._pos && window._pos.sb;
+      if (sb) {
+        const ids = baseTables.map(function(t){ return t.id; });
+        const { data: tablesData } = await sb.from('pos_tables').select('id, status, current_order_id').in('id', ids);
+        const tableMap = {};
+        (tablesData || []).forEach(function(r){ tableMap[r.id] = r; });
+        const { data: ordersData } = await sb
+          .from('pos_orders')
+          .select('id, table_id, total, guests, waiter_name, opened_at, created_at')
+          .in('table_id', ids)
+          .not('status', 'eq', 'completed')
+          .not('status', 'eq', 'cancelled');
+        const orderMap = {};
+        (ordersData || []).forEach(function(o){ orderMap[o.table_id] = o; });
+        return baseTables.map(function(t) {
+          const live = tableMap[t.id];
+          const ord  = orderMap[t.id];
+          const now  = Date.now();
+          const openedAt = ord?.opened_at || ord?.created_at;
+          const minutes = openedAt ? Math.round((now - new Date(openedAt).getTime()) / 60000) : 0;
+          const initials = ord?.waiter_name
+            ? ord.waiter_name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2)
+            : '';
+          return Object.assign({}, t, {
+            openedAt:        openedAt || null,
+            status:          live?.status || t.status,
+            total:           ord?.total   || 0,
+            items_count:     0,
+            minutes:         minutes,
+            mesero_initials: initials,
+            persons:         ord?.guests  || 0,
+          });
+        });
+      }
+    } catch(e) {
+      console.warn('[ventas-salon] Supabase enrichment failed:', e.message || e);
+    }
+
+    return baseTables;
+  }
+
+  async function fetchOrderData(tableId) {
     const sb = window._pos && window._pos.sb;
-    if (!sb || !tableId) return [];
+    if (!sb || !tableId) return { order: null, items: [] };
 
     const { data: orders, error: ordErr } = await sb
       .from('pos_orders')
-      .select('id, status, total, created_at, mesero_initials, persons')
+      .select('id, status, total, created_at, opened_at, waiter_name, guests')
       .eq('table_id', tableId)
       .not('status', 'eq', 'completed')
+      .not('status', 'eq', 'cancelled')
       .order('created_at', { ascending: false })
       .limit(1);
 
-    if (ordErr || !orders || !orders.length) return [];
+    if (ordErr || !orders || !orders.length) return { order: null, items: [] };
 
-    const orderId = orders[0].id;
+    const order = orders[0];
     const { data: items, error: itemErr } = await sb
       .from('pos_order_items')
-      .select('id, quantity, name, area, unit_price')
-      .eq('order_id', orderId)
+      .select('id, quantity, product_name, name, product_price, unit_price, notes, product_id, pos_products(category_id, pos_categories(name))')
+      .eq('order_id', order.id)
       .order('created_at', { ascending: true });
 
-    if (itemErr) { console.error('[ventas-salon] fetchOrderItems:', itemErr); return []; }
-    return items || [];
+    if (itemErr) { console.error('[ventas-salon] fetchOrderData:', itemErr); }
+    return { order, items: items || [] };
   }
 
   // ─── Realtime subscription ───────────────────────────
@@ -164,18 +301,26 @@
   // ─── Data loading ─────────────────────────────────────
   async function loadData() {
     state.tables = await fetchTables();
+    state.quickOrders = await fetchQuickOrders();
 
     if (state.selectedTableId) {
       state.orderItems = await fetchOrderItems(state.selectedTableId);
     }
 
     state.loading = false;
+    if (state.selectedTableId) {
+      const { order, items } = await fetchOrderData(state.selectedTableId);
+      state.currentOrder = order;
+      state.orderItems   = items;
+    }
     render();
   }
 
   async function selectTable(tableId) {
     state.selectedTableId = tableId;
-    state.orderItems = await fetchOrderItems(tableId);
+    const { order, items } = await fetchOrderData(tableId);
+    state.currentOrder = order;
+    state.orderItems = items;
     renderRail();
     renderGrid(); // update selected highlight
   }
@@ -218,6 +363,7 @@
   function render() {
     if (!container) return;
 
+
     // Get user info from _pos state
     const user = (window._pos && window._pos.state && window._pos.state.user) || {};
     const branch = (window._pos && window._pos.state && window._pos.state.branch) || {};
@@ -227,16 +373,12 @@
         ${renderSidebar(user, branch)}
         <main class="vs-main">
           ${renderTopbar(user)}
-          ${renderPageHead()}
-          ${renderSummaryRow()}
+          ${state.floor === '__domicilios__' ? renderDomicilioSummaryRow() : state.floor === '__rapidas__' ? renderQuickSummaryRow() : renderSummaryRow()}
           <section class="vs-body">
             <div class="vs-body-left">
-              ${renderSalonTabs()}
-              ${renderGrid()}
+              ${state.floor === '__domicilios__' ? renderDomicilioGrid() : state.floor === '__rapidas__' ? renderQuickGrid() : renderGrid()}
             </div>
-            <aside class="vs-rail" id="vs-rail">
-              ${renderRailContent()}
-            </aside>
+            <aside class="vs-rail" id="vs-rail">${state.floor === '__domicilios__' ? renderDomiRailContent() : state.floor === '__rapidas__' ? renderQuickRailContent() : renderRailContent()}</aside>
           </section>
         </main>
       </div>
@@ -253,7 +395,7 @@
         <div class="vs-brand-mark">
           <div class="vs-brand-logo">L</div>
           <div>
-            <div class="vs-brand-name">Lumen POS</div>
+            <div class="vs-brand-name">Cobra POS</div>
             <div class="vs-brand-sub">${branch.name || 'El Parche Food'} · Caja 01</div>
           </div>
         </div>
@@ -326,45 +468,37 @@
 
   // ─── Render: Topbar ──────────────────────────────────
   function renderTopbar(user) {
-    const name = user.name || 'Usuario';
-    const initials = user.initials || (name ? name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() : '??');
-    const role = user.role_label || 'Mesero';
-
+    const zones = state.zones.length ? state.zones : loadZonesFromConfig();
+    const tabsHtml = zones.map(z => {
+      const count = state.tables.filter(t => t.zone_id === z.id).length;
+      return `<button class="lm-tab ${state.floor === z.id ? 'is-active' : ''}" data-floor="${z.id}">${z.name}<span class="vs-tab-count">${count}</span></button>`;
+    }).join('');
+    const isDomicilios = state.floor === '__domicilios__';
+    const isRapidas = state.floor === '__rapidas__';
+    const legendSrc = isDomicilios ? DELIVERY_META : isRapidas ? QUICK_STATE_META : STATE_META;
+    const legendHtml = Object.entries(legendSrc).map(([k, m]) => `
+      <span class="vs-legend-item">
+        <span class="vs-legend-dot" style="background:${m.color}"></span>
+        ${m.label}
+      </span>`).join('');
     return `
-      <header class="vs-topbar">
+      <header class="vs-topbar" id="vs-salon-tabs">
         <div class="vs-topbar-left">
-          <div class="vs-mode-badge">
-            <span class="vs-mode-dot"></span>
-            Modo Servidor
-          </div>
-          <div class="vs-crumbs">
-            <span class="vs-crumb-parent">Ventas</span>
-            ${SVG_CHEVRON(10).replace('stroke="currentColor"','stroke="#CBD5E1"')}
-            <span class="vs-crumb-current">Por salón</span>
+          <div class="vs-tabs-group">
+            ${tabsHtml}
+            <button class="lm-tab vs-tab-domicilios ${state.floor === '__domicilios__' ? 'is-active' : ''}" data-floor="__domicilios__">
+              Domicilios
+              <span class="vs-tab-count">${state.deliveries.filter(d => d.estado !== 'entregado').length}</span>
+            </button>
+            <button class="lm-tab ${state.floor === '__rapidas__' ? 'is-active' : ''}" data-floor="__rapidas__">
+              Rápidas
+              <span class="vs-tab-count">${state.quickOrders.filter(o => o.status !== 'paid').length}</span>
+            </button>
           </div>
         </div>
         <div class="vs-topbar-right">
-          <div class="vs-pill-success">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            Actualizado
-          </div>
-          <button class="lm-icon" title="Ayuda">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          </button>
-          <button class="lm-icon" title="Cocina">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
-          </button>
-          <button class="lm-icon" title="Caja">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h.01M18 12h.01"/></svg>
-          </button>
-          <div class="vs-ram-chip" id="vs-ram">RAM —</div>
-          <div class="vs-user-info">
-            <div class="lm-avatar lm-avatar-sm">${initials}</div>
-            <div>
-              <div class="vs-user-name">${name}</div>
-              <div class="vs-user-role">${role}</div>
-            </div>
-          </div>
+          <div class="vs-legend">${legendHtml}</div>
+          <button class="vs-cobro-toggle ${state.cobroAdelantado ? 'vs-cobro-on' : ''}" id="vs-cobro-toggle" title="${state.cobroAdelantado ? 'Desactivar cobro adelantado' : 'Activar cobro adelantado'}"><span class="vs-cobro-track"><span class="vs-cobro-thumb"></span></span><span class="vs-cobro-label">${state.cobroAdelantado ? 'Cobro adelantado' : 'Cobro al final'}</span></button>
         </div>
       </header>
     `;
@@ -397,6 +531,7 @@
             ${SVG_PLUS(14)}
             Abrir mesa
           </button>
+                    <button class="vs-cobro-toggle ${state.cobroAdelantado ? 'vs-cobro-on' : ''}" id="vs-cobro-toggle" title="${state.cobroAdelantado ? 'Desactivar cobro adelantado' : 'Activar cobro adelantado'}"><span class="vs-cobro-track"><span class="vs-cobro-thumb"></span></span><span class="vs-cobro-label">${state.cobroAdelantado ? 'Cobro adelantado' : 'Cobro al final'}</span></button>
         </div>
       </section>
     `;
@@ -462,20 +597,68 @@
     `;
   }
 
+
+  // ─── Render: Domicilio summary row (chips) ────────────
+  function renderDomicilioSummaryRow() {
+    const counts = {};
+    Object.keys(DELIVERY_META).forEach(k => { counts[k] = 0; });
+    state.deliveries.forEach(d => { if (counts[d.estado] !== undefined) counts[d.estado]++; });
+
+    const chipsHtml = Object.entries(DELIVERY_META).map(([key, meta]) => {
+      const count = counts[key] || 0;
+      return `
+        <div class="lm-chip" style="border-left:3px solid ${meta.color}">
+          <span class="lm-chip-icon" style="color:${meta.color};background:${meta.tint}">
+            <span style="width:8px;height:8px;border-radius:50%;background:${meta.color};display:inline-block"></span>
+          </span>
+          <div style="min-width:0;flex:1">
+            <div style="display:flex;align-items:baseline;gap:6px">
+              <span class="lm-chip-count">${count}</span>
+              <span class="lm-chip-label">${meta.label}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const activos = state.deliveries.filter(d => d.estado !== 'entregado').length;
+    const totalVal = state.deliveries.filter(d => d.estado !== 'entregado').reduce((s, d) => s + (d.total || 0), 0);
+
+    return `
+      <section class="vs-summary-row">
+        <div class="vs-chips-track" id="vs-chips-track">
+          ${chipsHtml}
+        </div>
+        <div class="vs-metric-strip">
+          <div class="vs-metric-cell">
+            <div class="vs-metric-label">Domicilios activos</div>
+            <div class="vs-metric-value">${activos}</div>
+            <div class="vs-metric-hint">en curso ahora</div>
+          </div>
+          <div class="vs-metric-divider"></div>
+          <div class="vs-metric-cell">
+            <div class="vs-metric-label">Total en curso</div>
+            <div class="vs-metric-value">${fmt(totalVal)}</div>
+            <div class="vs-metric-hint">sin entregados</div>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
   // ─── Render: Salon tabs ───────────────────────────────
   function renderSalonTabs() {
-    const floors = [
-      { id: 'adentro',    label: 'Adentro',    count: state.tables.length },
-      { id: 'antejardin', label: 'Antejardín', count: 0 },
-      { id: 'terraza',    label: 'Terraza',    count: 0 },
-    ];
+    const zones = state.zones.length ? state.zones : loadZonesFromConfig();
 
-    const tabsHtml = floors.map(f => `
-      <button class="lm-tab ${state.floor === f.id ? 'is-active' : ''}" data-floor="${f.id}">
-        ${f.label}
-        <span class="vs-tab-count">${f.count}</span>
-      </button>
-    `).join('');
+    const tabsHtml = zones.map(z => {
+      const count = state.tables.filter(t => t.zone_id === z.id).length;
+      return `
+        <button class="lm-tab ${state.floor === z.id ? 'is-active' : ''}" data-floor="${z.id}">
+          ${z.name}
+          <span class="vs-tab-count">${count}</span>
+        </button>
+      `;
+    }).join('');
 
     const legendHtml = Object.entries(STATE_META).map(([k, m]) => `
       <span class="vs-legend-item">
@@ -492,39 +675,101 @@
     `;
   }
 
+
+  // ─── Render: Domicilio grid ───────────────────────
+  function renderDomicilioGrid() {
+    const list = state.deliveries;
+    if (!list.length) {
+      return `<div class="vs-grid" style="grid-auto-rows:160px;align-content:start"><div class="vs-loading">Sin domicilios activos</div></div>`;
+    }
+    const cards = list.map(d => renderDomicilioCard(d)).join('');
+    return `<div class="vs-grid vs-domi-grid" id="vs-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));grid-auto-rows:160px;align-content:start;display:grid;gap:12px">${cards}</div>`;
+  }
+
+  function renderDomicilioCard(d) {
+    const meta  = DELIVERY_META[d.estado] || DELIVERY_META.recibido;
+    const canal = CANAL_META[d.canal] || { label: d.canal, color: '#64748B', bg: '#F1F5F9' };
+    const mins  = d.min || 0;
+    const timeStr = mins < 60 ? `hace ${mins}m` : `hace ${Math.floor(mins/60)}h ${mins%60}m`;
+    const isPagado = d.payStatus === 'pagado';
+    const payColor = isPagado ? '#16A34A' : '#D97706';
+    const payBg    = isPagado ? '#DCFCE7' : '#FEF3C7';
+    const hasNext  = !!DELIVERY_NEXT[d.estado];
+
+    return `
+      <button class="lm-mesa vs-domi-card" data-domi-id="${d.id}"
+        style="background:${meta.tint};border-color:${meta.ring};height:160px;max-height:160px;min-height:0;overflow:hidden">
+        <div class="vs-mesa-header">
+          <span class="vs-state-pill" style="color:${meta.color};background:${meta.tint}">
+            <span class="vs-state-dot" style="background:${meta.color}"></span>
+            ${meta.label}
+          </span>
+          <span class="vs-time-badge" data-timer="${new Date(Date.now() - (d.min||0)*60000).toISOString()}">${SVG_CLOCK(10)} <span class="vs-timer-val">${timeStr}</span></span>
+        </div>
+        <div class="vs-mesa-num-row">
+          <div class="vs-mesa-num vs-mesa-num--active" style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${d.cliente}</div>
+          <span style="font-size:10px;font-weight:600;color:${canal.color};background:${canal.bg};padding:1px 6px;border-radius:4px;flex-shrink:0">${canal.label}</span>
+        </div>
+        <div class="vs-mesa-footer">
+          <div class="vs-mesa-footer-active">
+            <div class="vs-mesa-footer-left">
+              <span class="vs-mesa-items">${d.items} ítems · <span style="color:${payColor};font-weight:600">${isPagado ? 'Pagado' : 'Por pagar'}</span></span>
+            </div>
+            <div class="vs-mesa-total">${fmt(d.total)}</div>
+          </div>
+        </div>
+      </button>
+    `;
+  }
+
   // ─── Render: Mesa grid ────────────────────────────────
   function renderGrid() {
     if (state.loading) {
       return `<div class="vs-grid"><div class="vs-loading">Cargando mesas…</div></div>`;
     }
 
-    if (!state.tables.length) {
+    // Filtrar por zona activa
+    const visible = state.floor
+      ? state.tables.filter(t => t.zone_id === state.floor)
+      : state.tables;
+
+    if (!visible.length) {
       return `
         <div class="vs-grid">
           <div class="vs-empty-grid">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            <span>No hay mesas configuradas</span>
+            <span>No hay mesas en esta zona</span>
           </div>
         </div>
       `;
     }
 
-    const cards = state.tables.map(t => renderMesaCard(t)).join('');
-    return `<div class="vs-grid" id="vs-grid">${cards}</div>`;
+    const cards = visible.map(t => renderMesaCard(t)).join('');
+    return `<div class="vs-grid" id="vs-grid" style="grid-auto-rows:160px;align-content:start">${cards}</div>`;
   }
 
   function renderMesaCard(t) {
     const meta = STATE_META[t.status] || STATE_META.libre;
     const isLibre = t.status === 'libre';
     const isSelected = t.id === state.selectedTableId;
-    const numStr = pad2(t.number || t.n || 0);
+    const numStr = t.name || pad2(t.number || t.n || 0);
 
-    const selectedStyle = isSelected
-      ? `border-color:${meta.color};box-shadow:0 0 0 3px ${meta.color}22`
-      : `border-color:${meta.ring}`;
+    const bgColor = isLibre ? '#fff' : meta.tint;
+    const borderColor = isSelected ? meta.color : (isLibre ? '#ECEEF2' : meta.ring);
+    const boxShadow = isSelected ? `0 0 0 3px ${meta.color}33` : 'none';
+    const selectedStyle = `background:${bgColor};border-color:${borderColor};box-shadow:${boxShadow}`;
 
+    const isEsperando = t.status === 'esperando';
     const footerHtml = isLibre
       ? `<div class="vs-mesa-footer-libre">Disponible · Toca para abrir</div>`
+      : isEsperando
+      ? `<div class="vs-mesa-footer-active">
+          <div class="vs-mesa-footer-left">
+            <div class="lm-avatar lm-avatar-xs">${t.mesero_initials || '?'}</div>
+            <span class="vs-mesa-items">${t.items_count || 0} ítems</span>
+          </div>
+          <div class="vs-mesa-total">${fmt(t.total)}</div>
+        </div>`
       : `<div class="vs-mesa-footer-active">
           <div class="vs-mesa-footer-left">
             <div class="lm-avatar lm-avatar-xs">${t.mesero_initials || '?'}</div>
@@ -538,13 +783,13 @@
       : '';
 
     return `
-      <button class="lm-mesa" data-table-id="${t.id}" style="${selectedStyle}">
+      <button class="lm-mesa" data-table-id="${t.id}" style="${selectedStyle};height:160px;max-height:160px;min-height:0;overflow:hidden">
         <div class="vs-mesa-header">
           <span class="vs-state-pill" style="color:${meta.color};background:${meta.tint}">
             <span class="vs-state-dot" style="background:${meta.color}"></span>
             ${meta.label}
           </span>
-          ${!isLibre ? `<span class="vs-time-badge">${SVG_CLOCK(10)} ${t.minutes || 0} min</span>` : ''}
+          ${!isLibre ? `<span class="vs-time-badge" data-timer="${t.openedAt || new Date(Date.now() - (t.minutes||0)*60000).toISOString()}">${SVG_CLOCK(10)} <span class="vs-timer-val">${t.minutes || 0} min</span></span>` : ''}
         </div>
         <div class="vs-mesa-num-row">
           <div class="vs-mesa-num ${isLibre ? 'vs-mesa-num--libre' : 'vs-mesa-num--active'}">${numStr}</div>
@@ -555,7 +800,134 @@
     `;
   }
 
-  // ─── Render: Rail ─────────────────────────────────────
+
+  // ─── Render: Domicilio rail ───────────────────────────
+  function renderDomiRailContent() {
+    if (!state.selectedDomiId) return renderDomiRailEmpty();
+    const d = state.deliveries.find(x => x.id === state.selectedDomiId);
+    if (!d) return renderDomiRailEmpty();
+    return renderDomiRailDetail(d);
+  }
+
+  function renderDomiRailEmpty() {
+    return `
+      <div class="vs-rail-head">
+        <div>
+          <div class="vs-eyebrow">Domicilio seleccionado</div>
+          <div class="vs-rail-title-row">
+            <h2 class="vs-rail-title">—</h2>
+          </div>
+        </div>
+      </div>
+      <div class="vs-empty-rail">
+        <div class="vs-empty-icon">${SVG_PLUS(22)}</div>
+        <div class="vs-empty-title">Selecciona un domicilio</div>
+        <p class="vs-empty-desc">Elige un domicilio para ver su detalle, comanda y estado de entrega.</p>
+      </div>
+    `;
+  }
+
+  function renderDomiRailDetail(d) {
+    const meta   = DELIVERY_META[d.estado] || DELIVERY_META.preparacion;
+    const canal  = CANAL_META[d.canal] || { label: d.canal, color: '#64748B', bg: '#F1F5F9' };
+    const isPagado = d.payStatus === 'pagado';
+    const payColor = isPagado ? '#16A34A' : '#D97706';
+    const payBg    = isPagado ? '#DCFCE7' : '#FEF3C7';
+    const subtotal = d.total || 0;
+    const domiFee  = 5000;
+    const total    = subtotal + (isPagado ? 0 : 0); // total ya incluye domicilio en seed
+    const hasNext  = !!DELIVERY_NEXT[d.estado];
+    const nextLabel = DELIVERY_BTN[d.estado];
+
+    const actionsHtml = hasNext
+      ? `<div class="vs-actions">
+           <button class="lm-btn-ghost" data-domi-action="print" data-domi-id="${d.id}">Imprimir</button>
+           <button class="lm-btn-primary" data-domi-action="advance" data-domi-id="${d.id}">${nextLabel} →</button>
+         </div>`
+      : `<div class="vs-actions">
+           <button class="lm-btn-ghost" data-domi-action="print" data-domi-id="${d.id}">Imprimir</button>
+           <button class="lm-btn-primary" style="background:#22C55E" data-domi-action="close" data-domi-id="${d.id}">✓ Entregado</button>
+         </div>`;
+
+    return `
+      <div class="vs-rail-head">
+        <div>
+          <div class="vs-eyebrow">Domicilio seleccionado</div>
+          <div class="vs-rail-title-row">
+            <h2 class="vs-rail-title">${d.cliente}</h2>
+            <span class="vs-state-pill" style="color:${meta.color};background:${meta.tint}">
+              <span class="vs-state-dot" style="background:${meta.color}"></span>${meta.label}
+            </span>
+          </div>
+        </div>
+        <button class="lm-icon-sm">${SVG_DOTS(14)}</button>
+      </div>
+
+      <div class="vs-rail-fixed-top">
+        <div class="vs-info-row">
+          <div class="vs-info-cell">
+            <div class="vs-info-label">Canal</div>
+            <div class="vs-info-value" style="font-size:12px;color:${canal.color}">${canal.label}</div>
+          </div>
+          <div class="vs-info-cell">
+            <div class="vs-info-label">Tiempo</div>
+            <div class="vs-info-value" data-timer="${new Date(Date.now() - (d.min||0)*60000).toISOString()}"><span class="vs-timer-val">${d.min || 0} min</span></div>
+          </div>
+          <div class="vs-info-cell">
+            <div class="vs-info-label">Ítems</div>
+            <div class="vs-info-value">${d.items}</div>
+          </div>
+        </div>
+        <div class="vs-mesero-row">
+          <div class="lm-avatar lm-avatar-md">${(d.domiciliario || '?')[0].toUpperCase()}</div>
+          <div class="vs-mesero-spacer">
+            <div class="vs-mesero-label">Domiciliario</div>
+            <div class="vs-mesero-name">${d.domiciliario || '—'}</div>
+          </div>
+          <span style="font-size:11px;font-weight:600;color:${payColor};background:${payBg};padding:3px 8px;border-radius:6px">${isPagado ? 'Pagado' : 'Por pagar'}</span>
+        </div>
+      </div>
+
+      <div class="vs-rail-scroll">
+        <div class="vs-order-head">
+          <div class="vs-order-section-label">Comanda</div>
+          <span style="font-size:11px;color:#94A3B8">${d.metodo}</span>
+        </div>
+        <div class="vs-order-list">
+          <div style="font-size:12px;color:#94A3B8;padding:16px 0;text-align:center">${d.items} ítem${d.items !== 1 ? 's' : ''} — detalle pendiente de integración</div>
+        </div>
+      </div>
+
+      <div class="vs-rail-footer">
+        <div class="vs-totals">
+          <div class="vs-total-row"><span>Subtotal</span><span>${fmt(subtotal)}</span></div>
+          <div class="vs-total-row vs-total-grand"><span>Total</span><span>${fmt(subtotal)}</span></div>
+        </div>
+        ${actionsHtml}
+      </div>
+    `;
+  }
+
+  // ─── Fetch: Quick Orders ────────────────────────────────
+  async function fetchQuickOrders() {
+    const sb = window._pos && window._pos.sb;
+    if (!sb) return [];
+    const branchId = window._pos.state && window._pos.state.branchId;
+    const today = new Date(); today.setHours(0,0,0,0);
+    let q = sb.from('pos_orders')
+      .select('id, customer_name, turno, total, subtotal, discount, status, channel, created_at, waiter_name, notes, delivered_at')
+      .eq('channel', 'rapido')
+      .neq('status', 'cancelled')
+      .gte('created_at', today.toISOString())
+      .is('delivered_at', null)
+      .order('created_at', { ascending: false });
+    if (branchId) q = q.eq('branch_id', branchId);
+    const { data, error } = await q;
+    if (error) { console.error('[VS] fetchQuickOrders:', error); return []; }
+    return data || [];
+  }
+
+    // ─── Render: Rail ─────────────────────────────────────
   function renderRail() {
     const el = document.getElementById('vs-rail');
     if (!el) return;
@@ -590,7 +962,7 @@
   function renderRailDetail(mesa) {
     const meta = STATE_META[mesa.status] || STATE_META.libre;
     const isLibre = mesa.status === 'libre';
-    const isPaga = mesa.status === 'paga';
+    const isPendientePago = mesa.status === 'pendiente_pago';
     const numStr = pad2(mesa.number || mesa.n || 0);
 
     if (isLibre) {
@@ -619,28 +991,66 @@
       `;
     }
 
-    const subtotal = mesa.total || 0;
+    const ord = state.currentOrder;
+    const subtotal = ord?.total || mesa.total || 0;
     const servicio = Math.round(subtotal * 0.10);
     const total = subtotal + servicio;
+    const waiterName = ord?.waiter_name || '—';
+    const waiterInitials = waiterName !== '—'
+      ? waiterName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2)
+      : '?';
+    const guests = ord?.guests || mesa.persons || 0;
+    const itemsCount = state.orderItems.length || mesa.items_count || 0;
+
+    // Calcular minutos transcurridos
+    const openedAt = ord?.opened_at || ord?.created_at || mesa.openedAt;
+    const minutesElapsed = openedAt
+      ? Math.round((Date.now() - new Date(openedAt).getTime()) / 60000)
+      : (mesa.minutes || 0);
 
     const itemsHtml = state.orderItems.length
-      ? state.orderItems.map(it => `
+      ? state.orderItems.map(it => {
+          const itemName = it.product_name || it.name || '—';
+          const itemPrice = it.product_price || it.unit_price || 0;
+          const categoryName = it.pos_products?.pos_categories?.name || '';
+        return `
           <div class="vs-order-item">
             <span class="vs-order-qty">${it.quantity}×</span>
             <div class="vs-order-item-info">
-              <div class="vs-order-item-name">${it.name || '—'}</div>
-              <div class="vs-order-item-area">${it.area || ''}</div>
+              <div class="vs-order-item-name">${itemName}</div>
+              ${categoryName ? `<div class="vs-order-item-area">${categoryName}</div>` : (it.notes ? `<div class="vs-order-item-area">${it.notes}</div>` : '')}
             </div>
-            <div class="vs-order-item-price">${fmt((it.unit_price || 0) * it.quantity)}</div>
-          </div>
-        `).join('')
+            <div class="vs-order-item-price">${fmt(itemPrice * it.quantity)}</div>
+          </div>`;
+        }).join('')
       : `<div style="font-size:12px;color:#94A3B8;padding:16px 0;text-align:center">Sin ítems registrados</div>`;
 
-    const actionsHtml = isPaga
-      ? `<div class="vs-paid-notice">${SVG_OK(14)} <span>Cuenta pagada · en efectivo</span></div>
-         <div class="vs-actions-paid">
-           <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir recibo</button>
-           <button class="lm-btn-primary" data-action="free-table" data-table-id="${mesa.id}">Liberar mesa</button>
+    const actionsHtml = isPendientePago
+      ? `<div class="vs-pending-notice">
+           ${SVG_DOLLAR(14)} <span>Esperando cobro — pedido en preparación</span>
+         </div>
+         <div class="vs-actions">
+           <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
+           <button class="lm-btn-primary vs-cobrar-btn" data-action="cobrar" data-table-id="${mesa.id}">
+             ${SVG_DOLLAR(14)} Cobrar y enviar a cocina
+           </button>
+         </div>`
+      : mesa.status === 'comiendo'
+      ? state.cobroAdelantado
+        ? `<div class="vs-actions">
+             <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
+             <button class="lm-btn-danger" data-action="liberar-mesa" data-table-id="${mesa.id}">Liberar mesa</button>
+           </div>`
+        : `<div class="vs-actions">
+             <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
+             <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
+             <button class="lm-btn-primary" data-action="collect" data-table-id="${mesa.id}">Cobrar</button>
+           </div>`
+      : mesa.status === 'esperando' && state.cobroAdelantado
+      ? `<div class="vs-actions">
+           <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
+           <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
+           <button class="lm-btn-primary vs-cobrar-disabled" data-action="collect" data-table-id="${mesa.id}" disabled>Cobrar</button>
          </div>`
       : `<div class="vs-actions">
            <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
@@ -661,6 +1071,12 @@
         </div>
         <button class="lm-icon-sm">${SVG_DOTS(14)}</button>
       </div>
+      ${mesa.status === 'esperando' && state.cobroAdelantado
+        ? `<button class="vs-rail-entregue-btn" data-action="mark-entregado" data-table-id="${mesa.id}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Ya entregué los platos
+          </button>`
+        : ''}
 
       <div class="vs-rail-fixed-top">
         <div class="vs-info-row">
@@ -670,7 +1086,7 @@
           </div>
           <div class="vs-info-cell">
             <div class="vs-info-label">Tiempo</div>
-            <div class="vs-info-value ${(mesa.minutes || 0) > 60 ? 'vs-info-value--alert' : ''}">${mesa.minutes || 0} min</div>
+            <div class="vs-info-value ${minutesElapsed > 60 ? 'vs-info-value--alert' : ''}" data-timer="${openedAt || new Date(Date.now() - minutesElapsed*60000).toISOString()}" data-timer-alert="60"><span class="vs-timer-val">${minutesElapsed} min</span></div>
           </div>
           <div class="vs-info-cell">
             <div class="vs-info-label">Ítems</div>
@@ -690,7 +1106,9 @@
       <div class="vs-rail-scroll">
         <div class="vs-order-head">
           <div class="vs-order-section-label">Comanda</div>
-          <button class="lm-link" data-action="add-item" data-table-id="${mesa.id}">+ Agregar ítem</button>
+          ${isPendientePago
+            ? `<span class="vs-rail-locked">${SVG_DOLLAR(12)} Esperando cobro</span>`
+            : `<button class="lm-link" data-action="add-item" data-table-id="${mesa.id}">+ Agregar ítem</button>`}
         </div>
         <div class="vs-order-list">${itemsHtml}</div>
       </div>
@@ -706,9 +1124,190 @@
     `;
   }
 
+
+  // ─── Render: Quick Orders ────────────────────────────
+  function renderQuickSummaryRow() {
+    const active = state.quickOrders.filter(o => o.status !== 'paid');
+    const total = state.quickOrders.reduce((s, o) => s + (o.total || 0), 0);
+    const counts = {};
+    state.quickOrders.forEach(o => { counts[o.status] = (counts[o.status] || 0) + 1; });
+
+    const chipsHtml = Object.entries(QUICK_STATE_META).map(([key, meta]) => {
+      const count = counts[key] || 0;
+      if (!count) return '';
+      return `
+        <div class="lm-chip" style="border-left:3px solid ${meta.color}">
+          <span class="lm-chip-icon" style="color:${meta.color};background:${meta.tint}">
+            ${SVG_CLOCK(15)}
+          </span>
+          <div style="min-width:0;flex:1">
+            <div style="display:flex;align-items:baseline;gap:6px">
+              <span class="lm-chip-count">${count}</span>
+              <span class="lm-chip-label">${meta.label}</span>
+            </div>
+            <div class="lm-chip-hint">pedidos</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <section class="vs-summary-row">
+        <div class="vs-chips-track">
+          ${chipsHtml || '<div style="padding:12px 0;color:#94A3B8;font-size:13px">Sin pedidos rápidos hoy</div>'}
+        </div>
+        <div class="vs-metric-strip">
+          <div class="vs-metric-cell">
+            <div class="vs-metric-label">Activos ahora</div>
+            <div class="vs-metric-value">${active.length}</div>
+            <div class="vs-metric-hint">pedidos en curso</div>
+          </div>
+          <div class="vs-metric-divider"></div>
+          <div class="vs-metric-cell">
+            <div class="vs-metric-label">Total vendido hoy</div>
+            <div class="vs-metric-value">${fmt(total)}</div>
+            <div class="vs-metric-hint">ventas rápidas</div>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderQuickGrid() {
+    if (state.loading) {
+      return `<div class="vs-grid"><div class="vs-loading">Cargando pedidos rápidos…</div></div>`;
+    }
+    if (!state.quickOrders.length) {
+      return `
+        <div class="vs-grid">
+          <div class="vs-empty-grid">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>Sin pedidos rápidos hoy</span>
+          </div>
+        </div>
+      `;
+    }
+    const cards = state.quickOrders.map(o => renderQuickCard(o)).join('');
+    return `<div class="vs-grid" id="vs-quick-grid">${cards}</div>`;
+  }
+
+  function renderQuickCard(o) {
+    const meta = QUICK_STATE_META[o.status] || QUICK_STATE_META.in_progress;
+    const isSelected = o.id === state.selectedQuickId;
+    const titulo = o.customer_name || ('Turno #' + String(o.turno || 0).padStart(3, '0'));
+    const mins = Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000);
+    const selectedStyle = isSelected
+      ? `border-color:${meta.color};box-shadow:0 0 0 3px ${meta.color}22`
+      : `border-color:${meta.ring}`;
+    return `
+      <button class="lm-mesa" data-quick-id="${o.id}" style="${selectedStyle}">
+        <div class="vs-mesa-header">
+          <span class="vs-state-pill" style="color:${meta.color};background:${meta.tint}">
+            <span class="vs-state-dot" style="background:${meta.color}"></span>
+            ${meta.label}
+          </span>
+          <span class="vs-time-badge">${SVG_CLOCK(10)} ${mins} min</span>
+        </div>
+        <div class="vs-mesa-num-row">
+          <div class="vs-mesa-num vs-mesa-num--active" style="font-size:${titulo.length > 12 ? '14px' : '22px'};font-weight:700">${titulo}</div>
+        </div>
+        <div class="vs-mesa-footer">
+          <div class="vs-mesa-footer-active">
+            <div class="vs-mesa-footer-left">
+              <span class="vs-mesa-items">Venta rápida</span>
+            </div>
+            <div class="vs-mesa-total">${fmt(o.total)}</div>
+          </div>
+        </div>
+      </button>
+    `;
+  }
+
+  function renderQuickRailContent() {
+    const o = state.quickOrders.find(x => x.id === state.selectedQuickId);
+    if (!o) return renderQuickRailEmpty();
+    return renderQuickRailDetail(o);
+  }
+
+  function renderQuickRailEmpty() {
+    return `
+      <div class="vs-rail-head">
+        <div>
+          <div class="vs-eyebrow">Pedido seleccionado</div>
+          <div class="vs-rail-title-row">
+            <h2 class="vs-rail-title">—</h2>
+          </div>
+        </div>
+      </div>
+      <div class="vs-empty-rail">
+        <div class="vs-empty-icon">${SVG_PLUS(22)}</div>
+        <div class="vs-empty-title">Selecciona un pedido</div>
+        <p class="vs-empty-desc">Elige un pedido rápido para ver su detalle y acciones disponibles.</p>
+      </div>
+    `;
+  }
+
+  function renderQuickRailDetail(o) {
+    const meta = QUICK_STATE_META[o.status] || QUICK_STATE_META.in_progress;
+    const titulo = o.customer_name || ('Turno #' + String(o.turno || 0).padStart(3, '0'));
+    const isPaid = o.status === 'paid';
+    const total = o.total || 0;
+    const subtotal = o.subtotal || total;
+    const descuento = o.discount || 0;
+    const hora = new Date(o.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+
+    const actionsHtml = isPaid
+      ? `<div class="vs-actions">
+          <button class="lm-btn-ghost" data-action="quick-nueva" data-quick-id="${o.id}">Nueva venta</button>
+          <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-entregar" data-quick-id="${o.id}">Marcar entregado</button>
+        </div>`
+      : `<div class="vs-actions">
+          <button class="lm-btn-ghost" data-action="quick-cancelar" data-quick-id="${o.id}">Cancelar</button>
+          <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-cobrar" data-quick-id="${o.id}">Cobrar</button>
+        </div>`;
+
+    return `
+      <div class="vs-rail-head">
+        <div>
+          <div class="vs-eyebrow">Pedido rápido</div>
+          <div class="vs-rail-title-row">
+            <h2 class="vs-rail-title">${titulo}</h2>
+            <span class="vs-state-pill" style="color:${meta.color};background:${meta.tint}">
+              <span class="vs-state-dot" style="background:${meta.color}"></span>
+              ${meta.label}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="vs-rail-body">
+        <div class="vs-order-meta">
+          <div class="vs-info-row">
+            <span class="vs-info-label">Canal</span>
+            <span class="vs-info-value">Venta rápida</span>
+          </div>
+          <div class="vs-info-row">
+            <span class="vs-info-label">Hora</span>
+            <span class="vs-info-value">${hora}</span>
+          </div>
+          ${o.notes ? `<div class="vs-info-row"><span class="vs-info-label">Notas</span><span class="vs-info-value">${o.notes}</span></div>` : ''}
+        </div>
+        <div class="vs-divider"></div>
+        <div class="vs-totals">
+          <div class="vs-total-row"><span>Subtotal</span><span>${fmt(subtotal)}</span></div>
+          ${descuento ? `<div class="vs-total-row"><span>Descuento</span><span>-${fmt(descuento)}</span></div>` : ''}
+          <div class="vs-total-row vs-total-grand"><span>Total</span><span>${fmt(total)}</span></div>
+        </div>
+        ${actionsHtml}
+      </div>
+    `;
+  }
+
   // ─── Events ───────────────────────────────────────────
   function attachEvents() {
     if (!container) return;
+
+    // Toggle cobro adelantado
+    const cobroToggle = document.getElementById('vs-cobro-toggle');
+    if (cobroToggle) cobroToggle.addEventListener('click', toggleCobro);
 
     // Mesa cards
     container.querySelectorAll('[data-table-id]').forEach(btn => {
@@ -719,27 +1318,97 @@
       }
     });
 
+    // Botón "Entregado" en tarjeta (div, no button — evita nesting inválido)
+    container.querySelectorAll('.vs-entregue-btn').forEach(div => {
+      div.addEventListener('click', e => {
+        e.stopPropagation(); // no seleccionar la mesa
+        confirmEntregado(div.dataset.tableId);
+      });
+    });
+
     // Floor tabs
     container.querySelectorAll('[data-floor]').forEach(btn => {
       btn.addEventListener('click', () => {
         state.floor = btn.dataset.floor;
-        container.querySelectorAll('[data-floor]').forEach(b => {
-          b.classList.toggle('is-active', b.dataset.floor === state.floor);
+        state.selectedTableId = null;
+        render();
+      });
+    });
+
+    // Domicilio cards: click selects + shows rail
+    container.querySelectorAll('.vs-domi-card').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.selectedDomiId = btn.dataset.domiId;
+        const rail = document.getElementById('vs-rail');
+        if (rail) { rail.innerHTML = renderDomiRailContent(); attachDomiRailEvents(); }
+        // highlight selected
+        container.querySelectorAll('.vs-domi-card').forEach(c => {
+          const m = DELIVERY_META[state.deliveries.find(x=>x.id===c.dataset.domiId)?.estado] || DELIVERY_META.preparacion;
+          c.style.boxShadow = c.dataset.domiId === state.selectedDomiId ? `0 0 0 3px ${m.color}33` : 'none';
+          c.style.borderColor = c.dataset.domiId === state.selectedDomiId ? m.color : m.ring;
         });
       });
     });
+
+    // Quick order cards
+    container.querySelectorAll('.lm-mesa[data-quick-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.selectedQuickId = btn.dataset.quickId;
+        const rail = document.getElementById('vs-rail');
+        if (rail) { rail.innerHTML = renderQuickRailContent(); attachQuickRailEvents(); }
+        container.querySelectorAll('.lm-mesa[data-quick-id]').forEach(c2 => {
+          const o2 = state.quickOrders.find(x => x.id === c2.dataset.quickId);
+          const m2 = (o2 && QUICK_STATE_META[o2.status]) || QUICK_STATE_META.in_progress;
+          c2.style.boxShadow = c2.dataset.quickId === state.selectedQuickId ? `0 0 0 3px ${m2.color}33` : 'none';
+          c2.style.borderColor = c2.dataset.quickId === state.selectedQuickId ? m2.color : m2.ring;
+        });
+      });
+    });
+
+    // Domi rail action buttons
+    attachDomiRailEvents();
 
     // Chip drag-to-reorder
     attachChipDragEvents();
 
     // Rail events
     attachRailEvents();
+
+    // Live timers
+    startLiveTimers();
   }
 
   function attachRailEvents() {
     if (!container) return;
     container.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', handleAction);
+    });
+  }
+
+  function attachQuickRailEvents() {
+    if (!container) return;
+    container.querySelectorAll('[data-action^="quick-"]').forEach(btn => {
+      btn.addEventListener('click', handleAction);
+    });
+  }
+
+
+  function attachDomiRailEvents() {
+    if (!container) return;
+    container.querySelectorAll('[data-domi-action]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const action = btn.dataset.domiAction;
+        const id = btn.dataset.domiId;
+        const d = state.deliveries.find(x => x.id === id);
+        if (!d) return;
+        if (action === 'advance' && DELIVERY_NEXT[d.estado]) {
+          d.estado = DELIVERY_NEXT[d.estado];
+          render();
+        } else if (action === 'close') {
+          d.estado = 'entregado';
+          render();
+        }
+      });
     });
   }
 
@@ -754,8 +1423,52 @@
       case 'reserve-table':
         window._pos && window._pos.emit && window._pos.emit('table:reserve', { tableId });
         break;
-      case 'collect':
-        window._pos && window._pos.emit && window._pos.emit('table:collect', { tableId });
+      case 'cobrar': {
+        // Cobro adelantado: navegar a pagos.html con adelantado=1
+        const mesaCobrar = state.tables.find(t => t.id === tableId);
+        const orderIdCobrar = mesaCobrar && mesaCobrar.current_order_id;
+        if (orderIdCobrar) {
+          window.location.href = `pagos.html?order=${orderIdCobrar}&table=${tableId}&adelantado=1`;
+        } else {
+          const sbRef2 = window._pos && window._pos.sb;
+          if (sbRef2) {
+            sbRef2.from('pos_orders').select('id').eq('table_id', tableId).in('status', ['open','in_progress']).order('created_at',{ascending:false}).limit(1).maybeSingle()
+              .then(function(r){ if (r.data) window.location.href = `pagos.html?order=${r.data.id}&table=${tableId}&adelantado=1`; });
+          }
+        }
+        break;
+      }
+      case 'collect': {
+        // Buscar el order activo de esta mesa y navegar a pagos
+        const mesa = state.tables.find(t => t.id === tableId);
+        const orderId = mesa && mesa.current_order_id;
+        const adelantadoParam = state.cobroAdelantado ? '&adelantado=1' : '';
+        if (orderId) {
+          window.location.href = `pagos.html?order=${orderId}&table=${tableId}${adelantadoParam}`;
+        } else {
+          // Si no hay current_order_id, buscar en Supabase
+          const sbRef = window._pos && window._pos.sb;
+          if (sbRef) {
+            sbRef.from('pos_orders')
+              .select('id')
+              .eq('table_id', tableId)
+              .in('status', ['open', 'in_progress'])
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+              .then(({ data }) => {
+                if (data) window.location.href = `pagos.html?order=${data.id}&table=${tableId}${adelantadoParam}`;
+                else alert('No se encontró un pedido activo para esta mesa.');
+              });
+          }
+        }
+        break;
+      }
+      case 'mark-entregado':
+        confirmEntregado(tableId);
+        break;
+      case 'liberar-mesa':
+        liberarMesa(tableId);
         break;
       case 'free-table':
         window._pos && window._pos.emit && window._pos.emit('table:free', { tableId });
@@ -766,14 +1479,68 @@
       case 'split':
         window._pos && window._pos.emit && window._pos.emit('table:split', { tableId });
         break;
-      case 'add-item':
+      case 'add-item': {
+        const mesaAdd = state.tables.find(t => t.id === tableId);
+        if (mesaAdd && mesaAdd.status === 'pendiente_pago') {
+          vsToast('Esta mesa aún no ha sido cobrada. Primero cobra antes de agregar ítems.');
+          return;
+        }
         window._pos && window._pos.emit && window._pos.emit('table:addItem', { tableId });
         break;
+      }
       case 'reassign':
         window._pos && window._pos.emit && window._pos.emit('table:reassign', { tableId });
         break;
       case 'nav-back':
         window._pos && window._pos.emit && window._pos.emit('nav:back');
+        break;
+      case 'nav-rapida':
+        window.location.href = 'venta-rapida.html';
+        break;
+      case 'nav-domicilio':
+        window.location.href = 'domicilios.html';
+        break;
+      case 'quick-cobrar': {
+        const qcId = e.currentTarget.dataset.quickId;
+        if (qcId) window.location.href = `pagos.html?order=${qcId}&channel=rapido`;
+        break;
+      }
+      case 'quick-entregar': {
+        const qeId = e.currentTarget.dataset.quickId;
+        const sbQE = window._pos && window._pos.sb;
+        if (sbQE && qeId) {
+          sbQE.from('pos_orders').update({ delivered_at: new Date().toISOString() }).eq('id', qeId)
+            .then(function() {
+              state.quickOrders = state.quickOrders.filter(x => x.id !== qeId);
+              state.selectedQuickId = null;
+              render();
+            });
+        }
+        break;
+      }
+      case 'quick-cancelar': {
+        const qxId = e.currentTarget.dataset.quickId;
+        vsConfirm({
+          title: 'Cancelar pedido',
+          msg: '¿Cancelar este pedido rápido?',
+          okLabel: 'Sí, cancelar',
+          variant: 'danger',
+        }).then(function(ok) {
+          if (!ok) return;
+          const sbQX = window._pos && window._pos.sb;
+          if (sbQX && qxId) {
+            sbQX.from('pos_orders').update({ status: 'cancelled' }).eq('id', qxId)
+              .then(function() {
+                state.quickOrders = state.quickOrders.filter(x => x.id !== qxId);
+                state.selectedQuickId = null;
+                render();
+              });
+          }
+        });
+        break;
+      }
+      case 'quick-nueva':
+        window.location.href = 'venta-rapida.html';
         break;
       default:
         break;
@@ -830,6 +1597,74 @@
     });
   }
 
+  // ─── Cobro adelantado ────────────────────────────────
+  async function loadCobroAdelantado() {
+    // 1. localStorage primero (respuesta inmediata)
+    state.cobroAdelantado = localStorage.getItem(COBRO_KEY) === 'true';
+    // 2. Sincronizar con Supabase (fuente de verdad)
+    try {
+      const sb = window._pos && window._pos.sb;
+      const branchId = window._pos && window._pos.state && window._pos.state.branchId;
+      if (sb && branchId) {
+        const { data } = await sb.from('branches').select('cobro_adelantado').eq('id', branchId).maybeSingle();
+        if (data) {
+          state.cobroAdelantado = !!data.cobro_adelantado;
+          localStorage.setItem(COBRO_KEY, String(state.cobroAdelantado));
+        }
+      }
+    } catch(e) { /* usa el valor de localStorage */ }
+  }
+
+  async function toggleCobro() {
+    const sb = window._pos && window._pos.sb;
+    const _posUser = window._pos && window._pos.state && window._pos.state.user;
+    const role = (_posUser && (_posUser.user_metadata?.role || _posUser.app_metadata?.role)) || 'mesero';
+    // Si no es admin, pedir PIN (flujo de PIN deferred — por ahora solo admins)
+    if (role !== 'admin' && role !== 'administrador' && role !== 'gerente') {
+      alert('Solo el administrador puede cambiar el modo de cobro.');
+      return;
+    }
+    const nuevoValor = !state.cobroAdelantado;
+    state.cobroAdelantado = nuevoValor;
+    localStorage.setItem(COBRO_KEY, String(nuevoValor));
+    // Persistir en Supabase
+    try {
+      const branchId = window._pos && window._pos.state && window._pos.state.branchId;
+      if (sb && branchId) {
+        await sb.from('branches').update({ cobro_adelantado: nuevoValor }).eq('id', branchId);
+      }
+    } catch(e) { /* ignore */ }
+    // Update toggle button in topbar
+    const btn = document.getElementById('vs-cobro-toggle');
+    if (btn) {
+      btn.className = 'vs-cobro-toggle' + (nuevoValor ? ' vs-cobro-on' : '');
+      btn.title = nuevoValor ? 'Desactivar cobro adelantado' : 'Activar cobro adelantado';
+      btn.querySelector('.vs-cobro-label').textContent = nuevoValor ? 'Cobro adelantado' : 'Cobro al final';
+      btn.addEventListener('click', toggleCobro);
+    }
+  }
+
+  async function cobrarMesa(tableId) {
+    const sb = window._pos && window._pos.sb;
+    if (!sb) return;
+    try {
+      // Marcar mesa como esperando (cocina puede verlo)
+      await sb.from('pos_tables').update({ status: 'esperando' }).eq('id', tableId);
+      // Hacer visible en cocina el pedido activo de esta mesa
+      await sb.from('pos_orders')
+        .update({ visible_cocina: true })
+        .eq('table_id', tableId)
+        .eq('status', 'in_progress');
+      // Actualizar local y re-render
+      const t = state.tables.find(t => t.id === tableId);
+      if (t) t.status = 'esperando';
+      selectTable(tableId);
+      render();
+    } catch(e) {
+      alert('Error al cobrar: ' + (e.message || e));
+    }
+  }
+
   // ─── RAM chip (live) ──────────────────────────────────
   function startRamMonitor() {
     function update() {
@@ -844,18 +1679,154 @@
     setInterval(update, 5000);
   }
 
+  // ─── Modal de confirmación personalizado ──────────────────────────────
+  function vsToast(msg) {
+    const t = document.createElement('div');
+    t.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#0F172A;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.25);animation:vsOverlayIn .2s ease';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+  }
+
+  function vsConfirm({ title, msg, okLabel = 'Confirmar', variant = 'brand', cancelLabel = 'Cancelar' }) {
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.className = 'vs-confirm-overlay';
+
+      const iconSvg = {
+        green:  '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+        danger: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>',
+        brand:  '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+      }[variant] || '';
+
+      overlay.innerHTML = `
+        <div class="vs-confirm-card">
+          <div class="vs-confirm-icon ${variant}">${iconSvg}</div>
+          <div class="vs-confirm-title">${title}</div>
+          <div class="vs-confirm-msg">${msg}</div>
+          <div class="vs-confirm-actions">
+            <button class="vs-c-cancel">${cancelLabel}</button>
+            <button class="vs-c-ok ${variant}">${okLabel}</button>
+          </div>
+        </div>`;
+
+      document.body.appendChild(overlay);
+
+      function close(result) { overlay.remove(); resolve(result); }
+
+      overlay.querySelector('.vs-c-ok').addEventListener('click', () => close(true));
+      overlay.querySelector('.vs-c-cancel').addEventListener('click', () => close(false));
+      overlay.addEventListener('click', e => { if (e.target === overlay) close(false); });
+    });
+  }
+
+  // ─── Confirmar entrega de platos (botón en tarjeta) ──────────────────
+  async function confirmEntregado(tableId) {
+    const mesa = state.tables.find(t => t.id === tableId);
+    const numStr = mesa ? (mesa.name || String(mesa.number || '')) : tableId;
+    const ok = await vsConfirm({
+      title: 'Confirmar entrega',
+      msg: '¿Ya entregaste los platos en la <strong>Mesa ' + numStr + '</strong>?',
+      okLabel: 'Sí, ya entregué',
+      variant: 'green',
+    });
+    if (!ok) return;
+    marcarComiendo(tableId, 'proactive');
+  }
+
+  async function marcarComiendo(tableId, method) {
+    try {
+      const sbRef = window._pos && window._pos.sb;
+      if (!sbRef) return;
+      await sbRef.from('pos_tables').update({
+        status:          'comiendo',
+        comiendo_method: method,
+      }).eq('id', tableId);
+      const t = state.tables.find(x => x.id === tableId);
+      if (t) { t.status = 'comiendo'; t.comiendo_method = method; }
+      render();
+    } catch(e) { console.error('[VS] marcarComiendo:', e); }
+  }
+
+  async function liberarMesa(tableId) {
+    const mesa = state.tables.find(t => t.id === tableId);
+    const numStr = mesa ? (mesa.name || String(mesa.number || '')) : tableId;
+    const ok = await vsConfirm({
+      title: 'Liberar mesa',
+      msg: '¿Liberar la <strong>Mesa ' + numStr + '</strong>? Esto cerrará la sesión y la dejará disponible.',
+      okLabel: 'Liberar mesa',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    try {
+      const sbRef = window._pos && window._pos.sb;
+      if (!sbRef) return;
+      await sbRef.from('pos_tables').update({
+        status:           'libre',
+        current_order_id: null,
+        esperando_at:     null,
+        comiendo_method:  null,
+      }).eq('id', tableId);
+      const t = state.tables.find(x => x.id === tableId);
+      if (t) { t.status = 'libre'; t.current_order_id = null; }
+      state.selectedTableId = null;
+      render();
+    } catch(e) { console.error('[VS] liberarMesa:', e); }
+  }
+
+  // ─── Auto-avance esperando→comiendo ───────────────────────────────────
+  function startAutoAvance() {
+    setInterval(async function() {
+      try {
+        const cfg = JSON.parse(localStorage.getItem('lumen.config.operacion.v1') || '{}');
+        const mins = cfg.entregaMin || 12;
+        const cutoff = new Date(Date.now() - mins * 60 * 1000).toISOString();
+        const sbRef = window._pos && window._pos.sb;
+        if (!sbRef) return;
+        // Mesas en esperando cuyo esperando_at supera el umbral
+        const { data } = await sbRef
+          .from('pos_tables')
+          .select('id')
+          .eq('status', 'esperando')
+          .not('esperando_at', 'is', null)
+          .lt('esperando_at', cutoff);
+        if (!data || !data.length) return;
+        const ids = data.map(r => r.id);
+        await sbRef.from('pos_tables').update({
+          status:          'comiendo',
+          comiendo_method: 'auto',
+        }).in('id', ids);
+        // Actualizar estado local
+        ids.forEach(id => {
+          const t = state.tables.find(x => x.id === id);
+          if (t) { t.status = 'comiendo'; t.comiendo_method = 'auto'; }
+        });
+        if (ids.length) render();
+      } catch(e) { console.error('[VS] autoAvance:', e); }
+    }, 60 * 1000); // cada 60 segundos
+  }
+
   // ─── Init ─────────────────────────────────────────────
   async function init(mountContainer) {
     container = mountContainer;
 
-    // Inject stylesheet if not already present
-    if (!document.getElementById('vs-styles')) {
+    // Inject stylesheet (always fresh)
+    const existingStyle = document.getElementById('vs-styles');
+    if (existingStyle) existingStyle.remove();
+    if (true) {
       const link = document.createElement('link');
       link.id = 'vs-styles';
       link.rel = 'stylesheet';
-      link.href = 'styles/modules/ventas-salon.css';
+      link.href = 'styles/modules/ventas-salon.css?v=' + Date.now();
       document.head.appendChild(link);
     }
+
+    // Cargar zonas desde localStorage de configuracion
+    state.zones = loadZonesFromConfig();
+    state.floor = state.zones.length ? state.zones[0].id : null;
+
+    // Cargar modo cobro
+    await loadCobroAdelantado();
 
     // Initial render (loading state)
     render();
@@ -868,6 +1839,8 @@
 
     // Subscribe to realtime updates
     subscribeRealtime();
+    // Auto-avance esperando→comiendo
+    startAutoAvance();
   }
 
   // ─── Destroy ──────────────────────────────────────────
