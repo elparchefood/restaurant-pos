@@ -309,34 +309,37 @@ async function finalizarPago() {
       await sb.from('pos_payments').insert(payRows);
     }
 
-    // 3. Actualizar mesa según modo de cobro
-    if (!SP.adelantado) {
-      // Pago al final → liberar mesa
-      await sb.from('pos_tables').update({
-        status:           'libre',
-        current_order_id: null,
-        esperando_at:     null,
-        comiendo_method:  null,
-      }).eq('id', SP.tableId);
-    } else {
-      // Cobro adelantado → mesa pasa a "esperando" (comida en preparación)
-      await sb.from('pos_tables').update({
-        status:       'esperando',
-        esperando_at: new Date().toISOString(),
-      }).eq('id', SP.tableId);
-      // Hacer visible el pedido en cocina ahora que el pago fue procesado
-      await sb.from('pos_orders').update({ visible_cocina: true }).eq('id', SP.orderId);
+    // 3. Actualizar mesa según modo de cobro (solo si hay mesa)
+    if (SP.tableId) {
+      if (!SP.adelantado) {
+        await sb.from('pos_tables').update({
+          status:           'libre',
+          current_order_id: null,
+          esperando_at:     null,
+          comiendo_method:  null,
+        }).eq('id', SP.tableId);
+      } else {
+        await sb.from('pos_tables').update({
+          status:       'esperando',
+          esperando_at: new Date().toISOString(),
+        }).eq('id', SP.tableId);
+        await sb.from('pos_orders').update({ visible_cocina: true }).eq('id', SP.orderId);
+      }
     }
 
-    // 3. Mostrar overlay con mensaje según modo
-    const mesaName = document.getElementById('mesa-title').textContent;
+    // 4. Mostrar overlay con mensaje según canal
+    const mesaName = SP.tableId
+      ? document.getElementById('mesa-title').textContent
+      : ('Turno ' + (SP.order?.turno ? ('#' + String(SP.order.turno).padStart(3,'0')) : ''));
     document.getElementById('done-mesa').textContent   = mesaName;
     document.getElementById('done-total').textContent  = fmt(total);
     document.getElementById('done-paid').textContent   = fmt(paid);
     document.getElementById('done-vuelto').textContent = fmt(vuelto);
-    document.getElementById('done-text').innerHTML = SP.adelantado
-      ? `El pago de la <strong id="done-mesa">${mesaName}</strong> fue registrado. La mesa sigue abierta por si piden algo más.`
-      : `La cuenta de la <strong id="done-mesa">${mesaName}</strong> quedó saldada. La mesa se liberará automáticamente.`;
+    document.getElementById('done-text').innerHTML = SP.tableId
+      ? (SP.adelantado
+          ? `El pago de la <strong>${mesaName}</strong> fue registrado. La mesa sigue abierta por si piden algo más.`
+          : `La cuenta de la <strong>${mesaName}</strong> quedó saldada. La mesa se liberará automáticamente.`)
+      : `Venta rápida <strong>${mesaName}</strong> cobrada correctamente.`;
     document.getElementById('done-overlay').hidden     = false;
 
   } catch(e) {
@@ -503,13 +506,16 @@ async function loadOrder() {
   }
   SP.order = order;
 
-  // Cargar tabla
-  const { data: table } = await sb
-    .from('pos_tables')
-    .select('*')
-    .eq('id', SP.tableId)
-    .maybeSingle();
-  SP.table = table;
+  // Cargar tabla (null para ventas rapidas)
+  SP.table = null;
+  if (SP.tableId) {
+    const { data: table } = await sb
+      .from('pos_tables')
+      .select('*')
+      .eq('id', SP.tableId)
+      .maybeSingle();
+    SP.table = table;
+  }
 
   // Cargar colores de categorías
   const productIds = (order.pos_order_items || []).map(i => i.product_id).filter(Boolean);
@@ -631,8 +637,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     SP.tipLocked = true;
   }
   SP.tableId  = params.get('table');
+  SP.channel  = params.get('channel') || 'salon';
 
-  if (!SP.orderId || !SP.tableId) {
+  // canal rapido no tiene mesa
+  if (!SP.orderId || (!SP.tableId && SP.channel !== 'rapido')) {
     alert('Parámetros de orden inválidos.');
     window.location.href = 'ventas.html';
     return;
