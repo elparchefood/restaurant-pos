@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Configuración · Impresoras — Lumen POS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="impresoras.css">
+</head>
+<body>
+<div class="cf-root">
+
+  <!-- ════════════ SIDEBAR ════════════ -->
+  <aside class="cf-side">
+    <div class="cf-brand">
+      <div class="cf-brand-logo">L</div>
+      <div>
+        <div class="cf-brand-name" id="brand-name">Lumen POS</div>
+        <div class="cf-brand-sub" id="brand-sub"></div>
+      </div>
+    </div>
+    <nav class="cf-nav">
+      <button class="lm-nav" id="nav-back" data-section="back">
+        <span class="cf-nav-l">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+          <span class="cf-nav-label">Regresar</span>
+        </span>
+      </button>
+
+      <div class="cf-navgroup-wrap">
+        <div class="cf-navgroup">Establecimiento</div>
+        <button class="lm-nav" id="nav-general" data-section="general">
+          <span class="cf-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><path d="M3 9h18"/><path d="M8 21v-6h4v6"/></svg><span class="cf-nav-label">General</span></span>
+          <span class="cf-soon">Pronto</span>
+        </button>
+        <button class="lm-nav" id="nav-mesas" data-section="mesas">
+          <span class="cf-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span class="cf-nav-label">Mesas y zonas</span></span>
+        </button>
+        <button class="lm-nav" id="nav-horario" data-section="horario">
+          <span class="cf-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span class="cf-nav-label">Horarios</span></span>
+          <span class="cf-soon">Pronto</span>
+        </button>
+      </div>
+
+      <div class="cf-navgroup-wrap">
+        <div class="cf-navgroup">Ventas</div>
+        <button class="lm-nav" id="nav-pagos" data-section="pagos">
+          <span class="cf-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg><span class="cf-nav-label">Métodos de pago</span></span>
+          <span class="cf-soon">Pronto</span>
+        </button>
+        <button class="lm-nav" id="nav-impuesto" data-section="impuesto">
+          <span class="cf-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg><span class="cf-nav-label">Impuestos y propina</span></span>
+          <span class="cf-soon">Pronto</span>
+        </button>
+        <button class="lm-nav on" id="nav-impresora" data-section="impresora">
+          <span class="cf-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg><span class="cf-nav-label">Impresoras</span></span>
+        </button>
+      </div>
+
+      <div class="cf-navgroup-wrap">
+        <div class="cf-navgroup">Equipo</div>
+        <button class="lm-nav" id="nav-usuarios" data-section="usuarios">
+          <span class="cf-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="cf-nav-label">Usuarios y roles</span></span>
+          <span class="cf-soon">Pronto</span>
+        </button>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- ════════════ MAIN ════════════ -->
+  <main class="cf-main">
+    <header class="cf-topbar">
+      <div class="cf-top-left">
+        <div class="cf-modebadge"><span class="cf-mode-dot"></span> Modo Administrador</div>
+        <div class="cf-crumbs">
+          <span class="cf-crumb-mut">Configuración</span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="cf-crumb-on">Impresoras</span>
+        </div>
+      </div>
+      <div class="cf-top-right">
+        <div class="cf-pill-success" id="pill-saved">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Guardado
+        </div>
+        <div class="cf-user">
+          <div class="cf-user-av" id="user-av">?</div>
+          <div>
+            <div class="cf-user-name" id="user-name"></div>
+            <div class="cf-user-role" id="user-role">Administrador</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="cf-pagehead">
+      <div>
+        <div class="cf-eyebrow">Configuración de impresión</div>
+        <h1 class="cf-pagetitle">Impresoras</h1>
+      </div>
+      <button class="lm-btn-primary" id="btn-add-printer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Agregar impresora
+      </button>
+    </section>
+
+    <div class="imp-split">
+
+      <!-- ░░░░ COLUMNA DE AJUSTES ░░░░ -->
+      <div class="imp-scrollcol">
+        <div class="imp-inner">
+
+          <!-- ══ SECCIÓN 1 · IMPRESORAS CONFIGURADAS ══ -->
+          <section class="op-card" id="sec-printers">
+            <div class="op-card-head">
+              <div class="op-card-icon tint-indigo">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              </div>
+              <div class="op-card-head-txt">
+                <div class="op-card-num">Sección 1</div>
+                <div class="op-card-title">Impresoras configuradas</div>
+                <div class="op-card-sub">Conexión, modelo y área de cada equipo.</div>
+              </div>
+            </div>
+            <div class="op-card-body">
+              <div class="imp-legend" id="imp-legend"></div>
+              <div class="imp-printer-list" id="imp-printer-list"></div>
+            </div>
+          </section>
+
+          <!-- ══ SECCIÓN 2 · PAPEL Y FORMATO ══ -->
+          <section class="op-card" id="sec-paper">
+            <div class="op-card-head">
+              <div class="op-card-icon tint-green">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+              </div>
+              <div class="op-card-head-txt">
+                <div class="op-card-num">Sección 2</div>
+                <div class="op-card-title">Papel y formato</div>
+                <div class="op-card-sub">Ancho del rollo y tamaño de letra.</div>
+              </div>
+            </div>
+            <div class="op-card-body">
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">Ancho de papel</div>
+                  <div class="op-hint">Define el formato físico del rollo térmico.</div>
+                </div>
+                <div class="imp-seg" id="seg-paper">
+                  <button class="imp-seg-btn" data-w="58"><span>58 mm</span></button>
+                  <button class="imp-seg-btn on" data-w="80"><span>80 mm</span></button>
+                </div>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">Caracteres por línea</div>
+                  <div class="op-hint">Se calcula automáticamente según el ancho seleccionado.</div>
+                </div>
+                <div class="imp-auto-val">
+                  <span class="imp-auto-num" id="imp-cpl">48</span>
+                  <span class="imp-auto-unit">car/línea</span>
+                  <span class="imp-auto-tag">Automático</span>
+                </div>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">Tamaño de fuente</div>
+                  <div class="op-hint">"Grande" mejora la lectura en cocina con poca luz.</div>
+                </div>
+                <div class="imp-seg" id="seg-font">
+                  <button class="imp-seg-btn on" data-size="normal"><span>Normal</span></button>
+                  <button class="imp-seg-btn" data-size="grande"><span>Grande</span></button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ══ SECCIÓN 3 · MODELO DE COMANDA ══ -->
+          <section class="op-card" id="sec-model">
+            <div class="op-card-head">
+              <div class="op-card-icon tint-violet">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v18l2-1 2 1 2-1 2 1 2-1 2 1V3l-2 1-2-1-2 1-2-1-2 1-2-1z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/></svg>
+              </div>
+              <div class="op-card-head-txt">
+                <div class="op-card-num">Sección 3</div>
+                <div class="op-card-title">Modelo de comanda</div>
+                <div class="op-card-sub">Plantilla con la que se imprime cada orden.</div>
+              </div>
+            </div>
+            <div class="op-card-body">
+              <div class="imp-model-grid" id="imp-model-grid">
+                <button class="imp-model on" data-model="estandar">
+                  <div class="imp-model-thumb">
+                    <span class="imp-thumb-bar dark"></span>
+                    <span class="imp-thumb-bar"></span>
+                    <span class="imp-thumb-bar"></span>
+                    <span class="imp-thumb-bar short"></span>
+                  </div>
+                  <div class="imp-model-name">Modelo 1 · Estándar</div>
+                  <div class="imp-model-tag">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> En uso
+                  </div>
+                </button>
+                <div class="imp-model locked" data-model="compacto">
+                  <div class="imp-model-thumb locked">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                  </div>
+                  <div class="imp-model-name">Modelo 2 · Compacto</div>
+                  <div class="imp-model-tag soon">Pronto</div>
+                </div>
+                <div class="imp-model locked" data-model="detallado">
+                  <div class="imp-model-thumb locked">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                  </div>
+                  <div class="imp-model-name">Modelo 3 · Detallado</div>
+                  <div class="imp-model-tag soon">Pronto</div>
+                </div>
+              </div>
+              <div class="imp-preview-hint">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                La vista previa de la derecha se actualiza en tiempo real.
+              </div>
+            </div>
+          </section>
+
+          <!-- ══ SECCIÓN 4 · CONTENIDO DE LA COMANDA ══ -->
+          <section class="op-card" id="sec-content">
+            <div class="op-card-head">
+              <div class="op-card-icon tint-orange">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+              </div>
+              <div class="op-card-head-txt">
+                <div class="op-card-num">Sección 4</div>
+                <div class="op-card-title">Contenido de la comanda</div>
+                <div class="op-card-sub">Qué información se imprime en cada ticket.</div>
+              </div>
+            </div>
+            <div class="op-card-body">
+              <div class="op-row">
+                <div class="op-row-text"><div class="op-label">Nº de orden</div><div class="op-hint">Identificador correlativo del pedido.</div></div>
+                <button class="cf-switch on" data-content="orden" aria-pressed="true"><span class="cf-switch-knob"></span></button>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text"><div class="op-label">Canal</div><div class="op-hint">Mesa, domicilio, recoger o venta rápida.</div></div>
+                <button class="cf-switch on" data-content="canal" aria-pressed="true"><span class="cf-switch-knob"></span></button>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text"><div class="op-label">Tiempo de preparación</div><div class="op-hint">Hora de envío y minutos estimados.</div></div>
+                <button class="cf-switch on" data-content="prep" aria-pressed="true"><span class="cf-switch-knob"></span></button>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text"><div class="op-label">Nombre del cliente</div><div class="op-hint">Útil para domicilios y pedidos para recoger.</div></div>
+                <button class="cf-switch on" data-content="cliente" aria-pressed="true"><span class="cf-switch-knob"></span></button>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text"><div class="op-label">Notas del ítem</div><div class="op-hint">Modificaciones y observaciones de cada plato.</div></div>
+                <button class="cf-switch on" data-content="notas" aria-pressed="true"><span class="cf-switch-knob"></span></button>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text"><div class="op-label">Precio en la comanda</div><div class="op-hint">Normalmente oculto en tickets de cocina.</div></div>
+                <button class="cf-switch" data-content="precio" aria-pressed="false"><span class="cf-switch-knob"></span></button>
+              </div>
+            </div>
+          </section>
+
+          <!-- ══ SECCIÓN 5 · COMPORTAMIENTO DE IMPRESIÓN ══ -->
+          <section class="op-card" id="sec-behavior">
+            <div class="op-card-head">
+              <div class="op-card-icon tint-indigo">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </div>
+              <div class="op-card-head-txt">
+                <div class="op-card-num">Sección 5</div>
+                <div class="op-card-title">Comportamiento de impresión</div>
+                <div class="op-card-sub">Cuándo y cuántas comandas se imprimen.</div>
+              </div>
+            </div>
+            <div class="op-card-body">
+              <div class="op-row">
+                <div class="op-row-text"><div class="op-label">Imprimir automáticamente al enviar a cocina</div><div class="op-hint" id="hint-autoprint">La comanda sale apenas se confirma el pedido.</div></div>
+                <button class="cf-switch on" id="sw-autoprint" aria-pressed="true"><span class="cf-switch-knob"></span></button>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text"><div class="op-label">Copias por comanda</div><div class="op-hint">Útil para entregar una a cocina y otra a barra.</div></div>
+                <div class="imp-seg" id="seg-copies">
+                  <button class="imp-seg-btn on" data-copies="1"><span>1</span></button>
+                  <button class="imp-seg-btn" data-copies="2"><span>2</span></button>
+                  <button class="imp-seg-btn" data-copies="3"><span>3</span></button>
+                </div>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text"><div class="op-label">Reimprimir comanda</div><div class="op-hint">Vuelve a imprimir la última comanda del pedido activo.</div></div>
+                <button class="lm-btn-ghost" id="btn-reimprimir">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Reimprimir
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- ══ SECCIÓN 6 · CORTE DE PAPEL ══ -->
+          <section class="op-card" id="sec-cut">
+            <div class="op-card-head">
+              <div class="op-card-icon tint-red">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+              </div>
+              <div class="op-card-head-txt">
+                <div class="op-card-num">Sección 6</div>
+                <div class="op-card-title">Corte de papel</div>
+                <div class="op-card-sub">Cómo termina cada ticket al imprimirse.</div>
+              </div>
+            </div>
+            <div class="op-card-body">
+              <div class="imp-cut-grid" id="imp-cut-grid">
+                <button class="imp-cut on" data-cut="total">
+                  <div class="imp-cut-vis total"><div class="imp-cut-paper"></div></div>
+                  <div class="imp-cut-name">Corte total</div>
+                  <div class="imp-cut-hint">Separa el ticket por completo.</div>
+                </button>
+                <button class="imp-cut" data-cut="parcial">
+                  <div class="imp-cut-vis parcial"><div class="imp-cut-paper"></div></div>
+                  <div class="imp-cut-name">Corte parcial</div>
+                  <div class="imp-cut-hint">Deja una pestaña que se desprende fácil.</div>
+                </button>
+                <button class="imp-cut" data-cut="none">
+                  <div class="imp-cut-vis none"><div class="imp-cut-paper"></div></div>
+                  <div class="imp-cut-name">Sin corte</div>
+                  <div class="imp-cut-hint">Rollo continuo, se corta a mano.</div>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- pie guardar -->
+          <div class="imp-footer">
+            <button class="lm-btn-ghost" id="btn-discard" hidden>Descartar cambios</button>
+            <button class="lm-btn-primary" id="btn-save" disabled>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Guardar cambios
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ░░░░ COLUMNA VISTA PREVIA ░░░░ -->
+      <aside class="imp-preview-col">
+        <div class="imp-preview-sticky">
+          <div class="imp-preview-head">
+            <div class="imp-preview-head-l"><span class="imp-preview-dot"></span><span class="imp-preview-title">Vista previa en vivo</span></div>
+            <span class="imp-preview-meta" id="imp-preview-meta">80 mm · 48 car</span>
+          </div>
+
+          <div class="imp-preview-stage">
+            <div class="rcpt-wrap" id="rcpt-wrap">
+              <div class="rcpt w80 fz-normal" id="rcpt">
+                <div class="rcpt-center">
+                  <div class="rcpt-brand">EL PARCHE FOOD</div>
+                  <div class="rcpt-area">* COCINA *</div>
+                </div>
+                <div class="rcpt-div"></div>
+                <div class="rcpt-meta">
+                  <div class="rcpt-row" data-content="orden"><span class="rcpt-k">Orden</span><span class="rcpt-v">#0042</span></div>
+                  <div class="rcpt-row" data-content="canal"><span class="rcpt-k">Canal</span><span class="rcpt-v">MESA 05</span></div>
+                  <div class="rcpt-row" data-content="cliente"><span class="rcpt-k">Cliente</span><span class="rcpt-v">Sergio A.</span></div>
+                  <div class="rcpt-row" data-content="prep"><span class="rcpt-k">Enviado</span><span class="rcpt-v">14:32 · 15 min</span></div>
+                </div>
+                <div class="rcpt-div"></div>
+                <div class="rcpt-items">
+                  <div class="rcpt-item">
+                    <div class="rcpt-item-line"><span class="rcpt-item-name"><span class="rcpt-q">2×</span> Hamburguesa El Parche</span><span class="rcpt-item-price" data-content="precio" hidden>$32.000</span></div>
+                    <div class="rcpt-item-note" data-content="notas">» Sin cebolla · Término medio</div>
+                  </div>
+                  <div class="rcpt-item">
+                    <div class="rcpt-item-line"><span class="rcpt-item-name"><span class="rcpt-q">1×</span> Papas con queso</span><span class="rcpt-item-price" data-content="precio" hidden>$12.000</span></div>
+                    <div class="rcpt-item-note" data-content="notas">» Extra salsa de la casa</div>
+                  </div>
+                  <div class="rcpt-item">
+                    <div class="rcpt-item-line"><span class="rcpt-item-name"><span class="rcpt-q">1×</span> Limonada de coco</span><span class="rcpt-item-price" data-content="precio" hidden>$9.000</span></div>
+                  </div>
+                </div>
+                <div class="rcpt-div"></div>
+                <div class="rcpt-total" data-content="precio" hidden><span>TOTAL</span><span class="rcpt-total-v">$53.000</span></div>
+                <div class="rcpt-foot">¡Buen provecho! · 14/6/2026</div>
+              </div>
+              <div class="rcpt-edge total" id="rcpt-edge">
+                <span class="rcpt-edge-cap">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+                  Corte total
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="imp-preview-foot" id="imp-preview-foot">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            1 copia · auto · corte total
+          </div>
+        </div>
+      </aside>
+
+    </div>
+  </main>
+
+  <div class="cf-toast" id="toast" hidden>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    <span id="toast-msg">Configuración de impresión guardada</span>
+  </div>
+
+</div>
+<script src="impreso
