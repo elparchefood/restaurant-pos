@@ -347,7 +347,7 @@
 
   function attachProdEvents(container) {
     container.querySelectorAll('[data-add]').forEach(card => {
-      card.addEventListener('click', function() { addToCart(this.dataset.add); });
+      card.addEventListener('click', function() { vrOpenProductModal(this.dataset.add); });
     });
   }
 
@@ -394,7 +394,7 @@
     }).join('');
 
     scroll.querySelectorAll('[data-menu-add]').forEach(btn => {
-      btn.addEventListener('click', function() { addToCart(this.dataset.menuAdd); });
+      btn.addEventListener('click', function() { vrOpenProductModal(this.dataset.menuAdd); });
     });
   }
 
@@ -830,7 +830,7 @@
     // Insertar ítems
     const items = S.cart.map(i => ({
       order_id:   S.orderId,
-      product_id: i.id,
+      product_id: i.productId || i.id,
       quantity:   i.qty,
       unit_price: i.price,
       total:      i.price * i.qty,
@@ -842,6 +842,294 @@
 
     return S.orderId;
   }
+
+
+  /* ─── Modal producto VR (Presentaciones / Variables / Personalizar) ─── */
+  let VR_WIP = { prod:null, step:1, pres:null, vars:{}, mods:{}, qty:1, note:'' };
+
+  const VR_SVG = {
+    check: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    x:     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+    back:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>',
+    cart:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>',
+    chev:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>',
+    plus:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+    minus: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+    srch:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+    food:  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h0a2 2 0 0 0 2-2V2M5 2v20M17 2v20M21 7c0-3-2-5-4-5v9c2 0 4-1 4-4z"/></svg>',
+    note:  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>',
+  };
+
+  function vrFmt(n){ return '$'+Number(Math.round(n||0)).toLocaleString('es-CO'); }
+  function vrEsc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function vrAttr(s){ return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+  function vrOpenProductModal(prodId) {
+    const p = S.products.find(x => String(x.id) === String(prodId));
+    if (!p) return;
+    VR_WIP = { prod:p, step:1, pres:null, vars:{}, mods:{}, qty:1, note:'' };
+    const hasPres = (p.presentations||[]).length > 1;
+    const hasVars = (p.variables||[]).length > 0;
+    if (!hasPres) {
+      const pArr = p.presentations || [];
+      VR_WIP.pres = pArr.length === 1 ? pArr[0] : { id:'_base', name:'', price: parseFloat(p.price)||0 };
+      VR_WIP.step = hasVars ? 2 : 3;
+    }
+    const el = document.getElementById('vr-modal-producto');
+    if (el) el.style.display = 'flex';
+    vrRenderMP();
+  }
+
+  function vrComputePrice() {
+    const p = VR_WIP.prod;
+    const isMatrix = p && p.price_mode === 'matrix';
+    let base;
+    if (isMatrix) {
+      const presIdx = (p.presentations||[]).findIndex(pr => pr.id === VR_WIP.pres?.id);
+      base = Object.values(VR_WIP.vars).reduce((s, v) => {
+        let price = v.price || 0;
+        if (presIdx >= 0) {
+          for (const vg of p.variables||[]) {
+            const o = (vg.options||[]).find(o => o.id === v.id);
+            if (o && Array.isArray(o.prices) && o.prices.length) { price = o.prices[presIdx]||0; break; }
+          }
+        }
+        return s + price;
+      }, 0);
+    } else {
+      const baseP = p ? parseFloat(p.price)||0 : 0;
+      base = VR_WIP.pres ? (VR_WIP.pres.price || baseP) : baseP;
+      base += Object.values(VR_WIP.vars).reduce((s, v) => s + (v.price||0), 0);
+    }
+    const modX = Object.values(VR_WIP.mods).reduce((s, m) => s + (m.price||0), 0);
+    return (base + modX) * VR_WIP.qty;
+  }
+
+  function vrRenderMP() {
+    const p = VR_WIP.prod; if (!p) return;
+    const inner = document.getElementById('vr-pm-inner'); if (!inner) return;
+    const hasPres = (p.presentations||[]).length > 1;
+    const hasVars = (p.variables||[]).length > 0;
+    const steps = [];
+    if (hasPres) steps.push({ id:'pres', label: p.presLabel || 'Presentacion' });
+    if (hasVars) steps.push({ id:'var',  label: p.varLabel || (p.variables[0]&&p.variables[0].name) || 'Variante' });
+    steps.push({ id:'custom', label:'Personalizar' });
+    const curId = VR_WIP.step===1&&hasPres ? 'pres' : VR_WIP.step===2&&hasVars ? 'var' : 'custom';
+    const curIdx = steps.findIndex(s => s.id === curId);
+    const stepperHTML = steps.length > 1
+      ? '<div class="pm-steps">' + steps.map((s, i) => {
+          const done = i < curIdx, on = i === curIdx;
+          return '<button class="pm-step'+(done?' done':on?' on':'')+'" data-step-id="'+s.id+'">'
+            +'<span class="pm-step-dot">'+(done?VR_SVG.check:String(i+1))+'</span>'
+            +'<span class="pm-step-lbl">'+s.label+'</span></button>'
+            +(i < steps.length-1 ? '<span class="pm-step-line'+(done?' done':'')+'"></span>' : '');
+        }).join('') + '</div>'
+      : '';
+    const presLabel = VR_WIP.pres && VR_WIP.pres.name ? VR_WIP.pres.name : '';
+    const varLabels = Object.values(VR_WIP.vars).map(v => v.name).join(' \xb7 ');
+    const selParts  = [presLabel, varLabels].filter(Boolean).join(' \xb7 ');
+    let paneHTML = '';
+    if (curId === 'pres') paneHTML = vrBuildPresPane(p);
+    else if (curId === 'var') paneHTML = vrBuildVarPane(p);
+    else paneHTML = vrBuildCustomPane(p);
+    const canNext = curId==='pres' ? !!VR_WIP.pres : curId==='var' ? (p.variables||[]).every(v=>VR_WIP.vars[v.id]) : true;
+    const isFirst = curIdx === 0;
+    const footLeft = isFirst
+      ? '<button class="pm-btn-ghost" onclick="vrCloseMP()">Cancelar</button>'
+      : '<button class="pm-btn-ghost" onclick="vrMPBack()">'+VR_SVG.back+' Atras</button>';
+    const isLast = curId === 'custom';
+    const footRight = isLast
+      ? '<button class="pm-btn-primary" onclick="vrMPAddToCart()">'+VR_SVG.cart+' Agregar \xb7 <span id="vr-foot-price">'+vrFmt(vrComputePrice())+'</span></button>'
+      : '<button class="pm-btn-primary" id="vr-mp-next"'+(canNext?'':' disabled')+' onclick="vrMPAdvance()">Continuar '+VR_SVG.chev+'</button>';
+    const subTxt = selParts ? vrEsc(p.catName||'') + ' &middot; <strong style="color:#0F172A">' + vrEsc(selParts) + '</strong>' : vrEsc(p.catName||'');
+    inner.innerHTML =
+      '<div class="pm-head">'
+      +'<div style="display:flex;align-items:center;gap:12px;min-width:0">'
+      +'<div class="pm-head-ic">'+VR_SVG.food+'</div>'
+      +'<div style="min-width:0"><div class="pm-title">'+vrEsc(p.name)+'</div>'
+      +'<div class="pm-sub">'+subTxt+'</div></div></div>'
+      +'<button class="pm-close" onclick="vrCloseMP()">'+VR_SVG.x+'</button>'
+      +'</div>'
+      +stepperHTML
+      +'<div class="pm-body">'+paneHTML+'</div>'
+      +'<div class="pm-foot">'+footLeft+footRight+'</div>';
+    vrAttachHandlers(inner, p, curId);
+  }
+
+  function vrBuildPresPane(p) {
+    const pres = p.presentations || [];
+    const hasVars = (p.variables||[]).length > 0;
+    return '<div class="pm-choice-grid">' + pres.map(pr => {
+      const on = VR_WIP.pres && VR_WIP.pres.id === pr.id;
+      const thumb = pr.photo_url
+        ? '<div class="pm-choice-thumb"><img src="'+vrAttr(pr.photo_url)+'" style="width:100%;height:100%;object-fit:cover"></div>'
+        : '<div class="pm-choice-thumb" style="display:flex;align-items:center;justify-content:center;background:#F1F5F9"><span style="font-size:11px;color:#94A3B8">'+vrEsc(pr.name)+'</span></div>';
+      const priceLabel = hasVars ? 'Incluido' : (pr.price ? vrFmt(pr.price) : 'Incluido');
+      return '<button class="pm-choice'+(on?' on':'')+'" data-pres-id="'+vrAttr(pr.id)+'" data-pres-name="'+vrAttr(pr.name)+'" data-pres-price="'+(pr.price||0)+'">'
+        +thumb
+        +'<div class="pm-choice-body"><div class="pm-choice-name">'+vrEsc(pr.name)+'</div>'
+        +'<div class="pm-choice-price">'+priceLabel+'</div></div>'
+        +'<span class="pm-radio">'+(on?VR_SVG.check:'')+'</span>'
+        +'</button>';
+    }).join('') + '</div>';
+  }
+
+  function vrBuildVarPane(p) {
+    const vars = p.variables || [];
+    const isMatrix = p.price_mode === 'matrix';
+    const presIdx = (p.presentations||[]).findIndex(pr => pr.id === VR_WIP.pres?.id);
+    return '<div style="display:flex;flex-direction:column;gap:20px">' + vars.map(v => {
+      return '<div><div style="font-size:12px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">'+vrEsc(v.name)+'</div>'
+        +'<div class="pm-choice-grid">' + (v.options||[]).map(o => {
+          const sel = VR_WIP.vars[v.id] && VR_WIP.vars[v.id].id === o.id;
+          const optPrice = isMatrix && Array.isArray(o.prices) && presIdx >= 0 ? (o.prices[presIdx]||0) : (o.price||0);
+          const priceLabel = optPrice ? (isMatrix ? vrFmt(optPrice) : '+'+vrFmt(optPrice)) : 'Incluido';
+          return '<button class="pm-choice compact'+(sel?' on':'')+'" data-var-id="'+vrAttr(v.id)+'" data-opt-id="'+vrAttr(o.id)+'" data-opt-name="'+vrAttr(o.name)+'" data-opt-price="'+optPrice+'">'
+            +'<div class="pm-choice-body"><div class="pm-choice-name">'+vrEsc(o.name)+'</div>'
+            +'<div class="pm-choice-price">'+priceLabel+'</div></div>'
+            +'<span class="pm-radio">'+(sel?VR_SVG.check:'')+'</span>'
+            +'</button>';
+        }).join('') + '</div></div>';
+    }).join('') + '</div>';
+  }
+
+  function vrBuildCustomPane(p) {
+    const presLabel = VR_WIP.pres && VR_WIP.pres.name ? VR_WIP.pres.name : '';
+    const varLabels = Object.values(VR_WIP.vars).map(v => v.name).join(' \xb7 ');
+    const selParts  = [presLabel, varLabels].filter(Boolean);
+    const photoHTML = p.photo_url
+      ? '<div class="pm-photo"><img src="'+vrAttr(p.photo_url)+'" style="width:100%;height:100%;object-fit:cover"></div>'
+      : '<div class="pm-photo" style="display:flex;align-items:center;justify-content:center;background:repeating-linear-gradient(135deg,#F1F5F9 0 10px,#F8FAFC 10px 20px)">'
+        +'<span style="font-size:40px;color:#CBD5E1">'+vrEsc((p.name||'?')[0].toUpperCase())+'</span></div>';
+    const selSummary = selParts.length
+      ? vrEsc(p.name)+' &middot; <span class="sel">'+vrEsc(selParts.join(' \xb7 '))+'</span>'
+      : vrEsc(p.name);
+    return '<div class="pm-custom">'
+      +'<div class="pm-left">'
+      +photoHTML
+      +'<div class="pm-prodname">'+selSummary+'</div>'
+      +'<div class="pm-field-lbl">'+VR_SVG.note+' Nota para cocina</div>'
+      +'<textarea class="pm-note" placeholder="Ej. sin cebolla, bien caliente..." id="vr-note-input">'+vrEsc(VR_WIP.note)+'</textarea>'
+      +'</div>'
+      +'<div class="pm-right">'
+      +'<div class="pm-qty-row">'
+      +'<div style="display:flex;align-items:center;gap:12px">'
+      +'<span style="font-size:13px;font-weight:600;color:#475569">Cantidad</span>'
+      +'<div class="pm-stepper"><button id="vr-qty-dec">'+VR_SVG.minus+'</button>'
+      +'<span id="vr-qty-val">'+VR_WIP.qty+'</span>'
+      +'<button id="vr-qty-inc">'+VR_SVG.plus+'</button></div></div>'
+      +'<div style="text-align:right"><div class="pm-pf-lbl">Precio</div>'
+      +'<div class="pm-pf-val" id="vr-price-val">'+vrFmt(vrComputePrice())+'</div></div></div>'
+      +'<div class="pm-nomods" style="padding:60px 20px"><p>Sin adiciones para este producto.</p></div>'
+      +'</div></div>';
+  }
+
+  function vrAttachHandlers(inner, p, curId) {
+    inner.querySelectorAll('.pm-step.done').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const sid = btn.dataset.stepId;
+        VR_WIP.step = sid==='pres' ? 1 : sid==='var' ? 2 : 3;
+        vrRenderMP();
+      });
+    });
+    if (curId === 'pres') {
+      inner.querySelectorAll('.pm-choice[data-pres-id]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.presId, name = btn.dataset.presName, price = +btn.dataset.presPrice;
+          VR_WIP.pres = { id, name, price };
+          inner.querySelectorAll('.pm-choice[data-pres-id]').forEach(b => {
+            const on = b.dataset.presId === id;
+            b.classList.toggle('on', on);
+            b.querySelector('.pm-radio').innerHTML = on ? VR_SVG.check : '';
+          });
+          const nb = document.getElementById('vr-mp-next'); if (nb) nb.disabled = false;
+        });
+      });
+    }
+    if (curId === 'var') {
+      inner.querySelectorAll('.pm-choice[data-var-id]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const vid = btn.dataset.varId, oid = btn.dataset.optId, oname = btn.dataset.optName, oprice = +btn.dataset.optPrice;
+          VR_WIP.vars[vid] = { id:oid, name:oname, price:oprice };
+          inner.querySelectorAll('.pm-choice[data-var-id="'+vid+'"]').forEach(b => {
+            const on = b.dataset.optId === oid;
+            b.classList.toggle('on', on);
+            b.querySelector('.pm-radio').innerHTML = on ? VR_SVG.check : '';
+          });
+          const allDone = (p.variables||[]).every(v => VR_WIP.vars[v.id]);
+          const nb = document.getElementById('vr-mp-next'); if (nb) nb.disabled = !allDone;
+        });
+      });
+    }
+    if (curId === 'custom') {
+      const qdec = document.getElementById('vr-qty-dec'), qinc = document.getElementById('vr-qty-inc');
+      if (qdec) qdec.addEventListener('click', () => { VR_WIP.qty = Math.max(1, VR_WIP.qty-1); vrUpdatePrices(); });
+      if (qinc) qinc.addEventListener('click', () => { VR_WIP.qty++; vrUpdatePrices(); });
+      const noteEl = document.getElementById('vr-note-input');
+      if (noteEl) { noteEl.value = VR_WIP.note; noteEl.addEventListener('input', function(){ VR_WIP.note = this.value; }); }
+    }
+  }
+
+  function vrUpdatePrices() {
+    const p = document.getElementById('vr-price-val'); if (p) p.textContent = vrFmt(vrComputePrice());
+    const f = document.getElementById('vr-foot-price'); if (f) f.textContent = vrFmt(vrComputePrice());
+    const q = document.getElementById('vr-qty-val'); if (q) q.textContent = VR_WIP.qty;
+  }
+
+  function vrCloseMP() {
+    const el = document.getElementById('vr-modal-producto'); if (el) el.style.display = 'none';
+  }
+
+  function vrCheckOverlayClose(e) { if (e.target === e.currentTarget) vrCloseMP(); }
+
+  function vrMPAdvance() {
+    const p = VR_WIP.prod, hasVars = (p.variables||[]).length > 0;
+    if (VR_WIP.step === 1) { VR_WIP.step = hasVars ? 2 : 3; }
+    else if (VR_WIP.step === 2) { VR_WIP.step = 3; }
+    vrRenderMP();
+  }
+
+  function vrMPBack() {
+    const p = VR_WIP.prod;
+    const hasPres = (p.presentations||[]).length > 1, hasVars = (p.variables||[]).length > 0;
+    if (VR_WIP.step === 3) { VR_WIP.step = hasVars ? 2 : (hasPres ? 1 : 3); }
+    else if (VR_WIP.step === 2) { VR_WIP.step = hasPres ? 1 : 2; }
+    vrRenderMP();
+  }
+
+  function vrMPAddToCart() {
+    const p = VR_WIP.prod;
+    const presLabel = VR_WIP.pres && VR_WIP.pres.name ? VR_WIP.pres.name : '';
+    const varLabels = Object.values(VR_WIP.vars).map(v => v.name).join(' \xb7 ');
+    const displayName = [p.name, presLabel, varLabels].filter(Boolean).join(' \xb7 ');
+    const unitPrice = vrComputePrice() / VR_WIP.qty;
+    const lineId = 'vr_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+    const cat = S.categories.find(c => String(c.id) === String(p.category_id));
+    S.cart.push({
+      id:        lineId,
+      productId: p.id,
+      name:      displayName,
+      price:     unitPrice,
+      qty:       VR_WIP.qty,
+      note:      VR_WIP.note || '',
+      catId:     p.category_id,
+      catName:   p.catName || '',
+      catColor:  p.catColor || '#94A3B8',
+      fav:       !!p.is_favorite,
+      fromModal: true,
+      selections:{ pres: presLabel||null, vars:{...VR_WIP.vars}, mods:{...VR_WIP.mods} },
+    });
+    vrCloseMP();
+    saveCart();
+    renderComanda();
+  }
+
+  /* ─── window expose (IIFE) ───────────────────────────────────── */
+  window.vrCloseMP           = vrCloseMP;
+  window.vrCheckOverlayClose = vrCheckOverlayClose;
+  window.vrMPAdvance         = vrMPAdvance;
+  window.vrMPBack            = vrMPBack;
+  window.vrMPAddToCart       = vrMPAddToCart;
 
   /* ─── Boot ───────────────────────────────────────────────────── */
   document.addEventListener('DOMContentLoaded', function() {
