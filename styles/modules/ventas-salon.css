@@ -1180,3 +1180,13 @@
   transition: background .15s, border-color .15s;
 }
 .vs-rail-entregue-btn:hover { background: #D1FAE5; border-color: #34D399; }
+
+.lm-btn-primary:disabled,
+.vs-cobrar-disabled {
+  background: #CBD5E1 !important;
+  color: #94A3B8 !important;
+  cursor: not-allowed !important;
+  opacity: 1;
+}
+.lm-btn-primary:disabled:hover,
+.vs-cobrar-disabled:hover { background: #CBD5E1 !important; }

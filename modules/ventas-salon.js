@@ -1019,6 +1019,12 @@
              <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
              <button class="lm-btn-primary" data-action="collect" data-table-id="${mesa.id}">Cobrar</button>
            </div>`
+      : mesa.status === 'esperando' && state.cobroAdelantado
+      ? `<div class="vs-actions">
+           <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
+           <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
+           <button class="lm-btn-primary vs-cobrar-disabled" data-action="collect" data-table-id="${mesa.id}" disabled>Cobrar</button>
+         </div>`
       : `<div class="vs-actions">
            <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
            <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
