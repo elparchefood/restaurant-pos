@@ -1165,4 +1165,11 @@
     // Esperar a que pos-core esté listo
     if (window._pos) {
       window._pos.on('core:ready', async function() {
-    
+            await loadBranch();
+        await loadCatalog();
+        refreshBadges();
+      });
+    }
+  });
+
+})();
