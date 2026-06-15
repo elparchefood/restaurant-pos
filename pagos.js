@@ -615,8 +615,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 3. Branch nombre
   if (SP.branchId) {
-    const { data: branch } = await sb.from('pos_branches').select('name').eq('id', SP.branchId).maybeSingle();
-    if (branch) document.getElementById('sb-branch').textContent = branch.name;
+    const { data: branch } = await sb.from('branches').select('name, cobro_adelantado').eq('id', SP.branchId).maybeSingle();
+    if (branch) {
+      document.getElementById('sb-branch').textContent = branch.name || '';
+      // La DB es la fuente de verdad para el modo de cobro
+      if (branch.cobro_adelantado !== undefined) SP.adelantado = !!branch.cobro_adelantado;
+    }
   }
 
   // 4. Params de URL

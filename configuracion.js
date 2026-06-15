@@ -563,6 +563,7 @@ async function loadUser() {
 
     // brand sub
     var branchId = meta.branch_id;
+    _cfgBranchId = branchId || null;
     if (branchId) {
       var r = await sb.from('pos_branches').select('name').eq('id', branchId).single();
       if (r.data) $('brand-sub').textContent = r.data.name;
@@ -1625,6 +1626,7 @@ async function urInit() {
 // ════════════════════════════════════════════════════════════
 
 var OP_KEY = 'lumen.config.operacion.v1';
+var _cfgBranchId = null; // se rellena al cargar el usuario
 var OP_DEFAULTS = { entregaMin: 12, cocinaMax: 20, propinaPct: 10, propinaObligatoria: false, metaDiaria: 1500000, cobroAdelantado: false, pin: '' };
 
 var _opSaved  = null;  // último guardado
@@ -1639,6 +1641,11 @@ function opSave(data) {
   localStorage.setItem(OP_KEY, JSON.stringify(data));
   // Sync claves heredadas para compatibilidad con otros módulos
   localStorage.setItem('lumen.config.cobro_adelantado', data.cobroAdelantado ? 'true' : 'false');
+  // Sync cobro_adelantado a la base de datos (fuente de verdad para todos los módulos)
+  if (_cfgBranchId) {
+    sb.from('branches').update({ cobro_adelantado: !!data.cobroAdelantado }).eq('id', _cfgBranchId)
+      .then(function(r){ if (r.error) console.warn('opSave branch sync:', r.error); });
+  }
 }
 
 // ── Init ──────────────────────────────────────────────────
