@@ -400,4 +400,185 @@ function applyConfigToUI() {
     c.classList.toggle('on', c.dataset.model === config.comanda_model));
   // Corte
   document.querySelectorAll('.imp-cut').forEach(c =>
-    c.classList.toggle('on'
+    c.classList.toggle('on', c.dataset.cut === config.cut));
+
+  updatePreview();
+}
+
+/* ════════════════════════════════════════
+   GUARDAR EN SUPABASE
+════════════════════════════════════════ */
+async function saveAll() {
+  const btnSave = document.getElementById('btn-save');
+  btnSave.textContent = 'Guardando…';
+  btnSave.disabled = true;
+
+  try {
+    // 1. Guardar config
+    const configPayload = {
+      branch_id: branchId, tenant_id: tenantId,
+      paper_width:      config.paper_width,
+      font_size:        config.font_size,
+      comanda_model:    config.comanda_model,
+      content_orden:    config.content_orden,
+      content_canal:    config.content_canal,
+      content_prep:     config.content_prep,
+      content_cliente:  config.content_cliente,
+      content_notas:    config.content_notas,
+      content_precio:   config.content_precio,
+      auto_print:       config.auto_print,
+      copies:           config.copies,
+      cut:              config.cut,
+      updated_at:       new Date().toISOString()
+    };
+    await sb.from('pos_print_config').upsert(configPayload, { onConflict: 'branch_id' });
+
+    // 2. Guardar impresoras (upsert existentes, insertar nuevas)
+    for (const p of printers) {
+      if (p.id.startsWith('new_')) {
+        const { data } = await sb.from('pos_printers').insert({
+          branch_id: branchId, tenant_id: tenantId,
+          name: p.name || 'Nueva impresora', conn: p.conn, model: p.model,
+          area: p.area, is_default: p.is_default
+        }).select().single();
+        if (data) p.id = data.id;
+      } else {
+        await sb.from('pos_printers').update({
+          name: p.name, conn: p.conn, model: p.model,
+          area: p.area, is_default: p.is_default
+        }).eq('id', p.id);
+      }
+    }
+
+    clearDirty();
+    toast('Configuración de impresión guardada');
+    renderPrinterList();
+  } catch(e) {
+    toast('Error al guardar. Intenta de nuevo.');
+    btnSave.disabled = false;
+  } finally {
+    btnSave.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Guardar cambios`;
+  }
+}
+
+/* ════════════════════════════════════════
+   EVENTOS GLOBALES
+════════════════════════════════════════ */
+function bindGlobalEvents() {
+  document.getElementById('btn-add-printer').addEventListener('click', addPrinter);
+
+  document.getElementById('seg-paper').addEventListener('click', e => {
+    const btn = e.target.closest('.imp-seg-btn'); if (!btn) return;
+    config.paper_width = parseInt(btn.dataset.w);
+    document.querySelectorAll('#seg-paper .imp-seg-btn').forEach(b => b.classList.toggle('on', b===btn));
+    updatePreview(); markDirty();
+  });
+
+  document.getElementById('seg-font').addEventListener('click', e => {
+    const btn = e.target.closest('.imp-seg-btn'); if (!btn) return;
+    config.font_size = btn.dataset.size;
+    document.querySelectorAll('#seg-font .imp-seg-btn').forEach(b => b.classList.toggle('on', b===btn));
+    updatePreview(); markDirty();
+  });
+
+  document.getElementById('imp-model-grid').addEventListener('click', e => {
+    const card = e.target.closest('.imp-model:not(.locked)'); if (!card) return;
+    config.comanda_model = card.dataset.model;
+    document.querySelectorAll('.imp-model:not(.locked)').forEach(c => c.classList.toggle('on', c===card));
+    markDirty();
+  });
+
+  document.querySelectorAll('.cf-switch[data-content]').forEach(sw => {
+    sw.addEventListener('click', () => {
+      const key = 'content_' + sw.dataset.content;
+      config[key] = !config[key];
+      sw.classList.toggle('on', config[key]);
+      sw.setAttribute('aria-pressed', String(config[key]));
+      updatePreview(); markDirty();
+    });
+  });
+
+  document.getElementById('sw-autoprint').addEventListener('click', () => {
+    config.auto_print = !config.auto_print;
+    const sw = document.getElementById('sw-autoprint');
+    sw.classList.toggle('on', config.auto_print);
+    sw.setAttribute('aria-pressed', String(config.auto_print));
+    document.getElementById('hint-autoprint').textContent = config.auto_print
+      ? 'La comanda sale apenas se confirma el pedido.'
+      : 'El cajero imprime la comanda manualmente.';
+    updatePreview(); markDirty();
+  });
+
+  document.getElementById('seg-copies').addEventListener('click', e => {
+    const btn = e.target.closest('.imp-seg-btn'); if (!btn) return;
+    config.copies = parseInt(btn.dataset.copies);
+    document.querySelectorAll('#seg-copies .imp-seg-btn').forEach(b => b.classList.toggle('on', b===btn));
+    updatePreview(); markDirty();
+  });
+
+  document.getElementById('btn-reimprimir').addEventListener('click', () =>
+    toast('Reimprimiendo comanda del pedido activo…'));
+
+  document.getElementById('imp-cut-grid').addEventListener('click', e => {
+    const card = e.target.closest('.imp-cut'); if (!card) return;
+    config.cut = card.dataset.cut;
+    document.querySelectorAll('.imp-cut').forEach(c => c.classList.toggle('on', c===card));
+    updatePreview(); markDirty();
+  });
+
+  document.getElementById('btn-save').addEventListener('click', saveAll);
+
+  document.getElementById('btn-discard').addEventListener('click', async () => {
+    await Promise.all([loadPrinters(), loadConfig()]);
+    renderPrinterList();
+    applyConfigToUI();
+    clearDirty();
+  });
+}
+
+/* ════════════════════════════════════════
+   DIRTY STATE + TOAST
+════════════════════════════════════════ */
+function markDirty() {
+  dirty = true;
+  document.getElementById('btn-save').disabled = false;
+  document.getElementById('btn-discard').hidden = false;
+}
+function clearDirty() {
+  dirty = false;
+  document.getElementById('btn-save').disabled = true;
+  document.getElementById('btn-discard').hidden = true;
+}
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 2200);
+}
+
+function esc(str) {
+  return String(str||'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ════════════════════════════════════════
+   AJUSTE HTML: mover rcpt-stage al DOM
+════════════════════════════════════════ */
+function patchPreviewStage() {
+  // Reemplazar el contenido fijo del recibo por un div dinámico
+  const stage = document.querySelector('.imp-preview-stage');
+  if (!stage) return;
+  stage.innerHTML = `<div id="rcpt-stage"></div>`;
+}
+
+/* ════════════════════════════════════════
+   ARRANQUE
+════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  patchPreviewStage();
+  waitForPos(onPosReady);
+});
