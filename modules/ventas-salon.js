@@ -1140,9 +1140,8 @@
 
     const chipsHtml = Object.entries(QUICK_STATE_META).map(([key, meta]) => {
       const count = counts[key] || 0;
-      if (!count) return '';
       return `
-        <div class="lm-chip" style="border-left:3px solid ${meta.color}">
+        <div class="lm-chip" style="border-left:3px solid ${meta.color};opacity:${count ? 1 : 0.4}">
           <span class="lm-chip-icon" style="color:${meta.color};background:${meta.tint}">
             ${SVG_CLOCK(15)}
           </span>
