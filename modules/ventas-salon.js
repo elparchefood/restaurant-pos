@@ -25,9 +25,9 @@
   };
 
   const QUICK_STATE_META = {
-    in_progress:    { label: 'En preparación', short: 'Preparando', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA' },
-    pendiente_pago: { label: 'Pendiente pago', short: 'Pendiente',  color: '#EF4444', tint: '#FEF2F2', ring: '#FECACA' },
-    paid:           { label: 'Cobrado',         short: 'Cobrado',   color: '#22C55E', tint: '#F0FDF4', ring: '#BBF7D0' },
+    esperando:      { label: 'Esperando pedido',  short: 'Esperando', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA' },
+    pendiente_pago: { label: 'Pendiente de pago', short: 'Pendiente', color: '#EF4444', tint: '#FEF2F2', ring: '#FECACA' },
+    paid:           { label: 'Cobrado',            short: 'Cobrado',  color: '#22C55E', tint: '#F0FDF4', ring: '#BBF7D0' },
   };
 
   const CANAL_META = {
@@ -498,7 +498,7 @@
             </button>
             <button class="lm-tab ${state.floor === '__rapidas__' ? 'is-active' : ''}" data-floor="__rapidas__">
               Rápidas
-              <span class="vs-tab-count">${state.quickOrders.filter(o => o.status !== 'paid').length}</span>
+              <span class="vs-tab-count">${state.quickOrders.length}</span>
             </button>
           </div>
         </div>
@@ -1197,7 +1197,7 @@
   }
 
   function renderQuickCard(o) {
-    const meta = QUICK_STATE_META[o.status] || QUICK_STATE_META.in_progress;
+    const meta = QUICK_STATE_META[o.status] || QUICK_STATE_META.esperando;
     const isSelected = o.id === state.selectedQuickId;
     const titulo = o.customer_name || ('Turno #' + String(o.turno || 0).padStart(3, '0'));
     const mins = Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000);
@@ -1253,7 +1253,7 @@
   }
 
   function renderQuickRailDetail(o) {
-    const meta = QUICK_STATE_META[o.status] || QUICK_STATE_META.in_progress;
+    const meta = QUICK_STATE_META[o.status] || QUICK_STATE_META.esperando;
     const titulo = o.customer_name || ('Turno #' + String(o.turno || 0).padStart(3, '0'));
     const isPaid = o.status === 'paid';
     const total = o.total || 0;
@@ -1261,15 +1261,25 @@
     const descuento = o.discount || 0;
     const hora = new Date(o.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 
-    const actionsHtml = isPaid
-      ? `<div class="vs-actions">
+    let actionsHtml;
+    if (isPaid) {
+      actionsHtml = `<div class="vs-actions">
           <button class="lm-btn-ghost" data-action="quick-nueva" data-quick-id="${o.id}">Nueva venta</button>
-          <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-entregar" data-quick-id="${o.id}">Marcar entregado</button>
-        </div>`
-      : `<div class="vs-actions">
+          <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-entregar" data-quick-id="${o.id}">Ya entregué</button>
+        </div>`;
+    } else if (state.cobroAdelantado) {
+      // Cobro adelantado: ya fue pagado al crear, solo entregar
+      actionsHtml = `<div class="vs-actions">
+          <button class="lm-btn-ghost" data-action="quick-cancelar" data-quick-id="${o.id}">Cancelar</button>
+          <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-entregar" data-quick-id="${o.id}">Ya entregué</button>
+        </div>`;
+    } else {
+      // Cobro al final: primero cobrar, luego entregar
+      actionsHtml = `<div class="vs-actions">
           <button class="lm-btn-ghost" data-action="quick-cancelar" data-quick-id="${o.id}">Cancelar</button>
           <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-cobrar" data-quick-id="${o.id}">Cobrar</button>
         </div>`;
+    }
 
     return `
       <div class="vs-rail-head">
@@ -1364,7 +1374,7 @@
         if (rail) { rail.innerHTML = renderQuickRailContent(); attachQuickRailEvents(); }
         container.querySelectorAll('.lm-mesa[data-quick-id]').forEach(c2 => {
           const o2 = state.quickOrders.find(x => x.id === c2.dataset.quickId);
-          const m2 = (o2 && QUICK_STATE_META[o2.status]) || QUICK_STATE_META.in_progress;
+          const m2 = (o2 && QUICK_STATE_META[o2.status]) || QUICK_STATE_META.esperando;
           c2.style.boxShadow = c2.dataset.quickId === state.selectedQuickId ? `0 0 0 3px ${m2.color}33` : 'none';
           c2.style.borderColor = c2.dataset.quickId === state.selectedQuickId ? m2.color : m2.ring;
         });

@@ -772,9 +772,16 @@
     const sb = getSb();
     if (!sb) return;
     try {
-      const orderId = await upsertOrder(sb, true);
-      // Navegar a pagos
-      window.location.href = `pagos.html?order=${orderId}&channel=rapido`;
+      const cobroAdelantado = localStorage.getItem('lumen.config.cobro_adelantado') === 'true';
+      if (cobroAdelantado) {
+        // Cobro adelantado: ir a pagos primero
+        const orderId = await upsertOrder(sb, true);
+        window.location.href = `pagos.html?order=${orderId}&channel=rapido&adelantado=1`;
+      } else {
+        // Cobro al final: enviar a cocina y volver a ventas
+        await upsertOrder(sb, true);
+        window.location.href = 'ventas.html';
+      }
     } catch(e) {
       console.error('enviarACocina:', e);
       alert('Error al enviar: ' + e.message);
@@ -806,7 +813,7 @@
         waiter_id:      userId,
         table_id:       null,
         channel:        'rapido',
-        status:         'in_progress',
+        status:         'esperando',
         total:          total,
         subtotal:       sub,
         discount:       S.descuento,
