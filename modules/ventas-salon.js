@@ -25,11 +25,14 @@
   };
 
   const QUICK_STATE_META = {
-    in_progress:    { label: 'Esperando pedido',  short: 'Esperando', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA' },
-    esperando:      { label: 'Esperando pedido',  short: 'Esperando', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA' },
-    pendiente_pago: { label: 'Pendiente de pago', short: 'Pendiente', color: '#EF4444', tint: '#FEF2F2', ring: '#FECACA' },
-    paid:           { label: 'Cobrado',            short: 'Cobrado',  color: '#22C55E', tint: '#F0FDF4', ring: '#BBF7D0' },
+    in_progress:    { label: 'En preparación',    short: 'Preparando', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA' },
+    esperando:      { label: 'En preparación',    short: 'Preparando', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA' },
+    pendiente_pago: { label: 'Pendiente de pago', short: 'Pendiente',  color: '#EF4444', tint: '#FEF2F2', ring: '#FECACA' },
+    paid:           { label: 'Cobrado',            short: 'Cobrado',   color: '#22C55E', tint: '#F0FDF4', ring: '#BBF7D0' },
+    entregado:      { label: 'Entregado',          short: 'Entregado', color: '#94A3B8', tint: '#F8FAFC', ring: '#ECEEF2' },
   };
+  // Orden de display y claves canónicas del legend
+  const QUICK_LEGEND_KEYS = ['pendiente_pago', 'paid', 'in_progress', 'entregado'];
 
   const CANAL_META = {
     whatsapp: { label: 'WhatsApp', color: '#22C55E', bg: '#DCFCE7' },
@@ -75,6 +78,7 @@
     deliveries: DOMI_SEED.map(d => Object.assign({}, d)),
     selectedDomiId: null,
     quickOrders: [],
+    quickDeliveredCount: 0,
     selectedQuickId: null,
   };
 
@@ -309,6 +313,7 @@
   async function loadData() {
     state.tables = await fetchTables();
     state.quickOrders = await fetchQuickOrders();
+    state.quickDeliveredCount = await fetchQuickDeliveredCount();
 
     if (state.selectedTableId) {
       state.orderItems = await fetchOrderItems(state.selectedTableId);
@@ -482,12 +487,14 @@
     }).join('');
     const isDomicilios = state.floor === '__domicilios__';
     const isRapidas = state.floor === '__rapidas__';
-    const legendSrc = isDomicilios ? DELIVERY_META : isRapidas ? QUICK_STATE_META : STATE_META;
-    const legendHtml = Object.entries(legendSrc).map(([k, m]) => `
-      <span class="vs-legend-item">
-        <span class="vs-legend-dot" style="background:${m.color}"></span>
-        ${m.label}
-      </span>`).join('');
+    let legendHtml;
+    if (isDomicilios) {
+      legendHtml = Object.entries(DELIVERY_META).map(([k, m]) => `<span class="vs-legend-item"><span class="vs-legend-dot" style="background:${m.color}"></span>${m.label}</span>`).join('');
+    } else if (isRapidas) {
+      legendHtml = QUICK_LEGEND_KEYS.map(k => { const m = QUICK_STATE_META[k]; return `<span class="vs-legend-item"><span class="vs-legend-dot" style="background:${m.color}"></span>${m.label}</span>`; }).join('');
+    } else {
+      legendHtml = Object.entries(STATE_META).map(([k, m]) => `<span class="vs-legend-item"><span class="vs-legend-dot" style="background:${m.color}"></span>${m.label}</span>`).join('');
+    }
     return `
       <header class="vs-topbar" id="vs-salon-tabs">
         <div class="vs-topbar-left">
@@ -1132,6 +1139,23 @@
   }
 
 
+  async function fetchQuickDeliveredCount() {
+    const sb = window._pos && window._pos.sb;
+    if (!sb) return 0;
+    const branchId = window._pos.state && window._pos.state.branchId;
+    const today = new Date(); today.setHours(0,0,0,0);
+    let q = sb.from('pos_orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('channel', 'rapido')
+      .neq('status', 'cancelled')
+      .gte('created_at', today.toISOString())
+      .not('delivered_at', 'is', null);
+    if (branchId) q = q.eq('branch_id', branchId);
+    const { count, error } = await q;
+    if (error) return 0;
+    return count || 0;
+  }
+
   // ─── Render: Quick Orders ────────────────────────────
   function renderQuickSummaryRow() {
     const active = state.quickOrders.filter(o => o.status !== 'paid');
@@ -1141,8 +1165,9 @@
       const k = (o.status === 'in_progress' || o.status === 'esperando') ? 'in_progress' : o.status;
       counts[k] = (counts[k] || 0) + 1;
     });
+    counts['entregado'] = state.quickDeliveredCount || 0;
 
-    const chipsHtml = ['in_progress', 'pendiente_pago', 'paid'].map(key => {
+    const chipsHtml = QUICK_LEGEND_KEYS.map(key => {
       const meta = QUICK_STATE_META[key]; if (!meta) return '';
       const count = counts[key] || 0;
       return `
