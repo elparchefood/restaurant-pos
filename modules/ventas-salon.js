@@ -67,6 +67,8 @@
     currentOrder: null,
     deliveries: DOMI_SEED.map(d => Object.assign({}, d)),
     selectedDomiId: null,
+    quickOrders: [],
+    selectedQuickId: null,
   };
 
   let container = null;
@@ -299,6 +301,7 @@
   // ─── Data loading ─────────────────────────────────────
   async function loadData() {
     state.tables = await fetchTables();
+    state.quickOrders = await fetchQuickOrders();
 
     if (state.selectedTableId) {
       state.orderItems = await fetchOrderItems(state.selectedTableId);
@@ -370,12 +373,12 @@
         ${renderSidebar(user, branch)}
         <main class="vs-main">
           ${renderTopbar(user)}
-          ${state.floor === '__domicilios__' ? renderDomicilioSummaryRow() : renderSummaryRow()}
+          ${state.floor === '__domicilios__' ? renderDomicilioSummaryRow() : state.floor === '__rapidas__' ? renderQuickSummaryRow() : renderSummaryRow()}
           <section class="vs-body">
             <div class="vs-body-left">
-              ${state.floor === '__domicilios__' ? renderDomicilioGrid() : renderGrid()}
+              ${state.floor === '__domicilios__' ? renderDomicilioGrid() : state.floor === '__rapidas__' ? renderQuickGrid() : renderGrid()}
             </div>
-            <aside class="vs-rail" id="vs-rail">${state.floor === '__domicilios__' ? renderDomiRailContent() : renderRailContent()}</aside>
+            <aside class="vs-rail" id="vs-rail">${state.floor === '__domicilios__' ? renderDomiRailContent() : state.floor === '__rapidas__' ? renderQuickRailContent() : renderRailContent()}</aside>
           </section>
         </main>
       </div>
@@ -471,7 +474,8 @@
       return `<button class="lm-tab ${state.floor === z.id ? 'is-active' : ''}" data-floor="${z.id}">${z.name}<span class="vs-tab-count">${count}</span></button>`;
     }).join('');
     const isDomicilios = state.floor === '__domicilios__';
-    const legendSrc = isDomicilios ? DELIVERY_META : STATE_META;
+    const isRapidas = state.floor === '__rapidas__';
+    const legendSrc = isDomicilios ? DELIVERY_META : isRapidas ? QUICK_STATE_META : STATE_META;
     const legendHtml = Object.entries(legendSrc).map(([k, m]) => `
       <span class="vs-legend-item">
         <span class="vs-legend-dot" style="background:${m.color}"></span>
@@ -485,6 +489,10 @@
             <button class="lm-tab vs-tab-domicilios ${state.floor === '__domicilios__' ? 'is-active' : ''}" data-floor="__domicilios__">
               Domicilios
               <span class="vs-tab-count">${state.deliveries.filter(d => d.estado !== 'entregado').length}</span>
+            </button>
+            <button class="lm-tab ${state.floor === '__rapidas__' ? 'is-active' : ''}" data-floor="__rapidas__">
+              Rápidas
+              <span class="vs-tab-count">${state.quickOrders.filter(o => o.status !== 'paid').length}</span>
             </button>
           </div>
         </div>
@@ -900,7 +908,26 @@
     `;
   }
 
-  // ─── Render: Rail ─────────────────────────────────────
+  // ─── Fetch: Quick Orders ────────────────────────────────
+  async function fetchQuickOrders() {
+    const sb = window._pos && window._pos.sb;
+    if (!sb) return [];
+    const branchId = window._pos.state && window._pos.state.branchId;
+    const today = new Date(); today.setHours(0,0,0,0);
+    let q = sb.from('pos_orders')
+      .select('id, customer_name, turno, total, subtotal, discount, status, channel, created_at, waiter_name, notes, delivered_at')
+      .eq('channel', 'rapido')
+      .neq('status', 'cancelled')
+      .gte('created_at', today.toISOString())
+      .is('delivered_at', null)
+      .order('created_at', { ascending: false });
+    if (branchId) q = q.eq('branch_id', branchId);
+    const { data, error } = await q;
+    if (error) { console.error('[VS] fetchQuickOrders:', error); return []; }
+    return data || [];
+  }
+
+    // ─── Render: Rail ─────────────────────────────────────
   function renderRail() {
     const el = document.getElementById('vs-rail');
     if (!el) return;
@@ -1097,6 +1124,183 @@
     `;
   }
 
+
+  // ─── Render: Quick Orders ────────────────────────────
+  function renderQuickSummaryRow() {
+    const active = state.quickOrders.filter(o => o.status !== 'paid');
+    const total = state.quickOrders.reduce((s, o) => s + (o.total || 0), 0);
+    const counts = {};
+    state.quickOrders.forEach(o => { counts[o.status] = (counts[o.status] || 0) + 1; });
+
+    const chipsHtml = Object.entries(QUICK_STATE_META).map(([key, meta]) => {
+      const count = counts[key] || 0;
+      if (!count) return '';
+      return `
+        <div class="lm-chip" style="border-left:3px solid ${meta.color}">
+          <span class="lm-chip-icon" style="color:${meta.color};background:${meta.tint}">
+            ${SVG_CLOCK(15)}
+          </span>
+          <div style="min-width:0;flex:1">
+            <div style="display:flex;align-items:baseline;gap:6px">
+              <span class="lm-chip-count">${count}</span>
+              <span class="lm-chip-label">${meta.label}</span>
+            </div>
+            <div class="lm-chip-hint">pedidos</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <section class="vs-summary-row">
+        <div class="vs-chips-track">
+          ${chipsHtml || '<div style="padding:12px 0;color:#94A3B8;font-size:13px">Sin pedidos rápidos hoy</div>'}
+        </div>
+        <div class="vs-metric-strip">
+          <div class="vs-metric-cell">
+            <div class="vs-metric-label">Activos ahora</div>
+            <div class="vs-metric-value">${active.length}</div>
+            <div class="vs-metric-hint">pedidos en curso</div>
+          </div>
+          <div class="vs-metric-divider"></div>
+          <div class="vs-metric-cell">
+            <div class="vs-metric-label">Total vendido hoy</div>
+            <div class="vs-metric-value">${fmt(total)}</div>
+            <div class="vs-metric-hint">ventas rápidas</div>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderQuickGrid() {
+    if (state.loading) {
+      return `<div class="vs-grid"><div class="vs-loading">Cargando pedidos rápidos…</div></div>`;
+    }
+    if (!state.quickOrders.length) {
+      return `
+        <div class="vs-grid">
+          <div class="vs-empty-grid">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>Sin pedidos rápidos hoy</span>
+          </div>
+        </div>
+      `;
+    }
+    const cards = state.quickOrders.map(o => renderQuickCard(o)).join('');
+    return `<div class="vs-grid" id="vs-quick-grid">${cards}</div>`;
+  }
+
+  function renderQuickCard(o) {
+    const meta = QUICK_STATE_META[o.status] || QUICK_STATE_META.in_progress;
+    const isSelected = o.id === state.selectedQuickId;
+    const titulo = o.customer_name || ('Turno #' + String(o.turno || 0).padStart(3, '0'));
+    const mins = Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000);
+    const selectedStyle = isSelected
+      ? `border-color:${meta.color};box-shadow:0 0 0 3px ${meta.color}22`
+      : `border-color:${meta.ring}`;
+    return `
+      <button class="lm-mesa" data-quick-id="${o.id}" style="${selectedStyle}">
+        <div class="vs-mesa-header">
+          <span class="vs-state-pill" style="color:${meta.color};background:${meta.tint}">
+            <span class="vs-state-dot" style="background:${meta.color}"></span>
+            ${meta.label}
+          </span>
+          <span class="vs-time-badge">${SVG_CLOCK(10)} ${mins} min</span>
+        </div>
+        <div class="vs-mesa-num-row">
+          <div class="vs-mesa-num vs-mesa-num--active" style="font-size:${titulo.length > 12 ? '14px' : '22px'};font-weight:700">${titulo}</div>
+        </div>
+        <div class="vs-mesa-footer">
+          <div class="vs-mesa-footer-active">
+            <div class="vs-mesa-footer-left">
+              <span class="vs-mesa-items">Venta rápida</span>
+            </div>
+            <div class="vs-mesa-total">${fmt(o.total)}</div>
+          </div>
+        </div>
+      </button>
+    `;
+  }
+
+  function renderQuickRailContent() {
+    const o = state.quickOrders.find(x => x.id === state.selectedQuickId);
+    if (!o) return renderQuickRailEmpty();
+    return renderQuickRailDetail(o);
+  }
+
+  function renderQuickRailEmpty() {
+    return `
+      <div class="vs-rail-head">
+        <div>
+          <div class="vs-eyebrow">Pedido seleccionado</div>
+          <div class="vs-rail-title-row">
+            <h2 class="vs-rail-title">—</h2>
+          </div>
+        </div>
+      </div>
+      <div class="vs-empty-rail">
+        <div class="vs-empty-icon">${SVG_PLUS(22)}</div>
+        <div class="vs-empty-title">Selecciona un pedido</div>
+        <p class="vs-empty-desc">Elige un pedido rápido para ver su detalle y acciones disponibles.</p>
+      </div>
+    `;
+  }
+
+  function renderQuickRailDetail(o) {
+    const meta = QUICK_STATE_META[o.status] || QUICK_STATE_META.in_progress;
+    const titulo = o.customer_name || ('Turno #' + String(o.turno || 0).padStart(3, '0'));
+    const isPaid = o.status === 'paid';
+    const total = o.total || 0;
+    const subtotal = o.subtotal || total;
+    const descuento = o.discount || 0;
+    const hora = new Date(o.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+
+    const actionsHtml = isPaid
+      ? `<div class="vs-actions">
+          <button class="lm-btn-ghost" data-action="quick-nueva" data-quick-id="${o.id}">Nueva venta</button>
+          <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-entregar" data-quick-id="${o.id}">Marcar entregado</button>
+        </div>`
+      : `<div class="vs-actions">
+          <button class="lm-btn-ghost" data-action="quick-cancelar" data-quick-id="${o.id}">Cancelar</button>
+          <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-cobrar" data-quick-id="${o.id}">Cobrar</button>
+        </div>`;
+
+    return `
+      <div class="vs-rail-head">
+        <div>
+          <div class="vs-eyebrow">Pedido rápido</div>
+          <div class="vs-rail-title-row">
+            <h2 class="vs-rail-title">${titulo}</h2>
+            <span class="vs-state-pill" style="color:${meta.color};background:${meta.tint}">
+              <span class="vs-state-dot" style="background:${meta.color}"></span>
+              ${meta.label}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="vs-rail-body">
+        <div class="vs-order-meta">
+          <div class="vs-info-row">
+            <span class="vs-info-label">Canal</span>
+            <span class="vs-info-value">Venta rápida</span>
+          </div>
+          <div class="vs-info-row">
+            <span class="vs-info-label">Hora</span>
+            <span class="vs-info-value">${hora}</span>
+          </div>
+          ${o.notes ? `<div class="vs-info-row"><span class="vs-info-label">Notas</span><span class="vs-info-value">${o.notes}</span></div>` : ''}
+        </div>
+        <div class="vs-divider"></div>
+        <div class="vs-totals">
+          <div class="vs-total-row"><span>Subtotal</span><span>${fmt(subtotal)}</span></div>
+          ${descuento ? `<div class="vs-total-row"><span>Descuento</span><span>-${fmt(descuento)}</span></div>` : ''}
+          <div class="vs-total-row vs-total-grand"><span>Total</span><span>${fmt(total)}</span></div>
+        </div>
+        ${actionsHtml}
+      </div>
+    `;
+  }
+
   // ─── Events ───────────────────────────────────────────
   function attachEvents() {
     if (!container) return;
@@ -1146,6 +1350,21 @@
       });
     });
 
+    // Quick order cards
+    container.querySelectorAll('.lm-mesa[data-quick-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.selectedQuickId = btn.dataset.quickId;
+        const rail = document.getElementById('vs-rail');
+        if (rail) { rail.innerHTML = renderQuickRailContent(); attachQuickRailEvents(); }
+        container.querySelectorAll('.lm-mesa[data-quick-id]').forEach(c2 => {
+          const o2 = state.quickOrders.find(x => x.id === c2.dataset.quickId);
+          const m2 = (o2 && QUICK_STATE_META[o2.status]) || QUICK_STATE_META.in_progress;
+          c2.style.boxShadow = c2.dataset.quickId === state.selectedQuickId ? `0 0 0 3px ${m2.color}33` : 'none';
+          c2.style.borderColor = c2.dataset.quickId === state.selectedQuickId ? m2.color : m2.ring;
+        });
+      });
+    });
+
     // Domi rail action buttons
     attachDomiRailEvents();
 
@@ -1162,6 +1381,13 @@
   function attachRailEvents() {
     if (!container) return;
     container.querySelectorAll('[data-action]').forEach(btn => {
+      btn.addEventListener('click', handleAction);
+    });
+  }
+
+  function attachQuickRailEvents() {
+    if (!container) return;
+    container.querySelectorAll('[data-action^="quick-"]').forEach(btn => {
       btn.addEventListener('click', handleAction);
     });
   }
@@ -1273,6 +1499,48 @@
         break;
       case 'nav-domicilio':
         window.location.href = 'domicilios.html';
+        break;
+      case 'quick-cobrar': {
+        const qcId = e.currentTarget.dataset.quickId;
+        if (qcId) window.location.href = `pagos.html?order=${qcId}&channel=rapido`;
+        break;
+      }
+      case 'quick-entregar': {
+        const qeId = e.currentTarget.dataset.quickId;
+        const sbQE = window._pos && window._pos.sb;
+        if (sbQE && qeId) {
+          sbQE.from('pos_orders').update({ delivered_at: new Date().toISOString() }).eq('id', qeId)
+            .then(function() {
+              state.quickOrders = state.quickOrders.filter(x => x.id !== qeId);
+              state.selectedQuickId = null;
+              render();
+            });
+        }
+        break;
+      }
+      case 'quick-cancelar': {
+        const qxId = e.currentTarget.dataset.quickId;
+        vsConfirm({
+          title: 'Cancelar pedido',
+          msg: '¿Cancelar este pedido rápido?',
+          okLabel: 'Sí, cancelar',
+          variant: 'danger',
+        }).then(function(ok) {
+          if (!ok) return;
+          const sbQX = window._pos && window._pos.sb;
+          if (sbQX && qxId) {
+            sbQX.from('pos_orders').update({ status: 'cancelled' }).eq('id', qxId)
+              .then(function() {
+                state.quickOrders = state.quickOrders.filter(x => x.id !== qxId);
+                state.selectedQuickId = null;
+                render();
+              });
+          }
+        });
+        break;
+      }
+      case 'quick-nueva':
+        window.location.href = 'venta-rapida.html';
         break;
       default:
         break;
