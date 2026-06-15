@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Política de Privacidad — Cobra POS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #FAFAFB;
+      --surface: #FFFFFF;
+      --border: #ECEEF2;
+      --border-soft: #F1F5F9;
+      --ink: #0F172A;
+      --ink-2: #475569;
+      --ink-3: #64748B;
+      --muted: #94A3B8;
+      --brand: #5B6BFF;
+      --brand-press: #4F5BE3;
+      --brand-tint: #EEF2FF;
+      --brand-ring: #C7D2FE;
+      --success: #16A34A;
+      --success-tint: #DCFCE7;
+      --danger: #DC2626;
+      --danger-tint: #FEF2F2;
+      --danger-border: #FECACA;
+      --r-md: 8px;
+      --r-lg: 10px;
+      --r-xl: 12px;
+      --r-2xl: 14px;
+    }
+
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      color: var(--ink);
+      font-size: 13px;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.6;
+    }
+
+    ::-webkit-scrollbar { width: 9px; }
+    ::-webkit-scrollbar-thumb { background: #ECEEF2; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #CBD5E1; }
+
+    /* HEADER */
+    .site-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #5B6BFF, #8B5CF6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 16px;
+      letter-spacing: -1px;
+      flex-shrink: 0;
+    }
+
+    .brand-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink);
+      letter-spacing: -0.02em;
+    }
+
+    .brand-name span {
+      color: var(--ink-3);
+      font-weight: 500;
+    }
+
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 11px;
+      background: var(--brand-tint);
+      color: var(--brand);
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    /* LAYOUT */
+    .page-wrap {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    /* PAGE HEAD */
+    .page-eyebrow {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 10px;
+    }
+
+    .page-title {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--ink);
+      letter-spacing: -0.025em;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+
+    .page-meta {
+      font-size: 12.5px;
+      color: var(--muted);
+      margin-bottom: 36px;
+    }
+
+    /* CARDS */
+    .cc-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-2xl);
+      padding: 24px 28px;
+      margin-bottom: 16px;
+    }
+
+    .cc-card h2 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14.5px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 14px;
+    }
+
+    .section-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      background: var(--brand-tint);
+      color: var(--brand);
+      font-size: 11px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .cc-card p {
+      font-size: 13px;
+      color: var(--ink-2);
+      margin-bottom: 10px;
+      line-height: 1.65;
+    }
+
+    .cc-card p:last-child { margin-bottom: 0; }
+
+    .cc-card ul {
+      list-style: none;
+      margin: 10px 0;
+    }
+
+    .cc-card ul li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 5px 0;
+      font-size: 13px;
+      color: var(--ink-2);
+      line-height: 1.55;
+    }
+
+    .cc-card ul li::before {
+      content: '';
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--brand);
+      flex-shrink: 0;
+      margin-top: 7px;
+    }
+
+    /* DIVIDER */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border-soft);
+      margin: 14px 0;
+    }
+
+    /* TABLE */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+      margin-top: 14px;
+    }
+
+    .data-table th {
+      text-align: left;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      padding: 8px 12px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .data-table th:first-child { border-radius: 8px 0 0 0; }
+    .data-table th:last-child { border-radius: 0 8px 0 0; }
+
+    .data-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border-soft);
+      color: var(--ink-2);
+      vertical-align: top;
+      line-height: 1.5;
+    }
+
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table td:first-child { font-weight: 600; color: var(--ink); }
+
+    /* HIGHLIGHT */
+    .info-block {
+      background: var(--brand-tint);
+      border: 1px solid var(--brand-ring);
+      border-radius: var(--r-lg);
+      padding: 14px 16px;
+      margin-top: 14px;
+      font-size: 12.5px;
+      color: var(--brand-press);
+      font-weight: 500;
+      line-height: 1.55;
+    }
+
+    /* LINKS */
+    a {
+      color: var(--brand);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    a:hover { text-decoration: underline; }
+
+    /* FOOTER */
+    .site-footer {
+      border-top: 1px solid var(--border);
+      padding: 24px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .site-footer a { color: var(--ink-3); font-weight: 500; }
+    .site-footer a:hover { color: var(--brand); }
+
+    /* TOC */
+    .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-2xl);
+      padding: 20px 28px;
+      margin-bottom: 24px;
+    }
+
+    .toc-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+    }
+
+    .toc-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .toc-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 8px;
+      border-radius: 7px;
+      color: var(--ink-2);
+      font-size: 12.5px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .toc-item:hover {
+      background: var(--brand-tint);
+      color: var(--brand);
+      text-decoration: none;
+    }
+
+    .toc-item-num {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      width: 16px;
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
+</head>
+<body>
+
+<header class="site-header">
+  <a href="https://cobrapos.app" class="brand">
+    <div class="brand-logo">C</div>
+    <div class="brand-name">Cobra <span>POS</span></div>
+  </a>
+  <div class="header-badge">Legal</div>
+</header>
+
+<div class="page-wrap">
+
+  <div class="page-eyebrow">Privacidad</div>
+  <h1 class="page-title">Política de Privacidad</h1>
+  <p class="page-meta">Última actualización: 15 de junio de 2026 · Versión 1.0</p>
+
+  <!-- TOC -->
+  <div class="toc">
+    <div class="toc-title">Contenido</div>
+    <div class="toc-list">
+      <a href="#s1" class="toc-item"><span class="toc-item-num">01</span> ¿Quiénes somos?</a>
+      <a href="#s2" class="toc-item"><span class="toc-item-num">02</span> Datos que recopilamos</a>
+      <a href="#s3" class="toc-item"><span class="toc-item-num">03</span> Para qué usamos sus datos</a>
+      <a href="#s4" class="toc-item"><span class="toc-item-num">04</span> Login con Facebook</a>
+      <a href="#s5" class="toc-item"><span class="toc-item-num">05</span> Terceros con acceso</a>
+      <a href="#s6" class="toc-item"><span class="toc-item-num">06</span> Retención de datos</a>
+      <a href="#s7" class="toc-item"><span class="toc-item-num">07</span> Sus derechos</a>
+      <a href="#s8" class="toc-item"><span class="toc-item-num">08</span> Seguridad</a>
+      <a href="#s9" class="toc-item"><span class="toc-item-num">09</span> Cookies</a>
+      <a href="#s10" class="toc-item"><span class="toc-item-num">10</span> Cambios a esta política</a>
+      <a href="#s11" class="toc-item"><span class="toc-item-num">11</span> Contacto</a>
+    </div>
+  </div>
+
+  <!-- S1 -->
+  <div class="cc-card" id="s1">
+    <h2><span class="section-num">1</span> ¿Quiénes somos?</h2>
+    <p><strong>Cobra POS</strong> es una plataforma de gestión para restaurantes que permite tomar pedidos, gestionar mesas, cocina y pagos en tiempo real. Operamos en Colombia y otros países de Latinoamérica.</p>
+    <hr class="divider">
+    <p>Responsable del tratamiento de datos: <strong>Cobra POS</strong></p>
+    <p>Contacto: <a href="mailto:hola@cobrapos.app">hola@cobrapos.app</a></p>
+    <p>Sitio web: <a href="https://cobrapos.app">cobrapos.app</a></p>
+  </div>
+
+  <!-- S2 -->
+  <div class="cc-card" id="s2">
+    <h2><span class="section-num">2</span> Datos que recopilamos</h2>
+    <p>Recopilamos únicamente los datos necesarios para ofrecer el servicio:</p>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Tipo de dato</th>
+          <th>Ejemplos</th>
+          <th>Fuente</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Datos de cuenta</td>
+          <td>Nombre, email, contraseña (cifrada)</td>
+          <td>El usuario al registrarse</td>
+        </tr>
+        <tr>
+          <td>Datos del negocio</td>
+          <td>Nombre del restaurante, dirección, NIT</td>
+          <td>El usuario al configurar su local</td>
+        </tr>
+        <tr>
+          <td>Datos operativos</td>
+          <td>Pedidos, productos, mesas, turnos de caja</td>
+          <td>Uso normal de la plataforma</td>
+        </tr>
+        <tr>
+          <td>Datos de Facebook</td>
+          <td>Nombre, email, foto de perfil, ID de usuario</td>
+          <td>Meta Platform, con consentimiento explícito</td>
+        </tr>
+        <tr>
+          <td>Datos técnicos</td>
+          <td>IP, tipo de navegador, dispositivo</td>
+          <td>Automáticamente al acceder</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="info-block">
+      No vendemos, alquilamos ni comercializamos sus datos personales a terceros bajo ninguna circunstancia.
+    </div>
+  </div>
+
+  <!-- S3 -->
+  <div class="cc-card" id="s3">
+    <h2><span class="section-num">3</span> Para qué usamos sus datos</h2>
+    <ul>
+      <li>Crear y gestionar su cuenta en la plataforma</li>
+      <li>Permitir el inicio de sesión con Facebook (si usted lo elige)</li>
+      <li>Operar las funciones del POS: pedidos, mesas, cocina, caja</li>
+      <li>Enviar notificaciones relacionadas con el servicio (no publicidad)</li>
+      <li>Facturación y gestión de suscripciones</li>
+      <li>Soporte técnico y resolución de problemas</li>
+      <li>Mejorar y desarrollar nuevas funcionalidades</li>
+      <li>Cumplir obligaciones legales y regulatorias</li>
+    </ul>
+  </div>
+
+  <!-- S4 -->
+  <div class="cc-card" id="s4">
+    <h2><span class="section-num">4</span> Login con Facebook</h2>
+    <p>Cobra POS ofrece la opción de iniciar sesión usando su cuenta de Facebook. Si elige este método:</p>
+    <ul>
+      <li>Solo solicitamos su <strong>nombre</strong>, <strong>email</strong> y <strong>foto de perfil</strong> de Facebook</li>
+      <li>No publicamos nada en su Facebook sin su consentimiento explícito</li>
+      <li>No accedemos a sus amigos, mensajes ni ningún otro dato de Facebook</li>
+      <li>Puede revocar el acceso desde la configuración de Facebook: <a href="https://www.facebook.com/settings?tab=applications" target="_blank">Configuración → Aplicaciones</a></li>
+      <li>Para eliminar sus datos almacenados, visite <a href="https://cobrapos.app/data-deletion">cobrapos.app/data-deletion</a></li>
+    </ul>
+  </div>
+
+  <!-- S5 -->
+  <div class="cc-card" id="s5">
+    <h2><span class="section-num">5</span> Terceros con acceso a sus datos</h2>
+    <p>Trabajamos con los siguientes proveedores técnicos que pueden acceder a sus datos únicamente para prestarnos servicios:</p>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Proveedor</th>
+          <th>Servicio</th>
+          <th>Política de privacidad</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Supabase</td>
+          <td>Base de datos y autenticación</td>
+          <td><a href="https://supabase.com/privacy" target="_blank">supabase.com/privacy</a></td>
+        </tr>
+        <tr>
+          <td>Stripe</td>
+          <td>Procesamiento de pagos</td>
+          <td><a href="https://stripe.com/privacy" target="_blank">stripe.com/privacy</a></td>
+        </tr>
+        <tr>
+          <td>Meta (Facebook)</td>
+          <td>Autenticación con Facebook Login</td>
+          <td><a href="https://www.facebook.com/privacy/policy/" target="_blank">facebook.com/privacy</a></td>
+        </tr>
+        <tr>
+          <td>OpenAI</td>
+          <td>Funciones de inteligencia artificial</td>
+          <td><a href="https://openai.com/privacy" target="_blank">openai.com/privacy</a></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- S6 -->
+  <div class="cc-card" id="s6">
+    <h2><span class="section-num">6</span> Retención de datos</h2>
+    <p>Conservamos sus datos mientras su cuenta esté activa. Si cancela su suscripción o solicita la eliminación:</p>
+    <ul>
+      <li>Datos operativos (pedidos, productos) eliminados en máximo <strong>30 días</strong></li>
+      <li>Datos de facturación conservados por el tiempo requerido por ley colombiana (hasta 5 años)</li>
+      <li>Datos de Facebook eliminados de nuestros servidores en máximo <strong>30 días</strong> desde la solicitud</li>
+    </ul>
+  </div>
+
+  <!-- S7 -->
+  <div class="cc-card" id="s7">
+    <h2><span class="section-num">7</span> Sus derechos</h2>
+    <p>Usted tiene derecho a:</p>
+    <ul>
+      <li><strong>Acceder</strong> a los datos que tenemos sobre usted</li>
+      <li><strong>Corregir</strong> datos inexactos o incompletos</li>
+      <li><strong>Eliminar</strong> su cuenta y todos sus datos personales</li>
+      <li><strong>Portabilidad</strong> — recibir sus datos en formato descargable</li>
+      <li><strong>Oponerse</strong> al tratamiento de sus datos en ciertos casos</li>
+      <li><strong>Revocar</strong> el consentimiento en cualquier momento</li>
+    </ul>
+    <div class="info-block">
+      Para ejercer cualquiera de estos derechos, escríbanos a <a href="mailto:hola@cobrapos.app">hola@cobrapos.app</a> o use el formulario en <a href="https://cobrapos.app/data-deletion">cobrapos.app/data-deletion</a>. Respondemos en máximo 15 días hábiles.
+    </div>
+  </div>
+
+  <!-- S8 -->
+  <div class="cc-card" id="s8">
+    <h2><span class="section-num">8</span> Seguridad</h2>
+    <ul>
+      <li>Cifrado en tránsito (HTTPS/TLS) y en reposo</li>
+      <li>Contraseñas almacenadas con hash (nunca en texto plano)</li>
+      <li>Row Level Security en base de datos — cada restaurante solo accede a sus propios datos</li>
+      <li>Acceso restringido al personal autorizado</li>
+      <li>Actualizaciones de seguridad periódicas</li>
+    </ul>
+  </div>
+
+  <!-- S9 -->
+  <div class="cc-card" id="s9">
+    <h2><span class="section-num">9</span> Cookies</h2>
+    <p>Usamos cookies estrictamente necesarias para el funcionamiento del servicio (sesión de usuario, preferencias básicas). No usamos cookies de seguimiento publicitario ni de terceros para fines de marketing.</p>
+  </div>
+
+  <!-- S10 -->
+  <div class="cc-card" id="s10">
+    <h2><span class="section-num">10</span> Cambios a esta política</h2>
+    <p>Podemos actualizar esta política ocasionalmente. Cuando hagamos cambios importantes, lo notificaremos por email con al menos 15 días de anticipación. La fecha de "Última actualización" al inicio del documento siempre refleja la versión vigente.</p>
+  </div>
+
+  <!-- S11 -->
+  <div class="cc-card" id="s11">
+    <h2><span class="section-num">11</span> Contacto</h2>
+    <ul>
+      <li>Email: <a href="mailto:hola@cobrapos.app">hola@cobrapos.app</a></li>
+      <li>Sitio web: <a href="https://cobrapos.app">cobrapos.app</a></li>
+      <li>Eliminación de datos: <a href="https://cobrapos.app/data-deletion">cobrapos.app/data-deletion</a></li>
+    </ul>
+  </div>
+
+</div><!-- /page-wrap -->
+
+<footer class="site-footer">
+  &copy; 2026 Cobra POS &nbsp;·&nbsp;
+  <a href="https://cobrapos.app">cobrapos.app</a> &nbsp;·&nbsp;
+  <a href="https://cobrapos.app/data-deletion">Eliminar mis datos</a>
+</footer>
+
+</body>
+</html>

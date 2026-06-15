@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eliminar mis datos — Cobra POS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #FAFAFB;
+      --surface: #FFFFFF;
+      --border: #ECEEF2;
+      --border-soft: #F1F5F9;
+      --ink: #0F172A;
+      --ink-2: #475569;
+      --ink-3: #64748B;
+      --muted: #94A3B8;
+      --brand: #5B6BFF;
+      --brand-press: #4F5BE3;
+      --brand-tint: #EEF2FF;
+      --brand-ring: #C7D2FE;
+      --success: #16A34A;
+      --success-tint: #DCFCE7;
+      --danger: #DC2626;
+      --danger-tint: #FEF2F2;
+      --danger-border: #FECACA;
+      --warn: #F59E0B;
+      --warn-tint: #FFFBEB;
+      --r-md: 8px;
+      --r-lg: 10px;
+      --r-xl: 12px;
+      --r-2xl: 14px;
+    }
+
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      color: var(--ink);
+      font-size: 13px;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.6;
+    }
+
+    ::-webkit-scrollbar { width: 9px; }
+    ::-webkit-scrollbar-thumb { background: #ECEEF2; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #CBD5E1; }
+
+    /* HEADER */
+    .site-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #5B6BFF, #8B5CF6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .brand-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink);
+      letter-spacing: -0.02em;
+    }
+
+    .brand-name span { color: var(--ink-3); font-weight: 500; }
+
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 11px;
+      background: var(--danger-tint);
+      color: var(--danger);
+      border: 1px solid var(--danger-border);
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    /* LAYOUT */
+    .page-wrap {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    .page-eyebrow {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 10px;
+    }
+
+    .page-title {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--ink);
+      letter-spacing: -0.025em;
+      line-height: 1.2;
+      margin-bottom: 10px;
+    }
+
+    .page-subtitle {
+      font-size: 14px;
+      color: var(--ink-2);
+      margin-bottom: 36px;
+      line-height: 1.6;
+      max-width: 560px;
+    }
+
+    /* CARDS */
+    .cc-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-2xl);
+      padding: 24px 28px;
+      margin-bottom: 16px;
+    }
+
+    .cc-card h2 {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 14px;
+    }
+
+    .cc-card p {
+      font-size: 13px;
+      color: var(--ink-2);
+      margin-bottom: 10px;
+      line-height: 1.65;
+    }
+
+    .cc-card p:last-child { margin-bottom: 0; }
+
+    .cc-card ul {
+      list-style: none;
+      margin: 10px 0;
+    }
+
+    .cc-card ul li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 5px 0;
+      font-size: 13px;
+      color: var(--ink-2);
+      line-height: 1.55;
+    }
+
+    .cc-card ul li::before {
+      content: '';
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--brand);
+      flex-shrink: 0;
+      margin-top: 7px;
+    }
+
+    a { color: var(--brand); text-decoration: none; font-weight: 600; }
+    a:hover { text-decoration: underline; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border-soft);
+      margin: 16px 0;
+    }
+
+    /* STEPS */
+    .steps { display: flex; flex-direction: column; gap: 0; }
+
+    .step {
+      display: flex;
+      gap: 16px;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .step:first-child { padding-top: 0; }
+    .step:last-child { border-bottom: none; padding-bottom: 0; }
+
+    .step-num {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--brand-tint);
+      color: var(--brand);
+      font-size: 13px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .step-body { flex: 1; min-width: 0; }
+
+    .step-body h3 {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 5px;
+    }
+
+    .step-body p {
+      font-size: 13px;
+      color: var(--ink-2);
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    /* CTA EMAIL */
+    .lm-btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 16px;
+      background: var(--brand);
+      color: #fff;
+      border: none;
+      border-radius: 9px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      box-shadow: 0 2px 8px -2px rgba(91,107,255,.45);
+      margin-top: 20px;
+      transition: background 0.12s;
+    }
+
+    .lm-btn-primary:hover {
+      background: var(--brand-press);
+      text-decoration: none;
+      color: #fff;
+    }
+
+    /* BLOCKS */
+    .info-block {
+      background: var(--brand-tint);
+      border: 1px solid var(--brand-ring);
+      border-radius: var(--r-lg);
+      padding: 14px 16px;
+      margin-top: 14px;
+      font-size: 12.5px;
+      color: var(--brand-press);
+      font-weight: 500;
+      line-height: 1.55;
+    }
+
+    .warn-block {
+      background: var(--warn-tint);
+      border: 1px solid #FDE68A;
+      border-radius: var(--r-lg);
+      padding: 14px 16px;
+      margin-top: 14px;
+      font-size: 12.5px;
+      color: #92400E;
+      font-weight: 500;
+      line-height: 1.55;
+    }
+
+    .success-block {
+      background: var(--success-tint);
+      border: 1px solid #86EFAC;
+      border-radius: var(--r-lg);
+      padding: 14px 16px;
+      margin-top: 14px;
+      font-size: 12.5px;
+      color: #14532D;
+      font-weight: 500;
+      line-height: 1.55;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .success-block-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--success);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* FOOTER */
+    .site-footer {
+      border-top: 1px solid var(--border);
+      padding: 24px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .site-footer a { color: var(--ink-3); font-weight: 500; }
+    .site-footer a:hover { color: var(--brand); }
+  </style>
+</head>
+<body>
+
+<header class="site-header">
+  <a href="https://cobrapos.app" class="brand">
+    <div class="brand-logo">C</div>
+    <div class="brand-name">Cobra <span>POS</span></div>
+  </a>
+  <div class="header-badge">Privacidad</div>
+</header>
+
+<div class="page-wrap">
+
+  <div class="page-eyebrow">Sus datos</div>
+  <h1 class="page-title">Eliminar mis datos</h1>
+  <p class="page-subtitle">Tiene el derecho de solicitar la eliminación de todos sus datos personales de la plataforma Cobra POS en cualquier momento.</p>
+
+  <!-- Qué eliminamos -->
+  <div class="cc-card">
+    <h2>¿Qué datos eliminamos?</h2>
+    <ul>
+      <li>Datos de su cuenta: nombre, email, contraseña</li>
+      <li>Datos del negocio registrado: nombre del restaurante, dirección, NIT</li>
+      <li>Datos operativos: pedidos, productos, mesas, turnos de caja</li>
+      <li>Datos de Facebook (si usó Login con Facebook): nombre, email, foto de perfil, ID de usuario</li>
+      <li>Empleados y roles configurados en su sucursal</li>
+      <li>Cualquier otro dato personal asociado a su cuenta</li>
+    </ul>
+    <div class="warn-block">
+      <strong>Excepción legal:</strong> Los registros de facturación pueden conservarse por el tiempo requerido por la legislación colombiana (hasta 5 años), pero no serán usados para ningún otro fin.
+    </div>
+  </div>
+
+  <!-- Cómo solicitarlo -->
+  <div class="cc-card">
+    <h2>Cómo solicitar la eliminación</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Envíe un email a nuestro equipo</h3>
+          <p>Escríbanos a <a href="mailto:hola@cobrapos.app">hola@cobrapos.app</a> con el asunto <strong>"Solicitud de eliminación de datos"</strong>. Incluya el email con el que se registró en Cobra POS.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Verificamos su identidad</h3>
+          <p>Le enviaremos un email de confirmación a la dirección registrada para verificar que la solicitud proviene de usted.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Eliminamos sus datos</h3>
+          <p>Una vez confirmada la solicitud, eliminamos todos sus datos en un plazo máximo de <strong>30 días calendario</strong>. Le enviamos una confirmación cuando el proceso esté completo.</p>
+        </div>
+      </div>
+    </div>
+
+    <a href="mailto:hola@cobrapos.app?subject=Solicitud%20de%20eliminaci%C3%B3n%20de%20datos&body=Hola%2C%20solicito%20la%20eliminaci%C3%B3n%20de%20todos%20mis%20datos%20personales%20de%20Cobra%20POS.%0A%0AEmail%20de%20mi%20cuenta%3A%20" class="lm-btn-primary">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="4" width="20" height="16" rx="2"/>
+        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+      </svg>
+      Enviar solicitud por email
+    </a>
+
+    <div class="info-block">
+      Respondemos todas las solicitudes en un plazo máximo de <strong>15 días hábiles</strong>. La eliminación completa se realiza en un máximo de 30 días calendario desde la confirmación.
+    </div>
+  </div>
+
+  <!-- Login con Facebook -->
+  <div class="cc-card">
+    <h2>Si usó Login con Facebook</h2>
+    <p>Si se registró usando su cuenta de Facebook, puede revocar el acceso directamente desde Facebook:</p>
+    <ul>
+      <li>Vaya a <a href="https://www.facebook.com/settings?tab=applications" target="_blank">Configuración de Facebook → Aplicaciones y sitios web</a></li>
+      <li>Busque "Cobra POS" en la lista</li>
+      <li>Haga clic en "Eliminar"</li>
+    </ul>
+    <p>Esto revoca el acceso de Cobra POS a su cuenta de Facebook. Para eliminar también los datos almacenados en nuestros servidores, envíe adicionalmente el email de solicitud descrito arriba.</p>
+
+    <div class="success-block">
+      <div class="success-block-icon">✓</div>
+      <div>
+        <strong>Confirmación garantizada.</strong> Tras procesar su solicitud, le enviaremos un email de confirmación indicando que sus datos han sido eliminados permanentemente de nuestros sistemas.
+      </div>
+    </div>
+  </div>
+
+  <!-- Otros derechos -->
+  <div class="cc-card">
+    <h2>Otros derechos disponibles</h2>
+    <p>Además de la eliminación, puede también solicitar:</p>
+    <ul>
+      <li><strong>Acceso</strong> — una copia de todos sus datos personales</li>
+      <li><strong>Corrección</strong> — actualizar datos inexactos o desactualizados</li>
+      <li><strong>Portabilidad</strong> — recibir sus datos en formato descargable (JSON/CSV)</li>
+      <li><strong>Restricción</strong> — limitar el uso de sus datos en casos específicos</li>
+    </ul>
+    <hr class="divider">
+    <p>Para cualquiera de estas solicitudes: <a href="mailto:hola@cobrapos.app">hola@cobrapos.app</a> · <a href="https://cobrapos.app/privacy-policy">Política de Privacidad completa</a></p>
+  </div>
+
+</div>
+
+<footer class="site-footer">
+  &copy; 2026 Cobra POS &nbsp;·&nbsp;
+  <a href="https://cobrapos.app">cobrapos.app</a> &nbsp;·&nbsp;
+  <a href="https://cobrapos.app/privacy-policy">Política de Privacidad</a>
+</footer>
+
+</body>
+</html>
