@@ -24,6 +24,12 @@
     entregado:   { label: 'Entregado',      color: '#22C55E', tint: '#F0FDF4', ring: '#BBF7D0' },
   };
 
+  const QUICK_STATE_META = {
+    in_progress:    { label: 'En preparación', short: 'Preparando', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA' },
+    pendiente_pago: { label: 'Pendiente pago', short: 'Pendiente',  color: '#EF4444', tint: '#FEF2F2', ring: '#FECACA' },
+    paid:           { label: 'Cobrado',         short: 'Cobrado',   color: '#22C55E', tint: '#F0FDF4', ring: '#BBF7D0' },
+  };
+
   const CANAL_META = {
     whatsapp: { label: 'WhatsApp', color: '#22C55E', bg: '#DCFCE7' },
     instagram: { label: 'Instagram', color: '#E1306C', bg: '#FCE7F3' },
