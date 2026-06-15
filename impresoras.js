@@ -243,6 +243,7 @@ function addPrinter() {
 
 /* ════════════════════════════════════════
    VISTA PREVIA — MODELO 1 (Arial bold)
+   Estructura exacta del ticket físico
 ════════════════════════════════════════ */
 function updatePreview() {
   const stage = document.getElementById('rcpt-stage');
@@ -250,81 +251,105 @@ function updatePreview() {
 
   const w   = config.paper_width;
   const cpl = CPL[w];
-  const fz  = config.font_size === 'grande' ? '14px' : '12px';
-  const nameLine = brandName ? brandName.toUpperCase() : 'MI RESTAURANTE';
+  const fzBase  = config.font_size === 'grande' ? 13.5 : 11.5;  // px
+  const fzTitle = fzBase + 2.5;
+  const fzItem  = fzBase + 2;
+  const fzSmall = fzBase - 1;
+  const px = (n) => n + 'px';
 
-  // Construir la comanda con Modelo 1 (Arial bold, sin datos hardcodeados de negocio)
-  const sep = `<div style="border-top:1px dashed #000;margin:5px 0;"></div>`;
-  const dashedLine = (txt) => `
-    <div style="display:flex;align-items:center;gap:4px;margin:4px 0;font-size:${fz === '14px' ? '11px' : '10px'};">
-      <span style="flex:1;border-top:1px dashed #000;"></span>
-      <span style="white-space:nowrap;">${txt}</span>
-      <span style="flex:1;border-top:1px dashed #000;"></span>
-    </div>`;
+  const brand = brandName ? brandName.toUpperCase() : 'MI RESTAURANTE';
+  const W = w === 58 ? '210px' : '284px';
 
-  const rows = [];
-  if (config.content_orden)   rows.push(`<div>PEDIDO: C1-####</div>`);
-  if (config.content_canal)   rows.push(`<div>CANAL: Mesa / Delivery</div>`);
-  if (config.content_cliente) rows.push(`<div>CLIENTE: [Nombre cliente]</div>`);
-  if (config.content_prep)    rows.push(`<div>TIEMPO PREPARACION: -- min</div>`);
+  // Separador punteado con texto centrado — réplica exacta del ticket físico
+  const dashed = (txt) => {
+    const side = '- - - - -';
+    return `<div style="font-size:${px(fzSmall)};font-weight:700;letter-spacing:0.5px;margin:5px 0;white-space:pre-wrap;word-break:break-all;">${side} ${txt} ${side}</div>`;
+  };
 
-  const items = [];
-  items.push(`<div style="margin:4px 0;font-weight:700;">(1) PRODUCTO EJEMPLO</div>`);
-  if (config.content_notas) items.push(`<div style="font-weight:400;font-size:${fz === '14px' ? '12px' : '11px'};margin-left:12px;">» Nota de ejemplo</div>`);
-  items.push(`<div style="margin:4px 0;font-weight:700;">(2) OTRO PRODUCTO</div>`);
+  // Línea separadora simple (entre encabezado y meta)
+  const rule = `<div style="border-top:1px dashed #000;margin:4px 0;"></div>`;
+
+  // Encabezado
+  const header = [
+    `<div style="font-size:${px(fzSmall)};font-weight:700;text-align:left;">Nº: ###</div>`,
+    `<div style="font-size:${px(fzTitle)};font-weight:700;text-align:center;">DELIVERY #C1-####</div>`,
+    config.content_cliente
+      ? `<div style="font-size:${px(fzBase)};font-weight:700;text-align:center;">(NOMBRE DEL CLIENTE)</div>`
+      : '',
+    rule
+  ];
+
+  // Campos meta
+  const meta = [];
+  meta.push(`<div style="font-size:${px(fzBase)};font-weight:700;">MODALIDAD - ENTREGA INMEDIATA</div>`);
+  meta.push(`<div style="font-size:${px(fzBase)};font-weight:700;">AREA - COCINA</div>`);
+  meta.push(`<div style="font-size:${px(fzBase)};font-weight:700;">FECHA: 2026-06-14 19:14:34</div>`);
+  if (config.content_canal)  meta.push(`<div style="font-size:${px(fzBase)};font-weight:700;">CANAL: Delivery Telefonico</div>`);
+  if (config.content_prep)   meta.push(`<div style="font-size:${px(fzBase)};font-weight:700;">TIEMPO PREPARACION: 0</div>`);
+  if (config.content_orden)  meta.push(`<div style="font-size:${px(fzBase)};font-weight:700;">PEDIDO: C1-####</div>`);
+
+  // Ítems
+  const itemLines = [];
+  const sampleItems = [
+    { qty:1, name:'MAICITOS ESPECIAL - POLLO PERSONAL', nota:'Sin salsa' },
+    { qty:1, name:'PREMIUM - POLLO PERSONAL', nota:'' },
+    { qty:2, name:'PREMIUM - MIXTA PERSONAL', nota:'Extra queso' },
+    { qty:1, name:'HAMBURGUESA CARNE', nota:'' },
+  ];
+  sampleItems.forEach(it => {
+    if (config.content_precio) {
+      itemLines.push(`<div style="display:flex;justify-content:space-between;font-size:${px(fzItem)};font-weight:700;margin:3px 0;"><span>(${it.qty}) ${it.name}</span><span>$##.###</span></div>`);
+    } else {
+      itemLines.push(`<div style="font-size:${px(fzItem)};font-weight:700;margin:3px 0;">(${it.qty}) ${it.name}</div>`);
+    }
+    if (config.content_notas && it.nota) {
+      itemLines.push(`<div style="font-size:${px(fzSmall)};font-weight:700;margin:1px 0 3px 8px;">» ${it.nota}</div>`);
+    }
+  });
   if (config.content_precio) {
-    items.push(`<div style="display:flex;justify-content:space-between;font-weight:700;margin:4px 0;"><span>(1) PRODUCTO EJEMPLO</span><span>$12.000</span></div>`);
-    items.push(`<div style="display:flex;justify-content:space-between;font-weight:700;margin:4px 0;"><span>(2) OTRO PRODUCTO</span><span>$18.000</span></div>`);
-    items.push(`${sep}<div style="display:flex;justify-content:space-between;font-weight:700;">TOTAL<span>$30.000</span></div>`);
+    itemLines.push(rule);
+    itemLines.push(`<div style="display:flex;justify-content:space-between;font-size:${px(fzItem)};font-weight:700;">TOTAL<span>$##.###</span></div>`);
   }
 
-  const copyStack = config.copies > 1
-    ? `<div style="position:absolute;top:6px;left:6px;width:100%;height:100%;background:#fff;border:1px solid #ddd;border-radius:2px;z-index:0;"></div>
-       <div style="position:absolute;top:3px;left:3px;width:100%;height:100%;background:#fff;border:1px solid #eee;border-radius:2px;z-index:0;"></div>`
+  // Copias (efecto stack)
+  const stack = config.copies >= 3
+    ? `<div style="position:absolute;top:7px;left:7px;width:100%;height:100%;background:#fff;border:1px solid #e2e8f0;z-index:0;"></div>
+       <div style="position:absolute;top:3.5px;left:3.5px;width:100%;height:100%;background:#fff;border:1px solid #e2e8f0;z-index:0;"></div>`
+    : config.copies === 2
+    ? `<div style="position:absolute;top:4px;left:4px;width:100%;height:100%;background:#fff;border:1px solid #e2e8f0;z-index:0;"></div>`
     : '';
 
-  const cutStyles = {
-    total:   'border-top:2px solid #ef4444;',
-    parcial: 'border-top:2px dashed #f97316;',
-    none:    'opacity:0.3;border-top:1px solid #ccc;'
-  };
-  const cutLabels = { total:'Corte total', parcial:'Corte parcial', none:'Sin corte' };
+  // Corte
+  const cutCSS = { total:'border-top:2px solid #ef4444;', parcial:'border-top:2px dashed #f97316;', none:'border-top:1px dashed #cbd5e1;opacity:0.4;' };
+  const cutLabel = { total:'Corte total', parcial:'Corte parcial', none:'Sin corte' };
 
   stage.innerHTML = `
     <div style="position:relative;display:inline-block;">
-      ${copyStack}
+      ${stack}
       <div style="
         position:relative;z-index:1;
         font-family:Arial,Helvetica,sans-serif;
-        font-size:${fz};
-        font-weight:700;
-        background:#fff;
-        color:#000;
-        width:${w === 58 ? '208px' : '280px'};
-        padding:14px 12px;
-        box-shadow:0 10px 30px -10px rgba(15,23,42,.28);
-        line-height:1.55;
+        background:#fff;color:#000;
+        width:${W};padding:12px 10px;
+        box-shadow:0 10px 32px -10px rgba(15,23,42,.22);
+        line-height:1.5;
       ">
-        <div style="font-size:${fz === '14px' ? '16px' : '14px'};font-weight:700;text-align:center;">${nameLine}</div>
-        <div style="font-size:${fz};font-weight:700;text-align:center;">COCINA</div>
-        ${sep}
-        ${rows.join('')}
-        ${dashedLine('INICIO  PEDIDO')}
-        ${items.join('')}
-        ${dashedLine('FIN PEDIDO')}
+        ${header.join('')}
+        ${meta.join('')}
+        ${dashed('INICIO  PEDIDO')}
+        ${itemLines.join('')}
+        ${dashed('FIN PEDIDO')}
       </div>
-      <div style="width:${w === 58 ? '208px' : '280px'};height:24px;position:relative;z-index:1;${cutStyles[config.cut]}margin-top:0;">
-        <span style="position:absolute;left:50%;top:6px;transform:translateX(-50%);font-size:10px;font-weight:700;color:#94A3B8;white-space:nowrap;">${cutLabels[config.cut]}</span>
+      <div style="width:${W};height:22px;position:relative;z-index:1;${cutCSS[config.cut]}">
+        <span style="position:absolute;left:50%;top:5px;transform:translateX(-50%);font-size:10px;font-weight:700;font-family:Arial,sans-serif;color:#94A3B8;white-space:nowrap;">${cutLabel[config.cut]}</span>
       </div>
     </div>`;
 
   document.getElementById('imp-cpl').textContent          = cpl;
   document.getElementById('imp-preview-meta').textContent = `${w} mm · ${cpl} car`;
-
-  const cutLabel = { total:'corte total', parcial:'corte parcial', none:'desactivado' };
   document.getElementById('imp-preview-foot').innerHTML = `
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-    ${config.copies} copia${config.copies>1?'s':''} · ${config.auto_print?'auto':'manual'} · ${cutLabel[config.cut]}`;
+    ${config.copies} copia${config.copies>1?'s':''} · ${config.auto_print?'auto':'manual'} · ${cutLabel[config.cut].toLowerCase()}`;
 }
 
 /* ════════════════════════════════════════
@@ -539,22 +564,7 @@ function patchPreviewStage() {
 ════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
   patchPreviewStage();
-  bindNavEvents();
 });
-
-function bindNavEvents() {
-  // Navegación del sidebar — funciona sin esperar core:ready
-  document.getElementById('nav-back').addEventListener('click', () => {
-    window.location.href = 'configuracion.html';
-  });
-  document.querySelectorAll('.lm-nav[data-section]').forEach(btn => {
-    if (btn.dataset.section !== 'impresora') {
-      btn.addEventListener('click', () => {
-        window.location.href = 'configuracion.html';
-      });
-    }
-  });
-}
 
 window._pos.on('core:ready', async function({ user }) {
   currentUser = user;
