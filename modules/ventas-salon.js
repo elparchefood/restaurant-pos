@@ -1009,7 +1009,7 @@
          </div>
          <div class="vs-actions">
            <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
-           <button class="lm-btn-primary vs-cobrar-btn" data-action="cobrar" data-table-id="${mesa.id}">
+           <button class="lm-btn-primary vs-cobrar-btn" data-action="collect-adelantado" data-table-id="${mesa.id}">
              ${SVG_DOLLAR(14)} Cobrar y enviar a cocina
            </button>
          </div>`
@@ -1199,11 +1199,13 @@
       case 'cobrar':
         cobrarMesa(tableId);
         break;
+      case 'collect-adelantado':
       case 'collect': {
         // Buscar el order activo de esta mesa y navegar a pagos
         const mesa = state.tables.find(t => t.id === tableId);
         const orderId = mesa && mesa.current_order_id;
-        const adelantadoParam = state.cobroAdelantado ? '&adelantado=1' : '';
+        // collect-adelantado siempre fuerza adelantado=1; collect respeta el modo activo
+        const adelantadoParam = (action === 'collect-adelantado' || state.cobroAdelantado) ? '&adelantado=1' : '';
         if (orderId) {
           window.location.href = `pagos.html?order=${orderId}&table=${tableId}${adelantadoParam}`;
         } else {

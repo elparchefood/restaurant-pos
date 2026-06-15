@@ -324,6 +324,8 @@ async function finalizarPago() {
         status:       'esperando',
         esperando_at: new Date().toISOString(),
       }).eq('id', SP.tableId);
+      // Hacer visible el pedido en cocina ahora que el pago fue procesado
+      await sb.from('pos_orders').update({ visible_cocina: true }).eq('id', SP.orderId);
     }
 
     // 3. Mostrar overlay con mensaje según modo
