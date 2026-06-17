@@ -377,6 +377,27 @@ function openChannelModal(channel) {
     });
   }
 
+  // Botón Meta connect (WhatsApp / Instagram / Facebook)
+  const metaBtn = document.getElementById('metaConnectBtn');
+  if (metaBtn) {
+    metaBtn.addEventListener('click', async () => {
+      const status = document.getElementById('metaConnectStatus');
+      metaBtn.disabled = true;
+      metaBtn.textContent = 'Conectando…';
+      if (status) status.textContent = '';
+      try {
+        const result = await handleMetaConnect(channel);
+        closeModal();
+        await loadChannels();
+        showToast(`✅ ${meta.label} conectado: ${result.handle || ''}`, 'success');
+      } catch (err) {
+        metaBtn.disabled = false;
+        metaBtn.textContent = 'Conectar con Meta';
+        if (status) status.textContent = '❌ ' + err.message;
+      }
+    });
+  }
+
   // Botón desconectar
   const disconnBtn = document.getElementById('disconnectBtn');
   if (disconnBtn) {
@@ -413,16 +434,25 @@ function connectModalHTML(channel, meta) {
       </button>`;
   }
 
-  // WhatsApp / Instagram / Facebook — próximamente
-  const comingLabel = channel === 'whatsapp' ? 'WhatsApp Business' : channel === 'instagram' ? 'Instagram' : 'Facebook';
+  // WhatsApp / Instagram / Facebook — Embedded Signup
+  const metaLabels = { whatsapp: 'WhatsApp Business', instagram: 'Instagram', facebook: 'Facebook' };
+  const metaLabel  = metaLabels[channel] || meta.label;
+  const btnColors  = { whatsapp: '#25D366', instagram: '#E1306C', facebook: '#0866FF' };
+  const btnColor   = btnColors[channel] || '#5B6BFF';
   return `
     ${channelIcon}
-    <h2 class="ci-modal-title">Conectar ${comingLabel}</h2>
-    <p class="ci-modal-desc">La integración con ${comingLabel} estará disponible próximamente. Requiere una cuenta Meta Business verificada.</p>
-    <div class="ci-modal-coming">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg>
-      Próximamente
-    </div>`;
+    <h2 class="ci-modal-title">Conectar ${metaLabel}</h2>
+    <p class="ci-modal-desc">Vincula tu cuenta de ${metaLabel} para recibir y responder mensajes directamente desde el Chat IA.</p>
+    <div class="ci-modal-steps">
+      <div class="ci-modal-step"><span class="ci-step-n">1</span><span>Haz clic en "Conectar con Meta"</span></div>
+      <div class="ci-modal-step"><span class="ci-step-n">2</span><span>Inicia sesión con tu cuenta de Meta Business</span></div>
+      <div class="ci-modal-step"><span class="ci-step-n">3</span><span>Autoriza los permisos y listo</span></div>
+    </div>
+    <button class="ci-modal-btn" id="metaConnectBtn" style="background:${btnColor}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+      Conectar con Meta
+    </button>
+    <p class="ci-modal-hint" id="metaConnectStatus"></p>`;
 }
 
 function connectedModalHTML(channel, meta, channelData) {
@@ -570,4 +600,51 @@ function showFatalError(msg) {
   document.body.innerHTML = `<div style="display:flex;height:100vh;align-items:center;justify-content:center;font-family:sans-serif;color:#F43F5E;font-size:14px;gap:8px">${escHtml(msg)}</div>`;
 }
 
-document.addEventListener('DOMContentLoaded', boot);
+document.addEventListener('DOMContentLoaded', () => { loadFBSDK(); boot(); });
+
+/* ══════════════════════════════════════════════
+   META EMBEDDED SIGNUP
+══════════════════════════════════════════════ */
+const META_APP_ID    = '1732760657903466';
+const META_CONFIG_ID = '1280428637212702';
+const META_OAUTH_FN  = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/meta-oauth-callback';
+
+function loadFBSDK() {
+  if (document.getElementById('fb-sdk')) return;
+  window.fbAsyncInit = function () {
+    FB.init({ appId: META_APP_ID, cookie: true, xfbml: false, version: 'v22.0' });
+  };
+  const s = document.createElement('script');
+  s.id = 'fb-sdk';
+  s.src = 'https://connect.facebook.net/en_US/sdk.js';
+  s.async = true; s.defer = true;
+  document.head.appendChild(s);
+}
+
+async function handleMetaConnect(channel) {
+  return new Promise((resolve, reject) => {
+    FB.login(async (response) => {
+      if (!response.authResponse) {
+        reject(new Error('Conexión cancelada'));
+        return;
+      }
+      const user_token = response.authResponse.accessToken;
+      try {
+        const res = await fetch(META_OAUTH_FN, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_token, channel, branch_id: S.branchId, tenant_id: S.tenantId }),
+        });
+        const data = await res.json();
+        if (data.error) reject(new Error(data.error));
+        else resolve(data);
+      } catch (err) {
+        reject(err);
+      }
+    }, {
+      config_id: META_CONFIG_ID,
+      response_type: 'token',
+      override_default_response_type: true,
+    });
+  });
+}
