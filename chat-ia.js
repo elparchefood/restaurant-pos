@@ -621,26 +621,25 @@ function loadFBSDK() {
   document.head.appendChild(s);
 }
 
-async function handleMetaConnect(channel) {
+function handleMetaConnect(channel) {
   return new Promise((resolve, reject) => {
-    FB.login(async (response) => {
+    FB.login(function(response) {
       if (!response.authResponse) {
         reject(new Error('Conexión cancelada'));
         return;
       }
       const user_token = response.authResponse.accessToken;
-      try {
-        const res = await fetch(META_OAUTH_FN, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_token, channel, branch_id: S.branchId, tenant_id: S.tenantId }),
-        });
-        const data = await res.json();
-        if (data.error) reject(new Error(data.error));
-        else resolve(data);
-      } catch (err) {
-        reject(err);
-      }
+      fetch(META_OAUTH_FN, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_token, channel, branch_id: S.branchId, tenant_id: S.tenantId }),
+      })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.error) reject(new Error(data.error));
+          else resolve(data);
+        })
+        .catch(reject);
     }, {
       config_id: META_CONFIG_ID,
       response_type: 'token',
