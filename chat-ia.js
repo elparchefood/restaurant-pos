@@ -175,8 +175,11 @@ function renderChannelsSidebar() {
     const connected   = !!connectedMap[ch];
     const count       = counts[ch] || 0;
 
+    const pic = connected && connectedMap[ch].meta?.profile_picture_url;
     const right = connected
-      ? `<span class="n">${count || ''}</span>`
+      ? (pic
+          ? `<img src="${pic}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;" alt="">`
+          : `<span class="n">${count || ''}</span>`)
       : `<span class="ci-connect-tag">Conectar</span>`;
 
     return `
