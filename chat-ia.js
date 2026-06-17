@@ -628,11 +628,11 @@ function handleMetaConnect(channel) {
         reject(new Error('Conexión cancelada'));
         return;
       }
-      const user_token = response.authResponse.accessToken;
+      const code = response.authResponse.code;
       fetch(META_OAUTH_FN, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_token, channel, branch_id: S.branchId, tenant_id: S.tenantId }),
+        body: JSON.stringify({ code, channel, branch_id: S.branchId, tenant_id: S.tenantId }),
       })
         .then(function(res) { return res.json(); })
         .then(function(data) {
@@ -642,7 +642,7 @@ function handleMetaConnect(channel) {
         .catch(reject);
     }, {
       config_id: META_CONFIG_ID,
-      response_type: 'token',
+      response_type: 'code',
       override_default_response_type: true,
     });
   });
