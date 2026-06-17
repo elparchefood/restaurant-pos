@@ -459,11 +459,19 @@ function connectedModalHTML(channel, meta, channelData) {
   const connectedAt = channelData.meta?.connected_at
     ? new Date(channelData.meta.connected_at).toLocaleDateString('es-CO', { day:'numeric', month:'long', year:'numeric' })
     : 'recientemente';
+  const pic = channelData.meta?.profile_picture_url;
+
+  const iconHtml = pic
+    ? `<div class="ci-modal-icon ci-modal-icon--avatar">
+        <img src="${escHtml(pic)}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;display:block;" alt="${escHtml(channelData.handle||'')}">
+        <span class="ci-chan-glyph chan-${meta.key}" style="position:absolute;bottom:-4px;right:-4px;width:22px;height:22px;border-radius:50%;background:${meta.solid};display:flex;align-items:center;justify-content:center;border:2px solid #fff">${GLYPH[meta.key]}</span>
+      </div>`
+    : `<div class="ci-modal-icon ci-modal-icon--${meta.key}">
+        <span class="ci-chan-glyph chan-${meta.key}" style="width:32px;height:32px">${GLYPH[meta.key]}</span>
+      </div>`;
 
   return `
-    <div class="ci-modal-icon ci-modal-icon--${meta.key}">
-      <span class="ci-chan-glyph chan-${meta.key}" style="width:32px;height:32px">${GLYPH[meta.key]}</span>
-    </div>
+    ${iconHtml}
     <h2 class="ci-modal-title">${meta.label} conectado</h2>
     <div class="ci-modal-connected-info">
       <div class="ci-modal-info-row">
