@@ -616,8 +616,9 @@ document.addEventListener('DOMContentLoaded', () => { loadFBSDK(); boot(); });
 /* ══════════════════════════════════════════════
    META EMBEDDED SIGNUP
 ══════════════════════════════════════════════ */
-const META_APP_ID    = '1732760657903466';
-const META_CONFIG_ID = '1280428637212702';
+const META_APP_ID       = '1732760657903466';
+const META_CONFIG_ID    = '1280428637212702';  // Facebook + Instagram
+const META_WA_CONFIG_ID = '926832250416998';   // WhatsApp (sistema, nunca expira)
 const META_OAUTH_FN  = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/meta-oauth-callback';
 
 function loadFBSDK() {
@@ -651,6 +652,4 @@ function handleMetaConnect(channel) {
       window.addEventListener('message', onWAMsg);
 
       FB.login(function(response) {
-        window.removeEventListener('message', onWAMsg);
-        if (!response.authResponse) { reject(new Error('Conexión cancelada')); return; }
-  
+        window.removeEventListener
