@@ -253,6 +253,7 @@ function convRowHTML(c) {
   const tint     = TINTS[(c.contact_avatar_tint||0) % TINTS.length];
   const label    = c.contact_name || c.contact_handle || '?';
   const initials = avatarInitials(label);
+  const avatarUrl = c.contact_avatar_url || null;
   const isUnread = c.unread_count > 0;
   const isActive = c.id === S.activeConvId;
   const time     = formatTime(c.last_message_at);
@@ -270,7 +271,9 @@ function convRowHTML(c) {
   return `
     <button class="ci-conv${isActive?' active':''}${isUnread?' unread':''}" data-id="${c.id}">
       <span class="ci-av-wrap">
-        <span class="ci-av" style="background:${tint[0]};color:${tint[1]}">${initials}</span>
+        ${avatarUrl
+          ? `<img src="${escHtml(avatarUrl)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;display:block;" alt="">`
+          : `<span class="ci-av" style="background:${tint[0]};color:${tint[1]}">${initials}</span>`}
         <span class="ci-av-badge chan-${meta.key}">${GLYPH[meta.key]||''}</span>
       </span>
       <span class="ci-conv-main">
@@ -539,6 +542,26 @@ async function sendMessage() {
     S.conversations.sort((a,b) => new Date(b.last_message_at) - new Date(a.last_message_at));
     renderConvList();
   }
+
+  // Enviar vía Meta API (solo canales conectados: ig, fb, wa)
+  if (conv && ['instagram','facebook','whatsapp'].includes(conv.channel)) {
+    try {
+      const sendRes = await fetch(META_SEND_FN, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversation_id: S.activeConvId, text, message_id: data.id }),
+      });
+      const sendData = await sendRes.json();
+      if (sendData.error) {
+        showToast('No se pudo enviar el mensaje: ' + sendData.error, 'error');
+        // Marcar como error en UI
+        S.messages = S.messages.map(m => m.id === data.id ? { ...m, delivery_status: 'error' } : m);
+        renderThread();
+      }
+    } catch (e) {
+      showToast('Error al enviar: ' + e.message, 'error');
+    }
+  }
 }
 
 /* ══════════════════════════════════════════════
@@ -616,10 +639,11 @@ document.addEventListener('DOMContentLoaded', () => { loadFBSDK(); boot(); });
 /* ══════════════════════════════════════════════
    META EMBEDDED SIGNUP
 ══════════════════════════════════════════════ */
-const META_APP_ID       = '1732760657903466';
+const META_APP_ID    = '1732760657903466';
 const META_CONFIG_ID    = '1280428637212702';  // Facebook + Instagram
 const META_WA_CONFIG_ID = '926832250416998';   // WhatsApp (sistema, nunca expira)
 const META_OAUTH_FN  = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/meta-oauth-callback';
+const META_SEND_FN   = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/meta-send';
 
 function loadFBSDK() {
   if (document.getElementById('fb-sdk')) return;
@@ -636,9 +660,7 @@ function loadFBSDK() {
 function handleMetaConnect(channel) {
   return new Promise((resolve, reject) => {
     if (channel === 'whatsapp') {
-      // WhatsApp Embedded Signup — flujo diferente al de Facebook/Instagram
       let wabaId = null, phoneId = null;
-
       function onWAMsg(event) {
         if (event.origin !== 'https://www.facebook.com') return;
         try {
@@ -650,6 +672,44 @@ function handleMetaConnect(channel) {
         } catch {}
       }
       window.addEventListener('message', onWAMsg);
-
       FB.login(function(response) {
-        window.removeEventListener
+        window.removeEventListener('message', onWAMsg);
+        if (!response.authResponse) { reject(new Error('Conexión cancelada')); return; }
+        const code = response.authResponse.code;
+        fetch(META_OAUTH_FN, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code, channel,
+            branch_id: S.branchId, tenant_id: S.tenantId,
+            waba_id: wabaId, phone_number_id: phoneId,
+          }),
+        })
+          .then(function(res) { return res.json(); })
+          .then(function(data) { if (data.error) reject(new Error(data.error)); else resolve(data); })
+          .catch(reject);
+      }, {
+        config_id: META_WA_CONFIG_ID,
+        response_type: 'code',
+        override_default_response_type: true,
+      });
+    } else {
+      FB.login(function(response) {
+        if (!response.authResponse) { reject(new Error('Conexión cancelada')); return; }
+        const code = response.authResponse.code;
+        fetch(META_OAUTH_FN, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, channel, branch_id: S.branchId, tenant_id: S.tenantId }),
+        })
+          .then(function(res) { return res.json(); })
+          .then(function(data) { if (data.error) reject(new Error(data.error)); else resolve(data); })
+          .catch(reject);
+      }, {
+        config_id: META_CONFIG_ID,
+        response_type: 'code',
+        override_default_response_type: true,
+      });
+    }
+  });
+}
