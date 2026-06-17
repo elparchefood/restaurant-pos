@@ -253,6 +253,7 @@ function convRowHTML(c) {
   const tint     = TINTS[(c.contact_avatar_tint||0) % TINTS.length];
   const label    = c.contact_name || c.contact_handle || '?';
   const initials = avatarInitials(label);
+  const avatarUrl = c.contact_avatar_url || null;
   const isUnread = c.unread_count > 0;
   const isActive = c.id === S.activeConvId;
   const time     = formatTime(c.last_message_at);
@@ -270,7 +271,9 @@ function convRowHTML(c) {
   return `
     <button class="ci-conv${isActive?' active':''}${isUnread?' unread':''}" data-id="${c.id}">
       <span class="ci-av-wrap">
-        <span class="ci-av" style="background:${tint[0]};color:${tint[1]}">${initials}</span>
+        ${avatarUrl
+          ? `<img src="${escHtml(avatarUrl)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;display:block;" alt="">`
+          : `<span class="ci-av" style="background:${tint[0]};color:${tint[1]}">${initials}</span>`}
         <span class="ci-av-badge chan-${meta.key}">${GLYPH[meta.key]||''}</span>
       </span>
       <span class="ci-conv-main">
@@ -539,6 +542,26 @@ async function sendMessage() {
     S.conversations.sort((a,b) => new Date(b.last_message_at) - new Date(a.last_message_at));
     renderConvList();
   }
+
+  // Enviar vía Meta API (solo canales conectados: ig, fb, wa)
+  if (conv && ['instagram','facebook','whatsapp'].includes(conv.channel)) {
+    try {
+      const sendRes = await fetch(META_SEND_FN, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversation_id: S.activeConvId, text, message_id: data.id }),
+      });
+      const sendData = await sendRes.json();
+      if (sendData.error) {
+        showToast('No se pudo enviar el mensaje: ' + sendData.error, 'error');
+        // Marcar como error en UI
+        S.messages = S.messages.map(m => m.id === data.id ? { ...m, delivery_status: 'error' } : m);
+        renderThread();
+      }
+    } catch (e) {
+      showToast('Error al enviar: ' + e.message, 'error');
+    }
+  }
 }
 
 /* ══════════════════════════════════════════════
@@ -619,6 +642,7 @@ document.addEventListener('DOMContentLoaded', () => { loadFBSDK(); boot(); });
 const META_APP_ID    = '1732760657903466';
 const META_CONFIG_ID = '1280428637212702';
 const META_OAUTH_FN  = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/meta-oauth-callback';
+const META_SEND_FN   = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/meta-send';
 
 function loadFBSDK() {
   if (document.getElementById('fb-sdk')) return;
