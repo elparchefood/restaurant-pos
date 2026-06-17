@@ -624,7 +624,7 @@ const META_OAUTH_FN  = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/me
 function loadFBSDK() {
   if (document.getElementById('fb-sdk')) return;
   window.fbAsyncInit = function () {
-    FB.init({ appId: META_APP_ID, cookie: true, xfbml: false, version: 'v22.0' });
+    FB.init({ appId: META_APP_ID, autoLogAppEvents: true, xfbml: false, version: 'v25.0' });
   };
   const s = document.createElement('script');
   s.id = 'fb-sdk';
