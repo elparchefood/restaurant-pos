@@ -1,4 +1,4 @@
-// ── Lumen · Consola de Plataforma · admin-reg.js ──
+// ── Cobra POS · Consola de Plataforma · admin-reg.js ──
 // Depende de: pos-core.js (sb, COPF, COP)
 // Estructura: setView → render* → load* → approveRegistration
 
