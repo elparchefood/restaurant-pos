@@ -55,9 +55,9 @@
   const DELIVERY_NEXT = { preparacion: 'camino', camino: 'entregado' };
   const DELIVERY_BTN  = { preparacion: 'En camino', camino: 'Entregado' };
 
-  const CHIP_ORDER_KEY = 'lumen.ventas.chipOrder';
-  const CONFIG_KEY = 'lumen.config.salon.v1';
-  const COBRO_KEY = 'lumen.config.cobro_adelantado';
+  const CHIP_ORDER_KEY = 'pos.ventas.chipOrder';
+  const CONFIG_KEY = 'pos.config.salon.v1';
+  const COBRO_KEY = 'pos.config.cobro_adelantado';
   const DEFAULT_CHIP_ORDER = ['libre', 'pendiente_pago', 'esperando', 'comiendo'];
 
   const MESERO_NAMES = { SA: 'Sergio Andrés', JM: 'Juan Manuel', AC: 'Andrea Castro', LM: 'Laura Mejía' };
@@ -1830,7 +1830,7 @@
   function startAutoAvance() {
     setInterval(async function() {
       try {
-        const cfg = JSON.parse(localStorage.getItem('lumen.config.operacion.v1') || '{}');
+        const cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
         const mins = cfg.entregaMin || 12;
         const cutoff = new Date(Date.now() - mins * 60 * 1000).toISOString();
         const sbRef = window._pos && window._pos.sb;
