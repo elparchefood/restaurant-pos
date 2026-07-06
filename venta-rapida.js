@@ -17,9 +17,9 @@
     currentCatId: null,
   };
 
-  const CART_KEY    = 'lumen.rapida.cart';
-  const CLIENTE_KEY = 'lumen.rapida.cliente';
-  const TURNO_KEY   = 'lumen.rapida.turno';
+  const CART_KEY    = 'pos.rapida.cart';
+  const CLIENTE_KEY = 'pos.rapida.cliente';
+  const TURNO_KEY   = 'pos.rapida.turno';
 
   /* ─── Helpers ────────────────────────────────────────────────── */
   const $  = id => document.getElementById(id);
@@ -772,7 +772,7 @@
     const sb = getSb();
     if (!sb) return;
     try {
-      const cobroAdelantado = localStorage.getItem('lumen.config.cobro_adelantado') === 'true';
+      const cobroAdelantado = localStorage.getItem('pos.config.cobro_adelantado') === 'true';
       if (cobroAdelantado) {
         // Cobro adelantado: ir a pagos primero
         const orderId = await upsertOrder(sb, true);
