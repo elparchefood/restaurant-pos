@@ -2,7 +2,7 @@
 /* Depende de: pos-core.js (sb, $) */
 
 // ── Estado ──────────────────────────────────────────────
-var STORAGE_KEY = 'lumen.config.salon.v1';
+var STORAGE_KEY = 'pos.config.salon.v1';
 
 var SEED = {
   zones: [
@@ -1627,7 +1627,7 @@ async function urInit() {
 // MÓDULO OPERACIÓN — lumen.config.operacion.v1
 // ════════════════════════════════════════════════════════════
 
-var OP_KEY = 'lumen.config.operacion.v1';
+var OP_KEY = 'pos.config.operacion.v1';
 var _cfgBranchId = null; // se rellena al cargar el usuario
 var OP_DEFAULTS = { entregaMin: 12, cocinaMax: 20, propinaPct: 10, propinaObligatoria: false, metaDiaria: 1500000, cobroAdelantado: false, pin: '' };
 
@@ -1642,7 +1642,7 @@ function opLoad() {
 function opSave(data) {
   localStorage.setItem(OP_KEY, JSON.stringify(data));
   // Sync claves heredadas para compatibilidad con otros módulos
-  localStorage.setItem('lumen.config.cobro_adelantado', data.cobroAdelantado ? 'true' : 'false');
+  localStorage.setItem('pos.config.cobro_adelantado', data.cobroAdelantado ? 'true' : 'false');
   // Sync cobro_adelantado a la base de datos (fuente de verdad para todos los módulos)
   if (_cfgBranchId) {
     sb.from('branches').update({ cobro_adelantado: !!data.cobroAdelantado }).eq('id', _cfgBranchId)
