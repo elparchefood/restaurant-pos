@@ -565,7 +565,7 @@ input::placeholder { color: var(--ink-4); }
 .op-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 24px 32px; }
 .op-inner  { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
 
-.op-card { background: #fff; border: 1px solid #ECEEF2; border-radius: 16px; overflow: hidden; }
+.op-card { background: #fff; border: 1px solid #ECEEF2; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(15,23,42,.09), 0 1px 3px rgba(15,23,42,.06); }
 .op-card-head { display: flex; align-items: center; gap: 12px; padding: 15px 18px; border-bottom: 1px solid #ECEEF2; background: #FBFBFD; }
 .op-card-icon { width: 40px; height: 40px; border-radius: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .op-card-icon.indigo { background: #EEF2FF; color: #5B6BFF; }
@@ -637,3 +637,9 @@ input::placeholder { color: var(--ink-4); }
 .op-model-card.on { border-color: #5B6BFF; box-shadow: 0 0 0 3px rgba(91,107,255,.12); }
 .op-model-preview { background: #F8FAFC; border-radius: 8px; padding: 8px; min-height: 70px; border: 1px solid #ECEEF2; }
 .op-model-name { font-size: 12px; font-weight: 700; color: #475569; text-align: center; }
+
+/* Ronda 4: Elevacion visible en paneles de configuracion */
+.cf-gridpanel { box-shadow: 0 2px 8px rgba(15,23,42,.09), 0 1px 3px rgba(15,23,42,.06); }
+.cf-stat-box { box-shadow: 0 1px 4px rgba(15,23,42,.08), 0 1px 2px rgba(15,23,42,.05); }
+.cf-zonerow { box-shadow: 0 1px 3px rgba(15,23,42,.07), 0 1px 2px rgba(15,23,42,.05); }
+.lm-mesa { box-shadow: 0 2px 6px rgba(15,23,42,.08), 0 1px 2px rgba(15,23,42,.05); }
