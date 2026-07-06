@@ -92,7 +92,7 @@ async function loadTable() {
       paintTableInfo(data);
     } else {
       // Fallback: leer de localStorage (configuracion.js guarda mesas ahí)
-      const local = JSON.parse(localStorage.getItem('lumen.config.salon.v1') || '{}');
+      const local = JSON.parse(localStorage.getItem('pos.config.salon.v1') || '{}');
       const t = (local.tables || []).find(t => t.id === S.tableId);
       if (t) {
         S.table = t;
@@ -102,7 +102,7 @@ async function loadTable() {
   } catch(e) {
     // Intentar localStorage si Supabase falla
     try {
-      const local = JSON.parse(localStorage.getItem('lumen.config.salon.v1') || '{}');
+      const local = JSON.parse(localStorage.getItem('pos.config.salon.v1') || '{}');
       const t = (local.tables || []).find(t => t.id === S.tableId);
       if (t) { S.table = t; paintTableInfo(t); }
     } catch(_) {}
@@ -894,7 +894,7 @@ async function sendToKitchen() {
   if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
 
   // Leer modo cobro desde localStorage (sincronizado por ventas-salon)
-  const cobroAdelantado = localStorage.getItem('lumen.config.cobro_adelantado') === 'true';
+  const cobroAdelantado = localStorage.getItem('pos.config.cobro_adelantado') === 'true';
 
   await saveOrder();
   if (!S.order?.id) {
@@ -1044,7 +1044,7 @@ function bindEvents() {
         case 'enviar-cocina':sendToKitchen(); break;
         case 'pago':
           if (!S.order?.id) { toast('No hay pedido activo', 'warn'); break; }
-          const _adelantado = localStorage.getItem('lumen.config.cobro_adelantado') === 'true';
+          const _adelantado = localStorage.getItem('pos.config.cobro_adelantado') === 'true';
           window.location.href = `pagos.html?order=${S.order.id}&table=${S.tableId}${S.serviceEnabled ? '&servicio=1' : ''}${_adelantado ? '&adelantado=1' : ''}`;
           break;
         case 'vaciar':       clearCart(); break;
