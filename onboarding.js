@@ -192,7 +192,7 @@
         zoneId: zones[0].id
       });
     }
-    localStorage.setItem('lumen.config.salon.v1', JSON.stringify({ zones: zones, tables: tables }));
+    localStorage.setItem('pos.config.salon.v1', JSON.stringify({ zones: zones, tables: tables }));
   }
 
   /* ── Crear tenant / brand / branch en Supabase ───────────────── */
@@ -278,7 +278,7 @@
     seedLocalMesas(branch.id, S.mesas);
 
     /* -- 7. Marcar onboarding completado -- */
-    localStorage.setItem('lumen.onboarding.done', 'true');
+    localStorage.setItem('pos.onboarding.done', 'true');
 
     return { tenant, brand, branch };
   }
