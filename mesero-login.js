@@ -20,7 +20,14 @@ const ROLE_ROUTES = {
   cocina:  'mesero-turno.html',  // temporal hasta que exista cocina.html
 };
 
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession:     true,
+    autoRefreshToken:   true,
+    detectSessionInUrl: false,
+    storageKey: 'cobra-pos-session'
+  }
+});
 
 // ── Refs DOM ──────────────────────────────────────────────
 const emailInput  = document.getElementById('login-email');
