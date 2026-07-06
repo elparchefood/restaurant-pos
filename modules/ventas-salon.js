@@ -43,14 +43,7 @@
     telefono: { label: 'Teléfono', color: '#64748B', bg: '#F1F5F9' },
   };
 
-  const DOMI_SEED = [
-    { id: 'D-1042', cliente: 'Jesús Gómez',      canal: 'whatsapp',  items: 3, total: 54000, estado: 'preparacion', payStatus: 'pendiente', metodo: 'efectivo',      domiciliario: 'Felipe Ríos', min: 4 },
-    { id: 'D-1041', cliente: 'Adriana Eraso',    canal: 'instagram', items: 2, total: 42000, estado: 'preparacion', payStatus: 'pagado',    metodo: 'transferencia', domiciliario: 'Felipe Ríos', min: 9 },
-    { id: 'D-1040', cliente: 'Camilo Restrepo',  canal: 'web',       items: 5, total: 85000, estado: 'camino',      payStatus: 'pagado',    metodo: 'tarjeta',       domiciliario: '—',           min: 14 },
-    { id: 'D-1039', cliente: 'Karen J. San I.',  canal: 'whatsapp',  items: 4, total: 52000, estado: 'camino',      payStatus: 'pendiente', metodo: 'efectivo',      domiciliario: 'Rappi',       min: 22 },
-    { id: 'D-1038', cliente: 'Víctor R. Llanos', canal: 'facebook',  items: 2, total: 36000, estado: 'entregado',   payStatus: 'pagado',    metodo: 'transferencia', domiciliario: 'Picap',       min: 27 },
-    { id: 'D-1037', cliente: 'Mariana Ortiz',    canal: 'tiktok',    items: 6, total: 101000, estado: 'entregado',  payStatus: 'pagado',    metodo: 'efectivo',      domiciliario: 'Felipe Ríos', min: 41 },
-  ];
+
 
   const DELIVERY_NEXT = { preparacion: 'camino', camino: 'entregado' };
   const DELIVERY_BTN  = { preparacion: 'En camino', camino: 'Entregado' };
@@ -58,6 +51,135 @@
   const CHIP_ORDER_KEY = 'pos.ventas.chipOrder';
   const CONFIG_KEY = 'pos.config.salon.v1';
   const COBRO_KEY = 'pos.config.cobro_adelantado';
+  const CURRENCY_KEY = 'pos.ventas.currency';
+
+  // ─── Multi-currency state ────────────────────────────
+  var activeCurrency = (function() {
+    try { return localStorage.getItem(CURRENCY_KEY) || 'COP'; } catch(e) { return 'COP'; }
+  })();
+  var fxRates = {};
+  var fxTimestamp = 0;
+
+  var CURRENCIES = [
+    { code: 'COP', name: 'Peso colombiano', symbol: '$', flag: '🇨🇴' },
+    { code: 'USD', name: 'Dólar americano',  symbol: 'US$', flag: '🇺🇸' },
+    { code: 'EUR', name: 'Euro',             symbol: '€',   flag: '🇪🇺' },
+    { code: 'GBP', name: 'Libra esterlina',  symbol: '£',   flag: '🇬🇧' },
+    { code: 'MXN', name: 'Peso mexicano',    symbol: '$',   flag: '🇲🇽' },
+    { code: 'BRL', name: 'Real brasileño',   symbol: 'R$',  flag: '🇧🇷' },
+  ];
+
+  function getCurrencyMeta(code) {
+    return CURRENCIES.find(function(c){return c.code===code;}) || CURRENCIES[0];
+  }
+
+  async function fetchRates() {
+    try {
+      var res = await fetch('https://open.er-api.com/v6/latest/COP');
+      var json = await res.json();
+      if (json && json.rates) {
+        fxRates = json.rates;
+        fxTimestamp = Date.now();
+        updateFxChip();
+      }
+    } catch(e) {
+      console.warn('[fx] Rate fetch failed:', e.message);
+    }
+  }
+
+  function convertFromCOP(amount) {
+    if (activeCurrency === 'COP' || !fxRates[activeCurrency]) return amount;
+    return amount * (fxRates[activeCurrency] || 1);
+  }
+
+  function fmtCurrency(n) {
+    var amount = Number(n || 0);
+    if (activeCurrency === 'COP') {
+      return '$' + Math.round(amount).toLocaleString('es-CO');
+    }
+    var converted = convertFromCOP(amount);
+    var meta = getCurrencyMeta(activeCurrency);
+    return meta.symbol + converted.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+
+  function updateFxChip() {
+    var chipEl = document.getElementById('vs-fx-chip');
+    if (!chipEl) return;
+    var meta = getCurrencyMeta(activeCurrency);
+    var rateText = '—';
+    if (activeCurrency === 'COP') {
+      rateText = 'Moneda base';
+    } else if (fxRates[activeCurrency]) {
+      var rate = fxRates[activeCurrency];
+      rateText = '1 COP = ' + rate.toFixed(6) + ' ' + activeCurrency;
+    }
+    chipEl.innerHTML =
+      '<button class="lm-nav" style="color:#475569;width:100%;text-align:left" onclick="_posVSOpenCurrencyModal()" title="Cambiar moneda">'      +'<span class="lm-nav-inner">'      +'<span style="font-size:16px">'+meta.flag+'</span>'      +'<div style="min-width:0">'      +'<div style="font-weight:600;font-size:12px;color:#0F172A">'+activeCurrency+'</div>'      +'<div style="font-size:10px;color:#94A3B8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+rateText+'</div>'      +'</div></span></button>';
+  }
+
+  window._posVSOpenCurrencyModal = function() {
+    var ex = document.getElementById('vs-currency-modal');
+    if (ex) { ex.remove(); return; }
+    var overlay = document.createElement('div');
+    overlay.id = 'vs-currency-modal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(4px);z-index:9100;display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML =
+      '<div style="background:#fff;border-radius:16px;padding:24px;width:360px;max-width:92vw;box-shadow:0 20px 60px rgba(15,23,42,.18)">'      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">'      +'<div style="font-weight:700;font-size:15px;color:#0F172A">Cambiar moneda</div>'      +'<button onclick="document.getElementById(\'vs-currency-modal\').remove()" style="border:none;background:#F1F5F9;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;color:#64748B;">&#x2715;</button>'      +'</div>'      +'<div id="vs-pin-step">'      +'<p style="font-size:12px;color:#64748B;margin-bottom:12px">Requiere PIN de administrador</p>'      +'<input id="vs-pin-input" type="password" maxlength="8" placeholder="PIN"'      +' style="width:100%;border:1.5px solid #ECEEF2;border-radius:10px;padding:10px 14px;font-size:18px;letter-spacing:4px;text-align:center;outline:none;box-sizing:border-box"'      +' onfocus="this.style.borderColor=\'#5B6BFF\'" onblur="this.style.borderColor=\'#ECEEF2\'">'      +'<p id="vs-pin-error" style="color:#EF4444;font-size:12px;margin-top:6px;display:none">PIN incorrecto</p>'      +'<button onclick="_posVSValidatePIN()" style="margin-top:12px;width:100%;padding:10px;border:none;border-radius:10px;background:#5B6BFF;color:#fff;font-size:14px;font-weight:600;cursor:pointer">Continuar</button>'      +'</div>'      +'<div id="vs-currency-step" style="display:none">'      +'<p style="font-size:12px;color:#64748B;margin-bottom:12px">Selecciona la moneda de visualizacion</p>'      +'<div id="vs-currency-list" style="display:grid;gap:8px"></div>'      +'</div>'      +'</div>';
+    document.body.appendChild(overlay);
+    setTimeout(function(){ var el = document.getElementById('vs-pin-input'); if(el) el.focus(); }, 50);
+    document.getElementById('vs-pin-input').addEventListener('keydown', function(e){ if(e.key==='Enter') window._posVSValidatePIN(); });
+  };
+
+  window._posVSValidatePIN = async function() {
+    var pinEl = document.getElementById('vs-pin-input');
+    var errEl = document.getElementById('vs-pin-error');
+    if (!pinEl) return;
+    var entered = pinEl.value.trim();
+    if (!entered) { if(errEl){errEl.textContent='Ingresa el PIN';errEl.style.display='block';} return; }
+    var sbRef = window._pos && window._pos.sb;
+    var branchId = window._pos && window._pos.state && window._pos.state.branchId;
+    if (!sbRef) { if(errEl){errEl.textContent='Error de conexion';errEl.style.display='block';} return; }
+    try {
+      var q = sbRef.from('pos_users').select('pin').eq('is_authorized_admin', true).limit(1);
+      if (branchId) q = q.eq('branch_id', branchId);
+      var res = await q.maybeSingle();
+      var row = res.data;
+      if (!row || row.pin === null) {
+        if(errEl){errEl.textContent='PIN no configurado. Ve a Configuracion para establecerlo.';errEl.style.display='block';}
+        return;
+      }
+      if (String(row.pin).trim() !== String(entered).trim()) {
+        if(errEl){errEl.textContent='PIN incorrecto';errEl.style.display='block';}
+        pinEl.value='';
+        return;
+      }
+      document.getElementById('vs-pin-step').style.display='none';
+      var stepEl = document.getElementById('vs-currency-step');
+      stepEl.style.display='block';
+      var listEl = document.getElementById('vs-currency-list');
+      if (listEl) {
+        listEl.innerHTML = CURRENCIES.map(function(c) {
+          var isActive = c.code === activeCurrency;
+          return '<button onclick="_posVSSelectCurrency(\''+c.code+'\')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:'+(isActive?'2px solid #5B6BFF':'1.5px solid #ECEEF2')+';background:'+(isActive?'#EEF2FF':'#fff')+';cursor:pointer;width:100%;text-align:left">'            +'<span style="font-size:20px">'+c.flag+'</span>'            +'<div><div style="font-weight:600;color:#0F172A;font-size:13px">'+c.code+' — '+c.name+'</div>'            +'<div style="font-size:11px;color:#94A3B8">'+c.symbol+'</div></div>'            +(isActive?'<svg style="margin-left:auto" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B6BFF" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>':'')            +'</button>';
+        }).join('');
+      }
+    } catch(e) {
+      if(errEl){errEl.textContent='Error al verificar PIN';errEl.style.display='block';}
+    }
+  };
+
+  window._posVSSelectCurrency = async function(code) {
+    activeCurrency = code;
+    try { localStorage.setItem(CURRENCY_KEY, code); } catch(e){}
+    var overlay = document.getElementById('vs-currency-modal');
+    if (overlay) overlay.remove();
+    updateFxChip();
+    if (code !== 'COP' && !fxRates[code]) await fetchRates();
+    else updateFxChip();
+    render();
+  };
+
+
   const DEFAULT_CHIP_ORDER = ['libre', 'pendiente_pago', 'esperando', 'comiendo'];
 
   const MESERO_NAMES = { SA: 'Sergio Andrés', JM: 'Juan Manuel', AC: 'Andrea Castro', LM: 'Laura Mejía' };
@@ -75,7 +197,7 @@
     cobroAdelantado: false,
     userRole: 'mesero',
     currentOrder: null,
-    deliveries: DOMI_SEED.map(d => Object.assign({}, d)),
+    deliveries: [],
     selectedDomiId: null,
     quickOrders: [],
     quickDeliveredCount: 0,
@@ -214,7 +336,27 @@
       };
     });
 
-    if (!baseTables.length) return [];
+    // B6 fix: if localStorage has no tables, fetch directly from pos_tables
+    if (!baseTables.length) {
+      try {
+        var sbFallback = window._pos && window._pos.sb;
+        var branchFallback = window._pos && window._pos.state && window._pos.state.branchId;
+        if (sbFallback && branchFallback) {
+          var fbResult = await sbFallback.from('pos_tables')
+            .select('id, name, status, current_order_id, branch_id')
+            .eq('branch_id', branchFallback);
+          var fbRows = fbResult.data || [];
+          if (fbRows.length) {
+            return fbRows.map(function(t, i) {
+              return { id: t.id, name: t.name || ('Mesa ' + (i+1)), number: parseInt(t.name,10)||(i+1),
+                seats: 4, zone_id: 'z_adentro', status: t.status || 'libre',
+                total: 0, items_count: 0, minutes: 0, mesero_initials: '', persons: 0, openedAt: null };
+            });
+          }
+        }
+      } catch(fbErr) { console.warn('[fetchTables] fallback error:', fbErr.message); }
+      return [];
+    }
 
     // 2. Enriquecer con estado de pos_tables y datos reales de pos_orders
     try {
@@ -309,9 +451,50 @@
     }
   }
 
+  // ─── Supabase — fetch deliveries ────────────────────
+  async function fetchDeliveries() {
+    var sb = window._pos && window._pos.sb;
+    if (!sb) return [];
+    var branchId = window._pos && window._pos.state && window._pos.state.branchId;
+    try {
+      var q = sb.from('pos_orders')
+        .select('id, customer_name, channel, total, payment_method, waiter_name, status, created_at, opened_at')
+        .eq('channel', 'domicilio')
+        .not('status', 'eq', 'cancelled')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (branchId) q = q.eq('branch_id', branchId);
+      var result = await q;
+      var rows = result.data || [];
+      return rows.map(function(r) {
+        var createdMs = r.created_at ? new Date(r.created_at).getTime() : Date.now();
+        var mins = Math.round((Date.now() - createdMs) / 60000);
+        var estado = 'preparacion';
+        if (r.status === 'paid' || r.status === 'completed') estado = 'entregado';
+        else if (r.status === 'in_progress') estado = 'camino';
+        return {
+          id: r.id,
+          cliente: r.customer_name || 'Sin cliente',
+          canal: r.channel || 'whatsapp',
+          items: 0,
+          total: parseFloat(r.total) || 0,
+          estado: estado,
+          payStatus: (r.status === 'paid' || r.status === 'completed') ? 'pagado' : 'pendiente',
+          metodo: r.payment_method || 'efectivo',
+          domiciliario: r.waiter_name || '—',
+          min: mins,
+        };
+      });
+    } catch(e) {
+      console.warn('[ventas-salon] fetchDeliveries error:', e.message || e);
+      return [];
+    }
+  }
+
   // ─── Data loading ─────────────────────────────────────
   async function loadData() {
     state.tables = await fetchTables();
+    state.deliveries = await fetchDeliveries();
     state.quickOrders = await fetchQuickOrders();
     state.quickDeliveredCount = await fetchQuickDeliveredCount();
 
@@ -436,7 +619,7 @@
           </button>
           <button class="lm-nav" style="color:#475569" data-action="nav-domicilio">
             <span class="lm-nav-inner">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M2 17h2l1-7h12l4 7h2"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L8 7H5a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h1l-2 5h14l-2-5h1a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-3L12 2z"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
               <span style="font-weight:500">Domicilio express</span>
             </span>
           </button>
@@ -464,15 +647,7 @@
               <span style="font-weight:500">Anular venta</span>
             </span>
           </button>
-          <div class="vs-fx-chip">
-            <div style="display:flex;align-items:center;gap:8px">
-              <div class="vs-fx-icon">${SVG_DOLLAR(14)}</div>
-              <div>
-                <div class="vs-fx-pair">EUR/COP</div>
-                <div class="vs-fx-change" id="vs-fx-rate">—</div>
-              </div>
-            </div>
-          </div>
+          <div id="vs-fx-chip" style="padding:0 4px"></div>
         </div>
       </aside>
     `;
@@ -652,7 +827,7 @@
           <div class="vs-metric-divider"></div>
           <div class="vs-metric-cell">
             <div class="vs-metric-label">Total en curso</div>
-            <div class="vs-metric-value">${fmt(totalVal)}</div>
+            <div class="vs-metric-value">${fmtCurrency(totalVal)}</div>
             <div class="vs-metric-hint">sin entregados</div>
           </div>
         </div>
@@ -729,7 +904,7 @@
             <div class="vs-mesa-footer-left">
               <span class="vs-mesa-items">${d.items} ítems · <span style="color:${payColor};font-weight:600">${isPagado ? 'Pagado' : 'Por pagar'}</span></span>
             </div>
-            <div class="vs-mesa-total">${fmt(d.total)}</div>
+            <div class="vs-mesa-total">${fmtCurrency(d.total)}</div>
           </div>
         </div>
       </button>
@@ -1891,6 +2066,10 @@
 
     // Subscribe to realtime updates
     subscribeRealtime();
+    // Load FX rates for multi-currency
+    fetchRates();
+    // Initialize currency chip
+    setTimeout(updateFxChip, 100);
     // Auto-avance esperando→comiendo
     startAutoAvance();
   }

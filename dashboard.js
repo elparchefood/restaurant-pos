@@ -52,7 +52,8 @@ async function loadUser(branchId) {
     const ini = data.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
     $('tb-avatar').textContent = ini;
     $('tb-uname').textContent  = data.name;
-    $('tb-urole').textContent  = (data.role==='gerente'?'Gerente':'Cajera') + (data.phone?' · '+data.phone:'');
+    S.posUser = data;
+    $('tb-urole').textContent  = data.role === 'gerente' ? 'Gerente' : 'Cajera';
     // dropdown
     $('dd-avatar').textContent = ini;
     $('dd-uname').textContent  = data.name;
@@ -314,31 +315,144 @@ function setChartMode(mode, btn) {
 
 // ── Session action ────────────────────────────────────
 async function handleSessionAction() {
-  if (S.session?.status === 'open') {
+  if (S.session && S.session.status === 'open') {
     if (confirm('Para cerrar el turno completa el proceso en el modulo de Caja.')) {
       window.location.href = 'index.html?rol=cashier';
     }
     return;
   }
-  const bid = S.branch?.id;
-  const tid = S.branch?.tenant_id;
-  const { data, error } = await sb.from('pos_sessions').insert({
-    branch_id: bid, tenant_id: tid, status: 'open',
-    shift_type: new Date().getHours() < 15 ? 'Diurno' : 'Nocturno',
+  showAperturaModal();
+}
+
+function showAperturaModal() {
+  var ex = document.getElementById('modal-apertura-overlay');
+  if (ex) ex.remove();
+  var overlay = document.createElement('div');
+  overlay.id = 'modal-apertura-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(4px);z-index:9000;display:flex;align-items:center;justify-content:center';
+  var iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B6BFF" stroke-width="2.2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>';
+  overlay.innerHTML = '<div style="background:#fff;border-radius:16px;padding:28px 28px 24px;width:360px;max-width:90vw;box-shadow:0 20px 60px rgba(15,23,42,.18)">'
+    + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">'
+    + '<div style="width:40px;height:40px;border-radius:10px;background:#EEF2FF;display:flex;align-items:center;justify-content:center">' + iconSvg + '</div>'
+    + '<div><div style="font-weight:700;font-size:15px;color:#0F172A">Aperturar caja</div>'
+    + '<div style="font-size:12px;color:#64748B">Ingresa el dinero inicial de la caja</div></div></div>'
+    + '<label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px">Monto de apertura (COP)</label>'
+    + '<div style="position:relative;margin-bottom:20px">'
+    + '<span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94A3B8;font-weight:600">$</span>'
+    + '<input id="apertura-monto" type="number" min="0" step="1000" placeholder="0"'
+    + ' style="width:100%;border:1.5px solid #ECEEF2;border-radius:10px;padding:10px 12px 10px 28px;font-size:15px;font-weight:600;color:#0F172A;outline:none;box-sizing:border-box"'
+    + ' onfocus="this.style.borderColor=\'#5B6BFF\'" onblur="this.style.borderColor=\'#ECEEF2\'">'
+    + '</div>'
+    + '<div style="display:flex;gap:10px">'
+    + '<button onclick="document.getElementById(\'modal-apertura-overlay\').remove()"'
+    + ' style="flex:1;padding:10px;border:1.5px solid #ECEEF2;border-radius:10px;background:#fff;color:#64748B;font-size:14px;font-weight:600;cursor:pointer">Cancelar</button>'
+    + '<button id="btn-confirmar-apertura" onclick="confirmarApertura()"'
+    + ' style="flex:1;padding:10px;border:none;border-radius:10px;background:#5B6BFF;color:#fff;font-size:14px;font-weight:600;cursor:pointer">Aperturar</button>'
+    + '</div></div>';
+  document.body.appendChild(overlay);
+  setTimeout(function() { var el = document.getElementById('apertura-monto'); if (el) el.focus(); }, 50);
+}
+
+async function confirmarApertura() {
+  var input = document.getElementById('apertura-monto');
+  var amount = parseFloat(input ? input.value : 0) || 0;
+  var overlay = document.getElementById('modal-apertura-overlay');
+  var btn = document.getElementById('btn-confirmar-apertura');
+  if (btn) { btn.disabled = true; btn.textContent = 'Abriendo…'; }
+  var bid = S.branch ? S.branch.id : null;
+  var tid = S.branch ? S.branch.tenant_id : null;
+  var user = S.posUser;
+  var result = await sb.from('pos_sessions').insert({
+    branch_id:    bid,
+    tenant_id:    tid,
+    status:       'open',
+    shift_type:   new Date().getHours() < 15 ? 'Diurno' : 'Nocturno',
+    opening_cash: amount,
+    cashier_name: user ? user.name : null,
+    cashier_id:   user ? user.id   : null,
+    opened_at:    new Date().toISOString(),
   }).select().single();
+  var data = result.data; var error = result.error;
   if (!error && data) {
     S.session = data;
+    if (overlay) overlay.remove();
     $('hero-sub').textContent = 'Tu caja esta abierta. El sistema esta listo para registrar ventas de hoy.';
     $('btn-session-lbl').textContent = 'Cerrar turno';
     $('btn-session').style.background = '#DC2626';
-    const code = data.id.slice(-6).toUpperCase();
-    const stats = $('hero-stats');
-    stats.querySelectorAll('.hero-stat')[0].querySelector('.hero-stat-value').textContent = code;
+    var code = data.id.slice(-6).toUpperCase();
+    var stats = $('hero-stats');
+    if (stats) { var cells = stats.querySelectorAll('.hero-stat'); if (cells[0]) { var v = cells[0].querySelector('.hero-stat-value'); if (v) v.textContent = code; } }
   } else {
+    if (btn) { btn.disabled = false; btn.textContent = 'Aperturar'; }
     alert('Error al aperturar la caja. Revisa la configuracion en Supabase.');
     console.error(error);
   }
 }
+
+async function verTurnoAnterior() {
+  var ex2 = document.getElementById('modal-turno-overlay');
+  if (ex2) { ex2.remove(); return; }
+  var overlay2 = document.createElement('div');
+  overlay2.id = 'modal-turno-overlay';
+  overlay2.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(4px);z-index:9000;display:flex;align-items:center;justify-content:center';
+  var clockSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+  overlay2.innerHTML = '<div style="background:#fff;border-radius:16px;padding:28px;width:420px;max-width:92vw;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(15,23,42,.18)">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">'
+    + '<div style="display:flex;align-items:center;gap:10px">'
+    + '<div style="width:36px;height:36px;border-radius:9px;background:#F1F5F9;display:flex;align-items:center;justify-content:center">' + clockSvg + '</div>'
+    + '<div style="font-weight:700;font-size:15px;color:#0F172A">Turno anterior</div></div>'
+    + '<button onclick="document.getElementById(\'modal-turno-overlay\').remove()"'
+    + ' style="border:none;background:#F1F5F9;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;color:#64748B;">&#x2715;</button>'
+    + '</div>'
+    + '<div id="turno-content" style="font-size:13px;color:#64748B;text-align:center;padding:20px 0">Buscando turno anterior…</div>'
+    + '</div>';
+  document.body.appendChild(overlay2);
+  try {
+    var bid2 = S.branch ? S.branch.id : null;
+    var q2 = sb.from('pos_sessions').select('*').eq('status','closed').order('closed_at',{ascending:false}).limit(1);
+    if (bid2) q2 = q2.eq('branch_id', bid2);
+    var sesResult = await q2.maybeSingle();
+    var session = sesResult.data;
+    var elC = document.getElementById('turno-content');
+    if (!elC) return;
+    if (!session) { elC.innerHTML = '<div style="padding:20px 0;color:#94A3B8">No hay turnos anteriores registrados.</div>'; return; }
+    var fmtDate = function(iso) {
+      if (!iso) return '—';
+      var d = new Date(iso);
+      return d.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}) + ' · ' + d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+    };
+    var COPF2 = function(n) { return '$' + Number(n||0).toLocaleString('es-CO'); };
+    var movesHtml = '';
+    try {
+      var mvResult = await sb.from('pos_cash_moves').select('*').eq('session_id',session.id).order('created_at',{ascending:true});
+      var moves = mvResult.data;
+      if (moves && moves.length) {
+        movesHtml = '<div style="margin-top:16px;padding-top:16px;border-top:1px solid #ECEEF2">'
+          + '<div style="font-weight:600;color:#475569;font-size:11px;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Movimientos de caja</div>'
+          + moves.map(function(m){
+              var clr = m.type==='entrada'?'#16A34A':'#DC2626';
+              return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #F1F5F9">'
+                + '<span style="color:#475569">'+(m.concept||m.type||'Movimiento')+'</span>'
+                + '<span style="font-weight:600;color:'+clr+'">'+(m.type==='salida'?'−':'')+COPF2(m.amount)+'</span></div>';
+            }).join('')+'</div>';
+      }
+    } catch(e2){}
+    var notesHtml = session.notes ? '<div style="padding:10px 14px;background:#FFFBEB;border-radius:10px;color:#92400E;margin-top:4px"><strong>Notas:</strong> '+session.notes+'</div>' : '';
+    elC.innerHTML = '<div style="display:grid;gap:8px">'
+      +'<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#F8FAFC;border-radius:10px"><span style="color:#64748B">Cajero/a</span><span style="font-weight:600;color:#0F172A">'+(session.cashier_name||'—')+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#F8FAFC;border-radius:10px"><span style="color:#64748B">Turno</span><span style="font-weight:600;color:#0F172A">'+(session.shift_type||'—')+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#F8FAFC;border-radius:10px"><span style="color:#64748B">Apertura</span><span style="font-weight:600;color:#0F172A">'+fmtDate(session.opened_at)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#F8FAFC;border-radius:10px"><span style="color:#64748B">Cierre</span><span style="font-weight:600;color:#0F172A">'+fmtDate(session.closed_at)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#EEF2FF;border-radius:10px"><span style="color:#5B6BFF;font-weight:600">Monto apertura</span><span style="font-weight:700;color:#5B6BFF">'+COPF2(session.opening_cash)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#EEF2FF;border-radius:10px"><span style="color:#5B6BFF;font-weight:600">Monto cierre</span><span style="font-weight:700;color:#5B6BFF">'+COPF2(session.closing_cash)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#F0FDF4;border-radius:10px"><span style="color:#16A34A;font-weight:600">Total ventas</span><span style="font-weight:700;color:#16A34A">'+COPF2(session.total_sales)+'</span></div>'
+      +notesHtml+'</div>'+movesHtml;
+  } catch(err) {
+    var el3 = document.getElementById('turno-content');
+    if (el3) el3.innerHTML = '<div style="color:#EF4444;padding:16px 0">Error al cargar: '+(err.message||err)+'</div>';
+  }
+}
+
 
 // ── Realtime ──────────────────────────────────────────
 
