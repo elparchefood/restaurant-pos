@@ -466,7 +466,14 @@ document.addEventListener('click', e => {
       break;
     case 'print':
     case 'print-receipt':
-      window.print();
+      // C6/C8: open 3-option print modal (pos-print.js)
+      if (typeof posOpenPrintModal === 'function' && SP.orderId) {
+        posOpenPrintModal(SP.orderId);
+      } else if (typeof posOpenPrintModal === 'function') {
+        posOpenPrintModal(null);
+      } else {
+        window.print();
+      }
       break;
     case 'split':          openSplitModal();    break;
     case 'discount':       openDiscountModal(); break;

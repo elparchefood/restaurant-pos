@@ -509,6 +509,7 @@
       state.orderItems   = items;
     }
     render();
+    syncMesaTimers(); // C9: sync per-table notification timers
   }
 
   async function selectTable(tableId) {
@@ -2001,36 +2002,161 @@
     } catch(e) { console.error('[VS] liberarMesa:', e); }
   }
 
-  // ─── Auto-avance esperando→comiendo ───────────────────────────────────
+  // ─── C9: Sistema T1/T2/T3 de automatización esperando→comiendo ───────────
+  const _mesaTimers = {}; // key: tableId, value: { t1Id, t2Id, t3Id, notifEl }
+
+  function _getCfg() {
+    try { return JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}'); }
+    catch(e) { return {}; }
+  }
+
+  function _fmtElapsedStr(startIso) {
+    if (!startIso) return '';
+    const ms = Date.now() - new Date(startIso).getTime();
+    if (ms < 0) return '';
+    const m = Math.floor(ms / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
+  async function _advanceMesaToComiendo(tableId, method) {
+    try {
+      const sbRef = window._pos && window._pos.sb;
+      if (!sbRef) return;
+      await sbRef.from('pos_tables').update({ status: 'comiendo', comiendo_method: method }).eq('id', tableId);
+      const t = state.tables.find(x => x.id === tableId);
+      if (t) { t.status = 'comiendo'; t.comiendo_method = method; }
+      render();
+    } catch(e) { console.error('[VS] advanceMesa:', e); }
+  }
+
+  function _dismissMesaNotif(tableId) {
+    const entry = _mesaTimers[tableId];
+    if (entry && entry.notifEl && entry.notifEl.parentNode) {
+      entry.notifEl.style.opacity = '0';
+      entry.notifEl.style.transform = 'translateY(10px)';
+      setTimeout(function() { if (entry.notifEl && entry.notifEl.parentNode) entry.notifEl.remove(); }, 200);
+    }
+    if (entry) { clearTimeout(entry.t3Id); entry.t3Id = null; entry.notifEl = null; }
+  }
+
+  function _showMesaNotif(tableId, tableName, startIso) {
+    const cfg = _getCfg();
+    const t3Mins = cfg.mesaT3 || 3;
+    const t2Mins = cfg.mesaT2 || 5;
+    const elapsed = _fmtElapsedStr(startIso);
+
+    // Remove existing notif for this table
+    _dismissMesaNotif(tableId);
+
+    // Create notification element
+    const notif = document.createElement('div');
+    notif.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#fff;border-radius:14px;padding:16px 18px;'
+      + 'box-shadow:0 8px 28px rgba(15,23,42,.16),0 2px 8px rgba(15,23,42,.08);z-index:8000;max-width:300px;'
+      + 'border:1px solid #ECEEF2;transition:opacity .2s,transform .2s;opacity:0;transform:translateY(10px)';
+
+    notif.innerHTML = '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px">'
+      + '<div>'
+      + '<div style="font-weight:700;font-size:13px;color:#0F172A">¿Ya entregaste los platos?</div>'
+      + '<div style="font-size:11px;color:#64748B;margin-top:3px">Mesa ' + (tableName||tableId)
+      + (elapsed ? ' · <span style="font-weight:600;color:#F97316">' + elapsed + '</span>' : '') + '</div>'
+      + '</div>'
+      + '<button onclick="_mesaNotifRespond('' + tableId + '',null)" '
+      + 'style="border:none;background:#F1F5F9;border-radius:7px;width:24px;height:24px;cursor:pointer;color:#94A3B8;font-size:12px;flex-shrink:0">✕</button>'
+      + '</div>'
+      + '<div style="display:flex;gap:8px">'
+      + '<button onclick="_mesaNotifRespond('' + tableId + '',false)" '
+      + 'style="flex:1;padding:8px;border:1.5px solid #ECEEF2;border-radius:9px;background:#fff;color:#475569;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Todavía no</button>'
+      + '<button onclick="_mesaNotifRespond('' + tableId + '',true)" '
+      + 'style="flex:1;padding:8px;border:none;border-radius:9px;background:#5B6BFF;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Sí, ya entregué</button>'
+      + '</div>';
+
+    document.body.appendChild(notif);
+    // Animate in
+    requestAnimationFrame(function() {
+      notif.style.opacity = '1';
+      notif.style.transform = 'translateY(0)';
+    });
+
+    // Start T3 auto-change timer (fires only if notification is IGNORED, not answered)
+    const t3Id = setTimeout(async function() {
+      if (_mesaTimers[tableId] && _mesaTimers[tableId].notifEl === notif) {
+        _dismissMesaNotif(tableId);
+        await _advanceMesaToComiendo(tableId, 'auto_ignorado');
+        delete _mesaTimers[tableId];
+      }
+    }, t3Mins * 60 * 1000);
+
+    if (!_mesaTimers[tableId]) _mesaTimers[tableId] = {};
+    _mesaTimers[tableId].notifEl = notif;
+    _mesaTimers[tableId].t3Id = t3Id;
+    _mesaTimers[tableId].t2Mins = t2Mins;
+    _mesaTimers[tableId].startIso = startIso;
+    _mesaTimers[tableId].tableName = tableName;
+  }
+
+  // Global so onclick="" in innerHTML can call it
+  window._mesaNotifRespond = function(tableId, answer) {
+    const entry = _mesaTimers[tableId];
+    if (!entry) return;
+    _dismissMesaNotif(tableId);  // also clears T3
+
+    if (answer === true) {
+      // "Sí" → advance to comiendo
+      _advanceMesaToComiendo(tableId, 'manual_confirm');
+      delete _mesaTimers[tableId];
+    } else {
+      // "No" or dismiss → schedule T2 repeat
+      const t2Id = setTimeout(function() {
+        const t = state.tables.find(x => x.id === tableId);
+        if (t && t.status === 'esperando') {
+          _showMesaNotif(tableId, entry.tableName, entry.startIso);
+        } else {
+          delete _mesaTimers[tableId];
+        }
+      }, (entry.t2Mins || 5) * 60 * 1000);
+      _mesaTimers[tableId].t2Id = t2Id;
+    }
+  };
+
+  function syncMesaTimers() {
+    const cfg = _getCfg();
+    const t1Mins = cfg.mesaT1 || cfg.entregaMin || 10;
+
+    // Start T1 for newly-esperando tables not yet tracked
+    state.tables.forEach(function(t) {
+      if (t.status === 'esperando') {
+        if (!_mesaTimers[t.id]) {
+          _mesaTimers[t.id] = { tableName: t.name || t.id, startIso: t.openedAt || t.esperando_at || null };
+          const startIso = t.esperando_at || t.openedAt;
+          const elapsed = startIso ? (Date.now() - new Date(startIso).getTime()) : 0;
+          const remaining = Math.max(0, t1Mins * 60 * 1000 - elapsed);
+          _mesaTimers[t.id].t1Id = setTimeout(function() {
+            const tbl = state.tables.find(x => x.id === t.id);
+            if (tbl && tbl.status === 'esperando') {
+              _showMesaNotif(t.id, tbl.name || t.id, tbl.esperando_at || tbl.openedAt);
+            } else {
+              delete _mesaTimers[t.id];
+            }
+          }, remaining);
+        }
+      } else {
+        // Table left esperando → clean up timers & notification
+        if (_mesaTimers[t.id]) {
+          const entry = _mesaTimers[t.id];
+          clearTimeout(entry.t1Id);
+          clearTimeout(entry.t2Id);
+          _dismissMesaNotif(t.id);
+          delete _mesaTimers[t.id];
+        }
+      }
+    });
+  }
+
   function startAutoAvance() {
-    setInterval(async function() {
-      try {
-        const cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
-        const mins = cfg.entregaMin || 12;
-        const cutoff = new Date(Date.now() - mins * 60 * 1000).toISOString();
-        const sbRef = window._pos && window._pos.sb;
-        if (!sbRef) return;
-        // Mesas en esperando cuyo esperando_at supera el umbral
-        const { data } = await sbRef
-          .from('pos_tables')
-          .select('id')
-          .eq('status', 'esperando')
-          .not('esperando_at', 'is', null)
-          .lt('esperando_at', cutoff);
-        if (!data || !data.length) return;
-        const ids = data.map(r => r.id);
-        await sbRef.from('pos_tables').update({
-          status:          'comiendo',
-          comiendo_method: 'auto',
-        }).in('id', ids);
-        // Actualizar estado local
-        ids.forEach(id => {
-          const t = state.tables.find(x => x.id === id);
-          if (t) { t.status = 'comiendo'; t.comiendo_method = 'auto'; }
-        });
-        if (ids.length) render();
-      } catch(e) { console.error('[VS] autoAvance:', e); }
-    }, 60 * 1000); // cada 60 segundos
+    // Kick initial sync and then poll every 60s as server-side fallback
+    syncMesaTimers();
+    setInterval(syncMesaTimers, 60 * 1000);
   }
 
   // ─── Init ─────────────────────────────────────────────

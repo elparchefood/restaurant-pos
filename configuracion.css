@@ -626,3 +626,14 @@ input::placeholder { color: var(--ink-4); }
 /* Footer guardar */
 .op-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding-top: 4px; padding-bottom: 8px; }
 .lm-btn-primary.lg { padding: 11px 18px; }
+
+/* ── C3b / C6: Empaques & recibo models (Ronda 2) ── */
+.op-card-icon.amber { background: #FFFBEB; color: #D97706; }
+.cf-select { padding: 8px 12px; border: 1.5px solid #ECEEF2; border-radius: 9px; font-family: inherit; font-size: 13px; color: #0F172A; background: #fff; outline: none; cursor: pointer; }
+.cf-select:focus { border-color: #5B6BFF; }
+.op-model-grid { display: flex; gap: 12px; flex-wrap: wrap; }
+.op-model-card { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 2px solid #ECEEF2; border-radius: 12px; background: #fff; cursor: pointer; font-family: inherit; transition: border-color .14s; min-width: 130px; }
+.op-model-card:hover { border-color: #C7D2FE; }
+.op-model-card.on { border-color: #5B6BFF; box-shadow: 0 0 0 3px rgba(91,107,255,.12); }
+.op-model-preview { background: #F8FAFC; border-radius: 8px; padding: 8px; min-height: 70px; border: 1px solid #ECEEF2; }
+.op-model-name { font-size: 12px; font-weight: 700; color: #475569; text-align: center; }

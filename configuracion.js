@@ -1629,7 +1629,26 @@ async function urInit() {
 
 var OP_KEY = 'pos.config.operacion.v1';
 var _cfgBranchId = null; // se rellena al cargar el usuario
-var OP_DEFAULTS = { entregaMin: 12, cocinaMax: 20, propinaPct: 10, propinaObligatoria: false, metaDiaria: 1500000, cobroAdelantado: false, pin: '' };
+var OP_DEFAULTS = {
+  entregaMin: 12, cocinaMax: 20, propinaPct: 10, propinaObligatoria: false,
+  metaDiaria: 1500000, cobroAdelantado: false, pin: '',
+  // C3b — Empaques
+  empaquesActivo: false,
+  empaqueTipo: 'fijo',       // 'fijo' | 'porcentaje'
+  empaqueBase: 'unidad',     // 'unidad' | 'pedido'
+  empaqueCanal: 'mismo',     // 'mismo' | 'distinto'
+  empaqueMonto: 500,
+  empaquePct: 5,
+  empaqueMontoDomicilio: 500,
+  empaquePctDomicilio: 5,
+  empaqueAlcance: 'todos',   // 'todos' | 'algunos' | 'excepto'
+  empaqueCategIds: '',       // IDs separados por coma
+  empaqueProductoIds: '',    // IDs separados por coma
+  // C9 — Tiempos de automatización de mesa
+  mesaT1: 10,  // min → primera notificación
+  mesaT2: 5,   // min → re-notificación tras "No"
+  mesaT3: 3,   // min → auto-avance si se ignora
+};
 
 var _opSaved  = null;  // último guardado
 var _opDraft  = null;  // borrador en edición
@@ -1703,6 +1722,39 @@ function opRender() {
     }
   }
   if (pinBtn) pinBtn.textContent = d.pin ? 'Cambiar PIN' : 'Establecer PIN';
+
+  // C3b — Empaques toggle + cuerpo
+  opSetToggle('op-sw-empaques', d.empaquesActivo);
+  var empSt = $('op-empaques-state');
+  if (empSt) { empSt.textContent = d.empaquesActivo ? 'Activado' : 'Desactivado'; empSt.className = 'op-state ' + (d.empaquesActivo ? 'on' : 'off'); }
+  var empBody = $('op-empaques-body');
+  if (empBody) empBody.style.display = d.empaquesActivo ? '' : 'none';
+  var selTipo = $('op-empaque-tipo'); if (selTipo) selTipo.value = d.empaqueTipo || 'fijo';
+  var selBase = $('op-empaque-base'); if (selBase) selBase.value = d.empaqueBase || 'unidad';
+  var selCanal = $('op-empaque-canal'); if (selCanal) selCanal.value = d.empaqueCanal || 'mismo';
+  var selAlcance = $('op-empaque-alcance'); if (selAlcance) selAlcance.value = d.empaqueAlcance || 'todos';
+  var inpVal = $('op-empaqueVal');
+  var inpValDomi = $('op-empaqueValDomi');
+  if (inpVal) inpVal.value = d.empaqueTipo === 'porcentaje' ? (d.empaquePct || 5) : (d.empaqueMonto || 500);
+  if (inpValDomi) inpValDomi.value = d.empaqueTipo === 'porcentaje' ? (d.empaquePctDomicilio || 5) : (d.empaqueMontoDomicilio || 500);
+  var unitLbls = document.querySelectorAll('#op-empaque-unit, #op-empaque-unit-domi');
+  unitLbls.forEach(function(el) { if (el) el.textContent = d.empaqueTipo === 'porcentaje' ? '%' : 'COP'; });
+  var domiRow = $('op-empaque-domi-row'); if (domiRow) domiRow.style.display = (d.empaqueCanal === 'distinto') ? '' : 'none';
+  var scopeBlock = $('op-empaque-scope-ids'); if (scopeBlock) scopeBlock.style.display = (d.empaqueAlcance !== 'todos') ? '' : 'none';
+  var catInput = $('op-empaqueCategIds'); if (catInput) catInput.value = d.empaqueCategIds || '';
+
+  // C9 — T1/T2/T3
+  var t1El = $('op-mesaT1'); if (t1El) t1El.textContent = d.mesaT1 || 10;
+  var t2El = $('op-mesaT2'); if (t2El) t2El.textContent = d.mesaT2 || 5;
+  var t3El = $('op-mesaT3'); if (t3El) t3El.textContent = d.mesaT3 || 3;
+
+  // C6 — Modelos de recibo
+  var MODELS_KEY = 'pos.config.recibos.v1';
+  var reciboModels;
+  try { reciboModels = Object.assign({ descModel: 'estandar', finalModel: 'estandar' }, JSON.parse(localStorage.getItem(MODELS_KEY) || '{}')); }
+  catch(e) { reciboModels = { descModel: 'estandar', finalModel: 'estandar' }; }
+  document.querySelectorAll('[data-recibo="desc"]').forEach(function(c) { c.classList.toggle('on', c.dataset.model === reciboModels.descModel); });
+  document.querySelectorAll('[data-recibo="final"]').forEach(function(c) { c.classList.toggle('on', c.dataset.model === reciboModels.finalModel); });
 
   opCheckDirty();
 }
@@ -1807,6 +1859,13 @@ function opBindEvents() {
       // El PIN se guarda de inmediato (igual que guardar todo)
       _opSaved = Object.assign({}, _opDraft);
       opSave(_opSaved);
+      // C1: Persistir PIN en Supabase (pos_users.pin)
+      if (_cfgBranchId && typeof sb !== 'undefined') {
+        sb.from('pos_users').update({ pin: val })
+          .eq('branch_id', _cfgBranchId)
+          .eq('is_authorized_admin', true)
+          .then(function(r){ if (r.error) console.warn('[cfg] pin sync error:', r.error); });
+      }
       pinInput.value = '';
       pinInput.type = 'password';
       opRender();
@@ -1824,6 +1883,64 @@ function opBindEvents() {
       opToast('Cambios de operación guardados');
     });
   }
+
+  // C3b — Empaques switch
+  var swEmpaques = $('op-sw-empaques');
+  if (swEmpaques) swEmpaques.addEventListener('click', function() {
+    _opDraft.empaquesActivo = !_opDraft.empaquesActivo;
+    opRender();
+  });
+
+  // C3b — Empaques selects & inputs
+  ['op-empaque-tipo', 'op-empaque-base', 'op-empaque-canal', 'op-empaque-alcance'].forEach(function(id) {
+    var sel = $(id);
+    if (!sel) return;
+    sel.addEventListener('change', function() {
+      var field = sel.getAttribute('data-op-field');
+      if (field) _opDraft[field] = sel.value;
+      // toggle domi row visibility
+      var domiRow = $('op-empaque-domi-row');
+      if (domiRow) domiRow.style.display = (_opDraft.empaqueCanal === 'distinto') ? '' : 'none';
+      var scopeBlock = $('op-empaque-scope-ids');
+      if (scopeBlock) scopeBlock.style.display = (_opDraft.empaqueAlcance !== 'todos') ? '' : 'none';
+      var unitLbls = document.querySelectorAll('#op-empaque-unit, #op-empaque-unit-domi');
+      unitLbls.forEach(function(el) { el.textContent = _opDraft.empaqueTipo === 'porcentaje' ? '%' : 'COP'; });
+      opCheckDirty();
+    });
+  });
+  var inpEmpVal = $('op-empaqueVal');
+  if (inpEmpVal) inpEmpVal.addEventListener('input', function() {
+    var v = parseFloat(this.value) || 0;
+    if (_opDraft.empaqueTipo === 'porcentaje') _opDraft.empaquePct = v; else _opDraft.empaqueMonto = v;
+    opCheckDirty();
+  });
+  var inpEmpValDomi = $('op-empaqueValDomi');
+  if (inpEmpValDomi) inpEmpValDomi.addEventListener('input', function() {
+    var v = parseFloat(this.value) || 0;
+    if (_opDraft.empaqueTipo === 'porcentaje') _opDraft.empaquePctDomicilio = v; else _opDraft.empaqueMontoDomicilio = v;
+    opCheckDirty();
+  });
+  var inpCategIds = $('op-empaqueCategIds');
+  if (inpCategIds) inpCategIds.addEventListener('input', function() {
+    _opDraft.empaqueCategIds = this.value;
+    opCheckDirty();
+  });
+
+  // C6 — Recibo model cards
+  document.querySelectorAll('[data-recibo]').forEach(function(card) {
+    card.addEventListener('click', function() {
+      var MODELS_KEY = 'pos.config.recibos.v1';
+      var models;
+      try { models = Object.assign({ descModel: 'estandar', finalModel: 'estandar' }, JSON.parse(localStorage.getItem(MODELS_KEY) || '{}')); }
+      catch(e) { models = { descModel: 'estandar', finalModel: 'estandar' }; }
+      if (card.dataset.recibo === 'desc') models.descModel = card.dataset.model;
+      else models.finalModel = card.dataset.model;
+      localStorage.setItem(MODELS_KEY, JSON.stringify(models));
+      document.querySelectorAll('[data-recibo="desc"]').forEach(function(c) { c.classList.toggle('on', c.dataset.model === models.descModel); });
+      document.querySelectorAll('[data-recibo="final"]').forEach(function(c) { c.classList.toggle('on', c.dataset.model === models.finalModel); });
+      opToast('Modelo de recibo guardado');
+    });
+  });
 
   // Descartar
   var btnDiscard = $('op-btn-discard');

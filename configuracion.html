@@ -691,6 +691,220 @@
             </div>
           </div>
 
+          <!-- SECCIÓN 4 · Incremento por empaques (C3b) -->
+          <div class="op-card">
+            <div class="op-card-head">
+              <div class="op-card-icon amber"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
+              <div>
+                <div class="op-card-num">Sección 4</div>
+                <div class="op-card-title">Incremento por empaques</div>
+                <div class="op-card-sub">Aplica un cargo adicional en pedidos para llevar y domicilio.</div>
+              </div>
+            </div>
+            <div class="op-card-body">
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">Activar incremento por empaques</div>
+                  <div class="op-hint">Aplica a pedidos "Para llevar" y domicilio.</div>
+                </div>
+                <div class="op-control">
+                  <span class="op-state off" id="op-empaques-state">Desactivado</span>
+                  <button class="cf-switch" id="op-sw-empaques" role="switch" aria-checked="false" data-field="empaquesActivo"><span class="cf-switch-knob"></span></button>
+                </div>
+              </div>
+              <div id="op-empaques-body" style="display:none">
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label">Tipo de incremento</div>
+                    <div class="op-hint">¿Monto fijo o porcentaje del total?</div>
+                  </div>
+                  <div class="op-control">
+                    <select class="cf-select" id="op-empaque-tipo" data-op-field="empaqueTipo">
+                      <option value="fijo">Monto fijo ($)</option>
+                      <option value="porcentaje">Porcentaje (%)</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="op-row" id="op-empaque-montos-row">
+                  <div class="op-row-text">
+                    <div class="op-label">Monto / Porcentaje</div>
+                    <div class="op-hint" id="op-empaque-monto-hint">Para llevar y domicilio (igual para ambos).</div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:8px" id="op-empaque-inputs">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <span class="op-hint" style="width:80px">Para llevar</span>
+                      <input class="cf-bareinput" id="op-empaqueVal" type="number" min="0" step="1" style="width:100px" placeholder="500" />
+                      <span class="op-hint" id="op-empaque-unit">COP</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px" id="op-empaque-domi-row" style="display:none">
+                      <span class="op-hint" style="width:80px">Domicilio</span>
+                      <input class="cf-bareinput" id="op-empaqueValDomi" type="number" min="0" step="1" style="width:100px" placeholder="500" />
+                      <span class="op-hint" id="op-empaque-unit-domi">COP</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label">Base de cobro</div>
+                    <div class="op-hint">¿Se cobra por producto o una vez por pedido?</div>
+                  </div>
+                  <div class="op-control">
+                    <select class="cf-select" id="op-empaque-base" data-op-field="empaqueBase">
+                      <option value="unidad">Por unidad/producto</option>
+                      <option value="pedido">Una vez por pedido</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label">Llevar vs. domicilio</div>
+                    <div class="op-hint">¿Mismo incremento para ambos canales o distinto?</div>
+                  </div>
+                  <div class="op-control">
+                    <select class="cf-select" id="op-empaque-canal" data-op-field="empaqueCanal">
+                      <option value="mismo">El mismo para ambos</option>
+                      <option value="distinto">Distinto para cada uno</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label">Alcance de productos</div>
+                    <div class="op-hint">¿A qué productos aplica el incremento?</div>
+                  </div>
+                  <div class="op-control">
+                    <select class="cf-select" id="op-empaque-alcance" data-op-field="empaqueAlcance">
+                      <option value="todos">Todos los productos</option>
+                      <option value="algunos">Solo algunos</option>
+                      <option value="excepto">Todos excepto...</option>
+                    </select>
+                  </div>
+                </div>
+                <div id="op-empaque-scope-ids" style="display:none">
+                  <div class="op-row col" style="margin-top:0">
+                    <div class="op-row-text">
+                      <div class="op-label" id="op-empaque-scope-label">IDs de categorías/productos</div>
+                      <div class="op-hint">Pega los IDs separados por coma (disponibles en el catálogo).</div>
+                    </div>
+                    <textarea class="cf-bareinput" id="op-empaqueCategIds" rows="2" placeholder="cat-uuid-1, cat-uuid-2" style="width:100%;resize:vertical;padding:8px;border:1.5px solid #ECEEF2;border-radius:8px;font-size:12px;font-family:monospace"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECCIÓN 5 · Tiempos de automatización de mesa (C9) -->
+          <div class="op-card">
+            <div class="op-card-head">
+              <div class="op-card-icon indigo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+              <div>
+                <div class="op-card-num">Sección 5</div>
+                <div class="op-card-title">Automatización: Esperando → Comiendo</div>
+                <div class="op-card-sub">Notificaciones y auto-cambio de estado de mesa cuando el mesero no confirma la entrega.</div>
+              </div>
+            </div>
+            <div class="op-card-body">
+              <div class="op-hint" style="padding:10px 14px;background:#F8FAFC;border-radius:10px;margin-bottom:16px;line-height:1.6">
+                <b>Flujo:</b> Pedido enviado → T1 min → notificación discreta "¿Ya entregaste?" →
+                <b>Sí</b>: mesa pasa a Comiendo · <b>No</b>: re-notifica cada T2 min indefinidamente ·
+                <b>Ignorar</b>: auto-avanza tras T3 min de silencio.
+              </div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">T1 — Primera notificación</div>
+                  <div class="op-hint">Minutos desde que se envía el pedido hasta la primera pregunta al mesero.</div>
+                </div>
+                <div class="num-stepper" data-field="mesaT1" data-min="1" data-max="60">
+                  <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <div class="num-val"><b id="op-mesaT1">10</b><span>min</span></div>
+                  <button class="cf-step sm" data-step="1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                </div>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">T2 — Re-notificación tras "No"</div>
+                  <div class="op-hint">Minutos entre cada notificación cuando el mesero responde "No".</div>
+                </div>
+                <div class="num-stepper" data-field="mesaT2" data-min="1" data-max="30">
+                  <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <div class="num-val"><b id="op-mesaT2">5</b><span>min</span></div>
+                  <button class="cf-step sm" data-step="1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                </div>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">T3 — Auto-avance si se ignora</div>
+                  <div class="op-hint">Minutos que puede estar la notificación sin respuesta antes del auto-cambio.</div>
+                </div>
+                <div class="num-stepper" data-field="mesaT3" data-min="1" data-max="30">
+                  <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <div class="num-val"><b id="op-mesaT3">3</b><span>min</span></div>
+                  <button class="cf-step sm" data-step="1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECCIÓN 6 · Diseños de recibos (C6) -->
+          <div class="op-card">
+            <div class="op-card-head">
+              <div class="op-card-icon green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg></div>
+              <div>
+                <div class="op-card-num">Sección 6</div>
+                <div class="op-card-title">Diseño de recibos</div>
+                <div class="op-card-sub">Selecciona el modelo para cada tipo de recibo impreso.</div>
+              </div>
+            </div>
+            <div class="op-card-body">
+              <div style="margin-bottom:16px">
+                <div class="op-label" style="margin-bottom:10px">Recibo con descripción del producto</div>
+                <div class="op-model-grid" id="op-recibo-desc-models">
+                  <button class="op-model-card on" data-recibo="desc" data-model="estandar">
+                    <div class="op-model-preview">
+                      <div style="font-weight:700;font-size:11px;text-align:center;border-bottom:1px dashed #ccc;padding-bottom:3px;margin-bottom:3px">RECIBO</div>
+                      <div style="font-size:9px;color:#555">2x Hamburguesa — $28.000</div>
+                      <div style="font-size:9px;color:#555">1x Gaseosa — $4.000</div>
+                      <div style="font-size:9px;font-weight:700;margin-top:3px">TOTAL $32.000</div>
+                    </div>
+                    <div class="op-model-name">Estándar</div>
+                  </button>
+                  <button class="op-model-card" data-recibo="desc" data-model="compacto">
+                    <div class="op-model-preview">
+                      <div style="font-size:9px;font-weight:700;text-align:center;margin-bottom:3px">RECIBO</div>
+                      <div style="font-size:8px;color:#666">2x Hamburguesa $28k</div>
+                      <div style="font-size:8px;color:#666">1x Gaseosa $4k</div>
+                      <div style="font-size:9px;font-weight:700;border-top:1px solid #ccc;margin-top:3px;padding-top:3px">$32.000</div>
+                    </div>
+                    <div class="op-model-name">Compacto</div>
+                  </button>
+                </div>
+              </div>
+              <div>
+                <div class="op-label" style="margin-bottom:10px">Recibo final con cuenta</div>
+                <div class="op-model-grid" id="op-recibo-final-models">
+                  <button class="op-model-card on" data-recibo="final" data-model="estandar">
+                    <div class="op-model-preview">
+                      <div style="font-weight:700;font-size:11px;text-align:center;border-bottom:1px dashed #ccc;padding-bottom:3px;margin-bottom:3px">CUENTA FINAL</div>
+                      <div style="font-size:9px;color:#555">Subtotal $32.000</div>
+                      <div style="font-size:9px;color:#555">Propina $3.200</div>
+                      <div style="font-size:9px;font-weight:700;margin-top:3px">TOTAL $35.200</div>
+                    </div>
+                    <div class="op-model-name">Estándar</div>
+                  </button>
+                  <button class="op-model-card" data-recibo="final" data-model="compacto">
+                    <div class="op-model-preview">
+                      <div style="font-size:9px;font-weight:700;text-align:center;margin-bottom:3px">CUENTA</div>
+                      <div style="font-size:8px;color:#666">Items: $32.000</div>
+                      <div style="font-size:8px;color:#666">Propina: $3.200</div>
+                      <div style="font-size:9px;font-weight:700;border-top:1px solid #ccc;margin-top:3px;padding-top:3px">$35.200</div>
+                    </div>
+                    <div class="op-model-name">Compacto</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Footer guardar -->
           <div class="op-footer">
             <button class="lm-btn-ghost" id="op-btn-discard" hidden>Descartar cambios</button>

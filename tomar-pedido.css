@@ -690,3 +690,30 @@ svg { display: block; }
   transition: background .15s;
 }
 .tp-entregue-topbar-btn:hover { background: #D1FAE5; }
+
+/* ── C2: Tarjetas de presentación (Ronda 2) ── */
+.pm-thumb-img { position: relative; }
+.pm-thumb-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pm-thumb-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 10px 14px; background: linear-gradient(to top, rgba(15,23,42,.75), transparent); }
+.pm-thumb-overlay .pm-thumb-name { font-size: 14px; font-weight: 700; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+.pm-thumb-overlay .pm-thumb-price { font-size: 12px; font-weight: 700; color: rgba(255,255,255,.9); margin-top: 2px; }
+
+/* C2/C3a: Placeholder galería */
+.pm-thumb-ph { display: flex; align-items: center; justify-content: center; background: #F8FAFC; }
+.pm-photo-ph { display: flex; align-items: center; justify-content: center; background: #F8FAFC; }
+
+/* ── C4: Control de cantidad de modificadores (Ronda 2) ── */
+.pm-mod { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 11px 12px; border: 1.5px solid var(--border); border-radius: 11px; background: #fff; font-family: inherit; }
+.pm-mod.on { border-color: var(--indigo); background: #F8FAFF; }
+.pm-mod-qty-ctrl { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.pm-mod-dec, .pm-mod-inc { width: 28px; height: 28px; border-radius: 8px; border: 1.5px solid var(--border); background: #fff; color: var(--slate); font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; cursor: pointer; line-height: 1; transition: border-color .12s, background .12s; }
+.pm-mod-dec:hover:not(:disabled), .pm-mod-inc:hover:not(:disabled) { border-color: var(--indigo); color: var(--indigo); background: #EEF2FF; }
+.pm-mod-dec:disabled, .pm-mod-inc:disabled { opacity: .35; cursor: not-allowed; }
+.pm-mod-qty-num { font-size: 13px; font-weight: 700; color: var(--ink); min-width: 18px; text-align: center; }
+.pm-mod.on .pm-mod-dec, .pm-mod.on .pm-mod-inc { border-color: var(--indigo-100); }
+
+/* ── C7: Elevación en elementos del modal de producto (Ronda 2) ── */
+.pm-modal { box-shadow: 0 36px 80px -24px rgba(15,23,42,.4), 0 8px 24px rgba(15,23,42,.08); }
+.pm-choice { box-shadow: 0 1px 3px rgba(15,23,42,.05), 0 1px 2px rgba(15,23,42,.04); }
+.pm-choice:hover { box-shadow: 0 12px 26px -16px rgba(15,23,42,.22); }
+.pm-mod { box-shadow: 0 1px 2px rgba(15,23,42,.04); }

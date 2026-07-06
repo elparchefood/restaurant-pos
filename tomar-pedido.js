@@ -536,8 +536,22 @@ function tpComputePrice(){
     base = TP_WIP.pres ? (TP_WIP.pres.price || baseP) : baseP;
     base += Object.values(TP_WIP.vars).reduce((s,v)=>s+(v.price||0),0);
   }
-  const modX=Object.values(TP_WIP.mods).reduce((s,m)=>s+(m.price||0),0);
-  return (base+modX)*TP_WIP.qty;
+  const modX=Object.values(TP_WIP.mods).reduce((s,m)=>s+((m.price||0)*(m.qty||1)),0);
+  let subtotal = (base+modX)*TP_WIP.qty;
+  if (!TP_WIP.forHere) {
+    try {
+      const cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
+      if (cfg.empaquesActivo) {
+        const monto = cfg.empaqueTipo === 'porcentaje' ? (cfg.empaquePct||0) : (cfg.empaqueMonto||0);
+        if (cfg.empaqueBase === 'pedido') {
+          subtotal += cfg.empaqueTipo === 'porcentaje' ? Math.round(subtotal * monto / 100) : monto;
+        } else {
+          subtotal += cfg.empaqueTipo === 'porcentaje' ? Math.round((base+modX) * monto / 100) * TP_WIP.qty : monto * TP_WIP.qty;
+        }
+      }
+    } catch(e) {}
+  }
+  return subtotal;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -615,13 +629,13 @@ function pmBuildPresPane(p){
   return '<div class="pm-choice-grid">'+pres.map(pr=>{
     const on=TP_WIP.pres&&TP_WIP.pres.id===pr.id;
     const thumb=pr.photo_url
-      ?'<div class="pm-choice-thumb"><img src="'+pmAttr(pr.photo_url)+'" style="width:100%;height:100%;object-fit:cover"></div>'
-      :'<div class="pm-choice-thumb ph"><span>'+pmEsc(pr.name)+'</span></div>';
+      ?'<div class="pm-choice-thumb pm-thumb-img"><img src="'+pmAttr(pr.photo_url)+'" alt="'+pmAttr(pr.name)+'" style="width:100%;height:100%;object-fit:cover;display:block"><div class="pm-thumb-overlay"><div class="pm-thumb-name">'+pmEsc(pr.name)+'</div><div class="pm-thumb-price">'+priceLabel+'</div></div></div>'
+      :'<div class="pm-choice-thumb pm-thumb-ph"><svg width=\"32\" height=\"32\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#CBD5E1\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"3\"/><circle cx=\"8.5\" cy=\"8.5\" r=\"1.5\"/><polyline points=\"21 15 16 10 5 21\"/></svg></div>';
     const priceLabel=hasVars?'Incluido':(pr.price?pmFmt(pr.price):'Incluido');
     return '<button class="pm-choice'+(on?' on':'')+'" data-pres-id="'+pmAttr(pr.id)+'" data-pres-name="'+pmAttr(pr.name)+'" data-pres-price="'+(pr.price||0)+'">'
       +thumb
-      +'<div class="pm-choice-body"><div class="pm-choice-name">'+pmEsc(pr.name)+'</div>'
-      +'<div class="pm-choice-price">'+priceLabel+'</div></div>'
+      +(pr.photo_url?''  :'<div class="pm-choice-body"><div class="pm-choice-name">'+pmEsc(pr.name)+'</div>')
+      +(pr.photo_url?''  :'<div class="pm-choice-price">'+priceLabel+'</div></div>')
       +'<span class="pm-radio">'+(on?PM_SVG.check:'')+'</span>'
       +'</button>';
   }).join('')+'</div>';
@@ -653,8 +667,7 @@ function pmBuildCustomPane(p){
   const selParts=[presLabel,varLabels].filter(Boolean);
   const photoHTML=p.photo_url
     ?'<div class="pm-photo"><img src="'+pmAttr(p.photo_url)+'" style="width:100%;height:100%;object-fit:cover"></div>'
-    :'<div class="pm-photo" style="display:flex;align-items:center;justify-content:center;background:repeating-linear-gradient(135deg,#F1F5F9 0 10px,#F8FAFC 10px 20px)">'
-    +'<span style="font-size:40px;color:#CBD5E1">'+pmEsc((p.name||'?')[0].toUpperCase())+'</span></div>';
+    :'<div class="pm-photo pm-photo-ph"><svg width=\"40\" height=\"40\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#CBD5E1\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"3\"/><circle cx=\"8.5\" cy=\"8.5\" r=\"1.5\"/><polyline points=\"21 15 16 10 5 21\"/></svg></div>';
   const selSummary=selParts.length
     ?pmEsc(p.name)+' &middot; <span class="sel">'+pmEsc(selParts.join(' · '))+'</span>'
     :pmEsc(p.name);
@@ -663,12 +676,19 @@ function pmBuildCustomPane(p){
     ?modGroups.map(g=>{
         const maxHint=g.multi?'Max. '+(g.options||[]).length:'Elige una';
         const optRows=(g.options||[]).map(o=>{
-          const sel=!!TP_WIP.mods[o.id];
-          return '<button class="pm-mod'+(sel?' on':'')+'" data-mod-id="'+pmAttr(o.id)+'" data-mod-name="'+pmAttr(o.name)+'" data-mod-price="'+(o.price||0)+'">'
-            +'<div style="min-width:0;text-align:left"><div class="pm-mod-name">'+pmEsc(o.name)+'</div>'
+          const modEntry=TP_WIP.mods[o.id]; const modQty=modEntry?(modEntry.qty||0):0;
+          const grpOpts=(g.options||[]).map(opt=>opt.id);
+          const totalGroupQty=grpOpts.reduce((s,oid)=>s+((TP_WIP.mods[oid]&&TP_WIP.mods[oid].qty)||0),0);
+          const groupMax=g.multi?(g.max_total||(g.options||[]).length):1;
+          const canInc=totalGroupQty<groupMax;
+          return '<div class="pm-mod'+(modQty>0?' on':'')+\'" data-mod-id="'+pmAttr(o.id)+'">'
+            +'<div style="min-width:0;text-align:left;flex:1"><div class="pm-mod-name">'+pmEsc(o.name)+'</div>'
             +'<div class="pm-mod-price">'+(o.price?'+ '+pmFmt(o.price):'Gratis')+'</div></div>'
-            +'<span class="pm-mod-add">'+(sel?PM_SVG.check:PM_SVG.plus)+'</span>'
-            +'</button>';
+            +'<div class="pm-mod-qty-ctrl">'
+            +'<button class="pm-mod-dec"'+(modQty<=0?' disabled="disabled"':'')+' data-mod-dec="'+pmAttr(o.id)+'">−</button>'
+            +'<span class="pm-mod-qty-num">'+modQty+'</span>'
+            +'<button class="pm-mod-inc"'+(!canInc?' disabled="disabled"':'')+' data-mod-inc="'+pmAttr(o.id)+'" data-mod-name="'+pmAttr(o.name)+'" data-mod-price="'+(o.price||0)+'">+</button>'
+            +'</div></div>';
         }).join('');
         return '<div style="margin-top:14px">'
           +'<div class="pm-group-head"><span>'+pmEsc(g.name)+'</span><span class="pm-group-hint">'+maxHint+'</span></div>'
@@ -748,18 +768,39 @@ function pmAttachHandlers(inner,p,curId){
       btn.addEventListener('click',()=>{
         TP_WIP.forHere=btn.dataset.dest==='here';
         inner.querySelectorAll('.pm-seg button').forEach(b=>b.classList.toggle('on',b.dataset.dest===(TP_WIP.forHere?'here':'go')));
+        pmUpdatePrices(); // C3b: refresh price on llevar/mesa change
       });
     });
-    inner.querySelectorAll('.pm-mod').forEach(btn=>{
-      btn.addEventListener('click',()=>{
-        const id=btn.dataset.modId,name=btn.dataset.modName,price=+btn.dataset.modPrice;
-        if(TP_WIP.mods[id]) delete TP_WIP.mods[id]; else TP_WIP.mods[id]={name,price};
-        const on=!!TP_WIP.mods[id];
-        btn.classList.toggle('on',on);
-        btn.querySelector('.pm-mod-add').innerHTML=on?PM_SVG.check:PM_SVG.plus;
+    // C4: +/- qty handlers for modifier groups
+    inner.querySelectorAll("[data-mod-inc]").forEach(function(incBtn){
+      incBtn.addEventListener("click",function(e){
+        e.stopPropagation();
+        var id=incBtn.dataset.modInc, mname=incBtn.dataset.modName, price=parseFloat(incBtn.dataset.modPrice)||0;
+        var g=(p.mod_group_ids||[]).map(function(gid){return (S.modGroups||[]).find(function(g){return g.id===gid;});}).filter(Boolean)
+                 .find(function(g){return (g.options||[]).some(function(o){return o.id===id;});});
+        var groupMax=g?(g.max_total||(g.options||[]).length):999;
+        var grpOpts=g?(g.options||[]).map(function(o){return o.id;})  :[];
+        var totalGroupQty=grpOpts.reduce(function(s,oid){return s+((TP_WIP.mods[oid]&&TP_WIP.mods[oid].qty)||0);},0);
+        if(totalGroupQty>=groupMax) return;
+        if(!TP_WIP.mods[id]) TP_WIP.mods[id]={name:mname,price:price,qty:0};
+        TP_WIP.mods[id].qty=(TP_WIP.mods[id].qty||0)+1;
+        pmSyncModUI(inner,p);
         pmUpdatePrices();
-        const ms=document.getElementById('pm-mod-sum');
-        if(ms) ms.textContent=Object.values(TP_WIP.mods).map(m=>m.name).join(', ')||'Sin adiciones seleccionadas';
+        var ms=document.getElementById("pm-mod-sum");
+        if(ms) ms.textContent=Object.values(TP_WIP.mods).filter(function(m){return m.qty>0;}).map(function(m){return m.qty>1?m.qty+"x "+m.name:m.name;}).join(", ")||"Sin adiciones seleccionadas";
+      });
+    });
+    inner.querySelectorAll("[data-mod-dec]").forEach(function(decBtn){
+      decBtn.addEventListener("click",function(e){
+        e.stopPropagation();
+        var id=decBtn.dataset.modDec;
+        if(!TP_WIP.mods[id]||TP_WIP.mods[id].qty<=0) return;
+        TP_WIP.mods[id].qty--;
+        if(TP_WIP.mods[id].qty<=0) delete TP_WIP.mods[id];
+        pmSyncModUI(inner,p);
+        pmUpdatePrices();
+        var ms=document.getElementById("pm-mod-sum");
+        if(ms) ms.textContent=Object.values(TP_WIP.mods).filter(function(m){return m.qty>0;}).map(function(m){return m.qty>1?m.qty+"x "+m.name:m.name;}).join(", ")||"Sin adiciones seleccionadas";
       });
     });
     const sinp=document.getElementById('pm-search-inp');
@@ -771,6 +812,28 @@ function pmAttachHandlers(inner,p,curId){
       });
     });
   }
+}
+
+function pmSyncModUI(inner,p){
+  inner.querySelectorAll('[data-mod-id]').forEach(function(div){
+    var id=div.dataset.modId;
+    var entry=TP_WIP.mods[id];
+    var qty=entry?(entry.qty||0):0;
+    div.classList.toggle('on',qty>0);
+    var numEl=div.querySelector('.pm-mod-qty-num');
+    if(numEl) numEl.textContent=qty;
+    var decBtn=div.querySelector('[data-mod-dec]');
+    if(decBtn) decBtn.disabled=qty<=0;
+    var incBtn=div.querySelector('[data-mod-inc]');
+    if(incBtn){
+      var g=(p.mod_group_ids||[]).map(function(gid){return (S.modGroups||[]).find(function(g){return g.id===gid;});}).filter(Boolean)
+                .find(function(g){return (g.options||[]).some(function(o){return o.id===id;});});
+      var groupMax=g?(g.max_total||(g.options||[]).length):999;
+      var grpOpts=g?(g.options||[]).map(function(o){return o.id;})  :[];
+      var totalGroupQty=grpOpts.reduce(function(s,oid){return s+((TP_WIP.mods[oid]&&TP_WIP.mods[oid].qty)||0);},0);
+      incBtn.disabled=totalGroupQty>=groupMax;
+    }
+  });
 }
 
 function pmUpdatePrices(){
@@ -880,6 +943,8 @@ async function saveOrder() {
     }
 
     toast('Pedido guardado', 'ok');
+    // C5: Auto-imprimir comanda
+    if (typeof posAutoprint === 'function' && S.order && S.order.id) posAutoprint(S.order.id);
   } catch(e) {
     console.error('saveOrder:', e);
     toast('Error al guardar: ' + (e?.message || e), 'error');

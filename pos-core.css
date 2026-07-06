@@ -133,3 +133,17 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,system-ui,sans-serif
 .user-dropdown-item:hover{background:#F8FAFC}
 .user-dropdown-item--danger{color:#DC2626}
 .user-dropdown-item--danger:hover{background:#FEF2F2}
+
+/* ── RF9 / C7: Sistema de elevación compartido (Ronda 2) ──────────────────── */
+/* Tres niveles de sombra: sutil para tarjetas, medio para paneles, fuerte para modales */
+.el-1 { box-shadow: 0 1px 3px rgba(15,23,42,.07), 0 1px 2px rgba(15,23,42,.05); }
+.el-2 { box-shadow: 0 4px 12px rgba(15,23,42,.09), 0 2px 4px rgba(15,23,42,.05); }
+.el-3 { box-shadow: 0 12px 40px rgba(15,23,42,.14), 0 4px 12px rgba(15,23,42,.06); }
+.el-modal { box-shadow: 0 20px 60px rgba(15,23,42,.18), 0 8px 24px rgba(15,23,42,.08); }
+
+/* Aplicar el-1 a elementos de nivel tarjeta existentes en pos-core.css */
+.card { box-shadow: 0 1px 3px rgba(15,23,42,.07), 0 1px 2px rgba(15,23,42,.04); }
+.quick-btn { box-shadow: 0 1px 3px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04); }
+.mini-stat { box-shadow: 0 1px 2px rgba(15,23,42,.05); }
+.hero-card { box-shadow: 0 1px 3px rgba(15,23,42,.07), 0 1px 2px rgba(15,23,42,.04); }
+.support-card { box-shadow: 0 1px 4px rgba(91,107,255,.08); }
