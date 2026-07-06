@@ -343,7 +343,7 @@ async function handleSessionAction() {
 // ── Realtime ──────────────────────────────────────────
 
 // ═══════════════════════════════════════════════════════
-// LUMEN EXTRA — funciones de datos y render adicionales
+// COBRA EXTRA — funciones de datos y render adicionales
 // REGLA: Todo valor de negocio viene de Supabase.
 //        Con datos en cero se muestra toda la estructura.
 // ═══════════════════════════════════════════════════════
