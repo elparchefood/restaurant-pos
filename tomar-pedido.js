@@ -889,36 +889,10 @@ async function saveOrder() {
 
     let orderId = S.order?.id;
 
-    // Upsert pos_orders
-    if (!orderId) {
-      const { data, error } = await sb.from('pos_orders').insert({
-        tenant_id:   S.tenantId,
-        branch_id:   S.branchId,
-        table_id:    S.tableId,
-        waiter_id:   S.userId,
-        waiter_name: S.waiterName,
-        status:      'open',
-        channel:     'salon',
-        total:       grand,
-        guests:      S.personas,
-        opened_at:   new Date().toISOString(),
-      }).select().single();
-      if (error) throw error;
-      S.order = data;
-      orderId = data.id;
-      // Marcar mesa como ocupada
-      await sb.from('pos_tables').update({ status: 'ocupada' }).eq('id', S.tableId);
-    } else {
-      await sb.from('pos_orders').update({ total: grand, guests: S.personas }).eq('id', orderId);
-    }
-
-    // Sincronizar ítems
-    // Eliminar ítems con id (guardados) y re-insertar todos (simple y seguro)
-    await sb.from('pos_order_items').delete().eq('order_id', orderId);
-    const rows = S.cart.map(it => ({
+    const cartRows = S.cart.map(it => ({
       tenant_id:     S.tenantId,
       branch_id:     S.branchId,
-      order_id:      orderId,
+      order_id:      null, // se rellena abajo con el orderId real o temporal
       product_id:    it.productId,
       name:          it.name,
       product_name:  it.name,
@@ -930,21 +904,70 @@ async function saveOrder() {
       status:        'pending',
       selections:    it.selections || {},
     }));
-    const { error: itemsErr } = await sb.from('pos_order_items').insert(rows);
-    if (itemsErr) throw itemsErr;
 
-    // Actualizar ids en carrito
-    const { data: fresh } = await sb.from('pos_order_items').select('id, product_id, name').eq('order_id', orderId);
-    if (fresh) {
-      S.cart.forEach(it => {
-        const row = fresh.find(r => r.product_id === it.productId && r.name === it.name);
-        if (row) it.id = row.id;
-      });
+    if (!orderId) {
+      // ── Orden nueva: usar batch offline-safe ────────────────
+      const orderData = {
+        tenant_id:   S.tenantId,
+        branch_id:   S.branchId,
+        table_id:    S.tableId,
+        waiter_id:   S.userId,
+        waiter_name: S.waiterName,
+        status:      'open',
+        channel:     'salon',
+        total:       grand,
+        guests:      S.personas,
+        opened_at:   new Date().toISOString(),
+      };
+      const itemsData = cartRows.map(r => ({ ...r })); // order_id se asigna en el batch
+
+      const sync = window.posSync
+        ? await posSync.writeOrderBatch(
+            orderData,
+            itemsData,
+            { id: S.tableId },
+            { status: 'ocupada' }
+          )
+        : await (async () => {
+            const { data, error } = await sb.from('pos_orders').insert(orderData).select().single();
+            if (error) throw error;
+            const oid = data.id;
+            await sb.from('pos_tables').update({ status: 'ocupada' }).eq('id', S.tableId);
+            await sb.from('pos_order_items').insert(itemsData.map(r => ({ ...r, order_id: oid })));
+            return { ok: true, offline: false, orderId: oid };
+          })();
+
+      if (!sync.ok) throw new Error('No se pudo guardar la orden');
+      orderId = sync.orderId;
+      S.order = { id: orderId, _offline: sync.offline };
+    } else {
+      // ── Orden existente: actualizar totales e ítems ─────────
+      if (window.posSync) {
+        await posSync.write('pos_orders', 'update', { total: grand, guests: S.personas }, { id: orderId });
+        await posSync.write('pos_order_items', 'delete', {}, { order_id: orderId });
+        await posSync.write('pos_order_items', 'insert', cartRows.map(r => ({ ...r, order_id: orderId })));
+      } else {
+        await sb.from('pos_orders').update({ total: grand, guests: S.personas }).eq('id', orderId);
+        await sb.from('pos_order_items').delete().eq('order_id', orderId);
+        const { error: itemsErr } = await sb.from('pos_order_items').insert(cartRows.map(r => ({ ...r, order_id: orderId })));
+        if (itemsErr) throw itemsErr;
+      }
     }
 
-    toast('Pedido guardado', 'ok');
-    // C5: Auto-imprimir comanda
-    if (typeof posAutoprint === 'function' && S.order && S.order.id) posAutoprint(S.order.id);
+    // Actualizar ids en carrito (solo si estamos online y hay id real de Supabase)
+    if (!S.order?._offline) {
+      const { data: fresh } = await sb.from('pos_order_items').select('id, product_id, name').eq('order_id', orderId);
+      if (fresh) {
+        S.cart.forEach(it => {
+          const row = fresh.find(r => r.product_id === it.productId && r.name === it.name);
+          if (row) it.id = row.id;
+        });
+      }
+    }
+
+    toast('Pedido guardado' + (S.order?._offline ? ' (sin conexión)' : ''), 'ok');
+    // C5: Auto-imprimir comanda (solo si hay id real de Supabase)
+    if (typeof posAutoprint === 'function' && S.order?.id && !S.order._offline) posAutoprint(S.order.id);
   } catch(e) {
     console.error('saveOrder:', e);
     toast('Error al guardar: ' + (e?.message || e), 'error');

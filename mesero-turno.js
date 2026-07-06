@@ -12,6 +12,7 @@ const SUPABASE_URL = 'https://tblujfduscslxjmrjbdr.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+window._posSB = sb; // para posSync cuando no hay pos-core.js
 
 // ── Refs DOM ─────────────────────────────────────────────
 const avatarEl       = document.getElementById('turno-avatar');
@@ -141,23 +142,31 @@ function mostrarSinTurno() {
 async function iniciarTurno() {
   setLoadingPrimary(true);
   try {
-    const { data, error } = await sb
-      .from('pos_shifts')
-      .insert({
-        waiter_id:  perfil.id,
-        branch_id:  perfil.branch_id,
-        tenant_id:  perfil.tenant_id,
-        status:     'active',
-        started_at: new Date().toISOString(),
-      })
-      .select('id, started_at')
-      .single();
+    const shiftData = {
+      waiter_id:  perfil.id,
+      branch_id:  perfil.branch_id,
+      tenant_id:  perfil.tenant_id,
+      status:     'active',
+      started_at: new Date().toISOString(),
+    };
 
-    if (error) { console.error('[turno] insert error:', JSON.stringify(error)); showToast('Error: ' + (error.message || error.code || JSON.stringify(error))); setLoadingPrimary(false); return; }
+    const syncResult = window.posSync
+      ? await posSync.write('pos_shifts', 'insert', shiftData)
+      : await (async () => {
+          const r = await sb.from('pos_shifts').insert(shiftData).select('id, started_at').single();
+          return { ok: !r.error, data: r.data };
+        })();
 
-    turnoActivo = data;
-    mostrarTurnoActivo(data);
-    showToast('¡Turno iniciado!');
+    if (!syncResult.ok) { showToast('Error al iniciar turno'); setLoadingPrimary(false); return; }
+
+    if (syncResult.offline) {
+      // Offline: crear turno provisional para la UI
+      turnoActivo = { id: posSync.makeTempId(), started_at: shiftData.started_at };
+    } else {
+      turnoActivo = Array.isArray(syncResult.data) ? syncResult.data[0] : syncResult.data;
+    }
+    mostrarTurnoActivo(turnoActivo);
+    showToast(syncResult.offline ? '¡Turno iniciado! (se sincronizará al reconectar)' : '¡Turno iniciado!');
   } catch (e) {
     console.error('[turno] Error al iniciar:', e);
     showToast('No se pudo iniciar el turno. Intenta de nuevo.');
@@ -175,12 +184,14 @@ async function cerrarTurno() {
 
   btnCerrar.disabled = true;
   try {
-    const { error } = await sb
-      .from('pos_shifts')
-      .update({ status: 'closed', ended_at: new Date().toISOString() })
-      .eq('id', turnoActivo.id);
+    const syncResult = window.posSync
+      ? await posSync.write('pos_shifts', 'update', { status: 'closed', ended_at: new Date().toISOString() }, { id: turnoActivo.id })
+      : await (async () => {
+          const r = await sb.from('pos_shifts').update({ status: 'closed', ended_at: new Date().toISOString() }).eq('id', turnoActivo.id);
+          return { ok: !r.error };
+        })();
 
-    if (error) throw error;
+    if (!syncResult.ok) throw new Error('sync failed');
 
     clearInterval(tickInterval);
     turnoActivo = null;

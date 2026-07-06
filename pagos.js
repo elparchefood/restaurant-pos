@@ -293,8 +293,17 @@ async function cobrarDespues() {
     const vueltoTotal = SP.payments.reduce((s, p) => s + Math.max(0, (p.received || p.amount) - p.amount), 0);
     const now         = new Date().toISOString();
 
+    const _write = window.posSync
+      ? (t, op, d, m) => posSync.write(t, op, d, m)
+      : async (t, op, d, m) => {
+          let q = sb.from(t);
+          if (op === 'update') { q = q.update(d); if (m) for (const [c,v] of Object.entries(m)) q = q.eq(c,v); }
+          else if (op === 'insert') q = q.insert(d);
+          const r = await q; return { ok: !r.error };
+        };
+
     // 1. Marcar pedido como pagado con todos los datos financieros
-    await sb.from('pos_orders').update({
+    await _write('pos_orders', 'update', {
       status:          'paid',
       payment_method:  payMethod,
       closed_at:       now,
@@ -303,7 +312,7 @@ async function cobrarDespues() {
       discount_motivo: SP.discountObj?.motivo || null,
       tip_amount:      tipAmt,
       vuelto_total:    vueltoTotal,
-    }).eq('id', SP.orderId);
+    }, { id: SP.orderId });
 
     // 2. Insertar desglose de pagos (uno por método)
     if (SP.payments.length > 0) {
@@ -316,24 +325,24 @@ async function cobrarDespues() {
         received:  p.received || p.amount,
         vuelto:    Math.max(0, (p.received || p.amount) - p.amount),
       }));
-      await sb.from('pos_payments').insert(payRows);
+      await _write('pos_payments', 'insert', payRows);
     }
 
     // 3. Actualizar mesa según modo de cobro (solo si hay mesa)
     if (SP.tableId) {
       if (!SP.adelantado) {
-        await sb.from('pos_tables').update({
+        await _write('pos_tables', 'update', {
           status:           'libre',
           current_order_id: null,
           esperando_at:     null,
           comiendo_method:  null,
-        }).eq('id', SP.tableId);
+        }, { id: SP.tableId });
       } else {
-        await sb.from('pos_tables').update({
+        await _write('pos_tables', 'update', {
           status:       'esperando',
           esperando_at: new Date().toISOString(),
-        }).eq('id', SP.tableId);
-        await sb.from('pos_orders').update({ visible_cocina: true }).eq('id', SP.orderId);
+        }, { id: SP.tableId });
+        await _write('pos_orders', 'update', { visible_cocina: true }, { id: SP.orderId });
       }
     }
 
