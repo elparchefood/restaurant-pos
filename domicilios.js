@@ -65,7 +65,7 @@ const S = {
   favorites: [],
   modGroups: [],
   domiciliarios: [],
-  clientes:  JSON.parse(localStorage.getItem('lumen.domi.clientes') || '[]'),
+  clientes:  JSON.parse(localStorage.getItem('pos.domi.clientes') || '[]'),
   deliveries: [],
 };
 
@@ -1013,7 +1013,7 @@ function guardarCliente() {
     S.cliente = newCli;
   }
 
-  localStorage.setItem('lumen.domi.clientes', JSON.stringify(S.clientes));
+  localStorage.setItem('pos.domi.clientes', JSON.stringify(S.clientes));
   closeModal('modal-nuevocli');
   renderCliList('');
   renderClienteCard();
