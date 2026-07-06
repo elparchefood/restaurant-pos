@@ -946,8 +946,9 @@
 
     const bgColor = isLibre ? '#fff' : meta.tint;
     const borderColor = isSelected ? meta.color : (isLibre ? '#ECEEF2' : meta.ring);
-    const boxShadow = isSelected ? `0 0 0 3px ${meta.color}33` : 'none';
-    const selectedStyle = `background:${bgColor};border-color:${borderColor};box-shadow:${boxShadow}`;
+    // Solo inyectar box-shadow inline cuando está seleccionada (ring de color);
+    // el resto lo maneja el CSS para que la sombra de elevación sea visible.
+    const selectedStyle = `background:${bgColor};border-color:${borderColor}${isSelected ? `;box-shadow:0 0 0 3px ${meta.color}33` : ''}`;
 
     const isEsperando = t.status === 'esperando';
     const footerHtml = isLibre
