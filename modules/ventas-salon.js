@@ -304,6 +304,8 @@
         if (c.zones && c.zones.length) return c.zones;
       }
     } catch(e) {}
+    // Si el fallback de Supabase ya pobló state.zones, usarlo
+    if (state.zones && state.zones.length) return state.zones;
     return [{ id: 'z_adentro', name: 'Adentro' }];
   }
 
@@ -336,21 +338,35 @@
       };
     });
 
-    // B6 fix: if localStorage has no tables, fetch directly from pos_tables
+    // Fallback: si localStorage no tiene mesas, leer desde Supabase con zone_id/zone_name/sort_order
     if (!baseTables.length) {
       try {
         var sbFallback = window._pos && window._pos.sb;
         var branchFallback = window._pos && window._pos.state && window._pos.state.branchId;
         if (sbFallback && branchFallback) {
-          var fbResult = await sbFallback.from('pos_tables')
-            .select('id, name, status, current_order_id, branch_id')
-            .eq('branch_id', branchFallback);
+          var fbResult = await sbFallback
+            .from('pos_tables')
+            .select('id, name, status, current_order_id, zone_id, zone_name, sort_order, capacity')
+            .eq('branch_id', branchFallback)
+            .order('sort_order', { ascending: true });
           var fbRows = fbResult.data || [];
           if (fbRows.length) {
-            return fbRows.map(function(t, i) {
-              return { id: t.id, name: t.name || ('Mesa ' + (i+1)), number: parseInt(t.name,10)||(i+1),
-                seats: 4, zone_id: 'z_adentro', status: t.status || 'libre',
-                total: 0, items_count: 0, minutes: 0, mesero_initials: '', persons: 0, openedAt: null };
+            // Reconstruir zonas únicas en orden para el estado global
+            var zonesMap = {};
+            fbRows.forEach(function(t) {
+              var zid = t.zone_id || 'z_adentro';
+              if (!zonesMap[zid]) zonesMap[zid] = { id: zid, name: t.zone_name || zid };
+            });
+            state.zones = Object.values(zonesMap);
+            return fbRows.map(function(t) {
+              return {
+                id: t.id, name: t.name || ('Mesa ' + t.number),
+                number: parseInt(t.name, 10) || t.number || 1,
+                seats: t.capacity || 4,
+                zone_id: t.zone_id || 'z_adentro',
+                status: t.status || 'libre',
+                total: 0, items_count: 0, minutes: 0, mesero_initials: '', persons: 0, openedAt: null
+              };
             });
           }
         }
@@ -620,7 +636,7 @@
           </button>
           <button class="lm-nav" style="color:#475569" data-action="nav-domicilio">
             <span class="lm-nav-inner">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L8 7H5a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h1l-2 5h14l-2-5h1a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-3L12 2z"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/><path d="M14 3h4l3 5h-7z"/><path d="M21 8v6a2 2 0 0 1-2 2h-1"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M9 17h6"/></svg>
               <span style="font-weight:500">Domicilio express</span>
             </span>
           </button>

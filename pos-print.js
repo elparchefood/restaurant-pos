@@ -65,7 +65,39 @@
       + '</body></html>';
   }
 
-  function _printHtml(html) {
+  var _printerCache = null;
+  var _printerCacheTs = 0;
+
+  async function _getTargetPrinter(docType) {
+    try {
+      var sb = window._pos && window._pos.sb;
+      var branchId = (window._pos.state && window._pos.state.branchId) || localStorage.getItem('pos.branchId');
+      if (!sb || !branchId) return '';
+      var now = Date.now();
+      if (!_printerCache || now - _printerCacheTs > 30000) {
+        var cfg = await sb.from('pos_print_config').select('same_printer_for_all, default_system_printer').eq('branch_id', branchId).maybeSingle();
+        var prs = await sb.from('pos_printers').select('system_name, area, is_default').eq('branch_id', branchId);
+        _printerCache = { cfg: (cfg && cfg.data) || {}, printers: (prs && prs.data) || [] };
+        _printerCacheTs = now;
+      }
+      if (_printerCache.cfg.same_printer_for_all) return _printerCache.cfg.default_system_printer || '';
+      var area = (docType === 'comanda') ? 'cocina' : 'caja';
+      var match = _printerCache.printers.find(function(p) { return p.area === area && p.is_default; });
+      if (!match) match = _printerCache.printers.find(function(p) { return p.area === area; });
+      return (match && match.system_name) ? match.system_name : '';
+    } catch(e) { return ''; }
+  }
+
+  async function _printHtml(html, docType) {
+    if (window.electronPOS && window.electronPOS.printHtmlSilent) {
+      try {
+        var printerName = await _getTargetPrinter(docType || 'comanda');
+        var result = await window.electronPOS.printHtmlSilent(html, printerName);
+        if (result && result.ok) return;
+        console.warn('[posprint] silent print falló, fallback web:', result && result.error);
+      } catch(e) { console.warn('[posprint] silent print excepción:', e); }
+    }
+    // Fallback: impresión web normal (abre diálogo)
     var existing = document.getElementById('pos-print-frame');
     if (existing) existing.remove();
     var iframe = document.createElement('iframe');
@@ -119,7 +151,7 @@
     var items = (order.pos_order_items || []).map(function(it) {
       return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', mods: Array.isArray(it.mods) ? it.mods : [] };
     });
-    _printHtml(_buildComanda({ table: order.table_id || order.table_name || '-', channel: order.channel }, items));
+    _printHtml(_buildComanda({ table: order.table_id || order.table_name || '-', channel: order.channel }, items), 'comanda');
   };
 
   window.posOpenPrintModal = function(orderId) {
@@ -169,7 +201,7 @@
       } catch(e) {}
       html = _buildReceiptFinal(orderData, items, payments);
     }
-    if (html) _printHtml(html);
+    if (html) _printHtml(html, type === 'comanda' ? 'comanda' : 'recibo');
   };
 
 })();

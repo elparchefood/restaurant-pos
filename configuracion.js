@@ -71,16 +71,22 @@ async function syncToSupabase() {
 
     var localIds = S.tables.map(function(t){ return t.id; });
 
+    // Mapa de zona para resolver zone_name
+    var zoneNameMap = {};
+    S.zones.forEach(function(z){ zoneNameMap[z.id] = z.name; });
+
     // 1. Insertar mesas nuevas (no existen en Supabase)
     var toInsert = S.tables.filter(function(t){ return !existingMap[t.id]; }).map(function(t, idx){
       return {
-        id: t.id,
-        name: t.name,
-        number: parseInt(t.name, 10) || (idx + 1),
-        seats: t.seats,
-        zone_id: t.zoneId,
-        branch_id: branchId,
-        status: 'libre'
+        id:         t.id,
+        name:       t.name,
+        number:     parseInt(t.name, 10) || (idx + 1),
+        capacity:   t.seats || 4,
+        zone_id:    t.zoneId || 'z_adentro',
+        zone_name:  zoneNameMap[t.zoneId] || t.zoneId || 'Adentro',
+        sort_order: S.tables.indexOf(t),
+        branch_id:  branchId,
+        status:     'libre'
       };
     });
     if (toInsert.length) {
@@ -92,7 +98,14 @@ async function syncToSupabase() {
     for (var i = 0; i < toUpdate.length; i++) {
       var t = toUpdate[i];
       await sb.from('pos_tables')
-        .update({ name: t.name, number: parseInt(t.name, 10) || i + 1, seats: t.seats, zone_id: t.zoneId })
+        .update({
+          name:       t.name,
+          number:     parseInt(t.name, 10) || i + 1,
+          capacity:   t.seats || 4,
+          zone_id:    t.zoneId || 'z_adentro',
+          zone_name:  zoneNameMap[t.zoneId] || t.zoneId || 'Adentro',
+          sort_order: S.tables.indexOf(t)
+        })
         .eq('id', t.id);
     }
 

@@ -9,9 +9,10 @@ const CPL = { 58: 32, 80: 48 };
 /* ── Estado ── */
 // sb es global de pos-core.js
 let currentUser, branchId, tenantId, brandName, branchName, userName, userInitials;
-let printers   = [];
-let config     = null;
-let dirty      = false;
+let printers       = [];
+let systemPrinters = [];  // Impresoras reales detectadas vía Electron
+let config         = null;
+let dirty          = false;
 
 /* ════════════════════════════════════════
    CARGA DE DATOS
@@ -24,6 +25,15 @@ async function loadAndRender() {
   applyConfigToUI();
   bindGlobalEvents();
   clearDirty();
+  // Detectar impresoras del sistema si estamos en Electron
+  if (window.electronPOS) {
+    detectSystemPrinters();
+  } else {
+    var btn = document.getElementById('btn-detect-printers');
+    if (btn) btn.style.display = 'none';
+    var hint = document.getElementById('imp-electron-hint');
+    if (hint) hint.textContent = 'La detección de impresoras del sistema solo está disponible en el ejecutable.';
+  }
 }
 
 async function loadBranchInfo() {
@@ -69,9 +79,35 @@ function defaultConfig() {
     paper_width: 80, font_size: 'normal', comanda_model: 'estandar',
     content_orden: true, content_canal: true, content_prep: true,
     content_cliente: true, content_notas: true, content_precio: false,
-    auto_print: true, copies: 1, cut: 'total'
+    auto_print: true, copies: 1, cut: 'total',
+    same_printer_for_all: false, default_system_printer: ''
   };
 }
+
+async function detectSystemPrinters() {
+  try {
+    var btn = document.getElementById('btn-detect-printers');
+    var hint = document.getElementById('imp-electron-hint');
+    if (btn) { btn.disabled = true; btn.textContent = 'Detectando…'; }
+    var list = await window.electronPOS.getPrinters();
+    systemPrinters = (list || []).filter(function(p) { return p && (p.displayName || p.name); });
+    if (hint) {
+      hint.textContent = systemPrinters.length
+        ? systemPrinters.length + ' impresora' + (systemPrinters.length > 1 ? 's' : '') + ' detectada' + (systemPrinters.length > 1 ? 's' : '')
+        : 'No se encontraron impresoras instaladas.';
+    }
+    if (btn) { btn.disabled = false; btn.innerHTML = SVG_SCAN + ' Detectar de nuevo'; }
+    renderPrinterList();
+    applyConfigToUI();
+  } catch(e) {
+    var hint2 = document.getElementById('imp-electron-hint');
+    if (hint2) hint2.textContent = 'Error al detectar impresoras: ' + e.message;
+    var btn2 = document.getElementById('btn-detect-printers');
+    if (btn2) { btn2.disabled = false; btn2.innerHTML = SVG_SCAN + ' Detectar de nuevo'; }
+  }
+}
+
+var SVG_SCAN = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6V2h4"/><path d="M23 6V2h-4"/><path d="M1 18v4h4"/><path d="M23 18v4h-4"/><rect x="7" y="7" width="10" height="10"/></svg>';
 
 /* ════════════════════════════════════════
    RENDERIZADO DEL SHELL (sidebar / topbar)
@@ -104,17 +140,36 @@ const SVG = {
 };
 
 function renderPrinterCard(p) {
-  const areas = ['cocina','barra','caja'];
-  const areaButtons = areas.map(a =>
-    `<button class="imp-seg-btn${p.area===a?' on':''}" data-area="${a}"><span>${a.charAt(0).toUpperCase()+a.slice(1)}</span></button>`
+  // Área: presets rápidos + campo libre
+  const AREA_PRESETS = ['cocina','barra','caja'];
+  const isPreset = AREA_PRESETS.includes(p.area);
+  const areaPresetBtns = AREA_PRESETS.map(a =>
+    `<button class="imp-seg-btn${p.area===a?' on':''}" data-area="${a}" title="${a.charAt(0).toUpperCase()+a.slice(1)}"><span>${a.charAt(0).toUpperCase()+a.slice(1)}</span></button>`
   ).join('');
+
+  // system_name: dropdown de impresoras reales si hay alguna detectada
+  const sysOpts = systemPrinters.map(function(sp) {
+    var nm = sp.displayName || sp.name || '';
+    var selected = nm === p.system_name ? ' selected' : '';
+    return `<option value="${esc(nm)}"${selected}>${esc(nm)}</option>`;
+  }).join('');
+  const sysSelect = `<select class="cf-input imp-sys-sel" data-field="system_name">
+    <option value=""${!p.system_name?' selected':''}>— Sin asignar (impresora predeterminada del sistema) —</option>
+    ${sysOpts}
+  </select>`;
+  const sysFieldLabel = window.electronPOS
+    ? `<span class="imp-pr-field-lbl" title="Impresora real de Windows a usar al imprimir">🖨 Impresora del sistema</span>`
+    : `<span class="imp-pr-field-lbl" style="color:var(--ink-4)" title="Solo disponible en el ejecutable">🖨 Impresora del sistema</span>`;
+  const sysFieldHint = !window.electronPOS
+    ? `<span style="font-size:11px;color:var(--ink-4)">Solo en el ejecutable</span>` : '';
+
   const defBtn = p.is_default
     ? `<button class="imp-chip on" disabled>${SVG.star} Predeterminada</button>`
     : `<button class="imp-chip" data-action="set-default">${SVG.star} Hacer predeterminada</button>`;
   const badge = p.is_default ? `<span class="imp-def-badge">${SVG.star} Predeterminada</span>` : '';
 
   return `
-    <div class="imp-printer" data-printer="${p.id}" data-area="${p.area}">
+    <div class="imp-printer" data-printer="${p.id}" data-area="${esc(p.area||'cocina')}">
       <div class="imp-pr-head">
         <span class="imp-pr-icon">${SVG.printer}</span>
         <input class="imp-name" value="${esc(p.name)}" placeholder="Nombre de la impresora">
@@ -130,11 +185,19 @@ function renderPrinterCard(p) {
           <span class="imp-pr-field-lbl">${SVG.model} Modelo</span>
           <input class="cf-input" value="${esc(p.model)}" placeholder="Ej. Epson TM-T20III" data-field="model">
         </label>
+        <label class="imp-pr-field" style="grid-column:1/-1">
+          ${sysFieldLabel}
+          ${window.electronPOS ? sysSelect : `<input class="cf-input" value="${esc(p.system_name)}" placeholder="Detectar desde el ejecutable" disabled data-field="system_name">`}
+          ${sysFieldHint}
+        </label>
       </div>
       <div class="imp-pr-foot">
         <div class="imp-pr-area">
           <span class="imp-pr-field-lbl">Área</span>
-          <div class="imp-seg" data-seg="area">${areaButtons}</div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <div class="imp-seg" data-seg="area">${areaPresetBtns}</div>
+            <input class="cf-input imp-area-custom" style="width:100px;padding:5px 8px;font-size:12px" value="${!isPreset?esc(p.area):''}" placeholder="Área personalizada" data-field="area_custom" title="Escribe un área personalizada (ej: mostrador, vidriera)">
+          </div>
         </div>
         <div class="imp-pr-actions">
           ${defBtn}
@@ -189,10 +252,37 @@ function bindPrinterEvents() {
     });
   });
 
+  // Dropdown de impresora del sistema
+  list.querySelectorAll('select[data-field="system_name"]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const p = getPrinter(sel); if (!p) return;
+      p.system_name = sel.value; markDirty();
+    });
+  });
+
+  // Área personalizada (text input)
+  list.querySelectorAll('.imp-area-custom').forEach(input => {
+    input.addEventListener('input', () => {
+      const p = getPrinter(input); if (!p) return;
+      if (input.value.trim()) {
+        p.area = input.value.trim();
+        // Desmarcar presets
+        const card = input.closest('[data-printer]');
+        card.querySelectorAll('.imp-seg[data-seg="area"] .imp-seg-btn').forEach(b => b.classList.remove('on'));
+        markDirty();
+      }
+    });
+  });
+
   list.querySelectorAll('.imp-seg[data-seg="area"] .imp-seg-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const p = getPrinter(btn); if (!p) return;
-      p.area = btn.dataset.area; markDirty(); renderPrinterList();
+      p.area = btn.dataset.area;
+      // Limpiar campo personalizado
+      const card = btn.closest('[data-printer]');
+      const custom = card.querySelector('.imp-area-custom');
+      if (custom) custom.value = '';
+      markDirty(); renderPrinterList();
     });
   });
 
@@ -205,9 +295,18 @@ function bindPrinterEvents() {
   });
 
   list.querySelectorAll('[data-action="test"]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const p = getPrinter(btn);
-      if (p) toast(`Imprimiendo prueba en "${p.name}"…`);
+      if (!p) return;
+      toast(`Enviando prueba a "${p.name}"…`);
+      if (window.electronPOS && window.electronPOS.printHtmlSilent) {
+        const testHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:monospace;font-size:13px;width:80mm;margin:0;padding:12px;text-align:center}hr{border:none;border-top:1px dashed #000;margin:8px 0}</style></head><body><div style="font-size:16px;font-weight:bold;margin-bottom:4px">COBRA POS</div><div style="font-size:11px;color:#555;margin-bottom:8px">Impresora de prueba</div><hr><div style="font-size:13px;margin:4px 0"><b>Impresora:</b> ${p.name}</div><div style="font-size:13px;margin:4px 0"><b>Área:</b> ${p.area || '—'}</div><div style="font-size:11px;color:#555;margin:4px 0">Sistema: ${p.system_name || 'Predeterminada'}</div><hr><div style="font-size:10px;color:#888;margin-top:6px">** TEST OK **</div></body></html>`;
+        const res = await window.electronPOS.printHtmlSilent(testHtml, p.system_name || '');
+        if (res && res.ok) toast(`✓ Test enviado a "${p.system_name || 'impresora predeterminada'}"`);
+        else toast(`Error en test: ${(res && res.error) || 'desconocido'}`);
+      } else {
+        toast('Test de impresión solo disponible en el ejecutable.');
+      }
     });
   });
 
@@ -236,7 +335,7 @@ function addPrinter() {
   printers.push({
     id: 'new_' + Math.random().toString(36).slice(2),
     branch_id: branchId, tenant_id: tenantId,
-    name: '', conn: '', model: '', area: 'cocina', is_default: false
+    name: '', conn: '', model: '', area: 'cocina', is_default: false, system_name: ''
   });
   markDirty(); renderPrinterList();
 }
@@ -387,6 +486,23 @@ function applyConfigToUI() {
   document.querySelectorAll('.imp-cut').forEach(c =>
     c.classList.toggle('on', c.dataset.cut === config.cut));
 
+  // Misma impresora para todo
+  const swSame = document.getElementById('sw-same-printer');
+  if (swSame) {
+    swSame.classList.toggle('on', !!config.same_printer_for_all);
+    swSame.setAttribute('aria-pressed', String(!!config.same_printer_for_all));
+  }
+  const samePrinterRow = document.getElementById('same-printer-select-row');
+  if (samePrinterRow) samePrinterRow.style.display = config.same_printer_for_all ? 'flex' : 'none';
+  const selDefault = document.getElementById('sel-default-printer');
+  if (selDefault) {
+    selDefault.innerHTML = '<option value="">— Predeterminada del sistema —</option>'
+      + systemPrinters.map(function(sp) {
+          var nm = sp.displayName || sp.name || '';
+          return `<option value="${esc(nm)}"${nm === config.default_system_printer ? ' selected' : ''}>${esc(nm)}</option>`;
+        }).join('');
+  }
+
   updatePreview();
 }
 
@@ -402,19 +518,21 @@ async function saveAll() {
     // 1. Guardar config
     const configPayload = {
       branch_id: branchId, tenant_id: tenantId,
-      paper_width:      config.paper_width,
-      font_size:        config.font_size,
-      comanda_model:    config.comanda_model,
-      content_orden:    config.content_orden,
-      content_canal:    config.content_canal,
-      content_prep:     config.content_prep,
-      content_cliente:  config.content_cliente,
-      content_notas:    config.content_notas,
-      content_precio:   config.content_precio,
-      auto_print:       config.auto_print,
-      copies:           config.copies,
-      cut:              config.cut,
-      updated_at:       new Date().toISOString()
+      paper_width:              config.paper_width,
+      font_size:                config.font_size,
+      comanda_model:            config.comanda_model,
+      content_orden:            config.content_orden,
+      content_canal:            config.content_canal,
+      content_prep:             config.content_prep,
+      content_cliente:          config.content_cliente,
+      content_notas:            config.content_notas,
+      content_precio:           config.content_precio,
+      auto_print:               config.auto_print,
+      copies:                   config.copies,
+      cut:                      config.cut,
+      same_printer_for_all:     config.same_printer_for_all,
+      default_system_printer:   config.default_system_printer,
+      updated_at:               new Date().toISOString()
     };
     await sb.from('pos_print_config').upsert(configPayload, { onConflict: 'branch_id' });
 
@@ -423,14 +541,14 @@ async function saveAll() {
       if (p.id.startsWith('new_')) {
         const { data } = await sb.from('pos_printers').insert({
           branch_id: branchId, tenant_id: tenantId,
-          name: p.name || 'Nueva impresora', conn: p.conn, model: p.model,
-          area: p.area, is_default: p.is_default
+          name: p.name || 'Nueva impresora', conn: p.conn || '', model: p.model || '',
+          area: p.area || 'cocina', is_default: p.is_default, system_name: p.system_name || ''
         }).select().single();
         if (data) p.id = data.id;
       } else {
         await sb.from('pos_printers').update({
-          name: p.name, conn: p.conn, model: p.model,
-          area: p.area, is_default: p.is_default
+          name: p.name, conn: p.conn || '', model: p.model || '',
+          area: p.area || 'cocina', is_default: p.is_default, system_name: p.system_name || ''
         }).eq('id', p.id);
       }
     }
@@ -451,6 +569,28 @@ async function saveAll() {
 ════════════════════════════════════════ */
 function bindGlobalEvents() {
   document.getElementById('btn-add-printer').addEventListener('click', addPrinter);
+
+  // Detectar impresoras del sistema
+  const btnDetect = document.getElementById('btn-detect-printers');
+  if (btnDetect) btnDetect.addEventListener('click', detectSystemPrinters);
+
+  // Toggle "misma impresora para todo"
+  const swSame = document.getElementById('sw-same-printer');
+  if (swSame) swSame.addEventListener('click', () => {
+    config.same_printer_for_all = !config.same_printer_for_all;
+    swSame.classList.toggle('on', config.same_printer_for_all);
+    swSame.setAttribute('aria-pressed', String(config.same_printer_for_all));
+    const row = document.getElementById('same-printer-select-row');
+    if (row) row.style.display = config.same_printer_for_all ? 'flex' : 'none';
+    markDirty();
+  });
+
+  // Selector de impresora predeterminada
+  const selDefault = document.getElementById('sel-default-printer');
+  if (selDefault) selDefault.addEventListener('change', () => {
+    config.default_system_printer = selDefault.value;
+    markDirty();
+  });
 
   document.getElementById('seg-paper').addEventListener('click', e => {
     const btn = e.target.closest('.imp-seg-btn'); if (!btn) return;

@@ -123,6 +123,16 @@
               </div>
             </div>
             <div class="op-card-body">
+              <div class="op-row" style="align-items:flex-start;gap:12px;flex-wrap:wrap">
+                <div class="op-row-text">
+                  <div class="op-label">Impresoras del sistema</div>
+                  <div class="op-hint" id="imp-electron-hint">Detecta las impresoras instaladas en este equipo para asignarlas a cada área.</div>
+                </div>
+                <button class="lm-btn-ghost" id="btn-detect-printers" style="white-space:nowrap;flex-shrink:0">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6V2h4"/><path d="M23 6V2h-4"/><path d="M1 18v4h4"/><path d="M23 18v4h-4"/><rect x="7" y="7" width="10" height="10"/></svg>
+                  Detectar impresoras del sistema
+                </button>
+              </div>
               <div class="imp-legend" id="imp-legend"></div>
               <div class="imp-printer-list" id="imp-printer-list"></div>
             </div>
@@ -276,6 +286,16 @@
               </div>
             </div>
             <div class="op-card-body">
+              <div class="op-row">
+                <div class="op-row-text"><div class="op-label">Misma impresora para todo</div><div class="op-hint">Activado: todos los documentos van a una sola impresora. Desactivado: cada área usa la suya.</div></div>
+                <button class="cf-switch" id="sw-same-printer" aria-pressed="false"><span class="cf-switch-knob"></span></button>
+              </div>
+              <div class="op-row" id="same-printer-select-row" style="display:none;align-items:center">
+                <div class="op-row-text"><div class="op-label">Impresora para todos los documentos</div><div class="op-hint">Comanda, recibo con descripción y recibo final irán aquí.</div></div>
+                <select class="cf-input" id="sel-default-printer" style="min-width:220px;max-width:320px">
+                  <option value="">— Predeterminada del sistema —</option>
+                </select>
+              </div>
               <div class="op-row">
                 <div class="op-row-text"><div class="op-label">Imprimir automáticamente al enviar a cocina</div><div class="op-hint" id="hint-autoprint">La comanda sale apenas se confirma el pedido.</div></div>
                 <button class="cf-switch on" id="sw-autoprint" aria-pressed="true"><span class="cf-switch-knob"></span></button>
