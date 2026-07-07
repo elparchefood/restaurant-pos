@@ -379,9 +379,27 @@
       const sb = window._pos && window._pos.sb;
       if (sb) {
         const ids = baseTables.map(function(t){ return t.id; });
-        const { data: tablesData } = await sb.from('pos_tables').select('id, status, current_order_id').in('id', ids);
+        // Incluir zone_id, zone_name y sort_order para sincronizar zonas y orden desde Supabase
+        const { data: tablesData } = await sb.from('pos_tables').select('id, status, current_order_id, zone_id, zone_name, sort_order').in('id', ids);
         const tableMap = {};
         (tablesData || []).forEach(function(r){ tableMap[r.id] = r; });
+
+        // Reconstruir state.zones desde Supabase (corrige zonas nuevas o faltantes en localStorage)
+        const freshZonesMap = {};
+        (tablesData || []).slice().sort((a,b) => ((a.sort_order||9999)-(b.sort_order||9999))).forEach(function(r) {
+          var zid = r.zone_id || 'z_adentro';
+          if (!freshZonesMap[zid]) freshZonesMap[zid] = { id: zid, name: r.zone_name || zid };
+        });
+        if (Object.keys(freshZonesMap).length) {
+          state.zones = Object.values(freshZonesMap);
+          try {
+            var cfgRaw = localStorage.getItem(CONFIG_KEY);
+            var cfg = cfgRaw ? JSON.parse(cfgRaw) : {};
+            cfg.zones = state.zones;
+            localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
+          } catch(_) {}
+        }
+
         const { data: ordersData } = await sb
           .from('pos_orders')
           .select('id, table_id, total, guests, waiter_name, opened_at, created_at')
@@ -390,7 +408,7 @@
           .not('status', 'eq', 'cancelled');
         const orderMap = {};
         (ordersData || []).forEach(function(o){ orderMap[o.table_id] = o; });
-        return baseTables.map(function(t) {
+        const enriched = baseTables.map(function(t) {
           const live = tableMap[t.id];
           const ord  = orderMap[t.id];
           const now  = Date.now();
@@ -402,6 +420,8 @@
           return Object.assign({}, t, {
             openedAt:        openedAt || null,
             status:          live?.status || t.status,
+            zone_id:         live?.zone_id || t.zone_id,
+            sort_order:      live?.sort_order != null ? live.sort_order : 9999,
             total:           ord?.total   || 0,
             items_count:     0,
             minutes:         minutes,
@@ -409,6 +429,9 @@
             persons:         ord?.guests  || 0,
           });
         });
+        // Ordenar mesas por sort_order de Supabase (corrige orden diferente en localStorage)
+        enriched.sort((a, b) => (a.sort_order || 9999) - (b.sort_order || 9999));
+        return enriched;
       }
     } catch(e) {
       console.warn('[ventas-salon] Supabase enrichment failed:', e.message || e);
