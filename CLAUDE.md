@@ -20,7 +20,49 @@ Después de cada cambio importante, corrección compleja o decisión de diseño,
 
 ---
 
-## 1. Reglas de seguridad (NUNCA violar)
+## 1. Regla crítica — Paridad Electron / Web (OBLIGATORIA)
+
+**Todo cambio debe funcionar IGUAL en el ejecutable Electron que en el navegador web.**
+
+El ejecutable carga `https://cobrapos.app/` — es la misma web, pero tiene su propio almacenamiento de localStorage separado del Chrome del sistema.
+
+### Regla de storageKey (causa raíz del logout en Electron)
+
+`pos-core.js` crea el cliente Supabase con `storageKey: 'cobra-pos-session'`. **Cualquier módulo que cree su propio cliente Supabase DEBE usar la misma clave**, o no encontrará la sesión en Electron y redirigirá a login.
+
+```javascript
+// CORRECTO — igual que pos-core.js
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { storageKey: 'cobra-pos-session' }
+});
+
+// INCORRECTO — usa clave por defecto 'sb-tblujfduscslxjmrjbdr-auth-token'
+// Solo funciona en Chrome si hay una sesión residual de un login anterior
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+```
+
+**Páginas que ya tienen storageKey correcto:** `pos-core.js`, `mesero-login.js`, `mesero-turno.js`, `catalogo-productos.js`, `chat-ia.js`, `inventario.js`
+
+### Regla de session.user vs getUser()
+
+```javascript
+// CORRECTO — sin llamada al servidor, más resiliente
+const user = session.user;
+
+// INCORRECTO — hace una llamada HTTP que puede fallar; si user llega null,
+// el acceso a user.user_metadata lanza TypeError
+const { data: { user } } = await sb.auth.getUser();
+```
+
+### Checklist antes de cada entrega en Electron
+
+- [ ] ¿La página carga y muestra datos en el ejecutable?
+- [ ] ¿La sesión persiste al navegar entre páginas en el ejecutable?
+- [ ] ¿El ejecutable y el browser muestran exactamente lo mismo?
+
+---
+
+## 2. Reglas de seguridad (NUNCA violar)
 
 - **NUNCA usar la skill `github-deploy`** — esa es de Aura Languages. Para este proyecto siempre usar `pos-github-deploy`.
 - **NUNCA hardcodear datos de negocio** (nombres de zonas, mesas, precios). Todo dato visible sale de Supabase en tiempo real.
