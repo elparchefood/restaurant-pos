@@ -109,6 +109,17 @@ Este documento registra el estado confirmado de cada componente. Se actualiza ro
 
 ---
 
+## Ideas pendientes para fases futuras
+
+### Caché local en Electron (pendiente — implementar cuando no haya más cambios activos)
+Cachear en disco del exe:
+- **Catálogo de productos** (nombres, precios, categorías, presentaciones) → IndexedDB o archivo JSON en `app.getPath('userData')`
+- **Fotos de productos** → archivos PNG/JPG locales en userData; descargar una sola vez al subirse
+- Usar hash de versión para saber si Supabase tiene algo nuevo; si hash coincide, usar caché; si no, descargar
+- Estado de mesas y órdenes activas NO se cachean — siempre en vivo
+
+---
+
 ## Bugs conocidos / cosas a vigilar
 
 1. **`configuracion.js` — auto-sync al abrir**: La función `syncToSupabase()` se llama en `DOMContentLoaded`. Si el localStorage tiene datos viejos cuando se abre Configuraciones, puede escribir basura a Supabase. No abrir Configuraciones con localStorage desactualizado.
