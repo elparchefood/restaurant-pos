@@ -374,19 +374,23 @@
       return [];
     }
 
-    // 2. Enriquecer con estado de pos_tables y datos reales de pos_orders
+    // 2. Siempre cargar TODAS las mesas del branch desde Supabase (fuente de verdad).
+    //    No se limita a los IDs del localStorage, que puede tener mesas viejas y omitir
+    //    mesas en zonas nuevas (ej: Antejardín, Terraza) agregadas después.
     try {
       const sb = window._pos && window._pos.sb;
-      if (sb) {
-        const ids = baseTables.map(function(t){ return t.id; });
-        // Incluir zone_id, zone_name y sort_order para sincronizar zonas y orden desde Supabase
-        const { data: tablesData } = await sb.from('pos_tables').select('id, status, current_order_id, zone_id, zone_name, sort_order').in('id', ids);
-        const tableMap = {};
-        (tablesData || []).forEach(function(r){ tableMap[r.id] = r; });
+      const branchId = window._pos && window._pos.state && window._pos.state.branchId;
+      if (sb && branchId) {
+        const { data: sbRows } = await sb
+          .from('pos_tables')
+          .select('id, name, status, current_order_id, zone_id, zone_name, sort_order, capacity')
+          .eq('branch_id', branchId)
+          .order('sort_order', { ascending: true });
+        const sbTables = sbRows || [];
 
-        // Reconstruir state.zones desde Supabase (corrige zonas nuevas o faltantes en localStorage)
+        // Reconstruir state.zones desde TODAS las mesas del branch en Supabase
         const freshZonesMap = {};
-        (tablesData || []).slice().sort((a,b) => ((a.sort_order||9999)-(b.sort_order||9999))).forEach(function(r) {
+        sbTables.forEach(function(r) {
           var zid = r.zone_id || 'z_adentro';
           if (!freshZonesMap[zid]) freshZonesMap[zid] = { id: zid, name: r.zone_name || zid };
         });
@@ -400,41 +404,44 @@
           } catch(_) {}
         }
 
+        // Órdenes activas para TODAS las mesas del branch
+        const allIds = sbTables.map(function(t){ return t.id; });
         const { data: ordersData } = await sb
           .from('pos_orders')
           .select('id, table_id, total, guests, waiter_name, opened_at, created_at')
-          .in('table_id', ids)
+          .in('table_id', allIds)
           .not('status', 'eq', 'completed')
           .not('status', 'eq', 'cancelled');
         const orderMap = {};
         (ordersData || []).forEach(function(o){ orderMap[o.table_id] = o; });
-        const enriched = baseTables.map(function(t) {
-          const live = tableMap[t.id];
-          const ord  = orderMap[t.id];
-          const now  = Date.now();
+
+        return sbTables.map(function(t) {
+          const ord = orderMap[t.id];
+          const now = Date.now();
           const openedAt = ord?.opened_at || ord?.created_at;
           const minutes = openedAt ? Math.round((now - new Date(openedAt).getTime()) / 60000) : 0;
           const initials = ord?.waiter_name
             ? ord.waiter_name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2)
             : '';
-          return Object.assign({}, t, {
+          return {
+            id:              t.id,
+            name:            t.name || ('Mesa ' + t.id),
+            number:          parseInt(t.name, 10) || t.sort_order || 1,
+            seats:           t.capacity || 4,
+            zone_id:         t.zone_id || 'z_adentro',
+            sort_order:      t.sort_order || 9999,
             openedAt:        openedAt || null,
-            status:          live?.status || t.status,
-            zone_id:         live?.zone_id || t.zone_id,
-            sort_order:      live?.sort_order != null ? live.sort_order : 9999,
+            status:          t.status || 'libre',
             total:           ord?.total   || 0,
             items_count:     0,
             minutes:         minutes,
             mesero_initials: initials,
             persons:         ord?.guests  || 0,
-          });
+          };
         });
-        // Ordenar mesas por sort_order de Supabase (corrige orden diferente en localStorage)
-        enriched.sort((a, b) => (a.sort_order || 9999) - (b.sort_order || 9999));
-        return enriched;
       }
     } catch(e) {
-      console.warn('[ventas-salon] Supabase enrichment failed:', e.message || e);
+      console.warn('[ventas-salon] Supabase fetch failed:', e.message || e);
     }
 
     return baseTables;
