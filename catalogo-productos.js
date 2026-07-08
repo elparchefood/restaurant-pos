@@ -895,7 +895,11 @@ async function importFromAI(){
 document.addEventListener('DOMContentLoaded', async () => {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { window.location.href = 'login.html'; return; }
-  const { data: { user } } = await sb.auth.getUser();
+
+  // Usar session.user directamente — evita llamada al servidor que puede fallar
+  const user = session.user;
+  if (!user) { window.location.href = 'login.html'; return; }
+
   S.tenantId = user.user_metadata?.tenant_id || null;
   S.branchId  = user.user_metadata?.branch_id  || null;
 
@@ -918,8 +922,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderPage();
   }
 
-  // Redirigir si la sesión expira
+  // Redirigir si la sesión expira (ignorar INITIAL_SESSION al registrar el listener)
+  let authInitialized = false;
   sb.auth.onAuthStateChange((event) => {
+    if (!authInitialized) { authInitialized = true; return; }
     if (event === 'SIGNED_OUT') window.location.href = 'login.html';
   });
 });
