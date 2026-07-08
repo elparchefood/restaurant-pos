@@ -776,6 +776,9 @@ async function saveGeneral() {
 document.addEventListener('DOMContentLoaded', function() {
   loadState();
   S.activeZone = S.zones[0] ? S.zones[0].id : null;
+  // Auto-sync al abrir la página: garantiza que Supabase siempre tenga la config más reciente.
+  // Esto permite que el ejecutable Electron y la APK lean la config correcta desde Supabase.
+  syncToSupabase();
 
   // render inicial completo
   renderZoneTabs();
