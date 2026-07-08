@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ConfiguraciÃ³n Â· Mesas y zonas â€” Cobra POS</title>
+<title>Configuración · Mesas y zonas — Cobra POS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -19,7 +19,7 @@
       <div class="cf-brand-logo">L</div>
       <div>
         <div class="cf-brand-name">Cobra POS</div>
-        <div class="cf-brand-sub" id="brand-sub">Cargandoâ€¦</div>
+        <div class="cf-brand-sub" id="brand-sub">Cargando…</div>
       </div>
     </div>
     <nav class="cf-nav">
@@ -59,7 +59,7 @@
         <button class="lm-nav" id="nav-pagos" data-section="pagos">
           <span class="cf-nav-l">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-            <span class="cf-nav-label">MÃ©todos de pago</span>
+            <span class="cf-nav-label">Métodos de pago</span>
           </span>
           <span class="cf-soon">Pronto</span>
         </button>
@@ -73,7 +73,7 @@
         <button class="lm-nav" id="nav-operacion" data-section="operacion">
           <span class="cf-nav-l">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
-            <span class="cf-nav-label">OperaciÃ³n</span>
+            <span class="cf-nav-label">Operación</span>
           </span>
         </button>
         <button class="lm-nav" id="nav-impresora" data-section="impresora">
@@ -104,7 +104,7 @@
       <div class="cf-top-left">
         <div class="cf-modebadge"><span class="cf-mode-dot"></span> Modo Administrador</div>
         <div class="cf-crumbs">
-          <span class="cf-crumb-mut">ConfiguraciÃ³n</span>
+          <span class="cf-crumb-mut">Configuración</span>
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           <span class="cf-crumb-on" id="crumb">Mesas y zonas</span>
         </div>
@@ -114,20 +114,20 @@
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Guardado
         </div>
         <div class="cf-user">
-          <div class="cf-user-av" id="user-av">â€“</div>
+          <div class="cf-user-av" id="user-av">–</div>
           <div>
-            <div class="cf-user-name" id="user-name">â€“</div>
-            <div class="cf-user-role" id="user-role">â€“</div>
+            <div class="cf-user-name" id="user-name">–</div>
+            <div class="cf-user-role" id="user-role">–</div>
           </div>
         </div>
       </div>
     </header>
 
-    <!-- â”€â”€â”€â”€â”€â”€â”€ SECCIÃ“N: MESAS Y ZONAS (funcional) â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- ─────── SECCIÓN: MESAS Y ZONAS (funcional) ─────── -->
     <div class="cf-screen on" id="screen-mesas">
       <section class="cf-pagehead">
         <div>
-          <div class="cf-eyebrow">ConfiguraciÃ³n del salÃ³n</div>
+          <div class="cf-eyebrow">Configuración del salón</div>
           <h1 class="cf-pagetitle">Mesas y zonas</h1>
         </div>
         <button class="lm-btn-primary" id="btn-nueva-mesa">
@@ -135,7 +135,7 @@
         </button>
       </section>
 
-      <!-- pestaÃ±as de zona -->
+      <!-- pestañas de zona -->
       <div class="cf-zonetabs">
         <div class="cf-tabsgroup" id="zone-tabs">
           <!-- renderizado por JS -->
@@ -151,10 +151,10 @@
           <div class="cf-grid" id="mesa-grid">
             <!-- renderizado por JS -->
           </div>
-          <!-- estado vacÃ­o (se muestra si la zona no tiene mesas) -->
+          <!-- estado vacío (se muestra si la zona no tiene mesas) -->
           <div class="cf-grid-empty" id="grid-empty" hidden>
             <div class="cf-empty-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div>
-            <div class="cf-empty-title">Zona vacÃ­a</div>
+            <div class="cf-empty-title">Zona vacía</div>
             <p class="cf-empty-desc">Agrega la primera mesa de esta zona.</p>
             <button class="lm-btn-primary" id="btn-add-mesa-empty">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Agregar mesa
@@ -169,14 +169,14 @@
           <div class="cf-rail-pane on" id="pane-zones">
             <div class="cf-rail-head">
               <div>
-                <div class="cf-eyebrow">SalÃ³n</div>
+                <div class="cf-eyebrow">Salón</div>
                 <div class="cf-rail-title">Zonas</div>
               </div>
             </div>
             <div class="cf-rail-body">
               <div class="cf-stat-row">
-                <div class="cf-stat-box"><div class="cf-stat-big" id="stat-mesas">â€“</div><div class="cf-stat-lbl">mesas en zona</div></div>
-                <div class="cf-stat-box"><div class="cf-stat-big" id="stat-puestos">â€“</div><div class="cf-stat-lbl">puestos</div></div>
+                <div class="cf-stat-box"><div class="cf-stat-big" id="stat-mesas">–</div><div class="cf-stat-lbl">mesas en zona</div></div>
+                <div class="cf-stat-box"><div class="cf-stat-big" id="stat-puestos">–</div><div class="cf-stat-lbl">puestos</div></div>
               </div>
               <div class="cf-rail-sublabel">Todas las zonas</div>
               <div class="cf-zonelist" id="zone-list">
@@ -199,7 +199,7 @@
             <div class="cf-rail-head">
               <div>
                 <div class="cf-eyebrow">Mesa seleccionada</div>
-                <div class="cf-rail-title lg" id="insp-title">Mesa â€“</div>
+                <div class="cf-rail-title lg" id="insp-title">Mesa –</div>
               </div>
               <button class="cf-icon-sm" id="btn-insp-close">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -207,7 +207,7 @@
             </div>
             <div class="cf-rail-body">
               <label class="cf-field">
-                <div class="cf-field-label">Nombre / nÃºmero</div>
+                <div class="cf-field-label">Nombre / número</div>
                 <input class="cf-input" id="insp-name" value="" placeholder="Ej. 01 o Barra">
               </label>
               <label class="cf-field">
@@ -249,12 +249,12 @@
       </section>
     </div>
 
-    <!-- â”€â”€â”€â”€â”€â”€â”€ SECCIÃ“N PLACEHOLDER "Pronto" â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- ─────── SECCIÓN PLACEHOLDER "Pronto" ─────── -->
     <div class="cf-screen" id="screen-general">
       <section class="cf-pagehead">
         <div>
           <h2 class="cf-pagehead-title">General</h2>
-          <p class="cf-pagehead-sub">Edita la informaciÃ³n de tu marca y sucursal</p>
+          <p class="cf-pagehead-sub">Edita la información de tu marca y sucursal</p>
         </div>
         <button class="lm-btn-primary" id="btn-save-general">Guardar cambios</button>
       </section>
@@ -363,11 +363,11 @@
       </section>
     </div>
 
-    <!-- â”€â”€â”€â”€â”€â”€â”€ SECCIÃ“N: USUARIOS Y ROLES â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- ─────── SECCIÓN: USUARIOS Y ROLES ─────── -->
     <div class="cf-screen" id="screen-usuarios">
       <section class="cf-pagehead">
         <div>
-          <div class="cf-eyebrow">ConfiguraciÃ³n del equipo</div>
+          <div class="cf-eyebrow">Configuración del equipo</div>
           <h1 class="cf-pagetitle">Usuarios y roles</h1>
         </div>
         <button class="lm-btn-primary" id="ur-btn-add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> <span id="ur-btn-add-label">Nuevo usuario</span></button>
@@ -418,7 +418,7 @@
                 <span class="cf-avatar lg" id="ur-user-avatar" style="background:#5B6BFF">??</span>
                 <div style="min-width:0">
                   <div class="cf-eyebrow">Usuario</div>
-                  <div class="cf-railtitle sm" id="ur-user-title">â€“</div>
+                  <div class="cf-railtitle sm" id="ur-user-title">–</div>
                 </div>
               </div>
               <button class="lm-icon-sm" id="ur-close-user"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -433,13 +433,13 @@
                 <div class="cf-inputicon" style="padding-right:0;overflow:hidden"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,6 12,13 2,6"/></svg><input type="text" id="ur-u-email" placeholder="nombreusuario" style="flex:1;min-width:0" /><span id="ur-u-email-domain" style="color:#94A3B8;font-size:13px;white-space:nowrap;padding:0 10px 0 2px;align-self:center">@restaurante</span></div>
               </label>
               <label class="cf-field">
-                <div class="cf-field-label">ContraseÃ±a</div>
+                <div class="cf-field-label">Contraseña</div>
                 <div class="cf-inputicon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                  <input type="password" id="ur-u-pass" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" />
+                  <input type="password" id="ur-u-pass" placeholder="••••••••" />
                   <button class="cf-fieldbtn" id="ur-pass-toggle" title="Mostrar/ocultar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
                   <button class="cf-fieldbtn" id="ur-pass-gen" title="Generar nueva"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
                 </div>
-                <div class="cf-fieldhint">El empleado podrÃ¡ cambiarla en su primer ingreso.</div>
+                <div class="cf-fieldhint">El empleado podrá cambiarla en su primer ingreso.</div>
               </label>
               <label class="cf-field">
                 <div class="cf-field-label">Rol</div>
@@ -504,7 +504,7 @@
                 <span class="cf-roleicon lg" id="ur-role-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
                 <div style="min-width:0">
                   <div class="cf-eyebrow" id="ur-role-eyebrow">Rol</div>
-                  <div class="cf-railtitle sm" id="ur-role-title">â€“</div>
+                  <div class="cf-railtitle sm" id="ur-role-title">–</div>
                 </div>
               </div>
               <button class="lm-icon-sm" id="ur-close-role"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -512,7 +512,7 @@
             <div class="cf-railbody">
               <label class="cf-field">
                 <div class="cf-field-label">Nombre del rol</div>
-                <input class="cf-input" id="ur-r-name" placeholder="Ej. Cajero, Meseroâ€¦" />
+                <input class="cf-input" id="ur-r-name" placeholder="Ej. Cajero, Mesero…" />
               </label>
               <label class="cf-field">
                 <div class="cf-field-label">Color</div>
@@ -552,21 +552,21 @@
     <div class="cf-screen" id="screen-operacion">
       <section class="cf-pagehead">
         <div>
-          <div class="cf-eyebrow">ConfiguraciÃ³n operativa</div>
-          <h1 class="cf-pagetitle">OperaciÃ³n</h1>
+          <div class="cf-eyebrow">Configuración operativa</div>
+          <h1 class="cf-pagetitle">Operación</h1>
         </div>
       </section>
       <div class="op-scroll">
         <div class="op-inner">
 
-          <!-- SECCIÃ“N 1 Â· Tiempos de servicio -->
+          <!-- SECCIÓN 1 · Tiempos de servicio -->
           <div class="op-card">
             <div class="op-card-head">
               <div class="op-card-icon indigo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
               <div>
-                <div class="op-card-num">SecciÃ³n 1</div>
+                <div class="op-card-num">Sección 1</div>
                 <div class="op-card-title">Tiempos de servicio</div>
-                <div class="op-card-sub">Ritmos del salÃ³n y de la cocina.</div>
+                <div class="op-card-sub">Ritmos del salón y de la cocina.</div>
               </div>
             </div>
             <div class="op-card-body">
@@ -583,7 +583,7 @@
               </div>
               <div class="op-row">
                 <div class="op-row-text">
-                  <div class="op-label">Tiempo mÃ¡ximo en cocina</div>
+                  <div class="op-label">Tiempo máximo en cocina</div>
                   <div class="op-hint">Genera una alerta si un pedido lleva este tiempo sin marcarse como listo.</div>
                 </div>
                 <div class="num-stepper" data-field="cocinaMax" data-min="1" data-max="120">
@@ -595,13 +595,13 @@
             </div>
           </div>
 
-          <!-- SECCIÃ“N 2 Â· ConfiguraciÃ³n financiera -->
+          <!-- SECCIÓN 2 · Configuración financiera -->
           <div class="op-card">
             <div class="op-card-head">
               <div class="op-card-icon green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg></div>
               <div>
-                <div class="op-card-num">SecciÃ³n 2</div>
-                <div class="op-card-title">ConfiguraciÃ³n financiera</div>
+                <div class="op-card-num">Sección 2</div>
+                <div class="op-card-title">Configuración financiera</div>
                 <div class="op-card-sub">Propinas y meta de ventas.</div>
               </div>
             </div>
@@ -642,12 +642,12 @@
             </div>
           </div>
 
-          <!-- SECCIÃ“N 3 Â· Acceso y seguridad operativa -->
+          <!-- SECCIÓN 3 · Acceso y seguridad operativa -->
           <div class="op-card">
             <div class="op-card-head">
               <div class="op-card-icon violet"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
               <div>
-                <div class="op-card-num">SecciÃ³n 3</div>
+                <div class="op-card-num">Sección 3</div>
                 <div class="op-card-title">Acceso y seguridad operativa</div>
                 <div class="op-card-sub">Cobro adelantado y PIN de administrador.</div>
               </div>
@@ -656,7 +656,7 @@
               <div class="op-row">
                 <div class="op-row-text">
                   <div class="op-label">Modo cobro adelantado</div>
-                  <div class="op-hint">Cuando estÃ¡ activo, toda la sucursal cobra antes de enviar el pedido a cocina.</div>
+                  <div class="op-hint">Cuando está activo, toda la sucursal cobra antes de enviar el pedido a cocina.</div>
                 </div>
                 <div class="op-control">
                   <span class="op-state off" id="op-cobro-state">Desactivado</span>
@@ -666,7 +666,7 @@
               <div class="op-row col">
                 <div class="op-row-text">
                   <div class="op-label">PIN de administrador</div>
-                  <div class="op-hint">4 dÃ­gitos. CompÃ¡rtelo solo con empleados de confianza; se solicita para acciones sensibles.</div>
+                  <div class="op-hint">4 dígitos. Compártelo solo con empleados de confianza; se solicita para acciones sensibles.</div>
                   <div class="pin-status none" id="op-pin-status"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Sin PIN configurado</div>
                 </div>
                 <div class="pin-controls">
@@ -680,7 +680,7 @@
                   <div class="pin-info-head"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Acciones que piden este PIN</div>
                   <ul class="pin-list">
                     <li><span class="bullet"></span>Cancelar pedidos</li>
-                    <li><span class="bullet"></span>Eliminar Ã­tems de una comanda</li>
+                    <li><span class="bullet"></span>Eliminar ítems de una comanda</li>
                     <li><span class="bullet"></span>Cambiar la propina obligatoria</li>
                     <li><span class="bullet"></span>Aplicar descuentos manuales</li>
                     <li><span class="bullet"></span>Reabrir o reimprimir cuentas</li>
@@ -691,12 +691,12 @@
             </div>
           </div>
 
-          <!-- SECCIÃ“N 4 Â· Incremento por empaques (C3b) -->
+          <!-- SECCIÓN 4 · Incremento por empaques (C3b) -->
           <div class="op-card">
             <div class="op-card-head">
               <div class="op-card-icon amber"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
               <div>
-                <div class="op-card-num">SecciÃ³n 4</div>
+                <div class="op-card-num">Sección 4</div>
                 <div class="op-card-title">Incremento por empaques</div>
                 <div class="op-card-sub">Aplica un cargo adicional en pedidos para llevar y domicilio.</div>
               </div>
@@ -716,7 +716,7 @@
                 <div class="op-row">
                   <div class="op-row-text">
                     <div class="op-label">Tipo de incremento</div>
-                    <div class="op-hint">Â¿Monto fijo o porcentaje del total?</div>
+                    <div class="op-hint">¿Monto fijo o porcentaje del total?</div>
                   </div>
                   <div class="op-control">
                     <select class="cf-select" id="op-empaque-tipo" data-op-field="empaqueTipo">
@@ -746,7 +746,7 @@
                 <div class="op-row">
                   <div class="op-row-text">
                     <div class="op-label">Base de cobro</div>
-                    <div class="op-hint">Â¿Se cobra por producto o una vez por pedido?</div>
+                    <div class="op-hint">¿Se cobra por producto o una vez por pedido?</div>
                   </div>
                   <div class="op-control">
                     <select class="cf-select" id="op-empaque-base" data-op-field="empaqueBase">
@@ -758,7 +758,7 @@
                 <div class="op-row">
                   <div class="op-row-text">
                     <div class="op-label">Llevar vs. domicilio</div>
-                    <div class="op-hint">Â¿Mismo incremento para ambos canales o distinto?</div>
+                    <div class="op-hint">¿Mismo incremento para ambos canales o distinto?</div>
                   </div>
                   <div class="op-control">
                     <select class="cf-select" id="op-empaque-canal" data-op-field="empaqueCanal">
@@ -770,7 +770,7 @@
                 <div class="op-row">
                   <div class="op-row-text">
                     <div class="op-label">Alcance de productos</div>
-                    <div class="op-hint">Â¿A quÃ© productos aplica el incremento?</div>
+                    <div class="op-hint">¿A qué productos aplica el incremento?</div>
                   </div>
                   <div class="op-control">
                     <select class="cf-select" id="op-empaque-alcance" data-op-field="empaqueAlcance">
@@ -783,8 +783,8 @@
                 <div id="op-empaque-scope-ids" style="display:none">
                   <div class="op-row col" style="margin-top:0">
                     <div class="op-row-text">
-                      <div class="op-label" id="op-empaque-scope-label">IDs de categorÃ­as/productos</div>
-                      <div class="op-hint">Pega los IDs separados por coma (disponibles en el catÃ¡logo).</div>
+                      <div class="op-label" id="op-empaque-scope-label">IDs de categorías/productos</div>
+                      <div class="op-hint">Pega los IDs separados por coma (disponibles en el catálogo).</div>
                     </div>
                     <textarea class="cf-bareinput" id="op-empaqueCategIds" rows="2" placeholder="cat-uuid-1, cat-uuid-2" style="width:100%;resize:vertical;padding:8px;border:1.5px solid #ECEEF2;border-radius:8px;font-size:12px;font-family:monospace"></textarea>
                   </div>
@@ -793,26 +793,26 @@
             </div>
           </div>
 
-          <!-- SECCIÃ“N 5 Â· Tiempos de automatizaciÃ³n de mesa (C9) -->
+          <!-- SECCIÓN 5 · Tiempos de automatización de mesa (C9) -->
           <div class="op-card">
             <div class="op-card-head">
               <div class="op-card-icon indigo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
               <div>
-                <div class="op-card-num">SecciÃ³n 5</div>
-                <div class="op-card-title">AutomatizaciÃ³n: Esperando â†’ Comiendo</div>
+                <div class="op-card-num">Sección 5</div>
+                <div class="op-card-title">Automatización: Esperando → Comiendo</div>
                 <div class="op-card-sub">Notificaciones y auto-cambio de estado de mesa cuando el mesero no confirma la entrega.</div>
               </div>
             </div>
             <div class="op-card-body">
               <div class="op-hint" style="padding:10px 14px;background:#F8FAFC;border-radius:10px;margin-bottom:16px;line-height:1.6">
-                <b>Flujo:</b> Pedido enviado â†’ T1 min â†’ notificaciÃ³n discreta "Â¿Ya entregaste?" â†’
-                <b>SÃ­</b>: mesa pasa a Comiendo Â· <b>No</b>: re-notifica cada T2 min indefinidamente Â·
+                <b>Flujo:</b> Pedido enviado → T1 min → notificación discreta "¿Ya entregaste?" →
+                <b>Sí</b>: mesa pasa a Comiendo · <b>No</b>: re-notifica cada T2 min indefinidamente ·
                 <b>Ignorar</b>: auto-avanza tras T3 min de silencio.
               </div>
               <div class="op-row">
                 <div class="op-row-text">
-                  <div class="op-label">T1 â€” Primera notificaciÃ³n</div>
-                  <div class="op-hint">Minutos desde que se envÃ­a el pedido hasta la primera pregunta al mesero.</div>
+                  <div class="op-label">T1 — Primera notificación</div>
+                  <div class="op-hint">Minutos desde que se envía el pedido hasta la primera pregunta al mesero.</div>
                 </div>
                 <div class="num-stepper" data-field="mesaT1" data-min="1" data-max="60">
                   <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
@@ -822,8 +822,8 @@
               </div>
               <div class="op-row">
                 <div class="op-row-text">
-                  <div class="op-label">T2 â€” Re-notificaciÃ³n tras "No"</div>
-                  <div class="op-hint">Minutos entre cada notificaciÃ³n cuando el mesero responde "No".</div>
+                  <div class="op-label">T2 — Re-notificación tras "No"</div>
+                  <div class="op-hint">Minutos entre cada notificación cuando el mesero responde "No".</div>
                 </div>
                 <div class="num-stepper" data-field="mesaT2" data-min="1" data-max="30">
                   <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
@@ -833,8 +833,8 @@
               </div>
               <div class="op-row">
                 <div class="op-row-text">
-                  <div class="op-label">T3 â€” Auto-avance si se ignora</div>
-                  <div class="op-hint">Minutos que puede estar la notificaciÃ³n sin respuesta antes del auto-cambio.</div>
+                  <div class="op-label">T3 — Auto-avance si se ignora</div>
+                  <div class="op-hint">Minutos que puede estar la notificación sin respuesta antes del auto-cambio.</div>
                 </div>
                 <div class="num-stepper" data-field="mesaT3" data-min="1" data-max="30">
                   <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
@@ -845,28 +845,28 @@
             </div>
           </div>
 
-          <!-- SECCIÃ“N 6 Â· DiseÃ±os de recibos (C6) -->
+          <!-- SECCIÓN 6 · Diseños de recibos (C6) -->
           <div class="op-card">
             <div class="op-card-head">
               <div class="op-card-icon green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg></div>
               <div>
-                <div class="op-card-num">SecciÃ³n 6</div>
-                <div class="op-card-title">DiseÃ±o de recibos</div>
+                <div class="op-card-num">Sección 6</div>
+                <div class="op-card-title">Diseño de recibos</div>
                 <div class="op-card-sub">Selecciona el modelo para cada tipo de recibo impreso.</div>
               </div>
             </div>
             <div class="op-card-body">
               <div style="margin-bottom:16px">
-                <div class="op-label" style="margin-bottom:10px">Recibo con descripciÃ³n del producto</div>
+                <div class="op-label" style="margin-bottom:10px">Recibo con descripción del producto</div>
                 <div class="op-model-grid" id="op-recibo-desc-models">
                   <button class="op-model-card on" data-recibo="desc" data-model="estandar">
                     <div class="op-model-preview">
                       <div style="font-weight:700;font-size:11px;text-align:center;border-bottom:1px dashed #ccc;padding-bottom:3px;margin-bottom:3px">RECIBO</div>
-                      <div style="font-size:9px;color:#555">2x Hamburguesa â€” $28.000</div>
-                      <div style="font-size:9px;color:#555">1x Gaseosa â€” $4.000</div>
+                      <div style="font-size:9px;color:#555">2x Hamburguesa — $28.000</div>
+                      <div style="font-size:9px;color:#555">1x Gaseosa — $4.000</div>
                       <div style="font-size:9px;font-weight:700;margin-top:3px">TOTAL $32.000</div>
                     </div>
-                    <div class="op-model-name">EstÃ¡ndar</div>
+                    <div class="op-model-name">Estándar</div>
                   </button>
                   <button class="op-model-card" data-recibo="desc" data-model="compacto">
                     <div class="op-model-preview">
@@ -889,7 +889,7 @@
                       <div style="font-size:9px;color:#555">Propina $3.200</div>
                       <div style="font-size:9px;font-weight:700;margin-top:3px">TOTAL $35.200</div>
                     </div>
-                    <div class="op-model-name">EstÃ¡ndar</div>
+                    <div class="op-model-name">Estándar</div>
                   </button>
                   <button class="op-model-card" data-recibo="final" data-model="compacto">
                     <div class="op-model-preview">
@@ -920,7 +920,7 @@
           <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.1 2.1-2.7-.6-.6-2.7z"/></svg>
         </div>
         <div class="cf-placeholder-title" id="placeholder-title">General</div>
-        <p class="cf-placeholder-desc">Esta secciÃ³n estarÃ¡ disponible pronto. La configuraciÃ³n de <strong>Mesas y zonas</strong> ya estÃ¡ lista para usar.</p>
+        <p class="cf-placeholder-desc">Esta sección estará disponible pronto. La configuración de <strong>Mesas y zonas</strong> ya está lista para usar.</p>
       </div>
     </div>
 
@@ -929,7 +929,7 @@
   <!-- toast -->
   <div class="cf-toast" id="toast" hidden>
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-    <span id="toast-msg">â€“</span>
+    <span id="toast-msg">–</span>
   </div>
 
 </div>
