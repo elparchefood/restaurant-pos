@@ -374,9 +374,11 @@
       return [];
     }
 
-    // 2. Siempre cargar TODAS las mesas del branch desde Supabase (fuente de verdad).
-    //    No se limita a los IDs del localStorage, que puede tener mesas viejas y omitir
-    //    mesas en zonas nuevas (ej: Antejardín, Terraza) agregadas después.
+    // 2. Enriquecer con Supabase: status live, sort_order y zone_id de todas las mesas del branch.
+    //    - Las zonas configuradas en localStorage son la fuente de verdad para la ESTRUCTURA de zonas.
+    //    - Supabase puede añadir zonas nuevas (mesas en zonas que aún no están en localStorage).
+    //    - Las mesas se combinan de ambas fuentes (no se pierden mesas de localStorage).
+    //    - NUNCA se sobrescriben las zonas del localStorage desde aquí.
     try {
       const sb = window._pos && window._pos.sb;
       const branchId = window._pos && window._pos.state && window._pos.state.branchId;
@@ -386,26 +388,42 @@
           .select('id, name, status, current_order_id, zone_id, zone_name, sort_order, capacity')
           .eq('branch_id', branchId)
           .order('sort_order', { ascending: true });
-        const sbTables = sbRows || [];
+        const sbMap = {};
+        (sbRows || []).forEach(function(r){ sbMap[r.id] = r; });
 
-        // Reconstruir state.zones desde TODAS las mesas del branch en Supabase
+        // Zonas: empezar con las de localStorage (estructura configurada por el usuario)
         const freshZonesMap = {};
-        sbTables.forEach(function(r) {
+        if (localConfig && localConfig.zones) {
+          localConfig.zones.forEach(function(z){ freshZonesMap[z.id] = { id: z.id, name: z.name }; });
+        }
+        // Añadir zonas nuevas que Supabase reporta y que aún no están en localStorage
+        (sbRows || []).forEach(function(r) {
           var zid = r.zone_id || 'z_adentro';
           if (!freshZonesMap[zid]) freshZonesMap[zid] = { id: zid, name: r.zone_name || zid };
         });
         if (Object.keys(freshZonesMap).length) {
           state.zones = Object.values(freshZonesMap);
-          try {
-            var cfgRaw = localStorage.getItem(CONFIG_KEY);
-            var cfg = cfgRaw ? JSON.parse(cfgRaw) : {};
-            cfg.zones = state.zones;
-            localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
-          } catch(_) {}
         }
 
-        // Órdenes activas para TODAS las mesas del branch
-        const allIds = sbTables.map(function(t){ return t.id; });
+        // Mesas: combinar localStorage + Supabase (Supabase puede tener mesas nuevas)
+        const mergedMap = {};
+        baseTables.forEach(function(t){ mergedMap[t.id] = t; });
+        (sbRows || []).forEach(function(r) {
+          var lsT = mergedMap[r.id];
+          mergedMap[r.id] = {
+            id:         r.id,
+            name:       r.name || (lsT && lsT.name) || r.id,
+            number:     parseInt(r.name, 10) || (lsT && lsT.number) || 1,
+            seats:      r.capacity || (lsT && lsT.seats) || 4,
+            zone_id:    r.zone_id || (lsT && lsT.zone_id) || 'z_adentro',
+            sort_order: (r.sort_order != null) ? r.sort_order : 9999,
+            status:     r.status || 'libre',
+            total: 0, items_count: 0, minutes: 0, mesero_initials: '', persons: 0, openedAt: null
+          };
+        });
+
+        // Órdenes activas para todas las mesas combinadas
+        const allIds = Object.keys(mergedMap);
         const { data: ordersData } = await sb
           .from('pos_orders')
           .select('id, table_id, total, guests, waiter_name, opened_at, created_at')
@@ -415,30 +433,32 @@
         const orderMap = {};
         (ordersData || []).forEach(function(o){ orderMap[o.table_id] = o; });
 
-        return sbTables.map(function(t) {
+        const enriched = Object.values(mergedMap).map(function(t) {
           const ord = orderMap[t.id];
           const now = Date.now();
-          const openedAt = ord?.opened_at || ord?.created_at;
+          const openedAt = ord ? (ord.opened_at || ord.created_at) : null;
           const minutes = openedAt ? Math.round((now - new Date(openedAt).getTime()) / 60000) : 0;
-          const initials = ord?.waiter_name
+          const initials = (ord && ord.waiter_name)
             ? ord.waiter_name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2)
             : '';
           return {
             id:              t.id,
-            name:            t.name || ('Mesa ' + t.id),
-            number:          parseInt(t.name, 10) || t.sort_order || 1,
-            seats:           t.capacity || 4,
-            zone_id:         t.zone_id || 'z_adentro',
-            sort_order:      t.sort_order || 9999,
+            name:            t.name,
+            number:          t.number,
+            seats:           t.seats,
+            zone_id:         t.zone_id,
+            sort_order:      t.sort_order,
             openedAt:        openedAt || null,
-            status:          t.status || 'libre',
-            total:           ord?.total   || 0,
+            status:          (ord && t.status !== 'libre') ? t.status : (ord ? 'comiendo' : 'libre'),
+            total:           ord ? (ord.total || 0) : 0,
             items_count:     0,
             minutes:         minutes,
             mesero_initials: initials,
-            persons:         ord?.guests  || 0,
+            persons:         ord ? (ord.guests || 0) : 0,
           };
         });
+        enriched.sort(function(a, b){ return (a.sort_order || 9999) - (b.sort_order || 9999); });
+        return enriched;
       }
     } catch(e) {
       console.warn('[ventas-salon] Supabase fetch failed:', e.message || e);
