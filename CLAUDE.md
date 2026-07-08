@@ -5,6 +5,21 @@
 
 ---
 
+## 0. Regla de documentación continua (OBLIGATORIA)
+
+Después de cada cambio importante, corrección compleja o decisión de diseño, **actualizar `ESTADO-SISTEMA.md`** antes de terminar la sesión. Esto garantiza que cuando la conversación se compacte, toda la información esté en los documentos y no se pierda.
+
+**Qué registrar:**
+- Cambios en Supabase (filas nuevas, eliminadas, sort_order modificado)
+- Archivos modificados y por qué
+- Bugs encontrados y cómo se corrigieron
+- Reglas nuevas que surgieron de errores cometidos
+- Estado actualizado de las mesas/zonas si cambió
+
+**Cuándo hacerlo:** al final de cada bloque de trabajo, antes del último deploy de la sesión.
+
+---
+
 ## 1. Reglas de seguridad (NUNCA violar)
 
 - **NUNCA usar la skill `github-deploy`** — esa es de Aura Languages. Para este proyecto siempre usar `pos-github-deploy`.
