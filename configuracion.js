@@ -1664,6 +1664,10 @@ var OP_DEFAULTS = {
   mesaT1: 10,  // min → primera notificación
   mesaT2: 5,   // min → re-notificación tras "No"
   mesaT3: 3,   // min → auto-avance si se ignora
+  // C10 — Tiempos de automatización Comiendo → Libre
+  liberarT1: 45, // min → primera notificación "¿ya se fueron?"
+  liberarT2: 15, // min → re-notificación tras "Siguen comiendo"
+  liberarT3: 10, // min → auto-liberar si se ignora
 };
 
 var _opSaved  = null;  // último guardado
@@ -1763,6 +1767,11 @@ function opRender() {
   var t1El = $('op-mesaT1'); if (t1El) t1El.textContent = d.mesaT1 || 10;
   var t2El = $('op-mesaT2'); if (t2El) t2El.textContent = d.mesaT2 || 5;
   var t3El = $('op-mesaT3'); if (t3El) t3El.textContent = d.mesaT3 || 3;
+
+  // C10 — liberarT1/T2/T3
+  var lt1El = $('op-liberarT1'); if (lt1El) lt1El.textContent = d.liberarT1 || 45;
+  var lt2El = $('op-liberarT2'); if (lt2El) lt2El.textContent = d.liberarT2 || 15;
+  var lt3El = $('op-liberarT3'); if (lt3El) lt3El.textContent = d.liberarT3 || 10;
 
   // C6 — Modelos de recibo
   var MODELS_KEY = 'pos.config.recibos.v1';

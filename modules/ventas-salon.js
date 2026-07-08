@@ -2073,6 +2073,7 @@
 
   // ─── C9: Sistema T1/T2/T3 de automatización esperando→comiendo ───────────
   const _mesaTimers = {}; // key: tableId, value: { t1Id, t2Id, t3Id, notifEl }
+  const _comiendoTimers = {}; // key: tableId — C10: sistema Comiendo→Libre
 
   function _getCfg() {
     try { return JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}'); }
@@ -2225,7 +2226,129 @@
   function startAutoAvance() {
     // Kick initial sync and then poll every 60s as server-side fallback
     syncMesaTimers();
-    setInterval(syncMesaTimers, 60 * 1000);
+    syncComiendoTimers();
+    setInterval(function() { syncMesaTimers(); syncComiendoTimers(); }, 60 * 1000);
+  }
+
+
+  // ─── C10: Sistema T1/T2/T3 automatización comiendo→libre ──────────────
+
+  function _dismissLibreNotif(tableId) {
+    var entry = _comiendoTimers[tableId];
+    if (!entry) return;
+    if (entry.t3Id) { clearTimeout(entry.t3Id); entry.t3Id = null; }
+    if (entry.notifEl && entry.notifEl.parentNode) {
+      var el = entry.notifEl;
+      el.style.opacity = '0'; el.style.transform = 'translateY(10px)';
+      setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 220);
+      entry.notifEl = null;
+    }
+  }
+
+  async function _advanceMesaToLibre(tableId) {
+    try {
+      var sbRef = window._pos && window._pos.sb;
+      if (!sbRef) return;
+      await sbRef.from('pos_tables').update({ status: 'libre', current_order_id: null }).eq('id', tableId);
+      var t = state.tables.find(function(x) { return x.id === tableId; });
+      if (t) { t.status = 'libre'; t.current_order_id = null; }
+      render();
+    } catch(e) { console.error('[VS] advanceMesaLibre:', e); }
+  }
+
+  function _showLibreNotif(tableId, tableName, comiendoSince) {
+    var cfg = _getCfg();
+    var t3Mins = cfg.liberarT3 || 10;
+    var t2Mins = cfg.liberarT2 || 15;
+    var elapsed = _fmtElapsedStr(comiendoSince);
+    _dismissLibreNotif(tableId);
+
+    var notif = document.createElement('div');
+    notif.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#fff;border-radius:14px;padding:16px 18px;'
+      + 'box-shadow:0 8px 28px rgba(15,23,42,.16),0 2px 8px rgba(15,23,42,.08);z-index:8000;max-width:300px;'
+      + 'border:1px solid #ECEEF2;transition:opacity .2s,transform .2s;opacity:0;transform:translateY(10px)';
+    notif.innerHTML = '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px">'
+      + '<div>'
+      + '<div style="font-weight:700;font-size:13px;color:#0F172A">¿Ya se fueron los clientes?</div>'
+      + '<div style="font-size:11px;color:#64748B;margin-top:3px">Mesa ' + (tableName || tableId)
+      + (elapsed ? ' · <span style="font-weight:600;color:#5B6BFF">' + elapsed + '</span>' : '') + '</div>'
+      + '</div>'
+      + '<button onclick="_libreNotifRespond('' + tableId + '',null)" '
+      + 'style="border:none;background:#F1F5F9;border-radius:7px;width:24px;height:24px;cursor:pointer;color:#94A3B8;font-size:12px;flex-shrink:0">✕</button>'
+      + '</div>'
+      + '<div style="display:flex;gap:8px">'
+      + '<button onclick="_libreNotifRespond('' + tableId + '',false)" '
+      + 'style="flex:1;padding:8px;border:1.5px solid #ECEEF2;border-radius:9px;background:#fff;color:#475569;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Siguen comiendo</button>'
+      + '<button onclick="_libreNotifRespond('' + tableId + '',true)" '
+      + 'style="flex:1;padding:8px;border:none;border-radius:9px;background:#22C55E;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Sí, mesa libre</button>'
+      + '</div>';
+
+    document.body.appendChild(notif);
+    requestAnimationFrame(function() { notif.style.opacity = '1'; notif.style.transform = 'translateY(0)'; });
+
+    var t3Id = setTimeout(async function() {
+      if (_comiendoTimers[tableId] && _comiendoTimers[tableId].notifEl === notif) {
+        _dismissLibreNotif(tableId);
+        await _advanceMesaToLibre(tableId);
+        delete _comiendoTimers[tableId];
+      }
+    }, t3Mins * 60 * 1000);
+
+    if (!_comiendoTimers[tableId]) _comiendoTimers[tableId] = {};
+    _comiendoTimers[tableId].notifEl = notif;
+    _comiendoTimers[tableId].t3Id = t3Id;
+    _comiendoTimers[tableId].t2Mins = t2Mins;
+    _comiendoTimers[tableId].comiendoSince = comiendoSince;
+    _comiendoTimers[tableId].tableName = tableName;
+  }
+
+  window._libreNotifRespond = function(tableId, answer) {
+    var entry = _comiendoTimers[tableId];
+    if (!entry) return;
+    _dismissLibreNotif(tableId);
+    if (answer === true) {
+      _advanceMesaToLibre(tableId);
+      delete _comiendoTimers[tableId];
+    } else {
+      // "Siguen comiendo" o cerrar → re-preguntar tras T2
+      var t2Id = setTimeout(function() {
+        var t = state.tables.find(function(x) { return x.id === tableId; });
+        if (t && t.status === 'comiendo') {
+          _showLibreNotif(tableId, entry.tableName, entry.comiendoSince);
+        } else {
+          delete _comiendoTimers[tableId];
+        }
+      }, (entry.t2Mins || 15) * 60 * 1000);
+      _comiendoTimers[tableId].t2Id = t2Id;
+    }
+  };
+
+  function syncComiendoTimers() {
+    var cfg = _getCfg();
+    var t1Mins = cfg.liberarT1 || 45;
+    state.tables.forEach(function(t) {
+      if (t.status === 'comiendo') {
+        if (!_comiendoTimers[t.id]) {
+          var comiendoSince = new Date().toISOString();
+          _comiendoTimers[t.id] = { tableName: t.name || t.id, comiendoSince: comiendoSince };
+          _comiendoTimers[t.id].t1Id = setTimeout(function() {
+            var tbl = state.tables.find(function(x) { return x.id === t.id; });
+            if (tbl && tbl.status === 'comiendo') {
+              _showLibreNotif(t.id, tbl.name || t.id, _comiendoTimers[t.id] ? _comiendoTimers[t.id].comiendoSince : null);
+            } else {
+              delete _comiendoTimers[t.id];
+            }
+          }, t1Mins * 60 * 1000);
+        }
+      } else {
+        if (_comiendoTimers[t.id]) {
+          var entry = _comiendoTimers[t.id];
+          clearTimeout(entry.t1Id); clearTimeout(entry.t2Id);
+          _dismissLibreNotif(t.id);
+          delete _comiendoTimers[t.id];
+        }
+      }
+    });
   }
 
   // ─── Init ─────────────────────────────────────────────

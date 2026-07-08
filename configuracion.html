@@ -845,6 +845,59 @@
             </div>
           </div>
 
+
+          <!-- SECCIÓN 7 · Tiempos de automatización Comiendo → Libre (C10) -->
+          <div class="op-card">
+            <div class="op-card-head">
+              <div class="op-card-icon green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+              <div>
+                <div class="op-card-num">Sección 7</div>
+                <div class="op-card-title">Automatización: Comiendo → Mesa libre</div>
+                <div class="op-card-sub">Notificaciones y auto-liberación cuando los clientes ya terminaron.</div>
+              </div>
+            </div>
+            <div class="op-card-body">
+              <div class="op-hint" style="padding:10px 14px;background:#F8FAFC;border-radius:10px;margin-bottom:16px;line-height:1.6">
+                <b>Flujo:</b> Mesa pasa a Comiendo → T1 min → notificación "¿Ya se fueron los clientes?" →
+                <b>Sí, mesa libre</b>: mesa vuelve a Libre · <b>Siguen comiendo</b>: re-notifica cada T2 min ·
+                <b>Ignorar</b>: auto-libera tras T3 min de silencio.
+              </div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">T1 — Primera notificación</div>
+                  <div class="op-hint">Minutos desde que la mesa pasa a Comiendo hasta la primera pregunta.</div>
+                </div>
+                <div class="num-stepper" data-field="liberarT1" data-min="5" data-max="180">
+                  <button class="cf-step sm" data-step="-5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <div class="num-val"><b id="op-liberarT1">45</b><span>min</span></div>
+                  <button class="cf-step sm" data-step="5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                </div>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">T2 — Re-notificación tras "Siguen comiendo"</div>
+                  <div class="op-hint">Minutos entre cada notificación cuando el mesero responde que siguen.</div>
+                </div>
+                <div class="num-stepper" data-field="liberarT2" data-min="5" data-max="60">
+                  <button class="cf-step sm" data-step="-5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <div class="num-val"><b id="op-liberarT2">15</b><span>min</span></div>
+                  <button class="cf-step sm" data-step="5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                </div>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">T3 — Auto-liberar si se ignora</div>
+                  <div class="op-hint">Minutos que puede estar la notificación sin respuesta antes de liberar automáticamente.</div>
+                </div>
+                <div class="num-stepper" data-field="liberarT3" data-min="1" data-max="30">
+                  <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <div class="num-val"><b id="op-liberarT3">10</b><span>min</span></div>
+                  <button class="cf-step sm" data-step="1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- SECCIÓN 6 · Diseños de recibos (C6) -->
           <div class="op-card">
             <div class="op-card-head">
@@ -935,7 +988,7 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-core.js"></script>
-<script src="configuracion.js?v=1783544341"></script>
+<script src="configuracion.js?v=1783547526"></script>
 </body>
 </html>
 
