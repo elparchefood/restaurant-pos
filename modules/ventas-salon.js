@@ -429,7 +429,8 @@
           .select('id, table_id, total, guests, waiter_name, opened_at, created_at')
           .in('table_id', allIds)
           .not('status', 'eq', 'completed')
-          .not('status', 'eq', 'cancelled');
+          .not('status', 'eq', 'cancelled')
+          .not('status', 'eq', 'paid');
         const orderMap = {};
         (ordersData || []).forEach(function(o){ orderMap[o.table_id] = o; });
 
@@ -449,7 +450,7 @@
             zone_id:         t.zone_id,
             sort_order:      t.sort_order,
             openedAt:        openedAt || null,
-            status:          (ord && t.status !== 'libre') ? t.status : (ord ? 'comiendo' : 'libre'),
+            status:          t.status || 'libre',
             total:           ord ? (ord.total || 0) : 0,
             items_count:     0,
             minutes:         minutes,
@@ -457,7 +458,7 @@
             persons:         ord ? (ord.guests || 0) : 0,
           };
         });
-        enriched.sort(function(a, b){ return (a.sort_order || 9999) - (b.sort_order || 9999); });
+        enriched.sort(function(a, b){ return (a.sort_order != null ? a.sort_order : 9999) - (b.sort_order != null ? b.sort_order : 9999); });
         return enriched;
       }
     } catch(e) {
@@ -477,6 +478,7 @@
       .eq('table_id', tableId)
       .not('status', 'eq', 'completed')
       .not('status', 'eq', 'cancelled')
+      .not('status', 'eq', 'paid')
       .order('created_at', { ascending: false })
       .limit(1);
 
