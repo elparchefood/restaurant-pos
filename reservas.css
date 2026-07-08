@@ -1,0 +1,162 @@
+/* reservas.css — Página de reservas · Cobra POS */
+
+#app { display:flex;height:100vh;overflow:hidden; }
+#main { flex:1;display:flex;flex-direction:column;overflow:hidden; }
+#content { flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:16px; }
+
+/* Date nav */
+.rv-date-nav {
+  display:flex;align-items:center;gap:10px;
+  background:#F1F5F9;border-radius:10px;padding:4px 6px;
+}
+.rv-date-btn {
+  width:30px;height:30px;border-radius:7px;border:none;background:transparent;
+  cursor:pointer;color:#64748B;display:flex;align-items:center;justify-content:center;
+  transition:background .15s;
+}
+.rv-date-btn:hover { background:rgba(0,0,0,.06);color:#0F172A; }
+.rv-date-label { font-size:14px;font-weight:700;color:#0F172A;min-width:160px;text-align:center; }
+
+/* Status chips */
+.rv-status-row { display:flex;gap:8px;flex-wrap:wrap; }
+.rv-status-chip {
+  display:flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;
+  font-size:12.5px;font-weight:700;cursor:default;
+}
+.rv-status-chip span { font-size:14px;font-weight:800;font-variant-numeric:tabular-nums; }
+.rv-status-chip--pendiente  { background:#FEF3C7;color:#B45309; }
+.rv-status-chip--confirmada { background:#DCFCE7;color:#166534; }
+.rv-status-chip--llego      { background:#DBEAFE;color:#1E40AF; }
+.rv-status-chip--cancelada  { background:#FEE2E2;color:#991B1B; }
+.rv-status-chip--noshow     { background:#F1F5F9;color:#64748B; }
+
+/* Reservation cards */
+.rv-section-label {
+  font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+  color:#94A3B8;margin:4px 0 6px;
+}
+.rv-card {
+  background:#fff;border:1.5px solid #ECEEF2;border-radius:12px;
+  padding:16px 18px;display:flex;align-items:flex-start;gap:14px;
+  transition:border-color .15s,box-shadow .15s;cursor:default;
+}
+.rv-card:hover { border-color:#CBD5E1;box-shadow:0 2px 8px rgba(0,0,0,.05); }
+.rv-card--pendiente  { border-left:3px solid #F59E0B; }
+.rv-card--confirmada { border-left:3px solid #22C55E; }
+.rv-card--llego      { border-left:3px solid #3B82F6; }
+.rv-card--cancelada  { border-left:3px solid #EF4444;opacity:.6; }
+.rv-card--no_show    { border-left:3px solid #94A3B8;opacity:.55; }
+
+.rv-card-time {
+  display:flex;flex-direction:column;align-items:center;
+  background:#F8FAFC;border-radius:8px;padding:8px 12px;min-width:56px;
+  flex-shrink:0;
+}
+.rv-time-val { font-size:17px;font-weight:800;color:#0F172A;line-height:1; }
+.rv-time-lbl { font-size:10px;color:#94A3B8;font-weight:600;margin-top:3px; }
+
+.rv-card-body { flex:1;min-width:0; }
+.rv-card-name { font-size:14px;font-weight:700;color:#0F172A; }
+.rv-card-meta {
+  display:flex;align-items:center;gap:12px;margin-top:4px;flex-wrap:wrap;
+}
+.rv-meta-item {
+  display:flex;align-items:center;gap:4px;font-size:12px;color:#64748B;font-weight:500;
+}
+.rv-card-note {
+  margin-top:6px;font-size:12px;color:#94A3B8;
+  background:#F8FAFC;border-radius:6px;padding:5px 10px;
+}
+
+.rv-card-actions {
+  display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;
+}
+.rv-status-badge {
+  font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;
+}
+.badge--pendiente  { background:#FEF3C7;color:#B45309; }
+.badge--confirmada { background:#DCFCE7;color:#166534; }
+.badge--llego      { background:#DBEAFE;color:#1E40AF; }
+.badge--cancelada  { background:#FEE2E2;color:#991B1B; }
+.badge--no_show    { background:#F1F5F9;color:#64748B; }
+
+.rv-action-row { display:flex;gap:6px; }
+.rv-action-btn {
+  padding:5px 10px;border-radius:7px;border:1.5px solid #E2E8F0;
+  background:#fff;color:#475569;font-size:11.5px;font-weight:600;cursor:pointer;
+  transition:all .15s;white-space:nowrap;
+}
+.rv-action-btn:hover { background:#F1F5F9; }
+.rv-action-btn--confirm { border-color:#22C55E;color:#16A34A; }
+.rv-action-btn--confirm:hover { background:#DCFCE7; }
+.rv-action-btn--arrive  { border-color:#3B82F6;color:#2563EB; }
+.rv-action-btn--arrive:hover  { background:#DBEAFE; }
+.rv-action-btn--cancel  { border-color:#FCA5A5;color:#DC2626; }
+.rv-action-btn--cancel:hover  { background:#FEE2E2; }
+
+/* Empty state */
+.rv-empty {
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:60px 20px;gap:12px;text-align:center;
+}
+.rv-empty svg { opacity:.3; }
+.rv-empty-title { font-size:16px;font-weight:700;color:#475569; }
+.rv-empty-sub   { font-size:13px;color:#94A3B8;max-width:320px; }
+.rv-empty-btn {
+  margin-top:6px;padding:9px 20px;border-radius:9px;
+  background:#5B6BFF;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;
+}
+
+/* Modal overlay */
+.rv-overlay {
+  position:fixed;inset:0;background:rgba(15,23,42,.45);
+  display:flex;align-items:center;justify-content:center;z-index:200;
+  backdrop-filter:blur(4px);
+}
+.rv-modal {
+  background:#fff;border-radius:16px;width:100%;max-width:520px;
+  box-shadow:0 20px 60px rgba(0,0,0,.18);overflow:hidden;
+}
+.rv-modal-head {
+  display:flex;justify-content:space-between;align-items:center;
+  padding:18px 22px 16px;border-bottom:1px solid #ECEEF2;
+}
+.rv-modal-title { font-size:16px;font-weight:800;color:#0F172A; }
+.rv-modal-close {
+  width:30px;height:30px;border-radius:7px;border:none;
+  background:#F1F5F9;color:#64748B;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+.rv-modal-close:hover { background:#E2E8F0; }
+
+.rv-modal-body { padding:20px 22px;display:flex;flex-direction:column;gap:14px; }
+.rv-form-row   { display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px; }
+.rv-form-group { display:flex;flex-direction:column;gap:5px; }
+.rv-label { font-size:12px;font-weight:700;color:#475569; }
+.rv-input {
+  padding:8px 12px;border:1.5px solid #E2E8F0;border-radius:8px;
+  font-size:13px;font-family:inherit;color:#0F172A;
+  transition:border-color .15s;outline:none;width:100%;box-sizing:border-box;
+}
+.rv-input:focus { border-color:#5B6BFF; }
+.rv-textarea   { resize:vertical;min-height:70px; }
+
+.rv-modal-foot {
+  display:flex;justify-content:flex-end;gap:10px;
+  padding:14px 22px;border-top:1px solid #ECEEF2;
+}
+.rv-btn-cancel {
+  padding:9px 18px;border-radius:9px;border:1.5px solid #E2E8F0;
+  background:#fff;color:#475569;font-size:13px;font-weight:600;cursor:pointer;
+}
+.rv-btn-save {
+  padding:9px 20px;border-radius:9px;border:none;
+  background:#5B6BFF;color:#fff;font-size:13px;font-weight:700;cursor:pointer;
+  display:flex;align-items:center;gap:7px;
+}
+.rv-btn-save:hover { background:#4B5CE0; }
+.rv-btn-save:disabled { opacity:.5;cursor:not-allowed; }
+
+/* Skeleton */
+.skel { display:inline-block;background:linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%);background-size:200% 100%;animation:skel-wave 1.4s infinite;border-radius:6px; }
+@keyframes skel-wave { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
