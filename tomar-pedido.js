@@ -1120,6 +1120,25 @@ function escHtml(s) {
 // ── Event listeners ───────────────────────────────────────────
 function bindEvents() {
 
+  // Sidebar toggle (tablet compacto)
+  const tpSideToggle = document.getElementById('tp-side-toggle');
+  const tpSideEl = document.querySelector('.tp-side');
+  const tpSideBackdrop = document.getElementById('tp-side-backdrop');
+  if (tpSideToggle && tpSideEl) {
+    tpSideToggle.addEventListener('click', () => {
+      const expanded = tpSideEl.classList.toggle('tp-side--expanded');
+      if (tpSideBackdrop) tpSideBackdrop.classList.toggle('is-visible', expanded);
+      tpSideToggle.title = expanded ? 'Cerrar menú' : 'Abrir menú';
+    });
+  }
+  if (tpSideBackdrop && tpSideEl) {
+    tpSideBackdrop.addEventListener('click', () => {
+      tpSideEl.classList.remove('tp-side--expanded');
+      tpSideBackdrop.classList.remove('is-visible');
+      if (tpSideToggle) tpSideToggle.title = 'Abrir menú';
+    });
+  }
+
   // Tabs del browser
   document.querySelectorAll('[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
