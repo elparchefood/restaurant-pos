@@ -593,7 +593,7 @@
   }
 
   async function selectTable(tableId) {
-    // Tocar la misma mesa cierra el sheet
+    // Tocar la misma mesa cierra el sheet (solo en tablet)
     if (state.selectedTableId === tableId) {
       hideSheet();
       state.selectedTableId = null;
@@ -602,11 +602,12 @@
     }
     state.selectedTableId = tableId;
     updateMesaHighlight(tableId);
-    showSheetLoading();
+    showSheetLoading(); // muestra "Cargando…" en tablet; no-op en desktop
     const { order, items } = await fetchOrderData(tableId);
     state.currentOrder = order;
     state.orderItems = items;
-    updateSheetContent();
+    renderRail();          // actualiza el rail de desktop
+    updateSheetContent();  // actualiza el sheet de tablet
   }
 
   // ─── Bottom sheet helpers ─────────────────────────────
@@ -658,8 +659,42 @@
   function hideSheet() {
     const sheet = document.getElementById('vs-bottom-sheet');
     const backdrop = document.getElementById('vs-sheet-backdrop');
-    if (sheet) sheet.classList.remove('vs-sheet--open');
+    if (sheet) { sheet.classList.remove('vs-sheet--open'); sheet.style.transform = ''; }
     if (backdrop) backdrop.classList.remove('vs-sheet-backdrop--visible');
+  }
+
+  function attachSheetSwipeDismiss() {
+    const sheet = document.getElementById('vs-bottom-sheet');
+    if (!sheet) return;
+    var startY = 0;
+    var dragging = false;
+
+    sheet.addEventListener('touchstart', function(e) {
+      // Solo iniciar si el toque viene del handle o de una zona no-scroll
+      startY = e.touches[0].clientY;
+      dragging = true;
+      sheet.style.transition = 'none';
+    }, { passive: true });
+
+    sheet.addEventListener('touchmove', function(e) {
+      if (!dragging) return;
+      var dy = e.touches[0].clientY - startY;
+      if (dy > 0) sheet.style.transform = 'translateY(' + dy + 'px)';
+    }, { passive: true });
+
+    sheet.addEventListener('touchend', function(e) {
+      if (!dragging) return;
+      dragging = false;
+      sheet.style.transition = '';
+      var dy = e.changedTouches[0].clientY - startY;
+      if (dy > 90) {
+        hideSheet();
+        state.selectedTableId = null;
+        updateMesaHighlight(null);
+      } else {
+        sheet.style.transform = '';
+      }
+    }, { passive: true });
   }
 
   // ─── Computed helpers ────────────────────────────────
@@ -717,14 +752,13 @@
             <div class="vs-body-left">
               ${state.floor === '__domicilios__' ? renderDomicilioGrid() : state.floor === '__rapidas__' ? renderQuickGrid() : renderGrid()}
             </div>
-            ${isSalon
-              ? `<div class="vs-sheet-backdrop" id="vs-sheet-backdrop"></div>
-                 <div class="vs-bottom-sheet" id="vs-bottom-sheet">
-                   <div class="vs-sheet-handle"></div>
-                   <div class="vs-sheet-inner" id="vs-sheet-inner"></div>
-                 </div>`
-              : `<aside class="vs-rail" id="vs-rail">${state.floor === '__domicilios__' ? renderDomiRailContent() : renderQuickRailContent()}</aside>`
-            }
+            <aside class="vs-rail" id="vs-rail">${state.floor === '__domicilios__' ? renderDomiRailContent() : state.floor === '__rapidas__' ? renderQuickRailContent() : renderRailContent()}</aside>
+            ${isSalon ? `
+              <div class="vs-sheet-backdrop" id="vs-sheet-backdrop"></div>
+              <div class="vs-bottom-sheet" id="vs-bottom-sheet">
+                <div class="vs-sheet-handle" id="vs-sheet-handle"></div>
+                <div class="vs-sheet-inner" id="vs-sheet-inner"></div>
+              </div>` : ''}
           </section>
         </main>
       </div>
@@ -1715,6 +1749,9 @@
       state.selectedTableId = null;
       updateMesaHighlight(null);
     });
+
+    // Swipe hacia abajo para cerrar el sheet en tablet
+    attachSheetSwipeDismiss();
 
     // Toggle cobro adelantado
     const cobroToggle = document.getElementById('vs-cobro-toggle');
