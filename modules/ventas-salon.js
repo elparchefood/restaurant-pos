@@ -498,16 +498,18 @@
       .order('created_at', { ascending: false })
       .limit(1);
 
-    if (ordErr || !orders || !orders.length) return { order: null, items: [] };
+    if (ordErr) { console.error('[ventas-salon] fetchOrderData orders:', ordErr); }
+    if (!orders || !orders.length) return { order: null, items: [] };
 
     const order = orders[0];
+    // Sin join a pos_products — evita fallo silencioso si no hay FK definida en Supabase
     const { data: items, error: itemErr } = await sb
       .from('pos_order_items')
-      .select('id, quantity, product_name, name, product_price, unit_price, notes, product_id, pos_products(category_id, pos_categories(name))')
+      .select('id, quantity, product_name, name, product_price, unit_price, notes, product_id')
       .eq('order_id', order.id)
       .order('created_at', { ascending: true });
 
-    if (itemErr) { console.error('[ventas-salon] fetchOrderData:', itemErr); }
+    if (itemErr) { console.error('[ventas-salon] fetchOrderData items:', itemErr); }
     return { order, items: items || [] };
   }
 
@@ -604,6 +606,8 @@
     updateMesaHighlight(tableId);
     showSheetLoading(); // muestra "Cargando…" en tablet; no-op en desktop
     const { order, items } = await fetchOrderData(tableId);
+    // Guardia: si el usuario cambió de mesa o cerró el sheet durante el fetch, descartar
+    if (state.selectedTableId !== tableId) return;
     state.currentOrder = order;
     state.orderItems = items;
     renderRail();          // actualiza el rail de desktop
