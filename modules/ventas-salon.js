@@ -2062,19 +2062,17 @@
       variant: 'green',
     });
     if (!ok) return;
-    marcarComiendo(tableId, 'proactive');
+    marcarComiendo(tableId);
   }
 
-  async function marcarComiendo(tableId, method) {
+  async function marcarComiendo(tableId) {
     try {
       const sbRef = window._pos && window._pos.sb;
       if (!sbRef) return;
-      await sbRef.from('pos_tables').update({
-        status:          'comiendo',
-        comiendo_method: method,
-      }).eq('id', tableId);
+      const { error } = await sbRef.from('pos_tables').update({ status: 'comiendo' }).eq('id', tableId);
+      if (error) throw error;
       const t = state.tables.find(x => x.id === tableId);
-      if (t) { t.status = 'comiendo'; t.comiendo_method = method; }
+      if (t) t.status = 'comiendo';
       render();
     } catch(e) { console.error('[VS] marcarComiendo:', e); }
   }
@@ -2092,12 +2090,11 @@
     try {
       const sbRef = window._pos && window._pos.sb;
       if (!sbRef) return;
-      await sbRef.from('pos_tables').update({
+      const { error } = await sbRef.from('pos_tables').update({
         status:           'libre',
         current_order_id: null,
-        esperando_at:     null,
-        comiendo_method:  null,
       }).eq('id', tableId);
+      if (error) throw error;
       const t = state.tables.find(x => x.id === tableId);
       if (t) { t.status = 'libre'; t.current_order_id = null; }
       state.selectedTableId = null;
@@ -2123,13 +2120,14 @@
     return m + ':' + String(s).padStart(2, '0');
   }
 
-  async function _advanceMesaToComiendo(tableId, method) {
+  async function _advanceMesaToComiendo(tableId) {
     try {
       const sbRef = window._pos && window._pos.sb;
       if (!sbRef) return;
-      await sbRef.from('pos_tables').update({ status: 'comiendo', comiendo_method: method }).eq('id', tableId);
+      const { error } = await sbRef.from('pos_tables').update({ status: 'comiendo' }).eq('id', tableId);
+      if (error) throw error;
       const t = state.tables.find(x => x.id === tableId);
-      if (t) { t.status = 'comiendo'; t.comiendo_method = method; }
+      if (t) t.status = 'comiendo';
       render();
     } catch(e) { console.error('[VS] advanceMesa:', e); }
   }
@@ -2210,7 +2208,7 @@
 
     if (answer === true) {
       // "Sí" → advance to comiendo
-      _advanceMesaToComiendo(tableId, 'manual_confirm');
+      _advanceMesaToComiendo(tableId);
       delete _mesaTimers[tableId];
     } else {
       // "No" or dismiss → schedule T2 repeat
