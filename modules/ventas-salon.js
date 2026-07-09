@@ -437,6 +437,19 @@
         const orderMap = {};
         (ordersData || []).forEach(function(o){ orderMap[o.table_id] = o; });
 
+        // Contar ítems por orden para mostrar en las tarjetas de mesa
+        const orderIds = (ordersData || []).map(function(o){ return o.id; }).filter(Boolean);
+        const itemsCountMap = {};
+        if (orderIds.length > 0) {
+          const { data: itemsCountData } = await sb
+            .from('pos_order_items')
+            .select('order_id')
+            .in('order_id', orderIds);
+          (itemsCountData || []).forEach(function(it) {
+            itemsCountMap[it.order_id] = (itemsCountMap[it.order_id] || 0) + 1;
+          });
+        }
+
         const enriched = Object.values(mergedMap).map(function(t) {
           const ord = orderMap[t.id];
           const now = Date.now();
@@ -455,7 +468,7 @@
             openedAt:        openedAt || null,
             status:          t.status || 'libre',
             total:           ord ? (ord.total || 0) : 0,
-            items_count:     0,
+            items_count:     ord ? (itemsCountMap[ord.id] || 0) : 0,
             minutes:         minutes,
             mesero_initials: initials,
             persons:         ord ? (ord.guests || 0) : 0,
@@ -568,10 +581,6 @@
     state.deliveries = await fetchDeliveries();
     state.quickOrders = await fetchQuickOrders();
     state.quickDeliveredCount = await fetchQuickDeliveredCount();
-
-    if (state.selectedTableId) {
-      state.orderItems = await fetchOrderItems(state.selectedTableId);
-    }
 
     state.loading = false;
     if (state.selectedTableId) {
@@ -2128,9 +2137,10 @@
   function _dismissMesaNotif(tableId) {
     const entry = _mesaTimers[tableId];
     if (entry && entry.notifEl && entry.notifEl.parentNode) {
-      entry.notifEl.style.opacity = '0';
-      entry.notifEl.style.transform = 'translateY(10px)';
-      setTimeout(function() { if (entry.notifEl && entry.notifEl.parentNode) entry.notifEl.remove(); }, 200);
+      const el = entry.notifEl; // capture before nulling
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(10px)';
+      setTimeout(function() { if (el.parentNode) el.remove(); }, 200);
     }
     if (entry) { clearTimeout(entry.t3Id); entry.t3Id = null; entry.notifEl = null; }
   }
@@ -2144,9 +2154,11 @@
     // Remove existing notif for this table
     _dismissMesaNotif(tableId);
 
-    // Create notification element
+    // Create notification element — stack vertically if other notifs already visible
+    const activeNotifCount = Object.values(_mesaTimers).filter(function(e){ return e.notifEl && e.notifEl.parentNode; }).length;
+    const bottomOffset = 24 + activeNotifCount * 116; // ~100px notif height + 16px gap
     const notif = document.createElement('div');
-    notif.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#fff;border-radius:14px;padding:16px 18px;'
+    notif.style.cssText = 'position:fixed;bottom:' + bottomOffset + 'px;right:24px;background:#fff;border-radius:14px;padding:16px 18px;'
       + 'box-shadow:0 8px 28px rgba(15,23,42,.16),0 2px 8px rgba(15,23,42,.08);z-index:8000;max-width:300px;'
       + 'border:1px solid #ECEEF2;transition:opacity .2s,transform .2s;opacity:0;transform:translateY(10px)';
 
