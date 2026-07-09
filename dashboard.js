@@ -1132,6 +1132,17 @@ function setupRealtime(branchId) {
 
 // ── Boot ──────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  // Guard: meseros/cajeros no tienen acceso al dashboard
+  (async function() {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const role = session?.user?.user_metadata?.role || '';
+      if (role === 'mesero' || role === 'cajero' || role === 'cajera') {
+        window.location.href = 'ventas.html';
+      }
+    } catch(e) {}
+  })();
+
   renderAllExtra([], null); // render empty structure immediately
   renderDate();
   const branch   = await loadBranch();

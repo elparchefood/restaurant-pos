@@ -72,9 +72,11 @@ async function handleLogin() {
   btn.disabled = true;
   txt.innerHTML = '<span class="au-spin"></span>';
   try {
-    const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
     if (error) throw error;
-    window.location.href = 'dashboard.html';
+    const role = data?.user?.user_metadata?.role || '';
+    const esMesero = role === 'mesero' || role === 'cajero' || role === 'cajera';
+    window.location.href = esMesero ? 'ventas.html' : 'dashboard.html';
   } catch(e) {
     btn.disabled = false; txt.textContent = 'Iniciar sesión';
     showError('login-error','login-error-msg', e.message === 'Invalid login credentials' ? 'Correo o contraseña incorrectos' : (e.message || 'Error al iniciar sesión'));
