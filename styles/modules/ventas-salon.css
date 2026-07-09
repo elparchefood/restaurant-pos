@@ -1428,6 +1428,7 @@
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  padding: 18px; /* mismo padding que .vs-rail en escritorio */
 }
 .vs-sheet-loading {
   display: flex;
