@@ -2273,13 +2273,13 @@
       + '<div style="font-size:11px;color:#64748B;margin-top:3px">Mesa ' + (tableName || tableId)
       + (elapsed ? ' · <span style="font-weight:600;color:#5B6BFF">' + elapsed + '</span>' : '') + '</div>'
       + '</div>'
-      + '<button onclick="_libreNotifRespond('' + tableId + '',null)" '
+      + '<button onclick="_libreNotifRespond(\'' + tableId + '\',null)" '
       + 'style="border:none;background:#F1F5F9;border-radius:7px;width:24px;height:24px;cursor:pointer;color:#94A3B8;font-size:12px;flex-shrink:0">✕</button>'
       + '</div>'
       + '<div style="display:flex;gap:8px">'
-      + '<button onclick="_libreNotifRespond('' + tableId + '',false)" '
+      + '<button onclick="_libreNotifRespond(\'' + tableId + '\',false)" '
       + 'style="flex:1;padding:8px;border:1.5px solid #ECEEF2;border-radius:9px;background:#fff;color:#475569;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Siguen comiendo</button>'
-      + '<button onclick="_libreNotifRespond('' + tableId + '',true)" '
+      + '<button onclick="_libreNotifRespond(\'' + tableId + '\',true)" '
       + 'style="flex:1;padding:8px;border:none;border-radius:9px;background:#22C55E;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Sí, mesa libre</button>'
       + '</div>';
 
