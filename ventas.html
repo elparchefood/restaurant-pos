@@ -55,6 +55,28 @@
   <script src="modules/ventas-salon.js?v=1783547526"></script>
 
   <script>
+    // Muestra error en el loader y agrega botón de reintento
+    function _ventasShowError(msg) {
+      clearTimeout(window._ventasBootTimeout);
+      var loader = document.getElementById('pos-loader');
+      if (!loader) return;
+      loader.innerHTML =
+        '<div style="text-align:center;font-family:DM Sans,system-ui,sans-serif;padding:24px">' +
+          '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2" style="margin-bottom:12px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+          '<p style="color:#0F172A;font-size:14px;font-weight:600;margin:0 0 6px">No se pudo cargar Ventas</p>' +
+          '<p style="color:#94A3B8;font-size:12px;margin:0 0 18px;max-width:260px">' + (msg || 'Error desconocido') + '</p>' +
+          '<button onclick="window.location.reload()" style="background:#5B6BFF;color:#fff;border:none;border-radius:10px;padding:9px 22px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Reintentar</button>' +
+        '</div>';
+    }
+
+    // Si después de 15 s el loader sigue visible, mostrar error de timeout
+    window._ventasBootTimeout = setTimeout(function () {
+      var loader = document.getElementById('pos-loader');
+      if (loader && loader.style.display !== 'none') {
+        _ventasShowError('Tiempo de espera agotado. Verifica tu conexión a internet.');
+      }
+    }, 15000);
+
     // Cuando el core esté listo, inicializar el módulo de ventas
     window._pos.on('core:ready', function () {
       const app = document.getElementById('pos-app');
@@ -62,11 +84,16 @@
 
       if (window._pos.modules && window._pos.modules.ventasSalon) {
         window._pos.modules.ventasSalon.init(app).then(function () {
+          clearTimeout(window._ventasBootTimeout);
           if (loader) loader.style.display = 'none';
           app.style.display = 'block';
+        }).catch(function (err) {
+          console.error('[ventas.html] init() falló:', err);
+          _ventasShowError(err && err.message ? err.message : String(err));
         });
       } else {
         console.error('[ventas.html] Módulo ventasSalon no encontrado');
+        _ventasShowError('Módulo de ventas no disponible. Recarga la página.');
       }
     });
 
