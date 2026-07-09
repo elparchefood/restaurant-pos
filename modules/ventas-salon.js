@@ -593,12 +593,73 @@
   }
 
   async function selectTable(tableId) {
+    // Tocar la misma mesa cierra el sheet
+    if (state.selectedTableId === tableId) {
+      hideSheet();
+      state.selectedTableId = null;
+      updateMesaHighlight(null);
+      return;
+    }
     state.selectedTableId = tableId;
+    updateMesaHighlight(tableId);
+    showSheetLoading();
     const { order, items } = await fetchOrderData(tableId);
     state.currentOrder = order;
     state.orderItems = items;
-    renderRail();
-    renderGrid(); // update selected highlight
+    updateSheetContent();
+  }
+
+  // ─── Bottom sheet helpers ─────────────────────────────
+
+  function updateMesaHighlight(selectedId) {
+    if (!container) return;
+    container.querySelectorAll('.lm-mesa[data-table-id]').forEach(function(btn) {
+      const t = state.tables.find(function(t){ return t.id === btn.dataset.tableId; });
+      if (!t) return;
+      const meta = STATE_META[t.status] || STATE_META.libre;
+      const isLibre = t.status === 'libre';
+      const isSel = t.id === selectedId;
+      btn.style.background = isLibre ? '#fff' : meta.tint;
+      btn.style.borderColor = isSel ? meta.color : (isLibre ? '#ECEEF2' : meta.ring);
+      btn.style.boxShadow = isSel ? ('0 0 0 3px ' + meta.color + '33') : '';
+    });
+  }
+
+  function showSheetLoading() {
+    const sheet = document.getElementById('vs-bottom-sheet');
+    const backdrop = document.getElementById('vs-sheet-backdrop');
+    const inner = document.getElementById('vs-sheet-inner');
+    if (!sheet) { renderRail(); return; }
+    if (inner) inner.innerHTML = '<div class="vs-sheet-loading">Cargando…</div>';
+    sheet.classList.add('vs-sheet--open');
+    if (backdrop) backdrop.classList.add('vs-sheet-backdrop--visible');
+  }
+
+  function updateSheetContent() {
+    const inner = document.getElementById('vs-sheet-inner');
+    if (!inner) { renderRail(); return; }
+    inner.innerHTML = renderRailContent();
+    attachRailEvents();
+    startLiveTimers();
+  }
+
+  function showSheet() {
+    const sheet = document.getElementById('vs-bottom-sheet');
+    const backdrop = document.getElementById('vs-sheet-backdrop');
+    const inner = document.getElementById('vs-sheet-inner');
+    if (!sheet) return;
+    if (inner) inner.innerHTML = renderRailContent();
+    sheet.classList.add('vs-sheet--open');
+    if (backdrop) backdrop.classList.add('vs-sheet-backdrop--visible');
+    attachRailEvents();
+    startLiveTimers();
+  }
+
+  function hideSheet() {
+    const sheet = document.getElementById('vs-bottom-sheet');
+    const backdrop = document.getElementById('vs-sheet-backdrop');
+    if (sheet) sheet.classList.remove('vs-sheet--open');
+    if (backdrop) backdrop.classList.remove('vs-sheet-backdrop--visible');
   }
 
   // ─── Computed helpers ────────────────────────────────
@@ -643,6 +704,7 @@
     // Get user info from _pos state
     const user = (window._pos && window._pos.state && window._pos.state.user) || {};
     const branch = (window._pos && window._pos.state && window._pos.state.branch) || {};
+    const isSalon = state.floor !== '__domicilios__' && state.floor !== '__rapidas__';
 
     container.innerHTML = `
       <div class="vs-root">
@@ -651,17 +713,27 @@
         <main class="vs-main">
           ${renderTopbar(user)}
           ${state.floor === '__domicilios__' ? renderDomicilioSummaryRow() : state.floor === '__rapidas__' ? renderQuickSummaryRow() : renderSummaryRow()}
-          <section class="vs-body">
+          <section class="vs-body${isSalon ? ' vs-body--fullgrid' : ''}">
             <div class="vs-body-left">
               ${state.floor === '__domicilios__' ? renderDomicilioGrid() : state.floor === '__rapidas__' ? renderQuickGrid() : renderGrid()}
             </div>
-            <aside class="vs-rail" id="vs-rail">${state.floor === '__domicilios__' ? renderDomiRailContent() : state.floor === '__rapidas__' ? renderQuickRailContent() : renderRailContent()}</aside>
+            ${isSalon
+              ? `<div class="vs-sheet-backdrop" id="vs-sheet-backdrop"></div>
+                 <div class="vs-bottom-sheet" id="vs-bottom-sheet">
+                   <div class="vs-sheet-handle"></div>
+                   <div class="vs-sheet-inner" id="vs-sheet-inner"></div>
+                 </div>`
+              : `<aside class="vs-rail" id="vs-rail">${state.floor === '__domicilios__' ? renderDomiRailContent() : renderQuickRailContent()}</aside>`
+            }
           </section>
         </main>
       </div>
     `;
 
     attachEvents();
+    if (isSalon && state.selectedTableId) {
+      showSheet();
+    }
   }
 
   // ─── Render: Sidebar ─────────────────────────────────
@@ -1634,6 +1706,14 @@
       const sidebar = container.querySelector('.vs-sidebar');
       if (sidebar) sidebar.classList.remove('vs-sidebar-expanded');
       sidebarBackdrop.classList.remove('is-visible');
+    });
+
+    // Sheet backdrop: cerrar al tocar fuera del panel
+    const sheetBackdrop = document.getElementById('vs-sheet-backdrop');
+    if (sheetBackdrop) sheetBackdrop.addEventListener('click', () => {
+      hideSheet();
+      state.selectedTableId = null;
+      updateMesaHighlight(null);
     });
 
     // Toggle cobro adelantado
