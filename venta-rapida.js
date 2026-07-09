@@ -774,9 +774,10 @@
     try {
       const cobroAdelantado = localStorage.getItem('pos.config.cobro_adelantado') === 'true';
       if (cobroAdelantado) {
-        // Cobro adelantado: ir a pagos primero
-        const orderId = await upsertOrder(sb, true);
-        window.location.href = `pagos.html?order=${orderId}&channel=rapido&adelantado=1`;
+        // Cobro adelantado: quedar como pendiente_pago y volver al salón
+        // El cajero cobra desde la vista de ventas cuando el pedido esté listo
+        await upsertOrder(sb, true, 'pendiente_pago');
+        window.location.href = 'ventas.html';
       } else {
         // Cobro al final: enviar a cocina y volver a ventas
         await upsertOrder(sb, true);
@@ -800,11 +801,12 @@
     }
   }
 
-  async function upsertOrder(sb, visible) {
+  async function upsertOrder(sb, visible, orderStatus) {
     const user   = window._pos && window._pos.state && window._pos.state.user;
     const userId = user ? user.id : null;
     const total  = calcTotal();
     const sub    = calcSubtotal();
+    const status = orderStatus || 'in_progress';
 
     // Crear o reusar orden
     if (!S.orderId) {
@@ -813,7 +815,7 @@
         waiter_id:      userId,
         table_id:       null,
         channel:        'rapido',
-        status:         'in_progress',
+        status:         status,
         total:          total,
         subtotal:       sub,
         discount:       S.descuento,
@@ -826,13 +828,15 @@
       S.orderId = order.id;
     } else {
       // Actualizar orden existente
-      await sb.from('pos_orders').update({
+      const updatePayload = {
         total:          total,
         subtotal:       sub,
         discount:       S.descuento,
         customer_name:  S.cliente || null,
         visible_cocina: !!visible,
-      }).eq('id', S.orderId);
+      };
+      if (orderStatus) updatePayload.status = orderStatus;
+      await sb.from('pos_orders').update(updatePayload).eq('id', S.orderId);
       // Borrar ítems anteriores
       await sb.from('pos_order_items').delete().eq('order_id', S.orderId);
     }
