@@ -668,12 +668,23 @@
     if (backdrop) backdrop.classList.add('vs-sheet-backdrop--visible');
   }
 
+  function _currentRailHTML() {
+    if (state.floor === '__domicilios__') return renderDomiRailContent();
+    if (state.floor === '__rapidas__') return renderQuickRailContent();
+    return renderRailContent();
+  }
+
+  function _attachCurrentEvents() {
+    if (state.floor === '__domicilios__') attachDomiRailEvents();
+    else if (state.floor === '__rapidas__') attachQuickRailEvents();
+    else { attachRailEvents(); startLiveTimers(); }
+  }
+
   function updateSheetContent() {
     const inner = document.getElementById('vs-sheet-inner');
     if (!inner) { renderRail(); return; }
-    inner.innerHTML = renderRailContent();
-    attachRailEvents();
-    startLiveTimers();
+    inner.innerHTML = _currentRailHTML();
+    _attachCurrentEvents();
   }
 
   function showSheet() {
@@ -681,11 +692,10 @@
     const backdrop = document.getElementById('vs-sheet-backdrop');
     const inner = document.getElementById('vs-sheet-inner');
     if (!sheet) return;
-    if (inner) inner.innerHTML = renderRailContent();
+    if (inner) inner.innerHTML = _currentRailHTML();
     sheet.classList.add('vs-sheet--open');
     if (backdrop) backdrop.classList.add('vs-sheet-backdrop--visible');
-    attachRailEvents();
-    startLiveTimers();
+    _attachCurrentEvents();
   }
 
   function hideSheet() {
@@ -722,6 +732,8 @@
       if (dx > 90) {
         hideSheet();
         state.selectedTableId = null;
+        state.selectedDomiId = null;
+        state.selectedQuickId = null;
         updateMesaHighlight(null);
       } else {
         sheet.style.transform = '';
@@ -780,26 +792,25 @@
         <main class="vs-main">
           ${renderTopbar(user)}
           ${state.floor === '__domicilios__' ? renderDomicilioSummaryRow() : state.floor === '__rapidas__' ? renderQuickSummaryRow() : renderSummaryRow()}
-          <section class="vs-body${isSalon ? ' vs-body--fullgrid' : ''}">
+          <section class="vs-body vs-body--fullgrid">
             <div class="vs-body-left">
               ${state.floor === '__domicilios__' ? renderDomicilioGrid() : state.floor === '__rapidas__' ? renderQuickGrid() : renderGrid()}
             </div>
             <aside class="vs-rail" id="vs-rail">${state.floor === '__domicilios__' ? renderDomiRailContent() : state.floor === '__rapidas__' ? renderQuickRailContent() : renderRailContent()}</aside>
-            ${isSalon ? `
-              <div class="vs-sheet-backdrop" id="vs-sheet-backdrop"></div>
-              <div class="vs-bottom-sheet" id="vs-bottom-sheet">
-                <div class="vs-sheet-handle" id="vs-sheet-handle"></div>
-                <div class="vs-sheet-inner" id="vs-sheet-inner"></div>
-              </div>` : ''}
+            <div class="vs-sheet-backdrop" id="vs-sheet-backdrop"></div>
+            <div class="vs-bottom-sheet" id="vs-bottom-sheet">
+              <div class="vs-sheet-handle" id="vs-sheet-handle"></div>
+              <div class="vs-sheet-inner" id="vs-sheet-inner"></div>
+            </div>
           </section>
         </main>
       </div>
     `;
 
     attachEvents();
-    if (isSalon && state.selectedTableId) {
-      showSheet();
-    }
+    if (isSalon && state.selectedTableId) showSheet();
+    else if (state.floor === '__domicilios__' && state.selectedDomiId) showSheet();
+    else if (state.floor === '__rapidas__' && state.selectedQuickId) showSheet();
   }
 
   // ─── Render: Sidebar ─────────────────────────────────
@@ -1794,6 +1805,8 @@
     if (sheetBackdrop) sheetBackdrop.addEventListener('click', () => {
       hideSheet();
       state.selectedTableId = null;
+      state.selectedDomiId = null;
+      state.selectedQuickId = null;
       updateMesaHighlight(null);
     });
 
@@ -1830,13 +1843,20 @@
       });
     });
 
-    // Domicilio cards: click selects + shows rail
+    // Domicilio cards: click selects + shows rail (desktop) + drawer (tablet)
     container.querySelectorAll('.vs-domi-card').forEach(btn => {
       btn.addEventListener('click', () => {
+        if (state.selectedDomiId === btn.dataset.domiId) {
+          hideSheet();
+          state.selectedDomiId = null;
+          const rail = document.getElementById('vs-rail');
+          if (rail) rail.innerHTML = renderDomiRailEmpty();
+          return;
+        }
         state.selectedDomiId = btn.dataset.domiId;
         const rail = document.getElementById('vs-rail');
         if (rail) { rail.innerHTML = renderDomiRailContent(); attachDomiRailEvents(); }
-        // highlight selected
+        showSheet();
         container.querySelectorAll('.vs-domi-card').forEach(c => {
           const m = DELIVERY_META[state.deliveries.find(x=>x.id===c.dataset.domiId)?.estado] || DELIVERY_META.preparacion;
           c.style.boxShadow = c.dataset.domiId === state.selectedDomiId ? `0 0 0 3px ${m.color}33` : 'none';
@@ -1845,12 +1865,20 @@
       });
     });
 
-    // Quick order cards
+    // Quick order cards: click selects + shows rail (desktop) + drawer (tablet)
     container.querySelectorAll('.lm-mesa[data-quick-id]').forEach(btn => {
       btn.addEventListener('click', () => {
+        if (state.selectedQuickId === btn.dataset.quickId) {
+          hideSheet();
+          state.selectedQuickId = null;
+          const rail = document.getElementById('vs-rail');
+          if (rail) rail.innerHTML = renderQuickRailEmpty();
+          return;
+        }
         state.selectedQuickId = btn.dataset.quickId;
         const rail = document.getElementById('vs-rail');
         if (rail) { rail.innerHTML = renderQuickRailContent(); attachQuickRailEvents(); }
+        showSheet();
         container.querySelectorAll('.lm-mesa[data-quick-id]').forEach(c2 => {
           const o2 = state.quickOrders.find(x => x.id === c2.dataset.quickId);
           const m2 = (o2 && QUICK_STATE_META[o2.status]) || QUICK_STATE_META.esperando;
