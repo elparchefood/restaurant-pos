@@ -1376,7 +1376,7 @@
 
 /* ─── Estilos base del sheet (se aplican cuando el display:flex es activado en tablet) ─── */
 .vs-sheet-backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.42);
   opacity: 0;
@@ -1388,9 +1388,9 @@
   opacity: 1;
   pointer-events: auto;
 }
-/* Drawer lateral — entra desde la derecha, ocupa todo el alto */
+/* Drawer lateral — entra desde la derecha, ocupa todo el alto de pantalla */
 .vs-bottom-sheet {
-  position: absolute;
+  position: fixed;
   top: 0;
   right: 0;
   bottom: 0;
