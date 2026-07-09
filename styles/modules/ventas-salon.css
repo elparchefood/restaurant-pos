@@ -1439,6 +1439,102 @@
   font-size: 13px;
 }
 
+/* ─── Selector de personas (mesa libre) ─── */
+.vs-guests-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #F8F9FB;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+.vs-guests-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+}
+.vs-guests-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.vs-guests-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1.5px solid #E2E8F0;
+  background: #fff;
+  font-size: 18px;
+  line-height: 1;
+  color: #334155;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+.vs-guests-btn:hover { background: #F1F5F9; }
+.vs-guests-btn:active { background: #E2E8F0; }
+.vs-guests-val {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1E293B;
+  min-width: 26px;
+  text-align: center;
+}
+
+/* ─── Edición inline de personas en panel detalle ─── */
+.vs-pax-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.vs-pax-edit-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0.45;
+  color: inherit;
+  line-height: 0;
+  flex-shrink: 0;
+}
+.vs-pax-edit-btn:hover { opacity: 1; }
+.vs-pax-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.vs-pax-edit-val {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1E293B;
+  min-width: 22px;
+  text-align: center;
+}
+.vs-pax-save {
+  background: #3B82F6;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.vs-pax-save:hover { background: #2563EB; }
+.vs-pax-cancel {
+  background: none;
+  border: none;
+  color: #94A3B8;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.vs-pax-cancel:hover { color: #64748B; }
+
 /* ─── Tablet: activar bottom sheet, ocultar rail ─── */
 @media (max-width: 1100px) {
   .vs-body--fullgrid {

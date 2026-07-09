@@ -100,7 +100,8 @@
     // Escuchar navegación desde dentro del módulo
     window._pos.on('table:open', function (data) {
       if (data && data.tableId) {
-        window.location.href = 'tomar-pedido.html?table=' + data.tableId;
+        const guestParam = data.guests ? '&guests=' + data.guests : '';
+        window.location.href = 'tomar-pedido.html?table=' + data.tableId + guestParam;
       }
     });
 

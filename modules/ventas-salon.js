@@ -438,17 +438,16 @@
         const orderMap = {};
         (ordersData || []).forEach(function(o){ orderMap[o.table_id] = o; });
 
-        // Contar ítems por orden para mostrar en las tarjetas de mesa
-        const orderIds = (ordersData || []).map(function(o){ return o.id; }).filter(Boolean);
+        // Contar ítems por orden — usamos .eq() individual por orden en vez de .in()
+        // porque .in() con múltiples UUIDs falla en algunos entornos (tablet/WebView).
         const itemsCountMap = {};
-        if (orderIds.length > 0) {
-          const { data: itemsCountData } = await sb
-            .from('pos_order_items')
-            .select('order_id')
-            .in('order_id', orderIds);
-          (itemsCountData || []).forEach(function(it) {
-            itemsCountMap[it.order_id] = (itemsCountMap[it.order_id] || 0) + 1;
-          });
+        const activeOrders = (ordersData || []).filter(function(o){ return o.id; });
+        if (activeOrders.length > 0) {
+          const countResults = await Promise.all(activeOrders.map(function(o) {
+            return sb.from('pos_order_items').select('id').eq('order_id', o.id)
+              .then(function(r){ return { oid: o.id, count: (r.data || []).length }; });
+          }));
+          countResults.forEach(function(c){ itemsCountMap[c.oid] = c.count; });
         }
 
         const enriched = Object.values(mergedMap).map(function(t) {
@@ -1396,7 +1395,15 @@
         <div class="vs-empty-rail">
           <div class="vs-empty-icon">${SVG_PLUS(22)}</div>
           <div class="vs-empty-title">Mesa libre</div>
-          <p class="vs-empty-desc">Abre la mesa para empezar una cuenta nueva o reservarla para más tarde.</p>
+          <p class="vs-empty-desc">Indica el número de personas antes de abrir la mesa.</p>
+          <div class="vs-guests-picker">
+            <span class="vs-guests-label">Personas</span>
+            <div class="vs-guests-controls">
+              <button class="vs-guests-btn" data-pax-action="minus" data-pax-target="vs-pax-${mesa.id}">−</button>
+              <span class="vs-guests-val" id="vs-pax-${mesa.id}">2</span>
+              <button class="vs-guests-btn" data-pax-action="plus" data-pax-target="vs-pax-${mesa.id}">+</button>
+            </div>
+          </div>
           <div class="vs-empty-btn-row">
             <button class="lm-btn-primary" style="width:100%" data-action="open-table" data-table-id="${mesa.id}">Abrir mesa ${numStr}</button>
             <button class="lm-btn-ghost" style="width:100%" data-action="reserve-table" data-table-id="${mesa.id}">Reservar mesa</button>
@@ -1498,7 +1505,12 @@
         <div class="vs-info-row">
           <div class="vs-info-cell">
             <div class="vs-info-label">Personas</div>
-            <div class="vs-info-value">${mesa.persons || '—'}</div>
+            <div class="vs-info-value vs-pax-display" id="vs-pax-detail">
+              <span>${guests || '—'}</span>
+              <button class="vs-pax-edit-btn" data-action="edit-personas" data-table-id="${mesa.id}" data-pax-current="${guests || 0}">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+            </div>
           </div>
           <div class="vs-info-cell">
             <div class="vs-info-label">Tiempo</div>
@@ -1866,6 +1878,17 @@
     container.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', handleAction);
     });
+
+    // Botones +/- del selector de personas en mesa libre
+    container.querySelectorAll('[data-pax-action]').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const valEl = document.getElementById(btn.dataset.paxTarget);
+        if (!valEl) return;
+        const dir = btn.dataset.paxAction === 'plus' ? 1 : -1;
+        valEl.textContent = Math.max(1, Math.min(30, (parseInt(valEl.textContent, 10) || 1) + dir));
+      });
+    });
   }
 
   function attachQuickRailEvents() {
@@ -1900,12 +1923,58 @@
     const tableId = e.currentTarget.dataset.tableId;
 
     switch (action) {
-      case 'open-table':
-        window._pos && window._pos.emit && window._pos.emit('table:open', { tableId });
+      case 'open-table': {
+        const paxEl = document.getElementById('vs-pax-' + tableId);
+        const guests = paxEl ? (parseInt(paxEl.textContent, 10) || 2) : 2;
+        window._pos && window._pos.emit && window._pos.emit('table:open', { tableId, guests });
         break;
+      }
       case 'reserve-table':
         window._pos && window._pos.emit && window._pos.emit('table:reserve', { tableId });
         break;
+      case 'edit-personas': {
+        const paxDetail = document.getElementById('vs-pax-detail');
+        if (!paxDetail) break;
+        const curPax = parseInt(e.currentTarget.dataset.paxCurrent, 10) || state.currentOrder?.guests || 1;
+        paxDetail.innerHTML = `
+          <div class="vs-pax-edit">
+            <button class="vs-guests-btn" id="vs-pax-edit-minus">−</button>
+            <span class="vs-pax-edit-val" id="vs-pax-edit-num">${curPax}</span>
+            <button class="vs-guests-btn" id="vs-pax-edit-plus">+</button>
+            <button class="vs-pax-save" id="vs-pax-save">✓</button>
+            <button class="vs-pax-cancel" id="vs-pax-cancel">✕</button>
+          </div>`;
+        document.getElementById('vs-pax-edit-minus')?.addEventListener('click', function(ev) {
+          ev.stopPropagation();
+          const n = document.getElementById('vs-pax-edit-num');
+          if (n) n.textContent = Math.max(1, (parseInt(n.textContent, 10) || 1) - 1);
+        });
+        document.getElementById('vs-pax-edit-plus')?.addEventListener('click', function(ev) {
+          ev.stopPropagation();
+          const n = document.getElementById('vs-pax-edit-num');
+          if (n) n.textContent = Math.min(30, (parseInt(n.textContent, 10) || 1) + 1);
+        });
+        document.getElementById('vs-pax-save')?.addEventListener('click', async function() {
+          const newCount = parseInt(document.getElementById('vs-pax-edit-num')?.textContent, 10) || 1;
+          const ordId = state.currentOrder && state.currentOrder.id;
+          if (ordId) {
+            if (window.posSync) {
+              await posSync.write('pos_orders', 'update', { guests: newCount }, { id: ordId });
+            } else {
+              const sbPax = window._pos && window._pos.sb;
+              if (sbPax) await sbPax.from('pos_orders').update({ guests: newCount }).eq('id', ordId);
+            }
+            state.currentOrder = Object.assign({}, state.currentOrder, { guests: newCount });
+            const tIdx = state.tables.findIndex(function(t){ return t.id === tableId; });
+            if (tIdx >= 0) state.tables[tIdx] = Object.assign({}, state.tables[tIdx], { persons: newCount });
+          }
+          renderRail(); updateSheetContent();
+        });
+        document.getElementById('vs-pax-cancel')?.addEventListener('click', function() {
+          renderRail(); updateSheetContent();
+        });
+        break;
+      }
       case 'cobrar': {
         // Cobro adelantado: navegar a pagos.html con adelantado=1
         const mesaCobrar = state.tables.find(t => t.id === tableId);

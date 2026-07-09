@@ -43,6 +43,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const params = new URLSearchParams(window.location.search);
   S.tableId = params.get('table');
   if (!S.tableId) { window.location.href = 'ventas.html'; return; }
+  const urlGuests = parseInt(params.get('guests') || '0', 10);
+  if (urlGuests > 0) S.personas = urlGuests;
 
   // 3. Pintar shell inmediato
   paintShell();
