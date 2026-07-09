@@ -1194,3 +1194,169 @@
 }
 .lm-btn-primary:disabled:hover,
 .vs-cobrar-disabled:hover { background: #CBD5E1 !important; }
+
+/* ─── Sidebar toggle button (siempre oculto en desktop) ─── */
+.vs-sidebar-toggle {
+  display: none;
+}
+.vs-sidebar-backdrop {
+  display: none;
+}
+
+/* ─── Tablet: sidebar colapsable + chips compactos ─── */
+@media (max-width: 1100px) {
+
+  /* ── Toggle button ── */
+  .vs-sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    right: -15px;
+    top: 18px;
+    width: 30px;
+    height: 30px;
+    background: #FFFFFF;
+    border: 1px solid #ECEEF2;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 501;
+    box-shadow: 2px 0 8px rgba(15,23,42,.10);
+    color: #64748B;
+    flex-shrink: 0;
+    transition: background .15s, color .15s;
+  }
+  .vs-sidebar-toggle:hover {
+    background: #F1F5F9;
+    color: #0F172A;
+  }
+  .vs-sidebar-toggle svg {
+    transition: transform .2s ease;
+  }
+  .vs-sidebar-expanded .vs-sidebar-toggle svg {
+    transform: rotate(180deg);
+  }
+
+  /* ── Backdrop ── */
+  .vs-sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15,23,42,.28);
+    z-index: 499;
+  }
+  .vs-sidebar-backdrop.is-visible {
+    display: block;
+  }
+
+  /* ── Sidebar colapsado: solo iconos ── */
+  .vs-sidebar {
+    width: 58px;
+    position: relative;
+    flex-shrink: 0;
+    overflow: visible;
+    transition: box-shadow .2s ease;
+  }
+
+  /* Textos ocultos cuando colapsado */
+  .vs-sidebar:not(.vs-sidebar-expanded) .vs-brand-name,
+  .vs-sidebar:not(.vs-sidebar-expanded) .vs-brand-sub,
+  .vs-sidebar:not(.vs-sidebar-expanded) .vs-sidebar-section-label,
+  .vs-sidebar:not(.vs-sidebar-expanded) .lm-nav-inner > span,
+  .vs-sidebar:not(.vs-sidebar-expanded) .lm-nav-badge {
+    display: none !important;
+  }
+
+  /* Nav items centrados con solo icono */
+  .vs-sidebar:not(.vs-sidebar-expanded) .lm-nav {
+    padding: 10px;
+    justify-content: center;
+  }
+  .vs-sidebar:not(.vs-sidebar-expanded) .lm-nav-inner {
+    gap: 0;
+  }
+  .vs-sidebar:not(.vs-sidebar-expanded) .vs-brand-mark {
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+  }
+  .vs-sidebar:not(.vs-sidebar-expanded) .vs-sidebar-footer {
+    align-items: center;
+    padding: 10px 6px;
+  }
+  .vs-sidebar:not(.vs-sidebar-expanded) #vs-fx-chip {
+    display: none;
+  }
+
+  /* ── Sidebar expandido: overlay encima del contenido ── */
+  .vs-sidebar.vs-sidebar-expanded {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 224px;
+    z-index: 500;
+    box-shadow: 4px 0 28px rgba(15,23,42,.18);
+  }
+
+  /* ── Chips compactos en tablet ── */
+  .vs-summary-row {
+    padding: 10px 14px 8px;
+    gap: 8px;
+  }
+  .vs-chips-track {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .lm-chip {
+    padding: 7px 8px 7px 8px;
+    gap: 6px;
+    border-radius: 10px;
+  }
+  .lm-chip-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+  }
+  .lm-chip-count {
+    font-size: 17px;
+  }
+  .lm-chip-label {
+    font-size: 9px;
+  }
+  .lm-chip-hint {
+    font-size: 9px;
+    margin-top: 1px;
+  }
+  .lm-grip {
+    display: none;
+  }
+
+  /* ── Metric strip oculto en tablet (ahorra espacio) ── */
+  .vs-metric-strip {
+    display: none;
+  }
+
+  /* ── Topbar y tabs ── */
+  .vs-topbar {
+    padding: 0 14px;
+    margin-bottom: 8px;
+    height: 56px;
+  }
+  .lm-tab {
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+  .vs-legend {
+    display: none;
+  }
+  .vs-cobro-toggle .vs-cobro-label {
+    display: none;
+  }
+
+  /* ── Body ── */
+  .vs-body {
+    padding: 0 14px 14px;
+    gap: 12px;
+  }
+}

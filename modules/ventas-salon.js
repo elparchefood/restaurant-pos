@@ -184,6 +184,9 @@
 
   const MESERO_NAMES = { SA: 'Sergio Andrés', JM: 'Juan Manuel', AC: 'Andrea Castro', LM: 'Laura Mejía' };
 
+  // ─── UI state (no data) ─────────────────────────────
+  let sidebarExpanded = false;
+
   // ─── Estado del módulo ───────────────────────────────
   let state = {
     floor: null,
@@ -634,6 +637,7 @@
 
     container.innerHTML = `
       <div class="vs-root">
+        <div class="vs-sidebar-backdrop${sidebarExpanded ? ' is-visible' : ''}" id="vs-sidebar-backdrop"></div>
         ${renderSidebar(user, branch)}
         <main class="vs-main">
           ${renderTopbar(user)}
@@ -655,7 +659,10 @@
   function renderSidebar(user, branch) {
     const initials = user.initials || (user.name ? user.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() : 'SA');
     return `
-      <aside class="vs-sidebar">
+      <aside class="vs-sidebar${sidebarExpanded ? ' vs-sidebar-expanded' : ''}">
+        <button class="vs-sidebar-toggle" id="vs-sidebar-toggle" title="${sidebarExpanded ? 'Cerrar menú' : 'Abrir menú'}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
         <div class="vs-brand-mark">
           <div class="vs-brand-logo">L</div>
           <div>
@@ -1601,6 +1608,24 @@
   // ─── Events ───────────────────────────────────────────
   function attachEvents() {
     if (!container) return;
+
+    // Sidebar toggle (tablet overlay)
+    const sidebarToggle = document.getElementById('vs-sidebar-toggle');
+    if (sidebarToggle) sidebarToggle.addEventListener('click', () => {
+      sidebarExpanded = !sidebarExpanded;
+      const sidebar = container.querySelector('.vs-sidebar');
+      const backdrop = document.getElementById('vs-sidebar-backdrop');
+      if (sidebar) sidebar.classList.toggle('vs-sidebar-expanded', sidebarExpanded);
+      if (backdrop) backdrop.classList.toggle('is-visible', sidebarExpanded);
+      sidebarToggle.title = sidebarExpanded ? 'Cerrar menú' : 'Abrir menú';
+    });
+    const sidebarBackdrop = document.getElementById('vs-sidebar-backdrop');
+    if (sidebarBackdrop) sidebarBackdrop.addEventListener('click', () => {
+      sidebarExpanded = false;
+      const sidebar = container.querySelector('.vs-sidebar');
+      if (sidebar) sidebar.classList.remove('vs-sidebar-expanded');
+      sidebarBackdrop.classList.remove('is-visible');
+    });
 
     // Toggle cobro adelantado
     const cobroToggle = document.getElementById('vs-cobro-toggle');
