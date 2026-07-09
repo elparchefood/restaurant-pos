@@ -1255,6 +1255,7 @@
     position: relative;
     flex-shrink: 0;
     overflow: visible;
+    z-index: 10; /* crea stacking context para que el toggle button quede sobre vs-main */
     transition: box-shadow .2s ease;
   }
 
