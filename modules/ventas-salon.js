@@ -670,28 +670,28 @@
   function attachSheetSwipeDismiss() {
     const sheet = document.getElementById('vs-bottom-sheet');
     if (!sheet) return;
-    var startY = 0;
+    var startX = 0;
     var dragging = false;
 
     sheet.addEventListener('touchstart', function(e) {
-      // Solo iniciar si el toque viene del handle o de una zona no-scroll
-      startY = e.touches[0].clientY;
+      startX = e.touches[0].clientX;
       dragging = true;
       sheet.style.transition = 'none';
     }, { passive: true });
 
     sheet.addEventListener('touchmove', function(e) {
       if (!dragging) return;
-      var dy = e.touches[0].clientY - startY;
-      if (dy > 0) sheet.style.transform = 'translateY(' + dy + 'px)';
+      var dx = e.touches[0].clientX - startX;
+      // Solo permite arrastrar hacia la derecha (para cerrar)
+      if (dx > 0) sheet.style.transform = 'translateX(' + dx + 'px)';
     }, { passive: true });
 
     sheet.addEventListener('touchend', function(e) {
       if (!dragging) return;
       dragging = false;
       sheet.style.transition = '';
-      var dy = e.changedTouches[0].clientY - startY;
-      if (dy > 90) {
+      var dx = e.changedTouches[0].clientX - startX;
+      if (dx > 90) {
         hideSheet();
         state.selectedTableId = null;
         updateMesaHighlight(null);
@@ -1754,7 +1754,7 @@
       updateMesaHighlight(null);
     });
 
-    // Swipe hacia abajo para cerrar el sheet en tablet
+    // Swipe hacia la derecha para cerrar el drawer lateral en tablet
     attachSheetSwipeDismiss();
 
     // Toggle cobro adelantado
