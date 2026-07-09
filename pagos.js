@@ -331,18 +331,9 @@ async function cobrarDespues() {
     // 3. Actualizar mesa según modo de cobro (solo si hay mesa)
     if (SP.tableId) {
       if (!SP.adelantado) {
-        await _write('pos_tables', 'update', {
-          status:           'libre',
-          current_order_id: null,
-          esperando_at:     null,
-          comiendo_method:  null,
-        }, { id: SP.tableId });
+        await _write('pos_tables', 'update', { status: 'libre' }, { id: SP.tableId });
       } else {
-        await _write('pos_tables', 'update', {
-          status:       'esperando',
-          esperando_at: new Date().toISOString(),
-        }, { id: SP.tableId });
-        await _write('pos_orders', 'update', { visible_cocina: true }, { id: SP.orderId });
+        await _write('pos_tables', 'update', { status: 'esperando' }, { id: SP.tableId });
       }
     }
 

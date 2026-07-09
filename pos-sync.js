@@ -230,6 +230,7 @@
       _ui('syncing', pending.length);
       pending.sort((a, b) => a.qid - b.qid);
 
+      const MAX_RETRIES = 5;
       let failed = 0;
       for (const entry of pending) {
         try {
@@ -242,8 +243,16 @@
           }
           await _idbDelete('queue', entry.qid);
         } catch (e) {
-          console.warn('[posSync] Error al sincronizar entrada', entry.qid, e.message);
-          failed++;
+          const retries = (entry.failCount || 0) + 1;
+          console.warn('[posSync] Error al sincronizar entrada', entry.qid, `(intento ${retries}/${MAX_RETRIES})`, e.message);
+          if (retries >= MAX_RETRIES) {
+            // Descartar operaciones que fallan repetidamente para no bloquear la cola
+            console.error('[posSync] Descartando entrada', entry.qid, '— demasiados fallos:', e.message);
+            await _idbDelete('queue', entry.qid);
+          } else {
+            await _idbPut('queue', { ...entry, failCount: retries });
+            failed++;
+          }
         }
       }
 

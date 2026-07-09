@@ -199,6 +199,7 @@
     dragKey: null,
     cobroAdelantado: false,
     userRole: 'mesero',
+    canCobrar: false,
     currentOrder: null,
     deliveries: [],
     selectedDomiId: null,
@@ -511,6 +512,34 @@
 
     if (itemErr) { console.error('[ventas-salon] fetchOrderData items:', itemErr); }
     return { order, items: items || [] };
+  }
+
+  // ─── Permisos de usuario ─────────────────────────────
+  async function fetchUserPerms() {
+    const sb   = window._pos && window._pos.sb;
+    const user = window._pos && window._pos.state && window._pos.state.user;
+    if (!sb || !user) return;
+
+    const role     = user.user_metadata?.role || user.app_metadata?.role || 'mesero';
+    state.userRole = role;
+
+    // Roles con cobro implícito — siempre pueden cobrar
+    if (['admin','administrador','gerente','cajero','cajera'].includes(role)) {
+      state.canCobrar = true;
+      return;
+    }
+
+    // Para mesero y otros: consultar pos_roles.perms
+    const tenantId = window._pos.state.tenantId;
+    if (!tenantId) return;
+    const { data: roleRow } = await sb
+      .from('pos_roles')
+      .select('perms')
+      .eq('tenant_id', tenantId)
+      .eq('name', role)
+      .maybeSingle();
+
+    state.canCobrar = Array.isArray(roleRow?.perms) && roleRow.perms.includes('pedidos.cobrar');
   }
 
   // ─── Realtime subscription ───────────────────────────
@@ -1410,15 +1439,17 @@
         }).join('')
       : `<div style="font-size:12px;color:#94A3B8;padding:16px 0;text-align:center">Sin ítems registrados</div>`;
 
+    const canCobrar = state.canCobrar;
+
     const actionsHtml = isPendientePago
       ? `<div class="vs-pending-notice">
            ${SVG_DOLLAR(14)} <span>Esperando cobro — pedido en preparación</span>
          </div>
          <div class="vs-actions">
            <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
-           <button class="lm-btn-primary vs-cobrar-btn" data-action="cobrar" data-table-id="${mesa.id}">
+           ${canCobrar ? `<button class="lm-btn-primary vs-cobrar-btn" data-action="cobrar" data-table-id="${mesa.id}">
              ${SVG_DOLLAR(14)} Cobrar y enviar a cocina
-           </button>
+           </button>` : ''}
          </div>`
       : mesa.status === 'comiendo'
       ? state.cobroAdelantado
@@ -1429,18 +1460,18 @@
         : `<div class="vs-actions">
              <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
              <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
-             <button class="lm-btn-primary" data-action="collect" data-table-id="${mesa.id}">Cobrar</button>
+             ${canCobrar ? `<button class="lm-btn-primary" data-action="collect" data-table-id="${mesa.id}">Cobrar</button>` : ''}
            </div>`
       : mesa.status === 'esperando' && state.cobroAdelantado
       ? `<div class="vs-actions">
            <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
            <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
-           <button class="lm-btn-primary vs-cobrar-disabled" data-action="collect" data-table-id="${mesa.id}" disabled>Cobrar</button>
+           ${canCobrar ? `<button class="lm-btn-primary vs-cobrar-disabled" data-action="collect" data-table-id="${mesa.id}" disabled>Cobrar</button>` : ''}
          </div>`
       : `<div class="vs-actions">
            <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
            <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
-           <button class="lm-btn-primary" data-action="collect" data-table-id="${mesa.id}">Cobrar</button>
+           ${canCobrar ? `<button class="lm-btn-primary" data-action="collect" data-table-id="${mesa.id}">Cobrar</button>` : ''}
          </div>`;
 
     return `
@@ -2526,8 +2557,8 @@
     state.zones = loadZonesFromConfig();
     state.floor = state.zones.length ? state.zones[0].id : null;
 
-    // Cargar modo cobro
-    await loadCobroAdelantado();
+    // Cargar modo cobro y permisos del usuario en paralelo
+    await Promise.all([loadCobroAdelantado(), fetchUserPerms()]);
 
     // Initial render (loading state)
     render();
