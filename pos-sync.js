@@ -143,9 +143,8 @@
   ══════════════════════════════════════════ */
 
   function _getSB() {
-    // pos-core.js pages use window._pos.supabase
-    // mesero-login / mesero-turno expose window._posSB after createClient
-    const sb = (window._pos && window._pos.supabase) || window._posSB;
+    // pos-core.js expone el cliente como window._pos.sb
+    const sb = (window._pos && (window._pos.sb || window._pos.supabase)) || window._posSB;
     if (!sb) throw new Error('[posSync] Supabase no inicializado todavía');
     return sb;
   }
