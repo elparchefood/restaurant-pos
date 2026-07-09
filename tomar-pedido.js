@@ -969,7 +969,8 @@ async function saveOrder() {
 
     toast('Pedido guardado' + (S.order?._offline ? ' (sin conexión)' : ''), 'ok');
     // C5: Auto-imprimir comanda (solo si hay id real de Supabase)
-    if (typeof posAutoprint === 'function' && S.order?.id && !S.order._offline) posAutoprint(S.order.id);
+    // En escritorio (Electron) imprimir localmente; en tablet el escritorio imprime vía realtime
+    if (typeof posAutoprint === 'function' && S.order?.id && !S.order._offline && window.electronPOS) posAutoprint(S.order.id);
   } catch(e) {
     console.error('saveOrder:', e);
     toast('Error al guardar: ' + (e?.message || e), 'error');
