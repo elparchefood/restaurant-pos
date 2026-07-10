@@ -126,12 +126,33 @@ function paintTableInfo(t) {
 
 // ── Catálogo ─────────────────────────────────────────────────
 async function loadCatalog() {
+  var _ck = 'pos.catalog.v1.' + S.tenantId;
+  // Servir desde caché si existe — sin delay de red
+  try {
+    var _raw = localStorage.getItem(_ck);
+    if (_raw) {
+      var _cd = JSON.parse(_raw);
+      if (_cd && _cd.cats && _cd.products) {
+        S.cats      = _cd.cats;
+        S.products  = _cd.products;
+        S.modGroups = _cd.modGroups || [];
+        // Actualizar en segundo plano sin bloquear el arranque
+        setTimeout(function() { _catalogFetch(_ck, true); }, 0);
+        return;
+      }
+    }
+  } catch(e) {}
+  // Sin caché — esperar datos frescos (primera vez)
+  await _catalogFetch(_ck, false);
+}
+
+async function _catalogFetch(cacheKey, isBackground) {
   try {
     const [{ data: cats }, { data: prods }] = await Promise.all([
       sb.from('pos_categories').select('*').eq('tenant_id', S.tenantId).order('name'),
       sb.from('pos_products')  .select('*').eq('tenant_id', S.tenantId).eq('available', true).order('name'),
     ]);
-    S.cats     = (cats  || []).map((c, i) => ({
+    S.cats = (cats || []).map((c, i) => ({
       ...c,
       color: c.color || CAT_PALETTE[i % CAT_PALETTE.length].color,
       tint:  c.color_tint || CAT_PALETTE[i % CAT_PALETTE.length].tint,
@@ -142,14 +163,20 @@ async function loadCatalog() {
       variables:     Array.isArray(p.variables)     ? p.variables     : [],
       mod_group_ids: Array.isArray(p.mod_group_ids) ? p.mod_group_ids : [],
     }));
-    // Cargar modificadores en segundo plano (no bloquea catálogo)
-    sb.from('pos_modifier_groups').select('id,name,rule,multi,options').eq('tenant_id', S.tenantId)
-      .then(({data}) => {
-        S.modGroups = (data||[]).map(g => ({
-          id:g.id, name:g.name, rule:g.rule||'opcional', multi:!!g.multi,
-          options: Array.isArray(g.options)?g.options:[],
-        }));
-      });
+    const { data: mods } = await sb.from('pos_modifier_groups')
+      .select('id,name,rule,multi,options').eq('tenant_id', S.tenantId);
+    S.modGroups = (mods || []).map(g => ({
+      id:g.id, name:g.name, rule:g.rule||'opcional', multi:!!g.multi,
+      options: Array.isArray(g.options) ? g.options : [],
+    }));
+    // Guardar en caché local
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({
+        cats: S.cats, products: S.products, modGroups: S.modGroups, ts: Date.now()
+      }));
+    } catch(e) {}
+    // Si es refresco en segundo plano, actualizar la UI silenciosamente
+    if (isBackground) { renderCatGrid(); renderMenuTab(); }
   } catch(e) {
     console.error('loadCatalog:', e);
   }

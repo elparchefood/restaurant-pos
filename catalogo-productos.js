@@ -92,16 +92,16 @@ async function saveProductToSupabase(p) {
     const presPrices=(p.presentations||[]).map(x=>x.price||0).filter(Boolean);const varPrices=(p.variables||[]).flatMap(v=>(v.options||[]).map(o=>o.price||0)).filter(Boolean);const basePrice=isMatrix?(matrixPrices.length?Math.min(...matrixPrices):0):(presPrices.length?Math.min(...presPrices):(varPrices.length?Math.min(...varPrices):0));
     const row={tenant_id:S.tenantId,branch_id:S.branchId,name:p.name,price:basePrice,price_mode:p.priceMode||'simple',category_id:p.cat==='_'?null:p.cat,available:p.active,description:p.desc||null,photo_url:p.photo||null,presentations:p.presentations||[],variables:p.variables||[],mod_group_ids:p.modGroupIds||[]};
     const isNew=!p.id||p.id.startsWith('p_');
-    if(isNew){const {data,error}=await sb.from('pos_products').insert([row]).select().single();if(error)throw error;return data.id;}
-    else{await sb.from('pos_products').update(row).eq('id',p.id).eq('tenant_id',S.tenantId);return p.id;}
+    if(isNew){const {data,error}=await sb.from('pos_products').insert([row]).select().single();if(error)throw error;_invalidateCatalogCache();return data.id;}
+    else{await sb.from('pos_products').update(row).eq('id',p.id).eq('tenant_id',S.tenantId);_invalidateCatalogCache();return p.id;}
   } catch(e){console.error('saveProduct:',e);return p.id;}
 }
 async function saveCategoryToSupabase(c) {
   try {
     const row={tenant_id:S.tenantId,branch_id:S.branchId,name:c.name,color:c.color,color_tint:c.tint,color_ring:c.ring};
     const isNew=!c.id||c.id.startsWith('cat_');
-    if(isNew){const {data,error}=await sb.from('pos_categories').insert([row]).select().single();if(error)throw error;return{...c,id:data.id};}
-    else{await sb.from('pos_categories').update(row).eq('id',c.id).eq('tenant_id',S.tenantId);return c;}
+    if(isNew){const {data,error}=await sb.from('pos_categories').insert([row]).select().single();if(error)throw error;_invalidateCatalogCache();return{...c,id:data.id};}
+    else{await sb.from('pos_categories').update(row).eq('id',c.id).eq('tenant_id',S.tenantId);_invalidateCatalogCache();return c;}
   } catch(e){console.error('saveCat:',e);return c;}
 }
 async function saveComboToSupabase(c) {
@@ -116,14 +116,15 @@ async function saveModGroupToSupabase(g) {
   try {
     const row={tenant_id:S.tenantId,branch_id:S.branchId,name:g.name,rule:g.rule||'opcional',multi:g.multi!==false,options:g.options||[]};
     const isNew=!g.id||g.id.startsWith('mg_');
-    if(isNew){const {data,error}=await sb.from('pos_modifier_groups').insert([row]).select().single();if(error)throw error;return data.id;}
-    else{await sb.from('pos_modifier_groups').update(row).eq('id',g.id).eq('tenant_id',S.tenantId);return g.id;}
+    if(isNew){const {data,error}=await sb.from('pos_modifier_groups').insert([row]).select().single();if(error)throw error;_invalidateCatalogCache();return data.id;}
+    else{await sb.from('pos_modifier_groups').update(row).eq('id',g.id).eq('tenant_id',S.tenantId);_invalidateCatalogCache();return g.id;}
   } catch(e){console.error('saveMod:',e);return g.id;}
 }
-async function deleteCategoryFromSupabase(id){try{await sb.from('pos_categories').delete().eq('id',id).eq('tenant_id',S.tenantId);}catch(e){}}
-async function deleteProductFromSupabase(id){try{await sb.from('pos_products').delete().eq('id',id).eq('tenant_id',S.tenantId);}catch(e){}}
+async function deleteCategoryFromSupabase(id){try{await sb.from('pos_categories').delete().eq('id',id).eq('tenant_id',S.tenantId);_invalidateCatalogCache();}catch(e){}}
+async function deleteProductFromSupabase(id){try{await sb.from('pos_products').delete().eq('id',id).eq('tenant_id',S.tenantId);_invalidateCatalogCache();}catch(e){}}
 async function deleteComboFromSupabase(id){try{await sb.from('pos_combos').delete().eq('id',id).eq('tenant_id',S.tenantId);}catch(e){}}
-async function deleteModGroupFromSupabase(id){try{await sb.from('pos_modifier_groups').delete().eq('id',id).eq('tenant_id',S.tenantId);}catch(e){}}
+function _invalidateCatalogCache(){try{localStorage.removeItem('pos.catalog.v1.'+S.tenantId);}catch(e){}}
+async function deleteModGroupFromSupabase(id){try{await sb.from('pos_modifier_groups').delete().eq('id',id).eq('tenant_id',S.tenantId);_invalidateCatalogCache();}catch(e){}}
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 async function signOut(){await sb.auth.signOut();window.location.href='login.html';}
@@ -447,6 +448,7 @@ async function toggleProduct(id){
   const p=S.products.find(x=>x.id===id);if(!p)return;
   p.active=!p.active;
   await sb.from('pos_products').update({available:p.active}).eq('id',id).eq('tenant_id',S.tenantId);
+  _invalidateCatalogCache();
   renderBody();
 }
 
