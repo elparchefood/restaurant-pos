@@ -28,10 +28,11 @@
         ? it.mods.map(function(m){ return String(m).toUpperCase(); }).join(' · ')
         : '';
       var line = '(' + qty + ') ' + name + (mods ? ' · ' + mods : '');
-      var note = it.note
-        ? '<div style="font-style:italic;font-size:12px;font-weight:500;margin-left:12px;margin-top:-2px;margin-bottom:4px;">NOTA - ' + it.note.toUpperCase() + '</div>'
+      var noteText = it.notes || it.note || '';
+      var note = noteText
+        ? '<div style="font-style:italic;font-size:12px;font-weight:700;margin-left:10px;margin-top:1px;margin-bottom:5px;">NOTA - ' + noteText.toUpperCase() + '</div>'
         : '';
-      return '<div style="font-size:16px;font-weight:900;margin:5px 0 2px;line-height:1.3;">' + line + '</div>' + note;
+      return '<div style="font-size:15px;font-weight:700;margin:5px 0 2px;line-height:1.3;">' + line + '</div>' + note;
     }).join('');
 
     function sep(text) {
@@ -50,7 +51,7 @@
       + '<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;width:80mm;max-width:80mm;margin:0;padding:6px 8px;color:#000;line-height:1.35;}</style>'
       + '</head><body>'
       + '<div style="font-size:20px;font-weight:900;text-align:center;margin-bottom:2px;">MESA ' + mesa + '</div>'
-      + (pax ? '<div style="font-size:13px;font-weight:700;text-align:right;">( ' + pax + ' PAX)</div>' : '')
+      + (pax ? '<div style="font-size:13px;font-weight:700;padding-left:55%;">( ' + pax + ' PAX)</div>' : '')
       + '<div style="height:5px;"></div>'
       + '<div>AREA - COCINA</div>'
       + '<div>FECHA: ' + dateStr + '</div>'
@@ -188,7 +189,7 @@
     var order = await _fetchOrder(orderId);
     if (!order) return;
     var items = (order.pos_order_items || []).map(function(it) {
-      return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', mods: Array.isArray(it.mods) ? it.mods : [] };
+      return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', notes: it.notes || '', mods: Array.isArray(it.mods) ? it.mods : [] };
     });
     _printHtml(_buildComanda({ table: order.table_id || order.table_name || '-', channel: order.channel, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '' }, items), 'comanda');
   };
