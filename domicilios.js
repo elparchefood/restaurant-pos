@@ -1286,6 +1286,9 @@ async function enviarACocina() {
     createdAt:    Date.now(),
   };
 
+  // Capturar datos para insert ANTES del reset de estado
+  const _cartSnapshot = S.cart.map(function(it){ return Object.assign({}, it); });
+
   S.deliveries.unshift(nuevo);
 
   // Reset pedido
@@ -1336,9 +1339,8 @@ async function enviarACocina() {
       branch_id:        S.branchId,
       channel:          'domicilio',
       status:           'open',
-      customer_name:    S.cliente && S.cliente.nombre ? S.cliente.nombre : null,
-      customer_phone:   S.cliente && S.cliente.tel    ? S.cliente.tel    : null,
-      delivery_address: S.cliente && S.cliente.dir    ? S.cliente.dir    : null,
+      customer_name:    nuevo.cliente || null,
+      delivery_address: nuevo.cliente ? (S.clientes.find(function(c){ return c.nombre === nuevo.cliente; }) || {}).dir || null : null,
       delivery_person:  nuevo.domiciliario || null,
       total:            prod,
       payment_method:   metodo,
@@ -1346,7 +1348,7 @@ async function enviarACocina() {
     };
     const { data: _saved, error: _err } = await sb.from('pos_orders').insert(_orderRow).select('id').single();
     if (!_err && _saved) {
-      const _items = S.cart.map(it => ({
+      const _items = _cartSnapshot.map(function(it) { return {
         tenant_id:     S.tenantId,
         branch_id:     S.branchId,
         order_id:      _saved.id,
@@ -1360,7 +1362,7 @@ async function enviarACocina() {
         notes:         it.note || null,
         status:        'pending',
         selections:    it.mods || {},
-      }));
+      }; });
       if (_items.length) await sb.from('pos_order_items').insert(_items);
     } else if (_err) {
       console.error('[domicilios] insert order:', _err);
