@@ -68,7 +68,14 @@ const S = {
   favorites: [],
   modGroups: [],
   domiciliarios: [],
-  clientes:  JSON.parse(localStorage.getItem('pos.domi.clientes') || '[]'),
+  clientes:  (function() {
+    // Migración clave compartida pos.clientes
+    const _shared = localStorage.getItem('pos.clientes');
+    if (_shared) return JSON.parse(_shared);
+    const _old = localStorage.getItem('pos.domi.clientes');
+    if (_old) { const d = JSON.parse(_old); localStorage.setItem('pos.clientes', _old); return d; }
+    return [];
+  })(),
   deliveries: [],
 };
 
@@ -1230,7 +1237,7 @@ function guardarCliente() {
     S.cliente = newCli;
   }
 
-  localStorage.setItem('pos.domi.clientes', JSON.stringify(S.clientes));
+  localStorage.setItem('pos.clientes', JSON.stringify(S.clientes));
   closeModal('modal-nuevocli');
   renderCliList('');
   renderClienteCard();

@@ -42,12 +42,22 @@
   function loadCart() {
     try { S.cart = JSON.parse(localStorage.getItem(CART_KEY) || '[]'); } catch(e) { S.cart = []; }
   }
-  const CLIENTES_KEY = 'pos.rapida.clientes';
+  const CLIENTES_KEY = 'pos.clientes';
   function saveClientes() {
     try { localStorage.setItem(CLIENTES_KEY, JSON.stringify(S.clientes)); } catch(e) {}
   }
   function loadClientes() {
-    try { S.clientes = JSON.parse(localStorage.getItem(CLIENTES_KEY) || '[]'); } catch(e) { S.clientes = []; }
+    try {
+      // Migración: pos.rapida.clientes → pos.clientes (clave compartida)
+      const _shared = localStorage.getItem(CLIENTES_KEY);
+      if (_shared) {
+        S.clientes = JSON.parse(_shared);
+      } else {
+        const _old = localStorage.getItem('pos.rapida.clientes');
+        if (_old) { S.clientes = JSON.parse(_old); localStorage.setItem(CLIENTES_KEY, _old); }
+        else S.clientes = [];
+      }
+    } catch(e) { S.clientes = []; }
     try {
       const _saved = localStorage.getItem(CLIENTE_KEY);
       if (_saved) {
