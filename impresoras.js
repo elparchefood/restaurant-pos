@@ -98,6 +98,7 @@ async function detectSystemPrinters() {
     }
     if (btn) { btn.disabled = false; btn.innerHTML = SVG_SCAN + ' Detectar de nuevo'; }
     renderPrinterList();
+    renderDetectedPanel();
     applyConfigToUI();
   } catch(e) {
     var hint2 = document.getElementById('imp-electron-hint');
@@ -105,6 +106,83 @@ async function detectSystemPrinters() {
     var btn2 = document.getElementById('btn-detect-printers');
     if (btn2) { btn2.disabled = false; btn2.innerHTML = SVG_SCAN + ' Detectar de nuevo'; }
   }
+}
+
+function renderDetectedPanel() {
+  var panel = document.getElementById('imp-detected-panel');
+  if (!panel) return;
+  if (!window.electronPOS || systemPrinters.length === 0) { panel.innerHTML = ''; return; }
+
+  var THERMAL = ['thermal','pos','tm-','tm_','receipt','epson','star','bixolon','citizen','tsp','rp-','xp-','xprinter','sewoo','rongta','zjiang','hoin'];
+  var SVG_PR = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>';
+
+  var rows = systemPrinters.map(function(sp) {
+    var nm = sp.displayName || sp.name || '';
+    var isT = THERMAL.some(function(k){ return nm.toLowerCase().includes(k); });
+    var assignedAreas = printers.filter(function(p){ return p.system_name === nm; }).map(function(p){ return p.area; });
+    var areaBtns = ['cocina','barra','caja'].map(function(area) {
+      var on = assignedAreas.includes(area);
+      return '<button class="imp-det-area' + (on ? ' on' : '') + '" data-assign-nm="' + esc(nm) + '" data-assign-area="' + area + '">' +
+        area.charAt(0).toUpperCase() + area.slice(1) + (on ? ' ✓' : '') + '</button>';
+    }).join('');
+    return '<div class="imp-det-row' + (isT ? ' is-t' : '') + '">' +
+      '<div class="imp-det-info">' + SVG_PR +
+        '<span class="imp-det-name">' + esc(nm) + '</span>' +
+        (isT ? '<span class="imp-det-badge">Térmica</span>' : '') +
+      '</div>' +
+      '<div class="imp-det-acts"><span class="imp-det-lbl">Usar en:</span>' + areaBtns +
+        '<button class="imp-det-test" data-test-nm="' + esc(nm) + '">Probar</button>' +
+      '</div></div>';
+  }).join('');
+
+  panel.innerHTML = '<div class="imp-det-panel">' +
+    '<div class="imp-det-head">' + SVG_SCAN +
+      '<span>' + systemPrinters.length + ' impresora' + (systemPrinters.length > 1 ? 's' : '') +
+      ' detectada' + (systemPrinters.length > 1 ? 's' : '') +
+      ' — toca <b>el área</b> para asignar directamente</span></div>' +
+    rows + '</div>';
+
+  panel.querySelectorAll('[data-assign-nm]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      assignDetectedPrinter(btn.dataset.assignNm, btn.dataset.assignArea);
+    });
+  });
+  panel.querySelectorAll('[data-test-nm]').forEach(function(btn) {
+    btn.addEventListener('click', function() { testDetectedPrinter(btn.dataset.testNm); });
+  });
+}
+
+function assignDetectedPrinter(printerName, area) {
+  var existing = printers.find(function(p){ return p.area === area; });
+  if (existing) {
+    existing.system_name = printerName;
+    existing.is_default  = true;
+    if (!existing.name) existing.name = printerName;
+  } else {
+    printers.push({
+      id: 'new_' + Math.random().toString(36).slice(2),
+      branch_id: branchId, tenant_id: tenantId,
+      name: printerName, conn: '', model: '',
+      area: area, is_default: true, system_name: printerName
+    });
+  }
+  markDirty();
+  renderPrinterList();
+  toast('"' + printerName + '" asignada a ' + area.charAt(0).toUpperCase() + area.slice(1));
+}
+
+async function testDetectedPrinter(printerName) {
+  if (!window.electronPOS || !window.electronPOS.printHtmlSilent) {
+    toast('Test solo disponible en el ejecutable.'); return;
+  }
+  toast('Enviando prueba a "' + printerName + '"…');
+  var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:monospace;font-size:13px;width:80mm;margin:0;padding:12px;text-align:center}hr{border:none;border-top:1px dashed #000;margin:8px 0}</style></head><body>' +
+    '<div style="font-size:15px;font-weight:bold;margin-bottom:4px">COBRA POS</div><hr>' +
+    '<div style="font-size:13px;margin:4px 0"><b>' + esc(printerName) + '</b></div>' +
+    '<div style="font-size:10px;color:#888;margin-top:8px">** TEST OK **</div></body></html>';
+  var res = await window.electronPOS.printHtmlSilent(h, printerName);
+  if (res && res.ok) toast('✓ Test enviado a "' + printerName + '"');
+  else toast('Error: ' + ((res && res.error) || 'desconocido'));
 }
 
 var SVG_SCAN = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6V2h4"/><path d="M23 6V2h-4"/><path d="M1 18v4h4"/><path d="M23 18v4h-4"/><rect x="7" y="7" width="10" height="10"/></svg>';
@@ -218,6 +296,7 @@ function renderPrinterList() {
   list.innerHTML = (printers.length ? printers.map(renderPrinterCard).join('') : '') + ADD_TILE;
   renderLegend();
   bindPrinterEvents();
+  renderDetectedPanel();
 }
 
 function renderLegend() {
