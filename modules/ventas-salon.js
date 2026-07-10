@@ -1309,7 +1309,7 @@
         </div>
         ${(function(){
           const _domNombre = d.domiciliario;
-          const _hasInt = _domNombre && _domNombre !== 'Externo' && _domNombre !== '—';
+          const _hasInt = _domNombre && _domNombre !== 'Externo' && _domNombre !== '—' && !_domNombre.includes('@');
           const _payChip = '<span style="font-size:11px;font-weight:600;color:'+payColor+';background:'+payBg+';padding:3px 8px;border-radius:6px">'+(isPagado ? 'Pagado' : 'Por pagar')+'</span>';
           if (_hasInt) return '<div class="vs-mesero-row"><div class="lm-avatar lm-avatar-md">'+_domNombre[0].toUpperCase()+'</div><div class="vs-mesero-spacer"><div class="vs-mesero-label">Domiciliario</div><div class="vs-mesero-name">'+_domNombre+'</div></div>'+_payChip+'</div>';
           return '<div class="vs-mesero-row" style="justify-content:flex-end">'+_payChip+'</div>';
