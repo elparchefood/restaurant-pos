@@ -526,17 +526,17 @@
       list.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px 0">' + (lq ? 'Sin resultados' : 'No hay clientes guardados. Crea el primero.') + '</div>';
       return;
     }
-    list.innerHTML = shown.map(c => \`
-      <button class="d-clirow" data-cli-id="\${c.id}">
+    list.innerHTML = shown.map(c => `
+      <button class="d-clirow" data-cli-id="${c.id}">
         <div class="d-clirow-main">
-          <div class="d-clirow-name">\${c.nombre}</div>
-          \${c.tel ? \`<div class="d-clirow-sub">\${c.tel}</div>\` : ''}
+          <div class="d-clirow-name">${c.nombre}</div>
+          ${c.tel ? `<div class="d-clirow-sub">${c.tel}</div>` : ''}
         </div>
-        <span class="d-clirow-edit" data-edit-cli="\${c.id}" onclick="event.stopPropagation()">
+        <span class="d-clirow-edit" data-edit-cli="${c.id}" onclick="event.stopPropagation()">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           Editar
         </span>
-      </button>\`).join('');
+      </button>`).join('');
   }
 
   function openNuevoCli(editId) {
@@ -713,7 +713,9 @@
   async function loadBranch() {
     const sb = getSb();
     if (!sb) return;
-    const user = window._pos && window._pos.state && window._pos.state.user;
+    const { data: _authData } = await sb.auth.getUser();
+    const user = (_authData && _authData.user)
+      || (window._pos && window._pos.state && window._pos.state.user);
     S.branchId = (user && user.user_metadata && user.user_metadata.branch_id) || null;
     S.tenantId = (user && user.user_metadata && user.user_metadata.tenant_id) || null;
     // Nombre sucursal
