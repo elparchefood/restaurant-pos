@@ -11,29 +11,53 @@
     var pad = function(n) { return String(n).padStart(2, '0'); };
     var dateStr = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate())
       + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+
+    var mesa   = (order.table  || '-').toUpperCase();
+    var pax    = order.guests  || 0;
+    var waiter = (order.waiter || '').toUpperCase();
+    var sala   = (order.sala   || '').toUpperCase();
+    var channel = (order.channel || '').toUpperCase();
+    var isParaLlevar = channel.indexOf('LLEVAR') >= 0;
+
     var rows = (items || []).map(function(it) {
-      var qty = it.qty || 1;
+      var qty  = it.qty || 1;
       var name = (it.name || 'Item').toUpperCase();
       var mods = (it.mods && it.mods.length)
-        ? it.mods.map(function(m){ return String(m).toUpperCase(); }).join(' / ')
+        ? it.mods.map(function(m){ return String(m).toUpperCase(); }).join(' · ')
         : '';
-      var line = '(' + qty + ') ' + name + (mods ? ' - ' + mods : '');
+      var line = '(' + qty + ') ' + name + (mods ? ' · ' + mods : '');
       var note = it.note
-        ? '<div style="padding-left:14px;">&#187; ' + it.note.toUpperCase() + '</div>'
+        ? '<div style="font-style:italic;font-size:12px;font-weight:500;margin-left:12px;margin-top:-2px;margin-bottom:4px;">NOTA - ' + it.note.toUpperCase() + '</div>'
         : '';
-      return '<div style="margin:4px 0;">' + line + '</div>' + note;
+      return '<div style="font-size:16px;font-weight:900;margin:5px 0 2px;line-height:1.3;">' + line + '</div>' + note;
     }).join('');
-    var mesa = (order.table || '-').toUpperCase();
-    var channel = order.channel ? order.channel.toUpperCase() : '';
+
+    function sep(text) {
+      return '<div style="position:relative;margin:8px 0 5px;">'
+        + '<div style="border-top:1.5px dashed #000;"></div>'
+        + '<div style="position:absolute;top:-9px;left:0;right:0;text-align:center;">'
+        + '<span style="background:#fff;padding:0 5px;font-size:10px;font-weight:900;letter-spacing:0.5px;">' + text + '</span>'
+        + '</div></div><div style="height:5px;"></div>';
+    }
+
+    var paraLlevar = isParaLlevar
+      ? '<div style="text-align:center;font-size:13px;font-weight:900;margin:2px 0 5px;">==== PARA LLEVAR ====</div>'
+      : '';
+
     return '<!DOCTYPE html><html><head><meta charset="UTF-8">'
-      + '<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;width:80mm;max-width:80mm;margin:0;padding:6px 8px;color:#000;line-height:1.4;}</style>'
+      + '<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;width:80mm;max-width:80mm;margin:0;padding:6px 8px;color:#000;line-height:1.35;}</style>'
       + '</head><body>'
-      + '<div>MESA: ' + mesa + '</div>'
-      + (channel ? '<div>CANAL: ' + channel + '</div>' : '')
+      + '<div style="font-size:20px;font-weight:900;text-align:center;margin-bottom:2px;">MESA ' + mesa + '</div>'
+      + (pax ? '<div style="font-size:13px;font-weight:700;text-align:right;">( ' + pax + ' PAX)</div>' : '')
+      + '<div style="height:5px;"></div>'
+      + '<div>AREA - COCINA</div>'
       + '<div>FECHA: ' + dateStr + '</div>'
-      + '<div style="margin:5px 0;text-align:center;">------------ INICIO PEDIDO ------------</div>'
+      + (waiter ? '<div>MESERO - ' + waiter + '</div>' : '')
+      + (sala   ? '<div>SALA - '   + sala   + '</div>' : '')
+      + sep('INICIO PEDIDO')
+      + paraLlevar
       + rows
-      + '<div style="margin:5px 0;text-align:center;">------------- FIN PEDIDO --------------</div>'
+      + sep('FIN PEDIDO')
       + '</body></html>';
   }
 
@@ -164,7 +188,7 @@
     var items = (order.pos_order_items || []).map(function(it) {
       return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', mods: Array.isArray(it.mods) ? it.mods : [] };
     });
-    _printHtml(_buildComanda({ table: order.table_id || order.table_name || '-', channel: order.channel }, items), 'comanda');
+    _printHtml(_buildComanda({ table: order.table_id || order.table_name || '-', channel: order.channel, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '' }, items), 'comanda');
   };
 
   window.posOpenPrintModal = function(orderId) {
@@ -202,7 +226,7 @@
     var items = (order.pos_order_items || []).map(function(it) {
       return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', mods: Array.isArray(it.mods) ? it.mods : [], total: (it.unit_price || 0) * (it.quantity || 1) };
     });
-    var orderData = { table: order.table_id || order.table_name || '-', channel: order.channel, total: order.total || 0, subtotal: order.subtotal || order.total || 0, discount: order.discount_amount || 0, tip: order.tip_amount || 0 };
+    var orderData = { table: order.table_id || order.table_name || '-', channel: order.channel, total: order.total || 0, subtotal: order.subtotal || order.total || 0, discount: order.discount_amount || 0, tip: order.tip_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '' };
     var html;
     if (type === 'comanda') html = _buildComanda(orderData, items);
     else if (type === 'desc') html = _buildReceiptDesc(orderData, items);
