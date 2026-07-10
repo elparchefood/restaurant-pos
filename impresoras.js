@@ -178,23 +178,28 @@ async function saveDetectedAssignment() {
     for (var i = 0; i < printers.length; i++) {
       var p = printers[i];
       if (p.id.startsWith('new_')) {
-        var res = await sb.from('pos_printers').insert({
+        var ins = await sb.from('pos_printers').insert({
           branch_id: branchId, tenant_id: tenantId,
           name: p.name || 'Impresora', conn: p.conn || '', model: p.model || '',
           area: p.area || 'cocina', is_default: p.is_default, system_name: p.system_name || ''
         }).select().single();
-        if (res.data) p.id = res.data.id;
+        if (ins.error) throw new Error('INSERT: ' + ins.error.message);
+        if (ins.data) p.id = ins.data.id;
       } else {
-        await sb.from('pos_printers').update({
+        var upd = await sb.from('pos_printers').update({
           name: p.name || 'Impresora', conn: p.conn || '', model: p.model || '',
           area: p.area || 'cocina', is_default: p.is_default, system_name: p.system_name || ''
         }).eq('id', p.id);
+        if (upd.error) throw new Error('UPDATE: ' + upd.error.message);
       }
     }
+    // Recargar desde DB para confirmar que quedó guardado
+    await loadPrinters();
     clearDirty();
-    renderDetectedPanel();
+    renderPrinterList();
   } catch(e) {
-    toast('Error al guardar: ' + (e.message || 'desconocido'));
+    console.error('[saveDetectedAssignment]', e);
+    toast('Error al guardar: ' + (e.message || String(e)));
   }
 }
 
@@ -640,30 +645,36 @@ async function saveAll() {
       default_system_printer:   config.default_system_printer,
       updated_at:               new Date().toISOString()
     };
-    await sb.from('pos_print_config').upsert(configPayload, { onConflict: 'branch_id' });
+    const { error: cfgErr } = await sb.from('pos_print_config').upsert(configPayload, { onConflict: 'branch_id' });
+    if (cfgErr) throw new Error('Config: ' + cfgErr.message);
 
     // 2. Guardar impresoras (upsert existentes, insertar nuevas)
     for (const p of printers) {
       if (p.id.startsWith('new_')) {
-        const { data } = await sb.from('pos_printers').insert({
+        const { data, error: insErr } = await sb.from('pos_printers').insert({
           branch_id: branchId, tenant_id: tenantId,
           name: p.name || 'Nueva impresora', conn: p.conn || '', model: p.model || '',
           area: p.area || 'cocina', is_default: p.is_default, system_name: p.system_name || ''
         }).select().single();
+        if (insErr) throw new Error('INSERT impresora: ' + insErr.message);
         if (data) p.id = data.id;
       } else {
-        await sb.from('pos_printers').update({
-          name: p.name, conn: p.conn || '', model: p.model || '',
+        const { error: updErr } = await sb.from('pos_printers').update({
+          name: p.name || 'Impresora', conn: p.conn || '', model: p.model || '',
           area: p.area || 'cocina', is_default: p.is_default, system_name: p.system_name || ''
         }).eq('id', p.id);
+        if (updErr) throw new Error('UPDATE impresora: ' + updErr.message);
       }
     }
 
+    // Recargar desde DB para confirmar persistencia
+    await loadPrinters();
     clearDirty();
-    toast('Configuración de impresión guardada');
+    toast('Configuración guardada ✓ (' + printers.length + ' impresora' + (printers.length !== 1 ? 's' : '') + ')');
     renderPrinterList();
   } catch(e) {
-    toast('Error al guardar. Intenta de nuevo.');
+    console.error('[saveAll]', e);
+    toast('Error: ' + (e.message || String(e)));
     btnSave.disabled = false;
   } finally {
     btnSave.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Guardar cambios`;
