@@ -1503,7 +1503,7 @@
             </span>
           </div>
         </div>
-        <button class="lm-icon-sm">${SVG_DOTS(14)}</button>
+        <button class="lm-icon-sm" data-action="mesa-dots" data-table-id="${mesa.id}">${SVG_DOTS(14)}</button>
       </div>
       ${mesa.status === 'esperando' && state.cobroAdelantado
         ? `<button class="vs-rail-entregue-btn" data-action="mark-entregado" data-table-id="${mesa.id}">
@@ -2047,6 +2047,57 @@
       case 'mark-entregado':
         confirmEntregado(tableId);
         break;
+      case 'mesa-dots': {
+        document.querySelectorAll('.vs-dots-menu').forEach(el => el.remove());
+        const dotsBtn = e.currentTarget;
+        const rect = dotsBtn.getBoundingClientRect();
+        const menu = document.createElement('div');
+        menu.className = 'vs-dots-menu';
+        menu.innerHTML = `<button class="vs-dots-menu-item vs-dots-menu-item--danger" data-action="cancelar-pedido-mesa" data-table-id="${tableId}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>Cancelar pedido</button>`;
+        menu.style.cssText = 'top:' + (rect.bottom + 4) + 'px;right:' + (window.innerWidth - rect.right) + 'px;';
+        document.body.appendChild(menu);
+        menu.querySelectorAll('[data-action]').forEach(el => el.addEventListener('click', handleAction));
+        setTimeout(() => {
+          document.addEventListener('click', function closeDots(ev) {
+            if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', closeDots); }
+          });
+        }, 0);
+        break;
+      }
+      case 'cancelar-pedido-mesa': {
+        document.querySelectorAll('.vs-dots-menu').forEach(el => el.remove());
+        const mesaCancel = state.tables.find(t => t.id === tableId);
+        const numStrC = mesaCancel ? (mesaCancel.name || String(mesaCancel.number || '')) : tableId;
+        vsConfirm({
+          title: 'Cancelar pedido',
+          msg: '¿Cancelar el pedido de la <strong>Mesa ' + numStrC + '</strong>? El pedido se anulará y la mesa quedará libre.',
+          okLabel: 'Sí, cancelar pedido',
+          variant: 'danger',
+        }).then(async function(ok) {
+          if (!ok) return;
+          try {
+            const sbC = window._pos && window._pos.sb;
+            if (!sbC) return;
+            const ordId = state.currentOrder?.id || mesaCancel?.current_order_id;
+            if (ordId) {
+              const { error: ordErr } = await sbC.from('pos_orders').update({ status: 'cancelled' }).eq('id', ordId);
+              if (ordErr) throw ordErr;
+            }
+            const { error: tblErr } = await sbC.from('pos_tables').update({ status: 'libre', current_order_id: null }).eq('id', tableId);
+            if (tblErr) throw tblErr;
+            const tbl = state.tables.find(x => x.id === tableId);
+            if (tbl) { tbl.status = 'libre'; tbl.current_order_id = null; }
+            state.selectedTableId = null;
+            state.currentOrder = null;
+            state.orderItems = [];
+            render();
+            vsToast('Pedido cancelado — mesa liberada');
+          } catch(err) {
+            vsToast('Error al cancelar: ' + (err.message || String(err)));
+          }
+        });
+        break;
+      }
       case 'liberar-mesa':
         liberarMesa(tableId);
         break;
