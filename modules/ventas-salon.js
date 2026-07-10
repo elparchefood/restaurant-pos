@@ -1490,6 +1490,11 @@
            <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
            ${canCobrar ? `<button class="lm-btn-primary vs-cobrar-disabled" data-action="collect" data-table-id="${mesa.id}" disabled>Cobrar</button>` : ''}
          </div>`
+      : mesa.status === 'esperando'
+      ? `<div class="vs-actions">
+           <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
+           <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
+         </div>`
       : `<div class="vs-actions">
            <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
            <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
@@ -1509,7 +1514,7 @@
         </div>
         <button class="lm-icon-sm" data-action="mesa-dots" data-table-id="${mesa.id}">${SVG_DOTS(14)}</button>
       </div>
-      ${mesa.status === 'esperando' && state.cobroAdelantado
+      ${mesa.status === 'esperando'
         ? `<button class="vs-rail-entregue-btn" data-action="mark-entregado" data-table-id="${mesa.id}">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             Ya entregué los platos
