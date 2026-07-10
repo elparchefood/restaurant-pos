@@ -152,7 +152,7 @@ function renderDetectedPanel() {
   });
 }
 
-function assignDetectedPrinter(printerName, area) {
+async function assignDetectedPrinter(printerName, area) {
   var existing = printers.find(function(p){ return p.area === area; });
   if (existing) {
     existing.system_name = printerName;
@@ -168,7 +168,34 @@ function assignDetectedPrinter(printerName, area) {
   }
   markDirty();
   renderPrinterList();
-  toast('"' + printerName + '" asignada a ' + area.charAt(0).toUpperCase() + area.slice(1));
+  // Guardar inmediatamente en Supabase — sin necesitar el botón "Guardar cambios"
+  await saveDetectedAssignment();
+  toast('"' + printerName + '" guardada para ' + area.charAt(0).toUpperCase() + area.slice(1) + ' ✓');
+}
+
+async function saveDetectedAssignment() {
+  try {
+    for (var i = 0; i < printers.length; i++) {
+      var p = printers[i];
+      if (p.id.startsWith('new_')) {
+        var res = await sb.from('pos_printers').insert({
+          branch_id: branchId, tenant_id: tenantId,
+          name: p.name || 'Impresora', conn: p.conn || '', model: p.model || '',
+          area: p.area || 'cocina', is_default: p.is_default, system_name: p.system_name || ''
+        }).select().single();
+        if (res.data) p.id = res.data.id;
+      } else {
+        await sb.from('pos_printers').update({
+          name: p.name || 'Impresora', conn: p.conn || '', model: p.model || '',
+          area: p.area || 'cocina', is_default: p.is_default, system_name: p.system_name || ''
+        }).eq('id', p.id);
+      }
+    }
+    clearDirty();
+    renderDetectedPanel();
+  } catch(e) {
+    toast('Error al guardar: ' + (e.message || 'desconocido'));
+  }
 }
 
 async function testDetectedPrinter(printerName) {
