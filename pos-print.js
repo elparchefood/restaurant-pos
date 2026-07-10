@@ -12,7 +12,9 @@
     var dateStr = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate())
       + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
 
-    var mesa   = (order.table  || '-').toUpperCase();
+    var mesa = (order.table || '-').toUpperCase();
+    var mesaMatch = mesa.match(/^T(\d+)$/);
+    if (mesaMatch) mesa = String(parseInt(mesaMatch[1], 10));
     var pax    = order.guests  || 0;
     var waiter = (order.waiter || '').toUpperCase();
     var sala   = (order.sala   || '').toUpperCase();
