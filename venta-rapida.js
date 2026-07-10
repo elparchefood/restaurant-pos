@@ -8,12 +8,16 @@
   const S = {
     cart:       [],   // [{id,name,price,catId,catName,catColor,fav,qty}]
     descuento:  0,
-    cliente:    '',
+    cliente:    null,
+    clientes:   [],
+    editCliId:  null,
     turno:      1,
     branchId:   null,
+    tenantId:   null,
     orderId:    null,   // orden activa en Supabase
     categories: [],
     products:   [],
+    modGroups:  [],
     currentCatId: null,
   };
 
@@ -38,11 +42,19 @@
   function loadCart() {
     try { S.cart = JSON.parse(localStorage.getItem(CART_KEY) || '[]'); } catch(e) { S.cart = []; }
   }
-  function saveCliente() {
-    try { localStorage.setItem(CLIENTE_KEY, S.cliente); } catch(e) {}
+  const CLIENTES_KEY = 'pos.rapida.clientes';
+  function saveClientes() {
+    try { localStorage.setItem(CLIENTES_KEY, JSON.stringify(S.clientes)); } catch(e) {}
   }
-  function loadCliente() {
-    try { S.cliente = localStorage.getItem(CLIENTE_KEY) || ''; } catch(e) {}
+  function loadClientes() {
+    try { S.clientes = JSON.parse(localStorage.getItem(CLIENTES_KEY) || '[]'); } catch(e) { S.clientes = []; }
+    try {
+      const _saved = localStorage.getItem(CLIENTE_KEY);
+      if (_saved) {
+        const _c = JSON.parse(_saved);
+        if (_c && _c.nombre) S.cliente = _c;
+      }
+    } catch(e) {}
   }
   function saveTurno() {
     try { localStorage.setItem(TURNO_KEY, String(S.turno)); } catch(e) {}
@@ -64,7 +76,7 @@
     $('vr-meta-count').textContent = count;
 
     // Cliente cabecera
-    $('vr-meta-cliente').textContent = S.cliente || '—';
+    $('vr-meta-cliente').textContent = (S.cliente && S.cliente.nombre) || '—';
 
     // Estado vacío / lleno
     $('vr-empty').hidden       = count > 0;
@@ -472,81 +484,97 @@
     });
   }
 
-  /* ─── Cliente ────────────────────────────────────────────────── */
+  /* ─── Cliente ─────────────────────────────────────────────── */
   function setupClienteRow() {
     const row = $('vr-cliente-row');
     if (!row) return;
-
     row.addEventListener('click', function(e) {
-      if (row.classList.contains('editing')) return;
-      openClienteEditor();
+      renderClienteList();
+      openModalById('modal-cliente');
     });
   }
 
-  function openClienteEditor() {
-    const row         = $('vr-cliente-row');
-    const placeholder = $('vr-cliente-placeholder');
-    const chevron     = $('vr-cliente-chevron');
-    if (!row) return;
-
-    row.classList.add('has-value', 'editing');
-    if (chevron) chevron.hidden = true;
-
-    // Crear input
-    const inp = document.createElement('input');
-    inp.className   = 'tp-cliente-input';
-    inp.type        = 'text';
-    inp.placeholder = 'Nombre del cliente…';
-    inp.value       = S.cliente;
-    if (placeholder) placeholder.hidden = true;
-    row.insertBefore(inp, chevron);
-    inp.focus();
-
-    // Botón Quitar
-    const quitarBtn = document.createElement('button');
-    quitarBtn.className   = 'lm-link';
-    quitarBtn.textContent = 'Quitar';
-    quitarBtn.style.marginLeft = '6px';
-    quitarBtn.style.flexShrink = '0';
-    row.appendChild(quitarBtn);
-
-    quitarBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      S.cliente = '';
-      saveCliente();
-      closeClienteEditor(inp, quitarBtn);
-    });
-
-    inp.addEventListener('input', function() {
-      S.cliente = this.value;
-      saveCliente();
-      $('vr-meta-cliente').textContent = S.cliente || '—';
-    });
-
-    inp.addEventListener('blur', function() {
-      closeClienteEditor(inp, quitarBtn);
-    });
+  function openModalById(id) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = false;
+  }
+  function closeModalById(id) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = true;
   }
 
-  function closeClienteEditor(inp, quitarBtn) {
-    const row         = $('vr-cliente-row');
-    const placeholder = $('vr-cliente-placeholder');
-    const chevron     = $('vr-cliente-chevron');
-    if (!row) return;
+  function updateClienteDisplay() {
+    const row = $('vr-cliente-row');
+    const ph  = $('vr-cliente-placeholder');
+    const mc  = $('vr-meta-cliente');
+    const name = S.cliente ? S.cliente.nombre : null;
+    if (ph)  { ph.textContent = name || 'Selecciona un cliente'; }
+    if (row) { row.classList.toggle('has-value', !!name); }
+    if (mc)  { mc.textContent = name || '—'; }
+    try { localStorage.setItem(CLIENTE_KEY, S.cliente ? JSON.stringify(S.cliente) : ''); } catch(e) {}
+  }
 
-    inp.remove();
-    quitarBtn.remove();
-    row.classList.remove('editing');
-    if (chevron) chevron.hidden = false;
-
-    if (S.cliente) {
-      row.classList.add('has-value');
-      if (placeholder) { placeholder.hidden = false; placeholder.textContent = S.cliente; }
-    } else {
-      row.classList.remove('has-value');
-      if (placeholder) { placeholder.hidden = false; placeholder.textContent = 'Selecciona un cliente'; }
+  function renderClienteList() {
+    const input = document.getElementById('vr-cli-search-input');
+    const list  = document.getElementById('vr-cli-list');
+    if (!list) return;
+    const lq = input ? input.value.trim().toLowerCase() : '';
+    const shown = lq
+      ? S.clientes.filter(c => (c.nombre + ' ' + (c.tel || '')).toLowerCase().includes(lq))
+      : S.clientes;
+    if (!shown.length) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px 0">' + (lq ? 'Sin resultados' : 'No hay clientes guardados. Crea el primero.') + '</div>';
+      return;
     }
-    $('vr-meta-cliente').textContent = S.cliente || '—';
+    list.innerHTML = shown.map(c => \`
+      <button class="d-clirow" data-cli-id="\${c.id}">
+        <div class="d-clirow-main">
+          <div class="d-clirow-name">\${c.nombre}</div>
+          \${c.tel ? \`<div class="d-clirow-sub">\${c.tel}</div>\` : ''}
+        </div>
+        <span class="d-clirow-edit" data-edit-cli="\${c.id}" onclick="event.stopPropagation()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Editar
+        </span>
+      </button>\`).join('');
+  }
+
+  function openNuevoCli(editId) {
+    S.editCliId = editId || null;
+    const title = document.getElementById('vr-nuevocli-title');
+    if (title) title.textContent = editId ? 'Editar cliente' : 'Nuevo cliente';
+    document.getElementById('vr-cli-nombres').value   = '';
+    document.getElementById('vr-cli-telefono').value  = '';
+    if (editId) {
+      const c = S.clientes.find(x => x.id === editId);
+      if (c) {
+        document.getElementById('vr-cli-nombres').value   = c.nombre || '';
+        document.getElementById('vr-cli-telefono').value  = c.tel    || '';
+      }
+    }
+    closeModalById('modal-cliente');
+    openModalById('modal-nuevocli');
+  }
+
+  function guardarClienteVR() {
+    const nombre  = (document.getElementById('vr-cli-nombres').value  || '').trim();
+    const tel     = (document.getElementById('vr-cli-telefono').value || '').trim();
+    if (!nombre) { alert('Ingresa un nombre'); return; }
+    if (S.editCliId) {
+      const idx = S.clientes.findIndex(c => c.id === S.editCliId);
+      if (idx >= 0) {
+        Object.assign(S.clientes[idx], { nombre, tel });
+        if (S.cliente && S.cliente.id === S.editCliId) S.cliente = S.clientes[idx];
+      }
+    } else {
+      const newCli = { id: 'C-' + Date.now(), nombre, tel };
+      S.clientes.unshift(newCli);
+      S.cliente = newCli;
+    }
+    saveClientes();
+    try { localStorage.setItem(CLIENTE_KEY, JSON.stringify(S.cliente)); } catch(e) {}
+    closeModalById('modal-nuevocli');
+    updateClienteDisplay();
   }
 
   /* ─── Modales ────────────────────────────────────────────────── */
@@ -557,7 +585,7 @@
     // Rellenar datos del vale
     if (name === 'vale') {
       $('vr-vale-turno').textContent  = '#' + String(S.turno).padStart(3,'0');
-      $('vr-vale-cliente').textContent = S.cliente || 'Consumidor final';
+      $('vr-vale-cliente').textContent = (S.cliente && S.cliente.nombre) || 'Consumidor final';
       $('vr-vale-items').textContent   = calcCount() + ' productos';
       $('vr-vale-total').textContent   = fmt(calcTotal());
     }
@@ -601,18 +629,10 @@
     $('vr-cancelar-confirm').addEventListener('click', function() {
       vaciarCart();
       S.descuento = 0;
-      S.cliente   = '';
+      S.cliente   = null;
       S.turno    += 1;
       saveTurno();
-      saveCliente();
-      // Reset fila cliente
-      const row = $('vr-cliente-row');
-      if (row) {
-        row.classList.remove('has-value');
-        const ph = $('vr-cliente-placeholder');
-        if (ph) { ph.hidden = false; ph.textContent = 'Selecciona un cliente'; }
-      }
-      $('vr-meta-cliente').textContent = '—';
+      updateClienteDisplay();
       closeAllModals();
       renderComanda();
     });
@@ -658,7 +678,8 @@
             irAPagos();
             break;
           case 'cliente':
-            openClienteEditor();
+            renderClienteList();
+            openModalById('modal-cliente');
             break;
           case 'vale':
             openModal('vale');
@@ -694,6 +715,7 @@
     if (!sb) return;
     const user = window._pos && window._pos.state && window._pos.state.user;
     S.branchId = (user && user.user_metadata && user.user_metadata.branch_id) || null;
+    S.tenantId = (user && user.user_metadata && user.user_metadata.tenant_id) || null;
     // Nombre sucursal
     if (S.branchId) {
       const { data } = await sb.from('branches').select('name').eq('id', S.branchId).maybeSingle();
@@ -713,44 +735,67 @@
 
   async function loadCatalog() {
     const sb = getSb();
-    if (!sb) return;
+    if (!sb || !S.tenantId) return;
+    const _ck = 'pos.catalog.v1.' + S.tenantId;
+    try {
+      const _raw = localStorage.getItem(_ck);
+      if (_raw) {
+        const _cd = JSON.parse(_raw);
+        if (_cd && _cd.cats && _cd.products) {
+          S.categories = _cd.cats;
+          S.products   = _cd.products;
+          S.modGroups  = _cd.modGroups || [];
+          setTimeout(function() { _catalogFetch(sb, _ck, true); }, 0);
+          return;
+        }
+      }
+    } catch(e) {}
+    await _catalogFetch(sb, _ck, false);
+  }
 
-    // Cargar categorías (filtrar por branch_id)
-    const PALETA = [
-      { color:'#5B6BFF', tint:'#EEF2FF', ring:'#C7D2FE' },
-      { color:'#10B981', tint:'#ECFDF5', ring:'#A7F3D0' },
-      { color:'#F59E0B', tint:'#FFFBEB', ring:'#FDE68A' },
-      { color:'#0EA5E9', tint:'#F0F9FF', ring:'#BAE6FD' },
-      { color:'#F43F5E', tint:'#FFF1F2', ring:'#FECDD3' },
-      { color:'#8B5CF6', tint:'#F5F3FF', ring:'#DDD6FE' },
-    ];
-    let catQuery = sb.from('pos_categories').select('*').eq('active', true).order('name');
-    if (S.branchId) catQuery = catQuery.eq('branch_id', S.branchId);
-    const { data: cats } = await catQuery;
-    if (cats) {
-      S.categories = cats.map((c, i) => ({
+  async function _catalogFetch(sb, cacheKey, isBackground) {
+    try {
+      const PALETA = [
+        {color:'#5B6BFF',tint:'#F0F1FF',ring:'#C7CBFF'},
+        {color:'#8B5CF6',tint:'#F5F3FF',ring:'#DDD6FE'},
+        {color:'#EC4899',tint:'#FDF2F8',ring:'#FBCFE8'},
+        {color:'#F59E0B',tint:'#FFFBEB',ring:'#FDE68A'},
+        {color:'#10B981',tint:'#ECFDF5',ring:'#A7F3D0'},
+        {color:'#0EA5E9',tint:'#F0F9FF',ring:'#BAE6FD'},
+      ];
+      const [{ data: cats }, { data: prods }, { data: mods }] = await Promise.all([
+        sb.from('pos_categories').select('id,name,color,color_tint,color_ring').eq('active', true).eq('tenant_id', S.tenantId).order('name'),
+        sb.from('pos_products').select('id,name,price,price_mode,category_id,photo_url,available,presentations,variables,mod_group_ids').eq('available', true).eq('tenant_id', S.tenantId).order('name'),
+        sb.from('pos_modifier_groups').select('id,name,rule,multi,options').eq('tenant_id', S.tenantId),
+      ]);
+      S.categories = (cats || []).map((c, i) => ({
         ...c,
         color: c.color      || PALETA[i % PALETA.length].color,
         tint:  c.color_tint || PALETA[i % PALETA.length].tint,
         ring:  c.color_ring || PALETA[i % PALETA.length].ring,
       }));
-    }
-
-    // Cargar productos
-    let query = sb.from('pos_products').select('*').eq('available', true).order('name');
-    if (S.branchId) query = query.eq('branch_id', S.branchId);
-    const { data: prods } = await query;
-    if (prods) {
-      S.products = prods.map(p => {
+      S.products = (prods || []).map(p => {
         const cat = S.categories.find(c => String(c.id) === String(p.category_id));
-        return { ...p, catName: cat ? cat.name : '', catColor: cat ? cat.color : '#94A3B8' };
+        return {
+          ...p,
+          price_mode:    p.price_mode || 'fixed',
+          presentations: Array.isArray(p.presentations) ? p.presentations : [],
+          variables:     Array.isArray(p.variables)     ? p.variables     : [],
+          mod_group_ids: Array.isArray(p.mod_group_ids) ? p.mod_group_ids : [],
+          catName:  cat ? cat.name  : '',
+          catColor: cat ? cat.color : '#94A3B8',
+        };
       });
-    }
-
-    renderCatGrid();
-    renderFavs();
-    setupSearch();
-    refreshBadges();
+      S.modGroups = (mods || []).map(g => ({
+        id: g.id, name: g.name, rule: g.rule || 'opcional', multi: !!g.multi,
+        options: Array.isArray(g.options) ? g.options : [],
+      }));
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({ cats: S.categories, products: S.products, modGroups: S.modGroups }));
+      } catch(e) {}
+      if (isBackground) { renderCatGrid(); renderFavs(); setupSearch(); refreshBadges(); }
+      else { renderCatGrid(); renderFavs(); setupSearch(); refreshBadges(); }
+    } catch(e) { console.error('[venta-rapida] _catalogFetch:', e); }
   }
 
   /* ─── Supabase: enviar pedido ────────────────────────────────── */
@@ -820,7 +865,7 @@
         subtotal:       sub,
         discount:       S.descuento,
         service_charge: 0,
-        customer_name:  S.cliente || null,
+        customer_name:  (S.cliente && S.cliente.nombre) || null,
         visible_cocina: !!visible,
         turno:          S.turno,
       }).select('id').single();
@@ -832,7 +877,7 @@
         total:          total,
         subtotal:       sub,
         discount:       S.descuento,
-        customer_name:  S.cliente || null,
+        customer_name:  (S.cliente && S.cliente.nombre) || null,
         visible_cocina: !!visible,
       };
       if (orderStatus) updatePayload.status = orderStatus;
@@ -1154,24 +1199,37 @@
   document.addEventListener('DOMContentLoaded', function() {
     // Restaurar estado local
     loadCart();
-    loadCliente();
+    loadClientes();
     loadTurno();
 
     // Restaurar fila cliente
-    if (S.cliente) {
-      const row = $('vr-cliente-row');
-      if (row) {
-        row.classList.add('has-value');
-        const ph = $('vr-cliente-placeholder');
-        if (ph) { ph.textContent = S.cliente; }
-      }
-    }
+    updateClienteDisplay();
 
     setupTabs();
     setupClienteRow();
     setupSidebarActions();
     setupModals();
     renderComanda();
+
+    // Event delegation para modales de cliente
+    document.addEventListener('click', function(e) {
+      const el = e.target.closest('[data-close-modal],[data-open-vrnuevocli],[data-back-cli],[data-guardar-cli],[data-cli-id],[data-edit-cli]');
+      if (!el) return;
+      if (el.dataset.closeModal) { closeModalById(el.dataset.closeModal); return; }
+      if (el.hasAttribute('data-open-vrnuevocli')) { openNuevoCli(null); return; }
+      if (el.hasAttribute('data-back-cli')) { closeModalById('modal-nuevocli'); openModalById('modal-cliente'); return; }
+      if (el.hasAttribute('data-guardar-cli')) { guardarClienteVR(); return; }
+      if (el.dataset.editCli) { openNuevoCli(el.dataset.editCli); return; }
+      if (el.dataset.cliId) {
+        const c = S.clientes.find(x => x.id === el.dataset.cliId);
+        if (c) { S.cliente = c; updateClienteDisplay(); }
+        closeModalById('modal-cliente');
+      }
+    });
+    // Busqueda en lista de clientes
+    document.addEventListener('input', function(e) {
+      if (e.target && e.target.id === 'vr-cli-search-input') renderClienteList();
+    });
 
     // Esperar a que pos-core esté listo
     if (window._pos) {

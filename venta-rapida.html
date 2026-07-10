@@ -291,8 +291,8 @@
 </div><!-- /tp-root -->
 
 <!-- ════ MODAL: Descuento ════ -->
-<div class="vr-overlay" data-modal="discount" hidden>
-  <div class="vr-modal">
+<div class="d-overlay" data-modal="discount" hidden>
+  <div class="d-modal vr-modal">
     <div class="vr-modal-head">
       <div class="vr-modal-icon" style="background:#FFF1F2;color:#E11D48">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
@@ -327,8 +327,8 @@
 </div>
 
 <!-- ════ MODAL: Vale ════ -->
-<div class="vr-overlay" data-modal="vale" hidden>
-  <div class="vr-modal">
+<div class="d-overlay" data-modal="vale" hidden>
+  <div class="d-modal vr-modal">
     <div class="vr-modal-head">
       <div class="vr-modal-icon" style="background:#EEF2FF;color:#5B6BFF">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -361,8 +361,8 @@
 </div>
 
 <!-- ════ MODAL: Cancelar ════ -->
-<div class="vr-overlay" data-modal="cancelar" hidden>
-  <div class="vr-modal">
+<div class="d-overlay" data-modal="cancelar" hidden>
+  <div class="d-modal vr-modal">
     <div class="vr-modal-head" style="border:none">
       <button class="lm-icon-sm" data-action="modal-close" style="margin-left:auto">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -384,6 +384,79 @@
   </div>
 </div>
 
+
+<!-- ════ MODAL: Seleccionar cliente ════ -->
+<div class="d-overlay" id="modal-cliente" hidden>
+  <div class="d-modal" style="width:720px;height:min(600px,calc(100vh - 48px))">
+    <div class="d-modal-head">
+      <div class="d-modal-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Selecciona un cliente
+      </div>
+      <button class="d-modal-x" data-close-modal="modal-cliente">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="d-modal-body" style="display:flex;flex-direction:column">
+      <div class="d-cli-search">
+        <div class="d-cli-searchbox">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="vr-cli-search-input" placeholder="Buscar cliente por nombre o teléfono..." />
+        </div>
+        <button class="lm-btn-primary" style="padding:0 18px;white-space:nowrap" data-open-vrnuevocli>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          Crear nuevo
+        </button>
+      </div>
+      <div class="d-cli-list" id="vr-cli-list"></div>
+    </div>
+    <div class="d-modal-foot" style="grid-template-columns:1fr">
+      <button class="d-foot-cancel" style="border-right:none" data-close-modal="modal-cliente">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Cancelar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ MODAL: Nuevo / Editar cliente ════ -->
+<div class="d-overlay" id="modal-nuevocli" hidden>
+  <div class="d-modal" style="width:600px">
+    <div class="d-modal-head">
+      <div class="d-modal-title">
+        <button class="d-modal-x" style="width:28px;height:28px;color:var(--brand)" data-back-cli>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span id="vr-nuevocli-title">Nuevo cliente</span>
+      </div>
+      <button class="d-modal-x" data-close-modal="modal-nuevocli">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="d-modal-body">
+      <div class="d-form-grid">
+        <div class="d-field">
+          <span class="d-field-lbl">Nombre completo</span>
+          <input class="d-input" id="vr-cli-nombres" placeholder="Nombre del cliente" />
+        </div>
+        <div class="d-field">
+          <span class="d-field-lbl">Teléfono</span>
+          <input class="d-input" id="vr-cli-telefono" placeholder="Número de contacto" />
+        </div>
+      </div>
+    </div>
+    <div class="d-modal-foot">
+      <button class="d-foot-cancel" data-close-modal="modal-nuevocli">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Cancelar
+      </button>
+      <button class="d-foot-next" data-guardar-cli>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Guardar cliente
+      </button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal producto (presentaciones / variables / personalizar) -->
 <div class="pm-overlay" id="vr-modal-producto" style="display:none" onclick="vrCheckOverlayClose(event)">
