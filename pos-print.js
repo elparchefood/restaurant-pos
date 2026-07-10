@@ -37,9 +37,9 @@
 
     function sep(text) {
       return '<div style="position:relative;margin:8px 0 5px;">'
-        + '<div style="border-top:1.5px dashed #000;"></div>'
+        + '<div style="border-top:1px dashed #000;"></div>'
         + '<div style="position:absolute;top:-9px;left:0;right:0;text-align:center;">'
-        + '<span style="background:#fff;padding:0 5px;font-size:10px;font-weight:900;letter-spacing:0.5px;">' + text + '</span>'
+        + '<span style="background:#fff;padding:0 5px;font-size:10px;font-weight:400;letter-spacing:0.5px;">' + text + '</span>'
         + '</div></div><div style="height:5px;"></div>';
     }
 
