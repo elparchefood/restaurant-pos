@@ -118,6 +118,25 @@ Este documento registra el estado confirmado de cada componente. Se actualiza ro
 
 ## Ideas pendientes para fases futuras
 
+### Sistema de puntos de lealtad + tarjeta NFC (pendiente — Sergio lo quiere implementar)
+
+**Concepto:** Cada cliente acumula puntos por sus compras y los puede canjear como método de pago. Lleva una **tarjeta NFC física**; al acercarla al lector, el POS identifica al cliente y carga su saldo.
+
+**Fundación ya hecha (julio 2026):**
+- Lista de clientes unificada en `localStorage` key `pos.clientes`, compartida entre `domicilios.js` y `venta-rapida.js`
+- Migración automática desde claves antiguas al cargar cada módulo
+
+**Lo que falta implementar:**
+1. **Tabla Supabase `pos_customers`**: `id, tenant_id, name, phone, address, email, points_balance, nfc_tag_id, created_at` — pedir confirmación a Sergio antes de crearla
+2. **Migrar modal de clientes**: en lugar de `localStorage`, leer/escribir desde `pos_customers` en Supabase
+3. **Lector NFC en Electron**: usar Web NFC API o lector USB HID que escriba el `tag_id` como input de teclado
+4. **Acumulación automática**: al cerrar una orden pagada, sumar puntos al cliente (ej. 1 punto por cada $1.000 COP)
+5. **Método de pago "Puntos NFC"** en `pagos.html`: escanear tarjeta → identificar cliente → descontar puntos del saldo
+
+**Por qué un solo sistema:** el cliente gana puntos sin importar si pide en mesa, domicilio o venta rápida.
+
+---
+
 ### Caché local en Electron (pendiente — implementar cuando no haya más cambios activos)
 Cachear en disco del exe:
 - **Catálogo de productos** (nombres, precios, categorías, presentaciones) → IndexedDB o archivo JSON en `app.getPath('userData')`
