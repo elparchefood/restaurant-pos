@@ -1340,7 +1340,7 @@ async function enviarACocina() {
       tenant_id:      S.tenantId,
       branch_id:      S.branchId,
       waiter_id:      S.userId,
-      waiter_name:    S.waiterName,
+      waiter_name:    nuevo.domiciliario || null,
       channel:        'domicilio',
       status:         'open',
       customer_name:  nuevo.cliente || null,

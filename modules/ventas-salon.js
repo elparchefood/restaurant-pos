@@ -203,6 +203,7 @@
     currentOrder: null,
     deliveries: [],
     selectedDomiId: null,
+    domiItems: {},
     quickOrders: [],
     quickDeliveredCount: 0,
     selectedQuickId: null,
@@ -1303,17 +1304,16 @@
           </div>
           <div class="vs-info-cell">
             <div class="vs-info-label">Ítems</div>
-            <div class="vs-info-value">${d.items}</div>
+            <div class="vs-info-value">${(state.domiItems[d.id] || []).length || d.items || 0}</div>
           </div>
         </div>
-        <div class="vs-mesero-row">
-          <div class="lm-avatar lm-avatar-md">${(d.domiciliario || '?')[0].toUpperCase()}</div>
-          <div class="vs-mesero-spacer">
-            <div class="vs-mesero-label">Domiciliario</div>
-            <div class="vs-mesero-name">${d.domiciliario || '—'}</div>
-          </div>
-          <span style="font-size:11px;font-weight:600;color:${payColor};background:${payBg};padding:3px 8px;border-radius:6px">${isPagado ? 'Pagado' : 'Por pagar'}</span>
-        </div>
+        ${(function(){
+          const _domNombre = d.domiciliario;
+          const _hasInt = _domNombre && _domNombre !== 'Externo' && _domNombre !== '—';
+          const _payChip = '<span style="font-size:11px;font-weight:600;color:'+payColor+';background:'+payBg+';padding:3px 8px;border-radius:6px">'+(isPagado ? 'Pagado' : 'Por pagar')+'</span>';
+          if (_hasInt) return '<div class="vs-mesero-row"><div class="lm-avatar lm-avatar-md">'+_domNombre[0].toUpperCase()+'</div><div class="vs-mesero-spacer"><div class="vs-mesero-label">Domiciliario</div><div class="vs-mesero-name">'+_domNombre+'</div></div>'+_payChip+'</div>';
+          return '<div class="vs-mesero-row" style="justify-content:flex-end">'+_payChip+'</div>';
+        })()}
       </div>
 
       <div class="vs-rail-scroll">
@@ -1322,7 +1322,12 @@
           <span style="font-size:11px;color:#94A3B8">${d.metodo}</span>
         </div>
         <div class="vs-order-list">
-          <div style="font-size:12px;color:#94A3B8;padding:16px 0;text-align:center">${d.items} ítem${d.items !== 1 ? 's' : ''} — detalle pendiente de integración</div>
+          ${(function(){
+            var _its = state.domiItems[d.id];
+            if (!_its) return '<div style="font-size:12px;color:#94A3B8;padding:16px 0;text-align:center">Cargando…</div>';
+            if (!_its.length) return '<div style="font-size:12px;color:#94A3B8;padding:16px 0;text-align:center">Sin ítems</div>';
+            return _its.map(function(it){ return '<div class="vs-item-row"><span class="vs-item-qty">'+it.quantity+'×</span><span class="vs-item-name">'+it.name+'</span><span class="vs-item-price">'+fmt(it.total || it.unit_price * it.quantity)+'</span></div>'+(it.notes ? '<div class="vs-item-note">'+it.notes+'</div>' : ''); }).join('');
+          })()}
         </div>
       </div>
 
@@ -1872,6 +1877,18 @@
           c.style.boxShadow = c.dataset.domiId === state.selectedDomiId ? `0 0 0 3px ${m.color}33` : 'none';
           c.style.borderColor = c.dataset.domiId === state.selectedDomiId ? m.color : m.ring;
         });
+        (async function() {
+          const _sb = window._pos && window._pos.sb;
+          if (!_sb) return;
+          const { data: _items } = await _sb.from('pos_order_items')
+            .select('name,quantity,unit_price,total,notes')
+            .eq('order_id', btn.dataset.domiId);
+          state.domiItems[btn.dataset.domiId] = _items || [];
+          if (state.selectedDomiId === btn.dataset.domiId) {
+            const _rail = document.getElementById('vs-rail');
+            if (_rail) { _rail.innerHTML = renderDomiRailContent(); attachDomiRailEvents(); }
+          }
+        })();
       });
     });
 
