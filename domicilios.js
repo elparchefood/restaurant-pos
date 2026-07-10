@@ -1175,15 +1175,16 @@ function openNuevoCli(editId) {
       const apellidos= parts.slice(1).join(' ');
       if ($('cli-nombres'))   $('cli-nombres').value   = nombres;
       if ($('cli-apellidos')) $('cli-apellidos').value = apellidos;
-      if ($('cli-telefono'))  $('cli-telefono').value  = c.tel   || '';
-      if ($('cli-direccion')) $('cli-direccion').value = c.dir   || '';
+      if ($('cli-telefono'))  $('cli-telefono').value  = c.tel    || '';
+      if ($('cli-barrio'))    $('cli-barrio').value    = c.barrio || '';
+      if ($('cli-direccion')) $('cli-direccion').value = c.dir    || '';
       if ($('cli-tipdoc'))    $('cli-tipdoc').value    = c.tipdoc || 'CC';
       if ($('cli-numdoc'))    $('cli-numdoc').value    = c.numdoc || '';
       if ($('cli-email'))     $('cli-email').value     = c.email  || '';
       if ($('cli-notas'))     $('cli-notas').value     = c.notas  || '';
     }
   } else {
-    ['cli-nombres','cli-apellidos','cli-telefono','cli-direccion','cli-numdoc','cli-email','cli-notas'].forEach(id => {
+    ['cli-nombres','cli-apellidos','cli-telefono','cli-barrio','cli-direccion','cli-numdoc','cli-email','cli-notas'].forEach(id => {
       if ($(id)) $(id).value = '';
     });
     if ($('cli-tipdoc')) $('cli-tipdoc').value = 'CC';
@@ -1201,6 +1202,7 @@ function guardarCliente() {
   const nombres   = ($('cli-nombres')   && $('cli-nombres').value   || '').trim();
   const apellidos = ($('cli-apellidos') && $('cli-apellidos').value || '').trim();
   const telefono  = ($('cli-telefono')  && $('cli-telefono').value  || '').trim();
+  const barrio    = ($('cli-barrio')    && $('cli-barrio').value    || '').trim();
   const direccion = ($('cli-direccion') && $('cli-direccion').value || '').trim();
 
   if (!nombres) { alert('El nombre es obligatorio.'); return; }
@@ -1213,6 +1215,7 @@ function guardarCliente() {
       Object.assign(S.clientes[idx], {
         nombre,
         tel:    telefono,
+        barrio,
         dir:    direccion,
         tipdoc: ($('cli-tipdoc') && $('cli-tipdoc').value || '').trim(),
         numdoc: ($('cli-numdoc') && $('cli-numdoc').value || '').trim(),
@@ -1227,6 +1230,7 @@ function guardarCliente() {
       id:     'c' + Date.now(),
       nombre,
       tel:    telefono,
+      barrio,
       dir:    direccion,
       tipdoc: ($('cli-tipdoc') && $('cli-tipdoc').value || '').trim(),
       numdoc: ($('cli-numdoc') && $('cli-numdoc').value || '').trim(),
@@ -1343,6 +1347,7 @@ async function enviarACocina() {
 
   // Guardar en Supabase — mismo patrón que tomar-pedido.js saveOrder()
   try {
+    const _barrio = S.cliente && S.cliente.barrio ? S.cliente.barrio.trim() : '';
     const _orderData = {
       tenant_id:      S.tenantId,
       branch_id:      S.branchId,
@@ -1351,6 +1356,7 @@ async function enviarACocina() {
       channel:        'domicilio',
       status:         'open',
       customer_name:  nuevo.cliente || null,
+      notes:          _barrio ? '[barrio:' + _barrio.toUpperCase() + ']' : null,
       total:          prod,
       payment_method: metodo,
       opened_at:      new Date().toISOString(),

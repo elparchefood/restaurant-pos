@@ -20,6 +20,11 @@
     var sala   = (order.sala   || '').toUpperCase();
     var channel = (order.channel || '').toUpperCase();
     var isParaLlevar = channel.indexOf('LLEVAR') >= 0;
+    var isDomicilio  = channel === 'DOMICILIO';
+    var isRapido     = channel === 'RAPIDO';
+    var _notes = order.notes || '';
+    var _barrioMatch = _notes.match(/\[barrio:([^\]]+)\]/i);
+    var _barrio = _barrioMatch ? _barrioMatch[1] : '';
 
     var rows = (items || []).map(function(it) {
       var qty  = it.qty || 1;
@@ -50,7 +55,12 @@
     return '<!DOCTYPE html><html><head><meta charset="UTF-8">'
       + '<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;width:80mm;max-width:80mm;margin:0;padding:6px 8px;color:#000;line-height:1.35;}</style>'
       + '</head><body>'
-      + '<div style="font-size:20px;font-weight:900;text-align:center;margin-bottom:2px;">MESA ' + mesa + '</div>'
+      + ((isDomicilio || isRapido)
+          ? (_barrio
+              ? '<div style="font-size:13px;font-weight:900;text-align:center;letter-spacing:1px;margin-bottom:1px;">' + (isDomicilio ? 'DOMICILIO' : 'PARA LLEVAR') + '</div>'
+                + '<div style="font-size:24px;font-weight:900;text-align:center;margin-bottom:2px;">' + _barrio + '</div>'
+              : '<div style="font-size:20px;font-weight:900;text-align:center;margin-bottom:2px;">' + (isDomicilio ? 'DOMICILIO' : 'PARA LLEVAR') + '</div>')
+          : '<div style="font-size:20px;font-weight:900;text-align:center;margin-bottom:2px;">MESA ' + mesa + '</div>')
       + (pax ? '<div style="font-size:13px;font-weight:700;padding-left:55%;">( ' + pax + ' PAX)</div>' : '')
       + '<div style="height:5px;"></div>'
       + '<div>AREA - COCINA</div>'
@@ -197,7 +207,7 @@
     var items = (order.pos_order_items || []).map(function(it) {
       return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', notes: it.notes || '', mods: Array.isArray(it.mods) ? it.mods : [] };
     });
-    _printHtml(_buildComanda({ table: _tableDisplay(order), channel: order.channel, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '' }, items), 'comanda');
+    _printHtml(_buildComanda({ table: _tableDisplay(order), channel: order.channel, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' }, items), 'comanda');
   };
 
   window.posOpenPrintModal = function(orderId) {
@@ -235,7 +245,7 @@
     var items = (order.pos_order_items || []).map(function(it) {
       return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', mods: Array.isArray(it.mods) ? it.mods : [], total: (it.unit_price || 0) * (it.quantity || 1) };
     });
-    var orderData = { table: _tableDisplay(order), channel: order.channel, total: order.total || 0, subtotal: order.subtotal || order.total || 0, discount: order.discount_amount || 0, tip: order.tip_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '' };
+    var orderData = { table: _tableDisplay(order), channel: order.channel, total: order.total || 0, subtotal: order.subtotal || order.total || 0, discount: order.discount_amount || 0, tip: order.tip_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' };
     var html;
     if (type === 'comanda') html = _buildComanda(orderData, items);
     else if (type === 'desc') html = _buildReceiptDesc(orderData, items);

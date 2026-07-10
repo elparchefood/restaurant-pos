@@ -551,11 +551,15 @@
     if (title) title.textContent = editId ? 'Editar cliente' : 'Nuevo cliente';
     document.getElementById('vr-cli-nombres').value   = '';
     document.getElementById('vr-cli-telefono').value  = '';
+    document.getElementById('vr-cli-barrio').value    = '';
+    document.getElementById('vr-cli-direccion').value = '';
     if (editId) {
       const c = S.clientes.find(x => x.id === editId);
       if (c) {
         document.getElementById('vr-cli-nombres').value   = c.nombre || '';
         document.getElementById('vr-cli-telefono').value  = c.tel    || '';
+        document.getElementById('vr-cli-barrio').value    = c.barrio || '';
+        document.getElementById('vr-cli-direccion').value = c.dir    || '';
       }
     }
     closeModalById('modal-cliente');
@@ -565,15 +569,17 @@
   function guardarClienteVR() {
     const nombre  = (document.getElementById('vr-cli-nombres').value  || '').trim();
     const tel     = (document.getElementById('vr-cli-telefono').value || '').trim();
+    const barrio  = (document.getElementById('vr-cli-barrio').value   || '').trim();
+    const dir     = (document.getElementById('vr-cli-direccion').value|| '').trim();
     if (!nombre) { alert('Ingresa un nombre'); return; }
     if (S.editCliId) {
       const idx = S.clientes.findIndex(c => c.id === S.editCliId);
       if (idx >= 0) {
-        Object.assign(S.clientes[idx], { nombre, tel });
+        Object.assign(S.clientes[idx], { nombre, tel, barrio, dir });
         if (S.cliente && S.cliente.id === S.editCliId) S.cliente = S.clientes[idx];
       }
     } else {
-      const newCli = { id: 'C-' + Date.now(), nombre, tel };
+      const newCli = { id: 'C-' + Date.now(), nombre, tel, barrio, dir };
       S.clientes.unshift(newCli);
       S.cliente = newCli;
     }
@@ -863,6 +869,7 @@
 
     // Crear o reusar orden
     if (!S.orderId) {
+      const _vrBarrio = S.cliente && S.cliente.barrio ? S.cliente.barrio.trim() : '';
       const { data: order, error } = await sb.from('pos_orders').insert({
         branch_id:      S.branchId,
         waiter_id:      userId,
@@ -874,6 +881,7 @@
         discount:       S.descuento,
         service_charge: 0,
         customer_name:  (S.cliente && S.cliente.nombre) || null,
+        notes:          _vrBarrio ? '[barrio:' + _vrBarrio.toUpperCase() + ']' : null,
         visible_cocina: !!visible,
         turno:          S.turno,
       }).select('id').single();
