@@ -185,12 +185,14 @@ async function _catalogFetch(cacheKey, isBackground) {
 // ── Pedido abierto ───────────────────────────────────────────
 async function loadOpenOrder() {
   try {
+    const _sod = new Date(); _sod.setHours(0,0,0,0);
     const { data } = await sb
       .from('pos_orders')
       .select('*, pos_order_items(*)')
       .eq('table_id', S.tableId)
       .eq('tenant_id', S.tenantId)
       .in('status', ['open', 'in_progress'])
+      .gte('created_at', _sod.toISOString())
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();

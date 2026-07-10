@@ -434,7 +434,8 @@
           .in('table_id', allIds)
           .not('status', 'eq', 'completed')
           .not('status', 'eq', 'cancelled')
-          .not('status', 'eq', 'paid');
+          .not('status', 'eq', 'paid')
+          .gte('created_at', (function(){ var d=new Date(); d.setHours(0,0,0,0); return d.toISOString(); })());
         const orderMap = {};
         (ordersData || []).forEach(function(o){ orderMap[o.table_id] = o; });
 
@@ -495,6 +496,8 @@
       .not('status', 'eq', 'completed')
       .not('status', 'eq', 'cancelled')
       .not('status', 'eq', 'paid')
+      .gte('created_at', (function(){ var d=new Date(); d.setHours(0,0,0,0); return d.toISOString(); })()
+      )
       .order('created_at', { ascending: false })
       .limit(1);
 
