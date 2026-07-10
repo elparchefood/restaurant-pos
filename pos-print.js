@@ -8,9 +8,9 @@
 
   function _buildComanda(order, items) {
     var now = new Date();
-    var timeStr = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true });
-    var dateStr = now.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
-    var SEP = '<div style="border-top:1px dashed #000;margin:5px 0;"></div>';
+    var pad = function(n) { return String(n).padStart(2, '0'); };
+    var dateStr = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate())
+      + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
     var rows = (items || []).map(function(it) {
       var qty = it.qty || 1;
       var name = (it.name || 'Item').toUpperCase();
@@ -19,26 +19,21 @@
         : '';
       var line = '(' + qty + ') ' + name + (mods ? ' - ' + mods : '');
       var note = it.note
-        ? '<div style="padding-left:14px;font-size:13px;font-weight:bold;">&raquo; ' + it.note.toUpperCase() + '</div>'
+        ? '<div style="padding-left:14px;">&#187; ' + it.note.toUpperCase() + '</div>'
         : '';
-      return '<div style="font-size:14px;font-weight:bold;margin:5px 0;line-height:1.35;">' + line + '</div>' + note;
+      return '<div style="margin:4px 0;">' + line + '</div>' + note;
     }).join('');
-    var channelLine = order.channel
-      ? '<div style="font-size:13px;font-weight:bold;margin-top:3px;">' + order.channel.toUpperCase() + '</div>'
-      : '';
+    var mesa = (order.table || '-').toUpperCase();
+    var channel = order.channel ? order.channel.toUpperCase() : '';
     return '<!DOCTYPE html><html><head><meta charset="UTF-8">'
-      + '<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:"Courier New",Courier,monospace;font-size:14px;width:80mm;max-width:80mm;margin:0;padding:8px;color:#000;}</style>'
+      + '<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;width:80mm;max-width:80mm;margin:0;padding:6px 8px;color:#000;line-height:1.4;}</style>'
       + '</head><body>'
-      + '<div style="text-align:center;font-size:20px;font-weight:bold;letter-spacing:1px;">COMANDA</div>'
-      + '<div style="text-align:center;font-size:12px;margin-top:3px;">' + dateStr + ' - ' + timeStr + '</div>'
-      + SEP
-      + '<div style="font-size:16px;font-weight:bold;">Mesa: ' + (order.table || '-') + '</div>'
-      + channelLine
-      + '<div style="font-size:12px;font-weight:bold;margin:8px 0 3px;">- - - - INICIO PEDIDO - - - -</div>'
+      + '<div>MESA: ' + mesa + '</div>'
+      + (channel ? '<div>CANAL: ' + channel + '</div>' : '')
+      + '<div>FECHA: ' + dateStr + '</div>'
+      + '<div style="margin:5px 0;text-align:center;">------------ INICIO PEDIDO ------------</div>'
       + rows
-      + '<div style="font-size:12px;font-weight:bold;margin:5px 0 3px;">- - - - FIN PEDIDO - - - -</div>'
-      + SEP
-      + '<div style="text-align:center;font-size:12px;font-weight:bold;">** FIN COMANDA **</div>'
+      + '<div style="margin:5px 0;text-align:center;">------------- FIN PEDIDO --------------</div>'
       + '</body></html>';
   }
 
