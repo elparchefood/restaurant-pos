@@ -2714,6 +2714,8 @@
     // Cargar zonas desde localStorage de configuracion
     state.zones = loadZonesFromConfig();
     state.floor = state.zones.length ? state.zones[0].id : null;
+    const _urlFloor = new URLSearchParams(location.search).get('floor');
+    if (_urlFloor) state.floor = _urlFloor;
 
     // Cargar modo cobro y permisos del usuario en paralelo
     await Promise.all([loadCobroAdelantado(), fetchUserPerms()]);

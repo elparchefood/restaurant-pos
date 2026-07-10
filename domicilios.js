@@ -1314,7 +1314,7 @@ function enviarACocina() {
   flipToPedido();
 
   toast(`${id} enviado a cocina`);
-  setView('monitor');
+  window.location.href = 'ventas.html?floor=__domicilios__';
 }
 
 // ── Monitor kanban ─────────────────────────────────────────────────────
