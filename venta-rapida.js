@@ -61,13 +61,6 @@
         else S.clientes = [];
       }
     } catch(e) { S.clientes = []; }
-    try {
-      const _saved = localStorage.getItem(CLIENTE_KEY);
-      if (_saved) {
-        const _c = JSON.parse(_saved);
-        if (_c && _c.nombre) S.cliente = _c;
-      }
-    } catch(e) {}
   }
   function saveTurno() {
     try { localStorage.setItem(TURNO_KEY, String(S.turno)); } catch(e) {}
@@ -524,7 +517,6 @@
     if (ph)  { ph.textContent = name || 'Selecciona un cliente'; }
     if (row) { row.classList.toggle('has-value', !!name); }
     if (mc)  { mc.textContent = name || '—'; }
-    try { localStorage.setItem(CLIENTE_KEY, S.cliente ? JSON.stringify(S.cliente) : ''); } catch(e) {}
   }
 
   function renderClienteList() {
@@ -585,7 +577,6 @@
       S.cliente = newCli;
     }
     saveClientes();
-    try { localStorage.setItem(CLIENTE_KEY, JSON.stringify(S.cliente)); } catch(e) {}
     closeModalById('modal-nuevocli');
     updateClienteDisplay();
   }
@@ -760,6 +751,7 @@
           S.categories = _cd.cats;
           S.products   = _cd.products;
           S.modGroups  = _cd.modGroups || [];
+          renderCatGrid(); renderFavs(); setupSearch(); refreshBadges();
           setTimeout(function() { _catalogFetch(sb, _ck, true); }, 0);
           return;
         }
