@@ -340,7 +340,9 @@ async function cobrarDespues() {
     // 4. Mostrar overlay con mensaje según canal
     const mesaName = SP.tableId
       ? document.getElementById('mesa-title').textContent
-      : ('Turno ' + (SP.order?.turno ? ('#' + String(SP.order.turno).padStart(3,'0')) : ''));
+      : SP.channel === 'domicilio'
+        ? (SP.order?.customer_name || 'Domicilio')
+        : ('Turno ' + (SP.order?.turno ? ('#' + String(SP.order.turno).padStart(3,'0')) : ''));
     document.getElementById('done-mesa').textContent   = mesaName;
     document.getElementById('done-total').textContent  = fmt(total);
     document.getElementById('done-paid').textContent   = fmt(paid);
@@ -349,7 +351,9 @@ async function cobrarDespues() {
       ? (SP.adelantado
           ? `El pago de la <strong>${mesaName}</strong> fue registrado. La mesa sigue abierta por si piden algo más.`
           : `La cuenta de la <strong>${mesaName}</strong> quedó saldada. La mesa se liberará automáticamente.`)
-      : `Venta rápida <strong>${mesaName}</strong> cobrada correctamente.`;
+      : SP.channel === 'domicilio'
+        ? `El domicilio de <strong>${mesaName}</strong> fue cobrado correctamente.`
+        : `Venta rápida <strong>${mesaName}</strong> cobrada correctamente.`;
     document.getElementById('done-overlay').hidden     = false;
 
   } catch(e) {
@@ -571,7 +575,7 @@ async function loadOrder() {
   }
 
   // Topbar + meta
-  const mesaName = SP.table?.name || (SP.channel === 'rapido' ? 'Venta Rápida' : 'Mesa');
+  const mesaName = SP.table?.name || (SP.channel === 'rapido' ? 'Venta Rápida' : SP.channel === 'domicilio' ? 'Domicilio' : 'Mesa');
   document.getElementById('mesa-title').textContent  = mesaName;
   document.getElementById('crumb-mesa').textContent  = mesaName;
   document.getElementById('sb-section').textContent  = mesaName + ' · Opciones de pago';
@@ -664,7 +668,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (btnCobrarDespues && SP.channel === 'rapido') btnCobrarDespues.style.display = '';
 
   // canal rapido no tiene mesa
-  if (!SP.orderId || (!SP.tableId && SP.channel !== 'rapido')) {
+  if (!SP.orderId || (!SP.tableId && SP.channel !== 'rapido' && SP.channel !== 'domicilio')) {
     alert('Parámetros de orden inválidos.');
     window.location.href = 'ventas.html';
     return;
