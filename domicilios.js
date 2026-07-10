@@ -181,50 +181,82 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ── Cargar datos desde Supabase ────────────────────────────────────────
+// Catálogo: stale-while-revalidate con la misma clave que tomar-pedido.
+// Si el usuario ya usó mesas antes, los datos están disponibles al instante.
 async function loadData() {
   if (!S.tenantId) return;
+  await loadCatalog();
+  // Domiciliarios: carga en paralelo sin bloquear la UI
+  _fetchDomiciliarios();
+}
 
-  const { data: cats } = await sb.from('pos_categories')
-    .select('id,name,color,color_tint,color_ring')
-    .eq('tenant_id', S.tenantId)
-    .order('name');
-  S.cats = cats || [];
+async function loadCatalog() {
+  const _ck = 'pos.catalog.v1.' + S.tenantId;
+  try {
+    const _raw = localStorage.getItem(_ck);
+    if (_raw) {
+      const _cd = JSON.parse(_raw);
+      if (_cd && _cd.cats && _cd.products) {
+        S.cats      = _cd.cats;
+        S.products  = _cd.products;
+        S.modGroups = _cd.modGroups || [];
+        // Pintar inmediatamente desde caché, refrescar en segundo plano
+        setTimeout(function() { _catalogFetch(_ck, true); }, 0);
+        return;
+      }
+    }
+  } catch(e) {}
+  // Primera vez: esperar datos frescos
+  await _catalogFetch(_ck, false);
+}
 
-  const { data: prods } = await sb.from('pos_products')
-    .select('id,name,price,price_mode,category_id,photo_url,available,presentations,variables,mod_group_ids')
-    .eq('tenant_id', S.tenantId)
-    .eq('available', true)
-    .order('name');
-  S.products  = (prods || []).map(p => ({
-    id: p.id, name: p.name, price: p.price, price_mode: p.price_mode || 'fixed',
-    category_id: p.category_id, photo_url: p.photo_url || null,
-    presentations: Array.isArray(p.presentations) ? p.presentations : [],
-    variables:     Array.isArray(p.variables)     ? p.variables     : [],
-    mod_group_ids: Array.isArray(p.mod_group_ids) ? p.mod_group_ids : [],
-  }));
-  S.favorites = [];
+async function _catalogFetch(cacheKey, isBackground) {
+  try {
+    const [{ data: cats }, { data: prods }, { data: mods }] = await Promise.all([
+      sb.from('pos_categories')
+        .select('id,name,color,color_tint,color_ring')
+        .eq('tenant_id', S.tenantId).order('name'),
+      sb.from('pos_products')
+        .select('id,name,price,price_mode,category_id,photo_url,available,presentations,variables,mod_group_ids')
+        .eq('tenant_id', S.tenantId).eq('available', true).order('name'),
+      sb.from('pos_modifier_groups')
+        .select('id,name,rule,multi,options')
+        .eq('tenant_id', S.tenantId),
+    ]);
+    S.cats = (cats || []).map((c, i) => ({
+      ...c,
+      color: c.color || ['#5B6BFF','#8B5CF6','#EC4899','#F59E0B','#10B981','#0EA5E9','#EF4444','#14B8A6'][i % 8],
+      tint:  c.color_tint || '#F8FAFF',
+    }));
+    S.products = (prods || []).map(p => ({
+      id: p.id, name: p.name, price: p.price, price_mode: p.price_mode || 'fixed',
+      category_id: p.category_id, photo_url: p.photo_url || null,
+      presentations: Array.isArray(p.presentations) ? p.presentations : [],
+      variables:     Array.isArray(p.variables)     ? p.variables     : [],
+      mod_group_ids: Array.isArray(p.mod_group_ids) ? p.mod_group_ids : [],
+    }));
+    S.modGroups = (mods || []).map(g => ({
+      id: g.id, name: g.name, rule: g.rule || 'opcional', multi: !!g.multi,
+      options: Array.isArray(g.options) ? g.options : [],
+    }));
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({
+        cats: S.cats, products: S.products, modGroups: S.modGroups, ts: Date.now()
+      }));
+    } catch(e) {}
+    if (isBackground) { renderCatGrid(); renderMenuPane(); renderFavPane(); }
+  } catch(e) { console.error('[domicilios] _catalogFetch:', e); }
+}
 
-  const { data: domis } = await sb.from('pos_users')
+function _fetchDomiciliarios() {
+  sb.from('pos_users')
     .select('id,name,phone,role')
     .eq('tenant_id', S.tenantId)
     .eq('role', 'domiciliario')
-    .eq('active', true);
-  S.domiciliarios = (domis || []).map(u => ({
-    id:     u.id,
-    nombre: u.name,
-    tel:    u.phone || '',
-    estado: 'Disponible',
-  }));
-
-  // Cargar grupos modificadores en segundo plano (no bloquea el catálogo)
-  sb.from('pos_modifier_groups')
-    .select('id,name,rule,multi,options')
-    .eq('tenant_id', S.tenantId)
+    .eq('active', true)
     .then(({ data }) => {
-      S.modGroups = (data || []).map(g => ({
-        id: g.id, name: g.name,
-        rule: g.rule || 'opcional', multi: !!g.multi,
-        options: Array.isArray(g.options) ? g.options : [],
+      S.domiciliarios = (data || []).map(u => ({
+        id: u.id, nombre: u.name, tel: u.phone || '', estado: 'Disponible',
       }));
     });
 }
