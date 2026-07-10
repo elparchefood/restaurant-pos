@@ -347,8 +347,8 @@
 
 
 <!-- Modal: Flujo de producto (sistema pm-* idéntico a tomar-pedido) -->
-<div id="tp-modal-producto" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.42);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);z-index:9999;align-items:center;justify-content:center;padding:24px" onclick="tpCheckOverlayClose(event)">
-  <div id="pm-modal-inner" style="width:920px;max-width:97vw;max-height:92vh;background:#fff;border-radius:20px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 36px 80px -24px rgba(15,23,42,.45)"></div>
+<div class="pm-overlay" id="tp-modal-producto" style="display:none" onclick="tpCheckOverlayClose(event)">
+  <div class="pm-modal" id="pm-modal-inner"></div>
 </div>
 
 <!-- Toast -->
