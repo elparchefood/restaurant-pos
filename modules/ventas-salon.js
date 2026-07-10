@@ -1268,13 +1268,18 @@
     const hasNext  = !!DELIVERY_NEXT[d.estado];
     const nextLabel = DELIVERY_BTN[d.estado];
 
+    const _cobrarBtn = (!isPagado && state.canCobrar)
+      ? `<button class="lm-btn-primary" data-domi-action="cobrar" data-domi-id="${d.id}">Cobrar</button>`
+      : '';
     const actionsHtml = hasNext
       ? `<div class="vs-actions">
            <button class="lm-btn-ghost" data-domi-action="print" data-domi-id="${d.id}">Imprimir</button>
+           ${_cobrarBtn}
            <button class="lm-btn-primary" data-domi-action="advance" data-domi-id="${d.id}">${nextLabel} →</button>
          </div>`
       : `<div class="vs-actions">
            <button class="lm-btn-ghost" data-domi-action="print" data-domi-id="${d.id}">Imprimir</button>
+           ${_cobrarBtn}
            <button class="lm-btn-primary" style="background:#22C55E" data-domi-action="close" data-domi-id="${d.id}">✓ Entregado</button>
          </div>`;
 
@@ -1962,7 +1967,9 @@
         const id = btn.dataset.domiId;
         const d = state.deliveries.find(x => x.id === id);
         if (!d) return;
-        if (action === 'advance' && DELIVERY_NEXT[d.estado]) {
+        if (action === 'cobrar') {
+          window.location.href = `pagos.html?order=${id}&channel=domicilio`;
+        } else if (action === 'advance' && DELIVERY_NEXT[d.estado]) {
           d.estado = DELIVERY_NEXT[d.estado];
           render();
         } else if (action === 'close') {
