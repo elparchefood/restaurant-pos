@@ -441,229 +441,348 @@ function renderBusqResults(q) {
 
 // ── Carrito ────────────────────────────────────────────────────────────
 
-// ═══════════════════════════════════════════════════════════════════════
-// ── Modal flujo de producto (presentación → variable → modificadores) ──
-// ═══════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════
+// ── Modal flujo de producto — sistema pm-* (igual que tomar-pedido) ──
+// ══════════════════════════════════════════════════════════════════════
+
+const PM_SVG = {
+  check: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  x:     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  back:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>',
+  cart:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>',
+  chev:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>',
+  plus:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  minus: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  srch:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  food:  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h0a2 2 0 0 0 2-2V2M5 2v20M17 2v20M21 7c0-3-2-5-4-5v9c2 0 4-1 4-4z"/></svg>',
+  note:  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>',
+};
+function pmFmt(n){ return '$'+Number(Math.round(n||0)).toLocaleString('es-CO'); }
+function pmEsc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function pmAttr(s){ return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 let WIP = { prod:null, step:1, pres:null, vars:{}, mods:{}, qty:1, note:'' };
 
-function openProductModal(id) {
-  const p = S.products.find(x => x.id === id);
-  if (!p) return;
+function openProductModal(prodId) {
+  const p = S.products.find(x=>x.id===prodId);
+  if(!p) return;
   WIP = { prod:p, step:1, pres:null, vars:{}, mods:{}, qty:1, note:'' };
-  const hasPres = (p.presentations||[]).length > 1;
-  const hasVars = (p.variables||[]).length > 0;
-  if (!hasPres) {
-    const pArr = p.presentations || [];
-    WIP.pres = pArr.length === 1 ? pArr[0] : { id:'_base', name:'', price: p.price||0 };
-    WIP.step = hasVars ? 2 : 3;
+  const hasPres=(p.presentations||[]).length>1, hasVars=(p.variables||[]).length>0;
+  if(!hasPres){
+    const pArr=p.presentations||[];
+    WIP.pres = pArr.length===1?pArr[0]:{id:'_base',name:'',price:parseFloat(p.price)||0};
+    WIP.step = hasVars?2:3;
   }
-  openModal('modal-producto');
-  renderMP();
+  const el=document.getElementById('tp-modal-producto');
+  if(el){ el.style.display='flex'; }
+  tpRenderMP();
 }
 
-function mpComputePrice() {
-  const p = WIP.prod;
-  const isMatrix = p && p.price_mode === 'matrix';
+function mpComputePrice(){
+  const p=WIP.prod, isMatrix=p&&p.price_mode==='matrix';
   let base;
-  if (isMatrix) {
-    base = Object.values(WIP.vars).reduce((s,v) => s+(v.price||0), 0);
+  if(isMatrix){
+    const presIdx=(p.presentations||[]).findIndex(pr=>pr.id===WIP.pres?.id);
+    base=Object.values(WIP.vars).reduce((s,v)=>{
+      let price=v.price||0;
+      if(presIdx>=0){
+        for(const vg of p.variables||[]){
+          const o=(vg.options||[]).find(o=>o.id===v.id);
+          if(o&&Array.isArray(o.prices)&&o.prices.length){price=o.prices[presIdx]||0;break;}
+        }
+      }
+      return s+price;
+    },0);
   } else {
     const baseP = p ? parseFloat(p.price)||0 : 0;
     base = WIP.pres ? (WIP.pres.price || baseP) : baseP;
-    base += Object.values(WIP.vars).reduce((s,v) => s+(v.price||0), 0);
+    base += Object.values(WIP.vars).reduce((s,v)=>s+(v.price||0),0);
   }
-  const modExtra = Object.values(WIP.mods).reduce((s,m) => s+(m.price||0)*(m.qty||1), 0);
-  return (base + modExtra) * WIP.qty;
+  const modX=Object.values(WIP.mods).reduce((s,m)=>s+((m.price||0)*(m.qty||1)),0);
+  return (base+modX)*WIP.qty;
 }
 
-function renderMP() {
-  const body=$('mp-body'), foot=$('mp-foot'), title=$('mp-title');
-  if (!body) return;
-  // Step indicator (mismo estilo que tomar-pedido)
-  const stepsEl=$('mp-steps');
-  if (stepsEl && WIP.prod) {
-    const p=WIP.prod, hasPres=(p.presentations||[]).length>1, hasVars=(p.variables||[]).length>0;
-    const steps=[];
-    if(hasPres) steps.push({id:'pres',label:p.presLabel||'Presentación'});
-    if(hasVars) steps.push({id:'var',label:(p.variables[0]&&p.variables[0].name)||'Variante'});
-    steps.push({id:'custom',label:'Personalizar'});
-    if(steps.length>1){
-      const curId=WIP.step===1&&hasPres?'pres':WIP.step===2&&hasVars?'var':'custom';
-      const curIdx=steps.findIndex(s=>s.id===curId);
-      const chk='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-      stepsEl.innerHTML=steps.map((s,i)=>{
-        const done=i<curIdx,on=i===curIdx;
-        return '<span class="pm-step'+(done?' done':on?' on':'')+'">'
-          +'<span class="pm-step-dot">'+(done?chk:String(i+1))+'</span>'
-          +'<span class="pm-step-lbl">'+s.label+'</span></span>'
-          +(i<steps.length-1?'<span class="pm-step-line'+(done?' done':'')+'" ></span>':'');
-      }).join('');
-      stepsEl.style.display='';
-    } else { stepsEl.innerHTML=''; stepsEl.style.display='none'; }
-  }
-  if (WIP.step===1) mpStep1(body,foot,title);
-  else if (WIP.step===2) mpStep2(body,foot,title);
-  else mpStep3(body,foot,title);
-}
-
-function mpStep1(body, foot, title) {
-  const p = WIP.prod, pres = p.presentations||[];
-  title.textContent = p.name + ' · Presentación';
-  body.innerHTML = `<div class="mp-step">
-    <div class="mp-step-lbl">¿Cuál presentación quieres?</div>
-    <div class="mp-pres-grid">
-      ${pres.map(pr=>`<button class="mp-pres-btn${WIP.pres&&WIP.pres.id===pr.id?' on':''}" onclick="mpSelPres('${pr.id}')">
-        <span class="mp-pres-name">${pr.name}</span>
-        ${(pr.price>0)?`<span class="mp-pres-price">${fmt(pr.price)}</span>`:''}
-      </button>`).join('')}
-    </div></div>`;
-  const hasVars = (p.variables||[]).length > 0;
-  foot.innerHTML = `
-    <button class="d-foot-cancel" onclick="closeModal('modal-producto')">Cancelar</button>
-    <button class="d-foot-next" id="mp-next" onclick="mpAdvance()" ${WIP.pres?'':'disabled'}>
-      ${hasVars?'Siguiente':'Personalizar'} ${svgInline('chevron-r',14)}</button>`;
-}
-
-function mpSelPres(presId) {
-  WIP.pres = (WIP.prod.presentations||[]).find(x=>x.id===presId)||null;
-  document.querySelectorAll('.mp-pres-btn').forEach(b=>b.classList.remove('on'));
-  const t=document.querySelector(`.mp-pres-btn[onclick*="'${presId}'"]`);
-  if(t) t.classList.add('on');
-  const btn=$('mp-next'); if(btn) btn.disabled=false;
-}
-
-function mpStep2(body, foot, title) {
-  const p=WIP.prod, vars=p.variables||[];
-  title.textContent = p.name + ' · Variante';
-  const allDone = vars.every(v=>WIP.vars[v.id]);
-  body.innerHTML = `<div class="mp-step">
-    <div class="mp-step-lbl">Personaliza tu producto</div>
-    ${vars.map(v=>`<div class="mp-var-group">
-      <div class="mp-var-name">${v.name}</div>
-      <div class="mp-var-opts">
-        ${(v.options||[]).map(o=>{
-          const sel=WIP.vars[v.id]&&WIP.vars[v.id].id===o.id;
-          return `<button class="mp-var-opt${sel?' on':''}" onclick="mpSelVar('${v.id}','${o.id}','${(o.name||'').replace(/'/g,"\'")}',${o.price||0})">
-            ${o.name}${o.price?` <span class="mp-opt-price">+${fmt(o.price)}</span>`:''}
-          </button>`;
-        }).join('')}
-      </div></div>`).join('')}
-  </div>`;
-  const hasPres=(p.presentations||[]).length>1;
-  foot.innerHTML = `
-    <button class="d-foot-cancel" onclick="${hasPres?'mpBack()':'closeModal(\'modal-producto\')'}">${hasPres?svgInline('back2',14)+' Atrás':'Cancelar'}</button>
-    <button class="d-foot-next" id="mp-next" onclick="mpAdvance()" ${allDone?'':'disabled'}>Personalizar ${svgInline('chevron-r',14)}</button>`;
-}
-
-function mpSelVar(varId,optId,optName,optPrice) {
-  WIP.vars[varId]={id:optId,name:optName,price:optPrice}; renderMP();
-}
-
-function mpStep3(body, foot, title) {
-  const p=WIP.prod;
-  title.textContent=p.name;
-  const modGroups=(p.mod_group_ids||[]).map(gid=>S.modGroups.find(g=>g.id===gid)).filter(Boolean);
+function tpRenderMP(){
+  const p=WIP.prod; if(!p) return;
+  const inner=document.getElementById('pm-modal-inner'); if(!inner) return;
+  const hasPres=(p.presentations||[]).length>1, hasVars=(p.variables||[]).length>0;
+  const steps=[];
+  if(hasPres) steps.push({id:'pres',label:p.presLabel||'Presentacion'});
+  if(hasVars) steps.push({id:'var',label:p.varLabel||(p.variables[0]&&p.variables[0].name)||'Variante'});
+  steps.push({id:'custom',label:'Personalizar'});
+  const curId=WIP.step===1&&hasPres?'pres':WIP.step===2&&hasVars?'var':'custom';
+  const curIdx=steps.findIndex(s=>s.id===curId);
+  const stepperHTML=steps.length>1?'<div class="pm-steps">'+steps.map((s,i)=>{
+    const done=i<curIdx,on=i===curIdx;
+    return '<button class="pm-step'+(done?' done':on?' on':'')+'" data-step-id="'+s.id+'">'
+      +'<span class="pm-step-dot">'+(done?PM_SVG.check:String(i+1))+'</span>'
+      +'<span class="pm-step-lbl">'+s.label+'</span></button>'
+      +(i<steps.length-1?'<span class="pm-step-line'+(done?' done':'')+'"></span>':'');
+  }).join('')+'</div>':'';
   const presLabel=WIP.pres&&WIP.pres.name?WIP.pres.name:'';
-  const varLabels=Object.values(WIP.vars).map(v=>v.name).join(' · ');
-  const summary=[presLabel,varLabels].filter(Boolean).join(' · ');
+  const varLabels=Object.values(WIP.vars).map(v=>v.name).join(' \xb7 ');
+  const selParts=[presLabel,varLabels].filter(Boolean).join(' \xb7 ');
+  let paneHTML='';
+  if(curId==='pres') paneHTML=pmBuildPresPane(p);
+  else if(curId==='var') paneHTML=pmBuildVarPane(p);
+  else paneHTML=pmBuildCustomPane(p);
+  const canNext=curId==='pres'?!!WIP.pres:curId==='var'?(p.variables||[]).every(v=>WIP.vars[v.id]):true;
+  const isFirst=curIdx===0;
+  const footLeft=isFirst
+    ?'<button class="pm-btn-ghost" onclick="tpCloseMP()">Cancelar</button>'
+    :'<button class="pm-btn-ghost" onclick="tpMPBack()">'+PM_SVG.back+' Atras</button>';
+  const isLast=curId==='custom';
+  const footRight=isLast
+    ?'<button class="pm-btn-primary" onclick="tpMPAddToCart()">'+PM_SVG.cart+' Agregar al pedido \xb7 <span id="pm-foot-price">'+pmFmt(mpComputePrice())+'</span></button>'
+    :'<button class="pm-btn-primary" id="tp-mp-next"'+(canNext?'':' disabled')+' onclick="tpMPAdvance()">Continuar '+PM_SVG.chev+'</button>';
+  const subTxt=selParts?pmEsc(p.category||'')+' \xb7 <strong style="color:#0F172A">'+pmEsc(selParts)+'</strong>':pmEsc(p.category||'');
+  inner.innerHTML=
+    '<div class="pm-head">'
+    +'<div style="display:flex;align-items:center;gap:12px;min-width:0">'
+    +'<div class="pm-head-ic">'+PM_SVG.food+'</div>'
+    +'<div style="min-width:0"><div class="pm-title">'+pmEsc(p.name)+'</div>'
+    +'<div class="pm-sub">'+subTxt+'</div></div></div>'
+    +'<button class="pm-close" onclick="tpCloseMP()">'+PM_SVG.x+'</button>'
+    +'</div>'
+    +stepperHTML
+    +'<div class="pm-body">'+paneHTML+'</div>'
+    +'<div class="pm-foot">'+footLeft+footRight+'</div>';
+  pmAttachHandlers(inner,p,curId);
+}
+
+function pmBuildPresPane(p){
+  const pres=p.presentations||[];
+  const hasVars=(p.variables||[]).length>0;
+  return '<div class="pm-choice-grid">'+pres.map(pr=>{
+    const on=WIP.pres&&WIP.pres.id===pr.id;
+    const priceLabel=hasVars?'Incluido':(pr.price?pmFmt(pr.price):'Incluido');
+    const thumb=pr.photo_url
+      ?'<div class="pm-choice-thumb pm-thumb-img"><img src="'+pmAttr(pr.photo_url)+'" alt="'+pmAttr(pr.name)+'" style="width:100%;height:100%;object-fit:cover;display:block"><div class="pm-thumb-overlay"><div class="pm-thumb-name">'+pmEsc(pr.name)+'</div><div class="pm-thumb-price">'+priceLabel+'</div></div></div>'
+      :'<div class="pm-choice-thumb pm-thumb-ph"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>';
+    return '<button class="pm-choice'+(on?' on':'')+'" data-pres-id="'+pmAttr(pr.id)+'" data-pres-name="'+pmAttr(pr.name)+'" data-pres-price="'+(pr.price||0)+'">'
+      +thumb
+      +(pr.photo_url?''  :'<div class="pm-choice-body"><div class="pm-choice-name">'+pmEsc(pr.name)+'</div>')
+      +(pr.photo_url?''  :'<div class="pm-choice-price">'+priceLabel+'</div></div>')
+      +'<span class="pm-radio">'+(on?PM_SVG.check:'')+'</span>'
+      +'</button>';
+  }).join('')+'</div>';
+}
+
+function pmBuildVarPane(p){
+  const vars=p.variables||[];
+  const isMatrix=p.price_mode==='matrix';
+  const presIdx=(p.presentations||[]).findIndex(pr=>pr.id===WIP.pres?.id);
+  return '<div style="display:flex;flex-direction:column;gap:20px">'+vars.map(v=>{
+    return '<div><div style="font-size:12px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">'+pmEsc(v.name)+'</div>'
+      +'<div class="pm-choice-grid">'+(v.options||[]).map(o=>{
+        const sel=WIP.vars[v.id]&&WIP.vars[v.id].id===o.id;
+        const optPrice=isMatrix&&Array.isArray(o.prices)&&presIdx>=0?(o.prices[presIdx]||0):o.price||0;
+        const priceLabel=optPrice?(isMatrix?pmFmt(optPrice):'+'+pmFmt(optPrice)):'Incluido';
+        return '<button class="pm-choice compact'+(sel?' on':'')+'" data-var-id="'+pmAttr(v.id)+'" data-opt-id="'+pmAttr(o.id)+'" data-opt-name="'+pmAttr(o.name)+'" data-opt-price="'+optPrice+'">'
+          +'<div class="pm-choice-body"><div class="pm-choice-name">'+pmEsc(o.name)+'</div>'
+          +'<div class="pm-choice-price">'+priceLabel+'</div></div>'
+          +'<span class="pm-radio">'+(sel?PM_SVG.check:'')+'</span>'
+          +'</button>';
+      }).join('')+'</div></div>';
+  }).join('')+'</div>';
+}
+
+function pmBuildCustomPane(p){
+  const modGroups=(p.mod_group_ids||[]).map(gid=>(S.modGroups||[]).find(g=>g.id===gid)).filter(Boolean);
+  const presLabel=WIP.pres&&WIP.pres.name?WIP.pres.name:'';
+  const varLabels=Object.values(WIP.vars).map(v=>v.name).join(' \xb7 ');
+  const selParts=[presLabel,varLabels].filter(Boolean);
   const photoHTML=p.photo_url
-    ?`<img src="${p.photo_url}" class="mp-photo" loading="lazy">`
-    :`<div class="mp-photo-placeholder">${(p.name||'?')[0].toUpperCase()}</div>`;
-  const modsHTML=modGroups.length?modGroups.map(g=>`
-    <div class="mp-mod-group">
-      <div class="mp-mod-head">
-        <span class="mp-mod-name">${g.name}</span>
-        <span class="mp-mod-rule${g.rule==='obligatorio'?' req':''}">${g.rule==='obligatorio'?'Obligatorio':'Opcional'}</span>
-      </div>
-      <div class="pm-mods-grid">
-        ${(g.options||[]).map(o=>{
-          const qty=(WIP.mods[o.id]&&WIP.mods[o.id].qty)||0;
-          const safeName=(o.name||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
-          return `<div class="pm-mod${qty>0?' on':''}" data-mod-id="${o.id}">
-            <div style="min-width:0;flex:1">
-              <div class="pm-mod-name">${o.name}</div>
-              <div class="pm-mod-price">${o.price?'+ '+fmt(o.price):'Gratis'}</div>
-            </div>
-            <div class="pm-mod-qty-ctrl">
-              <button class="pm-mod-dec" ${qty<=0?'disabled':''} onclick="mpModDec('${o.id}')">&#8722;</button>
-              <span class="pm-mod-qty-num">${qty}</span>
-              <button class="pm-mod-inc" onclick="mpModInc('${o.id}','${safeName}',${o.price||0})">+</button>
-            </div>
-          </div>`;
-        }).join('')}
-      </div></div>`).join('')
-    :`<div class="mp-no-mods">Sin adiciones disponibles</div>`;
-  body.innerHTML=`<div class="mp-step3">
-    <div class="mp-s3-left">
-      ${photoHTML}
-      <div><div class="mp-s3-name">${p.name}</div>${summary?`<div class="mp-s3-sub">${summary}</div>`:''}</div>
-      <div class="mp-qty-row">
-        <button class="mp-qty-btn" onclick="mpQty(-1)">−</button>
-        <span class="mp-qty-val" id="mp-qty-disp">${WIP.qty}</span>
-        <button class="mp-qty-btn" onclick="mpQty(1)">+</button>
-        <span class="mp-price-live" id="mp-price-disp">${fmt(mpComputePrice())}</span>
-      </div>
-      <div><div class="mp-note-lbl">Nota para cocina</div>
-      <textarea class="mp-note-input" placeholder="Ej: sin cebolla, extra salsa…" oninput="WIP.note=this.value">${WIP.note}</textarea></div>
-    </div>
-    <div class="mp-s3-right">${modsHTML}</div>
-  </div>`;
-  const hasPrev=(p.presentations||[]).length>1||(p.variables||[]).length>0;
-  foot.innerHTML=`
-    <button class="d-foot-cancel" onclick="${hasPrev?'mpBack()':'closeModal(\'modal-producto\')'}">${hasPrev?svgInline('back2',14)+' Atrás':'Cancelar'}</button>
-    <button class="mp-guardar" onclick="mpAddToCart()">${svgInline('check',14)} Agregar &middot; <span id="mp-guardar-price">${fmt(mpComputePrice())}</span></button>`;
+    ?'<div class="pm-photo"><img src="'+pmAttr(p.photo_url)+'" style="width:100%;height:100%;object-fit:cover"></div>'
+    :'<div class="pm-photo pm-photo-ph"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>';
+  const selSummary=selParts.length
+    ?pmEsc(p.name)+' \xb7 <span class="sel">'+pmEsc(selParts.join(' \xb7 '))+'</span>'
+    :pmEsc(p.name);
+  const modSumTxt=Object.values(WIP.mods).filter(m=>m.qty>0).map(m=>m.qty>1?m.qty+'x '+m.name:m.name).join(', ')||'Sin adiciones seleccionadas';
+  const groupsHTML=modGroups.length
+    ?modGroups.map(g=>{
+        const maxHint=g.multi?'Max. '+(g.options||[]).length:'Elige una';
+        const optRows=(g.options||[]).map(o=>{
+          const modEntry=WIP.mods[o.id]; const modQty=modEntry?(modEntry.qty||0):0;
+          const grpOpts=(g.options||[]).map(opt=>opt.id);
+          const totalGroupQty=grpOpts.reduce((s,oid)=>s+((WIP.mods[oid]&&WIP.mods[oid].qty)||0),0);
+          const groupMax=g.multi?(g.max_total||(g.options||[]).length):1;
+          const canInc=totalGroupQty<groupMax;
+          return '<div class="pm-mod'+(modQty>0?' on':'')+'" data-mod-id="'+pmAttr(o.id)+'">'
+            +'<div style="min-width:0;text-align:left;flex:1"><div class="pm-mod-name">'+pmEsc(o.name)+'</div>'
+            +'<div class="pm-mod-price">'+(o.price?'+ '+pmFmt(o.price):'Gratis')+'</div></div>'
+            +'<div class="pm-mod-qty-ctrl">'
+            +'<button class="pm-mod-dec"'+(modQty<=0?' disabled="disabled"':'')+' data-mod-dec="'+pmAttr(o.id)+'">&#8722;</button>'
+            +'<span class="pm-mod-qty-num">'+modQty+'</span>'
+            +'<button class="pm-mod-inc"'+(!canInc?' disabled="disabled"':'')+' data-mod-inc="'+pmAttr(o.id)+'" data-mod-name="'+pmAttr(o.name)+'" data-mod-price="'+(o.price||0)+'">+</button>'
+            +'</div></div>';
+        }).join('');
+        return '<div style="margin-top:14px">'
+          +'<div class="pm-group-head"><span>'+pmEsc(g.name)+'</span><span class="pm-group-hint">'+maxHint+'</span></div>'
+          +'<div class="pm-mods-grid">'+optRows+'</div></div>';
+      }).join('')
+    :'<div class="pm-nomods"><p>Sin adiciones disponibles para este producto.</p></div>';
+  return '<div class="pm-custom">'
+    +'<div class="pm-left">'
+    +photoHTML
+    +'<div class="pm-prodname">'+selSummary+'</div>'
+    +'<div class="pm-modsum" id="pm-mod-sum">'+pmEsc(modSumTxt)+'</div>'
+    +'<div class="pm-field-lbl">'+PM_SVG.note+' Nota para cocina</div>'
+    +'<textarea class="pm-note" placeholder="Ej. caliente, con aji, sin salsa..." id="pm-note-input">'+pmEsc(WIP.note)+'</textarea>'
+    +'</div>'
+    +'<div class="pm-right">'
+    +'<div class="pm-qty-row">'
+    +'<div style="display:flex;align-items:center;gap:12px">'
+    +'<span style="font-size:13px;font-weight:600;color:#475569">Cantidad</span>'
+    +'<div class="pm-stepper"><button id="pm-qty-dec">'+PM_SVG.minus+'</button>'
+    +'<span id="pm-qty-val">'+WIP.qty+'</span>'
+    +'<button id="pm-qty-inc">'+PM_SVG.plus+'</button></div></div>'
+    +'<div style="text-align:right"><div class="pm-pf-lbl">Precio del producto</div>'
+    +'<div class="pm-pf-val" id="pm-price-val">'+pmFmt(mpComputePrice())+'</div></div></div>'
+    +'<div class="pm-search">'+PM_SVG.srch+'<input placeholder="Buscar adiciones..." id="pm-search-inp"></div>'
+    +groupsHTML
+    +'</div></div>';
 }
 
-function mpModInc(optId,optName,optPrice) {
-  if(!WIP.mods[optId]) WIP.mods[optId]={name:optName,price:optPrice,qty:0};
-  WIP.mods[optId].qty=(WIP.mods[optId].qty||0)+1;
-  mpSyncModUI();
-}
-function mpModDec(optId) {
-  if(!WIP.mods[optId]) return;
-  WIP.mods[optId].qty=(WIP.mods[optId].qty||0)-1;
-  if(WIP.mods[optId].qty<=0) delete WIP.mods[optId];
-  mpSyncModUI();
-}
-function mpSyncModUI() {
-  document.querySelectorAll('[data-mod-id]').forEach(div=>{
-    const id=div.dataset.modId;
-    const entry=WIP.mods[id]; const qty=entry?(entry.qty||0):0;
-    div.classList.toggle('on',qty>0);
-    const numEl=div.querySelector('.pm-mod-qty-num'); if(numEl) numEl.textContent=qty;
-    const decBtn=div.querySelector('.pm-mod-dec'); if(decBtn) decBtn.disabled=qty<=0;
+function pmAttachHandlers(inner,p,curId){
+  inner.querySelectorAll('.pm-step.done').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const sid=btn.dataset.stepId;
+      WIP.step=sid==='pres'?1:sid==='var'?2:3;
+      tpRenderMP();
+    });
   });
-  const pd=$('mp-price-disp'); if(pd) pd.textContent=fmt(mpComputePrice());
-  const gp=$('mp-guardar-price'); if(gp) gp.textContent=fmt(mpComputePrice());
+  if(curId==='pres'){
+    inner.querySelectorAll('.pm-choice[data-pres-id]').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const id=btn.dataset.presId,name=btn.dataset.presName,price=+btn.dataset.presPrice;
+        WIP.pres={id,name,price};
+        inner.querySelectorAll('.pm-choice[data-pres-id]').forEach(b=>{
+          const on=b.dataset.presId===id;
+          b.classList.toggle('on',on);
+          b.querySelector('.pm-radio').innerHTML=on?PM_SVG.check:'';
+        });
+        const nb=document.getElementById('tp-mp-next'); if(nb) nb.disabled=false;
+      });
+    });
+  }
+  if(curId==='var'){
+    inner.querySelectorAll('.pm-choice[data-var-id]').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const vid=btn.dataset.varId,oid=btn.dataset.optId,oname=btn.dataset.optName,oprice=+btn.dataset.optPrice;
+        WIP.vars[vid]={id:oid,name:oname,price:oprice};
+        inner.querySelectorAll('.pm-choice[data-var-id="'+vid+'"]').forEach(b=>{
+          const on=b.dataset.optId===oid;
+          b.classList.toggle('on',on);
+          b.querySelector('.pm-radio').innerHTML=on?PM_SVG.check:'';
+        });
+        const allDone=(p.variables||[]).every(v=>WIP.vars[v.id]);
+        const nb=document.getElementById('tp-mp-next'); if(nb) nb.disabled=!allDone;
+      });
+    });
+  }
+  if(curId==='custom'){
+    const qdec=document.getElementById('pm-qty-dec'),qinc=document.getElementById('pm-qty-inc');
+    if(qdec) qdec.addEventListener('click',()=>{ WIP.qty=Math.max(1,WIP.qty-1); pmUpdatePrices(); });
+    if(qinc) qinc.addEventListener('click',()=>{ WIP.qty++; pmUpdatePrices(); });
+    const noteEl=document.getElementById('pm-note-input');
+    if(noteEl){ noteEl.value=WIP.note; noteEl.addEventListener('input',function(){ WIP.note=this.value; }); }
+    inner.querySelectorAll("[data-mod-inc]").forEach(function(incBtn){
+      incBtn.addEventListener("click",function(e){
+        e.stopPropagation();
+        var id=incBtn.dataset.modInc, mname=incBtn.dataset.modName, price=parseFloat(incBtn.dataset.modPrice)||0;
+        var g=(p.mod_group_ids||[]).map(function(gid){return (S.modGroups||[]).find(function(g){return g.id===gid;});}).filter(Boolean)
+                 .find(function(g){return (g.options||[]).some(function(o){return o.id===id;});});
+        var groupMax=g?(g.max_total||(g.options||[]).length):999;
+        var grpOpts=g?(g.options||[]).map(function(o){return o.id;})  :[];
+        var totalGroupQty=grpOpts.reduce(function(s,oid){return s+((WIP.mods[oid]&&WIP.mods[oid].qty)||0);},0);
+        if(totalGroupQty>=groupMax) return;
+        if(!WIP.mods[id]) WIP.mods[id]={name:mname,price:price,qty:0};
+        WIP.mods[id].qty=(WIP.mods[id].qty||0)+1;
+        pmSyncModUI(inner,p);
+        pmUpdatePrices();
+        var ms=document.getElementById("pm-mod-sum");
+        if(ms) ms.textContent=Object.values(WIP.mods).filter(function(m){return m.qty>0;}).map(function(m){return m.qty>1?m.qty+"x "+m.name:m.name;}).join(", ")||"Sin adiciones seleccionadas";
+      });
+    });
+    inner.querySelectorAll("[data-mod-dec]").forEach(function(decBtn){
+      decBtn.addEventListener("click",function(e){
+        e.stopPropagation();
+        var id=decBtn.dataset.modDec;
+        if(!WIP.mods[id]||WIP.mods[id].qty<=0) return;
+        WIP.mods[id].qty--;
+        if(WIP.mods[id].qty<=0) delete WIP.mods[id];
+        pmSyncModUI(inner,p);
+        pmUpdatePrices();
+        var ms=document.getElementById("pm-mod-sum");
+        if(ms) ms.textContent=Object.values(WIP.mods).filter(function(m){return m.qty>0;}).map(function(m){return m.qty>1?m.qty+"x "+m.name:m.name;}).join(", ")||"Sin adiciones seleccionadas";
+      });
+    });
+    const sinp=document.getElementById('pm-search-inp');
+    if(sinp) sinp.addEventListener('input',function(){
+      const q=this.value.toLowerCase().trim();
+      inner.querySelectorAll('.pm-mod').forEach(b=>{
+        const nm=b.querySelector('.pm-mod-name')?b.querySelector('.pm-mod-name').textContent.toLowerCase():'';
+        b.style.display=q&&!nm.includes(q)?'none':'';
+      });
+    });
+  }
 }
 
-function mpQty(delta) {
-  WIP.qty=Math.max(1,WIP.qty+delta);
-  const qd=$('mp-qty-disp'); if(qd) qd.textContent=WIP.qty;
-  const pd=$('mp-price-disp'); if(pd) pd.textContent=fmt(mpComputePrice());
-  const gp=$('mp-guardar-price'); if(gp) gp.textContent=fmt(mpComputePrice());
+function pmSyncModUI(inner,p){
+  inner.querySelectorAll('[data-mod-id]').forEach(function(div){
+    var id=div.dataset.modId;
+    var entry=WIP.mods[id];
+    var qty=entry?(entry.qty||0):0;
+    div.classList.toggle('on',qty>0);
+    var numEl=div.querySelector('.pm-mod-qty-num');
+    if(numEl) numEl.textContent=qty;
+    var decBtn=div.querySelector('[data-mod-dec]');
+    if(decBtn) decBtn.disabled=qty<=0;
+    var incBtn=div.querySelector('[data-mod-inc]');
+    if(incBtn){
+      var g=(p.mod_group_ids||[]).map(function(gid){return (S.modGroups||[]).find(function(g){return g.id===gid;});}).filter(Boolean)
+                .find(function(g){return (g.options||[]).some(function(o){return o.id===id;});});
+      var groupMax=g?(g.max_total||(g.options||[]).length):999;
+      var grpOpts=g?(g.options||[]).map(function(o){return o.id;})  :[];
+      var totalGroupQty=grpOpts.reduce(function(s,oid){return s+((WIP.mods[oid]&&WIP.mods[oid].qty)||0);},0);
+      incBtn.disabled=totalGroupQty>=groupMax;
+    }
+  });
 }
 
-function mpAdvance() {
+function pmUpdatePrices(){
+  const p=document.getElementById('pm-price-val'); if(p) p.textContent=pmFmt(mpComputePrice());
+  const f=document.getElementById('pm-foot-price'); if(f) f.textContent=pmFmt(mpComputePrice());
+  const q=document.getElementById('pm-qty-val'); if(q) q.textContent=WIP.qty;
+}
+
+function tpCheckOverlayClose(e){ if(e.target===e.currentTarget) tpCloseMP(); }
+
+function tpMPAdvance(){
   const p=WIP.prod, hasVars=(p.variables||[]).length>0;
   if(WIP.step===1){WIP.step=hasVars?2:3;}else if(WIP.step===2){WIP.step=3;}
-  renderMP();
+  tpRenderMP();
 }
 
-function mpBack() {
-  const p=WIP.prod,hasPres=(p.presentations||[]).length>1,hasVars=(p.variables||[]).length>0;
+function tpMPBack(){
+  const p=WIP.prod, hasPres=(p.presentations||[]).length>1, hasVars=(p.variables||[]).length>0;
   if(WIP.step===3){WIP.step=hasVars?2:(hasPres?1:3);}else if(WIP.step===2){WIP.step=hasPres?1:2;}
-  renderMP();
+  tpRenderMP();
 }
 
-function mpAddToCart() {
-  const p=WIP.prod, cat=S.cats.find(c=>c.id===p.category_id);
+function tpCloseMP(){
+  const el=document.getElementById('tp-modal-producto'); if(el) el.style.display='none';
+}
+
+function tpMPAddToCart(){
+  const p=WIP.prod;
+  const cat=S.cats.find(c=>c.id===p.category_id);
   const unitPrice=mpComputePrice()/WIP.qty;
   const presLabel=WIP.pres&&WIP.pres.name?WIP.pres.name:'';
-  const varLabels=Object.values(WIP.vars).map(v=>v.name).join(' · ');
-  const displayName=[p.name,presLabel,varLabels].filter(Boolean).join(' · ');
-  const modSummary=Object.values(WIP.mods).map(m=>(m.qty>1?m.qty+'x ':'')+m.name).join(', ');
+  const varLabels=Object.values(WIP.vars).map(v=>v.name).join(' \xb7 ');
+  const displayName=[p.name,presLabel,varLabels].filter(Boolean).join(' \xb7 ');
+  const modSummary=Object.values(WIP.mods).filter(m=>m.qty>0).map(m=>(m.qty>1?m.qty+'x ':'')+m.name).join(', ');
   const lineId='li_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
   S.cart.push({
     lineId, id:p.id, name:displayName, price:unitPrice, qty:WIP.qty,
@@ -671,7 +790,7 @@ function mpAddToCart() {
     note:WIP.note||'', modSummary,
     pres:WIP.pres, vars:{...WIP.vars}, mods:{...WIP.mods},
   });
-  closeModal('modal-producto');
+  tpCloseMP();
   renderCart(); renderDetBtn(); refreshBrowserQtys();
   toast('Agregado: '+p.name);
 }
@@ -1397,7 +1516,6 @@ function attachEvents() {
       return;
     }
     // Backdrop click en overlay (modal-registro no se cierra si gate está activo)
-    if (e.target.dataset.mpCancel !== undefined) { closeModal('modal-producto'); return; }
     if (e.target.classList.contains('d-overlay')) {
       if (e.target.id === 'modal-registro' && document.body.classList.contains('d-gate')) return;
       e.target.hidden = true; return;
