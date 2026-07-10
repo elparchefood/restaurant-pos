@@ -553,7 +553,10 @@
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_orders' }, (payload) => {
         loadData();
-        if (payload.eventType === 'INSERT' && payload.new && payload.new.id && typeof window.posAutoprint === 'function') {
+        if (payload.eventType === 'UPDATE'
+            && payload.new && payload.new.status === 'in_progress'
+            && payload.new.id
+            && typeof window.posAutoprint === 'function') {
           window.posAutoprint(payload.new.id);
         }
       })
