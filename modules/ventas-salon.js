@@ -551,8 +551,11 @@
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_tables' }, () => {
         loadData();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_orders' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_orders' }, (payload) => {
         loadData();
+        if (payload.eventType === 'INSERT' && payload.new && payload.new.id && typeof window.posAutoprint === 'function') {
+          window.posAutoprint(payload.new.id);
+        }
       })
       .subscribe();
   }
