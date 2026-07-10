@@ -613,10 +613,8 @@
 
   // ─── Data loading ─────────────────────────────────────
   async function loadData() {
-    state.tables = await fetchTables();
-    state.deliveries = await fetchDeliveries();
-    state.quickOrders = await fetchQuickOrders();
-    state.quickDeliveredCount = await fetchQuickDeliveredCount();
+    [state.tables, state.deliveries, state.quickOrders, state.quickDeliveredCount] =
+      await Promise.all([fetchTables(), fetchDeliveries(), fetchQuickOrders(), fetchQuickDeliveredCount()]);
 
     state.loading = false;
     if (state.selectedTableId) {
@@ -2703,7 +2701,7 @@
       const link = document.createElement('link');
       link.id = 'vs-styles';
       link.rel = 'stylesheet';
-      link.href = 'styles/modules/ventas-salon.css?v=' + Date.now();
+      link.href = 'styles/modules/ventas-salon.css?v=20250709';
       document.head.appendChild(link);
     }
 
