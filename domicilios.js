@@ -467,19 +467,41 @@ function mpComputePrice() {
   const isMatrix = p && p.price_mode === 'matrix';
   let base;
   if (isMatrix) {
-    // Precio real viene de las variables (no de la presentación)
     base = Object.values(WIP.vars).reduce((s,v) => s+(v.price||0), 0);
   } else {
-    base = WIP.pres ? (WIP.pres.price||0) : (p ? p.price||0 : 0);
+    const baseP = p ? parseFloat(p.price)||0 : 0;
+    base = WIP.pres ? (WIP.pres.price || baseP) : baseP;
     base += Object.values(WIP.vars).reduce((s,v) => s+(v.price||0), 0);
   }
-  const modExtra = Object.values(WIP.mods).reduce((s,m) => s+(m.price||0), 0);
+  const modExtra = Object.values(WIP.mods).reduce((s,m) => s+(m.price||0)*(m.qty||1), 0);
   return (base + modExtra) * WIP.qty;
 }
 
 function renderMP() {
   const body=$('mp-body'), foot=$('mp-foot'), title=$('mp-title');
   if (!body) return;
+  // Step indicator (mismo estilo que tomar-pedido)
+  const stepsEl=$('mp-steps');
+  if (stepsEl && WIP.prod) {
+    const p=WIP.prod, hasPres=(p.presentations||[]).length>1, hasVars=(p.variables||[]).length>0;
+    const steps=[];
+    if(hasPres) steps.push({id:'pres',label:p.presLabel||'Presentación'});
+    if(hasVars) steps.push({id:'var',label:(p.variables[0]&&p.variables[0].name)||'Variante'});
+    steps.push({id:'custom',label:'Personalizar'});
+    if(steps.length>1){
+      const curId=WIP.step===1&&hasPres?'pres':WIP.step===2&&hasVars?'var':'custom';
+      const curIdx=steps.findIndex(s=>s.id===curId);
+      const chk='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+      stepsEl.innerHTML=steps.map((s,i)=>{
+        const done=i<curIdx,on=i===curIdx;
+        return '<span class="pm-step'+(done?' done':on?' on':'')+'">'
+          +'<span class="pm-step-dot">'+(done?chk:String(i+1))+'</span>'
+          +'<span class="pm-step-lbl">'+s.label+'</span></span>'
+          +(i<steps.length-1?'<span class="pm-step-line'+(done?' done':'')+'" ></span>':'');
+      }).join('');
+      stepsEl.style.display='';
+    } else { stepsEl.innerHTML=''; stepsEl.style.display='none'; }
+  }
   if (WIP.step===1) mpStep1(body,foot,title);
   else if (WIP.step===2) mpStep2(body,foot,title);
   else mpStep3(body,foot,title);
@@ -554,12 +576,21 @@ function mpStep3(body, foot, title) {
         <span class="mp-mod-name">${g.name}</span>
         <span class="mp-mod-rule${g.rule==='obligatorio'?' req':''}">${g.rule==='obligatorio'?'Obligatorio':'Opcional'}</span>
       </div>
-      <div class="mp-mod-opts">
+      <div class="pm-mods-grid">
         ${(g.options||[]).map(o=>{
-          const sel=!!WIP.mods[o.id];
-          return `<button class="mp-mod-opt${sel?' on':''}" onclick="mpToggleMod('${o.id}','${(o.name||'').replace(/'/g,"\'")}',${o.price||0})">
-            <span>${o.name}</span>${o.price?`<span class="mp-mod-oprice">+${fmt(o.price)}</span>`:''}
-          </button>`;
+          const qty=(WIP.mods[o.id]&&WIP.mods[o.id].qty)||0;
+          const safeName=(o.name||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+          return `<div class="pm-mod${qty>0?' on':''}" data-mod-id="${o.id}">
+            <div style="min-width:0;flex:1">
+              <div class="pm-mod-name">${o.name}</div>
+              <div class="pm-mod-price">${o.price?'+ '+fmt(o.price):'Gratis'}</div>
+            </div>
+            <div class="pm-mod-qty-ctrl">
+              <button class="pm-mod-dec" ${qty<=0?'disabled':''} onclick="mpModDec('${o.id}')">&#8722;</button>
+              <span class="pm-mod-qty-num">${qty}</span>
+              <button class="pm-mod-inc" onclick="mpModInc('${o.id}','${safeName}',${o.price||0})">+</button>
+            </div>
+          </div>`;
         }).join('')}
       </div></div>`).join('')
     :`<div class="mp-no-mods">Sin adiciones disponibles</div>`;
@@ -581,20 +612,37 @@ function mpStep3(body, foot, title) {
   const hasPrev=(p.presentations||[]).length>1||(p.variables||[]).length>0;
   foot.innerHTML=`
     <button class="d-foot-cancel" onclick="${hasPrev?'mpBack()':'closeModal(\'modal-producto\')'}">${hasPrev?svgInline('back2',14)+' Atrás':'Cancelar'}</button>
-    <button class="mp-guardar" onclick="mpAddToCart()">${svgInline('check',14)} Agregar al pedido</button>`;
+    <button class="mp-guardar" onclick="mpAddToCart()">${svgInline('check',14)} Agregar &middot; <span id="mp-guardar-price">${fmt(mpComputePrice())}</span></button>`;
 }
 
-function mpToggleMod(optId,optName,optPrice) {
-  if(WIP.mods[optId]){delete WIP.mods[optId];}else{WIP.mods[optId]={name:optName,price:optPrice};}
-  const btn=document.querySelector(`.mp-mod-opt[onclick*="'${optId}'"]`);
-  if(btn) btn.classList.toggle('on',!!WIP.mods[optId]);
+function mpModInc(optId,optName,optPrice) {
+  if(!WIP.mods[optId]) WIP.mods[optId]={name:optName,price:optPrice,qty:0};
+  WIP.mods[optId].qty=(WIP.mods[optId].qty||0)+1;
+  mpSyncModUI();
+}
+function mpModDec(optId) {
+  if(!WIP.mods[optId]) return;
+  WIP.mods[optId].qty=(WIP.mods[optId].qty||0)-1;
+  if(WIP.mods[optId].qty<=0) delete WIP.mods[optId];
+  mpSyncModUI();
+}
+function mpSyncModUI() {
+  document.querySelectorAll('[data-mod-id]').forEach(div=>{
+    const id=div.dataset.modId;
+    const entry=WIP.mods[id]; const qty=entry?(entry.qty||0):0;
+    div.classList.toggle('on',qty>0);
+    const numEl=div.querySelector('.pm-mod-qty-num'); if(numEl) numEl.textContent=qty;
+    const decBtn=div.querySelector('.pm-mod-dec'); if(decBtn) decBtn.disabled=qty<=0;
+  });
   const pd=$('mp-price-disp'); if(pd) pd.textContent=fmt(mpComputePrice());
+  const gp=$('mp-guardar-price'); if(gp) gp.textContent=fmt(mpComputePrice());
 }
 
 function mpQty(delta) {
   WIP.qty=Math.max(1,WIP.qty+delta);
   const qd=$('mp-qty-disp'); if(qd) qd.textContent=WIP.qty;
   const pd=$('mp-price-disp'); if(pd) pd.textContent=fmt(mpComputePrice());
+  const gp=$('mp-guardar-price'); if(gp) gp.textContent=fmt(mpComputePrice());
 }
 
 function mpAdvance() {
@@ -615,7 +663,7 @@ function mpAddToCart() {
   const presLabel=WIP.pres&&WIP.pres.name?WIP.pres.name:'';
   const varLabels=Object.values(WIP.vars).map(v=>v.name).join(' · ');
   const displayName=[p.name,presLabel,varLabels].filter(Boolean).join(' · ');
-  const modSummary=Object.values(WIP.mods).map(m=>m.name).join(', ');
+  const modSummary=Object.values(WIP.mods).map(m=>(m.qty>1?m.qty+'x ':'')+m.name).join(', ');
   const lineId='li_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
   S.cart.push({
     lineId, id:p.id, name:displayName, price:unitPrice, qty:WIP.qty,
