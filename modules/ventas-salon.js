@@ -1494,6 +1494,7 @@
       ? `<div class="vs-actions">
            <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
            <button class="lm-btn-ghost" data-action="split" data-table-id="${mesa.id}">Dividir cuenta</button>
+           ${canCobrar ? `<button class="lm-btn-primary" data-action="collect" data-table-id="${mesa.id}">Cobrar</button>` : ''}
          </div>`
       : `<div class="vs-actions">
            <button class="lm-btn-ghost" data-action="print" data-table-id="${mesa.id}">Imprimir</button>
