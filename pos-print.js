@@ -8,19 +8,37 @@
 
   function _buildComanda(order, items) {
     var now = new Date();
-    var timeStr = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    var timeStr = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true });
     var dateStr = now.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+    var SEP = '<div style="border-top:1px dashed #000;margin:5px 0;"></div>';
     var rows = (items || []).map(function(it) {
-      var mods = (it.mods && it.mods.length) ? '<div style="padding-left:22px;font-size:11px;color:#555;margin-bottom:2px">+ ' + it.mods.join(', ') + '</div>' : '';
-      var note = it.note ? '<div style="padding-left:22px;font-size:11px;font-style:italic;color:#888;margin-bottom:2px">&#8618; ' + it.note + '</div>' : '';
-      return '<div style="display:flex;padding:5px 0;border-bottom:1px solid #eee"><span style="font-weight:700;width:22px;flex-shrink:0">' + (it.qty || 1) + 'x</span><span style="flex:1">' + (it.name || 'Item') + '</span></div>' + mods + note;
+      var qty = it.qty || 1;
+      var name = (it.name || 'Item').toUpperCase();
+      var mods = (it.mods && it.mods.length)
+        ? it.mods.map(function(m){ return String(m).toUpperCase(); }).join(' / ')
+        : '';
+      var line = '(' + qty + ') ' + name + (mods ? ' - ' + mods : '');
+      var note = it.note
+        ? '<div style="padding-left:14px;font-size:13px;font-weight:bold;">&raquo; ' + it.note.toUpperCase() + '</div>'
+        : '';
+      return '<div style="font-size:14px;font-weight:bold;margin:5px 0;line-height:1.35;">' + line + '</div>' + note;
     }).join('');
-    return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:monospace;font-size:13px;width:80mm;max-width:80mm;margin:0;padding:10px}*{box-sizing:border-box}</style></head><body>'
-      + '<div style="text-align:center;border-bottom:1px dashed #000;padding-bottom:10px;margin-bottom:10px"><div style="font-size:18px;font-weight:bold;letter-spacing:2px">COMANDA</div><div style="font-size:11px;color:#555;margin-top:4px">' + dateStr + ' - ' + timeStr + '</div></div>'
-      + '<div style="font-size:15px;font-weight:bold;margin-bottom:4px">Mesa: ' + (order.table || '-') + '</div>'
-      + (order.channel ? '<div style="display:inline-block;background:#000;color:#fff;padding:2px 10px;font-size:12px;margin-bottom:8px">' + order.channel.toUpperCase() + '</div>' : '')
-      + '<div style="margin-top:6px">' + rows + '</div>'
-      + '<div style="text-align:center;font-size:10px;color:#888;margin-top:12px;border-top:1px dashed #000;padding-top:8px">** FIN COMANDA **</div>'
+    var channelLine = order.channel
+      ? '<div style="font-size:13px;font-weight:bold;margin-top:3px;">' + order.channel.toUpperCase() + '</div>'
+      : '';
+    return '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+      + '<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:"Courier New",Courier,monospace;font-size:14px;width:80mm;max-width:80mm;margin:0;padding:8px;color:#000;}</style>'
+      + '</head><body>'
+      + '<div style="text-align:center;font-size:20px;font-weight:bold;letter-spacing:1px;">COMANDA</div>'
+      + '<div style="text-align:center;font-size:12px;margin-top:3px;">' + dateStr + ' - ' + timeStr + '</div>'
+      + SEP
+      + '<div style="font-size:16px;font-weight:bold;">Mesa: ' + (order.table || '-') + '</div>'
+      + channelLine
+      + '<div style="font-size:12px;font-weight:bold;margin:8px 0 3px;">- - - - INICIO PEDIDO - - - -</div>'
+      + rows
+      + '<div style="font-size:12px;font-weight:bold;margin:5px 0 3px;">- - - - FIN PEDIDO - - - -</div>'
+      + SEP
+      + '<div style="text-align:center;font-size:12px;font-weight:bold;">** FIN COMANDA **</div>'
       + '</body></html>';
   }
 
