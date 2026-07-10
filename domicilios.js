@@ -42,6 +42,8 @@ const KAN_BTN     = { recibido: 'En preparación', preparacion: 'Listo', listo: 
 // ── Estado global S ────────────────────────────────────────────────────
 const S = {
   tenantId:  null,
+  branchId:  null,
+  userId:    null,
   // Contexto del domicilio
   canal:     'whatsapp',
   modalidad: 'express',
@@ -153,6 +155,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const { data: { user } } = await sb.auth.getUser();
       if (!user)    { window.location.href = 'login.html'; return; }
       S.tenantId = (user.user_metadata && user.user_metadata.tenant_id) || user.id;
+      S.branchId = (user.user_metadata && user.user_metadata.branch_id) || null;
+      S.userId   = user.id || null;
       const name = (user.user_metadata && user.user_metadata.full_name) || user.email || 'Usuario';
       const role = (user.user_metadata && user.user_metadata.role)      || 'Operador';
       if ($('topbar-name'))   $('topbar-name').textContent   = name;
@@ -958,6 +962,16 @@ function renderTotals() {
     }
   }
   if ($('total-grand')) $('total-grand').textContent = fmt(M.cobrar);
+  const _cliRow  = $('trow-total-cliente');
+  const _cliSpan = $('total-cliente');
+  if (_cliRow && _cliSpan) {
+    if (M.mode === 'ext-directo' && M.feeShown > 0) {
+      _cliSpan.textContent = fmt(computeProductsTotal() + M.feeShown);
+      _cliRow.hidden = false;
+    } else {
+      _cliRow.hidden = true;
+    }
+  }
 
   // Nota de dinero — toggleable, arranca oculta
   const noteArea  = $('money-note-area');
@@ -1106,6 +1120,8 @@ function toggleCourier() {
   if (panesExt) panesExt.hidden = !ext;
 
   if (!ext) S.cobramos = false;
+  const pagoBlock = $('pago-block');
+  if (pagoBlock) pagoBlock.hidden = ext;
   renderDetBtn();
   renderTotals();
 }
@@ -1229,7 +1245,7 @@ function canEnviar() {
   return count > 0 && !!S.cliente && (!needAsig || !!S.asignado);
 }
 
-function enviarACocina() {
+async function enviarACocina() {
   if (!canEnviar()) {
     const count = S.cart.reduce((a, x) => a + x.qty, 0);
     if (count === 0)    { toast('Agrega productos al pedido'); return; }
@@ -1312,6 +1328,44 @@ function enviarACocina() {
   document.querySelectorAll('[data-metodo]').forEach(b => b.classList.toggle('on', b.dataset.metodo === 'efectivo'));
 
   flipToPedido();
+
+  // Guardar en Supabase para que ventas.html pueda mostrar el pedido
+  try {
+    const _orderRow = {
+      tenant_id:        S.tenantId,
+      branch_id:        S.branchId,
+      channel:          'domicilio',
+      status:           'open',
+      customer_name:    S.cliente && S.cliente.nombre ? S.cliente.nombre : null,
+      customer_phone:   S.cliente && S.cliente.tel    ? S.cliente.tel    : null,
+      delivery_address: S.cliente && S.cliente.dir    ? S.cliente.dir    : null,
+      delivery_person:  nuevo.domiciliario || null,
+      total:            prod,
+      payment_method:   metodo,
+      opened_at:        new Date().toISOString(),
+    };
+    const { data: _saved, error: _err } = await sb.from('pos_orders').insert(_orderRow).select('id').single();
+    if (!_err && _saved) {
+      const _items = S.cart.map(it => ({
+        tenant_id:     S.tenantId,
+        branch_id:     S.branchId,
+        order_id:      _saved.id,
+        product_id:    it.id,
+        name:          it.name,
+        product_name:  it.name,
+        unit_price:    it.price,
+        product_price: it.price,
+        quantity:      it.qty,
+        total:         it.price * it.qty,
+        notes:         it.note || null,
+        status:        'pending',
+        selections:    it.mods || {},
+      }));
+      if (_items.length) await sb.from('pos_order_items').insert(_items);
+    } else if (_err) {
+      console.error('[domicilios] insert order:', _err);
+    }
+  } catch(_e) { console.error('[domicilios] enviarACocina Supabase:', _e); }
 
   toast(`${id} enviado a cocina`);
   window.location.href = 'ventas.html?floor=__domicilios__';

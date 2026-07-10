@@ -83,6 +83,7 @@
             <div class="d-totals">
               <div class="d-trow"><span>Productos</span><span id="total-productos">$0</span></div>
               <div class="d-trow" id="trow-domicilio"><span>Domicilio</span><span id="total-domicilio">$0</span></div>
+              <div class="d-trow" id="trow-total-cliente" hidden style="font-size:12px;color:var(--muted)"><span>Total al cliente</span><span id="total-cliente">$0</span></div>
               <div class="d-trow d-tgrand"><span style="display:inline-flex;align-items:center;gap:6px">Total a cobrar<button class="d-info-btn" id="btn-money-info" hidden title="Ver detalle" data-action="toggle-money-note"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button></span><span id="total-grand">$0</span></div>
             </div>
             <div id="money-note-area"></div>
@@ -134,7 +135,7 @@
                 </button>
               </div>
             </div>
-            <div class="d-block">
+            <div class="d-block" id="pago-block">
               <div class="d-block-lbl"><span>Pago</span></div>
               <div style="display:flex;flex-direction:column;gap:9px">
                 <div>
