@@ -42,8 +42,9 @@ const KAN_BTN     = { recibido: 'En preparación', preparacion: 'Listo', listo: 
 // ── Estado global S ────────────────────────────────────────────────────
 const S = {
   tenantId:  null,
-  branchId:  null,
-  userId:    null,
+  branchId:    null,
+  userId:     null,
+  waiterName: null,
   // Contexto del domicilio
   canal:     'whatsapp',
   modalidad: 'express',
@@ -155,8 +156,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const { data: { user } } = await sb.auth.getUser();
       if (!user)    { window.location.href = 'login.html'; return; }
       S.tenantId = (user.user_metadata && user.user_metadata.tenant_id) || user.id;
-      S.branchId = (user.user_metadata && user.user_metadata.branch_id) || null;
-      S.userId   = user.id || null;
+      S.branchId    = (user.user_metadata && user.user_metadata.branch_id) || null;
+      S.userId      = user.id || null;
+      S.waiterName  = (user.user_metadata && user.user_metadata.full_name) || user.email || null;
       const name = (user.user_metadata && user.user_metadata.full_name) || user.email || 'Usuario';
       const role = (user.user_metadata && user.user_metadata.role)      || 'Operador';
       if ($('topbar-name'))   $('topbar-name').textContent   = name;
@@ -1332,43 +1334,40 @@ async function enviarACocina() {
 
   flipToPedido();
 
-  // Guardar en Supabase para que ventas.html pueda mostrar el pedido
+  // Guardar en Supabase — mismo patrón que tomar-pedido.js saveOrder()
   try {
-    const _cli = S.clientes.find(function(c){ return c.nombre === nuevo.cliente; }) || {};
-    const _orderRow = {
+    const _orderData = {
+      tenant_id:      S.tenantId,
+      branch_id:      S.branchId,
+      waiter_id:      S.userId,
+      waiter_name:    S.waiterName,
+      channel:        'domicilio',
+      status:         'open',
+      customer_name:  nuevo.cliente || null,
+      total:          prod,
+      payment_method: metodo,
+      opened_at:      new Date().toISOString(),
+    };
+    const { data: _saved, error: _err } = await sb.from('pos_orders').insert(_orderData).select().single();
+    if (_err) throw _err;
+    const _oid = _saved.id;
+    const _itemsData = _cartSnapshot.map(function(it) { return {
       tenant_id:     S.tenantId,
       branch_id:     S.branchId,
-      channel:       'domicilio',
-      status:        'open',
-      customer_name: nuevo.cliente || null,
-      waiter_name:   nuevo.domiciliario || null,
-      notes:         _cli.dir ? ('Dir: ' + _cli.dir) : null,
-      total:         prod,
-      payment_method: metodo,
-      opened_at:     new Date().toISOString(),
-    };
-    const { data: _saved, error: _err } = await sb.from('pos_orders').insert(_orderRow).select('id').single();
-    if (!_err && _saved) {
-      const _items = _cartSnapshot.map(function(it) { return {
-        tenant_id:     S.tenantId,
-        branch_id:     S.branchId,
-        order_id:      _saved.id,
-        product_id:    it.id,
-        name:          it.name,
-        product_name:  it.name,
-        unit_price:    it.price,
-        product_price: it.price,
-        quantity:      it.qty,
-        total:         it.price * it.qty,
-        notes:         it.note || null,
-        status:        'pending',
-        selections:    it.mods || {},
-      }; });
-      if (_items.length) await sb.from('pos_order_items').insert(_items);
-    } else if (_err) {
-      console.error('[domicilios] insert order:', _err);
-    }
-  } catch(_e) { console.error('[domicilios] enviarACocina Supabase:', _e); }
+      order_id:      _oid,
+      product_id:    it.id,
+      name:          it.name,
+      product_name:  it.name,
+      unit_price:    it.price,
+      product_price: it.price,
+      quantity:      it.qty,
+      total:         it.price * it.qty,
+      notes:         it.note || null,
+      status:        'pending',
+      selections:    it.mods || {},
+    }; });
+    if (_itemsData.length) await sb.from('pos_order_items').insert(_itemsData);
+  } catch(_e) { console.error('[domicilios] enviarACocina:', _e); }
 
   toast(`${id} enviado a cocina`);
   window.location.href = 'ventas.html?floor=__domicilios__';
