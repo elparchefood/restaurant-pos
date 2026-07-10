@@ -53,8 +53,11 @@
       if (_shared) {
         S.clientes = JSON.parse(_shared);
       } else {
-        const _old = localStorage.getItem('pos.rapida.clientes');
-        if (_old) { S.clientes = JSON.parse(_old); localStorage.setItem(CLIENTES_KEY, _old); }
+        // Intentar migrar desde cualquier clave antigua
+        const _fromRapida = localStorage.getItem('pos.rapida.clientes');
+        const _fromDomi   = localStorage.getItem('pos.domi.clientes');
+        const _raw = _fromRapida || _fromDomi;
+        if (_raw) { S.clientes = JSON.parse(_raw); localStorage.setItem(CLIENTES_KEY, _raw); }
         else S.clientes = [];
       }
     } catch(e) { S.clientes = []; }
