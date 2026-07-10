@@ -12,6 +12,7 @@
   font-family: "DM Sans", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   color: #0F172A;
   overflow: hidden;
+  overscroll-behavior: none;
   font-size: 13px;
 }
 
@@ -536,6 +537,7 @@
   padding: 0 24px 24px;
   min-height: 0;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 .vs-body-left {
   display: flex;
@@ -622,6 +624,7 @@
   grid-auto-rows: 160px;
   gap: 12px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   align-content: start;
   min-height: 0;
   padding-right: 4px;
@@ -775,6 +778,7 @@
   flex-direction: column;
   margin-top: 12px;
   padding-right: 4px;
+  overscroll-behavior: contain;
 }
 .vs-rail-footer {
   flex-shrink: 0;

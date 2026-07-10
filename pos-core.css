@@ -2,7 +2,7 @@
 /* REGLA: Solo estilos de layout (sidebar, topbar, reset, tipografía, helpers) */
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none;-webkit-overflow-scrolling:auto}
 body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:#FAFAFB;color:#0F172A;-webkit-font-smoothing:antialiased}
 #app{display:flex;height:100vh;overflow:hidden}
 /* ── Sidebar ── */

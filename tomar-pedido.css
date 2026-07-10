@@ -47,7 +47,7 @@
 /* ──────────── reset ──────────── */
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { margin: 0; padding: 0; }
+html, body { margin: 0; padding: 0; overscroll-behavior: none; }
 html, body, .tp-root { height: 100%; width: 100%; }
 body {
   background: var(--bg);
@@ -67,6 +67,7 @@ svg { display: block; }
   display: flex;
   background: var(--bg);
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 /* ════════ SIDEBAR (acciones) ════════ */
@@ -280,7 +281,7 @@ svg { display: block; }
 .tp-empty-text { font-size: 12px; color: var(--ink-3); text-align: center; margin: 6px 0 0; line-height: 1.5; max-width: 230px; }
 
 /* lista comanda */
-.tp-cart-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px 4px; }
+.tp-cart-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px 4px; }
 .tp-comanda-listhead {
   display: flex; align-items: center; justify-content: space-between;
   position: sticky; top: 0; background: var(--surface); padding-bottom: 8px; z-index: 1;
@@ -370,7 +371,7 @@ svg { display: block; }
 /* grid de categorías */
 .tp-catgrid {
   flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: min-content;
-  gap: 14px; overflow-y: auto; padding-right: 4px; align-content: start;
+  gap: 14px; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; align-content: start;
 }
 .lm-cat {
   display: flex; flex-direction: column; padding: 0; background: #fff;
@@ -415,7 +416,7 @@ svg { display: block; }
 /* grid de productos */
 .tp-prodgrid {
   flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: min-content;
-  gap: 12px; overflow-y: auto; padding-right: 4px; align-content: start;
+  gap: 12px; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; align-content: start;
 }
 .lm-prod {
   display: flex; flex-direction: column; padding: 7px; background: #fff;
@@ -451,7 +452,7 @@ svg { display: block; }
 }
 
 /* lista de menú */
-.tp-menuscroll { flex: 1; overflow-y: auto; padding-right: 4px; }
+.tp-menuscroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
 .tp-menu-group { margin-bottom: 18px; }
 .tp-menu-grouphead { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .tp-menu-groupname { font-size: 12px; font-weight: 700; color: var(--ink); text-transform: uppercase; letter-spacing: 0.06em; }
