@@ -1132,7 +1132,7 @@
             <span class="vs-state-dot" style="background:${meta.color}"></span>
             ${meta.label}
           </span>
-          <span class="vs-time-badge" data-timer="${new Date(Date.now() - (d.min||0)*60000).toISOString()}">${SVG_CLOCK(10)} <span class="vs-timer-val">${timeStr}</span></span>
+          <span class="vs-time-badge" ${d.estado !== 'entregado' ? `data-timer="${new Date(Date.now() - (d.min||0)*60000).toISOString()}"` : ''}>${SVG_CLOCK(10)} <span class="vs-timer-val">${timeStr}</span></span>
         </div>
         <div class="vs-mesa-num-row">
           <div class="vs-mesa-num vs-mesa-num--active" style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${d.cliente}</div>
@@ -1305,7 +1305,7 @@
           </div>
           <div class="vs-info-cell">
             <div class="vs-info-label">Tiempo</div>
-            <div class="vs-info-value" data-timer="${new Date(Date.now() - (d.min||0)*60000).toISOString()}"><span class="vs-timer-val">${d.min || 0} min</span></div>
+            <div class="vs-info-value" ${d.estado !== 'entregado' ? `data-timer="${new Date(Date.now() - (d.min||0)*60000).toISOString()}"` : ''}><span class="vs-timer-val">${d.min || 0} min</span></div>
           </div>
           <div class="vs-info-cell">
             <div class="vs-info-label">Ítems</div>
