@@ -178,9 +178,15 @@
     try {
       var sb = window._pos && window._pos.sb;
       if (!sb || !orderId) return null;
-      var r = await sb.from('pos_orders').select('*, pos_order_items(*)').eq('id', orderId).maybeSingle();
+      var r = await sb.from('pos_orders').select('*, pos_order_items(*), pos_tables(name, number)').eq('id', orderId).maybeSingle();
       return (r && r.data) ? r.data : null;
     } catch(e) { console.warn('[posprint] fetch:', e); return null; }
+  }
+
+  function _tableDisplay(order) {
+    var t = order.pos_tables;
+    if (t) return t.name || String(t.number || '') || order.table_id || '-';
+    return order.table_name || order.table_id || '-';
   }
 
   window.posAutoprint = async function(orderId) {
@@ -191,7 +197,7 @@
     var items = (order.pos_order_items || []).map(function(it) {
       return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', notes: it.notes || '', mods: Array.isArray(it.mods) ? it.mods : [] };
     });
-    _printHtml(_buildComanda({ table: order.table_id || order.table_name || '-', channel: order.channel, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '' }, items), 'comanda');
+    _printHtml(_buildComanda({ table: _tableDisplay(order), channel: order.channel, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '' }, items), 'comanda');
   };
 
   window.posOpenPrintModal = function(orderId) {
@@ -229,7 +235,7 @@
     var items = (order.pos_order_items || []).map(function(it) {
       return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', mods: Array.isArray(it.mods) ? it.mods : [], total: (it.unit_price || 0) * (it.quantity || 1) };
     });
-    var orderData = { table: order.table_id || order.table_name || '-', channel: order.channel, total: order.total || 0, subtotal: order.subtotal || order.total || 0, discount: order.discount_amount || 0, tip: order.tip_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '' };
+    var orderData = { table: _tableDisplay(order), channel: order.channel, total: order.total || 0, subtotal: order.subtotal || order.total || 0, discount: order.discount_amount || 0, tip: order.tip_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '' };
     var html;
     if (type === 'comanda') html = _buildComanda(orderData, items);
     else if (type === 'desc') html = _buildReceiptDesc(orderData, items);
