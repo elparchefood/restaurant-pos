@@ -1334,17 +1334,18 @@ async function enviarACocina() {
 
   // Guardar en Supabase para que ventas.html pueda mostrar el pedido
   try {
+    const _cli = S.clientes.find(function(c){ return c.nombre === nuevo.cliente; }) || {};
     const _orderRow = {
-      tenant_id:        S.tenantId,
-      branch_id:        S.branchId,
-      channel:          'domicilio',
-      status:           'open',
-      customer_name:    nuevo.cliente || null,
-      delivery_address: nuevo.cliente ? (S.clientes.find(function(c){ return c.nombre === nuevo.cliente; }) || {}).dir || null : null,
-      delivery_person:  nuevo.domiciliario || null,
-      total:            prod,
-      payment_method:   metodo,
-      opened_at:        new Date().toISOString(),
+      tenant_id:     S.tenantId,
+      branch_id:     S.branchId,
+      channel:       'domicilio',
+      status:        'open',
+      customer_name: nuevo.cliente || null,
+      waiter_name:   nuevo.domiciliario || null,
+      notes:         _cli.dir ? ('Dir: ' + _cli.dir) : null,
+      total:         prod,
+      payment_method: metodo,
+      opened_at:     new Date().toISOString(),
     };
     const { data: _saved, error: _err } = await sb.from('pos_orders').insert(_orderRow).select('id').single();
     if (!_err && _saved) {
