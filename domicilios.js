@@ -1301,6 +1301,7 @@ async function enviarACocina() {
 
   // Capturar datos para insert ANTES del reset de estado
   const _cartSnapshot = S.cart.map(function(it){ return Object.assign({}, it); });
+  const _barrio = S.cliente && S.cliente.barrio ? S.cliente.barrio.trim() : '';
 
   S.deliveries.unshift(nuevo);
 
@@ -1347,7 +1348,6 @@ async function enviarACocina() {
 
   // Guardar en Supabase — mismo patrón que tomar-pedido.js saveOrder()
   try {
-    const _barrio = S.cliente && S.cliente.barrio ? S.cliente.barrio.trim() : '';
     const _orderData = {
       tenant_id:      S.tenantId,
       branch_id:      S.branchId,
