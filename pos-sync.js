@@ -192,30 +192,36 @@
       .from('pos_orders').insert(orderPayload).select().single();
 
     let realOrderId = tempId;
+    let orderAlreadyExisted = false;
     if (orderErr) {
       if (orderErr.code !== '23505') throw orderErr; // error real, propagar
       // La orden ya existía de un intento anterior — usamos el mismo tempId
+      orderAlreadyExisted = true;
     } else {
       realOrderId = orderRows.id;
     }
 
-    // 2. Insertar los items con el id real (ignorar 23505 si ya existen)
-    const items = entry.itemsData.map(item => {
-      const it = { ...item };
-      if (it.order_id === tempId) it.order_id = realOrderId;
-      return it;
-    });
-    if (items.length > 0) {
-      const { error: itemsErr } = await sb.from('pos_order_items').insert(items);
-      if (itemsErr && itemsErr.code !== '23505') throw itemsErr;
+    // 2. Insertar los items — solo si la orden es nueva (en retry, asumimos que ya existen)
+    if (!orderAlreadyExisted) {
+      const items = entry.itemsData.map(item => {
+        const it = { ...item };
+        if (it.order_id === tempId) it.order_id = realOrderId;
+        return it;
+      });
+      if (items.length > 0) {
+        const { error: itemsErr } = await sb.from('pos_order_items').insert(items);
+        if (itemsErr && itemsErr.code !== '23505') throw itemsErr;
+      }
     }
 
-    // 3. Actualizar la mesa
+    // 3. Actualizar la mesa (no-fatal: si falla el status update, la orden sigue siendo válida)
     if (entry.tableMatch && entry.tableData) {
-      let q = sb.from('pos_tables').update(entry.tableData);
-      for (const [col, val] of Object.entries(entry.tableMatch)) q = q.eq(col, val);
-      const { error: tableErr } = await q;
-      if (tableErr) throw tableErr;
+      try {
+        let q = sb.from('pos_tables').update(entry.tableData);
+        for (const [col, val] of Object.entries(entry.tableMatch)) q = q.eq(col, val);
+        const { error: tableErr } = await q;
+        if (tableErr) console.warn('[posSync] table update warning:', tableErr.message);
+      } catch(tableEx) { console.warn('[posSync] table update excepción:', tableEx); }
     }
 
     return { orderId: realOrderId };

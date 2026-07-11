@@ -965,7 +965,7 @@ async function saveOrder() {
             orderData,
             itemsData,
             { id: S.tableId },
-            { status: 'ocupada' }
+            { status: 'esperando' }
           )
         : await (async () => {
             const { data, error } = await sb.from('pos_orders').insert(orderData).select().single();
