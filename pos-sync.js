@@ -180,27 +180,34 @@
   /* Batch de creación de orden (INSERT order + items + UPDATE table) */
   async function _execOrderBatch(entry) {
     const sb = _getSB();
+    const tempId = entry.orderData._tempId;
 
-    // 1. Crear la orden — si viene con id provisional lo reemplazamos o dejamos que Supabase genere
-    const orderPayload = { ...entry.orderData };
-    delete orderPayload._tempId; // No enviamos el id temporal a Supabase
+    // 1. Crear la orden usando tempId como el UUID real (idempotente en reintentos).
+    // Si ya existe (23505 = unique_violation) significa que un intento anterior
+    // ya la insertó — seguimos sin crear duplicado.
+    const orderPayload = { ...entry.orderData, id: tempId };
+    delete orderPayload._tempId;
 
     const { data: orderRows, error: orderErr } = await sb
       .from('pos_orders').insert(orderPayload).select().single();
-    if (orderErr) throw orderErr;
 
-    const realOrderId = orderRows.id;
+    let realOrderId = tempId;
+    if (orderErr) {
+      if (orderErr.code !== '23505') throw orderErr; // error real, propagar
+      // La orden ya existía de un intento anterior — usamos el mismo tempId
+    } else {
+      realOrderId = orderRows.id;
+    }
 
-    // 2. Insertar los items con el id real
+    // 2. Insertar los items con el id real (ignorar 23505 si ya existen)
     const items = entry.itemsData.map(item => {
       const it = { ...item };
-      // Reemplazar cualquier referencia al id temporal
-      if (it.order_id === entry.orderData._tempId) it.order_id = realOrderId;
+      if (it.order_id === tempId) it.order_id = realOrderId;
       return it;
     });
     if (items.length > 0) {
       const { error: itemsErr } = await sb.from('pos_order_items').insert(items);
-      if (itemsErr) throw itemsErr;
+      if (itemsErr && itemsErr.code !== '23505') throw itemsErr;
     }
 
     // 3. Actualizar la mesa
