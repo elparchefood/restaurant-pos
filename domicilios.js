@@ -1380,10 +1380,14 @@ async function enviarACocina() {
       selections:    it.mods || {},
     }; });
     if (_itemsData.length) await sb.from('pos_order_items').insert(_itemsData);
+    // Auto-print comanda de cocina en Electron
+    if (typeof posAutoprint === 'function' && window.electronPOS) {
+      await Promise.race([posAutoprint(_oid), new Promise(res => setTimeout(res, 4000))]);
+    }
   } catch(_e) { console.error('[domicilios] enviarACocina:', _e); }
 
   toast(`${id} enviado a cocina`);
-  window.location.href = 'ventas.html?floor=__domicilios__';
+  setTimeout(() => { window.location.href = 'ventas.html?floor=__domicilios__'; }, window.electronPOS ? 600 : 0);
 }
 
 // ── Monitor kanban ─────────────────────────────────────────────────────
