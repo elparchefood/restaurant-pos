@@ -1352,7 +1352,7 @@ async function enviarACocina() {
       tenant_id:      S.tenantId,
       branch_id:      S.branchId,
       waiter_id:      S.userId,
-      waiter_name:    nuevo.domiciliario || null,
+      waiter_name:    S.waiterName || null,
       channel:        'domicilio',
       status:         'open',
       customer_name:  nuevo.cliente || null,
@@ -1377,7 +1377,7 @@ async function enviarACocina() {
       total:         it.price * it.qty,
       notes:         it.note || null,
       status:        'pending',
-      selections:    it.mods || {},
+      selections:    { mods: it.mods || {} },
     }; });
     if (_itemsData.length) await sb.from('pos_order_items').insert(_itemsData);
     // Auto-print comanda de cocina en Electron

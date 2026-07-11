@@ -67,7 +67,7 @@
               : '<div style="font-size:20px;font-weight:900;text-align:center;margin-bottom:2px;">' + (isDomicilio ? 'DOMICILIO' : 'PARA LLEVAR') + '</div>'
                 + (_customerName ? '<div style="font-size:14px;font-weight:700;text-align:center;margin-bottom:2px;">' + _customerName + '</div>' : ''))
           : '<div style="font-size:20px;font-weight:900;text-align:center;margin-bottom:2px;">MESA ' + mesa + '</div>')
-      + (pax ? '<div style="font-size:13px;font-weight:700;padding-left:55%;">( ' + pax + ' PAX)</div>' : '')
+      + (!isDomicilio && !isRapido && pax ? '<div style="font-size:13px;font-weight:700;padding-left:55%;">( ' + pax + ' PAX)</div>' : '')
       + '<div style="height:5px;"></div>'
       + '<div>AREA - COCINA</div>'
       + '<div>FECHA: ' + dateStr + '</div>'
