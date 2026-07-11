@@ -1380,6 +1380,8 @@ async function enviarACocina() {
       selections:    { mods: it.mods || {} },
     }; });
     if (_itemsData.length) await sb.from('pos_order_items').insert(_itemsData);
+    // Guardar ID de Supabase en el objeto de delivery (para poder cancelar después)
+    nuevo.supabaseId = _oid;
     // Auto-print comanda de cocina en Electron
     if (typeof posAutoprint === 'function' && window.electronPOS) {
       await Promise.race([posAutoprint(_oid), new Promise(res => setTimeout(res, 4000))]);
@@ -1454,7 +1456,22 @@ function renderKanCard(d) {
     : `<span class="d-tag" style="color:#16A34A;background:#DCFCE7">${svgInline('check', 11)} Listo</span>`;
 
   return `<div class="d-domi" data-domi="${d.id}">
-    <div class="d-domi-top"><span class="d-domi-id">${d.id}</span><span class="d-domi-time">${svgInline('clock', 11)} ${timeLabel}</span></div>
+    <div class="d-domi-top">
+      <span class="d-domi-id">${d.id}</span>
+      <span class="d-domi-time">${svgInline('clock', 11)} ${timeLabel}</span>
+      <div class="d-domi-menu-wrap" style="position:relative;margin-left:auto">
+        <button class="lm-icon-sm" data-openmenu="${d.id}" title="Opciones" style="color:#64748B">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+        </button>
+        <div id="dmenu-${d.id}" hidden style="position:absolute;right:0;top:100%;background:#fff;border:1.5px solid #ECEEF2;border-radius:10px;box-shadow:0 4px 16px rgba(15,23,42,.12);z-index:999;min-width:160px;padding:4px">
+          <button data-canceldelivery="${d.id}" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:#DC2626;border-radius:7px;text-align:left" onmouseover="this.style.background='#FEF2F2'" onmouseout="this.style.background='none'">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Cancelar pedido
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="d-domi-cli">${d.cliente}</div>
     <div class="d-domi-cli">${d.cliente}</div>
     <div class="d-domi-row">
       <span class="d-chanchip" style="color:${ch.color};background:${ch.tint}"><span class="mn" style="background:${ch.color}">${ch.mono}</span>${ch.name}</span>
@@ -1488,6 +1505,22 @@ function advanceDelivery(id) {
   renderMonitor();
   updateMonitorBadge();
   toast(`${id} → ${ESTADO_OF(next).name}`);
+}
+
+async function cancelDelivery(id) {
+  if (!confirm('¿Cancelar el pedido ' + id + '? Esta acción no se puede deshacer.')) return;
+  const d = S.deliveries.find(x => x.id === id);
+  if (!d) return;
+  // Cancelar en Supabase si tenemos el ID real
+  if (d.supabaseId) {
+    try {
+      await sb.from('pos_orders').update({ status: 'cancelled' }).eq('id', d.supabaseId);
+    } catch(e) { console.warn('[domicilios] cancelDelivery supabase:', e); }
+  }
+  S.deliveries = S.deliveries.filter(x => x.id !== id);
+  renderMonitor();
+  updateMonitorBadge();
+  toast(`Pedido ${id} cancelado`, 'warn');
 }
 
 function updateMonitorBadge() {
@@ -1569,6 +1602,11 @@ function attachEvents() {
 
   // Delegated click en body
   document.body.addEventListener('click', e => {
+    // Cerrar menús de tarjeta si click fuera
+    if (!e.target.closest('[data-openmenu]') && !e.target.closest('[id^="dmenu-"]')) {
+      document.querySelectorAll('[id^="dmenu-"]').forEach(m => { m.hidden = true; });
+    }
+
     // [data-action]
     const actionEl = e.target.closest('[data-action]');
     if (actionEl) { handleAction(actionEl.dataset.action); return; }
@@ -1729,6 +1767,24 @@ function attachEvents() {
       document.querySelectorAll('[data-clipane]').forEach(p => { p.hidden = (p.dataset.clipane !== pane); });
       return;
     }
+
+    // Menú 3 puntos — abrir/cerrar
+    const menuBtn = e.target.closest('[data-openmenu]');
+    if (menuBtn) {
+      e.stopPropagation();
+      const did = menuBtn.dataset.openmenu;
+      const drop = document.getElementById('dmenu-' + did);
+      if (drop) {
+        // Cerrar otros menús abiertos
+        document.querySelectorAll('[id^="dmenu-"]').forEach(m => { if (m !== drop) m.hidden = true; });
+        drop.hidden = !drop.hidden;
+      }
+      return;
+    }
+
+    // Cancelar pedido desde menú
+    const cancelEl = e.target.closest('[data-canceldelivery]');
+    if (cancelEl) { cancelDelivery(cancelEl.dataset.canceldelivery); return; }
 
     // Avanzar kanban
     const advEl = e.target.closest('[data-advance]');
