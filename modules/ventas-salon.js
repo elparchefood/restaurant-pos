@@ -2138,9 +2138,14 @@
       case 'free-table':
         window._pos && window._pos.emit && window._pos.emit('table:free', { tableId });
         break;
-      case 'print':
-        window._pos && window._pos.emit && window._pos.emit('table:print', { tableId });
+      case 'print': {
+        const mesaPrint = state.tables.find(t => t.id === tableId);
+        const printOrderId = mesaPrint && mesaPrint.current_order_id;
+        if (printOrderId && typeof posOpenPrintModal === 'function') {
+          posOpenPrintModal(printOrderId);
+        }
         break;
+      }
       case 'split':
         window._pos && window._pos.emit && window._pos.emit('table:split', { tableId });
         break;

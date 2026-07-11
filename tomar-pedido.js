@@ -1005,9 +1005,6 @@ async function saveOrder() {
     }
 
     toast('Pedido guardado' + (S.order?._offline ? ' (sin conexión)' : ''), 'ok');
-    // C5: Auto-imprimir comanda (solo si hay id real de Supabase)
-    // En escritorio (Electron) imprimir localmente; en tablet el escritorio imprime vía realtime
-    if (typeof posAutoprint === 'function' && S.order?.id && !S.order._offline && window.electronPOS) posAutoprint(S.order.id);
   } catch(e) {
     console.error('saveOrder:', e);
     toast('Error al guardar: ' + (e?.message || e), 'error');
@@ -1055,13 +1052,17 @@ async function sendToKitchen() {
     };
     await sb.from('pos_tables').upsert(tableRow, { onConflict: 'id' });
 
-    // 3. Toast + redirect
+    // 3. Toast + imprimir comanda + redirect
     const msg = cobroAdelantado
       ? '¡Pedido creado! Pendiente de cobro.'
       : '¡Enviado a cocina! Volviendo…';
     toast(msg, 'ok');
     if (btn) { btn.textContent = cobroAdelantado ? '✓ Pendiente cobro' : '✓ En cocina'; }
-    setTimeout(() => { window.location.href = 'ventas.html'; }, 1500);
+    // Esperar a que la comanda termine de imprimir antes de redirigir (máx 4 seg)
+    if (typeof posAutoprint === 'function' && S.order?.id && !S.order._offline && window.electronPOS) {
+      await Promise.race([posAutoprint(S.order.id), new Promise(res => setTimeout(res, 4000))]);
+    }
+    setTimeout(() => { window.location.href = 'ventas.html'; }, window.electronPOS ? 600 : 1500);
   } catch(e) {
     console.error('sendToKitchen:', e);
     toast('Error al enviar: ' + (e?.message || e), 'error');

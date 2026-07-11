@@ -207,7 +207,7 @@
     var items = (order.pos_order_items || []).map(function(it) {
       return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', notes: it.notes || '', mods: Array.isArray(it.mods) ? it.mods : [] };
     });
-    _printHtml(_buildComanda({ table: _tableDisplay(order), channel: order.channel, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' }, items), 'comanda');
+    await _printHtml(_buildComanda({ table: _tableDisplay(order), channel: order.channel, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' }, items), 'comanda');
   };
 
   window.posOpenPrintModal = function(orderId) {
