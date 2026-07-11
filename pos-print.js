@@ -26,18 +26,22 @@
     var _barrioMatch = _notes.match(/\[barrio:([^\]]+)\]/i);
     var _barrio = _barrioMatch ? _barrioMatch[1] : '';
 
+    var _customerName = (order.customer_name || '').toUpperCase();
+
     var rows = (items || []).map(function(it) {
       var qty  = it.qty || 1;
       var name = (it.name || 'Item').toUpperCase();
-      var mods = (it.mods && it.mods.length)
-        ? it.mods.map(function(m){ return String(m).toUpperCase(); }).join(' · ')
+      var line = '(' + qty + ') ' + name;
+      var modsHtml = (it.mods && it.mods.length)
+        ? it.mods.map(function(m) {
+            return '<div style="font-style:italic;font-size:12px;font-weight:700;margin-left:10px;margin-top:1px;margin-bottom:3px;">+ ' + String(m).toUpperCase() + '</div>';
+          }).join('')
         : '';
-      var line = '(' + qty + ') ' + name + (mods ? ' · ' + mods : '');
       var noteText = it.notes || it.note || '';
       var note = noteText
         ? '<div style="font-style:italic;font-size:12px;font-weight:700;margin-left:10px;margin-top:1px;margin-bottom:5px;">NOTA - ' + noteText.toUpperCase() + '</div>'
         : '';
-      return '<div style="font-size:15px;font-weight:700;margin:5px 0 2px;line-height:1.3;">' + line + '</div>' + note;
+      return '<div style="font-size:15px;font-weight:700;margin:5px 0 2px;line-height:1.3;">' + line + '</div>' + modsHtml + note;
     }).join('');
 
     function sep(text) {
@@ -59,7 +63,9 @@
           ? (_barrio
               ? '<div style="font-size:13px;font-weight:900;text-align:center;letter-spacing:1px;margin-bottom:1px;">' + (isDomicilio ? 'DOMICILIO' : 'PARA LLEVAR') + '</div>'
                 + '<div style="font-size:24px;font-weight:900;text-align:center;margin-bottom:2px;">' + _barrio + '</div>'
-              : '<div style="font-size:20px;font-weight:900;text-align:center;margin-bottom:2px;">' + (isDomicilio ? 'DOMICILIO' : 'PARA LLEVAR') + '</div>')
+                + (_customerName ? '<div style="font-size:14px;font-weight:700;text-align:center;margin-bottom:2px;">' + _customerName + '</div>' : '')
+              : '<div style="font-size:20px;font-weight:900;text-align:center;margin-bottom:2px;">' + (isDomicilio ? 'DOMICILIO' : 'PARA LLEVAR') + '</div>'
+                + (_customerName ? '<div style="font-size:14px;font-weight:700;text-align:center;margin-bottom:2px;">' + _customerName + '</div>' : ''))
           : '<div style="font-size:20px;font-weight:900;text-align:center;margin-bottom:2px;">MESA ' + mesa + '</div>')
       + (pax ? '<div style="font-size:13px;font-weight:700;padding-left:55%;">( ' + pax + ' PAX)</div>' : '')
       + '<div style="height:5px;"></div>'
@@ -227,7 +233,9 @@
     var order = await _fetchOrder(orderId);
     if (!order) { _diagToast('❌ Pedido no encontrado: ' + orderId, '#dc2626'); return; }
     var items = (order.pos_order_items || []).map(function(it) {
-      return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', notes: it.notes || '', mods: Array.isArray(it.mods) ? it.mods : [] };
+      var sel = it.selections || {};
+      var modsArr = Object.values(sel.mods || {}).map(function(m){ return m.name || String(m); });
+      return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', notes: it.notes || '', mods: modsArr };
     });
     _diagToast('✓ Pedido OK — enviando a impresora…', '#15803d');
     try {
@@ -269,7 +277,9 @@
     var order = await _fetchOrder(orderId);
     if (!order) { _noprinterToast(); return; }
     var items = (order.pos_order_items || []).map(function(it) {
-      return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', mods: Array.isArray(it.mods) ? it.mods : [], total: (it.unit_price || 0) * (it.quantity || 1) };
+      var sel = it.selections || {};
+      var modsArr = Object.values(sel.mods || {}).map(function(m){ return m.name || String(m); });
+      return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', mods: modsArr, total: (it.unit_price || 0) * (it.quantity || 1) };
     });
     var orderData = { table: _tableDisplay(order), channel: order.channel, total: order.total || 0, subtotal: order.subtotal || order.total || 0, discount: order.discount_amount || 0, tip: order.tip_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' };
     var html;

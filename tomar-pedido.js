@@ -901,7 +901,7 @@ function tpMPAddToCart(){
   const p=TP_WIP.prod;
   const presLabel=TP_WIP.pres&&TP_WIP.pres.name?TP_WIP.pres.name:'';
   const varLabels=Object.values(TP_WIP.vars).map(v=>v.name).join(' · ');
-  const displayName=[p.name,presLabel,varLabels].filter(Boolean).join(' · ');
+  const displayName=[presLabel,p.name,varLabels].filter(Boolean).join(' · ');
   const modSummary=Object.values(TP_WIP.mods).map(m=>m.name).join(', ');
   const unitPrice=tpComputePrice()/TP_WIP.qty;
   const lineId='li_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
