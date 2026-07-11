@@ -2187,10 +2187,10 @@
         window._pos && window._pos.emit && window._pos.emit('nav:back');
         break;
       case 'nav-rapida':
-        window.location.href = 'venta-rapida.html';
+        (async function() { if (await window.cajaGuard(window._pos && window._pos.state && window._pos.state.branchId)) window.location.href = 'venta-rapida.html'; })();
         break;
       case 'nav-domicilio':
-        window.location.href = 'domicilios.html';
+        (async function() { if (await window.cajaGuard(window._pos && window._pos.state && window._pos.state.branchId)) window.location.href = 'domicilios.html'; })();
         break;
       case 'quick-cobrar': {
         const qcId = e.currentTarget.dataset.quickId;
@@ -2232,7 +2232,7 @@
         break;
       }
       case 'quick-nueva':
-        window.location.href = 'venta-rapida.html';
+        (async function() { if (await window.cajaGuard(window._pos && window._pos.state && window._pos.state.branchId)) window.location.href = 'venta-rapida.html'; })();
         break;
       default:
         break;

@@ -1250,6 +1250,7 @@
     // Esperar a que pos-core esté listo
     if (window._pos) {
       window._pos.on('core:ready', async function() {
+        if (window.cajaGuard && !(await window.cajaGuard(window._pos.state.branchId))) return;
             await loadBranch();
         await loadCatalog();
         refreshBadges();

@@ -178,6 +178,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    if (window.cajaGuard) {
+      const cajaOpen = await window.cajaGuard(S.branchId);
+      if (!cajaOpen) return;
+    }
+
     try { await loadData(); } catch(e) { console.error('loadData:', e); }
 
     try { renderCatGrid();       } catch(e) { console.error('renderCatGrid:', e); }
