@@ -188,17 +188,20 @@
     try {
       var sb = window._pos && window._pos.sb;
       if (!sb || !orderId) return null;
-      var r = await sb.from('pos_orders').select('*, pos_order_items(*), pos_tables(name, number)').eq('id', orderId).maybeSingle();
-      if (r && r.error) { _diagToast('❌ fetchOrder error: ' + (r.error.message || r.error.code || JSON.stringify(r.error)), '#7c2d12'); }
-      if (r && r.data) return r.data;
-      // Fallback: query sin joins para confirmar si la fila existe
-      var r2 = await sb.from('pos_orders').select('id, channel, table_id, notes, guests, waiter_name, customer_name').eq('id', orderId).maybeSingle();
-      if (r2 && r2.data) {
-        _diagToast('⚠ Pedido existe pero el join falló — usando query simple', '#92400e');
-        return { ...r2.data, pos_order_items: [], pos_tables: null };
+      // pos_orders → pos_order_items tiene FK real; pos_tables NO tiene FK desde pos_orders
+      // por eso hacemos dos queries separadas en vez de un join inválido
+      var r = await sb.from('pos_orders').select('*, pos_order_items(*)').eq('id', orderId).maybeSingle();
+      if (!r || !r.data) {
+        if (r && r.error) { _diagToast('❌ fetchOrder: ' + (r.error.message || r.error.code), '#7c2d12'); }
+        return null;
       }
-      if (r2 && r2.error) { _diagToast('❌ fetchOrder2 error: ' + (r2.error.message || r2.error.code), '#7c2d12'); }
-      return null;
+      var order = r.data;
+      // Obtener nombre de mesa por separado (sin FK no se puede hacer join inline)
+      if (order.table_id) {
+        var rt = await sb.from('pos_tables').select('name, number').eq('id', order.table_id).maybeSingle();
+        order.pos_tables = (rt && rt.data) ? rt.data : null;
+      }
+      return order;
     } catch(e) { _diagToast('❌ fetchOrder excepción: ' + (e && e.message || e), '#7c2d12'); return null; }
   }
 
