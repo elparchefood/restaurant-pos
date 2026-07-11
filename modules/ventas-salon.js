@@ -1294,7 +1294,15 @@
             </span>
           </div>
         </div>
-        <button class="lm-icon-sm">${SVG_DOTS(14)}</button>
+        <div style="position:relative">
+          <button class="lm-icon-sm" data-domi-action="menu" data-domi-id="${d.id}">${SVG_DOTS(14)}</button>
+          <div id="vs-domi-menu-${d.id}" hidden style="position:absolute;right:0;top:100%;background:#fff;border:1.5px solid #ECEEF2;border-radius:10px;box-shadow:0 4px 16px rgba(15,23,42,.12);z-index:999;min-width:170px;padding:4px">
+            <button data-domi-action="cancel" data-domi-id="${d.id}" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:#DC2626;border-radius:7px;text-align:left" onmouseover="this.style.background='#FEF2F2'" onmouseout="this.style.background='none'">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Cancelar pedido
+            </button>
+          </div>
+        </div>
       </div>
 
       <div class="vs-rail-fixed-top">
@@ -1967,6 +1975,20 @@
         const id = btn.dataset.domiId;
         const d = state.deliveries.find(x => x.id === id);
         if (!d) return;
+        if (action === 'menu') {
+          const drop = document.getElementById('vs-domi-menu-' + id);
+          if (drop) drop.hidden = !drop.hidden;
+          return;
+        }
+        if (action === 'cancel') {
+          if (!confirm('¿Cancelar el pedido de ' + (d.cliente || id) + '? Esta acción no se puede deshacer.')) return;
+          var sb = window._pos && window._pos.sb;
+          if (sb) sb.from('pos_orders').update({ status: 'cancelled' }).eq('id', id).then(function(){});
+          state.deliveries = state.deliveries.filter(function(x) { return x.id !== id; });
+          state.selectedDomiId = null;
+          render();
+          return;
+        }
         if (action === 'cobrar') {
           window.location.href = `pagos.html?order=${id}&channel=domicilio`;
         } else if (action === 'advance' && DELIVERY_NEXT[d.estado]) {
