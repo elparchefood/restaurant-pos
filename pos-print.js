@@ -189,8 +189,17 @@
       var sb = window._pos && window._pos.sb;
       if (!sb || !orderId) return null;
       var r = await sb.from('pos_orders').select('*, pos_order_items(*), pos_tables(name, number)').eq('id', orderId).maybeSingle();
-      return (r && r.data) ? r.data : null;
-    } catch(e) { console.warn('[posprint] fetch:', e); return null; }
+      if (r && r.error) { _diagToast('❌ fetchOrder error: ' + (r.error.message || r.error.code || JSON.stringify(r.error)), '#7c2d12'); }
+      if (r && r.data) return r.data;
+      // Fallback: query sin joins para confirmar si la fila existe
+      var r2 = await sb.from('pos_orders').select('id, channel, table_id, notes, guests, waiter_name, customer_name').eq('id', orderId).maybeSingle();
+      if (r2 && r2.data) {
+        _diagToast('⚠ Pedido existe pero el join falló — usando query simple', '#92400e');
+        return { ...r2.data, pos_order_items: [], pos_tables: null };
+      }
+      if (r2 && r2.error) { _diagToast('❌ fetchOrder2 error: ' + (r2.error.message || r2.error.code), '#7c2d12'); }
+      return null;
+    } catch(e) { _diagToast('❌ fetchOrder excepción: ' + (e && e.message || e), '#7c2d12'); return null; }
   }
 
   function _tableDisplay(order) {
