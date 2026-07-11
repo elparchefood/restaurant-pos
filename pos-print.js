@@ -71,7 +71,7 @@
       + '<div style="height:5px;"></div>'
       + '<div>AREA - COCINA</div>'
       + '<div>FECHA: ' + dateStr + '</div>'
-      + (waiter ? '<div>MESERO - ' + waiter + '</div>' : '')
+      + (waiter ? '<div>' + (isDomicilio || isRapido ? 'CAJERO' : 'MESERO') + ' - ' + waiter + '</div>' : '')
       + (sala   ? '<div>SALA - '   + sala   + '</div>' : '')
       + sep('INICIO PEDIDO')
       + paraLlevar
