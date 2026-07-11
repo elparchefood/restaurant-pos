@@ -199,15 +199,29 @@
     return order.table_name || order.table_id || '-';
   }
 
+  function _diagToast(msg, color) {
+    var el = document.createElement('div');
+    el.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:' + (color||'#1d4ed8') + ';color:#fff;padding:9px 18px;border-radius:9px;font-size:13px;font-weight:700;z-index:99999;white-space:nowrap;pointer-events:none';
+    el.textContent = msg;
+    document.body && document.body.appendChild(el);
+    setTimeout(function() { el.parentNode && el.parentNode.removeChild(el); }, 5000);
+  }
+
   window.posAutoprint = async function(orderId) {
+    _diagToast('🖨 Verificando impresora…', '#1d4ed8');
     var hasPrinter = await _hasPrinter();
-    if (!hasPrinter) { _noprinterToast(); return; }
+    if (!hasPrinter) { _noprinterToast(); _diagToast('❌ Sin config de impresora en BD', '#dc2626'); return; }
+    _diagToast('✓ Impresora OK — buscando pedido…', '#15803d');
     var order = await _fetchOrder(orderId);
-    if (!order) return;
+    if (!order) { _diagToast('❌ Pedido no encontrado: ' + orderId, '#dc2626'); return; }
     var items = (order.pos_order_items || []).map(function(it) {
       return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', notes: it.notes || '', mods: Array.isArray(it.mods) ? it.mods : [] };
     });
-    await _printHtml(_buildComanda({ table: _tableDisplay(order), channel: order.channel, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' }, items), 'comanda');
+    _diagToast('✓ Pedido OK — enviando a impresora…', '#15803d');
+    try {
+      await _printHtml(_buildComanda({ table: _tableDisplay(order), channel: order.channel, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' }, items), 'comanda');
+      _diagToast('✓ Comanda impresa OK', '#15803d');
+    } catch(e) { _diagToast('❌ Error al imprimir: ' + (e && e.message || e), '#dc2626'); }
   };
 
   window.posOpenPrintModal = function(orderId) {

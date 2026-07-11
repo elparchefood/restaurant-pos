@@ -1061,6 +1061,8 @@ async function sendToKitchen() {
     // Esperar a que la comanda termine de imprimir antes de redirigir (máx 4 seg)
     if (typeof posAutoprint === 'function' && S.order?.id && !S.order._offline && window.electronPOS) {
       await Promise.race([posAutoprint(S.order.id), new Promise(res => setTimeout(res, 4000))]);
+    } else if (window.electronPOS) {
+      toast('⚠ Print omitido: offline=' + (S.order?._offline) + ' id=' + (S.order?.id ? 'OK' : 'FALTA'), 'warn');
     }
     setTimeout(() => { window.location.href = 'ventas.html'; }, window.electronPOS ? 600 : 1500);
   } catch(e) {
