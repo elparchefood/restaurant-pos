@@ -807,7 +807,8 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 }
 .ci-sticker-pick:hover { background: rgba(255,255,255,.1); }
 .ci-sticker-pick img {
-  width: 100%; height: 100%; object-fit: contain
+  width: 100%; height: 100%; object-fit: contain;
+}
 
 /* Composer */
 .ci-composer {
