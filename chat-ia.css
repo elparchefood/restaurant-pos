@@ -536,6 +536,74 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
   padding: 0 2px;
 }
 
+/* ── Hover message menu ─────────────────────── */
+.ci-row { position: relative; }
+
+.ci-msg-menu {
+  display: none;
+  position: absolute;
+  top: -46px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.13);
+  z-index: 50;
+  padding: 4px 6px;
+  white-space: nowrap;
+}
+.ci-row.in  .ci-msg-menu { left: 0; }
+.ci-row.out .ci-msg-menu { right: 0; }
+.ci-row:hover .ci-msg-menu { display: flex; align-items: center; gap: 2px; }
+
+.ci-msg-emojis { display: flex; gap: 1px; padding-right: 6px; border-right: 1px solid var(--border); }
+.ci-qr-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 17px; padding: 3px 4px; border-radius: 6px;
+  transition: transform .1s, background .1s;
+  line-height: 1;
+}
+.ci-qr-btn:hover { background: var(--hover); transform: scale(1.2); }
+
+.ci-msg-actions { display: flex; gap: 2px; padding-left: 4px; }
+.ci-action-item {
+  display: flex; align-items: center; gap: 5px;
+  background: none; border: none; cursor: pointer;
+  font-size: 12px; font-weight: 500; color: var(--text-2);
+  padding: 4px 7px; border-radius: 6px;
+  white-space: nowrap; transition: background .1s, color .1s;
+}
+.ci-action-item:hover { background: var(--hover); color: var(--text-1); }
+
+/* ── Reply preview ──────────────────────────── */
+.ci-reply-preview {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ci-reply-preview-bar {
+  width: 3px; height: 32px; border-radius: 2px;
+  background: var(--accent); flex-shrink: 0;
+}
+.ci-reply-preview-body { flex: 1; min-width: 0; }
+.ci-reply-preview-who {
+  display: block; font-size: 11px; font-weight: 700;
+  color: var(--accent); margin-bottom: 1px;
+}
+.ci-reply-preview-text {
+  display: block; font-size: 12px; color: var(--text-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ci-reply-preview-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-4); padding: 4px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .1s;
+}
+.ci-reply-preview-close:hover { background: var(--hover); }
+
 /* Sticker panel */
 .ci-sticker-panel {
   position: absolute; bottom: 72px; right: 14px;

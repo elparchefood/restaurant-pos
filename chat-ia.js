@@ -312,16 +312,44 @@ function renderThread() {
   $('thread').scrollTop = $('thread').scrollHeight;
 }
 
+const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢','🙏'];
+
+function msgMenuHTML(m) {
+  const safeId = escHtml(m.id);
+  const emojis = QUICK_EMOJIS.map(e =>
+    `<button class="ci-qr-btn" onclick="reactMsg('${safeId}','${e}')" title="${e}">${e}</button>`
+  ).join('');
+
+  let items = `<button class="ci-action-item" onclick="replyMsg('${safeId}')">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>Responder</button>`;
+
+  if (m.body && m.media_type !== 'sticker') {
+    items += `<button class="ci-action-item" onclick="copyMsg('${safeId}')">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copiar</button>`;
+  }
+
+  if (m.media_type === 'sticker' && m.media_url) {
+    items += `<button class="ci-action-item" onclick="saveStickerMsg('${safeId}')">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Guardar sticker</button>`;
+  }
+
+  return `<div class="ci-msg-menu">
+    <div class="ci-msg-emojis">${emojis}</div>
+    <div class="ci-msg-actions">${items}</div>
+  </div>`;
+}
+
 function messageHTML(m) {
   const dir   = m.direction === 'in' ? 'in' : 'out';
   const time  = formatTime(m.sent_at);
   const check = dir === 'out'
     ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${m.delivery_status==='read'?'#fff':'rgba(255,255,255,.5)'}" stroke-width="2.4"><polyline points="18 7 9 17 5 13"/><polyline points="22 7 13 17 12.5 16.5"/></svg>`
     : '';
+  const menu  = msgMenuHTML(m);
 
-  // Sticker: no bubble, transparent background
   if (m.media_type === 'sticker' && m.media_url) {
-    return `<div class="ci-row ${dir}">
+    return `<div class="ci-row ${dir}" data-msg-id="${m.id}">
+      ${menu}
       <div class="ci-bubble-sticker">
         <img src="${escHtml(m.media_url)}" class="ci-sticker-img" alt="sticker" loading="lazy">
         <div class="ci-meta ci-meta-sticker">${time}${check}</div>
@@ -348,7 +376,10 @@ function messageHTML(m) {
   const textHtml = m.body && m.media_type !== 'document' ? `<div>${escHtml(m.body)}</div>` : '';
   const body = mediaHtml + textHtml;
 
-  return `<div class="ci-row ${dir}"><div class="ci-bubble ${dir}">${body}<div class="ci-meta">${time}${check}</div></div></div>`;
+  return `<div class="ci-row ${dir}" data-msg-id="${m.id}">
+    ${menu}
+    <div class="ci-bubble ${dir}">${body}<div class="ci-meta">${time}${check}</div></div>
+  </div>`;
 }
 
 function renderBadges() {
@@ -579,15 +610,16 @@ async function sendMessage() {
   // Enviar vía Meta API (solo canales conectados: ig, fb, wa)
   if (conv && ['instagram','facebook','whatsapp'].includes(conv.channel)) {
     try {
+      const payload = { conversation_id: S.activeConvId, text, message_id: data.id };
+      if (S.replyTo?.external_id) payload.reply_to_external_id = S.replyTo.external_id;
       const sendRes = await fetch(META_SEND_FN, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversation_id: S.activeConvId, text, message_id: data.id }),
+        body: JSON.stringify(payload),
       });
       const sendData = await sendRes.json();
       if (sendData.error) {
         showToast('No se pudo enviar el mensaje: ' + sendData.error, 'error');
-        // Marcar como error en UI
         S.messages = S.messages.map(m => m.id === data.id ? { ...m, delivery_status: 'error' } : m);
         renderThread();
       }
@@ -595,6 +627,56 @@ async function sendMessage() {
       showToast('Error al enviar: ' + e.message, 'error');
     }
   }
+  clearReply();
+}
+
+/* ══════════════════════════════════════════════
+   ACCIONES DE MENSAJE (hover menu)
+══════════════════════════════════════════════ */
+async function reactMsg(msgId, emoji) {
+  const m = S.messages.find(x => x.id === msgId);
+  if (!m || !m.external_id || !S.activeConvId) return;
+  const conv = S.conversations.find(c => c.id === S.activeConvId);
+  if (!conv || !['whatsapp','instagram','facebook'].includes(conv.channel)) return;
+  try {
+    const res = await fetch(META_SEND_FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation_id: S.activeConvId, reaction_emoji: emoji, react_to_external_id: m.external_id }),
+    });
+    const data = await res.json();
+    if (data.error) showToast('No se pudo reaccionar: ' + data.error, 'error');
+  } catch (e) { showToast('Error al reaccionar: ' + e.message, 'error'); }
+}
+
+function replyMsg(msgId) {
+  const m = S.messages.find(x => x.id === msgId);
+  if (!m) return;
+  const conv = S.conversations.find(c => c.id === S.activeConvId);
+  S.replyTo = { id: m.id, external_id: m.external_id, body: m.body, media_type: m.media_type, who: m.direction === 'in' ? (conv?.contact_name || 'Contacto') : 'Tú' };
+  const preview = m.media_type === 'sticker' ? '[Sticker]' : m.media_type === 'image' ? '[Imagen]' : (m.body || '[Medio]');
+  $('replyWho').textContent  = S.replyTo.who;
+  $('replyText').textContent = preview;
+  $('replyPreview').style.display = 'flex';
+  $('msgInput').focus();
+}
+
+function copyMsg(msgId) {
+  const m = S.messages.find(x => x.id === msgId);
+  if (!m?.body) return;
+  navigator.clipboard.writeText(m.body).then(() => showToast('Copiado'));
+}
+
+function saveStickerMsg(msgId) {
+  // Stickers are already auto-saved; open the panel to confirm
+  showToast('Sticker disponible en el panel ✓');
+  $('stickerPanel').style.display = 'flex';
+  loadStickerPanel();
+}
+
+function clearReply() {
+  S.replyTo = null;
+  $('replyPreview').style.display = 'none';
 }
 
 /* ══════════════════════════════════════════════
@@ -742,6 +824,7 @@ function wireEvents() {
   $('searchInput').addEventListener('input', e => { S.query = e.target.value; renderConvList(); });
   $('sendBtn').addEventListener('click', sendMessage);
   $('msgInput').addEventListener('keydown', e => { if (e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendMessage(); } });
+  $('replyCancel').addEventListener('click', clearReply);
   $('stickerBtn').addEventListener('click', toggleStickerPanel);
   $('stickerPanelClose').addEventListener('click', () => { $('stickerPanel').style.display = 'none'; });
   $('attachBtn').addEventListener('click', () => $('attachInput').click());
