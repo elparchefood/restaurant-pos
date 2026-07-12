@@ -427,13 +427,13 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
   padding: 7px 13px;
   border-radius: 9px;
   border: none;
-  background: var(--accent); color: #fff;
+  background: #FACC15; color:#713F12;
   font-family: var(--font); font-size: 12.5px; font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 2px 8px -2px rgba(163,22,33,.45);
+  box-shadow: 0 2px 8px -2px rgba(234,179,8,.35);
   transition: background .14s;
 }
-.ci-btn-primary:hover { background: var(--accent-h); }
+.ci-btn-primary:hover { background: #EAB308; }
 
 /* Hilo */
 .ci-thread {

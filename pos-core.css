@@ -48,7 +48,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,system-ui,sans-serif
 .hero-title{font-size:28px;font-weight:700;color:#0F172A;margin:4px 0 6px;letter-spacing:-.025em}
 .hero-sub{font-size:13px;color:#64748B;max-width:480px}
 .hero-actions{display:flex;gap:10px;margin-top:18px;align-items:center;flex-wrap:wrap}
-.btn-primary{display:inline-flex;align-items:center;gap:8px;background:#A31621;color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer}
+.btn-primary{display:inline-flex;align-items:center;gap:8px;background:#FACC15;color:#713F12;border:none;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer}
 .btn-ghost{background:transparent;color:#0F172A;border:1px solid #E2E8F0;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer}
 .hero-stats{margin-left:auto;display:flex;gap:18px;align-items:center}
 .hero-stat{display:flex;flex-direction:column;gap:1px;padding-left:14px;border-left:1px solid #ECEEF2}
@@ -110,7 +110,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,system-ui,sans-serif
 /* ── Support ── */
 .support-card{background:linear-gradient(135deg,#FBEAEC,#fff);border:1px solid #F3D2D6;border-radius:14px;padding:18px}
 .support-avatar{width:42px;height:42px;border-radius:10px;background:#fff;border:1px solid #F3D2D6;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.btn-primary-sm{background:#A31621;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
+.btn-primary-sm{background:#FACC15;color:#713F12;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
 .btn-ghost-sm{background:transparent;color:#0F172A;border:1px solid #E2E8F0;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
 /* ── Skeleton ── */
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
