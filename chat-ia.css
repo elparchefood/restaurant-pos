@@ -897,4 +897,46 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .ci-toast--show { transform: translateX(-50%) translateY(0); opacity: 1; }
 .ci-toast--success { background: #111418; color: #fff; }
 .ci-toast--error   { background: #F43F5E; color: #fff; }
+
+/* ══════════════════════════════════════════════
+   DARK THEME — Sidebar + Lista de conversaciones
+   Redefine variables en scope para que todos los
+   hijos hereden la paleta oscura automáticamente.
+══════════════════════════════════════════════ */
+.ci-side, .ci-list {
+  --bg:         #0e1720;
+  --surface:    #131e2b;
+  --border:     rgba(255,255,255,.08);
+  --row-sep:    rgba(255,255,255,.04);
+  --text-1:     #dde4ee;
+  --text-2:     #8fa5bf;
+  --text-3:     #607a93;
+  --text-4:     #3e566e;
+  --hover:      rgba(255,255,255,.06);
+  --accent-bg:  rgba(91,107,255,.18);
+  --accent-bg2: rgba(91,107,255,.11);
+  background: var(--surface);
+}
+.ci-side { border-right-color: rgba(255,255,255,.07); }
+.ci-list { border-right-color: rgba(255,255,255,.07); }
+
+/* Seg-button activo tiene border hardcodeado — override */
+.ci-list .ci-seg-btn.on {
+  border-color: rgba(91,107,255,.4);
+  box-shadow: 0 1px 4px rgba(0,0,0,.3);
+}
+/* Conv activo tiene border hardcodeado */
+.ci-list .ci-conv.active {
+  border-color: rgba(91,107,255,.28);
+  background: var(--accent-bg2);
+}
+/* Icon buttons en lista */
+.ci-list .ci-icon-btn {
+  background: rgba(255,255,255,.07);
+  border-color: rgba(255,255,255,.10);
+  color: rgba(255,255,255,.55);
+}
+.ci-list .ci-icon-btn:hover { background: rgba(255,255,255,.12); color: #fff; border-color: rgba(255,255,255,.16); }
+.ci-list .ci-icon-btn.active { background: rgba(91,107,255,.22); border-color: rgba(91,107,255,.4); color: #818cf8; }
+.ci-list .ci-icon-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .ci-toast--info    { background: var(--accent); color: #fff; }
