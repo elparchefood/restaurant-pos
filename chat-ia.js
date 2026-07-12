@@ -388,21 +388,24 @@ function openChannelModal(channel) {
   // Botón Meta connect (WhatsApp / Instagram / Facebook)
   const metaBtn = document.getElementById('metaConnectBtn');
   if (metaBtn) {
-    metaBtn.addEventListener('click', async () => {
+    // NO async — FB.login() necesita contexto sincrónico de gesto de usuario
+    // Si el handler es async, Chrome bloquea el popup y redirige a página completa
+    metaBtn.addEventListener('click', () => {
       const status = document.getElementById('metaConnectStatus');
       metaBtn.disabled = true;
       metaBtn.textContent = 'Conectando…';
       if (status) status.textContent = '';
-      try {
-        const result = await handleMetaConnect(channel);
-        closeModal();
-        await loadChannels();
-        showToast(`✅ ${meta.label} conectado: ${result.handle || ''}`, 'success');
-      } catch (err) {
-        metaBtn.disabled = false;
-        metaBtn.textContent = 'Conectar con Meta';
-        if (status) status.textContent = '❌ ' + err.message;
-      }
+      handleMetaConnect(channel)
+        .then(result => {
+          closeModal();
+          loadChannels();
+          showToast(`✅ ${meta.label} conectado: ${result.handle || ''}`, 'success');
+        })
+        .catch(err => {
+          metaBtn.disabled = false;
+          metaBtn.textContent = 'Conectar con Meta';
+          if (status) status.textContent = '❌ ' + err.message;
+        });
     });
   }
 
