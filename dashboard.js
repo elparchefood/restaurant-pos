@@ -326,7 +326,7 @@ function setChartMode(mode, btn) {
 async function handleSessionAction() {
   if (S.session && S.session.status === 'open') {
     if (confirm('Para cerrar el turno completa el proceso en el modulo de Caja.')) {
-      window.location.href = 'index.html?rol=cashier';
+      window.location.href = 'caja.html';
     }
     return;
   }
