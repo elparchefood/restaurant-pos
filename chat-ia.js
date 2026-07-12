@@ -348,6 +348,36 @@ function openMsgPopup(e, msgId) {
     html += `<button class="ci-pop-item" onclick="copyMsg('${escHtml(msgId)}')">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copiar</button>`;
   }
+  if (m.media_type === 'location') {
+    let loc = {};
+    try { loc = JSON.parse(m.body || '{}'); } catch {}
+    const lat  = typeof loc.lat === 'number' ? loc.lat : 0;
+    const lng  = typeof loc.lng === 'number' ? loc.lng : 0;
+    const name = escHtml(loc.name || '');
+    const addr = escHtml(loc.addr || '');
+    const coords = lat.toFixed(5) + ', ' + lng.toFixed(5);
+    const mapsUrl = 'https://www.google.com/maps?q=' + lat + ',' + lng;
+    const label   = name || addr || coords;
+    const subline = (name && addr) ? '<div class="ci-loc-addr">' + addr + '</div>' : '';
+    const locCard = `<a href="${mapsUrl}" target="_blank" rel="noopener" class="ci-location-card">
+      <div class="ci-loc-map">
+        <svg width="28" height="36" viewBox="0 0 28 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 0C6.268 0 0 6.268 0 14c0 9.333 14 22 14 22S28 23.333 28 14C28 6.268 21.732 0 14 0z" fill="#5B6BFF"/>
+          <circle cx="14" cy="14" r="5" fill="white"/>
+        </svg>
+      </div>
+      <div class="ci-loc-body">
+        <div class="ci-loc-label">${label}</div>
+        ${subline}
+        <div class="ci-loc-coords">${coords}</div>
+        <div class="ci-loc-link">Ver en Google Maps ↗</div>
+      </div>
+    </a>`;
+    return `<div class="ci-row ${dir}" data-msg-id="${m.id}">
+      <div class="ci-bubble ${dir}">${menu}${locCard}<div class="ci-meta">${time}${check}</div></div>
+    </div>`;
+  }
+
   if (m.media_type === 'sticker' && m.media_url) {
     html += `<button class="ci-pop-item" onclick="saveStickerMsg('${escHtml(msgId)}')">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Guardar sticker</button>`;
