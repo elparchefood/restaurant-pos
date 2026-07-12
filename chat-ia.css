@@ -538,43 +538,62 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
   padding: 0 2px;
 }
 
-/* ── Hover message menu ─────────────────────── */
+/* ── Message trigger (small chevron on hover) ── */
 .ci-row { position: relative; }
 
-.ci-msg-menu {
+.ci-msg-trigger {
   display: none;
   position: absolute;
-  top: -46px;
+  top: 6px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 4px 16px rgba(0,0,0,.13);
-  z-index: 50;
-  padding: 4px 6px;
-  white-space: nowrap;
+  border-radius: 50%;
+  width: 22px; height: 22px;
+  align-items: center; justify-content: center;
+  cursor: pointer; z-index: 10;
+  box-shadow: 0 1px 4px rgba(0,0,0,.12);
+  color: var(--text-3);
+  transition: background .12s, color .12s;
+  padding: 0;
 }
-.ci-row.in  .ci-msg-menu { left: 0; }
-.ci-row.out .ci-msg-menu { right: 0; }
-.ci-row:hover .ci-msg-menu { display: flex; align-items: center; gap: 2px; }
+.ci-msg-trigger:hover { background: var(--hover); color: var(--text-1); }
+.ci-row.in  .ci-msg-trigger { right: -28px; }
+.ci-row.out .ci-msg-trigger { left: -28px; }
+.ci-row:hover .ci-msg-trigger { display: flex; }
 
-.ci-msg-emojis { display: flex; gap: 1px; padding-right: 6px; border-right: 1px solid var(--border); }
-.ci-qr-btn {
-  background: none; border: none; cursor: pointer;
-  font-size: 17px; padding: 3px 4px; border-radius: 6px;
-  transition: transform .1s, background .1s;
-  line-height: 1;
+/* ── Global message popup (click-opened) ─────── */
+.ci-msg-popup {
+  position: absolute;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.16);
+  z-index: 300;
+  min-width: 240px;
+  overflow: hidden;
 }
-.ci-qr-btn:hover { background: var(--hover); transform: scale(1.2); }
-
-.ci-msg-actions { display: flex; gap: 2px; padding-left: 4px; }
-.ci-action-item {
-  display: flex; align-items: center; gap: 5px;
-  background: none; border: none; cursor: pointer;
-  font-size: 12px; font-weight: 500; color: var(--text-2);
-  padding: 4px 7px; border-radius: 6px;
-  white-space: nowrap; transition: background .1s, color .1s;
+.ci-popup-emojis {
+  display: flex; gap: 2px;
+  padding: 10px 10px 8px;
+  justify-content: space-around;
 }
-.ci-action-item:hover { background: var(--hover); color: var(--text-1); }
+.ci-pop-emoji {
+  background: none; border: none; cursor: pointer;
+  font-size: 22px; padding: 4px 6px; border-radius: 8px;
+  transition: transform .12s, background .12s; line-height: 1;
+}
+.ci-pop-emoji:hover { background: var(--hover); transform: scale(1.25); }
+.ci-popup-divider { height: 1px; background: var(--border); margin: 0 10px; }
+.ci-popup-items { padding: 6px; display: flex; flex-direction: column; gap: 1px; }
+.ci-pop-item {
+  display: flex; align-items: center; gap: 9px;
+  background: none; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 500; color: var(--text-2);
+  padding: 8px 10px; border-radius: 8px;
+  text-align: left; width: 100%;
+  transition: background .1s, color .1s;
+}
+.ci-pop-item:hover { background: var(--hover); color: var(--text-1); }
 
 /* ── Reply preview ──────────────────────────── */
 .ci-reply-preview {

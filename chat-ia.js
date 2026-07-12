@@ -313,30 +313,66 @@ function renderThread() {
 }
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢','🙏'];
+let _activeMsgId = null;
 
-function msgMenuHTML(m) {
-  const safeId = escHtml(m.id);
-  const emojis = QUICK_EMOJIS.map(e =>
-    `<button class="ci-qr-btn" onclick="reactMsg('${safeId}','${e}')" title="${e}">${e}</button>`
+function msgTriggerHTML(m) {
+  return `<button class="ci-msg-trigger" data-msg-id="${escHtml(m.id)}" title="Opciones" onclick="openMsgPopup(event, '${escHtml(m.id)}')">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+  </button>`;
+}
+
+function openMsgPopup(e, msgId) {
+  e.stopPropagation();
+  const m = S.messages.find(x => x.id === msgId);
+  if (!m) return;
+
+  const popup = document.getElementById('msgMenuPopup');
+
+  // Toggle off if same message clicked again
+  if (_activeMsgId === msgId && popup.style.display !== 'none') {
+    closeMsgPopup(); return;
+  }
+  _activeMsgId = msgId;
+
+  // Build emoji row
+  const emojisEl = document.getElementById('popupEmojis');
+  emojisEl.innerHTML = QUICK_EMOJIS.map(em =>
+    `<button class="ci-pop-emoji" onclick="reactMsg('${escHtml(msgId)}','${em}')">${em}</button>`
   ).join('');
 
-  let items = `<button class="ci-action-item" onclick="replyMsg('${safeId}')">
+  // Build action items
+  const itemsEl = document.getElementById('popupItems');
+  let html = `<button class="ci-pop-item" onclick="replyMsg('${escHtml(msgId)}')">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>Responder</button>`;
-
   if (m.body && m.media_type !== 'sticker') {
-    items += `<button class="ci-action-item" onclick="copyMsg('${safeId}')">
+    html += `<button class="ci-pop-item" onclick="copyMsg('${escHtml(msgId)}')">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copiar</button>`;
   }
-
   if (m.media_type === 'sticker' && m.media_url) {
-    items += `<button class="ci-action-item" onclick="saveStickerMsg('${safeId}')">
+    html += `<button class="ci-pop-item" onclick="saveStickerMsg('${escHtml(msgId)}')">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Guardar sticker</button>`;
   }
+  itemsEl.innerHTML = html;
 
-  return `<div class="ci-msg-menu">
-    <div class="ci-msg-emojis">${emojis}</div>
-    <div class="ci-msg-actions">${items}</div>
-  </div>`;
+  // Position popup near the trigger button
+  const trigger = e.currentTarget;
+  const rect = trigger.getBoundingClientRect();
+  const chatRect = document.querySelector('.ci-chat').getBoundingClientRect();
+
+  popup.style.display = 'block';
+  const popW = popup.offsetWidth || 280;
+  const dir  = trigger.closest('.ci-row')?.classList.contains('out') ? 'out' : 'in';
+
+  let left = dir === 'in' ? rect.left - chatRect.left : rect.right - chatRect.left - popW;
+  // Keep within bounds
+  left = Math.max(8, Math.min(left, chatRect.width - popW - 8));
+  popup.style.left = left + 'px';
+  popup.style.top  = (rect.bottom - chatRect.top + 6) + 'px';
+}
+
+function closeMsgPopup() {
+  document.getElementById('msgMenuPopup').style.display = 'none';
+  _activeMsgId = null;
 }
 
 function messageHTML(m) {
@@ -345,7 +381,7 @@ function messageHTML(m) {
   const check = dir === 'out'
     ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${m.delivery_status==='read'?'#fff':'rgba(255,255,255,.5)'}" stroke-width="2.4"><polyline points="18 7 9 17 5 13"/><polyline points="22 7 13 17 12.5 16.5"/></svg>`
     : '';
-  const menu  = msgMenuHTML(m);
+  const menu  = msgTriggerHTML(m);
 
   if (m.media_type === 'sticker' && m.media_url) {
     return `<div class="ci-row ${dir}" data-msg-id="${m.id}">

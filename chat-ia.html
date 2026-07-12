@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <link rel="stylesheet" href="chat-ia.css">
+  <link rel="stylesheet" href="chat-ia.css?v=5">
 </head>
 <body>
 
@@ -147,6 +147,13 @@
     </header>
 
     <div class="ci-thread" id="thread" style="display:none"></div>
+
+    <!-- Global message menu popup (click-triggered, stays open) -->
+    <div class="ci-msg-popup" id="msgMenuPopup" style="display:none">
+      <div class="ci-popup-emojis" id="popupEmojis"></div>
+      <div class="ci-popup-divider"></div>
+      <div class="ci-popup-items" id="popupItems"></div>
+    </div>
 
     <!-- Reply preview (shown above composer when replying) -->
     <div class="ci-reply-preview" id="replyPreview" style="display:none">
