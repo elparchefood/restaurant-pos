@@ -772,11 +772,20 @@ async function handleOpenSession(openingCash, shiftType) {
 
 async function handleCloseSession(closingCash, totalSales) {
   try {
+    // Cerrar la sesion activa con datos de cierre
     const { error } = await sb.from('pos_sessions').update({
       status: 'closed', closing_cash: closingCash,
       total_sales: totalSales||0, closed_at: new Date().toISOString(),
     }).eq('id', S.session.id);
     if (error) { showToast('Error: ' + error.message); return; }
+
+    // Cerrar tambien cualquier otra sesion abierta del mismo branch (sesiones huerfanas)
+    const qOrfanas = sb.from('pos_sessions').update({
+      status: 'closed', closed_at: new Date().toISOString(),
+    }).eq('status', 'open').neq('id', S.session.id);
+    if (S.branchId) qOrfanas.eq('branch_id', S.branchId);
+    await qOrfanas;
+
     showToast('Caja cerrada correctamente');
     await refreshAll();
   } catch(e) { console.error(e); showToast('Error al cerrar caja'); }
