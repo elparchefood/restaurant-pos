@@ -325,9 +325,7 @@ function setChartMode(mode, btn) {
 // ── Session action ────────────────────────────────────
 async function handleSessionAction() {
   if (S.session && S.session.status === 'open') {
-    if (confirm('Para cerrar el turno completa el proceso en el modulo de Caja.')) {
-      window.location.href = 'caja.html';
-    }
+    window.location.href = 'caja.html';
     return;
   }
   showAperturaModal();
