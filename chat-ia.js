@@ -306,7 +306,7 @@ function renderThread() {
     html += messageHTML(m);
   });
 
-  if (!S.messages.length) html += `<div style="text-align:center;color:var(--text-4);font-size:13px;padding:24px">Sin mensajes todavía</div>`;
+  if (!S.messages.length) html += `<div style="text-align:center;color:rgba(255,255,255,.35);font-size:13px;padding:24px">Sin mensajes todavía</div>`;
 
   $('thread').innerHTML = html;
   $('thread').scrollTop = $('thread').scrollHeight;
