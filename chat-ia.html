@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <link rel="stylesheet" href="chat-ia.css?v=8">
+  <link rel="stylesheet" href="chat-ia.css?v=9">
 </head>
 <body>
 
@@ -167,14 +167,27 @@
       </button>
     </div>
 
-    <!-- Sticker panel (shown above composer) -->
-    <div class="ci-sticker-panel" id="stickerPanel" style="display:none">
-      <div class="ci-sticker-panel-head">
-        <span>Stickers guardados</span>
-        <button id="stickerPanelClose">✕</button>
+    <!-- Emoji + Sticker unified picker -->
+    <div class="ci-picker-panel" id="pickerPanel" style="display:none">
+      <div class="ci-picker-head">
+        <div class="ci-picker-tabs">
+          <button class="ci-picker-tab active" id="tabEmoji" onclick="switchPickerTab('emoji')">😀 Emojis</button>
+          <button class="ci-picker-tab" id="tabSticker" onclick="switchPickerTab('sticker')">🖼️ Stickers</button>
+        </div>
+        <button class="ci-picker-close" id="pickerClose">✕</button>
       </div>
-      <div class="ci-sticker-grid" id="stickerGrid">
-        <div style="color:var(--text-4);font-size:13px;padding:16px;text-align:center">Aquí aparecerán los stickers que recibas</div>
+      <div class="ci-picker-pane" id="emojiPane">
+        <div class="ci-emoji-search-wrap">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8fa5bf" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="ci-emoji-search" id="emojiSearch" placeholder="Buscar emoji…" oninput="filterEmojis(this.value)" autocomplete="off">
+        </div>
+        <div class="ci-emoji-cats" id="emojiCats"></div>
+        <div class="ci-emoji-grid" id="emojiGrid"></div>
+      </div>
+      <div class="ci-picker-pane" id="stickerPane" style="display:none">
+        <div class="ci-sticker-grid" id="stickerGrid">
+          <div style="color:var(--text-4);font-size:13px;padding:16px;text-align:center">Aquí aparecerán los stickers que recibas</div>
+        </div>
       </div>
     </div>
 
@@ -197,6 +210,6 @@
 
 </div>
 
-<script src="chat-ia.js?v=5"></script>
+<script src="chat-ia.js?v=6"></script>
 </body>
 </html>

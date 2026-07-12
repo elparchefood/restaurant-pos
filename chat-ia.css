@@ -673,40 +673,99 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .ci-reply-preview-close:hover { background: var(--hover); }
 
 /* Sticker panel */
-.ci-sticker-panel {
+.ci-picker-panel {
   position: absolute; bottom: 72px; right: 14px;
-  width: 320px; max-height: 280px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0,0,0,.14);
+  width: 350px; height: 420px;
+  background: #1e2f42;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.4);
   display: flex; flex-direction: column;
   overflow: hidden; z-index: 200;
 }
-.ci-sticker-panel-head {
+.ci-picker-head {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 12px;
-  font-size: 13px; font-weight: 600; color: var(--text-1);
-  border-bottom: 1px solid var(--border); flex-shrink: 0;
+  padding: 8px 10px 0;
+  flex-shrink: 0;
 }
-.ci-sticker-panel-head button {
+.ci-picker-tabs { display: flex; gap: 4px; }
+.ci-picker-tab {
+  padding: 6px 12px; border-radius: 8px;
+  border: none; cursor: pointer; font-size: 12.5px; font-weight: 600;
+  font-family: var(--font); background: transparent;
+  color: rgba(255,255,255,.45); transition: all .15s;
+}
+.ci-picker-tab.active {
+  background: rgba(91,107,255,.22); color: #a8b4ff;
+}
+.ci-picker-close {
   background: none; border: none; cursor: pointer;
-  color: var(--text-4); font-size: 14px; padding: 2px 4px;
+  color: rgba(255,255,255,.4); font-size: 15px; padding: 4px 6px;
+  border-radius: 6px; transition: color .15s;
 }
+.ci-picker-close:hover { color: rgba(255,255,255,.8); }
+.ci-picker-pane { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+/* Emoji search */
+.ci-emoji-search-wrap {
+  display: flex; align-items: center; gap: 7px;
+  background: rgba(255,255,255,.06);
+  border-radius: 8px; margin: 8px 10px 0;
+  padding: 6px 10px; flex-shrink: 0;
+}
+.ci-emoji-search {
+  flex: 1; border: none; background: transparent;
+  font-family: var(--font); font-size: 12.5px;
+  color: rgba(255,255,255,.85); outline: none;
+}
+.ci-emoji-search::placeholder { color: rgba(255,255,255,.3); }
+
+/* Category strip */
+.ci-emoji-cats {
+  display: flex; gap: 2px;
+  padding: 6px 10px 4px; overflow-x: auto;
+  flex-shrink: 0;
+}
+.ci-emoji-cats::-webkit-scrollbar { display: none; }
+.ci-emoji-cat-btn {
+  padding: 4px 6px; border-radius: 7px;
+  border: none; cursor: pointer; font-size: 16px; line-height: 1;
+  background: transparent; transition: background .13s; flex-shrink: 0;
+}
+.ci-emoji-cat-btn:hover,
+.ci-emoji-cat-btn.active { background: rgba(91,107,255,.22); }
+
+/* Emoji grid */
+.ci-emoji-grid {
+  flex: 1; overflow-y: auto;
+  display: grid; grid-template-columns: repeat(8, 1fr);
+  gap: 0; padding: 4px 6px 8px; align-content: start;
+}
+.ci-emoji-grid::-webkit-scrollbar { width: 3px; }
+.ci-emoji-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 3px; }
+.ci-emoji-btn {
+  border: none; background: transparent; cursor: pointer;
+  font-size: 20px; line-height: 1; padding: 5px;
+  border-radius: 7px; transition: background .1s; text-align: center;
+}
+.ci-emoji-btn:hover { background: rgba(255,255,255,.1); }
+
+/* Sticker pane */
 .ci-sticker-grid {
   display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: 6px; padding: 10px; overflow-y: auto;
+  gap: 6px; padding: 10px; overflow-y: auto; flex: 1;
 }
+.ci-sticker-grid::-webkit-scrollbar { width: 3px; }
+.ci-sticker-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 3px; }
 .ci-sticker-pick {
   background: none; border: none; cursor: pointer;
   border-radius: 8px; padding: 4px;
   transition: background .15s;
   aspect-ratio: 1;
 }
-.ci-sticker-pick:hover { background: var(--hover); }
+.ci-sticker-pick:hover { background: rgba(255,255,255,.1); }
 .ci-sticker-pick img {
-  width: 100%; height: 100%; object-fit: contain;
-}
+  width: 100%; height: 100%; object-fit: contain
 
 /* Composer */
 .ci-composer {
