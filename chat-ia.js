@@ -129,7 +129,7 @@ function subscribeRealtime() {
     .on('postgres_changes', { event:'*', schema:'public', table:'chat_conversations', filter:`branch_id=eq.${S.branchId}` }, handleConvChange)
     .on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages' }, payload => {
       const msg = payload.new;
-      if (msg.conversation_id === S.activeConvId && !S.messages.find(m => m.id === msg.id)) { S.messages.push(msg); renderThread(); }
+      if (msg.conversation_id === S.activeConvId && msg.direction === 'in' && !S.messages.find(m => m.id === msg.id)) { S.messages.push(msg); renderThread(); }
       const idx = S.conversations.findIndex(c => c.id === msg.conversation_id);
       if (idx !== -1) {
         S.conversations[idx].last_message    = msg.body || '[Imagen]';
