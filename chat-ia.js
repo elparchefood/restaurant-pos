@@ -666,6 +666,7 @@ function handleMetaConnect(channel) {
   return new Promise((resolve, reject) => {
     if (channel === 'whatsapp') {
       let wabaId = null, phoneId = null;
+      let settled = false;
       function onWAMsg(event) {
         if (event.origin !== 'https://www.facebook.com') return;
         try {
@@ -677,27 +678,63 @@ function handleMetaConnect(channel) {
         } catch {}
       }
       window.addEventListener('message', onWAMsg);
-      FB.login(function(response) {
-        window.removeEventListener('message', onWAMsg);
-        if (!response.authResponse) { reject(new Error('Conexión cancelada')); return; }
-        const code = response.authResponse.code;
-        fetch(META_OAUTH_FN, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            code, channel,
-            branch_id: S.branchId, tenant_id: S.tenantId,
-            waba_id: wabaId, phone_number_id: phoneId,
-          }),
-        })
-          .then(function(res) { return res.json(); })
-          .then(function(data) { if (data.error) reject(new Error(data.error)); else resolve(data); })
-          .catch(reject);
-      }, {
-        config_id: META_WA_CONFIG_ID,
+
+      // Popup manual — window.open() en handler sincrónico NO lo bloquea Chrome.
+      // FB.login() hacía fallback a window.location cuando Chrome bloqueaba el popup.
+      const W = 600, H = 700;
+      const L = Math.max(0, (window.screen.width  - W) / 2);
+      const T = Math.max(0, (window.screen.height - H) / 2);
+      const qp = new URLSearchParams({
+        client_id: META_APP_ID,
+        config_id:  META_WA_CONFIG_ID,
         response_type: 'code',
-        override_default_response_type: true,
+        override_default_response_type: 'true',
+        redirect_uri: 'https://elparchefood.github.io/restaurant-pos/',
       });
+      const popup = window.open(
+        'https://www.facebook.com/v22.0/dialog/oauth?' + qp.toString(),
+        'WA_Signup',
+        'popup,width=' + W + ',height=' + H + ',left=' + L + ',top=' + T
+      );
+
+      if (!popup || popup.closed) {
+        window.removeEventListener('message', onWAMsg);
+        reject(new Error('El navegador bloqueó la ventana emergente. Haz clic en el ícono bloqueado de la barra de dirección y permite ventanas emergentes para este sitio.'));
+        return;
+      }
+
+      // Polling: cuando Meta redirige con ?code= ya podemos leer popup.location
+      const poll = setInterval(function() {
+        if (popup.closed) {
+          clearInterval(poll);
+          window.removeEventListener('message', onWAMsg);
+          if (!settled) reject(new Error('Conexión cancelada'));
+          return;
+        }
+        try {
+          const href = popup.location.href; // lanza cross-origin mientras esté en facebook.com
+          const u    = new URL(href);
+          const code = u.searchParams.get('code');
+          if (code && !settled) {
+            settled = true;
+            clearInterval(poll);
+            window.removeEventListener('message', onWAMsg);
+            popup.close();
+            fetch(META_OAUTH_FN, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                code, channel,
+                branch_id: S.branchId, tenant_id: S.tenantId,
+                waba_id: wabaId, phone_number_id: phoneId,
+              }),
+            })
+              .then(function(res) { return res.json(); })
+              .then(function(data) { if (data.error) reject(new Error(data.error)); else resolve(data); })
+              .catch(reject);
+          }
+        } catch { /* popup en dominio de Facebook todavía — normal */ }
+      }, 300);
     } else {
       FB.login(function(response) {
         if (!response.authResponse) { reject(new Error('Conexión cancelada')); return; }
