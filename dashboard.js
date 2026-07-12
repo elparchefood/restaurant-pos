@@ -75,11 +75,20 @@ async function loadUser(branchId) {
 
 // ── Session ───────────────────────────────────────────
 async function loadSession(branchId) {
-  const { start } = todayRange();
-  const q = sb.from('pos_sessions').select('*').gte('created_at', start)
-    .order('created_at',{ascending:false}).limit(1);
-  if (branchId) q.eq('branch_id', branchId);
-  const { data } = await q.maybeSingle();
+  // Buscar primero sesion open sin filtro de fecha (igual que caja.js y pos-caja-guard.js)
+  const qOpen = sb.from('pos_sessions').select('*').eq('status','open').order('created_at',{ascending:false}).limit(1);
+  if (branchId) qOpen.eq('branch_id', branchId);
+  const { data: openData } = await qOpen.maybeSingle();
+
+  let data = openData;
+  if (!data) {
+    // Sin sesion open — buscar la mas reciente de hoy para mostrar cierre anterior
+    const { start } = todayRange();
+    const qRecent = sb.from('pos_sessions').select('*').gte('created_at', start).order('created_at',{ascending:false}).limit(1);
+    if (branchId) qRecent.eq('branch_id', branchId);
+    const { data: recentData } = await qRecent.maybeSingle();
+    data = recentData;
+  }
   S.session = data;
 
   if (data?.status === 'open') {
