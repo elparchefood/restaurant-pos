@@ -384,9 +384,12 @@ function messageHTML(m) {
   const menu  = msgTriggerHTML(m);
 
   if (m.media_type === 'sticker' && m.media_url) {
+    const stickerQuote = m._replyTo
+      ? `<div class="ci-reply-quote"><div class="ci-reply-quote-bar"></div><div class="ci-reply-quote-body"><div class="ci-reply-quote-who">${escHtml(m._replyTo.who||'')}</div><div class="ci-reply-quote-text">${escHtml(m._replyTo.media_type==='sticker'?'[Sticker]':m._replyTo.media_type==='image'?'[Imagen]':(m._replyTo.body||'[Medio]'))}</div></div></div>`
+      : '';
     return `<div class="ci-row ${dir}" data-msg-id="${m.id}">
       <div class="ci-bubble-sticker">
-        ${menu}
+        ${menu}${stickerQuote}
         <img src="${escHtml(m.media_url)}" class="ci-sticker-img" alt="sticker" loading="lazy">
         <div class="ci-meta ci-meta-sticker">${time}${check}</div>
       </div>
@@ -410,7 +413,10 @@ function messageHTML(m) {
   }
 
   const textHtml = m.body && m.media_type !== 'document' ? `<div>${escHtml(m.body)}</div>` : '';
-  const body = mediaHtml + textHtml;
+  const quoteHtml = m._replyTo
+    ? `<div class="ci-reply-quote"><div class="ci-reply-quote-bar"></div><div class="ci-reply-quote-body"><div class="ci-reply-quote-who">${escHtml(m._replyTo.who||'')}</div><div class="ci-reply-quote-text">${escHtml(m._replyTo.media_type==='sticker'?'[Sticker]':m._replyTo.media_type==='image'?'[Imagen]':(m._replyTo.body||'[Medio]'))}</div></div></div>`
+    : '';
+  const body = quoteHtml + mediaHtml + textHtml;
 
   return `<div class="ci-row ${dir}" data-msg-id="${m.id}">
     <div class="ci-bubble ${dir}">${menu}${body}<div class="ci-meta">${time}${check}</div></div>
@@ -632,7 +638,8 @@ async function sendMessage() {
   }]).select().single();
 
   if (error) { S.messages = S.messages.filter(m => m.id !== tmpId); renderThread(); return; }
-  S.messages = S.messages.map(m => m.id === tmpId ? data : m);
+  const replySnapshot = S.replyTo ? { ...S.replyTo } : null;
+  S.messages = S.messages.map(m => m.id === tmpId ? { ...data, _replyTo: replySnapshot } : m);
   renderThread();
 
   const conv = S.conversations.find(c => c.id === S.activeConvId);
@@ -867,6 +874,10 @@ function wireEvents() {
   document.addEventListener('click', e => {
     if ($('stickerPanel').style.display !== 'none' && !$('stickerPanel').contains(e.target) && e.target.id !== 'stickerBtn') {
       $('stickerPanel').style.display = 'none';
+    }
+    const popup = $('msgMenuPopup');
+    if (popup && popup.style.display !== 'none' && !popup.contains(e.target) && !e.target.closest('.ci-msg-trigger')) {
+      closeMsgPopup();
     }
   });
   document.querySelectorAll('.ci-nav-btn[data-view]').forEach(btn => {
