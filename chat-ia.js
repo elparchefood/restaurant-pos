@@ -679,6 +679,28 @@ function handleMetaConnect(channel) {
       }
       window.addEventListener('message', onWAMsg);
 
+      // Electron: main.js intercepta el redirect ?code= y lo inyecta como CustomEvent
+      function onElectronCode(evt) {
+        if (settled) return;
+        settled = true;
+        clearInterval(poll);
+        window.removeEventListener('message', onWAMsg);
+        window.removeEventListener('meta-oauth-code', onElectronCode);
+        fetch(META_OAUTH_FN, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: evt.detail.code, channel,
+            branch_id: S.branchId, tenant_id: S.tenantId,
+            waba_id: wabaId, phone_number_id: phoneId,
+          }),
+        })
+          .then(function(res) { return res.json(); })
+          .then(function(data) { if (data.error) reject(new Error(data.error)); else resolve(data); })
+          .catch(reject);
+      }
+      window.addEventListener('meta-oauth-code', onElectronCode);
+
       // Popup manual — window.open() en handler sincrónico NO lo bloquea Chrome.
       // FB.login() hacía fallback a window.location cuando Chrome bloqueaba el popup.
       const W = 600, H = 700;
@@ -704,10 +726,11 @@ function handleMetaConnect(channel) {
       }
 
       // Polling: cuando Meta redirige con ?code= ya podemos leer popup.location
-      const poll = setInterval(function() {
+      let poll; poll = setInterval(function() {
         if (popup.closed) {
           clearInterval(poll);
           window.removeEventListener('message', onWAMsg);
+          window.removeEventListener('meta-oauth-code', onElectronCode);
           if (!settled) reject(new Error('Conexión cancelada'));
           return;
         }
@@ -719,6 +742,7 @@ function handleMetaConnect(channel) {
             settled = true;
             clearInterval(poll);
             window.removeEventListener('message', onWAMsg);
+            window.removeEventListener('meta-oauth-code', onElectronCode);
             popup.close();
             fetch(META_OAUTH_FN, {
               method: 'POST',
@@ -736,17 +760,37 @@ function handleMetaConnect(channel) {
         } catch { /* popup en dominio de Facebook todavía — normal */ }
       }, 300);
     } else {
-      FB.login(function(response) {
-        if (!response.authResponse) { reject(new Error('Conexión cancelada')); return; }
-        const code = response.authResponse.code;
+      let fbSettled = false;
+      // Electron: main.js intercepta el redirect ?code= y lo inyecta como CustomEvent
+      function onElectronCodeFB(evt) {
+        if (fbSettled) return;
+        fbSettled = true;
+        window.removeEventListener('meta-oauth-code', onElectronCodeFB);
         fetch(META_OAUTH_FN, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, channel, branch_id: S.branchId, tenant_id: S.tenantId }),
+          body: JSON.stringify({ code: evt.detail.code, channel, branch_id: S.branchId, tenant_id: S.tenantId }),
         })
           .then(function(res) { return res.json(); })
           .then(function(data) { if (data.error) reject(new Error(data.error)); else resolve(data); })
           .catch(reject);
+      }
+      window.addEventListener('meta-oauth-code', onElectronCodeFB);
+
+      FB.login(function(response) {
+        window.removeEventListener('meta-oauth-code', onElectronCodeFB);
+        if (!response.authResponse) { if (!fbSettled) reject(new Error('Conexión cancelada')); return; }
+        if (!fbSettled) {
+          fbSettled = true;
+          fetch(META_OAUTH_FN, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: response.authResponse.code, channel, branch_id: S.branchId, tenant_id: S.tenantId }),
+          })
+            .then(function(res) { return res.json(); })
+            .then(function(data) { if (data.error) reject(new Error(data.error)); else resolve(data); })
+            .catch(reject);
+        }
       }, {
         config_id: META_CONFIG_ID,
         response_type: 'code',
