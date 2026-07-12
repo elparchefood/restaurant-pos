@@ -746,7 +746,7 @@ function updateCostHint() {
   if (precio>0&&conv>0) { txt.textContent=`Costo por ${useUnit}: ${ivCOP(precio/conv)} (${ivCOP(precio)} ÷ ${conv} ${useUnit}/${buyUnit})`; hint.classList.remove('is-hidden'); }
   else { hint.classList.add('is-hidden'); }
 }
-const CAT_COLORS = {'Materia prima':'#E11D48','Lácteos y quesos':'#F59E0B','Salsas y abarrotes':'#C0463C','Bebidas envasadas':'#0EA5E9','Desechables':'#64748B','Aseo y limpieza':'#14B8A6'};
+const CAT_COLORS = {'Materia prima':'#E11D48','Lácteos y quesos':'#F59E0B','Salsas y abarrotes':'#8B5CF6','Bebidas envasadas':'#0EA5E9','Desechables':'#64748B','Aseo y limpieza':'#14B8A6'};
 async function guardarInsumo() {
   const nombre  = document.getElementById('ins-nombre').value.trim();
   let   cat     = document.getElementById('ins-cat').value;
@@ -890,7 +890,7 @@ function renderUnidades() {
   }
   card.innerHTML=customUnits.map(u=>{
     const uses=insumos.filter(i=>i.buyUnit===u.nombre||i.useUnit===u.nombre).length;
-    return `<div class="iv-unit-row"><span class="iv-unit-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C0463C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/></svg></span><span class="iv-unit-name">${u.nombre}</span>${uses>0?`<span class="iv-unit-use">En uso · ${uses} insumos</span>`:'<span class="iv-unit-nouse">Sin uso</span>'}<button class="iv-row-btn btn-edit-unit" onclick="editarUnidad('${u.nombre}')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button><button class="iv-row-btn danger btn-del-unit" onclick="eliminarUnidad('${u.nombre}')" ${uses>0?'disabled style="opacity:.4;cursor:not-allowed"':''}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div>`;
+    return `<div class="iv-unit-row"><span class="iv-unit-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/></svg></span><span class="iv-unit-name">${u.nombre}</span>${uses>0?`<span class="iv-unit-use">En uso · ${uses} insumos</span>`:'<span class="iv-unit-nouse">Sin uso</span>'}<button class="iv-row-btn btn-edit-unit" onclick="editarUnidad('${u.nombre}')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button><button class="iv-row-btn danger btn-del-unit" onclick="eliminarUnidad('${u.nombre}')" ${uses>0?'disabled style="opacity:.4;cursor:not-allowed"':''}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div>`;
   }).join('');
 }
 function eliminarUnidad(nombre) { customUnits=customUnits.filter(u=>u.nombre!==nombre); renderUnidades(); showToast('Unidad eliminada'); }
@@ -1199,7 +1199,7 @@ async function iaGuardarReceta() {
   // Crear insumos nuevos
   const CAT_COLORS_LOCAL = {
     'Materia prima': '#E11D48', 'Lácteos y quesos': '#F59E0B',
-    'Salsas y abarrotes': '#C0463C', 'Bebidas envasadas': '#0EA5E9',
+    'Salsas y abarrotes': '#8B5CF6', 'Bebidas envasadas': '#0EA5E9',
     'Desechables': '#64748B', 'Aseo y limpieza': '#14B8A6',
   };
 

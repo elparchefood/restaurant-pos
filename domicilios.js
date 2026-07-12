@@ -13,7 +13,7 @@ const CHANNELS = [
   { id: 'instagram', name: 'Instagram',  mono: 'IG',  color: '#E1306C', tint: '#FCE7F0' },
   { id: 'facebook',  name: 'Facebook',   mono: 'FB',  color: '#1877F2', tint: '#E7F0FE' },
   { id: 'tiktok',    name: 'TikTok',     mono: 'TT',  color: '#111827', tint: '#EEF0F3' },
-  { id: 'llamada',   name: 'Llamada',    mono: 'Tel', color: '#A31621', tint: '#FBEAEC' },
+  { id: 'llamada',   name: 'Llamada',    mono: 'Tel', color: '#5B6BFF', tint: '#EEF2FF' },
   { id: 'web',       name: 'Página web', mono: 'Web', color: '#0EA5E9', tint: '#F0F9FF' },
 ];
 const CHAN_OF = id => CHANNELS.find(c => c.id === id) || CHANNELS[0];
@@ -27,8 +27,8 @@ const MODALITIES = [
 const ESTADOS = [
   { id: 'recibido',    name: 'Recibido',       color: '#64748B', tint: '#F1F5F9' },
   { id: 'preparacion', name: 'En preparación', color: '#F59E0B', tint: '#FFFBEB' },
-  { id: 'listo',       name: 'Listo',          color: '#C0463C', tint: '#F5F3FF' },
-  { id: 'camino',      name: 'En camino',      color: '#A31621', tint: '#FBEAEC' },
+  { id: 'listo',       name: 'Listo',          color: '#8B5CF6', tint: '#F5F3FF' },
+  { id: 'camino',      name: 'En camino',      color: '#5B6BFF', tint: '#EEF2FF' },
   { id: 'entregado',   name: 'Entregado',      color: '#16A34A', tint: '#DCFCE7' },
 ];
 const ESTADO_OF   = id => ESTADOS.find(e => e.id === id) || ESTADOS[0];
@@ -243,7 +243,7 @@ async function _catalogFetch(cacheKey, isBackground) {
     ]);
     S.cats = (cats || []).map((c, i) => ({
       ...c,
-      color: c.color || ['#A31621','#C0463C','#EC4899','#F59E0B','#10B981','#0EA5E9','#EF4444','#14B8A6'][i % 8],
+      color: c.color || ['#5B6BFF','#8B5CF6','#EC4899','#F59E0B','#10B981','#0EA5E9','#EF4444','#14B8A6'][i % 8],
       tint:  c.color_tint || '#F8FAFF',
     }));
     S.products = (prods || []).map(p => ({
@@ -286,8 +286,8 @@ function setView(v) {
     // Monitor badge invierte colores cuando está activo
     const badge = b.querySelector('#monitor-badge');
     if (badge) {
-      badge.style.background = v === 'monitor' ? '#fff' : '#A31621';
-      badge.style.color      = v === 'monitor' ? '#A31621' : '#fff';
+      badge.style.background = v === 'monitor' ? '#fff' : '#5B6BFF';
+      badge.style.color      = v === 'monitor' ? '#5B6BFF' : '#fff';
     }
   });
   const pedidoEl  = $('view-pedido');
@@ -388,7 +388,7 @@ function renderCatGrid() {
     return;
   }
   el.innerHTML = S.cats.map(c => {
-    const color = c.color || '#A31621';
+    const color = c.color || '#5B6BFF';
     const count = S.products.filter(p => p.category_id === c.id).length;
     const thumb = `<span class="d-thumb-lbl">${c.name}</span>`;
     return `<button class="lm-cat" data-open-cat="${c.id}" style="border-color:${colorRing(color)}">
@@ -403,7 +403,7 @@ function renderCatGrid() {
 function openCat(catId) {
   const cat   = S.cats.find(c => c.id === catId);
   const prods = S.products.filter(p => p.category_id === catId);
-  const color = (cat && cat.color) || '#A31621';
+  const color = (cat && cat.color) || '#5B6BFF';
   if ($('prod-catdot'))   $('prod-catdot').style.background = color;
   if ($('prod-catname'))  $('prod-catname').textContent     = cat ? cat.name : '—';
   if ($('prod-catcount')) $('prod-catcount').textContent    = prods.length;
@@ -444,7 +444,7 @@ function renderMenuPane() {
   el.innerHTML = S.cats.map(cat => {
     const prods = S.products.filter(p => p.category_id === cat.id);
     if (!prods.length) return '';
-    const color = cat.color || '#A31621';
+    const color = cat.color || '#5B6BFF';
     const rows = prods.map(p => {
       const inCart = S.cart.find(i => i.id === p.id);
       const qty    = inCart ? inCart.qty : 0;
@@ -1451,7 +1451,7 @@ function renderKanCard(d) {
     if (d.courier === 'externo') {
       courierBadge = `<span class="d-extbadge">${svgInline('truck', 11)} ${d.domiciliario}</span>`;
     } else {
-      courierBadge = `<span class="d-extbadge" style="color:#A31621;background:#FBEAEC">${svgInline('scooter', 11)} ${d.domiciliario}</span>`;
+      courierBadge = `<span class="d-extbadge" style="color:#5B6BFF;background:#EEF2FF">${svgInline('scooter', 11)} ${d.domiciliario}</span>`;
     }
   }
 

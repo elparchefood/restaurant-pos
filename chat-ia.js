@@ -15,8 +15,8 @@ const OAUTH_CALLBACK    = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1
 
 /* Paleta de tintes para avatares */
 const TINTS = [
-  ['#FBEAEC','#A31621'], ['#FFF1F2','#F43F5E'], ['#ECFDF5','#10B981'],
-  ['#FFF7ED','#F97316'], ['#F5F3FF','#C0463C'], ['#F0F9FF','#0EA5E9'],
+  ['#EEF2FF','#5B6BFF'], ['#FFF1F2','#F43F5E'], ['#ECFDF5','#10B981'],
+  ['#FFF7ED','#F97316'], ['#F5F3FF','#8B5CF6'], ['#F0F9FF','#0EA5E9'],
   ['#FEF3C7','#D97706'],
 ];
 
@@ -266,7 +266,7 @@ function convRowHTML(c) {
 
   let prevPrefix = '';
   if (!isUnread && c.last_sender === 'agent') {
-    const checkColor = c.last_read ? '#A31621' : '#94A3B8';
+    const checkColor = c.last_read ? '#5B6BFF' : '#94A3B8';
     prevPrefix = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${checkColor}" stroke-width="2.4" style="flex-shrink:0"><polyline points="18 7 9 17 5 13"/><polyline points="22 7 13 17 12.5 16.5"/></svg><span style="color:#94A3B8;font-weight:500">Tú:&nbsp;</span>`;
   }
 
@@ -446,7 +446,7 @@ function connectModalHTML(channel, meta) {
   const metaLabels = { whatsapp: 'WhatsApp Business', instagram: 'Instagram', facebook: 'Facebook' };
   const metaLabel  = metaLabels[channel] || meta.label;
   const btnColors  = { whatsapp: '#25D366', instagram: '#E1306C', facebook: '#0866FF' };
-  const btnColor   = btnColors[channel] || '#A31621';
+  const btnColor   = btnColors[channel] || '#5B6BFF';
   return `
     ${channelIcon}
     <h2 class="ci-modal-title">Conectar ${metaLabel}</h2>

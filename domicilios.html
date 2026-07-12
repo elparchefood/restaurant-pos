@@ -19,7 +19,7 @@
     <nav class="d-nav">
       <button class="d-navitem on" data-nav="pedido"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 18H15"/><path d="M4 7h4l3 8"/><path d="M14 9h3l3 6"/><path d="M14 9V6h2"/></svg><span class="lbl">Domicilio</span></button>
       <button class="d-navitem" data-nav="monitor" style="position:relative"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg><span class="lbl">Monitor</span>
-        <span id="monitor-badge" style="position:absolute;top:6px;right:14px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#A31621;color:#fff;font-size:10px;font-weight:800;display:none;align-items:center;justify-content:center">0</span>
+        <span id="monitor-badge" style="position:absolute;top:6px;right:14px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#5B6BFF;color:#fff;font-size:10px;font-weight:800;display:none;align-items:center;justify-content:center">0</span>
       </button>
       <div class="d-nav-sep"></div>
       <button class="d-navitem" data-action="nuevo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="lbl">Nuevo</span></button>
@@ -183,7 +183,7 @@
           <div hidden data-subview="products" id="subview-products">
             <div class="d-gridhead">
               <button class="lm-back" data-sub-back><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Categorías</button>
-              <div style="display:flex;align-items:center;gap:8px"><span class="d-catdot" id="prod-catdot" style="background:#A31621"></span><span class="d-gridtitle" id="prod-catname">&#8212;</span><span class="d-countpill" id="prod-catcount">0</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span class="d-catdot" id="prod-catdot" style="background:#5B6BFF"></span><span class="d-gridtitle" id="prod-catname">&#8212;</span><span class="d-countpill" id="prod-catcount">0</span></div>
             </div>
             <div class="d-prodgrid" id="prod-grid"></div>
           </div>
@@ -209,7 +209,7 @@
         <div><div class="d-eyebrow">Logística</div><h1 class="d-mon-title">Monitor de domicilios</h1></div>
         <div class="d-mon-stats">
           <div class="d-mon-stat"><div class="big" id="mon-activos">0</div><div class="lbl">activos</div></div>
-          <div class="d-mon-stat"><div class="big" style="color:#A31621" id="mon-camino">0</div><div class="lbl">en camino</div></div>
+          <div class="d-mon-stat"><div class="big" style="color:#5B6BFF" id="mon-camino">0</div><div class="lbl">en camino</div></div>
           <div class="d-mon-stat"><div class="big" style="color:#B45309" id="mon-porpagar">0</div><div class="lbl">por pagar</div></div>
         </div>
       </div>
@@ -223,11 +223,11 @@
           <div class="d-kan-body" id="kan-preparacion"><div class="d-kan-empty">Sin domicilios</div></div>
         </div>
         <div class="d-kan-col" data-col="listo">
-          <div class="d-kan-head"><span class="d-kan-title"><span class="d-kan-dot" style="background:#C0463C"></span>Listo</span><span class="d-kan-n" id="kan-n-listo">0</span></div>
+          <div class="d-kan-head"><span class="d-kan-title"><span class="d-kan-dot" style="background:#8B5CF6"></span>Listo</span><span class="d-kan-n" id="kan-n-listo">0</span></div>
           <div class="d-kan-body" id="kan-listo"><div class="d-kan-empty">Sin domicilios</div></div>
         </div>
         <div class="d-kan-col" data-col="camino">
-          <div class="d-kan-head"><span class="d-kan-title"><span class="d-kan-dot" style="background:#A31621"></span>En camino</span><span class="d-kan-n" id="kan-n-camino">0</span></div>
+          <div class="d-kan-head"><span class="d-kan-title"><span class="d-kan-dot" style="background:#5B6BFF"></span>En camino</span><span class="d-kan-n" id="kan-n-camino">0</span></div>
           <div class="d-kan-body" id="kan-camino"><div class="d-kan-empty">Sin domicilios</div></div>
         </div>
         <div class="d-kan-col" data-col="entregado">
@@ -254,7 +254,7 @@
             <button class="d-chan" data-chan="instagram"><span class="d-chan-mono" style="background:#E1306C">IG</span><span class="d-chan-name">Instagram</span></button>
             <button class="d-chan" data-chan="facebook"><span class="d-chan-mono" style="background:#1877F2">FB</span><span class="d-chan-name">Facebook</span></button>
             <button class="d-chan" data-chan="tiktok"><span class="d-chan-mono" style="background:#111827">TT</span><span class="d-chan-name">TikTok</span></button>
-            <button class="d-chan" data-chan="llamada"><span class="d-chan-mono" style="background:#A31621">Tel</span><span class="d-chan-name">Llamada</span></button>
+            <button class="d-chan" data-chan="llamada"><span class="d-chan-mono" style="background:#5B6BFF">Tel</span><span class="d-chan-name">Llamada</span></button>
             <button class="d-chan" data-chan="web"><span class="d-chan-mono" style="background:#0EA5E9">Web</span><span class="d-chan-name">Página web</span></button>
           </div>
         </div>

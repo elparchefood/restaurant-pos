@@ -844,7 +844,7 @@ var UR_PERMS = [
   ]}
 ];
 var UR_TOTAL_PERMS = 13;
-var UR_SWATCH_COLORS = ['#A31621','#0EA5E9','#10B981','#F59E0B','#F43F5E','#C0463C','#EC4899','#0D9488'];
+var UR_SWATCH_COLORS = ['#5B6BFF','#0EA5E9','#10B981','#F59E0B','#F43F5E','#8B5CF6','#EC4899','#0D9488'];
 
 // Marcas y sucursales — se leen de Supabase (branches del tenant)
 // Por ahora estructura fija; se reemplaza en urInit con datos reales

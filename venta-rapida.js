@@ -233,7 +233,7 @@
     const row = document.querySelector(`[data-line="${productId}"]`);
     if (row) {
       const item = S.cart.find(i => String(i.id) === String(productId));
-      const tint = item ? hexTint(item.catColor) : '#FBEAEC';
+      const tint = item ? hexTint(item.catColor) : '#EEF2FF';
       row.style.background = tint;
       setTimeout(() => { row.style.background = ''; }, 420);
     }
@@ -248,10 +248,10 @@
   function hexTint(hex) {
     // Devuelve una versión muy suave del color para el pulso
     const tints = {
-      '#F59E0B': '#FFFBEB', '#0EA5E9': '#F0F9FF', '#A31621': '#FBEAEC',
-      '#F43F5E': '#FFF1F2', '#10B981': '#ECFDF5', '#C0463C': '#F5F3FF',
+      '#F59E0B': '#FFFBEB', '#0EA5E9': '#F0F9FF', '#5B6BFF': '#EEF2FF',
+      '#F43F5E': '#FFF1F2', '#10B981': '#ECFDF5', '#8B5CF6': '#F5F3FF',
     };
-    return tints[hex] || '#FBEAEC';
+    return tints[hex] || '#EEF2FF';
   }
 
   /* ─── Refresh badges en catálogo ─────────────────────────────── */
@@ -770,8 +770,8 @@
   async function _catalogFetch(sb, cacheKey, isBackground) {
     try {
       const PALETA = [
-        {color:'#A31621',tint:'#F0F1FF',ring:'#C7CBFF'},
-        {color:'#C0463C',tint:'#F5F3FF',ring:'#DDD6FE'},
+        {color:'#5B6BFF',tint:'#F0F1FF',ring:'#C7CBFF'},
+        {color:'#8B5CF6',tint:'#F5F3FF',ring:'#DDD6FE'},
         {color:'#EC4899',tint:'#FDF2F8',ring:'#FBCFE8'},
         {color:'#F59E0B',tint:'#FFFBEB',ring:'#FDE68A'},
         {color:'#10B981',tint:'#ECFDF5',ring:'#A7F3D0'},

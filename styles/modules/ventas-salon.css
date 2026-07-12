@@ -38,7 +38,7 @@
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #A31621, #C0463C);
+  background: linear-gradient(135deg, #5B6BFF, #8B5CF6);
   color: #fff;
   display: flex;
   align-items: center;
@@ -142,8 +142,8 @@
 .lm-nav-badge {
   font-size: 10px;
   font-weight: 700;
-  color: #A31621;
-  background: #FBEAEC;
+  color: #5B6BFF;
+  background: #EEF2FF;
   padding: 2px 7px;
   border-radius: 999px;
 }
@@ -240,12 +240,12 @@
 }
 .vs-user-role {
   font-size: 10px;
-  color: #A31621;
+  color: #5B6BFF;
   font-weight: 600;
 }
 .lm-avatar {
   border-radius: 7px;
-  background: linear-gradient(135deg, #A31621, #C0463C);
+  background: linear-gradient(135deg, #5B6BFF, #8B5CF6);
   color: #fff;
   font-weight: 700;
   display: flex;
@@ -363,7 +363,7 @@
   align-items: center;
   gap: 6px;
   padding: 8px 14px;
-  background: #A31621;
+  background: #5B6BFF;
   color: #fff;
   border: none;
   border-radius: 9px;
@@ -371,10 +371,10 @@
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 1px 0 rgba(15,23,42,0.06), 0 2px 8px -2px rgba(163,22,33,0.4);
+  box-shadow: 0 1px 0 rgba(15,23,42,0.06), 0 2px 8px -2px rgba(91,107,255,0.4);
   transition: background 0.15s;
 }
-.lm-btn-primary:hover { background: #86111A; }
+.lm-btn-primary:hover { background: #4F5BE3; }
 .lm-btn-ghost {
   display: inline-flex;
   align-items: center;
@@ -410,7 +410,7 @@
 .lm-link {
   background: none;
   border: none;
-  color: #A31621;
+  color: #5B6BFF;
   font-family: inherit;
   font-size: 12px;
   font-weight: 700;
@@ -594,8 +594,8 @@
   margin-left: 8px;
 }
 .lm-tab.is-active .vs-tab-count {
-  background: #FBEAEC;
-  color: #A31621;
+  background: #EEF2FF;
+  color: #5B6BFF;
 }
 .vs-legend {
   display: flex;
@@ -863,7 +863,7 @@
   width: 26px;
   font-size: 11px;
   font-weight: 700;
-  color: #A31621;
+  color: #5B6BFF;
   flex-shrink: 0;
 }
 .vs-order-item-info { flex: 1; min-width: 0; }
@@ -943,8 +943,8 @@
   width: 48px;
   height: 48px;
   border-radius: 12px;
-  background: #FBEAEC;
-  color: #A31621;
+  background: #EEF2FF;
+  color: #5B6BFF;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1134,7 +1134,7 @@
 }
 .vs-confirm-icon.green  { background: #ECFDF5; color: #10B981; }
 .vs-confirm-icon.danger { background: #FEF2F2; color: #DC2626; }
-.vs-confirm-icon.brand  { background: #FBEAEC; color: #A31621; }
+.vs-confirm-icon.brand  { background: #EEF2FF; color: #5B6BFF; }
 .vs-confirm-title { font-size: 15px; font-weight: 800; color: #0F172A; letter-spacing: -0.01em; }
 .vs-confirm-msg   { font-size: 13px; color: #64748B; margin-top: 6px; line-height: 1.5; }
 .vs-confirm-actions { display: flex; gap: 8px; margin-top: 20px; }
@@ -1151,10 +1151,10 @@
 }
 .vs-confirm-actions .vs-c-ok.green  { background: #10B981; color: #fff; }
 .vs-confirm-actions .vs-c-ok.danger { background: #DC2626; color: #fff; }
-.vs-confirm-actions .vs-c-ok.brand  { background: #A31621; color: #fff; }
+.vs-confirm-actions .vs-c-ok.brand  { background: #5B6BFF; color: #fff; }
 .vs-confirm-actions .vs-c-ok.green:hover  { background: #059669; }
 .vs-confirm-actions .vs-c-ok.danger:hover { background: #B91C1C; }
-.vs-confirm-actions .vs-c-ok.brand:hover  { background: #86111A; }
+.vs-confirm-actions .vs-c-ok.brand:hover  { background: #4F5BE3; }
 
 /* Rail locked indicator (pendiente_pago) */
 .vs-rail-locked {

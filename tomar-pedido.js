@@ -20,7 +20,7 @@ const S = {
 
 // Paleta para categorías sin color propio
 const CAT_PALETTE = [
-  {color:'#A31621',tint:'#FBEAEC'},{color:'#C0463C',tint:'#F5F3FF'},
+  {color:'#5B6BFF',tint:'#EEF2FF'},{color:'#8B5CF6',tint:'#F5F3FF'},
   {color:'#EC4899',tint:'#FDF2F8'},{color:'#F59E0B',tint:'#FFFBEB'},
   {color:'#10B981',tint:'#ECFDF5'},{color:'#0EA5E9',tint:'#F0F9FF'},
   {color:'#EF4444',tint:'#FEF2F2'},{color:'#14B8A6',tint:'#F0FDFA'},
@@ -272,7 +272,7 @@ function renderCatGrid() {
           <div class="tp-cat-name">${escHtml(cat.name)}</div>
           <div class="tp-cat-count">${count} producto${count !== 1 ? 's' : ''}</div>
         </div>
-        <div class="tp-cat-badge" style="background:${cat.tint || '#FBEAEC'}">
+        <div class="tp-cat-badge" style="background:${cat.tint || '#EEF2FF'}">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${cat.color}" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
         </div>
       </div>
@@ -284,7 +284,7 @@ function renderCatGrid() {
 function renderProdGrid(catId, catName, catColor) {
   const prods = S.products.filter(p => p.category_id === catId);
   $('prod-cat-name').textContent  = catName;
-  $('prod-cat-dot').style.background = catColor || '#A31621';
+  $('prod-cat-dot').style.background = catColor || '#5B6BFF';
   $('prod-cat-count').textContent = `${prods.length} producto${prods.length !== 1 ? 's' : ''}`;
   $('prod-grid').innerHTML = prods.length
     ? prods.map(p => prodCard(p, catColor)).join('')
