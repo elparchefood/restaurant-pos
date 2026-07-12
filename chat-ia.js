@@ -313,13 +313,41 @@ function renderThread() {
 }
 
 function messageHTML(m) {
-  const dir  = m.direction === 'in' ? 'in' : 'out';
-  const time = formatTime(m.sent_at);
-  let body   = m.media_url ? `<div class="ci-img-ph">[imagen]</div>` : '';
-  body += m.body ? `<div>${escHtml(m.body)}</div>` : '';
+  const dir   = m.direction === 'in' ? 'in' : 'out';
+  const time  = formatTime(m.sent_at);
   const check = dir === 'out'
     ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${m.delivery_status==='read'?'#fff':'rgba(255,255,255,.5)'}" stroke-width="2.4"><polyline points="18 7 9 17 5 13"/><polyline points="22 7 13 17 12.5 16.5"/></svg>`
     : '';
+
+  // Sticker: no bubble, transparent background
+  if (m.media_type === 'sticker' && m.media_url) {
+    return `<div class="ci-row ${dir}">
+      <div class="ci-bubble-sticker">
+        <img src="${escHtml(m.media_url)}" class="ci-sticker-img" alt="sticker" loading="lazy">
+        <div class="ci-meta ci-meta-sticker">${time}${check}</div>
+      </div>
+    </div>`;
+  }
+
+  let mediaHtml = '';
+  if (m.media_url) {
+    if (m.media_type === 'image') {
+      mediaHtml = `<a href="${escHtml(m.media_url)}" target="_blank" rel="noopener"><img src="${escHtml(m.media_url)}" class="ci-img-thumb" alt="imagen" loading="lazy"></a>`;
+    } else if (m.media_type === 'video') {
+      mediaHtml = `<video src="${escHtml(m.media_url)}" class="ci-video-thumb" controls preload="metadata"></video>`;
+    } else if (m.media_type === 'audio') {
+      mediaHtml = `<audio src="${escHtml(m.media_url)}" controls style="width:220px;display:block"></audio>`;
+    } else if (m.media_type === 'document') {
+      mediaHtml = `<a href="${escHtml(m.media_url)}" target="_blank" rel="noopener" class="ci-doc-link">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        ${escHtml(m.body || 'Documento')}
+      </a>`;
+    }
+  }
+
+  const textHtml = m.body && m.media_type !== 'document' ? `<div>${escHtml(m.body)}</div>` : '';
+  const body = mediaHtml + textHtml;
+
   return `<div class="ci-row ${dir}"><div class="ci-bubble ${dir}">${body}<div class="ci-meta">${time}${check}</div></div></div>`;
 }
 
@@ -570,6 +598,128 @@ async function sendMessage() {
 }
 
 /* ══════════════════════════════════════════════
+   STICKERS
+══════════════════════════════════════════════ */
+async function toggleStickerPanel() {
+  const panel = $('stickerPanel');
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  panel.style.display = 'flex';
+  await loadStickerPanel();
+}
+
+async function loadStickerPanel() {
+  const grid = $('stickerGrid');
+  grid.innerHTML = `<div style="color:var(--text-4);font-size:13px;padding:12px;text-align:center">Cargando…</div>`;
+
+  const { data } = await sb.from('chat_messages')
+    .select('media_url')
+    .eq('media_type', 'sticker')
+    .eq('tenant_id', S.tenantId)
+    .not('media_url', 'is', null)
+    .order('sent_at', { ascending: false })
+    .limit(80);
+
+  if (!data?.length) {
+    grid.innerHTML = `<div style="color:var(--text-4);font-size:13px;padding:16px;text-align:center">Aquí aparecerán los stickers que recibas</div>`;
+    return;
+  }
+
+  // Deduplicate by URL
+  const seen = new Set();
+  const unique = data.filter(r => { if (seen.has(r.media_url)) return false; seen.add(r.media_url); return true; });
+
+  grid.innerHTML = unique.map(r =>
+    `<button class="ci-sticker-pick" onclick="sendSticker('${escHtml(r.media_url)}')" title="Enviar sticker">
+      <img src="${escHtml(r.media_url)}" loading="lazy" alt="sticker">
+    </button>`
+  ).join('');
+}
+
+async function sendSticker(mediaUrl) {
+  $('stickerPanel').style.display = 'none';
+  if (!S.activeConvId) return;
+
+  const tmpId = 'tmp_' + Date.now();
+  S.messages.push({ id: tmpId, conversation_id: S.activeConvId, tenant_id: S.tenantId, direction: 'out', media_url: mediaUrl, media_type: 'sticker', delivery_status: 'sending', sent_at: new Date().toISOString() });
+  renderThread();
+
+  const { data, error } = await sb.from('chat_messages').insert([{
+    conversation_id: S.activeConvId, tenant_id: S.tenantId,
+    direction: 'out', body: '[sticker]', media_url: mediaUrl, media_type: 'sticker',
+    delivery_status: 'sent', agent_id: S.user?.id || null,
+  }]).select().single();
+
+  if (error) { S.messages = S.messages.filter(m => m.id !== tmpId); renderThread(); return; }
+  S.messages = S.messages.map(m => m.id === tmpId ? data : m);
+  renderThread();
+
+  const conv = S.conversations.find(c => c.id === S.activeConvId);
+  if (conv && ['instagram', 'facebook', 'whatsapp'].includes(conv.channel)) {
+    try {
+      const res = await fetch(META_SEND_FN, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversation_id: S.activeConvId, media_url: mediaUrl, media_type: 'sticker', message_id: data.id }),
+      });
+      const resData = await res.json();
+      if (resData.error) showToast('No se pudo enviar el sticker: ' + resData.error, 'error');
+    } catch (e) { showToast('Error al enviar sticker: ' + e.message, 'error'); }
+  }
+}
+
+/* ══════════════════════════════════════════════
+   ADJUNTOS
+══════════════════════════════════════════════ */
+async function handleAttachment(file) {
+  if (!file || !S.activeConvId) return;
+
+  const maxMb = 16;
+  if (file.size > maxMb * 1024 * 1024) { showToast(`El archivo supera ${maxMb} MB`, 'error'); return; }
+
+  const ext       = file.name.split('.').pop().toLowerCase();
+  const mediaType = file.type.startsWith('image/') ? 'image'
+    : file.type.startsWith('video/') ? 'video'
+    : file.type.startsWith('audio/') ? 'audio'
+    : 'document';
+
+  const path    = `${mediaType}/${S.tenantId}_${Date.now()}.${ext}`;
+  const tmpId   = 'tmp_' + Date.now();
+  const tmpUrl  = URL.createObjectURL(file);
+
+  S.messages.push({ id: tmpId, conversation_id: S.activeConvId, tenant_id: S.tenantId, direction: 'out', media_url: tmpUrl, media_type: mediaType, body: file.name, delivery_status: 'sending', sent_at: new Date().toISOString() });
+  renderThread();
+
+  // Upload to Supabase Storage
+  const { error: upErr } = await sb.storage.from('chat-media').upload(path, file, { upsert: true, contentType: file.type });
+  if (upErr) { showToast('Error al subir archivo: ' + upErr.message, 'error'); S.messages = S.messages.filter(m => m.id !== tmpId); renderThread(); return; }
+
+  const { data: { publicUrl } } = sb.storage.from('chat-media').getPublicUrl(path);
+
+  const { data, error } = await sb.from('chat_messages').insert([{
+    conversation_id: S.activeConvId, tenant_id: S.tenantId,
+    direction: 'out', body: file.name, media_url: publicUrl, media_type: mediaType,
+    delivery_status: 'sent', agent_id: S.user?.id || null,
+  }]).select().single();
+
+  if (error) { S.messages = S.messages.filter(m => m.id !== tmpId); renderThread(); return; }
+  S.messages = S.messages.map(m => m.id === tmpId ? { ...data, media_url: publicUrl } : m);
+  renderThread();
+
+  const conv = S.conversations.find(c => c.id === S.activeConvId);
+  if (conv && ['instagram', 'facebook', 'whatsapp'].includes(conv.channel)) {
+    try {
+      const res = await fetch(META_SEND_FN, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversation_id: S.activeConvId, media_url: publicUrl, media_type: mediaType, filename: file.name, message_id: data.id }),
+      });
+      const resData = await res.json();
+      if (resData.error) showToast('No se pudo enviar el archivo: ' + resData.error, 'error');
+    } catch (e) { showToast('Error al enviar archivo: ' + e.message, 'error'); }
+  }
+}
+
+/* ══════════════════════════════════════════════
    TOAST
 ══════════════════════════════════════════════ */
 function showToast(msg, type = 'success') {
@@ -592,6 +742,15 @@ function wireEvents() {
   $('searchInput').addEventListener('input', e => { S.query = e.target.value; renderConvList(); });
   $('sendBtn').addEventListener('click', sendMessage);
   $('msgInput').addEventListener('keydown', e => { if (e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendMessage(); } });
+  $('stickerBtn').addEventListener('click', toggleStickerPanel);
+  $('stickerPanelClose').addEventListener('click', () => { $('stickerPanel').style.display = 'none'; });
+  $('attachBtn').addEventListener('click', () => $('attachInput').click());
+  $('attachInput').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) handleAttachment(f); });
+  document.addEventListener('click', e => {
+    if ($('stickerPanel').style.display !== 'none' && !$('stickerPanel').contains(e.target) && e.target.id !== 'stickerBtn') {
+      $('stickerPanel').style.display = 'none';
+    }
+  });
   document.querySelectorAll('.ci-nav-btn[data-view]').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.ci-nav-btn[data-view]').forEach(b => b.classList.remove('active'));
