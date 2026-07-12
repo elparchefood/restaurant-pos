@@ -385,8 +385,8 @@ function messageHTML(m) {
 
   if (m.media_type === 'sticker' && m.media_url) {
     return `<div class="ci-row ${dir}" data-msg-id="${m.id}">
-      ${menu}
       <div class="ci-bubble-sticker">
+        ${menu}
         <img src="${escHtml(m.media_url)}" class="ci-sticker-img" alt="sticker" loading="lazy">
         <div class="ci-meta ci-meta-sticker">${time}${check}</div>
       </div>
@@ -413,8 +413,7 @@ function messageHTML(m) {
   const body = mediaHtml + textHtml;
 
   return `<div class="ci-row ${dir}" data-msg-id="${m.id}">
-    ${menu}
-    <div class="ci-bubble ${dir}">${body}<div class="ci-meta">${time}${check}</div></div>
+    <div class="ci-bubble ${dir}">${menu}${body}<div class="ci-meta">${time}${check}</div></div>
   </div>`;
 }
 

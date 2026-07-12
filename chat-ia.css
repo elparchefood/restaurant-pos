@@ -533,6 +533,7 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
   display: inline-flex; flex-direction: column;
   align-items: flex-end; gap: 2px;
   max-width: 180px;
+  position: relative;
 }
 .ci-sticker-img {
   width: 160px; height: 160px; object-fit: contain;
@@ -547,25 +548,29 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 /* ── Message trigger (small chevron on hover) ── */
 .ci-row { position: relative; }
 
+/* El trigger vive DENTRO de la burbuja o sticker */
+.ci-bubble, .ci-bubble-sticker { position: relative; }
+
 .ci-msg-trigger {
   display: none;
   position: absolute;
-  top: 6px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  top: 5px;
+  right: 5px;
+  background: rgba(0,0,0,.28);
+  border: none;
   border-radius: 50%;
   width: 22px; height: 22px;
   align-items: center; justify-content: center;
   cursor: pointer; z-index: 10;
-  box-shadow: 0 1px 4px rgba(0,0,0,.12);
-  color: var(--text-3);
-  transition: background .12s, color .12s;
+  box-shadow: 0 1px 4px rgba(0,0,0,.18);
+  color: rgba(255,255,255,.9);
+  transition: background .12s;
   padding: 0;
+  backdrop-filter: blur(2px);
 }
-.ci-msg-trigger:hover { background: var(--hover); color: var(--text-1); }
-.ci-row.in  .ci-msg-trigger { right: -28px; }
-.ci-row.out .ci-msg-trigger { left: -28px; }
-.ci-row:hover .ci-msg-trigger { display: flex; }
+.ci-msg-trigger:hover { background: rgba(0,0,0,.45); }
+.ci-bubble:hover .ci-msg-trigger,
+.ci-bubble-sticker:hover .ci-msg-trigger { display: flex; }
 
 /* ── Global message popup (click-opened) ─────── */
 .ci-msg-popup {
