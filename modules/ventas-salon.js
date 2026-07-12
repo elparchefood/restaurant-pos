@@ -13,7 +13,7 @@
     libre:          { label: 'Mesa libre',        short: 'Libres',    color: '#94A3B8', tint: '#F8FAFC', ring: '#ECEEF2', hint: 'disponibles',        icon: SVG_PLUS },
     pendiente_pago: { label: 'Pendiente de pago', short: 'Pendiente', color: '#EF4444', tint: '#FEF2F2', ring: '#FECACA', hint: 'esperando cobro',     icon: SVG_DOLLAR },
     esperando:      { label: 'Esperando pedido',  short: 'Esperando', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA', hint: 'pedido en cocina',    icon: SVG_CLOCK },
-    comiendo:       { label: 'Comiendo',          short: 'Comiendo',  color: '#5B6BFF', tint: '#EEF2FF', ring: '#C7D2FE', hint: 'servidas en mesa',    icon: SVG_FOOD },
+    comiendo:       { label: 'Comiendo',          short: 'Comiendo',  color: '#A31621', tint: '#FBEAEC', ring: '#EBB9BE', hint: 'servidas en mesa',    icon: SVG_FOOD },
   };
 
 
@@ -124,7 +124,7 @@
     overlay.id = 'vs-currency-modal';
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(4px);z-index:9100;display:flex;align-items:center;justify-content:center';
     overlay.innerHTML =
-      '<div style="background:#fff;border-radius:16px;padding:24px;width:360px;max-width:92vw;box-shadow:0 20px 60px rgba(15,23,42,.18)">'      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">'      +'<div style="font-weight:700;font-size:15px;color:#0F172A">Cambiar moneda</div>'      +'<button onclick="document.getElementById(\'vs-currency-modal\').remove()" style="border:none;background:#F1F5F9;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;color:#64748B;">&#x2715;</button>'      +'</div>'      +'<div id="vs-pin-step">'      +'<p style="font-size:12px;color:#64748B;margin-bottom:12px">Requiere PIN de administrador</p>'      +'<input id="vs-pin-input" type="password" maxlength="8" placeholder="PIN"'      +' style="width:100%;border:1.5px solid #ECEEF2;border-radius:10px;padding:10px 14px;font-size:18px;letter-spacing:4px;text-align:center;outline:none;box-sizing:border-box"'      +' onfocus="this.style.borderColor=\'#5B6BFF\'" onblur="this.style.borderColor=\'#ECEEF2\'">'      +'<p id="vs-pin-error" style="color:#EF4444;font-size:12px;margin-top:6px;display:none">PIN incorrecto</p>'      +'<button onclick="_posVSValidatePIN()" style="margin-top:12px;width:100%;padding:10px;border:none;border-radius:10px;background:#5B6BFF;color:#fff;font-size:14px;font-weight:600;cursor:pointer">Continuar</button>'      +'</div>'      +'<div id="vs-currency-step" style="display:none">'      +'<p style="font-size:12px;color:#64748B;margin-bottom:12px">Selecciona la moneda de visualizacion</p>'      +'<div id="vs-currency-list" style="display:grid;gap:8px"></div>'      +'</div>'      +'</div>';
+      '<div style="background:#fff;border-radius:16px;padding:24px;width:360px;max-width:92vw;box-shadow:0 20px 60px rgba(15,23,42,.18)">'      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">'      +'<div style="font-weight:700;font-size:15px;color:#0F172A">Cambiar moneda</div>'      +'<button onclick="document.getElementById(\'vs-currency-modal\').remove()" style="border:none;background:#F1F5F9;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;color:#64748B;">&#x2715;</button>'      +'</div>'      +'<div id="vs-pin-step">'      +'<p style="font-size:12px;color:#64748B;margin-bottom:12px">Requiere PIN de administrador</p>'      +'<input id="vs-pin-input" type="password" maxlength="8" placeholder="PIN"'      +' style="width:100%;border:1.5px solid #ECEEF2;border-radius:10px;padding:10px 14px;font-size:18px;letter-spacing:4px;text-align:center;outline:none;box-sizing:border-box"'      +' onfocus="this.style.borderColor=\'#A31621\'" onblur="this.style.borderColor=\'#ECEEF2\'">'      +'<p id="vs-pin-error" style="color:#EF4444;font-size:12px;margin-top:6px;display:none">PIN incorrecto</p>'      +'<button onclick="_posVSValidatePIN()" style="margin-top:12px;width:100%;padding:10px;border:none;border-radius:10px;background:#A31621;color:#fff;font-size:14px;font-weight:600;cursor:pointer">Continuar</button>'      +'</div>'      +'<div id="vs-currency-step" style="display:none">'      +'<p style="font-size:12px;color:#64748B;margin-bottom:12px">Selecciona la moneda de visualizacion</p>'      +'<div id="vs-currency-list" style="display:grid;gap:8px"></div>'      +'</div>'      +'</div>';
     document.body.appendChild(overlay);
     setTimeout(function(){ var el = document.getElementById('vs-pin-input'); if(el) el.focus(); }, 50);
     document.getElementById('vs-pin-input').addEventListener('keydown', function(e){ if(e.key==='Enter') window._posVSValidatePIN(); });
@@ -160,7 +160,7 @@
       if (listEl) {
         listEl.innerHTML = CURRENCIES.map(function(c) {
           var isActive = c.code === activeCurrency;
-          return '<button onclick="_posVSSelectCurrency(\''+c.code+'\')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:'+(isActive?'2px solid #5B6BFF':'1.5px solid #ECEEF2')+';background:'+(isActive?'#EEF2FF':'#fff')+';cursor:pointer;width:100%;text-align:left">'            +'<span style="font-size:20px">'+c.flag+'</span>'            +'<div><div style="font-weight:600;color:#0F172A;font-size:13px">'+c.code+' — '+c.name+'</div>'            +'<div style="font-size:11px;color:#94A3B8">'+c.symbol+'</div></div>'            +(isActive?'<svg style="margin-left:auto" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B6BFF" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>':'')            +'</button>';
+          return '<button onclick="_posVSSelectCurrency(\''+c.code+'\')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:'+(isActive?'2px solid #A31621':'1.5px solid #ECEEF2')+';background:'+(isActive?'#FBEAEC':'#fff')+';cursor:pointer;width:100%;text-align:left">'            +'<span style="font-size:20px">'+c.flag+'</span>'            +'<div><div style="font-weight:600;color:#0F172A;font-size:13px">'+c.code+' — '+c.name+'</div>'            +'<div style="font-size:11px;color:#94A3B8">'+c.symbol+'</div></div>'            +(isActive?'<svg style="margin-left:auto" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A31621" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>':'')            +'</button>';
         }).join('');
       }
     } catch(e) {
@@ -844,7 +844,7 @@
             </span>
           </button>
           <div class="vs-nav-divider"></div>
-          <button class="lm-nav" style="background:#EEF2FF;color:#5B6BFF">
+          <button class="lm-nav" style="background:#FBEAEC;color:#A31621">
             <span class="lm-nav-inner">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
               <span style="font-weight:700">Por salón</span>
@@ -2534,7 +2534,7 @@
       + '<button onclick="_mesaNotifRespond(\'' + tableId + '\',false)" '
       + 'style="flex:1;padding:8px;border:1.5px solid #ECEEF2;border-radius:9px;background:#fff;color:#475569;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Todavía no</button>'
       + '<button onclick="_mesaNotifRespond(\'' + tableId + '\',true)" '
-      + 'style="flex:1;padding:8px;border:none;border-radius:9px;background:#5B6BFF;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Sí, ya entregué</button>'
+      + 'style="flex:1;padding:8px;border:none;border-radius:9px;background:#A31621;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Sí, ya entregué</button>'
       + '</div>';
 
     document.body.appendChild(notif);
@@ -2667,7 +2667,7 @@
       + '<div>'
       + '<div style="font-weight:700;font-size:13px;color:#0F172A">¿Ya se fueron los clientes?</div>'
       + '<div style="font-size:11px;color:#64748B;margin-top:3px">Mesa ' + (tableName || tableId)
-      + (elapsed ? ' · <span style="font-weight:600;color:#5B6BFF">' + elapsed + '</span>' : '') + '</div>'
+      + (elapsed ? ' · <span style="font-weight:600;color:#A31621">' + elapsed + '</span>' : '') + '</div>'
       + '</div>'
       + '<button onclick="_libreNotifRespond(\'' + tableId + '\',null)" '
       + 'style="border:none;background:#F1F5F9;border-radius:7px;width:24px;height:24px;cursor:pointer;color:#94A3B8;font-size:12px;flex-shrink:0">✕</button>'

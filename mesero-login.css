@@ -1,7 +1,7 @@
 /* ============================================================
    LUMEN POS · TABLET MESERO — Login
    Layout horizontal (landscape tablet). Touch-first.
-   Tokens idénticos al sistema (DM Sans, #5B6BFF, #FAFAFB).
+   Tokens idénticos al sistema (DM Sans, #A31621, #FAFAFB).
    ============================================================ */
 
 /* ── 1. Reset + tokens ── */
@@ -13,10 +13,10 @@
   --ink-2:       #475569;
   --ink-3:       #64748B;
   --ink-4:       #94A3B8;
-  --accent:      #5B6BFF;
-  --accent-h:    #4F5BE3;
-  --accent-2:    #8B5CF6;
-  --accent-50:   #EEF2FF;
+  --accent:      #A31621;
+  --accent-h:    #86111A;
+  --accent-2:    #C0463C;
+  --accent-50:   #FBEAEC;
   --danger:      #DC2626;
   --danger-bg:   #FEF2F2;
   --danger-bd:   #FECACA;
@@ -43,7 +43,7 @@ input::placeholder { color: var(--ink-4); }
 .login-backdrop {
   position: fixed; inset: 0;
   background:
-    radial-gradient(900px 500px at 5% 50%, #EEF2FF 0%, rgba(238,242,255,0) 65%),
+    radial-gradient(900px 500px at 5% 50%, #FBEAEC 0%, rgba(238,242,255,0) 65%),
     radial-gradient(700px 450px at 100% 50%, #F3EEFF 0%, rgba(243,238,255,0) 60%),
     var(--bg);
   display: flex;
@@ -70,7 +70,7 @@ input::placeholder { color: var(--ink-4); }
 /* ── 4. Panel izquierdo (marca) ── */
 .login-brand {
   flex: 0 0 340px;
-  background: linear-gradient(150deg, #5B6BFF 0%, #8B5CF6 100%);
+  background: linear-gradient(150deg, #A31621 0%, #C0463C 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -183,7 +183,7 @@ input::placeholder { color: var(--ink-4); }
 
 .login-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(91,107,255,.12);
+  box-shadow: 0 0 0 3px rgba(163,22,33,.12);
 }
 
 .login-input.err {
@@ -227,7 +227,7 @@ input::placeholder { color: var(--ink-4); }
   color: #fff;
   letter-spacing: .01em;
   transition: opacity .15s, transform .1s;
-  box-shadow: 0 4px 14px -3px rgba(91,107,255,.45);
+  box-shadow: 0 4px 14px -3px rgba(163,22,33,.45);
   position: relative;
   overflow: hidden;
   min-height: 52px;

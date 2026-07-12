@@ -104,7 +104,7 @@
 .rv-empty-sub   { font-size:13px;color:#94A3B8;max-width:320px; }
 .rv-empty-btn {
   margin-top:6px;padding:9px 20px;border-radius:9px;
-  background:#5B6BFF;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;
+  background:#A31621;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;
 }
 
 /* Modal overlay */
@@ -138,7 +138,7 @@
   font-size:13px;font-family:inherit;color:#0F172A;
   transition:border-color .15s;outline:none;width:100%;box-sizing:border-box;
 }
-.rv-input:focus { border-color:#5B6BFF; }
+.rv-input:focus { border-color:#A31621; }
 .rv-textarea   { resize:vertical;min-height:70px; }
 
 .rv-modal-foot {
@@ -151,7 +151,7 @@
 }
 .rv-btn-save {
   padding:9px 20px;border-radius:9px;border:none;
-  background:#5B6BFF;color:#fff;font-size:13px;font-weight:700;cursor:pointer;
+  background:#A31621;color:#fff;font-size:13px;font-weight:700;cursor:pointer;
   display:flex;align-items:center;gap:7px;
 }
 .rv-btn-save:hover { background:#4B5CE0; }

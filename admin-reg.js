@@ -50,8 +50,8 @@ var TIERS = [
 var ROLE_TONE = {'Dueño': 'indigo', 'Admin': 'violet', 'Soporte': 'sky', 'Finanzas': 'green'};
 
 var AV_COLORS = [
-  ['#5B6BFF','#8B5CF6'],['#0EA5E9','#6366F1'],['#10B981','#14B8A6'],
-  ['#F59E0B','#EF4444'],['#EC4899','#8B5CF6'],['#8B5CF6','#5B6BFF']
+  ['#A31621','#C0463C'],['#0EA5E9','#6366F1'],['#10B981','#14B8A6'],
+  ['#F59E0B','#EF4444'],['#EC4899','#C0463C'],['#C0463C','#A31621']
 ];
 
 function tierFor(n) {
@@ -173,7 +173,7 @@ function renderResumen(regs) {
   var name = (document.getElementById('admin-name').textContent||'Sergio').split(' ')[0];
   document.getElementById('pg-greeting').textContent = greetWord()+', '+name+'.';
   document.getElementById('pg-lead').innerHTML =
-    'Tienes <b style="color:#5B6BFF">'+pendientes.length+' solicitud'+(pendientes.length===1?'':' es')+
+    'Tienes <b style="color:#A31621">'+pendientes.length+' solicitud'+(pendientes.length===1?'':' es')+
     '</b> esperando aprobación y la plataforma factura '+cop(mrr)+' este mes.';
 
   // KPIs
@@ -191,16 +191,16 @@ function renderResumen(regs) {
   var C = 2*Math.PI*52;
   var proFrac = total ? pro.length/total : 0;
   document.getElementById('donut-svg').innerHTML =
-    '<circle cx="70" cy="70" r="52" fill="none" stroke="#8B5CF6" stroke-width="18"/>'+
-    '<circle cx="70" cy="70" r="52" fill="none" stroke="#5B6BFF" stroke-width="18" stroke-linecap="round"'+
+    '<circle cx="70" cy="70" r="52" fill="none" stroke="#C0463C" stroke-width="18"/>'+
+    '<circle cx="70" cy="70" r="52" fill="none" stroke="#A31621" stroke-width="18" stroke-linecap="round"'+
       ' stroke-dasharray="'+((C*proFrac).toFixed(2))+' '+C.toFixed(2)+'"/>';
   document.getElementById('donut-total').textContent = total;
   document.getElementById('plan-sub').textContent    = total+' cuentas activas distribuidas';
 
   // Plan lines
   document.getElementById('planlines').innerHTML = [
-    {color:'#5B6BFF',name:'Pro',count:pro.length},
-    {color:'#8B5CF6',name:'Starter',count:starter.length}
+    {color:'#A31621',name:'Pro',count:pro.length},
+    {color:'#C0463C',name:'Starter',count:starter.length}
   ].map(function(pl) {
     var pct = total ? (pl.count/total*100) : 0;
     return '<div class="rs-plan-line">'+
@@ -224,8 +224,8 @@ function renderResumen(regs) {
     var isLast = i===mrrData.length-1;
     var pct = (v/8)*100;
     return '<div class="rs-mrr-col">'+
-      '<div class="rs-mrr-val" style="color:'+(isLast?'#5B6BFF':'#94A3B8')+'">$'+v.toFixed(1)+'M</div>'+
-      '<div class="rs-mrr-bar" style="height:'+pct+'%;'+(isLast?'background:linear-gradient(180deg,#5B6BFF,#818CF8);box-shadow:0 6px 16px -8px rgba(91,107,255,.5)':'background:#C7D2FE')+'"></div>'+
+      '<div class="rs-mrr-val" style="color:'+(isLast?'#A31621':'#94A3B8')+'">$'+v.toFixed(1)+'M</div>'+
+      '<div class="rs-mrr-bar" style="height:'+pct+'%;'+(isLast?'background:linear-gradient(180deg,#A31621,#C0463C);box-shadow:0 6px 16px -8px rgba(163,22,33,.5)':'background:#EBB9BE')+'"></div>'+
       '<div class="rs-mrr-lbl">'+mrrLabels[i]+'</div>'+
     '</div>';
   }).join('');
@@ -342,7 +342,7 @@ function viewComprobante(id, negocio, url) {
   else if (url.match(/\.(jpg|jpeg|png|gif|webp)/i)) {
     body.innerHTML = '<img src="'+url+'" class="a-modal-img" alt="Comprobante">';
   } else {
-    body.innerHTML = '<a href="'+url+'" target="_blank" style="color:#5B6BFF;font-weight:600">'+url+'</a>';
+    body.innerHTML = '<a href="'+url+'" target="_blank" style="color:#A31621;font-weight:600">'+url+'</a>';
   }
   document.getElementById('modal-comprobante').classList.add('show');
 }

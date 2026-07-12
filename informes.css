@@ -23,7 +23,7 @@
   font-size:13px;color:#0F172A;font-family:inherit;
 }
 .btn-apply-range {
-  padding:6px 14px;border-radius:8px;background:#5B6BFF;
+  padding:6px 14px;border-radius:8px;background:#A31621;
   color:#fff;border:none;cursor:pointer;font-size:13px;font-weight:600;
 }
 
@@ -111,7 +111,7 @@
   border-radius:8px;background:#F8FAFC;
 }
 .mesero-pos {
-  width:24px;height:24px;border-radius:50%;background:#5B6BFF;
+  width:24px;height:24px;border-radius:50%;background:#A31621;
   color:#fff;font-size:11px;font-weight:800;
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
 }

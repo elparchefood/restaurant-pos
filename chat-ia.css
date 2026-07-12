@@ -1,6 +1,6 @@
 /* ══════════════════════════════════════════════════════════
    Chat IA — Cobra POS
-   Paleta: #5B6BFF azul | #8B5CF6 violeta | DM Sans
+   Paleta: #A31621 azul | #C0463C violeta | DM Sans
    Layout: sidebar 232px + lista 366px + chat flexible
    ══════════════════════════════════════════════════════════ */
 
@@ -16,11 +16,11 @@
   --text-2:    #475569;
   --text-3:    #64748B;
   --text-4:    #94A3B8;
-  --accent:    #5B6BFF;
-  --accent-h:  #4F5BE3;
-  --accent-bg: #EEF2FF;
+  --accent:    #A31621;
+  --accent-h:  #86111A;
+  --accent-bg: #FBEAEC;
   --accent-bg2:#F4F6FF;
-  --violet:    #8B5CF6;
+  --violet:    #C0463C;
   --success:   #16A34A;
   --font:      'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   /* canales */
@@ -118,7 +118,7 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
   color: #fff;
   font-size: 11px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 3px 8px -2px rgba(91,107,255,.6);
+  box-shadow: 0 3px 8px -2px rgba(163,22,33,.6);
 }
 .ci-nav-badge:empty { display: none; }
 
@@ -273,7 +273,7 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .ci-conv.active {
   background: var(--accent-bg2);
   border: 1px solid #E4E8FF;
-  box-shadow: 0 6px 18px -10px rgba(91,107,255,.5);
+  box-shadow: 0 6px 18px -10px rgba(163,22,33,.5);
 }
 .ci-conv.active::before {
   content: '';
@@ -325,7 +325,7 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
   background: var(--accent); color: #fff;
   font-size: 11px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 3px 8px -2px rgba(91,107,255,.6);
+  box-shadow: 0 3px 8px -2px rgba(163,22,33,.6);
   flex-shrink: 0;
 }
 
@@ -430,7 +430,7 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
   background: var(--accent); color: #fff;
   font-family: var(--font); font-size: 12.5px; font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 2px 8px -2px rgba(91,107,255,.45);
+  box-shadow: 0 2px 8px -2px rgba(163,22,33,.45);
   transition: background .14s;
 }
 .ci-btn-primary:hover { background: var(--accent-h); }
@@ -557,7 +557,7 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px -2px rgba(91,107,255,.45);
+  box-shadow: 0 2px 8px -2px rgba(163,22,33,.45);
   transition: background .14s, transform .1s;
 }
 .ci-send-btn:hover  { background: var(--accent-h); }

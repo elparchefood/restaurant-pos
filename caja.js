@@ -19,14 +19,14 @@ const MEDIO_SVG = {
 
 const METODOS = [
   { key:'efectivo',      label:'Efectivo',      color:'#16A34A', bg:'#DCFCE7' },
-  { key:'tarjeta',       label:'Tarjeta',        color:'#5B6BFF', bg:'#EEF2FF' },
+  { key:'tarjeta',       label:'Tarjeta',        color:'#A31621', bg:'#FBEAEC' },
   { key:'transferencia', label:'Transferencia',  color:'#0EA5E9', bg:'#F0F9FF' },
-  { key:'nequi',         label:'Nequi',          color:'#8B5CF6', bg:'#F5F3FF' },
+  { key:'nequi',         label:'Nequi',          color:'#C0463C', bg:'#F5F3FF' },
   { key:'daviplata',     label:'Daviplata',      color:'#E11D48', bg:'#FFF1F2' },
 ];
 
 const CANALES = [
-  { key:'salon',     label:'Salón',     color:'#5B6BFF', bg:'#EEF2FF' },
+  { key:'salon',     label:'Salón',     color:'#A31621', bg:'#FBEAEC' },
   { key:'mostrador', label:'Mostrador', color:'#06B6D4', bg:'#CFFAFE' },
   { key:'domicilio', label:'Domicilio', color:'#10B981', bg:'#D1FAE5' },
 ];
@@ -390,7 +390,7 @@ function renderCierres(sessions) {
             <span class="cj-amt-open">${COPF(s.opening_cash||0)}</span>
           </div>
           <div class="cj-cierre-line">
-            <span class="lbl"><span class="cj-dot" style="background:#5B6BFF"></span> Cierre <span class="when">${fCi} · ${hCi}</span></span>
+            <span class="lbl"><span class="cj-dot" style="background:#A31621"></span> Cierre <span class="when">${fCi} · ${hCi}</span></span>
             <span class="cj-amt-close">${COPF(s.closing_cash||0)}</span>
           </div>
         </div>
@@ -419,13 +419,13 @@ function renderHistorial(orders) {
 
   const PAGO_INFO = {
     efectivo:      { color:'#16A34A', bg:'#DCFCE7', svg:'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>' },
-    tarjeta:       { color:'#5B6BFF', bg:'#EEF2FF', svg:'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>' },
+    tarjeta:       { color:'#A31621', bg:'#FBEAEC', svg:'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>' },
     transferencia: { color:'#0EA5E9', bg:'#F0F9FF', svg:'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16l-3-3"/><path d="M20 15H4l3 3"/></svg>' },
-    nequi:         { color:'#8B5CF6', bg:'#F5F3FF', svg:'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2.5"/></svg>' },
+    nequi:         { color:'#C0463C', bg:'#F5F3FF', svg:'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2.5"/></svg>' },
     daviplata:     { color:'#E11D48', bg:'#FFF1F2', svg:'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2.5"/></svg>' },
   };
   const CANAL_INFO = {
-    salon:     { color:'#5B6BFF', bg:'#EEF2FF', label:'Salón' },
+    salon:     { color:'#A31621', bg:'#FBEAEC', label:'Salón' },
     mostrador: { color:'#06B6D4', bg:'#CFFAFE', label:'Mostrador' },
     domicilio: { color:'#10B981', bg:'#D1FAE5', label:'Domicilio' },
   };
@@ -891,13 +891,13 @@ function rsvg(name, sz) {
 
 const RS_METHODS = [
   {id:'efectivo',      name:'Efectivo',      icon:'cash',     color:'#16A34A', tint:'#DCFCE7'},
-  {id:'tarjeta',       name:'Tarjeta',        icon:'card',     color:'#5B6BFF', tint:'#EEF2FF'},
+  {id:'tarjeta',       name:'Tarjeta',        icon:'card',     color:'#A31621', tint:'#FBEAEC'},
   {id:'transferencia', name:'Transferencia',  icon:'transfer', color:'#0EA5E9', tint:'#F0F9FF'},
-  {id:'nequi',         name:'Nequi',          icon:'phone',    color:'#8B5CF6', tint:'#F5F3FF'},
+  {id:'nequi',         name:'Nequi',          icon:'phone',    color:'#C0463C', tint:'#F5F3FF'},
   {id:'daviplata',     name:'Daviplata',      icon:'phone',    color:'#E11D48', tint:'#FFF1F2'},
 ];
 const RS_CHANNELS = {
-  salon:     {name:'Salón',     color:'#5B6BFF', tint:'#EEF2FF'},
+  salon:     {name:'Salón',     color:'#A31621', tint:'#FBEAEC'},
   mostrador: {name:'Mostrador', color:'#06B6D4', tint:'#CFFAFE'},
   domicilio: {name:'Domicilio', color:'#10B981', tint:'#D1FAE5'},
 };
@@ -1206,7 +1206,7 @@ async function renderResumen() {
   const meserosHTML = R.meseros.length ? R.meseros.map((m,i) => `
     <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr;align-items:center;padding:12px 20px;${i<R.meseros.length-1?'border-bottom:1px solid #F5F6F8':''}">
       <span style="display:inline-flex;align-items:center;gap:10px;min-width:0">
-        <span style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#5B6BFF,#8B5CF6);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${m.ini}</span>
+        <span style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#A31621,#C0463C);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${m.ini}</span>
         <span style="font-size:13px;font-weight:700;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</span>
       </span>
       <span style="text-align:center;font-size:13px;font-weight:700;color:#475569;font-variant-numeric:tabular-nums">${m.count}</span>
@@ -1229,22 +1229,22 @@ async function renderResumen() {
     const h = Math.max(4, Math.round((v/maxSpark)*100));
     const lbl = v >= 1000000 ? (v/1000000).toFixed(1)+'M' : v >= 1000 ? (v/1000).toFixed(0)+'k' : String(Math.round(v));
     return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end">
-      <span style="font-size:10px;font-weight:700;color:${last?'#5B6BFF':'#94A3B8'};font-variant-numeric:tabular-nums">${lbl}</span>
-      <div style="width:100%;max-width:46px;height:${h}%;background:${last?'linear-gradient(180deg,#5B6BFF,#8B5CF6)':'#E2E8F0'};border-radius:7px 7px 3px 3px"></div>
+      <span style="font-size:10px;font-weight:700;color:${last?'#A31621':'#94A3B8'};font-variant-numeric:tabular-nums">${lbl}</span>
+      <div style="width:100%;max-width:46px;height:${h}%;background:${last?'linear-gradient(180deg,#A31621,#C0463C)':'#E2E8F0'};border-radius:7px 7px 3px 3px"></div>
     </div>`;
   }).join('');
 
   const sparkLabels = R.spark.map((_,i)=>{
     const offset = R.spark.length-1-i;
     const last   = i===R.spark.length-1;
-    return `<span style="${last?'color:#5B6BFF':''}">${last?'Actual':'-'+offset}</span>`;
+    return `<span style="${last?'color:#A31621':''}">${last?'Actual':'-'+offset}</span>`;
   }).join('');
 
   body.innerHTML = `
-    ${rsSectionHead('cash','#5B6BFF','Lo más importante','Financiero','Cuánto entró, cómo pagaron y si la caja cuadró.')}
+    ${rsSectionHead('cash','#A31621','Lo más importante','Financiero','Cuánto entró, cómo pagaron y si la caja cuadró.')}
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px">
       <div class="cj-card" style="padding:18px">
-        <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:#5B6BFF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">${rsvg('bag',13)} Ventas totales</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:#A31621;font-weight:700;text-transform:uppercase;letter-spacing:.05em">${rsvg('bag',13)} Ventas totales</div>
         <div style="font-size:30px;font-weight:800;color:#0F172A;margin-top:6px;letter-spacing:-.03em;font-variant-numeric:tabular-nums">${COPF(R.totalVentas)}</div>
         <div style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;margin-top:6px;color:${growthUp?'#16A34A':'#DC2626'}">${rsvg(growthUp?'arrowup':'arrowdown',12)} ${growthUp?'+':'−'}${Math.abs(growthPct).toFixed(1)}% vs ${R.comp.prevLabel.toLowerCase()}</div>
       </div>
@@ -1282,7 +1282,7 @@ async function renderResumen() {
       </div>
     </div>
 
-    ${rsSectionHead('bag','#8B5CF6','Qué se vendió','Productos','Los más pedidos del periodo.')}
+    ${rsSectionHead('bag','#C0463C','Qué se vendió','Productos','Los más pedidos del periodo.')}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:4px">
       <div class="cj-card" style="padding:18px 20px">
         <div class="cj-card-title">${rsvg('star',15)} Más vendidos</div>
@@ -1291,7 +1291,7 @@ async function renderResumen() {
       <div class="cj-card" style="padding:18px 20px">
         <div class="cj-card-title">${rsvg('register',15)} Ventas por producto</div>
         <div style="display:flex;flex-direction:column;gap:12px;margin-top:15px">
-          ${R.top.length ? R.top.map(t => rsBarRow(t.name, t.total, (t.total/Math.max(1,...R.top.map(x=>x.total)))*100, '#8B5CF6', t.qty+' und', null)).join('') : '<div style="color:#94A3B8;font-size:12px;padding:12px 0">Sin datos</div>'}
+          ${R.top.length ? R.top.map(t => rsBarRow(t.name, t.total, (t.total/Math.max(1,...R.top.map(x=>x.total)))*100, '#C0463C', t.qty+' und', null)).join('') : '<div style="color:#94A3B8;font-size:12px;padding:12px 0">Sin datos</div>'}
         </div>
       </div>
     </div>
@@ -1315,7 +1315,7 @@ async function renderResumen() {
             <div style="font-size:11.5px;color:#94A3B8">${fmtDT(R.openedAt)}</div></div>
           </div>
           <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid #ECEEF2;border-radius:12px">
-            <div style="width:36px;height:36px;border-radius:10px;background:#EEF2FF;color:#5B6BFF;display:flex;align-items:center;justify-content:center;flex-shrink:0">${rsvg('closebox',17)}</div>
+            <div style="width:36px;height:36px;border-radius:10px;background:#FBEAEC;color:#A31621;display:flex;align-items:center;justify-content:center;flex-shrink:0">${rsvg('closebox',17)}</div>
             <div><div style="font-size:10.5px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.04em">Cerró</div>
             <div style="font-size:13px;font-weight:700;color:#0F172A">${R.sessionUser}</div>
             <div style="font-size:11.5px;color:#94A3B8">${fmtDT(R.closedAt)}</div></div>
@@ -1363,7 +1363,7 @@ async function renderResumen() {
         <div style="margin-top:18px;display:flex;flex-direction:column;gap:11px">
           <div>
             <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px"><span style="color:#0F172A;font-weight:700">Este turno</span><span style="font-weight:800;font-variant-numeric:tabular-nums">${COPF(R.comp.this)}</span></div>
-            <div style="height:8px;background:#F1F5F9;border-radius:999px;overflow:hidden"><div style="height:100%;width:100%;background:#5B6BFF;border-radius:999px"></div></div>
+            <div style="height:8px;background:#F1F5F9;border-radius:999px;overflow:hidden"><div style="height:100%;width:100%;background:#A31621;border-radius:999px"></div></div>
           </div>
           <div>
             <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px"><span style="color:#64748B;font-weight:600">${R.comp.prevLabel}</span><span style="font-weight:700;color:#64748B;font-variant-numeric:tabular-nums">${COPF(R.comp.prev)}</span></div>
@@ -1436,7 +1436,7 @@ renderCierres = function(sessions) {
       </div>
       <div class="cj-cierre-rows">
         <div class="cj-cierre-line"><span class="lbl"><span class="cj-dot" style="background:#16A34A"></span> Apertura <span class="when">${fAp} · ${hAp}</span></span><span class="cj-amt-open">${COPF(s.opening_cash||0)}</span></div>
-        <div class="cj-cierre-line"><span class="lbl"><span class="cj-dot" style="background:#5B6BFF"></span> Cierre <span class="when">${fCi} · ${hCi}</span></span><span class="cj-amt-close">${COPF(s.closing_cash||0)}</span></div>
+        <div class="cj-cierre-line"><span class="lbl"><span class="cj-dot" style="background:#A31621"></span> Cierre <span class="when">${fCi} · ${hCi}</span></span><span class="cj-amt-close">${COPF(s.closing_cash||0)}</span></div>
       </div>
       <div class="cj-cierre-hint">Ver resumen completo →</div>
     </div>`;

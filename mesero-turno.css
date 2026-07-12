@@ -1,6 +1,6 @@
 /* ============================================================
    LUMEN POS · TABLET MESERO — Pantalla de turno
-   Tokens idénticos al sistema (DM Sans, #5B6BFF, #FAFAFB).
+   Tokens idénticos al sistema (DM Sans, #A31621, #FAFAFB).
    Layout centrado, optimizado para tablet horizontal.
    ============================================================ */
 
@@ -12,9 +12,9 @@
   --ink-2:     #475569;
   --ink-3:     #64748B;
   --ink-4:     #94A3B8;
-  --accent:    #5B6BFF;
-  --accent-2:  #8B5CF6;
-  --accent-50: #EEF2FF;
+  --accent:    #A31621;
+  --accent-2:  #C0463C;
+  --accent-50: #FBEAEC;
   --success:   #10B981;
   --success-bg:#ECFDF5;
   --success-bd:#A7F3D0;
@@ -42,7 +42,7 @@ button { font-family: inherit; cursor: pointer; }
 .turno-backdrop {
   position: fixed; inset: 0;
   background:
-    radial-gradient(800px 500px at 10% 50%, #EEF2FF 0%, rgba(238,242,255,0) 65%),
+    radial-gradient(800px 500px at 10% 50%, #FBEAEC 0%, rgba(238,242,255,0) 65%),
     radial-gradient(600px 400px at 95% 50%, #F3EEFF 0%, rgba(243,238,255,0) 60%),
     var(--bg);
   display: flex;
@@ -119,7 +119,7 @@ button { font-family: inherit; cursor: pointer; }
   display: flex; align-items: center; justify-content: center;
   font-size: 30px; font-weight: 800; color: #fff;
   margin-bottom: 20px;
-  box-shadow: 0 8px 24px -8px rgba(91,107,255,.45);
+  box-shadow: 0 8px 24px -8px rgba(163,22,33,.45);
 }
 
 .turno-saludo {
@@ -184,7 +184,7 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: var(--r-md);
   font-size: 16px; font-weight: 700;
   color: #fff;
-  box-shadow: 0 4px 14px -3px rgba(91,107,255,.45);
+  box-shadow: 0 4px 14px -3px rgba(163,22,33,.45);
   transition: opacity .15s, transform .1s;
   display: flex; align-items: center; justify-content: center; gap: 10px;
   min-height: 56px;

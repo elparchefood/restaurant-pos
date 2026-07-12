@@ -227,7 +227,7 @@ function renderChart(orders, from, to, label) {
     const y  = H - bH;
     const w  = bW - pad * 2;
     return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${bH.toFixed(1)}"
-              rx="3" fill="${v > 0 ? '#5B6BFF' : '#ECEEF2'}" opacity="${v > 0 ? '1' : '0.5'}"/>`;
+              rx="3" fill="${v > 0 ? '#A31621' : '#ECEEF2'}" opacity="${v > 0 ? '1' : '0.5'}"/>`;
   }).join('');
 
   // X labels (show every Nth)
@@ -242,9 +242,9 @@ function renderChart(orders, from, to, label) {
 // ── Payment methods ───────────────────────────────────────────────────────
 const PAY_COLORS = {
   efectivo:      '#10B981',
-  tarjeta:       '#5B6BFF',
+  tarjeta:       '#A31621',
   transferencia: '#F59E0B',
-  nequi:         '#8B5CF6',
+  nequi:         '#C0463C',
   multiple:      '#64748B',
 };
 const PAY_NAMES = {

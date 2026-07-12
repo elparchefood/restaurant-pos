@@ -116,7 +116,7 @@
     const pill = document.getElementById('pos-sync-pill');
     if (!bar || !pill) return;
 
-    const colors = { offline: '#F59E0B', syncing: '#5B6BFF', online: '#22C55E', error: '#EF4444' };
+    const colors = { offline: '#F59E0B', syncing: '#A31621', online: '#22C55E', error: '#EF4444' };
     const msgs   = {
       offline: '● Sin conexión — los pedidos se guardan localmente',
       syncing: `↑ Sincronizando ${count || ''} operacion${count === 1 ? '' : 'es'}…`,

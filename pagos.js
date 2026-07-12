@@ -42,7 +42,7 @@ const APPLIED_ICONS = {
   nequi:         `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v.01M14 21h.01M17 21h4v-4"/></svg>`,
 };
 
-const CAT_PALETTE = ['#5B6BFF','#8B5CF6','#EC4899','#F59E0B','#10B981','#0EA5E9','#EF4444','#14B8A6'];
+const CAT_PALETTE = ['#A31621','#C0463C','#EC4899','#F59E0B','#10B981','#0EA5E9','#EF4444','#14B8A6'];
 function catColorFor(id) {
   if (!id) return CAT_PALETTE[0];
   let h = 0;
@@ -684,7 +684,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ════════ MODAL DESCUENTO ════════════════════════════════════════════════
 
-const NCOLORS = ['#5B6BFF','#10B981','#F59E0B','#0EA5E9','#8B5CF6','#F43F5E','#14B8A6','#EC4899'];
+const NCOLORS = ['#A31621','#10B981','#F59E0B','#0EA5E9','#C0463C','#F43F5E','#14B8A6','#EC4899'];
 const PCTS    = [5, 10, 15, 20];
 const MONTOS  = [5000, 10000, 20000, 50000];
 const MOTIVOS = ['Cortesía', 'Cliente frecuente', 'Promoción', 'Ajuste'];
@@ -915,7 +915,7 @@ function renderSplitStrip() {
 
   document.getElementById('split-dots').innerHTML = info.rows.map(r => {
     const color = info.paid >= r.cum ? '#16A34A'
-      : r.i === info.curIndex ? '#5B6BFF' : '#CBD5E1';
+      : r.i === info.curIndex ? '#A31621' : '#CBD5E1';
     return `<span class="pg-split-dot" style="background:${color}"></span>`;
   }).join('');
 }

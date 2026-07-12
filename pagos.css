@@ -26,19 +26,19 @@
   --faint:         #CBD5E1;   /* monto en cero, crumbs */
 
   /* marca / acentos */
-  --brand:         #5B6BFF;   /* azul Lumen (primario / tarjeta) */
-  --brand-press:   #4F5BE3;   /* hover primario */
-  --brand-tint:    #EEF2FF;   /* fondo suave de marca */
-  --brand-ring:    #C7D2FE;   /* borde foco/hover marca */
-  --violet:        #8B5CF6;   /* gradiente logo / Nequi */
+  --brand:         #A31621;   /* azul Lumen (primario / tarjeta) */
+  --brand-press:   #86111A;   /* hover primario */
+  --brand-tint:    #FBEAEC;   /* fondo suave de marca */
+  --brand-ring:    #EBB9BE;   /* borde foco/hover marca */
+  --violet:        #C0463C;   /* gradiente logo / Nequi */
   --violet-tint:   #F5F3FF;
   --violet-ring:   #DDD6FE;
 
   /* métodos de pago */
   --cash:          #10B981;  --cash-tint:  #ECFDF5;  --cash-ring:  #A7F3D0;
-  --card:          #5B6BFF;  --card-tint:  #EEF2FF;  --card-ring:  #C7D2FE;
+  --card:          #A31621;  --card-tint:  #FBEAEC;  --card-ring:  #EBB9BE;
   --transfer:      #0EA5E9;  --transfer-tint: #F0F9FF; --transfer-ring: #BAE6FD;
-  --qr:            #8B5CF6;  --qr-tint:    #F5F3FF;  --qr-ring:    #DDD6FE;
+  --qr:            #C0463C;  --qr-tint:    #F5F3FF;  --qr-ring:    #DDD6FE;
 
   /* semánticos */
   --success:       #16A34A;  --success-tint: #DCFCE7;
@@ -49,10 +49,10 @@
   /* categorías (punto de color en el ticket) */
   --cat-adiciones: #F59E0B;
   --cat-bebidas:   #0EA5E9;
-  --cat-burgers:   #5B6BFF;
+  --cat-burgers:   #A31621;
   --cat-perros:    #F43F5E;
   --cat-salchi:    #10B981;
-  --cat-sandwich:  #8B5CF6;
+  --cat-sandwich:  #C0463C;
 
   /* radios */
   --r-sm: 5px;  --r-md: 7px;  --r-lg: 8px;  --r-xl: 9px;
@@ -60,7 +60,7 @@
   --r-6xl: 14px; --r-7xl: 16px; --r-card: 20px; --r-pill: 999px;
 
   /* sombras */
-  --sh-primary:   0 4px 12px -3px rgba(91,107,255,.45);
+  --sh-primary:   0 4px 12px -3px rgba(163,22,33,.45);
   --sh-finish:    0 8px 20px -8px rgba(22,163,74,.6);
   --sh-overlay:   0 30px 80px -20px rgba(15,23,42,.4);
 }
@@ -805,7 +805,7 @@ svg { display: block; }
   border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
   background: var(--accent-tint, #EEF0FF);
-  color: var(--accent, #5B6BFF);
+  color: var(--accent, #A31621);
   flex-shrink: 0;
 }
 .pg-payment-row-info { flex: 1; min-width: 0; }
@@ -835,8 +835,8 @@ svg { display: block; }
   transition: background .15s, border-color .15s;
 }
 .pg-pin-dot.filled {
-  background: var(--accent, #5B6BFF);
-  border-color: var(--accent, #5B6BFF);
+  background: var(--accent, #A31621);
+  border-color: var(--accent, #A31621);
 }
 .pg-pin-dot.error {
   background: #EF4444;

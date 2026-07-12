@@ -17,7 +17,7 @@
           '<div style="font-size:13px;color:#64748B;line-height:1.55">Debes aperturar la caja antes de registrar ventas. Todas las ventas quedan guardadas en el cuadre de caja.</div>',
         '</div>',
         '<div style="display:flex;flex-direction:column;gap:10px">',
-          '<button id="caja-guard-btn-open" style="background:#5B6BFF;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;width:100%">Abrir caja</button>',
+          '<button id="caja-guard-btn-open" style="background:#A31621;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;width:100%">Abrir caja</button>',
           '<button id="caja-guard-btn-cancel" style="background:#F1F5F9;color:#64748B;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;width:100%">Cancelar</button>',
         '</div>',
       '</div>'

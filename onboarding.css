@@ -1,6 +1,6 @@
 /* ============================================================
    LUMEN POS · ONBOARDING — Primer ingreso (wizard 3 pasos)
-   Modal centrado. Tema claro. Fuente 'DM Sans'. Acento #5B6BFF.
+   Modal centrado. Tema claro. Fuente 'DM Sans'. Acento #A31621.
    Valores EXACTOS (hex, px, radios, sombras, curvas).
    Secciones: 1) reset + tokens  2) backdrop + tarjeta
    3) encabezado + barra de progreso  4) cuerpo + pasos
@@ -12,7 +12,7 @@
 :root{
   --bg:#FAFAFB; --surface:#FFFFFF; --border:#ECEEF2; --line-soft:#DCE0E8;
   --ink:#0F172A; --ink-2:#475569; --ink-3:#64748B; --ink-4:#94A3B8; --ink-5:#CBD5E1;
-  --accent:#5B6BFF; --accent-hover:#4F5BE3; --accent-2:#8B5CF6; --accent-50:#EEF2FF; --accent-bg:#F4F6FF;
+  --accent:#A31621; --accent-hover:#86111A; --accent-2:#C0463C; --accent-50:#FBEAEC; --accent-bg:#F4F6FF;
   --soft:#F1F5F9; --soft-2:#F8FAFC; --soft-3:#FBFBFD;
   --success:#16A34A; --success-bg:#DCFCE7; --danger:#DC2626; --danger-bd:#FECACA; --danger-bg:#FEF2F2;
   --r-card:20px; --r-md:12px; --r-sm:9px;
@@ -26,7 +26,7 @@ input::placeholder{color:var(--ink-4);}
 /* ===== 2) BACKDROP + TARJETA ===== */
 /* fondo: velo con halos de marca */
 .ob-backdrop{position:fixed;inset:0;background:
-  radial-gradient(1100px 620px at 18% -10%, #EEF2FF 0%, rgba(238,242,255,0) 60%),
+  radial-gradient(1100px 620px at 18% -10%, #FBEAEC 0%, rgba(238,242,255,0) 60%),
   radial-gradient(900px 560px at 108% 120%, #F3EEFF 0%, rgba(243,238,255,0) 55%),
   var(--bg);
   display:flex;align-items:center;justify-content:center;padding:28px;overflow:auto;}
@@ -38,7 +38,7 @@ input::placeholder{color:var(--ink-4);}
 .ob-head{padding:24px 32px 20px;border-bottom:1px solid var(--border);flex-shrink:0;}
 .ob-brandrow{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
 .ob-brand{display:flex;align-items:center;gap:11px;}
-.ob-logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;box-shadow:0 4px 12px -3px rgba(91,107,255,.5);}
+.ob-logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;box-shadow:0 4px 12px -3px rgba(163,22,33,.5);}
 .ob-brand-name{font-size:14px;font-weight:700;}
 .ob-brand-sub{font-size:11px;color:var(--ink-4);font-weight:500;}
 .ob-stepcount{font-size:12px;font-weight:700;color:var(--accent);background:var(--accent-50);padding:5px 11px;border-radius:999px;}
@@ -73,7 +73,7 @@ input::placeholder{color:var(--ink-4);}
 .ob-req{color:var(--accent);font-size:13px;line-height:1;}   /* asterisco requerido */
 .ob-opt{font-size:10.5px;font-weight:600;color:var(--ink-4);text-transform:uppercase;letter-spacing:.04em;} /* etiqueta "Opcional" */
 .ob-input,.ob-select{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13.5px;font-weight:500;color:var(--ink);outline:none;background:#fff;transition:border-color .15s,box-shadow .15s;}
-.ob-input:focus,.ob-select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,107,255,.12);}
+.ob-input:focus,.ob-select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(163,22,33,.12);}
 .ob-input.err{border-color:var(--danger);box-shadow:0 0 0 3px rgba(220,38,38,.1);}  /* campo inválido */
 .ob-inputwrap{position:relative;display:flex;align-items:center;}
 .ob-inputwrap .pfx{position:absolute;left:13px;font-size:13.5px;font-weight:600;color:var(--ink-4);pointer-events:none;} /* prefijo +57 / $ */
@@ -88,7 +88,7 @@ input::placeholder{color:var(--ink-4);}
 /* ===== 6) STEPPER DE MESAS ===== */
 .ob-stepper{display:flex;align-items:center;gap:12px;background:var(--soft-2);border:1px solid var(--border);border-radius:var(--r-md);padding:7px;}
 .ob-stepbtn{width:44px;height:44px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--ink-2);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.14s;}
-.ob-stepbtn:hover:not(:disabled){color:var(--accent);border-color:#C7D2FE;background:var(--accent-bg);}
+.ob-stepbtn:hover:not(:disabled){color:var(--accent);border-color:#EBB9BE;background:var(--accent-bg);}
 .ob-stepbtn:disabled{opacity:.4;cursor:not-allowed;}     /* en el límite (1 ó 50) */
 .ob-stepval{flex:1;text-align:center;}
 .ob-stepnum{font-size:25px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-0.02em;}
@@ -98,7 +98,7 @@ input::placeholder{color:var(--ink-4);}
 .ob-typegrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;}
 .ob-type{display:flex;flex-direction:column;align-items:center;gap:7px;padding:13px 8px;border:1px solid var(--border);border-radius:var(--r-md);background:#fff;transition:.14s;}
 .ob-type:hover{border-color:var(--line-soft);background:var(--soft-2);}
-.ob-type.on{border-color:var(--accent);background:var(--accent-bg);box-shadow:0 0 0 3px rgba(91,107,255,.1);} /* seleccionado */
+.ob-type.on{border-color:var(--accent);background:var(--accent-bg);box-shadow:0 0 0 3px rgba(163,22,33,.1);} /* seleccionado */
 .ob-type-ic{width:34px;height:34px;border-radius:9px;background:var(--soft);color:var(--ink-3);display:flex;align-items:center;justify-content:center;transition:.14s;}
 .ob-type.on .ob-type-ic{background:var(--accent);color:#fff;}
 .ob-type-lbl{font-size:12px;font-weight:600;color:var(--ink-2);}
@@ -123,8 +123,8 @@ input::placeholder{color:var(--ink-4);}
 .ob-foot .spacer{flex:1;}
 .ob-foot.center{justify-content:center;}                 /* paso 3: botón único centrado */
 .ob-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;border-radius:var(--r-sm);font-size:13.5px;font-weight:700;border:1px solid transparent;transition:.15s;}
-.ob-btn-primary{background:var(--accent);color:#fff;box-shadow:0 4px 14px -4px rgba(91,107,255,.55);}
-.ob-btn-primary:hover{background:var(--accent-hover);box-shadow:0 6px 18px -5px rgba(91,107,255,.6);}
+.ob-btn-primary{background:#FACC15;color:#713F12;box-shadow:0 4px 14px -4px rgba(234,179,8,.45);}
+.ob-btn-primary:hover{background:var(--accent-hover);box-shadow:0 6px 18px -5px rgba(163,22,33,.6);}
 .ob-btn-ghost{background:#fff;color:var(--ink-2);border-color:var(--border);}
 .ob-btn-ghost:hover{background:var(--soft-2);color:var(--ink);}
 .ob-btn-success{background:var(--success);color:#fff;box-shadow:0 4px 14px -4px rgba(22,163,74,.55);}
@@ -143,7 +143,7 @@ input::placeholder{color:var(--ink-4);}
 }
 .ob-inputwrap.has-dial:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(91,107,255,.12);
+  box-shadow: 0 0 0 3px rgba(163,22,33,.12);
 }
 .ob-dial {
   border: none;

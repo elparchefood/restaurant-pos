@@ -98,7 +98,7 @@ async function loadSession(branchId) {
   } else {
     $('hero-sub').textContent = 'Tu caja esta cerrada. Aperturala para comenzar a registrar ventas de hoy.';
     $('btn-session-lbl').textContent = 'Aperturar caja';
-    $('btn-session').style.background = '#5B6BFF';
+    $('btn-session').style.background = '#A31621';
   }
 
   const cajaCode = data?.id?.slice(-6).toUpperCase() || '——';
@@ -304,16 +304,16 @@ function renderChart() {
 
   $('chart-svg').innerHTML = `
     <defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#5B6BFF" stop-opacity=".2"/>
-      <stop offset="100%" stop-color="#5B6BFF" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#A31621" stop-opacity=".2"/>
+      <stop offset="100%" stop-color="#A31621" stop-opacity="0"/>
     </linearGradient></defs>
     ${gridVals.map(v=>{const y=pT+cH-(v/maxV)*cH; return `<line x1="${pL}" y1="${y.toFixed(1)}" x2="${W}" y2="${y.toFixed(1)}" stroke="#ECEEF2" stroke-width="1" stroke-dasharray="2 4"/>
     <text x="${pL-4}" y="${(y+4).toFixed(1)}" font-size="10" fill="#94A3B8" text-anchor="end" font-family="inherit">${mode==='money'?COP(v):v}</text>`;}).join('')}
     ${DAYS.map((d,i)=>{const [x]=pt(i,0); return `<text x="${x.toFixed(1)}" y="${H-2}" font-size="10" fill="#94A3B8" text-anchor="middle" font-family="inherit">${d}</text>`;}).join('')}
     <path d="${path(prev)}" fill="none" stroke="#CBD5E1" stroke-width="2" stroke-dasharray="4 4"/>
     <path d="${path(vals)+areaClose}" fill="url(#ag)"/>
-    <path d="${path(vals)}" fill="none" stroke="#5B6BFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-    ${vals.map((v,i)=>{const[x,y]=pt(i,v); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="#fff" stroke="#5B6BFF" stroke-width="2"/>`;}).join('')}`;
+    <path d="${path(vals)}" fill="none" stroke="#A31621" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    ${vals.map((v,i)=>{const[x,y]=pt(i,v); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="#fff" stroke="#A31621" stroke-width="2"/>`;}).join('')}`;
 }
 
 function setChartMode(mode, btn) {
@@ -337,10 +337,10 @@ function showAperturaModal() {
   var overlay = document.createElement('div');
   overlay.id = 'modal-apertura-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(4px);z-index:9000;display:flex;align-items:center;justify-content:center';
-  var iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B6BFF" stroke-width="2.2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>';
+  var iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A31621" stroke-width="2.2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>';
   overlay.innerHTML = '<div style="background:#fff;border-radius:16px;padding:28px 28px 24px;width:360px;max-width:90vw;box-shadow:0 20px 60px rgba(15,23,42,.18)">'
     + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">'
-    + '<div style="width:40px;height:40px;border-radius:10px;background:#EEF2FF;display:flex;align-items:center;justify-content:center">' + iconSvg + '</div>'
+    + '<div style="width:40px;height:40px;border-radius:10px;background:#FBEAEC;display:flex;align-items:center;justify-content:center">' + iconSvg + '</div>'
     + '<div><div style="font-weight:700;font-size:15px;color:#0F172A">Aperturar caja</div>'
     + '<div style="font-size:12px;color:#64748B">Ingresa el dinero inicial de la caja</div></div></div>'
     + '<label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px">Monto de apertura (COP)</label>'
@@ -348,13 +348,13 @@ function showAperturaModal() {
     + '<span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94A3B8;font-weight:600">$</span>'
     + '<input id="apertura-monto" type="number" min="0" step="1000" placeholder="0"'
     + ' style="width:100%;border:1.5px solid #ECEEF2;border-radius:10px;padding:10px 12px 10px 28px;font-size:15px;font-weight:600;color:#0F172A;outline:none;box-sizing:border-box"'
-    + ' onfocus="this.style.borderColor=\'#5B6BFF\'" onblur="this.style.borderColor=\'#ECEEF2\'">'
+    + ' onfocus="this.style.borderColor=\'#A31621\'" onblur="this.style.borderColor=\'#ECEEF2\'">'
     + '</div>'
     + '<div style="display:flex;gap:10px">'
     + '<button onclick="document.getElementById(\'modal-apertura-overlay\').remove()"'
     + ' style="flex:1;padding:10px;border:1.5px solid #ECEEF2;border-radius:10px;background:#fff;color:#64748B;font-size:14px;font-weight:600;cursor:pointer">Cancelar</button>'
     + '<button id="btn-confirmar-apertura" onclick="confirmarApertura()"'
-    + ' style="flex:1;padding:10px;border:none;border-radius:10px;background:#5B6BFF;color:#fff;font-size:14px;font-weight:600;cursor:pointer">Aperturar</button>'
+    + ' style="flex:1;padding:10px;border:none;border-radius:10px;background:#A31621;color:#fff;font-size:14px;font-weight:600;cursor:pointer">Aperturar</button>'
     + '</div></div>';
   document.body.appendChild(overlay);
   setTimeout(function() { var el = document.getElementById('apertura-monto'); if (el) el.focus(); }, 50);
@@ -450,8 +450,8 @@ async function verTurnoAnterior() {
       +'<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#F8FAFC;border-radius:10px"><span style="color:#64748B">Turno</span><span style="font-weight:600;color:#0F172A">'+(session.shift_type||'—')+'</span></div>'
       +'<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#F8FAFC;border-radius:10px"><span style="color:#64748B">Apertura</span><span style="font-weight:600;color:#0F172A">'+fmtDate(session.opened_at)+'</span></div>'
       +'<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#F8FAFC;border-radius:10px"><span style="color:#64748B">Cierre</span><span style="font-weight:600;color:#0F172A">'+fmtDate(session.closed_at)+'</span></div>'
-      +'<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#EEF2FF;border-radius:10px"><span style="color:#5B6BFF;font-weight:600">Monto apertura</span><span style="font-weight:700;color:#5B6BFF">'+COPF2(session.opening_cash)+'</span></div>'
-      +'<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#EEF2FF;border-radius:10px"><span style="color:#5B6BFF;font-weight:600">Monto cierre</span><span style="font-weight:700;color:#5B6BFF">'+COPF2(session.closing_cash)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#FBEAEC;border-radius:10px"><span style="color:#A31621;font-weight:600">Monto apertura</span><span style="font-weight:700;color:#A31621">'+COPF2(session.opening_cash)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#FBEAEC;border-radius:10px"><span style="color:#A31621;font-weight:600">Monto cierre</span><span style="font-weight:700;color:#A31621">'+COPF2(session.closing_cash)+'</span></div>'
       +'<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#F0FDF4;border-radius:10px"><span style="color:#16A34A;font-weight:600">Total ventas</span><span style="font-weight:700;color:#16A34A">'+COPF2(session.total_sales)+'</span></div>'
       +notesHtml+'</div>'+movesHtml;
   } catch(err) {
@@ -556,10 +556,10 @@ function renderDesglose(orders) {
   });
 
   const CARDS = [
-    { key:'cash',    label:'Ventas en efectivo',      color:'#5B6BFF', spark:[14,20,16,24,28,32,30], tag:null },
+    { key:'cash',    label:'Ventas en efectivo',      color:'#A31621', spark:[14,20,16,24,28,32,30], tag:null },
     { key:'card',    label:'Ventas con tarjeta',       color:'#06B6D4', spark:[2,3,2,1,2,1,2],        tag:null },
     { key:'online',  label:'Ventas en linea + vales',  color:'#10B981', spark:[1,2,1,2,1,1,1],        tag:null },
-    { key:'bank',    label:'Deposito / Transferencia', color:'#8B5CF6', spark:[6,8,7,5,9,8,10],       tag:null },
+    { key:'bank',    label:'Deposito / Transferencia', color:'#C0463C', spark:[6,8,7,5,9,8,10],       tag:null },
     { key:'credit',  label:'Ventas al credito',        color:'#F59E0B', spark:[1,1,2,1,2,1,1],        tag:'Intereses $0' },
     { key:'voucher', label:'Total de descuentos',      color:'#94A3B8', spark:[2,1,3,1,2,1,2],        tag:null },
   ];
@@ -792,8 +792,8 @@ function renderTipoPago(orders) {
   if (pt) pt.textContent = COPF(grand);
 
   const METHODS = [
-    { key:'cash',     label:'En efectivo',    color:'#5B6BFF', sub:'Pesos Colombianos (100%)' },
-    { key:'bank',     label:'En deposito',    color:'#8B5CF6', sub:'Bancolombia · transferencia' },
+    { key:'cash',     label:'En efectivo',    color:'#A31621', sub:'Pesos Colombianos (100%)' },
+    { key:'bank',     label:'En deposito',    color:'#C0463C', sub:'Bancolombia · transferencia' },
     { key:'card',     label:'Tarjeta',        color:'#06B6D4', sub:'Debito / Credito' },
     { key:'online',   label:'En linea',       color:'#10B981', sub:'QR · link de pago' },
     { key:'voucher',  label:'En vale',        color:'#F59E0B', sub:'Sodexo · Big Pass' },
@@ -808,7 +808,7 @@ function renderTipoPago(orders) {
           const p = grand > 0 ? (pm[m.key] / grand) * 100 : 0;
           return `<div style="width:${p.toFixed(2)}%;background:${m.color}" title="${m.label}: ${COPF(pm[m.key])}"></div>`;
         }).join('')
-      : '<div style="width:100%;background:#E0E7FF"></div>';
+      : '<div style="width:100%;background:#F3D2D6"></div>';
   }
 
   const pg = document.getElementById('pay-grid');
@@ -843,7 +843,7 @@ function renderCanalVenta(orders) {
   const grand = orders.reduce((s, o) => s + (o.total || 0), 0) || 1;
 
   const CANALES = [
-    { key:'salon',       label:'Salones',      color:'#5B6BFF' },
+    { key:'salon',       label:'Salones',      color:'#A31621' },
     { key:'quick',       label:'Venta rapida', color:'#06B6D4' },
     { key:'delivery',    label:'Domicilio',    color:'#10B981' },
     { key:'reservation', label:'Reservacion',  color:'#94A3B8' },
@@ -921,16 +921,16 @@ function renderTicketPorHora(orders) {
     const ip   = i === peakI;
     const lbl  = noData || v === 0 ? '' : (mode === 'cantidad' ? v + ' p' : COP(v));
     barsHTML  += `<g>
-      <rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="3" fill="${ip ? 'url(#hg)' : '#E0E7FF'}"/>
-      <text x="${x + barW/2}" y="${y - 6}" font-size="9" font-weight="700" fill="${ip ? '#5B6BFF' : '#64748B'}" text-anchor="middle" font-family="inherit">${lbl}</text>
+      <rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="3" fill="${ip ? 'url(#hg)' : '#F3D2D6'}"/>
+      <text x="${x + barW/2}" y="${y - 6}" font-size="9" font-weight="700" fill="${ip ? '#A31621' : '#64748B'}" text-anchor="middle" font-family="inherit">${lbl}</text>
       <text x="${x + barW/2}" y="208" font-size="11" font-weight="600" fill="#64748B" text-anchor="middle" font-family="inherit">${h}:00</text>
     </g>`;
   });
 
   svgEl.innerHTML = `
     <defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#5B6BFF"/>
-      <stop offset="100%" stop-color="#818CF8"/>
+      <stop offset="0%" stop-color="#A31621"/>
+      <stop offset="100%" stop-color="#C0463C"/>
     </linearGradient></defs>
     ${[1,2,3,4].map(i=>`<line x1="44" y1="${20+i*38}" x2="780" y2="${20+i*38}" stroke="#ECEEF2" stroke-width="1" stroke-dasharray="2 4"/>`).join('')}
     ${barsHTML}`;
@@ -1072,7 +1072,7 @@ function renderTopProductosCompleto(prods) {
       Ranking semanal
     </div>
     <div class="top-hero-num">#1</div>
-    <div class="eyebrow" style="color:#5B6BFF;margin-top:10px">Producto top</div>
+    <div class="eyebrow" style="color:#A31621;margin-top:10px">Producto top</div>
     <div style="font-size:22px;font-weight:700;color:#0F172A;margin-top:4px;letter-spacing:-.02em;line-height:1.15">${top.name}</div>
     <div style="font-size:12px;color:#64748B;margin-top:4px">${top.cat}</div>
     <div class="top-hero-stats">
@@ -1343,9 +1343,9 @@ async function qmLoadMeseros() {
   note.textContent = 'Actualizado ahora';
 
   var gradients = [
-    'linear-gradient(135deg,#5B6BFF,#8B5CF6)',
+    'linear-gradient(135deg,#A31621,#C0463C)',
     'linear-gradient(135deg,#06B6D4,#3B82F6)',
-    'linear-gradient(135deg,#8B5CF6,#EC4899)',
+    'linear-gradient(135deg,#C0463C,#EC4899)',
     'linear-gradient(135deg,#10B981,#06B6D4)',
     'linear-gradient(135deg,#F59E0B,#EF4444)',
     'linear-gradient(135deg,#EC4899,#F43F5E)'

@@ -328,7 +328,7 @@
       }
       .kds-brand { display:flex;align-items:center;gap:12px; }
       .kds-brand-icon {
-        width:32px;height:32px;border-radius:8px;background:#5B6BFF;
+        width:32px;height:32px;border-radius:8px;background:#A31621;
         display:flex;align-items:center;justify-content:center;
       }
       .kds-brand-name { font-size:14px;font-weight:700;color:#F1F5F9; }
@@ -362,7 +362,7 @@
         cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .15s;
       }
       .kds-filter.is-active {
-        background:#5B6BFF;border-color:#5B6BFF;color:#fff;
+        background:#A31621;border-color:#A31621;color:#fff;
       }
       .kds-filter-n {
         min-width:18px;height:18px;border-radius:9px;
@@ -432,7 +432,7 @@
         display:flex;align-items:center;justify-content:center;color:transparent;
         margin-top:1px;
       }
-      .kds-item-qty  { font-size:13px;font-weight:700;color:#5B6BFF;min-width:20px; }
+      .kds-item-qty  { font-size:13px;font-weight:700;color:#A31621;min-width:20px; }
       .kds-item-name { font-size:13px;font-weight:600;color:#F1F5F9;flex:1; }
       .kds-item-note { font-size:11px;color:#F59E0B;margin-top:2px; }
 
@@ -441,15 +441,15 @@
         padding-top:8px;border-top:1px solid rgba(255,255,255,.07);
       }
       .kds-btn-ready {
-        flex:1;height:38px;border-radius:9px;border:1.5px solid rgba(91,107,255,.4);
-        background:rgba(91,107,255,.1);color:#818CF8;font-size:13px;font-weight:700;
+        flex:1;height:38px;border-radius:9px;border:1.5px solid rgba(163,22,33,.4);
+        background:rgba(163,22,33,.1);color:#C0463C;font-size:13px;font-weight:700;
         cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;
         transition:all .15s;
       }
       .kds-btn-ready--go {
         background:#22C55E;border-color:#22C55E;color:#fff;
       }
-      .kds-btn-ready:hover { background:rgba(91,107,255,.2); }
+      .kds-btn-ready:hover { background:rgba(163,22,33,.2); }
       .kds-btn-ready--go:hover { background:#16A34A; }
       .kds-served-label {
         display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;
