@@ -2006,7 +2006,108 @@ function chatiaInit() {
   var screen = $$('screen-chatia');
   if (screen) screen.addEventListener('input', markDirty);
   if (screen) screen.addEventListener('change', markDirty);
-  if (saveBtn) saveBtn.addEventListener('click', function() { markSaved(); });
+
+  // ── Leer el modelo actual del DOM ──────────────────────
+  function readModel() {
+    var chips = [];
+    ($$('wordBox') ? $$('wordBox').querySelectorAll('.wchip') : []).forEach(function(c) {
+      chips.push(c.textContent.replace('\xd7','').replace('×','').trim());
+    });
+    var faqs = [];
+    ($$('faqList') ? $$('faqList').querySelectorAll('.faq-item') : []).forEach(function(item) {
+      var q = item.querySelector('.faq-q input');
+      var a = item.querySelector('.faq-a');
+      if (q && a) faqs.push({ pregunta: q.value, respuesta: a.value });
+    });
+    var toneEl = $$('toneGrid') ? $$('toneGrid').querySelector('.tone.on') : null;
+    var voiceEl = $$('voicePick') ? $$('voicePick').querySelector('.voice.on') : null;
+    return {
+      activo:        $$('masterSwitch') ? $$('masterSwitch').checked : true,
+      perfil:        { nombre: ($$('botName') ? $$('botName').value : ''), descripcion: ($$('botDesc') ? $$('botDesc').value : ''), fotoUrl: null },
+      tono:          toneEl ? toneEl.dataset.tone : 'cercano',
+      instrucciones: $$('iaInstr') ? $$('iaInstr').value : '',
+      vocabulario:   { usar: chips, evitar: ($$('avoid') ? $$('avoid').value : '') },
+      faq:           faqs,
+      negocio:       $$('iaBiz') ? $$('iaBiz').value : '',
+      voz:           {
+        activa:         $$('voiceSwitch') ? $$('voiceSwitch').checked : false,
+        porcentajeVoz:  $$('mixSlider')   ? parseInt($$('mixSlider').value) : 30,
+        voiceId:        voiceEl ? voiceEl.dataset.voice : 'valentina'
+      }
+    };
+  }
+
+  // ── Aplicar modelo al DOM ───────────────────────────────
+  function applyModel(m) {
+    if (!m) return;
+    if ($$('masterSwitch')) { $$('masterSwitch').checked = !!m.activo; applyMaster(!!m.activo); }
+    if (m.perfil) {
+      if ($$('botName')) $$('botName').value = m.perfil.nombre || '';
+      if ($$('botDesc')) $$('botDesc').value = m.perfil.descripcion || '';
+      if ($$('pvName')) $$('pvName').childNodes[0].textContent = m.perfil.nombre || 'Asistente';
+    }
+    if (m.tono && $$('toneGrid')) {
+      $$('toneGrid').querySelectorAll('.tone').forEach(function(t) {
+        t.classList.toggle('on', t.dataset.tone === m.tono);
+      });
+    }
+    if ($$('iaInstr')) { $$('iaInstr').value = m.instrucciones || ''; updateCounter('iaInstr'); }
+    if (m.vocabulario) {
+      if ($$('avoid')) $$('avoid').value = m.vocabulario.evitar || '';
+      var wb = $$('wordBox'), wi = $$('wordInput');
+      if (wb && wi && Array.isArray(m.vocabulario.usar)) {
+        m.vocabulario.usar.forEach(function(word) {
+          var chip = document.createElement('span');
+          chip.className = 'wchip';
+          chip.innerHTML = word.replace(/</g,'&lt;') + ' <button data-x type="button">\xd7</button>';
+          wb.insertBefore(chip, wi);
+        });
+      }
+    }
+    if (Array.isArray(m.faq) && $$('faqList')) {
+      m.faq.forEach(function(f) {
+        var item = makeFaqItem();
+        var q = item.querySelector('.faq-q input');
+        var a = item.querySelector('.faq-a');
+        if (q) q.value = f.pregunta || '';
+        if (a) a.value = f.respuesta || '';
+        $$('faqList').appendChild(item);
+      });
+    }
+    if ($$('iaBiz')) { $$('iaBiz').value = m.negocio || ''; updateCounter('iaBiz'); }
+    if (m.voz) {
+      if ($$('voiceSwitch')) { $$('voiceSwitch').checked = !!m.voz.activa; applyVoice(!!m.voz.activa); }
+      if ($$('mixSlider'))   { $$('mixSlider').value = m.voz.porcentajeVoz || 30; updateMix(); }
+      if (m.voz.voiceId && $$('voicePick')) {
+        $$('voicePick').querySelectorAll('.voice').forEach(function(v) {
+          v.classList.toggle('on', v.dataset.voice === m.voz.voiceId);
+        });
+      }
+    }
+  }
+
+  // ── Cargar config desde Supabase ───────────────────────
+  async function loadConfig() {
+    var session = (await sb.auth.getSession()).data.session;
+    if (!session) return;
+    var branchId = session.user.user_metadata.branch_id;
+    var { data } = await sb.from('ia_config').select('*').eq('branch_id', branchId).maybeSingle();
+    if (data) applyModel(data);
+  }
+  loadConfig();
+
+  // ── Guardar en Supabase ─────────────────────────────────
+  if (saveBtn) saveBtn.addEventListener('click', async function() {
+    var session = (await sb.auth.getSession()).data.session;
+    if (!session) return;
+    var meta = session.user.user_metadata;
+    var model = readModel();
+    model.branch_id = meta.branch_id;
+    model.tenant_id = meta.tenant_id;
+    model.updated_at = new Date().toISOString();
+    var { error } = await sb.from('ia_config').upsert(model, { onConflict: 'branch_id' });
+    if (!error) { markSaved(); } else { alert('Error guardando: ' + error.message); }
+  });
 
   // master toggle
   var masterSwitch = $$('masterSwitch'), masterEl = $$('ia-master'), masterSt = $$('masterSt'), pvSt = $$('pvSt');
