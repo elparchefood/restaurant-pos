@@ -346,6 +346,34 @@ function buildDomiciliosText(domicilios: Record<string, unknown> | null | undefi
   return lines.join("\n");
 }
 
+function formatHora12(hora24: string): string {
+  const parts = hora24.split(":");
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1] || "0", 10);
+  const ampm = h >= 12 ? "pm" : "am";
+  const h12 = h % 12 || 12;
+  return m === 0 ? `${h12}${ampm}` : `${h12}:${String(m).padStart(2, "0")}${ampm}`;
+}
+
+function resolveFaqVars(text: string, horarios: Record<string, unknown> | null | undefined): string {
+  if (!horarios || !text) return text;
+  const diasEs = ["domingo","lunes","martes","miercoles","jueves","viernes","sabado"];
+  const hoy = diasEs[new Date().getDay()];
+  const hoyH = horarios[hoy] as Record<string, string> | undefined;
+  // Get the most common open/close (first non-null entry)
+  const entry = Object.values(horarios).find((v) => v && (v as Record<string,string>).abre) as Record<string,string> | undefined;
+  const abreGen  = entry?.abre  || "";
+  const cierraGen = entry?.cierra || "";
+  const horarioHoy = hoyH?.abre
+    ? `${formatHora12(hoyH.abre)} a ${formatHora12(hoyH.cierra)}`
+    : "cerrado hoy";
+  return text
+    .replace(/\{hora_apertura\}/g, abreGen ? formatHora12(abreGen) : "")
+    .replace(/\{hora_cierre\}/g,   cierraGen ? formatHora12(cierraGen) : "")
+    .replace(/\{horario_hoy\}/g,   horarioHoy)
+    .replace(/\{dia_hoy\}/g,       hoy);
+}
+
 function buildSystemPrompt(
   cfg: Record<string, unknown>,
   senderName: string,
@@ -376,9 +404,13 @@ function buildSystemPrompt(
   if (Array.isArray(vocab.usar) && (vocab.usar as string[]).length)
     lines.push(`VOCABULARIO PREFERIDO: ${(vocab.usar as string[]).join(", ")}`);
   if (vocab.evitar) lines.push(`PALABRAS A EVITAR: ${vocab.evitar}`);
+  const horarios = cfg.horarios as Record<string, unknown> | null | undefined;
   if (faqs.length) {
     lines.push(""); lines.push("PREGUNTAS FRECUENTES:");
-    faqs.forEach(f => { lines.push(`P: ${f.pregunta}`); lines.push(`R: ${f.respuesta}`); });
+    faqs.forEach(f => {
+      lines.push(`P: ${f.pregunta}`);
+      lines.push(`R: ${resolveFaqVars(f.respuesta, horarios)}`);
+    });
   }
   if (horariosText)    { lines.push(""); lines.push(horariosText); }
   if (pagosText)       { lines.push(""); lines.push(pagosText); }
