@@ -1316,6 +1316,165 @@
               </div>
             </div>
 
+
+            <!-- CARD: PEDIDOS PROGRAMADOS -->
+            <div class="card" id="card-pedidos-prog">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M12 14v4M10 16h4"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Pedidos programados</div>
+                  <div class="card-hd-ds">Define qu&eacute; hace el asistente cuando un cliente quiere pedir fuera del horario de atenci&oacute;n.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="row-toggle" id="pedidosProgRow">
+                  <div class="row-toggle-tx">
+                    <div class="row-toggle-tt">Aceptar pedidos fuera de horario</div>
+                    <div class="row-toggle-ds">Si est&aacute; activo, el bot recibe pedidos aunque est&eacute; cerrado y aclara que se preparar&aacute;n cuando abramos. Si est&aacute; inactivo, solo informa el horario pero no toma el pedido.</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" id="pedidosProg"><span class="track"></span><span class="knob"></span></label>
+                </div>
+              </div>
+            </div>
+
+            <!-- CARD: FRASES DEL BOT -->
+            <div class="card" id="card-frases">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Frases del bot</div>
+                  <div class="card-hd-ds">Textos exactos que usa el asistente en los momentos clave del servicio. El bot los adapta ligeramente seg&uacute;n el contexto.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="frases-grid">
+                  <div class="field">
+                    <label class="field-lb">Saludo est&aacute;ndar</label>
+                    <textarea class="txa" data-frase="apertura" placeholder="Ej. Buenas noches, cu&eacute;ntame ¿en qué te ayudo? 🍟"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Saludo a cliente conocido</label>
+                    <textarea class="txa" data-frase="apertura_conocido" placeholder="Ej. ¡Hola de nuevo! 🍟 ¿Qué se te antoja hoy?"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Preguntar tamaño / presentación</label>
+                    <textarea class="txa" data-frase="preguntar_tamano" placeholder="Ej. ¿Lo quieres sencillo o doble?"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Preguntar dirección de entrega</label>
+                    <textarea class="txa" data-frase="preguntar_destino" placeholder="Ej. ¿Me das la dirección de entrega?"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Sugerencia (upsell)</label>
+                    <textarea class="txa" data-frase="upsell" placeholder="Ej. ¿Le añadimos papitas o bebida a tu pedido?"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Confirmar método de pago</label>
+                    <textarea class="txa" data-frase="confirmar_pago" placeholder="Ej. ¿Pagarás en efectivo o por Nequi?"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Datos Nequi / transferencia</label>
+                    <textarea class="txa" data-frase="datos_nequi" placeholder="Ej. Nequi: 3xx-xxx-xxxx a nombre de..."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Pedir comprobante de pago</label>
+                    <textarea class="txa" data-frase="esperar_comprobante" placeholder="Ej. ¡Listo! Envíame el comprobante de la transferencia 📷"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Aviso de despacho</label>
+                    <textarea class="txa" data-frase="aviso_despacho" placeholder="Ej. ¡Tu pedido ya va en camino! 🚵 Aprox. 30 min."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Pedido listo para recoger</label>
+                    <textarea class="txa" data-frase="pedido_listo_recoger" placeholder="Ej. ¡Tu pedido está listo! Puedes pasar a recogerlo 🍟"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Preguntar nombre para recibir</label>
+                    <textarea class="txa" data-frase="nombre_recibir" placeholder="Ej. ¿A qué nombre está el pedido?"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Cierre / despedida</label>
+                    <textarea class="txa" data-frase="cierre" placeholder="Ej. ¡Gracias por tu pedido! Fue un placer atenderte 🍟😊"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Disculpa / error</label>
+                    <textarea class="txa" data-frase="disculpa" placeholder="Ej. Disculpa el inconveniente, permíteme revisar..."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Sin cambios posibles</label>
+                    <textarea class="txa" data-frase="sin_cambios" placeholder="Ej. Lo siento, el pedido ya está en cocina y no podemos modificarlo."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Saturación de pedidos</label>
+                    <textarea class="txa" data-frase="saturacion" placeholder="Ej. Estamos con mucha demanda ahora, el tiempo de espera puede ser mayor."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Fuera de horario (ya cerramos)</label>
+                    <textarea class="txa" data-frase="fuera_horario" placeholder="Ej. Por hoy ya terminamos nuestra jornada. ¡Hasta mañana!"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Antes de abrir</label>
+                    <textarea class="txa" data-frase="antes_horario" placeholder="Ej. Nuestro servicio empieza a las 6:30pm. ¡Te esperamos!"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- CARD: SITUACIONES ESPECIALES -->
+            <div class="card" id="card-situaciones">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Situaciones especiales</div>
+                  <div class="card-hd-ds">Instrucciones para que el bot sepa cómo manejar escenarios poco frecuentes pero importantes.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="frases-grid">
+                  <div class="field">
+                    <label class="field-lb">Producto agotado</label>
+                    <textarea class="txa" data-situacion="producto_agotado" placeholder="Ej. Disculpa, ese producto ya se agotó por hoy. Ofrece una alternativa..."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Saturación de pedidos</label>
+                    <textarea class="txa" data-situacion="saturacion_pedidos" placeholder="Ej. Hay mucha demanda. Informa el tiempo estimado real y pide paciencia..."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Cambio de pedido ya confirmado</label>
+                    <textarea class="txa" data-situacion="cambio_pedido_confirmado" placeholder="Ej. Cuando el pedido ya fue a cocina, no se puede cambiar. Discúpate y explica por qué..."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Error de precio propio</label>
+                    <textarea class="txa" data-situacion="error_precio_propio" placeholder="Ej. Si el bot dio un precio incorrecto, reconoce el error y envía el precio correcto..."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Nota personal en el pedido</label>
+                    <textarea class="txa" data-situacion="nota_personal_pedido" placeholder="Ej. El cliente puede pedir sin cebolla, sin salsas, etc. Anótalo y confírmalo..."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Pago mixto (efectivo + digital)</label>
+                    <textarea class="txa" data-situacion="pago_mixto" placeholder="Ej. Si el cliente quiere pagar parte en efectivo y parte por transferencia, acepta e indica cómo..."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Servicio con lluvia</label>
+                    <textarea class="txa" data-situacion="lluvia" placeholder="Ej. Con lluvia fuerte el domicilio puede demorar más. Avisa con tiempo..."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Rastreo del domiciliario</label>
+                    <textarea class="txa" data-situacion="rastreo_domiciliario" placeholder="Ej. Si preguntan dónde está el pedido, indica que ya salió y dará el número del domiciliario..."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Tiempo de entrega</label>
+                    <textarea class="txa" data-situacion="tiempo_entrega" placeholder="Ej. Si preguntan cuánto demora, citar el tiempo estimado sin prometer exactitud..."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Producto no disponible en carta</label>
+                    <textarea class="txa" data-situacion="productos_no_disponibles" placeholder="Ej. Si piden algo que no está en el menú, decirlo con amabilidad y sugerir alternativa..."></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div style="height:8px;"></div>
           </div>
 
