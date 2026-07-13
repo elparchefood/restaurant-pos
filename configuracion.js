@@ -2144,6 +2144,16 @@ function chatiaInit() {
       if (upErr) { console.error('Avatar upload error:', upErr); return; }
       var { data: pub } = sb.storage.from('chat-media').getPublicUrl(path);
       window._iaChatAvatarUrl = pub.publicUrl;
+      // Actualizar foto en WhatsApp Business
+      var waSlot = $$('ia-avatar');
+      if (waSlot) waSlot.title = 'Actualizando en WhatsApp...';
+      var efRes = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/update-wa-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branchId: branchId, imageUrl: pub.publicUrl, contentType: file.type }),
+      });
+      var efData = await efRes.json();
+      if (waSlot) waSlot.title = efData.success ? 'Foto actualizada en WhatsApp' : ('Error: ' + (efData.error || 'desconocido'));
       markDirty();
     });
   }
