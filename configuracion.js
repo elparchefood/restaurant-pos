@@ -2107,10 +2107,10 @@ function horarioInit() {
 
 // ── Asistente IA config ─────────────────────────────────
 function chatiaInit() {
-  function $$(id) { return document.getElementById(id); }
+  function $(id) { return document.getElementById(id); }
 
   // dirty / saved indicator
-  var saveChip = $$('saveChip'), saveTxt = $$('saveTxt'), saveBtn = $$('saveBtn');
+  var saveChip = $('saveChip'), saveTxt = $('saveTxt'), saveBtn = $('saveBtn');
   function markDirty() {
     if (!saveChip) return;
     saveChip.classList.remove('saved'); saveChip.classList.add('dirty');
@@ -2121,64 +2121,80 @@ function chatiaInit() {
     saveChip.classList.remove('dirty'); saveChip.classList.add('saved');
     if (saveTxt) saveTxt.textContent = 'Guardado';
   }
-  var screen = $$('screen-chatia');
+  var screen = $('screen-chatia');
   if (screen) screen.addEventListener('input', markDirty);
   if (screen) screen.addEventListener('change', markDirty);
 
   // ── Leer el modelo actual del DOM ──────────────────────
   function readModel() {
     var chips = [];
-    ($$('wordBox') ? $$('wordBox').querySelectorAll('.wchip') : []).forEach(function(c) {
+    ($('wordBox') ? $('wordBox').querySelectorAll('.wchip') : []).forEach(function(c) {
       chips.push(c.textContent.replace('\xd7','').replace('×','').trim());
     });
     var faqs = [];
-    ($$('faqList') ? $$('faqList').querySelectorAll('.faq-item') : []).forEach(function(item) {
+    ($('faqList') ? $('faqList').querySelectorAll('.faq-item') : []).forEach(function(item) {
       var q = item.querySelector('.faq-q input');
       var a = item.querySelector('.faq-a');
       if (q && a) faqs.push({ pregunta: q.value, respuesta: a.value });
     });
-    var toneEl = $$('toneGrid') ? $$('toneGrid').querySelector('.tone.on') : null;
-    var voiceEl = $$('voicePick') ? $$('voicePick').querySelector('.voice.on') : null;
+    var toneEl = $('toneGrid') ? $('toneGrid').querySelector('.tone.on') : null;
+    var voiceEl = $('voicePick') ? $('voicePick').querySelector('.voice.on') : null;
     return {
-      activo:          $$('masterSwitch') ? $$('masterSwitch').checked : true,
-      delay_segundos:  $$('iaDelay') ? parseInt($$('iaDelay').value) : 5,
-      perfil:          { nombre: ($$('botName') ? $$('botName').value : ''), descripcion: ($$('botDesc') ? $$('botDesc').value : ''), fotoUrl: window._iaChatAvatarUrl || null },
+      activo:          $('masterSwitch') ? $('masterSwitch').checked : true,
+      delay_segundos:  $('iaDelay') ? parseInt($('iaDelay').value) : 5,
+      perfil:          { nombre: ($('botName') ? $('botName').value : ''), descripcion: ($('botDesc') ? $('botDesc').value : ''), fotoUrl: window._iaChatAvatarUrl || null },
       tono:            toneEl ? toneEl.dataset.tone : 'cercano',
-      instrucciones: $$('iaInstr') ? $$('iaInstr').value : '',
-      vocabulario:   { usar: chips, evitar: ($$('avoid') ? $$('avoid').value : '') },
+      instrucciones: $('iaInstr') ? $('iaInstr').value : '',
+      vocabulario:   { usar: chips, evitar: ($('avoid') ? $('avoid').value : '') },
       faq:           faqs,
-      negocio:       $$('iaBiz') ? $$('iaBiz').value : '',
+      negocio:       $('iaBiz') ? $('iaBiz').value : '',
       voz:           {
-        activa:         $$('voiceSwitch') ? $$('voiceSwitch').checked : false,
-        porcentajeVoz:  $$('mixSlider')   ? parseInt($$('mixSlider').value) : 30,
+        activa:         $('voiceSwitch') ? $('voiceSwitch').checked : false,
+        porcentajeVoz:  $('mixSlider')   ? parseInt($('mixSlider').value) : 30,
         voiceId:        voiceEl ? voiceEl.dataset.voice : 'valentina'
-      }
+      },
+      pagos: {
+        efectivo:            $('payEfectivo')   ? $('payEfectivo').checked   : false,
+        nequi:               $('payNequi')      ? $('payNequi').checked      : false,
+        daviplata:           $('payDaviplata')  ? $('payDaviplata').checked  : false,
+        tarjeta:             $('payTarjeta')    ? $('payTarjeta').checked    : false,
+        llave:               $('payLlave')      ? $('payLlave').value.trim() : '',
+        titular:             $('payTitular')    ? $('payTitular').value.trim(): '',
+        esperar_comprobante: $('payComprobante')? $('payComprobante').checked : true,
+        nota:                $('payNota')       ? $('payNota').value.trim()  : '',
+      },
+      domicilios: {
+        activo:           $('domiActivo')    ? $('domiActivo').checked    : true,
+        para_llevar:      $('domiParaLlevar')? $('domiParaLlevar').checked: true,
+        tiempo_estimado:  $('domiTiempo')   ? $('domiTiempo').value.trim(): '',
+        zonas:            readZones(),
+      },
     };
   }
 
   // ── Aplicar modelo al DOM ───────────────────────────────
   function applyModel(m) {
     if (!m) return;
-    if ($$('masterSwitch')) { $$('masterSwitch').checked = !!m.activo; applyMaster(!!m.activo); }
-    if ($$('iaDelay') && m.delay_segundos != null) {
-      $$('iaDelay').value = m.delay_segundos;
-      if ($$('iaDelayVal')) $$('iaDelayVal').textContent = m.delay_segundos;
+    if ($('masterSwitch')) { $('masterSwitch').checked = !!m.activo; applyMaster(!!m.activo); }
+    if ($('iaDelay') && m.delay_segundos != null) {
+      $('iaDelay').value = m.delay_segundos;
+      if ($('iaDelayVal')) $('iaDelayVal').textContent = m.delay_segundos;
     }
     if (m.perfil) {
-      if ($$('botName')) $$('botName').value = m.perfil.nombre || '';
-      if ($$('botDesc')) $$('botDesc').value = m.perfil.descripcion || '';
+      if ($('botName')) $('botName').value = m.perfil.nombre || '';
+      if ($('botDesc')) $('botDesc').value = m.perfil.descripcion || '';
       if (m.perfil && m.perfil.fotoUrl) { setAvatarPreview(m.perfil.fotoUrl); window._iaChatAvatarUrl = m.perfil.fotoUrl; }
-      if ($$('pvName')) $$('pvName').childNodes[0].textContent = m.perfil.nombre || 'Asistente';
+      if ($('pvName')) $('pvName').childNodes[0].textContent = m.perfil.nombre || 'Asistente';
     }
-    if (m.tono && $$('toneGrid')) {
-      $$('toneGrid').querySelectorAll('.tone').forEach(function(t) {
+    if (m.tono && $('toneGrid')) {
+      $('toneGrid').querySelectorAll('.tone').forEach(function(t) {
         t.classList.toggle('on', t.dataset.tone === m.tono);
       });
     }
-    if ($$('iaInstr')) { $$('iaInstr').value = m.instrucciones || ''; updateCounter('iaInstr'); }
+    if ($('iaInstr')) { $('iaInstr').value = m.instrucciones || ''; updateCounter('iaInstr'); }
     if (m.vocabulario) {
-      if ($$('avoid')) $$('avoid').value = m.vocabulario.evitar || '';
-      var wb = $$('wordBox'), wi = $$('wordInput');
+      if ($('avoid')) $('avoid').value = m.vocabulario.evitar || '';
+      var wb = $('wordBox'), wi = $('wordInput');
       if (wb && wi && Array.isArray(m.vocabulario.usar)) {
         m.vocabulario.usar.forEach(function(word) {
           var chip = document.createElement('span');
@@ -2188,26 +2204,46 @@ function chatiaInit() {
         });
       }
     }
-    if (Array.isArray(m.faq) && $$('faqList')) {
+    if (Array.isArray(m.faq) && $('faqList')) {
       m.faq.forEach(function(f) {
         var item = makeFaqItem();
         var q = item.querySelector('.faq-q input');
         var a = item.querySelector('.faq-a');
         if (q) q.value = f.pregunta || '';
         if (a) a.value = f.respuesta || '';
-        $$('faqList').appendChild(item);
+        $('faqList').appendChild(item);
       });
     }
-    if ($$('iaBiz')) { $$('iaBiz').value = m.negocio || ''; updateCounter('iaBiz'); }
+    if ($('iaBiz')) { $('iaBiz').value = m.negocio || ''; updateCounter('iaBiz'); }
     if (m.voz) {
-      if ($$('voiceSwitch')) { $$('voiceSwitch').checked = !!m.voz.activa; applyVoice(!!m.voz.activa); }
-      if ($$('mixSlider'))   { $$('mixSlider').value = m.voz.porcentajeVoz || 30; updateMix(); }
-      if (m.voz.voiceId && $$('voicePick')) {
-        $$('voicePick').querySelectorAll('.voice').forEach(function(v) {
+      if ($('voiceSwitch')) { $('voiceSwitch').checked = !!m.voz.activa; applyVoice(!!m.voz.activa); }
+      if ($('mixSlider'))   { $('mixSlider').value = m.voz.porcentajeVoz || 30; updateMix(); }
+      if (m.voz.voiceId && $('voicePick')) {
+        $('voicePick').querySelectorAll('.voice').forEach(function(v) {
           v.classList.toggle('on', v.dataset.voice === m.voz.voiceId);
         });
       }
     }
+
+    // Pagos
+    var p = m.pagos || {};
+    if ($('payEfectivo'))   $('payEfectivo').checked   = !!p.efectivo;
+    if ($('payNequi'))      $('payNequi').checked      = !!p.nequi;
+    if ($('payDaviplata'))  $('payDaviplata').checked  = !!p.daviplata;
+    if ($('payTarjeta'))    $('payTarjeta').checked    = !!p.tarjeta;
+    if ($('payLlave'))      $('payLlave').value        = p.llave    || '';
+    if ($('payTitular'))    $('payTitular').value      = p.titular  || '';
+    if ($('payComprobante')) $('payComprobante').checked = p.esperar_comprobante !== false;
+    if ($('payNota'))       $('payNota').value         = p.nota     || '';
+    toggleDigitalFields();
+
+    // Domicilios
+    var d = m.domicilios || {};
+    if ($('domiActivo'))    $('domiActivo').checked    = d.activo       !== false;
+    if ($('domiParaLlevar'))$('domiParaLlevar').checked= d.para_llevar  !== false;
+    if ($('domiTiempo'))    $('domiTiempo').value      = d.tiempo_estimado || '';
+    renderZones(d.zonas || []);
+    toggleDomiFields();
   }
 
   // ── Cargar config desde Supabase ───────────────────────
@@ -2219,6 +2255,73 @@ function chatiaInit() {
     if (data) applyModel(data);
   }
   loadConfig();
+
+  // ── Pagos: helpers y eventos ───────────────────────────
+  function toggleDigitalFields() {
+    var show = ($('payNequi') && $('payNequi').checked) ||
+               ($('payDaviplata') && $('payDaviplata').checked);
+    var el = $('pay-digital-fields');
+    if (el) el.style.display = show ? '' : 'none';
+    markDirty();
+  }
+  ['payNequi','payDaviplata'].forEach(function(id) {
+    var el = $(id);
+    if (el) el.addEventListener('change', toggleDigitalFields);
+  });
+  ['payEfectivo','payTarjeta','payComprobante'].forEach(function(id) {
+    var el = $(id);
+    if (el) el.addEventListener('change', markDirty);
+  });
+  ['payLlave','payTitular','payNota'].forEach(function(id) {
+    var el = $(id);
+    if (el) el.addEventListener('input', markDirty);
+  });
+
+  // ── Domicilios: helpers y eventos ─────────────────────
+  function toggleDomiFields() {
+    var el = $('domi-fields');
+    if (el) el.style.display = ($('domiActivo') && $('domiActivo').checked) ? '' : 'none';
+    markDirty();
+  }
+  if ($('domiActivo')) $('domiActivo').addEventListener('change', toggleDomiFields);
+  if ($('domiParaLlevar')) $('domiParaLlevar').addEventListener('change', markDirty);
+  if ($('domiTiempo')) $('domiTiempo').addEventListener('input', markDirty);
+
+  function addZoneRow(nombre, precio) {
+    var list = $('zoneList');
+    if (!list) return;
+    var row = document.createElement('div');
+    row.className = 'zone-row';
+    row.innerHTML =
+      '<input class="inp zone-nombre" placeholder="Barrio / Zona" value="' + (nombre||'') + '">' +
+      '<input class="inp zone-precio" placeholder="0" type="number" min="0" step="500" value="' + (precio||'') + '">' +
+      '<button class="zone-del" type="button">&times;</button>';
+    row.querySelector('.zone-del').addEventListener('click', function() {
+      row.remove(); markDirty();
+    });
+    row.querySelectorAll('input').forEach(function(i) { i.addEventListener('input', markDirty); });
+    list.appendChild(row);
+  }
+
+  function renderZones(zonas) {
+    var list = $('zoneList');
+    if (!list) return;
+    list.innerHTML = '';
+    (zonas || []).forEach(function(z) { addZoneRow(z.nombre, z.precio); });
+  }
+
+  function readZones() {
+    var rows = document.querySelectorAll('.zone-row');
+    var result = [];
+    rows.forEach(function(r) {
+      var nombre = r.querySelector('.zone-nombre') ? r.querySelector('.zone-nombre').value.trim() : '';
+      var precio = r.querySelector('.zone-precio') ? parseInt(r.querySelector('.zone-precio').value) || 0 : 0;
+      if (nombre) result.push({ nombre: nombre, precio: precio });
+    });
+    return result;
+  }
+
+  if ($('zoneAdd')) $('zoneAdd').addEventListener('click', function() { addZoneRow('', ''); markDirty(); });
 
   // ── Guardar en Supabase ─────────────────────────────────
   if (saveBtn) saveBtn.addEventListener('click', async function() {
@@ -2251,7 +2354,7 @@ function chatiaInit() {
       var data = await res.json();
       if (data.improved) {
         ta.value = data.improved;
-        if (ta.id) { var ct = $$("charc-" + ta.id); if (ct) ct.textContent = ta.value.length + " / " + (parseInt(ta.dataset.max) || 1200); }
+        if (ta.id) { var ct = $("charc-" + ta.id); if (ct) ct.textContent = ta.value.length + " / " + (parseInt(ta.dataset.max) || 1200); }
         markDirty();
       } else {
         alert('No se pudo mejorar: ' + (data.error || 'Error desconocido'));
@@ -2264,7 +2367,7 @@ function chatiaInit() {
     }
   }
 
-  var chatiaScreen = $$('screen-chatia');
+  var chatiaScreen = $('screen-chatia');
   if (chatiaScreen) {
     chatiaScreen.addEventListener('click', function(e) {
       var btn = e.target.closest('.ia-imp-btn');
@@ -2276,9 +2379,9 @@ function chatiaInit() {
   }
 
   // -- Foto de perfil --
-  var avatarInput = $$('ia-avatar-input');
-  var avatarSlot  = $$('ia-avatar');
-  var avatarPv    = $$('ia-avatar-pv');
+  var avatarInput = $('ia-avatar-input');
+  var avatarSlot  = $('ia-avatar');
+  var avatarPv    = $('ia-avatar-pv');
 
   function setAvatarPreview(url) {
     [avatarSlot, avatarPv].forEach(function(slot) {
@@ -2309,7 +2412,7 @@ function chatiaInit() {
       var { data: pub } = sb.storage.from('chat-media').getPublicUrl(path);
       window._iaChatAvatarUrl = pub.publicUrl;
       // Actualizar foto en WhatsApp Business
-      var waSlot = $$('ia-avatar');
+      var waSlot = $('ia-avatar');
       if (waSlot) waSlot.title = 'Actualizando en WhatsApp...';
       var efRes = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/update-wa-profile', {
         method: 'POST',
@@ -2323,7 +2426,7 @@ function chatiaInit() {
   }
 
   // master toggle
-  var masterSwitch = $$('masterSwitch'), masterEl = $$('ia-master'), masterSt = $$('masterSt'), pvSt = $$('pvSt');
+  var masterSwitch = $('masterSwitch'), masterEl = $('ia-master'), masterSt = $('masterSt'), pvSt = $('pvSt');
   function applyMaster(on) {
     if (!masterEl) return;
     masterEl.classList.toggle('on', on);
@@ -2341,19 +2444,19 @@ function chatiaInit() {
   if (masterSwitch) masterSwitch.addEventListener('change', function() { applyMaster(this.checked); });
   if (masterSwitch) applyMaster(masterSwitch.checked);
 
-  var delaySlider = $$('iaDelay'), delayVal = $$('iaDelayVal');
+  var delaySlider = $('iaDelay'), delayVal = $('iaDelayVal');
   if (delaySlider) delaySlider.addEventListener('input', function() {
     if (delayVal) delayVal.textContent = this.value;
   });
 
   // bot name -> preview
-  var botName = $$('botName'), pvName = $$('pvName');
+  var botName = $('botName'), pvName = $('pvName');
   if (botName) botName.addEventListener('input', function() {
     if (pvName) pvName.childNodes[0].textContent = this.value || 'Asistente';
   });
 
   // tone radio
-  var toneGrid = $$('toneGrid');
+  var toneGrid = $('toneGrid');
   if (toneGrid) toneGrid.addEventListener('click', function(e) {
     var btn = e.target.closest('.tone');
     if (!btn) return;
@@ -2364,8 +2467,8 @@ function chatiaInit() {
 
   // textarea char counters
   ['iaInstr', 'iaBiz'].forEach(function(id) {
-    var el = $$(id);
-    var counter = $$('charc-' + id);
+    var el = $(id);
+    var counter = $('charc-' + id);
     if (!el || !counter) return;
     var max = parseInt(el.dataset.max) || 1200;
     function update() { counter.textContent = el.value.length + ' / ' + max; }
@@ -2373,7 +2476,7 @@ function chatiaInit() {
   });
 
   // vocabulary chips
-  var wordBox = $$('wordBox'), wordInput = $$('wordInput');
+  var wordBox = $('wordBox'), wordInput = $('wordInput');
   if (wordInput) wordInput.addEventListener('keydown', function(e) {
     if (e.key !== 'Enter') return;
     e.preventDefault();
@@ -2392,7 +2495,7 @@ function chatiaInit() {
   });
 
   // FAQ
-  var faqList = $$('faqList'), faqAdd = $$('faqAdd');
+  var faqList = $('faqList'), faqAdd = $('faqAdd');
   function makeFaqItem() {
     var item = document.createElement('div');
     item.className = 'faq-item';
@@ -2413,9 +2516,9 @@ function chatiaInit() {
   });
 
   // voice toggle
-  var voiceSwitch = $$('voiceSwitch'), voiceBody = $$('voiceBody'), pvVoice = $$('pvVoice');
-  var mixSlider = $$('mixSlider'), mixTxt = $$('mixTxt'), legT = $$('legT'), legV = $$('legV');
-  var mixOpt = $$('mixOpt'), statVoice = $$('statVoice');
+  var voiceSwitch = $('voiceSwitch'), voiceBody = $('voiceBody'), pvVoice = $('pvVoice');
+  var mixSlider = $('mixSlider'), mixTxt = $('mixTxt'), legT = $('legT'), legV = $('legV');
+  var mixOpt = $('mixOpt'), statVoice = $('statVoice');
 
   function applyVoice(on) {
     if (voiceBody) voiceBody.classList.toggle('off', !on);
@@ -2439,7 +2542,7 @@ function chatiaInit() {
   updateMix();
 
   // voice radio
-  var voicePick = $$('voicePick');
+  var voicePick = $('voicePick');
   if (voicePick) voicePick.addEventListener('click', function(e) {
     var btn = e.target.closest('.voice');
     if (!btn) return;

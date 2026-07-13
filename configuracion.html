@@ -1228,6 +1228,94 @@
               </div>
             </div>
 
+            <!-- CARD: PAGOS Y COBRO -->
+            <div class="card" id="card-pagos">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Pagos y cobro</div>
+                  <div class="card-hd-ds">M&eacute;todos que acepta tu restaurante y datos para transferencias.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="field">
+                  <label class="field-lb">M&eacute;todos de pago aceptados</label>
+                  <div class="pay-methods">
+                    <label class="pay-method"><input type="checkbox" id="payEfectivo" class="pay-chk"><span class="pay-ico">💵</span><span class="pay-nm">Efectivo</span></label>
+                    <label class="pay-method"><input type="checkbox" id="payNequi" class="pay-chk"><span class="pay-ico">📱</span><span class="pay-nm">Nequi / Transferencia</span></label>
+                    <label class="pay-method"><input type="checkbox" id="payDaviplata" class="pay-chk"><span class="pay-ico">🏦</span><span class="pay-nm">Daviplata</span></label>
+                    <label class="pay-method"><input type="checkbox" id="payTarjeta" class="pay-chk"><span class="pay-ico">💳</span><span class="pay-nm">Tarjeta</span></label>
+                  </div>
+                </div>
+                <div id="pay-digital-fields" class="pay-digital-fields" style="display:none">
+                  <div class="field">
+                    <label class="field-lb" for="payLlave">N&uacute;mero de cuenta / llave</label>
+                    <input class="inp" id="payLlave" placeholder="Ej. 0089912015">
+                  </div>
+                  <div class="field">
+                    <label class="field-lb" for="payTitular">Nombre del titular</label>
+                    <input class="inp" id="payTitular" placeholder="Ej. El Parche Restaurante">
+                  </div>
+                </div>
+                <div class="field">
+                  <div class="pay-rule-row">
+                    <div class="pay-rule-tx">
+                      <div class="pay-rule-tt">Esperar comprobante antes de cocina</div>
+                      <div class="pay-rule-ds">El bot pedir&aacute; la captura del pago y no confirmar&aacute; el pedido hasta recibirla</div>
+                    </div>
+                    <label class="switch"><input type="checkbox" id="payComprobante" checked><span class="track"></span><span class="knob"></span></label>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field-lb" for="payNota">Nota adicional sobre pagos <span class="opt">&middot; opcional</span></label>
+                  <input class="inp" id="payNota" placeholder="Ej. El domiciliario lleva cambio de hasta $100.000">
+                </div>
+              </div>
+            </div>
+
+            <!-- CARD: DOMICILIOS Y COBERTURA -->
+            <div class="card" id="card-domicilios">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/><path d="M5 3l4 4M19 3l-4 4"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Domicilios y cobertura</div>
+                  <div class="card-hd-ds">Zonas de entrega con sus precios y tiempo estimado.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="pay-rule-row">
+                  <div class="pay-rule-tx">
+                    <div class="pay-rule-tt">&iquest;Hacen domicilio?</div>
+                    <div class="pay-rule-ds">Activa si tu restaurante hace entregas a domicilio</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" id="domiActivo" checked><span class="track"></span><span class="knob"></span></label>
+                </div>
+                <div id="domi-fields">
+                  <div class="pay-rule-row" style="margin-top:14px">
+                    <div class="pay-rule-tx">
+                      <div class="pay-rule-tt">&iquest;Aceptan para llevar?</div>
+                      <div class="pay-rule-ds">El cliente puede pasar a recoger sin costo de domicilio</div>
+                    </div>
+                    <label class="switch"><input type="checkbox" id="domiParaLlevar" checked><span class="track"></span><span class="knob"></span></label>
+                  </div>
+                  <div class="field" style="margin-top:14px">
+                    <label class="field-lb" for="domiTiempo">Tiempo estimado de entrega</label>
+                    <input class="inp" id="domiTiempo" placeholder="Ej. 30 minutos, 45-60 minutos en hora pico">
+                    <div class="field-hint">El bot lo menciona como referencia pero siempre avisa cuando salga el pedido.</div>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Zonas y precios de domicilio</label>
+                    <div class="zone-table">
+                      <div class="zone-hd"><span>Barrio / Zona</span><span>Precio ($)</span><span></span></div>
+                      <div id="zoneList" class="zone-list"></div>
+                    </div>
+                    <button class="zone-add" id="zoneAdd" type="button">+ Agregar zona</button>
+                    <div class="field-hint">El bot consultar&aacute; esta tabla para responder sobre costos de domicilio por barrio.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div style="height:8px;"></div>
           </div>
 
