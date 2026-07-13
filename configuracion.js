@@ -2128,7 +2128,7 @@ function chatiaInit() {
       var data = await res.json();
       if (data.improved) {
         ta.value = data.improved;
-        if (ta.id) updateCounter(ta.id);
+        if (ta.id) { var ct = $$("charc-" + ta.id); if (ct) ct.textContent = ta.value.length + " / " + (parseInt(ta.dataset.max) || 1200); }
         markDirty();
       } else {
         alert('No se pudo mejorar: ' + (data.error || 'Error desconocido'));
