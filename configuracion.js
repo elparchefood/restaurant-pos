@@ -2169,6 +2169,8 @@ function chatiaInit() {
         tiempo_estimado:  $('domiTiempo')   ? $('domiTiempo').value.trim(): '',
         zonas:            readZones(),
       },
+      frases:      readFrases(),
+      situaciones: readSituaciones(),
     };
   }
 
@@ -2195,6 +2197,7 @@ function chatiaInit() {
     if (m.vocabulario) {
       if ($('avoid')) $('avoid').value = m.vocabulario.evitar || '';
       var wb = $('wordBox'), wi = $('wordInput');
+      if (wb) wb.querySelectorAll('.wchip').forEach(function(ch) { ch.remove(); });
       if (wb && wi && Array.isArray(m.vocabulario.usar)) {
         m.vocabulario.usar.forEach(function(word) {
           var chip = document.createElement('span');
@@ -2205,6 +2208,7 @@ function chatiaInit() {
       }
     }
     if (Array.isArray(m.faq) && $('faqList')) {
+      $('faqList').innerHTML = '';
       m.faq.forEach(function(f) {
         var item = makeFaqItem();
         var q = item.querySelector('.faq-q input');
@@ -2244,6 +2248,40 @@ function chatiaInit() {
     if ($('domiTiempo'))    $('domiTiempo').value      = d.tiempo_estimado || '';
     renderZones(d.zonas || []);
     toggleDomiFields();
+    applyFrases(m.frases);
+    applySituaciones(m.situaciones);
+  }
+
+  // ── Frases helpers ──────────────────────────────────────
+  function applyFrases(frases) {
+    frases = frases || {};
+    document.querySelectorAll('[data-frase]').forEach(function(el) {
+      var key = el.dataset.frase;
+      if (frases[key] !== undefined) el.value = frases[key];
+    });
+  }
+  function readFrases() {
+    var out = {};
+    document.querySelectorAll('[data-frase]').forEach(function(el) {
+      out[el.dataset.frase] = el.value.trim();
+    });
+    return out;
+  }
+
+  // ── Situaciones helpers ──────────────────────────────────
+  function applySituaciones(sits) {
+    sits = sits || {};
+    document.querySelectorAll('[data-situacion]').forEach(function(el) {
+      var key = el.dataset.situacion;
+      if (sits[key] !== undefined) el.value = sits[key];
+    });
+  }
+  function readSituaciones() {
+    var out = {};
+    document.querySelectorAll('[data-situacion]').forEach(function(el) {
+      out[el.dataset.situacion] = el.value.trim();
+    });
+    return out;
   }
 
   // ── Cargar config desde Supabase ───────────────────────
@@ -2262,7 +2300,6 @@ function chatiaInit() {
                ($('payDaviplata') && $('payDaviplata').checked);
     var el = $('pay-digital-fields');
     if (el) el.style.display = show ? '' : 'none';
-    markDirty();
   }
   ['payNequi','payDaviplata'].forEach(function(id) {
     var el = $(id);
@@ -2281,7 +2318,6 @@ function chatiaInit() {
   function toggleDomiFields() {
     var el = $('domi-fields');
     if (el) el.style.display = ($('domiActivo') && $('domiActivo').checked) ? '' : 'none';
-    markDirty();
   }
   if ($('domiActivo')) $('domiActivo').addEventListener('change', toggleDomiFields);
   if ($('domiParaLlevar')) $('domiParaLlevar').addEventListener('change', markDirty);
@@ -2322,6 +2358,9 @@ function chatiaInit() {
   }
 
   if ($('zoneAdd')) $('zoneAdd').addEventListener('click', function() { addZoneRow('', ''); markDirty(); });
+  document.querySelectorAll('[data-frase], [data-situacion]').forEach(function(el) {
+    el.addEventListener('input', markDirty);
+  });
 
   // ── Guardar en Supabase ─────────────────────────────────
   if (saveBtn) saveBtn.addEventListener('click', async function() {
