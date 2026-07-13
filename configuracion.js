@@ -2252,6 +2252,13 @@ function chatiaInit() {
     applySituaciones(m.situaciones);
   }
 
+  function updateCounter(id) {
+    var ta = document.getElementById(id);
+    var cc = document.getElementById('charc-' + id);
+    if (!ta || !cc) return;
+    cc.textContent = ta.value.length + ' / ' + (ta.dataset.max || 2000);
+  }
+
   // ── Frases helpers ──────────────────────────────────────
   function applyFrases(frases) {
     frases = frases || {};
