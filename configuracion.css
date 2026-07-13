@@ -871,3 +871,17 @@ input::placeholder { color: var(--ink-4); }
 .hr-save-btn{padding:9px 22px;background:#5B6BFF;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:background .13s,opacity .13s;}
 .hr-save-btn:hover{background:#4F5BE3;}
 .hr-save-btn:disabled{opacity:.55;cursor:not-allowed;}
+
+/* ── Delay slider ──────────────────────────────────────── */
+.ia-delay-card .card-bd { padding: 14px 18px 16px; }
+.ia-delay-row { display: flex; align-items: center; gap: 14px; }
+.ia-delay-slider {
+  flex: 1; -webkit-appearance: none; appearance: none;
+  height: 5px; border-radius: 99px; background: #ECEEF2; outline: none; cursor: pointer;
+}
+.ia-delay-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+  background: #5B6BFF; cursor: pointer; box-shadow: 0 1px 4px rgba(91,107,255,.4);
+}
+.ia-delay-val { font-size: 13px; font-weight: 700; color: #5B6BFF; white-space: nowrap; min-width: 44px; }
+.ia-delay-labels { display: flex; justify-content: space-between; font-size: 11px; color: #94A3B8; font-weight: 500; margin-top: 6px; }

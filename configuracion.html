@@ -1055,6 +1055,24 @@
               <label class="switch"><input type="checkbox" id="masterSwitch" checked><span class="track"></span><span class="knob"></span></label>
             </div>
 
+            <!-- Delay de respuesta -->
+            <div class="card ia-delay-card">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Tiempo de respuesta</div>
+                  <div class="card-hd-ds">Segundos que espera el asistente antes de contestar. Permite agrupar mensajes enviados seguidos.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="ia-delay-row">
+                  <input type="range" id="iaDelay" min="1" max="30" step="1" value="5" class="ia-delay-slider">
+                  <span class="ia-delay-val"><span id="iaDelayVal">5</span> seg</span>
+                </div>
+                <div class="ia-delay-labels"><span>1 seg</span><span>30 seg</span></div>
+              </div>
+            </div>
+
             <div class="card">
               <div class="card-hd">
                 <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>

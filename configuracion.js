@@ -2140,9 +2140,10 @@ function chatiaInit() {
     var toneEl = $$('toneGrid') ? $$('toneGrid').querySelector('.tone.on') : null;
     var voiceEl = $$('voicePick') ? $$('voicePick').querySelector('.voice.on') : null;
     return {
-      activo:        $$('masterSwitch') ? $$('masterSwitch').checked : true,
-      perfil:        { nombre: ($$('botName') ? $$('botName').value : ''), descripcion: ($$('botDesc') ? $$('botDesc').value : ''), fotoUrl: window._iaChatAvatarUrl || null },
-      tono:          toneEl ? toneEl.dataset.tone : 'cercano',
+      activo:          $$('masterSwitch') ? $$('masterSwitch').checked : true,
+      delay_segundos:  $$('iaDelay') ? parseInt($$('iaDelay').value) : 5,
+      perfil:          { nombre: ($$('botName') ? $$('botName').value : ''), descripcion: ($$('botDesc') ? $$('botDesc').value : ''), fotoUrl: window._iaChatAvatarUrl || null },
+      tono:            toneEl ? toneEl.dataset.tone : 'cercano',
       instrucciones: $$('iaInstr') ? $$('iaInstr').value : '',
       vocabulario:   { usar: chips, evitar: ($$('avoid') ? $$('avoid').value : '') },
       faq:           faqs,
@@ -2159,6 +2160,10 @@ function chatiaInit() {
   function applyModel(m) {
     if (!m) return;
     if ($$('masterSwitch')) { $$('masterSwitch').checked = !!m.activo; applyMaster(!!m.activo); }
+    if ($$('iaDelay') && m.delay_segundos != null) {
+      $$('iaDelay').value = m.delay_segundos;
+      if ($$('iaDelayVal')) $$('iaDelayVal').textContent = m.delay_segundos;
+    }
     if (m.perfil) {
       if ($$('botName')) $$('botName').value = m.perfil.nombre || '';
       if ($$('botDesc')) $$('botDesc').value = m.perfil.descripcion || '';
@@ -2335,6 +2340,11 @@ function chatiaInit() {
   }
   if (masterSwitch) masterSwitch.addEventListener('change', function() { applyMaster(this.checked); });
   if (masterSwitch) applyMaster(masterSwitch.checked);
+
+  var delaySlider = $$('iaDelay'), delayVal = $$('iaDelayVal');
+  if (delaySlider) delaySlider.addEventListener('input', function() {
+    if (delayVal) delayVal.textContent = this.value;
+  });
 
   // bot name -> preview
   var botName = $$('botName'), pvName = $$('pvName');

@@ -152,6 +152,8 @@ function handleConvChange(payload) {
     const idx = S.conversations.findIndex(c => c.id === payload.new.id);
     if (idx !== -1) S.conversations[idx] = { ...S.conversations[idx], ...payload.new };
     else S.conversations.unshift(payload.new);
+    // Si cambia ai_typing en la conversación activa, re-render el thread
+    if (payload.new.id === S.activeConvId && payload.new.ai_typing !== undefined) renderThread();
   } else if (payload.eventType === 'DELETE') {
     S.conversations = S.conversations.filter(c => c.id !== payload.old.id);
   }
@@ -307,6 +309,15 @@ function renderThread() {
   });
 
   if (!S.messages.length) html += `<div style="text-align:center;color:rgba(255,255,255,.35);font-size:13px;padding:24px">Sin mensajes todavía</div>`;
+
+  // Indicador de escritura del asistente IA
+  if (conv.ai_typing) {
+    html += `<div class="ci-row in ci-typing-row">
+      <div class="ci-bubble in ci-typing-bubble">
+        <span class="ci-dot"></span><span class="ci-dot"></span><span class="ci-dot"></span>
+      </div>
+    </div>`;
+  }
 
   $('thread').innerHTML = html;
   $('thread').scrollTop = $('thread').scrollHeight;
