@@ -454,9 +454,21 @@ function messageHTML(m) {
   }
 
   const textHtml = m.body && m.media_type !== 'document' ? `<div>${escHtml(m.body)}</div>` : '';
-  const quoteHtml = m._replyTo
-    ? `<div class="ci-reply-quote"><div class="ci-reply-quote-bar"></div><div class="ci-reply-quote-body"><div class="ci-reply-quote-who">${escHtml(m._replyTo.who||'')}</div><div class="ci-reply-quote-text">${escHtml(m._replyTo.media_type==='sticker'?'[Sticker]':m._replyTo.media_type==='image'?'[Imagen]':(m._replyTo.body||'[Medio]'))}</div></div></div>`
-    : '';
+
+  // Build quote bubble — outgoing replies use _replyTo (session snapshot),
+  // incoming replies from WhatsApp use reply_to_body / reply_to_external_id (from DB)
+  let quoteHtml = '';
+  if (m._replyTo) {
+    const qText = m._replyTo.media_type === 'sticker' ? '[Sticker]' : m._replyTo.media_type === 'image' ? '[Imagen]' : (m._replyTo.body || '[Medio]');
+    quoteHtml = `<div class="ci-reply-quote"><div class="ci-reply-quote-bar"></div><div class="ci-reply-quote-body"><div class="ci-reply-quote-who">${escHtml(m._replyTo.who||'')}</div><div class="ci-reply-quote-text">${escHtml(qText)}</div></div></div>`;
+  } else if (m.reply_to_body || m.reply_to_external_id) {
+    const quoted = m.reply_to_external_id ? S.messages.find(x => x.external_id === m.reply_to_external_id) : null;
+    const conv   = S.conversations.find(c => c.id === S.activeConvId);
+    const who    = quoted ? (quoted.direction === 'out' ? 'Tú' : (conv?.contact_name || 'Contacto')) : '';
+    const qText  = m.reply_to_body || '[Mensaje]';
+    quoteHtml = `<div class="ci-reply-quote"><div class="ci-reply-quote-bar"></div><div class="ci-reply-quote-body"><div class="ci-reply-quote-who">${escHtml(who)}</div><div class="ci-reply-quote-text">${escHtml(qText)}</div></div></div>`;
+  }
+
   const body = quoteHtml + mediaHtml + textHtml;
 
   return `<div class="ci-row ${dir}" data-msg-id="${m.id}">
