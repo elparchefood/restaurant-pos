@@ -1331,6 +1331,19 @@
                 <div class="menu-img-list" id="menuImgList"></div>
                 <button class="zone-add" id="menuImgAdd" type="button">+ Agregar imagen</button>
                 <div class="field-hint">Sube tus im&aacute;genes a Google Drive, Dropbox o cualquier servicio y pega aqu&iacute; el enlace p&uacute;blico directo (que termine en .png o .jpg).</div>
+                <div class="field" style="margin-top:16px">
+                  <label class="field-lb">Frase al enviar la carta</label>
+                  <div class="row-toggle" id="menuFraseTipoRow" style="margin-bottom:10px">
+                    <div class="row-toggle-tx">
+                      <div class="row-toggle-tt">Usar saludo est&aacute;ndar (variable)</div>
+                      <div class="row-toggle-ds">Si est&aacute; activo usa la frase configurada en &laquo;Frases del bot &rarr; Saludo est&aacute;ndar&raquo;. Si est&aacute; inactivo usa el texto fijo de abajo.</div>
+                    </div>
+                    <label class="switch"><input type="checkbox" id="menuFraseVariable"><span class="track"></span><span class="knob"></span></label>
+                  </div>
+                  <div id="menuFraseTextoWrap">
+                    <input class="inp" id="menuFraseTexto" placeholder="Ej. ¿Qué se te antoja? 🍟☺️">
+                  </div>
+                </div>
               </div>
             </div>
 
