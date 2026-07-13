@@ -2124,6 +2124,16 @@ function chatiaInit() {
   var screen = $('screen-chatia');
   if (screen) screen.addEventListener('input', markDirty);
   if (screen) screen.addEventListener('change', markDirty);
+  var menuImgAddBtn = $('menuImgAdd');
+  if (menuImgAddBtn) menuImgAddBtn.onclick = function() {
+    var list = $('menuImgList');
+    if (list) { list.appendChild(makeMenuImgRow('')); markDirty(); }
+  };
+  var prohAddBtn = $('prohAdd');
+  if (prohAddBtn) prohAddBtn.onclick = function() {
+    var list = $('prohList');
+    if (list) { list.appendChild(makeProhRow('')); markDirty(); }
+  };
 
   // ── Leer el modelo actual del DOM ──────────────────────
   function readModel() {
@@ -2172,6 +2182,8 @@ function chatiaInit() {
       frases:      readFrases(),
       situaciones: readSituaciones(),
       pedidos_programados: $('pedidosProg') ? $('pedidosProg').checked : false,
+      menu_imagenes: readMenuImagenes(),
+      prohibiciones: readProhibiciones(),
     };
   }
 
@@ -2252,6 +2264,8 @@ function chatiaInit() {
     applyFrases(m.frases);
     applySituaciones(m.situaciones);
     if ($('pedidosProg')) $('pedidosProg').checked = !!m.pedidos_programados;
+    applyMenuImagenes(m.menu_imagenes);
+    applyProhibiciones(m.prohibiciones);
   }
 
   function updateCounter(id) {
@@ -2259,6 +2273,79 @@ function chatiaInit() {
     var cc = document.getElementById('charc-' + id);
     if (!ta || !cc) return;
     cc.textContent = ta.value.length + ' / ' + (ta.dataset.max || 2000);
+  }
+
+
+  // ── Carta imágenes helpers ──────────────────────────────
+  function applyMenuImagenes(urls) {
+    urls = Array.isArray(urls) ? urls : [];
+    var list = $('menuImgList');
+    if (!list) return;
+    list.innerHTML = '';
+    urls.forEach(function(url) { list.appendChild(makeMenuImgRow(url)); });
+  }
+  function readMenuImagenes() {
+    var out = [];
+    var list = $('menuImgList');
+    if (!list) return out;
+    list.querySelectorAll('.menu-img-row input').forEach(function(inp) {
+      var v = inp.value.trim();
+      if (v) out.push(v);
+    });
+    return out;
+  }
+  function makeMenuImgRow(url) {
+    var row = document.createElement('div');
+    row.className = 'menu-img-row';
+    var inp = document.createElement('input');
+    inp.className = 'inp'; inp.placeholder = 'https://...enlace-directo-a-imagen.png'; inp.value = url || '';
+    var thumb = document.createElement('img');
+    thumb.className = 'menu-img-thumb';
+    inp.addEventListener('input', function() {
+      thumb.src = inp.value.trim();
+      thumb.onload = function() { thumb.classList.add('loaded'); };
+      thumb.onerror = function() { thumb.classList.remove('loaded'); };
+      markDirty();
+    });
+    if (url) { thumb.src = url; thumb.onload = function() { thumb.classList.add('loaded'); }; }
+    var del = document.createElement('button');
+    del.className = 'menu-img-del'; del.type = 'button';
+    del.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
+    del.onclick = function() { row.remove(); markDirty(); };
+    row.appendChild(inp); row.appendChild(thumb); row.appendChild(del);
+    return row;
+  }
+
+  // ── Prohibiciones helpers ───────────────────────────────
+  function applyProhibiciones(proh) {
+    proh = Array.isArray(proh) ? proh : [];
+    var list = $('prohList');
+    if (!list) return;
+    list.innerHTML = '';
+    proh.forEach(function(p) { list.appendChild(makeProhRow(p)); });
+  }
+  function readProhibiciones() {
+    var out = [];
+    var list = $('prohList');
+    if (!list) return out;
+    list.querySelectorAll('.proh-row input').forEach(function(inp) {
+      var v = inp.value.trim();
+      if (v) out.push(v);
+    });
+    return out;
+  }
+  function makeProhRow(text) {
+    var row = document.createElement('div');
+    row.className = 'proh-row';
+    var inp = document.createElement('input');
+    inp.className = 'inp'; inp.placeholder = 'Ej. Nunca mencionar competidores...'; inp.value = text || '';
+    inp.addEventListener('input', markDirty);
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    del.onclick = function() { row.remove(); markDirty(); };
+    row.appendChild(inp); row.appendChild(del);
+    return row;
   }
 
   // ── Frases helpers ──────────────────────────────────────
