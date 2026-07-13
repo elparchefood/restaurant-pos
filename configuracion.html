@@ -1317,6 +1317,47 @@
             </div>
 
 
+
+            <!-- CARD: CARTA DEL RESTAURANTE (imágenes) -->
+            <div class="card" id="card-menu">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Carta del restaurante</div>
+                  <div class="card-hd-ds">Im&aacute;genes que el bot env&iacute;a cuando el cliente pide ver el men&uacute;. Se mandan en el orden de la lista.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="menu-img-list" id="menuImgList"></div>
+                <button class="zone-add" id="menuImgAdd" type="button">+ Agregar imagen</button>
+                <div class="field-hint">Sube tus im&aacute;genes a Google Drive, Dropbox o cualquier servicio y pega aqu&iacute; el enlace p&uacute;blico directo (que termine en .png o .jpg).</div>
+              </div>
+            </div>
+
+            <!-- CARD: PROHIBICIONES -->
+            <div class="card" id="card-prohibiciones">
+              <div class="card-hd">
+                <div class="card-hd-ico" style="background:#FEF2F2;color:#DC2626;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Prohibiciones</div>
+                  <div class="card-hd-ds">Reglas que el asistente nunca debe romper, adem&aacute;s de las que ya est&aacute;n fijas en el sistema.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="proh-fixed">
+                  <div class="proh-fixed-tt">Prohibiciones fijas del sistema <span class="opt">&middot; siempre activas</span></div>
+                  <div class="proh-item fixed"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Nunca escribir el men&uacute; completo en texto</div>
+                  <div class="proh-item fixed"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Respuestas cortas (m&aacute;ximo 3&ndash;4 oraciones)</div>
+                  <div class="proh-item fixed"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Responder solo lo que el cliente pregunt&oacute;</div>
+                </div>
+                <div class="field" style="margin-top:14px">
+                  <label class="field-lb">Prohibiciones personalizadas <span class="opt">&middot; opcional</span></label>
+                  <div class="proh-list" id="prohList"></div>
+                  <button class="zone-add" id="prohAdd" type="button">+ Agregar prohibici&oacute;n</button>
+                </div>
+              </div>
+            </div>
+
             <!-- CARD: PEDIDOS PROGRAMADOS -->
             <div class="card" id="card-pedidos-prog">
               <div class="card-hd">
