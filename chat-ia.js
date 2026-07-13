@@ -1012,7 +1012,7 @@ function wireEvents() {
       closeMsgPopup();
     }
     const picker = $('pickerPanel');
-    if (picker && picker.style.display !== 'none' && !picker.contains(e.target) && e.target.id !== 'stickerBtn') {
+    if (picker && picker.style.display !== 'none' && !picker.contains(e.target) && !e.target.closest('#stickerBtn')) {
       picker.style.display = 'none';
     }
   });
