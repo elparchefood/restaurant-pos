@@ -385,6 +385,55 @@ function buildSystemPrompt(
   if (domiciliosText)  { lines.push(""); lines.push(domiciliosText); }
   if (menuText)        { lines.push(""); lines.push(menuText); lines.push("IMPORTANTE: No inventes productos ni precios."); }
 
+  const frases = cfg.frases as Record<string, string> | null | undefined;
+  if (frases && Object.keys(frases).length) {
+    const FRASE_LABELS: Record<string, string> = {
+      apertura: "Saludo estándar",
+      apertura_conocido: "Saludo cliente conocido",
+      preguntar_tamano: "Preguntar tamaño",
+      preguntar_destino: "Preguntar dirección",
+      upsell: "Upsell / adiciones",
+      confirmar_pago: "Confirmar método de pago",
+      datos_nequi: "Datos Nequi",
+      esperar_comprobante: "Esperar comprobante",
+      aviso_despacho: "Aviso de despacho",
+      pedido_listo_recoger: "Pedido listo para recoger",
+      nombre_recibir: "Preguntar nombre",
+      cierre: "Cierre",
+      disculpa: "Disculpa",
+      sin_cambios: "Sin cambios posibles",
+      saturacion: "Saturación de pedidos",
+      fuera_horario: "Fuera de horario",
+      antes_horario: "Antes de abrir",
+    };
+    lines.push("");
+    lines.push("FRASES EXACTAS A USAR (úsalas lo más fielmente posible):");
+    for (const [key, text] of Object.entries(frases)) {
+      if (text) lines.push(`- ${FRASE_LABELS[key] || key}: "${text}"`);
+    }
+  }
+
+  const situaciones = cfg.situaciones as Record<string, string> | null | undefined;
+  if (situaciones && Object.keys(situaciones).length) {
+    lines.push("");
+    lines.push("INSTRUCCIONES PARA SITUACIONES ESPECIALES:");
+    const SIT_LABELS: Record<string, string> = {
+      producto_agotado: "Producto agotado",
+      saturacion_pedidos: "Saturación",
+      cambio_pedido_confirmado: "Cambio de pedido ya confirmado",
+      error_precio_propio: "Error de precio propio",
+      nota_personal_pedido: "Nota personal en pedido",
+      pago_mixto: "Pago mixto",
+      lluvia: "Servicio con lluvia",
+      rastreo_domiciliario: "Rastreo del domiciliario",
+      tiempo_entrega: "Tiempo de entrega",
+      productos_no_disponibles: "Productos no disponibles",
+    };
+    for (const [key, text] of Object.entries(situaciones)) {
+      if (text) lines.push(`- ${SIT_LABELS[key] || key}: ${text}`);
+    }
+  }
+
   lines.push("");
   lines.push("REGLAS:");
   lines.push("- Responde SOLO en español.");
