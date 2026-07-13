@@ -1075,7 +1075,7 @@
                 <div class="field">
                   <label class="field-lb" for="iaInstr">Instrucciones del agente</label>
                   <div class="field-hint">Escribe en lenguaje natural c&#243;mo debe actuar. Estas reglas gu&#237;an cada respuesta.</div>
-                  <textarea class="txa txa--tall" id="iaInstr" data-max="1200" placeholder="Ej. Eres el asistente virtual del restaurante..."></textarea>
+                  <div class="ia-field-wrap"><div class="ia-field-wrap"><textarea class="txa txa--tall" id="iaInstr" data-max="1200" placeholder="Ej. Eres el asistente virtual del restaurante..."></textarea><button class="ia-imp-btn" data-type="instrucciones" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M12 1l2.5 7.5H22l-6.5 4.7 2.5 7.8L12 16.3l-6 4.7 2.5-7.8L2 8.5h7.5z"/></svg><span>Mejorar con IA</span></button></div><button class="ia-imp-btn" data-type="instrucciones" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M12 1l2.5 7.5H22l-6.5 4.7 2.5 7.8L12 16.3l-6 4.7 2.5-7.8L2 8.5h7.5z"/></svg><span>Mejorar con IA</span></button></div>
                   <div class="field-foot"><span class="field-hint">Mientras m&#225;s contexto, mejor responde.</span><span class="charc" id="charc-iaInstr">0 / 1200</span></div>
                 </div>
               </div>
@@ -1129,7 +1129,7 @@
               <div class="card-bd">
                 <div class="field">
                   <label class="field-lb" for="iaBiz">Datos del negocio</label>
-                  <textarea class="txa txa--xl" id="iaBiz" data-max="2000" placeholder="Direcci&#243;n, zonas de cobertura, especialidades, promociones..."></textarea>
+                  <div class="ia-field-wrap"><div class="ia-field-wrap"><textarea class="txa txa--xl" id="iaBiz" data-max="2000" placeholder="Direcci&#243;n, zonas de cobertura, especialidades, promociones..."></textarea><button class="ia-imp-btn" data-type="negocio" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M12 1l2.5 7.5H22l-6.5 4.7 2.5 7.8L12 16.3l-6 4.7 2.5-7.8L2 8.5h7.5z"/></svg><span>Mejorar con IA</span></button></div><button class="ia-imp-btn" data-type="negocio" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M12 1l2.5 7.5H22l-6.5 4.7 2.5 7.8L12 16.3l-6 4.7 2.5-7.8L2 8.5h7.5z"/></svg><span>Mejorar con IA</span></button></div>
                   <div class="field-foot"><span class="field-hint">El bot usar&#225; estos datos como fuente de verdad.</span><span class="charc" id="charc-iaBiz">0 / 2000</span></div>
                 </div>
               </div>
@@ -1227,7 +1227,7 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-core.js"></script>
-<script src="configuracion.js?v=1783907168"></script>
+<script src="configuracion.js?v=1783907508"></script>
 </body>
 </html>
 

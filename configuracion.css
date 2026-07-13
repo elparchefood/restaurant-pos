@@ -798,3 +798,35 @@ input::placeholder { color: var(--ink-4); }
   .cfg-aside .pv-phone{flex:1;min-width:280px;}
   .cfg-aside .pv-stats{flex:1;min-width:260px;}
 }
+
+/* ── Mejorar con IA buttons ── */
+.ia-field-wrap{position:relative;display:flex;flex-direction:column;}
+.ia-imp-btn{
+  position:absolute;bottom:10px;right:10px;
+  display:inline-flex;align-items:center;gap:5px;
+  padding:4px 11px;border-radius:8px;border:1px solid #DCE0E8;
+  background:#fff;color:#5B6BFF;font-size:11px;font-weight:700;
+  letter-spacing:.2px;cursor:pointer;transition:background .13s,border-color .13s,opacity .13s;
+  box-shadow:0 1px 3px rgba(15,23,42,.08);
+}
+.ia-imp-btn:hover{background:#EEF2FF;border-color:#5B6BFF;}
+.ia-imp-btn.loading{opacity:.55;pointer-events:none;}
+.ia-imp-btn.loading span::after{content:' ...'}
+/* Give textareas inside wrap extra bottom padding so text doesn't hide under button */
+.ia-field-wrap .txa,.ia-field-wrap .faq-a{padding-bottom:38px;}
+
+/* ── Mejorar con IA buttons ── */
+.ia-field-wrap{position:relative;display:flex;flex-direction:column;}
+.ia-imp-btn{
+  position:absolute;bottom:10px;right:10px;
+  display:inline-flex;align-items:center;gap:5px;
+  padding:4px 11px;border-radius:8px;border:1px solid #DCE0E8;
+  background:#fff;color:#5B6BFF;font-size:11px;font-weight:700;
+  letter-spacing:.2px;cursor:pointer;transition:background .13s,border-color .13s,opacity .13s;
+  box-shadow:0 1px 3px rgba(15,23,42,.08);
+}
+.ia-imp-btn:hover{background:#EEF2FF;border-color:#5B6BFF;}
+.ia-imp-btn.loading{opacity:.55;pointer-events:none;}
+.ia-imp-btn.loading span::after{content:' ...'}
+/* Give textareas inside wrap extra bottom padding so text doesn't hide under button */
+.ia-field-wrap .txa,.ia-field-wrap .faq-a{padding-bottom:38px;}

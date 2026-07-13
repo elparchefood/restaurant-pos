@@ -2111,6 +2111,47 @@ function chatiaInit() {
   });
 
 
+  // -- Mejorar con IA --
+  var IMPROVE_URL = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/improve-ia-text';
+  var SPARKLE_HTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M12 1l2.5 7.5H22l-6.5 4.7 2.5 7.8L12 16.3l-6 4.7 2.5-7.8L2 8.5h7.5z"/></svg>';
+
+  async function callImprove(type, ta, btn) {
+    if (!ta.value.trim()) { ta.focus(); return; }
+    btn.classList.add('loading');
+    var sp = btn.querySelector('span'); if (sp) sp.textContent = 'Mejorando';
+    try {
+      var res = await fetch(IMPROVE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: type, text: ta.value }),
+      });
+      var data = await res.json();
+      if (data.improved) {
+        ta.value = data.improved;
+        if (ta.id) updateCounter(ta.id);
+        markDirty();
+      } else {
+        alert('No se pudo mejorar: ' + (data.error || 'Error desconocido'));
+      }
+    } catch(err) {
+      alert('Error al conectar con IA: ' + err.message);
+    } finally {
+      btn.classList.remove('loading');
+      btn.innerHTML = SPARKLE_HTML + '<span>Mejorar con IA</span>';
+    }
+  }
+
+  var chatiaScreen = $$('screen-chatia');
+  if (chatiaScreen) {
+    chatiaScreen.addEventListener('click', function(e) {
+      var btn = e.target.closest('.ia-imp-btn');
+      if (!btn || btn.classList.contains('loading')) return;
+      var type = btn.dataset.type;
+      var ta = btn.closest('.ia-field-wrap').querySelector('textarea');
+      if (ta && type) callImprove(type, ta, btn);
+    });
+  }
+
   // -- Foto de perfil --
   var avatarInput = $$('ia-avatar-input');
   var avatarSlot  = $$('ia-avatar');
@@ -2230,7 +2271,7 @@ function chatiaInit() {
     item.innerHTML =
       '<div class="faq-q"><span class="qbadge">P</span><input placeholder="Escribe la pregunta...">' +
       '<button class="del" data-delfaq type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>' +
-      '<textarea class="faq-a" rows="2" placeholder="Escribe la respuesta..."></textarea>';
+      '<div class="ia-field-wrap"><textarea class="faq-a" rows="2" placeholder="Escribe la respuesta..."></textarea><button class="ia-imp-btn" data-type="faq_respuesta" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M12 1l2.5 7.5H22l-6.5 4.7 2.5 7.8L12 16.3l-6 4.7 2.5-7.8L2 8.5h7.5z"/></svg><span>Mejorar con IA</span></button></div>';
     return item;
   }
   if (faqAdd) faqAdd.addEventListener('click', function() {
