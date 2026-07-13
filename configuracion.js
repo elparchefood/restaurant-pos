@@ -158,7 +158,8 @@ var SECTION_LABELS = {
   impuesto:  'Impuestos y propina',
   impresora: 'Impresoras',
   operacion: 'Operación',
-  usuarios:  'Usuarios y roles'
+  usuarios:  'Usuarios y roles',
+  chatia:    'Asistente IA'
 };
 
 function setSection(sec) {
@@ -179,6 +180,8 @@ function setSection(sec) {
   if (_screenUr) _screenUr.classList.remove('on');
   var _screenOp = $('screen-operacion');
   if (_screenOp) _screenOp.classList.remove('on');
+  var _screenChatia = $('screen-chatia');
+  if (_screenChatia) _screenChatia.classList.remove('on');
 
   if (sec === 'mesas') {
     screenMesas.classList.add('on');
@@ -201,6 +204,13 @@ function setSection(sec) {
       screenUr.classList.add('on');
       $('crumb').textContent = 'Usuarios y roles';
       if (!window._urLoaded) { urInit(); window._urLoaded = true; }
+    }
+  } else if (sec === 'chatia') {
+    var screenChatia = $('screen-chatia');
+    if (screenChatia) {
+      screenChatia.classList.add('on');
+      $('crumb').textContent = 'Asistente IA';
+      if (!window._chatiaLoaded) { chatiaInit(); window._chatiaLoaded = true; }
     }
   } else if (sec === 'impresora') {
     window.location.href = 'impresoras.html';
@@ -1975,4 +1985,147 @@ function opBindEvents() {
       opRender();
     });
   }
+}
+
+// ── Asistente IA config ─────────────────────────────────
+function chatiaInit() {
+  function $$(id) { return document.getElementById(id); }
+
+  // dirty / saved indicator
+  var saveChip = $$('saveChip'), saveTxt = $$('saveTxt'), saveBtn = $$('saveBtn');
+  function markDirty() {
+    if (!saveChip) return;
+    saveChip.classList.remove('saved'); saveChip.classList.add('dirty');
+    if (saveTxt) saveTxt.textContent = 'Cambios sin guardar';
+  }
+  function markSaved() {
+    if (!saveChip) return;
+    saveChip.classList.remove('dirty'); saveChip.classList.add('saved');
+    if (saveTxt) saveTxt.textContent = 'Guardado';
+  }
+  var screen = $$('screen-chatia');
+  if (screen) screen.addEventListener('input', markDirty);
+  if (screen) screen.addEventListener('change', markDirty);
+  if (saveBtn) saveBtn.addEventListener('click', function() { markSaved(); });
+
+  // master toggle
+  var masterSwitch = $$('masterSwitch'), masterEl = $$('ia-master'), masterSt = $$('masterSt'), pvSt = $$('pvSt');
+  function applyMaster(on) {
+    if (!masterEl) return;
+    masterEl.classList.toggle('on', on);
+    if (masterSt) masterSt.textContent = on ? 'Activo' : 'Pausado';
+    if (pvSt) {
+      if (on) {
+        pvSt.style.color = '#16A34A';
+        pvSt.innerHTML = '<span class="dot"></span> En línea · responde al instante';
+      } else {
+        pvSt.style.color = '#94A3B8';
+        pvSt.innerHTML = '<span class="dot" style="background:#94A3B8"></span> Pausado · atención manual';
+      }
+    }
+  }
+  if (masterSwitch) masterSwitch.addEventListener('change', function() { applyMaster(this.checked); });
+  if (masterSwitch) applyMaster(masterSwitch.checked);
+
+  // bot name -> preview
+  var botName = $$('botName'), pvName = $$('pvName');
+  if (botName) botName.addEventListener('input', function() {
+    if (pvName) pvName.childNodes[0].textContent = this.value || 'Asistente';
+  });
+
+  // tone radio
+  var toneGrid = $$('toneGrid');
+  if (toneGrid) toneGrid.addEventListener('click', function(e) {
+    var btn = e.target.closest('.tone');
+    if (!btn) return;
+    toneGrid.querySelectorAll('.tone').forEach(function(t) { t.classList.remove('on'); });
+    btn.classList.add('on');
+    markDirty();
+  });
+
+  // textarea char counters
+  ['iaInstr', 'iaBiz'].forEach(function(id) {
+    var el = $$(id);
+    var counter = $$('charc-' + id);
+    if (!el || !counter) return;
+    var max = parseInt(el.dataset.max) || 1200;
+    function update() { counter.textContent = el.value.length + ' / ' + max; }
+    el.addEventListener('input', update); update();
+  });
+
+  // vocabulary chips
+  var wordBox = $$('wordBox'), wordInput = $$('wordInput');
+  if (wordInput) wordInput.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    var val = this.value.trim();
+    if (!val) return;
+    var safe = val.replace(/</g, '&lt;');
+    var chip = document.createElement('span');
+    chip.className = 'wchip';
+    chip.innerHTML = safe + ' <button data-x type="button">×</button>';
+    wordBox.insertBefore(chip, this);
+    this.value = '';
+    markDirty();
+  });
+  if (wordBox) wordBox.addEventListener('click', function(e) {
+    if (e.target.hasAttribute('data-x')) { e.target.closest('.wchip').remove(); markDirty(); }
+  });
+
+  // FAQ
+  var faqList = $$('faqList'), faqAdd = $$('faqAdd');
+  function makeFaqItem() {
+    var item = document.createElement('div');
+    item.className = 'faq-item';
+    item.innerHTML =
+      '<div class="faq-q"><span class="qbadge">P</span><input placeholder="Escribe la pregunta...">' +
+      '<button class="del" data-delfaq type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>' +
+      '<textarea class="faq-a" rows="2" placeholder="Escribe la respuesta..."></textarea>';
+    return item;
+  }
+  if (faqAdd) faqAdd.addEventListener('click', function() {
+    var item = makeFaqItem();
+    faqList.appendChild(item);
+    item.querySelector('input').focus();
+    markDirty();
+  });
+  if (faqList) faqList.addEventListener('click', function(e) {
+    if (e.target.closest('[data-delfaq]')) { e.target.closest('.faq-item').remove(); markDirty(); }
+  });
+
+  // voice toggle
+  var voiceSwitch = $$('voiceSwitch'), voiceBody = $$('voiceBody'), pvVoice = $$('pvVoice');
+  var mixSlider = $$('mixSlider'), mixTxt = $$('mixTxt'), legT = $$('legT'), legV = $$('legV');
+  var mixOpt = $$('mixOpt'), statVoice = $$('statVoice');
+
+  function applyVoice(on) {
+    if (voiceBody) voiceBody.classList.toggle('off', !on);
+    updateMix();
+  }
+  function updateMix() {
+    if (!mixSlider) return;
+    var voz = parseInt(mixSlider.value) || 0;
+    var txt = 100 - voz;
+    var voiceOn = voiceSwitch && voiceSwitch.checked;
+    if (mixTxt) mixTxt.style.width = txt + '%';
+    if (legT) legT.textContent = txt + '% Texto';
+    if (legV) legV.textContent = voz + '% Voz';
+    if (mixOpt) mixOpt.textContent = '· ' + voz + '% de las respuestas en voz';
+    if (statVoice) statVoice.textContent = Math.round(60 * voz / 100);
+    if (pvVoice) pvVoice.style.display = (voiceOn && voz > 0) ? 'flex' : 'none';
+  }
+  if (voiceSwitch) voiceSwitch.addEventListener('change', function() { applyVoice(this.checked); });
+  if (mixSlider) mixSlider.addEventListener('input', function() { updateMix(); markDirty(); });
+  if (voiceSwitch) applyVoice(voiceSwitch.checked);
+  updateMix();
+
+  // voice radio
+  var voicePick = $$('voicePick');
+  if (voicePick) voicePick.addEventListener('click', function(e) {
+    var btn = e.target.closest('.voice');
+    if (!btn) return;
+    voicePick.querySelectorAll('.voice').forEach(function(v) { v.classList.remove('on'); });
+    btn.classList.add('on');
+    markDirty();
+  });
 }

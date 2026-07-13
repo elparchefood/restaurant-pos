@@ -95,6 +95,16 @@
           <span class="cf-soon">Pronto</span>
         </button>
       </div>
+
+      <div class="cf-navgroup-wrap">
+        <div class="cf-navgroup">Chat IA</div>
+        <button class="lm-nav" id="nav-chatia" data-section="chatia">
+          <span class="cf-nav-l">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V5"/><circle cx="12" cy="4" r="1.2" fill="currentColor"/><circle cx="9" cy="14" r="1" fill="currentColor"/><circle cx="15" cy="14" r="1" fill="currentColor"/><path d="M9.5 17h5"/></svg>
+            <span class="cf-nav-label">Asistente IA</span>
+          </span>
+        </button>
+      </div>
     </nav>
   </aside>
 
@@ -979,6 +989,232 @@
 
   </main>
 
+
+    <!-- SECCION: ASISTENTE IA -->
+    <div class="cf-screen" id="screen-chatia">
+      <section class="cfg-main" id="cfgAsistenteIA">
+
+        <header class="cfg-head">
+          <div class="cfg-head-l">
+            <div class="cfg-head-ico">
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V5"/><circle cx="12" cy="4" r="1.2" fill="#fff"/><circle cx="9" cy="13.5" r="1" fill="#fff"/><circle cx="15" cy="13.5" r="1" fill="#fff"/><path d="M9.5 17h5"/></svg>
+            </div>
+            <div>
+              <div class="cfg-title">Configuraci&#243;n del Asistente IA</div>
+              <div class="cfg-sub">Define c&#243;mo responde tu bot a los clientes en todos los canales</div>
+            </div>
+          </div>
+          <div class="cfg-head-r">
+            <div class="cfg-savechip" id="saveChip"><span class="dot"></span><span id="saveTxt">Sin cambios</span></div>
+            <button class="btn-primary" id="saveBtn">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Guardar cambios
+            </button>
+          </div>
+        </header>
+
+        <div class="cfg-body">
+          <div class="cfg-col">
+
+            <div class="master on" id="ia-master">
+              <div class="master-ico">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V5"/><circle cx="12" cy="4" r="1.2"/><circle cx="9" cy="14" r="1" fill="currentColor"/><circle cx="15" cy="14" r="1" fill="currentColor"/></svg>
+              </div>
+              <div class="master-tx">
+                <div class="master-tt">Asistente IA <span class="master-st" id="masterSt">Activo</span></div>
+                <div class="master-ds">Responde autom&#225;ticamente a los mensajes entrantes. Puedes tomar el control manual en cualquier momento.</div>
+              </div>
+              <label class="switch"><input type="checkbox" id="masterSwitch" checked><span class="track"></span><span class="knob"></span></label>
+            </div>
+
+            <div class="card">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Perfil del asistente</div>
+                  <div class="card-hd-ds">El nombre y la foto que ver&#225;n tus clientes cuando el bot les escriba.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="prof-row">
+                  <div class="prof-photo">
+                    <div class="ia-photo-slot" id="ia-avatar">
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </div>
+                  </div>
+                  <div class="prof-fields">
+                    <div class="field">
+                      <label class="field-lb" for="botName">Nombre de perfil</label>
+                      <input class="inp" id="botName" placeholder="Ej. Parchito, Asistente...">
+                    </div>
+                    <div class="field">
+                      <label class="field-lb" for="botDesc">Descripci&#243;n corta <span class="opt">&middot; visible en el chat</span></label>
+                      <input class="inp" id="botDesc" placeholder="Ej. Asistente virtual del restaurante">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 5.8H20l-4.9 3.6 1.9 5.8L12 13.6 7 17.2l1.9-5.8L4 7.8h6.1z"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Personalidad e instrucciones</div>
+                  <div class="card-hd-ds">Dile al agente qu&#233; estilo usar y c&#243;mo comportarse al atender a los clientes.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="field">
+                  <label class="field-lb">Tono de conversaci&#243;n</label>
+                  <div class="tone-grid" id="toneGrid">
+                    <button class="tone on" data-tone="cercano"><div class="tone-em">&#128516;</div><div class="tone-nm">Cercano</div><div class="tone-ds">Amigable, con emojis</div></button>
+                    <button class="tone" data-tone="neutral"><div class="tone-em">&#128522;</div><div class="tone-nm">Neutral</div><div class="tone-ds">Claro y directo</div></button>
+                    <button class="tone" data-tone="formal"><div class="tone-em">&#127913;</div><div class="tone-nm">Formal</div><div class="tone-ds">Educado, sin emojis</div></button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field-lb" for="iaInstr">Instrucciones del agente</label>
+                  <div class="field-hint">Escribe en lenguaje natural c&#243;mo debe actuar. Estas reglas gu&#237;an cada respuesta.</div>
+                  <textarea class="txa txa--tall" id="iaInstr" data-max="1200" placeholder="Ej. Eres el asistente virtual del restaurante..."></textarea>
+                  <div class="field-foot"><span class="field-hint">Mientras m&#225;s contexto, mejor responde.</span><span class="charc" id="charc-iaInstr">0 / 1200</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Lenguaje y vocabulario</div>
+                  <div class="card-hd-ds">Palabras y expresiones que el bot debe usar (o evitar) para sonar como tu marca.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="field">
+                  <label class="field-lb">Palabras y expresiones de la marca</label>
+                  <div class="chipbox" id="wordBox">
+                    <input id="wordInput" placeholder="Escribe y presiona Enter...">
+                  </div>
+                  <div class="field-hint">El agente priorizar&#225; estas expresiones en sus respuestas.</div>
+                </div>
+                <div class="field">
+                  <label class="field-lb" for="avoid">Palabras a evitar <span class="opt">&middot; opcional</span></label>
+                  <input class="inp" id="avoid" placeholder="Separadas por comas">
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/><circle cx="12" cy="12" r="10"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Preguntas frecuentes</div>
+                  <div class="card-hd-ds">Respuestas listas para las dudas m&#225;s comunes de tus clientes.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="faq-list" id="faqList"></div>
+                <button class="faq-add" id="faqAdd"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Agregar pregunta</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Informaci&#243;n del negocio</div>
+                  <div class="card-hd-ds">Todo lo que el agente necesita saber sobre tu restaurante para responder bien.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="field">
+                  <label class="field-lb" for="iaBiz">Datos del negocio</label>
+                  <textarea class="txa txa--xl" id="iaBiz" data-max="2000" placeholder="Direcci&#243;n, zonas de cobertura, especialidades, promociones..."></textarea>
+                  <div class="field-foot"><span class="field-hint">El bot usar&#225; estos datos como fuente de verdad.</span><span class="charc" id="charc-iaBiz">0 / 2000</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-hd">
+                <div class="card-hd-ico" style="background:#F5F3FF;color:#8B5CF6;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5zM15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Respuestas por voz</div>
+                  <div class="card-hd-ds">El agente puede convertir sus mensajes en audios de voz natural.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="row-toggle" id="voiceRow">
+                  <div class="row-toggle-tx">
+                    <div class="row-toggle-tt">Activar respuestas de voz</div>
+                    <div class="row-toggle-ds">Los mensajes de texto se transforman en notas de voz autom&#225;ticamente.</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" id="voiceSwitch"><span class="track"></span><span class="knob"></span></label>
+                </div>
+                <div class="voice-body off" id="voiceBody">
+                  <div class="field">
+                    <label class="field-lb">Mezcla de texto y voz <span class="opt" id="mixOpt">&middot; 30% de las respuestas en voz</span></label>
+                    <div class="field-hint">Qu&#233; porci&#243;n de las respuestas se env&#237;an como audio en lugar de texto.</div>
+                    <div class="mix">
+                      <div class="mix-bar"><div class="mix-txt" id="mixTxt" style="width:70%;"></div><div class="mix-voz"></div></div>
+                      <input type="range" class="slider" id="mixSlider" min="0" max="100" step="5" value="30">
+                      <div class="mix-legend"><span class="t" id="legT">70% Texto</span><span class="v" id="legV">30% Voz</span></div>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Voz del asistente</label>
+                    <div class="voice-pick" id="voicePick">
+                      <button class="voice on" data-voice="valentina"><span class="voice-wave"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h2l2-6 4 12 3-9 2 3h5"/></svg></span><span><span class="voice-nm">Valentina</span><br><span class="voice-ds">C&#225;lida &middot; femenina</span></span></button>
+                      <button class="voice" data-voice="mateo"><span class="voice-wave"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h2l2-6 4 12 3-9 2 3h5"/></svg></span><span><span class="voice-nm">Mateo</span><br><span class="voice-ds">Energ&#233;tico &middot; masculino</span></span></button>
+                      <button class="voice" data-voice="lucia"><span class="voice-wave"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h2l2-6 4 12 3-9 2 3h5"/></svg></span><span><span class="voice-nm">Luc&#237;a</span><br><span class="voice-ds">Neutral &middot; clara</span></span></button>
+                      <button class="voice" data-voice="andres"><span class="voice-wave"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h2l2-6 4 12 3-9 2 3h5"/></svg></span><span><span class="voice-nm">Andr&#233;s</span><br><span class="voice-ds">Grave &middot; profesional</span></span></button>
+                    </div>
+                  </div>
+                  <div class="integ">
+                    <div class="integ-logo">11</div>
+                    <div class="integ-tx">Las voces se generan con <b>ElevenLabs</b> y el mensaje lo redacta <b>OpenAI</b>. La conexi&#243;n ya est&#225; configurada.</div>
+                    <div class="integ-ok"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Conectado</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="height:8px;"></div>
+          </div>
+
+          <aside class="cfg-aside">
+            <div class="pv-cap"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg> Vista previa en vivo</div>
+            <div class="pv-phone">
+              <div class="pv-hd">
+                <div class="pv-av"><div class="ia-photo-slot sm" id="ia-avatar-pv"></div></div>
+                <div>
+                  <div class="pv-nm"><span id="pvName">Asistente</span><span class="pv-badge-ia">IA</span></div>
+                  <div class="pv-st" id="pvSt"><span class="dot"></span> En l&#237;nea &middot; responde al instante</div>
+                </div>
+              </div>
+              <div class="pv-thread">
+                <div class="pv-bubble in">&#161;Hola! &#191;Tienen la promo de hoy? &#127828;</div>
+                <div class="pv-bubble out">&#161;Claro! Tenemos 2x1 en hamburguesas sencillas. &#191;Te provoca una?</div>
+                <div class="pv-bubble in">De una, &#191;cu&#225;nto es el domicilio?</div>
+                <div class="pv-voice" id="pvVoice" style="display:none">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  <div class="bars"><i style="height:6px"></i><i style="height:12px"></i><i style="height:16px"></i><i style="height:9px"></i><i style="height:14px"></i><i style="height:7px"></i><i style="height:11px"></i><i style="height:5px"></i></div>
+                  <span class="dur">0:08</span>
+                </div>
+                <div class="pv-typing"><i></i><i></i><i></i></div>
+              </div>
+            </div>
+            <div class="pv-stats">
+              <div class="pv-stat"><span class="pv-stat-l"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Resueltas por IA hoy</span><span class="pv-stat-v g">42</span></div>
+              <div class="pv-stat"><span class="pv-stat-l"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent-2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg> Audios enviados</span><span class="pv-stat-v" id="statVoice">0</span></div>
+              <div class="pv-stat"><span class="pv-stat-l"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Tiempo de respuesta</span><span class="pv-stat-v">~2 s</span></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </div>
+
   <!-- toast -->
   <div class="cf-toast" id="toast" hidden>
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -988,7 +1224,7 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-core.js"></script>
-<script src="configuracion.js?v=1783547526"></script>
+<script src="configuracion.js?v=1783904477"></script>
 </body>
 </html>
 
