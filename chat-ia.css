@@ -794,20 +794,21 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 
 /* Sticker pane */
 .ci-sticker-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: 6px; padding: 10px; overflow-y: auto; flex: 1;
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  gap: 4px; padding: 8px; overflow-y: auto; flex: 1;
+  align-content: start;
 }
 .ci-sticker-grid::-webkit-scrollbar { width: 3px; }
 .ci-sticker-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 3px; }
 .ci-sticker-pick {
   background: none; border: none; cursor: pointer;
-  border-radius: 8px; padding: 4px;
+  border-radius: 6px; padding: 3px;
   transition: background .15s;
-  aspect-ratio: 1;
+  width: 100%; aspect-ratio: 1; overflow: hidden;
 }
 .ci-sticker-pick:hover { background: rgba(255,255,255,.1); }
 .ci-sticker-pick img {
-  width: 100%; height: 100%; object-fit: contain;
+  width: 100%; height: 100%; object-fit: contain; display: block;
 }
 
 /* Composer */
