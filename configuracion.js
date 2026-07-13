@@ -2171,6 +2171,7 @@ function chatiaInit() {
       },
       frases:      readFrases(),
       situaciones: readSituaciones(),
+      pedidos_programados: $('pedidosProg') ? $('pedidosProg').checked : false,
     };
   }
 
@@ -2250,6 +2251,7 @@ function chatiaInit() {
     toggleDomiFields();
     applyFrases(m.frases);
     applySituaciones(m.situaciones);
+    if ($('pedidosProg')) $('pedidosProg').checked = !!m.pedidos_programados;
   }
 
   function updateCounter(id) {
