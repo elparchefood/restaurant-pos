@@ -182,6 +182,8 @@ function setSection(sec) {
   if (_screenOp) _screenOp.classList.remove('on');
   var _screenChatia = $('screen-chatia');
   if (_screenChatia) _screenChatia.classList.remove('on');
+  var _screenHorario = $('screen-horario');
+  if (_screenHorario) _screenHorario.classList.remove('on');
 
   if (sec === 'mesas') {
     screenMesas.classList.add('on');
@@ -211,6 +213,13 @@ function setSection(sec) {
       screenChatia.classList.add('on');
       $('crumb').textContent = 'Asistente IA';
       if (!window._chatiaLoaded) { chatiaInit(); window._chatiaLoaded = true; }
+    }
+  } else if (sec === 'horario') {
+    var screenHorario = $('screen-horario');
+    if (screenHorario) {
+      screenHorario.classList.add('on');
+      $('crumb').textContent = 'Horarios';
+      if (!window._horarioLoaded) { horarioInit(); window._horarioLoaded = true; }
     }
   } else if (sec === 'impresora') {
     window.location.href = 'impresoras.html';
@@ -1985,6 +1994,115 @@ function opBindEvents() {
       opRender();
     });
   }
+}
+
+// ── Horarios ────────────────────────────────────────────
+function horarioInit() {
+  var DAYS = [
+    { key: 'lunes',     label: 'Lunes'     },
+    { key: 'martes',    label: 'Martes'    },
+    { key: 'miercoles', label: 'Miércoles' },
+    { key: 'jueves',    label: 'Jueves'    },
+    { key: 'viernes',   label: 'Viernes'   },
+    { key: 'sabado',    label: 'Sábado'    },
+    { key: 'domingo',   label: 'Domingo'   },
+  ];
+  var DEFAULT_ABRE   = '11:00';
+  var DEFAULT_CIERRA = '22:00';
+
+  var grid    = document.getElementById('hr-grid');
+  var chip    = document.getElementById('hr-save-chip');
+  var chipTxt = document.getElementById('hr-save-txt');
+  var saveBtn = document.getElementById('hr-save-btn');
+
+  function markDirty() {
+    chip.className = 'hr-save-chip dirty';
+    chip.querySelector('.hr-chip-dot').style.background = '#F59E0B';
+    chipTxt.textContent = 'Cambios sin guardar';
+  }
+  function markSaved() {
+    chip.className = 'hr-save-chip saved';
+    chip.querySelector('.hr-chip-dot').style.background = '#16A34A';
+    chipTxt.textContent = 'Guardado';
+    setTimeout(function(){ chip.className = 'hr-save-chip'; }, 3000);
+  }
+
+  function buildRow(day, data) {
+    var activo = data && data.activo !== false;
+    var abre   = (data && data.abre)   || DEFAULT_ABRE;
+    var cierra = (data && data.cierra) || DEFAULT_CIERRA;
+
+    var row = document.createElement('div');
+    row.className = 'hr-row' + (activo ? '' : ' closed');
+    row.dataset.day = day.key;
+    row.innerHTML =
+      '<span class="hr-day">' + day.label + '</span>' +
+      '<button class="hr-switch' + (activo ? ' on' : '') + '" type="button" aria-label="Activar ' + day.label + '">' +
+        '<span class="hr-switch-knob"></span>' +
+      '</button>' +
+      '<div class="hr-times">' +
+        '<span class="hr-time-label">Abre</span>' +
+        '<input type="time" class="hr-time" data-role="abre" value="' + abre + '"' + (activo ? '' : ' disabled') + '>' +
+        '<span class="hr-dash">—</span>' +
+        '<span class="hr-time-label">Cierra</span>' +
+        '<input type="time" class="hr-time" data-role="cierra" value="' + cierra + '"' + (activo ? '' : ' disabled') + '>' +
+      '</div>' +
+      '<span class="hr-closed">Cerrado</span>';
+
+    row.querySelector('.hr-switch').addEventListener('click', function() {
+      var isOn = this.classList.toggle('on');
+      row.classList.toggle('closed', !isOn);
+      row.querySelectorAll('.hr-time').forEach(function(inp){ inp.disabled = !isOn; });
+      markDirty();
+    });
+    row.querySelectorAll('.hr-time').forEach(function(inp){
+      inp.addEventListener('change', markDirty);
+    });
+    return row;
+  }
+
+  function readGrid() {
+    var result = {};
+    grid.querySelectorAll('.hr-row').forEach(function(row) {
+      var key    = row.dataset.day;
+      var activo = row.querySelector('.hr-switch').classList.contains('on');
+      var abre   = row.querySelector('[data-role="abre"]').value   || DEFAULT_ABRE;
+      var cierra = row.querySelector('[data-role="cierra"]').value || DEFAULT_CIERRA;
+      result[key] = { activo: activo, abre: abre, cierra: cierra };
+    });
+    return result;
+  }
+
+  function renderGrid(horarios) {
+    grid.innerHTML = '';
+    DAYS.forEach(function(day) {
+      grid.appendChild(buildRow(day, horarios ? horarios[day.key] : null));
+    });
+  }
+
+  async function loadHorario() {
+    var session = (await sb.auth.getSession()).data.session;
+    if (!session) return;
+    var branchId = session.user.user_metadata.branch_id;
+    var { data } = await sb.from('ia_config').select('horarios').eq('branch_id', branchId).maybeSingle();
+    renderGrid(data && data.horarios ? data.horarios : null);
+  }
+
+  saveBtn.addEventListener('click', async function() {
+    saveBtn.disabled = true;
+    var session = (await sb.auth.getSession()).data.session;
+    if (!session) { saveBtn.disabled = false; return; }
+    var meta     = session.user.user_metadata;
+    var horarios = readGrid();
+    var { error } = await sb.from('ia_config').upsert(
+      { branch_id: meta.branch_id, tenant_id: meta.tenant_id, horarios: horarios },
+      { onConflict: 'branch_id' }
+    );
+    saveBtn.disabled = false;
+    if (!error) { markSaved(); } else { alert('Error guardando horarios: ' + error.message); }
+  });
+
+  loadHorario();
 }
 
 // ── Asistente IA config ─────────────────────────────────

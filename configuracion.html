@@ -50,7 +50,6 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             <span class="cf-nav-label">Horarios</span>
           </span>
-          <span class="cf-soon">Pronto</span>
         </button>
       </div>
 
@@ -973,6 +972,38 @@
             <button class="lm-btn-ghost" id="op-btn-discard" hidden>Descartar cambios</button>
             <button class="lm-btn-primary lg" id="op-btn-save" disabled><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Guardar cambios</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECCION: HORARIOS -->
+    <div class="cf-screen" id="screen-horario">
+      <div class="cf-screen-inner">
+        <header class="cf-screen-header">
+          <div class="cf-screen-title-row">
+            <div class="cf-screen-ico indigo">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div>
+              <div class="cf-screen-title">Horarios de atención</div>
+              <div class="cf-screen-sub">El asistente IA usará esta información para responder sobre disponibilidad.</div>
+            </div>
+          </div>
+        </header>
+
+        <div class="op-card hr-card">
+          <div class="op-card-body hr-card-body">
+            <div class="hr-hint">Activa los días que abre el restaurante y define el rango de atención.</div>
+            <div id="hr-grid" class="hr-grid"></div>
+          </div>
+        </div>
+
+        <div class="hr-actions">
+          <div id="hr-save-chip" class="hr-save-chip">
+            <span class="hr-chip-dot"></span>
+            <span id="hr-save-txt">Cambios sin guardar</span>
+          </div>
+          <button class="hr-save-btn" id="hr-save-btn">Guardar horarios</button>
         </div>
       </div>
     </div>
