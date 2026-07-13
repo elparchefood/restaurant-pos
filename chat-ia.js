@@ -334,11 +334,20 @@ function openMsgPopup(e, msgId) {
   }
   _activeMsgId = msgId;
 
-  // Build emoji row
+  // Build emoji row (only for incoming messages that have a Meta external_id)
   const emojisEl = document.getElementById('popupEmojis');
-  emojisEl.innerHTML = QUICK_EMOJIS.map(em =>
-    `<button class="ci-pop-emoji" onclick="reactMsg('${escHtml(msgId)}','${em}')">${em}</button>`
-  ).join('');
+  const divider  = document.querySelector('.ci-popup-divider');
+  if (m.direction === 'in' && m.external_id) {
+    emojisEl.style.display = '';
+    if (divider) divider.style.display = '';
+    emojisEl.innerHTML = QUICK_EMOJIS.map(em =>
+      `<button class="ci-pop-emoji" onclick="reactMsg('${escHtml(msgId)}','${em}')">${em}</button>`
+    ).join('');
+  } else {
+    emojisEl.style.display = 'none';
+    if (divider) divider.style.display = 'none';
+    emojisEl.innerHTML = '';
+  }
 
   // Build action items
   const itemsEl = document.getElementById('popupItems');
@@ -720,6 +729,7 @@ async function reactMsg(msgId, emoji) {
     });
     const data = await res.json();
     if (data.error) showToast('No se pudo reaccionar: ' + data.error, 'error');
+    else { closeMsgPopup(); showToast('Reacción enviada', 'success'); }
   } catch (e) { showToast('Error al reaccionar: ' + e.message, 'error'); }
 }
 
