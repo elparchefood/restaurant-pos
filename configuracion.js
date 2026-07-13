@@ -2023,7 +2023,7 @@ function chatiaInit() {
     var voiceEl = $$('voicePick') ? $$('voicePick').querySelector('.voice.on') : null;
     return {
       activo:        $$('masterSwitch') ? $$('masterSwitch').checked : true,
-      perfil:        { nombre: ($$('botName') ? $$('botName').value : ''), descripcion: ($$('botDesc') ? $$('botDesc').value : ''), fotoUrl: null },
+      perfil:        { nombre: ($$('botName') ? $$('botName').value : ''), descripcion: ($$('botDesc') ? $$('botDesc').value : ''), fotoUrl: window._iaChatAvatarUrl || null },
       tono:          toneEl ? toneEl.dataset.tone : 'cercano',
       instrucciones: $$('iaInstr') ? $$('iaInstr').value : '',
       vocabulario:   { usar: chips, evitar: ($$('avoid') ? $$('avoid').value : '') },
@@ -2044,6 +2044,7 @@ function chatiaInit() {
     if (m.perfil) {
       if ($$('botName')) $$('botName').value = m.perfil.nombre || '';
       if ($$('botDesc')) $$('botDesc').value = m.perfil.descripcion || '';
+      if (m.perfil && m.perfil.fotoUrl) { setAvatarPreview(m.perfil.fotoUrl); window._iaChatAvatarUrl = m.perfil.fotoUrl; }
       if ($$('pvName')) $$('pvName').childNodes[0].textContent = m.perfil.nombre || 'Asistente';
     }
     if (m.tono && $$('toneGrid')) {
@@ -2108,6 +2109,44 @@ function chatiaInit() {
     var { error } = await sb.from('ia_config').upsert(model, { onConflict: 'branch_id' });
     if (!error) { markSaved(); } else { alert('Error guardando: ' + error.message); }
   });
+
+
+  // -- Foto de perfil --
+  var avatarInput = $$('ia-avatar-input');
+  var avatarSlot  = $$('ia-avatar');
+  var avatarPv    = $$('ia-avatar-pv');
+
+  function setAvatarPreview(url) {
+    [avatarSlot, avatarPv].forEach(function(slot) {
+      if (!slot) return;
+      var img = slot.querySelector('img');
+      if (img) { img.src = url; }
+      else { var el = document.createElement('img'); el.src = url; el.alt = ''; slot.insertBefore(el, slot.firstChild); }
+      slot.classList.add('has-photo');
+    });
+  }
+
+  if (avatarSlot && avatarInput) {
+    avatarSlot.addEventListener('click', function(e) {
+      if (e.target.tagName === 'INPUT') return;
+      avatarInput.click();
+    });
+    avatarInput.addEventListener('change', async function() {
+      var file = this.files[0]; if (!file) return;
+      setAvatarPreview(URL.createObjectURL(file));
+      var session = (await sb.auth.getSession()).data.session;
+      if (!session) return;
+      var branchId = session.user.user_metadata.branch_id;
+      var ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      var path = 'ia-profiles/' + branchId + '/avatar.' + ext;
+      var { error: upErr } = await sb.storage.from('chat-media')
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) { console.error('Avatar upload error:', upErr); return; }
+      var { data: pub } = sb.storage.from('chat-media').getPublicUrl(path);
+      window._iaChatAvatarUrl = pub.publicUrl;
+      markDirty();
+    });
+  }
 
   // master toggle
   var masterSwitch = $$('masterSwitch'), masterEl = $$('ia-master'), masterSt = $$('masterSt'), pvSt = $$('pvSt');
