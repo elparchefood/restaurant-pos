@@ -2124,6 +2124,11 @@ function chatiaInit() {
   var screen = $('screen-chatia');
   if (screen) screen.addEventListener('input', markDirty);
   if (screen) screen.addEventListener('change', markDirty);
+  var menuFraseToggle = $('menuFraseVariable');
+  if (menuFraseToggle) menuFraseToggle.addEventListener('change', function() {
+    toggleMenuFraseTexto(menuFraseToggle.checked);
+    markDirty();
+  });
   var menuImgAddBtn = $('menuImgAdd');
   if (menuImgAddBtn) menuImgAddBtn.onclick = function() {
     var list = $('menuImgList');
@@ -2183,6 +2188,7 @@ function chatiaInit() {
       situaciones: readSituaciones(),
       pedidos_programados: $('pedidosProg') ? $('pedidosProg').checked : false,
       menu_imagenes: readMenuImagenes(),
+      menu_frase: readMenuFrase(),
       prohibiciones: readProhibiciones(),
     };
   }
@@ -2265,6 +2271,7 @@ function chatiaInit() {
     applySituaciones(m.situaciones);
     if ($('pedidosProg')) $('pedidosProg').checked = !!m.pedidos_programados;
     applyMenuImagenes(m.menu_imagenes);
+    applyMenuFrase(m.menu_frase);
     applyProhibiciones(m.prohibiciones);
   }
 
@@ -2275,6 +2282,24 @@ function chatiaInit() {
     cc.textContent = ta.value.length + ' / ' + (ta.dataset.max || 2000);
   }
 
+
+
+  // ── Menu frase helpers ──────────────────────────────────
+  function applyMenuFrase(mf) {
+    mf = mf || { tipo: 'fija', texto: '¿Qué se te antoja? 🍟☺️' };
+    var esVariable = mf.tipo === 'variable';
+    if ($('menuFraseVariable')) $('menuFraseVariable').checked = esVariable;
+    if ($('menuFraseTexto')) $('menuFraseTexto').value = mf.texto || '';
+    toggleMenuFraseTexto(esVariable);
+  }
+  function readMenuFrase() {
+    var esVariable = $('menuFraseVariable') ? $('menuFraseVariable').checked : false;
+    return { tipo: esVariable ? 'variable' : 'fija', texto: $('menuFraseTexto') ? $('menuFraseTexto').value.trim() : '' };
+  }
+  function toggleMenuFraseTexto(esVariable) {
+    var wrap = $('menuFraseTextoWrap');
+    if (wrap) wrap.style.display = esVariable ? 'none' : '';
+  }
 
   // ── Carta imágenes helpers ──────────────────────────────
   function applyMenuImagenes(urls) {
