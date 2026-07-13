@@ -41,7 +41,7 @@ const S = {
   tenantId: null, branchId: null, user: null,
   conversations: [], channels: [],
   activeConvId: null, messages: [],
-  activeFilter: 'all', activeView: 'all',
+  activeFilter: 'all', activeView: 'all', humanCount: 0,
   query: '', realtimeSub: null,
 };
 
@@ -106,7 +106,8 @@ async function loadConversations() {
   if (S.activeView === 'pending')  q = q.eq('last_sender','contact').gt('unread_count',0);
   if (S.activeView === 'resolved') q = q.eq('status','resolved');
   if (S.activeView === 'archived') q = q.eq('status','archived');
-  if (['all','mine'].includes(S.activeView)) q = q.eq('status','open');
+  if (S.activeView === 'human')   q = q.eq('human_takeover', true).eq('status','open');
+  if (['all','mine','pending'].includes(S.activeView)) { q = q.eq('status','open').eq('human_takeover', false); }
   const { data } = await q;
   S.conversations = data || [];
   renderConvList();
@@ -492,12 +493,14 @@ function renderBadges() {
   const pending     = S.conversations.filter(c => c.last_sender==='contact' && c.unread_count>0).length;
   $('badge-all').textContent     = totalUnread || '';
   $('badge-pending').textContent = pending     || '';
+  updateHumanBadge();
   $('totalUnread').textContent   = totalUnread ? `${totalUnread} sin leer` : `${S.conversations.length} conversaciones`;
   renderChannelsSidebar();
   renderFilters();
 }
 
 function renderChatHeader(conv) {
+  updateHumanToggleBtn(!!conv.human_takeover);
   const meta     = CHANNELS[conv.channel] || {};
   const tint     = TINTS[(conv.contact_avatar_tint||0) % TINTS.length];
   const label    = conv.contact_name || conv.contact_handle || '?';
@@ -1044,6 +1047,55 @@ function wireEvents() {
 /* ══════════════════════════════════════════════
    HELPERS
 ══════════════════════════════════════════════ */
+/* == HUMAN TAKEOVER == */
+async function updateHumanBadge() {
+  try {
+    const { count } = await sb.from('chat_conversations')
+      .select('id', { count: 'exact', head: true })
+      .eq('branch_id', S.branchId)
+      .eq('human_takeover', true)
+      .eq('status', 'open');
+    S.humanCount = count || 0;
+    const el = $('badge-human');
+    if (el) el.textContent = S.humanCount || '';
+  } catch(e) { console.error('updateHumanBadge:', e); }
+}
+
+function updateHumanToggleBtn(isHuman) {
+  const btn = $('humanToggleBtn');
+  const txt = $('humanToggleTxt');
+  if (!btn) return;
+  if (isHuman) {
+    btn.classList.add('is-human');
+    if (txt) txt.textContent = 'En humano';
+  } else {
+    btn.classList.remove('is-human');
+    if (txt) txt.textContent = 'Bot activo';
+  }
+}
+
+async function toggleHumanTakeover() {
+  const conv = S.conversations.find(c => c.id === S.activeConvId);
+  if (!conv) return;
+  const newVal = !conv.human_takeover;
+  try {
+    await sb.from('chat_conversations').update({ human_takeover: newVal }).eq('id', conv.id);
+    conv.human_takeover = newVal;
+    updateHumanToggleBtn(newVal);
+    await updateHumanBadge();
+    showToast(newVal ? 'Chat pasado al humano' : 'Bot reactivado', 'success');
+    if ((newVal && S.activeView !== 'human') || (!newVal && S.activeView === 'human')) {
+      S.conversations = S.conversations.filter(c => c.id !== S.activeConvId);
+      S.activeConvId = null;
+      renderConvList();
+      renderBadges();
+      $('chatHead').style.display = 'none';
+      $('thread').style.display = 'none';
+      $('chatEmpty').style.display = '';
+    }
+  } catch(e) { console.error('toggleHumanTakeover:', e); showToast('Error al cambiar modo', 'error'); }
+}
+
 function avatarInitials(name) {
   if (!name) return '?';
   const clean = name.replace(/\D/g,'');

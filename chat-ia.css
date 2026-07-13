@@ -1091,3 +1091,13 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .ci-dot:nth-child(2) { animation-delay: .2s; }
 .ci-dot:nth-child(3) { animation-delay: .4s; }
 @keyframes ci-blink { 0%,80%,100% { opacity: .3; transform: scale(.85); } 40% { opacity: 1; transform: scale(1); } }
+
+/* Human takeover toggle */
+.ci-human-toggle {
+  display:flex;align-items:center;gap:6px;padding:5px 11px;border-radius:7px;
+  border:1px solid rgba(100,220,130,.35);background:rgba(100,220,130,.12);
+  color:#4ade80;font-size:12px;font-weight:600;cursor:pointer;transition:all .18s;white-space:nowrap;
+}
+.ci-human-toggle:hover{background:rgba(100,220,130,.22);}
+.ci-human-toggle.is-human{border-color:rgba(251,146,60,.35);background:rgba(251,146,60,.12);color:#fb923c;}
+.ci-human-toggle.is-human:hover{background:rgba(251,146,60,.22);}
