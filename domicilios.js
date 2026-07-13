@@ -184,6 +184,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try { await loadData(); } catch(e) { console.error('loadData:', e); }
+    try { await loadActiveOrders(); } catch(e) { console.error('loadActiveOrders:', e); }
+    try { subscribeNewOrders(); } catch(e) { console.error('subscribeNewOrders:', e); }
 
     try { renderCatGrid();       } catch(e) { console.error('renderCatGrid:', e); }
     try { renderMenuPane();      } catch(e) { console.error('renderMenuPane:', e); }
@@ -197,6 +199,79 @@ document.addEventListener('DOMContentLoaded', () => {
 
   })();
 });
+
+
+// ── Carga pedidos activos de domicilio/WhatsApp al abrir la página ────────
+async function loadActiveOrders() {
+  if (!S.branchId) return;
+  try {
+    const { data: orders, error } = await sb
+      .from('pos_orders')
+      .select('id, customer_name, channel, notes, payment_method, total, opened_at')
+      .eq('branch_id', S.branchId)
+      .in('channel', ['domicilio', 'whatsapp'])
+      .eq('status', 'open')
+      .order('opened_at', { ascending: false });
+    if (error || !orders || !orders.length) return;
+    for (const o of orders) {
+      if (S.deliveries.find(d => d.supabaseId === o.id)) continue;
+      S.deliveries.push(_orderRowToDelivery(o));
+    }
+    S.deliveries.sort((a, b) => b.createdAt - a.createdAt);
+    renderMonitor();
+    updateMonitorBadge();
+  } catch(e) { console.error('[domicilios] loadActiveOrders:', e); }
+}
+
+// ── Escucha pedidos nuevos creados externamente (ej: bot WhatsApp) ─────────
+function subscribeNewOrders() {
+  if (!sb || !sb.channel || !S.branchId) return;
+  sb.channel('domi_external_orders')
+    .on('postgres_changes', {
+      event:  'INSERT',
+      schema: 'public',
+      table:  'pos_orders',
+    }, payload => {
+      const o = payload.new;
+      if (!o || o.branch_id !== S.branchId) return;
+      if (!['domicilio', 'whatsapp'].includes(o.channel)) return;
+      if (o.status !== 'open') return;
+      if (S.deliveries.find(d => d.supabaseId === o.id)) return;
+      S.deliveries.unshift(_orderRowToDelivery(o));
+      renderMonitor();
+      updateMonitorBadge();
+      // Notificación visual breve
+      const cliente = o.customer_name || 'Cliente';
+      toast('🍟 Nuevo pedido WhatsApp — ' + cliente);
+    })
+    .subscribe();
+}
+
+// ── Convierte una fila de pos_orders al formato de S.deliveries ───────────
+function _orderRowToDelivery(o) {
+  const shortId = String(o.id || '').slice(-6).toUpperCase();
+  const metodo  = o.payment_method || 'efectivo';
+  return {
+    id:           shortId,
+    supabaseId:   o.id,
+    cliente:      o.customer_name || '—',
+    canal:        o.channel === 'whatsapp' ? 'whatsapp' : 'whatsapp',
+    items:        '?',
+    productos:    Number(o.total) || 0,
+    fee:          0,
+    estado:       'recibido',
+    payStatus:    'pendiente',
+    payWhen:      'contraentrega',
+    metodo:       metodo,
+    courier:      'interno',
+    cobramos:     false,
+    domiciliario: '—',
+    min:          0,
+    createdAt:    o.opened_at ? new Date(o.opened_at).getTime() : Date.now(),
+    notas:        o.notes || '',
+    fromWhatsApp: true,
+  };
+}
 
 // ── Cargar datos desde Supabase ────────────────────────────────────────
 // Catálogo: stale-while-revalidate con la misma clave que tomar-pedido.
