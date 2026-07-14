@@ -504,6 +504,7 @@ function renderBadges() {
 function renderChatHeader(conv) {
   updateHumanToggleBtn(!!conv.human_takeover);
   updatePagoConfirmBtn(!!conv.pago_pendiente);
+  updateDomiConfirmBtn(!!conv.domi_precio_pendiente);
   const meta     = CHANNELS[conv.channel] || {};
   const tint     = TINTS[(conv.contact_avatar_tint||0) % TINTS.length];
   const label    = conv.contact_name || conv.contact_handle || '?';
@@ -1117,6 +1118,65 @@ function updatePagoConfirmBtn(isPendiente) {
   const btn = $('pagoConfirmBtn');
   if (!btn) return;
   btn.style.display = isPendiente ? '' : 'none';
+}
+
+function updateDomiConfirmBtn(isPendiente) {
+  const btn = $('domiConfirmBtn');
+  if (!btn) return;
+  btn.style.display = isPendiente ? '' : 'none';
+}
+
+function abrirConfirmarDomi() {
+  const conv = S.activeConv;
+  if (!conv) return;
+  const modal = document.createElement('div');
+  modal.id = 'domiModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9999';
+  modal.innerHTML = `
+    <div style="background:var(--surface,#fff);border-radius:14px;padding:24px;min-width:300px;box-shadow:0 8px 32px rgba(0,0,0,.18)">
+      <div style="font-weight:700;font-size:15px;margin-bottom:4px">Confirmar precio de domicilio</div>
+      <div style="font-size:12px;color:var(--text-muted,#888);margin-bottom:16px">El barrio del cliente no está en la tabla de precios. Ingresa el costo del domicilio.</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px">
+        <span style="font-size:15px;font-weight:600;color:var(--text-muted,#888)">$</span>
+        <input id="domiPrecioInput" type="number" min="0" step="500" placeholder="Ej: 7000"
+          style="flex:1;padding:10px 12px;border:1.5px solid var(--border,#ddd);border-radius:8px;font-size:15px;outline:none;background:var(--input-bg,#f8f8f8)">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button onclick="document.getElementById('domiModal').remove()"
+          style="padding:8px 16px;border:none;background:var(--hover-bg,#f0f0f0);border-radius:8px;cursor:pointer;font-size:13px">Cancelar</button>
+        <button onclick="confirmarDomi()"
+          style="padding:8px 16px;border:none;background:var(--accent,#e63946);color:#fff;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Confirmar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  setTimeout(() => $('domiPrecioInput')?.focus(), 50);
+}
+
+async function confirmarDomi() {
+  const conv = S.activeConv;
+  if (!conv) return;
+  const input = $('domiPrecioInput');
+  const precio = parseInt(input?.value || '0', 10);
+  if (!precio || precio < 0) { showToast('Ingresa un precio válido', 'error'); return; }
+  $('domiModal')?.remove();
+  try {
+    const srKey = window._srKey || '';
+    const res = await fetch(`${window._supabaseUrl}/functions/v1/confirm-domi`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${srKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation_id: conv.id, domi_precio: precio })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    conv.domi_precio_pendiente = false;
+    conv.human_takeover = false;
+    updateDomiConfirmBtn(false);
+    updateHumanToggleBtn(false);
+    await loadMessages(conv.id);
+    showToast('Domicilio confirmado — pedido enviado a cocina ✅');
+  } catch(e) {
+    console.error('confirmarDomi:', e);
+    showToast('Error al confirmar domicilio', 'error');
+  }
 }
 
 async function confirmarPago() {
