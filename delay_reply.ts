@@ -30,37 +30,35 @@ async function processConversation(convId: string): Promise<void> {
   // 1. Leer la entrada de la cola
   const queueRes = await sbGet(`/rest/v1/chat_ai_queue?conversation_id=eq.${convId}&processed=eq.false&limit=1`);
   const entry = queueRes?.[0] as Record<string, unknown> | undefined;
-  if (!entry) return; // ya procesado o no existe
+  if (!entry) return;
 
   const fireAt = new Date(entry.fire_at as string).getTime();
 
-  // 2. Esperar hasta fire_at (con chequeo por si se extendió)
+  // 2. Esperar hasta fire_at
   let attempts = 0;
   while (attempts < 10) {
     const now = Date.now();
     const remaining = fireAt - now;
     if (remaining > 0) {
-      await sleep(Math.min(remaining + 200, 30_000)); // +200ms de margen
+      await sleep(Math.min(remaining + 200, 30_000));
     }
-    // Re-leer para ver si fire_at se extendió mientras dormíamos
     const freshRes = await sbGet(`/rest/v1/chat_ai_queue?conversation_id=eq.${convId}&processed=eq.false&limit=1`);
     const fresh = freshRes?.[0] as Record<string, unknown> | undefined;
-    if (!fresh) return; // ya procesado por otra instancia
+    if (!fresh) return;
     const newFireAt = new Date(fresh.fire_at as string).getTime();
-    if (newFireAt <= Date.now()) break; // es el momento
-    // fire_at se extendió, volvemos a dormir
+    if (newFireAt <= Date.now()) break;
     attempts++;
   }
 
-  // 3. Marcar como procesado (evitar doble ejecución)
+  // 3. Marcar como procesado
   await sbPatch(`/rest/v1/chat_ai_queue?conversation_id=eq.${convId}&processed=eq.false`, { processed: true });
 
-  // 4. Leer los mensajes del batch (desde batch_start)
-  const batchStart = entry.batch_start as string;
-  const branchId   = entry.branch_id as string;
-  const tenantId   = entry.tenant_id as string;
-  const fromPhone  = entry.from_phone as string;
-  const phoneId    = entry.phone_id as string;
+  // 4. Leer datos del batch
+  const batchStart  = entry.batch_start as string;
+  const branchId    = entry.branch_id as string;
+  const tenantId    = entry.tenant_id as string;
+  const fromPhone   = entry.from_phone as string;
+  const phoneId     = entry.phone_id as string;
   const accessToken = entry.access_token as string;
 
   const msgsRes = await sbGet(
@@ -82,25 +80,104 @@ async function processConversation(convId: string): Promise<void> {
     return;
   }
 
-  // 6. Historial previo (antes del batch)
+  // 5b. Hora Colombia (UTC-5)
+  const nowUtc = new Date();
+  const colombiaMs = nowUtc.getTime() - (5 * 60 * 60 * 1000);
+  const colDate = new Date(colombiaMs);
+  const colHourNum = colDate.getUTCHours();
+  const colMinNum  = colDate.getUTCMinutes();
+  const colMin     = String(colMinNum).padStart(2, "0");
+  const colAmPm    = colHourNum >= 12 ? "pm" : "am";
+  const colH12     = colHourNum % 12 || 12;
+  const colTimeStr = `${colH12}:${colMin}${colAmPm}`;
+  const colDays    = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+  const colDayStr  = colDays[colDate.getUTCDay()];
+  const colDayKey  = ["domingo","lunes","martes","miercoles","jueves","viernes","sabado"][colDate.getUTCDay()];
+  const colHHMM    = String(colHourNum).padStart(2,"0") + ":" + colMin;
+
+  // Derivar isOpen desde cfg.horarios (no hardcodeado)
+  const horariosCfg = cfg.horarios as Record<string, Record<string,unknown>> | null | undefined;
+  let isOpen = false;
+  let isBeforeOpen = false;
+  if (horariosCfg) {
+    const hoy = horariosCfg[colDayKey];
+    if (hoy && hoy.activo) {
+      const abre   = (hoy.abre   as string) || "00:00";
+      const cierra = (hoy.cierra as string) || "23:59";
+      isOpen       = colHHMM >= abre && colHHMM < cierra;
+      isBeforeOpen = colHHMM < abre;
+    }
+  } else {
+    // Fallback a horario por defecto si no hay config
+    const totalMinutes = colHourNum * 60 + colMinNum;
+    isBeforeOpen = totalMinutes < (18 * 60 + 30);
+    const isAfterClose = totalMinutes >= (22 * 60 + 30);
+    isOpen = !isBeforeOpen && !isAfterClose;
+  }
+
+  // 6. Historial previo
   const histRes = await sbGet(
     `/rest/v1/chat_messages?conversation_id=eq.${convId}&sent_at=lt.${encodeURIComponent(batchStart)}` +
     `&order=sent_at.desc&limit=8&select=direction,body`
   );
   const history = ((histRes || []) as Array<{ direction: string; body: string }>).reverse();
 
+  // 6b. Detectar si el cliente pide la carta → enviar imágenes y salir
+  const menuImagenes = (cfg.menu_imagenes as string[]) || [];
+  if (menuImagenes.length > 0) {
+    const combinedLower = batchMsgs.map(m => m.body.toLowerCase().trim()).join(" ");
+    const menuKw = ["la carta","el menú","el menu","dame la carta","ver la carta","su carta","ver el menú","ver el menu","qué tienen de menú","muestrame la carta","muéstrame la carta","carta del restaurante","que tienen de menu","envía la carta","envia la carta"];
+    const isExact = ["carta","menú","menu","el menú","el menu"].includes(combinedLower);
+    const wantsMenu = isExact || menuKw.some(kw => combinedLower.includes(kw));
+    if (wantsMenu) {
+      for (const imgUrl of menuImagenes) {
+        await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "image", image: { link: imgUrl } }),
+        });
+        await sleep(600);
+      }
+      const fraObj = (cfg.frases as Record<string,string>) || {};
+      const menuFraseCfg = (cfg.menu_frase as Record<string,string>) || {};
+      const followUp = menuFraseCfg.tipo === "variable"
+        ? (fraObj.apertura || "¿Qué se te antoja? 🍟☺️")
+        : (menuFraseCfg.texto || "¿Qué se te antoja? 🍟☺️");
+      const waText = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "text", text: { body: followUp } }),
+      });
+      const waSentData = await waText.json() as Record<string, unknown>;
+      const sentId = ((waSentData.messages as Array<Record<string,unknown>>)?.[0]?.id as string) || "";
+      await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", body: followUp, delivery_status: "sent", external_id: sentId || null, sent_at: new Date().toISOString() });
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: followUp, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+      return;
+    }
+  }
+
   // 7. Cargar menú y horarios
-  const menuText     = await buildMenuText(branchId);
-  const horariosText = buildHorariosText(cfg.horarios as Record<string, unknown> | null | undefined);
+  const menuText       = await buildMenuText(branchId);
+  const horariosText   = buildHorariosText(cfg.horarios as Record<string, unknown> | null | undefined);
 
-  // 8. Nombre del remitente
-  const convRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=contact_name&limit=1`);
-  const senderName = (convRes?.[0] as Record<string, string> | undefined)?.contact_name || fromPhone;
+  // 8. Nombre del remitente + check human_takeover / pago_pendiente
+  const convRes    = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=contact_name,human_takeover,pago_pendiente&limit=1`);
+  const convRow    = convRes?.[0] as Record<string, unknown> | undefined;
+  const senderName = (convRow?.contact_name as string) || fromPhone;
+  if (convRow?.human_takeover) {
+    console.log("human_takeover activo para conv", convId, "— bot silenciado");
+    await setTyping(convId, false);
+    return;
+  }
 
-  // 9. Construir system prompt con instrucciones de agrupación
-  const pagosText     = buildPagosText(cfg.pagos as Record<string, unknown> | null | undefined);
+  // 9. System prompt
+  const pagosText      = buildPagosText(cfg.pagos as Record<string, unknown> | null | undefined);
   const domiciliosText = buildDomiciliosText(cfg.domicilios as Record<string, unknown> | null | undefined);
-  const systemPrompt  = buildSystemPrompt(cfg, senderName, menuText, horariosText, pagosText, domiciliosText, batchMsgs.length);
+  const pedidosProg    = !!(cfg.pedidos_programados);
+  const systemPrompt   = buildSystemPrompt(
+    cfg, senderName, menuText, horariosText, pagosText, domiciliosText,
+    batchMsgs.length, colTimeStr, colDayStr, isOpen, isBeforeOpen, pedidosProg
+  );
 
   // 10. Armar mensajes para OpenAI
   const messages: Array<{ role: string; content: string }> = [
@@ -109,19 +186,50 @@ async function processConversation(convId: string): Promise<void> {
   for (const h of history) {
     if (h.body) messages.push({ role: h.direction === "in" ? "user" : "assistant", content: h.body });
   }
-
   if (batchMsgs.length === 1) {
     messages.push({ role: "user", content: batchMsgs[0].body });
   } else {
-    // Múltiples mensajes: numerados con su external_id para que OpenAI pueda citarlos
     const combined = batchMsgs.map((m, i) => `[${i + 1}] id:${m.external_id} | ${m.body}`).join("\n");
     messages.push({ role: "user", content: combined });
   }
 
-  // 11. Llamar a OpenAI — pedir JSON cuando hay múltiples mensajes
-  const responseFormat = batchMsgs.length > 1
-    ? { type: "json_object" }
-    : undefined;
+  // 11. Llamar a OpenAI
+  // Cuando se puede tomar pedidos: usar function calling en lugar de response_format
+  // Cuando NO: usar response_format json_object para multi-mensajes
+  const puedeTomarPedidos = isOpen || pedidosProg;
+  const useTools = puedeTomarPedidos;
+  const responseFormat = (!useTools && batchMsgs.length > 1) ? { type: "json_object" } : undefined;
+
+  const CREAR_PEDIDO_TOOL = {
+    type: "function",
+    function: {
+      name: "crear_pedido",
+      description: "Crea el pedido en el sistema Cobra POS. Llamar SOLO cuando el cliente haya confirmado explícitamente (dijo sí, correcto, dale, confirmo, etc.) al resumen del pedido. Requiere tener los 4 datos completos.",
+      parameters: {
+        type: "object",
+        properties: {
+          cliente:    { type: "string",  description: "Nombre del cliente" },
+          direccion:  { type: "string",  description: "Dirección de entrega o 'para llevar'" },
+          pago:       { type: "string",  description: "Método de pago: efectivo, nequi, daviplata, etc." },
+          mensaje:    { type: "string",  description: "Mensaje de confirmación para enviarle al cliente" },
+          productos: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                nombre:   { type: "string",  description: "Nombre del producto" },
+                tamano:   { type: "string",  description: "Personal, Familiar, Unico, Litro o 1.5 Litros" },
+                tipo:     { type: "string",  description: "Mixta, Carne o Pollo — solo para Premium y Maicitos Especial" },
+                cantidad: { type: "integer", description: "Cantidad" },
+              },
+              required: ["nombre", "tamano", "cantidad"],
+            },
+          },
+        },
+        required: ["cliente", "productos", "direccion", "pago", "mensaje"],
+      },
+    },
+  };
 
   const oaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -129,8 +237,9 @@ async function processConversation(convId: string): Promise<void> {
     body: JSON.stringify({
       model: "gpt-4o-mini",
       messages,
-      max_tokens: 600,
+      max_tokens: 1000,
       temperature: 0.7,
+      ...(useTools ? { tools: [CREAR_PEDIDO_TOOL], tool_choice: "auto" } : {}),
       ...(responseFormat ? { response_format: responseFormat } : {}),
     }),
   });
@@ -141,73 +250,292 @@ async function processConversation(convId: string): Promise<void> {
     return;
   }
 
-  const oaiData = await oaiRes.json() as Record<string, unknown>;
-  const rawReply = (((oaiData.choices as Array<Record<string,unknown>>)?.[0]
-    ?.message as Record<string,unknown>)?.content as string || "").trim();
+  const oaiData   = await oaiRes.json() as Record<string, unknown>;
+  const choice    = (oaiData.choices as Array<Record<string,unknown>>)?.[0];
+  const message   = choice?.message as Record<string,unknown> | undefined;
+  const toolCalls = message?.tool_calls as Array<Record<string,unknown>> | undefined;
 
-  if (!rawReply) {
-    await setTyping(convId, false);
-    return;
-  }
-
-  // 12. Detectar marcador [PAGO_QR] — enviar imagen QR antes de parsear
-  const pagoQrConfig = cfg.pagos as Record<string, unknown> | null | undefined;
-  const qrImageUrl   = (pagoQrConfig?.qr_imagen_url as string) || "";
-  const qrTexto      = (pagoQrConfig?.qr_texto      as string) || "";
-  const hasPagoQr    = rawReply.includes("[PAGO_QR]") && qrImageUrl;
-
-  // Limpiar marcador del texto que se enviará al cliente
-  const cleanReply = rawReply.replace(/\[PAGO_QR\]/g, "").trim();
-
-  if (hasPagoQr) {
-    // Marcar conversación como pago pendiente
-    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pago_pendiente: true });
-    // Enviar imagen QR con el texto configurado como caption
-    const waImgBody = {
-      messaging_product: "whatsapp",
-      to: fromPhone,
-      recipient_type: "individual",
-      type: "image",
-      image: { link: qrImageUrl, caption: qrTexto || undefined },
-    };
-    const waImgRes = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify(waImgBody),
-    });
-    if (waImgRes.ok) {
-      const waSentImg = await waImgRes.json() as Record<string, unknown>;
-      const sentImgId = ((waSentImg.messages as Array<Record<string,unknown>>)?.[0]?.id as string) || "";
-      await sbPost(`/rest/v1/chat_messages`, {
-        conversation_id: convId, tenant_id: tenantId,
-        direction: "out", body: qrTexto || "[Imagen QR de pago]",
-        media_url: qrImageUrl, media_type: "image",
-        delivery_status: "sent", external_id: sentImgId || null,
-        sent_at: new Date().toISOString(),
-      });
-    } else {
-      console.error("QR image send error:", await waImgRes.text());
-    }
-    await sleep(400);
-  }
-
-  // 13. Parsear respuesta
+  // 12. Parsear respuesta
   type RespItem = { quote_id?: string; text: string };
   let responses: RespItem[] = [];
+  let pendingOrder: Record<string, unknown> | null = null;
 
-  if (batchMsgs.length > 1) {
-    try {
-      const parsed = JSON.parse(cleanReply) as { type?: string; responses?: RespItem[] };
-      if (parsed.responses && Array.isArray(parsed.responses)) {
-        responses = parsed.responses;
-      } else {
-        responses = [{ text: cleanReply }];
+  // 12a. Verificar si GPT llamó a crear_pedido()
+  if (toolCalls?.length) {
+    const tc = toolCalls.find(t => (t.function as Record<string,unknown>)?.name === "crear_pedido");
+    if (tc) {
+      try {
+        const args = JSON.parse((tc.function as Record<string,unknown>).arguments as string) as Record<string,unknown>;
+        pendingOrder = args;
+        // El mensaje de confirmación viene en el argumento "mensaje"
+        const confirmMsg = (args.mensaje as string) || "¡Pedido creado! 🍟 En un momento lo preparamos.";
+        responses = [{ text: confirmMsg }];
+      } catch {
+        console.error("Error parseando args de crear_pedido");
       }
-    } catch {
-      responses = [{ text: cleanReply }];
     }
-  } else {
-    responses = [{ text: cleanReply }];
+  }
+
+  // 12b. Si no hubo tool call, parsear el texto normal
+  if (!responses.length) {
+    const rawReply = (message?.content as string || "").trim();
+    if (!rawReply) {
+      await setTyping(convId, false);
+      return;
+    }
+    if (!useTools && batchMsgs.length > 1) {
+      // Modo multi-mensaje con JSON
+      try {
+        const parsed = JSON.parse(rawReply) as { type?: string; responses?: RespItem[] };
+        responses = Array.isArray(parsed.responses) ? parsed.responses : [{ text: rawReply }];
+      } catch {
+        responses = [{ text: rawReply }];
+      }
+    } else {
+      responses = [{ text: rawReply }];
+    }
+  }
+
+  // 12b1.5. Si GPT devolvió un resumen de pedido (🍟 + 📍 + 💳), construirlo
+  // con datos estructurados extraídos de la conversación y template configurable.
+  if (!pendingOrder && puedeTomarPedidos && responses.length === 1 && responses[0].text) {
+    const draft = responses[0].text;
+    const isResumen = draft.includes("🍟") && draft.includes("📍") && draft.includes("💳");
+    if (isResumen) {
+      const frasesObj      = (cfg.frases as Record<string,string>) || {};
+      const confirmFrase   = frasesObj.resumen_confirmacion      || "¿Lo confirmamos o hay algo que cambiar?";
+      const totalDescFrase = frasesObj.resumen_total_desconocido || "ya te confirmamos el total ☺️🍟";
+      const plantilla      = (cfg.resumen_plantilla as string)   ||
+        "Listo! Tu pedido quedaría así:\n🍟 {{cantidad}}x {{producto}} {{tamano}}{{adiciones}}\n📍 {{direccion}}\n💳 {{pago}}\n{{linea_total}}\n{{confirmacion}}";
+
+      const domRaw = cfg.domicilios as Record<string,unknown> | null | undefined;
+      const zonas  = (domRaw?.zonas as Array<{ nombre: string; precio: number }>) || [];
+
+      // Extracción estructurada: GPT devuelve JSON con los datos del pedido
+      const extractRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `Extrae los datos del pedido de esta conversación y devuelve SOLO un JSON con estos campos exactos:
+{
+  "producto": "nombre del producto sin tamaño (ej: Salchipapa Premium Mixta)",
+  "tamano": "tamaño del producto (ej: Personal, Familiar)",
+  "cantidad": 1,
+  "adiciones": " + Super queso" (con espacio al inicio; cadena vacía si no hay adiciones),
+  "direccion": "dirección completa de entrega",
+  "barrio": "solo el nombre del barrio (sin calle ni número) para buscar en la tabla de precios",
+  "pago": "método de pago (ej: Efectivo, Nequi)",
+  "nombre_pedido": "nombre para recibir el pedido — SOLO si el cliente lo dijo explícitamente en la conversación; si no lo dijo, deja cadena vacía",
+  "precio_producto_num": 28000
+}
+
+precio_producto_num = precio numérico del producto × cantidad según el menú. Si no encuentras el precio exacto, pon 0.
+nombre_pedido = nombre que el cliente dijo para el domicilio. Si NO lo mencionó, pon cadena vacía "".
+
+MENÚ:
+${menuText}`,
+            },
+            ...messages.slice(1),
+          ],
+          max_tokens: 300,
+          response_format: { type: "json_object" },
+        }),
+      });
+
+      const extractData = await extractRes.json() as Record<string, unknown>;
+      let extracted: Record<string, unknown> = {};
+      try {
+        extracted = JSON.parse(
+          String(((extractData.choices as Array<Record<string,unknown>>)?.[0]
+            ?.message as Record<string,unknown>)?.content || "{}")
+        ) as Record<string, unknown>;
+      } catch { extracted = {}; }
+
+      // Buscar barrio en tabla de zonas
+      const barrioRaw = String(extracted.barrio || "").toLowerCase().trim();
+      const zona = zonas.find(z =>
+        barrioRaw.includes(z.nombre.toLowerCase()) || z.nombre.toLowerCase().includes(barrioRaw)
+      );
+
+      // Formatear pesos colombianos
+      const fmtPeso = (n: number) => "$" + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+      const precioProductoNum  = Number(extracted.precio_producto_num) || 0;
+      const precioDomicilioNum = zona ? zona.precio : 0;
+      const precioTotalNum     = precioProductoNum + precioDomicilioNum;
+
+      // Construir {{linea_total}}
+      let lineaTotal: string;
+      if (zona && precioProductoNum > 0) {
+        lineaTotal = `Total: ${fmtPeso(precioProductoNum)} + ${fmtPeso(precioDomicilioNum)} del domicilio = ${fmtPeso(precioTotalNum)} :)`;
+      } else {
+        lineaTotal = totalDescFrase;
+      }
+
+      // Si falta el nombre, preguntar antes de mostrar el resumen
+      const nombrePedido = String(extracted.nombre_pedido || "").trim();
+      if (!nombrePedido) {
+        const nombreFrase = frasesObj.nombre_recibir || "¿A nombre de quién se recibe el pedido? 🍟";
+        responses = [{ text: nombreFrase }];
+        console.log("Resumen bloqueado: falta nombre_pedido — preguntando nombre");
+      } else {
+
+      // Rellenar template con variables
+      const result = plantilla
+        .replace(/\{\{cantidad\}\}/g,         String(extracted.cantidad    || 1))
+        .replace(/\{\{producto\}\}/g,          String(extracted.producto    || ""))
+        .replace(/\{\{tamano\}\}/g,            String(extracted.tamano      || ""))
+        .replace(/\{\{adiciones\}\}/g,         String(extracted.adiciones   || ""))
+        .replace(/\{\{direccion\}\}/g,         String(extracted.direccion   || ""))
+        .replace(/\{\{pago\}\}/g,              String(extracted.pago        || ""))
+        .replace(/\{\{precio_producto\}\}/g,   precioProductoNum  > 0 ? fmtPeso(precioProductoNum)  : "")
+        .replace(/\{\{precio_domicilio\}\}/g,  zona               ? fmtPeso(precioDomicilioNum) : "")
+        .replace(/\{\{precio_total\}\}/g,      (zona && precioProductoNum > 0) ? fmtPeso(precioTotalNum) : "")
+        .replace(/\{\{nombre\}\}/g,            nombrePedido)
+        .replace(/\{\{linea_total\}\}/g,       lineaTotal)
+        .replace(/\{\{confirmacion\}\}/g,      confirmFrase);
+
+      responses = [{ text: result }];
+      console.log("Resumen construido desde template configurable");
+      } // cierre else (nombre presente)
+    }
+  }
+
+  // 12b2. Si GPT no llamó crear_pedido() pero el cliente acaba de confirmar:
+  // detectamos el patrón [resumen anterior → confirmación del cliente] y
+  // forzamos una segunda llamada con tool_choice required para extraer el pedido.
+  if (!pendingOrder && puedeTomarPedidos) {
+    const latestUserText = batchMsgs[batchMsgs.length - 1]?.body?.toLowerCase?.() || "";
+    // Solo palabras que son ÚNICAMENTE confirmaciones, nunca parte de un pedido inicial
+    const CONFIRM_WORDS  = ["sí","si","correcto","dale","perfecto","claro",
+                             "de acuerdo","afirmativo","está bien","confirmo","exacto","así es"];
+    const isConfirmMsg   = CONFIRM_WORDS.some(w => latestUserText === w || latestUserText.startsWith(w + " ") || latestUserText.endsWith(" " + w) || latestUserText.includes(" " + w + " "));
+
+    // Revisar SOLO el último mensaje del bot (no todo el historial)
+    const allBotMessages = messages.filter((m: Record<string,unknown>) => m.role === "assistant");
+    const lastBotMsg = allBotMessages.length > 0
+      ? String(allBotMessages[allBotMessages.length - 1].content || "")
+      : "";
+    const hasSummary = lastBotMsg.includes("¿Lo confirmamos") ||
+                       lastBotMsg.includes("¿Todo correcto?") ||
+                       lastBotMsg.includes("Confirmemos") ||
+                       lastBotMsg.includes("correcto?") ||
+                       (lastBotMsg.includes("total") && lastBotMsg.includes("$") && (lastBotMsg.includes("confirmamos") || lastBotMsg.includes("correcto")));
+
+    // Guardia adicional: no disparar si el mensaje del cliente es largo (pedido inicial)
+    const isLongMessage = latestUserText.length > 80;
+
+    if (isConfirmMsg && hasSummary && !isLongMessage) {
+      console.log("Confirmación detectada — forzando extracción de pedido con tool_choice required");
+      const extractRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "El cliente acaba de confirmar su pedido. Extrae TODOS los datos del pedido de la conversación (nombre del cliente, productos con tamaño, dirección, método de pago) y llama a la función crear_pedido() ahora mismo. El campo 'mensaje' debe ser un mensaje de confirmación breve y amigable.",
+            },
+            ...messages.slice(1), // historial sin el system prompt original
+          ],
+          max_tokens: 500,
+          tools: [CREAR_PEDIDO_TOOL],
+          tool_choice: { type: "function", function: { name: "crear_pedido" } },
+        }),
+      });
+
+      if (extractRes.ok) {
+        const extractData  = await extractRes.json() as Record<string, unknown>;
+        const extractMsg   = (extractData.choices as Array<Record<string,unknown>>)?.[0]
+                               ?.message as Record<string,unknown> | undefined;
+        const extractTc    = (extractMsg?.tool_calls as Array<Record<string,unknown>>)?.[0];
+        if (extractTc && (extractTc.function as Record<string,unknown>)?.name === "crear_pedido") {
+          try {
+            const args = JSON.parse(
+              (extractTc.function as Record<string,unknown>).arguments as string
+            ) as Record<string,unknown>;
+            pendingOrder = args;
+            console.log("Pedido extraído (2ª llamada):", JSON.stringify(args));
+          } catch {
+            console.error("Error parseando args de la 2ª llamada");
+          }
+        } else {
+          console.warn("2ª llamada no retornó tool_call de crear_pedido");
+        }
+      } else {
+        console.error("Error en 2ª llamada OpenAI:", await extractRes.text());
+      }
+    }
+  }
+
+  // 12c. Crear pedido en Cobra POS (con lógica de verificación de transferencia)
+  let shouldSendQr = false;
+  let qrImageUrl   = "";
+  let qrTexto      = "";
+  if (pendingOrder) {
+    try {
+      const pagoMetodo = String(pendingOrder.pago || "").toLowerCase();
+      const esTransferencia = pagoMetodo.includes("transfer") || pagoMetodo.includes("nequi") || pagoMetodo.includes("daviplata");
+
+      if (esTransferencia) {
+        // Guardar pedido pendiente — esperar comprobante o confirmación humana
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+          pago_pendiente:     true,
+          pending_order_data: pendingOrder,
+        });
+        // El bot ya habrá dicho "envíanos el comprobante" por instrucciones.
+        // Si no hay respuesta en el hilo sobre comprobante, solo marcamos pendiente.
+        console.log("Pedido guardado como pendiente de pago por transferencia");
+        // Preparar envío de QR si está configurado
+        const pagosCfg = cfg.pagos as Record<string, unknown> | null | undefined;
+        qrImageUrl   = (pagosCfg?.qr_imagen_url as string) || "";
+        qrTexto      = (pagosCfg?.qr_texto      as string) || "";
+        shouldSendQr = !!qrImageUrl;
+      } else {
+        // Efectivo u otro: crear pedido inmediatamente
+        const orderId = await createWhatsappOrder(pendingOrder, branchId, tenantId, fromPhone);
+        console.log("Pedido WhatsApp creado:", orderId);
+      }
+    } catch (err) {
+      console.error("Error procesando pedido WhatsApp:", err);
+    }
+  }
+
+  // 12d. Verificar comprobante de transferencia si hay imagen y pago_pendiente
+  const convPagoPendiente = convRow?.pago_pendiente as boolean | undefined;
+  const latestMsg = batchMsgs[batchMsgs.length - 1];
+  const hasImage  = latestMsg?.body?.startsWith("[imagen]") || latestMsg?.body?.startsWith("[image]");
+
+  if (convPagoPendiente && hasImage) {
+    try {
+      const verificationResult = await verifyTransferComprobante(convId, branchId, latestMsg, cfg);
+      if (verificationResult === "confirmed") {
+        // Confirmado vía Gmail — crear pedido
+        const pendingDataRows = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=pending_order_data&limit=1`) as Array<Record<string,unknown>> | null;
+        const savedOrder = pendingDataRows?.[0]?.pending_order_data as Record<string,unknown> | null;
+        if (savedOrder) {
+          const orderId = await createWhatsappOrder(savedOrder, branchId, tenantId, fromPhone);
+          console.log("Pedido creado tras verificación Gmail:", orderId);
+        }
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+          pago_pendiente: false, pending_order_data: null,
+        });
+        const frasesObj = (cfg.frases as Record<string,string>) || {};
+        const cierreFrase = frasesObj.cierre_pedido || "En un momento enviamos tu pedido 🍟 ¡Con muchísimo gusto!";
+        responses = [{ text: `✅ ¡Pago verificado! ${cierreFrase}` }];
+      } else {
+        // No verificado — dejar en pagos por confirmar, avisar al cliente
+        responses = [{ text: "Recibimos tu comprobante, en un momento lo verificamos y confirmamos tu pedido 🙏" }];
+      }
+    } catch (err) {
+      console.error("Error verificando comprobante:", err);
+      responses = [{ text: "Recibimos tu comprobante, en un momento lo verificamos y confirmamos tu pedido 🙏" }];
+    }
   }
 
   // 13. Enviar respuesta(s) por WhatsApp y guardar en DB
@@ -222,11 +550,7 @@ async function processConversation(convId: string): Promise<void> {
       type: "text",
       text: { body: text },
     };
-
-    // Citar el mensaje original si aplica
-    if (resp.quote_id) {
-      waBody.context = { message_id: resp.quote_id };
-    }
+    if (resp.quote_id) waBody.context = { message_id: resp.quote_id };
 
     const waRes = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
       method: "POST",
@@ -248,11 +572,42 @@ async function processConversation(convId: string): Promise<void> {
       sent_at: new Date().toISOString(),
     });
 
-    // Pequeña pausa entre mensajes múltiples para que lleguen en orden
     if (responses.length > 1) await sleep(400);
   }
 
-  // 14. Actualizar conversación y apagar typing
+  // 13b. Enviar imagen QR si el pago es por transferencia y está configurado
+  if (shouldSendQr) {
+    await sleep(600);
+    const waQrBody = {
+      messaging_product: "whatsapp",
+      to: fromPhone,
+      recipient_type: "individual",
+      type: "image",
+      image: { link: qrImageUrl, caption: qrTexto || undefined },
+    };
+    const qrRes = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(waQrBody),
+    });
+    if (qrRes.ok) {
+      const qrSent = await qrRes.json() as Record<string, unknown>;
+      const qrMsgId = ((qrSent.messages as Array<Record<string,unknown>>)?.[0]?.id as string) || "";
+      await sbPost(`/rest/v1/chat_messages`, {
+        conversation_id: convId,
+        tenant_id: tenantId,
+        direction: "out",
+        body: `[imagen] ${qrImageUrl}`,
+        delivery_status: "sent",
+        external_id: qrMsgId || null,
+        sent_at: new Date().toISOString(),
+      });
+    } else {
+      console.error("QR send error:", await qrRes.text());
+    }
+  }
+
+  // 14. Actualizar conversación
   const lastText = responses[responses.length - 1]?.text || "";
   await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
     last_message: lastText,
@@ -261,6 +616,335 @@ async function processConversation(convId: string): Promise<void> {
     last_read: false,
     ai_typing: false,
   });
+}
+
+// ── Crear pedido WhatsApp en Cobra POS ───────────────────────────────────────
+
+async function createWhatsappOrder(
+  data: Record<string, unknown>,
+  branchId: string,
+  tenantId: string,
+  fromPhone: string
+): Promise<string | null> {
+  const cliente     = String(data.cliente     || "Cliente WhatsApp");
+  const productos   = (data.productos as Array<Record<string, unknown>>) || [];
+  const direccion   = String(data.direccion   || "");
+  const pago        = String(data.pago        || "");
+
+  // Traer todos los productos disponibles de la sucursal
+  const allProducts = await sbGet(
+    `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true` +
+    `&select=id,name,price,price_mode,presentations,variables`
+  ) as Array<Record<string, unknown>> | null;
+
+  if (!allProducts) {
+    console.error("No se pudo cargar pos_products para crear el pedido");
+    return null;
+  }
+
+  // Resolver cada ítem del pedido
+  type OrderItem = {
+    order_id?: string;
+    product_id: string | null;
+    product_name: string;
+    product_price: number;
+    unit_price: number;
+    total: number;
+    quantity: number;
+    selections: Record<string, unknown>;
+    branch_id: string;
+    tenant_id: string | null;
+    notes: string | null;
+  };
+
+  const items: OrderItem[] = [];
+  let orderTotal = 0;
+
+  for (const prod of productos) {
+    const nombreGPT = String(prod.nombre  || "").trim();
+    const tamanoGPT = String(prod.tamano  || "").trim();
+    const tipoGPT   = String(prod.tipo    || "").trim();
+    const cantidad  = Math.max(1, Number(prod.cantidad) || 1);
+
+    // Buscar producto por nombre (coincidencia parcial, sin importar mayúsculas)
+    const nombreLow = nombreGPT.toLowerCase();
+    const matched = allProducts.find(p => {
+      const pname = String(p.name || "").toLowerCase();
+      return pname === nombreLow ||
+             pname.includes(nombreLow) ||
+             nombreLow.includes(pname.replace(/\s.*/,""));
+    });
+
+    if (!matched) {
+      // Fallback: ítems sin product_id, precio 0 para que el staff lo corrija
+      const fallbackName = [nombreGPT, tamanoGPT, tipoGPT].filter(Boolean).join(" · ");
+      console.warn("Producto no encontrado en BD:", nombreGPT);
+      items.push({
+        product_id: null,
+        product_name: fallbackName || "Producto WhatsApp",
+        product_price: 0,
+        unit_price: 0,
+        total: 0,
+        quantity: cantidad,
+        selections: { mods: {}, pres: tamanoGPT, vars: {} },
+        branch_id: branchId,
+        tenant_id: tenantId || null,
+        notes: null,
+      });
+      continue;
+    }
+
+    const presentations = (matched.presentations as Array<{ id: string; name: string; price: number }>) || [];
+    const variables = (matched.variables as Array<{
+      id: string;
+      name: string;
+      isPricing?: boolean;
+      options: Array<{ id: string; name: string; price: number; prices?: number[] }>;
+    }>) || [];
+    const priceMode = String(matched.price_mode || "simple");
+
+    // Encontrar presentación
+    const tamLow   = tamanoGPT.toLowerCase();
+    let presMatch  = presentations.find(p => p.name.toLowerCase() === tamLow);
+    if (!presMatch && presentations.length > 0) presMatch = presentations[0];
+    const presName = presMatch?.name || tamanoGPT;
+    const presIdx  = presMatch ? presentations.indexOf(presMatch) : 0;
+
+    let price      = Number(presMatch?.price) || Number(matched.price) || 0;
+    const varsMap: Record<string, { id: string; name: string; price: number }> = {};
+
+    // Para productos matrix (Premium, Maicitos Especial) resolver variable → precio
+    if (priceMode === "matrix" && tipoGPT && variables.length > 0) {
+      const varGroup = variables[0];
+      const tipoLow  = tipoGPT.toLowerCase();
+      const varOpt   = varGroup.options.find(o => o.name.toLowerCase() === tipoLow);
+      if (varOpt) {
+        // prices[presIdx]: 0=Familiar, 1=Personal
+        if (Array.isArray(varOpt.prices) && presIdx >= 0 && presIdx < varOpt.prices.length) {
+          price = varOpt.prices[presIdx];
+        } else if (varOpt.price > 0) {
+          price = varOpt.price;
+        }
+        varsMap[varGroup.id] = { id: varOpt.id, name: varOpt.name, price };
+      }
+    }
+
+    const itemTotal   = price * cantidad;
+    const displayName = [String(matched.name), presName, tipoGPT].filter(Boolean).join(" · ");
+
+    items.push({
+      product_id:    String(matched.id),
+      product_name:  displayName,
+      product_price: price,
+      unit_price:    price,
+      total:         itemTotal,
+      quantity:      cantidad,
+      selections:    { mods: {}, pres: presName, vars: varsMap },
+      branch_id:     branchId,
+      tenant_id:     tenantId || null,
+      notes:         null,
+    });
+
+    orderTotal += itemTotal;
+  }
+
+  // Buscar o crear cliente en pos_clientes
+  let clienteId: string | null = null;
+  try {
+    const telefonoClean = fromPhone.replace(/\D/g, "");
+    // Buscar exacto: mismo teléfono + nombre + dirección
+    const existing = await sbGet(
+      `/rest/v1/pos_clientes?telefono=eq.${encodeURIComponent(telefonoClean)}&nombre=eq.${encodeURIComponent(cliente)}&direccion=eq.${encodeURIComponent(direccion)}&tenant_id=eq.${tenantId}&limit=1`
+    ) as Array<Record<string, unknown>> | null;
+
+    if (existing && existing.length > 0) {
+      clienteId = String(existing[0].id);
+      console.log("Cliente existente reutilizado:", clienteId);
+    } else {
+      // Crear nuevo cliente
+      const newCliente = await fetch(`${SUPABASE_URL}/rest/v1/pos_clientes`, {
+        method: "POST",
+        headers: {
+          "apikey":        SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`,
+          "Content-Type":  "application/json",
+          "Prefer":        "return=representation",
+        },
+        body: JSON.stringify({
+          tenant_id: tenantId || null,
+          branch_id: branchId,
+          nombre:    cliente,
+          telefono:  telefonoClean,
+          direccion: direccion || null,
+        }),
+      });
+      if (newCliente.ok) {
+        const newRow = await newCliente.json() as Array<Record<string, unknown>>;
+        clienteId = String(newRow?.[0]?.id || "");
+        console.log("Nuevo cliente creado:", clienteId);
+      } else {
+        console.error("Error creando cliente:", await newCliente.text());
+      }
+    }
+  } catch (err) {
+    console.error("Error en lookup/creación de cliente:", err);
+  }
+
+  // Insertar en pos_orders
+  const orderRecord: Record<string, unknown> = {
+    branch_id:      branchId,
+    tenant_id:      tenantId || null,
+    channel:        "domicilio",
+    customer_name:  cliente,
+    notes:          direccion || null,
+    payment_method: pago || null,
+    status:         "open",
+    total:          orderTotal,
+    subtotal:       orderTotal,
+    total_final:    orderTotal,
+    waiter_name:    "Asistente IA",
+    visible_cocina: true,
+    opened_at:      new Date().toISOString(),
+  };
+  if (clienteId) orderRecord.cliente_id = clienteId;
+
+  const createRes = await fetch(`${SUPABASE_URL}/rest/v1/pos_orders`, {
+    method: "POST",
+    headers: {
+      "apikey":        SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Content-Type":  "application/json",
+      "Prefer":        "return=representation",
+    },
+    body: JSON.stringify(orderRecord),
+  });
+
+  if (!createRes.ok) {
+    console.error("Error creando pos_orders:", await createRes.text());
+    return null;
+  }
+
+  const created  = await createRes.json() as Array<Record<string, unknown>>;
+  const orderId  = created?.[0]?.id as string | undefined;
+  if (!orderId) { console.error("No se recibió id del pedido creado"); return null; }
+
+  // Insertar ítems
+  for (const item of items) {
+    await sbPost(`/rest/v1/pos_order_items`, { ...item, order_id: orderId });
+  }
+
+  return orderId;
+}
+
+// ── Verificación de comprobante de transferencia ─────────────────────────────
+
+async function verifyTransferComprobante(
+  convId: string,
+  branchId: string,
+  msg: { id: string; body: string; external_id: string },
+  cfg: Record<string, unknown>
+): Promise<"confirmed" | "pending"> {
+  const OPENAI_KEY   = Deno.env.get("OPENAI_API_KEY") || "";
+  const gmailToken   = cfg.gmail_refresh_token as string | undefined;
+  const gmailVerify  = cfg.gmail_verificar as boolean | undefined;
+  const gmailClientId     = Deno.env.get("GMAIL_CLIENT_ID") || "";
+  const gmailClientSecret = Deno.env.get("GMAIL_CLIENT_SECRET") || "";
+
+  // Si no hay Gmail configurado → pendiente para humano
+  if (!gmailVerify || !gmailToken) return "pending";
+
+  // 1. Obtener URL de la imagen desde WhatsApp
+  const msgExtId = msg.external_id;
+  if (!msgExtId) return "pending";
+
+  // El body viene como "[imagen] <media_id>" — extraer media_id
+  const mediaId = msg.body.replace(/\[imagen\]\s*/i, "").replace(/\[image\]\s*/i, "").trim();
+  if (!mediaId) return "pending";
+
+  // Obtener canal para accessToken
+  const channels = await sbGet(`/rest/v1/chat_channels?branch_id=eq.${branchId}&type=eq.whatsapp&limit=1`) as Array<Record<string,unknown>> | null;
+  const accessToken = String(channels?.[0]?.access_token || "");
+  if (!accessToken) return "pending";
+
+  // Descargar metadata de la imagen
+  const mediaRes = await fetch(`https://graph.facebook.com/v22.0/${mediaId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!mediaRes.ok) return "pending";
+  const mediaMeta = await mediaRes.json() as { url?: string };
+  const imgUrl = mediaMeta.url;
+  if (!imgUrl) return "pending";
+
+  // 2. GPT-4o Vision: extraer datos del comprobante
+  const visionRes = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: 'Extrae del comprobante: {"monto": número sin puntos ni comas (ej 36000), "fecha": "DD/MM/YYYY", "hora": "HH:MM", "llave": "número de llave o cuenta destino"}. Solo JSON.' },
+          { type: "image_url", image_url: { url: imgUrl, detail: "low" } },
+        ],
+      }],
+    }),
+  });
+  if (!visionRes.ok) return "pending";
+  const visionData = await visionRes.json() as Record<string,unknown>;
+  let extracted: Record<string,string> = {};
+  try {
+    extracted = JSON.parse((visionData.choices as Array<Record<string,unknown>>)?.[0]?.message?.content as string || "{}");
+  } catch { return "pending"; }
+
+  const montoImg = Number(extracted.monto || 0);
+  const fechaImg = String(extracted.fecha || "");
+  const llaveImg = String(extracted.llave || "");
+  if (!montoImg || !fechaImg) return "pending";
+
+  // 3. Obtener access_token de Gmail con refresh_token
+  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      refresh_token: gmailToken,
+      client_id: gmailClientId,
+      client_secret: gmailClientSecret,
+      grant_type: "refresh_token",
+    }),
+  });
+  if (!tokenRes.ok) return "pending";
+  const tokenData = await tokenRes.json() as { access_token?: string };
+  const gmailAccessToken = tokenData.access_token;
+  if (!gmailAccessToken) return "pending";
+
+  // 4. Buscar en Gmail un correo que coincida con monto + fecha
+  const montoStr = montoImg.toFixed(2);
+  const query    = `from:alertasynotificaciones@an.notificacionesbancolombia.com recibiste ${montoStr} newer_than:2d`;
+  const gmailRes = await fetch(
+    `https://www.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=5`,
+    { headers: { Authorization: `Bearer ${gmailAccessToken}` } }
+  );
+  if (!gmailRes.ok) return "pending";
+  const gmailData = await gmailRes.json() as { messages?: Array<{ snippet?: string }> };
+  const messages  = gmailData.messages || [];
+  if (!messages.length) { console.log("Gmail: no se encontró correo para monto", montoStr); return "pending"; }
+
+  // 5. Verificar que la fecha y llave coincidan en algún mensaje
+  const llaveCfg = String((cfg.pagos as Record<string,string>)?.llave || "0089912015");
+  for (const gmailMsg of messages) {
+    const snippet = String(gmailMsg.snippet || "");
+    const fechaOk = snippet.includes(fechaImg.split("/").reverse().join("/")) || snippet.includes(fechaImg);
+    const llaveOk = !llaveImg || snippet.includes(llaveImg) || snippet.includes(llaveCfg);
+    if (fechaOk && llaveOk) {
+      console.log("Gmail: verificación OK — monto, fecha y llave coinciden");
+      return "confirmed";
+    }
+  }
+
+  console.log("Gmail: correo encontrado pero fecha/llave no coinciden");
+  return "pending";
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -280,7 +964,7 @@ function fmtPrice(n: number): string {
 async function buildMenuText(branchId: string): Promise<string> {
   const rows = await sbGet(
     `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true` +
-    `&select=name,price,description,price_mode,presentations,category_id(name)&order=sort_order`
+    `&select=name,price,description,price_mode,presentations,variables,category_id(name)&order=sort_order`
   ) as Array<Record<string, unknown>> | null;
   if (!rows || !rows.length) return "";
   const byCategory: Record<string, Array<Record<string, unknown>>> = {};
@@ -294,11 +978,26 @@ async function buildMenuText(branchId: string): Promise<string> {
     lines.push(`\n[${cat.toUpperCase()}]`);
     for (const item of items) {
       const pres = (item.presentations as Array<{name:string;price:number}>) || [];
-      const validPres = pres.filter(p => p.price > 0);
+      const vars = (item.variables as Array<{id:string;name:string;isPricing?:boolean;options:Array<{id:string;name:string;prices?:number[]}>}>) || [];
+      const priceMode = String(item.price_mode || "simple");
       let priceStr: string;
-      if (validPres.length > 1) priceStr = validPres.map(p => `${p.name} ${fmtPrice(p.price)}`).join(" / ");
-      else if (validPres.length === 1) priceStr = fmtPrice(validPres[0].price);
-      else priceStr = fmtPrice(Number(item.price) || 0);
+      if (priceMode === "matrix" && vars.length > 0) {
+        // Mostrar precios de la variable × presentaciones
+        const varGroup = vars[0];
+        const varLines: string[] = [];
+        for (const opt of varGroup.options) {
+          if (Array.isArray(opt.prices) && pres.length > 0) {
+            const optPrices = pres.map((p2, i) => `${p2.name} ${fmtPrice(opt.prices![i] ?? 0)}`).join(" / ");
+            varLines.push(`  ${opt.name}: ${optPrices}`);
+          }
+        }
+        priceStr = "\n" + varLines.join("\n");
+      } else {
+        const validPres = pres.filter(p => p.price > 0);
+        if (validPres.length > 1) priceStr = validPres.map(p => `${p.name} ${fmtPrice(p.price)}`).join(" / ");
+        else if (validPres.length === 1) priceStr = fmtPrice(validPres[0].price);
+        else priceStr = fmtPrice(Number(item.price) || 0);
+      }
       let line = `- ${item.name}: ${priceStr}`;
       if (item.description) line += ` — ${item.description}`;
       lines.push(line);
@@ -313,10 +1012,10 @@ function buildHorariosText(horarios: Record<string, unknown> | null | undefined)
     ["lunes","Lunes"],["martes","Martes"],["miercoles","Miércoles"],
     ["jueves","Jueves"],["viernes","Viernes"],["sabado","Sábado"],["domingo","Domingo"],
   ];
-  const nowCol = new Date(Date.now() - 5 * 60 * 60 * 1000);
-  const todayIdx = nowCol.getUTCDay();
+  const nowCol    = new Date(Date.now() - 5 * 60 * 60 * 1000);
+  const todayIdx  = nowCol.getUTCDay();
   const colDayKey = ["domingo","lunes","martes","miercoles","jueves","viernes","sabado"][todayIdx];
-  const colHHMM = nowCol.getUTCHours().toString().padStart(2,"0") + ":" + nowCol.getUTCMinutes().toString().padStart(2,"0");
+  const colHHMM   = nowCol.getUTCHours().toString().padStart(2,"0") + ":" + nowCol.getUTCMinutes().toString().padStart(2,"0");
   const lines: string[] = ["HORARIOS DE ATENCIÓN:"];
   let abierto = false;
   for (const [key, label] of DAYS) {
@@ -344,24 +1043,18 @@ function buildHorariosText(horarios: Record<string, unknown> | null | undefined)
 function buildPagosText(pagos: Record<string, unknown> | null | undefined): string {
   if (!pagos) return "";
   const metodos: string[] = [];
-  if (pagos.efectivo)   metodos.push("Efectivo");
-  if (pagos.nequi)      metodos.push("Nequi");
-  if (pagos.daviplata)  metodos.push("Daviplata");
-  if (pagos.tarjeta)    metodos.push("Tarjeta");
-  if (!metodos.length)  return "";
+  if (pagos.efectivo)  metodos.push("Efectivo");
+  if (pagos.nequi)     metodos.push("Nequi");
+  if (pagos.daviplata) metodos.push("Daviplata");
+  if (pagos.tarjeta)   metodos.push("Tarjeta");
+  if (!metodos.length) return "";
   const lines: string[] = ["MÉTODOS DE PAGO:"];
   lines.push(`- Aceptamos: ${metodos.join(", ")}`);
   if ((pagos.nequi || pagos.daviplata) && pagos.llave) {
     lines.push(`- Llave/número de pago digital: ${pagos.llave}`);
     if (pagos.titular) lines.push(`- Titular: ${pagos.titular}`);
   }
-  if (pagos.esperar_comprobante) {
-    if (pagos.qr_imagen_url) {
-      lines.push("- Para pagos por Nequi/transferencia: cuando el cliente confirme su pedido y elija pagar digital, incluye exactamente [PAGO_QR] al FINAL de tu respuesta. El sistema enviará automáticamente la imagen de pago. No expliques al cliente que existe ese código.");
-    } else {
-      lines.push("- Para pagos digitales, pedimos el comprobante de transferencia.");
-    }
-  }
+  if (pagos.esperar_comprobante) lines.push("- Para pagos digitales, pedimos el comprobante de transferencia.");
   if (pagos.nota) lines.push(`- ${pagos.nota}`);
   return lines.join("\n");
 }
@@ -372,9 +1065,7 @@ function buildDomiciliosText(domicilios: Record<string, unknown> | null | undefi
   const activo = domicilios.activo !== false;
   if (!activo) {
     lines.push("DOMICILIOS: Por el momento no manejamos servicio a domicilio.");
-    if (domicilios.para_llevar !== false) {
-      lines.push("Sin embargo, puedes pasar a recoger tu pedido (para llevar).");
-    }
+    if (domicilios.para_llevar !== false) lines.push("Sin embargo, puedes pasar a recoger tu pedido (para llevar).");
     return lines.join("\n");
   }
   lines.push("DOMICILIOS Y COBERTURA:");
@@ -391,34 +1082,6 @@ function buildDomiciliosText(domicilios: Record<string, unknown> | null | undefi
   return lines.join("\n");
 }
 
-function formatHora12(hora24: string): string {
-  const parts = hora24.split(":");
-  const h = parseInt(parts[0], 10);
-  const m = parseInt(parts[1] || "0", 10);
-  const ampm = h >= 12 ? "pm" : "am";
-  const h12 = h % 12 || 12;
-  return m === 0 ? `${h12}${ampm}` : `${h12}:${String(m).padStart(2, "0")}${ampm}`;
-}
-
-function resolveFaqVars(text: string, horarios: Record<string, unknown> | null | undefined): string {
-  if (!horarios || !text) return text;
-  const diasEs = ["domingo","lunes","martes","miercoles","jueves","viernes","sabado"];
-  const hoy = diasEs[new Date().getDay()];
-  const hoyH = horarios[hoy] as Record<string, string> | undefined;
-  // Get the most common open/close (first non-null entry)
-  const entry = Object.values(horarios).find((v) => v && (v as Record<string,string>).abre) as Record<string,string> | undefined;
-  const abreGen  = entry?.abre  || "";
-  const cierraGen = entry?.cierra || "";
-  const horarioHoy = hoyH?.abre
-    ? `${formatHora12(hoyH.abre)} a ${formatHora12(hoyH.cierra)}`
-    : "cerrado hoy";
-  return text
-    .replace(/\{hora_apertura\}/g, abreGen ? formatHora12(abreGen) : "")
-    .replace(/\{hora_cierre\}/g,   cierraGen ? formatHora12(cierraGen) : "")
-    .replace(/\{horario_hoy\}/g,   horarioHoy)
-    .replace(/\{dia_hoy\}/g,       hoy);
-}
-
 function buildSystemPrompt(
   cfg: Record<string, unknown>,
   senderName: string,
@@ -426,7 +1089,12 @@ function buildSystemPrompt(
   horariosText: string,
   pagosText: string,
   domiciliosText: string,
-  batchSize: number
+  batchSize: number,
+  currentTime: string,
+  currentDay: string,
+  isOpen: boolean,
+  isBeforeOpen: boolean,
+  pedidosProg: boolean
 ): string {
   const perfil = (cfg.perfil as Record<string,string>) || {};
   const vocab  = (cfg.vocabulario as Record<string,unknown>) || {};
@@ -439,49 +1107,62 @@ function buildSystemPrompt(
   };
   const botName = perfil.nombre || "Asistente";
   const lines: string[] = [
-    `Eres ${botName}, el asistente virtual de este restaurante. El cliente se llama ${senderName}.`,
+    `Eres ${botName}, el asistente virtual de este restaurante.`,
+    `IMPORTANTE: No llames al cliente por ningún nombre al saludar. El nombre de WhatsApp puede ser un apodo o nickname que no es apropiado usar (ej: "cariñosito6754"). Saluda siempre de forma genérica. El nombre para el pedido se pregunta en el flujo normal y puede ser diferente al de WhatsApp.`,
     "",
-    `TONO: ${tonoDesc[tono] || tonoDesc.cercano}`,
+    "=== REGLAS CRÍTICAS — NUNCA IGNORAR ===",
+    "",
+    "1. UPSELL OBLIGATORIO: En TODA conversación de pedido, SIEMPRE ofrece adiciones UNA VEZ (bebidas, salchicha ranchera, super queso, salsas especiales). Hazlo aunque el cliente ya haya dado el producto, dirección y todos los datos. La ÚNICA excepción: el cliente ya mencionó explícitamente que quiere adiciones.",
+    "",
+    "2. RESUMEN CON PRECIO OBLIGATORIO: Cuando ya tengas todos los datos (producto, dirección, pago, nombre), envía UN SOLO MENSAJE con el resumen completo + el precio total, terminando con '¿Lo confirmamos o hay algo que cambiar?' Formato: 🍟 producto, 📍 dirección, 💳 pago, 👤 nombre, Total: $X + $Y = $Z. Si el barrio no está en la tabla de domicilios, escribe 'ya te confirmamos el total ☺️🍟'. El nombre SIEMPRE se pregunta ANTES de mostrar el resumen, nunca dentro del mismo mensaje.",
+    "",
+    "3. 'EN UN MOMENTO ENVIAMOS' SOLO DESPUÉS DEL RESUMEN: Solo di 'En un momento enviamos tu pedido' cuando el cliente haya CONFIRMADO el resumen del paso 2 ('sí', 'correcto', 'dale', etc.). NUNCA lo digas sin que el cliente haya visto y aprobado el resumen.",
+    "",
+    "4. 'GRACIAS' EN EL PRIMER MENSAJE NO ES CONFIRMACIÓN: Si el cliente incluye 'gracias' o 'muchas gracias' en su primer mensaje con el pedido, NO es un cierre ni confirmación. Continúa el flujo: upsell → resumen con precio → confirmación del cliente → cierre.",
+    "",
+    "=== FIN REGLAS CRÍTICAS ===",
     "",
   ];
+
+  // Contexto de horario
+  if (!isOpen) {
+    const fraObj2 = (cfg.frases as Record<string,string>) || {};
+    const horaCierre = "10:30pm", horaApertura = "6:30pm";
+    if (pedidosProg) {
+      lines.push(`HORARIO: Son las ${currentTime} del ${currentDay}. El restaurante está CERRADO (atiende de ${horaApertura} a ${horaCierre}). Puedes conversar con naturalidad, responder preguntas, compartir el menú y los precios. PUEDES recibir pedidos programados aclarando que serán preparados cuando abramos a las ${horaApertura}. Varía el lenguaje en cada respuesta, no repitas frases exactas.`);
+    } else {
+      lines.push(`HORARIO: Son las ${currentTime} del ${currentDay}. El restaurante está CERRADO (atiende de ${horaApertura} a ${horaCierre}). Puedes conversar con naturalidad, responder preguntas, compartir el menú y los precios, indicar cuándo abrimos. NO puedes aceptar pedidos hasta que abramos. Cuando el cliente insista con un pedido, usa variaciones de: "${fraObj2.antes_horario || 'Recuerda que nuestro servicio es a partir de las 6:30pm ☺️🍟'}". Varía el lenguaje, no repitas siempre lo mismo.`);
+    }
+    lines.push("");
+  }
+
+  lines.push(`TONO: ${tonoDesc[tono] || tonoDesc.cercano}`);
+  lines.push("");
   if (cfg.instrucciones) { lines.push("INSTRUCCIONES:"); lines.push(cfg.instrucciones as string); lines.push(""); }
   if (cfg.negocio)       { lines.push("INFORMACIÓN DEL NEGOCIO:"); lines.push(cfg.negocio as string); lines.push(""); }
   if (Array.isArray(vocab.usar) && (vocab.usar as string[]).length)
     lines.push(`VOCABULARIO PREFERIDO: ${(vocab.usar as string[]).join(", ")}`);
   if (vocab.evitar) lines.push(`PALABRAS A EVITAR: ${vocab.evitar}`);
-  const horarios = cfg.horarios as Record<string, unknown> | null | undefined;
   if (faqs.length) {
     lines.push(""); lines.push("PREGUNTAS FRECUENTES:");
-    faqs.forEach(f => {
-      lines.push(`P: ${f.pregunta}`);
-      lines.push(`R: ${resolveFaqVars(f.respuesta, horarios)}`);
-    });
+    faqs.forEach(f => { lines.push(`P: ${f.pregunta}`); lines.push(`R: ${f.respuesta}`); });
   }
-  if (horariosText)    { lines.push(""); lines.push(horariosText); }
-  if (pagosText)       { lines.push(""); lines.push(pagosText); }
-  if (domiciliosText)  { lines.push(""); lines.push(domiciliosText); }
-  if (menuText)        { lines.push(""); lines.push(menuText); lines.push("IMPORTANTE: No inventes productos ni precios."); }
+  if (horariosText)   { lines.push(""); lines.push(horariosText); }
+  if (pagosText)      { lines.push(""); lines.push(pagosText); }
+  if (domiciliosText) { lines.push(""); lines.push(domiciliosText); }
+  if (menuText)       { lines.push(""); lines.push(menuText); lines.push("IMPORTANTE: No inventes productos ni precios."); }
 
   const frases = cfg.frases as Record<string, string> | null | undefined;
   if (frases && Object.keys(frases).length) {
     const FRASE_LABELS: Record<string, string> = {
-      apertura: "Saludo estándar",
-      apertura_conocido: "Saludo cliente conocido",
-      preguntar_tamano: "Preguntar tamaño",
-      preguntar_destino: "Preguntar dirección",
-      upsell: "Upsell / adiciones",
-      confirmar_pago: "Confirmar método de pago",
-      datos_nequi: "Datos Nequi",
-      esperar_comprobante: "Esperar comprobante",
-      aviso_despacho: "Aviso de despacho",
-      pedido_listo_recoger: "Pedido listo para recoger",
-      nombre_recibir: "Preguntar nombre",
-      cierre: "Cierre",
-      disculpa: "Disculpa",
-      sin_cambios: "Sin cambios posibles",
-      saturacion: "Saturación de pedidos",
-      fuera_horario: "Fuera de horario",
-      antes_horario: "Antes de abrir",
+      apertura: "Saludo estándar", apertura_conocido: "Saludo cliente conocido",
+      preguntar_tamano: "Preguntar tamaño", preguntar_destino: "Preguntar dirección",
+      upsell: "Upsell / adiciones", confirmar_pago: "Confirmar método de pago",
+      datos_nequi: "Datos Nequi", esperar_comprobante: "Esperar comprobante",
+      aviso_despacho: "Aviso de despacho", pedido_listo_recoger: "Pedido listo para recoger",
+      nombre_recibir: "Preguntar nombre", cierre: "Cierre", disculpa: "Disculpa",
+      sin_cambios: "Sin cambios posibles", saturacion: "Saturación de pedidos",
+      fuera_horario: "Fuera de horario", antes_horario: "Antes de abrir",
     };
     lines.push("");
     lines.push("FRASES EXACTAS A USAR (úsalas lo más fielmente posible):");
@@ -495,20 +1176,54 @@ function buildSystemPrompt(
     lines.push("");
     lines.push("INSTRUCCIONES PARA SITUACIONES ESPECIALES:");
     const SIT_LABELS: Record<string, string> = {
-      producto_agotado: "Producto agotado",
-      saturacion_pedidos: "Saturación",
-      cambio_pedido_confirmado: "Cambio de pedido ya confirmado",
-      error_precio_propio: "Error de precio propio",
-      nota_personal_pedido: "Nota personal en pedido",
-      pago_mixto: "Pago mixto",
-      lluvia: "Servicio con lluvia",
-      rastreo_domiciliario: "Rastreo del domiciliario",
-      tiempo_entrega: "Tiempo de entrega",
-      productos_no_disponibles: "Productos no disponibles",
+      producto_agotado: "Producto agotado", saturacion_pedidos: "Saturación",
+      cambio_pedido_confirmado: "Cambio de pedido ya confirmado", error_precio_propio: "Error de precio propio",
+      nota_personal_pedido: "Nota personal en pedido", pago_mixto: "Pago mixto",
+      lluvia: "Servicio con lluvia", rastreo_domiciliario: "Rastreo del domiciliario",
+      tiempo_entrega: "Tiempo de entrega", productos_no_disponibles: "Productos no disponibles",
     };
     for (const [key, text] of Object.entries(situaciones)) {
       if (text) lines.push(`- ${SIT_LABELS[key] || key}: ${text}`);
     }
+  }
+
+  // Prohibiciones
+  const prohibiciones = (cfg.prohibiciones as string[]) || [];
+  lines.push("");
+  lines.push("PROHIBICIONES ABSOLUTAS (nunca violar):");
+  lines.push("- JAMÁS escribas el menú completo en texto. Si el cliente pide 'la carta' o 'el menú', el sistema ya envía las imágenes automáticamente — tú solo responde lo que el cliente preguntó.");
+  lines.push("- NUNCA envíes respuestas extremadamente largas. Máximo 3-4 oraciones cortas por mensaje.");
+  lines.push("- Responde EXACTAMENTE lo que el cliente preguntó, sin agregar información extra que no pidió.");
+  for (const p of prohibiciones) {
+    if (p) lines.push(`- ${p}`);
+  }
+
+  // ── TOMA DE PEDIDOS (solo cuando el restaurante puede recibir pedidos) ──
+  const puedeTomarPedidos = isOpen || pedidosProg;
+  if (puedeTomarPedidos) {
+    lines.push("");
+    lines.push("TOMA DE PEDIDOS — CREA EL PEDIDO EN EL SISTEMA:");
+    lines.push("Para registrar un pedido en Cobra POS necesitas recopilar OBLIGATORIAMENTE estos 4 datos:");
+    lines.push("  1. PRODUCTOS: nombre exacto + tamaño (Personal/Familiar/Unico/Litro/1.5 Litros) + tipo si aplica");
+    lines.push("     → Tipo solo para: Premium y Maicitos Especial (opciones: Mixta, Carne, Pollo)");
+    lines.push("  2. DESTINO: dirección exacta de domicilio (barrio + dirección) o 'para llevar'");
+    lines.push("  3. PAGO: método de pago (efectivo, nequi, daviplata, etc.)");
+    lines.push("  4. NOMBRE: nombre del cliente");
+    lines.push("");
+    lines.push("Flujo OBLIGATORIO:");
+    lines.push("  a) Recoge los 4 datos a través de la conversación, preguntando lo que falte.");
+    lines.push("  b) Cuando los tengas todos, muestra un resumen y pide confirmación.");
+    lines.push("     Ej: '¡Listo! Confirmemos tu pedido:\\n🍟 Premium Personal Mixta x1\\n📍 Calle 5 #3-20, Barrio El Parque\\n💳 Efectivo\\n👤 Juan\\n¿Todo correcto?'");
+    lines.push("  c) Cuando el cliente confirme (sí, dale, correcto, confirmo, etc.), llama a la función");
+    lines.push("     crear_pedido() con todos los datos. El campo 'mensaje' es lo que el cliente verá.");
+    lines.push("");
+    lines.push("  REGLAS de crear_pedido:");
+    lines.push("  - Llámala SOLO cuando el cliente haya CONFIRMADO explícitamente (sí, correcto, dale, etc.).");
+    lines.push("  - Nunca la llames si faltan datos o el cliente no ha confirmado.");
+    lines.push("  - 'tamano' debe ser exactamente: Personal, Familiar, Unico, Litro, o 1.5 Litros.");
+    lines.push("  - 'tipo' solo en Premium y Maicitos Especial (Mixta, Carne o Pollo). Omite para los demás.");
+    lines.push("  - Si hay múltiples productos, inclúyelos todos en el array 'productos'.");
+    lines.push("  - El campo 'mensaje' debe ser el texto de confirmación que le envías al cliente.");
   }
 
   lines.push("");
@@ -518,25 +1233,24 @@ function buildSystemPrompt(
   lines.push("- No inventes precios, horarios ni disponibilidad.");
   lines.push("- No menciones que eres una IA a menos que te lo pregunten.");
 
-  // Instrucciones de agrupación para múltiples mensajes
-  if (batchSize > 1) {
+  // Instrucciones para múltiples mensajes simultáneos
+  // Solo en modo sin tools (json_object); con tools activos el modelo responde en texto libre
+  if (batchSize > 1 && !puedeTomarPedidos) {
     lines.push("");
     lines.push("MENSAJES MÚLTIPLES: El cliente envió varios mensajes seguidos. Cada uno tiene formato: [N] id:WAMID | texto");
     lines.push("Decide si responder con UN SOLO mensaje o con mensajes separados:");
     lines.push("");
-    lines.push("USA UN SOLO MENSAJE cuando los mensajes juntos forman una idea continua o una misma conversación:");
-    lines.push("  Ej: 'Muchas gracias' + 'mañana' + 'pedire a esa hora' → una sola idea, responde una vez.");
-    lines.push("  Ej: 'Hola' + 'quería saber' + 'si tienen pizza' → una pregunta dividida, responde una vez.");
-    lines.push("  Ej: 'Gracias' + 'hasta luego' → despedida, responde una vez.");
+    lines.push("USA UN SOLO MENSAJE cuando los mensajes juntos forman una idea continua:");
     lines.push("  → JSON: { \"type\": \"single\", \"responses\": [{ \"text\": \"tu respuesta\" }] }");
     lines.push("");
-    lines.push("USA MENSAJES SEPARADOS solo cuando hay preguntas claramente distintas que necesitan respuestas independientes:");
-    lines.push("  Ej: '¿Tienen pizza?' + '¿Cuál es el horario?' → dos preguntas distintas, responde cada una.");
-    lines.push("  Ej: '¿Cuánto vale la hamburguesa?' + '¿Tienen domicilio?' → dos consultas distintas.");
+    lines.push("USA MENSAJES SEPARADOS solo cuando hay preguntas claramente distintas:");
     lines.push("  → JSON: { \"type\": \"multiple\", \"responses\": [{ \"quote_id\": \"WAMID_EXACTO\", \"text\": \"respuesta\" }, ...] }");
     lines.push("  Donde quote_id es el valor exacto después de 'id:' y antes de ' | ' en cada mensaje.");
     lines.push("");
     lines.push("IMPORTANTE: Devuelve ÚNICAMENTE el JSON, sin texto adicional. En caso de duda, agrupa en un solo mensaje.");
+  } else if (batchSize > 1 && puedeTomarPedidos) {
+    lines.push("");
+    lines.push("MENSAJES MÚLTIPLES: El cliente envió varios mensajes seguidos. Responde a todos en un solo texto natural.");
   }
 
   return lines.join("\n");
