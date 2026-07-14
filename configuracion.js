@@ -1,4 +1,4 @@
-﻿/* configuracion.js — Mesas y zonas · Cobra POS */
+﻿﻿/* configuracion.js — Mesas y zonas · Cobra POS */
 /* Depende de: pos-core.js (sb, $) */
 
 // ── Estado ──────────────────────────────────────────────
@@ -2795,4 +2795,7 @@ function chatiaInit() {
     btn.classList.add('on');
     markDirty();
   });
+
+  window.connectGmail    = connectGmail;
+  window.disconnectGmail = disconnectGmail;
 }
