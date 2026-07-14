@@ -1137,3 +1137,24 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
   transition: background .15s;
 }
 .ci-domi-confirm:hover { background: rgba(249,115,22,.22); }
+
+.ci-sin-nom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(99,102,241,.25);
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.ci-sin-nom:hover { background: rgba(99,102,241,.10); color: #6366f1; border-color: rgba(99,102,241,.4); }
+.ci-sin-nom.is-active {
+  background: rgba(99,102,241,.15);
+  border-color: rgba(99,102,241,.5);
+  color: #6366f1;
+}

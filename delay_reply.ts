@@ -161,9 +161,10 @@ async function processConversation(convId: string): Promise<void> {
   const horariosText   = buildHorariosText(cfg.horarios as Record<string, unknown> | null | undefined);
 
   // 8. Nombre del remitente + check human_takeover / pago_pendiente
-  const convRes    = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=contact_name,human_takeover,pago_pendiente&limit=1`);
+  const convRes    = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=contact_name,human_takeover,pago_pendiente,sin_nomenclatura&limit=1`);
   const convRow    = convRes?.[0] as Record<string, unknown> | undefined;
   const senderName = (convRow?.contact_name as string) || fromPhone;
+  const sinNomenclaturaCliente = !!(convRow?.sin_nomenclatura);
   if (convRow?.human_takeover) {
     console.log("human_takeover activo para conv", convId, "— bot silenciado");
     await setTyping(convId, false);
@@ -174,9 +175,13 @@ async function processConversation(convId: string): Promise<void> {
   const pagosText      = buildPagosText(cfg.pagos as Record<string, unknown> | null | undefined);
   const domiciliosText = buildDomiciliosText(cfg.domicilios as Record<string, unknown> | null | undefined);
   const pedidosProg    = !!(cfg.pedidos_programados);
+  const domiciliosCfgSP = cfg.domicilios as Record<string, unknown> | null | undefined;
+  const rechazarLugPubl = domiciliosCfgSP?.rechazar_lugares_publicos !== false;
+  const pagoAdelanLugPubl = domiciliosCfgSP?.pago_adelantado_lugares_publicos !== false;
   const systemPrompt   = buildSystemPrompt(
     cfg, senderName, menuText, horariosText, pagosText, domiciliosText,
-    batchMsgs.length, colTimeStr, colDayStr, isOpen, isBeforeOpen, pedidosProg
+    batchMsgs.length, colTimeStr, colDayStr, isOpen, isBeforeOpen, pedidosProg,
+    sinNomenclaturaCliente, rechazarLugPubl, pagoAdelanLugPubl
   );
 
   // 10. Armar mensajes para OpenAI
@@ -497,9 +502,53 @@ ${menuText}`,
         qrTexto      = (pagosCfg?.qr_texto      as string) || "";
         shouldSendQr = !!qrImageUrl;
       } else {
-        // Efectivo u otro: crear pedido inmediatamente
-        const orderId = await createWhatsappOrder(pendingOrder, branchId, tenantId, fromPhone);
-        console.log("Pedido WhatsApp creado:", orderId);
+        // Efectivo u otro: clasificar dirección primero
+        const domiciliosCfg = cfg.domicilios as Record<string, unknown> | null | undefined;
+        const clasif = clasificarDireccion(String(pendingOrder.direccion || ""), domiciliosCfg, sinNomenclaturaCliente);
+
+        if (clasif.tipo === "rechazado") {
+          responses = [{ text: "Lo sentimos, no podemos hacer domicilios a ese lugar 😊 Si querés podés pasar a recoger tu pedido (para llevar)." }];
+          pendingOrder = null;
+
+        } else if (clasif.tipo === "incompleta") {
+          responses = [{ text: "¿Me das el número completo de la dirección? Por ejemplo: Carrera 5 # 23-45 ☺️" }];
+          pendingOrder = null;
+
+        } else if (clasif.tipo === "publico" && clasif.requierePagoAdelantado) {
+          const pagoMet = String(pendingOrder.pago || "").toLowerCase();
+          const esEfectivo = !pagoMet.includes("nequi") && !pagoMet.includes("daviplata") && !pagoMet.includes("transfer");
+          if (esEfectivo) {
+            responses = [{ text: "Para domicilios a establecimientos o lugares públicos, el pago debe ser por adelantado (Nequi o Daviplata) 😊 ¿Cómo nos lo harías llegar?" }];
+            pendingOrder = null;
+          } else {
+            // Pago digital OK → continuar con creación normal
+            const domiPrecio = lookupDomiPrice(String(pendingOrder.direccion || ""), domiciliosCfg);
+            if (domiPrecio === null) {
+              await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+                domi_precio_pendiente: true, human_takeover: true,
+                pending_order_data: { ...pendingOrder, domi_precio_pendiente: true },
+              });
+            } else {
+              const orderId = await createWhatsappOrder({ ...pendingOrder, domi_precio: domiPrecio }, branchId, tenantId, fromPhone);
+              console.log("Pedido lugar público creado:", orderId);
+            }
+          }
+
+        } else {
+          // Residencial normal (o para_llevar)
+          const esParaLlevar = clasif.tipo === "para_llevar";
+          const domiPrecio = esParaLlevar ? 0 : lookupDomiPrice(String(pendingOrder.direccion || ""), domiciliosCfg);
+          if (!esParaLlevar && domiPrecio === null) {
+            await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+              domi_precio_pendiente: true, human_takeover: true,
+              pending_order_data: { ...pendingOrder, domi_precio_pendiente: true },
+            });
+            console.log("Precio domi desconocido — esperando confirmación humana");
+          } else {
+            const orderId = await createWhatsappOrder({ ...pendingOrder, domi_precio: domiPrecio }, branchId, tenantId, fromPhone);
+            console.log("Pedido WhatsApp creado:", orderId);
+          }
+        }
       }
     } catch (err) {
       console.error("Error procesando pedido WhatsApp:", err);
@@ -575,7 +624,18 @@ ${menuText}`,
     if (responses.length > 1) await sleep(400);
   }
 
-  // 13b. Enviar imagen QR si el pago es por transferencia y está configurado
+  // 13b. Si el bot dijo "ya te confirmamos el total" → marcar domi pendiente y pasar al humano
+  const botDijoDomiPendiente = responses.some(r =>
+    (r.text || "").includes("ya te confirmamos el total")
+  );
+  if (botDijoDomiPendiente) {
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+      domi_precio_pendiente: true,
+      human_takeover: true,
+    });
+  }
+
+  // 13c. Enviar imagen QR si el pago es por transferencia y está configurado
   if (shouldSendQr) {
     await sleep(600);
     const waQrBody = {
@@ -1059,6 +1119,10 @@ function buildPagosText(pagos: Record<string, unknown> | null | undefined): stri
   return lines.join("\n");
 }
 
+function fmtCOP(n: number): string {
+  return `$${Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+}
+
 function buildDomiciliosText(domicilios: Record<string, unknown> | null | undefined): string {
   if (!domicilios) return "";
   const lines: string[] = [];
@@ -1071,15 +1135,98 @@ function buildDomiciliosText(domicilios: Record<string, unknown> | null | undefi
   lines.push("DOMICILIOS Y COBERTURA:");
   if (domicilios.tiempo_estimado) lines.push(`- Tiempo estimado de entrega: ${domicilios.tiempo_estimado}`);
   if (domicilios.para_llevar !== false) lines.push("- También manejamos pedidos para recoger (para llevar).");
-  const zonas = (domicilios.zonas as Array<{ nombre: string; precio: number }>) || [];
+  const zonas = (domicilios.zonas as Array<{ nombre?: string; barrios?: string[]; precio: number }>) || [];
   if (zonas.length) {
-    lines.push("- Zonas de cobertura y costo de domicilio:");
+    lines.push("- Precios de domicilio por barrio (usa estos precios EXACTOS para calcular el total):");
     for (const z of zonas) {
-      const precio = z.precio ? `$${Math.round(z.precio).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}` : "Gratis";
-      lines.push(`  • ${z.nombre}: ${precio}`);
+      const precio = z.precio ? fmtCOP(z.precio) : "Gratis";
+      const lista = z.barrios ? z.barrios.join(", ") : (z.nombre || "");
+      lines.push(`  • ${precio}: ${lista}`);
     }
+    lines.push("- REGLA CRÍTICA: Si el barrio del cliente NO aparece en esta lista, escribe exactamente la frase: 'ya te confirmamos el total ☺️🍟' y NO inventes ningún precio.");
   }
   return lines.join("\n");
+}
+
+const LUGARES_RECHAZADOS = [
+  "parque","andén","anden","semáforo","semaforo","esquina",
+  "glorieta","rotonda","vía pública","via publica","zona verde",
+  "cancha","estadio","kiosco","kiosko","andenes","la calle",
+  "en el parque","en la esquina","en la glorieta",
+];
+const LUGARES_PUBLICOS = [
+  "hospital","clínica","clinica","centro comercial","aeropuerto",
+  "universidad","colegio","banco","supermercado","hotel",
+  "oficina","empresa","negocio","consultorio","farmacia",
+  "droguería","drogueria","éxito","exito","alkosto","jumbo",
+  "d1 ","ara ","edificio","torre empresarial","local comercial",
+  "bodega","fábrica","fabrica","clínica","consultorio",
+  "instituto","corporación","corporacion",
+];
+
+type TipoDireccion = "residencial" | "publico" | "rechazado" | "incompleta" | "para_llevar";
+
+function checkBarrioSinNomenclatura(
+  direccion: string,
+  domicilios: Record<string, unknown> | null | undefined
+): boolean {
+  if (!domicilios) return false;
+  const zonas = (domicilios.zonas as Array<{ barrios?: string[]; nombre?: string; sin_nomenclatura?: boolean }>) || [];
+  const dir = direccion.toLowerCase();
+  for (const z of zonas) {
+    if (!z.sin_nomenclatura) continue;
+    const barrios = z.barrios ?? (z.nombre ? z.nombre.split(",").map((b: string) => b.trim()) : []);
+    for (const b of barrios) {
+      if (dir.includes(b.toLowerCase())) return true;
+    }
+  }
+  return false;
+}
+
+function clasificarDireccion(
+  direccion: string,
+  domicilios: Record<string, unknown> | null | undefined,
+  sinNomenclaturaCliente: boolean
+): { tipo: TipoDireccion; requierePagoAdelantado: boolean } {
+  const dir = direccion.toLowerCase().trim();
+
+  if (dir.includes("llevar") || dir.includes("recoger")) {
+    return { tipo: "para_llevar", requierePagoAdelantado: false };
+  }
+
+  if (domicilios?.rechazar_lugares_publicos !== false) {
+    if (LUGARES_RECHAZADOS.some(kw => dir.includes(kw))) {
+      return { tipo: "rechazado", requierePagoAdelantado: false };
+    }
+  }
+
+  if (LUGARES_PUBLICOS.some(kw => dir.includes(kw))) {
+    const requiere = domicilios?.pago_adelantado_lugares_publicos !== false;
+    return { tipo: "publico", requierePagoAdelantado: requiere };
+  }
+
+  if (!sinNomenclaturaCliente && !checkBarrioSinNomenclatura(dir, domicilios)) {
+    const tieneVia = /\b(calle|carrera|cra|cl|diagonal|transversal|tv|dg|avenida|av)\s*\d+/i.test(dir);
+    const tieneNumero = /#|no\.\s*\d|nro\.\s*\d|número\s*\d|numero\s*\d/.test(dir);
+    if (tieneVia && !tieneNumero) return { tipo: "incompleta", requierePagoAdelantado: false };
+  }
+
+  return { tipo: "residencial", requierePagoAdelantado: false };
+}
+
+function lookupDomiPrice(direccion: string, domicilios: Record<string, unknown> | null | undefined): number | null {
+  if (!domicilios) return null;
+  const zonas = (domicilios.zonas as Array<{ nombre?: string; barrios?: string[]; precio: number }>) || [];
+  const dir = direccion.toLowerCase();
+  for (const z of zonas) {
+    const barrios = z.barrios ?? (z.nombre ? z.nombre.split(",").map((b: string) => b.trim()) : []);
+    for (const b of barrios) {
+      if (dir.includes(b.toLowerCase()) || b.toLowerCase().split(" ").every(w => dir.includes(w))) {
+        return z.precio;
+      }
+    }
+  }
+  return null;
 }
 
 function buildSystemPrompt(
@@ -1094,7 +1241,10 @@ function buildSystemPrompt(
   currentDay: string,
   isOpen: boolean,
   isBeforeOpen: boolean,
-  pedidosProg: boolean
+  pedidosProg: boolean,
+  sinNomenclaturaCliente: boolean = false,
+  rechazarLugaresPublicos: boolean = true,
+  pagoAdelanLugaresPublicos: boolean = true
 ): string {
   const perfil = (cfg.perfil as Record<string,string>) || {};
   const vocab  = (cfg.vocabulario as Record<string,unknown>) || {};
@@ -1112,14 +1262,29 @@ function buildSystemPrompt(
     "",
     "=== REGLAS CRÍTICAS — NUNCA IGNORAR ===",
     "",
-    "1. UPSELL OBLIGATORIO: En TODA conversación de pedido, SIEMPRE ofrece adiciones UNA VEZ (bebidas, salchicha ranchera, super queso, salsas especiales). Hazlo aunque el cliente ya haya dado el producto, dirección y todos los datos. La ÚNICA excepción: el cliente ya mencionó explícitamente que quiere adiciones.",
+    "1. UPSELL OBLIGATORIO: En TODA conversación de pedido, SIEMPRE ofrece adiciones UNA VEZ (bebidas, salchicha ranchera, super queso, salsas especiales). Hazlo aunque el cliente ya haya dado el producto, dirección y todos los datos. La ÚNICA excepción: el cliente ya mencionó explícitamente que quiere adiciones. Si el cliente RECHAZA el upsell ('no', 'no gracias', 'así está bien', etc.), NO incluyas ningún producto adicional en el resumen.",
     "",
-    "2. RESUMEN CON PRECIO OBLIGATORIO: Cuando ya tengas todos los datos (producto, dirección, pago, nombre), envía UN SOLO MENSAJE con el resumen completo + el precio total, terminando con '¿Lo confirmamos o hay algo que cambiar?' Formato: 🍟 producto, 📍 dirección, 💳 pago, 👤 nombre, Total: $X + $Y = $Z. Si el barrio no está en la tabla de domicilios, escribe 'ya te confirmamos el total ☺️🍟'. El nombre SIEMPRE se pregunta ANTES de mostrar el resumen, nunca dentro del mismo mensaje.",
+    "2. RESUMEN CON PRECIO OBLIGATORIO: Cuando ya tengas todos los datos (producto, dirección, pago, nombre), envía UN SOLO MENSAJE con el resumen completo + el precio total, terminando con '¿Lo confirmamos o hay algo que cambiar?' Formato: 🍟 producto x cantidad, 📍 dirección, 💳 pago, 👤 nombre, Total: $X + $Y del domicilio = $Z. Si el barrio NO aparece en la tabla de precios de domicilio, escribe exactamente: 'ya te confirmamos el total ☺️🍟' en lugar del precio. El nombre SIEMPRE se pregunta ANTES de mostrar el resumen, nunca dentro del mismo mensaje.",
     "",
-    "3. 'EN UN MOMENTO ENVIAMOS' SOLO DESPUÉS DEL RESUMEN: Solo di 'En un momento enviamos tu pedido' cuando el cliente haya CONFIRMADO el resumen del paso 2 ('sí', 'correcto', 'dale', etc.). NUNCA lo digas sin que el cliente haya visto y aprobado el resumen.",
+    "3. DIRECCIÓN EN VARIOS MENSAJES: Si el cliente envía la dirección repartida en 2 o más mensajes consecutivos (ej: 'Carrera 9 #3-20' y luego 'Bellavista'), son PARTES DE UNA SOLA DIRECCIÓN. Concaténalos como una sola dirección completa. NUNCA preguntes cuál de las dos es la correcta.",
     "",
-    "4. 'GRACIAS' EN EL PRIMER MENSAJE NO ES CONFIRMACIÓN: Si el cliente incluye 'gracias' o 'muchas gracias' en su primer mensaje con el pedido, NO es un cierre ni confirmación. Continúa el flujo: upsell → resumen con precio → confirmación del cliente → cierre.",
+    "4. PAGO POR TRANSFERENCIA — NUNCA DIGAS 'EN UN MOMENTO ENVIAMOS': Si el método de pago es transferencia, Nequi, Daviplata o similar, después de que el cliente confirme el resumen di: 'Perfecto, queda pendiente del comprobante. ¡En cuanto lo recibamos pasamos tu pedido a cocina! 🍟' NUNCA digas 'En un momento enviamos tu pedido' cuando el pago sea digital.",
     "",
+    "5. 'EN UN MOMENTO ENVIAMOS' SOLO DESPUÉS DEL RESUMEN (pago en efectivo): Solo di 'En un momento enviamos tu pedido' cuando el cliente haya CONFIRMADO el resumen ('sí', 'correcto', 'dale', etc.) Y el pago sea en efectivo. NUNCA lo digas sin confirmación ni en pagos digitales.",
+    "",
+    "6. 'GRACIAS' EN EL PRIMER MENSAJE NO ES CONFIRMACIÓN: Si el cliente incluye 'gracias' o 'muchas gracias' en su primer mensaje con el pedido, NO es un cierre ni confirmación. Continúa el flujo: upsell → resumen con precio → confirmación del cliente → cierre.",
+    "",
+    "7. DIRECCIÓN INCOMPLETA — PEDIR NÚMERO COMPLETO: Si el cliente menciona una vía (Calle, Carrera, Diagonal, Transversal) con número pero SIN el cruce (#XX-XX), pide el número completo ANTES de continuar. Ejemplo: '¿Me das el número completo de la dirección? Por ejemplo: Carrera 5 # 23-45 ☺️'" +
+      (sinNomenclaturaCliente ? " EXCEPCIÓN ACTIVA: Este cliente está marcado como 'sin nomenclatura', acepta cualquier referencia de dirección sin exigir el #." : ""),
+    "",
+    ...(rechazarLugaresPublicos ? [
+      "8. LUGAR NO ACEPTADO — NO HACER DOMICILIO: Si el cliente dice que está en un parque, andén, esquina, glorieta, zona verde, cancha, estadio, vía pública o cualquier lugar donde no hay una puerta de casa o negocio, responde amablemente que no puedes hacer el domicilio ahí y ofrece la opción de pedir para llevar.",
+      "",
+    ] : []),
+    ...(pagoAdelanLugaresPublicos ? [
+      "9. LUGAR PÚBLICO — PAGO ADELANTADO OBLIGATORIO: Si la dirección es un hospital, clínica, centro comercial, aeropuerto, universidad, colegio, edificio, oficina, negocio, local, farmacia, banco o cualquier establecimiento comercial, el pago DEBE ser por adelantado (Nequi o Daviplata). Antes de mostrar el resumen, informa al cliente que para ese tipo de lugar se necesita pago digital anticipado.",
+      "",
+    ] : []),
     "=== FIN REGLAS CRÍTICAS ===",
     "",
   ];

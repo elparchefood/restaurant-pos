@@ -505,6 +505,7 @@ function renderChatHeader(conv) {
   updateHumanToggleBtn(!!conv.human_takeover);
   updatePagoConfirmBtn(!!conv.pago_pendiente);
   updateDomiConfirmBtn(!!conv.domi_precio_pendiente);
+  updateSinNomBtn(!!conv.sin_nomenclatura);
   const meta     = CHANNELS[conv.channel] || {};
   const tint     = TINTS[(conv.contact_avatar_tint||0) % TINTS.length];
   const label    = conv.contact_name || conv.contact_handle || '?';
@@ -1124,6 +1125,30 @@ function updateDomiConfirmBtn(isPendiente) {
   const btn = $('domiConfirmBtn');
   if (!btn) return;
   btn.style.display = isPendiente ? '' : 'none';
+}
+
+function updateSinNomBtn(isActive) {
+  const btn = $('sinNomBtn');
+  if (!btn) return;
+  btn.classList.toggle('is-active', isActive);
+  btn.title = isActive
+    ? 'Sin nomenclatura activo — clic para desactivar'
+    : 'Marcar cliente sin nomenclatura';
+}
+
+async function toggleSinNomenclatura() {
+  const conv = S.activeConv;
+  if (!conv) return;
+  const newVal = !conv.sin_nomenclatura;
+  try {
+    await sb.from('chat_conversations').update({ sin_nomenclatura: newVal }).eq('id', conv.id);
+    conv.sin_nomenclatura = newVal;
+    updateSinNomBtn(newVal);
+    showToast(newVal ? 'Cliente marcado como sin nomenclatura' : 'Nomenclatura requerida restaurada', 'success');
+  } catch(e) {
+    console.error('toggleSinNomenclatura:', e);
+    showToast('Error al actualizar', 'error');
+  }
 }
 
 function abrirConfirmarDomi() {
