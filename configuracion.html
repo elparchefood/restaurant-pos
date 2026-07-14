@@ -1130,6 +1130,24 @@
               </div>
             </div>
 
+            <!-- CARD: PLANTILLA DE RESUMEN -->
+            <div class="card">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Plantilla de resumen del pedido</div>
+                  <div class="card-hd-ds">Formato del mensaje que el bot envía antes de confirmar. Edita el texto libremente usando las variables disponibles.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="field">
+                  <label class="field-lb">Plantilla</label>
+                  <div class="field-hint">Variables disponibles: <code>{{cantidad}}</code> <code>{{producto}}</code> <code>{{tamano}}</code> <code>{{adiciones}}</code> <code>{{direccion}}</code> <code>{{pago}}</code> <code>{{linea_total}}</code> <code>{{confirmacion}}</code> — también puedes usar <code>{{precio_producto}}</code> <code>{{precio_domicilio}}</code> <code>{{precio_total}}</code> por separado.</div>
+                  <textarea class="txa txa--tall" id="iaResumenPlantilla" rows="8" placeholder="Listo! Tu pedido quedar&#237;a as&#237;:&#10;&#128; {{cantidad}}x {{producto}} {{tamano}}{{adiciones}}&#10;&#128205; {{direccion}}&#10;&#128179; {{pago}}&#10;{{linea_total}}&#10;{{confirmacion}}"></textarea>
+                </div>
+              </div>
+            </div>
+
             <div class="card">
               <div class="card-hd">
                 <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"/></svg></div>
@@ -1469,6 +1487,20 @@
                   <div class="field">
                     <label class="field-lb">Antes de abrir</label>
                     <textarea class="txa" data-frase="antes_horario" placeholder="Ej. Nuestro servicio empieza a las 6:30pm. ¡Te esperamos!"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Pregunta de confirmación del pedido</label>
+                    <div class="field-hint">Se muestra al final del resumen. Usa <code>{{confirmacion}}</code> en la plantilla.</div>
+                    <textarea class="txa" data-frase="resumen_confirmacion" placeholder="Ej. ¿Lo confirmamos o hay algo que cambiar?"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Total cuando barrio no está en tabla</label>
+                    <div class="field-hint">Se muestra en <code>{{linea_total}}</code> cuando no se encuentra el precio del domicilio.</div>
+                    <textarea class="txa" data-frase="resumen_total_desconocido" placeholder="Ej. ya te confirmamos el total ☺️🍟"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Cierre al confirmar pedido</label>
+                    <textarea class="txa" data-frase="cierre_pedido" placeholder="Ej. En un momento enviamos tu pedido 🍟 ¡Con muchísimo gusto!"></textarea>
                   </div>
                 </div>
               </div>

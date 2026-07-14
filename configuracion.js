@@ -2160,6 +2160,7 @@ function chatiaInit() {
       perfil:          { nombre: ($('botName') ? $('botName').value : ''), descripcion: ($('botDesc') ? $('botDesc').value : ''), fotoUrl: window._iaChatAvatarUrl || null },
       tono:            toneEl ? toneEl.dataset.tone : 'cercano',
       instrucciones: $('iaInstr') ? $('iaInstr').value : '',
+      resumen_plantilla: $('iaResumenPlantilla') ? $('iaResumenPlantilla').value.trim() : '',
       vocabulario:   { usar: chips, evitar: ($('avoid') ? $('avoid').value : '') },
       faq:           faqs,
       negocio:       $('iaBiz') ? $('iaBiz').value : '',
@@ -2213,6 +2214,7 @@ function chatiaInit() {
       });
     }
     if ($('iaInstr')) { $('iaInstr').value = m.instrucciones || ''; updateCounter('iaInstr'); }
+    if ($('iaResumenPlantilla')) $('iaResumenPlantilla').value = m.resumen_plantilla || '';
     if (m.vocabulario) {
       if ($('avoid')) $('avoid').value = m.vocabulario.evitar || '';
       var wb = $('wordBox'), wi = $('wordInput');
