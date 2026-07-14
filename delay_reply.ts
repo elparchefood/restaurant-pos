@@ -1214,16 +1214,76 @@ function clasificarDireccion(
   return { tipo: "residencial", requierePagoAdelantado: false };
 }
 
+// ── Normalización y fuzzy matching para barrios ───────────────────────────────
+
+function normalizarTexto(s: string): string {
+  return s.toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")   // quitar tildes: á→a, é→e, ñ→n…
+    .replace(/[^a-z0-9\s]/g, " ")      // quitar símbolos
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function levenshtein(a: string, b: string): number {
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prevDiag = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j];
+      prev[j] = a[i - 1] === b[j - 1]
+        ? prevDiag
+        : 1 + Math.min(prev[j], prev[j - 1], prevDiag);
+      prevDiag = tmp;
+    }
+  }
+  return prev[b.length];
+}
+
+function fuzzyBarrioMatch(direccion: string, barrio: string): boolean {
+  const dirNorm  = normalizarTexto(direccion);
+  const barNorm  = normalizarTexto(barrio);
+
+  // 1. Exacto tras normalizar tildes/mayúsculas
+  if (dirNorm.includes(barNorm)) return true;
+
+  // 2. Sin espacios: "bella vista" coincide con "bellavista"
+  const dirSinEsp = dirNorm.replace(/\s/g, "");
+  const barSinEsp = barNorm.replace(/\s/g, "");
+  if (dirSinEsp.includes(barSinEsp)) return true;
+
+  // 3. Fuzzy por palabras: cada token del barrio aparece en la dirección con tolerancia
+  const dirWords = dirNorm.split(" ");
+  const barWords = barNorm.split(" ");
+  const todasCoinciden = barWords.every(bw => {
+    if (bw.length <= 2) return dirWords.includes(bw);        // palabras cortas: exacto
+    const maxDist = Math.floor(bw.length / 5) + 1;           // ~1 error c/4-5 letras
+    return dirWords.some(dw => levenshtein(dw, bw) <= maxDist);
+  });
+  if (todasCoinciden) return true;
+
+  // 4. Ventana deslizante sin espacios: "bellabista" → "bellavista"
+  if (barSinEsp.length >= 5) {
+    const L = barSinEsp.length;
+    const maxDist = Math.floor(L / 5) + 1;
+    for (let i = 0; i <= dirSinEsp.length - L; i++) {
+      if (levenshtein(dirSinEsp.slice(i, i + L), barSinEsp) <= maxDist) return true;
+    }
+  }
+
+  return false;
+}
+
 function lookupDomiPrice(direccion: string, domicilios: Record<string, unknown> | null | undefined): number | null {
   if (!domicilios) return null;
   const zonas = (domicilios.zonas as Array<{ nombre?: string; barrios?: string[]; precio: number }>) || [];
-  const dir = direccion.toLowerCase();
   for (const z of zonas) {
     const barrios = z.barrios ?? (z.nombre ? z.nombre.split(",").map((b: string) => b.trim()) : []);
     for (const b of barrios) {
-      if (dir.includes(b.toLowerCase()) || b.toLowerCase().split(" ").every(w => dir.includes(w))) {
-        return z.precio;
-      }
+      if (fuzzyBarrioMatch(direccion, b)) return z.precio;
     }
   }
   return null;
