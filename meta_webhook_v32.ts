@@ -1,4 +1,4 @@
-const VERIFY_TOKEN = Deno.env.get("META_WEBHOOK_VERIFY_TOKEN")!;
+﻿const VERIFY_TOKEN = Deno.env.get("META_WEBHOOK_VERIFY_TOKEN")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const OPENAI_KEY   = Deno.env.get("OPENAI_API_KEY")!;
@@ -12,7 +12,7 @@ const CORS = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
-  // ── GET: Meta webhook verification ──────────────────────────────────────────
+  // ── GET: Meta webhook verification or diagnostics ────────────────────────────
   if (req.method === "GET") {
     const url   = new URL(req.url);
     const mode  = url.searchParams.get("hub.mode");
@@ -20,6 +20,46 @@ Deno.serve(async (req) => {
     const challenge = url.searchParams.get("hub.challenge");
     if (mode === "subscribe" && token === VERIFY_TOKEN && challenge) {
       return new Response(challenge, { status: 200 });
+    }
+    // Diagnostico: GET ?debug=1
+    if (url.searchParams.get("debug") === "1") {
+      const diag: Record<string, unknown> = {};
+      // 1. Verificar ia_config
+      try {
+        const cfgRes = await sbGet("/rest/v1/ia_config?limit=1");
+        diag.ia_config = cfgRes ? { found: cfgRes.length, activo: cfgRes[0]?.activo } : "null";
+      } catch(e) { diag.ia_config_error = String(e); }
+      // 2. Verificar pos_products con embedded join
+      try {
+        const pRes = await sbGet("/rest/v1/pos_products?available=eq.true&select=name,category_id(name)&limit=2");
+        diag.pos_products = pRes ? { found: pRes.length, sample: pRes[0] } : "null/error";
+      } catch(e) { diag.pos_products_error = String(e); }
+      // 3. Verificar OpenAI
+      try {
+        const oaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content: "Di hola" }], max_tokens: 5 }),
+        });
+        const oaiData = await oaiRes.json();
+        diag.openai = oaiRes.ok ? "OK" : { status: oaiRes.status, error: oaiData };
+      } catch(e) { diag.openai_error = String(e); }
+      // 4. Verificar WhatsApp token
+      try {
+        const chRes = await sbGet("/rest/v1/chat_channels?channel=eq.whatsapp&select=meta&limit=1");
+        let waToken = "";
+        if (chRes?.[0]) {
+          let m = chRes[0].meta as Record<string,string>|string;
+          if (typeof m === "string") m = JSON.parse(m);
+          waToken = (m as Record<string,string>).access_token || "";
+        }
+        const waRes = await fetch(`https://graph.facebook.com/v22.0/me?access_token=${waToken}`);
+        const waData = await waRes.json();
+        diag.whatsapp_token = waRes.ok ? { ok: true, name: (waData as Record<string,string>).name } : { error: waData };
+      } catch(e) { diag.whatsapp_error = String(e); }
+      return new Response(JSON.stringify(diag, null, 2), {
+        headers: { ...CORS, "Content-Type": "application/json" },
+      });
     }
     return new Response("Forbidden", { status: 403 });
   }
@@ -141,17 +181,33 @@ Deno.serve(async (req) => {
               unread_count: unread + 1, contact_name: senderName,
             });
 
-            // ── Auto-respuesta IA (solo mensajes de texto) ──────────────────
+            // ── Encolar respuesta IA (texto) o verificar transferencia (imagen) ──
             if (msgType === "text" && bodyText && phoneId && accessToken) {
-              await tryAiReply({
+              const msgSentAt = new Date(parseInt(msg.timestamp as string) * 1000).toISOString();
+              await queueAiReply({
                 branchId: branch_id as string,
                 tenantId: tenant_id as string,
                 convId,
-                userText: bodyText,
-                senderName,
+                fromPhone,
                 phoneId,
                 accessToken,
+                msgSentAt,
               });
+            } else if (msgType === "image" && mediaUrl) {
+              // Si hay pago pendiente y llega imagen, es el comprobante → verificar
+              const convDetail = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=pago_pendiente&limit=1`);
+              const pagoPendiente = convDetail?.[0]?.pago_pendiente as boolean | undefined;
+              if (pagoPendiente) {
+                const VERIFY_URL = `${SUPABASE_URL}/functions/v1/verify-transfer`;
+                fetch(VERIFY_URL, {
+                  method: "POST",
+                  headers: {
+                    "Authorization": `Bearer ${SUPABASE_KEY}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({ conversation_id: convId }),
+                }).catch((e) => console.error("verify-transfer launch error:", e));
+              }
             }
           }
         }
@@ -164,12 +220,69 @@ Deno.serve(async (req) => {
   return new Response("OK", { status: 200 });
 });
 
+// ── Cola de respuesta IA ──────────────────────────────────────────────────────
+
+const DELAY_REPLY_URL = `${Deno.env.get("SUPABASE_URL")}/functions/v1/delay-reply`;
+
+interface QueueOpts {
+  branchId: string; tenantId: string; convId: string;
+  fromPhone: string; phoneId: string; accessToken: string;
+  msgSentAt: string;
+}
+
+async function queueAiReply(opts: QueueOpts): Promise<void> {
+  const { branchId, tenantId, convId, fromPhone, phoneId, accessToken, msgSentAt } = opts;
+  try {
+    // Leer delay configurado (default 5 seg)
+    const cfgRes = await sbGet(`/rest/v1/ia_config?branch_id=eq.${branchId}&select=activo,delay_segundos&limit=1`);
+    const cfg = cfgRes?.[0] as Record<string, unknown> | undefined;
+    if (!cfg || !cfg.activo) return;
+    const delaySec = Math.max(1, Math.min(30, Number(cfg.delay_segundos) || 5));
+    const fireAt = new Date(Date.now() + delaySec * 1000).toISOString();
+
+    // Upsert en la cola — si ya existe, solo actualiza fire_at (extiende el timer)
+    const existRes = await sbGet(`/rest/v1/chat_ai_queue?conversation_id=eq.${convId}&processed=eq.false&limit=1`);
+    const isNew = !existRes?.length;
+
+    if (isNew) {
+      // Eliminar filas ya procesadas (la restricción UNIQUE bloquea nuevas inserciones)
+      await sbDelete(`/rest/v1/chat_ai_queue?conversation_id=eq.${convId}&processed=eq.true`);
+      await sbPost(`/rest/v1/chat_ai_queue`, {
+        conversation_id: convId, branch_id: branchId, tenant_id: tenantId,
+        from_phone: fromPhone, phone_id: phoneId, access_token: accessToken,
+        batch_start: msgSentAt, fire_at: fireAt, processed: false,
+      }, "return=minimal");
+    } else {
+      // Extender fire_at para incluir este nuevo mensaje en el batch
+      await sbPatch(`/rest/v1/chat_ai_queue?conversation_id=eq.${convId}&processed=eq.false`, { fire_at: fireAt });
+    }
+
+    // Mostrar indicador de escritura en Cobra
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { ai_typing: true });
+
+    // Lanzar delay-reply en segundo plano solo si es el primer mensaje del batch
+    if (isNew) {
+      fetch(DELAY_REPLY_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${SUPABASE_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ convId }),
+      }).catch((e) => console.error("delay-reply launch error:", e));
+    }
+  } catch (err) {
+    console.error("queueAiReply error:", err);
+  }
+}
+
 // ── Auto-respuesta con OpenAI ──────────────────────────────────────────────────
 
 interface AiReplyOpts {
   branchId: string;
   tenantId: string;
   convId: string;
+  fromPhone: string;
   userText: string;
   senderName: string;
   phoneId: string;
@@ -177,7 +290,7 @@ interface AiReplyOpts {
 }
 
 async function tryAiReply(opts: AiReplyOpts): Promise<void> {
-  const { branchId, tenantId, convId, userText, senderName, phoneId, accessToken } = opts;
+  const { branchId, tenantId, convId, fromPhone, userText, senderName, phoneId, accessToken } = opts;
 
   try {
     // 1. Leer config del bot para este branch
@@ -191,8 +304,10 @@ async function tryAiReply(opts: AiReplyOpts): Promise<void> {
     );
     const history = (histRes || []).reverse() as Array<{ direction: string; body: string }>;
 
-    // 3. Construir system prompt
-    const systemPrompt = buildSystemPrompt(cfg, senderName);
+    // 3. Cargar menu del restaurante, horarios y construir system prompt
+    const menuText     = await buildMenuText(branchId);
+    const horariosText = buildHorariosText(cfg.horarios as Record<string, unknown> | null | undefined);
+    const systemPrompt = buildSystemPrompt(cfg, senderName, menuText, horariosText);
 
     // 4. Armar mensajes para OpenAI
     const messages: Array<{ role: string; content: string }> = [
@@ -230,45 +345,18 @@ async function tryAiReply(opts: AiReplyOpts): Promise<void> {
     if (!reply) return;
 
     // 6. Enviar respuesta por WhatsApp
-    const waRes = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type":  "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: opts.convId.startsWith("+") ? opts.convId : undefined,   // fallback; ver abajo
-        recipient_type: "individual",
-        type: "text",
-        text: { body: reply },
-      }),
-    });
-
-    // Necesitamos el fromPhone para enviar; lo leemos de la conversación
-    const convDataRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=contact_handle&limit=1`);
-    const toPhone = convDataRes?.[0]?.contact_handle as string | undefined;
-    if (!toPhone) return;
-
     const waRes2 = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type":  "application/json",
-      },
+      headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         messaging_product: "whatsapp",
-        to: toPhone,
+        to: fromPhone,
         recipient_type: "individual",
         type: "text",
         text: { body: reply },
       }),
     });
-
-    if (!waRes2.ok) {
-      console.error("WhatsApp send error:", await waRes2.text());
-      return;
-    }
+    if (!waRes2.ok) { console.error("WhatsApp send error:", await waRes2.text()); return; }
     const waSent = await waRes2.json() as Record<string, unknown>;
     const sentId = ((waSent.messages as Array<Record<string,unknown>>)?.[0]?.id as string) || "";
 
@@ -295,9 +383,108 @@ async function tryAiReply(opts: AiReplyOpts): Promise<void> {
   }
 }
 
+// -- Menu del restaurante -------------------------------------------------
+
+function fmtPrice(n: number): string {
+  return "$" + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+async function buildMenuText(branchId: string): Promise<string> {
+  const rows = await sbGet(
+    `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true` +
+    `&select=name,price,description,price_mode,presentations,category_id(name)` +
+    `&order=sort_order`
+  ) as Array<Record<string, unknown>> | null;
+
+  if (!rows || !rows.length) return "";
+
+  // Group by category
+  const byCategory: Record<string, Array<Record<string, unknown>>> = {};
+  for (const p of rows) {
+    const cat = ((p.category_id as Record<string,string>)?.name) || "General";
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push(p);
+  }
+
+  const lines: string[] = ["CARTA DEL RESTAURANTE (productos disponibles con precios actuales):"];
+  for (const [cat, items] of Object.entries(byCategory)) {
+    lines.push(`
+[${cat.toUpperCase()}]`);
+    for (const item of items) {
+      const pres = (item.presentations as Array<{name:string;price:number}>) || [];
+      const validPres = pres.filter(p => p.price > 0);
+      let priceStr: string;
+      if (validPres.length > 1) {
+        priceStr = validPres.map(p => `${p.name} ${fmtPrice(p.price)}`).join(" / ");
+      } else if (validPres.length === 1) {
+        priceStr = fmtPrice(validPres[0].price);
+      } else {
+        priceStr = fmtPrice(Number(item.price) || 0);
+      }
+      let line = `- ${item.name}: ${priceStr}`;
+      if (item.description) line += ` — ${item.description}`;
+      lines.push(line);
+    }
+  }
+  return lines.join("\n");
+}
+
 // ── Construcción del system prompt ────────────────────────────────────────────
 
-function buildSystemPrompt(cfg: Record<string, unknown>, senderName: string): string {
+function buildHorariosText(horarios: Record<string, unknown> | null | undefined): string {
+  if (!horarios) return "";
+
+  const DAYS: Array<[string, string]> = [
+    ["lunes","Lunes"], ["martes","Martes"], ["miercoles","Miércoles"],
+    ["jueves","Jueves"], ["viernes","Viernes"], ["sabado","Sábado"], ["domingo","Domingo"],
+  ];
+
+  // Hora actual en Colombia (UTC-5)
+  const nowCol = new Date(Date.now() - 5 * 60 * 60 * 1000);
+  const todayIdx = nowCol.getUTCDay(); // 0=Dom,1=Lun,...,6=Sab
+  const colDayKey = ["domingo","lunes","martes","miercoles","jueves","viernes","sabado"][todayIdx];
+  const colHHMM = nowCol.getUTCHours().toString().padStart(2,"0") + ":" +
+                  nowCol.getUTCMinutes().toString().padStart(2,"0");
+
+  const lines: string[] = ["HORARIOS DE ATENCIÓN:"];
+  let estaAbiertoAhora = false;
+
+  for (const [key, label] of DAYS) {
+    const d = horarios[key] as Record<string,unknown> | undefined;
+    if (!d || !d.activo) {
+      lines.push(`- ${label}: Cerrado`);
+    } else {
+      const abre   = (d.abre   as string) || "00:00";
+      const cierra = (d.cierra as string) || "23:59";
+      lines.push(`- ${label}: ${abre} – ${cierra}`);
+      if (key === colDayKey && colHHMM >= abre && colHHMM <= cierra) {
+        estaAbiertoAhora = true;
+      }
+    }
+  }
+
+  lines.push("");
+  if (estaAbiertoAhora) {
+    lines.push(`ESTADO ACTUAL: El restaurante está ABIERTO ahora mismo (${colHHMM} hora Colombia).`);
+  } else {
+    const todayData = horarios[colDayKey] as Record<string,unknown> | undefined;
+    if (!todayData || !todayData.activo) {
+      lines.push(`ESTADO ACTUAL: El restaurante está CERRADO hoy (${DAYS[todayIdx][1]}). No atiende este día.`);
+    } else {
+      const abre   = (todayData.abre   as string) || "";
+      const cierra = (todayData.cierra as string) || "";
+      if (colHHMM < abre) {
+        lines.push(`ESTADO ACTUAL: El restaurante aún no ha abierto hoy. Abre a las ${abre}.`);
+      } else {
+        lines.push(`ESTADO ACTUAL: El restaurante ya cerró por hoy. Cerró a las ${cierra}.`);
+      }
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function buildSystemPrompt(cfg: Record<string, unknown>, senderName: string, menuText = "", horariosText = ""): string {
   const perfil  = (cfg.perfil  as Record<string,string>) || {};
   const vocab   = (cfg.vocabulario as Record<string,unknown>) || {};
   const faqs    = (cfg.faq as Array<Record<string,string>>) || [];
@@ -343,6 +530,18 @@ function buildSystemPrompt(cfg: Record<string, unknown>, senderName: string): st
       lines.push(`P: ${f.pregunta}`);
       lines.push(`R: ${f.respuesta}`);
     });
+  }
+
+  if (horariosText) {
+    lines.push("");
+    lines.push(horariosText);
+    lines.push("IMPORTANTE: Usa esta información para responder cualquier pregunta sobre horarios o si el restaurante está abierto.");
+  }
+
+  if (menuText) {
+    lines.push("");
+    lines.push(menuText);
+    lines.push("IMPORTANTE: Los productos y precios anteriores son los únicos disponibles. No inventes productos ni precios que no estén en esa lista.");
   }
 
   lines.push("");
@@ -447,6 +646,14 @@ async function sbPost(
   if (!res.ok) { console.error("sbPost error", path, await res.text()); return null; }
   if (prefer === "return=representation") return res.json();
   return null;
+}
+
+async function sbDelete(path: string): Promise<void> {
+  const res = await fetch(`${SUPABASE_URL}${path}`, {
+    method: "DELETE",
+    headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` },
+  });
+  if (!res.ok) console.error("sbDelete error", path, await res.text());
 }
 
 async function sbPatch(path: string, data: Record<string, unknown>): Promise<void> {
