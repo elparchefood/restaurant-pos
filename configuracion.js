@@ -1,4 +1,4 @@
-/* configuracion.js — Mesas y zonas · Cobra POS */
+﻿/* configuracion.js — Mesas y zonas · Cobra POS */
 /* Depende de: pos-core.js (sb, $) */
 
 // ── Estado ──────────────────────────────────────────────
@@ -2161,6 +2161,7 @@ function chatiaInit() {
       tono:            toneEl ? toneEl.dataset.tone : 'cercano',
       instrucciones: $('iaInstr') ? $('iaInstr').value : '',
       resumen_plantilla: $('iaResumenPlantilla') ? $('iaResumenPlantilla').value.trim() : '',
+      gmail_verificar: $('gmailVerificar') ? $('gmailVerificar').checked : false,
       vocabulario:   { usar: chips, evitar: ($('avoid') ? $('avoid').value : '') },
       faq:           faqs,
       negocio:       $('iaBiz') ? $('iaBiz').value : '',
@@ -2275,7 +2276,62 @@ function chatiaInit() {
     applyMenuImagenes(m.menu_imagenes);
     applyMenuFrase(m.menu_frase);
     applyProhibiciones(m.prohibiciones);
+    applyGmailStatus(m.gmail_email, m.gmail_connected_at);
+    if ($('gmailVerificar')) $('gmailVerificar').checked = !!m.gmail_verificar;
   }
+
+  // ── Gmail OAuth ──────────────────────────────────────────────────────────────
+
+  function applyGmailStatus(email, connectedAt) {
+    var status  = $('gmailStatus');
+    var btnConn = $('gmailConnectBtn');
+    var btnDisc = $('gmailDisconnectBtn');
+    if (!status) return;
+    if (email) {
+      status.className = 'gmail-status gmail-status--connected';
+      status.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><span>' + email + '</span>';
+      if (btnConn) btnConn.style.display = 'none';
+      if (btnDisc) btnDisc.style.display = '';
+    } else {
+      status.className = 'gmail-status gmail-status--disconnected';
+      status.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>Gmail no conectado</span>';
+      if (btnConn) btnConn.style.display = '';
+      if (btnDisc) btnDisc.style.display = 'none';
+    }
+  }
+
+  function connectGmail() {
+    var branchId = window._branchId || '';
+    if (!branchId) { alert('No se encontro el ID de la sucursal. Recarga la pagina.'); return; }
+    var clientId = '673589658608-e3p5i9pt9gsjjivocu9unpsd2r8e2k34.apps.googleusercontent.com';
+    var redirectUri = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/gmail-oauth-callback';
+    var scope = 'https://www.googleapis.com/auth/gmail.readonly';
+    var authUrl = 'https://accounts.google.com/o/oauth2/v2/auth' +
+      '?client_id=' + encodeURIComponent(clientId) +
+      '&redirect_uri=' + encodeURIComponent(redirectUri) +
+      '&response_type=code' +
+      '&scope=' + encodeURIComponent(scope) +
+      '&access_type=offline' +
+      '&prompt=consent' +
+      '&state=' + encodeURIComponent(branchId);
+    window.location.href = authUrl;
+  }
+
+  async function disconnectGmail() {
+    if (!confirm('Desconectar Gmail? El bot dejara de verificar transferencias automaticamente.')) return;
+    applyGmailStatus(null, null);
+  }
+
+  (function checkGmailCallback() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('gmail') === 'ok') {
+      var email = decodeURIComponent(params.get('email') || '');
+      setTimeout(function() { applyGmailStatus(email, new Date().toISOString()); }, 800);
+      history.replaceState({}, '', window.location.pathname);
+    } else if (params.get('gmail') === 'error') {
+      history.replaceState({}, '', window.location.pathname);
+    }
+  })();
 
   function updateCounter(id) {
     var ta = document.getElementById(id);

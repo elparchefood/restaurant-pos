@@ -1291,6 +1291,43 @@
               </div>
             </div>
 
+
+            <!-- CARD: VERIFICACION GMAIL -->
+            <div class="card" id="card-gmail">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Verificacion de transferencias</div>
+                  <div class="card-hd-ds">Conecta tu Gmail para que el bot verifique pagos por transferencia comparando el comprobante con el correo del banco.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="field">
+                  <div id="gmailStatus" class="gmail-status gmail-status--disconnected">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span id="gmailStatusText">Gmail no conectado</span>
+                  </div>
+                  <div class="gmail-btn-row">
+                    <button class="btn-gmail-connect" id="gmailConnectBtn" onclick="connectGmail()" type="button">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                      Conectar Gmail
+                    </button>
+                    <button class="btn-gmail-disconnect" id="gmailDisconnectBtn" onclick="disconnectGmail()" type="button" style="display:none">
+                      Desconectar
+                    </button>
+                  </div>
+                </div>
+                <div class="field">
+                  <div class="pay-rule-row">
+                    <div class="pay-rule-tx">
+                      <div class="pay-rule-tt">Verificar transferencias automaticamente</div>
+                      <div class="pay-rule-ds">El bot cruzara el comprobante del cliente con el correo del banco antes de confirmar el pedido</div>
+                    </div>
+                    <label class="switch"><input type="checkbox" id="gmailVerificar"><span class="track"></span><span class="knob"></span></label>
+                  </div>
+                </div>
+              </div>
+            </div>
             <!-- CARD: DOMICILIOS Y COBERTURA -->
             <div class="card" id="card-domicilios">
               <div class="card-hd">

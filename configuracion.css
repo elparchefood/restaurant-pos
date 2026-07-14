@@ -1,4 +1,4 @@
-/* ============================================================
+﻿/* ============================================================
    LUMEN POS · CONFIGURACIÓN — Mesas y zonas — Hoja de estilos
    Tema claro. Fuente 'DM Sans'. Acento #5B6BFF / violeta #8B5CF6.
    Valores EXACTOS (hex, px, radios, sombras, curvas).
@@ -1006,3 +1006,60 @@ input::placeholder { color: var(--ink-4); }
   transition: border-color .15s, color .15s;
 }
 .zone-add:hover { border-color: var(--ink-accent); color: var(--ink-accent); }
+
+/* ── Gmail OAuth ─────────────────────────────────────────────────────────── */
+.gmail-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+.gmail-status--disconnected {
+  background: color-mix(in srgb, var(--c-warn, #f59e0b) 12%, transparent);
+  color: var(--c-warn, #f59e0b);
+  border: 1px solid color-mix(in srgb, var(--c-warn, #f59e0b) 30%, transparent);
+}
+.gmail-status--connected {
+  background: color-mix(in srgb, #22c55e 12%, transparent);
+  color: #22c55e;
+  border: 1px solid color-mix(in srgb, #22c55e 30%, transparent);
+}
+.gmail-btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.btn-gmail-connect {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: none;
+  background: var(--c-accent, #6366f1);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.btn-gmail-connect:hover { opacity: .85; }
+.btn-gmail-disconnect {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--c-border, rgba(255,255,255,.1));
+  background: transparent;
+  color: var(--c-text-2, #9ca3af);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color .15s;
+}
+.btn-gmail-disconnect:hover { color: #ef4444; border-color: #ef4444; }
