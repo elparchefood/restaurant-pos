@@ -2140,7 +2140,9 @@ function chatiaInit() {
     if (list) { list.appendChild(makeProhRow('')); markDirty(); }
   };
 
-  // ── Leer el modelo actual del DOM ──────────────────────
+var _storedZonas = [];
+
+    // ── Leer el modelo actual del DOM ──────────────────────
   function readModel() {
     var chips = [];
     ($('wordBox') ? $('wordBox').querySelectorAll('.wchip') : []).forEach(function(c) {
@@ -2186,7 +2188,7 @@ function chatiaInit() {
         activo:           $('domiActivo')    ? $('domiActivo').checked    : true,
         para_llevar:      $('domiParaLlevar')? $('domiParaLlevar').checked: true,
         tiempo_estimado:  $('domiTiempo')   ? $('domiTiempo').value.trim(): '',
-        zonas:            readZones(),
+        zonas:            (function() { var z = readZones(); return z.length ? z : _storedZonas; })(),
       },
       frases:      readFrases(),
       situaciones: readSituaciones(),
@@ -2277,6 +2279,7 @@ function chatiaInit() {
     if ($('domiActivo'))    $('domiActivo').checked    = d.activo       !== false;
     if ($('domiParaLlevar'))$('domiParaLlevar').checked= d.para_llevar  !== false;
     if ($('domiTiempo'))    $('domiTiempo').value      = d.tiempo_estimado || '';
+    _storedZonas = d.zonas || [];
     renderZones(d.zonas || []);
     toggleDomiFields();
     applyFrases(m.frases);

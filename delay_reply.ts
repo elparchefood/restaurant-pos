@@ -330,7 +330,7 @@ async function processConversation(convId: string): Promise<void> {
   "producto": "nombre del producto sin tamaño (ej: Salchipapa Premium Mixta)",
   "tamano": "tamaño del producto (ej: Personal, Familiar)",
   "cantidad": 1,
-  "adiciones": " + Super queso" (con espacio al inicio; cadena vacía si no hay adiciones),
+  "adiciones": " + nombre_adicion" (con espacio al inicio; cadena vacía "" si el cliente NO pidió adiciones explícitamente — NUNCA pongas adiciones que el bot ofreció pero el cliente NO aceptó),
   "direccion": "dirección completa de entrega",
   "barrio": "solo el nombre del barrio (sin calle ni número) para buscar en la tabla de precios",
   "pago": "método de pago (ej: Efectivo, Nequi)",
@@ -624,14 +624,21 @@ ${menuText}`,
     if (responses.length > 1) await sleep(400);
   }
 
-  // 13b. Si el bot dijo "ya te confirmamos el total" → marcar domi pendiente y pasar al humano
+  // 13b. Si el bot dijo "ya te confirmamos el total" → marcar domi pendiente.
+  // Solo activar human_takeover si NO es un resumen que pide confirmación al cliente.
+  // (Si el resumen incluye "¿Lo confirmamos" o "correcto?", el bot debe seguir activo
+  //  para recibir el "sí" del cliente y crear el pedido.)
   const botDijoDomiPendiente = responses.some(r =>
     (r.text || "").includes("ya te confirmamos el total")
   );
+  const esResumenPidiendo = responses.some(r => {
+    const t = r.text || "";
+    return t.includes("¿Lo confirmamos") || t.includes("¿Todo correcto?") || t.includes("correcto?") || t.includes("Confirmemos");
+  });
   if (botDijoDomiPendiente) {
     await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
       domi_precio_pendiente: true,
-      human_takeover: true,
+      ...(esResumenPidiendo ? {} : { human_takeover: true }),
     });
   }
 
@@ -1322,7 +1329,7 @@ function buildSystemPrompt(
     "",
     "=== REGLAS CRÍTICAS — NUNCA IGNORAR ===",
     "",
-    "1. UPSELL OBLIGATORIO: En TODA conversación de pedido, SIEMPRE ofrece adiciones UNA VEZ (bebidas, salchicha ranchera, super queso, salsas especiales). Hazlo aunque el cliente ya haya dado el producto, dirección y todos los datos. La ÚNICA excepción: el cliente ya mencionó explícitamente que quiere adiciones. Si el cliente RECHAZA el upsell ('no', 'no gracias', 'así está bien', etc.), NO incluyas ningún producto adicional en el resumen.",
+    "1. UPSELL OBLIGATORIO: En TODA conversación de pedido, ofrece adiciones UNA SOLA VEZ (bebidas, salchicha ranchera, super queso, salsas especiales). Hazlo aunque el cliente ya haya dado el producto, dirección y todos los datos. La ÚNICA excepción: el cliente ya mencionó explícitamente que quiere adiciones. Si el cliente RECHAZA el upsell ('no', 'no gracias', 'así está bien', 'no quiero', etc.), NO vuelvas a ofrecerlo NUNCA en la misma conversación, y NO incluyas ningún producto adicional en el resumen ni en el pedido. Un rechazo al upsell = el pedido va sin adiciones, punto.",
     "",
     "2. RESUMEN CON PRECIO OBLIGATORIO: Cuando ya tengas todos los datos (producto, dirección, pago, nombre), envía UN SOLO MENSAJE con el resumen completo + el precio total, terminando con '¿Lo confirmamos o hay algo que cambiar?' Formato: 🍟 producto x cantidad, 📍 dirección, 💳 pago, 👤 nombre, Total: $X + $Y del domicilio = $Z. Si el barrio NO aparece en la tabla de precios de domicilio, escribe exactamente: 'ya te confirmamos el total ☺️🍟' en lugar del precio. El nombre SIEMPRE se pregunta ANTES de mostrar el resumen, nunca dentro del mismo mensaje.",
     "",
