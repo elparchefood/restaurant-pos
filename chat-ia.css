@@ -1,4 +1,4 @@
-/* ══════════════════════════════════════════════════════════
+﻿/* ══════════════════════════════════════════════════════════
    Chat IA — Cobra POS
    Paleta: #5B6BFF azul | #8B5CF6 violeta | DM Sans
    Layout: sidebar 232px + lista 366px + chat flexible
@@ -1101,3 +1101,23 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .ci-human-toggle:hover{background:rgba(100,220,130,.22);}
 .ci-human-toggle.is-human{border-color:rgba(251,146,60,.35);background:rgba(251,146,60,.12);color:#fb923c;}
 .ci-human-toggle.is-human:hover{background:rgba(251,146,60,.22);}
+
+/* ── Pagos por confirmar ─────────────────────────────────────────────────── */
+.ci-nav-badge--warn {
+  background: #f59e0b !important;
+}
+.ci-pago-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(34,197,94,.35);
+  background: rgba(34,197,94,.12);
+  color: #22c55e;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+}
+.ci-pago-confirm:hover { background: rgba(34,197,94,.22); }

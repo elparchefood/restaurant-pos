@@ -41,7 +41,7 @@ const S = {
   tenantId: null, branchId: null, user: null,
   conversations: [], channels: [],
   activeConvId: null, messages: [],
-  activeFilter: 'all', activeView: 'all', humanCount: 0,
+  activeFilter: 'all', activeView: 'all', humanCount: 0, pagoCount: 0,
   query: '', realtimeSub: null,
 };
 
@@ -107,6 +107,7 @@ async function loadConversations() {
   if (S.activeView === 'resolved') q = q.eq('status','resolved');
   if (S.activeView === 'archived') q = q.eq('status','archived');
   if (S.activeView === 'human')   q = q.eq('human_takeover', true).eq('status','open');
+  if (S.activeView === 'pagos')   q = q.eq('pago_pendiente', true).eq('status','open');
   if (['all','mine','pending'].includes(S.activeView)) { q = q.eq('status','open').eq('human_takeover', false); }
   const { data } = await q;
   S.conversations = data || [];
@@ -494,6 +495,7 @@ function renderBadges() {
   $('badge-all').textContent     = totalUnread || '';
   $('badge-pending').textContent = pending     || '';
   updateHumanBadge();
+  updatePagoBadge();
   $('totalUnread').textContent   = totalUnread ? `${totalUnread} sin leer` : `${S.conversations.length} conversaciones`;
   renderChannelsSidebar();
   renderFilters();
@@ -501,6 +503,7 @@ function renderBadges() {
 
 function renderChatHeader(conv) {
   updateHumanToggleBtn(!!conv.human_takeover);
+  updatePagoConfirmBtn(!!conv.pago_pendiente);
   const meta     = CHANNELS[conv.channel] || {};
   const tint     = TINTS[(conv.contact_avatar_tint||0) % TINTS.length];
   const label    = conv.contact_name || conv.contact_handle || '?';
@@ -1095,6 +1098,56 @@ async function toggleHumanTakeover() {
     }
   } catch(e) { console.error('toggleHumanTakeover:', e); showToast('Error al cambiar modo', 'error'); }
 }
+// ── Pagos por confirmar ───────────────────────────────────────────────────────
+
+async function updatePagoBadge() {
+  try {
+    const { count } = await sb.from('chat_conversations')
+      .select('id', { count: 'exact', head: true })
+      .eq('branch_id', window._branchId)
+      .eq('pago_pendiente', true)
+      .eq('status', 'open');
+    S.pagoCount = count || 0;
+    const el = $('badge-pagos');
+    if (el) el.textContent = S.pagoCount || '';
+  } catch(e) { console.error('updatePagoBadge:', e); }
+}
+
+function updatePagoConfirmBtn(isPendiente) {
+  const btn = $('pagoConfirmBtn');
+  if (!btn) return;
+  btn.style.display = isPendiente ? '' : 'none';
+}
+
+async function confirmarPago() {
+  const conv = S.activeConv;
+  if (!conv) return;
+  try {
+    // 1. Llamar Edge Function confirm-payment
+    const srKey = window._srKey || '';
+    const res = await fetch(`${window._supabaseUrl}/functions/v1/confirm-payment`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${srKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation_id: conv.id })
+    });
+    if (!res.ok) throw new Error(await res.text());
+
+    // 2. Actualizar estado local
+    conv.pago_pendiente = false;
+    updatePagoConfirmBtn(false);
+    await updatePagoBadge();
+
+    // 3. Si estamos en la pestaña pagos, recargar lista
+    if (S.activeView === 'pagos') await loadConversations();
+    else await loadMessages(conv.id);
+
+    showToast('Pago confirmado — pedido enviado a cocina');
+  } catch(e) {
+    console.error('confirmarPago:', e);
+    showToast('Error al confirmar pago', 'error');
+  }
+}
+
 
 function avatarInitials(name) {
   if (!name) return '?';
