@@ -1424,3 +1424,50 @@ function handleMetaConnect(channel) {
     }
   });
 }
+
+// ── More menu (3 dots) ────────────────────────────────────────────────────────
+function toggleMoreMenu(e) {
+  e.stopPropagation();
+  var menu = document.getElementById('moreMenu');
+  if (!menu) return;
+  var open = menu.style.display !== 'none';
+  menu.style.display = open ? 'none' : 'block';
+  if (!open) {
+    // Close on next outside click
+    setTimeout(function() {
+      document.addEventListener('click', closeMoreMenu, { once: true });
+    }, 0);
+  }
+}
+function closeMoreMenu() {
+  var menu = document.getElementById('moreMenu');
+  if (menu) menu.style.display = 'none';
+}
+
+async function borrarHistorialChat() {
+  closeMoreMenu();
+  var convId = S.activeConvId;
+  if (!convId) return;
+  if (!confirm('¿Borrar todo el historial de mensajes de esta conversación? El bot empezará desde cero.')) return;
+
+  // 1. Eliminar todos los mensajes del hilo
+  await sb.from('chat_messages').delete().eq('conversation_id', convId);
+
+  // 2. Resetear estado de la conversación
+  await sb.from('chat_conversations').update({
+    last_message: null,
+    last_message_at: null,
+    last_sender: null,
+    pending_order_data: null,
+    domi_precio_pendiente: false,
+    human_takeover: false,
+    pago_pendiente: false,
+    ai_typing: false,
+  }).eq('id', convId);
+
+  // 3. Limpiar el hilo en UI
+  S.messages = [];
+  renderThread();
+  showToast('Historial borrado — el bot empieza desde cero', 'success');
+}
+
