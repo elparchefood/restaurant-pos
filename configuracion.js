@@ -2301,8 +2301,8 @@ function chatiaInit() {
   }
 
   function connectGmail() {
-    var branchId = window._branchId || '';
-    if (!branchId) { alert('No se encontro el ID de la sucursal. Recarga la pagina.'); return; }
+    var branchId = _cfgBranchId || (window._pos && window._pos.state && window._pos.state.branchId) || '';
+    if (!branchId) { alert('No se encontro el ID de la sucursal. Recarga la pagina e intenta de nuevo.'); return; }
     var clientId = '673589658608-e3p5i9pt9gsjjivocu9unpsd2r8e2k34.apps.googleusercontent.com';
     var redirectUri = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/gmail-oauth-callback';
     var scope = 'https://www.googleapis.com/auth/gmail.readonly';
