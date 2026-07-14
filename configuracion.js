@@ -2314,10 +2314,37 @@ function chatiaInit() {
       '&access_type=offline' +
       '&prompt=consent' +
       '&state=' + encodeURIComponent(branchId);
-    window.location.href = authUrl;
+
+    window.open(authUrl, '_blank');
+
+    var btn = $('gmailConnectBtn');
+    var origText = btn ? btn.textContent : 'Conectar Gmail';
+    if (btn) { btn.textContent = 'Esperando autorizacion...'; btn.disabled = true; }
+
+    var attempts = 0;
+    var pollTimer = setInterval(async function() {
+      attempts++;
+      try {
+        var rows = await sb.from('ia_config')
+          .select('gmail_email, gmail_connected_at')
+          .eq('branch_id', branchId)
+          .limit(1);
+        var row = rows && rows.data && rows.data[0];
+        if (row && row.gmail_email) {
+          clearInterval(pollTimer);
+          applyGmailStatus(row.gmail_email, row.gmail_connected_at);
+          return;
+        }
+      } catch(e) { /* seguir */ }
+      if (attempts >= 30) {
+        clearInterval(pollTimer);
+        if (btn) { btn.textContent = origText; btn.disabled = false; }
+        alert('No se detecto la conexion con Gmail. Intenta de nuevo.');
+      }
+    }, 3000);
   }
 
-  async function disconnectGmail() {
+    async function disconnectGmail() {
     if (!confirm('Desconectar Gmail? El bot dejara de verificar transferencias automaticamente.')) return;
     applyGmailStatus(null, null);
   }
