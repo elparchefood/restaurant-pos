@@ -2315,7 +2315,7 @@ function chatiaInit() {
       '&prompt=consent' +
       '&state=' + encodeURIComponent(branchId);
 
-    window.open(authUrl, '_blank');
+    var authWin = window.open(authUrl, '_blank');
 
     var btn = $('gmailConnectBtn');
     var origText = btn ? btn.textContent : 'Conectar Gmail';
@@ -2332,6 +2332,7 @@ function chatiaInit() {
         var row = rows && rows.data && rows.data[0];
         if (row && row.gmail_email) {
           clearInterval(pollTimer);
+          if (authWin && !authWin.closed) { try { authWin.close(); } catch(e) {} }
           applyGmailStatus(row.gmail_email, row.gmail_connected_at);
           return;
         }
