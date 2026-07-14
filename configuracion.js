@@ -2179,6 +2179,8 @@ function chatiaInit() {
         titular:             $('payTitular')    ? $('payTitular').value.trim(): '',
         esperar_comprobante: $('payComprobante')? $('payComprobante').checked : true,
         nota:                $('payNota')       ? $('payNota').value.trim()  : '',
+        qr_imagen_url:       window._qrImageUrl || '',
+        qr_texto:            $('qrTexto')       ? $('qrTexto').value.trim()  : '',
       },
       domicilios: {
         activo:           $('domiActivo')    ? $('domiActivo').checked    : true,
@@ -2261,6 +2263,13 @@ function chatiaInit() {
     if ($('payTitular'))    $('payTitular').value      = p.titular  || '';
     if ($('payComprobante')) $('payComprobante').checked = p.esperar_comprobante !== false;
     if ($('payNota'))       $('payNota').value         = p.nota     || '';
+    if ($('qrTexto'))       $('qrTexto').value         = p.qr_texto || '';
+    if (p.qr_imagen_url) {
+      window._qrImageUrl = p.qr_imagen_url;
+      var prev = $('qrPreviewImg'), ph = $('qrPlaceholder');
+      if (prev) { prev.src = p.qr_imagen_url; prev.style.display = 'block'; }
+      if (ph)   { ph.style.display = 'none'; }
+    }
     toggleDigitalFields();
 
     // Domicilios
@@ -2667,6 +2676,29 @@ function chatiaInit() {
       });
       var efData = await efRes.json();
       if (waSlot) waSlot.title = efData.success ? 'Foto actualizada en WhatsApp' : ('Error: ' + (efData.error || 'desconocido'));
+      markDirty();
+    });
+  }
+
+  // ── QR de pago upload ─────────────────────────────────
+  var qrSlot = $('qrUploadSlot'), qrInput = $('qrFileInput');
+  if (qrSlot && qrInput) {
+    qrSlot.addEventListener('click', function() { qrInput.click(); });
+    qrInput.addEventListener('change', async function() {
+      var file = this.files[0]; if (!file) return;
+      var prev = $('qrPreviewImg'), ph = $('qrPlaceholder');
+      if (prev) { prev.src = URL.createObjectURL(file); prev.style.display = 'block'; }
+      if (ph)   { ph.style.display = 'none'; }
+      var session = (await sb.auth.getSession()).data.session;
+      if (!session) return;
+      var branchId = session.user.user_metadata.branch_id;
+      var ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      var path = 'qr-pago/' + branchId + '/qr.' + ext;
+      var { error: upErr } = await sb.storage.from('chat-media')
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) { console.error('QR upload error:', upErr); return; }
+      var { data: pub } = sb.storage.from('chat-media').getPublicUrl(path);
+      window._qrImageUrl = pub.publicUrl;
       markDirty();
     });
   }

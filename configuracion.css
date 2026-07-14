@@ -1063,3 +1063,30 @@ input::placeholder { color: var(--ink-4); }
   transition: color .15s;
 }
 .btn-gmail-disconnect:hover { color: #ef4444; border-color: #ef4444; }
+
+/* ── QR upload ─────────────────────────────────────────── */
+.qr-upload-slot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 140px;
+  height: 140px;
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color .15s, background .15s;
+}
+.qr-upload-slot:hover { border-color: var(--accent); background: var(--hover-bg, rgba(0,0,0,.03)); }
+.qr-preview-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.qr-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+.qr-placeholder svg { opacity: .5; }

@@ -150,23 +150,64 @@ async function processConversation(convId: string): Promise<void> {
     return;
   }
 
-  // 12. Parsear respuesta
+  // 12. Detectar marcador [PAGO_QR] — enviar imagen QR antes de parsear
+  const pagoQrConfig = cfg.pagos as Record<string, unknown> | null | undefined;
+  const qrImageUrl   = (pagoQrConfig?.qr_imagen_url as string) || "";
+  const qrTexto      = (pagoQrConfig?.qr_texto      as string) || "";
+  const hasPagoQr    = rawReply.includes("[PAGO_QR]") && qrImageUrl;
+
+  // Limpiar marcador del texto que se enviará al cliente
+  const cleanReply = rawReply.replace(/\[PAGO_QR\]/g, "").trim();
+
+  if (hasPagoQr) {
+    // Marcar conversación como pago pendiente
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pago_pendiente: true });
+    // Enviar imagen QR con el texto configurado como caption
+    const waImgBody = {
+      messaging_product: "whatsapp",
+      to: fromPhone,
+      recipient_type: "individual",
+      type: "image",
+      image: { link: qrImageUrl, caption: qrTexto || undefined },
+    };
+    const waImgRes = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(waImgBody),
+    });
+    if (waImgRes.ok) {
+      const waSentImg = await waImgRes.json() as Record<string, unknown>;
+      const sentImgId = ((waSentImg.messages as Array<Record<string,unknown>>)?.[0]?.id as string) || "";
+      await sbPost(`/rest/v1/chat_messages`, {
+        conversation_id: convId, tenant_id: tenantId,
+        direction: "out", body: qrTexto || "[Imagen QR de pago]",
+        media_url: qrImageUrl, media_type: "image",
+        delivery_status: "sent", external_id: sentImgId || null,
+        sent_at: new Date().toISOString(),
+      });
+    } else {
+      console.error("QR image send error:", await waImgRes.text());
+    }
+    await sleep(400);
+  }
+
+  // 13. Parsear respuesta
   type RespItem = { quote_id?: string; text: string };
   let responses: RespItem[] = [];
 
   if (batchMsgs.length > 1) {
     try {
-      const parsed = JSON.parse(rawReply) as { type?: string; responses?: RespItem[] };
+      const parsed = JSON.parse(cleanReply) as { type?: string; responses?: RespItem[] };
       if (parsed.responses && Array.isArray(parsed.responses)) {
         responses = parsed.responses;
       } else {
-        responses = [{ text: rawReply }];
+        responses = [{ text: cleanReply }];
       }
     } catch {
-      responses = [{ text: rawReply }];
+      responses = [{ text: cleanReply }];
     }
   } else {
-    responses = [{ text: rawReply }];
+    responses = [{ text: cleanReply }];
   }
 
   // 13. Enviar respuesta(s) por WhatsApp y guardar en DB
@@ -315,7 +356,11 @@ function buildPagosText(pagos: Record<string, unknown> | null | undefined): stri
     if (pagos.titular) lines.push(`- Titular: ${pagos.titular}`);
   }
   if (pagos.esperar_comprobante) {
-    lines.push("- Para pagos digitales, pedimos el comprobante de transferencia.");
+    if (pagos.qr_imagen_url) {
+      lines.push("- Para pagos por Nequi/transferencia: cuando el cliente confirme su pedido y elija pagar digital, incluye exactamente [PAGO_QR] al FINAL de tu respuesta. El sistema enviará automáticamente la imagen de pago. No expliques al cliente que existe ese código.");
+    } else {
+      lines.push("- Para pagos digitales, pedimos el comprobante de transferencia.");
+    }
   }
   if (pagos.nota) lines.push(`- ${pagos.nota}`);
   return lines.join("\n");
