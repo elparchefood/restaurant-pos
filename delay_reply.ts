@@ -122,11 +122,30 @@ async function processConversation(convId: string): Promise<void> {
   );
   const history = ((histRes || []) as Array<{ direction: string; body: string }>).reverse();
 
+  // 6b-pre: Detectar si el upsell ya fue ofrecido Y rechazado en este hilo
+  const upsellKwBot = ["adicionar", "super queso", "salchicha ranchera", "salsas especiales", "adiciones"];
+  const rechazoKw   = ["no gracias", "no quiero", "así está bien", "no, gracias", "no quiero nada", "solo eso", "sin adicional"];
+  let upsellYaOfrecido = false;
+  let upsellRechazado  = false;
+  for (let _i = 0; _i < history.length; _i++) {
+    const _m = history[_i];
+    const _bl = (_m.body || "").toLowerCase();
+    if (_m.direction === "out" && upsellKwBot.some(kw => _bl.includes(kw))) {
+      upsellYaOfrecido = true;
+    }
+    if (upsellYaOfrecido && _m.direction === "in") {
+      const _bt = _bl.trim();
+      if (rechazoKw.some(kw => _bt.includes(kw)) || _bt === "no" || _bt === "no." || _bt === "noo" || _bt === "no,") {
+        upsellRechazado = true;
+      }
+    }
+  }
+
   // 6b. Detectar si el cliente pide la carta → enviar imágenes y salir
   const menuImagenes = (cfg.menu_imagenes as string[]) || [];
   if (menuImagenes.length > 0) {
     const combinedLower = batchMsgs.map(m => m.body.toLowerCase().trim()).join(" ");
-    const menuKw = ["la carta","el menú","el menu","dame la carta","ver la carta","su carta","ver el menú","ver el menu","qué tienen de menú","muestrame la carta","muéstrame la carta","carta del restaurante","que tienen de menu","envía la carta","envia la carta"];
+    const menuKw = ["la carta","el menú","el menu","dame la carta","ver la carta","su carta","ver el menú","ver el menu","qué tienen de menú","muestrame la carta","muéstrame la carta","carta del restaurante","que tienen de menu","envía la carta","envia la carta","que tienes","qué tienes","que tienen","qué tienen","que hay","qué hay","tienen de","qué te","que te"];
     const isExact = ["carta","menú","menu","el menú","el menu"].includes(combinedLower);
     const wantsMenu = isExact || menuKw.some(kw => combinedLower.includes(kw));
     if (wantsMenu) {
@@ -181,7 +200,7 @@ async function processConversation(convId: string): Promise<void> {
   const systemPrompt   = buildSystemPrompt(
     cfg, senderName, menuText, horariosText, pagosText, domiciliosText,
     batchMsgs.length, colTimeStr, colDayStr, isOpen, isBeforeOpen, pedidosProg,
-    sinNomenclaturaCliente, rechazarLugPubl, pagoAdelanLugPubl
+    sinNomenclaturaCliente, rechazarLugPubl, pagoAdelanLugPubl, upsellRechazado
   );
 
   // 10. Armar mensajes para OpenAI
@@ -1311,7 +1330,8 @@ function buildSystemPrompt(
   pedidosProg: boolean,
   sinNomenclaturaCliente: boolean = false,
   rechazarLugaresPublicos: boolean = true,
-  pagoAdelanLugaresPublicos: boolean = true
+  pagoAdelanLugaresPublicos: boolean = true,
+  upsellRechazado: boolean = false
 ): string {
   const perfil = (cfg.perfil as Record<string,string>) || {};
   const vocab  = (cfg.vocabulario as Record<string,unknown>) || {};
@@ -1324,6 +1344,10 @@ function buildSystemPrompt(
   };
   const botName = perfil.nombre || "Asistente";
   const lines: string[] = [
+    ...(upsellRechazado ? [
+      "⚠️ INSTRUCCIÓN PRIORITARIA — OVERRIDE ABSOLUTO: El cliente YA rechazó el upsell en esta conversación. ESTÁ PROHIBIDO ofrecer adiciones, bebidas o extras de cualquier tipo. Si ya tienes todos los datos del pedido (producto, dirección, pago, nombre), envía el RESUMEN COMPLETO con precio AHORA MISMO. No preguntes nada más sobre adiciones.",
+      "",
+    ] : []),
     `Eres ${botName}, el asistente virtual de este restaurante.`,
     `IMPORTANTE: No llames al cliente por ningún nombre al saludar. El nombre de WhatsApp puede ser un apodo o nickname que no es apropiado usar (ej: "cariñosito6754"). Saluda siempre de forma genérica. El nombre para el pedido se pregunta en el flujo normal y puede ser diferente al de WhatsApp.`,
     "",
@@ -1333,7 +1357,7 @@ function buildSystemPrompt(
     "",
     "2. RESUMEN CON PRECIO OBLIGATORIO: Cuando ya tengas todos los datos (producto, dirección, pago, nombre), envía UN SOLO MENSAJE con el resumen completo + el precio total, terminando con '¿Lo confirmamos o hay algo que cambiar?' Formato: 🍟 producto x cantidad, 📍 dirección, 💳 pago, 👤 nombre, Total: $X + $Y del domicilio = $Z. Si el barrio NO aparece en la tabla de precios de domicilio, escribe exactamente: 'ya te confirmamos el total ☺️🍟' en lugar del precio. El nombre SIEMPRE se pregunta ANTES de mostrar el resumen, nunca dentro del mismo mensaje.",
     "",
-    "3. DIRECCIÓN EN VARIOS MENSAJES: Si el cliente envía la dirección repartida en 2 o más mensajes consecutivos (ej: 'Carrera 9 #3-20' y luego 'Bellavista'), son PARTES DE UNA SOLA DIRECCIÓN. Concaténalos como una sola dirección completa. NUNCA preguntes cuál de las dos es la correcta.",
+    "3. DIRECCIÓN EN VARIOS MENSAJES: Si el cliente envía la dirección repartida en 2 o más mensajes consecutivos (ej: 'Carrera 9 #3-20' y luego 'Bellavista'), son PARTES DE UNA SOLA DIRECCIÓN. Únelas en una sola dirección completa, sin comentarle al cliente lo que hiciste. NUNCA preguntes cuál de las dos es la correcta.",
     "",
     "4. PAGO POR TRANSFERENCIA — NUNCA DIGAS 'EN UN MOMENTO ENVIAMOS': Si el método de pago es transferencia, Nequi, Daviplata o similar, después de que el cliente confirme el resumen di: 'Perfecto, queda pendiente del comprobante. ¡En cuanto lo recibamos pasamos tu pedido a cocina! 🍟' NUNCA digas 'En un momento enviamos tu pedido' cuando el pago sea digital.",
     "",
