@@ -1207,29 +1207,28 @@ async function confirmarDomi() {
 async function confirmarPago() {
   const conv = S.activeConv;
   if (!conv) return;
+  const btn = $('pagoConfirmBtn');
+  const txt = $('pagoConfirmTxt');
+  if (btn) btn.disabled = true;
+  if (txt) txt.textContent = 'Verificando…';
   try {
-    // 1. Llamar Edge Function confirm-payment
-    const srKey = window._srKey || '';
-    const res = await fetch(`${window._supabaseUrl}/functions/v1/confirm-payment`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/verify-transfer`, {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${srKey}`, 'Content-Type': 'application/json' },
+      headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ conversation_id: conv.id })
     });
     if (!res.ok) throw new Error(await res.text());
 
-    // 2. Actualizar estado local
-    conv.pago_pendiente = false;
-    updatePagoConfirmBtn(false);
-    await updatePagoBadge();
-
-    // 3. Si estamos en la pestaña pagos, recargar lista
-    if (S.activeView === 'pagos') await loadConversations();
-    else await loadMessages(conv.id);
-
-    showToast('Pago confirmado — pedido enviado a cocina');
+    // verify-transfer actualiza la DB y envía mensaje WA — solo recargamos el hilo
+    await loadMessages(conv.id);
+    await loadConversations();
+    showToast('Verificación completada');
   } catch(e) {
     console.error('confirmarPago:', e);
-    showToast('Error al confirmar pago', 'error');
+    showToast('Error al verificar: ' + (e.message || e), 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+    if (txt) txt.textContent = 'Verificar pago';
   }
 }
 
