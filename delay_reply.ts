@@ -21,6 +21,8 @@ Deno.serve(async (req) => {
     await processConversation(convId);
   } catch (err) {
     console.error("delay-reply error:", err);
+    // Siempre resetear ai_typing para no dejar la conversación bloqueada
+    try { await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { ai_typing: false }); } catch {}
   }
 
   return new Response("OK", { status: 200 });
@@ -65,11 +67,23 @@ async function processConversation(convId: string): Promise<void> {
     `/rest/v1/chat_messages?conversation_id=eq.${convId}&direction=eq.in` +
     `&sent_at=gte.${encodeURIComponent(batchStart)}&order=sent_at.asc&select=id,body,external_id`
   );
-  const batchMsgs = (msgsRes || []) as Array<{ id: string; body: string; external_id: string }>;
+  let batchMsgs = (msgsRes || []) as Array<{ id: string; body: string; external_id: string }>;
+  console.log("[DBG] batchMsgs:", batchMsgs.length, batchMsgs.map(m => m.body?.slice(0,30)));
 
   if (!batchMsgs.length) {
-    await setTyping(convId, false);
-    return;
+    // WhatsApp timestamps have second precision; batch_start has millisecond precision.
+    // If batch_start=22:25:34.456 but message sent_at=22:25:34.000, the gte filter misses it.
+    // Retry with a 5-second lookback to catch this timing mismatch.
+    const batchStartEarly = new Date(new Date(batchStart).getTime() - 5000).toISOString();
+    const retryRes = await sbGet(
+      `/rest/v1/chat_messages?conversation_id=eq.${convId}&direction=eq.in` +
+      `&sent_at=gte.${encodeURIComponent(batchStartEarly)}&order=sent_at.asc&select=id,body,external_id`
+    );
+    batchMsgs = (retryRes || []) as Array<{ id: string; body: string; external_id: string }>;
+    if (!batchMsgs.length) {
+      await setTyping(convId, false);
+      return;
+    }
   }
 
   // 5. Leer config del asistente
@@ -118,7 +132,7 @@ async function processConversation(convId: string): Promise<void> {
   // 6. Historial previo
   const histRes = await sbGet(
     `/rest/v1/chat_messages?conversation_id=eq.${convId}&sent_at=lt.${encodeURIComponent(batchStart)}` +
-    `&order=sent_at.desc&limit=8&select=direction,body`
+    `&order=sent_at.desc&limit=25&select=direction,body`
   );
   const history = ((histRes || []) as Array<{ direction: string; body: string }>).reverse();
 
@@ -269,7 +283,8 @@ async function processConversation(convId: string): Promise<void> {
   });
 
   if (!oaiRes.ok) {
-    console.error("OpenAI error:", await oaiRes.text());
+    const oaiErr = await oaiRes.text();
+    console.error("OpenAI error:", oaiErr);
     await setTyping(convId, false);
     return;
   }
@@ -278,6 +293,8 @@ async function processConversation(convId: string): Promise<void> {
   const choice    = (oaiData.choices as Array<Record<string,unknown>>)?.[0];
   const message   = choice?.message as Record<string,unknown> | undefined;
   const toolCalls = message?.tool_calls as Array<Record<string,unknown>> | undefined;
+  const rawReplyDbg = (message?.content as string || "").trim();
+  console.log("[DBG] toolCalls:", toolCalls?.length, "rawReply len:", rawReplyDbg.length, "first50:", rawReplyDbg.slice(0,50));
 
   // 12. Parsear respuesta
   type RespItem = { quote_id?: string; text: string };
@@ -304,19 +321,21 @@ async function processConversation(convId: string): Promise<void> {
   if (!responses.length) {
     const rawReply = (message?.content as string || "").trim();
     if (!rawReply) {
-      await setTyping(convId, false);
-      return;
-    }
-    if (!useTools && batchMsgs.length > 1) {
-      // Modo multi-mensaje con JSON
-      try {
-        const parsed = JSON.parse(rawReply) as { type?: string; responses?: RespItem[] };
-        responses = Array.isArray(parsed.responses) ? parsed.responses : [{ text: rawReply }];
-      } catch {
+      // GPT devolvió tool_call sin texto o respuesta vacía — fallback genérico
+      console.warn("GPT devolvió rawReply vacío. toolCalls:", JSON.stringify(toolCalls?.map(t => (t.function as Record<string,unknown>)?.name)));
+      responses = [{ text: "Disculpa, no entendí. ¿Puedes repetirme?" }];
+    } else {
+      if (!useTools && batchMsgs.length > 1) {
+        // Modo multi-mensaje con JSON
+        try {
+          const parsed = JSON.parse(rawReply) as { type?: string; responses?: RespItem[] };
+          responses = Array.isArray(parsed.responses) ? parsed.responses : [{ text: rawReply }];
+        } catch {
+          responses = [{ text: rawReply }];
+        }
+      } else {
         responses = [{ text: rawReply }];
       }
-    } else {
-      responses = [{ text: rawReply }];
     }
   }
 
@@ -326,25 +345,26 @@ async function processConversation(convId: string): Promise<void> {
     const draft = responses[0].text;
     const isResumen = draft.includes("🍟") && draft.includes("📍") && draft.includes("💳");
     if (isResumen) {
-      const frasesObj      = (cfg.frases as Record<string,string>) || {};
-      const confirmFrase   = frasesObj.resumen_confirmacion      || "¿Lo confirmamos o hay algo que cambiar?";
-      const totalDescFrase = frasesObj.resumen_total_desconocido || "ya te confirmamos el total ☺️🍟";
-      const plantilla      = (cfg.resumen_plantilla as string)   ||
-        "Listo! Tu pedido quedaría así:\n🍟 {{cantidad}}x {{producto}} {{tamano}}{{adiciones}}\n📍 {{direccion}}\n💳 {{pago}}\n{{linea_total}}\n{{confirmacion}}";
+      try {
+        const frasesObj      = (cfg.frases as Record<string,string>) || {};
+        const confirmFrase   = frasesObj.resumen_confirmacion      || "¿Lo confirmamos o hay algo que cambiar?";
+        const totalDescFrase = frasesObj.resumen_total_desconocido || "ya te confirmamos el total ☺️🍟";
+        const plantilla      = (cfg.resumen_plantilla as string)   ||
+          "Listo! Tu pedido quedaría así:\n🍟 {{cantidad}}x {{producto}} {{tamano}}{{adiciones}}\n📍 {{direccion}}\n💳 {{pago}}\n{{linea_total}}\n{{confirmacion}}";
 
-      const domRaw = cfg.domicilios as Record<string,unknown> | null | undefined;
-      const zonas  = (domRaw?.zonas as Array<{ nombre: string; precio: number }>) || [];
+        const domRaw = cfg.domicilios as Record<string,unknown> | null | undefined;
+        const zonas  = (domRaw?.zonas as Array<{ nombre: string; precio: number }>) || [];
 
-      // Extracción estructurada: GPT devuelve JSON con los datos del pedido
-      const extractRes = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content: `Extrae los datos del pedido de esta conversación y devuelve SOLO un JSON con estos campos exactos:
+        // Extracción estructurada: GPT devuelve JSON con los datos del pedido
+        const extractRes = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content: `Extrae los datos del pedido de esta conversación y devuelve SOLO un JSON con estos campos exactos:
 {
   "producto": "nombre del producto sin tamaño (ej: Salchipapa Premium Mixta)",
   "tamano": "tamaño del producto (ej: Personal, Familiar)",
@@ -362,70 +382,78 @@ nombre_pedido = nombre que el cliente dijo para el domicilio. Si NO lo mencionó
 
 MENÚ:
 ${menuText}`,
-            },
-            ...messages.slice(1),
-          ],
-          max_tokens: 300,
-          response_format: { type: "json_object" },
-        }),
-      });
+              },
+              ...messages.slice(1),
+            ],
+            max_tokens: 300,
+            response_format: { type: "json_object" },
+          }),
+        });
 
-      const extractData = await extractRes.json() as Record<string, unknown>;
-      let extracted: Record<string, unknown> = {};
-      try {
-        extracted = JSON.parse(
-          String(((extractData.choices as Array<Record<string,unknown>>)?.[0]
-            ?.message as Record<string,unknown>)?.content || "{}")
-        ) as Record<string, unknown>;
-      } catch { extracted = {}; }
+        let extracted: Record<string, unknown> = {};
+        try {
+          const extractData = await extractRes.json() as Record<string, unknown>;
+          extracted = JSON.parse(
+            String(((extractData.choices as Array<Record<string,unknown>>)?.[0]
+              ?.message as Record<string,unknown>)?.content || "{}")
+          ) as Record<string, unknown>;
+        } catch (extractErr) {
+          console.error("Error en extracción de resumen:", extractErr);
+          extracted = {};
+        }
 
-      // Buscar barrio en tabla de zonas
-      const barrioRaw = String(extracted.barrio || "").toLowerCase().trim();
-      const zona = zonas.find(z =>
-        barrioRaw.includes(z.nombre.toLowerCase()) || z.nombre.toLowerCase().includes(barrioRaw)
-      );
+        // Buscar barrio en tabla de zonas
+        const barrioRaw = String(extracted.barrio || "").toLowerCase().trim();
+        const zona = zonas.find(z =>
+          barrioRaw.includes(z.nombre.toLowerCase()) || z.nombre.toLowerCase().includes(barrioRaw)
+        );
 
-      // Formatear pesos colombianos
-      const fmtPeso = (n: number) => "$" + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        // Formatear pesos colombianos
+        const fmtPeso = (n: number) => "$" + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 
-      const precioProductoNum  = Number(extracted.precio_producto_num) || 0;
-      const precioDomicilioNum = zona ? zona.precio : 0;
-      const precioTotalNum     = precioProductoNum + precioDomicilioNum;
+        const precioProductoNum  = Number(extracted.precio_producto_num) || 0;
+        const precioDomicilioNum = zona ? zona.precio : 0;
+        const precioTotalNum     = precioProductoNum + precioDomicilioNum;
 
-      // Construir {{linea_total}}
-      let lineaTotal: string;
-      if (zona && precioProductoNum > 0) {
-        lineaTotal = `Total: ${fmtPeso(precioProductoNum)} + ${fmtPeso(precioDomicilioNum)} del domicilio = ${fmtPeso(precioTotalNum)} :)`;
-      } else {
-        lineaTotal = totalDescFrase;
+        // Construir {{linea_total}}
+        let lineaTotal: string;
+        if (zona && precioProductoNum > 0) {
+          lineaTotal = `Total: ${fmtPeso(precioProductoNum)} + ${fmtPeso(precioDomicilioNum)} del domicilio = ${fmtPeso(precioTotalNum)} :)`;
+        } else {
+          lineaTotal = totalDescFrase;
+        }
+
+        // Si falta el nombre, preguntar antes de mostrar el resumen
+        const nombrePedido = String(extracted.nombre_pedido || "").trim();
+        if (!nombrePedido) {
+          const nombreFrase = frasesObj.nombre_recibir || "¿A nombre de quién se recibe el pedido? 🍟";
+          responses = [{ text: nombreFrase }];
+          console.log("Resumen bloqueado: falta nombre_pedido — preguntando nombre");
+        } else {
+          // Rellenar template con variables
+          const result = plantilla
+            .replace(/\{\{cantidad\}\}/g,         String(extracted.cantidad    || 1))
+            .replace(/\{\{producto\}\}/g,          String(extracted.producto    || ""))
+            .replace(/\{\{tamano\}\}/g,            String(extracted.tamano      || ""))
+            .replace(/\{\{adiciones\}\}/g,         String(extracted.adiciones   || ""))
+            .replace(/\{\{direccion\}\}/g,         String(extracted.direccion   || ""))
+            .replace(/\{\{pago\}\}/g,              String(extracted.pago        || ""))
+            .replace(/\{\{precio_producto\}\}/g,   precioProductoNum  > 0 ? fmtPeso(precioProductoNum)  : "")
+            .replace(/\{\{precio_domicilio\}\}/g,  zona               ? fmtPeso(precioDomicilioNum) : "")
+            .replace(/\{\{precio_total\}\}/g,      (zona && precioProductoNum > 0) ? fmtPeso(precioTotalNum) : "")
+            .replace(/\{\{nombre\}\}/g,            nombrePedido)
+            .replace(/\{\{linea_total\}\}/g,       lineaTotal)
+            .replace(/\{\{confirmacion\}\}/g,      confirmFrase);
+
+          responses = [{ text: result }];
+          console.log("Resumen construido desde template configurable");
+        }
+      } catch (resumenErr) {
+        console.error("ERROR en bloque isResumen:", resumenErr);
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: { _dbg: "RESUMEN_THROW", err: String(resumenErr) } });
+        // Fallback: usar el draft directamente sin template
+        responses = [{ text: responses[0]?.text || "Disculpa, hubo un error al procesar el resumen." }];
       }
-
-      // Si falta el nombre, preguntar antes de mostrar el resumen
-      const nombrePedido = String(extracted.nombre_pedido || "").trim();
-      if (!nombrePedido) {
-        const nombreFrase = frasesObj.nombre_recibir || "¿A nombre de quién se recibe el pedido? 🍟";
-        responses = [{ text: nombreFrase }];
-        console.log("Resumen bloqueado: falta nombre_pedido — preguntando nombre");
-      } else {
-
-      // Rellenar template con variables
-      const result = plantilla
-        .replace(/\{\{cantidad\}\}/g,         String(extracted.cantidad    || 1))
-        .replace(/\{\{producto\}\}/g,          String(extracted.producto    || ""))
-        .replace(/\{\{tamano\}\}/g,            String(extracted.tamano      || ""))
-        .replace(/\{\{adiciones\}\}/g,         String(extracted.adiciones   || ""))
-        .replace(/\{\{direccion\}\}/g,         String(extracted.direccion   || ""))
-        .replace(/\{\{pago\}\}/g,              String(extracted.pago        || ""))
-        .replace(/\{\{precio_producto\}\}/g,   precioProductoNum  > 0 ? fmtPeso(precioProductoNum)  : "")
-        .replace(/\{\{precio_domicilio\}\}/g,  zona               ? fmtPeso(precioDomicilioNum) : "")
-        .replace(/\{\{precio_total\}\}/g,      (zona && precioProductoNum > 0) ? fmtPeso(precioTotalNum) : "")
-        .replace(/\{\{nombre\}\}/g,            nombrePedido)
-        .replace(/\{\{linea_total\}\}/g,       lineaTotal)
-        .replace(/\{\{confirmacion\}\}/g,      confirmFrase);
-
-      responses = [{ text: result }];
-      console.log("Resumen construido desde template configurable");
-      } // cierre else (nombre presente)
     }
   }
 
@@ -607,6 +635,7 @@ ${menuText}`,
   }
 
   // 13. Enviar respuesta(s) por WhatsApp y guardar en DB
+  console.log("[DBG] responses.length:", responses.length, "pendingOrder:", !!pendingOrder);
   for (const resp of responses) {
     const text = resp.text?.trim();
     if (!text) continue;
@@ -1345,7 +1374,7 @@ function buildSystemPrompt(
   const botName = perfil.nombre || "Asistente";
   const lines: string[] = [
     ...(upsellRechazado ? [
-      "⚠️ INSTRUCCIÓN PRIORITARIA — OVERRIDE ABSOLUTO: El cliente YA rechazó el upsell en esta conversación. ESTÁ PROHIBIDO ofrecer adiciones, bebidas o extras de cualquier tipo. Si ya tienes todos los datos del pedido (producto, dirección, pago, nombre), envía el RESUMEN COMPLETO con precio AHORA MISMO. No preguntes nada más sobre adiciones.",
+      "⚠️ INSTRUCCIÓN PRIORITARIA — OVERRIDE ABSOLUTO: El cliente YA rechazó el upsell en esta conversación. ESTÁ PROHIBIDO ofrecer adiciones, bebidas o extras de cualquier tipo. Si ya tienes todos los datos del pedido (producto, dirección, pago, nombre), muestra el RESUMEN en formato de texto (🍟 producto, 📍 dirección, 💳 pago) y pregunta si está correcto. NUNCA llames a crear_pedido() sin que el cliente confirme explícitamente. No preguntes nada más sobre adiciones.",
       "",
     ] : []),
     `Eres ${botName}, el asistente virtual de este restaurante.`,
@@ -1468,6 +1497,7 @@ function buildSystemPrompt(
     lines.push("");
     lines.push("Flujo OBLIGATORIO:");
     lines.push("  a) Recoge los 4 datos a través de la conversación, preguntando lo que falte.");
+    lines.push("     IMPORTANTE: pregunta primero QUÉ quiere pedir el cliente. Solo DESPUÉS de saber el producto, pregunta el tamaño si aplica. NUNCA preguntes el tamaño sin saber el producto.");
     lines.push("  b) Cuando los tengas todos, muestra un resumen y pide confirmación.");
     lines.push("     Ej: '¡Listo! Confirmemos tu pedido:\\n🍟 Premium Personal Mixta x1\\n📍 Calle 5 #3-20, Barrio El Parque\\n💳 Efectivo\\n👤 Juan\\n¿Todo correcto?'");
     lines.push("  c) Cuando el cliente confirme (sí, dale, correcto, confirmo, etc.), llama a la función");

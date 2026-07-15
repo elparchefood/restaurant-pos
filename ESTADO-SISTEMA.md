@@ -1,5 +1,5 @@
 # ESTADO DEL SISTEMA — Cobra POS
-> Última actualización: 2026-07-11
+> Última actualización: 2026-07-14
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
@@ -158,6 +158,61 @@ Cachear en disco del exe:
 - **`pos-sync.js`** — `_execOrderBatch` es idempotente: usa `_tempId` como `id` real del INSERT, ignora error 23505 en reintentos. Nunca genera duplicados al reintentar.
 - **Cache-busting:** `pos-print.js?v=3`, `tomar-pedido.js?v=27` en sus HTML. Sin `?v=` Electron no actualiza.
 
+## Módulo WhatsApp Chat IA — delay-reply v52 (✅ funciona — 2026-07-14)
+
+### Estado de Edge Functions
+| Función | Versión | Estado |
+|---------|---------|--------|
+| `meta-webhook` | v40 | ACTIVE |
+| `delay-reply` | **v52** | ACTIVE — flujo pedidos completo verificado |
+| `meta-send` | v6 | ACTIVE |
+| `meta-oauth-callback` | v21 | ACTIVE |
+
+### Flujo de pedido verificado end-to-end (2026-07-14)
+El bot fue probado en WhatsApp real desde el número del restaurante y **completó el flujo entero sin errores**:
+1. Saludo → pregunta tipo de producto ✅
+2. Especificación producto → oferta upsell ✅
+3. "No gracias" → pregunta dirección ✅
+4. Dirección → pregunta método de pago ✅
+5. "efectivo" → pregunta nombre ✅
+6. Nombre → resumen con plantilla (`resumen_plantilla` de `ia_config`) ✅
+7. "sí" → "En un momento enviamos tu pedido 🍟 ¡Con muchísimo gusto!" ✅
+8. `pos_orders` creado en DB con todos los datos ✅
+
+### Bug crítico corregido en esta sesión (v52)
+**Causa raíz:** El bloque `isResumen` (detecta cuando GPT incluye 🍟+📍+💳) tenía una segunda llamada `await fetch(openai)` sin try-catch. Si lanzaba excepción, el catch externo (líneas 19-25) solo ejecutaba `sbPatch({ai_typing: false})` sin enviar respuesta ni marcar `last_sender="agent"`. Resultado: bot silencioso, `last_sender` quedaba en `"contact"`, conversación bloqueada.
+
+**Fix:** El bloque `isResumen` completo envuelto en try-catch propio. El catch manda el texto raw de GPT como fallback y siempre completa correctamente.
+
+### Puntos clave de la arquitectura
+- **`puedeTomarPedidos`** = `isOpen || pedidosProg` — controla si GPT-4o usa function calling
+- **`isResumen`** detecta emojis 🍟+📍+💳 en el draft de GPT → segunda llamada OAI para extracción estructurada → rellena `resumen_plantilla`
+- **Confirmación** detecta "sí"/"correcto"/"dale"/etc. post-resumen → `tool_choice: required` → `crear_pedido` tool → `createWhatsappOrder()`
+- **`createWhatsappOrder()`** crea `pos_orders` (channel=whatsapp, notes=dirección), `pos_order_items` (product_name="PresentationName · ProductName"), actualiza `pos_clientes`
+- **Precio en resumen**: GPT estima el precio mostrado en el resumen. El pedido real en DB usa precio del catálogo. Discrepancia conocida y aceptada.
+- **`pending_order_data`** (JSONB en `chat_conversations`) — columna disponible para debug. La columna `notes` NO existe en esa tabla.
+
+### Proceso de deploy de delay-reply
+```
+1. Editar /tmp/restaurant-pos/delay_reply.ts
+2. Python: body = json.dumps({"body": open("delay_reply.ts").read(), "verify_jwt": False})
+           open("deploy_body.json", "w").write(body)
+3. PowerShell WebClient (NO curl/ConvertTo-Json — corrompen emojis y tildes):
+   $wc = New-Object System.Net.WebClient
+   $wc.Headers["Authorization"] = "Bearer sbp_..."
+   $wc.Headers["Content-Type"] = "application/json"
+   $wc.UploadString("https://api.supabase.com/v1/projects/tblujfduscslxjmrjbdr/functions/delay-reply", "PATCH", $body)
+4. Verificar versión: curl -s -H "Authorization: Bearer sbp_..." .../functions/delay-reply | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['version'])"
+```
+
+### Número y credenciales WhatsApp
+- **Número**: +57 301 9421653
+- **Phone Number ID**: `1267893973063645`
+- **WABA ID**: `1597436841735444`
+- **Webhook URL**: `https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/meta-webhook`
+
+---
+
 ## Bugs conocidos / cosas a vigilar
 
 1. **`configuracion.js` — auto-sync al abrir**: La función `syncToSupabase()` se llama en `DOMContentLoaded`. Si el localStorage tiene datos viejos cuando se abre Configuraciones, puede escribir basura a Supabase. No abrir Configuraciones con localStorage desactualizado.
@@ -165,3 +220,5 @@ Cachear en disco del exe:
 2. **sort_order=0**: La mesa con `sort_order=0` (actualmente t01) requiere la comparación `!= null` en el sort, no `|| 9999`. Si se añaden mesas nuevas con sort_order=0, pueden quedar al final visualmente.
 
 3. **Órdenes sin cerrar**: Si el flujo de pago no marca una orden como `completed`, reaparecerá como activa la próxima vez que se limpie el filtro. Vigilar que el cierre de orden siempre escriba `status='completed'`.
+
+4. **delay-reply — `last_sender` bloqueado**: Si el EF termina antes del bloque de actualización final (línea ~724), `last_sender` queda en `"contact"` y el bot no vuelve a responder hasta que se resetee manualmente en DB (`UPDATE chat_conversations SET last_sender='agent' WHERE id='...'`). El try-catch de v52 previene este escenario en el bloque isResumen, pero si hay un nuevo error no capturado en otra parte del código, puede volver a ocurrir.
