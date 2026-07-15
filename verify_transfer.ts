@@ -171,11 +171,8 @@ async function verifyTransfer(conversationId: string): Promise<void> {
     await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
 
   } else {
-    // 10b. No se pudo verificar → human takeover
-    await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, {
-      human_takeover: true,
-    });
-
+    // 10b. No se pudo verificar — NO activar human_takeover (silenciaría el bot para siempre)
+    // La conversación queda en pestaña "Pagos" de Cobra para revisión manual del operador
     const msg = "⚠️ Recibimos tu comprobante pero no pudimos verificarlo automáticamente. Un agente lo revisará en breve y te confirmamos 🙏";
     await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
     await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
