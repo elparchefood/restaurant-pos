@@ -605,7 +605,7 @@ ${menuText}`,
   // 12d. Verificar comprobante de transferencia si hay imagen y pago_pendiente
   const convPagoPendiente = convRow?.pago_pendiente as boolean | undefined;
   const latestMsg = batchMsgs[batchMsgs.length - 1];
-  const hasImage  = latestMsg?.body?.startsWith("[imagen]") || latestMsg?.body?.startsWith("[image]") || latestMsg?.media_type === "image";
+  const hasImage  = latestMsg?.body?.startsWith("[imagen]") || latestMsg?.body?.startsWith("[image]");
 
   if (convPagoPendiente && hasImage) {
     try {
