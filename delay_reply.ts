@@ -605,31 +605,20 @@ ${menuText}`,
   // 12d. Verificar comprobante de transferencia si hay imagen y pago_pendiente
   const convPagoPendiente = convRow?.pago_pendiente as boolean | undefined;
   const latestMsg = batchMsgs[batchMsgs.length - 1];
-  const hasImage  = latestMsg?.body?.startsWith("[imagen]") || latestMsg?.body?.startsWith("[image]");
+  const hasImage  = latestMsg?.body?.startsWith("[imagen]") || latestMsg?.body?.startsWith("[image]") || latestMsg?.media_type === "image";
 
   if (convPagoPendiente && hasImage) {
     try {
-      const verificationResult = await verifyTransferComprobante(convId, branchId, latestMsg, cfg);
-      if (verificationResult === "confirmed") {
-        // Confirmado vía Gmail — crear pedido
-        const pendingDataRows = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=pending_order_data&limit=1`) as Array<Record<string,unknown>> | null;
-        const savedOrder = pendingDataRows?.[0]?.pending_order_data as Record<string,unknown> | null;
-        if (savedOrder) {
-          const orderId = await createWhatsappOrder(savedOrder, branchId, tenantId, fromPhone);
-          console.log("Pedido creado tras verificación Gmail:", orderId);
-        }
-        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
-          pago_pendiente: false, pending_order_data: null,
-        });
-        const frasesObj = (cfg.frases as Record<string,string>) || {};
-        const cierreFrase = frasesObj.cierre_pedido || "En un momento enviamos tu pedido 🍟 ¡Con muchísimo gusto!";
-        responses = [{ text: `✅ ¡Pago verificado! ${cierreFrase}` }];
-      } else {
-        // No verificado — dejar en pagos por confirmar, avisar al cliente
-        responses = [{ text: "Recibimos tu comprobante, en un momento lo verificamos y confirmamos tu pedido 🙏" }];
-      }
+      // Delegar a verify-transfer EF — tiene GPT Vision, Gmail multi-formato, llave, monto, crea pedido
+      await fetch(`${SUPABASE_URL}/functions/v1/verify-transfer`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ conversation_id: convId }),
+      });
+      // verify-transfer ya envió el mensaje WA y actualizó la DB — no enviar nada adicional
+      responses = [];
     } catch (err) {
-      console.error("Error verificando comprobante:", err);
+      console.error("Error llamando verify-transfer:", err);
       responses = [{ text: "Recibimos tu comprobante, en un momento lo verificamos y confirmamos tu pedido 🙏" }];
     }
   }
