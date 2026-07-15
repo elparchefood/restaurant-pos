@@ -32,78 +32,131 @@ async function verifyTransfer(conversationId: string): Promise<void> {
   const conv = convRows?.[0];
   if (!conv) { console.error("conversation not found:", conversationId); return; }
 
-  const fromPhone       = String(conv.from_phone   || conv.contact_handle || "");
-  const branchId        = String(conv.branch_id    || "");
-  const tenantId        = String(conv.tenant_id    || "");
-  const pendingData     = conv.pending_order_data as Record<string, unknown> | null;
+  const fromPhone   = String(conv.from_phone   || conv.contact_handle || "");
+  const branchId    = String(conv.branch_id    || "");
+  const tenantId    = String(conv.tenant_id    || "");
+  const pendingData = conv.pending_order_data as Record<string, unknown> | null;
 
-  // 2. Canal WhatsApp
+  // 2. Canal WhatsApp — FIX: meta es JSON serializado como string; usar phone_id no phone_number_id
   const channels = await sbGet(
-    `/rest/v1/chat_channels?branch_id=eq.${branchId}&type=eq.whatsapp&limit=1`
+    `/rest/v1/chat_channels?branch_id=eq.${branchId}&channel=eq.whatsapp&limit=1`
   ) as Array<Record<string, unknown>> | null;
-  let channel = channels?.[0];
-  // Fallback: buscar por channel = 'whatsapp'
-  if (!channel) {
-    const ch2 = await sbGet(
-      `/rest/v1/chat_channels?branch_id=eq.${branchId}&channel=eq.whatsapp&limit=1`
-    ) as Array<Record<string, unknown>> | null;
-    channel = ch2?.[0];
-  }
-  const phoneId     = String(channel?.phone_number_id || channel?.meta && (channel.meta as Record<string,string>).phone_number_id || "");
-  const accessToken = String(channel?.access_token    || channel?.meta && (channel.meta as Record<string,string>).access_token    || "");
+  const channel = channels?.[0];
+  const metaRaw = channel?.meta;
+  const metaParsed = (() => {
+    if (!metaRaw) return {} as Record<string, string>;
+    if (typeof metaRaw === "string") { try { return JSON.parse(metaRaw) as Record<string, string>; } catch { return {} as Record<string, string>; } }
+    return metaRaw as Record<string, string>;
+  })();
+  const phoneId     = String(metaParsed?.phone_id     || "");
+  const accessToken = String(metaParsed?.access_token || "");
 
-  // 3. Imagen más reciente del chat (comprobante)
+  console.log("phoneId:", phoneId ? "OK" : "VACÍO", "accessToken:", accessToken ? "OK(truncado)" : "VACÍO");
+
+  // 3. Config de la sucursal
+  const cfgRows = await sbGet(
+    `/rest/v1/ia_config?branch_id=eq.${branchId}&select=gmail_refresh_token,gmail_email,pagos,frases,domicilios&limit=1`
+  ) as Array<Record<string, unknown>> | null;
+  const cfg          = cfgRows?.[0] || {};
+  const refreshToken = cfg?.gmail_refresh_token as string | null;
+  const pagos        = (cfg?.pagos as Record<string, unknown>) || {};
+  const frases       = (cfg?.frases as Record<string, string>) || {};
+  const llaveCfg     = String(pagos?.llave || "");
+
+  // 4. Imagen más reciente del chat (comprobante)
   const imgMsgs = await sbGet(
     `/rest/v1/chat_messages?conversation_id=eq.${conversationId}&direction=eq.in&media_type=eq.image&order=sent_at.desc&limit=1`
   ) as Array<Record<string, unknown>> | null;
   const imageUrl = imgMsgs?.[0]?.media_url as string | null;
+
   if (!imageUrl) {
     console.error("No image found for conversation:", conversationId);
-    await sendWhatsApp(fromPhone, phoneId, accessToken,
-      "No encontramos el comprobante. Por favor envíalo de nuevo como imagen.");
+    const msg = "No encontramos el comprobante. Por favor envíalo de nuevo como imagen 📷";
+    await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
+    await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
     return;
   }
-
-  // 4. Config de la sucursal (tokens Gmail)
-  const cfgRows = await sbGet(
-    `/rest/v1/ia_config?branch_id=eq.${branchId}&select=gmail_refresh_token,gmail_email,pagos,frases&limit=1`
-  ) as Array<Record<string, unknown>> | null;
-  const cfg = cfgRows?.[0];
-  const refreshToken = cfg?.gmail_refresh_token as string | null;
 
   // 5. GPT-4o Vision: extraer datos del comprobante
   const visionResult = await extractComprobante(imageUrl);
   console.log("Vision result:", JSON.stringify(visionResult));
 
+  // 6. Si la imagen no parece un comprobante válido o el pago está pendiente
+  if (!visionResult.parece_valido || !visionResult.monto) {
+    const msg = visionResult.monto
+      ? "⚠️ El comprobante no parece válido (puede estar editado o ser ilegible). Si tienes dudas, contáctanos directamente 📞"
+      : "El pago aparece como *pendiente* en el comprobante. Cuando Nequi o tu banco confirme la transferencia, envíanos el comprobante actualizado ✅";
+    await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
+    await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
+    return;
+  }
+
+  // 7. Comparar llave/cuenta del comprobante contra la nuestra en ia_config
+  const llaveEnComprobante = visionResult.llave.replace(/\s/g, "");
+  const llaveConfigLimpia  = llaveCfg.replace(/\s/g, "");
+  const llaveCoincide = !llaveConfigLimpia || !llaveEnComprobante ||
+    llaveEnComprobante.includes(llaveConfigLimpia) ||
+    llaveConfigLimpia.includes(llaveEnComprobante);
+
+  console.log(`Llave comprobante: "${llaveEnComprobante}", config: "${llaveConfigLimpia}", coincide: ${llaveCoincide}`);
+
+  if (!llaveCoincide) {
+    const msg = `⚠️ El número de cuenta del comprobante (${llaveEnComprobante}) no coincide con el nuestro (${llaveCfg}). Por favor verifica que enviaste el pago al número correcto y contáctanos 📞`;
+    await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
+    await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, { human_takeover: true });
+    return;
+  }
+
+  // 8. Calcular total esperado desde pending_order_data y comparar con monto
+  const totalEsperado = await calcularTotalEsperado(pendingData, branchId, cfg);
+  const montoComprobante = Number(visionResult.monto.replace(/\D/g, "")) || 0;
+  let montoCoincide = true;
+  if (totalEsperado > 0 && montoComprobante > 0) {
+    const diferencia = Math.abs(montoComprobante - totalEsperado);
+    const porcentaje = diferencia / totalEsperado;
+    montoCoincide = porcentaje <= 0.12; // tolerancia 12% (cubre variaciones de redondeo y domicilio)
+    console.log(`Monto comprobante: ${montoComprobante}, esperado: ${totalEsperado}, diff: ${porcentaje.toFixed(2)}, ok: ${montoCoincide}`);
+  }
+
+  if (!montoCoincide) {
+    const msg = `⚠️ El monto del comprobante ($${Number(visionResult.monto.replace(/\D/g,"")).toLocaleString("es-CO")}) no coincide con el total del pedido ($${totalEsperado.toLocaleString("es-CO")}). Un agente lo revisará en breve.`;
+    await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
+    await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, { human_takeover: true });
+    return;
+  }
+
+  // 9. Buscar en Gmail un correo bancario que confirme el monto
   let confirmed = false;
   let verifyDetail = "";
 
-  if (refreshToken && visionResult.monto) {
-    // 6. Refrescar token Gmail
-    const accessTokenGmail = await refreshGmailToken(refreshToken);
-    if (accessTokenGmail) {
-      // 7. Buscar en Gmail correos bancarios recientes con ese monto
-      const gmailMatch = await searchGmailForAmount(accessTokenGmail, visionResult.monto, visionResult.fecha);
-      confirmed = gmailMatch.found;
+  if (refreshToken) {
+    const gmailAccessToken = await refreshGmailToken(refreshToken);
+    if (gmailAccessToken) {
+      const gmailMatch = await searchGmailForAmount(gmailAccessToken, visionResult.monto, visionResult.fecha, llaveCfg);
+      confirmed    = gmailMatch.found;
       verifyDetail = gmailMatch.detail;
       console.log("Gmail match:", confirmed, verifyDetail);
     } else {
-      console.error("No se pudo refrescar el token Gmail");
+      console.error("No se pudo refrescar el token Gmail — confiando en Vision");
+      confirmed    = visionResult.parece_valido;
+      verifyDetail = "Token Gmail expirado — verificación por imagen";
     }
-  } else if (!refreshToken) {
-    // Sin Gmail configurado: verificar solo por Vision (confiar en la imagen)
-    confirmed = visionResult.parece_valido;
-    verifyDetail = "Verificación solo por imagen (Gmail no configurado)";
+  } else {
+    // Sin Gmail: confiar en Vision + llave
+    confirmed    = visionResult.parece_valido;
+    verifyDetail = "Gmail no configurado — verificación por imagen + llave";
+    console.log("Sin Gmail — usando Vision:", confirmed);
   }
 
-  const frases = (cfg?.frases as Record<string, string>) || {};
-
   if (confirmed) {
-    // 8a. Crear el pedido y confirmar
+    // 10a. Crear el pedido y confirmar al cliente
     let orderId: string | null = null;
     if (pendingData) {
       orderId = await crearPedido(conversationId, branchId, tenantId, fromPhone, pendingData);
     }
+    console.log("Pedido creado tras verificación:", orderId);
 
     await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, {
       pago_pendiente:     false,
@@ -111,21 +164,19 @@ async function verifyTransfer(conversationId: string): Promise<void> {
       human_takeover:     false,
     });
 
-    const montoStr = visionResult.monto ? ` de $${visionResult.monto}` : "";
+    const montoStr   = visionResult.monto ? ` de $${Number(visionResult.monto.replace(/\D/g,"")).toLocaleString("es-CO")}` : "";
     const cierreFrase = frases.cierre_pedido || "¡Con muchísimo gusto! En un momento preparamos tu pedido.";
     const msg = `✅ ¡Pago verificado${montoStr}! ${cierreFrase}`;
     await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
-
-    // Guardar mensaje saliente
     await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
 
   } else {
-    // 8b. No se pudo verificar → human takeover
+    // 10b. No se pudo verificar → human takeover
     await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, {
       human_takeover: true,
     });
 
-    const msg = "⚠️ Recibimos tu comprobante pero no pudimos verificarlo automáticamente. Un agente lo revisará en breve y te confirmamos.";
+    const msg = "⚠️ Recibimos tu comprobante pero no pudimos verificarlo automáticamente. Un agente lo revisará en breve y te confirmamos 🙏";
     await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
     await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
   }
@@ -134,23 +185,28 @@ async function verifyTransfer(conversationId: string): Promise<void> {
 // ── GPT-4o Vision: extraer datos del comprobante ─────────────────────────────
 
 interface ComprobanteData {
-  monto: string;        // ej. "45000"
-  fecha: string;        // ej. "2026-07-14"
-  banco: string;
-  referencia: string;
+  monto:        string;  // solo dígitos, ej. "33000"
+  fecha:        string;  // YYYY-MM-DD o vacío
+  banco:        string;
+  referencia:   string;
+  llave:        string;  // número de cuenta/llave/Nequi destino
   parece_valido: boolean;
 }
 
 async function extractComprobante(imageUrl: string): Promise<ComprobanteData> {
-  const prompt = `Eres un asistente que analiza comprobantes de transferencia bancaria colombianos.
-Analiza la imagen y extrae en JSON:
+  const prompt = `Eres un experto en comprobantes de pago bancarios colombianos (Nequi, Bancolombia, Daviplata, etc.).
+
+Analiza esta imagen y extrae en JSON:
 {
-  "monto": "solo el número sin puntos ni símbolos, ej: 45000",
-  "fecha": "YYYY-MM-DD o string vacío si no se ve",
-  "banco": "nombre del banco o app de pago",
-  "referencia": "número de referencia o transacción",
-  "parece_valido": true/false (false si parece editado, borroso o no es un comprobante real)
+  "monto": "SOLO dígitos del monto transferido, sin puntos ni comas ni $. Ej: si dice $33.000 → '33000'. Si el pago dice 'pendiente' y no se ve monto confirmado, pon ''",
+  "fecha": "YYYY-MM-DD si se ve la fecha de la transacción. Vacío si no.",
+  "banco": "nombre del banco o app (Nequi, Bancolombia, Daviplata, etc.)",
+  "referencia": "número de referencia o transacción si aparece",
+  "llave": "número de celular o cuenta DESTINO al que fue enviado el pago. Si no se ve, vacío.",
+  "parece_valido": true si el pago está CONFIRMADO y el comprobante parece real / false si dice 'pendiente', parece editado, está borroso o no es un comprobante real
 }
+
+IMPORTANTE: si el comprobante dice 'pendiente' o 'en proceso', parece_valido debe ser false y monto debe ser ''.
 Responde SOLO el JSON, sin explicación.`;
 
   try {
@@ -159,11 +215,11 @@ Responde SOLO el JSON, sin explicación.`;
       headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "gpt-4o",
-        max_tokens: 200,
+        max_tokens: 300,
         messages: [{
           role: "user",
           content: [
-            { type: "text", text: prompt },
+            { type: "text",      text: prompt },
             { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
           ],
         }],
@@ -171,7 +227,7 @@ Responde SOLO el JSON, sin explicación.`;
     });
     if (!res.ok) { console.error("Vision error:", await res.text()); return empty(); }
     const data = await res.json() as Record<string, unknown>;
-    const raw = (((data.choices as Array<Record<string,unknown>>)?.[0]?.message as Record<string,unknown>)?.content as string || "").trim();
+    const raw   = (((data.choices as Array<Record<string,unknown>>)?.[0]?.message as Record<string,unknown>)?.content as string || "").trim();
     const clean = raw.replace(/```json|```/g, "").trim();
     return JSON.parse(clean) as ComprobanteData;
   } catch (err) {
@@ -181,7 +237,7 @@ Responde SOLO el JSON, sin explicación.`;
 }
 
 function empty(): ComprobanteData {
-  return { monto: "", fecha: "", banco: "", referencia: "", parece_valido: false };
+  return { monto: "", fecha: "", banco: "", referencia: "", llave: "", parece_valido: false };
 }
 
 // ── Gmail: refrescar token ────────────────────────────────────────────────────
@@ -210,54 +266,185 @@ async function refreshGmailToken(refreshToken: string): Promise<string | null> {
 // ── Gmail: buscar correo bancario con el monto ────────────────────────────────
 
 interface GmailMatch {
-  found: boolean;
+  found:  boolean;
   detail: string;
 }
 
 async function searchGmailForAmount(
   accessToken: string,
-  monto: string,
-  fecha: string,
+  monto:       string,
+  fecha:       string,
+  llaveCfg:    string,
 ): Promise<GmailMatch> {
   try {
-    // Buscar en los últimos 3 días correos que contengan el monto
-    const montoFmt = monto.replace(/\D/g, ""); // solo dígitos
-    if (!montoFmt) return { found: false, detail: "monto vacío" };
+    const digits = monto.replace(/\D/g, "");
+    if (!digits) return { found: false, detail: "monto vacío" };
 
-    // Formateos que usan los bancos colombianos: 45.000, 45,000, 45000, 45.000,00
-    const q = `newer_than:3d "${montoFmt}"`;
-    const searchUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q)}&maxResults=10`;
-    const searchRes = await fetch(searchUrl, {
-      headers: { "Authorization": `Bearer ${accessToken}` },
-    });
-    if (!searchRes.ok) { console.error("Gmail search error:", await searchRes.text()); return { found: false, detail: "error al buscar en Gmail" }; }
-    const searchData = await searchRes.json() as Record<string, unknown>;
-    const messages = searchData.messages as Array<{ id: string }> | undefined;
+    // Formatos que usan los bancos colombianos: 33000, 33.000, 33.000,00
+    const withDots = digits.replace(/(\d)(?=(\d{3})+$)/g, "$1.");
+    const formatos = [...new Set([digits, withDots, withDots + ",00"])];
 
-    if (!messages?.length) return { found: false, detail: `Sin correos con monto ${montoFmt} en últimos 3 días` };
+    console.log("Buscando en Gmail con formatos:", formatos.join(" | "));
 
-    // Leer el primer mensaje para verificar que es una notificación bancaria real
-    const msgId = messages[0].id;
-    const msgRes = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`,
-      { headers: { "Authorization": `Bearer ${accessToken}` } }
-    );
-    if (!msgRes.ok) return { found: true, detail: "correo encontrado (no se pudo leer detalle)" };
-    const msgData = await msgRes.json() as Record<string, unknown>;
-    const headers = ((msgData.payload as Record<string, unknown>)?.headers as Array<{name:string;value:string}>) || [];
-    const from    = headers.find(h => h.name === "From")?.value    || "";
-    const subject = headers.find(h => h.name === "Subject")?.value || "";
+    for (const fmt of formatos) {
+      // Buscar en los últimos 3 días
+      const q = `newer_than:3d "${fmt}"`;
+      const searchUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q)}&maxResults=10`;
+      const searchRes = await fetch(searchUrl, { headers: { "Authorization": `Bearer ${accessToken}` } });
+      if (!searchRes.ok) { console.error("Gmail search error:", await searchRes.text()); continue; }
 
-    // Validar que el remitente suena a banco
-    const isBankEmail = /bancolombia|nequi|daviplat|davivienda|bbva|occidente|bogota|popular|itau|wompi|bold|adyen|paypal|nu\.com\.co|nubank/i.test(from + subject);
+      const searchData = await searchRes.json() as Record<string, unknown>;
+      const messages = searchData.messages as Array<{ id: string }> | undefined;
+      if (!messages?.length) { console.log(`Gmail: sin resultados para formato "${fmt}"`); continue; }
 
-    return {
-      found: isBankEmail,
-      detail: `Remitente: ${from} | Asunto: ${subject}`,
-    };
+      // Revisar cada mensaje para confirmar que es de un banco
+      for (const gmailMsg of messages) {
+        const msgRes = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${gmailMsg.id}?format=full`,
+          { headers: { "Authorization": `Bearer ${accessToken}` } }
+        );
+        if (!msgRes.ok) continue;
+        const msgData    = await msgRes.json() as Record<string, unknown>;
+        const headers    = ((msgData.payload as Record<string, unknown>)?.headers as Array<{name:string;value:string}>) || [];
+        const from       = headers.find(h => h.name === "From")?.value    || "";
+        const subject    = headers.find(h => h.name === "Subject")?.value || "";
+        const snippet    = String(msgData.snippet || "");
+        const bodyText   = extractEmailBody(msgData);
+        const fullText   = (snippet + " " + bodyText + " " + subject).toLowerCase();
+
+        const isBankEmail = /bancolombia|nequi|daviplat|davivienda|bbva|occidente|bogota|popular|itau|wompi|bold|nu\.com\.co|nubank/i.test(from + " " + subject);
+        if (!isBankEmail) { console.log("Email no bancario, skip:", from); continue; }
+
+        // Verificar que la fecha del comprobante aparece en el email (si tenemos fecha)
+        let fechaOk = true;
+        if (fecha) {
+          // fecha en formato YYYY-MM-DD → buscar variantes DD/MM/YYYY o DD-MM-YYYY o YYYY-MM-DD
+          const [yyyy, mm, dd] = fecha.split("-");
+          const variantes = [fecha, `${dd}/${mm}/${yyyy}`, `${dd}-${mm}-${yyyy}`, `${dd}/${mm}`, `${mm}/${dd}`];
+          fechaOk = variantes.some(v => fullText.includes(v));
+        }
+
+        // Verificar que la llave destino aparece en el email (si tenemos llave y config)
+        let llaveOk = true;
+        if (llaveCfg && llaveCfg.length >= 4) {
+          const sufijo = llaveCfg.slice(-4); // últimos 4 dígitos de la llave
+          llaveOk = fullText.includes(llaveCfg.replace(/\s/g, "")) || fullText.includes(sufijo);
+        }
+
+        console.log(`Gmail: from="${from}" fechaOk=${fechaOk} llaveOk=${llaveOk}`);
+
+        if (isBankEmail && fechaOk && llaveOk) {
+          return { found: true, detail: `Remitente: ${from} | Asunto: ${subject}` };
+        }
+
+        // Si la llave no coincide en el email pero todo lo demás sí, devolver found=true
+        // (algunos emails no muestran la llave completa)
+        if (isBankEmail && fechaOk) {
+          return { found: true, detail: `Remitente: ${from} | Asunto: ${subject} (llave no verificada en email)` };
+        }
+      }
+    }
+
+    return { found: false, detail: `Sin emails bancarios con monto ${digits} en últimos 3 días` };
   } catch (err) {
     console.error("searchGmailForAmount error:", err);
     return { found: false, detail: String(err) };
+  }
+}
+
+// Extrae texto del body del email (parte text/plain o snippet como fallback)
+function extractEmailBody(msgData: Record<string, unknown>): string {
+  try {
+    const payload = msgData.payload as Record<string, unknown>;
+    const parts   = (payload?.parts as Array<Record<string, unknown>>) || [];
+
+    // Buscar parte text/plain
+    const plain = parts.find(p => (p.mimeType as string) === "text/plain");
+    if (plain?.body) {
+      const data = ((plain.body as Record<string,string>).data || "");
+      return atob(data.replace(/-/g, "+").replace(/_/g, "/"));
+    }
+
+    // Fallback: body directo del payload
+    if (payload?.body) {
+      const data = ((payload.body as Record<string,string>).data || "");
+      return atob(data.replace(/-/g, "+").replace(/_/g, "/"));
+    }
+  } catch { /* ignorar */ }
+  return "";
+}
+
+// ── Calcular total esperado desde pending_order_data ─────────────────────────
+
+async function calcularTotalEsperado(
+  pendingData: Record<string, unknown> | null,
+  branchId:    string,
+  cfg:         Record<string, unknown>,
+): Promise<number> {
+  if (!pendingData) return 0;
+
+  try {
+    const productos  = (pendingData.productos as Array<Record<string,unknown>>) || [];
+    const direccion  = String(pendingData.direccion || "");
+    const domicilios = (cfg.domicilios as Record<string,unknown>) || {};
+    const zonas      = (domicilios.zonas as Array<{nombre:string;precio:number}>) || [];
+
+    if (!productos.length) return 0;
+
+    const allProducts = await sbGet(
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables`
+    ) as Array<Record<string, unknown>> | null;
+
+    if (!allProducts) return 0;
+
+    let total = 0;
+
+    for (const prod of productos) {
+      const nombreGPT = String(prod.nombre || "").toLowerCase().trim();
+      const tamanoGPT = String(prod.tamano || "").toLowerCase().trim();
+      const tipoGPT   = String(prod.tipo   || "").toLowerCase().trim();
+      const cantidad  = Math.max(1, Number(prod.cantidad) || 1);
+
+      const matched = allProducts.find(p => {
+        const pname = String(p.name || "").toLowerCase();
+        return pname === nombreGPT || pname.includes(nombreGPT) || nombreGPT.includes(pname.replace(/\s.*/,""));
+      });
+      if (!matched) continue;
+
+      const presentations = (matched.presentations as Array<{id:string;name:string;price:number}>) || [];
+      const variables     = (matched.variables     as Array<{id:string;name:string;isPricing?:boolean;options:Array<{id:string;name:string;price:number;prices?:number[]}>}>) || [];
+      const priceMode     = String(matched.price_mode || "simple");
+
+      const presMatch = presentations.find(p => p.name.toLowerCase() === tamanoGPT) || presentations[0];
+      const presIdx   = presMatch ? presentations.indexOf(presMatch) : 0;
+      let   price     = Number(presMatch?.price) || Number(matched.price) || 0;
+
+      if (priceMode === "matrix" && tipoGPT && variables.length > 0) {
+        const varGroup = variables[0];
+        const varOpt   = varGroup.options.find(o => o.name.toLowerCase() === tipoGPT);
+        if (varOpt) {
+          if (Array.isArray(varOpt.prices) && presIdx < varOpt.prices.length) {
+            price = varOpt.prices[presIdx];
+          } else if (varOpt.price > 0) {
+            price = varOpt.price;
+          }
+        }
+      }
+
+      total += price * cantidad;
+    }
+
+    // Sumar domicilio si aplica
+    if (zonas.length && direccion) {
+      const dirLow = direccion.toLowerCase();
+      const zona   = zonas.find(z => dirLow.includes(z.nombre.toLowerCase()) || z.nombre.toLowerCase().split(" ").some(w => dirLow.includes(w)));
+      if (zona) total += zona.precio;
+    }
+
+    return total;
+  } catch (err) {
+    console.error("calcularTotalEsperado error:", err);
+    return 0;
   }
 }
 
@@ -265,10 +452,10 @@ async function searchGmailForAmount(
 
 async function crearPedido(
   conversationId: string,
-  branchId: string,
-  tenantId: string,
-  fromPhone: string,
-  pendingData: Record<string, unknown>,
+  branchId:       string,
+  tenantId:       string,
+  fromPhone:      string,
+  pendingData:    Record<string, unknown>,
 ): Promise<string | null> {
   const orderRecord: Record<string, unknown> = {
     branch_id:      branchId,
@@ -289,9 +476,9 @@ async function crearPedido(
   // Cliente
   if (fromPhone) {
     const telefonoClean = fromPhone.replace(/\D/g, "");
-    const nombre    = String(pendingData.cliente  || "");
-    const direccion = String(pendingData.direccion || "");
-    const existing  = await sbGet(
+    const nombre        = String(pendingData.cliente   || "");
+    const direccion     = String(pendingData.direccion || "");
+    const existing      = await sbGet(
       `/rest/v1/pos_clientes?telefono=eq.${encodeURIComponent(telefonoClean)}&tenant_id=eq.${tenantId}&limit=1`
     ) as Array<Record<string, unknown>> | null;
 
@@ -320,34 +507,39 @@ async function crearPedido(
 // ── WhatsApp helpers ──────────────────────────────────────────────────────────
 
 async function sendWhatsApp(fromPhone: string, phoneId: string, accessToken: string, text: string): Promise<void> {
-  if (!phoneId || !accessToken || !fromPhone) return;
-  await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
+  if (!phoneId || !accessToken || !fromPhone) {
+    console.error("sendWhatsApp: faltan credenciales — phoneId:", !!phoneId, "accessToken:", !!accessToken, "fromPhone:", !!fromPhone);
+    return;
+  }
+  const res = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
     method: "POST",
     headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       messaging_product: "whatsapp",
-      to: fromPhone,
+      to:   fromPhone,
       type: "text",
       text: { body: text },
     }),
   });
+  if (!res.ok) console.error("sendWhatsApp error:", await res.text());
+  else console.log("Mensaje enviado a WhatsApp:", text.slice(0, 60));
 }
 
 async function saveOutMessage(
   conversationId: string,
-  tenantId: string,
-  body: string,
-  fromPhone: string,
-  phoneId: string,
-  accessToken: string,
+  tenantId:       string,
+  body:           string,
+  _fromPhone:     string,
+  _phoneId:       string,
+  _accessToken:   string,
 ): Promise<void> {
   await sbPost(`/rest/v1/chat_messages`, {
     conversation_id: conversationId,
-    tenant_id: tenantId,
-    direction: "out",
+    tenant_id:       tenantId,
+    direction:       "out",
     body,
     delivery_status: "sent",
-    sent_at: new Date().toISOString(),
+    sent_at:         new Date().toISOString(),
   });
   await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, {
     last_message:    body,
