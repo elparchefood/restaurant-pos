@@ -872,6 +872,17 @@ input::placeholder { color: var(--ink-4); }
 .hr-save-btn:hover{background:#4F5BE3;}
 .hr-save-btn:disabled{opacity:.55;cursor:not-allowed;}
 
+/* Selector formato de hora */
+.hr-fmt-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;padding:12px 14px;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:10px;}
+.hr-fmt-tx{display:flex;flex-direction:column;gap:2px;}
+.hr-fmt-tt{font-size:13px;font-weight:700;color:#0F172A;}
+.hr-fmt-ds{font-size:11px;color:#94A3B8;font-weight:500;}
+.hr-fmt-seg{display:flex;gap:4px;background:#E2E8F0;border-radius:8px;padding:3px;}
+.hr-fmt-opt{border:none;background:transparent;padding:5px 14px;border-radius:6px;font-size:12px;font-weight:700;color:#64748B;cursor:pointer;transition:all .13s;display:flex;align-items:center;gap:5px;white-space:nowrap;}
+.hr-fmt-opt.active{background:#fff;color:#5B6BFF;box-shadow:0 1px 4px rgba(15,23,42,.1);}
+.hr-fmt-ex{font-size:10px;font-weight:500;color:#94A3B8;font-family:monospace;}
+.hr-fmt-opt.active .hr-fmt-ex{color:#5B6BFF;}
+
 /* ── Delay slider ──────────────────────────────────────── */
 .ia-delay-card .card-bd { padding: 14px 18px 16px; }
 .ia-delay-row { display: flex; align-items: center; gap: 14px; }

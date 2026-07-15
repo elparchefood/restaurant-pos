@@ -2080,12 +2080,35 @@ function horarioInit() {
     });
   }
 
+  // Formato de hora
+  var currentFmtHora = '12h';
+  var fmtSeg = document.getElementById('hr-fmt-seg');
+  if (fmtSeg) {
+    fmtSeg.querySelectorAll('.hr-fmt-opt').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        fmtSeg.querySelectorAll('.hr-fmt-opt').forEach(function(b){ b.classList.remove('active'); });
+        btn.classList.add('active');
+        currentFmtHora = btn.dataset.fmt;
+        markDirty();
+      });
+    });
+  }
+  function setFmtHora(fmt) {
+    currentFmtHora = fmt || '12h';
+    if (fmtSeg) {
+      fmtSeg.querySelectorAll('.hr-fmt-opt').forEach(function(b){
+        b.classList.toggle('active', b.dataset.fmt === currentFmtHora);
+      });
+    }
+  }
+
   async function loadHorario() {
     var session = (await sb.auth.getSession()).data.session;
     if (!session) return;
     var branchId = session.user.user_metadata.branch_id;
-    var { data } = await sb.from('ia_config').select('horarios').eq('branch_id', branchId).maybeSingle();
+    var { data } = await sb.from('ia_config').select('horarios, formato_hora').eq('branch_id', branchId).maybeSingle();
     renderGrid(data && data.horarios ? data.horarios : null);
+    if (data && data.formato_hora) setFmtHora(data.formato_hora);
   }
 
   saveBtn.addEventListener('click', async function() {
@@ -2095,7 +2118,7 @@ function horarioInit() {
     var meta     = session.user.user_metadata;
     var horarios = readGrid();
     var { error } = await sb.from('ia_config').upsert(
-      { branch_id: meta.branch_id, tenant_id: meta.tenant_id, horarios: horarios },
+      { branch_id: meta.branch_id, tenant_id: meta.tenant_id, horarios: horarios, formato_hora: currentFmtHora },
       { onConflict: 'branch_id' }
     );
     saveBtn.disabled = false;
