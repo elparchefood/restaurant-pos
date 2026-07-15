@@ -158,7 +158,18 @@ Cachear en disco del exe:
 - **`pos-sync.js`** — `_execOrderBatch` es idempotente: usa `_tempId` como `id` real del INSERT, ignora error 23505 en reintentos. Nunca genera duplicados al reintentar.
 - **Cache-busting:** `pos-print.js?v=3`, `tomar-pedido.js?v=27` en sus HTML. Sin `?v=` Electron no actualiza.
 
-## Módulo WhatsApp Chat IA — delay-reply v52 (✅ funciona — 2026-07-14)
+## Módulo WhatsApp Chat IA — Estado completo al 2026-07-14
+
+### Edge Functions en producción
+| Función | Versión | Estado | Qué hace |
+|---------|---------|--------|----------|
+| `meta-webhook` | v44 | ACTIVE | Recibe mensajes WA, guarda en DB, llama `delay-reply` |
+| `delay-reply` | **v52** | ACTIVE | Cerebro del bot: GPT, resumen, toma pedidos, QR de pago |
+| `meta-send` | v9 | ACTIVE | Envía mensajes WA desde el panel Cobra |
+| `verify-transfer` | v1 | ACTIVE | Verifica comprobante de pago cuando operador hace clic en Cobra |
+| `meta-oauth-callback` | v23 | ACTIVE | Conecta número WA por OAuth |
+
+### Módulo WhatsApp Chat IA — delay-reply v52 (✅ funciona — 2026-07-14)
 
 ### Estado de Edge Functions
 | Función | Versión | Estado |
@@ -184,13 +195,127 @@ El bot fue probado en WhatsApp real desde el número del restaurante y **complet
 
 **Fix:** El bloque `isResumen` completo envuelto en try-catch propio. El catch manda el texto raw de GPT como fallback y siempre completa correctamente.
 
-### Puntos clave de la arquitectura
+### Flujo EFECTIVO — verificado ✅ end-to-end (2026-07-14)
+
+```
+Cliente: "Hola quiero una salchipapa familiar"
+Bot:     Pregunta tipo (tradicional/premium/ranchera)
+Cliente: "premium mixta"
+Bot:     Oferta upsell (bebida/salchicha/queso/salsas)
+Cliente: "No gracias"
+Bot:     "¿Para dónde va tu pedido?"
+Cliente: [dirección]
+Bot:     "¿Transferencia o efectivo?"
+Cliente: "efectivo"
+Bot:     "¿A nombre de quién se recibe el pedido?"
+Cliente: [nombre]
+Bot:     [Resumen con plantilla resumen_plantilla — incluye 🍟+📍+💳]
+         "¿Lo confirmamos o hay algo que cambiar?"
+Cliente: "sí"
+Bot:     "En un momento enviamos tu pedido 🍟 ¡Con muchísimo gusto!"
+DB:      pos_orders creado (status=open, payment_method=efectivo, notes=dirección)
+         pos_order_items creado (product_name="Premium · Familiar")
+```
+
+### Flujo TRANSFERENCIA — parcialmente funciona (2026-07-14)
+
+```
+[Pasos 1-6 idénticos al flujo efectivo]
+Cliente: "transferencia" o "nequi"
+Bot:     [Resumen con plantilla — incluye 🍟+📍+💳]
+         "¿Lo confirmamos o hay algo que cambiar?"
+Cliente: "sí" (o "correcto", "es correcto", etc.)
+Bot:     Mensaje de confirmación GPT  ← ✅ funciona
+         [delay-reply setea pago_pendiente=true + guarda pending_order_data]
+Bot:     [Imagen QR de Nequi] con texto de qr_texto de ia_config  ← ✅ funciona
+         (QR URL: storage/v1/object/public/chat-media/qr-pago/.../qr.jpeg)
+         (Número de llave: 0089912015, Titular: El Parche)
+
+Cliente: [Envía foto del comprobante de pago]
+Cobra:   Operador ve la conversación en chat-ia.html con estado "Pago pendiente"
+Cobra:   Operador hace clic en botón "Verificar pago" → llama verify-transfer EF
+
+verify-transfer EF:
+  1. Descarga imagen más reciente de chat_messages (media_url)
+  2. GPT-4o Vision extrae: monto, fecha, banco, parece_valido del comprobante
+  3. Si tiene gmail_refresh_token:
+     → busca en Gmail últimos 3 días con ese monto
+     → si email de banco encontrado: confirmed=true → crea pedido + envía "✅ Pago verificado"
+     → si no encontrado: confirmed=false → envía "⚠️ Recibimos tu comprobante..."
+  4. Si NO tiene gmail_refresh_token:
+     → confía en GPT Vision (parece_valido) → crea pedido si parece válido
+
+ESTADO ACTUAL (bugs pendientes de corrección):
+❌ BUG 1: verify-transfer no envía a WhatsApp (phoneId vacío)
+❌ BUG 2: comprobante "pago pendiente" no se verifica (monto no extraído)
+```
+
+### Puntos clave de la arquitectura delay-reply v52
 - **`puedeTomarPedidos`** = `isOpen || pedidosProg` — controla si GPT-4o usa function calling
 - **`isResumen`** detecta emojis 🍟+📍+💳 en el draft de GPT → segunda llamada OAI para extracción estructurada → rellena `resumen_plantilla`
 - **Confirmación** detecta "sí"/"correcto"/"dale"/etc. post-resumen → `tool_choice: required` → `crear_pedido` tool → `createWhatsappOrder()`
 - **`createWhatsappOrder()`** crea `pos_orders` (channel=whatsapp, notes=dirección), `pos_order_items` (product_name="PresentationName · ProductName"), actualiza `pos_clientes`
-- **Precio en resumen**: GPT estima el precio mostrado en el resumen. El pedido real en DB usa precio del catálogo. Discrepancia conocida y aceptada.
-- **`pending_order_data`** (JSONB en `chat_conversations`) — columna disponible para debug. La columna `notes` NO existe en esa tabla.
+- **Precio en resumen**: GPT estima el precio. Pedido real en DB usa precio del catálogo. Discrepancia conocida y aceptada.
+- **`pending_order_data`** (JSONB en `chat_conversations`) — columna para debug. La columna `notes` NO existe en esa tabla.
+- **`pago_pendiente`** (BOOLEAN en `chat_conversations`) — se activa cuando pago es por transferencia/nequi y el cliente dijo "sí" al resumen
+
+### chat_channels — estructura CRÍTICA
+La columna `meta` en `chat_channels` para WhatsApp es un **JSON serializado como STRING** (no JSONB):
+```json
+{
+  "access_token": "EAAYn78d...",
+  "connected_at": "2026-07-12T17:14:52.710Z",
+  "waba_id": "1597436841735444",
+  "phone_id": "1267893973063645"
+}
+```
+**OJO**: La clave se llama `phone_id`, NO `phone_number_id`. Y `meta` debe parsearse con `JSON.parse()` porque es string, no objeto. `delay-reply` NO lee de aquí — lee de `chat_ai_queue` directamente. `verify-transfer` SÍ lee de aquí y tiene bugs por esto (ver sección bugs).
+
+### ia_config — valores relevantes para transferencia
+| Campo | Valor actual |
+|-------|-------------|
+| `gmail_verificar` | `false` — verificación Gmail desactivada |
+| `gmail_refresh_token` | existe (no null) |
+| `gmail_email` | `elparche.foodpopayan@gmail.com` |
+| `pagos.nequi` | `true` |
+| `pagos.llave` | `0089912015` |
+| `pagos.titular` | `El Parche` |
+| `pagos.esperar_comprobante` | `true` |
+| `pagos.qr_imagen_url` | URL de imagen QR en Supabase Storage |
+| `pagos.qr_texto` | Texto que acompaña el QR |
+
+### Bugs conocidos en verify-transfer v1 (pendientes de corrección)
+
+#### BUG 1 — Mensaje no llega al cliente por WhatsApp
+**Causa raíz**: `verify_transfer.ts` lee `chat_channels` y busca `channel?.phone_number_id` y `channel?.meta?.phone_number_id`, pero:
+- La columna directa no existe (`chat_channels` no tiene `phone_number_id` ni `access_token`)
+- El campo en `meta` se llama `phone_id`, no `phone_number_id`
+- `meta` además es un JSON serializado como string, no un objeto
+
+**Resultado**: `phoneId=""` → `sendWhatsApp()` retorna sin hacer nada → mensaje guardado en `chat_messages` pero NUNCA enviado al cliente por WhatsApp.
+
+**Síntoma observable**: El mensaje ⚠️ aparece en Cobra POS (fue insertado en `chat_messages`) pero el cliente no lo recibe en WhatsApp.
+
+**Fix necesario** en `verify_transfer.ts` líneas 52-53:
+```typescript
+// ACTUAL (roto):
+const phoneId = String(channel?.phone_number_id || channel?.meta && (channel.meta as Record<string,string>).phone_number_id || "");
+const accessToken = String(channel?.access_token || channel?.meta && (channel.meta as Record<string,string>).access_token || "");
+
+// CORRECTO:
+const metaParsed = typeof channel?.meta === "string" ? JSON.parse(channel.meta) : (channel?.meta || {});
+const phoneId     = String(metaParsed?.phone_id     || "");
+const accessToken = String(metaParsed?.access_token || "");
+```
+
+#### BUG 2 — Gmail desactivado + comprobante "pago pendiente" no verificable
+**Causa raíz A**: `gmail_verificar=false` en ia_config. El código de delay-reply (línea 969) verifica `!gmailVerify` y retorna `"pending"` inmediatamente. Esto solo aplica al bloque de delay-reply — verify-transfer.ts NO usa `gmail_verificar`, usa directamente el refresh_token.
+
+**Causa raíz B**: La imagen del comprobante que se envió mostraba **"El pago es pendiente"** (pago de Nequi aún no procesado). GPT-4o Vision correctamente detectó que no es un comprobante confirmado → `monto=""` → Gmail search no se ejecuta → `confirmed=false`.
+
+**Fix necesario**: 
+1. Activar `gmail_verificar=true` en ia_config cuando Gmail esté correctamente configurado
+2. En verify-transfer: cuando `monto=""` (GPT no pudo extraer), enviar mensaje específico al cliente pidiendo que espere a que el pago se confirme y reenvíe el comprobante
 
 ### Proceso de deploy de delay-reply
 ```
