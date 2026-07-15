@@ -166,7 +166,7 @@ Cachear en disco del exe:
 | `meta-webhook` | v44 | ACTIVE | Recibe mensajes WA, guarda en DB, llama `delay-reply` |
 | `delay-reply` | **v52** | ACTIVE | Cerebro del bot: GPT, resumen, toma pedidos, QR de pago |
 | `meta-send` | v9 | ACTIVE | Envía mensajes WA desde el panel Cobra |
-| `verify-transfer` | v1 | ACTIVE | Verifica comprobante de pago cuando operador hace clic en Cobra |
+| `verify-transfer` | **v5** | ACTIVE | Verifica comprobante de pago cuando operador hace clic en Cobra |
 | `meta-oauth-callback` | v23 | ACTIVE | Conecta número WA por OAuth |
 
 ### Módulo WhatsApp Chat IA — delay-reply v52 (✅ funciona — 2026-07-14)
@@ -245,9 +245,12 @@ verify-transfer EF:
   4. Si NO tiene gmail_refresh_token:
      → confía en GPT Vision (parece_valido) → crea pedido si parece válido
 
-ESTADO ACTUAL (bugs pendientes de corrección):
-❌ BUG 1: verify-transfer no envía a WhatsApp (phoneId vacío)
-❌ BUG 2: comprobante "pago pendiente" no se verifica (monto no extraído)
+ESTADO ACTUAL — verify-transfer v5 (2026-07-14):
+✅ BUG 1 CORREGIDO: phoneId leído correctamente desde meta (JSON.parse + phone_id)
+✅ BUG 2 CORREGIDO: prompt GPT Vision actualizado — NO rechaza por "pendiente" en Nequi
+✅ Gmail busca monto en 3 formatos: "33000", "33.000", "33.000,00"
+✅ Llave Nequi comparada contra ia_config.pagos.llave ("0089912015")
+✅ Monto comparado con total calculado desde catálogo (tolerancia 12%)
 ```
 
 ### Puntos clave de la arquitectura delay-reply v52
@@ -269,7 +272,7 @@ La columna `meta` en `chat_channels` para WhatsApp es un **JSON serializado como
   "phone_id": "1267893973063645"
 }
 ```
-**OJO**: La clave se llama `phone_id`, NO `phone_number_id`. Y `meta` debe parsearse con `JSON.parse()` porque es string, no objeto. `delay-reply` NO lee de aquí — lee de `chat_ai_queue` directamente. `verify-transfer` SÍ lee de aquí y tiene bugs por esto (ver sección bugs).
+**OJO**: La clave se llama `phone_id`, NO `phone_number_id`. Y `meta` debe parsearse con `JSON.parse()` porque es string, no objeto. `delay-reply` NO lee de aquí — lee de `chat_ai_queue` directamente. `verify-transfer` v5 ya lo maneja correctamente.
 
 ### ia_config — valores relevantes para transferencia
 | Campo | Valor actual |
@@ -284,38 +287,24 @@ La columna `meta` en `chat_channels` para WhatsApp es un **JSON serializado como
 | `pagos.qr_imagen_url` | URL de imagen QR en Supabase Storage |
 | `pagos.qr_texto` | Texto que acompaña el QR |
 
-### Bugs conocidos en verify-transfer v1 (pendientes de corrección)
+### Bugs corregidos en verify-transfer (resueltos en v3-v5, 2026-07-14)
 
-#### BUG 1 — Mensaje no llega al cliente por WhatsApp
-**Causa raíz**: `verify_transfer.ts` lee `chat_channels` y busca `channel?.phone_number_id` y `channel?.meta?.phone_number_id`, pero:
-- La columna directa no existe (`chat_channels` no tiene `phone_number_id` ni `access_token`)
-- El campo en `meta` se llama `phone_id`, no `phone_number_id`
-- `meta` además es un JSON serializado como string, no un objeto
+#### BUG 1 — CORREGIDO en v3 — Mensaje no llegaba al cliente por WhatsApp
+**Causa raíz**: Código buscaba `channel?.phone_number_id` pero la columna no existe. El campo dentro de `meta` (que es string JSON) se llama `phone_id`.
+**Fix aplicado**: `JSON.parse(meta)` + usar `metaParsed.phone_id` y `metaParsed.access_token`.
 
-**Resultado**: `phoneId=""` → `sendWhatsApp()` retorna sin hacer nada → mensaje guardado en `chat_messages` pero NUNCA enviado al cliente por WhatsApp.
+#### BUG 2 — CORREGIDO en v3 — Gmail no encontraba el monto en formato colombiano
+**Causa raíz**: Gmail recibe "$33.000" pero el código buscaba "33000" (dígitos crudos).
+**Fix aplicado**: Busca en 3 formatos: `["33000", "33.000", "33.000,00"]`.
 
-**Síntoma observable**: El mensaje ⚠️ aparece en Cobra POS (fue insertado en `chat_messages`) pero el cliente no lo recibe en WhatsApp.
+#### BUG 3 — CORREGIDO en v3 — Llave Nequi no se comparaba
+**Fix aplicado**: Extrae llave del comprobante via GPT Vision, compara con `ia_config.pagos.llave` ("0089912015").
 
-**Fix necesario** en `verify_transfer.ts` líneas 52-53:
-```typescript
-// ACTUAL (roto):
-const phoneId = String(channel?.phone_number_id || channel?.meta && (channel.meta as Record<string,string>).phone_number_id || "");
-const accessToken = String(channel?.access_token || channel?.meta && (channel.meta as Record<string,string>).access_token || "");
-
-// CORRECTO:
-const metaParsed = typeof channel?.meta === "string" ? JSON.parse(channel.meta) : (channel?.meta || {});
-const phoneId     = String(metaParsed?.phone_id     || "");
-const accessToken = String(metaParsed?.access_token || "");
-```
-
-#### BUG 2 — Gmail desactivado + comprobante "pago pendiente" no verificable
-**Causa raíz A**: `gmail_verificar=false` en ia_config. El código de delay-reply (línea 969) verifica `!gmailVerify` y retorna `"pending"` inmediatamente. Esto solo aplica al bloque de delay-reply — verify-transfer.ts NO usa `gmail_verificar`, usa directamente el refresh_token.
-
-**Causa raíz B**: La imagen del comprobante que se envió mostraba **"El pago es pendiente"** (pago de Nequi aún no procesado). GPT-4o Vision correctamente detectó que no es un comprobante confirmado → `monto=""` → Gmail search no se ejecuta → `confirmed=false`.
-
-**Fix necesario**: 
-1. Activar `gmail_verificar=true` en ia_config cuando Gmail esté correctamente configurado
-2. En verify-transfer: cuando `monto=""` (GPT no pudo extraer), enviar mensaje específico al cliente pidiendo que espere a que el pago se confirme y reenvíe el comprobante
+#### BUG 4 — CORREGIDO en v5 — Rechazaba comprobantes Nequi con texto "pendiente"
+**Causa raíz**: El prompt de GPT Vision y la condición de rechazo eran demasiado estrictos. Nequi muestra "pendiente" incluso en pagos ya procesados.
+**Fix aplicado**: 
+- Condición de rechazo cambiada de `(!parece_valido || !monto)` a `(!parece_valido && !monto)` — solo rechaza si ambos fallan
+- Prompt GPT Vision actualizado: "NO marques parece_valido=false solo por ver la palabra 'pendiente'"
 
 ### Proceso de deploy de delay-reply
 ```

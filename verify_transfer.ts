@@ -81,11 +81,11 @@ async function verifyTransfer(conversationId: string): Promise<void> {
   const visionResult = await extractComprobante(imageUrl);
   console.log("Vision result:", JSON.stringify(visionResult));
 
-  // 6. Si la imagen no parece un comprobante válido o el pago está pendiente
-  if (!visionResult.parece_valido || !visionResult.monto) {
-    const msg = visionResult.monto
-      ? "⚠️ El comprobante no parece válido (puede estar editado o ser ilegible). Si tienes dudas, contáctanos directamente 📞"
-      : "El pago aparece como *pendiente* en el comprobante. Cuando Nequi o tu banco confirme la transferencia, envíanos el comprobante actualizado ✅";
+  // 6. Si la imagen no parece un comprobante en absoluto (editado, foto aleatoria)
+  // NO rechazar solo porque la UI de Nequi muestra texto "pendiente" — eso es normal
+  // en su interfaz aunque el pago ya salió. Solo rechazar si no tiene monto visible.
+  if (!visionResult.parece_valido && !visionResult.monto) {
+    const msg = "⚠️ No pudimos leer el monto en el comprobante. Por favor envíanos una foto más clara o el comprobante definitivo 📷";
     await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
     await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
     return;
@@ -198,15 +198,15 @@ async function extractComprobante(imageUrl: string): Promise<ComprobanteData> {
 
 Analiza esta imagen y extrae en JSON:
 {
-  "monto": "SOLO dígitos del monto transferido, sin puntos ni comas ni $. Ej: si dice $33.000 → '33000'. Si el pago dice 'pendiente' y no se ve monto confirmado, pon ''",
+  "monto": "SOLO dígitos del monto transferido, sin puntos ni comas ni $. Ej: si dice $33.000 → '33000'. Si hay un número de dinero visible, extráelo aunque la pantalla sea de historial o detalle.",
   "fecha": "YYYY-MM-DD si se ve la fecha de la transacción. Vacío si no.",
   "banco": "nombre del banco o app (Nequi, Bancolombia, Daviplata, etc.)",
   "referencia": "número de referencia o transacción si aparece",
-  "llave": "número de celular o cuenta DESTINO al que fue enviado el pago. Si no se ve, vacío.",
-  "parece_valido": true si el pago está CONFIRMADO y el comprobante parece real / false si dice 'pendiente', parece editado, está borroso o no es un comprobante real
+  "llave": "número de celular, cuenta o llave Nequi DESTINO al que fue enviado el pago. Busca etiquetas como 'Para', 'Destinatario', 'A', 'Llave'. Si no se ve, vacío.",
+  "parece_valido": true si la imagen muestra una pantalla de pago/transferencia real con un monto visible. Solo false si la imagen está completamente borrosa, es una foto aleatoria, o claramente fue editada digitalmente para falsificar números.
 }
 
-IMPORTANTE: si el comprobante dice 'pendiente' o 'en proceso', parece_valido debe ser false y monto debe ser ''.
+NOTA IMPORTANTE: Nequi y otros bancos colombianos a veces muestran 'pendiente' o 'en proceso' en su interfaz incluso cuando el dinero ya salió de la cuenta. NO marques parece_valido=false solo por ver la palabra 'pendiente' — solo hazlo si la imagen no es un comprobante bancario real.
 Responde SOLO el JSON, sin explicación.`;
 
   try {
