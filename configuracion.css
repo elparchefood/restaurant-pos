@@ -1147,3 +1147,52 @@ div.master[data-tab].cia-active { display: flex !important; }
   .cia-tab svg { display: none; }
   .cia-tab { font-size: 11px; padding: 7px 4px; }
 }
+
+/* Tabs CIA — en topbar */
+.cia-tabs {
+  display: none;  /* oculto por defecto; JS lo muestra cuando chatia esta activa */
+  gap: 2px;
+  align-items: center;
+  background: rgba(0,0,0,0.04);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+  margin-left: 4px;
+}
+.cia-tab {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.cia-tab:hover { background: rgba(0,0,0,0.06); color: var(--text); }
+.cia-tab.on { background: #5B6BFF; color: #fff; box-shadow: 0 1px 6px rgba(91,107,255,0.3); }
+.cia-tab.on svg { stroke: #fff !important; }
+
+/* Ocultar/mostrar contenido por tab */
+.cfg-col [data-tab]:not(.cia-tabs):not(.cia-tab):not(.cia-panel-flujo) { display: none !important; }
+.cfg-col [data-tab].cia-active:not(.cia-tabs):not(.cia-tab):not(.cia-panel-flujo) { display: block !important; }
+
+div.master[data-tab] { display: none !important; }
+div.master[data-tab].cia-active { display: flex !important; }
+
+.cia-panel-flujo { display: none !important; }
+.cia-panel-flujo.cia-active { display: block !important; }
+
+/* Ocultar crumbs cuando chatia activo */
+.cf-crumbs.cia-hidden { display: none !important; }
+
+@media (max-width: 640px) {
+  .cia-tab svg { display: none; }
+  .cia-tab { font-size: 11px; padding: 5px 6px; }
+}

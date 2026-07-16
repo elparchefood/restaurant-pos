@@ -188,16 +188,19 @@ function setSection(sec) {
   if (sec === 'mesas') {
     screenMesas.classList.add('on');
     $('crumb').textContent = 'Mesas y zonas';
+      _ciaToggleTopbar(false);
     deselectTable();
   } else if (sec === 'general') {
     screenGeneral.classList.add('on');
     $('crumb').textContent = 'General';
+      _ciaToggleTopbar(false);
     if (!window._generalLoaded) { loadGeneral(); window._generalLoaded = true; }
   } else if (sec === 'operacion') {
     var screenOp = $('screen-operacion');
     if (screenOp) {
       screenOp.classList.add('on');
       $('crumb').textContent = 'Operación';
+      _ciaToggleTopbar(false);
       if (!window._opLoaded) { opInit(); window._opLoaded = true; }
     }
   } else if (sec === 'usuarios') {
@@ -205,6 +208,7 @@ function setSection(sec) {
     if (screenUr) {
       screenUr.classList.add('on');
       $('crumb').textContent = 'Usuarios y roles';
+      _ciaToggleTopbar(false);
       if (!window._urLoaded) { urInit(); window._urLoaded = true; }
     }
   } else if (sec === 'chatia') {
@@ -213,12 +217,14 @@ function setSection(sec) {
       screenChatia.classList.add('on');
       $('crumb').textContent = 'Asistente IA';
       if (!window._chatiaLoaded) { chatiaInit(); window._chatiaLoaded = true; }
+      _ciaToggleTopbar(true);
     }
   } else if (sec === 'horario') {
     var screenHorario = $('screen-horario');
     if (screenHorario) {
       screenHorario.classList.add('on');
       $('crumb').textContent = 'Horarios';
+      _ciaToggleTopbar(false);
       if (!window._horarioLoaded) { horarioInit(); window._horarioLoaded = true; }
     }
   } else if (sec === 'impresora') {
@@ -2881,3 +2887,52 @@ var _storedZonas = [];
     });
   });
 })();
+
+// Tabs Asistente IA
+(function(){
+  function activar(tab){
+    document.querySelectorAll(".cia-tab").forEach(function(b){
+      b.classList.toggle("on", b.dataset.tab === tab);
+    });
+    document.querySelectorAll(".cfg-col [data-tab]:not(.cia-tab):not(.cia-tabs)").forEach(function(el){
+      el.classList.toggle("cia-active", el.dataset.tab === tab);
+    });
+    var aside = document.querySelector("#cfgAsistenteIA .cfg-aside");
+    if (aside) aside.style.display = tab === "flujo" ? "none" : "";
+    try { localStorage.setItem("cia-tab", tab); } catch(e) {}
+  }
+
+  // Exponer para que showScreen() pueda llamarlo
+  window._ciaActivar = activar;
+
+  document.addEventListener("DOMContentLoaded", function(){
+    // Solo ejecutar si chatia ya esta visible al cargar
+    var chatia = document.getElementById("screen-chatia");
+    if (chatia && chatia.classList.contains("on")) {
+      var saved = "asistente";
+      try { saved = localStorage.getItem("cia-tab") || "asistente"; } catch(e) {}
+      activar(saved);
+      _ciaToggleTopbar(true);
+    }
+    document.querySelectorAll(".cia-tab").forEach(function(b){
+      b.addEventListener("click", function(){ activar(this.dataset.tab); });
+    });
+  });
+})();
+
+function _ciaToggleTopbar(show){
+  var nav   = document.getElementById("ciaTabs");
+  var crumbs = document.querySelector(".cf-crumbs");
+  if (!nav || !crumbs) return;
+  if (show) {
+    nav.style.display = "flex";
+    crumbs.classList.add("cia-hidden");
+    // activar tab guardado
+    var saved = "asistente";
+    try { saved = localStorage.getItem("cia-tab") || "asistente"; } catch(e) {}
+    if (window._ciaActivar) window._ciaActivar(saved);
+  } else {
+    nav.style.display = "none";
+    crumbs.classList.remove("cia-hidden");
+  }
+}
