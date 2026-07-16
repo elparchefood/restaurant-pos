@@ -1101,3 +1101,49 @@ input::placeholder { color: var(--ink-4); }
   pointer-events: none;
 }
 .qr-placeholder svg { opacity: .5; }
+
+/* ── Tabs Asistente IA (CIA tabs) ──────────────────────── */
+.cia-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+}
+.cia-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.cia-tab:hover { background: var(--hover); color: var(--text); }
+.cia-tab.on {
+  background: #5B6BFF;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(91,107,255,0.25);
+}
+.cia-tab.on svg { stroke: #fff !important; }
+.cfg-col [data-tab]:not(.cia-tabs):not(.cia-tab) { display: none !important; }
+.cfg-col [data-tab].cia-active { display: block !important; }
+div.master[data-tab] { display: none !important; }
+div.master[data-tab].cia-active { display: flex !important; }
+.cia-panel-flujo { display: none !important; }
+.cia-panel-flujo.cia-active { display: block !important; }
+@media (max-width: 580px) {
+  .cia-tab svg { display: none; }
+  .cia-tab { font-size: 11px; padding: 7px 4px; }
+}

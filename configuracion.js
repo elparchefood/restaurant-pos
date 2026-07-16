@@ -2858,3 +2858,26 @@ var _storedZonas = [];
   window.connectGmail    = connectGmail;
   window.disconnectGmail = disconnectGmail;
 }
+
+// ── Tabs Asistente IA ────────────────────────────────────
+(function(){
+  function activar(tab){
+    document.querySelectorAll('.cia-tab').forEach(function(b){
+      b.classList.toggle('on', b.dataset.tab === tab);
+    });
+    document.querySelectorAll('.cfg-col [data-tab]:not(.cia-tab):not(.cia-tabs)').forEach(function(el){
+      el.classList.toggle('cia-active', el.dataset.tab === tab);
+    });
+    var aside = document.querySelector('#cfgAsistenteIA .cfg-aside');
+    if (aside) aside.style.display = tab === 'flujo' ? 'none' : '';
+    try { localStorage.setItem('cia-tab', tab); } catch(e) {}
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    var saved = 'asistente';
+    try { saved = localStorage.getItem('cia-tab') || 'asistente'; } catch(e) {}
+    activar(saved);
+    document.querySelectorAll('.cia-tab').forEach(function(b){
+      b.addEventListener('click', function(){ activar(this.dataset.tab); });
+    });
+  });
+})();
