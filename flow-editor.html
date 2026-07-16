@@ -587,6 +587,9 @@ function buildDemo() {
     editor.canvas_y = 0;
     applyCanvasTransform();
     document.getElementById('zoomVal').textContent = '50%';
+    // Reaplicar: Drawflow resetea el transform de forma asincrona
+    setTimeout(function(){ editor.zoom=0.5; applyCanvasTransform(); }, 100);
+    setTimeout(function(){ editor.zoom=0.5; applyCanvasTransform(); }, 400);
   }, 80);
 }
 </script>
