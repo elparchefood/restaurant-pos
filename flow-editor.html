@@ -237,7 +237,8 @@ let dragType = null;
 let zoomLevel = 1;
 
 const container = document.getElementById('drawflow');
-const editor = new Drawflow(container);
+window.editor = new Drawflow(container);
+const editor = window.editor;
 editor.reroute = true;
 editor.reroute_fix_curvature = true;
 editor.force_first_input = false;
@@ -440,15 +441,21 @@ function closePanel() {
   document.getElementById('configPanel').classList.remove('open');
   selectedNodeId = null;
 }
+function getPrecanvas() {
+  return editor.precanvas || document.querySelector('.parent-drawflow') || document.querySelector('.drawflow > .parent-drawflow');
+}
+function applyCanvasTransform() {
+  const p = getPrecanvas();
+  if (p) p.style.transform = `translate(${editor.canvas_x||0}px,${editor.canvas_y||0}px) scale(${editor.zoom||1})`;
+}
 function zoom(dir) {
   const steps = [.5,.67,.75,.9,1,1.1,1.25,1.5,1.75,2];
-  const cur = steps.findIndex(s => Math.abs(s - editor.zoom) < .05);
+  const cur = steps.findIndex(s => Math.abs(s - (editor.zoom||1)) < .05);
   const next = Math.max(0, Math.min(steps.length-1, (cur < 0 ? 4 : cur) + dir));
   editor.zoom_value = steps[next];
   editor.zoom_last = editor.zoom;
   editor.zoom = steps[next];
-  editor.canvas_x = editor.canvas_x;
-  document.querySelector('.drawflow > .parent-drawflow').style.transform = `translate(${editor.canvas_x}px,${editor.canvas_y}px) scale(${editor.zoom})`;
+  applyCanvasTransform();
   document.getElementById('zoomVal').textContent = Math.round(steps[next]*100)+'%';
 }
 
@@ -575,17 +582,11 @@ function buildDemo() {
     editor.addConnection(n_nombre,  n_resumen,'output_1','input_1');
 
     // Zoom inicial para ver todo el flujo
-    editor.zoom = 0.55;
-    editor.canvas_x = 10;
-    editor.canvas_y = 60;
-    const p = editor.precanvas || document.querySelector('.drawflow > .parent-drawflow');
-    if (p) p.style.transform = 'translate(10px,60px) scale(0.55)';
-    document.getElementById('zoomVal').textContent = '55%';
-    // Recalcular rutas de conexion con el nuevo zoom
-    try {
-      var nodeIds = Object.keys(editor.drawflow.drawflow.Home.data);
-      nodeIds.forEach(function(id){ editor.updateConnectionNodes('node-' + id); });
-    } catch(e) {}
+    editor.zoom = 0.5;
+    editor.canvas_x = 0;
+    editor.canvas_y = 0;
+    applyCanvasTransform();
+    document.getElementById('zoomVal').textContent = '50%';
   }, 80);
 }
 </script>
