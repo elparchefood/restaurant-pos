@@ -1,0 +1,501 @@
+<title>Editor de flujo IA — Cobra POS</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.css">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#F4F5F8;--surface:#fff;--border:#E2E5EC;--border-s:#C8CDD8;
+  --text-1:#0F172A;--text-2:#475569;--text-3:#94A3B8;
+  --accent:#5B6BFF;--accent-h:#4F5BE3;--accent-bg:#EEF2FF;
+  --violet:#7C3AED;--violet-bg:#F3EEFF;
+  --teal:#0D9488;--teal-bg:#E6FAF8;
+  --amber:#B45309;--amber-bg:#FEF3C7;
+  --red:#DC2626;--red-bg:#FEE2E2;
+  --green:#16A34A;--green-bg:#DCFCE7;
+  --gray2:#64748B;--gray-bg:#F1F5F9;
+  --font:'DM Sans',-apple-system,sans-serif;
+  --r:10px;--r-sm:7px;
+}
+body{font-family:var(--font);background:var(--bg);height:100vh;overflow:hidden;color:var(--text-1);display:flex;flex-direction:column}
+
+/* TOP BAR */
+.topbar{height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0;z-index:100}
+.topbar-back{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);cursor:pointer;padding:6px 10px;border-radius:var(--r-sm);transition:background .15s}
+.topbar-back:hover{background:var(--gray-bg)}
+.topbar-back svg{width:14px;height:14px}
+.topbar-sep{width:1px;height:20px;background:var(--border)}
+.topbar-title{font-size:14px;font-weight:700;color:var(--text-1)}
+.topbar-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;background:var(--teal-bg);color:var(--teal)}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.save-status{font-size:12px;color:var(--text-3);display:flex;align-items:center;gap:4px}
+.save-status svg{width:12px;height:12px;color:var(--green)}
+.zoom-controls{display:flex;align-items:center;gap:2px}
+.zoom-btn{width:28px;height:28px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--text-2);transition:background .15s}
+.zoom-btn:hover{background:var(--gray-bg)}
+.zoom-val{font-size:12px;color:var(--text-2);padding:0 6px;min-width:38px;text-align:center}
+.btn-save{height:32px;padding:0 14px;border-radius:var(--r-sm);background:var(--accent);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);transition:background .15s}
+.btn-save:hover{background:var(--accent-h)}
+
+/* MAIN LAYOUT */
+.editor-body{flex:1;display:flex;overflow:hidden}
+
+/* PALETTE */
+.palette{width:208px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.palette-header{padding:14px 14px 10px;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--text-3);text-transform:uppercase}
+.palette-list{flex:1;overflow-y:auto;padding:0 8px 12px}
+.palette-node{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r);cursor:grab;margin-bottom:4px;border:1px solid transparent;transition:background .12s,border-color .12s;user-select:none}
+.palette-node:hover{background:var(--gray-bg);border-color:var(--border)}
+.palette-node:active{cursor:grabbing;opacity:.8}
+.pn-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.pn-icon svg{width:15px;height:15px}
+.pn-info{flex:1;min-width:0}
+.pn-name{font-size:13px;font-weight:600;color:var(--text-1)}
+.pn-desc{font-size:11px;color:var(--text-3);margin-top:1px}
+.palette-sep{margin:8px 10px;border:none;border-top:1px solid var(--border)}
+
+/* CANVAS AREA */
+.canvas-wrap{flex:1;position:relative;overflow:hidden}
+.canvas-hint{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,.7);color:#fff;font-size:12px;padding:6px 14px;border-radius:20px;pointer-events:none;z-index:10;white-space:nowrap}
+
+/* CONFIG PANEL */
+.config-panel{width:0;flex-shrink:0;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:width .22s cubic-bezier(.4,0,.2,1)}
+.config-panel.open{width:300px}
+.cp-header{padding:16px 16px 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.cp-header-title{font-size:13px;font-weight:700;color:var(--text-1)}
+.cp-close{width:26px;height:26px;border-radius:var(--r-sm);border:none;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3)}
+.cp-close:hover{background:var(--gray-bg)}
+.cp-close svg{width:14px;height:14px}
+.cp-body{flex:1;overflow-y:auto;padding:16px}
+.cp-section{margin-bottom:20px}
+.cp-label{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px}
+.cp-input{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px;font-family:var(--font);color:var(--text-1);outline:none;background:var(--surface);transition:border-color .15s}
+.cp-input:focus{border-color:var(--accent)}
+.cp-textarea{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px;font-family:var(--font);color:var(--text-1);outline:none;resize:vertical;min-height:90px;line-height:1.5;background:var(--surface);transition:border-color .15s}
+.cp-textarea:focus{border-color:var(--accent)}
+.type-btns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.type-btn{padding:8px 6px;border-radius:var(--r-sm);border:1.5px solid var(--border);background:var(--surface);cursor:pointer;text-align:center;font-family:var(--font);transition:all .15s}
+.type-btn .tb-icon{font-size:18px;margin-bottom:3px}
+.type-btn .tb-label{font-size:11px;font-weight:600;color:var(--text-2);display:block}
+.type-btn.active-fija{border-color:var(--accent);background:var(--accent-bg)}
+.type-btn.active-fija .tb-label{color:var(--accent)}
+.type-btn.active-ia{border-color:var(--violet);background:var(--violet-bg)}
+.type-btn.active-ia .tb-label{color:var(--violet)}
+.vars-row{display:flex;flex-wrap:wrap;gap:5px}
+.var-chip{padding:3px 8px;border-radius:20px;background:var(--gray-bg);border:1px solid var(--border);font-size:11px;font-weight:500;color:var(--text-2);cursor:pointer;font-family:'DM Sans Mono',monospace,sans-serif;transition:background .12s}
+.var-chip:hover{background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}
+.cp-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:var(--r-sm);background:var(--gray-bg)}
+.cp-toggle-label{font-size:13px;font-weight:500;color:var(--text-1)}
+.toggle{position:relative;width:36px;height:20px;cursor:pointer}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-track{position:absolute;inset:0;border-radius:20px;background:var(--border-s);transition:background .2s}
+.toggle input:checked ~ .toggle-track{background:var(--accent)}
+.toggle-thumb{position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .2s}
+.toggle input:checked ~ .toggle-thumb{transform:translateX(16px)}
+.cp-footer{padding:12px 16px;border-top:1px solid var(--border);flex-shrink:0}
+.btn-delete{width:100%;padding:8px;border-radius:var(--r-sm);border:1px solid var(--red-bg);background:var(--red-bg);color:var(--red);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);transition:all .15s}
+.btn-delete:hover{background:var(--red);color:#fff}
+
+/* DRAWFLOW OVERRIDES */
+#drawflow{width:100%;height:100%;background-color:var(--bg);background-image:radial-gradient(var(--border-s) 1px, transparent 1px);background-size:24px 24px}
+.drawflow .drawflow-node{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;min-width:180px;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.06);transition:border-color .15s,box-shadow .15s}
+.drawflow .drawflow-node.selected{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg)}
+.drawflow .drawflow-node .inputs,.drawflow .drawflow-node .outputs{top:50%;transform:translateY(-50%)}
+.drawflow .drawflow-node .input,.drawflow .drawflow-node .output{width:14px;height:14px;border-radius:50%;border:2.5px solid var(--border-s);background:var(--surface);transition:border-color .15s}
+.drawflow .drawflow-node .input:hover,.drawflow .drawflow-node .output:hover{border-color:var(--accent);background:var(--accent-bg)}
+.drawflow .connection .main-path{stroke:#C8CDD8;stroke-width:2.5;fill:none}
+.drawflow .connection .main-path:hover,.drawflow .connection.selected .main-path{stroke:var(--accent)}
+.drawflow .drawflow-delete{background:var(--red);width:18px;height:18px;font-size:12px;border-radius:50%;top:-7px;right:-7px}
+
+/* NODE CONTENT */
+.df-node{padding:11px 13px;display:flex;align-items:center;gap:10px;cursor:pointer}
+.df-node-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.df-node-icon svg{width:16px;height:16px}
+.df-node-body{flex:1;min-width:0}
+.df-node-name{font-size:13px;font-weight:700;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.df-node-type{font-size:11px;color:var(--text-3);margin-top:1px}
+.df-node-dot{width:7px;height:7px;border-radius:50%;background:var(--border-s);flex-shrink:0}
+.df-node-dot.on{background:var(--green)}
+
+/* NODE TYPE COLORS */
+.n-inicio .df-node-icon{background:var(--teal-bg)} .n-inicio .df-node-icon svg{color:var(--teal)}
+.n-fija .df-node-icon{background:var(--accent-bg)} .n-fija .df-node-icon svg{color:var(--accent)}
+.n-ia .df-node-icon{background:var(--violet-bg)} .n-ia .df-node-icon svg{color:var(--violet)}
+.n-pregunta .df-node-icon{background:var(--amber-bg)} .n-pregunta .df-node-icon svg{color:var(--amber)}
+.n-timer .df-node-icon{background:var(--gray-bg)} .n-timer .df-node-icon svg{color:var(--gray2)}
+.n-resumen .df-node-icon{background:var(--green-bg)} .n-resumen .df-node-icon svg{color:var(--green)}
+.drawflow .drawflow-node.n-inicio.selected{border-color:var(--teal)}
+.drawflow .drawflow-node.n-ia.selected{border-color:var(--violet);box-shadow:0 0 0 3px var(--violet-bg)}
+.drawflow .drawflow-node.n-pregunta.selected{border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-bg)}
+.drawflow .drawflow-node.n-resumen.selected{border-color:var(--green);box-shadow:0 0 0 3px var(--green-bg)}
+</style>
+
+<div class="topbar">
+  <div class="topbar-back" onclick="history.back()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    Regresar
+  </div>
+  <div class="topbar-sep"></div>
+  <div class="topbar-title">Editor de flujo IA</div>
+  <div class="topbar-badge">WhatsApp</div>
+  <div class="topbar-right">
+    <div class="save-status" id="saveStatus">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      Guardado
+    </div>
+    <div class="zoom-controls">
+      <button class="zoom-btn" onclick="zoom(-1)">−</button>
+      <span class="zoom-val" id="zoomVal">100%</span>
+      <button class="zoom-btn" onclick="zoom(1)">+</button>
+    </div>
+    <button class="btn-save" onclick="saveFlow()">Guardar</button>
+  </div>
+</div>
+
+<div class="editor-body">
+  <!-- PALETTE -->
+  <div class="palette">
+    <div class="palette-header">Pasos</div>
+    <div class="palette-list">
+      <div class="palette-node" draggable="true" data-type="inicio" ondragstart="onDragStart(event,'inicio')">
+        <div class="pn-icon" style="background:var(--teal-bg)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+        <div class="pn-info"><div class="pn-name">Inicio</div><div class="pn-desc">Punto de entrada</div></div>
+      </div>
+      <hr class="palette-sep">
+      <div class="palette-node" draggable="true" data-type="fija" ondragstart="onDragStart(event,'fija')">
+        <div class="pn-icon" style="background:var(--accent-bg)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div class="pn-info"><div class="pn-name">Frase fija</div><div class="pn-desc">Mensaje exacto</div></div>
+      </div>
+      <div class="palette-node" draggable="true" data-type="ia" ondragstart="onDragStart(event,'ia')">
+        <div class="pn-icon" style="background:var(--violet-bg)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--violet)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="3" fill="var(--violet)" stroke="none" opacity=".25"/></svg>
+        </div>
+        <div class="pn-info"><div class="pn-name">Conversacional IA</div><div class="pn-desc">OpenAI + instrucciones</div></div>
+      </div>
+      <div class="palette-node" draggable="true" data-type="pregunta" ondragstart="onDragStart(event,'pregunta')">
+        <div class="pn-icon" style="background:var(--amber-bg)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div class="pn-info"><div class="pn-name">Pregunta variable</div><div class="pn-desc">Tamaño, tipo, dirección…</div></div>
+      </div>
+      <div class="palette-node" draggable="true" data-type="timer" ondragstart="onDragStart(event,'timer')">
+        <div class="pn-icon" style="background:var(--gray-bg)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--gray2)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="pn-info"><div class="pn-name">Temporizador</div><div class="pn-desc">Espera N segundos</div></div>
+      </div>
+      <hr class="palette-sep">
+      <div class="palette-node" draggable="true" data-type="resumen" ondragstart="onDragStart(event,'resumen')">
+        <div class="pn-icon" style="background:var(--green-bg)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        </div>
+        <div class="pn-info"><div class="pn-name">Resumen pedido</div><div class="pn-desc">Muestra y confirma</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div class="canvas-wrap">
+    <div id="drawflow"></div>
+    <div class="canvas-hint">Arrastra pasos desde el panel izquierdo · Conecta los puntos para definir el flujo</div>
+  </div>
+
+  <!-- CONFIG PANEL -->
+  <div class="config-panel" id="configPanel">
+    <div class="cp-header">
+      <div class="cp-header-title" id="cpTitle">Configurar paso</div>
+      <button class="cp-close" onclick="closePanel()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="cp-body" id="cpBody"></div>
+    <div class="cp-footer">
+      <button class="btn-delete" id="btnDelete" onclick="deleteSelected()">Eliminar paso</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.js"></script>
+<script>
+const NODE_ICONS = {
+  inicio:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>`,
+  fija:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+  ia:       `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>`,
+  pregunta: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+  timer:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+  resumen:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>`,
+};
+const NODE_LABELS = {inicio:'Inicio',fija:'Frase fija',ia:'IA conversacional',pregunta:'Pregunta variable',timer:'Temporizador',resumen:'Resumen pedido'};
+const NODE_INPUTS = {inicio:0,fija:1,ia:1,pregunta:1,timer:1,resumen:1};
+const NODE_OUTPUTS = {inicio:1,fija:1,ia:1,pregunta:1,timer:1,resumen:0};
+
+let selectedNodeId = null;
+let dragType = null;
+let zoomLevel = 1;
+
+const container = document.getElementById('drawflow');
+const editor = new Drawflow(container);
+editor.reroute = true;
+editor.reroute_fix_curvature = true;
+editor.force_first_input = false;
+editor.start();
+
+function buildNodeHtml(type, data) {
+  const name = data.nombre || NODE_LABELS[type];
+  const active = data.activo !== false;
+  return `<div class="df-node n-${type}">
+    <div class="df-node-icon">${NODE_ICONS[type]}</div>
+    <div class="df-node-body">
+      <div class="df-node-name">${name}</div>
+      <div class="df-node-type">${NODE_LABELS[type]}</div>
+    </div>
+    <div class="df-node-dot ${active?'on':''}"></div>
+  </div>`;
+}
+
+function addNode(type, x, y, data={}) {
+  if(!data.nombre) data.nombre = NODE_LABELS[type];
+  if(data.activo === undefined) data.activo = true;
+  const html = buildNodeHtml(type, data);
+  const id = editor.addNode(type, NODE_INPUTS[type], NODE_OUTPUTS[type], x, y, `n-${type}`, {type,...data}, html);
+  return id;
+}
+
+function refreshNodeHtml(id) {
+  const node = editor.getNodeFromId(id);
+  if(!node) return;
+  const html = buildNodeHtml(node.data.type, node.data);
+  document.querySelector(`#node-${id} .df-node`).outerHTML = html;
+  document.querySelector(`#node-${id}`).querySelector('.df-node').parentElement.innerHTML = html;
+  const el = document.querySelector(`#node-${id} .drawflow_content_node`);
+  if(el) el.innerHTML = buildNodeHtml(node.data.type, node.data);
+}
+
+function onDragStart(e, type) { dragType = type; e.dataTransfer.setData('node', type); }
+
+container.addEventListener('dragover', e => e.preventDefault());
+container.addEventListener('drop', e => {
+  e.preventDefault();
+  if(!dragType) return;
+  const rect = container.getBoundingClientRect();
+  const zoom = editor.zoom;
+  const x = (e.clientX - rect.left - editor.canvas_x) / zoom;
+  const y = (e.clientY - rect.top  - editor.canvas_y) / zoom;
+  addNode(dragType, x, y);
+  dragType = null;
+});
+
+editor.on('nodeSelected', id => {
+  selectedNodeId = id;
+  openPanel(id);
+});
+editor.on('nodeUnselected', () => { /* keep panel open until X */ });
+editor.on('nodeMoved', () => markDirty());
+editor.on('connectionCreated', () => markDirty());
+editor.on('connectionRemoved', () => markDirty());
+editor.on('nodeRemoved', () => { closePanel(); markDirty(); });
+
+function openPanel(id) {
+  const node = editor.getNodeFromId(id);
+  if(!node) return;
+  const d = node.data;
+  document.getElementById('cpTitle').textContent = d.nombre || NODE_LABELS[d.type];
+  document.getElementById('configPanel').classList.add('open');
+  renderPanelBody(id, d);
+}
+
+function renderPanelBody(id, d) {
+  const tipo = d.tipo || (d.type === 'fija' ? 'fija' : 'ia');
+  const showTipo = ['fija','ia','pregunta'].includes(d.type);
+  const showTimer = d.type === 'timer';
+  const isResumen = d.type === 'resumen';
+  const isInicio = d.type === 'inicio';
+
+  let html = `
+    <div class="cp-section">
+      <div class="cp-label">Nombre del paso</div>
+      <input class="cp-input" id="cp-nombre" value="${esc(d.nombre||'')}" oninput="updateField(${id},'nombre',this.value)">
+    </div>`;
+
+  if(showTipo) {
+    html += `<div class="cp-section">
+      <div class="cp-label">Tipo de respuesta</div>
+      <div class="type-btns">
+        <button class="type-btn ${tipo==='fija'?'active-fija':''}" onclick="setTipo(${id},'fija')">
+          <div class="tb-icon">💬</div>
+          <span class="tb-label">Frase fija</span>
+        </button>
+        <button class="type-btn ${tipo==='ia'?'active-ia':''}" onclick="setTipo(${id},'ia')">
+          <div class="tb-icon">🤖</div>
+          <span class="tb-label">Conversacional IA</span>
+        </button>
+      </div>
+    </div>`;
+    if(tipo==='fija') {
+      html += `<div class="cp-section">
+        <div class="cp-label">Mensaje exacto</div>
+        <textarea class="cp-textarea" id="cp-frase" oninput="updateField(${id},'frase',this.value)">${esc(d.frase||'')}</textarea>
+        <div class="vars-row" style="margin-top:8px">
+          ${['{{nombre}}','{{producto}}','{{tamano}}','{{tipo}}','{{direccion}}','{{hora}}'].map(v=>`<span class="var-chip" onclick="insertVar(${id},'${v}')">${v}</span>`).join('')}
+        </div>
+      </div>`;
+    } else {
+      html += `<div class="cp-section">
+        <div class="cp-label">Instrucciones para IA</div>
+        <textarea class="cp-textarea" id="cp-instrucciones" placeholder="Ej: Saluda al cliente con la hora del día, pregunta en qué lo puedes ayudar…" oninput="updateField(${id},'instrucciones',this.value)">${esc(d.instrucciones||'')}</textarea>
+        <div class="vars-row" style="margin-top:8px">
+          ${['{{nombre}}','{{producto}}','{{hora}}','{{local}}'].map(v=>`<span class="var-chip" onclick="insertVar2(${id},'${v}')">${v}</span>`).join('')}
+        </div>
+      </div>`;
+    }
+  }
+
+  if(d.type === 'pregunta') {
+    html += `<div class="cp-section">
+      <div class="cp-label">Variable a capturar</div>
+      <select class="cp-input" onchange="updateField(${id},'campo',this.value)">
+        ${['tamano','tipo','direccion','pago','nombre','adiciones'].map(c=>`<option value="${c}" ${d.campo===c?'selected':''}>${c}</option>`).join('')}
+      </select>
+    </div>`;
+  }
+
+  if(showTimer) {
+    html += `<div class="cp-section">
+      <div class="cp-label">Esperar (segundos)</div>
+      <input class="cp-input" type="number" min="1" max="120" value="${d.delay||5}" oninput="updateField(${id},'delay',+this.value)">
+    </div>`;
+  }
+
+  if(!isInicio) {
+    html += `<div class="cp-section">
+      <div class="cp-toggle-row">
+        <span class="cp-toggle-label">Paso activo</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.activo!==false?'checked':''} onchange="updateField(${id},'activo',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+    </div>`;
+  }
+
+  document.getElementById('cpBody').innerHTML = html;
+  document.getElementById('btnDelete').style.display = isInicio ? 'none' : 'block';
+}
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')}
+
+function updateField(id, field, val) {
+  const node = editor.getNodeFromId(id);
+  if(!node) return;
+  node.data[field] = val;
+  editor.updateNodeDataFromId(id, node.data);
+  if(field === 'nombre') {
+    document.getElementById('cpTitle').textContent = val || NODE_LABELS[node.data.type];
+    const el = document.querySelector(`#node-${id} .drawflow_content_node`);
+    if(el) el.innerHTML = buildNodeHtml(node.data.type, node.data);
+  }
+  if(field === 'activo') {
+    const el = document.querySelector(`#node-${id} .drawflow_content_node`);
+    if(el) el.innerHTML = buildNodeHtml(node.data.type, node.data);
+  }
+  markDirty();
+}
+
+function setTipo(id, tipo) {
+  const node = editor.getNodeFromId(id);
+  if(!node) return;
+  node.data.tipo = tipo;
+  editor.updateNodeDataFromId(id, node.data);
+  renderPanelBody(id, node.data);
+  markDirty();
+}
+
+function insertVar(id, v) {
+  const ta = document.getElementById('cp-frase');
+  if(!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  ta.value = ta.value.slice(0,s) + v + ta.value.slice(e);
+  ta.selectionStart = ta.selectionEnd = s + v.length;
+  ta.focus();
+  updateField(id,'frase',ta.value);
+}
+function insertVar2(id, v) {
+  const ta = document.getElementById('cp-instrucciones');
+  if(!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  ta.value = ta.value.slice(0,s) + v + ta.value.slice(e);
+  ta.selectionStart = ta.selectionEnd = s + v.length;
+  ta.focus();
+  updateField(id,'instrucciones',ta.value);
+}
+
+function deleteSelected() {
+  if(selectedNodeId) { editor.removeNodeId(`node-${selectedNodeId}`); closePanel(); }
+}
+function closePanel() {
+  document.getElementById('configPanel').classList.remove('open');
+  selectedNodeId = null;
+}
+function zoom(dir) {
+  const steps = [.5,.67,.75,.9,1,1.1,1.25,1.5,1.75,2];
+  const cur = steps.findIndex(s => Math.abs(s - editor.zoom) < .05);
+  const next = Math.max(0, Math.min(steps.length-1, (cur < 0 ? 4 : cur) + dir));
+  editor.zoom_value = steps[next];
+  editor.zoom_last = editor.zoom;
+  editor.zoom = steps[next];
+  editor.canvas_x = editor.canvas_x;
+  document.querySelector('.drawflow > .parent-drawflow').style.transform = `translate(${editor.canvas_x}px,${editor.canvas_y}px) scale(${editor.zoom})`;
+  document.getElementById('zoomVal').textContent = Math.round(steps[next]*100)+'%';
+}
+
+let dirty = false;
+function markDirty() {
+  dirty = true;
+  document.getElementById('saveStatus').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;color:var(--amber)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Sin guardar`;
+}
+function saveFlow() {
+  const data = editor.export();
+  localStorage.setItem('cobrapos_flow', JSON.stringify(data));
+  dirty = false;
+  document.getElementById('saveStatus').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;color:var(--green)"><polyline points="20 6 9 17 4 12"/></svg> Guardado`;
+}
+
+editor.on('zoom', val => { document.getElementById('zoomVal').textContent = Math.round(val*100)+'%'; });
+
+// Demo: cargar flujo de ejemplo
+const saved = localStorage.getItem('cobrapos_flow');
+if(saved) {
+  try { editor.import(JSON.parse(saved)); } catch(e) { buildDemo(); }
+} else { buildDemo(); }
+
+function buildDemo() {
+  const id1 = addNode('inicio',   80,  160, {nombre:'Inicio'});
+  const id2 = addNode('ia',      300,   80, {nombre:'Saludo',instrucciones:'Saluda al cliente con la hora del día. Pregunta en qué le puedes ayudar.',activo:true});
+  const id3 = addNode('pregunta', 520,   80, {nombre:'Pedir tamaño',campo:'tamano',tipo:'fija',frase:'¿La deseas personal o familiar? 😋',activo:true});
+  const id4 = addNode('pregunta', 520,  230, {nombre:'Pedir tipo',campo:'tipo',tipo:'fija',frase:'¿La deseas mixta, de carne o de pollo? 🍟',activo:true});
+  const id5 = addNode('ia',       740,  155, {nombre:'Upsell',instrucciones:'Ofrece bebidas o adiciones.',activo:true});
+  const id6 = addNode('pregunta', 950,  155, {nombre:'Dirección',campo:'direccion',tipo:'fija',frase:'¿Para dónde va tu pedido? ☺️',activo:true});
+  const id7 = addNode('pregunta',1160,  155, {nombre:'Pago',campo:'pago',tipo:'fija',frase:'¿Transferencia o efectivo?',activo:true});
+  const id8 = addNode('pregunta',1370,  155, {nombre:'Nombre',campo:'nombre',tipo:'fija',frase:'¿A nombre de quién se recibe? 🍟',activo:true});
+  const id9 = addNode('resumen', 1580,  155, {nombre:'Resumen',activo:true});
+  setTimeout(() => {
+    editor.addConnection(id1,id2,'output_1','input_1');
+    editor.addConnection(id2,id3,'output_1','input_1');
+    editor.addConnection(id3,id4,'output_1','input_1');
+    editor.addConnection(id4,id5,'output_1','input_1');
+    editor.addConnection(id5,id6,'output_1','input_1');
+    editor.addConnection(id6,id7,'output_1','input_1');
+    editor.addConnection(id7,id8,'output_1','input_1');
+    editor.addConnection(id8,id9,'output_1','input_1');
+    editor.zoom_value = .75;
+    editor.zoom_last = 1;
+    editor.zoom = .75;
+    const p = document.querySelector('.drawflow > .parent-drawflow');
+    if(p) p.style.transform = `translate(20px,180px) scale(0.75)`;
+    document.getElementById('zoomVal').textContent = '75%';
+  }, 80);
+}
+</script>
