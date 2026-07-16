@@ -587,9 +587,19 @@ function buildDemo() {
     editor.canvas_y = 0;
     applyCanvasTransform();
     document.getElementById('zoomVal').textContent = '50%';
-    // Reaplicar: Drawflow resetea el transform de forma asincrona
-    setTimeout(function(){ editor.zoom=0.5; applyCanvasTransform(); }, 100);
-    setTimeout(function(){ editor.zoom=0.5; applyCanvasTransform(); }, 400);
+    // MutationObserver: detecta y corrige si Drawflow resetea el transform
+    var _pre = getPrecanvas();
+    if (_pre && window.MutationObserver) {
+      var _guardian = new MutationObserver(function() {
+        var t = _pre.style.transform;
+        if (!t || t === 'translate(0px, 0px) scale(1)' || t === 'translate(0px,0px) scale(1)') {
+          editor.zoom = 0.5;
+          _pre.style.transform = 'translate(0px, 0px) scale(0.5)';
+        }
+      });
+      _guardian.observe(_pre, { attributes: true, attributeFilter: ['style'] });
+      setTimeout(function() { _guardian.disconnect(); }, 3000);
+    }
   }, 80);
 }
 </script>
