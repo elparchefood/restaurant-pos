@@ -101,6 +101,7 @@ body{font-family:var(--font);background:var(--bg);height:100vh;overflow:hidden;c
 .drawflow .drawflow-node .inputs,.drawflow .drawflow-node .outputs{top:50%;transform:translateY(-50%)}
 .drawflow .drawflow-node .input,.drawflow .drawflow-node .output{width:14px;height:14px;border-radius:50%;border:2.5px solid var(--border-s);background:var(--surface);transition:border-color .15s}
 .drawflow .drawflow-node .input:hover,.drawflow .drawflow-node .output:hover{border-color:var(--accent);background:var(--accent-bg)}
+.drawflow svg{overflow:visible}
 .drawflow .connection .main-path{stroke:#C8CDD8;stroke-width:2.5;fill:none}
 .drawflow .connection .main-path:hover,.drawflow .connection.selected .main-path{stroke:var(--accent)}
 .drawflow .drawflow-delete{background:var(--red);width:18px;height:18px;font-size:12px;border-radius:50%;top:-7px;right:-7px}
@@ -574,12 +575,17 @@ function buildDemo() {
     editor.addConnection(n_nombre,  n_resumen,'output_1','input_1');
 
     // Zoom inicial para ver todo el flujo
-    editor.zoom_value = 0.55;
-    editor.zoom_last  = 1;
-    editor.zoom       = 0.55;
-    const p = document.querySelector('.drawflow > .parent-drawflow');
+    editor.zoom = 0.55;
+    editor.canvas_x = 10;
+    editor.canvas_y = 60;
+    const p = editor.precanvas || document.querySelector('.drawflow > .parent-drawflow');
     if (p) p.style.transform = 'translate(10px,60px) scale(0.55)';
     document.getElementById('zoomVal').textContent = '55%';
+    // Recalcular rutas de conexion con el nuevo zoom
+    try {
+      var nodeIds = Object.keys(editor.drawflow.drawflow.Home.data);
+      nodeIds.forEach(function(id){ editor.updateConnectionNodes('node-' + id); });
+    } catch(e) {}
   }, 80);
 }
 </script>
