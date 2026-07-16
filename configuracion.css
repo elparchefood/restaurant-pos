@@ -1196,3 +1196,7 @@ div.master[data-tab].cia-active { display: flex !important; }
   .cia-tab svg { display: none; }
   .cia-tab { font-size: 11px; padding: 5px 6px; }
 }
+
+/* FIX especificidad flujo: (0,4,0) > regla antigua hide (0,4,0) por orden fuente */
+.cfg-col [data-tab].cia-panel-flujo { display: none !important; }
+.cfg-col [data-tab].cia-panel-flujo.cia-active { display: block !important; }
