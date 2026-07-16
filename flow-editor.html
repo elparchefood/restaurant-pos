@@ -472,30 +472,114 @@ if(saved) {
 } else { buildDemo(); }
 
 function buildDemo() {
-  const id1 = addNode('inicio',   80,  160, {nombre:'Inicio'});
-  const id2 = addNode('ia',      300,   80, {nombre:'Saludo',instrucciones:'Saluda al cliente con la hora del día. Pregunta en qué le puedes ayudar.',activo:true});
-  const id3 = addNode('pregunta', 520,   80, {nombre:'Pedir tamaño',campo:'tamano',tipo:'fija',frase:'¿La deseas personal o familiar? 😋',activo:true});
-  const id4 = addNode('pregunta', 520,  230, {nombre:'Pedir tipo',campo:'tipo',tipo:'fija',frase:'¿La deseas mixta, de carne o de pollo? 🍟',activo:true});
-  const id5 = addNode('ia',       740,  155, {nombre:'Upsell',instrucciones:'Ofrece bebidas o adiciones.',activo:true});
-  const id6 = addNode('pregunta', 950,  155, {nombre:'Dirección',campo:'direccion',tipo:'fija',frase:'¿Para dónde va tu pedido? ☺️',activo:true});
-  const id7 = addNode('pregunta',1160,  155, {nombre:'Pago',campo:'pago',tipo:'fija',frase:'¿Transferencia o efectivo?',activo:true});
-  const id8 = addNode('pregunta',1370,  155, {nombre:'Nombre',campo:'nombre',tipo:'fija',frase:'¿A nombre de quién se recibe? 🍟',activo:true});
-  const id9 = addNode('resumen', 1580,  155, {nombre:'Resumen',activo:true});
+  // Flujo real del bot El Parche — flujo de toma de pedido
+
+  // ── Fila 1: entrada y deteccion ──────────────────────────────────
+  const n_inicio    = addNode('inicio',    60, 220, {nombre:'Inicio'});
+  const n_saludo    = addNode('ia',       270, 130, {
+    nombre:'Saludo',
+    instrucciones:'Saluda al cliente con la hora del dia (buenos dias / buenas tardes / buenas noches). Si ya hizo pedidos antes menciona que lo recuerdas. Pregunta si quiere hacer un pedido o si prefiere ver el menu.',
+    activo:true
+  });
+  const n_menu      = addNode('fija',     270, 310, {
+    nombre:'Ver menu',
+    frase:'Aqui te mando nuestra carta 😋\n{{menu_imagen}}',
+    activo:true
+  });
+  const n_pedido    = addNode('ia',       520, 220, {
+    nombre:'Producto detectado',
+    instrucciones:'El cliente ya dijo que quiere pedir. Identifica el producto en el mensaje. Si no es claro, pregunta cuál quiere de nuestra carta. Registra el producto.',
+    activo:true
+  });
+
+  // ── Fila 2: variables del producto ───────────────────────────────
+  const n_tamano    = addNode('pregunta', 760, 130, {
+    nombre:'Preguntar tamano',
+    campo:'tamano',
+    tipo:'fija',
+    frase:'¿La quieres personal o familiar? 😋',
+    activo:true
+  });
+  const n_tipo      = addNode('pregunta', 760, 310, {
+    nombre:'Preguntar tipo',
+    campo:'tipo',
+    tipo:'fija',
+    frase:'¿La prefieres mixta, de carne o de pollo? 🍟',
+    activo:true
+  });
+  const n_upsell    = addNode('ia',      1000, 220, {
+    nombre:'Upsell / adiciones',
+    instrucciones:'Ofrece adiciones o bebidas de forma natural. Ej: ¿Quieres agregarle algo? Tenemos papas, gaseosa, jugos... Solo si el cliente no ha rechazado adiciones antes en esta conversacion.',
+    activo:true
+  });
+
+  // ── Fila 3: multi-producto ───────────────────────────────────────
+  const n_otro      = addNode('ia',      1220, 220, {
+    nombre:'¿Otro producto?',
+    instrucciones:'Si el cliente dice que quiere pedir algo mas, detecta el nuevo producto y vuelve al paso de tamano/tipo para ese producto. Si no quiere nada mas, pasa a pedir la direccion.',
+    activo:true
+  });
+
+  // ── Fila 4: cierre del pedido ────────────────────────────────────
+  const n_dir       = addNode('pregunta',1460, 130, {
+    nombre:'Pedir direccion',
+    campo:'direccion',
+    tipo:'fija',
+    frase:'¿Para dónde va tu pedido? 😊\n(Escribe el barrio y la direccion completa)',
+    activo:true
+  });
+  const n_pago      = addNode('pregunta',1460, 310, {
+    nombre:'Metodo de pago',
+    campo:'pago',
+    tipo:'fija',
+    frase:'¿Cómo vas a pagar?\n💵 Efectivo\n📲 Nequi / Daviplata',
+    activo:true
+  });
+  const n_compro    = addNode('fija',    1700, 310, {
+    nombre:'Esperar comprobante',
+    frase:'¡Perfecto! Mándame el comprobante de la transferencia para verificarlo 📸',
+    activo:true
+  });
+  const n_nombre    = addNode('pregunta',1700, 130, {
+    nombre:'Pedir nombre',
+    campo:'nombre',
+    tipo:'fija',
+    frase:'¿A nombre de quién se recibe el pedido?',
+    activo:true
+  });
+  const n_resumen   = addNode('resumen', 1940, 220, {nombre:'Resumen del pedido',activo:true});
+
   setTimeout(() => {
-    editor.addConnection(id1,id2,'output_1','input_1');
-    editor.addConnection(id2,id3,'output_1','input_1');
-    editor.addConnection(id3,id4,'output_1','input_1');
-    editor.addConnection(id4,id5,'output_1','input_1');
-    editor.addConnection(id5,id6,'output_1','input_1');
-    editor.addConnection(id6,id7,'output_1','input_1');
-    editor.addConnection(id7,id8,'output_1','input_1');
-    editor.addConnection(id8,id9,'output_1','input_1');
-    editor.zoom_value = .75;
-    editor.zoom_last = 1;
-    editor.zoom = .75;
+    // Conexiones principales
+    editor.addConnection(n_inicio,  n_saludo, 'output_1','input_1');
+    editor.addConnection(n_saludo,  n_menu,   'output_1','input_1');
+    editor.addConnection(n_saludo,  n_pedido, 'output_1','input_1');
+    editor.addConnection(n_menu,    n_pedido, 'output_1','input_1');
+
+    // Producto -> tamano -> tipo -> upsell
+    editor.addConnection(n_pedido,  n_tamano, 'output_1','input_1');
+    editor.addConnection(n_tamano,  n_tipo,   'output_1','input_1');
+    editor.addConnection(n_tipo,    n_upsell, 'output_1','input_1');
+    editor.addConnection(n_upsell,  n_otro,   'output_1','input_1');
+
+    // Multi-producto: puede volver a tamano
+    editor.addConnection(n_otro,    n_tamano, 'output_1','input_1');
+
+    // Cierre
+    editor.addConnection(n_otro,    n_dir,    'output_1','input_1');
+    editor.addConnection(n_dir,     n_pago,   'output_1','input_1');
+    editor.addConnection(n_pago,    n_compro, 'output_1','input_1');
+    editor.addConnection(n_pago,    n_nombre, 'output_1','input_1');
+    editor.addConnection(n_compro,  n_nombre, 'output_1','input_1');
+    editor.addConnection(n_nombre,  n_resumen,'output_1','input_1');
+
+    // Zoom inicial para ver todo el flujo
+    editor.zoom_value = 0.55;
+    editor.zoom_last  = 1;
+    editor.zoom       = 0.55;
     const p = document.querySelector('.drawflow > .parent-drawflow');
-    if(p) p.style.transform = `translate(20px,180px) scale(0.75)`;
-    document.getElementById('zoomVal').textContent = '75%';
+    if (p) p.style.transform = 'translate(10px,60px) scale(0.55)';
+    document.getElementById('zoomVal').textContent = '55%';
   }, 80);
 }
 </script>
