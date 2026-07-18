@@ -164,20 +164,72 @@ Cachear en disco del exe:
 | Función | Versión | Estado | Qué hace |
 |---------|---------|--------|----------|
 | `meta-webhook` | v44 | ACTIVE | Recibe mensajes WA, guarda en DB, llama `delay-reply` |
-| `delay-reply` | **v52** | ACTIVE | Cerebro del bot: GPT, resumen, toma pedidos, QR de pago |
+| `delay-reply` | **v120** (código v119) | ACTIVE | Cerebro del bot: slots deterministas, resumen con desglose, confirmación |
 | `meta-send` | v9 | ACTIVE | Envía mensajes WA desde el panel Cobra |
-| `verify-transfer` | **v5** | ACTIVE | Verifica comprobante de pago cuando operador hace clic en Cobra |
+| `verify-transfer` | **v6** | ACTIVE | Verifica comprobante de pago cuando operador hace clic en Cobra |
 | `meta-oauth-callback` | v23 | ACTIVE | Conecta número WA por OAuth |
 
-### Módulo WhatsApp Chat IA — delay-reply v52 (✅ funciona — 2026-07-14)
+### Módulo WhatsApp Chat IA — delay-reply v120/v119 (✅ verificado internamente — 2026-07-17)
 
-### Estado de Edge Functions
+### ⚠️ ARQUITECTURA ACTUAL: v119 (deployado como v120)
+
+La arquitectura cambió fundamentalmente en sesión 8. Ya NO usa el sistema GPT con function calling de v52. Ahora usa **slot-filling determinista** con pasos independientes.
+
+#### Flujo v119 verificado — 2026-07-17 (simulación interna)
+```
+Cliente: "Dame una salchipapa personal premium mixta, pago en efectivo"
+Bot:     [detecta producto/tamano/tipo/pago en un solo mensaje]
+         "¿Deseas adicionar alguna bebida, salchicha ranchera, super queso...?"
+
+Cliente: "No gracias"
+Bot:     "¿Para dónde va tu pedido?"
+
+Cliente: "Carrera 9 b # 63-58 Bellavista"
+Bot:     "Listo! Tu pedido queda asi:
+         🍟 1x Premium Mixta Personal
+         📍 Carrera 9 b # 63-58 Bellavista
+         💳 efectivo
+         👤 Sergio Abadia
+         💵 Pedido: $35.000
+         🏍️ Domicilio: $5.000
+         💰 *Total: $40.000*
+         ¿Lo confirmamos o hay algo que cambiar?"
+
+Cliente: "si"
+Bot:     "En un momento enviamos tu pedido 🍟 ¡Con muchísimo gusto!"
+DB:      pos_orders creado (status=open, total=35000, customer_name=Sergio Abadia)
+```
+
+#### Principios arquitecturales v119
+- **Pasos independientes**: cada paso llena un slot. No depende de otros pasos.
+- **`flujo_pasos`** en `ia_config`: configurable desde canvas. Si no existe, usa pasos por defecto: upsell → confirmar_dir → direccion → pago → nombre.
+- **Auto-nombre**: si el contacto WA tiene nombre, se auto-completa antes de `findNextStep`.
+- **`direccion_heredada`**: se limpia automáticamente cuando hay producto activo → nunca bloquea el flujo.
+- **Extractores siempre corren**: no hay early return en `runExtractors` → un mensaje puede llenar múltiples slots.
+- **Respuestas via GPT**: modo `fija` = texto exacto del campo `texto`; modo `conversacional` = guía para GPT.
+
+#### Bugs corregidos (v119 sobre v70)
+1. **Resumen sin desglose** → template `buildSummaryFromState` ahora siempre corre cuando todos los slots están llenos.
+2. **Sin pregunta de confirmación** → mismo fix: GPT ya no puede generar resumen falso.
+3. **`confirmar_dir` bloqueaba el flujo** → se limpia con `direccion_heredada = false` cuando producto activo.
+4. **`nombre` desencadenaba GPT** → auto-completado desde contacto WA antes de evaluación.
+
+#### Deploy de delay-reply — RUTA CORRECTA
+```python
+# SIEMPRE usar ruta Windows explícita (no /tmp/ — Python lee C:\tmp\ que es diferente)
+code = open(r'C:\Users\USUARIO\AppData\Local\Temp\restaurant-pos\delay_reply.ts', encoding='utf-8').read()
+payload = json.dumps({"body": code, "verify_jwt": False})
+# Guardar en archivo y deployar con PowerShell WebRequest (no curl ni Invoke-WebRequest)
+```
+
+### Estado de Edge Functions (2026-07-17)
 | Función | Versión | Estado |
 |---------|---------|--------|
-| `meta-webhook` | v40 | ACTIVE |
-| `delay-reply` | **v52** | ACTIVE — flujo pedidos completo verificado |
-| `meta-send` | v6 | ACTIVE |
-| `meta-oauth-callback` | v21 | ACTIVE |
+| `meta-webhook` | v44 | ACTIVE |
+| `delay-reply` | **v120** (código v119) | ACTIVE — slot-filling determinista verificado |
+| `meta-send` | v9 | ACTIVE |
+| `meta-oauth-callback` | v23 | ACTIVE |
+| `verify-transfer` | v6 | ACTIVE |
 
 ### Flujo de pedido verificado end-to-end (2026-07-14)
 El bot fue probado en WhatsApp real desde el número del restaurante y **completó el flujo entero sin errores**:
