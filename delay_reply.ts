@@ -761,21 +761,11 @@ async function processConversation(convId: string): Promise<void> {
     }
   }
 
-  // 14e-ter. Safety net — si pago sigue null, buscar en historial completo de mensajes entrantes
-  // Cubre el caso donde el cliente dio todos los datos en un solo mensaje pero el extractor
-  // se ejecutó en un paso previo (p.ej. con currentStepId≠"pago") y no capturó el método.
-  if (!state.pago) {
-    const todosLosMensajesCliente = histCtx
-      .filter(h => h.direction === "in")
-      .map(h => h.body)
-      .concat([clienteTexto])
-      .join(" ");
-    const pagoRescatado = extractPago(todosLosMensajesCliente, pagosCfg);
-    if (pagoRescatado) {
-      state.pago = pagoRescatado;
-      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
-    }
-  }
+  // 14e-ter. ELIMINADO (contaminación entre pedidos): el antiguo safety net escaneaba los
+  // últimos 15 mensajes del historial buscando el pago — y rescataba el "efectivo" del
+  // PEDIDO ANTERIOR del mismo cliente, saltándose el paso PAGO del canvas en el pedido nuevo.
+  // El extractor de pago del mensaje actual (runExtractors, corre siempre que !state.pago)
+  // ya cubre el caso "todo en un solo mensaje". Cada pedido debe preguntar su pago.
 
   // 14e-cuarto. NOTA: el nombre NO se auto-rellena. El paso "nombre" debe CONFIRMARLO
   // explícitamente ("¿va a nombre de X?") — 3 casos manejados en getFlowPasos:
