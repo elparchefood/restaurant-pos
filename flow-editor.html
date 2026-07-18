@@ -424,6 +424,17 @@ function renderPanelBody(id, d) {
         ${['tamano','tipo','direccion','pago','nombre','adiciones'].map(c=>`<option value="${c}" ${d.campo===c?'selected':''}>${c}</option>`).join('')}
       </select>
     </div>`;
+  } else if(['ia','fija'].includes(d.type)) {
+    // Los nodos de mensaje también pueden capturar una variable (ej: el Upsell captura "adiciones").
+    // Sin variable, son solo mensaje y el motor no los ejecuta como paso del pedido.
+    html += `<div class="cp-section">
+      <div class="cp-label">Variable a capturar (opcional)</div>
+      <select class="cp-input" onchange="updateField(${id},'campo',this.value)">
+        <option value="" ${!d.campo?'selected':''}>— ninguna (solo mensaje) —</option>
+        ${['tamano','tipo','direccion','pago','nombre','adiciones'].map(c=>`<option value="${c}" ${d.campo===c?'selected':''}>${c}</option>`).join('')}
+      </select>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Si este paso debe obtener un dato del pedido (ej. el upsell captura <b>adiciones</b>), selecciónalo aquí para que el bot lo ejecute en su lugar del flujo.</div>
+    </div>`;
   }
 
   if(showTimer) {
@@ -520,11 +531,12 @@ function markDirty() {
 // Convierte un nodo del canvas en un paso del motor (solo si captura un slot).
 const CAMPOS_SLOT = ['tamano','tipo','direccion','pago','nombre','adiciones'];
 function pushPaso(d, pasos) {
-  if (!d || !d.campo || !CAMPOS_SLOT.includes(d.campo)) return; // saludo/inicio/timer/resumen no son slots
-  const modo = (d.tipo === 'ia') ? 'conversacional' : 'fija';
+  if (!d || !d.campo || !CAMPOS_SLOT.includes(d.campo)) return; // nodos sin variable no son pasos de pedido
+  // modo: el toggle interno (tipo) manda; sin toggle, hereda del tipo de nodo (ia → conversacional)
+  const esFija = d.tipo ? d.tipo === 'fija' : d.type !== 'ia';
   pasos.push({
     campo: d.campo,
-    modo,
+    modo: esFija ? 'fija' : 'conversacional',
     texto: d.frase || '',
     guia:  d.instrucciones || '',
     activo: d.activo !== false,
