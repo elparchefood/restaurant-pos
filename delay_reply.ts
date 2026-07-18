@@ -68,7 +68,7 @@ function newPacoState(): PacoState {
     adiciones: null, direccion: null, pago: null, nombre: null,
     items: [], resumen_enviado: false, direccion_heredada: false, complemento_dir_pendiente: null,
     last_activity: new Date(Date.now() - 30 * 60_000).toISOString(), // 30min atrás → sesionExpirada=true
-    _v: 115,
+    _v: 117,
   };
 }
 
@@ -334,7 +334,7 @@ async function processConversation(convId: string): Promise<void> {
   const rawStateRaw = pagoPendienteViejo ? null : (convRow?.pending_order_data as Record<string, unknown> | null | undefined);
 
   let state: PacoState;
-  if (!rawStateRaw || (rawStateRaw._v as number || 0) < 115) {
+  if (!rawStateRaw || (rawStateRaw._v as number || 0) < 117) {
     state = newPacoState();
     if (rawStateRaw?.direccion && rawStateRaw?.resumen_enviado) {
       state.direccion = rawStateRaw.direccion as string;
@@ -871,7 +871,9 @@ function extractAdiciones(text: string, isCurrentStep: boolean): string | null {
 function extractDireccion(text: string, isCurrentStep: boolean, productData: ProductData | null = null): string | null {
   const t = text.toLowerCase().trim();
   if (LLEVAR_REGEX.test(t)) return text.trim();
-  if (CALLE_REGEX.test(text)) return text.trim();
+  // Cuando no es el paso de dirección, solo capturar si el texto es corto (<= 120 chars)
+  // Evita que mensajes largos con "Carrera"/"Calle" se almacenen como dirección completa
+  if (CALLE_REGEX.test(text) && (isCurrentStep || text.trim().length <= 120)) return text.trim();
   if (isCurrentStep && text.trim().length > 8) {
     if (!isProductAttribute(text, productData) && !extractPago(text, null) && !extractNombrePuro(text, productData)) {
       return text.trim();
@@ -1245,6 +1247,7 @@ async function buildConversationResponse(
     "- Si el modo es FIJA, añade máximo UNA oración breve ANTES. La frase fija va exacta, sin cambiarla.",
     "- NUNCA preguntes por el billete ni la denominación del efectivo. Solo el método de pago (efectivo, nequi, daviplata).",
     "- Si el cliente pregunta algo que NO sea sobre el menú, pedido, domicilio, horarios o pagos del restaurante, ignora completamente esa pregunta. No la menciones, no la respondas, no expliques que no puedes responder. Actúa como si ese contenido no existiera y continúa directamente con el siguiente paso del flujo del pedido.",
+    "- NUNCA generes un resumen del pedido, NUNCA uses frases como 'tu pedido queda así', 'en total son', 'listo tu pedido', ni nada parecido. El sistema envía el resumen automáticamente cuando tiene TODOS los datos. Si el sistema te llama es porque AÚN FALTAN datos. Tu único trabajo es obtener el siguiente dato indicado en PRÓXIMO PASO.",
     "- NUNCA digas 'gracias por tu pedido', 'tu pedido está en camino', ni cierres la conversación. El sistema envía el resumen automáticamente cuando tiene todos los datos. Tu trabajo es recolectarlos.",
     "- CUANDO EL PRÓXIMO PASO pide elegir entre opciones (variable, presentación), usa SOLO las opciones listadas en la guía del paso. Jamás inventes, agregues ni sugieras opciones adicionales aunque aparezcan en el menú.",
     "- No hagas la misma pregunta dos veces con las mismas palabras.",
