@@ -176,7 +176,8 @@ Cachear en disco del exe:
 > Si algo se rompe, este es el estado bueno conocido al que regresar.
 
 ### Versiones / commits de referencia
-- **`delay-reply` = v129** (Supabase Edge Function, ACTIVE).
+- **`delay-reply` = v130** (Supabase Edge Function, ACTIVE).
+- **Constructor de variables** (commit `96db29e`): pestaña "Variables" en Configuración del Asistente. El usuario crea variables `{{nombre}}` de tipo **dato** (apunta a una fuente del catálogo de `resolverDato`: pedido, tiempo, restaurante, pagos, catálogo, cliente) o **frase** (texto libre, resuelto en cascada). Se guardan en `ia_config.variables` (JSONB) vía el botón global (readModel/applyModel). El motor (`rellenarVariables` + `resolverDato`) las resuelve; `cfg._varData` se arma en el handler (carga branch + tiempo + pagos + menú). Seguro: `variables=NULL` → el bot las ignora. Pendiente: fuentes `precio`/`precio_total` de producto (requieren catálogo de precios).
 - **Repo GitHub `elparchefood/restaurant-pos`, rama `main`:**
   - `3fcdf35` — editor de flujo: arreglo de líneas invisibles y zoom con rueda (API nativa de Drawflow).
   - `6503d4e` — editor de flujo: primer intento líneas/zoom.
