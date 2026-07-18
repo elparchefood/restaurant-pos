@@ -322,6 +322,22 @@ function refreshConnections() {
   } catch(e) { console.warn('refreshConnections falló', e); }
 }
 
+// El editor vive dentro de un iframe en una pestaña. Al cargar oculto, el canvas mide 0px
+// y las líneas se calculan mal. Cuando el canvas pasa de oculto a visible (gana ancho),
+// re-aplicamos el zoom y redibujamos las conexiones.
+let _prevAncho = container.clientWidth;
+if (window.ResizeObserver) {
+  const _ro = new ResizeObserver(function(entries){
+    const w = entries[0].contentRect.width;
+    if (w > 0 && _prevAncho === 0) {
+      try { editor.zoom_refresh(); } catch(e) {}
+      refreshConnections();
+    }
+    _prevAncho = w;
+  });
+  _ro.observe(container);
+}
+
 editor.on('nodeSelected', id => {
   selectedNodeId = id;
   openPanel(id);

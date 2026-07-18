@@ -104,8 +104,9 @@ const ADICION_KEYWORDS = [
   "adicion","adicional","agregar","añadir","con",
 ];
 
-// Saludo: detecta "hola", "holaa", "hey", "buenas", etc.
-const SALUDO_REGEX = /^\s*(hol+a+|hey+|buenas?|buenos?\s+d[íi]as?|buenas?\s+tardes?|buenas?\s+noches?|buen\s+d[íi]a|qu[eé]\s+tal|qu[eé]\s+m[aá]s|saludos?)\s*[!?¡¿.,]*\s*$/i;
+// Saludo: detecta "hola", "holaa", "hey", "buenas", y combinaciones ("hola buenas", "buenas, hola").
+const _SAL = "(buen[oa]s?\\s+d[íi]as?|buen[oa]s?\\s+tardes?|buen[oa]s?\\s+noches?|buen\\s+d[íi]a|qu[eé]\\s+tal|qu[eé]\\s+m[aá]s|qu[eé]\\s+hubo|qu[eé]\\s+hay|hol+a+|hol[ai]s|holi+|hey+|saludos?|buen[oa]s?)";
+const SALUDO_REGEX = new RegExp(`^\\s*${_SAL}([\\s,.]+${_SAL})*[\\s,.!?¡¿]*$`, "i");
 
 // Patrones de dirección
 const CALLE_REGEX = /\b(calle|carrera|cra|cl\b|diagonal|transversal|tv\b|dg\b|avenida|av\b|bloque|manzana|mz\b|torre)\b/i;
@@ -1271,17 +1272,24 @@ function procesarFlujoCanvas(
     } else if (campo === "pago") {
       out.push({ id: "pago", campo: "pago", modo, texto: texto || "¿Cómo nos vas a pagar? (Efectivo, Nequi o Daviplata) 🍟☺️", guia });
     } else if (campo === "nombre") {
-      const nombreGuia = nombreConfirmar
-        ? (esRecurrente
-            ? `Cliente recurrente — su nombre guardado es "${nombreConfirmar}". Salúdalo con familiaridad y confirma: "¿Va a nombre de ${nombreConfirmar}?" — si confirma úsalo; si da otro, usa ese.`
-            : `El contacto de WhatsApp se llama "${nombreConfirmar}". Confirma si el pedido va a ese nombre: "¿Va a nombre de ${nombreConfirmar}?" — si confirma úsalo; si da otro, usa ese.`)
-        : (guia || "Pregunta a nombre de quién se recibe el pedido.");
-      out.push({
-        id: "nombre", campo: "nombre",
-        modo: nombreConfirmar ? "conversacional" : modo,
-        texto: nombreConfirmar ? undefined : (texto || "¿A nombre de quién se recibe el pedido? 🍟"),
-        guia: nombreGuia,
-      });
+      // El canvas MANDA: si el usuario configuró una frase fija para el nombre, se usa esa
+      // (puede incluir {{cliente}} para el nombre del contacto). La confirmación automática
+      // del nombre de WhatsApp queda solo como comportamiento por defecto (sin frase configurada).
+      if (modo === "fija" && texto) {
+        out.push({ id: "nombre", campo: "nombre", modo: "fija", texto, guia });
+      } else {
+        const nombreGuia = nombreConfirmar
+          ? (esRecurrente
+              ? `Cliente recurrente — su nombre guardado es "${nombreConfirmar}". Salúdalo con familiaridad y confirma: "¿Va a nombre de ${nombreConfirmar}?" — si confirma úsalo; si da otro, usa ese.`
+              : `El contacto de WhatsApp se llama "${nombreConfirmar}". Confirma si el pedido va a ese nombre: "¿Va a nombre de ${nombreConfirmar}?" — si confirma úsalo; si da otro, usa ese.`)
+          : (guia || "Pregunta a nombre de quién se recibe el pedido.");
+        out.push({
+          id: "nombre", campo: "nombre",
+          modo: nombreConfirmar ? "conversacional" : modo,
+          texto: nombreConfirmar ? undefined : (texto || "¿A nombre de quién se recibe el pedido? 🍟"),
+          guia: nombreGuia,
+        });
+      }
     }
     // Nodos sin campo de slot (saludo, resumen, inicio, timer) no son pasos de slot-filling → ignorados aquí.
   }
@@ -1474,15 +1482,15 @@ async function buildConversationResponse(
   } else if (state.producto) {
     nextStepLine = "Todos los datos del pedido están completos. Informa al cliente que en un momento le envías el resumen para confirmar.";
   } else {
-    // Cliente pidió algo pero no especificó cuál producto → usar la frase configurada en el canvas (menu_frase),
-    // NO una improvisación de GPT. Así el paso es fiel a lo que el restaurante configuró.
+    // Cliente aún sin producto. Distinguir saludo/charla (respuesta breve, SIN volcar la carta)
+    // de intención real de pedir (ahí sí menú). La frase de cierre es la del canvas (menu_frase).
     const menuFraseCfg = (cfg.menu_frase as Record<string, string>) || {};
-    const fraseGenerica = menuFraseCfg.texto || getFraseTexto(frasesCfg.apertura) || "¡Claro que sí! 😊 ¿Cuál deseas?";
+    const fraseGenerica = menuFraseCfg.texto || getFraseTexto(frasesCfg.apertura) || "¿Qué se te antoja? 🍟";
     nextStepLine =
-      `El cliente quiere pedir pero aún no ha dicho cuál producto exacto.\n` +
-      `MODO FIJA — REGLA ESTRICTA: Tu respuesta empieza con esta frase EXACTA, sin cambiarla:\n"${fraseGenerica}"\n` +
-      `Luego, en el mismo mensaje, muestra el menú completo tal como aparece en la sección MENÚ de abajo, en formato de lista con precios (cópialo, no lo inventes ni resumas).\n` +
-      `PROHIBIDO enumerar tipos de producto en el texto (ej: "¿ranchera, mixta o pollo?") o inventar preguntas. Solo la frase exacta + el menú en lista.`;
+      `El cliente todavía no especificó cuál producto exacto quiere.\n` +
+      `• Si SOLO está saludando, agradeciendo o haciendo charla (hola, buenas, gracias, ¿cómo estás?): responde breve y amable en 1 oración y termina con esta frase EXACTA: "${fraseGenerica}". NUNCA muestres la carta en este caso.\n` +
+      `• Si el cliente EXPRESA que quiere pedir pero sin decir cuál (ej: "quiero una salchipapa", "algo de comer", "qué tienen"): responde con la frase EXACTA "${fraseGenerica}" y a continuación muestra el menú de la sección MENÚ de abajo, en lista con precios (cópialo tal cual).\n` +
+      `PROHIBIDO enumerar tipos de producto en el texto (ej: "¿ranchera, mixta o pollo?") o inventar preguntas. Máximo 2 oraciones aparte del menú.`;
   }
 
   const sysLines = [
