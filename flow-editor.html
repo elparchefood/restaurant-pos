@@ -258,6 +258,8 @@ editor.reroute = true;
 editor.reroute_fix_curvature = true;
 editor.force_first_input = false;
 editor.start();
+window.editor = editor;
+editor.zoom_value = 0.1; // incremento suave para el zoom con la rueda del mouse
 
 function buildNodeHtml(type, data) {
   const name = data.nombre || NODE_LABELS[type];
@@ -487,15 +489,11 @@ function closePanel() {
   selectedNodeId = null;
 }
 function zoom(dir) {
-  const steps = [.5,.67,.75,.9,1,1.1,1.25,1.5,1.75,2];
-  const cur = steps.findIndex(s => Math.abs(s - editor.zoom) < .05);
-  const next = Math.max(0, Math.min(steps.length-1, (cur < 0 ? 4 : cur) + dir));
-  editor.zoom_value = steps[next];
-  editor.zoom_last = editor.zoom;
-  editor.zoom = steps[next];
-  editor.canvas_x = editor.canvas_x;
-  document.querySelector('.drawflow > .parent-drawflow').style.transform = `translate(${editor.canvas_x}px,${editor.canvas_y}px) scale(${editor.zoom})`;
-  document.getElementById('zoomVal').textContent = Math.round(steps[next]*100)+'%';
+  // API nativa de Drawflow: aplica el transform sobre editor.precanvas correctamente
+  if (dir > 0) editor.zoom_in();
+  else if (dir < 0) editor.zoom_out();
+  const z = document.getElementById('zoomVal');
+  if (z) z.textContent = Math.round(editor.zoom * 100) + '%';
 }
 
 let dirty = false;
@@ -614,8 +612,9 @@ editor.on('zoom', val => { document.getElementById('zoomVal').textContent = Math
     if (saved) { try { editor.import(JSON.parse(saved)); loaded = true; } catch(e) { /* cae a demo */ } }
   }
   if (!loaded) buildDemo();
-  // Forzar el dibujado de las líneas tras cargar (import no las pinta hasta mover un nodo)
-  else { setTimeout(refreshConnections, 120); }
+  // Tras importar: aplicar el zoom al canvas y redibujar las líneas
+  // (Drawflow no pinta el transform ni las conexiones hasta que se mueve un nodo).
+  else { setTimeout(() => { try { editor.zoom_refresh(); } catch(e){} refreshConnections(); }, 120); }
 })();
 
 function buildDemo() {
@@ -637,13 +636,11 @@ function buildDemo() {
     editor.addConnection(id6,id7,'output_1','input_1');
     editor.addConnection(id7,id8,'output_1','input_1');
     editor.addConnection(id8,id9,'output_1','input_1');
-    editor.zoom_value = .75;
-    editor.zoom_last = 1;
     editor.zoom = .75;
-    const p = document.querySelector('.drawflow > .parent-drawflow');
-    if(p) p.style.transform = `translate(20px,180px) scale(0.75)`;
+    editor.zoom_refresh();       // aplica el zoom al canvas (precanvas) con la API nativa
+    editor.zoom_value = 0.1;     // restaurar incremento suave para la rueda
     document.getElementById('zoomVal').textContent = '75%';
-    refreshConnections();
+    refreshConnections();        // redibuja las líneas ya con el zoom aplicado
   }, 80);
 }
 </script>
