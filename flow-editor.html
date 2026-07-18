@@ -304,6 +304,22 @@ container.addEventListener('drop', e => {
   dragType = null;
 });
 
+// Zoom con la rueda del mouse: scroll arriba = acercar, scroll abajo = alejar
+container.addEventListener('wheel', e => {
+  e.preventDefault();
+  zoom(e.deltaY < 0 ? 1 : -1);
+}, { passive: false });
+
+// Redibuja las líneas de conexión. Drawflow no las pinta al cargar/importar
+// hasta que un nodo se mueve; forzamos el recálculo de cada nodo.
+function refreshConnections() {
+  try {
+    const data = editor.drawflow && editor.drawflow.drawflow && editor.drawflow.drawflow.Home
+      ? editor.drawflow.drawflow.Home.data : {};
+    Object.keys(data).forEach(id => editor.updateConnectionNodes('node-' + id));
+  } catch(e) { console.warn('refreshConnections falló', e); }
+}
+
 editor.on('nodeSelected', id => {
   selectedNodeId = id;
   openPanel(id);
@@ -598,6 +614,8 @@ editor.on('zoom', val => { document.getElementById('zoomVal').textContent = Math
     if (saved) { try { editor.import(JSON.parse(saved)); loaded = true; } catch(e) { /* cae a demo */ } }
   }
   if (!loaded) buildDemo();
+  // Forzar el dibujado de las líneas tras cargar (import no las pinta hasta mover un nodo)
+  else { setTimeout(refreshConnections, 120); }
 })();
 
 function buildDemo() {
@@ -625,6 +643,7 @@ function buildDemo() {
     const p = document.querySelector('.drawflow > .parent-drawflow');
     if(p) p.style.transform = `translate(20px,180px) scale(0.75)`;
     document.getElementById('zoomVal').textContent = '75%';
+    refreshConnections();
   }, 80);
 }
 </script>
