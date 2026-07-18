@@ -58,6 +58,9 @@ interface PasoDefinicion {
   pregunta?:  string;   // compat con canvas viejo (se trata como fija)
   condicion?: string;
   keywords?:  Record<string, string>;
+  // Sub-preguntas del paso dirección (configurables desde el nodo del canvas)
+  preg_incompleta?: string;  // qué preguntar si la dirección está incompleta
+  preg_barrio?:     string;  // qué preguntar si falta el barrio
 }
 
 type TipoDireccion = "residencial" | "publico" | "rechazado" | "incompleta" | "para_llevar";
@@ -252,10 +255,15 @@ async function processConversation(convId: string): Promise<void> {
         });
         await sleep(600);
       }
+      // Frase que acompaña la carta: nodo "Evento: Pide la carta" del canvas
+      // (flujo_extras.carta) > menu_frase config > apertura > default
+      const extrasCarta = (cfg.flujo_extras as Record<string, { texto?: string }>) || {};
       const menuFraseCfg = (cfg.menu_frase as Record<string,string>) || {};
-      const followUp = menuFraseCfg.tipo === "variable"
-        ? (getFraseTexto(frasesCfg.apertura) || "¿Qué se te antoja? 🍟☺️")
-        : (menuFraseCfg.texto || "¿Qué se te antoja? 🍟☺️");
+      const followUp = (extrasCarta.carta && extrasCarta.carta.texto)
+        ? extrasCarta.carta.texto
+        : menuFraseCfg.tipo === "variable"
+          ? (getFraseTexto(frasesCfg.apertura) || "¿Qué se te antoja? 🍟☺️")
+          : (menuFraseCfg.texto || "¿Qué se te antoja? 🍟☺️");
       const waText = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
@@ -520,9 +528,14 @@ async function processConversation(convId: string): Promise<void> {
       const esTransferencia = pagoVal.includes("nequi") || pagoVal.includes("daviplata") || pagoVal.includes("transfer");
 
       if (esTransferencia) {
+        // Prioridad: nodo del canvas conectado a la salida "transferencia" del Resumen
+        // (flujo_extras.comprobante) > frase config > default
+        const extrasCfg = (cfg.flujo_extras as Record<string, { texto?: string }>) || {};
         const compFrase = getFraseCfg(frasesCfg.esperar_comprobante);
         let compMsg: string;
-        if (compFrase.modo === "fija" && compFrase.texto) {
+        if (extrasCfg.comprobante && extrasCfg.comprobante.texto) {
+          compMsg = rellenarVariables(extrasCfg.comprobante.texto, state, cfg).texto;
+        } else if (compFrase.modo === "fija" && compFrase.texto) {
           compMsg = compFrase.texto;
         } else {
           compMsg = "Quedó pendiente del comprobante para poderte preparar ☺️";
@@ -564,9 +577,14 @@ async function processConversation(convId: string): Promise<void> {
           await createWhatsappOrder(orderArgs, branchId, tenantId, fromPhone);
         } catch (err) { console.error("Error creando pedido:", err); }
 
+        // Prioridad: nodo del canvas conectado a la salida "efectivo" del Resumen
+        // (flujo_extras.cierre) > frase config > default
+        const extrasCierre = (cfg.flujo_extras as Record<string, { texto?: string }>) || {};
         const cierreFrase = getFraseCfg(frasesCfg.cierre_pedido);
         let closeMsg: string;
-        if (cierreFrase.modo === "fija" && cierreFrase.texto) {
+        if (extrasCierre.cierre && extrasCierre.cierre.texto) {
+          closeMsg = rellenarVariables(extrasCierre.cierre.texto, state, cfg).texto;
+        } else if (cierreFrase.modo === "fija" && cierreFrase.texto) {
           closeMsg = cierreFrase.texto;
         } else {
           closeMsg = "En un momento enviamos tu pedido 🍟 ¡Con muchísimo gusto!";
@@ -704,7 +722,10 @@ async function processConversation(convId: string): Promise<void> {
       const pregDetallada = numCount >= 2
         ? "¡Casi! 😊 Le falta el número de tu casa. La dirección debe verse así: *Carrera 9 # 63-25* ¿Cómo es la completa?"
         : "Necesito la dirección completa para llegar 📍 Algo así: *Carrera 9 # 63-25* ¿Cómo es la tuya?";
-      const pregIncompleta = getFraseTexto(frasesCfg.preguntar_complemento_dir)
+      // Prioridad: sub-pregunta del nodo Dirección del canvas > frase config > default
+      const pasoDirBis = pasos.find(p => p.campo === "direccion");
+      const pregIncompleta = (pasoDirBis && pasoDirBis.preg_incompleta)
+        || getFraseTexto(frasesCfg.preguntar_complemento_dir)
         || (yaHabiaPreguntadoDireccion ? pregDetallada : "La dirección está incompleta, ¿podrías dármela completa? 📍");
       state.complemento_dir_pendiente = pregIncompleta;
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
@@ -727,7 +748,9 @@ async function processConversation(convId: string): Promise<void> {
         return;
       }
       if (domiPrecioBis === null) {
-        const pregBarrio = getFraseTexto(frasesCfg.preguntar_barrio)
+        const pasoDirBarrio = pasos.find(p => p.campo === "direccion");
+        const pregBarrio = (pasoDirBarrio && pasoDirBarrio.preg_barrio)
+          || getFraseTexto(frasesCfg.preguntar_barrio)
           || "¿Y en qué barrio queda esa dirección? 📍";
         state.complemento_dir_pendiente = pregBarrio;
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
@@ -799,7 +822,9 @@ async function processConversation(convId: string): Promise<void> {
         const pregDetallada = numCount >= 2
           ? "¡Casi! 😊 Le falta el número de tu casa. La dirección debe verse así: *Carrera 9 # 63-25* ¿Cómo es la completa?"
           : "Necesito la dirección completa para llegar 📍 Algo así: *Carrera 9 # 63-25* ¿Cómo es la tuya?";
-        const pregIncompleta = getFraseTexto(frasesCfg.preguntar_complemento_dir)
+        const pasoDirH = pasos.find(p => p.campo === "direccion");
+        const pregIncompleta = (pasoDirH && pasoDirH.preg_incompleta)
+          || getFraseTexto(frasesCfg.preguntar_complemento_dir)
           || (yaHabiaPreguntadoDireccion ? pregDetallada : "La dirección está incompleta, ¿podrías dármela completa? 📍");
         state.complemento_dir_pendiente = pregIncompleta;
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
@@ -821,7 +846,9 @@ async function processConversation(convId: string): Promise<void> {
           return;
         }
         if (domiPrecioH === null) {
-          const pregBarrio = getFraseTexto(frasesCfg.preguntar_barrio)
+          const pasoDirHB = pasos.find(p => p.campo === "direccion");
+          const pregBarrio = (pasoDirHB && pasoDirHB.preg_barrio)
+            || getFraseTexto(frasesCfg.preguntar_barrio)
             || "¿Y en qué barrio queda esa dirección? 📍";
           state.complemento_dir_pendiente = pregBarrio;
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
@@ -1292,10 +1319,19 @@ function procesarFlujoCanvas(
       texto = (texto || "¿{label}? ({opciones}) 🍟").replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
       guia  = (guia || `Pregunta por "${vg.name}". SOLO estas opciones exactas: ${opciones}. Jamás menciones otra.`).replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
       out.push({ id: `variable_${vg.id}`, campo: "tipo", modo, texto, guia });
+    } else if (campo === "producto") {
+      // El paso "producto" no entra al slot-filling (findNextStep): lo consume el caso
+      // sin-producto de buildConversationResponse leyendo cfg.flujo_pasos directamente.
+      continue;
     } else if (campo === "adiciones") {
       out.push({ id: "upsell", campo: "adiciones", modo, texto: texto || undefined, guia: guia || undefined });
     } else if (campo === "direccion") {
-      out.push({ id: "direccion", campo: "direccion", modo, texto: texto || "Con gusto, ¿para dónde va tu pedido? ☺️", guia });
+      out.push({
+        id: "direccion", campo: "direccion", modo,
+        texto: texto || "Con gusto, ¿para dónde va tu pedido? ☺️", guia,
+        preg_incompleta: p.preg_incompleta ? String(p.preg_incompleta) : undefined,
+        preg_barrio:     p.preg_barrio ? String(p.preg_barrio) : undefined,
+      });
     } else if (campo === "pago") {
       out.push({ id: "pago", campo: "pago", modo, texto: texto || "¿Cómo nos vas a pagar? (Efectivo, Nequi o Daviplata) 🍟☺️", guia });
     } else if (campo === "nombre") {
@@ -1509,15 +1545,37 @@ async function buildConversationResponse(
   } else if (state.producto) {
     nextStepLine = "Todos los datos del pedido están completos. Informa al cliente que en un momento le envías el resumen para confirmar.";
   } else {
-    // Cliente aún sin producto. Distinguir saludo/charla (respuesta breve, SIN volcar la carta)
-    // de intención real de pedir (ahí sí menú). La frase de cierre es la del canvas (menu_frase).
+    // Cliente aún sin producto. La frase y el comportamiento salen del NODO PRODUCTO del
+    // canvas (paso con campo="producto" en flujo_pasos); fallback: menu_frase / apertura.
+    const pasoProd = Array.isArray(cfg.flujo_pasos)
+      ? (cfg.flujo_pasos as Array<Record<string, unknown>>).find(p => p && p.campo === "producto" && p.activo !== false)
+      : null;
     const menuFraseCfg = (cfg.menu_frase as Record<string, string>) || {};
-    const fraseGenerica = menuFraseCfg.texto || getFraseTexto(frasesCfg.apertura) || "¿Qué se te antoja? 🍟";
-    nextStepLine =
-      `El cliente todavía no especificó cuál producto exacto quiere.\n` +
-      `• Si SOLO está saludando, agradeciendo o haciendo charla (hola, buenas, gracias, ¿cómo estás?): responde breve y amable en 1 oración y termina con esta frase EXACTA: "${fraseGenerica}". NUNCA muestres la carta en este caso.\n` +
-      `• Si el cliente EXPRESA que quiere pedir pero sin decir cuál (ej: "quiero una salchipapa", "algo de comer", "qué tienen"): responde con la frase EXACTA "${fraseGenerica}" y a continuación muestra el menú de la sección MENÚ de abajo, en lista con precios (cópialo tal cual).\n` +
-      `PROHIBIDO enumerar tipos de producto en el texto (ej: "¿ranchera, mixta o pollo?") o inventar preguntas. Máximo 2 oraciones aparte del menú.`;
+    const prodModo = pasoProd && (pasoProd.modo === "conversacional") ? "conversacional" : "fija";
+    const mostrarMenu = pasoProd ? pasoProd.mostrar_menu !== false : true;
+
+    if (pasoProd && prodModo === "conversacional" && pasoProd.guia) {
+      const { texto: guiaProd } = rellenarVariables(String(pasoProd.guia), state, cfg);
+      nextStepLine =
+        `El cliente todavía no especificó cuál producto exacto quiere. Tu objetivo: lograr que elija un producto.\n` +
+        `MODO CONVERSACIONAL — sigue esta guía del restaurante: ${guiaProd}\n` +
+        (mostrarMenu
+          ? `Si el cliente expresa que quiere pedir (no solo saludar), muestra el menú de la sección MENÚ de abajo en lista con precios (cópialo tal cual).\n`
+          : `NO muestres el menú completo salvo que el cliente lo pida.\n`) +
+        `PROHIBIDO enumerar tipos de producto en el texto (ej: "¿ranchera, mixta o pollo?").`;
+    } else {
+      const fraseGenericaRaw = (pasoProd && (pasoProd.texto || pasoProd.frase))
+        ? String(pasoProd.texto || pasoProd.frase)
+        : (menuFraseCfg.texto || getFraseTexto(frasesCfg.apertura) || "¿Qué se te antoja? 🍟");
+      const { texto: fraseGenerica } = rellenarVariables(fraseGenericaRaw, state, cfg);
+      nextStepLine =
+        `El cliente todavía no especificó cuál producto exacto quiere.\n` +
+        `• Si SOLO está saludando, agradeciendo o haciendo charla (hola, buenas, gracias, ¿cómo estás?): responde breve y amable en 1 oración y termina con esta frase EXACTA: "${fraseGenerica}". NUNCA muestres la carta en este caso.\n` +
+        (mostrarMenu
+          ? `• Si el cliente EXPRESA que quiere pedir pero sin decir cuál (ej: "quiero una salchipapa", "algo de comer", "qué tienen"): responde con la frase EXACTA "${fraseGenerica}" y a continuación muestra el menú de la sección MENÚ de abajo, en lista con precios (cópialo tal cual).\n`
+          : `• Si el cliente EXPRESA que quiere pedir pero sin decir cuál: responde con la frase EXACTA "${fraseGenerica}". NO muestres el menú completo salvo que lo pida.\n`) +
+        `PROHIBIDO enumerar tipos de producto en el texto (ej: "¿ranchera, mixta o pollo?") o inventar preguntas. Máximo 2 oraciones aparte del menú.`;
+    }
   }
 
   const sysLines = [

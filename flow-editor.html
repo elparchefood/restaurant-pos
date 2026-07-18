@@ -201,7 +201,13 @@ body{font-family:var(--font);background:var(--bg);height:100vh;overflow:hidden;c
         <div class="pn-icon" style="background:var(--green-bg)">
           <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
         </div>
-        <div class="pn-info"><div class="pn-name">Resumen pedido</div><div class="pn-desc">Muestra y confirma</div></div>
+        <div class="pn-info"><div class="pn-name">Resumen pedido</div><div class="pn-desc">Muestra y confirma · 2 salidas: 💵 efectivo / 📲 transferencia</div></div>
+      </div>
+      <div class="palette-node" draggable="true" data-type="carta" ondragstart="onDragStart(event,'carta')">
+        <div class="pn-icon" style="background:var(--amber-bg)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        </div>
+        <div class="pn-info"><div class="pn-name">Evento: Pide la carta</div><div class="pn-desc">Cuando pregunten qué hay — envía el menú + tu frase</div></div>
       </div>
     </div>
   </div>
@@ -243,10 +249,12 @@ const NODE_ICONS = {
   pregunta: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
   timer:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
   resumen:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>`,
+  carta:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
 };
-const NODE_LABELS = {inicio:'Inicio',fija:'Frase fija',ia:'IA conversacional',pregunta:'Pregunta variable',timer:'Temporizador',resumen:'Resumen pedido'};
-const NODE_INPUTS = {inicio:0,fija:1,ia:1,pregunta:1,timer:1,resumen:1};
-const NODE_OUTPUTS = {inicio:1,fija:1,ia:1,pregunta:1,timer:1,resumen:0};
+const NODE_LABELS = {inicio:'Inicio',fija:'Frase fija',ia:'IA conversacional',pregunta:'Pregunta variable',timer:'Temporizador',resumen:'Resumen pedido',carta:'Evento · Carta'};
+const NODE_INPUTS = {inicio:0,fija:1,ia:1,pregunta:1,timer:1,resumen:1,carta:0};
+// Resumen tiene 2 salidas: output_1 = pago en efectivo (cierre) · output_2 = transferencia (comprobante)
+const NODE_OUTPUTS = {inicio:1,fija:1,ia:1,pregunta:1,timer:1,resumen:2,carta:0};
 
 let selectedNodeId = null;
 let dragType = null;
@@ -396,6 +404,9 @@ function renderPanelBody(id, d) {
           <div style="margin-top:8px;font-size:11px;color:var(--text-3);line-height:1.6">
             <b>{{productos}}</b> ítems del pedido · <b>{{precio_pedido}}</b> subtotal · <b>{{precio_domi}}</b> domicilio · <b>{{precio_total}}</b> total · <b>{{confirmacion}}</b> pregunta de confirmación
           </div>
+          <div style="margin-top:10px;padding:8px 10px;background:var(--accent-bg);border-radius:8px;font-size:11px;color:var(--text-2);line-height:1.6">
+            Este nodo tiene <b>2 salidas</b>: la <b>1ª (arriba)</b> se envía cuando el cliente confirma con pago en <b>💵 efectivo</b> (conéctala al mensaje de cierre) · la <b>2ª (abajo)</b> cuando paga por <b>📲 transferencia</b> (conéctala al mensaje de esperar comprobante — el QR se envía automático desde Pagos).
+          </div>
         </div>`;
       } else {
         html += `<div class="cp-section">
@@ -417,11 +428,12 @@ function renderPanelBody(id, d) {
     }
   }
 
+  const CAMPOS_UI = ['producto','tamano','tipo','direccion','pago','nombre','adiciones'];
   if(d.type === 'pregunta') {
     html += `<div class="cp-section">
       <div class="cp-label">Variable a capturar</div>
-      <select class="cp-input" onchange="updateField(${id},'campo',this.value)">
-        ${['tamano','tipo','direccion','pago','nombre','adiciones'].map(c=>`<option value="${c}" ${d.campo===c?'selected':''}>${c}</option>`).join('')}
+      <select class="cp-input" onchange="setCampo(${id},this.value)">
+        ${CAMPOS_UI.map(c=>`<option value="${c}" ${d.campo===c?'selected':''}>${c}</option>`).join('')}
       </select>
     </div>`;
   } else if(['ia','fija'].includes(d.type)) {
@@ -429,11 +441,45 @@ function renderPanelBody(id, d) {
     // Sin variable, son solo mensaje y el motor no los ejecuta como paso del pedido.
     html += `<div class="cp-section">
       <div class="cp-label">Variable a capturar (opcional)</div>
-      <select class="cp-input" onchange="updateField(${id},'campo',this.value)">
+      <select class="cp-input" onchange="setCampo(${id},this.value)">
         <option value="" ${!d.campo?'selected':''}>— ninguna (solo mensaje) —</option>
-        ${['tamano','tipo','direccion','pago','nombre','adiciones'].map(c=>`<option value="${c}" ${d.campo===c?'selected':''}>${c}</option>`).join('')}
+        ${CAMPOS_UI.map(c=>`<option value="${c}" ${d.campo===c?'selected':''}>${c}</option>`).join('')}
       </select>
-      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Si este paso debe obtener un dato del pedido (ej. el upsell captura <b>adiciones</b>), selecciónalo aquí para que el bot lo ejecute en su lugar del flujo.</div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Si este paso debe obtener un dato del pedido (ej. el upsell captura <b>adiciones</b>, el paso "¿qué deseas?" captura <b>producto</b>), selecciónalo aquí para que el bot lo ejecute en su lugar del flujo.</div>
+    </div>`;
+  }
+  // Paso PRODUCTO: interruptor "mostrar carta"
+  if(['pregunta','ia','fija'].includes(d.type) && d.campo === 'producto') {
+    html += `<div class="cp-section">
+      <div class="cp-toggle-row">
+        <span class="cp-toggle-label">Mostrar la carta en este paso</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.mostrar_menu!==false?'checked':''} onchange="updateField(${id},'mostrar_menu',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Si el cliente expresa que quiere pedir sin decir cuál producto, el bot dice tu frase y muestra el menú con precios.</div>
+    </div>`;
+  }
+  // Paso DIRECCIÓN: sub-preguntas configurables
+  if(['pregunta','ia','fija'].includes(d.type) && d.campo === 'direccion') {
+    html += `<div class="cp-section">
+      <div class="cp-label">Si la dirección está incompleta (faltan números)</div>
+      <textarea class="cp-textarea" style="min-height:56px" placeholder="Ej: La dirección está incompleta, ¿me la das completa? 📍" oninput="updateField(${id},'preg_incompleta',this.value)">${esc(d.preg_incompleta||'')}</textarea>
+    </div>
+    <div class="cp-section">
+      <div class="cp-label">Si falta el barrio</div>
+      <textarea class="cp-textarea" style="min-height:56px" placeholder="Ej: ¿Y en qué barrio queda esa dirección? 📍" oninput="updateField(${id},'preg_barrio',this.value)">${esc(d.preg_barrio||'')}</textarea>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Vacías = el bot usa sus preguntas por defecto. El motor valida vía + interceptora + número y el barrio contra tus zonas de domicilio.</div>
+    </div>`;
+  }
+  // Nodo EVENTO CARTA: mensaje que acompaña las imágenes del menú
+  if(d.type === 'carta') {
+    html += `<div class="cp-section">
+      <div class="cp-label">Mensaje que acompaña la carta</div>
+      <textarea class="cp-textarea" placeholder="Ej: ¿Qué se te antoja? 🍟☺️" oninput="updateField(${id},'frase',this.value)">${esc(d.frase||'')}</textarea>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Se dispara en cualquier momento en que el cliente pregunte qué hay o pida la carta: el bot envía las imágenes del menú (configuradas en Domicilios → Carta) y luego este mensaje.</div>
     </div>`;
   }
 
@@ -489,6 +535,15 @@ function setTipo(id, tipo) {
   markDirty();
 }
 
+function setCampo(id, campo) {
+  const node = editor.getNodeFromId(id);
+  if(!node) return;
+  node.data.campo = campo;
+  editor.updateNodeDataFromId(id, node.data);
+  renderPanelBody(id, node.data);  // re-render: muestra las opciones del campo (carta, sub-preguntas…)
+  markDirty();
+}
+
 function insertVar(id, v) {
   const ta = document.getElementById('cp-frase');
   if(!ta) return;
@@ -529,18 +584,24 @@ function markDirty() {
   document.getElementById('saveStatus').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;color:var(--amber)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Sin guardar`;
 }
 // Convierte un nodo del canvas en un paso del motor (solo si captura un slot).
-const CAMPOS_SLOT = ['tamano','tipo','direccion','pago','nombre','adiciones'];
+const CAMPOS_SLOT = ['producto','tamano','tipo','direccion','pago','nombre','adiciones'];
 function pushPaso(d, pasos) {
   if (!d || !d.campo || !CAMPOS_SLOT.includes(d.campo)) return; // nodos sin variable no son pasos de pedido
   // modo: el toggle interno (tipo) manda; sin toggle, hereda del tipo de nodo (ia → conversacional)
   const esFija = d.tipo ? d.tipo === 'fija' : d.type !== 'ia';
-  pasos.push({
+  const paso = {
     campo: d.campo,
     modo: esFija ? 'fija' : 'conversacional',
     texto: d.frase || '',
     guia:  d.instrucciones || '',
     activo: d.activo !== false,
-  });
+  };
+  if (d.campo === 'producto')  paso.mostrar_menu = d.mostrar_menu !== false;
+  if (d.campo === 'direccion') {
+    if (d.preg_incompleta) paso.preg_incompleta = d.preg_incompleta;
+    if (d.preg_barrio)     paso.preg_barrio     = d.preg_barrio;
+  }
+  pasos.push(paso);
 }
 
 // Recorre el grafo desde el nodo "inicio" siguiendo las conexiones y devuelve
@@ -610,6 +671,29 @@ function exportarSaludo(data) {
   return null;
 }
 
+// Piezas extra del flujo: evento Carta + salidas del Resumen (efectivo→cierre, transferencia→comprobante)
+function exportarExtras(data) {
+  const nodes = (data.drawflow?.Home?.data) || {};
+  const extras = {};
+  const msgDe = (n) => {
+    if (!n || !n.data) return null;
+    const d = n.data;
+    const esFija = d.tipo ? d.tipo === 'fija' : d.type !== 'ia';
+    return esFija ? { modo:'fija', texto: d.frase || '' } : { modo:'conversacional', texto: d.frase || '', guia: d.instrucciones || '' };
+  };
+  for (const n of Object.values(nodes)) {
+    const d = n.data || {};
+    if (d.type === 'carta') { extras.carta = { texto: d.frase || '' }; }
+    if (d.type === 'resumen') {
+      const c1 = n.outputs?.output_1?.connections || [];
+      const c2 = n.outputs?.output_2?.connections || [];
+      if (c1.length) { const m = msgDe(nodes[String(c1[0].node)]); if (m) extras.cierre = m; }
+      if (c2.length) { const m = msgDe(nodes[String(c2[0].node)]); if (m) extras.comprobante = m; }
+    }
+  }
+  return Object.keys(extras).length ? extras : null;
+}
+
 async function saveFlow() {
   const data = editor.export();
   localStorage.setItem('cobrapos_flow', JSON.stringify(data));
@@ -640,6 +724,7 @@ async function saveFlow() {
       frases,
       flujo_pasos:  exportarFlujoPasos(data),
       flujo_saludo: exportarSaludo(data),
+      flujo_extras: exportarExtras(data),
       flujo_canvas: data,
     };
     if (meta.tenant_id) payload.tenant_id = meta.tenant_id;
@@ -656,6 +741,22 @@ async function saveFlow() {
 
 editor.on('zoom', val => { document.getElementById('zoomVal').textContent = Math.round(val*100)+'%'; });
 
+// Migración de canvas guardados con versiones anteriores:
+// el nodo Resumen ahora tiene 2 salidas (efectivo / transferencia) — agregarlas si faltan.
+function migrarCanvas(fc) {
+  try {
+    const nodes = fc?.drawflow?.Home?.data || {};
+    for (const n of Object.values(nodes)) {
+      if (n.data && n.data.type === 'resumen') {
+        n.outputs = n.outputs || {};
+        if (!n.outputs.output_1) n.outputs.output_1 = { connections: [] };
+        if (!n.outputs.output_2) n.outputs.output_2 = { connections: [] };
+      }
+    }
+  } catch(e) { /* si falla, se importa tal cual */ }
+  return fc;
+}
+
 // Cargar flujo: Supabase (flujo_canvas = fuente de verdad) > localStorage > demo
 (async () => {
   let loaded = false;
@@ -665,7 +766,7 @@ editor.on('zoom', val => { document.getElementById('zoomVal').textContent = Math
       const branchId = session.user.user_metadata.branch_id;
       const { data: cfg } = await sb.from('ia_config').select('flujo_canvas, frases').eq('branch_id', branchId).maybeSingle();
       if (cfg?.flujo_canvas && cfg.flujo_canvas.drawflow) {
-        try { editor.import(cfg.flujo_canvas); loaded = true; } catch(e) { console.warn('import flujo_canvas falló', e); }
+        try { editor.import(migrarCanvas(cfg.flujo_canvas)); loaded = true; } catch(e) { console.warn('import flujo_canvas falló', e); }
       }
       // Si el diseño no traía el resumen actualizado, sincronizar frases.resumen sobre el nodo resumen
       const r = cfg?.frases?.resumen;
@@ -686,7 +787,7 @@ editor.on('zoom', val => { document.getElementById('zoomVal').textContent = Math
   }
   if (!loaded) {
     const saved = localStorage.getItem('cobrapos_flow');
-    if (saved) { try { editor.import(JSON.parse(saved)); loaded = true; } catch(e) { /* cae a demo */ } }
+    if (saved) { try { editor.import(migrarCanvas(JSON.parse(saved))); loaded = true; } catch(e) { /* cae a demo */ } }
   }
   if (!loaded) buildDemo();
   // Tras importar: aplicar el zoom al canvas y redibujar las líneas
@@ -695,24 +796,31 @@ editor.on('zoom', val => { document.getElementById('zoomVal').textContent = Math
 })();
 
 function buildDemo() {
-  const id1 = addNode('inicio',   80,  160, {nombre:'Inicio'});
-  const id2 = addNode('ia',      300,   80, {nombre:'Saludo',instrucciones:'Saluda al cliente con la hora del día. Pregunta en qué le puedes ayudar.',activo:true});
-  const id3 = addNode('pregunta', 520,   80, {nombre:'Pedir tamaño',campo:'tamano',tipo:'fija',frase:'¿La deseas {opciones}? 😋',activo:true});
-  const id4 = addNode('pregunta', 520,  230, {nombre:'Pedir tipo',campo:'tipo',tipo:'fija',frase:'¿La deseas {opciones}? 🍟',activo:true});
-  const id5 = addNode('pregunta', 740,  155, {nombre:'Upsell',campo:'adiciones',tipo:'ia',instrucciones:'Ofrece brevemente bebidas o adiciones. Si el cliente no quiere, continúa sin insistir.',activo:true});
-  const id6 = addNode('pregunta', 950,  155, {nombre:'Dirección',campo:'direccion',tipo:'fija',frase:'Con gusto, ¿para dónde va tu pedido? ☺️',activo:true});
-  const id7 = addNode('pregunta',1160,  155, {nombre:'Nombre',campo:'nombre',tipo:'fija',frase:'¿A nombre de quién se recibe el pedido? 🍟',activo:true});
-  const id8 = addNode('pregunta',1370,  155, {nombre:'Pago',campo:'pago',tipo:'fija',frase:'¿Cómo nos vas a pagar? (Efectivo, Nequi o Daviplata) 🍟☺️',activo:true});
-  const id9 = addNode('resumen', 1580,  155, {nombre:'Resumen',tipo:'fija',frase:RESUMEN_DEFAULT,activo:true});
+  const id1  = addNode('inicio',   60,  180, {nombre:'Inicio'});
+  const id2  = addNode('ia',      260,  100, {nombre:'Saludo',instrucciones:'Saluda al cliente con la hora del día. Pregunta en qué le puedes ayudar.',activo:true});
+  const idP  = addNode('pregunta', 470,  100, {nombre:'¿Qué deseas?',campo:'producto',tipo:'fija',frase:'¡Claro que sí! 😊 ¿Qué deseas?',mostrar_menu:true,activo:true});
+  const id3  = addNode('pregunta', 680,   60, {nombre:'Pedir tamaño',campo:'tamano',tipo:'fija',frase:'¿La deseas {opciones}? 😋',activo:true});
+  const id4  = addNode('pregunta', 680,  210, {nombre:'Pedir tipo',campo:'tipo',tipo:'fija',frase:'¿La deseas {opciones}? 🍟',activo:true});
+  const id5  = addNode('pregunta', 890,  135, {nombre:'Upsell',campo:'adiciones',tipo:'ia',instrucciones:'Ofrece brevemente bebidas o adiciones. Si el cliente no quiere, continúa sin insistir.',activo:true});
+  const id6  = addNode('pregunta',1100,  135, {nombre:'Dirección',campo:'direccion',tipo:'fija',frase:'Con gusto, ¿para dónde va tu pedido? ☺️',activo:true});
+  const id7  = addNode('pregunta',1310,  135, {nombre:'Nombre',campo:'nombre',tipo:'fija',frase:'¿A nombre de quién se recibe el pedido? 🍟',activo:true});
+  const id8  = addNode('pregunta',1520,  135, {nombre:'Pago',campo:'pago',tipo:'fija',frase:'¿Cómo nos vas a pagar? (Efectivo, Nequi o Daviplata) 🍟☺️',activo:true});
+  const id9  = addNode('resumen', 1730,  135, {nombre:'Resumen',tipo:'fija',frase:RESUMEN_DEFAULT,activo:true});
+  const idC  = addNode('fija',    1950,   60, {nombre:'Cierre pedido',frase:'En un momento enviamos tu pedido 🍟 ¡Con muchísimo gusto!',activo:true});
+  const idT  = addNode('fija',    1950,  230, {nombre:'Esperar comprobante',frase:'Quedó pendiente del comprobante para poderte preparar ☺️',activo:true});
+  const idEv = addNode('carta',    260,  330, {nombre:'Pide la carta',frase:'¿Qué se te antoja? 🍟☺️',activo:true});
   setTimeout(() => {
     editor.addConnection(id1,id2,'output_1','input_1');
-    editor.addConnection(id2,id3,'output_1','input_1');
+    editor.addConnection(id2,idP,'output_1','input_1');
+    editor.addConnection(idP,id3,'output_1','input_1');
     editor.addConnection(id3,id4,'output_1','input_1');
     editor.addConnection(id4,id5,'output_1','input_1');
     editor.addConnection(id5,id6,'output_1','input_1');
     editor.addConnection(id6,id7,'output_1','input_1');
     editor.addConnection(id7,id8,'output_1','input_1');
     editor.addConnection(id8,id9,'output_1','input_1');
+    editor.addConnection(id9,idC,'output_1','input_1');  // salida 1: efectivo → cierre
+    editor.addConnection(id9,idT,'output_2','input_1');  // salida 2: transferencia → comprobante
     editor.zoom = .75;
     editor.zoom_refresh();       // aplica el zoom al canvas (precanvas) con la API nativa
     editor.zoom_value = 0.1;     // restaurar incremento suave para la rueda
