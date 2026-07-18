@@ -1,5 +1,5 @@
 # ESTADO DEL SISTEMA — Cobra POS
-> Última actualización: 2026-07-14
+> Última actualización: 2026-07-18
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
@@ -158,20 +158,74 @@ Cachear en disco del exe:
 - **`pos-sync.js`** — `_execOrderBatch` es idempotente: usa `_tempId` como `id` real del INSERT, ignora error 23505 en reintentos. Nunca genera duplicados al reintentar.
 - **Cache-busting:** `pos-print.js?v=3`, `tomar-pedido.js?v=27` en sus HTML. Sin `?v=` Electron no actualiza.
 
-## Módulo WhatsApp Chat IA — Estado completo al 2026-07-14
+## Módulo WhatsApp Chat IA — Estado completo al 2026-07-18
 
 ### Edge Functions en producción
 | Función | Versión | Estado | Qué hace |
 |---------|---------|--------|----------|
 | `meta-webhook` | v44 | ACTIVE | Recibe mensajes WA, guarda en DB, llama `delay-reply` |
-| `delay-reply` | **v120** (código v119) | ACTIVE | Cerebro del bot: slots deterministas, resumen con desglose, confirmación |
+| `delay-reply` | **v129** | ACTIVE | Cerebro del bot: slot-filling determinista, fidelidad al canvas, variables |
 | `meta-send` | v9 | ACTIVE | Envía mensajes WA desde el panel Cobra |
 | `verify-transfer` | **v6** | ACTIVE | Verifica comprobante de pago cuando operador hace clic en Cobra |
 | `meta-oauth-callback` | v23 | ACTIVE | Conecta número WA por OAuth |
 
-### Módulo WhatsApp Chat IA — delay-reply v120/v119 (✅ verificado internamente — 2026-07-17)
+---
 
-### ⚠️ ARQUITECTURA ACTUAL: v119 (deployado como v120)
+## 🟢 PUNTO DE RETORNO SEGURO — Sesión 9 (2026-07-18)
+
+> Si algo se rompe, este es el estado bueno conocido al que regresar.
+
+### Versiones / commits de referencia
+- **`delay-reply` = v129** (Supabase Edge Function, ACTIVE).
+- **Repo GitHub `elparchefood/restaurant-pos`, rama `main`:**
+  - `3fcdf35` — editor de flujo: arreglo de líneas invisibles y zoom con rueda (API nativa de Drawflow).
+  - `6503d4e` — editor de flujo: primer intento líneas/zoom.
+  - `e685a2f` — canvas de flujo configurable + fidelidad del bot (motor v129 + flow-editor.html).
+- **Fuente del EF**: `delay_reply.ts` en el repo refleja lo desplegado como v129.
+
+### Qué quedó FUNCIONANDO y VERIFICADO (no tocar sin instrucción)
+
+**Flujo del pedido — 9 pasos, fieles a lo definido por Sergio:**
+1. Saludo → responde + "¿en qué te ayudo?" con emojis.
+2. Intención de pedido → usa la frase del canvas (`menu_frase`, ej. "¿Qué se te antoja?") — NO enumera productos.
+3. Pide la carta → envía imágenes del menú + frase.
+4. Producto sin tamaño/tipo → pregunta lo que falta (opciones reales del catálogo).
+5. Upsell (bebida/queso/salsas) — va justo después del producto.
+6. Dirección → valida vía+interceptora+número (3 números); pide barrio si falta.
+7. **Nombre → CONFIRMA** "¿va a nombre de X?" (3 casos: WA válido, nombre raro, recurrente). Aísla el nombre de frases ("no, va a nombre de Andrea" → "Andrea").
+8. **Pago → es el ÚLTIMO paso** antes del resumen.
+9. Resumen con plantilla + placeholders + confirmación → efectivo crea orden en `pos_orders`; transferencia envía QR + `pago_pendiente`.
+
+**Fidelidad (fixes clave de la sesión):**
+- **Modo fija ESTRICTO**: GPT lanza la frase exacta del canvas, PROHIBIDO agregar preguntas propias (ej. ya no pregunta por el billete).
+- **Variables `{{...}}`** en frases de pasos (`rellenarVariables`): `{{producto}}{{tamano}}{{tipo}}{{cantidad}}{{adiciones}}{{direccion}}{{pago}}{{nombre}}{{precio_domi}}`. Condicionadas: si `{{precio_domi}}` necesita barrio y no lo hay → el bot pide el barrio en vez de dar precio falso. (`{{precio}}`/`{{precio_total}}` de producto = "a confirmar", pendiente cargar catálogo.)
+
+**Canvas configurable — CONECTADO al motor:**
+- `ia_config` tiene 2 columnas nuevas: `flujo_pasos` (JSONB, array de pasos para el motor) y `flujo_canvas` (JSONB, diseño visual completo del editor).
+- `flow-editor.html` al **Guardar** exporta el flujo completo (orden + cada paso con modo/frase/variables) a esas columnas. Al abrir, carga desde Supabase (fuente de verdad) > localStorage > demo.
+- El motor (`buildAllPasos` + `procesarFlujoCanvas` en delay_reply.ts) respeta ese flujo: orden, modo (fija/conversacional), frases; inyecta opciones dinámicas de producto en tamaño/tipo; omite pasos que no apliquen.
+- **Editor visual arreglado**: las líneas se ven al cargar y el zoom responde a la rueda del mouse (se usa la API nativa `editor.zoom_in/zoom_out/zoom_refresh`; el `editor.precanvas` es el elemento que se transforma, NO `.parent-drawflow` que no existe en el Drawflow actual).
+
+### 🛟 CÓMO REVERTIR si un flujo del canvas queda mal
+- **Seguro de vida**: poner `ia_config.flujo_pasos = NULL` para ese branch → el motor vuelve al flujo por defecto (idéntico al de esta doc) al instante.
+  ```sql
+  UPDATE ia_config SET flujo_pasos = NULL WHERE branch_id = '66e5f12d-fd16-455a-a6c0-9694aa6fb01b';
+  ```
+- **Revertir código**: `git checkout 3fcdf35 -- flow-editor.html` (canvas) y/o redeployar `delay_reply.ts` de ese commit como v129.
+
+### Pendiente (siguiente sesión)
+- Prueba end-to-end del canvas CON login real de Sergio (guardar desde el editor → ver el bot obedecer por WhatsApp).
+- Variables de precio de producto (`{{precio}}`, `{{precio_total}}`) — requieren reusar `getPrecioItem` fuera del resumen.
+- Chips `{opciones}` en el panel de tamaño/tipo del editor.
+- Afinar verificación de transferencia con Gmail (`verify-transfer`).
+
+---
+
+### Módulo WhatsApp Chat IA — delay-reply v119 (HISTÓRICO — superado por v129, ver PUNTO DE RETORNO arriba)
+
+> ⚠️ Lo de abajo describe la arquitectura base de la sesión 8 (v119). Sigue siendo válido como fundamento, PERO dos cosas cambiaron en sesión 9 (v129): (1) el orden por defecto ahora es `upsell → direccion → nombre → PAGO` (pago es lo último, no antes del nombre); (2) el nombre YA NO se auto-completa — se CONFIRMA en su paso. Para el estado vigente, ver la sección "PUNTO DE RETORNO SEGURO — Sesión 9".
+
+### ARQUITECTURA BASE: v119 (fundamento del slot-filling)
 
 La arquitectura cambió fundamentalmente en sesión 8. Ya NO usa el sistema GPT con function calling de v52. Ahora usa **slot-filling determinista** con pasos independientes.
 
