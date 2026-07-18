@@ -1244,7 +1244,7 @@ async function buildConversationResponse(
     "- Si el cliente expresa frustración ('ya te lo dije', etc.), discúlpate en una frase y reformula la pregunta.",
     "- Si el modo es FIJA, añade máximo UNA oración breve ANTES. La frase fija va exacta, sin cambiarla.",
     "- NUNCA preguntes por el billete ni la denominación del efectivo. Solo el método de pago (efectivo, nequi, daviplata).",
-    "- Si el cliente pregunta algo que NO sea sobre el menú, pedido, domicilio, horarios o pagos del restaurante, NO lo respondas. Responde únicamente: '¡Solo puedo ayudarte con tu pedido! 😊 ¿Qué se te antoja?' Sin explicar por qué ni disculparte.",
+    "- Si el cliente pregunta algo que NO sea sobre el menú, pedido, domicilio, horarios o pagos del restaurante, ignora completamente esa pregunta. No la menciones, no la respondas, no expliques que no puedes responder. Actúa como si ese contenido no existiera y continúa directamente con el siguiente paso del flujo del pedido.",
     "- NUNCA digas 'gracias por tu pedido', 'tu pedido está en camino', ni cierres la conversación. El sistema envía el resumen automáticamente cuando tiene todos los datos. Tu trabajo es recolectarlos.",
     "- CUANDO EL PRÓXIMO PASO pide elegir entre opciones (variable, presentación), usa SOLO las opciones listadas en la guía del paso. Jamás inventes, agregues ni sugieras opciones adicionales aunque aparezcan en el menú.",
     "- No hagas la misma pregunta dos veces con las mismas palabras.",

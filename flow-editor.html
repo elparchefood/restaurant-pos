@@ -1,5 +1,15 @@
-<title>Editor de flujo IA — Cobra POS</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.css">
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editor de flujo IA — Cobra POS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.css">
+</head>
+<body>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -101,7 +111,6 @@ body{font-family:var(--font);background:var(--bg);height:100vh;overflow:hidden;c
 .drawflow .drawflow-node .inputs,.drawflow .drawflow-node .outputs{top:50%;transform:translateY(-50%)}
 .drawflow .drawflow-node .input,.drawflow .drawflow-node .output{width:14px;height:14px;border-radius:50%;border:2.5px solid var(--border-s);background:var(--surface);transition:border-color .15s}
 .drawflow .drawflow-node .input:hover,.drawflow .drawflow-node .output:hover{border-color:var(--accent);background:var(--accent-bg)}
-.drawflow svg{overflow:visible}
 .drawflow .connection .main-path{stroke:#C8CDD8;stroke-width:2.5;fill:none}
 .drawflow .connection .main-path:hover,.drawflow .connection.selected .main-path{stroke:var(--accent)}
 .drawflow .drawflow-delete{background:var(--red);width:18px;height:18px;font-size:12px;border-radius:50%;top:-7px;right:-7px}
@@ -130,10 +139,10 @@ body{font-family:var(--font);background:var(--bg);height:100vh;overflow:hidden;c
 </style>
 
 <div class="topbar">
-  <div class="topbar-back" onclick="history.back()">
+  <a class="topbar-back" href="configuracion.html" style="text-decoration:none">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
     Regresar
-  </div>
+  </a>
   <div class="topbar-sep"></div>
   <div class="topbar-title">Editor de flujo IA</div>
   <div class="topbar-badge">WhatsApp</div>
@@ -218,8 +227,15 @@ body{font-family:var(--font);background:var(--bg);height:100vh;overflow:hidden;c
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.js"></script>
 <script>
+const SUPABASE_URL = 'https://tblujfduscslxjmrjbdr.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'cobra-pos-session' }
+});
+const RESUMEN_DEFAULT = "¡Listo! Tu pedido quedaría así:\n{{productos}}\n📍 {{direccion}}\n💳 {{pago}}\n{{nombre_linea}}💵 Pedido: {{precio_pedido}}\n🏍️ Domicilio: {{precio_domi}}\n💰 *Total: {{precio_total}}*\n\n{{confirmacion}}";
 const NODE_ICONS = {
   inicio:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>`,
   fija:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
@@ -237,8 +253,7 @@ let dragType = null;
 let zoomLevel = 1;
 
 const container = document.getElementById('drawflow');
-window.editor = new Drawflow(container);
-const editor = window.editor;
+const editor = new Drawflow(container);
 editor.reroute = true;
 editor.reroute_fix_curvature = true;
 editor.force_first_input = false;
@@ -309,8 +324,8 @@ function openPanel(id) {
 }
 
 function renderPanelBody(id, d) {
-  const tipo = d.tipo || (d.type === 'fija' ? 'fija' : 'ia');
-  const showTipo = ['fija','ia','pregunta'].includes(d.type);
+  const tipo = d.tipo || (['fija','resumen'].includes(d.type) ? 'fija' : 'ia');
+  const showTipo = ['fija','ia','pregunta','resumen'].includes(d.type);
   const showTimer = d.type === 'timer';
   const isResumen = d.type === 'resumen';
   const isInicio = d.type === 'inicio';
@@ -336,17 +351,31 @@ function renderPanelBody(id, d) {
       </div>
     </div>`;
     if(tipo==='fija') {
-      html += `<div class="cp-section">
-        <div class="cp-label">Mensaje exacto</div>
-        <textarea class="cp-textarea" id="cp-frase" oninput="updateField(${id},'frase',this.value)">${esc(d.frase||'')}</textarea>
-        <div class="vars-row" style="margin-top:8px">
-          ${['{{nombre}}','{{producto}}','{{tamano}}','{{tipo}}','{{direccion}}','{{hora}}'].map(v=>`<span class="var-chip" onclick="insertVar(${id},'${v}')">${v}</span>`).join('')}
-        </div>
-      </div>`;
+      if(isResumen) {
+        const rVars = ['{{productos}}','{{precio_pedido}}','{{precio_domi}}','{{precio_total}}','{{direccion}}','{{pago}}','{{nombre_linea}}','{{confirmacion}}'];
+        html += `<div class="cp-section">
+          <div class="cp-label">Plantilla del resumen</div>
+          <textarea class="cp-textarea" id="cp-frase" style="min-height:165px" oninput="updateField(${id},'frase',this.value)">${esc(d.frase || RESUMEN_DEFAULT)}</textarea>
+          <div class="vars-row" style="margin-top:8px">
+            ${rVars.map(v=>`<span class="var-chip" onclick="insertVar(${id},'${v}')">${v}</span>`).join('')}
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:var(--text-3);line-height:1.6">
+            <b>{{productos}}</b> ítems del pedido · <b>{{precio_pedido}}</b> subtotal · <b>{{precio_domi}}</b> domicilio · <b>{{precio_total}}</b> total · <b>{{confirmacion}}</b> pregunta de confirmación
+          </div>
+        </div>`;
+      } else {
+        html += `<div class="cp-section">
+          <div class="cp-label">Mensaje exacto</div>
+          <textarea class="cp-textarea" id="cp-frase" oninput="updateField(${id},'frase',this.value)">${esc(d.frase||'')}</textarea>
+          <div class="vars-row" style="margin-top:8px">
+            ${['{{nombre}}','{{producto}}','{{tamano}}','{{tipo}}','{{direccion}}','{{hora}}'].map(v=>`<span class="var-chip" onclick="insertVar(${id},'${v}')">${v}</span>`).join('')}
+          </div>
+        </div>`;
+      }
     } else {
       html += `<div class="cp-section">
         <div class="cp-label">Instrucciones para IA</div>
-        <textarea class="cp-textarea" id="cp-instrucciones" placeholder="Ej: Saluda al cliente con la hora del día, pregunta en qué lo puedes ayudar…" oninput="updateField(${id},'instrucciones',this.value)">${esc(d.instrucciones||'')}</textarea>
+        <textarea class="cp-textarea" id="cp-instrucciones" placeholder="${isResumen ? 'Ej: Genera el resumen del pedido de forma amigable y natural…' : 'Ej: Saluda al cliente con la hora del día, pregunta en qué lo puedes ayudar…'}" oninput="updateField(${id},'instrucciones',this.value)">${esc(d.instrucciones||'')}</textarea>
         <div class="vars-row" style="margin-top:8px">
           ${['{{nombre}}','{{producto}}','{{hora}}','{{local}}'].map(v=>`<span class="var-chip" onclick="insertVar2(${id},'${v}')">${v}</span>`).join('')}
         </div>
@@ -441,21 +470,15 @@ function closePanel() {
   document.getElementById('configPanel').classList.remove('open');
   selectedNodeId = null;
 }
-function getPrecanvas() {
-  return editor.precanvas || document.querySelector('.parent-drawflow') || document.querySelector('.drawflow > .parent-drawflow');
-}
-function applyCanvasTransform() {
-  const p = getPrecanvas();
-  if (p) p.style.transform = `translate(${editor.canvas_x||0}px,${editor.canvas_y||0}px) scale(${editor.zoom||1})`;
-}
 function zoom(dir) {
   const steps = [.5,.67,.75,.9,1,1.1,1.25,1.5,1.75,2];
-  const cur = steps.findIndex(s => Math.abs(s - (editor.zoom||1)) < .05);
+  const cur = steps.findIndex(s => Math.abs(s - editor.zoom) < .05);
   const next = Math.max(0, Math.min(steps.length-1, (cur < 0 ? 4 : cur) + dir));
   editor.zoom_value = steps[next];
   editor.zoom_last = editor.zoom;
   editor.zoom = steps[next];
-  applyCanvasTransform();
+  editor.canvas_x = editor.canvas_x;
+  document.querySelector('.drawflow > .parent-drawflow').style.transform = `translate(${editor.canvas_x}px,${editor.canvas_y}px) scale(${editor.zoom})`;
   document.getElementById('zoomVal').textContent = Math.round(steps[next]*100)+'%';
 }
 
@@ -464,142 +487,101 @@ function markDirty() {
   dirty = true;
   document.getElementById('saveStatus').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;color:var(--amber)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Sin guardar`;
 }
-function saveFlow() {
+async function saveFlow() {
   const data = editor.export();
   localStorage.setItem('cobrapos_flow', JSON.stringify(data));
   dirty = false;
+  document.getElementById('saveStatus').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;color:var(--green)"><polyline points="20 6 9 17 4 12"/></svg> Guardando…`;
+
+  // Guardar plantilla del nodo resumen en Supabase ia_config
+  try {
+    const nodes = Object.values((data.drawflow?.Home?.data) || {});
+    const resNode = nodes.find(n => n.data && n.data.type === 'resumen');
+    if (resNode) {
+      const rd = resNode.data;
+      const tipoRes = rd.tipo || 'fija';
+      const fraseResumen = tipoRes === 'fija'
+        ? { modo: 'fija', texto: rd.frase || RESUMEN_DEFAULT }
+        : { modo: 'conversacional', guia: rd.instrucciones || '' };
+      const session = (await sb.auth.getSession()).data.session;
+      if (session) {
+        const branchId = session.user.user_metadata.branch_id;
+        const { data: existing } = await sb.from('ia_config').select('frases').eq('branch_id', branchId).maybeSingle();
+        const frases = { ...(existing?.frases || {}), resumen: fraseResumen };
+        await sb.from('ia_config').upsert({ branch_id: branchId, frases }, { onConflict: 'branch_id' });
+      }
+    }
+  } catch(err) {
+    console.warn('Canvas: error guardando resumen en Supabase', err);
+  }
+
   document.getElementById('saveStatus').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;color:var(--green)"><polyline points="20 6 9 17 4 12"/></svg> Guardado`;
 }
 
 editor.on('zoom', val => { document.getElementById('zoomVal').textContent = Math.round(val*100)+'%'; });
 
-// Demo: cargar flujo de ejemplo
+// Cargar flujo (localStorage o demo) y luego sincronizar template desde Supabase
 const saved = localStorage.getItem('cobrapos_flow');
 if(saved) {
   try { editor.import(JSON.parse(saved)); } catch(e) { buildDemo(); }
 } else { buildDemo(); }
 
-function buildDemo() {
-  // Flujo real del bot El Parche — flujo de toma de pedido
-
-  // ── Fila 1: entrada y deteccion ──────────────────────────────────
-  const n_inicio    = addNode('inicio',    60, 220, {nombre:'Inicio'});
-  const n_saludo    = addNode('ia',       270, 130, {
-    nombre:'Saludo',
-    instrucciones:'Saluda al cliente con la hora del dia (buenos dias / buenas tardes / buenas noches). Si ya hizo pedidos antes menciona que lo recuerdas. Pregunta si quiere hacer un pedido o si prefiere ver el menu.',
-    activo:true
-  });
-  const n_menu      = addNode('fija',     270, 310, {
-    nombre:'Ver menu',
-    frase:'Aqui te mando nuestra carta 😋\n{{menu_imagen}}',
-    activo:true
-  });
-  const n_pedido    = addNode('ia',       520, 220, {
-    nombre:'Producto detectado',
-    instrucciones:'El cliente ya dijo que quiere pedir. Identifica el producto en el mensaje. Si no es claro, pregunta cuál quiere de nuestra carta. Registra el producto.',
-    activo:true
-  });
-
-  // ── Fila 2: variables del producto ───────────────────────────────
-  const n_tamano    = addNode('pregunta', 760, 130, {
-    nombre:'Preguntar tamano',
-    campo:'tamano',
-    tipo:'fija',
-    frase:'¿La quieres personal o familiar? 😋',
-    activo:true
-  });
-  const n_tipo      = addNode('pregunta', 760, 310, {
-    nombre:'Preguntar tipo',
-    campo:'tipo',
-    tipo:'fija',
-    frase:'¿La prefieres mixta, de carne o de pollo? 🍟',
-    activo:true
-  });
-  const n_upsell    = addNode('ia',      1000, 220, {
-    nombre:'Upsell / adiciones',
-    instrucciones:'Ofrece adiciones o bebidas de forma natural. Ej: ¿Quieres agregarle algo? Tenemos papas, gaseosa, jugos... Solo si el cliente no ha rechazado adiciones antes en esta conversacion.',
-    activo:true
-  });
-
-  // ── Fila 3: multi-producto ───────────────────────────────────────
-  const n_otro      = addNode('ia',      1220, 220, {
-    nombre:'¿Otro producto?',
-    instrucciones:'Si el cliente dice que quiere pedir algo mas, detecta el nuevo producto y vuelve al paso de tamano/tipo para ese producto. Si no quiere nada mas, pasa a pedir la direccion.',
-    activo:true
-  });
-
-  // ── Fila 4: cierre del pedido ────────────────────────────────────
-  const n_dir       = addNode('pregunta',1460, 130, {
-    nombre:'Pedir direccion',
-    campo:'direccion',
-    tipo:'fija',
-    frase:'¿Para dónde va tu pedido? 😊\n(Escribe el barrio y la direccion completa)',
-    activo:true
-  });
-  const n_pago      = addNode('pregunta',1460, 310, {
-    nombre:'Metodo de pago',
-    campo:'pago',
-    tipo:'fija',
-    frase:'¿Cómo vas a pagar?\n💵 Efectivo\n📲 Nequi / Daviplata',
-    activo:true
-  });
-  const n_compro    = addNode('fija',    1700, 310, {
-    nombre:'Esperar comprobante',
-    frase:'¡Perfecto! Mándame el comprobante de la transferencia para verificarlo 📸',
-    activo:true
-  });
-  const n_nombre    = addNode('pregunta',1700, 130, {
-    nombre:'Pedir nombre',
-    campo:'nombre',
-    tipo:'fija',
-    frase:'¿A nombre de quién se recibe el pedido?',
-    activo:true
-  });
-  const n_resumen   = addNode('resumen', 1940, 220, {nombre:'Resumen del pedido',activo:true});
-
-  setTimeout(() => {
-    // Conexiones principales
-    editor.addConnection(n_inicio,  n_saludo, 'output_1','input_1');
-    editor.addConnection(n_saludo,  n_menu,   'output_1','input_1');
-    editor.addConnection(n_saludo,  n_pedido, 'output_1','input_1');
-    editor.addConnection(n_menu,    n_pedido, 'output_1','input_1');
-
-    // Producto -> tamano -> tipo -> upsell
-    editor.addConnection(n_pedido,  n_tamano, 'output_1','input_1');
-    editor.addConnection(n_tamano,  n_tipo,   'output_1','input_1');
-    editor.addConnection(n_tipo,    n_upsell, 'output_1','input_1');
-    editor.addConnection(n_upsell,  n_otro,   'output_1','input_1');
-
-    // Multi-producto: puede volver a tamano
-    editor.addConnection(n_otro,    n_tamano, 'output_1','input_1');
-
-    // Cierre
-    editor.addConnection(n_otro,    n_dir,    'output_1','input_1');
-    editor.addConnection(n_dir,     n_pago,   'output_1','input_1');
-    editor.addConnection(n_pago,    n_compro, 'output_1','input_1');
-    editor.addConnection(n_pago,    n_nombre, 'output_1','input_1');
-    editor.addConnection(n_compro,  n_nombre, 'output_1','input_1');
-    editor.addConnection(n_nombre,  n_resumen,'output_1','input_1');
-
-    // Zoom inicial para ver todo el flujo
-    editor.zoom = 0.5;
-    editor.canvas_x = 0;
-    editor.canvas_y = 0;
-    applyCanvasTransform();
-    document.getElementById('zoomVal').textContent = '50%';
-    // MutationObserver: detecta y corrige si Drawflow resetea el transform
-    var _pre = getPrecanvas();
-    if (_pre && window.MutationObserver) {
-      var _guardian = new MutationObserver(function() {
-        var t = _pre.style.transform;
-        if (!t || t === 'translate(0px, 0px) scale(1)' || t === 'translate(0px,0px) scale(1)') {
-          editor.zoom = 0.5;
-          _pre.style.transform = 'translate(0px, 0px) scale(0.5)';
-        }
-      });
-      _guardian.observe(_pre, { attributes: true, attributeFilter: ['style'] });
-      setTimeout(function() { _guardian.disconnect(); }, 3000);
+// Sincronizar plantilla del resumen desde Supabase al abrir
+(async () => {
+  try {
+    const session = (await sb.auth.getSession()).data.session;
+    if (!session) return;
+    const branchId = session.user.user_metadata.branch_id;
+    const { data: cfg } = await sb.from('ia_config').select('frases').eq('branch_id', branchId).maybeSingle();
+    const r = cfg?.frases?.resumen;
+    if (!r) return;
+    // Buscar el nodo resumen en el flow actual y actualizar su data
+    const flowData = editor.export();
+    const allNodes = Object.entries((flowData.drawflow?.Home?.data) || {});
+    const [resNodeId, resNode] = allNodes.find(([,n]) => n.data && n.data.type === 'resumen') || [];
+    if (resNodeId && resNode) {
+      const updatedData = { ...resNode.data };
+      if (r.modo === 'fija') {
+        updatedData.tipo  = 'fija';
+        updatedData.frase = r.texto || RESUMEN_DEFAULT;
+      } else {
+        updatedData.tipo         = 'ia';
+        updatedData.instrucciones = r.guia || '';
+      }
+      editor.updateNodeDataFromId(resNodeId, updatedData);
     }
+  } catch(err) {
+    console.warn('Canvas: error cargando resumen desde Supabase', err);
+  }
+})();
+
+function buildDemo() {
+  const id1 = addNode('inicio',   80,  160, {nombre:'Inicio'});
+  const id2 = addNode('ia',      300,   80, {nombre:'Saludo',instrucciones:'Saluda al cliente con la hora del día. Pregunta en qué le puedes ayudar.',activo:true});
+  const id3 = addNode('pregunta', 520,   80, {nombre:'Pedir tamaño',campo:'tamano',tipo:'fija',frase:'¿La deseas personal o familiar? 😋',activo:true});
+  const id4 = addNode('pregunta', 520,  230, {nombre:'Pedir tipo',campo:'tipo',tipo:'fija',frase:'¿La deseas mixta, de carne o de pollo? 🍟',activo:true});
+  const id5 = addNode('ia',       740,  155, {nombre:'Upsell',instrucciones:'Ofrece bebidas o adiciones.',activo:true});
+  const id6 = addNode('pregunta', 950,  155, {nombre:'Dirección',campo:'direccion',tipo:'fija',frase:'¿Para dónde va tu pedido? ☺️',activo:true});
+  const id7 = addNode('pregunta',1160,  155, {nombre:'Pago',campo:'pago',tipo:'fija',frase:'¿Transferencia o efectivo?',activo:true});
+  const id8 = addNode('pregunta',1370,  155, {nombre:'Nombre',campo:'nombre',tipo:'fija',frase:'¿A nombre de quién se recibe? 🍟',activo:true});
+  const id9 = addNode('resumen', 1580,  155, {nombre:'Resumen',tipo:'fija',frase:RESUMEN_DEFAULT,activo:true});
+  setTimeout(() => {
+    editor.addConnection(id1,id2,'output_1','input_1');
+    editor.addConnection(id2,id3,'output_1','input_1');
+    editor.addConnection(id3,id4,'output_1','input_1');
+    editor.addConnection(id4,id5,'output_1','input_1');
+    editor.addConnection(id5,id6,'output_1','input_1');
+    editor.addConnection(id6,id7,'output_1','input_1');
+    editor.addConnection(id7,id8,'output_1','input_1');
+    editor.addConnection(id8,id9,'output_1','input_1');
+    editor.zoom_value = .75;
+    editor.zoom_last = 1;
+    editor.zoom = .75;
+    const p = document.querySelector('.drawflow > .parent-drawflow');
+    if(p) p.style.transform = `translate(20px,180px) scale(0.75)`;
+    document.getElementById('zoomVal').textContent = '75%';
   }, 80);
 }
 </script>
+</body>
+</html>
