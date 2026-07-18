@@ -2225,12 +2225,15 @@ var _storedZonas = [];
       menu_imagenes: readMenuImagenes(),
       menu_frase: readMenuFrase(),
       prohibiciones: readProhibiciones(),
+      variables: window._ciaVariables || {},
     };
   }
 
   // ── Aplicar modelo al DOM ───────────────────────────────
   function applyModel(m) {
     if (!m) return;
+    window._ciaVariables = (m.variables && typeof m.variables === 'object' && !Array.isArray(m.variables)) ? m.variables : {};
+    if (window.renderVariables) window.renderVariables();
     if ($('masterSwitch')) { $('masterSwitch').checked = !!m.activo; applyMaster(!!m.activo); }
     if ($('iaDelay') && m.delay_segundos != null) {
       $('iaDelay').value = m.delay_segundos;
@@ -2622,6 +2625,113 @@ var _storedZonas = [];
     var { error } = await sb.from('ia_config').upsert(model, { onConflict: 'branch_id' });
     if (!error) { markSaved(); } else { alert('Error guardando: ' + error.message); }
   });
+
+  // ── Variables (constructor: dato / frase) ───────────────
+  (function initVariables() {
+   try {
+    var elNombre = $('varNombre'), elFuente = $('varFuente'), elTexto = $('varTexto');
+    var elDatoField = $('varDatoField'), elFraseField = $('varFraseField');
+    var elAgregar = $('varAgregar'), elCancelar = $('varCancelar'), elList = $('varList');
+    if (!elList) return; // el panel no está presente
+    var tipoActual = 'dato';
+    var editKey = null;
+    if (!window._ciaVariables) window._ciaVariables = {};
+
+    var FUENTE_LABEL = {
+      producto:'Producto', tamano:'Tamaño', tipo:'Tipo', cantidad:'Cantidad', adiciones:'Adiciones',
+      direccion:'Dirección del cliente', pago:'Método de pago', nombre:'Nombre del pedido',
+      precio_domi:'Precio del domicilio', hora:'Hora actual', dia:'Día', fecha:'Fecha',
+      saludo_hora:'Saludo según la hora', restaurante:'Nombre del restaurante',
+      direccion_local:'Dirección del local', ciudad:'Ciudad', telefono_local:'Teléfono del local',
+      horario_hoy:'Horario de hoy', tiempo_domicilio:'Tiempo de domicilio', nequi:'Llave Nequi',
+      titular:'Titular', metodos_pago:'Métodos de pago', menu:'Menú completo',
+      categorias:'Categorías', cliente:'Nombre del cliente'
+    };
+    function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+
+    function setTipo(t) {
+      tipoActual = t;
+      document.querySelectorAll('.var-tipo').forEach(function(b){ b.classList.toggle('on', b.dataset.vtipo === t); });
+      if (elDatoField)  elDatoField.style.display  = (t === 'dato')  ? '' : 'none';
+      if (elFraseField) elFraseField.style.display = (t === 'frase') ? '' : 'none';
+    }
+    document.querySelectorAll('.var-tipo').forEach(function(b){
+      b.addEventListener('click', function(){ setTipo(this.dataset.vtipo); });
+    });
+
+    function resetForm() {
+      editKey = null;
+      if (elNombre) elNombre.value = '';
+      if (elTexto)  elTexto.value = '';
+      if (elFuente) elFuente.selectedIndex = 0;
+      setTipo('dato');
+      if (elAgregar)  elAgregar.textContent = 'Agregar variable';
+      if (elCancelar) elCancelar.style.display = 'none';
+    }
+
+    window.renderVariables = function() {
+      var vars = window._ciaVariables || {};
+      var keys = Object.keys(vars);
+      if (!keys.length) { elList.innerHTML = '<div class="var-empty">Aún no has creado variables. Crea una arriba 👆</div>'; return; }
+      elList.innerHTML = keys.map(function(k){
+        var v = vars[k] || {};
+        var esFrase = v.tipo === 'frase';
+        var badge = esFrase ? '<span class="var-item-badge var-badge-frase">Frase</span>' : '<span class="var-item-badge var-badge-dato">Dato</span>';
+        var desc = esFrase ? (v.texto || '') : (FUENTE_LABEL[v.fuente] || v.fuente || '');
+        return '<div class="var-item">' +
+          '<span class="var-item-name">{{'+esc(k)+'}}</span>' + badge +
+          '<span class="var-item-desc">'+esc(desc)+'</span>' +
+          '<button class="var-item-act" data-edit="'+esc(k)+'">Editar</button>' +
+          '<button class="var-item-act" data-del="'+esc(k)+'">Borrar</button>' +
+        '</div>';
+      }).join('');
+      elList.querySelectorAll('[data-edit]').forEach(function(b){ b.addEventListener('click', function(){ editVar(this.getAttribute('data-edit')); }); });
+      elList.querySelectorAll('[data-del]').forEach(function(b){ b.addEventListener('click', function(){ delVar(this.getAttribute('data-del')); }); });
+    };
+
+    function editVar(k) {
+      var v = (window._ciaVariables||{})[k]; if (!v) return;
+      editKey = k;
+      if (elNombre) elNombre.value = k;
+      setTipo(v.tipo === 'frase' ? 'frase' : 'dato');
+      if (v.tipo === 'frase') { if (elTexto) elTexto.value = v.texto || ''; }
+      else { if (elFuente) elFuente.value = v.fuente || 'producto'; }
+      if (elAgregar)  elAgregar.textContent = 'Guardar cambios';
+      if (elCancelar) elCancelar.style.display = '';
+      if (elNombre) elNombre.focus();
+    }
+
+    function delVar(k) {
+      if (!window._ciaVariables) return;
+      delete window._ciaVariables[k];
+      window.renderVariables(); markDirty();
+      if (editKey === k) resetForm();
+    }
+
+    function agregar() {
+      var nombre = (elNombre ? elNombre.value : '').trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_áéíóúñ]/g,'');
+      if (!nombre) { if (elNombre) elNombre.focus(); return; }
+      var v;
+      if (tipoActual === 'frase') {
+        var texto = (elTexto ? elTexto.value : '').trim();
+        if (!texto) { if (elTexto) elTexto.focus(); return; }
+        v = { tipo:'frase', texto: texto };
+      } else {
+        v = { tipo:'dato', fuente: (elFuente ? elFuente.value : 'producto') };
+      }
+      if (!window._ciaVariables) window._ciaVariables = {};
+      if (editKey && editKey !== nombre) delete window._ciaVariables[editKey];
+      window._ciaVariables[nombre] = v;
+      window.renderVariables(); markDirty(); resetForm();
+    }
+
+    if (elAgregar)  elAgregar.addEventListener('click', agregar);
+    if (elCancelar) elCancelar.addEventListener('click', resetForm);
+
+    setTipo('dato');
+    window.renderVariables();
+   } catch(e) { console.warn('initVariables falló', e); }
+  })();
 
 
   // -- Mejorar con IA --

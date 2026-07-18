@@ -303,6 +303,44 @@ async function processConversation(convId: string): Promise<void> {
     return;
   }
 
+  // ── Datos disponibles para las variables {{...}} del canvas (se cargan una vez) ──
+  // Alimenta resolverDato(): el usuario crea variables que apuntan a estas fuentes.
+  let branchInfo: Record<string, unknown> | null = null;
+  try {
+    const brRes = await sbGet(`/rest/v1/branches?id=eq.${branchId}&select=name,address,city,phone&limit=1`);
+    branchInfo = (brRes?.[0] as Record<string, unknown>) || null;
+  } catch (_) { /* no bloquear si falla */ }
+
+  const fechaStr   = `${String(colDate.getUTCDate()).padStart(2,"0")}/${String(colDate.getUTCMonth()+1).padStart(2,"0")}/${colDate.getUTCFullYear()}`;
+  const saludoHora = colHourNum < 12 ? "Buenos días" : colHourNum < 19 ? "Buenas tardes" : "Buenas noches";
+  const metodosArr: string[] = [];
+  if (pagosCfg?.efectivo)  metodosArr.push("efectivo");
+  if (pagosCfg?.nequi)     metodosArr.push("Nequi");
+  if (pagosCfg?.daviplata) metodosArr.push("Daviplata");
+  if (pagosCfg?.tarjeta)   metodosArr.push("tarjeta");
+  const categoriasStr = (menuText.match(/\[([^\]]+)\]/g) || []).map(c => c.replace(/[\[\]]/g, "").toLowerCase()).join(", ");
+  const perfilCfg = (cfg.perfil as Record<string, string>) || {};
+  const botCfgV   = (cfg.bot as Record<string, string>) || {};
+
+  (cfg as Record<string, unknown>)._varData = {
+    hora: colTimeStr,
+    dia: colDayStr,
+    fecha: fechaStr,
+    saludo_hora: saludoHora,
+    restaurante: perfilCfg.nombre || botCfgV.nombre || String(pagosCfg?.titular || "") || String(branchInfo?.name || ""),
+    direccion_local: String(branchInfo?.address || ""),
+    ciudad: String(branchInfo?.city || ""),
+    telefono_local: String(branchInfo?.phone || ""),
+    horario_hoy: (horaAperturaHoy && horaCierreHoy) ? `${horaAperturaHoy} a ${horaCierreHoy}` : "",
+    tiempo_domicilio: String(domiciliosCfg?.tiempo_estimado || ""),
+    nequi: String(pagosCfg?.llave || ""),
+    titular: String(pagosCfg?.titular || ""),
+    metodos_pago: metodosArr.join(" o "),
+    menu: menuText,
+    categorias: categoriasStr,
+    cliente: nombreConfirmar || (senderName && senderName !== fromPhone ? senderName : ""),
+  };
+
   const hasImagenBatch = batchMsgs.some(m => (m.body||"").startsWith("[imagen]") || (m.body||"").startsWith("[image]"));
   if (soloMediaNoTexto) {
     if (convRow?.pago_pendiente && hasImagenBatch) {
@@ -1250,48 +1288,89 @@ function procesarFlujoCanvas(
   return out;
 }
 
-// ── rellenarVariables — reemplaza placeholders {{...}} con datos reales del pedido ─
-// Las variables son INTERNAS de la plataforma. Algunas tienen dependencias:
-// {{precio_domi}} / {{precio_total}} sólo se pueden calcular si hay un barrio conocido.
-// Si la frase usa esas variables pero aún no hay barrio, retorna faltaBarrio=true para
-// que el motor pregunte el barrio ANTES de intentar dar el precio (nunca un valor falso).
-// Nota: {{precio}} (del producto) y {{precio_total}} requieren catálogo → siguiente capa;
-// por ahora se muestran como "a confirmar" para no dejar el placeholder crudo.
+// ── Catálogo de FUENTES de datos disponibles para las variables ──────────────────
+// El usuario crea variables (en el canvas) que apuntan a una de estas fuentes.
+// Este es el mismo catálogo que la UI ofrece en "Crear variable → Dato".
+// id de fuente → cómo se resuelve. Si no hay dato, devuelve "".
+function resolverDato(
+  fuente: string,
+  state: PacoState,
+  varData: Record<string, unknown>,
+  domiciliosCfg: Record<string, unknown> | null | undefined,
+): string {
+  switch (fuente) {
+    // Del pedido en curso
+    case "producto":  return state.producto || "";
+    case "tamano":    return state.tamano || "";
+    case "tipo":      return state.tipo || "";
+    case "cantidad":  return String(state.cantidad || 1);
+    case "adiciones": return (state.adiciones && state.adiciones.length > 0) ? state.adiciones : "";
+    case "direccion": return state.direccion || "";
+    case "pago":      return state.pago || "";
+    case "nombre":    return state.nombre || "";
+    case "precio_domi":
+    case "total_domi": {
+      const esLlevar = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
+      const dp = (!esLlevar && state.direccion) ? lookupDomiPrice(state.direccion, domiciliosCfg) : null;
+      return esLlevar ? "para llevar" : dp === null ? "a confirmar" : dp === 0 ? "Gratis" : fmtCOP(dp);
+    }
+    // Precio de producto/total requieren catálogo → capa siguiente
+    case "precio":
+    case "precio_total":
+    case "gran_total": return "a confirmar";
+    // Datos precargados en cfg._varData (tiempo, restaurante, pagos, catálogo, cliente)
+    default:
+      return (fuente in varData) ? String(varData[fuente] ?? "") : "";
+  }
+}
+
+// ── rellenarVariables — resuelve {{...}} en cualquier frase ──────────────────────
+// Orden de resolución de cada {{X}}:
+//   1. Variable creada por el usuario (ia_config.variables): tipo "frase" (texto, resuelto en
+//      cascada) o tipo "dato" (apunta a una fuente del catálogo de arriba).
+//   2. Fuente nativa directa (compatibilidad: {{producto}}, {{precio_domi}}, etc.).
+//   3. Si no existe / sin dato → "" (queda vacío).
+// Dependencia de barrio: si se usa precio de domicilio/total y aún no hay barrio válido,
+// retorna faltaBarrio=true para que el motor pida el barrio en vez de dar un precio falso.
 function rellenarVariables(
   texto: string,
   state: PacoState,
-  domiciliosCfg: Record<string, unknown> | null | undefined,
+  cfg: Record<string, unknown> | null | undefined,
+  depth = 0,
 ): { texto: string; faltaBarrio: boolean } {
   if (!texto || !texto.includes("{{")) return { texto: texto || "", faltaBarrio: false };
 
-  const esParaLlevar = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
-  const domiPrecio   = (!esParaLlevar && state.direccion) ? lookupDomiPrice(state.direccion, domiciliosCfg) : null;
+  const domiciliosCfg = (cfg?.domicilios as Record<string, unknown>) || null;
+  const varData       = (cfg?._varData as Record<string, unknown>) || {};
+  const varsUsuario   = (cfg?.variables as Record<string, { tipo?: string; fuente?: string; texto?: string }>) || {};
 
-  // Dependencia: la frase pide precio de domicilio/total pero no hay barrio válido para calcularlo
-  const usaDomi = /\{\{(precio_domi|total_domi|precio_total|gran_total)\}\}/.test(texto);
-  const faltaBarrio = usaDomi && !esParaLlevar && domiPrecio === null;
+  const esLlevar   = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
+  const domiPrecio = (!esLlevar && state.direccion) ? lookupDomiPrice(state.direccion, domiciliosCfg) : null;
+  const barrioFaltante = (fuente: string) =>
+    (fuente === "precio_domi" || fuente === "total_domi" || fuente === "precio_total" || fuente === "gran_total")
+    && !esLlevar && domiPrecio === null;
+  let faltaBarrio = false;
 
-  const tamStr  = [state.tipo, state.tamano].filter(Boolean).join(" ");
-  const addStr  = state.adiciones && state.adiciones.length > 0 ? state.adiciones : "";
-  const domiStr = esParaLlevar ? "para llevar"
-    : domiPrecio === null ? "a confirmar"
-    : domiPrecio === 0   ? "Gratis"
-    : fmtCOP(domiPrecio);
-
-  const out = texto
-    .replace(/\{\{producto\}\}/g,  state.producto || "")
-    .replace(/\{\{tamano\}\}/g,    tamStr || state.tamano || "")
-    .replace(/\{\{tipo\}\}/g,      state.tipo || "")
-    .replace(/\{\{cantidad\}\}/g,  String(state.cantidad || 1))
-    .replace(/\{\{adiciones\}\}/g, addStr)
-    .replace(/\{\{direccion\}\}/g, state.direccion || "")
-    .replace(/\{\{pago\}\}/g,      state.pago || "")
-    .replace(/\{\{nombre\}\}/g,    state.nombre || "")
-    .replace(/\{\{precio_domi\}\}/g, domiStr)
-    .replace(/\{\{total_domi\}\}/g,  domiStr)
-    .replace(/\{\{precio\}\}/g,       "a confirmar")
-    .replace(/\{\{precio_total\}\}/g, "a confirmar")
-    .replace(/\{\{gran_total\}\}/g,   "a confirmar");
+  const out = texto.replace(/\{\{\s*([A-Za-z0-9_:áéíóúñÁÉÍÓÚÑ]+)\s*\}\}/g, (_m, nombreRaw) => {
+    const key = String(nombreRaw).trim();
+    const uv = varsUsuario[key];
+    if (uv) {
+      if (uv.tipo === "frase") {
+        if (depth >= 6) return "";                       // corta cascadas/bucles
+        const r = rellenarVariables(uv.texto || "", state, cfg, depth + 1);
+        if (r.faltaBarrio) faltaBarrio = true;
+        return r.texto;
+      }
+      if (uv.tipo === "dato" && uv.fuente) {
+        if (barrioFaltante(uv.fuente)) faltaBarrio = true;
+        return resolverDato(uv.fuente, state, varData, domiciliosCfg);
+      }
+      return "";
+    }
+    // Fuente nativa directa (compatibilidad con las variables ya usadas)
+    if (barrioFaltante(key)) faltaBarrio = true;
+    return resolverDato(key, state, varData, domiciliosCfg);
+  });
 
   return { texto: out, faltaBarrio };
 }
@@ -1355,14 +1434,13 @@ async function buildConversationResponse(
     nextStepLine = "El resumen ya fue enviado. Responde naturalmente al cliente. Si confirma el pedido, exprésalo positivamente. Si quiere corregir algo, confirma el cambio.";
   } else if (nextStep) {
     const modo = nextStep.modo || "fija";
-    const domiciliosCfgVars = cfg.domicilios as Record<string, unknown> | null | undefined;
     // Pregunta de desbloqueo del barrio (cuando una variable de precio lo necesita)
     const pregBarrioDesbloqueo = getFraseTexto(frasesCfg.preguntar_barrio)
       || getFraseTexto(frasesCfg.preguntar_destino)
       || "¿Para dónde va tu pedido? Así te confirmo el domicilio 📍";
     if (modo === "fija" && (nextStep.texto || nextStep.pregunta)) {
       const textoOrig = nextStep.texto || nextStep.pregunta || "";
-      const { texto: textoFijo, faltaBarrio } = rellenarVariables(textoOrig, state, domiciliosCfgVars);
+      const { texto: textoFijo, faltaBarrio } = rellenarVariables(textoOrig, state, cfg);
       if (faltaBarrio) {
         // La frase necesita el precio del domicilio pero aún no hay barrio → pedirlo primero
         nextStepLine =
@@ -1379,7 +1457,7 @@ async function buildConversationResponse(
           `(b) si el cliente preguntó algo distinto o hay confusión, respóndele en UNA frase breve y luego envía la frase EXACTA.`;
       }
     } else if (modo === "conversacional" && nextStep.guia) {
-      const { texto: guiaVars, faltaBarrio } = rellenarVariables(nextStep.guia, state, domiciliosCfgVars);
+      const { texto: guiaVars, faltaBarrio } = rellenarVariables(nextStep.guia, state, cfg);
       if (faltaBarrio) {
         nextStepLine =
           `El cliente necesita el precio del domicilio pero aún no sabemos su barrio. ` +
@@ -1390,7 +1468,7 @@ async function buildConversationResponse(
       }
     } else {
       const textoOrig = nextStep.texto || nextStep.pregunta || nextStep.guia || "";
-      const { texto } = rellenarVariables(textoOrig, state, domiciliosCfgVars);
+      const { texto } = rellenarVariables(textoOrig, state, cfg);
       nextStepLine = `PRÓXIMO PASO — obtener: ${nextStep.campo}. Pregunta: "${texto}"`;
     }
   } else if (state.producto) {

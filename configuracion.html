@@ -117,6 +117,7 @@
       <nav class="cia-tabs" id="ciaTabs" style="display:none">
         <button class="cia-tab on" data-tab="asistente"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg> Asistente</button>
         <button class="cia-tab" data-tab="flujo"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg> Flujo</button>
+        <button class="cia-tab" data-tab="variables"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg> Variables</button>
         <button class="cia-tab" data-tab="mensajes"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Mensajes</button>
         <button class="cia-tab" data-tab="domicilios"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Domicilios</button>
         <button class="cia-tab" data-tab="pagos"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Pagos</button>
@@ -1072,6 +1073,106 @@
                   <a href="flow-editor.html" target="_blank" style="margin-left:auto;font-size:12px;color:#5B6BFF;display:flex;align-items:center;gap:5px;text-decoration:none;font-weight:500;">Pantalla completa<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:3px"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
                 </div>
                 <iframe src="flow-editor.html" style="width:100%;height:640px;border:none;display:block;" title="Editor de flujo"></iframe>
+              </div>
+            </div>
+
+            <!-- Panel Variables -->
+            <style>
+              .var-tipo-btns{display:flex;gap:8px}
+              .var-tipo{flex:1;padding:12px;border:1.5px solid var(--border);border-radius:10px;background:var(--surface,#fff);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-muted);transition:all .15s}
+              .var-tipo.on{border-color:#5B6BFF;background:rgba(91,107,255,.06);color:#5B6BFF}
+              .var-btn{padding:10px 16px;border-radius:10px;border:none;font-size:13px;font-weight:600;cursor:pointer}
+              .var-btn-primary{background:#5B6BFF;color:#fff}
+              .var-btn-ghost{background:transparent;color:var(--text-muted);border:1.5px solid var(--border)}
+              .var-item{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--surface,#fff)}
+              .var-item-name{font-family:monospace;font-weight:600;color:#5B6BFF;font-size:13px}
+              .var-item-badge{font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:6px;letter-spacing:.03em}
+              .var-badge-dato{background:rgba(16,185,129,.12);color:#059669}
+              .var-badge-frase{background:rgba(139,92,246,.12);color:#7C3AED}
+              .var-item-desc{flex:1;font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+              .var-item-act{background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:12px;padding:4px 8px;border-radius:6px}
+              .var-item-act:hover{background:var(--hover,#f3f4f6)}
+              .var-empty{text-align:center;color:var(--text-muted);font-size:13px;padding:20px}
+            </style>
+            <div class="card" data-tab="variables" id="card-variables">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Variables</div>
+                  <div class="card-hd-ds">Crea atajos reutilizables que puedes escribir como <b>{{nombre}}</b> en cualquier frase del bot. El bot los reemplaza por el dato real o por tu frase.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="field">
+                  <label class="field-lb" for="varNombre">Nombre de la variable</label>
+                  <input class="inp" id="varNombre" placeholder="ej: saludo, mi_hora, telefono" maxlength="40">
+                  <div class="field-hint">La usarás escribiendo <b>{{nombre}}</b>. Solo letras, números y guion bajo (sin espacios).</div>
+                </div>
+                <div class="field">
+                  <label class="field-lb">Tipo de variable</label>
+                  <div class="var-tipo-btns">
+                    <button type="button" class="var-tipo on" data-vtipo="dato">📊 Dato del sistema</button>
+                    <button type="button" class="var-tipo" data-vtipo="frase">💬 Frase mía</button>
+                  </div>
+                </div>
+                <div class="field" id="varDatoField">
+                  <label class="field-lb" for="varFuente">¿Qué dato?</label>
+                  <select class="inp" id="varFuente">
+                    <optgroup label="Pedido en curso">
+                      <option value="producto">Producto</option>
+                      <option value="tamano">Tamaño</option>
+                      <option value="tipo">Tipo (variante)</option>
+                      <option value="cantidad">Cantidad</option>
+                      <option value="adiciones">Adiciones</option>
+                      <option value="direccion">Dirección del cliente</option>
+                      <option value="pago">Método de pago elegido</option>
+                      <option value="nombre">Nombre del pedido</option>
+                    </optgroup>
+                    <optgroup label="Precios">
+                      <option value="precio_domi">Precio del domicilio</option>
+                    </optgroup>
+                    <optgroup label="Tiempo">
+                      <option value="hora">Hora actual</option>
+                      <option value="dia">Día de la semana</option>
+                      <option value="fecha">Fecha</option>
+                      <option value="saludo_hora">Saludo según la hora</option>
+                    </optgroup>
+                    <optgroup label="Restaurante">
+                      <option value="restaurante">Nombre del restaurante</option>
+                      <option value="direccion_local">Dirección del local</option>
+                      <option value="ciudad">Ciudad</option>
+                      <option value="telefono_local">Teléfono del local</option>
+                      <option value="horario_hoy">Horario de hoy</option>
+                      <option value="tiempo_domicilio">Tiempo estimado de domicilio</option>
+                    </optgroup>
+                    <optgroup label="Pagos">
+                      <option value="nequi">Llave Nequi</option>
+                      <option value="titular">Titular de la cuenta</option>
+                      <option value="metodos_pago">Métodos de pago aceptados</option>
+                    </optgroup>
+                    <optgroup label="Catálogo">
+                      <option value="menu">Menú completo</option>
+                      <option value="categorias">Categorías</option>
+                    </optgroup>
+                    <optgroup label="Cliente">
+                      <option value="cliente">Nombre del cliente</option>
+                    </optgroup>
+                  </select>
+                  <div class="field-hint">El bot lo reemplaza automáticamente por el dato real de ese momento.</div>
+                </div>
+                <div class="field" id="varFraseField" style="display:none">
+                  <label class="field-lb" for="varTexto">Frase</label>
+                  <textarea class="inp" id="varTexto" rows="3" placeholder="Ej: Buenas {{saludo_hora}}, soy el asistente de {{restaurante}} 🍟"></textarea>
+                  <div class="field-hint">Puedes usar otras variables adentro (se reemplazan también).</div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:4px">
+                  <button type="button" class="var-btn var-btn-primary" id="varAgregar">Agregar variable</button>
+                  <button type="button" class="var-btn var-btn-ghost" id="varCancelar" style="display:none">Cancelar</button>
+                </div>
+                <div class="field" style="margin-top:20px">
+                  <label class="field-lb">Mis variables</label>
+                  <div id="varList"></div>
+                </div>
               </div>
             </div>
 
