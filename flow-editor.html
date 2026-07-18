@@ -555,7 +555,47 @@ function exportarFlujoPasos(data) {
     const conns = node.outputs?.output_1?.connections || [];
     curId = conns.length ? String(conns[0].node) : null;
   }
+  // Nodos con slot que quedaron fuera del recorrido (ramas paralelas del grafo):
+  // agregarlos ordenados por posición horizontal para que ningún paso se pierda.
+  const faltantes = entries
+    .filter(([nid, n]) => !visited.has(String(nid)) && n.data && n.data.campo)
+    .sort((a,b) => (a[1].pos_x||0) - (b[1].pos_x||0));
+  for (const [, n] of faltantes) pushPaso(n.data, pasos);
   return pasos;
+}
+
+// El primer nodo de mensaje SIN slot (Frase fija o IA conversacional) después de Inicio
+// es el SALUDO del bot. Se guarda en ia_config.flujo_saludo para que el motor lo use
+// como bienvenida (nada de saludos hardcoded en el código).
+function exportarSaludo(data) {
+  const nodes = (data.drawflow?.Home?.data) || {};
+  const entries = Object.entries(nodes);
+  let startId = null;
+  for (const [nid, n] of entries) { if (n.data && n.data.type === 'inicio') { startId = nid; break; } }
+  const seq = [];
+  if (startId) {
+    const visited = new Set(); let cur = String(startId);
+    while (cur && !visited.has(cur)) {
+      visited.add(cur);
+      const node = nodes[cur]; if (!node) break;
+      seq.push(node);
+      const conns = node.outputs?.output_1?.connections || [];
+      cur = conns.length ? String(conns[0].node) : null;
+    }
+  } else {
+    entries.sort((a,b)=>(a[1].pos_x||0)-(b[1].pos_x||0));
+    for (const [, n] of entries) seq.push(n);
+  }
+  for (const n of seq) {
+    const d = n.data || {};
+    if ((d.type === 'ia' || d.type === 'fija') && !d.campo) {
+      const esFija = d.tipo ? d.tipo === 'fija' : d.type === 'fija';
+      if (esFija) return { modo: 'fija', texto: d.frase || '' };
+      return { modo: 'conversacional', guia: d.instrucciones || '' };
+    }
+    if (d.type === 'pregunta' || d.type === 'resumen') break; // el saludo va antes de los pasos
+  }
+  return null;
 }
 
 async function saveFlow() {
@@ -564,30 +604,39 @@ async function saveFlow() {
   dirty = false;
   document.getElementById('saveStatus').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;color:var(--green)"><polyline points="20 6 9 17 4 12"/></svg> Guardando…`;
 
-  // Guardar en Supabase: flujo_pasos (para el motor), flujo_canvas (diseño visual) y frases.resumen
+  // Guardar en Supabase: flujo_pasos (motor), flujo_saludo (bienvenida), flujo_canvas (diseño)
+  // y frases.resumen. Si falla, se INFORMA — nunca un "Guardado" falso.
   try {
     const session = (await sb.auth.getSession()).data.session;
-    if (session) {
-      const branchId = session.user.user_metadata.branch_id;
-      const nodes = Object.values((data.drawflow?.Home?.data) || {});
-      const { data: existing } = await sb.from('ia_config').select('frases').eq('branch_id', branchId).maybeSingle();
-      let frases = existing?.frases || {};
-      const resNode = nodes.find(n => n.data && n.data.type === 'resumen');
-      if (resNode) {
-        const rd = resNode.data;
-        const tipoRes = rd.tipo || 'fija';
-        frases = { ...frases, resumen: tipoRes === 'fija'
-          ? { modo: 'fija', texto: rd.frase || RESUMEN_DEFAULT }
-          : { modo: 'conversacional', guia: rd.instrucciones || '' } };
-      }
-      const flujoPasos = exportarFlujoPasos(data);
-      await sb.from('ia_config').upsert(
-        { branch_id: branchId, frases, flujo_pasos: flujoPasos, flujo_canvas: data },
-        { onConflict: 'branch_id' }
-      );
+    if (!session) throw new Error('Sin sesión — inicia sesión para guardar el flujo');
+    const meta = session.user.user_metadata || {};
+    const branchId = meta.branch_id;
+    if (!branchId) throw new Error('La sesión no tiene branch_id');
+    const nodes = Object.values((data.drawflow?.Home?.data) || {});
+    const { data: existing } = await sb.from('ia_config').select('frases').eq('branch_id', branchId).maybeSingle();
+    let frases = existing?.frases || {};
+    const resNode = nodes.find(n => n.data && n.data.type === 'resumen');
+    if (resNode) {
+      const rd = resNode.data;
+      const tipoRes = rd.tipo || 'fija';
+      frases = { ...frases, resumen: tipoRes === 'fija'
+        ? { modo: 'fija', texto: rd.frase || RESUMEN_DEFAULT }
+        : { modo: 'conversacional', guia: rd.instrucciones || '' } };
     }
+    const payload = {
+      branch_id: branchId,
+      frases,
+      flujo_pasos:  exportarFlujoPasos(data),
+      flujo_saludo: exportarSaludo(data),
+      flujo_canvas: data,
+    };
+    if (meta.tenant_id) payload.tenant_id = meta.tenant_id;
+    const { error } = await sb.from('ia_config').upsert(payload, { onConflict: 'branch_id' });
+    if (error) throw error;
   } catch(err) {
-    console.warn('Canvas: error guardando flujo en Supabase', err);
+    console.error('Canvas: error guardando flujo en Supabase', err);
+    document.getElementById('saveStatus').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;color:#e5484d"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Error al guardar: ${(err && err.message) ? String(err.message).slice(0,60) : 'revisa la consola'}`;
+    return;
   }
 
   document.getElementById('saveStatus').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;color:var(--green)"><polyline points="20 6 9 17 4 12"/></svg> Guardado`;

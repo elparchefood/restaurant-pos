@@ -74,14 +74,9 @@ function newPacoState(): PacoState {
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
-// Banco de bienvenidas de Paco (se elige aleatoriamente en primer contacto)
-const PACO_BIENVENIDAS = [
-  "¡Hola! Soy **Paco** 🤖, el asistente virtual de El Parche. ¿Qué vas a pedir hoy? 🍔",
-  "¡Buenas! Aquí **Paco**, asistente virtual de El Parche Food 👋 ¿Qué se te antoja? 🍟",
-  "¡Hola! Con **Paco** a la orden 🤖 — el asistente virtual de El Parche. ¿Qué quieres pa' comer? 😄",
-  "¡Buenas! Soy **Paco** 🍔, asistente virtual de El Parche Food. Dime, ¿qué vas a querer?",
-  "¡Buenas! Soy **Paco**, asistente virtual de El Parche Food 👋 ¿Listo para pedir? 🍟🍔",
-];
+// NOTA: el saludo/bienvenida NO va hardcoded. Sale del canvas (ia_config.flujo_saludo),
+// del banco configurable (frases.bienvenidas) o de frases.apertura. El único fallback de
+// código es una plantilla neutra construida con el nombre del bot y del restaurante (config).
 
 const CONFIRM_WORDS = [
   "sí","si","dale","correcto","perfecto","claro","de acuerdo",
@@ -429,11 +424,43 @@ async function processConversation(convId: string): Promise<void> {
     await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state, pago_pendiente: false });
 
     if (puedeTomarPedidos) {
-      // Elegir bienvenida del banco (canvas o hardcoded)
-      const bienvenidas = (cfg.bienvenidas as string[]) ||
-        (Array.isArray(frasesCfg.bienvenidas) ? frasesCfg.bienvenidas as string[] : null) ||
-        PACO_BIENVENIDAS;
-      const bienvenida = bienvenidas[Math.floor(Math.random() * bienvenidas.length)];
+      // Bienvenida — SIEMPRE desde canvas/configuración, nunca hardcoded:
+      // (1) nodo Saludo del canvas (flujo_saludo: fija=texto exacto con variables,
+      //     conversacional=GPT con la guía del canvas + personalidad del asistente)
+      // (2) banco configurable frases.bienvenidas / cfg.bienvenidas (aleatoria)
+      // (3) frases.apertura_conocido (cliente recurrente) o frases.apertura
+      // (4) plantilla neutra construida con el nombre del bot y del restaurante (config)
+      let bienvenida = "";
+      const flujoSaludo = cfg.flujo_saludo as { modo?: string; texto?: string; guia?: string } | null | undefined;
+      if (flujoSaludo && flujoSaludo.modo === "fija" && flujoSaludo.texto) {
+        bienvenida = rellenarVariables(flujoSaludo.texto, state, cfg).texto;
+      } else if (flujoSaludo && flujoSaludo.modo === "conversacional" && flujoSaludo.guia) {
+        try {
+          bienvenida = await buildConversationResponse(
+            clienteTexto, histCtx, state,
+            { id: "saludo", campo: "saludo", modo: "conversacional", guia: flujoSaludo.guia },
+            cfg, frasesCfg, menuText, horariosText, pagosText, domiciliosText, null,
+            true, nombreParaBot, colTimeStr, colDayStr, horaAperturaHoy, horaCierreHoy, proxDia, !!nombreKnown,
+          );
+        } catch (_) { /* cae a los siguientes niveles */ }
+      }
+      if (!bienvenida) {
+        const banco = (cfg.bienvenidas as string[]) ||
+          (Array.isArray(frasesCfg.bienvenidas) ? frasesCfg.bienvenidas as string[] : null);
+        if (banco && banco.length) bienvenida = banco[Math.floor(Math.random() * banco.length)];
+      }
+      if (!bienvenida) {
+        bienvenida = getFraseTexto(nombreKnown ? frasesCfg.apertura_conocido : frasesCfg.apertura)
+          || getFraseTexto(frasesCfg.apertura);
+      }
+      if (!bienvenida) {
+        const vd = ((cfg as Record<string, unknown>)._varData as Record<string, unknown>) || {};
+        const botCfgS  = (cfg.bot as Record<string, string>) || {};
+        const perfilS  = (cfg.perfil as Record<string, string>) || {};
+        const botNm    = botCfgS.nombre || perfilS.nombre || "tu asistente virtual";
+        const restNm   = String(vd.restaurante || "");
+        bienvenida = `¡Hola! Soy ${botNm}${restNm ? `, el asistente virtual de ${restNm}` : ""} 🤖 ¿Qué deseas pedir? 🍟`;
+      }
       await sendWaAndSave(convId, tenantId, bienvenida, fromPhone, phoneId, accessToken);
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: bienvenida, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
       return;
