@@ -68,7 +68,7 @@ function newPacoState(): PacoState {
     adiciones: null, direccion: null, pago: null, nombre: null,
     items: [], resumen_enviado: false, direccion_heredada: false, complemento_dir_pendiente: null,
     last_activity: new Date(Date.now() - 30 * 60_000).toISOString(), // 30min atrás → sesionExpirada=true
-    _v: 117,
+    _v: 119,
   };
 }
 
@@ -97,7 +97,7 @@ const RECHAZO_UPSELL_WORDS = [
 ];
 
 const ADICION_KEYWORDS = [
-  "ranchera","salchicha ranchera","super queso","queso extra","queso adicional",
+  "salchicha ranchera","super queso","queso extra","queso adicional",
   "salsa especial","salsas especiales","salsa de ajo","salsa bbq",
   "agua","jugo","gaseosa","bebida","coca","colombiana","limonada",
   "té","te frio","sprite","manzana","naranja","agua panela","milo",
@@ -334,7 +334,7 @@ async function processConversation(convId: string): Promise<void> {
   const rawStateRaw = pagoPendienteViejo ? null : (convRow?.pending_order_data as Record<string, unknown> | null | undefined);
 
   let state: PacoState;
-  if (!rawStateRaw || (rawStateRaw._v as number || 0) < 117) {
+  if (!rawStateRaw || (rawStateRaw._v as number || 0) < 119) {
     state = newPacoState();
     if (rawStateRaw?.direccion && rawStateRaw?.resumen_enviado) {
       state.direccion = rawStateRaw.direccion as string;
@@ -607,6 +607,13 @@ async function processConversation(convId: string): Promise<void> {
   if (extracted.direccion && state.complemento_dir_pendiente) {
     state.complemento_dir_pendiente = null;
   }
+  // Arquitectura independiente de pasos: si ya hay un producto activo, la dirección
+  // (sea heredada o recién dada) pertenece a ESTE pedido. Limpiar la bandera heredada
+  // evita que "confirmar_dir" bloquee el flujo cuando el cliente ya está en medio de un pedido.
+  if (state.producto && state.direccion && state.direccion_heredada) {
+    state.direccion_heredada = false;
+  }
+
   state.last_activity = new Date().toISOString();
   await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
 
@@ -680,6 +687,13 @@ async function processConversation(convId: string): Promise<void> {
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
     }
   }
+
+  // 14e-cuarto. NOTA: el nombre NO se auto-rellena. El paso "nombre" debe CONFIRMARLO
+  // explícitamente ("¿va a nombre de X?") — 3 casos manejados en getFlowPasos:
+  //   (a) nombre WA válido → confirmar; (b) nombre raro/emojis → preguntar; (c) recurrente → confirmar.
+  // La confirmación la captura runExtractors (paso nombre + CONFIRM_WORDS → state.nombre = nombreConfirmar).
+  // El resumen falso que esto causaba antes ya está cubierto por las reglas estrictas de GPT (v124)
+  // y porque el pago es ahora el último paso (findNextStep no llega a null con nombre pendiente).
 
   // 14f. Sin producto → respuesta conversacional general
   if (!state.producto) {
@@ -871,9 +885,9 @@ function extractAdiciones(text: string, isCurrentStep: boolean): string | null {
 function extractDireccion(text: string, isCurrentStep: boolean, productData: ProductData | null = null): string | null {
   const t = text.toLowerCase().trim();
   if (LLEVAR_REGEX.test(t)) return text.trim();
-  // Cuando no es el paso de dirección, solo capturar si el texto es corto (<= 120 chars)
-  // Evita que mensajes largos con "Carrera"/"Calle" se almacenen como dirección completa
-  if (CALLE_REGEX.test(text) && (isCurrentStep || text.trim().length <= 120)) return text.trim();
+  // Cuando no es el paso de dirección, solo capturar si el texto es corto (<= 65 chars)
+  // Evita que mensajes largos con "Carrera"/"Calle" (ej. mensaje inicial con todo el pedido) se almacenen como dirección completa
+  if (CALLE_REGEX.test(text) && (isCurrentStep || text.trim().length <= 65)) return text.trim();
   if (isCurrentStep && text.trim().length > 8) {
     if (!isProductAttribute(text, productData) && !extractPago(text, null) && !extractNombrePuro(text, productData)) {
       return text.trim();
@@ -912,7 +926,12 @@ function detectarNombreWa(raw: string): string | null {
 
 function extractNombre(text: string, isCurrentStep: boolean, productData: ProductData | null = null): string | null {
   if (!isCurrentStep) return null;
-  const t = text.trim();
+  let t = text.trim();
+  // Aislar el nombre de frases de corrección/introducción, p.ej.:
+  //   "no, va a nombre de Andrea" → "Andrea" · "es para Carlos" → "Carlos" · "me llamo Sergio" → "Sergio"
+  t = t.replace(/^(no|s[íi])[,.\s]+/i, "").trim();
+  t = t.replace(/^(el\s+nombre\s+(es|va)\s*:?\s*|va\s+a\s+nombre\s+de\s+|a\s+nombre\s+de\s+|es\s+para\s+|me\s+llamo\s+|mi\s+nombre\s+es\s+|el\s+pedido\s+es\s+para\s+|soy\s+|es\s+)/i, "").trim();
+  t = t.replace(/[.,;]+$/, "").trim();
   if (t.length < 2 || t.length > 60) return null;
   if (extractPago(t, null)) return null;
   if (isProductAttribute(t, productData)) return null;
@@ -1023,10 +1042,15 @@ function runExtractors(
     const t = text.trim();
     const esPreg = t.includes("?") || t.includes("¿");
     const esCorto = t.length <= 60;  // barrio/número no debería ser un párrafo
-    // Si el usuario da una nueva dirección completa (con calle/carrera/etc.), no concatenar — dejar pasar al extractor normal
     const esNuevaDireccion = CALLE_REGEX.test(text) || LLEVAR_REGEX.test(text.toLowerCase());
-    if (!esPreg && esCorto && t.length > 1 && !esNuevaDireccion && !extractPago(t, pagosCfg) && !isProductAttribute(t, productData)) {
-      result.direccion = state.direccion.trimEnd().replace(/,\s*$/, "") + ", " + t;
+    if (!esPreg && esCorto && t.length > 1 && !extractPago(t, pagosCfg) && !isProductAttribute(t, productData)) {
+      if (esNuevaDireccion) {
+        // Cliente dio una dirección completa — extraer y reemplazar en vez de concatenar
+        const newDir = extractDireccion(text, true, productData);
+        result.direccion = newDir || text;
+      } else {
+        result.direccion = state.direccion.trimEnd().replace(/,\s*$/, "") + ", " + t;
+      }
       result.complemento_dir_pendiente = null;
       return result;
     }
@@ -1058,7 +1082,8 @@ function runExtractors(
     if (rechazaDir) { result.direccion = null; result.direccion_heredada = false; }
     else if (nuevaDir && !confirmaDir) { result.direccion = nuevaDir; result.direccion_heredada = false; }
     else if (confirmaDir) { result.direccion_heredada = false; }
-    return result;
+    // No early return: los demás extractores corren siempre para capturar pago, nombre, etc.
+    // del mismo mensaje. Cada paso es independiente del resto.
   }
   if (!state.direccion) {
     const isDirStep = currentStepId === "direccion";
@@ -1139,20 +1164,136 @@ function getFlowPasos(cfg: Record<string, unknown>, frasesCfg: Record<string, un
       : `El contacto de WhatsApp se llama "${nombreConfirmar}". Confirma si el pedido va a ese nombre, preguntando algo como "¿Va a nombre de ${nombreConfirmar}?" — si confirma, úsalo; si da otro, usa el que indique.`
     : nombre.guia;
 
+  // Orden por defecto: upsell → dirección → nombre → PAGO (el pago es lo último antes del resumen).
+  // Configurable desde el canvas vía cfg.flujo_pasos (ver getFlowPasos/buildAllPasos).
   return [
     { id: "upsell",        campo: "adiciones", modo: upsell.modo,  texto: upsell.texto  || "¿Deseas adicionar alguna bebida, salchicha ranchera, super queso o salsas especiales? 🤩", guia: upsell.guia },
     { id: "confirmar_dir", campo: "direccion", modo: "conversacional", guia: "Pregunta de forma amigable si el pedido va a la misma dirección que el pedido anterior" },
     { id: "direccion",     campo: "direccion", modo: destino.modo, texto: destino.texto || "Con gusto, ¿para dónde va tu pedido? ☺️", guia: destino.guia },
-    { id: "pago",          campo: "pago",      modo: pago.modo,    texto: pago.texto    || "¿Cómo nos vas a pagar? (Efectivo, Nequi o Daviplata) 🍟☺️", guia: pago.guia },
     { id: "nombre",        campo: "nombre",    modo: "conversacional", texto: nombreConfirmar ? undefined : (nombre.texto || "¿A nombre de quién se recibe el pedido? 🍟"), guia: nombreGuia },
+    { id: "pago",          campo: "pago",      modo: pago.modo,    texto: pago.texto    || "¿Cómo nos vas a pagar? (Efectivo, Nequi o Daviplata) 🍟☺️", guia: pago.guia },
   ];
 }
 
 function buildAllPasos(productData: ProductData | null, cfg: Record<string, unknown>, frasesCfg: Record<string, unknown>, nombreConfirmar: string | null = null, esRecurrente = false): PasoDefinicion[] {
-  const customPasos = cfg.flujo_pasos as PasoDefinicion[] | null | undefined;
-  if (customPasos && Array.isArray(customPasos) && customPasos.length > 0) return customPasos;
+  // Flujo configurado desde el canvas (ia_config.flujo_pasos) — respeta orden/modo/frase de cada paso,
+  // pero inyecta las opciones dinámicas del producto (tamaño/tipo vienen del catálogo, no del canvas).
+  const customRaw = cfg.flujo_pasos;
+  if (Array.isArray(customRaw) && customRaw.length > 0) {
+    try {
+      const procesados = procesarFlujoCanvas(customRaw as Array<Record<string, unknown>>, productData, nombreConfirmar, esRecurrente);
+      if (procesados.length > 0) return procesados;
+    } catch (err) {
+      console.error("procesarFlujoCanvas falló, usando flujo por defecto:", err);
+    }
+  }
+  // Flujo por defecto (hardcoded) — usado cuando no hay flujo del canvas o si éste falla
   const productPasos = productData ? buildProductPasos(productData, frasesCfg) : [];
   return [...productPasos, ...getFlowPasos(cfg, frasesCfg, nombreConfirmar, esRecurrente)];
+}
+
+// Convierte el flujo exportado del canvas (array ordenado de pasos) al formato PasoDefinicion
+// que entiende findNextStep. Inyecta opciones dinámicas para tamaño/tipo y omite pasos que
+// no aplican al producto (ej. tamaño si el producto no tiene presentaciones).
+function procesarFlujoCanvas(
+  canvasPasos: Array<Record<string, unknown>>,
+  productData: ProductData | null,
+  nombreConfirmar: string | null,
+  esRecurrente: boolean,
+): PasoDefinicion[] {
+  const out: PasoDefinicion[] = [];
+  for (const p of canvasPasos) {
+    if (!p || typeof p !== "object") continue;
+    if (p.activo === false) continue;
+    const campo = String(p.campo || "");
+    // modo: acepta 'modo' (fija/conversacional) o 'tipo' del canvas (fija/ia)
+    const modo: "fija" | "conversacional" =
+      (p.modo === "conversacional" || p.tipo === "ia") ? "conversacional" : "fija";
+    let texto = String(p.texto || p.frase || "");
+    let guia  = String(p.guia || p.instrucciones || "");
+
+    if (campo === "tamano") {
+      if (!productData || productData.presentations.length <= 1) continue;
+      const opciones = productData.presentations.map(x => x.name).join(" o ");
+      texto = (texto || "¿La quieres {opciones}? 😋").replace(/\{opciones\}/g, opciones);
+      guia  = (guia || `Pregunta cuál presentación prefiere. SOLO estas opciones exactas: ${opciones}. No ofrezcas ninguna otra.`).replace(/\{opciones\}/g, opciones);
+      out.push({ id: "presentacion", campo: "tamano", modo, texto, guia });
+    } else if (campo === "tipo") {
+      if (!productData || productData.variables.length === 0) continue;
+      const vg = productData.variables[0];
+      if (!vg.options || vg.options.length === 0) continue;
+      const opciones = vg.options.map(o => o.name).join(", ");
+      texto = (texto || "¿{label}? ({opciones}) 🍟").replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
+      guia  = (guia || `Pregunta por "${vg.name}". SOLO estas opciones exactas: ${opciones}. Jamás menciones otra.`).replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
+      out.push({ id: `variable_${vg.id}`, campo: "tipo", modo, texto, guia });
+    } else if (campo === "adiciones") {
+      out.push({ id: "upsell", campo: "adiciones", modo, texto: texto || undefined, guia: guia || undefined });
+    } else if (campo === "direccion") {
+      out.push({ id: "direccion", campo: "direccion", modo, texto: texto || "Con gusto, ¿para dónde va tu pedido? ☺️", guia });
+    } else if (campo === "pago") {
+      out.push({ id: "pago", campo: "pago", modo, texto: texto || "¿Cómo nos vas a pagar? (Efectivo, Nequi o Daviplata) 🍟☺️", guia });
+    } else if (campo === "nombre") {
+      const nombreGuia = nombreConfirmar
+        ? (esRecurrente
+            ? `Cliente recurrente — su nombre guardado es "${nombreConfirmar}". Salúdalo con familiaridad y confirma: "¿Va a nombre de ${nombreConfirmar}?" — si confirma úsalo; si da otro, usa ese.`
+            : `El contacto de WhatsApp se llama "${nombreConfirmar}". Confirma si el pedido va a ese nombre: "¿Va a nombre de ${nombreConfirmar}?" — si confirma úsalo; si da otro, usa ese.`)
+        : (guia || "Pregunta a nombre de quién se recibe el pedido.");
+      out.push({
+        id: "nombre", campo: "nombre",
+        modo: nombreConfirmar ? "conversacional" : modo,
+        texto: nombreConfirmar ? undefined : (texto || "¿A nombre de quién se recibe el pedido? 🍟"),
+        guia: nombreGuia,
+      });
+    }
+    // Nodos sin campo de slot (saludo, resumen, inicio, timer) no son pasos de slot-filling → ignorados aquí.
+  }
+  return out;
+}
+
+// ── rellenarVariables — reemplaza placeholders {{...}} con datos reales del pedido ─
+// Las variables son INTERNAS de la plataforma. Algunas tienen dependencias:
+// {{precio_domi}} / {{precio_total}} sólo se pueden calcular si hay un barrio conocido.
+// Si la frase usa esas variables pero aún no hay barrio, retorna faltaBarrio=true para
+// que el motor pregunte el barrio ANTES de intentar dar el precio (nunca un valor falso).
+// Nota: {{precio}} (del producto) y {{precio_total}} requieren catálogo → siguiente capa;
+// por ahora se muestran como "a confirmar" para no dejar el placeholder crudo.
+function rellenarVariables(
+  texto: string,
+  state: PacoState,
+  domiciliosCfg: Record<string, unknown> | null | undefined,
+): { texto: string; faltaBarrio: boolean } {
+  if (!texto || !texto.includes("{{")) return { texto: texto || "", faltaBarrio: false };
+
+  const esParaLlevar = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
+  const domiPrecio   = (!esParaLlevar && state.direccion) ? lookupDomiPrice(state.direccion, domiciliosCfg) : null;
+
+  // Dependencia: la frase pide precio de domicilio/total pero no hay barrio válido para calcularlo
+  const usaDomi = /\{\{(precio_domi|total_domi|precio_total|gran_total)\}\}/.test(texto);
+  const faltaBarrio = usaDomi && !esParaLlevar && domiPrecio === null;
+
+  const tamStr  = [state.tipo, state.tamano].filter(Boolean).join(" ");
+  const addStr  = state.adiciones && state.adiciones.length > 0 ? state.adiciones : "";
+  const domiStr = esParaLlevar ? "para llevar"
+    : domiPrecio === null ? "a confirmar"
+    : domiPrecio === 0   ? "Gratis"
+    : fmtCOP(domiPrecio);
+
+  const out = texto
+    .replace(/\{\{producto\}\}/g,  state.producto || "")
+    .replace(/\{\{tamano\}\}/g,    tamStr || state.tamano || "")
+    .replace(/\{\{tipo\}\}/g,      state.tipo || "")
+    .replace(/\{\{cantidad\}\}/g,  String(state.cantidad || 1))
+    .replace(/\{\{adiciones\}\}/g, addStr)
+    .replace(/\{\{direccion\}\}/g, state.direccion || "")
+    .replace(/\{\{pago\}\}/g,      state.pago || "")
+    .replace(/\{\{nombre\}\}/g,    state.nombre || "")
+    .replace(/\{\{precio_domi\}\}/g, domiStr)
+    .replace(/\{\{total_domi\}\}/g,  domiStr)
+    .replace(/\{\{precio\}\}/g,       "a confirmar")
+    .replace(/\{\{precio_total\}\}/g, "a confirmar")
+    .replace(/\{\{gran_total\}\}/g,   "a confirmar");
+
+  return { texto: out, faltaBarrio };
 }
 
 // ── buildConversationResponse — GPT para TODAS las respuestas del bot ─────────
@@ -1214,19 +1355,56 @@ async function buildConversationResponse(
     nextStepLine = "El resumen ya fue enviado. Responde naturalmente al cliente. Si confirma el pedido, exprésalo positivamente. Si quiere corregir algo, confirma el cambio.";
   } else if (nextStep) {
     const modo = nextStep.modo || "fija";
+    const domiciliosCfgVars = cfg.domicilios as Record<string, unknown> | null | undefined;
+    // Pregunta de desbloqueo del barrio (cuando una variable de precio lo necesita)
+    const pregBarrioDesbloqueo = getFraseTexto(frasesCfg.preguntar_barrio)
+      || getFraseTexto(frasesCfg.preguntar_destino)
+      || "¿Para dónde va tu pedido? Así te confirmo el domicilio 📍";
     if (modo === "fija" && (nextStep.texto || nextStep.pregunta)) {
-      const textoFijo = nextStep.texto || nextStep.pregunta || "";
-      nextStepLine = `PRÓXIMO PASO — obtener: ${nextStep.campo}.\nMODO FIJA: responde al cliente y luego usa EXACTAMENTE esta frase, sin cambiarla:\n"${textoFijo}"`;
+      const textoOrig = nextStep.texto || nextStep.pregunta || "";
+      const { texto: textoFijo, faltaBarrio } = rellenarVariables(textoOrig, state, domiciliosCfgVars);
+      if (faltaBarrio) {
+        // La frase necesita el precio del domicilio pero aún no hay barrio → pedirlo primero
+        nextStepLine =
+          `El cliente necesita saber el precio del domicilio, pero aún no sabemos su barrio.\n` +
+          `MODO FIJA — REGLA ESTRICTA: Tu respuesta debe ser esta frase EXACTA, sin cambiarla:\n"${pregBarrioDesbloqueo}"\n` +
+          `NO des ningún precio de domicilio todavía. Primero necesitamos el barrio.`;
+      } else {
+        nextStepLine =
+          `PRÓXIMO PASO — obtener: ${nextStep.campo}.\n` +
+          `MODO FIJA — REGLA ESTRICTA: Tu respuesta debe ser esta frase EXACTA, palabra por palabra:\n"${textoFijo}"\n` +
+          `PROHIBIDO agregar preguntas, datos, cantidades o comentarios propios antes o después de la frase. ` +
+          `Jamás inventes preguntas que no estén en la frase (ej: denominación del billete, con cuánto pagas, etc.).\n` +
+          `Únicas variaciones permitidas: (a) si el cliente acaba de darte un dato, puedes anteponer SOLO una confirmación de 2-3 palabras ("¡Perfecto! 🙌") y nada más; ` +
+          `(b) si el cliente preguntó algo distinto o hay confusión, respóndele en UNA frase breve y luego envía la frase EXACTA.`;
+      }
     } else if (modo === "conversacional" && nextStep.guia) {
-      nextStepLine = `PRÓXIMO PASO — obtener: ${nextStep.campo}.\nMODO CONVERSACIONAL: responde al cliente y luego, de forma natural, obtén lo siguiente: ${nextStep.guia}`;
+      const { texto: guiaVars, faltaBarrio } = rellenarVariables(nextStep.guia, state, domiciliosCfgVars);
+      if (faltaBarrio) {
+        nextStepLine =
+          `El cliente necesita el precio del domicilio pero aún no sabemos su barrio. ` +
+          `Tu único objetivo ahora es preguntarle el barrio o la dirección de forma natural para poder calcular el domicilio. ` +
+          `NO des ningún precio de domicilio todavía.`;
+      } else {
+        nextStepLine = `PRÓXIMO PASO — obtener: ${nextStep.campo}.\nMODO CONVERSACIONAL: responde al cliente de forma natural. Tu único objetivo en este paso es obtener: ${guiaVars}. No pidas ningún otro dato, no inventes preguntas fuera de ese objetivo.`;
+      }
     } else {
-      const texto = nextStep.texto || nextStep.pregunta || nextStep.guia || "";
+      const textoOrig = nextStep.texto || nextStep.pregunta || nextStep.guia || "";
+      const { texto } = rellenarVariables(textoOrig, state, domiciliosCfgVars);
       nextStepLine = `PRÓXIMO PASO — obtener: ${nextStep.campo}. Pregunta: "${texto}"`;
     }
   } else if (state.producto) {
     nextStepLine = "Todos los datos del pedido están completos. Informa al cliente que en un momento le envías el resumen para confirmar.";
   } else {
-    nextStepLine = "El cliente aún no ha pedido ningún producto. Ayúdalo a elegir del menú de forma natural.";
+    // Cliente pidió algo pero no especificó cuál producto → usar la frase configurada en el canvas (menu_frase),
+    // NO una improvisación de GPT. Así el paso es fiel a lo que el restaurante configuró.
+    const menuFraseCfg = (cfg.menu_frase as Record<string, string>) || {};
+    const fraseGenerica = menuFraseCfg.texto || getFraseTexto(frasesCfg.apertura) || "¡Claro que sí! 😊 ¿Cuál deseas?";
+    nextStepLine =
+      `El cliente quiere pedir pero aún no ha dicho cuál producto exacto.\n` +
+      `MODO FIJA — REGLA ESTRICTA: Tu respuesta empieza con esta frase EXACTA, sin cambiarla:\n"${fraseGenerica}"\n` +
+      `Luego, en el mismo mensaje, muestra el menú completo tal como aparece en la sección MENÚ de abajo, en formato de lista con precios (cópialo, no lo inventes ni resumas).\n` +
+      `PROHIBIDO enumerar tipos de producto en el texto (ej: "¿ranchera, mixta o pollo?") o inventar preguntas. Solo la frase exacta + el menú en lista.`;
   }
 
   const sysLines = [

@@ -487,32 +487,77 @@ function markDirty() {
   dirty = true;
   document.getElementById('saveStatus').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;color:var(--amber)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Sin guardar`;
 }
+// Convierte un nodo del canvas en un paso del motor (solo si captura un slot).
+const CAMPOS_SLOT = ['tamano','tipo','direccion','pago','nombre','adiciones'];
+function pushPaso(d, pasos) {
+  if (!d || !d.campo || !CAMPOS_SLOT.includes(d.campo)) return; // saludo/inicio/timer/resumen no son slots
+  const modo = (d.tipo === 'ia') ? 'conversacional' : 'fija';
+  pasos.push({
+    campo: d.campo,
+    modo,
+    texto: d.frase || '',
+    guia:  d.instrucciones || '',
+    activo: d.activo !== false,
+  });
+}
+
+// Recorre el grafo desde el nodo "inicio" siguiendo las conexiones y devuelve
+// el array ordenado de pasos para el motor (ia_config.flujo_pasos).
+function exportarFlujoPasos(data) {
+  const nodes = (data.drawflow?.Home?.data) || {};
+  const entries = Object.entries(nodes);
+  let startId = null;
+  for (const [nid, n] of entries) { if (n.data && n.data.type === 'inicio') { startId = nid; break; } }
+  const pasos = [];
+  if (!startId) {
+    // Sin nodo inicio: ordenar por posición horizontal
+    entries.sort((a,b) => (a[1].pos_x||0) - (b[1].pos_x||0));
+    for (const [, n] of entries) pushPaso(n.data, pasos);
+    return pasos;
+  }
+  const visited = new Set();
+  let curId = String(startId);
+  while (curId && !visited.has(curId)) {
+    visited.add(curId);
+    const node = nodes[curId];
+    if (!node) break;
+    pushPaso(node.data, pasos);
+    const conns = node.outputs?.output_1?.connections || [];
+    curId = conns.length ? String(conns[0].node) : null;
+  }
+  return pasos;
+}
+
 async function saveFlow() {
   const data = editor.export();
   localStorage.setItem('cobrapos_flow', JSON.stringify(data));
   dirty = false;
   document.getElementById('saveStatus').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;color:var(--green)"><polyline points="20 6 9 17 4 12"/></svg> Guardando…`;
 
-  // Guardar plantilla del nodo resumen en Supabase ia_config
+  // Guardar en Supabase: flujo_pasos (para el motor), flujo_canvas (diseño visual) y frases.resumen
   try {
-    const nodes = Object.values((data.drawflow?.Home?.data) || {});
-    const resNode = nodes.find(n => n.data && n.data.type === 'resumen');
-    if (resNode) {
-      const rd = resNode.data;
-      const tipoRes = rd.tipo || 'fija';
-      const fraseResumen = tipoRes === 'fija'
-        ? { modo: 'fija', texto: rd.frase || RESUMEN_DEFAULT }
-        : { modo: 'conversacional', guia: rd.instrucciones || '' };
-      const session = (await sb.auth.getSession()).data.session;
-      if (session) {
-        const branchId = session.user.user_metadata.branch_id;
-        const { data: existing } = await sb.from('ia_config').select('frases').eq('branch_id', branchId).maybeSingle();
-        const frases = { ...(existing?.frases || {}), resumen: fraseResumen };
-        await sb.from('ia_config').upsert({ branch_id: branchId, frases }, { onConflict: 'branch_id' });
+    const session = (await sb.auth.getSession()).data.session;
+    if (session) {
+      const branchId = session.user.user_metadata.branch_id;
+      const nodes = Object.values((data.drawflow?.Home?.data) || {});
+      const { data: existing } = await sb.from('ia_config').select('frases').eq('branch_id', branchId).maybeSingle();
+      let frases = existing?.frases || {};
+      const resNode = nodes.find(n => n.data && n.data.type === 'resumen');
+      if (resNode) {
+        const rd = resNode.data;
+        const tipoRes = rd.tipo || 'fija';
+        frases = { ...frases, resumen: tipoRes === 'fija'
+          ? { modo: 'fija', texto: rd.frase || RESUMEN_DEFAULT }
+          : { modo: 'conversacional', guia: rd.instrucciones || '' } };
       }
+      const flujoPasos = exportarFlujoPasos(data);
+      await sb.from('ia_config').upsert(
+        { branch_id: branchId, frases, flujo_pasos: flujoPasos, flujo_canvas: data },
+        { onConflict: 'branch_id' }
+      );
     }
   } catch(err) {
-    console.warn('Canvas: error guardando resumen en Supabase', err);
+    console.warn('Canvas: error guardando flujo en Supabase', err);
   }
 
   document.getElementById('saveStatus').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;color:var(--green)"><polyline points="20 6 9 17 4 12"/></svg> Guardado`;
@@ -520,50 +565,50 @@ async function saveFlow() {
 
 editor.on('zoom', val => { document.getElementById('zoomVal').textContent = Math.round(val*100)+'%'; });
 
-// Cargar flujo (localStorage o demo) y luego sincronizar template desde Supabase
-const saved = localStorage.getItem('cobrapos_flow');
-if(saved) {
-  try { editor.import(JSON.parse(saved)); } catch(e) { buildDemo(); }
-} else { buildDemo(); }
-
-// Sincronizar plantilla del resumen desde Supabase al abrir
+// Cargar flujo: Supabase (flujo_canvas = fuente de verdad) > localStorage > demo
 (async () => {
+  let loaded = false;
   try {
     const session = (await sb.auth.getSession()).data.session;
-    if (!session) return;
-    const branchId = session.user.user_metadata.branch_id;
-    const { data: cfg } = await sb.from('ia_config').select('frases').eq('branch_id', branchId).maybeSingle();
-    const r = cfg?.frases?.resumen;
-    if (!r) return;
-    // Buscar el nodo resumen en el flow actual y actualizar su data
-    const flowData = editor.export();
-    const allNodes = Object.entries((flowData.drawflow?.Home?.data) || {});
-    const [resNodeId, resNode] = allNodes.find(([,n]) => n.data && n.data.type === 'resumen') || [];
-    if (resNodeId && resNode) {
-      const updatedData = { ...resNode.data };
-      if (r.modo === 'fija') {
-        updatedData.tipo  = 'fija';
-        updatedData.frase = r.texto || RESUMEN_DEFAULT;
-      } else {
-        updatedData.tipo         = 'ia';
-        updatedData.instrucciones = r.guia || '';
+    if (session) {
+      const branchId = session.user.user_metadata.branch_id;
+      const { data: cfg } = await sb.from('ia_config').select('flujo_canvas, frases').eq('branch_id', branchId).maybeSingle();
+      if (cfg?.flujo_canvas && cfg.flujo_canvas.drawflow) {
+        try { editor.import(cfg.flujo_canvas); loaded = true; } catch(e) { console.warn('import flujo_canvas falló', e); }
       }
-      editor.updateNodeDataFromId(resNodeId, updatedData);
+      // Si el diseño no traía el resumen actualizado, sincronizar frases.resumen sobre el nodo resumen
+      const r = cfg?.frases?.resumen;
+      if (loaded && r) {
+        const flowData = editor.export();
+        const allNodes = Object.entries((flowData.drawflow?.Home?.data) || {});
+        const [resNodeId, resNode] = allNodes.find(([,n]) => n.data && n.data.type === 'resumen') || [];
+        if (resNodeId && resNode) {
+          const updatedData = { ...resNode.data };
+          if (r.modo === 'fija') { updatedData.tipo = 'fija'; updatedData.frase = r.texto || RESUMEN_DEFAULT; }
+          else { updatedData.tipo = 'ia'; updatedData.instrucciones = r.guia || ''; }
+          editor.updateNodeDataFromId(resNodeId, updatedData);
+        }
+      }
     }
   } catch(err) {
-    console.warn('Canvas: error cargando resumen desde Supabase', err);
+    console.warn('Canvas: error cargando flujo desde Supabase', err);
   }
+  if (!loaded) {
+    const saved = localStorage.getItem('cobrapos_flow');
+    if (saved) { try { editor.import(JSON.parse(saved)); loaded = true; } catch(e) { /* cae a demo */ } }
+  }
+  if (!loaded) buildDemo();
 })();
 
 function buildDemo() {
   const id1 = addNode('inicio',   80,  160, {nombre:'Inicio'});
   const id2 = addNode('ia',      300,   80, {nombre:'Saludo',instrucciones:'Saluda al cliente con la hora del día. Pregunta en qué le puedes ayudar.',activo:true});
-  const id3 = addNode('pregunta', 520,   80, {nombre:'Pedir tamaño',campo:'tamano',tipo:'fija',frase:'¿La deseas personal o familiar? 😋',activo:true});
-  const id4 = addNode('pregunta', 520,  230, {nombre:'Pedir tipo',campo:'tipo',tipo:'fija',frase:'¿La deseas mixta, de carne o de pollo? 🍟',activo:true});
-  const id5 = addNode('ia',       740,  155, {nombre:'Upsell',instrucciones:'Ofrece bebidas o adiciones.',activo:true});
-  const id6 = addNode('pregunta', 950,  155, {nombre:'Dirección',campo:'direccion',tipo:'fija',frase:'¿Para dónde va tu pedido? ☺️',activo:true});
-  const id7 = addNode('pregunta',1160,  155, {nombre:'Pago',campo:'pago',tipo:'fija',frase:'¿Transferencia o efectivo?',activo:true});
-  const id8 = addNode('pregunta',1370,  155, {nombre:'Nombre',campo:'nombre',tipo:'fija',frase:'¿A nombre de quién se recibe? 🍟',activo:true});
+  const id3 = addNode('pregunta', 520,   80, {nombre:'Pedir tamaño',campo:'tamano',tipo:'fija',frase:'¿La deseas {opciones}? 😋',activo:true});
+  const id4 = addNode('pregunta', 520,  230, {nombre:'Pedir tipo',campo:'tipo',tipo:'fija',frase:'¿La deseas {opciones}? 🍟',activo:true});
+  const id5 = addNode('pregunta', 740,  155, {nombre:'Upsell',campo:'adiciones',tipo:'ia',instrucciones:'Ofrece brevemente bebidas o adiciones. Si el cliente no quiere, continúa sin insistir.',activo:true});
+  const id6 = addNode('pregunta', 950,  155, {nombre:'Dirección',campo:'direccion',tipo:'fija',frase:'Con gusto, ¿para dónde va tu pedido? ☺️',activo:true});
+  const id7 = addNode('pregunta',1160,  155, {nombre:'Nombre',campo:'nombre',tipo:'fija',frase:'¿A nombre de quién se recibe el pedido? 🍟',activo:true});
+  const id8 = addNode('pregunta',1370,  155, {nombre:'Pago',campo:'pago',tipo:'fija',frase:'¿Cómo nos vas a pagar? (Efectivo, Nequi o Daviplata) 🍟☺️',activo:true});
   const id9 = addNode('resumen', 1580,  155, {nombre:'Resumen',tipo:'fija',frase:RESUMEN_DEFAULT,activo:true});
   setTimeout(() => {
     editor.addConnection(id1,id2,'output_1','input_1');
