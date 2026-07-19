@@ -10,27 +10,28 @@ Deno.serve(async (req) => {
   }
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
-  const { conversation_id } = await req.json() as { conversation_id: string };
+  const { conversation_id, manual } = await req.json() as { conversation_id: string; manual?: boolean };
   if (!conversation_id) return new Response("Missing conversation_id", { status: 400 });
 
+  let orderId: string | null = null;
   try {
-    await verifyTransfer(conversation_id);
+    orderId = await verifyTransfer(conversation_id, !!manual);
   } catch (err) {
     console.error("verify-transfer error:", err);
   }
 
-  return new Response(JSON.stringify({ ok: true }), {
+  return new Response(JSON.stringify({ ok: true, order_id: orderId }), {
     headers: { "Content-Type": "application/json" },
   });
 });
 
-async function verifyTransfer(conversationId: string): Promise<void> {
+async function verifyTransfer(conversationId: string, manual = false): Promise<string | null> {
   // 1. Cargar conversación
   const convRows = await sbGet(
     `/rest/v1/chat_conversations?id=eq.${conversationId}&select=*&limit=1`
   ) as Array<Record<string, unknown>> | null;
   const conv = convRows?.[0];
-  if (!conv) { console.error("conversation not found:", conversationId); return; }
+  if (!conv) { console.error("conversation not found:", conversationId); return null; }
 
   const fromPhone   = String(conv.from_phone   || conv.contact_handle || "");
   const branchId    = String(conv.branch_id    || "");
@@ -63,6 +64,38 @@ async function verifyTransfer(conversationId: string): Promise<void> {
   const frases       = (cfg?.frases as Record<string, string>) || {};
   const llaveCfg     = String(pagos?.llave || "");
 
+  // ── CONFIRMACIÓN HUMANA (manual=true, botón "Confirmar pago" en Cobra) ──────
+  // El operador ya revisó el comprobante con sus propios ojos: SIN chequeos
+  // automáticos. Se crea el pedido, se limpian las banderas y se avisa al cliente.
+  // (Best-effort: se extrae la referencia del comprobante para quemarla igual.)
+  if (manual) {
+    let refManual = "";
+    try {
+      const imgsM = await sbGet(
+        `/rest/v1/chat_messages?conversation_id=eq.${conversationId}&direction=eq.in&media_type=eq.image&order=sent_at.desc&limit=1`
+      ) as Array<Record<string, unknown>> | null;
+      const imgUrlM = imgsM?.[0]?.media_url as string | null;
+      if (imgUrlM) {
+        const vM = await extractComprobante(imgUrlM);
+        refManual = String(vM.referencia || "").replace(/[^A-Za-z0-9]/g, "");
+      }
+    } catch (_) { /* la confirmación humana no depende de Vision */ }
+
+    let orderIdM: string | null = null;
+    if (pendingData) {
+      orderIdM = await crearPedido(conversationId, branchId, tenantId, fromPhone, pendingData, cfg, refManual);
+    }
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, {
+      pago_pendiente: false, pending_order_data: null, human_takeover: false,
+    });
+    const cierreM = frases.cierre_pedido || "En un momento preparamos tu pedido 🍟 ¡Con muchísimo gusto!";
+    const msgM = `✅ ¡Pago confirmado! ${cierreM}`;
+    await sendWhatsApp(fromPhone, phoneId, accessToken, msgM);
+    await saveOutMessage(conversationId, tenantId, msgM, fromPhone, phoneId, accessToken);
+    console.log("Confirmación HUMANA completada. Pedido:", orderIdM);
+    return orderIdM;
+  }
+
   // 4. Imagen más reciente del chat (comprobante)
   const imgMsgs = await sbGet(
     `/rest/v1/chat_messages?conversation_id=eq.${conversationId}&direction=eq.in&media_type=eq.image&order=sent_at.desc&limit=1`
@@ -74,7 +107,7 @@ async function verifyTransfer(conversationId: string): Promise<void> {
     const msg = "No encontramos el comprobante. Por favor envíalo de nuevo como imagen 📷";
     await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
     await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
-    return;
+    return null;
   }
 
   // 4b. Avisar de inmediato que estamos verificando (la verificación con Gmail puede
@@ -95,7 +128,7 @@ async function verifyTransfer(conversationId: string): Promise<void> {
     const msg = "⚠️ No pudimos leer el monto en el comprobante. Por favor envíanos una foto más clara o el comprobante definitivo 📷";
     await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
     await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
-    return;
+    return null;
   }
 
   // 7. Comparar llave/cuenta del comprobante contra la nuestra en ia_config
@@ -112,7 +145,7 @@ async function verifyTransfer(conversationId: string): Promise<void> {
     await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
     await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
     await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, { human_takeover: true });
-    return;
+    return null;
   }
 
   // 8. Calcular total esperado desde pending_order_data y comparar con monto
@@ -131,7 +164,7 @@ async function verifyTransfer(conversationId: string): Promise<void> {
     await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
     await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
     await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, { human_takeover: true });
-    return;
+    return null;
   }
 
   // 8b. ANTI-REPLAY: un mismo comprobante (referencia) NO puede pagar dos pedidos.
@@ -148,7 +181,7 @@ async function verifyTransfer(conversationId: string): Promise<void> {
       await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
       await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, { human_takeover: true });
-      return;
+      return null;
     }
   }
 
@@ -202,6 +235,7 @@ async function verifyTransfer(conversationId: string): Promise<void> {
     const msg = `✅ ¡Pago verificado${montoStr}! ${cierreFrase}`;
     await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
     await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
+    return orderId;
 
   } else {
     // 10b. No se pudo verificar — NO activar human_takeover (silenciaría el bot para siempre)
@@ -210,6 +244,7 @@ async function verifyTransfer(conversationId: string): Promise<void> {
     await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
     await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
   }
+  return null;
 }
 
 // ── GPT-4o Vision: extraer datos del comprobante ─────────────────────────────

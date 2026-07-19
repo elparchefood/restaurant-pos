@@ -1207,28 +1207,36 @@ async function confirmarDomi() {
 async function confirmarPago() {
   const conv = S.activeConv;
   if (!conv) return;
+  // CONFIRMACIÓN HUMANA: el operador revisó el comprobante con sus ojos y asume la
+  // decisión — el sistema NO vuelve a correr los chequeos automáticos (que ya
+  // rechazaron este pago por ventana, referencia repetida, monto, etc.).
+  if (!confirm('¿Confirmas que revisaste este comprobante y el pago es válido?\n\nSe creará el pedido y se le avisará al cliente.')) return;
   const btn = $('pagoConfirmBtn');
   const txt = $('pagoConfirmTxt');
   if (btn) btn.disabled = true;
-  if (txt) txt.textContent = 'Verificando…';
+  if (txt) txt.textContent = 'Confirmando…';
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/verify-transfer`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversation_id: conv.id })
+      body: JSON.stringify({ conversation_id: conv.id, manual: true })
     });
     if (!res.ok) throw new Error(await res.text());
+    const data = await res.json().catch(() => ({}));
 
-    // verify-transfer actualiza la DB y envía mensaje WA — solo recargamos el hilo
     await loadMessages(conv.id);
     await loadConversations();
-    showToast('Verificación completada');
+    if (data && data.order_id) {
+      showToast('Pago confirmado — pedido creado y enviado a cocina ✅');
+    } else {
+      showToast('Pago confirmado. No había pedido pendiente — créalo manualmente en el POS', 'error');
+    }
   } catch(e) {
     console.error('confirmarPago:', e);
-    showToast('Error al verificar: ' + (e.message || e), 'error');
+    showToast('Error al confirmar: ' + (e.message || e), 'error');
   } finally {
     if (btn) btn.disabled = false;
-    if (txt) txt.textContent = 'Verificar pago';
+    if (txt) txt.textContent = 'Confirmar pago';
   }
 }
 
