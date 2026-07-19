@@ -391,9 +391,28 @@ async function processConversation(convId: string): Promise<void> {
   // 9. Estado del pedido (PacoState)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const pagoPendienteViejo = !!(convRow?.pago_pendiente) && !soloMediaNoTexto;
-  if (pagoPendienteViejo) {
-    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pago_pendiente: false, pending_order_data: null });
+  // Pago pendiente + texto del cliente: NO borrar el pedido a la ligera. El cliente puede
+  // demorar 1-2 horas (o más) en enviar el comprobante y escribir cosas mientras tanto
+  // ("ya pagué", "listo", "hola"...). El pago pendiente SOLO se descarta si:
+  //   (a) el texto claramente arranca un pedido NUEVO, o (b) pasaron más de 24 horas.
+  // Cualquier otro texto: recordarle el comprobante y seguir esperando.
+  let pagoPendienteViejo = false;
+  if (convRow?.pago_pendiente && !soloMediaNoTexto) {
+    const NUEVA_ORDEN_RE = /(quier[oe]|quisiera|me\s+das|dame|me\s+haces|deseo|se\s+me\s+antoja|ped(ir|ido)|ordenar|otra\s+salchipapa|otro\s+pedido|nuevo\s+pedido)/i;
+    const pendStatePrev = convRow?.pending_order_data as Record<string, unknown> | null;
+    const horasPendiente = pendStatePrev && pendStatePrev.last_activity
+      ? (Date.now() - new Date(String(pendStatePrev.last_activity)).getTime()) / 3600000
+      : 999;
+    if (NUEVA_ORDEN_RE.test(clienteTexto) || horasPendiente > 24) {
+      pagoPendienteViejo = true;
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pago_pendiente: false, pending_order_data: null });
+    } else {
+      const msgRecordatorio = getFraseTexto(frasesCfg.esperar_comprobante)
+        || "Quedó pendiente del comprobante para poderte preparar ☺️ Envíamelo como imagen 🧾";
+      await sendWaAndSave(convId, tenantId, msgRecordatorio, fromPhone, phoneId, accessToken);
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgRecordatorio, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+      return;
+    }
   }
 
   const timeoutMin = (cfg.pedido_timeout_minutos as number) || 45;
