@@ -1670,7 +1670,8 @@ async function buildConversationResponse(
   const perfil      = (cfg.perfil as Record<string, string>) || {};
   const botName     = botCfg.nombre || perfil.nombre || "Paco";
   const tono        = botCfg.tono || (cfg.tono as string) || "cercano";
-  const personalidad = botCfg.personalidad || (cfg.personalidad as string) || "";
+  // Personalidad: el campo Instrucciones (limpio de flujo — solo identidad/estilo/conocimiento)
+  const personalidad = botCfg.personalidad || (cfg.personalidad as string) || (cfg.instrucciones as string) || "";
   const tonoStr     = tono === "formal" ? "formal y profesional, sin emojis" : "amigable y cercano, con emojis con moderación";
 
   // Resumen del estado del pedido
@@ -1803,6 +1804,35 @@ async function buildConversationResponse(
       ? `- Cliente recurrente — ya lo conoces, se llama ${senderName}. Trátalo con familiaridad, como a alguien que ha pedido antes.`
       : senderName && senderName !== "Cliente" ? `- El cliente se llama ${senderName}.` : "",
   ].filter(Boolean);
+
+  // ── CONTEXTO complementario (Configuración del Asistente) ─────────────────────
+  // Conocimiento e identidad — SUBORDINADO al canvas: sirve para responder preguntas
+  // y manejar situaciones, pero JAMÁS modifica el flujo, sus pasos ni sus frases.
+  const negocioTxt    = String(cfg.negocio || "").trim();
+  const faqArr        = (cfg.faq as Array<{ pregunta?: string; respuesta?: string }>) || [];
+  const situacionesObj = (cfg.situaciones as Record<string, string>) || {};
+  const vocabCfg      = (cfg.vocabulario as { usar?: string[]; evitar?: string }) || {};
+  const prohibArr     = (cfg.prohibiciones as string[]) || [];
+  const hayContexto = negocioTxt || faqArr.length > 0 || Object.keys(situacionesObj).length > 0 ||
+    (vocabCfg.usar && vocabCfg.usar.length > 0) || prohibArr.length > 0;
+  if (hayContexto) {
+    sysLines.push("", "CONTEXTO DEL NEGOCIO — úsalo SOLO para responder preguntas del cliente o manejar situaciones. El flujo del pedido, sus pasos y sus frases los dicta PRÓXIMO PASO — NADA de esta sección los modifica:");
+    if (negocioTxt) sysLines.push(`INFO: ${negocioTxt}`);
+    const faqLines = faqArr
+      .filter(f => f && f.pregunta && f.respuesta)
+      .map(f => `- ${f.pregunta} → ${String(f.respuesta)
+        .replace(/\{hora_apertura\}/g, horaAperturaHoy || "")
+        .replace(/\{hora_cierre\}/g, horaCierreHoy || "")}`);
+    if (faqLines.length) sysLines.push("PREGUNTAS FRECUENTES (responde con estas respuestas):", ...faqLines);
+    const sitLines = Object.entries(situacionesObj)
+      .filter(([, v]) => v)
+      .map(([k, v]) => `- ${k.replace(/_/g, " ")}: ${v}`);
+    if (sitLines.length) sysLines.push("SITUACIONES ESPECIALES (cómo actuar):", ...sitLines);
+    if (vocabCfg.usar && vocabCfg.usar.length) {
+      sysLines.push(`EXPRESIONES: usa "${vocabCfg.usar.join('", "')}".${vocabCfg.evitar ? ` Evita: ${vocabCfg.evitar}.` : ""}`);
+    }
+    if (prohibArr.length) sysLines.push(`PROHIBIDO: ${prohibArr.join(" · ")}`);
+  }
 
   if (menuText)       sysLines.push("", "MENÚ:", menuText);
   if (horariosText)   sysLines.push("", horariosText);
