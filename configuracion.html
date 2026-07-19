@@ -1666,12 +1666,24 @@
                     <textarea class="txa" data-frase="saturacion" placeholder="Ej. Estamos con mucha demanda ahora, el tiempo de espera puede ser mayor."></textarea>
                   </div>
                   <div class="field">
-                    <label class="field-lb">Fuera de horario (ya cerramos)</label>
-                    <textarea class="txa" data-frase="fuera_horario" placeholder="Ej. Por hoy ya terminamos nuestra jornada. ¡Hasta mañana!"></textarea>
+                    <label class="field-lb">Fuera de horario (ya cerramos hoy)</label>
+                    <textarea class="txa" data-frase="fuera_horario" placeholder="Ej. Por hoy ya terminamos nuestra jornada 🍟 Volvemos {{proximo_dia}}."></textarea>
+                    <div class="field-hint">El d&iacute;a est&aacute; activo pero el horario ya termin&oacute;. Variables: <code>{{proximo_dia}}</code>, <code>{{hora_apertura}}</code>, <code>{{hora_cierre}}</code></div>
                   </div>
                   <div class="field">
                     <label class="field-lb">Antes de abrir</label>
-                    <textarea class="txa" data-frase="antes_horario" placeholder="Ej. Nuestro servicio empieza a las 6:30pm. ¡Te esperamos!"></textarea>
+                    <textarea class="txa" data-frase="antes_horario" placeholder="Ej. Nuestro servicio hoy es a partir de las {{hora_apertura}} ¡Te esperamos!"></textarea>
+                    <div class="field-hint">El d&iacute;a est&aacute; activo pero a&uacute;n no abre. Variable: <code>{{hora_apertura}}</code></div>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">D&iacute;a cerrado (sin servicio ese d&iacute;a)</label>
+                    <textarea class="txa" data-frase="dia_cerrado" placeholder="Ej. Hoy no tenemos servicio 😊 Volvemos {{proximo_dia}}. ¡Te esperamos!"></textarea>
+                    <div class="field-hint">El d&iacute;a est&aacute; DESACTIVADO en Horarios. <code>{{proximo_dia}}</code> = el pr&oacute;ximo d&iacute;a realmente activo (salta d&iacute;as cerrados seguidos).</div>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Verificando el pago</label>
+                    <textarea class="txa" data-frase="verificando_pago" placeholder="Ej. Recibimos tu comprobante 🧾 Dame un momento mientras lo verifico ⏳"></textarea>
+                    <div class="field-hint">Se env&iacute;a apenas llega el comprobante, mientras el sistema lo verifica (puede tardar 1-2 min).</div>
                   </div>
                   <div class="field">
                     <label class="field-lb">Pregunta de confirmación del pedido</label>

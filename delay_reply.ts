@@ -239,6 +239,34 @@ async function processConversation(convId: string): Promise<void> {
   const pagosCfg          = cfg.pagos as Record<string, unknown> | null | undefined;
   const proxDia           = getProximoDiaActivo(horariosCfg, colDate.getUTCDay());
 
+  // ── Estado fuera de servicio (DETERMINÍSTICO, frases configurables) ──────────
+  // Tres casos distintos (regla de Sergio):
+  //  · "antes"   → el día está ACTIVO pero aún no abre  → frases.antes_horario ({{hora_apertura}})
+  //  · "despues" → el día está ACTIVO y ya cerró        → frases.fuera_horario ({{proximo_dia}})
+  //  · "cerrado" → el día está DESACTIVADO en horarios  → frases.dia_cerrado ({{proximo_dia}} =
+  //                próximo día realmente activo, saltando días cerrados consecutivos)
+  let cerradoInfo: { tipo: string; frase: string } | null = null;
+  if (!puedeTomarPedidos) {
+    const reemplazar = (t: string) => t
+      .replace(/\{\{?\s*hora_apertura\s*\}?\}/g, horaAperturaHoy || "")
+      .replace(/\{\{?\s*hora_cierre\s*\}?\}/g, horaCierreHoy || "")
+      .replace(/\{\{?\s*proximo_dia\s*\}?\}/g, proxDia || "pronto");
+    if (horaAperturaHoy && isBeforeOpen) {
+      const f = getFraseTexto(frasesCfg.antes_horario)
+        || "Aún no abrimos 😊 Nuestro servicio hoy es a partir de las {{hora_apertura}}.";
+      cerradoInfo = { tipo: "antes", frase: reemplazar(f) };
+    } else if (horaAperturaHoy) {
+      const f = getFraseTexto(frasesCfg.fuera_horario)
+        || "Por hoy ya terminamos nuestra jornada 🍟 Volvemos {{proximo_dia}}. ¡Gracias por escribirnos!";
+      cerradoInfo = { tipo: "despues", frase: reemplazar(f) };
+    } else {
+      const f = getFraseTexto(frasesCfg.dia_cerrado)
+        || "Hoy no tenemos servicio 😊 Volvemos {{proximo_dia}}. ¡Te esperamos!";
+      cerradoInfo = { tipo: "cerrado", frase: reemplazar(f) };
+    }
+  }
+  (cfg as Record<string, unknown>)._cerradoInfo = cerradoInfo;
+
   // 6. Detectar solicitud de carta → enviar imágenes
   const menuImagenes = (cfg.menu_imagenes as string[]) || [];
   if (menuImagenes.length > 0) {
@@ -514,6 +542,15 @@ async function processConversation(convId: string): Promise<void> {
       }
       await sendWaAndSave(convId, tenantId, bienvenida, fromPhone, phoneId, accessToken);
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: bienvenida, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+      return;
+    }
+
+    // FUERA DE SERVICIO: el saludo aclara el estado DESDE EL PRINCIPIO (determinístico,
+    // con la frase configurada) y ofrece resolver dudas mientras tanto.
+    if (cerradoInfo) {
+      const saludoCerrado = `${cerradoInfo.frase}\n\nMientras tanto te puedo compartir la carta o responder cualquier duda ☺️`;
+      await sendWaAndSave(convId, tenantId, saludoCerrado, fromPhone, phoneId, accessToken);
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: saludoCerrado, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
       return;
     }
   }
@@ -1698,7 +1735,14 @@ async function buildConversationResponse(
   // Instrucción del siguiente paso
   let nextStepLine = "";
   if (!restauranteAbierto) {
-    nextStepLine = `El restaurante está CERRADO ahora. Hora actual: ${colTimeStr}, ${colDayStr}. Horario de hoy: ${horaAperturaHoy} – ${horaCierreHoy}. Próximo día activo: ${proxDia}. Informa amablemente que están cerrados y da la información de horarios.`;
+    const ci = (cfg as Record<string, unknown>)._cerradoInfo as { tipo: string; frase: string } | null;
+    const estadoFrase = ci?.frase || `Estamos cerrados ahora (hoy: ${horaAperturaHoy || "sin servicio"} – ${horaCierreHoy || ""}; volvemos ${proxDia}).`;
+    nextStepLine =
+      `ESTADO DEL RESTAURANTE — FUERA DE SERVICIO. Frase oficial del estado:\n"${estadoFrase}"\n` +
+      `REGLA ESTRICTA: NO tomes pedidos ni avances NINGÚN paso del flujo — nada de preguntar tamaños, tipos, direcciones, pagos ni nombres, sin importar cuánto insista el cliente.\n` +
+      `• Si el cliente pregunta INFORMACIÓN (precios, la carta, ubicación, horarios, dudas del CONTEXTO DEL NEGOCIO): RESPONDE la pregunta con normalidad y de forma completa — esa es tu prioridad. No repitas la frase del estado en cada mensaje.\n` +
+      `• SOLO si el cliente intenta hacer o continuar un PEDIDO: empieza con la frase oficial del estado (tal cual) y dile cuándo puede pedir.\n` +
+      `Hora actual: ${colTimeStr}, ${colDayStr}.`;
   } else if (state.resumen_enviado) {
     nextStepLine = "El resumen ya fue enviado. Responde naturalmente al cliente. Si confirma el pedido, exprésalo positivamente. Si quiere corregir algo, confirma el cambio.";
   } else if (nextStep) {
