@@ -94,13 +94,51 @@ const RECHAZO_UPSELL_WORDS = [
   "no adicional","sin nada más","solo con eso","así va bien",
 ];
 
-const ADICION_KEYWORDS = [
-  "salchicha ranchera","super queso","queso extra","queso adicional",
-  "salsa especial","salsas especiales","salsa de ajo","salsa bbq",
-  "agua","jugo","gaseosa","bebida","coca","colombiana","limonada",
-  "té","te frio","sprite","manzana","naranja","agua panela","milo",
-  "adicion","adicional","agregar","añadir","con",
+// Palabras GENÉRICAS de adición (mecánica general, sirven a cualquier restaurante).
+// Los nombres de productos concretos se cargan del CATÁLOGO de cada restaurante:
+// las categorías cuyo nombre suene a adición/bebida/extra alimentan DYN_ADICION_KEYWORDS
+// y TODOS los productos/categorías alimentan DYN_PROD_NAMES (detección de intención).
+const ADICION_BASE = [
+  "adicion","adicional","agregar","añadir","con","extra",
+  "bebida","gaseosa","jugo","agua",
 ];
+// Palabras genéricas que por sí solas NO bastan para dar por hecha una adición
+const ADICION_GENERICAS = ["con","adicion","adicional","agregar","añadir","extra","bebida"];
+let DYN_ADICION_KEYWORDS: string[] = [];   // nombres de productos de categorías de adiciones/bebidas
+let DYN_PROD_NAMES: string[] = [];         // nombres (normalizados) de productos y categorías del catálogo
+function getAdicionKeywords(): string[] { return [...ADICION_BASE, ...DYN_ADICION_KEYWORDS]; }
+// ¿El texto menciona algún producto o categoría del catálogo del restaurante?
+function mencionaProductoCatalogo(texto: string): boolean {
+  const t = " " + normalizarTexto(texto) + " ";
+  return DYN_PROD_NAMES.some(n => t.includes(" " + n + " ") || t.includes(" " + n));
+}
+
+// ── Zona horaria y moneda por restaurante (config; defaults Colombia) ─────────
+let TZ_OFFSET_H = -5;                       // ia_config.zona_horaria (horas vs UTC)
+let MONEDA = { simbolo: "$", miles: ".", decimales: 0, sufijo: false };
+function setRegion(cfg: Record<string, unknown> | undefined) {
+  const tz = cfg?.zona_horaria;
+  if (tz !== undefined && tz !== null && String(tz).trim() !== "") {
+    const parsed = parseFloat(String(tz).replace(":30", ".5").replace(":00", ""));
+    if (!isNaN(parsed) && parsed >= -12 && parsed <= 14) TZ_OFFSET_H = parsed;
+  } else TZ_OFFSET_H = -5;
+  const m = cfg?.moneda as Record<string, unknown> | null | undefined;
+  MONEDA = {
+    simbolo: String(m?.simbolo || "$"),
+    miles: String(m?.miles || "."),
+    decimales: Number(m?.decimales ?? 0) || 0,
+    sufijo: !!(m?.sufijo),
+  };
+}
+function fmtMoney(n: number): string {
+  const dec = MONEDA.decimales;
+  const decSep = MONEDA.miles === "." ? "," : ".";
+  const s = dec > 0 ? n.toFixed(dec) : String(Math.round(n));
+  const parts = s.split(".");
+  const ent = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, MONEDA.miles);
+  const num = parts[1] ? ent + decSep + parts[1] : ent;
+  return MONEDA.sufijo ? `${num} ${MONEDA.simbolo}` : `${MONEDA.simbolo}${num}`;
+}
 
 // Saludo: detecta "hola", "holaa", "hey", "buenas", y combinaciones ("hola buenas", "buenas, hola").
 const _SAL = "(buen[oa]s?\\s+d[íi]as?|buen[oa]s?\\s+tardes?|buen[oa]s?\\s+noches?|buen\\s+d[íi]a|qu[eé]\\s+tal|qu[eé]\\s+m[aá]s|qu[eé]\\s+hubo|qu[eé]\\s+hay|hol+a+|hol[ai]s|holi+|hey+|saludos?|buen[oa]s?)";
@@ -196,9 +234,10 @@ async function processConversation(convId: string): Promise<void> {
   const cfg = cfgRes?.[0] as Record<string, unknown> | undefined;
   if (!cfg || !cfg.activo) { await setTyping(convId, false); return; }
 
-  // 5b. Hora Colombia (UTC-5)
+  // 5b. Hora local del restaurante (ia_config.zona_horaria; default Colombia UTC-5)
+  setRegion(cfg as Record<string, unknown>);
   const nowUtc    = new Date();
-  const colombiaMs = nowUtc.getTime() - (5 * 60 * 60 * 1000);
+  const colombiaMs = nowUtc.getTime() + (TZ_OFFSET_H * 60 * 60 * 1000);
   const colDate    = new Date(colombiaMs);
   const colHourNum = colDate.getUTCHours();
   const colMinNum  = colDate.getUTCMinutes();
@@ -290,8 +329,8 @@ async function processConversation(convId: string): Promise<void> {
       const followUp = (extrasCarta.carta && extrasCarta.carta.texto)
         ? extrasCarta.carta.texto
         : menuFraseCfg.tipo === "variable"
-          ? (getFraseTexto(frasesCfg.apertura) || "¿Qué se te antoja? 🍟☺️")
-          : (menuFraseCfg.texto || "¿Qué se te antoja? 🍟☺️");
+          ? (getFraseTexto(frasesCfg.apertura) || "¿Qué deseas ordenar? 😋")
+          : (menuFraseCfg.texto || "¿Qué deseas ordenar? 😋");
       const waText = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
@@ -376,11 +415,37 @@ async function processConversation(convId: string): Promise<void> {
   // según el producto del pedido en curso (resolverDato).
   try {
     const prodRows = await sbGet(
-      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=name,presentations,variables`
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=name,presentations,variables,category_id(name)`
     ) as Array<Record<string, unknown>> | null;
+    // Palabras dinámicas del catálogo (mecánica general, contenido por restaurante):
+    //  · DYN_PROD_NAMES → nombres de productos y categorías (detección de intención de pedido)
+    //  · DYN_ADICION_KEYWORDS → productos de categorías tipo adición/bebida (detección de upsell)
+    const _dynProd = new Set<string>();
+    const _dynAdi  = new Set<string>();
+    const _addProdWords = (nombre: string) => {
+      const norm = normalizarTexto(nombre).toLowerCase().trim();
+      if (!norm) return;
+      if (norm.length >= 4) _dynProd.add(norm);
+      for (const w of norm.split(/\s+/)) {
+        const stem = w.replace(/s$/, "");            // singular/plural ("salchipapas"→"salchipapa")
+        if (stem.length >= 5) _dynProd.add(stem);
+      }
+    };
+    const CAT_ADICION_RE = /adicion|adición|extra|bebida|salsa|topping|acompa|postre|complemento/i;
     for (const p of (prodRows || [])) {
       const nombreProd = String(p.name || "").trim();
       if (!nombreProd) continue;
+      _addProdWords(nombreProd);
+      const catName = String((p.category_id as Record<string, unknown> | null)?.name || "");
+      if (catName) _addProdWords(catName);
+      if (CAT_ADICION_RE.test(catName)) {
+        const normA = normalizarTexto(nombreProd).toLowerCase().trim();
+        if (normA.length >= 4) {
+          _dynAdi.add(normA);
+          const dosPalabras = normA.split(/\s+/).slice(0, 2).join(" ");
+          if (dosPalabras !== normA && dosPalabras.length >= 4) _dynAdi.add(dosPalabras);
+        }
+      }
       const slug = slugVariable(nombreProd);
       if (!slug) continue;
       const presArr = ((p.presentations as Array<{ name?: string }>) || [])
@@ -393,7 +458,19 @@ async function processConversation(convId: string): Promise<void> {
         .filter(Boolean);
       if (optArr.length > 0) varDataObj["variantes_" + slug] = listaNatural(optArr).toLowerCase();
     }
+    DYN_PROD_NAMES = [..._dynProd];
+    DYN_ADICION_KEYWORDS = [..._dynAdi];
   } catch (err) { console.error("variables de catálogo fallaron (no bloquea):", err); }
+
+  // Palabras de adiciones configuradas por el restaurante (ia_config.adiciones_palabras)
+  // — complementan las derivadas del catálogo (categorías de adiciones/bebidas).
+  const adiCfgList = cfg.adiciones_palabras;
+  if (Array.isArray(adiCfgList)) {
+    for (const w of adiCfgList) {
+      const n = normalizarTexto(String(w)).toLowerCase().trim();
+      if (n.length >= 3 && !DYN_ADICION_KEYWORDS.includes(n)) DYN_ADICION_KEYWORDS.push(n);
+    }
+  }
 
   (cfg as Record<string, unknown>)._varData = varDataObj;
 
@@ -426,12 +503,14 @@ async function processConversation(convId: string): Promise<void> {
   // Cualquier otro texto: recordarle el comprobante y seguir esperando.
   let pagoPendienteViejo = false;
   if (convRow?.pago_pendiente && !soloMediaNoTexto) {
-    const NUEVA_ORDEN_RE = /(quier[oe]|quisiera|me\s+das|dame|me\s+haces|deseo|se\s+me\s+antoja|ped(ir|ido)|ordenar|otra\s+salchipapa|otro\s+pedido|nuevo\s+pedido)/i;
+    // "otra/otro <producto del catálogo>" también cuenta como pedido nuevo (dinámico por restaurante)
+    const NUEVA_ORDEN_RE = /(quier[oe]|quisiera|me\s+das|dame|me\s+haces|deseo|se\s+me\s+antoja|ped(ir|ido)|ordenar|otro\s+pedido|nuevo\s+pedido)/i;
+    const esOtroProducto = /\b(otr[oa]s?|nuev[oa])\b/i.test(clienteTexto) && mencionaProductoCatalogo(clienteTexto);
     const pendStatePrev = convRow?.pending_order_data as Record<string, unknown> | null;
     const horasPendiente = pendStatePrev && pendStatePrev.last_activity
       ? (Date.now() - new Date(String(pendStatePrev.last_activity)).getTime()) / 3600000
       : 999;
-    if (NUEVA_ORDEN_RE.test(clienteTexto) || horasPendiente > 24) {
+    if (NUEVA_ORDEN_RE.test(clienteTexto) || esOtroProducto || horasPendiente > 24) {
       pagoPendienteViejo = true;
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pago_pendiente: false, pending_order_data: null });
     } else {
@@ -962,8 +1041,10 @@ async function processConversation(convId: string): Promise<void> {
       ? (cfg.flujo_pasos as Array<Record<string, unknown>>).find(p => p && p.campo === "producto" && p.activo !== false)
       : null;
     const mostrarMenuImg = pasoProdMenu ? pasoProdMenu.mostrar_menu !== false : true;
-    const INTENCION_PEDIDO_RE = /(quier[oe]|quisiera|me\s+das|me\s+regalas|me\s+haces|dame|deseo|se\s+me\s+antoja|antojo|ped(ir|ido)|ordenar|env[ií]ame|hazme|para\s+comer|salchipa|una\s+salchi|d[ée]jame)/i;
-    if (mostrarMenuImg && menuImagenes.length > 0 && INTENCION_PEDIDO_RE.test(clienteTexto)) {
+    const INTENCION_PEDIDO_RE = /(quier[oe]|quisiera|me\s+das|me\s+regalas|me\s+haces|dame|deseo|se\s+me\s+antoja|antojo|ped(ir|ido)|ordenar|env[ií]ame|hazme|para\s+comer|d[ée]jame)/i;
+    // También cuenta como intención: "una/un <producto o categoría del catálogo>" (dinámico por restaurante)
+    const intencionPorCatalogo = /\b(una?|unos?|alg[uú]n[ao]?)\s/i.test(clienteTexto) && mencionaProductoCatalogo(clienteTexto);
+    if (mostrarMenuImg && menuImagenes.length > 0 && (INTENCION_PEDIDO_RE.test(clienteTexto) || intencionPorCatalogo)) {
       const menuFraseCfg14f = (cfg.menu_frase as Record<string, string>) || {};
       const fraseProdRaw = (pasoProdMenu && (pasoProdMenu.texto || pasoProdMenu.frase))
         ? String(pasoProdMenu.texto || pasoProdMenu.frase)
@@ -1055,8 +1136,7 @@ async function processConversation(convId: string): Promise<void> {
         }
       }
       if (clasifDir.tipo === "publico" && clasifDir.requierePagoAdelantado) {
-        const pagoMet = (state.pago || "").toLowerCase();
-        const esEfectivo = !pagoMet.includes("nequi") && !pagoMet.includes("daviplata") && !pagoMet.includes("transfer");
+        const esEfectivo = !esMetodoDigital(state.pago || "", pagosCfg);
         if (esEfectivo) {
           state.pago = null;
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
@@ -1212,8 +1292,9 @@ function extractAdiciones(text: string, isCurrentStep: boolean): string | null {
     return isCurrentStep ? "" : null;
   }
   if (isCurrentStep && RECHAZO_UPSELL_WORDS.some(w => t.includes(w))) return "";
-  const found = ADICION_KEYWORDS.filter(kw => t.includes(kw));
-  if (found.length > 0 && found.some(k => k !== "con" && k !== "adicion" && k !== "adicional" && k !== "agregar" && k !== "añadir")) {
+  const tNorm = normalizarTexto(text).toLowerCase();
+  const found = getAdicionKeywords().filter(kw => tNorm.includes(kw));
+  if (found.length > 0 && found.some(k => !ADICION_GENERICAS.includes(k))) {
     return text.trim().slice(0, 80);
   }
   if (isCurrentStep) {
@@ -1304,7 +1385,7 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
         const lnLow = ln.toLowerCase();
         if (RECHAZO_UPSELL_WORDS.some(w => lnLow.includes(w))) continue;
         const lnNorm = normalizarTexto(ln);
-        if (ADICION_KEYWORDS.some(k => k.length >= 4 && new RegExp(`\\b${k}\\b`).test(lnNorm))) continue;
+        if (getAdicionKeywords().some(k => k.length >= 4 && new RegExp(`\\b${k}\\b`).test(lnNorm))) continue;
         if (extractPago(ln, null)) continue;
         if (isProductAttribute(ln, productData)) continue;
         if (CALLE_REGEX.test(ln) || LLEVAR_REGEX.test(ln)) continue;
@@ -1559,11 +1640,11 @@ function getFlowPasos(cfg: Record<string, unknown>, frasesCfg: Record<string, un
   // Orden por defecto: upsell → dirección → nombre → PAGO (el pago es lo último antes del resumen).
   // Configurable desde el canvas vía cfg.flujo_pasos (ver getFlowPasos/buildAllPasos).
   return [
-    { id: "upsell",        campo: "adiciones", modo: upsell.modo,  texto: upsell.texto  || "¿Deseas adicionar alguna bebida, salchicha ranchera, super queso o salsas especiales? 🤩", guia: upsell.guia },
+    { id: "upsell",        campo: "adiciones", modo: upsell.modo,  texto: upsell.texto  || "¿Deseas agregar algo más a tu pedido? 🤩", guia: upsell.guia },
     { id: "confirmar_dir", campo: "direccion", modo: "conversacional", guia: "Pregunta de forma amigable si el pedido va a la misma dirección que el pedido anterior" },
     { id: "direccion",     campo: "direccion", modo: destino.modo, texto: destino.texto || "Con gusto, ¿para dónde va tu pedido? ☺️", guia: destino.guia },
     { id: "nombre",        campo: "nombre",    modo: "conversacional", texto: nombreConfirmar ? undefined : (nombre.texto || "¿A nombre de quién se recibe el pedido? 🍟"), guia: nombreGuia },
-    { id: "pago",          campo: "pago",      modo: pago.modo,    texto: pago.texto    || "¿Cómo nos vas a pagar? (Efectivo, Nequi o Daviplata) 🍟☺️", guia: pago.guia },
+    { id: "pago",          campo: "pago",      modo: pago.modo,    texto: pago.texto    || "¿Cómo nos vas a pagar? ({{metodos_pago}}) ☺️", guia: pago.guia },
   ];
 }
 
@@ -1632,7 +1713,7 @@ function procesarFlujoCanvas(
         preg_barrio:     p.preg_barrio ? String(p.preg_barrio) : undefined,
       });
     } else if (campo === "pago") {
-      out.push({ id: "pago", campo: "pago", modo, texto: texto || "¿Cómo nos vas a pagar? (Efectivo, Nequi o Daviplata) 🍟☺️", guia });
+      out.push({ id: "pago", campo: "pago", modo, texto: texto || "¿Cómo nos vas a pagar? ({{metodos_pago}}) ☺️", guia });
     } else if (campo === "nombre") {
       // El canvas MANDA: si el usuario configuró una frase fija para el nombre, se usa esa
       // (puede incluir {{cliente}} para el nombre del contacto). La confirmación automática
@@ -1901,19 +1982,19 @@ async function buildConversationResponse(
         (mostrarMenu
           ? `Si el cliente expresa que quiere pedir (no solo saludar), muestra el menú de la sección MENÚ de abajo en lista con precios (cópialo tal cual).\n`
           : `NO muestres el menú completo salvo que el cliente lo pida.\n`) +
-        `PROHIBIDO enumerar tipos de producto en el texto (ej: "¿ranchera, mixta o pollo?").`;
+        `PROHIBIDO enumerar tipos o variantes de producto en el texto.`;
     } else {
       const fraseGenericaRaw = (pasoProd && (pasoProd.texto || pasoProd.frase))
         ? String(pasoProd.texto || pasoProd.frase)
-        : (menuFraseCfg.texto || getFraseTexto(frasesCfg.apertura) || "¿Qué se te antoja? 🍟");
+        : (menuFraseCfg.texto || getFraseTexto(frasesCfg.apertura) || "¿Qué deseas ordenar? 😋");
       const { texto: fraseGenerica } = rellenarVariables(fraseGenericaRaw, state, cfg);
       nextStepLine =
         `El cliente todavía no especificó cuál producto exacto quiere.\n` +
         `• Si SOLO está saludando, agradeciendo o haciendo charla (hola, buenas, gracias, ¿cómo estás?): responde breve y amable en 1 oración y termina con esta frase EXACTA: "${fraseGenerica}". NUNCA muestres la carta en este caso.\n` +
         (mostrarMenu
-          ? `• Si el cliente EXPRESA que quiere pedir pero sin decir cuál (ej: "quiero una salchipapa", "algo de comer", "qué tienen"): responde con la frase EXACTA "${fraseGenerica}" y a continuación muestra el menú de la sección MENÚ de abajo, en lista con precios (cópialo tal cual).\n`
+          ? `• Si el cliente EXPRESA que quiere pedir pero sin decir cuál (ej: "quiero algo de comer", "qué tienen", "quiero pedir"): responde con la frase EXACTA "${fraseGenerica}" y a continuación muestra el menú de la sección MENÚ de abajo, en lista con precios (cópialo tal cual).\n`
           : `• Si el cliente EXPRESA que quiere pedir pero sin decir cuál: responde con la frase EXACTA "${fraseGenerica}". NO muestres el menú completo salvo que lo pida.\n`) +
-        `PROHIBIDO enumerar tipos de producto en el texto (ej: "¿ranchera, mixta o pollo?") o inventar preguntas. Máximo 2 oraciones aparte del menú.`;
+        `PROHIBIDO enumerar tipos o variantes de producto en el texto, o inventar preguntas. Máximo 2 oraciones aparte del menú.`;
     }
   }
 
@@ -2571,7 +2652,7 @@ function buildHorariosText(horarios: Record<string, unknown> | null | undefined,
     ["lunes","Lunes"],["martes","Martes"],["miercoles","Miércoles"],
     ["jueves","Jueves"],["viernes","Viernes"],["sabado","Sábado"],["domingo","Domingo"],
   ];
-  const nowCol    = new Date(Date.now() - 5 * 60 * 60 * 1000);
+  const nowCol    = new Date(Date.now() + TZ_OFFSET_H * 60 * 60 * 1000);
   const todayIdx  = nowCol.getUTCDay();
   const colDayKey = ["domingo","lunes","martes","miercoles","jueves","viernes","sabado"][todayIdx];
   const nowMin    = nowCol.getUTCHours() * 60 + nowCol.getUTCMinutes();
@@ -2723,11 +2804,11 @@ function getProximoDiaActivo(
 }
 
 function fmtPrice(n: number): string {
-  return "$" + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return fmtMoney(n);
 }
 
 function fmtCOP(n: number): string {
-  return "$" + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return fmtMoney(n);
 }
 
 function capFirst(s: string): string {

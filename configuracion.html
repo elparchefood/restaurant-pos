@@ -1014,6 +1014,60 @@
                 <button class="hr-fmt-opt" data-fmt="24h">24h <span class="hr-fmt-ex">18:30</span></button>
               </div>
             </div>
+            <div class="hr-fmt-row">
+              <div class="hr-fmt-tx">
+                <span class="hr-fmt-tt">Zona horaria</span>
+                <span class="hr-fmt-ds">Pa&iacute;s / regi&oacute;n del restaurante (el bot calcula la hora local con esto)</span>
+              </div>
+              <select id="hr-tz" class="sel" style="min-width:250px">
+                <option value="-5" selected>Colombia · Per&uacute; · Ecuador · Panam&aacute; (UTC-5)</option>
+                <option value="-6">M&eacute;xico (centro) · Costa Rica · Guatemala (UTC-6)</option>
+                <option value="-4">Venezuela · Bolivia · R. Dominicana · Chile (UTC-4)</option>
+                <option value="-3">Argentina · Uruguay · Brasil (S&atilde;o Paulo) (UTC-3)</option>
+                <option value="-7">M&eacute;xico (Sonora) · EE.UU. Monta&ntilde;a (UTC-7)</option>
+                <option value="-8">EE.UU. Pac&iacute;fico (UTC-8)</option>
+                <option value="0">Reino Unido · Portugal (UTC+0)</option>
+                <option value="1">Espa&ntilde;a · Francia · Alemania · Italia (UTC+1)</option>
+                <option value="2">Grecia · Sud&aacute;frica (UTC+2)</option>
+                <option value="-9">Alaska (UTC-9)</option>
+                <option value="-10">Haw&aacute;i (UTC-10)</option>
+                <option value="-11">UTC-11</option>
+                <option value="-12">UTC-12</option>
+                <option value="-2">UTC-2</option>
+                <option value="-1">UTC-1</option>
+                <option value="3">UTC+3</option>
+                <option value="4">UTC+4</option>
+                <option value="5">UTC+5</option>
+                <option value="5.5">India (UTC+5:30)</option>
+                <option value="6">UTC+6</option>
+                <option value="7">UTC+7</option>
+                <option value="8">China · Singapur (UTC+8)</option>
+                <option value="9">Jap&oacute;n · Corea (UTC+9)</option>
+                <option value="10">Australia (Sídney) (UTC+10)</option>
+                <option value="11">UTC+11</option>
+                <option value="12">Nueva Zelanda (UTC+12)</option>
+                <option value="13">UTC+13</option>
+                <option value="14">UTC+14</option>
+              </select>
+            </div>
+            <div class="hr-fmt-row">
+              <div class="hr-fmt-tx">
+                <span class="hr-fmt-tt">Moneda</span>
+                <span class="hr-fmt-ds">C&oacute;mo el bot escribe los precios (s&iacute;mbolo y formato de miles/decimales)</span>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <input id="hr-moneda-simbolo" class="inp" style="width:70px;text-align:center" maxlength="4" value="$" title="S&iacute;mbolo">
+                <select id="hr-moneda-formato" class="sel" style="min-width:210px">
+                  <option value="p0" selected>1.234.567 — Colombia / Chile</option>
+                  <option value="c2">1,234,567.00 — M&eacute;xico / EE.UU.</option>
+                  <option value="p2">1.234.567,00 — Europa / Brasil / Argentina</option>
+                  <option value="c0">1,234,567 — sin decimales (coma)</option>
+                </select>
+                <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--tx2,#888);cursor:pointer">
+                  <input type="checkbox" id="hr-moneda-sufijo"> s&iacute;mbolo despu&eacute;s <span style="opacity:.7">(40,00 &euro;)</span>
+                </label>
+              </div>
+            </div>
             <div id="hr-grid" class="hr-grid"></div>
           </div>
         </div>
@@ -1334,6 +1388,22 @@
               </div>
             </div>
 
+            <div class="card" id="card-adiciones" data-tab="asistente">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/><circle cx="12" cy="12" r="10"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Palabras de adiciones</div>
+                  <div class="card-hd-ds">C&oacute;mo el bot reconoce que el cliente pide una adici&oacute;n o extra en su pedido.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="field">
+                  <textarea class="txa" id="adicionesPalabras" rows="2" placeholder="Ej. salchicha ranchera, super queso, salsa de ajo, borde de queso..."></textarea>
+                  <div class="field-hint">Separadas por coma. Los productos de tus categor&iacute;as de <strong>adiciones y bebidas</strong> del cat&aacute;logo se reconocen solos — aqu&iacute; solo agrega palabras que no est&eacute;n en el cat&aacute;logo.</div>
+                </div>
+              </div>
+            </div>
+
             <div class="card" id="card-voz" data-tab="asistente">
               <div class="card-hd">
                 <div class="card-hd-ico" style="background:#F5F3FF;color:#8B5CF6;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5zM15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14"/></svg></div>
@@ -1473,6 +1543,11 @@
                     </div>
                     <label class="switch"><input type="checkbox" id="gmailVerificar"><span class="track"></span><span class="knob"></span></label>
                   </div>
+                </div>
+                <div class="field">
+                  <label class="lbl">Remitentes bancarios del correo</label>
+                  <textarea class="txa" id="bancosCorreo" rows="2" placeholder="bancolombia, nequi, daviplata, davivienda, bbva, wompi"></textarea>
+                  <div class="field-hint">Bancos o billeteras cuyos correos cuentan como confirmaci&oacute;n de pago, separados por coma. Vac&iacute;o = bancos de Colombia. Si vendes en otro pa&iacute;s, escribe aqu&iacute; los de tu banco (ej. <code>bbva mexico, mercadopago</code>).</div>
                 </div>
               </div>
             </div>
@@ -1823,7 +1898,7 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-core.js"></script>
-<script src="configuracion.js?v=1784520001"></script>
+<script src="configuracion.js?v=1784520002"></script>
 </body>
 </html>
 

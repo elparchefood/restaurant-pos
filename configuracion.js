@@ -2112,9 +2112,35 @@ function horarioInit() {
     var session = (await sb.auth.getSession()).data.session;
     if (!session) return;
     var branchId = session.user.user_metadata.branch_id;
-    var { data } = await sb.from('ia_config').select('horarios, formato_hora').eq('branch_id', branchId).maybeSingle();
+    var { data } = await sb.from('ia_config').select('horarios, formato_hora, zona_horaria, moneda').eq('branch_id', branchId).maybeSingle();
     renderGrid(data && data.horarios ? data.horarios : null);
     if (data && data.formato_hora) setFmtHora(data.formato_hora);
+    // Zona horaria y moneda (personalizables por restaurante; defaults Colombia)
+    var tzSel = document.getElementById('hr-tz');
+    if (tzSel && data && data.zona_horaria != null && data.zona_horaria !== '') tzSel.value = String(data.zona_horaria);
+    var m = (data && data.moneda) || null;
+    var simEl = document.getElementById('hr-moneda-simbolo');
+    var fmtEl = document.getElementById('hr-moneda-formato');
+    var sufEl = document.getElementById('hr-moneda-sufijo');
+    if (simEl && m && m.simbolo) simEl.value = m.simbolo;
+    if (fmtEl && m) fmtEl.value = (m.miles === ',' ? 'c' : 'p') + (Number(m.decimales) > 0 ? '2' : '0');
+    if (sufEl && m) sufEl.checked = !!m.sufijo;
+    ['hr-tz','hr-moneda-simbolo','hr-moneda-formato','hr-moneda-sufijo'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('change', markDirty);
+    });
+  }
+  function readMoneda() {
+    var simEl = document.getElementById('hr-moneda-simbolo');
+    var fmtEl = document.getElementById('hr-moneda-formato');
+    var sufEl = document.getElementById('hr-moneda-sufijo');
+    var code = (fmtEl && fmtEl.value) || 'p0';
+    return {
+      simbolo: (simEl && simEl.value.trim()) || '$',
+      miles: code.charAt(0) === 'c' ? ',' : '.',
+      decimales: code.charAt(1) === '2' ? 2 : 0,
+      sufijo: !!(sufEl && sufEl.checked)
+    };
   }
 
   saveBtn.addEventListener('click', async function() {
@@ -2124,7 +2150,9 @@ function horarioInit() {
     var meta     = session.user.user_metadata;
     var horarios = readGrid();
     var { error } = await sb.from('ia_config').upsert(
-      { branch_id: meta.branch_id, tenant_id: meta.tenant_id, horarios: horarios, formato_hora: currentFmtHora },
+      { branch_id: meta.branch_id, tenant_id: meta.tenant_id, horarios: horarios, formato_hora: currentFmtHora,
+        zona_horaria: (document.getElementById('hr-tz') || {}).value || '-5',
+        moneda: readMoneda() },
       { onConflict: 'branch_id' }
     );
     saveBtn.disabled = false;
@@ -2215,6 +2243,10 @@ var _storedZonas = [];
         nota:                $('payNota')       ? $('payNota').value.trim()  : '',
         qr_imagen_url:       window._qrImageUrl || '',
         qr_texto:            $('qrTexto')       ? $('qrTexto').value.trim()  : '',
+        ventana_comprobante_horas: window._storedVentanaHoras || undefined,
+        bancos_correo:       $('bancosCorreo')
+          ? $('bancosCorreo').value.split(',').map(function(b){ return b.trim(); }).filter(Boolean)
+          : [],
       },
       domicilios: {
         activo:           $('domiActivo')    ? $('domiActivo').checked    : true,
@@ -2230,6 +2262,9 @@ var _storedZonas = [];
       menu_frase: readMenuFrase(),
       prohibiciones: readProhibiciones(),
       variables: window._ciaVariables || {},
+      adiciones_palabras: $('adicionesPalabras')
+        ? $('adicionesPalabras').value.split(',').map(function(w){ return w.trim(); }).filter(Boolean)
+        : [],
     };
   }
 
@@ -2255,6 +2290,7 @@ var _storedZonas = [];
       });
     }
     if ($('iaInstr')) { $('iaInstr').value = m.instrucciones || ''; updateCounter('iaInstr'); }
+    if ($('adicionesPalabras')) $('adicionesPalabras').value = Array.isArray(m.adiciones_palabras) ? m.adiciones_palabras.join(', ') : '';
     if ($('iaResumenPlantilla')) $('iaResumenPlantilla').value = m.resumen_plantilla || '';
     if (m.vocabulario) {
       if ($('avoid')) $('avoid').value = m.vocabulario.evitar || '';
@@ -2308,6 +2344,9 @@ var _storedZonas = [];
     if ($('payComprobante')) $('payComprobante').checked = p.esperar_comprobante !== false;
     if ($('payNota'))       $('payNota').value         = p.nota     || '';
     if ($('qrTexto'))       $('qrTexto').value         = p.qr_texto || '';
+    if ($('bancosCorreo'))  $('bancosCorreo').value    = Array.isArray(p.bancos_correo) ? p.bancos_correo.join(', ') : '';
+    // preservar claves de pagos que no tienen campo en el formulario
+    window._storedVentanaHoras = p.ventana_comprobante_horas || undefined;
     if (p.qr_imagen_url) {
       window._qrImageUrl = p.qr_imagen_url;
       var prev = $('qrPreviewImg'), ph = $('qrPlaceholder');
@@ -2590,7 +2629,7 @@ var _storedZonas = [];
   }
   if ($('metodoAdd')) $('metodoAdd').addEventListener('click', function(){ addMetodoRow('', false); markDirty(); });
   if ($('payComprobante')) $('payComprobante').addEventListener('change', markDirty);
-  ['payLlave','payTitular','payNota'].forEach(function(id) {
+  ['payLlave','payTitular','payNota','bancosCorreo'].forEach(function(id) {
     var el = $(id);
     if (el) el.addEventListener('input', markDirty);
   });

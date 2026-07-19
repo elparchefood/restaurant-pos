@@ -56,13 +56,17 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
 
   // 3. Config de la sucursal
   const cfgRows = await sbGet(
-    `/rest/v1/ia_config?branch_id=eq.${branchId}&select=gmail_refresh_token,gmail_email,pagos,frases,domicilios&limit=1`
+    `/rest/v1/ia_config?branch_id=eq.${branchId}&select=gmail_refresh_token,gmail_email,pagos,frases,domicilios,zona_horaria,moneda&limit=1`
   ) as Array<Record<string, unknown>> | null;
   const cfg          = cfgRows?.[0] || {};
   const refreshToken = cfg?.gmail_refresh_token as string | null;
   const pagos        = (cfg?.pagos as Record<string, unknown>) || {};
   const frases       = (cfg?.frases as Record<string, string>) || {};
   const llaveCfg     = String(pagos?.llave || "");
+  // Región configurable por restaurante (defaults Colombia): zona horaria, moneda y bancos del correo
+  const monedaCfg    = (cfg?.moneda as Record<string, unknown>) || null;
+  const tzRest       = tzStrFromCfg(cfg?.zona_horaria);
+  const bancosRe     = bancosRegexFromCfg(pagos);
 
   // ── CONFIRMACIÓN HUMANA (manual=true, botón "Confirmar pago" en Cobra) ──────
   // El operador ya revisó el comprobante con sus propios ojos: SIN chequeos
@@ -160,7 +164,7 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
   }
 
   if (!montoCoincide) {
-    const msg = `⚠️ El monto del comprobante ($${Number(visionResult.monto.replace(/\D/g,"")).toLocaleString("es-CO")}) no coincide con el total del pedido ($${totalEsperado.toLocaleString("es-CO")}). Un agente lo revisará en breve.`;
+    const msg = `⚠️ El monto del comprobante (${fmtMonto(Number(visionResult.monto.replace(/\D/g,"")), monedaCfg)}) no coincide con el total del pedido (${fmtMonto(totalEsperado, monedaCfg)}). Un agente lo revisará en breve.`;
     await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
     await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
     await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, { human_takeover: true });
@@ -197,7 +201,7 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
       // El correo del banco NO llega al instante (segundos a 1-2 min). Reintentar:
       // hasta 3 búsquedas con ~35s de espera entre cada una antes de rendirse.
       for (let intento = 1; intento <= 3; intento++) {
-        const gmailMatch = await searchGmailForAmount(gmailAccessToken, visionResult.monto, visionResult.fecha, visionResult.hora, llaveCfg, ventanaHoras);
+        const gmailMatch = await searchGmailForAmount(gmailAccessToken, visionResult.monto, visionResult.fecha, visionResult.hora, llaveCfg, ventanaHoras, bancosRe, tzRest);
         confirmed    = gmailMatch.found;
         verifyDetail = gmailMatch.detail;
         console.log(`Gmail intento ${intento}/3:`, confirmed, verifyDetail);
@@ -230,7 +234,7 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
       human_takeover:     false,
     });
 
-    const montoStr   = visionResult.monto ? ` de $${Number(visionResult.monto.replace(/\D/g,"")).toLocaleString("es-CO")}` : "";
+    const montoStr   = visionResult.monto ? ` de ${fmtMonto(Number(visionResult.monto.replace(/\D/g,"")), monedaCfg)}` : "";
     const cierreFrase = frases.cierre_pedido || "¡Con muchísimo gusto! En un momento preparamos tu pedido.";
     const msg = `✅ ¡Pago verificado${montoStr}! ${cierreFrase}`;
     await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
@@ -344,6 +348,8 @@ async function searchGmailForAmount(
   hora:        string,
   llaveCfg:    string,
   ventanaHoras: number = 5,
+  bancosRe:    RegExp = new RegExp(BANCOS_DEFAULT, "i"),
+  tzRest:      string = "-05:00",
 ): Promise<GmailMatch> {
   try {
     const digits = monto.replace(/\D/g, "");
@@ -385,7 +391,9 @@ async function searchGmailForAmount(
         const bodyText   = extractEmailBody(msgData);
         const fullText   = (snippet + " " + bodyText + " " + subject).toLowerCase();
 
-        const isBankEmail = /bancolombia|nequi|daviplat|davivienda|bbva|occidente|bogota|popular|itau|wompi|bold|nu\.com\.co|nubank/i.test(from + " " + subject);
+        // Remitentes bancarios: configurables por restaurante (pagos.bancos_correo);
+        // default = bancos/billeteras de Colombia
+        const isBankEmail = bancosRe.test(from + " " + subject);
         if (!isBankEmail) { console.log("Email no bancario, skip:", from); continue; }
 
         // Verificar que la fecha del comprobante aparece en el email (si tenemos fecha)
@@ -407,12 +415,12 @@ async function searchGmailForAmount(
         }
 
         // Cruce TEMPORAL: la hora de llegada real del correo (internalDate) debe ser
-        // coherente con la fecha/hora del comprobante (hora Colombia, UTC-5).
+        // coherente con la fecha/hora del comprobante (zona horaria del restaurante).
         // Con hora en el comprobante: tolerancia ±6h · solo fecha: ±36h.
         let tiempoOk = true;
         if (internalMs && fecha) {
           const horaStr = (hora && /^\d{1,2}:\d{2}$/.test(hora.trim())) ? hora.trim().padStart(5, "0") : "";
-          const comprobanteMs = Date.parse(`${fecha}T${horaStr || "12:00"}:00-05:00`);
+          const comprobanteMs = Date.parse(`${fecha}T${horaStr || "12:00"}:00${tzRest}`);
           if (!isNaN(comprobanteMs)) {
             const diffHoras = Math.abs(internalMs - comprobanteMs) / 3600000;
             tiempoOk = diffHoras <= (horaStr ? 6 : 36);
@@ -756,4 +764,43 @@ async function sbPatch(path: string, data: Record<string, unknown>): Promise<voi
     body: JSON.stringify(data),
   });
   if (!res.ok) console.error("sbPatch error", path, await res.text());
+}
+
+// ── Región configurable por restaurante (defaults Colombia) ───────────────────
+const BANCOS_DEFAULT = "bancolombia|nequi|daviplat|davivienda|bbva|occidente|bogota|popular|itau|wompi|bold|nu[.]com[.]co|nubank";
+
+// ia_config.zona_horaria (horas vs UTC, ej. "-5", "-6", "1", "-3.5") → "-05:00"
+function tzStrFromCfg(z: unknown): string {
+  const parsed = parseFloat(String(z ?? "").replace(":30", ".5").replace(":00", ""));
+  const h = (!isNaN(parsed) && parsed >= -12 && parsed <= 14) ? parsed : -5;
+  const sign = h < 0 ? "-" : "+";
+  const abs = Math.abs(h);
+  const hh = String(Math.floor(abs)).padStart(2, "0");
+  const mm = abs % 1 !== 0 ? "30" : "00";
+  return `${sign}${hh}:${mm}`;
+}
+
+// ia_config.moneda {simbolo, miles, decimales, sufijo} → "$40.000" / "$40,000.00" / "40,00 €"
+function fmtMonto(n: number, moneda: Record<string, unknown> | null | undefined): string {
+  const simbolo = String(moneda?.simbolo || "$");
+  const miles   = String(moneda?.miles || ".");
+  const dec     = Number(moneda?.decimales ?? 0) || 0;
+  const decSep  = miles === "." ? "," : ".";
+  const s = dec > 0 ? n.toFixed(dec) : String(Math.round(n));
+  const parts = s.split(".");
+  const ent = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, miles);
+  const num = parts[1] ? ent + decSep + parts[1] : ent;
+  return moneda?.sufijo ? `${num} ${simbolo}` : `${simbolo}${num}`;
+}
+
+// pagos.bancos_correo (lista editable de remitentes bancarios) → regex; default Colombia
+function bancosRegexFromCfg(pagos: Record<string, unknown> | null | undefined): RegExp {
+  const lista = pagos?.bancos_correo as unknown;
+  if (Array.isArray(lista) && lista.length > 0) {
+    const parts = lista
+      .map(b => String(b).trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .filter(Boolean);
+    if (parts.length > 0) return new RegExp(parts.join("|"), "i");
+  }
+  return new RegExp(BANCOS_DEFAULT, "i");
 }
