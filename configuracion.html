@@ -1390,12 +1390,15 @@
               <div class="card-bd">
                 <div class="field">
                   <label class="field-lb">M&eacute;todos de pago aceptados</label>
-                  <div class="pay-methods">
-                    <label class="pay-method"><input type="checkbox" id="payEfectivo" class="pay-chk"><span class="pay-ico">💵</span><span class="pay-nm">Efectivo</span></label>
-                    <label class="pay-method"><input type="checkbox" id="payNequi" class="pay-chk"><span class="pay-ico">📱</span><span class="pay-nm">Nequi / Transferencia</span></label>
-                    <label class="pay-method"><input type="checkbox" id="payDaviplata" class="pay-chk"><span class="pay-ico">🏦</span><span class="pay-nm">Daviplata</span></label>
-                    <label class="pay-method"><input type="checkbox" id="payTarjeta" class="pay-chk"><span class="pay-ico">💳</span><span class="pay-nm">Tarjeta</span></label>
-                  </div>
+                  <style>
+                    .metodo-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;margin-bottom:8px}
+                    .metodo-del{background:none;border:1.5px solid var(--border);border-radius:8px;width:30px;height:30px;cursor:pointer;color:var(--text-muted);font-size:15px;line-height:1}
+                    .metodo-del:hover{color:#e5484d;border-color:#e5484d}
+                    .metodo-dig-lb{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);white-space:nowrap}
+                  </style>
+                  <div id="metodosList"></div>
+                  <button class="zone-add" id="metodoAdd" type="button">+ Agregar m&eacute;todo</button>
+                  <div class="field-hint">Ren&oacute;mbralos, agrega o borra los que quieras. <b>Digital</b> = el bot env&iacute;a el QR y espera el comprobante. El bot reconoce lo que el cliente escriba contra estos nombres, y la variable <b>{{metodos_pago}}</b> los dice siempre actualizados.</div>
                 </div>
                 <div id="pay-digital-fields" class="pay-digital-fields" style="display:none">
                   <div class="field">
@@ -1791,7 +1794,7 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-core.js"></script>
-<script src="configuracion.js?v=1783907508"></script>
+<script src="configuracion.js?v=1784500001"></script>
 </body>
 </html>
 

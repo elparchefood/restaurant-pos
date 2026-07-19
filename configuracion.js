@@ -2202,10 +2202,13 @@ var _storedZonas = [];
         voiceId:        voiceEl ? voiceEl.dataset.voice : 'valentina'
       },
       pagos: {
-        efectivo:            $('payEfectivo')   ? $('payEfectivo').checked   : false,
-        nequi:               $('payNequi')      ? $('payNequi').checked      : false,
-        daviplata:           $('payDaviplata')  ? $('payDaviplata').checked  : false,
-        tarjeta:             $('payTarjeta')    ? $('payTarjeta').checked    : false,
+        // Lista editable de métodos (fuente de verdad). Los booleanos quedan derivados
+        // por compatibilidad con versiones anteriores del motor.
+        metodos:             readMetodos(),
+        efectivo:            readMetodos().some(function(x){ return x.nombre.toLowerCase().indexOf('efectivo') >= 0 || !x.digital; }),
+        nequi:               readMetodos().some(function(x){ return x.nombre.toLowerCase().indexOf('nequi') >= 0; }),
+        daviplata:           readMetodos().some(function(x){ return x.nombre.toLowerCase().indexOf('daviplata') >= 0; }),
+        tarjeta:             readMetodos().some(function(x){ return x.nombre.toLowerCase().indexOf('tarjeta') >= 0; }),
         llave:               $('payLlave')      ? $('payLlave').value.trim() : '',
         titular:             $('payTitular')    ? $('payTitular').value.trim(): '',
         esperar_comprobante: $('payComprobante')? $('payComprobante').checked : true,
@@ -2287,12 +2290,18 @@ var _storedZonas = [];
       }
     }
 
-    // Pagos
+    // Pagos — lista editable de métodos (migra desde los booleanos viejos si no hay lista)
     var p = m.pagos || {};
-    if ($('payEfectivo'))   $('payEfectivo').checked   = !!p.efectivo;
-    if ($('payNequi'))      $('payNequi').checked      = !!p.nequi;
-    if ($('payDaviplata'))  $('payDaviplata').checked  = !!p.daviplata;
-    if ($('payTarjeta'))    $('payTarjeta').checked    = !!p.tarjeta;
+    var metodosIni = (Array.isArray(p.metodos) && p.metodos.length) ? p.metodos : (function(){
+      var arr = [];
+      if (p.efectivo)  arr.push({nombre:'Efectivo',  digital:false});
+      if (p.nequi)     arr.push({nombre:'Nequi',     digital:true});
+      if (p.daviplata) arr.push({nombre:'Daviplata', digital:true});
+      if (p.tarjeta)   arr.push({nombre:'Tarjeta',   digital:false});
+      return arr;
+    })();
+    var mlist = $('metodosList');
+    if (mlist) { mlist.innerHTML = ''; metodosIni.forEach(function(x){ addMetodoRow(x.nombre, !!x.digital); }); }
     if ($('payLlave'))      $('payLlave').value        = p.llave    || '';
     if ($('payTitular'))    $('payTitular').value      = p.titular  || '';
     if ($('payComprobante')) $('payComprobante').checked = p.esperar_comprobante !== false;
@@ -2545,21 +2554,40 @@ var _storedZonas = [];
   }
   loadConfig();
 
-  // ── Pagos: helpers y eventos ───────────────────────────
+  // ── Pagos: lista editable de métodos ───────────────────
+  function readMetodos() {
+    var out = [];
+    document.querySelectorAll('#metodosList .metodo-row').forEach(function(r) {
+      var inp = r.querySelector('.metodo-nombre');
+      var dig = r.querySelector('.metodo-digital');
+      var n = inp ? inp.value.trim() : '';
+      if (n) out.push({ nombre: n, digital: !!(dig && dig.checked) });
+    });
+    return out;
+  }
+  window.addMetodoRow = function(nombre, digital) {
+    var list = $('metodosList'); if (!list) return;
+    var row = document.createElement('div');
+    row.className = 'metodo-row';
+    row.innerHTML =
+      '<input class="inp metodo-nombre" placeholder="Ej. Nequi, Bancolombia, Efectivo…">' +
+      '<label class="metodo-dig-lb">Digital <label class="switch"><input type="checkbox" class="metodo-digital"><span class="track"></span><span class="knob"></span></label></label>' +
+      '<button type="button" class="metodo-del" title="Eliminar">&times;</button>';
+    row.querySelector('.metodo-nombre').value = nombre || '';
+    row.querySelector('.metodo-digital').checked = !!digital;
+    row.querySelector('.metodo-nombre').addEventListener('input', markDirty);
+    row.querySelector('.metodo-digital').addEventListener('change', function(){ toggleDigitalFields(); markDirty(); });
+    row.querySelector('.metodo-del').addEventListener('click', function(){ row.remove(); toggleDigitalFields(); markDirty(); });
+    list.appendChild(row);
+  };
   function toggleDigitalFields() {
-    var show = ($('payNequi') && $('payNequi').checked) ||
-               ($('payDaviplata') && $('payDaviplata').checked);
+    var checks = document.querySelectorAll('#metodosList .metodo-digital');
+    var show = Array.prototype.some.call(checks, function(c){ return c.checked; });
     var el = $('pay-digital-fields');
     if (el) el.style.display = show ? '' : 'none';
   }
-  ['payNequi','payDaviplata'].forEach(function(id) {
-    var el = $(id);
-    if (el) el.addEventListener('change', toggleDigitalFields);
-  });
-  ['payEfectivo','payTarjeta','payComprobante'].forEach(function(id) {
-    var el = $(id);
-    if (el) el.addEventListener('change', markDirty);
-  });
+  if ($('metodoAdd')) $('metodoAdd').addEventListener('click', function(){ addMetodoRow('', false); markDirty(); });
+  if ($('payComprobante')) $('payComprobante').addEventListener('change', markDirty);
   ['payLlave','payTitular','payNota'].forEach(function(id) {
     var el = $(id);
     if (el) el.addEventListener('input', markDirty);

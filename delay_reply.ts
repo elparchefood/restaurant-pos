@@ -317,11 +317,8 @@ async function processConversation(convId: string): Promise<void> {
 
   const fechaStr   = `${String(colDate.getUTCDate()).padStart(2,"0")}/${String(colDate.getUTCMonth()+1).padStart(2,"0")}/${colDate.getUTCFullYear()}`;
   const saludoHora = colHourNum < 12 ? "Buenos días" : colHourNum < 19 ? "Buenas tardes" : "Buenas noches";
-  const metodosArr: string[] = [];
-  if (pagosCfg?.efectivo)  metodosArr.push("efectivo");
-  if (pagosCfg?.nequi)     metodosArr.push("Nequi");
-  if (pagosCfg?.daviplata) metodosArr.push("Daviplata");
-  if (pagosCfg?.tarjeta)   metodosArr.push("tarjeta");
+  // {{metodos_pago}} sale de la lista editable de métodos (pagos.metodos), en vivo
+  const metodosArr: string[] = getMetodosPago(pagosCfg).map(m => m.nombre);
   const categoriasStr = (menuText.match(/\[([^\]]+)\]/g) || []).map(c => c.replace(/[\[\]]/g, "").toLowerCase()).join(", ");
   const perfilCfg = (cfg.perfil as Record<string, string>) || {};
   const botCfgV   = (cfg.bot as Record<string, string>) || {};
@@ -339,7 +336,7 @@ async function processConversation(convId: string): Promise<void> {
     tiempo_domicilio: String(domiciliosCfg?.tiempo_estimado || ""),
     nequi: String(pagosCfg?.llave || ""),
     titular: String(pagosCfg?.titular || ""),
-    metodos_pago: metodosArr.join(" o "),
+    metodos_pago: listaNatural(metodosArr),
     menu: menuText,
     categorias: categoriasStr,
     cliente: nombreConfirmar || (senderName && senderName !== fromPhone ? senderName : ""),
@@ -551,8 +548,9 @@ async function processConversation(convId: string): Promise<void> {
     );
 
     if (isConfirmacion) {
-      const pagoVal = (state.pago || "").toLowerCase();
-      const esTransferencia = pagoVal.includes("nequi") || pagoVal.includes("daviplata") || pagoVal.includes("transfer");
+      // Rama digital (QR + comprobante) decidida por el flag "digital" del método
+      // configurado en Pagos — ya no por nombres fijos en código.
+      const esTransferencia = esMetodoDigital(state.pago, pagosCfg);
 
       if (esTransferencia) {
         // Prioridad: nodo del canvas conectado a la salida "transferencia" del Resumen
@@ -963,15 +961,66 @@ function isProductAttribute(text: string, productData: ProductData | null): bool
   return false;
 }
 
+// ── Métodos de pago CONFIGURABLES ────────────────────────────────────────────────
+// La lista vive en ia_config.pagos.metodos = [{nombre, digital}] — editable desde la
+// pantalla Pagos. "digital" = el bot envía QR y espera comprobante. Si no hay lista,
+// se derivan de los booleanos viejos (efectivo/nequi/daviplata/tarjeta) por compat.
+function getMetodosPago(pagosCfg: Record<string, unknown> | null | undefined): Array<{ nombre: string; digital: boolean }> {
+  const lista = pagosCfg?.metodos as Array<{ nombre?: string; digital?: boolean }> | undefined;
+  if (Array.isArray(lista) && lista.length > 0) {
+    return lista
+      .map(m => ({ nombre: String(m?.nombre || "").trim(), digital: !!m?.digital }))
+      .filter(m => m.nombre);
+  }
+  const out: Array<{ nombre: string; digital: boolean }> = [];
+  if (pagosCfg?.efectivo)  out.push({ nombre: "Efectivo",  digital: false });
+  if (pagosCfg?.nequi)     out.push({ nombre: "Nequi",     digital: true });
+  if (pagosCfg?.daviplata) out.push({ nombre: "Daviplata", digital: true });
+  if (pagosCfg?.tarjeta)   out.push({ nombre: "Tarjeta",   digital: false });
+  return out;
+}
+
+// ¿El método elegido es digital (QR + comprobante)? Decide la rama del resumen.
+function esMetodoDigital(pago: string | null | undefined, pagosCfg: Record<string, unknown> | null | undefined): boolean {
+  const p = normalizarTexto(String(pago || ""));
+  if (!p) return false;
+  for (const m of getMetodosPago(pagosCfg)) {
+    const mn = normalizarTexto(m.nombre);
+    if (mn && (mn === p || mn.includes(p) || p.includes(mn))) return m.digital;
+  }
+  // Fallback si el método guardado no está en la lista actual
+  return p.includes("nequi") || p.includes("daviplata") || p.includes("transfer");
+}
+
 function extractPago(text: string, pagosCfg: Record<string, unknown> | null | undefined): string | null {
-  const t = text.toLowerCase();
+  const t = normalizarTexto(text);
+  const metodos = getMetodosPago(pagosCfg);
+  // 1) Nombres configurados por el restaurante (frase completa o palabras de 4+ letras)
+  for (const m of metodos) {
+    const mn = normalizarTexto(m.nombre);
+    if (!mn) continue;
+    if (t.includes(mn)) return m.nombre.toLowerCase();
+    const palabras = mn.split(" ").filter(w => w.length >= 4);
+    if (palabras.some(w => new RegExp(`\\b${w}\\b`).test(t))) return m.nombre.toLowerCase();
+  }
+  // 2) Sinónimos generales → se mapean al método configurado equivalente
+  if (/\b(transfer(encia)?|transfe)\b/.test(t)) {
+    const dig = metodos.find(m => m.digital);
+    return dig ? dig.nombre.toLowerCase() : "transferencia";
+  }
+  if (/\bcash\b/.test(t) || /\bbilletes?\b/.test(t) || /\bfisico\b/.test(t)) {
+    const efe = metodos.find(m => !m.digital);
+    return efe ? efe.nombre.toLowerCase() : "efectivo";
+  }
+  // 3) Legacy directo (por si la lista no los incluye pero el cliente los nombra)
   if (/\bnequi\b/.test(t)) return "nequi";
   if (/\bdaviplata\b/.test(t)) return "daviplata";
-  if (/\b(transfer(encia)?|transfe)\b/.test(t)) return "transferencia";
-  if (/\befectivo\b/.test(t) || /\bcash\b/.test(t)) return "efectivo";
-  if (/\b(billetes?|f[íi]sico|en\s+efectivo)\b/.test(t)) return "efectivo";
+  if (/\befectivo\b/.test(t)) return "efectivo";
   const llave = pagosCfg?.llave as string | undefined;
-  if (llave && t.includes(llave.toLowerCase())) return "nequi";
+  if (llave && text.toLowerCase().includes(llave.toLowerCase())) {
+    const dig = metodos.find(m => m.digital);
+    return dig ? dig.nombre.toLowerCase() : "nequi";
+  }
   return null;
 }
 
@@ -2231,18 +2280,16 @@ function buildHorariosText(horarios: Record<string, unknown> | null | undefined,
 
 function buildPagosText(pagos: Record<string, unknown> | null | undefined): string {
   if (!pagos) return "";
-  const metodos: string[] = [];
-  if (pagos.efectivo)  metodos.push("Efectivo");
-  if (pagos.nequi)     metodos.push("Nequi");
-  if (pagos.daviplata) metodos.push("Daviplata");
-  if (pagos.tarjeta)   metodos.push("Tarjeta");
-  if (!metodos.length) return "";
+  const lista = getMetodosPago(pagos);
+  if (!lista.length) return "";
+  const metodos = lista.map(m => m.nombre);
+  const hayDigital = lista.some(m => m.digital);
   const lines: string[] = ["MÉTODOS DE PAGO:", `- Aceptamos: ${metodos.join(", ")}`];
-  if ((pagos.nequi || pagos.daviplata) && pagos.llave) {
+  if (hayDigital && pagos.llave) {
     lines.push(`- Llave/número de pago digital: ${pagos.llave}`);
     if (pagos.titular) lines.push(`- Titular: ${pagos.titular}`);
   }
-  if (pagos.esperar_comprobante) lines.push("- Para pagos digitales, pedimos el comprobante de transferencia.");
+  if (pagos.esperar_comprobante && hayDigital) lines.push("- Para pagos digitales, pedimos el comprobante de transferencia.");
   if (pagos.nota) lines.push(`- ${pagos.nota}`);
   return lines.join("\n");
 }
