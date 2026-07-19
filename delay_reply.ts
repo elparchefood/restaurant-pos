@@ -1047,6 +1047,13 @@ function extractDireccion(text: string, isCurrentStep: boolean, productData: Pro
   // Cuando no es el paso de dirección, solo capturar si el texto es corto (<= 65 chars)
   // Evita que mensajes largos con "Carrera"/"Calle" (ej. mensaje inicial con todo el pedido) se almacenen como dirección completa
   if (CALLE_REGEX.test(text) && (isCurrentStep || text.trim().length <= 65)) return text.trim();
+  // Mensaje multi-línea (todo-en-uno): capturar SOLO la línea que es una dirección.
+  // Caso real: "una personal premium mixta\ncarrera 9 b 63 n 58 bellavista\nSergio Abadia"
+  if (!isCurrentStep && text.includes("\n")) {
+    const lineaDir = text.split("\n").map(l => l.trim())
+      .find(l => l && l.length <= 65 && CALLE_REGEX.test(l) && /\d/.test(l));
+    if (lineaDir) return lineaDir;
+  }
   if (isCurrentStep && text.trim().length > 8) {
     if (!isProductAttribute(text, productData) && !extractPago(text, null) && !extractNombrePuro(text, productData)) {
       return text.trim();
@@ -1083,15 +1090,59 @@ function detectarNombreWa(raw: string): string | null {
   return clean;
 }
 
+// Frases que JAMÁS son un nombre (reclamos, referencias a mensajes anteriores)
+const NO_ES_NOMBRE_RE = /\b(ya\s+te\s+lo\s+dije|ya\s+lo\s+dije|ya\s+te\s+dije|ya\s+dije|te\s+lo\s+acabo|acabo\s+de\s+(decir|escribir)|ya\s+lo\s+escrib[ií]|ya\s+lo\s+mencion[eé]|lee\s+arriba|mira\s+arriba|revisa\s+arriba|m[aá]s\s+arriba|otra\s+vez|de\s+nuevo|no\s+s[eé]|el\s+mismo|la\s+misma|lo\s+mismo|llevar|recoger|domicilio|entrega|cocina)\b/i;
+
+// Marcadores EXPLÍCITOS de nombre — permiten capturarlo desde cualquier mensaje
+// (no solo en el paso "nombre"), p.ej. cuando el cliente da todo en un solo mensaje.
+const NOMBRE_MARCADOR_RE = /(?:me\s+llamo|mi\s+nombre\s+es|a\s+nombre\s+de|el\s+nombre\s+es|cambia\s+el\s+nombre\s+a|el\s+pedido\s+es\s+para)\s+([a-záéíóúüñÁÉÍÓÚÜÑ]+(?:\s+[a-záéíóúüñÁÉÍÓÚÜÑ]+){0,2})/i;
+
 function extractNombre(text: string, isCurrentStep: boolean, productData: ProductData | null = null): string | null {
-  if (!isCurrentStep) return null;
+  if (!isCurrentStep) {
+    // Fuera del paso nombre, dos vías seguras:
+    // (a) marcador explícito ("me llamo X", "a nombre de X")
+    // (b) mensaje multi-línea donde una línea suelta tiene FORMA de nombre
+    //     (solo letras, 1-3 palabras) y NO es ningún otro dato del pedido.
+    //     Caso real: "una personal premium mixta\ncarrera 9 b 63 n 58\nSergio Abadia"
+    const m = text.match(NOMBRE_MARCADOR_RE);
+    if (m) {
+      text = m[1];
+    } else {
+      const lineas = text.split("\n").map(l => l.trim()).filter(Boolean);
+      if (lineas.length < 2) return null;  // con una sola línea es demasiado ambiguo
+      let candidato: string | null = null;
+      for (const ln of lineas) {
+        if (!/^[a-záéíóúüñÁÉÍÓÚÜÑ' -]+$/i.test(ln)) continue;   // solo letras (sin dígitos)
+        const words = ln.split(/\s+/);
+        if (words.length > 3 || ln.length < 3 || ln.length > 40) continue;
+        if (/^(una?|unos?|dos|tres|el|la|los|las|quiero|dame|me|sin|con)\b/i.test(ln)) continue;
+        if (SALUDO_REGEX.test(ln)) continue;
+        if (NO_ES_NOMBRE_RE.test(ln)) continue;
+        if (CONFIRM_WORDS.includes(ln.toLowerCase())) continue;
+        const lnLow = ln.toLowerCase();
+        if (RECHAZO_UPSELL_WORDS.some(w => lnLow.includes(w))) continue;
+        const lnNorm = normalizarTexto(ln);
+        if (ADICION_KEYWORDS.some(k => k.length >= 4 && new RegExp(`\\b${k}\\b`).test(lnNorm))) continue;
+        if (extractPago(ln, null)) continue;
+        if (isProductAttribute(ln, productData)) continue;
+        if (CALLE_REGEX.test(ln) || LLEVAR_REGEX.test(ln)) continue;
+        candidato = ln;  // la última línea con forma de nombre gana (suele ir al final)
+      }
+      if (!candidato) return null;
+      text = candidato;
+    }
+  }
   let t = text.trim();
   // Aislar el nombre de frases de corrección/introducción, p.ej.:
   //   "no, va a nombre de Andrea" → "Andrea" · "es para Carlos" → "Carlos" · "me llamo Sergio" → "Sergio"
   t = t.replace(/^(no|s[íi])[,.\s]+/i, "").trim();
   t = t.replace(/^(el\s+nombre\s+(es|va)\s*:?\s*|va\s+a\s+nombre\s+de\s+|a\s+nombre\s+de\s+|es\s+para\s+|me\s+llamo\s+|mi\s+nombre\s+es\s+|el\s+pedido\s+es\s+para\s+|soy\s+|es\s+)/i, "").trim();
+  t = t.replace(/\s+(porfa|porfis|por\s+favor|gracias)[.!]*$/i, "").trim();
   t = t.replace(/[.,;]+$/, "").trim();
   if (t.length < 2 || t.length > 60) return null;
+  if (NO_ES_NOMBRE_RE.test(t)) return null;                              // reclamos/meta ("ya te lo dije")
+  if (CONFIRM_WORDS.includes(t.toLowerCase())) return null;              // "si", "dale", "ok"…
+  if (t.includes("?") || t.includes("¿")) return null;                   // preguntas no son nombres
   if (extractPago(t, null)) return null;
   if (isProductAttribute(t, productData)) return null;
   if (CALLE_REGEX.test(t) || LLEVAR_REGEX.test(t)) return null;
