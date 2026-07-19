@@ -799,8 +799,37 @@ async function processConversation(convId: string): Promise<void> {
   // El resumen falso que esto causaba antes ya está cubierto por las reglas estrictas de GPT (v124)
   // y porque el pago es ahora el último paso (findNextStep no llega a null con nombre pendiente).
 
-  // 14f. Sin producto → respuesta conversacional general
+  // 14f. Sin producto
   if (!state.producto) {
+    // Si el cliente EXPRESA intención de pedir (pero sin producto específico) y hay
+    // imágenes de la carta + mostrar_menu activo en el nodo Producto del canvas:
+    // enviar la CARTA (imágenes) + la frase del canvas — determinístico, sin GPT.
+    // (Sergio: "en lugar de volcar los productos en texto, envía el menú y pregunta cuál desea")
+    const pasoProdMenu = Array.isArray(cfg.flujo_pasos)
+      ? (cfg.flujo_pasos as Array<Record<string, unknown>>).find(p => p && p.campo === "producto" && p.activo !== false)
+      : null;
+    const mostrarMenuImg = pasoProdMenu ? pasoProdMenu.mostrar_menu !== false : true;
+    const INTENCION_PEDIDO_RE = /(quier[oe]|quisiera|me\s+das|me\s+regalas|me\s+haces|dame|deseo|se\s+me\s+antoja|antojo|ped(ir|ido)|ordenar|env[ií]ame|hazme|para\s+comer|salchipapa|d[ée]jame)/i;
+    if (mostrarMenuImg && menuImagenes.length > 0 && INTENCION_PEDIDO_RE.test(clienteTexto)) {
+      const menuFraseCfg14f = (cfg.menu_frase as Record<string, string>) || {};
+      const fraseProdRaw = (pasoProdMenu && (pasoProdMenu.texto || pasoProdMenu.frase))
+        ? String(pasoProdMenu.texto || pasoProdMenu.frase)
+        : (menuFraseCfg14f.texto || getFraseTexto(frasesCfg.apertura) || "¡Claro que sí! 😊 ¿Qué deseas?");
+      const fraseProd = rellenarVariables(fraseProdRaw, state, cfg).texto;
+      for (const imgUrl of menuImagenes) {
+        await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "image", image: { link: imgUrl } }),
+        });
+        await sleep(600);
+      }
+      await sendWaAndSave(convId, tenantId, fraseProd, fromPhone, phoneId, accessToken);
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: fraseProd, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+      return;
+    }
+
+    // Saludo/charla u otra cosa sin intención clara → respuesta conversacional (GPT)
     const reply = await buildConversationResponse(
       clienteTexto, histCtx, state, null, cfg, frasesCfg,
       menuText, horariosText, pagosText, domiciliosText, currentProductData,

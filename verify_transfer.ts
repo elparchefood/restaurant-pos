@@ -77,6 +77,13 @@ async function verifyTransfer(conversationId: string): Promise<void> {
     return;
   }
 
+  // 4b. Avisar de inmediato que estamos verificando (la verificación con Gmail puede
+  // tardar 1-2 min porque el correo del banco no llega al instante)
+  const msgVerificando = (frases.verificando_pago as string) ||
+    "Recibimos tu comprobante 🧾 Dame un momento mientras lo verifico ⏳";
+  await sendWhatsApp(fromPhone, phoneId, accessToken, msgVerificando);
+  await saveOutMessage(conversationId, tenantId, msgVerificando, fromPhone, phoneId, accessToken);
+
   // 5. GPT-4o Vision: extraer datos del comprobante
   const visionResult = await extractComprobante(imageUrl);
   console.log("Vision result:", JSON.stringify(visionResult));
@@ -134,10 +141,16 @@ async function verifyTransfer(conversationId: string): Promise<void> {
   if (refreshToken) {
     const gmailAccessToken = await refreshGmailToken(refreshToken);
     if (gmailAccessToken) {
-      const gmailMatch = await searchGmailForAmount(gmailAccessToken, visionResult.monto, visionResult.fecha, visionResult.hora, llaveCfg);
-      confirmed    = gmailMatch.found;
-      verifyDetail = gmailMatch.detail;
-      console.log("Gmail match:", confirmed, verifyDetail);
+      // El correo del banco NO llega al instante (segundos a 1-2 min). Reintentar:
+      // hasta 3 búsquedas con ~35s de espera entre cada una antes de rendirse.
+      for (let intento = 1; intento <= 3; intento++) {
+        const gmailMatch = await searchGmailForAmount(gmailAccessToken, visionResult.monto, visionResult.fecha, visionResult.hora, llaveCfg);
+        confirmed    = gmailMatch.found;
+        verifyDetail = gmailMatch.detail;
+        console.log(`Gmail intento ${intento}/3:`, confirmed, verifyDetail);
+        if (confirmed) break;
+        if (intento < 3) await new Promise(r => setTimeout(r, 35000));
+      }
     } else {
       console.error("No se pudo refrescar el token Gmail — confiando en Vision");
       confirmed    = visionResult.parece_valido;
@@ -280,9 +293,11 @@ async function searchGmailForAmount(
     const digits = monto.replace(/\D/g, "");
     if (!digits) return { found: false, detail: "monto vacío" };
 
-    // Formatos que usan los bancos colombianos: 33000, 33.000, 33.000,00
-    const withDots = digits.replace(/(\d)(?=(\d{3})+$)/g, "$1.");
-    const formatos = [...new Set([digits, withDots, withDots + ",00"])];
+    // Formatos que usan los bancos: 40000, 40.000, 40.000,00 (CO) y 40,000, 40,000.00
+    // (Bancolombia escribe "$40,000.00" con coma de miles en sus correos)
+    const withDots   = digits.replace(/(\d)(?=(\d{3})+$)/g, "$1.");
+    const withCommas = digits.replace(/(\d)(?=(\d{3})+$)/g, "$1,");
+    const formatos = [...new Set([digits, withDots, withDots + ",00", withCommas, withCommas + ".00"])];
 
     console.log("Buscando en Gmail con formatos:", formatos.join(" | "));
 
