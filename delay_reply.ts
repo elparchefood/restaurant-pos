@@ -828,7 +828,7 @@ async function processConversation(convId: string): Promise<void> {
       ? (cfg.flujo_pasos as Array<Record<string, unknown>>).find(p => p && p.campo === "producto" && p.activo !== false)
       : null;
     const mostrarMenuImg = pasoProdMenu ? pasoProdMenu.mostrar_menu !== false : true;
-    const INTENCION_PEDIDO_RE = /(quier[oe]|quisiera|me\s+das|me\s+regalas|me\s+haces|dame|deseo|se\s+me\s+antoja|antojo|ped(ir|ido)|ordenar|env[ií]ame|hazme|para\s+comer|salchipapa|d[ée]jame)/i;
+    const INTENCION_PEDIDO_RE = /(quier[oe]|quisiera|me\s+das|me\s+regalas|me\s+haces|dame|deseo|se\s+me\s+antoja|antojo|ped(ir|ido)|ordenar|env[ií]ame|hazme|para\s+comer|salchipa|una\s+salchi|d[ée]jame)/i;
     if (mostrarMenuImg && menuImagenes.length > 0 && INTENCION_PEDIDO_RE.test(clienteTexto)) {
       const menuFraseCfg14f = (cfg.menu_frase as Record<string, string>) || {};
       const fraseProdRaw = (pasoProdMenu && (pasoProdMenu.texto || pasoProdMenu.frase))
