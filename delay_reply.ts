@@ -326,7 +326,7 @@ async function processConversation(convId: string): Promise<void> {
   const perfilCfg = (cfg.perfil as Record<string, string>) || {};
   const botCfgV   = (cfg.bot as Record<string, string>) || {};
 
-  (cfg as Record<string, unknown>)._varData = {
+  const varDataObj: Record<string, unknown> = {
     hora: colTimeStr,
     dia: colDayStr,
     fecha: fechaStr,
@@ -344,6 +344,33 @@ async function processConversation(convId: string): Promise<void> {
     categorias: categoriasStr,
     cliente: nombreConfirmar || (senderName && senderName !== fromPhone ? senderName : ""),
   };
+
+  // Variables automáticas del catálogo: por cada producto, sus presentaciones y variantes.
+  // {{presentaciones_coca_cola}} → "personal o 1.5 litros" · {{variantes_premium}} → "mixta, carne o pollo"
+  // Los selectores {{presentaciones_producto}}/{{variantes_producto}} usan estas mismas claves
+  // según el producto del pedido en curso (resolverDato).
+  try {
+    const prodRows = await sbGet(
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=name,presentations,variables`
+    ) as Array<Record<string, unknown>> | null;
+    for (const p of (prodRows || [])) {
+      const nombreProd = String(p.name || "").trim();
+      if (!nombreProd) continue;
+      const slug = slugVariable(nombreProd);
+      if (!slug) continue;
+      const presArr = ((p.presentations as Array<{ name?: string }>) || [])
+        .map(x => String(x?.name || "").trim())
+        .filter(n => n && n.toLowerCase() !== "unico" && n.toLowerCase() !== "único");
+      if (presArr.length > 0) varDataObj["presentaciones_" + slug] = listaNatural(presArr).toLowerCase();
+      const varGroups = (p.variables as Array<{ options?: Array<{ name?: string }> }>) || [];
+      const optArr = ((varGroups[0]?.options) || [])
+        .map(o => String(o?.name || "").trim())
+        .filter(Boolean);
+      if (optArr.length > 0) varDataObj["variantes_" + slug] = listaNatural(optArr).toLowerCase();
+    }
+  } catch (err) { console.error("variables de catálogo fallaron (no bloquea):", err); }
+
+  (cfg as Record<string, unknown>)._varData = varDataObj;
 
   const hasImagenBatch = batchMsgs.some(m => (m.body||"").startsWith("[imagen]") || (m.body||"").startsWith("[image]"));
   if (soloMediaNoTexto) {
@@ -1349,6 +1376,22 @@ function procesarFlujoCanvas(
   return out;
 }
 
+// ── Variables automáticas del catálogo ───────────────────────────────────────────
+// Cada producto genera sus variables por nombre: {{presentaciones_<slug>}} y
+// {{variantes_<slug>}} (ej: presentaciones_coca_cola → "personal o 1.5 litros").
+// Además, los SELECTORES {{presentaciones_producto}} / {{variantes_producto}}
+// resuelven las del producto que el cliente está pidiendo (state.producto).
+function slugVariable(nombre: string): string {
+  return nombre.toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9ñ]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+function listaNatural(items: string[]): string {
+  if (items.length <= 1) return items.join("");
+  return items.slice(0, -1).join(", ") + " o " + items[items.length - 1];
+}
+
 // ── Catálogo de FUENTES de datos disponibles para las variables ──────────────────
 // El usuario crea variables (en el canvas) que apuntan a una de estas fuentes.
 // Este es el mismo catálogo que la UI ofrece en "Crear variable → Dato".
@@ -1379,7 +1422,23 @@ function resolverDato(
     case "precio":
     case "precio_total":
     case "gran_total": return "a confirmar";
-    // Datos precargados en cfg._varData (tiempo, restaurante, pagos, catálogo, cliente)
+    // SELECTORES: presentaciones/variantes del producto que el cliente está pidiendo
+    case "presentaciones_producto":
+    case "variantes_producto": {
+      if (!state.producto) return "";
+      const pref = fuente === "presentaciones_producto" ? "presentaciones_" : "variantes_";
+      const slug = slugVariable(state.producto);
+      if ((pref + slug) in varData) return String(varData[pref + slug] ?? "");
+      // Coincidencia flexible (el nombre extraído puede diferir levemente del catálogo)
+      for (const k of Object.keys(varData)) {
+        if (!k.startsWith(pref)) continue;
+        const ks = k.slice(pref.length);
+        if (ks.includes(slug) || slug.includes(ks)) return String(varData[k] ?? "");
+      }
+      return "";
+    }
+    // Datos precargados en cfg._varData (tiempo, restaurante, pagos, catálogo, cliente,
+    // y las variables automáticas por producto: presentaciones_<slug> / variantes_<slug>)
     default:
       return (fuente in varData) ? String(varData[fuente] ?? "") : "";
   }

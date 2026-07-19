@@ -413,8 +413,9 @@ function renderPanelBody(id, d) {
           <div class="cp-label">Mensaje exacto</div>
           <textarea class="cp-textarea" id="cp-frase" oninput="updateField(${id},'frase',this.value)">${esc(d.frase||'')}</textarea>
           <div class="vars-row" style="margin-top:8px">
-            ${['{{nombre}}','{{producto}}','{{tamano}}','{{tipo}}','{{direccion}}','{{hora}}'].map(v=>`<span class="var-chip" onclick="insertVar(${id},'${v}')">${v}</span>`).join('')}
+            ${['{{nombre}}','{{producto}}','{{presentaciones_producto}}','{{variantes_producto}}','{{tamano}}','{{tipo}}','{{direccion}}','{{hora}}'].map(v=>`<span class="var-chip" onclick="insertVar(${id},'${v}')">${v}</span>`).join('')}
           </div>
+          <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5"><b>{{presentaciones_producto}}</b> y <b>{{variantes_producto}}</b> dicen las opciones reales del producto que el cliente está pidiendo (del catálogo, en vivo). También existen por producto: <b>{{presentaciones_coca_cola}}</b>, <b>{{variantes_premium}}</b>, etc.</div>
         </div>`;
       }
     } else {
