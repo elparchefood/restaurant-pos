@@ -530,7 +530,7 @@ async function resolverPedido(
         return pname === nombreLow || pname.includes(nombreLow) || nombreLow.includes(pname.replace(/\s.*/,""));
       });
       if (!matched) {
-        itemsRows.push({ product_id: null, product_name: [item.producto, item.tamano, item.tipo].filter(Boolean).join(" · ") || "Producto WhatsApp", product_price: 0, unit_price: 0, total: 0, quantity: item.cantidad, selections: { mods: {}, pres: item.tamano, vars: {} }, branch_id: branchId, tenant_id: tenantId || null, notes: null });
+        itemsRows.push({ product_id: null, name: [item.producto, item.tamano, item.tipo].filter(Boolean).join(" · ") || "Producto WhatsApp", product_name: [item.producto, item.tamano, item.tipo].filter(Boolean).join(" · ") || "Producto WhatsApp", product_price: 0, unit_price: 0, total: 0, quantity: item.cantidad, selections: { mods: {}, pres: item.tamano, vars: {} }, branch_id: branchId, tenant_id: tenantId || null, notes: null });
         continue;
       }
       const presentations = (matched.presentations as Array<{id:string;name:string;price:number}>) || [];
@@ -553,9 +553,11 @@ async function resolverPedido(
       }
 
       const itemTotal = price * item.cantidad;
+      const nombreItem = [String(matched.name), presMatch?.name || item.tamano, item.tipo].filter(Boolean).join(" · ");
       itemsRows.push({
         product_id: String(matched.id),
-        product_name: [String(matched.name), presMatch?.name || item.tamano, item.tipo].filter(Boolean).join(" · "),
+        name: nombreItem,           // la UI de ventas/domicilios pinta ESTE campo
+        product_name: nombreItem,
         product_price: price, unit_price: price, total: itemTotal, quantity: item.cantidad,
         selections: { mods: {}, pres: presMatch?.name || item.tamano, vars: varsMap },
         branch_id: branchId, tenant_id: tenantId || null, notes: null,

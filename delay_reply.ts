@@ -2096,6 +2096,7 @@ async function createWhatsappOrder(
   type PosOrderItem = {
     order_id?: string;
     product_id: string | null;
+    name: string;           // la UI de ventas/domicilios pinta ESTE campo
     product_name: string;
     product_price: number;
     unit_price: number;
@@ -2124,7 +2125,7 @@ async function createWhatsappOrder(
 
     if (!matched) {
       const fallbackName = [nombreGPT, tamanoGPT, tipoGPT].filter(Boolean).join(" · ");
-      items.push({ product_id: null, product_name: fallbackName || "Producto WhatsApp", product_price: 0, unit_price: 0, total: 0, quantity: cantidad, selections: { mods: {}, pres: tamanoGPT, vars: {} }, branch_id: branchId, tenant_id: tenantId || null, notes: null });
+      items.push({ product_id: null, name: fallbackName || "Producto WhatsApp", product_name: fallbackName || "Producto WhatsApp", product_price: 0, unit_price: 0, total: 0, quantity: cantidad, selections: { mods: {}, pres: tamanoGPT, vars: {} }, branch_id: branchId, tenant_id: tenantId || null, notes: null });
       continue;
     }
 
@@ -2156,7 +2157,7 @@ async function createWhatsappOrder(
 
     const itemTotal   = price * cantidad;
     const displayName = [String(matched.name), presName, tipoGPT].filter(Boolean).join(" · ");
-    items.push({ product_id: String(matched.id), product_name: displayName, product_price: price, unit_price: price, total: itemTotal, quantity: cantidad, selections: { mods: {}, pres: presName, vars: varsMap }, branch_id: branchId, tenant_id: tenantId || null, notes: null });
+    items.push({ product_id: String(matched.id), name: displayName, product_name: displayName, product_price: price, unit_price: price, total: itemTotal, quantity: cantidad, selections: { mods: {}, pres: presName, vars: varsMap }, branch_id: branchId, tenant_id: tenantId || null, notes: null });
     orderTotal += itemTotal;
   }
 
