@@ -134,6 +134,24 @@ async function verifyTransfer(conversationId: string): Promise<void> {
     return;
   }
 
+  // 8b. ANTI-REPLAY: un mismo comprobante (referencia) NO puede pagar dos pedidos.
+  // La referencia se guarda en las notas del pedido al verificar; si vuelve a llegar,
+  // se rechaza (protege contra clientes que reusan el pantallazo de un pago anterior).
+  const refLimpia = String(visionResult.referencia || "").replace(/[^A-Za-z0-9]/g, "");
+  if (refLimpia.length >= 5) {
+    const dup = await sbGet(
+      `/rest/v1/pos_orders?branch_id=eq.${branchId}&notes=ilike.*Ref:${refLimpia}*&select=id&limit=1`
+    ) as Array<Record<string, unknown>> | null;
+    if (dup && dup.length > 0) {
+      console.log(`ANTI-REPLAY: referencia ${refLimpia} ya usada en pedido ${dup[0].id}`);
+      const msg = "⚠️ Este comprobante ya fue usado para un pedido anterior. Si crees que es un error, un agente te atenderá en breve 🙏";
+      await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
+      await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, { human_takeover: true });
+      return;
+    }
+  }
+
   // 9. Buscar en Gmail un correo bancario que confirme el monto
   let confirmed = false;
   let verifyDetail = "";
@@ -167,7 +185,7 @@ async function verifyTransfer(conversationId: string): Promise<void> {
     // 10a. Crear el pedido y confirmar al cliente
     let orderId: string | null = null;
     if (pendingData) {
-      orderId = await crearPedido(conversationId, branchId, tenantId, fromPhone, pendingData, cfg);
+      orderId = await crearPedido(conversationId, branchId, tenantId, fromPhone, pendingData, cfg, refLimpia);
     }
     console.log("Pedido creado tras verificación:", orderId);
 
@@ -537,18 +555,23 @@ async function crearPedido(
   fromPhone:      string,
   pendingData:    Record<string, unknown>,
   cfg:            Record<string, unknown>,
+  referencia:     string = "",
 ): Promise<string | null> {
   // Resolver el pedido con el ESTADO ACTUAL (v119+): precios reales del catálogo,
   // nombre del cliente del pedido, ítems con desglose. (Antes leía el formato viejo
   // → total $0, "Cliente WhatsApp" y sin productos.)
   const pedido = await resolverPedido(pendingData, branchId, cfg, tenantId);
 
+  // La referencia del comprobante queda en las notas — es la marca del ANTI-REPLAY
+  const notasPedido = [String(pendingData.direccion || ""), referencia ? `Ref:${referencia}` : ""]
+    .filter(Boolean).join(" · ");
+
   const orderRecord: Record<string, unknown> = {
     branch_id:      branchId,
     tenant_id:      tenantId || null,
     channel:        "domicilio",
     customer_name:  pedido.nombreCliente,
-    notes:          String(pendingData.direccion || "") || null,
+    notes:          notasPedido || null,
     payment_method: String(pendingData.pago || "") || null,
     status:         "open",
     total:          pedido.total,
