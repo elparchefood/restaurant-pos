@@ -159,10 +159,12 @@ async function verifyTransfer(conversationId: string): Promise<void> {
   if (refreshToken) {
     const gmailAccessToken = await refreshGmailToken(refreshToken);
     if (gmailAccessToken) {
+      // Ventana de aceptación configurable por restaurante (default 5h = el turno)
+      const ventanaHoras = Number(pagos?.ventana_comprobante_horas) || 5;
       // El correo del banco NO llega al instante (segundos a 1-2 min). Reintentar:
       // hasta 3 búsquedas con ~35s de espera entre cada una antes de rendirse.
       for (let intento = 1; intento <= 3; intento++) {
-        const gmailMatch = await searchGmailForAmount(gmailAccessToken, visionResult.monto, visionResult.fecha, visionResult.hora, llaveCfg);
+        const gmailMatch = await searchGmailForAmount(gmailAccessToken, visionResult.monto, visionResult.fecha, visionResult.hora, llaveCfg, ventanaHoras);
         confirmed    = gmailMatch.found;
         verifyDetail = gmailMatch.detail;
         console.log(`Gmail intento ${intento}/3:`, confirmed, verifyDetail);
@@ -306,6 +308,7 @@ async function searchGmailForAmount(
   fecha:       string,
   hora:        string,
   llaveCfg:    string,
+  ventanaHoras: number = 5,
 ): Promise<GmailMatch> {
   try {
     const digits = monto.replace(/\D/g, "");
@@ -320,8 +323,10 @@ async function searchGmailForAmount(
     console.log("Buscando en Gmail con formatos:", formatos.join(" | "));
 
     for (const fmt of formatos) {
-      // Buscar en los últimos 3 días
-      const q = `newer_than:3d "${fmt}"`;
+      // Gmail no soporta ventanas por horas en el query → se busca 1 día y la ventana
+      // fina (ventanaHoras, default 5h = duración del turno) se aplica abajo en código
+      // sobre internalDate (la hora REAL de llegada del correo, infalsificable).
+      const q = `newer_than:1d "${fmt}"`;
       const searchUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q)}&maxResults=10`;
       const searchRes = await fetch(searchUrl, { headers: { "Authorization": `Bearer ${accessToken}` } });
       if (!searchRes.ok) { console.error("Gmail search error:", await searchRes.text()); continue; }
@@ -357,11 +362,19 @@ async function searchGmailForAmount(
           fechaOk = variantes.some(v => fullText.includes(v));
         }
 
+        // VENTANA DEL TURNO: el correo del banco debe haber llegado dentro de las
+        // últimas ventanaHoras (default 5h). Una transferencia más vieja NO cuenta —
+        // nadie paga un pedido de hace días; esto además refuerza el anti-replay.
+        const internalMs = Number(msgData.internalDate || 0);
+        if (internalMs && (Date.now() - internalMs) > ventanaHoras * 3600000) {
+          console.log(`Email descartado: llegó hace más de ${ventanaHoras}h (fuera del turno)`);
+          continue;
+        }
+
         // Cruce TEMPORAL: la hora de llegada real del correo (internalDate) debe ser
         // coherente con la fecha/hora del comprobante (hora Colombia, UTC-5).
         // Con hora en el comprobante: tolerancia ±6h · solo fecha: ±36h.
         let tiempoOk = true;
-        const internalMs = Number(msgData.internalDate || 0);
         if (internalMs && fecha) {
           const horaStr = (hora && /^\d{1,2}:\d{2}$/.test(hora.trim())) ? hora.trim().padStart(5, "0") : "";
           const comprobanteMs = Date.parse(`${fecha}T${horaStr || "12:00"}:00-05:00`);
@@ -396,7 +409,7 @@ async function searchGmailForAmount(
       }
     }
 
-    return { found: false, detail: `Sin emails bancarios con monto ${digits} en últimos 3 días` };
+    return { found: false, detail: `Sin emails bancarios con monto ${digits} en las últimas ${ventanaHoras}h` };
   } catch (err) {
     console.error("searchGmailForAmount error:", err);
     return { found: false, detail: String(err) };
