@@ -881,6 +881,39 @@ async function processConversation(convId: string): Promise<void> {
   // El resumen falso que esto causaba antes ya está cubierto por las reglas estrictas de GPT (v124)
   // y porque el pago es ahora el último paso (findNextStep no llega a null con nombre pendiente).
 
+  // 14e-quinto. PARA LLEVAR con prepago: pago especial (regla de Sergio)
+  // Sería contradictorio preguntar "¿efectivo o transferencia?" y luego negar el efectivo.
+  // → Se SALTA la pregunta del pago: se asigna el método digital configurado y el flujo
+  //   sigue directo al resumen → confirmación → QR + comprobante, sin explicar nada.
+  // → SOLO si el cliente menciona un pago NO digital por su cuenta, se le explica la
+  //   regla con la frase configurable (frases.llevar_efectivo).
+  {
+    const llevarState = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
+    const exigePrepagoFlujo = domiciliosCfg?.llevar_prepago !== false;
+    if (llevarState && exigePrepagoFlujo && state.producto) {
+      const metodoDigital = getMetodosPago(pagosCfg).find(m => m.digital);
+      const pagoMencionado = extractPago(clienteTexto, pagosCfg);
+      const mencionaNoDigital = pagoMencionado && !esMetodoDigital(pagoMencionado, pagosCfg);
+      // También cubre el caso: eligió "efectivo" en el paso de pago y DESPUÉS dijo "yo paso"
+      const pagoNoDigitalPrevio = state.pago && !esMetodoDigital(state.pago, pagosCfg);
+      if (mencionaNoDigital || pagoNoDigitalPrevio) {
+        // El cliente quiere efectivo en un pedido para llevar → explicar la regla
+        const msgLlevarEf = getFraseTexto(frasesCfg.llevar_efectivo) ||
+          "Qué pena contigo 🙏 Si deseas que tu pedido esté listo cuando pases por él, el pago debe hacerse por transferencia primero. Si decides pagar en efectivo, con mucho gusto te puedes acercar al establecimiento y tu pedido se prepara una vez esté pago 🍟";
+        state.pago = metodoDigital ? metodoDigital.nombre.toLowerCase() : null;
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+        await sendWaAndSave(convId, tenantId, msgLlevarEf, fromPhone, phoneId, accessToken);
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgLlevarEf, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+        return;
+      }
+      if (metodoDigital && (!state.pago || !esMetodoDigital(state.pago, pagosCfg))) {
+        // Saltar la pregunta del pago: directo al método digital
+        state.pago = metodoDigital.nombre.toLowerCase();
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+      }
+    }
+  }
+
   // 14f. Sin producto
   if (!state.producto) {
     // Si el cliente EXPRESA intención de pedir (pero sin producto específico) y hay
