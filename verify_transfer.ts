@@ -134,7 +134,7 @@ async function verifyTransfer(conversationId: string): Promise<void> {
   if (refreshToken) {
     const gmailAccessToken = await refreshGmailToken(refreshToken);
     if (gmailAccessToken) {
-      const gmailMatch = await searchGmailForAmount(gmailAccessToken, visionResult.monto, visionResult.fecha, llaveCfg);
+      const gmailMatch = await searchGmailForAmount(gmailAccessToken, visionResult.monto, visionResult.fecha, visionResult.hora, llaveCfg);
       confirmed    = gmailMatch.found;
       verifyDetail = gmailMatch.detail;
       console.log("Gmail match:", confirmed, verifyDetail);
@@ -154,7 +154,7 @@ async function verifyTransfer(conversationId: string): Promise<void> {
     // 10a. Crear el pedido y confirmar al cliente
     let orderId: string | null = null;
     if (pendingData) {
-      orderId = await crearPedido(conversationId, branchId, tenantId, fromPhone, pendingData);
+      orderId = await crearPedido(conversationId, branchId, tenantId, fromPhone, pendingData, cfg);
     }
     console.log("Pedido creado tras verificación:", orderId);
 
@@ -184,6 +184,7 @@ async function verifyTransfer(conversationId: string): Promise<void> {
 interface ComprobanteData {
   monto:        string;  // solo dígitos, ej. "33000"
   fecha:        string;  // YYYY-MM-DD o vacío
+  hora:         string;  // HH:MM (24h) o vacío
   banco:        string;
   referencia:   string;
   llave:        string;  // número de cuenta/llave/Nequi destino
@@ -197,6 +198,7 @@ Analiza esta imagen y extrae en JSON:
 {
   "monto": "SOLO dígitos del monto transferido, sin puntos ni comas ni $. Ej: si dice $33.000 → '33000'. Si hay un número de dinero visible, extráelo aunque la pantalla sea de historial o detalle.",
   "fecha": "YYYY-MM-DD si se ve la fecha de la transacción. Vacío si no.",
+  "hora": "HH:MM en formato 24 horas si se ve la hora de la transacción (ej: '7:31 p.m.' → '19:31'). Vacío si no se ve.",
   "banco": "nombre del banco o app (Nequi, Bancolombia, Daviplata, etc.)",
   "referencia": "número de referencia o transacción si aparece",
   "llave": "número de celular, cuenta o llave Nequi DESTINO al que fue enviado el pago. Busca etiquetas como 'Para', 'Destinatario', 'A', 'Llave'. Si no se ve, vacío.",
@@ -234,7 +236,7 @@ Responde SOLO el JSON, sin explicación.`;
 }
 
 function empty(): ComprobanteData {
-  return { monto: "", fecha: "", banco: "", referencia: "", llave: "", parece_valido: false };
+  return { monto: "", fecha: "", hora: "", banco: "", referencia: "", llave: "", parece_valido: false };
 }
 
 // ── Gmail: refrescar token ────────────────────────────────────────────────────
@@ -271,6 +273,7 @@ async function searchGmailForAmount(
   accessToken: string,
   monto:       string,
   fecha:       string,
+  hora:        string,
   llaveCfg:    string,
 ): Promise<GmailMatch> {
   try {
@@ -319,6 +322,24 @@ async function searchGmailForAmount(
           const [yyyy, mm, dd] = fecha.split("-");
           const variantes = [fecha, `${dd}/${mm}/${yyyy}`, `${dd}-${mm}-${yyyy}`, `${dd}/${mm}`, `${mm}/${dd}`];
           fechaOk = variantes.some(v => fullText.includes(v));
+        }
+
+        // Cruce TEMPORAL: la hora de llegada real del correo (internalDate) debe ser
+        // coherente con la fecha/hora del comprobante (hora Colombia, UTC-5).
+        // Con hora en el comprobante: tolerancia ±6h · solo fecha: ±36h.
+        let tiempoOk = true;
+        const internalMs = Number(msgData.internalDate || 0);
+        if (internalMs && fecha) {
+          const horaStr = (hora && /^\d{1,2}:\d{2}$/.test(hora.trim())) ? hora.trim().padStart(5, "0") : "";
+          const comprobanteMs = Date.parse(`${fecha}T${horaStr || "12:00"}:00-05:00`);
+          if (!isNaN(comprobanteMs)) {
+            const diffHoras = Math.abs(internalMs - comprobanteMs) / 3600000;
+            tiempoOk = diffHoras <= (horaStr ? 6 : 36);
+          }
+        }
+        if (!tiempoOk) {
+          console.log(`Email descartado por tiempo: internalDate no coincide con ${fecha} ${hora}`);
+          continue;
         }
 
         // Verificar que la llave destino aparece en el email (si tenemos llave y config)
@@ -371,78 +392,125 @@ function extractEmailBody(msgData: Record<string, unknown>): string {
   return "";
 }
 
-// ── Calcular total esperado desde pending_order_data ─────────────────────────
+// ── Resolver pedido desde pending_order_data (estado ACTUAL v119+ y legacy) ──
+// Estado actual: { producto, tamano, tipo, cantidad, items:[{producto,...}], nombre, direccion, pago }
+// Estado legacy: { productos:[{nombre,...}], cliente, total }
+interface ItemNorm { producto: string; tamano: string; tipo: string; cantidad: number }
+interface PedidoResuelto {
+  total: number;
+  domiPrecio: number;
+  nombreCliente: string;
+  itemsRows: Array<Record<string, unknown>>;
+}
+
+function normalizarItemsPedido(pendingData: Record<string, unknown>): ItemNorm[] {
+  const out: ItemNorm[] = [];
+  const push = (p: unknown, tam: unknown, tip: unknown, cant: unknown) => {
+    const nombre = String(p || "").trim();
+    if (nombre) out.push({ producto: nombre, tamano: String(tam || "").trim(), tipo: String(tip || "").trim(), cantidad: Math.max(1, Number(cant) || 1) });
+  };
+  for (const it of ((pendingData.items as Array<Record<string, unknown>>) || [])) {
+    if (it) push(it.producto, it.tamano, it.tipo, it.cantidad);
+  }
+  if (pendingData.producto) push(pendingData.producto, pendingData.tamano, pendingData.tipo, pendingData.cantidad);
+  if (!out.length) {
+    for (const it of ((pendingData.productos as Array<Record<string, unknown>>) || [])) {
+      if (it) push(it.nombre || it.producto, it.tamano, it.tipo, it.cantidad);
+    }
+  }
+  return out;
+}
+
+async function resolverPedido(
+  pendingData: Record<string, unknown> | null,
+  branchId:    string,
+  cfg:         Record<string, unknown>,
+  tenantId:    string,
+): Promise<PedidoResuelto> {
+  const vacio: PedidoResuelto = { total: 0, domiPrecio: 0, nombreCliente: "Cliente WhatsApp", itemsRows: [] };
+  if (!pendingData) return vacio;
+  try {
+    const itemsNorm = normalizarItemsPedido(pendingData);
+    const nombreCliente = String(pendingData.nombre || pendingData.cliente || "Cliente WhatsApp");
+    if (!itemsNorm.length) return { ...vacio, nombreCliente };
+
+    const allProducts = await sbGet(
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables`
+    ) as Array<Record<string, unknown>> | null;
+    if (!allProducts) return { ...vacio, nombreCliente };
+
+    let total = 0;
+    const itemsRows: Array<Record<string, unknown>> = [];
+
+    for (const item of itemsNorm) {
+      const nombreLow = item.producto.toLowerCase();
+      const matched = allProducts.find(p => {
+        const pname = String(p.name || "").toLowerCase();
+        return pname === nombreLow || pname.includes(nombreLow) || nombreLow.includes(pname.replace(/\s.*/,""));
+      });
+      if (!matched) {
+        itemsRows.push({ product_id: null, product_name: [item.producto, item.tamano, item.tipo].filter(Boolean).join(" · ") || "Producto WhatsApp", product_price: 0, unit_price: 0, total: 0, quantity: item.cantidad, selections: { mods: {}, pres: item.tamano, vars: {} }, branch_id: branchId, tenant_id: tenantId || null, notes: null });
+        continue;
+      }
+      const presentations = (matched.presentations as Array<{id:string;name:string;price:number}>) || [];
+      const variables     = (matched.variables     as Array<{id:string;name:string;isPricing?:boolean;options:Array<{id:string;name:string;price:number;prices?:number[]}>}>) || [];
+      const priceMode     = String(matched.price_mode || "simple");
+      const tamLow        = item.tamano.toLowerCase();
+      const presMatch     = presentations.find(p => p.name.toLowerCase() === tamLow) || presentations[0];
+      const presIdx       = presMatch ? presentations.indexOf(presMatch) : 0;
+      let   price         = Number(presMatch?.price) || Number(matched.price) || 0;
+      const varsMap: Record<string, unknown> = {};
+
+      if (priceMode === "matrix" && item.tipo && variables.length > 0) {
+        const varGroup = variables[0];
+        const varOpt   = varGroup.options.find(o => o.name.toLowerCase() === item.tipo.toLowerCase());
+        if (varOpt) {
+          if (Array.isArray(varOpt.prices) && presIdx < varOpt.prices.length) price = varOpt.prices[presIdx];
+          else if (varOpt.price > 0) price = varOpt.price;
+          varsMap[varGroup.id] = { id: varOpt.id, name: varOpt.name, price };
+        }
+      }
+
+      const itemTotal = price * item.cantidad;
+      itemsRows.push({
+        product_id: String(matched.id),
+        product_name: [String(matched.name), presMatch?.name || item.tamano, item.tipo].filter(Boolean).join(" · "),
+        product_price: price, unit_price: price, total: itemTotal, quantity: item.cantidad,
+        selections: { mods: {}, pres: presMatch?.name || item.tamano, vars: varsMap },
+        branch_id: branchId, tenant_id: tenantId || null, notes: null,
+      });
+      total += itemTotal;
+    }
+
+    // Domicilio por zona (si la dirección matchea una zona configurada)
+    let domiPrecio = 0;
+    const direccion  = String(pendingData.direccion || "");
+    const domicilios = (cfg.domicilios as Record<string,unknown>) || {};
+    const zonasRaw   = (domicilios.zonas as Array<{nombre?:string;barrios?:string[];precio:number}>) || [];
+    if (zonasRaw.length && direccion) {
+      // Comparación sin espacios ni tildes: "Bella Vista" matchea "bellavista"
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9ñ]/g, "");
+      const dirNorm = norm(direccion);
+      for (const z of zonasRaw) {
+        const barrios = z.barrios ?? (z.nombre ? z.nombre.split(",").map(b => b.trim()) : []);
+        if (barrios.some(b => b && b.length >= 4 && dirNorm.includes(norm(b)))) { domiPrecio = Number(z.precio) || 0; break; }
+      }
+    }
+
+    return { total: total + domiPrecio, domiPrecio, nombreCliente, itemsRows };
+  } catch (err) {
+    console.error("resolverPedido error:", err);
+    return vacio;
+  }
+}
 
 async function calcularTotalEsperado(
   pendingData: Record<string, unknown> | null,
   branchId:    string,
   cfg:         Record<string, unknown>,
 ): Promise<number> {
-  if (!pendingData) return 0;
-
-  try {
-    const productos  = (pendingData.productos as Array<Record<string,unknown>>) || [];
-    const direccion  = String(pendingData.direccion || "");
-    const domicilios = (cfg.domicilios as Record<string,unknown>) || {};
-    const zonas      = (domicilios.zonas as Array<{nombre:string;precio:number}>) || [];
-
-    if (!productos.length) return 0;
-
-    const allProducts = await sbGet(
-      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables`
-    ) as Array<Record<string, unknown>> | null;
-
-    if (!allProducts) return 0;
-
-    let total = 0;
-
-    for (const prod of productos) {
-      const nombreGPT = String(prod.nombre || "").toLowerCase().trim();
-      const tamanoGPT = String(prod.tamano || "").toLowerCase().trim();
-      const tipoGPT   = String(prod.tipo   || "").toLowerCase().trim();
-      const cantidad  = Math.max(1, Number(prod.cantidad) || 1);
-
-      const matched = allProducts.find(p => {
-        const pname = String(p.name || "").toLowerCase();
-        return pname === nombreGPT || pname.includes(nombreGPT) || nombreGPT.includes(pname.replace(/\s.*/,""));
-      });
-      if (!matched) continue;
-
-      const presentations = (matched.presentations as Array<{id:string;name:string;price:number}>) || [];
-      const variables     = (matched.variables     as Array<{id:string;name:string;isPricing?:boolean;options:Array<{id:string;name:string;price:number;prices?:number[]}>}>) || [];
-      const priceMode     = String(matched.price_mode || "simple");
-
-      const presMatch = presentations.find(p => p.name.toLowerCase() === tamanoGPT) || presentations[0];
-      const presIdx   = presMatch ? presentations.indexOf(presMatch) : 0;
-      let   price     = Number(presMatch?.price) || Number(matched.price) || 0;
-
-      if (priceMode === "matrix" && tipoGPT && variables.length > 0) {
-        const varGroup = variables[0];
-        const varOpt   = varGroup.options.find(o => o.name.toLowerCase() === tipoGPT);
-        if (varOpt) {
-          if (Array.isArray(varOpt.prices) && presIdx < varOpt.prices.length) {
-            price = varOpt.prices[presIdx];
-          } else if (varOpt.price > 0) {
-            price = varOpt.price;
-          }
-        }
-      }
-
-      total += price * cantidad;
-    }
-
-    // Sumar domicilio si aplica
-    if (zonas.length && direccion) {
-      const dirLow = direccion.toLowerCase();
-      const zona   = zonas.find(z => dirLow.includes(z.nombre.toLowerCase()) || z.nombre.toLowerCase().split(" ").some(w => dirLow.includes(w)));
-      if (zona) total += zona.precio;
-    }
-
-    return total;
-  } catch (err) {
-    console.error("calcularTotalEsperado error:", err);
-    return 0;
-  }
+  const r = await resolverPedido(pendingData, branchId, cfg, "");
+  return r.total;
 }
 
 // ── Crear pedido ──────────────────────────────────────────────────────────────
@@ -453,18 +521,24 @@ async function crearPedido(
   tenantId:       string,
   fromPhone:      string,
   pendingData:    Record<string, unknown>,
+  cfg:            Record<string, unknown>,
 ): Promise<string | null> {
+  // Resolver el pedido con el ESTADO ACTUAL (v119+): precios reales del catálogo,
+  // nombre del cliente del pedido, ítems con desglose. (Antes leía el formato viejo
+  // → total $0, "Cliente WhatsApp" y sin productos.)
+  const pedido = await resolverPedido(pendingData, branchId, cfg, tenantId);
+
   const orderRecord: Record<string, unknown> = {
     branch_id:      branchId,
     tenant_id:      tenantId || null,
     channel:        "domicilio",
-    customer_name:  String(pendingData.cliente || "Cliente WhatsApp"),
+    customer_name:  pedido.nombreCliente,
     notes:          String(pendingData.direccion || "") || null,
     payment_method: String(pendingData.pago || "") || null,
     status:         "open",
-    total:          Number(pendingData.total || 0),
-    subtotal:       Number(pendingData.total || 0),
-    total_final:    Number(pendingData.total || 0),
+    total:          pedido.total,
+    subtotal:       pedido.total,
+    total_final:    pedido.total,
     waiter_name:    "Asistente IA",
     visible_cocina: true,
     opened_at:      new Date().toISOString(),
@@ -473,7 +547,6 @@ async function crearPedido(
   // Cliente
   if (fromPhone) {
     const telefonoClean = fromPhone.replace(/\D/g, "");
-    const nombre        = String(pendingData.cliente   || "");
     const direccion     = String(pendingData.direccion || "");
     const existing      = await sbGet(
       `/rest/v1/pos_clientes?telefono=eq.${encodeURIComponent(telefonoClean)}&tenant_id=eq.${tenantId}&limit=1`
@@ -484,7 +557,7 @@ async function crearPedido(
     } else {
       const newCliente = await sbPostRep(`/rest/v1/pos_clientes`, {
         tenant_id: tenantId || null, branch_id: branchId,
-        nombre, telefono: telefonoClean, direccion: direccion || null,
+        nombre: pedido.nombreCliente, telefono: telefonoClean, direccion: direccion || null,
       });
       if (newCliente?.[0]?.id) orderRecord.cliente_id = String(newCliente[0].id);
     }
@@ -492,13 +565,13 @@ async function crearPedido(
 
   const created = await sbPostRep(`/rest/v1/pos_orders`, orderRecord) as Array<Record<string, unknown>> | null;
   const orderId = String(created?.[0]?.id || "");
+  if (!orderId) return null;
 
-  const items = (pendingData.items as Array<Record<string, unknown>>) || [];
-  for (const item of items) {
+  for (const item of pedido.itemsRows) {
     await sbPost(`/rest/v1/pos_order_items`, { ...item, order_id: orderId });
   }
 
-  return orderId || null;
+  return orderId;
 }
 
 // ── WhatsApp helpers ──────────────────────────────────────────────────────────
