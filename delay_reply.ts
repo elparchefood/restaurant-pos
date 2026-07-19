@@ -108,7 +108,7 @@ const SALUDO_REGEX = new RegExp(`^\\s*${_SAL}([\\s,.]+${_SAL})*[\\s,.!?¡¿]*$`,
 
 // Patrones de dirección
 const CALLE_REGEX = /\b(calle|carrera|cra|cl\b|diagonal|transversal|tv\b|dg\b|avenida|av\b|bloque|manzana|mz\b|torre)\b/i;
-const LLEVAR_REGEX = /\b(para\s+llevar|para\s+recoger|lo\s+recojo|lo\s+busco|voy\s+a\s+recoger|pa\s+llevar|a\s+recoger)\b/i;
+const LLEVAR_REGEX = /\b(para\s+llevar|para\s+recoger|lo\s+recojo|lo\s+busco|voy\s+a\s+recoger|pa\s+llevar|a\s+recoger|yo\s+paso|yo\s+lo\s+recojo|paso\s+a\s+recoger(?:lo)?|paso\s+por\s+(?:el\s+pedido|[ée]l)|paso\s+al\s+local)\b/i;
 
 // Nuevo producto adicional — expandido para capturar más patrones naturales
 const NUEVO_PROD_REGEX = /\b(y\s+(un[ao]?\s+|[0-9]+\s+|otr[ao]?\s+|de\s+paso\s+|tambi[eé]n\s+)\w{3,}|tambi[eé]n\s+(quiero?|quisiera|dame|poneme|una?|un)\s+\w|de\s+paso\s+(quiero?|dame|una?|un|p[oó]n[gm]e)\s+\w|adem[aá]s\s+(quiero?|quisiera|dame)\s+\w|y\s+tambi[eé]n\s+\w{3,}|y\s+me\s+das?\s+\w{3,}|p[oó]n[gm]e\s+(tambi[eé]n|adem[aá]s)\s+\w)/i;
@@ -604,6 +604,15 @@ async function processConversation(convId: string): Promise<void> {
     );
 
     if (isConfirmacion) {
+      // Si el método de pago quedó liberado (caso "para llevar + efectivo"), capturarlo
+      // de este mismo mensaje: "bueno entonces por nequi" confirma Y trae el método.
+      if (!state.pago) {
+        const pagoNuevo = extractPago(clienteTexto, pagosCfg);
+        if (pagoNuevo) {
+          state.pago = pagoNuevo;
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+        }
+      }
       // Rama digital (QR + comprobante) decidida por el flag "digital" del método
       // configurado en Pagos — ya no por nombres fijos en código.
       const esTransferencia = esMetodoDigital(state.pago, pagosCfg);
@@ -642,6 +651,23 @@ async function processConversation(convId: string): Promise<void> {
         return;
 
       } else {
+        // PARA LLEVAR + pago no digital: el pedido NO se prepara hasta recibir el pago.
+        // (Regla configurable: domicilios.llevar_prepago, default activada. La frase es
+        // frases.llevar_efectivo — personalizable por restaurante en Mensajes.)
+        const esLlevarConf = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) || clasificarDireccion(state.direccion, domiciliosCfg, sinNomenclaturaCliente2).tipo === "para_llevar" : false;
+        const exigePrepago = domiciliosCfg?.llevar_prepago !== false;
+        if (esLlevarConf && exigePrepago) {
+          const msgLlevar = getFraseTexto(frasesCfg.llevar_efectivo) ||
+            "Qué pena contigo 🙏 Si deseas que tu pedido esté listo cuando pases por él, el pago debe hacerse por transferencia primero. Si decides pagar en efectivo, con mucho gusto te puedes acercar al establecimiento y tu pedido se prepara una vez esté pago 🍟";
+          // Se libera el método de pago: si el cliente responde con un método digital,
+          // el flujo re-envía el resumen y sigue por la rama del QR/comprobante.
+          state.pago = null;
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+          await sendWaAndSave(convId, tenantId, msgLlevar, fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgLlevar, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+          return;
+        }
+
         const clasif = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2);
         if (clasif.tipo === "rechazado") {
           const msg = getFraseTexto(frasesCfg.lugar_rechazado) || "Lo sentimos, no podemos hacer domicilios a ese lugar 😊 Si querés podés pasar a recoger (para llevar).";
@@ -2259,9 +2285,12 @@ async function createWhatsappOrder(
     }
   } catch (err) { console.error("Error en lookup/creación de cliente:", err); }
 
+  // PARA LLEVAR → sección "rápidas" (channel='rapido', igual que venta-rapida.html);
+  // domicilio normal → channel='domicilio' (pantalla de domicilios).
+  const esLlevarOrden = LLEVAR_REGEX.test(direccion.toLowerCase());
   const orderRecord: Record<string, unknown> = {
     branch_id: branchId, tenant_id: tenantId || null,
-    channel: "domicilio", customer_name: cliente,
+    channel: esLlevarOrden ? "rapido" : "domicilio", customer_name: cliente,
     notes: direccion || null, payment_method: pago || null,
     status: "open", total: orderTotal, subtotal: orderTotal, total_final: orderTotal,
     waiter_name: "Asistente IA", visible_cocina: true, opened_at: new Date().toISOString(),
@@ -2345,7 +2374,7 @@ function clasificarDireccion(
   sinNomenclaturaCliente: boolean,
 ): { tipo: TipoDireccion; requierePagoAdelantado: boolean } {
   const dir = direccion.toLowerCase().trim();
-  if (dir.includes("llevar") || dir.includes("recoger")) return { tipo: "para_llevar", requierePagoAdelantado: false };
+  if (LLEVAR_REGEX.test(dir) || dir.includes("llevar") || dir.includes("recoger")) return { tipo: "para_llevar", requierePagoAdelantado: false };
   if (domicilios?.rechazar_lugares_publicos !== false) {
     if (LUGARES_RECHAZADOS.some(kw => dir.includes(kw))) return { tipo: "rechazado", requierePagoAdelantado: false };
   }

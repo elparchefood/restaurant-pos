@@ -1501,6 +1501,13 @@
                     </div>
                     <label class="switch"><input type="checkbox" id="domiParaLlevar" checked><span class="track"></span><span class="knob"></span></label>
                   </div>
+                  <div class="pay-rule-row" style="margin-top:14px">
+                    <div class="pay-rule-tx">
+                      <div class="pay-rule-tt">Para llevar exige pago anticipado</div>
+                      <div class="pay-rule-ds">Si el cliente recoge y quiere pagar en efectivo, el bot le explica que el pedido se prepara al recibir el pago (frase "Para llevar pagando en efectivo" en Mensajes). Con pago digital, el flujo normal de comprobante.</div>
+                    </div>
+                    <label class="switch"><input type="checkbox" id="domiLlevarPrepago" checked><span class="track"></span><span class="knob"></span></label>
+                  </div>
                   <div class="field" style="margin-top:14px">
                     <label class="field-lb" for="domiTiempo">Tiempo estimado de entrega</label>
                     <input class="inp" id="domiTiempo" placeholder="Ej. 30 minutos, 45-60 minutos en hora pico">
@@ -1686,6 +1693,11 @@
                     <div class="field-hint">Se env&iacute;a apenas llega el comprobante, mientras el sistema lo verifica (puede tardar 1-2 min).</div>
                   </div>
                   <div class="field">
+                    <label class="field-lb">Para llevar pagando en efectivo</label>
+                    <textarea class="txa" data-frase="llevar_efectivo" placeholder="Ej. Qué pena contigo 🙏 Si deseas que tu pedido esté listo cuando pases por él, el pago debe hacerse por transferencia primero. Si decides pagar en efectivo, con mucho gusto te puedes acercar al establecimiento y tu pedido se prepara una vez esté pago 🍟"></textarea>
+                    <div class="field-hint">Se env&iacute;a cuando el cliente quiere <b>recoger su pedido</b> ("yo paso", "lo recojo", "para llevar") pero eligi&oacute; pagar en efectivo. Aplica solo si en Domicilios est&aacute; activo "Para llevar exige pago anticipado".</div>
+                  </div>
+                  <div class="field">
                     <label class="field-lb">Pregunta de confirmación del pedido</label>
                     <div class="field-hint">Se muestra al final del resumen. Usa <code>{{confirmacion}}</code> en la plantilla.</div>
                     <textarea class="txa" data-frase="resumen_confirmacion" placeholder="Ej. ¿Lo confirmamos o hay algo que cambiar?"></textarea>
@@ -1806,7 +1818,7 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-core.js"></script>
-<script src="configuracion.js?v=1784500001"></script>
+<script src="configuracion.js?v=1784520001"></script>
 </body>
 </html>
 

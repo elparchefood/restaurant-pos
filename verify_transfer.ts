@@ -616,10 +616,14 @@ async function crearPedido(
   const notasPedido = [String(pendingData.direccion || ""), referencia ? `Ref:${referencia}` : ""]
     .filter(Boolean).join(" · ");
 
+  // PARA LLEVAR → sección "rápidas" (channel='rapido'); domicilio → 'domicilio'
+  const LLEVAR_RE = /\b(para\s+llevar|para\s+recoger|lo\s+recojo|lo\s+busco|voy\s+a\s+recoger|pa\s+llevar|a\s+recoger|yo\s+paso|yo\s+lo\s+recojo|paso\s+a\s+recoger(?:lo)?|paso\s+por\s+(?:el\s+pedido|[ée]l)|paso\s+al\s+local)\b/i;
+  const esLlevarOrden = LLEVAR_RE.test(String(pendingData.direccion || "").toLowerCase());
+
   const orderRecord: Record<string, unknown> = {
     branch_id:      branchId,
     tenant_id:      tenantId || null,
-    channel:        "domicilio",
+    channel:        esLlevarOrden ? "rapido" : "domicilio",
     customer_name:  pedido.nombreCliente,
     notes:          notasPedido || null,
     payment_method: String(pendingData.pago || "") || null,
