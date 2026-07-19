@@ -914,6 +914,44 @@ async function processConversation(convId: string): Promise<void> {
     }
   }
 
+  // 14e-sexto. "¿CUÁNTO ES?" en el paso de PAGO (caso especial de Sergio):
+  // si en vez de responder el método el cliente pregunta el precio, se le responde
+  // SOLO el desglose de precios (sin el resumen) con la plantilla configurable
+  // frases.solo_precio, seguida de la pregunta de pago del canvas. Cuando dé el
+  // método, el flujo normal envía el resumen completo.
+  {
+    const CUANTO_RE = /(cu[aá]nto\s+(es|sale|vale|cuesta|queda|ser[ií]a|cobran?)|qu[eé]\s+precio|precio\s+total|el\s+total|cuanto\s+te\s+debo)/i;
+    if (state.producto && !state.pago && !state.resumen_enviado &&
+        CUANTO_RE.test(clienteTexto) && !extractPago(clienteTexto, pagosCfg)) {
+      const stepAhora = findNextStep(state, pasos);
+      if (stepAhora && stepAhora.campo === "pago") {
+        const precios = await calcularPreciosPedido(state, branchId, domiciliosCfg);
+        const pedidoStr = precios.pedido > 0 ? fmtCOP(precios.pedido) : "a confirmar";
+        const domiStr = precios.esLlevar ? "Para llevar"
+          : precios.domi === null ? "a confirmar"
+          : precios.domi === 0 ? "Gratis" : fmtCOP(precios.domi);
+        const totalStr = precios.pedido > 0
+          ? (precios.esLlevar || precios.domi !== null
+              ? fmtCOP(precios.pedido + (precios.esLlevar ? 0 : (precios.domi || 0)))
+              : fmtCOP(precios.pedido) + " (+ domicilio a confirmar)")
+          : "a confirmar";
+        const plantillaPrecio = getFraseTexto(frasesCfg.solo_precio) ||
+          "💵 Pedido: {{precio_pedido}}\n🏍️ Domicilio: {{precio_domi}}\n💰 *Total: {{precio_total}}*";
+        let msgPrecio = plantillaPrecio
+          .replace(/\{\{?\s*precio_pedido\s*\}?\}/g, pedidoStr)
+          .replace(/\{\{?\s*precio_domi\s*\}?\}/g, domiStr)
+          .replace(/\{\{?\s*precio_total\s*\}?\}/g, totalStr);
+        // Re-preguntar el pago con la frase del CANVAS (fiel al paso configurado)
+        if (stepAhora.texto) {
+          msgPrecio += "\n\n" + rellenarVariables(stepAhora.texto, state, cfg).texto;
+        }
+        await sendWaAndSave(convId, tenantId, msgPrecio, fromPhone, phoneId, accessToken);
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgPrecio, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+        return;
+      }
+    }
+  }
+
   // 14f. Sin producto
   if (!state.producto) {
     // Si el cliente EXPRESA intención de pedir (pero sin producto específico) y hay
@@ -2185,6 +2223,52 @@ async function buildSummaryFromState(
 }
 
 // ── buildOrderArgs ────────────────────────────────────────────────────────────
+
+// ── calcularPreciosPedido — desglose de precios del pedido en curso ──────────────
+// Misma lógica de precios que el resumen/creación de pedidos (presentaciones + matriz
+// de variantes + domicilio por zona). Usada por el caso "¿cuánto es?" del paso de pago.
+async function calcularPreciosPedido(
+  state: PacoState,
+  branchId: string,
+  domiciliosCfg: Record<string, unknown> | null | undefined,
+): Promise<{ pedido: number; domi: number | null; esLlevar: boolean }> {
+  let pedido = 0;
+  try {
+    const allProducts = await sbGet(
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables`
+    ) as Array<Record<string, unknown>> | null;
+    const allItems: SlotItem[] = [
+      ...(state.items || []),
+      { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones },
+    ];
+    for (const item of allItems) {
+      if (!item.producto || !allProducts) continue;
+      const nombreLow = item.producto.toLowerCase();
+      const matched = allProducts.find(p => {
+        const pname = String(p.name || "").toLowerCase();
+        return pname === nombreLow || pname.includes(nombreLow) || nombreLow.includes(pname.replace(/\s.*/,""));
+      });
+      if (!matched) continue;
+      const presentations = (matched.presentations as Array<{id:string;name:string;price:number}>) || [];
+      const variables     = (matched.variables as Array<{id:string;name:string;isPricing?:boolean;options:Array<{id:string;name:string;price:number;prices?:number[]}>}>) || [];
+      const tamLow        = String(item.tamano || "").toLowerCase();
+      const presMatch     = presentations.find(p => p.name.toLowerCase() === tamLow) || presentations[0];
+      const presIdx       = presMatch ? presentations.indexOf(presMatch) : 0;
+      let price           = Number(presMatch?.price) || Number(matched.price) || 0;
+      if (String(matched.price_mode || "") === "matrix" && item.tipo && variables.length > 0) {
+        const varOpt = variables[0].options.find(o => o.name.toLowerCase() === String(item.tipo).toLowerCase());
+        if (varOpt) {
+          if (Array.isArray(varOpt.prices) && presIdx < varOpt.prices.length) price = varOpt.prices[presIdx];
+          else if (varOpt.price > 0) price = varOpt.price;
+        }
+      }
+      pedido += price * Math.max(1, Number(item.cantidad) || 1);
+    }
+  } catch (err) { console.error("calcularPreciosPedido error:", err); }
+  const esLlevar = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
+  const domi = esLlevar ? 0 : (state.direccion ? lookupDomiPrice(state.direccion, domiciliosCfg) : null);
+  return { pedido, domi, esLlevar };
+}
 
 function buildOrderArgs(state: PacoState, domiPrecio: number): Record<string, unknown> {
   const allItems: SlotItem[] = [

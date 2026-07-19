@@ -1698,6 +1698,11 @@
                     <div class="field-hint">Se env&iacute;a cuando el cliente quiere <b>recoger su pedido</b> ("yo paso", "lo recojo", "para llevar") pero eligi&oacute; pagar en efectivo. Aplica solo si en Domicilios est&aacute; activo "Para llevar exige pago anticipado".</div>
                   </div>
                   <div class="field">
+                    <label class="field-lb">Responder solo el precio</label>
+                    <textarea class="txa" data-frase="solo_precio" placeholder="Ej. 💵 Pedido: {{precio_pedido}}&#10;🏍️ Domicilio: {{precio_domi}}&#10;💰 *Total: {{precio_total}}*"></textarea>
+                    <div class="field-hint">Cuando en el paso de pago el cliente pregunta <b>"&iquest;cu&aacute;nto es?"</b> en vez de dar el m&eacute;todo: se le responde SOLO este desglose (sin el resumen) + la pregunta de pago del Flujo. Variables: <code>{{precio_pedido}}</code>, <code>{{precio_domi}}</code>, <code>{{precio_total}}</code></div>
+                  </div>
+                  <div class="field">
                     <label class="field-lb">Pregunta de confirmación del pedido</label>
                     <div class="field-hint">Se muestra al final del resumen. Usa <code>{{confirmacion}}</code> en la plantilla.</div>
                     <textarea class="txa" data-frase="resumen_confirmacion" placeholder="Ej. ¿Lo confirmamos o hay algo que cambiar?"></textarea>
