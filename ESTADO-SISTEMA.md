@@ -171,6 +171,13 @@ Cachear en disco del exe:
 
 ---
 
+## 🟢 CORRECCIONES DE LA AUDITORÍA — 2026-07-20 (ver AUDITORIA-2026-07-20.md)
+
+- **CRÍTICO (commit `3f988b6`)**: service_role key ELIMINADA del cliente — onboarding.js y admin-reg.js ahora llaman la EF **`provision`** (v1: valida el token del usuario; onboarding solo para cuentas sin tenant; approve solo para `pos_users.is_authorized_admin`). La llave expuesta `sb_secret_cEW8-…` fue **REVOCADA** en Supabase (aunque esté en el historial de git ya no sirve). Endpoint `?debug=1` del meta-webhook eliminado (v48).
+- **PLATA (commit `114b82b`)**: Caja/Informes/Dashboard ahora desglosan pagos desde **pos_payments** (mixtos bien repartidos; fallback a payment_method para pedidos pagados sin desglose). Arqueo: columnas nuevas `pos_sessions.arqueo_contado/arqueo_diff`; "Guardar arqueo" PERSISTE (sobrevive recargas); el cierre guarda el CONTADO real y su diferencia (los cierres ya no dicen siempre "Cuadrado"). Totales alineados a `total_final ?? total`. Venta rápida escribe `discount_amount` (además de discount). Dashboard: normPM separa nequi/daviplata→'transfer' (ya no $0), "cierre anterior" lee closing_cash.
+- **ROTOS (commit `c332f6e`)**: chat-ia.js — helper `getActiveConv()` arregla los 4 botones muertos (Confirmar pago, Sin nomenclatura, Confirmar domi, badge Pagos); confirm-domi v3 con el esquema real de chat_channels (channel= + meta JSON). Domicilios: columnas nuevas `pos_orders.delivery_status/delivery_fee` — los avances Recibido→…→Entregado se PERSISTEN en ambas pantallas (ventas-salon y domicilios) y el fee entra al total. Venta rápida: `finalizarVenta()` limpia el carrito y avanza el turno tras enviar (fin de duplicados). pagos.js "Volver" → ventas.html. Comanda auto-impresa incluye PAGADO/ABONADO/COBRAR.
+- PENDIENTE (decisión con Sergio): qué ADORNOS se implementan de verdad y cuáles se retiran de la UI (lista en AUDITORIA-2026-07-20.md).
+
 ## 🟢 PUNTO DE RETORNO SEGURO — Sesión 10 (2026-07-18/19)
 
 > Estado bueno conocido más reciente. `delay-reply` = **v162** · `verify-transfer` = **v16** · `meta-webhook` = **v46**.
