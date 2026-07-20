@@ -640,7 +640,7 @@ async function crearPedido(
     .filter(Boolean).join(" · ");
 
   // PARA LLEVAR → sección "rápidas" (channel='rapido'); domicilio → 'domicilio'
-  const LLEVAR_RE = /\b(para\s+llevar|para\s+recoger|lo\s+recojo|lo\s+busco|voy\s+a\s+recoger|pa\s+llevar|a\s+recoger|yo\s+paso|yo\s+lo\s+recojo|paso\s+a\s+recoger(?:lo)?|paso\s+por\s+(?:el\s+pedido|[ée]l)|paso\s+al\s+local)\b/i;
+  const LLEVAR_RE = /\b(para\s+llevar|para\s+recoger|l[oa]s?\s+recojo|l[oa]s?\s+busco|voy\s+a\s+recoger(?:l[oa]s?)?|voy\s+por\s+(?:el\s+pedido|[ée]l|ella|eso)|pa\s+llevar|a\s+recoger|yo\s+paso|yo\s+l[oa]s?\s+recojo|paso\s+a\s+(?:recoger|buscar)(?:l[oa]s?)?|paso\s+por\s+(?:el\s+pedido|[ée]l|ella|ellas|ellos|eso)|paso\s+al\s+local|recojo\s+en\s+el\s+local)\b/i;
   const esLlevarOrden = LLEVAR_RE.test(String(pendingData.direccion || "").toLowerCase());
 
   // Lo PAGADO por el cliente: el total (transferencia completa) o solo la parte

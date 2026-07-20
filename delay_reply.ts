@@ -208,7 +208,9 @@ function detectarPagoMixto(text: string, pagosCfg: Record<string, unknown> | nul
 
 // Patrones de dirección
 const CALLE_REGEX = /\b(calle|carrera|cra|cl\b|diagonal|transversal|tv\b|dg\b|avenida|av\b|bloque|manzana|mz\b|torre)\b/i;
-const LLEVAR_REGEX = /\b(para\s+llevar|para\s+recoger|lo\s+recojo|lo\s+busco|voy\s+a\s+recoger|pa\s+llevar|a\s+recoger|yo\s+paso|yo\s+lo\s+recojo|paso\s+a\s+recoger(?:lo)?|paso\s+por\s+(?:el\s+pedido|[ée]l)|paso\s+al\s+local)\b/i;
+// Cubre masculino/femenino/plural: "lo recojo", "la recojo", "los recojo", "paso por
+// ella", "voy por él", "paso a buscarla", "la busco", "recojo en el local"...
+const LLEVAR_REGEX = /\b(para\s+llevar|para\s+recoger|l[oa]s?\s+recojo|l[oa]s?\s+busco|voy\s+a\s+recoger(?:l[oa]s?)?|voy\s+por\s+(?:el\s+pedido|[ée]l|ella|eso)|pa\s+llevar|a\s+recoger|yo\s+paso|yo\s+l[oa]s?\s+recojo|paso\s+a\s+(?:recoger|buscar)(?:l[oa]s?)?|paso\s+por\s+(?:el\s+pedido|[ée]l|ella|ellas|ellos|eso)|paso\s+al\s+local|recojo\s+en\s+el\s+local)\b/i;
 
 // Nuevo producto adicional — expandido para capturar más patrones naturales
 const NUEVO_PROD_REGEX = /\b(y\s+(un[ao]?\s+|[0-9]+\s+|otr[ao]?\s+|de\s+paso\s+|tambi[eé]n\s+)\w{3,}|tambi[eé]n\s+(quiero?|quisiera|dame|poneme|una?|un)\s+\w|de\s+paso\s+(quiero?|dame|una?|un|p[oó]n[gm]e)\s+\w|adem[aá]s\s+(quiero?|quisiera|dame)\s+\w|y\s+tambi[eé]n\s+\w{3,}|y\s+me\s+das?\s+\w{3,}|p[oó]n[gm]e\s+(tambi[eé]n|adem[aá]s)\s+\w)/i;
@@ -2449,9 +2451,14 @@ async function buildSummaryFromState(
   const pagoResumen = _mixto && Number(_mixto.monto_digital) > 0
     ? `${_mixto.metodo || state.pago} ${fmtCOP(Number(_mixto.monto_digital))} + efectivo ${fmtCOP(Number(_mixto.monto_efectivo) || 0)}`
     : (state.pago || "");
+  // PARA LLEVAR → etiqueta clara en vez de repetir la frase del cliente
+  // ("yo paso por ella" NO es una dirección). Configurable: frases.llevar_etiqueta
+  const dirResumen = esParaLlevar
+    ? (getFraseTexto(frases.llevar_etiqueta) || "Para recoger en el local 🏃")
+    : (state.direccion || "");
   let resumenFinal = plantillaExpanded
     .replace(/\{\{productos\}\}/g,       productoLines.join("\n"))
-    .replace(/\{\{direccion\}\}/g,       state.direccion || "")
+    .replace(/\{\{direccion\}\}/g,       dirResumen)
     .replace(/\{\{pago\}\}/g,            pagoResumen)
     .replace(/\{\{nombre\}\}/g,          state.nombre || "")
     .replace(/\{\{nombre_linea\}\}/g,    nombreLinea)
