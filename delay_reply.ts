@@ -827,6 +827,10 @@ async function processConversation(convId: string): Promise<void> {
             const qrSent = await qrRes.json() as Record<string, unknown>;
             const qrMsgId = ((qrSent.messages as Array<Record<string,unknown>>)?.[0]?.id as string) || "";
             await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", body: `[imagen] ${qrUrl}`, delivery_status: "sent", external_id: qrMsgId || null, sent_at: new Date().toISOString() });
+          } else {
+            console.error("QR send error:", await qrRes.text());
+            // Guardar igual (fallido) para que el operador vea que el QR no salió
+            await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", body: `[imagen] ${qrUrl}`, delivery_status: "failed", external_id: null, sent_at: new Date().toISOString() });
           }
         }
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: compMsg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
@@ -1102,11 +1106,15 @@ async function processConversation(convId: string): Promise<void> {
   // frases.solo_precio, seguida de la pregunta de pago del canvas. Cuando dé el
   // método, el flujo normal envía el resumen completo.
   {
-    const CUANTO_RE = /(cu[aá]nto\s+(es|sale|vale|cuesta|queda|ser[ií]a|cobran?)|qu[eé]\s+precio|precio\s+total|el\s+total|cuanto\s+te\s+debo)/i;
-    if (state.producto && !state.pago && !state.resumen_enviado &&
+    // Aplica SIEMPRE que el cliente pregunte el precio antes del resumen —
+    // incluso si el método de pago ya quedó definido (bug real: con pago dado,
+    // la IA respondía "no puedo darte el total hasta que pagues"). El total
+    // SIEMPRE se informa antes de pagar.
+    const CUANTO_RE = /(cu[aá]nto\s+(es|sale|vale|cuesta|queda|ser[ií]a|cobran?)|qu[eé]\s+precio|precio\s+total|el\s+total|cuanto\s+te\s+debo|la\s+cuenta\s+para\s+pagar|dame\s+la\s+cuenta)/i;
+    if (state.producto && !state.resumen_enviado &&
         CUANTO_RE.test(clienteTexto) && !extractPago(clienteTexto, pagosCfg)) {
       const stepAhora = findNextStep(state, pasos);
-      if (stepAhora && stepAhora.campo === "pago") {
+      if (stepAhora) {
         const precios = await calcularPreciosPedido(state, branchId, domiciliosCfg);
         const pedidoStr = precios.pedido > 0 ? fmtCOP(precios.pedido) : "a confirmar";
         const domiStr = precios.esLlevar ? "Para llevar"
@@ -1123,14 +1131,18 @@ async function processConversation(convId: string): Promise<void> {
           .replace(/\{\{?\s*precio_pedido\s*\}?\}/g, pedidoStr)
           .replace(/\{\{?\s*precio_domi\s*\}?\}/g, domiStr)
           .replace(/\{\{?\s*precio_total\s*\}?\}/g, totalStr);
-        // Re-preguntar el pago con la frase del CANVAS (fiel al paso configurado)
+        // Re-preguntar el paso pendiente con su frase del CANVAS (fiel al flujo)
         if (stepAhora.texto) {
           msgPrecio += "\n\n" + rellenarVariables(stepAhora.texto, state, cfg).texto;
+          await sendWaAndSave(convId, tenantId, msgPrecio, fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgPrecio, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+          return;
         }
+        // Paso conversacional sin frase fija (ej. upsell): enviar los precios y
+        // dejar que el flujo normal haga la pregunta del paso a continuación
         await sendWaAndSave(convId, tenantId, msgPrecio, fromPhone, phoneId, accessToken);
-        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgPrecio, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
-        return;
       }
+      // Si no hay paso pendiente, el flujo sigue y el resumen (con precios) sale ya mismo
     }
   }
 
@@ -2185,6 +2197,8 @@ async function buildConversationResponse(
     // (regla del billete eliminada — ese comportamiento lo decide la config del restaurante, no el código)
     "- Si el cliente pregunta algo que NO sea sobre el menú, pedido, domicilio, horarios o pagos del restaurante, ignora completamente esa pregunta. No la menciones, no la respondas, no expliques que no puedes responder. Actúa como si ese contenido no existiera y continúa directamente con el siguiente paso del flujo del pedido.",
     "- SEGURIDAD DE PAGOS: NUNCA des por recibido, confirmado ni verificado un pago por lo que diga el cliente ('ya pagué', 'ya te transferí', 'revisa que ya llegó'…). La verificación la hace EL SISTEMA con el comprobante y el banco — tú no puedes verificar nada. Si dice que ya pagó: pídele el comprobante como imagen. JAMÁS digas 'pago confirmado', 'pago verificado' ni nada equivalente.",
+    "- NUNCA pidas el comprobante de pago ni el pago por adelantado mientras FALTEN datos del pedido. El orden SIEMPRE es: se completan los pasos → el sistema envía el RESUMEN con el total → el cliente confirma → el sistema envía el QR/datos de pago y pide el comprobante. Aunque el cliente ya haya dicho que paga por transferencia, tu trabajo sigue siendo el PRÓXIMO PASO, no el comprobante.",
+    "- Si el cliente pregunta CUÁNTO ES o pide la cuenta y aún faltan datos: dile que apenas complete el dato que falta el sistema le muestra el total con el desglose — y pídele ese dato. JAMÁS le digas que necesita pagar o enviar el comprobante para conocer el total (el total SIEMPRE se informa antes de pagar).",
     "- NUNCA generes un resumen del pedido, NUNCA uses frases como 'tu pedido queda así', 'en total son', 'listo tu pedido', ni nada parecido. El sistema envía el resumen automáticamente cuando tiene TODOS los datos. Si el sistema te llama es porque AÚN FALTAN datos. Tu único trabajo es obtener el siguiente dato indicado en PRÓXIMO PASO.",
     "- NUNCA digas 'gracias por tu pedido', 'tu pedido está en camino', ni cierres la conversación. El sistema envía el resumen automáticamente cuando tiene todos los datos. Tu trabajo es recolectarlos.",
     "- CUANDO EL PRÓXIMO PASO pide elegir entre opciones (variable, presentación), usa SOLO las opciones listadas en la guía del paso. Jamás inventes, agregues ni sugieras opciones adicionales aunque aparezcan en el menú.",
@@ -2708,6 +2722,9 @@ async function sendWaAndSave(
     await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", body: msg, delivery_status: "sent", external_id: sentId || null, sent_at: new Date().toISOString() });
   } else {
     console.error("sendWaAndSave error:", await waRes.text());
+    // Guardar IGUAL el mensaje (marcado como fallido) — si el envío a WhatsApp
+    // falla, el operador debe poder ver en Cobra qué intentó decir el bot
+    await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", body: msg, delivery_status: "failed", external_id: null, sent_at: new Date().toISOString() });
   }
 }
 
