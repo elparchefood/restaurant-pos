@@ -853,7 +853,7 @@ async function startAIAnalysis(){
     setAIProgress(100,'modifiers',false);
     S.aiTimers.forEach(clearInterval);S.aiTimers=[];
 
-    const finalResult={categories:withVars.categories||[],modifier_groups:mods.modifier_groups||[]};
+    const finalResult={categories:withVars.categories||[],modifier_groups:mods.modifier_groups||[],bases:inv.bases||[]};
     S.aiResult=finalResult;S.aiExcluded={};S.aiOpenCat=finalResult.categories[0]?.name||null;
     S.aiStage='review';renderAIImport();
   } catch(e){
@@ -890,9 +890,27 @@ async function importFromAI(){
     const savedId=await saveModGroupToSupabase(group);group.id=savedId;
     const idx=S.mods.findIndex(x=>x.id===group.id);if(idx>=0)S.mods[idx]=group;else S.mods.push(group);
   }
+  // Bases compartidas detectadas en la carta ("NUESTRA BASE") → pos_bases,
+  // vinculadas a los productos importados cuya descripción menciona "Base"
+  let basesN=0;
+  for(const b of (ex.bases||[])){
+    try{
+      const key=String(b.applies_to||'').toLowerCase();
+      const allCats=[...S.cats,...newCats];
+      const ids=newProds.filter(p=>{
+        if(!/\bbase\b/i.test(p.desc||''))return false;
+        if(!key)return true;
+        const cat=allCats.find(c=>c.id===p.cat);
+        const catName=(cat&&cat.name?cat.name:'').toLowerCase();
+        return catName.includes(key)||key.includes(catName.split(' ')[0]||'@');
+      }).map(p=>p.id);
+      const{data,error}=await sb.from('pos_bases').insert([{tenant_id:S.tenantId,name:b.name||('Base '+(b.applies_to||'')),ingredients:b.ingredients||[],product_ids:ids}]).select().single();
+      if(!error&&data){S.bases=[...(S.bases||[]),{...data,product_ids:data.product_ids||[]}];basesN++;}
+    }catch(e){console.warn('base import:',e);}
+  }
   S.cats=[...S.cats,...newCats];S.products=[...newProds,...S.products];
   closeOverlay();S.tab='productos';S.filterCat=null;renderPage();
-  toast(newProds.length+' productos'+(inclModsArr.length?' y '+inclModsArr.length+' grupos de adiciones':'')+' importados con IA ✓');
+  toast(newProds.length+' productos'+(inclModsArr.length?' y '+inclModsArr.length+' grupos de adiciones':'')+(basesN?' y '+basesN+' bases':'')+' importados con IA ✓');
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────
