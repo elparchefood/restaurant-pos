@@ -878,7 +878,8 @@
         status:         status,
         total:          total,
         subtotal:       sub,
-        discount:       S.descuento,
+        discount:        S.descuento,
+        discount_amount: S.descuento,
         service_charge: 0,
         customer_name:  (S.cliente && S.cliente.nombre) || null,
         notes:          _vrBarrio ? '[barrio:' + _vrBarrio.toUpperCase() + ']' : null,
@@ -892,7 +893,8 @@
       const updatePayload = {
         total:          total,
         subtotal:       sub,
-        discount:       S.descuento,
+        discount:        S.descuento,
+        discount_amount: S.descuento,
         customer_name:  (S.cliente && S.cliente.nombre) || null,
         visible_cocina: !!visible,
       };

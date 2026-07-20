@@ -63,7 +63,10 @@ async function refreshAll() {
   if (S.session) {
     S.orders = await loadOrders(S.branchId, S.session.opened_at);
     S.items  = await loadOrderItems(S.branchId, S.session.opened_at);
-  } else { S.orders = []; S.items = []; }
+    S.pagosMetodo = await loadPagosPorMetodo(S.branchId, S.session.opened_at, S.orders);
+    // Recuperar arqueo guardado en la sesión (sobrevive recargas de página)
+    if (S.session.arqueo_contado != null) S.arqueoContado = parseFloat(S.session.arqueo_contado);
+  } else { S.orders = []; S.items = []; S.pagosMetodo = {}; }
   const moves = await getMoves();
   renderCajaState();
   renderHero(S.orders, moves);
@@ -118,6 +121,35 @@ async function loadAllSessions(branchId) {
   } catch(e) { console.error('loadAllSessions:',e); return []; }
 }
 
+// ── Pagos REALES por método (pos_payments) ─────────────────────
+// El desglose de un cobro (incluidos pagos MIXTOS 'multiple') vive en
+// pos_payments — sumar por pos_orders.payment_method deja los mixtos por
+// fuera y descuadra el arqueo. Fallback: pedidos pagados sin desglose
+// (históricos) usan su payment_method.
+async function loadPagosPorMetodo(branchId, sinceISO, orders) {
+  const map = {};
+  const conDesglose = new Set();
+  try {
+    const q = sb.from('pos_payments').select('order_id, method, amount, created_at').gte('created_at', sinceISO);
+    if (branchId) q.eq('branch_id', branchId);
+    const { data } = await q;
+    (data || []).forEach(p => {
+      const k = (p.method || 'efectivo').toLowerCase();
+      map[k] = (map[k] || 0) + (parseFloat(p.amount) || 0);
+      conDesglose.add(p.order_id);
+    });
+  } catch(e) { console.error('loadPagosPorMetodo:', e); }
+  (orders || []).forEach(o => {
+    if (o.status === 'cancelled' || conDesglose.has(o.id)) return;
+    const pagado = parseFloat(o.paid_amount) || 0;
+    if (pagado <= 0) return;
+    const k = (o.payment_method || 'efectivo').toLowerCase();
+    if (k === 'multiple') return;
+    map[k] = (map[k] || 0) + pagado;
+  });
+  return map;
+}
+
 // ── pos_cash_moves (Supabase) ──────────────────────────────────
 async function getMoves() {
   try {
@@ -170,7 +202,8 @@ function renderCajaState() {
 // ── Hero ───────────────────────────────────────────────────────
 function renderHero(orders, moves) {
   const active   = orders.filter(o => o.status !== 'cancelled');
-  const ventasEf = active.filter(o => (o.payment_method||'').toLowerCase()==='efectivo').reduce((s,o)=>s+(o.total||0),0);
+  // Efectivo REAL recibido (pos_payments — incluye la parte en efectivo de pagos mixtos)
+  const ventasEf = (S.pagosMetodo && S.pagosMetodo['efectivo']) || 0;
   const ingresos = moves.filter(m=>m.type==='ingreso').reduce((s,m)=>s+(m.amount||0),0);
   const egresos  = moves.filter(m=>m.type==='egreso').reduce((s,m)=>s+(m.amount||0),0);
   const base     = S.session ? (S.session.opening_cash||0) : 0;
@@ -197,7 +230,7 @@ function renderHero(orders, moves) {
 function renderKPIs(orders) {
   const active    = orders.filter(o=>o.status!=='cancelled');
   const cancelled = orders.filter(o=>o.status==='cancelled');
-  const total     = active.reduce((s,o)=>s+(o.total||0),0);
+  const total     = active.reduce((s,o)=>s+(parseFloat(o.total_final ?? o.total)||0),0);
   const ticket    = active.length ? total/active.length : 0;
   const el        = id => document.getElementById(id);
   el('kpi-ventas').textContent     = COPF(total);
@@ -209,10 +242,11 @@ function renderKPIs(orders) {
 
 // ── Desglose por medio de pago ─────────────────────────────────
 function renderDesglosePago(orders) {
-  const active = orders.filter(o=>o.status!=='cancelled');
-  const total  = active.reduce((s,o)=>s+(o.total||0),0);
+  // Desglose REAL por método desde pos_payments (los mixtos se reparten bien)
+  const pagos = S.pagosMetodo || {};
+  const total = Object.values(pagos).reduce((s,v)=>s+v,0);
   METODOS.forEach(m => {
-    const amt = active.filter(o=>(o.payment_method||'').toLowerCase()===m.key).reduce((s,o)=>s+(o.total||0),0);
+    const amt = pagos[m.key] || 0;
     const pct = total > 0 ? (amt/total*100).toFixed(1) : 0;
     const valEl = document.getElementById('dp-'+m.key+'-val');
     const barEl = document.getElementById('dp-'+m.key+'-bar');
@@ -406,7 +440,7 @@ function renderHistorial(orders) {
   if (!cont) return;
   const active    = orders.filter(o=>o.status!=='cancelled');
   const cancelled = orders.filter(o=>o.status==='cancelled');
-  const total     = active.reduce((s,o)=>s+(o.total||0),0);
+  const total     = active.reduce((s,o)=>s+(parseFloat(o.total_final ?? o.total)||0),0);
   const hc = document.getElementById('hist-count');
   const ht = document.getElementById('hist-total');
   if (hc) hc.textContent = `${active.length} ventas · ${cancelled.length} anuladas`;
@@ -582,11 +616,13 @@ document.getElementById('btn-cerrar').addEventListener('click', async function()
   if (!S.session) return;
   const moves    = await getMoves();
   const active   = S.orders.filter(o=>o.status!=='cancelled');
-  const ventasEf = active.filter(o=>(o.payment_method||'').toLowerCase()==='efectivo').reduce((s,o)=>s+(o.total||0),0);
+  // Pagos REALES por método (pos_payments — reparte bien los pagos mixtos)
+  const pagos    = S.pagosMetodo || {};
+  const ventasEf = pagos['efectivo'] || 0;
   const ingresos = moves.filter(m=>m.type==='ingreso').reduce((s,m)=>s+(m.amount||0),0);
   const egresos  = moves.filter(m=>m.type==='egreso').reduce((s,m)=>s+(m.amount||0),0);
   const base     = S.session.opening_cash||0;
-  const totalV   = active.reduce((s,o)=>s+(o.total||0),0);
+  const totalV   = active.reduce((s,o)=>s+(parseFloat(o.total_final ?? o.total)||0),0);
   const efectivo = base + ventasEf + ingresos - egresos;
   const cajero   = S.session.cashier_name || (S.user?.user_metadata?.nombre)||'—';
   const turno    = S.session.shift_type||'—';
@@ -599,11 +635,11 @@ document.getElementById('btn-cerrar').addEventListener('click', async function()
     ['Base de apertura',  COPF(base),     ''],
     ['Total de ventas',   COPF(totalV),   ' strong'],
     null, // divider
-    ['Efectivo',          COPF(active.filter(o=>(o.payment_method||'').toLowerCase()==='efectivo').reduce((s,o)=>s+(o.total||0),0)), ' mut'],
-    ['Tarjeta',           COPF(active.filter(o=>(o.payment_method||'').toLowerCase()==='tarjeta').reduce((s,o)=>s+(o.total||0),0)), ' mut'],
-    ['Transferencia',     COPF(active.filter(o=>(o.payment_method||'').toLowerCase()==='transferencia').reduce((s,o)=>s+(o.total||0),0)), ' mut'],
-    ['Nequi',             COPF(active.filter(o=>(o.payment_method||'').toLowerCase()==='nequi').reduce((s,o)=>s+(o.total||0),0)), ' mut'],
-    ['Daviplata',         COPF(active.filter(o=>(o.payment_method||'').toLowerCase()==='daviplata').reduce((s,o)=>s+(o.total||0),0)), ' mut'],
+    ['Efectivo',          COPF(pagos['efectivo'] || 0), ' mut'],
+    ['Tarjeta',           COPF(pagos['tarjeta'] || 0), ' mut'],
+    ['Transferencia',     COPF(pagos['transferencia'] || 0), ' mut'],
+    ['Nequi',             COPF(pagos['nequi'] || 0), ' mut'],
+    ['Daviplata',         COPF(pagos['daviplata'] || 0), ' mut'],
     null,
     ['Ingresos',          `<span style="color:#16A34A">+${COPF(ingresos)}</span>`, ''],
     ['Egresos',           `<span style="color:#DC2626">−${COPF(egresos)}</span>`, ''],
@@ -645,13 +681,18 @@ document.getElementById('btn-confirmar-cerrar').addEventListener('click', async 
   if (!S.session) { showToast('No hay sesión activa'); return; }
   const moves    = await getMoves();
   const active   = S.orders.filter(o=>o.status!=='cancelled');
-  const ventasEf = active.filter(o=>(o.payment_method||'').toLowerCase()==='efectivo').reduce((s,o)=>s+(o.total||0),0);
+  // Efectivo REAL recibido (pos_payments incluye la parte en efectivo de mixtos)
+  const ventasEf = (S.pagosMetodo && S.pagosMetodo['efectivo']) || 0;
   const ingresos = moves.filter(m=>m.type==='ingreso').reduce((s,m)=>s+(m.amount||0),0);
   const egresos  = moves.filter(m=>m.type==='egreso').reduce((s,m)=>s+(m.amount||0),0);
   const base     = S.session.opening_cash||0;
-  const totalV   = active.reduce((s,o)=>s+(o.total||0),0);
-  const efectivo = base + ventasEf + ingresos - egresos;
-  await handleCloseSession(efectivo, totalV);
+  const totalV   = active.reduce((s,o)=>s+(parseFloat(o.total_final ?? o.total)||0),0);
+  const esperado = base + ventasEf + ingresos - egresos;
+  // Si se hizo arqueo, el cierre guarda el CONTADO real y su diferencia;
+  // sin arqueo, guarda el esperado (comportamiento anterior).
+  const contado  = (typeof S.arqueoContado === 'number') ? S.arqueoContado : null;
+  await handleCloseSession(contado !== null ? contado : esperado, totalV,
+                           contado !== null ? (contado - esperado) : null, contado);
   closePanel('panel-cerrar');
 });
 
@@ -688,8 +729,23 @@ document.getElementById('btn-arqueo').addEventListener('click', function() {
   openPanel('panel-arqueo');
 });
 
-document.getElementById('btn-guardar-arqueo').addEventListener('click', function() {
+document.getElementById('btn-guardar-arqueo').addEventListener('click', async function() {
   S.arqueoContado = getArqueoContado();
+  // Persistir el arqueo YA en la sesión abierta (antes solo quedaba en memoria
+  // y se perdía al recargar la página)
+  try {
+    if (S.session) {
+      const moves    = await getMoves();
+      const ventasEf = (S.pagosMetodo && S.pagosMetodo['efectivo']) || 0;
+      const ingresos = moves.filter(m=>m.type==='ingreso').reduce((s,m)=>s+(m.amount||0),0);
+      const egresos  = moves.filter(m=>m.type==='egreso').reduce((s,m)=>s+(m.amount||0),0);
+      const esperado = (S.session.opening_cash||0) + ventasEf + ingresos - egresos;
+      await sb.from('pos_sessions').update({
+        arqueo_contado: S.arqueoContado,
+        arqueo_diff:    S.arqueoContado - esperado,
+      }).eq('id', S.session.id);
+    }
+  } catch(e) { console.error('guardar arqueo:', e); }
   showToast('Arqueo guardado: ' + COPF(S.arqueoContado));
   closePanel('panel-arqueo');
 });
@@ -731,8 +787,8 @@ function getArqueoContado() {
 
 async function updateArqueoEsperado() {
   const moves    = await getMoves();
-  const active   = S.orders.filter(o=>o.status!=='cancelled');
-  const ventasEf = active.filter(o=>(o.payment_method||'').toLowerCase()==='efectivo').reduce((s,o)=>s+(o.total||0),0);
+  // Efectivo REAL (pos_payments — incluye la parte en efectivo de pagos mixtos)
+  const ventasEf = (S.pagosMetodo && S.pagosMetodo['efectivo']) || 0;
   const ingresos = moves.filter(m=>m.type==='ingreso').reduce((s,m)=>s+(m.amount||0),0);
   const egresos  = moves.filter(m=>m.type==='egreso').reduce((s,m)=>s+(m.amount||0),0);
   const base     = S.session ? (S.session.opening_cash||0) : 0;
@@ -770,13 +826,16 @@ async function handleOpenSession(openingCash, shiftType) {
   } catch(e) { console.error(e); showToast('Error al abrir caja'); }
 }
 
-async function handleCloseSession(closingCash, totalSales) {
+async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoContado) {
   try {
-    // Cerrar la sesion activa con datos de cierre
-    const { error } = await sb.from('pos_sessions').update({
+    // Cerrar la sesion activa con datos de cierre (incluye arqueo si se hizo)
+    const upd = {
       status: 'closed', closing_cash: closingCash,
       total_sales: totalSales||0, closed_at: new Date().toISOString(),
-    }).eq('id', S.session.id);
+    };
+    if (arqueoDiff !== null && arqueoDiff !== undefined) upd.arqueo_diff = arqueoDiff;
+    if (arqueoContado !== null && arqueoContado !== undefined) upd.arqueo_contado = arqueoContado;
+    const { error } = await sb.from('pos_sessions').update(upd).eq('id', S.session.id);
     if (error) { showToast('Error: ' + error.message); return; }
 
     // Cerrar tambien cualquier otra sesion abierta del mismo branch (sesiones huerfanas)
@@ -1002,16 +1061,34 @@ async function loadResumenData(pid) {
   } catch(e) { console.warn('rsSessions:', e); }
 
   const active = orders.filter(o => o.status !== 'cancelled');
-  const totalV = active.reduce((a,o) => a+(o.total||0), 0);
+  const totalV = active.reduce((a,o) => a+(parseFloat(o.total_final ?? o.total)||0), 0);
   const txns   = active.length;
   const ticket = txns ? Math.round(totalV/txns) : 0;
 
+  // Desglose por método desde pos_payments (reparte bien los pagos mixtos);
+  // fallback a payment_method para pedidos pagados sin desglose (históricos)
   const byMethod = {};
   RS_METHODS.forEach(m => byMethod[m.id] = 0);
-  active.forEach(o => {
-    const k = (o.payment_method||'efectivo').toLowerCase();
-    if (byMethod[k] !== undefined) byMethod[k] += (o.total||0);
-  });
+  try {
+    const payStart = pid === 'turno' ? s.opened_at : startISO;
+    const payEnd   = pid === 'turno' ? (s.closed_at || new Date().toISOString()) : endISO;
+    const qPay = sb.from('pos_payments').select('order_id, method, amount').gte('created_at', payStart).lte('created_at', payEnd);
+    if (S.branchId) qPay.eq('branch_id', S.branchId);
+    const { data: pays } = await qPay;
+    const conDesglose = new Set();
+    (pays||[]).forEach(p => {
+      const k = (p.method||'efectivo').toLowerCase();
+      if (byMethod[k] !== undefined) byMethod[k] += (parseFloat(p.amount)||0);
+      conDesglose.add(p.order_id);
+    });
+    active.forEach(o => {
+      if (conDesglose.has(o.id)) return;
+      const pagado = parseFloat(o.paid_amount)||0;
+      if (pagado <= 0) return;
+      const k = (o.payment_method||'efectivo').toLowerCase();
+      if (k !== 'multiple' && byMethod[k] !== undefined) byMethod[k] += pagado;
+    });
+  } catch(e) { console.warn('rsPagos:', e); }
 
   const byChannel = {salon:0,mostrador:0,domicilio:0};
   active.forEach(o => {
@@ -1029,7 +1106,7 @@ async function loadResumenData(pid) {
     const efIn     = moves.filter(m=>m.type==='ingreso'&&(m.medio||'').toLowerCase()==='efectivo').reduce((a,m)=>a+(parseFloat(m.amount)||0),0);
     const efOut    = moves.filter(m=>m.type==='egreso' &&(m.medio||'').toLowerCase()==='efectivo').reduce((a,m)=>a+(parseFloat(m.amount)||0),0);
     const esperado = base + efV + efIn - efOut;
-    const contado  = parseFloat(s.closing_cash)||0;
+    const contado  = parseFloat(s.arqueo_contado ?? s.closing_cash)||0;
     const diff     = parseFloat(s.arqueo_diff)||0;
     cuadre = { kind:'session', base, esperado, contado, diff };
   } else {

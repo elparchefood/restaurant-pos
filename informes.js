@@ -147,7 +147,18 @@ async function loadReport() {
 
   renderKPIs(list, label);
   renderChart(list, from, to, label);
-  renderPayMethods(list);
+  // Desglose REAL de pagos (pos_payments) — los pagos 'multiple' se reparten
+  // en sus métodos verdaderos en lugar de mostrarse como una barra opaca
+  let pagosRows = [];
+  try {
+    const oIds = list.map(o => o.id);
+    if (oIds.length) {
+      let qp = sb.from('pos_payments').select('order_id, method, amount').in('order_id', oIds);
+      const { data: pd } = await qp;
+      pagosRows = pd || [];
+    }
+  } catch(e) { console.warn('[Informes] pos_payments:', e); }
+  renderPayMethods(list, pagosRows);
   renderTopProducts(list, label);
   renderMeseroRanking(list, label);
   renderCanales(list, label);
@@ -252,11 +263,20 @@ const PAY_NAMES = {
   nequi:'Nequi / QR', multiple:'Múltiple',
 };
 
-function renderPayMethods(orders) {
+function renderPayMethods(orders, pagosRows) {
   const total = orders.reduce((s, o) => s + parseFloat(o.total_final || 0), 0);
   const byMethod = {};
+  // 1) Desglose real desde pos_payments (incluye el reparto de pagos mixtos)
+  const conDesglose = new Set();
+  (pagosRows || []).forEach(p => {
+    const m = (p.method || 'efectivo').toLowerCase();
+    byMethod[m] = (byMethod[m] || 0) + (parseFloat(p.amount) || 0);
+    conDesglose.add(p.order_id);
+  });
+  // 2) Fallback para pedidos pagados sin desglose (históricos)
   orders.forEach(o => {
-    const m = o.payment_method || 'efectivo';
+    if (conDesglose.has(o.id)) return;
+    const m = (o.payment_method || 'efectivo').toLowerCase();
     byMethod[m] = (byMethod[m] || 0) + parseFloat(o.total_final || 0);
   });
 

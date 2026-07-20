@@ -102,7 +102,7 @@ async function loadSession(branchId) {
   }
 
   const cajaCode = data?.id?.slice(-6).toUpperCase() || '——';
-  const lastClose = data?.closing_amount != null ? COPF(data.closing_amount) : '—';
+  const lastClose = (data?.closing_cash ?? data?.closing_amount) != null ? COPF(data.closing_cash ?? data.closing_amount) : '—';
   const turno = data?.shift_type || (new Date().getHours() < 15 ? 'Diurno' : 'Nocturno');
   $('hero-stats').innerHTML = [
     ['Caja', cajaCode],
@@ -130,6 +130,15 @@ async function loadTodayOrders(branchId) {
   if (branchId) q.eq('branch_id', branchId);
   const { data } = await q;
   S.todayOrders = data || [];
+  // Desglose REAL de pagos del día (pos_payments — reparte bien los mixtos)
+  S.pagosHoy = [];
+  try {
+    const ids = S.todayOrders.map(o => o.id);
+    if (ids.length) {
+      const { data: pd } = await sb.from('pos_payments').select('order_id,method,amount').in('order_id', ids);
+      S.pagosHoy = pd || [];
+    }
+  } catch(e) { console.warn('pos_payments hoy:', e); }
   renderMetrics(S.todayOrders);
   renderTopProducts(S.todayOrders);
   renderGoal(S.todayOrders, branchId);
@@ -517,13 +526,33 @@ function normPM(pm) {
   const s = (pm || '').toLowerCase();
   if (s.includes('efectivo') || s.includes('cash'))            return 'cash';
   if (s.includes('tarjet')   || s.includes('card'))            return 'card';
+  if (s.includes('nequi')    || s.includes('daviplata'))       return 'transfer';
   if (s.includes('transfer') || s.includes('deposit') ||
-      s.includes('nequi')    || s.includes('daviplata') ||
       s.includes('bancolombia'))                               return 'bank';
   if (s.includes('online')   || s.includes('linea') || s.includes('qr')) return 'online';
   if (s.includes('vale')     || s.includes('voucher') || s.includes('sodexo')) return 'voucher';
   if (s.includes('credito')  || s.includes('credit'))         return 'credit';
   return 'cash';
+}
+
+// Reparto REAL por método: pos_payments primero (mixtos bien repartidos),
+// fallback a payment_method para pedidos sin desglose
+function buildPagosPM(orders) {
+  const pm = { cash:0, card:0, bank:0, online:0, credit:0, voucher:0, transfer:0 };
+  const conDesglose = new Set();
+  ((S.pagosHoy) || []).forEach(p => {
+    const k = normPM(p.method);
+    pm[k] = (pm[k] || 0) + (parseFloat(p.amount) || 0);
+    conDesglose.add(p.order_id);
+  });
+  (orders || []).forEach(o => {
+    if (conDesglose.has(o.id)) return;
+    const s = (o.payment_method || '').toLowerCase();
+    if (s === 'multiple') return; // sin desglose no se puede repartir
+    const k = normPM(o.payment_method);
+    pm[k] = (pm[k] || 0) + (parseFloat(o.total) || 0);
+  });
+  return pm;
 }
 
 function normChannel(ch) {
@@ -547,13 +576,8 @@ async function loadWaiterNames(branchId) {
 
 // ── DESGLOSE DE VENTAS ────────────────────────────────
 function renderDesglose(orders) {
-  const pm = {cash:0, card:0, bank:0, online:0, credit:0, voucher:0};
-  let grand = 0;
-  orders.forEach(o => {
-    const t = o.total || 0;
-    grand += t;
-    pm[normPM(o.payment_method)] = (pm[normPM(o.payment_method)] || 0) + t;
-  });
+  const pm = buildPagosPM(orders);
+  const grand = orders.reduce((s,o) => s + (parseFloat(o.total)||0), 0);
 
   const CARDS = [
     { key:'cash',    label:'Ventas en efectivo',      color:'#5B6BFF', spark:[14,20,16,24,28,32,30], tag:null },
@@ -779,14 +803,8 @@ async function loadOpsKPIs(orders, branchId) {
 
 // ── TIPO DE PAGO ──────────────────────────────────────
 function renderTipoPago(orders) {
-  const pm = { cash:0, card:0, bank:0, online:0, voucher:0, transfer:0 };
-  let grand = 0;
-  orders.forEach(o => {
-    const t = o.total || 0;
-    grand += t;
-    const k = normPM(o.payment_method);
-    pm[k] = (pm[k] || 0) + t;
-  });
+  const pm = buildPagosPM(orders);
+  const grand = orders.reduce((s,o) => s + (parseFloat(o.total)||0), 0);
 
   const pt = document.getElementById('pago-total');
   if (pt) pt.textContent = COPF(grand);
