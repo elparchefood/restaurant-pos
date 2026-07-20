@@ -984,12 +984,11 @@ async function processConversation(convId: string): Promise<void> {
   if (extracted.direccion && state.complemento_dir_pendiente) {
     state.complemento_dir_pendiente = null;
   }
-  // Arquitectura independiente de pasos: si ya hay un producto activo, la dirección
-  // (sea heredada o recién dada) pertenece a ESTE pedido. Limpiar la bandera heredada
-  // evita que "confirmar_dir" bloquee el flujo cuando el cliente ya está en medio de un pedido.
-  if (state.producto && state.direccion && state.direccion_heredada) {
-    state.direccion_heredada = false;
-  }
+  // Dirección HEREDADA (regla de Sergio): aunque el cliente haya pedido antes a esa
+  // dirección, SIEMPRE se le confirma ("¿a la misma dirección? 📍 X") antes de usarla.
+  // La bandera solo la limpia el paso confirmar_dir (sí/nueva dirección) — jamás se
+  // asume en silencio. (El wipe automático anterior causó que Paco usara la dirección
+  // vieja sin preguntar.)
 
   state.last_activity = new Date().toISOString();
   await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
@@ -1477,19 +1476,30 @@ function extractAdiciones(text: string, isCurrentStep: boolean): string | null {
   return null;
 }
 
+// Quita muletillas al inicio de una dirección dictada: "No, mándala a la Calle 5..."
+// → "Calle 5...". Si al limpiar no queda nada, devuelve el original.
+function limpiarPrefijoDireccion(s: string): string {
+  let t2 = s.trim();
+  t2 = t2.replace(/^no[,.\s]+/i, "");
+  t2 = t2.replace(/^(mejor|s[ií])[,.\s]+/i, "");
+  t2 = t2.replace(/^(m[aá]ndal[ao]|env[ií]al[ao]|ll[eé]val[ao]|c[aá]mbial[ao]|es|ser[ií]a|ahora)\s+(a\s+)?(la\s+|el\s+)?/i, "");
+  return t2 || s;
+}
+
 function extractDireccion(text: string, isCurrentStep: boolean, productData: ProductData | null = null): string | null {
   const t = text.toLowerCase().trim();
   if (LLEVAR_REGEX.test(t)) return text.trim();
-  // Cuando no es el paso de dirección, solo capturar si el texto es corto (<= 65 chars)
-  // Evita que mensajes largos con "Carrera"/"Calle" (ej. mensaje inicial con todo el pedido) se almacenen como dirección completa
-  if (CALLE_REGEX.test(text) && (isCurrentStep || text.trim().length <= 65)) return text.trim();
-  // Mensaje multi-línea (todo-en-uno): capturar SOLO la línea que es una dirección.
-  // Caso real: "una personal premium mixta\ncarrera 9 b 63 n 58 bellavista\nSergio Abadia"
-  if (!isCurrentStep && text.includes("\n")) {
+  // Mensaje multi-línea: capturar SOLO la línea que es una dirección — SIEMPRE,
+  // también en el paso de dirección. (Bug real: "Carrera 9...\nY dame también una
+  // tropical porfa" quedó COMPLETO como dirección, con el producto adentro.)
+  if (text.includes("\n")) {
     const lineaDir = text.split("\n").map(l => l.trim())
       .find(l => l && l.length <= 65 && CALLE_REGEX.test(l) && /\d/.test(l));
     if (lineaDir) return lineaDir;
   }
+  // Cuando no es el paso de dirección, solo capturar si el texto es corto (<= 65 chars)
+  // Evita que mensajes largos con "Carrera"/"Calle" (ej. mensaje inicial con todo el pedido) se almacenen como dirección completa
+  if (CALLE_REGEX.test(text) && (isCurrentStep || text.trim().length <= 65)) return text.trim();
   if (isCurrentStep && text.trim().length > 8) {
     if (!isProductAttribute(text, productData) && !extractPago(text, null) && !extractNombrePuro(text, productData)) {
       return text.trim();
@@ -1732,16 +1742,20 @@ function runExtractors(
     const confirmaDir = CONFIRM_WORDS.some(w => textoLow === w || textoLow.includes(w));
     const rechazaDir = textoLow === "no" || textoLow === "no." || textoLow.startsWith("no,") || textoLow.includes("cambia") || textoLow.includes("otra");
     const nuevaDir = extractDireccion(text, true, productData);
-    if (rechazaDir) { result.direccion = null; result.direccion_heredada = false; }
-    else if (nuevaDir && !confirmaDir) { result.direccion = nuevaDir; result.direccion_heredada = false; }
+    // PRIORIDAD: si el mensaje TRAE la nueva dirección ("No, mándala a la Calle 5..."),
+    // se usa esa — el "no" del inicio no puede borrarla
+    if (nuevaDir && !confirmaDir) { result.direccion = limpiarPrefijoDireccion(nuevaDir); result.direccion_heredada = false; }
+    else if (rechazaDir) { result.direccion = null; result.direccion_heredada = false; }
     else if (confirmaDir) { result.direccion_heredada = false; }
     // No early return: los demás extractores corren siempre para capturar pago, nombre, etc.
     // del mismo mensaje. Cada paso es independiente del resto.
   }
-  if (!state.direccion) {
-    const isDirStep = currentStepId === "direccion";
-    const d = extractDireccion(text, isDirStep, productData);
-    if (d) result.direccion = d;
+  if (!state.direccion || state.direccion_heredada) {
+    // Una dirección heredada puede ser REEMPLAZADA si el cliente escribe una nueva
+    // en cualquier momento (queda confirmada de una — él mismo la dio)
+    const isDirStep = currentStepId === "direccion" || currentStepId === "confirmar_dir";
+    const d = extractDireccion(text, isDirStep && !state.direccion, productData);
+    if (d) { result.direccion = limpiarPrefijoDireccion(d); result.direccion_heredada = false; }
   }
   if (!state.nombre) {
     const isNombreStep = currentStepId === "nombre";
@@ -1834,7 +1848,7 @@ function buildAllPasos(productData: ProductData | null, cfg: Record<string, unkn
   const customRaw = cfg.flujo_pasos;
   if (Array.isArray(customRaw) && customRaw.length > 0) {
     try {
-      const procesados = procesarFlujoCanvas(customRaw as Array<Record<string, unknown>>, productData, nombreConfirmar, esRecurrente);
+      const procesados = procesarFlujoCanvas(customRaw as Array<Record<string, unknown>>, productData, nombreConfirmar, esRecurrente, frasesCfg);
       if (procesados.length > 0) return procesados;
     } catch (err) {
       console.error("procesarFlujoCanvas falló, usando flujo por defecto:", err);
@@ -1853,6 +1867,7 @@ function procesarFlujoCanvas(
   productData: ProductData | null,
   nombreConfirmar: string | null,
   esRecurrente: boolean,
+  frasesCfg: Record<string, unknown> = {},
 ): PasoDefinicion[] {
   const out: PasoDefinicion[] = [];
   for (const p of canvasPasos) {
@@ -1886,6 +1901,14 @@ function procesarFlujoCanvas(
     } else if (campo === "adiciones") {
       out.push({ id: "upsell", campo: "adiciones", modo, texto: texto || undefined, guia: guia || undefined });
     } else if (campo === "direccion") {
+      // Dirección HEREDADA (cliente recurrente): SIEMPRE se confirma antes de usarla.
+      // El bot muestra la dirección guardada y el cliente confirma o da otra.
+      // Frase configurable: frases.confirmar_direccion ({{direccion}}).
+      out.push({
+        id: "confirmar_dir", campo: "direccion", modo: "fija",
+        texto: getFraseTexto(frasesCfg.confirmar_direccion) ||
+          "¿Te lo enviamos a la misma dirección de la vez pasada? 📍\n{{direccion}}\nConfírmame o escríbeme la nueva dirección 😊",
+      });
       out.push({
         id: "direccion", campo: "direccion", modo,
         texto: texto || "Con gusto, ¿para dónde va tu pedido? ☺️", guia,

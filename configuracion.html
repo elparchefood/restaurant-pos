@@ -1772,6 +1772,11 @@
                     <div class="field-hint">Se env&iacute;a cuando el cliente quiere <b>recoger su pedido</b> ("yo paso", "lo recojo", "para llevar") pero eligi&oacute; pagar en efectivo. Aplica solo si en Domicilios est&aacute; activo "Para llevar exige pago anticipado".</div>
                   </div>
                   <div class="field">
+                    <label class="field-lb">Confirmar direcci&oacute;n guardada</label>
+                    <textarea class="txa" data-frase="confirmar_direccion" placeholder="Ej. ¿Te lo enviamos a la misma dirección de la vez pasada? 📍&#10;{{direccion}}&#10;Confírmame o escríbeme la nueva dirección 😊"></textarea>
+                    <div class="field-hint">Cuando el cliente ya pidi&oacute; antes, el bot NUNCA asume la direcci&oacute;n: la muestra y pide confirmarla o cambiarla. Variable: <code>{{direccion}}</code></div>
+                  </div>
+                  <div class="field">
                     <label class="field-lb">Etiqueta "para llevar" en el resumen</label>
                     <textarea class="txa" data-frase="llevar_etiqueta" placeholder="Ej. Para recoger en el local 🏃"></textarea>
                     <div class="field-hint">Reemplaza la direcci&oacute;n en el resumen cuando el pedido es para llevar (en vez de repetir la frase del cliente como "yo paso por ella").</div>
