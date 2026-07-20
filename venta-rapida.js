@@ -754,7 +754,9 @@
       const _raw = localStorage.getItem(_ck);
       if (_raw) {
         const _cd = JSON.parse(_raw);
-        if (_cd && _cd.cats && _cd.products) {
+        // Solo confiar en caché CON productos (una caché vacía es basura de una
+        // eliminación/importación a medias → traer fresco)
+        if (_cd && _cd.cats && Array.isArray(_cd.products) && _cd.products.length > 0) {
           S.categories = _cd.cats;
           S.products   = _cd.products;
           S.modGroups  = _cd.modGroups || [];
@@ -768,6 +770,7 @@
   }
 
   async function _catalogFetch(sb, cacheKey, isBackground) {
+    for (let intento = 1; intento <= 3; intento++) {
     try {
       const PALETA = [
         {color:'#5B6BFF',tint:'#F0F1FF',ring:'#C7CBFF'},
@@ -805,11 +808,18 @@
         options: Array.isArray(g.options) ? g.options : [],
       }));
       try {
-        localStorage.setItem(cacheKey, JSON.stringify({ cats: S.categories, products: S.products, modGroups: S.modGroups }));
+        if (S.products.length > 0) {
+          localStorage.setItem(cacheKey, JSON.stringify({ cats: S.categories, products: S.products, modGroups: S.modGroups }));
+        }
       } catch(e) {}
-      if (isBackground) { renderCatGrid(); renderFavs(); setupSearch(); refreshBadges(); }
-      else { renderCatGrid(); renderFavs(); setupSearch(); refreshBadges(); }
-    } catch(e) { console.error('[venta-rapida] _catalogFetch:', e); }
+      renderCatGrid(); renderFavs(); setupSearch(); refreshBadges();
+      return;
+    } catch(e) {
+      console.error('[venta-rapida] _catalogFetch intento ' + intento + ':', e);
+      if (intento < 3) await new Promise(function(r){ setTimeout(r, 1200 * intento); });
+    }
+    }
+    renderCatGrid(); renderFavs(); setupSearch(); refreshBadges();
   }
 
   /* ─── Supabase: enviar pedido ────────────────────────────────── */

@@ -300,7 +300,9 @@ async function loadCatalog() {
     const _raw = localStorage.getItem(_ck);
     if (_raw) {
       const _cd = JSON.parse(_raw);
-      if (_cd && _cd.cats && _cd.products) {
+      // Solo confiar en caché CON productos (una caché vacía es basura de una
+      // eliminación/importación a medias → traer fresco)
+      if (_cd && _cd.cats && Array.isArray(_cd.products) && _cd.products.length > 0) {
         S.cats      = _cd.cats;
         S.products  = _cd.products;
         S.modGroups = _cd.modGroups || [];
@@ -310,13 +312,14 @@ async function loadCatalog() {
       }
     }
   } catch(e) {}
-  // Primera vez: esperar datos frescos
+  // Primera vez (o caché vacía): esperar datos frescos
   await _catalogFetch(_ck, false);
 }
 
 async function _catalogFetch(cacheKey, isBackground) {
+  for (let intento = 1; intento <= 3; intento++) {
   try {
-    const [{ data: cats }, { data: prods }, { data: mods }] = await Promise.all([
+    const [catsRes, prodsRes, modsRes] = await Promise.all([
       sb.from('pos_categories')
         .select('id,name,color,color_tint,color_ring')
         .eq('tenant_id', S.tenantId).order('name'),
@@ -327,6 +330,9 @@ async function _catalogFetch(cacheKey, isBackground) {
         .select('id,name,rule,multi,options')
         .eq('tenant_id', S.tenantId),
     ]);
+    if (catsRes.error) throw catsRes.error;
+    if (prodsRes.error) throw prodsRes.error;
+    const cats = catsRes.data, prods = prodsRes.data, mods = modsRes.data;
     S.cats = (cats || []).map((c, i) => ({
       ...c,
       color: c.color || ['#5B6BFF','#8B5CF6','#EC4899','#F59E0B','#10B981','#0EA5E9','#EF4444','#14B8A6'][i % 8],
@@ -344,12 +350,20 @@ async function _catalogFetch(cacheKey, isBackground) {
       options: Array.isArray(g.options) ? g.options : [],
     }));
     try {
-      localStorage.setItem(cacheKey, JSON.stringify({
-        cats: S.cats, products: S.products, modGroups: S.modGroups, ts: Date.now()
-      }));
+      if (S.products.length > 0) {
+        localStorage.setItem(cacheKey, JSON.stringify({
+          cats: S.cats, products: S.products, modGroups: S.modGroups, ts: Date.now()
+        }));
+      }
     } catch(e) {}
-    if (isBackground) { renderCatGrid(); renderMenuPane(); renderFavPane(); }
-  } catch(e) { console.error('[domicilios] _catalogFetch:', e); }
+    renderCatGrid(); renderMenuPane(); renderFavPane();
+    return;
+  } catch(e) {
+    console.error('[domicilios] _catalogFetch intento ' + intento + ':', e);
+    if (intento < 3) await new Promise(function(r){ setTimeout(r, 1200 * intento); });
+  }
+  }
+  renderCatGrid(); renderMenuPane(); renderFavPane();
 }
 
 function _fetchDomiciliarios() {

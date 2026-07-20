@@ -132,7 +132,10 @@ async function loadCatalog() {
     var _raw = localStorage.getItem(_ck);
     if (_raw) {
       var _cd = JSON.parse(_raw);
-      if (_cd && _cd.cats && _cd.products) {
+      // Solo confiar en la caché si TIENE productos. Una caché con 0 productos casi
+      // siempre es basura de una eliminación/importación a medias (bug real: mesas
+      // mostraba categorías vacías tras reimportar la carta) → traer fresco.
+      if (_cd && _cd.cats && Array.isArray(_cd.products) && _cd.products.length > 0) {
         S.cats      = _cd.cats;
         S.products  = _cd.products;
         S.modGroups = _cd.modGroups || [];
@@ -142,44 +145,57 @@ async function loadCatalog() {
       }
     }
   } catch(e) {}
-  // Sin caché — esperar datos frescos (primera vez)
+  // Sin caché (o caché vacía) — esperar datos frescos
   await _catalogFetch(_ck, false);
 }
 
 async function _catalogFetch(cacheKey, isBackground) {
-  try {
-    const [{ data: cats }, { data: prods }] = await Promise.all([
-      sb.from('pos_categories').select('*').eq('tenant_id', S.tenantId).order('name'),
-      sb.from('pos_products')  .select('*').eq('tenant_id', S.tenantId).eq('available', true).order('name'),
-    ]);
-    S.cats = (cats || []).map((c, i) => ({
-      ...c,
-      color: c.color || CAT_PALETTE[i % CAT_PALETTE.length].color,
-      tint:  c.color_tint || CAT_PALETTE[i % CAT_PALETTE.length].tint,
-    }));
-    S.products = (prods || []).map(p => ({
-      ...p,
-      presentations: Array.isArray(p.presentations) ? p.presentations : [],
-      variables:     Array.isArray(p.variables)     ? p.variables     : [],
-      mod_group_ids: Array.isArray(p.mod_group_ids) ? p.mod_group_ids : [],
-    }));
-    const { data: mods } = await sb.from('pos_modifier_groups')
-      .select('id,name,rule,multi,options').eq('tenant_id', S.tenantId);
-    S.modGroups = (mods || []).map(g => ({
-      id:g.id, name:g.name, rule:g.rule||'opcional', multi:!!g.multi,
-      options: Array.isArray(g.options) ? g.options : [],
-    }));
-    // Guardar en caché local
+  // Reintentos: navigator.onLine puede dar falso "offline" en el ejecutable y una
+  // lectura puede fallar transitoriamente — no dejar el catálogo vacío por eso.
+  for (var intento = 1; intento <= 3; intento++) {
     try {
-      localStorage.setItem(cacheKey, JSON.stringify({
-        cats: S.cats, products: S.products, modGroups: S.modGroups, ts: Date.now()
+      const [catsRes, prodsRes] = await Promise.all([
+        sb.from('pos_categories').select('*').eq('tenant_id', S.tenantId).order('name'),
+        sb.from('pos_products')  .select('*').eq('tenant_id', S.tenantId).eq('available', true).order('name'),
+      ]);
+      if (catsRes.error) throw catsRes.error;
+      if (prodsRes.error) throw prodsRes.error;
+      const cats = catsRes.data, prods = prodsRes.data;
+      S.cats = (cats || []).map((c, i) => ({
+        ...c,
+        color: c.color || CAT_PALETTE[i % CAT_PALETTE.length].color,
+        tint:  c.color_tint || CAT_PALETTE[i % CAT_PALETTE.length].tint,
       }));
-    } catch(e) {}
-    // Si es refresco en segundo plano, actualizar la UI silenciosamente
-    if (isBackground) { renderCatGrid(); renderMenuTab(); }
-  } catch(e) {
-    console.error('loadCatalog:', e);
+      S.products = (prods || []).map(p => ({
+        ...p,
+        presentations: Array.isArray(p.presentations) ? p.presentations : [],
+        variables:     Array.isArray(p.variables)     ? p.variables     : [],
+        mod_group_ids: Array.isArray(p.mod_group_ids) ? p.mod_group_ids : [],
+      }));
+      const { data: mods } = await sb.from('pos_modifier_groups')
+        .select('id,name,rule,multi,options').eq('tenant_id', S.tenantId);
+      S.modGroups = (mods || []).map(g => ({
+        id:g.id, name:g.name, rule:g.rule||'opcional', multi:!!g.multi,
+        options: Array.isArray(g.options) ? g.options : [],
+      }));
+      // Cachear SOLO si hay productos (nunca persistir un catálogo vacío que
+      // luego tape los datos reales)
+      try {
+        if (S.products.length > 0) {
+          localStorage.setItem(cacheKey, JSON.stringify({
+            cats: S.cats, products: S.products, modGroups: S.modGroups, ts: Date.now()
+          }));
+        }
+      } catch(e) {}
+      renderCatGrid(); renderMenuTab();
+      return;
+    } catch(e) {
+      console.error('loadCatalog intento ' + intento + ':', e);
+      if (intento < 3) await new Promise(function(r){ setTimeout(r, 1200 * intento); });
+    }
   }
+  // Tras agotar reintentos: refrescar la UI con lo que haya (evita pantalla congelada)
+  renderCatGrid(); renderMenuTab();
 }
 
 // ── Pedido abierto ───────────────────────────────────────────
