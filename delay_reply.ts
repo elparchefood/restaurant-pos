@@ -144,6 +144,68 @@ function fmtMoney(n: number): string {
 const _SAL = "(buen[oa]s?\\s+d[íi]as?|buen[oa]s?\\s+tardes?|buen[oa]s?\\s+noches?|buen\\s+d[íi]a|qu[eé]\\s+tal|qu[eé]\\s+m[aá]s|qu[eé]\\s+hubo|qu[eé]\\s+hay|hol+a+|hol[ai]s|holi+|hey+|saludos?|buen[oa]s?)";
 const SALUDO_REGEX = new RegExp(`^\\s*${_SAL}([\\s,.]+${_SAL})*[\\s,.!?¡¿]*$`, "i");
 
+// ── PAGO MIXTO (parte digital + parte efectivo) — mecánica general ────────────
+// "te paso 30 mil por nequi y el resto en efectivo" / "mitad y mitad" /
+// "pago 20 en efectivo y lo demás por transferencia"
+function parseMontoTexto(s: string): number | null {
+  const m = s.match(/\$?\s*(\d{1,3}(?:[.,]\d{3})+|\d+)\s*(mil|k\b)?/i);
+  if (!m) return null;
+  let n = parseFloat(m[1].replace(/[.,]/g, ""));
+  if (m[2]) n = n * 1000;
+  return n > 0 ? n : null;
+}
+// Atajo coloquial: "30" con un total de $61.000 significa $30.000
+function normalizarMontoVsTotal(n: number, total: number): number {
+  if (total > 0 && n > 0 && n < total && n * 1000 <= total * 1.2 && n < total / 50) return n * 1000;
+  return n;
+}
+type PagoMixtoDet = { metodo: string; montoDigital: number | null; montoEfectivo: number | null; mitad: boolean };
+function detectarPagoMixto(text: string, pagosCfg: Record<string, unknown> | null | undefined): PagoMixtoDet | null {
+  const t = normalizarTexto(text).toLowerCase();
+  const metodos = getMetodosPago(pagosCfg);
+  let nombreDig: string | null = null;
+  let idxDig = -1;
+  for (const m of metodos) {
+    if (!m.digital) continue;
+    const mn = normalizarTexto(m.nombre).toLowerCase();
+    const i = t.indexOf(mn);
+    if (i >= 0) { nombreDig = m.nombre.toLowerCase(); idxDig = i; break; }
+  }
+  if (!nombreDig) {
+    // Sinónimos coloquiales de pago digital (mismo patrón compat que extractPago):
+    // si el cliente nombra una billetera que no está en la lista, se mapea al
+    // primer método digital configurado del restaurante.
+    const lm = t.match(/transferencia|transfiero|transfer|nequi|daviplata|bancolombia|davivienda|billetera|consignar|consignacion|\bqr\b/);
+    if (lm) {
+      const dig = metodos.find(m => m.digital);
+      nombreDig = dig ? dig.nombre.toLowerCase() : "transferencia";
+      idxDig = lm.index ?? -1;
+    }
+  }
+  if (!nombreDig) return null;
+  const efeM = t.match(/\befectivo\b|\bcash\b/);
+  const idxEfe = efeM ? (efeM.index ?? -1) : -1;
+  const haySplit = /\b(resto|restante|lo\s+demas|sobrante|otra\s+parte|una\s+parte|parte\s+en|faltante|lo\s+que\s+falta|mitad)\b/.test(t);
+  if (idxEfe < 0 && !haySplit) return null;         // solo un método → no es mixto
+  if (idxEfe < 0 && !/mitad/.test(t)) return null;  // split sin "efectivo" solo aplica con "mitad"
+  const mitad = /mitad/.test(t);
+  // Montos con posición → se asignan al método más cercano en el texto
+  let montoDigital: number | null = null, montoEfectivo: number | null = null;
+  const numRe = /\$?\s*(\d{1,3}(?:[.,]\d{3})+|\d+)\s*(mil|k\b)?/gi;
+  let nm: RegExpExecArray | null;
+  while ((nm = numRe.exec(t)) !== null) {
+    let n = parseFloat(nm[1].replace(/[.,]/g, ""));
+    if (nm[2]) n = n * 1000;
+    if (!(n > 0)) continue;
+    const pos = nm.index;
+    const dDig = idxDig >= 0 ? Math.abs(pos - idxDig) : 9999;
+    const dEfe = idxEfe >= 0 ? Math.abs(pos - idxEfe) : 9999;
+    if (dDig <= dEfe && montoDigital === null) montoDigital = n;
+    else if (montoEfectivo === null) montoEfectivo = n;
+  }
+  return { metodo: nombreDig, montoDigital, montoEfectivo, mitad };
+}
+
 // Patrones de dirección
 const CALLE_REGEX = /\b(calle|carrera|cra|cl\b|diagonal|transversal|tv\b|dg\b|avenida|av\b|bloque|manzana|mz\b|torre)\b/i;
 const LLEVAR_REGEX = /\b(para\s+llevar|para\s+recoger|lo\s+recojo|lo\s+busco|voy\s+a\s+recoger|pa\s+llevar|a\s+recoger|yo\s+paso|yo\s+lo\s+recojo|paso\s+a\s+recoger(?:lo)?|paso\s+por\s+(?:el\s+pedido|[ée]l)|paso\s+al\s+local)\b/i;
@@ -1027,6 +1089,64 @@ async function processConversation(convId: string): Promise<void> {
         await sendWaAndSave(convId, tenantId, msgPrecio, fromPhone, phoneId, accessToken);
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgPrecio, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
         return;
+      }
+    }
+  }
+
+  // 14e-séptimo. PAGO MIXTO: "una parte por transferencia y el resto en efectivo".
+  // El bot entiende la división, confirma los montos (frases configurables), y el
+  // comprobante se verificará contra la PARTE digital. El resto queda en efectivo
+  // al recibir. Si no dijo cuánto, se le pregunta (frases.pago_mixto_monto).
+  {
+    const st = state as unknown as Record<string, unknown>;
+    const esperandoMonto = st.pago_mixto_esperando as string | undefined;
+    if (state.producto && !state.resumen_enviado && !st.pago_mixto) {
+      let mix = detectarPagoMixto(clienteTexto, pagosCfg);
+      if (!mix && esperandoMonto) {
+        const n = parseMontoTexto(clienteTexto);
+        if (n) mix = { metodo: esperandoMonto, montoDigital: n, montoEfectivo: null, mitad: false };
+      }
+      if (mix) {
+        const precios = await calcularPreciosPedido(state, branchId, domiciliosCfg);
+        const total = precios.pedido > 0
+          ? precios.pedido + (precios.esLlevar ? 0 : (precios.domi || 0))
+          : 0;
+        let montoDig = mix.montoDigital;
+        if (mix.mitad && montoDig === null && total > 0) montoDig = Math.round(total / 2);
+        if (montoDig === null && mix.montoEfectivo !== null && total > 0) {
+          montoDig = total - normalizarMontoVsTotal(mix.montoEfectivo, total);
+        }
+        if (montoDig !== null && total > 0) montoDig = normalizarMontoVsTotal(montoDig, total);
+        if (total > 0 && montoDig !== null && montoDig > 0 && montoDig < total) {
+          // División válida → guardar y confirmar (el flujo sigue: resumen → QR → comprobante)
+          st.pago_mixto = { metodo: mix.metodo, monto_digital: montoDig, monto_efectivo: total - montoDig };
+          delete st.pago_mixto_esperando;
+          state.pago = mix.metodo;   // método digital → rama comprobante/QR de siempre
+          const fraseMix = (getFraseTexto(frasesCfg.pago_mixto) ||
+            "Perfecto 🙌 {{monto_digital}} por {{metodo_digital}} y {{monto_efectivo}} en efectivo al recibir. El comprobante debe ser por {{monto_digital}} 🧾")
+            .replace(/\{\{?\s*monto_digital\s*\}?\}/g, fmtCOP(montoDig))
+            .replace(/\{\{?\s*monto_efectivo\s*\}?\}/g, fmtCOP(total - montoDig))
+            .replace(/\{\{?\s*metodo_digital\s*\}?\}/g, capFirst(mix.metodo));
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+          await sendWaAndSave(convId, tenantId, fraseMix, fromPhone, phoneId, accessToken);
+          // sin return: el flujo continúa (normalmente al resumen) en este mismo turno
+        } else if (total > 0 && montoDig !== null && montoDig >= total) {
+          // El monto cubre todo → pago digital normal, sin división
+          state.pago = mix.metodo;
+          delete st.pago_mixto_esperando;
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+        } else if (total > 0) {
+          // Quiere mixto pero no dijo cuánto → preguntar (frase configurable)
+          st.pago_mixto_esperando = mix.metodo;
+          state.pago = null;
+          const pregMix = (getFraseTexto(frasesCfg.pago_mixto_monto) ||
+            "¡Claro! ¿Cuánto deseas pagar por {{metodo_digital}}? El resto queda en efectivo al recibir 😊")
+            .replace(/\{\{?\s*metodo_digital\s*\}?\}/g, capFirst(mix.metodo));
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+          await sendWaAndSave(convId, tenantId, pregMix, fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: pregMix, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+          return;
+        }
       }
     }
   }
@@ -2278,10 +2398,15 @@ async function buildSummaryFromState(
     }
   }
 
+  // Pago mixto → el resumen muestra la división ("nequi $30.000 + efectivo $31.000")
+  const _mixto = (state as unknown as Record<string, unknown>).pago_mixto as Record<string, unknown> | null | undefined;
+  const pagoResumen = _mixto && Number(_mixto.monto_digital) > 0
+    ? `${_mixto.metodo || state.pago} ${fmtCOP(Number(_mixto.monto_digital))} + efectivo ${fmtCOP(Number(_mixto.monto_efectivo) || 0)}`
+    : (state.pago || "");
   let resumenFinal = plantillaExpanded
     .replace(/\{\{productos\}\}/g,       productoLines.join("\n"))
     .replace(/\{\{direccion\}\}/g,       state.direccion || "")
-    .replace(/\{\{pago\}\}/g,            state.pago || "")
+    .replace(/\{\{pago\}\}/g,            pagoResumen)
     .replace(/\{\{nombre\}\}/g,          state.nombre || "")
     .replace(/\{\{nombre_linea\}\}/g,    nombreLinea)
     .replace(/\{\{domicilio_linea\}\}/g, lineaDomi)

@@ -93,7 +93,12 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
       pago_pendiente: false, pending_order_data: null, human_takeover: false,
     });
     const cierreM = frases.cierre_pedido || "En un momento preparamos tu pedido 🍟 ¡Con muchísimo gusto!";
-    const msgM = `✅ ¡Pago confirmado! ${cierreM}`;
+    const mixtoM = pendingData?.pago_mixto as Record<string, unknown> | null | undefined;
+    const saldoM = mixtoM && Number(mixtoM.monto_efectivo) > 0
+      ? " " + ((frases.saldo_efectivo as string) || "Quedan {{monto_efectivo}} en efectivo al recibir 🙌")
+          .replace(/\{\{?\s*monto_efectivo\s*\}?\}/g, fmtMonto(Number(mixtoM.monto_efectivo), monedaCfg))
+      : "";
+    const msgM = `✅ ¡Pago confirmado!${saldoM} ${cierreM}`;
     await sendWhatsApp(fromPhone, phoneId, accessToken, msgM);
     await saveOutMessage(conversationId, tenantId, msgM, fromPhone, phoneId, accessToken);
     console.log("Confirmación HUMANA completada. Pedido:", orderIdM);
@@ -152,19 +157,24 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
     return null;
   }
 
-  // 8. Calcular total esperado desde pending_order_data y comparar con monto
+  // 8. Calcular total esperado desde pending_order_data y comparar con monto.
+  // PAGO MIXTO: el comprobante se compara contra la PARTE digital acordada
+  // (pendingData.pago_mixto.monto_digital), no contra el total del pedido.
   const totalEsperado = await calcularTotalEsperado(pendingData, branchId, cfg);
+  const mixtoPD = pendingData?.pago_mixto as Record<string, unknown> | null | undefined;
+  const parteDigital = mixtoPD && Number(mixtoPD.monto_digital) > 0 ? Number(mixtoPD.monto_digital) : 0;
+  const esperadoTransfer = parteDigital > 0 ? parteDigital : totalEsperado;
   const montoComprobante = Number(visionResult.monto.replace(/\D/g, "")) || 0;
   let montoCoincide = true;
-  if (totalEsperado > 0 && montoComprobante > 0) {
-    const diferencia = Math.abs(montoComprobante - totalEsperado);
-    const porcentaje = diferencia / totalEsperado;
+  if (esperadoTransfer > 0 && montoComprobante > 0) {
+    const diferencia = Math.abs(montoComprobante - esperadoTransfer);
+    const porcentaje = diferencia / esperadoTransfer;
     montoCoincide = porcentaje <= 0.12; // tolerancia 12% (cubre variaciones de redondeo y domicilio)
-    console.log(`Monto comprobante: ${montoComprobante}, esperado: ${totalEsperado}, diff: ${porcentaje.toFixed(2)}, ok: ${montoCoincide}`);
+    console.log(`Monto comprobante: ${montoComprobante}, esperado: ${esperadoTransfer}${parteDigital > 0 ? " (parte digital de pago mixto)" : ""}, diff: ${porcentaje.toFixed(2)}, ok: ${montoCoincide}`);
   }
 
   if (!montoCoincide) {
-    const msg = `⚠️ El monto del comprobante (${fmtMonto(Number(visionResult.monto.replace(/\D/g,"")), monedaCfg)}) no coincide con el total del pedido (${fmtMonto(totalEsperado, monedaCfg)}). Un agente lo revisará en breve.`;
+    const msg = `⚠️ El monto del comprobante (${fmtMonto(Number(visionResult.monto.replace(/\D/g,"")), monedaCfg)}) no coincide con ${parteDigital > 0 ? "la parte acordada por transferencia" : "el total del pedido"} (${fmtMonto(esperadoTransfer, monedaCfg)}). Un agente lo revisará en breve.`;
     await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
     await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
     await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, { human_takeover: true });
@@ -236,7 +246,12 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
 
     const montoStr   = visionResult.monto ? ` de ${fmtMonto(Number(visionResult.monto.replace(/\D/g,"")), monedaCfg)}` : "";
     const cierreFrase = frases.cierre_pedido || "¡Con muchísimo gusto! En un momento preparamos tu pedido.";
-    const msg = `✅ ¡Pago verificado${montoStr}! ${cierreFrase}`;
+    // Pago mixto: recordar el saldo en efectivo (frase configurable)
+    const saldoMixto = parteDigital > 0 && totalEsperado > parteDigital
+      ? " " + ((frases.saldo_efectivo as string) || "Quedan {{monto_efectivo}} en efectivo al recibir 🙌")
+          .replace(/\{\{?\s*monto_efectivo\s*\}?\}/g, fmtMonto(totalEsperado - parteDigital, monedaCfg))
+      : "";
+    const msg = `✅ ¡Pago verificado${montoStr}!${saldoMixto} ${cierreFrase}`;
     await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
     await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
     return orderId;
@@ -628,17 +643,26 @@ async function crearPedido(
   const LLEVAR_RE = /\b(para\s+llevar|para\s+recoger|lo\s+recojo|lo\s+busco|voy\s+a\s+recoger|pa\s+llevar|a\s+recoger|yo\s+paso|yo\s+lo\s+recojo|paso\s+a\s+recoger(?:lo)?|paso\s+por\s+(?:el\s+pedido|[ée]l)|paso\s+al\s+local)\b/i;
   const esLlevarOrden = LLEVAR_RE.test(String(pendingData.direccion || "").toLowerCase());
 
+  // Lo PAGADO por el cliente: el total (transferencia completa) o solo la parte
+  // digital si es pago mixto. Queda en pos_orders.paid_amount + una fila en
+  // pos_payments — el mismo circuito de abonos que usa la caja del POS.
+  const mixtoCP = pendingData.pago_mixto as Record<string, unknown> | null | undefined;
+  const montoPagado = mixtoCP && Number(mixtoCP.monto_digital) > 0
+    ? Math.min(Number(mixtoCP.monto_digital), pedido.total)
+    : pedido.total;
+
   const orderRecord: Record<string, unknown> = {
     branch_id:      branchId,
     tenant_id:      tenantId || null,
     channel:        esLlevarOrden ? "rapido" : "domicilio",
     customer_name:  pedido.nombreCliente,
     notes:          notasPedido || null,
-    payment_method: String(pendingData.pago || "") || null,
+    payment_method: mixtoCP ? "multiple" : (String(pendingData.pago || "") || null),
     status:         "open",
     total:          pedido.total,
     subtotal:       pedido.total,
     total_final:    pedido.total,
+    paid_amount:    montoPagado,
     waiter_name:    "Asistente IA",
     visible_cocina: true,
     opened_at:      new Date().toISOString(),
@@ -669,6 +693,20 @@ async function crearPedido(
 
   for (const item of pedido.itemsRows) {
     await sbPost(`/rest/v1/pos_order_items`, { ...item, order_id: orderId });
+  }
+
+  // Registrar el pago verificado como abono en pos_payments (visible en caja,
+  // recibos e informes — mismo desglose que usa la pantalla de cobro)
+  if (montoPagado > 0) {
+    await sbPost(`/rest/v1/pos_payments`, {
+      order_id:  orderId,
+      branch_id: branchId,
+      tenant_id: tenantId || null,
+      method:    String(pendingData.pago || "transferencia"),
+      amount:    montoPagado,
+      received:  montoPagado,
+      vuelto:    0,
+    });
   }
 
   return orderId;

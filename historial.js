@@ -277,6 +277,11 @@ function buildTimeline(o) {
   }
 
   const isPaid = o.status === 'paid' || o.status === 'completed';
+  const abonado = Number(o.paid_amount) || 0;
+  if (!isPaid && abonado > 0 && o.status !== 'cancelled') {
+    const faltaAb = Math.max(0, (Number(o.total) || 0) - abonado);
+    steps.push({ done: true, event: 'Abono recibido · ' + COPF(abonado) + (faltaAb > 0 ? ' (faltan ' + COPF(faltaAb) + ')' : ''), time: '' });
+  }
   if (isPaid) {
     const payMethod = o.payment_method ? ' · ' + fmtPayMethod(o.payment_method) + ' ' + COPF(o.total) : '';
     steps.push({ done: true, event: 'Pago recibido' + payMethod, time: fmtTime(o.updated_at || o.created_at) });

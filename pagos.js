@@ -173,6 +173,10 @@ function renderTotals() {
   const btnFinish = document.getElementById('btn-finish');
   btnFinish.disabled = !cubierto;
 
+  // Botón guardar abono: activo solo si hay pagos NUEVOS sin guardar y aún falta
+  const btnAbono = document.getElementById('btn-abono');
+  if (btnAbono) btnAbono.disabled = !(SP.payments.some(p => !p.saved) && falta > 0);
+
   // Split: mostrar importe de la parte actual en botón Exacto
   if (SP.splitObj && typeof calcSplitInfo === 'function') {
     const info = calcSplitInfo();
@@ -205,7 +209,13 @@ function renderApplied() {
 
   list.innerHTML = SP.payments.map(p => {
     const hasCambio = p.received > p.amount;
-    const sub = hasCambio ? `Recibido ${fmt(p.received)} · vuelto ${fmt(p.received - p.amount)}` : '';
+    const sub = p.saved
+      ? 'Abono registrado'
+      : hasCambio ? `Recibido ${fmt(p.received)} · vuelto ${fmt(p.received - p.amount)}` : '';
+    const delBtn = p.saved ? '' : `
+        <button class="lm-del" data-action="remove-payment" data-id="${p.id}">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>`;
     return `
       <div class="pg-applied-item" data-method="${p.method}">
         <span class="pg-applied-icon">${APPLIED_ICONS[p.method] || ''}</span>
@@ -213,10 +223,7 @@ function renderApplied() {
           <div class="pg-applied-name">${METHOD_META[p.method]?.label || p.method}</div>
           ${sub ? `<div class="pg-applied-sub">${sub}</div>` : ''}
         </div>
-        <span class="pg-applied-amt">${fmt(p.amount)}</span>
-        <button class="lm-del" data-action="remove-payment" data-id="${p.id}">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-        </button>
+        <span class="pg-applied-amt">${fmt(p.amount)}</span>${delBtn}
       </div>`;
   }).join('');
 }
@@ -267,8 +274,43 @@ function applyPayment() {
 }
 
 function removePayment(id) {
-  SP.payments = SP.payments.filter(p => p.id !== Number(id));
+  // Los abonos guardados (saved) no se pueden quitar desde aquí
+  SP.payments = SP.payments.filter(p => p.saved || p.id !== Number(id));
   renderAll();
+}
+
+// ── Guardar ABONO: registra los pagos nuevos sin cerrar la orden ──────────
+async function guardarAbono() {
+  const nuevos = SP.payments.filter(p => !p.saved);
+  if (!nuevos.length) return;
+  const btn = document.getElementById('btn-abono');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+  try {
+    const payRows = nuevos.map(p => ({
+      order_id:  SP.orderId,
+      branch_id: SP.branchId,
+      tenant_id: SP.tenantId,
+      method:    p.method,
+      amount:    p.amount,
+      received:  p.received || p.amount,
+      vuelto:    Math.max(0, (p.received || p.amount) - p.amount),
+    }));
+    const { error: e1 } = await sb.from('pos_payments').insert(payRows);
+    if (e1) throw e1;
+    const paidTotal = SP.payments.reduce((s, p) => s + p.amount, 0);
+    const { error: e2 } = await sb.from('pos_orders')
+      .update({ paid_amount: paidTotal })
+      .eq('id', SP.orderId);
+    if (e2) throw e2;
+    nuevos.forEach(p => { p.saved = true; });
+    renderAll();
+    if (btn) btn.textContent = 'Abono guardado ✓';
+    setTimeout(() => { if (btn) btn.textContent = 'Guardar abono'; }, 2000);
+  } catch (e) {
+    console.error('guardarAbono:', e);
+    alert('Error al guardar el abono: ' + (e.message || e));
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar abono'; }
+  }
 }
 
 async function cobrarDespues() {
@@ -308,15 +350,18 @@ async function cobrarDespues() {
       payment_method:  payMethod,
       closed_at:       now,
       total_final:     total,
+      paid_amount:     total,
       discount_amount: SP.discount || 0,
       discount_motivo: SP.discountObj?.motivo || null,
       tip_amount:      tipAmt,
       vuelto_total:    vueltoTotal,
     }, { id: SP.orderId });
 
-    // 2. Insertar desglose de pagos (uno por método)
-    if (SP.payments.length > 0) {
-      const payRows = SP.payments.map(p => ({
+    // 2. Insertar desglose de pagos — SOLO los nuevos (los abonos ya guardados
+    // y las transferencias verificadas por el bot ya están en pos_payments)
+    const payNuevos = SP.payments.filter(p => !p.saved);
+    if (payNuevos.length > 0) {
+      const payRows = payNuevos.map(p => ({
         order_id:  SP.orderId,
         branch_id: SP.branchId,
         tenant_id: SP.tenantId,
@@ -462,6 +507,9 @@ document.addEventListener('click', e => {
     case 'cobrar-despues':
       cobrarDespues();
       break;
+    case 'guardar-abono':
+      guardarAbono();
+      break;
     case 'new-sale':
       window.location.href = 'ventas.html';
       break;
@@ -529,6 +577,26 @@ async function loadOrder() {
     return;
   }
   SP.order = order;
+
+  // ── ABONOS: cargar pagos ya registrados de esta orden (parciales guardados,
+  // transferencias verificadas por el bot, etc.). Aparecen como pagos aplicados
+  // NO removibles y solo se cobra lo que falta.
+  try {
+    const { data: prevPays } = await sb
+      .from('pos_payments')
+      .select('id, method, amount, received')
+      .eq('order_id', SP.orderId)
+      .order('created_at', { ascending: true });
+    if (prevPays && prevPays.length) {
+      SP.payments = prevPays.map(p => ({
+        id:       'saved-' + p.id,
+        method:   p.method || 'efectivo',
+        amount:   Number(p.amount) || 0,
+        received: Number(p.received) || Number(p.amount) || 0,
+        saved:    true,
+      }));
+    }
+  } catch (e) { console.error('carga de abonos previos:', e); }
 
   // Cargar tabla (null para ventas rapidas)
   SP.table = null;

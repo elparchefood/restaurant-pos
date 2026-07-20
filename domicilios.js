@@ -207,7 +207,7 @@ async function loadActiveOrders() {
   try {
     const { data: orders, error } = await sb
       .from('pos_orders')
-      .select('id, customer_name, channel, notes, payment_method, total, opened_at')
+      .select('id, customer_name, channel, notes, payment_method, total, paid_amount, opened_at')
       .eq('branch_id', S.branchId)
       .in('channel', ['domicilio', 'whatsapp'])
       .eq('status', 'open')
@@ -251,6 +251,13 @@ function subscribeNewOrders() {
 function _orderRowToDelivery(o) {
   const shortId = String(o.id || '').slice(-6).toUpperCase();
   const metodo  = o.payment_method || 'efectivo';
+  // Estado de pago real: lo abonado (paid_amount) contra el total del pedido.
+  // Las transferencias verificadas por el bot llegan ya con paid_amount lleno.
+  const total   = Number(o.total) || 0;
+  const pagado  = Number(o.paid_amount) || 0;
+  const payStatus = total > 0 && pagado >= total ? 'pagado'
+                  : pagado > 0                   ? 'parcial'
+                  :                                'pendiente';
   return {
     id:           shortId,
     supabaseId:   o.id,
@@ -260,8 +267,9 @@ function _orderRowToDelivery(o) {
     productos:    Number(o.total) || 0,
     fee:          0,
     estado:       'recibido',
-    payStatus:    'pendiente',
-    payWhen:      'contraentrega',
+    payStatus:    payStatus,
+    paidAmount:   pagado,
+    payWhen:      payStatus === 'pagado' ? 'adelantado' : 'contraentrega',
     metodo:       metodo,
     courier:      'interno',
     cobramos:     false,
@@ -1489,7 +1497,7 @@ function renderMonitor() {
     }
     if (col !== 'entregado') activos += items.length;
     if (col === 'camino')    enCamino += items.length;
-    porPagar += items.filter(d => d.payStatus === 'pendiente').length;
+    porPagar += items.filter(d => d.payStatus === 'pendiente' || d.payStatus === 'parcial').length;
   });
 
   if ($('mon-activos'))  $('mon-activos').textContent  = activos;
@@ -1509,9 +1517,13 @@ function renderKanCard(d) {
   if (d.payStatus === 'externo') {
     pagoRow = `<span class="d-tag" style="color:#92660C;background:#FEF3C7">${svgInline('truck', 11)} Lo cobra el repartidor</span>`;
   } else {
-    const pagoColor = d.payStatus === 'pagado' ? '#16A34A' : '#B45309';
-    const pagoBg    = d.payStatus === 'pagado' ? '#DCFCE7' : '#FEF3C7';
-    const pagoLabel = d.payStatus === 'pagado' ? 'Pagado' : 'Por pagar';
+    const esParcial = d.payStatus === 'parcial';
+    const faltante  = esParcial ? Math.max(0, (d.productos || 0) + (d.fee || 0) - (d.paidAmount || 0)) : 0;
+    const pagoColor = d.payStatus === 'pagado' ? '#16A34A' : esParcial ? '#C2410C' : '#B45309';
+    const pagoBg    = d.payStatus === 'pagado' ? '#DCFCE7' : esParcial ? '#FFEDD5' : '#FEF3C7';
+    const pagoLabel = d.payStatus === 'pagado' ? 'Pagado'
+                    : esParcial ? ('Parcial · faltan ' + fmt(faltante))
+                    : 'Por pagar';
     const pagoIc    = svgInline(d.payStatus === 'pagado' ? 'check' : 'clock', 11);
     const whenLabel = d.payWhen === 'adelantado' ? 'Adelantado' : 'Contra entrega';
     const metodIc   = svgInline(d.metodo === 'efectivo' ? 'cash' : d.metodo === 'transferencia' ? 'transfer' : 'card', 11);

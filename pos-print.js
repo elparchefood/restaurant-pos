@@ -6,6 +6,19 @@
 
   var MODELS_KEY = 'pos.config.recibos.v1';
 
+  // Estado de pago para impresos: PAGADO / ABONADO+COBRAR / COBRAR.
+  // Usa order.paid (pos_orders.paid_amount) — las transferencias verificadas por
+  // el bot y los abonos de caja llegan aquí. Sin datos → no imprime nada.
+  function _pagoEstadoHtml(order) {
+    if (!order || order.paid === undefined || order.total === undefined) return '';
+    var total = Number(order.total || 0), paid = Number(order.paid || 0);
+    if (total <= 0) return '';
+    var f = function(n){ return '$' + Number(Math.round(n)).toLocaleString('es-CO'); };
+    if (paid >= total) return '<div style="text-align:center;font-size:15px;font-weight:900;border:2px solid #000;padding:3px;margin:6px 0;">*** PAGADO ***</div>';
+    if (paid > 0) return '<div style="text-align:center;font-size:13px;font-weight:900;border:2px solid #000;padding:3px;margin:6px 0;">ABONADO ' + f(paid) + '<br>COBRAR: ' + f(total - paid) + '</div>';
+    return '<div style="text-align:center;font-size:14px;font-weight:900;border:2px solid #000;padding:3px;margin:6px 0;">COBRAR: ' + f(total) + '</div>';
+  }
+
   function _buildComanda(order, items) {
     var now = new Date();
     var pad = function(n) { return String(n).padStart(2, '0'); };
@@ -73,6 +86,7 @@
       + '<div>FECHA: ' + dateStr + '</div>'
       + (waiter ? '<div>' + (isDomicilio || isRapido ? 'CAJERO' : 'MESERO') + ' - ' + waiter + '</div>' : '')
       + (sala   ? '<div>SALA - '   + sala   + '</div>' : '')
+      + ((isDomicilio || isRapido) ? _pagoEstadoHtml(order) : '')
       + sep('INICIO PEDIDO')
       + paraLlevar
       + rows
@@ -91,6 +105,7 @@
       + '<div style="text-align:center;border-bottom:1px dashed #000;padding-bottom:8px;margin-bottom:8px"><div style="font-size:16px;font-weight:bold">RECIBO</div><div style="font-size:11px;color:#555">' + dateStr + ' - ' + timeStr + '</div></div>'
       + (order.table ? '<div style="margin-bottom:6px">Mesa: <b>' + order.table + '</b></div>' : '')
       + '<table><tbody>' + rows + '</tbody><tr><td colspan="2" style="border-top:1px dashed #000;padding-top:4px"></td></tr><tr><td><b>TOTAL</b></td><td style="text-align:right;font-weight:bold">$' + Number(order.total || 0).toLocaleString('es-CO') + '</td></tr></table>'
+      + _pagoEstadoHtml(order)
       + '<div style="text-align:center;font-size:10px;color:#888;margin-top:12px;border-top:1px dashed #000;padding-top:6px">Gracias por su preferencia</div>'
       + '</body></html>';
   }
@@ -117,6 +132,7 @@
       + '<tr><td><b>TOTAL</b></td><td style="text-align:right;font-weight:bold">$' + Number(order.total || 0).toLocaleString('es-CO') + '</td></tr>'
       + (pRows ? '<tr><td colspan="2" style="border-top:1px dashed #000;padding-top:4px;font-size:11px;color:#555">Forma de pago</td></tr>' + pRows : '')
       + '</table>'
+      + _pagoEstadoHtml(order)
       + '<div style="text-align:center;font-size:10px;color:#888;margin-top:12px;border-top:1px dashed #000;padding-top:6px">Gracias por su preferencia</div>'
       + '</body></html>';
   }
@@ -281,7 +297,7 @@
       var modsArr = Object.values(sel.mods || {}).map(function(m){ return m.name || String(m); });
       return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', mods: modsArr, total: (it.unit_price || 0) * (it.quantity || 1) };
     });
-    var orderData = { table: _tableDisplay(order), channel: order.channel, total: order.total || 0, subtotal: order.subtotal || order.total || 0, discount: order.discount_amount || 0, tip: order.tip_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' };
+    var orderData = { table: _tableDisplay(order), channel: order.channel, total: order.total || 0, paid: order.paid_amount || 0, subtotal: order.subtotal || order.total || 0, discount: order.discount_amount || 0, tip: order.tip_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' };
     var html;
     if (type === 'comanda') html = _buildComanda(orderData, items);
     else if (type === 'desc') html = _buildReceiptDesc(orderData, items);

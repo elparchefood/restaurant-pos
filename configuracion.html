@@ -1768,6 +1768,21 @@
                     <div class="field-hint">Se env&iacute;a apenas llega el comprobante, mientras el sistema lo verifica (puede tardar 1-2 min).</div>
                   </div>
                   <div class="field">
+                    <label class="field-lb">Pago mixto (confirmar la divisi&oacute;n)</label>
+                    <textarea class="txa" data-frase="pago_mixto" placeholder="Ej. Perfecto 🙌 {{monto_digital}} por {{metodo_digital}} y {{monto_efectivo}} en efectivo al recibir. El comprobante debe ser por {{monto_digital}} 🧾"></textarea>
+                    <div class="field-hint">Cuando el cliente paga una parte por transferencia y el resto en efectivo. Variables: <code>{{monto_digital}}</code>, <code>{{monto_efectivo}}</code>, <code>{{metodo_digital}}</code></div>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Pago mixto (preguntar el monto)</label>
+                    <textarea class="txa" data-frase="pago_mixto_monto" placeholder="Ej. ¡Claro! ¿Cuánto deseas pagar por {{metodo_digital}}? El resto queda en efectivo al recibir 😊"></textarea>
+                    <div class="field-hint">Cuando el cliente dice que quiere pagar mixto pero no dice cu&aacute;nto. Variable: <code>{{metodo_digital}}</code></div>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Saldo en efectivo (tras verificar pago mixto)</label>
+                    <textarea class="txa" data-frase="saldo_efectivo" placeholder="Ej. Quedan {{monto_efectivo}} en efectivo al recibir 🙌"></textarea>
+                    <div class="field-hint">Se agrega al mensaje de pago verificado cuando queda un saldo en efectivo. Variable: <code>{{monto_efectivo}}</code></div>
+                  </div>
+                  <div class="field">
                     <label class="field-lb">Para llevar pagando en efectivo</label>
                     <textarea class="txa" data-frase="llevar_efectivo" placeholder="Ej. Qué pena contigo 🙏 Si deseas que tu pedido esté listo cuando pases por él, el pago debe hacerse por transferencia primero. Si decides pagar en efectivo, con mucho gusto te puedes acercar al establecimiento y tu pedido se prepara una vez esté pago 🍟"></textarea>
                     <div class="field-hint">Se env&iacute;a cuando el cliente quiere <b>recoger su pedido</b> ("yo paso", "lo recojo", "para llevar") pero eligi&oacute; pagar en efectivo. Aplica solo si en Domicilios est&aacute; activo "Para llevar exige pago anticipado".</div>
