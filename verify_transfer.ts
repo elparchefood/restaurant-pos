@@ -526,6 +526,19 @@ function normalizarItemsPedido(pendingData: Record<string, unknown>): ItemNorm[]
   return out;
 }
 
+
+// Nombre con el tipo de comida adelante ("Hamburguesa Especial") — igual que el motor
+const CAT_SIN_PREFIJO = /bebida|adicion|adición|extra|salsa|postre|combo/i;
+function nombreConCategoriaVT(prodName: string, catName: string): string {
+  if (!prodName || !catName || CAT_SIN_PREFIJO.test(catName)) return prodName;
+  const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const primera = norm(catName).split(/\s+/)[0].replace(/s$/, "");
+  if (!primera || primera.length < 4) return prodName;
+  if (norm(prodName).includes(primera)) return prodName;
+  const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  return cap(primera) + " " + cap(prodName.toLowerCase());
+}
+
 async function resolverPedido(
   pendingData: Record<string, unknown> | null,
   branchId:    string,
@@ -585,7 +598,7 @@ async function resolverPedido(
       }
 
       const itemTotal = price * item.cantidad;
-      const nombreItem = [String(matched.name), presMatch?.name || item.tamano, item.tipo].filter(Boolean).join(" · ");
+      const nombreItem = [nombreConCategoriaVT(String(matched.name), String(((matched.category_id as Record<string, unknown> | null)?.name as string) || "")), presMatch?.name || item.tamano, item.tipo].filter(Boolean).join(" · ");
       itemsRows.push({
         product_id: String(matched.id),
         name: nombreItem,           // la UI de ventas/domicilios pinta ESTE campo

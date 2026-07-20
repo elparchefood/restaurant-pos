@@ -161,6 +161,18 @@ function matchProductosEnTexto(texto: string): Array<{ name: string; cat: string
   }
   return out;
 }
+// Nombre para MOSTRAR con el tipo de comida adelante ("Salchipapa Premium",
+// "Hamburguesa Especial") — así el resumen y la comanda nunca son ambiguos.
+// Se omite para bebidas/adiciones y cuando el nombre ya lo incluye.
+const CAT_SIN_PREFIJO = /bebida|adicion|adición|extra|salsa|postre|combo/i;
+function nombreConCategoria(prodName: string, catName: string | null | undefined): string {
+  if (!prodName || !catName || CAT_SIN_PREFIJO.test(catName)) return prodName;
+  const primera = normalizarTexto(catName).split(/\s+/)[0].replace(/s$/, "");
+  if (!primera || primera.length < 4) return prodName;
+  if (normalizarTexto(prodName).includes(primera)) return prodName;
+  return capFirst(primera) + " " + capFirst(prodName.toLowerCase());
+}
+
 // Elegir la fila correcta del catálogo por nombre + (opcional) categoría.
 // Con nombres repetidos entre categorías, la categoría define el precio correcto.
 function matchCatalogo(
@@ -712,6 +724,35 @@ async function processConversation(convId: string): Promise<void> {
     const horasPendiente = pendStatePrev && pendStatePrev.last_activity
       ? (Date.now() - new Date(String(pendStatePrev.last_activity)).getTime()) / 3600000
       : 999;
+
+    // SALIDA del "esperando comprobante": el cliente cambia de opinión y quiere pagar
+    // en EFECTIVO. Antes quedaba en bucle repitiendo el recordatorio. Ahora se reabre
+    // el pedido en efectivo y se re-muestra el resumen para confirmar.
+    const stPend = (pendStatePrev && (pendStatePrev._v as number)) ? (pendStatePrev as unknown as PacoState) : null;
+    const pagoNuevoPend = extractPago(clienteTexto, pagosCfg);
+    const cambiaEfectivoPend = !!(pagoNuevoPend && !esMetodoDigital(pagoNuevoPend, pagosCfg));
+    const esLlevarPend = stPend?.direccion ? LLEVAR_REGEX.test(stPend.direccion.toLowerCase()) : false;
+    const prepagoPend  = domiciliosCfg?.llevar_prepago !== false;
+    if (cambiaEfectivoPend && stPend && !(esLlevarPend && prepagoPend)) {
+      stPend.pago = pagoNuevoPend as string;
+      stPend.resumen_enviado = true;
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pago_pendiente: false, pending_order_data: stPend });
+      try {
+        const sumMsg = await buildSummaryFromState(stPend, cfg, branchId, domiciliosCfg);
+        await sendWaAndSave(convId, tenantId, sumMsg, fromPhone, phoneId, accessToken);
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: sumMsg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+      } catch (err) { console.error("reabrir pendiente como efectivo:", err); }
+      return;
+    }
+    // Para-llevar con prepago: no se puede pagar en efectivo → recordar la regla
+    if (cambiaEfectivoPend && stPend && esLlevarPend && prepagoPend) {
+      const msgLl = getFraseTexto(frasesCfg.llevar_efectivo)
+        || "Qué pena contigo 🙏 Para recoger tu pedido el pago debe hacerse por transferencia primero. Si prefieres efectivo, te lo preparamos cuando te acerques al local 🍟";
+      await sendWaAndSave(convId, tenantId, msgLl, fromPhone, phoneId, accessToken);
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgLl, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+      return;
+    }
+
     if (NUEVA_ORDEN_RE.test(clienteTexto) || esOtroProducto || horasPendiente > 24) {
       pagoPendienteViejo = true;
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pago_pendiente: false, pending_order_data: null });
@@ -879,6 +920,39 @@ async function processConversation(convId: string): Promise<void> {
 
   if (state.resumen_enviado) {
     const textoLow = clienteTexto.toLowerCase().trim();
+
+    // CORRECCIÓN del método de pago tras el resumen (regla de Sergio):
+    // "mejor pago en efectivo" NO es confirmar — cambia el pago y RE-MUESTRA el
+    // resumen. Sin esto, decir "efectivo" con "transferencia" ya puesto se ignoraba
+    // (el extractor tiene candado !state.pago) y el bot mandaba el QR igual.
+    {
+      // Solo es CORRECCIÓN si ya había un pago distinto. Si el pago aún no se dio
+      // (state.pago vacío), lo maneja la confirmación normal ("bueno, por nequi").
+      const pagoNuevoRes = extractPago(clienteTexto, pagosCfg);
+      const cambiaPago = !!(pagoNuevoRes && state.pago && normalizarTexto(pagoNuevoRes) !== normalizarTexto(state.pago));
+      const esLlevarRes = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
+      const prepagoRes  = domiciliosCfg?.llevar_prepago !== false;
+      const bloqueoLlevarRes = esLlevarRes && prepagoRes && pagoNuevoRes && !esMetodoDigital(pagoNuevoRes, pagosCfg);
+      if (cambiaPago && bloqueoLlevarRes) {
+        // Para-llevar + prepago: no se puede efectivo → explicar y mantener el resumen
+        const msgLl = getFraseTexto(frasesCfg.llevar_efectivo)
+          || "Qué pena contigo 🙏 Para recoger tu pedido el pago debe hacerse por transferencia primero. Si prefieres efectivo, te lo preparamos cuando te acerques al local 🍟";
+        await sendWaAndSave(convId, tenantId, msgLl, fromPhone, phoneId, accessToken);
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgLl, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+        return;
+      }
+      if (cambiaPago) {
+        state.pago = pagoNuevoRes as string;
+        try {
+          const sumMsg = await buildSummaryFromState(state, cfg, branchId, domiciliosCfg);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+          await sendWaAndSave(convId, tenantId, sumMsg, fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: sumMsg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+        } catch (err) { console.error("re-resumen por cambio de pago:", err); }
+        return;
+      }
+    }
+
     const isConfirmacion = textoLow.length <= 80 && CONFIRM_WORDS.some(w =>
       textoLow === w || textoLow.startsWith(w + " ") || textoLow.endsWith(" " + w) ||
       textoLow.includes(" " + w + " ")
@@ -1069,13 +1143,17 @@ async function processConversation(convId: string): Promise<void> {
     const stAmb = state as unknown as Record<string, unknown>;
     const amb = stAmb.producto_ambiguo as { nombre: string; cats: string[]; intentos?: number } | undefined;
     if (amb) {
-      const catElegida = categoriaMencionada(clienteTexto, amb.cats);
-      if (catElegida) {
+      // Si el cliente CAMBIÓ a otro producto ("salchi premium carne perdón"), eso
+      // manda: el flujo normal decide y la pregunta de categoría queda atrás.
+      const matchesTxt = matchProductosEnTexto(clienteTexto);
+      const otroProducto = matchesTxt.some(m => normalizarTexto(m.name) !== normalizarTexto(amb.nombre));
+      const catElegida = otroProducto ? null : categoriaMencionada(clienteTexto, amb.cats);
+      if (otroProducto) {
+        delete stAmb.producto_ambiguo;   // pidió otra cosa — flujo normal decide
+      } else if (catElegida) {
         const fila = DYN_PROD_MAP.find(e => e.key === normalizarTexto(amb.nombre) && e.cat === catElegida);
         if (fila) { productoDetectado = fila.name; productoCategoriaDet = fila.cat; }
         delete stAmb.producto_ambiguo;
-      } else if (matchProductosEnTexto(clienteTexto).length > 0) {
-        delete stAmb.producto_ambiguo;   // pidió otra cosa — flujo normal decide
       } else {
         amb.intentos = (amb.intentos || 0) + 1;
         if (amb.intentos >= 2) delete stAmb.producto_ambiguo;   // no insistir en bucle
@@ -2089,6 +2167,11 @@ function procesarFlujoCanvas(
       if (!productData || productData.presentations.length <= 1) continue;
       const opciones = productData.presentations.map(x => x.name).join(" o ");
       texto = (texto || "¿La quieres {opciones}? 😋").replace(/\{opciones\}/g, opciones);
+      // Si la frase del canvas trae las opciones ESCRITAS A MANO ("¿personal o
+      // familiar?") y este producto tiene OTRAS presentaciones (Coca Cola:
+      // Personal / 1.5 Litros), la frase mentiría → usar las opciones reales.
+      const faltanPres = productData.presentations.some(x => !normalizarTexto(texto).includes(normalizarTexto(x.name)));
+      if (faltanPres) texto = `¿Cómo la prefieres? (${opciones}) 😋`;
       guia  = (guia || `Pregunta cuál presentación prefiere. SOLO estas opciones exactas: ${opciones}. No ofrezcas ninguna otra.`).replace(/\{opciones\}/g, opciones);
       out.push({ id: "presentacion", campo: "tamano", modo, texto, guia });
     } else if (campo === "tipo") {
@@ -2097,6 +2180,8 @@ function procesarFlujoCanvas(
       if (!vg.options || vg.options.length === 0) continue;
       const opciones = vg.options.map(o => o.name).join(", ");
       texto = (texto || "¿{label}? ({opciones}) 🍟").replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
+      const faltanVars = vg.options.some(o => !normalizarTexto(texto).includes(normalizarTexto(o.name)));
+      if (faltanVars) texto = `¿${vg.name}? (${opciones}) 🍟`;
       guia  = (guia || `Pregunta por "${vg.name}". SOLO estas opciones exactas: ${opciones}. Jamás menciones otra.`).replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
       out.push({ id: `variable_${vg.id}`, campo: "tipo", modo, texto, guia });
     } else if (campo === "producto") {
@@ -2565,7 +2650,10 @@ async function buildSummaryFromState(
       // Usar nombre canónico del producto desde la DB para evitar que GPT devuelva
       // líneas completas del menú con precios como nombre del producto
       const matchedProd = matchCatalogo(products, item.producto, item.categoria);
-      const nombreDisplay = matchedProd ? String(matchedProd.name) : item.producto;
+      const catMatched = matchedProd
+        ? String(((matchedProd.category_id as Record<string, unknown> | null)?.name as string) || item.categoria || "")
+        : (item.categoria || "");
+      const nombreDisplay = nombreConCategoria(matchedProd ? String(matchedProd.name) : item.producto, catMatched);
       const display = [nombreDisplay, item.tipo].filter(Boolean).join(" ");
       const adStr   = item.adiciones && item.adiciones.length > 0 ? ` + ${item.adiciones}` : "";
       const tamStr  = item.tamano ? ` ${item.tamano}` : "";
@@ -2860,7 +2948,7 @@ async function createWhatsappOrder(
     }
 
     const itemTotal   = price * cantidad;
-    const displayName = [String(matched.name), presName, tipoGPT].filter(Boolean).join(" · ");
+    const displayName = [nombreConCategoria(String(matched.name), String(((matched.category_id as Record<string, unknown> | null)?.name as string) || "")), presName, tipoGPT].filter(Boolean).join(" · ");
     items.push({ product_id: String(matched.id), name: displayName, product_name: displayName, product_price: price, unit_price: price, total: itemTotal, quantity: cantidad, selections: { mods: {}, pres: presName, vars: varsMap }, branch_id: branchId, tenant_id: tenantId || null, notes: null });
     orderTotal += itemTotal;
   }

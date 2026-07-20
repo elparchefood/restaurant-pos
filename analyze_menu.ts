@@ -171,7 +171,13 @@ INSTRUCCIONES CRITICAS:
 8. CRITICO — BEBIDAS: Si ves una seccion de bebidas (jugos, gaseosas, agua, limonada,
    malteada, refrescos, etc.) DEBES incluirla como una categoria mas con todos sus productos.
    No la omitas aunque este en una esquina o al final de la carta.
-9. BASES COMPARTIDAS: si la carta tiene secciones tipo "NUESTRA BASE" / "TODAS nuestras X llevan"
+9. NOMBRES GENERICOS: si el nombre de un producto por SI SOLO es ambiguo fuera de su
+   seccion (ej. "Especial", "Pollo", "Carne", "Mixta", "Sencilla", "Super Queso") y la
+   carta tiene VARIAS secciones de tipos de comida distintos (hamburguesas, perros,
+   sandwich, etc.), antepon el tipo en singular: "Hamburguesa Especial", "Perro Especial",
+   "Sandwich Pollo". Asi el asistente y los recibos nunca confunden productos de
+   categorias distintas. Si la carta solo tiene UN tipo de comida, deja el nombre tal cual.
+10. BASES COMPARTIDAS: si la carta tiene secciones tipo "NUESTRA BASE" / "TODAS nuestras X llevan"
    con una lista de ingredientes comunes, extrae CADA una en "bases":
    - name: nombre descriptivo (ej. "Base Salchipapas", "Base Hamburguesas")
    - ingredients: la lista EXACTA de ingredientes de esa base
