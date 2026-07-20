@@ -579,7 +579,7 @@
     var branchId = window._pos && window._pos.state && window._pos.state.branchId;
     try {
       var q = sb.from('pos_orders')
-        .select('id, customer_name, channel, total, payment_method, waiter_name, status, created_at, opened_at')
+        .select('id, customer_name, channel, total, paid_amount, payment_method, waiter_name, status, created_at, opened_at')
         .eq('channel', 'domicilio')
         .not('status', 'eq', 'cancelled')
         .order('created_at', { ascending: false })
@@ -593,14 +593,22 @@
         var estado = 'preparacion';
         if (r.status === 'paid' || r.status === 'completed') estado = 'entregado';
         else if (r.status === 'in_progress') estado = 'camino';
+        // Estado de pago REAL: lo abonado (paid_amount — lo llenan el bot al verificar
+        // transferencias y los abonos de caja) contra el total del pedido.
+        var totalNum = parseFloat(r.total) || 0;
+        var paidNum  = parseFloat(r.paid_amount) || 0;
+        var payStatus = (r.status === 'paid' || r.status === 'completed' || (totalNum > 0 && paidNum >= totalNum)) ? 'pagado'
+                      : paidNum > 0 ? 'parcial'
+                      : 'pendiente';
         return {
           id: r.id,
           cliente: r.customer_name || 'Sin cliente',
           canal: r.channel || 'whatsapp',
           items: 0,
-          total: parseFloat(r.total) || 0,
+          total: totalNum,
+          paidAmount: paidNum,
           estado: estado,
-          payStatus: (r.status === 'paid' || r.status === 'completed') ? 'pagado' : 'pendiente',
+          payStatus: payStatus,
           metodo: r.payment_method || 'efectivo',
           domiciliario: r.waiter_name || '—',
           min: mins,
@@ -1119,9 +1127,13 @@
     const canal = CANAL_META[d.canal] || { label: d.canal, color: '#64748B', bg: '#F1F5F9' };
     const mins  = d.min || 0;
     const timeStr = mins < 60 ? `hace ${mins}m` : `hace ${Math.floor(mins/60)}h ${mins%60}m`;
-    const isPagado = d.payStatus === 'pagado';
-    const payColor = isPagado ? '#16A34A' : '#D97706';
-    const payBg    = isPagado ? '#DCFCE7' : '#FEF3C7';
+    const isPagado  = d.payStatus === 'pagado';
+    const isParcial = d.payStatus === 'parcial';
+    const payColor = isPagado ? '#16A34A' : isParcial ? '#C2410C' : '#D97706';
+    const payBg    = isPagado ? '#DCFCE7' : isParcial ? '#FFEDD5' : '#FEF3C7';
+    const payLabel = isPagado ? 'Pagado'
+                   : isParcial ? ('Faltan ' + fmtCurrency(Math.max(0, (d.total||0) - (d.paidAmount||0))))
+                   : 'Por pagar';
     const hasNext  = !!DELIVERY_NEXT[d.estado];
 
     return `
@@ -1141,7 +1153,7 @@
         <div class="vs-mesa-footer">
           <div class="vs-mesa-footer-active">
             <div class="vs-mesa-footer-left">
-              <span class="vs-mesa-items">${d.items} ítems · <span style="color:${payColor};font-weight:600">${isPagado ? 'Pagado' : 'Por pagar'}</span></span>
+              <span class="vs-mesa-items">${d.items} ítems · <span style="color:${payColor};font-weight:600">${payLabel}</span></span>
             </div>
             <div class="vs-mesa-total">${fmtCurrency(d.total)}</div>
           </div>
@@ -1259,9 +1271,13 @@
   function renderDomiRailDetail(d) {
     const meta   = DELIVERY_META[d.estado] || DELIVERY_META.preparacion;
     const canal  = CANAL_META[d.canal] || { label: d.canal, color: '#64748B', bg: '#F1F5F9' };
-    const isPagado = d.payStatus === 'pagado';
-    const payColor = isPagado ? '#16A34A' : '#D97706';
-    const payBg    = isPagado ? '#DCFCE7' : '#FEF3C7';
+    const isPagado  = d.payStatus === 'pagado';
+    const isParcial = d.payStatus === 'parcial';
+    const payColor = isPagado ? '#16A34A' : isParcial ? '#C2410C' : '#D97706';
+    const payBg    = isPagado ? '#DCFCE7' : isParcial ? '#FFEDD5' : '#FEF3C7';
+    const payLabel = isPagado ? 'Pagado'
+                   : isParcial ? ('Abonado ' + fmtCurrency(d.paidAmount||0) + ' · faltan ' + fmtCurrency(Math.max(0, (d.total||0)-(d.paidAmount||0))))
+                   : 'Por pagar';
     const subtotal = d.total || 0;
     const domiFee  = 5000;
     const total    = subtotal + (isPagado ? 0 : 0); // total ya incluye domicilio en seed
@@ -1323,7 +1339,7 @@
         ${(function(){
           const _domNombre = d.domiciliario;
           const _hasInt = _domNombre && _domNombre !== 'Externo' && _domNombre !== '—' && !_domNombre.includes('@');
-          const _payChip = '<span style="font-size:11px;font-weight:600;color:'+payColor+';background:'+payBg+';padding:3px 8px;border-radius:6px">'+(isPagado ? 'Pagado' : 'Por pagar')+'</span>';
+          const _payChip = '<span style="font-size:11px;font-weight:600;color:'+payColor+';background:'+payBg+';padding:3px 8px;border-radius:6px">'+payLabel+'</span>';
           if (_hasInt) return '<div class="vs-mesero-row"><div class="lm-avatar lm-avatar-md">'+_domNombre[0].toUpperCase()+'</div><div class="vs-mesero-spacer"><div class="vs-mesero-label">Domiciliario</div><div class="vs-mesero-name">'+_domNombre+'</div></div>'+_payChip+'</div>';
           return '<div class="vs-mesero-row" style="justify-content:flex-end">'+_payChip+'</div>';
         })()}
@@ -1361,7 +1377,7 @@
     const branchId = window._pos.state && window._pos.state.branchId;
     const today = new Date(); today.setHours(0,0,0,0);
     let q = sb.from('pos_orders')
-      .select('id, customer_name, turno, total, subtotal, discount, status, channel, created_at, waiter_name, notes, delivered_at')
+      .select('id, customer_name, turno, total, subtotal, discount, status, channel, created_at, waiter_name, notes, delivered_at, paid_amount')
       .eq('channel', 'rapido')
       .neq('status', 'cancelled')
       .gte('created_at', today.toISOString())
@@ -1756,8 +1772,8 @@
           <button class="lm-btn-ghost" data-action="quick-cancelar" data-quick-id="${o.id}">Cancelar</button>
           <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-cobrar" data-quick-id="${o.id}">Cobrar</button>
         </div>`;
-    } else if (state.cobroAdelantado) {
-      // Cobro adelantado + en preparación: ya fue pagado, solo entregar
+    } else if (state.cobroAdelantado || ((Number(o.paid_amount) || 0) >= total && total > 0)) {
+      // Ya fue pagado (cobro adelantado, o transferencia verificada por el bot): solo entregar
       actionsHtml = `<div class="vs-actions">
           <button class="lm-btn-ghost" data-action="quick-cancelar" data-quick-id="${o.id}">Cancelar</button>
           <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-entregar" data-quick-id="${o.id}">Ya entregué</button>
@@ -1800,6 +1816,13 @@
           <div class="vs-total-row"><span>Subtotal</span><span>${fmt(subtotal)}</span></div>
           ${descuento ? `<div class="vs-total-row"><span>Descuento</span><span>-${fmt(descuento)}</span></div>` : ''}
           <div class="vs-total-row vs-total-grand"><span>Total</span><span>${fmt(total)}</span></div>
+          ${(function(){
+            const paidQ = Number(o.paid_amount) || 0;
+            if (isPaid || total <= 0) return '';
+            if (paidQ >= total) return '<div class="vs-total-row" style="color:#16A34A;font-weight:700"><span>✔ Pagado</span><span>'+fmt(paidQ)+'</span></div>';
+            if (paidQ > 0) return '<div class="vs-total-row" style="color:#C2410C;font-weight:700"><span>Abonado '+fmt(paidQ)+'</span><span>Faltan '+fmt(total-paidQ)+'</span></div>';
+            return '';
+          })()}
         </div>
         ${actionsHtml}
       </div>

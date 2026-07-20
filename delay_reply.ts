@@ -493,7 +493,10 @@ async function processConversation(convId: string): Promise<void> {
         if (stem.length >= 5) _dynProd.add(stem);
       }
     };
-    const CAT_ADICION_RE = /adicion|adición|extra|bebida|salsa|topping|acompa|postre|complemento/i;
+    // OJO: con límites de palabra — "Salchipapas TRADICIONALES" contiene "adicion"
+    // adentro y sin \b se trataba como categoría de adiciones (bug real de Sergio:
+    // "Mixta porfa" capturado como adición porque Mixta es producto de esa categoría)
+    const CAT_ADICION_RE = /\b(adicion(?:es|al)?|adición|adiciónes|extras?|bebidas?|salsas?|toppings?|acompañamientos?|acompanamientos?|postres?|complementos?)\b/i;
     for (const p of (prodRows || [])) {
       const nombreProd = String(p.name || "").trim();
       if (!nombreProd) continue;
@@ -1664,8 +1667,15 @@ function runExtractors(
   }
   if (state.adiciones === null) {
     const isUpsellStep = currentStepId === "upsell";
-    const a = extractAdiciones(text, isUpsellStep);
-    if (a !== null) result.adiciones = a;
+    // Si este mismo mensaje corto acaba de responder tamaño o variante, ES la
+    // respuesta al paso — no una adición ("Mixta porfa" responde a la pregunta
+    // de variante, no pide una adición)
+    const esRespuestaVariante = !isUpsellStep && text.trim().length <= 25 &&
+      (("tipo" in result) || ("tamano" in result));
+    if (!esRespuestaVariante) {
+      const a = extractAdiciones(text, isUpsellStep);
+      if (a !== null) result.adiciones = a;
+    }
   }
   if (currentStepId === "confirmar_dir" && state.direccion && state.direccion_heredada) {
     const textoLow = text.toLowerCase().trim();
