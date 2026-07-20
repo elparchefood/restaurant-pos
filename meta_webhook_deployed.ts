@@ -21,46 +21,7 @@ Deno.serve(async (req) => {
     if (mode === "subscribe" && token === VERIFY_TOKEN && challenge) {
       return new Response(challenge, { status: 200 });
     }
-    // Diagnostico: GET ?debug=1
-    if (url.searchParams.get("debug") === "1") {
-      const diag: Record<string, unknown> = {};
-      // 1. Verificar ia_config
-      try {
-        const cfgRes = await sbGet("/rest/v1/ia_config?limit=1");
-        diag.ia_config = cfgRes ? { found: cfgRes.length, activo: cfgRes[0]?.activo } : "null";
-      } catch(e) { diag.ia_config_error = String(e); }
-      // 2. Verificar pos_products con embedded join
-      try {
-        const pRes = await sbGet("/rest/v1/pos_products?available=eq.true&select=name,category_id(name)&limit=2");
-        diag.pos_products = pRes ? { found: pRes.length, sample: pRes[0] } : "null/error";
-      } catch(e) { diag.pos_products_error = String(e); }
-      // 3. Verificar OpenAI
-      try {
-        const oaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content: "Di hola" }], max_tokens: 5 }),
-        });
-        const oaiData = await oaiRes.json();
-        diag.openai = oaiRes.ok ? "OK" : { status: oaiRes.status, error: oaiData };
-      } catch(e) { diag.openai_error = String(e); }
-      // 4. Verificar WhatsApp token
-      try {
-        const chRes = await sbGet("/rest/v1/chat_channels?channel=eq.whatsapp&select=meta&limit=1");
-        let waToken = "";
-        if (chRes?.[0]) {
-          let m = chRes[0].meta as Record<string,string>|string;
-          if (typeof m === "string") m = JSON.parse(m);
-          waToken = (m as Record<string,string>).access_token || "";
-        }
-        const waRes = await fetch(`https://graph.facebook.com/v22.0/me?access_token=${waToken}`);
-        const waData = await waRes.json();
-        diag.whatsapp_token = waRes.ok ? { ok: true, name: (waData as Record<string,string>).name } : { error: waData };
-      } catch(e) { diag.whatsapp_error = String(e); }
-      return new Response(JSON.stringify(diag, null, 2), {
-        headers: { ...CORS, "Content-Type": "application/json" },
-      });
-    }
+    // (endpoint de diagnóstico ?debug=1 ELIMINADO — exponía config sin autenticación)
     return new Response("Forbidden", { status: 403 });
   }
 

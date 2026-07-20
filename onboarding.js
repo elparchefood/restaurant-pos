@@ -5,10 +5,11 @@
 (function () {
   'use strict';
 
-  /* ── Credenciales admin (service role) ─────────────────────────── */
+  /* ── Provisión SEGURA: todo lo privilegiado lo hace la Edge Function
+     "provision" en el servidor (valida el token del usuario). Aquí NUNCA
+     debe haber claves secretas. ─────────────────────────────────────── */
   var SUPABASE_URL = 'https://tblujfduscslxjmrjbdr.supabase.co';
-  var SERVICE_KEY  = ['sb_secret_cEW8', 'WUFtaCwX9zFUm97iQ_FxCeNOsl'].join('-');
-  var sbAdmin;  /* se inicializa en DOMContentLoaded */
+  var PROVISION_URL = SUPABASE_URL + '/functions/v1/provision';
 
   /* ── Estado del wizard ─────────────────────────────────────────── */
   var S = {
@@ -208,55 +209,33 @@
     var goalRaw   = (byId('f-goal').value || '').replace(/\D/g, '');
     var metaDiaria = goalRaw ? Number(goalRaw) : null;
 
-    /* -- obtener usuario actual -- */
-    var { data: { user }, error: uErr } = await sb.auth.getUser();
-    if (uErr || !user) throw new Error('No se pudo obtener el usuario actual');
+    /* -- obtener usuario y su token de sesión -- */
+    var sessRes = await sb.auth.getSession();
+    var session = sessRes.data.session;
+    if (!session) throw new Error('No se pudo obtener el usuario actual');
 
-    /* -- 1. Crear tenant -- */
-    var { data: tenant, error: tErr } = await sbAdmin.from('tenants').insert({
-      name:   nombre,
-      email:  user.email,
-      plan:   'starter',
-      status: 'active'
-    }).select().single();
-    if (tErr) throw tErr;
-
-    /* -- 2. Crear brand -- */
-    var { data: brand, error: bErr } = await sbAdmin.from('brands').insert({
-      tenant_id: tenant.id,
-      name:      nombre
-    }).select().single();
-    if (bErr) throw bErr;
-
-    /* -- 3. Crear branch -- */
-    var branchData = {
-      brand_id:   brand.id,
-      tenant_id:  tenant.id,
-      name:       branchNom,
-      address:    direccion,
-      city:       ciudad,
-      phone:      telefono,
-      is_active:  true,
-      is_open:    false
-    };
-    if (metaDiaria) branchData.daily_goal = metaDiaria;
-    var { data: branch, error: brErr } = await sbAdmin.from('branches').insert(branchData).select().single();
-    if (brErr) throw brErr;
-
-    /* -- 4. Crear pos_users (gerente) -- */
-    try {
-      await sbAdmin.from('pos_users').insert({
-        id:                  user.id,
-        branch_id:           branch.id,
-        tenant_id:           tenant.id,
-        name:                nombre_gerente || nombre,
-        role:                'gerente',
-        phone:               telefono,
-        is_authorized_admin: true
-      });
-    } catch (e) {
-      console.warn('[onboarding] pos_users insert error (no critico):', e);
-    }
+    /* -- 1-4. Crear tenant/brand/branch/gerente vía Edge Function SEGURA -- */
+    var provRes = await fetch(PROVISION_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        action:         'onboarding',
+        nombre:         nombre,
+        nombre_gerente: nombre_gerente,
+        branch_nombre:  branchNom,
+        direccion:      direccion,
+        ciudad:         ciudad,
+        telefono:       telefono,
+        daily_goal:     metaDiaria
+      })
+    });
+    var prov = await provRes.json();
+    if (!provRes.ok || !prov.ok) throw new Error(prov.error || 'No se pudo crear el negocio');
+    var tenant = { id: prov.tenant_id };
+    var branch = { id: prov.branch_id };
 
     /* -- 5. Actualizar user_metadata con tenant_id / branch_id -- */
     var { error: metaErr } = await sb.auth.updateUser({
@@ -369,11 +348,6 @@
 
   /* ── Init ────────────────────────────────────────────────────── */
   document.addEventListener('DOMContentLoaded', function () {
-    /* crear cliente admin */
-    sbAdmin = supabase.createClient(SUPABASE_URL, SERVICE_KEY, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
-
     initTypeGrid();
     initStepper();
     initGoalFormat();

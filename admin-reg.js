@@ -2,12 +2,10 @@
 // Depende de: pos-core.js (sb, COPF, COP)
 // Estructura: setView → render* → load* → approveRegistration
 
-var SUPABASE_SERVICE_KEY = ['sb_secret_cEW8','WUFtaCwX9zFUm97iQ_FxCeNOsl'].join('-');
-var sbAdmin = supabase.createClient(
-  'https://tblujfduscslxjmrjbdr.supabase.co',
-  SUPABASE_SERVICE_KEY,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+/* Provisión SEGURA: la aprobación la ejecuta la Edge Function "provision"
+   en el servidor (verifica que quien llama sea admin autorizado).
+   Aquí NUNCA debe haber claves secretas. */
+var PROVISION_URL = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/provision';
 
 // ── Estado global ──
 var S = {
@@ -541,83 +539,26 @@ async function approveRegistration(id, email) {
     '¿Confirmar? Se creará el tenant, sucursales y cuenta de acceso para ' + email + '.',
     async function() {
       try {
-        // 1. Obtener registro completo
-        var regRes = await sbAdmin.from('pos_registrations').select('*').eq('id', id).single();
-        if (regRes.error) throw regRes.error;
-        var reg = regRes.data;
+        // Todo el aprovisionamiento (tenant, brand, branches, usuario auth,
+        // pos_users, actualización del registro) lo ejecuta la Edge Function
+        // "provision" en el servidor, verificando que quien llama sea admin.
+        var sessRes = await sb.auth.getSession();
+        var session = sessRes.data.session;
+        if (!session) throw new Error('Sesión expirada — vuelve a iniciar sesión');
 
-        // 2. Crear tenant
-        var tenantRes = await sbAdmin.from('tenants').insert({
-          name: reg.negocio,
-          email: reg.email,
-          plan: reg.plan,
-          status: 'active'
-        }).select().single();
-        if (tenantRes.error) throw tenantRes.error;
-        var tenant = tenantRes.data;
-
-        // 3. Crear brand
-        var brandRes = await sbAdmin.from('brands').insert({
-          tenant_id: tenant.id,
-          name: reg.negocio
-        }).select().single();
-        if (brandRes.error) throw brandRes.error;
-        var brand = brandRes.data;
-
-        // 4. Crear N branches según el plan contratado
-        var branchCount = reg.branches || 1;
-        var branchRows = [];
-        for (var i = 0; i < branchCount; i++) {
-          branchRows.push({
-            brand_id: brand.id,
-            tenant_id: tenant.id,
-            name: branchCount === 1 ? reg.negocio : reg.negocio + ' — Sucursal ' + (i + 1),
-            is_active: true,
-            is_open: false
-          });
-        }
-        var branchRes = await sbAdmin.from('branches').insert(branchRows).select();
-        if (branchRes.error) throw branchRes.error;
-        var firstBranch = branchRes.data[0];
-
-        // 5. Crear usuario en auth.users con contraseña del registro
-        var authRes = await sbAdmin.auth.admin.createUser({
-          email: reg.email,
-          password: reg.password_tmp,
-          email_confirm: true,
-          user_metadata: {
-            nombre: reg.nombre,
-            negocio: reg.negocio,
-            tenant_id: tenant.id,
-            branch_id: firstBranch.id,
-            role: 'gerente'
-          }
+        var provRes = await fetch(PROVISION_URL, {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + session.access_token,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ action: 'approve', registration_id: id })
         });
-        if (authRes.error) throw authRes.error;
-        var userId = authRes.data.user.id;
-
-        // 6. Crear pos_users (gerente) usando el mismo UUID de auth
-        await sbAdmin.from('pos_users').insert({
-          id: userId,
-          branch_id: firstBranch.id,
-          tenant_id: tenant.id,
-          name: reg.nombre,
-          role: 'gerente',
-          is_authorized_admin: true
-        });
-        // Si falla pos_users no bloqueamos — el tenant y auth ya quedaron creados
-
-        // 7. Actualizar pos_registrations con tenant_id y user_id
-        await sbAdmin.from('pos_registrations').update({
-          status: 'aprobado',
-          reviewed_at: new Date().toISOString(),
-          tenant_id: tenant.id,
-          user_id: userId,
-          password_tmp: null
-        }).eq('id', id);
+        var prov = await provRes.json();
+        if (!provRes.ok || !prov.ok) throw new Error(prov.error || 'No se pudo aprobar');
 
         await loadRegistrations();
-        showToast('Cuenta activada — tenant, ' + branchCount + ' sucursal(es) y acceso creados para ' + email, 'green');
+        showToast('Cuenta activada — tenant, ' + (prov.branches || 1) + ' sucursal(es) y acceso creados para ' + email, 'green');
 
       } catch(e) {
         console.error('approveRegistration:', e);
