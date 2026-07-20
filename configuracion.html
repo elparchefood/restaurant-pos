@@ -1772,6 +1772,16 @@
                     <div class="field-hint">Se env&iacute;a cuando el cliente quiere <b>recoger su pedido</b> ("yo paso", "lo recojo", "para llevar") pero eligi&oacute; pagar en efectivo. Aplica solo si en Domicilios est&aacute; activo "Para llevar exige pago anticipado".</div>
                   </div>
                   <div class="field">
+                    <label class="field-lb">Elegir categor&iacute;a (nombres repetidos)</label>
+                    <textarea class="txa" data-frase="elegir_categoria" placeholder="Ej. Tenemos {{producto}} en varias categorías 😋 ¿De cuál lo deseas? {{opciones_categoria}}"></textarea>
+                    <div class="field-hint">Cuando el mismo nombre existe en varias categor&iacute;as (Especial de hamburguesa, perro y sandwich) y la conversaci&oacute;n no deja claro cu&aacute;l. Variables: <code>{{producto}}</code>, <code>{{opciones_categoria}}</code></div>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Producto que no existe</label>
+                    <textarea class="txa" data-frase="producto_no_existe" placeholder="Ej. No manejamos un producto con ese nombre 🙈 Esta es nuestra carta ☺️ ¿Cuál se te antoja?"></textarea>
+                    <div class="field-hint">Cuando el cliente pide un producto espec&iacute;fico que NO est&aacute; en el cat&aacute;logo. Se env&iacute;a junto con las im&aacute;genes de la carta.</div>
+                  </div>
+                  <div class="field">
                     <label class="field-lb">Confirmar direcci&oacute;n guardada</label>
                     <textarea class="txa" data-frase="confirmar_direccion" placeholder="Ej. ¿Te lo enviamos a la misma dirección de la vez pasada? 📍&#10;{{direccion}}&#10;Confírmame o escríbeme la nueva dirección 😊"></textarea>
                     <div class="field-hint">Cuando el cliente ya pidi&oacute; antes, el bot NUNCA asume la direcci&oacute;n: la muestra y pide confirmarla o cambiarla. Variable: <code>{{direccion}}</code></div>

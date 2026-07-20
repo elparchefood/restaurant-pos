@@ -20,10 +20,12 @@ interface SlotItem {
   tipo:      string | null;
   cantidad:  number;
   adiciones: string | null;
+  categoria?: string | null;  // categoría del producto (desambiguación de nombres repetidos)
 }
 
 interface PacoState {
   producto:           string | null;
+  producto_categoria: string | null;  // categoría del producto activo (nombres repetidos entre categorías)
   tamano:             string | null;
   tipo:               string | null;
   cantidad:           number;
@@ -67,7 +69,7 @@ type TipoDireccion = "residencial" | "publico" | "rechazado" | "incompleta" | "p
 
 function newPacoState(): PacoState {
   return {
-    producto: null, tamano: null, tipo: null, cantidad: 1,
+    producto: null, producto_categoria: null, tamano: null, tipo: null, cantidad: 1,
     adiciones: null, direccion: null, pago: null, nombre: null,
     items: [], resumen_enviado: false, direccion_heredada: false, complemento_dir_pendiente: null,
     last_activity: new Date(Date.now() - 30 * 60_000).toISOString(), // 30min atrás → sesionExpirada=true
@@ -106,6 +108,89 @@ const ADICION_BASE = [
 const ADICION_GENERICAS = ["con","adicion","adicional","agregar","añadir","extra","bebida"];
 let DYN_ADICION_KEYWORDS: string[] = [];   // nombres de productos de categorías de adiciones/bebidas
 let DYN_PROD_NAMES: string[] = [];         // nombres (normalizados) de productos y categorías del catálogo
+let DYN_PRODUCT_FULL: string[] = [];       // nombres COMPLETOS de productos (validación de extractProducto)
+let DYN_CATEGORY_NAMES: string[] = [];     // nombres de categorías (una categoría NO es un producto)
+// Mapa producto→categoría(s): motor de DESAMBIGUACIÓN cuando el mismo nombre
+// existe en varias categorías (Especial de hamburguesa/perro/sandwich...)
+let DYN_PROD_MAP: Array<{ key: string; name: string; cat: string }> = [];
+
+// Sinónimos coloquiales de tipos de comida (mecánica general)
+const CAT_SINONIMOS: Record<string, string[]> = {
+  hamburguesa: ["hamburguesa", "amburguesa", "hamburgesa", "burguer", "burger", "burgers"],
+  perro:       ["perro", "perrito", "hot dog", "hotdog", "perro caliente"],
+  sandwich:    ["sandwich", "sanduche", "sanguche", "sandwiche", "sandwich"],
+  salchipapa:  ["salchipapa", "salchi", "salchipapas"],
+  bebida:      ["bebida", "gaseosa", "jugo", "refresco"],
+  pizza:       ["pizza", "pisa"],
+  taco:        ["taco", "tacos"],
+};
+function palabrasCategoria(cat: string): string[] {
+  const words = normalizarTexto(cat).split(/\s+/).map(w => w.replace(/s$/, "")).filter(w => w.length >= 4);
+  const out = new Set<string>(words);
+  for (const w of words) {
+    for (const [base, sins] of Object.entries(CAT_SINONIMOS)) {
+      if (w.startsWith(base) || base.startsWith(w)) sins.forEach(s => out.add(normalizarTexto(s)));
+    }
+  }
+  return [...out];
+}
+// ¿El texto menciona alguna de estas categorías (o un sinónimo)?
+function categoriaMencionada(texto: string, cats: string[]): string | null {
+  const t = " " + normalizarTexto(texto) + " ";
+  for (const cat of cats) {
+    for (const w of palabrasCategoria(cat)) {
+      if (t.includes(" " + w)) return cat;
+    }
+  }
+  return null;
+}
+// Matching DETERMINÍSTICO de productos en el texto del cliente (no depende de GPT)
+function matchProductosEnTexto(texto: string): Array<{ name: string; cat: string; pos: number }> {
+  const t = " " + normalizarTexto(texto) + " ";
+  const found: Array<{ name: string; cat: string; pos: number }> = [];
+  for (const e of DYN_PROD_MAP) {
+    const idx = t.indexOf(" " + e.key + " ");
+    if (idx >= 0) found.push({ name: e.name, cat: e.cat, pos: idx });
+  }
+  // preferir coincidencias más largas cuando se traslapan ("doble carne" gana a "carne")
+  found.sort((a, b) => a.pos - b.pos || b.name.length - a.name.length);
+  const out: Array<{ name: string; cat: string; pos: number }> = [];
+  for (const f of found) {
+    const cubierto = out.some(o => normalizarTexto(o.name).includes(normalizarTexto(f.name)) && Math.abs(o.pos - f.pos) <= o.name.length);
+    if (!cubierto) out.push(f);
+  }
+  return out;
+}
+// Elegir la fila correcta del catálogo por nombre + (opcional) categoría.
+// Con nombres repetidos entre categorías, la categoría define el precio correcto.
+function matchCatalogo(
+  rows: Array<Record<string, unknown>> | null | undefined,
+  nombre: string | null | undefined,
+  categoria?: string | null,
+): Record<string, unknown> | undefined {
+  if (!rows || !nombre) return undefined;
+  const norm = normalizarTexto(nombre);
+  const candidatas = rows.filter(p => {
+    const pname = normalizarTexto(String(p.name || ""));
+    if (pname === norm || pname.includes(norm) || norm.includes(pname)) return true;
+    if (pname.length >= 4 && norm.length >= 4) {
+      const maxDist = Math.floor(Math.min(pname.length, norm.length) / 4);
+      if (levenshtein(pname, norm) <= maxDist) return true;
+    }
+    return false;
+  });
+  if (!candidatas.length) return undefined;
+  if (categoria && candidatas.length > 1) {
+    const catNorm = normalizarTexto(categoria);
+    const porCat = candidatas.find(p => {
+      const cn = normalizarTexto(String(((p.category_id as Record<string, unknown> | null)?.name as string) || (p.cat as string) || ""));
+      return cn === catNorm;
+    });
+    if (porCat) return porCat;
+  }
+  const exacta = candidatas.find(p => normalizarTexto(String(p.name || "")) === norm);
+  return exacta || candidatas[0];
+}
 function getAdicionKeywords(): string[] { return [...ADICION_BASE, ...DYN_ADICION_KEYWORDS]; }
 // ¿El texto menciona algún producto o categoría del catálogo del restaurante?
 function mencionaProductoCatalogo(texto: string): boolean {
@@ -521,6 +606,9 @@ async function processConversation(convId: string): Promise<void> {
     //  · DYN_ADICION_KEYWORDS → productos de categorías tipo adición/bebida (detección de upsell)
     const _dynProd = new Set<string>();
     const _dynAdi  = new Set<string>();
+    const _prodFull = new Set<string>();   // nombres COMPLETOS de productos (validar extractProducto)
+    const _prodMap: Array<{ key: string; name: string; cat: string }> = [];
+    const _catNames = new Set<string>();   // nombres de categorías (una categoría NO es un producto)
     const _addProdWords = (nombre: string) => {
       const norm = normalizarTexto(nombre).toLowerCase().trim();
       if (!norm) return;
@@ -538,8 +626,16 @@ async function processConversation(convId: string): Promise<void> {
       const nombreProd = String(p.name || "").trim();
       if (!nombreProd) continue;
       _addProdWords(nombreProd);
+      const normFull = normalizarTexto(nombreProd).toLowerCase().trim();
+      if (normFull) _prodFull.add(normFull);
+      const catNombre = String((p.category_id as Record<string, unknown> | null)?.name || "");
+      if (normFull) _prodMap.push({ key: normFull, name: nombreProd, cat: catNombre });
       const catName = String((p.category_id as Record<string, unknown> | null)?.name || "");
-      if (catName) _addProdWords(catName);
+      if (catName) {
+        _addProdWords(catName);
+        const normCat = normalizarTexto(catName).toLowerCase().trim();
+        if (normCat) _catNames.add(normCat);
+      }
       if (CAT_ADICION_RE.test(catName)) {
         const normA = normalizarTexto(nombreProd).toLowerCase().trim();
         if (normA.length >= 4) {
@@ -562,6 +658,9 @@ async function processConversation(convId: string): Promise<void> {
     }
     DYN_PROD_NAMES = [..._dynProd];
     DYN_ADICION_KEYWORDS = [..._dynAdi];
+    DYN_PRODUCT_FULL = [..._prodFull];
+    DYN_CATEGORY_NAMES = [..._catNames];
+    DYN_PROD_MAP = _prodMap;
   } catch (err) { console.error("variables de catálogo fallaron (no bloquea):", err); }
 
   // Palabras de adiciones configuradas por el restaurante (ia_config.adiciones_palabras)
@@ -651,7 +750,7 @@ async function processConversation(convId: string): Promise<void> {
   // Cargar datos del producto actual y construir pasos
   let currentProductData: ProductData | null = null;
   if (state.producto) {
-    currentProductData = await loadProductData(state.producto, branchId);
+    currentProductData = await loadProductData(state.producto, branchId, state.producto_categoria);
   }
   let pasos = buildAllPasos(currentProductData, cfg, frasesCfg, nombreConfirmar, !!nombreKnown);
 
@@ -924,15 +1023,106 @@ async function processConversation(convId: string): Promise<void> {
   // 14. SLOT-FILLING — Corazón de Paco
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // 14a. Extraer producto (GPT) si no está definido, o si hay nuevo producto
+  // 14a. Detección de producto — DETERMINÍSTICA contra el catálogo primero,
+  // GPT solo como respaldo para escritura difusa. Además: DESAMBIGUACIÓN por
+  // categoría cuando el mismo nombre existe en varias ("Especial" de
+  // hamburguesa/perro/sandwich): 1º contexto del texto, 2º contexto del pedido
+  // en curso, 3º se le pregunta al cliente (frase configurable).
   const needsProducto = !state.producto || NUEVO_PROD_REGEX.test(clienteTexto);
   let productoDetectado: string | null = null;
+  let productoCategoriaDet: string | null = null;
   let cantidadDetectada = 1;
 
-  if (needsProducto) {
-    const result = await extractProducto(clienteTexto, menuText);
-    productoDetectado = result.producto;
-    cantidadDetectada = result.cantidad;
+  // Resuelve un nombre (posiblemente repetido entre categorías) a UNA fila del catálogo.
+  // Devuelve "ambiguo" cuando hay varias categorías y ningún contexto decide.
+  const resolverCategoria = (nombre: string): { name: string; cat: string } | "ambiguo" | null => {
+    const normN = normalizarTexto(nombre).toLowerCase().trim();
+    let mismos = DYN_PROD_MAP.filter(e => e.key === normN);
+    if (!mismos.length) mismos = DYN_PROD_MAP.filter(e => e.key.includes(normN) || normN.includes(e.key));
+    if (!mismos.length) return null;
+    const nombresDist = new Set(mismos.map(m => m.key));
+    if (nombresDist.size > 1) {
+      // matches de productos distintos (fuzzy) — tomar el de nombre más parecido
+      mismos = mismos.filter(m => m.key === [...nombresDist].sort((a, b) =>
+        Math.abs(a.length - normN.length) - Math.abs(b.length - normN.length))[0]);
+    }
+    if (mismos.length === 1) return { name: mismos[0].name, cat: mismos[0].cat };
+    // Mismo nombre en VARIAS categorías → desambiguar
+    const catTexto = categoriaMencionada(clienteTexto, mismos.map(m => m.cat));
+    if (catTexto) { const m = mismos.find(x => x.cat === catTexto)!; return { name: m.name, cat: m.cat }; }
+    const catCtx = state.producto_categoria ||
+      (state.items.length ? (state.items[state.items.length - 1].categoria || null) : null);
+    if (catCtx) {
+      const exacto = mismos.find(x => normalizarTexto(x.cat) === normalizarTexto(catCtx));
+      if (exacto) return { name: exacto.name, cat: exacto.cat };
+      // Mismo TIPO de comida aunque la categoría difiera ("Salchipapas Especiales"
+      // en curso → "una de carne" = la de "Salchipapas Tradicionales")
+      const stemCat = (s: string) => normalizarTexto(s).split(/\s+/)[0].replace(/s$/, "");
+      const porTipo = mismos.find(x => stemCat(x.cat) === stemCat(catCtx));
+      if (porTipo) return { name: porTipo.name, cat: porTipo.cat };
+    }
+    return "ambiguo";
+  };
+
+  // ¿Quedó una desambiguación PENDIENTE del turno anterior? ("¿de cuál lo deseas?")
+  {
+    const stAmb = state as unknown as Record<string, unknown>;
+    const amb = stAmb.producto_ambiguo as { nombre: string; cats: string[]; intentos?: number } | undefined;
+    if (amb) {
+      const catElegida = categoriaMencionada(clienteTexto, amb.cats);
+      if (catElegida) {
+        const fila = DYN_PROD_MAP.find(e => e.key === normalizarTexto(amb.nombre) && e.cat === catElegida);
+        if (fila) { productoDetectado = fila.name; productoCategoriaDet = fila.cat; }
+        delete stAmb.producto_ambiguo;
+      } else if (matchProductosEnTexto(clienteTexto).length > 0) {
+        delete stAmb.producto_ambiguo;   // pidió otra cosa — flujo normal decide
+      } else {
+        amb.intentos = (amb.intentos || 0) + 1;
+        if (amb.intentos >= 2) delete stAmb.producto_ambiguo;   // no insistir en bucle
+      }
+    }
+  }
+
+  if (needsProducto && !productoDetectado) {
+    // 1) Matching determinístico del texto contra el catálogo
+    const matches = matchProductosEnTexto(clienteTexto);
+    if (matches.length > 0) {
+      const primero = matches[0];
+      const res = resolverCategoria(primero.name);
+      if (res === "ambiguo") {
+        // preguntar la categoría (frase configurable) y esperar la respuesta
+        const mismos = DYN_PROD_MAP.filter(e => e.key === normalizarTexto(primero.name));
+        const cats = [...new Set(mismos.map(m => m.cat))];
+        (state as unknown as Record<string, unknown>).producto_ambiguo = { nombre: primero.name, cats, intentos: 0 };
+        const singular = (s: string) => s.split(/\s+/).map(w => w.length > 3 ? w.replace(/s$/i, "") : w).join(" ");
+        const opciones = cats.map(cq => capFirst(singular(cq).toLowerCase())).join(", ").replace(/, ([^,]+)$/, " o $1");
+        const fraseAmb = (getFraseTexto(frasesCfg.elegir_categoria) ||
+          "Tenemos {{producto}} en varias categorías 😋 ¿De cuál lo deseas? {{opciones_categoria}}")
+          .replace(/\{\{?\s*producto\s*\}?\}/g, capFirst(primero.name.toLowerCase()))
+          .replace(/\{\{?\s*opciones_categoria\s*\}?\}/g, opciones);
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+        await sendWaAndSave(convId, tenantId, fraseAmb, fromPhone, phoneId, accessToken);
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: fraseAmb, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+        return;
+      }
+      if (res) { productoDetectado = res.name; productoCategoriaDet = res.cat; }
+    }
+    // 2) Respaldo GPT (typos, formas raras) + validación contra el catálogo
+    if (!productoDetectado) {
+      const result = await extractProducto(clienteTexto, menuText);
+      cantidadDetectada = result.cantidad;
+      if (result.producto) {
+        const res = resolverCategoria(result.producto);
+        if (res && res !== "ambiguo") { productoDetectado = res.name; productoCategoriaDet = res.cat; }
+        else if (res === "ambiguo") {
+          const res2 = resolverCategoria(result.producto);   // sin contexto quedó ambiguo → no forzar
+          void res2;
+          console.log(`producto GPT ambiguo ("${result.producto}") — se pedirá aclaración en el próximo match`);
+        } else {
+          console.log(`producto GPT inválido ("${result.producto}") — descartado (no está en el catálogo)`);
+        }
+      }
+    }
   }
 
   // 14b. Manejar producto detectado
@@ -944,6 +1134,7 @@ async function processConversation(convId: string): Promise<void> {
       const archived: SlotItem = {
         producto: state.producto, tamano: state.tamano, tipo: state.tipo,
         cantidad: state.cantidad, adiciones: state.adiciones,
+        categoria: state.producto_categoria,
       };
       const prevDir  = state.direccion;
       const prevPago = state.pago;
@@ -951,18 +1142,25 @@ async function processConversation(convId: string): Promise<void> {
       const prevItems = state.items;
       state = newPacoState();
       state.producto  = productoDetectado;
+      state.producto_categoria = productoCategoriaDet;
       state.cantidad  = cantidadDetectada;
       state.direccion = prevDir;
       state.pago      = prevPago;
       state.nombre    = prevNom;
       state.items     = [...prevItems, archived];
+      // UPSELL una sola vez por PEDIDO (regla de Sergio): si el cliente ya
+      // respondió a las adiciones (sí o no), no se le vuelve a preguntar por
+      // cada producto nuevo que agregue. El extractor sigue capturando
+      // adiciones si él las menciona por su cuenta.
+      if (archived.adiciones !== null) state.adiciones = "";
     } else if (!state.producto) {
       state.producto = productoDetectado;
+      state.producto_categoria = productoCategoriaDet;
       state.cantidad = cantidadDetectada;
     }
 
     // Cargar datos del producto y reconstruir pasos dinámicos
-    currentProductData = await loadProductData(state.producto!, branchId);
+    currentProductData = await loadProductData(state.producto!, branchId, state.producto_categoria);
     pasos = buildAllPasos(currentProductData, cfg, frasesCfg, nombreConfirmar, !!nombreKnown);
   }
 
@@ -1221,7 +1419,23 @@ async function processConversation(convId: string): Promise<void> {
       const fraseProdRaw = (pasoProdMenu && (pasoProdMenu.texto || pasoProdMenu.frase))
         ? String(pasoProdMenu.texto || pasoProdMenu.frase)
         : (menuFraseCfg14f.texto || getFraseTexto(frasesCfg.apertura) || "¡Claro que sí! 😊 ¿Qué deseas?");
-      const fraseProd = rellenarVariables(fraseProdRaw, state, cfg).texto;
+      // ¿Pidió un producto ESPECÍFICO que NO existe? ("una chorizada") → decírselo
+      // claramente antes de la carta (frase configurable frases.producto_no_existe).
+      // Si solo nombró la categoría ("una salchipapa") → frase normal de siempre.
+      const STOP_14F = new Set(["quiero","quisiera","dame","hazme","deseo","pedir","pedido","ordenar","enviame","dejame","regalas","haces","porfa","porfis","favor","gracias","hola","buenas","buenos","dias","tardes","noches","para","comer","antoja","antojo","tambien","ahora","luego","grande","pequena","personal","familiar","unico","unica","litro","litros","media","medio","doble"]);
+      let productoInexistente: string | null = null;
+      for (const w of normalizarTexto(clienteTexto).split(/\s+/)) {
+        const stem = w.replace(/s$/, "");
+        if (w.length < 4 || STOP_14F.has(w) || STOP_14F.has(stem)) continue;
+        if (DYN_PROD_NAMES.includes(w) || DYN_PROD_NAMES.includes(stem)) continue;
+        if (getAdicionKeywords().some(k => k === w || k === stem)) continue;
+        productoInexistente = w; break;
+      }
+      const fraseNoExisteRaw = productoInexistente
+        ? (getFraseTexto(frasesCfg.producto_no_existe) ||
+           "No manejamos un producto con ese nombre 🙈 Esta es nuestra carta ☺️ ¿Cuál se te antoja?")
+        : null;
+      const fraseProd = rellenarVariables(fraseNoExisteRaw || fraseProdRaw, state, cfg).texto;
       for (const imgUrl of menuImagenes) {
         await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
           method: "POST",
@@ -1598,22 +1812,13 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
 
 // ── loadProductData ───────────────────────────────────────────────────────────
 
-async function loadProductData(productName: string, branchId: string): Promise<ProductData | null> {
+async function loadProductData(productName: string, branchId: string, categoria?: string | null): Promise<ProductData | null> {
   const rows = await sbGet(
     `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true` +
-    `&select=id,name,price_mode,presentations,variables`
+    `&select=id,name,price_mode,presentations,variables,category_id(name)`
   ) as Array<Record<string, unknown>> | null;
   if (!rows || !rows.length) return null;
-  const norm = normalizarTexto(productName);
-  const matched = rows.find(p => {
-    const pname = normalizarTexto(String(p.name || ""));
-    if (pname === norm || pname.includes(norm) || norm.includes(pname)) return true;
-    if (pname.length >= 4 && norm.length >= 4) {
-      const maxDist = Math.floor(Math.min(pname.length, norm.length) / 4);
-      if (levenshtein(pname, norm) <= maxDist) return true;
-    }
-    return false;
-  });
+  const matched = matchCatalogo(rows, productName, categoria);
   if (!matched) return null;
   return {
     id:            String(matched.id || ""),
@@ -2142,9 +2347,16 @@ async function buildConversationResponse(
           `MODO FIJA — REGLA ESTRICTA: Tu respuesta debe ser esta frase EXACTA, sin cambiarla:\n"${pregBarrioDesbloqueo}"\n` +
           `NO des ningún precio de domicilio todavía. Primero necesitamos el barrio.`;
       } else {
+        // PEDIDO MULTI-PRODUCTO: la pregunta de tamaño/variante debe dejar claro
+        // sobre CUÁL producto se pregunta (regla de Sergio: "¿la ranchera la
+        // quieres personal o familiar?" — no una pregunta suelta)
+        const conProducto = (nextStep.campo === "tamano" || nextStep.campo === "tipo") &&
+          state.items.length > 0 && state.producto
+          ? `Sobre la *${capFirst(state.producto)}* 👇\n${textoFijo}`
+          : textoFijo;
         nextStepLine =
           `PRÓXIMO PASO — obtener: ${nextStep.campo}.\n` +
-          `MODO FIJA — REGLA ESTRICTA: Tu respuesta debe ser esta frase EXACTA, palabra por palabra:\n"${textoFijo}"\n` +
+          `MODO FIJA — REGLA ESTRICTA: Tu respuesta debe ser esta frase EXACTA, palabra por palabra:\n"${conProducto}"\n` +
           `PROHIBIDO agregar preguntas, datos, cantidades o comentarios propios antes o después de la frase. ` +
           `Jamás inventes preguntas que no estén en la frase (ej: denominación del billete, con cuánto pagas, etc.).\n` +
           `Únicas variaciones permitidas: (a) si el cliente acaba de darte un dato, puedes anteponer SOLO una confirmación de 2-3 palabras ("¡Perfecto! 🙌") y nada más; ` +
@@ -2158,7 +2370,11 @@ async function buildConversationResponse(
           `Tu único objetivo ahora es preguntarle el barrio o la dirección de forma natural para poder calcular el domicilio. ` +
           `NO des ningún precio de domicilio todavía.`;
       } else {
-        nextStepLine = `PRÓXIMO PASO — obtener: ${nextStep.campo}.\nMODO CONVERSACIONAL: responde al cliente de forma natural. Tu único objetivo en este paso es obtener: ${guiaVars}. No pidas ningún otro dato, no inventes preguntas fuera de ese objetivo.`;
+        const notaMulti = (nextStep.campo === "tamano" || nextStep.campo === "tipo") &&
+          state.items.length > 0 && state.producto
+          ? ` IMPORTANTE: el cliente pidió VARIOS productos — deja claro en tu pregunta que te refieres a "${state.producto}".`
+          : "";
+        nextStepLine = `PRÓXIMO PASO — obtener: ${nextStep.campo}.\nMODO CONVERSACIONAL: responde al cliente de forma natural. Tu único objetivo en este paso es obtener: ${guiaVars}. No pidas ningún otro dato, no inventes preguntas fuera de ese objetivo.${notaMulti}`;
       }
     } else {
       const textoOrig = nextStep.texto || nextStep.pregunta || nextStep.guia || "";
@@ -2314,21 +2530,12 @@ async function buildSummaryFromState(
 
   try {
     const products = await sbGet(
-      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=name,price,price_mode,presentations,variables`
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=name,price,price_mode,presentations,variables,category_id(name)`
     ) as Array<Record<string, unknown>> | null;
 
-    const getPrecioItem = (prod: string|null, tam: string|null, tip: string|null, cant: number): number => {
+    const getPrecioItem = (prod: string|null, tam: string|null, tip: string|null, cant: number, cat?: string|null): number => {
       if (!products || !prod) return 0;
-      const norm    = normalizarTexto(prod);
-      const matched = products.find(p => {
-        const pname = normalizarTexto(String(p.name || ""));
-        if (pname === norm || pname.includes(norm) || norm.includes(pname)) return true;
-        if (pname.length >= 4 && norm.length >= 4) {
-          const maxDist = Math.floor(Math.min(pname.length, norm.length) / 4);
-          if (levenshtein(pname, norm) <= maxDist) return true;
-        }
-        return false;
-      });
+      const matched = matchCatalogo(products, prod, cat);
       if (!matched) return 0;
       const pres      = (matched.presentations as Array<{name:string;price:number}>) || [];
       const vars      = (matched.variables as Array<{id:string;name:string;options:Array<{id:string;name:string;prices?:number[]}>}>) || [];
@@ -2350,28 +2557,20 @@ async function buildSummaryFromState(
 
     const allItems: SlotItem[] = [
       ...(state.items || []),
-      { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones },
+      { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, categoria: state.producto_categoria },
     ];
 
     for (const item of allItems) {
       if (!item.producto) continue;
       // Usar nombre canónico del producto desde la DB para evitar que GPT devuelva
       // líneas completas del menú con precios como nombre del producto
-      const normItem = normalizarTexto(item.producto);
-      const matchedProd = products?.find(p => {
-        const pn = normalizarTexto(String(p.name || ""));
-        if (pn === normItem || pn.includes(normItem) || normItem.includes(pn)) return true;
-        if (pn.length >= 4 && normItem.length >= 4) {
-          return levenshtein(pn, normItem) <= Math.floor(Math.min(pn.length, normItem.length) / 4);
-        }
-        return false;
-      });
+      const matchedProd = matchCatalogo(products, item.producto, item.categoria);
       const nombreDisplay = matchedProd ? String(matchedProd.name) : item.producto;
       const display = [nombreDisplay, item.tipo].filter(Boolean).join(" ");
       const adStr   = item.adiciones && item.adiciones.length > 0 ? ` + ${item.adiciones}` : "";
       const tamStr  = item.tamano ? ` ${item.tamano}` : "";
       productoLines.push(`🍟 ${item.cantidad}x ${display}${tamStr}${adStr}`);
-      precioProducto += getPrecioItem(item.producto, item.tamano, item.tipo, item.cantidad);
+      precioProducto += getPrecioItem(item.producto, item.tamano, item.tipo, item.cantidad, item.categoria);
     }
   } catch (err) { console.error("buildSummaryFromState lookup error:", err); }
 
@@ -2531,19 +2730,15 @@ async function calcularPreciosPedido(
   let pedido = 0;
   try {
     const allProducts = await sbGet(
-      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables`
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables,category_id(name)`
     ) as Array<Record<string, unknown>> | null;
     const allItems: SlotItem[] = [
       ...(state.items || []),
-      { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones },
+      { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, categoria: state.producto_categoria },
     ];
     for (const item of allItems) {
       if (!item.producto || !allProducts) continue;
-      const nombreLow = item.producto.toLowerCase();
-      const matched = allProducts.find(p => {
-        const pname = String(p.name || "").toLowerCase();
-        return pname === nombreLow || pname.includes(nombreLow) || nombreLow.includes(pname.replace(/\s.*/,""));
-      });
+      const matched = matchCatalogo(allProducts, item.producto, item.categoria);
       if (!matched) continue;
       const presentations = (matched.presentations as Array<{id:string;name:string;price:number}>) || [];
       const variables     = (matched.variables as Array<{id:string;name:string;isPricing?:boolean;options:Array<{id:string;name:string;price:number;prices?:number[]}>}>) || [];
@@ -2569,7 +2764,7 @@ async function calcularPreciosPedido(
 function buildOrderArgs(state: PacoState, domiPrecio: number): Record<string, unknown> {
   const allItems: SlotItem[] = [
     ...(state.items || []),
-    { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones },
+    { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, categoria: state.producto_categoria },
   ];
   return {
     cliente:     state.nombre    || "Cliente WhatsApp",
@@ -2578,10 +2773,11 @@ function buildOrderArgs(state: PacoState, domiPrecio: number): Record<string, un
     mensaje:     "¡Pedido confirmado!",
     domi_precio: domiPrecio,
     productos:   allItems.filter(i => i.producto).map(i => ({
-      nombre:   i.producto,
-      tamano:   capFirst(i.tamano || ""),
-      tipo:     capFirst(i.tipo   || ""),
-      cantidad: i.cantidad,
+      nombre:    i.producto,
+      tamano:    capFirst(i.tamano || ""),
+      tipo:      capFirst(i.tipo   || ""),
+      cantidad:  i.cantidad,
+      categoria: i.categoria || null,
     })),
   };
 }
@@ -2601,7 +2797,7 @@ async function createWhatsappOrder(
 
   const allProducts = await sbGet(
     `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true` +
-    `&select=id,name,price,price_mode,presentations,variables`
+    `&select=id,name,price,price_mode,presentations,variables,category_id(name)`
   ) as Array<Record<string, unknown>> | null;
 
   if (!allProducts) { console.error("No se pudo cargar pos_products"); return null; }
@@ -2629,12 +2825,7 @@ async function createWhatsappOrder(
     const tamanoGPT = String(prod.tamano  || "").trim();
     const tipoGPT   = String(prod.tipo    || "").trim();
     const cantidad  = Math.max(1, Number(prod.cantidad) || 1);
-    const nombreLow = nombreGPT.toLowerCase();
-
-    const matched = allProducts.find(p => {
-      const pname = String(p.name || "").toLowerCase();
-      return pname === nombreLow || pname.includes(nombreLow) || nombreLow.includes(pname.replace(/\s.*/,""));
-    });
+    const matched = matchCatalogo(allProducts, nombreGPT, String(prod.categoria || "") || null);
 
     if (!matched) {
       const fallbackName = [nombreGPT, tamanoGPT, tipoGPT].filter(Boolean).join(" · ");

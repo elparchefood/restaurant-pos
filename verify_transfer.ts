@@ -499,7 +499,8 @@ function extractEmailBody(msgData: Record<string, unknown>): string {
 // ── Resolver pedido desde pending_order_data (estado ACTUAL v119+ y legacy) ──
 // Estado actual: { producto, tamano, tipo, cantidad, items:[{producto,...}], nombre, direccion, pago }
 // Estado legacy: { productos:[{nombre,...}], cliente, total }
-interface ItemNorm { producto: string; tamano: string; tipo: string; cantidad: number }
+interface ItemNorm { producto: string; tamano: string; tipo: string; cantidad: number   categoria?: string | null;
+}
 interface PedidoResuelto {
   total: number;
   domiPrecio: number;
@@ -509,14 +510,14 @@ interface PedidoResuelto {
 
 function normalizarItemsPedido(pendingData: Record<string, unknown>): ItemNorm[] {
   const out: ItemNorm[] = [];
-  const push = (p: unknown, tam: unknown, tip: unknown, cant: unknown) => {
+  const push = (p: unknown, tam: unknown, tip: unknown, cant: unknown, cat?: unknown) => {
     const nombre = String(p || "").trim();
-    if (nombre) out.push({ producto: nombre, tamano: String(tam || "").trim(), tipo: String(tip || "").trim(), cantidad: Math.max(1, Number(cant) || 1) });
+    if (nombre) out.push({ producto: nombre, tamano: String(tam || "").trim(), tipo: String(tip || "").trim(), cantidad: Math.max(1, Number(cant) || 1), categoria: String(cat || "").trim() || null });
   };
   for (const it of ((pendingData.items as Array<Record<string, unknown>>) || [])) {
-    if (it) push(it.producto, it.tamano, it.tipo, it.cantidad);
+    if (it) push(it.producto, it.tamano, it.tipo, it.cantidad, it.categoria);
   }
-  if (pendingData.producto) push(pendingData.producto, pendingData.tamano, pendingData.tipo, pendingData.cantidad);
+  if (pendingData.producto) push(pendingData.producto, pendingData.tamano, pendingData.tipo, pendingData.cantidad, pendingData.producto_categoria);
   if (!out.length) {
     for (const it of ((pendingData.productos as Array<Record<string, unknown>>) || [])) {
       if (it) push(it.nombre || it.producto, it.tamano, it.tipo, it.cantidad);
@@ -539,7 +540,7 @@ async function resolverPedido(
     if (!itemsNorm.length) return { ...vacio, nombreCliente };
 
     const allProducts = await sbGet(
-      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables`
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables,category_id(name)`
     ) as Array<Record<string, unknown>> | null;
     if (!allProducts) return { ...vacio, nombreCliente };
 
@@ -548,10 +549,18 @@ async function resolverPedido(
 
     for (const item of itemsNorm) {
       const nombreLow = item.producto.toLowerCase();
-      const matched = allProducts.find(p => {
+      let candidatas = allProducts.filter(p => {
         const pname = String(p.name || "").toLowerCase();
         return pname === nombreLow || pname.includes(nombreLow) || nombreLow.includes(pname.replace(/\s.*/,""));
       });
+      // Con nombres repetidos entre categorías, la categoría del item decide el precio
+      if (item.categoria && candidatas.length > 1) {
+        const catLow = item.categoria.toLowerCase();
+        const porCat = candidatas.filter(p => String(((p.category_id as Record<string, unknown> | null)?.name as string) || "").toLowerCase() === catLow);
+        if (porCat.length) candidatas = porCat;
+      }
+      const exacta = candidatas.find(p => String(p.name || "").toLowerCase() === nombreLow);
+      const matched = exacta || candidatas[0];
       if (!matched) {
         itemsRows.push({ product_id: null, name: [item.producto, item.tamano, item.tipo].filter(Boolean).join(" · ") || "Producto WhatsApp", product_name: [item.producto, item.tamano, item.tipo].filter(Boolean).join(" · ") || "Producto WhatsApp", product_price: 0, unit_price: 0, total: 0, quantity: item.cantidad, selections: { mods: {}, pres: item.tamano, vars: {} }, branch_id: branchId, tenant_id: tenantId || null, notes: null });
         continue;
