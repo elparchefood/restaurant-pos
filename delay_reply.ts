@@ -269,20 +269,55 @@ async function processConversation(convId: string): Promise<void> {
   const phoneId     = entry.phone_id as string;
   const accessToken = entry.access_token as string;
 
+  const SEL_BATCH = `select=id,body,external_id,media_url,media_type`;
   const msgsRes = await sbGet(
     `/rest/v1/chat_messages?conversation_id=eq.${convId}&direction=eq.in` +
-    `&sent_at=gte.${encodeURIComponent(batchStart)}&order=sent_at.asc&select=id,body,external_id`
+    `&sent_at=gte.${encodeURIComponent(batchStart)}&order=sent_at.asc&${SEL_BATCH}`
   );
-  let batchMsgs = (msgsRes || []) as Array<{ id: string; body: string; external_id: string }>;
+  type BatchMsg = { id: string; body: string; external_id: string; media_url?: string | null; media_type?: string | null };
+  let batchMsgs = (msgsRes || []) as Array<BatchMsg>;
 
   if (!batchMsgs.length) {
     const batchStartEarly = new Date(new Date(batchStart).getTime() - 5000).toISOString();
     const retryRes = await sbGet(
       `/rest/v1/chat_messages?conversation_id=eq.${convId}&direction=eq.in` +
-      `&sent_at=gte.${encodeURIComponent(batchStartEarly)}&order=sent_at.asc&select=id,body,external_id`
+      `&sent_at=gte.${encodeURIComponent(batchStartEarly)}&order=sent_at.asc&${SEL_BATCH}`
     );
-    batchMsgs = (retryRes || []) as Array<{ id: string; body: string; external_id: string }>;
+    batchMsgs = (retryRes || []) as Array<BatchMsg>;
     if (!batchMsgs.length) { await setTyping(convId, false); return; }
+  }
+
+  // 4b. AUDIOS → texto (Whisper): Paco "escucha" las notas de voz. Se transcribe
+  // el audio y entra al flujo como texto normal. La transcripción se guarda en el
+  // chat (🎙️) para que el operador vea qué entendió el bot; el audio sigue ahí.
+  // Si la transcripción falla, el mensaje queda como [audio] → respuesta solo-texto.
+  for (const m of batchMsgs) {
+    const b = (m.body || "").trim();
+    if (!(m.media_type === "audio" || b.startsWith("[audio]"))) continue;
+    if (!m.media_url) continue;
+    try {
+      const audioRes = await fetch(m.media_url);
+      if (!audioRes.ok) { console.error("audio fetch:", audioRes.status); continue; }
+      const buf = await audioRes.arrayBuffer();
+      if (buf.byteLength < 100 || buf.byteLength > 20 * 1024 * 1024) continue;
+      const ext = (m.media_url.split("?")[0].split(".").pop() || "ogg").toLowerCase();
+      const fd = new FormData();
+      fd.append("file", new Blob([buf]), `audio.${ext}`);
+      fd.append("model", "whisper-1");
+      fd.append("language", "es");
+      const tr = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${OPENAI_KEY}` },
+        body: fd,
+      });
+      if (!tr.ok) { console.error("whisper error:", await tr.text()); continue; }
+      const trJson = await tr.json() as { text?: string };
+      const texto = String(trJson.text || "").trim();
+      if (!texto) continue;
+      m.body = texto;
+      await sbPatch(`/rest/v1/chat_messages?id=eq.${m.id}`, { body: `🎙️ ${texto}` });
+      console.log("audio transcrito:", texto.slice(0, 80));
+    } catch (err) { console.error("transcripción de audio falló:", err); }
   }
 
   const soloMediaNoTexto = batchMsgs.every(m => {
@@ -553,7 +588,8 @@ async function processConversation(convId: string): Promise<void> {
 
   const clienteTexto = batchMsgs
     .map(m => m.body)
-    .filter(b => !b.startsWith("[imagen]") && !b.startsWith("[image]"))
+    .filter(b => !b.startsWith("[imagen]") && !b.startsWith("[image]") &&
+                 !b.startsWith("[audio]") && !b.startsWith("[sticker]") && !b.startsWith("[video]"))
     .join("\n")
     .trim();
 

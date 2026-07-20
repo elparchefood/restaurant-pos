@@ -173,7 +173,9 @@ Cachear en disco del exe:
 
 ## 🟢 PUNTO DE RETORNO SEGURO — Sesión 10 (2026-07-18/19)
 
-> Estado bueno conocido más reciente. `delay-reply` = **v160** · `verify-transfer` = **v15**.
+> Estado bueno conocido más reciente. `delay-reply` = **v161** · `verify-transfer` = **v15**.
+
+- **v161 — AUDIOS (notas de voz) — prueba 3/3**: el webhook ya guardaba los audios en el bucket chat-media (ogg); ahora `delay-reply` los TRANSCRIBE con Whisper (whisper-1, language=es, multipart desde la URL pública) ANTES del flujo — el texto entra como mensaje normal (extractores, canvas, todo). La transcripción se guarda en el chat como `🎙️ <texto>` (el operador ve qué entendió; el audio sigue reproducible). Límite 20MB; si Whisper falla, el mensaje queda como `[audio]` → respuesta de solo-texto (fallback intacto para stickers/videos). Probado end-to-end con TTS de Windows: "quiero una salchipapa ranchera familiar" por audio → producto y tamaño capturados + siguiente paso.
 
 - **v160 — 3 fixes de la prueba real de Sergio (2026-07-19, pruebas 6/6)**:
   1. **"Mixta porfa" capturado como adición**: `CAT_ADICION_RE` matcheaba "adicion" DENTRO de "Salchipapas Tra-dicion-ales" → Mixta/Carne/Pollo se volvían palabras de adición. Fix: límites de palabra (`\b`). Además, guard nuevo: un mensaje corto (≤25 chars) que acaba de responder tamaño/variante JAMÁS se toma como adición.
