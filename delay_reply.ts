@@ -2846,6 +2846,20 @@ function buildHorariosText(horarios: Record<string, unknown> | null | undefined,
       if (key === colDayKey && nowMin >= parseHHMM(abre) && nowMin < parseHHMM(cierra)) abierto = true;
     }
   }
+  // Listas EXPLÍCITAS para que la IA no invente resúmenes tipo "de X a Y"
+  // (bug real: martes y miércoles cerrados → la IA dijo "abrimos de miércoles a domingo")
+  const diasAbiertos = DAYS.filter(([k]) => {
+    const d = horarios[k] as Record<string,unknown> | undefined;
+    return d && d.activo;
+  }).map(([,l]) => l);
+  const diasCerrados = DAYS.filter(([k]) => {
+    const d = horarios[k] as Record<string,unknown> | undefined;
+    return !d || !d.activo;
+  }).map(([,l]) => l);
+  lines.push("");
+  lines.push(`DÍAS CON SERVICIO: ${diasAbiertos.join(", ") || "ninguno"}.`);
+  lines.push(`DÍAS CERRADOS: ${diasCerrados.join(", ") || "ninguno"}.`);
+  lines.push(`REGLA ESTRICTA: al responder sobre días u horarios, usa EXACTAMENTE las dos listas de arriba, nombrando los días uno por uno. PROHIBIDO resumir con rangos tipo "de miércoles a domingo" — puede haber días cerrados en medio.`);
   lines.push("");
   if (abierto) {
     lines.push("ESTADO ACTUAL: Abierto.");

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css">
-<link rel="stylesheet" href="configuracion.css">
+<link rel="stylesheet" href="configuracion.css?v=2">
 </head>
 <body>
 <div class="cf-root">
@@ -1019,7 +1019,7 @@
                 <span class="hr-fmt-tt">Zona horaria</span>
                 <span class="hr-fmt-ds">Pa&iacute;s / regi&oacute;n del restaurante (el bot calcula la hora local con esto)</span>
               </div>
-              <select id="hr-tz" class="sel" style="min-width:250px">
+              <select id="hr-tz" class="hr-sel" style="min-width:250px">
                 <option value="-5" selected>Colombia · Per&uacute; · Ecuador · Panam&aacute; (UTC-5)</option>
                 <option value="-6">M&eacute;xico (centro) · Costa Rica · Guatemala (UTC-6)</option>
                 <option value="-4">Venezuela · Bolivia · R. Dominicana · Chile (UTC-4)</option>
@@ -1056,14 +1056,14 @@
                 <span class="hr-fmt-ds">C&oacute;mo el bot escribe los precios (s&iacute;mbolo y formato de miles/decimales)</span>
               </div>
               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                <input id="hr-moneda-simbolo" class="inp" style="width:70px;text-align:center" maxlength="4" value="$" title="S&iacute;mbolo">
-                <select id="hr-moneda-formato" class="sel" style="min-width:210px">
+                <input id="hr-moneda-simbolo" class="hr-inp" style="width:64px" maxlength="4" value="$" title="S&iacute;mbolo">
+                <select id="hr-moneda-formato" class="hr-sel" style="min-width:210px">
                   <option value="p0" selected>1.234.567 — Colombia / Chile</option>
                   <option value="c2">1,234,567.00 — M&eacute;xico / EE.UU.</option>
                   <option value="p2">1.234.567,00 — Europa / Brasil / Argentina</option>
                   <option value="c0">1,234,567 — sin decimales (coma)</option>
                 </select>
-                <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--tx2,#888);cursor:pointer">
+                <label class="hr-suf">
                   <input type="checkbox" id="hr-moneda-sufijo"> s&iacute;mbolo despu&eacute;s <span style="opacity:.7">(40,00 &euro;)</span>
                 </label>
               </div>
