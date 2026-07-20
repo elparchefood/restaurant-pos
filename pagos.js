@@ -514,7 +514,7 @@ document.addEventListener('click', e => {
       window.location.href = 'ventas.html';
       break;
     case 'back':
-      window.location.href = 'ventas-salon.html';
+      window.location.href = 'ventas.html';
       break;
     case 'print':
     case 'print-receipt':

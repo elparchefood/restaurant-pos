@@ -1102,11 +1102,19 @@ async function toggleHumanTakeover() {
 }
 // ── Pagos por confirmar ───────────────────────────────────────────────────────
 
+
+// Conversación activa REAL (el bug clásico: S.activeConv nunca existió — el
+// estado guarda S.activeConvId; esto dejaba muertos varios botones del panel)
+function getActiveConv() {
+  if (!S.activeConvId) return null;
+  return (S.conversations || []).find(function(cv){ return cv.id === S.activeConvId; }) || { id: S.activeConvId };
+}
+
 async function updatePagoBadge() {
   try {
     const { count } = await sb.from('chat_conversations')
       .select('id', { count: 'exact', head: true })
-      .eq('branch_id', window._branchId)
+      .eq('branch_id', S.branchId)
       .eq('pago_pendiente', true)
       .eq('status', 'open');
     S.pagoCount = count || 0;
@@ -1137,7 +1145,7 @@ function updateSinNomBtn(isActive) {
 }
 
 async function toggleSinNomenclatura() {
-  const conv = S.activeConv;
+  const conv = getActiveConv();
   if (!conv) return;
   const newVal = !conv.sin_nomenclatura;
   try {
@@ -1152,7 +1160,7 @@ async function toggleSinNomenclatura() {
 }
 
 function abrirConfirmarDomi() {
-  const conv = S.activeConv;
+  const conv = getActiveConv();
   if (!conv) return;
   const modal = document.createElement('div');
   modal.id = 'domiModal';
@@ -1178,17 +1186,16 @@ function abrirConfirmarDomi() {
 }
 
 async function confirmarDomi() {
-  const conv = S.activeConv;
+  const conv = getActiveConv();
   if (!conv) return;
   const input = $('domiPrecioInput');
   const precio = parseInt(input?.value || '0', 10);
   if (!precio || precio < 0) { showToast('Ingresa un precio válido', 'error'); return; }
   $('domiModal')?.remove();
   try {
-    const srKey = window._srKey || '';
-    const res = await fetch(`${window._supabaseUrl}/functions/v1/confirm-domi`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/confirm-domi`, {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${srKey}`, 'Content-Type': 'application/json' },
+      headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ conversation_id: conv.id, domi_precio: precio })
     });
     if (!res.ok) throw new Error(await res.text());
@@ -1205,7 +1212,7 @@ async function confirmarDomi() {
 }
 
 async function confirmarPago() {
-  const conv = S.activeConv;
+  const conv = getActiveConv();
   if (!conv) return;
   // CONFIRMACIÓN HUMANA: el operador revisó el comprobante con sus ojos y asume la
   // decisión — el sistema NO vuelve a correr los chequeos automáticos (que ya

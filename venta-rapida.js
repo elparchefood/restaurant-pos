@@ -826,6 +826,19 @@
     }
   }
 
+  // Tras enviar una venta: limpiar el carrito persistido y avanzar el turno.
+  // (Antes el carrito quedaba en localStorage y al volver a la pantalla se
+  // re-enviaba el MISMO pedido → órdenes duplicadas; y el turno solo avanzaba
+  // al cancelar, nunca al vender.)
+  function finalizarVenta() {
+    S.cart = [];
+    saveCart();
+    S.turno += 1;
+    saveTurno();
+    S.orderId = null;
+    S.descuento = 0;
+  }
+
   async function enviarACocina() {
     if (!S.cart.length) return;
     const sb = getSb();
@@ -836,12 +849,12 @@
         // Cobro adelantado: quedar como pendiente_pago y volver al salón
         // El cajero cobra desde la vista de ventas cuando el pedido esté listo
         await upsertOrder(sb, true, 'pendiente_pago');
-        window.location.href = 'ventas.html';
       } else {
         // Cobro al final: enviar a cocina y volver a ventas
         await upsertOrder(sb, true);
-        window.location.href = 'ventas.html';
       }
+      finalizarVenta();
+      window.location.href = 'ventas.html';
     } catch(e) {
       console.error('enviarACocina:', e);
       alert('Error al enviar: ' + e.message);
@@ -854,6 +867,7 @@
     if (!sb) return;
     try {
       const orderId = await upsertOrder(sb, true);
+      finalizarVenta();
       window.location.href = `pagos.html?order=${orderId}&channel=rapido`;
     } catch(e) {
       alert('Error: ' + e.message);

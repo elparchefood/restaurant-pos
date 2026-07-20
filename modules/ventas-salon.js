@@ -579,7 +579,7 @@
     var branchId = window._pos && window._pos.state && window._pos.state.branchId;
     try {
       var q = sb.from('pos_orders')
-        .select('id, customer_name, channel, total, paid_amount, payment_method, waiter_name, status, created_at, opened_at')
+        .select('id, customer_name, channel, total, paid_amount, payment_method, waiter_name, status, created_at, opened_at, delivery_status, delivered_at')
         .eq('channel', 'domicilio')
         .not('status', 'eq', 'cancelled')
         .order('created_at', { ascending: false })
@@ -590,8 +590,11 @@
       return rows.map(function(r) {
         var createdMs = r.created_at ? new Date(r.created_at).getTime() : Date.now();
         var mins = Math.round((Date.now() - createdMs) / 60000);
+        // Estado de entrega PERSISTIDO (delivery_status); fallback al status legacy
         var estado = 'preparacion';
-        if (r.status === 'paid' || r.status === 'completed') estado = 'entregado';
+        if (r.delivery_status) estado = r.delivery_status;
+        else if (r.delivered_at) estado = 'entregado';
+        else if (r.status === 'paid' || r.status === 'completed') estado = 'entregado';
         else if (r.status === 'in_progress') estado = 'camino';
         // Estado de pago REAL: lo abonado (paid_amount — lo llenan el bot al verificar
         // transferencias y los abonos de caja) contra el total del pedido.
@@ -2017,9 +2020,21 @@
         } else if (action === 'advance' && DELIVERY_NEXT[d.estado]) {
           d.estado = DELIVERY_NEXT[d.estado];
           render();
+          // PERSISTIR el estado (antes solo cambiaba en memoria y se perdía al recargar)
+          const sbA = window._pos && window._pos.sb;
+          if (sbA) {
+            const upd = { delivery_status: d.estado };
+            if (d.estado === 'entregado') upd.delivered_at = new Date().toISOString();
+            sbA.from('pos_orders').update(upd).eq('id', d.id).then(function(r){ if (r.error) console.error('advance persist:', r.error); });
+          }
         } else if (action === 'close') {
           d.estado = 'entregado';
           render();
+          const sbC = window._pos && window._pos.sb;
+          if (sbC) {
+            sbC.from('pos_orders').update({ delivery_status: 'entregado', delivered_at: new Date().toISOString() })
+              .eq('id', d.id).then(function(r){ if (r.error) console.error('close persist:', r.error); });
+          }
         }
       });
     });

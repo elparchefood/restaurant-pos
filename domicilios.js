@@ -207,7 +207,7 @@ async function loadActiveOrders() {
   try {
     const { data: orders, error } = await sb
       .from('pos_orders')
-      .select('id, customer_name, channel, notes, payment_method, total, paid_amount, opened_at')
+      .select('id, customer_name, channel, notes, payment_method, total, paid_amount, opened_at, delivery_status, delivery_fee, delivered_at')
       .eq('branch_id', S.branchId)
       .in('channel', ['domicilio', 'whatsapp'])
       .eq('status', 'open')
@@ -255,18 +255,21 @@ function _orderRowToDelivery(o) {
   // Las transferencias verificadas por el bot llegan ya con paid_amount lleno.
   const total   = Number(o.total) || 0;
   const pagado  = Number(o.paid_amount) || 0;
+  const fee     = Number(o.delivery_fee) || 0;
   const payStatus = total > 0 && pagado >= total ? 'pagado'
                   : pagado > 0                   ? 'parcial'
                   :                                'pendiente';
+  // Estado de entrega PERSISTIDO (antes todo volvía a 'recibido' al recargar)
+  const estado = o.delivery_status || (o.delivered_at ? 'entregado' : 'recibido');
   return {
     id:           shortId,
     supabaseId:   o.id,
     cliente:      o.customer_name || '—',
     canal:        o.channel === 'whatsapp' ? 'whatsapp' : 'whatsapp',
     items:        '?',
-    productos:    Number(o.total) || 0,
-    fee:          0,
-    estado:       'recibido',
+    productos:    Math.max(0, total - fee),   // el total ya incluye el fee
+    fee:          fee,
+    estado:       estado,
     payStatus:    payStatus,
     paidAmount:   pagado,
     payWhen:      payStatus === 'pagado' ? 'adelantado' : 'contraentrega',
@@ -1445,7 +1448,10 @@ async function enviarACocina() {
       status:         'open',
       customer_name:  nuevo.cliente || null,
       notes:          _barrio ? '[barrio:' + _barrio.toUpperCase() + ']' : null,
-      total:          prod,
+      // El total INCLUYE el costo del domicilio (antes se perdía el fee)
+      total:          prod + (S.fee || 0),
+      delivery_fee:   S.fee || 0,
+      delivery_status:'recibido',
       payment_method: metodo,
       opened_at:      new Date().toISOString(),
     };
@@ -1594,6 +1600,13 @@ function advanceDelivery(id) {
   const next = ESTADO_NEXT(d.estado);
   if (!next) return;
   d.estado = next;
+  // PERSISTIR el avance (antes solo cambiaba en memoria y se perdía al recargar)
+  if (d.supabaseId) {
+    const upd = { delivery_status: next };
+    if (next === 'entregado') upd.delivered_at = new Date().toISOString();
+    sb.from('pos_orders').update(upd).eq('id', d.supabaseId)
+      .then(r => { if (r.error) console.error('[domicilios] advance persist:', r.error); });
+  }
   renderMonitor();
   updateMonitorBadge();
   toast(`${id} → ${ESTADO_OF(next).name}`);

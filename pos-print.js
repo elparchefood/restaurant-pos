@@ -255,7 +255,7 @@
     });
     _diagToast('✓ Pedido OK — enviando a impresora…', '#15803d');
     try {
-      await _printHtml(_buildComanda({ table: _tableDisplay(order), channel: order.channel, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' }, items), 'comanda');
+      await _printHtml(_buildComanda({ table: _tableDisplay(order), channel: order.channel, total: order.total || 0, paid: order.paid_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' }, items), 'comanda');
       _diagToast('✓ Comanda impresa OK', '#15803d');
     } catch(e) { _diagToast('❌ Error al imprimir: ' + (e && e.message || e), '#dc2626'); }
   };
