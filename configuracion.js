@@ -652,6 +652,69 @@ function initGoalFormat() {
   });
 }
 
+// ── Catálogo de monedas (General → Moneda del negocio) ─────────
+// El motor del bot y las pantallas leen ia_config.moneda {simbolo, miles, decimales, sufijo}
+var MONEDAS = [
+  { codigo:'COP', nombre:'Peso colombiano',       simbolo:'$',   miles:'.', decimales:0, sufijo:false },
+  { codigo:'USD', nombre:'Dólar estadounidense',  simbolo:'US$', miles:',', decimales:2, sufijo:false },
+  { codigo:'EUR', nombre:'Euro',                  simbolo:'€',   miles:'.', decimales:2, sufijo:true  },
+  { codigo:'MXN', nombre:'Peso mexicano',         simbolo:'$',   miles:',', decimales:2, sufijo:false },
+  { codigo:'BRL', nombre:'Real brasileño',        simbolo:'R$',  miles:'.', decimales:2, sufijo:false },
+  { codigo:'ARS', nombre:'Peso argentino',        simbolo:'$',   miles:'.', decimales:2, sufijo:false },
+  { codigo:'CLP', nombre:'Peso chileno',          simbolo:'$',   miles:'.', decimales:0, sufijo:false },
+  { codigo:'PEN', nombre:'Sol peruano',           simbolo:'S/',  miles:',', decimales:2, sufijo:false },
+  { codigo:'UYU', nombre:'Peso uruguayo',         simbolo:'$U',  miles:'.', decimales:2, sufijo:false },
+  { codigo:'BOB', nombre:'Boliviano',             simbolo:'Bs',  miles:'.', decimales:2, sufijo:false },
+  { codigo:'PYG', nombre:'Guaraní paraguayo',     simbolo:'₲',   miles:'.', decimales:0, sufijo:false },
+  { codigo:'VES', nombre:'Bolívar venezolano',    simbolo:'Bs.', miles:'.', decimales:2, sufijo:false },
+  { codigo:'GTQ', nombre:'Quetzal guatemalteco',  simbolo:'Q',   miles:',', decimales:2, sufijo:false },
+  { codigo:'CRC', nombre:'Colón costarricense',   simbolo:'₡',   miles:'.', decimales:0, sufijo:false },
+  { codigo:'HNL', nombre:'Lempira hondureño',     simbolo:'L',   miles:',', decimales:2, sufijo:false },
+  { codigo:'NIO', nombre:'Córdoba nicaragüense',  simbolo:'C$',  miles:',', decimales:2, sufijo:false },
+  { codigo:'DOP', nombre:'Peso dominicano',       simbolo:'RD$', miles:',', decimales:2, sufijo:false },
+  { codigo:'PAB', nombre:'Balboa panameño',       simbolo:'B/.', miles:',', decimales:2, sufijo:false },
+  { codigo:'GBP', nombre:'Libra esterlina',       simbolo:'£',   miles:',', decimales:2, sufijo:false },
+  { codigo:'CAD', nombre:'Dólar canadiense',      simbolo:'C$',  miles:',', decimales:2, sufijo:false }
+];
+
+function fmtEjemploMoneda(m) {
+  var n = 1234567;
+  var decSep = m.miles === '.' ? ',' : '.';
+  var s = m.decimales > 0 ? n.toFixed(m.decimales) : String(n);
+  var parts = s.split('.');
+  var ent = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, m.miles);
+  var num = parts[1] ? ent + decSep + parts[1] : ent;
+  return m.sufijo ? (num + ' ' + m.simbolo) : (m.simbolo + num);
+}
+
+function initMonedaSelect(actual) {
+  var sel = $('gen-moneda');
+  if (!sel) return;
+  sel.innerHTML = MONEDAS.map(function(m) {
+    return '<option value="' + m.codigo + '">' + m.codigo + ' — ' + m.nombre + '  (' + fmtEjemploMoneda(m) + ')</option>';
+  }).join('');
+  // Selección actual: por código guardado, o por coincidencia de símbolo+formato
+  var cod = 'COP';
+  if (actual) {
+    if (actual.codigo) cod = actual.codigo;
+    else {
+      var match = MONEDAS.find(function(m) {
+        return m.simbolo === actual.simbolo && m.miles === (actual.miles || '.') &&
+               (m.decimales || 0) === (Number(actual.decimales) || 0);
+      });
+      if (match) cod = match.codigo;
+    }
+  }
+  sel.value = cod;
+  var updEj = function() {
+    var m = MONEDAS.find(function(x){ return x.codigo === sel.value; }) || MONEDAS[0];
+    var ej = $('gen-moneda-ej');
+    if (ej) ej.textContent = fmtEjemploMoneda(m);
+  };
+  sel.addEventListener('change', updEj);
+  updEj();
+}
+
 async function loadGeneral() {
   try {
     var res = await sb.auth.getUser();
@@ -710,6 +773,12 @@ async function loadGeneral() {
     // Tipo de negocio
     setGenType(meta.tipo || 'Restaurante');
 
+    // Moneda del negocio (ia_config.moneda del branch)
+    try {
+      var monRes = await sb.from('ia_config').select('moneda').eq('branch_id', branchId).maybeSingle();
+      initMonedaSelect(monRes.data && monRes.data.moneda);
+    } catch(e) { initMonedaSelect(null); }
+
   } catch(e) {
     console.error('loadGeneral:', e);
   }
@@ -756,6 +825,21 @@ async function saveGeneral() {
     if (brandId) {
       await sb.from('brands').update({ name: brandName }).eq('id', brandId);
     }
+
+    // Guardar la moneda del negocio en ia_config (la leen el bot y las pantallas)
+    try {
+      var selMon = $('gen-moneda');
+      if (selMon && selMon.value) {
+        var mSel = MONEDAS.find(function(x){ return x.codigo === selMon.value; });
+        if (mSel) {
+          await sb.from('ia_config').upsert(
+            { branch_id: branchId, tenant_id: meta.tenant_id,
+              moneda: { codigo: mSel.codigo, simbolo: mSel.simbolo, miles: mSel.miles, decimales: mSel.decimales, sufijo: mSel.sufijo } },
+            { onConflict: 'branch_id' }
+          );
+        }
+      }
+    } catch(e) { console.warn('moneda save:', e); }
 
     // Actualizar pos_users (nombre + teléfono del gerente)
     try {
@@ -2112,35 +2196,14 @@ function horarioInit() {
     var session = (await sb.auth.getSession()).data.session;
     if (!session) return;
     var branchId = session.user.user_metadata.branch_id;
-    var { data } = await sb.from('ia_config').select('horarios, formato_hora, zona_horaria, moneda').eq('branch_id', branchId).maybeSingle();
+    var { data } = await sb.from('ia_config').select('horarios, formato_hora, zona_horaria').eq('branch_id', branchId).maybeSingle();
     renderGrid(data && data.horarios ? data.horarios : null);
     if (data && data.formato_hora) setFmtHora(data.formato_hora);
-    // Zona horaria y moneda (personalizables por restaurante; defaults Colombia)
+    // Zona horaria (la moneda vive en Configuración → General)
     var tzSel = document.getElementById('hr-tz');
     if (tzSel && data && data.zona_horaria != null && data.zona_horaria !== '') tzSel.value = String(data.zona_horaria);
-    var m = (data && data.moneda) || null;
-    var simEl = document.getElementById('hr-moneda-simbolo');
-    var fmtEl = document.getElementById('hr-moneda-formato');
-    var sufEl = document.getElementById('hr-moneda-sufijo');
-    if (simEl && m && m.simbolo) simEl.value = m.simbolo;
-    if (fmtEl && m) fmtEl.value = (m.miles === ',' ? 'c' : 'p') + (Number(m.decimales) > 0 ? '2' : '0');
-    if (sufEl && m) sufEl.checked = !!m.sufijo;
-    ['hr-tz','hr-moneda-simbolo','hr-moneda-formato','hr-moneda-sufijo'].forEach(function(id){
-      var el = document.getElementById(id);
-      if (el) el.addEventListener('change', markDirty);
-    });
-  }
-  function readMoneda() {
-    var simEl = document.getElementById('hr-moneda-simbolo');
-    var fmtEl = document.getElementById('hr-moneda-formato');
-    var sufEl = document.getElementById('hr-moneda-sufijo');
-    var code = (fmtEl && fmtEl.value) || 'p0';
-    return {
-      simbolo: (simEl && simEl.value.trim()) || '$',
-      miles: code.charAt(0) === 'c' ? ',' : '.',
-      decimales: code.charAt(1) === '2' ? 2 : 0,
-      sufijo: !!(sufEl && sufEl.checked)
-    };
+    var tzEl = document.getElementById('hr-tz');
+    if (tzEl) tzEl.addEventListener('change', markDirty);
   }
 
   saveBtn.addEventListener('click', async function() {
@@ -2151,8 +2214,7 @@ function horarioInit() {
     var horarios = readGrid();
     var { error } = await sb.from('ia_config').upsert(
       { branch_id: meta.branch_id, tenant_id: meta.tenant_id, horarios: horarios, formato_hora: currentFmtHora,
-        zona_horaria: (document.getElementById('hr-tz') || {}).value || '-5',
-        moneda: readMoneda() },
+        zona_horaria: (document.getElementById('hr-tz') || {}).value || '-5' },
       { onConflict: 'branch_id' }
     );
     saveBtn.disabled = false;
