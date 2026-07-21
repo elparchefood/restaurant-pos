@@ -184,6 +184,8 @@ function setSection(sec) {
   if (_screenChatia) _screenChatia.classList.remove('on');
   var _screenHorario = $('screen-horario');
   if (_screenHorario) _screenHorario.classList.remove('on');
+  var _screenMp = $('screen-metodos-pago');
+  if (_screenMp) _screenMp.classList.remove('on');
 
   if (sec === 'mesas') {
     screenMesas.classList.add('on');
@@ -218,6 +220,8 @@ function setSection(sec) {
       $('crumb').textContent = 'Asistente IA';
       if (!window._chatiaLoaded) { chatiaInit(); window._chatiaLoaded = true; }
       _ciaToggleTopbar(true);
+      // Pestaña Pagos del asistente = solo lectura; se edita en Métodos de pago.
+      if (window._mpMakeAsistenteReadonly) { setTimeout(window._mpMakeAsistenteReadonly, 60); }
     }
   } else if (sec === 'horario') {
     var screenHorario = $('screen-horario');
@@ -226,6 +230,18 @@ function setSection(sec) {
       $('crumb').textContent = 'Horarios';
       _ciaToggleTopbar(false);
       if (!window._horarioLoaded) { horarioInit(); window._horarioLoaded = true; }
+    }
+  } else if (sec === 'pagos') {
+    var screenMp = $('screen-metodos-pago');
+    if (screenMp) {
+      screenMp.classList.add('on');
+      $('crumb').textContent = 'Métodos de pago';
+      _ciaToggleTopbar(false);
+      metodosPagoInit();
+    } else {
+      screenPh.classList.add('on');
+      $('placeholder-title').textContent = 'Métodos de pago';
+      $('crumb').textContent = 'Métodos de pago';
     }
   } else if (sec === 'impresora') {
     window.location.href = 'impresoras.html';
@@ -2291,9 +2307,11 @@ var _storedZonas = [];
         porcentajeVoz:  $('mixSlider')   ? parseInt($('mixSlider').value) : 30,
         voiceId:        voiceEl ? voiceEl.dataset.voice : 'valentina'
       },
-      pagos: {
-        // Lista editable de métodos (fuente de verdad). Los booleanos quedan derivados
-        // por compatibilidad con versiones anteriores del motor.
+      // Los métodos de pago ahora se editan en "Métodos de pago" (fuente de verdad
+      // compartida). El asistente ya NO los modifica: escribe de vuelta lo último
+      // cargado/guardado para no pisar nada. Si por algo no hay snapshot, cae al
+      // formulario (compatibilidad).
+      pagos: window._loadedPagos || {
         metodos:             readMetodos(),
         efectivo:            readMetodos().some(function(x){ return x.nombre.toLowerCase().indexOf('efectivo') >= 0 || !x.digital; }),
         nequi:               readMetodos().some(function(x){ return x.nombre.toLowerCase().indexOf('nequi') >= 0; }),
@@ -2391,6 +2409,7 @@ var _storedZonas = [];
 
     // Pagos — lista editable de métodos (migra desde los booleanos viejos si no hay lista)
     var p = m.pagos || {};
+    window._loadedPagos = m.pagos || {}; // fuente de verdad compartida con "Métodos de pago"
     var metodosIni = (Array.isArray(p.metodos) && p.metodos.length) ? p.metodos : (function(){
       var arr = [];
       if (p.efectivo)  arr.push({nombre:'Efectivo',  digital:false});
@@ -3178,3 +3197,234 @@ function _ciaToggleTopbar(show){
     crumbs.classList.remove("cia-hidden");
   }
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MÉTODOS DE PAGO — editor (fuente de verdad: ia_config.pagos)
+   El bot sigue leyendo ia_config.pagos IGUAL: preservamos metodos, titular,
+   llave, qr_imagen_url, qr_texto, esperar_comprobante, nota, bancos_correo.
+   ══════════════════════════════════════════════════════════════════════════ */
+var MP = { pagos:{}, metodos:[], branchId:'', qrUrl:'', dirty:false };
+var MP_TIPOS = [
+  ['efectivo','Efectivo'],['tarjeta','Tarjeta / datáfono'],['transferencia','Transferencia'],
+  ['billetera','Billetera digital (Nequi, Daviplata…)'],['banco','Banco específico'],['otro','Otro']
+];
+var MP_CANALES = [['mesa','Mesa'],['rapida','Rápida'],['domicilio','Domicilio']];
+function _mpUid(){ return 'pm_' + Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-3); }
+function _mpEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _mpV(id){ var e=document.getElementById(id); return e?e.value.trim():''; }
+function _mpC(id){ var e=document.getElementById(id); return e?e.checked:false; }
+function _mpFind(id){ for(var i=0;i<MP.metodos.length;i++){ if(MP.metodos[i].id===id) return MP.metodos[i]; } return null; }
+function _mpGuessTipo(nombre,digital){
+  var n=(nombre||'').toLowerCase();
+  if(n.indexOf('efectivo')>=0) return 'efectivo';
+  if(n.indexOf('tarjeta')>=0||n.indexOf('datafono')>=0||n.indexOf('datáfono')>=0) return 'tarjeta';
+  if(n.indexOf('nequi')>=0||n.indexOf('daviplata')>=0||n.indexOf('billetera')>=0) return 'billetera';
+  if(n.indexOf('transfer')>=0) return 'transferencia';
+  if(n.indexOf('bancolombia')>=0||n.indexOf('banco')>=0) return 'banco';
+  return digital?'transferencia':'otro';
+}
+function _mpNormalize(p){
+  var arr = Array.isArray(p.metodos)?p.metodos.slice():[];
+  if(!arr.length){
+    if(p.efectivo) arr.push({nombre:'Efectivo',digital:false});
+    if(p.nequi) arr.push({nombre:'Nequi',digital:true});
+    if(p.daviplata) arr.push({nombre:'Daviplata',digital:true});
+    if(p.tarjeta) arr.push({nombre:'Tarjeta',digital:false});
+  }
+  return arr.map(function(m,i){
+    return {
+      id:m.id||_mpUid(), nombre:m.nombre||'', digital:!!m.digital,
+      tipo:m.tipo||_mpGuessTipo(m.nombre,m.digital),
+      activo:m.activo!==false, orden:(m.orden!=null)?m.orden:i, porDefecto:!!m.porDefecto,
+      cuenta:m.cuenta||'', banco:m.banco||'', instrucciones:m.instrucciones||'',
+      canales:Array.isArray(m.canales)?m.canales:['mesa','rapida','domicilio'], comision:Number(m.comision)||0
+    };
+  }).sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
+}
+
+window.metodosPagoInit = async function(){
+  var root=document.getElementById('mp-root'); if(!root) return;
+  root.innerHTML='<div style="padding:48px;text-align:center;color:#94A3B8;font-size:13px">Cargando métodos de pago…</div>';
+  try{
+    var res=await sb.auth.getSession(); var session=res && res.data ? res.data.session : null;
+    MP.branchId=(session&&session.user&&session.user.user_metadata&&session.user.user_metadata.branch_id)||'';
+    var q=await sb.from('ia_config').select('pagos').eq('branch_id',MP.branchId).maybeSingle();
+    MP.pagos=(q&&q.data&&q.data.pagos)?q.data.pagos:{};
+    window._loadedPagos=MP.pagos;
+    MP.metodos=_mpNormalize(MP.pagos);
+    MP.qrUrl=(MP.pagos.qr_imagen_url!=null)?MP.pagos.qr_imagen_url:'';
+    MP.dirty=false;
+    _mpRender();
+  }catch(e){ root.innerHTML='<div style="padding:48px;text-align:center;color:#DC2626">Error al cargar: '+_mpEsc(e&&e.message||e)+'</div>'; }
+};
+
+function _mpField(id,label,val,ph){
+  return '<div><label style="font-size:12px;font-weight:700;color:#475569">'+label+'</label>'
+    +'<input id="'+id+'" value="'+_mpEsc(val)+'" placeholder="'+_mpEsc(ph||'')+'" oninput="mpDirty()" style="width:100%;margin-top:6px;padding:10px 12px;border:1px solid #E2E8F0;border-radius:10px;font-family:inherit;font-size:13px;outline:none;box-sizing:border-box"></div>';
+}
+function _mpTextarea(id,label,val,ph){
+  return '<label style="font-size:12px;font-weight:700;color:#475569">'+label+'</label>'
+    +'<textarea id="'+id+'" rows="3" placeholder="'+_mpEsc(ph||'')+'" oninput="mpDirty()" style="width:100%;margin-top:6px;padding:10px 12px;border:1px solid #E2E8F0;border-radius:10px;font-family:inherit;font-size:13px;outline:none;resize:vertical;box-sizing:border-box">'+_mpEsc(val)+'</textarea>';
+}
+function _mpFieldInline(label,handler,val,ph){
+  return '<div><label style="font-size:10.5px;font-weight:700;color:#94A3B8;text-transform:uppercase">'+label+'</label>'
+    +'<input value="'+_mpEsc(val)+'" oninput="'+handler+'" placeholder="'+_mpEsc(ph||'')+'" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-family:inherit;font-size:12.5px;outline:none;box-sizing:border-box"></div>';
+}
+function _mpCardHtml(m){
+  var tipoOpts=MP_TIPOS.map(function(t){ return '<option value="'+t[0]+'"'+(m.tipo===t[0]?' selected':'')+'>'+t[1]+'</option>'; }).join('');
+  var canalChips=MP_CANALES.map(function(c){
+    var on=(m.canales||[]).indexOf(c[0])>=0;
+    return '<button type="button" onclick="mpToggleCanal(\''+m.id+'\',\''+c[0]+'\')" style="font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:999px;cursor:pointer;border:1.5px solid '+(on?'#5B6BFF':'#E2E8F0')+';background:'+(on?'#EEF2FF':'#fff')+';color:'+(on?'#4338CA':'#64748B')+'">'+c[1]+'</button>';
+  }).join('');
+  var digRow = m.digital ? (
+    '<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;padding-top:10px;border-top:1px dashed #ECEEF2">'
+    +_mpFieldInline('Cuenta / llave (opcional)','mpField(\''+m.id+'\',\'cuenta\',this.value)',m.cuenta,'Propia de este método')
+    +_mpFieldInline('Banco (opcional)','mpField(\''+m.id+'\',\'banco\',this.value)',m.banco,'Ej. Bancolombia')
+    +'<div style="grid-column:1/-1">'+_mpFieldInline('Instrucciones para el cliente (opcional)','mpField(\''+m.id+'\',\'instrucciones\',this.value)',m.instrucciones,'Ej. Envía el comprobante a este número')+'</div>'
+    +'</div>'
+  ) : '';
+  return '<div class="mp-card" style="border:1px solid #E2E8F0;border-radius:14px;padding:14px;background:'+(m.activo?'#fff':'#FCFCFD')+'">'
+    +'<div style="display:grid;grid-template-columns:1.4fr 1fr auto;gap:10px;align-items:end">'
+      +'<div><label style="font-size:10.5px;font-weight:700;color:#94A3B8;text-transform:uppercase">Nombre</label>'
+        +'<input value="'+_mpEsc(m.nombre)+'" oninput="mpField(\''+m.id+'\',\'nombre\',this.value)" placeholder="Ej. Nequi, Bancolombia, Efectivo…" style="width:100%;margin-top:4px;padding:9px 11px;border:1px solid #E2E8F0;border-radius:9px;font-family:inherit;font-size:13px;outline:none;box-sizing:border-box"></div>'
+      +'<div><label style="font-size:10.5px;font-weight:700;color:#94A3B8;text-transform:uppercase">Tipo</label>'
+        +'<select onchange="mpField(\''+m.id+'\',\'tipo\',this.value)" style="width:100%;margin-top:4px;padding:9px 11px;border:1px solid #E2E8F0;border-radius:9px;font-family:inherit;font-size:13px;background:#fff;outline:none;box-sizing:border-box">'+tipoOpts+'</select></div>'
+      +'<div style="display:flex;gap:4px">'
+        +'<button title="Subir" onclick="mpMove(\''+m.id+'\',-1)" style="width:32px;height:36px;border:1px solid #E2E8F0;border-radius:8px;background:#fff;cursor:pointer;color:#64748B;font-size:15px">↑</button>'
+        +'<button title="Bajar" onclick="mpMove(\''+m.id+'\',1)" style="width:32px;height:36px;border:1px solid #E2E8F0;border-radius:8px;background:#fff;cursor:pointer;color:#64748B;font-size:15px">↓</button>'
+        +'<button title="Eliminar" onclick="mpDelete(\''+m.id+'\')" style="width:32px;height:36px;border:1px solid #FEE2E2;border-radius:8px;background:#FEF2F2;cursor:pointer;color:#DC2626;font-size:14px">✕</button>'
+      +'</div>'
+      +'<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-top:4px">'
+        +'<label style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:#334155;cursor:pointer"><input type="checkbox"'+(m.activo?' checked':'')+' onchange="mpToggle(\''+m.id+'\',\'activo\',this.checked)"> Activo</label>'
+        +'<label style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:#334155;cursor:pointer"><input type="checkbox"'+(m.digital?' checked':'')+' onchange="mpToggle(\''+m.id+'\',\'digital\',this.checked)"> Digital (QR + comprobante)</label>'
+        +'<label style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:#334155;cursor:pointer"><input type="radio" name="mp-default"'+(m.porDefecto?' checked':'')+' onchange="mpSetDefault(\''+m.id+'\')"> Por defecto</label>'
+        +'<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#64748B">Comisión <input type="number" min="0" step="0.1" value="'+(m.comision||'')+'" oninput="mpField(\''+m.id+'\',\'comision\',this.value)" style="width:58px;padding:5px 8px;border:1px solid #E2E8F0;border-radius:7px;font-family:inherit;font-size:12.5px;outline:none"> %</span>'
+      +'</div>'
+      +'<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:2px"><span style="font-size:11px;color:#94A3B8;font-weight:700">Disponible en:</span>'+canalChips+'</div>'
+      +digRow
+    +'</div>'
+  +'</div>';
+}
+function _mpRender(){
+  var root=document.getElementById('mp-root'); if(!root) return;
+  var p=MP.pagos||{};
+  var cards=MP.metodos.length?MP.metodos.map(_mpCardHtml).join(''):'<div style="padding:20px;text-align:center;color:#94A3B8;font-size:13px">Aún no hay métodos. Agrega el primero.</div>';
+  root.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">'
+      +'<div><div style="font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em">Ventas · El Parche Food</div>'
+      +'<h1 style="font-size:24px;font-weight:800;color:#0F172A;margin:2px 0 0">Métodos de pago</h1>'
+      +'<p style="font-size:13px;color:#64748B;margin:4px 0 0;max-width:660px">Único lugar para crear y editar. Alimenta <strong>la pantalla de cobro</strong>, <strong>el cuadre de caja</strong> y <strong>el asistente de WhatsApp</strong>.</p></div>'
+      +'<button id="mp-save" onclick="mpSave()" style="background:#5B6BFF;color:#fff;border:none;border-radius:10px;padding:11px 20px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;opacity:.5" disabled>Guardar cambios</button>'
+    +'</div>'
+    +'<div style="background:#fff;border:1px solid #ECEEF2;border-radius:16px;padding:20px;margin-top:16px">'
+      +'<div style="font-size:15px;font-weight:800;color:#0F172A">Métodos aceptados</div>'
+      +'<div style="font-size:12px;color:#94A3B8;margin:3px 0 14px">Crea, renombra, activa/desactiva y ordena. <strong>Digital</strong> = el bot envía el QR y espera comprobante.</div>'
+      +'<div id="mp-list" style="display:flex;flex-direction:column;gap:12px">'+cards+'</div>'
+      +'<button onclick="mpAddMetodo()" style="margin-top:14px;width:100%;padding:11px;border:1.5px dashed #CBD5E1;border-radius:12px;background:#F8FAFC;color:#5B6BFF;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">+ Agregar método</button>'
+    +'</div>'
+    +'<div style="background:#fff;border:1px solid #ECEEF2;border-radius:16px;padding:20px;margin-top:16px;margin-bottom:40px">'
+      +'<div style="font-size:15px;font-weight:800;color:#0F172A">Datos para pagos digitales</div>'
+      +'<div style="font-size:12px;color:#94A3B8;margin:3px 0 14px">Lo que el bot usa para cobrar por transferencia (cuenta, titular y QR).</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">'
+        +_mpField('mp-titular','Nombre del titular',p.titular||'','Ej. El Parche Restaurante')
+        +_mpField('mp-llave','Número de cuenta / llave',p.llave||'','Ej. 0089912015')
+      +'</div>'
+      +'<div style="margin-top:14px"><label style="font-size:12px;font-weight:700;color:#475569">Imagen QR de cobro</label>'
+        +'<div style="display:flex;align-items:center;gap:14px;margin-top:8px">'
+          +'<div style="width:96px;height:96px;border-radius:12px;border:1.5px solid #ECEEF2;background:#F8FAFC center/contain no-repeat'+(MP.qrUrl?(";background-image:url(\'"+_mpEsc(MP.qrUrl)+"\')"):'')+'"></div>'
+          +'<div style="display:flex;flex-direction:column;gap:8px;align-items:flex-start">'
+            +'<input type="file" id="mp-qr-file" accept="image/*" style="display:none" onchange="mpQrUpload(this)">'
+            +'<button onclick="document.getElementById(\'mp-qr-file\').click()" style="padding:8px 14px;border:1px solid #E2E8F0;border-radius:9px;background:#fff;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer">Subir / cambiar QR</button>'
+            +(MP.qrUrl?'<button onclick="mpQrClear()" style="padding:6px 8px;border:none;border-radius:9px;background:transparent;color:#DC2626;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer">Quitar</button>':'')
+          +'</div>'
+        +'</div>'
+      +'</div>'
+      +'<div style="margin-top:14px">'+_mpTextarea('mp-qrtexto','Mensaje que acompaña el QR',p.qr_texto||'','Ej. Te comparto el QR para tu pago 😊 Recuerda enviar el comprobante.')+'</div>'
+      +'<label style="display:flex;align-items:center;gap:10px;margin-top:14px;font-size:13px;color:#334155;cursor:pointer"><input type="checkbox" id="mp-comprobante"'+(p.esperar_comprobante!==false?' checked':'')+' onchange="mpDirty()"> El bot espera el comprobante después de enviar el QR</label>'
+      +'<div style="margin-top:14px">'+_mpField('mp-bancos','Correos de bancos para verificación automática',Array.isArray(p.bancos_correo)?p.bancos_correo.join(', '):'','Ej. alertas@bancolombia.com, notificaciones@nequi.com')+'</div>'
+      +'<div style="margin-top:14px">'+_mpField('mp-nota','Nota adicional sobre pagos',p.nota||'','Ej. El domiciliario lleva cambio de hasta $100.000')+'</div>'
+    +'</div>';
+  _mpUpdateSaveBtn();
+}
+
+window.mpDirty=function(){ MP.dirty=true; _mpUpdateSaveBtn(); };
+window.mpField=function(id,key,val){ var m=_mpFind(id); if(!m)return; m[key]=(key==='comision')?(Number(val)||0):val; MP.dirty=true; _mpUpdateSaveBtn(); };
+window.mpToggle=function(id,key,val){ var m=_mpFind(id); if(!m)return; m[key]=!!val; MP.dirty=true; if(key==='digital') _mpRender(); else _mpRender(); };
+window.mpToggleCanal=function(id,canal){ var m=_mpFind(id); if(!m)return; var i=(m.canales||[]).indexOf(canal); if(i>=0) m.canales.splice(i,1); else m.canales.push(canal); MP.dirty=true; _mpRender(); };
+window.mpSetDefault=function(id){ MP.metodos.forEach(function(m){ m.porDefecto=(m.id===id); }); MP.dirty=true; _mpRender(); };
+window.mpMove=function(id,dir){ var i=-1,k; for(k=0;k<MP.metodos.length;k++){ if(MP.metodos[k].id===id){ i=k; break; } } if(i<0)return; var j=i+dir; if(j<0||j>=MP.metodos.length)return; var t=MP.metodos[i]; MP.metodos[i]=MP.metodos[j]; MP.metodos[j]=t; MP.dirty=true; _mpRender(); };
+window.mpAddMetodo=function(){ MP.metodos.push({id:_mpUid(),nombre:'',digital:false,tipo:'efectivo',activo:true,orden:MP.metodos.length,porDefecto:false,cuenta:'',banco:'',instrucciones:'',canales:['mesa','rapida','domicilio'],comision:0}); MP.dirty=true; _mpRender(); };
+window.mpDelete=function(id){ var m=_mpFind(id); if(m&&m.nombre&&!confirm('¿Eliminar "'+m.nombre+'"? Las ventas antiguas conservan su método; solo deja de aparecer para cobrar.')) return; MP.metodos=MP.metodos.filter(function(x){return x.id!==id;}); MP.dirty=true; _mpRender(); };
+window.mpQrUpload=async function(input){
+  var file=input&&input.files&&input.files[0]; if(!file) return;
+  try{
+    var ext=((file.name||'qr.png').split('.').pop()||'png').toLowerCase();
+    var path='pagos-qr/'+(MP.branchId||'b')+'_'+Date.now()+'.'+ext;
+    var up=await sb.storage.from('chat-media').upload(path,file,{upsert:true,contentType:file.type||'image/png'});
+    if(up.error) throw up.error;
+    var pub=sb.storage.from('chat-media').getPublicUrl(path);
+    MP.qrUrl=(pub&&pub.data&&pub.data.publicUrl)||'';
+    MP.dirty=true; _mpRender();
+  }catch(e){ alert('No se pudo subir el QR: '+(e&&e.message||e)); }
+};
+window.mpQrClear=function(){ MP.qrUrl=''; MP.dirty=true; _mpRender(); };
+window.mpSave=async function(){
+  var btn=document.getElementById('mp-save'); if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
+  try{
+    var metodos=MP.metodos.map(function(m,i){ return {
+      id:m.id, nombre:(m.nombre||'').trim(), digital:!!m.digital, tipo:m.tipo||'otro',
+      activo:m.activo!==false, orden:i, porDefecto:!!m.porDefecto,
+      cuenta:(m.cuenta||'').trim(), banco:(m.banco||'').trim(), instrucciones:(m.instrucciones||'').trim(),
+      canales:Array.isArray(m.canales)?m.canales:['mesa','rapida','domicilio'], comision:Number(m.comision)||0
+    }; }).filter(function(m){ return m.nombre; });
+    var old=MP.pagos||{};
+    var pagos=Object.assign({},old,{
+      metodos:metodos,
+      efectivo:metodos.some(function(m){return m.tipo==='efectivo'||!m.digital;}),
+      nequi:metodos.some(function(m){return (m.nombre||'').toLowerCase().indexOf('nequi')>=0;}),
+      daviplata:metodos.some(function(m){return (m.nombre||'').toLowerCase().indexOf('daviplata')>=0;}),
+      tarjeta:metodos.some(function(m){return m.tipo==='tarjeta';}),
+      titular:_mpV('mp-titular'), llave:_mpV('mp-llave'),
+      qr_texto:_mpV('mp-qrtexto'), nota:_mpV('mp-nota'),
+      esperar_comprobante:_mpC('mp-comprobante'),
+      bancos_correo:_mpV('mp-bancos').split(',').map(function(s){return s.trim();}).filter(Boolean),
+      qr_imagen_url:(MP.qrUrl!=null?MP.qrUrl:(old.qr_imagen_url||''))
+    });
+    var r=await sb.from('ia_config').update({pagos:pagos}).eq('branch_id',MP.branchId);
+    if(r.error) throw r.error;
+    MP.pagos=pagos; window._loadedPagos=pagos; MP.dirty=false;
+    if(btn){ btn.textContent='Guardado ✓'; }
+    _mpToast('Métodos de pago guardados ✓');
+    setTimeout(function(){ var b=document.getElementById('mp-save'); if(b){ b.textContent='Guardar cambios'; } _mpUpdateSaveBtn(); },1200);
+  }catch(e){ alert('Error al guardar: '+(e&&e.message||e)); var b=document.getElementById('mp-save'); if(b){ b.disabled=false; b.textContent='Guardar cambios'; } }
+};
+function _mpUpdateSaveBtn(){ var b=document.getElementById('mp-save'); if(!b)return; b.disabled=!MP.dirty; b.style.opacity=MP.dirty?'1':'.5'; }
+function _mpToast(msg){
+  var t=document.createElement('div'); t.textContent=msg;
+  t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0F172A;color:#fff;padding:11px 20px;border-radius:12px;font-family:inherit;font-size:13px;font-weight:600;z-index:99999;box-shadow:0 8px 24px rgba(0,0,0,.2)';
+  document.body.appendChild(t); setTimeout(function(){ if(t.parentNode) t.parentNode.removeChild(t); },2200);
+}
+
+/* ── Asistente IA → Pagos: SOLO LECTURA + redirección ─────────────────────── */
+window._mpMakeAsistenteReadonly=function(){
+  ['card-pagos','card-gmail'].forEach(function(cid){
+    var card=document.getElementById(cid); if(!card) return;
+    card.querySelectorAll('input,textarea,button,select').forEach(function(el){
+      if(el.getAttribute('data-mp-keep')) return;
+      el.disabled=true; el.style.pointerEvents='none';
+    });
+    card.style.opacity='.9';
+  });
+  var host=document.getElementById('card-pagos');
+  if(host && !document.getElementById('mp-ro-banner')){
+    var b=document.createElement('div');
+    b.id='mp-ro-banner';
+    b.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:12px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:12px;padding:12px 14px;margin-bottom:14px';
+    b.innerHTML='<span style="font-size:12.5px;color:#3730A3;font-weight:600">Vista de solo lectura · Los métodos de pago se crean y editan en <strong>Métodos de pago</strong>.</span>'
+      +'<button data-mp-keep="1" onclick="setSection(\'pagos\')" style="pointer-events:auto;background:#5B6BFF;color:#fff;border:none;border-radius:9px;padding:8px 14px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap">Ir a Métodos de pago →</button>';
+    host.insertBefore(b, host.firstChild);
+    var btn=b.querySelector('button'); if(btn) btn.disabled=false;
+  }
+};
+
