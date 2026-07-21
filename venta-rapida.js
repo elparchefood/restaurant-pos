@@ -1100,8 +1100,9 @@
     const hasVars = (p.variables||[]).length > 0;
     return '<div class="pm-choice-grid">' + pres.map(pr => {
       const on = VR_WIP.pres && VR_WIP.pres.id === pr.id;
-      const thumb = pr.photo_url
-        ? '<div class="pm-choice-thumb"><img src="'+vrAttr(pr.photo_url)+'" style="width:100%;height:100%;object-fit:cover"></div>'
+      const _img = pr.image_url || p.photo_url;   // imagen propia de la presentación o, si no, la del producto
+      const thumb = _img
+        ? '<div class="pm-choice-thumb"><img src="'+vrAttr(_img)+'" style="width:100%;height:100%;object-fit:cover"></div>'
         : '<div class="pm-choice-thumb" style="display:flex;align-items:center;justify-content:center;background:#F1F5F9"><span style="font-size:11px;color:#94A3B8">'+vrEsc(pr.name)+'</span></div>';
       const priceLabel = hasVars ? 'Incluido' : (pr.price ? vrFmt(pr.price) : 'Incluido');
       return '<button class="pm-choice'+(on?' on':'')+'" data-pres-id="'+vrAttr(pr.id)+'" data-pres-name="'+vrAttr(pr.name)+'" data-pres-price="'+(pr.price||0)+'">'

@@ -694,14 +694,15 @@ function pmBuildPresPane(p){
   const hasVars=(p.variables||[]).length>0;
   return '<div class="pm-choice-grid">'+pres.map(pr=>{
     const on=TP_WIP.pres&&TP_WIP.pres.id===pr.id;
-    const thumb=pr.photo_url
-      ?'<div class="pm-choice-thumb pm-thumb-img"><img src="'+pmAttr(pr.photo_url)+'" alt="'+pmAttr(pr.name)+'" style="width:100%;height:100%;object-fit:cover;display:block"><div class="pm-thumb-overlay"><div class="pm-thumb-name">'+pmEsc(pr.name)+'</div><div class="pm-thumb-price">'+priceLabel+'</div></div></div>'
-      :'<div class="pm-choice-thumb pm-thumb-ph"><svg width=\"32\" height=\"32\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#CBD5E1\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"3\"/><circle cx=\"8.5\" cy=\"8.5\" r=\"1.5\"/><polyline points=\"21 15 16 10 5 21\"/></svg></div>';
     const priceLabel=hasVars?'Incluido':(pr.price?pmFmt(pr.price):'Incluido');
+    const _img=pr.image_url||p.photo_url;   // imagen propia de la presentación o, si no, la del producto
+    const thumb=_img
+      ?'<div class="pm-choice-thumb pm-thumb-img"><img src="'+pmAttr(_img)+'" alt="'+pmAttr(pr.name)+'" style="width:100%;height:100%;object-fit:cover;display:block"><div class="pm-thumb-overlay"><div class="pm-thumb-name">'+pmEsc(pr.name)+'</div><div class="pm-thumb-price">'+priceLabel+'</div></div></div>'
+      :'<div class="pm-choice-thumb pm-thumb-ph"><svg width=\"32\" height=\"32\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#CBD5E1\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"3\"/><circle cx=\"8.5\" cy=\"8.5\" r=\"1.5\"/><polyline points=\"21 15 16 10 5 21\"/></svg></div>';
     return '<button class="pm-choice'+(on?' on':'')+'" data-pres-id="'+pmAttr(pr.id)+'" data-pres-name="'+pmAttr(pr.name)+'" data-pres-price="'+(pr.price||0)+'">'
       +thumb
-      +(pr.photo_url?''  :'<div class="pm-choice-body"><div class="pm-choice-name">'+pmEsc(pr.name)+'</div>')
-      +(pr.photo_url?''  :'<div class="pm-choice-price">'+priceLabel+'</div></div>')
+      +(_img?''  :'<div class="pm-choice-body"><div class="pm-choice-name">'+pmEsc(pr.name)+'</div>')
+      +(_img?''  :'<div class="pm-choice-price">'+priceLabel+'</div></div>')
       +'<span class="pm-radio">'+(on?PM_SVG.check:'')+'</span>'
       +'</button>';
   }).join('')+'</div>';
