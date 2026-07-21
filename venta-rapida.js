@@ -328,7 +328,7 @@
       const count = S.products.filter(p => p.category_id === cat.id).length;
       return `
         <button class="lm-cat" data-open-cat="${cat.id}" style="border-color:${cat.ring || '#ECEEF2'}">
-          <div class="tp-thumb" style="height:80px;margin:7px 7px 0${cat.image_url ? `;background:#F1F5F9 center/cover no-repeat url('${cat.image_url}')` : ''}"></div>
+          <div class="tp-thumb" style="height:80px;margin:7px 7px 0">${cat.image_url ? `<img src="${vrAttr(cat.image_url)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">` : ''}</div>
           <div class="tp-cat-foot">
             <div>
               <div class="tp-cat-name">${cat.name}</div>

@@ -491,10 +491,11 @@ function renderCatGrid() {
   el.innerHTML = S.cats.map(c => {
     const color = c.color || '#5B6BFF';
     const count = S.products.filter(p => p.category_id === c.id).length;
-    const thumb = c.image_url ? '' : `<span class="d-thumb-lbl">${c.name}</span>`;
-    const _bg = c.image_url ? `;background:#F1F5F9 center/cover no-repeat url('${c.image_url}')` : '';
+    const thumb = c.image_url
+      ? `<img src="${c.image_url}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">`
+      : `<span class="d-thumb-lbl">${c.name}</span>`;
     return `<button class="lm-cat" data-open-cat="${c.id}" style="border-color:${colorRing(color)}">
-      <div class="d-thumb" style="height:108px${_bg}">${thumb}</div>
+      <div class="d-thumb" style="height:108px">${thumb}</div>
       <div class="d-cat-foot">
         <div><div class="d-cat-name">${c.name}</div><div class="d-cat-count">${count} productos</div></div>
         <span class="d-cat-badge" style="color:${color};background:${colorTint(color)}">${svgInline('chevron', 14)}</span>
