@@ -234,7 +234,7 @@
   let _syncing = false;
 
   async function _syncNow() {
-    if (_syncing || !navigator.onLine) return;
+    if (_syncing || (!_isElectron && !navigator.onLine)) return;
     _syncing = true;
     try {
       const pending = await _idbGetAll('queue', 'status', 'pending');
@@ -280,7 +280,12 @@
      Detección de red
   ══════════════════════════════════════════ */
 
-  let _online  = navigator.onLine;
+  // En Electron (app de escritorio) navigator.onLine da falsos negativos:
+  // reporta "offline" aunque haya internet, lo que encolaba pedidos con id
+  // temporal y rompía la auto-impresión. En Electron confiamos en el
+  // resultado real de cada escritura (el try/catch cae a la cola si falla).
+  const _isElectron = !!(window.electronPOS);
+  let _online  = _isElectron ? true : navigator.onLine;
   const _cbs   = [];
 
   window.addEventListener('online', async () => {
@@ -290,6 +295,7 @@
   });
 
   window.addEventListener('offline', () => {
+    if (_isElectron) return; // navigator.onLine no es confiable en Electron
     _online = false;
     _cbs.forEach(cb => cb(false));
     _ui('offline');
@@ -297,7 +303,7 @@
 
   /* Al cargar: sincronizar lo que quedó pendiente */
   _openDB().then(async () => {
-    if (!navigator.onLine) {
+    if (!_isElectron && !navigator.onLine) {
       _online = false;
       _ui('offline');
     } else {
