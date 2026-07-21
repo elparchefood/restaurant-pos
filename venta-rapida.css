@@ -620,6 +620,12 @@ svg { display: block; }
 .pm-mod-name{font-size:12.5px;font-weight:600;color:var(--ink);}
 .pm-mod-price{font-size:11.5px;font-weight:700;color:var(--muted);margin-top:2px;}
 .pm-mod-add{width:26px;height:26px;border-radius:999px;border:none;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.pm-mod-qty-ctrl{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.pm-mod-dec,.pm-mod-inc{width:28px;height:28px;border-radius:8px;border:1.5px solid var(--border);background:#fff;color:var(--slate);font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;transition:border-color .12s,background .12s;}
+.pm-mod-dec:hover:not(:disabled),.pm-mod-inc:hover:not(:disabled){border-color:var(--indigo);color:var(--indigo);background:#EEF2FF;}
+.pm-mod-dec:disabled,.pm-mod-inc:disabled{opacity:.35;cursor:not-allowed;}
+.pm-mod-qty-num{font-size:13px;font-weight:700;color:var(--ink);min-width:18px;text-align:center;}
+.pm-mod.on .pm-mod-dec,.pm-mod.on .pm-mod-inc{border-color:var(--indigo-100);}
 .pm-nomods{text-align:center;color:var(--faint);padding:40px 20px;}
 .pm-nomods p{font-size:12.5px;margin:6px 0 0;line-height:1.5;}
 .pm-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 22px;border-top:1px solid var(--border);background:var(--bg);flex-shrink:0;}

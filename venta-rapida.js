@@ -175,6 +175,8 @@
           </div>
           <div class="tp-cartline-main">
             <div class="tp-cartline-name">${item.name}</div>
+            ${item.modSummary ? `<div class="tp-cartline-meta"><span class="txt" style="color:#0EA5E9">+ ${vrEsc(item.modSummary)}</span></div>` : ''}
+            ${item.note ? `<div class="tp-cartline-meta"><span class="txt" style="font-style:italic">📝 ${vrEsc(item.note)}</span></div>` : ''}
             <div class="tp-cartline-meta">
               <span class="txt">${item.catName || ''} · ${fmt(item.price)}</span>
             </div>
@@ -805,7 +807,7 @@
       ];
       const [{ data: cats }, { data: prods }, { data: mods }] = await Promise.all([
         sb.from('pos_categories').select('id,name,color,color_tint,color_ring,image_url').eq('active', true).eq('tenant_id', S.tenantId).order('name'),
-        sb.from('pos_products').select('id,name,price,price_mode,category_id,photo_url,available,presentations,variables,mod_group_ids').eq('available', true).eq('tenant_id', S.tenantId).order('name'),
+        sb.from('pos_products').select('id,name,price,price_mode,category_id,photo_url,available,presentations,variables,mod_group_ids,mod_group_pres').eq('available', true).eq('tenant_id', S.tenantId).order('name'),
         sb.from('pos_modifier_groups').select('id,name,rule,multi,options').eq('tenant_id', S.tenantId),
       ]);
       S.categories = (cats || []).map((c, i) => ({
@@ -822,6 +824,7 @@
           presentations: Array.isArray(p.presentations) ? p.presentations : [],
           variables:     Array.isArray(p.variables)     ? p.variables     : [],
           mod_group_ids: Array.isArray(p.mod_group_ids) ? p.mod_group_ids : [],
+          mod_group_pres: (p.mod_group_pres && typeof p.mod_group_pres === 'object') ? p.mod_group_pres : {},
           catName:  cat ? cat.name  : '',
           catColor: cat ? cat.color : '#94A3B8',
         };
@@ -982,7 +985,7 @@
 
 
   /* ─── Modal producto VR (Presentaciones / Variables / Personalizar) ─── */
-  let VR_WIP = { prod:null, step:1, pres:null, vars:{}, mods:{}, qty:1, note:'' };
+  let VR_WIP = { prod:null, stepIdx:0, pres:null, vars:{}, mods:{}, qty:1, note:'' };
 
   const VR_SVG = {
     check: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
@@ -1008,15 +1011,29 @@
     const hasVars = (p.variables||[]).length > 0;
     // Producto simple: agregar directo sin abrir modal
     if (!hasPres && !hasVars) { addToCart(prodId); return; }
-    VR_WIP = { prod:p, step:1, pres:null, vars:{}, mods:{}, qty:1, note:'' };
+    VR_WIP = { prod:p, stepIdx:0, pres:null, vars:{}, mods:{}, qty:1, note:'' };
     if (!hasPres) {
       const pArr = p.presentations || [];
       VR_WIP.pres = pArr.length === 1 ? pArr[0] : { id:'_base', name:'', price: parseFloat(p.price)||0 };
-      VR_WIP.step = hasVars ? 2 : 3;
     }
     const el = document.getElementById('vr-modal-producto');
     if (el) el.style.display = 'flex';
     vrRenderMP();
+  }
+  // Un paso por CADA variable (además de Presentación y Personalizar).
+  function vrSteps(p){
+    const steps=[];
+    if((p.presentations||[]).length>1) steps.push({kind:'pres',label:p.presLabel||'Presentacion'});
+    (p.variables||[]).forEach(function(vg){ steps.push({kind:'var',varId:vg.id,vg:vg,label:vg.name||'Variante'}); });
+    steps.push({kind:'custom',label:'Personalizar'});
+    return steps;
+  }
+  function vrModGroupApplies(prod,gid,presId){
+    const map=(prod&&prod.mod_group_pres)||{};
+    const list=map[gid];
+    if(!list||!list.length) return true;
+    if(!presId) return true;
+    return list.indexOf(presId)!==-1;
   }
 
   function vrComputePrice() {
@@ -1040,27 +1057,23 @@
       base = VR_WIP.pres ? (VR_WIP.pres.price || baseP) : baseP;
       base += Object.values(VR_WIP.vars).reduce((s, v) => s + (v.price||0), 0);
     }
-    const modX = Object.values(VR_WIP.mods).reduce((s, m) => s + (m.price||0), 0);
+    const modX = Object.values(VR_WIP.mods).reduce((s, m) => s + ((m.price||0)*(m.qty||1)), 0);
     return (base + modX) * VR_WIP.qty;
   }
 
   function vrRenderMP() {
     const p = VR_WIP.prod; if (!p) return;
     const inner = document.getElementById('vr-pm-inner'); if (!inner) return;
-    const hasPres = (p.presentations||[]).length > 1;
-    const hasVars = (p.variables||[]).length > 0;
-    const steps = [];
-    if (hasPres) steps.push({ id:'pres', label: p.presLabel || 'Presentacion' });
-    if (hasVars) steps.push({ id:'var',  label: p.varLabel || (p.variables[0]&&p.variables[0].name) || 'Variante' });
-    steps.push({ id:'custom', label:'Personalizar' });
-    const curId = VR_WIP.step===1&&hasPres ? 'pres' : VR_WIP.step===2&&hasVars ? 'var' : 'custom';
-    const curIdx = steps.findIndex(s => s.id === curId);
+    const steps = vrSteps(p);
+    let curIdx = VR_WIP.stepIdx||0; if(curIdx<0)curIdx=0; if(curIdx>=steps.length)curIdx=steps.length-1;
+    VR_WIP.stepIdx = curIdx;
+    const cur = steps[curIdx];
     const stepperHTML = steps.length > 1
       ? '<div class="pm-steps">' + steps.map((s, i) => {
           const done = i < curIdx, on = i === curIdx;
-          return '<button class="pm-step'+(done?' done':on?' on':'')+'" data-step-id="'+s.id+'">'
+          return '<button class="pm-step'+(done?' done':on?' on':'')+'" data-step-idx="'+i+'">'
             +'<span class="pm-step-dot">'+(done?VR_SVG.check:String(i+1))+'</span>'
-            +'<span class="pm-step-lbl">'+s.label+'</span></button>'
+            +'<span class="pm-step-lbl">'+vrEsc(s.label)+'</span></button>'
             +(i < steps.length-1 ? '<span class="pm-step-line'+(done?' done':'')+'"></span>' : '');
         }).join('') + '</div>'
       : '';
@@ -1068,15 +1081,15 @@
     const varLabels = Object.values(VR_WIP.vars).map(v => v.name).join(' \xb7 ');
     const selParts  = [presLabel, varLabels].filter(Boolean).join(' \xb7 ');
     let paneHTML = '';
-    if (curId === 'pres') paneHTML = vrBuildPresPane(p);
-    else if (curId === 'var') paneHTML = vrBuildVarPane(p);
+    if (cur.kind === 'pres') paneHTML = vrBuildPresPane(p);
+    else if (cur.kind === 'var') paneHTML = vrBuildVarPane(p, cur.vg);
     else paneHTML = vrBuildCustomPane(p);
-    const canNext = curId==='pres' ? !!VR_WIP.pres : curId==='var' ? (p.variables||[]).every(v=>VR_WIP.vars[v.id]) : true;
+    const canNext = cur.kind==='pres' ? !!VR_WIP.pres : cur.kind==='var' ? !!VR_WIP.vars[cur.varId] : true;
     const isFirst = curIdx === 0;
     const footLeft = isFirst
       ? '<button class="pm-btn-ghost" onclick="vrCloseMP()">Cancelar</button>'
       : '<button class="pm-btn-ghost" onclick="vrMPBack()">'+VR_SVG.back+' Atras</button>';
-    const isLast = curId === 'custom';
+    const isLast = cur.kind === 'custom';
     const footRight = isLast
       ? '<button class="pm-btn-primary" onclick="vrMPAddToCart()">'+VR_SVG.cart+' Agregar \xb7 <span id="vr-foot-price">'+vrFmt(vrComputePrice())+'</span></button>'
       : '<button class="pm-btn-primary" id="vr-mp-next"'+(canNext?'':' disabled')+' onclick="vrMPAdvance()">Continuar '+VR_SVG.chev+'</button>';
@@ -1092,7 +1105,7 @@
       +stepperHTML
       +'<div class="pm-body">'+paneHTML+'</div>'
       +'<div class="pm-foot">'+footLeft+footRight+'</div>';
-    vrAttachHandlers(inner, p, curId);
+    vrAttachHandlers(inner, p, cur);
   }
 
   function vrBuildPresPane(p) {
@@ -1114,13 +1127,14 @@
     }).join('') + '</div>';
   }
 
-  function vrBuildVarPane(p) {
-    const vars = p.variables || [];
+  function vrBuildVarPane(p, v) {
+    if (!v) v = (p.variables||[])[0];
+    if (!v) return '';
     const isMatrix = p.price_mode === 'matrix';
     const presIdx = (p.presentations||[]).findIndex(pr => pr.id === VR_WIP.pres?.id);
-    return '<div style="display:flex;flex-direction:column;gap:20px">' + vars.map(v => {
-      return '<div><div style="font-size:12px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">'+vrEsc(v.name)+'</div>'
-        +'<div class="pm-choice-grid">' + (v.options||[]).map(o => {
+    return '<div style="display:flex;flex-direction:column;gap:20px"><div>'
+      +'<div style="font-size:12px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">'+vrEsc(v.name)+'</div>'
+      +'<div class="pm-choice-grid">' + (v.options||[]).map(o => {
           const sel = VR_WIP.vars[v.id] && VR_WIP.vars[v.id].id === o.id;
           const optPrice = isMatrix && Array.isArray(o.prices) && presIdx >= 0 ? (o.prices[presIdx]||0) : (o.price||0);
           const priceLabel = optPrice ? (isMatrix ? vrFmt(optPrice) : '+'+vrFmt(optPrice)) : 'Incluido';
@@ -1129,25 +1143,52 @@
             +'<div class="pm-choice-price">'+priceLabel+'</div></div>'
             +'<span class="pm-radio">'+(sel?VR_SVG.check:'')+'</span>'
             +'</button>';
-        }).join('') + '</div></div>';
-    }).join('') + '</div>';
+        }).join('') + '</div></div></div>';
   }
 
   function vrBuildCustomPane(p) {
+    const _presId = VR_WIP.pres && VR_WIP.pres.id;
+    const modGroups = (p.mod_group_ids||[])
+      .filter(gid => vrModGroupApplies(p, gid, _presId))
+      .map(gid => (S.modGroups||[]).find(g => g.id === gid)).filter(Boolean);
     const presLabel = VR_WIP.pres && VR_WIP.pres.name ? VR_WIP.pres.name : '';
     const varLabels = Object.values(VR_WIP.vars).map(v => v.name).join(' \xb7 ');
     const selParts  = [presLabel, varLabels].filter(Boolean);
     const photoHTML = p.photo_url
       ? '<div class="pm-photo"><img src="'+vrAttr(p.photo_url)+'" style="width:100%;height:100%;object-fit:cover"></div>'
-      : '<div class="pm-photo" style="display:flex;align-items:center;justify-content:center;background:repeating-linear-gradient(135deg,#F1F5F9 0 10px,#F8FAFC 10px 20px)">'
-        +'<span style="font-size:40px;color:#CBD5E1">'+vrEsc((p.name||'?')[0].toUpperCase())+'</span></div>';
+      : '<div class="pm-photo pm-photo-ph"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>';
     const selSummary = selParts.length
       ? vrEsc(p.name)+' &middot; <span class="sel">'+vrEsc(selParts.join(' \xb7 '))+'</span>'
       : vrEsc(p.name);
+    const modSumTxt = Object.values(VR_WIP.mods).filter(m=>m.qty>0).map(m=>m.qty>1?m.qty+'x '+m.name:m.name).join(', ')||'Sin adiciones seleccionadas';
+    const groupsHTML = modGroups.length
+      ? modGroups.map(g => {
+          const maxHint = g.multi ? 'Max. '+(g.options||[]).length : 'Elige una';
+          const optRows = (g.options||[]).map(o => {
+            const modEntry = VR_WIP.mods[o.id]; const modQty = modEntry?(modEntry.qty||0):0;
+            const grpOpts = (g.options||[]).map(opt=>opt.id);
+            const totalGroupQty = grpOpts.reduce((s,oid)=>s+((VR_WIP.mods[oid]&&VR_WIP.mods[oid].qty)||0),0);
+            const groupMax = g.multi?(g.max_total||(g.options||[]).length):1;
+            const canInc = totalGroupQty<groupMax;
+            return '<div class="pm-mod'+(modQty>0?' on':'')+'" data-mod-id="'+vrAttr(o.id)+'">'
+              +'<div style="min-width:0;text-align:left;flex:1"><div class="pm-mod-name">'+vrEsc(o.name)+'</div>'
+              +'<div class="pm-mod-price">'+(o.price?'+ '+vrFmt(o.price):'Gratis')+'</div></div>'
+              +'<div class="pm-mod-qty-ctrl">'
+              +'<button class="pm-mod-dec"'+(modQty<=0?' disabled="disabled"':'')+' data-mod-dec="'+vrAttr(o.id)+'">&#8722;</button>'
+              +'<span class="pm-mod-qty-num">'+modQty+'</span>'
+              +'<button class="pm-mod-inc"'+(!canInc?' disabled="disabled"':'')+' data-mod-inc="'+vrAttr(o.id)+'" data-mod-name="'+vrAttr(o.name)+'" data-mod-price="'+(o.price||0)+'">+</button>'
+              +'</div></div>';
+          }).join('');
+          return '<div style="margin-top:14px">'
+            +'<div class="pm-group-head"><span>'+vrEsc(g.name)+'</span><span class="pm-group-hint">'+maxHint+'</span></div>'
+            +'<div class="pm-mods-grid">'+optRows+'</div></div>';
+        }).join('')
+      : '<div class="pm-nomods"><p>Sin adiciones disponibles para este producto.</p></div>';
     return '<div class="pm-custom">'
       +'<div class="pm-left">'
       +photoHTML
       +'<div class="pm-prodname">'+selSummary+'</div>'
+      +'<div class="pm-modsum" id="vr-mod-sum">'+vrEsc(modSumTxt)+'</div>'
       +'<div class="pm-field-lbl">'+VR_SVG.note+' Nota para cocina</div>'
       +'<textarea class="pm-note" placeholder="Ej. sin cebolla, bien caliente..." id="vr-note-input">'+vrEsc(VR_WIP.note)+'</textarea>'
       +'</div>'
@@ -1160,19 +1201,19 @@
       +'<button id="vr-qty-inc">'+VR_SVG.plus+'</button></div></div>'
       +'<div style="text-align:right"><div class="pm-pf-lbl">Precio</div>'
       +'<div class="pm-pf-val" id="vr-price-val">'+vrFmt(vrComputePrice())+'</div></div></div>'
-      +'<div class="pm-nomods" style="padding:60px 20px"><p>Sin adiciones para este producto.</p></div>'
+      +'<div class="pm-search">'+VR_SVG.srch+'<input placeholder="Buscar adiciones..." id="vr-search-inp"></div>'
+      +groupsHTML
       +'</div></div>';
   }
 
-  function vrAttachHandlers(inner, p, curId) {
+  function vrAttachHandlers(inner, p, cur) {
     inner.querySelectorAll('.pm-step.done').forEach(btn => {
       btn.addEventListener('click', () => {
-        const sid = btn.dataset.stepId;
-        VR_WIP.step = sid==='pres' ? 1 : sid==='var' ? 2 : 3;
-        vrRenderMP();
+        const i = parseInt(btn.dataset.stepIdx,10);
+        if(!isNaN(i)){ VR_WIP.stepIdx = i; vrRenderMP(); }
       });
     });
-    if (curId === 'pres') {
+    if (cur.kind === 'pres') {
       inner.querySelectorAll('.pm-choice[data-pres-id]').forEach(btn => {
         btn.addEventListener('click', () => {
           const id = btn.dataset.presId, name = btn.dataset.presName, price = +btn.dataset.presPrice;
@@ -1186,7 +1227,7 @@
         });
       });
     }
-    if (curId === 'var') {
+    if (cur.kind === 'var') {
       inner.querySelectorAll('.pm-choice[data-var-id]').forEach(btn => {
         btn.addEventListener('click', () => {
           const vid = btn.dataset.varId, oid = btn.dataset.optId, oname = btn.dataset.optName, oprice = +btn.dataset.optPrice;
@@ -1196,18 +1237,75 @@
             b.classList.toggle('on', on);
             b.querySelector('.pm-radio').innerHTML = on ? VR_SVG.check : '';
           });
-          const allDone = (p.variables||[]).every(v => VR_WIP.vars[v.id]);
-          const nb = document.getElementById('vr-mp-next'); if (nb) nb.disabled = !allDone;
+          const nb = document.getElementById('vr-mp-next'); if (nb) nb.disabled = !VR_WIP.vars[cur.varId];
         });
       });
     }
-    if (curId === 'custom') {
+    if (cur.kind === 'custom') {
       const qdec = document.getElementById('vr-qty-dec'), qinc = document.getElementById('vr-qty-inc');
       if (qdec) qdec.addEventListener('click', () => { VR_WIP.qty = Math.max(1, VR_WIP.qty-1); vrUpdatePrices(); });
       if (qinc) qinc.addEventListener('click', () => { VR_WIP.qty++; vrUpdatePrices(); });
       const noteEl = document.getElementById('vr-note-input');
       if (noteEl) { noteEl.value = VR_WIP.note; noteEl.addEventListener('input', function(){ VR_WIP.note = this.value; }); }
+      inner.querySelectorAll('[data-mod-inc]').forEach(function(incBtn){
+        incBtn.addEventListener('click', function(e){
+          e.stopPropagation();
+          var id=incBtn.dataset.modInc, mname=incBtn.dataset.modName, price=parseFloat(incBtn.dataset.modPrice)||0;
+          var g=(p.mod_group_ids||[]).map(function(gid){return (S.modGroups||[]).find(function(g){return g.id===gid;});}).filter(Boolean)
+                   .find(function(g){return (g.options||[]).some(function(o){return o.id===id;});});
+          var groupMax=g?(g.max_total||(g.options||[]).length):999;
+          var grpOpts=g?(g.options||[]).map(function(o){return o.id;}):[];
+          var totalGroupQty=grpOpts.reduce(function(s,oid){return s+((VR_WIP.mods[oid]&&VR_WIP.mods[oid].qty)||0);},0);
+          if(totalGroupQty>=groupMax) return;
+          if(!VR_WIP.mods[id]) VR_WIP.mods[id]={name:mname,price:price,qty:0};
+          VR_WIP.mods[id].qty=(VR_WIP.mods[id].qty||0)+1;
+          vrSyncModUI(inner,p); vrUpdatePrices();
+          var ms=document.getElementById('vr-mod-sum');
+          if(ms) ms.textContent=Object.values(VR_WIP.mods).filter(function(m){return m.qty>0;}).map(function(m){return m.qty>1?m.qty+'x '+m.name:m.name;}).join(', ')||'Sin adiciones seleccionadas';
+        });
+      });
+      inner.querySelectorAll('[data-mod-dec]').forEach(function(decBtn){
+        decBtn.addEventListener('click', function(e){
+          e.stopPropagation();
+          var id=decBtn.dataset.modDec;
+          if(!VR_WIP.mods[id]||VR_WIP.mods[id].qty<=0) return;
+          VR_WIP.mods[id].qty--;
+          if(VR_WIP.mods[id].qty<=0) delete VR_WIP.mods[id];
+          vrSyncModUI(inner,p); vrUpdatePrices();
+          var ms=document.getElementById('vr-mod-sum');
+          if(ms) ms.textContent=Object.values(VR_WIP.mods).filter(function(m){return m.qty>0;}).map(function(m){return m.qty>1?m.qty+'x '+m.name:m.name;}).join(', ')||'Sin adiciones seleccionadas';
+        });
+      });
+      const sinp=document.getElementById('vr-search-inp');
+      if(sinp) sinp.addEventListener('input',function(){
+        const q=this.value.toLowerCase().trim();
+        inner.querySelectorAll('.pm-mod').forEach(b=>{
+          const nm=b.querySelector('.pm-mod-name')?b.querySelector('.pm-mod-name').textContent.toLowerCase():'';
+          b.style.display=q&&!nm.includes(q)?'none':'';
+        });
+      });
     }
+  }
+  function vrSyncModUI(inner,p){
+    inner.querySelectorAll('[data-mod-id]').forEach(function(div){
+      var id=div.dataset.modId;
+      var entry=VR_WIP.mods[id];
+      var qty=entry?(entry.qty||0):0;
+      div.classList.toggle('on',qty>0);
+      var numEl=div.querySelector('.pm-mod-qty-num');
+      if(numEl) numEl.textContent=qty;
+      var decBtn=div.querySelector('[data-mod-dec]');
+      if(decBtn) decBtn.disabled=qty<=0;
+      var incBtn=div.querySelector('[data-mod-inc]');
+      if(incBtn){
+        var g=(p.mod_group_ids||[]).map(function(gid){return (S.modGroups||[]).find(function(g){return g.id===gid;});}).filter(Boolean)
+                  .find(function(g){return (g.options||[]).some(function(o){return o.id===id;});});
+        var groupMax=g?(g.max_total||(g.options||[]).length):999;
+        var grpOpts=g?(g.options||[]).map(function(o){return o.id;}):[];
+        var totalGroupQty=grpOpts.reduce(function(s,oid){return s+((VR_WIP.mods[oid]&&VR_WIP.mods[oid].qty)||0);},0);
+        incBtn.disabled=totalGroupQty>=groupMax;
+      }
+    });
   }
 
   function vrUpdatePrices() {
@@ -1223,17 +1321,13 @@
   function vrCheckOverlayClose(e) { if (e.target === e.currentTarget) vrCloseMP(); }
 
   function vrMPAdvance() {
-    const p = VR_WIP.prod, hasVars = (p.variables||[]).length > 0;
-    if (VR_WIP.step === 1) { VR_WIP.step = hasVars ? 2 : 3; }
-    else if (VR_WIP.step === 2) { VR_WIP.step = 3; }
+    const steps = vrSteps(VR_WIP.prod);
+    VR_WIP.stepIdx = Math.min(steps.length-1, (VR_WIP.stepIdx||0)+1);
     vrRenderMP();
   }
 
   function vrMPBack() {
-    const p = VR_WIP.prod;
-    const hasPres = (p.presentations||[]).length > 1, hasVars = (p.variables||[]).length > 0;
-    if (VR_WIP.step === 3) { VR_WIP.step = hasVars ? 2 : (hasPres ? 1 : 3); }
-    else if (VR_WIP.step === 2) { VR_WIP.step = hasPres ? 1 : 2; }
+    VR_WIP.stepIdx = Math.max(0, (VR_WIP.stepIdx||0)-1);
     vrRenderMP();
   }
 
@@ -1243,6 +1337,7 @@
     const varLabels = Object.values(VR_WIP.vars).map(v => v.name).join(' \xb7 ');
     const displayName = [p.name, presLabel, varLabels].filter(Boolean).join(' \xb7 ');
     const unitPrice = vrComputePrice() / VR_WIP.qty;
+    const modSummary = Object.values(VR_WIP.mods).filter(m=>m.qty>0).map(m=>(m.qty>1?m.qty+'x ':'')+m.name).join(', ');
     const lineId = 'vr_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
     const cat = S.categories.find(c => String(c.id) === String(p.category_id));
     S.cart.push({
@@ -1252,6 +1347,7 @@
       price:     unitPrice,
       qty:       VR_WIP.qty,
       note:      VR_WIP.note || '',
+      modSummary: modSummary,
       catId:     p.category_id,
       catName:   p.catName || '',
       catColor:  p.catColor || '#94A3B8',
