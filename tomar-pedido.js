@@ -555,17 +555,29 @@ function tp_svg(name,size){
   return '';
 }
 
-let TP_WIP = { prod:null, step:1, pres:null, vars:{}, mods:{}, qty:1, note:'', forHere:true };
+let TP_WIP = { prod:null, stepIdx:0, pres:null, vars:{}, mods:{}, qty:1, note:'', forHere:true };
+
+// Lista dinámica de pasos del asistente: Presentación (si hay 2+), UN paso por
+// CADA variable (ej. "Primer ingrediente", "Segundo ingrediente"), y Personalizar.
+function pmSteps(p){
+  const steps=[];
+  if((p.presentations||[]).length>1) steps.push({kind:'pres',label:p.presLabel||'Presentacion'});
+  (p.variables||[]).forEach(function(vg){
+    steps.push({kind:'var',varId:vg.id,vg:vg,label:vg.name||'Variante'});
+  });
+  steps.push({kind:'custom',label:'Personalizar'});
+  return steps;
+}
 
 function tpOpenProductModal(prodId) {
   const p = S.products.find(x=>x.id===prodId);
   if(!p) return;
-  TP_WIP = { prod:p, step:1, pres:null, vars:{}, mods:{}, qty:1, note:'', forHere:true };
-  const hasPres=(p.presentations||[]).length>1, hasVars=(p.variables||[]).length>0;
+  TP_WIP = { prod:p, stepIdx:0, pres:null, vars:{}, mods:{}, qty:1, note:'', forHere:true };
+  const hasPres=(p.presentations||[]).length>1;
   if(!hasPres){
     const pArr=p.presentations||[];
     TP_WIP.pres = pArr.length===1?pArr[0]:{id:'_base',name:'',price:parseFloat(p.price)||0};
-    TP_WIP.step = hasVars?2:3;
+    // Sin paso de presentación → stepIdx 0 ya es la primera variable (o Personalizar)
   }
   const el=document.getElementById('tp-modal-producto'); if(el) el.style.display='flex';
   tpRenderMP();
@@ -634,33 +646,30 @@ function pmAttr(s){ return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#
 function tpRenderMP(){
   const p=TP_WIP.prod; if(!p) return;
   const inner=document.getElementById('pm-modal-inner'); if(!inner) return;
-  const hasPres=(p.presentations||[]).length>1, hasVars=(p.variables||[]).length>0;
-  const steps=[];
-  if(hasPres) steps.push({id:'pres',label:p.presLabel||'Presentacion'});
-  if(hasVars) steps.push({id:'var',label:p.varLabel||(p.variables[0]&&p.variables[0].name)||'Variante'});
-  steps.push({id:'custom',label:'Personalizar'});
-  const curId=TP_WIP.step===1&&hasPres?'pres':TP_WIP.step===2&&hasVars?'var':'custom';
-  const curIdx=steps.findIndex(s=>s.id===curId);
+  const steps=pmSteps(p);
+  let curIdx=TP_WIP.stepIdx||0; if(curIdx<0)curIdx=0; if(curIdx>=steps.length)curIdx=steps.length-1;
+  TP_WIP.stepIdx=curIdx;
+  const cur=steps[curIdx];
   const stepperHTML=steps.length>1?'<div class="pm-steps">'+steps.map((s,i)=>{
     const done=i<curIdx,on=i===curIdx;
-    return '<button class="pm-step'+(done?' done':on?' on':'')+'" data-step-id="'+s.id+'">'
+    return '<button class="pm-step'+(done?' done':on?' on':'')+'" data-step-idx="'+i+'">'
       +'<span class="pm-step-dot">'+(done?PM_SVG.check:String(i+1))+'</span>'
-      +'<span class="pm-step-lbl">'+s.label+'</span></button>'
+      +'<span class="pm-step-lbl">'+pmEsc(s.label)+'</span></button>'
       +(i<steps.length-1?'<span class="pm-step-line'+(done?' done':'')+'"></span>':'');
   }).join('')+'</div>':'';
   const presLabel=TP_WIP.pres&&TP_WIP.pres.name?TP_WIP.pres.name:'';
   const varLabels=Object.values(TP_WIP.vars).map(v=>v.name).join(' · ');
   const selParts=[presLabel,varLabels].filter(Boolean).join(' · ');
   let paneHTML='';
-  if(curId==='pres') paneHTML=pmBuildPresPane(p);
-  else if(curId==='var') paneHTML=pmBuildVarPane(p);
+  if(cur.kind==='pres') paneHTML=pmBuildPresPane(p);
+  else if(cur.kind==='var') paneHTML=pmBuildVarPane(p,cur.vg);
   else paneHTML=pmBuildCustomPane(p);
-  const canNext=curId==='pres'?!!TP_WIP.pres:curId==='var'?(p.variables||[]).every(v=>TP_WIP.vars[v.id]):true;
+  const canNext=cur.kind==='pres'?!!TP_WIP.pres:cur.kind==='var'?!!TP_WIP.vars[cur.varId]:true;
   const isFirst=curIdx===0;
   const footLeft=isFirst
     ?'<button class="pm-btn-ghost" onclick="tpCloseMP()">Cancelar</button>'
     :'<button class="pm-btn-ghost" onclick="tpMPBack()">'+PM_SVG.back+' Atras</button>';
-  const isLast=curId==='custom';
+  const isLast=cur.kind==='custom';
   const footRight=isLast
     ?'<button class="pm-btn-primary" onclick="tpMPAddToCart()">'+PM_SVG.cart+' Agregar al pedido &middot; <span id="pm-foot-price">'+pmFmt(tpComputePrice())+'</span></button>'
     :'<button class="pm-btn-primary" id="tp-mp-next"'+(canNext?'':' disabled')+' onclick="tpMPAdvance()">Continuar '+PM_SVG.chev+'</button>';
@@ -676,7 +685,7 @@ function tpRenderMP(){
     +stepperHTML
     +'<div class="pm-body">'+paneHTML+'</div>'
     +'<div class="pm-foot">'+footLeft+footRight+'</div>';
-  pmAttachHandlers(inner,p,curId);
+  pmAttachHandlers(inner,p,cur);
 }
 
 function pmBuildPresPane(p){
@@ -697,13 +706,14 @@ function pmBuildPresPane(p){
   }).join('')+'</div>';
 }
 
-function pmBuildVarPane(p){
-  const vars=p.variables||[];
+function pmBuildVarPane(p,v){
+  if(!v) v=(p.variables||[])[0];
+  if(!v) return '';
   const isMatrix=p.price_mode==='matrix';
   const presIdx=(p.presentations||[]).findIndex(pr=>pr.id===TP_WIP.pres?.id);
-  return '<div style="display:flex;flex-direction:column;gap:20px">'+vars.map(v=>{
-    return '<div><div style="font-size:12px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">'+pmEsc(v.name)+'</div>'
-      +'<div class="pm-choice-grid">'+(v.options||[]).map(o=>{
+  return '<div style="display:flex;flex-direction:column;gap:20px"><div>'
+    +'<div style="font-size:12px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">'+pmEsc(v.name)+'</div>'
+    +'<div class="pm-choice-grid">'+(v.options||[]).map(o=>{
         const sel=TP_WIP.vars[v.id]&&TP_WIP.vars[v.id].id===o.id;
         const optPrice=isMatrix&&Array.isArray(o.prices)&&presIdx>=0?(o.prices[presIdx]||0):o.price||0;
         const priceLabel=optPrice?(isMatrix?pmFmt(optPrice):'+'+pmFmt(optPrice)):'Incluido';
@@ -712,8 +722,7 @@ function pmBuildVarPane(p){
           +'<div class="pm-choice-price">'+priceLabel+'</div></div>'
           +'<span class="pm-radio">'+(sel?PM_SVG.check:'')+'</span>'
           +'</button>';
-      }).join('')+'</div></div>';
-  }).join('')+'</div>';
+      }).join('')+'</div></div></div>';
 }
 
 // Un grupo de modificadores puede estar limitado a ciertas presentaciones
@@ -790,15 +799,14 @@ function pmBuildCustomPane(p){
     +'</div></div>';
 }
 
-function pmAttachHandlers(inner,p,curId){
+function pmAttachHandlers(inner,p,cur){
   inner.querySelectorAll('.pm-step.done').forEach(btn=>{
     btn.addEventListener('click',()=>{
-      const sid=btn.dataset.stepId;
-      TP_WIP.step=sid==='pres'?1:sid==='var'?2:3;
-      tpRenderMP();
+      const i=parseInt(btn.dataset.stepIdx,10);
+      if(!isNaN(i)){ TP_WIP.stepIdx=i; tpRenderMP(); }
     });
   });
-  if(curId==='pres'){
+  if(cur.kind==='pres'){
     inner.querySelectorAll('.pm-choice[data-pres-id]').forEach(btn=>{
       btn.addEventListener('click',()=>{
         const id=btn.dataset.presId,name=btn.dataset.presName,price=+btn.dataset.presPrice;
@@ -812,7 +820,7 @@ function pmAttachHandlers(inner,p,curId){
       });
     });
   }
-  if(curId==='var'){
+  if(cur.kind==='var'){
     inner.querySelectorAll('.pm-choice[data-var-id]').forEach(btn=>{
       btn.addEventListener('click',()=>{
         const vid=btn.dataset.varId,oid=btn.dataset.optId,oname=btn.dataset.optName,oprice=+btn.dataset.optPrice;
@@ -822,12 +830,12 @@ function pmAttachHandlers(inner,p,curId){
           b.classList.toggle('on',on);
           b.querySelector('.pm-radio').innerHTML=on?PM_SVG.check:'';
         });
-        const allDone=(p.variables||[]).every(v=>TP_WIP.vars[v.id]);
-        const nb=document.getElementById('tp-mp-next'); if(nb) nb.disabled=!allDone;
+        // Habilitar "Continuar" cuando la variable de ESTE paso quedó elegida
+        const nb=document.getElementById('tp-mp-next'); if(nb) nb.disabled=!TP_WIP.vars[cur.varId];
       });
     });
   }
-  if(curId==='custom'){
+  if(cur.kind==='custom'){
     const qdec=document.getElementById('pm-qty-dec'),qinc=document.getElementById('pm-qty-inc');
     if(qdec) qdec.addEventListener('click',()=>{ TP_WIP.qty=Math.max(1,TP_WIP.qty-1); pmUpdatePrices(); });
     if(qinc) qinc.addEventListener('click',()=>{ TP_WIP.qty++; pmUpdatePrices(); });
@@ -914,14 +922,13 @@ function pmUpdatePrices(){
 function tpCheckOverlayClose(e){ if(e.target===e.currentTarget) tpCloseMP(); }
 
 function tpMPAdvance(){
-  const p=TP_WIP.prod, hasVars=(p.variables||[]).length>0;
-  if(TP_WIP.step===1){TP_WIP.step=hasVars?2:3;}else if(TP_WIP.step===2){TP_WIP.step=3;}
+  const steps=pmSteps(TP_WIP.prod);
+  TP_WIP.stepIdx=Math.min(steps.length-1,(TP_WIP.stepIdx||0)+1);
   tpRenderMP();
 }
 
 function tpMPBack(){
-  const p=TP_WIP.prod, hasPres=(p.presentations||[]).length>1, hasVars=(p.variables||[]).length>0;
-  if(TP_WIP.step===3){TP_WIP.step=hasVars?2:(hasPres?1:3);}else if(TP_WIP.step===2){TP_WIP.step=hasPres?1:2;}
+  TP_WIP.stepIdx=Math.max(0,(TP_WIP.stepIdx||0)-1);
   tpRenderMP();
 }
 

@@ -612,17 +612,27 @@ function pmFmt(n){ return '$'+Number(Math.round(n||0)).toLocaleString('es-CO'); 
 function pmEsc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function pmAttr(s){ return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
-let WIP = { prod:null, step:1, pres:null, vars:{}, mods:{}, qty:1, note:'' };
+let WIP = { prod:null, stepIdx:0, pres:null, vars:{}, mods:{}, qty:1, note:'' };
+
+// Un paso por CADA variable (además de Presentación y Personalizar).
+function pmSteps(p){
+  const steps=[];
+  if((p.presentations||[]).length>1) steps.push({kind:'pres',label:p.presLabel||'Presentacion'});
+  (p.variables||[]).forEach(function(vg){
+    steps.push({kind:'var',varId:vg.id,vg:vg,label:vg.name||'Variante'});
+  });
+  steps.push({kind:'custom',label:'Personalizar'});
+  return steps;
+}
 
 function openProductModal(prodId) {
   const p = S.products.find(x=>x.id===prodId);
   if(!p) return;
-  WIP = { prod:p, step:1, pres:null, vars:{}, mods:{}, qty:1, note:'' };
-  const hasPres=(p.presentations||[]).length>1, hasVars=(p.variables||[]).length>0;
+  WIP = { prod:p, stepIdx:0, pres:null, vars:{}, mods:{}, qty:1, note:'' };
+  const hasPres=(p.presentations||[]).length>1;
   if(!hasPres){
     const pArr=p.presentations||[];
     WIP.pres = pArr.length===1?pArr[0]:{id:'_base',name:'',price:parseFloat(p.price)||0};
-    WIP.step = hasVars?2:3;
   }
   const el=document.getElementById('tp-modal-producto');
   if(el){ el.style.display='flex'; }
@@ -656,33 +666,30 @@ function mpComputePrice(){
 function tpRenderMP(){
   const p=WIP.prod; if(!p) return;
   const inner=document.getElementById('pm-modal-inner'); if(!inner) return;
-  const hasPres=(p.presentations||[]).length>1, hasVars=(p.variables||[]).length>0;
-  const steps=[];
-  if(hasPres) steps.push({id:'pres',label:p.presLabel||'Presentacion'});
-  if(hasVars) steps.push({id:'var',label:p.varLabel||(p.variables[0]&&p.variables[0].name)||'Variante'});
-  steps.push({id:'custom',label:'Personalizar'});
-  const curId=WIP.step===1&&hasPres?'pres':WIP.step===2&&hasVars?'var':'custom';
-  const curIdx=steps.findIndex(s=>s.id===curId);
+  const steps=pmSteps(p);
+  let curIdx=WIP.stepIdx||0; if(curIdx<0)curIdx=0; if(curIdx>=steps.length)curIdx=steps.length-1;
+  WIP.stepIdx=curIdx;
+  const cur=steps[curIdx];
   const stepperHTML=steps.length>1?'<div class="pm-steps">'+steps.map((s,i)=>{
     const done=i<curIdx,on=i===curIdx;
-    return '<button class="pm-step'+(done?' done':on?' on':'')+'" data-step-id="'+s.id+'">'
+    return '<button class="pm-step'+(done?' done':on?' on':'')+'" data-step-idx="'+i+'">'
       +'<span class="pm-step-dot">'+(done?PM_SVG.check:String(i+1))+'</span>'
-      +'<span class="pm-step-lbl">'+s.label+'</span></button>'
+      +'<span class="pm-step-lbl">'+pmEsc(s.label)+'</span></button>'
       +(i<steps.length-1?'<span class="pm-step-line'+(done?' done':'')+'"></span>':'');
   }).join('')+'</div>':'';
   const presLabel=WIP.pres&&WIP.pres.name?WIP.pres.name:'';
   const varLabels=Object.values(WIP.vars).map(v=>v.name).join(' \xb7 ');
   const selParts=[presLabel,varLabels].filter(Boolean).join(' \xb7 ');
   let paneHTML='';
-  if(curId==='pres') paneHTML=pmBuildPresPane(p);
-  else if(curId==='var') paneHTML=pmBuildVarPane(p);
+  if(cur.kind==='pres') paneHTML=pmBuildPresPane(p);
+  else if(cur.kind==='var') paneHTML=pmBuildVarPane(p,cur.vg);
   else paneHTML=pmBuildCustomPane(p);
-  const canNext=curId==='pres'?!!WIP.pres:curId==='var'?(p.variables||[]).every(v=>WIP.vars[v.id]):true;
+  const canNext=cur.kind==='pres'?!!WIP.pres:cur.kind==='var'?!!WIP.vars[cur.varId]:true;
   const isFirst=curIdx===0;
   const footLeft=isFirst
     ?'<button class="pm-btn-ghost" onclick="tpCloseMP()">Cancelar</button>'
     :'<button class="pm-btn-ghost" onclick="tpMPBack()">'+PM_SVG.back+' Atras</button>';
-  const isLast=curId==='custom';
+  const isLast=cur.kind==='custom';
   const footRight=isLast
     ?'<button class="pm-btn-primary" onclick="tpMPAddToCart()">'+PM_SVG.cart+' Agregar al pedido \xb7 <span id="pm-foot-price">'+pmFmt(mpComputePrice())+'</span></button>'
     :'<button class="pm-btn-primary" id="tp-mp-next"'+(canNext?'':' disabled')+' onclick="tpMPAdvance()">Continuar '+PM_SVG.chev+'</button>';
@@ -698,7 +705,7 @@ function tpRenderMP(){
     +stepperHTML
     +'<div class="pm-body">'+paneHTML+'</div>'
     +'<div class="pm-foot">'+footLeft+footRight+'</div>';
-  pmAttachHandlers(inner,p,curId);
+  pmAttachHandlers(inner,p,cur);
 }
 
 function pmBuildPresPane(p){
@@ -719,13 +726,14 @@ function pmBuildPresPane(p){
   }).join('')+'</div>';
 }
 
-function pmBuildVarPane(p){
-  const vars=p.variables||[];
+function pmBuildVarPane(p,v){
+  if(!v) v=(p.variables||[])[0];
+  if(!v) return '';
   const isMatrix=p.price_mode==='matrix';
   const presIdx=(p.presentations||[]).findIndex(pr=>pr.id===WIP.pres?.id);
-  return '<div style="display:flex;flex-direction:column;gap:20px">'+vars.map(v=>{
-    return '<div><div style="font-size:12px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">'+pmEsc(v.name)+'</div>'
-      +'<div class="pm-choice-grid">'+(v.options||[]).map(o=>{
+  return '<div style="display:flex;flex-direction:column;gap:20px"><div>'
+    +'<div style="font-size:12px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">'+pmEsc(v.name)+'</div>'
+    +'<div class="pm-choice-grid">'+(v.options||[]).map(o=>{
         const sel=WIP.vars[v.id]&&WIP.vars[v.id].id===o.id;
         const optPrice=isMatrix&&Array.isArray(o.prices)&&presIdx>=0?(o.prices[presIdx]||0):o.price||0;
         const priceLabel=optPrice?(isMatrix?pmFmt(optPrice):'+'+pmFmt(optPrice)):'Incluido';
@@ -734,8 +742,7 @@ function pmBuildVarPane(p){
           +'<div class="pm-choice-price">'+priceLabel+'</div></div>'
           +'<span class="pm-radio">'+(sel?PM_SVG.check:'')+'</span>'
           +'</button>';
-      }).join('')+'</div></div>';
-  }).join('')+'</div>';
+      }).join('')+'</div></div></div>';
 }
 
 function modGroupAppliesToPres(prod, gid, presId){
@@ -806,15 +813,14 @@ function pmBuildCustomPane(p){
     +'</div></div>';
 }
 
-function pmAttachHandlers(inner,p,curId){
+function pmAttachHandlers(inner,p,cur){
   inner.querySelectorAll('.pm-step.done').forEach(btn=>{
     btn.addEventListener('click',()=>{
-      const sid=btn.dataset.stepId;
-      WIP.step=sid==='pres'?1:sid==='var'?2:3;
-      tpRenderMP();
+      const i=parseInt(btn.dataset.stepIdx,10);
+      if(!isNaN(i)){ WIP.stepIdx=i; tpRenderMP(); }
     });
   });
-  if(curId==='pres'){
+  if(cur.kind==='pres'){
     inner.querySelectorAll('.pm-choice[data-pres-id]').forEach(btn=>{
       btn.addEventListener('click',()=>{
         const id=btn.dataset.presId,name=btn.dataset.presName,price=+btn.dataset.presPrice;
@@ -828,7 +834,7 @@ function pmAttachHandlers(inner,p,curId){
       });
     });
   }
-  if(curId==='var'){
+  if(cur.kind==='var'){
     inner.querySelectorAll('.pm-choice[data-var-id]').forEach(btn=>{
       btn.addEventListener('click',()=>{
         const vid=btn.dataset.varId,oid=btn.dataset.optId,oname=btn.dataset.optName,oprice=+btn.dataset.optPrice;
@@ -838,12 +844,11 @@ function pmAttachHandlers(inner,p,curId){
           b.classList.toggle('on',on);
           b.querySelector('.pm-radio').innerHTML=on?PM_SVG.check:'';
         });
-        const allDone=(p.variables||[]).every(v=>WIP.vars[v.id]);
-        const nb=document.getElementById('tp-mp-next'); if(nb) nb.disabled=!allDone;
+        const nb=document.getElementById('tp-mp-next'); if(nb) nb.disabled=!WIP.vars[cur.varId];
       });
     });
   }
-  if(curId==='custom'){
+  if(cur.kind==='custom'){
     const qdec=document.getElementById('pm-qty-dec'),qinc=document.getElementById('pm-qty-inc');
     if(qdec) qdec.addEventListener('click',()=>{ WIP.qty=Math.max(1,WIP.qty-1); pmUpdatePrices(); });
     if(qinc) qinc.addEventListener('click',()=>{ WIP.qty++; pmUpdatePrices(); });
@@ -922,14 +927,13 @@ function pmUpdatePrices(){
 function tpCheckOverlayClose(e){ if(e.target===e.currentTarget) tpCloseMP(); }
 
 function tpMPAdvance(){
-  const p=WIP.prod, hasVars=(p.variables||[]).length>0;
-  if(WIP.step===1){WIP.step=hasVars?2:3;}else if(WIP.step===2){WIP.step=3;}
+  const steps=pmSteps(WIP.prod);
+  WIP.stepIdx=Math.min(steps.length-1,(WIP.stepIdx||0)+1);
   tpRenderMP();
 }
 
 function tpMPBack(){
-  const p=WIP.prod, hasPres=(p.presentations||[]).length>1, hasVars=(p.variables||[]).length>0;
-  if(WIP.step===3){WIP.step=hasVars?2:(hasPres?1:3);}else if(WIP.step===2){WIP.step=hasPres?1:2;}
+  WIP.stepIdx=Math.max(0,(WIP.stepIdx||0)-1);
   tpRenderMP();
 }
 
