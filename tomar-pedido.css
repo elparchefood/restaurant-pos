@@ -602,12 +602,12 @@ svg { display: block; }
 .pm-pane.on{display:block;}
 
 /* pasos 1-2: tarjetas de elección */
-.pm-choice-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;}
+.pm-choice-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,300px));gap:14px;justify-content:center;}
 .pm-choice{position:relative;text-align:left;background:#fff;border:1.5px solid var(--border);border-radius:var(--r-card);overflow:hidden;cursor:pointer;font-family:inherit;padding:0;transition:border-color .14s,box-shadow .14s,transform .12s;display:flex;flex-direction:column;}
 .pm-choice:hover{border-color:var(--indigo-100);transform:translateY(-2px);box-shadow:0 12px 26px -16px rgba(15,23,42,.2);}
 .pm-choice.on{border-color:var(--indigo);box-shadow:0 0 0 3px rgba(91,107,255,.14);}
 .pm-choice.compact{flex-direction:row;align-items:center;padding:16px 16px;gap:12px;}
-.pm-choice-thumb{height:120px;background:var(--hairline);}
+.pm-choice-thumb{aspect-ratio:16/10;background:var(--hairline);}
 .pm-choice-body{padding:13px 15px;flex:1;}
 .pm-choice.compact .pm-choice-body{padding:0;}
 .pm-choice-name{font-size:15px;font-weight:700;letter-spacing:-0.01em;}
