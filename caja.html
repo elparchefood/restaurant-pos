@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="caja.css">
+<link rel="stylesheet" href="caja.css?v=2">
 </head>
 <body>
 <div class="cj-root">
@@ -220,6 +220,45 @@
             <select id="hist-session" style="appearance:none;-webkit-appearance:none;border:none;background:transparent;font-family:inherit;font-size:13px;font-weight:600;color:#0F172A;padding:9px 34px 9px 14px;cursor:pointer;outline:none;min-width:220px"></select>
             <svg style="position:absolute;right:12px;pointer-events:none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
+          <button id="hist-filtros-btn" class="cj-filtros-btn" onclick="toggleHistFilters()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Filtros</button>
+        </div>
+        <div id="hist-filtros-panel" class="cj-filtros-panel" hidden>
+          <div class="cj-filtro-field">
+            <label>Estado</label>
+            <select id="hf-estado" onchange="setHistFilter('estado',this.value)">
+              <option value="todas">Todas</option>
+              <option value="realizadas">Solo realizadas</option>
+              <option value="anuladas">Solo anuladas</option>
+            </select>
+          </div>
+          <div class="cj-filtro-field">
+            <label>Canal</label>
+            <select id="hf-canal" onchange="setHistFilter('canal',this.value)">
+              <option value="todos">Todos</option>
+              <option value="salon">Salón (mesa)</option>
+              <option value="rapido">Rápida</option>
+              <option value="domicilio">Domicilio</option>
+            </select>
+          </div>
+          <div class="cj-filtro-field">
+            <label>Método de pago</label>
+            <select id="hf-pago" onchange="setHistFilter('pago',this.value)">
+              <option value="todos">Todos</option>
+              <option value="efectivo">Efectivo</option>
+              <option value="tarjeta">Tarjeta</option>
+              <option value="transferencia">Transferencia</option>
+              <option value="nequi">Nequi / QR</option>
+            </select>
+          </div>
+          <div class="cj-filtro-field">
+            <label>Producto</label>
+            <input id="hf-producto" type="text" placeholder="Ej. Súper Queso" oninput="setHistFilter('producto',this.value)">
+          </div>
+          <div class="cj-filtro-field">
+            <label>Fecha</label>
+            <input id="hf-fecha" type="date" onchange="setHistFilter('fecha',this.value)">
+          </div>
+          <button class="cj-filtros-clear" onclick="clearHistFilters()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Limpiar</button>
         </div>
         <div class="cj-hist-banner"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> <span id="hist-banner-txt">Este historial es solo de la <strong style="font-weight:700;margin:0 3px">sesión actual</strong>. Al cerrar la caja se reinicia; los totales quedan guardados en el cierre.</span></div>
         <div class="cj-card" style="overflow:hidden">
@@ -363,6 +402,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-core.js"></script>
-<script src="caja.js?v=3"></script>
+<script src="caja.js?v=4"></script>
 </body>
 </html>

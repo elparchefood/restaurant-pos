@@ -5,7 +5,9 @@
 const S = {
   session: null, orders: [], items: [], sessions: [],
   branchId: null, tenantId: null, user: null, arqueoContado: null,
-  histSessionId: 'current'   // turno mostrado en Historial de ventas
+  histSessionId: 'current',   // turno mostrado en Historial de ventas
+  histOrdersAll: [], histItemsAll: [],   // set completo del turno mostrado
+  histFilters: { estado:'todas', canal:'todos', pago:'todos', producto:'', fecha:'' }
 };
 
 
@@ -121,9 +123,9 @@ async function selectHistSession(id){
 
 async function applyHistSelection(){
   const id=S.histSessionId||'current';
-  if(id==='current'){ renderHistorial(S.orders, S.items); return; }
+  if(id==='current'){ S.histOrdersAll=S.orders||[]; S.histItemsAll=S.items||[]; renderHistFiltered(); return; }
   const sess=(S.sessions||[]).find(function(x){return x.id===id;});
-  if(!sess){ renderHistorial(S.orders, S.items); return; }
+  if(!sess){ S.histOrdersAll=S.orders||[]; S.histItemsAll=S.items||[]; renderHistFiltered(); return; }
   const cont=document.getElementById('hist-lista');
   if(cont) cont.innerHTML='<div class="cj-empty-row">Cargando pedidos del turno…</div>';
   const until=sess.closed_at||new Date().toISOString();
@@ -131,7 +133,48 @@ async function applyHistSelection(){
     loadOrders(S.branchId, sess.opened_at, until),
     loadOrderItems(S.branchId, sess.opened_at, until),
   ]);
-  renderHistorial(ords, its);
+  S.histOrdersAll=ords||[]; S.histItemsAll=its||[];
+  renderHistFiltered();
+}
+
+// ── Filtros del historial (client-side sobre el turno cargado) ──
+function histFiltered(){
+  const f=S.histFilters||{};
+  let list=(S.histOrdersAll||[]).slice();
+  if(f.estado==='realizadas') list=list.filter(function(o){return o.status!=='cancelled';});
+  else if(f.estado==='anuladas') list=list.filter(function(o){return o.status==='cancelled';});
+  if(f.canal && f.canal!=='todos') list=list.filter(function(o){return (o.channel||'salon').toLowerCase()===f.canal;});
+  if(f.pago && f.pago!=='todos') list=list.filter(function(o){return (o.payment_method||'efectivo').toLowerCase()===f.pago;});
+  if(f.fecha) list=list.filter(function(o){
+    const d=new Date(o.created_at);
+    const ymd=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    return ymd===f.fecha;
+  });
+  if(f.producto){
+    const q=f.producto.toLowerCase().trim();
+    const byOrder={};
+    (S.histItemsAll||[]).forEach(function(it){ (byOrder[it.order_id]=byOrder[it.order_id]||[]).push(it); });
+    if(q) list=list.filter(function(o){
+      return (byOrder[o.id]||[]).some(function(it){ return String(it.product_name||it.name||'').toLowerCase().includes(q); });
+    });
+  }
+  return list;
+}
+function renderHistFiltered(){ renderHistorial(histFiltered(), S.histItemsAll||[]); }
+function setHistFilter(key,val){ S.histFilters[key]=val; renderHistFiltered(); }
+function toggleHistFilters(){
+  const panel=document.getElementById('hist-filtros-panel');
+  const btn=document.getElementById('hist-filtros-btn');
+  if(!panel) return;
+  const open=panel.hasAttribute('hidden');
+  if(open){ panel.removeAttribute('hidden'); if(btn) btn.classList.add('on'); }
+  else { panel.setAttribute('hidden',''); if(btn) btn.classList.remove('on'); }
+}
+function clearHistFilters(){
+  S.histFilters={ estado:'todas', canal:'todos', pago:'todos', producto:'', fecha:'' };
+  const ids={ 'hf-estado':'todas','hf-canal':'todos','hf-pago':'todos','hf-producto':'','hf-fecha':'' };
+  Object.keys(ids).forEach(function(id){ const el=document.getElementById(id); if(el) el.value=ids[id]; });
+  renderHistFiltered();
 }
 
 // ── Loaders ────────────────────────────────────────────────────
@@ -505,7 +548,9 @@ function renderHistorial(orders, items) {
   if (ht) ht.textContent = COPF(total);
 
   if (!orders.length) {
-    cont.innerHTML = '<div class="cj-empty-row">No hay ventas en este turno</div>';
+    const _f=S.histFilters||{};
+    const _activos=(_f.estado&&_f.estado!=='todas')||(_f.canal&&_f.canal!=='todos')||(_f.pago&&_f.pago!=='todos')||_f.producto||_f.fecha;
+    cont.innerHTML = '<div class="cj-empty-row">'+(_activos?'No hay pedidos que coincidan con los filtros':'No hay ventas en este turno')+'</div>';
     return;
   }
 
@@ -519,6 +564,7 @@ function renderHistorial(orders, items) {
   const CANAL_INFO = {
     salon:     { color:'#5B6BFF', bg:'#EEF2FF', label:'Salón' },
     mostrador: { color:'#06B6D4', bg:'#CFFAFE', label:'Mostrador' },
+    rapido:    { color:'#F59E0B', bg:'#FEF3C7', label:'Rápida' },
     domicilio: { color:'#10B981', bg:'#D1FAE5', label:'Domicilio' },
   };
   const xIcon = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
