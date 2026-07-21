@@ -4,7 +4,8 @@
 
 const S = {
   session: null, orders: [], items: [], sessions: [],
-  branchId: null, tenantId: null, user: null, arqueoContado: null
+  branchId: null, tenantId: null, user: null, arqueoContado: null,
+  histSessionId: 'current'   // turno mostrado en Historial de ventas
 };
 
 
@@ -77,8 +78,60 @@ async function refreshAll() {
   renderMovimientos(moves);
   renderMovimientosSummary(moves);
   renderCierres(S.sessions);
-  renderHistorial(S.orders);
+  renderHistSessionPicker();
+  await applyHistSelection();
   updateStatusBar();
+}
+
+// ── Historial de ventas por turno de caja ──────────────────────
+function cjEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderHistSessionPicker(){
+  const sel = document.getElementById('hist-session');
+  if(!sel) return;
+  let opts = '<option value="current">Sesión actual'+(S.session?'':' (caja cerrada)')+'</option>';
+  (S.sessions||[]).forEach(function(s){
+    const dA=new Date(s.opened_at), dC=s.closed_at?new Date(s.closed_at):null;
+    const fecha=dA.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'2-digit'});
+    const hA=dA.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+    const hC=dC?dC.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'}):'—';
+    const cajero=s.cashier_name?(' · '+s.cashier_name):'';
+    opts+='<option value="'+s.id+'">'+fecha+' · '+hA+'–'+hC+cajero+'</option>';
+  });
+  sel.innerHTML=opts;
+  sel.value=S.histSessionId||'current';
+  if(!sel.dataset.bound){ sel.dataset.bound='1'; sel.addEventListener('change',function(){ selectHistSession(sel.value); }); }
+}
+
+async function selectHistSession(id){
+  S.histSessionId = id || 'current';
+  const banner=document.getElementById('hist-banner-txt');
+  if(banner){
+    if(S.histSessionId==='current'){
+      banner.innerHTML='Este historial es solo de la <strong style="font-weight:700;margin:0 3px">sesión actual</strong>. Al cerrar la caja se reinicia; los totales quedan guardados en el cierre.';
+    } else {
+      const s=(S.sessions||[]).find(function(x){return x.id===id;});
+      const dA=s?new Date(s.opened_at):null;
+      const fecha=dA?dA.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'}):'';
+      banner.innerHTML='Historial completo del <strong style="font-weight:700;margin:0 3px">cierre del '+fecha+'</strong> — todos los pedidos de ese turno, pedido por pedido.';
+    }
+  }
+  await applyHistSelection();
+}
+
+async function applyHistSelection(){
+  const id=S.histSessionId||'current';
+  if(id==='current'){ renderHistorial(S.orders, S.items); return; }
+  const sess=(S.sessions||[]).find(function(x){return x.id===id;});
+  if(!sess){ renderHistorial(S.orders, S.items); return; }
+  const cont=document.getElementById('hist-lista');
+  if(cont) cont.innerHTML='<div class="cj-empty-row">Cargando pedidos del turno…</div>';
+  const until=sess.closed_at||new Date().toISOString();
+  const [ords,its]=await Promise.all([
+    loadOrders(S.branchId, sess.opened_at, until),
+    loadOrderItems(S.branchId, sess.opened_at, until),
+  ]);
+  renderHistorial(ords, its);
 }
 
 // ── Loaders ────────────────────────────────────────────────────
@@ -92,9 +145,10 @@ async function loadActiveSession(branchId) {
   } catch(e) { console.error('loadActiveSession:',e); return null; }
 }
 
-async function loadOrders(branchId, sinceISO) {
+async function loadOrders(branchId, sinceISO, untilISO) {
   try {
     const q = sb.from('pos_orders').select('*').gte('created_at', sinceISO);
+    if (untilISO) q.lte('created_at', untilISO);
     if (branchId) q.eq('branch_id', branchId);
     q.order('created_at',{ascending:false});
     const { data } = await q;
@@ -102,9 +156,10 @@ async function loadOrders(branchId, sinceISO) {
   } catch(e) { console.error('loadOrders:',e); return []; }
 }
 
-async function loadOrderItems(branchId, sinceISO) {
+async function loadOrderItems(branchId, sinceISO, untilISO) {
   try {
     const q = sb.from('pos_order_items').select('*').gte('created_at', sinceISO);
+    if (untilISO) q.lte('created_at', untilISO);
     if (branchId) q.eq('branch_id', branchId);
     const { data } = await q;
     return data || [];
@@ -435,9 +490,12 @@ function renderCierres(sessions) {
 }
 
 // ── Historial de ventas ────────────────────────────────────────
-function renderHistorial(orders) {
+function renderHistorial(orders, items) {
   const cont = document.getElementById('hist-lista');
   if (!cont) return;
+  orders = orders || [];
+  const itemsByOrder = {};
+  (items||[]).forEach(function(it){ (itemsByOrder[it.order_id]=itemsByOrder[it.order_id]||[]).push(it); });
   const active    = orders.filter(o=>o.status!=='cancelled');
   const cancelled = orders.filter(o=>o.status==='cancelled');
   const total     = active.reduce((s,o)=>s+(parseFloat(o.total_final ?? o.total)||0),0);
@@ -475,10 +533,20 @@ function renderHistorial(orders) {
     const ch      = (o.channel||'salon').toLowerCase();
     const ci      = CANAL_INFO[ch]  || CANAL_INFO.salon;
     const pmLabel = (o.payment_method||'Efectivo');
-    const deleteBtn = anulada ? '' : `<button class="cj-row-btn danger" onclick="anularVenta('${o.id}')">${xIcon}</button>`;
+    const deleteBtn = (anulada || (S.histSessionId && S.histSessionId!=='current')) ? '' : `<button class="cj-row-btn danger" onclick="anularVenta('${o.id}')">${xIcon}</button>`;
     const anulBadge = anulada ? `<span class="cj-badge" style="color:#DC2626;background:#FEE2E2">Anulada</span>` : '';
+    const cliente   = o.customer_name ? `<span style="font-size:11.5px;color:#94A3B8">· ${cjEsc(o.customer_name)}</span>` : '';
+    const its       = itemsByOrder[o.id] || [];
+    const itemsHtml = its.length ? '<div style="margin-top:7px;display:flex;flex-direction:column;gap:3px;border-top:1px dashed #E2E8F0;padding-top:7px">'
+      + its.map(function(it){
+          const q=it.quantity||1;
+          const nm=it.product_name||it.name||'Producto';
+          const pr=parseFloat(it.total!=null?it.total:(parseFloat(it.unit_price||it.product_price||0)*q))||0;
+          return '<div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#475569"><span><span style="font-weight:700;color:#0F172A">'+q+'×</span> '+cjEsc(nm)+'</span><span style="font-variant-numeric:tabular-nums;color:#64748B">'+COPF(pr)+'</span></div>';
+        }).join('')
+      + '</div>' : '';
     return `
-      <div class="cj-sale-row${anulada?' anulada':''}">
+      <div class="cj-sale-row${anulada?' anulada':''}" style="align-items:flex-start">
         <div style="width:52px;flex-shrink:0">
           <div class="cj-sale-id">${shortId}</div>
           <div class="cj-sale-time">${hora}</div>
@@ -489,7 +557,8 @@ function renderHistorial(orders) {
             <span class="cj-badge method" style="color:${pi.color};background:${pi.bg}">${pi.svg} ${pmLabel}</span>
             ${anulBadge}
           </div>
-          <div class="cj-sale-who">${o.waiter_name||'Sin nombre'}</div>
+          <div class="cj-sale-who">${cjEsc(o.waiter_name||'Sin nombre')} ${cliente}</div>
+          ${itemsHtml}
         </div>
         <div class="cj-sale-total">${COPF(o.total)}</div>
         ${deleteBtn}
