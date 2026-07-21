@@ -101,27 +101,8 @@
             <div class="cj-card" style="padding:18px 20px">
               <div class="cj-card-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg> Desglose por medio de pago</div>
               <div id="desglose-pago" style="display:flex;flex-direction:column;gap:12px;margin-top:14px">
-              <div class="cj-method-row">
-                <div class="cj-method-ic" style="background:#DCFCE7;color:#16A34A"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg></div>
-                <div style="flex:1;min-width:0"><div class="cj-method-top"><span class="cj-method-name">Efectivo</span><span class="cj-method-val" id="dp-efectivo-val">$0</span></div><div class="cj-track"><i id="dp-efectivo-bar" style="width:0%;background:#16A34A"></i></div></div>
+                <!-- JS (renderDesglosePago) genera una fila por cada método configurado + "Otros" -->
               </div>
-              <div class="cj-method-row">
-                <div class="cj-method-ic" style="background:#EEF2FF;color:#5B6BFF"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
-                <div style="flex:1;min-width:0"><div class="cj-method-top"><span class="cj-method-name">Tarjeta</span><span class="cj-method-val" id="dp-tarjeta-val">$0</span></div><div class="cj-track"><i id="dp-tarjeta-bar" style="width:0%;background:#5B6BFF"></i></div></div>
-              </div>
-              <div class="cj-method-row">
-                <div class="cj-method-ic" style="background:#F0F9FF;color:#0EA5E9"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16l-3-3"/><path d="M20 15H4l3 3"/></svg></div>
-                <div style="flex:1;min-width:0"><div class="cj-method-top"><span class="cj-method-name">Transferencia</span><span class="cj-method-val" id="dp-transferencia-val">$0</span></div><div class="cj-track"><i id="dp-transferencia-bar" style="width:0%;background:#0EA5E9"></i></div></div>
-              </div>
-              <div class="cj-method-row">
-                <div class="cj-method-ic" style="background:#F5F3FF;color:#8B5CF6"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/></svg></div>
-                <div style="flex:1;min-width:0"><div class="cj-method-top"><span class="cj-method-name">Nequi</span><span class="cj-method-val" id="dp-nequi-val">$0</span></div><div class="cj-track"><i id="dp-nequi-bar" style="width:0%;background:#8B5CF6"></i></div></div>
-              </div>
-              <div class="cj-method-row">
-                <div class="cj-method-ic" style="background:#FFF1F2;color:#E11D48"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/></svg></div>
-                <div style="flex:1;min-width:0"><div class="cj-method-top"><span class="cj-method-name">Daviplata</span><span class="cj-method-val" id="dp-daviplata-val">$0</span></div><div class="cj-track"><i id="dp-daviplata-bar" style="width:0%;background:#E11D48"></i></div></div>
-              </div>
-            </div>
               <div class="cj-note" style="margin-top:14px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Los domicilios con repartidor propio entran como efectivo o transferencia, no se separan.</div>
             </div>
             <div class="cj-card" style="padding:18px 20px">
@@ -411,6 +392,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-core.js"></script>
-<script src="caja.js?v=8"></script>
+<script src="caja.js?v=9"></script>
 </body>
 </html>
