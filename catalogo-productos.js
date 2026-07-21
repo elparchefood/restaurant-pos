@@ -159,7 +159,7 @@ async function saveModGroupToSupabase(g) {
 async function deleteCategoryFromSupabase(id){try{await sb.from('pos_categories').delete().eq('id',id).eq('tenant_id',S.tenantId);_invalidateCatalogCache();}catch(e){}}
 async function deleteProductFromSupabase(id){try{await sb.from('pos_products').delete().eq('id',id).eq('tenant_id',S.tenantId);_invalidateCatalogCache();}catch(e){}}
 async function deleteComboFromSupabase(id){try{await sb.from('pos_combos').delete().eq('id',id).eq('tenant_id',S.tenantId);}catch(e){}}
-function _invalidateCatalogCache(){try{localStorage.removeItem('pos.catalog.v1.'+S.tenantId);}catch(e){}}
+function _invalidateCatalogCache(){try{localStorage.removeItem('pos.catalog.v2.'+S.tenantId);}catch(e){}}
 async function deleteModGroupFromSupabase(id){try{await sb.from('pos_modifier_groups').delete().eq('id',id).eq('tenant_id',S.tenantId);_invalidateCatalogCache();}catch(e){}}
 
 // ── Auth ──────────────────────────────────────────────────────────────────

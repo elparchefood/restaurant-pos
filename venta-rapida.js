@@ -772,7 +772,7 @@
   async function loadCatalog() {
     const sb = getSb();
     if (!sb || !S.tenantId) return;
-    const _ck = 'pos.catalog.v1.' + S.tenantId;
+    const _ck = 'pos.catalog.v2.' + S.tenantId;
     try {
       const _raw = localStorage.getItem(_ck);
       if (_raw) {
