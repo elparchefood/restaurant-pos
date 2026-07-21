@@ -10,6 +10,7 @@ const SP = {
   items: [],      // [{id, name, qty, unitPrice, catName, catColor}]
   cliente: '',
   method: 'efectivo',
+  methodDefs: [],  // métodos configurados (de ia_config.pagos)
   entry: 0,
   payments: [],   // [{id, method, amount, received}]
   tip: false,
@@ -46,6 +47,54 @@ const APPLIED_ICONS = {
   nequi:         `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v.01M14 21h.01M17 21h4v-4"/></svg>`,
 };
 
+// ── Métodos de pago configurados (fuente: ia_config.pagos) ──────────────────
+// Estilo visual por TIPO, reusando la paleta existente. cssKey mapea al
+// data-method que ya conocen los estilos (efectivo/tarjeta/transferencia/nequi).
+const TIPO_STYLE = {
+  efectivo:      { cssKey:'efectivo',      icon: METHOD_ICONS.efectivo,      color:'var(--cash)',     tint:'var(--cash-tint)',     ring:'var(--cash-ring)',     sub:'Billetes y monedas' },
+  tarjeta:       { cssKey:'tarjeta',       icon: METHOD_ICONS.tarjeta,       color:'var(--card)',     tint:'var(--card-tint)',     ring:'var(--card-ring)',     sub:'Débito o crédito' },
+  transferencia: { cssKey:'transferencia', icon: METHOD_ICONS.transferencia, color:'var(--transfer)', tint:'var(--transfer-tint)', ring:'var(--transfer-ring)', sub:'PSE · bancos' },
+  banco:         { cssKey:'transferencia', icon: METHOD_ICONS.transferencia, color:'var(--transfer)', tint:'var(--transfer-tint)', ring:'var(--transfer-ring)', sub:'Cuenta bancaria' },
+  billetera:     { cssKey:'nequi',         icon: METHOD_ICONS.nequi,         color:'var(--qr)',       tint:'var(--qr-tint)',       ring:'var(--qr-ring)',       sub:'Billetera digital' },
+  otro:          { cssKey:'efectivo',      icon: METHOD_ICONS.efectivo,      color:'var(--cash)',     tint:'var(--cash-tint)',     ring:'var(--cash-ring)',     sub:'' },
+};
+function _payEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _payAttr(s){ return String(s==null?'':s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function _payDef(){ return (SP.methodDefs||[]).find(function(m){ return m.key===SP.method; }) || (SP.methodDefs||[])[0] || { nombre:'Efectivo', tipo:'efectivo', key:'efectivo' }; }
+function _esEfectivo(){ var d=(SP.methodDefs||[]).find(function(m){ return m.key===SP.method; }); return d ? d.tipo==='efectivo' : SP.method==='efectivo'; }
+
+async function loadPaymentMethods(){
+  var metodos = [];
+  try {
+    if (SP.branchId) {
+      var r = await sb.from('ia_config').select('pagos').eq('branch_id', SP.branchId).maybeSingle();
+      var p = (r && r.data && r.data.pagos) || {};
+      metodos = Array.isArray(p.metodos) ? p.metodos : [];
+    }
+  } catch(e){ console.warn('loadPaymentMethods:', e); }
+  var canal = SP.channel==='domicilio' ? 'domicilio' : (SP.channel==='rapido' ? 'rapida' : 'mesa');
+  var list = metodos.filter(function(m){ return m && String(m.nombre||'').trim() && m.activo!==false; });
+  list = list.filter(function(m){ return !Array.isArray(m.canales) || !m.canales.length || m.canales.indexOf(canal)>=0; });
+  if (!list.length) list = [{ id:'efectivo', nombre:'Efectivo', tipo:'efectivo', digital:false }];
+  list.sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
+  SP.methodDefs = list.map(function(m){ return { key:(m.id||m.nombre), nombre:m.nombre, tipo:m.tipo||'otro', digital:!!m.digital }; });
+  var def = list.find(function(m){ return m.porDefecto; }) || list[0];
+  SP.method = (def.id||def.nombre);
+  _renderMethodButtons();
+}
+function _renderMethodButtons(){
+  var row = document.querySelector('.pg-method-row');
+  if(!row) return;
+  row.innerHTML = (SP.methodDefs||[]).map(function(m){
+    var st = TIPO_STYLE[m.tipo] || TIPO_STYLE.otro;
+    return '<button class="lm-method'+(m.key===SP.method?' is-active':'')+'" data-method="'+_payAttr(m.key)+'">'
+      +'<span class="pg-method-icon">'+st.icon+'</span>'
+      +'<span class="pg-method-txt"><span class="pg-method-label">'+_payEsc(m.nombre)+'</span><span class="pg-method-sub">'+_payEsc(st.sub)+'</span></span>'
+      +'<span class="pg-method-check"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>'
+      +'</button>';
+  }).join('');
+}
+
 const CAT_PALETTE = ['#5B6BFF','#8B5CF6','#EC4899','#F59E0B','#10B981','#0EA5E9','#EF4444','#14B8A6'];
 function catColorFor(id) {
   if (!id) return CAT_PALETTE[0];
@@ -63,7 +112,7 @@ function calc() {
   const total    = Math.max(0, subtotal + empaque + domi + tipAmt - SP.discount);
   const paid     = SP.payments.reduce((s, p) => s + p.amount, 0);
   const falta    = Math.max(0, total - paid);
-  const vuelto   = SP.method === 'efectivo'
+  const vuelto   = _esEfectivo()
     ? Math.max(0, paid + SP.entry - total)
     : Math.max(0, paid - total);
   const cubierto = paid >= total && total > 0;
@@ -179,7 +228,7 @@ function renderTotals() {
 
   // Vuelto card (solo efectivo)
   const vueltoCard = document.getElementById('vuelto-card');
-  if (SP.method === 'efectivo' && vuelto > 0) {
+  if (_esEfectivo() && vuelto > 0) {
     vueltoCard.hidden = false;
     document.getElementById('vuelto-card-amt').textContent = fmt(vuelto);
   } else {
@@ -194,7 +243,7 @@ function renderTotals() {
   const btnApply = document.getElementById('btn-apply');
   const canApply = SP.entry > 0 && !cubierto;
   btnApply.disabled = !canApply;
-  const toAdd = SP.method === 'efectivo' ? Math.min(SP.entry, falta) : SP.entry;
+  const toAdd = _esEfectivo() ? Math.min(SP.entry, falta) : SP.entry;
   document.getElementById('apply-label').textContent = canApply
     ? 'Agregar pago · ' + fmt(toAdd)
     : 'Agregar pago';
@@ -255,9 +304,10 @@ function renderApplied() {
         <button class="lm-del" data-action="remove-payment" data-id="${p.id}">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
         </button>`;
+    const _st = TIPO_STYLE[p.methodTipo] || TIPO_STYLE[p.method] || TIPO_STYLE.otro;
     return `
-      <div class="pg-applied-item" data-method="${p.method}">
-        <span class="pg-applied-icon">${APPLIED_ICONS[p.method] || ''}</span>
+      <div class="pg-applied-item" data-method="${_st.cssKey}">
+        <span class="pg-applied-icon">${APPLIED_ICONS[_st.cssKey] || ''}</span>
         <div class="pg-applied-body">
           <div class="pg-applied-name">${METHOD_META[p.method]?.label || p.method}</div>
           ${sub ? `<div class="pg-applied-sub">${sub}</div>` : ''}
@@ -268,9 +318,10 @@ function renderApplied() {
 }
 
 function renderMethodUI() {
-  const meta = METHOD_META[SP.method] || METHOD_META.efectivo;
+  const def  = _payDef();
+  const st   = TIPO_STYLE[def.tipo] || TIPO_STYLE.otro;
   const cobro = document.getElementById('cobro');
-  cobro.dataset.method = SP.method;
+  cobro.dataset.method = st.cssKey;  // estilos CSS por tipo conocido
 
   // Botones método
   document.querySelectorAll('.lm-method').forEach(btn => {
@@ -279,19 +330,21 @@ function renderMethodUI() {
 
   // Amount card colores
   const card = document.getElementById('amount-card');
-  card.style.borderColor = meta.ring;
+  card.style.borderColor = st.ring;
 
   // Amount method label + chip
   const chip = document.getElementById('amount-chip');
-  chip.innerHTML = METHOD_ICONS[SP.method] || '';
-  chip.style.background = meta.tint;
-  chip.style.color = meta.color;
+  chip.innerHTML = st.icon || '';
+  chip.style.background = st.tint;
+  chip.style.color = st.color;
   const methodEl = document.getElementById('amount-method');
-  methodEl.style.color = meta.color;
-  document.getElementById('amount-method-name').textContent = meta.label;
+  methodEl.style.color = st.color;
+  document.getElementById('amount-method-name').textContent = def.nombre;
 
   // Hint
-  document.getElementById('amount-hint').textContent = meta.hint;
+  document.getElementById('amount-hint').textContent = (def.tipo==='efectivo')
+    ? 'Monto recibido del cliente'
+    : ('Monto a registrar para ' + def.nombre);
 }
 
 function renderAll() {
@@ -305,9 +358,12 @@ function renderAll() {
 function applyPayment() {
   const { falta, total } = calc();
   if (SP.entry <= 0 || falta <= 0) return;
-  const amount   = SP.method === 'efectivo' ? Math.min(SP.entry, falta) : SP.entry;
+  const amount   = _esEfectivo() ? Math.min(SP.entry, falta) : SP.entry;
   const received = SP.entry;
-  SP.payments.push({ id: Date.now(), method: SP.method, amount, received });
+  const def      = _payDef();
+  // Guardamos el NOMBRE del método (lo que se muestra y con lo que agrupa el
+  // cuadre de caja) + su id/tipo para referencia.
+  SP.payments.push({ id: Date.now(), method: def.nombre, methodKey: def.key, methodTipo: def.tipo, amount, received });
   SP.entry = 0;
   renderAll();
 }
@@ -815,6 +871,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 5. Cargar datos
   await loadOrder();
+  // 5b. Cargar métodos de pago configurados (fuente: Métodos de pago)
+  await loadPaymentMethods();
 
   // 6. Render inicial
   renderItems();
