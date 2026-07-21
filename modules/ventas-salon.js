@@ -372,6 +372,7 @@
                 seats: t.capacity || 4,
                 zone_id: t.zone_id || 'z_adentro',
                 status: t.status || 'libre',
+                current_order_id: t.current_order_id || null,
                 total: 0, items_count: 0, minutes: 0, mesero_initials: '', persons: 0, openedAt: null
               };
             });
@@ -425,6 +426,7 @@
             zone_id:    r.zone_id || (lsT && lsT.zone_id) || 'z_adentro',
             sort_order: (r.sort_order != null) ? r.sort_order : 9999,
             status:     r.status || 'libre',
+            current_order_id: r.current_order_id || null,
             total: 0, items_count: 0, minutes: 0, mesero_initials: '', persons: 0, openedAt: null
           };
         });
