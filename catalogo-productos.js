@@ -87,11 +87,11 @@ async function loadProducts() {
     // Traer columnas explícitas SIN pisar la carga si photo_url es enorme. Las
     // fotos ahora son URLs pequeñas (migradas del base64 viejo que tumbaba la
     // consulta). Se excluyen productos con base64 residual del select pesado.
-    const cols = 'id,name,description,price,price_mode,category_id,available,photo_url,presentations,variables,mod_group_ids';
+    const cols = 'id,name,description,price,price_mode,category_id,available,photo_url,presentations,variables,mod_group_ids,mod_group_pres';
     let {data,error} = await sb.from('pos_products').select(cols).eq('tenant_id',S.tenantId).order('name');
     if(error||!data){
       // Reintento sin fotos por si alguna quedó como base64 gigante (no romper el catálogo)
-      const r2 = await sb.from('pos_products').select('id,name,description,price,price_mode,category_id,available,presentations,variables,mod_group_ids').eq('tenant_id',S.tenantId).order('name');
+      const r2 = await sb.from('pos_products').select('id,name,description,price,price_mode,category_id,available,presentations,variables,mod_group_ids,mod_group_pres').eq('tenant_id',S.tenantId).order('name');
       if(r2.error||!r2.data) return;
       data = r2.data;
     }
@@ -99,7 +99,9 @@ async function loadProducts() {
       id:p.id, cat:p.category_id||'_', name:p.name, desc:p.description||'',
       active:p.available!==false, photo:p.photo_url||null, price:p.price||0,
       presentations:p.presentations||[{id:uid('pr'),name:'Unico',price:p.price||0}],
-      variables:p.variables||[], modGroupIds:p.mod_group_ids||[], priceMode:p.price_mode||'simple', priceMode:p.price_mode||'simple',
+      variables:p.variables||[], modGroupIds:p.mod_group_ids||[],
+      modGroupPres:(p.mod_group_pres&&typeof p.mod_group_pres==='object')?p.mod_group_pres:{},
+      priceMode:p.price_mode||'simple',
     }));
   } catch(e){}
 }
@@ -124,7 +126,7 @@ async function saveProductToSupabase(p) {
     const isMatrix=p.priceMode==='matrix';
     const matrixPrices=isMatrix?(p.variables||[]).flatMap(v=>v.isPricing?(v.options||[]).flatMap(o=>o.prices||[]):[]).filter(Boolean):[];
     const presPrices=(p.presentations||[]).map(x=>x.price||0).filter(Boolean);const varPrices=(p.variables||[]).flatMap(v=>(v.options||[]).map(o=>o.price||0)).filter(Boolean);const basePrice=isMatrix?(matrixPrices.length?Math.min(...matrixPrices):0):(presPrices.length?Math.min(...presPrices):(varPrices.length?Math.min(...varPrices):0));
-    const row={tenant_id:S.tenantId,branch_id:S.branchId,name:p.name,price:basePrice,price_mode:p.priceMode||'simple',category_id:p.cat==='_'?null:p.cat,available:p.active,description:p.desc||null,photo_url:p.photo||null,presentations:p.presentations||[],variables:p.variables||[],mod_group_ids:p.modGroupIds||[]};
+    const row={tenant_id:S.tenantId,branch_id:S.branchId,name:p.name,price:basePrice,price_mode:p.priceMode||'simple',category_id:p.cat==='_'?null:p.cat,available:p.active,description:p.desc||null,photo_url:p.photo||null,presentations:p.presentations||[],variables:p.variables||[],mod_group_ids:p.modGroupIds||[],mod_group_pres:_cleanModGroupPres(p)};
     const isNew=!p.id||p.id.startsWith('p_');
     if(isNew){const {data,error}=await sb.from('pos_products').insert([row]).select().single();if(error)throw error;_invalidateCatalogCache();return data.id;}
     else{await sb.from('pos_products').update(row).eq('id',p.id).eq('tenant_id',S.tenantId);_invalidateCatalogCache();return p.id;}
@@ -543,7 +545,7 @@ function renderProductEditor(){try{
   const catOptions=S.cats.map(c=>'<option value="'+c.id+'" '+(p.cat===c.id?'selected':'')+'>'+escHtml(c.name)+'</option>').join('');
   const presRows=p.presentations.map(pr=>'<div class="cp-pres-row"><span class="cc-grip">'+icon('grip',14)+'</span><input class="cc-input flat" value="'+escHtml(pr.name)+'" placeholder="Nombre (ej. Familiar)" style="flex:1" oninput="setPres(\''+pr.id+'\',\'name\',this.value)"><div class="cc-money"><span class="cc-money-sym">$</span><input type="number" min="0" step="500" value="'+(pr.price||'')+'" placeholder="0" oninput="setPres(\''+pr.id+'\',\'price\',parseInt(this.value)||0)"></div><button class="cc-mini-del" '+(p.presentations.length===1?'disabled':'')+' onclick="delPres(\''+pr.id+'\')">'+icon('trash',13)+'</button></div>').join('');
   const varSections=p.variables.length===0?'<button class="cc-add-group" onclick="addVar()">'+icon('sliders',15)+' Agregar una variable (ej. Proteína: Pollo / Carne / Mixta)</button>':p.variables.map(_varCardHTML).join('');
-  const modRows=S.mods.length===0?'<button class="cc-add-group" onclick="openModEditorInProduct()">'+icon('plus',15)+' Crear el primer grupo de modificadores</button>':S.mods.map(g=>{const on=(p.modGroupIds||[]).includes(g.id);return '<button class="cc-modtoggle'+(on?' on':'')+'" onclick="toggleModGroup(\''+g.id+'\')"><span class="cc-check'+(on?' on':'')+'">'+( on?icon('check',12,3):'')+'</span><div style="flex:1;min-width:0;text-align:left"><div style="display:flex;align-items:center;gap:7px"><span style="font-size:13px;font-weight:700;color:#0F172A">'+escHtml(g.name)+'</span><span class="cc-tiny-chip">'+RULE_LABEL[g.rule]+'</span><span class="cc-tiny-chip">'+(g.multi?'Varias':'Una')+'</span></div><div style="font-size:11px;color:#94A3B8;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+g.options.map(o=>o.name).join(' · ')+'</div></div><span style="font-size:10.5px;font-weight:700;color:#94A3B8;flex-shrink:0">'+g.options.length+' opc.</span></button>';}).join('');
+  const modRows=_modRowsHTML();
   const photoHTML=p.photo?'<div class="cc-photo-wrap"><img src="'+escHtml(p.photo)+'" alt=""><div class="cc-photo-overlay"><button class="cc-pill-btn" onclick="document.getElementById(\'prod-photo-input\').click()">'+icon('image',13)+' Cambiar</button><button class="cc-pill-btn danger" onclick="clearProdPhoto()">'+icon('trash',13)+' Quitar</button></div></div>':'<div class="cc-drop" ondragover="event.preventDefault();this.classList.add(\'over\')" ondragleave="this.classList.remove(\'over\')" ondrop="handleProdPhotoDrop(event)" onclick="document.getElementById(\'prod-photo-input\').click()"><div class="cc-drop-icon">'+icon('upload',20)+'</div><div style="font-size:13px;font-weight:700;color:#0F172A">Foto del producto</div><div style="font-size:11.5px;color:#94A3B8;margin-top:3px">Arrastra una imagen o <span style="color:#5B6BFF;font-weight:700">búscala en tu equipo</span></div></div><div class="cc-url-row"><span style="color:#94A3B8;display:flex">'+icon('link',14)+'</span><input id="prod-photo-url" placeholder="…o pega un enlace de imagen" style="flex:1;border:none;outline:none;background:transparent;font-family:inherit;font-size:12.5px"><button class="lm-link" onclick="useProdPhotoUrl()">Usar</button></div>';
   openOverlay('<div class="cc-overlay" onmousedown="handleOverlayClose(event)"><aside class="cc-drawer" onmousedown="event.stopPropagation()"><div class="cc-drawer-head"><div style="display:flex;align-items:center;gap:10px"><span class="cc-drawer-glyph" style="color:'+cat.color+';background:'+cat.tint+'">'+icon('box',17)+'</span><div><div class="cc-drawer-eyebrow">'+(isNew?'Nuevo producto':'Editar producto')+'</div><div class="cc-drawer-title" id="ed-prod-title">'+(escHtml(p.name)||'Sin nombre')+'</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div class="cc-drawer-body"><input type="file" id="prod-photo-input" accept="image/*" style="display:none" onchange="handleProdPhotoFile(this)">'+photoHTML+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px"><label><span class="field-label">Nombre del producto</span><input class="cc-input" value="'+escHtml(p.name)+'" placeholder="Ej. Premium Mixta" oninput="setProdName(this.value)"></label><label><span class="field-label">Categoría</span><div class="cc-select"><select onchange="setProdCat(this.value)">'+catOptions+'</select><span class="cc-sel-arrow">'+icon('down',14)+'</span></div></label></div><div style="margin-top:12px"><label><span class="field-label">Descripción <span class="hint">· opcional</span></span><textarea class="cc-input" rows="2" placeholder="Ingredientes, detalles…" oninput="setProdDesc(this.value)">'+escHtml(p.desc||'')+'</textarea></label>'+'<div id="base-type-hint" style="display:none;flex-wrap:wrap;align-items:center;gap:6px;margin-top:7px;padding:8px 10px;background:#F5F3FF;border:1px solid #DDD6FE;border-radius:8px"></div>'+(/\\bbase\\b/i.test(p.desc||'')?'<button id="base-badge-btn" class="cc-base-badge" onclick="openBaseModal(\'Base\')">'+icon('layers',13)+' Base — ver ingredientes</button>':'<button id="base-badge-btn" class="cc-base-badge" style="display:none" onclick="openBaseModal(\'Base\')">'+icon('layers',13)+' Base — ver ingredientes</button>')+'</div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Presentaciones</div><div class="cc-section-sub">Cada presentación tiene su propio precio. Ej: Personal, Familiar, Para llevar.</div></div><button class="lm-btn-ghost sm" onclick="addPres()">'+icon('plus',13)+' Agregar</button></div><div id="pres-list" style="display:flex;flex-direction:column;gap:8px">'+presRows+'</div></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Variables</div><div class="cc-section-sub">El cliente elige <strong>una</strong> opción por grupo.</div></div><button class="lm-btn-ghost sm" onclick="addVar()">'+icon('plus',13)+' Variable</button></div><div id="var-list">'+varSections+'</div></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Modificadores</div><div class="cc-section-sub">Activa los grupos que aplican a este producto.</div></div><button class="lm-btn-ghost sm" onclick="openModEditorInProduct()">'+icon('plus',13)+' Crear grupo</button></div><div id="mod-list">'+modRows+'</div></div></div><div class="cc-drawer-foot"><div style="display:flex;flex-direction:column"><span style="font-size:10.5px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Rango de precio</span><span id="ed-price-range" style="font-size:15px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">'+priceRange()+'</span></div><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button><button class="lm-btn-primary" id="save-prod-btn" '+(canSave?'':'disabled')+' onclick="saveProduct()">'+icon('check',14)+' Guardar</button></div></div></aside></div>');
 }catch(e){console.error('renderProductEditor error:',e);openOverlay('<div class="cc-overlay" style="display:flex;align-items:center;justify-content:center" onclick="closeOverlay()"><div style="background:#fff;padding:32px;border-radius:16px;max-width:420px;text-align:center"><div style="color:#EF4444;font-size:15px;font-weight:700;margin-bottom:12px">⚠️ Error al abrir editor</div><pre style="font-size:11px;color:#475569;text-align:left;white-space:pre-wrap">'+String(e)+'</pre><button onclick="closeOverlay()" style="margin-top:16px;padding:8px 18px;background:#5B6BFF;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">Cerrar</button></div></div>');}
@@ -598,7 +600,64 @@ function _varCardHTML(v){
   return '<div class="cc-var-card">'+head+body+'<button class="lm-link" style="margin-top:8px" onclick="addVarOpt(\''+v.id+'\')">+ Agregar opción</button></div>';
 }
 function refreshVarList(){const el=$('var-list');if(!el)return;if(!S.editProd.variables.length){el.innerHTML='<button class="cc-add-group" onclick="addVar()">'+icon('sliders',15)+' Agregar una variable (ej. Proteína: Pollo / Carne / Mixta)</button>';return;}el.innerHTML=S.editProd.variables.map(_varCardHTML).join('');}
-function toggleModGroup(gid){const ids=S.editProd.modGroupIds||[];S.editProd.modGroupIds=ids.includes(gid)?ids.filter(x=>x!==gid):[...ids,gid];const el=$('mod-list');if(!el)return;el.querySelectorAll('.cc-modtoggle').forEach(btn=>{if(!btn.getAttribute('onclick').includes('\''+gid+'\''))return;const on=S.editProd.modGroupIds.includes(gid);btn.classList.toggle('on',on);const chk=btn.querySelector('.cc-check');if(chk){chk.classList.toggle('on',on);chk.innerHTML=on?icon('check',12,3):'';}});}
+// ── Modificadores por presentación ──────────────────────────────────────────
+// Un grupo puede aplicar a todas las presentaciones (por defecto) o solo a
+// algunas. Se guarda en p.modGroupPres[gid] = [presId,...]; ausente/vacío = todas.
+function isModPresOn(p, gid, presId){
+  const list=p.modGroupPres&&p.modGroupPres[gid];
+  if(!list||!list.length) return true;   // todas
+  return list.indexOf(presId)!==-1;
+}
+function _modRowsHTML(){
+  const p=S.editProd;
+  if(!S.mods.length) return '<button class="cc-add-group" onclick="openModEditorInProduct()">'+icon('plus',15)+' Crear el primer grupo de modificadores</button>';
+  const presList=(p.presentations||[]).filter(pr=>(pr.name||'').trim());
+  const multiPres=presList.length>1;
+  return S.mods.map(g=>{
+    const on=(p.modGroupIds||[]).includes(g.id);
+    let presSel='';
+    if(on&&multiPres){
+      const chips=presList.map(pr=>{
+        const pon=isModPresOn(p,g.id,pr.id);
+        return '<button type="button" onclick="toggleModGroupPres(\''+g.id+'\',\''+pr.id+'\')" style="font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;border:1.5px solid '+(pon?'#5B6BFF':'#E2E8F0')+';background:'+(pon?'#EEF2FF':'#fff')+';color:'+(pon?'#4338CA':'#64748B')+'">'+(pon?icon('check',11,3):'')+escHtml(pr.name)+'</button>';
+      }).join('');
+      presSel='<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:2px 12px 10px 40px"><span style="font-size:11px;color:#94A3B8;font-weight:700">Aplica en:</span>'+chips+'</div>';
+    }
+    return '<div style="display:flex;flex-direction:column">'
+      +'<button class="cc-modtoggle'+(on?' on':'')+'" onclick="toggleModGroup(\''+g.id+'\')"><span class="cc-check'+(on?' on':'')+'">'+(on?icon('check',12,3):'')+'</span><div style="flex:1;min-width:0;text-align:left"><div style="display:flex;align-items:center;gap:7px"><span style="font-size:13px;font-weight:700;color:#0F172A">'+escHtml(g.name)+'</span><span class="cc-tiny-chip">'+RULE_LABEL[g.rule]+'</span><span class="cc-tiny-chip">'+(g.multi?'Varias':'Una')+'</span></div><div style="font-size:11px;color:#94A3B8;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+g.options.map(o=>o.name).join(' · ')+'</div></div><span style="font-size:10.5px;font-weight:700;color:#94A3B8;flex-shrink:0">'+g.options.length+' opc.</span></button>'
+      +presSel
+      +'</div>';
+  }).join('');
+}
+function refreshModList(){const el=$('mod-list');if(el)el.innerHTML=_modRowsHTML();}
+function toggleModGroup(gid){
+  const p=S.editProd; const ids=p.modGroupIds||[];
+  if(ids.includes(gid)){ p.modGroupIds=ids.filter(x=>x!==gid); if(p.modGroupPres) delete p.modGroupPres[gid]; }
+  else { p.modGroupIds=[...ids,gid]; }
+  refreshModList();
+}
+function toggleModGroupPres(gid, presId){
+  const p=S.editProd;
+  const allIds=(p.presentations||[]).filter(pr=>(pr.name||'').trim()).map(pr=>pr.id);
+  p.modGroupPres=p.modGroupPres||{};
+  let list=(p.modGroupPres[gid]&&p.modGroupPres[gid].length)?p.modGroupPres[gid].slice():allIds.slice();
+  list=list.indexOf(presId)!==-1?list.filter(x=>x!==presId):list.concat([presId]);
+  if(!list.length||list.length>=allIds.length) delete p.modGroupPres[gid]; // vacío o todas → aplica a todas
+  else p.modGroupPres[gid]=list;
+  refreshModList();
+}
+// Limpia el mapa para guardar: solo grupos activos y solo cuando es un
+// subconjunto real de presentaciones (si son todas, se omite = compatibilidad).
+function _cleanModGroupPres(p){
+  const map=p.modGroupPres||{}; const ids=p.modGroupIds||[];
+  const presIds=(p.presentations||[]).map(pr=>pr.id);
+  const out={};
+  ids.forEach(function(gid){
+    const list=(map[gid]||[]).filter(function(id){return presIds.indexOf(id)!==-1;});
+    if(list.length&&list.length<presIds.length) out[gid]=list;
+  });
+  return out;
+}
 function updateSaveProdBtn(){const p=S.editProd;const hasPres=p.presentations.some(x=>x.name.trim()&&x.price>0);const hasVar=(p.variables||[]).some(v=>(v.options||[]).some(o=>o.price>0||(Array.isArray(o.prices)&&o.prices.some(pr=>pr>0))));const btn=$('save-prod-btn');if(btn)btn.disabled=!(p.name.trim()&&p.presentations.some(x=>x.name.trim())&&(hasPres||hasVar));}
 async function saveProduct(){
   const p=S.editProd;if(!p.name.trim())return;

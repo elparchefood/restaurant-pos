@@ -324,7 +324,7 @@ async function _catalogFetch(cacheKey, isBackground) {
         .select('id,name,color,color_tint,color_ring')
         .eq('tenant_id', S.tenantId).order('name'),
       sb.from('pos_products')
-        .select('id,name,price,price_mode,category_id,photo_url,available,presentations,variables,mod_group_ids')
+        .select('id,name,price,price_mode,category_id,photo_url,available,presentations,variables,mod_group_ids,mod_group_pres')
         .eq('tenant_id', S.tenantId).eq('available', true).order('name'),
       sb.from('pos_modifier_groups')
         .select('id,name,rule,multi,options')
@@ -344,6 +344,7 @@ async function _catalogFetch(cacheKey, isBackground) {
       presentations: Array.isArray(p.presentations) ? p.presentations : [],
       variables:     Array.isArray(p.variables)     ? p.variables     : [],
       mod_group_ids: Array.isArray(p.mod_group_ids) ? p.mod_group_ids : [],
+      mod_group_pres: (p.mod_group_pres && typeof p.mod_group_pres === 'object') ? p.mod_group_pres : {},
     }));
     S.modGroups = (mods || []).map(g => ({
       id: g.id, name: g.name, rule: g.rule || 'opcional', multi: !!g.multi,
@@ -737,8 +738,19 @@ function pmBuildVarPane(p){
   }).join('')+'</div>';
 }
 
+function modGroupAppliesToPres(prod, gid, presId){
+  const map=(prod&&prod.mod_group_pres)||{};
+  const list=map[gid];
+  if(!list||!list.length) return true;
+  if(!presId) return true;
+  return list.indexOf(presId)!==-1;
+}
+
 function pmBuildCustomPane(p){
-  const modGroups=(p.mod_group_ids||[]).map(gid=>(S.modGroups||[]).find(g=>g.id===gid)).filter(Boolean);
+  const _presId=WIP.pres&&WIP.pres.id;
+  const modGroups=(p.mod_group_ids||[])
+    .filter(gid=>modGroupAppliesToPres(p,gid,_presId))
+    .map(gid=>(S.modGroups||[]).find(g=>g.id===gid)).filter(Boolean);
   const presLabel=WIP.pres&&WIP.pres.name?WIP.pres.name:'';
   const varLabels=Object.values(WIP.vars).map(v=>v.name).join(' \xb7 ');
   const selParts=[presLabel,varLabels].filter(Boolean);

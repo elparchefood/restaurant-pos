@@ -171,6 +171,7 @@ async function _catalogFetch(cacheKey, isBackground) {
         presentations: Array.isArray(p.presentations) ? p.presentations : [],
         variables:     Array.isArray(p.variables)     ? p.variables     : [],
         mod_group_ids: Array.isArray(p.mod_group_ids) ? p.mod_group_ids : [],
+        mod_group_pres: (p.mod_group_pres && typeof p.mod_group_pres === 'object') ? p.mod_group_pres : {},
       }));
       const { data: mods } = await sb.from('pos_modifier_groups')
         .select('id,name,rule,multi,options').eq('tenant_id', S.tenantId);
@@ -715,8 +716,21 @@ function pmBuildVarPane(p){
   }).join('')+'</div>';
 }
 
+// Un grupo de modificadores puede estar limitado a ciertas presentaciones
+// (mod_group_pres[gid] = [presId,...]). Sin lista → aplica a todas.
+function modGroupAppliesToPres(prod, gid, presId){
+  const map=(prod&&prod.mod_group_pres)||{};
+  const list=map[gid];
+  if(!list||!list.length) return true;   // sin restricción → todas las presentaciones
+  if(!presId) return true;
+  return list.indexOf(presId)!==-1;
+}
+
 function pmBuildCustomPane(p){
-  const modGroups=(p.mod_group_ids||[]).map(gid=>(S.modGroups||[]).find(g=>g.id===gid)).filter(Boolean);
+  const _presId=TP_WIP.pres&&TP_WIP.pres.id;
+  const modGroups=(p.mod_group_ids||[])
+    .filter(gid=>modGroupAppliesToPres(p,gid,_presId))
+    .map(gid=>(S.modGroups||[]).find(g=>g.id===gid)).filter(Boolean);
   const presLabel=TP_WIP.pres&&TP_WIP.pres.name?TP_WIP.pres.name:'';
   const varLabels=Object.values(TP_WIP.vars).map(v=>v.name).join(' · ');
   const selParts=[presLabel,varLabels].filter(Boolean);
