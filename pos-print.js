@@ -320,23 +320,38 @@
     setTimeout(function() { el.parentNode && el.parentNode.removeChild(el); }, 5000);
   }
 
+  // Candado anti-duplicado: un mismo pedido solo se auto-imprime UNA vez por
+  // dispositivo. En la caja (ventas.html) hay dos listeners de realtime que
+  // disparan con el INSERT y con el UPDATE a in_progress del mismo pedido; sin
+  // este candado la comanda salía dos veces por los pedidos hechos en la tablet.
+  var _autoPrinted = {};
   window.posAutoprint = async function(orderId) {
+    if (!orderId) return;
+    var _now = Date.now();
+    // Podar entradas viejas (> 1 hora) para no crecer sin límite en turnos largos
+    for (var _k in _autoPrinted) { if (_now - _autoPrinted[_k] > 3600000) delete _autoPrinted[_k]; }
+    if (_autoPrinted[orderId]) return; // ya se auto-imprimió en este dispositivo
+    _autoPrinted[orderId] = _now;
     _diagToast('🖨 Verificando impresora…', '#1d4ed8');
     var hasPrinter = await _hasPrinter();
-    if (!hasPrinter) { _noprinterToast(); _diagToast('❌ Sin config de impresora en BD', '#dc2626'); return; }
+    if (!hasPrinter) { delete _autoPrinted[orderId]; _noprinterToast(); _diagToast('❌ Sin config de impresora en BD', '#dc2626'); return; }
     _diagToast('✓ Impresora OK — buscando pedido…', '#15803d');
     var order = await _fetchOrder(orderId);
-    if (!order) { _diagToast('❌ Pedido no encontrado: ' + orderId, '#dc2626'); return; }
+    if (!order) { delete _autoPrinted[orderId]; _diagToast('❌ Pedido no encontrado: ' + orderId, '#dc2626'); return; }
     var items = (order.pos_order_items || []).map(function(it) {
       var sel = it.selections || {};
       var modsArr = Object.values(sel.mods || {}).map(function(m){ return m.name || String(m); });
       return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', notes: it.notes || '', mods: modsArr };
     });
+    // Si el pedido aún no tiene ítems (el evento INSERT puede llegar antes de que
+    // se guarden), no imprimimos una comanda vacía: liberamos el candado para que
+    // el siguiente evento (ya con ítems) sí imprima.
+    if (!items.length) { delete _autoPrinted[orderId]; return; }
     _diagToast('✓ Pedido OK — enviando a impresora…', '#15803d');
     try {
       await _printHtml(_buildComanda({ table: _tableDisplay(order), channel: order.channel, total: order.total || 0, paid: order.paid_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' }, items), 'comanda');
       _diagToast('✓ Comanda impresa OK', '#15803d');
-    } catch(e) { _diagToast('❌ Error al imprimir: ' + (e && e.message || e), '#dc2626'); }
+    } catch(e) { delete _autoPrinted[orderId]; _diagToast('❌ Error al imprimir: ' + (e && e.message || e), '#dc2626'); }
   };
 
   window.posOpenPrintModal = function(orderId) {
