@@ -279,10 +279,11 @@ function renderCatGrid() {
   }
   grid.innerHTML = S.cats.map(cat => {
     const count = S.products.filter(p => p.category_id === cat.id).length;
+    const _bg = cat.image_url ? `background:#F1F5F9 center/cover no-repeat url('${cat.image_url}')` : '';
     return `
     <button class="lm-cat" data-cat-id="${cat.id}" data-cat-name="${escHtml(cat.name)}" data-cat-color="${cat.color}">
-      <div class="tp-thumb" style="height:90px;width:100%;margin:0;border-radius:0">
-        <div class="tp-thumb-label">${escHtml(cat.name.slice(0,14))}</div>
+      <div class="tp-thumb" style="height:90px;width:100%;margin:0;border-radius:0;${_bg}">
+        ${cat.image_url ? '' : `<div class="tp-thumb-label">${escHtml(cat.name.slice(0,14))}</div>`}
       </div>
       <div class="tp-cat-foot">
         <div>

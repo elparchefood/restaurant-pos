@@ -326,7 +326,7 @@
       const count = S.products.filter(p => p.category_id === cat.id).length;
       return `
         <button class="lm-cat" data-open-cat="${cat.id}" style="border-color:${cat.ring || '#ECEEF2'}">
-          <div class="tp-thumb" style="height:80px;margin:7px 7px 0"></div>
+          <div class="tp-thumb" style="height:80px;margin:7px 7px 0${cat.image_url ? `;background:#F1F5F9 center/cover no-repeat url('${cat.image_url}')` : ''}"></div>
           <div class="tp-cat-foot">
             <div>
               <div class="tp-cat-name">${cat.name}</div>
@@ -804,7 +804,7 @@
         {color:'#0EA5E9',tint:'#F0F9FF',ring:'#BAE6FD'},
       ];
       const [{ data: cats }, { data: prods }, { data: mods }] = await Promise.all([
-        sb.from('pos_categories').select('id,name,color,color_tint,color_ring').eq('active', true).eq('tenant_id', S.tenantId).order('name'),
+        sb.from('pos_categories').select('id,name,color,color_tint,color_ring,image_url').eq('active', true).eq('tenant_id', S.tenantId).order('name'),
         sb.from('pos_products').select('id,name,price,price_mode,category_id,photo_url,available,presentations,variables,mod_group_ids').eq('available', true).eq('tenant_id', S.tenantId).order('name'),
         sb.from('pos_modifier_groups').select('id,name,rule,multi,options').eq('tenant_id', S.tenantId),
       ]);

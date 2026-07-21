@@ -321,7 +321,7 @@ async function _catalogFetch(cacheKey, isBackground) {
   try {
     const [catsRes, prodsRes, modsRes] = await Promise.all([
       sb.from('pos_categories')
-        .select('id,name,color,color_tint,color_ring')
+        .select('id,name,color,color_tint,color_ring,image_url')
         .eq('tenant_id', S.tenantId).order('name'),
       sb.from('pos_products')
         .select('id,name,price,price_mode,category_id,photo_url,available,presentations,variables,mod_group_ids,mod_group_pres')
@@ -491,9 +491,10 @@ function renderCatGrid() {
   el.innerHTML = S.cats.map(c => {
     const color = c.color || '#5B6BFF';
     const count = S.products.filter(p => p.category_id === c.id).length;
-    const thumb = `<span class="d-thumb-lbl">${c.name}</span>`;
+    const thumb = c.image_url ? '' : `<span class="d-thumb-lbl">${c.name}</span>`;
+    const _bg = c.image_url ? `;background:#F1F5F9 center/cover no-repeat url('${c.image_url}')` : '';
     return `<button class="lm-cat" data-open-cat="${c.id}" style="border-color:${colorRing(color)}">
-      <div class="d-thumb" style="height:108px">${thumb}</div>
+      <div class="d-thumb" style="height:108px${_bg}">${thumb}</div>
       <div class="d-cat-foot">
         <div><div class="d-cat-name">${c.name}</div><div class="d-cat-count">${count} productos</div></div>
         <span class="d-cat-badge" style="color:${color};background:${colorTint(color)}">${svgInline('chevron', 14)}</span>

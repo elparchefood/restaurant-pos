@@ -59,9 +59,9 @@ function _compressImage(file) {
 // Sube la foto al bucket chat-media (existe y es público) bajo products/. NUNCA
 // guardar base64 en la base: una imagen de 1.8 MB por producto tumba las
 // consultas (el catálogo y las pantallas de pedido quedaban vacías).
-async function uploadPhoto(file, entityId) {
+async function uploadPhoto(file, entityId, folder) {
   const blob = await _compressImage(file);
-  const path = 'products/'+S.tenantId+'/'+entityId+'.jpg';
+  const path = (folder||'products')+'/'+S.tenantId+'/'+entityId+'.jpg';
   try {
     const { error } = await sb.storage.from('chat-media').upload(path, blob, {upsert:true, contentType:'image/jpeg'});
     if (error) throw error;
@@ -79,7 +79,7 @@ async function loadCategories() {
   try {
     const {data,error} = await sb.from('pos_categories').select('*').eq('tenant_id',S.tenantId).order('name');
     if(error||!data) return;
-    S.cats = data.map((c,i)=>({...c,color:c.color||CAT_PALETTE[i%8].color,tint:c.color_tint||CAT_PALETTE[i%8].tint,ring:c.color_ring||CAT_PALETTE[i%8].ring}));
+    S.cats = data.map((c,i)=>({...c,color:c.color||CAT_PALETTE[i%8].color,tint:c.color_tint||CAT_PALETTE[i%8].tint,ring:c.color_ring||CAT_PALETTE[i%8].ring,image:c.image_url||null}));
   } catch(e){}
 }
 async function loadProducts() {
@@ -134,7 +134,7 @@ async function saveProductToSupabase(p) {
 }
 async function saveCategoryToSupabase(c) {
   try {
-    const row={tenant_id:S.tenantId,branch_id:S.branchId,name:c.name,color:c.color,color_tint:c.tint,color_ring:c.ring};
+    const row={tenant_id:S.tenantId,branch_id:S.branchId,name:c.name,color:c.color,color_tint:c.tint,color_ring:c.ring,image_url:c.image||null};
     const isNew=!c.id||c.id.startsWith('cat_');
     if(isNew){const {data,error}=await sb.from('pos_categories').insert([row]).select().single();if(error)throw error;_invalidateCatalogCache();return{...c,id:data.id};}
     else{await sb.from('pos_categories').update(row).eq('id',c.id).eq('tenant_id',S.tenantId);_invalidateCatalogCache();return c;}
@@ -504,7 +504,7 @@ async function toggleCombo(id){const c=S.combos.find(x=>x.id===id);if(!c)return;
 // ── Categories view ───────────────────────────────────────────────────────
 function renderCategoriesView(body){
   const count=id=>S.products.filter(p=>p.cat===id).length;
-  const cards=S.cats.map(c=>{const n=count(c.id);const canDel=n===0;return '<div class="cp-card" style="cursor:default;padding:16px"><div style="display:flex;align-items:center;gap:12px"><span style="width:44px;height:44px;border-radius:12px;background:'+c.tint+';color:'+c.color+';display:flex;align-items:center;justify-content:center;flex-shrink:0">'+icon('layers',20)+'</span><div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;color:#0F172A">'+escHtml(c.name)+'</div><div style="font-size:11.5px;color:#94A3B8;margin-top:1px">'+n+' '+(n===1?'producto':'productos')+'</div></div><span style="width:14px;height:14px;border-radius:999px;background:'+c.color+';flex-shrink:0"></span></div><div style="display:flex;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid #F1F5F9"><button class="lm-btn-ghost sm" style="flex:1" onclick="openCatEditor(\''+c.id+'\')">'+icon('edit',13)+' Editar</button><button class="cc-mini-del" '+(canDel?'':'disabled title="Mueve o elimina sus productos primero"')+' onclick="deleteCat(\''+c.id+'\')">'+icon('trash',14)+'</button></div></div>';}).join('');
+  const cards=S.cats.map(c=>{const n=count(c.id);const canDel=n===0;return '<div class="cp-card" style="cursor:default;padding:16px"><div style="display:flex;align-items:center;gap:12px"><span style="width:44px;height:44px;border-radius:12px;background:'+(c.image?("#F1F5F9 center/cover no-repeat url(\'"+escHtml(c.image)+"\')"):c.tint)+';color:'+c.color+';display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">'+(c.image?'':icon('layers',20))+'</span><div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;color:#0F172A">'+escHtml(c.name)+'</div><div style="font-size:11.5px;color:#94A3B8;margin-top:1px">'+n+' '+(n===1?'producto':'productos')+'</div></div><span style="width:14px;height:14px;border-radius:999px;background:'+c.color+';flex-shrink:0"></span></div><div style="display:flex;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid #F1F5F9"><button class="lm-btn-ghost sm" style="flex:1" onclick="openCatEditor(\''+c.id+'\')">'+icon('edit',13)+' Editar</button><button class="cc-mini-del" '+(canDel?'':'disabled title="Mueve o elimina sus productos primero"')+' onclick="deleteCat(\''+c.id+'\')">'+icon('trash',14)+'</button></div></div>';}).join('');
   body.innerHTML='<div><div class="cp-view-head"><div><div style="font-size:14px;font-weight:800;color:#0F172A">Categorías del menú</div><div style="font-size:12px;color:#94A3B8;margin-top:2px">Organizan los productos.</div></div><button class="lm-btn-primary" onclick="openCatEditor(null)">'+icon('plus',14)+' Nueva categoría</button></div><div class="cp-cat-grid">'+cards+'<button class="cp-add-tile" onclick="openCatEditor(null)"><div class="cp-add-tile-icon">'+icon('plus',20)+'</div><span>Crear categoría</span></button></div></div>';
 }
 async function deleteCat(id){const n=S.products.filter(p=>p.cat===id).length;if(n>0)return;await deleteCategoryFromSupabase(id);S.cats=S.cats.filter(c=>c.id!==id);renderPage();toast('Categoría eliminada');}
@@ -735,12 +735,25 @@ function openCatEditor(id){
 function renderCatEditor(){
   const c=S.editCat,isNew=!S.cats.find(x=>x.id===c.id);
   const palBtns=CAT_PALETTE.map((p,i)=>'<button class="cc-pal-btn" style="background:'+p.tint+';border-color:'+(c.color===p.color?p.color:'transparent')+'" onclick="setCatPal('+i+')"><span style="width:16px;height:16px;border-radius:999px;background:'+p.color+';display:block"></span></button>').join('');
-  openOverlay('<div class="cc-overlay center" onmousedown="handleOverlayClose(event)"><div class="cc-modal narrow" onmousedown="event.stopPropagation()"><div class="cc-modal-head"><div style="display:flex;align-items:center;gap:10px"><span class="cc-modal-glyph" style="color:'+c.color+';background:'+c.tint+'">'+icon('layers',16)+'</span><div><div style="font-size:10px;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em;font-weight:700">'+(isNew?'Nueva categoría':'Editar categoría')+'</div><div style="font-size:16px;font-weight:800;color:#0F172A;letter-spacing:-.02em">'+(escHtml(c.name)||'Sin nombre')+'</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div style="padding:20px"><label><span class="field-label">Nombre de la categoría</span><input class="cc-input" value="'+escHtml(c.name)+'" placeholder="Ej. Salchipapas" oninput="setCatName(this.value)" autofocus></label><div style="margin-top:16px"><div style="font-size:10.5px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px">Color de etiqueta</div><div style="display:flex;gap:10px;flex-wrap:wrap">'+palBtns+'</div></div><div class="cc-preview-bar"><span style="font-size:11px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Vista previa</span><span id="cat-preview-tag" class="cc-cat-tag-preview" style="color:'+c.color+';background:'+c.tint+'">'+escHtml(c.name)||'Categoría'+'</span></div></div><div class="cc-modal-foot"><span></span><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button><button class="lm-btn-primary" id="save-cat-btn" '+(c.name.trim()?'':'disabled')+' onclick="saveCat()">'+icon('check',14)+' Guardar</button></div></div></div></div>');
+  const _catImg=c._preview||c.image;
+  const catPhotoHTML=_catImg
+    ? '<div class="cc-photo-wrap" style="height:120px;margin-bottom:16px"><img src="'+escHtml(_catImg)+'" alt="" style="width:100%;height:100%;object-fit:cover"><div class="cc-photo-overlay"><button class="cc-pill-btn" onclick="document.getElementById(\'cat-photo-input\').click()">'+icon('image',13)+' Cambiar</button><button class="cc-pill-btn danger" onclick="clearCatPhoto()">'+icon('trash',13)+' Quitar</button></div></div>'
+    : '<div class="cc-drop" style="padding:16px;margin-bottom:16px" onclick="document.getElementById(\'cat-photo-input\').click()"><div class="cc-drop-icon">'+icon('upload',18)+'</div><div style="font-size:12.5px;font-weight:700;color:#0F172A">Imagen de la categoría</div><div style="font-size:11px;color:#94A3B8;margin-top:2px">Se ve al tomar pedidos · <span style="color:#5B6BFF;font-weight:700">buscar imagen</span></div></div>';
+  openOverlay('<div class="cc-overlay center" onmousedown="handleOverlayClose(event)"><div class="cc-modal narrow" onmousedown="event.stopPropagation()"><div class="cc-modal-head"><div style="display:flex;align-items:center;gap:10px"><span class="cc-modal-glyph" style="color:'+c.color+';background:'+c.tint+'">'+icon('layers',16)+'</span><div><div style="font-size:10px;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em;font-weight:700">'+(isNew?'Nueva categoría':'Editar categoría')+'</div><div style="font-size:16px;font-weight:800;color:#0F172A;letter-spacing:-.02em">'+(escHtml(c.name)||'Sin nombre')+'</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div style="padding:20px"><input type="file" id="cat-photo-input" accept="image/*" style="display:none" onchange="handleCatPhotoFile(this)">'+catPhotoHTML+'<label><span class="field-label">Nombre de la categoría</span><input class="cc-input" value="'+escHtml(c.name)+'" placeholder="Ej. Salchipapas" oninput="setCatName(this.value)" autofocus></label><div style="margin-top:16px"><div style="font-size:10.5px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px">Color de etiqueta</div><div style="display:flex;gap:10px;flex-wrap:wrap">'+palBtns+'</div></div><div class="cc-preview-bar"><span style="font-size:11px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Vista previa</span><span id="cat-preview-tag" class="cc-cat-tag-preview" style="color:'+c.color+';background:'+c.tint+'">'+escHtml(c.name)||'Categoría'+'</span></div></div><div class="cc-modal-foot"><span></span><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button><button class="lm-btn-primary" id="save-cat-btn" '+(c.name.trim()?'':'disabled')+' onclick="saveCat()">'+icon('check',14)+' Guardar</button></div></div></div></div>');
 }
 function setCatName(v){S.editCat.name=v;const t=$('cat-preview-tag');if(t)t.textContent=v||'Categoría';const btn=$('save-cat-btn');if(btn)btn.disabled=!v.trim();}
 function setCatPal(i){const p=CAT_PALETTE[i];S.editCat.color=p.color;S.editCat.tint=p.tint;S.editCat.ring=p.ring;renderCatEditor();}
+function handleCatPhotoFile(inp){const f=inp.files[0];if(!f||!f.type.startsWith('image/'))return;S.editCat._imageFile=f;const r=new FileReader();r.onload=e=>{S.editCat._preview=e.target.result;renderCatEditor();};r.readAsDataURL(f);}
+function clearCatPhoto(){S.editCat.image=null;S.editCat._preview=null;S.editCat._imageFile=null;S.editCat._imageCleared=true;renderCatEditor();}
 async function saveCat(){
   const c=S.editCat;if(!c.name.trim())return;
+  const btn=$('save-cat-btn');if(btn){btn.disabled=true;btn.textContent='Guardando…';}
+  // Subir imagen nueva (si hay) al bucket; NUNCA guardar base64 en la BD.
+  if(c._imageFile){
+    const url=await uploadPhoto(c._imageFile,c.id,'categories');
+    if(url) c.image=url;        // si falla, conserva la imagen anterior
+    delete c._imageFile; delete c._preview;
+  }
   const saved=await saveCategoryToSupabase(c);
   const idx=S.cats.findIndex(x=>x.id===c.id||x.id===saved.id);
   const finalCat={...c,...saved};if(idx>=0)S.cats[idx]=finalCat;else S.cats.push(finalCat);
