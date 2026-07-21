@@ -36,16 +36,41 @@ const S = {
 };
 
 // ── Fotos Supabase Storage ──────────────────────────────────────────────
+// Comprime la imagen en el navegador (máx 600px, JPEG) ANTES de subirla. Sin
+// esto una foto de celular (2-4 MB) quedaba enorme. Devuelve un Blob liviano.
+function _compressImage(file) {
+  return new Promise(function(resolve){
+    try {
+      var img = new Image();
+      img.onload = function(){
+        var max = 600, w = img.width, h = img.height;
+        if (w > h && w > max) { h = Math.round(h*max/w); w = max; }
+        else if (h >= w && h > max) { w = Math.round(w*max/h); h = max; }
+        var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        cv.toBlob(function(blob){ resolve(blob || file); }, 'image/jpeg', 0.82);
+      };
+      img.onerror = function(){ resolve(file); };
+      img.src = URL.createObjectURL(file);
+    } catch(e) { resolve(file); }
+  });
+}
+
+// Sube la foto al bucket chat-media (existe y es público) bajo products/. NUNCA
+// guardar base64 en la base: una imagen de 1.8 MB por producto tumba las
+// consultas (el catálogo y las pantallas de pedido quedaban vacías).
 async function uploadPhoto(file, entityId) {
+  const blob = await _compressImage(file);
+  const path = 'products/'+S.tenantId+'/'+entityId+'.jpg';
   try {
-    const ext = file.name.split('.').pop() || 'jpg';
-    const path = S.tenantId+'/'+entityId+'.'+ext;
-    const { error } = await sb.storage.from('catalog-photos').upload(path, file, {upsert:true});
+    const { error } = await sb.storage.from('chat-media').upload(path, blob, {upsert:true, contentType:'image/jpeg'});
     if (error) throw error;
-    const { data } = sb.storage.from('catalog-photos').getPublicUrl(path);
-    return data.publicUrl;
+    const { data } = sb.storage.from('chat-media').getPublicUrl(path);
+    return data.publicUrl + '?t=' + Date.now();
   } catch(e) {
-    return await new Promise(res=>{const r=new FileReader();r.onload=ev=>res(ev.target.result);r.readAsDataURL(file);});
+    console.error('uploadPhoto falló:', e);
+    if (typeof toast === 'function') toast('No se pudo subir la foto (se guardó el resto del producto)');
+    return null;  // JAMÁS base64 — mejor sin foto que romper el catálogo
   }
 }
 
@@ -59,8 +84,17 @@ async function loadCategories() {
 }
 async function loadProducts() {
   try {
-    const {data,error} = await sb.from('pos_products').select('*').eq('tenant_id',S.tenantId).order('name');
-    if(error||!data) return;
+    // Traer columnas explícitas SIN pisar la carga si photo_url es enorme. Las
+    // fotos ahora son URLs pequeñas (migradas del base64 viejo que tumbaba la
+    // consulta). Se excluyen productos con base64 residual del select pesado.
+    const cols = 'id,name,description,price,price_mode,category_id,available,photo_url,presentations,variables,mod_group_ids';
+    let {data,error} = await sb.from('pos_products').select(cols).eq('tenant_id',S.tenantId).order('name');
+    if(error||!data){
+      // Reintento sin fotos por si alguna quedó como base64 gigante (no romper el catálogo)
+      const r2 = await sb.from('pos_products').select('id,name,description,price,price_mode,category_id,available,presentations,variables,mod_group_ids').eq('tenant_id',S.tenantId).order('name');
+      if(r2.error||!r2.data) return;
+      data = r2.data;
+    }
     S.products = data.map(p=>({
       id:p.id, cat:p.category_id||'_', name:p.name, desc:p.description||'',
       active:p.available!==false, photo:p.photo_url||null, price:p.price||0,
