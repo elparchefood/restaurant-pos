@@ -6,6 +6,8 @@ const S = {
   session: null, orders: [], items: [], sessions: [],
   branchId: null, tenantId: null, user: null, arqueoContado: null,
   histSessionId: 'current',   // turno mostrado en Historial de ventas
+  histSessions: [],           // turnos listados en el selector (recientes o de una fecha)
+  histCajero: '',             // filtro por cajero en el selector
   histOrdersAll: [], histItemsAll: [],   // set completo del turno mostrado
   histFilters: { estado:'todas', canal:'todos', pago:'todos', producto:'', fecha:'', orden:'hora_desc' }
 };
@@ -80,6 +82,10 @@ async function refreshAll() {
   renderMovimientos(moves);
   renderMovimientosSummary(moves);
   renderCierres(S.sessions);
+  // El selector de historial parte de los turnos recientes; una fecha elegida lo acota.
+  if(!document.getElementById('hist-date') || !document.getElementById('hist-date').value){
+    S.histSessions = S.sessions || [];
+  }
   renderHistSessionPicker();
   await applyHistSelection();
   updateStatusBar();
@@ -91,8 +97,11 @@ function cjEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</
 function renderHistSessionPicker(){
   const sel = document.getElementById('hist-session');
   if(!sel) return;
+  const cq=(S.histCajero||'').toLowerCase().trim();
+  let list=(S.histSessions||[]).filter(function(s){ return s.id!==(S.session&&S.session.id); }); // el abierto va como "Sesión actual"
+  if(cq) list=list.filter(function(s){ return String(s.cashier_name||'').toLowerCase().includes(cq); });
   let opts = '<option value="current">Sesión actual'+(S.session?'':' (caja cerrada)')+'</option>';
-  (S.sessions||[]).forEach(function(s){
+  list.forEach(function(s){
     const dA=new Date(s.opened_at), dC=s.closed_at?new Date(s.closed_at):null;
     const fecha=dA.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'2-digit'});
     const hA=dA.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
@@ -101,9 +110,51 @@ function renderHistSessionPicker(){
     opts+='<option value="'+s.id+'">'+fecha+' · '+hA+'–'+hC+cajero+'</option>';
   });
   sel.innerHTML=opts;
-  sel.value=S.histSessionId||'current';
+  // Mantener seleccionado el turno actual si sigue en la lista; si no, volver a "actual"
+  const exists=(S.histSessionId==='current')||list.some(function(s){return s.id===S.histSessionId;});
+  sel.value=exists?(S.histSessionId||'current'):'current';
   if(!sel.dataset.bound){ sel.dataset.bound='1'; sel.addEventListener('change',function(){ selectHistSession(sel.value); }); }
 }
+
+// Cargar los turnos (cierres) de un día específico — solo esa fecha, no los cientos.
+async function loadSessionsForDate(branchId, dateStr){
+  try {
+    const start=new Date(dateStr+'T00:00:00');
+    const end=new Date(dateStr+'T23:59:59.999');
+    const q=sb.from('pos_sessions').select('*').eq('status','closed')
+      .gte('opened_at', start.toISOString()).lte('opened_at', end.toISOString())
+      .order('opened_at',{ascending:false});
+    if(branchId) q.eq('branch_id', branchId);
+    const { data } = await q;
+    return data || [];
+  } catch(e){ console.error('loadSessionsForDate:',e); return []; }
+}
+
+async function onHistDateChange(dateStr){
+  const sel=document.getElementById('hist-session');
+  if(!dateStr){
+    // Sin fecha → volver a los turnos recientes
+    S.histSessions = S.sessions || [];
+    renderHistSessionPicker();
+    return;
+  }
+  const list = await loadSessionsForDate(S.branchId, dateStr);
+  S.histSessions = list;
+  renderHistSessionPicker();
+  if(list.length){
+    // Auto-seleccionar el primer (más reciente) turno del día
+    if(sel) sel.value=list[0].id;
+    await selectHistSession(list[0].id);
+  } else {
+    const cont=document.getElementById('hist-lista');
+    const f=new Date(dateStr+'T00:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'});
+    if(cont) cont.innerHTML='<div class="cj-empty-row">No hubo turnos de caja el '+f+'</div>';
+    const hc=document.getElementById('hist-count'), ht=document.getElementById('hist-total');
+    if(hc) hc.textContent='0 ventas'; if(ht) ht.textContent='$0';
+  }
+}
+
+function setHistCajero(v){ S.histCajero=v||''; renderHistSessionPicker(); }
 
 async function selectHistSession(id){
   S.histSessionId = id || 'current';
@@ -112,10 +163,12 @@ async function selectHistSession(id){
     if(S.histSessionId==='current'){
       banner.innerHTML='Este historial es solo de la <strong style="font-weight:700;margin:0 3px">sesión actual</strong>. Al cerrar la caja se reinicia; los totales quedan guardados en el cierre.';
     } else {
-      const s=(S.sessions||[]).find(function(x){return x.id===id;});
+      const s=(S.histSessions||[]).find(function(x){return x.id===id;});
       const dA=s?new Date(s.opened_at):null;
       const fecha=dA?dA.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'}):'';
-      banner.innerHTML='Historial completo del <strong style="font-weight:700;margin:0 3px">cierre del '+fecha+'</strong> — todos los pedidos de ese turno, pedido por pedido.';
+      const hA=dA?dA.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'}):'';
+      const hC=(s&&s.closed_at)?new Date(s.closed_at).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'}):'—';
+      banner.innerHTML='Historial completo del <strong style="font-weight:700;margin:0 3px">turno del '+fecha+' ('+hA+'–'+hC+')</strong> — todos los pedidos de ese turno, pedido por pedido.';
     }
   }
   await applyHistSelection();
@@ -124,7 +177,7 @@ async function selectHistSession(id){
 async function applyHistSelection(){
   const id=S.histSessionId||'current';
   if(id==='current'){ S.histOrdersAll=S.orders||[]; S.histItemsAll=S.items||[]; renderHistFiltered(); return; }
-  const sess=(S.sessions||[]).find(function(x){return x.id===id;});
+  const sess=(S.histSessions||[]).find(function(x){return x.id===id;});
   if(!sess){ S.histOrdersAll=S.orders||[]; S.histItemsAll=S.items||[]; renderHistFiltered(); return; }
   const cont=document.getElementById('hist-lista');
   if(cont) cont.innerHTML='<div class="cj-empty-row">Cargando pedidos del turno…</div>';
