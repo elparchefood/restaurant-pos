@@ -221,8 +221,18 @@
             <svg style="position:absolute;right:12px;pointer-events:none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
           <button id="hist-filtros-btn" class="cj-filtros-btn" onclick="toggleHistFilters()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Filtros</button>
+          <button class="cj-filtros-btn" onclick="exportHistorial()" title="Exportar a Excel (CSV)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exportar</button>
         </div>
         <div id="hist-filtros-panel" class="cj-filtros-panel" hidden>
+          <div class="cj-filtro-field">
+            <label>Ordenar por</label>
+            <select id="hf-orden" onchange="setHistFilter('orden',this.value)">
+              <option value="hora_desc">Hora — más reciente</option>
+              <option value="hora_asc">Hora — más antiguo</option>
+              <option value="monto_desc">Monto — mayor primero</option>
+              <option value="monto_asc">Monto — menor primero</option>
+            </select>
+          </div>
           <div class="cj-filtro-field">
             <label>Estado</label>
             <select id="hf-estado" onchange="setHistFilter('estado',this.value)">
@@ -402,6 +412,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-core.js"></script>
-<script src="caja.js?v=4"></script>
+<script src="caja.js?v=5"></script>
 </body>
 </html>

@@ -7,7 +7,7 @@ const S = {
   branchId: null, tenantId: null, user: null, arqueoContado: null,
   histSessionId: 'current',   // turno mostrado en Historial de ventas
   histOrdersAll: [], histItemsAll: [],   // set completo del turno mostrado
-  histFilters: { estado:'todas', canal:'todos', pago:'todos', producto:'', fecha:'' }
+  histFilters: { estado:'todas', canal:'todos', pago:'todos', producto:'', fecha:'', orden:'hora_desc' }
 };
 
 
@@ -158,7 +158,47 @@ function histFiltered(){
       return (byOrder[o.id]||[]).some(function(it){ return String(it.product_name||it.name||'').toLowerCase().includes(q); });
     });
   }
+  const orden=f.orden||'hora_desc';
+  const tot=function(o){ return parseFloat(o.total_final!=null?o.total_final:o.total)||0; };
+  list.sort(function(a,b){
+    if(orden==='hora_asc')   return new Date(a.created_at)-new Date(b.created_at);
+    if(orden==='monto_desc') return tot(b)-tot(a);
+    if(orden==='monto_asc')  return tot(a)-tot(b);
+    return new Date(b.created_at)-new Date(a.created_at); // hora_desc (por defecto)
+  });
   return list;
+}
+
+// Exportar el historial FILTRADO a CSV (se abre en Excel)
+function exportHistorial(){
+  const orders=histFiltered();
+  if(!orders.length){ alert('No hay pedidos para exportar con los filtros actuales.'); return; }
+  const byOrder={};
+  (S.histItemsAll||[]).forEach(function(it){ (byOrder[it.order_id]=byOrder[it.order_id]||[]).push(it); });
+  const CANAL={salon:'Salón',rapido:'Rápida',mostrador:'Mostrador',domicilio:'Domicilio'};
+  const rows=[['#Venta','Fecha','Hora','Canal','Método','Estado','Atendió','Cliente','Productos','Total']];
+  orders.forEach(function(o){
+    const d=new Date(o.created_at);
+    const fecha=d.toLocaleDateString('es-CO');
+    const hora=d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+    const prods=(byOrder[o.id]||[]).map(function(it){ return (it.quantity||1)+'x '+(it.product_name||it.name||'Producto'); }).join(' | ');
+    const tot=parseFloat(o.total_final!=null?o.total_final:o.total)||0;
+    rows.push(['#'+String(o.id||'').slice(-4).toUpperCase(), fecha, hora,
+      CANAL[(o.channel||'salon').toLowerCase()]||o.channel||'', o.payment_method||'efectivo',
+      o.status==='cancelled'?'Anulada':'Realizada', o.waiter_name||'', o.customer_name||'', prods, tot]);
+  });
+  const csv=rows.map(function(r){ return r.map(function(c){
+    const s=String(c==null?'':c);
+    return /[",\n;]/.test(s)?('"'+s.replace(/"/g,'""')+'"'):s;
+  }).join(','); }).join('\r\n');
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const sess=(S.sessions||[]).find(function(x){return x.id===S.histSessionId;});
+  const tag=(S.histSessionId==='current')?'actual':(sess?new Date(sess.opened_at).toLocaleDateString('es-CO').replace(/\//g,'-'):'turno');
+  const a=document.createElement('a');
+  a.href=url; a.download='historial-ventas-'+tag+'.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1500);
 }
 function renderHistFiltered(){ renderHistorial(histFiltered(), S.histItemsAll||[]); }
 function setHistFilter(key,val){ S.histFilters[key]=val; renderHistFiltered(); }
@@ -171,8 +211,8 @@ function toggleHistFilters(){
   else { panel.setAttribute('hidden',''); if(btn) btn.classList.remove('on'); }
 }
 function clearHistFilters(){
-  S.histFilters={ estado:'todas', canal:'todos', pago:'todos', producto:'', fecha:'' };
-  const ids={ 'hf-estado':'todas','hf-canal':'todos','hf-pago':'todos','hf-producto':'','hf-fecha':'' };
+  S.histFilters={ estado:'todas', canal:'todos', pago:'todos', producto:'', fecha:'', orden:'hora_desc' };
+  const ids={ 'hf-estado':'todas','hf-canal':'todos','hf-pago':'todos','hf-producto':'','hf-fecha':'','hf-orden':'hora_desc' };
   Object.keys(ids).forEach(function(id){ const el=document.getElementById(id); if(el) el.value=ids[id]; });
   renderHistFiltered();
 }
