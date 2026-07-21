@@ -196,6 +196,7 @@
     selectedTableId: null,
     tables: [],
     orderItems: [],
+    openPax: 2,   // nº de personas elegido en el selector de "abrir mesa"
     loading: true,
     chipOrder: loadChipOrder(),
     dragKey: null,
@@ -700,6 +701,7 @@
       return;
     }
     state.selectedTableId = tableId;
+    state.openPax = 2; // reiniciar el selector de personas al elegir otra mesa
     updateMesaHighlight(tableId);
     showSheetLoading(); // muestra "Cargando…" en tablet; no-op en desktop
     const { order, items } = await fetchOrderData(tableId);
@@ -1504,9 +1506,9 @@
           <div class="vs-guests-picker">
             <span class="vs-guests-label">Personas</span>
             <div class="vs-guests-controls">
-              <button class="vs-guests-btn" data-pax-action="minus" data-pax-target="vs-pax-${mesa.id}">−</button>
-              <span class="vs-guests-val" id="vs-pax-${mesa.id}">2</span>
-              <button class="vs-guests-btn" data-pax-action="plus" data-pax-target="vs-pax-${mesa.id}">+</button>
+              <button class="vs-guests-btn" data-pax-action="minus">−</button>
+              <span class="vs-guests-val" data-pax-val>${state.openPax || 2}</span>
+              <button class="vs-guests-btn" data-pax-action="plus">+</button>
             </div>
           </div>
           <div class="vs-empty-btn-row">
@@ -2026,16 +2028,26 @@
       btn.addEventListener('click', handleAction);
     });
 
-    // Botones +/- del selector de personas en mesa libre
+    // Botones +/- del selector de personas en mesa libre.
+    // Usamos una función NOMBRADA (no anónima) para que addEventListener la
+    // deduplique aunque attachRailEvents corra 2 veces (rail + sheet) — evita
+    // el "+2" en escritorio. El valor vive en state.openPax (no en el DOM) y se
+    // refleja en TODAS las vistas del contador, evitando el desfase por IDs
+    // duplicados entre rail y sheet que dejaba el botón "muerto" en tablet.
     container.querySelectorAll('[data-pax-action]').forEach(function(btn) {
-      btn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        const valEl = document.getElementById(btn.dataset.paxTarget);
-        if (!valEl) return;
-        const dir = btn.dataset.paxAction === 'plus' ? 1 : -1;
-        valEl.textContent = Math.max(1, Math.min(30, (parseInt(valEl.textContent, 10) || 1) + dir));
-      });
+      btn.addEventListener('click', _paxStep);
     });
+  }
+
+  function _paxStep(e) {
+    e.stopPropagation();
+    const dir = e.currentTarget.dataset.paxAction === 'plus' ? 1 : -1;
+    state.openPax = Math.max(1, Math.min(30, (state.openPax || 2) + dir));
+    if (container) {
+      container.querySelectorAll('[data-pax-val]').forEach(function(el) {
+        el.textContent = state.openPax;
+      });
+    }
   }
 
   function attachQuickRailEvents() {
@@ -2104,8 +2116,7 @@
 
     switch (action) {
       case 'open-table': {
-        const paxEl = document.getElementById('vs-pax-' + tableId);
-        const guests = paxEl ? (parseInt(paxEl.textContent, 10) || 2) : 2;
+        const guests = state.openPax || 2;
         window._pos && window._pos.emit && window._pos.emit('table:open', { tableId, guests });
         break;
       }
