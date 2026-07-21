@@ -102,12 +102,8 @@ function renderHistSessionPicker(){
   if(cq) list=list.filter(function(s){ return String(s.cashier_name||'').toLowerCase().includes(cq); });
   let opts = '<option value="current">Sesión actual'+(S.session?'':' (caja cerrada)')+'</option>';
   list.forEach(function(s){
-    const dA=new Date(s.opened_at), dC=s.closed_at?new Date(s.closed_at):null;
-    const fecha=dA.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'2-digit'});
-    const hA=dA.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
-    const hC=dC?dC.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'}):'—';
     const cajero=s.cashier_name?(' · '+s.cashier_name):'';
-    opts+='<option value="'+s.id+'">'+fecha+' · '+hA+'–'+hC+cajero+'</option>';
+    opts+='<option value="'+s.id+'">'+_turnoSpanLabel(s)+cajero+'</option>';
   });
   sel.innerHTML=opts;
   // Mantener seleccionado el turno actual si sigue en la lista; si no, volver a "actual"
@@ -116,18 +112,33 @@ function renderHistSessionPicker(){
   if(!sel.dataset.bound){ sel.dataset.bound='1'; sel.addEventListener('change',function(){ selectHistSession(sel.value); }); }
 }
 
-// Cargar los turnos (cierres) de un día específico — solo esa fecha, no los cientos.
+// Cargar los turnos (cierres) que TOCARON un día — por SOLAPAMIENTO, no solo por
+// apertura. Así un turno que abrió el 21 6pm y cerró el 22 1am aparece tanto si
+// buscas el 21 como el 22 (cruzó la medianoche pero es un solo turno).
 async function loadSessionsForDate(branchId, dateStr){
   try {
     const start=new Date(dateStr+'T00:00:00');
     const end=new Date(dateStr+'T23:59:59.999');
     const q=sb.from('pos_sessions').select('*').eq('status','closed')
-      .gte('opened_at', start.toISOString()).lte('opened_at', end.toISOString())
+      .lte('opened_at', end.toISOString())    // abrió en o antes del fin del día
+      .gte('closed_at', start.toISOString())  // cerró en o después del inicio del día
       .order('opened_at',{ascending:false});
     if(branchId) q.eq('branch_id', branchId);
     const { data } = await q;
     return data || [];
   } catch(e){ console.error('loadSessionsForDate:',e); return []; }
+}
+
+// Etiqueta legible del turno; si cruza la medianoche muestra ambas fechas.
+function _turnoSpanLabel(s){
+  const dA=new Date(s.opened_at), dC=s.closed_at?new Date(s.closed_at):null;
+  const opt2={day:'2-digit',month:'2-digit',year:'2-digit'};
+  const optH={hour:'2-digit',minute:'2-digit'};
+  const fA=dA.toLocaleDateString('es-CO',opt2), hA=dA.toLocaleTimeString('es-CO',optH);
+  if(!dC) return fA+' · '+hA+'–(abierta)';
+  const hC=dC.toLocaleTimeString('es-CO',optH);
+  if(dA.toDateString()===dC.toDateString()) return fA+' · '+hA+'–'+hC;
+  return fA+' '+hA+' → '+dC.toLocaleDateString('es-CO',opt2)+' '+hC; // cruzó medianoche
 }
 
 async function onHistDateChange(dateStr){
@@ -164,11 +175,9 @@ async function selectHistSession(id){
       banner.innerHTML='Este historial es solo de la <strong style="font-weight:700;margin:0 3px">sesión actual</strong>. Al cerrar la caja se reinicia; los totales quedan guardados en el cierre.';
     } else {
       const s=(S.histSessions||[]).find(function(x){return x.id===id;});
-      const dA=s?new Date(s.opened_at):null;
-      const fecha=dA?dA.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'}):'';
-      const hA=dA?dA.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'}):'';
-      const hC=(s&&s.closed_at)?new Date(s.closed_at).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'}):'—';
-      banner.innerHTML='Historial completo del <strong style="font-weight:700;margin:0 3px">turno del '+fecha+' ('+hA+'–'+hC+')</strong> — todos los pedidos de ese turno, pedido por pedido.';
+      const span=s?_turnoSpanLabel(s):'';
+      const cruza=s&&s.closed_at&&(new Date(s.opened_at).toDateString()!==new Date(s.closed_at).toDateString());
+      banner.innerHTML='Historial completo del <strong style="font-weight:700;margin:0 3px">turno '+span+'</strong> — todos los pedidos de ese turno, pedido por pedido'+(cruza?' (incluye las ventas después de medianoche).':'.');
     }
   }
   await applyHistSelection();
