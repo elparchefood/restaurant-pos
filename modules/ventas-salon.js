@@ -492,25 +492,42 @@
     if (!sb || !tableId) return { order: null, items: [] };
 
     // La mesa apunta a su orden activa vía current_order_id (se guarda al
-    // enviar a cocina). Nos ceñimos a esa orden para NO resucitar órdenes
-    // viejas huérfanas que quedaron 'open' y nunca se cerraron (p. ej. tests
-    // de días atrás). Si el current_order_id ya está pagado/cancelado, el
-    // filtro devuelve vacío y la mesa se muestra sin pedido activo.
+    // enviar a cocina). Preferimos esa orden para NO resucitar órdenes viejas
+    // huérfanas que quedaron 'open' y nunca se cerraron.
     const _tRow  = state.tables.find(t => t.id === tableId);
     const _curId = _tRow && _tRow.current_order_id;
+    const _libre = _tRow && _tRow.status === 'libre';
 
-    let _q = sb
-      .from('pos_orders')
-      .select('id, status, total, created_at, opened_at, waiter_name, guests')
-      .eq('table_id', tableId)
-      .not('status', 'eq', 'completed')
-      .not('status', 'eq', 'cancelled')
-      .not('status', 'eq', 'paid');
-    if (_curId) _q = _q.eq('id', _curId);
-
-    const { data: orders, error: ordErr } = await _q
-      .order('created_at', { ascending: false })
-      .limit(1);
+    let orders, ordErr;
+    if (_curId && !_libre) {
+      // Mostrar la orden actual de la mesa TAL CUAL, aunque esté 'paid':
+      // en cobro adelantado el pedido se paga primero y sigue en curso
+      // (la mesa lo necesita para ver la comanda y entregar los platos).
+      // Solo se descarta si está cancelada.
+      const r = await sb
+        .from('pos_orders')
+        .select('id, status, total, created_at, opened_at, waiter_name, guests')
+        .eq('id', _curId)
+        .not('status', 'eq', 'cancelled')
+        .limit(1);
+      orders = r.data; ordErr = r.error;
+    } else if (!_libre) {
+      // Sin current_order_id: fallback conservador a la orden abierta más
+      // reciente (excluyendo cerradas) para no resucitar huérfanas.
+      const r = await sb
+        .from('pos_orders')
+        .select('id, status, total, created_at, opened_at, waiter_name, guests')
+        .eq('table_id', tableId)
+        .not('status', 'eq', 'completed')
+        .not('status', 'eq', 'cancelled')
+        .not('status', 'eq', 'paid')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      orders = r.data; ordErr = r.error;
+    } else {
+      // Mesa libre: sin pedido activo.
+      orders = []; ordErr = null;
+    }
 
     if (ordErr) { console.error('[ventas-salon] fetchOrderData orders:', ordErr); }
     if (!orders || !orders.length) return { order: null, items: [] };
