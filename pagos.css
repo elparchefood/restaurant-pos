@@ -328,6 +328,22 @@ svg { display: block; }
 .pg-tip-amt { font-size: 12px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
 .lm-tip.is-on .pg-tip-amt { color: var(--money-green); }
 
+/* Fila de domicilio: toggle + monto editable */
+.pg-domi-row { display: flex; align-items: center; gap: 8px; }
+.pg-domi-row .pg-domi-toggle { flex: 1; margin: 8px 0; }
+.pg-domi-amt {
+  display: inline-flex; align-items: center; gap: 2px;
+  font-size: 13px; font-weight: 700; color: var(--ink);
+  border: 1px solid var(--border); border-radius: var(--r-2xl);
+  padding: 7px 9px; background: var(--surface); white-space: nowrap;
+}
+.pg-domi-amt input {
+  width: 68px; border: none; background: transparent; outline: none;
+  font: inherit; font-weight: 700; color: var(--ink);
+  text-align: right; font-variant-numeric: tabular-nums; padding: 0;
+}
+.pg-domi-row .pg-domi-toggle.is-on ~ .pg-domi-amt { border-color: var(--cash-ring); color: var(--money-green); }
+
 /* ════════ COBRO (panel derecho) ════════ */
 .pg-cobro {
   background: var(--surface); border: 1px solid var(--border);

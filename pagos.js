@@ -16,6 +16,10 @@ const SP = {
   tipLocked: false,
   adelantado: false,
   discount: 0,
+  empaque: 0,          // costo de empaque (siempre se cobra al cliente)
+  domicilio: 0,        // valor del domicilio (delivery_fee)
+  cobrarDomicilio: false, // si true, se suma el domicilio al total a cobrar
+  channel: 'salon',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -53,15 +57,33 @@ function catColorFor(id) {
 // ── Cálculos ──────────────────────────────────────────────────────────────
 function calc() {
   const subtotal = SP.items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
-  const tipAmt   = SP.tip ? Math.round(subtotal * 0.10) : 0;
-  const total    = Math.max(0, subtotal + tipAmt - SP.discount);
+  const empaque  = Number(SP.empaque) || 0;                       // siempre se cobra
+  const domi     = SP.cobrarDomicilio ? (Number(SP.domicilio) || 0) : 0; // opcional
+  const tipAmt   = SP.tip ? Math.round(subtotal * 0.10) : 0;      // propina solo sobre productos
+  const total    = Math.max(0, subtotal + empaque + domi + tipAmt - SP.discount);
   const paid     = SP.payments.reduce((s, p) => s + p.amount, 0);
   const falta    = Math.max(0, total - paid);
   const vuelto   = SP.method === 'efectivo'
     ? Math.max(0, paid + SP.entry - total)
     : Math.max(0, paid - total);
   const cubierto = paid >= total && total > 0;
-  return { subtotal, tipAmt, total, paid, falta, vuelto, cubierto };
+  return { subtotal, empaque, domi, tipAmt, total, paid, falta, vuelto, cubierto };
+}
+
+// Calcula el empaque desde la config de Operación (mismo criterio que domicilios.js).
+// Se usa solo si la orden no trae ya packaging_fee guardado (p. ej. pedidos del bot).
+function computeEmpaquePagos(prodTotal, units, esDomicilio) {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
+    if (!cfg.empaquesActivo || prodTotal <= 0) return 0;
+    const usaDomi = (cfg.empaqueCanal === 'distinto') && esDomicilio;
+    const esPct   = cfg.empaqueTipo === 'porcentaje';
+    const rate = esPct
+      ? (usaDomi ? (cfg.empaquePctDomicilio || 0) : (cfg.empaquePct || 0))
+      : (usaDomi ? (cfg.empaqueMontoDomicilio || 0) : (cfg.empaqueMonto || 0));
+    if (cfg.empaqueBase === 'pedido') return esPct ? Math.round(prodTotal * rate / 100) : rate;
+    return esPct ? Math.round(prodTotal * rate / 100) : rate * units;
+  } catch (e) { return 0; }
 }
 
 // ── Render ────────────────────────────────────────────────────────────────
@@ -94,7 +116,7 @@ function renderItems() {
 }
 
 function renderTotals() {
-  const { subtotal, tipAmt, total, paid, falta, vuelto, cubierto } = calc();
+  const { subtotal, empaque, domi, tipAmt, total, paid, falta, vuelto, cubierto } = calc();
   const cobro = document.getElementById('cobro');
 
   document.getElementById('t-subtotal').textContent = fmt(subtotal);
@@ -102,6 +124,23 @@ function renderTotals() {
   document.getElementById('t-total').textContent    = fmt(total);
   document.getElementById('side-total').textContent = fmt(total);
   document.getElementById('exact-amt').textContent  = fmt(falta);
+
+  // Empaque (siempre visible si hay costo de empaque)
+  const empRow = document.getElementById('t-empaque-row');
+  if (empRow) {
+    if (empaque > 0) { empRow.hidden = false; document.getElementById('t-empaque').textContent = fmt(empaque); }
+    else empRow.hidden = true;
+  }
+
+  // Domicilio — toggle para cobrarlo también al cliente (solo en domicilios)
+  const domiRow = document.getElementById('t-domi-row');
+  if (domiRow) {
+    domiRow.hidden = (SP.channel !== 'domicilio');
+    const domiToggle = document.getElementById('domi-toggle');
+    if (domiToggle) domiToggle.classList.toggle('is-on', SP.cobrarDomicilio);
+    const domiInput = document.getElementById('domi-input');
+    if (domiInput && document.activeElement !== domiInput) domiInput.value = Math.round(Number(SP.domicilio) || 0);
+  }
 
   // Descuento
   const discRow = document.getElementById('t-discount-row');
@@ -330,7 +369,7 @@ async function cobrarDespues() {
   btnFinish.textContent = 'Procesando…';
 
   try {
-    const { subtotal, tipAmt, total } = calc();
+    const { subtotal, empaque, domi, tipAmt, total } = calc();
     const payMethod   = SP.payments.length === 1 ? SP.payments[0].method : 'multiple';
     const vueltoTotal = SP.payments.reduce((s, p) => s + Math.max(0, (p.received || p.amount) - p.amount), 0);
     const now         = new Date().toISOString();
@@ -354,6 +393,7 @@ async function cobrarDespues() {
       discount_amount: SP.discount || 0,
       discount_motivo: SP.discountObj?.motivo || null,
       tip_amount:      tipAmt,
+      packaging_fee:   empaque || 0,
       vuelto_total:    vueltoTotal,
     }, { id: SP.orderId });
 
@@ -410,6 +450,14 @@ async function cobrarDespues() {
 }
 
 // ── Event delegation ──────────────────────────────────────────────────────
+// Edición en vivo del valor del domicilio
+document.addEventListener('input', e => {
+  if (e.target && e.target.id === 'domi-input') {
+    SP.domicilio = Math.max(0, parseInt(String(e.target.value).replace(/\D/g, ''), 10) || 0);
+    if (SP.cobrarDomicilio) renderTotals();
+  }
+});
+
 document.addEventListener('click', e => {
   if (e.target.dataset.pinDigit !== undefined) { pinDigit(e.target.dataset.pinDigit); return; }
   const el = e.target.closest('[data-action],[data-digit],[data-bill],[data-method],[data-dtype],[data-dval],[data-motivo],[data-smode],[data-item-id]');
@@ -495,6 +543,14 @@ document.addEventListener('click', e => {
       SP.tip = !SP.tip;
       renderAll();
       break;
+    case 'cobrar-domi': {
+      // Toma el valor actual del input al activar
+      const di = document.getElementById('domi-input');
+      if (di) SP.domicilio = Math.max(0, parseInt(String(di.value).replace(/\D/g, ''), 10) || 0);
+      SP.cobrarDomicilio = !SP.cobrarDomicilio;
+      renderAll();
+      break;
+    }
     case 'apply':
       applyPayment();
       break;
@@ -633,6 +689,21 @@ async function loadOrder() {
       catColor:  cat.color || catColorFor(it.product_id),
     };
   });
+
+  // ── Empaque y domicilio ──────────────────────────────────────────────
+  // Empaque: usar el que quedó guardado en la orden; si no hay (p. ej. pedidos
+  // creados por el bot, que no leen la config local), calcularlo desde Operación.
+  let emp = Number(order.packaging_fee) || 0;
+  if (emp <= 0 && (SP.channel === 'domicilio' || SP.channel === 'rapido')) {
+    const prodTotal = SP.items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
+    const units     = SP.items.reduce((s, i) => s + i.qty, 0);
+    emp = computeEmpaquePagos(prodTotal, units, SP.channel === 'domicilio');
+  }
+  SP.empaque = emp;
+  // Domicilio: valor sugerido (se puede editar). Por defecto NO se cobra al
+  // cliente — solo si el cajero activa el toggle "Cobrar domicilio".
+  SP.domicilio = Number(order.delivery_fee) || 0;
+  SP.cobrarDomicilio = false;
 
   // Datos del cliente
   SP.cliente = order.customer_name || '';

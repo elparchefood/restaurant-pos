@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css">
-<link rel="stylesheet" href="pagos.css">
+<link rel="stylesheet" href="pagos.css?v=2">
 </head>
 <body>
 <div class="pg-root">
@@ -115,6 +115,16 @@
         </div>
         <div class="pg-ticket-foot">
           <div class="pg-trow"><span>Subtotal</span><span id="t-subtotal">$0</span></div>
+          <div class="pg-trow" id="t-empaque-row" hidden><span>Empaque</span><span id="t-empaque">$0</span></div>
+          <div class="pg-domi-row" id="t-domi-row" hidden>
+            <button class="lm-tip pg-domi-toggle" id="domi-toggle" data-action="cobrar-domi" type="button">
+              <span class="lm-tip-l">
+                <span class="pg-tipbox"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                <span class="pg-tip-text">Cobrar domicilio al cliente</span>
+              </span>
+            </button>
+            <span class="pg-domi-amt">$ <input id="domi-input" type="tel" inputmode="numeric" value="0" aria-label="Valor del domicilio"></span>
+          </div>
           <div class="pg-trow is-discount" id="t-discount-row" hidden><span>Descuento</span><span id="t-discount">−$0</span></div>
           <button class="lm-tip" id="tip-toggle" data-action="tip">
             <span class="lm-tip-l">
@@ -288,7 +298,7 @@
 <script src="pos-sync.js?v=3"></script>
 <script src="pos-core.js"></script>
 <script src="pos-print.js?v=10"></script>
-<script src="pagos.js?v=1781546173"></script>
+<script src="pagos.js?v=1783605000"></script>
 
   <!-- ════ MODAL: DESCUENTO ════ -->
   <div class="pg-overlay" id="discount-modal" hidden>
