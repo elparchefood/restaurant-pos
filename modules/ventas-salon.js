@@ -443,10 +443,30 @@
         const orderMap = {};
         (ordersData || []).forEach(function(o){ orderMap[o.table_id] = o; });
 
+        // Además, las órdenes ACTUALES de cada mesa (current_order_id). Pueden estar
+        // 'paid' en cobro adelantado y aun así siguen en curso (comida por entregar).
+        // Tienen PRIORIDAD sobre el respaldo por table_id. Se consultan una a una
+        // porque .in() con múltiples UUIDs falla en algunos entornos (tablet/WebView).
+        const curIds = Object.values(mergedMap)
+          .map(function(t){ return t.current_order_id; })
+          .filter(Boolean);
+        if (curIds.length > 0) {
+          const curOrders = (await Promise.all(curIds.map(function(oid){
+            return sb.from('pos_orders')
+              .select('id, table_id, total, guests, waiter_name, opened_at, created_at')
+              .eq('id', oid)
+              .not('status', 'eq', 'cancelled')
+              .maybeSingle()
+              .then(function(r){ return r.data; })
+              .catch(function(){ return null; });
+          }))).filter(Boolean);
+          curOrders.forEach(function(o){ orderMap[o.table_id] = o; });
+        }
+
         // Contar ítems por orden — usamos .eq() individual por orden en vez de .in()
         // porque .in() con múltiples UUIDs falla en algunos entornos (tablet/WebView).
         const itemsCountMap = {};
-        const activeOrders = (ordersData || []).filter(function(o){ return o.id; });
+        const activeOrders = Object.values(orderMap).filter(function(o){ return o && o.id; });
         if (activeOrders.length > 0) {
           const countResults = await Promise.all(activeOrders.map(function(o) {
             return sb.from('pos_order_items').select('id').eq('order_id', o.id)
@@ -470,6 +490,7 @@
             seats:           t.seats,
             zone_id:         t.zone_id,
             sort_order:      t.sort_order,
+            current_order_id: t.current_order_id || null,
             openedAt:        openedAt || null,
             status:          t.status || 'libre',
             total:           ord ? (ord.total || 0) : 0,
