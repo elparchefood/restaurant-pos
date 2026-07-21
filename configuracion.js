@@ -2307,27 +2307,32 @@ var _storedZonas = [];
         porcentajeVoz:  $('mixSlider')   ? parseInt($('mixSlider').value) : 30,
         voiceId:        voiceEl ? voiceEl.dataset.voice : 'valentina'
       },
-      // Los métodos de pago ahora se editan en "Métodos de pago" (fuente de verdad
-      // compartida). El asistente ya NO los modifica: escribe de vuelta lo último
-      // cargado/guardado para no pisar nada. Si por algo no hay snapshot, cae al
-      // formulario (compatibilidad).
-      pagos: window._loadedPagos || {
-        metodos:             readMetodos(),
-        efectivo:            readMetodos().some(function(x){ return x.nombre.toLowerCase().indexOf('efectivo') >= 0 || !x.digital; }),
-        nequi:               readMetodos().some(function(x){ return x.nombre.toLowerCase().indexOf('nequi') >= 0; }),
-        daviplata:           readMetodos().some(function(x){ return x.nombre.toLowerCase().indexOf('daviplata') >= 0; }),
-        tarjeta:             readMetodos().some(function(x){ return x.nombre.toLowerCase().indexOf('tarjeta') >= 0; }),
-        llave:               $('payLlave')      ? $('payLlave').value.trim() : '',
-        titular:             $('payTitular')    ? $('payTitular').value.trim(): '',
-        esperar_comprobante: $('payComprobante')? $('payComprobante').checked : true,
-        nota:                $('payNota')       ? $('payNota').value.trim()  : '',
-        qr_imagen_url:       window._qrImageUrl || '',
-        qr_texto:            $('qrTexto')       ? $('qrTexto').value.trim()  : '',
-        ventana_comprobante_horas: window._storedVentanaHoras || undefined,
-        bancos_correo:       $('bancosCorreo')
-          ? $('bancosCorreo').value.split(',').map(function(b){ return b.trim(); }).filter(Boolean)
-          : [],
-      },
+      // La LISTA de métodos se administra en "Métodos de pago" (fuente de verdad):
+      // aquí la reescribimos TAL CUAL (window._loadedPagos.metodos). El asistente
+      // sigue editando los datos del bot: titular, llave, QR, mensaje, comprobante,
+      // nota y correos de banco. Los booleanos derivados salen de la lista.
+      pagos: (function(){
+        var lp  = window._loadedPagos || {};
+        var lc  = function(s){ return String(s||'').toLowerCase(); };
+        var mts = Array.isArray(lp.metodos) ? lp.metodos : readMetodos();
+        return Object.assign({}, lp, {
+          metodos:             mts,
+          efectivo:            mts.some(function(x){ return lc(x.nombre).indexOf('efectivo') >= 0 || !x.digital; }),
+          nequi:               mts.some(function(x){ return lc(x.nombre).indexOf('nequi') >= 0; }),
+          daviplata:           mts.some(function(x){ return lc(x.nombre).indexOf('daviplata') >= 0; }),
+          tarjeta:             mts.some(function(x){ return lc(x.nombre).indexOf('tarjeta') >= 0; }),
+          llave:               $('payLlave')      ? $('payLlave').value.trim() : '',
+          titular:             $('payTitular')    ? $('payTitular').value.trim(): '',
+          esperar_comprobante: $('payComprobante')? $('payComprobante').checked : true,
+          nota:                $('payNota')       ? $('payNota').value.trim()  : '',
+          qr_imagen_url:       window._qrImageUrl || '',
+          qr_texto:            $('qrTexto')       ? $('qrTexto').value.trim()  : '',
+          ventana_comprobante_horas: window._storedVentanaHoras || undefined,
+          bancos_correo:       $('bancosCorreo')
+            ? $('bancosCorreo').value.split(',').map(function(b){ return b.trim(); }).filter(Boolean)
+            : []
+        });
+      })(),
       domicilios: {
         activo:           $('domiActivo')    ? $('domiActivo').checked    : true,
         para_llevar:      $('domiParaLlevar')? $('domiParaLlevar').checked: true,
@@ -3281,7 +3286,6 @@ function _mpCardHtml(m){
     '<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;padding-top:10px;border-top:1px dashed #ECEEF2">'
     +_mpFieldInline('Cuenta / llave (opcional)','mpField(\''+m.id+'\',\'cuenta\',this.value)',m.cuenta,'Propia de este método')
     +_mpFieldInline('Banco (opcional)','mpField(\''+m.id+'\',\'banco\',this.value)',m.banco,'Ej. Bancolombia')
-    +'<div style="grid-column:1/-1">'+_mpFieldInline('Instrucciones para el cliente (opcional)','mpField(\''+m.id+'\',\'instrucciones\',this.value)',m.instrucciones,'Ej. Envía el comprobante a este número')+'</div>'
     +'</div>'
   ) : '';
   return '<div class="mp-card" style="border:1px solid #E2E8F0;border-radius:14px;padding:14px;background:'+(m.activo?'#fff':'#FCFCFD')+'">'
@@ -3323,27 +3327,8 @@ function _mpRender(){
       +'<div id="mp-list" style="display:flex;flex-direction:column;gap:12px">'+cards+'</div>'
       +'<button onclick="mpAddMetodo()" style="margin-top:14px;width:100%;padding:11px;border:1.5px dashed #CBD5E1;border-radius:12px;background:#F8FAFC;color:#5B6BFF;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">+ Agregar método</button>'
     +'</div>'
-    +'<div style="background:#fff;border:1px solid #ECEEF2;border-radius:16px;padding:20px;margin-top:16px;margin-bottom:40px">'
-      +'<div style="font-size:15px;font-weight:800;color:#0F172A">Datos para pagos digitales</div>'
-      +'<div style="font-size:12px;color:#94A3B8;margin:3px 0 14px">Lo que el bot usa para cobrar por transferencia (cuenta, titular y QR).</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">'
-        +_mpField('mp-titular','Nombre del titular',p.titular||'','Ej. El Parche Restaurante')
-        +_mpField('mp-llave','Número de cuenta / llave',p.llave||'','Ej. 0089912015')
-      +'</div>'
-      +'<div style="margin-top:14px"><label style="font-size:12px;font-weight:700;color:#475569">Imagen QR de cobro</label>'
-        +'<div style="display:flex;align-items:center;gap:14px;margin-top:8px">'
-          +'<div style="width:96px;height:96px;border-radius:12px;border:1.5px solid #ECEEF2;background:#F8FAFC center/contain no-repeat'+(MP.qrUrl?(";background-image:url(\'"+_mpEsc(MP.qrUrl)+"\')"):'')+'"></div>'
-          +'<div style="display:flex;flex-direction:column;gap:8px;align-items:flex-start">'
-            +'<input type="file" id="mp-qr-file" accept="image/*" style="display:none" onchange="mpQrUpload(this)">'
-            +'<button onclick="document.getElementById(\'mp-qr-file\').click()" style="padding:8px 14px;border:1px solid #E2E8F0;border-radius:9px;background:#fff;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer">Subir / cambiar QR</button>'
-            +(MP.qrUrl?'<button onclick="mpQrClear()" style="padding:6px 8px;border:none;border-radius:9px;background:transparent;color:#DC2626;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer">Quitar</button>':'')
-          +'</div>'
-        +'</div>'
-      +'</div>'
-      +'<div style="margin-top:14px">'+_mpTextarea('mp-qrtexto','Mensaje que acompaña el QR',p.qr_texto||'','Ej. Te comparto el QR para tu pago 😊 Recuerda enviar el comprobante.')+'</div>'
-      +'<label style="display:flex;align-items:center;gap:10px;margin-top:14px;font-size:13px;color:#334155;cursor:pointer"><input type="checkbox" id="mp-comprobante"'+(p.esperar_comprobante!==false?' checked':'')+' onchange="mpDirty()"> El bot espera el comprobante después de enviar el QR</label>'
-      +'<div style="margin-top:14px">'+_mpField('mp-bancos','Correos de bancos para verificación automática',Array.isArray(p.bancos_correo)?p.bancos_correo.join(', '):'','Ej. alertas@bancolombia.com, notificaciones@nequi.com')+'</div>'
-      +'<div style="margin-top:14px">'+_mpField('mp-nota','Nota adicional sobre pagos',p.nota||'','Ej. El domiciliario lleva cambio de hasta $100.000')+'</div>'
+    +'<div style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;margin-bottom:40px;padding:12px 14px;background:#F8FAFF;border:1px solid #E0E7FF;border-radius:12px">'
+      +'<span style="font-size:12.5px;color:#475569;line-height:1.5">El QR de cobro, el titular, el mensaje al cliente y la verificación por Gmail se configuran en <strong>Asistente IA → Pagos</strong> (todo lo de interacción con el cliente lo maneja el bot).</span>'
     +'</div>';
   _mpUpdateSaveBtn();
 }
@@ -3375,21 +3360,19 @@ window.mpSave=async function(){
     var metodos=MP.metodos.map(function(m,i){ return {
       id:m.id, nombre:(m.nombre||'').trim(), digital:!!m.digital, tipo:m.tipo||'otro',
       activo:m.activo!==false, orden:i, porDefecto:!!m.porDefecto,
-      cuenta:(m.cuenta||'').trim(), banco:(m.banco||'').trim(), instrucciones:(m.instrucciones||'').trim(),
+      cuenta:(m.cuenta||'').trim(), banco:(m.banco||'').trim(),
       canales:Array.isArray(m.canales)?m.canales:['mesa','rapida','domicilio'], comision:Number(m.comision)||0
     }; }).filter(function(m){ return m.nombre; });
     var old=MP.pagos||{};
+    // Solo administramos la LISTA de métodos. Los datos del bot (titular, llave,
+    // QR, mensaje, comprobante, correos de banco, nota) se conservan tal cual
+    // desde `old` — se editan en Asistente IA → Pagos. Cero riesgo para el bot.
     var pagos=Object.assign({},old,{
       metodos:metodos,
       efectivo:metodos.some(function(m){return m.tipo==='efectivo'||!m.digital;}),
       nequi:metodos.some(function(m){return (m.nombre||'').toLowerCase().indexOf('nequi')>=0;}),
       daviplata:metodos.some(function(m){return (m.nombre||'').toLowerCase().indexOf('daviplata')>=0;}),
-      tarjeta:metodos.some(function(m){return m.tipo==='tarjeta';}),
-      titular:_mpV('mp-titular'), llave:_mpV('mp-llave'),
-      qr_texto:_mpV('mp-qrtexto'), nota:_mpV('mp-nota'),
-      esperar_comprobante:_mpC('mp-comprobante'),
-      bancos_correo:_mpV('mp-bancos').split(',').map(function(s){return s.trim();}).filter(Boolean),
-      qr_imagen_url:(MP.qrUrl!=null?MP.qrUrl:(old.qr_imagen_url||''))
+      tarjeta:metodos.some(function(m){return m.tipo==='tarjeta';})
     });
     var r=await sb.from('ia_config').update({pagos:pagos}).eq('branch_id',MP.branchId);
     if(r.error) throw r.error;
@@ -3408,29 +3391,36 @@ function _mpToast(msg){
 
 /* ── Asistente IA → Pagos: SOLO LECTURA + redirección ─────────────────────── */
 window._mpMakeAsistenteReadonly=function(){
-  // Capa transparente sobre las tarjetas de pagos del asistente: bloquea toda
-  // interacción (toggles, agregar, inputs) y redirige a Métodos de pago al tocar.
-  ['card-pagos','card-gmail'].forEach(function(cid){
-    var card=document.getElementById(cid); if(!card) return;
-    if(!card.querySelector('.mp-ro-overlay')){
-      card.style.position='relative';
-      var ov=document.createElement('div');
-      ov.className='mp-ro-overlay';
-      ov.title='Se edita en Métodos de pago';
-      ov.style.cssText='position:absolute;inset:0;z-index:20;cursor:pointer;background:transparent';
-      ov.addEventListener('click',function(e){ e.preventDefault(); e.stopPropagation(); if(window.setSection) setSection('pagos'); });
-      card.appendChild(ov);
-    }
-  });
-  var host=document.getElementById('card-pagos');
-  if(host && !document.getElementById('mp-ro-banner')){
+  // SOLO la LISTA de métodos (nombres + toggles Digital + eliminar) y el botón
+  // "Agregar método" se administran en Métodos de pago. Todo lo demás del
+  // asistente (cuenta/llave, titular, QR, esperar comprobante, Gmail, remitentes)
+  // sigue editable AQUÍ tal como estaba.
+  var list=document.getElementById('metodosList');
+  if(list && !list.querySelector('.mp-ro-overlay')){
+    list.style.position='relative';
+    var ov=document.createElement('div');
+    ov.className='mp-ro-overlay';
+    ov.title='Los métodos se administran en Métodos de pago';
+    ov.style.cssText='position:absolute;inset:0;z-index:20;cursor:pointer;background:transparent';
+    ov.addEventListener('click',function(e){ e.preventDefault(); e.stopPropagation(); if(window.setSection) setSection('pagos'); });
+    list.appendChild(ov);
+  }
+  // "Agregar método": clonar (quita el listener original) y redirigir.
+  var addBtn=document.getElementById('metodoAdd');
+  if(addBtn && !addBtn.dataset.mpRo){
+    var clone=addBtn.cloneNode(true);
+    clone.dataset.mpRo='1';
+    clone.addEventListener('click',function(e){ e.preventDefault(); if(window.setSection) setSection('pagos'); });
+    if(addBtn.parentNode) addBtn.parentNode.replaceChild(clone,addBtn);
+  }
+  // Banner informativo al inicio de la tarjeta de métodos.
+  if(list && !document.getElementById('mp-ro-banner')){
     var b=document.createElement('div');
     b.id='mp-ro-banner';
-    // z-index 25 > overlay (20): su botón queda clickeable por encima de la capa.
-    b.style.cssText='position:relative;z-index:25;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:12px;padding:12px 14px;margin-bottom:14px';
-    b.innerHTML='<span style="font-size:12.5px;color:#3730A3;font-weight:600">Vista de solo lectura · Los métodos de pago se crean y editan en <strong>Métodos de pago</strong>.</span>'
-      +'<button onclick="setSection(\'pagos\')" style="background:#5B6BFF;color:#fff;border:none;border-radius:9px;padding:8px 14px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap">Ir a Métodos de pago →</button>';
-    host.insertBefore(b, host.firstChild);
+    b.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:12px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:12px;padding:11px 13px;margin-bottom:12px';
+    b.innerHTML='<span style="font-size:12px;color:#3730A3;font-weight:600">Los métodos se crean y editan en <strong>Métodos de pago</strong>.</span>'
+      +'<button onclick="setSection(\'pagos\')" style="background:#5B6BFF;color:#fff;border:none;border-radius:9px;padding:7px 12px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">Ir a Métodos de pago →</button>';
+    if(list.parentNode) list.parentNode.insertBefore(b, list);
   }
 };
 
