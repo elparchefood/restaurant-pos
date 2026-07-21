@@ -491,13 +491,24 @@
     const sb = window._pos && window._pos.sb;
     if (!sb || !tableId) return { order: null, items: [] };
 
-    const { data: orders, error: ordErr } = await sb
+    // La mesa apunta a su orden activa vía current_order_id (se guarda al
+    // enviar a cocina). Nos ceñimos a esa orden para NO resucitar órdenes
+    // viejas huérfanas que quedaron 'open' y nunca se cerraron (p. ej. tests
+    // de días atrás). Si el current_order_id ya está pagado/cancelado, el
+    // filtro devuelve vacío y la mesa se muestra sin pedido activo.
+    const _tRow  = state.tables.find(t => t.id === tableId);
+    const _curId = _tRow && _tRow.current_order_id;
+
+    let _q = sb
       .from('pos_orders')
       .select('id, status, total, created_at, opened_at, waiter_name, guests')
       .eq('table_id', tableId)
       .not('status', 'eq', 'completed')
       .not('status', 'eq', 'cancelled')
-      .not('status', 'eq', 'paid')
+      .not('status', 'eq', 'paid');
+    if (_curId) _q = _q.eq('id', _curId);
+
+    const { data: orders, error: ordErr } = await _q
       .order('created_at', { ascending: false })
       .limit(1);
 
