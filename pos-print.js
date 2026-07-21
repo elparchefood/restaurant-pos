@@ -86,7 +86,6 @@
       + '<div>FECHA: ' + dateStr + '</div>'
       + (waiter ? '<div>' + (isDomicilio || isRapido ? 'CAJERO' : 'MESERO') + ' - ' + waiter + '</div>' : '')
       + (sala   ? '<div>SALA - '   + sala   + '</div>' : '')
-      + ((isDomicilio || isRapido) ? _pagoEstadoHtml(order) : '')
       + sep('INICIO PEDIDO')
       + paraLlevar
       + rows

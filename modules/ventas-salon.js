@@ -19,7 +19,9 @@
 
   // ─── Constantes de estado de domicilio ──────────────
   const DELIVERY_META = {
-    preparacion: { label: 'En preparación', color: '#F97316', tint: '#FFF7ED', ring: '#FED7AA' },
+    recibido:    { label: 'Recibido',       color: '#64748B', tint: '#F1F5F9', ring: '#E2E8F0' },
+    preparacion: { label: 'En preparación', color: '#F59E0B', tint: '#FFFBEB', ring: '#FDE68A' },
+    listo:       { label: 'Listo',          color: '#8B5CF6', tint: '#F5F3FF', ring: '#DDD6FE' },
     camino:      { label: 'En camino',      color: '#3B82F6', tint: '#EFF6FF', ring: '#BFDBFE' },
     entregado:   { label: 'Entregado',      color: '#22C55E', tint: '#F0FDF4', ring: '#BBF7D0' },
   };
@@ -45,8 +47,8 @@
 
 
 
-  const DELIVERY_NEXT = { preparacion: 'camino', camino: 'entregado' };
-  const DELIVERY_BTN  = { preparacion: 'En camino', camino: 'Entregado' };
+  const DELIVERY_NEXT = { recibido: 'preparacion', preparacion: 'listo', listo: 'camino', camino: 'entregado' };
+  const DELIVERY_BTN  = { recibido: 'En preparación', preparacion: 'Listo', listo: 'En camino', camino: 'Entregado' };
 
   const CHIP_ORDER_KEY = 'pos.ventas.chipOrder';
   const CONFIG_KEY = 'pos.config.salon.v1';
