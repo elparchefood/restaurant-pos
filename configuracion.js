@@ -3408,23 +3408,29 @@ function _mpToast(msg){
 
 /* ── Asistente IA → Pagos: SOLO LECTURA + redirección ─────────────────────── */
 window._mpMakeAsistenteReadonly=function(){
+  // Capa transparente sobre las tarjetas de pagos del asistente: bloquea toda
+  // interacción (toggles, agregar, inputs) y redirige a Métodos de pago al tocar.
   ['card-pagos','card-gmail'].forEach(function(cid){
     var card=document.getElementById(cid); if(!card) return;
-    card.querySelectorAll('input,textarea,button,select').forEach(function(el){
-      if(el.getAttribute('data-mp-keep')) return;
-      el.disabled=true; el.style.pointerEvents='none';
-    });
-    card.style.opacity='.9';
+    if(!card.querySelector('.mp-ro-overlay')){
+      card.style.position='relative';
+      var ov=document.createElement('div');
+      ov.className='mp-ro-overlay';
+      ov.title='Se edita en Métodos de pago';
+      ov.style.cssText='position:absolute;inset:0;z-index:20;cursor:pointer;background:transparent';
+      ov.addEventListener('click',function(e){ e.preventDefault(); e.stopPropagation(); if(window.setSection) setSection('pagos'); });
+      card.appendChild(ov);
+    }
   });
   var host=document.getElementById('card-pagos');
   if(host && !document.getElementById('mp-ro-banner')){
     var b=document.createElement('div');
     b.id='mp-ro-banner';
-    b.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:12px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:12px;padding:12px 14px;margin-bottom:14px';
+    // z-index 25 > overlay (20): su botón queda clickeable por encima de la capa.
+    b.style.cssText='position:relative;z-index:25;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:12px;padding:12px 14px;margin-bottom:14px';
     b.innerHTML='<span style="font-size:12.5px;color:#3730A3;font-weight:600">Vista de solo lectura · Los métodos de pago se crean y editan en <strong>Métodos de pago</strong>.</span>'
-      +'<button data-mp-keep="1" onclick="setSection(\'pagos\')" style="pointer-events:auto;background:#5B6BFF;color:#fff;border:none;border-radius:9px;padding:8px 14px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap">Ir a Métodos de pago →</button>';
+      +'<button onclick="setSection(\'pagos\')" style="background:#5B6BFF;color:#fff;border:none;border-radius:9px;padding:8px 14px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap">Ir a Métodos de pago →</button>';
     host.insertBefore(b, host.firstChild);
-    var btn=b.querySelector('button'); if(btn) btn.disabled=false;
   }
 };
 
