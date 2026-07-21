@@ -627,15 +627,44 @@
   }
 
   // ─── Supabase — fetch deliveries ────────────────────
+  // Inicio del turno de caja actual (pos_sessions abierta). Se usa para que los
+  // tableros (domicilios, etc.) muestren SOLO el turno vigente y se reinicien al
+  // cerrar y volver a abrir la caja. Cachea 60 s. Si no hay caja abierta, cae a
+  // "hoy" para no mostrar todo el histórico.
+  var _cajaStartCache = null, _cajaStartAt = 0;
+  async function getCajaSessionStart() {
+    var now = Date.now();
+    if (_cajaStartCache && (now - _cajaStartAt) < 60000) return _cajaStartCache;
+    var sb = window._pos && window._pos.sb;
+    var branchId = window._pos && window._pos.state && window._pos.state.branchId;
+    var start = null;
+    try {
+      if (sb && branchId) {
+        var r = await sb.from('pos_sessions')
+          .select('opened_at')
+          .eq('branch_id', branchId)
+          .eq('status', 'open')
+          .order('opened_at', { ascending: false })
+          .limit(1);
+        if (r.data && r.data.length && r.data[0].opened_at) start = r.data[0].opened_at;
+      }
+    } catch (e) { /* fallback abajo */ }
+    if (!start) { var t = new Date(); t.setHours(0, 0, 0, 0); start = t.toISOString(); }
+    _cajaStartCache = start; _cajaStartAt = now;
+    return start;
+  }
+
   async function fetchDeliveries() {
     var sb = window._pos && window._pos.sb;
     if (!sb) return [];
     var branchId = window._pos && window._pos.state && window._pos.state.branchId;
     try {
+      var cajaStart = await getCajaSessionStart();
       var q = sb.from('pos_orders')
         .select('id, customer_name, channel, total, paid_amount, payment_method, waiter_name, status, created_at, opened_at, delivery_status, delivered_at')
         .eq('channel', 'domicilio')
         .not('status', 'eq', 'cancelled')
+        .gte('created_at', cajaStart)
         .order('created_at', { ascending: false })
         .limit(50);
       if (branchId) q = q.eq('branch_id', branchId);
@@ -1433,12 +1462,12 @@
     const sb = window._pos && window._pos.sb;
     if (!sb) return [];
     const branchId = window._pos.state && window._pos.state.branchId;
-    const today = new Date(); today.setHours(0,0,0,0);
+    const cajaStart = await getCajaSessionStart();
     let q = sb.from('pos_orders')
       .select('id, customer_name, turno, total, subtotal, discount, status, channel, created_at, waiter_name, notes, delivered_at, paid_amount')
       .eq('channel', 'rapido')
       .neq('status', 'cancelled')
-      .gte('created_at', today.toISOString())
+      .gte('created_at', cajaStart)
       .is('delivered_at', null)
       .order('created_at', { ascending: false });
     if (branchId) q = q.eq('branch_id', branchId);
@@ -1670,12 +1699,12 @@
     const sb = window._pos && window._pos.sb;
     if (!sb) return 0;
     const branchId = window._pos.state && window._pos.state.branchId;
-    const today = new Date(); today.setHours(0,0,0,0);
+    const cajaStart = await getCajaSessionStart();
     let q = sb.from('pos_orders')
       .select('id', { count: 'exact', head: true })
       .eq('channel', 'rapido')
       .neq('status', 'cancelled')
-      .gte('created_at', today.toISOString())
+      .gte('created_at', cajaStart)
       .not('delivered_at', 'is', null);
     if (branchId) q = q.eq('branch_id', branchId);
     const { count, error } = await q;
