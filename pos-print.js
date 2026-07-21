@@ -137,6 +137,86 @@
       + '</body></html>';
   }
 
+  // ── RECIBO DEL CLIENTE (domicilio/rápido) — detallado, con datos y precios ──
+  function _money(n){ return '$' + Number(Math.round(n||0)).toLocaleString('es-CO'); }
+  function _buildReceiptDomicilio(order, items, branch) {
+    var now = new Date();
+    var timeStr = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    var dateStr = now.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    branch = branch || {};
+    var negocio = (branch.brand_name || branch.name || 'Recibo').toUpperCase();
+    var dirLocal = branch.address || '';
+    var telLocal = branch.phone || '';
+    // Datos del cliente desde notes: dirección + [barrio:X] + [tel:Y] (· Ref:… se ignora)
+    var notes = String(order.notes || '');
+    var mB = notes.match(/\[barrio:([^\]]+)\]/i); var barrio = mB ? mB[1] : '';
+    var mT = notes.match(/\[tel:([^\]]+)\]/i);    var telCli = mT ? mT[1] : (order.customer_phone || '');
+    var dirCli = notes.replace(/\[barrio:[^\]]+\]/ig,'').replace(/\[tel:[^\]]+\]/ig,'').replace(/·\s*Ref:\S+/ig,'').trim();
+    var esLlevar = String(order.channel||'').toLowerCase().indexOf('rapid')>=0 || /para\s+llevar|recog/i.test(dirCli);
+    var num = '#' + String(order.id||'').slice(-5).toUpperCase();
+
+    var itemRows = (items||[]).map(function(it){
+      var qty = it.qty || 1;
+      var line = _money(it.total || 0);
+      var mods = (it.mods && it.mods.length)
+        ? it.mods.map(function(m){ return '<div style="font-size:11px;color:#333;padding-left:14px">+ '+String(m)+'</div>'; }).join('')
+        : '';
+      return '<tr><td style="padding:3px 0;vertical-align:top">'+qty+'x '+(it.name||'Item')+mods+'</td>'
+           + '<td style="text-align:right;padding:3px 0;vertical-align:top;white-space:nowrap">'+line+'</td></tr>';
+    }).join('');
+
+    var subtotal = Number(order.subtotal || 0) || (items||[]).reduce(function(a,it){return a+(it.total||0);},0);
+    var empaque  = Number(order.packaging_fee || 0);
+    var domi     = Number(order.delivery_fee || 0);
+    var descuento= Number(order.discount || 0);
+    var total    = Number(order.total || 0) || (subtotal+empaque+domi-descuento);
+    var footer = '';
+    try { footer = localStorage.getItem('pos.config.recibo.footer') || ''; } catch(e){}
+    if (!footer) footer = '¡Gracias por tu pedido! 🍟';
+
+    var sep = '<div style="border-top:1px dashed #000;margin:7px 0"></div>';
+    var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;font-size:12.5px;width:80mm;max-width:80mm;margin:0;padding:8px 10px;color:#000;line-height:1.35}table{width:100%;border-collapse:collapse}</style></head><body>';
+    // Encabezado del negocio
+    h += '<div style="text-align:center;margin-bottom:2px"><div style="font-size:17px;font-weight:900;letter-spacing:.5px">'+negocio+'</div>';
+    if (dirLocal) h += '<div style="font-size:10.5px;color:#333">'+dirLocal+'</div>';
+    if (telLocal) h += '<div style="font-size:10.5px;color:#333">Tel: '+telLocal+'</div>';
+    h += '</div>'+sep;
+    // Título + pedido
+    h += '<div style="text-align:center"><div style="font-size:13px;font-weight:800">'+(esLlevar?'RECIBO · PARA LLEVAR':'RECIBO DE DOMICILIO')+'</div>'
+       + '<div style="font-size:11px;color:#333">Pedido '+num+' · '+dateStr+' '+timeStr+'</div></div>'+sep;
+    // Cliente
+    h += '<div style="font-size:10px;font-weight:700;color:#555;text-transform:uppercase">Cliente</div>';
+    h += '<div style="font-size:13px;font-weight:700">'+(order.customer_name||'—')+'</div>';
+    if (telCli) h += '<div style="font-size:12px">Tel: '+telCli+'</div>';
+    if (!esLlevar) {
+      if (barrio) h += '<div style="font-size:12.5px;font-weight:700;margin-top:2px">'+barrio+'</div>';
+      if (dirCli) h += '<div style="font-size:12px">'+dirCli+'</div>';
+    } else {
+      h += '<div style="font-size:12px;font-weight:700;margin-top:2px">Recoge en el local 🏃</div>';
+    }
+    h += sep;
+    // Items
+    h += '<table><tbody>'+itemRows+'</tbody></table>'+sep;
+    // Totales
+    h += '<table>';
+    h += '<tr><td style="font-size:12px;color:#333">Subtotal</td><td style="text-align:right;font-size:12px">'+_money(subtotal)+'</td></tr>';
+    if (empaque>0)  h += '<tr><td style="font-size:12px;color:#333">Empaque</td><td style="text-align:right;font-size:12px">'+_money(empaque)+'</td></tr>';
+    if (!esLlevar && domi>0) h += '<tr><td style="font-size:12px;color:#333">Domicilio</td><td style="text-align:right;font-size:12px">'+_money(domi)+'</td></tr>';
+    if (descuento>0) h += '<tr><td style="font-size:12px;color:#333">Descuento</td><td style="text-align:right;font-size:12px">-'+_money(descuento)+'</td></tr>';
+    h += '<tr><td colspan="2" style="border-top:1px solid #000;padding-top:3px"></td></tr>';
+    h += '<tr><td style="font-size:15px;font-weight:900">TOTAL</td><td style="text-align:right;font-size:15px;font-weight:900">'+_money(total)+'</td></tr>';
+    h += '</table>';
+    // Estado de pago (grande, para el domiciliario)
+    var pm = order.payment_method ? String(order.payment_method) : '';
+    if (pm && pm!=='multiple') h += '<div style="text-align:center;font-size:11.5px;margin-top:6px">Pago: '+pm.charAt(0).toUpperCase()+pm.slice(1)+'</div>';
+    h += _pagoEstadoHtml(order);
+    var mRef = notes.match(/Ref:(\S+)/i); if (mRef) h += '<div style="text-align:center;font-size:10.5px;color:#555">Ref: '+mRef[1]+'</div>';
+    // Pie
+    h += sep+'<div style="text-align:center;font-size:11px;color:#333;margin-top:2px">'+footer+'</div>';
+    h += '</body></html>';
+    return h;
+  }
+
   var _printerCache = null;
   var _printerCacheTs = 0;
 
@@ -275,12 +355,9 @@
       + '<button onclick="posPrintAction(\'comanda\',\'' + orderId + '\')" style="display:flex;align-items:center;gap:12px;padding:13px 14px;border:1.5px solid #ECEEF2;border-radius:12px;background:#fff;cursor:pointer;font-family:inherit;text-align:left;width:100%">'
       + '<div style="width:34px;height:34px;border-radius:8px;background:#EEF2FF;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B6BFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></div>'
       + '<div><div style="font-weight:600;font-size:13px;color:#0F172A">Reimprimir comanda</div><div style="font-size:11px;color:#64748B">Ticket de cocina</div></div></button>'
-      + '<button onclick="posPrintAction(\'desc\',\'' + orderId + '\')" style="display:flex;align-items:center;gap:12px;padding:13px 14px;border:1.5px solid #ECEEF2;border-radius:12px;background:#fff;cursor:pointer;font-family:inherit;text-align:left;width:100%">'
+      + '<button onclick="posPrintAction(\'recibo\',\'' + orderId + '\')" style="display:flex;align-items:center;gap:12px;padding:13px 14px;border:1.5px solid #ECEEF2;border-radius:12px;background:#fff;cursor:pointer;font-family:inherit;text-align:left;width:100%">'
       + '<div style="width:34px;height:34px;border-radius:8px;background:#F0FDF4;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg></div>'
-      + '<div><div style="font-weight:600;font-size:13px;color:#0F172A">Recibo con descripcion</div><div style="font-size:11px;color:#64748B">Productos y precios detallados</div></div></button>'
-      + '<button onclick="posPrintAction(\'final\',\'' + orderId + '\')" style="display:flex;align-items:center;gap:12px;padding:13px 14px;border:1.5px solid #ECEEF2;border-radius:12px;background:#fff;cursor:pointer;font-family:inherit;text-align:left;width:100%">'
-      + '<div style="width:34px;height:34px;border-radius:8px;background:#FFFBEB;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg></div>'
-      + '<div><div style="font-weight:600;font-size:13px;color:#0F172A">Recibo final con cuenta</div><div style="font-size:11px;color:#64748B">Cuenta exacta y formas de pago</div></div></button>'
+      + '<div><div style="font-weight:600;font-size:13px;color:#0F172A">Recibo del cliente</div><div style="font-size:11px;color:#64748B">Con precios, dirección y datos</div></div></button>'
       + '</div></div>';
     document.body.appendChild(overlay);
   };
@@ -297,17 +374,34 @@
       var modsArr = Object.values(sel.mods || {}).map(function(m){ return m.name || String(m); });
       return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', mods: modsArr, total: (it.unit_price || 0) * (it.quantity || 1) };
     });
-    var orderData = { table: _tableDisplay(order), channel: order.channel, total: order.total || 0, paid: order.paid_amount || 0, subtotal: order.subtotal || order.total || 0, discount: order.discount_amount || 0, tip: order.tip_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' };
+    var orderData = { table: _tableDisplay(order), channel: order.channel, id: order.id, total: order.total || 0, paid: order.paid_amount || 0, subtotal: order.subtotal || order.total || 0, packaging_fee: order.packaging_fee || 0, delivery_fee: order.delivery_fee || 0, discount: order.discount_amount || 0, tip: order.tip_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '', payment_method: order.payment_method || '' };
     var html;
     if (type === 'comanda') html = _buildComanda(orderData, items);
-    else if (type === 'desc') html = _buildReceiptDesc(orderData, items);
-    else if (type === 'final') {
-      var payments = [];
-      try {
-        var sb = window._pos && window._pos.sb;
-        if (sb && orderId) { var pr = await sb.from('pos_payments').select('*').eq('order_id', orderId); payments = (pr && pr.data) ? pr.data : []; }
-      } catch(e) {}
-      html = _buildReceiptFinal(orderData, items, payments);
+    else if (type === 'recibo') {
+      var ch = String(order.channel||'').toLowerCase();
+      if (ch === 'domicilio' || ch === 'rapido') {
+        // Info del negocio para el encabezado del recibo
+        var branch = {};
+        try {
+          var sb2 = window._pos && window._pos.sb;
+          var bid = order.branch_id || (window._pos.state && window._pos.state.branchId);
+          if (sb2 && bid) {
+            var br = await sb2.from('branches').select('name,address,phone,brand_id').eq('id', bid).maybeSingle();
+            if (br && br.data) {
+              branch = br.data;
+              if (branch.brand_id) { var bd = await sb2.from('brands').select('name').eq('id', branch.brand_id).maybeSingle(); if (bd && bd.data) branch.brand_name = bd.data.name; }
+            }
+          }
+        } catch(e) {}
+        html = _buildReceiptDomicilio(orderData, items, branch);
+      } else {
+        var payments = [];
+        try {
+          var sb = window._pos && window._pos.sb;
+          if (sb && orderId) { var pr = await sb.from('pos_payments').select('*').eq('order_id', orderId); payments = (pr && pr.data) ? pr.data : []; }
+        } catch(e) {}
+        html = _buildReceiptFinal(orderData, items, payments);
+      }
     }
     if (html) _printHtml(html, type === 'comanda' ? 'comanda' : 'recibo');
   };

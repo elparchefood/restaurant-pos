@@ -1044,26 +1044,55 @@ function computeProductsTotal() {
   return S.cart.reduce((a, i) => a + i.price * i.qty, 0);
 }
 
+// Costo de empaque para DOMICILIO (config de Operación en pos.config.operacion.v1).
+// Se cobra automáticamente en pedidos a domicilio (antes solo se aplicaba en mesas).
+// Respeta: canal (mismo/distinto → tarifa de domicilio), tipo (fijo/porcentaje),
+// base (unidad/pedido).
+function computeEmpaque() {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
+    if (!cfg.empaquesActivo) return 0;
+    const prod = computeProductsTotal();
+    if (prod <= 0) return 0;
+    const usaDomi = cfg.empaqueCanal === 'distinto';
+    const esPct   = cfg.empaqueTipo === 'porcentaje';
+    const rate = esPct
+      ? (usaDomi ? (cfg.empaquePctDomicilio || 0)   : (cfg.empaquePct   || 0))
+      : (usaDomi ? (cfg.empaqueMontoDomicilio || 0) : (cfg.empaqueMonto || 0));
+    if (cfg.empaqueBase === 'pedido') {
+      return esPct ? Math.round(prod * rate / 100) : rate;
+    }
+    const units = S.cart.reduce((a, i) => a + i.qty, 0);
+    return esPct ? Math.round(prod * rate / 100) : rate * units;
+  } catch(e) { return 0; }
+}
+
 // Retorna { cobrar, ingreso, feeLabel, feeShown, feeMuted, gasto, mode }
 // mode: 'interno' | 'ext-cobra' | 'ext-directo'
 function computeMoney() {
   const prod    = computeProductsTotal();
+  const emp     = computeEmpaque();
   const fee     = S.fee;
   const courier = S.courier;
   const cobra   = S.cobramos;
 
   if (courier === 'interno') {
-    return { cobrar: prod + fee, ingreso: prod + fee, feeLabel: 'Domicilio', feeShown: fee, feeMuted: false, gasto: 0, mode: 'interno' };
+    return { cobrar: prod + emp + fee, ingreso: prod + emp + fee, empaque: emp, feeLabel: 'Domicilio', feeShown: fee, feeMuted: false, gasto: 0, mode: 'interno' };
   }
   if (cobra) {
-    return { cobrar: prod + fee, ingreso: prod, feeLabel: 'Domicilio (externo)', feeShown: fee, feeMuted: false, gasto: fee, mode: 'ext-cobra' };
+    return { cobrar: prod + emp + fee, ingreso: prod + emp, empaque: emp, feeLabel: 'Domicilio (externo)', feeShown: fee, feeMuted: false, gasto: fee, mode: 'ext-cobra' };
   }
-  return { cobrar: prod, ingreso: prod, feeLabel: 'Domicilio (lo paga el cliente)', feeShown: fee, feeMuted: true, gasto: 0, mode: 'ext-directo' };
+  return { cobrar: prod + emp, ingreso: prod + emp, empaque: emp, feeLabel: 'Domicilio (lo paga el cliente)', feeShown: fee, feeMuted: true, gasto: 0, mode: 'ext-directo' };
 }
 
 function renderTotals() {
   const M = computeMoney();
   if ($('total-productos')) $('total-productos').textContent = fmt(M.ingreso > 0 ? computeProductsTotal() : 0);
+  const _empRow = $('trow-empaque'), _empSpan = $('total-empaque');
+  if (_empRow && _empSpan) {
+    if (M.empaque > 0) { _empRow.hidden = false; _empSpan.textContent = fmt(M.empaque); }
+    else _empRow.hidden = true;
+  }
   if ($('total-domicilio')) {
     const trow = $('trow-domicilio');
     const span = $('total-domicilio');
@@ -1406,7 +1435,10 @@ async function enviarACocina() {
 
   // Capturar datos para insert ANTES del reset de estado
   const _cartSnapshot = S.cart.map(function(it){ return Object.assign({}, it); });
-  const _barrio = S.cliente && S.cliente.barrio ? S.cliente.barrio.trim() : '';
+  const _barrio  = S.cliente && S.cliente.barrio ? S.cliente.barrio.trim() : '';
+  const _dir     = S.cliente && S.cliente.dir ? S.cliente.dir.trim() : '';
+  const _tel     = S.cliente && S.cliente.tel ? S.cliente.tel.trim() : '';
+  const _empaque = computeEmpaque();
 
   S.deliveries.unshift(nuevo);
 
@@ -1461,9 +1493,12 @@ async function enviarACocina() {
       channel:        'domicilio',
       status:         'open',
       customer_name:  nuevo.cliente || null,
-      notes:          _barrio ? '[barrio:' + _barrio.toUpperCase() + ']' : null,
-      // El total INCLUYE el costo del domicilio (antes se perdía el fee)
-      total:          prod + (S.fee || 0),
+      // notas = dirección + [barrio:X] (la comanda lo lee) + [tel:Y] (para el recibo)
+      notes:          ((_dir ? _dir + ' ' : '') + (_barrio ? '[barrio:' + _barrio.toUpperCase() + ']' : '') + (_tel ? ' [tel:' + _tel + ']' : '')).trim() || null,
+      // El total INCLUYE productos + empaque + domicilio
+      subtotal:       prod,
+      packaging_fee:  _empaque,
+      total:          prod + _empaque + (S.fee || 0),
       delivery_fee:   S.fee || 0,
       delivery_status:'recibido',
       payment_method: metodo,

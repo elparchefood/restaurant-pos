@@ -82,6 +82,7 @@
           <div class="d-foot">
             <div class="d-totals">
               <div class="d-trow"><span>Productos</span><span id="total-productos">$0</span></div>
+              <div class="d-trow" id="trow-empaque" hidden><span>Empaque</span><span id="total-empaque">$0</span></div>
               <div class="d-trow" id="trow-domicilio"><span>Domicilio</span><span id="total-domicilio">$0</span></div>
               <div class="d-trow" id="trow-total-cliente" hidden style="font-size:12px;color:var(--muted)"><span>Total al cliente</span><span id="total-cliente">$0</span></div>
               <div class="d-trow d-tgrand"><span style="display:inline-flex;align-items:center;gap:6px">Total a cobrar<button class="d-info-btn" id="btn-money-info" hidden title="Ver detalle" data-action="toggle-money-note"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button></span><span id="total-grand">$0</span></div>
@@ -359,8 +360,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-core.js?v=20"></script>
 <script src="pos-sync.js?v=2"></script>
-<script src="pos-print.js?v=7"></script>
+<script src="pos-print.js?v=8"></script>
 <script src="pos-caja-guard.js?v=1"></script>
-<script src="domicilios.js?v=30"></script>
+<script src="domicilios.js?v=31"></script>
 </body>
 </html>

@@ -2015,6 +2015,11 @@
           render();
           return;
         }
+        if (action === 'print') {
+          if (typeof posOpenPrintModal === 'function') posOpenPrintModal(id);
+          else if (typeof toast === 'function') toast('Impresión no disponible');
+          return;
+        }
         if (action === 'cobrar') {
           window.location.href = `pagos.html?order=${id}&channel=domicilio`;
         } else if (action === 'advance' && DELIVERY_NEXT[d.estado]) {
