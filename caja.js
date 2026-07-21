@@ -265,7 +265,7 @@ function toggleHistFilters(){
 }
 function clearHistFilters(){
   S.histFilters={ estado:'todas', canal:'todos', pago:'todos', producto:'', fecha:'', orden:'hora_desc' };
-  const ids={ 'hf-estado':'todas','hf-canal':'todos','hf-pago':'todos','hf-producto':'','hf-fecha':'','hf-orden':'hora_desc' };
+  const ids={ 'hf-estado':'todas','hf-canal':'todos','hf-pago':'todos','hf-producto':'','hf-orden':'hora_desc' };
   Object.keys(ids).forEach(function(id){ const el=document.getElementById(id); if(el) el.value=ids[id]; });
   renderHistFiltered();
 }
