@@ -33,7 +33,22 @@
   /* ─── Cálculos ───────────────────────────────────────────────── */
   function calcCount()    { return S.cart.reduce((s, i) => s + i.qty, 0); }
   function calcSubtotal() { return S.cart.reduce((s, i) => s + i.price * i.qty, 0); }
-  function calcTotal()    { return Math.max(0, calcSubtotal() - S.descuento); }
+  // Venta rápida = pedido PARA LLEVAR, así que también lleva empaque (tarifa
+  // base de la config de Operación, no la de domicilio). Mismo criterio que
+  // domicilios.js / pagos.js.
+  function calcEmpaque() {
+    try {
+      const cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
+      if (!cfg.empaquesActivo) return 0;
+      const prod = calcSubtotal(); if (prod <= 0) return 0;
+      const esPct = cfg.empaqueTipo === 'porcentaje';
+      const rate  = esPct ? (cfg.empaquePct || 0) : (cfg.empaqueMonto || 0);
+      if (cfg.empaqueBase === 'pedido') return esPct ? Math.round(prod * rate / 100) : rate;
+      const units = S.cart.reduce((a, i) => a + i.qty, 0);
+      return esPct ? Math.round(prod * rate / 100) : rate * units;
+    } catch (e) { return 0; }
+  }
+  function calcTotal()    { return Math.max(0, calcSubtotal() + calcEmpaque() - S.descuento); }
 
   /* ─── Persistencia ───────────────────────────────────────────── */
   function saveCart() {
@@ -103,6 +118,14 @@
     // Totales
     $('vr-subtotal').textContent = fmt(sub);
     $('vr-total').textContent    = fmt(total);
+
+    // Empaque (para llevar)
+    const emp = calcEmpaque();
+    const empRow = $('vr-empaque-row');
+    if (empRow) {
+      if (emp > 0) { empRow.hidden = false; $('vr-empaque-val').textContent = fmt(emp); }
+      else empRow.hidden = true;
+    }
 
     // Descuento row
     const dRow = $('vr-descuento-row');
@@ -855,13 +878,21 @@
     if (!sb) return;
     try {
       const cobroAdelantado = localStorage.getItem('pos.config.cobro_adelantado') === 'true';
+      let _oid;
       if (cobroAdelantado) {
         // Cobro adelantado: quedar como pendiente_pago y volver al salón
         // El cajero cobra desde la vista de ventas cuando el pedido esté listo
-        await upsertOrder(sb, true, 'pendiente_pago');
+        _oid = await upsertOrder(sb, true, 'pendiente_pago');
       } else {
         // Cobro al final: enviar a cocina y volver a ventas
-        await upsertOrder(sb, true);
+        _oid = await upsertOrder(sb, true);
+      }
+      // Imprimir la comanda en el acto (Electron). Antes venta rápida no
+      // imprimía: dependía del realtime de la caja, que perdía el evento al
+      // navegar. El candado de posAutoprint evita duplicados si el realtime
+      // también dispara.
+      if (_oid && typeof window.posAutoprint === 'function' && window.electronPOS) {
+        await Promise.race([window.posAutoprint(_oid), new Promise(res => setTimeout(res, 4000))]);
       }
       finalizarVenta();
       window.location.href = 'ventas.html';
@@ -902,6 +933,7 @@
         status:         status,
         total:          total,
         subtotal:       sub,
+        packaging_fee:  calcEmpaque(),
         discount:        S.descuento,
         discount_amount: S.descuento,
         service_charge: 0,
@@ -917,6 +949,7 @@
       const updatePayload = {
         total:          total,
         subtotal:       sub,
+        packaging_fee:  calcEmpaque(),
         discount:        S.descuento,
         discount_amount: S.descuento,
         customer_name:  (S.cliente && S.cliente.nombre) || null,
