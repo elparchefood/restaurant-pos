@@ -295,7 +295,7 @@ async function loadData() {
 }
 
 async function loadCatalog() {
-  const _ck = 'pos.catalog.v2.' + S.tenantId;
+  const _ck = 'pos.catalog.v3.' + S.tenantId;
   try {
     const _raw = localStorage.getItem(_ck);
     if (_raw) {

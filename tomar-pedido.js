@@ -126,7 +126,7 @@ function paintTableInfo(t) {
 
 // ── Catálogo ─────────────────────────────────────────────────
 async function loadCatalog() {
-  var _ck = 'pos.catalog.v2.' + S.tenantId;
+  var _ck = 'pos.catalog.v3.' + S.tenantId;
   // Servir desde caché si existe — sin delay de red
   try {
     var _raw = localStorage.getItem(_ck);
