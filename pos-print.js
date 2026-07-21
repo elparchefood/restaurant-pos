@@ -161,7 +161,7 @@
         ? it.mods.map(function(m){ return '<div style="font-size:11px;color:#333;padding-left:14px">+ '+String(m)+'</div>'; }).join('')
         : '';
       return '<tr><td style="padding:3px 0;vertical-align:top">'+qty+'x '+(it.name||'Item')+mods+'</td>'
-           + '<td style="text-align:right;padding:3px 0;vertical-align:top;white-space:nowrap">'+line+'</td></tr>';
+           + '<td class="pcol" style="padding:3px 0">'+line+'</td></tr>';
     }).join('');
 
     var subtotal = Number(order.subtotal || 0) || (items||[]).reduce(function(a,it){return a+(it.total||0);},0);
@@ -174,7 +174,7 @@
     if (!footer) footer = '¡Gracias por tu pedido! 🍟';
 
     var sep = '<div style="border-top:1px dashed #000;margin:7px 0"></div>';
-    var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;font-size:12.5px;width:80mm;max-width:80mm;margin:0;padding:8px 10px;color:#000;line-height:1.35}table{width:100%;border-collapse:collapse}</style></head><body>';
+    var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;font-size:12.5px;width:72mm;max-width:72mm;margin:0;padding:8px 6px;color:#000;line-height:1.35}table{width:100%;border-collapse:collapse}td{word-break:break-word}.pcol{width:26%;white-space:nowrap;text-align:right;vertical-align:top}</style></head><body>';
     // Encabezado del negocio
     h += '<div style="text-align:center;margin-bottom:2px"><div style="font-size:17px;font-weight:900;letter-spacing:.5px">'+negocio+'</div>';
     if (dirLocal) h += '<div style="font-size:10.5px;color:#333">'+dirLocal+'</div>';
@@ -198,12 +198,12 @@
     h += '<table><tbody>'+itemRows+'</tbody></table>'+sep;
     // Totales
     h += '<table>';
-    h += '<tr><td style="font-size:12px;color:#333">Subtotal</td><td style="text-align:right;font-size:12px">'+_money(subtotal)+'</td></tr>';
-    if (empaque>0)  h += '<tr><td style="font-size:12px;color:#333">Empaque</td><td style="text-align:right;font-size:12px">'+_money(empaque)+'</td></tr>';
-    if (!esLlevar && domi>0) h += '<tr><td style="font-size:12px;color:#333">Domicilio</td><td style="text-align:right;font-size:12px">'+_money(domi)+'</td></tr>';
-    if (descuento>0) h += '<tr><td style="font-size:12px;color:#333">Descuento</td><td style="text-align:right;font-size:12px">-'+_money(descuento)+'</td></tr>';
+    h += '<tr><td style="font-size:12px;color:#333">Subtotal</td><td class="pcol" style="font-size:12px">'+_money(subtotal)+'</td></tr>';
+    if (empaque>0)  h += '<tr><td style="font-size:12px;color:#333">Empaque</td><td class="pcol" style="font-size:12px">'+_money(empaque)+'</td></tr>';
+    if (!esLlevar && domi>0) h += '<tr><td style="font-size:12px;color:#333">Domicilio</td><td class="pcol" style="font-size:12px">'+_money(domi)+'</td></tr>';
+    if (descuento>0) h += '<tr><td style="font-size:12px;color:#333">Descuento</td><td class="pcol" style="font-size:12px">-'+_money(descuento)+'</td></tr>';
     h += '<tr><td colspan="2" style="border-top:1px solid #000;padding-top:3px"></td></tr>';
-    h += '<tr><td style="font-size:15px;font-weight:900">TOTAL</td><td style="text-align:right;font-size:15px;font-weight:900">'+_money(total)+'</td></tr>';
+    h += '<tr><td style="font-size:15px;font-weight:900">TOTAL</td><td class="pcol" style="font-size:15px;font-weight:900">'+_money(total)+'</td></tr>';
     h += '</table>';
     // Estado de pago (grande, para el domiciliario)
     var pm = order.payment_method ? String(order.payment_method) : '';
