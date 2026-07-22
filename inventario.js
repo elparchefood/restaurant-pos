@@ -352,7 +352,7 @@ async function crearPorcion(insId, nombre, cantidad) {
     tenant_id: tenantId, branch_id: branchId,
     insumo_id: insId, nombre, cantidad,
   }).select().single();
-  if (error) { console.error('[porciones] crear:', error); showToast('Error al crear la porcion'); return null; }
+  if (error) { console.error('[porciones] crear:', error); showToast('No se pudo crear: ' + (error.message || error.code || 'error desconocido')); return null; }
   const nueva = { id: data.id, insId, nombre, cantidad };
   porciones.push(nueva);
   return nueva;
@@ -362,7 +362,7 @@ async function actualizarPorcion(id, nombre, cantidad) {
   const { error } = await iv_sb.from('iv_porciones')
     .update({ nombre: (nombre || '').trim(), cantidad: parseFloat(cantidad) || 0, updated_at: new Date().toISOString() })
     .eq('id', id);
-  if (error) { console.error('[porciones] actualizar:', error); showToast('Error al guardar'); return false; }
+  if (error) { console.error('[porciones] actualizar:', error); showToast('No se pudo guardar: ' + (error.message || error.code || 'error desconocido')); return false; }
   const p = porcionPorId(id);
   if (p) { p.nombre = (nombre || '').trim(); p.cantidad = parseFloat(cantidad) || 0; }
   return true;
@@ -370,7 +370,7 @@ async function actualizarPorcion(id, nombre, cantidad) {
 
 async function eliminarPorcion(id) {
   const { error } = await iv_sb.from('iv_porciones').delete().eq('id', id);
-  if (error) { console.error('[porciones] eliminar:', error); showToast('Error al eliminar'); return false; }
+  if (error) { console.error('[porciones] eliminar:', error); showToast('No se pudo eliminar: ' + (error.message || error.code || 'error desconocido')); return false; }
   porciones = porciones.filter(p => p.id !== id);
   return true;
 }
@@ -1019,7 +1019,7 @@ async function guardarRecetaEdit() {
     const { error } = await iv_sb.from('iv_recetas').insert(rows);
     if (error) {
       console.error('[receta-edit] guardar:', error);
-      showToast('Error al guardar la receta');
+      showToast('No se pudo guardar la receta: ' + (error.message || error.code || 'error desconocido'));
       if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
       return;
     }
