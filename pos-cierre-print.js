@@ -23,43 +23,58 @@
     return x.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
       + ' ' + x.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
   }
+  // Compacta para el encabezado: "21/07 17:09" (24h, sin año) — permite meter
+  // apertura y cierre en un solo renglón.
+  function fechaCorta(d) {
+    var x = d ? new Date(d) : new Date();
+    var dd = String(x.getDate()).padStart(2, '0');
+    var mm = String(x.getMonth() + 1).padStart(2, '0');
+    var hh = String(x.getHours()).padStart(2, '0');
+    var mi = String(x.getMinutes()).padStart(2, '0');
+    return dd + '/' + mm + ' ' + hh + ':' + mi;
+  }
 
   // 72mm de ancho útil (el papel es de 80mm pero el área imprimible es menor;
   // a 80mm la columna derecha —los montos— se sale del papel).
   var CSS = '<style>*{margin:0;padding:0;box-sizing:border-box}'
-    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;width:72mm;max-width:72mm;margin:0;padding:8px 6px;color:#000;line-height:1.35;overflow-x:hidden}'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:10.5px;font-weight:700;width:72mm;max-width:72mm;margin:0;padding:8px 6px;color:#000;line-height:1.3;overflow-x:hidden}'
     + '.t{text-align:center}.b{font-weight:900}'
-    + '.h1{font-size:16px;font-weight:900;text-align:center}'
-    + '.h2{font-size:13px;font-weight:900;text-align:center;margin-bottom:2px}'
-    + '.r{display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin:2px 0}'
+    + '.h1{font-size:13.5px;font-weight:900;text-align:center}'
+    + '.h2{font-size:10.5px;font-weight:900;text-align:center;margin-bottom:1px}'
+    + '.r{display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin:1px 0}'
     + '.r span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
     + '.r span:last-child{text-align:right;white-space:nowrap;flex-shrink:0}'
-    + '.big{font-size:14px;font-weight:900}'
-    + '.sep{border-top:1px dashed #000;margin:6px 0}'
-    + '.sepd{border-top:2px solid #000;margin:6px 0}'
-    + '.sm{font-size:11px;font-weight:400}'
+    + '.big{font-size:12px;font-weight:900}'
+    + '.xl{font-size:13px;font-weight:900}'
+    + '.sep{border-top:1px dashed #000;margin:5px 0}'
+    + '.sepd{border-top:2px solid #000;margin:5px 0}'
+    + '.sm{font-size:10px;font-weight:400}'
+    + '.mut{font-weight:400;font-size:9.5px}'
     + 'table{width:100%;max-width:100%;border-collapse:collapse;table-layout:fixed}'
-    + 'td{padding:2px 0;font-size:12px;font-weight:700;overflow:hidden}'
+    + 'td{padding:1px 0;font-size:10.5px;font-weight:700;overflow:hidden}'
     + '.rt{text-align:right}.ctr{text-align:center}'
-    + '.fl{margin-top:14px;font-size:11px;font-weight:400;text-align:center}'
-    + '.ln{border-top:1px solid #000;margin:22px 10px 3px}'
+    + '.fl{margin-top:2px;font-size:9px;font-weight:400;text-align:center}'
+    + '.ln{border-top:1px solid #000;margin:14px 20px 2px}'
     + '</style>';
 
   // Anchos fijos de la tabla del paloteo: denominación · cantidad · total.
   // Sin esto, table-layout:fixed reparte 33% a cada una y el total se desborda.
   var COLS = '<colgroup><col style="width:40%"><col style="width:22%"><col style="width:38%"></colgroup>';
 
+  // Encabezado COMPACTO: el código de caja va en el título, apertura→cierre en
+  // una sola línea (24h) y cajero · turno en otra. Antes eran 5 renglones.
   function head(negocio, titulo, ses) {
-    var abre  = ses && ses.opened_at ? fecha(ses.opened_at) : '—';
-    var cierra= ses && ses.closed_at ? fecha(ses.closed_at) : fecha();
+    var cod = (ses && ses.id) ? ' · ' + esc(String(ses.id).slice(-6).toUpperCase()) : '';
+    var abre   = ses && ses.opened_at ? fechaCorta(ses.opened_at) : '—';
+    var cierra = ses && ses.closed_at ? fechaCorta(ses.closed_at) : fechaCorta();
+    var quien  = [];
+    if (ses && ses.cashier_name) quien.push(esc(ses.cashier_name));
+    if (ses && ses.shift_type)   quien.push(esc(ses.shift_type));
     return '<div class="h1">' + esc(negocio || 'CAJA') + '</div>'
-      + '<div class="h2">' + esc(titulo) + '</div>'
+      + '<div class="h2">' + esc(titulo) + cod + '</div>'
       + '<div class="sep"></div>'
-      + '<div class="r"><span>APERTURA</span><span>' + abre + '</span></div>'
-      + '<div class="r"><span>CIERRE</span><span>' + cierra + '</span></div>'
-      + (ses && ses.cashier_name ? '<div class="r"><span>CAJERO</span><span>' + esc(ses.cashier_name).toUpperCase() + '</span></div>' : '')
-      + (ses && ses.shift_type ? '<div class="r"><span>TURNO</span><span>' + esc(ses.shift_type).toUpperCase() + '</span></div>' : '')
-      + (ses && ses.id ? '<div class="r"><span>CAJA</span><span>' + esc(String(ses.id).slice(-6).toUpperCase()) + '</span></div>' : '');
+      + '<div class="sm ctr">' + abre + ' &rarr; ' + cierra + '</div>'
+      + (quien.length ? '<div class="sm ctr">' + quien.join(' &middot; ') + '</div>' : '');
   }
 
   function firma(txt) {
@@ -92,16 +107,16 @@
       + '<table>' + COLS + filas(mon) + '</table>'
       + '<div class="r b"><span>Subtotal monedas</span><span>' + cop(d.monedas) + '</span></div>'
       + '<div class="sep"></div>'
-      + '<div class="r"><span>Billetes 50 - 100</span><span>' + cop(d.grandes) + '</span></div>'
-      + '<div class="r"><span>Billetes sencillo</span><span>' + cop(d.sencillo) + '</span></div>'
+      + '<div class="r"><span>Billetes 50-100</span><span>' + cop(d.grandes) + '</span></div>'
+      + '<div class="r"><span>Sencillo</span><span>' + cop(d.sencillo) + '</span></div>'
       + '<div class="r"><span>Monedas</span><span>' + cop(d.monedas) + '</span></div>'
       + '<div class="sepd"></div>'
       + '<div class="r big"><span>TOTAL CONTADO</span><span>' + cop(d.total) + '</span></div>'
       + (info.esperado !== undefined
           ? '<div class="r"><span>Esperado sistema</span><span>' + cop(esperado) + '</span></div>'
-            + '<div class="r big"><span>' + (diff === 0 ? 'CUADRE' : diff > 0 ? 'SOBRANTE' : 'FALTANTE') + '</span><span>' + cop(diff) + '</span></div>'
+            + '<div class="r xl"><span>' + (diff === 0 ? 'CUADRE' : diff > 0 ? 'SOBRANTE' : 'FALTANTE') + '</span><span>' + cop(diff) + '</span></div>'
           : '')
-      + firma('Firma cajero')
+      + firma('Firma')
       + '</body></html>';
   };
 
@@ -122,10 +137,12 @@
       + head(c.negocio, 'CIERRE DE CAJA', c.session)
       + '<div class="sepd"></div>'
       + '<div class="r"><span>BASE</span><span>' + cop(c.base) + '</span></div>'
-      + '<div class="r"><span>VENTAS SISTEMA</span><span>' + cop(c.ventas) + '</span></div>'
-      + (c.nPedidos ? '<div class="r sm"><span>Pedidos del turno</span><span>' + c.nPedidos + '</span></div>' : '')
-      + '<div class="sep"></div>'
-      + '<div class="b">FORMAS DE PAGO</div>';
+      // "Pedidos del turno (n)" va en la MISMA línea de VENTAS, en letra delgada,
+      // aprovechando el espacio libre antes del monto.
+      + '<div class="r"><span>VENTAS'
+        + (c.nPedidos ? ' <span class="mut">Pedidos del turno (' + c.nPedidos + ')</span>' : '')
+        + '</span><span>' + cop(c.ventas) + '</span></div>'
+      + '<div class="sep"></div>';
     if (mk.length) {
       mk.forEach(function (k) {
         h += '<div class="r"><span>' + esc(k.charAt(0).toUpperCase() + k.slice(1)) + '</span><span>' + cop(metodos[k]) + '</span></div>';
@@ -133,7 +150,10 @@
     } else {
       h += '<div class="sm ctr">— sin cobros registrados —</div>';
     }
-    if (digital) h += '<div class="r sm"><span>(No efectivo)</span><span>' + cop(digital) + '</span></div>';
+    // "(No efectivo)" solo aporta cuando hay 2+ métodos digitales; con uno solo
+    // repetiría el mismo número.
+    var nDigital = mk.filter(function (k) { return k.toLowerCase() !== 'efectivo'; }).length;
+    if (digital && nDigital > 1) h += '<div class="r sm"><span>(No efectivo)</span><span>' + cop(digital) + '</span></div>';
 
     if (c.ingresos || c.egresos) {
       h += '<div class="sep"></div>'
@@ -142,14 +162,12 @@
     }
 
     h += '<div class="sepd"></div>'
-      + '<div class="r big"><span>EFECTIVO ESPERADO</span><span>' + cop(c.esperado) + '</span></div>'
-      + '<div class="sm">Base + efectivo recibido +/- movimientos.<br>No incluye pagos digitales.</div>';
+      + '<div class="r big"><span>EFECT. ESPERADO</span><span>' + cop(c.esperado) + '</span></div>';
 
     if (d) {
       h += '<div class="sep"></div>'
-        + '<div class="b">ARQUEO (CONTADO)</div>'
-        + '<div class="r"><span>Billetes 50 - 100</span><span>' + cop(d.grandes) + '</span></div>'
-        + '<div class="r"><span>Billetes sencillo</span><span>' + cop(d.sencillo) + '</span></div>'
+        + '<div class="r"><span>Billetes 50-100</span><span>' + cop(d.grandes) + '</span></div>'
+        + '<div class="r"><span>Sencillo</span><span>' + cop(d.sencillo) + '</span></div>'
         + '<div class="r"><span>Monedas</span><span>' + cop(d.monedas) + '</span></div>';
     }
     if (contado != null) {
@@ -157,11 +175,11 @@
     }
     if (diff != null) {
       h += '<div class="sepd"></div>'
-        + '<div class="r big"><span>' + (diff === 0 ? 'CUADRE' : diff > 0 ? 'SOBRANTE' : 'FALTANTE') + '</span><span>' + cop(diff) + '</span></div>';
+        + '<div class="r xl"><span>' + (diff === 0 ? 'CUADRE' : diff > 0 ? 'SOBRANTE' : 'FALTANTE') + '</span><span>' + cop(diff) + '</span></div>';
     }
     if (c.obs) h += '<div class="sep"></div><div class="sm">OBS: ' + esc(c.obs) + '</div>';
 
-    h += firma('Firma responsable') + '</body></html>';
+    h += firma('Firma') + '</body></html>';
     return h;
   };
 })();
