@@ -631,6 +631,63 @@ button{font-family:inherit;}
   cursor: pointer; transition: background .15s, border-color .15s;
 }
 .ia-add-ingr:hover { background: #F3F0FF; border-color: #8B5CF6; }
+
+/* ===== Bases de recetas ===== */
+.bases-list { display: flex; flex-direction: column; gap: 10px; }
+.base-listitem {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; background: #fff;
+  border: 1px solid #EEF0F3; border-radius: 12px;
+  cursor: pointer; text-align: left; width: 100%;
+  transition: border-color .15s, box-shadow .15s;
+}
+.base-listitem:hover { border-color: #DDD6FE; box-shadow: 0 4px 14px -8px rgba(139,92,246,.35); }
+.base-li-name { font-size: 14px; font-weight: 800; color: #0F172A; }
+.base-li-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 4px; }
+.base-li-meta { font-size: 11.5px; color: #94A3B8; font-weight: 600; }
+.base-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: 999px;
+  background: #F5F3FF; color: #6D28D9; border: 1px solid #EDE9FE;
+  font-size: 12px; font-weight: 700;
+}
+.base-chip.sm { padding: 2px 8px; font-size: 11px; }
+.base-chip.more { background: #F1F5F9; color: #64748B; border-color: #E2E8F0; }
+.base-chip button {
+  border: none; background: none; color: #8B5CF6; cursor: pointer;
+  font-size: 15px; line-height: 1; padding: 0; font-weight: 700;
+}
+.base-chip button:hover { color: #DC2626; }
+.base-chips-wrap { display: flex; flex-wrap: wrap; gap: 6px; min-height: 20px; }
+.base-regen-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 11px; border-radius: 10px;
+  border: 1.5px solid #C4B5FD; background: #FAF9FF; color: #7C3AED;
+  font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.base-regen-btn:hover { background: #F3F0FF; border-color: #8B5CF6; }
+.base-prod-listwrap {
+  max-height: 320px; overflow-y: auto;
+  border: 1px solid #EEF0F3; border-radius: 10px; padding: 6px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.base-prod-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 8px;
+  background: transparent; border: none; cursor: pointer;
+  text-align: left; width: 100%; transition: background .12s;
+}
+.base-prod-row:hover { background: #F8FAFC; }
+.base-prod-row.on { background: #F5F3FF; }
+.base-check {
+  width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0;
+  border: 1.5px solid #CBD5E1; background: #fff; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.base-prod-row.on .base-check { background: #8B5CF6; border-color: #8B5CF6; }
+.base-prod-name { font-size: 13px; font-weight: 600; color: #0F172A; }
+.base-prod-cat { font-size: 11px; color: #94A3B8; font-weight: 600; }
 .ia-ingr-row:hover { border-color: #DDD6FE; }
 .ia-ingr-row.is-base { background: #F8F7FF; border-color: #EDE9FE; }
 

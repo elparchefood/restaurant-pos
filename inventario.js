@@ -35,6 +35,11 @@ function ivCOP(n) {
   if (isNaN(n) || n === null) return '$0';
   return '$' + Math.round(n).toLocaleString('es-CO');
 }
+function escHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 function getStockState(ins) {
   const { stock, min } = ins;
   if (stock <= 0) return 'out';
@@ -114,6 +119,7 @@ async function loadData() {
     await loadInsumos();
     await loadRecetasDB();
     await loadParamsDB();
+    await loadBasesDB();
   } catch(e) {
     console.error('[inventario] loadData:', e);
   } finally {
@@ -183,6 +189,23 @@ async function loadRecetasDB() {
       .filter(r => r.product_id === prod.id)
       .map(r => ({ insId: r.insumo_id, qty: parseFloat(r.cantidad), merma: parseFloat(r.merma) || 0 }));
   }
+}
+
+let bases = [];   // pos_bases del tenant: [{id,name,ingredients:[],product_ids:[]}]
+async function loadBasesDB() {
+  if (!tenantId) return;
+  const { data, error } = await iv_sb
+    .from('pos_bases')
+    .select('id,name,ingredients,product_ids')
+    .eq('tenant_id', tenantId)
+    .order('name');
+  if (error) { console.error('[inventario] loadBases:', error); return; }
+  bases = (data || []).map(b => ({
+    id: b.id,
+    name: b.name || '',
+    ingredients: Array.isArray(b.ingredients) ? b.ingredients.slice() : [],
+    product_ids: Array.isArray(b.product_ids) ? b.product_ids.slice() : [],
+  }));
 }
 
 async function loadParamsDB() {
@@ -258,6 +281,7 @@ const screens = {
   insumos:   { title:'Insumos',            eyebrow:'Control de inventario · El Parche Food', crumb:'Insumos' },
   recetas:   { title:'Recetas y costeo',   eyebrow:'Control de inventario · El Parche Food', crumb:'Recetas y costeo' },
   unidades:  { title:'Unidades de medida', eyebrow:'Configuración', crumb:'Unidades de medida' },
+  bases:     { title:'Bases de recetas',    eyebrow:'Configuración', crumb:'Bases de recetas' },
 };
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('on'));
@@ -277,6 +301,7 @@ function showScreen(name) {
   if (name === 'insumos')   renderInsumos();
   if (name === 'recetas')   refrescarCosteo();
   if (name === 'unidades')  renderUnidades();
+  if (name === 'bases')     renderBases();
 }
 
 // ═══════════════════════════════════════════════════
@@ -430,10 +455,235 @@ async function toggleVisible(prodId, btn) {
 
 function irAInsumos() { showScreen('insumos'); }
 
+// ═══════════════════════════════════════════════════
+// EDITOR MANUAL DE RECETA (por producto)
+// ═══════════════════════════════════════════════════
+let recEdit = { prodId: null, lines: [] };   // lines: [{insId, qty}]
+
 function abrirEditorInsumoReceta(prodId) {
-  showToast('Próximamente: editor de receta por producto · por ahora agrega insumos en la pestaña Insumos');
-  showScreen('insumos');
-  setTimeout(() => abrirEditorInsumo(null), 300);
+  const prod = productos.find(p => p.id === prodId);
+  if (!prod) return;
+  recEdit = {
+    prodId,
+    lines: (prod.receta || []).map(l => ({ insId: l.insId, qty: l.qty, merma: l.merma || 0 })),
+  };
+  document.getElementById('panel-receta-edit').classList.remove('is-hidden');
+  renderRecEdit();
+}
+
+function renderRecEdit() {
+  const prod = productos.find(p => p.id === recEdit.prodId);
+  if (!prod) return;
+  document.getElementById('rec-edit-title').textContent = 'Editar receta · ' + prod.nombre;
+
+  // Lista de líneas
+  const list = document.getElementById('rec-edit-list');
+  list.innerHTML = '';
+  if (!recEdit.lines.length) {
+    list.innerHTML = '<div style="text-align:center;color:#94A3B8;font-size:12.5px;padding:18px 0">Sin ingredientes. Agrega uno abajo.</div>';
+  }
+  recEdit.lines.forEach((l, i) => {
+    const ins = insumos.find(x => x.id === l.insId);
+    const nombre = ins ? ins.nombre : '(insumo eliminado)';
+    const unidad = ins ? ins.useUnit : '';
+    const row = document.createElement('div');
+    row.className = 'ia-ingr-row';
+    row.innerHTML = `
+      <span class="ia-ingr-badge extra">•</span>
+      <div><div class="ia-ingr-name">${nombre}</div></div>
+      <input class="ia-ingr-qty" type="number" min="0" step="any" value="${l.qty}"
+             oninput="recEditSetQty(${i}, this.value)">
+      <span style="font-size:12.5px;font-weight:600;color:#64748B;text-align:center">${unidad}</span>
+      <button class="ia-ingr-del" title="Quitar" onclick="recEditDelLine(${i})">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      </button>`;
+    list.appendChild(row);
+  });
+
+  // Select de insumos disponibles (los que NO están ya en la receta)
+  const sel = document.getElementById('rec-edit-add-select');
+  const usados = new Set(recEdit.lines.map(l => l.insId));
+  const disp = insumos.filter(i => !usados.has(i.id)).sort((a,b) => a.nombre.localeCompare(b.nombre));
+  sel.innerHTML = '<option value="">Agregar insumo…</option>' +
+    disp.map(i => `<option value="${i.id}">${i.nombre} (${i.useUnit})</option>`).join('');
+}
+
+function recEditSetQty(i, v) {
+  if (recEdit.lines[i]) recEdit.lines[i].qty = parseFloat(v) || 0;
+}
+function recEditDelLine(i) {
+  recEdit.lines.splice(i, 1);
+  renderRecEdit();
+}
+function recEditAddLine() {
+  const sel = document.getElementById('rec-edit-add-select');
+  const insId = sel.value;
+  if (!insId) return;
+  if (recEdit.lines.some(l => l.insId === insId)) return;
+  recEdit.lines.push({ insId, qty: 1, merma: 0 });
+  renderRecEdit();
+}
+
+function recEditRegenerarIA() {
+  const prodId = recEdit.prodId;
+  document.getElementById('panel-receta-edit').classList.add('is-hidden');
+  generarRecetaIA(prodId);
+}
+
+async function guardarRecetaEdit() {
+  const prodId = recEdit.prodId;
+  const prod = productos.find(p => p.id === prodId);
+  if (!prod) return;
+  const lines = recEdit.lines.filter(l => l.insId && l.qty > 0);
+  const btn = document.getElementById('rec-edit-save');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+
+  // Reescribir receta: borrar la anterior e insertar la nueva
+  await iv_sb.from('iv_recetas').delete().eq('product_id', prodId);
+  if (lines.length) {
+    const rows = lines.map(l => ({
+      tenant_id: tenantId, branch_id: branchId,
+      product_id: prodId, insumo_id: l.insId,
+      cantidad: l.qty, merma: l.merma || 0,
+      updated_at: new Date().toISOString(),
+    }));
+    const { error } = await iv_sb.from('iv_recetas').insert(rows);
+    if (error) { console.error('[receta-edit] guardar:', error); showToast('Error al guardar la receta'); if (btn){btn.disabled=false;btn.textContent='Guardar';} return; }
+  }
+
+  // Estado local
+  prod.receta = lines.map(l => ({ insId: l.insId, qty: l.qty, merma: l.merma || 0 }));
+  document.getElementById('panel-receta-edit').classList.add('is-hidden');
+  if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
+  showToast('✓ Receta guardada');
+  updateTabBadges(); updateKPIs(); refrescarCosteo(); renderProductos();
+}
+
+// ═══════════════════════════════════════════════════
+// EDITOR DE BASES DE RECETA (pos_bases)
+// ═══════════════════════════════════════════════════
+let baseEdit = { id: null, name: '', ingredients: [], product_ids: [] };
+let baseProdFilter = '';
+
+function renderBases() {
+  const card = document.getElementById('bases-card');
+  if (!card) return;
+  document.getElementById('bases-count').textContent = bases.length;
+  if (!bases.length) {
+    card.innerHTML = '<div class="iv-units-emptywrap"><div style="font-size:14px;font-weight:700;color:#0F172A;margin-bottom:6px">Sin bases</div><p style="font-size:12px;color:#94A3B8;max-width:320px;margin:0 auto">Las bases son los ingredientes comunes de un grupo de productos (ej. la base de las salchipapas). La IA los usa al generar recetas.</p></div>';
+    return;
+  }
+  card.innerHTML = bases.map(b => {
+    const nIng = (b.ingredients || []).length;
+    const nProd = (b.product_ids || []).length;
+    const chips = (b.ingredients || []).slice(0, 6).map(x => '<span class="base-chip sm">' + escHtml(x) + '</span>').join('') + (nIng > 6 ? '<span class="base-chip sm more">+' + (nIng - 6) + '</span>' : '');
+    return '<button class="base-listitem" onclick="abrirBaseEditor(\'' + b.id + '\')">'
+      + '<div style="flex:1;min-width:0;text-align:left">'
+      + '<div class="base-li-name">' + escHtml(b.name) + '</div>'
+      + '<div class="base-li-chips">' + chips + '</div>'
+      + '<div class="base-li-meta">' + nIng + ' ingredientes · ' + nProd + ' productos</div>'
+      + '</div>'
+      + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'
+      + '</button>';
+  }).join('');
+}
+
+function nuevaBase() {
+  baseEdit = { id: null, name: '', ingredients: [], product_ids: [] };
+  baseProdFilter = '';
+  document.getElementById('panel-base-edit').classList.remove('is-hidden');
+  renderBaseEditor();
+}
+
+function abrirBaseEditor(id) {
+  const b = bases.find(x => x.id === id);
+  if (!b) return;
+  baseEdit = { id: b.id, name: b.name, ingredients: b.ingredients.slice(), product_ids: b.product_ids.slice() };
+  baseProdFilter = '';
+  document.getElementById('panel-base-edit').classList.remove('is-hidden');
+  renderBaseEditor();
+}
+
+function renderBaseEditor() {
+  document.getElementById('base-edit-title').textContent = baseEdit.id ? 'Editar base' : 'Nueva base';
+  const nameInp = document.getElementById('base-name');
+  if (nameInp && document.activeElement !== nameInp) nameInp.value = baseEdit.name || '';
+  document.getElementById('btn-base-eliminar').classList.toggle('is-hidden', !baseEdit.id);
+
+  // Chips de ingredientes
+  const chipsWrap = document.getElementById('base-ingr-chips');
+  chipsWrap.innerHTML = baseEdit.ingredients.length
+    ? baseEdit.ingredients.map((x, i) => '<span class="base-chip">' + escHtml(x) + '<button onclick="baseDelIngr(' + i + ')" title="Quitar">&times;</button></span>').join('')
+    : '<span style="font-size:12px;color:#94A3B8">Sin ingredientes aún</span>';
+
+  // Lista de productos con checkbox (filtrada)
+  const q = baseProdFilter.toLowerCase().trim();
+  const wrap = document.getElementById('base-prod-list');
+  const prods = productos
+    .filter(p => !q || p.nombre.toLowerCase().includes(q) || (p.cat || '').toLowerCase().includes(q))
+    .sort((a, b) => (a.cat || '').localeCompare(b.cat || '') || a.nombre.localeCompare(b.nombre));
+  const sel = new Set(baseEdit.product_ids);
+  document.getElementById('base-prod-count').textContent = baseEdit.product_ids.length;
+  wrap.innerHTML = prods.map(p => {
+    const on = sel.has(p.id);
+    return '<button class="base-prod-row' + (on ? ' on' : '') + '" onclick="baseToggleProd(\'' + p.id + '\')">'
+      + '<span class="base-check">' + (on ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : '') + '</span>'
+      + '<span style="flex:1;min-width:0"><span class="base-prod-name">' + escHtml(p.nombre) + '</span> <span class="base-prod-cat">' + escHtml(p.cat || '') + '</span></span>'
+      + '</button>';
+  }).join('') || '<div style="font-size:12px;color:#94A3B8;padding:12px;text-align:center">Sin productos</div>';
+}
+
+function baseSetName(v) { baseEdit.name = v; }
+function baseAddIngr() {
+  const inp = document.getElementById('base-ingr-input');
+  const v = (inp.value || '').trim();
+  if (!v) return;
+  if (!baseEdit.ingredients.some(x => x.toLowerCase() === v.toLowerCase())) baseEdit.ingredients.push(v);
+  inp.value = '';
+  renderBaseEditor();
+  inp.focus();
+}
+function baseDelIngr(i) { baseEdit.ingredients.splice(i, 1); renderBaseEditor(); }
+function baseToggleProd(prodId) {
+  const idx = baseEdit.product_ids.indexOf(prodId);
+  if (idx >= 0) baseEdit.product_ids.splice(idx, 1);
+  else baseEdit.product_ids.push(prodId);
+  renderBaseEditor();
+}
+function baseFilterProds(v) { baseProdFilter = v; renderBaseEditor(); }
+
+async function guardarBase() {
+  const name = (baseEdit.name || '').trim();
+  if (!name) { alert('Ponle un nombre a la base'); return; }
+  const btn = document.getElementById('base-save');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+  const payload = { name, ingredients: baseEdit.ingredients, product_ids: baseEdit.product_ids, tenant_id: tenantId };
+  try {
+    if (baseEdit.id) {
+      await iv_sb.from('pos_bases').update(payload).eq('id', baseEdit.id);
+    } else {
+      await iv_sb.from('pos_bases').insert(payload);
+    }
+    await loadBasesDB();
+    document.getElementById('panel-base-edit').classList.add('is-hidden');
+    showToast('✓ Base guardada');
+    renderBases();
+  } catch (e) {
+    console.error('[base] guardar:', e);
+    showToast('Error al guardar la base');
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
+}
+
+async function eliminarBase() {
+  if (!baseEdit.id || !confirm('¿Eliminar esta base? Los productos ya no la usarán al generar recetas.')) return;
+  try {
+    await iv_sb.from('pos_bases').delete().eq('id', baseEdit.id);
+    await loadBasesDB();
+    document.getElementById('panel-base-edit').classList.add('is-hidden');
+    showToast('Base eliminada');
+    renderBases();
+  } catch (e) { console.error('[base] eliminar:', e); showToast('Error al eliminar'); }
 }
 
 // ═══════════════════════════════════════════════════
@@ -854,6 +1104,7 @@ function abrirRecetaDetalle(prodId) {
   const dot=fc=>fc<=0.30?'#22C55E':fc<=0.38?'#EAB308':fc<=0.45?'#F97316':'#EF4444';
   document.getElementById('receta-detalle').innerHTML=`
     <div class="iv-rec-head"><div><div class="iv-prod-cat">${prod.cat}</div><div class="iv-rec-title">${prod.nombre}</div></div><div style="text-align:right"><div class="iv-rec-pricelbl">Precio de venta</div><div style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums">${ivCOP(prod.precio)}</div></div></div>
+    <div style="display:flex;justify-content:flex-end;margin:-2px 0 12px"><button class="iv-btn-ghost sm" onclick="abrirEditorInsumoReceta('${prod.id}')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg> Editar receta</button></div>
     ${bannerHTML}
     <div class="iv-metrics">
       <div class="iv-metric"><div class="ml">Materia prima</div><div class="mv" style="color:${sem.color}">${ivCOP(r.raw)}</div><div class="ms">${fcPct}% del precio</div><div class="iv-bar" style="margin-top:8px"><i style="width:${Math.min(100,r.fc*100)}%;background:${sem.color}"></i></div></div>

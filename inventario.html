@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="inventario.css?v=1784748000">
+<link rel="stylesheet" href="inventario.css?v=1784752000">
 </head>
 <body>
 
@@ -43,6 +43,12 @@
           Unidades de medida
         </span>
         <span class="iv-nav-badge" id="nav-unidades-badge">1</span>
+      </button>
+      <button class="iv-nav-item" id="nav-bases" data-screen="bases" onclick="showScreen('bases')">
+        <span class="lbl">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>
+          Bases de recetas
+        </span>
       </button>
       <button class="iv-nav-item" id="nav-params">
         <span class="lbl">
@@ -261,6 +267,24 @@
         </div>
       </div>
 
+      <!-- ============ BASES DE RECETAS ============ -->
+      <div class="screen" id="screen-bases">
+        <div class="iv-units">
+          <p class="iv-units-help">Las <strong>bases</strong> son los ingredientes comunes de un grupo de productos (ej. la base de las salchipapas). Cuando generas una receta con IA, el sistema parte de la base del producto. Aquí editas cada base, sus ingredientes y a qué productos aplica.</p>
+          <div class="iv-units-sechead">
+            <div class="iv-units-sectitle">
+              <span style="display:flex;color:#8B5CF6"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg></span>
+              Tus bases <span class="iv-units-count" id="bases-count">0</span>
+            </div>
+            <button class="iv-btn-ghost sm" onclick="nuevaBase()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Nueva base
+            </button>
+          </div>
+          <div class="bases-list" id="bases-card"></div>
+        </div>
+      </div>
+
     </section>
   </main>
 </div>
@@ -440,6 +464,83 @@
   </div>
 </div>
 
+<!-- EDITOR MANUAL DE RECETA -->
+<div class="iv-overlay is-hidden" id="panel-receta-edit">
+  <div class="iv-drawer">
+    <div class="iv-panel-head">
+      <div class="iv-panel-title" id="rec-edit-title">Editar receta</div>
+      <button class="iv-close" onclick="closePanel('panel-receta-edit')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="iv-panel-body">
+      <div class="iv-section-label">Ingredientes de la receta</div>
+      <div id="rec-edit-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
+      <div class="iv-section-label">Agregar insumo</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select class="iv-select" id="rec-edit-add-select" style="flex:1"></select>
+        <button class="iv-btn-ghost sm" onclick="recEditAddLine()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Agregar
+        </button>
+      </div>
+      <div class="iv-divider" style="margin:18px 0"></div>
+      <button class="base-regen-btn" onclick="recEditRegenerarIA()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+        Volver a generar con IA
+      </button>
+    </div>
+    <div class="iv-panel-foot">
+      <span></span>
+      <div style="display:flex;gap:8px">
+        <button class="iv-btn-ghost" onclick="closePanel('panel-receta-edit')">Cancelar</button>
+        <button class="iv-btn-primary" id="rec-edit-save" onclick="guardarRecetaEdit()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EDITOR DE BASE -->
+<div class="iv-overlay is-hidden" id="panel-base-edit">
+  <div class="iv-drawer">
+    <div class="iv-panel-head">
+      <div class="iv-panel-title" id="base-edit-title">Editar base</div>
+      <button class="iv-close" onclick="closePanel('panel-base-edit')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="iv-panel-body">
+      <div class="iv-field"><div class="iv-field-label">Nombre de la base</div><input class="iv-input" id="base-name" placeholder="Ej. Base Salchipapas" oninput="baseSetName(this.value)"></div>
+      <div class="iv-section-label">Ingredientes de la base</div>
+      <div id="base-ingr-chips" class="base-chips-wrap"></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+        <input class="iv-input" id="base-ingr-input" placeholder="Ej. Papa" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();baseAddIngr();}">
+        <button class="iv-btn-ghost sm" onclick="baseAddIngr()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Agregar
+        </button>
+      </div>
+      <div class="iv-divider" style="margin:18px 0"></div>
+      <div class="iv-section-label">Productos que usan esta base · <span id="base-prod-count">0</span> seleccionados</div>
+      <input class="iv-input" placeholder="Buscar producto…" oninput="baseFilterProds(this.value)" style="margin-bottom:10px">
+      <div id="base-prod-list" class="base-prod-listwrap"></div>
+    </div>
+    <div class="iv-panel-foot">
+      <button class="iv-btn-danger is-hidden" id="btn-base-eliminar" onclick="eliminarBase()">Eliminar</button>
+      <div style="display:flex;gap:8px">
+        <button class="iv-btn-ghost" onclick="closePanel('panel-base-edit')">Cancelar</button>
+        <button class="iv-btn-primary" id="base-save" onclick="guardarBase()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ④ PARÁMETROS DE COSTEO -->
 <div class="iv-overlay center is-hidden" id="panel-params">
   <div class="iv-modal w460">
@@ -576,6 +677,6 @@
 <div class="iv-toast is-hidden" id="iv-toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="inventario.js?v=1784750000"></script>
+<script src="inventario.js?v=1784752000"></script>
 </body>
 </html>
