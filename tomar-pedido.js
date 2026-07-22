@@ -40,13 +40,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const { data: posUser } = await sb.from('pos_users').select('name, role').eq('auth_user_id', user.id).maybeSingle();
   S.waiterName = posUser?.name || user.user_metadata?.nombre || user.user_metadata?.name || user.email?.split('@')[0] || '—';
   S.userRole   = posUser?.role || user.user_metadata?.role || 'Administrador';
-  // "Opciones de pago" no aplica al mesero (el cobro lo hace la caja). Se OCULTA
-  // por rol, no se elimina: es la unica via para cobrar un pedido de mesa.
-  try {
-    const _esMesero = String(S.userRole || '').toLowerCase().includes('mesero');
-    const _btnPago = document.querySelector('.tp-nav [data-action="pago"]');
-    if (_btnPago && _esMesero) _btnPago.style.display = 'none';
-  } catch(e) {}
 
   // 2. Leer tableId de la URL
   const params = new URLSearchParams(window.location.search);
@@ -1299,11 +1292,9 @@ function bindEvents() {
         case 'nav-domicilio': window.location.href = 'domicilios.html'; break;
         case 'guardar':      saveOrder(); break;
         case 'enviar-cocina':sendToKitchen(); break;
-        case 'pago':
-          if (!S.order?.id) { toast('No hay pedido activo', 'warn'); break; }
-          const _adelantado = localStorage.getItem('pos.config.cobro_adelantado') === 'true';
-          window.location.href = `pagos.html?order=${S.order.id}&table=${S.tableId}${S.serviceEnabled ? '&servicio=1' : ''}${_adelantado ? '&adelantado=1' : ''}`;
-          break;
+        // 'pago' eliminado: el cobro se hace desde el panel de mesa en ventas.html
+        // ("Cobrar" / "Cobrar y enviar a cocina", modules/ventas-salon.js). Este
+        // botón dentro de la mesa era un atajo duplicado.
         case 'vaciar':       clearCart(); break;
         case 'release':      releaseTable(); break;
         default: break;
