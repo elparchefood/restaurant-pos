@@ -710,6 +710,24 @@ async function loadOrder() {
     }
   } catch (e) { console.error('carga de abonos previos:', e); }
 
+  // ── RED DE SEGURIDAD: si el pedido tiene paid_amount pero el detalle de pagos
+  // no lo cubre (lectura parcial/fallida), reflejar el abono desde paid_amount para
+  // que la cuenta NUNCA "olvide" lo ya abonado. Así, aunque falle la lectura del
+  // detalle, la mesa recuerda cuánto se abonó y solo cobra lo que falta.
+  try {
+    const paidRows  = SP.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    const paidOrder = Number(order.paid_amount) || 0;
+    if (paidOrder > paidRows + 1) {
+      SP.payments.push({
+        id:       'saved-prev-' + SP.orderId,
+        method:   'efectivo',
+        amount:   paidOrder - paidRows,
+        received: paidOrder - paidRows,
+        saved:    true,
+      });
+    }
+  } catch (e) { console.error('reconciliar abono con paid_amount:', e); }
+
   // Cargar tabla (null para ventas rapidas)
   SP.table = null;
   if (SP.tableId) {
