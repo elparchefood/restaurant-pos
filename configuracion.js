@@ -1809,14 +1809,26 @@ function opLoad() {
 }
 
 function opSave(data) {
+  // Marca de tiempo: al sincronizar entre dispositivos SIEMPRE gana la más nueva
+  // (sin esto, si el guardado a BD fallaba una vez, el boot restauraba la vieja).
+  data._ts = Date.now();
   localStorage.setItem(OP_KEY, JSON.stringify(data));
   // Sync claves heredadas para compatibilidad con otros módulos
   localStorage.setItem('pos.config.cobro_adelantado', data.cobroAdelantado ? 'true' : 'false');
   // Sync a la base de datos (fuente de verdad para TODOS los dispositivos —
   // sin esto la tablet no ve la config de Operación: empaque, reglas, etc.)
+  // Con reintentos: un fallo transitorio no puede dejar la BD desactualizada.
   if (_cfgBranchId) {
-    sb.from('branches').update({ cobro_adelantado: !!data.cobroAdelantado, operacion_config: data }).eq('id', _cfgBranchId)
-      .then(function(r){ if (r.error) console.warn('opSave branch sync:', r.error); });
+    var _syncOp = function (intento) {
+      sb.from('branches').update({ cobro_adelantado: !!data.cobroAdelantado, operacion_config: data }).eq('id', _cfgBranchId)
+        .then(function (r) {
+          if (r && r.error) {
+            console.warn('opSave branch sync (intento ' + intento + '):', r.error);
+            if (intento < 3) setTimeout(function () { _syncOp(intento + 1); }, 1500 * intento);
+          }
+        });
+    };
+    _syncOp(1);
   }
 }
 
@@ -1902,7 +1914,9 @@ function opRender() {
   if (esp && domiRow) domiRow.style.display = 'none';
   var espBlock = $('op-emp-especifico');
   if (espBlock) espBlock.style.display = esp ? '' : 'none';
-  if (esp) opRenderEmpEsp();
+  // try/catch: un error del panel específico JAMÁS debe romper opRender
+  // (si opRender muere antes de opCheckDirty, el botón Guardar queda muerto)
+  if (esp) { try { opRenderEmpEsp(); } catch (e) { console.error('opRenderEmpEsp:', e); } }
 
   // C9 — T1/T2/T3
   var t1El = $('op-mesaT1'); if (t1El) t1El.textContent = d.mesaT1 || 10;
@@ -1937,6 +1951,7 @@ function opSetToggle(id, on) {
 var _empCatalog = null;    // { cats:[{id,name}], prods:[{id,name,category_id}] }
 var _empOpen = {};         // categorías desplegadas en la UI
 var _empOpenProd = {};     // productos desplegados (muestran sus presentaciones)
+var _empPackForm = false;  // formulario inline "Crear empaque" abierto (prompt no existe en Electron)
 function _empEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function _empFmt(n){ return '$' + Number(Math.round(n||0)).toLocaleString('es-CO'); }
 
@@ -2050,7 +2065,14 @@ function opRenderEmpEsp() {
         + '<button type="button" data-emp-pack-del="' + _empEsc(p.id) + '" title="Eliminar empaque" style="border:none;background:none;color:#8B5CF6;cursor:pointer;font-size:15px;line-height:1;padding:0;font-weight:700">&times;</button>'
         + '</span>';
     }).join('')
-    + '<button type="button" id="op-emp-pack-new" style="display:inline-flex;align-items:center;gap:5px;font-family:inherit;font-size:12.5px;font-weight:700;border:1.5px dashed #C4B5FD;background:#FAF9FF;color:#7C3AED;padding:6px 12px;border-radius:999px;cursor:pointer">+ Crear empaque</button>';
+    + (_empPackForm
+        ? '<span style="display:inline-flex;align-items:center;gap:6px;background:#FAF9FF;border:1.5px solid #C4B5FD;padding:5px 8px;border-radius:12px">'
+          + '<input id="op-emp-pack-nombre" placeholder="Nombre (ej. Empaque pequeño)" style="font-family:inherit;font-size:12px;border:1px solid #E2E8F0;border-radius:7px;padding:5px 8px;width:170px;outline:none">'
+          + '<input id="op-emp-pack-monto" type="number" min="0" step="100" placeholder="$ valor" style="font-family:inherit;font-size:12px;border:1px solid #E2E8F0;border-radius:7px;padding:5px 8px;width:80px;outline:none">'
+          + '<button type="button" id="op-emp-pack-ok" style="font-family:inherit;font-size:12px;font-weight:700;border:none;background:#5B6BFF;color:#fff;padding:6px 11px;border-radius:8px;cursor:pointer">Agregar</button>'
+          + '<button type="button" id="op-emp-pack-cancel" style="font-family:inherit;font-size:12px;font-weight:700;border:none;background:none;color:#94A3B8;padding:6px 4px;cursor:pointer">Cancelar</button>'
+          + '</span>'
+        : '<button type="button" id="op-emp-pack-new" style="display:inline-flex;align-items:center;gap:5px;font-family:inherit;font-size:12.5px;font-weight:700;border:1.5px dashed #C4B5FD;background:#FAF9FF;color:#7C3AED;padding:6px 12px;border-radius:999px;cursor:pointer">+ Crear empaque</button>');
   }
 }
 
@@ -2228,12 +2250,17 @@ function opBindEvents() {
         Object.keys(_opDraft.empaquePresCfg || {}).forEach(function(k){ if (_opDraft.empaquePresCfg[k] === pid) delete _opDraft.empaquePresCfg[k]; });
         opRenderEmpEsp(); opCheckDirty(); return;
       }
-      if (t.id === 'op-emp-pack-new') {
-        var nombre = prompt('Nombre del empaque (ej. Empaque pequeño):');
-        if (!nombre || !nombre.trim()) return;
-        var monto = parseInt(prompt('Valor por unidad (COP):') || '', 10);
-        if (!monto || monto < 0) return;
-        _opDraft.empaquePacks = (_opDraft.empaquePacks || []).concat([{ id: 'pk_' + Date.now().toString(36), nombre: nombre.trim(), monto: monto }]);
+      // prompt() NO existe en Electron → formulario inline
+      if (t.id === 'op-emp-pack-new') { _empPackForm = true; opRenderEmpEsp(); var ni = $('op-emp-pack-nombre'); if (ni) ni.focus(); return; }
+      if (t.id === 'op-emp-pack-cancel') { _empPackForm = false; opRenderEmpEsp(); return; }
+      if (t.id === 'op-emp-pack-ok') {
+        var ni2 = $('op-emp-pack-nombre'), mi2 = $('op-emp-pack-monto');
+        var nombre = ni2 ? ni2.value.trim() : '';
+        var monto = mi2 ? (parseInt(mi2.value, 10) || 0) : 0;
+        if (!nombre) { if (ni2) ni2.focus(); return; }
+        if (monto <= 0) { if (mi2) mi2.focus(); return; }
+        _opDraft.empaquePacks = (_opDraft.empaquePacks || []).concat([{ id: 'pk_' + Date.now().toString(36), nombre: nombre, monto: monto }]);
+        _empPackForm = false;
         opRenderEmpEsp(); opCheckDirty(); return;
       }
     });

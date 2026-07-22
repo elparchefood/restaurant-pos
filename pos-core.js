@@ -150,13 +150,17 @@ function daysAgoISO(n) {
         if (bId) {
           var rOp = await sb.from('branches').select('operacion_config').eq('id', bId).maybeSingle();
           var dbCfg = rOp && rOp.data && rOp.data.operacion_config;
-          if (dbCfg && typeof dbCfg === 'object' && Object.keys(dbCfg).length) {
+          var localOp = null;
+          try { localOp = JSON.parse(localStorage.getItem(OPK) || 'null'); } catch (e2) {}
+          var dbTs    = (dbCfg && dbCfg._ts) || 0;
+          var localTs = (localOp && localOp._ts) || 0;
+          var dbTiene = dbCfg && typeof dbCfg === 'object' && Object.keys(dbCfg).length;
+          // Gana la config MÁS NUEVA (marca _ts). Si la local es más reciente
+          // (p. ej. el guardado a BD falló), se SUBE — auto-sanado.
+          if (dbTiene && dbTs >= localTs) {
             localStorage.setItem(OPK, JSON.stringify(dbCfg));
-          } else {
-            // BD vacía pero este equipo tiene config local (el PC donde se
-            // configuró) → subirla una vez para sembrar la fuente de verdad.
-            var localOp = localStorage.getItem(OPK);
-            if (localOp) await sb.from('branches').update({ operacion_config: JSON.parse(localOp) }).eq('id', bId);
+          } else if (localOp && typeof localOp === 'object' && Object.keys(localOp).length) {
+            await sb.from('branches').update({ operacion_config: localOp }).eq('id', bId);
           }
         }
       } catch (e) { console.warn('[pos-core] sync operacion_config:', e); }
