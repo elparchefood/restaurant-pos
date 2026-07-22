@@ -1347,7 +1347,8 @@
 
   function vrMPAddToCart() {
     const p = VR_WIP.prod;
-    const presLabel = VR_WIP.pres && VR_WIP.pres.name ? VR_WIP.pres.name : '';
+    // Si la presentación no tiene nombre, usar el nombre de la CATEGORÍA como prefijo.
+    const presLabel = (VR_WIP.pres && VR_WIP.pres.name ? VR_WIP.pres.name : '') || (p.catName || '');
     const varLabels = Object.values(VR_WIP.vars).map(v => v.name).join(' \xb7 ');
     const displayName = [presLabel, p.name, varLabels].filter(Boolean).join(' \xb7 ');
     const unitPrice = vrComputePrice() / VR_WIP.qty;

@@ -938,7 +938,9 @@ function tpCloseMP(){ const el=document.getElementById('tp-modal-producto'); if(
 
 function tpMPAddToCart(){
   const p=TP_WIP.prod;
-  const presLabel=TP_WIP.pres&&TP_WIP.pres.name?TP_WIP.pres.name:'';
+  // Si la presentación no tiene nombre, usar el nombre de la CATEGORÍA como prefijo.
+  const _cat=S.cats.find(c=>c.id===p.category_id);
+  const presLabel=(TP_WIP.pres&&TP_WIP.pres.name?TP_WIP.pres.name:'')||(_cat?_cat.name:'');
   const varLabels=Object.values(TP_WIP.vars).map(v=>v.name).join(' · ');
   const displayName=[presLabel,p.name,varLabels].filter(Boolean).join(' · ');
   const modSummary=Object.values(TP_WIP.mods).map(m=>m.name).join(', ');

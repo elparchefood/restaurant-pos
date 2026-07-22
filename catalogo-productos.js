@@ -541,7 +541,7 @@ function openEditor(id,type){
 function renderProductEditor(){try{
   const p=S.editProd,isNew=!S.products.find(x=>x.id===p.id),cat=catOf(p.cat);
   const priceRange=()=>{let ps;if(p.priceMode==='matrix'){ps=(p.variables||[]).flatMap(v=>v.isPricing?(v.options||[]).flatMap(o=>o.prices||[]):[]).filter(Boolean);}else{const pres=p.presentations.map(x=>x.price).filter(Boolean);const vars=(p.variables||[]).flatMap(v=>(v.options||[]).map(o=>o.price||0)).filter(Boolean);ps=pres.length?pres:vars;}if(!ps.length)return '--';const lo=Math.min(...ps),hi=Math.max(...ps);return lo===hi?fmt(lo):(fmt(lo)+' – '+fmt(hi));};
-  const hasPres_=p.presentations.some(x=>x.name.trim()&&x.price>0);const hasVar_=(p.variables||[]).some(v=>(v.options||[]).some(o=>o.price>0));const canSave=p.name.trim()&&p.presentations.some(x=>x.name.trim())&&(p.priceMode==='matrix'?(p.variables||[]).some(v=>v.isPricing&&(v.options||[]).some(o=>(o.prices||[]).some(pr=>pr>0))):(hasPres_||hasVar_));
+  const hasPres_=p.presentations.some(x=>x.price>0);const hasVar_=(p.variables||[]).some(v=>(v.options||[]).some(o=>o.price>0));const canSave=p.name.trim()&&(p.priceMode==='matrix'?(p.variables||[]).some(v=>v.isPricing&&(v.options||[]).some(o=>(o.prices||[]).some(pr=>pr>0))):(hasPres_||hasVar_));
   const catOptions=S.cats.map(c=>'<option value="'+c.id+'" '+(p.cat===c.id?'selected':'')+'>'+escHtml(c.name)+'</option>').join('');
   const presRows=p.presentations.map(_presRowHTML).join('');
   const varSections=p.variables.length===0?'<button class="cc-add-group" onclick="addVar()">'+icon('sliders',15)+' Agregar una variable (ej. Proteína: Pollo / Carne / Mixta)</button>':p.variables.map(_varCardHTML).join('');
@@ -572,7 +572,7 @@ function _presRowHTML(pr){
     : '<button type="button" onclick="triggerPresPhoto(\''+pr.id+'\')" title="Subir imagen · si no, usa la del producto" style="width:38px;height:38px;border-radius:9px;border:1px dashed #CBD5E1;background:#F8FAFC;color:#94A3B8;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0">'+icon('image',15)+'</button>';
   return '<div class="cp-pres-row">'
     +'<span class="cc-grip">'+icon('grip',14)+'</span>'+thumb
-    +'<input class="cc-input flat" value="'+escHtml(pr.name)+'" placeholder="Nombre (ej. Familiar)" style="flex:1" oninput="setPres(\''+pr.id+'\',\'name\',this.value)">'
+    +'<input class="cc-input flat" value="'+escHtml(pr.name)+'" placeholder="Nombre (opcional · ej. Familiar)" style="flex:1" oninput="setPres(\''+pr.id+'\',\'name\',this.value)">'
     +'<div class="cc-money"><span class="cc-money-sym">$</span><input type="number" min="0" step="500" value="'+(pr.price||'')+'" placeholder="0" oninput="setPres(\''+pr.id+'\',\'price\',parseInt(this.value)||0)"></div>'
     +'<button class="cc-mini-del" '+(total===1?'disabled':'')+' onclick="delPres(\''+pr.id+'\')">'+icon('trash',13)+'</button>'
     +'</div>';
@@ -676,7 +676,7 @@ function _cleanModGroupPres(p){
   });
   return out;
 }
-function updateSaveProdBtn(){const p=S.editProd;const hasPres=p.presentations.some(x=>x.name.trim()&&x.price>0);const hasVar=(p.variables||[]).some(v=>(v.options||[]).some(o=>o.price>0||(Array.isArray(o.prices)&&o.prices.some(pr=>pr>0))));const btn=$('save-prod-btn');if(btn)btn.disabled=!(p.name.trim()&&p.presentations.some(x=>x.name.trim())&&(hasPres||hasVar));}
+function updateSaveProdBtn(){const p=S.editProd;const hasPres=p.presentations.some(x=>x.price>0);const hasVar=(p.variables||[]).some(v=>(v.options||[]).some(o=>o.price>0||(Array.isArray(o.prices)&&o.prices.some(pr=>pr>0))));const btn=$('save-prod-btn');if(btn)btn.disabled=!(p.name.trim()&&(hasPres||hasVar));}
 async function saveProduct(){
   const p=S.editProd;if(!p.name.trim())return;
   const saveBtn=$('save-prod-btn');if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='Guardando…';}

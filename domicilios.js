@@ -948,7 +948,8 @@ function tpMPAddToCart(){
   const p=WIP.prod;
   const cat=S.cats.find(c=>c.id===p.category_id);
   const unitPrice=mpComputePrice()/WIP.qty;
-  const presLabel=WIP.pres&&WIP.pres.name?WIP.pres.name:'';
+  // Si la presentación no tiene nombre, usar el nombre de la CATEGORÍA como prefijo.
+  const presLabel=(WIP.pres&&WIP.pres.name?WIP.pres.name:'')||(cat?cat.name:'');
   const varLabels=Object.values(WIP.vars).map(v=>v.name).join(' \xb7 ');
   const displayName=[presLabel,p.name,varLabels].filter(Boolean).join(' \xb7 ');
   const modSummary=Object.values(WIP.mods).filter(m=>m.qty>0).map(m=>(m.qty>1?m.qty+'x ':'')+m.name).join(', ');
