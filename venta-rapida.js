@@ -206,6 +206,12 @@
     });
   }
 
+  /* ─── Cantidad total de un producto en el carrito (sumando líneas) ─── */
+  function prodQtyInCart(pid) {
+    return S.cart.reduce((s, i) =>
+      (String(i.productId) === String(pid) || String(i.id) === String(pid)) ? s + (i.qty || 0) : s, 0);
+  }
+
   /* ─── Acciones carrito ───────────────────────────────────────── */
   function addToCart(productId) {
     // Si el id es de una linea en carrito (modal items usan lineId), incrementar esa linea
@@ -283,16 +289,16 @@
   function refreshBadges() {
     document.querySelectorAll('[data-add]').forEach(card => {
       const pid = card.dataset.add;
-      const item = S.cart.find(i => String(i.id) === String(pid));
+      const qtyTot = prodQtyInCart(pid);
       let badge = card.querySelector('.tp-qty-badge');
-      if (item && item.qty > 0) {
+      if (qtyTot > 0) {
         if (!badge) {
           badge = document.createElement('span');
           badge.className = 'tp-qty-badge';
           const wrap = card.querySelector('.tp-prod-thumbwrap');
           if (wrap) wrap.appendChild(badge);
         }
-        badge.textContent = item.qty;
+        badge.textContent = qtyTot;
       } else {
         if (badge) badge.remove();
       }
@@ -300,16 +306,16 @@
     // Badges en menú
     document.querySelectorAll('[data-menu-add]').forEach(row => {
       const pid = row.dataset.menuAdd;
-      const item = S.cart.find(i => String(i.id) === String(pid));
+      const qtyTot = prodQtyInCart(pid);
       let badge = row.querySelector('.tp-menu-qty');
-      if (item && item.qty > 0) {
+      if (qtyTot > 0) {
         if (!badge) {
           badge = document.createElement('span');
           badge.className = 'tp-menu-qty';
           const priceEl = row.querySelector('.tp-menurow-price');
           if (priceEl) priceEl.before(badge);
         }
-        badge.textContent = item.qty;
+        badge.textContent = qtyTot;
       } else {
         if (badge) badge.remove();
       }
@@ -367,8 +373,7 @@
   function renderProdCards(prods) {
     if (!prods.length) return '<div style="color:#94A3B8;font-size:12px;padding:20px 0;text-align:center">Sin productos</div>';
     return prods.map(p => {
-      const item = S.cart.find(i => String(i.id) === String(p.id));
-      const qty  = item ? item.qty : 0;
+      const qty = prodQtyInCart(p.id);
       return `
         <button class="lm-prod" data-add="${p.id}">
           <div class="tp-prod-thumbwrap">
@@ -414,8 +419,7 @@
       const prods = S.products.filter(p => String(p.category_id) === String(cat.id));
       if (!prods.length) return '';
       const rows = prods.map(p => {
-        const item = S.cart.find(i => String(i.id) === String(p.id));
-        const qty  = item ? item.qty : 0;
+        const qty = prodQtyInCart(p.id);
         return `
           <button class="lm-menurow" data-menu-add="${p.id}">
             <div class="tp-menurow-main">
@@ -1019,9 +1023,8 @@
     const p = S.products.find(x => String(x.id) === String(prodId));
     if (!p) return;
     const hasPres = (p.presentations||[]).length > 1;
-    const hasVars = (p.variables||[]).length > 0;
-    // Producto simple: agregar directo sin abrir modal
-    if (!hasPres && !hasVars) { addToCart(prodId); return; }
+    // Igual que Mesa: SIEMPRE abrir el modal (para poder elegir presentación,
+    // adiciones y notas), incluso para productos "simples".
     VR_WIP = { prod:p, stepIdx:0, pres:null, vars:{}, mods:{}, qty:1, note:'' };
     if (!hasPres) {
       const pArr = p.presentations || [];
@@ -1346,7 +1349,7 @@
     const p = VR_WIP.prod;
     const presLabel = VR_WIP.pres && VR_WIP.pres.name ? VR_WIP.pres.name : '';
     const varLabels = Object.values(VR_WIP.vars).map(v => v.name).join(' \xb7 ');
-    const displayName = [p.name, presLabel, varLabels].filter(Boolean).join(' \xb7 ');
+    const displayName = [presLabel, p.name, varLabels].filter(Boolean).join(' \xb7 ');
     const unitPrice = vrComputePrice() / VR_WIP.qty;
     const modSummary = Object.values(VR_WIP.mods).filter(m=>m.qty>0).map(m=>(m.qty>1?m.qty+'x ':'')+m.name).join(', ');
     const lineId = 'vr_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);

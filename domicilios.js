@@ -950,7 +950,7 @@ function tpMPAddToCart(){
   const unitPrice=mpComputePrice()/WIP.qty;
   const presLabel=WIP.pres&&WIP.pres.name?WIP.pres.name:'';
   const varLabels=Object.values(WIP.vars).map(v=>v.name).join(' \xb7 ');
-  const displayName=[p.name,presLabel,varLabels].filter(Boolean).join(' \xb7 ');
+  const displayName=[presLabel,p.name,varLabels].filter(Boolean).join(' \xb7 ');
   const modSummary=Object.values(WIP.mods).filter(m=>m.qty>0).map(m=>(m.qty>1?m.qty+'x ':'')+m.name).join(', ');
   const lineId='li_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
   S.cart.push({
