@@ -495,7 +495,7 @@ function renderCatGrid() {
       ? `<img src="${c.image_url}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">`
       : `<span class="d-thumb-lbl">${c.name}</span>`;
     return `<button class="lm-cat" data-open-cat="${c.id}" style="border-color:${colorRing(color)}">
-      <div class="d-thumb" style="height:108px">${thumb}</div>
+      <div class="d-thumb" style="height:90px;width:100%;margin:0;border-radius:0">${thumb}</div>
       <div class="d-cat-foot">
         <div><div class="d-cat-name">${c.name}</div><div class="d-cat-count">${count} productos</div></div>
         <span class="d-cat-badge" style="color:${color};background:${colorTint(color)}">${svgInline('chevron', 14)}</span>
