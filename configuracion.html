@@ -820,18 +820,23 @@
               </div>
             </div>
             <div class="op-row">
-              <div>
+              <div class="op-row-text">
                 <div class="op-label">Activar etiquetas</div>
                 <div class="op-hint">El cajero elige una al tomar el pedido (opcional).</div>
               </div>
-              <div style="display:flex;align-items:center;gap:10px">
+              <div class="op-control">
                 <span class="op-state off" id="op-etq-state">Desactivado</span>
-                <button class="op-switch" id="op-sw-etiquetas"><span class="op-knob"></span></button>
+                <button class="cf-switch" id="op-sw-etiquetas" role="switch" aria-checked="false" data-field="etiquetasVRActivo"><span class="cf-switch-knob"></span></button>
               </div>
             </div>
             <div id="op-etiquetas-body" style="display:none">
-              <div class="op-hint" style="margin-bottom:8px">Ej. Espera, Avisar, Programado, A carro.</div>
-              <div id="op-etq-chips" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"></div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">Tus etiquetas</div>
+                  <div class="op-hint">Ej. Espera, Avisar, Programado, A carro.</div>
+                </div>
+              </div>
+              <div id="op-etq-chips" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:0 18px 16px"></div>
             </div>
           </div>
           <!-- SECCIÓN 5 · Tiempos de automatización de mesa (C9) -->
@@ -1944,7 +1949,7 @@
 <script src="pos-core.js?v=25"></script>
 <script src="pos-print.js?v=14"></script>
 <script src="pos-print-listener.js?v=1"></script>
-<script src="configuracion.js?v=1784800000"></script>
+<script src="configuracion.js?v=1784802000"></script>
 </body>
 </html>
 
