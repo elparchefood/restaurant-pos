@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="pos-core.css">
-  <link rel="stylesheet" href="tomar-pedido.css?v=1784818000">
+  <link rel="stylesheet" href="tomar-pedido.css?v=1784830000">
 </head>
 <body>
 <div class="tp-root">
@@ -18,8 +18,13 @@
 
   <!-- ════════ SIDEBAR ACCIONES ════════ -->
   <aside class="tp-side">
-    <button class="tp-side-toggle" id="tp-side-toggle" title="Abrir menú">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    <!-- Asa deslizable (solo tablet): arrastra o toca para abrir/cerrar -->
+    <button class="tp-side-grip" id="tp-side-toggle" title="Desliza o toca para abrir el menú" aria-label="Abrir menú">
+      <span class="tp-grip-bar"></span>
+      <span class="tp-grip-hint">
+        <svg class="tp-grip-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+        <span class="tp-grip-txt">desliza</span>
+      </span>
     </button>
     <div class="tp-brand">
       <div class="tp-brand-logo">L</div>
@@ -287,6 +292,6 @@
 <script src="pos-core.js?v=25"></script>
 <script src="pos-print.js?v=15"></script>
 <script src="pos-print-listener.js?v=1"></script>
-<script src="tomar-pedido.js?v=1784824000"></script>
+<script src="tomar-pedido.js?v=1784830000"></script>
 </body>
 </html>

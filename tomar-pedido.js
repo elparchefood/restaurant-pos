@@ -1261,23 +1261,66 @@ function escHtml(s) {
 function bindEvents() {
 
   // Sidebar toggle (tablet compacto)
-  const tpSideToggle = document.getElementById('tp-side-toggle');
-  const tpSideEl = document.querySelector('.tp-side');
-  const tpSideBackdrop = document.getElementById('tp-side-backdrop');
-  if (tpSideToggle && tpSideEl) {
-    tpSideToggle.addEventListener('click', () => {
-      const expanded = tpSideEl.classList.toggle('tp-side--expanded');
-      if (tpSideBackdrop) tpSideBackdrop.classList.toggle('is-visible', expanded);
-      tpSideToggle.title = expanded ? 'Cerrar menú' : 'Abrir menú';
+  // ── Barra lateral en tablet: se DESLIZA (o se toca) ──────────────────
+  // Abrir: arrastrar el asa a la derecha, o tocarla.
+  // Cerrar: arrastrar a la izquierda (asa o barra), tocar el asa, o tocar fuera.
+  (function setupSideGesture() {
+    const side = document.querySelector('.tp-side');
+    const grip = document.getElementById('tp-side-toggle');
+    const backdrop = document.getElementById('tp-side-backdrop');
+    if (!side || !grip) return;
+    const UMBRAL = 40;   // px de arrastre para que cuente como deslizamiento
+
+    const abierta = () => side.classList.contains('tp-side--expanded');
+    function setOpen(open) {
+      side.classList.toggle('tp-side--expanded', open);
+      if (backdrop) backdrop.classList.toggle('is-visible', open);
+      const t = open ? 'Desliza o toca para cerrar el menú' : 'Desliza o toca para abrir el menú';
+      grip.title = t;
+      grip.setAttribute('aria-label', open ? 'Cerrar menú' : 'Abrir menú');
+    }
+
+    let x0 = 0, y0 = 0, dx = 0, arrastrando = false, movio = false;
+    grip.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      arrastrando = true; movio = false; dx = 0;
+      x0 = e.clientX; y0 = e.clientY;
+      try { grip.setPointerCapture(e.pointerId); } catch (_) {}
     });
-  }
-  if (tpSideBackdrop && tpSideEl) {
-    tpSideBackdrop.addEventListener('click', () => {
-      tpSideEl.classList.remove('tp-side--expanded');
-      tpSideBackdrop.classList.remove('is-visible');
-      if (tpSideToggle) tpSideToggle.title = 'Abrir menú';
+    grip.addEventListener('pointermove', e => {
+      if (!arrastrando) return;
+      dx = e.clientX - x0;
+      if (Math.abs(dx) > 6 || Math.abs(e.clientY - y0) > 6) movio = true;
+      // El asa acompaña al dedo (tope de 34px) para que el gesto se sienta vivo
+      const lim = Math.max(-34, Math.min(34, dx));
+      grip.style.transform = `translateY(-50%) translateX(${lim}px)`;
     });
-  }
+    function finArrastre() {
+      if (!arrastrando) return;
+      arrastrando = false;
+      grip.style.transform = '';
+      if (!movio) { setOpen(!abierta()); return; }   // fue un toque simple
+      if (dx >  UMBRAL) setOpen(true);
+      else if (dx < -UMBRAL) setOpen(false);
+    }
+    grip.addEventListener('pointerup', finArrastre);
+    grip.addEventListener('pointercancel', finArrastre);
+
+    // Deslizar hacia la izquierda sobre la barra abierta también cierra
+    let sx = 0, siguiendo = false;
+    side.addEventListener('pointerdown', e => {
+      if (!abierta() || e.target.closest('.tp-side-grip')) return;
+      siguiendo = true; sx = e.clientX;
+    });
+    side.addEventListener('pointerup', e => {
+      if (!siguiendo) return;
+      siguiendo = false;
+      if (e.clientX - sx < -UMBRAL) setOpen(false);
+    });
+
+    // Tocar fuera de la barra la cierra
+    if (backdrop) backdrop.addEventListener('click', () => setOpen(false));
+  })();
 
   // Tabs del browser
   document.querySelectorAll('[data-tab]').forEach(btn => {

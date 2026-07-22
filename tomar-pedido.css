@@ -738,6 +738,7 @@ svg { display: block; }
 
 /* ── Sidebar compacto en tablet ─────────────────────────────── */
 .tp-side-toggle  { display: none; }
+.tp-side-grip    { display: none; }   /* solo tablet: se activa en el @media */
 .tp-side-backdrop { display: none; }
 
 @media (max-width: 1100px) {
@@ -749,29 +750,44 @@ svg { display: block; }
     z-index: 10;
   }
 
-  /* Botón toggle (flecha) */
-  .tp-side-toggle {
+  /* Asa deslizable: sustituye la flecha. Comunica "arrastrame" y ademas
+     acepta un toque simple (respaldo con las manos ocupadas en cocina). */
+  .tp-side-grip {
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 5px;
     position: absolute;
-    right: -15px;
-    top: 18px;
-    width: 30px;
-    height: 30px;
-    background: #FFFFFF;
-    border: 1px solid #ECEEF2;
-    border-radius: 50%;
-    cursor: pointer;
+    right: -30px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 0;
+    background: none;
+    border: none;
+    cursor: grab;
     z-index: 501;
-    box-shadow: 2px 0 8px rgba(15,23,42,.10);
-    color: #64748B;
-    flex-shrink: 0;
-    transition: background .15s, color .15s;
+    touch-action: none;          /* el gesto lo maneja el JS, no el scroll */
+    -webkit-tap-highlight-color: transparent;
   }
-  .tp-side-toggle:hover { background: #F1F5F9; color: #0F172A; }
-  .tp-side-toggle svg { transition: transform .2s ease; }
-  .tp-side--expanded .tp-side-toggle svg { transform: rotate(180deg); }
+  .tp-side-grip:active { cursor: grabbing; }
+  .tp-grip-bar {
+    width: 5px; height: 46px; border-radius: 99px;
+    background: #CBD5E1; flex-shrink: 0;
+    transition: background .15s, height .15s;
+  }
+  .tp-side-grip:hover .tp-grip-bar,
+  .tp-side-grip:active .tp-grip-bar { background: #5B6BFF; height: 56px; }
+  .tp-grip-hint {
+    display: flex; align-items: center; gap: 2px;
+    font-size: 9.5px; font-weight: 700; color: #94A3B8;
+    white-space: nowrap; pointer-events: none;
+  }
+  .tp-grip-arrow { transition: transform .2s ease; }
+  /* Abierta: la barra se ve sobre el fondo oscuro y la flecha apunta adentro */
+  .tp-side--expanded .tp-grip-bar { background: #E2E8F0; }
+  .tp-side--expanded .tp-grip-hint { color: #fff; }
+  .tp-side--expanded .tp-grip-arrow { transform: rotate(180deg); }
+  /* Mientras se arrastra, sin animacion para que siga al dedo */
+  .tp-side.is-dragging { transition: none !important; }
 
   /* Ocultar textos en estado compacto */
   .tp-side:not(.tp-side--expanded) .tp-brand-name,
