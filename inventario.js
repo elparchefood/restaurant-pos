@@ -275,7 +275,7 @@ function showScreen(name) {
   document.getElementById('crumb-title').textContent  = info.crumb || info.title || name;
   if (name === 'productos') renderProductos();
   if (name === 'insumos')   renderInsumos();
-  if (name === 'recetas')   renderRecetasList();
+  if (name === 'recetas')   refrescarCosteo();
   if (name === 'unidades')  renderUnidades();
 }
 
@@ -622,7 +622,7 @@ async function aplicarReponer() {
   ins.stock=nuevoStock; ins.precio=nuevoPrecio;
   closePanel('panel-reponer');
   showToast('✓ '+ins.nombre+' reponido → '+nuevoStock+' '+ins.buyUnit);
-  renderInsumos(); updateKPIs();
+  renderInsumos(); updateKPIs(); refrescarCosteo();
   if (document.getElementById('screen-productos').classList.contains('on')) renderProductos();
 }
 
@@ -695,7 +695,7 @@ async function aplicarCompra() {
   }
   closePanel('panel-compra');
   showToast('✓ Compra registrada — '+n+' insumos actualizados');
-  renderInsumos(); updateKPIs();
+  renderInsumos(); updateKPIs(); refrescarCosteo();
 }
 
 // ═══════════════════════════════════════════════════
@@ -772,7 +772,7 @@ async function guardarInsumo() {
   }
   closePanel('panel-insumo');
   showToast('✓ Insumo guardado');
-  renderInsumos(); updateKPIs();
+  renderInsumos(); updateKPIs(); refrescarCosteo();
 }
 async function eliminarInsumo() {
   const editId=document.getElementById('ins-edit-id').value;
@@ -786,6 +786,21 @@ async function eliminarInsumo() {
 // ═══════════════════════════════════════════════════
 // RECETAS Y COSTEO
 // ═══════════════════════════════════════════════════
+let _recetaAbierta = null;   // id del producto cuya receta está abierta en el detalle de costeo
+
+// Refresca la lista de costeo y el detalle abierto tras cambiar datos de un insumo
+// (precio/conversión/etc.). Antes, editar un insumo NO actualizaba el costeo que ya
+// estaba en pantalla → mostraba valores viejos (ej. salchicha en $15M).
+function refrescarCosteo() {
+  renderRecetasList();
+  const onRecetas = document.getElementById('screen-recetas') && document.getElementById('screen-recetas').classList.contains('on');
+  if (onRecetas && _recetaAbierta && productos.find(p => p.id === _recetaAbierta && p.receta && p.receta.length)) {
+    const btn = document.querySelector('.iv-rec-listitem[data-receta="' + _recetaAbierta + '"]');
+    if (btn) btn.classList.add('on');
+    abrirRecetaDetalle(_recetaAbierta);
+  }
+}
+
 function renderRecetasList() {
   const list=document.getElementById('rec-list');
   list.innerHTML='';
@@ -810,6 +825,7 @@ function renderRecetasList() {
 function abrirRecetaDetalle(prodId) {
   const prod=productos.find(p=>p.id===prodId);
   if (!prod||!prod.receta||prod.receta.length===0) return;
+  _recetaAbierta = prodId;
   if (!document.getElementById('screen-recetas').classList.contains('on')) {
     showScreen('recetas');
     setTimeout(()=>{document.querySelectorAll('.iv-rec-listitem').forEach(b=>b.classList.toggle('on',b.dataset.receta===prodId));abrirRecetaDetalle(prodId);},50);
