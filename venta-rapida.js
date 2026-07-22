@@ -8,6 +8,7 @@
   const S = {
     cart:       [],   // [{id,name,price,catId,catName,catColor,fav,qty}]
     descuento:  0,
+    etiqueta:   null, // etiqueta del pedido (Espera / Avisar / …) — opcional
     cliente:    null,
     clientes:   [],
     editCliId:  null,
@@ -524,6 +525,36 @@
     });
   }
 
+  /* ─── Etiquetas de venta rápida ───────────────────────────────
+     Se crean en Configuración › Operación y se sincronizan por BD, así que
+     la tablet ve las mismas. Una sola por pedido; volver a tocarla la quita. */
+  function vrEtiquetas() {
+    try {
+      const cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
+      if (!cfg.etiquetasVRActivo) return [];
+      return Array.isArray(cfg.etiquetasVR) ? cfg.etiquetasVR.filter(e => e && e.nombre) : [];
+    } catch (e) { return []; }
+  }
+  function renderEtiquetas() {
+    const row = $('vr-etq-row'), cont = $('vr-etq-chips');
+    if (!row || !cont) return;
+    const list = vrEtiquetas();
+    if (!list.length) { row.style.display = 'none'; return; }
+    row.style.display = 'flex';
+    cont.innerHTML = list.map(e => {
+      const on = S.etiqueta === e.nombre;
+      return '<button type="button" data-etq="' + vrAttr(e.nombre) + '" style="font-family:inherit;font-size:12px;font-weight:700;padding:5px 13px;border-radius:999px;cursor:pointer;border:1px solid ' + (on ? '#5B6BFF' : '#E2E8F0') + ';background:' + (on ? '#5B6BFF' : '#fff') + ';color:' + (on ? '#fff' : '#64748B') + '">' + vrEsc(e.nombre) + '</button>';
+    }).join('');
+    cont.querySelectorAll('[data-etq]').forEach(b => {
+      b.addEventListener('click', function () {
+        const v = this.dataset.etq;
+        S.etiqueta = (S.etiqueta === v) ? null : v;   // toca de nuevo = quitar
+        try { localStorage.setItem('pos.vr.etiqueta', S.etiqueta || ''); } catch (e) {}
+        renderEtiquetas();
+      });
+    });
+  }
+
   /* ─── Cliente ─────────────────────────────────────────────── */
   function setupClienteRow() {
     const row = $('vr-cliente-row');
@@ -878,6 +909,10 @@
   function finalizarVenta() {
     S.cart = [];
     saveCart();
+    // La etiqueta es por pedido: se limpia para no marcar mal el siguiente
+    S.etiqueta = null;
+    try { localStorage.removeItem('pos.vr.etiqueta'); } catch(e) {}
+    renderEtiquetas();
     S.turno += 1;
     saveTurno();
     S.orderId = null;
@@ -960,7 +995,12 @@
         discount_amount: S.descuento,
         service_charge: 0,
         customer_name:  (S.cliente && S.cliente.nombre) || null,
-        notes:          _vrBarrio ? '[barrio:' + _vrBarrio.toUpperCase() + ']' : null,
+        // La etiqueta viaja en notes con el mismo patrón que el barrio, para que
+        // la comanda la lea sin necesitar una columna nueva.
+        notes:          [
+                          _vrBarrio ? '[barrio:' + _vrBarrio.toUpperCase() + ']' : '',
+                          S.etiqueta ? '[etq:' + String(S.etiqueta).toUpperCase() + ']' : '',
+                        ].filter(Boolean).join(' ') || null,
         visible_cocina: !!visible,
         turno:          S.turno,
       }).select('id').single();
@@ -1403,6 +1443,8 @@
     updateClienteDisplay();
 
     setupTabs();
+    try { S.etiqueta = localStorage.getItem('pos.vr.etiqueta') || null; } catch(e) {}
+    renderEtiquetas();
     setupClienteRow();
     setupSidebarActions();
     setupModals();

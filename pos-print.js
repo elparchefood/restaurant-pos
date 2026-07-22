@@ -38,6 +38,9 @@
     var _notes = order.notes || '';
     var _barrioMatch = _notes.match(/\[barrio:([^\]]+)\]/i);
     var _barrio = _barrioMatch ? _barrioMatch[1] : '';
+    // Etiqueta de venta rápida (Espera / Avisar / …) — se guarda en notes
+    var _etqMatch = _notes.match(/\[etq:([^\]]+)\]/i);
+    var _etq = _etqMatch ? _etqMatch[1] : '';
 
     var _customerName = (order.customer_name || '').toUpperCase();
 
@@ -74,10 +77,12 @@
       + '</head><body>'
       + ((isDomicilio || isRapido)
           ? (_barrio
-              ? '<div style="font-size:13px;font-weight:900;text-align:center;letter-spacing:1px;margin-bottom:1px;">' + (isDomicilio ? 'DOMICILIO' : 'PARA LLEVAR') + '</div>'
+              ? '<div style="font-size:13px;font-weight:900;text-align:center;letter-spacing:1px;margin-bottom:1px;">' + (isDomicilio ? 'DOMICILIO' : 'VENTA RAPIDA') + '</div>'
                 + '<div style="font-size:24px;font-weight:900;text-align:center;margin-bottom:2px;">' + _barrio + '</div>'
+                + (isRapido && _etq ? '<div style="font-size:14px;font-weight:900;text-align:center;letter-spacing:1px;margin-bottom:2px;">' + _etq + '</div>' : '')
                 + (_customerName ? '<div style="font-size:14px;font-weight:700;text-align:center;margin-bottom:2px;">' + _customerName + '</div>' : '')
-              : '<div style="font-size:20px;font-weight:900;text-align:center;margin-bottom:2px;">' + (isDomicilio ? 'DOMICILIO' : 'PARA LLEVAR') + '</div>'
+              : '<div style="font-size:' + (isRapido ? '16px' : '20px') + ';font-weight:900;text-align:center;margin-bottom:2px;">' + (isDomicilio ? 'DOMICILIO' : 'VENTA RAPIDA') + '</div>'
+                + (isRapido && _etq ? '<div style="font-size:14px;font-weight:900;text-align:center;letter-spacing:1px;margin-bottom:2px;">' + _etq + '</div>' : '')
                 + (_customerName ? '<div style="font-size:14px;font-weight:700;text-align:center;margin-bottom:2px;">' + _customerName + '</div>' : ''))
           : '<div style="font-size:20px;font-weight:900;text-align:center;margin-bottom:2px;">MESA ' + mesa + '</div>')
       + (!isDomicilio && !isRapido && pax ? '<div style="font-size:13px;font-weight:700;padding-left:55%;">( ' + pax + ' PAX)</div>' : '')
@@ -150,7 +155,7 @@
     var notes = String(order.notes || '');
     var mB = notes.match(/\[barrio:([^\]]+)\]/i); var barrio = mB ? mB[1] : '';
     var mT = notes.match(/\[tel:([^\]]+)\]/i);    var telCli = mT ? mT[1] : (order.customer_phone || '');
-    var dirCli = notes.replace(/\[barrio:[^\]]+\]/ig,'').replace(/\[tel:[^\]]+\]/ig,'').replace(/·\s*Ref:\S+/ig,'').trim();
+    var dirCli = notes.replace(/\[barrio:[^\]]+\]/ig,'').replace(/\[tel:[^\]]+\]/ig,'').replace(/\[etq:[^\]]+\]/ig,'').replace(/·\s*Ref:\S+/ig,'').trim();
     var esLlevar = String(order.channel||'').toLowerCase().indexOf('rapid')>=0 || /para\s+llevar|recog/i.test(dirCli);
     var num = '#' + String(order.id||'').slice(-5).toUpperCase();
 

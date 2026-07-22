@@ -809,6 +809,31 @@
             </div>
           </div>
 
+          <!-- SECCIÓN 4b · Etiquetas de venta rápida -->
+          <div class="op-card">
+            <div class="op-card-head">
+              <div class="op-card-icon" style="background:#EEF2FF;color:#5B6BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>
+              <div>
+                <div class="op-card-num">Sección 4b</div>
+                <div class="op-card-title">Etiquetas de venta rápida</div>
+                <div class="op-card-sub">Marca cómo se entrega cada pedido para llevar. Se imprime en la comanda.</div>
+              </div>
+            </div>
+            <div class="op-row">
+              <div>
+                <div class="op-label">Activar etiquetas</div>
+                <div class="op-hint">El cajero elige una al tomar el pedido (opcional).</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <span class="op-state off" id="op-etq-state">Desactivado</span>
+                <button class="op-switch" id="op-sw-etiquetas"><span class="op-knob"></span></button>
+              </div>
+            </div>
+            <div id="op-etiquetas-body" style="display:none">
+              <div class="op-hint" style="margin-bottom:8px">Ej. Espera, Avisar, Programado, A carro.</div>
+              <div id="op-etq-chips" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"></div>
+            </div>
+          </div>
           <!-- SECCIÓN 5 · Tiempos de automatización de mesa (C9) -->
           <div class="op-card">
             <div class="op-card-head">
@@ -1917,9 +1942,9 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-core.js?v=25"></script>
-<script src="pos-print.js?v=13"></script>
+<script src="pos-print.js?v=14"></script>
 <script src="pos-print-listener.js?v=1"></script>
-<script src="configuracion.js?v=1784774000"></script>
+<script src="configuracion.js?v=1784800000"></script>
 </body>
 </html>
 

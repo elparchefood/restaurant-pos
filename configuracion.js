@@ -1787,6 +1787,8 @@ var OP_DEFAULTS = {
   empaqueProductoIds: '',    // LEGADO
   empaqueModo: 'unificado',  // 'unificado' | 'especifico'
   empaquePacks: [],          // [{id, nombre, monto}] empaques personalizados
+  etiquetasVRActivo: false,  // etiquetas de venta rápida (Espera / Avisar / …)
+  etiquetasVR: [],           // [{id, nombre}]
   empaqueCatCfg: {},         // {catId: {on:bool, packId:string|null}} — null = valor general
   empaqueProdCfg: {},        // {prodId: 'none' | 'general' | packId} — ausente = hereda categoría
   empaquePresCfg: {},        // {'prodId::presId': 'none'|'general'|packId} — ausente = hereda producto
@@ -1930,6 +1932,7 @@ function opRender() {
   // try/catch: un error del panel específico JAMÁS debe romper opRender
   // (si opRender muere antes de opCheckDirty, el botón Guardar queda muerto)
   if (esp) { try { opRenderEmpEsp(); } catch (e) { console.error('opRenderEmpEsp:', e); } }
+  try { opRenderEtiquetas(); } catch (e) { console.error('opRenderEtiquetas:', e); }
 
   // C9 — T1/T2/T3
   var t1El = $('op-mesaT1'); if (t1El) t1El.textContent = d.mesaT1 || 10;
@@ -1965,6 +1968,31 @@ var _empCatalog = null;    // { cats:[{id,name}], prods:[{id,name,category_id}] 
 var _empOpen = {};         // categorías desplegadas en la UI
 var _empOpenProd = {};     // productos desplegados (muestran sus presentaciones)
 var _empPackForm = false;  // formulario inline "Crear empaque" abierto (prompt no existe en Electron)
+var _etqForm = false;      // formulario inline "Crear etiqueta" abierto
+
+// ── Etiquetas de venta rápida ──────────────────────────────────
+function opRenderEtiquetas() {
+  var d = _opDraft;
+  var st = $('op-etq-state');
+  if (st) { st.textContent = d.etiquetasVRActivo ? 'Activado' : 'Desactivado'; st.className = 'op-state ' + (d.etiquetasVRActivo ? 'on' : 'off'); }
+  opSetToggle('op-sw-etiquetas', d.etiquetasVRActivo);
+  var body = $('op-etiquetas-body');
+  if (body) body.style.display = d.etiquetasVRActivo ? '' : 'none';
+  var cont = $('op-etq-chips');
+  if (!cont || !d.etiquetasVRActivo) return;
+  var chips = (d.etiquetasVR || []).map(function (e) {
+    return '<span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;background:#EEF2FF;color:#4F5BE3;border:1px solid #C7D2FE;padding:5px 11px;border-radius:999px">'
+      + _empEsc(e.nombre)
+      + '<button type="button" data-etq-del="' + _empEsc(e.id) + '" title="Quitar" style="border:none;background:none;cursor:pointer;color:#818CF8;font-size:15px;line-height:1;padding:0">&times;</button></span>';
+  }).join('');
+  cont.innerHTML = chips + (_etqForm
+    ? '<span style="display:inline-flex;align-items:center;gap:6px;background:#FAFAFF;border:1.5px solid #C7D2FE;padding:5px 8px;border-radius:12px">'
+      + '<input id="op-etq-nombre" placeholder="Nombre (ej. Avisar)" style="font-family:inherit;font-size:12px;border:1px solid #E2E8F0;border-radius:7px;padding:5px 8px;width:150px;outline:none">'
+      + '<button type="button" id="op-etq-ok" style="font-family:inherit;font-size:12px;font-weight:700;border:none;background:#5B6BFF;color:#fff;padding:6px 11px;border-radius:8px;cursor:pointer">Agregar</button>'
+      + '<button type="button" id="op-etq-cancel" style="font-family:inherit;font-size:12px;font-weight:700;border:none;background:none;color:#94A3B8;padding:6px 4px;cursor:pointer">Cancelar</button>'
+      + '</span>'
+    : '<button type="button" id="op-etq-new" style="display:inline-flex;align-items:center;gap:5px;font-family:inherit;font-size:12.5px;font-weight:700;border:1.5px dashed #C7D2FE;background:#FAFAFF;color:#4F5BE3;padding:6px 12px;border-radius:999px;cursor:pointer">+ Crear etiqueta</button>');
+}
 function _empEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function _empFmt(n){ return '$' + Number(Math.round(n||0)).toLocaleString('es-CO'); }
 
@@ -2205,6 +2233,31 @@ function opBindEvents() {
       opToast('Cambios de operación guardados');
     });
   }
+
+  // Etiquetas de venta rápida — switch + crear/borrar (delegación de clics)
+  var swEtq = $('op-sw-etiquetas');
+  if (swEtq) swEtq.addEventListener('click', function () {
+    _opDraft.etiquetasVRActivo = !_opDraft.etiquetasVRActivo;
+    opRender(); opCheckDirty();
+  });
+  var etqWrap = $('op-etiquetas-body');
+  if (etqWrap) etqWrap.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-etq-del],#op-etq-new,#op-etq-ok,#op-etq-cancel');
+    if (!t) return;
+    if (t.id === 'op-etq-new') { _etqForm = true; opRenderEtiquetas(); var i = $('op-etq-nombre'); if (i) i.focus(); return; }
+    if (t.id === 'op-etq-cancel') { _etqForm = false; opRenderEtiquetas(); return; }
+    if (t.id === 'op-etq-ok') {
+      var inp = $('op-etq-nombre');
+      var nom = inp ? inp.value.trim() : '';
+      if (!nom) { if (inp) inp.focus(); return; }
+      _opDraft.etiquetasVR = (_opDraft.etiquetasVR || []).concat([{ id: 'et_' + Date.now().toString(36), nombre: nom }]);
+      _etqForm = false; opRenderEtiquetas(); opCheckDirty(); return;
+    }
+    if (t.dataset.etqDel) {
+      _opDraft.etiquetasVR = (_opDraft.etiquetasVR || []).filter(function (x) { return x.id !== t.dataset.etqDel; });
+      opRenderEtiquetas(); opCheckDirty(); return;
+    }
+  });
 
   // C3b — Empaques switch
   var swEmpaques = $('op-sw-empaques');
