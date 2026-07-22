@@ -23,13 +23,33 @@ const MEDIO_SVG = {
   daviplata:     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/></svg>',
 };
 
-const METODOS = [
-  { key:'efectivo',      label:'Efectivo',      color:'#16A34A', bg:'#DCFCE7' },
-  { key:'tarjeta',       label:'Tarjeta',        color:'#5B6BFF', bg:'#EEF2FF' },
-  { key:'transferencia', label:'Transferencia',  color:'#0EA5E9', bg:'#F0F9FF' },
-  { key:'nequi',         label:'Nequi',          color:'#8B5CF6', bg:'#F5F3FF' },
-  { key:'daviplata',     label:'Daviplata',      color:'#E11D48', bg:'#FFF1F2' },
-];
+// (Se eliminó la lista fija de métodos de pago: la fuente de verdad es
+//  "Métodos de pago" → ia_config.pagos, cargada en S.payMethods.)
+
+// Rellena con los métodos CONFIGURADOS: el filtro del historial y los botones
+// de medio en ingresos/egresos. Antes estaban escritos a mano en el HTML y
+// mostraban Tarjeta/Nequi/Daviplata aunque el negocio no los usara.
+function renderMetodosDinamicos() {
+  const methods = S.payMethods || [];
+  if (!methods.length) return;
+
+  const sel = document.getElementById('hf-pago');
+  if (sel) {
+    const prev = sel.value;
+    sel.innerHTML = '<option value="todos">Todos</option>'
+      + methods.map(m => '<option value="' + cjEsc(m.key) + '">' + cjEsc(m.nombre) + '</option>').join('');
+    if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+  }
+
+  const cont = document.querySelector('#panel-movimiento .mov-medio-btn')?.parentElement;
+  if (cont) {
+    cont.innerHTML = methods.map((m, i) => {
+      const on = i === 0 ? ' style="background:#DCFCE7;border-color:#16A34A;color:#16A34A"' : '';
+      return '<button class="cj-btn-ghost sm mov-medio-btn" data-medio="' + cjEsc(m.nombre) + '"' + on
+        + ' onclick="selectMedio(this)">' + cjEsc(m.nombre) + '</button>';
+    }).join('');
+  }
+}
 
 const CANALES = [
   { key:'salon',     label:'Salón',     color:'#5B6BFF', bg:'#EEF2FF' },
@@ -75,6 +95,7 @@ async function refreshAll() {
     if (S.session.arqueo_denoms) S.arqueoDenoms = S.session.arqueo_denoms;
   } else { S.orders = []; S.items = []; S.pagosMetodo = {}; }
   S.payMethods = await loadPayMethodsConfig();
+  renderMetodosDinamicos();
   const moves = await getMoves();
   renderCajaState();
   renderHero(S.orders, moves);
@@ -889,16 +910,25 @@ document.getElementById('btn-cerrar').addEventListener('click', async function()
   document.getElementById('cerrar-sub').textContent      = `Caja 01 · Turno ${turno}`;
   document.getElementById('cerrar-esperado').textContent = COPF(efectivo);
 
+  // Métodos CONFIGURADOS en "Métodos de pago" (antes esta lista estaba fija en
+  // el código y mostraba Tarjeta/Nequi/Daviplata aunque no existieran).
+  const methods = S.payMethods || [];
+  const usados  = {};
+  const filasPago = methods.map(m => {
+    usados[m.key] = true;
+    return [m.nombre, COPF(pagos[m.key] || 0), ' mut'];
+  });
+  // "Otros": cobros históricos con un método que ya no está configurado
+  let otrosPago = 0;
+  Object.keys(pagos).forEach(k => { if (!usados[k]) otrosPago += pagos[k] || 0; });
+  if (otrosPago > 0) filasPago.push(['Otros', COPF(otrosPago), ' mut']);
+
   // Filas kv del resumen
   const kvs = [
     ['Base de apertura',  COPF(base),     ''],
     ['Total de ventas',   COPF(totalV),   ' strong'],
     null, // divider
-    ['Efectivo',          COPF(pagos['efectivo'] || 0), ' mut'],
-    ['Tarjeta',           COPF(pagos['tarjeta'] || 0), ' mut'],
-    ['Transferencia',     COPF(pagos['transferencia'] || 0), ' mut'],
-    ['Nequi',             COPF(pagos['nequi'] || 0), ' mut'],
-    ['Daviplata',         COPF(pagos['daviplata'] || 0), ' mut'],
+    ...filasPago,
     null,
     ['Ingresos',          `<span style="color:#16A34A">+${COPF(ingresos)}</span>`, ''],
     ['Egresos',           `<span style="color:#DC2626">−${COPF(egresos)}</span>`, ''],
