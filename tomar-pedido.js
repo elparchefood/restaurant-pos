@@ -8,7 +8,9 @@
 const S = {
   userId: null, tenantId: null, branchId: null,
   waiterName: '—', userRole: '—', tableId: null, table: null,
-  serviceEnabled: true,
+  // La propina/servicio la decide el CAJERO al cobrar (pagos.html tiene su propio
+  // control). En la tablet ya no hay interruptor, así que el mesero ve el total limpio.
+  serviceEnabled: false,
   cats: [], products: [],
   order: null,  // registro en pos_orders (si ya existe)
   cart: [],     // [{id, productId, name, qty, unitPrice, catColor, selections:{pres,var,mods}}]
@@ -506,13 +508,15 @@ function paintCartState() {
   const service = S.serviceEnabled ? total * 0.10 : 0;
   const grand   = total + service;
 
+  // Subtotal y Servicio solo aparecen si aportan información (si no, repiten el Total)
+  const rowSub = $('row-subtotal'), rowSvc = $('row-servicio');
+  if (rowSub) rowSub.hidden = (grand === total);
+  if (rowSvc) rowSvc.hidden = !service;
   $('t-subtotal').textContent = COPF(total);
-  $('t-servicio').textContent = S.serviceEnabled ? COPF(service) : '—';
+  $('t-servicio').textContent = COPF(service);
   $('t-total').textContent    = COPF(grand);
-  const tog = $('service-toggle');
-  if(tog) tog.classList.toggle('on', S.serviceEnabled);
 
-  $('cart-count-label').textContent = `Comanda · ${S.cart.length} ítem${S.cart.length !== 1 ? 's' : ''}`;
+  $('cart-count-label').textContent = `${S.cart.length} ítem${S.cart.length !== 1 ? 's' : ''}`;
   $('cartmini-title').textContent   = `${S.cart.length} ítem${S.cart.length !== 1 ? 's' : ''} en cuenta`;
   $('cartmini-sub').textContent     = COPF(grand);
 
@@ -537,6 +541,14 @@ function paintCartState() {
       </button>
     </div>
     <div class="tp-cartline-total">${COPF(it.unitPrice * it.qty)}</div>
+    <div class="tp-line-acts">
+      <button class="tp-line-act" data-cart-edit="${idx}" title="Editar adiciones y notas">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
+      </button>
+      <button class="tp-line-act danger" data-cart-del="${idx}" title="Quitar producto">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      </button>
+    </div>
   </div>`).join('');
 }
 
@@ -573,7 +585,8 @@ function pmSteps(p){
 function tpOpenProductModal(prodId) {
   const p = S.products.find(x=>x.id===prodId);
   if(!p) return;
-  TP_WIP = { prod:p, stepIdx:0, pres:null, vars:{}, mods:{}, qty:1, note:'', forHere:true };
+  // editIdx null = producto NUEVO (si viniera de editar, reemplazaría una línea)
+  TP_WIP = { prod:p, stepIdx:0, pres:null, vars:{}, mods:{}, qty:1, note:'', forHere:true, editIdx:null };
   const hasPres=(p.presentations||[]).length>1;
   if(!hasPres){
     const pArr=p.presentations||[];
@@ -949,13 +962,50 @@ function tpMPAddToCart(){
   const modSummary=Object.values(TP_WIP.mods).map(m=>m.name).join(', ');
   const unitPrice=tpComputePrice()/TP_WIP.qty;
   const lineId='li_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-  S.cart.push({
+  const linea = {
     id:null, lineId, productId:p.id, name:displayName, qty:TP_WIP.qty,
     unitPrice, catColor:catColorFor(p.id), modSummary, note:TP_WIP.note||'',
     forHere:TP_WIP.forHere,
+    // Guardamos el estado crudo del modal para poder REABRIRLO tal cual al editar
+    wip:{ presId:(TP_WIP.pres&&TP_WIP.pres.id)||null, vars:{...TP_WIP.vars}, mods:{...TP_WIP.mods} },
     selections:{pres:presLabel||null,vars:{...TP_WIP.vars},mods:{...TP_WIP.mods}},
-  });
+  };
+  if (TP_WIP.editIdx !== null && TP_WIP.editIdx !== undefined && S.cart[TP_WIP.editIdx]) {
+    linea.lineId = S.cart[TP_WIP.editIdx].lineId;   // conservar identidad de la línea
+    linea.id     = S.cart[TP_WIP.editIdx].id;
+    S.cart[TP_WIP.editIdx] = linea;
+  } else {
+    S.cart.push(linea);
+  }
   tpCloseMP(); paintCartState();
+}
+
+// Reabrir el modal de personalización sobre una línea YA agregada, con sus
+// adiciones, variables, nota y cantidad tal como quedaron.
+function tpEditCartLine(idx) {
+  const it = S.cart[idx];
+  if (!it) return;
+  const p = S.products.find(x => x.id === it.productId);
+  if (!p) { showToast && showToast('Producto no disponible en el catálogo'); return; }
+  TP_WIP = {
+    prod: p, stepIdx: 0, pres: null, vars: {}, mods: {},
+    qty: it.qty || 1, note: it.note || '', forHere: it.forHere !== false,
+    editIdx: idx,
+  };
+  const w = it.wip || {};
+  const pArr = p.presentations || [];
+  TP_WIP.pres = (w.presId && pArr.find(x => x.id === w.presId))
+    || (pArr.length === 1 ? pArr[0] : null)
+    || (pArr.length ? null : { id:'_base', name:'', price: parseFloat(p.price)||0 });
+  if (!TP_WIP.pres && pArr.length <= 1) TP_WIP.pres = { id:'_base', name:'', price: parseFloat(p.price)||0 };
+  TP_WIP.vars = { ...(w.vars || it.selections?.vars || {}) };
+  TP_WIP.mods = { ...(w.mods || it.selections?.mods || {}) };
+  // Abrir directo en "Personalizar" (último paso): es a lo que se va a editar
+  const steps = pmSteps(p);
+  TP_WIP.stepIdx = Math.max(0, steps.length - 1);
+  const el = document.getElementById('tp-modal-producto');
+  if (el) el.style.display = 'flex';
+  tpRenderMP();
 }
 
 function addToCart(prodId) {
@@ -1284,6 +1334,21 @@ function bindEvents() {
     // Volver al grid de categorías
     if (e.target.closest('[data-sub-back]')) {
       showCatSub('grid');
+      return;
+    }
+
+    // Editar una línea (reabre el modal de personalización)
+    const editBtn = e.target.closest('[data-cart-edit]');
+    if (editBtn) {
+      tpEditCartLine(parseInt(editBtn.dataset.cartEdit, 10));
+      return;
+    }
+
+    // Quitar una línea completa
+    const delBtn = e.target.closest('[data-cart-del]');
+    if (delBtn) {
+      S.cart.splice(parseInt(delBtn.dataset.cartDel, 10), 1);
+      paintCartState();
       return;
     }
 
