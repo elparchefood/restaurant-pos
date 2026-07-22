@@ -622,15 +622,15 @@ async function loadUser() {
     _cfgBranchId = branchId || null;
     if (branchId) {
       var r = await sb.from('pos_branches').select('name').eq('id', branchId).single();
-      if (r.data) $('brand-sub').textContent = r.data.name;
-      else $('brand-sub').textContent = 'Mi restaurante';
+      if (r.data) $('brand-sub').textContent = r.data.name;  // sucursal activa
+      else /* nombre del restaurante: pos-brand.js */;
     } else {
-      $('brand-sub').textContent = 'Mi restaurante';
+      /* nombre del restaurante: pos-brand.js */;
     }
   } catch(e) {
     console.error('loadUser:', e);
     $('user-name').textContent = 'Usuario';
-    $('brand-sub').textContent = 'Mi restaurante';
+    /* nombre del restaurante: pos-brand.js */;
   }
 }
 

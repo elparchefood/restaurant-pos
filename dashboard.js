@@ -34,7 +34,7 @@ async function loadBranch() {
   }
   S.branch = data;
   const brand = data.brands?.name || data.name;
-  $('sb-brand').textContent = brand;
+  // La marca del sidebar la gestiona pos-brand.js (siempre "Cobra POS").
   $('tb-branch').innerHTML = brand + (data.name !== brand ? ' &middot; <span style="color:#64748B;font-weight:500">' + data.name + '</span>' : '');
   $('tb-mode').textContent = data.is_open ? 'En operacion' : 'Cerrado';
   $('sb-status').textContent = '● en linea';
@@ -43,22 +43,54 @@ async function loadBranch() {
 }
 
 // ── User ──────────────────────────────────────────────
+// Cualquier rol (gerente, cajera, mesero, admin…) se muestra capitalizado.
+function rotuloRol(role) {
+  if (!role) return 'Usuario';
+  const r = String(role).replace(/_/g, ' ').trim();
+  return r.charAt(0).toUpperCase() + r.slice(1);
+}
+
 async function loadUser(branchId) {
   const greeting = renderDate();
-  const q = sb.from('pos_users').select('*').in('role',['gerente','cajera']).limit(1);
-  if (branchId) q.eq('branch_id', branchId);
-  const { data } = await q.maybeSingle();
+
+  // Debe mostrarse QUIEN está usando el sistema, no el primer usuario
+  // de la sucursal: se resuelve desde la sesión autenticada.
+  const authUserR = await sb.auth.getUser();
+  const authUser  = authUserR.data && authUserR.data.user;
+  let data = null;
+
+  if (authUser) {
+    let r = await sb.from('pos_users').select('*').eq('auth_user_id', authUser.id).maybeSingle();
+    if (!r.data && authUser.email) {
+      r = await sb.from('pos_users').select('*').eq('email', authUser.email).maybeSingle();
+    }
+    data = r.data || null;
+    // Sin ficha en pos_users, la metadata de auth ya trae nombre y rol.
+    if (!data) {
+      const meta = authUser.user_metadata || {};
+      if (meta.name || meta.full_name || meta.role) {
+        data = { name: meta.name || meta.full_name || authUser.email, role: meta.role || '' };
+      }
+    }
+  }
+
+  // Último recurso: el usuario configurado en la sucursal.
+  if (!data) {
+    const q = sb.from('pos_users').select('*').in('role',['gerente','cajera']).limit(1);
+    if (branchId) q.eq('branch_id', branchId);
+    data = (await q.maybeSingle()).data;
+  }
+
   if (data) {
     const ini = data.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
     $('tb-avatar').textContent = ini;
     $('tb-uname').textContent  = data.name;
     S.posUser = data;
-    $('tb-urole').textContent  = data.role === 'gerente' ? 'Gerente' : 'Cajera';
+    $('tb-urole').textContent  = rotuloRol(data.role);
     // dropdown
     $('dd-avatar').textContent = ini;
     $('dd-uname').textContent  = data.name;
-    var authUserR = await sb.auth.getUser();
-    $('dd-email').textContent  = authUserR.data?.user?.email || '—';
+    $('dd-email').textContent  = (authUser && authUser.email) || '—';
     $('hero-title').textContent = greeting + ', ' + data.name.split(' ')[0] + '.';
   } else {
     $('tb-avatar').textContent  = 'A';
@@ -67,8 +99,7 @@ async function loadUser(branchId) {
     // dropdown
     $('dd-avatar').textContent = 'A';
     $('dd-uname').textContent  = 'Administrador';
-    var authUser = await sb.auth.getUser();
-    $('dd-email').textContent  = authUser.data?.user?.email || '—';
+    $('dd-email').textContent  = (authUser && authUser.email) || '—';
     $('hero-title').textContent = greeting + '.';
   }
 }

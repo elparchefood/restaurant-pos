@@ -458,7 +458,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     HS.branchId = meta.branch_id || null;
     if (HS.branchId) {
       const { data: branch } = await sb.from('branches').select('name').eq('id', HS.branchId).maybeSingle();
-      if (branch) document.getElementById('sb-branch-name').textContent = branch.name;
+      // Nombre del restaurante en el sidebar: pos-brand.js.
     }
   } catch(e) {
     console.warn('auth:', e);

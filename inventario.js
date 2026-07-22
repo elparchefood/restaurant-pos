@@ -111,9 +111,7 @@ async function loadData() {
     document.getElementById('tb-avatar').textContent  = initials;
     document.getElementById('tb-uname').textContent   = fullName;
     document.getElementById('tb-urole').textContent   = meta.role || 'Administrador';
-    const restaurantName = meta.restaurant_name || 'El Parche Food';
-    document.getElementById('sb-brand').textContent   = 'Cobra POS';
-    document.getElementById('sb-subbrand').textContent = restaurantName + ' · Caja 01';
+    // Bloque de marca del sidebar: lo gestiona pos-brand.js.
 
     await loadProductos();
     await loadInsumos();

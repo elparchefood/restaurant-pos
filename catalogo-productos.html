@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Catálogo de Productos — Cobra POS</title>
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/brand/favicon-192.png">
+  <link rel="apple-touch-icon" href="assets/brand/favicon-192.png">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="catalogo-productos.css?v=1784756000">
 </head>
@@ -14,8 +18,11 @@
   <!-- ── Sidebar ── -->
   <nav class="cp-sidebar">
     <div class="cp-brand">
-      <div class="cp-brand-mark">L</div>
-      <span class="cp-brand-name">Cobra POS</span>
+      <div class="cp-brand-logo">L</div>
+      <div>
+        <div class="cp-brand-name">Cobra POS</div>
+        <div class="cp-brand-sub">Cargando…</div>
+      </div>
     </div>
     <div class="cp-nav-section-label">Catálogo</div>
     <div id="cp-nav"><!-- renderNav() --></div>
@@ -88,6 +95,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="catalogo-productos.js?v=1784756000"></script>
+<script src="pos-brand.js?v=1784901500"></script>
 
 </body>
 </html>

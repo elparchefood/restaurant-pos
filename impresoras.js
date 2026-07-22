@@ -223,10 +223,7 @@ var SVG_SCAN = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stro
    RENDERIZADO DEL SHELL (sidebar / topbar)
 ════════════════════════════════════════ */
 function renderSidebar() {
-  const brandEl = document.getElementById('brand-name');
-  const subEl   = document.getElementById('brand-sub');
-  if (brandEl) brandEl.textContent = brandName || 'Lumen POS';
-  if (subEl)   subEl.textContent   = branchName || '';
+  // Bloque de marca (logo / "Cobra POS" / restaurante): lo gestiona pos-brand.js.
 }
 
 function renderTopbar() {
