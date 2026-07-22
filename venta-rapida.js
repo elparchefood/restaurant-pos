@@ -911,6 +911,12 @@
     if (!sb) return;
     try {
       const orderId = await upsertOrder(sb, true);
+      // Imprimir la comanda de cocina en el acto (Electron) antes de ir a cobrar.
+      // Antes, cobrar por "Opciones de pago" no imprimía nada porque la impresión
+      // solo ocurría en "Enviar a cocina". El candado de posAutoprint evita duplicados.
+      if (orderId && typeof window.posAutoprint === 'function' && window.electronPOS) {
+        await Promise.race([window.posAutoprint(orderId), new Promise(res => setTimeout(res, 4000))]);
+      }
       finalizarVenta();
       window.location.href = `pagos.html?order=${orderId}&channel=rapido`;
     } catch(e) {
@@ -968,12 +974,17 @@
     const items = S.cart.map(i => ({
       order_id:      S.orderId,
       product_id:    i.productId || i.id,
+      name:          i.name,
       product_name:  i.name,
       product_price: i.price,
       quantity:      i.qty,
       unit_price:    i.price,
       total:         i.price * i.qty,
       branch_id:     S.branchId,
+      tenant_id:     S.tenantId,
+      notes:         i.note || null,
+      selections:    i.selections || {},
+      status:        'pending',
     }));
     if (items.length) {
       const { error: itemErr } = await sb.from('pos_order_items').insert(items);
