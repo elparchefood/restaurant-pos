@@ -1532,6 +1532,8 @@ async function enviarACocina() {
       payment_method: metodo,
       opened_at:      new Date().toISOString(),
     };
+    // Atar el pedido al turno abierto (si no, queda fuera de todo cuadre)
+    try { if (typeof window.posSessionId === 'function') _orderData.session_id = await window.posSessionId(); } catch(e) {}
     const { data: _saved, error: _err } = await sb.from('pos_orders').insert(_orderData).select().single();
     if (_err) throw _err;
     const _oid = _saved.id;

@@ -943,7 +943,11 @@
     // Crear o reusar orden
     if (!S.orderId) {
       const _vrBarrio = S.cliente && S.cliente.barrio ? S.cliente.barrio.trim() : '';
+      // Atar el pedido al turno abierto (si no, queda fuera de todo cuadre)
+      let _vrSes = null;
+      try { if (typeof window.posSessionId === 'function') _vrSes = await window.posSessionId(); } catch(e) {}
       const { data: order, error } = await sb.from('pos_orders').insert({
+        session_id:     _vrSes,
         branch_id:      S.branchId,
         waiter_id:      userId,
         table_id:       null,

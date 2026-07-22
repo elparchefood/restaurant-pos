@@ -465,6 +465,35 @@ function renderKPIs(orders) {
 }
 
 // ── Desglose por medio de pago ─────────────────────────────────
+// ── Pedidos SIN TERMINAR del turno ─────────────────────────────
+// Un pedido "vive" mientras no esté pagado, anulado o abandonado. Si se cierra
+// el turno con alguno vivo, queda huérfano: sin caja que lo contenga.
+// OJO: 'completed' y 'paid' son pedidos TERMINADOS (verificado en BD: los
+// 'completed' ya están cobrados). Solo estos estados siguen "vivos":
+const ESTADO_ABIERTO = ['open', 'in_progress', 'pendiente_pago', 'esperando', 'comiendo'];
+const ESTADO_LBL = {
+  open: 'Abierto', in_progress: 'En preparación', pendiente_pago: 'Pendiente de cobro',
+  esperando: 'Esperando', comiendo: 'Comiendo', completed: 'Entregado · falta cobro',
+};
+async function getPedidosAbiertos() {
+  try {
+    if (!S.session) return [];
+    const q = sb.from('pos_orders')
+      .select('id, status, table_id, channel, total, total_final, paid_amount, customer_name, created_at')
+      .not('status', 'in', '("cancelled","abandoned","paid")')
+      .gte('created_at', S.session.opened_at)
+      .order('created_at', { ascending: true });
+    if (S.branchId) q.eq('branch_id', S.branchId);
+    const { data } = await q;
+    // Vivo = en un estado de trabajo, o entregado pero con saldo pendiente
+    return (data || []).filter(o => {
+      if (ESTADO_ABIERTO.indexOf(o.status) >= 0) return true;
+      const tot = parseFloat(o.total_final ?? o.total) || 0;
+      return tot > 0 && (parseFloat(o.paid_amount) || 0) < tot - 1;
+    });
+  } catch (e) { console.error('getPedidosAbiertos:', e); return []; }
+}
+
 // Métodos de pago configurados (fuente: Métodos de pago = ia_config.pagos)
 async function loadPayMethodsConfig(){
   try {
@@ -939,6 +968,29 @@ document.getElementById('btn-cerrar').addEventListener('click', async function()
     return `<div class="cj-kv"><span class="k${cls||''}">${k}</span><span class="v${cls||''}">${v}</span></div>`;
   }).join('');
 
+  // ── Pedidos SIN TERMINAR: no se puede cerrar el turno dejándolos vivos
+  // (quedarían "volando" fuera de todo cuadre). Todo debe estar cobrado o anulado.
+  const abiertos = await getPedidosAbiertos();
+  const ordersWarn = document.getElementById('orders-warn');
+  const ordersList = document.getElementById('orders-warn-list');
+  if (ordersWarn && ordersList) {
+    if (abiertos.length) {
+      ordersList.innerHTML = abiertos.map(o => {
+        const donde = o.table_id ? ('Mesa ' + cjEsc(String(o.table_id).replace(/^t/i, ''))) :
+          (o.channel === 'domicilio' ? 'Domicilio' : o.channel === 'rapido' ? 'Venta rápida' : 'Pedido');
+        const est = ESTADO_LBL[o.status] || o.status;
+        const cli = o.customer_name ? ' · ' + cjEsc(o.customer_name) : '';
+        return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fff;border:1px solid #FECACA;border-radius:8px;padding:7px 10px">'
+          + '<div style="min-width:0"><div style="font-size:12.5px;font-weight:700;color:#0F172A">' + donde + cli + '</div>'
+          + '<div style="font-size:11px;color:#B91C1C">' + est + '</div></div>'
+          + '<span style="font-size:12.5px;font-weight:800;color:#0F172A;white-space:nowrap">' + COPF(parseFloat(o.total_final ?? o.total) || 0) + '</span></div>';
+      }).join('');
+      ordersWarn.style.display = 'block';
+    } else {
+      ordersWarn.style.display = 'none';
+    }
+  }
+
   // Verificar turnos de meseros abiertos
   const openShifts = await checkOpenShifts();
   const shiftsWarn = document.getElementById('shifts-warn');
@@ -958,11 +1010,11 @@ document.getElementById('btn-cerrar').addEventListener('click', async function()
       </div>`;
     }).join('');
     shiftsWarn.style.display = 'block';
-    confirmBtn.disabled = true;
   } else {
     shiftsWarn.style.display = 'none';
-    confirmBtn.disabled = false;
   }
+  // Se bloquea el cierre por CUALQUIERA de las dos causas
+  confirmBtn.disabled = (openShifts.length > 0) || (abiertos.length > 0);
   openPanel('panel-cerrar');
 });
 

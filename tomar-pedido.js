@@ -990,7 +990,11 @@ async function saveOrder() {
 
     if (!orderId) {
       // ── Orden nueva: usar batch offline-safe ────────────────
+      // Atar el pedido al turno abierto (si no, queda fuera de todo cuadre)
+      let _mesaSes = null;
+      try { if (typeof window.posSessionId === 'function') _mesaSes = await window.posSessionId(); } catch(e) {}
       const orderData = {
+        session_id:  _mesaSes,
         tenant_id:   S.tenantId,
         branch_id:   S.branchId,
         table_id:    S.tableId,

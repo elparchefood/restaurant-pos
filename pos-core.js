@@ -140,6 +140,24 @@ function daysAgoISO(n) {
 
       window._pos.emit('core:ready', { user });
 
+      // ── Turno (sesión de caja) abierto ────────────────────────────────
+      // TODO pedido debe pertenecer a un turno: sin esto quedan "volando"
+      // fuera de cualquier cuadre. Se cachea 30 s para no consultar en cada venta.
+      window.posSessionId = async function () {
+        try {
+          var now = Date.now();
+          if (window.__posSesCache && now - window.__posSesCacheTs < 30000) return window.__posSesCache;
+          var bId = window._pos.state.branchId;
+          if (!bId) return null;
+          var r = await sb.from('pos_sessions').select('id')
+            .eq('branch_id', bId).eq('status', 'open')
+            .order('opened_at', { ascending: false }).limit(1).maybeSingle();
+          window.__posSesCache = (r && r.data && r.data.id) || null;
+          window.__posSesCacheTs = now;
+          return window.__posSesCache;
+        } catch (e) { return null; }
+      };
+
       // ── Sincronizar config de Operación entre dispositivos ─────────────
       // Antes vivía SOLO en localStorage del equipo donde se configuró → la
       // tablet no veía el empaque (ni ninguna regla de Operación). La fuente

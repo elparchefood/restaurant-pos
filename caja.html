@@ -378,6 +378,16 @@
         <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;font-weight:700;color:#0F172A">Efectivo esperado en caja</span><span style="font-size:17px;font-weight:800;color:#0F172A" id="cerrar-esperado">$0</span></div>
         <button class="cj-btn-ghost sm" style="margin-top:10px;width:100%;justify-content:center" onclick="openPanel('panel-arqueo')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/><path d="m5 7-3 6h6Z"/><path d="m19 7-3 6h6Z"/><path d="M8 21h8"/></svg> Hacer arqueo (contar efectivo)</button>
       </div>
+      <div id="orders-warn" style="display:none;margin-top:14px">
+        <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:12px 14px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span style="display:flex;color:#DC2626"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+            <span style="font-size:13px;font-weight:700;color:#991B1B">No puedes cerrar: hay pedidos sin terminar</span>
+          </div>
+          <div style="font-size:11.5px;color:#7F1D1D;margin-bottom:8px">Cobra o anula estos pedidos antes de cerrar el turno. Todo debe quedar entregado y las mesas libres.</div>
+          <div id="orders-warn-list" style="display:flex;flex-direction:column;gap:6px"></div>
+        </div>
+      </div>
       <div id="shifts-warn" style="display:none;margin-top:14px">
           <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;margin-bottom:8px">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#92400E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -392,10 +402,10 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="pos-core.js?v=24"></script>
+<script src="pos-core.js?v=25"></script>
 <script src="pos-cierre-print.js?v=3"></script>
 <script src="pos-print.js?v=13"></script>
 <script src="pos-print-listener.js?v=1"></script>
-<script src="caja.js?v=1784790000"></script>
+<script src="caja.js?v=1784795000"></script>
 </body>
 </html>
