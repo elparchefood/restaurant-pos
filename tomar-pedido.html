@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="pos-core.css">
-  <link rel="stylesheet" href="tomar-pedido.css?v=1784812000">
+  <link rel="stylesheet" href="tomar-pedido.css?v=1784818000">
 </head>
 <body>
 <div class="tp-root">
@@ -119,36 +119,25 @@
         <div class="tp-comanda-head">
           <div class="tp-comanda-headtop">
             <div class="tp-mesa-id">
-              <div class="tp-mesa-glyph">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18M3 14h18M10 10V4M14 10V4M10 20v-6M14 20v-6"/></svg>
-              </div>
-              <div style="min-width:0">
-                <div class="tp-mesa-title" id="tp-mesa-title">—</div>
-                <!-- Estado + hora en una sola linea (antes ocupaban una fila propia) -->
-                <div class="tp-open-pill is-empty" id="tp-open-pill">
-                  <span class="dot"></span>
-                  <span id="tp-open-pill-label">Mesa abierta</span>
-                  <span style="color:#94A3B8;font-weight:600">&middot; <span id="tp-hora-apertura">—</span></span>
-                </div>
+              <!-- El numero de mesa va DENTRO del cuadro: alinea todo en una linea -->
+              <div class="tp-mesa-glyph"><span class="tp-mesa-num" id="tp-mesa-title">—</span></div>
+              <div class="tp-open-pill is-empty" id="tp-open-pill">
+                <span class="dot"></span>
+                <span id="tp-open-pill-label">Mesa abierta</span>
+                <span class="tp-open-time">&middot; <span id="tp-hora-apertura">—</span></span>
               </div>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-              <!-- Contador de personas compacto, en el encabezado -->
-              <div style="display:flex;align-items:center;gap:5px">
-                <div class="tp-stepper">
-                  <button class="lm-step" data-personas="dec">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  </button>
-                  <span class="tp-stepper-num" id="personas-num">2</span>
-                  <button class="lm-step" data-personas="inc">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  </button>
-                </div>
-                <span style="font-size:9.5px;color:#94A3B8;font-weight:700">pax</span>
+            <div class="tp-pax">
+              <div class="tp-stepper">
+                <button class="lm-step" data-personas="dec">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
+                <span class="tp-stepper-num" id="personas-num">2</span>
+                <button class="lm-step" data-personas="inc">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
               </div>
-              <button class="lm-icon-sm" data-action="edit">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              </button>
+              <span class="tp-pax-lbl">pax</span>
             </div>
           </div>
         </div>
@@ -305,6 +294,6 @@
 <script src="pos-core.js?v=25"></script>
 <script src="pos-print.js?v=15"></script>
 <script src="pos-print-listener.js?v=1"></script>
-<script src="tomar-pedido.js?v=1784812000"></script>
+<script src="tomar-pedido.js?v=1784818000"></script>
 </body>
 </html>

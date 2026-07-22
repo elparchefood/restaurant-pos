@@ -40,6 +40,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const { data: posUser } = await sb.from('pos_users').select('name, role').eq('auth_user_id', user.id).maybeSingle();
   S.waiterName = posUser?.name || user.user_metadata?.nombre || user.user_metadata?.name || user.email?.split('@')[0] || '—';
   S.userRole   = posUser?.role || user.user_metadata?.role || 'Administrador';
+  // "Opciones de pago" no aplica al mesero (el cobro lo hace la caja). Se OCULTA
+  // por rol, no se elimina: es la unica via para cobrar un pedido de mesa.
+  try {
+    const _esMesero = String(S.userRole || '').toLowerCase().includes('mesero');
+    const _btnPago = document.querySelector('.tp-nav [data-action="pago"]');
+    if (_btnPago && _esMesero) _btnPago.style.display = 'none';
+  } catch(e) {}
 
   // 2. Leer tableId de la URL
   const params = new URLSearchParams(window.location.search);
@@ -117,6 +124,10 @@ function paintTableInfo(t) {
   if (!t) return;
   const name = t.name || 'Mesa';
   $('tp-mesa-title').textContent   = name;
+  // El numero va dentro del cuadro: si el nombre es largo ("Terraza 3"), bajar
+  // el tamano para que no se desborde.
+  const _mn = $('tp-mesa-title');
+  if (_mn) _mn.style.fontSize = name.length <= 3 ? '19px' : name.length <= 5 ? '14px' : '11px';
   $('tp-crumb-mesa').textContent   = name;
   $('tp-branch-name').textContent  = t.zone || t.zoneId || '—';
   // hora apertura: usar la del pedido activo; por ahora marcar now como fallback

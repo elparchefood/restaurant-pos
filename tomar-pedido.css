@@ -190,17 +190,24 @@ svg { display: block; }
 }
 .tp-comanda-head { padding: 16px 16px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .tp-comanda-headtop { display: flex; align-items: center; justify-content: space-between; }
-.tp-mesa-id { display: flex; align-items: center; gap: 10px; }
+.tp-mesa-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* Cuadro de mesa: mas grande y con el NUMERO adentro (antes el numero iba
+   aparte y descuadraba la fila). Sin icono de mesa: el numero ya lo dice todo. */
 .tp-mesa-glyph {
-  width: 38px; height: 38px; border-radius: var(--r-lg);
+  width: 46px; height: 46px; border-radius: 13px;
   background: var(--brand-tint); color: var(--brand);
-  display: flex; align-items: center; justify-content: center;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
+.tp-mesa-num { font-size: 19px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
 .tp-mesa-title { font-size: 20px; font-weight: 800; color: var(--ink); letter-spacing: -0.025em; }
+.tp-open-time { color: var(--muted); font-weight: 600; }
+/* Bloque de personas alineado con el cuadro de mesa */
+.tp-pax { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.tp-pax-lbl { font-size: 9.5px; font-weight: 700; color: var(--muted); }
 .tp-open-pill {
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
   font-size: 10.5px; font-weight: 700; color: var(--brand);
-  background: var(--brand-tint); padding: 3px 9px; border-radius: var(--r-pill); margin-top: 5px;
+  background: var(--brand-tint); padding: 4px 10px; border-radius: var(--r-pill);
 }
 .tp-open-pill .dot { width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--brand); }
 .tp-open-pill.is-empty { color: var(--muted); }
