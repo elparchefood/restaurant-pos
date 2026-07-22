@@ -778,7 +778,7 @@
   async function loadCatalog() {
     const sb = getSb();
     if (!sb || !S.tenantId) return;
-    const _ck = 'pos.catalog.v3.' + S.tenantId;
+    const _ck = 'pos.catalog.v4.' + S.tenantId;
     try {
       const _raw = localStorage.getItem(_ck);
       if (_raw) {
@@ -810,7 +810,7 @@
         {color:'#0EA5E9',tint:'#F0F9FF',ring:'#BAE6FD'},
       ];
       const [{ data: cats }, { data: prods }, { data: mods }] = await Promise.all([
-        sb.from('pos_categories').select('id,name,color,color_tint,color_ring,image_url').eq('active', true).eq('tenant_id', S.tenantId).order('name'),
+        sb.from('pos_categories').select('id,name,color,color_tint,color_ring,image_url,comanda_alias').eq('active', true).eq('tenant_id', S.tenantId).order('name'),
         sb.from('pos_products').select('id,name,price,price_mode,category_id,photo_url,available,presentations,variables,mod_group_ids,mod_group_pres').eq('available', true).eq('tenant_id', S.tenantId).order('name'),
         sb.from('pos_modifier_groups').select('id,name,rule,multi,options').eq('tenant_id', S.tenantId),
       ]);
@@ -830,6 +830,7 @@
           mod_group_ids: Array.isArray(p.mod_group_ids) ? p.mod_group_ids : [],
           mod_group_pres: (p.mod_group_pres && typeof p.mod_group_pres === 'object') ? p.mod_group_pres : {},
           catName:  cat ? cat.name  : '',
+          catAlias: cat ? (cat.comanda_alias || null) : null,
           catColor: cat ? cat.color : '#94A3B8',
         };
       });
@@ -1348,7 +1349,7 @@
   function vrMPAddToCart() {
     const p = VR_WIP.prod;
     // Si la presentación no tiene nombre, usar el nombre de la CATEGORÍA como prefijo.
-    const presLabel = (VR_WIP.pres && VR_WIP.pres.name ? VR_WIP.pres.name : '') || (p.catName || '');
+    const presLabel = (VR_WIP.pres && VR_WIP.pres.name ? VR_WIP.pres.name : '') || (p.catAlias || p.catName || '');
     const varLabels = Object.values(VR_WIP.vars).map(v => v.name).join(' \xb7 ');
     const displayName = [presLabel, p.name, varLabels].filter(Boolean).join(' \xb7 ');
     const unitPrice = vrComputePrice() / VR_WIP.qty;

@@ -295,7 +295,7 @@ async function loadData() {
 }
 
 async function loadCatalog() {
-  const _ck = 'pos.catalog.v3.' + S.tenantId;
+  const _ck = 'pos.catalog.v4.' + S.tenantId;
   try {
     const _raw = localStorage.getItem(_ck);
     if (_raw) {
@@ -321,7 +321,7 @@ async function _catalogFetch(cacheKey, isBackground) {
   try {
     const [catsRes, prodsRes, modsRes] = await Promise.all([
       sb.from('pos_categories')
-        .select('id,name,color,color_tint,color_ring,image_url')
+        .select('id,name,color,color_tint,color_ring,image_url,comanda_alias')
         .eq('tenant_id', S.tenantId).order('name'),
       sb.from('pos_products')
         .select('id,name,price,price_mode,category_id,photo_url,available,presentations,variables,mod_group_ids,mod_group_pres')
@@ -949,7 +949,7 @@ function tpMPAddToCart(){
   const cat=S.cats.find(c=>c.id===p.category_id);
   const unitPrice=mpComputePrice()/WIP.qty;
   // Si la presentación no tiene nombre, usar el nombre de la CATEGORÍA como prefijo.
-  const presLabel=(WIP.pres&&WIP.pres.name?WIP.pres.name:'')||(cat?cat.name:'');
+  const presLabel=(WIP.pres&&WIP.pres.name?WIP.pres.name:'')||(cat?(cat.comanda_alias||cat.name):'');
   const varLabels=Object.values(WIP.vars).map(v=>v.name).join(' \xb7 ');
   const displayName=[presLabel,p.name,varLabels].filter(Boolean).join(' \xb7 ');
   const modSummary=Object.values(WIP.mods).filter(m=>m.qty>0).map(m=>(m.qty>1?m.qty+'x ':'')+m.name).join(', ');

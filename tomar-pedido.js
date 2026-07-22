@@ -126,7 +126,7 @@ function paintTableInfo(t) {
 
 // ── Catálogo ─────────────────────────────────────────────────
 async function loadCatalog() {
-  var _ck = 'pos.catalog.v3.' + S.tenantId;
+  var _ck = 'pos.catalog.v4.' + S.tenantId;
   // Servir desde caché si existe — sin delay de red
   try {
     var _raw = localStorage.getItem(_ck);
@@ -940,7 +940,7 @@ function tpMPAddToCart(){
   const p=TP_WIP.prod;
   // Si la presentación no tiene nombre, usar el nombre de la CATEGORÍA como prefijo.
   const _cat=S.cats.find(c=>c.id===p.category_id);
-  const presLabel=(TP_WIP.pres&&TP_WIP.pres.name?TP_WIP.pres.name:'')||(_cat?_cat.name:'');
+  const presLabel=(TP_WIP.pres&&TP_WIP.pres.name?TP_WIP.pres.name:'')||(_cat?(_cat.comanda_alias||_cat.name):'');
   const varLabels=Object.values(TP_WIP.vars).map(v=>v.name).join(' · ');
   const displayName=[presLabel,p.name,varLabels].filter(Boolean).join(' · ');
   const modSummary=Object.values(TP_WIP.mods).map(m=>m.name).join(', ');
