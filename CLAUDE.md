@@ -90,6 +90,10 @@ No especificar `encoding=` en Windows usa cp1252 por defecto y corrompe los cara
 | Estado de mesa (libre/comiendo/etc.) | Supabase `pos_tables.status` — **no inferir desde órdenes** |
 | Config operativa (T1/T2/T3, empaques) | `localStorage` clave `pos.config.salon.v1` |
 | Órdenes activas | Supabase `pos_orders` donde status NOT IN ('completed','cancelled','paid') |
+| Tamaños y variables de un producto | Supabase `pos_products.presentations` / `.variables` — el inventario NO los define, los lee |
+| Receta de un producto | Supabase `iv_recetas` — llaveada por `(product_id, insumo_id, variant_option_id)`, cantidades por tamaño en `cantidades` jsonb |
+| Porciones (medidas con nombre) | Supabase `iv_porciones` por insumo; la unidad se hereda de `iv_insumos.use_unit` |
+| Nombre del restaurante y logo en el sidebar | `pos-brand.js` — ninguna página debe escribir su propio bloque de marca |
 
 ### Filtro de órdenes activas (ventas-salon.js)
 ```javascript
@@ -106,6 +110,50 @@ enriched.sort((a,b) => (a.sort_order != null ? a.sort_order : 9999) - (b.sort_or
 // INCORRECTO — 0 || 9999 = 9999, pone la primera mesa al final
 enriched.sort((a,b) => (a.sort_order || 9999) - (b.sort_order || 9999));
 ```
+
+### Recetas — modelo por presentación y variable
+```javascript
+// Una línea de receta aplica a una combinación si es Base o si es de esa opción.
+!l.varOpt || l.varOpt === varOptId
+
+// La cantidad depende del tamaño; '_' es el pseudo-id de un producto sin presentaciones.
+l.qty[presId]  // NO l.qty  ← el modelo plano viejo
+```
+Nunca sumar todas las variables en un solo costo: un plato preparado lleva UNA.
+El semáforo de la tarjeta se pinta con el **peor caso**, no con el promedio.
+
+### Datos en atributos HTML — nunca con JSON.stringify
+```javascript
+// INCORRECTO — las comillas dobles cierran el atributo y el botón queda muerto
+`<button onclick="setCat(${JSON.stringify(nombre)})">`   // → onclick="setCat("Bebidas")"
+
+// CORRECTO — data-* + delegación de eventos en document
+`<button data-cat="${escHtml(nombre)}">`
+```
+Aguanta además nombres con apóstrofo (`Papas' Especiales`), que rompen incluso las comillas simples.
+
+### Filtros de lista — estado, no `style.display`
+Ocultar tarjetas en el DOM se pierde en el siguiente re-render (p.ej. al refrescar el costeo).
+El filtro va en una variable de estado y se aplica al **construir** la lista.
+
+### Verificación de UI — `.click()` real
+Llamar la función desde consola salta justo la parte que suele estar rota (el HTML que la invoca).
+Siempre disparar el evento sobre el control ya renderizado.
+
+### Tablas creadas por la API de Supabase — faltan los GRANT
+Crear una tabla vía `database/query` **no** aplica los grants por defecto del panel.
+Sin ellos, Postgres rechaza antes de evaluar la RLS y el error es `permission denied`, no un fallo de política.
+```sql
+grant select, insert, update, delete on public.mi_tabla to anon, authenticated, service_role;
+```
+
+### Índices únicos con columnas anulables
+En Postgres dos NULL no chocan, así que un `UNIQUE (a, b, c)` con `c` nulo permite duplicados.
+Usar `coalesce(c, '')` en un índice único cuando el nulo tiene significado (ej. "pestaña Base").
+
+### Mensajes de error — mostrar el motivo real
+Un toast genérico ("Error al guardar") obliga a reproducir el fallo contra la base para diagnosticar.
+Siempre `showToast('No se pudo …: ' + (error.message || error.code))`.
 
 ---
 
