@@ -966,12 +966,23 @@ function abrirEditorInsumo(insId) {
   catSel.innerHTML='<option value="">Seleccionar categoría…</option>'+
     cats.map(c=>`<option value="${c}" ${ins&&ins.cat===c?'selected':''}>${c}</option>`).join('')+
     '<option value="__new__">＋ Nueva categoría…</option>';
+  catSel.onchange = onCatSelChange;
+  const catNewInp = document.getElementById('ins-cat-new');
+  if (catNewInp) { catNewInp.value=''; catNewInp.classList.add('is-hidden'); }
   setSelectVal(document.getElementById('ins-buy-unit'), ins?.buyUnit||'unidad');
   setSelectVal(document.getElementById('ins-use-unit'), ins?.useUnit||'g');
   updateTogglePrepUI();
   document.getElementById('ins-cost-hint').classList.add('is-hidden');
   document.getElementById('btn-ins-eliminar').classList.toggle('is-hidden',!ins);
   document.getElementById('panel-insumo').classList.remove('is-hidden');
+}
+// prompt() no existe en Electron → input inline para escribir la nueva categoría
+function onCatSelChange() {
+  const inp = document.getElementById('ins-cat-new');
+  if (!inp) return;
+  const isNew = document.getElementById('ins-cat').value === '__new__';
+  inp.classList.toggle('is-hidden', !isNew);
+  if (isNew) inp.focus();
 }
 function setSelectVal(sel,val) {
   for (const opt of sel.options) { if (opt.value===val){opt.selected=true;return;} }
@@ -1006,7 +1017,7 @@ async function guardarInsumo() {
   const min     = parseFloat(document.getElementById('ins-min').value)||0;
   const buyUnit = document.getElementById('ins-buy-unit').value;
   const useUnit = document.getElementById('ins-use-unit').value;
-  if (cat==='__new__') { cat=prompt('Nombre de la nueva categoría:')?.trim(); if (!cat) return; }
+  if (cat==='__new__') { cat=(document.getElementById('ins-cat-new')?.value||'').trim(); if (!cat) { alert('Escribe el nombre de la nueva categoría'); return; } }
   if (!nombre||!cat||precio<=0) { alert('Completa nombre, categoría y precio'); return; }
   const catColor = CAT_COLORS[cat]||'#64748B';
   const editId   = document.getElementById('ins-edit-id').value;
