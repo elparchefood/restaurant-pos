@@ -975,12 +975,6 @@
         <div class="vs-sidebar-spacer"></div>
 
         <div class="vs-sidebar-footer">
-          <button class="lm-nav" style="color:#DC2626;background:#FEF2F2" data-action="anular">
-            <span class="lm-nav-inner">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-              <span style="font-weight:500">Anular venta</span>
-            </span>
-          </button>
           <div id="vs-fx-chip" style="padding:0 4px"></div>
         </div>
       </aside>
