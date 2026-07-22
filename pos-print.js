@@ -326,13 +326,44 @@
   // este candado la comanda salía dos veces por los pedidos hechos en la tablet.
   function _sleep(ms) { return new Promise(function(r){ setTimeout(r, ms); }); }
 
+  // Memoria PERSISTENTE de comandas ya impresas en este equipo (sobrevive
+  // navegación entre pantallas — el candado en memoria no). Evita que el
+  // receptor global re-imprima algo ya impreso tras cambiar de página.
+  var _LS_PRINTED = 'pos.printed.v1';
+  function _lsPrintedMap() {
+    try { return JSON.parse(localStorage.getItem(_LS_PRINTED) || '{}') || {}; } catch(e) { return {}; }
+  }
+  function _lsWasPrinted(orderId) { return !!_lsPrintedMap()[orderId]; }
+  function _lsMarkPrinted(orderId) {
+    try {
+      var m = _lsPrintedMap(), now = Date.now();
+      for (var k in m) { if (now - m[k] > 21600000) delete m[k]; } // podar > 6 h
+      m[orderId] = now;
+      localStorage.setItem(_LS_PRINTED, JSON.stringify(m));
+    } catch(e) {}
+  }
+  function _lsUnmarkPrinted(orderId) {
+    try { var m = _lsPrintedMap(); delete m[orderId]; localStorage.setItem(_LS_PRINTED, JSON.stringify(m)); } catch(e) {}
+  }
+
   var _autoPrinted = {};
-  window.posAutoprint = async function(orderId) {
+  window.posAutoprint = async function(orderId, opts) {
     if (!orderId) return;
+    var force = !!(opts && opts.force);   // reimpresión pedida explícitamente
     var _now = Date.now();
     // Podar entradas viejas (> 1 hora) para no crecer sin límite en turnos largos
     for (var _k in _autoPrinted) { if (_now - _autoPrinted[_k] > 3600000) delete _autoPrinted[_k]; }
-    if (_autoPrinted[orderId]) return; // ya se auto-imprimió en este dispositivo
+    if (force) { delete _autoPrinted[orderId]; _lsUnmarkPrinted(orderId); }
+    if (_autoPrinted[orderId] || _lsWasPrinted(orderId)) {
+      // Ya impresa en este equipo. Si la marca en BD quedó pendiente (p. ej. la
+      // página navegó antes de guardarla), sanarla para que el barrido no la
+      // siga viendo como "sin imprimir".
+      try {
+        var sbH = window._pos && window._pos.sb;
+        if (sbH) sbH.from('pos_orders').update({ printed_at: new Date().toISOString() }).eq('id', orderId).is('printed_at', null).then(function(){});
+      } catch(e) {}
+      return;
+    }
     _autoPrinted[orderId] = _now;
     _diagToast('🖨 Verificando impresora…', '#1d4ed8');
 
@@ -376,6 +407,15 @@
         else { delete _autoPrinted[orderId]; _diagToast('❌ Error al imprimir: ' + (e && e.message || e), '#dc2626'); }
       }
     }
+    if (printed) {
+      _lsMarkPrinted(orderId);
+      // Marcar en BD que la comanda ya salió — el receptor global y el barrido de
+      // seguridad usan esta marca para saber qué falta por imprimir. Best-effort.
+      try {
+        var sb2 = window._pos && window._pos.sb;
+        if (sb2) await sb2.from('pos_orders').update({ printed_at: new Date().toISOString() }).eq('id', orderId);
+      } catch(e) { console.warn('[posprint] printed_at update:', e); }
+    }
   };
 
   window.posOpenPrintModal = function(orderId) {
@@ -403,6 +443,18 @@
   window.posPrintAction = async function(type, orderId) {
     var overlay = document.getElementById('pos-print-modal-wrap');
     if (overlay) overlay.remove();
+    // Sin impresora local (tablet/celular): mandar la SEÑAL de reimpresión al
+    // equipo de la caja — su receptor global la recibe al instante y la imprime.
+    if (!window.electronPOS && type === 'comanda' && orderId) {
+      try {
+        var sbT = window._pos && window._pos.sb;
+        if (sbT) {
+          await sbT.from('pos_orders').update({ reprint_at: new Date().toISOString() }).eq('id', orderId);
+          _diagToast('🖨 Enviado a la caja para imprimir', '#1d4ed8');
+          return;
+        }
+      } catch(e) { console.warn('[posprint] señal reimpresión:', e); }
+    }
     var hasPrinter = await _hasPrinter();
     if (!hasPrinter) { _noprinterToast(); return; }
     var order = await _fetchOrder(orderId);
