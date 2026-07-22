@@ -1181,17 +1181,45 @@ async function guardarParams() {
 function renderUnidades() {
   const card=document.getElementById('units-card');
   document.getElementById('units-count').textContent=customUnits.length;
+  // prompt() no existe en Electron → formulario inline para crear la unidad
+  const newFormHTML = _unitNewForm
+    ? `<div class="iv-unit-row"><span class="iv-unit-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/></svg></span><input id="iv-unit-new-inp" placeholder="Nombre (ej. porción, bandeja)" style="font-family:inherit;font-size:12.5px;border:1px solid #C4B5FD;border-radius:7px;padding:5px 8px;width:190px;outline:none" onkeydown="if(event.key==='Enter')crearNuevaUnidad();if(event.key==='Escape')cancelarNuevaUnidad()"><button type="button" onclick="crearNuevaUnidad()" style="font-family:inherit;font-size:12px;font-weight:700;border:none;background:#5B6BFF;color:#fff;padding:6px 11px;border-radius:8px;cursor:pointer">Crear</button><button type="button" onclick="cancelarNuevaUnidad()" style="font-family:inherit;font-size:12px;font-weight:700;border:none;background:none;color:#94A3B8;padding:6px 4px;cursor:pointer">Cancelar</button></div>`
+    : '';
   if (customUnits.length===0) {
+    if (newFormHTML) { card.innerHTML=newFormHTML; return; }
     card.innerHTML=`<div class="iv-units-emptywrap"><div class="iv-units-empty-ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/></svg></div><div style="font-size:14px;font-weight:700;color:#0F172A;margin-bottom:6px">Sin unidades propias</div><p style="font-size:12px;color:#94A3B8;max-width:280px;margin:0 auto">Crea unidades personalizadas como "porción", "bandeja" o cualquier medida específica de tu restaurante.</p></div>`;
     return;
   }
   card.innerHTML=customUnits.map(u=>{
     const uses=insumos.filter(i=>i.buyUnit===u.nombre||i.useUnit===u.nombre).length;
+    // prompt() no existe en Electron → edición inline en la fila
+    if (_unitEditing===u.nombre) {
+      return `<div class="iv-unit-row"><span class="iv-unit-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/></svg></span><input id="iv-unit-edit-inp" value="${u.nombre}" style="font-family:inherit;font-size:12.5px;border:1px solid #C4B5FD;border-radius:7px;padding:5px 8px;width:160px;outline:none" onkeydown="if(event.key==='Enter')guardarEditUnidad();if(event.key==='Escape')cancelarEditUnidad()"><button type="button" onclick="guardarEditUnidad()" style="font-family:inherit;font-size:12px;font-weight:700;border:none;background:#5B6BFF;color:#fff;padding:6px 11px;border-radius:8px;cursor:pointer">Guardar</button><button type="button" onclick="cancelarEditUnidad()" style="font-family:inherit;font-size:12px;font-weight:700;border:none;background:none;color:#94A3B8;padding:6px 4px;cursor:pointer">Cancelar</button></div>`;
+    }
     return `<div class="iv-unit-row"><span class="iv-unit-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/></svg></span><span class="iv-unit-name">${u.nombre}</span>${uses>0?`<span class="iv-unit-use">En uso · ${uses} insumos</span>`:'<span class="iv-unit-nouse">Sin uso</span>'}<button class="iv-row-btn btn-edit-unit" onclick="editarUnidad('${u.nombre}')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button><button class="iv-row-btn danger btn-del-unit" onclick="eliminarUnidad('${u.nombre}')" ${uses>0?'disabled style="opacity:.4;cursor:not-allowed"':''}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div>`;
-  }).join('');
+  }).join('')+newFormHTML;
 }
 function eliminarUnidad(nombre) { customUnits=customUnits.filter(u=>u.nombre!==nombre); renderUnidades(); showToast('Unidad eliminada'); }
-function editarUnidad(nombre) { const nuevo=prompt('Nuevo nombre:',nombre)?.trim(); if(!nuevo||nuevo===nombre) return; customUnits=customUnits.map(u=>u.nombre===nombre?{...u,nombre:nuevo}:u); renderUnidades(); }
+// prompt() no existe en Electron → edición inline en la fila de la unidad
+let _unitEditing = null;
+function editarUnidad(nombre) {
+  _unitEditing=nombre; _unitNewForm=false; renderUnidades();
+  const inp=document.getElementById('iv-unit-edit-inp');
+  if (inp) { inp.focus(); inp.select(); }
+}
+function cancelarEditUnidad() { _unitEditing=null; renderUnidades(); }
+function guardarEditUnidad() {
+  const inp=document.getElementById('iv-unit-edit-inp');
+  const nuevo=(inp?.value||'').trim();
+  if (!nuevo) { inp?.focus(); return; }
+  const viejo=_unitEditing;
+  if (nuevo!==viejo) {
+    if (customUnits.find(u=>u.nombre===nuevo)) { alert('Esa unidad ya existe'); inp?.focus(); return; }
+    customUnits=customUnits.map(u=>u.nombre===viejo?{...u,nombre:nuevo}:u);
+  }
+  _unitEditing=null;
+  renderUnidades();
+}
 
 // ═══════════════════════════════════════════════════
 // PANELES
@@ -1222,12 +1250,23 @@ document.getElementById('nav-unidades')?.addEventListener('click',()=>showScreen
 document.getElementById('nav-params')?.addEventListener('click',()=>document.getElementById('panel-params').classList.remove('is-hidden'));
 document.getElementById('btn-nuevo-insumo')?.addEventListener('click',()=>abrirEditorInsumo(null));
 document.getElementById('btn-registrar-compra')?.addEventListener('click',abrirCompra);
+// prompt() no existe en Electron → formulario inline dentro de la tarjeta de unidades
+let _unitNewForm = false;
 document.getElementById('btn-nueva-unidad')?.addEventListener('click',()=>{
-  const nombre=prompt('Nombre de la nueva unidad:')?.trim();
-  if (!nombre) return;
-  if (customUnits.find(u=>u.nombre===nombre)){alert('Esa unidad ya existe');return;}
-  customUnits.push({nombre}); renderUnidades(); showToast('✓ Unidad "'+nombre+'" creada');
+  _unitNewForm=true; _unitEditing=null; renderUnidades();
+  document.getElementById('iv-unit-new-inp')?.focus();
 });
+function cancelarNuevaUnidad() { _unitNewForm=false; renderUnidades(); }
+function crearNuevaUnidad() {
+  const inp=document.getElementById('iv-unit-new-inp');
+  const nombre=(inp?.value||'').trim();
+  if (!nombre) { inp?.focus(); return; }
+  if (customUnits.find(u=>u.nombre===nombre)){alert('Esa unidad ya existe');inp?.focus();return;}
+  customUnits.push({nombre});
+  _unitNewForm=false;
+  renderUnidades();
+  showToast('✓ Unidad "'+nombre+'" creada');
+}
 
 // ═══════════════════════════════════════════════════
 // INIT
