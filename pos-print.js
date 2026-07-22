@@ -263,6 +263,15 @@
     };
   }
 
+  // Imprimir un ticket ya armado (cierre de caja / paloteo). Usa la impresora
+  // configurada; docType 'recibo' → impresora de caja.
+  window.posPrintTicket = async function (html, docType) {
+    var hasPrinter = await _hasPrinter();
+    if (!hasPrinter) { _noprinterToast(); return false; }
+    try { await _printHtml(html, docType || 'recibo'); return true; }
+    catch (e) { _diagToast('❌ Error al imprimir: ' + (e && e.message || e), '#dc2626'); return false; }
+  };
+
   function _noprinterToast() {
     var ex = document.getElementById('pos-noprinter-toast');
     if (ex) { clearTimeout(ex._t); ex.remove(); }

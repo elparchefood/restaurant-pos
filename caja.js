@@ -72,6 +72,7 @@ async function refreshAll() {
     S.pagosMetodo = await loadPagosPorMetodo(S.branchId, S.session.opened_at, S.orders);
     // Recuperar arqueo guardado en la sesión (sobrevive recargas de página)
     if (S.session.arqueo_contado != null) S.arqueoContado = parseFloat(S.session.arqueo_contado);
+    if (S.session.arqueo_denoms) S.arqueoDenoms = S.session.arqueo_denoms;
   } else { S.orders = []; S.items = []; S.pagosMetodo = {}; }
   S.payMethods = await loadPayMethodsConfig();
   const moves = await getMoves();
@@ -663,6 +664,12 @@ function renderCierres(sessions) {
             <span class="cj-amt-close">${COPF(s.closing_cash||0)}</span>
           </div>
         </div>
+        <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px">
+          <button class="cj-btn-ghost" style="font-size:11.5px;padding:5px 10px" onclick="reimprimirCierre('${s.id}')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Reimprimir cierre
+          </button>
+        </div>
       </div>`;
   }).join('');
 
@@ -992,9 +999,11 @@ document.getElementById('btn-guardar-arqueo').addEventListener('click', async fu
       const ingresos = moves.filter(m=>m.type==='ingreso').reduce((s,m)=>s+(m.amount||0),0);
       const egresos  = moves.filter(m=>m.type==='egreso').reduce((s,m)=>s+(m.amount||0),0);
       const esperado = (S.session.opening_cash||0) + ventasEf + ingresos - egresos;
+      S.arqueoDenoms = getArqueoDenoms();
       await sb.from('pos_sessions').update({
         arqueo_contado: S.arqueoContado,
         arqueo_diff:    S.arqueoContado - esperado,
+        arqueo_denoms:  S.arqueoDenoms,
       }).eq('id', S.session.id);
     }
   } catch(e) { console.error('guardar arqueo:', e); }
@@ -1035,6 +1044,138 @@ function getArqueoContado() {
     t += (parseInt(inp.value||'0',10)||0) * parseInt(inp.dataset.val,10);
   });
   return t;
+}
+
+// Detalle del paloteo (conteo por denominación) para guardarlo e imprimirlo.
+// Antes solo se persistía el total contado → la separación billetes/sencillo/
+// monedas se perdía al cerrar. Devuelve { lineas:[{denom,qty,total,grupo}], ... }
+// ── Datos consolidados del turno para los tickets de caja ──────────
+async function buildCierreData() {
+  const moves    = await getMoves();
+  const ventasEf = (S.pagosMetodo && S.pagosMetodo['efectivo']) || 0;
+  const ingresos = moves.filter(m => m.type === 'ingreso').reduce((s, m) => s + (m.amount || 0), 0);
+  const egresos  = moves.filter(m => m.type === 'egreso').reduce((s, m) => s + (m.amount || 0), 0);
+  const base     = S.session ? (S.session.opening_cash || 0) : 0;
+  const esperado = base + ventasEf + ingresos - egresos;
+  const activos  = (S.orders || []).filter(o => o.status !== 'cancelled');
+  const ventas   = activos.reduce((s, o) => s + (parseFloat(o.total_final ?? o.total) || 0), 0);
+  // Unificar métodos por nombre legible (efectivo/Efectivo cuentan igual)
+  const metodos = {};
+  Object.keys(S.pagosMetodo || {}).forEach(k => {
+    const key = k.toLowerCase();
+    metodos[key] = (metodos[key] || 0) + (S.pagosMetodo[k] || 0);
+  });
+  // Nombre del negocio para el encabezado del ticket (cacheado en S)
+  if (!S.negocioNombre) {
+    try {
+      const { data: br } = await sb.from('branches').select('name, brand_id').eq('id', S.branchId).maybeSingle();
+      let nom = (br && br.name) || '';
+      if (br && br.brand_id) {
+        const { data: bd } = await sb.from('brands').select('name').eq('id', br.brand_id).maybeSingle();
+        if (bd && bd.name) nom = bd.name;
+      }
+      S.negocioNombre = nom || 'CAJA';
+    } catch (e) { S.negocioNombre = 'CAJA'; }
+  }
+  return {
+    negocio:  S.negocioNombre,
+    session:  S.session,
+    base, ventas, nPedidos: activos.length,
+    metodos, ingresos, egresos, esperado,
+  };
+}
+
+// Imprimir PALOTEO (planilla de conteo por denominación)
+async function imprimirPaloteo() {
+  if (typeof window.posBuildPaloteo !== 'function' || typeof window.posPrintTicket !== 'function') {
+    showToast('Impresión no disponible en esta pantalla'); return;
+  }
+  const d = getArqueoDenoms();
+  const abierto = document.getElementById('panel-arqueo') &&
+                  !document.getElementById('panel-arqueo').classList.contains('is-hidden');
+  const denoms = (d.total > 0 || abierto) ? d : (S.arqueoDenoms || d);
+  if (!denoms || !denoms.total) { showToast('Primero cuenta el efectivo en el arqueo'); return; }
+  const info = await buildCierreData();
+  const ok = await window.posPrintTicket(
+    window.posBuildPaloteo(denoms, { negocio: info.negocio, session: S.session, esperado: info.esperado }), 'recibo');
+  if (ok) showToast('Paloteo enviado a la impresora');
+}
+
+// Imprimir CIERRE DE CAJA (Z)
+async function imprimirCierre(sesionCerrada) {
+  if (typeof window.posBuildCierre !== 'function' || typeof window.posPrintTicket !== 'function') {
+    showToast('Impresión no disponible en esta pantalla'); return;
+  }
+  const c = await buildCierreData();
+  if (sesionCerrada) c.session = sesionCerrada;
+  const d = getArqueoDenoms();
+  c.denoms  = (d && d.total) ? d : (S.arqueoDenoms || null);
+  c.contado = (S.arqueoContado != null) ? S.arqueoContado : (c.denoms ? c.denoms.total : null);
+  if (c.contado != null) c.diff = c.contado - c.esperado;
+  const ok = await window.posPrintTicket(window.posBuildCierre(c), 'recibo');
+  if (ok) showToast('Cierre enviado a la impresora');
+}
+// Reimprimir el cierre de un turno YA CERRADO (desde el historial de cierres).
+// Recalcula ventas/métodos/movimientos de ese turno con su propia ventana de tiempo.
+async function reimprimirCierre(sessionId) {
+  try {
+    const { data: ses } = await sb.from('pos_sessions').select('*').eq('id', sessionId).maybeSingle();
+    if (!ses) { showToast('No se encontró ese cierre'); return; }
+    const until = ses.closed_at || new Date().toISOString();
+    const orders = await loadOrders(S.branchId, ses.opened_at, until);
+    const pagos  = await loadPagosPorMetodo(S.branchId, ses.opened_at, orders);
+    const { data: mvs } = await sb.from('pos_cash_moves').select('*').eq('session_id', ses.id);
+    const moves    = mvs || [];
+    const ingresos = moves.filter(m => m.type === 'ingreso').reduce((s, m) => s + (m.amount || 0), 0);
+    const egresos  = moves.filter(m => m.type === 'egreso').reduce((s, m) => s + (m.amount || 0), 0);
+    const metodos  = {};
+    Object.keys(pagos || {}).forEach(k => {
+      const key = k.toLowerCase();
+      metodos[key] = (metodos[key] || 0) + (pagos[k] || 0);
+    });
+    const ventasEf = metodos['efectivo'] || 0;
+    const base     = ses.opening_cash || 0;
+    const activos  = (orders || []).filter(o => o.status !== 'cancelled');
+    if (!S.negocioNombre) await buildCierreData();   // cachea el nombre del negocio
+    const c = {
+      negocio:  S.negocioNombre || 'CAJA',
+      session:  ses,
+      base:     base,
+      ventas:   activos.reduce((s, o) => s + (parseFloat(o.total_final ?? o.total) || 0), 0),
+      nPedidos: activos.length,
+      metodos, ingresos, egresos,
+      esperado: base + ventasEf + ingresos - egresos,
+      denoms:   ses.arqueo_denoms || null,
+      contado:  ses.arqueo_contado != null ? parseFloat(ses.arqueo_contado) : (ses.closing_cash || null),
+    };
+    if (c.contado != null) c.diff = c.contado - c.esperado;
+    const ok = await window.posPrintTicket(window.posBuildCierre(c), 'recibo');
+    if (ok) showToast('Cierre reenviado a la impresora');
+  } catch (e) { console.error('reimprimirCierre:', e); showToast('Error al reimprimir el cierre'); }
+}
+
+window.imprimirPaloteo  = imprimirPaloteo;
+window.imprimirCierre   = imprimirCierre;
+window.reimprimirCierre = reimprimirCierre;
+
+function getArqueoDenoms() {
+  const lineas = [];
+  let billetes = 0, monedas = 0;
+  document.querySelectorAll('.cj-denom').forEach((grp, gi) => {
+    grp.querySelectorAll('.denom-input').forEach(inp => {
+      const qty   = parseInt(inp.value || '0', 10) || 0;
+      const denom = parseInt(inp.dataset.val, 10) || 0;
+      if (!qty) return;
+      const total = qty * denom;
+      lineas.push({ denom: denom, qty: qty, total: total, grupo: gi === 0 ? 'billete' : 'moneda' });
+      if (gi === 0) billetes += total; else monedas += total;
+    });
+  });
+  // Grandes = billetes de $50.000 y $100.000 (los que se consignan/guardan).
+  // Sencillo = el resto de billetes (queda como base del día siguiente).
+  const grandes  = lineas.filter(l => l.grupo === 'billete' && l.denom >= 50000).reduce((s, l) => s + l.total, 0);
+  const sencillo = billetes - grandes;
+  return { lineas: lineas, billetes: billetes, monedas: monedas, grandes: grandes, sencillo: sencillo, total: billetes + monedas };
 }
 
 async function updateArqueoEsperado() {
@@ -1096,6 +1237,12 @@ async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoCon
     }).eq('status', 'open').neq('id', S.session.id);
     if (S.branchId) qOrfanas.eq('branch_id', S.branchId);
     await qOrfanas;
+
+    // Imprimir el cierre ANTES de refrescar (refreshAll limpia S.session/arqueo)
+    try {
+      const cerrada = Object.assign({}, S.session, upd);
+      await imprimirCierre(cerrada);
+    } catch(e) { console.warn('imprimir cierre:', e); }
 
     showToast('Caja cerrada correctamente');
     await refreshAll();
