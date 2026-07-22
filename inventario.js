@@ -60,21 +60,97 @@ function stateColors(s) {
   return m[s] || m.ok;
 }
 function costoPorUr(ins) { return ins.precio / (ins.conversion || 1); }
-function calcReceta(prod) {
+
+// ── Presentaciones y variables ─────────────────────────────────────────
+// Un producto sin tamanos se trata como si tuviera uno solo, con id '_'.
+function presDe(prod) {
+  return (prod.pres && prod.pres.length) ? prod.pres : [{ id: '_', name: '', price: prod.precio }];
+}
+function opcionesDe(prod) {
+  return prod.variantes ? prod.variantes.opciones : [];
+}
+// Precio de venta de una combinacion concreta (tamano + opcion).
+function precioDe(prod, presId, varOptId) {
+  const lista = presDe(prod);
+  const idx   = lista.findIndex(p => p.id === presId);
+  if (varOptId) {
+    const o = opcionesDe(prod).find(x => x.id === varOptId);
+    if (o) {
+      if (o.prices && idx >= 0 && o.prices[idx] > 0) return o.prices[idx];
+      if (o.price > 0) return o.price;
+    }
+  }
+  if (idx >= 0 && lista[idx].price > 0) return lista[idx].price;
+  return prod.precio;
+}
+// Cantidad que lleva una linea en un tamano dado.
+function qtyLinea(l, presId) {
+  if (l.qty && l.qty[presId] != null) return l.qty[presId];
+  if (l.qty && l.qty['_'] != null) return l.qty['_'];
+  return 0;
+}
+// Una linea aplica si es base (sin variable) o si es de la opcion elegida.
+function lineaAplica(l, varOptId) {
+  return !l.varOpt || l.varOpt === varOptId;
+}
+// Costeo de UNA combinacion (tamano + opcion de variable).
+// Sin argumentos usa el primer tamano y la primera opcion, que es el
+// comportamiento que tenian las pantallas antes de este cambio.
+function calcReceta(prod, presId, varOptId) {
   const fcPct = params.fc / 100;
   const opPct = params.op / 100;
+  const lista = presDe(prod);
+  if (presId == null) presId = lista[0].id;
+  if (varOptId === undefined) {
+    const ops = opcionesDe(prod);
+    varOptId = ops.length ? ops[0].id : null;
+  }
   let raw = 0;
   for (const l of prod.receta) {
+    if (!lineaAplica(l, varOptId)) continue;
     const ins = insumos.find(i => i.id === l.insId);
     if (!ins) continue;
-    raw += l.qty * costoPorUr(ins) * (params.merma ? (1 + l.merma / 100) : 1);
+    raw += qtyLinea(l, presId) * costoPorUr(ins) * (params.merma ? (1 + l.merma / 100) : 1);
   }
-  const fc      = prod.precio > 0 ? raw / prod.precio : 0;
-  const margen  = prod.precio - raw;
-  const otros   = prod.precio * opPct;
-  const neta    = prod.precio - raw - otros;
+  const precio  = precioDe(prod, presId, varOptId);
+  const fc      = precio > 0 ? raw / precio : 0;
+  const margen  = precio - raw;
+  const otros   = precio * opPct;
+  const neta    = precio - raw - otros;
   const sugerido = fcPct > 0 ? raw / fcPct : 0;
-  return { raw, fc, margen, otros, neta, sugerido };
+  return { raw, fc, margen, otros, neta, sugerido, precio, presId, varOptId };
+}
+
+// Todas las combinaciones reales del producto, ya costeadas.
+function combosDe(prod) {
+  const out  = [];
+  const ops  = opcionesDe(prod);
+  const opsL = ops.length ? ops : [null];
+  for (const pres of presDe(prod)) {
+    for (const op of opsL) {
+      const r = calcReceta(prod, pres.id, op ? op.id : null);
+      out.push({
+        presId: pres.id, presName: pres.name,
+        varOptId: op ? op.id : null, varName: op ? op.name : '',
+        pausado: isPausado(prod, op ? op.id : null),
+        ...r,
+      });
+    }
+  }
+  return out;
+}
+
+// Resumen para la tarjeta: rango de materia prima y cual es el peor caso.
+function resumenReceta(prod) {
+  const combos = combosDe(prod).filter(c => c.precio > 0);
+  if (!combos.length) return null;
+  let peor = combos[0], mejor = combos[0];
+  for (const c of combos) {
+    if (c.fc > peor.fc)  peor  = c;
+    if (c.fc < mejor.fc) mejor = c;
+  }
+  const etiqueta = [peor.varName, peor.presName].filter(Boolean).join(' ');
+  return { combos, peor, mejor, rango: combos.length > 1, etiqueta };
 }
 function semaforo(fc) {
   if (fc <= 0.30) return { color:'#22C55E', label:'Saludable' };
@@ -82,12 +158,29 @@ function semaforo(fc) {
   if (fc <= 0.45) return { color:'#F97316', label:'Cuidado' };
   return { color:'#EF4444', label:'No rentable' };
 }
-function isPausado(prod) {
+// Una combinacion se pausa solo si le falta un insumo QUE ELLA usa.
+// Antes, si faltaba la salchicha se pausaba tambien la version de pollo.
+function isPausado(prod, varOptId) {
   if (!prod.receta || prod.receta.length === 0) return false;
+  if (varOptId === undefined) {
+    const ops = opcionesDe(prod);
+    if (ops.length) return ops.every(o => isPausado(prod, o.id));
+    varOptId = null;
+  }
   return prod.receta.some(l => {
+    if (!lineaAplica(l, varOptId)) return false;
     const ins = insumos.find(i => i.id === l.insId);
     return ins && ins.prep && ins.stock <= 0;
   });
+}
+// Insumo faltante de una combinacion, para el mensaje de la tarjeta.
+function insumoFaltante(prod, varOptId) {
+  const l = prod.receta.find(x => {
+    if (!lineaAplica(x, varOptId)) return false;
+    const i = insumos.find(y => y.id === x.insId);
+    return i && i.prep && i.stock <= 0;
+  });
+  return l ? (insumos.find(y => y.id === l.insId) || {}).nombre || '—' : '—';
 }
 function countRecipes(insId) {
   return productos.filter(p => p.receta && p.receta.some(l => l.insId === insId)).length;
@@ -118,6 +211,7 @@ async function loadData() {
     await loadRecetasDB();
     await loadParamsDB();
     await loadBasesDB();
+    await loadPorciones();
   } catch(e) {
     console.error('[inventario] loadData:', e);
   } finally {
@@ -132,7 +226,7 @@ async function loadProductos() {
   if (!tenantId || !branchId) return;
   const { data, error } = await iv_sb
     .from('pos_products')
-    .select('id, name, description, price, available, pos_categories(name, color)')
+    .select('id, name, description, price, available, price_mode, presentations, variables, pos_categories(name, color)')
     .eq('tenant_id', tenantId)
     .eq('branch_id', branchId)
     .order('name');
@@ -145,6 +239,23 @@ async function loadProductos() {
     precio:  parseFloat(p.price) || 0,
     visible:     p.available !== false,
     descripcion: p.description || '',
+    priceMode:   p.price_mode || 'simple',
+    // Tamanos del catalogo. Si el producto no tiene, se usa el pseudo-id '_'.
+    pres: (p.presentations || []).map(x => ({ id: x.id, name: x.name || '', price: parseFloat(x.price) || 0 })),
+    // Grupo de variables que define precio (Mixta / Carne / Pollo).
+    variantes: (function () {
+      const gs = p.variables || [];
+      const g  = gs.find(x => x.isPricing) || gs[0];
+      if (!g || !(g.options || []).length) return null;
+      return {
+        grupo: g.name || 'Opcion',
+        opciones: g.options.map(o => ({
+          id: o.id, name: o.name || '',
+          price: parseFloat(o.price) || 0,
+          prices: Array.isArray(o.prices) ? o.prices.map(v => parseFloat(v) || 0) : null,
+        })),
+      };
+    })(),
     receta:      [],
   }));
 }
@@ -184,10 +295,84 @@ async function loadRecetasDB() {
   if (error) { console.error('[inventario] loadRecetas:', error); return; }
   recetas = data || [];
   for (const prod of productos) {
+    const ids = presDe(prod).map(p => p.id);
     prod.receta = recetas
       .filter(r => r.product_id === prod.id)
-      .map(r => ({ insId: r.insumo_id, qty: parseFloat(r.cantidad), merma: parseFloat(r.merma) || 0 }));
+      .map(r => {
+        const mapa = r.cantidades || {};
+        const qty = {}, porc = {}, manual = {};
+        for (const k in mapa) {
+          qty[k]    = parseFloat(mapa[k].q) || 0;
+          porc[k]   = mapa[k].p || null;
+          manual[k] = !mapa[k].p && qty[k] > 0;
+        }
+        // Recetas viejas (una sola cantidad): se replica en todos los tamanos.
+        if (!Object.keys(qty).length) {
+          const base = parseFloat(r.cantidad) || 0;
+          for (const pid of ids) { qty[pid] = base; porc[pid] = null; manual[pid] = base > 0; }
+        }
+        return {
+          insId:  r.insumo_id,
+          merma:  parseFloat(r.merma) || 0,
+          varOpt: r.variant_option_id || null,
+          qty, porc, manual,
+        };
+      });
   }
+}
+
+// ── Porciones (medidas con nombre, por insumo) ─────────────────────────
+let porciones = [];
+
+async function loadPorciones() {
+  if (!tenantId || !branchId) return;
+  const { data, error } = await iv_sb
+    .from('iv_porciones')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('branch_id', branchId)
+    .order('cantidad');
+  if (error) { console.error('[inventario] loadPorciones:', error); return; }
+  porciones = (data || []).map(p => ({
+    id: p.id, insId: p.insumo_id, nombre: p.nombre, cantidad: parseFloat(p.cantidad) || 0,
+  }));
+}
+
+function porcionesDe(insId) { return porciones.filter(p => p.insId === insId); }
+function porcionPorId(id)   { return porciones.find(p => p.id === id) || null; }
+
+async function crearPorcion(insId, nombre, cantidad) {
+  nombre = (nombre || '').trim();
+  cantidad = parseFloat(cantidad) || 0;
+  if (!nombre || cantidad <= 0) { showToast('Escribe nombre y cantidad'); return null; }
+  if (porcionesDe(insId).some(p => p.nombre.toLowerCase() === nombre.toLowerCase())) {
+    showToast('Ya existe una porcion con ese nombre'); return null;
+  }
+  const { data, error } = await iv_sb.from('iv_porciones').insert({
+    tenant_id: tenantId, branch_id: branchId,
+    insumo_id: insId, nombre, cantidad,
+  }).select().single();
+  if (error) { console.error('[porciones] crear:', error); showToast('Error al crear la porcion'); return null; }
+  const nueva = { id: data.id, insId, nombre, cantidad };
+  porciones.push(nueva);
+  return nueva;
+}
+
+async function actualizarPorcion(id, nombre, cantidad) {
+  const { error } = await iv_sb.from('iv_porciones')
+    .update({ nombre: (nombre || '').trim(), cantidad: parseFloat(cantidad) || 0, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) { console.error('[porciones] actualizar:', error); showToast('Error al guardar'); return false; }
+  const p = porcionPorId(id);
+  if (p) { p.nombre = (nombre || '').trim(); p.cantidad = parseFloat(cantidad) || 0; }
+  return true;
+}
+
+async function eliminarPorcion(id) {
+  const { error } = await iv_sb.from('iv_porciones').delete().eq('id', id);
+  if (error) { console.error('[porciones] eliminar:', error); showToast('Error al eliminar'); return false; }
+  porciones = porciones.filter(p => p.id !== id);
+  return true;
 }
 
 let bases = [];   // pos_bases del tenant: [{id,name,ingredients:[],product_ids:[]}]
@@ -240,7 +425,11 @@ function updateKPIs() {
   const enAlerta   = insumos.filter(i => getStockState(i) !== 'ok').length;
   const pausados   = productos.filter(p => isPausado(p)).length;
   const conReceta  = productos.filter(p => p.receta && p.receta.length > 0);
-  const margenes   = conReceta.map(p => { const r = calcReceta(p); return r.margen / p.precio; });
+  const margenes   = conReceta.map(p => {
+    const res = resumenReceta(p);
+    const r   = res ? res.peor : calcReceta(p);
+    return r.precio > 0 ? r.margen / r.precio : 0;
+  });
   const margenProm = margenes.length > 0 ? margenes.reduce((a,b)=>a+b,0)/margenes.length*100 : 0;
 
   document.getElementById('kpi-alerta-n').textContent   = enAlerta;
@@ -374,10 +563,36 @@ function filterProductos(q) {
   renderProductos();
 }
 
+// Precio: un valor si el producto es simple, un rango si tiene tamanos u opciones.
+function precioEtiqueta(prod) {
+  const precios = [];
+  const ops  = opcionesDe(prod);
+  const opsL = ops.length ? ops : [null];
+  for (const pres of presDe(prod)) {
+    for (const op of opsL) {
+      const v = precioDe(prod, pres.id, op ? op.id : null);
+      if (v > 0) precios.push(v);
+    }
+  }
+  if (!precios.length) return ivCOP(prod.precio);
+  const min = Math.min(...precios), max = Math.max(...precios);
+  return min === max ? ivCOP(min) : ivCOP(min) + ' \u2013 ' + ivCOP(max);
+}
+
+// Materia prima: un porcentaje, o el rango entre la mejor y la peor combinacion.
+function fcEtiqueta(resumen, r) {
+  if (!resumen || !resumen.rango) return (r.fc * 100).toFixed(1) + '%';
+  const lo = (resumen.mejor.fc * 100).toFixed(1);
+  const hi = (resumen.peor.fc  * 100).toFixed(1);
+  return lo === hi ? hi + '%' : lo + ' \u2013 ' + hi + '%';
+}
+
 function buildProdCard(prod) {
   const tieneReceta = prod.receta && prod.receta.length > 0;
   const paused      = tieneReceta && isPausado(prod);
-  const r           = tieneReceta ? calcReceta(prod) : null;
+  const resumen     = tieneReceta ? resumenReceta(prod) : null;
+  // El semaforo se pinta con el PEOR caso: es el que puede estar sangrando.
+  const r           = resumen ? resumen.peor : (tieneReceta ? calcReceta(prod) : null);
   const sem         = r ? semaforo(r.fc) : null;
   const el          = document.createElement('div');
   el.className      = 'iv-prod-card' + (!prod.visible ? ' off' : '');
@@ -391,7 +606,7 @@ function buildProdCard(prod) {
         <div class="iv-prod-name">${prod.nombre}</div>
       </div>
       <div style="text-align:right;flex-shrink:0">
-        <div class="iv-prod-price">${ivCOP(prod.precio)}</div>
+        <div class="iv-prod-price">${precioEtiqueta(prod)}</div>
         <div class="iv-prod-price-lbl">precio venta</div>
       </div>
     </div>`;
@@ -403,8 +618,7 @@ function buildProdCard(prod) {
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       Sin receta · agrega insumos para costear</div>`;
   } else if (paused) {
-    const faltante = prod.receta.find(l => { const i=insumos.find(x=>x.id===l.insId); return i&&i.prep&&i.stock<=0; });
-    const nomFalt  = faltante ? (insumos.find(x=>x.id===faltante.insId)?.nombre||'—') : '—';
+    const nomFalt = insumoFaltante(prod, undefined);
     stateHTML = `<div class="iv-state paused">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
       Pausado · falta ${nomFalt}</div>`;
@@ -417,16 +631,16 @@ function buildProdCard(prod) {
   // MINICOST: labels exactos del diseño
   let minicostHTML = '';
   if (tieneReceta && r) {
-    const fcPct   = (r.fc*100).toFixed(1);
-    const netaPct = prod.precio > 0 ? (r.neta/prod.precio*100).toFixed(1) : '0';
+    const fcPct   = fcEtiqueta(resumen, r);
+    const netaPct = r.precio > 0 ? (r.neta/r.precio*100).toFixed(1) : '0';
     const semColor = sem.color;
     // color de texto según semáforo (más oscuro)
     const inkMap = {'#22C55E':'#166534','#EAB308':'#854D0E','#F97316':'#9A3412','#EF4444':'#991B1B'};
     const fcInk = inkMap[semColor] || '#0F172A';
     minicostHTML = `<div class="iv-minicost">
       <div class="col">
-        <div class="v" style="color:${fcInk}"><span style="width:9px;height:9px;border-radius:999px;background:${semColor};display:inline-block"></span>${fcPct}%</div>
-        <div class="l">materia prima</div>
+        <div class="v" style="color:${fcInk}"><span style="width:9px;height:9px;border-radius:999px;background:${semColor};display:inline-block"></span>${fcPct}</div>
+        <div class="l">${resumen && resumen.rango ? 'materia prima · peor: ' + escHtml(resumen.etiqueta) : 'materia prima'}</div>
       </div>
       <div class="sep"></div>
       <div class="col">
@@ -507,64 +721,263 @@ function abrirEditorInsumoReceta(prodId) {
   if (!prod) return;
   recEdit = {
     prodId,
-    lines: (prod.receta || []).map(l => ({ insId: l.insId, qty: l.qty, merma: l.merma || 0 })),
+    tab: null,                 // null = pestaña "Base"; si no, id de la opción
+    nueva: null,               // formulario inline de porción nueva
+    lines: (prod.receta || []).map(l => ({
+      insId: l.insId, merma: l.merma || 0, varOpt: l.varOpt || null,
+      qty: { ...l.qty }, porc: { ...l.porc }, manual: { ...l.manual },
+    })),
   };
   document.getElementById('panel-receta-edit').classList.remove('is-hidden');
   renderRecEdit();
 }
 
+function recEditProd() { return productos.find(p => p.id === recEdit.prodId); }
+
+// Líneas visibles en la pestaña activa.
+function recEditLineasVisibles() {
+  return recEdit.lines
+    .map((l, i) => ({ l, i }))
+    .filter(x => (x.l.varOpt || null) === recEdit.tab);
+}
+
 function renderRecEdit() {
-  const prod = productos.find(p => p.id === recEdit.prodId);
+  const prod = recEditProd();
   if (!prod) return;
   document.getElementById('rec-edit-title').textContent = 'Editar receta · ' + prod.nombre;
 
-  // Lista de líneas
-  const list = document.getElementById('rec-edit-list');
-  list.innerHTML = '';
-  if (!recEdit.lines.length) {
-    list.innerHTML = '<div style="text-align:center;color:#94A3B8;font-size:12.5px;padding:18px 0">Sin ingredientes. Agrega uno abajo.</div>';
+  const lista = presDe(prod);
+  const ops   = opcionesDe(prod);
+  const host  = document.getElementById('rec-edit-list');
+
+  // ── Pestañas de variable ──────────────────────────────────────────
+  let tabsHTML = '';
+  if (ops.length) {
+    const chip = (id, txt) =>
+      '<button class="iv-chip ' + ((recEdit.tab || null) === id ? 'on' : '') + '" data-rectab="' + (id === null ? '' : escHtml(id)) + '">' + escHtml(txt) + '</button>';
+    const nomTab = (ops.find(o => o.id === recEdit.tab) || {}).name || '';
+    tabsHTML = '<div class="iv-filters" style="margin-bottom:10px">'
+      + chip(null, 'Base') + '<div class="vsep"></div>' + ops.map(o => chip(o.id, o.name)).join('')
+      + '</div><p class="iv-help" style="margin:0 0 12px">'
+      + (recEdit.tab
+          ? 'Solo lo que diferencia a <strong>' + escHtml(nomTab) + '</strong>. Lo de Base ya va incluido.'
+          : 'Lo que pongas aquí va en las ' + ops.length + ' opciones. En cada pestaña agregas solo lo que la diferencia.')
+      + '</p>';
   }
-  recEdit.lines.forEach((l, i) => {
-    const ins = insumos.find(x => x.id === l.insId);
-    const nombre = ins ? ins.nombre : '(insumo eliminado)';
-    const unidad = ins ? ins.useUnit : '';
-    const row = document.createElement('div');
-    row.className = 'ia-ingr-row';
-    row.innerHTML = `
-      <span class="ia-ingr-badge extra">•</span>
-      <div><div class="ia-ingr-name">${nombre}</div></div>
-      <input class="ia-ingr-qty" type="number" min="0" step="any" value="${l.qty}"
-             oninput="recEditSetQty(${i}, this.value)">
-      <span style="font-size:12.5px;font-weight:600;color:#64748B;text-align:center">${unidad}</span>
-      <button class="ia-ingr-del" title="Quitar" onclick="recEditDelLine(${i})">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-      </button>`;
-    list.appendChild(row);
-  });
 
-  // Select de insumos disponibles (los que NO están ya en la receta)
+  // ── Tabla: una columna por tamaño ─────────────────────────────────
+  const visibles = recEditLineasVisibles();
+  let tablaHTML;
+  if (!visibles.length) {
+    tablaHTML = '<div style="text-align:center;color:#94A3B8;font-size:12.5px;padding:18px 0">'
+      + (recEdit.tab ? 'Sin insumos propios de esta opción.' : 'Sin ingredientes.')
+      + ' Agrega uno abajo.</div>';
+  } else {
+    const th = lista.map(p =>
+      '<th style="text-align:right;padding:6px 0 6px 8px;font-size:11.5px;font-weight:600;color:#64748B">'
+      + escHtml(p.name || 'Cantidad') + '</th>').join('');
+    const filas = visibles.map(function (x) {
+      const l = x.l, i = x.i;
+      const ins = insumos.find(y => y.id === l.insId);
+      const celdas = lista.map(p =>
+        '<td style="padding:6px 0 6px 8px;vertical-align:top">' + recEditCelda(l, i, p.id, ins) + '</td>').join('');
+      return '<tr><td style="padding:6px 0;font-size:12.5px;font-weight:600;color:#0F172A;vertical-align:top">'
+        + escHtml(ins ? ins.nombre : '(insumo eliminado)') + '</td>' + celdas
+        + '<td style="padding:6px 0 6px 8px;vertical-align:top;text-align:right">'
+        + '<button class="ia-ingr-del" title="Quitar" data-recdel="' + i + '">'
+        + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>'
+        + '</button></td></tr>';
+    }).join('');
+    tablaHTML = '<table style="width:100%;border-collapse:collapse">'
+      + '<thead><tr style="border-bottom:1px solid #E2E8F0">'
+      + '<th style="text-align:left;padding:6px 0;font-size:11.5px;font-weight:600;color:#64748B">Insumo</th>'
+      + th + '<th style="width:28px"></th></tr></thead><tbody>' + filas + '</tbody></table>';
+  }
+
+  host.innerHTML = tabsHTML + tablaHTML + recEditResumen(prod);
+
+  // Select de insumos disponibles en ESTA pestaña
   const sel = document.getElementById('rec-edit-add-select');
-  const usados = new Set(recEdit.lines.map(l => l.insId));
-  const disp = insumos.filter(i => !usados.has(i.id)).sort((a,b) => a.nombre.localeCompare(b.nombre));
+  const usados = new Set(visibles.map(x => x.l.insId));
+  const disp = insumos.filter(i => !usados.has(i.id)).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   sel.innerHTML = '<option value="">Agregar insumo…</option>' +
-    disp.map(i => `<option value="${i.id}">${i.nombre} (${i.useUnit})</option>`).join('');
+    disp.map(i => '<option value="' + i.id + '">' + escHtml(i.nombre) + ' (' + escHtml(i.useUnit) + ')</option>').join('');
 }
 
-function recEditSetQty(i, v) {
-  if (recEdit.lines[i]) recEdit.lines[i].qty = parseFloat(v) || 0;
+// Una celda = desplegable de porciones, o campo manual si así se eligió.
+function recEditCelda(l, i, presId, ins) {
+  const unidad = ins ? ins.useUnit : '';
+  const nueva  = recEdit.nueva;
+
+  if (nueva && nueva.line === i && nueva.pres === presId) {
+    return '<div style="display:flex;flex-direction:column;gap:5px;min-width:150px">'
+      + '<input class="iv-input" style="font-size:12px;padding:5px 8px" placeholder="Nombre" value="' + escHtml(nueva.nombre) + '" data-recnuevanom="1">'
+      + '<input class="iv-input" style="font-size:12px;padding:5px 8px" type="number" step="any" placeholder="Cantidad en ' + escHtml(unidad) + '" value="' + nueva.cantidad + '" data-recnuevacant="1">'
+      + '<div style="display:flex;gap:5px">'
+      + '<button class="iv-btn-sm primary" data-recnuevaok="1">Guardar</button>'
+      + '<button class="iv-btn-sm" data-recnuevacancel="1">Cancelar</button>'
+      + '</div></div>';
+  }
+
+  if (l.manual[presId]) {
+    return '<div style="display:flex;align-items:center;gap:5px;justify-content:flex-end">'
+      + '<input class="ia-ingr-qty" style="width:68px" type="number" min="0" step="any" value="' + (l.qty[presId] || 0) + '"'
+      + ' data-recqty="' + i + '" data-recpres="' + escHtml(presId) + '">'
+      + '<span style="font-size:11.5px;font-weight:600;color:#64748B">' + escHtml(unidad) + '</span>'
+      + '<button title="Elegir una porción" data-recusarporc="' + i + '" data-recpres="' + escHtml(presId) + '"'
+      + ' style="border:none;background:none;cursor:pointer;color:#94A3B8;padding:2px">'
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>'
+      + '</button></div>';
+  }
+
+  const props = porcionesDe(l.insId);
+  const elegida = l.porc[presId] || '';
+  const opts = props.map(p =>
+    '<option value="p:' + p.id + '"' + (elegida === p.id ? ' selected' : '') + '>'
+    + escHtml(p.nombre) + ' · ' + p.cantidad + ' ' + escHtml(unidad) + '</option>').join('');
+  return '<select class="iv-select" style="font-size:12px;padding:5px 8px;min-width:150px"'
+    + ' data-recporc="' + i + '" data-recpres="' + escHtml(presId) + '">'
+    + '<option value=""' + (elegida ? '' : ' selected') + '>Elegir…</option>'
+    + opts
+    + '<option value="__manual__">Escribir cantidad…</option>'
+    + '<option value="__nueva__">Crear porción nueva…</option>'
+    + '</select>';
 }
-function recEditDelLine(i) {
-  recEdit.lines.splice(i, 1);
+
+// Costeo de todas las combinaciones, dentro del mismo panel.
+function recEditResumen(prod) {
+  const combos = recEditCombosPreview(prod);
+  if (!combos.length) return '';
+  const filas = combos.map(function (c) {
+    const et  = [c.varName, c.presName].filter(Boolean).join(' · ') || 'Receta';
+    const sem = semaforo(c.fc);
+    return '<tr><td style="padding:5px 0;font-size:12px;color:#0F172A">' + escHtml(et) + '</td>'
+      + '<td style="padding:5px 0;text-align:right;font-size:12px;color:#475569">' + ivCOP(c.raw) + '</td>'
+      + '<td style="padding:5px 0;text-align:right;font-size:12px;color:#94A3B8">' + ivCOP(c.precio) + '</td>'
+      + '<td style="padding:5px 0 5px 10px;text-align:right;font-size:12px;font-weight:700;color:' + sem.color + '">'
+      + (c.fc * 100).toFixed(1) + '%</td></tr>';
+  }).join('');
+  return '<div data-recresumen="1" style="margin-top:18px;padding-top:14px;border-top:1px solid #E2E8F0">'
+    + '<div class="iv-section-label" style="margin-bottom:6px">Costeo por combinación</div>'
+    + '<table style="width:100%;border-collapse:collapse"><thead><tr>'
+    + '<th style="text-align:left;padding:4px 0;font-size:11px;font-weight:600;color:#94A3B8">Combinación</th>'
+    + '<th style="text-align:right;padding:4px 0;font-size:11px;font-weight:600;color:#94A3B8">Costo</th>'
+    + '<th style="text-align:right;padding:4px 0;font-size:11px;font-weight:600;color:#94A3B8">Venta</th>'
+    + '<th style="text-align:right;padding:4px 0 4px 10px;font-size:11px;font-weight:600;color:#94A3B8">Materia</th>'
+    + '</tr></thead><tbody>' + filas + '</tbody></table></div>';
+}
+
+// Igual que combosDe(), pero sobre lo que hay en pantalla sin guardar todavía.
+function recEditCombosPreview(prod) {
+  const backup = prod.receta;
+  prod.receta = recEdit.lines;
+  let out = [];
+  try { out = combosDe(prod); } finally { prod.receta = backup; }
+  return out;
+}
+
+function recEditSetTab(tab) { recEdit.tab = tab || null; recEdit.nueva = null; renderRecEdit(); }
+
+function recEditSetQty(i, presId, v) {
+  const l = recEdit.lines[i];
+  if (!l) return;
+  l.qty[presId] = parseFloat(v) || 0;
+  recEditRefrescarResumen();
+}
+
+// El resumen se repinta solo, para no perder el foco del campo que se escribe.
+function recEditRefrescarResumen() {
+  const prod = recEditProd();
+  if (!prod) return;
+  const viejo = document.querySelector('[data-recresumen]');
+  if (!viejo) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = recEditResumen(prod);
+  if (tmp.firstElementChild) viejo.parentNode.replaceChild(tmp.firstElementChild, viejo);
+}
+
+function recEditPorcSel(i, presId, val) {
+  const l = recEdit.lines[i];
+  if (!l) return;
+  if (val === '__manual__') {
+    l.manual[presId] = true;
+    l.porc[presId] = null;
+    recEdit.nueva = null;
+  } else if (val === '__nueva__') {
+    recEdit.nueva = { line: i, pres: presId, nombre: '', cantidad: '' };
+  } else if (val.indexOf('p:') === 0) {
+    const p = porcionPorId(val.slice(2));
+    if (p) { l.porc[presId] = p.id; l.qty[presId] = p.cantidad; l.manual[presId] = false; }
+    recEdit.nueva = null;
+  } else {
+    l.porc[presId] = null; l.qty[presId] = 0; l.manual[presId] = false;
+  }
   renderRecEdit();
 }
+
+function recEditUsarPorcion(i, presId) {
+  const l = recEdit.lines[i];
+  if (!l) return;
+  l.manual[presId] = false;
+  renderRecEdit();
+}
+
+async function recEditGuardarNueva() {
+  const n = recEdit.nueva;
+  if (!n) return;
+  const inpNom  = document.querySelector('[data-recnuevanom]');
+  const inpCant = document.querySelector('[data-recnuevacant]');
+  const l = recEdit.lines[n.line];
+  if (!l) return;
+  const p = await crearPorcion(l.insId, inpNom ? inpNom.value : '', inpCant ? inpCant.value : '');
+  if (!p) return;
+  l.porc[n.pres]   = p.id;
+  l.qty[n.pres]    = p.cantidad;
+  l.manual[n.pres] = false;
+  recEdit.nueva = null;
+  showToast('✓ Porción creada');
+  renderRecEdit();
+}
+
+function recEditDelLine(i) {
+  recEdit.lines.splice(i, 1);
+  recEdit.nueva = null;
+  renderRecEdit();
+}
+
 function recEditAddLine() {
   const sel = document.getElementById('rec-edit-add-select');
   const insId = sel.value;
   if (!insId) return;
-  if (recEdit.lines.some(l => l.insId === insId)) return;
-  recEdit.lines.push({ insId, qty: 1, merma: 0 });
+  if (recEditLineasVisibles().some(x => x.l.insId === insId)) return;
+  const qty = {}, porc = {}, manual = {};
+  for (const p of presDe(recEditProd())) { qty[p.id] = 0; porc[p.id] = null; manual[p.id] = false; }
+  recEdit.lines.push({ insId, merma: 0, varOpt: recEdit.tab || null, qty, porc, manual });
   renderRecEdit();
 }
+
+// El panel se redibuja entero en cada cambio, así que los listeners van
+// en el documento y no en cada control.
+document.addEventListener('click', function (ev) {
+  const t = ev.target;
+  if (!t || !t.closest) return;
+  const tab = t.closest('[data-rectab]');
+  if (tab) { recEditSetTab(tab.dataset.rectab || null); return; }
+  const del = t.closest('[data-recdel]');
+  if (del) { recEditDelLine(parseInt(del.dataset.recdel, 10)); return; }
+  const usar = t.closest('[data-recusarporc]');
+  if (usar) { recEditUsarPorcion(parseInt(usar.dataset.recusarporc, 10), usar.dataset.recpres); return; }
+  if (t.closest('[data-recnuevaok]'))     { recEditGuardarNueva(); return; }
+  if (t.closest('[data-recnuevacancel]')) { recEdit.nueva = null; renderRecEdit(); return; }
+});
+document.addEventListener('change', function (ev) {
+  const s = ev.target.closest && ev.target.closest('[data-recporc]');
+  if (s) recEditPorcSel(parseInt(s.dataset.recporc, 10), s.dataset.recpres, s.value);
+});
+document.addEventListener('input', function (ev) {
+  const q = ev.target.closest && ev.target.closest('[data-recqty]');
+  if (q) recEditSetQty(parseInt(q.dataset.recqty, 10), q.dataset.recpres, q.value);
+});
 
 function recEditRegenerarIA() {
   const prodId = recEdit.prodId;
@@ -576,28 +989,49 @@ async function guardarRecetaEdit() {
   const prodId = recEdit.prodId;
   const prod = productos.find(p => p.id === prodId);
   if (!prod) return;
-  const lines = recEdit.lines.filter(l => l.insId && l.qty > 0);
-  const btn = document.getElementById('rec-edit-save');
-  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+  const ids = presDe(prod).map(p => p.id);
 
-  // Reescribir receta: borrar la anterior e insertar la nueva
+  // Una linea sirve si tiene cantidad en al menos un tamano.
+  const lines = recEdit.lines.filter(l =>
+    l.insId && ids.some(pid => (l.qty[pid] || 0) > 0));
+
+  const btn = document.getElementById('rec-edit-save');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando\u2026'; }
+
   await iv_sb.from('iv_recetas').delete().eq('product_id', prodId);
   if (lines.length) {
-    const rows = lines.map(l => ({
-      tenant_id: tenantId, branch_id: branchId,
-      product_id: prodId, insumo_id: l.insId,
-      cantidad: l.qty, merma: l.merma || 0,
-      updated_at: new Date().toISOString(),
-    }));
+    const rows = lines.map(l => {
+      const cantidades = {};
+      for (const pid of ids) {
+        const q = l.qty[pid] || 0;
+        if (q > 0) cantidades[pid] = l.porc[pid] ? { q, p: l.porc[pid] } : { q };
+      }
+      return {
+        tenant_id: tenantId, branch_id: branchId,
+        product_id: prodId, insumo_id: l.insId,
+        variant_option_id: l.varOpt || null,
+        cantidades,
+        cantidad: l.qty[ids[0]] || 0,   // compatibilidad con la columna vieja
+        merma: l.merma || 0,
+        updated_at: new Date().toISOString(),
+      };
+    });
     const { error } = await iv_sb.from('iv_recetas').insert(rows);
-    if (error) { console.error('[receta-edit] guardar:', error); showToast('Error al guardar la receta'); if (btn){btn.disabled=false;btn.textContent='Guardar';} return; }
+    if (error) {
+      console.error('[receta-edit] guardar:', error);
+      showToast('Error al guardar la receta');
+      if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
+      return;
+    }
   }
 
-  // Estado local
-  prod.receta = lines.map(l => ({ insId: l.insId, qty: l.qty, merma: l.merma || 0 }));
+  prod.receta = lines.map(l => ({
+    insId: l.insId, merma: l.merma || 0, varOpt: l.varOpt || null,
+    qty: { ...l.qty }, porc: { ...l.porc }, manual: { ...l.manual },
+  }));
   document.getElementById('panel-receta-edit').classList.add('is-hidden');
   if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
-  showToast('✓ Receta guardada');
+  showToast('\u2713 Receta guardada');
   updateTabBadges(); updateKPIs(); refrescarCosteo(); renderProductos();
 }
 
@@ -1035,8 +1469,115 @@ function abrirEditorInsumo(insId) {
   updateTogglePrepUI();
   document.getElementById('ins-cost-hint').classList.add('is-hidden');
   document.getElementById('btn-ins-eliminar').classList.toggle('is-hidden',!ins);
+  renderPorcionesInsumo(ins ? ins.id : null);
   document.getElementById('panel-insumo').classList.remove('is-hidden');
 }
+
+// ── Porciones dentro de la ficha del insumo ────────────────────────────
+let _porcNueva = false;
+let _porcEdit  = null;
+
+function renderPorcionesInsumo(insId) {
+  const wrap = document.getElementById('ins-porciones-wrap');
+  const host = document.getElementById('ins-porciones-list');
+  if (!wrap || !host) return;
+  // Un insumo que aun no existe no puede tener porciones.
+  wrap.classList.toggle('is-hidden', !insId);
+  if (!insId) { _porcNueva = false; _porcEdit = null; return; }
+
+  const ins  = insumos.find(i => i.id === insId);
+  const unid = ins ? ins.useUnit : '';
+  const cpu  = ins ? costoPorUr(ins) : 0;
+  const lista = porcionesDe(insId);
+
+  let filas = '';
+  if (!lista.length) {
+    filas = '<div style="font-size:12.5px;color:#94A3B8;padding:8px 0">Sin porciones todavia.</div>';
+  } else {
+    filas = lista.map(function (p) {
+      if (_porcEdit === p.id) {
+        return '<div style="display:flex;gap:6px;align-items:center;padding:6px 0">'
+          + '<input class="iv-input" style="flex:1;font-size:12.5px;padding:6px 8px" value="' + escHtml(p.nombre) + '" data-porcnom="' + p.id + '">'
+          + '<input class="iv-input" style="width:90px;font-size:12.5px;padding:6px 8px" type="number" step="any" value="' + p.cantidad + '" data-porccant="' + p.id + '">'
+          + '<span style="font-size:11.5px;font-weight:600;color:#64748B;width:34px">' + escHtml(unid) + '</span>'
+          + '<button class="iv-btn-sm primary" data-porcok="' + p.id + '">Guardar</button>'
+          + '<button class="iv-btn-sm" data-porccancel="1">Cancelar</button>'
+          + '</div>';
+      }
+      return '<div style="display:flex;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid #F1F5F9">'
+        + '<div style="flex:1;font-size:12.5px;font-weight:600;color:#0F172A">' + escHtml(p.nombre) + '</div>'
+        + '<div style="font-size:12.5px;font-weight:700;color:#0F172A;font-variant-numeric:tabular-nums">' + p.cantidad + ' ' + escHtml(unid) + '</div>'
+        + '<div style="font-size:12px;color:#94A3B8;width:74px;text-align:right;font-variant-numeric:tabular-nums">' + ivCOP(p.cantidad * cpu) + '</div>'
+        + '<button title="Editar" data-porcedit="' + p.id + '" style="border:none;background:none;cursor:pointer;color:#94A3B8;padding:2px">'
+        + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button>'
+        + '<button title="Eliminar" data-porcdel="' + p.id + '" style="border:none;background:none;cursor:pointer;color:#94A3B8;padding:2px">'
+        + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>'
+        + '</div>';
+    }).join('');
+  }
+
+  let form = '';
+  if (_porcNueva) {
+    form = '<div style="margin-top:10px;border:1px dashed #CBD5E1;border-radius:10px;padding:10px">'
+      + '<div style="display:flex;gap:6px;align-items:center">'
+      + '<input class="iv-input" style="flex:1;font-size:12.5px;padding:6px 8px" placeholder="Nombre (ej. personal)" data-porcnuevanom="1">'
+      + '<input class="iv-input" style="width:90px;font-size:12.5px;padding:6px 8px" type="number" step="any" placeholder="0" data-porcnuevacant="1">'
+      + '<span style="font-size:11.5px;font-weight:600;color:#64748B;width:34px">' + escHtml(unid) + '</span>'
+      + '</div><div style="display:flex;gap:6px;margin-top:8px">'
+      + '<button class="iv-btn-sm primary" data-porcnuevaok="1">Guardar porcion</button>'
+      + '<button class="iv-btn-sm" data-porcnuevacancel="1">Cancelar</button>'
+      + '</div></div>';
+  } else {
+    form = '<button class="iv-btn-ghost sm" style="margin-top:10px" data-porcnueva="1">'
+      + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+      + ' Nueva porcion</button>';
+  }
+
+  host.innerHTML = filas + form;
+  host.dataset.insId = insId;
+}
+
+document.addEventListener('click', async function (ev) {
+  const t = ev.target;
+  if (!t || !t.closest) return;
+  const host = document.getElementById('ins-porciones-list');
+  const insId = host ? host.dataset.insId : null;
+
+  if (t.closest('[data-porcnueva]'))       { _porcNueva = true;  _porcEdit = null; renderPorcionesInsumo(insId); return; }
+  if (t.closest('[data-porcnuevacancel]')) { _porcNueva = false; renderPorcionesInsumo(insId); return; }
+  if (t.closest('[data-porccancel]'))      { _porcEdit  = null;  renderPorcionesInsumo(insId); return; }
+
+  const ed = t.closest('[data-porcedit]');
+  if (ed) { _porcEdit = ed.dataset.porcedit; _porcNueva = false; renderPorcionesInsumo(insId); return; }
+
+  if (t.closest('[data-porcnuevaok]')) {
+    const nom  = document.querySelector('[data-porcnuevanom]');
+    const cant = document.querySelector('[data-porcnuevacant]');
+    const p = await crearPorcion(insId, nom ? nom.value : '', cant ? cant.value : '');
+    if (p) { _porcNueva = false; showToast('\u2713 Porcion creada'); renderPorcionesInsumo(insId); }
+    return;
+  }
+
+  const ok = t.closest('[data-porcok]');
+  if (ok) {
+    const id = ok.dataset.porcok;
+    const nom  = document.querySelector('[data-porcnom="' + id + '"]');
+    const cant = document.querySelector('[data-porccant="' + id + '"]');
+    if (await actualizarPorcion(id, nom ? nom.value : '', cant ? cant.value : '')) {
+      _porcEdit = null; showToast('\u2713 Porcion actualizada');
+      renderPorcionesInsumo(insId); refrescarCosteo(); renderProductos();
+    }
+    return;
+  }
+
+  const del = t.closest('[data-porcdel]');
+  if (del) {
+    if (await eliminarPorcion(del.dataset.porcdel)) {
+      showToast('Porcion eliminada'); renderPorcionesInsumo(insId);
+    }
+    return;
+  }
+});
 // prompt() no existe en Electron → input inline para escribir la nueva categoría
 function onCatSelChange() {
   const inp = document.getElementById('ins-cat-new');
@@ -1177,7 +1718,7 @@ function renderRecetasList() {
     return;
   }
   for (const prod of visibles) {
-    const r=calcReceta(prod); const sem=semaforo(r.fc);
+    const res=resumenReceta(prod); const r=res?res.peor:calcReceta(prod); const sem=semaforo(r.fc);
     const btn=document.createElement('button');
     btn.className='iv-rec-listitem'; btn.dataset.receta=prod.id;
     btn.innerHTML=`
@@ -1189,6 +1730,17 @@ function renderRecetasList() {
   }
 }
 
+// Combinacion visible en el detalle de receta.
+let _recetaSel = { prodId: null, presId: null, varOptId: null };
+
+document.addEventListener('click', function (ev) {
+  if (!ev.target.closest) return;
+  const p = ev.target.closest('[data-recdetpres]');
+  if (p) { _recetaSel.presId = p.dataset.recdetpres; abrirRecetaDetalle(_recetaSel.prodId); return; }
+  const v = ev.target.closest('[data-recdetvar]');
+  if (v) { _recetaSel.varOptId = v.dataset.recdetvar; abrirRecetaDetalle(_recetaSel.prodId); return; }
+});
+
 function abrirRecetaDetalle(prodId) {
   const prod=productos.find(p=>p.id===prodId);
   if (!prod||!prod.receta||prod.receta.length===0) return;
@@ -1199,9 +1751,35 @@ function abrirRecetaDetalle(prodId) {
     return;
   }
   document.querySelectorAll('.iv-rec-listitem').forEach(b=>b.classList.toggle('on',b.dataset.receta===prodId));
-  const r=calcReceta(prod); const sem=semaforo(r.fc);
-  const fcPct=(r.fc*100).toFixed(1); const netaPct=(r.neta/prod.precio*100).toFixed(1);
-  const margenPct=(r.margen/prod.precio*100).toFixed(1); const opPct=(r.otros/prod.precio*100).toFixed(1);
+
+  // Combinacion que se esta viendo (tamano + opcion de variable).
+  const _pres = presDe(prod), _ops = opcionesDe(prod);
+  if (_recetaSel.prodId !== prodId) {
+    _recetaSel = { prodId, presId: _pres[0].id, varOptId: _ops.length ? _ops[0].id : null };
+  }
+  if (!_pres.some(p => p.id === _recetaSel.presId)) _recetaSel.presId = _pres[0].id;
+  if (_ops.length && !_ops.some(o => o.id === _recetaSel.varOptId)) _recetaSel.varOptId = _ops[0].id;
+  const presId = _recetaSel.presId, varOptId = _recetaSel.varOptId;
+
+  const r=calcReceta(prod, presId, varOptId); const sem=semaforo(r.fc);
+  const precioComb = r.precio;
+  const fcPct=(r.fc*100).toFixed(1); const netaPct=(r.neta/precioComb*100).toFixed(1);
+  const margenPct=(r.margen/precioComb*100).toFixed(1); const opPct=(r.otros/precioComb*100).toFixed(1);
+
+  // Selector de combinacion; solo aparece si hay mas de una.
+  let selectorHTML = '';
+  if (_pres.length > 1 || _ops.length > 1) {
+    const fila = (label, items, activo, attr) =>
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">'
+      + '<span style="font-size:11px;font-weight:700;color:#94A3B8;letter-spacing:.04em;min-width:86px">' + label + '</span>'
+      + items.map(it => '<button class="iv-chip ' + (it.id === activo ? 'on' : '') + '" '
+          + attr + '="' + escHtml(it.id) + '">' + escHtml(it.name || 'Unico') + '</button>').join('')
+      + '</div>';
+    selectorHTML = '<div style="margin:0 0 14px">'
+      + (_pres.length > 1 ? fila('Presentacion', _pres, presId, 'data-recdetpres') : '')
+      + (_ops.length  > 1 ? fila((prod.variantes.grupo || 'Opcion'), _ops, varOptId, 'data-recdetvar') : '')
+      + '</div>';
+  }
   let bannerHTML='';
   if (r.fc<=0.30) {
     bannerHTML=`<div class="iv-alert okbox"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg><div><div class="at">Plato rentable · ${fcPct}% materia prima</div></div></div>`;
@@ -1211,17 +1789,21 @@ function abrirRecetaDetalle(prodId) {
   }
   let recetaRows='';
   for (const l of prod.receta) {
+    if (!lineaAplica(l, varOptId)) continue;
     const ins=insumos.find(i=>i.id===l.insId); if (!ins) continue;
-    const cpu=costoPorUr(ins); const lineCost=l.qty*cpu*(params.merma?(1+l.merma/100):1);
+    const q=qtyLinea(l, presId); if (q<=0) continue;
+    const cpu=costoPorUr(ins); const lineCost=q*cpu*(params.merma?(1+l.merma/100):1);
     const linePct=r.raw>0?(lineCost/r.raw*100).toFixed(1):'0';
-    recetaRows+=`<div class="iv-recipe-row"><div style="flex:1"><div class="iv-recipe-name">${ins.nombre}</div><div class="iv-recipe-sub">${ivCOP(cpu)}/${ins.useUnit} · ${linePct}% del costo</div></div><div style="width:80px;text-align:center;font-size:13px;font-weight:700">${l.qty} ${ins.useUnit}</div><div class="iv-recipe-cost">${ivCOP(lineCost)}</div></div>`;
+    const orig=l.varOpt?' · solo '+escHtml((_ops.find(o=>o.id===l.varOpt)||{}).name||''):'';
+    recetaRows+=`<div class="iv-recipe-row"><div style="flex:1"><div class="iv-recipe-name">${ins.nombre}</div><div class="iv-recipe-sub">${ivCOP(cpu)}/${ins.useUnit} · ${linePct}% del costo${orig}</div></div><div style="width:80px;text-align:center;font-size:13px;font-weight:700">${q} ${ins.useUnit}</div><div class="iv-recipe-cost">${ivCOP(lineCost)}</div></div>`;
   }
   const inf=params.inf/100; const raw6=r.raw*Math.pow(1+inf,0.5); const raw12=r.raw*(1+inf);
-  const fc6=raw6/prod.precio; const fc12=raw12/prod.precio;
+  const fc6=raw6/precioComb; const fc12=raw12/precioComb;
   const dot=fc=>fc<=0.30?'#22C55E':fc<=0.38?'#EAB308':fc<=0.45?'#F97316':'#EF4444';
   document.getElementById('receta-detalle').innerHTML=`
-    <div class="iv-rec-head"><div><div class="iv-prod-cat">${prod.cat}</div><div class="iv-rec-title">${prod.nombre}</div></div><div style="text-align:right"><div class="iv-rec-pricelbl">Precio de venta</div><div style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums">${ivCOP(prod.precio)}</div></div></div>
+    <div class="iv-rec-head"><div><div class="iv-prod-cat">${prod.cat}</div><div class="iv-rec-title">${prod.nombre}</div></div><div style="text-align:right"><div class="iv-rec-pricelbl">Precio de venta</div><div style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums">${ivCOP(precioComb)}</div></div></div>
     <div style="display:flex;justify-content:flex-end;margin:-2px 0 12px"><button class="iv-btn-ghost sm" onclick="abrirEditorInsumoReceta('${prod.id}')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg> Editar receta</button></div>
+    ${selectorHTML}
     ${bannerHTML}
     <div class="iv-metrics">
       <div class="iv-metric"><div class="ml">Materia prima</div><div class="mv" style="color:${sem.color}">${ivCOP(r.raw)}</div><div class="ms">${fcPct}% del precio</div><div class="iv-bar" style="margin-top:8px"><i style="width:${Math.min(100,r.fc*100)}%;background:${sem.color}"></i></div></div>
@@ -1629,6 +2211,15 @@ function iaNext() {
 }
 
 // ── Guardar receta ─────────────────────────────────
+// La IA todavia genera una sola cantidad: se replica en todos los tamanos
+// y luego se ajusta en el editor.
+function _iaCantidades(q) {
+  const prod = productos.find(p => p.id === iaState.prodId);
+  const out = {};
+  for (const p of presDe(prod || { pres: [] })) out[p.id] = { q: q };
+  return out;
+}
+
 async function iaGuardarReceta() {
   if (!iaState.prodId) return;
   document.getElementById('ia-btn-save').disabled = true;
@@ -1696,6 +2287,7 @@ async function iaGuardarReceta() {
     product_id: iaState.prodId,
     insumo_id:  l.insId,
     cantidad:   l.qty,
+    cantidades: _iaCantidades(l.qty),
     merma:      0,
     updated_at: new Date().toISOString(),
   }));
@@ -1708,7 +2300,11 @@ async function iaGuardarReceta() {
   // Actualizar estado local
   const prod   = productos.find(p => p.id === iaState.prodId);
   if (prod) {
-    prod.receta = recetaLinks.map(l => ({ insId: l.insId, qty: l.qty, merma: 0 }));
+    prod.receta = recetaLinks.map(l => {
+      const qty = {}, porc = {}, manual = {};
+      for (const p of presDe(prod)) { qty[p.id] = l.qty; porc[p.id] = null; manual[p.id] = true; }
+      return { insId: l.insId, merma: 0, varOpt: null, qty, porc, manual };
+    });
     // También actualizar descripcion local si no existía
     if (!prod.descripcion) {
       const dbProd = await iv_sb.from('pos_products').select('description').eq('id', iaState.prodId).single();

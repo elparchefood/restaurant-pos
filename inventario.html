@@ -452,6 +452,12 @@
         </div>
         <div class="iv-field"><div class="iv-field-label">Conversión (u.receta / u.compra)</div><input class="iv-input" type="number" id="ins-conversion" min="0.001" step="any" placeholder="Ej. 453" oninput="updateCostHint()"><div class="iv-field-hint">Ej. 1 libra = 453 g</div></div>
       </div>
+      <div class="iv-porciones-wrap is-hidden" id="ins-porciones-wrap" style="margin:18px 0">
+        <div class="iv-section-label">Porciones</div>
+        <p class="iv-field-hint" style="margin:-4px 0 10px">Medidas con nombre que luego eliges en las recetas, en vez de escribir la cantidad cada vez.</p>
+        <div id="ins-porciones-list"></div>
+      </div>
+
       <div class="iv-info is-hidden" id="ins-cost-hint">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
         <span id="ins-cost-hint-txt">—</span>
@@ -693,7 +699,7 @@
 <div class="iv-toast is-hidden" id="iv-toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="inventario.js?v=1784906000"></script>
+<script src="inventario.js?v=1784910000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>
 </html>
