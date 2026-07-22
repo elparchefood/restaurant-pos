@@ -598,7 +598,7 @@ button{font-family:inherit;}
 
 .ia-ingr-row {
   display: grid;
-  grid-template-columns: auto 1fr 100px 120px;
+  grid-template-columns: auto 1fr 100px 120px auto;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
@@ -607,6 +607,30 @@ button{font-family:inherit;}
   border-radius: 10px;
   transition: border-color .2s;
 }
+.ia-ingr-name-input {
+  width: 100%; padding: 6px 8px;
+  border: 1px solid transparent; border-radius: 7px;
+  font-size: 13px; font-weight: 700; color: #0F172A;
+  font-family: inherit; background: transparent; outline: none;
+}
+.ia-ingr-name-input:hover { border-color: #E2E8F0; background: #fff; }
+.ia-ingr-name-input:focus { border-color: #8B5CF6; background: #fff; box-shadow: 0 0 0 3px rgba(139,92,246,.12); }
+.ia-ingr-del {
+  width: 30px; height: 30px; border-radius: 7px;
+  border: 1px solid #FECDD3; background: #fff; color: #E11D48;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0; transition: background .15s, border-color .15s;
+}
+.ia-ingr-del:hover { background: #FFF1F2; border-color: #FB7185; }
+.ia-add-ingr {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  width: 100%; margin-top: 12px; padding: 11px;
+  border: 1.5px dashed #C4B5FD; border-radius: 10px;
+  background: #FAF9FF; color: #7C3AED;
+  font-size: 13px; font-weight: 700; font-family: inherit;
+  cursor: pointer; transition: background .15s, border-color .15s;
+}
+.ia-add-ingr:hover { background: #F3F0FF; border-color: #8B5CF6; }
 .ia-ingr-row:hover { border-color: #DDD6FE; }
 .ia-ingr-row.is-base { background: #F8F7FF; border-color: #EDE9FE; }
 

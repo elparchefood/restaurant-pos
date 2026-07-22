@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="inventario.css">
+<link rel="stylesheet" href="inventario.css?v=1784748000">
 </head>
 <body>
 
@@ -537,6 +537,10 @@
         <div class="ia-ingr-list" id="ia-ingr-list">
           <!-- rows inyectados por JS -->
         </div>
+        <button class="ia-add-ingr" id="ia-btn-add" onclick="iaAddIngr()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Agregar ingrediente
+        </button>
       </div>
 
       <!-- PASO 3: Duplicados -->
@@ -572,6 +576,6 @@
 <div class="iv-toast is-hidden" id="iv-toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="inventario.js?v=1752019300"></script>
+<script src="inventario.js?v=1784748000"></script>
 </body>
 </html>

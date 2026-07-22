@@ -1078,21 +1078,54 @@ function iaRenderPaso2() {
     row.innerHTML = `
       <span class="ia-ingr-badge ${badgeType}">${badgeTxt}</span>
       <div>
-        <div class="ia-ingr-name">${ing.name}</div>
+        <input class="ia-ingr-name-input" placeholder="Nombre del ingrediente"
+               oninput="iaSetIngrName(${i}, this.value)">
         ${ing.nota ? `<div class="ia-ingr-nota">⚡ ${ing.nota}</div>` : ''}
       </div>
-      <input  class="ia-ingr-qty"  type="number" min="0" step="any" value="${ing.qty}" 
+      <input  class="ia-ingr-qty"  type="number" min="0" step="any" value="${ing.qty}"
               oninput="iaState.iaIngredients[${i}].qty=parseFloat(this.value)||0">
       <select class="ia-ingr-unit" onchange="iaState.iaIngredients[${i}].unit=this.value">
         ${unitOpts}
-      </select>`;
+      </select>
+      <button class="ia-ingr-del" title="Quitar ingrediente" onclick="iaDeleteIngr(${i})">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      </button>`;
 
+    // Asignar el nombre por propiedad (evita problemas de escape en el atributo)
     list.appendChild(row);
+    const nameInp = row.querySelector('.ia-ingr-name-input');
+    if (nameInp) nameInp.value = ing.name || '';
   }
 
   // Mostrar botón continuar
   document.getElementById('ia-btn-next').classList.remove('is-hidden');
   document.getElementById('ia-btn-save').classList.add('is-hidden');
+}
+
+// Editar el nombre de un ingrediente (corrige errores de la IA o nombra uno nuevo).
+// Al cambiar el nombre limpiamos existingName para que al guardar se re-empareje
+// por el nombre nuevo (o se cree un insumo nuevo si no existe).
+function iaSetIngrName(i, v) {
+  if (!iaState.iaIngredients[i]) return;
+  iaState.iaIngredients[i].name = v;
+  iaState.iaIngredients[i].existingName = null;
+}
+
+// Quitar un ingrediente sugerido por la IA que esté mal.
+function iaDeleteIngr(i) {
+  iaState.iaIngredients.splice(i, 1);
+  iaRenderPaso2();
+}
+
+// Agregar un ingrediente en blanco (lo que la IA no detectó). Al guardar, si el
+// nombre coincide con un insumo existente se vincula; si no, se crea nuevo.
+function iaAddIngr() {
+  iaState.iaIngredients.push({ name: '', qty: 1, unit: 'g', isBase: false, category: 'Materia prima' });
+  iaRenderPaso2();
+  // Enfocar el nombre del ingrediente recién agregado
+  const rows = document.querySelectorAll('#ia-ingr-list .ia-ingr-name-input');
+  const last = rows[rows.length - 1];
+  if (last) last.focus();
 }
 
 // ── Paso 3: Deduplicación ──────────────────────────
@@ -1162,6 +1195,11 @@ function iaSetStep(n) {
 
 function iaNext() {
   if (document.getElementById('ia-step-2').classList.contains('is-hidden')) return;
+  // Descartar filas en blanco (ingredientes agregados sin nombre) y limpiar espacios
+  iaState.iaIngredients = iaState.iaIngredients
+    .map(ing => ({ ...ing, name: (ing.name || '').trim() }))
+    .filter(ing => ing.name);
+  if (!iaState.iaIngredients.length) { showToast('Agrega al menos un ingrediente'); return; }
   // Pasamos de paso 2 → paso 3
   iaSetStep(3);
   iaRenderPaso3();
