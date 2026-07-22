@@ -2226,7 +2226,7 @@ function opBindEvents() {
   var espWrap = $('op-emp-especifico');
   if (espWrap) {
     espWrap.addEventListener('click', function(e){
-      var t = e.target.closest('[data-emp-open],[data-emp-open-prod],[data-emp-cat-toggle],[data-emp-pack-del],#op-emp-pack-new');
+      var t = e.target.closest('[data-emp-open],[data-emp-open-prod],[data-emp-cat-toggle],[data-emp-pack-del],#op-emp-pack-new,#op-emp-pack-ok,#op-emp-pack-cancel');
       if (!t) return;
       if (t.dataset.empOpen) { _empOpen[t.dataset.empOpen] = !_empOpen[t.dataset.empOpen]; opRenderEmpEsp(); return; }
       if (t.dataset.empOpenProd) { _empOpenProd[t.dataset.empOpenProd] = !_empOpenProd[t.dataset.empOpenProd]; opRenderEmpEsp(); return; }
