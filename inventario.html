@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="inventario.css?v=1784752000">
+<link rel="stylesheet" href="inventario.css?v=1784903000">
 </head>
 <body>
 
@@ -184,6 +184,9 @@
           </div>
         </div>
         <p class="iv-help">Vista rápida de tus platos. Cuando un insumo se agota, el plato se <strong style="color:#DC2626;font-weight:700">pausa solo</strong> y deja de aparecerle al mesero. El semáforo te dice de un vistazo si cada plato es rentable.</p>
+        <div class="iv-filters" id="prod-filters">
+          <!-- chips de categoría por JS -->
+        </div>
         <div class="iv-prod-grid" id="prod-grid">
           <!-- tarjetas generadas por JS -->
         </div>
@@ -216,6 +219,15 @@
 
       <!-- ============ RECETAS Y COSTEO ============ -->
       <div class="screen" id="screen-recetas">
+        <div class="iv-toolbar">
+          <div class="iv-search" style="width:240px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="rec-search" placeholder="Buscar receta…" oninput="filterRecetas(this.value)">
+          </div>
+        </div>
+        <div class="iv-filters" id="rec-filters">
+          <!-- chips de categoría por JS -->
+        </div>
         <div class="iv-rec-layout">
           <div class="iv-rec-list" id="rec-list">
             <!-- items por JS -->
@@ -681,7 +693,7 @@
 <div class="iv-toast is-hidden" id="iv-toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="inventario.js?v=1784900000"></script>
+<script src="inventario.js?v=1784903000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>
 </html>

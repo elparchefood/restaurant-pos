@@ -132,7 +132,7 @@ async function loadProductos() {
   if (!tenantId || !branchId) return;
   const { data, error } = await iv_sb
     .from('pos_products')
-    .select('id, name, description, price, available, pos_categories(name)')
+    .select('id, name, description, price, available, pos_categories(name, color)')
     .eq('tenant_id', tenantId)
     .eq('branch_id', branchId)
     .order('name');
@@ -141,6 +141,7 @@ async function loadProductos() {
     id:      p.id,
     nombre:  p.name,
     cat:     p.pos_categories?.name || 'Sin categoría',
+    catColor: p.pos_categories?.color || '#64748B',
     precio:  parseFloat(p.price) || 0,
     visible:     p.available !== false,
     descripcion: p.description || '',
@@ -305,9 +306,48 @@ function showScreen(name) {
 // ═══════════════════════════════════════════════════
 // PRODUCTOS
 // ═══════════════════════════════════════════════════
+// Filtros de la pestaña Productos. Se guardan en estado (no en el DOM)
+// para que sobrevivan a los re-render que dispara el costeo.
+let prodFiltroCat = 'todas';
+let prodFiltroQ   = '';
+
+function catsDeProductos() {
+  const vistas = [];
+  for (const p of productos) if (!vistas.some(v => v.nombre === p.cat)) {
+    vistas.push({ nombre: p.cat, color: p.catColor || '#64748B' });
+  }
+  return vistas.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+}
+
+function productosFiltrados() {
+  const q = prodFiltroQ.toLowerCase();
+  return productos.filter(p =>
+    (prodFiltroCat === 'todas' || p.cat === prodFiltroCat) &&
+    (!q || p.nombre.toLowerCase().includes(q) || p.cat.toLowerCase().includes(q))
+  );
+}
+
+function renderProdFiltros() {
+  const cont = document.getElementById('prod-filters');
+  if (!cont) return;
+  let html = `<button class="iv-chip ${prodFiltroCat==='todas'?'on':''}" onclick="setProdCat('todas')">Todas <span class="n">${productos.length}</span></button>`;
+  const cats = catsDeProductos();
+  if (cats.length) html += '<div class="vsep"></div>';
+  for (const cat of cats) {
+    const cnt = productos.filter(p => p.cat === cat.nombre).length;
+    html += `<button class="iv-chip ${prodFiltroCat===cat.nombre?'on':''}" onclick="setProdCat(${JSON.stringify(cat.nombre)})">
+      <span class="iv-catdot" style="background:${cat.color}"></span>${escHtml(cat.nombre)} <span class="n">${cnt}</span>
+    </button>`;
+  }
+  cont.innerHTML = html;
+}
+
+function setProdCat(cat) { prodFiltroCat = cat; renderProductos(); }
+
 function renderProductos() {
   const grid = document.getElementById('prod-grid');
   grid.innerHTML = '';
+  renderProdFiltros();
   if (productos.length === 0) {
     grid.innerHTML = `<div class="iv-empty" style="grid-column:1/-1">
       <div class="iv-empty-ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
@@ -315,19 +355,21 @@ function renderProductos() {
     </div>`;
     updateKPIs(); return;
   }
-  for (const prod of productos) grid.appendChild(buildProdCard(prod));
+  const lista = productosFiltrados();
+  if (lista.length === 0) {
+    grid.innerHTML = `<div class="iv-empty" style="grid-column:1/-1">
+      <div class="iv-empty-t">Ningun plato coincide con el filtro</div>
+      <div style="font-size:12.5px;color:#94A3B8;margin-top:4px">Prueba con otra categoria o borra la busqueda.</div>
+    </div>`;
+    updateKPIs(); return;
+  }
+  for (const prod of lista) grid.appendChild(buildProdCard(prod));
   updateKPIs();
 }
 
 function filterProductos(q) {
-  const grid = document.getElementById('prod-grid');
-  const cards = grid.querySelectorAll('.iv-prod-card');
-  const lq = (q || '').toLowerCase();
-  cards.forEach(card => {
-    const name = (card.querySelector('.iv-prod-name')?.textContent || '').toLowerCase();
-    const cat  = (card.querySelector('.iv-prod-cat')?.textContent || '').toLowerCase();
-    card.style.display = (!lq || name.includes(lq) || cat.includes(lq)) ? '' : 'none';
-  });
+  prodFiltroQ = q || '';
+  renderProductos();
 }
 
 function buildProdCard(prod) {
@@ -1079,15 +1121,51 @@ function refrescarCosteo() {
   }
 }
 
+let recFiltroCat = 'todas';
+let recFiltroQ   = '';
+
+function setRecCat(cat) { recFiltroCat = cat; renderRecetasList(); }
+function filterRecetas(q) { recFiltroQ = q || ''; renderRecetasList(); }
+
+function renderRecFiltros(conReceta) {
+  const cont = document.getElementById('rec-filters');
+  if (!cont) return;
+  // Solo se ofrecen las categorías que realmente tienen recetas.
+  const cats = [];
+  for (const p of conReceta) if (!cats.some(v => v.nombre === p.cat)) {
+    cats.push({ nombre: p.cat, color: p.catColor || '#64748B' });
+  }
+  cats.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  let html = `<button class="iv-chip ${recFiltroCat==='todas'?'on':''}" onclick="setRecCat('todas')">Todas <span class="n">${conReceta.length}</span></button>`;
+  if (cats.length) html += '<div class="vsep"></div>';
+  for (const cat of cats) {
+    const cnt = conReceta.filter(p => p.cat === cat.nombre).length;
+    html += `<button class="iv-chip ${recFiltroCat===cat.nombre?'on':''}" onclick="setRecCat(${JSON.stringify(cat.nombre)})">
+      <span class="iv-catdot" style="background:${cat.color}"></span>${escHtml(cat.nombre)} <span class="n">${cnt}</span>
+    </button>`;
+  }
+  cont.innerHTML = html;
+}
+
 function renderRecetasList() {
   const list=document.getElementById('rec-list');
   list.innerHTML='';
   const conReceta=productos.filter(p=>p.receta&&p.receta.length>0);
+  renderRecFiltros(conReceta);
   if (conReceta.length===0) {
     list.innerHTML=`<div style="padding:24px 16px;text-align:center;color:#94A3B8;font-size:13px">Aún no hay recetas configuradas.<br>Agrega insumos a tus productos.</div>`;
     return;
   }
-  for (const prod of conReceta) {
+  const q = recFiltroQ.toLowerCase();
+  const visibles = conReceta.filter(p =>
+    (recFiltroCat === 'todas' || p.cat === recFiltroCat) &&
+    (!q || p.nombre.toLowerCase().includes(q) || p.cat.toLowerCase().includes(q))
+  );
+  if (visibles.length===0) {
+    list.innerHTML=`<div style="padding:24px 16px;text-align:center;color:#94A3B8;font-size:13px">Ninguna receta coincide con el filtro.</div>`;
+    return;
+  }
+  for (const prod of visibles) {
     const r=calcReceta(prod); const sem=semaforo(r.fc);
     const btn=document.createElement('button');
     btn.className='iv-rec-listitem'; btn.dataset.receta=prod.id;
