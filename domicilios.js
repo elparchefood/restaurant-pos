@@ -1547,7 +1547,7 @@ async function enviarACocina() {
     nuevo.supabaseId = _oid;
     // Auto-print comanda de cocina en Electron
     if (typeof posAutoprint === 'function' && window.electronPOS) {
-      await Promise.race([posAutoprint(_oid), new Promise(res => setTimeout(res, 4000))]);
+      await Promise.race([posAutoprint(_oid), new Promise(res => setTimeout(res, 9000))]);
     }
   } catch(_e) { console.error('[domicilios] enviarACocina:', _e); }
 

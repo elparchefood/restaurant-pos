@@ -900,7 +900,7 @@
       // navegar. El candado de posAutoprint evita duplicados si el realtime
       // también dispara.
       if (_oid && typeof window.posAutoprint === 'function' && window.electronPOS) {
-        await Promise.race([window.posAutoprint(_oid), new Promise(res => setTimeout(res, 4000))]);
+        await Promise.race([window.posAutoprint(_oid), new Promise(res => setTimeout(res, 9000))]);
       }
       finalizarVenta();
       window.location.href = 'ventas.html';
@@ -920,7 +920,7 @@
       // Antes, cobrar por "Opciones de pago" no imprimía nada porque la impresión
       // solo ocurría en "Enviar a cocina". El candado de posAutoprint evita duplicados.
       if (orderId && typeof window.posAutoprint === 'function' && window.electronPOS) {
-        await Promise.race([window.posAutoprint(orderId), new Promise(res => setTimeout(res, 4000))]);
+        await Promise.race([window.posAutoprint(orderId), new Promise(res => setTimeout(res, 9000))]);
       }
       finalizarVenta();
       window.location.href = `pagos.html?order=${orderId}&channel=rapido`;

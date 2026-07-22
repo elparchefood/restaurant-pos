@@ -324,6 +324,8 @@
   // dispositivo. En la caja (ventas.html) hay dos listeners de realtime que
   // disparan con el INSERT y con el UPDATE a in_progress del mismo pedido; sin
   // este candado la comanda salía dos veces por los pedidos hechos en la tablet.
+  function _sleep(ms) { return new Promise(function(r){ setTimeout(r, ms); }); }
+
   var _autoPrinted = {};
   window.posAutoprint = async function(orderId) {
     if (!orderId) return;
@@ -333,25 +335,47 @@
     if (_autoPrinted[orderId]) return; // ya se auto-imprimió en este dispositivo
     _autoPrinted[orderId] = _now;
     _diagToast('🖨 Verificando impresora…', '#1d4ed8');
-    var hasPrinter = await _hasPrinter();
+
+    // 1) Impresora: reintentar por si la lectura de config falla transitoriamente (WiFi tablet)
+    var hasPrinter = false;
+    for (var hp = 0; hp < 3 && !hasPrinter; hp++) {
+      hasPrinter = await _hasPrinter();
+      if (!hasPrinter && hp < 2) await _sleep(500);
+    }
     if (!hasPrinter) { delete _autoPrinted[orderId]; _noprinterToast(); _diagToast('❌ Sin config de impresora en BD', '#dc2626'); return; }
     _diagToast('✓ Impresora OK — buscando pedido…', '#15803d');
-    var order = await _fetchOrder(orderId);
-    if (!order) { delete _autoPrinted[orderId]; _diagToast('❌ Pedido no encontrado: ' + orderId, '#dc2626'); return; }
-    var items = (order.pos_order_items || []).map(function(it) {
-      var sel = it.selections || {};
-      var modsArr = Object.values(sel.mods || {}).map(function(m){ return m.name || String(m); });
-      return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', notes: it.notes || '', mods: modsArr };
-    });
-    // Si el pedido aún no tiene ítems (el evento INSERT puede llegar antes de que
-    // se guarden), no imprimimos una comanda vacía: liberamos el candado para que
-    // el siguiente evento (ya con ítems) sí imprima.
-    if (!items.length) { delete _autoPrinted[orderId]; return; }
+
+    // 2) Pedido + ítems: REINTENTAR hasta que los ítems sean visibles. Causa #1 de
+    // impresiones perdidas: el pedido se guarda pero al leerlo de inmediato los ítems
+    // todavía no aparecen (lag de escritura→lectura). Reintentamos ~4s antes de rendirnos.
+    var order = null, items = [];
+    for (var att = 0; att < 9; att++) {
+      order = await _fetchOrder(orderId);
+      if (order) {
+        items = (order.pos_order_items || []).map(function(it) {
+          var sel = it.selections || {};
+          var modsArr = Object.values(sel.mods || {}).map(function(m){ return m.name || String(m); });
+          return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', notes: it.notes || '', mods: modsArr };
+        });
+        if (items.length) break;
+      }
+      await _sleep(450);
+    }
+    if (!order || !items.length) { delete _autoPrinted[orderId]; _diagToast('❌ Pedido sin ítems tras reintentos', '#dc2626'); return; }
     _diagToast('✓ Pedido OK — enviando a impresora…', '#15803d');
-    try {
-      await _printHtml(_buildComanda({ table: _tableDisplay(order), channel: order.channel, total: order.total || 0, paid: order.paid_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' }, items), 'comanda');
-      _diagToast('✓ Comanda impresa OK', '#15803d');
-    } catch(e) { delete _autoPrinted[orderId]; _diagToast('❌ Error al imprimir: ' + (e && e.message || e), '#dc2626'); }
+
+    // 3) Imprimir, con reintento si el envío a la impresora falla transitoriamente
+    var printed = false;
+    for (var pr = 0; pr < 2 && !printed; pr++) {
+      try {
+        await _printHtml(_buildComanda({ table: _tableDisplay(order), channel: order.channel, total: order.total || 0, paid: order.paid_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' }, items), 'comanda');
+        printed = true;
+        _diagToast('✓ Comanda impresa OK', '#15803d');
+      } catch(e) {
+        if (pr < 1) { await _sleep(600); }
+        else { delete _autoPrinted[orderId]; _diagToast('❌ Error al imprimir: ' + (e && e.message || e), '#dc2626'); }
+      }
+    }
   };
 
   window.posOpenPrintModal = function(orderId) {
