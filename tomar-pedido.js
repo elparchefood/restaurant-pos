@@ -1293,7 +1293,7 @@ function bindEvents() {
       if (Math.abs(dx) > 6 || Math.abs(e.clientY - y0) > 6) movio = true;
       // El asa acompaña al dedo (tope de 34px) para que el gesto se sienta vivo
       const lim = Math.max(-34, Math.min(34, dx));
-      grip.style.transform = `translateY(-50%) translateX(${lim}px)`;
+      grip.style.transform = `translateX(${lim}px)`;
     });
     function finArrastre() {
       if (!arrastrando) return;
