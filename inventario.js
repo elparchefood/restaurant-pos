@@ -330,12 +330,14 @@ function productosFiltrados() {
 function renderProdFiltros() {
   const cont = document.getElementById('prod-filters');
   if (!cont) return;
-  let html = `<button class="iv-chip ${prodFiltroCat==='todas'?'on':''}" onclick="setProdCat('todas')">Todas <span class="n">${productos.length}</span></button>`;
+  // El nombre de la categoria viaja en un data-attribute, no en un onclick:
+  // nombres con comilla romperian el atributo.
+  let html = `<button class="iv-chip ${prodFiltroCat==='todas'?'on':''}" data-prodcat="todas">Todas <span class="n">${productos.length}</span></button>`;
   const cats = catsDeProductos();
   if (cats.length) html += '<div class="vsep"></div>';
   for (const cat of cats) {
     const cnt = productos.filter(p => p.cat === cat.nombre).length;
-    html += `<button class="iv-chip ${prodFiltroCat===cat.nombre?'on':''}" onclick="setProdCat(${JSON.stringify(cat.nombre)})">
+    html += `<button class="iv-chip ${prodFiltroCat===cat.nombre?'on':''}" data-prodcat="${escHtml(cat.nombre)}">
       <span class="iv-catdot" style="background:${cat.color}"></span>${escHtml(cat.nombre)} <span class="n">${cnt}</span>
     </button>`;
   }
@@ -1125,6 +1127,15 @@ let recFiltroCat = 'todas';
 let recFiltroQ   = '';
 
 function setRecCat(cat) { recFiltroCat = cat; renderRecetasList(); }
+
+// Los chips se redibujan en cada render, asi que el listener va en el
+// documento y no en cada boton.
+document.addEventListener('click', function (ev) {
+  const chip = ev.target.closest && ev.target.closest('[data-prodcat],[data-reccat]');
+  if (!chip) return;
+  if (chip.dataset.prodcat !== undefined) setProdCat(chip.dataset.prodcat);
+  else setRecCat(chip.dataset.reccat);
+});
 function filterRecetas(q) { recFiltroQ = q || ''; renderRecetasList(); }
 
 function renderRecFiltros(conReceta) {
@@ -1136,11 +1147,11 @@ function renderRecFiltros(conReceta) {
     cats.push({ nombre: p.cat, color: p.catColor || '#64748B' });
   }
   cats.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-  let html = `<button class="iv-chip ${recFiltroCat==='todas'?'on':''}" onclick="setRecCat('todas')">Todas <span class="n">${conReceta.length}</span></button>`;
+  let html = `<button class="iv-chip ${recFiltroCat==='todas'?'on':''}" data-reccat="todas">Todas <span class="n">${conReceta.length}</span></button>`;
   if (cats.length) html += '<div class="vsep"></div>';
   for (const cat of cats) {
     const cnt = conReceta.filter(p => p.cat === cat.nombre).length;
-    html += `<button class="iv-chip ${recFiltroCat===cat.nombre?'on':''}" onclick="setRecCat(${JSON.stringify(cat.nombre)})">
+    html += `<button class="iv-chip ${recFiltroCat===cat.nombre?'on':''}" data-reccat="${escHtml(cat.nombre)}">
       <span class="iv-catdot" style="background:${cat.color}"></span>${escHtml(cat.nombre)} <span class="n">${cnt}</span>
     </button>`;
   }
