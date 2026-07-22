@@ -75,20 +75,24 @@
     return '<!DOCTYPE html><html><head><meta charset="UTF-8">'
       + '<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;width:80mm;max-width:80mm;margin:0;padding:6px 8px;color:#000;line-height:1.35;}</style>'
       + '</head><body>'
-      + ((isDomicilio || isRapido)
-          ? (_barrio
-              ? '<div style="font-size:13px;font-weight:900;text-align:center;letter-spacing:1px;margin-bottom:1px;">' + (isDomicilio ? 'DOMICILIO' : 'VENTA RAPIDA') + '</div>'
-                + '<div style="font-size:24px;font-weight:900;text-align:center;margin-bottom:2px;">' + _barrio + '</div>'
-                + (isRapido && _etq ? '<div style="font-size:14px;font-weight:900;text-align:center;letter-spacing:1px;margin-bottom:2px;">' + _etq + '</div>' : '')
-                + (_customerName ? '<div style="font-size:14px;font-weight:700;text-align:center;margin-bottom:2px;">' + _customerName + '</div>' : '')
-              : '<div style="font-size:' + (isRapido ? '16px' : '20px') + ';font-weight:900;text-align:center;margin-bottom:2px;">' + (isDomicilio ? 'DOMICILIO' : 'VENTA RAPIDA') + '</div>'
-                + (isRapido && _etq ? '<div style="font-size:14px;font-weight:900;text-align:center;letter-spacing:1px;margin-bottom:2px;">' + _etq + '</div>' : '')
-                + (_customerName ? '<div style="font-size:14px;font-weight:700;text-align:center;margin-bottom:2px;">' + _customerName + '</div>' : ''))
-          : '<div style="font-size:20px;font-weight:900;text-align:center;margin-bottom:2px;">MESA ' + mesa + '</div>')
+      // VENTA RÁPIDA: título + etiqueta. El barrio NO se imprime (solo sirve al
+      // repartidor) y el cliente baja al bloque de datos, alineado a la izquierda.
+      + (isRapido
+          ? '<div style="font-size:16px;font-weight:900;text-align:center;margin-bottom:2px;">VENTA RAPIDA</div>'
+            + (_etq ? '<div style="font-size:14px;font-weight:900;text-align:center;letter-spacing:1px;margin-bottom:2px;">' + _etq + '</div>' : '')
+          : isDomicilio
+            ? (_barrio
+                ? '<div style="font-size:13px;font-weight:900;text-align:center;letter-spacing:1px;margin-bottom:1px;">DOMICILIO</div>'
+                  + '<div style="font-size:24px;font-weight:900;text-align:center;margin-bottom:2px;">' + _barrio + '</div>'
+                  + (_customerName ? '<div style="font-size:14px;font-weight:700;text-align:center;margin-bottom:2px;">' + _customerName + '</div>' : '')
+                : '<div style="font-size:20px;font-weight:900;text-align:center;margin-bottom:2px;">DOMICILIO</div>'
+                  + (_customerName ? '<div style="font-size:14px;font-weight:700;text-align:center;margin-bottom:2px;">' + _customerName + '</div>' : ''))
+            : '<div style="font-size:20px;font-weight:900;text-align:center;margin-bottom:2px;">MESA ' + mesa + '</div>')
       + (!isDomicilio && !isRapido && pax ? '<div style="font-size:13px;font-weight:700;padding-left:55%;">( ' + pax + ' PAX)</div>' : '')
       + '<div style="height:5px;"></div>'
       + '<div>AREA - COCINA</div>'
       + '<div>FECHA: ' + dateStr + '</div>'
+      + (isRapido && _customerName ? '<div>CLIENTE - ' + _customerName + '</div>' : '')
       + (waiter ? '<div>' + (isDomicilio || isRapido ? 'CAJERO' : 'MESERO') + ' - ' + waiter + '</div>' : '')
       + (sala   ? '<div>SALA - '   + sala   + '</div>' : '')
       + sep('INICIO PEDIDO')
