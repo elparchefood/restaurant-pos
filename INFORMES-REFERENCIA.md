@@ -155,9 +155,13 @@ Reporte de asistencia (empleados) · Webhook por integración · "Todas las vent
 ## 5. Propuesta para Cobra POS
 
 ### Lo que NO vamos a copiar
-- Formatos fiscales de Perú (Kardex SUNAT, WSAHI, ICBPER).
-- Módulo mercado/food-court, autoservicio y reservas (no existen aún en Cobra POS).
-- Facturación electrónica (hasta que integremos DIAN).
+- SOLO los formatos fiscales de Perú (Kardex SUNAT, WSAHI, ICBPER) — no aplican en Colombia.
+- Facturación electrónica queda pendiente hasta integrar DIAN (los informes DIAN se diseñan desde ya).
+
+> IMPORTANTE (feedback de Sergio 2026-07-22): Cobra POS es un SaaS para muchos restaurantes.
+> Reservas de mesas, autoservicio, multimarca, food-court y multi-sucursal SÍ se incluyen en el
+> diseño aunque El Parche no los use — otros restaurantes los van a necesitar. Estos informes
+> aparecen/desaparecen según los módulos que cada restaurante tenga activos.
 
 ### Ventaja nuestra
 Todos los datos ya existen en Supabase (`pos_orders`, `pos_order_items` con `selections.mods`, `pos_tables`, `iv_insumos`, `iv_compras`, `iv_recetas`, `iv_params` con food cost objetivo, cierres de caja, egresos, clientes unificados en `pos.clientes`). Cada informe es esencialmente una consulta + una pantalla con el patrón estándar: filtros → totales → tabla → exportar.
