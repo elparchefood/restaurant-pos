@@ -1807,9 +1807,10 @@ function opSave(data) {
   localStorage.setItem(OP_KEY, JSON.stringify(data));
   // Sync claves heredadas para compatibilidad con otros módulos
   localStorage.setItem('pos.config.cobro_adelantado', data.cobroAdelantado ? 'true' : 'false');
-  // Sync cobro_adelantado a la base de datos (fuente de verdad para todos los módulos)
+  // Sync a la base de datos (fuente de verdad para TODOS los dispositivos —
+  // sin esto la tablet no ve la config de Operación: empaque, reglas, etc.)
   if (_cfgBranchId) {
-    sb.from('branches').update({ cobro_adelantado: !!data.cobroAdelantado }).eq('id', _cfgBranchId)
+    sb.from('branches').update({ cobro_adelantado: !!data.cobroAdelantado, operacion_config: data }).eq('id', _cfgBranchId)
       .then(function(r){ if (r.error) console.warn('opSave branch sync:', r.error); });
   }
 }

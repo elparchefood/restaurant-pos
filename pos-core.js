@@ -89,6 +89,27 @@ function daysAgoISO(n) {
       });
 
       window._pos.emit('core:ready', { user });
+
+      // ── Sincronizar config de Operación entre dispositivos ─────────────
+      // Antes vivía SOLO en localStorage del equipo donde se configuró → la
+      // tablet no veía el empaque (ni ninguna regla de Operación). La fuente
+      // de verdad ahora es branches.operacion_config; localStorage es caché.
+      try {
+        var OPK = 'pos.config.operacion.v1';
+        var bId = window._pos.state.branchId;
+        if (bId) {
+          var rOp = await sb.from('branches').select('operacion_config').eq('id', bId).maybeSingle();
+          var dbCfg = rOp && rOp.data && rOp.data.operacion_config;
+          if (dbCfg && typeof dbCfg === 'object' && Object.keys(dbCfg).length) {
+            localStorage.setItem(OPK, JSON.stringify(dbCfg));
+          } else {
+            // BD vacía pero este equipo tiene config local (el PC donde se
+            // configuró) → subirla una vez para sembrar la fuente de verdad.
+            var localOp = localStorage.getItem(OPK);
+            if (localOp) await sb.from('branches').update({ operacion_config: JSON.parse(localOp) }).eq('id', bId);
+          }
+        }
+      } catch (e) { console.warn('[pos-core] sync operacion_config:', e); }
     } catch (e) {
       console.error('[pos-core] Error en boot:', e);
     }
