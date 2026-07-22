@@ -24,23 +24,30 @@
       + ' ' + x.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
   }
 
+  // 72mm de ancho útil (el papel es de 80mm pero el área imprimible es menor;
+  // a 80mm la columna derecha —los montos— se sale del papel).
   var CSS = '<style>*{margin:0;padding:0;box-sizing:border-box}'
-    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;width:80mm;max-width:80mm;padding:6px 8px;color:#000;line-height:1.35}'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;width:72mm;max-width:72mm;margin:0;padding:8px 6px;color:#000;line-height:1.35;overflow-x:hidden}'
     + '.t{text-align:center}.b{font-weight:900}'
-    + '.h1{font-size:17px;font-weight:900;text-align:center}'
+    + '.h1{font-size:16px;font-weight:900;text-align:center}'
     + '.h2{font-size:13px;font-weight:900;text-align:center;margin-bottom:2px}'
-    + '.r{display:flex;justify-content:space-between;gap:6px;margin:2px 0}'
-    + '.r span:last-child{text-align:right;white-space:nowrap}'
-    + '.big{font-size:15px;font-weight:900}'
+    + '.r{display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin:2px 0}'
+    + '.r span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+    + '.r span:last-child{text-align:right;white-space:nowrap;flex-shrink:0}'
+    + '.big{font-size:14px;font-weight:900}'
     + '.sep{border-top:1px dashed #000;margin:6px 0}'
     + '.sepd{border-top:2px solid #000;margin:6px 0}'
     + '.sm{font-size:11px;font-weight:400}'
-    + 'table{width:100%;border-collapse:collapse}'
-    + 'td{padding:2px 0;font-size:12px;font-weight:700}'
+    + 'table{width:100%;max-width:100%;border-collapse:collapse;table-layout:fixed}'
+    + 'td{padding:2px 0;font-size:12px;font-weight:700;overflow:hidden}'
     + '.rt{text-align:right}.ctr{text-align:center}'
     + '.fl{margin-top:14px;font-size:11px;font-weight:400;text-align:center}'
-    + '.ln{border-top:1px solid #000;margin:22px 12px 3px}'
+    + '.ln{border-top:1px solid #000;margin:22px 10px 3px}'
     + '</style>';
+
+  // Anchos fijos de la tabla del paloteo: denominación · cantidad · total.
+  // Sin esto, table-layout:fixed reparte 33% a cada una y el total se desborda.
+  var COLS = '<colgroup><col style="width:40%"><col style="width:22%"><col style="width:38%"></colgroup>';
 
   function head(negocio, titulo, ses) {
     var abre  = ses && ses.opened_at ? fecha(ses.opened_at) : '—';
@@ -78,11 +85,11 @@
       + head(info.negocio, 'PALOTEO DE CAJA', info.session)
       + '<div class="sep"></div>'
       + '<div class="b">BILLETES</div>'
-      + '<table>' + filas(bil) + '</table>'
+      + '<table>' + COLS + filas(bil) + '</table>'
       + '<div class="r b"><span>Subtotal billetes</span><span>' + cop(d.billetes) + '</span></div>'
       + '<div class="sep"></div>'
       + '<div class="b">MONEDAS</div>'
-      + '<table>' + filas(mon) + '</table>'
+      + '<table>' + COLS + filas(mon) + '</table>'
       + '<div class="r b"><span>Subtotal monedas</span><span>' + cop(d.monedas) + '</span></div>'
       + '<div class="sep"></div>'
       + '<div class="r"><span>Billetes 50 - 100</span><span>' + cop(d.grandes) + '</span></div>'
