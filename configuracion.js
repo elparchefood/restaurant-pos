@@ -1813,11 +1813,16 @@ function opSave(data) {
   // (sin esto, si el guardado a BD fallaba una vez, el boot restauraba la vieja).
   data._ts = Date.now();
   localStorage.setItem(OP_KEY, JSON.stringify(data));
+  // Verificar que la escritura local realmente quedó (si algo falla, avisar YA)
+  try {
+    var _chk = JSON.parse(localStorage.getItem(OP_KEY) || '{}');
+    if (_chk._ts !== data._ts) opToast('⚠️ No se pudo guardar la configuración en este equipo');
+  } catch (eV) { opToast('⚠️ No se pudo guardar la configuración en este equipo'); }
   // Sync claves heredadas para compatibilidad con otros módulos
   localStorage.setItem('pos.config.cobro_adelantado', data.cobroAdelantado ? 'true' : 'false');
   // Sync a la base de datos (fuente de verdad para TODOS los dispositivos —
   // sin esto la tablet no ve la config de Operación: empaque, reglas, etc.)
-  // Con reintentos: un fallo transitorio no puede dejar la BD desactualizada.
+  // Con reintentos, y si aun así falla se AVISA en pantalla (nunca silencioso).
   if (_cfgBranchId) {
     var _syncOp = function (intento) {
       sb.from('branches').update({ cobro_adelantado: !!data.cobroAdelantado, operacion_config: data }).eq('id', _cfgBranchId)
@@ -1825,10 +1830,18 @@ function opSave(data) {
           if (r && r.error) {
             console.warn('opSave branch sync (intento ' + intento + '):', r.error);
             if (intento < 3) setTimeout(function () { _syncOp(intento + 1); }, 1500 * intento);
+            else opToast('⚠️ Guardado local OK, pero no se pudo sincronizar a la nube: ' + (r.error.message || r.error.code || 'error'));
           }
+        })
+        .catch(function (e) {
+          console.warn('opSave branch sync exc (intento ' + intento + '):', e);
+          if (intento < 3) setTimeout(function () { _syncOp(intento + 1); }, 1500 * intento);
+          else opToast('⚠️ Guardado local OK, pero no se pudo sincronizar a la nube');
         });
     };
     _syncOp(1);
+  } else {
+    opToast('⚠️ Guardado local OK · la sincronización a otros equipos se hará al recargar');
   }
 }
 

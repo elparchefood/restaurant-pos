@@ -753,15 +753,34 @@ function buildFiltersChips() {
       <span class="iv-catdot" style="background:${col}"></span>${cat} <span class="n">${cnt}</span>
     </button>`;
   }
-  html += `<button class="iv-chip dashed" id="btn-nueva-cat" onclick="abrirNuevaCat()">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Categoría
-  </button>`;
+  // prompt() no existe en Electron → formulario inline en lugar del chip
+  if (_nuevaCatForm) {
+    html += `<span class="iv-chip" style="gap:6px;cursor:default">
+      <input id="iv-newcat-inp" placeholder="Nueva categoría" style="font-family:inherit;font-size:12px;border:1px solid #E2E8F0;border-radius:7px;padding:4px 8px;width:150px;outline:none" onkeydown="if(event.key==='Enter')confirmarNuevaCat();if(event.key==='Escape')cancelarNuevaCat()">
+      <button type="button" onclick="confirmarNuevaCat()" style="font-family:inherit;font-size:12px;font-weight:700;border:none;background:#5B6BFF;color:#fff;padding:5px 10px;border-radius:8px;cursor:pointer">Crear</button>
+      <button type="button" onclick="cancelarNuevaCat()" style="font-family:inherit;font-size:12px;font-weight:700;border:none;background:none;color:#94A3B8;padding:5px 4px;cursor:pointer">Cancelar</button>
+    </span>`;
+  } else {
+    html += `<button class="iv-chip dashed" id="btn-nueva-cat" onclick="abrirNuevaCat()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Categoría
+    </button>`;
+  }
   container.innerHTML = html;
 }
 
+let _nuevaCatForm = false; // formulario inline "+ Categoría" abierto (prompt no existe en Electron)
 function abrirNuevaCat() {
-  const nombre = prompt('Nombre de la nueva categoría:')?.trim();
-  if (!nombre) return;
+  _nuevaCatForm = true;
+  buildFiltersChips();
+  document.getElementById('iv-newcat-inp')?.focus();
+}
+function cancelarNuevaCat() { _nuevaCatForm = false; buildFiltersChips(); }
+function confirmarNuevaCat() {
+  const inp = document.getElementById('iv-newcat-inp');
+  const nombre = (inp?.value || '').trim();
+  if (!nombre) { inp?.focus(); return; }
+  _nuevaCatForm = false;
+  buildFiltersChips();
   showToast('Categoría "' + nombre + '" disponible al crear el próximo insumo');
 }
 
