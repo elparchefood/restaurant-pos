@@ -59,9 +59,10 @@ function daysAgoISO(n) {
 
   // ── Motor central de EMPAQUES ──────────────────────────────────────
   // Una sola lógica para mesas, venta rápida, domicilios y cobro.
-  // items: [{productId, catId, qty, unitPrice}] · opts: {domicilio:true}
+  // items: [{productId, catId, presId, qty, unitPrice}] · opts: {domicilio:true}
   // Modo "especifico": tarifa fija por unidad en cascada
-  //   producto (empaqueProdCfg) → categoría (empaqueCatCfg) → valor general.
+  //   presentación (empaquePresCfg[prodId::presId]) → producto (empaqueProdCfg)
+  //   → categoría (empaqueCatCfg) → valor general.
   // Modo "unificado" (default): comportamiento clásico (fijo/%, unidad/pedido, canal).
   window.posEmpaqueCalc = function (items, opts) {
     try {
@@ -84,6 +85,13 @@ function daysAgoISO(n) {
             if (pc === 'none') fee = 0;
             else if (pc === 'general') fee = general;
             else fee = packMonto(pc);
+          }
+          // Nivel más específico: la PRESENTACIÓN del producto (ej. solo Personal)
+          var sc = i.presId ? (cfg.empaquePresCfg || {})[(i.productId || '') + '::' + i.presId] : undefined;
+          if (sc !== undefined && sc !== null && sc !== '') {
+            if (sc === 'none') fee = 0;
+            else if (sc === 'general') fee = general;
+            else fee = packMonto(sc);
           }
           total += fee * (Number(i.qty) || 0);
         });

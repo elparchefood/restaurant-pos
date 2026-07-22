@@ -1789,6 +1789,7 @@ var OP_DEFAULTS = {
   empaquePacks: [],          // [{id, nombre, monto}] empaques personalizados
   empaqueCatCfg: {},         // {catId: {on:bool, packId:string|null}} — null = valor general
   empaqueProdCfg: {},        // {prodId: 'none' | 'general' | packId} — ausente = hereda categoría
+  empaquePresCfg: {},        // {'prodId::presId': 'none'|'general'|packId} — ausente = hereda producto
   // C9 — Tiempos de automatización de mesa
   mesaT1: 10,  // min → primera notificación
   mesaT2: 5,   // min → re-notificación tras "No"
@@ -1935,6 +1936,7 @@ function opSetToggle(id, on) {
 // ── Empaques ESPECÍFICOS (por categoría y producto) ────────────────
 var _empCatalog = null;    // { cats:[{id,name}], prods:[{id,name,category_id}] }
 var _empOpen = {};         // categorías desplegadas en la UI
+var _empOpenProd = {};     // productos desplegados (muestran sus presentaciones)
 function _empEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function _empFmt(n){ return '$' + Number(Math.round(n||0)).toLocaleString('es-CO'); }
 
@@ -1945,7 +1947,7 @@ async function _empLoadCatalog() {
     var t = u && u.data && u.data.user && u.data.user.user_metadata ? u.data.user.user_metadata.tenant_id : null;
     if (!t) return null;
     var rc = await sb.from('pos_categories').select('id,name').eq('active', true).eq('tenant_id', t).order('name');
-    var rp = await sb.from('pos_products').select('id,name,category_id').eq('available', true).eq('tenant_id', t).order('name');
+    var rp = await sb.from('pos_products').select('id,name,category_id,presentations').eq('available', true).eq('tenant_id', t).order('name');
     _empCatalog = { cats: (rc.data || []), prods: (rp.data || []) };
   } catch (e) { console.error('empaques catálogo:', e); _empCatalog = { cats: [], prods: [] }; }
   return _empCatalog;
@@ -1988,7 +1990,19 @@ function opRenderEmpEsp() {
         + (prods.length ? prods.map(function(p){
             var pc = (d.empaqueProdCfg || {})[p.id];
             var heredaTxt = !on ? 'sin empaque' : (cc.packId && packById(cc.packId) ? _empFmt(packById(cc.packId).monto) : _empFmt(general));
-            return '<div style="display:flex;align-items:center;gap:8px">'
+            // Tarifa efectiva del producto (para el "Hereda" de sus presentaciones)
+            var prodFeeTxt = heredaTxt;
+            if (pc === 'none') prodFeeTxt = 'sin empaque';
+            else if (pc === 'general') prodFeeTxt = _empFmt(general);
+            else if (pc && packById(pc)) prodFeeTxt = _empFmt(packById(pc).monto);
+            var presList = (p.presentations || []).filter(function(x){ return x && x.id && (x.name || '').trim(); });
+            var canExpand = presList.length > 1;
+            var pOpen = canExpand && !!_empOpenProd[p.id];
+            var chev = canExpand
+              ? '<button type="button" data-emp-open-prod="' + p.id + '" title="Ver presentaciones" style="border:none;background:none;cursor:pointer;color:' + (pOpen ? '#5B6BFF' : '#CBD5E1') + ';display:flex;padding:1px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transform:rotate(' + (pOpen ? '90' : '0') + 'deg)"><polyline points="9 18 15 12 9 6"/></svg></button>'
+              : '<span style="width:14px;flex-shrink:0"></span>';
+            var row = '<div style="display:flex;align-items:center;gap:6px">'
+              + chev
               + '<span style="flex:1;font-size:12.5px;color:#334155;font-weight:' + (pc ? '700' : '500') + '">' + _empEsc(p.name) + '</span>'
               + '<select data-emp-prod="' + p.id + '" style="font-family:inherit;font-size:11.5px;border:1px solid #E2E8F0;border-radius:7px;padding:4px 6px;max-width:170px;color:#0F172A;background:#fff">'
               + '<option value=""' + (!pc ? ' selected' : '') + '>Hereda · ' + heredaTxt + '</option>'
@@ -1996,6 +2010,23 @@ function opRenderEmpEsp() {
               + packs.map(function(k){ return '<option value="' + _empEsc(k.id) + '"' + (pc === k.id ? ' selected' : '') + '>' + _empEsc(k.nombre) + ' · ' + _empFmt(k.monto) + '</option>'; }).join('')
               + '<option value="none"' + (pc === 'none' ? ' selected' : '') + '>Sin empaque</option>'
               + '</select></div>';
+            if (pOpen) {
+              row += '<div style="display:flex;flex-direction:column;gap:4px;padding:2px 0 4px 20px">'
+                + presList.map(function(pr){
+                    var key = p.id + '::' + pr.id;
+                    var sc = (d.empaquePresCfg || {})[key];
+                    return '<div style="display:flex;align-items:center;gap:8px">'
+                      + '<span style="flex:1;font-size:12px;color:#64748B;font-weight:' + (sc ? '700' : '500') + '">' + _empEsc(pr.name) + '</span>'
+                      + '<select data-emp-pres="' + _empEsc(key) + '" style="font-family:inherit;font-size:11px;border:1px solid #E2E8F0;border-radius:7px;padding:3px 6px;max-width:160px;color:#0F172A;background:#fff">'
+                      + '<option value=""' + (!sc ? ' selected' : '') + '>Hereda · ' + prodFeeTxt + '</option>'
+                      + '<option value="general"' + (sc === 'general' ? ' selected' : '') + '>General · ' + _empFmt(general) + '</option>'
+                      + packs.map(function(k){ return '<option value="' + _empEsc(k.id) + '"' + (sc === k.id ? ' selected' : '') + '>' + _empEsc(k.nombre) + ' · ' + _empFmt(k.monto) + '</option>'; }).join('')
+                      + '<option value="none"' + (sc === 'none' ? ' selected' : '') + '>Sin empaque</option>'
+                      + '</select></div>';
+                  }).join('')
+                + '</div>';
+            }
+            return row;
           }).join('') : '<div style="font-size:12px;color:#94A3B8;padding:4px 0">Sin productos en esta categoría</div>')
         + '</div>';
     }
@@ -2009,6 +2040,7 @@ function opRenderEmpEsp() {
       var n = 0;
       Object.keys(d.empaqueProdCfg || {}).forEach(function(k){ if (d.empaqueProdCfg[k] === pid) n++; });
       Object.keys(d.empaqueCatCfg || {}).forEach(function(k){ if ((d.empaqueCatCfg[k] || {}).packId === pid) n++; });
+      Object.keys(d.empaquePresCfg || {}).forEach(function(k){ if (d.empaquePresCfg[k] === pid) n++; });
       return n;
     };
     packsWrap.innerHTML = packs.map(function(p){
@@ -2172,9 +2204,10 @@ function opBindEvents() {
   var espWrap = $('op-emp-especifico');
   if (espWrap) {
     espWrap.addEventListener('click', function(e){
-      var t = e.target.closest('[data-emp-open],[data-emp-cat-toggle],[data-emp-pack-del],#op-emp-pack-new');
+      var t = e.target.closest('[data-emp-open],[data-emp-open-prod],[data-emp-cat-toggle],[data-emp-pack-del],#op-emp-pack-new');
       if (!t) return;
       if (t.dataset.empOpen) { _empOpen[t.dataset.empOpen] = !_empOpen[t.dataset.empOpen]; opRenderEmpEsp(); return; }
+      if (t.dataset.empOpenProd) { _empOpenProd[t.dataset.empOpenProd] = !_empOpenProd[t.dataset.empOpenProd]; opRenderEmpEsp(); return; }
       if (t.dataset.empCatToggle) {
         var cid = t.dataset.empCatToggle;
         var cc = Object.assign({}, (_opDraft.empaqueCatCfg || {})[cid] || {});
@@ -2186,11 +2219,13 @@ function opBindEvents() {
       if (t.dataset.empPackDel) {
         var pid = t.dataset.empPackDel;
         var usado = Object.keys(_opDraft.empaqueProdCfg || {}).some(function(k){ return _opDraft.empaqueProdCfg[k] === pid; })
-                 || Object.keys(_opDraft.empaqueCatCfg || {}).some(function(k){ return (_opDraft.empaqueCatCfg[k] || {}).packId === pid; });
+                 || Object.keys(_opDraft.empaqueCatCfg || {}).some(function(k){ return (_opDraft.empaqueCatCfg[k] || {}).packId === pid; })
+                 || Object.keys(_opDraft.empaquePresCfg || {}).some(function(k){ return _opDraft.empaquePresCfg[k] === pid; });
         if (usado && !confirm('Este empaque está asignado. Al eliminarlo, esos productos volverán a heredar su categoría. ¿Eliminar?')) return;
         _opDraft.empaquePacks = (_opDraft.empaquePacks || []).filter(function(p){ return p.id !== pid; });
         Object.keys(_opDraft.empaqueProdCfg || {}).forEach(function(k){ if (_opDraft.empaqueProdCfg[k] === pid) delete _opDraft.empaqueProdCfg[k]; });
         Object.keys(_opDraft.empaqueCatCfg || {}).forEach(function(k){ if ((_opDraft.empaqueCatCfg[k] || {}).packId === pid) _opDraft.empaqueCatCfg[k].packId = null; });
+        Object.keys(_opDraft.empaquePresCfg || {}).forEach(function(k){ if (_opDraft.empaquePresCfg[k] === pid) delete _opDraft.empaquePresCfg[k]; });
         opRenderEmpEsp(); opCheckDirty(); return;
       }
       if (t.id === 'op-emp-pack-new') {
@@ -2216,6 +2251,12 @@ function opBindEvents() {
         _opDraft.empaqueProdCfg = _opDraft.empaqueProdCfg || {};
         if (t.value) _opDraft.empaqueProdCfg[t.dataset.empProd] = t.value;
         else delete _opDraft.empaqueProdCfg[t.dataset.empProd];
+        opRenderEmpEsp(); opCheckDirty(); return;
+      }
+      if (t.dataset && t.dataset.empPres !== undefined) {
+        _opDraft.empaquePresCfg = _opDraft.empaquePresCfg || {};
+        if (t.value) _opDraft.empaquePresCfg[t.dataset.empPres] = t.value;
+        else delete _opDraft.empaquePresCfg[t.dataset.empPres];
         opRenderEmpEsp(); opCheckDirty(); return;
       }
     });

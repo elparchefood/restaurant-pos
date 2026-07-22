@@ -610,7 +610,7 @@ function tpComputePrice(){
   if (!TP_WIP.forHere) {
     // Motor central (pos-core): soporta modo específico por categoría/producto
     if (window.posEmpaqueCalc && TP_WIP.prod) {
-      subtotal += window.posEmpaqueCalc([{ productId: TP_WIP.prod.id, catId: TP_WIP.prod.category_id, qty: TP_WIP.qty, unitPrice: base + modX }], {});
+      subtotal += window.posEmpaqueCalc([{ productId: TP_WIP.prod.id, catId: TP_WIP.prod.category_id, presId: (TP_WIP.pres && TP_WIP.pres.id !== '_base') ? TP_WIP.pres.id : null, qty: TP_WIP.qty, unitPrice: base + modX }], {});
     } else try {
       const cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
       if (cfg.empaquesActivo) {

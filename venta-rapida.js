@@ -39,7 +39,7 @@
   function calcEmpaque() {
     // Motor central (pos-core): soporta modo específico por categoría/producto
     if (window.posEmpaqueCalc) {
-      return window.posEmpaqueCalc(S.cart.map(i => ({ productId: i.productId || i.id, catId: i.catId, qty: i.qty, unitPrice: i.price })), {});
+      return window.posEmpaqueCalc(S.cart.map(i => ({ productId: i.productId || i.id, catId: i.catId, presId: i.presId || null, qty: i.qty, unitPrice: i.price })), {});
     }
     try {
       const cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
@@ -1363,6 +1363,7 @@
     S.cart.push({
       id:        lineId,
       productId: p.id,
+      presId:    (VR_WIP.pres && VR_WIP.pres.id !== '_base') ? VR_WIP.pres.id : null,
       name:      displayName,
       price:     unitPrice,
       qty:       VR_WIP.qty,

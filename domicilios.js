@@ -1074,7 +1074,7 @@ function computeEmpaque() {
     return window.posEmpaqueCalc(S.cart.map(i => {
       const pid = i.productId || i.id;
       const p = (S.products || []).find(x => x.id === pid);
-      return { productId: pid, catId: p ? p.category_id : null, qty: i.qty, unitPrice: i.price };
+      return { productId: pid, catId: p ? p.category_id : null, presId: (i.pres && i.pres.id !== '_base') ? i.pres.id : null, qty: i.qty, unitPrice: i.price };
     }), { domicilio: true });
   }
   try {
