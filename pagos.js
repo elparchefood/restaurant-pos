@@ -122,6 +122,10 @@ function calc() {
 // Calcula el empaque desde la config de Operación (mismo criterio que domicilios.js).
 // Se usa solo si la orden no trae ya packaging_fee guardado (p. ej. pedidos del bot).
 function computeEmpaquePagos(prodTotal, units, esDomicilio) {
+  // Motor central (pos-core): soporta modo específico por categoría/producto
+  if (window.posEmpaqueCalc) {
+    return window.posEmpaqueCalc((SP.items || []).map(i => ({ productId: i.productId, catId: i.catId, qty: i.qty, unitPrice: i.unitPrice })), { domicilio: !!esDomicilio });
+  }
   try {
     const cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
     if (!cfg.empaquesActivo || prodTotal <= 0) return 0;
@@ -756,6 +760,8 @@ async function loadOrder() {
     const cat  = prod.pos_categories || {};
     return {
       id:        it.id,
+      productId: it.product_id || null,
+      catId:     cat.id || null,
       name:      it.name || it.product_name || 'Producto',
       qty:       it.quantity || 1,
       unitPrice: parseFloat(it.unit_price) || 0,

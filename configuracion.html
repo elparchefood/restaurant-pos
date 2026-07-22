@@ -734,7 +734,7 @@
                 </div>
               </div>
               <div id="op-empaques-body" style="display:none">
-                <div class="op-row">
+                <div class="op-row" id="op-emp-row-tipo">
                   <div class="op-row-text">
                     <div class="op-label">Tipo de incremento</div>
                     <div class="op-hint">¿Monto fijo o porcentaje del total?</div>
@@ -764,7 +764,7 @@
                     </div>
                   </div>
                 </div>
-                <div class="op-row">
+                <div class="op-row" id="op-emp-row-base">
                   <div class="op-row-text">
                     <div class="op-label">Base de cobro</div>
                     <div class="op-hint">¿Se cobra por producto o una vez por pedido?</div>
@@ -776,7 +776,7 @@
                     </select>
                   </div>
                 </div>
-                <div class="op-row">
+                <div class="op-row" id="op-emp-row-canal">
                   <div class="op-row-text">
                     <div class="op-label">Llevar vs. domicilio</div>
                     <div class="op-hint">¿Mismo incremento para ambos canales o distinto?</div>
@@ -790,25 +790,20 @@
                 </div>
                 <div class="op-row">
                   <div class="op-row-text">
-                    <div class="op-label">Alcance de productos</div>
-                    <div class="op-hint">¿A qué productos aplica el incremento?</div>
+                    <div class="op-label">¿Cómo se aplica?</div>
+                    <div class="op-hint">Unificado: igual para todos los productos. Específico: por categoría y producto.</div>
                   </div>
-                  <div class="op-control">
-                    <select class="cf-select" id="op-empaque-alcance" data-op-field="empaqueAlcance">
-                      <option value="todos">Todos los productos</option>
-                      <option value="algunos">Solo algunos</option>
-                      <option value="excepto">Todos excepto...</option>
-                    </select>
+                  <div style="display:flex;gap:4px;background:#F1F5F9;border-radius:10px;padding:4px">
+                    <button type="button" id="op-emp-modo-uni" style="border:none;border-radius:7px;padding:7px 14px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer">Unificado</button>
+                    <button type="button" id="op-emp-modo-esp" style="border:none;border-radius:7px;padding:7px 14px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer">Específico</button>
                   </div>
                 </div>
-                <div id="op-empaque-scope-ids" style="display:none">
-                  <div class="op-row col" style="margin-top:0">
-                    <div class="op-row-text">
-                      <div class="op-label" id="op-empaque-scope-label">IDs de categorías/productos</div>
-                      <div class="op-hint">Pega los IDs separados por coma (disponibles en el catálogo).</div>
-                    </div>
-                    <textarea class="cf-bareinput" id="op-empaqueCategIds" rows="2" placeholder="cat-uuid-1, cat-uuid-2" style="width:100%;resize:vertical;padding:8px;border:1.5px solid #ECEEF2;border-radius:8px;font-size:12px;font-family:monospace"></textarea>
-                  </div>
+                <div id="op-emp-especifico" style="display:none">
+                  <div class="op-label" style="margin:12px 0 7px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#64748B">Categorías</div>
+                  <div id="op-emp-cats" style="border:1.5px solid #ECEEF2;border-radius:10px;overflow:hidden;background:#fff"></div>
+                  <div class="op-label" style="margin:14px 0 7px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#64748B">Empaques personalizados</div>
+                  <div class="op-hint" style="margin-bottom:8px">Crea empaques con otro precio (ej. $500) y asígnalos a productos puntuales.</div>
+                  <div id="op-emp-packs" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"></div>
                 </div>
               </div>
             </div>
@@ -1921,10 +1916,10 @@
 
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="pos-core.js?v=21"></script>
+<script src="pos-core.js?v=22"></script>
 <script src="pos-print.js?v=13"></script>
 <script src="pos-print-listener.js?v=1"></script>
-<script src="configuracion.js?v=1784762000"></script>
+<script src="configuracion.js?v=1784766000"></script>
 </body>
 </html>
 

@@ -1782,9 +1782,13 @@ var OP_DEFAULTS = {
   empaquePct: 5,
   empaqueMontoDomicilio: 500,
   empaquePctDomicilio: 5,
-  empaqueAlcance: 'todos',   // 'todos' | 'algunos' | 'excepto'
-  empaqueCategIds: '',       // IDs separados por coma
-  empaqueProductoIds: '',    // IDs separados por coma
+  empaqueAlcance: 'todos',   // LEGADO (ya no se usa; se mantiene por compatibilidad)
+  empaqueCategIds: '',       // LEGADO
+  empaqueProductoIds: '',    // LEGADO
+  empaqueModo: 'unificado',  // 'unificado' | 'especifico'
+  empaquePacks: [],          // [{id, nombre, monto}] empaques personalizados
+  empaqueCatCfg: {},         // {catId: {on:bool, packId:string|null}} — null = valor general
+  empaqueProdCfg: {},        // {prodId: 'none' | 'general' | packId} — ausente = hereda categoría
   // C9 — Tiempos de automatización de mesa
   mesaT1: 10,  // min → primera notificación
   mesaT2: 5,   // min → re-notificación tras "No"
@@ -1818,7 +1822,7 @@ function opSave(data) {
 // ── Init ──────────────────────────────────────────────────
 function opInit() {
   _opSaved = opLoad();
-  _opDraft = Object.assign({}, _opSaved);
+  _opDraft = JSON.parse(JSON.stringify(_opSaved));  // clon PROFUNDO (empaqueCatCfg/packs son objetos)
   opRender();
   opBindEvents();
 }
@@ -1878,7 +1882,6 @@ function opRender() {
   var selTipo = $('op-empaque-tipo'); if (selTipo) selTipo.value = d.empaqueTipo || 'fijo';
   var selBase = $('op-empaque-base'); if (selBase) selBase.value = d.empaqueBase || 'unidad';
   var selCanal = $('op-empaque-canal'); if (selCanal) selCanal.value = d.empaqueCanal || 'mismo';
-  var selAlcance = $('op-empaque-alcance'); if (selAlcance) selAlcance.value = d.empaqueAlcance || 'todos';
   var inpVal = $('op-empaqueVal');
   var inpValDomi = $('op-empaqueValDomi');
   if (inpVal) inpVal.value = d.empaqueTipo === 'porcentaje' ? (d.empaquePct || 5) : (d.empaqueMonto || 500);
@@ -1886,8 +1889,19 @@ function opRender() {
   var unitLbls = document.querySelectorAll('#op-empaque-unit, #op-empaque-unit-domi');
   unitLbls.forEach(function(el) { if (el) el.textContent = d.empaqueTipo === 'porcentaje' ? '%' : 'COP'; });
   var domiRow = $('op-empaque-domi-row'); if (domiRow) domiRow.style.display = (d.empaqueCanal === 'distinto') ? '' : 'none';
-  var scopeBlock = $('op-empaque-scope-ids'); if (scopeBlock) scopeBlock.style.display = (d.empaqueAlcance !== 'todos') ? '' : 'none';
-  var catInput = $('op-empaqueCategIds'); if (catInput) catInput.value = d.empaqueCategIds || '';
+  // Modo unificado / específico
+  var esp = d.empaqueModo === 'especifico';
+  var btnUni = $('op-emp-modo-uni'), btnEsp = $('op-emp-modo-esp');
+  var ON  = 'border:none;border-radius:7px;padding:7px 14px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;background:#fff;color:#5B6BFF;box-shadow:0 1px 3px rgba(15,23,42,.12)';
+  var OFF = 'border:none;border-radius:7px;padding:7px 14px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;background:transparent;color:#64748B';
+  if (btnUni) btnUni.style.cssText = esp ? OFF : ON;
+  if (btnEsp) btnEsp.style.cssText = esp ? ON : OFF;
+  // En específico la tarifa es fija por unidad → ocultar tipo/base/canal
+  ['op-emp-row-tipo','op-emp-row-base','op-emp-row-canal'].forEach(function(id){ var r = $(id); if (r) r.style.display = esp ? 'none' : ''; });
+  if (esp && domiRow) domiRow.style.display = 'none';
+  var espBlock = $('op-emp-especifico');
+  if (espBlock) espBlock.style.display = esp ? '' : 'none';
+  if (esp) opRenderEmpEsp();
 
   // C9 — T1/T2/T3
   var t1El = $('op-mesaT1'); if (t1El) t1El.textContent = d.mesaT1 || 10;
@@ -1918,6 +1932,96 @@ function opSetToggle(id, on) {
 }
 
 // ── Dirty tracking ────────────────────────────────────────
+// ── Empaques ESPECÍFICOS (por categoría y producto) ────────────────
+var _empCatalog = null;    // { cats:[{id,name}], prods:[{id,name,category_id}] }
+var _empOpen = {};         // categorías desplegadas en la UI
+function _empEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _empFmt(n){ return '$' + Number(Math.round(n||0)).toLocaleString('es-CO'); }
+
+async function _empLoadCatalog() {
+  if (_empCatalog) return _empCatalog;
+  try {
+    var u = await sb.auth.getUser();
+    var t = u && u.data && u.data.user && u.data.user.user_metadata ? u.data.user.user_metadata.tenant_id : null;
+    if (!t) return null;
+    var rc = await sb.from('pos_categories').select('id,name').eq('active', true).eq('tenant_id', t).order('name');
+    var rp = await sb.from('pos_products').select('id,name,category_id').eq('available', true).eq('tenant_id', t).order('name');
+    _empCatalog = { cats: (rc.data || []), prods: (rp.data || []) };
+  } catch (e) { console.error('empaques catálogo:', e); _empCatalog = { cats: [], prods: [] }; }
+  return _empCatalog;
+}
+
+function opRenderEmpEsp() {
+  var wrap = $('op-emp-cats');
+  if (!wrap) return;
+  if (!_empCatalog) {
+    wrap.innerHTML = '<div style="padding:16px;text-align:center;color:#94A3B8;font-size:12.5px">Cargando categorías…</div>';
+    _empLoadCatalog().then(function(){ if (_opDraft.empaqueModo === 'especifico') opRenderEmpEsp(); });
+    return;
+  }
+  var d = _opDraft;
+  var packs = d.empaquePacks || [];
+  var general = Number(d.empaqueMonto) || 0;
+  var packById = function(id){ return packs.find(function(p){ return p.id === id; }); };
+
+  wrap.innerHTML = _empCatalog.cats.map(function(cat){
+    var cc = (d.empaqueCatCfg || {})[cat.id] || {};
+    var on = cc.on !== false;
+    var open = !!_empOpen[cat.id];
+    var catFeeTxt = !on ? 'Sin empaque' : (cc.packId && packById(cc.packId) ? _empFmt(packById(cc.packId).monto) + ' · ' + _empEsc(packById(cc.packId).nombre) : _empFmt(general) + ' · general');
+    // Select de tarifa de la categoría (solo si está encendida)
+    var catSel = on
+      ? '<select data-emp-cat-pack="' + cat.id + '" style="font-family:inherit;font-size:11.5px;border:1px solid #E2E8F0;border-radius:7px;padding:4px 6px;max-width:150px;color:#0F172A;background:#fff">'
+        + '<option value=""' + (!cc.packId ? ' selected' : '') + '>General · ' + _empFmt(general) + '</option>'
+        + packs.map(function(p){ return '<option value="' + _empEsc(p.id) + '"' + (cc.packId === p.id ? ' selected' : '') + '>' + _empEsc(p.nombre) + ' · ' + _empFmt(p.monto) + '</option>'; }).join('')
+        + '</select>'
+      : '<span style="font-size:11.5px;color:#94A3B8">Sin empaque</span>';
+    var toggle = '<button type="button" data-emp-cat-toggle="' + cat.id + '" title="' + (on ? 'Desactivar empaque en esta categoría' : 'Activar empaque') + '" style="width:34px;height:19px;border-radius:999px;border:none;cursor:pointer;position:relative;flex-shrink:0;background:' + (on ? '#16A34A' : '#CBD5E1') + '"><span style="position:absolute;top:2.5px;' + (on ? 'right:3px' : 'left:3px') + ';width:14px;height:14px;border-radius:50%;background:#fff"></span></button>';
+    var head = '<div style="display:flex;align-items:center;gap:9px;padding:10px 12px;' + (open ? 'background:#FAFAFF;' : '') + 'border-bottom:1px solid #F1F5F9">'
+      + '<button type="button" data-emp-open="' + cat.id + '" style="border:none;background:none;cursor:pointer;color:' + (open ? '#5B6BFF' : '#94A3B8') + ';display:flex;padding:2px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transform:rotate(' + (open ? '90' : '0') + 'deg)"><polyline points="9 18 15 12 9 6"/></svg></button>'
+      + '<span style="flex:1;font-size:13px;font-weight:700;color:' + (on ? '#0F172A' : '#94A3B8') + '">' + _empEsc(cat.name) + '</span>'
+      + catSel + toggle + '</div>';
+    var body = '';
+    if (open) {
+      var prods = _empCatalog.prods.filter(function(p){ return p.category_id === cat.id; });
+      body = '<div style="background:#FAFAFF;border-bottom:1px solid #F1F5F9;padding:4px 12px 10px 37px;display:flex;flex-direction:column;gap:5px">'
+        + (prods.length ? prods.map(function(p){
+            var pc = (d.empaqueProdCfg || {})[p.id];
+            var heredaTxt = !on ? 'sin empaque' : (cc.packId && packById(cc.packId) ? _empFmt(packById(cc.packId).monto) : _empFmt(general));
+            return '<div style="display:flex;align-items:center;gap:8px">'
+              + '<span style="flex:1;font-size:12.5px;color:#334155;font-weight:' + (pc ? '700' : '500') + '">' + _empEsc(p.name) + '</span>'
+              + '<select data-emp-prod="' + p.id + '" style="font-family:inherit;font-size:11.5px;border:1px solid #E2E8F0;border-radius:7px;padding:4px 6px;max-width:170px;color:#0F172A;background:#fff">'
+              + '<option value=""' + (!pc ? ' selected' : '') + '>Hereda · ' + heredaTxt + '</option>'
+              + '<option value="general"' + (pc === 'general' ? ' selected' : '') + '>General · ' + _empFmt(general) + '</option>'
+              + packs.map(function(k){ return '<option value="' + _empEsc(k.id) + '"' + (pc === k.id ? ' selected' : '') + '>' + _empEsc(k.nombre) + ' · ' + _empFmt(k.monto) + '</option>'; }).join('')
+              + '<option value="none"' + (pc === 'none' ? ' selected' : '') + '>Sin empaque</option>'
+              + '</select></div>';
+          }).join('') : '<div style="font-size:12px;color:#94A3B8;padding:4px 0">Sin productos en esta categoría</div>')
+        + '</div>';
+    }
+    return head + body;
+  }).join('') || '<div style="padding:16px;text-align:center;color:#94A3B8;font-size:12.5px">Sin categorías en el catálogo</div>';
+
+  // Chips de packs
+  var packsWrap = $('op-emp-packs');
+  if (packsWrap) {
+    var nUsos = function(pid){
+      var n = 0;
+      Object.keys(d.empaqueProdCfg || {}).forEach(function(k){ if (d.empaqueProdCfg[k] === pid) n++; });
+      Object.keys(d.empaqueCatCfg || {}).forEach(function(k){ if ((d.empaqueCatCfg[k] || {}).packId === pid) n++; });
+      return n;
+    };
+    packsWrap.innerHTML = packs.map(function(p){
+      return '<span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;background:#F5F3FF;color:#6D28D9;border:1px solid #DDD6FE;padding:6px 11px;border-radius:999px">'
+        + _empEsc(p.nombre) + ' · ' + _empFmt(p.monto)
+        + '<span style="font-weight:500;color:#8B5CF6">· ' + nUsos(p.id) + ' uso' + (nUsos(p.id) !== 1 ? 's' : '') + '</span>'
+        + '<button type="button" data-emp-pack-del="' + _empEsc(p.id) + '" title="Eliminar empaque" style="border:none;background:none;color:#8B5CF6;cursor:pointer;font-size:15px;line-height:1;padding:0;font-weight:700">&times;</button>'
+        + '</span>';
+    }).join('')
+    + '<button type="button" id="op-emp-pack-new" style="display:inline-flex;align-items:center;gap:5px;font-family:inherit;font-size:12.5px;font-weight:700;border:1.5px dashed #C4B5FD;background:#FAF9FF;color:#7C3AED;padding:6px 12px;border-radius:999px;cursor:pointer">+ Crear empaque</button>';
+  }
+}
+
 function opCheckDirty() {
   var dirty = JSON.stringify(_opDraft) !== JSON.stringify(_opSaved);
   var btnSave    = $('op-btn-save');
@@ -2043,7 +2147,7 @@ function opBindEvents() {
   });
 
   // C3b — Empaques selects & inputs
-  ['op-empaque-tipo', 'op-empaque-base', 'op-empaque-canal', 'op-empaque-alcance'].forEach(function(id) {
+  ['op-empaque-tipo', 'op-empaque-base', 'op-empaque-canal'].forEach(function(id) {
     var sel = $(id);
     if (!sel) return;
     sel.addEventListener('change', function() {
@@ -2052,13 +2156,70 @@ function opBindEvents() {
       // toggle domi row visibility
       var domiRow = $('op-empaque-domi-row');
       if (domiRow) domiRow.style.display = (_opDraft.empaqueCanal === 'distinto') ? '' : 'none';
-      var scopeBlock = $('op-empaque-scope-ids');
-      if (scopeBlock) scopeBlock.style.display = (_opDraft.empaqueAlcance !== 'todos') ? '' : 'none';
       var unitLbls = document.querySelectorAll('#op-empaque-unit, #op-empaque-unit-domi');
       unitLbls.forEach(function(el) { el.textContent = _opDraft.empaqueTipo === 'porcentaje' ? '%' : 'COP'; });
       opCheckDirty();
     });
   });
+
+  // C3b — Modo unificado / específico
+  var btnModoUni = $('op-emp-modo-uni');
+  var btnModoEsp = $('op-emp-modo-esp');
+  if (btnModoUni) btnModoUni.addEventListener('click', function(){ _opDraft.empaqueModo = 'unificado'; opRender(); });
+  if (btnModoEsp) btnModoEsp.addEventListener('click', function(){ _opDraft.empaqueModo = 'especifico'; opRender(); });
+
+  // C3b — Panel específico (delegación: se re-renderiza completo en cada cambio)
+  var espWrap = $('op-emp-especifico');
+  if (espWrap) {
+    espWrap.addEventListener('click', function(e){
+      var t = e.target.closest('[data-emp-open],[data-emp-cat-toggle],[data-emp-pack-del],#op-emp-pack-new');
+      if (!t) return;
+      if (t.dataset.empOpen) { _empOpen[t.dataset.empOpen] = !_empOpen[t.dataset.empOpen]; opRenderEmpEsp(); return; }
+      if (t.dataset.empCatToggle) {
+        var cid = t.dataset.empCatToggle;
+        var cc = Object.assign({}, (_opDraft.empaqueCatCfg || {})[cid] || {});
+        cc.on = cc.on === false;   // invertir (default true)
+        _opDraft.empaqueCatCfg = Object.assign({}, _opDraft.empaqueCatCfg, {});
+        _opDraft.empaqueCatCfg[cid] = cc;
+        opRenderEmpEsp(); opCheckDirty(); return;
+      }
+      if (t.dataset.empPackDel) {
+        var pid = t.dataset.empPackDel;
+        var usado = Object.keys(_opDraft.empaqueProdCfg || {}).some(function(k){ return _opDraft.empaqueProdCfg[k] === pid; })
+                 || Object.keys(_opDraft.empaqueCatCfg || {}).some(function(k){ return (_opDraft.empaqueCatCfg[k] || {}).packId === pid; });
+        if (usado && !confirm('Este empaque está asignado. Al eliminarlo, esos productos volverán a heredar su categoría. ¿Eliminar?')) return;
+        _opDraft.empaquePacks = (_opDraft.empaquePacks || []).filter(function(p){ return p.id !== pid; });
+        Object.keys(_opDraft.empaqueProdCfg || {}).forEach(function(k){ if (_opDraft.empaqueProdCfg[k] === pid) delete _opDraft.empaqueProdCfg[k]; });
+        Object.keys(_opDraft.empaqueCatCfg || {}).forEach(function(k){ if ((_opDraft.empaqueCatCfg[k] || {}).packId === pid) _opDraft.empaqueCatCfg[k].packId = null; });
+        opRenderEmpEsp(); opCheckDirty(); return;
+      }
+      if (t.id === 'op-emp-pack-new') {
+        var nombre = prompt('Nombre del empaque (ej. Empaque pequeño):');
+        if (!nombre || !nombre.trim()) return;
+        var monto = parseInt(prompt('Valor por unidad (COP):') || '', 10);
+        if (!monto || monto < 0) return;
+        _opDraft.empaquePacks = (_opDraft.empaquePacks || []).concat([{ id: 'pk_' + Date.now().toString(36), nombre: nombre.trim(), monto: monto }]);
+        opRenderEmpEsp(); opCheckDirty(); return;
+      }
+    });
+    espWrap.addEventListener('change', function(e){
+      var t = e.target;
+      if (t.dataset && t.dataset.empCatPack !== undefined) {
+        var cid = t.dataset.empCatPack;
+        var cc = Object.assign({}, (_opDraft.empaqueCatCfg || {})[cid] || {});
+        cc.packId = t.value || null;
+        _opDraft.empaqueCatCfg = _opDraft.empaqueCatCfg || {};
+        _opDraft.empaqueCatCfg[cid] = cc;
+        opRenderEmpEsp(); opCheckDirty(); return;
+      }
+      if (t.dataset && t.dataset.empProd !== undefined) {
+        _opDraft.empaqueProdCfg = _opDraft.empaqueProdCfg || {};
+        if (t.value) _opDraft.empaqueProdCfg[t.dataset.empProd] = t.value;
+        else delete _opDraft.empaqueProdCfg[t.dataset.empProd];
+        opRenderEmpEsp(); opCheckDirty(); return;
+      }
+    });
+  }
   var inpEmpVal = $('op-empaqueVal');
   if (inpEmpVal) inpEmpVal.addEventListener('input', function() {
     var v = parseFloat(this.value) || 0;
@@ -2097,7 +2258,7 @@ function opBindEvents() {
   var btnDiscard = $('op-btn-discard');
   if (btnDiscard) {
     btnDiscard.addEventListener('click', function() {
-      _opDraft = Object.assign({}, _opSaved);
+      _opDraft = JSON.parse(JSON.stringify(_opSaved));
       opRender();
     });
   }

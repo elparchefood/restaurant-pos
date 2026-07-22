@@ -37,6 +37,10 @@
   // base de la config de Operación, no la de domicilio). Mismo criterio que
   // domicilios.js / pagos.js.
   function calcEmpaque() {
+    // Motor central (pos-core): soporta modo específico por categoría/producto
+    if (window.posEmpaqueCalc) {
+      return window.posEmpaqueCalc(S.cart.map(i => ({ productId: i.productId || i.id, catId: i.catId, qty: i.qty, unitPrice: i.price })), {});
+    }
     try {
       const cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
       if (!cfg.empaquesActivo) return 0;

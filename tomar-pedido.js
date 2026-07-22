@@ -608,7 +608,10 @@ function tpComputePrice(){
   const modX=Object.values(TP_WIP.mods).reduce((s,m)=>s+((m.price||0)*(m.qty||1)),0);
   let subtotal = (base+modX)*TP_WIP.qty;
   if (!TP_WIP.forHere) {
-    try {
+    // Motor central (pos-core): soporta modo específico por categoría/producto
+    if (window.posEmpaqueCalc && TP_WIP.prod) {
+      subtotal += window.posEmpaqueCalc([{ productId: TP_WIP.prod.id, catId: TP_WIP.prod.category_id, qty: TP_WIP.qty, unitPrice: base + modX }], {});
+    } else try {
       const cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
       if (cfg.empaquesActivo) {
         const monto = cfg.empaqueTipo === 'porcentaje' ? (cfg.empaquePct||0) : (cfg.empaqueMonto||0);

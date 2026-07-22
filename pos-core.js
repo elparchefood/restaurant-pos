@@ -57,6 +57,48 @@ function daysAgoISO(n) {
     modules: {}
   };
 
+  // ── Motor central de EMPAQUES ──────────────────────────────────────
+  // Una sola lógica para mesas, venta rápida, domicilios y cobro.
+  // items: [{productId, catId, qty, unitPrice}] · opts: {domicilio:true}
+  // Modo "especifico": tarifa fija por unidad en cascada
+  //   producto (empaqueProdCfg) → categoría (empaqueCatCfg) → valor general.
+  // Modo "unificado" (default): comportamiento clásico (fijo/%, unidad/pedido, canal).
+  window.posEmpaqueCalc = function (items, opts) {
+    try {
+      var cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
+      if (!cfg.empaquesActivo || !items || !items.length) return 0;
+      var prod = 0, units = 0;
+      items.forEach(function (i) { prod += (Number(i.unitPrice) || 0) * (Number(i.qty) || 0); units += (Number(i.qty) || 0); });
+      if (prod <= 0) return 0;
+      if (cfg.empaqueModo === 'especifico') {
+        var packs = cfg.empaquePacks || [];
+        var general = Number(cfg.empaqueMonto) || 0;
+        var packMonto = function (id) { for (var k = 0; k < packs.length; k++) if (packs[k].id === id) return Number(packs[k].monto) || 0; return 0; };
+        var total = 0;
+        items.forEach(function (i) {
+          var fee = general;
+          var cc = (cfg.empaqueCatCfg || {})[i.catId];
+          if (cc) { if (cc.on === false) fee = 0; else if (cc.packId) fee = packMonto(cc.packId); }
+          var pc = (cfg.empaqueProdCfg || {})[i.productId];
+          if (pc !== undefined && pc !== null && pc !== '') {
+            if (pc === 'none') fee = 0;
+            else if (pc === 'general') fee = general;
+            else fee = packMonto(pc);
+          }
+          total += fee * (Number(i.qty) || 0);
+        });
+        return total;
+      }
+      var usaDomi = (cfg.empaqueCanal === 'distinto') && !!(opts && opts.domicilio);
+      var esPct = cfg.empaqueTipo === 'porcentaje';
+      var rate = esPct
+        ? (usaDomi ? (cfg.empaquePctDomicilio || 0) : (cfg.empaquePct || 0))
+        : (usaDomi ? (cfg.empaqueMontoDomicilio || 0) : (cfg.empaqueMonto || 0));
+      if (cfg.empaqueBase === 'pedido') return esPct ? Math.round(prod * rate / 100) : rate;
+      return esPct ? Math.round(prod * rate / 100) : rate * units;
+    } catch (e) { return 0; }
+  };
+
   // Inicializar: leer sesión, poblar state, emitir core:ready
   async function boot() {
     try {

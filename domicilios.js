@@ -1069,6 +1069,14 @@ function computeProductsTotal() {
 // Respeta: canal (mismo/distinto → tarifa de domicilio), tipo (fijo/porcentaje),
 // base (unidad/pedido).
 function computeEmpaque() {
+  // Motor central (pos-core): soporta modo específico por categoría/producto
+  if (window.posEmpaqueCalc) {
+    return window.posEmpaqueCalc(S.cart.map(i => {
+      const pid = i.productId || i.id;
+      const p = (S.products || []).find(x => x.id === pid);
+      return { productId: pid, catId: p ? p.category_id : null, qty: i.qty, unitPrice: i.price };
+    }), { domicilio: true });
+  }
   try {
     const cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
     if (!cfg.empaquesActivo) return 0;
