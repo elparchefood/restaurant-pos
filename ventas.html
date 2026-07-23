@@ -71,7 +71,7 @@
   <!-- 5. Guard de caja -->
   <script src="pos-caja-guard.js?v=1"></script>
   <!-- 6. Módulo ventas salón -->
-  <script src="modules/ventas-salon.js?v=1785040000"></script>
+  <script src="modules/ventas-salon.js?v=1785070000"></script>
 
   <script>
     // Muestra error en el loader y agrega botón de reintento
@@ -122,6 +122,15 @@
         if (!(await window.cajaGuard(window._pos.state.branchId))) return;
         const guestParam = data.guests ? '&guests=' + data.guests : '';
         window.location.href = 'tomar-pedido.html?table=' + data.tableId + guestParam;
+      }
+    });
+
+    // Agregar más ítems a una mesa ya ocupada: abre la misma pantalla de
+    // toma de pedido, que carga la orden existente y le suma lo nuevo.
+    window._pos.on('table:addItem', async function (data) {
+      if (data && data.tableId) {
+        if (!(await window.cajaGuard(window._pos.state.branchId))) return;
+        window.location.href = 'tomar-pedido.html?table=' + data.tableId;
       }
     });
 

@@ -1660,9 +1660,7 @@
       <div class="vs-rail-scroll">
         <div class="vs-order-head">
           <div class="vs-order-section-label">Comanda</div>
-          ${isPendientePago
-            ? `<span class="vs-rail-locked">${SVG_DOLLAR(12)} Esperando cobro</span>`
-            : `<button class="lm-link" data-action="add-item" data-table-id="${mesa.id}">+ Agregar ítem</button>`}
+          <button class="lm-link" data-action="add-item" data-table-id="${mesa.id}">+ Agregar ítem</button>
         </div>
         <div class="vs-order-list">${itemsHtml}</div>
       </div>
@@ -2133,6 +2131,7 @@
     cobrar:  'pedidos.cobrar',
     collect: 'pedidos.cobrar',
     'open-table': 'pedidos.crear',
+    'add-item': 'pedidos.crear',
     'cancelar-pedido-mesa': 'pedidos.anular',
     'quick-cancelar': 'pedidos.anular',
   };
@@ -2324,11 +2323,8 @@
         window._pos && window._pos.emit && window._pos.emit('table:split', { tableId });
         break;
       case 'add-item': {
-        const mesaAdd = state.tables.find(t => t.id === tableId);
-        if (mesaAdd && mesaAdd.status === 'pendiente_pago') {
-          vsToast('Esta mesa aún no ha sido cobrada. Primero cobra antes de agregar ítems.');
-          return;
-        }
+        // Se puede agregar a una mesa ocupada en cualquier estado. Lo nuevo se
+        // suma; si la mesa ya pagó (prepago), al cobrar solo aparece lo nuevo.
         window._pos && window._pos.emit && window._pos.emit('table:addItem', { tableId });
         break;
       }
