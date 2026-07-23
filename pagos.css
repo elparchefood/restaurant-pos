@@ -901,3 +901,6 @@ svg { display: block; }
 
 /* Ronda 4: Elevacion visible en paneles de pagos */
 .lm-overlay { box-shadow: 0 24px 64px rgba(15,23,42,.20), 0 8px 24px rgba(15,23,42,.10); }
+
+/* Top bar oculto: más espacio para el cobro */
+.pg-topbar { display: none !important; }

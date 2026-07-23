@@ -1210,3 +1210,11 @@ div.master[data-tab].cia-active { display: flex !important; }
 .hr-inp:hover{border-color:#C7D2FE;}
 .hr-inp:focus{outline:none;border-color:#5B6BFF;box-shadow:0 0 0 3px rgba(91,107,255,.12);}
 .hr-suf{display:flex;gap:6px;align-items:center;font-size:12px;color:#64748B;cursor:pointer;font-weight:600;}
+
+/* Top bar sin lo decorativo (badge, migas, guardado, usuario). Se conserva la
+   barra solo para las pestañas del Asistente IA, que se muestran ahí; en las
+   demás secciones el top bar colapsa y se recupera el espacio. */
+.cf-topbar { height: auto; min-height: 0; padding: 0; border-bottom: none; background: transparent; }
+.cf-modebadge, .cf-crumbs, .cf-top-right { display: none !important; }
+.cf-top-left { width: 100%; }
+.cia-tabs { margin: 12px 24px 12px; }

@@ -773,3 +773,6 @@ button{font-family:inherit;}
 
 /* Unidades disponibles (datalist) */
 .ia-unit-opts { display: none; }
+
+/* Top bar oculto: se recupera el espacio vertical (el sidebar ya identifica al usuario) */
+.iv-topbar { display: none !important; }
