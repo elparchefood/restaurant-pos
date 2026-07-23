@@ -577,13 +577,18 @@
     const role     = user.user_metadata?.role || user.app_metadata?.role || 'mesero';
     state.userRole = role;
 
-    // Roles con cobro implícito — siempre pueden cobrar
-    if (['admin','administrador','gerente','cajero','cajera'].includes(role)) {
-      state.canCobrar = true;
+    // Fuente única de permisos: pos-perms.js. Antes se daba cobro AUTOMÁTICO
+    // a admin/gerente/cajero SIN mirar sus permisos — un cajero podía cobrar
+    // aunque le quitaran el permiso. Ahora admin/gerente sí pueden todo (los
+    // marca el helper), pero cajero sigue su lista real de permisos.
+    if (typeof window.posPermsReady === 'function') {
+      try { await window.posPermsReady(); } catch (e) {}
+      state.canCobrar = window.posHasPerm('pedidos.cobrar');
       return;
     }
 
-    // Para mesero y otros: consultar pos_roles.perms
+    // Respaldo si pos-perms.js no cargó: consultar pos_roles.perms directo.
+    if (['admin', 'administrador', 'gerente'].includes(role)) { state.canCobrar = true; return; }
     const tenantId = window._pos.state.tenantId;
     if (!tenantId) return;
     const { data: roleRow } = await sb
