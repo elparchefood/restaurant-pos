@@ -99,15 +99,91 @@
     return ok;
   };
 
-  /* Candado de ENTRADA a una página: si el usuario no tiene el permiso, lo
-     saca a un lugar seguro (por defecto Ventas). Espera a que carguen los
-     permisos antes de decidir. Uso en un <script> tras cargar pos-perms.js:
-        posRequire('ventas.ver');
-        posRequire(['config.general','config.salon','config.usuarios']); */
-  window.posRequire = async function (idOrIds, redirectTo) {
+  /* ── PIN de administrador (override de gerente) ─────────────────────────
+     Nada se oculta. Cuando alguien SIN permiso toca una acción, aparece el
+     PIN: si es correcto, la acción procede. Así el gerente puede resolver
+     algo rápido desde la cuenta de cualquier rol con solo poner el PIN.
+     Valida contra pos_users.pin (mismo PIN de Configuración → Operación). */
+  window.posPinPrompt = function (motivo, onOk, onCancel) {
+    var prev = document.getElementById('pos-pin-modal');
+    if (prev) prev.remove();
+    var ov = document.createElement('div');
+    ov.id = 'pos-pin-modal';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.5);backdrop-filter:blur(4px);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:inherit';
+    ov.innerHTML =
+      '<div style="background:#fff;border-radius:16px;padding:24px;width:340px;max-width:92vw;box-shadow:0 20px 60px rgba(15,23,42,.25)">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
+      + '<div style="font-weight:700;font-size:15px;color:#0F172A">PIN de administrador</div>'
+      + '<button id="pos-pin-x" style="border:none;background:#F1F5F9;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;color:#64748B">&#x2715;</button>'
+      + '</div>'
+      + '<p style="font-size:12.5px;color:#64748B;margin:0 0 12px;line-height:1.5">' + (motivo || 'Esta acción requiere permiso. Ingresa el PIN para continuar.') + '</p>'
+      + '<input id="pos-pin-input" type="password" inputmode="numeric" maxlength="8" placeholder="••••"'
+      + ' style="width:100%;border:1.5px solid #ECEEF2;border-radius:10px;padding:11px 14px;font-size:20px;letter-spacing:6px;text-align:center;outline:none;box-sizing:border-box;color:#0F172A">'
+      + '<p id="pos-pin-err" style="color:#EF4444;font-size:12px;margin:6px 0 0;display:none"></p>'
+      + '<button id="pos-pin-ok" style="margin-top:14px;width:100%;padding:11px;border:none;border-radius:10px;background:#5B6BFF;color:#fff;font-size:14px;font-weight:600;cursor:pointer">Confirmar</button>'
+      + '</div>';
+    document.body.appendChild(ov);
+    var inp = document.getElementById('pos-pin-input');
+    var err = document.getElementById('pos-pin-err');
+    setTimeout(function () { if (inp) inp.focus(); }, 50);
+    function cerrar() { ov.remove(); }
+    function cancelar() { cerrar(); if (typeof onCancel === 'function') onCancel(); }
+    document.getElementById('pos-pin-x').addEventListener('click', cancelar);
+    ov.addEventListener('click', function (e) { if (e.target === ov) cancelar(); });
+    async function validar() {
+      var sb = cliente();
+      var entered = (inp.value || '').trim();
+      if (!entered) { err.textContent = 'Ingresa el PIN'; err.style.display = 'block'; return; }
+      if (!sb) { err.textContent = 'Error de conexión'; err.style.display = 'block'; return; }
+      try {
+        var ur = await sb.auth.getUser();
+        var tenantId = ur && ur.data && ur.data.user && ur.data.user.user_metadata && ur.data.user.user_metadata.tenant_id;
+        var branchId = ur && ur.data && ur.data.user && ur.data.user.user_metadata && ur.data.user.user_metadata.branch_id;
+        var q = sb.from('pos_users').select('pin').eq('is_authorized_admin', true).limit(1);
+        if (branchId) q = q.eq('branch_id', branchId);
+        else if (tenantId) q = q.eq('tenant_id', tenantId);
+        var res = await q.maybeSingle();
+        var row = res.data;
+        if (!row || row.pin === null || row.pin === undefined || row.pin === '') {
+          err.textContent = 'No hay PIN configurado. Ve a Configuración → Operación.'; err.style.display = 'block'; return;
+        }
+        if (String(row.pin).trim() !== entered) {
+          err.textContent = 'PIN incorrecto'; err.style.display = 'block'; inp.value = ''; inp.focus(); return;
+        }
+        cerrar();
+        if (typeof onOk === 'function') onOk();
+      } catch (e) {
+        err.textContent = 'Error al verificar el PIN'; err.style.display = 'block';
+      }
+    }
+    document.getElementById('pos-pin-ok').addEventListener('click', validar);
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') validar(); });
+  };
+
+  /* Candado de una ACCIÓN por permiso. Si el usuario tiene el permiso, corre
+     onOk() de una; si no, aparece el PIN y corre onOk() solo si es correcto.
+        posGuard('pedidos.cobrar', function(){ irACobrar(); }); */
+  window.posGuard = async function (idOrIds, onOk, motivo) {
     try { await _ready; } catch (e) {}
     var ok = Array.isArray(idOrIds) ? window.posHasAny(idOrIds) : window.posHasPerm(idOrIds);
-    if (!ok) { window.location.replace(redirectTo || 'ventas.html'); return false; }
-    return true;
+    if (ok) { if (typeof onOk === 'function') onOk(); return; }
+    window.posPinPrompt(motivo || 'Esta acción requiere permiso de administrador.', onOk);
+  };
+
+  /* Candado de ENTRADA a una página. Nada se oculta: si no tiene el permiso,
+     aparece el PIN encima de la página. PIN correcto → se queda; cancelar →
+     sale a un lugar seguro (por defecto Ventas).
+        posRequirePin('ventas.ver');
+        posRequirePin(['config.general','config.salon','config.usuarios']); */
+  window.posRequirePin = async function (idOrIds, backTo) {
+    try { await _ready; } catch (e) {}
+    var ok = Array.isArray(idOrIds) ? window.posHasAny(idOrIds) : window.posHasPerm(idOrIds);
+    if (ok) return true;
+    window.posPinPrompt(
+      'Esta sección requiere permiso. Ingresa el PIN de administrador para entrar.',
+      function () { /* desbloqueado: se queda en la página */ },
+      function () { window.location.replace(backTo || 'ventas.html'); }
+    );
+    return false;
   };
 })();

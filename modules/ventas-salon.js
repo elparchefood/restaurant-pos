@@ -577,28 +577,13 @@
     const role     = user.user_metadata?.role || user.app_metadata?.role || 'mesero';
     state.userRole = role;
 
-    // Fuente única de permisos: pos-perms.js. Antes se daba cobro AUTOMÁTICO
-    // a admin/gerente/cajero SIN mirar sus permisos — un cajero podía cobrar
-    // aunque le quitaran el permiso. Ahora admin/gerente sí pueden todo (los
-    // marca el helper), pero cajero sigue su lista real de permisos.
+    // Nada se oculta: el botón Cobrar SIEMPRE se muestra. El permiso se revisa
+    // al TOCARLO (handleAction): si el rol no tiene 'pedidos.cobrar', aparece
+    // el PIN de administrador. Cargar los permisos para que estén listos.
     if (typeof window.posPermsReady === 'function') {
       try { await window.posPermsReady(); } catch (e) {}
-      state.canCobrar = window.posHasPerm('pedidos.cobrar');
-      return;
     }
-
-    // Respaldo si pos-perms.js no cargó: consultar pos_roles.perms directo.
-    if (['admin', 'administrador', 'gerente'].includes(role)) { state.canCobrar = true; return; }
-    const tenantId = window._pos.state.tenantId;
-    if (!tenantId) return;
-    const { data: roleRow } = await sb
-      .from('pos_roles')
-      .select('perms')
-      .eq('tenant_id', tenantId)
-      .eq('name', role)
-      .maybeSingle();
-
-    state.canCobrar = Array.isArray(roleRow?.perms) && roleRow.perms.includes('pedidos.cobrar');
+    state.canCobrar = true;
   }
 
   // ─── Realtime subscription ───────────────────────────
@@ -2114,7 +2099,10 @@
           return;
         }
         if (action === 'cobrar') {
-          window.location.href = `pagos.html?order=${id}&channel=domicilio`;
+          const irCobrarDomi = function () { window.location.href = `pagos.html?order=${id}&channel=domicilio`; };
+          if (typeof window.posHasPerm === 'function' && !window.posHasPerm('pedidos.cobrar') && typeof window.posPinPrompt === 'function') {
+            window.posPinPrompt('Cobrar requiere permiso de administrador.', irCobrarDomi);
+          } else { irCobrarDomi(); }
         } else if (action === 'advance' && DELIVERY_NEXT[d.estado]) {
           d.estado = DELIVERY_NEXT[d.estado];
           render();
@@ -2138,9 +2126,32 @@
     });
   }
 
+  // Acción → permiso requerido. Nada se oculta: si el rol no tiene el permiso,
+  // se pide el PIN de administrador y la acción procede solo si es correcto
+  // (override de gerente desde cualquier cuenta).
+  const VS_PERM_ACCION = {
+    cobrar:  'pedidos.cobrar',
+    collect: 'pedidos.cobrar',
+  };
+  const VS_PERM_MOTIVO = {
+    'pedidos.cobrar': 'Cobrar requiere permiso de administrador.',
+  };
+
   function handleAction(e) {
-    const action = e.currentTarget.dataset.action;
-    const tableId = e.currentTarget.dataset.tableId;
+    const el = e.currentTarget;
+    const action = el.dataset.action;
+    const tableId = el.dataset.tableId;
+
+    const permReq = VS_PERM_ACCION[action];
+    if (permReq && typeof window.posHasPerm === 'function' && !window.posHasPerm(permReq) && !e.__pinOk) {
+      if (typeof window.posPinPrompt === 'function') {
+        const ds = { action: action, tableId: tableId };
+        window.posPinPrompt(VS_PERM_MOTIVO[permReq], function () {
+          handleAction({ currentTarget: { dataset: ds }, __pinOk: true });
+        });
+      }
+      return;
+    }
 
     switch (action) {
       case 'open-table': {
