@@ -2420,6 +2420,23 @@
   }
 
   // ─── Cobro adelantado ────────────────────────────────
+  // Al volver a esta ventana (cambio de pestana/app, o traer el .exe al
+  // frente) se relee el valor real de la base: si en otro dispositivo se
+  // cambio en Configuracion, aqui se refleja sin recargar.
+  let _cobroFocusHooked = false;
+  function hookCobroRefresh() {
+    if (_cobroFocusHooked) return;
+    _cobroFocusHooked = true;
+    var refrescar = async function () {
+      if (document.hidden) return;
+      var antes = state.cobroAdelantado;
+      await loadCobroAdelantado();
+      if (state.cobroAdelantado !== antes) pintarToggleCobro();
+    };
+    window.addEventListener('focus', refrescar);
+    document.addEventListener('visibilitychange', refrescar);
+  }
+
   async function loadCobroAdelantado() {
     // 1. localStorage primero (respuesta inmediata)
     state.cobroAdelantado = localStorage.getItem(COBRO_KEY) === 'true';
@@ -2437,34 +2454,103 @@
     } catch(e) { /* usa el valor de localStorage */ }
   }
 
+  function esRolAdmin(role) {
+    return role === 'admin' || role === 'administrador' || role === 'gerente';
+  }
+
   async function toggleCobro() {
-    const sb = window._pos && window._pos.sb;
     const _posUser = window._pos && window._pos.state && window._pos.state.user;
     const role = (_posUser && (_posUser.user_metadata?.role || _posUser.app_metadata?.role)) || 'mesero';
-    // Si no es admin, pedir PIN (flujo de PIN deferred — por ahora solo admins)
-    if (role !== 'admin' && role !== 'administrador' && role !== 'gerente') {
-      alert('Solo el administrador puede cambiar el modo de cobro.');
-      return;
+    // El gerente/admin cambia libre. Cualquier otro rol necesita el PIN de
+    // administrador (mismo candado que Configuracion, pero sin salir de Ventas).
+    if (esRolAdmin(role)) {
+      await aplicarCobro(!state.cobroAdelantado);
+    } else {
+      _posVSPromptPin('Cambiar el modo de cobro requiere el PIN de administrador.',
+        function () { aplicarCobro(!state.cobroAdelantado); });
     }
-    const nuevoValor = !state.cobroAdelantado;
+  }
+
+  async function aplicarCobro(nuevoValor) {
+    const sb = window._pos && window._pos.sb;
     state.cobroAdelantado = nuevoValor;
     localStorage.setItem(COBRO_KEY, String(nuevoValor));
-    // Persistir en Supabase
+    // branches.cobro_adelantado es la fuente de verdad compartida con
+    // Configuracion → Operacion. Al escribir aqui, esa pantalla lo vera.
     try {
       const branchId = window._pos && window._pos.state && window._pos.state.branchId;
       if (sb && branchId) {
         await sb.from('branches').update({ cobro_adelantado: nuevoValor }).eq('id', branchId);
       }
-    } catch(e) { /* ignore */ }
-    // Update toggle button in topbar
-    const btn = document.getElementById('vs-cobro-toggle');
-    if (btn) {
-      btn.className = 'vs-cobro-toggle' + (nuevoValor ? ' vs-cobro-on' : '');
-      btn.title = nuevoValor ? 'Desactivar cobro adelantado' : 'Activar cobro adelantado';
-      btn.querySelector('.vs-cobro-label').textContent = nuevoValor ? 'Cobro adelantado' : 'Cobro al final';
-      btn.addEventListener('click', toggleCobro);
-    }
+    } catch(e) { /* queda en localStorage; se re-sincroniza al volver al foco */ }
+    pintarToggleCobro();
   }
+
+  // Refleja el estado actual en el boton del topbar sin re-render completo.
+  function pintarToggleCobro() {
+    const btn = document.getElementById('vs-cobro-toggle');
+    if (!btn) return;
+    const on = state.cobroAdelantado;
+    btn.className = 'vs-cobro-toggle' + (on ? ' vs-cobro-on' : '');
+    btn.title = on ? 'Desactivar cobro adelantado' : 'Activar cobro adelantado';
+    const lbl = btn.querySelector('.vs-cobro-label');
+    if (lbl) lbl.textContent = on ? 'Cobro adelantado' : 'Cobro al final';
+  }
+
+  // Candado de PIN reutilizable: valida contra pos_users.pin (mismo que el
+  // modal de moneda) y ejecuta onOk() solo si el PIN es correcto.
+  window._posVSPromptPin = function (motivo, onOk) {
+    var prev = document.getElementById('vs-pinlock-modal');
+    if (prev) prev.remove();
+    var ov = document.createElement('div');
+    ov.id = 'vs-pinlock-modal';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(4px);z-index:9200;display:flex;align-items:center;justify-content:center';
+    ov.innerHTML =
+      '<div style="background:#fff;border-radius:16px;padding:24px;width:340px;max-width:92vw;box-shadow:0 20px 60px rgba(15,23,42,.18)">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
+      + '<div style="font-weight:700;font-size:15px;color:#0F172A">PIN de administrador</div>'
+      + '<button id="vs-pinlock-x" style="border:none;background:#F1F5F9;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;color:#64748B">&#x2715;</button>'
+      + '</div>'
+      + '<p style="font-size:12px;color:#64748B;margin-bottom:12px">' + (motivo || 'Esta accion requiere el PIN de administrador.') + '</p>'
+      + '<input id="vs-pinlock-input" type="password" inputmode="numeric" maxlength="8" placeholder="••••"'
+      + ' style="width:100%;border:1.5px solid #ECEEF2;border-radius:10px;padding:10px 14px;font-size:18px;letter-spacing:4px;text-align:center;outline:none;box-sizing:border-box">'
+      + '<p id="vs-pinlock-err" style="color:#EF4444;font-size:12px;margin-top:6px;display:none"></p>'
+      + '<button id="vs-pinlock-ok" style="margin-top:12px;width:100%;padding:10px;border:none;border-radius:10px;background:#5B6BFF;color:#fff;font-size:14px;font-weight:600;cursor:pointer">Confirmar</button>'
+      + '</div>';
+    document.body.appendChild(ov);
+    var inp = document.getElementById('vs-pinlock-input');
+    var err = document.getElementById('vs-pinlock-err');
+    setTimeout(function(){ if(inp) inp.focus(); }, 50);
+    function cerrar(){ ov.remove(); }
+    document.getElementById('vs-pinlock-x').addEventListener('click', cerrar);
+    ov.addEventListener('click', function(e){ if (e.target === ov) cerrar(); });
+    async function validar() {
+      var entered = (inp.value || '').trim();
+      if (!entered) { err.textContent = 'Ingresa el PIN'; err.style.display = 'block'; return; }
+      var sbRef = window._pos && window._pos.sb;
+      var branchId = window._pos && window._pos.state && window._pos.state.branchId;
+      if (!sbRef) { err.textContent = 'Error de conexion'; err.style.display = 'block'; return; }
+      try {
+        var q = sbRef.from('pos_users').select('pin').eq('is_authorized_admin', true).limit(1);
+        if (branchId) q = q.eq('branch_id', branchId);
+        var res = await q.maybeSingle();
+        var row = res.data;
+        if (!row || row.pin === null) {
+          err.textContent = 'No hay PIN configurado. Ve a Configuracion → Operacion.';
+          err.style.display = 'block'; return;
+        }
+        if (String(row.pin).trim() !== entered) {
+          err.textContent = 'PIN incorrecto'; err.style.display = 'block'; inp.value = ''; inp.focus(); return;
+        }
+        cerrar();
+        if (typeof onOk === 'function') onOk();
+      } catch(e) {
+        err.textContent = 'Error al verificar el PIN'; err.style.display = 'block';
+      }
+    }
+    document.getElementById('vs-pinlock-ok').addEventListener('click', validar);
+    inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') validar(); });
+  };
 
   async function cobrarMesa(tableId) {
     const sb = window._pos && window._pos.sb;
@@ -2900,6 +2986,7 @@
 
     // Cargar modo cobro y permisos del usuario en paralelo
     await Promise.all([loadCobroAdelantado(), fetchUserPerms()]);
+    hookCobroRefresh();
 
     // Initial render (loading state)
     render();

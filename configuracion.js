@@ -1851,8 +1851,31 @@ function opSave(data) {
 function opInit() {
   _opSaved = opLoad();
   _opDraft = JSON.parse(JSON.stringify(_opSaved));  // clon PROFUNDO (empaqueCatCfg/packs son objetos)
-  opRender();
+  opRender();          // render inmediato desde local (sin esperar la red)
   opBindEvents();
+  opSyncCobroDesdeBranch();  // corrige el toggle con la columna autoritativa
+}
+
+// El interruptor de cobro adelantado se comparte con la pantalla de Ventas a
+// traves de branches.cobro_adelantado (fuente de verdad). El blob de Operacion
+// guarda su propia copia que Ventas no toca, asi que al abrir se relee la
+// columna y se impone sobre el toggle — nunca quedan en desacuerdo.
+async function opSyncCobroDesdeBranch() {
+  if (!_cfgBranchId) return;
+  try {
+    var r = await sb.from('branches').select('cobro_adelantado').eq('id', _cfgBranchId).maybeSingle();
+    if (!r || !r.data || typeof r.data.cobro_adelantado !== 'boolean') return;
+    var real = r.data.cobro_adelantado;
+    // Corre al abrir el panel, antes de que el usuario toque nada: draft y
+    // saved coinciden, asi que imponer la columna en ambos no pierde edits.
+    var sinCambios = JSON.stringify(_opDraft) === JSON.stringify(_opSaved);
+    _opSaved.cobroAdelantado = real;
+    if (sinCambios) _opDraft.cobroAdelantado = real;
+    opSetToggle('op-sw-cobro', _opDraft.cobroAdelantado);
+    var cobroSt = $('op-cobro-state');
+    if (cobroSt) { cobroSt.textContent = _opDraft.cobroAdelantado ? 'Activado' : 'Desactivado'; cobroSt.className = 'op-state ' + (_opDraft.cobroAdelantado ? 'on' : 'off'); }
+    opCheckDirty();
+  } catch (e) { /* si falla, queda la copia local */ }
 }
 
 // ── Render completo desde el borrador ─────────────────────
