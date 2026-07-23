@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css">
-<link rel="stylesheet" href="pagos.css?v=1785050000">
+<link rel="stylesheet" href="pagos.css?v=1785060000">
 </head>
 <body>
 <div class="pg-root">
@@ -130,13 +130,30 @@
             <span class="pg-domi-amt">$ <input id="domi-input" type="tel" inputmode="numeric" value="0" aria-label="Valor del domicilio"></span>
           </div>
           <div class="pg-trow is-discount" id="t-discount-row" hidden><span>Descuento</span><span id="t-discount">−$0</span></div>
-          <button class="lm-tip" id="tip-toggle" data-action="tip">
-            <span class="lm-tip-l">
-              <span class="pg-tipbox"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-              <span class="pg-tip-text">Propina sugerida 10%</span>
-            </span>
-            <span class="pg-tip-amt" id="tip-amt">$0</span>
-          </button>
+          <!-- Propina (se renderiza por JS; oculta si el restaurante no la recibe) -->
+          <div class="pg-tip" id="tip-block" hidden>
+            <div class="pg-tip-head">
+              <span class="pg-tip-title">Propina</span>
+              <button class="pg-tip-switch" id="tip-switch" data-action="tip" role="switch" aria-checked="true" type="button">
+                <span class="pg-tip-switch-lbl" id="tip-switch-lbl">Incluida</span>
+                <span class="pg-tip-knob-track"><span class="pg-tip-knob"></span></span>
+              </button>
+            </div>
+            <div id="tip-body">
+              <div class="pg-tip-pcts" id="tip-pcts"><!-- botones % por JS --></div>
+              <div class="pg-tip-fixedwrap" id="tip-fixed-wrap" hidden>
+                <span class="pg-tip-fixed-lbl">Cantidad fija</span>
+                <span class="pg-tip-fixed-money">$ <input id="tip-fixed-input" type="tel" inputmode="numeric" value="0" aria-label="Cantidad de propina"></span>
+              </div>
+              <div class="pg-tip-foot">
+                <div class="pg-tip-modeseg" id="tip-modeseg">
+                  <button data-tipmode="pct" type="button">%</button>
+                  <button data-tipmode="fijo" type="button">$ fijo</button>
+                </div>
+                <span class="pg-tip-amt" id="tip-amt">$0</span>
+              </div>
+            </div>
+          </div>
           <div class="pg-trow pg-tgrand"><span>Total a pagar</span><span id="t-total">$0</span></div>
         </div>
       </aside>
@@ -305,7 +322,7 @@
 <script src="pos-brand.js?v=1784901500"></script>
 <script src="pos-print.js?v=15"></script>
 <script src="pos-print-listener.js?v=1"></script>
-<script src="pagos.js?v=1785040000"></script>
+<script src="pagos.js?v=1785060000"></script>
 
   <!-- ════ MODAL: DESCUENTO ════ -->
   <div class="pg-overlay" id="discount-modal" hidden>

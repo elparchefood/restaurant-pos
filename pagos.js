@@ -13,8 +13,13 @@ const SP = {
   methodDefs: [],  // métodos configurados (de ia_config.pagos)
   entry: 0,
   payments: [],   // [{id, method, amount, received}]
-  tip: false,
-  tipLocked: false,
+  // Propina (nuevo modelo configurable)
+  propinaActiva: true,       // ¿el restaurante recibe propina? (de config)
+  propinaPcts: [10],         // porcentajes sugeridos (de config)
+  tipOn: true,               // ¿la propina está incluida en este cobro?
+  tipMode: 'pct',            // 'pct' | 'fijo'
+  tipPct: 10,                // porcentaje elegido
+  tipFixed: 0,               // cantidad fija elegida
   adelantado: false,
   discount: 0,
   empaque: 0,          // costo de empaque (siempre se cobra al cliente)
@@ -103,12 +108,92 @@ function catColorFor(id) {
   return CAT_PALETTE[Math.abs(h) % CAT_PALETTE.length];
 }
 
+// ── Propina ───────────────────────────────────────────────────────────────
+// Lee la configuración de "Impuestos y propina" (mismo blob que Operación).
+function tipLoadConfig() {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
+    SP.propinaActiva = cfg.propinaActiva !== false;   // por defecto sí recibe
+    SP.propinaPcts   = (Array.isArray(cfg.propinaPorcentajes) && cfg.propinaPorcentajes.length)
+      ? cfg.propinaPorcentajes.slice() : [10];
+    SP.tipMode = cfg.propinaModoDefault === 'fijo' ? 'fijo' : 'pct';
+    SP.tipPct  = SP.propinaPcts[0] || 10;             // precarga el primer sugerido
+    SP.tipFixed = 0;
+    // La propina llega ENCENDIDA por defecto (si el restaurante la recibe).
+    SP.tipOn = SP.propinaActiva;
+  } catch (e) {
+    SP.propinaActiva = true; SP.propinaPcts = [10]; SP.tipMode = 'pct'; SP.tipPct = 10; SP.tipFixed = 0; SP.tipOn = true;
+  }
+}
+
+function tipCalc(subtotal) {
+  if (!SP.propinaActiva || !SP.tipOn) return 0;
+  if (SP.tipMode === 'fijo') return Math.max(0, Math.round(Number(SP.tipFixed) || 0));
+  return Math.round(subtotal * (Number(SP.tipPct) || 0) / 100);
+}
+
+function renderTip(subtotal, tipAmt) {
+  const block = document.getElementById('tip-block');
+  if (!block) return;
+  // Si el restaurante no recibe propina, no se muestra nada.
+  if (!SP.propinaActiva) { block.hidden = true; return; }
+  block.hidden = false;
+
+  const on = SP.tipOn;
+  // Interruptor
+  const sw = document.getElementById('tip-switch');
+  if (sw) {
+    sw.classList.toggle('is-on', on);
+    sw.setAttribute('aria-checked', on ? 'true' : 'false');
+    const lbl = document.getElementById('tip-switch-lbl');
+    if (lbl) lbl.textContent = on ? 'Incluida' : 'Sin propina';
+  }
+  // Cuerpo (porcentajes / fijo) solo si está incluida
+  const body = document.getElementById('tip-body');
+  if (body) body.style.opacity = on ? '1' : '.4';
+  document.querySelectorAll('#tip-body button, #tip-fixed-input').forEach(el => { el.disabled = !on; });
+
+  // Botones de porcentaje (+ "Otro")
+  const pctsEl = document.getElementById('tip-pcts');
+  if (pctsEl) {
+    let html = (SP.propinaPcts || []).map(p =>
+      `<button class="pg-tip-pct${(SP.tipMode==='pct' && Number(SP.tipPct)===Number(p))?' is-on':''}" data-tippct="${p}" type="button">${p}%</button>`
+    ).join('');
+    html += `<button class="pg-tip-pct pg-tip-other${_tipCustomOpen?' is-on':''}" data-tipother="1" type="button">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg> Otro</button>`;
+    if (_tipCustomOpen) {
+      html += `<span class="pg-tip-customwrap"><input id="tip-custom-input" type="tel" inputmode="numeric" value="${Number(SP.tipPct)||''}" aria-label="Otro porcentaje"><span>%</span></span>`;
+    }
+    pctsEl.innerHTML = html;
+    pctsEl.hidden = (SP.tipMode === 'fijo');
+    if (_tipCustomOpen) { const ci = document.getElementById('tip-custom-input'); if (ci && document.activeElement !== ci) ci.focus(); }
+  }
+
+  // Campo de cantidad fija
+  const fixedWrap = document.getElementById('tip-fixed-wrap');
+  if (fixedWrap) {
+    fixedWrap.hidden = (SP.tipMode !== 'fijo');
+    const fi = document.getElementById('tip-fixed-input');
+    if (fi && document.activeElement !== fi) fi.value = Math.round(Number(SP.tipFixed) || 0);
+  }
+
+  // Segmento % / $ fijo
+  const seg = document.getElementById('tip-modeseg');
+  if (seg) seg.querySelectorAll('[data-tipmode]').forEach(b =>
+    b.classList.toggle('is-on', b.dataset.tipmode === SP.tipMode));
+
+  // Monto
+  const amtEl = document.getElementById('tip-amt');
+  if (amtEl) amtEl.textContent = (on && tipAmt > 0) ? '+ ' + fmt(tipAmt) : '$0';
+}
+var _tipCustomOpen = false;
+
 // ── Cálculos ──────────────────────────────────────────────────────────────
 function calc() {
   const subtotal = SP.items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
   const empaque  = Number(SP.empaque) || 0;                       // siempre se cobra
   const domi     = SP.cobrarDomicilio ? (Number(SP.domicilio) || 0) : 0; // opcional
-  const tipAmt   = SP.tip ? Math.round(subtotal * 0.10) : 0;      // propina solo sobre productos
+  const tipAmt   = tipCalc(subtotal);                             // propina solo sobre productos
   const total    = Math.max(0, subtotal + empaque + domi + tipAmt - SP.discount);
   const paid     = SP.payments.reduce((s, p) => s + p.amount, 0);
   const falta    = Math.max(0, total - paid);
@@ -173,7 +258,6 @@ function renderTotals() {
   const cobro = document.getElementById('cobro');
 
   document.getElementById('t-subtotal').textContent = fmt(subtotal);
-  document.getElementById('tip-amt').textContent    = SP.tip ? '+ ' + fmt(tipAmt) : '$0';
   document.getElementById('t-total').textContent    = fmt(total);
   document.getElementById('side-total').textContent = fmt(total);
   document.getElementById('exact-amt').textContent  = fmt(falta);
@@ -208,11 +292,8 @@ function renderTotals() {
     document.querySelector('[data-action="discount"]').classList.remove('is-active');
   }
 
-  // Propina toggle
-  const tipToggleEl = document.getElementById('tip-toggle');
-  tipToggleEl.classList.toggle('is-on', SP.tip);
-  tipToggleEl.classList.toggle('is-locked', SP.tipLocked);
-  tipToggleEl.title = SP.tipLocked ? 'Requiere PIN de administrador para desactivar' : '';
+  // Propina (bloque completo)
+  renderTip(subtotal, tipAmt);
 
   // Falta / cuenta cubierta
   if (cubierto) {
@@ -516,11 +597,21 @@ document.addEventListener('input', e => {
     SP.domicilio = Math.max(0, parseInt(String(e.target.value).replace(/\D/g, ''), 10) || 0);
     if (SP.cobrarDomicilio) renderTotals();
   }
+  // Propina — cantidad fija
+  if (e.target && e.target.id === 'tip-fixed-input') {
+    SP.tipFixed = Math.max(0, parseInt(String(e.target.value).replace(/\D/g, ''), 10) || 0);
+    renderTotals();
+  }
+  // Propina — porcentaje personalizado ("Otro")
+  if (e.target && e.target.id === 'tip-custom-input') {
+    SP.tipPct = Math.max(0, Math.min(100, parseInt(String(e.target.value).replace(/\D/g, ''), 10) || 0));
+    renderTotals();
+  }
 });
 
 document.addEventListener('click', e => {
   if (e.target.dataset.pinDigit !== undefined) { pinDigit(e.target.dataset.pinDigit); return; }
-  const el = e.target.closest('[data-action],[data-digit],[data-bill],[data-method],[data-dtype],[data-dval],[data-motivo],[data-smode],[data-item-id]');
+  const el = e.target.closest('[data-action],[data-digit],[data-bill],[data-method],[data-dtype],[data-dval],[data-motivo],[data-smode],[data-item-id],[data-tippct],[data-tipother],[data-tipmode]');
   // Cerrar modales al hacer click en el overlay
   if (e.target.id === 'payments-modal')  { closePaymentsModal(); return; }
   if (e.target.id === 'pin-modal')        { closePinModal();       return; }
@@ -582,6 +673,27 @@ document.addEventListener('click', e => {
     return;
   }
 
+  // ── Propina ──────────────────────────────────────────────────────────────
+  if (el.dataset.tippct !== undefined) {
+    SP.tipMode = 'pct';
+    SP.tipPct  = Number(el.dataset.tippct) || 0;
+    _tipCustomOpen = false;
+    renderAll();
+    return;
+  }
+  if (el.dataset.tipother !== undefined) {
+    SP.tipMode = 'pct';
+    _tipCustomOpen = !_tipCustomOpen;
+    renderAll();
+    return;
+  }
+  if (el.dataset.tipmode) {
+    SP.tipMode = el.dataset.tipmode === 'fijo' ? 'fijo' : 'pct';
+    _tipCustomOpen = false;
+    renderAll();
+    return;
+  }
+
   // Acciones
   switch(el.dataset.action) {
     case 'backspace':
@@ -599,8 +711,7 @@ document.addEventListener('click', e => {
       break;
     }
     case 'tip':
-      if (SP.tipLocked) { openPinModal(); break; }
-      SP.tip = !SP.tip;
+      SP.tipOn = !SP.tipOn;
       renderAll();
       break;
     case 'cobrar-domi': {
@@ -835,7 +946,7 @@ function openPaymentsModal() {
   summary.innerHTML = `
     <div class="pg-modal-summary-row"><span>Subtotal</span><span>${fmt(subtotal)}</span></div>
     ${SP.discount > 0 ? `<div class="pg-modal-summary-row is-danger"><span>Descuento</span><span>− ${fmt(SP.discount)}</span></div>` : ''}
-    ${tipAmt > 0 ? `<div class="pg-modal-summary-row"><span>Propina 10 %</span><span>${fmt(tipAmt)}</span></div>` : ''}
+    ${tipAmt > 0 ? `<div class="pg-modal-summary-row"><span>Propina${SP.tipMode === 'fijo' ? '' : ' ' + (Number(SP.tipPct)||0) + ' %'}</span><span>${fmt(tipAmt)}</span></div>` : ''}
     <div class="pg-modal-summary-row is-total"><span>Total</span><span>${fmt(total)}</span></div>
     <div class="pg-modal-summary-row" style="margin-top:4px"><span>Pagado</span><span style="color:#16A34A;font-weight:700">${fmt(paid)}</span></div>
     ${falta > 0 ? `<div class="pg-modal-summary-row is-danger"><span>Falta</span><span>${fmt(falta)}</span></div>` : ''}`;
@@ -859,6 +970,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   SP.waiterName = meta.nombre || meta.name || user.email?.split('@')[0] || '—';
   SP.userRole   = meta.role  || 'mesero';
 
+  // Config de propina (Impuestos y propina)
+  tipLoadConfig();
+
   // 2. Topbar usuario
   const initials = SP.waiterName.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('user-avatar').textContent = initials;
@@ -878,10 +992,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 4. Params de URL (SP.adelantado ya fue sobrescrito por branch query en paso 3)
   const params = new URLSearchParams(window.location.search);
   SP.orderId  = params.get('order');
-  if (params.get('servicio') === '1') {
-    SP.tip       = true;
-    SP.tipLocked = true;
-  }
+  // (el parámetro 'servicio' quedó obsoleto: la propina ahora se controla por
+  // la config de "Impuestos y propina" y llega encendida por defecto)
   SP.tableId  = params.get('table');
   SP.channel  = params.get('channel') || 'salon';
 
@@ -1209,9 +1321,8 @@ async function validatePin() {
       .maybeSingle();
 
     if (data && !error) {
-      // PIN correcto → desbloquear propina y desactivarla
-      SP.tipLocked = false;
-      SP.tip       = false;
+      // PIN correcto (flujo heredado): quita la propina de este cobro.
+      SP.tipOn = false;
       closePinModal();
       renderAll();
     } else {

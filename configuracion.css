@@ -1218,3 +1218,11 @@ div.master[data-tab].cia-active { display: flex !important; }
 .cf-modebadge, .cf-crumbs, .cf-top-right { display: none !important; }
 .cf-top-left { width: 100%; }
 .cia-tabs { margin: 12px 24px 12px; }
+
+/* Impuestos y propina — chips de porcentaje */
+.prop-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 8px 7px 14px;border-radius:999px;background:var(--indigo-soft,#EEF2FF);color:var(--indigo,#5B6BFF);font-size:13px;font-weight:600;}
+.prop-chip-x{border:none;background:transparent;color:currentColor;opacity:.55;cursor:pointer;display:flex;padding:2px;border-radius:50%;}
+.prop-chip-x:hover{opacity:1;background:rgba(91,107,255,.15);}
+.prop-chip-add{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border:1px dashed var(--border,#E2E8F0);border-radius:999px;background:transparent;color:var(--slate,#64748B);font-size:13px;font-weight:600;cursor:pointer;}
+.prop-chip-add:hover{background:var(--cloud,#F8FAFC);color:var(--indigo,#5B6BFF);}
+.prop-newform{display:inline-flex;align-items:center;gap:6px;}

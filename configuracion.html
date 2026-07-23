@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css">
-<link rel="stylesheet" href="configuracion.css?v=1785050000">
+<link rel="stylesheet" href="configuracion.css?v=1785060000">
 </head>
 <body>
 <div class="cf-root">
@@ -70,7 +70,6 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
             <span class="cf-nav-label">Impuestos y propina</span>
           </span>
-          <span class="cf-soon">Pronto</span>
         </button>
         <button class="lm-nav" id="nav-operacion" data-section="operacion">
           <span class="cf-nav-l">
@@ -627,32 +626,10 @@
               <div>
                 <div class="op-card-num">Sección 2</div>
                 <div class="op-card-title">Configuración financiera</div>
-                <div class="op-card-sub">Propinas y meta de ventas.</div>
+                <div class="op-card-sub">Meta de ventas. (La propina se configura en “Impuestos y propina”.)</div>
               </div>
             </div>
             <div class="op-card-body">
-              <div class="op-row">
-                <div class="op-row-text">
-                  <div class="op-label">Propina sugerida por defecto</div>
-                  <div class="op-hint">Se precarga en la pantalla de cobro.</div>
-                </div>
-                <div class="num-stepper" data-field="propinaPct" data-min="0" data-max="30">
-                  <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-                  <div class="num-val"><b id="op-propinaPct">10</b><span>%</span></div>
-                  <button class="cf-step sm" data-step="1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-                </div>
-              </div>
-              <div class="op-row">
-                <div class="op-row-text">
-                  <div class="op-label">Propina obligatoria</div>
-                  <div class="op-hint" id="op-propina-hint">El cliente puede aceptar o rechazar la propina libremente.</div>
-                  <div class="op-warn" id="op-propina-warn" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Configura un PIN de administrador abajo para poder exigirla.</div>
-                </div>
-                <div class="op-control">
-                  <span class="op-state off" id="op-propina-state">Voluntaria</span>
-                  <button class="cf-switch" id="op-sw-propina" role="switch" aria-checked="false" data-field="propinaObligatoria"><span class="cf-switch-knob"></span></button>
-                </div>
-              </div>
               <div class="op-row">
                 <div class="op-row-text">
                   <div class="op-label">Meta diaria de ventas</div>
@@ -1093,6 +1070,86 @@
           <button class="hr-save-btn" id="hr-save-btn">Guardar horarios</button>
         </div>
       </div>
+    </div>
+
+    <!-- ─────── SECCIÓN: IMPUESTOS Y PROPINA ─────── -->
+    <div class="cf-screen" id="screen-impuesto">
+      <section class="cf-pagehead">
+        <div>
+          <div class="cf-eyebrow">Configuración de cobro</div>
+          <h2 class="cf-pagetitle">Impuestos y propina</h2>
+        </div>
+      </section>
+      <section class="cf-body" style="max-width:720px">
+
+        <div class="op-card">
+          <div class="op-card-head">
+            <div class="op-card-icon green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+            <div>
+              <div class="op-card-num">Propina</div>
+              <div class="op-card-title">Propina del restaurante</div>
+              <div class="op-card-sub">Define si recibes propina y cómo se sugiere en el cobro.</div>
+            </div>
+          </div>
+          <div class="op-card-body">
+
+            <!-- Interruptor: recibe propina o no -->
+            <div class="op-row">
+              <div class="op-row-text">
+                <div class="op-label">El restaurante recibe propina</div>
+                <div class="op-hint">Si está apagado, la propina no aparece en ninguna parte del cobro.</div>
+              </div>
+              <div class="op-control">
+                <span class="op-state off" id="prop-state">No recibe</span>
+                <button class="cf-switch" id="prop-sw-activa" role="switch" aria-checked="false"><span class="cf-switch-knob"></span></button>
+              </div>
+            </div>
+
+            <!-- Todo lo demás solo si recibe propina -->
+            <div id="prop-detalle">
+              <div class="cf-divider" style="margin:6px 0 16px"></div>
+
+              <div class="op-row" style="align-items:flex-start">
+                <div class="op-row-text">
+                  <div class="op-label">Porcentajes sugeridos</div>
+                  <div class="op-hint">Aparecerán como botones en el cobro. Puedes crear varios.</div>
+                </div>
+                <div id="prop-chips" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end;max-width:60%"></div>
+              </div>
+
+              <div class="cf-divider" style="margin:16px 0"></div>
+
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">Cómo llega precargada al cobro</div>
+                  <div class="op-hint">Solo es la sugerencia inicial. En el cobro siempre se puede cambiar o quitar.</div>
+                </div>
+                <div class="cf-seg" id="prop-modo">
+                  <button data-modo="pct">Porcentaje</button>
+                  <button data-modo="fijo">Cantidad fija</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="op-card" style="margin-top:16px;opacity:.7">
+          <div class="op-card-head">
+            <div class="op-card-icon" style="background:#F1F5F9;color:#94A3B8"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div>
+            <div>
+              <div class="op-card-num">Impuestos</div>
+              <div class="op-card-title">Impuestos <span class="cf-soon" style="margin-left:6px">Pronto</span></div>
+              <div class="op-card-sub">La configuración de impuestos estará disponible más adelante.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="op-footer">
+          <button class="lm-btn-ghost" id="prop-btn-discard" hidden>Descartar cambios</button>
+          <button class="lm-btn-primary lg" id="prop-btn-save" disabled><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Guardar cambios</button>
+        </div>
+
+      </section>
     </div>
 
     <div class="cf-screen" id="screen-placeholder">
@@ -1956,7 +2013,7 @@
 <script src="pos-brand.js?v=1784901500"></script>
 <script src="pos-print.js?v=15"></script>
 <script src="pos-print-listener.js?v=1"></script>
-<script src="configuracion.js?v=1785040000"></script>
+<script src="configuracion.js?v=1785060000"></script>
 </body>
 </html>
 

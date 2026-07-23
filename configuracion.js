@@ -205,6 +205,16 @@ function setSection(sec) {
       _ciaToggleTopbar(false);
       if (!window._opLoaded) { opInit(); window._opLoaded = true; }
     }
+  } else if (sec === 'impuesto') {
+    var screenImp = $('screen-impuesto');
+    if (screenImp) {
+      screenImp.classList.add('on');
+      $('crumb').textContent = 'Impuestos y propina';
+      _ciaToggleTopbar(false);
+      // Comparte el mismo borrador/guardado que Operación (mismo blob).
+      if (!window._opLoaded) { opInit(); window._opLoaded = true; }
+      propInit();
+    }
   } else if (sec === 'usuarios') {
     var screenUr = $('screen-usuarios');
     if (screenUr) {
@@ -1787,6 +1797,10 @@ var _cfgBranchId = null; // se rellena al cargar el usuario
 var OP_DEFAULTS = {
   entregaMin: 12, cocinaMax: 20, propinaPct: 10, propinaObligatoria: false,
   metaDiaria: 1500000, cobroAdelantado: false, pin: '',
+  // Propina (nuevo modelo — sección "Impuestos y propina")
+  propinaActiva: true,          // ¿el restaurante recibe propina?
+  propinaPorcentajes: [10],     // porcentajes sugeridos que aparecen en el cobro
+  propinaModoDefault: 'pct',    // 'pct' | 'fijo' — cómo llega precargada al cobro
   // C3b — Empaques
   empaquesActivo: false,
   empaqueTipo: 'fijo',       // 'fijo' | 'porcentaje'
@@ -1820,8 +1834,16 @@ var _opSaved  = null;  // último guardado
 var _opDraft  = null;  // borrador en edición
 
 function opLoad() {
-  try { return Object.assign({}, OP_DEFAULTS, JSON.parse(localStorage.getItem(OP_KEY) || '{}')); }
-  catch(e) { return Object.assign({}, OP_DEFAULTS); }
+  var d;
+  try { d = Object.assign({}, OP_DEFAULTS, JSON.parse(localStorage.getItem(OP_KEY) || '{}')); }
+  catch(e) { d = Object.assign({}, OP_DEFAULTS); }
+  // Migración del modelo viejo de propina (propinaPct único) al nuevo (lista).
+  if (!Array.isArray(d.propinaPorcentajes) || !d.propinaPorcentajes.length) {
+    d.propinaPorcentajes = [parseInt(d.propinaPct, 10) || 10];
+  }
+  if (d.propinaActiva === undefined) d.propinaActiva = true;
+  if (d.propinaModoDefault !== 'fijo') d.propinaModoDefault = 'pct';
+  return d;
 }
 
 function opSave(data) {
@@ -2160,6 +2182,11 @@ function opCheckDirty() {
   var btnDiscard = $('op-btn-discard');
   if (btnSave)    btnSave.disabled = !dirty;
   if (btnDiscard) btnDiscard.hidden = !dirty;
+  // La sección Impuestos y propina comparte el mismo borrador/guardado.
+  var pSave    = $('prop-btn-save');
+  var pDiscard = $('prop-btn-discard');
+  if (pSave)    pSave.disabled = !dirty;
+  if (pDiscard) pDiscard.hidden = !dirty;
 }
 
 // ── Toast ─────────────────────────────────────────────────
@@ -2436,6 +2463,136 @@ function opBindEvents() {
     });
   }
 }
+
+// ── Impuestos y propina ───────────────────────────────────────────────
+// Comparte _opDraft / _opSaved con Operación (mismo blob operacion_config).
+function propInit() {
+  propRender();
+  propBind();
+}
+
+function propRender() {
+  var d = _opDraft;
+  var activa = !!d.propinaActiva;
+
+  // Interruptor recibe / no recibe
+  opSetToggle('prop-sw-activa', activa);
+  var st = $('prop-state');
+  if (st) { st.textContent = activa ? 'Sí recibe' : 'No recibe'; st.className = 'op-state ' + (activa ? 'on' : 'off'); }
+  var det = $('prop-detalle');
+  if (det) det.style.display = activa ? '' : 'none';
+
+  // Chips de porcentajes
+  var cont = $('prop-chips');
+  if (cont) {
+    var pcts = Array.isArray(d.propinaPorcentajes) ? d.propinaPorcentajes.slice() : [];
+    var html = pcts.map(function (p, i) {
+      return '<span class="prop-chip" data-i="' + i + '">' + p + '%'
+        + '<button class="prop-chip-x" data-propdel="' + i + '" title="Quitar" aria-label="Quitar ' + p + '%">'
+        + '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+        + '</button></span>';
+    }).join('');
+    if (_propNuevo) {
+      html += '<span class="prop-newform"><input id="prop-new-inp" class="cf-bareinput" type="number" min="1" max="100" inputmode="numeric" placeholder="%" style="width:52px;text-align:center">'
+        + '<button class="iv-btn-sm primary" id="prop-new-ok">Agregar</button>'
+        + '<button class="iv-btn-sm" id="prop-new-cancel">Cancelar</button></span>';
+    } else {
+      html += '<button class="prop-chip-add" id="prop-add">'
+        + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Agregar</button>';
+    }
+    cont.innerHTML = html;
+    if (_propNuevo) { var inp = $('prop-new-inp'); if (inp) inp.focus(); }
+  }
+
+  // Segmento de modo por defecto
+  var seg = $('prop-modo');
+  if (seg) {
+    var modo = d.propinaModoDefault === 'fijo' ? 'fijo' : 'pct';
+    seg.querySelectorAll('[data-modo]').forEach(function (b) {
+      b.classList.toggle('on', b.dataset.modo === modo);
+    });
+  }
+
+  opCheckDirty();
+}
+
+var _propNuevo = false;
+
+function propBind() {
+  var screen = $('screen-impuesto');
+  if (!screen || screen._propBound) return;
+  screen._propBound = true;
+
+  // Interruptor recibe / no recibe
+  var sw = $('prop-sw-activa');
+  if (sw) sw.addEventListener('click', function () {
+    _opDraft.propinaActiva = !_opDraft.propinaActiva;
+    _propNuevo = false;
+    propRender();
+  });
+
+  // Delegación de clics dentro de la sección (chips, agregar, modo, guardar)
+  screen.addEventListener('click', function (ev) {
+    var t = ev.target;
+    if (!t.closest) return;
+
+    var del = t.closest('[data-propdel]');
+    if (del) {
+      var i = parseInt(del.dataset.propdel, 10);
+      var arr = (_opDraft.propinaPorcentajes || []).slice();
+      arr.splice(i, 1);
+      if (!arr.length) { opToast('Debe quedar al menos un porcentaje'); return; }
+      _opDraft.propinaPorcentajes = arr;
+      propRender();
+      return;
+    }
+    if (t.closest('#prop-add')) { _propNuevo = true; propRender(); return; }
+    if (t.closest('#prop-new-cancel')) { _propNuevo = false; propRender(); return; }
+    if (t.closest('#prop-new-ok')) {
+      var v = parseInt(($('prop-new-inp') || {}).value, 10);
+      if (!v || v < 1 || v > 100) { opToast('Escribe un porcentaje entre 1 y 100'); return; }
+      var lista = (_opDraft.propinaPorcentajes || []).slice();
+      if (lista.indexOf(v) >= 0) { opToast('Ese porcentaje ya está'); _propNuevo = false; propRender(); return; }
+      lista.push(v);
+      lista.sort(function (a, b) { return a - b; });
+      _opDraft.propinaPorcentajes = lista;
+      _propNuevo = false;
+      propRender();
+      return;
+    }
+    var modoBtn = t.closest('[data-modo]');
+    if (modoBtn) {
+      _opDraft.propinaModoDefault = modoBtn.dataset.modo === 'fijo' ? 'fijo' : 'pct';
+      propRender();
+      return;
+    }
+  });
+
+  // Enter en el campo de nuevo porcentaje
+  screen.addEventListener('keydown', function (ev) {
+    if (ev.target && ev.target.id === 'prop-new-inp' && ev.key === 'Enter') {
+      var ok = $('prop-new-ok'); if (ok) ok.click();
+    }
+  });
+
+  // Guardar / descartar (mismo blob que Operación)
+  var pSave = $('prop-btn-save');
+  if (pSave) pSave.addEventListener('click', function () {
+    _opSaved = JSON.parse(JSON.stringify(_opDraft));
+    opSave(_opSaved);
+    if (typeof opRender === 'function') opRender();
+    propRender();
+    opToast('Configuración de propina guardada');
+  });
+  var pDiscard = $('prop-btn-discard');
+  if (pDiscard) pDiscard.addEventListener('click', function () {
+    _opDraft = JSON.parse(JSON.stringify(_opSaved));
+    _propNuevo = false;
+    if (typeof opRender === 'function') opRender();
+    propRender();
+  });
+}
+
 
 // ── Horarios ────────────────────────────────────────────
 function horarioInit() {
