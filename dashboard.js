@@ -1190,12 +1190,25 @@ function setupRealtime(branchId) {
 
 // ── Boot ──────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  // Guard por permiso: quien no tenga 'dashboard.ver' va directo a Ventas.
-  // (Antes era una lista fija de roles; ahora depende del permiso real, así
-  // el dueño decide qué roles ven el dashboard.)
-  if (typeof window.posRequire === 'function') {
-    const _permitido = await window.posRequire('dashboard.ver', 'ventas.html');
-    if (!_permitido) return;   // ya redirigió
+  // Guard por permiso: quien no tenga 'dashboard.ver' se redirige. A dónde
+  // depende de si hay caja abierta: si NO hay, va a Caja (para aperturarla);
+  // si SÍ hay, va a Ventas (a trabajar). Así el dueño decide qué roles ven el
+  // dashboard, y el resto entra directo a lo que corresponde.
+  if (typeof window.posHasPerm === 'function') {
+    if (window.posPermsReady) { try { await window.posPermsReady(); } catch (e) {} }
+    if (!window.posHasPerm('dashboard.ver')) {
+      let haySesionAbierta = false;
+      try {
+        const ur = await sb.auth.getUser();
+        const bId = ur?.data?.user?.user_metadata?.branch_id;
+        let q = sb.from('pos_sessions').select('id').eq('status', 'open').order('created_at', { ascending: false }).limit(1);
+        if (bId) q = q.eq('branch_id', bId);
+        const { data } = await q.maybeSingle();
+        haySesionAbierta = !!data;
+      } catch (e) {}
+      window.location.replace(haySesionAbierta ? 'ventas.html' : 'caja.html');
+      return;
+    }
   }
 
   renderAllExtra([], null); // render empty structure immediately
