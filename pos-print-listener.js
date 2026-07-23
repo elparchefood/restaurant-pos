@@ -30,11 +30,11 @@
     var sinceIso = new Date(Date.now() - 10 * 60000).toISOString();
     var _seenReprint = {};   // {orderId: reprint_at} — dedupe de señales
 
-    // Se dispara con cualquier pedido visible en cocina. Ya NO se filtra por
-    // printed_at aquí: el gatekeeper real es posAutoprint, que imprime solo los
-    // ítems sin enviar a cocina (y no imprime nada si no hay nuevos). Así, al
-    // agregar ítems a una mesa ocupada, se re-dispara y sale solo lo nuevo.
-    function shouldPrint(o) { return o && o.visible_cocina; }
+    // Candado anti-bucle: solo la PRIMERA comanda (printed_at nulo). Sin este
+    // filtro, el update de printed_at re-disparaba la impresión sin parar.
+    // Los ítems agregados a una mesa ocupada se disparan por el listener de
+    // pos_order_items (INSERT) más abajo, no por aquí.
+    function shouldPrint(o) { return o && o.visible_cocina && !o.printed_at; }
 
     function handleRow(o) {
       if (!o || !o.id) return;
