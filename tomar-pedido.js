@@ -1082,16 +1082,42 @@ async function saveOrder() {
       orderId = sync.orderId;
       S.order = { id: orderId, _offline: sync.offline };
     } else {
-      // ── Orden existente: actualizar totales e ítems ─────────
-      if (window.posSync) {
-        await posSync.write('pos_orders', 'update', { total: grand, guests: S.personas }, { id: orderId });
-        await posSync.write('pos_order_items', 'delete', {}, { order_id: orderId });
-        await posSync.write('pos_order_items', 'insert', cartRows.map(r => ({ ...r, order_id: orderId })));
-      } else {
-        await sb.from('pos_orders').update({ total: grand, guests: S.personas }).eq('id', orderId);
-        await sb.from('pos_order_items').delete().eq('order_id', orderId);
-        const { error: itemsErr } = await sb.from('pos_order_items').insert(cartRows.map(r => ({ ...r, order_id: orderId })));
-        if (itemsErr) throw itemsErr;
+      // ── Orden existente: diff en vez de borrar-todo + reinsertar ──────────
+      // Los ítems ya guardados conservan su kitchen_printed_at (marca de "ya
+      // fue a cocina"); los NUEVOS entran sin marca → al enviar salen solos.
+      // (id vacío = ítem nuevo de esta sesión; id real = cargado de la BD.)
+      const nuevos      = S.cart.filter(it => !it.id);
+      const existentes  = S.cart.filter(it => it.id);
+      const idsQueQuedan = existentes.map(it => it.id);
+
+      await sb.from('pos_orders').update({ total: grand, guests: S.personas }).eq('id', orderId);
+
+      // Borrar los ítems que el usuario quitó del carrito
+      const { data: dbItems } = await sb.from('pos_order_items').select('id').eq('order_id', orderId);
+      const aBorrar = (dbItems || []).map(r => r.id).filter(id => idsQueQuedan.indexOf(id) < 0);
+      if (aBorrar.length) await sb.from('pos_order_items').delete().in('id', aBorrar);
+
+      // Actualizar los existentes (cantidad/nombre/selección) SIN tocar kitchen_printed_at
+      for (const it of existentes) {
+        await sb.from('pos_order_items').update({
+          name: it.name, product_name: it.name,
+          unit_price: it.unitPrice, product_price: it.unitPrice,
+          quantity: it.qty, total: it.unitPrice * it.qty,
+          notes: it.note || null, selections: it.selections || {},
+        }).eq('id', it.id);
+      }
+
+      // Insertar los nuevos (kitchen_printed_at queda null → se imprimen como nuevos)
+      if (nuevos.length) {
+        const rowsNuevos = nuevos.map(it => ({
+          tenant_id: S.tenantId, branch_id: S.branchId, order_id: orderId,
+          product_id: it.productId, name: it.name, product_name: it.name,
+          unit_price: it.unitPrice, product_price: it.unitPrice,
+          quantity: it.qty, total: it.unitPrice * it.qty,
+          notes: it.note || null, status: 'pending', selections: it.selections || {},
+        }));
+        const { error: insErr } = await sb.from('pos_order_items').insert(rowsNuevos);
+        if (insErr) throw insErr;
       }
     }
 

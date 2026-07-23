@@ -365,74 +365,89 @@
   }
 
   var _autoPrinted = {};
+  var _printing = {};   // candado de concurrencia por pedido
   window.posAutoprint = async function(orderId, opts) {
     if (!orderId) return;
     var force = !!(opts && opts.force);   // reimpresión pedida explícitamente
-    var _now = Date.now();
-    // Podar entradas viejas (> 1 hora) para no crecer sin límite en turnos largos
-    for (var _k in _autoPrinted) { if (_now - _autoPrinted[_k] > 3600000) delete _autoPrinted[_k]; }
-    if (force) { delete _autoPrinted[orderId]; _lsUnmarkPrinted(orderId); }
-    if (_autoPrinted[orderId] || _lsWasPrinted(orderId)) {
-      // Ya impresa en este equipo. Si la marca en BD quedó pendiente (p. ej. la
-      // página navegó antes de guardarla), sanarla para que el barrido no la
-      // siga viendo como "sin imprimir".
-      try {
-        var sbH = window._pos && window._pos.sb;
-        if (sbH) sbH.from('pos_orders').update({ printed_at: new Date().toISOString() }).eq('id', orderId).is('printed_at', null).then(function(){});
-      } catch(e) {}
-      return;
-    }
-    _autoPrinted[orderId] = _now;
-    _diagToast('🖨 Verificando impresora…', '#1d4ed8');
 
-    // 1) Impresora: reintentar por si la lectura de config falla transitoriamente (WiFi tablet)
-    var hasPrinter = false;
-    for (var hp = 0; hp < 3 && !hasPrinter; hp++) {
-      hasPrinter = await _hasPrinter();
-      if (!hasPrinter && hp < 2) await _sleep(500);
-    }
-    if (!hasPrinter) { delete _autoPrinted[orderId]; _noprinterToast(); _diagToast('❌ Sin config de impresora en BD', '#dc2626'); return; }
-    _diagToast('✓ Impresora OK — buscando pedido…', '#15803d');
+    // Candado de CONCURRENCIA (no permanente): evita dos corridas simultáneas
+    // para el mismo pedido en este equipo. Antes bloqueaba "para siempre", lo
+    // que impedía imprimir los ítems NUEVOS al agregar a una mesa ocupada.
+    if (_printing[orderId]) return;
+    _printing[orderId] = true;
+    try {
+      _diagToast('🖨 Verificando impresora…', '#1d4ed8');
 
-    // 2) Pedido + ítems: REINTENTAR hasta que los ítems sean visibles. Causa #1 de
-    // impresiones perdidas: el pedido se guarda pero al leerlo de inmediato los ítems
-    // todavía no aparecen (lag de escritura→lectura). Reintentamos ~4s antes de rendirnos.
-    var order = null, items = [];
-    for (var att = 0; att < 9; att++) {
-      order = await _fetchOrder(orderId);
-      if (order) {
-        items = (order.pos_order_items || []).map(function(it) {
-          var sel = it.selections || {};
-          var modsArr = Object.values(sel.mods || {}).map(function(m){ return m.name || String(m); });
-          return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', notes: it.notes || '', mods: modsArr };
-        });
-        if (items.length) break;
+      // 1) Impresora (reintento por lectura transitoria de config en tablet)
+      var hasPrinter = false;
+      for (var hp = 0; hp < 3 && !hasPrinter; hp++) {
+        hasPrinter = await _hasPrinter();
+        if (!hasPrinter && hp < 2) await _sleep(500);
       }
-      await _sleep(450);
-    }
-    if (!order || !items.length) { delete _autoPrinted[orderId]; _diagToast('❌ Pedido sin ítems tras reintentos', '#dc2626'); return; }
-    _diagToast('✓ Pedido OK — enviando a impresora…', '#15803d');
+      if (!hasPrinter) { _noprinterToast(); _diagToast('❌ Sin config de impresora en BD', '#dc2626'); return; }
+      _diagToast('✓ Impresora OK — buscando pedido…', '#15803d');
 
-    // 3) Imprimir, con reintento si el envío a la impresora falla transitoriamente
-    var printed = false;
-    for (var pr = 0; pr < 2 && !printed; pr++) {
-      try {
-        await _printHtml(_buildComanda({ table: _tableDisplay(order), channel: order.channel, total: order.total || 0, paid: order.paid_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' }, items), 'comanda');
-        printed = true;
-        _diagToast('✓ Comanda impresa OK', '#15803d');
-      } catch(e) {
-        if (pr < 1) { await _sleep(600); }
-        else { delete _autoPrinted[orderId]; _diagToast('❌ Error al imprimir: ' + (e && e.message || e), '#dc2626'); }
+      // 2) Pedido + ítems (reintento por lag escritura→lectura)
+      var order = null, raw = [];
+      for (var att = 0; att < 9; att++) {
+        order = await _fetchOrder(orderId);
+        if (order) { raw = order.pos_order_items || []; if (raw.length) break; }
+        await _sleep(450);
       }
-    }
-    if (printed) {
-      _lsMarkPrinted(orderId);
-      // Marcar en BD que la comanda ya salió — el receptor global y el barrido de
-      // seguridad usan esta marca para saber qué falta por imprimir. Best-effort.
-      try {
-        var sb2 = window._pos && window._pos.sb;
-        if (sb2) await sb2.from('pos_orders').update({ printed_at: new Date().toISOString() }).eq('id', orderId);
-      } catch(e) { console.warn('[posprint] printed_at update:', e); }
+      if (!order || !raw.length) { _diagToast('❌ Pedido sin ítems tras reintentos', '#dc2626'); return; }
+
+      // 3) ¿QUÉ imprimir?
+      //   · Reimpresión (force): TODO el pedido. (Reimprimir comanda)
+      //   · Si el pedido ya tiene ítems enviados a cocina → solo los NUEVOS
+      //     (los que no tienen kitchen_printed_at).
+      //   · Si NUNCA se ha enviado nada → TODO (primera comanda / comanda
+      //     pendiente en prepago que se reimprime completa mientras no se cobra).
+      var yaEnviados = raw.some(function (it) { return it.kitchen_printed_at; });
+      var fuente = (force || !yaEnviados)
+        ? raw
+        : raw.filter(function (it) { return !it.kitchen_printed_at; });
+      if (!fuente.length) { _diagToast('Sin ítems nuevos por imprimir', '#64748b'); return; }
+      // Se marca "enviado a cocina" solo cuando el pedido de verdad está en
+      // cocina (visible_cocina). En prepago sin pagar (no visible) NO se marca:
+      // así la comanda pendiente reimprime completa hasta que se cobre.
+      var marcar = !force && !!order.visible_cocina;
+
+      var items = fuente.map(function (it) {
+        var sel = it.selections || {};
+        var modsArr = Object.values(sel.mods || {}).map(function (m) { return m.name || String(m); });
+        return { id: it.id, name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', notes: it.notes || '', mods: modsArr };
+      });
+      _diagToast('✓ Pedido OK — enviando a impresora…', '#15803d');
+
+      // 4) Imprimir (mismo diseño de comanda de siempre), con reintento
+      var printed = false;
+      for (var pr = 0; pr < 2 && !printed; pr++) {
+        try {
+          await _printHtml(_buildComanda({ table: _tableDisplay(order), channel: order.channel, total: order.total || 0, paid: order.paid_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' }, items), 'comanda');
+          printed = true;
+          _diagToast('✓ Comanda impresa OK', '#15803d');
+        } catch(e) {
+          if (pr < 1) { await _sleep(600); }
+          else { _diagToast('❌ Error al imprimir: ' + (e && e.message || e), '#dc2626'); }
+        }
+      }
+
+      if (printed) {
+        try {
+          var sb2 = window._pos && window._pos.sb;
+          if (sb2) {
+            await sb2.from('pos_orders').update({ printed_at: new Date().toISOString() }).eq('id', orderId);
+            // Marcar como "enviados a cocina" los ítems recién impresos, para que
+            // el próximo agregado imprima únicamente lo nuevo.
+            if (marcar) {
+              var ids = fuente.map(function (it) { return it.id; }).filter(Boolean);
+              if (ids.length) await sb2.from('pos_order_items').update({ kitchen_printed_at: new Date().toISOString() }).in('id', ids);
+            }
+          }
+        } catch(e) { console.warn('[posprint] marcar impreso:', e); }
+      }
+    } finally {
+      _printing[orderId] = false;
     }
   };
 
