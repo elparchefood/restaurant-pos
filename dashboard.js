@@ -431,7 +431,7 @@ async function confirmarApertura() {
     if (stats) { var cells = stats.querySelectorAll('.hero-stat'); if (cells[0]) { var v = cells[0].querySelector('.hero-stat-value'); if (v) v.textContent = code; } }
   } else {
     if (btn) { btn.disabled = false; btn.textContent = 'Aperturar'; }
-    alert('Error al aperturar la caja. Revisa la configuracion en Supabase.');
+    alert('Error al aperturar la caja. Revisa la configuración e inténtalo de nuevo.');
     console.error(error);
   }
 }
