@@ -540,6 +540,28 @@ La columna `meta` en `chat_channels` para WhatsApp es un **JSON serializado como
 
 ---
 
+## PENDIENTE — Modo Gerente en el bot IA (propuesto y aprobado, sin implementar)
+
+**Qué es:** un número de teléfono (o lista) configurado como "administrativo". Cuando el bot recibe un WhatsApp DE ese número, no lo atiende como cliente: entra en una rama aparte donde el gerente puede (a) **consultar** inventario ("¿cómo está el pollo?", "¿qué falta comprar?", "¿qué se va a acabar?", precios, ventas del turno) y (b) **registrar compras** por chat ("compré 5 kilos de pollo a 21 mil") que suben stock y actualizan precio, igual que el botón "Registrar compra" del inventario.
+
+**Estado:** propuesta aprobada por Sergio 2026-07-22; NO implementado. Sergio revisa el resto de la plataforma primero y avisará cuándo arrancar. Se hará por etapas: (1) solo consultas — riesgo cero, no escribe nada; (2) registrar compras con confirmación; (3) opcional, ajuste de stock por conteo físico.
+
+**Dónde va (ya mapeado):** en `delay_reply.ts`, un bloque nuevo ENTRE el paso 5 (cargar `ia_config`) y el paso 6 (detectar carta), con la misma mecánica de los pasos existentes: `if (numeroEsGerente) { …responder…; return; }`. El `return` corta antes de llegar al flujo de pedidos.
+
+**Garantía de no-regresión:** el flujo del cliente NO se modifica. Para un cliente normal la condición es falsa y el código lo salta. El único riesgo real es un error de sintaxis que impida arrancar el EF (ya pasó una vez → 503 por código muerto); se maneja con prueba interna + verificación de que un cliente normal sigue respondiendo igual + el bloque envuelto en try/catch que, ante cualquier error, deja pasar el mensaje al flujo normal.
+
+**Config:** `ia_config.gerente` — lista `[{nombre, telefono, puede_consultar, puede_registrar}]`. Tarjeta nueva en Configuración → Asistente. Los dos permisos separados porque consultar es inofensivo pero registrar re-costea todo el menú.
+
+**Decisiones de diseño tomadas:**
+- **GPT no produce ni un número.** Solo entiende la intención y extrae insumo/cantidad/precio de la frase; todas las cifras salen de consulta a la base y la respuesta se arma en código (misma regla del motor de pedidos).
+- **Registrar compra SIEMPRE confirma antes de aplicar**, mostrando el impacto en stock y costo, porque `aplicarCompra` REEMPLAZA el precio (no promedia) — "210 mil" en vez de "21 mil" distorsionaría todas las recetas con ese insumo en silencio. Dejar un `deshacer` por unos minutos.
+- **Palabra de escape** `modo cliente` / `modo gerente`: Sergio prueba el bot desde su propio WhatsApp; sin escape perdería la posibilidad de simular un pedido.
+- **PIN opcional** de 4 dígitos solo para operaciones de escritura, si Sergio lo quiere (el número ya es difícil de falsificar ante Meta, pero un teléfono perdido movería inventario).
+
+**Fuentes de datos que ya existen:** `iv_insumos.stock`/`min_stock`/`precio`/`conversion`, el cálculo de "17 insumos en alerta" del inventario, el turno de caja abierto para ventas. Registrar compra = misma lógica que `aplicarCompra()` en inventario.js.
+
+---
+
 ## Bugs conocidos / cosas a vigilar
 
 1. **`configuracion.js` — auto-sync al abrir**: La función `syncToSupabase()` se llama en `DOMContentLoaded`. Si el localStorage tiene datos viejos cuando se abre Configuraciones, puede escribir basura a Supabase. No abrir Configuraciones con localStorage desactualizado.
