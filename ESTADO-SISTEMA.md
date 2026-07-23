@@ -542,6 +542,37 @@ La columna `meta` en `chat_channels` para WhatsApp es un **JSON serializado como
 
 ---
 
+## PENDIENTE — Múltiples cajas simultáneas (diseño cerrado 2026-07-23, sin implementar)
+
+**Objetivo:** restaurantes con varias registradoras/cajeras trabajando a la vez, cada una en su computador con sus propias credenciales. Feature OPT-IN (interruptor en Config; apagado = todo funciona como hoy, una caja por sucursal).
+
+**Estado infra al auditar (buena noticia, ~70% ya existe):** login ya es por usuario (`signInWithPassword`); `pos_orders` ya tiene `session_id` (208/244 pedidos lo traen); mesas (`pos_tables`) ya son por-sucursal → ya se comparten; el cierre ya imprime el código de caja (`pos-cierre-print.js:67`, últimos 6 del id de sesión). **Faltan:** `pos_payments.session_id` (NO existe — clave para atribuir el dinero), soltar 2 amarras, y arreglar permisos (ver abajo).
+
+**MODELO DEL DINERO (decisión firme de Sergio, es lo que simplifica todo):**
+> Un pedido NO pertenece a ninguna caja. El DINERO de un pedido cuenta en la caja que RECIBIÓ EL PAGO.
+- Salón/contra-entrega sin pagar: cualquiera lo cobra; el dinero cuenta en la caja que cobró. Se estampa `session_id` en el PAGO (no en el pedido) → hay que agregar esa columna a `pos_payments`. El cierre de cada caja = suma de sus pagos.
+- Prepagado del bot (transferencia ya verificada): el dinero cuenta en la caja abierta a la que se enrutó; otra caja solo puede marcar "entregado", NO re-cobrar (ya está pagado → order.status pagado ya lo impide hoy).
+- Todas las cajeras tienen LIBERTAD TOTAL: cobrar cualquier pedido, mover cualquier mesa, tocar todo. Lo único que cambia al cobrar es a qué caja se atribuye el dinero.
+
+**Las 2 amarras a soltar:** (1) `posSessionId()` en pos-core resuelve "la caja abierta DE LA SUCURSAL" (`.eq('branch_id').eq('status','open').limit(1)`) → cambiar a la caja de ESA cajera. (2) `caja.js:1319` cierra las demás cajas abiertas al abrir una (`.eq('status','open').neq('id',...)`) → quitar para que coexistan.
+
+**Numeración:** consecutiva (Caja 1, 2, 3), NO por nombre. Cada cajera se vincula a un número de caja (guardado en su usuario/rol), reasignable. Al abrir, abre su número.
+
+**Enrutamiento del bot (Config → Asistente, ajuste nuevo):** desplegable "¿A qué caja van los pedidos del bot?" con 2 modos: (a) Caja fija — elige número; (b) Repartir (round-robin) — 1er pedido→Caja 1, 2º→Caja 2… entre las cajas ABIERTAS. Reglas: NUNCA a una caja cerrada (si la fija está cerrada → a la abierta más cercana, sin retraso); con una sola caja abierta, todo cae ahí.
+
+**Vista del gerente:** ve todo — consolidado de la sucursal o filtrado por caja. El número/código de caja es la llave del filtro (y lo que empareja el cierre en papel con el turno).
+
+**Plan por etapas:** 0) arreglar permisos (prerequisito, ver abajo). 1) caja por cajera (resolvedor + quitar amarra + número legible). 2) vistas filtradas (dashboard/historial/informes por caja + consolidado gerente). 3) bordes (enrutamiento bot, cierre por cajera scopeado a SUS pagos, marcar-entregado sin re-cobrar).
+
+## PENDIENTE — Arreglar permisos de rol (auditoría hecha 2026-07-23, prerequisito del multi-caja)
+
+**Hallazgo de la auditoría:** los permisos están BIEN diseñados (`pos_roles.perms` array, catálogo de 13 permisos editable en configuracion.js) pero son CASI DECORATIVOS:
+- Solo 1 de 13 se respeta: `pedidos.cobrar` (via `state.canCobrar` en `modules/ventas-salon.js`, controla si aparece el botón Cobrar). Los otros 12 (`pedidos.anular`, `pedidos.descuento`, `catalogo.editar`, `config.usuarios`, `ventas.ver`, etc.) NO se revisan en ningún lado.
+- Hueco en el que funciona: `fetchUserPerms` (ventas-salon.js ~580) da `canCobrar=true` AUTOMÁTICO a admin/administrador/gerente/cajero/cajera SIN mirar sus perms; solo consulta `pos_roles.perms` para "mesero" y roles custom. Un cajero siempre puede cobrar aunque le quiten el permiso.
+- Enforcement es SOLO cliente (esconde botones). Sin RLS de negocio: quien sepa saltarse la UI, puede.
+
+**Plan aprobado (pendiente de construir):** (1) helper único `posHasPerm('id')` que carga el rol una vez y todas las páginas consultan; (2) cablear los 13 permisos para que bloqueen la ACCIÓN (no solo escondan el botón); (3) admin/gerente = todo siempre (correcto), pero cajero sigue sus perms reales (quitar el sí gratis); (4) endurecimiento server-side (RLS de negocio) = pendiente SEPARADO más grande, no mezclar. Falta agregar permiso `caja.abrir`/`caja.cerrar` al catálogo (para el multi-caja).
+
 ## PENDIENTE — Modo Gerente en el bot IA (propuesto y aprobado, sin implementar)
 
 **Qué es:** un número de teléfono (o lista) configurado como "administrativo". Cuando el bot recibe un WhatsApp DE ese número, no lo atiende como cliente: entra en una rama aparte donde el gerente puede (a) **consultar** inventario ("¿cómo está el pollo?", "¿qué falta comprar?", "¿qué se va a acabar?", precios, ventas del turno) y (b) **registrar compras** por chat ("compré 5 kilos de pollo a 21 mil") que suben stock y actualizan precio, igual que el botón "Registrar compra" del inventario.
