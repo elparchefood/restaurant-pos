@@ -366,6 +366,7 @@
 
   var _autoPrinted = {};
   var _printing = {};   // candado de concurrencia por pedido
+  var _lastPrintSig = {};   // {orderId:{sig,ts}} anti-duplicado por firma
   window.posAutoprint = async function(orderId, opts) {
     if (!orderId) return;
     var force = !!(opts && opts.force);   // reimpresión pedida explícitamente
@@ -407,6 +408,15 @@
         ? raw
         : raw.filter(function (it) { return !it.kitchen_printed_at; });
       if (!fuente.length) { _diagToast('Sin ítems nuevos por imprimir', '#64748b'); return; }
+      // Candado por FIRMA: si acabamos de imprimir exactamente estos mismos
+      // ítems hace < 6 s (p. ej. el envío directo + el eco del listener), no
+      // repetir. Ítems genuinamente nuevos tienen otra firma → sí se imprimen.
+      var _sig = fuente.map(function (it) { return it.id || (it.name + 'x' + it.qty); }).sort().join('|');
+      var _prev = _lastPrintSig[orderId];
+      if (!force && _prev && _prev.sig === _sig && (Date.now() - _prev.ts) < 6000) {
+        _diagToast('Comanda ya impresa (evitando duplicado)', '#64748b'); return;
+      }
+      _lastPrintSig[orderId] = { sig: _sig, ts: Date.now() };
       // Se marca "enviado a cocina" solo cuando el pedido de verdad está en
       // cocina (visible_cocina). En prepago sin pagar (no visible) NO se marca:
       // así la comanda pendiente reimprime completa hasta que se cobre.

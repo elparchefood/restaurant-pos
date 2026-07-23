@@ -47,9 +47,36 @@
       if (shouldPrint(o)) window.posAutoprint(o.id);
     }
 
+    // Ítems agregados a una mesa ya en cocina: se disparan por la INSERCIÓN de
+    // ítems (no por updates del pedido), con anti-rebote para agrupar un lote y
+    // no imprimir uno por uno. posAutoprint imprime solo los NO enviados. Esto
+    // NO puede entrar en bucle: el marcado es un UPDATE de pos_order_items (no
+    // INSERT) y printed_at es de pos_orders (con su candado). Delay > que el
+    // primer print del pedido, para que ese ya haya marcado sus ítems.
+    var _itemTimers = {};
+    function handleItemInsert(row) {
+      if (!row || !row.order_id) return;
+      var oid = row.order_id;
+      if (_itemTimers[oid]) clearTimeout(_itemTimers[oid]);
+      _itemTimers[oid] = setTimeout(async function () {
+        delete _itemTimers[oid];
+        try {
+          // Solo disparar si el pedido YA tuvo una comanda (printed_at). Es decir,
+          // es una ADICIÓN a una mesa ya enviada. Un pedido nuevo (primera vez) o
+          // un borrador guardado sin enviar NO deben imprimir por aquí.
+          var r = await sb.from('pos_orders').select('printed_at, status').eq('id', oid).maybeSingle();
+          var o = r && r.data;
+          if (!o || !o.printed_at) return;
+          if (o.status === 'cancelled' || o.status === 'abandoned') return;
+          window.posAutoprint(oid);
+        } catch (e) { /* silencioso */ }
+      }, 2500);
+    }
+
     sb.channel('pos-print-listener')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pos_orders' }, function (p) { handleRow(p.new); })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pos_orders' }, function (p) { handleRow(p.new); })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pos_order_items' }, function (p) { handleItemInsert(p.new); })
       .subscribe();
 
     // Barrido de seguridad: pedidos visibles sin imprimir (ventana reciente).
