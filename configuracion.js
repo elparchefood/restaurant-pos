@@ -952,23 +952,37 @@ var UR_PERMS = [
     { id: 'pedidos.cocina',    label: 'Enviar a cocina',         desc: 'Mandar comandas a preparación' },
     { id: 'pedidos.cobrar',    label: 'Cobrar y procesar pagos', desc: 'Cerrar la cuenta y registrar el pago' },
     { id: 'pedidos.descuento', label: 'Aplicar descuentos',      desc: 'Modificar precios y dar cortesías' },
-    { id: 'pedidos.anular',    label: 'Anular ítems y pedidos',  desc: 'Eliminar productos o cancelar comandas' }
+    { id: 'pedidos.anular',    label: 'Anular ítems y pedidos',  desc: 'Eliminar productos o cancelar comandas' },
+    { id: 'pedidos.reabrir',   label: 'Reabrir o reimprimir cuentas', desc: 'Volver a abrir o reimprimir una cuenta cerrada' }
   ]},
-  { group: 'Catálogo', items: [
-    { id: 'catalogo.ver',    label: 'Ver catálogo',         desc: 'Consultar el menú y precios' },
-    { id: 'catalogo.editar', label: 'Gestionar productos',  desc: 'Crear y editar el menú y precios' }
+  { group: 'Caja', items: [
+    { id: 'caja.abrir',       label: 'Aperturar caja',        desc: 'Abrir el turno y la base de efectivo' },
+    { id: 'caja.cerrar',      label: 'Cerrar caja',           desc: 'Cerrar el turno e imprimir el cierre Z' },
+    { id: 'caja.movimientos', label: 'Ingresos y egresos',    desc: 'Registrar entradas y salidas de efectivo' },
+    { id: 'pagos.anular',     label: 'Anular pagos',          desc: 'Anular un pago o venta ya registrada' },
+    { id: 'caja.ver_todas',   label: 'Ver todas las cajas',   desc: 'Ver las demás cajas del turno (no solo la propia)' }
+  ]},
+  { group: 'Catálogo e inventario', items: [
+    { id: 'catalogo.ver',      label: 'Ver catálogo',        desc: 'Consultar el menú y precios' },
+    { id: 'catalogo.editar',   label: 'Gestionar productos', desc: 'Crear y editar el menú y precios' },
+    { id: 'inventario.compras',label: 'Registrar compras',   desc: 'Registrar compras y ajustar el stock' }
   ]},
   { group: 'Ventas e IA', items: [
     { id: 'ventas.ver', label: 'Ver informes de ventas', desc: 'Acceder a reportes y cierres' },
     { id: 'chat.usar',  label: 'Usar asistente IA',      desc: 'Acceder al chat de inteligencia artificial' }
   ]},
+  { group: 'Reservas y domicilios', items: [
+    { id: 'reservas.gestionar',   label: 'Gestionar reservas',   desc: 'Crear y administrar reservas' },
+    { id: 'domicilios.gestionar', label: 'Gestionar domicilios', desc: 'Administrar la pantalla de domicilios' }
+  ]},
   { group: 'Configuración', items: [
     { id: 'config.general',   label: 'Configuración general',     desc: 'Editar marca, sucursal y meta diaria' },
+    { id: 'config.propina',   label: 'Cambiar propina obligatoria', desc: 'Activar o desactivar la propina obligatoria' },
     { id: 'config.salon',     label: 'Configurar mesas y zonas',  desc: 'Editar el plano del salón' },
     { id: 'config.usuarios',  label: 'Gestionar usuarios y roles',desc: 'Administrar el equipo y permisos' }
   ]}
 ];
-var UR_TOTAL_PERMS = 13;
+var UR_TOTAL_PERMS = UR_PERMS.reduce(function (n, g) { return n + g.items.length; }, 0);
 var UR_SWATCH_COLORS = ['#5B6BFF','#0EA5E9','#10B981','#F59E0B','#F43F5E','#8B5CF6','#EC4899','#0D9488'];
 
 // Marcas y sucursales — se leen de Supabase (branches del tenant)
@@ -2182,8 +2196,10 @@ function opBindEvents() {
   // Toggle propina obligatoria
   var swPropina = $('op-sw-propina');
   if (swPropina) swPropina.addEventListener('click', function() {
-    _opDraft.propinaObligatoria = !_opDraft.propinaObligatoria;
-    opRender();
+    var aplicar = function () { _opDraft.propinaObligatoria = !_opDraft.propinaObligatoria; opRender(); };
+    // Cambiar la propina obligatoria requiere permiso config.propina; sin él, PIN.
+    if (window.posGuard) window.posGuard('config.propina', aplicar, 'Cambiar la propina obligatoria requiere permiso de administrador.');
+    else aplicar();
   });
 
   // Toggle cobro adelantado

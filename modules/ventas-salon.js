@@ -2132,9 +2132,14 @@
   const VS_PERM_ACCION = {
     cobrar:  'pedidos.cobrar',
     collect: 'pedidos.cobrar',
+    'open-table': 'pedidos.crear',
+    'cancelar-pedido-mesa': 'pedidos.anular',
+    'quick-cancelar': 'pedidos.anular',
   };
   const VS_PERM_MOTIVO = {
-    'pedidos.cobrar': 'Cobrar requiere permiso de administrador.',
+    'pedidos.cobrar':  'Cobrar requiere permiso de administrador.',
+    'pedidos.crear':   'Abrir una mesa requiere permiso de administrador.',
+    'pedidos.anular':  'Anular un pedido requiere permiso de administrador.',
   };
 
   function handleAction(e) {
@@ -2145,7 +2150,8 @@
     const permReq = VS_PERM_ACCION[action];
     if (permReq && typeof window.posHasPerm === 'function' && !window.posHasPerm(permReq) && !e.__pinOk) {
       if (typeof window.posPinPrompt === 'function') {
-        const ds = { action: action, tableId: tableId };
+        // Copiar TODO el dataset (tableId, quickId, etc.) para re-ejecutar igual.
+        const ds = Object.assign({}, el.dataset);
         window.posPinPrompt(VS_PERM_MOTIVO[permReq], function () {
           handleAction({ currentTarget: { dataset: ds }, __pinOk: true });
         });

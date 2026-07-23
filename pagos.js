@@ -644,7 +644,10 @@ document.addEventListener('click', e => {
       }
       break;
     case 'split':          openSplitModal();    break;
-    case 'discount':       openDiscountModal(); break;
+    case 'discount':
+      if (window.posGuard) window.posGuard('pedidos.descuento', openDiscountModal, 'Aplicar descuentos requiere permiso de administrador.');
+      else openDiscountModal();
+      break;
     case 'view-payments':    openPaymentsModal();   break;
     case 'close-payments':   closePaymentsModal();  break;
     case 'close-pin':        closePinModal();       break;

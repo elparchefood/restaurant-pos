@@ -1918,7 +1918,11 @@ document.querySelectorAll('.iv-tab').forEach(tab=>{
 document.getElementById('nav-unidades')?.addEventListener('click',()=>showScreen('unidades'));
 document.getElementById('nav-params')?.addEventListener('click',()=>document.getElementById('panel-params').classList.remove('is-hidden'));
 document.getElementById('btn-nuevo-insumo')?.addEventListener('click',()=>abrirEditorInsumo(null));
-document.getElementById('btn-registrar-compra')?.addEventListener('click',abrirCompra);
+document.getElementById('btn-registrar-compra')?.addEventListener('click',function(){
+  // Registrar compra: permiso inventario.compras; sin permiso pide PIN.
+  if(window.posGuard) window.posGuard('inventario.compras',abrirCompra,'Registrar compras requiere permiso de administrador.');
+  else abrirCompra();
+});
 // prompt() no existe en Electron → formulario inline dentro de la tarjeta de unidades
 let _unitNewForm = false;
 document.getElementById('btn-nueva-unidad')?.addEventListener('click',()=>{

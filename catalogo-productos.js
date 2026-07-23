@@ -679,6 +679,10 @@ function _cleanModGroupPres(p){
 }
 function updateSaveProdBtn(){const p=S.editProd;const hasPres=p.presentations.some(x=>x.price>0);const hasVar=(p.variables||[]).some(v=>(v.options||[]).some(o=>o.price>0||(Array.isArray(o.prices)&&o.prices.some(pr=>pr>0))));const btn=$('save-prod-btn');if(btn)btn.disabled=!(p.name.trim()&&(hasPres||hasVar));}
 async function saveProduct(){
+  // Editar el catálogo requiere permiso catalogo.editar; sin él pide PIN.
+  if(window.posHasPerm && !window.posHasPerm('catalogo.editar') && !saveProduct.__pinOk){
+    if(window.posPinPrompt){ window.posPinPrompt('Editar el catálogo requiere permiso de administrador.', function(){ saveProduct.__pinOk=true; Promise.resolve(saveProduct()).finally(function(){ saveProduct.__pinOk=false; }); }); return; }
+  }
   const p=S.editProd;if(!p.name.trim())return;
   const saveBtn=$('save-prod-btn');if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='Guardando…';}
   if(p._photoFile){p.photo=await uploadPhoto(p._photoFile,p.id||uid('p'));p._photoFile=null;}

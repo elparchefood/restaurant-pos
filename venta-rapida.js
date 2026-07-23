@@ -784,8 +784,11 @@
     // Guardar
     $('vr-btn-guardar').addEventListener('click', guardarPedido);
 
-    // Enviar a cocina
-    $('vr-btn-enviar').addEventListener('click', enviarACocina);
+    // Enviar a cocina (permiso pedidos.cocina; sin permiso pide PIN)
+    $('vr-btn-enviar').addEventListener('click', function () {
+      if (window.posGuard) window.posGuard('pedidos.cocina', enviarACocina, 'Enviar a cocina requiere permiso de administrador.');
+      else enviarACocina();
+    });
   }
 
   /* ─── Supabase: cargar datos ─────────────────────────────────── */

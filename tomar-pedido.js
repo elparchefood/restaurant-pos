@@ -1334,7 +1334,10 @@ function bindEvents() {
         case 'back':         window.location.href = 'ventas.html'; break;
         case 'nav-domicilio': window.location.href = 'domicilios.html'; break;
         case 'guardar':      saveOrder(); break;
-        case 'enviar-cocina':sendToKitchen(); break;
+        case 'enviar-cocina':
+          if (window.posGuard) window.posGuard('pedidos.cocina', sendToKitchen, 'Enviar a cocina requiere permiso de administrador.');
+          else sendToKitchen();
+          break;
         // 'pago' eliminado: el cobro se hace desde el panel de mesa en ventas.html
         // ("Cobrar" / "Cobrar y enviar a cocina", modules/ventas-salon.js). Este
         // botón dentro de la mesa era un atajo duplicado.

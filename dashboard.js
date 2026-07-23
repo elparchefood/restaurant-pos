@@ -368,7 +368,9 @@ async function handleSessionAction() {
     window.location.href = 'caja.html';
     return;
   }
-  showAperturaModal();
+  // Aperturar caja: permiso caja.abrir; sin permiso pide PIN.
+  if (window.posGuard) window.posGuard('caja.abrir', showAperturaModal, 'Aperturar la caja requiere permiso de administrador.');
+  else showAperturaModal();
 }
 
 function showAperturaModal() {
@@ -1188,16 +1190,13 @@ function setupRealtime(branchId) {
 
 // ── Boot ──────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  // Guard: meseros/cajeros no tienen acceso al dashboard
-  (async function() {
-    try {
-      const { data: { session } } = await sb.auth.getSession();
-      const role = session?.user?.user_metadata?.role || '';
-      if (role === 'mesero' || role === 'cajero' || role === 'cajera') {
-        window.location.href = 'ventas.html';
-      }
-    } catch(e) {}
-  })();
+  // Guard por permiso: quien no tenga 'dashboard.ver' va directo a Ventas.
+  // (Antes era una lista fija de roles; ahora depende del permiso real, así
+  // el dueño decide qué roles ven el dashboard.)
+  if (typeof window.posRequire === 'function') {
+    const _permitido = await window.posRequire('dashboard.ver', 'ventas.html');
+    if (!_permitido) return;   // ya redirigió
+  }
 
   renderAllExtra([], null); // render empty structure immediately
   renderDate();

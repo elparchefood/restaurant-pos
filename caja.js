@@ -1015,7 +1015,9 @@ document.getElementById('btn-cerrar').addEventListener('click', async function()
   }
   // Se bloquea el cierre por CUALQUIERA de las dos causas
   confirmBtn.disabled = (openShifts.length > 0) || (abiertos.length > 0);
-  openPanel('panel-cerrar');
+  // Cerrar caja: permiso caja.cerrar; sin permiso pide PIN.
+  if (window.posGuard) window.posGuard('caja.cerrar', function(){ openPanel('panel-cerrar'); }, 'Cerrar la caja requiere permiso de administrador.');
+  else openPanel('panel-cerrar');
 });
 
 document.getElementById('btn-confirmar-cerrar').addEventListener('click', async function() {
@@ -1039,7 +1041,9 @@ document.getElementById('btn-confirmar-cerrar').addEventListener('click', async 
 
 document.getElementById('btn-mov').addEventListener('click', function() {
   if (!S.session) { showToast('Abre la caja primero'); return; }
-  openPanel('panel-movimiento');
+  // Ingresos y egresos: permiso caja.movimientos; sin permiso pide PIN.
+  if (window.posGuard) window.posGuard('caja.movimientos', function(){ openPanel('panel-movimiento'); }, 'Registrar movimientos de caja requiere permiso de administrador.');
+  else openPanel('panel-movimiento');
 });
 
 document.getElementById('btn-confirmar-mov').addEventListener('click', function() {
@@ -1238,7 +1242,11 @@ async function reimprimirCierre(sessionId) {
 
 window.imprimirPaloteo  = imprimirPaloteo;
 window.imprimirCierre   = imprimirCierre;
-window.reimprimirCierre = reimprimirCierre;
+// Reimprimir/reabrir un cierre: permiso pedidos.reabrir; sin permiso pide PIN.
+window.reimprimirCierre = function (sessionId) {
+  if (window.posGuard) window.posGuard('pedidos.reabrir', function(){ reimprimirCierre(sessionId); }, 'Reimprimir o reabrir una cuenta requiere permiso de administrador.');
+  else reimprimirCierre(sessionId);
+};
 
 function getArqueoDenoms() {
   const lineas = [];
@@ -1363,7 +1371,11 @@ async function anularVenta(orderId) {
   showToast('Venta anulada');
   await refreshAll();
 }
-window.anularVenta = anularVenta;
+// Anular una venta/pago registrado: permiso pagos.anular; sin permiso pide PIN.
+window.anularVenta = function (orderId) {
+  if (window.posGuard) window.posGuard('pagos.anular', function(){ anularVenta(orderId); }, 'Anular un pago requiere permiso de administrador.');
+  else anularVenta(orderId);
+};
 
 // ── Toast ──────────────────────────────────────────────────────
 function showToast(msg) {
