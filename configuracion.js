@@ -1890,6 +1890,8 @@ var OP_DEFAULTS = {
   empaqueCatCfg: {},         // {catId: {on:bool, packId:string|null}} — null = valor general
   empaqueProdCfg: {},        // {prodId: 'none' | 'general' | packId} — ausente = hereda categoría
   empaquePresCfg: {},        // {'prodId::presId': 'none'|'general'|packId} — ausente = hereda producto
+  // Notas frecuentes (chips de "sin cebolla", "solo BBQ"… al personalizar el plato)
+  notasFrecuentes: { modo: 'global', global: [], cats: {} }, // modo: 'global'|'cat'; cats: {catName:[notas]}
   // C9 — Tiempos de automatización de mesa
   mesaT1: 10,  // min → primera notificación
   mesaT2: 5,   // min → re-notificación tras "No"
@@ -1913,6 +1915,11 @@ function opLoad() {
   }
   if (d.propinaActiva === undefined) d.propinaActiva = true;
   if (d.propinaModoDefault !== 'fijo') d.propinaModoDefault = 'pct';
+  // Notas frecuentes — garantizar forma correcta
+  if (!d.notasFrecuentes || typeof d.notasFrecuentes !== 'object') d.notasFrecuentes = { modo: 'global', global: [], cats: {} };
+  if (d.notasFrecuentes.modo !== 'cat') d.notasFrecuentes.modo = 'global';
+  if (!Array.isArray(d.notasFrecuentes.global)) d.notasFrecuentes.global = [];
+  if (!d.notasFrecuentes.cats || typeof d.notasFrecuentes.cats !== 'object') d.notasFrecuentes.cats = {};
   return d;
 }
 
@@ -2062,6 +2069,7 @@ function opRender() {
   // (si opRender muere antes de opCheckDirty, el botón Guardar queda muerto)
   if (esp) { try { opRenderEmpEsp(); } catch (e) { console.error('opRenderEmpEsp:', e); } }
   try { opRenderEtiquetas(); } catch (e) { console.error('opRenderEtiquetas:', e); }
+  try { opRenderNotas(); } catch (e) { console.error('opRenderNotas:', e); }
 
   // C9 — T1/T2/T3
   var t1El = $('op-mesaT1'); if (t1El) t1El.textContent = d.mesaT1 || 10;
@@ -2122,6 +2130,69 @@ function opRenderEtiquetas() {
       + '</span>'
     : '<button type="button" id="op-etq-new" style="display:inline-flex;align-items:center;gap:5px;font-family:inherit;font-size:12.5px;font-weight:700;border:1.5px dashed #C7D2FE;background:#FAFAFF;color:#4F5BE3;padding:6px 12px;border-radius:999px;cursor:pointer">+ Crear etiqueta</button>');
 }
+// ── Notas frecuentes ──────────────────────────────────────
+var _notasSelCat = null;
+function _notasActiveList() {
+  var nf = _opDraft.notasFrecuentes;
+  if (nf.modo === 'global') return nf.global;
+  if (!nf.cats[_notasSelCat]) nf.cats[_notasSelCat] = [];
+  return nf.cats[_notasSelCat];
+}
+function _notasEditorHtml(arr, placeholder) {
+  var chips = (arr || []).map(function (n) {
+    return '<span style="display:inline-flex;align-items:center;gap:8px;padding:7px 8px 7px 12px;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:999px;font-size:12.5px;font-weight:600;color:#475569">'
+      + _empEsc(n)
+      + '<button type="button" data-nf-del="' + _empEsc(n) + '" title="Quitar" style="width:18px;height:18px;border-radius:999px;border:none;background:#E9ECF3;color:#64748B;font-family:inherit;font-size:12px;line-height:1;cursor:pointer">&times;</button></span>';
+  }).join('');
+  return '<div style="display:flex;gap:8px;margin-bottom:12px">'
+    + '<input id="op-nf-input" placeholder="' + _empEsc(placeholder) + '" style="flex:1;font-family:inherit;font-size:13px;border:1px solid #ECEEF2;border-radius:9px;padding:9px 11px;outline:none">'
+    + '<button type="button" id="op-nf-add" style="font-family:inherit;font-size:12.5px;font-weight:700;border:none;background:#5B6BFF;color:#fff;padding:9px 14px;border-radius:9px;cursor:pointer">Agregar</button>'
+    + '</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:8px">' + (chips || '<span style="color:#94A3B8;font-size:12px">Aún no hay notas. Agrega la primera arriba.</span>') + '</div>';
+}
+function opRenderNotas() {
+  var cont = $('op-notas-cont');
+  if (!cont) return;
+  var nf = _opDraft.notasFrecuentes || (_opDraft.notasFrecuentes = { modo: 'global', global: [], cats: {} });
+  function segBtn(mode, label) {
+    var on = nf.modo === mode;
+    return '<button type="button" data-nf-mode="' + mode + '" style="border:none;font-family:inherit;font-size:12px;font-weight:' + (on ? '700' : '600') + ';color:' + (on ? '#0F172A' : '#64748B') + ';background:' + (on ? '#fff' : 'transparent') + ';' + (on ? 'box-shadow:0 1px 2px rgba(15,23,42,.1);' : '') + 'padding:6px 14px;border-radius:6px;cursor:pointer">' + label + '</button>';
+  }
+  var html = '<div style="display:inline-flex;background:#F1F5F9;border-radius:8px;padding:3px;gap:2px;margin-bottom:14px">'
+    + segBtn('global', 'Globales') + segBtn('cat', 'Por categoría') + '</div>';
+
+  if (nf.modo === 'global') {
+    html += _notasEditorHtml(nf.global, 'Escribe una nota (ej. Sin cebolla)…');
+    cont.innerHTML = html;
+    return;
+  }
+  // Por categoría
+  if (!_empCatalog) {
+    cont.innerHTML = html + '<div style="color:#94A3B8;font-size:12.5px;padding:8px 0">Cargando categorías…</div>';
+    _empLoadCatalog().then(function () { if (_opDraft.notasFrecuentes.modo === 'cat') opRenderNotas(); });
+    return;
+  }
+  var cats = _empCatalog.cats || [];
+  if (!cats.length) {
+    cont.innerHTML = html + '<div style="color:#94A3B8;font-size:12.5px;padding:8px 0">No hay categorías creadas todavía. Créalas primero en Productos.</div>';
+    return;
+  }
+  if (!_notasSelCat || !cats.some(function (c) { return c.name === _notasSelCat; })) _notasSelCat = cats[0].name;
+  html += '<div style="font-size:12px;font-weight:700;color:#64748B;margin:0 0 10px">Elige una categoría para crear sus notas:</div>';
+  html += '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px">';
+  cats.forEach(function (c) {
+    var on = c.name === _notasSelCat;
+    var n = (nf.cats[c.name] || []).length;
+    html += '<button type="button" data-nf-catsel="' + _empEsc(c.name) + '" style="font-family:inherit;font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:999px;cursor:pointer;'
+      + (on ? 'background:#EEF2FF;border:1px solid #5B6BFF;color:#5B6BFF' : 'background:#fff;border:1px solid #ECEEF2;color:#475569') + '">'
+      + _empEsc(c.name) + (n ? ' <span style="font-size:10px;opacity:.7">' + n + '</span>' : '') + '</button>';
+  });
+  html += '</div>';
+  if (!nf.cats[_notasSelCat]) nf.cats[_notasSelCat] = [];
+  html += _notasEditorHtml(nf.cats[_notasSelCat], 'Nota para ' + _notasSelCat + '…');
+  cont.innerHTML = html;
+}
+
 function _empEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function _empFmt(n){ return '$' + Number(Math.round(n||0)).toLocaleString('es-CO'); }
 
@@ -2394,6 +2465,36 @@ function opBindEvents() {
       opRenderEtiquetas(); opCheckDirty(); return;
     }
   });
+
+  // Notas frecuentes — segmented + crear/borrar (delegación de clics)
+  var notasCont = $('op-notas-cont');
+  if (notasCont) {
+    notasCont.addEventListener('click', function (e) {
+      var t = e.target.closest('[data-nf-mode],[data-nf-catsel],#op-nf-add,[data-nf-del]');
+      if (!t) return;
+      if (t.dataset.nfMode) { _opDraft.notasFrecuentes.modo = t.dataset.nfMode; opRenderNotas(); opCheckDirty(); return; }
+      if (t.dataset.nfCatsel) { _notasSelCat = t.dataset.nfCatsel; opRenderNotas(); return; }
+      if (t.id === 'op-nf-add') {
+        var inp = $('op-nf-input'); var v = inp ? inp.value.trim() : '';
+        if (!v) { if (inp) inp.focus(); return; }
+        var list = _notasActiveList();
+        if (list.indexOf(v) < 0) list.push(v);
+        opRenderNotas(); opCheckDirty();
+        var i2 = $('op-nf-input'); if (i2) i2.focus();
+        return;
+      }
+      if (t.dataset.nfDel) {
+        var list2 = _notasActiveList();
+        var idx = list2.indexOf(t.dataset.nfDel);
+        if (idx >= 0) list2.splice(idx, 1);
+        opRenderNotas(); opCheckDirty();
+        return;
+      }
+    });
+    notasCont.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && e.target && e.target.id === 'op-nf-input') { e.preventDefault(); var b = $('op-nf-add'); if (b) b.click(); }
+    });
+  }
 
   // C3b — Empaques switch
   var swEmpaques = $('op-sw-empaques');

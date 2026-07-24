@@ -801,6 +801,7 @@ function pmBuildCustomPane(p){
     +'<div class="pm-prodname">'+selSummary+'</div>'
     +'<div class="pm-modsum" id="pm-mod-sum">'+pmEsc(modSumTxt)+'</div>'
     +'<div class="pm-field-lbl">'+PM_SVG.note+' Nota para cocina</div>'
+    +'<div id="pm-nf-wrap" class="pm-nf-wrap"></div>'
     +'<textarea class="pm-note" placeholder="Ej. caliente, con aji, sin salsa..." id="pm-note-input">'+pmEsc(TP_WIP.note)+'</textarea>'
     +'<div class="pm-field-lbl">Para donde es?</div>'
     +'<div class="pm-seg">'
@@ -819,6 +820,59 @@ function pmBuildCustomPane(p){
     +'<div class="pm-search">'+PM_SVG.srch+'<input placeholder="Buscar adiciones..." id="pm-search-inp"></div>'
     +groupsHTML
     +'</div></div>';
+}
+
+// ── Notas frecuentes (selector con chips + buscador) ──────────
+var _pmPickerOpen=false, _pmPickerQ='';
+function pmNoteTokens(){ return (TP_WIP.note||'').split(',').map(function(s){return s.trim();}).filter(Boolean); }
+function pmSetNoteTokens(tokens){ TP_WIP.note=tokens.join(', '); var el=document.getElementById('pm-note-input'); if(el) el.value=TP_WIP.note; }
+function pmNotasSource(){
+  var cfg={}; try{ cfg=JSON.parse(localStorage.getItem('pos.config.operacion.v1')||'{}'); }catch(e){}
+  var nf=cfg.notasFrecuentes; if(!nf||typeof nf!=='object') return [];
+  if(nf.modo==='cat'){
+    var p=TP_WIP.prod||{}; var cat=(S.cats||[]).find(function(c){return c.id===p.category_id;});
+    var name=cat?cat.name:(p.category||''); return (nf.cats&&nf.cats[name])||[];
+  }
+  return nf.global||[];
+}
+function pmNotasUso(){ try{ return JSON.parse(localStorage.getItem('pos.notas.uso')||'{}'); }catch(e){ return {}; } }
+function pmNotasUsoInc(n){ var u=pmNotasUso(); u[n]=(u[n]||0)+1; try{ localStorage.setItem('pos.notas.uso',JSON.stringify(u)); }catch(e){} }
+function pmSelHtml(){
+  var src=pmNotasSource(), tokens=pmNoteTokens();
+  var selected=src.filter(function(n){return tokens.indexOf(n)>=0;});
+  var h='';
+  selected.forEach(function(n){ h+='<span class="pm-nf-chip" data-nf-tok="'+pmEsc(n)+'">'+pmEsc(n)+'<button type="button" data-nf-rm="'+pmEsc(n)+'" title="Quitar">&times;</button></span>'; });
+  h+='<button type="button" class="pm-nf-add" id="pm-nf-add">+ '+(selected.length?'Otra nota':'Nota frecuente')+'</button>';
+  return h;
+}
+function pmRefreshSelArea(){ var s=document.getElementById('pm-nf-sel'); if(s) s.innerHTML=pmSelHtml(); }
+function pmPchip(n,tokens){ var on=tokens.indexOf(n)>=0; return '<button type="button" class="pm-nf-pchip'+(on?' on':'')+'" data-nf-pick="'+pmEsc(n)+'">'+pmEsc(n)+'</button>'; }
+function pmRenderPickerList(){
+  var list=document.getElementById('pm-nf-list'); if(!list) return;
+  var src=pmNotasSource(), tokens=pmNoteTokens();
+  var q=(_pmPickerQ||'').trim().toLowerCase();
+  var h='';
+  if(!q){
+    var uso=pmNotasUso();
+    var top=src.filter(function(n){return uso[n];}).sort(function(a,b){return uso[b]-uso[a];}).slice(0,4);
+    if(top.length){ h+='<div class="pm-nf-grp">Más usadas</div><div class="pm-nf-chips">'+top.map(function(n){return pmPchip(n,tokens);}).join('')+'</div>'; }
+  }
+  var filtered=src.filter(function(n){return n.toLowerCase().indexOf(q)>=0;});
+  h+='<div class="pm-nf-grp">Todas</div>';
+  h+= filtered.length ? '<div class="pm-nf-chips">'+filtered.map(function(n){return pmPchip(n,tokens);}).join('')+'</div>' : '<div class="pm-nf-empty">Nada coincide.</div>';
+  list.innerHTML=h;
+}
+function pmRenderNotasFrec(){
+  var wrap=document.getElementById('pm-nf-wrap'); if(!wrap) return;
+  var src=pmNotasSource();
+  if(!src.length){ wrap.innerHTML=''; return; }  // sin notas configuradas → no ocupar espacio
+  var h='<div class="pm-nf-sel" id="pm-nf-sel">'+pmSelHtml()+'</div>';
+  h+='<div class="pm-nf-picker" id="pm-nf-picker"'+(_pmPickerOpen?'':' hidden')+'>';
+  h+='<input class="pm-nf-search" id="pm-nf-search" placeholder="Buscar nota...">';
+  h+='<div class="pm-nf-list" id="pm-nf-list"></div>';
+  h+='</div>';
+  wrap.innerHTML=h;
+  if(_pmPickerOpen){ var s=document.getElementById('pm-nf-search'); if(s) s.value=_pmPickerQ; pmRenderPickerList(); }
 }
 
 function pmAttachHandlers(inner,p,cur){
@@ -862,7 +916,25 @@ function pmAttachHandlers(inner,p,cur){
     if(qdec) qdec.addEventListener('click',()=>{ TP_WIP.qty=Math.max(1,TP_WIP.qty-1); pmUpdatePrices(); });
     if(qinc) qinc.addEventListener('click',()=>{ TP_WIP.qty++; pmUpdatePrices(); });
     const noteEl=document.getElementById('pm-note-input');
-    if(noteEl){ noteEl.value=TP_WIP.note; noteEl.addEventListener('input',function(){ TP_WIP.note=this.value; }); }
+    if(noteEl){ noteEl.value=TP_WIP.note; noteEl.addEventListener('input',function(){ TP_WIP.note=this.value; if(_pmPickerOpen) pmRenderPickerList(); }); }
+    // Notas frecuentes — selector con chips + buscador
+    const nfWrap=document.getElementById('pm-nf-wrap');
+    if(nfWrap && !nfWrap._bound){
+      nfWrap._bound=true;
+      nfWrap.addEventListener('click',function(e){
+        const add=e.target.closest('#pm-nf-add');
+        if(add){ _pmPickerOpen=!_pmPickerOpen; pmRenderNotasFrec(); if(_pmPickerOpen){ const s=document.getElementById('pm-nf-search'); if(s) s.focus(); } return; }
+        const rm=e.target.closest('[data-nf-rm]');
+        if(rm){ const t=pmNoteTokens().filter(function(x){return x!==rm.dataset.nfRm;}); pmSetNoteTokens(t); pmRefreshSelArea(); if(_pmPickerOpen) pmRenderPickerList(); return; }
+        const pick=e.target.closest('[data-nf-pick]');
+        if(pick){ const n=pick.dataset.nfPick; const toks=pmNoteTokens(); const i=toks.indexOf(n);
+          if(i>=0){ toks.splice(i,1); } else { toks.push(n); pmNotasUsoInc(n); }
+          pmSetNoteTokens(toks); pick.classList.toggle('on'); pmRefreshSelArea(); return; }
+      });
+      nfWrap.addEventListener('input',function(e){ if(e.target && e.target.id==='pm-nf-search'){ _pmPickerQ=e.target.value; pmRenderPickerList(); } });
+    }
+    _pmPickerOpen=false; _pmPickerQ='';
+    pmRenderNotasFrec();
     inner.querySelectorAll('.pm-seg button').forEach(btn=>{
       btn.addEventListener('click',()=>{
         TP_WIP.forHere=btn.dataset.dest==='here';
