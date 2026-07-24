@@ -1447,17 +1447,23 @@
     if (!sb) return [];
     const branchId = window._pos.state && window._pos.state.branchId;
     const cajaStart = await getCajaSessionStart();
+    // #6: NO se filtra por delivered_at. Los pedidos ya entregados de este
+    // turno se quedan visibles en estado "Entregado" hasta que se cierre la
+    // caja (al cerrar, cajaStart avanza y estos quedan fuera del rango).
     let q = sb.from('pos_orders')
       .select('id, customer_name, turno, total, subtotal, discount, status, channel, created_at, waiter_name, notes, delivered_at, paid_amount')
       .eq('channel', 'rapido')
       .neq('status', 'cancelled')
       .gte('created_at', cajaStart)
-      .is('delivered_at', null)
       .order('created_at', { ascending: false });
     if (branchId) q = q.eq('branch_id', branchId);
     const { data, error } = await q;
     if (error) { console.error('[VS] fetchQuickOrders:', error); return []; }
-    return data || [];
+    // Estado derivado: si ya se entregó, se muestra como "entregado".
+    return (data || []).map(function (o) {
+      if (o.delivered_at) o.status = 'entregado';
+      return o;
+    });
   }
 
     // ─── Render: Rail ─────────────────────────────────────
@@ -1696,7 +1702,7 @@
 
   // ─── Render: Quick Orders ────────────────────────────
   function renderQuickSummaryRow() {
-    const active = state.quickOrders.filter(o => o.status !== 'paid');
+    const active = state.quickOrders.filter(o => o.status !== 'paid' && o.status !== 'entregado');
     const total = state.quickOrders.reduce((s, o) => s + (o.total || 0), 0);
     const counts = {};
     state.quickOrders.forEach(o => {
@@ -1829,8 +1835,14 @@
     const hora = new Date(o.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 
     const isPendientePagoQ = o.status === 'pendiente_pago';
+    const isEntregadoQ = o.status === 'entregado';
     let actionsHtml;
-    if (isPaid) {
+    if (isEntregadoQ) {
+      // #6: pedido ya entregado — sin acciones de cobro/entrega, solo iniciar otra venta.
+      actionsHtml = `<div class="vs-actions">
+          <button class="lm-btn-ghost" data-action="quick-nueva" data-quick-id="${o.id}">Nueva venta</button>
+        </div>`;
+    } else if (isPaid) {
       actionsHtml = `<div class="vs-actions">
           <button class="lm-btn-ghost" data-action="quick-nueva" data-quick-id="${o.id}">Nueva venta</button>
           <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-entregar" data-quick-id="${o.id}">Ya entregué</button>
@@ -2349,10 +2361,13 @@
         const qeId = e.currentTarget.dataset.quickId;
         const sbQE = window._pos && window._pos.sb;
         if (sbQE && qeId) {
-          sbQE.from('pos_orders').update({ delivered_at: new Date().toISOString() }).eq('id', qeId)
+          const nowIso = new Date().toISOString();
+          sbQE.from('pos_orders').update({ delivered_at: nowIso }).eq('id', qeId)
             .then(function() {
-              state.quickOrders = state.quickOrders.filter(x => x.id !== qeId);
-              state.selectedQuickId = null;
+              // #6: NO se quita la tarjeta. Queda visible en estado "Entregado"
+              // hasta que se cierre la caja.
+              const oo = state.quickOrders.find(function(x){ return x.id === qeId; });
+              if (oo) { oo.status = 'entregado'; oo.delivered_at = nowIso; }
               render();
             });
         }
