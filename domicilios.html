@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="pos-core.css">
-  <link rel="stylesheet" href="domicilios.css?v=1784641000">
+  <link rel="stylesheet" href="domicilios.css?v=1785390000">
   <title>Domicilios — Cobra POS</title>
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/favicon-32.png">
@@ -28,7 +28,7 @@
 
   <!-- MAIN -->
   <main class="d-main">
-    <header class="d-topbar">
+    <header class="d-topbar" style="display:none">
       <div class="d-topbar-l">
         <div class="d-modebadge"><span class="dot"></span> <span id="topbar-role">Cargando...</span></div>
         <div class="d-crumbs"><span class="muted">Ventas</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg><span class="here">Domicilios</span></div>
@@ -67,7 +67,7 @@
               </button>
             </div>
             <div class="d-cartlist">
-              <div class="d-listhead"><span class="d-micro" id="cart-count-lbl">Pedido &middot; 0 ítems</span><button class="lm-link" data-action="vaciar">Vaciar</button></div>
+              <div class="d-listhead" style="justify-content:flex-end"><button class="lm-link" data-action="vaciar">Vaciar</button></div>
               <div id="cart-lines">
                 <div class="d-empty" id="cart-empty">
                   <div class="d-empty-ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
@@ -365,6 +365,6 @@
 <script src="pos-print.js?v=17"></script>
 <script src="pos-print-listener.js?v=4"></script>
 <script src="pos-caja-guard.js?v=1"></script>
-<script src="domicilios.js?v=1784806000"></script>
+<script src="domicilios.js?v=1785390000"></script>
 </body>
 </html>

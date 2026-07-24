@@ -529,7 +529,7 @@ function renderProdGrid(el, prods) {
       : `<span class="d-thumb-lbl">${p.name}</span>`;
     return `<button class="lm-prod" data-add="${p.id}">
       <div style="position:relative">
-        <div class="d-thumb" style="height:84px">${thumb}</div>
+        <div class="d-thumb" style="aspect-ratio:4/3">${thumb}</div>
 
         ${qty > 0 ? `<span class="d-qty">${qty}</span>` : ''}
       </div>
