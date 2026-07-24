@@ -763,6 +763,15 @@ Idea de Sergio: un botón junto al desplegable del gerente con las marcas creada
   - **Solo identificador de login:** ese correo es usuario+clave, NO un buzón real. Requiere tener DESACTIVADA la confirmación por email en Supabase Auth. Validar unicidad dentro de la marca (si el correo ya existe → avisar "ese usuario ya existe").
   - **Implementación:** el alta de usuario ya crea un `auth.users` + fila en `pos_users` (ver flujo actual de creación de usuarios); solo hay que componer el email = usuario + '@' + dominio_de_marca_activa, y setear `brand_id`/`branch_id` del contexto activo.
 
+**9. [REGLA confirmada por Sergio 2026-07-24 — usuario/rol MULTIMARCA]**
+Excepción a "solo el gerente hace switch": un usuario/rol puede trabajar en VARIAS marcas (ej. un cajero que atiende el restaurante Y la heladería).
+- **Botón "Asignar multimarca"** (lo usa el gerente al crear/editar el rol o el usuario): le da acceso a 2+ marcas.
+- **El usuario multimarca SÍ puede hacer switch** (desplegable arriba a la derecha, igual que el gerente), pero SOLO entre las marcas que le asignaron. Al iniciar sesión cae por defecto en una de ellas.
+- **En cada marca ve únicamente sus permisos** (lo que el gerente le habilitó vía la tabla de permisos de esa marca). El sistema de permisos ya existente se aplica por marca activa.
+- **Regla real del switch (reformulada):** NO es "gerente sí / los demás no". Es **"quien tenga más de una marca asignada puede hacer switch"**. El gerente/dueño las tiene todas; un cajero multimarca tiene las que le dieron; un rol normal tiene una sola → sin switch.
+- **Correo de un usuario multimarca (respuesta a la duda de Sergio):** el dominio se toma de la **marca de origen** (la marca activa cuando se creó el usuario). Ej.: cajero creado en el restaurante → `luislopez@elparchefood.com`, aunque también atienda la heladería. Razón: el correo es solo identificador de login (no limita el acceso), así que no necesita reflejar todas sus marcas; con ser único y estable basta. Alternativa descartada: dominio neutro a nivel de cuenta (mete un concepto nuevo sin necesidad).
+- **Modelo de datos:** un usuario ya no está atado a UNA sola marca → necesita una LISTA de marcas asignadas. Opciones: array `brands[]` en `pos_users`, o tabla puente `pos_user_brands (user_id, brand_id, role_id)` (más flexible: permite un rol/permiso distinto por marca). Recomendado la tabla puente, porque encaja con "en cada marca ve solo los permisos que le dieron ahí" (rol distinto por marca). El switch del usuario lista solo las marcas de esa lista. La `marca de origen` (para el dominio del correo) se guarda aparte (ej. `pos_users.home_brand_id`).
+
 ---
 
 ## PENDIENTE — Blindaje interior de permisos (RLS de negocio) — aprobado para DESPUÉS
