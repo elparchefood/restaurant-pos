@@ -707,6 +707,21 @@ La columna `meta` en `chat_channels` para WhatsApp es un **JSON serializado como
       · **El cuello de botella real es el WiFi**, no el software: las cocinas tienen paredes, acero y calor. Puede hacer falta un repetidor o punto mesh. Vale la pena advertírselo a cada restaurante al vender la función.
       · **Ubicación física:** lejos del fogón y de la grasa; si es tablet, con protección.
 
+## HECHO 2026-07-24 — Ícono del ejecutable + PENDIENTE instalador para vender
+
+**Ícono cambiado a azul oscuro** (antes rojo). Se eligió `appicon_oscuro` (cuadrado redondeado, azul marino oscuro, cobra blanca) del Manual de Marca (`COBRA_Brand_Package/04_App_Favicon/`). Generado `.ico` multi-tamaño (16→256) con PIL.
+- **Aplicado (ícono de la VENTANA / barra de tareas)** en las 3 ubicaciones: proyecto fuente `C:\Prueba Claude Code\cobra-pos-electron`, instalación del acceso directo del escritorio (`...\dist\Cobra POS-win32-x64\`), e instalación del menú inicio (`C:\Users\USUARIO\AppData\Local\Cobra POS\`). En cada `resources/app/resources/icon.ico` (respaldo `.bak-20260724`) + se agregó `icon: path.join(__dirname, "resources", "icon.ico")` a la ventana principal en `main.js`.
+- **OJO:** hay que CERRAR y volver a abrir la app por completo para ver el ícono nuevo (Windows cachea el ícono de la barra de tareas).
+- **PENDIENTE — ícono del ARCHIVO .exe en el Explorador:** va incrustado en el binario de 180 MB; se corrige al reempaquetar (ver instalador). Por ahora el archivo puede seguir mostrando el rojo en el Explorador aunque la ventana ya salga azul.
+
+**PENDIENTE — Instalador profesional para vender.** Hoy el `.exe` se instaló copiándolo directo (portable). El proyecto fuente YA está casi listo con electron-builder:
+- `package.json` → `build.win.icon: "resources/icon.ico"` (ya apunta al ícono nuevo), bloque `nsis` configurado (oneClick:false, elegir carpeta, accesos escritorio+menú inicio), y **`electron-updater` ya está como dependencia** (auto-actualización lista).
+- **Falta:** cambiar `build.win.target` de `"portable"` a `"nsis"` y correr `npm run build`. Genera un instalador que pone el ícono bien en TODOS lados (exe, instalador, accesos), permite desinstalar limpio y habilita auto-update. Momento de fijar la firma de código si se quiere evitar el aviso de SmartScreen.
+
+**PENDIENTE — Ícono de la APK (tablet).** Sergio quiere el mismo ícono azul oscuro en la APK de Capacitor. Regenerar los íconos de Android (mipmap) desde `appicon_oscuro` y reconstruir la APK.
+
+---
+
 ## PENDIENTE — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
 
 **Contexto:** el sistema se vende a dueños con UNA marca o VARIAS (ej. una heladería + un restaurante bajo el mismo dueño, pero independientes por dentro). Cada marca crea sus sucursales (eso ya funciona). Falta la **creación/gestión de marcas** y dividir bien qué configuración es por-marca vs por-sucursal.
