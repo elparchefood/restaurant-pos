@@ -763,7 +763,9 @@ Idea de Sergio: un botón junto al desplegable del gerente con las marcas creada
   - **Solo identificador de login:** ese correo es usuario+clave, NO un buzón real. Requiere tener DESACTIVADA la confirmación por email en Supabase Auth. Validar unicidad dentro de la marca (si el correo ya existe → avisar "ese usuario ya existe").
   - **Implementación:** el alta de usuario ya crea un `auth.users` + fila en `pos_users` (ver flujo actual de creación de usuarios); solo hay que componer el email = usuario + '@' + dominio_de_marca_activa, y setear `brand_id`/`branch_id` del contexto activo.
 
-**9. [REGLA confirmada por Sergio 2026-07-24 — usuario/rol MULTIMARCA]**
+**9. [DECISIÓN 2026-07-24 — DESCARTADO el multimarca-empleado. Se eligió OPCIÓN B: un usuario por marca.]** Se evaluó rol/usuario multimarca (un login + switch para empleados) vs. credenciales separadas por marca. **Elegido: B (separadas).** Razones: mucho menos código y riesgo, aislamiento perfecto (cada sesión = una sola marca, imposible mezclar datos), correo simple (1 usuario = 1 marca = 1 dominio). **El switch queda SOLO para el gerente/dueño.** Un empleado que trabaje en 2 marcas tendrá 2 logins (uno por marca) — se acepta ese costo. El multimarca-empleado queda como posible mejora v2 si algún día molesta. Lo de abajo (tabla puente, switch para no-gerentes, correo de marca de origen) queda SÓLO como referencia histórica, NO se implementa.
+
+**[Referencia histórica — NO implementar, ver decisión arriba] usuario/rol MULTIMARCA**
 Excepción a "solo el gerente hace switch": un usuario/rol puede trabajar en VARIAS marcas (ej. un cajero que atiende el restaurante Y la heladería).
 - **Botón "Asignar multimarca"** (lo usa el gerente al crear/editar el rol o el usuario): le da acceso a 2+ marcas.
 - **El usuario multimarca SÍ puede hacer switch** (desplegable arriba a la derecha, igual que el gerente), pero SOLO entre las marcas que le asignaron. Al iniciar sesión cae por defecto en una de ellas.
