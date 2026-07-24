@@ -197,9 +197,13 @@ function calc() {
   const total    = Math.max(0, subtotal + empaque + domi + tipAmt - SP.discount);
   const paid     = SP.payments.reduce((s, p) => s + p.amount, 0);
   const falta    = Math.max(0, total - paid);
+  // Vuelto ya "guardado" en los pagos aplicados: por cada pago en efectivo,
+  // lo recibido por encima de lo que cubría (received - amount). Antes esto se
+  // perdía al aplicar el pago (el vuelto se veía al escribir y desaparecía). #5
+  const vueltoGuardado = SP.payments.reduce((s, p) => s + Math.max(0, (p.received || p.amount) - p.amount), 0);
   const vuelto   = _esEfectivo()
-    ? Math.max(0, paid + SP.entry - total)
-    : Math.max(0, paid - total);
+    ? vueltoGuardado + Math.max(0, SP.entry - falta)   // exceso ya guardado + lo que se está digitando de más
+    : vueltoGuardado + Math.max(0, paid - total);
   const cubierto = paid >= total && total > 0;
   return { subtotal, empaque, domi, tipAmt, total, paid, falta, vuelto, cubierto };
 }
