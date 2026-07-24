@@ -597,7 +597,7 @@ La columna `meta` en `chat_channels` para WhatsApp es un **JSON serializado como
 
 **Reportado por Sergio mientras trabaja:**
 
-*(pendiente — se van agregando aquí)*
+5. **[BUG · cobro en efectivo] El vuelto se pierde al agregar el pago.** Síntoma de Sergio: al pagar en efectivo y digitar un valor SUPERIOR al total, no calcula el regreso — actúa como si se hubiera puesto el monto exacto. **Causa encontrada (pagos.js):** en `applyPayment()` el pago se guarda con `amount = Math.min(SP.entry, falta)` (topado a lo que se debe) y `received = SP.entry` (el real), y luego `SP.entry = 0`. Pero `calc()` calcula `vuelto = paid + SP.entry - total`, que tras aplicar da `total + 0 - total = 0` → **el vuelto se ve MIENTRAS se digita y desaparece al pulsar "Agregar pago"**. El dato NO se pierde: cada pago ya guarda `received` (la lista de pagos incluso muestra "Recibido X · vuelto Y" en la línea, ~pagos.js:387). **Fix propuesto:** que `vuelto` sume el exceso ya guardado, algo como `vuelto = Σ max(0, p.received - p.amount) de los pagos en efectivo + max(0, SP.entry - falta)`, cuidando no contar doble. Verificar también el pie (`foot-vuelto`) y la tarjeta `vuelto-card`.
 
 ---
 
