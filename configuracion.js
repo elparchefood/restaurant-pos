@@ -4,22 +4,19 @@
 // ── Estado ──────────────────────────────────────────────
 var STORAGE_KEY = 'pos.config.salon.v1';
 
+// Semilla mínima y genérica — SOLO se usa cuando un negocio nuevo no tiene
+// NINGÚN dato ni en la base ni en la caché local. (Antes traía "Barra" y
+// "Terraza" por defecto, que aparecían como zonas/mesas fantasma.)
 var SEED = {
   zones: [
     { id: 'z_adentro', name: 'Adentro'    },
-    { id: 'z_ante',    name: 'Antejardín' },
-    { id: 'z_terraza', name: 'Terraza'    }
+    { id: 'z_ante',    name: 'Antejardín' }
   ],
   tables: [
-    { id: 't01', zoneId: 'z_adentro', name: '01',    seats: 4 },
-    { id: 't02', zoneId: 'z_adentro', name: '02',    seats: 4 },
-    { id: 't03', zoneId: 'z_adentro', name: '03',    seats: 2 },
-    { id: 't04', zoneId: 'z_adentro', name: '04',    seats: 6 },
-    { id: 't05', zoneId: 'z_adentro', name: '05',    seats: 4 },
-    { id: 't06', zoneId: 'z_adentro', name: 'Barra', seats: 8 },
-    { id: 't07', zoneId: 'z_ante',    name: '06',    seats: 4 },
-    { id: 't08', zoneId: 'z_ante',    name: '07',    seats: 2 },
-    { id: 't09', zoneId: 'z_terraza', name: '08',    seats: 6 }
+    { id: 't01', zoneId: 'z_adentro', name: '01', seats: 4 },
+    { id: 't02', zoneId: 'z_adentro', name: '02', seats: 4 },
+    { id: 't03', zoneId: 'z_adentro', name: '03', seats: 4 },
+    { id: 't04', zoneId: 'z_adentro', name: '04', seats: 4 }
   ]
 };
 
@@ -31,7 +28,39 @@ var S = {
 };
 
 // ── Persistencia ────────────────────────────────────────
-function loadState() {
+// FUENTE DE VERDAD = la base (pos_tables). La memoria local es solo caché.
+// NUNCA se borra en masa por diferencia contra la copia local (eso causaba
+// que abrir Configuración en un equipo con memoria vacía borrara las mesas
+// reales de todos). Ver #13 en ESTADO-SISTEMA.md.
+async function loadState() {
+  // 1) Cargar desde la base — manda lo que hay en Configuración/BD
+  try {
+    var res = await sb.auth.getUser();
+    var user = res.data && res.data.user;
+    var branchId = user && user.user_metadata && user.user_metadata.branch_id;
+    if (branchId) {
+      _cfgBranchId = branchId;
+      var tRes = await sb.from('pos_tables')
+        .select('id,name,capacity,zone_id,zone_name,sort_order')
+        .eq('branch_id', branchId)
+        .order('sort_order', { ascending: true });
+      if (tRes.error) throw tRes.error;
+      var rows = tRes.data || [];
+      if (rows.length) {
+        S.tables = rows.map(function(r){
+          return { id: r.id, name: r.name, seats: r.capacity || 4, zoneId: r.zone_id || 'z_adentro' };
+        });
+        S.zones = zonesFromTables(rows);
+        cacheLocal();
+        return;
+      }
+      // La base no tiene mesas para esta sucursal → probar caché/semilla abajo.
+    }
+  } catch (e) {
+    console.warn('[config] loadState: no pude leer la base, uso caché local:', e && e.message);
+  }
+
+  // 2) Caché local (solo si la base no dio nada)
   try {
     var raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -43,15 +72,31 @@ function loadState() {
       }
     }
   } catch(e) {}
+
+  // 3) Semilla mínima — solo negocio nuevo, sin datos en ningún lado
   S.zones  = JSON.parse(JSON.stringify(SEED.zones));
   S.tables = JSON.parse(JSON.stringify(SEED.tables));
 }
 
+// Reconstruye la lista de zonas a partir de las mesas de la base.
+// Garantiza que NINGUNA mesa quede huérfana: si una mesa apunta a una zona,
+// esa zona siempre existe en la lista.
+function zonesFromTables(rows) {
+  var seen = {}, zones = [];
+  rows.forEach(function(r){
+    var id = r.zone_id || 'z_adentro';
+    if (!seen[id]) { seen[id] = true; zones.push({ id: id, name: r.zone_name || 'Adentro' }); }
+  });
+  return zones.length ? zones : JSON.parse(JSON.stringify(SEED.zones));
+}
+
+function cacheLocal() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ zones: S.zones, tables: S.tables })); } catch(e) {}
+}
+
 function saveState() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ zones: S.zones, tables: S.tables }));
-  } catch(e) {}
-  syncToSupabase(); // fire-and-forget
+  cacheLocal();
+  syncToSupabase(); // fire-and-forget — solo INSERTA/ACTUALIZA, nunca borra en masa
 }
 
 // ── Sync a Supabase pos_tables ────────────────────────
@@ -68,8 +113,6 @@ async function syncToSupabase() {
     var existing = exRes.data || [];
     var existingMap = {};
     existing.forEach(function(r){ existingMap[r.id] = r.status; });
-
-    var localIds = S.tables.map(function(t){ return t.id; });
 
     // Mapa de zona para resolver zone_name
     var zoneNameMap = {};
@@ -109,13 +152,10 @@ async function syncToSupabase() {
         .eq('id', t.id);
     }
 
-    // 3. Eliminar mesas borradas — solo si estan libres
-    var toDelete = Object.keys(existingMap).filter(function(id){
-      return !localIds.includes(id) && existingMap[id] === 'libre';
-    });
-    if (toDelete.length) {
-      await sb.from('pos_tables').delete().in('id', toDelete);
-    }
+    // 3. (ELIMINADO) Antes se borraban en masa las mesas que no estaban en la
+    //    copia local. Eso causaba pérdida de datos: un equipo con memoria vacía
+    //    borraba las mesas reales de todos. El borrado ahora es EXPLÍCITO y por
+    //    una sola mesa, dentro de deleteTable(). Ver #13.
 
   } catch(e) {
     console.warn('[configuracion] syncToSupabase:', e.message || e);
@@ -483,10 +523,35 @@ function duplicateTable(id) {
 }
 
 // ── Eliminar mesa ────────────────────────────────────────
-function deleteTable(id) {
+// Borrado EXPLÍCITO y de una sola mesa. Nunca se borra una mesa ocupada, y
+// nunca se borra nada como efecto secundario de sincronizar (ver #13).
+async function deleteTable(id) {
+  try {
+    if (_cfgBranchId) {
+      var del = await sb.from('pos_tables')
+        .delete()
+        .eq('id', id).eq('branch_id', _cfgBranchId).eq('status', 'libre')
+        .select('id');
+      if (del.error) throw del.error;
+      // Si no borró nada, puede ser que la mesa esté OCUPADA (o que solo
+      // existiera en local). Verificamos antes de quitarla de la pantalla.
+      if (!del.data || !del.data.length) {
+        var chk = await sb.from('pos_tables').select('status').eq('id', id).maybeSingle();
+        if (chk.data && chk.data.status && chk.data.status !== 'libre') {
+          showToast('No se puede borrar: la mesa está ocupada');
+          return;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[config] deleteTable:', e && e.message);
+    showToast('No se pudo borrar la mesa (revisa la conexión)');
+    return;
+  }
+  // Confirmado en la base (o mesa que solo existía en local) → quitar de la UI
   S.tables = S.tables.filter(function(t){ return t.id !== id; });
   S.selectedTable = null;
-  saveState();
+  cacheLocal();
   $('pane-inspector').classList.remove('on');
   $('pane-zones').classList.add('on');
   renderGrid();
@@ -908,12 +973,12 @@ async function saveGeneral() {
 }
 
 // ── Boot ─────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', function() {
-  loadState();
+document.addEventListener('DOMContentLoaded', async function() {
+  // Cargar la config REAL desde la base antes de pintar nada.
+  // (Antes se hacía syncToSupabase() aquí, que borraba las mesas de la base
+  //  si este equipo tenía la memoria vacía. Eliminado. Ver #13.)
+  await loadState();
   S.activeZone = S.zones[0] ? S.zones[0].id : null;
-  // Auto-sync al abrir la página: garantiza que Supabase siempre tenga la config más reciente.
-  // Esto permite que el ejecutable Electron y la APK lean la config correcta desde Supabase.
-  syncToSupabase();
 
   // render inicial completo
   renderZoneTabs();
