@@ -1483,36 +1483,39 @@ async function saveCustomUnits() {
   } catch (e) { console.warn('[inventario] saveCustomUnits:', e && e.message); }
 }
 
-// ── Stock: modo de captura (unidad de compra vs de uso) ────────
-let _stockUnitMode = 'buy'; // 'buy' | 'use'
-function updateStockLabel() {
+// ── Stock: modo de captura POR CAMPO (compra vs uso), independiente ────
+let _stockMode = { actual: 'buy', min: 'buy' };
+function stockUnitFor(field) {
   const buy = (document.getElementById('ins-buy-unit') || {}).value || 'u.compra';
   const use = (document.getElementById('ins-use-unit') || {}).value || 'u.uso';
-  const u = _stockUnitMode === 'use' ? use : buy;
-  const sl = document.getElementById('ins-stock-lbl'); if (sl) sl.textContent = 'Stock actual (' + u + ')';
-  const ml = document.getElementById('ins-min-lbl');   if (ml) ml.textContent = 'Stock mínimo (' + u + ')';
-  document.querySelectorAll('#ins-stockmode [data-stockmode]').forEach(b => {
-    const on = b.dataset.stockmode === _stockUnitMode;
-    b.classList.toggle('on', on);
-    b.style.background = on ? '#fff' : 'transparent';
-    b.style.color = on ? '#0F172A' : '#64748B';
-    b.style.fontWeight = on ? '700' : '600';
-    b.style.boxShadow = on ? '0 1px 2px rgba(15,23,42,.1)' : 'none';
+  return _stockMode[field] === 'use' ? use : buy;
+}
+function updateStockLabel() {
+  const sl = document.getElementById('ins-stock-lbl'); if (sl) sl.textContent = 'Stock actual (' + stockUnitFor('actual') + ')';
+  const ml = document.getElementById('ins-min-lbl');   if (ml) ml.textContent = 'Stock mínimo (' + stockUnitFor('min') + ')';
+  document.querySelectorAll('.ins-stockmode').forEach(seg => {
+    const field = seg.dataset.for;
+    seg.querySelectorAll('[data-stockmode]').forEach(b => {
+      const on = b.dataset.stockmode === _stockMode[field];
+      b.classList.toggle('on', on);
+      b.style.background = on ? '#fff' : 'transparent';
+      b.style.color = on ? '#0F172A' : '#64748B';
+      b.style.fontWeight = on ? '700' : '600';
+      b.style.boxShadow = on ? '0 1px 2px rgba(15,23,42,.1)' : 'none';
+    });
   });
 }
-// Cambia el modo y convierte los valores digitados para que sigan siendo coherentes.
-function setStockMode(mode) {
-  if (mode === _stockUnitMode) return;
+// Cambia el modo de UN campo y convierte su valor para que siga siendo coherente.
+function setStockMode(field, mode) {
+  if (mode === _stockMode[field]) return;
   const conv = parseFloat((document.getElementById('ins-conversion') || {}).value) || 1;
   const d = conv > 0 ? conv : 1;
-  ['ins-stock', 'ins-min'].forEach(id => {
-    const inp = document.getElementById(id); if (!inp) return;
+  const inp = document.getElementById(field === 'actual' ? 'ins-stock' : 'ins-min');
+  if (inp) {
     const cur = parseFloat(inp.value);
-    if (!isNaN(cur) && cur !== 0) {
-      inp.value = mode === 'use' ? +(cur * d).toFixed(3) : +(cur / d).toFixed(3);
-    }
-  });
-  _stockUnitMode = mode;
+    if (!isNaN(cur) && cur !== 0) inp.value = mode === 'use' ? +(cur * d).toFixed(3) : +(cur / d).toFixed(3);
+  }
+  _stockMode[field] = mode;
   updateStockLabel();
 }
 
@@ -1537,7 +1540,7 @@ function abrirEditorInsumo(insId) {
   if (catNewInp) { catNewInp.value=''; catNewInp.classList.add('is-hidden'); }
   buildUnitOptions('ins-buy-unit', BASE_BUY_UNITS, ins?.buyUnit || 'unidad');
   buildUnitOptions('ins-use-unit', BASE_USE_UNITS, ins?.useUnit || 'g');
-  _stockUnitMode = 'buy';       // el stock guardado siempre está en u.compra
+  _stockMode = { actual: 'buy', min: 'buy' };  // el stock guardado siempre está en u.compra
   updateStockLabel();
   updateTogglePrepUI();
   document.getElementById('ins-cost-hint').classList.add('is-hidden');
@@ -1690,11 +1693,13 @@ async function guardarInsumo() {
   const conversion=parseFloat(document.getElementById('ins-conversion').value)||1;
   let   stock   = parseFloat(document.getElementById('ins-stock').value)||0;
   let   min     = parseFloat(document.getElementById('ins-min').value)||0;
-  // El stock SIEMPRE se guarda en unidad de compra. Si se digitó en unidad de
-  // uso (ej. "24 panes"), se convierte dividiendo por la conversión.
-  if (_stockUnitMode === 'use') {
+  // El stock SIEMPRE se guarda en unidad de compra. Cada campo tiene su propio
+  // modo: si se digitó en unidad de uso (ej. "24 panes"), se divide por la
+  // conversión para convertirlo a unidad de compra.
+  {
     const d = conversion > 0 ? conversion : 1;
-    stock = stock / d; min = min / d;
+    if (_stockMode.actual === 'use') stock = stock / d;
+    if (_stockMode.min === 'use')    min   = min / d;
   }
   const buyUnit = document.getElementById('ins-buy-unit').value;
   const useUnit = document.getElementById('ins-use-unit').value;
@@ -1998,9 +2003,14 @@ document.querySelectorAll('.iv-tab').forEach(tab=>{
 document.getElementById('nav-unidades')?.addEventListener('click',()=>showScreen('unidades'));
 document.getElementById('nav-params')?.addEventListener('click',()=>document.getElementById('panel-params').classList.remove('is-hidden'));
 document.getElementById('btn-nuevo-insumo')?.addEventListener('click',()=>abrirEditorInsumo(null));
-document.getElementById('ins-stockmode')?.addEventListener('click',function(ev){
-  const b=ev.target.closest('[data-stockmode]'); if (b) setStockMode(b.dataset.stockmode);
+document.querySelectorAll('.ins-stockmode').forEach(function(seg){
+  seg.addEventListener('click',function(ev){
+    const b=ev.target.closest('[data-stockmode]'); if (b) setStockMode(seg.dataset.for, b.dataset.stockmode);
+  });
 });
+// Si cambian la unidad de compra o de receta, refrescar las etiquetas del stock.
+document.getElementById('ins-buy-unit')?.addEventListener('change', updateStockLabel);
+document.getElementById('ins-use-unit')?.addEventListener('change', updateStockLabel);
 document.getElementById('btn-registrar-compra')?.addEventListener('click',function(){
   // Registrar compra: permiso inventario.compras; sin permiso pide PIN.
   if(window.posGuard) window.posGuard('inventario.compras',abrirCompra,'Registrar compras requiere permiso de administrador.');
