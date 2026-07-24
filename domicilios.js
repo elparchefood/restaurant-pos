@@ -290,6 +290,8 @@ function _orderRowToDelivery(o) {
 async function loadData() {
   if (!S.tenantId) return;
   await loadCatalog();
+  // Estado de inventario (bloquear/avisar productos sin insumo)
+  if (window.posStock) { try { await posStock.load(sb); } catch (e) { console.warn('posStock:', e); } }
   // Domiciliarios: carga en paralelo sin bloquear la UI
   _fetchDomiciliarios();
 }
@@ -527,8 +529,9 @@ function renderProdGrid(el, prods) {
     const thumb  = p.photo_url
       ? `<img src="${p.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:9px">`
       : `<span class="d-thumb-lbl">${p.name}</span>`;
-    return `<button class="lm-prod" data-add="${p.id}">
+    return `<button class="lm-prod${window.posStock ? ' ' + posStock.cardClass(p.id) : ''}" data-add="${p.id}">
       <div style="position:relative">
+        ${window.posStock ? posStock.badge(p.id) : ''}
         <div class="d-thumb" style="aspect-ratio:4/3">${thumb}</div>
 
         ${qty > 0 ? `<span class="d-qty">${qty}</span>` : ''}
@@ -627,9 +630,16 @@ function pmSteps(p){
   return steps;
 }
 
-function openProductModal(prodId) {
+function openProductModal(prodId, _confirmed) {
   const p = S.products.find(x=>x.id===prodId);
   if(!p) return;
+  // Control de inventario (bloquea o avisa según la política). Un solo punto.
+  if (!_confirmed && window.posStock && posStock.agotado(prodId)) {
+    const falt = posStock.faltantes(prodId);
+    if (!posStock.allow) { posStock.toast('Sin inventario: ' + falt.join(', ') + (falt.length === 1 ? ' agotado' : ' agotados')); return; }
+    posStock.warn(p.name, falt).then(function (ok) { if (ok) openProductModal(prodId, true); });
+    return;
+  }
   WIP = { prod:p, stepIdx:0, pres:null, vars:{}, mods:{}, qty:1, note:'' };
   const hasPres=(p.presentations||[]).length>1;
   if(!hasPres){

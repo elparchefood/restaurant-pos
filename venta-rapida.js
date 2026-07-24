@@ -385,8 +385,9 @@
     return prods.map(p => {
       const qty = prodQtyInCart(p.id);
       return `
-        <button class="lm-prod" data-add="${p.id}">
+        <button class="lm-prod${window.posStock ? ' ' + posStock.cardClass(p.id) : ''}" data-add="${p.id}">
           <div class="tp-prod-thumbwrap">
+            ${window.posStock ? posStock.badge(p.id) : ''}
             ${p.photo_url
               ? `<img src="${p.photo_url}" alt="" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:9px 9px 0 0;display:block">`
               : `<div class="tp-thumb" style="height:90px"><span class="tp-thumb-label">foto · …</span></div>`
@@ -1076,9 +1077,17 @@
   function vrEsc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function vrAttr(s){ return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
-  function vrOpenProductModal(prodId) {
+  function vrOpenProductModal(prodId, _confirmed) {
     const p = S.products.find(x => String(x.id) === String(prodId));
     if (!p) return;
+    // Control de inventario (bloquea o avisa según la política). Un solo punto
+    // cubre todos los caminos: categoría, menú, favoritos, búsqueda.
+    if (!_confirmed && window.posStock && posStock.agotado(prodId)) {
+      const falt = posStock.faltantes(prodId);
+      if (!posStock.allow) { posStock.toast('Sin inventario: ' + falt.join(', ') + (falt.length === 1 ? ' agotado' : ' agotados')); return; }
+      posStock.warn(p.name, falt).then(function (ok) { if (ok) vrOpenProductModal(prodId, true); });
+      return;
+    }
     const hasPres = (p.presentations||[]).length > 1;
     // Igual que Mesa: SIEMPRE abrir el modal (para poder elegir presentación,
     // adiciones y notas), incluso para productos "simples".
@@ -1544,6 +1553,7 @@
         if (window.cajaGuard && !(await window.cajaGuard(window._pos.state.branchId))) return;
             await loadBranch();
         await loadCatalog();
+        if (window.posStock) { try { await posStock.load(getSb()); } catch (e) { console.warn('posStock:', e); } if (S.currentCatId) openCategory(S.currentCatId); }
         refreshBadges();
       });
     }
