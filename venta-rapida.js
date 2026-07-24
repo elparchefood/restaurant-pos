@@ -387,7 +387,7 @@
         <button class="lm-prod" data-add="${p.id}">
           <div class="tp-prod-thumbwrap">
             ${p.photo_url
-              ? `<img src="${p.photo_url}" alt="" style="width:100%;height:90px;object-fit:cover;border-radius:9px 9px 0 0;display:block">`
+              ? `<img src="${p.photo_url}" alt="" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:9px 9px 0 0;display:block">`
               : `<div class="tp-thumb" style="height:90px"><span class="tp-thumb-label">foto · …</span></div>`
             }
             ${p.is_favorite ? `<span class="tp-star-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>` : ''}
@@ -1450,6 +1450,66 @@
     updateClienteDisplay();
 
     setupTabs();
+
+    // #19 — barra lateral colapsable en tablet (igual que mesa)
+  (function setupSideGesture() {
+    const side = document.querySelector('.tp-side');
+    const grip = document.getElementById('tp-side-toggle');
+    const backdrop = document.getElementById('tp-side-backdrop');
+    if (!side || !grip) return;
+    const UMBRAL = 40;   // px de arrastre para que cuente como deslizamiento
+
+    const abierta = () => side.classList.contains('tp-side--expanded');
+    function setOpen(open) {
+      side.classList.toggle('tp-side--expanded', open);
+      if (backdrop) backdrop.classList.toggle('is-visible', open);
+      const t = open ? 'Desliza o toca para cerrar el menú' : 'Desliza o toca para abrir el menú';
+      grip.title = t;
+      grip.setAttribute('aria-label', open ? 'Cerrar menú' : 'Abrir menú');
+    }
+
+    let x0 = 0, y0 = 0, dx = 0, arrastrando = false, movio = false;
+    grip.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      arrastrando = true; movio = false; dx = 0;
+      x0 = e.clientX; y0 = e.clientY;
+      try { grip.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    grip.addEventListener('pointermove', e => {
+      if (!arrastrando) return;
+      dx = e.clientX - x0;
+      if (Math.abs(dx) > 6 || Math.abs(e.clientY - y0) > 6) movio = true;
+      // El asa acompaña al dedo (tope de 34px) para que el gesto se sienta vivo
+      const lim = Math.max(-34, Math.min(34, dx));
+      grip.style.transform = `translateX(${lim}px)`;
+    });
+    function finArrastre() {
+      if (!arrastrando) return;
+      arrastrando = false;
+      grip.style.transform = '';
+      if (!movio) { setOpen(!abierta()); return; }   // fue un toque simple
+      if (dx >  UMBRAL) setOpen(true);
+      else if (dx < -UMBRAL) setOpen(false);
+    }
+    grip.addEventListener('pointerup', finArrastre);
+    grip.addEventListener('pointercancel', finArrastre);
+
+    // Deslizar hacia la izquierda sobre la barra abierta también cierra
+    let sx = 0, siguiendo = false;
+    side.addEventListener('pointerdown', e => {
+      if (!abierta() || e.target.closest('.tp-side-grip')) return;
+      siguiendo = true; sx = e.clientX;
+    });
+    side.addEventListener('pointerup', e => {
+      if (!siguiendo) return;
+      siguiendo = false;
+      if (e.clientX - sx < -UMBRAL) setOpen(false);
+    });
+
+    // Tocar fuera de la barra la cierra
+    if (backdrop) backdrop.addEventListener('click', () => setOpen(false));
+  })();
+
     try { S.etiqueta = localStorage.getItem('pos.vr.etiqueta') || null; } catch(e) {}
     renderEtiquetas();
     setupClienteRow();

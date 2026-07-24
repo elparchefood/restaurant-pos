@@ -670,3 +670,96 @@ svg { display: block; }
 .d-field-lbl{font-size:13px;font-weight:600;color:var(--ink);}
 .d-input{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:var(--r-lg);font-size:13.5px;font-weight:500;color:var(--ink);background:#fff;box-sizing:border-box;transition:border-color .15s,box-shadow .15s;}
 .d-input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(91,107,255,.12);outline:none;}
+
+/* ── Tablet: barra lateral colapsable (portado de mesa, #19) ── */
+.tp-side-grip    { display: none; }   /* solo tablet: se activa en el @media */
+.tp-side-backdrop { display: none; }
+
+@media (max-width: 1100px) {
+  .tp-side {
+    width: 58px;
+    position: relative;
+    overflow: visible;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+
+  /* Asa deslizable: sustituye la flecha. Comunica "arrastrame" y ademas
+     acepta un toque simple (respaldo con las manos ocupadas en cocina). */
+  .tp-side-grip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: absolute;
+    /* Apoyada EN el borde derecho (antes con `right` caía dentro del riel y se
+       montaba sobre los iconos) y por debajo de ellos para no cortar el flujo. */
+    left: calc(100% - 3px);
+    right: auto;
+    top: auto;
+    bottom: 132px;
+    padding: 0;
+    background: none;
+    border: none;
+    cursor: grab;
+    z-index: 501;
+    touch-action: none;          /* el gesto lo maneja el JS, no el scroll */
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tp-side-grip:active { cursor: grabbing; }
+  .tp-grip-bar {
+    width: 5px; height: 46px; border-radius: 99px;
+    background: #CBD5E1; flex-shrink: 0;
+    transition: background .15s, height .15s;
+  }
+  .tp-side-grip:hover .tp-grip-bar,
+  .tp-side-grip:active .tp-grip-bar { background: #5B6BFF; height: 56px; }
+  .tp-grip-hint {
+    display: flex; align-items: center; gap: 2px;
+    font-size: 9.5px; font-weight: 700; color: #94A3B8;
+    white-space: nowrap; pointer-events: none;
+  }
+  .tp-grip-arrow { transition: transform .2s ease; }
+  /* Abierta: la barra se ve sobre el fondo oscuro y la flecha apunta adentro */
+  .tp-side--expanded .tp-grip-bar { background: #E2E8F0; }
+  .tp-side--expanded .tp-grip-hint { color: #fff; }
+  .tp-side--expanded .tp-grip-arrow { transform: rotate(180deg); }
+  /* Mientras se arrastra, sin animacion para que siga al dedo */
+  .tp-side.is-dragging { transition: none !important; }
+
+  /* Ocultar textos en estado compacto */
+  .tp-side:not(.tp-side--expanded) .tp-brand-name,
+  .tp-side:not(.tp-side--expanded) .tp-brand-sub,
+  .tp-side:not(.tp-side--expanded) .tp-side-section-wrap,
+  .tp-side:not(.tp-side--expanded) .lm-nav .tp-nav-l span:last-child,
+  .tp-side:not(.tp-side--expanded) .tp-cartmini-title,
+  .tp-side:not(.tp-side--expanded) .tp-cartmini-sub,
+  .tp-side:not(.tp-side--expanded) .tp-nav-divider { display: none !important; }
+
+  /* Ítems nav centrados cuando colapsado */
+  .tp-side:not(.tp-side--expanded) .tp-nav  { padding: 6px; }
+  .tp-side:not(.tp-side--expanded) .lm-nav  { padding: 10px; justify-content: center; }
+  .tp-side:not(.tp-side--expanded) .lm-nav .tp-nav-l { gap: 0; }
+  .tp-side:not(.tp-side--expanded) .tp-brand { padding: 12px; justify-content: center; gap: 0; }
+  .tp-side:not(.tp-side--expanded) .tp-side-foot { padding: 8px 6px; }
+  .tp-side:not(.tp-side--expanded) .tp-cartmini { padding: 8px; justify-content: center; }
+  .tp-side:not(.tp-side--expanded) .tp-cartmini > div { display: none; }
+
+  /* Sidebar expandido: overlay flotante */
+  .tp-side.tp-side--expanded {
+    position: fixed;
+    left: 0; top: 0; bottom: 0;
+    width: 224px;
+    z-index: 500;
+    box-shadow: 4px 0 28px rgba(15,23,42,.18);
+  }
+
+  /* Backdrop semitransparente */
+  .tp-side-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15,23,42,.28);
+    z-index: 499;
+  }
+  .tp-side-backdrop.is-visible { display: block; }
+}
