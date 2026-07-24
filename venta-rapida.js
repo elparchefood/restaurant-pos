@@ -101,8 +101,9 @@
     // Meta-count
     $('vr-meta-count').textContent = count;
 
-    // Cliente cabecera
-    $('vr-meta-cliente').textContent = (S.cliente && S.cliente.nombre) || '—';
+    // Cliente cabecera (elemento removido: el cliente ya se ve en el selector)
+    var _vrMc = $('vr-meta-cliente');
+    if (_vrMc) _vrMc.textContent = (S.cliente && S.cliente.nombre) || '—';
 
     // Estado vacío / lleno
     $('vr-empty').hidden       = count > 0;
