@@ -27,6 +27,7 @@ let togglePrepOn = true;
 let compraQty = {};
 let compraPrices = {};
 let mermaOn = true;
+let ventaSinInvOn = false; // política: ¿permitir vender productos con insumos agotados?
 
 // ═══════════════════════════════════════════════════
 // HELPERS
@@ -1469,19 +1470,22 @@ async function loadCustomUnits() {
     if (cfg && Array.isArray(cfg.unidadesPersonalizadas)) {
       customUnits = cfg.unidadesPersonalizadas.map(u => typeof u === 'string' ? { nombre: u } : u).filter(u => u && u.nombre);
     }
+    ventaSinInvOn = !!(cfg && cfg.ventaSinInventario);
   } catch (e) { console.warn('[inventario] loadCustomUnits:', e && e.message); }
 }
-async function saveCustomUnits() {
+// Guarda un parche en operacion_config (read-merge-write, sincroniza a la tablet).
+async function saveOpConfigPatch(patch) {
   if (!branchId) return;
   try {
     const { data } = await iv_sb.from('branches').select('operacion_config').eq('id', branchId).maybeSingle();
     const cfg = (data && data.operacion_config && typeof data.operacion_config === 'object') ? data.operacion_config : {};
-    cfg.unidadesPersonalizadas = customUnits;
+    Object.assign(cfg, patch);
     cfg._ts = Date.now();
     await iv_sb.from('branches').update({ operacion_config: cfg }).eq('id', branchId);
     try { localStorage.setItem('pos.config.operacion.v1', JSON.stringify(cfg)); } catch (e) {}
-  } catch (e) { console.warn('[inventario] saveCustomUnits:', e && e.message); }
+  } catch (e) { console.warn('[inventario] saveOpConfigPatch:', e && e.message); }
 }
+function saveCustomUnits() { return saveOpConfigPatch({ unidadesPersonalizadas: customUnits }); }
 
 // ── Stock: modo de captura POR CAMPO (compra vs uso), independiente ────
 let _stockMode = { actual: 'buy', min: 'buy' };
@@ -1911,6 +1915,12 @@ function aplicarPrecioSugerido(prodId,precio) {
 // ═══════════════════════════════════════════════════
 // PARÁMETROS
 // ═══════════════════════════════════════════════════
+function toggleVentaSinInv() {
+  ventaSinInvOn = !ventaSinInvOn;
+  document.getElementById('toggle-vsi')?.classList.toggle('on', ventaSinInvOn);
+  const sw = document.getElementById('toggle-vsi-sw');
+  if (sw) { sw.classList.toggle('on', ventaSinInvOn); const lbl = sw.querySelector('.iv-switch-label'); if (lbl) lbl.textContent = ventaSinInvOn ? 'Sí' : 'No'; }
+}
 function toggleMerma() {
   mermaOn=!mermaOn; params.merma=mermaOn;
   document.getElementById('toggle-merma').classList.toggle('on',mermaOn);
@@ -1923,6 +1933,7 @@ async function guardarParams() {
   params.inf=parseInt(document.getElementById('param-inf').value);
   params.merma=mermaOn;
   await iv_sb.from('iv_params').upsert({tenant_id:tenantId,branch_id:branchId,fc_target:params.fc,op_cost:params.op,inflation:params.inf,merma_enabled:params.merma,updated_at:new Date().toISOString()},{onConflict:'branch_id'});
+  await saveOpConfigPatch({ ventaSinInventario: ventaSinInvOn }); // política de venta sin inventario (sincroniza a las pantallas de pedido)
   closePanel('panel-params');
   showToast('✓ Parámetros actualizados');
   renderRecetasList(); renderProductos();
@@ -2001,7 +2012,15 @@ document.querySelectorAll('.iv-tab').forEach(tab=>{
   tab.addEventListener('click',()=>showScreen(tab.dataset.screen));
 });
 document.getElementById('nav-unidades')?.addEventListener('click',()=>showScreen('unidades'));
-document.getElementById('nav-params')?.addEventListener('click',()=>document.getElementById('panel-params').classList.remove('is-hidden'));
+document.getElementById('nav-params')?.addEventListener('click',()=>{
+  // Sincronizar la UI del panel con lo guardado (antes mostraba valores fijos del HTML).
+  const setSlider=(id,val)=>{ const s=document.getElementById(id); if(s){s.value=val; const v=document.getElementById(id+'-val'); if(v) v.textContent=val+'%';} };
+  setSlider('param-fc',params.fc); setSlider('param-op',params.op); setSlider('param-inf',params.inf);
+  const syncTog=(tid,sid,on)=>{ document.getElementById(tid)?.classList.toggle('on',on); const sw=document.getElementById(sid); if(sw){sw.classList.toggle('on',on); const l=sw.querySelector('.iv-switch-label'); if(l) l.textContent=on?'Sí':'No';} };
+  syncTog('toggle-merma','toggle-merma-sw',mermaOn);
+  syncTog('toggle-vsi','toggle-vsi-sw',ventaSinInvOn);
+  document.getElementById('panel-params').classList.remove('is-hidden');
+});
 document.getElementById('btn-nuevo-insumo')?.addEventListener('click',()=>abrirEditorInsumo(null));
 document.querySelectorAll('.ins-stockmode').forEach(function(seg){
   seg.addEventListener('click',function(ev){

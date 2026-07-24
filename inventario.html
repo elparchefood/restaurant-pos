@@ -609,6 +609,10 @@
         <div style="flex:1"><div class="tt">Incluir merma (desperdicio)</div><div class="tx">Suma al costo el % que se pierde al preparar cada receta.</div></div>
         <span class="iv-switch on" id="toggle-merma-sw"><span class="iv-switch-label">Sí</span><span class="iv-switch-track"><span class="iv-switch-knob"></span></span></span>
       </div>
+      <div class="iv-toggle" id="toggle-vsi" onclick="toggleVentaSinInv()" style="margin-top:10px">
+        <div style="flex:1"><div class="tt">Permitir vender sin inventario</div><div class="tx">Si está apagado, no se pueden seleccionar productos con algún insumo agotado. Si está encendido, se puede vender pero avisa qué falta.</div></div>
+        <span class="iv-switch" id="toggle-vsi-sw"><span class="iv-switch-label">No</span><span class="iv-switch-track"><span class="iv-switch-knob"></span></span></span>
+      </div>
     </div>
     <div class="iv-panel-foot" style="justify-content:flex-end">
       <button class="iv-btn-ghost" onclick="closePanel('panel-params')">Cancelar</button>
@@ -722,7 +726,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-perms.js?v=1785030000"></script>
 <script>if(window.posRequirePin) posRequirePin('catalogo.editar');</script>
-<script src="inventario.js?v=1785401000"></script>
+<script src="inventario.js?v=1785410000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>
 </html>

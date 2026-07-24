@@ -57,6 +57,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadCatalog(),
   ]);
 
+  // 4b. Estado de inventario (para bloquear/avisar productos sin insumo)
+  if (window.posStock) { try { await posStock.load(sb); } catch (e) { console.warn('posStock:', e); } }
+
   // 5. Cargar pedido activo de la mesa (si existe)
   await loadOpenOrder();
 
@@ -355,8 +358,9 @@ function prodCard(p, color) {
   const precio = basePrice(p);
   const inCart = S.cart.some(it => it.productId === p.id);
   return `
-  <button class="lm-prod${inCart ? ' pulse' : ''}" data-prod-id="${p.id}" style="position:relative">
+  <button class="lm-prod${inCart ? ' pulse' : ''}${window.posStock ? ' ' + posStock.cardClass(p.id) : ''}" data-prod-id="${p.id}" style="position:relative">
     <div class="tp-prod-thumbwrap">
+      ${window.posStock ? posStock.badge(p.id) : ''}
       ${p.photo_url
         ? `<img src="${p.photo_url}" alt="${escHtml(p.name)}" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:9px 9px 0 0;display:block">`
         : `<div class="tp-thumb" style="height:90px;width:100%;border-radius:9px 9px 0 0;border:none">
@@ -1465,7 +1469,15 @@ function bindEvents() {
     // Tarjeta de producto → agregar
     const prodBtn = e.target.closest('[data-prod-id]');
     if (prodBtn) {
-      addToCart(prodBtn.dataset.prodId);
+      const _pid = prodBtn.dataset.prodId;
+      if (window.posStock && posStock.agotado(_pid)) {
+        const _falt = posStock.faltantes(_pid);
+        if (!posStock.allow) { posStock.toast('Sin inventario: ' + _falt.join(', ') + (_falt.length === 1 ? ' agotado' : ' agotados')); return; }
+        const _pr = S.products.find(p => p.id === _pid);
+        posStock.warn(_pr ? _pr.name : 'Producto', _falt).then(function (ok) { if (ok) addToCart(_pid); });
+        return;
+      }
+      addToCart(_pid);
       return;
     }
 
