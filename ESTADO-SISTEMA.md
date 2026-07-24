@@ -739,6 +739,20 @@ La columna `meta` en `chat_channels` para WhatsApp es un **JSON serializado como
 
 **Riesgo/ojo:** al tocar el alcance de roles y catálogo se puede romper el aislamiento entre tenants/marcas. Hacerlo junto con el "Blindaje interior de permisos (RLS)" de la sección de abajo, para que una marca no vea datos de otra.
 
+**7. [DISEÑO clave — pedido por Sergio 2026-07-24] Switch de marca + "contexto activo" (que TODA la config sea independiente por marca).**
+Idea de Sergio: un botón junto al desplegable del gerente con las marcas creadas; al hacer switch, absolutamente todo (roles, impresoras, catálogo, mesas, etc.) cambia a los datos de esa marca. Es el enfoque correcto y es lo que habilita "todo por marca".
+
+- **Hallazgo (verificado 2026-07-24):** hoy la sucursal NO es un contexto conmutable — está pegada al login de cada usuario. Medición: 7 archivos usan el central `window._pos.state.branchId`, pero **12 leen `user_metadata.branch_id` por su cuenta** (`catalogo-productos.js, configuracion.js, dashboard.js, domicilios.js, informes.js, inventario.js, onboarding.js, pos-perms.js, reservas.js, tomar-pedido.js, venta-rapida.js`, + pos-core.js). Ese es el verdadero obstáculo del switch.
+- **El esquema NO se rehace:** los datos ya están separados por `branch_id`/`tenant_id`, y las sucursales ya cuelgan de `brands`. Es re-enrutar, no reconstruir.
+- **Plan:**
+  1. **Un solo "contexto activo" (brandId + branchId)** como fuente de verdad, en `pos-core.js` (`_pos.state.brandId` + `_pos.state.branchId`), persistido en localStorage, con default = la sucursal del usuario. Este es el corazón.
+  2. **Botón de switch** junto al desplegable del gerente: lista `brands` del tenant; al elegir una, fija el contexto y recarga. Todo lo existente reaparece con los datos de esa marca.
+  3. **Re-enrutar las 12 pantallas** que hoy leen `user_metadata.branch_id` para que lean el contexto central. Es el 90% del trabajo — mecánico, bajo riesgo, pantalla por pantalla.
+  4. Agregar `brand_id` a roles (paso 3 de arriba) y revisar alcance del catálogo (paso 5 de arriba).
+  5. **Permisos:** el switch solo lo ve el dueño/gerente con acceso multi-marca; un cajero atado a una sucursal NO cambia de contexto.
+- **Nivel de esfuerzo:** MEDIO. El botón de switch es el 10% fácil; el 90% es que cada pantalla obedezca el contexto en vez del login. No es rewrite, pero tampoco es rápido. Hacerlo de una sola vez, no a medias (un contexto de sucursal incompleto puede mezclar datos).
+- **Aclaración de niveles:** una marca tiene VARIAS sucursales → el switch es de 2 niveles (marca, y dentro sucursal). Diseñar: cambiar de marca cae en su única/primera sucursal, con sub-selector si hay más. Confirmar con Sergio si sus dueños suelen tener 1 o varias sucursales por marca.
+
 ---
 
 ## PENDIENTE — Blindaje interior de permisos (RLS de negocio) — aprobado para DESPUÉS
