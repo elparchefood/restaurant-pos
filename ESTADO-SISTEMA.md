@@ -622,7 +622,7 @@ La columna `meta` en `chat_channels` para WhatsApp es un **JSON serializado como
 
 12. **Revisar por qué quedaron pedidos rápidos huérfanos** bloqueando el cierre de caja (3 pedidos `rapido` sin pagar, sin mesa, invisibles en la pestaña Rápidas, de sesiones viejas y la actual). Se cancelaron a mano. Falta: que no se creen huérfanos, o que la pantalla de Rápidas los muestre para poder cerrarlos desde la UI.
 
-13. **[CRÍTICO] Investigar por qué se BORRARON las mesas y zonas solas.** Durante el servicio desaparecieron de `pos_tables` las mesas 05, Barra, 06, 07, 08 y las zonas Antejardín/Terraza — solo quedaron 01-04 en Adentro. Se restauraron a mano (Adentro 01-05, Antejardín 06-08, capacidad 4 por defecto). **Sospecha principal:** la pantalla Configuración → Mesas y zonas sincronizando contra `pos_tables` con estado local vacío/obsoleto (borra las que no están en su copia). Revisar ese guardado y blindarlo para que NUNCA borre en masa. Es pérdida de datos en producción.
+13. ✅ **[HECHO 2026-07-24 — commits f946da3/adab7c9] [CRÍTICO] Investigar por qué se BORRARON las mesas y zonas solas.** Durante el servicio desaparecieron de `pos_tables` las mesas 05, Barra, 06, 07, 08 y las zonas Antejardín/Terraza — solo quedaron 01-04 en Adentro. Se restauraron a mano (Adentro 01-05, Antejardín 06-08, capacidad 4 por defecto). **Sospecha principal:** la pantalla Configuración → Mesas y zonas sincronizando contra `pos_tables` con estado local vacío/obsoleto (borra las que no están en su copia). Revisar ese guardado y blindarlo para que NUNCA borre en masa. Es pérdida de datos en producción.
 
 ### 🎨 Funciones nuevas y unificación visual — un rato cada una
 
