@@ -1215,6 +1215,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderDate();
   const branch   = await loadBranch();
   const branchId = branch?.id;
+  // Exponer la sucursal para los modales rápidos (Comprobantes, Meseros,
+  // Inventario), que antes leían window._branchId y nunca se asignaba.
+  window._branchId = branchId || null;
   await Promise.all([
     loadUser(branchId),
     loadSession(branchId),
@@ -1530,13 +1533,22 @@ async function qmLoadComprobantes() {
 
   var branchId = window._branchId || null;
   var today = new Date(); today.setHours(0,0,0,0);
+  // OJO: no pedir delivery_address/delivery_person — esas columnas NO existen
+  // en pos_orders y hacían que la consulta fallara (400) y el modal saliera
+  // vacío en silencio. Los datos de domicilio se resuelven con customer_name.
   var q = sb.from('pos_orders')
-    .select('id,total,status,channel,created_at,table_id,customer_name,delivery_address,delivery_person,payment_method')
+    .select('id,total,status,channel,created_at,table_id,customer_name,payment_method')
     .gte('created_at', today.toISOString())
     .order('created_at', { ascending: false })
     .limit(50);
   if (branchId) q = q.eq('branch_id', branchId);
-  var { data: orders } = await q;
+  var { data: orders, error } = await q;
+  if (error) {
+    console.error('[comprobantes] error al cargar pedidos:', error);
+    orderList.innerHTML = '<div style="padding:16px;text-align:center;color:#EF4444;font-size:13px">No se pudieron cargar los pedidos: ' + (error.message || 'error desconocido') + '</div>';
+    QM.ordersCache = [];
+    return;
+  }
   QM.ordersCache = orders || [];
 
   qmRenderOrderList(QM.ordersCache);
