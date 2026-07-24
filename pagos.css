@@ -26,7 +26,7 @@
   --faint:         #CBD5E1;   /* monto en cero, crumbs */
 
   /* marca / acentos */
-  --brand:         #5B6BFF;   /* azul Lumen (primario / tarjeta) */
+  --brand:         #5B6BFF;   /* azul de marca (primario / tarjeta) */
   --brand-press:   #4F5BE3;   /* hover primario */
   --brand-tint:    #EEF2FF;   /* fondo suave de marca */
   --brand-ring:    #C7D2FE;   /* borde foco/hover marca */

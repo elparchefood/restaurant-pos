@@ -119,7 +119,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,system-ui,sans-serif
 .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 16px;color:#94A3B8;gap:8px;font-size:13px;text-align:center}
 .empty svg{opacity:.35}
 
-/* ── LumenExtra sections ── */
+/* ── Cobra POS Extra sections ── */
 
 /* ── User dropdown ── */
 .user-menu-wrap{position:relative}

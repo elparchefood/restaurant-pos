@@ -1,6 +1,6 @@
 /* ============================================================
    INVENTARIO — Cobra POS · El Parche Food
-   Estilos exactos (lenguaje Lumen). Tokens + layout + componentes.
+   Estilos exactos (lenguaje Cobra POS). Tokens + layout + componentes.
    Pantallas: Productos · Insumos · Recetas y costeo · Unidades
    + paneles (Reponer, Registrar compra, Editor insumo/categoría,
    Parámetros de costeo, Receta).
@@ -21,7 +21,7 @@
   --slate:#475569;
   --cloud:#F8FAFC;
 
-  /* acento indigo Lumen */
+  /* acento indigo de marca */
   --indigo:#5B6BFF;
   --indigo-600:#4F5BE3;
   --indigo-soft:#EEF2FF;
