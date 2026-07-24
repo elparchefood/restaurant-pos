@@ -753,6 +753,16 @@ Idea de Sergio: un botón junto al desplegable del gerente con las marcas creada
 - **Nivel de esfuerzo:** MEDIO. El botón de switch es el 10% fácil; el 90% es que cada pantalla obedezca el contexto en vez del login. No es rewrite, pero tampoco es rápido. Hacerlo de una sola vez, no a medias (un contexto de sucursal incompleto puede mezclar datos).
 - **Aclaración de niveles:** una marca tiene VARIAS sucursales → el switch es de 2 niveles (marca, y dentro sucursal). Diseñar: cambiar de marca cae en su única/primera sucursal, con sub-selector si hay más. Confirmar con Sergio si sus dueños suelen tener 1 o varias sucursales por marca.
 
+**8. [REGLAS confirmadas por Sergio 2026-07-24 — quién hace switch y cómo se crean usuarios/roles]**
+- **Solo el gerente hace switch.** Los demás roles quedan atados a UNA marca y no perciben el switch — cada usuario ve únicamente su marca (su restaurante o su heladería).
+- **Roles por marca:** el gerente hace switch a una marca y crea los roles DENTRO de esa marca (`pos_roles.brand_id` = marca activa). Los roles de una marca y otra son independientes, jamás se mezclan. (Refuerza el paso 3.)
+- **Usuarios atados a la marca activa:** al crear un usuario estando en una marca, queda vinculado a esa marca/sucursal. Cuando esa cajera/mesero inicie sesión, solo ve lo de su marca.
+- **Formato del correo de login (auto):** el gerente escribe el **nombre** (ej. "Luis López") y el **nombre de usuario** (ej. "luislopez"); **lo de después de la `@` se genera solo a partir del nombre de la marca**. Ej.: marca "El Parche Food" → `luislopez@elparchefood.com`; marca heladería → `claudiagonzalez@delihelados.com`.
+  - **Regla del dominio:** slug del nombre de la marca (minúsculas, sin espacios ni tildes) + `.com`. Guardar el dominio resultante en la marca (columna nueva `brands.email_domain`, o derivarlo del `name` al vuelo) para que sea estable aunque se renombre la marca. Ideal: campo editable por si el slug automático no gusta.
+  - **Ventaja:** como el dominio cambia por marca, el mismo nombre de usuario puede repetirse en marcas distintas sin colisión (`luislopez@elparchefood.com` ≠ `luislopez@delihelados.com`).
+  - **Solo identificador de login:** ese correo es usuario+clave, NO un buzón real. Requiere tener DESACTIVADA la confirmación por email en Supabase Auth. Validar unicidad dentro de la marca (si el correo ya existe → avisar "ese usuario ya existe").
+  - **Implementación:** el alta de usuario ya crea un `auth.users` + fila en `pos_users` (ver flujo actual de creación de usuarios); solo hay que componer el email = usuario + '@' + dominio_de_marca_activa, y setear `brand_id`/`branch_id` del contexto activo.
+
 ---
 
 ## PENDIENTE — Blindaje interior de permisos (RLS de negocio) — aprobado para DESPUÉS
