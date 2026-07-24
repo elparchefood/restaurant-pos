@@ -597,6 +597,14 @@ La columna `meta` en `chat_channels` para WhatsApp es un **JSON serializado como
 
 **Reportado por Sergio mientras trabaja:**
 
+8. **[FEATURE · Ventas] "Ventas en curso" → pasar a VENTAS TOTALES DEL TURNO, con opción de ocultar por rol.** Pedido de Sergio (2026-07-23):
+   - **Hoy:** el indicador de arriba a la derecha (junto a "Tiempo promedio") muestra `enCurso` = suma de las mesas ABIERTAS en ese momento + "N ítems activos" (`modules/ventas-salon.js` ~1091-1094). Sergio no le ve utilidad así.
+   - **Quiere:** que muestre el **acumulado de ventas del TURNO** (caja abierta), para ir viendo toda la noche cómo suma y tener noción de lo vendido. Fuente natural: los pagos/pedidos de la sesión de caja actual (mismo dato que usa el cierre — `pos_payments`/`pos_orders` por `session_id`), para que cuadre con Caja.
+   - **Privacidad por rol:** desde **Configuración** se puede desactivar que la cajera (u otros roles) lo vea. Cuando está oculto, el recuadro **sigue ahí pero en asteriscos** (como una contraseña).
+   - **Revelar:** al tocarlo pide **PIN** (usar el `posPinPrompt`/`posGuard` que ya existe) y lo muestra.
+   - **Gerente:** lo ve normal sin PIN, y **al tocarlo también lo puede ocultar** (alternar).
+   - **Sugerencia de implementación:** permiso nuevo (p. ej. `ventas.ver_total_turno`) en el catálogo de roles + interruptor en Configuración; el valor se calcula del turno abierto; el enmascarado es solo de presentación (no ocultar el dato al calcular).
+
 7. **[FEATURE · tiempos por estado de mesa] Reloj que se reinicia en cada estado + modal de desglose.** Pedido de Sergio (2026-07-23):
    - **Hoy:** un solo reloj corre desde que el pedido se abre hasta que se libera la mesa. **Causa/base actual:** el badge usa `opened_at` (o `created_at`) del pedido como único punto de partida (`modules/ventas-salon.js` ~1304 `data-timer="${t.openedAt…}"` y ~1546-1547). Ya existe `pos_tables.esperando_at` (marca de entrada a "esperando"), pero el badge no la usa.
    - **Quiere:** que el reloj se **reinicie en cada cambio de estado** — pendiente_pago → esperando → comiendo (cada uno arranca de cero).
