@@ -252,9 +252,12 @@ async function renderGoal(orders, branchId) {
   $('g-pct-txt').textContent = target ? p + '% completado' : 'Define tu meta en Configuracion';
   $('g-vs').textContent      = target && actual ? COP(actual) + ' de ' + COP(target) : '';
 
-  const salon    = orders.filter(o=>!o.channel||o.channel==='salon').reduce((s,o)=>s+(o.total||0),0);
-  const delivery = orders.filter(o=>o.channel==='delivery').reduce((s,o)=>s+(o.total||0),0);
-  const counter  = orders.filter(o=>o.channel==='counter'||o.channel==='mostrador').reduce((s,o)=>s+(o.total||0),0);
+  // Usa normChannel para no volver a desincronizarse: el canal real de las
+  // ventas rápidas es 'rapido' (antes se filtraba 'counter'/'mostrador' que
+  // no existen → siempre $0). Ver #4.
+  const salon    = orders.filter(o=>normChannel(o.channel)==='salon').reduce((s,o)=>s+(o.total||0),0);
+  const delivery = orders.filter(o=>normChannel(o.channel)==='delivery').reduce((s,o)=>s+(o.total||0),0);
+  const counter  = orders.filter(o=>normChannel(o.channel)==='quick').reduce((s,o)=>s+(o.total||0),0);
   const tot = salon + delivery + counter || 1;
   $('g-salon').textContent    = COPF(salon);    $('g-salon-pct').textContent    = pct(salon,tot)+'%';
   $('g-delivery').textContent = COPF(delivery); $('g-delivery-pct').textContent = pct(delivery,tot)+'%';
@@ -1575,10 +1578,10 @@ function qmRenderOrderList(orders) {
   }
   orders.forEach(function(o) {
     var id = String(o.id || '').padStart(4, '0');
-    var ch = o.channel || 'salon';
-    var chCls = ch === 'delivery' ? 'is-domicilio' : ch === 'counter' ? 'is-mostrador' : 'is-salon';
-    var chLabel = ch === 'delivery' ? 'Domicilio' : ch === 'counter' ? 'Mostrador' : 'Salón' + (o.table_id ? ' · Mesa ' + o.table_id : '');
-    var who = ch === 'delivery' ? (o.delivery_address || o.customer_name || 'Domicilio') : (o.customer_name || (ch === 'counter' ? 'Venta rápida' : 'Mesa ' + (o.table_id||'')));
+    var ch = normChannel(o.channel);
+    var chCls = ch === 'delivery' ? 'is-domicilio' : ch === 'quick' ? 'is-mostrador' : 'is-salon';
+    var chLabel = ch === 'delivery' ? 'Domicilio' : ch === 'quick' ? 'Venta rápida' : 'Salón' + (o.table_id ? ' · Mesa ' + o.table_id : '');
+    var who = ch === 'delivery' ? (o.customer_name || 'Domicilio') : (o.customer_name || (ch === 'quick' ? 'Venta rápida' : 'Mesa ' + (o.table_id||'')));
     var t = new Date(o.created_at).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
     var total = '$' + Math.round(o.total||0).toLocaleString('es-CO');
     var btn = document.createElement('button');
@@ -1607,10 +1610,10 @@ function qmSelectOrder(id) {
   var o = QM.ordersCache.find(function(x){ return x.id == id; });
   if (!o) return;
 
-  var ch = o.channel || 'salon';
-  var chCls = ch === 'delivery' ? 'is-domicilio' : ch === 'counter' ? 'is-mostrador' : 'is-salon';
-  var chLabel = ch === 'delivery' ? 'Domicilio' : ch === 'counter' ? 'Mostrador' : 'Salón' + (o.table_id ? ' · Mesa ' + o.table_id : '');
-  var who = ch === 'delivery' ? (o.delivery_address || o.customer_name || 'Domicilio') : (o.customer_name || (ch === 'counter' ? 'Venta rápida' : 'Mesa ' + (o.table_id||'')));
+  var ch = normChannel(o.channel);
+  var chCls = ch === 'delivery' ? 'is-domicilio' : ch === 'quick' ? 'is-mostrador' : 'is-salon';
+  var chLabel = ch === 'delivery' ? 'Domicilio' : ch === 'quick' ? 'Venta rápida' : 'Salón' + (o.table_id ? ' · Mesa ' + o.table_id : '');
+  var who = ch === 'delivery' ? (o.customer_name || 'Domicilio') : (o.customer_name || (ch === 'quick' ? 'Venta rápida' : 'Mesa ' + (o.table_id||'')));
   var t = new Date(o.created_at).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
   var total = '$' + Math.round(o.total||0).toLocaleString('es-CO');
   var idStr = String(o.id||'').padStart(4,'0');
