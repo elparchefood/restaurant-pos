@@ -722,6 +722,38 @@ La columna `meta` en `chat_channels` para WhatsApp es un **JSON serializado como
 
 ---
 
+## HECHO 2026-07-24 — Notas frecuentes — IMPLEMENTADO (commit 57b6d6e)
+
+Chips de notas repetidas (sin cebolla, solo BBQ) al personalizar el plato, creadas en Configuracion → Operacion.
+- **Config:** seccion "Notas frecuentes" (Seccion 4c) con interruptor **Globales / Por categoria**. Global = una lista; Por categoria = un editor de notas por cada categoria de productos. Se guarda en `operacion_config.notasFrecuentes = {modo, global:[], cats:{catName:[...]}}` (sincroniza a tablet/exe via pos-core).
+- **Tomar pedido (`tomar-pedido.js` renderPM):** encima de "Nota para cocina" un selector: solo se ven las notas ELEGIDAS + boton "+ Nota frecuente". El boton abre un popover con **buscador** y **Mas usadas** (uso guardado en `localStorage pos.notas.uso`). Escala a muchas notas sin saturar la pantalla.
+- **Modelo:** la nota final es una lista separada por comas en `TP_WIP.note` (los chips togglean tokens); reusa la nota que ya existia → **se imprime igual en la comanda, sin cambios de impresion**. En modo "cat" muestra solo las notas de la categoria del plato.
+- **Sin notas configuradas → el selector no aparece** (wrap vacio), cero impacto en el flujo actual.
+- Pendiente de validar en hardware/tablet con datos reales.
+
+---
+
+## PENDIENTE — [Inventario] Productos de REVENTA (no requieren preparación) — diseño acordado con Sergio 2026-07-24
+
+Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete), NO armar una receta con ingredientes. Manejarlos por el MISMO motor de inventario/recetas pero como una relación **1:1** (1 unidad de producto = 1 unidad de su ítem de inventario), con un atajo para no llenar recetas.
+
+**Por qué unificado (no un sistema aparte):** un solo lugar para costo y stock; los reportes (costo de ventas, alertas de stock bajo, márgenes) funcionan igual para comida preparada y para bebidas; nada duplicado.
+
+**UX propuesta:**
+- En el editor del producto, un interruptor **"Producto de reventa (no requiere preparación)"**.
+- Al activarlo, el sistema crea/enlaza automáticamente un ítem de inventario del mismo nombre y arma la receta 1:1 por debajo (el gerente NO ve un formulario de receta).
+
+**Al crear el INSUMO de reventa (confirmado con Sergio):** se registra por **paquete de compra**, no por unidad —
+- **Precio del paquete completo** (ej. paca de 30 gaseosas = $30.000).
+- **Unidades por paquete** (ej. 30).
+- El sistema calcula solo el **costo por unidad** = precio_paquete / unidades (ej. $1.000). Ese es el costo que entra a las ganancias.
+- **El stock se cuenta en UNIDADES** (no en pacas): vender 1 → stock -1.
+- **Al surtir:** "recibí N pacas" → stock += N × unidades_por_paquete. Si cambió el precio de la paca, se actualiza ahí y el costo por unidad se recalcula solo.
+
+**Revisar en implementación:** `pos_ingredients` ya tiene `purchase_unit`, `stock`, `min_stock`. Falta ver si guarda "precio de paquete" + "unidades por paquete" (para derivar costo unitario) o si hay que agregar esos campos. Encaja con el sistema de recetas ya construido (`iv_recetas`, `iv_porciones`).
+
+---
+
 ## PENDIENTE — [Inventario] Productos de REVENTA (no requieren preparación) — diseño acordado con Sergio 2026-07-24
 
 Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete), NO armar una receta con ingredientes. Manejarlos por el MISMO motor de inventario/recetas pero como una relación **1:1** (1 unidad de producto = 1 unidad de su ítem de inventario), con un atajo para no llenar recetas.
