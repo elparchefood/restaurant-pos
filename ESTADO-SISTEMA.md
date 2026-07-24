@@ -707,6 +707,40 @@ La columna `meta` en `chat_channels` para WhatsApp es un **JSON serializado como
       · **El cuello de botella real es el WiFi**, no el software: las cocinas tienen paredes, acero y calor. Puede hacer falta un repetidor o punto mesh. Vale la pena advertírselo a cada restaurante al vender la función.
       · **Ubicación física:** lejos del fogón y de la grasa; si es tablet, con protección.
 
+## PENDIENTE — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
+
+**Contexto:** el sistema se vende a dueños con UNA marca o VARIAS (ej. una heladería + un restaurante bajo el mismo dueño, pero independientes por dentro). Cada marca crea sus sucursales (eso ya funciona). Falta la **creación/gestión de marcas** y dividir bien qué configuración es por-marca vs por-sucursal.
+
+**Lo que YA existe en la base (verificado 2026-07-24):** la jerarquía completa `tenants → brands → branches` ya está.
+- `tenants`: id, name, email, **plan**, status, stripe_customer_id. → El PLAN vive aquí.
+- `brands`: id, **tenant_id**, name, **logo_url**. → La tabla de marcas YA EXISTE.
+- `branches`: id, **brand_id**, tenant_id, name, operacion_config (jsonb)... → Las sucursales ya cuelgan de una marca.
+- `pos_roles`: id, **tenant_id**, name, perms[]. → Hoy los roles son por TENANT (compartidos por todas las marcas).
+- `pos_users`: id, **branch_id**, tenant_id, role, role_id, **sucursales[]** (multi-sucursal).
+
+**Conclusión:** crear marcas NO requiere rehacer el esquema — es sobre todo **construir la UI** en Configuración (del gerente/dueño) para crear/listar marcas, validando el plan. El único cambio de esquema recomendado es agregar `brand_id` a `pos_roles`.
+
+**Plan de implementación (para cuando se retome):**
+
+1. **Pantalla "Marcas" en Configuración** (solo dueño/gerente, con `posGuard`): listar las marcas del tenant (`select from brands where tenant_id = ...`), crear nueva (`insert into brands`), editar nombre/logo, y un selector de "marca activa" para el resto de la app.
+
+2. **Validar el plan al crear marca:** contar `brands` del tenant y comparar con el límite de `tenants.plan` (definir la tabla de límites por plan: p.ej. `basico`=1 marca, `multi`=N). Si excede → mensaje "Tu plan permite N marcas; mejora el plan". No dejar crear de más.
+
+3. **Roles → pasar a por-marca:** agregar columna `brand_id uuid null` a `pos_roles`. **Nullable a propósito:** `null` = plantilla compartida del tenant (defaults: admin, gerente, cajera, mesero); con `brand_id` = rol propio de esa marca. Razón: marcas distintas tienen cargos distintos (heladería: "despachador"; restaurante: "mesero"). `pos-perms.js` ya resuelve perms por rol; habría que filtrar los roles disponibles por la marca activa.
+
+4. **Usuarios → mantener por sucursal:** la sucursal ya implica la marca (`branches.brand_id`), así que no hace falta duplicar. En la UI de crear usuario: elegir **marca → sucursal → rol** (rol y sucursal ya filtrados por la marca elegida). El array `sucursales[]` sigue permitiendo multi-sucursal dentro de una marca.
+
+5. **Dividir configuración por-marca vs por-sucursal:**
+   - **Por MARCA:** menú/catálogo (`pos_products`/`pos_categories` — hoy cuelgan de branch/tenant, revisar), roles, logo/branding (`brands.logo_url`), defaults de impuestos/propina.
+   - **Por SUCURSAL:** mesas y zonas, meta diaria (`daily_goal`), impresoras, cobro adelantado, horarios. (Todo lo que hoy vive en `branches.operacion_config`.)
+   - Revisar dónde cuelga hoy el catálogo de productos: si es por branch, para multi-marca conviene moverlo/duplicarlo por marca.
+
+6. **Conexión con el #24 (logo del negocio):** el logo NO debe ir en `operacion_config` sino en **`brands.logo_url`** (columna que ya existe). Al implementar el #24, guardarlo ahí → queda automáticamente por-marca y reutilizable. Actualizar el plan del #24 con esto.
+
+**Riesgo/ojo:** al tocar el alcance de roles y catálogo se puede romper el aislamiento entre tenants/marcas. Hacerlo junto con el "Blindaje interior de permisos (RLS)" de la sección de abajo, para que una marca no vea datos de otra.
+
+---
+
 ## PENDIENTE — Blindaje interior de permisos (RLS de negocio) — aprobado para DESPUÉS
 
 Sergio (2026-07-23) aprobó hacer AHORA el arreglo de permisos del lado de la app (bloquear acciones en la interfaz) y dejar para después el blindaje contra alguien que sepa de código y quiera saltarse la interfaz por fuera (ej. llamar la API directo para hacer un fraude — anular un pago, aplicar un descuento sin permiso, ver ventas de otra caja).
