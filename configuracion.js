@@ -76,6 +76,7 @@ async function loadState() {
   // 3) Semilla mínima — solo negocio nuevo, sin datos en ningún lado
   S.zones  = JSON.parse(JSON.stringify(SEED.zones));
   S.tables = JSON.parse(JSON.stringify(SEED.tables));
+  S._fromSeed = true; // el boot la subirá a la base (solo inserta, nunca borra)
 }
 
 // Reconstruye la lista de zonas a partir de las mesas de la base.
@@ -979,6 +980,10 @@ document.addEventListener('DOMContentLoaded', async function() {
   //  si este equipo tenía la memoria vacía. Eliminado. Ver #13.)
   await loadState();
   S.activeZone = S.zones[0] ? S.zones[0].id : null;
+
+  // Negocio nuevo (la base estaba vacía y usamos la semilla): subir las mesas
+  // iniciales UNA vez. syncToSupabase solo INSERTA/ACTUALIZA — nunca borra.
+  if (S._fromSeed && _cfgBranchId) { S._fromSeed = false; syncToSupabase(); }
 
   // render inicial completo
   renderZoneTabs();
