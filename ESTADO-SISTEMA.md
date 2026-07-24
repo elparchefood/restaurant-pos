@@ -580,6 +580,27 @@ La columna `meta` en `chat_channels` para WhatsApp es un **JSON serializado como
 
 **Plan aprobado (pendiente de construir):** (1) helper único `posHasPerm('id')` que carga el rol una vez y todas las páginas consultan; (2) cablear los 13 permisos para que bloqueen la ACCIÓN (no solo escondan el botón); (3) admin/gerente = todo siempre (correcto), pero cajero sigue sus perms reales (quitar el sí gratis); (4) endurecimiento server-side (RLS de negocio) = pendiente SEPARADO más grande, no mezclar. Falta agregar permiso `caja.abrir`/`caja.cerrar` al catálogo (para el multi-caja).
 
+## 🔴 PARA MAÑANA — 2026-07-24 (lista corta, lo primero al retomar)
+
+> Lista separada de los pendientes grandes de abajo (multi-caja, Modo Gerente, RLS). Esto es lo inmediato.
+> Sergio va reportando correcciones mientras trabaja (2026-07-23) y se anotan aquí.
+
+**Heredado de hoy (2026-07-23):**
+
+1. **[CRÍTICO] Investigar por qué se BORRARON las mesas y zonas solas.** Durante el servicio desaparecieron de `pos_tables` las mesas 05, Barra, 06, 07, 08 y las zonas Antejardín/Terraza — solo quedaron 01-04 en Adentro. Se restauraron a mano (Adentro 01-05, Antejardín 06-08, capacidad 4 por defecto). **Sospecha principal:** la pantalla Configuración → Mesas y zonas sincronizando contra `pos_tables` con estado local vacío/obsoleto (borra las que no están en su copia). Revisar ese guardado y blindarlo para que NUNCA borre en masa. Es pérdida de datos en producción.
+
+2. **Validar en hardware la impresión de comandas.** Quedó sin probar tras arreglar el bucle infinito (rondas 51-52). Probar los 3 casos: sin prepago (1ª completa, adds solo lo nuevo), prepago sin pagar (completa cada vez), prepago pagado (solo lo nuevo). Confirmar que NO se repite. Ya se purgaron 213 trabajos atascados de la cola de Windows (impresora CAJA.2).
+
+3. **Preguntar a Sergio si quiere de vuelta la mesa "Barra" y la zona "Terraza"** (existían antes del borrado, no se restauraron por no estar seguros). Y ajustar capacidades de 05/06/07/08 (quedaron en 4 por defecto).
+
+4. **Revisar por qué quedaron pedidos rápidos huérfanos** bloqueando el cierre de caja (3 pedidos `rapido` sin pagar, sin mesa, invisibles en la pestaña Rápidas, de sesiones viejas y la actual). Se cancelaron a mano. Falta: que no se creen huérfanos, o que la pantalla de Rápidas los muestre para poder cerrarlos desde la UI.
+
+**Reportado por Sergio mientras trabaja:**
+
+*(pendiente — se van agregando aquí)*
+
+---
+
 ## PENDIENTE — Blindaje interior de permisos (RLS de negocio) — aprobado para DESPUÉS
 
 Sergio (2026-07-23) aprobó hacer AHORA el arreglo de permisos del lado de la app (bloquear acciones en la interfaz) y dejar para después el blindaje contra alguien que sepa de código y quiera saltarse la interfaz por fuera (ej. llamar la API directo para hacer un fraude — anular un pago, aplicar un descuento sin permiso, ver ventas de otra caja).
