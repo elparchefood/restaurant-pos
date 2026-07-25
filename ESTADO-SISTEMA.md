@@ -1029,6 +1029,16 @@ El azul actual del Chat IA le parece "raro" a Sergio y es la pantalla que MÁS v
 
 ---
 
+## PENDIENTE — [Impresión] Recibo del domiciliario: mostrar TOTAL completo + opción de 2 copias — Sergio 2026-07-24
+
+**1. El recibo del domiciliario debe mostrar el TOTAL A COBRAR completo (comida + domicilio), no el "restante".** Hoy en `pos-print.js` (~líneas 13-19, la caja "COBRAR") cuando hay abono/cobro adelantado imprime `COBRAR: total − paid` = solo el restante. En un domicilio (sobre todo con externo) el domiciliario le cobra al cliente el **total completo** (comida + domi); si el recibo muestra solo el restante, confunde al domiciliario Y al cliente. **Fix:** en el recibo de domicilio mostrar claro el **TOTAL que el cliente paga** (comida + domicilio), no el neto tras el cobro adelantado. Revisar la caja "COBRAR" (líneas 13-19) y los builds de recibo (RECIBO ~línea 113 y "RECIBO DEL CLIENTE" ~línea 148). Ojo: `order.total` ya incluye el domicilio; el problema es la lógica de "restante" del cobro adelantado.
+
+**2. Opción para imprimir 1 o 2 COPIAS del recibo** (una para el cliente, otra para el domiciliario). Interruptor/selector en **Configuración → Operación** (guardar en `operacion_config`, ej. `recibosCopiasDomicilio: 1|2`). Al tocar "Imprimir recibo" en un domicilio, imprime N copias según lo configurado. Reusar `posPrintAction`/el flujo de impresión del recibo (pos-print.js / pos-print-listener.js).
+
+**Relación:** va con el tema de domicilios interno/externo y con la decisión de "domicilio fuera de ventas" (el recibo muestra el total al cliente, pero contablemente el domi es aparte). Ojo NO confundir con la comanda de cocina (Sergio aclaró: es el RECIBO, no la comanda — la comanda no se toca).
+
+---
+
 ## PENDIENTE — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
 
 **Contexto:** el sistema se vende a dueños con UNA marca o VARIAS (ej. una heladería + un restaurante bajo el mismo dueño, pero independientes por dentro). Cada marca crea sus sucursales (eso ya funciona). Falta la **creación/gestión de marcas** y dividir bien qué configuración es por-marca vs por-sucursal.
