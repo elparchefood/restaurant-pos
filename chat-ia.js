@@ -1070,9 +1070,7 @@ function wireEvents() {
       loadConversations();
     });
   });
-  $('createOrderBtn')?.addEventListener('click', () => {
-    showToast('Función "Crear pedido" — próximamente', 'info');
-  });
+  $('createOrderBtn')?.addEventListener('click', openCrearPedido);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 }
 
@@ -1221,6 +1219,129 @@ async function sendQuickLocation(r) {
     const rd = await res.json();
     if (rd.error) { showToast('No se pudo enviar la ubicación: ' + rd.error, 'error'); }
   } catch (e) { showToast('Error al enviar: ' + e.message, 'error'); }
+}
+
+/* ══════════════════════════════════════════════
+   CREAR PEDIDO DESDE EL CHAT  (analiza la conversación → modal editable → crea)
+══════════════════════════════════════════════ */
+const EXTRAER_PEDIDO_FN = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/extraer-pedido';
+const CREAR_PEDIDO_FN   = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/crear-pedido-chat';
+
+function cpEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function cpCOP(n){ return '$' + Math.round(Number(n)||0).toLocaleString('es-CO'); }
+function cpShow(v){ const m=document.getElementById('cpModal'); if(m) m.style.display = v?'flex':'none'; }
+function cpClose(){ cpShow(false); S.cpOrder=null; }
+function cpSetBody(html){ const b=document.getElementById('cpBody'); if(b) b.innerHTML=html; }
+function cpFooter(show){ const f=document.getElementById('cpFooter'); if(f) f.style.display = show?'flex':'none'; }
+
+async function openCrearPedido(){
+  if(!S.activeConvId){ showToast('Abre una conversación primero','info'); return; }
+  cpShow(true); cpFooter(false);
+  cpSetBody('<div class="cp-loading"><div class="cp-spin"></div>Analizando la conversación con IA…</div>');
+  try{
+    const res=await fetch(EXTRAER_PEDIDO_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversation_id:S.activeConvId})});
+    const data=await res.json();
+    if(data.error){ cpSetBody('<div class="cp-error">⚠️ '+cpEsc(data.error)+'</div>'); return; }
+    S.cpOrder=data.order;
+    cpRenderForm(data.order);
+    cpFooter(true);
+  }catch(e){ cpSetBody('<div class="cp-error">⚠️ No se pudo analizar: '+cpEsc(e.message)+'</div>'); }
+}
+
+function cpRenderForm(o){
+  const tipos=['domicilio','recoger','mesa'];
+  const prods=(o.productos||[]).map((p,i)=>cpProdRow(p,i)).join('');
+  const html=
+    '<div class="cp-grid">'
+    +'<div class="cp-f"><label>Nombre del cliente</label><input id="cpNombre" value="'+cpEsc(o.cliente||'')+'"></div>'
+    +'<div class="cp-f"><label>Teléfono</label><input id="cpTelefono" value="'+cpEsc(o.telefono||'')+'"></div>'
+    +'<div class="cp-f"><label>Tipo</label><select id="cpTipo" onchange="cpTipoChange()">'+tipos.map(t=>'<option value="'+t+'"'+(o.tipo===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
+    +'<div class="cp-f"><label>Método de pago</label><input id="cpPago" value="'+cpEsc(o.pago||'')+'"></div>'
+    +'</div>'
+    +'<div class="cp-f" id="cpDireccionWrap"><label>Dirección</label><input id="cpDireccion" value="'+cpEsc(o.direccion||'')+'"></div>'
+    +'<div class="cp-prods-hd">Productos</div>'
+    +'<div id="cpProds">'+(prods||'<div class="cp-empty">La IA no reconoció productos. Puedes agregarlos en el POS luego de crear.</div>')+'</div>'
+    +'<div class="cp-f"><label>Notas generales</label><textarea id="cpNotas" rows="2">'+cpEsc(o.notas||'')+'</textarea></div>'
+    +'<div class="cp-f" id="cpDomiWrap"><label>Valor domicilio</label><input id="cpDomi" type="number" value="0" oninput="cpRecalc()"></div>'
+    +'<div class="cp-total">Total del pedido: <b id="cpTotal">$0</b></div>';
+  cpSetBody(html);
+  cpTipoChange(); cpRecalc();
+}
+function cpProdRow(p,i){
+  return '<div class="cp-prod" data-i="'+i+'">'
+    +'<div class="cp-prod-top">'
+      +'<input class="cp-qty" type="number" min="1" value="'+(p.cantidad||1)+'" oninput="cpRecalc()">'
+      +'<div class="cp-pname">'+cpEsc(p.product_name||p.nombre||'Producto')+(p.matched?'':' <span class="cp-warn">sin precio</span>')+'</div>'
+      +'<div class="cp-price" data-price="'+(Number(p.unit_price)||0)+'">'+cpCOP(p.unit_price||0)+'</div>'
+      +'<button class="cp-del" title="Quitar" onclick="cpDelProd('+i+')">✕</button>'
+    +'</div>'
+    +'<input class="cp-adic" placeholder="Adiciones (ej. queso, tocineta)" value="'+cpEsc(p.adiciones||'')+'">'
+    +'<input class="cp-pnota" placeholder="Nota (ej. sin cebolla)" value="'+cpEsc(p.notas||'')+'">'
+  +'</div>';
+}
+function cpDelProd(i){
+  if(!S.cpOrder) return;
+  // Reconstruir productos leyendo lo editado, quitando el índice i
+  cpSyncProds();
+  S.cpOrder.productos.splice(i,1);
+  cpRenderForm(S.cpOrder);
+}
+function cpSyncProds(){
+  if(!S.cpOrder) return;
+  const rows=[...document.querySelectorAll('#cpProds .cp-prod')];
+  const next=[];
+  rows.forEach(row=>{
+    const i=+row.dataset.i; const base=S.cpOrder.productos[i]||{};
+    next.push(Object.assign({},base,{
+      cantidad:+row.querySelector('.cp-qty').value||1,
+      adiciones:row.querySelector('.cp-adic').value,
+      notas:row.querySelector('.cp-pnota').value,
+    }));
+  });
+  S.cpOrder.productos=next;
+}
+function cpTipoChange(){
+  const t=document.getElementById('cpTipo'); if(!t) return;
+  const esDomi=t.value==='domicilio';
+  const dir=document.getElementById('cpDireccionWrap'), domi=document.getElementById('cpDomiWrap');
+  if(dir) dir.style.display=(t.value==='mesa')?'none':'';
+  if(domi) domi.style.display=esDomi?'':'none';
+  cpRecalc();
+}
+function cpRecalc(){
+  let sub=0;
+  document.querySelectorAll('#cpProds .cp-prod').forEach(row=>{
+    const qty=+row.querySelector('.cp-qty').value||1;
+    const price=+row.querySelector('.cp-price').dataset.price||0;
+    sub+=qty*price;
+  });
+  const t=document.getElementById('cpTipo');
+  const domiEl=document.getElementById('cpDomi');
+  const domi=(t&&t.value==='domicilio'&&domiEl)?(+domiEl.value||0):0;
+  const tot=document.getElementById('cpTotal');
+  if(tot) tot.textContent=cpCOP(sub+domi);
+}
+async function cpConfirm(){
+  if(!S.cpOrder) return;
+  cpSyncProds();
+  const g=id=>document.getElementById(id);
+  const productos=(S.cpOrder.productos||[]);
+  if(!productos.length){ showToast('El pedido no tiene productos','error'); return; }
+  const tipo=g('cpTipo').value;
+  const payload={
+    conversation_id:S.activeConvId, branch_id:S.cpOrder.branch_id, tenant_id:S.cpOrder.tenant_id,
+    cliente:g('cpNombre').value, telefono:g('cpTelefono').value,
+    direccion:g('cpDireccion')?g('cpDireccion').value:'', tipo, pago:g('cpPago').value,
+    notas:g('cpNotas').value, domi_precio:g('cpDomi')?(+g('cpDomi').value||0):0, productos,
+  };
+  const btn=g('cpConfirmBtn'); if(btn){ btn.disabled=true; btn.textContent='Creando…'; }
+  try{
+    const res=await fetch(CREAR_PEDIDO_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const data=await res.json();
+    if(data.error){ showToast('Error: '+data.error,'error'); if(btn){btn.disabled=false;btn.textContent='Crear e imprimir';} return; }
+    showToast('✅ Pedido creado · '+cpCOP(data.total),'success');
+    cpClose();
+  }catch(e){ showToast('Error: '+e.message,'error'); if(btn){btn.disabled=false;btn.textContent='Crear e imprimir';} }
 }
 
 // Envía una respuesta rápida que lleva IMAGEN (ej. el QR de pago) + su texto como caption.

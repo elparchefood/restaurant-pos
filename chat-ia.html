@@ -14,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="pos-perms.js?v=1785030000"></script>
   <script>if(window.posRequirePin) posRequirePin('chat.usar');</script>
-  <link rel="stylesheet" href="chat-ia.css?v=11">
+  <link rel="stylesheet" href="chat-ia.css?v=12">
 </head>
 <body>
 
@@ -288,7 +288,22 @@
 
 </div>
 
-<script src="chat-ia.js?v=1785740000"></script>
+<!-- Modal: Crear pedido desde el chat -->
+<div class="cp-overlay" id="cpModal" style="display:none">
+  <div class="cp-modal">
+    <div class="cp-head">
+      <div class="cp-title">🧾 Crear pedido desde el chat</div>
+      <button class="cp-x" onclick="cpClose()">✕</button>
+    </div>
+    <div class="cp-body" id="cpBody"></div>
+    <div class="cp-foot" id="cpFooter" style="display:none">
+      <button class="cp-btn ghost" onclick="cpClose()">Cancelar</button>
+      <button class="cp-btn primary" id="cpConfirmBtn" onclick="cpConfirm()">Crear e imprimir</button>
+    </div>
+  </div>
+</div>
+
+<script src="chat-ia.js?v=1785750000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>
 </html>
