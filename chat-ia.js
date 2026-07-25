@@ -1097,6 +1097,7 @@ const DEFAULT_QUICK_REPLIES = [
   { k:'pedirdomi2', t:'Buenas noches, me envias un movil por favor, graciaaaas☺️' },
   { k:'ubicacioncliente', t:'Me podrías enviar la ubicación porfavor para que el domi pueda llegar más fácil ☺️🙏🏽' },
   { k:'direccion', t:'Estamos ubicados en el barrio Bella Vista 📍 Cra 9B # 63 n58' },
+  { k:'ubicacion', t:'📍 Nuestra ubicación', loc:{ latitude:2.4821491, longitude:-76.5742024, name:'El Parche Comidas Rapidas', address:'Carrera 9 B # 63 N 58, Bellavista' } },
   { k:'cuanto',   t:'Me confirmas por favor con cuanto pagas porfavor, para enviarte regreso 😀' },
   { k:'efectivotransferencia', t:'Con gusto, me confirmas si el pago es transferencia o efectivo? para pasar tu pedido a cocina🍟☺️' },
   { k:'QR2',      t:'Te comparto el código QR para que puedas realizar tu pago ☺️\n\nO si deseas, mediante llaves con el siguiente número: 0092726260\n\nRecuerda enviarnos tu comprobante de pago😁', img:'@qr' },
@@ -1167,7 +1168,7 @@ function renderQuickDropdown(q) {
     + '<button class="ci-qr-manage" onmousedown="event.preventDefault();openQuickManage()">Administrar</button></div>';
   const rows = list.map((r,i) =>
     '<div class="ci-qr-item'+(i===S.qrIndex?' active':'')+'" data-i="'+i+'" onmousedown="qrPick(event,'+i+')" onmouseenter="qrHover('+i+')">'
-    + '<span class="ci-qr-k">'+(r.img?'📷 ':'')+'/'+qrEsc(r.k)+'</span>'
+    + '<span class="ci-qr-k">'+(r.img?'📷 ':'')+(r.loc?'📍 ':'')+'/'+qrEsc(r.k)+'</span>'
     + '<span class="ci-qr-t">'+qrEsc(r.t).replace(/\n/g,' ')+'</span></div>'
   ).join('');
   dd.innerHTML = head + '<div class="ci-qr-scroll">' + rows + '</div>';
@@ -1183,9 +1184,41 @@ function qrPick(ev, i) {
   if (ev) ev.preventDefault();
   const r = (S._qrList||[])[i]; if (!r) return;
   closeQuickDropdown();
-  if (r.img) { sendQuickMedia(r); return; }   // respuestas con imagen se envían directo (imagen + texto)
+  if (r.loc) { sendQuickLocation(r); return; }  // respuestas de ubicación → tarjeta de mapa
+  if (r.img) { sendQuickMedia(r); return; }     // respuestas con imagen se envían directo (imagen + texto)
   const inp = document.getElementById('msgInput');
   if (inp) { inp.value = r.t; inp.focus(); }
+}
+
+// Envía una respuesta rápida de UBICACIÓN como tarjeta de mapa nativa de WhatsApp.
+async function sendQuickLocation(r) {
+  if (!S.activeConvId || !r.loc) return;
+  const conv = S.conversations.find(c => c.id === S.activeConvId);
+  if (!conv || conv.channel !== 'whatsapp') { showToast('La ubicación solo se puede enviar por WhatsApp', 'info'); return; }
+  const label = r.loc.name || 'Ubicación';
+  const tmpId = 'tmp_' + Date.now();
+  S.messages.push({ id: tmpId, conversation_id: S.activeConvId, tenant_id: S.tenantId, direction:'out', body:'📍 '+label, media_type:'location', delivery_status:'sending', sent_at: new Date().toISOString() });
+  renderThread();
+  const { data, error } = await sb.from('chat_messages').insert([{
+    conversation_id: S.activeConvId, tenant_id: S.tenantId, direction:'out',
+    body:'📍 '+label, media_type:'location', delivery_status:'sent', agent_id: S.user?.id || null,
+  }]).select().single();
+  if (error) { S.messages = S.messages.filter(m => m.id !== tmpId); renderThread(); showToast('No se pudo enviar', 'error'); return; }
+  S.messages = S.messages.map(m => m.id === tmpId ? data : m);
+  renderThread();
+  if (conv) {
+    conv.last_message = '📍 ' + label; conv.last_message_at = data.sent_at; conv.last_sender = 'agent';
+    S.conversations.sort((a,b) => new Date(b.last_message_at) - new Date(a.last_message_at));
+    renderConvList();
+  }
+  try {
+    const res = await fetch(META_SEND_FN, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation_id: S.activeConvId, location: r.loc, message_id: data.id }),
+    });
+    const rd = await res.json();
+    if (rd.error) { showToast('No se pudo enviar la ubicación: ' + rd.error, 'error'); }
+  } catch (e) { showToast('Error al enviar: ' + e.message, 'error'); }
 }
 
 // Envía una respuesta rápida que lleva IMAGEN (ej. el QR de pago) + su texto como caption.
