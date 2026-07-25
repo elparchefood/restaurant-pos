@@ -22,6 +22,8 @@ const TINTS = [
 
 /* Metadatos de todos los canales (siempre los 4) */
 const ALL_CHANNELS = ['whatsapp', 'instagram', 'facebook', 'tiktok'];
+// Canales "próximamente" (Meta aún no aprobó permisos). Solo WhatsApp activo.
+const SOON_CHANNELS = ['instagram', 'facebook', 'tiktok'];
 const CHANNELS = {
   whatsapp:  { key:'wa', label:'WhatsApp',  solid:'#25D366', dotColor:'#25D366' },
   instagram: { key:'ig', label:'Instagram', solid:'#E1306C', dotColor:'#E1306C' },
@@ -182,11 +184,14 @@ function renderChannelsSidebar() {
     const count       = counts[ch] || 0;
 
     const pic = connected && connectedMap[ch].meta?.profile_picture_url;
+    const isSoon = SOON_CHANNELS.indexOf(ch) >= 0;
     const right = connected
       ? (pic
           ? `<img src="${pic}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;" alt="">`
           : `<span class="n">${count || ''}</span>`)
-      : `<span class="ci-connect-tag">Conectar</span>`;
+      : (isSoon
+          ? `<span class="ci-connect-tag" style="background:#F1F5F9;color:#94A3B8">Próximamente</span>`
+          : `<span class="ci-connect-tag">Conectar</span>`);
 
     return `
       <button class="ci-chan-row${connected ? '' : ' ci-chan-disconnected'}" data-channel="${ch}" title="${connected ? meta.label + ' conectado' : 'Conectar ' + meta.label}">
@@ -199,7 +204,14 @@ function renderChannelsSidebar() {
   }).join('');
 
   $('channelsList').querySelectorAll('.ci-chan-row').forEach(btn => {
-    btn.addEventListener('click', () => openChannelModal(btn.dataset.channel));
+    btn.addEventListener('click', () => {
+      var ch = btn.dataset.channel;
+      if (SOON_CHANNELS.indexOf(ch) >= 0) {
+        showToast('🔜 ' + (CHANNELS[ch]?.label || ch) + ' estará disponible próximamente', 'info');
+        return;
+      }
+      openChannelModal(ch);
+    });
   });
 }
 
