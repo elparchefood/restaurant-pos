@@ -128,7 +128,7 @@ async function loadReport() {
   let q = sb
     .from('pos_orders')
     .select(`
-      id, status, channel, total_final, tip_amount, discount_amount,
+      id, status, channel, total, total_final, delivery_fee, tip_amount, discount_amount,
       guests, waiter_name, payment_method, closed_at, opened_at,
       pos_order_items ( id, product_name, name, quantity, unit_price )
     `)
@@ -143,7 +143,15 @@ async function loadReport() {
   const { data: orders, error } = await q;
   if (error) { console.error('[Informes] fetch error', error); return; }
 
-  const list = orders || [];
+  // "Las ventas son las ventas": el domicilio NUNCA cuenta como venta. Normalizamos
+  // total_final = SOLO comida (total − domicilio), robusto ante el bug histórico donde
+  // el domi quedó dentro de total_final. Todos los informes usan total_final.
+  const list = (orders || []).map(o => {
+    const dom = parseFloat(o.delivery_fee)||0;
+    const tot = parseFloat(o.total);
+    if(dom>0 && !isNaN(tot)) o.total_final = tot - dom;
+    return o;
+  });
 
   renderKPIs(list, label);
   renderChart(list, from, to, label);

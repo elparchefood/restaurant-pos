@@ -118,6 +118,22 @@ async function refreshAll() {
 // ── Historial de ventas por turno de caja ──────────────────────
 function cjEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+// ── "Las ventas son las ventas": el domicilio NUNCA cuenta como venta ──
+// Normaliza cada pedido para que total_final = SOLO comida (total − domicilio),
+// sin importar cómo se haya guardado. Robusto ante el bug histórico donde el domi
+// quedó metido dentro de total_final (ej. Valeria del 24/07). total (incluye domi)
+// se conserva; toda vista de ventas usa total_final ya normalizado.
+function cjNormalizeVenta(o){
+  if(!o) return o;
+  const dom = parseFloat(o.delivery_fee)||0;
+  const tot = parseFloat(o.total);
+  if(!isNaN(tot)){
+    if(dom>0) o.total_final = tot - dom;          // domicilio: comida = total − domi
+    else if(o.total_final==null) o.total_final = tot;
+  }
+  return o;
+}
+
 function renderHistSessionPicker(){
   const sel = document.getElementById('hist-session');
   if(!sel) return;
@@ -321,7 +337,7 @@ async function loadOrders(branchId, sinceISO, untilISO) {
     if (branchId) q.eq('branch_id', branchId);
     q.order('created_at',{ascending:false});
     const { data } = await q;
-    return data || [];
+    return (data || []).map(cjNormalizeVenta);
   } catch(e) { console.error('loadOrders:',e); return []; }
 }
 
@@ -545,7 +561,7 @@ function renderDesglosePago(orders) {
 function renderCanalVentas(orders, moves) {
   const active = orders.filter(o=>o.status!=='cancelled');
   CANALES.forEach(c => {
-    const amt = active.filter(o=>(o.channel||'').toLowerCase()===c.key).reduce((s,o)=>s+(o.total||0),0);
+    const amt = active.filter(o=>(o.channel||'').toLowerCase()===c.key).reduce((s,o)=>s+(parseFloat(o.total_final ?? o.total)||0),0);
     const el = document.getElementById('canal-'+c.key);
     if (el) el.textContent = COPF(amt);
   });
@@ -800,7 +816,7 @@ function renderHistorial(orders, items) {
           <div class="cj-sale-who">${cjEsc(o.waiter_name||'Sin nombre')} ${cliente}</div>
           ${itemsHtml}
         </div>
-        <div class="cj-sale-total">${COPF(o.total)}</div>
+        <div class="cj-sale-total">${COPF(parseFloat(o.total_final ?? o.total)||0)}</div>
         ${deleteBtn}
       </div>`;
   }).join('');

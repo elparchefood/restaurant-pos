@@ -533,7 +533,9 @@ async function cobrarDespues() {
       status:          'paid',
       payment_method:  payMethod,
       closed_at:       now,
-      total_final:     total,
+      // "Las ventas son las ventas": total_final = SOLO comida+empaque, SIN domicilio.
+      // El domi va aparte (delivery_fee). paid_amount sí es todo lo que pagó el cliente (incluye domi).
+      total_final:     total - domi,
       paid_amount:     total,
       discount_amount: SP.discount || 0,
       discount_motivo: SP.discountObj?.motivo || null,

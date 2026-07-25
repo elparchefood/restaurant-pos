@@ -156,11 +156,19 @@ async function loadWaiters(branchId) {
 async function loadTodayOrders(branchId) {
   const { start, end } = todayRange();
   const q = sb.from('pos_orders')
-    .select('id,total,status,channel,payment_method,created_at,pos_order_items(id,quantity,unit_price,total,product_id,pos_products(id,name,pos_categories(name)))')
+    .select('id,total,total_final,delivery_fee,status,channel,payment_method,created_at,pos_order_items(id,quantity,unit_price,total,product_id,pos_products(id,name,pos_categories(name)))')
     .gte('created_at', start).lte('created_at', end).neq('status','cancelled');
   if (branchId) q.eq('branch_id', branchId);
   const { data } = await q;
-  S.todayOrders = data || [];
+  // "Las ventas son las ventas": el domicilio NUNCA cuenta como venta. Sobrescribimos
+  // o.total con la comida (total − domicilio) para que TODAS las sumas del dashboard
+  // (Ventas Hoy, canales, ticket, por hora) queden sin domi. delivery_fee va aparte.
+  S.todayOrders = (data || []).map(o => {
+    const dom = parseFloat(o.delivery_fee)||0;
+    const tot = parseFloat(o.total);
+    if(!isNaN(tot)) o.total = dom>0 ? (tot - dom) : tot;
+    return o;
+  });
   // Desglose REAL de pagos del día (pos_payments — reparte bien los mixtos)
   S.pagosHoy = [];
   try {
@@ -297,7 +305,7 @@ function loadPrintTimes() {
 // ── Chart ─────────────────────────────────────────────
 async function loadChartData(branchId) {
   const start = daysAgoISO(13) + 'T00:00:00.000Z';
-  const q = sb.from('pos_orders').select('created_at,total,status').gte('created_at',start).neq('status','cancelled');
+  const q = sb.from('pos_orders').select('created_at,total,delivery_fee,status').gte('created_at',start).neq('status','cancelled');
   if (branchId) q.eq('branch_id', branchId);
   const { data } = await q;
   const byDay = {};
@@ -305,7 +313,8 @@ async function loadChartData(branchId) {
     if (!o.created_at) return;
     const d = o.created_at.slice(0,10);
     byDay[d] = byDay[d] || {total:0,count:0};
-    byDay[d].total += o.total || 0;
+    const dom = parseFloat(o.delivery_fee)||0;          // domicilio fuera de ventas
+    byDay[d].total += Math.max(0,(parseFloat(o.total)||0) - dom);
     byDay[d].count++;
   });
   const now = new Date();
