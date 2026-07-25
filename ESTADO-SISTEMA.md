@@ -963,7 +963,7 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 - Interruptor en Configuración (guardar en `operacion_config.cajaCiega` — sincroniza a la tablet, como el resto).
 - En caja.js/caja.html: si `cajaCiega` ON y el rol no es admin/gerente → ocultar las secciones sensibles (hero de ventas, "Ventas por canal", "Cómo se compone / total esperado", ingresos/egresos si aplica) y dejar solo apertura/cierre/arqueo.
 - En el ARQUEO: no pre-mostrar el "esperado"; el usuario cuenta, guarda, y ahí recién se revela cuadrado/descuadrado + diferencia (ya existe el cálculo: `esperado = base + ventasEf + ingresos − egresos`, arqueo_diff = contado − esperado, caja.js:1087-1092).
-- Usar el sistema de permisos/rol ya existente (posRole/posHasPerm) para decidir vista ciega vs completa. Confirmar con Sergio si es por CONFIG (todo el restaurante) o por ROL, o ambos.
+- **DECISIÓN (Sergio 2026-07-24): es POR ROL** (no por config global). El gerente/admin SIEMPRE ve la vista completa; los roles que se definan (ej. cajera) ven la vista ciega. Implementar con el sistema de permisos existente (`pos_roles.perms`): un permiso tipo **`caja.ver_completa`** (o `caja.estadisticas`) — rol CON el permiso → vista completa; rol SIN el permiso → vista ciega (solo abrir/cerrar/arqueo, sin esperado ni ventas/transferencias). Agregar ese permiso a la tabla de permisos y al editor de roles.
 
 **Nota:** el módulo de caja actual quedó "perfecto" (palabras de Sergio) — esto es una VISTA alterna, no cambiar la actual.
 
