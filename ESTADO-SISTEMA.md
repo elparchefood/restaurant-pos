@@ -825,7 +825,13 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 2. **Registrar el domicilio como EGRESO** usando el sistema que la caja YA tiene (movimientos ingreso/egreso; cierre = base + ventasEf + ingresos − egresos, ver caja.js:432,434,1055). Así la caja cuadra (el efectivo que sale para pagar al domiciliario queda registrado) y se ve "pagado a domiciliarios" del turno.
 3. Opcional: tarjeta resumen "Domicilios cobrados vs pagados a domiciliarios".
 
-**Preguntas por confirmar con Sergio:** (a) ¿el domicilio SIEMPRE es del domiciliario o a veces es ingreso propio (repartidor a sueldo)? → si a veces es propio, hace falta un interruptor. (b) ¿el egreso del pago al domiciliario se registra AUTOMÁTICO (por cada domicilio) o MANUAL (cuando de verdad paga)? Sergio se inclina por: siempre del domiciliario + automático (por confirmar).
+**DECISIÓN FIRME (Sergio 2026-07-24):** el valor del **domicilio NUNCA se suma en las VENTAS** — ni con domiciliario interno ni externo. "Las ventas son las ventas" (= la comida). El domicilio va SIEMPRE a una **estadística aparte**.
+- **Ventas (todas las métricas): solo comida = `total − delivery_fee`** (o `subtotal + empaque`). Aplica a: dashboard → Meta diaria y el desglose por canal (Salón/Domicilio/Venta rápida, el "DOMICILIO" debe mostrar solo la COMIDA vendida por domicilio, sin el envío); "Ventas Hoy"; y el desglose por canal de la Caja.
+- **Nueva estadística separada "Domicilios":** detalle de todos los envíos cobrados en el periodo/turno, con distinción **interno vs externo**:
+  - **Externo:** pass-through (entra y sale al domiciliario). Se maneja con el egreso ya diseñado.
+  - **Interno (repartidor propio/a sueldo):** el envío SÍ es ingreso del restaurante (de ahí le paga al repartidor), pero **igual NO es "venta de comida"** → va en esta estadística de domicilios como ingreso por servicio, no en ventas.
+- La distinción interno/externo NO decide si entra a ventas (nunca entra); solo cambia cómo se lee la estadística de domicilios. Necesita saber por pedido si fue interno o externo (hoy hay `delivery_person`; quizás falte un flag interno/externo o inferirlo de si el domiciliario es de la lista interna).
+- **Implementación:** cambiar los reduce de ventas de `o.total` → `(o.total − (o.delivery_fee||0))` en dashboard.js (líneas 181,242,258-260,687,701,897) y en caja.js donde aplique; y agregar la tarjeta/stat de Domicilios (cobrado por envíos, split interno/externo). Ojo: usar `paid_amount` real cuando corresponda (hay domicilios donde solo se cobró la comida, sin envío).
 
 ---
 
