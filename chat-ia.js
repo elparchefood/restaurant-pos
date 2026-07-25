@@ -1343,7 +1343,7 @@ function cpRenderPicker(){
 function cpPkCat(id){ S.cpPk.cat=(S.cpPk.cat===id?'':id); cpRenderPicker(); }
 function cpPkProd(id){
   const c=(S.cpCatalogo||[]).find(x=>x.id===id); if(!c) return;
-  const pres=c.presentations||[]; const hasVars=c.price_mode==='matrix'&&(c.variables||[]).length;
+  const pres=c.presentations||[]; const hasVars=(c.variables||[]).length&&((c.variables[0].options)||[]).length;
   if(pres.length<=1 && !hasVars){ cpDoAddProduct(c, pres[0]?pres[0].id:'', null); return; }
   S.cpPk.prod=c; S.cpPk.pres=pres[0]?pres[0].id:''; S.cpPk.tipo=(hasVars&&c.variables[0].options[0])?c.variables[0].options[0].id:'';
   cpRenderProdConfig();
@@ -1351,7 +1351,7 @@ function cpPkProd(id){
 function cpRenderProdConfig(){
   const c=S.cpPk.prod; if(!c) return;
   const pres=c.presentations||[];
-  const vg=(c.price_mode==='matrix'&&(c.variables||[]).length)?c.variables[0]:null;
+  const vg=((c.variables||[]).length&&((c.variables[0].options)||[]).length)?c.variables[0]:null;
   let html='<div class="cp-pk-head"><button class="cp-pk-back" onclick="cpRenderPicker()">← Volver</button><b>'+cpEsc(c.name)+'</b></div>';
   if(pres.length){ html+='<div class="cp-pk-lbl">Tamaño</div><div class="cp-pk-opts">'+pres.map(p=>'<button class="cp-pk-opt'+(S.cpPk.pres===p.id?' sel':'')+'" onclick="cpPkPres(\''+p.id+'\')">'+cpEsc(p.name)+'</button>').join('')+'</div>'; }
   if(vg){ html+='<div class="cp-pk-lbl">'+cpEsc(vg.name||'Tipo')+'</div><div class="cp-pk-opts">'+(vg.options||[]).map(o=>'<button class="cp-pk-opt'+(S.cpPk.tipo===o.id?' sel':'')+'" onclick="cpPkTipo(\''+o.id+'\')">'+cpEsc(o.name)+'</button>').join('')+'</div>'; }
@@ -1361,7 +1361,7 @@ function cpRenderProdConfig(){
 }
 function cpPkPres(id){ S.cpPk.pres=id; cpRenderProdConfig(); }
 function cpPkTipo(id){ S.cpPk.tipo=id; cpRenderProdConfig(); }
-function cpConfirmAddProduct(){ const c=S.cpPk.prod; if(!c) return; const vg=(c.price_mode==='matrix'&&(c.variables||[]).length)?c.variables[0]:null; const tipoOpt=vg?(vg.options||[]).find(o=>o.id===S.cpPk.tipo):null; cpDoAddProduct(c,S.cpPk.pres,tipoOpt); }
+function cpConfirmAddProduct(){ const c=S.cpPk.prod; if(!c) return; const vg=((c.variables||[]).length&&((c.variables[0].options)||[]).length)?c.variables[0]:null; const tipoOpt=vg?(vg.options||[]).find(o=>o.id===S.cpPk.tipo):null; cpDoAddProduct(c,S.cpPk.pres,tipoOpt); }
 function cpDoAddProduct(c,presId,tipoOpt){
   const pres=(c.presentations||[]).find(p=>p.id===presId)||{};
   const price=cpProdPrice(c,presId,tipoOpt);
