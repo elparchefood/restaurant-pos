@@ -816,6 +816,25 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
+## PENDIENTE GRANDE — [Inventario] Sub-inventario / inventario en DOS NIVELES (Bodega vs En servicio) — Sergio 2026-07-24
+
+**Problema real:** "tener el insumo" no es lo mismo que "tenerlo listo para vender". Ej.: hay carne pero está CRUDA (no se cocina toda el mismo día); hay bebidas en bodega pero las que se venden son las de la NEVERA (frías). El sistema hoy solo ve el total → puede decir "hay carne" cuando está cruda, o "hay gaseosa" cuando las frías ya se acabaron.
+
+**Modelo propuesto (por confirmar detalles con Sergio):**
+- Dos cantidades por insumo: **Bodega** (total comprado/crudo/almacenado) y **En servicio** (listo para vender: cocido, en nevera).
+- Acción **"Surtir"**: mover cantidad de Bodega → En servicio.
+- Las ventas descuentan de **En servicio**.
+- Cuando En servicio = 0 pero hay en Bodega → según un **interruptor "permitir vender de bodega"**:
+  - OFF → se trata como agotado (bloquea, reusa el sistema de venta-sin-inventario ya hecho).
+  - ON → deja vender pero muestra un **AVISO personalizable** (ej. "Bebida al clima, se acabó en la nevera" / "Requiere preparación, queda solo en bodega").
+- **Personalizable por restaurante:** cada insumo/producto decide si usa los dos niveles (no todos lo necesitan) y define su propio texto de aviso.
+
+**Se conecta con:** la función "venta sin inventario" (pos-stock.js, sesión 2026-07-24) — es el siguiente nivel de la misma idea. Y con el modelo de stock por compra/unidad ya hecho.
+
+**Preguntas por confirmar con Sergio (planteadas 2026-07-24):** (1) ¿nivel "en servicio" por INSUMO o por PRODUCTO? (recomendado: por insumo). (2) ¿ver los dos números en inventario + botón "Surtir"? (3) ¿el interruptor "vender de bodega" es GLOBAL o por producto/insumo? Nota: ya existe `iv_insumos.prep_requerido` (boolean) que quizá se pueda reaprovechar como marca de "requiere preparación".
+
+---
+
 ## PENDIENTE — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
 
 **Contexto:** el sistema se vende a dueños con UNA marca o VARIAS (ej. una heladería + un restaurante bajo el mismo dueño, pero independientes por dentro). Cada marca crea sus sucursales (eso ya funciona). Falta la **creación/gestión de marcas** y dividir bien qué configuración es por-marca vs por-sucursal.
