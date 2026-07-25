@@ -835,6 +835,16 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
+## PENDIENTE — [Inventario] Habilitar el % de merma POR INSUMO (falta el campo) — hallazgo 2026-07-24
+
+**Estado:** el modelo YA soporta merma por insumo: `iv_recetas.merma` (por línea) y la fórmula de costeo la usa (`costo = qty × costoPorUr × (1 + l.merma/100)`, inventario.js:114 y :1883). PERO no hay UI para editar ese %: las líneas nuevas se crean con `merma:0` (inventario.js:957,2408,2423) y el único control es el **interruptor global "Incluir merma"** (Sí/No) en Parámetros. Resultado: hoy todo está en 0% → el interruptor global no hace nada.
+
+**Falta:** agregar un **campo de % de merma por insumo** en el editor de receta (al lado de la cantidad de cada línea), para poder poner queso 2%, pollo 25%, etc. Guardar en `iv_recetas.merma`. El interruptor global se queda como on/off maestro.
+
+**Distinción importante (Sergio 2026-07-24):** esta merma es de **DESPERDICIO** (recortes/cáscaras que botas → suben el costo). NO confundir con la **merma de COCCIÓN/rendimiento** (el pollo pierde ~20-25% de peso al cocinarse) — esa se maneja con el sub-inventario en dos niveles (crudo en bodega → cocido en servicio), no con este %.
+
+---
+
 ## PENDIENTE — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
 
 **Contexto:** el sistema se vende a dueños con UNA marca o VARIAS (ej. una heladería + un restaurante bajo el mismo dueño, pero independientes por dentro). Cada marca crea sus sucursales (eso ya funciona). Falta la **creación/gestión de marcas** y dividir bien qué configuración es por-marca vs por-sucursal.
