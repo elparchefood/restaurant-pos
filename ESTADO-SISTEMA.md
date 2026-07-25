@@ -606,6 +606,19 @@ La columna `meta` en `chat_channels` para WhatsApp es un **JSON serializado como
 
 ---
 
+## PENDIENTE RÁPIDO — [Caja] "Ventas por canal" dice "Mostrador" y sale en $0 (mismo bug del #4) — Sergio 2026-07-24
+
+En la pantalla de **Caja**, el desglose "Ventas por canal" muestra **Mostrador $0** en vez de **Venta rápida** con su monto. Es el mismo bug que se arregló en el dashboard (#4): usa el canal `mostrador`/`counter` que NO existe; el real es `rapido`.
+
+**Qué tocar (mismo fix del #4, pero en caja):**
+- `caja.js:54-57` — `CANALES`: cambiar `{ key:'mostrador', label:'Mostrador' }` por `{ key:'rapido', label:'Venta rápida', color:'#F59E0B', bg:'#FEF3C7' }`.
+- `caja.js:545-549` — `renderCanalVentas()`: filtra por `channel === c.key`; que reconozca `rapido` (y alias viejos counter/mostrador/quick, idealmente con un normalizador como el `normChannel` de dashboard.js).
+- `caja.html:117` — la fila del canal: cambiar `id="canal-mostrador"` → `id="canal-rapido"` y el texto "Mostrador" → "Venta rápida" (el JS lee `canal-${c.key}`, deben coincidir).
+- Revisar también `caja.js:1453, 1586, 1630` (mapas `byChannel`/gráficas/informes de caja) que usan `mostrador` — mismo cambio.
+- Alcance del turno: confirmar que sume las ventas rápidas de la sesión de caja abierta.
+
+---
+
 ## 🔴 PARA MAÑANA — 2026-07-24 (lista corta, lo primero al retomar)
 
 > Lista separada de los pendientes grandes de abajo (multi-caja, Modo Gerente, RLS). Esto es lo inmediato.
