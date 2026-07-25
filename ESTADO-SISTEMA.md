@@ -859,6 +859,12 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 **Preguntas por confirmar con Sergio:** (1) ¿quién puede marcar "se acabó" — cualquiera o roles específicos? (2) ¿al marcar agotado, bloquea o solo avisa? (Sergio propone: usar el mismo interruptor "permitir vender sin inventario").
 
+**REFINAMIENTO (Sergio 2026-07-24) — DOS agotados distintos para estos insumos:**
+- **BODEGA (crudo): control AUTOMÁTICO.** El insumo crudo sí se agrega con su costo/kg. El sistema calcula el costo en cada producto (gramos de la receta) y **descuenta de la bodega con cada VENTA** (no requiere pesar: la receta define los gramos, las ventas hacen la cuenta). Sirve para el **aviso de "comprar más"** cuando la bodega baja. Es un estimado, suficiente para reponer.
+- **COCINA (cocido/listo): control MANUAL** (el cocinero avisa). Esto es lo que **bloquea/avisa la VENTA** en el momento. El sistema no lo adivina.
+- **Edge por confirmar:** si la BODEGA llega a 0 (no hay ni crudo) → recomendación de Claude: que ahí SÍ bloquee automático (tope real). Sergio por confirmar.
+- Implicación: para un insumo con "control manual", el agotado de VENTA = marca manual del cocinero (y opcionalmente bodega<=0). El agotado de COMPRA (alerta de reponer) = bodega baja, automático por ventas.
+
 **Relación:** es la alternativa PRÁCTICA al sub-inventario (bodega vs servicio) para insumos que no se pueden pesar/contar. Complementa "venta sin inventario" (pos-stock.js, ya hecho) y su afinamiento por variante (urgente).
 
 ---
