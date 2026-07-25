@@ -580,6 +580,32 @@ La columna `meta` en `chat_channels` para WhatsApp es un **JSON serializado como
 
 **Plan aprobado (pendiente de construir):** (1) helper único `posHasPerm('id')` que carga el rol una vez y todas las páginas consultan; (2) cablear los 13 permisos para que bloqueen la ACCIÓN (no solo escondan el botón); (3) admin/gerente = todo siempre (correcto), pero cajero sigue sus perms reales (quitar el sí gratis); (4) endurecimiento server-side (RLS de negocio) = pendiente SEPARADO más grande, no mezclar. Falta agregar permiso `caja.abrir`/`caja.cerrar` al catálogo (para el multi-caja).
 
+## ✅ REVISIÓN — Lo ya corregido/hecho (Sergio revisa uno por uno)
+
+> Lista de control (QA). Sergio pidió (2026-07-24) tener todo lo corregido junto para probarlo uno por uno. Se MANTIENE ACTUALIZADA: cada vez que se termina algo nuevo, se agrega aquí. Marca [x] lo que ya verificaste OK; si algo quedó mal, se vuelve a la lista de pendientes.
+
+**Corregido/nuevo el 2026-07-24:**
+
+- [ ] **#1 Marca vieja "Lumen" eliminada** → revisar que Historial e Impresoras (y registro/onboarding) digan **Cobra POS**.
+- [ ] **#2 Zonas/mesas** → confirmar que estén Adentro (01-04) y Antejardín (05-08), sin fantasmas "Barra/Terraza". (Falta que Sergio ajuste capacidades él mismo.)
+- [ ] **#3 Imprimir comprobantes (dashboard)** → el modal ya muestra los pedidos del día (antes salía "Sin resultados" vacío).
+- [ ] **#4 Meta diaria — "Venta rápida"** → ya NO sale en $0; muestra lo vendido en rápidas y se llama "Venta rápida" (antes "Mostrador").
+- [ ] **#5 Vuelto en efectivo** → al pagar con más del total, el vuelto se mantiene visible tras "Agregar pago" (antes desaparecía).
+- [ ] **#6 Tarjeta de venta rápida al entregar** → al marcar "ya entregué" la tarjeta queda en estado **Entregado** (no desaparece); solo se va al cerrar caja.
+- [ ] **#13 [CRÍTICO] Mesas/zonas no se borran solas** → Configuración ahora carga desde la base y nunca borra en masa. Probar editar mesas desde varios equipos sin que se pierdan.
+- [ ] **Ícono del ejecutable azul oscuro** → ventana, escritorio y barra de tareas (ya confirmado por Sergio). Falta: ícono del ARCHIVO .exe (al armar instalador) y ícono de la APK.
+- [ ] **Notas frecuentes** → crear notas en Config→Operación (Global/Por categoría) y usarlas al personalizar el plato (selector con buscador). Se imprimen en la comanda.
+- [ ] **Inventario — stock Por compra / Por unidad** → interruptor SEPARADO en Stock actual y Stock mínimo; la etiqueta cambia con la unidad elegida; convierte con la conversión.
+- [ ] **Inventario — unidades personalizadas** → crear una unidad y confirmar que aparece en los desplegables de Unidad de compra y de receta, y que YA se guarda (no se pierde al recargar).
+- [ ] **Recetas de bebidas / reventa** → armar la receta 1:1 (Coca Cola por presentación) y ver el costo por unidad (paquete÷unidades). (Sergio ya lo probó OK.)
+- [ ] **Venta rápida — diseño unificado con mesa** (tablet) → barra lateral finita de iconos (asa "desliza"), fotos de producto grandes, sin topbar, sin "Cliente" duplicado. **Falta confirmación de Sergio en tablet.**
+- [ ] **Domicilios — refinamientos** (tablet) → sin topbar, sin el conteo "Pedido · N ítems", fotos más grandes. **Falta confirmación de Sergio en tablet** (y ver si el grid necesita más ajuste como venta rápida).
+- [ ] **Venta sin inventario** → interruptor en Inventario→Parámetros; productos con insumo agotado se bloquean (OFF) o avisan con modal (ON), en mesa/rápida/domicilios. **OJO: falta el afinamiento por VARIANTE (urgente).**
+- [ ] **Permisos tablet (RLS insumos/recetas)** → confirmar que en la tablet de Mónica también se ven los agotados (se arregló el permiso de lectura).
+- [ ] **Egresos de caja arreglados** → registrar un ingreso/egreso ya funciona (faltaban permisos de tabla). Confirmar que registra y suma en el cierre.
+
+---
+
 ## 🔴 PARA MAÑANA — 2026-07-24 (lista corta, lo primero al retomar)
 
 > Lista separada de los pendientes grandes de abajo (multi-caja, Modo Gerente, RLS). Esto es lo inmediato.
