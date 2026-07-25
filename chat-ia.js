@@ -1244,6 +1244,7 @@ async function openCrearPedido(){
     if(data.error){ cpSetBody('<div class="cp-error">⚠️ '+cpEsc(data.error)+'</div>'); return; }
     S.cpOrder=data.order;
     S.cpCatalogo=data.catalogo||[];
+    S.cpCategorias=data.categorias||[];
     S.cpMods=data.mods||[];
     cpRenderForm(data.order);
     cpFooter(true);
@@ -1267,7 +1268,7 @@ function cpRenderForm(o){
   const tipos=['domicilio','recoger','mesa'];
   const prods=(o.productos||[]).map((p,i)=>cpProdRow(p,i)).join('');
   const addProd=(S.cpCatalogo&&S.cpCatalogo.length)
-    ? '<select class="cp-addprod" onchange="cpAddProducto(this.value);this.selectedIndex=0"><option value="">+ Agregar producto…</option>'+S.cpCatalogo.map(c=>'<option value="'+c.id+'">'+cpEsc(c.name)+'</option>').join('')+'</select>' : '';
+    ? '<button type="button" class="cp-addprod-btn" onclick="cpOpenPicker()">＋ Agregar producto</button>' : '';
   const html=
     '<div class="cp-grid">'
     +'<div class="cp-f"><label>Nombre del cliente</label><input id="cpNombre" value="'+cpEsc(o.cliente||'')+'"></div>'
@@ -1306,10 +1307,67 @@ function cpAdicOptions(c,presId){ const out=[],seen={}; const gids=c.mod_group_i
 function cpAddAdic(i,optId){ if(!optId||!S.cpOrder) return; const p=S.cpOrder.productos[i]; if(!p) return; const opt=(p.adic_options||[]).find(o=>o.id===optId); if(opt&&!(p.adiciones||[]).some(a=>a.id===optId)){ p.adiciones=p.adiciones||[]; p.adiciones.push({id:opt.id,name:opt.name,price:opt.price}); } cpRerender(); }
 function cpDelAdic(i,optId){ const p=S.cpOrder&&S.cpOrder.productos[i]; if(!p) return; p.adiciones=(p.adiciones||[]).filter(a=>a.id!==optId); cpRerender(); }
 function cpDelProd(i){ cpSyncTop(); cpSyncProdInputs(); S.cpOrder.productos.splice(i,1); cpRenderForm(S.cpOrder); }
-function cpAddProducto(catId){ if(!catId||!S.cpOrder) return; const c=(S.cpCatalogo||[]).find(x=>x.id===catId); if(!c) return;
-  const pres=(c.presentations||[])[0]||{}; const presId=pres.id||''; const presName=pres.name||''; let price=Number(pres.price)||Number(c.price)||0; let tipoName='';
-  if(c.price_mode==='matrix'&&(c.variables||[]).length){ const vo=((c.variables[0].options)||[])[0]; if(vo){ tipoName=vo.name; if(Array.isArray(vo.prices)&&vo.prices.length) price=vo.prices[0]; else if(vo.price>0) price=vo.price; } }
-  S.cpOrder.productos.push({ product_id:c.id, product_name:[c.name,presName,tipoName].filter(Boolean).join(' · '), unit_price:price, cantidad:1, tamano:presName, pres_id:presId, tipo:tipoName, adiciones:[], adic_options:cpAdicOptions(c,presId), notas:'', matched:true }); cpRerender(); }
+/* Selector de productos con acordeón por categoría → producto → tamaño/tipo */
+function cpProdPrice(c, presId, tipoOpt){
+  const preList=c.presentations||[];
+  const pres=preList.find(p=>p.id===presId)||{};
+  let price=Number(pres.price)||Number(c.price)||0;
+  const presIdx=preList.findIndex(p=>p.id===presId);
+  if(c.price_mode==='matrix'&&tipoOpt){
+    if(Array.isArray(tipoOpt.prices)&&presIdx>=0&&presIdx<tipoOpt.prices.length) price=tipoOpt.prices[presIdx];
+    else if(tipoOpt.price>0) price=tipoOpt.price;
+  }
+  return price;
+}
+function cpOpenPicker(){ if(!S.cpOrder) return; cpSyncTop(); cpSyncProdInputs(); S.cpPk={cat:'',prod:null,pres:'',tipo:''}; cpRenderPicker(); }
+function cpBackToForm(){ cpRenderForm(S.cpOrder); }
+function cpRenderPicker(){
+  const cats=(S.cpCategorias||[]).slice();
+  const prods=S.cpCatalogo||[];
+  const byCat={}; prods.forEach(p=>{ (byCat[p.category_id]=byCat[p.category_id]||[]).push(p); });
+  if(!cats.length){ cats.push({id:'',name:'Productos'}); }
+  // categoría "otros" si hay productos sin categoría reconocida
+  Object.keys(byCat).forEach(cid=>{ if(cid && !cats.some(c=>c.id===cid)) cats.push({id:cid,name:'Otros'}); });
+  let html='<div class="cp-pk-head"><button class="cp-pk-back" onclick="cpBackToForm()">← Volver</button><b>Agregar producto</b></div><div class="cp-pk-acc">';
+  cats.forEach(c=>{
+    const list=byCat[c.id]||[]; if(!list.length) return;
+    const open=S.cpPk.cat===c.id;
+    html+='<div class="cp-pk-cat">'
+      +'<button class="cp-pk-cathd'+(open?' open':'')+'" onclick="cpPkCat(\''+c.id+'\')"><span>'+cpEsc(c.name)+'</span><span class="cp-pk-n">'+list.length+' '+(open?'▾':'▸')+'</span></button>'
+      +(open?'<div class="cp-pk-prods">'+list.map(p=>'<button class="cp-pk-prod" onclick="cpPkProd(\''+p.id+'\')">'+cpEsc(p.name)+'</button>').join('')+'</div>':'')
+      +'</div>';
+  });
+  html+='</div>';
+  cpSetBody(html);
+}
+function cpPkCat(id){ S.cpPk.cat=(S.cpPk.cat===id?'':id); cpRenderPicker(); }
+function cpPkProd(id){
+  const c=(S.cpCatalogo||[]).find(x=>x.id===id); if(!c) return;
+  const pres=c.presentations||[]; const hasVars=c.price_mode==='matrix'&&(c.variables||[]).length;
+  if(pres.length<=1 && !hasVars){ cpDoAddProduct(c, pres[0]?pres[0].id:'', null); return; }
+  S.cpPk.prod=c; S.cpPk.pres=pres[0]?pres[0].id:''; S.cpPk.tipo=(hasVars&&c.variables[0].options[0])?c.variables[0].options[0].id:'';
+  cpRenderProdConfig();
+}
+function cpRenderProdConfig(){
+  const c=S.cpPk.prod; if(!c) return;
+  const pres=c.presentations||[];
+  const vg=(c.price_mode==='matrix'&&(c.variables||[]).length)?c.variables[0]:null;
+  let html='<div class="cp-pk-head"><button class="cp-pk-back" onclick="cpRenderPicker()">← Volver</button><b>'+cpEsc(c.name)+'</b></div>';
+  if(pres.length){ html+='<div class="cp-pk-lbl">Tamaño</div><div class="cp-pk-opts">'+pres.map(p=>'<button class="cp-pk-opt'+(S.cpPk.pres===p.id?' sel':'')+'" onclick="cpPkPres(\''+p.id+'\')">'+cpEsc(p.name)+'</button>').join('')+'</div>'; }
+  if(vg){ html+='<div class="cp-pk-lbl">'+cpEsc(vg.name||'Tipo')+'</div><div class="cp-pk-opts">'+(vg.options||[]).map(o=>'<button class="cp-pk-opt'+(S.cpPk.tipo===o.id?' sel':'')+'" onclick="cpPkTipo(\''+o.id+'\')">'+cpEsc(o.name)+'</button>').join('')+'</div>'; }
+  const tipoOpt=vg?(vg.options||[]).find(o=>o.id===S.cpPk.tipo):null;
+  html+='<div class="cp-pk-add"><span class="cp-pk-price">'+cpCOP(cpProdPrice(c,S.cpPk.pres,tipoOpt))+'</span><button class="cp-btn primary" onclick="cpConfirmAddProduct()">Agregar</button></div>';
+  cpSetBody(html);
+}
+function cpPkPres(id){ S.cpPk.pres=id; cpRenderProdConfig(); }
+function cpPkTipo(id){ S.cpPk.tipo=id; cpRenderProdConfig(); }
+function cpConfirmAddProduct(){ const c=S.cpPk.prod; if(!c) return; const vg=(c.price_mode==='matrix'&&(c.variables||[]).length)?c.variables[0]:null; const tipoOpt=vg?(vg.options||[]).find(o=>o.id===S.cpPk.tipo):null; cpDoAddProduct(c,S.cpPk.pres,tipoOpt); }
+function cpDoAddProduct(c,presId,tipoOpt){
+  const pres=(c.presentations||[]).find(p=>p.id===presId)||{};
+  const price=cpProdPrice(c,presId,tipoOpt);
+  S.cpOrder.productos.push({ product_id:c.id, product_name:[c.name,pres.name||'',tipoOpt?tipoOpt.name:''].filter(Boolean).join(' · '), unit_price:price, cantidad:1, tamano:pres.name||'', pres_id:presId, tipo:tipoOpt?tipoOpt.name:'', adiciones:[], adic_options:cpAdicOptions(c,presId), notas:'', matched:true });
+  cpRenderForm(S.cpOrder);
+}
 async function cpConfirm(){ if(!S.cpOrder) return; cpSyncTop(); cpSyncProdInputs(); const o=S.cpOrder;
   if(!(o.productos||[]).length){ showToast('El pedido no tiene productos','error'); return; }
   const payload={ conversation_id:S.activeConvId, branch_id:o.branch_id, tenant_id:o.tenant_id, cliente:o.cliente, telefono:o.telefono, direccion:o.direccion||'', tipo:o.tipo, pago:o.pago, notas:o.notas, domi_precio:(o.tipo==='domicilio'?(Number(o.domi_precio)||0):0),
