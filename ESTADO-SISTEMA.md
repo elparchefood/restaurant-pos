@@ -775,6 +775,21 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
+## PENDIENTE — [Contabilidad] El domicilio infla las ventas (pass-through al domiciliario) — Sergio 2026-07-24
+
+**Problema:** hoy `pos_orders.total = comida + empaque + domicilio` (domicilios.js:1539), y el dashboard suma `o.total` en TODAS las métricas de ventas (dashboard.js:181,242,258-260,687,701,897). Por eso el **domicilio se cuenta como venta**. En el caso de Sergio el domicilio NO es ingreso suyo: el cliente le paga todo (ej. por transferencia) y él le pasa el valor del domicilio al domiciliario. Resultado: ventas infladas por la suma de los domicilios.
+
+**Lo que Sergio SÍ quiere conservar:** en el desglose por método de pago, la transferencia debe seguir mostrando el monto COMPLETO (ese dinero sí entró). No reducir la transferencia.
+
+**Propuesta (aprobada en concepto, faltan 2 detalles):**
+1. **Ventas reales = total − delivery_fee** (sacar el domicilio de las métricas de venta del dashboard). Métodos de pago quedan completos.
+2. **Registrar el domicilio como EGRESO** usando el sistema que la caja YA tiene (movimientos ingreso/egreso; cierre = base + ventasEf + ingresos − egresos, ver caja.js:432,434,1055). Así la caja cuadra (el efectivo que sale para pagar al domiciliario queda registrado) y se ve "pagado a domiciliarios" del turno.
+3. Opcional: tarjeta resumen "Domicilios cobrados vs pagados a domiciliarios".
+
+**Preguntas por confirmar con Sergio:** (a) ¿el domicilio SIEMPRE es del domiciliario o a veces es ingreso propio (repartidor a sueldo)? → si a veces es propio, hace falta un interruptor. (b) ¿el egreso del pago al domiciliario se registra AUTOMÁTICO (por cada domicilio) o MANUAL (cuando de verdad paga)? Sergio se inclina por: siempre del domiciliario + automático (por confirmar).
+
+---
+
 ## PENDIENTE — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
 
 **Contexto:** el sistema se vende a dueños con UNA marca o VARIAS (ej. una heladería + un restaurante bajo el mismo dueño, pero independientes por dentro). Cada marca crea sus sucursales (eso ya funciona). Falta la **creación/gestión de marcas** y dividir bien qué configuración es por-marca vs por-sucursal.
