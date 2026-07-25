@@ -82,7 +82,7 @@ async function boot() {
       $('userRole').textContent = user.role      || 'Usuario';
     }
 
-    await Promise.all([loadChannels(), loadConversations(), loadIaMaster()]);
+    await Promise.all([loadChannels(), loadConversations(), loadIaMaster(), loadQuickReplies()]);
     var _iaBtn = document.getElementById('iaMasterBtn');
     if (_iaBtn) _iaBtn.addEventListener('click', toggleIaMaster);
     subscribeRealtime();
@@ -1033,7 +1033,12 @@ function wireEvents() {
   });
   $('searchInput').addEventListener('input', e => { S.query = e.target.value; renderConvList(); });
   $('sendBtn').addEventListener('click', sendMessage);
-  $('msgInput').addEventListener('keydown', e => { if (e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendMessage(); } });
+  $('msgInput').addEventListener('input', onQuickInput);
+  $('msgInput').addEventListener('keydown', e => {
+    if (onQuickKeydown(e)) return;          // el "/" (respuestas rápidas) manejó la tecla
+    if (e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+  document.getElementById('quickBtn')?.addEventListener('click', function(e){ e.preventDefault(); toggleQuickFromBtn(); });
   $('replyCancel').addEventListener('click', clearReply);
   $('stickerBtn').addEventListener('click', toggleStickerPanel);
   $('pickerClose').addEventListener('click', () => { $('pickerPanel').style.display = 'none'; });
@@ -1048,6 +1053,14 @@ function wireEvents() {
     if (picker && picker.style.display !== 'none' && !picker.contains(e.target) && !e.target.closest('#stickerBtn')) {
       picker.style.display = 'none';
     }
+    const qdd = $('quickDropdown');
+    if (qdd && qdd.style.display !== 'none' && !qdd.contains(e.target) && e.target.id !== 'msgInput' && !e.target.closest('#quickBtn')) {
+      closeQuickDropdown();
+    }
+    const qmg = $('quickManage');
+    if (qmg && qmg.style.display !== 'none' && !qmg.contains(e.target) && !e.target.closest('#quickBtn') && !e.target.closest('.ci-qr-manage')) {
+      qmg.style.display = 'none';
+    }
   });
   document.querySelectorAll('.ci-nav-btn[data-view]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1061,6 +1074,179 @@ function wireEvents() {
     showToast('Función "Crear pedido" — próximamente', 'info');
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+}
+
+/* ══════════════════════════════════════════════
+   RESPUESTAS RÁPIDAS  ( "/" + palabra clave )
+   Igual que WhatsApp: escribes "/" y aparece la lista; sigues escribiendo
+   la palabra clave y se filtra; Enter o clic la pega lista para enviar.
+══════════════════════════════════════════════ */
+// Semilla inicial (las de El Parche). Solo se usa si la base está vacía.
+const DEFAULT_QUICK_REPLIES = [
+  { k:'gracias',  t:'¡Muchas gracias por preferirnos! Esperamos poder servirte nuevamente.' },
+  { k:'gracias2', t:'Muchas gracias ☺️' },
+  { k:'buenas',   t:'Buenas noches, cuéntame ¿En qué te podemos ayudar? ☺️🍟' },
+  { k:'servicio', t:'Claro que si 🍟¿Qué deseas? ☺️' },
+  { k:'carta',    t:'Buenas noches, ¿cómo estás?; con gusto ya te envío nuestra carta 😊' },
+  { k:'adicion',  t:'Perfecto, deseas adicionar alguna bebida, salchicha ranchera, súper queso o alguna de nuestras salsas especiales (maíz o chedar)? 🤩' },
+  { k:'pollo',    t:'La deseas con pollo, carne o mixta? 😋' },
+  { k:'pollo2',   t:'¿La deseas con pollo o carne? 🍟☺️' },
+  { k:'chorizo',  t:'¿La deseas con chorizo o tocineta? 😋' },
+  { k:'Nombre',   t:'A nombre de quien se recibe el pedido?🍟' },
+  { k:'Movil',    t:'Me podrías confirmar el móvil porfa 🙏🏽' },
+  { k:'pedirdomi2', t:'Buenas noches, me envias un movil por favor, graciaaaas☺️' },
+  { k:'ubicacioncliente', t:'Me podrías enviar la ubicación porfavor para que el domi pueda llegar más fácil ☺️🙏🏽' },
+  { k:'direccion', t:'Estamos ubicados en el barrio Bella Vista 📍 Cra 9B # 63 n58' },
+  { k:'cuanto',   t:'Me confirmas por favor con cuanto pagas porfavor, para enviarte regreso 😀' },
+  { k:'efectivotransferencia', t:'Con gusto, me confirmas si el pago es transferencia o efectivo? para pasar tu pedido a cocina🍟☺️' },
+  { k:'QR2',      t:'Te comparto el código QR para que puedas realizar tu pago ☺️\n\nO si deseas, mediante llaves con el siguiente número: 0092726260\n\nRecuerda enviarnos tu comprobante de pago😁' },
+  { k:'comprobante', t:'Quedo pendiente del comprobante para poderte preparar ☺️' },
+  { k:'total',    t:'Con gusto, serian $0 de tu pedido y $0 del domicilio, total $0 😊\nEn un momento enviamos tu pedido 🍟' },
+  { k:'30',       t:'Tu pedido tarda 30 minutos aproximadamente 🍟' },
+  { k:'40',       t:'Tu pedido tarda 40 minutos aproximadamente 🍟' },
+  { k:'saturaso', t:'Hola! 😎 En este momento nos encontramos saturados, por lo que no estamos brindando servicio temporalmente.\nEstamos trabajando para poder tomar tu pedido lo antes posible!\nGracias por tu paciencia. 😊' },
+  { k:'Listo',    t:'Ya puedes pasar por tu pedido 🍟😊' },
+  { k:'llevar',   t:'Con mucho gusto, apenas esté lista te aviso para que pases ☺️🍟' },
+  { k:'PEDIDOMESA', t:'Si deseas consumir tu pedido en el establecimiento, este se realiza directamente en el punto; Por medio de WhatsApp solo recibimos para domicilio y para recoger. Te esperamos☺️🍟' },
+  { k:'Noches',   t:'Buenas noches 🍟😊' },
+  { k:'Close',    t:'Buenas noches, por el día de hoy ya terminamos nuestra jornada.\nGracias por tu mensaje, esperamos atenderte en una próxima oportunidad.☺️🍟🫶🏼' },
+  { k:'Descanso', t:'Buenas noches, el día de ayer no teníamos servicio pero cuéntame ¿En qué te podemos ayudar? ☺️🍟' },
+  { k:'Gusto',    t:'Con muchisimo gusto, estamos para servirte 🫶🏼☺️' },
+  { k:'gusto',    t:'Con muchísimo gusto, estamos para servirte 🍟☺️' },
+];
+
+function qrEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function loadQuickReplies() {
+  try {
+    const { data } = await sb.from('ia_config').select('respuestas_rapidas').eq('branch_id', S.branchId).maybeSingle();
+    let list = (data && Array.isArray(data.respuestas_rapidas)) ? data.respuestas_rapidas : [];
+    if (!list.length) { list = DEFAULT_QUICK_REPLIES.slice(); await saveQuickReplies(list); }
+    S.quickReplies = list;
+  } catch (e) { console.warn('loadQuickReplies:', e); S.quickReplies = DEFAULT_QUICK_REPLIES.slice(); }
+}
+async function saveQuickReplies(list) {
+  const arr = list || S.quickReplies || [];
+  try { await sb.from('ia_config').update({ respuestas_rapidas: arr }).eq('branch_id', S.branchId); }
+  catch (e) { console.error('saveQuickReplies:', e); }
+}
+
+// Filtro: primero las que EMPIEZAN por la palabra, luego las que la CONTIENEN
+function qrFilter(q) {
+  const list = S.quickReplies || [];
+  q = (q||'').toLowerCase().trim();
+  if (!q) return list.slice();
+  const starts = list.filter(r => (r.k||'').toLowerCase().startsWith(q));
+  const has    = list.filter(r => !(r.k||'').toLowerCase().startsWith(q) && (r.k||'').toLowerCase().includes(q));
+  return starts.concat(has);
+}
+
+function onQuickInput(e) {
+  const v = e.target.value;
+  if (v.startsWith('/')) openQuickDropdown(v.slice(1));
+  else if (S.qrOpen) closeQuickDropdown();
+}
+function toggleQuickFromBtn() {
+  if (S.qrOpen) { closeQuickDropdown(); return; }
+  openQuickDropdown('');            // abre con toda la lista, sin necesidad de "/"
+  const inp = document.getElementById('msgInput'); if (inp) inp.focus();
+}
+function openQuickDropdown(q) { S.qrOpen = true; S.qrIndex = 0; renderQuickDropdown(q); }
+function closeQuickDropdown() {
+  S.qrOpen = false; S.qrIndex = -1; S._qrList = [];
+  const dd = document.getElementById('quickDropdown'); if (dd) dd.style.display = 'none';
+}
+function renderQuickDropdown(q) {
+  const dd = document.getElementById('quickDropdown'); if (!dd) return;
+  const list = qrFilter(q);
+  S._qrList = list;
+  if (!list.length) { dd.style.display = 'none'; return; }
+  if (S.qrIndex >= list.length) S.qrIndex = list.length - 1;
+  if (S.qrIndex < 0) S.qrIndex = 0;
+  const head = '<div class="ci-qr-head"><span>⚡ Respuestas rápidas</span>'
+    + '<button class="ci-qr-manage" onmousedown="event.preventDefault();openQuickManage()">Administrar</button></div>';
+  const rows = list.map((r,i) =>
+    '<div class="ci-qr-item'+(i===S.qrIndex?' active':'')+'" data-i="'+i+'" onmousedown="qrPick(event,'+i+')" onmouseenter="qrHover('+i+')">'
+    + '<span class="ci-qr-k">/'+qrEsc(r.k)+'</span>'
+    + '<span class="ci-qr-t">'+qrEsc(r.t).replace(/\n/g,' ')+'</span></div>'
+  ).join('');
+  dd.innerHTML = head + '<div class="ci-qr-scroll">' + rows + '</div>';
+  dd.style.display = 'block';
+  const act = dd.querySelector('.ci-qr-item.active');
+  if (act) act.scrollIntoView({ block:'nearest' });
+}
+function qrHover(i) {
+  S.qrIndex = i;
+  document.querySelectorAll('#quickDropdown .ci-qr-item').forEach(el => el.classList.toggle('active', +el.dataset.i === i));
+}
+function qrPick(ev, i) {
+  if (ev) ev.preventDefault();
+  const r = (S._qrList||[])[i]; if (!r) return;
+  const inp = document.getElementById('msgInput');
+  if (inp) { inp.value = r.t; inp.focus(); }
+  closeQuickDropdown();
+}
+// Devuelve true si consumió la tecla (dropdown abierto)
+function onQuickKeydown(e) {
+  if (!S.qrOpen) return false;
+  const list = S._qrList || [];
+  if (e.key === 'ArrowDown') { e.preventDefault(); S.qrIndex = Math.min(list.length-1, S.qrIndex+1); renderQuickDropdown((document.getElementById('msgInput').value||'').replace(/^\//,'')); return true; }
+  if (e.key === 'ArrowUp')   { e.preventDefault(); S.qrIndex = Math.max(0, S.qrIndex-1); renderQuickDropdown((document.getElementById('msgInput').value||'').replace(/^\//,'')); return true; }
+  if (e.key === 'Enter')     { e.preventDefault(); qrPick(null, S.qrIndex); return true; }
+  if (e.key === 'Escape')    { e.preventDefault(); closeQuickDropdown(); return true; }
+  return false;
+}
+
+/* == Administrar respuestas rápidas (agregar / editar / borrar) == */
+function openQuickManage() {
+  closeQuickDropdown();
+  const p = document.getElementById('quickManage'); if (!p) return;
+  S.qmEditIdx = -1;
+  qmRenderList(); qmClearForm();
+  p.style.display = 'block';
+}
+function closeQuickManage() { const p = document.getElementById('quickManage'); if (p) p.style.display = 'none'; }
+function qmRenderList() {
+  const cont = document.getElementById('quickMngList'); if (!cont) return;
+  const list = S.quickReplies || [];
+  if (!list.length) { cont.innerHTML = '<div style="padding:14px;color:var(--text-4);font-size:12.5px;text-align:center">Sin respuestas rápidas aún</div>'; return; }
+  cont.innerHTML = list.map((r,i) =>
+    '<div class="ci-qm-row">'
+    + '<div class="ci-qm-info"><div class="ci-qm-k">/'+qrEsc(r.k)+'</div><div class="ci-qm-t">'+qrEsc(r.t).replace(/\n/g,' ')+'</div></div>'
+    + '<button class="ci-qm-ed" title="Editar" onclick="qmEdit('+i+')">✎</button>'
+    + '<button class="ci-qm-del" title="Eliminar" onclick="qmDelete('+i+')">✕</button>'
+    + '</div>'
+  ).join('');
+}
+function qmClearForm() {
+  S.qmEditIdx = -1;
+  const k = document.getElementById('qmKey'), t = document.getElementById('qmText'), c = document.getElementById('qmCancelEdit'), s = document.getElementById('qmSaveBtn');
+  if (k) k.value = ''; if (t) t.value = ''; if (c) c.style.display = 'none'; if (s) s.textContent = 'Agregar respuesta';
+}
+function qmEdit(i) {
+  const r = (S.quickReplies||[])[i]; if (!r) return;
+  S.qmEditIdx = i;
+  const k = document.getElementById('qmKey'), t = document.getElementById('qmText'), c = document.getElementById('qmCancelEdit'), s = document.getElementById('qmSaveBtn');
+  if (k) k.value = r.k; if (t) t.value = r.t; if (c) c.style.display = 'inline-flex'; if (s) s.textContent = 'Guardar cambios';
+  if (k) k.focus();
+}
+async function qmSave() {
+  const k = (document.getElementById('qmKey').value||'').trim();
+  const t = (document.getElementById('qmText').value||'').trim();
+  if (!k || !t) { showToast('Escribe la palabra clave y el mensaje', 'error'); return; }
+  const key = k.replace(/^\/+/, '');   // sin la barra
+  S.quickReplies = S.quickReplies || [];
+  if (S.qmEditIdx >= 0) S.quickReplies[S.qmEditIdx] = { k:key, t };
+  else S.quickReplies.unshift({ k:key, t });
+  await saveQuickReplies();
+  qmRenderList(); qmClearForm();
+  showToast('Respuesta guardada ✓', 'success');
+}
+async function qmDelete(i) {
+  S.quickReplies.splice(i, 1);
+  await saveQuickReplies();
+  qmRenderList();
+  showToast('Respuesta eliminada', 'info');
 }
 
 /* ══════════════════════════════════════════════

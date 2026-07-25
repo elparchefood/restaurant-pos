@@ -14,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="pos-perms.js?v=1785030000"></script>
   <script>if(window.posRequirePin) posRequirePin('chat.usar');</script>
-  <link rel="stylesheet" href="chat-ia.css?v=10">
+  <link rel="stylesheet" href="chat-ia.css?v=11">
 </head>
 <body>
 
@@ -246,8 +246,31 @@
       </div>
     </div>
 
+    <!-- Panel para administrar respuestas rápidas -->
+    <div class="ci-picker-panel ci-quick-manage" id="quickManage" style="display:none">
+      <div class="ci-picker-head">
+        <div style="font-weight:700;font-size:13.5px;color:var(--text-1)">⚡ Respuestas rápidas</div>
+        <button class="ci-picker-close" onclick="closeQuickManage()">✕</button>
+      </div>
+      <div class="ci-qm-list" id="quickMngList"></div>
+      <div class="ci-qm-form">
+        <input id="qmKey" placeholder="Palabra clave (ej. pollo)" maxlength="40" autocomplete="off">
+        <textarea id="qmText" placeholder="Mensaje de la respuesta…" rows="3"></textarea>
+        <div class="ci-qm-actions">
+          <button id="qmCancelEdit" onclick="qmClearForm()" style="display:none">Cancelar</button>
+          <button id="qmSaveBtn" onclick="qmSave()">Agregar respuesta</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Desplegable de respuestas rápidas ( "/" ) -->
+    <div class="ci-quick-dd" id="quickDropdown" style="display:none"></div>
+
     <div class="ci-composer" id="composer" style="display:none">
       <input type="file" id="attachInput" accept="image/*,video/*,audio/*,.pdf,.doc,.docx" style="display:none">
+      <button class="ci-comp-attach" id="quickBtn" title="Respuestas rápidas ( / )">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      </button>
       <button class="ci-comp-attach" id="attachBtn" title="Adjuntar archivo">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
       </button>
@@ -265,7 +288,7 @@
 
 </div>
 
-<script src="chat-ia.js?v=1785430000"></script>
+<script src="chat-ia.js?v=1785700000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>
 </html>
