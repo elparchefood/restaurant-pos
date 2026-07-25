@@ -632,6 +632,20 @@ En la pantalla de **Caja**, el desglose "Ventas por canal" muestra **Mostrador $
 
 ---
 
+## PENDIENTE — [Dashboard] Modal "Imprimir comprobantes": los botones NO imprimen + nombres de mesa crudos — Sergio 2026-07-24
+
+(El modal ya muestra los pedidos — eso se arregló en #3 — pero quedaron dos cosas.)
+
+**1. Los botones de reimprimir (Comanda / Precuenta / Recibo) NO imprimen nada.** `dashboard.js:1657-1665`: el handler solo muestra un TOAST ("✓ Enviando ... a la impresora...") y ahí termina — nunca llama al sistema real de impresión. Es un placeholder sin cablear.
+  - **Fix:** conectar cada botón al sistema de impresión real (`pos-print.js`: `posPrintTicket`/`posPrintAction`/`_buildComanda`). Antes hay que **cargar el pedido completo con sus ítems** (`pos_order_items`) porque el modal solo cargó la cabecera (`qmLoadComprobantes` select sin items). Mapear doc: Comanda→ticket cocina, Precuenta→cuenta previa, Recibo→comprobante de venta. Verificar que `pos-print.js` esté incluido en dashboard.html (o incluirlo).
+
+**2. Nombres de mesa crudos.** `dashboard.js:1583-1584` y `1615-1616`: muestran `'Mesa ' + o.table_id` = el ID crudo (ej. "Mesa tmry2e6v7wjt", "Mesa t08") en vez del nombre/número real ("Mesa 08").
+  - **Fix:** cargar `pos_tables` (id → name/number) una vez y mapear el `table_id` al nombre bonito. (Mismo patrón que otras pantallas que ya resuelven el nombre de mesa.)
+
+**Nota:** ligado al #3 (el modal de comprobantes). En la lista de REVISIÓN, marcar #3 como "muestra pedidos OK, pero imprimir y nombres de mesa pendientes".
+
+---
+
 ## 🔴 PARA MAÑANA — 2026-07-24 (lista corta, lo primero al retomar)
 
 > Lista separada de los pendientes grandes de abajo (multi-caja, Modo Gerente, RLS). Esto es lo inmediato.
