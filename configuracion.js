@@ -3866,6 +3866,82 @@ function _ciaToggleTopbar(show){
   }
 }
 
+/* ═══════════ Respuestas rápidas — editor (Configuración → Asistente) ═══════════
+   Fuente de verdad: ia_config.respuestas_rapidas (la MISMA que usa el chat con "/"). */
+var CFGQR = { list: [], editIdx: -1, branchId: null };
+async function cfgQrGetBranch(){
+  if (CFGQR.branchId) return CFGQR.branchId;
+  try { var s = (await sb.auth.getSession()).data.session; CFGQR.branchId = (s && s.user && s.user.user_metadata) ? s.user.user_metadata.branch_id : null; } catch(e){}
+  return CFGQR.branchId;
+}
+function cfgQrEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+async function loadCfgQuickReplies(){
+  var bid = await cfgQrGetBranch(); if (!bid) return;
+  try {
+    var r = await sb.from('ia_config').select('respuestas_rapidas').eq('branch_id', bid).maybeSingle();
+    CFGQR.list = (r.data && Array.isArray(r.data.respuestas_rapidas)) ? r.data.respuestas_rapidas : [];
+  } catch(e){ console.warn('loadCfgQuickReplies:', e); CFGQR.list = []; }
+  cfgQrRender();
+}
+function cfgQrRender(){
+  var cont = document.getElementById('cfgQuickList'); if (!cont) return;
+  var n = CFGQR.list.length;
+  if (!n){ cont.innerHTML = '<div class="cfg-qr-empty">Aún no hay respuestas rápidas. Agrega la primera abajo.</div>'; return; }
+  cont.innerHTML = '<div class="cfg-qr-count">'+n+' respuesta'+(n===1?'':'s')+'</div>' + CFGQR.list.map(function(r,i){
+    return '<div class="cfg-qr-row">'
+      + '<div class="cfg-qr-info"><div class="cfg-qr-k">'+(r.img?'📷 ':'')+'/'+cfgQrEsc(r.k)+'</div><div class="cfg-qr-t">'+cfgQrEsc(r.t).replace(/\n/g,' ')+'</div></div>'
+      + '<button type="button" class="cfg-qr-ed" title="Editar" onclick="cfgQrEdit('+i+')">✎</button>'
+      + '<button type="button" class="cfg-qr-del" title="Eliminar" onclick="cfgQrDelete('+i+')">✕</button>'
+      + '</div>';
+  }).join('');
+}
+function cfgQrEdit(i){
+  var r = CFGQR.list[i]; if (!r) return;
+  CFGQR.editIdx = i;
+  document.getElementById('cfgQrKey').value  = r.k || '';
+  document.getElementById('cfgQrText').value = r.t || '';
+  document.getElementById('cfgQrCancel').style.display = '';
+  document.getElementById('cfgQrSaveBtn').textContent = 'Guardar cambios';
+  var f = document.getElementById('cfgQrKey'); if (f){ f.focus(); f.scrollIntoView({block:'nearest'}); }
+}
+function cfgQrCancel(){
+  CFGQR.editIdx = -1;
+  var k=document.getElementById('cfgQrKey'), t=document.getElementById('cfgQrText'),
+      c=document.getElementById('cfgQrCancel'), s=document.getElementById('cfgQrSaveBtn');
+  if(k) k.value=''; if(t) t.value=''; if(c) c.style.display='none'; if(s) s.textContent='Agregar respuesta';
+}
+async function cfgQrSave(){
+  var kEl=document.getElementById('cfgQrKey'), tEl=document.getElementById('cfgQrText');
+  var k = (kEl.value||'').trim().replace(/^\/+/, '');
+  var t = (tEl.value||'').trim();
+  if (!k){ kEl.focus(); return; }
+  if (!t){ tEl.focus(); return; }
+  if (CFGQR.editIdx >= 0){ CFGQR.list[CFGQR.editIdx] = Object.assign({}, CFGQR.list[CFGQR.editIdx], { k:k, t:t }); }
+  else CFGQR.list.unshift({ k:k, t:t });
+  await cfgQrPersist();
+  cfgQrRender(); cfgQrCancel();
+}
+async function cfgQrDelete(i){
+  CFGQR.list.splice(i,1);
+  await cfgQrPersist();
+  cfgQrRender();
+}
+async function cfgQrPersist(){
+  var bid = await cfgQrGetBranch(); if (!bid) return;
+  try { await sb.from('ia_config').update({ respuestas_rapidas: CFGQR.list }).eq('branch_id', bid); }
+  catch(e){ console.error('cfgQrPersist:', e); }
+}
+(function(){
+  function hook(){
+    var btn = document.querySelector('.cia-tab[data-tab="respuestas"]');
+    if (btn) btn.addEventListener('click', loadCfgQuickReplies);
+    // Cargar una vez para que la lista esté lista aunque no se haya abierto la pestaña
+    loadCfgQuickReplies();
+  }
+  if (document.readyState !== 'loading') hook();
+  else document.addEventListener('DOMContentLoaded', hook);
+})();
+
 
 /* ══════════════════════════════════════════════════════════════════════════
    MÉTODOS DE PAGO — editor (fuente de verdad: ia_config.pagos)

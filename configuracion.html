@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css">
-<link rel="stylesheet" href="configuracion.css?v=1785060000">
+<link rel="stylesheet" href="configuracion.css?v=1785720000">
 </head>
 <body>
 <div class="cf-root">
@@ -121,6 +121,7 @@
         <button class="cia-tab" data-tab="mensajes"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Mensajes</button>
         <button class="cia-tab" data-tab="domicilios"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Domicilios</button>
         <button class="cia-tab" data-tab="pagos"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Pagos</button>
+        <button class="cia-tab" data-tab="respuestas"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Respuestas rápidas</button>
       </nav>
         <div class="cf-crumbs">
           <span class="cf-crumb-mut">Configuración</span>
@@ -1421,6 +1422,33 @@
               </div>
             </div>
 
+            <div class="card" id="card-respuestas" data-tab="respuestas" style="display:none">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Respuestas rápidas</div>
+                  <div class="card-hd-ds">Mensajes que envías con “/” en el chat. En el chat escribe <code>/</code> y la palabra clave (ej. <code>/pollo</code>) para insertarlos. Aquí los editas.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div id="cfgQuickList" class="cfg-qr-list"></div>
+                <div class="cfg-qr-form">
+                  <div class="field">
+                    <label class="field-lb" for="cfgQrKey">Palabra clave</label>
+                    <input class="inp" id="cfgQrKey" placeholder="Ej. pollo" maxlength="40" autocomplete="off">
+                  </div>
+                  <div class="field">
+                    <label class="field-lb" for="cfgQrText">Mensaje</label>
+                    <textarea class="txa" id="cfgQrText" rows="3" placeholder="Mensaje de la respuesta…"></textarea>
+                  </div>
+                  <div class="cfg-qr-actions">
+                    <button type="button" class="cfg-qr-btn ghost" id="cfgQrCancel" style="display:none" onclick="cfgQrCancel()">Cancelar</button>
+                    <button type="button" class="cfg-qr-btn primary" id="cfgQrSaveBtn" onclick="cfgQrSave()">Agregar respuesta</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="card" id="card-lenguaje" data-tab="asistente">
               <div class="card-hd">
                 <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"/></svg></div>
@@ -2025,7 +2053,7 @@
 <script src="pos-brand.js?v=1784901500"></script>
 <script src="pos-print.js?v=17"></script>
 <script src="pos-print-listener.js?v=4"></script>
-<script src="configuracion.js?v=1785370000"></script>
+<script src="configuracion.js?v=1785720000"></script>
 </body>
 </html>
 

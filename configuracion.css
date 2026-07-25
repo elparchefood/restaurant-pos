@@ -1226,3 +1226,23 @@ div.master[data-tab].cia-active { display: flex !important; }
 .prop-chip-add{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border:1px dashed var(--border,#E2E8F0);border-radius:999px;background:transparent;color:var(--slate,#64748B);font-size:13px;font-weight:600;cursor:pointer;}
 .prop-chip-add:hover{background:var(--cloud,#F8FAFC);color:var(--indigo,#5B6BFF);}
 .prop-newform{display:inline-flex;align-items:center;gap:6px;}
+
+/* ═══════ Respuestas rápidas (editor de Configuración) ═══════ */
+.cfg-qr-list{display:flex;flex-direction:column;gap:2px;max-height:420px;overflow-y:auto;margin-bottom:14px;}
+.cfg-qr-empty{padding:22px;text-align:center;color:var(--slate,#64748B);font-size:13px;}
+.cfg-qr-count{font-size:11.5px;font-weight:700;color:var(--slate,#94A3B8);text-transform:uppercase;letter-spacing:.04em;padding:4px 6px 8px;}
+.cfg-qr-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;}
+.cfg-qr-row:hover{background:var(--cloud,#F8FAFC);}
+.cfg-qr-info{flex:1;min-width:0;}
+.cfg-qr-k{font-weight:800;font-size:13px;color:#8B5CF6;}
+.cfg-qr-t{font-size:12px;color:var(--slate,#64748B);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cfg-qr-ed,.cfg-qr-del{width:30px;height:30px;flex-shrink:0;border:1px solid var(--border,#E2E8F0);background:#fff;border-radius:8px;cursor:pointer;font-size:13px;color:var(--slate,#64748B);display:flex;align-items:center;justify-content:center;}
+.cfg-qr-ed:hover{border-color:#8B5CF6;color:#8B5CF6;background:#F5F3FF;}
+.cfg-qr-del:hover{border-color:#EF4444;color:#EF4444;background:#FEF2F2;}
+.cfg-qr-form{border-top:1px solid var(--border,#E2E8F0);padding-top:14px;display:flex;flex-direction:column;gap:12px;}
+.cfg-qr-actions{display:flex;justify-content:flex-end;gap:8px;}
+.cfg-qr-btn{font-family:inherit;font-size:13px;font-weight:700;padding:9px 18px;border-radius:9px;border:none;cursor:pointer;}
+.cfg-qr-btn.primary{background:#8B5CF6;color:#fff;}
+.cfg-qr-btn.primary:hover{background:#7c3aed;}
+.cfg-qr-btn.ghost{background:transparent;border:1px solid var(--border,#E2E8F0);color:var(--slate,#64748B);}
+.cfg-qr-btn.ghost:hover{background:var(--cloud,#F8FAFC);}
