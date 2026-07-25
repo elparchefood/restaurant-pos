@@ -790,6 +790,16 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
+## HECHO/PENDIENTE 2026-07-24 — GRANTs faltantes (patrón repetido)
+
+**HECHO:** `pos_cash_moves` (ingresos/egresos de caja) NO tenía GRANT de SELECT/INSERT/UPDATE/DELETE para el rol `authenticated` → la función de egresos daba "Error al registrar movimiento" y no cargaba movimientos. Se aplicó `GRANT SELECT,INSERT,UPDATE,DELETE ON pos_cash_moves TO authenticated`. Diagnóstico: RLS estaba OK (allow_all/public/true) y el esquema OK; el bloqueo era a nivel de GRANT de tabla (Postgres rechaza antes de RLS). El superusuario del API ignora GRANTs, por eso el insert de prueba funcionaba pero el cliente no.
+
+**Es el SEGUNDO caso** del mismo bug (antes: `iv_porciones`). **PENDIENTE: barrido de GRANTs** — revisar TODAS las tablas `pos_*` e `iv_*` y confirmar que `authenticated` tiene los permisos que la app necesita (normalmente SELECT/INSERT/UPDATE/DELETE). Query base: `select table_name, string_agg(privilege_type, ',') from information_schema.role_table_grants where grantee='authenticated' and table_schema='public' group by table_name`. Corregir las que les falte, para que no salte otro error en pleno servicio.
+
+**Nota:** la RLS de varias tablas es `allow_all`/`true` (sin aislamiento por tenant). Eso es parte del pendiente de "Blindaje interior (RLS de negocio)" de abajo — al granting no empeoramos nada respecto al patrón actual, pero conviene endurecerlo cuando se haga multi-marca.
+
+---
+
 ## PENDIENTE — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
 
 **Contexto:** el sistema se vende a dueños con UNA marca o VARIAS (ej. una heladería + un restaurante bajo el mismo dueño, pero independientes por dentro). Cada marca crea sus sucursales (eso ya funciona). Falta la **creación/gestión de marcas** y dividir bien qué configuración es por-marca vs por-sucursal.
