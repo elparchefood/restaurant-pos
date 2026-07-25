@@ -1019,6 +1019,16 @@ Estados actuales (ventas-salon.js:50, `DELIVERY_NEXT`): recibido → preparacion
 
 ---
 
+## PENDIENTE — [Chat IA] Cambiar la paleta de color de la pantalla — Sergio 2026-07-24
+
+El azul actual del Chat IA le parece "raro" a Sergio y es la pantalla que MÁS va a usar (está todo el día ahí). Quiere una paleta más cómoda a la vista.
+- Probar: **azul más oscuro**, o **negro/gris** (neutros), o un tema oscuro tipo bandeja de mensajería.
+- Archivo: `chat-ia.css` (tokens/colores de la pantalla). Mantener la identidad de marca (acento #5B6BFF) pero suavizar el fondo/azul dominante.
+- Sugerencia de Claude: preparar 2-3 opciones de tono (mockup o variantes CSS) para que Sergio elija antes de aplicar — es puramente visual, mejor verlo. Considerar modo claro y oscuro.
+- Hacerlo junto con el resto del pulido del Chat IA (interruptor global ya hecho; crear pedido desde chat; multi-línea).
+
+---
+
 ## PENDIENTE — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
 
 **Contexto:** el sistema se vende a dueños con UNA marca o VARIAS (ej. una heladería + un restaurante bajo el mismo dueño, pero independientes por dentro). Cada marca crea sus sucursales (eso ya funciona). Falta la **creación/gestión de marcas** y dividir bien qué configuración es por-marca vs por-sucursal.
