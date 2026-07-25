@@ -619,6 +619,19 @@ En la pantalla de **Caja**, el desglose "Ventas por canal" muestra **Mostrador $
 
 ---
 
+## PENDIENTE — [Dashboard] "Inventario rápido" / "Alertas de stock" consultan la tabla EQUIVOCADA (siempre "Todo en orden") — Sergio 2026-07-24
+
+**Bug confirmado:** el dashboard consulta `pos_ingredients` (tabla VIEJA/VACÍA: 0 filas) en vez de `iv_insumos` (el inventario real: 43 filas, lo que usa la pantalla de Inventario). Por eso el modal "Inventario rápido" y la tarjeta "Alertas de stock" SIEMPRE dicen "Todo en orden / Inventario al día" aunque haya insumos en 0. Está mirando una tabla vacía.
+
+**Qué tocar (dashboard.js):**
+- `loadStock()` ~línea 265-269: `sb.from('pos_ingredients').select('name,stock,purchase_unit,min_stock')` → usar `iv_insumos` con columnas reales: `nombre, stock, min_stock, use_unit` (+ filtrar `activo` y por `branch_id`/`tenant_id`).
+- `qmLoadInventario()` ~línea 1462-1472: `sb.from('pos_ingredients').select('*')` → igual, `iv_insumos`. Ojo el mapeo `name` → `nombre` en el render (líneas ~1490-1500 usan `it.name`, `it.unit`, `it.min_stock`).
+- Revisar todos los usos de `pos_ingredients` en dashboard.js y otros archivos (buscar `pos_ingredients`) — probablemente más de uno.
+
+**Nota adicional (afinar):** el alerta es `stock < min_stock`. Hoy muchos insumos tienen `min_stock = 0`, así que aunque estén en 0 no alertan (0 < 0 = falso). Al arreglar la tabla, considerar también marcar los **agotados** (`stock <= 0`) como alerta, o recordarle a Sergio poner el mínimo a los insumos clave. (Verificado 2026-07-24: 0 insumos con stock<min porque casi todos tienen min=0.)
+
+---
+
 ## 🔴 PARA MAÑANA — 2026-07-24 (lista corta, lo primero al retomar)
 
 > Lista separada de los pendientes grandes de abajo (multi-caja, Modo Gerente, RLS). Esto es lo inmediato.
