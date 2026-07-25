@@ -1243,104 +1243,81 @@ async function openCrearPedido(){
     const data=await res.json();
     if(data.error){ cpSetBody('<div class="cp-error">⚠️ '+cpEsc(data.error)+'</div>'); return; }
     S.cpOrder=data.order;
+    S.cpCatalogo=data.catalogo||[];
+    S.cpMods=data.mods||[];
     cpRenderForm(data.order);
     cpFooter(true);
   }catch(e){ cpSetBody('<div class="cp-error">⚠️ No se pudo analizar: '+cpEsc(e.message)+'</div>'); }
 }
 
+function cpNorm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim(); }
+function cpItemTotal(p){ const a=(p.adiciones||[]).reduce((s,x)=>s+(Number(x.price)||0),0); return ((Number(p.unit_price)||0)+a)*(Number(p.cantidad)||1); }
+function cpOrderTotal(){ if(!S.cpOrder) return 0; let s=(S.cpOrder.productos||[]).reduce((a,p)=>a+cpItemTotal(p),0); if((S.cpOrder.tipo||'')==='domicilio') s+=Number(S.cpOrder.domi_precio)||0; return s; }
+function cpSyncTop(){ if(!S.cpOrder) return; const g=id=>document.getElementById(id); const o=S.cpOrder;
+  if(g('cpNombre')) o.cliente=g('cpNombre').value; if(g('cpTelefono')) o.telefono=g('cpTelefono').value;
+  if(g('cpTipo')) o.tipo=g('cpTipo').value; if(g('cpPago')) o.pago=g('cpPago').value;
+  if(g('cpDireccion')) o.direccion=g('cpDireccion').value; if(g('cpNotas')) o.notas=g('cpNotas').value;
+  if(g('cpDomi')) o.domi_precio=+g('cpDomi').value||0; }
+function cpSyncProdInputs(){ if(!S.cpOrder) return; document.querySelectorAll('#cpProds .cp-prod').forEach(row=>{ const i=+row.dataset.i; const p=S.cpOrder.productos[i]; if(!p) return; const q=row.querySelector('.cp-qty'); if(q) p.cantidad=+q.value||1; const n=row.querySelector('.cp-pnota'); if(n) p.notas=n.value; }); }
+function cpRerender(){ cpSyncTop(); cpSyncProdInputs(); cpRenderForm(S.cpOrder); }
+function cpUpdTotal(){ cpSyncTop(); cpSyncProdInputs(); const t=document.getElementById('cpTotal'); if(t) t.textContent=cpCOP(cpOrderTotal()); }
+function cpNoteInput(i,v){ if(S.cpOrder&&S.cpOrder.productos[i]) S.cpOrder.productos[i].notas=v; }
+
 function cpRenderForm(o){
   const tipos=['domicilio','recoger','mesa'];
   const prods=(o.productos||[]).map((p,i)=>cpProdRow(p,i)).join('');
+  const addProd=(S.cpCatalogo&&S.cpCatalogo.length)
+    ? '<select class="cp-addprod" onchange="cpAddProducto(this.value);this.selectedIndex=0"><option value="">+ Agregar producto…</option>'+S.cpCatalogo.map(c=>'<option value="'+c.id+'">'+cpEsc(c.name)+'</option>').join('')+'</select>' : '';
   const html=
     '<div class="cp-grid">'
     +'<div class="cp-f"><label>Nombre del cliente</label><input id="cpNombre" value="'+cpEsc(o.cliente||'')+'"></div>'
     +'<div class="cp-f"><label>Teléfono</label><input id="cpTelefono" value="'+cpEsc(o.telefono||'')+'"></div>'
-    +'<div class="cp-f"><label>Tipo</label><select id="cpTipo" onchange="cpTipoChange()">'+tipos.map(t=>'<option value="'+t+'"'+(o.tipo===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
+    +'<div class="cp-f"><label>Tipo</label><select id="cpTipo" onchange="cpRerender()">'+tipos.map(t=>'<option value="'+t+'"'+(o.tipo===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
     +'<div class="cp-f"><label>Método de pago</label><input id="cpPago" value="'+cpEsc(o.pago||'')+'"></div>'
     +'</div>'
-    +'<div class="cp-f" id="cpDireccionWrap"><label>Dirección</label><input id="cpDireccion" value="'+cpEsc(o.direccion||'')+'"></div>'
+    +(o.tipo!=='mesa'?'<div class="cp-f"><label>Dirección</label><input id="cpDireccion" value="'+cpEsc(o.direccion||'')+'"></div>':'')
     +'<div class="cp-prods-hd">Productos</div>'
-    +'<div id="cpProds">'+(prods||'<div class="cp-empty">La IA no reconoció productos. Puedes agregarlos en el POS luego de crear.</div>')+'</div>'
+    +'<div id="cpProds">'+(prods||'<div class="cp-empty">Sin productos. Agrégalos abajo.</div>')+'</div>'
+    +(addProd?'<div class="cp-addrow">'+addProd+'</div>':'')
     +'<div class="cp-f"><label>Notas generales</label><textarea id="cpNotas" rows="2">'+cpEsc(o.notas||'')+'</textarea></div>'
-    +'<div class="cp-f" id="cpDomiWrap"><label>Valor domicilio</label><input id="cpDomi" type="number" value="0" oninput="cpRecalc()"></div>'
-    +'<div class="cp-total">Total del pedido: <b id="cpTotal">$0</b></div>';
+    +(o.tipo==='domicilio'?'<div class="cp-f cp-domi"><label>💵 Valor del domicilio</label><input id="cpDomi" type="number" min="0" value="'+(Number(o.domi_precio)||0)+'" oninput="cpUpdTotal()"></div>':'')
+    +'<div class="cp-total">Total del pedido: <b id="cpTotal">'+cpCOP(cpOrderTotal())+'</b></div>';
   cpSetBody(html);
-  cpTipoChange(); cpRecalc();
 }
 function cpProdRow(p,i){
+  const chips=(p.adiciones||[]).map(a=>'<span class="cp-chip">'+cpEsc(a.name)+' +'+cpCOP(a.price)+'<button title="Quitar" onclick="cpDelAdic('+i+',\''+a.id+'\')">✕</button></span>').join('');
+  const used={}; (p.adiciones||[]).forEach(a=>used[a.id]=1);
+  const opts=(p.adic_options||[]).filter(o=>!used[o.id]);
+  const picker=opts.length?'<select class="cp-addadic" onchange="cpAddAdic('+i+',this.value);this.selectedIndex=0"><option value="">+ Adición…</option>'+opts.map(o=>'<option value="'+o.id+'">'+cpEsc(o.name)+' (+'+cpCOP(o.price)+')</option>').join('')+'</select>':'';
   return '<div class="cp-prod" data-i="'+i+'">'
     +'<div class="cp-prod-top">'
-      +'<input class="cp-qty" type="number" min="1" value="'+(p.cantidad||1)+'" oninput="cpRecalc()">'
-      +'<div class="cp-pname">'+cpEsc(p.product_name||p.nombre||'Producto')+(p.matched?'':' <span class="cp-warn">sin precio</span>')+'</div>'
-      +'<div class="cp-price" data-price="'+(Number(p.unit_price)||0)+'">'+cpCOP(p.unit_price||0)+'</div>'
+      +'<input class="cp-qty" type="number" min="1" value="'+(p.cantidad||1)+'" oninput="cpUpdTotal()">'
+      +'<div class="cp-pname">'+cpEsc(p.product_name||p.nombre||'Producto')+(p.matched===false?' <span class="cp-warn">sin precio</span>':'')+'</div>'
+      +'<div class="cp-price">'+cpCOP(p.unit_price||0)+'</div>'
       +'<button class="cp-del" title="Quitar" onclick="cpDelProd('+i+')">✕</button>'
     +'</div>'
-    +'<input class="cp-adic" placeholder="Adiciones (ej. queso, tocineta)" value="'+cpEsc(p.adiciones||'')+'">'
-    +'<input class="cp-pnota" placeholder="Nota (ej. sin cebolla)" value="'+cpEsc(p.notas||'')+'">'
+    +(chips?'<div class="cp-chips">'+chips+'</div>':'')
+    +(picker?'<div class="cp-prod-actions">'+picker+'</div>':'')
+    +'<input class="cp-pnota" placeholder="Nota (ej. sin cebolla)" value="'+cpEsc(p.notas||'')+'" oninput="cpNoteInput('+i+',this.value)">'
   +'</div>';
 }
-function cpDelProd(i){
-  if(!S.cpOrder) return;
-  // Reconstruir productos leyendo lo editado, quitando el índice i
-  cpSyncProds();
-  S.cpOrder.productos.splice(i,1);
-  cpRenderForm(S.cpOrder);
-}
-function cpSyncProds(){
-  if(!S.cpOrder) return;
-  const rows=[...document.querySelectorAll('#cpProds .cp-prod')];
-  const next=[];
-  rows.forEach(row=>{
-    const i=+row.dataset.i; const base=S.cpOrder.productos[i]||{};
-    next.push(Object.assign({},base,{
-      cantidad:+row.querySelector('.cp-qty').value||1,
-      adiciones:row.querySelector('.cp-adic').value,
-      notas:row.querySelector('.cp-pnota').value,
-    }));
-  });
-  S.cpOrder.productos=next;
-}
-function cpTipoChange(){
-  const t=document.getElementById('cpTipo'); if(!t) return;
-  const esDomi=t.value==='domicilio';
-  const dir=document.getElementById('cpDireccionWrap'), domi=document.getElementById('cpDomiWrap');
-  if(dir) dir.style.display=(t.value==='mesa')?'none':'';
-  if(domi) domi.style.display=esDomi?'':'none';
-  cpRecalc();
-}
-function cpRecalc(){
-  let sub=0;
-  document.querySelectorAll('#cpProds .cp-prod').forEach(row=>{
-    const qty=+row.querySelector('.cp-qty').value||1;
-    const price=+row.querySelector('.cp-price').dataset.price||0;
-    sub+=qty*price;
-  });
-  const t=document.getElementById('cpTipo');
-  const domiEl=document.getElementById('cpDomi');
-  const domi=(t&&t.value==='domicilio'&&domiEl)?(+domiEl.value||0):0;
-  const tot=document.getElementById('cpTotal');
-  if(tot) tot.textContent=cpCOP(sub+domi);
-}
-async function cpConfirm(){
-  if(!S.cpOrder) return;
-  cpSyncProds();
-  const g=id=>document.getElementById(id);
-  const productos=(S.cpOrder.productos||[]);
-  if(!productos.length){ showToast('El pedido no tiene productos','error'); return; }
-  const tipo=g('cpTipo').value;
-  const payload={
-    conversation_id:S.activeConvId, branch_id:S.cpOrder.branch_id, tenant_id:S.cpOrder.tenant_id,
-    cliente:g('cpNombre').value, telefono:g('cpTelefono').value,
-    direccion:g('cpDireccion')?g('cpDireccion').value:'', tipo, pago:g('cpPago').value,
-    notas:g('cpNotas').value, domi_precio:g('cpDomi')?(+g('cpDomi').value||0):0, productos,
-  };
-  const btn=g('cpConfirmBtn'); if(btn){ btn.disabled=true; btn.textContent='Creando…'; }
-  try{
-    const res=await fetch(CREAR_PEDIDO_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    const data=await res.json();
+function cpAdicOptions(c,presId){ const out=[],seen={}; const gids=c.mod_group_ids||[]; const pres=c.mod_group_pres||{};
+  gids.forEach(gid=>{ if(pres[gid]&&presId&&pres[gid].indexOf(presId)<0) return; const g=(S.cpMods||[]).find(m=>String(m.id)===String(gid)); ((g&&g.options)||[]).forEach(o=>{ const k=cpNorm(o.name); if(!seen[k]){ seen[k]=1; out.push({id:o.id,name:o.name,price:Number(o.price)||0}); } }); }); return out; }
+function cpAddAdic(i,optId){ if(!optId||!S.cpOrder) return; const p=S.cpOrder.productos[i]; if(!p) return; const opt=(p.adic_options||[]).find(o=>o.id===optId); if(opt&&!(p.adiciones||[]).some(a=>a.id===optId)){ p.adiciones=p.adiciones||[]; p.adiciones.push({id:opt.id,name:opt.name,price:opt.price}); } cpRerender(); }
+function cpDelAdic(i,optId){ const p=S.cpOrder&&S.cpOrder.productos[i]; if(!p) return; p.adiciones=(p.adiciones||[]).filter(a=>a.id!==optId); cpRerender(); }
+function cpDelProd(i){ cpSyncTop(); cpSyncProdInputs(); S.cpOrder.productos.splice(i,1); cpRenderForm(S.cpOrder); }
+function cpAddProducto(catId){ if(!catId||!S.cpOrder) return; const c=(S.cpCatalogo||[]).find(x=>x.id===catId); if(!c) return;
+  const pres=(c.presentations||[])[0]||{}; const presId=pres.id||''; const presName=pres.name||''; let price=Number(pres.price)||Number(c.price)||0; let tipoName='';
+  if(c.price_mode==='matrix'&&(c.variables||[]).length){ const vo=((c.variables[0].options)||[])[0]; if(vo){ tipoName=vo.name; if(Array.isArray(vo.prices)&&vo.prices.length) price=vo.prices[0]; else if(vo.price>0) price=vo.price; } }
+  S.cpOrder.productos.push({ product_id:c.id, product_name:[c.name,presName,tipoName].filter(Boolean).join(' · '), unit_price:price, cantidad:1, tamano:presName, pres_id:presId, tipo:tipoName, adiciones:[], adic_options:cpAdicOptions(c,presId), notas:'', matched:true }); cpRerender(); }
+async function cpConfirm(){ if(!S.cpOrder) return; cpSyncTop(); cpSyncProdInputs(); const o=S.cpOrder;
+  if(!(o.productos||[]).length){ showToast('El pedido no tiene productos','error'); return; }
+  const payload={ conversation_id:S.activeConvId, branch_id:o.branch_id, tenant_id:o.tenant_id, cliente:o.cliente, telefono:o.telefono, direccion:o.direccion||'', tipo:o.tipo, pago:o.pago, notas:o.notas, domi_precio:(o.tipo==='domicilio'?(Number(o.domi_precio)||0):0),
+    productos:(o.productos||[]).map(p=>({ product_id:p.product_id, product_name:p.product_name, unit_price:p.unit_price, cantidad:p.cantidad, tamano:p.tamano, tipo:p.tipo, adiciones:p.adiciones||[], notas:p.notas })) };
+  const btn=document.getElementById('cpConfirmBtn'); if(btn){ btn.disabled=true; btn.textContent='Creando…'; }
+  try{ const res=await fetch(CREAR_PEDIDO_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const data=await res.json();
     if(data.error){ showToast('Error: '+data.error,'error'); if(btn){btn.disabled=false;btn.textContent='Crear e imprimir';} return; }
-    showToast('✅ Pedido creado · '+cpCOP(data.total),'success');
-    cpClose();
+    showToast('✅ Pedido creado · '+cpCOP(data.total),'success'); cpClose();
   }catch(e){ showToast('Error: '+e.message,'error'); if(btn){btn.disabled=false;btn.textContent='Crear e imprimir';} }
 }
 

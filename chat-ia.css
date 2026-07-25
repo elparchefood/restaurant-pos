@@ -1314,4 +1314,16 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .cp-btn.primary:hover { background: #7c3aed; }
 .cp-btn.primary:disabled { opacity: .6; cursor: default; }
 @media (max-width: 560px) { .cp-grid { grid-template-columns: 1fr; } }
+.cp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cp-chip { display: inline-flex; align-items: center; gap: 6px; background: rgba(139,92,246,.18); border: 1px solid rgba(139,92,246,.35); color: #ddd6fe; font-size: 12px; font-weight: 600; padding: 4px 6px 4px 10px; border-radius: 999px; }
+.cp-chip button { background: rgba(255,255,255,.12); border: none; color: #fff; width: 17px; height: 17px; border-radius: 50%; cursor: pointer; font-size: 10px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+.cp-chip button:hover { background: rgba(239,68,68,.6); }
+.cp-prod-actions { display: flex; }
+.cp-addadic, .cp-addprod { background: rgba(139,92,246,.12); border: 1px dashed rgba(139,92,246,.5); color: #c4b5fd; border-radius: 9px; padding: 7px 10px; font-family: var(--font); font-size: 12.5px; font-weight: 600; cursor: pointer; width: 100%; }
+.cp-addadic:focus, .cp-addprod:focus { outline: none; border-style: solid; }
+.cp-addadic option, .cp-addprod option { background: #17263a; color: #fff; }
+.cp-addrow { margin-top: 2px; }
+.cp-addprod { border-color: rgba(255,255,255,.25); color: rgba(255,255,255,.75); background: rgba(255,255,255,.05); }
+.cp-domi { background: rgba(139,92,246,.10); border: 1px solid rgba(139,92,246,.25); border-radius: 11px; padding: 10px 12px; }
+.cp-domi label { color: #c4b5fd; }
 
