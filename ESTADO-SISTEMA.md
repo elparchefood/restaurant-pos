@@ -1039,6 +1039,18 @@ El azul actual del Chat IA le parece "raro" a Sergio y es la pantalla que MÁS v
 
 ---
 
+## PENDIENTE — [Pedidos] "Pedido habitual" guardado POR CLIENTE ("el de siempre") — Sergio 2026-07-24
+
+**Idea:** poder guardar un pedido completo como favorito **ligado a un cliente**; al seleccionar el nombre del cliente, aparecen sus pedidos guardados para re-seleccionarlos con un toque cuando vuelva a pedir (clásico "el de siempre" de las apps de domicilio). Aplica a las 3 pantallas de pedido (mesa, venta rápida, domicilio).
+
+**OJO — distinción:** la pestaña "Favoritos" que existe HOY son **productos favoritos** (`S.favs`, localStorage `pos_favs`; renderFavs en tomar-pedido.js:346; hay pestaña `favoritos`). Eso es por-PRODUCTO. La idea de Sergio es por-CLIENTE (pedidos completos). Decidir con Sergio: (a) reaprovechar esa pestaña para los pedidos del cliente (él cree que no la usa), o (b) mantener favoritos de producto Y agregar una sección aparte de "pedidos habituales del cliente". Recomendación Claude: son cosas distintas; lo más útil es que **al seleccionar un cliente** aparezcan sus pedidos guardados (en esa pestaña o una nueva).
+
+**Modelo:** guardar el pedido (items + presentaciones + adiciones + notas) ligado al `cliente_id`. Nueva tabla tipo `pos_cliente_pedidos_habituales` (cliente_id, nombre_del_favorito, items jsonb) o un campo en el cliente. Botones: "Guardar como habitual" al armar un pedido; y al elegir cliente, listar sus habituales → tocar → carga al carrito.
+
+**DEPENDE de #21/#22:** los clientes hoy viven en localStorage (no en `pos_clientes`) — esto necesita clientes bien guardados en la base (con su historial). Hacerlo JUNTO con arreglar los clientes (#21) y el sistema de puntos (#22), que también usan el cliente como entidad real. También se conecta con "crear pedido desde el chat" (el bot ya trae el cliente/teléfono).
+
+---
+
 ## PENDIENTE — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
 
 **Contexto:** el sistema se vende a dueños con UNA marca o VARIAS (ej. una heladería + un restaurante bajo el mismo dueño, pero independientes por dentro). Cada marca crea sus sucursales (eso ya funciona). Falta la **creación/gestión de marcas** y dividir bien qué configuración es por-marca vs por-sucursal.
