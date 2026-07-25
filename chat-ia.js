@@ -1273,7 +1273,7 @@ function cpOrderTotal(){ if(!S.cpOrder) return 0; let s=(S.cpOrder.productos||[]
 function cpSyncTop(){ if(!S.cpOrder) return; const g=id=>document.getElementById(id); const o=S.cpOrder;
   if(g('cpNombre')) o.cliente=g('cpNombre').value; if(g('cpTelefono')) o.telefono=g('cpTelefono').value;
   if(g('cpTipo')) o.tipo=g('cpTipo').value; if(g('cpPago')) o.pago=g('cpPago').value;
-  if(g('cpDireccion')) o.direccion=g('cpDireccion').value; if(g('cpNotas')) o.notas=g('cpNotas').value;
+  if(g('cpDireccion')) o.direccion=g('cpDireccion').value; if(g('cpBarrio')) o.barrio=g('cpBarrio').value; if(g('cpNotas')) o.notas=g('cpNotas').value;
   if(g('cpDomi')) o.domi_precio=+g('cpDomi').value||0; }
 function cpSyncProdInputs(){ if(!S.cpOrder) return; document.querySelectorAll('#cpProds .cp-prod').forEach(row=>{ const i=+row.dataset.i; const p=S.cpOrder.productos[i]; if(!p) return; const q=row.querySelector('.cp-qty'); if(q) p.cantidad=+q.value||1; const n=row.querySelector('.cp-pnota'); if(n) p.notas=n.value; }); }
 function cpRerender(){ cpSyncTop(); cpSyncProdInputs(); cpRenderForm(S.cpOrder); }
@@ -1292,7 +1292,7 @@ function cpRenderForm(o){
     +'<div class="cp-f"><label>Tipo</label><select id="cpTipo" onchange="cpRerender()">'+tipos.map(t=>'<option value="'+t+'"'+(o.tipo===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
     +'<div class="cp-f"><label>Método de pago</label><input id="cpPago" value="'+cpEsc(o.pago||'')+'"></div>'
     +'</div>'
-    +(o.tipo!=='mesa'?'<div class="cp-f"><label>Dirección</label><input id="cpDireccion" value="'+cpEsc(o.direccion||'')+'"></div>':'')
+    +(o.tipo!=='mesa'?'<div class="cp-grid"><div class="cp-f"><label>Dirección</label><input id="cpDireccion" value="'+cpEsc(o.direccion||'')+'"></div><div class="cp-f"><label>Barrio</label><input id="cpBarrio" value="'+cpEsc(o.barrio||'')+'"></div></div>':'')
     +'<div class="cp-prods-hd">Productos</div>'
     +'<div id="cpProds">'+(prods||'<div class="cp-empty">Sin productos. Agrégalos abajo.</div>')+'</div>'
     +(addProd?'<div class="cp-addrow">'+addProd+'</div>':'')
@@ -1401,13 +1401,29 @@ function cpDoAddProduct(c,presId,varsSel){
 }
 async function cpConfirm(){ if(!S.cpOrder) return; cpSyncTop(); cpSyncProdInputs(); const o=S.cpOrder;
   if(!(o.productos||[]).length){ showToast('El pedido no tiene productos','error'); return; }
-  const payload={ conversation_id:S.activeConvId, branch_id:o.branch_id, tenant_id:o.tenant_id, cliente:o.cliente, telefono:o.telefono, direccion:o.direccion||'', tipo:o.tipo, pago:o.pago, notas:o.notas, domi_precio:(o.tipo==='domicilio'?(Number(o.domi_precio)||0):0), empaque:cpEmpaque(),
+  const payload={ conversation_id:S.activeConvId, branch_id:o.branch_id, tenant_id:o.tenant_id, cliente:o.cliente, telefono:o.telefono, direccion:o.direccion||'', barrio:o.barrio||'', tipo:o.tipo, pago:o.pago, notas:o.notas, domi_precio:(o.tipo==='domicilio'?(Number(o.domi_precio)||0):0), empaque:cpEmpaque(),
     productos:(o.productos||[]).map(p=>({ product_id:p.product_id, product_name:p.product_name, unit_price:p.unit_price, cantidad:p.cantidad, tamano:p.tamano, variantes:p.variantes||{}, adiciones:p.adiciones||[], notas:p.notas })) };
   const btn=document.getElementById('cpConfirmBtn'); if(btn){ btn.disabled=true; btn.textContent='Creando…'; }
   try{ const res=await fetch(CREAR_PEDIDO_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const data=await res.json();
     if(data.error){ showToast('Error: '+data.error,'error'); if(btn){btn.disabled=false;btn.textContent='Crear e imprimir';} return; }
-    showToast('✅ Pedido creado · '+cpCOP(data.total),'success'); cpClose();
+    showToast('✅ Pedido creado · '+cpCOP(data.total),'success');
+    cpSaveClienteLocal(o);                                            // que aparezca en el selector de domicilios (mismo dispositivo)
+    if(window.posAutoprint && window.electronPOS){ try{ window.posAutoprint(data.orderId); }catch(e){} }   // imprimir comanda desde el chat
+    cpClose();
   }catch(e){ showToast('Error: '+e.message,'error'); if(btn){btn.disabled=false;btn.textContent='Crear e imprimir';} }
+}
+// Guarda el cliente en localStorage 'pos.clientes' (donde domicilios/venta rápida leen la lista),
+// para que el cliente creado desde el chat aparezca como un contacto más. Formato igual a domicilios.js.
+function cpSaveClienteLocal(o){
+  try{
+    const tel=String(o.telefono||'').replace(/\D/g,'');
+    if(!tel && !o.cliente) return;
+    const nn=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
+    const list=JSON.parse(localStorage.getItem('pos.clientes')||'[]');
+    if(list.some(c=>nn(c.tel)===nn(tel)&&nn(c.nombre)===nn(o.cliente)&&nn(c.dir)===nn(o.direccion))) return;
+    list.unshift({ id:'c'+Date.now(), nombre:o.cliente||'Cliente', tel:tel, barrio:o.barrio||'', dir:o.direccion||'', tipdoc:'', numdoc:'', email:'', notas:'' });
+    localStorage.setItem('pos.clientes', JSON.stringify(list));
+  }catch(e){ console.warn('cpSaveClienteLocal:', e); }
 }
 
 // Envía una respuesta rápida que lleva IMAGEN (ej. el QR de pago) + su texto como caption.
