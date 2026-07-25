@@ -800,6 +800,22 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
+## 🔴 URGENTE MAÑANA — [Venta sin inventario] Detectar agotamiento por VARIANTE/TAMAÑO, no por producto — Sergio 2026-07-24
+
+**Problema:** la función de "venta sin inventario" (pos-stock.js) detecta el agotamiento a nivel de PRODUCTO: marca el producto agotado si CUALQUIER insumo de su receta está en 0. Pero ignora `iv_recetas.variant_option_id` y las presentaciones. Caso real de Sergio: "Jugo Hit" tiene 2 tamaños (litro / personal) y 5 sabores (variables). Solo están agotados algunos sabores en algunos tamaños, pero el sistema marca TODO el Hit como agotado.
+
+**Lo que quiere Sergio:** que el bloqueo/aviso salga al tocar la **variable/tamaño específico** (dentro del modal de personalización), NO al tocar el producto completo. Ej.: el Hit se puede seleccionar; al elegir "Personal · Mango" (agotado) → ahí bloquea/avisa; "Litro · Mora" (con stock) → pasa normal.
+
+**Dirección técnica:**
+- `pos-stock.js`: hoy mapea `product_id → {insumo_ids}` (junta todas las variantes). Cambiar a mapear por **(product_id, variant_option_id)** — y considerar presentaciones si la receta define cantidades por presentación (`cantidades` jsonb). Exponer algo como `posStock.agotadoVariante(prodId, variantOptId, presId)` y `faltantesVariante(...)`.
+- El chequeo debe moverse del clic en la TARJETA (openProductModal/vrOpenProductModal en las 3 pantallas) a la **selección de la variante/presentación DENTRO del modal** (tomar-pedido.js, venta-rapida.js, domicilios.js — el paso donde se eligen presentación y opciones de variable).
+- La TARJETA del producto: solo mostrar "Agotado" si TODAS las combinaciones (todas las variantes×tamaños) están agotadas; si solo algunas, no marcar el producto o poner un indicador suave ("algunas opciones agotadas"). Confirmar con Sergio el comportamiento visual de la tarjeta cuando es parcial.
+- Reusar la lógica de receta por variante/presentación que ya existe en inventario (presDe/opcionesDe/qtyLinea/lineaAplica en inventario.js).
+
+**Contexto:** el detector actual (pos-stock.js) + su conexión en las 3 pantallas quedó de la sesión 2026-07-24 (commits 5acec44, 1a7916e). Esto es afinar ese mismo sistema para que sea por variante.
+
+---
+
 ## PENDIENTE — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
 
 **Contexto:** el sistema se vende a dueños con UNA marca o VARIAS (ej. una heladería + un restaurante bajo el mismo dueño, pero independientes por dentro). Cada marca crea sus sucursales (eso ya funciona). Falta la **creación/gestión de marcas** y dividir bien qué configuración es por-marca vs por-sucursal.
