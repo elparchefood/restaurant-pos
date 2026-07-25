@@ -1000,6 +1000,23 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
+## PENDIENTE — [Domicilios] Ajustar los ESTADOS del pedido — Sergio 2026-07-24
+
+Estados actuales (ventas-salon.js:50, `DELIVERY_NEXT`): recibido → preparacion → listo → camino → entregado.
+
+**1. Eliminar el estado "Recibido"** (es innecesario/ilógico): los pedidos al recibirse pasan automáticamente a **En preparación**. Quitar `recibido` del flujo (arrancar en `preparacion`). Revisar `DELIVERY_NEXT`, los chips/columnas de estado (la fila de tarjetas RECIBIDO/EN PREPARACIÓN/... del tablero de domicilios) y cualquier default a `recibido` al crear el pedido.
+
+**2. Estado "Entregado" según tipo de domiciliario (interno vs externo):**
+  - **Domiciliario INTERNO:** "Entregado" funciona MANUAL (nosotros sabemos cuándo entregó, se marca a mano).
+  - **Domiciliario EXTERNO:** NO sabemos cuándo entrega, así que el pedido pasa a "Entregado" **automáticamente después de un tiempo** (configurable). El estado sigue existiendo, solo cambia cómo se llega a él.
+  - Sergio trabaja con externo → sus domicilios se auto-pasarán a Entregado tras X minutos.
+
+**Depende de:** saber por pedido si el domiciliario es INTERNO o EXTERNO (el mismo flag interno/externo que ya se necesita para: (a) el domicilio como ingreso propio vs pass-through en la estadística de domicilios, y (b) el egreso del pago al domiciliario). Unificar ese concepto: un campo/flag "domiciliario interno/externo" por pedido (o inferir de si el domiciliario es de la lista interna). Definir el tiempo de auto-entregado (config, junto con los otros tiempos de automatización en Operación).
+
+**Nota:** revisar también si "En camino" tiene sentido para externo (tampoco lo sabemos con certeza) — por ahora Sergio solo pidió quitar Recibido y auto-Entregado para externo; confirmar si "listo/en camino" se simplifican también para externo.
+
+---
+
 ## PENDIENTE — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
 
 **Contexto:** el sistema se vende a dueños con UNA marca o VARIAS (ej. una heladería + un restaurante bajo el mismo dueño, pero independientes por dentro). Cada marca crea sus sucursales (eso ya funciona). Falta la **creación/gestión de marcas** y dividir bien qué configuración es por-marca vs por-sucursal.
