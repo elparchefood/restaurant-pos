@@ -1099,7 +1099,7 @@ const DEFAULT_QUICK_REPLIES = [
   { k:'direccion', t:'Estamos ubicados en el barrio Bella Vista 📍 Cra 9B # 63 n58' },
   { k:'cuanto',   t:'Me confirmas por favor con cuanto pagas porfavor, para enviarte regreso 😀' },
   { k:'efectivotransferencia', t:'Con gusto, me confirmas si el pago es transferencia o efectivo? para pasar tu pedido a cocina🍟☺️' },
-  { k:'QR2',      t:'Te comparto el código QR para que puedas realizar tu pago ☺️\n\nO si deseas, mediante llaves con el siguiente número: 0092726260\n\nRecuerda enviarnos tu comprobante de pago😁' },
+  { k:'QR2',      t:'Te comparto el código QR para que puedas realizar tu pago ☺️\n\nO si deseas, mediante llaves con el siguiente número: 0092726260\n\nRecuerda enviarnos tu comprobante de pago😁', img:'@qr' },
   { k:'comprobante', t:'Quedo pendiente del comprobante para poderte preparar ☺️' },
   { k:'total',    t:'Con gusto, serian $0 de tu pedido y $0 del domicilio, total $0 😊\nEn un momento enviamos tu pedido 🍟' },
   { k:'30',       t:'Tu pedido tarda 30 minutos aproximadamente 🍟' },
@@ -1167,7 +1167,7 @@ function renderQuickDropdown(q) {
     + '<button class="ci-qr-manage" onmousedown="event.preventDefault();openQuickManage()">Administrar</button></div>';
   const rows = list.map((r,i) =>
     '<div class="ci-qr-item'+(i===S.qrIndex?' active':'')+'" data-i="'+i+'" onmousedown="qrPick(event,'+i+')" onmouseenter="qrHover('+i+')">'
-    + '<span class="ci-qr-k">/'+qrEsc(r.k)+'</span>'
+    + '<span class="ci-qr-k">'+(r.img?'📷 ':'')+'/'+qrEsc(r.k)+'</span>'
     + '<span class="ci-qr-t">'+qrEsc(r.t).replace(/\n/g,' ')+'</span></div>'
   ).join('');
   dd.innerHTML = head + '<div class="ci-qr-scroll">' + rows + '</div>';
@@ -1182,9 +1182,52 @@ function qrHover(i) {
 function qrPick(ev, i) {
   if (ev) ev.preventDefault();
   const r = (S._qrList||[])[i]; if (!r) return;
+  closeQuickDropdown();
+  if (r.img) { sendQuickMedia(r); return; }   // respuestas con imagen se envían directo (imagen + texto)
   const inp = document.getElementById('msgInput');
   if (inp) { inp.value = r.t; inp.focus(); }
-  closeQuickDropdown();
+}
+
+// Envía una respuesta rápida que lleva IMAGEN (ej. el QR de pago) + su texto como caption.
+// "@qr" se resuelve al QR de pago del negocio guardado en Storage (chat-media/qr-pago/{branch}).
+async function sendQuickMedia(r) {
+  if (!S.activeConvId) return;
+  let url = r.img;
+  if (url === '@qr') {
+    try {
+      const { data } = await sb.storage.from('chat-media').list('qr-pago/' + S.branchId);
+      const f = (data||[]).find(x => /^qr\./i.test(x.name)) || (data||[])[0];
+      if (!f) { showToast('Aún no has subido el QR de pago en Configuración', 'error'); return; }
+      url = sb.storage.from('chat-media').getPublicUrl('qr-pago/' + S.branchId + '/' + f.name).data.publicUrl;
+    } catch (e) { showToast('No se pudo cargar el QR de pago', 'error'); return; }
+  }
+  const caption = r.t || '';
+  const tmpId = 'tmp_' + Date.now();
+  S.messages.push({ id: tmpId, conversation_id: S.activeConvId, tenant_id: S.tenantId, direction:'out', media_url: url, media_type:'image', body: caption, delivery_status:'sending', sent_at: new Date().toISOString() });
+  renderThread();
+  const { data, error } = await sb.from('chat_messages').insert([{
+    conversation_id: S.activeConvId, tenant_id: S.tenantId, direction:'out',
+    body: caption, media_url: url, media_type:'image', delivery_status:'sent', agent_id: S.user?.id || null,
+  }]).select().single();
+  if (error) { S.messages = S.messages.filter(m => m.id !== tmpId); renderThread(); showToast('No se pudo enviar', 'error'); return; }
+  S.messages = S.messages.map(m => m.id === tmpId ? data : m);
+  renderThread();
+  const conv = S.conversations.find(c => c.id === S.activeConvId);
+  if (conv) {
+    conv.last_message = '📷 ' + (caption || 'Imagen'); conv.last_message_at = data.sent_at; conv.last_sender = 'agent';
+    S.conversations.sort((a,b) => new Date(b.last_message_at) - new Date(a.last_message_at));
+    renderConvList();
+  }
+  if (conv && ['whatsapp','instagram','facebook'].includes(conv.channel)) {
+    try {
+      const res = await fetch(META_SEND_FN, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversation_id: S.activeConvId, media_url: url, media_type:'image', text: caption, message_id: data.id }),
+      });
+      const rd = await res.json();
+      if (rd.error) { showToast('No se pudo enviar la imagen: ' + rd.error, 'error'); }
+    } catch (e) { showToast('Error al enviar: ' + e.message, 'error'); }
+  }
 }
 // Devuelve true si consumió la tecla (dropdown abierto)
 function onQuickKeydown(e) {
