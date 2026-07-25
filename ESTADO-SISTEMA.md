@@ -948,6 +948,27 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
+## PENDIENTE — [Caja] Modo "CIERRE CIEGO" (caja ciega) — Sergio 2026-07-24
+
+**Qué es:** un control contáble donde el cajero cuenta el efectivo SIN ver cuánto debería haber, para que no pueda "acomodar" el conteo. Es un interruptor en las **configuraciones del administrador** que cambia la vista de caja.
+
+**Comportamiento cuando "Caja ciega" está ACTIVADA (para el rol cajero/no-admin):**
+- El empleado **NO ve:** ventas, transferencias, desglose por canal, base esperada, ni estadísticas sensibles del restaurante.
+- El empleado **SÍ puede:** abrir caja, cerrar caja y hacer el **arqueo** (contar el efectivo físico, billetes/monedas).
+- **Clave (lo "ciego"):** al hacer el arqueo NO se muestra el "efectivo esperado" — solo el campo para contar. Cuenta a ciegas.
+- Después de contar, el sistema le dice si quedó **cuadrado o descuadrado y por cuánto** (la diferencia). Nada más.
+- El admin/gerente sigue viendo TODO (la vista completa actual).
+
+**Dirección técnica:**
+- Interruptor en Configuración (guardar en `operacion_config.cajaCiega` — sincroniza a la tablet, como el resto).
+- En caja.js/caja.html: si `cajaCiega` ON y el rol no es admin/gerente → ocultar las secciones sensibles (hero de ventas, "Ventas por canal", "Cómo se compone / total esperado", ingresos/egresos si aplica) y dejar solo apertura/cierre/arqueo.
+- En el ARQUEO: no pre-mostrar el "esperado"; el usuario cuenta, guarda, y ahí recién se revela cuadrado/descuadrado + diferencia (ya existe el cálculo: `esperado = base + ventasEf + ingresos − egresos`, arqueo_diff = contado − esperado, caja.js:1087-1092).
+- Usar el sistema de permisos/rol ya existente (posRole/posHasPerm) para decidir vista ciega vs completa. Confirmar con Sergio si es por CONFIG (todo el restaurante) o por ROL, o ambos.
+
+**Nota:** el módulo de caja actual quedó "perfecto" (palabras de Sergio) — esto es una VISTA alterna, no cambiar la actual.
+
+---
+
 ## PENDIENTE — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
 
 **Contexto:** el sistema se vende a dueños con UNA marca o VARIAS (ej. una heladería + un restaurante bajo el mismo dueño, pero independientes por dentro). Cada marca crea sus sucursales (eso ya funciona). Falta la **creación/gestión de marcas** y dividir bien qué configuración es por-marca vs por-sucursal.
