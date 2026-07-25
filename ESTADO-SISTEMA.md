@@ -969,6 +969,20 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
+## PENDIENTE — [Chat IA] Multi-línea de WhatsApp (varias líneas, flujo por línea) + precios por plan — Sergio 2026-07-24
+
+**HECHO ya (2026-07-24, commit 67d49d0):** Instagram/Facebook/TikTok marcados como "Próximamente" en el Chat IA (Meta aún no aprobó permisos); al tocarlos avisa en vez de abrir el flujo de conexión roto. WhatsApp sigue activo. (`chat-ia.js`: `SOON_CHANNELS`.)
+
+**PENDIENTE — Varias líneas de WhatsApp:**
+- Hoy hay UNA línea de WhatsApp con UN flujo de respuesta (el canvas actual). Sergio quiere poder **conectar varias líneas** de WhatsApp.
+- Al conectar una línea nueva, poder **decidir si usa el MISMO flujo** que otra línea o **un flujo NUEVO** (independiente).
+- Implicación de datos: hoy el flujo/canvas y los tokens de WhatsApp son únicos por negocio; hay que modelar **N líneas** (cada una con su número/token de WhatsApp Business) y una relación línea → flujo (compartido o propio). Revisar cómo están guardados hoy los tokens/webhook de WhatsApp (ver memoria cobra_pos_whatsapp.md y el webhook actual) y la tabla del flujo/canvas.
+- UI: en Conexiones, permitir "agregar otra línea de WhatsApp"; al agregarla, elegir flujo (existente o nuevo). Cada conversación entrante se enruta según la línea por la que llegó.
+
+**PENDIENTE — Precios por plan (comercial):** más líneas de WhatsApp = más cobro. Definir **cuántas líneas incluye cada plan** y el costo por línea extra. Va junto con la gestión de planes/`tenants.plan` (ver sección multi-marca, que también valida plan). Actualizar la tabla de planes comerciales (04-PLANES-COMERCIALES.md del contexto).
+
+---
+
 ## PENDIENTE — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
 
 **Contexto:** el sistema se vende a dueños con UNA marca o VARIAS (ej. una heladería + un restaurante bajo el mismo dueño, pero independientes por dentro). Cada marca crea sus sucursales (eso ya funciona). Falta la **creación/gestión de marcas** y dividir bien qué configuración es por-marca vs por-sucursal.
