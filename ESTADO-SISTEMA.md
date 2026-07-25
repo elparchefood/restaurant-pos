@@ -845,6 +845,24 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
+## PENDIENTE — [Inventario] Control MANUAL de disponibilidad por insumo ("86" / el cocinero avisa) — Sergio 2026-07-24
+
+**Contexto real:** la cocinera (mamá de Sergio) NO puede pesar antes de cocinar (a veces cocina en pleno turno). Para pollo y carne, contar por gramos no es viable. Solución de Sergio (= patrón estándar de restaurantes, "86 the item"): que ciertos insumos se controlen MANUALMENTE — el sistema los da por disponibles hasta que la cocina avise que se acabaron.
+
+**Modelo propuesto:**
+- **Flag por insumo: "Control manual (el cocinero avisa)"** (nuevo campo en `iv_insumos`, ej. `control_manual` boolean). Insumos con este flag: el sistema NUNCA los marca agotados por cantidad; se asume que hay.
+- **Estado manual de disponibilidad** por insumo (ej. `disponible` boolean, o `agotado_manual`). Un botón/toggle rápido "Se acabó / Ya hay".
+- **La detección de agotados (pos-stock.js) combina 2 fuentes:** insumos automáticos → agotado si stock<=0 (como hoy); insumos manuales → agotado SOLO si lo marcaron. Un producto es agotado si CUALQUIER insumo suyo lo está (por cantidad o por marca manual).
+- **Reusa el interruptor "permitir vender sin inventario"** ya hecho: al marcar agotado, bloquea o avisa según esa política.
+
+**Dónde se marca (crítico, debe ser 1 toque en pleno servicio):** ideal en la **pantalla de cocina (KDS)** cuando se construya; y/o una lista/botón rápido de disponibilidad accesible para mesera/cajera (el cocinero tiene las manos ocupadas). Que lo pueda marcar cualquiera apenas escuche "se acabó el pollo".
+
+**Preguntas por confirmar con Sergio:** (1) ¿quién puede marcar "se acabó" — cualquiera o roles específicos? (2) ¿al marcar agotado, bloquea o solo avisa? (Sergio propone: usar el mismo interruptor "permitir vender sin inventario").
+
+**Relación:** es la alternativa PRÁCTICA al sub-inventario (bodega vs servicio) para insumos que no se pueden pesar/contar. Complementa "venta sin inventario" (pos-stock.js, ya hecho) y su afinamiento por variante (urgente).
+
+---
+
 ## PENDIENTE — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
 
 **Contexto:** el sistema se vende a dueños con UNA marca o VARIAS (ej. una heladería + un restaurante bajo el mismo dueño, pero independientes por dentro). Cada marca crea sus sucursales (eso ya funciona). Falta la **creación/gestión de marcas** y dividir bien qué configuración es por-marca vs por-sucursal.
