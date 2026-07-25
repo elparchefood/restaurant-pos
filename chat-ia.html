@@ -30,6 +30,17 @@
       </div>
     </div>
 
+    <!-- Interruptor GLOBAL del asistente (apaga/prende el bot para TODAS las conversaciones) -->
+    <div id="iaMaster" style="margin:0 14px 12px;padding:11px 13px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <div style="min-width:0">
+        <div style="font-size:12.5px;font-weight:700;color:#0F172A">Asistente IA</div>
+        <div id="iaMasterState" style="font-size:11px;font-weight:600;color:#16A34A">Cargando…</div>
+      </div>
+      <button id="iaMasterBtn" type="button" aria-label="Activar o pausar el asistente" style="flex-shrink:0;width:42px;height:24px;border-radius:999px;border:none;background:#16A34A;position:relative;cursor:pointer;padding:0;transition:background .2s">
+        <span id="iaMasterKnob" style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:999px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .2s;transform:translateX(18px)"></span>
+      </button>
+    </div>
+
     <nav class="ci-nav">
       <a href="ventas.html" class="ci-nav-btn">
         <span class="ci-nav-l">
@@ -254,7 +265,7 @@
 
 </div>
 
-<script src="chat-ia.js?v=1785420000"></script>
+<script src="chat-ia.js?v=1785430000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>
 </html>

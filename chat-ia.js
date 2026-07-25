@@ -82,7 +82,9 @@ async function boot() {
       $('userRole').textContent = user.role      || 'Usuario';
     }
 
-    await Promise.all([loadChannels(), loadConversations()]);
+    await Promise.all([loadChannels(), loadConversations(), loadIaMaster()]);
+    var _iaBtn = document.getElementById('iaMasterBtn');
+    if (_iaBtn) _iaBtn.addEventListener('click', toggleIaMaster);
     subscribeRealtime();
     wireEvents();
   } catch (err) {
@@ -1064,6 +1066,44 @@ function wireEvents() {
 /* ══════════════════════════════════════════════
    HELPERS
 ══════════════════════════════════════════════ */
+/* == INTERRUPTOR GLOBAL DEL ASISTENTE (ia_config.activo) ==
+   Apaga/prende el bot para TODAS las conversaciones. El backend (delay-reply)
+   ya respeta ia_config.activo: si es false, no responde ningún mensaje. */
+async function loadIaMaster() {
+  if (!S.branchId) return;
+  try {
+    const { data } = await sb.from('ia_config').select('activo').eq('branch_id', S.branchId).maybeSingle();
+    renderIaMaster(data ? data.activo !== false : true);
+  } catch (e) { console.warn('loadIaMaster:', e); }
+}
+function renderIaMaster(on) {
+  S.iaActivo = on;
+  const wrap = document.getElementById('iaMaster');
+  const st   = document.getElementById('iaMasterState');
+  const btn  = document.getElementById('iaMasterBtn');
+  const knob = document.getElementById('iaMasterKnob');
+  if (!wrap || !st || !btn || !knob) return;
+  if (on) {
+    wrap.style.background = '#F0FDF4'; wrap.style.borderColor = '#BBF7D0';
+    st.textContent = 'Activado · responde solo'; st.style.color = '#16A34A';
+    btn.style.background = '#16A34A'; knob.style.transform = 'translateX(18px)';
+  } else {
+    wrap.style.background = '#FEF2F2'; wrap.style.borderColor = '#FECACA';
+    st.textContent = 'Pausado · contestas tú'; st.style.color = '#DC2626';
+    btn.style.background = '#CBD5E1'; knob.style.transform = 'translateX(0)';
+  }
+}
+async function toggleIaMaster() {
+  if (!S.branchId) return;
+  const newVal = !S.iaActivo;
+  try {
+    const { error } = await sb.from('ia_config').update({ activo: newVal }).eq('branch_id', S.branchId);
+    if (error) throw error;
+    renderIaMaster(newVal);
+    showToast(newVal ? '✅ Asistente activado · responde solo' : '⏸️ Asistente pausado · contestas tú', newVal ? 'success' : 'info');
+  } catch (e) { console.error('toggleIaMaster:', e); showToast('Error al cambiar el asistente', 'error'); }
+}
+
 /* == HUMAN TAKEOVER == */
 async function updateHumanBadge() {
   try {
