@@ -642,7 +642,9 @@ En la pantalla de **Caja**, el desglose "Ventas por canal" muestra **Mostrador $
 **2. Nombres de mesa crudos.** `dashboard.js:1583-1584` y `1615-1616`: muestran `'Mesa ' + o.table_id` = el ID crudo (ej. "Mesa tmry2e6v7wjt", "Mesa t08") en vez del nombre/número real ("Mesa 08").
   - **Fix:** cargar `pos_tables` (id → name/number) una vez y mapear el `table_id` al nombre bonito. (Mismo patrón que otras pantallas que ya resuelven el nombre de mesa.)
 
-**Nota:** ligado al #3 (el modal de comprobantes). En la lista de REVISIÓN, marcar #3 como "muestra pedidos OK, pero imprimir y nombres de mesa pendientes".
+**3. Cada venta muestra el UUID crudo como "número de pedido"** (ej. "#3d223951-98c1-4565-bb51-e570038e4164") — ilegible. `qmRenderOrderList`/`qmSelectOrder` hacen `String(o.id).padStart(4,0)` sobre el UUID. **Fix:** mostrar algo comprensible en vez del UUID — un código corto (ej. últimos 4-6 del id) o mejor, dar prioridad a info humana (mesa/cliente + hora + total) y quitar/achicar el código. Ideal a futuro: un consecutivo legible por pedido (hoy `pos_orders` solo tiene UUID + `turno`; evaluar agregar un número corto de pedido).
+
+**Nota:** ligado al #3 (el modal de comprobantes). En la lista de REVISIÓN, marcar #3 como "muestra pedidos OK, pero imprimir + nombres de mesa + código legible pendientes".
 
 ---
 
