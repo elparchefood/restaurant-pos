@@ -857,7 +857,10 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 **Dónde se marca (crítico, debe ser 1 toque en pleno servicio):** ideal en la **pantalla de cocina (KDS)** cuando se construya; y/o una lista/botón rápido de disponibilidad accesible para mesera/cajera (el cocinero tiene las manos ocupadas). Que lo pueda marcar cualquiera apenas escuche "se acabó el pollo".
 
-**Preguntas por confirmar con Sergio:** (1) ¿quién puede marcar "se acabó" — cualquiera o roles específicos? (2) ¿al marcar agotado, bloquea o solo avisa? (Sergio propone: usar el mismo interruptor "permitir vender sin inventario").
+**CONFIRMADO (Sergio 2026-07-24):**
+- **Quién marca "se acabó": la CAJERA** (o rol autorizado — NO cualquier mesero, para no marcarlo por error). Protegido con permiso (posGuard). El cocinero avisa de viva voz, la cajera hace el cambio.
+- **Comportamiento: BLOQUEA de verdad** para todos hasta reactivar (no solo avisar). Se reactiva cuando vuelve a haber.
+- **REQUISITO CLAVE — sincronización en TIEMPO REAL:** la cajera marca en su pantalla y las tablets de TODOS los meseros se bloquean solas en 1-2s, sin recargar. Reusar el realtime que ya existe (pos-realtime.js, el mismo de los pedidos a cocina). El estado de disponibilidad (`disponible`/`agotado_manual` en `iv_insumos`) se propaga por realtime a las pantallas de venta (pos-stock.js debe re-evaluar y re-render al recibir el cambio).
 
 **REFINAMIENTO (Sergio 2026-07-24) — DOS agotados distintos para estos insumos:**
 - **BODEGA (crudo): control AUTOMÁTICO.** El insumo crudo sí se agrega con su costo/kg. El sistema calcula el costo en cada producto (gramos de la receta) y **descuenta de la bodega con cada VENTA** (no requiere pesar: la receta define los gramos, las ventas hacen la cuenta). Sirve para el **aviso de "comprar más"** cuando la bodega baja. Es un estimado, suficiente para reponer.
