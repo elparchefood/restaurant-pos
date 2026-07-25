@@ -870,6 +870,8 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 **Relación:** es la alternativa PRÁCTICA al sub-inventario (bodega vs servicio) para insumos que no se pueden pesar/contar. Complementa "venta sin inventario" (pos-stock.js, ya hecho) y su afinamiento por variante (urgente).
 
+**EXTENSIÓN vía WhatsApp (Sergio 2026-07-24) — para cuando se hagan las configs del bot / Modo Gerente:** desde las cuentas de WhatsApp AUTORIZADAS (gerente), poder mandar una **nota de voz o texto** tipo "se acabó el pollo" / "se acabó la carne" / "ya hay pollo" → el bot lo interpreta y **marca/desmarca el insumo como agotado automáticamente** (mismo efecto que la cajera tocando el interruptor → se bloquea/desbloquea en todas las tablets por realtime). Es el mismo mecanismo con el que se piensa **registrar compras** por WhatsApp: hablarle al bot para mover inventario. Requiere: transcripción de voz (Whisper) + parseo de intención ("agotar/reponer insumo X") + validación de que el número esté autorizado. Ver sección "Modo Gerente en el bot IA" más abajo.
+
 ---
 
 ## PENDIENTE — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
