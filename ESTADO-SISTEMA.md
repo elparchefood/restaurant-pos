@@ -983,6 +983,20 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
+## PENDIENTE — [Chat IA] Pausar asistente (global) + CREAR PEDIDO desde el chat — Sergio 2026-07-24
+
+**Contexto:** mientras Sergio afína el asistente (aún no contesta solo sin equivocarse), quiere (a) poder contestar manual, (b) crear el pedido en el mismo chat sin copiar de WhatsApp a Cobra.
+
+**YA EXISTE y FUNCIONA — "tomar control" POR conversación:** `chat_conversations.human_takeover` (boolean). UI: `toggleHumanTakeover()`/`updateHumanToggleBtn()` en chat-ia.js; hay vista "Humano" (S.activeView==='human'). El backend lo respeta: la Edge Function `delay-reply` revisa `human_takeover` y NO contesta cuando está en humano. → Sergio ya puede responder manual por chat. (Solo faltaría hacerlo más visible/explicarlo.)
+
+**PENDIENTE 1 — Interruptor GLOBAL "Asistente IA ON/OFF"** (opcional, por confirmar): apagar el bot para TODAS las conversaciones de una vez mientras se afína, para que todo llegue al humano. Pequeño: una bandera global (ej. en `chat_channels` o `operacion_config`) que `delay-reply` revise antes de responder. Confirmar con Sergio si lo quiere global o si con el por-chat basta.
+
+**PENDIENTE 2 — CREAR PEDIDO desde el chat (lo valioso):** botón "Crear pedido" dentro de la conversación que abra el armador de pedido (reusar el flujo de venta rápida / domicilio) **pre-vinculado al cliente del chat** (nombre + teléfono ya salen de la conversación / `contact_handle`). Así arma el pedido sin copiar de WhatsApp a Cobra.
+  - Técnico: enlazar chat → pedido. Pasar el teléfono/nombre del contacto a la pantalla de pedido (query param o estado), pre-seleccionar/crear el cliente en `pos_clientes` (ojo: pendiente #21 — los clientes hoy viven en localStorage; idealmente hacerlo junto con eso). Decidir si el pedido queda como domicilio (con la dirección del chat) o venta rápida.
+  - Bonus futuro: cuando el asistente sí extraiga el pedido del texto, pre-llenar los productos automáticamente; por ahora, que al menos abra el armador con el cliente puesto.
+
+---
+
 ## PENDIENTE — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
 
 **Contexto:** el sistema se vende a dueños con UNA marca o VARIAS (ej. una heladería + un restaurante bajo el mismo dueño, pero independientes por dentro). Cada marca crea sus sucursales (eso ya funciona). Falta la **creación/gestión de marcas** y dividir bien qué configuración es por-marca vs por-sucursal.
