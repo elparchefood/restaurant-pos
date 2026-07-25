@@ -1253,7 +1253,23 @@ async function openCrearPedido(){
 
 function cpNorm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim(); }
 function cpItemTotal(p){ const a=(p.adiciones||[]).reduce((s,x)=>s+(Number(x.price)||0),0); return ((Number(p.unit_price)||0)+a)*(Number(p.cantidad)||1); }
-function cpOrderTotal(){ if(!S.cpOrder) return 0; let s=(S.cpOrder.productos||[]).reduce((a,p)=>a+cpItemTotal(p),0); if((S.cpOrder.tipo||'')==='domicilio') s+=Number(S.cpOrder.domi_precio)||0; return s; }
+function cpEmpaque(){
+  if(!S.cpOrder) return 0;
+  try{
+    const cfg=JSON.parse(localStorage.getItem('pos.config.operacion.v1')||'{}');
+    if(!cfg.empaquesActivo) return 0;
+    const prods=S.cpOrder.productos||[];
+    const prod=prods.reduce((a,p)=>a+cpItemTotal(p),0);
+    if(prod<=0) return 0;
+    const usaDomi=(cfg.empaqueCanal==='distinto')&&((S.cpOrder.tipo||'')==='domicilio');
+    const esPct=cfg.empaqueTipo==='porcentaje';
+    const rate=esPct?(usaDomi?(cfg.empaquePctDomicilio||0):(cfg.empaquePct||0)):(usaDomi?(cfg.empaqueMontoDomicilio||0):(cfg.empaqueMonto||0));
+    if(cfg.empaqueBase==='pedido') return esPct?Math.round(prod*rate/100):rate;
+    const units=prods.reduce((a,p)=>a+(Number(p.cantidad)||1),0);
+    return esPct?Math.round(prod*rate/100):rate*units;
+  }catch(e){ return 0; }
+}
+function cpOrderTotal(){ if(!S.cpOrder) return 0; let s=(S.cpOrder.productos||[]).reduce((a,p)=>a+cpItemTotal(p),0); s+=cpEmpaque(); if((S.cpOrder.tipo||'')==='domicilio') s+=Number(S.cpOrder.domi_precio)||0; return s; }
 function cpSyncTop(){ if(!S.cpOrder) return; const g=id=>document.getElementById(id); const o=S.cpOrder;
   if(g('cpNombre')) o.cliente=g('cpNombre').value; if(g('cpTelefono')) o.telefono=g('cpTelefono').value;
   if(g('cpTipo')) o.tipo=g('cpTipo').value; if(g('cpPago')) o.pago=g('cpPago').value;
@@ -1282,6 +1298,7 @@ function cpRenderForm(o){
     +(addProd?'<div class="cp-addrow">'+addProd+'</div>':'')
     +'<div class="cp-f"><label>Notas generales</label><textarea id="cpNotas" rows="2">'+cpEsc(o.notas||'')+'</textarea></div>'
     +(o.tipo==='domicilio'?'<div class="cp-f cp-domi"><label>💵 Valor del domicilio</label><input id="cpDomi" type="number" min="0" value="'+(Number(o.domi_precio)||0)+'" oninput="cpUpdTotal()"></div>':'')
+    +(cpEmpaque()>0?'<div class="cp-emp">Empaque <b>'+cpCOP(cpEmpaque())+'</b></div>':'')
     +'<div class="cp-total">Total del pedido: <b id="cpTotal">'+cpCOP(cpOrderTotal())+'</b></div>';
   cpSetBody(html);
 }
@@ -1308,18 +1325,26 @@ function cpAddAdic(i,optId){ if(!optId||!S.cpOrder) return; const p=S.cpOrder.pr
 function cpDelAdic(i,optId){ const p=S.cpOrder&&S.cpOrder.productos[i]; if(!p) return; p.adiciones=(p.adiciones||[]).filter(a=>a.id!==optId); cpRerender(); }
 function cpDelProd(i){ cpSyncTop(); cpSyncProdInputs(); S.cpOrder.productos.splice(i,1); cpRenderForm(S.cpOrder); }
 /* Selector de productos con acordeón por categoría → producto → tamaño/tipo */
-function cpProdPrice(c, presId, tipoOpt){
+// Precio considerando TODOS los grupos de variantes del producto.
+// varsSel = { group_id: option_id }
+function cpProdPrice(c, presId, varsSel){
+  varsSel=varsSel||{};
   const preList=c.presentations||[];
   const pres=preList.find(p=>p.id===presId)||{};
-  let price=Number(pres.price)||Number(c.price)||0;
   const presIdx=preList.findIndex(p=>p.id===presId);
-  if(c.price_mode==='matrix'&&tipoOpt){
-    if(Array.isArray(tipoOpt.prices)&&presIdx>=0&&presIdx<tipoOpt.prices.length) price=tipoOpt.prices[presIdx];
-    else if(tipoOpt.price>0) price=tipoOpt.price;
-  }
+  let price=Number(pres.price)||Number(c.price)||0;
+  const vgs=c.variables||[];
+  const pricingG = c.price_mode==='matrix' ? (vgs.find(v=>v.isPricing)||vgs[0]) : null;
+  vgs.forEach(vg=>{
+    const o=(vg.options||[]).find(x=>x.id===varsSel[vg.id]); if(!o) return;
+    if(pricingG && vg.id===pricingG.id){
+      if(Array.isArray(o.prices)&&presIdx>=0&&presIdx<o.prices.length) price=o.prices[presIdx];
+      else if(Number(o.price)>0) price=Number(o.price);
+    } else if(Number(o.price)>0){ price+=Number(o.price); }
+  });
   return price;
 }
-function cpOpenPicker(){ if(!S.cpOrder) return; cpSyncTop(); cpSyncProdInputs(); S.cpPk={cat:'',prod:null,pres:'',tipo:''}; cpRenderPicker(); }
+function cpOpenPicker(){ if(!S.cpOrder) return; cpSyncTop(); cpSyncProdInputs(); S.cpPk={cat:'',prod:null,pres:'',vars:{}}; cpRenderPicker(); }
 function cpBackToForm(){ cpRenderForm(S.cpOrder); }
 function cpRenderPicker(){
   const cats=(S.cpCategorias||[]).slice();
@@ -1343,35 +1368,41 @@ function cpRenderPicker(){
 function cpPkCat(id){ S.cpPk.cat=(S.cpPk.cat===id?'':id); cpRenderPicker(); }
 function cpPkProd(id){
   const c=(S.cpCatalogo||[]).find(x=>x.id===id); if(!c) return;
-  const pres=c.presentations||[]; const hasVars=(c.variables||[]).length&&((c.variables[0].options)||[]).length;
-  if(pres.length<=1 && !hasVars){ cpDoAddProduct(c, pres[0]?pres[0].id:'', null); return; }
-  S.cpPk.prod=c; S.cpPk.pres=pres[0]?pres[0].id:''; S.cpPk.tipo=(hasVars&&c.variables[0].options[0])?c.variables[0].options[0].id:'';
+  const pres=c.presentations||[];
+  const vgs=(c.variables||[]).filter(v=>((v.options)||[]).length);
+  if(pres.length<=1 && !vgs.length){ cpDoAddProduct(c, pres[0]?pres[0].id:'', {}); return; }
+  S.cpPk.prod=c; S.cpPk.pres=pres[0]?pres[0].id:''; S.cpPk.vars={};
+  vgs.forEach(vg=>{ S.cpPk.vars[vg.id]=(vg.options[0]||{}).id||''; });   // por defecto la 1ª opción de cada grupo
   cpRenderProdConfig();
 }
 function cpRenderProdConfig(){
   const c=S.cpPk.prod; if(!c) return;
   const pres=c.presentations||[];
-  const vg=((c.variables||[]).length&&((c.variables[0].options)||[]).length)?c.variables[0]:null;
+  const vgs=(c.variables||[]).filter(v=>((v.options)||[]).length);
   let html='<div class="cp-pk-head"><button class="cp-pk-back" onclick="cpRenderPicker()">← Volver</button><b>'+cpEsc(c.name)+'</b></div>';
   if(pres.length){ html+='<div class="cp-pk-lbl">Tamaño</div><div class="cp-pk-opts">'+pres.map(p=>'<button class="cp-pk-opt'+(S.cpPk.pres===p.id?' sel':'')+'" onclick="cpPkPres(\''+p.id+'\')">'+cpEsc(p.name)+'</button>').join('')+'</div>'; }
-  if(vg){ html+='<div class="cp-pk-lbl">'+cpEsc(vg.name||'Tipo')+'</div><div class="cp-pk-opts">'+(vg.options||[]).map(o=>'<button class="cp-pk-opt'+(S.cpPk.tipo===o.id?' sel':'')+'" onclick="cpPkTipo(\''+o.id+'\')">'+cpEsc(o.name)+'</button>').join('')+'</div>'; }
-  const tipoOpt=vg?(vg.options||[]).find(o=>o.id===S.cpPk.tipo):null;
-  html+='<div class="cp-pk-add"><span class="cp-pk-price">'+cpCOP(cpProdPrice(c,S.cpPk.pres,tipoOpt))+'</span><button class="cp-btn primary" onclick="cpConfirmAddProduct()">Agregar</button></div>';
+  vgs.forEach(vg=>{
+    html+='<div class="cp-pk-lbl">'+cpEsc(vg.name||'Variante')+'</div><div class="cp-pk-opts">'+(vg.options||[]).map(o=>'<button class="cp-pk-opt'+(S.cpPk.vars[vg.id]===o.id?' sel':'')+'" onclick="cpPkVar(\''+vg.id+'\',\''+o.id+'\')">'+cpEsc(o.name)+(Number(o.price)>0?' (+'+cpCOP(o.price)+')':'')+'</button>').join('')+'</div>';
+  });
+  html+='<div class="cp-pk-add"><span class="cp-pk-price">'+cpCOP(cpProdPrice(c,S.cpPk.pres,S.cpPk.vars))+'</span><button class="cp-btn primary" onclick="cpConfirmAddProduct()">Agregar</button></div>';
   cpSetBody(html);
 }
 function cpPkPres(id){ S.cpPk.pres=id; cpRenderProdConfig(); }
-function cpPkTipo(id){ S.cpPk.tipo=id; cpRenderProdConfig(); }
-function cpConfirmAddProduct(){ const c=S.cpPk.prod; if(!c) return; const vg=((c.variables||[]).length&&((c.variables[0].options)||[]).length)?c.variables[0]:null; const tipoOpt=vg?(vg.options||[]).find(o=>o.id===S.cpPk.tipo):null; cpDoAddProduct(c,S.cpPk.pres,tipoOpt); }
-function cpDoAddProduct(c,presId,tipoOpt){
+function cpPkVar(gid,oid){ S.cpPk.vars[gid]=oid; cpRenderProdConfig(); }
+function cpConfirmAddProduct(){ const c=S.cpPk.prod; if(!c) return; cpDoAddProduct(c,S.cpPk.pres,S.cpPk.vars); }
+function cpDoAddProduct(c,presId,varsSel){
+  varsSel=varsSel||{};
   const pres=(c.presentations||[]).find(p=>p.id===presId)||{};
-  const price=cpProdPrice(c,presId,tipoOpt);
-  S.cpOrder.productos.push({ product_id:c.id, product_name:[c.name,pres.name||'',tipoOpt?tipoOpt.name:''].filter(Boolean).join(' · '), unit_price:price, cantidad:1, tamano:pres.name||'', pres_id:presId, tipo:tipoOpt?tipoOpt.name:'', adiciones:[], adic_options:cpAdicOptions(c,presId), notas:'', matched:true });
+  const price=cpProdPrice(c,presId,varsSel);
+  const varParts=[]; const varsObj={};
+  (c.variables||[]).forEach(vg=>{ const o=(vg.options||[]).find(x=>x.id===varsSel[vg.id]); if(o){ varParts.push(o.name); varsObj[vg.id]={id:o.id,name:o.name,price:Number(o.price)||0,group:vg.name}; } });
+  S.cpOrder.productos.push({ product_id:c.id, product_name:[c.name,pres.name||''].concat(varParts).filter(Boolean).join(' · '), unit_price:price, cantidad:1, tamano:pres.name||'', pres_id:presId, variantes:varsObj, adiciones:[], adic_options:cpAdicOptions(c,presId), notas:'', matched:true });
   cpRenderForm(S.cpOrder);
 }
 async function cpConfirm(){ if(!S.cpOrder) return; cpSyncTop(); cpSyncProdInputs(); const o=S.cpOrder;
   if(!(o.productos||[]).length){ showToast('El pedido no tiene productos','error'); return; }
-  const payload={ conversation_id:S.activeConvId, branch_id:o.branch_id, tenant_id:o.tenant_id, cliente:o.cliente, telefono:o.telefono, direccion:o.direccion||'', tipo:o.tipo, pago:o.pago, notas:o.notas, domi_precio:(o.tipo==='domicilio'?(Number(o.domi_precio)||0):0),
-    productos:(o.productos||[]).map(p=>({ product_id:p.product_id, product_name:p.product_name, unit_price:p.unit_price, cantidad:p.cantidad, tamano:p.tamano, tipo:p.tipo, adiciones:p.adiciones||[], notas:p.notas })) };
+  const payload={ conversation_id:S.activeConvId, branch_id:o.branch_id, tenant_id:o.tenant_id, cliente:o.cliente, telefono:o.telefono, direccion:o.direccion||'', tipo:o.tipo, pago:o.pago, notas:o.notas, domi_precio:(o.tipo==='domicilio'?(Number(o.domi_precio)||0):0), empaque:cpEmpaque(),
+    productos:(o.productos||[]).map(p=>({ product_id:p.product_id, product_name:p.product_name, unit_price:p.unit_price, cantidad:p.cantidad, tamano:p.tamano, variantes:p.variantes||{}, adiciones:p.adiciones||[], notas:p.notas })) };
   const btn=document.getElementById('cpConfirmBtn'); if(btn){ btn.disabled=true; btn.textContent='Creando…'; }
   try{ const res=await fetch(CREAR_PEDIDO_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const data=await res.json();
     if(data.error){ showToast('Error: '+data.error,'error'); if(btn){btn.disabled=false;btn.textContent='Crear e imprimir';} return; }

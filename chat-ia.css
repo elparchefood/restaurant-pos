@@ -1347,4 +1347,6 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .cp-pk-opt.sel { background: #8B5CF6; border-color: #8B5CF6; color: #fff; }
 .cp-pk-add { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.08); }
 .cp-pk-price { font-size: 18px; font-weight: 800; color: #a78bfa; }
+.cp-emp { font-size: 12.5px; color: rgba(255,255,255,.6); text-align: right; margin-top: -4px; }
+.cp-emp b { color: rgba(255,255,255,.85); font-weight: 700; }
 
