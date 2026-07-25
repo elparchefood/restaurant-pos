@@ -1196,12 +1196,14 @@ async function sendQuickLocation(r) {
   const conv = S.conversations.find(c => c.id === S.activeConvId);
   if (!conv || conv.channel !== 'whatsapp') { showToast('La ubicación solo se puede enviar por WhatsApp', 'info'); return; }
   const label = r.loc.name || 'Ubicación';
+  // El visor de Cobra lee las coordenadas de un JSON en body: {lat,lng,name,addr}
+  const bodyJson = JSON.stringify({ lat: r.loc.latitude, lng: r.loc.longitude, name: r.loc.name || '', addr: r.loc.address || '' });
   const tmpId = 'tmp_' + Date.now();
-  S.messages.push({ id: tmpId, conversation_id: S.activeConvId, tenant_id: S.tenantId, direction:'out', body:'📍 '+label, media_type:'location', delivery_status:'sending', sent_at: new Date().toISOString() });
+  S.messages.push({ id: tmpId, conversation_id: S.activeConvId, tenant_id: S.tenantId, direction:'out', body: bodyJson, media_type:'location', delivery_status:'sending', sent_at: new Date().toISOString() });
   renderThread();
   const { data, error } = await sb.from('chat_messages').insert([{
     conversation_id: S.activeConvId, tenant_id: S.tenantId, direction:'out',
-    body:'📍 '+label, media_type:'location', delivery_status:'sent', agent_id: S.user?.id || null,
+    body: bodyJson, media_type:'location', delivery_status:'sent', agent_id: S.user?.id || null,
   }]).select().single();
   if (error) { S.messages = S.messages.filter(m => m.id !== tmpId); renderThread(); showToast('No se pudo enviar', 'error'); return; }
   S.messages = S.messages.map(m => m.id === tmpId ? data : m);
