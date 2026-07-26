@@ -79,6 +79,35 @@ const S = {
   deliveries: [],
 };
 
+// ── Clientes con MÚLTIPLES direcciones ─────────────────────────────────
+// Cada cliente guarda `direcciones:[{id,barrio,dir}]`. Los campos planos
+// barrio/dir/dirId reflejan la dirección ACTIVA (la elegida para el pedido)
+// para compatibilidad con todo el código que ya lee c.dir / c.barrio.
+function cliDirId() { return 'd' + Date.now().toString(36) + Math.floor(Math.random()*1e4).toString(36); }
+function cliNormalize(c) {
+  if (!c) return c;
+  if (!Array.isArray(c.direcciones)) {
+    c.direcciones = [];
+    if ((c.dir || '').trim() || (c.barrio || '').trim()) {
+      c.direcciones.push({ id: cliDirId(), barrio: (c.barrio || '').trim(), dir: (c.dir || '').trim() });
+    }
+  }
+  // Asegurar id en cada dirección
+  c.direcciones.forEach(d => { if (!d.id) d.id = cliDirId(); });
+  // Fijar dirección activa: la que tenga dirId, o la primera
+  const act = c.direcciones.find(d => d.id === c.dirId) || c.direcciones[0] || null;
+  if (act) { c.dir = act.dir; c.barrio = act.barrio; c.dirId = act.id; }
+  return c;
+}
+// Cambia la dirección activa del cliente a la de id dado.
+function cliSetDir(c, dirId) {
+  if (!c || !Array.isArray(c.direcciones)) return c;
+  const d = c.direcciones.find(x => x.id === dirId) || c.direcciones[0];
+  if (d) { c.dir = d.dir; c.barrio = d.barrio; c.dirId = d.id; }
+  return c;
+}
+try { (S.clientes || []).forEach(cliNormalize); } catch(e) {}
+
 // ── Helpers ────────────────────────────────────────────────────────────
 function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
@@ -1244,14 +1273,28 @@ function renderClienteCard() {
       ${svgInline('chevron', 15)}</button>`;
     return;
   }
-  const c   = S.cliente;
+  const c   = cliNormalize(S.cliente);
   const ini = initials(c.nombre);
+  const dirs = c.direcciones || [];
+  let addrHTML;
+  if (dirs.length > 1) {
+    // Varias direcciones → desplegable para escoger a cuál enviar este pedido
+    const esc = s => String(s || '').replace(/</g,'&lt;');
+    addrHTML = `<select class="d-cli-dirsel" data-cli-dirsel onclick="event.stopPropagation()">` +
+      dirs.map(d => {
+        const txt = (d.barrio ? d.barrio + ' · ' : '') + (d.dir || 'Sin dirección');
+        return `<option value="${d.id}"${d.id === c.dirId ? ' selected' : ''}>${esc(txt)}</option>`;
+      }).join('') +
+      `</select>`;
+  } else {
+    addrHTML = c.dir || 'Sin dirección';
+  }
   el.innerHTML = `<div class="d-cliente has">
     <span class="d-cli-avatar">${ini}</span>
     <div style="flex:1;min-width:0">
       <div class="d-cli-name">${c.nombre}</div>
       <div class="d-cli-meta"><span class="ic">${svgInline('phone', 12)}</span>${c.tel || 'Sin teléfono'}</div>
-      <div class="d-cli-addr"><span style="color:var(--faint);flex-shrink:0;margin-top:1px">${svgInline('mappin', 12)}</span>${c.dir || 'Sin dirección'}</div>
+      <div class="d-cli-addr"><span style="color:var(--faint);flex-shrink:0;margin-top:1px">${svgInline('mappin', 12)}</span>${addrHTML}</div>
     </div>
     <button class="lm-icon-sm" data-edit-cliente>${svgInline('edit', 14)}</button>
     </div>`;
@@ -1332,6 +1375,45 @@ function renderCliList(q) {
   }).join('');
 }
 
+// ── Direcciones múltiples: filas del modal ─────────────────────────────
+function cliDirRowHTML(d) {
+  d = d || {};
+  const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  return `<div class="d-dirrow" data-dir-row data-dir-id="${d.id || ''}">
+    <input class="d-input d-dir-barrio" placeholder="Barrio (ej. Bellavista)" value="${esc(d.barrio)}" />
+    <input class="d-input d-dir-dir" placeholder="Dirección (calle, carrera, apto, indicaciones…)" value="${esc(d.dir)}" />
+    <button type="button" class="d-dir-del" data-action="del-dir" title="Quitar esta dirección">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+    </button>
+  </div>`;
+}
+function renderCliDirRows(direcciones) {
+  const box = $('cli-dirs');
+  if (!box) return;
+  const arr = (direcciones && direcciones.length) ? direcciones : [{}];
+  box.innerHTML = arr.map(cliDirRowHTML).join('');
+}
+function getCliDirRows() {
+  const rows = [];
+  document.querySelectorAll('#cli-dirs [data-dir-row]').forEach(r => {
+    const barrio = (r.querySelector('.d-dir-barrio') && r.querySelector('.d-dir-barrio').value || '').trim();
+    const dir    = (r.querySelector('.d-dir-dir')    && r.querySelector('.d-dir-dir').value    || '').trim();
+    if (barrio || dir) rows.push({ id: r.dataset.dirId || cliDirId(), barrio, dir });
+  });
+  return rows;
+}
+function addCliDirRow() {
+  const box = $('cli-dirs');
+  if (!box) return;
+  box.insertAdjacentHTML('beforeend', cliDirRowHTML({}));
+  const inputs = box.querySelectorAll('.d-dir-barrio');
+  if (inputs.length) inputs[inputs.length - 1].focus();
+}
+function ensureOneDirRow() {
+  const box = $('cli-dirs');
+  if (box && !box.querySelector('[data-dir-row]')) box.innerHTML = cliDirRowHTML({});
+}
+
 // ── Nuevo / Editar cliente ─────────────────────────────────────────────
 function openNuevoCli(editId) {
   S.editCliId = editId || null;
@@ -1348,17 +1430,18 @@ function openNuevoCli(editId) {
       if ($('cli-nombres'))   $('cli-nombres').value   = nombres;
       if ($('cli-apellidos')) $('cli-apellidos').value = apellidos;
       if ($('cli-telefono'))  $('cli-telefono').value  = c.tel    || '';
-      if ($('cli-barrio'))    $('cli-barrio').value    = c.barrio || '';
-      if ($('cli-direccion')) $('cli-direccion').value = c.dir    || '';
+      cliNormalize(c);
+      renderCliDirRows(c.direcciones);
       if ($('cli-tipdoc'))    $('cli-tipdoc').value    = c.tipdoc || 'CC';
       if ($('cli-numdoc'))    $('cli-numdoc').value    = c.numdoc || '';
       if ($('cli-email'))     $('cli-email').value     = c.email  || '';
       if ($('cli-notas'))     $('cli-notas').value     = c.notas  || '';
     }
   } else {
-    ['cli-nombres','cli-apellidos','cli-telefono','cli-barrio','cli-direccion','cli-numdoc','cli-email','cli-notas'].forEach(id => {
+    ['cli-nombres','cli-apellidos','cli-telefono','cli-numdoc','cli-email','cli-notas'].forEach(id => {
       if ($(id)) $(id).value = '';
     });
+    renderCliDirRows([{}]);
     if ($('cli-tipdoc')) $('cli-tipdoc').value = 'CC';
   }
 
@@ -1374,41 +1457,33 @@ function guardarCliente() {
   const nombres   = ($('cli-nombres')   && $('cli-nombres').value   || '').trim();
   const apellidos = ($('cli-apellidos') && $('cli-apellidos').value || '').trim();
   const telefono  = ($('cli-telefono')  && $('cli-telefono').value  || '').trim();
-  const barrio    = ($('cli-barrio')    && $('cli-barrio').value    || '').trim();
-  const direccion = ($('cli-direccion') && $('cli-direccion').value || '').trim();
+  const dirs      = getCliDirRows();
 
   if (!nombres) { alert('El nombre es obligatorio.'); return; }
 
   const nombre = (nombres + (apellidos ? ' ' + apellidos : '')).trim();
+  // Conservar la dirección activa si sigue existiendo; si no, la primera.
+  const prevId = (S.cliente && S.cliente.id === S.editCliId) ? S.cliente.dirId : null;
+  const activa = dirs.find(d => d.id === prevId) || dirs[0] || null;
+  const extra  = {
+    tipdoc: ($('cli-tipdoc') && $('cli-tipdoc').value || '').trim(),
+    numdoc: ($('cli-numdoc') && $('cli-numdoc').value || '').trim(),
+    email:  ($('cli-email')  && $('cli-email').value  || '').trim(),
+    notas:  ($('cli-notas')  && $('cli-notas').value  || '').trim(),
+  };
+  const campos = {
+    nombre, tel: telefono, direcciones: dirs,
+    barrio: activa ? activa.barrio : '', dir: activa ? activa.dir : '', dirId: activa ? activa.id : null,
+  };
 
   if (S.editCliId) {
     const idx = S.clientes.findIndex(c => c.id === S.editCliId);
     if (idx !== -1) {
-      Object.assign(S.clientes[idx], {
-        nombre,
-        tel:    telefono,
-        barrio,
-        dir:    direccion,
-        tipdoc: ($('cli-tipdoc') && $('cli-tipdoc').value || '').trim(),
-        numdoc: ($('cli-numdoc') && $('cli-numdoc').value || '').trim(),
-        email:  ($('cli-email')  && $('cli-email').value  || '').trim(),
-        notas:  ($('cli-notas')  && $('cli-notas').value  || '').trim(),
-      });
-      // Actualizar el cliente seleccionado si es el mismo
+      Object.assign(S.clientes[idx], campos, extra);
       if (S.cliente && S.cliente.id === S.editCliId) S.cliente = S.clientes[idx];
     }
   } else {
-    const newCli = {
-      id:     'c' + Date.now(),
-      nombre,
-      tel:    telefono,
-      barrio,
-      dir:    direccion,
-      tipdoc: ($('cli-tipdoc') && $('cli-tipdoc').value || '').trim(),
-      numdoc: ($('cli-numdoc') && $('cli-numdoc').value || '').trim(),
-      email:  ($('cli-email')  && $('cli-email').value  || '').trim(),
-      notas:  ($('cli-notas')  && $('cli-notas').value  || '').trim(),
-    };
+    const newCli = Object.assign({ id: 'c' + Date.now() }, campos, extra);
     S.clientes.unshift(newCli);
     S.cliente = newCli;
   }
@@ -1795,11 +1870,30 @@ function attachEvents() {
 
 
   // Delegated click en body
+  // Cambio de dirección activa desde el desplegable de la tarjeta de cliente
+  document.body.addEventListener('change', e => {
+    const sel = e.target.closest('[data-cli-dirsel]');
+    if (sel && S.cliente) {
+      cliSetDir(S.cliente, sel.value);
+      // Persistir la elección de dirección activa
+      const idx = S.clientes.findIndex(c => c.id === S.cliente.id);
+      if (idx !== -1) { S.clientes[idx].dirId = S.cliente.dirId; localStorage.setItem('pos.clientes', JSON.stringify(S.clientes)); }
+      renderClienteCard();
+      renderDetBtn();
+    }
+  });
+
   document.body.addEventListener('click', e => {
     // Cerrar menús de tarjeta si click fuera
     if (!e.target.closest('[data-openmenu]') && !e.target.closest('[id^="dmenu-"]')) {
       document.querySelectorAll('[id^="dmenu-"]').forEach(m => { m.hidden = true; });
     }
+
+    // Direcciones múltiples del cliente (interceptar antes del handler genérico)
+    const delDirEl = e.target.closest('[data-action="del-dir"]');
+    if (delDirEl) { const row = delDirEl.closest('[data-dir-row]'); if (row) row.remove(); ensureOneDirRow(); return; }
+    const addDirEl = e.target.closest('[data-action="add-dir"]');
+    if (addDirEl) { addCliDirRow(); return; }
 
     // [data-action]
     const actionEl = e.target.closest('[data-action]');
@@ -1876,7 +1970,9 @@ function attachEvents() {
     const cliBtn = e.target.closest('[data-cliente]');
     if (cliBtn && !e.target.closest('[data-edit]')) {
       const cid = cliBtn.dataset.cliente;
-      S.cliente = S.clientes.find(c => c.id === cid) || null;
+      const found = S.clientes.find(c => c.id === cid) || null;
+      if (found) { cliNormalize(found); cliSetDir(found, found.direcciones[0] && found.direcciones[0].id); }
+      S.cliente = found;
       closeModal('modal-cliente');
       renderClienteCard();
       renderDetBtn();

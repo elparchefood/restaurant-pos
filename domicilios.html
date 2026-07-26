@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="pos-core.css">
-  <link rel="stylesheet" href="domicilios.css?v=1785390000">
+  <link rel="stylesheet" href="domicilios.css?v=1785990000">
   <title>Domicilios — Cobra POS</title>
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/favicon-32.png">
@@ -330,8 +330,11 @@
         <div class="d-field"><span class="d-field-lbl">Nombres</span><input class="d-input" id="cli-nombres" placeholder="Ingrese un nombre" /></div>
         <div class="d-field"><span class="d-field-lbl">Apellidos</span><input class="d-input" id="cli-apellidos" placeholder="Ingrese un apellido" /></div>
         <div class="d-field"><span class="d-field-lbl">Teléfono</span><input class="d-input" id="cli-telefono" placeholder="Ingrese un teléfono" /></div>
-        <div class="d-field"><span class="d-field-lbl">Barrio</span><input class="d-input" id="cli-barrio" placeholder="Ej. Bellavista, La Paz, Centro..." /></div>
-        <div class="d-field full"><span class="d-field-lbl">Dirección de entrega</span><input class="d-input" id="cli-direccion" placeholder="Calle, carrera, indicaciones..." /></div>
+        <div class="d-field full">
+          <span class="d-field-lbl">Direcciones de entrega</span>
+          <div id="cli-dirs" class="d-dirs"></div>
+          <button type="button" class="d-adddir" data-action="add-dir"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Agregar otra dirección</button>
+        </div>
       </div>
       <div class="d-form-grid" data-clipane="avanzado" hidden>
         <div class="d-field"><span class="d-field-lbl">Tipo de documento</span><input class="d-input" id="cli-tipdoc" value="CC" /></div>
@@ -367,6 +370,6 @@
 <script src="pos-print-listener.js?v=4"></script>
 <script src="pos-caja-guard.js?v=1"></script>
 <script src="pos-stock.js?v=1785410000"></script>
-<script src="domicilios.js?v=1785410000"></script>
+<script src="domicilios.js?v=1785990000"></script>
 </body>
 </html>
