@@ -116,8 +116,24 @@ async function loadConversations() {
   if (['all','mine','pending'].includes(S.activeView)) { q = q.eq('status','open').eq('human_takeover', false); }
   const { data } = await q;
   S.conversations = data || [];
+  if (S.activeView === 'all') S.conversations = S.conversations.filter(function(c){ return !(Array.isArray(c.labels) && c.labels.length>0); });  // etiquetados: solo en su pestaña
   renderConvList();
   renderBadges();
+  updateLabelBadges();
+}
+
+// Badge de "mensajes nuevos" por etiqueta (consulta aparte de la vista actual)
+async function updateLabelBadges(){
+  try{
+    if(!(S.etiquetas||[]).length) return;
+    var res=await sb.from('chat_conversations').select('labels,unread_count').eq('branch_id',S.branchId).gt('unread_count',0);
+    var rows=res.data||[]; var counts={};
+    rows.forEach(function(c){ if(Array.isArray(c.labels)) c.labels.forEach(function(id){ counts[id]=(counts[id]||0)+(Number(c.unread_count)||0); }); });
+    (S.etiquetas||[]).forEach(function(e){
+      var el=document.getElementById('lbbadge-'+e.id);
+      if(el){ var n=counts[e.id]||0; el.textContent=n||''; el.style.display=n?'':'none'; }
+    });
+  }catch(e){}
 }
 
 async function loadMessages(convId) {
@@ -136,7 +152,7 @@ function subscribeRealtime() {
     .on('postgres_changes', { event:'*', schema:'public', table:'chat_conversations', filter:`branch_id=eq.${S.branchId}` }, handleConvChange)
     .on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages' }, payload => {
       const msg = payload.new;
-      if (msg.direction === 'in') chatBeep();   // sonido de notificación (también estando en el chat)
+      if (msg.direction === 'in') { chatBeep(); setTimeout(updateLabelBadges, 400); }   // sonido + refrescar badge de etiquetas
       if (msg.conversation_id === S.activeConvId && !S.messages.find(m => m.id === msg.id)) { S.messages.push(msg); renderThread(); }
       const idx = S.conversations.findIndex(c => c.id === msg.conversation_id);
       if (idx !== -1) {
@@ -1529,8 +1545,10 @@ function renderSidebarLabels(){
   cont.innerHTML = list.map(e=>
     '<button class="ci-nav-btn ci-nav-label" data-view="label:'+e.id+'" onclick="selectNavView(this)">'
     +'<span class="ci-nav-l"><span class="ci-lbl-dot" style="background:'+e.color+'"></span><span>'+qrEsc(e.name)+'</span></span>'
+    +'<span class="ci-nav-badge" id="lbbadge-'+e.id+'" style="display:none"></span>'
     +'<span class="ci-lbl-del" title="Borrar" onclick="event.stopPropagation();deleteEtiqueta(\''+e.id+'\')">✕</span>'
     +'</button>').join('');
+  updateLabelBadges();
 }
 function selectNavView(btn){ document.querySelectorAll('.ci-nav-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); S.activeView=btn.dataset.view; loadConversations(); }
 function openChatWindow(){
