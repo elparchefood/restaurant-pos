@@ -1682,15 +1682,32 @@ async function toggleConvLabel(id){
 }
 function closeEtqAssign(){ document.getElementById('etqAssignModal').style.display='none'; }
 
-/* ══ Respuestas dinámicas: /total y /puntos usan el pedido YA creado (conv.order_id) ══ */
+/* ══ Respuestas dinámicas: /total y /puntos ══
+   Con el flujo de BORRADOR, el precio a cotizar sale del pedido sin enviar
+   (chat_conversations.pedido_borrador). Si ya no hay borrador (ya se envió a
+   cocina), se usa el pedido creado (conv.order_id → pos_orders). ══ */
 async function resolveDynReply(r){
-  var conv=S.conversations.find(function(c){ return c.id===S.activeConvId; });
-  var orderId=conv&&conv.order_id; var order=null;
-  if(orderId){ try{ var res=await sb.from('pos_orders').select('subtotal,packaging_fee,delivery_fee,total').eq('id',orderId).maybeSingle(); order=res.data; }catch(e){} }
-  if(!order){ showToast('Primero crea el pedido para calcular los valores','info'); return null; }
-  var prod=(Number(order.subtotal)||0)+(Number(order.packaging_fee)||0);
-  var domi=Number(order.delivery_fee)||0;
-  var total=Number(order.total)|| (prod+domi);
+  var cid=S.activeConvId; if(!cid){ showToast('Abre una conversación primero','info'); return null; }
+  var prod=0, domi=0, total=0, got=false;
+  try{
+    var dres=await sb.from('chat_conversations').select('pedido_borrador,order_id').eq('id',cid).maybeSingle();
+    var d=dres&&dres.data;
+    // 1) Preferir el BORRADOR sin enviar (lo que el cliente aún va a confirmar)
+    if(d && d.pedido_borrador && Array.isArray(d.pedido_borrador.productos) && d.pedido_borrador.productos.length){
+      var b=d.pedido_borrador;
+      domi=(String(b.tipo)==='domicilio')?(Number(b.domi_precio)||0):0;
+      total=Number(b.total)||0;
+      prod=total-domi;            // productos + adiciones + empaque, SIN domicilio
+      got=true;
+    }
+    // 2) Si no hay borrador, usar el pedido YA creado
+    else if(d && d.order_id){
+      var res=await sb.from('pos_orders').select('subtotal,packaging_fee,delivery_fee,total').eq('id',d.order_id).maybeSingle();
+      var order=res&&res.data;
+      if(order){ prod=(Number(order.subtotal)||0)+(Number(order.packaging_fee)||0); domi=Number(order.delivery_fee)||0; total=Number(order.total)||(prod+domi); got=true; }
+    }
+  }catch(e){}
+  if(!got){ showToast('Primero guarda o crea el pedido para calcular los valores','info'); return null; }
   var puntos=Math.floor(prod/1000);
   if(r.dyn==='total') return 'Con gusto, serían '+cpCOP(prod)+' de tu pedido'+(domi>0?' y '+cpCOP(domi)+' del domicilio':'')+', total '+cpCOP(total)+' 😊\nEn un momento enviamos tu pedido 🍟';
   if(r.dyn==='puntos') return 'Acabas de ganar '+puntos+' punto'+(puntos===1?'':'s')+' con tu compra 🎉 Cuando nos visites en el establecimiento o vuelvas a pedir, recuerda dar tu número de celular para seguir acumulando puntos y redimirlos en productos de El Parche 🍟';
