@@ -1524,6 +1524,13 @@ function renderSidebarLabels(){
     +'</button>').join('');
 }
 function selectNavView(btn){ document.querySelectorAll('.ci-nav-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); S.activeView=btn.dataset.view; loadConversations(); }
+function openChatWindow(){
+  var mm=document.getElementById('moreMenu'); if(mm) mm.style.display='none';
+  try{
+    var w=window.open('chat-ia.html','cobra-chat-'+Date.now(),'width=1180,height=820,resizable=yes');
+    if(!w) showToast('El sistema bloqueó la ventana. Permite ventanas emergentes.','error');
+  }catch(e){ showToast('No se pudo abrir la ventana: '+e.message,'error'); }
+}
 function openCrearEtiqueta(){
   var mm=document.getElementById('moreMenu'); if(mm) mm.style.display='none';
   S.etqColor=ETQ_COLORS[0];
