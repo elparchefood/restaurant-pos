@@ -1307,8 +1307,12 @@ async function openCrearPedido(draftOverride){
   cpSetBody('<div class="cp-loading"><div class="cp-spin"></div>'+(draftOverride?'Cargando el pedido…':'Analizando la conversación con IA…')+'</div>');
   try{
     const res=await fetch(EXTRAER_PEDIDO_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversation_id:S.activeConvId})});
-    const data=await res.json();
+    const _raw=await res.text(); let data={}; try{ data=JSON.parse(_raw); }catch(_e){}
     if(data.error && !draftOverride){ cpSetBody('<div class="cp-error">⚠️ '+cpEsc(data.error)+'</div>'); return; }
+    if(!draftOverride && (!data.order || !((data.order.productos||[]).length) )){
+      cpSetBody('<div class="cp-error" style="text-align:left;font-size:11px;line-height:1.5">🔎 DIAGNÓSTICO (temporal)<br>HTTP: '+res.status+'<br>conv: '+cpEsc(String(S.activeConvId))+'<br>keys: '+cpEsc(Object.keys(data||{}).join(', ')||'(ninguna)')+'<br>productos: '+((data.order&&data.order.productos)?data.order.productos.length:'(sin order)')+'<br>respuesta: '+cpEsc(String(_raw).slice(0,400))+'</div>');
+      cpFooter(false); return;
+    }
     S.cpOrder = draftOverride || data.order;   // al EDITAR se usa el borrador guardado; el catálogo viene igual del análisis
     S.cpCatalogo=data.catalogo||[];
     S.cpCategorias=data.categorias||[];
