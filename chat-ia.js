@@ -1554,8 +1554,10 @@ function selectNavView(btn){ document.querySelectorAll('.ci-nav-btn').forEach(b=
 function openChatWindow(){
   var mm=document.getElementById('moreMenu'); if(mm) mm.style.display='none';
   try{
-    var w=window.open('chat-ia.html','cobra-chat-'+Date.now(),'width=1180,height=820,resizable=yes');
-    if(!w) showToast('El sistema bloqueó la ventana. Permite ventanas emergentes.','error');
+    var w=window.open('chat-ia.html','cobra-chat-'+Date.now(),'width=1180,height=820,resizable=yes,menubar=no,toolbar=no,location=no,status=no');
+    if(!w){ showToast('El sistema bloqueó la ventana. Permite ventanas emergentes.','error'); return; }
+    // Intento adicional: si el .exe expone control de menú, ocultarlo en la ventana nueva
+    try{ if(window.electronPOS && typeof window.electronPOS.hideMenuBar==='function') window.electronPOS.hideMenuBar(); }catch(e){}
   }catch(e){ showToast('No se pudo abrir la ventana: '+e.message,'error'); }
 }
 function openCrearEtiqueta(){
