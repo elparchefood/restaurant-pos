@@ -135,6 +135,7 @@ function subscribeRealtime() {
     .on('postgres_changes', { event:'*', schema:'public', table:'chat_conversations', filter:`branch_id=eq.${S.branchId}` }, handleConvChange)
     .on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages' }, payload => {
       const msg = payload.new;
+      if (msg.direction === 'in') chatBeep();   // sonido de notificación (también estando en el chat)
       if (msg.conversation_id === S.activeConvId && !S.messages.find(m => m.id === msg.id)) { S.messages.push(msg); renderThread(); }
       const idx = S.conversations.findIndex(c => c.id === msg.conversation_id);
       if (idx !== -1) {
@@ -150,6 +151,20 @@ function subscribeRealtime() {
       loadChannels(); // refrescar canales si cambia alguno
     })
     .subscribe();
+}
+
+// Sonido corto de notificación (mismo tono que el aviso global pos-notify.js).
+function chatBeep(){
+  try{
+    var Ctx=window.AudioContext||window.webkitAudioContext; if(!Ctx) return;
+    var ctx=new Ctx(); var o=ctx.createOscillator(); var g=ctx.createGain();
+    o.connect(g); g.connect(ctx.destination); o.type='sine';
+    o.frequency.setValueAtTime(880, ctx.currentTime);
+    o.frequency.setValueAtTime(660, ctx.currentTime+0.1);
+    g.gain.setValueAtTime(0.09, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.25);
+    o.start(); setTimeout(function(){ try{o.stop();ctx.close();}catch(e){} },280);
+  }catch(e){}
 }
 
 function handleConvChange(payload) {
