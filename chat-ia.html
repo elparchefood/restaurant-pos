@@ -14,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="pos-perms.js?v=1785030000"></script>
   <script>if(window.posRequirePin) posRequirePin('chat.usar');</script>
-  <link rel="stylesheet" href="chat-ia.css?v=15">
+  <link rel="stylesheet" href="chat-ia.css?v=16">
 </head>
 <body>
 
@@ -96,6 +96,9 @@
           <span>Archivados</span>
         </span>
       </button>
+
+      <div class="ci-nav-cap" id="labelsCap" style="display:none">Etiquetas</div>
+      <div id="navLabels"></div>
 
       <div class="ci-nav-cap">Canales conectados</div>
       <div class="ci-channels" id="channelsList"></div>
@@ -192,6 +195,14 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
           </button>
           <div class="ci-more-menu" id="moreMenu" style="display:none">
+            <button class="ci-more-item" onclick="openEtiquetarChat()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+              Etiquetar chat
+            </button>
+            <button class="ci-more-item" onclick="openCrearEtiqueta()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Crear etiqueta
+            </button>
             <button class="ci-more-item ci-more-danger" onclick="borrarHistorialChat()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
               Borrar historial
@@ -288,6 +299,30 @@
 
 </div>
 
+<!-- Modal: Crear etiqueta -->
+<div class="etq-overlay" id="etqModal" style="display:none">
+  <div class="etq-card">
+    <div class="etq-head"><b>🏷️ Nueva etiqueta</b><button class="etq-x" onclick="closeEtqModal()">✕</button></div>
+    <div class="etq-body">
+      <input id="etqName" placeholder="Nombre (ej. En preparación)" maxlength="30" autocomplete="off">
+      <div class="etq-colors" id="etqColors"></div>
+    </div>
+    <div class="etq-foot">
+      <button class="cp-btn ghost" onclick="closeEtqModal()">Cancelar</button>
+      <button class="cp-btn primary" id="etqSaveBtn" onclick="saveEtiqueta()">Crear</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Etiquetar chat -->
+<div class="etq-overlay" id="etqAssignModal" style="display:none">
+  <div class="etq-card">
+    <div class="etq-head"><b>🏷️ Etiquetar chat</b><button class="etq-x" onclick="closeEtqAssign()">✕</button></div>
+    <div class="etq-body" id="etqAssignList"></div>
+    <div class="etq-foot"><button class="cp-btn primary" onclick="closeEtqAssign()">Listo</button></div>
+  </div>
+</div>
+
 <!-- Modal: Crear pedido desde el chat -->
 <div class="cp-overlay" id="cpModal" style="display:none">
   <div class="cp-modal">
@@ -303,7 +338,7 @@
   </div>
 </div>
 
-<script src="chat-ia.js?v=1785840000"></script>
+<script src="chat-ia.js?v=1785860000"></script>
 <script src="pos-print.js?v=1785810000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>

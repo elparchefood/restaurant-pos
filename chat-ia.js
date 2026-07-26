@@ -82,7 +82,7 @@ async function boot() {
       $('userRole').textContent = user.role      || 'Usuario';
     }
 
-    await Promise.all([loadChannels(), loadConversations(), loadIaMaster(), loadQuickReplies()]);
+    await Promise.all([loadChannels(), loadConversations(), loadIaMaster(), loadQuickReplies(), loadEtiquetas()]);
     var _iaBtn = document.getElementById('iaMasterBtn');
     if (_iaBtn) _iaBtn.addEventListener('click', toggleIaMaster);
     subscribeRealtime();
@@ -112,6 +112,7 @@ async function loadConversations() {
   if (S.activeView === 'archived') q = q.eq('status','archived');
   if (S.activeView === 'human')   q = q.eq('human_takeover', true).eq('status','open');
   if (S.activeView === 'pagos')   q = q.eq('pago_pendiente', true).eq('status','open');
+  if (S.activeView && S.activeView.slice(0,6) === 'label:') q = q.contains('labels', [S.activeView.slice(6)]);
   if (['all','mine','pending'].includes(S.activeView)) { q = q.eq('status','open').eq('human_takeover', false); }
   const { data } = await q;
   S.conversations = data || [];
@@ -1116,7 +1117,8 @@ const DEFAULT_QUICK_REPLIES = [
   { k:'efectivotransferencia', t:'Con gusto, me confirmas si el pago es transferencia o efectivo? para pasar tu pedido a cocina🍟☺️' },
   { k:'QR2',      t:'Te comparto el código QR para que puedas realizar tu pago ☺️\n\nO si deseas, mediante llaves con el siguiente número: 0092726260\n\nRecuerda enviarnos tu comprobante de pago😁', img:'@qr' },
   { k:'comprobante', t:'Quedo pendiente del comprobante para poderte preparar ☺️' },
-  { k:'total',    t:'Con gusto, serian $0 de tu pedido y $0 del domicilio, total $0 😊\nEn un momento enviamos tu pedido 🍟' },
+  { k:'total',    t:'Con gusto, serian $0 de tu pedido y $0 del domicilio, total $0 😊\nEn un momento enviamos tu pedido 🍟', dyn:'total' },
+  { k:'puntos',   t:'Acabas de ganar X puntos con tu compra 🎉', dyn:'puntos' },
   { k:'30',       t:'Tu pedido tarda 30 minutos aproximadamente 🍟' },
   { k:'40',       t:'Tu pedido tarda 40 minutos aproximadamente 🍟' },
   { k:'saturaso', t:'Hola! 😎 En este momento nos encontramos saturados, por lo que no estamos brindando servicio temporalmente.\nEstamos trabajando para poder tomar tu pedido lo antes posible!\nGracias por tu paciencia. 😊' },
@@ -1201,6 +1203,7 @@ function qrPick(ev, i) {
   if (r.loc) { sendQuickLocation(r); return; }  // respuestas de ubicación → tarjeta de mapa
   if (r.img === '@menu') { sendQuickMenu(r); return; }  // la carta = varias imágenes del menú
   if (r.img) { sendQuickMedia(r); return; }     // respuestas con imagen se envían directo (imagen + texto)
+  if (r.dyn) { resolveDynReply(r).then(function(t){ if(t!=null){ var el=document.getElementById('msgInput'); if(el){ el.value=t; el.focus(); } } }); return; }  // /total, /puntos → valores reales del pedido
   const inp = document.getElementById('msgInput');
   if (inp) { inp.value = r.t; inp.focus(); }
 }
@@ -1476,6 +1479,92 @@ function cpSaveClienteLocal(o){
     list.unshift({ id:'c'+Date.now(), nombre:o.cliente||'Cliente', tel:tel, barrio:o.barrio||'', dir:o.direccion||'', tipdoc:'', numdoc:'', email:'', notas:'' });
     localStorage.setItem('pos.clientes', JSON.stringify(list));
   }catch(e){ console.warn('cpSaveClienteLocal:', e); }
+}
+
+/* ══════════════ ETIQUETAS — agrupar chats por etiqueta ══════════════ */
+const ETQ_COLORS = ['#8B5CF6','#EF4444','#F59E0B','#10B981','#0EA5E9','#EC4899','#6366F1','#84CC16'];
+S.etiquetas = S.etiquetas || [];
+S.etqColor = ETQ_COLORS[0];
+
+async function loadEtiquetas(){
+  try{ const { data } = await sb.from('ia_config').select('etiquetas').eq('branch_id', S.branchId).maybeSingle();
+    S.etiquetas = (data && Array.isArray(data.etiquetas)) ? data.etiquetas : []; }
+  catch(e){ S.etiquetas=[]; }
+  renderSidebarLabels();
+}
+async function saveEtiquetasDB(){ try{ await sb.from('ia_config').update({ etiquetas: S.etiquetas }).eq('branch_id', S.branchId); }catch(e){ console.error('saveEtiquetas:', e); } }
+function renderSidebarLabels(){
+  const cont=document.getElementById('navLabels'), cap=document.getElementById('labelsCap');
+  if(!cont) return;
+  const list=S.etiquetas||[];
+  if(cap) cap.style.display = list.length ? '' : 'none';
+  cont.innerHTML = list.map(e=>
+    '<button class="ci-nav-btn ci-nav-label" data-view="label:'+e.id+'" onclick="selectNavView(this)">'
+    +'<span class="ci-nav-l"><span class="ci-lbl-dot" style="background:'+e.color+'"></span><span>'+qrEsc(e.name)+'</span></span>'
+    +'<span class="ci-lbl-del" title="Borrar" onclick="event.stopPropagation();deleteEtiqueta(\''+e.id+'\')">✕</span>'
+    +'</button>').join('');
+}
+function selectNavView(btn){ document.querySelectorAll('.ci-nav-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); S.activeView=btn.dataset.view; loadConversations(); }
+function openCrearEtiqueta(){
+  var mm=document.getElementById('moreMenu'); if(mm) mm.style.display='none';
+  S.etqColor=ETQ_COLORS[0];
+  var cont=document.getElementById('etqColors');
+  if(cont) cont.innerHTML=ETQ_COLORS.map(function(c,i){ return '<button class="etq-color'+(i===0?' sel':'')+'" style="background:'+c+'" onclick="pickEtqColor(this,\''+c+'\')"></button>'; }).join('');
+  var inp=document.getElementById('etqName'); if(inp) inp.value='';
+  document.getElementById('etqModal').style.display='flex'; if(inp) inp.focus();
+}
+function pickEtqColor(btn,c){ S.etqColor=c; document.querySelectorAll('#etqColors .etq-color').forEach(function(b){ b.classList.remove('sel'); }); btn.classList.add('sel'); }
+function closeEtqModal(){ document.getElementById('etqModal').style.display='none'; }
+async function saveEtiqueta(){
+  var inp=document.getElementById('etqName'); var name=(inp.value||'').trim(); if(!name){ inp.focus(); return; }
+  S.etiquetas=S.etiquetas||[]; S.etiquetas.push({ id:'e'+Date.now().toString(36), name:name, color:S.etqColor });
+  await saveEtiquetasDB(); renderSidebarLabels(); closeEtqModal(); showToast('Etiqueta creada ✓','success');
+}
+async function deleteEtiqueta(id){
+  S.etiquetas=(S.etiquetas||[]).filter(function(e){ return e.id!==id; });
+  await saveEtiquetasDB(); renderSidebarLabels();
+  if(S.activeView==='label:'+id){ var b=document.querySelector('.ci-nav-btn[data-view="all"]'); if(b) selectNavView(b); }
+}
+function openEtiquetarChat(){
+  var mm=document.getElementById('moreMenu'); if(mm) mm.style.display='none';
+  if(!S.activeConvId){ showToast('Abre una conversación primero','info'); return; }
+  if(!(S.etiquetas||[]).length){ showToast('Primero crea una etiqueta','info'); openCrearEtiqueta(); return; }
+  renderEtqAssign(); document.getElementById('etqAssignModal').style.display='flex';
+}
+function renderEtqAssign(){
+  var conv=S.conversations.find(function(c){ return c.id===S.activeConvId; });
+  var has=(conv&&Array.isArray(conv.labels))?conv.labels:[];
+  var cont=document.getElementById('etqAssignList');
+  cont.innerHTML=(S.etiquetas||[]).map(function(e){
+    return '<button class="etq-assign-item'+(has.indexOf(e.id)>=0?' on':'')+'" onclick="toggleConvLabel(\''+e.id+'\')">'
+      +'<span class="ci-lbl-dot" style="background:'+e.color+'"></span><span style="flex:1;text-align:left">'+qrEsc(e.name)+'</span>'
+      +'<span class="etq-check">'+(has.indexOf(e.id)>=0?'✓':'')+'</span></button>';
+  }).join('');
+}
+async function toggleConvLabel(id){
+  var conv=S.conversations.find(function(c){ return c.id===S.activeConvId; }); if(!conv) return;
+  var labels=Array.isArray(conv.labels)?conv.labels.slice():[]; var i=labels.indexOf(id);
+  if(i>=0) labels.splice(i,1); else labels.push(id);
+  conv.labels=labels;
+  try{ await sb.from('chat_conversations').update({ labels:labels }).eq('id', conv.id); }catch(e){ console.error('toggleConvLabel:', e); }
+  renderEtqAssign();
+  if(S.activeView && S.activeView.slice(0,6)==='label:') loadConversations();
+}
+function closeEtqAssign(){ document.getElementById('etqAssignModal').style.display='none'; }
+
+/* ══ Respuestas dinámicas: /total y /puntos usan el pedido YA creado (conv.order_id) ══ */
+async function resolveDynReply(r){
+  var conv=S.conversations.find(function(c){ return c.id===S.activeConvId; });
+  var orderId=conv&&conv.order_id; var order=null;
+  if(orderId){ try{ var res=await sb.from('pos_orders').select('subtotal,packaging_fee,delivery_fee,total').eq('id',orderId).maybeSingle(); order=res.data; }catch(e){} }
+  if(!order){ showToast('Primero crea el pedido para calcular los valores','info'); return null; }
+  var prod=(Number(order.subtotal)||0)+(Number(order.packaging_fee)||0);
+  var domi=Number(order.delivery_fee)||0;
+  var total=Number(order.total)|| (prod+domi);
+  var puntos=Math.floor(prod/1000);
+  if(r.dyn==='total') return 'Con gusto, serían '+cpCOP(prod)+' de tu pedido'+(domi>0?' y '+cpCOP(domi)+' del domicilio':'')+', total '+cpCOP(total)+' 😊\nEn un momento enviamos tu pedido 🍟';
+  if(r.dyn==='puntos') return 'Acabas de ganar '+puntos+' punto'+(puntos===1?'':'s')+' con tu compra 🎉 Cuando nos visites en el establecimiento o vuelvas a pedir, recuerda dar tu número de celular para seguir acumulando puntos y redimirlos en productos de El Parche 🍟';
+  return r.t;
 }
 
 // Envía una respuesta rápida que lleva IMAGEN (ej. el QR de pago) + su texto como caption.
