@@ -4,24 +4,28 @@
 (function () {
   if (location.pathname.indexOf('chat-ia') >= 0) return;   // en el chat ya se ven los mensajes
 
-  var started = false, lastTs = 0;
+  var started = false, lastTs = 0, tries = 0;
+
+  function getSB() {
+    try { if (typeof sb !== 'undefined' && sb && sb.channel) return sb; } catch (e) {}
+    if (window._pos && window._pos.sb && window._pos.sb.channel) return window._pos.sb;
+    if (window.sb && window.sb.channel) return window.sb;
+    return null;
+  }
 
   function start() {
     if (started) return;
-    if (typeof sb === 'undefined' || !sb || !sb.auth) { setTimeout(start, 600); return; }
+    var SB = getSB();
+    if (!SB) { if (tries++ < 40) setTimeout(start, 700); return; }   // esperar a que cargue pos-core
     started = true;
-    sb.auth.getSession().then(function (r) {
-      var s = r && r.data && r.data.session; if (!s) return;
-      var tenant = (s.user && s.user.user_metadata) ? s.user.user_metadata.tenant_id : null;
-      if (!tenant) return;
-      sb.channel('notify-msgs-' + tenant)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: 'tenant_id=eq.' + tenant }, function (payload) {
-          var m = payload && payload.new; if (!m || m.direction !== 'in') return;
-          var now = Date.now(); if (now - lastTs < 400) { lastTs = now; return; } lastTs = now;   // anti-ráfaga
-          notif(m);
-        })
-        .subscribe();
-    }).catch(function () {});
+    // Sin filtro (igual que el chat, que sí funciona): RLS ya limita a la sucursal del usuario.
+    SB.channel('pos-notify-msgs')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, function (payload) {
+        var m = payload && payload.new; if (!m || m.direction !== 'in') return;
+        var now = Date.now(); if (now - lastTs < 400) { lastTs = now; return; } lastTs = now;   // anti-ráfaga
+        notif(m);
+      })
+      .subscribe();
   }
 
   function beep() {
