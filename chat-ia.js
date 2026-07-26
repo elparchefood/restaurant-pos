@@ -1297,6 +1297,7 @@ async function openCrearPedido(){
     S.cpMods=data.mods||[];
     cpRenderForm(data.order);
     cpFooter(true);
+    var _cb=document.getElementById('cpConfirmBtn'); if(_cb){ _cb.disabled=false; _cb.textContent='Crear e imprimir'; }  // reset por si quedó pegado
   }catch(e){ cpSetBody('<div class="cp-error">⚠️ No se pudo analizar: '+cpEsc(e.message)+'</div>'); }
 }
 
@@ -1472,19 +1473,27 @@ async function cpConfirm(){ if(!S.cpOrder) return; cpSyncTop(); cpSyncProdInputs
   const payload={ conversation_id:S.activeConvId, branch_id:o.branch_id, tenant_id:o.tenant_id, cliente:o.cliente, telefono:o.telefono, direccion:o.direccion||'', barrio:o.barrio||'', tipo:o.tipo, pago:o.pago, notas:o.notas, domi_precio:(o.tipo==='domicilio'?(Number(o.domi_precio)||0):0), empaque:cpEmpaque(),
     productos:(o.productos||[]).map(p=>({ product_id:p.product_id, product_name:p.product_name, unit_price:p.unit_price, cantidad:p.cantidad, tamano:p.tamano, variantes:p.variantes||{}, adiciones:p.adiciones||[], notas:p.notas })) };
   const btn=document.getElementById('cpConfirmBtn'); if(btn){ btn.disabled=true; btn.textContent='Creando…'; }
-  try{ const res=await fetch(CREAR_PEDIDO_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const data=await res.json();
-    if(data.error){ showToast('Error: '+data.error,'error'); if(btn){btn.disabled=false;btn.textContent='Crear e imprimir';} return; }
+  var ctrl = (typeof AbortController!=='undefined') ? new AbortController() : null;
+  var to = setTimeout(function(){ if(ctrl) ctrl.abort(); }, 20000);   // si se cuelga, aborta a los 20s
+  try{
+    const res=await fetch(CREAR_PEDIDO_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload), signal: ctrl?ctrl.signal:undefined});
+    const data=await res.json();
+    if(data.error){ showToast('Error: '+data.error,'error'); return; }
     showToast('✅ Pedido creado · '+cpCOP(data.total),'success');
     cpSaveClienteLocal(o);                                            // que aparezca en el selector de domicilios (mismo dispositivo)
     if(window.posAutoprint && window.electronPOS){ try{
-      // pos-print.js busca sb+branchId en window._pos (lo crea pos-core, que el chat no carga). Se lo damos:
       window._pos = window._pos || {}; window._pos.sb = window._pos.sb || sb;
       window._pos.state = window._pos.state || {}; window._pos.state.branchId = S.branchId;
       try{ localStorage.setItem('pos.branchId', S.branchId); }catch(_e){}
       window.posAutoprint(data.orderId);
     }catch(e){} }   // imprimir comanda desde el chat
     cpClose();
-  }catch(e){ showToast('Error: '+e.message,'error'); if(btn){btn.disabled=false;btn.textContent='Crear e imprimir';} }
+  }catch(e){
+    showToast((e && e.name==='AbortError') ? 'Tardó demasiado, intenta de nuevo' : ('Error: '+(e&&e.message||e)), 'error');
+  }finally{
+    clearTimeout(to);
+    var b2=document.getElementById('cpConfirmBtn'); if(b2){ b2.disabled=false; b2.textContent='Crear e imprimir'; }  // SIEMPRE reactivar
+  }
 }
 // Guarda el cliente en localStorage 'pos.clientes' (donde domicilios/venta rápida leen la lista),
 // para que el cliente creado desde el chat aparezca como un contacto más. Formato igual a domicilios.js.
