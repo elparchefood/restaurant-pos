@@ -738,6 +738,7 @@ async function openConversation(id) {
   $('thread').style.display     = 'block';
   $('composer').style.display   = 'flex';
   renderChatHeader(conv);
+  loadDraftBar(id);   // mostrar la tarjeta del pre-pedido si esta conversación tiene un borrador
   await loadMessages(id);
 }
 
@@ -1300,21 +1301,21 @@ function cpClose(){ cpShow(false); S.cpOrder=null; }
 function cpSetBody(html){ const b=document.getElementById('cpBody'); if(b) b.innerHTML=html; }
 function cpFooter(show){ const f=document.getElementById('cpFooter'); if(f) f.style.display = show?'flex':'none'; }
 
-async function openCrearPedido(){
+async function openCrearPedido(draftOverride){
   if(!S.activeConvId){ showToast('Abre una conversación primero','info'); return; }
   cpShow(true); cpFooter(false);
-  cpSetBody('<div class="cp-loading"><div class="cp-spin"></div>Analizando la conversación con IA…</div>');
+  cpSetBody('<div class="cp-loading"><div class="cp-spin"></div>'+(draftOverride?'Cargando el pedido…':'Analizando la conversación con IA…')+'</div>');
   try{
     const res=await fetch(EXTRAER_PEDIDO_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversation_id:S.activeConvId})});
     const data=await res.json();
-    if(data.error){ cpSetBody('<div class="cp-error">⚠️ '+cpEsc(data.error)+'</div>'); return; }
-    S.cpOrder=data.order;
+    if(data.error && !draftOverride){ cpSetBody('<div class="cp-error">⚠️ '+cpEsc(data.error)+'</div>'); return; }
+    S.cpOrder = draftOverride || data.order;   // al EDITAR se usa el borrador guardado; el catálogo viene igual del análisis
     S.cpCatalogo=data.catalogo||[];
     S.cpCategorias=data.categorias||[];
     S.cpMods=data.mods||[];
-    cpRenderForm(data.order);
+    cpRenderForm(S.cpOrder);
     cpFooter(true);
-    var _cb=document.getElementById('cpConfirmBtn'); if(_cb){ _cb.disabled=false; _cb.textContent='Crear e imprimir'; }  // reset por si quedó pegado
+    var _cb=document.getElementById('cpConfirmBtn'); if(_cb){ _cb.disabled=false; _cb.textContent='Guardar pedido'; }  // reset por si quedó pegado
   }catch(e){ cpSetBody('<div class="cp-error">⚠️ No se pudo analizar: '+cpEsc(e.message)+'</div>'); }
 }
 
@@ -1489,31 +1490,79 @@ function cpDoAddProduct(c,presId,varsSel){
   S.cpOrder.productos.push({ product_id:c.id, cat:c.category_id, product_name:[_presLabel,c.name].concat(varParts).filter(Boolean).join(' · '), unit_price:price, cantidad:1, tamano:pres.name||'', pres_id:presId, variantes:varsObj, adiciones:[], adic_options:cpAdicOptions(c,presId), notas:'', matched:true });
   cpRenderForm(S.cpOrder);
 }
+// GUARDAR el pedido como BORRADOR en la conversación (no lo crea en el sistema ni
+// imprime). Sergio lo puede editar cuantas veces quiera; solo se envía a cocina
+// (crea + imprime) cuando toca "Enviar a cocina" en la tarjeta del chat.
 async function cpConfirm(){ if(!S.cpOrder) return; cpSyncTop(); cpSyncProdInputs(); const o=S.cpOrder;
   if(!(o.productos||[]).length){ showToast('El pedido no tiene productos','error'); return; }
-  const payload={ conversation_id:S.activeConvId, branch_id:o.branch_id, tenant_id:o.tenant_id, cliente:o.cliente, telefono:o.telefono, direccion:o.direccion||'', barrio:o.barrio||'', tipo:o.tipo, pago:o.pago, notas:o.notas, domi_precio:(o.tipo==='domicilio'?(Number(o.domi_precio)||0):0), empaque:cpEmpaque(),
+  const convId=S.activeConvId;
+  const borrador=Object.assign({}, o, { empaque:cpEmpaque(), total:cpOrderTotal() });
+  const btn=document.getElementById('cpConfirmBtn'); if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
+  try{
+    const { error }=await sb.from('chat_conversations').update({ pedido_borrador: borrador }).eq('id', convId);
+    if(error) throw error;
+    cpSaveClienteLocal(o);                                            // que aparezca en el selector de domicilios
+    showToast('📝 Pedido guardado en el chat','success');
+    cpClose();
+    renderDraftBar(borrador);
+  }catch(e){ showToast('Error al guardar: '+(e&&e.message||e),'error'); }
+  finally{ var b2=document.getElementById('cpConfirmBtn'); if(b2){ b2.disabled=false; b2.textContent='Guardar pedido'; } }
+}
+
+// Tarjeta del pre-pedido en el chat (encima del compositor).
+function renderDraftBar(borrador){
+  const bar=document.getElementById('cpDraftBar'); if(!bar) return;
+  if(!borrador || !(borrador.productos||[]).length){ bar.style.display='none'; bar.innerHTML=''; return; }
+  const total=Number(borrador.total)|| (borrador.productos||[]).reduce((a,p)=>a+(Number(p.unit_price)||0)*(Number(p.cantidad)||1),0);
+  const lineas=(borrador.productos||[]).map(p=>cpEsc((Number(p.cantidad)||1)+'× '+(p.product_name||'Producto'))).join('  ·  ');
+  bar.innerHTML='<div class="cp-draft-info"><div class="cp-draft-title">📝 Pedido sin enviar · <b>'+cpCOP(total)+'</b></div><div class="cp-draft-items">'+lineas+'</div></div>'
+    +'<div class="cp-draft-btns"><button class="cp-draft-edit" onclick="cpEditarBorrador()">✏️ Editar</button><button class="cp-draft-send" id="cpDraftSend" onclick="cpEnviarCocina()">🍳 Enviar a cocina</button></div>';
+  bar.style.display='flex';
+}
+async function loadDraftBar(convId){
+  try{ const { data }=await sb.from('chat_conversations').select('pedido_borrador').eq('id', convId).maybeSingle();
+    renderDraftBar(data && data.pedido_borrador);
+  }catch(e){ renderDraftBar(null); }
+}
+// Reabrir el modal con el borrador guardado (para modificarlo).
+async function cpEditarBorrador(){
+  const convId=S.activeConvId;
+  try{ const { data }=await sb.from('chat_conversations').select('pedido_borrador').eq('id', convId).maybeSingle();
+    if(!data || !data.pedido_borrador){ showToast('No hay pedido para editar','info'); return; }
+    openCrearPedido(data.pedido_borrador);
+  }catch(e){ showToast('No se pudo abrir el pedido','error'); }
+}
+
+// ENVIAR A COCINA: crea el pedido en el sistema E imprime la comanda (lo que antes
+// hacía "Crear e imprimir"), luego limpia el borrador.
+async function cpEnviarCocina(){
+  const convId=S.activeConvId;
+  let o=null;
+  try{ const { data }=await sb.from('chat_conversations').select('pedido_borrador').eq('id', convId).maybeSingle(); o=data&&data.pedido_borrador; }catch(e){}
+  if(!o || !(o.productos||[]).length){ showToast('No hay pedido para enviar','error'); return; }
+  const payload={ conversation_id:convId, branch_id:o.branch_id, tenant_id:o.tenant_id, cliente:o.cliente, telefono:o.telefono, direccion:o.direccion||'', barrio:o.barrio||'', tipo:o.tipo, pago:o.pago, notas:o.notas, domi_precio:(o.tipo==='domicilio'?(Number(o.domi_precio)||0):0), empaque:Number(o.empaque)||0,
     productos:(o.productos||[]).map(p=>({ product_id:p.product_id, product_name:p.product_name, unit_price:p.unit_price, cantidad:p.cantidad, tamano:p.tamano, variantes:p.variantes||{}, adiciones:p.adiciones||[], notas:p.notas })) };
-  const btn=document.getElementById('cpConfirmBtn'); if(btn){ btn.disabled=true; btn.textContent='Creando…'; }
-  var ctrl = (typeof AbortController!=='undefined') ? new AbortController() : null;
-  var to = setTimeout(function(){ if(ctrl) ctrl.abort(); }, 20000);   // si se cuelga, aborta a los 20s
+  const btn=document.getElementById('cpDraftSend'); if(btn){ btn.disabled=true; btn.textContent='Enviando…'; }
+  var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
+  var to=setTimeout(function(){ if(ctrl) ctrl.abort(); },20000);
   try{
     const res=await fetch(CREAR_PEDIDO_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload), signal: ctrl?ctrl.signal:undefined});
     const data=await res.json();
     if(data.error){ showToast('Error: '+data.error,'error'); return; }
-    showToast('✅ Pedido creado · '+cpCOP(data.total),'success');
-    cpSaveClienteLocal(o);                                            // que aparezca en el selector de domicilios (mismo dispositivo)
+    showToast('🍳 Enviado a cocina · '+cpCOP(data.total),'success');
+    try{ await sb.from('chat_conversations').update({ pedido_borrador: null }).eq('id', convId); }catch(_e){}
+    renderDraftBar(null);
     if(window.posAutoprint && window.electronPOS){ try{
       window._pos = window._pos || {}; window._pos.sb = window._pos.sb || sb;
       window._pos.state = window._pos.state || {}; window._pos.state.branchId = S.branchId;
       try{ localStorage.setItem('pos.branchId', S.branchId); }catch(_e){}
       window.posAutoprint(data.orderId);
-    }catch(e){} }   // imprimir comanda desde el chat
-    cpClose();
+    }catch(e){} }   // imprimir comanda
   }catch(e){
     showToast((e && e.name==='AbortError') ? 'Tardó demasiado, intenta de nuevo' : ('Error: '+(e&&e.message||e)), 'error');
   }finally{
     clearTimeout(to);
-    var b2=document.getElementById('cpConfirmBtn'); if(b2){ b2.disabled=false; b2.textContent='Crear e imprimir'; }  // SIEMPRE reactivar
+    var b2=document.getElementById('cpDraftSend'); if(b2){ b2.disabled=false; b2.textContent='🍳 Enviar a cocina'; }
   }
 }
 // Guarda el cliente en localStorage 'pos.clientes' (donde domicilios/venta rápida leen la lista),

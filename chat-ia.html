@@ -14,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="pos-perms.js?v=1785030000"></script>
   <script>if(window.posRequirePin) posRequirePin('chat.usar');</script>
-  <link rel="stylesheet" href="chat-ia.css?v=18">
+  <link rel="stylesheet" href="chat-ia.css?v=19">
 </head>
 <body>
 
@@ -283,6 +283,9 @@
     <!-- Desplegable de respuestas rápidas ( "/" ) -->
     <div class="ci-quick-dd" id="quickDropdown" style="display:none"></div>
 
+    <!-- Tarjeta del pre-pedido guardado (borrador) — encima del compositor -->
+    <div class="cp-draftbar" id="cpDraftBar" style="display:none"></div>
+
     <div class="ci-composer" id="composer" style="display:none">
       <input type="file" id="attachInput" accept="image/*,video/*,audio/*,.pdf,.doc,.docx" style="display:none">
       <button class="ci-comp-attach" id="quickBtn" title="Respuestas rápidas ( / )">
@@ -351,12 +354,12 @@
     <div class="cp-body" id="cpBody"></div>
     <div class="cp-foot" id="cpFooter" style="display:none">
       <button class="cp-btn ghost" onclick="cpClose()">Cancelar</button>
-      <button class="cp-btn primary" id="cpConfirmBtn" onclick="cpConfirm()">Crear e imprimir</button>
+      <button class="cp-btn primary" id="cpConfirmBtn" onclick="cpConfirm()">Guardar pedido</button>
     </div>
   </div>
 </div>
 
-<script src="chat-ia.js?v=1786060000"></script>
+<script src="chat-ia.js?v=1786062000"></script>
 <script src="pos-print.js?v=1785810000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>
