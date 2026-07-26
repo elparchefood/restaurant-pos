@@ -112,7 +112,7 @@ async function loadConversations() {
   if (S.activeView === 'archived') q = q.eq('status','archived');
   if (S.activeView === 'human')   q = q.eq('human_takeover', true).eq('status','open');
   if (S.activeView === 'pagos')   q = q.eq('pago_pendiente', true).eq('status','open');
-  if (S.activeView && S.activeView.slice(0,6) === 'label:') q = q.contains('labels', [S.activeView.slice(6)]);
+  if (S.activeView && S.activeView.slice(0,6) === 'label:') q = q.filter('labels', 'cs', JSON.stringify([S.activeView.slice(6)]));
   if (['all','mine','pending'].includes(S.activeView)) { q = q.eq('status','open').eq('human_takeover', false); }
   const { data } = await q;
   S.conversations = data || [];
@@ -1302,19 +1302,38 @@ async function openCrearPedido(){
 
 function cpNorm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim(); }
 function cpItemTotal(p){ const a=(p.adiciones||[]).reduce((s,x)=>s+(Number(x.price)||0),0); return ((Number(p.unit_price)||0)+a)*(Number(p.cantidad)||1); }
+// Empaque — MISMA lógica que pos-core.js posEmpaqueCalc (modo específico por
+// producto/categoría/presentación, o unificado plano/%). Cada producto puede tener
+// su propio empaque (o ninguno) según tu configuración.
 function cpEmpaque(){
   if(!S.cpOrder) return 0;
   try{
-    const cfg=JSON.parse(localStorage.getItem('pos.config.operacion.v1')||'{}');
+    var cfg=JSON.parse(localStorage.getItem('pos.config.operacion.v1')||'{}');
     if(!cfg.empaquesActivo) return 0;
-    const prods=S.cpOrder.productos||[];
-    const prod=prods.reduce((a,p)=>a+cpItemTotal(p),0);
+    var items=S.cpOrder.productos||[];
+    var prod=0, units=0;
+    items.forEach(function(p){ var q=Number(p.cantidad)||0; units+=q; prod+=cpItemTotal(p); });
     if(prod<=0) return 0;
-    const usaDomi=(cfg.empaqueCanal==='distinto')&&((S.cpOrder.tipo||'')==='domicilio');
-    const esPct=cfg.empaqueTipo==='porcentaje';
-    const rate=esPct?(usaDomi?(cfg.empaquePctDomicilio||0):(cfg.empaquePct||0)):(usaDomi?(cfg.empaqueMontoDomicilio||0):(cfg.empaqueMonto||0));
+    if(cfg.empaqueModo==='especifico'){
+      var packs=cfg.empaquePacks||[]; var general=Number(cfg.empaqueMonto)||0;
+      var packMonto=function(id){ for(var k=0;k<packs.length;k++) if(packs[k].id===id) return Number(packs[k].monto)||0; return 0; };
+      var total=0;
+      items.forEach(function(p){
+        var fee=general;
+        var cc=(cfg.empaqueCatCfg||{})[p.cat];
+        if(cc){ if(cc.on===false) fee=0; else if(cc.packId) fee=packMonto(cc.packId); }
+        var pc=(cfg.empaqueProdCfg||{})[p.product_id];
+        if(pc!==undefined&&pc!==null&&pc!==''){ if(pc==='none') fee=0; else if(pc==='general') fee=general; else fee=packMonto(pc); }
+        var sc=p.pres_id?(cfg.empaquePresCfg||{})[(p.product_id||'')+'::'+p.pres_id]:undefined;
+        if(sc!==undefined&&sc!==null&&sc!==''){ if(sc==='none') fee=0; else if(sc==='general') fee=general; else fee=packMonto(sc); }
+        total+=fee*(Number(p.cantidad)||0);
+      });
+      return total;
+    }
+    var usaDomi=(cfg.empaqueCanal==='distinto')&&((S.cpOrder.tipo||'')==='domicilio');
+    var esPct=cfg.empaqueTipo==='porcentaje';
+    var rate=esPct?(usaDomi?(cfg.empaquePctDomicilio||0):(cfg.empaquePct||0)):(usaDomi?(cfg.empaqueMontoDomicilio||0):(cfg.empaqueMonto||0));
     if(cfg.empaqueBase==='pedido') return esPct?Math.round(prod*rate/100):rate;
-    const units=prods.reduce((a,p)=>a+(Number(p.cantidad)||1),0);
     return esPct?Math.round(prod*rate/100):rate*units;
   }catch(e){ return 0; }
 }
@@ -1445,7 +1464,7 @@ function cpDoAddProduct(c,presId,varsSel){
   const price=cpProdPrice(c,presId,varsSel);
   const varParts=[]; const varsObj={};
   (c.variables||[]).forEach(vg=>{ const o=(vg.options||[]).find(x=>x.id===varsSel[vg.id]); if(o){ varParts.push(o.name); varsObj[vg.id]={id:o.id,name:o.name,price:Number(o.price)||0,group:vg.name}; } });
-  S.cpOrder.productos.push({ product_id:c.id, product_name:[c.name,pres.name||''].concat(varParts).filter(Boolean).join(' · '), unit_price:price, cantidad:1, tamano:pres.name||'', pres_id:presId, variantes:varsObj, adiciones:[], adic_options:cpAdicOptions(c,presId), notas:'', matched:true });
+  S.cpOrder.productos.push({ product_id:c.id, cat:c.category_id, product_name:[c.name,pres.name||''].concat(varParts).filter(Boolean).join(' · '), unit_price:price, cantidad:1, tamano:pres.name||'', pres_id:presId, variantes:varsObj, adiciones:[], adic_options:cpAdicOptions(c,presId), notas:'', matched:true });
   cpRenderForm(S.cpOrder);
 }
 async function cpConfirm(){ if(!S.cpOrder) return; cpSyncTop(); cpSyncProdInputs(); const o=S.cpOrder;
@@ -1525,15 +1544,17 @@ async function deleteEtiqueta(id){
   await saveEtiquetasDB(); renderSidebarLabels();
   if(S.activeView==='label:'+id){ var b=document.querySelector('.ci-nav-btn[data-view="all"]'); if(b) selectNavView(b); }
 }
-function openEtiquetarChat(){
+async function openEtiquetarChat(){
   var mm=document.getElementById('moreMenu'); if(mm) mm.style.display='none';
   if(!S.activeConvId){ showToast('Abre una conversación primero','info'); return; }
   if(!(S.etiquetas||[]).length){ showToast('Primero crea una etiqueta','info'); openCrearEtiqueta(); return; }
+  var conv=S.conversations.find(function(c){ return c.id===S.activeConvId; });
+  if(conv && Array.isArray(conv.labels)){ S._etqLabels=conv.labels.slice(); }
+  else{ try{ var res=await sb.from('chat_conversations').select('labels').eq('id',S.activeConvId).maybeSingle(); S._etqLabels=(res.data&&Array.isArray(res.data.labels))?res.data.labels:[]; }catch(e){ S._etqLabels=[]; } }
   renderEtqAssign(); document.getElementById('etqAssignModal').style.display='flex';
 }
 function renderEtqAssign(){
-  var conv=S.conversations.find(function(c){ return c.id===S.activeConvId; });
-  var has=(conv&&Array.isArray(conv.labels))?conv.labels:[];
+  var has=Array.isArray(S._etqLabels)?S._etqLabels:[];
   var cont=document.getElementById('etqAssignList');
   cont.innerHTML=(S.etiquetas||[]).map(function(e){
     return '<button class="etq-assign-item'+(has.indexOf(e.id)>=0?' on':'')+'" onclick="toggleConvLabel(\''+e.id+'\')">'
@@ -1542,11 +1563,14 @@ function renderEtqAssign(){
   }).join('');
 }
 async function toggleConvLabel(id){
-  var conv=S.conversations.find(function(c){ return c.id===S.activeConvId; }); if(!conv) return;
-  var labels=Array.isArray(conv.labels)?conv.labels.slice():[]; var i=labels.indexOf(id);
-  if(i>=0) labels.splice(i,1); else labels.push(id);
-  conv.labels=labels;
-  try{ await sb.from('chat_conversations').update({ labels:labels }).eq('id', conv.id); }catch(e){ console.error('toggleConvLabel:', e); }
+  var cid=S.activeConvId; if(!cid) return;
+  var labels=Array.isArray(S._etqLabels)?S._etqLabels.slice():[];
+  var i=labels.indexOf(id); if(i>=0) labels.splice(i,1); else labels.push(id);
+  var upd=await sb.from('chat_conversations').update({ labels:labels }).eq('id', cid).select('id');
+  if(upd.error){ showToast('No se pudo etiquetar: '+upd.error.message,'error'); return; }
+  if(!upd.data || !upd.data.length){ showToast('No se pudo etiquetar (sin permiso o no encontrada)','error'); return; }
+  S._etqLabels=labels;
+  var conv=S.conversations.find(function(c){ return c.id===cid; }); if(conv) conv.labels=labels;
   renderEtqAssign();
   if(S.activeView && S.activeView.slice(0,6)==='label:') loadConversations();
 }
