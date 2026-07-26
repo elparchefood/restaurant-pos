@@ -1086,6 +1086,7 @@ const DEFAULT_QUICK_REPLIES = [
   { k:'buenas',   t:'Buenas noches, cuéntame ¿En qué te podemos ayudar? ☺️🍟' },
   { k:'servicio', t:'Claro que si 🍟¿Qué deseas? ☺️' },
   { k:'carta',    t:'Buenas noches, ¿cómo estás?; con gusto ya te envío nuestra carta 😊' },
+  { k:'menu',     t:'¿Qué se te antoja? 🍟☺️', img:'@menu' },
   { k:'adicion',  t:'Perfecto, deseas adicionar alguna bebida, salchicha ranchera, súper queso o alguna de nuestras salsas especiales (maíz o chedar)? 🤩' },
   { k:'pollo',    t:'La deseas con pollo, carne o mixta? 😋' },
   { k:'pollo2',   t:'¿La deseas con pollo o carne? 🍟☺️' },
@@ -1183,6 +1184,7 @@ function qrPick(ev, i) {
   const r = (S._qrList||[])[i]; if (!r) return;
   closeQuickDropdown();
   if (r.loc) { sendQuickLocation(r); return; }  // respuestas de ubicación → tarjeta de mapa
+  if (r.img === '@menu') { sendQuickMenu(r); return; }  // la carta = varias imágenes del menú
   if (r.img) { sendQuickMedia(r); return; }     // respuestas con imagen se envían directo (imagen + texto)
   const inp = document.getElementById('msgInput');
   if (inp) { inp.value = r.t; inp.focus(); }
@@ -1219,6 +1221,35 @@ async function sendQuickLocation(r) {
     const rd = await res.json();
     if (rd.error) { showToast('No se pudo enviar la ubicación: ' + rd.error, 'error'); }
   } catch (e) { showToast('Error al enviar: ' + e.message, 'error'); }
+}
+
+// Envía la CARTA (menú): todas las imágenes de ia_config.menu_imagenes, una por una.
+async function sendQuickMenu(r){
+  if(!S.activeConvId) return;
+  const conv=S.conversations.find(c=>c.id===S.activeConvId);
+  let imgs=[], caption=r.t||'';
+  try{
+    const { data }=await sb.from('ia_config').select('menu_imagenes,menu_frase').eq('branch_id',S.branchId).maybeSingle();
+    imgs=(data&&Array.isArray(data.menu_imagenes))?data.menu_imagenes:[];
+    if(data&&data.menu_frase&&data.menu_frase.texto) caption=data.menu_frase.texto;
+  }catch(e){}
+  if(!imgs.length){ showToast('No hay imágenes de la carta configuradas','error'); return; }
+  for(let i=0;i<imgs.length;i++){ await sendOneImage(imgs[i], i===0?caption:'', conv); }
+}
+// Envía UNA imagen (con caption opcional) por chat + WhatsApp. Reutilizable.
+async function sendOneImage(url, caption, conv){
+  conv=conv||S.conversations.find(c=>c.id===S.activeConvId);
+  caption=caption||'';
+  const tmpId='tmp_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  S.messages.push({ id:tmpId, conversation_id:S.activeConvId, tenant_id:S.tenantId, direction:'out', media_url:url, media_type:'image', body:caption, delivery_status:'sending', sent_at:new Date().toISOString() });
+  renderThread();
+  const { data, error }=await sb.from('chat_messages').insert([{ conversation_id:S.activeConvId, tenant_id:S.tenantId, direction:'out', body:caption, media_url:url, media_type:'image', delivery_status:'sent', agent_id:S.user?.id||null }]).select().single();
+  if(error){ S.messages=S.messages.filter(m=>m.id!==tmpId); renderThread(); showToast('No se pudo enviar','error'); return; }
+  S.messages=S.messages.map(m=>m.id===tmpId?data:m); renderThread();
+  if(conv){ conv.last_message='📷 '+(caption||'Imagen'); conv.last_message_at=data.sent_at; conv.last_sender='agent'; S.conversations.sort((a,b)=>new Date(b.last_message_at)-new Date(a.last_message_at)); renderConvList(); }
+  if(conv && ['whatsapp','instagram','facebook'].includes(conv.channel)){
+    try{ const res=await fetch(META_SEND_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ conversation_id:S.activeConvId, media_url:url, media_type:'image', text:caption, message_id:data.id })}); const rd=await res.json(); if(rd.error) showToast('No se pudo enviar la imagen: '+rd.error,'error'); }catch(e){ showToast('Error al enviar: '+e.message,'error'); }
+  }
 }
 
 /* ══════════════════════════════════════════════
