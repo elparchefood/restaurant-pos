@@ -1454,7 +1454,13 @@ async function cpConfirm(){ if(!S.cpOrder) return; cpSyncTop(); cpSyncProdInputs
     if(data.error){ showToast('Error: '+data.error,'error'); if(btn){btn.disabled=false;btn.textContent='Crear e imprimir';} return; }
     showToast('✅ Pedido creado · '+cpCOP(data.total),'success');
     cpSaveClienteLocal(o);                                            // que aparezca en el selector de domicilios (mismo dispositivo)
-    if(window.posAutoprint && window.electronPOS){ try{ window.posAutoprint(data.orderId); }catch(e){} }   // imprimir comanda desde el chat
+    if(window.posAutoprint && window.electronPOS){ try{
+      // pos-print.js busca sb+branchId en window._pos (lo crea pos-core, que el chat no carga). Se lo damos:
+      window._pos = window._pos || {}; window._pos.sb = window._pos.sb || sb;
+      window._pos.state = window._pos.state || {}; window._pos.state.branchId = S.branchId;
+      try{ localStorage.setItem('pos.branchId', S.branchId); }catch(_e){}
+      window.posAutoprint(data.orderId);
+    }catch(e){} }   // imprimir comanda desde el chat
     cpClose();
   }catch(e){ showToast('Error: '+e.message,'error'); if(btn){btn.disabled=false;btn.textContent='Crear e imprimir';} }
 }
