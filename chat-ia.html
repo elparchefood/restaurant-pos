@@ -327,6 +327,18 @@
   </div>
 </div>
 
+<!-- Modal: Confirmar borrar etiqueta -->
+<div class="etq-overlay" id="etqDelModal" style="display:none">
+  <div class="etq-card" style="width:330px">
+    <div class="etq-head"><b>🗑️ Eliminar etiqueta</b><button class="etq-x" onclick="closeEtqDel()">✕</button></div>
+    <div class="etq-body"><div id="etqDelMsg" style="color:rgba(255,255,255,.75);font-size:13.5px;line-height:1.5">¿Seguro que quieres eliminar esta etiqueta?</div></div>
+    <div class="etq-foot">
+      <button class="cp-btn ghost" onclick="closeEtqDel()">Cancelar</button>
+      <button class="cp-btn" style="background:#EF4444;color:#fff" onclick="confirmDeleteEtiqueta()">Eliminar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Crear pedido desde el chat -->
 <div class="cp-overlay" id="cpModal" style="display:none">
   <div class="cp-modal">
@@ -342,7 +354,7 @@
   </div>
 </div>
 
-<script src="chat-ia.js?v=1785890000"></script>
+<script src="chat-ia.js?v=1785900000"></script>
 <script src="pos-print.js?v=1785810000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>

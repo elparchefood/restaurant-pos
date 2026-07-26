@@ -1555,10 +1555,19 @@ async function saveEtiqueta(){
   S.etiquetas=S.etiquetas||[]; S.etiquetas.push({ id:'e'+Date.now().toString(36), name:name, color:S.etqColor });
   await saveEtiquetasDB(); renderSidebarLabels(); closeEtqModal(); showToast('Etiqueta creada ✓','success');
 }
-async function deleteEtiqueta(id){
+function deleteEtiqueta(id){
+  var e=(S.etiquetas||[]).find(function(x){ return x.id===id; }); if(!e) return;
+  S._etqDelId=id;
+  var msg=document.getElementById('etqDelMsg'); if(msg) msg.innerHTML='¿Seguro que quieres eliminar la etiqueta <b style="color:#fff">"'+qrEsc(e.name)+'"</b>? Los chats que la tengan la perderán.';
+  document.getElementById('etqDelModal').style.display='flex';
+}
+function closeEtqDel(){ var m=document.getElementById('etqDelModal'); if(m) m.style.display='none'; S._etqDelId=null; }
+async function confirmDeleteEtiqueta(){
+  var id=S._etqDelId; if(!id){ closeEtqDel(); return; }
   S.etiquetas=(S.etiquetas||[]).filter(function(e){ return e.id!==id; });
   await saveEtiquetasDB(); renderSidebarLabels();
   if(S.activeView==='label:'+id){ var b=document.querySelector('.ci-nav-btn[data-view="all"]'); if(b) selectNavView(b); }
+  closeEtqDel(); showToast('Etiqueta eliminada','info');
 }
 async function openEtiquetarChat(){
   var mm=document.getElementById('moreMenu'); if(mm) mm.style.display='none';
