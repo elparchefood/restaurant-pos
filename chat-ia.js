@@ -1306,7 +1306,7 @@ async function openCrearPedido(draftOverride){
   cpShow(true); cpFooter(false);
   cpSetBody('<div class="cp-loading"><div class="cp-spin"></div>'+(draftOverride?'Cargando el pedido…':'Analizando la conversación con IA…')+'</div>');
   try{
-    const res=await fetch(EXTRAER_PEDIDO_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversation_id:S.activeConvId})});
+    const res=await fetch(EXTRAER_PEDIDO_FN,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversation_id:S.activeConvId})});
     const _raw=await res.text(); let data={}; try{ data=JSON.parse(_raw); }catch(_e){}
     if(data.error && !draftOverride){ cpSetBody('<div class="cp-error">⚠️ '+cpEsc(data.error)+'</div>'); return; }
     if(!draftOverride && (!data.order || !((data.order.productos||[]).length) )){
@@ -1550,7 +1550,7 @@ async function cpEnviarCocina(){
   var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
   var to=setTimeout(function(){ if(ctrl) ctrl.abort(); },20000);
   try{
-    const res=await fetch(CREAR_PEDIDO_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload), signal: ctrl?ctrl.signal:undefined});
+    const res=await fetch(CREAR_PEDIDO_FN,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload), signal: ctrl?ctrl.signal:undefined});
     const data=await res.json();
     if(data.error){ showToast('Error: '+data.error,'error'); return; }
     showToast('🍳 Enviado a cocina · '+cpCOP(data.total),'success');
