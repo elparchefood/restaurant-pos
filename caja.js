@@ -1077,16 +1077,40 @@ document.getElementById('btn-confirmar-mov').addEventListener('click', function(
   closePanel('panel-movimiento');
 });
 
+// Rellena los inputs de denominaciones desde un arqueo guardado (arqueo_denoms).
+// Empareja por denominación Y grupo (billete/moneda) porque el $1.000 existe en
+// ambas columnas. Así, al reabrir el arqueo en el mismo turno, aparece prellenado
+// con lo que ya contaste y no toca volver a contar.
+function fillArqueoDenoms(denoms) {
+  const lineas = (denoms && denoms.lineas) ? denoms.lineas : [];
+  document.querySelectorAll('.cj-denom').forEach((grp, gi) => {
+    const grupo = (gi === 0) ? 'billete' : 'moneda';
+    grp.querySelectorAll('.denom-input').forEach(inp => {
+      const denom = parseInt(inp.dataset.val, 10) || 0;
+      const l = lineas.find(x => x.denom === denom && x.grupo === grupo);
+      inp.value = (l && l.qty) ? l.qty : '';
+    });
+  });
+}
+
 document.getElementById('btn-arqueo').addEventListener('click', function() {
-  S.arqueoContado = null;
-  document.querySelectorAll('.denom-input').forEach(inp=>{ inp.value=''; });
-  document.querySelectorAll('.cj-denom-total').forEach(td=>{ td.textContent='0'; });
-  document.getElementById('subtotal-billetes').textContent = '$0';
-  document.getElementById('subtotal-monedas').textContent  = '$0';
-  document.getElementById('arqueo-contado').textContent    = '$0';
-  document.getElementById('arqueo-pie').textContent        = '$0';
-  document.getElementById('arqueo-diff').textContent       = '$0';
-  updateArqueoEsperado();
+  const guardado = S.arqueoDenoms;
+  if (guardado && guardado.lineas && guardado.lineas.length && (guardado.total || 0) > 0) {
+    // Reabrir el arqueo del turno ya prellenado con lo que se contó antes.
+    fillArqueoDenoms(guardado);
+    updateArqueoTotals();   // recalcula columnas TOTAL, subtotales, contado, esperado y diferencia
+  } else {
+    // Primera vez en el turno: arqueo en blanco.
+    S.arqueoContado = null;
+    document.querySelectorAll('.denom-input').forEach(inp=>{ inp.value=''; });
+    document.querySelectorAll('.cj-denom-total').forEach(td=>{ td.textContent='0'; });
+    document.getElementById('subtotal-billetes').textContent = '$0';
+    document.getElementById('subtotal-monedas').textContent  = '$0';
+    document.getElementById('arqueo-contado').textContent    = '$0';
+    document.getElementById('arqueo-pie').textContent        = '$0';
+    document.getElementById('arqueo-diff').textContent       = '$0';
+    updateArqueoEsperado();
+  }
   openPanel('panel-arqueo');
 });
 
