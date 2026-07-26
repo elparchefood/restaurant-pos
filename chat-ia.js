@@ -1104,7 +1104,7 @@ function wireEvents() {
       loadConversations();
     });
   });
-  $('createOrderBtn')?.addEventListener('click', openCrearPedido);
+  $('createOrderBtn')?.addEventListener('click', () => openCrearPedido());
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 }
 
@@ -1302,6 +1302,9 @@ function cpSetBody(html){ const b=document.getElementById('cpBody'); if(b) b.inn
 function cpFooter(show){ const f=document.getElementById('cpFooter'); if(f) f.style.display = show?'flex':'none'; }
 
 async function openCrearPedido(draftOverride){
+  // Defensa: si llega algo que NO es un borrador válido (p.ej. el objeto Event del
+  // click del botón), lo ignoramos y analizamos la conversación normalmente.
+  if(draftOverride && !Array.isArray(draftOverride.productos)) draftOverride = null;
   if(!S.activeConvId){ showToast('Abre una conversación primero','info'); return; }
   cpShow(true); cpFooter(false);
   cpSetBody('<div class="cp-loading"><div class="cp-spin"></div>'+(draftOverride?'Cargando el pedido…':'Analizando la conversación con IA…')+'</div>');
