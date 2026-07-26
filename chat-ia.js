@@ -1482,7 +1482,11 @@ function cpDoAddProduct(c,presId,varsSel){
   const price=cpProdPrice(c,presId,varsSel);
   const varParts=[]; const varsObj={};
   (c.variables||[]).forEach(vg=>{ const o=(vg.options||[]).find(x=>x.id===varsSel[vg.id]); if(o){ varParts.push(o.name); varsObj[vg.id]={id:o.id,name:o.name,price:Number(o.price)||0,group:vg.name}; } });
-  S.cpOrder.productos.push({ product_id:c.id, cat:c.category_id, product_name:[c.name,pres.name||''].concat(varParts).filter(Boolean).join(' · '), unit_price:price, cantidad:1, tamano:pres.name||'', pres_id:presId, variantes:varsObj, adiciones:[], adic_options:cpAdicOptions(c,presId), notas:'', matched:true });
+  // Nombre igual que la comanda: presentación primero; si no tiene, el alias de la
+  // categoría (comanda_alias) o su nombre. Luego el producto y las variantes.
+  const _cat=(S.cpCategorias||[]).find(x=>String(x.id)===String(c.category_id));
+  const _presLabel=(pres.name||'')||(_cat?(_cat.comanda_alias||_cat.name):'')||'';
+  S.cpOrder.productos.push({ product_id:c.id, cat:c.category_id, product_name:[_presLabel,c.name].concat(varParts).filter(Boolean).join(' · '), unit_price:price, cantidad:1, tamano:pres.name||'', pres_id:presId, variantes:varsObj, adiciones:[], adic_options:cpAdicOptions(c,presId), notas:'', matched:true });
   cpRenderForm(S.cpOrder);
 }
 async function cpConfirm(){ if(!S.cpOrder) return; cpSyncTop(); cpSyncProdInputs(); const o=S.cpOrder;
