@@ -83,8 +83,9 @@ async function boot() {
     }
 
     await Promise.all([loadChannels(), loadConversations(), loadIaMaster(), loadQuickReplies(), loadEtiquetas()]);
-    var _iaBtn = document.getElementById('iaMasterBtn');
-    if (_iaBtn) _iaBtn.addEventListener('click', toggleIaMaster);
+    document.querySelectorAll('#iaModes .ia-modo-btn').forEach(function(b){
+      b.addEventListener('click', function(){ setIaModo(b.dataset.iamodo); });
+    });
     subscribeRealtime();
     wireEvents();
   } catch (err) {
@@ -1743,42 +1744,46 @@ async function qmDelete(i) {
 /* ══════════════════════════════════════════════
    HELPERS
 ══════════════════════════════════════════════ */
-/* == INTERRUPTOR GLOBAL DEL ASISTENTE (ia_config.activo) ==
-   Apaga/prende el bot para TODAS las conversaciones. El backend (delay-reply)
-   ya respeta ia_config.activo: si es false, no responde ningún mensaje. */
+/* == MODO GLOBAL DEL ASISTENTE (ia_config.modo_asistente) ==
+   3 modos para TODAS las conversaciones:
+     off  → el bot no contesta (tú contestas todo)
+     on   → el bot contesta siempre
+     auto → el bot contesta SOLO fuera del horario de atención; en horario
+            se queda callado para que contestes tú. El backend (delay-reply)
+            usa los mismos horarios de ia_config para saber abierto/cerrado.
+   Se mantiene `activo` sincronizado (off→false, on/auto→true) por compat. */
+const IA_MODOS = {
+  off:  { txt: 'Pausado · contestas tú',                      col: '#DC2626', bg: '#FEF2F2', bd: '#FECACA', toast: '⏸️ Asistente pausado · contestas tú' },
+  on:   { txt: 'Encendido · responde siempre',                col: '#16A34A', bg: '#F0FDF4', bd: '#BBF7D0', toast: '✅ Asistente encendido · responde siempre' },
+  auto: { txt: 'Automático · responde solo fuera del horario', col: '#2563EB', bg: '#EFF6FF', bd: '#BFDBFE', toast: '🕐 Automático · el bot contesta solo fuera del horario' },
+};
 async function loadIaMaster() {
   if (!S.branchId) return;
   try {
-    const { data } = await sb.from('ia_config').select('activo').eq('branch_id', S.branchId).maybeSingle();
-    renderIaMaster(data ? data.activo !== false : true);
+    const { data } = await sb.from('ia_config').select('modo_asistente, activo').eq('branch_id', S.branchId).maybeSingle();
+    const modo = data ? (data.modo_asistente || (data.activo ? 'on' : 'off')) : 'off';
+    renderIaMaster(modo);
   } catch (e) { console.warn('loadIaMaster:', e); }
 }
-function renderIaMaster(on) {
-  S.iaActivo = on;
+function renderIaMaster(modo) {
+  S.iaModo = modo;
   const wrap = document.getElementById('iaMaster');
   const st   = document.getElementById('iaMasterState');
-  const btn  = document.getElementById('iaMasterBtn');
-  const knob = document.getElementById('iaMasterKnob');
-  if (!wrap || !st || !btn || !knob) return;
-  if (on) {
-    wrap.style.background = '#F0FDF4'; wrap.style.borderColor = '#BBF7D0';
-    st.textContent = 'Activado · responde solo'; st.style.color = '#16A34A';
-    btn.style.background = '#16A34A'; knob.style.transform = 'translateX(18px)';
-  } else {
-    wrap.style.background = '#FEF2F2'; wrap.style.borderColor = '#FECACA';
-    st.textContent = 'Pausado · contestas tú'; st.style.color = '#DC2626';
-    btn.style.background = '#CBD5E1'; knob.style.transform = 'translateX(0)';
-  }
+  if (!wrap || !st) return;
+  const m = IA_MODOS[modo] || IA_MODOS.off;
+  wrap.style.background = m.bg; wrap.style.borderColor = m.bd;
+  st.textContent = m.txt; st.style.color = m.col;
+  document.querySelectorAll('#iaModes .ia-modo-btn').forEach(b => b.classList.toggle('on', b.dataset.iamodo === modo));
 }
-async function toggleIaMaster() {
-  if (!S.branchId) return;
-  const newVal = !S.iaActivo;
+async function setIaModo(modo) {
+  if (!S.branchId || !IA_MODOS[modo] || modo === S.iaModo) return;
+  const prev = S.iaModo;
+  renderIaMaster(modo);   // feedback inmediato
   try {
-    const { error } = await sb.from('ia_config').update({ activo: newVal }).eq('branch_id', S.branchId);
+    const { error } = await sb.from('ia_config').update({ modo_asistente: modo, activo: modo !== 'off' }).eq('branch_id', S.branchId);
     if (error) throw error;
-    renderIaMaster(newVal);
-    showToast(newVal ? '✅ Asistente activado · responde solo' : '⏸️ Asistente pausado · contestas tú', newVal ? 'success' : 'info');
-  } catch (e) { console.error('toggleIaMaster:', e); showToast('Error al cambiar el asistente', 'error'); }
+    showToast(IA_MODOS[modo].toast, modo === 'off' ? 'info' : 'success');
+  } catch (e) { console.error('setIaModo:', e); showToast('Error al cambiar el asistente', 'error'); renderIaMaster(prev); }
 }
 
 /* == HUMAN TAKEOVER == */

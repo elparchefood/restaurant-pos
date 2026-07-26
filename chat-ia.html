@@ -14,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="pos-perms.js?v=1785030000"></script>
   <script>if(window.posRequirePin) posRequirePin('chat.usar');</script>
-  <link rel="stylesheet" href="chat-ia.css?v=17">
+  <link rel="stylesheet" href="chat-ia.css?v=18">
 </head>
 <body>
 
@@ -30,15 +30,17 @@
       </div>
     </div>
 
-    <!-- Interruptor GLOBAL del asistente (apaga/prende el bot para TODAS las conversaciones) -->
-    <div id="iaMaster" style="margin:0 14px 12px;padding:11px 13px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:10px">
-      <div style="min-width:0">
+    <!-- Modo GLOBAL del asistente (apaga / enciende / automático por horario) -->
+    <div id="iaMaster" style="margin:0 14px 12px;padding:11px 13px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:12px">
+      <div style="min-width:0;margin-bottom:8px">
         <div style="font-size:12.5px;font-weight:700;color:#0F172A">Asistente IA</div>
         <div id="iaMasterState" style="font-size:11px;font-weight:600;color:#16A34A">Cargando…</div>
       </div>
-      <button id="iaMasterBtn" type="button" aria-label="Activar o pausar el asistente" style="flex-shrink:0;width:42px;height:24px;border-radius:999px;border:none;background:#16A34A;position:relative;cursor:pointer;padding:0;transition:background .2s">
-        <span id="iaMasterKnob" style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:999px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .2s;transform:translateX(18px)"></span>
-      </button>
+      <div id="iaModes" style="display:flex;gap:5px">
+        <button type="button" data-iamodo="off"  class="ia-modo-btn" title="El bot no contesta; tú respondes todo">Apagado</button>
+        <button type="button" data-iamodo="on"   class="ia-modo-btn" title="El bot contesta siempre, día y noche">Encendido</button>
+        <button type="button" data-iamodo="auto" class="ia-modo-btn" title="El bot contesta solo fuera del horario; en horario contestas tú">Automático</button>
+      </div>
     </div>
 
     <nav class="ci-nav">
@@ -354,7 +356,7 @@
   </div>
 </div>
 
-<script src="chat-ia.js?v=1785920000"></script>
+<script src="chat-ia.js?v=1785995000"></script>
 <script src="pos-print.js?v=1785810000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>
