@@ -2904,8 +2904,62 @@ function horarioInit() {
 }
 
 // ── Asistente IA config ─────────────────────────────────
+async function estadosCfgInit() {
+  if (window._estadosCfgLoaded) return;
+  var body = document.getElementById('estadosCfgBody');
+  var saveBtn = document.getElementById('estadosCfgSave');
+  if (!body || !saveBtn || !_cfgBranchId) return;
+  window._estadosCfgLoaded = true;
+  var cfg = {}, etqs = [];
+  try {
+    var r = await sb.from('ia_config').select('estados_config,etiquetas').eq('branch_id', _cfgBranchId).maybeSingle();
+    cfg = (r.data && r.data.estados_config) || {};
+    etqs = (r.data && r.data.etiquetas) || [];
+  } catch (e) {}
+  var LBL = { en_preparacion: 'En preparación', listo: 'Listo', en_camino: 'En camino', entregado: 'Entregado' };
+  var FLOW = { llevar: ['en_preparacion', 'listo', 'entregado'], domicilio: ['en_preparacion', 'listo', 'en_camino', 'entregado'] };
+  var inpSt = 'width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface)';
+  function etqOpts(sel) {
+    return '<option value="">— Sin etiqueta —</option>' + etqs.map(function (e) { return '<option value="' + e.id + '"' + (e.id === sel ? ' selected' : '') + '>' + (e.name || '') + '</option>'; }).join('');
+  }
+  function typeBlock(tipo, titulo) {
+    var rows = FLOW[tipo].map(function (k) {
+      var e = (cfg[tipo] && cfg[tipo][k]) || {};
+      return '<div style="display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:start;margin-bottom:12px">'
+        + '<div style="font-size:13px;font-weight:600;padding-top:8px">' + LBL[k] + '</div>'
+        + '<div style="display:flex;flex-direction:column;gap:6px">'
+        + '<select data-ecfg="' + tipo + '.' + k + '.etiqueta" style="' + inpSt + '">' + etqOpts(e.etiqueta || '') + '</select>'
+        + '<textarea data-ecfg="' + tipo + '.' + k + '.mensaje" rows="2" placeholder="Mensaje al cliente (vacío = no enviar nada)" style="' + inpSt + ';resize:vertical">' + (e.mensaje || '') + '</textarea>'
+        + '</div></div>';
+    }).join('');
+    return '<div style="margin-bottom:20px"><div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);margin-bottom:12px">' + titulo + '</div>' + rows + '</div>';
+  }
+  body.innerHTML = typeBlock('llevar', 'Para llevar') + typeBlock('domicilio', 'Domicilio')
+    + '<div style="display:flex;align-items:center;gap:10px;padding-top:14px;border-top:1px solid var(--border)">'
+    + '<span style="font-size:13px;font-weight:600">Auto-entregado domicilio externo</span>'
+    + '<input type="number" min="1" data-ecfg="auto_entregado_min" value="' + (cfg.auto_entregado_min || 30) + '" style="width:74px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px">'
+    + '<span style="font-size:13px;color:var(--text-3)">minutos</span></div>';
+  saveBtn.onclick = async function () {
+    saveBtn.disabled = true; saveBtn.textContent = 'Guardando…';
+    var out = { auto_entregado_min: 30, llevar: {}, domicilio: {} };
+    body.querySelectorAll('[data-ecfg]').forEach(function (el) {
+      var p = el.dataset.ecfg.split('.');
+      if (p.length === 1) { out.auto_entregado_min = parseInt(el.value, 10) || 30; return; }
+      out[p[0]] = out[p[0]] || {};
+      out[p[0]][p[1]] = out[p[0]][p[1]] || { etiqueta: '', mensaje: '' };
+      out[p[0]][p[1]][p[2]] = el.value;
+    });
+    try {
+      await sb.from('ia_config').update({ estados_config: out }).eq('branch_id', _cfgBranchId);
+      saveBtn.textContent = '✓ Guardado';
+      setTimeout(function () { saveBtn.disabled = false; saveBtn.textContent = 'Guardar'; }, 1600);
+    } catch (e) { saveBtn.textContent = 'Error'; saveBtn.disabled = false; }
+  };
+}
+
 function chatiaInit() {
   function $(id) { return document.getElementById(id); }
+  estadosCfgInit();
 
   // dirty / saved indicator
   var saveChip = $('saveChip'), saveTxt = $('saveTxt'), saveBtn = $('saveBtn');

@@ -1205,6 +1205,18 @@
 
         <div class="cfg-body">
           <div class="cfg-col">
+            <!-- Estados de pedido y avisos (autónomo, guarda ia_config.estados_config) -->
+            <div class="card" id="estadosCfgCard" style="padding:0;overflow:hidden;border-radius:12px;margin-bottom:16px">
+              <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B6BFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:700;font-size:15px">Estados de pedido y avisos</div>
+                  <div style="font-size:12px;color:var(--text-3)">Etiqueta y mensaje que se envía al cliente en cada estado</div>
+                </div>
+                <button class="btn-primary" id="estadosCfgSave" type="button">Guardar</button>
+              </div>
+              <div style="padding:16px 20px" id="estadosCfgBody">Cargando…</div>
+            </div>
             <!-- Panel Flujo -->
             <!-- Panel Flujo -->
             <div class="cia-panel-flujo" data-tab="flujo">
@@ -2053,7 +2065,7 @@
 <script src="pos-brand.js?v=1784901500"></script>
 <script src="pos-print.js?v=1786093000"></script>
 <script src="pos-print-listener.js?v=4"></script>
-<script src="configuracion.js?v=1785720000"></script>
+<script src="configuracion.js?v=1786102000"></script>
 </body>
 </html>
 
