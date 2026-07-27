@@ -1853,8 +1853,11 @@
           <button class="lm-btn-ghost" data-action="quick-cancelar" data-quick-id="${o.id}">Cancelar</button>
           <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-cobrar" data-quick-id="${o.id}">Cobrar</button>
         </div>`;
-    } else if (state.cobroAdelantado || ((Number(o.paid_amount) || 0) >= total && total > 0)) {
-      // Ya fue pagado (cobro adelantado, o transferencia verificada por el bot): solo entregar
+    } else if ((Number(o.paid_amount) || 0) >= total && total > 0) {
+      // Ya fue pagado DE VERDAD (cobro adelantado directo = status 'paid', o
+      // transferencia verificada por el bot que registró paid_amount): solo entregar.
+      // OJO: NO basarse en state.cobroAdelantado, porque los pedidos creados desde
+      // el CHAT quedan 'open' con paid_amount 0 (sin pagar) y deben mostrar "Cobrar".
       actionsHtml = `<div class="vs-actions">
           <button class="lm-btn-ghost" data-action="quick-cancelar" data-quick-id="${o.id}">Cancelar</button>
           <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-entregar" data-quick-id="${o.id}">Ya entregué</button>
