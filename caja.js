@@ -515,21 +515,31 @@ const ESTADO_LBL = {
   open: 'Abierto', in_progress: 'En preparación', pendiente_pago: 'Pendiente de cobro',
   esperando: 'Esperando', comiendo: 'Comiendo', completed: 'Entregado · falta cobro',
 };
+// Estado de FULFILLMENT (venta rápida / domicilio) — bloquea el cierre si no está entregado.
+const ESTADO_FULFILL_LBL = {
+  en_preparacion: 'En preparación', listo: 'Listo · sin entregar', en_camino: 'En camino · sin entregar',
+};
 async function getPedidosAbiertos() {
   try {
     if (!S.session) return [];
     const q = sb.from('pos_orders')
-      .select('id, status, table_id, channel, total, total_final, paid_amount, customer_name, created_at')
-      .not('status', 'in', '("cancelled","abandoned","paid")')
+      .select('id, status, estado, delivered_at, table_id, channel, total, total_final, paid_amount, customer_name, created_at')
+      .not('status', 'in', '("cancelled","abandoned")')
       .gte('created_at', S.session.opened_at)
       .order('created_at', { ascending: true });
     if (S.branchId) q.eq('branch_id', S.branchId);
     const { data } = await q;
-    // Vivo = en un estado de trabajo, o entregado pero con saldo pendiente
+    // Vivo = en un estado de trabajo, o con saldo pendiente, o (venta rápida/domicilio)
+    // que aún NO esté ENTREGADO. No se puede cerrar la caja con algo sin entregar.
     return (data || []).filter(o => {
       if (ESTADO_ABIERTO.indexOf(o.status) >= 0) return true;
       const tot = parseFloat(o.total_final ?? o.total) || 0;
-      return tot > 0 && (parseFloat(o.paid_amount) || 0) < tot - 1;
+      if (tot > 0 && (parseFloat(o.paid_amount) || 0) < tot - 1) return true;
+      const ch = String(o.channel || '').toLowerCase();
+      if ((ch === 'rapido' || ch === 'domicilio') &&
+          ['en_preparacion', 'listo', 'en_camino'].indexOf(o.estado) >= 0 &&
+          !o.delivered_at) return true;
+      return false;
     });
   } catch (e) { console.error('getPedidosAbiertos:', e); return []; }
 }
@@ -1018,7 +1028,7 @@ document.getElementById('btn-cerrar').addEventListener('click', async function()
       ordersList.innerHTML = abiertos.map(o => {
         const donde = o.table_id ? ('Mesa ' + cjEsc(String(o.table_id).replace(/^t/i, ''))) :
           (o.channel === 'domicilio' ? 'Domicilio' : o.channel === 'rapido' ? 'Venta rápida' : 'Pedido');
-        const est = ESTADO_LBL[o.status] || o.status;
+        const est = ESTADO_FULFILL_LBL[o.estado] || ESTADO_LBL[o.status] || o.status;
         const cli = o.customer_name ? ' · ' + cjEsc(o.customer_name) : '';
         return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fff;border:1px solid #FECACA;border-radius:8px;padding:7px 10px">'
           + '<div style="min-width:0"><div style="font-size:12.5px;font-weight:700;color:#0F172A">' + donde + cli + '</div>'
