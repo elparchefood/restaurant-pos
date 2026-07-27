@@ -49,6 +49,24 @@
 
   const DELIVERY_NEXT = { recibido: 'preparacion', preparacion: 'listo', listo: 'camino', camino: 'entregado' };
   const DELIVERY_BTN  = { recibido: 'En preparación', preparacion: 'Listo', listo: 'En camino', camino: 'Entregado' };
+  // Estado de fulfillment de VENTA RÁPIDA (sincroniza con la pastilla del chat vía pos_orders.estado)
+  const QUICK_ESTADO_FLOW = ['en_preparacion', 'listo', 'entregado'];
+  const QUICK_ESTADO_META = {
+    en_preparacion: { label: 'En preparación', color: '#f97316' },
+    listo:          { label: 'Listo',          color: '#3b82f6' },
+    entregado:      { label: 'Entregado',       color: '#22c55e' },
+  };
+  function quickEstadoControl(o) {
+    const est = o.estado || 'en_preparacion';
+    const meta = QUICK_ESTADO_META[est] || QUICK_ESTADO_META.en_preparacion;
+    const idx = QUICK_ESTADO_FLOW.indexOf(est);
+    const next = (idx >= 0 && idx < QUICK_ESTADO_FLOW.length - 1) ? QUICK_ESTADO_FLOW[idx + 1] : null;
+    const nextLbl = next ? QUICK_ESTADO_META[next].label : null;
+    return '<div class="vs-estado-row" style="display:flex;align-items:center;gap:8px;margin-bottom:14px">'
+      + '<span style="display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;font-size:12.5px;font-weight:700;color:' + meta.color + ';background:' + meta.color + '1f">' + meta.label + '</span>'
+      + (next ? '<button class="lm-btn-ghost" data-action="quick-estado" data-estado="' + next + '" data-quick-id="' + o.id + '" style="font-size:12.5px">Marcar ' + nextLbl + '</button>' : '')
+      + '</div>';
+  }
 
   const CHIP_ORDER_KEY = 'pos.ventas.chipOrder';
   const CONFIG_KEY = 'pos.config.salon.v1';
@@ -1451,7 +1469,7 @@
     // turno se quedan visibles en estado "Entregado" hasta que se cierre la
     // caja (al cerrar, cajaStart avanza y estos quedan fuera del rango).
     let q = sb.from('pos_orders')
-      .select('id, customer_name, turno, total, subtotal, discount, status, channel, created_at, waiter_name, notes, delivered_at, paid_amount')
+      .select('id, customer_name, turno, total, subtotal, discount, status, channel, created_at, waiter_name, notes, delivered_at, paid_amount, estado, estado_at')
       .eq('channel', 'rapido')
       .neq('status', 'cancelled')
       .gte('created_at', cajaStart)
@@ -1892,6 +1910,7 @@
         </div>
       </div>
       <div class="vs-rail-body">
+        ${quickEstadoControl(o)}
         <div class="vs-order-meta">
           <div class="vs-info-row">
             <span class="vs-info-label">Canal</span>
@@ -2125,23 +2144,27 @@
             window.posPinPrompt('Cobrar requiere permiso de administrador.', irCobrarDomi);
           } else { irCobrarDomi(); }
         } else if (action === 'advance' && DELIVERY_NEXT[d.estado]) {
-          d.estado = DELIVERY_NEXT[d.estado];
+          const next = DELIVERY_NEXT[d.estado];
+          const nextLbl = DELIVERY_BTN[d.estado] || next;
+          if (!confirm('¿El pedido pasa a "' + nextLbl + '"?')) return;
+          d.estado = next;
           render();
-          // PERSISTIR el estado (antes solo cambiaba en memoria y se perdía al recargar)
-          const sbA = window._pos && window._pos.sb;
-          if (sbA) {
-            const upd = { delivery_status: d.estado };
-            if (d.estado === 'entregado') upd.delivered_at = new Date().toISOString();
-            sbA.from('pos_orders').update(upd).eq('id', d.id).then(function(r){ if (r.error) console.error('advance persist:', r.error); });
-          }
+          // Función central: sincroniza con el chat (estado + delivery_status),
+          // marca delivered_at si entregado y dispara etiqueta + mensaje al cliente.
+          fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/cambiar-estado', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order_id: d.id, estado: next })
+          }).then(function(r){ return r.json(); }).then(function(x){ if (x && x.error) console.error('cambiar-estado:', x.error); })
+            .catch(function(e){ console.error('cambiar-estado:', e); });
         } else if (action === 'close') {
+          if (!confirm('¿Marcar el pedido como "Entregado"?')) return;
           d.estado = 'entregado';
           render();
-          const sbC = window._pos && window._pos.sb;
-          if (sbC) {
-            sbC.from('pos_orders').update({ delivery_status: 'entregado', delivered_at: new Date().toISOString() })
-              .eq('id', d.id).then(function(r){ if (r.error) console.error('close persist:', r.error); });
-          }
+          fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/cambiar-estado', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order_id: d.id, estado: 'entregado' })
+          }).then(function(r){ return r.json(); }).then(function(x){ if (x && x.error) console.error('cambiar-estado:', x.error); })
+            .catch(function(e){ console.error('cambiar-estado:', e); });
         }
       });
     });
@@ -2363,6 +2386,22 @@
       case 'nav-domicilio':
         (async function() { if (await window.cajaGuard(window._pos && window._pos.state && window._pos.state.branchId)) window.location.href = 'domicilios.html'; })();
         break;
+      case 'quick-estado': {
+        const qsId = e.currentTarget.dataset.quickId;
+        const qsNext = e.currentTarget.dataset.estado;
+        const nextLbl = (QUICK_ESTADO_META[qsNext] || {}).label || qsNext;
+        vsConfirm({ title: 'Cambiar estado', msg: '¿El pedido pasa a "' + nextLbl + '"?', okLabel: 'Sí, cambiar' }).then(function(ok) {
+          if (!ok) return;
+          const oo = state.quickOrders.find(function(x){ return x.id === qsId; });
+          if (oo) { oo.estado = qsNext; if (qsNext === 'entregado') oo.delivered_at = new Date().toISOString(); render(); }
+          // Función central: sincroniza con el chat + dispara etiqueta/mensaje al cliente
+          fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/cambiar-estado', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order_id: qsId, estado: qsNext })
+          }).then(function(r){ return r.json(); }).then(function(x){ if (x && x.error) console.error('cambiar-estado:', x.error); }).catch(function(){});
+        });
+        break;
+      }
       case 'quick-cobrar': {
         const qcId = e.currentTarget.dataset.quickId;
         if (qcId) window.location.href = `pagos.html?order=${qcId}&channel=rapido`;
