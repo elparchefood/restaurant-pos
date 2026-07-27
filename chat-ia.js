@@ -168,11 +168,12 @@ function subscribeRealtime() {
     .on('postgres_changes', { event:'*', schema:'public', table:'chat_channels', filter:`branch_id=eq.${S.branchId}` }, () => {
       loadChannels(); // refrescar canales si cambia alguno
     })
-    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'pos_orders', filter:`branch_id=eq.${S.branchId}` }, payload => {
+    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'pos_orders' }, payload => {
       // Sincronía en vivo de la pastilla de estado: si cambian el estado del pedido
       // activo desde Ventas (o el auto-entregado), se refleja al instante en el chat.
+      // (Sin filtro por branch — el filtro dejaba caer los eventos.)
       const o = payload.new;
-      if (S.estadoOrder && o && o.id === S.estadoOrder.id && o.estado && o.estado !== S.estadoOrder.estado) {
+      if (S.estadoOrder && o && o.id === S.estadoOrder.id && o.estado) {
         S.estadoOrder.estado = o.estado;
         renderEstadoPill();
       }

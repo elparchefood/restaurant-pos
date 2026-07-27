@@ -19,7 +19,6 @@
 
   // ─── Constantes de estado de domicilio ──────────────
   const DELIVERY_META = {
-    recibido:    { label: 'Recibido',       color: '#64748B', tint: '#F1F5F9', ring: '#E2E8F0' },
     preparacion: { label: 'En preparación', color: '#F59E0B', tint: '#FFFBEB', ring: '#FDE68A' },
     listo:       { label: 'Listo',          color: '#8B5CF6', tint: '#F5F3FF', ring: '#DDD6FE' },
     camino:      { label: 'En camino',      color: '#3B82F6', tint: '#EFF6FF', ring: '#BFDBFE' },
@@ -47,8 +46,8 @@
 
 
 
-  const DELIVERY_NEXT = { recibido: 'preparacion', preparacion: 'listo', listo: 'camino', camino: 'entregado' };
-  const DELIVERY_BTN  = { recibido: 'En preparación', preparacion: 'Listo', listo: 'En camino', camino: 'Entregado' };
+  const DELIVERY_NEXT = { preparacion: 'listo', listo: 'camino', camino: 'entregado' };
+  const DELIVERY_BTN  = { preparacion: 'Listo', listo: 'En camino', camino: 'Entregado' };
   // Estado de fulfillment de VENTA RÁPIDA (sincroniza con la pastilla del chat vía pos_orders.estado)
   const QUICK_ESTADO_FLOW = ['en_preparacion', 'listo', 'entregado'];
   const QUICK_ESTADO_META = {
@@ -683,7 +682,7 @@
         var mins = Math.round((Date.now() - createdMs) / 60000);
         // Estado de entrega PERSISTIDO (delivery_status); fallback al status legacy
         var estado = 'preparacion';
-        if (r.delivery_status) estado = r.delivery_status;
+        if (r.delivery_status) estado = (r.delivery_status === 'recibido') ? 'preparacion' : r.delivery_status;
         else if (r.delivered_at) estado = 'entregado';
         else if (r.status === 'paid' || r.status === 'completed') estado = 'entregado';
         else if (r.status === 'in_progress') estado = 'camino';
@@ -1212,7 +1211,7 @@
   }
 
   function renderDomicilioCard(d) {
-    const meta  = DELIVERY_META[d.estado] || DELIVERY_META.recibido;
+    const meta  = DELIVERY_META[d.estado] || DELIVERY_META.preparacion;
     const canal = CANAL_META[d.canal] || { label: d.canal, color: '#64748B', bg: '#F1F5F9' };
     const mins  = d.min || 0;
     const timeStr = mins < 60 ? `hace ${mins}m` : `hace ${Math.floor(mins/60)}h ${mins%60}m`;
