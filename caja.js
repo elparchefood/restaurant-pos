@@ -134,6 +134,30 @@ function cjNormalizeVenta(o){
   return o;
 }
 
+// ── Domicilios EXTERNOS = CANJE (no es venta ni egreso) ──────────────────────
+// El valor del domicilio de un pedido EXTERNO entra por el pago del cliente y SALE
+// cuando se le paga al domiciliario (por defecto, en EFECTIVO). Ese efectivo que sale
+// de la caja se descuenta del EFECTIVO ESPERADO para que el arqueo cuadre, SIN mostrarse
+// en ningún lado (regla: el domicilio externo no queda registrado visiblemente; no es
+// venta ni egreso, es solo un canje que pasa por la caja).
+// Los domicilios INTERNOS NO entran aquí: esa plata sí es del negocio y se informa aparte.
+// Solo aplica cuando el domi ENTRÓ por un medio distinto al efectivo (p.ej. transferencia):
+// si entró en efectivo ya quedó neteado (los cobros en efectivo se registran sin el domi).
+// Por defecto TODO domicilio se trata como externo pagado en efectivo (o.domi_courier /
+// o.domi_pago, con default 'externo'/'efectivo'); cuando exista el chip por pedido, se leen.
+function cjDomiCanjeEfectivo(orders){
+  const list = orders || (typeof S !== 'undefined' ? S.orders : null) || [];
+  return list.reduce(function(s,o){
+    if(!o || o.status==='cancelled') return s;
+    const ch = String(o.channel||'').toLowerCase();
+    if(ch!=='domicilio' && ch!=='delivery') return s;
+    if((o.domi_courier||'externo')!=='externo') return s;          // interno: esa plata SÍ es del negocio
+    if((o.domi_pago||'efectivo')!=='efectivo') return s;           // se le pagó al domiciliario en efectivo
+    if(String(o.payment_method||'').toLowerCase()==='efectivo') return s; // domi entró en efectivo → ya neteado
+    return s + (parseFloat(o.delivery_fee)||0);
+  }, 0);
+}
+
 function renderHistSessionPicker(){
   const sel = document.getElementById('hist-session');
   if(!sel) return;
@@ -447,7 +471,7 @@ function renderHero(orders, moves) {
   const ingresos = moves.filter(m=>m.type==='ingreso').reduce((s,m)=>s+(m.amount||0),0);
   const egresos  = moves.filter(m=>m.type==='egreso').reduce((s,m)=>s+(m.amount||0),0);
   const base     = S.session ? (S.session.opening_cash||0) : 0;
-  const total    = base + ventasEf + ingresos - egresos;
+  const total    = base + ventasEf + ingresos - egresos - cjDomiCanjeEfectivo(orders);
   const el       = id => document.getElementById(id);
   el('hero-efectivo').textContent      = COPF(total);
   el('hero-apertura').textContent      = COPF(base);
@@ -948,7 +972,7 @@ document.getElementById('btn-cerrar').addEventListener('click', async function()
   const egresos  = moves.filter(m=>m.type==='egreso').reduce((s,m)=>s+(m.amount||0),0);
   const base     = S.session.opening_cash||0;
   const totalV   = active.reduce((s,o)=>s+(parseFloat(o.total_final ?? o.total)||0),0);
-  const efectivo = base + ventasEf + ingresos - egresos;
+  const efectivo = base + ventasEf + ingresos - egresos - cjDomiCanjeEfectivo(active);
   const cajero   = S.session.cashier_name || (S.user?.user_metadata?.nombre)||'—';
   const turno    = S.session.shift_type||'—';
 
@@ -1046,7 +1070,7 @@ document.getElementById('btn-confirmar-cerrar').addEventListener('click', async 
   const egresos  = moves.filter(m=>m.type==='egreso').reduce((s,m)=>s+(m.amount||0),0);
   const base     = S.session.opening_cash||0;
   const totalV   = active.reduce((s,o)=>s+(parseFloat(o.total_final ?? o.total)||0),0);
-  const esperado = base + ventasEf + ingresos - egresos;
+  const esperado = base + ventasEf + ingresos - egresos - cjDomiCanjeEfectivo(active);
   // Si se hizo arqueo, el cierre guarda el CONTADO real y su diferencia;
   // sin arqueo, guarda el esperado (comportamiento anterior).
   const contado  = (typeof S.arqueoContado === 'number') ? S.arqueoContado : null;
@@ -1124,7 +1148,7 @@ document.getElementById('btn-guardar-arqueo').addEventListener('click', async fu
       const ventasEf = (S.pagosMetodo && S.pagosMetodo['efectivo']) || 0;
       const ingresos = moves.filter(m=>m.type==='ingreso').reduce((s,m)=>s+(m.amount||0),0);
       const egresos  = moves.filter(m=>m.type==='egreso').reduce((s,m)=>s+(m.amount||0),0);
-      const esperado = (S.session.opening_cash||0) + ventasEf + ingresos - egresos;
+      const esperado = (S.session.opening_cash||0) + ventasEf + ingresos - egresos - cjDomiCanjeEfectivo();
       S.arqueoDenoms = getArqueoDenoms();
       await sb.from('pos_sessions').update({
         arqueo_contado: S.arqueoContado,
@@ -1182,7 +1206,7 @@ async function buildCierreData() {
   const ingresos = moves.filter(m => m.type === 'ingreso').reduce((s, m) => s + (m.amount || 0), 0);
   const egresos  = moves.filter(m => m.type === 'egreso').reduce((s, m) => s + (m.amount || 0), 0);
   const base     = S.session ? (S.session.opening_cash || 0) : 0;
-  const esperado = base + ventasEf + ingresos - egresos;
+  const esperado = base + ventasEf + ingresos - egresos - cjDomiCanjeEfectivo();
   const activos  = (S.orders || []).filter(o => o.status !== 'cancelled');
   const ventas   = activos.reduce((s, o) => s + (parseFloat(o.total_final ?? o.total) || 0), 0);
   // Unificar métodos por nombre legible (efectivo/Efectivo cuentan igual)
@@ -1270,7 +1294,7 @@ async function reimprimirCierre(sessionId) {
       ventas:   activos.reduce((s, o) => s + (parseFloat(o.total_final ?? o.total) || 0), 0),
       nPedidos: activos.length,
       metodos, ingresos, egresos,
-      esperado: base + ventasEf + ingresos - egresos,
+      esperado: base + ventasEf + ingresos - egresos - cjDomiCanjeEfectivo(orders),
       denoms:   ses.arqueo_denoms || null,
       contado:  ses.arqueo_contado != null ? parseFloat(ses.arqueo_contado) : (ses.closing_cash || null),
     };
@@ -1315,7 +1339,7 @@ async function updateArqueoEsperado() {
   const ingresos = moves.filter(m=>m.type==='ingreso').reduce((s,m)=>s+(m.amount||0),0);
   const egresos  = moves.filter(m=>m.type==='egreso').reduce((s,m)=>s+(m.amount||0),0);
   const base     = S.session ? (S.session.opening_cash||0) : 0;
-  const esperado = base + ventasEf + ingresos - egresos;
+  const esperado = base + ventasEf + ingresos - egresos - cjDomiCanjeEfectivo();
   const contado  = getArqueoContado();
   const diff     = contado - esperado;
   document.getElementById('arqueo-esperado').textContent = COPF(esperado);
@@ -1638,9 +1662,11 @@ async function loadResumenData(pid) {
     const efV      = byMethod.efectivo||0;
     const efIn     = moves.filter(m=>m.type==='ingreso'&&(m.medio||'').toLowerCase()==='efectivo').reduce((a,m)=>a+(parseFloat(m.amount)||0),0);
     const efOut    = moves.filter(m=>m.type==='egreso' &&(m.medio||'').toLowerCase()==='efectivo').reduce((a,m)=>a+(parseFloat(m.amount)||0),0);
-    const esperado = base + efV + efIn - efOut;
     const contado  = parseFloat(s.arqueo_contado ?? s.closing_cash)||0;
     const diff     = parseFloat(s.arqueo_diff)||0;
+    // Esperado consistente con lo GUARDADO (arqueo_diff ya incluye el canje de
+    // domicilios externos); derivarlo de contado−diff evita recalcularlo distinto.
+    const esperado = contado - diff;
     cuadre = { kind:'session', base, esperado, contado, diff };
   } else {
     const cierres   = periodSessions.length;
