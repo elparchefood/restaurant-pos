@@ -1838,9 +1838,17 @@
     const isEntregadoQ = o.status === 'entregado';
     let actionsHtml;
     if (isEntregadoQ) {
-      // #6: pedido ya entregado — sin acciones de cobro/entrega, solo iniciar otra venta.
-      actionsHtml = `<div class="vs-actions">
+      // Pedido ya entregado. Si además está PAGADO → solo iniciar otra venta.
+      // Si está entregado pero SIN pagar (p.ej. pedidos del chat que se marcaron
+      // "Ya entregué" sin haberse cobrado), igual debe poder COBRARSE.
+      const _pagadoE = (Number(o.paid_amount) || 0) >= total && total > 0;
+      actionsHtml = _pagadoE
+        ? `<div class="vs-actions">
           <button class="lm-btn-ghost" data-action="quick-nueva" data-quick-id="${o.id}">Nueva venta</button>
+        </div>`
+        : `<div class="vs-actions">
+          <button class="lm-btn-ghost" data-action="quick-nueva" data-quick-id="${o.id}">Nueva venta</button>
+          <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-cobrar" data-quick-id="${o.id}">Cobrar</button>
         </div>`;
     } else if (isPaid) {
       actionsHtml = `<div class="vs-actions">
