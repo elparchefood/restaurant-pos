@@ -208,6 +208,17 @@ Cachear en disco del exe:
 | `meta-send` | v9 | ACTIVE | Envía mensajes WA desde el panel Cobra |
 | `verify-transfer` | **v13** | ACTIVE | Verificación automática de comprobantes (Vision+Gmail) + confirmación humana manual |
 | `meta-oauth-callback` | v23 | ACTIVE | Conecta número WA por OAuth |
+| `crear-pedido-chat` | v10 | ACTIVE | Crea pedido desde el chat (borrador → cocina); `estado:en_preparacion` + `delivery_status` |
+| `cambiar-estado` | **v3** | ACTIVE | Cambio central de estado (chat↔Ventas): escribe `estado`+`delivery_status`+`delivered_at`, aplica etiqueta de estado EXCLUSIVA y envía mensaje configurado |
+| `verificar-pago-manual` | v2 | ACTIVE (dormida) | Verificación SOLO-lectura de transferencia para la vista del operador (Vision+Gmail, no responde al cliente). Motor listo; falta el botón en el chat — se retoma al pulir a Paco |
+
+---
+
+## 🟢 Sesión 2026-07-27 — Estados, etiquetas exclusivas y cuenta de pago
+
+- **Cuenta de transferencia actualizada a `0092726260`** (antes `0092726260`). La VERIFICACIÓN ya usaba la nueva (`ia_config.pagos.llave`), pero el bot todavía le daba la VIEJA al cliente en `pagos.qr_texto` y `frases.datos_nequi` — corregido en DB. ⚠️ PENDIENTE (solo Sergio): regenerar la **imagen del QR** (`chat-media/qr-pago/.../qr.jpeg`) porque probablemente aún apunta a la cuenta vieja.
+- **`cambiar-estado` v3 — etiquetas de estado EXCLUSIVAS**: al cambiar de estado (ej. En preparación → En camino) se quitan SIEMPRE las etiquetas de los OTROS estados y queda solo la del estado actual. Antes la limpieza estaba dentro de `if(e.etiqueta)` y solo corría si el estado nuevo tenía etiqueta; ahora corre en toda transición. Las etiquetas MANUALES del operador NO se tocan (solo se filtran las de estado). El chat refleja el cambio por realtime de `chat_conversations`.
+- **`verificar-pago-manual` v2 (motor listo, dormido)**: función nueva reescrita limpia (Vision lee comprobante → compara cuenta/monto/correo Gmail dentro de la ventana del turno) que devuelve `{verified, razon, mensaje, datos.checks}` para mostrarle el veredicto al operador SIN responderle al cliente. Etiqueta de éxito configurable en `estados_config.etiqueta_pago` (default `ems2h5zc7` = "Pago"). Falta solo el botón `$` en el header del chat + el modal; se retoma cuando se pula a Paco.
 
 ---
 
@@ -451,7 +462,7 @@ Bot:     Mensaje de confirmación GPT  ← ✅ funciona
          [delay-reply setea pago_pendiente=true + guarda pending_order_data]
 Bot:     [Imagen QR de Nequi] con texto de qr_texto de ia_config  ← ✅ funciona
          (QR URL: storage/v1/object/public/chat-media/qr-pago/.../qr.jpeg)
-         (Número de llave: 0089912015, Titular: El Parche)
+         (Número de llave: 0092726260, Titular: El Parche)
 
 Cliente: [Envía foto del comprobante de pago]
 Cobra:   Operador ve la conversación en chat-ia.html con estado "Pago pendiente"
@@ -471,7 +482,7 @@ ESTADO ACTUAL — verify-transfer v5 (2026-07-14):
 ✅ BUG 1 CORREGIDO: phoneId leído correctamente desde meta (JSON.parse + phone_id)
 ✅ BUG 2 CORREGIDO: prompt GPT Vision actualizado — NO rechaza por "pendiente" en Nequi
 ✅ Gmail busca monto en 3 formatos: "33000", "33.000", "33.000,00"
-✅ Llave Nequi comparada contra ia_config.pagos.llave ("0089912015")
+✅ Llave Nequi comparada contra ia_config.pagos.llave ("0092726260")
 ✅ Monto comparado con total calculado desde catálogo (tolerancia 12%)
 ```
 
@@ -503,7 +514,7 @@ La columna `meta` en `chat_channels` para WhatsApp es un **JSON serializado como
 | `gmail_refresh_token` | existe (no null) |
 | `gmail_email` | `elparche.foodpopayan@gmail.com` |
 | `pagos.nequi` | `true` |
-| `pagos.llave` | `0089912015` |
+| `pagos.llave` | `0092726260` |
 | `pagos.titular` | `El Parche` |
 | `pagos.esperar_comprobante` | `true` |
 | `pagos.qr_imagen_url` | URL de imagen QR en Supabase Storage |
@@ -520,7 +531,7 @@ La columna `meta` en `chat_channels` para WhatsApp es un **JSON serializado como
 **Fix aplicado**: Busca en 3 formatos: `["33000", "33.000", "33.000,00"]`.
 
 #### BUG 3 — CORREGIDO en v3 — Llave Nequi no se comparaba
-**Fix aplicado**: Extrae llave del comprobante via GPT Vision, compara con `ia_config.pagos.llave` ("0089912015").
+**Fix aplicado**: Extrae llave del comprobante via GPT Vision, compara con `ia_config.pagos.llave` ("0092726260").
 
 #### BUG 4 — CORREGIDO en v5 — Rechazaba comprobantes Nequi con texto "pendiente"
 **Causa raíz**: El prompt de GPT Vision y la condición de rechazo eran demasiado estrictos. Nequi muestra "pendiente" incluso en pagos ya procesados.

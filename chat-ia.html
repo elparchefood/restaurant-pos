@@ -14,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="pos-perms.js?v=1785030000"></script>
   <script>if(window.posRequirePin) posRequirePin('chat.usar');</script>
-  <link rel="stylesheet" href="chat-ia.css?v=21">
+  <link rel="stylesheet" href="chat-ia.css?v=22">
 </head>
 <body>
 
@@ -173,6 +173,9 @@
         <button class="ci-pago-confirm" id="pagoConfirmBtn" onclick="confirmarPago()" style="display:none" title="Confirmar pago recibido">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           <span id="pagoConfirmTxt">Confirmar pago</span>
+        </button>
+        <button class="ci-verify-pago" id="verifyPagoBtn" onclick="verificarPagoModal()" style="display:none" title="Verificar pago por transferencia">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         </button>
         <div class="ci-estado-wrap" id="estadoWrap" style="display:none">
           <button class="ci-estado-pill" id="estadoPill" onclick="toggleEstadoMenu(event)" title="Cambiar estado del pedido">
@@ -381,7 +384,7 @@
   </div>
 </div>
 
-<script src="chat-ia.js?v=1786101000"></script>
+<script src="chat-ia.js?v=1786110000"></script>
 <script src="pos-print.js?v=1786093000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>

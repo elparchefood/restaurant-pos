@@ -563,6 +563,7 @@ function renderChatHeader(conv) {
   updatePagoConfirmBtn(!!conv.pago_pendiente);
   updateDomiConfirmBtn(!!conv.domi_precio_pendiente);
   updateSinNomBtn(!!conv.sin_nomenclatura);
+  const vpb=$('verifyPagoBtn'); if(vpb) vpb.style.display='';   // verificar transferencia: siempre disponible con un chat abierto
   loadEstadoPill(conv);
   const meta     = CHANNELS[conv.channel] || {};
   const tint     = TINTS[(conv.contact_avatar_tint||0) % TINTS.length];
@@ -2097,6 +2098,96 @@ function ciConfirm(msgHtml){
     ov.querySelector('.ci-confirm-yes').onclick=function(){ done(true); };
     ov.onclick=function(e){ if(e.target===ov) done(false); };
   });
+}
+
+/* ══════════════ VERIFICAR PAGO POR TRANSFERENCIA (solo vista operador) ══════════════
+   Botón $ del header. Reusa el motor de verify-transfer pero SOLO-lectura: lee el
+   comprobante (Vision), compara cuenta/monto/correo del banco, y me MUESTRA el veredicto
+   a mí (no le responde al cliente). Si verifica bien, aplica la etiqueta "Pago". */
+const VERIFICAR_PAGO_FN = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/verificar-pago-manual';
+async function verificarPagoModal(){
+  const conv = getActiveConv();
+  if(!conv){ showToast('Abre un chat primero','info'); return; }
+  // Monto a verificar: el del borrador (pre-pedido) o, si ya se envió, el del pedido creado.
+  let monto = 0;
+  try{
+    const { data } = await sb.from('chat_conversations').select('pedido_borrador,order_id').eq('id',conv.id).maybeSingle();
+    if(data && data.pedido_borrador && Number(data.pedido_borrador.total)>0){ monto = Number(data.pedido_borrador.total); }
+    else if(data && data.order_id){
+      const r = await sb.from('pos_orders').select('total,total_final').eq('id',data.order_id).maybeSingle();
+      if(r.data){ monto = Number(r.data.total)||Number(r.data.total_final)||0; }
+    }
+  }catch(e){}
+  const ov = vpProgress();
+  try{
+    const res = await fetch(VERIFICAR_PAGO_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ conversation_id:conv.id, monto })});
+    const d = await res.json().catch(function(){ return { verified:false, razon:'error', mensaje:'Respuesta inválida del servidor.' }; });
+    ov.remove();
+    vpResult(conv, d);
+  }catch(e){ ov.remove(); vpResult(conv, { verified:false, razon:'error', mensaje:'No se pudo conectar con el verificador. Revisa tu internet e intenta de nuevo.' }); }
+}
+function vpProgress(){
+  const ov=document.createElement('div'); ov.className='vp-ov';
+  ov.innerHTML='<div class="vp-box"><div class="vp-spin"></div><div class="vp-msg">Verificando pago…</div><div class="vp-sub">Leyendo el comprobante y buscando el correo del banco. Puede tardar unos segundos.</div></div>';
+  document.body.appendChild(ov); return ov;
+}
+function vpChkRow(ok,label){
+  const ico = ok
+    ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+    : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+  return '<div class="vp-chk"><span>'+ico+'</span><span>'+label+'</span></div>';
+}
+async function vpResult(conv, d){
+  const ok = !!d.verified;
+  const dt = d.datos || {};
+  const chk = dt.checks || {};
+  let etqMsg='';
+  if(ok){ try{ etqMsg = await vpAplicarEtiquetaPago(conv); }catch(e){} }
+
+  let checksHtml='';
+  if(dt.checks){
+    checksHtml = '<div class="vp-checks">'
+      + vpChkRow(chk.monto,  'Monto'  + (dt.monto_comprobante_fmt ? ': '+dt.monto_comprobante_fmt+(dt.monto_esperado_fmt?' (pedido '+dt.monto_esperado_fmt+')':'') : ''))
+      + vpChkRow(chk.cuenta, 'Cuenta' + (dt.cuenta_comprobante ? ': '+dt.cuenta_comprobante : ''))
+      + vpChkRow(chk.correo, 'Correo del banco')
+      + '</div>';
+  }
+  let extra='';
+  const meta=[];
+  if(dt.banco) meta.push(dt.banco);
+  if(dt.fecha) meta.push(dt.fecha+(dt.hora?(' '+dt.hora):''));
+  if(dt.referencia) meta.push('Ref: '+dt.referencia);
+  if(meta.length) extra='<div class="vp-meta">'+meta.map(qrEsc).join(' · ')+'</div>';
+
+  const head = ok
+    ? '<div class="vp-ico vp-ok"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="vp-title vp-okt">Pago verificado con éxito</div>'
+    : '<div class="vp-ico vp-no"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/><circle cx="12" cy="12" r="10"/></svg></div><div class="vp-title vp-not">Pago NO verificado</div>';
+
+  const ov=document.createElement('div'); ov.className='vp-ov';
+  ov.innerHTML='<div class="vp-box vp-res">'+head
+    +'<div class="vp-txt">'+qrEsc(d.mensaje||'')+'</div>'
+    +checksHtml+extra
+    +(etqMsg?'<div class="vp-etq">🏷️ '+qrEsc(etqMsg)+'</div>':'')
+    +'<button class="vp-close" type="button">Entendido</button></div>';
+  document.body.appendChild(ov);
+  const done=function(){ ov.remove(); };
+  ov.querySelector('.vp-close').onclick=done;
+  ov.onclick=function(e){ if(e.target===ov) done(); };
+}
+async function vpAplicarEtiquetaPago(conv){
+  const cfg = await getEstadosConfig();
+  const etq = (cfg && cfg.etiqueta_pago) || 'ems2h5zc7';
+  if(!etq) return '';
+  const et=(S.etiquetas||[]).find(function(x){ return x.id===etq; });
+  const nombre = et ? et.name : 'Pago';
+  let labels = Array.isArray(conv.labels) ? conv.labels.slice() : [];
+  if(labels.indexOf(etq)>=0) return 'Etiqueta "'+nombre+'" ya estaba puesta';
+  labels.push(etq);
+  const { error } = await sb.from('chat_conversations').update({ labels: labels }).eq('id', conv.id);
+  if(error) return '';
+  conv.labels = labels;
+  if(typeof updateLabelBadges==='function') updateLabelBadges();
+  return 'Etiqueta "'+nombre+'" aplicada';
 }
 
 function abrirConfirmarDomi() {
