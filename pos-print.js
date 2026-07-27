@@ -429,6 +429,31 @@
       });
       _diagToast('✓ Pedido OK — enviando a impresora…', '#15803d');
 
+      // 3.5) Candado ATÓMICO entre ventanas/equipos para la PRIMERA comanda.
+      // Antes el anti-duplicado era solo EN MEMORIA por ventana, así que si el
+      // pedido salía por dos lados a la vez (p.ej. la ventana del CHAT que imprime
+      // directo + el RECEPTOR de la caja que imprime al detectar el pedido nuevo),
+      // la comanda salía DOBLE. Ahora se reclama en la BD: printed_at NULL→now en
+      // un solo UPDATE atómico; el que gane imprime, el otro ve 0 filas y NO repite.
+      // A prueba de fallos: si el claim da error o no se puede leer, se imprime igual
+      // (mejor imprimir que dejar a la cocina sin comanda).
+      var claimed = false;
+      if (marcar && !yaEnviados) {
+        var sbClaim = window._pos && window._pos.sb;
+        if (sbClaim) {
+          try {
+            var cl = await sbClaim.from('pos_orders')
+              .update({ printed_at: new Date().toISOString() })
+              .eq('id', orderId).is('printed_at', null).select('id');
+            if (!cl.error) {
+              if (cl.data && cl.data.length) claimed = true;
+              else { _diagToast('Comanda ya enviada por otra ventana', '#64748b'); return; }
+            }
+            // claim con error → seguir e imprimir igual (fallback seguro)
+          } catch (e) { /* red/permiso: imprimir igual */ }
+        }
+      }
+
       // 4) Imprimir (mismo diseño de comanda de siempre), con reintento
       var printed = false;
       for (var pr = 0; pr < 2 && !printed; pr++) {
@@ -446,7 +471,8 @@
         try {
           var sb2 = window._pos && window._pos.sb;
           if (sb2) {
-            await sb2.from('pos_orders').update({ printed_at: new Date().toISOString() }).eq('id', orderId);
+            // Si ya se reclamó atómicamente arriba, printed_at ya quedó puesto; no re-marcar.
+            if (!claimed) await sb2.from('pos_orders').update({ printed_at: new Date().toISOString() }).eq('id', orderId);
             // Marcar como "enviados a cocina" los ítems recién impresos, para que
             // el próximo agregado imprima únicamente lo nuevo.
             if (marcar) {
@@ -455,6 +481,10 @@
             }
           }
         } catch(e) { console.warn('[posprint] marcar impreso:', e); }
+      } else if (claimed) {
+        // Se reclamó pero la impresión FALLÓ → liberar (printed_at→null) para que
+        // un reintento o el receptor de la caja pueda volver a imprimirla.
+        try { var sb3 = window._pos && window._pos.sb; if (sb3) await sb3.from('pos_orders').update({ printed_at: null }).eq('id', orderId); } catch(e) {}
       }
     } finally {
       _printing[orderId] = false;
