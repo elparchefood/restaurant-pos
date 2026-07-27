@@ -1223,6 +1223,55 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
   .ci-more-div { background: rgba(0,0,0,.07); }
   .ci-more-sec, .ci-more-ico, .ci-more-hint { color: #64748B; }
 }
+
+/* ── Pastilla de estado del pedido ── */
+.ci-estado-wrap { position: relative; }
+.ci-estado-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 10px; border-radius: 8px;
+  border: 1px solid currentColor;
+  background: rgba(249,115,22,.15); color: #f97316;
+  font-family: var(--font); font-size: 12.5px; font-weight: 600;
+  cursor: pointer; white-space: nowrap; transition: filter .15s;
+}
+.ci-estado-pill:hover { filter: brightness(1.14); }
+.ci-estado-ico { display: inline-flex; align-items: center; }
+.ci-estado-menu {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  background: var(--bg-2, #1e2a35); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.3);
+  min-width: 196px; z-index: 200; padding: 5px;
+}
+.ci-estado-opt {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 10px; border: none; background: transparent;
+  color: var(--text-1, #e2e8f0); font-family: var(--font); font-size: 13px;
+  cursor: pointer; text-align: left; border-radius: 8px; transition: background .15s;
+}
+.ci-estado-opt:hover { background: rgba(255,255,255,.07); }
+.ci-estado-opt.on { font-weight: 700; }
+@media (prefers-color-scheme: light) {
+  .ci-estado-menu { background:#fff; border-color:rgba(0,0,0,.1); box-shadow:0 8px 24px rgba(0,0,0,.12); }
+  .ci-estado-opt { color:#1e293b; }
+  .ci-estado-opt:hover { background:rgba(0,0,0,.04); }
+}
+/* ── Confirmación reutilizable ── */
+.ci-confirm-ov {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(15,23,42,.55); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center;
+}
+.ci-confirm-box {
+  background: #fff; border-radius: 16px; padding: 22px 22px 18px;
+  width: 340px; max-width: 90vw; box-shadow: 0 20px 60px rgba(15,23,42,.3);
+}
+.ci-confirm-msg { font-size: 15px; font-weight: 500; color: #0F172A; line-height: 1.5; margin-bottom: 18px; }
+.ci-confirm-btns { display: flex; gap: 10px; justify-content: flex-end; }
+.ci-confirm-btns button { padding: 9px 16px; border-radius: 10px; font-family: var(--font); font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+.ci-confirm-no { background: #ECEEF2; color: #475569; }
+.ci-confirm-no:hover { background: #E2E8F0; }
+.ci-confirm-yes { background: var(--accent, #5B6BFF); color: #fff; }
+.ci-confirm-yes:hover { background: var(--accent-h, #4F5BE3); }
 @media (prefers-color-scheme: light) {
   .ci-more-menu {
     background: #fff;

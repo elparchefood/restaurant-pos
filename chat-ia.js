@@ -553,6 +553,7 @@ function renderChatHeader(conv) {
   updatePagoConfirmBtn(!!conv.pago_pendiente);
   updateDomiConfirmBtn(!!conv.domi_precio_pendiente);
   updateSinNomBtn(!!conv.sin_nomenclatura);
+  loadEstadoPill(conv);
   const meta     = CHANNELS[conv.channel] || {};
   const tint     = TINTS[(conv.contact_avatar_tint||0) % TINTS.length];
   const label    = conv.contact_name || conv.contact_handle || '?';
@@ -1964,6 +1965,79 @@ async function toggleSinNomenclatura() {
     console.error('toggleSinNomenclatura:', e);
     showToast('Error al actualizar', 'error');
   }
+}
+
+/* ══ Estados de pedido (pastilla del encabezado) ══
+   Fuente única: pos_orders.estado. Sincroniza con la pantalla de Ventas.
+   rápida: en preparación → listo → entregado
+   domicilio: en preparación → listo → en camino → entregado */
+const CI_ESTADOS = {
+  en_preparacion: { label:'En preparación', color:'#f97316', bg:'rgba(249,115,22,.15)', ico:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2c1 3-1 4-1 6a3 3 0 0 0 6 0c0-1-1-2-1-3 2 1 4 3 4 7a6 6 0 0 1-12 0c0-4 3-5 4-7z"/></svg>' },
+  listo:          { label:'Listo',          color:'#3b82f6', bg:'rgba(59,130,246,.15)', ico:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' },
+  en_camino:      { label:'En camino',      color:'#8b5cf6', bg:'rgba(139,92,246,.15)', ico:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>' },
+  entregado:      { label:'Entregado',      color:'#22c55e', bg:'rgba(34,197,94,.15)', ico:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="7.5 10.5 11 14 16.5 8.5"/></svg>' },
+};
+const CI_ESTADO_FLOW = {
+  rapido:    ['en_preparacion','listo','entregado'],
+  domicilio: ['en_preparacion','listo','en_camino','entregado'],
+};
+async function loadEstadoPill(conv){
+  const wrap=$('estadoWrap'); if(!wrap) return;
+  if(!conv || !conv.order_id){ wrap.style.display='none'; S.estadoOrder=null; return; }
+  try{
+    const { data }=await sb.from('pos_orders').select('id,channel,estado').eq('id',conv.order_id).maybeSingle();
+    if(!data){ wrap.style.display='none'; S.estadoOrder=null; return; }
+    S.estadoOrder={ id:data.id, channel:(String(data.channel||'').toLowerCase()==='domicilio'?'domicilio':'rapido'), estado:data.estado||'en_preparacion' };
+    renderEstadoPill();
+    wrap.style.display='';
+  }catch(e){ wrap.style.display='none'; S.estadoOrder=null; }
+}
+function renderEstadoPill(){
+  const o=S.estadoOrder; if(!o) return;
+  const meta=CI_ESTADOS[o.estado]||CI_ESTADOS.en_preparacion;
+  const pill=$('estadoPill'), ico=$('estadoIco'), lbl=$('estadoLabel'), menu=$('estadoMenu');
+  if(pill){ pill.style.background=meta.bg; pill.style.color=meta.color; pill.style.borderColor=meta.color; }
+  if(ico) ico.innerHTML=meta.ico;
+  if(lbl) lbl.textContent=meta.label;
+  if(menu){
+    const flow=CI_ESTADO_FLOW[o.channel]||CI_ESTADO_FLOW.rapido;
+    menu.innerHTML=flow.map(function(k){ const m=CI_ESTADOS[k]; const on=(k===o.estado);
+      return '<button class="ci-estado-opt'+(on?' on':'')+'" onclick="cambiarEstado(\''+k+'\')"><span class="ci-estado-ico" style="color:'+m.color+'">'+m.ico+'</span><span style="flex:1">'+m.label+'</span>'+(on?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</button>';
+    }).join('');
+  }
+}
+function toggleEstadoMenu(e){
+  e.stopPropagation();
+  const menu=$('estadoMenu'); if(!menu) return;
+  const open=menu.style.display!=='none';
+  menu.style.display=open?'none':'block';
+  if(!open) setTimeout(function(){ document.addEventListener('click',closeEstadoMenu,{once:true}); },0);
+}
+function closeEstadoMenu(){ const m=$('estadoMenu'); if(m) m.style.display='none'; }
+async function cambiarEstado(nuevo){
+  closeEstadoMenu();
+  const o=S.estadoOrder; if(!o || nuevo===o.estado) return;
+  const meta=CI_ESTADOS[nuevo]; if(!meta) return;
+  const ok=await ciConfirm('¿El pedido pasa a <b style="color:'+meta.color+'">'+meta.label+'</b>?');
+  if(!ok) return;
+  try{
+    await sb.from('pos_orders').update({ estado:nuevo }).eq('id', o.id);
+    o.estado=nuevo; renderEstadoPill();
+    showToast('Estado: '+meta.label, 'success');
+    /* (próximo incremento: mensaje automático al cliente + etiqueta + sincronización con Ventas) */
+  }catch(e){ console.error('cambiarEstado:',e); showToast('No se pudo cambiar el estado','error'); }
+}
+/* Confirmación reutilizable */
+function ciConfirm(msgHtml){
+  return new Promise(function(res){
+    const ov=document.createElement('div'); ov.className='ci-confirm-ov';
+    ov.innerHTML='<div class="ci-confirm-box"><div class="ci-confirm-msg">'+msgHtml+'</div><div class="ci-confirm-btns"><button class="ci-confirm-no" type="button">Cancelar</button><button class="ci-confirm-yes" type="button">Sí, confirmar</button></div></div>';
+    document.body.appendChild(ov);
+    const done=function(v){ ov.remove(); res(v); };
+    ov.querySelector('.ci-confirm-no').onclick=function(){ done(false); };
+    ov.querySelector('.ci-confirm-yes').onclick=function(){ done(true); };
+    ov.onclick=function(e){ if(e.target===ov) done(false); };
+  });
 }
 
 function abrirConfirmarDomi() {

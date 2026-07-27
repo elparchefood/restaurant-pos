@@ -14,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="pos-perms.js?v=1785030000"></script>
   <script>if(window.posRequirePin) posRequirePin('chat.usar');</script>
-  <link rel="stylesheet" href="chat-ia.css?v=20">
+  <link rel="stylesheet" href="chat-ia.css?v=21">
 </head>
 <body>
 
@@ -174,6 +174,14 @@
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           <span id="pagoConfirmTxt">Confirmar pago</span>
         </button>
+        <div class="ci-estado-wrap" id="estadoWrap" style="display:none">
+          <button class="ci-estado-pill" id="estadoPill" onclick="toggleEstadoMenu(event)" title="Cambiar estado del pedido">
+            <span class="ci-estado-ico" id="estadoIco"></span>
+            <span id="estadoLabel">En preparación</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="ci-estado-menu" id="estadoMenu" style="display:none"></div>
+        </div>
         <button class="ci-btn-primary" id="createOrderBtn">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
           Crear pedido
@@ -373,7 +381,7 @@
   </div>
 </div>
 
-<script src="chat-ia.js?v=1786095000"></script>
+<script src="chat-ia.js?v=1786096000"></script>
 <script src="pos-print.js?v=1786093000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>
