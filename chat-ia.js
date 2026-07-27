@@ -168,6 +168,15 @@ function subscribeRealtime() {
     .on('postgres_changes', { event:'*', schema:'public', table:'chat_channels', filter:`branch_id=eq.${S.branchId}` }, () => {
       loadChannels(); // refrescar canales si cambia alguno
     })
+    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'pos_orders', filter:`branch_id=eq.${S.branchId}` }, payload => {
+      // Sincronía en vivo de la pastilla de estado: si cambian el estado del pedido
+      // activo desde Ventas (o el auto-entregado), se refleja al instante en el chat.
+      const o = payload.new;
+      if (S.estadoOrder && o && o.id === S.estadoOrder.id && o.estado && o.estado !== S.estadoOrder.estado) {
+        S.estadoOrder.estado = o.estado;
+        renderEstadoPill();
+      }
+    })
     .subscribe();
 }
 
@@ -2014,19 +2023,22 @@ function toggleEstadoMenu(e){
   if(!open) setTimeout(function(){ document.addEventListener('click',closeEstadoMenu,{once:true}); },0);
 }
 function closeEstadoMenu(){ const m=$('estadoMenu'); if(m) m.style.display='none'; }
+const CAMBIAR_ESTADO_FN = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/cambiar-estado';
 async function cambiarEstado(nuevo){
   closeEstadoMenu();
   const o=S.estadoOrder; if(!o || nuevo===o.estado) return;
   const meta=CI_ESTADOS[nuevo]; if(!meta) return;
   const ok=await ciConfirm('¿El pedido pasa a <b style="color:'+meta.color+'">'+meta.label+'</b>?');
   if(!ok) return;
+  const prev=o.estado; o.estado=nuevo; renderEstadoPill();   // optimista
   try{
-    await sb.from('pos_orders').update({ estado:nuevo, estado_at:new Date().toISOString() }).eq('id', o.id);
-    o.estado=nuevo; renderEstadoPill();
+    // Función central: escribe estado + delivery_status (sincroniza con Ventas),
+    // marca delivered_at si entregado, y dispara etiqueta + mensaje al cliente.
+    const res=await fetch(CAMBIAR_ESTADO_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ order_id:o.id, estado:nuevo })});
+    const d=await res.json().catch(function(){return {};});
+    if(d.error){ o.estado=prev; renderEstadoPill(); showToast('No se pudo cambiar el estado: '+d.error,'error'); return; }
     showToast('Estado: '+meta.label, 'success');
-    const conv=getActiveConv();
-    if(conv) await aplicarEfectosEstado(conv, o.channel, nuevo);   // etiqueta + mensaje al cliente
-  }catch(e){ console.error('cambiarEstado:',e); showToast('No se pudo cambiar el estado','error'); }
+  }catch(e){ o.estado=prev; renderEstadoPill(); showToast('No se pudo cambiar el estado','error'); }
 }
 /* Config de estados (etiqueta + mensaje por tipo/estado + minutos auto-entregado) */
 async function getEstadosConfig(){
