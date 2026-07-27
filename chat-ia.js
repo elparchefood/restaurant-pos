@@ -2021,11 +2021,57 @@ async function cambiarEstado(nuevo){
   const ok=await ciConfirm('¿El pedido pasa a <b style="color:'+meta.color+'">'+meta.label+'</b>?');
   if(!ok) return;
   try{
-    await sb.from('pos_orders').update({ estado:nuevo }).eq('id', o.id);
+    await sb.from('pos_orders').update({ estado:nuevo, estado_at:new Date().toISOString() }).eq('id', o.id);
     o.estado=nuevo; renderEstadoPill();
     showToast('Estado: '+meta.label, 'success');
-    /* (próximo incremento: mensaje automático al cliente + etiqueta + sincronización con Ventas) */
+    const conv=getActiveConv();
+    if(conv) await aplicarEfectosEstado(conv, o.channel, nuevo);   // etiqueta + mensaje al cliente
   }catch(e){ console.error('cambiarEstado:',e); showToast('No se pudo cambiar el estado','error'); }
+}
+/* Config de estados (etiqueta + mensaje por tipo/estado + minutos auto-entregado) */
+async function getEstadosConfig(){
+  if(S._estadosConfig) return S._estadosConfig;
+  try{ const { data }=await sb.from('ia_config').select('estados_config').eq('branch_id', S.branchId).maybeSingle();
+    S._estadosConfig=(data && data.estados_config) || {}; }catch(e){ S._estadosConfig={}; }
+  return S._estadosConfig;
+}
+/* Al cambiar un estado: pone la etiqueta configurada (quitando otras de estado) y
+   envía el mensaje configurado al cliente. Sirve para llevar y domicilio. */
+async function aplicarEfectosEstado(conv, orderChannel, estado){
+  const cfg=await getEstadosConfig();
+  const tipo = (orderChannel==='domicilio') ? 'domicilio' : 'llevar';
+  const e = (cfg[tipo] && cfg[tipo][estado]) || {};
+  // 1) Etiqueta: quitar las etiquetas asociadas a OTROS estados y poner la de este
+  if(e.etiqueta){
+    try{
+      let labels = Array.isArray(conv.labels) ? conv.labels.slice() : [];
+      const estadoEtqs = new Set();
+      ['en_preparacion','listo','en_camino','entregado'].forEach(function(k){
+        var et = cfg[tipo] && cfg[tipo][k] && cfg[tipo][k].etiqueta; if(et) estadoEtqs.add(et);
+      });
+      labels = labels.filter(function(l){ return !estadoEtqs.has(l); });
+      if(labels.indexOf(e.etiqueta)<0) labels.push(e.etiqueta);
+      await sb.from('chat_conversations').update({ labels: labels }).eq('id', conv.id);
+      conv.labels = labels;
+      if(typeof updateLabelBadges==='function') updateLabelBadges();
+    }catch(err){ console.error('etiqueta estado:', err); }
+  }
+  // 2) Mensaje automático al cliente
+  if(e.mensaje && String(e.mensaje).trim()){
+    await enviarMensajeAuto(conv.id, String(e.mensaje).trim(), conv.channel);
+  }
+}
+async function enviarMensajeAuto(convId, text, channel){
+  try{
+    const { data, error }=await sb.from('chat_messages').insert([{ conversation_id:convId, tenant_id:S.tenantId, direction:'out', body:text, delivery_status:'sent', agent_id:S.user?.id||null }]).select().single();
+    if(error){ console.error('msg auto insert:', error); return; }
+    if(convId===S.activeConvId){ S.messages.push(data); renderThread(); }
+    if(['instagram','facebook','whatsapp'].indexOf(channel)>=0){
+      const res=await fetch(META_SEND_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ conversation_id:convId, text:text, message_id:data.id })});
+      const rd=await res.json().catch(function(){return {};});
+      if(rd.error) showToast('Mensaje de estado no se envió: '+rd.error,'error');
+    }
+  }catch(e){ console.error('enviarMensajeAuto:', e); }
 }
 /* Confirmación reutilizable */
 function ciConfirm(msgHtml){
