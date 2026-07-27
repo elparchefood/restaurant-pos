@@ -1190,6 +1190,39 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .ci-more-item:hover { background: var(--hover, rgba(255,255,255,.07)); }
 .ci-more-item.ci-more-danger { color: #f87171; }
 .ci-more-item.ci-more-danger:hover { background: rgba(248,113,113,.1); }
+
+/* ── Menú ⋮ rediseñado (secciones + toggle del bot) ── */
+.ci-more-menu { min-width: 258px; padding: 5px; border-radius: 12px; }
+.ci-more-menu .ci-more-item { border-radius: 8px; gap: 10px; padding: 9px 10px; align-items: center; }
+.ci-more-sec { font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; font-weight: 700; color: var(--text-4, #94A3B8); padding: 8px 10px 4px; }
+.ci-more-ico { display: inline-flex; align-items: center; justify-content: center; color: var(--text-3, #94A3B8); flex-shrink: 0; }
+.ci-more-label { flex: 1; }
+.ci-more-hint { font-size: 11px; color: var(--text-4, #94A3B8); flex-shrink: 0; }
+.ci-more-div { height: 1px; background: rgba(255,255,255,.08); margin: 5px 6px; }
+.ci-more-item.is-soon { opacity: .42; cursor: default; }
+.ci-more-item.is-soon:hover { background: transparent; }
+/* Fila del asistente (bot) */
+.ci-more-toggle { background: rgba(74,222,130,.10); margin-bottom: 2px; }
+.ci-more-toggle:hover { background: rgba(74,222,130,.16); }
+.ci-more-toggle .ci-more-ico { color: #4ade80; }
+.ci-more-tcol { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ci-more-tlabel { font-size: 13px; }
+.ci-more-tsub { font-size: 11px; color: #4ade80; }
+.ci-more-toggle.is-human { background: rgba(251,146,60,.10); }
+.ci-more-toggle.is-human:hover { background: rgba(251,146,60,.16); }
+.ci-more-toggle.is-human .ci-more-ico { color: #fb923c; }
+.ci-more-toggle.is-human .ci-more-tsub { color: #fb923c; }
+/* Interruptor */
+.ci-switch { width: 38px; height: 22px; border-radius: 999px; background: #4ade80; position: relative; flex-shrink: 0; transition: background .15s; }
+.ci-switch .ci-switch-dot { position: absolute; top: 2px; left: 18px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .15s; }
+.ci-switch.off { background: rgba(255,255,255,.22); }
+.ci-switch.off .ci-switch-dot { left: 2px; }
+.ci-more-item.is-active .ci-more-ico { color: #6366f1; }
+.ci-more-item.is-active .ci-more-hint { color: #6366f1; }
+@media (prefers-color-scheme: light) {
+  .ci-more-div { background: rgba(0,0,0,.07); }
+  .ci-more-sec, .ci-more-ico, .ci-more-hint { color: #64748B; }
+}
 @media (prefers-color-scheme: light) {
   .ci-more-menu {
     background: #fff;

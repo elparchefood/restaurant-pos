@@ -14,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="pos-perms.js?v=1785030000"></script>
   <script>if(window.posRequirePin) posRequirePin('chat.usar');</script>
-  <link rel="stylesheet" href="chat-ia.css?v=19">
+  <link rel="stylesheet" href="chat-ia.css?v=20">
 </head>
 <body>
 
@@ -166,16 +166,6 @@
         </div>
       </div>
       <div class="ci-chat-actions">
-        <button class="ci-icon-btn" title="Buscar en el chat">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        </button>
-        <button class="ci-icon-btn" title="Datos del cliente">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-        </button>
-        <button class="ci-sin-nom" id="sinNomBtn" onclick="toggleSinNomenclatura()" title="Marcar cliente sin nomenclatura">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
-          <span>Sin nomenclatura</span>
-        </button>
         <button class="ci-domi-confirm" id="domiConfirmBtn" onclick="abrirConfirmarDomi()" style="display:none" title="Confirmar precio de domicilio">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
           <span>Confirmar domi</span>
@@ -183,10 +173,6 @@
         <button class="ci-pago-confirm" id="pagoConfirmBtn" onclick="confirmarPago()" style="display:none" title="Confirmar pago recibido">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           <span id="pagoConfirmTxt">Confirmar pago</span>
-        </button>
-        <button class="ci-human-toggle" id="humanToggleBtn" onclick="toggleHumanTakeover()" title="Pasar al humano / Reactivar bot">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="humanToggleIco"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
-          <span id="humanToggleTxt">Bot activo</span>
         </button>
         <button class="ci-btn-primary" id="createOrderBtn">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
@@ -197,21 +183,49 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
           </button>
           <div class="ci-more-menu" id="moreMenu" style="display:none">
-            <button class="ci-more-item" onclick="openChatWindow()">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-              Abrir en ventana independiente
+            <div class="ci-more-sec">Este chat</div>
+            <button class="ci-more-item ci-more-toggle" id="botToggleItem" onclick="toggleHumanTakeover()">
+              <span class="ci-more-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg></span>
+              <span class="ci-more-tcol">
+                <span class="ci-more-tlabel">Asistente (Paco)</span>
+                <span class="ci-more-tsub" id="botToggleSub">Activo en este chat</span>
+              </span>
+              <span class="ci-switch" id="botSwitch"><span class="ci-switch-dot"></span></span>
             </button>
+            <button class="ci-more-item" id="nomItem" onclick="toggleSinNomenclatura()">
+              <span class="ci-more-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span>
+              <span class="ci-more-label">Nomenclatura</span>
+              <span class="ci-more-hint" id="nomHint">Sin asignar</span>
+            </button>
+            <div class="ci-more-div"></div>
+            <div class="ci-more-sec">Etiquetas</div>
             <button class="ci-more-item" onclick="openEtiquetarChat()">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-              Etiquetar chat
+              <span class="ci-more-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>
+              <span class="ci-more-label">Etiquetar chat</span>
             </button>
             <button class="ci-more-item" onclick="openCrearEtiqueta()">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Crear etiqueta
+              <span class="ci-more-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+              <span class="ci-more-label">Crear etiqueta</span>
             </button>
+            <div class="ci-more-div"></div>
+            <button class="ci-more-item" onclick="openChatWindow()">
+              <span class="ci-more-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></span>
+              <span class="ci-more-label">Abrir en ventana independiente</span>
+            </button>
+            <div class="ci-more-div"></div>
+            <div class="ci-more-sec">Próximamente</div>
+            <div class="ci-more-item is-soon">
+              <span class="ci-more-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+              <span class="ci-more-label">Buscar mensajes</span>
+            </div>
+            <div class="ci-more-item is-soon">
+              <span class="ci-more-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
+              <span class="ci-more-label">Información del contacto</span>
+            </div>
+            <div class="ci-more-div"></div>
             <button class="ci-more-item ci-more-danger" onclick="borrarHistorialChat()">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-              Borrar historial
+              <span class="ci-more-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></span>
+              <span class="ci-more-label">Borrar historial</span>
             </button>
           </div>
         </div>
@@ -359,7 +373,7 @@
   </div>
 </div>
 
-<script src="chat-ia.js?v=1786080000"></script>
+<script src="chat-ia.js?v=1786095000"></script>
 <script src="pos-print.js?v=1786093000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>

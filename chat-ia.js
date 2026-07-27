@@ -1878,19 +1878,16 @@ async function updateHumanBadge() {
 }
 
 function updateHumanToggleBtn(isHuman) {
-  const btn = $('humanToggleBtn');
-  const txt = $('humanToggleTxt');
-  if (!btn) return;
-  if (isHuman) {
-    btn.classList.add('is-human');
-    if (txt) txt.textContent = 'En humano';
-  } else {
-    btn.classList.remove('is-human');
-    if (txt) txt.textContent = 'Bot activo';
-  }
+  const item = $('botToggleItem');
+  const sw   = $('botSwitch');
+  const sub  = $('botToggleSub');
+  if (item) item.classList.toggle('is-human', isHuman);
+  if (sw)   sw.classList.toggle('off', isHuman);   // isHuman = bot pausado = interruptor apagado
+  if (sub)  sub.textContent = isHuman ? 'Pausado · tú respondes' : 'Activo en este chat';
 }
 
 async function toggleHumanTakeover() {
+  closeMoreMenu();
   const conv = S.conversations.find(c => c.id === S.activeConvId);
   if (!conv) return;
   const newVal = !conv.human_takeover;
@@ -1947,15 +1944,14 @@ function updateDomiConfirmBtn(isPendiente) {
 }
 
 function updateSinNomBtn(isActive) {
-  const btn = $('sinNomBtn');
-  if (!btn) return;
-  btn.classList.toggle('is-active', isActive);
-  btn.title = isActive
-    ? 'Sin nomenclatura activo — clic para desactivar'
-    : 'Marcar cliente sin nomenclatura';
+  const item = $('nomItem');
+  const hint = $('nomHint');
+  if (item) item.classList.toggle('is-active', isActive);
+  if (hint) hint.textContent = isActive ? 'Sin nomenclatura' : 'Sin asignar';
 }
 
 async function toggleSinNomenclatura() {
+  closeMoreMenu();
   const conv = getActiveConv();
   if (!conv) return;
   const newVal = !conv.sin_nomenclatura;
