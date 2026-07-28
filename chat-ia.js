@@ -1627,11 +1627,22 @@ async function cpConfirm(){ if(!S.cpOrder) return; cpSyncTop(); cpSyncProdInputs
 function renderDraftBar(borrador){
   const bar=document.getElementById('cpDraftBar'); if(!bar) return;
   if(!borrador || !(borrador.productos||[]).length){ bar.style.display='none'; bar.innerHTML=''; return; }
-  const total=Number(borrador.total)|| (borrador.productos||[]).reduce((a,p)=>a+(Number(p.unit_price)||0)*(Number(p.cantidad)||1),0);
-  const lineas=(borrador.productos||[]).map(p=>cpEsc((Number(p.cantidad)||1)+'× '+(p.product_name||'Producto'))).join('  ·  ');
-  bar.innerHTML='<div class="cp-draft-info"><div class="cp-draft-title">📝 Pedido sin enviar · <b>'+cpCOP(total)+'</b></div><div class="cp-draft-items">'+lineas+'</div></div>'
-    +'<div class="cp-draft-btns"><button class="cp-draft-edit" onclick="cpEditarBorrador()">✏️ Editar</button><button class="cp-draft-send" id="cpDraftSend" onclick="cpEnviarCocina()">🍳 Enviar a cocina</button></div>';
-  bar.style.display='flex';
+  const prods=borrador.productos||[];
+  const subtotal=prods.reduce((a,p)=>a+(Number(p.unit_price)||0)*(Number(p.cantidad)||1),0);
+  const empaque=Number(borrador.empaque)||0;
+  const domi=(borrador.tipo==='domicilio')?(Number(borrador.domi_precio)||0):0;
+  const total=Number(borrador.total)||(subtotal+empaque+domi);
+  const tipoLbl=borrador.tipo==='domicilio'?'Domicilio':((borrador.tipo==='recoger'||borrador.tipo==='rapido')?'Para llevar':'Pedido');
+  let lis=prods.map(p=>{ const q=Number(p.cantidad)||1, pr=(Number(p.unit_price)||0)*q;
+    return '<div class="cp-oli"><span class="cp-q">'+q+'×</span><span class="cp-oname">'+cpEsc(p.product_name||'Producto')+'</span><span class="cp-op">'+cpCOP(pr)+'</span></div>'; }).join('');
+  if(empaque>0) lis+='<div class="cp-oli"><span class="cp-q"></span><span class="cp-oname">Empaque</span><span class="cp-op">'+cpCOP(empaque)+'</span></div>';
+  if(domi>0)    lis+='<div class="cp-oli"><span class="cp-q"></span><span class="cp-oname">Domicilio</span><span class="cp-op">'+cpCOP(domi)+'</span></div>';
+  bar.innerHTML='<div class="cp-ocard">'
+    +'<div class="cp-ohd"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9B85FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/></svg><b>Pedido sin enviar · '+cpEsc(tipoLbl)+'</b><span class="cp-ost">Borrador</span></div>'
+    +'<div class="cp-obody">'+lis+'<div class="cp-otot">Total <span class="cp-op">'+cpCOP(total)+'</span></div></div>'
+    +'<div class="cp-draft-btns"><button class="cp-draft-edit" onclick="cpEditarBorrador()">✏️ Editar</button><button class="cp-draft-send" id="cpDraftSend" onclick="cpEnviarCocina()">🍳 Enviar a cocina</button></div>'
+    +'</div>';
+  bar.style.display='block';
 }
 async function loadDraftBar(convId){
   try{ const { data }=await sb.from('chat_conversations').select('pedido_borrador').eq('id', convId).maybeSingle();
