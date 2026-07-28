@@ -553,7 +553,7 @@ function renderBadges() {
   $('badge-pending').textContent = pending     || '';
   updateHumanBadge();
   updatePagoBadge();
-  $('totalUnread').textContent   = totalUnread ? `${totalUnread} sin leer` : `${S.conversations.length} conversaciones`;
+  const _tu = $('totalUnread'); if (_tu) _tu.textContent = totalUnread ? `${totalUnread} sin leer` : `${S.conversations.length} conversaciones`;
   renderChannelsSidebar();
   renderFilters();
 }
@@ -1857,11 +1857,11 @@ async function loadIaMaster() {
 function renderIaMaster(modo) {
   S.iaModo = modo;
   const wrap = document.getElementById('iaMaster');
-  const st   = document.getElementById('iaMasterState');
-  if (!wrap || !st) return;
+  if (!wrap) return;
   const m = IA_MODOS[modo] || IA_MODOS.off;
-  wrap.style.background = m.bg; wrap.style.borderColor = m.bd;
-  st.textContent = m.txt; st.style.color = m.col;
+  const dot = document.getElementById('iaMasterDot');
+  if (dot) { dot.style.background = m.col; dot.style.boxShadow = '0 0 0 3px ' + m.bg; }
+  wrap.title = m.txt;   // el detalle del estado queda en el tooltip
   document.querySelectorAll('#iaModes .ia-modo-btn').forEach(b => b.classList.toggle('on', b.dataset.iamodo === modo));
 }
 async function setIaModo(modo) {
