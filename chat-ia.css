@@ -1496,6 +1496,16 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .cp-draft-send{flex:1.4;padding:9px 16px;border-radius:9px;border:none;background:linear-gradient(180deg,#7C5CFF,#5B3FE0);color:#fff;font-weight:700;font-size:12.5px;cursor:pointer;transition:.15s;box-shadow:0 6px 16px rgba(124,92,255,.28)}
 .cp-draft-send:hover{filter:brightness(1.08)}
 .cp-draft-send:disabled{opacity:.6;cursor:default}
+/* Contraer / expandir la tarjeta de pedido */
+.cp-ohd-right{margin-left:auto;display:flex;align-items:center;gap:9px}
+.cp-ohd-tot{display:none;font-size:13px;font-weight:700;color:#EDEEF2;font-variant-numeric:tabular-nums}
+.cp-ocol{background:transparent;border:none;color:#787C8B;cursor:pointer;display:grid;place-items:center;padding:2px;border-radius:6px}
+.cp-ocol:hover{color:#EDEEF2;background:rgba(255,255,255,.06)}
+.cp-ocol svg{transition:transform .2s}
+.cp-ocard.collapsed .cp-ocol svg{transform:rotate(180deg)}
+.cp-ocard.collapsed .cp-ohd-tot{display:inline}
+.cp-ocard.collapsed .cp-obody,.cp-ocard.collapsed .cp-draft-btns{display:none}
+.cp-ocard.collapsed .cp-ohd{border-bottom:none}
 
 /* ── Banner LISTA NEGRA (aviso arriba del chat) ── */
 .ci-bl-banner{display:flex;align-items:center;gap:11px;padding:10px 16px;background:rgba(239,68,68,.15);border-bottom:1px solid rgba(239,68,68,.32);color:#fca5a5;font-size:13px;font-weight:600;flex-shrink:0}

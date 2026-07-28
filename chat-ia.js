@@ -1637,12 +1637,20 @@ function renderDraftBar(borrador){
     return '<div class="cp-oli"><span class="cp-q">'+q+'×</span><span class="cp-oname">'+cpEsc(p.product_name||'Producto')+'</span><span class="cp-op">'+cpCOP(pr)+'</span></div>'; }).join('');
   if(empaque>0) lis+='<div class="cp-oli"><span class="cp-q"></span><span class="cp-oname">Empaque</span><span class="cp-op">'+cpCOP(empaque)+'</span></div>';
   if(domi>0)    lis+='<div class="cp-oli"><span class="cp-q"></span><span class="cp-oname">Domicilio</span><span class="cp-op">'+cpCOP(domi)+'</span></div>';
-  bar.innerHTML='<div class="cp-ocard">'
-    +'<div class="cp-ohd"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9B85FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/></svg><b>Pedido sin enviar · '+cpEsc(tipoLbl)+'</b><span class="cp-ost">Borrador</span></div>'
+  const col = S._draftCollapsed ? ' collapsed' : '';
+  bar.innerHTML='<div class="cp-ocard'+col+'">'
+    +'<div class="cp-ohd"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9B85FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/></svg><b>Pedido sin enviar · '+cpEsc(tipoLbl)+'</b>'
+      +'<div class="cp-ohd-right"><span class="cp-ohd-tot">'+cpCOP(total)+'</span><span class="cp-ost">Borrador</span>'
+      +'<button class="cp-ocol" onclick="toggleDraftCollapse()" title="Contraer / expandir"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg></button></div></div>'
     +'<div class="cp-obody">'+lis+'<div class="cp-otot">Total <span class="cp-op">'+cpCOP(total)+'</span></div></div>'
     +'<div class="cp-draft-btns"><button class="cp-draft-edit" onclick="cpEditarBorrador()">✏️ Editar</button><button class="cp-draft-send" id="cpDraftSend" onclick="cpEnviarCocina()">🍳 Enviar a cocina</button></div>'
     +'</div>';
   bar.style.display='block';
+}
+function toggleDraftCollapse(){
+  S._draftCollapsed = !S._draftCollapsed;
+  const card = document.querySelector('#cpDraftBar .cp-ocard');
+  if(card) card.classList.toggle('collapsed', S._draftCollapsed);
 }
 async function loadDraftBar(convId){
   try{ const { data }=await sb.from('chat_conversations').select('pedido_borrador').eq('id', convId).maybeSingle();
