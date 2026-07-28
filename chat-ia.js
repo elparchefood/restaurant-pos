@@ -530,7 +530,7 @@ function messageHTML(m) {
       mediaHtml = `<a href="${escHtml(m.media_url)}" target="_blank" rel="noopener"><img src="${escHtml(m.media_url)}" class="ci-img-thumb" alt="imagen" loading="lazy"></a>`;
       // Imagen entrante = posible comprobante → acciones de pago inline (mockup)
       if (m.direction === 'in') {
-        mediaHtml += `<div class="ci-img-pay"><button class="ci-img-pay-btn ac" onclick="verificarPagoModal()">💳 Verificar pago</button><button class="ci-img-pay-btn" onclick="marcarPagadoModal()">Marcar pagado</button></div>`;
+        mediaHtml += `<div class="ci-img-pay"><button class="ci-img-pay-btn ac" onclick="verificarPagoModal()">Verificar pago</button><button class="ci-img-pay-btn" onclick="marcarPagadoModal()">Marcar pagado</button></div>`;
       }
     } else if (m.media_type === 'video') {
       mediaHtml = `<video src="${escHtml(m.media_url)}" class="ci-video-thumb" controls preload="metadata"></video>`;
