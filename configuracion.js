@@ -3197,9 +3197,13 @@ var _storedZonas = [];
     }
   }
 
-  function connectGmail() {
+  async function connectGmail() {
     var branchId = _cfgBranchId || (window._pos && window._pos.state && window._pos.state.branchId) || '';
     if (!branchId) { alert('No se encontro el ID de la sucursal. Recarga la pagina e intenta de nuevo.'); return; }
+    // Baseline: recordar la conexion ACTUAL para no confundirla con la nueva (evita que
+    // el poll detecte el correo viejo y cierre la ventana de Google antes de tiempo).
+    var baselineConn = null;
+    try { var _bl = await sb.from('ia_config').select('gmail_connected_at').eq('branch_id', branchId).limit(1); baselineConn = (_bl && _bl.data && _bl.data[0]) ? _bl.data[0].gmail_connected_at : null; } catch(e){}
     var clientId = '673589658608-e3p5i9pt9gsjjivocu9unpsd2r8e2k34.apps.googleusercontent.com';
     var redirectUri = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/gmail-oauth-callback';
     var scope = 'https://www.googleapis.com/auth/gmail.readonly';
@@ -3227,7 +3231,7 @@ var _storedZonas = [];
           .eq('branch_id', branchId)
           .limit(1);
         var row = rows && rows.data && rows.data[0];
-        if (row && row.gmail_email) {
+        if (row && row.gmail_email && row.gmail_connected_at && row.gmail_connected_at !== baselineConn) {
           clearInterval(pollTimer);
           if (authWin && !authWin.closed) { try { authWin.close(); } catch(e) {} }
           applyGmailStatus(row.gmail_email, row.gmail_connected_at);
@@ -3244,6 +3248,11 @@ var _storedZonas = [];
 
     async function disconnectGmail() {
     if (!confirm('Desconectar Gmail? El bot dejara de verificar transferencias automaticamente.')) return;
+    var branchId = _cfgBranchId || (window._pos && window._pos.state && window._pos.state.branchId) || '';
+    if (branchId) {
+      try { await sb.from('ia_config').update({ gmail_email: null, gmail_refresh_token: null, gmail_connected_at: null }).eq('branch_id', branchId); }
+      catch(e) { console.error('desconectar gmail:', e); }
+    }
     applyGmailStatus(null, null);
   }
 
