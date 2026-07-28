@@ -3209,7 +3209,7 @@ var _storedZonas = [];
       '&response_type=code' +
       '&scope=' + encodeURIComponent(scope) +
       '&access_type=offline' +
-      '&prompt=consent' +
+      '&prompt=' + encodeURIComponent('select_account consent') +   // fuerza el selector de cuenta (permite elegir OTRO Gmail)
       '&state=' + encodeURIComponent(branchId);
 
     var authWin = window.open(authUrl, '_blank');
