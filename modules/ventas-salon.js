@@ -2408,17 +2408,20 @@
       }
       case 'quick-entregar': {
         const qeId = e.currentTarget.dataset.quickId;
-        const sbQE = window._pos && window._pos.sb;
-        if (sbQE && qeId) {
+        if (qeId) {
           const nowIso = new Date().toISOString();
-          sbQE.from('pos_orders').update({ delivered_at: nowIso }).eq('id', qeId)
-            .then(function() {
-              // #6: NO se quita la tarjeta. Queda visible en estado "Entregado"
-              // hasta que se cierre la caja.
-              const oo = state.quickOrders.find(function(x){ return x.id === qeId; });
-              if (oo) { oo.status = 'entregado'; oo.delivered_at = nowIso; }
-              render();
-            });
+          // #6: NO se quita la tarjeta. Queda visible en estado "Entregado"
+          // hasta que se cierre la caja.
+          const oo = state.quickOrders.find(function(x){ return x.id === qeId; });
+          if (oo) { oo.status = 'entregado'; oo.estado = 'entregado'; oo.delivered_at = nowIso; }
+          render();
+          // Función central: marca entregado + delivered_at Y SINCRONIZA la pastilla/
+          // etiqueta del chat (antes se escribía delivered_at directo y el chat quedaba
+          // con la pastilla vieja, p.ej. "En preparación").
+          fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/cambiar-estado', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order_id: qeId, estado: 'entregado' })
+          }).then(function(r){ return r.json(); }).then(function(x){ if (x && x.error) console.error('cambiar-estado:', x.error); }).catch(function(){});
         }
         break;
       }
