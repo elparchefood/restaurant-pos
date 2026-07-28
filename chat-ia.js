@@ -1953,9 +1953,9 @@ async function qmDelete(i) {
             usa los mismos horarios de ia_config para saber abierto/cerrado.
    Se mantiene `activo` sincronizado (off→false, on/auto→true) por compat. */
 const IA_MODOS = {
-  off:  { txt: 'Pausado · contestas tú',                      col: '#DC2626', bg: '#FEF2F2', bd: '#FECACA', toast: '⏸️ Asistente pausado · contestas tú' },
-  on:   { txt: 'Encendido · responde siempre',                col: '#16A34A', bg: '#F0FDF4', bd: '#BBF7D0', toast: '✅ Asistente encendido · responde siempre' },
-  auto: { txt: 'Automático · responde solo fuera del horario', col: '#2563EB', bg: '#EFF6FF', bd: '#BFDBFE', toast: '🕐 Automático · el bot contesta solo fuera del horario' },
+  off:  { txt: 'Pausado · contestas tú',                      col: '#F2555A', bg: 'rgba(242,85,90,.16)', bd: '#FECACA', toast: '⏸️ Asistente pausado · contestas tú' },
+  on:   { txt: 'Encendido · responde siempre',                col: '#2FCB6F', bg: 'rgba(47,203,111,.16)', bd: '#BBF7D0', toast: '✅ Asistente encendido · responde siempre' },
+  auto: { txt: 'Automático · responde solo fuera del horario', col: '#7C5CFF', bg: 'rgba(124,92,255,.16)', bd: '#BFDBFE', toast: '🕐 Automático · el bot contesta solo fuera del horario' },
 };
 async function loadIaMaster() {
   if (!S.branchId) return;
