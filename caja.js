@@ -1402,6 +1402,12 @@ async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoCon
     if (S.branchId) qOrfanas.eq('branch_id', S.branchId);
     await qOrfanas;
 
+    // Al cerrar caja, el día terminó: se limpian las etiquetas de estado de los
+    // chats (En preparación / Listo / En camino / Entregado) para que mañana el
+    // tablero arranque limpio y los clientes que vuelvan a escribir aparezcan
+    // como consulta nueva. Los pedidos quedan intactos en Ventas/Informes.
+    try { await limpiarEtiquetasEstadoChat(S.branchId); } catch(e) { console.warn('limpiar etiquetas estado:', e); }
+
     // Imprimir el cierre ANTES de refrescar (refreshAll limpia S.session/arqueo)
     try {
       const cerrada = Object.assign({}, S.session, upd);
@@ -1411,6 +1417,31 @@ async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoCon
     showToast('Caja cerrada correctamente');
     await refreshAll();
   } catch(e) { console.error(e); showToast('Error al cerrar caja'); }
+}
+
+// Quita las etiquetas de estado de pedido (En preparación/Listo/En camino/
+// Entregado, para llevar y domicilio) de TODAS las conversaciones del branch.
+// Se llama al cerrar caja para reiniciar el tablero del chat cada día.
+async function limpiarEtiquetasEstadoChat(branchId) {
+  if (!branchId) return;
+  const { data: cfgRow } = await sb.from('ia_config').select('estados_config').eq('branch_id', branchId).maybeSingle();
+  const cfg = (cfgRow && cfgRow.estados_config) || {};
+  const stateIds = new Set();
+  ['llevar', 'domicilio'].forEach(function(t){
+    ['en_preparacion', 'listo', 'en_camino', 'entregado'].forEach(function(k){
+      var et = cfg[t] && cfg[t][k] && cfg[t][k].etiqueta;
+      if (et) stateIds.add(et);
+    });
+  });
+  if (!stateIds.size) return;
+  const { data: convs } = await sb.from('chat_conversations').select('id,labels').eq('branch_id', branchId);
+  for (const c of (convs || [])) {
+    if (!Array.isArray(c.labels) || !c.labels.length) continue;
+    const next = c.labels.filter(function(l){ return !stateIds.has(l); });
+    if (next.length !== c.labels.length) {
+      await sb.from('chat_conversations').update({ labels: next }).eq('id', c.id);
+    }
+  }
 }
 
 async function handleAddMovimiento(type, amount, concept, medio) {

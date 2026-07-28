@@ -176,6 +176,9 @@ function subscribeRealtime() {
           sb.from('chat_conversations').update({ unread_count: 0 }).eq('id', msg.conversation_id);  // y también en la BD
         }
         S.conversations.sort((a,b) => new Date(b.last_message_at) - new Date(a.last_message_at));
+        // Si el cliente quedó "Entregado" y vuelve a escribir, es un pedido NUEVO:
+        // se le quitan las etiquetas de estado para que vuelva limpio a la bandeja.
+        if (msg.direction === 'in') limpiarEstadoSiVuelveAEscribir(S.conversations[idx]);
         renderConvList(); renderBadges();
       }
     })
@@ -1722,7 +1725,7 @@ function renderDraftBar(borrador){
       +'<div class="cp-ohd-right"><span class="cp-ohd-tot">'+cpCOP(total)+'</span><span class="cp-ost">Borrador</span>'
       +'<button class="cp-ocol" onclick="toggleDraftCollapse()" title="Contraer / expandir"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg></button></div></div>'
     +'<div class="cp-obody">'+lis+'<div class="cp-otot">Total <span class="cp-op">'+cpCOP(total)+'</span></div></div>'
-    +'<div class="cp-draft-btns"><button class="cp-draft-edit" onclick="cpEditarBorrador()">✏️ Editar</button><button class="cp-draft-send" id="cpDraftSend" onclick="cpEnviarCocina()">🍳 Enviar a cocina</button></div>'
+    +'<div class="cp-draft-btns"><button class="cp-draft-discard" onclick="cpDescartarBorrador()" title="Descartar este pedido (el cliente se arrepintió)">🗑️ Descartar</button><button class="cp-draft-edit" onclick="cpEditarBorrador()">✏️ Editar</button><button class="cp-draft-send" id="cpDraftSend" onclick="cpEnviarCocina()">🍳 Enviar a cocina</button></div>'
     +'</div>';
   bar.style.display='block';
 }
@@ -1730,6 +1733,23 @@ function toggleDraftCollapse(){
   S._draftCollapsed = !S._draftCollapsed;
   const card = document.querySelector('#cpDraftBar .cp-ocard');
   if(card) card.classList.toggle('collapsed', S._draftCollapsed);
+}
+// Descartar el borrador (el cliente se arrepintió). Solo aplica al borrador —
+// NO toca pedidos ya creados (esos se anulan desde Ventas). Pide confirmación.
+function cpDescartarBorrador(){
+  const row=document.querySelector('#cpDraftBar .cp-draft-btns'); if(!row) return;
+  row.innerHTML='<span class="cp-draft-confirm">¿Descartar el pedido?</span>'
+    +'<button class="cp-draft-edit" onclick="loadDraftBar(S.activeConvId)">No</button>'
+    +'<button class="cp-draft-discard-yes" onclick="cpDescartarConfirmar()">Sí, descartar</button>';
+}
+async function cpDescartarConfirmar(){
+  const convId=S.activeConvId;
+  try{
+    const { error }=await sb.from('chat_conversations').update({ pedido_borrador: null }).eq('id', convId);
+    if(error){ showToast('No se pudo descartar: '+error.message,'error'); return; }
+    renderDraftBar(null);
+    showToast('Pedido descartado','success');
+  }catch(e){ showToast('No se pudo descartar el pedido','error'); }
 }
 async function loadDraftBar(convId){
   try{ const { data }=await sb.from('chat_conversations').select('pedido_borrador').eq('id', convId).maybeSingle();
@@ -2261,6 +2281,34 @@ async function getEstadosConfig(){
   try{ const { data }=await sb.from('ia_config').select('estados_config').eq('branch_id', S.branchId).maybeSingle();
     S._estadosConfig=(data && data.estados_config) || {}; }catch(e){ S._estadosConfig={}; }
   return S._estadosConfig;
+}
+// Conjuntos de etiquetas de estado según la config (llevar + domicilio).
+function _stateLabelSets(cfg){
+  const todas = new Set(), entregado = new Set();
+  ['llevar','domicilio'].forEach(function(t){
+    ['en_preparacion','listo','en_camino','entregado'].forEach(function(k){
+      var et = cfg && cfg[t] && cfg[t][k] && cfg[t][k].etiqueta;
+      if(et){ todas.add(et); if(k==='entregado') entregado.add(et); }
+    });
+  });
+  return { todas: todas, entregado: entregado };
+}
+// Si la conversación quedó "Entregado" (pedido completado) y el cliente vuelve a
+// escribir, se le quitan TODAS las etiquetas de estado para que reaparezca en la
+// bandeja como una consulta nueva, lista para el próximo pedido.
+async function limpiarEstadoSiVuelveAEscribir(conv){
+  if(!conv) return;
+  const cfg = await getEstadosConfig();
+  const sets = _stateLabelSets(cfg);
+  const labels = Array.isArray(conv.labels) ? conv.labels : [];
+  if(!labels.some(function(l){ return sets.entregado.has(l); })) return;   // solo si está "Entregado"
+  const next = labels.filter(function(l){ return !sets.todas.has(l); });
+  try{
+    await sb.from('chat_conversations').update({ labels: next }).eq('id', conv.id);
+    conv.labels = next;
+    if(typeof updateLabelBadges==='function') updateLabelBadges();
+    renderConvList();
+  }catch(e){ console.error('limpiarEstado:', e); }
 }
 /* Al cambiar un estado: pone la etiqueta configurada (quitando otras de estado) y
    envía el mensaje configurado al cliente. Sirve para llevar y domicilio. */

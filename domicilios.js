@@ -1764,12 +1764,20 @@ function advanceDelivery(id) {
   const next = ESTADO_NEXT(d.estado);
   if (!next) return;
   d.estado = next;
-  // PERSISTIR el avance (antes solo cambiaba en memoria y se perdía al recargar)
+  // PERSISTIR el avance vía la función central 'cambiar-estado': escribe estado +
+  // delivery_status + delivered_at, SINCRONIZA la pastilla/etiqueta del chat y
+  // envía el mensaje configurado al cliente. Antes se escribía delivery_status
+  // directo y el chat quedaba con la pastilla vieja (p.ej. "En preparación"
+  // aunque ya se hubiera entregado).
   if (d.supabaseId) {
-    const upd = { delivery_status: next };
-    if (next === 'entregado') upd.delivered_at = new Date().toISOString();
-    sb.from('pos_orders').update(upd).eq('id', d.supabaseId)
-      .then(r => { if (r.error) console.error('[domicilios] advance persist:', r.error); });
+    fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/cambiar-estado', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_id: d.supabaseId, estado: next })
+    })
+      .then(r => r.json())
+      .then(res => { if (res && res.error) console.error('[domicilios] cambiar-estado:', res.error); })
+      .catch(e => console.error('[domicilios] cambiar-estado fetch:', e));
   }
   renderMonitor();
   updateMonitorBadge();
