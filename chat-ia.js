@@ -71,16 +71,18 @@ async function boot() {
     if (!branch) { showFatalError('No hay sucursal configurada'); return; }
     S.branchId = branch.id;
 
-    const { data: user } = await sb.from('pos_users').select('id,full_name,role').eq('tenant_id', S.tenantId).limit(1).single();
-    S.user = user;
-
     $('branchLabel').textContent = branch.name;
-    if (user) {
-      const initials = user.full_name ? user.full_name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : '??';
-      $('userAv').textContent   = initials;
-      $('userName').textContent = user.full_name || '—';
-      $('userRole').textContent = user.role      || 'Usuario';
-    }
+
+    // Pie del sidebar = la CUENTA que tiene la sesión abierta (auth), no el
+    // primer usuario del tenant. Nombre + rol reales, y el avatar queda listo
+    // para mostrar la foto del negocio cuando se suba.
+    await pintarUsuarioActual();
+
+    // (se mantiene S.user con el primer pos_users para lógica interna existente)
+    try {
+      const { data: user } = await sb.from('pos_users').select('id,full_name,role').eq('tenant_id', S.tenantId).limit(1).maybeSingle();
+      S.user = user || null;
+    } catch (e) { S.user = null; }
 
     await Promise.all([loadChannels(), loadConversations(), loadIaMaster(), loadQuickReplies(), loadEtiquetas()]);
     document.querySelectorAll('#iaModes .ia-modo-btn').forEach(function(b){
@@ -2604,6 +2606,43 @@ function prettyPreview(s) {
     if (/^(ubicaci[oó]n|location)$/.test(k))             return '📍 Ubicación';
   }
   return escHtml(raw);
+}
+// Pinta el nombre, rol y avatar de la cuenta con sesión abierta en el pie del sidebar.
+async function pintarUsuarioActual() {
+  let nombre = '', rol = '', avatarUrl = '';
+  try {
+    const { data: au } = await sb.auth.getUser();
+    const u = au && au.user;
+    const meta = (u && u.user_metadata) || {};
+    nombre    = meta.full_name || meta.name || meta.nombre || meta.restaurant_name || (u && u.email) || '';
+    rol       = meta.role || meta.rol || '';
+    avatarUrl = meta.avatar_url || meta.foto_negocio || meta.business_photo_url || meta.logo_url || '';
+  } catch (e) { /* sin sesión legible */ }
+
+  // Complemento desde pos_users si faltara nombre o rol
+  if (!nombre || !rol) {
+    try {
+      const { data: pu } = await sb.from('pos_users').select('full_name,role').eq('tenant_id', S.tenantId).limit(1).maybeSingle();
+      if (pu) { nombre = nombre || pu.full_name || ''; rol = rol || pu.role || ''; }
+    } catch (e) {}
+  }
+
+  const nombreFinal = nombre || 'Mi cuenta';
+  const rolFinal = rol ? (rol.charAt(0).toUpperCase() + rol.slice(1)) : 'Usuario';
+  const nEl = $('userName'); if (nEl) nEl.textContent = nombreFinal;
+  const rEl = $('userRole'); if (rEl) rEl.textContent = rolFinal;
+
+  const avEl = $('userAv');
+  if (avEl) {
+    if (avatarUrl) {
+      // Foto del negocio (cuando se suba): llena el recuadro completo.
+      avEl.innerHTML = `<img src="${escHtml(avatarUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block">`;
+      avEl.style.background = 'transparent';
+    } else {
+      const initials = nombreFinal.split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0,2).toUpperCase() || '??';
+      avEl.textContent = initials;
+    }
+  }
 }
 function showFatalError(msg) {
   document.body.innerHTML = `<div style="display:flex;height:100vh;align-items:center;justify-content:center;font-family:sans-serif;color:#F43F5E;font-size:14px;gap:8px">${escHtml(msg)}</div>`;
