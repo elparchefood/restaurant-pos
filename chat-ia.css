@@ -496,21 +496,22 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .ci-row.out { justify-content: flex-end; }
 
 .ci-bubble {
-  max-width: 70%;
-  padding: 9px 12px;
-  font-size: 13.5px; line-height: 1.45;
+  max-width: 72%;
+  padding: 10px 13px;
+  font-size: 14.5px; line-height: 1.45;
   position: relative;
 }
 .ci-bubble.in {
-  background: var(--surface);
+  background: #161821;
   border: 1px solid var(--border);
-  border-radius: 16px 16px 16px 5px;
+  border-radius: 16px 16px 16px 6px;
   color: var(--text-1);
 }
 .ci-bubble.out {
-  background: var(--accent);
-  border-radius: 16px 16px 5px 16px;
+  background: linear-gradient(135deg, #7C5CFF 0%, #5B3FE0 100%);
+  border-radius: 16px 16px 6px 16px;
   color: #fff;
+  box-shadow: 0 10px 26px rgba(92,63,226,.26);
 }
 
 .ci-bubble .ci-meta {
