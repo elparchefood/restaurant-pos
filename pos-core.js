@@ -23,18 +23,30 @@ const COP = n => {
 const COPF = n => '$' + Math.round(n||0).toLocaleString('es-CO');
 const pct  = (a,b) => b ? Math.min(100, Math.round((a/b)*100)) : 0;
 
+// Zona horaria del negocio en horas vs UTC (Colombia = -5). Con esto "hoy" se calcula en
+// hora LOCAL del negocio y NO se reinicia el día a las 7pm (medianoche UTC). Multi-tenant:
+// a futuro se puede leer de ia_config.zona_horaria; por ahora Colombia por defecto.
+const POS_TZ_OFFSET = -5;
+const _posTzStr = (function (off) {
+  const s = off <= 0 ? '-' : '+';
+  const a = Math.abs(off);
+  return s + String(Math.floor(a)).padStart(2, '0') + ':' + String(Math.round((a % 1) * 60)).padStart(2, '0');
+})(POS_TZ_OFFSET);
+
 function todayISO() {
-  const d = new Date();
-  return d.toISOString().slice(0,10);
+  // Fecha "de hoy" en la zona horaria del negocio (no UTC).
+  const d = new Date(Date.now() + POS_TZ_OFFSET * 3600000);
+  return d.toISOString().slice(0, 10);
 }
 function todayRange() {
   const t = todayISO();
-  return { start: t + 'T00:00:00.000Z', end: t + 'T23:59:59.999Z' };
+  // Medianoche local del negocio → instante UTC correcto (Colombia 00:00 = 05:00Z).
+  return { start: t + 'T00:00:00.000' + _posTzStr, end: t + 'T23:59:59.999' + _posTzStr };
 }
 function daysAgoISO(n) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0,10);
+  const d = new Date(Date.now() + POS_TZ_OFFSET * 3600000);
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
 }
 
 // ── window._pos — Bus de eventos y estado global ──────────────────────────
