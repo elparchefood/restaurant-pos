@@ -622,6 +622,51 @@ function normDir(s){
   return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
 }
 
+/* Modal: agregar el contacto del chat a la lista negra (pre-llena teléfono/dirección). */
+async function openBlacklistModal(){
+  closeMoreMenu && closeMoreMenu();
+  const conv = getActiveConv();
+  if(!conv){ showToast('Abre un chat primero','info'); return; }
+  let dir='';
+  try{ const { data:cd }=await sb.from('chat_conversations').select('pedido_borrador').eq('id', conv.id).maybeSingle();
+    dir = (cd && cd.pedido_borrador && cd.pedido_borrador.direccion) || '';
+  }catch(_e){}
+  const nombre = conv.contact_name || '';
+  const tel = conv.contact_handle || '';
+  const ov=document.createElement('div'); ov.className='bl-ov';
+  ov.innerHTML='<div class="bl-box">'
+    +'<div class="bl-title"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg> Agregar a lista negra</div>'
+    +'<div class="bl-sub">Se bloqueará por <b>teléfono</b> y por <b>dirección exacta</b>. El nombre es solo referencia.</div>'
+    +'<label class="bl-lbl">Nombre (referencia)</label><input class="bl-inp" id="blNombre" placeholder="Ej. Mariana">'
+    +'<label class="bl-lbl">Teléfono</label><input class="bl-inp" id="blTel" placeholder="Número">'
+    +'<label class="bl-lbl">Dirección exacta (casa/apto)</label><input class="bl-inp" id="blDir" placeholder="Ej. Reserva del Bosque bloque 5 casa 12">'
+    +'<label class="bl-lbl">Razón</label><textarea class="bl-inp bl-txa" id="blRazon" rows="2" placeholder="Ej. Pide, hace preparar y cancela"></textarea>'
+    +'<div class="bl-btns"><button class="bl-cancel" type="button">Cancelar</button><button class="bl-save" type="button">🚫 Bloquear</button></div>'
+    +'</div>';
+  document.body.appendChild(ov);
+  ov.querySelector('#blNombre').value=nombre;
+  ov.querySelector('#blTel').value=tel;
+  ov.querySelector('#blDir').value=dir;
+  const close=function(){ ov.remove(); };
+  ov.querySelector('.bl-cancel').onclick=close;
+  ov.onclick=function(e){ if(e.target===ov) close(); };
+  ov.querySelector('.bl-save').onclick=async function(){
+    const btn=this; btn.disabled=true; btn.textContent='Guardando…';
+    const pNombre=ov.querySelector('#blNombre').value.trim();
+    const pTel=ov.querySelector('#blTel').value.trim();
+    const pDir=ov.querySelector('#blDir').value.trim();
+    const pRazon=ov.querySelector('#blRazon').value.trim();
+    if(!pTel && !pDir){ showToast('Pon al menos el teléfono o la dirección','error'); btn.disabled=false; btn.textContent='🚫 Bloquear'; return; }
+    try{
+      const { error }=await sb.rpc('lista_negra_agregar', { p_tenant:S.tenantId, p_nombre:pNombre||null, p_razon:pRazon||null, p_tel:pTel||null, p_dir:pDir||null, p_dir_norm:pDir?normDir(pDir):null, p_auto:false });
+      if(error) throw error;
+      showToast('🚫 Agregado a lista negra','success');
+      close();
+      checkBlacklist(conv);   // refresca el banner
+    }catch(e){ showToast('No se pudo agregar: '+(e&&e.message||e),'error'); btn.disabled=false; btn.textContent='🚫 Bloquear'; }
+  };
+}
+
 /* ══════════════════════════════════════════════
    MODAL DE CONEXIÓN DE CANALES
 ══════════════════════════════════════════════ */

@@ -14,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="pos-perms.js?v=1785030000"></script>
   <script>if(window.posRequirePin) posRequirePin('chat.usar');</script>
-  <link rel="stylesheet" href="chat-ia.css?v=24">
+  <link rel="stylesheet" href="chat-ia.css?v=25">
 </head>
 <body>
 
@@ -202,6 +202,10 @@
               <span class="ci-more-label">Nomenclatura</span>
               <span class="ci-more-hint" id="nomHint">Sin asignar</span>
             </button>
+            <button class="ci-more-item ci-more-bl" id="blItem" onclick="openBlacklistModal()">
+              <span class="ci-more-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg></span>
+              <span class="ci-more-label" id="blItemLabel">Agregar a lista negra</span>
+            </button>
             <div class="ci-more-div"></div>
             <div class="ci-more-sec">Etiquetas</div>
             <button class="ci-more-item" onclick="openEtiquetarChat()">
@@ -380,7 +384,7 @@
   </div>
 </div>
 
-<script src="chat-ia.js?v=1786150000"></script>
+<script src="chat-ia.js?v=1786160000"></script>
 <script src="pos-print.js?v=1786093000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>
