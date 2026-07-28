@@ -1646,6 +1646,23 @@ async function cpEnviarCocina(){
   let o=null;
   try{ const { data }=await sb.from('chat_conversations').select('pedido_borrador').eq('id', convId).maybeSingle(); o=data&&data.pedido_borrador; }catch(e){}
   if(!o || !(o.productos||[]).length){ showToast('No hay pedido para enviar','error'); return; }
+  // ── LISTA NEGRA: si el cliente del pedido está bloqueado (teléfono o dirección), avisar y confirmar ──
+  try{
+    const _tel=o.telefono||'', _dir=o.direccion||'';
+    if(_tel || _dir){
+      const { data:casc }=await sb.rpc('lista_negra_cascada', { p_tenant:S.tenantId, p_tel:_tel||null, p_dir:_dir||null, p_dir_norm:_dir?normDir(_dir):null });
+      if(casc && casc.bloqueado){
+        const quien = casc.nombre ? ' <b>'+escHtml(casc.nombre)+'</b>' : '';
+        const razon = casc.razon ? '<div style="font-size:12.5px;color:#64748B;margin-top:6px">'+escHtml(casc.razon)+'</div>' : '';
+        const ok = await ciConfirm('🚫 Este cliente está en <b>lista negra</b>'+quien+'.'+razon+'<div style="margin-top:8px">¿Enviar el pedido a cocina de todas formas?</div>');
+        if(!ok) return;
+        if(casc.motivo==='direccion' && casc.sugerir_agregar_telefono){
+          const add = await ciConfirm('Esta dirección ya estaba bloqueada. ¿Agregar también el número <b>'+escHtml(casc.telefono_sugerido||_tel)+'</b> a'+quien+'? (mismo cliente evadiendo con otro número)');
+          if(add){ try{ await sb.rpc('lista_negra_agregar', { p_tenant:S.tenantId, p_nombre:null, p_razon:null, p_tel:_tel, p_dir:null, p_dir_norm:null, p_auto:true }); showToast('Número agregado a lista negra','success'); }catch(_e){} }
+        }
+      }
+    }
+  }catch(_e){}
   const payload={ conversation_id:convId, branch_id:o.branch_id, tenant_id:o.tenant_id, cliente:o.cliente, telefono:o.telefono, direccion:o.direccion||'', barrio:o.barrio||'', tipo:o.tipo, pago:o.pago, notas:o.notas, domi_precio:(o.tipo==='domicilio'?(Number(o.domi_precio)||0):0), empaque:Number(o.empaque)||0,
     productos:(o.productos||[]).map(p=>({ product_id:p.product_id, product_name:p.product_name, unit_price:p.unit_price, cantidad:p.cantidad, tamano:p.tamano, variantes:p.variantes||{}, adiciones:p.adiciones||[], notas:p.notas })) };
   const btn=document.getElementById('cpDraftSend'); if(btn){ btn.disabled=true; btn.textContent='Enviando…'; }
