@@ -471,6 +471,44 @@ function closeMsgPopup() {
   _activeMsgId = null;
 }
 
+/* ── Nota de voz: helpers ── */
+function fmtDur(s){ s=Math.max(0,Math.floor(s||0)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+function voiceBars(seed, n){
+  let h=2166136261>>>0;
+  for(let i=0;i<seed.length;i++){ h^=seed.charCodeAt(i); h=Math.imul(h,16777619)>>>0; }
+  const out=[]; for(let i=0;i<n;i++){ h=(Math.imul(h,1103515245)+12345)>>>0; out.push(6+(h%25)); }
+  return out;
+}
+function _vSetIco(btn, playing){ const ic=btn.querySelector('.ci-vico'); if(ic) ic.innerHTML = playing ? '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>' : '<path d="M7 4l13 8-13 8z"/>'; }
+function voiceToggle(btn){
+  const voice = btn.parentElement;
+  const bubble = btn.closest('.ci-voice-bubble');
+  const bars = voice ? Array.from(voice.querySelectorAll('.ci-wave i')) : [];
+  const timeEl = bubble ? bubble.querySelector('.ci-vtime') : null;
+  const spdEl  = bubble ? bubble.querySelector('.ci-vspd') : null;
+  // si este ya suena → pausar
+  if(window._voiceBtn===btn && btn._audio && !btn._audio.paused){ btn._audio.pause(); _vSetIco(btn,false); return; }
+  // detener el que estuviera sonando
+  if(window._voiceBtn && window._voiceBtn!==btn){ try{ window._voiceBtn._audio && window._voiceBtn._audio.pause(); }catch(_e){} _vSetIco(window._voiceBtn,false); }
+  let a = btn._audio;
+  if(!a){
+    a = new Audio(btn.dataset.audio); btn._audio=a;
+    a.ontimeupdate=()=>{ const p=a.duration?a.currentTime/a.duration:0; const idx=Math.round(p*bars.length); bars.forEach((b,i)=>b.classList.toggle('p', i<idx)); if(timeEl) timeEl.textContent=fmtDur(a.currentTime)+' / '+fmtDur(a.duration||0); };
+    a.onended=()=>{ _vSetIco(btn,false); bars.forEach(b=>b.classList.remove('p')); };
+    a.onerror=()=>{ if(timeEl) timeEl.textContent='error'; };
+  }
+  a.playbackRate = parseFloat((spdEl?spdEl.textContent:'1').replace('×',''))||1;
+  window._voiceBtn=btn;
+  a.play().then(()=>_vSetIco(btn,true)).catch(()=>{});
+}
+function voiceSpeed(el){
+  const cur=parseFloat((el.textContent||'1').replace('×',''))||1;
+  const next = cur===1?1.5:(cur===1.5?2:1);
+  el.textContent=next+'×';
+  const btn = el.closest('.ci-voice-bubble').querySelector('.ci-vplay');
+  if(btn && btn._audio) btn._audio.playbackRate=next;
+}
+
 function messageHTML(m) {
   const dir   = m.direction === 'in' ? 'in' : 'out';
   const time  = formatTime(m.sent_at);
@@ -479,6 +517,28 @@ function messageHTML(m) {
     : '';
   const menu  = msgTriggerHTML(m);
 
+  // ── NOTA DE VOZ (audio) → play + onda + transcripción (diseño handoff) ──
+  if (m.media_type === 'audio' && m.media_url) {
+    const trsRaw = (m.body || '').trim();
+    const isTrs  = trsRaw.indexOf('🎙') === 0;
+    const trsText = isTrs ? trsRaw.replace(/^🎙️?\s*/, '') : (trsRaw && trsRaw !== '[audio]' ? trsRaw : '');
+    const bars = voiceBars(String(m.id), 40).map(h => `<i style="height:${h}px"></i>`).join('');
+    const trsHtml = trsText
+      ? `<div class="ci-trs"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9B85FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10M9 6l3-3 3 3M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></svg><div><b>Transcripción automática</b>“${escHtml(trsText)}”</div></div>`
+      : '';
+    const aQuote = m._replyTo ? `<div class="ci-reply-quote"><div class="ci-reply-quote-bar"></div><div class="ci-reply-quote-body"><div class="ci-reply-quote-who">${escHtml(m._replyTo.who||'')}</div><div class="ci-reply-quote-text">🎤 Nota de voz</div></div></div>` : '';
+    return `<div class="ci-row ${dir}" data-msg-id="${m.id}">
+      <div class="ci-bubble ${dir} ci-voice-bubble">${menu}${aQuote}
+        <div class="ci-voice">
+          <button class="ci-vplay" onclick="voiceToggle(this)" data-audio="${escHtml(m.media_url)}"><svg class="ci-vico" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg></button>
+          <div class="ci-wave">${bars}</div>
+        </div>
+        <div class="ci-vmeta"><span class="ci-vtime mono">0:00</span><span class="ci-vspd" onclick="voiceSpeed(this)">1×</span></div>
+        ${trsHtml}
+        <div class="ci-meta">${time}${check}</div>
+      </div>
+    </div>`;
+  }
 
   if (m.media_type === 'location') {
     let loc = {};

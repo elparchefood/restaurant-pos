@@ -1507,6 +1507,27 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .cp-ocard.collapsed .cp-obody,.cp-ocard.collapsed .cp-draft-btns{display:none}
 .cp-ocard.collapsed .cp-ohd{border-bottom:none}
 
+/* ── Nota de voz (audio) ── */
+.ci-voice-bubble{min-width:300px}
+.ci-voice{display:flex;align-items:center;gap:13px}
+.ci-vplay{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none;cursor:pointer;border:0;color:#fff}
+.ci-bubble.in .ci-vplay{background:#7C5CFF}
+.ci-bubble.out .ci-vplay{background:rgba(255,255,255,.16)}
+.ci-wave{flex:1;display:flex;align-items:center;gap:2.5px;height:34px;overflow:hidden}
+.ci-wave i{display:block;width:3px;border-radius:2px;background:#585C6B;flex:none}
+.ci-bubble.in .ci-wave i.p{background:#9B85FF}
+.ci-bubble.out .ci-wave i{background:rgba(255,255,255,.32)}
+.ci-bubble.out .ci-wave i.p{background:#fff}
+.ci-vmeta{display:flex;align-items:center;gap:8px;font-size:11.5px;margin-top:8px;color:#787C8B}
+.ci-bubble.out .ci-vmeta{color:rgba(255,255,255,.7)}
+.ci-vspd{font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:6px;border:1px solid #262935;color:#A6A9B6;cursor:pointer;user-select:none}
+.ci-bubble.out .ci-vspd{border-color:rgba(255,255,255,.28);color:#fff}
+.ci-trs{display:flex;align-items:flex-start;gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed #262935;font-size:13px;color:#A6A9B6;line-height:1.5}
+.ci-bubble.out .ci-trs{border-top-color:rgba(255,255,255,.28);color:rgba(255,255,255,.85)}
+.ci-trs b{color:#9B85FF;font-size:10px;letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:3px;font-weight:600}
+.ci-bubble.out .ci-trs b{color:#fff}
+.ci-trs svg{margin-top:3px;flex:none}
+
 /* ── Banner LISTA NEGRA (aviso arriba del chat) ── */
 .ci-bl-banner{display:flex;align-items:center;gap:11px;padding:10px 16px;background:rgba(239,68,68,.15);border-bottom:1px solid rgba(239,68,68,.32);color:#fca5a5;font-size:13px;font-weight:600;flex-shrink:0}
 .ci-bl-banner svg{flex-shrink:0;color:#f87171}
