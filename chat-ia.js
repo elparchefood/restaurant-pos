@@ -127,7 +127,7 @@ async function loadConversations() {
 async function updateLabelBadges(){
   try{
     if(!(S.etiquetas||[]).length) return;
-    var res=await sb.from('chat_conversations').select('labels,unread_count').eq('branch_id',S.branchId).gt('unread_count',0);
+    var res=await sb.from('chat_conversations').select('labels,unread_count').eq('branch_id',S.branchId).eq('last_sender','contact').gt('unread_count',0);
     var rows=res.data||[]; var counts={};
     rows.forEach(function(c){ if(Array.isArray(c.labels)) c.labels.forEach(function(id){ counts[id]=(counts[id]||0)+(Number(c.unread_count)||0); }); });
     (S.etiquetas||[]).forEach(function(e){
@@ -231,13 +231,19 @@ function handleConvChange(payload) {
 ══════════════════════════════════════════════ */
 
 /* Sidebar: siempre los 4 canales, gris si no conectado */
+// Un chat solo cuenta como "sin leer" si tiene mensajes pendientes Y el último
+// mensaje lo mandó el cliente. Si el último lo mandaste tú (agente/bot), ya está
+// leído aunque haya quedado un unread_count viejo en la BD. Evita números fantasma.
+function isRealUnread(c) {
+  return (Number(c.unread_count) || 0) > 0 && c.last_sender === 'contact';
+}
 function renderChannelsSidebar() {
   const connectedMap = {};
   S.channels.forEach(c => { if (c.connected) connectedMap[c.channel] = c; });
 
   const counts = {};
   S.conversations.forEach(c => {
-    counts[c.channel] = (counts[c.channel] || 0) + (c.unread_count > 0 ? c.unread_count : 0);
+    counts[c.channel] = (counts[c.channel] || 0) + (isRealUnread(c) ? c.unread_count : 0);
   });
 
   $('channelsList').innerHTML = ALL_CHANNELS.map(ch => {
@@ -334,7 +340,7 @@ function convRowHTML(c) {
   const label    = c.contact_name || c.contact_handle || '?';
   const initials = avatarInitials(label);
   const avatarUrl = c.contact_avatar_url || null;
-  const isUnread = c.unread_count > 0;
+  const isUnread = isRealUnread(c);
   const isActive = c.id === S.activeConvId;
   const time     = formatTime(c.last_message_at);
 
@@ -639,8 +645,8 @@ function messageHTML(m) {
 }
 
 function renderBadges() {
-  const totalUnread = S.conversations.reduce((s,c) => s + (c.unread_count||0), 0);
-  const pending     = S.conversations.filter(c => c.last_sender==='contact' && c.unread_count>0).length;
+  const totalUnread = S.conversations.reduce((s,c) => s + (isRealUnread(c) ? c.unread_count : 0), 0);
+  const pending     = S.conversations.filter(c => isRealUnread(c)).length;
   $('badge-all').textContent     = totalUnread || '';
   $('badge-pending').textContent = pending     || '';
   updateHumanBadge();
