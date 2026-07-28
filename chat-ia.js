@@ -362,7 +362,7 @@ function convRowHTML(c) {
           <span class="ci-conv-time">${time}</span>
         </span>
         <span class="ci-conv-bot">
-          <span class="ci-conv-prev">${prevPrefix}${escHtml(c.last_message||'')}</span>
+          <span class="ci-conv-prev">${prevPrefix}${prettyPreview(c.last_message)}</span>
           ${rightBadge}
         </span>
       </span>
@@ -614,7 +614,8 @@ function messageHTML(m) {
     }
   }
 
-  const textHtml = m.body && m.media_type !== 'document' ? `<div>${escHtml(m.body)}</div>` : '';
+  const _isPlaceholder = m.body && /^\s*\[\s*(image|imagen|foto|photo|audio|voice|voz|nota de voz|video|v[ií]deo|sticker|documento?|document|file|archivo|ubicaci[oó]n|location|gif)\s*\]\s*$/i.test(m.body);
+  const textHtml = (m.body && m.media_type !== 'document' && !_isPlaceholder) ? `<div>${escHtml(m.body)}</div>` : '';
 
   // Build quote bubble — outgoing replies use _replyTo (session snapshot),
   // incoming replies from WhatsApp use reply_to_body / reply_to_external_id (from DB)
@@ -2580,6 +2581,23 @@ function formatDate(iso) {
 function escHtml(s) {
   if (!s) return '';
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+// Convierte el último mensaje en un resumen legible para la lista de conversaciones.
+// Si es un placeholder de medio ([image], [audio], etc.) muestra un ícono + etiqueta.
+function prettyPreview(s) {
+  if (!s) return '';
+  const raw = String(s).trim();
+  const m = raw.match(/^\[\s*(image|imagen|foto|photo|audio|voice|voz|nota de voz|video|v[ií]deo|sticker|documento?|document|file|archivo|ubicaci[oó]n|location|gif|medio)\s*\]$/i);
+  if (m) {
+    const k = m[1].toLowerCase();
+    if (/^(image|imagen|foto|photo|gif|medio)$/.test(k)) return '📷 Imagen';
+    if (/^(audio|voice|voz|nota de voz)$/.test(k))       return '🎤 Nota de voz';
+    if (/^(video|v[ií]deo)$/.test(k))                    return '🎬 Video';
+    if (/^sticker$/.test(k))                             return '🩷 Sticker';
+    if (/^(documento?|document|file|archivo)$/.test(k))  return '📄 Documento';
+    if (/^(ubicaci[oó]n|location)$/.test(k))             return '📍 Ubicación';
+  }
+  return escHtml(raw);
 }
 function showFatalError(msg) {
   document.body.innerHTML = `<div style="display:flex;height:100vh;align-items:center;justify-content:center;font-family:sans-serif;color:#F43F5E;font-size:14px;gap:8px">${escHtml(msg)}</div>`;
