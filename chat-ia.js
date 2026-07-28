@@ -2337,7 +2337,7 @@ async function marcarPagadoModal(prefill){
       +'<div class="mp-lbl">Monto que pagó</div>'
       +'<div class="mp-chips">'
         +'<button type="button" class="mp-chip'+(sel==='total'?' on':'')+'" data-amt="'+total+'">Total '+fmt(total)+'</button>'
-        +(domi?'<button type="button" class="mp-chip'+(sel==='comida'?' on':'')+'" data-amt="'+comida+'">Solo comida '+fmt(comida)+'</button>':'')
+        +(domi?'<button type="button" class="mp-chip'+(sel==='comida'?' on':'')+'" data-amt="'+comida+'">Solo pedido '+fmt(comida)+'</button>':'')
         +'<button type="button" class="mp-chip mp-otro'+(sel==='otro'?' on':'')+'">Otro</button>'
       +'</div>'
       +'<input class="mp-inp" id="mpMonto" type="number" inputmode="numeric" value="'+monto+'"'+(sel==='otro'?'':' style="display:none"')+'>'
