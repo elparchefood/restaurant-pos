@@ -2279,9 +2279,12 @@ async function vpResult(conv, d){
     +'<div class="vp-txt">'+qrEsc(d.mensaje||'')+'</div>'
     +checksHtml+extra
     +(etqMsg?'<div class="vp-etq">🏷️ '+qrEsc(etqMsg)+'</div>':'')
+    +'<button class="vp-pay" type="button">💳 Marcar como pagado</button>'
     +'<button class="vp-close" type="button">Entendido</button></div>';
   document.body.appendChild(ov);
   const done=function(){ ov.remove(); };
+  const btnPay=ov.querySelector('.vp-pay');
+  if(btnPay) btnPay.onclick=function(){ const amt=(d.datos&&Number(d.datos.monto_comprobante))||0; done(); marcarPagadoModal(amt>0?{amount:amt}:undefined); };
   ov.querySelector('.vp-close').onclick=done;
   ov.onclick=function(e){ if(e.target===ov) done(); };
 }
@@ -2299,6 +2302,75 @@ async function vpAplicarEtiquetaPago(conv){
   conv.labels = labels;
   if(typeof updateLabelBadges==='function') updateLabelBadges();
   return 'Etiqueta "'+nombre+'" aplicada';
+}
+
+/* ══════════════ MARCAR PEDIDO COMO PAGADO (desde el chat) ══════════════
+   Registra un pago sobre el pedido (método de la config del restaurante + monto),
+   para no tener que ir a Ventas/Pagos. Soporta total, solo comida y abono parcial. */
+async function marcarPagadoModal(prefill){
+  if(typeof closeMoreMenu==='function') closeMoreMenu();
+  const conv = getActiveConv();
+  if(!conv){ showToast('Abre un chat primero','info'); return; }
+  let ord=null;
+  try{
+    const { data:cd }=await sb.from('chat_conversations').select('order_id').eq('id',conv.id).maybeSingle();
+    if(cd && cd.order_id){ const r=await sb.from('pos_orders').select('id,total,total_final,delivery_fee,paid_amount,branch_id,tenant_id').eq('id',cd.order_id).maybeSingle(); ord=r.data; }
+  }catch(e){}
+  if(!ord){ showToast('Este chat no tiene un pedido enviado a cocina. Envíalo primero (🍳 Enviar a cocina).','info'); return; }
+  let metodos=[];
+  try{ const { data:ic }=await sb.from('ia_config').select('pagos').eq('branch_id',S.branchId).maybeSingle();
+    metodos=((ic&&ic.pagos&&ic.pagos.metodos)||[]).filter(m=>m&&m.activo!==false&&m.nombre);
+  }catch(e){}
+  if(!metodos.length) metodos=[{nombre:'Transferencia',tipo:'transferencia',digital:true},{nombre:'Efectivo',tipo:'efectivo'}];
+  const total=Number(ord.total)||0, comida=Number(ord.total_final)||total, domi=Number(ord.delivery_fee)||0, pagado=Number(ord.paid_amount)||0;
+  const pend=Math.max(0, total-pagado);
+  const fmt=n=>'$'+Math.round(Number(n)||0).toLocaleString('es-CO');
+  let monto = (prefill&&Number(prefill.amount)>0) ? Number(prefill.amount) : (pend||total);
+  let metodoSel = (prefill&&prefill.metodo) || (metodos.find(m=>m.digital)||metodos[0]).nombre;
+  const ov=document.createElement('div'); ov.className='mp-ov';
+  const preset = m => (m===total?'total':(domi&&m===comida?'comida':'otro'));
+  function draw(){
+    let sel=preset(monto);
+    ov.innerHTML='<div class="mp-box">'
+      +'<div class="mp-title">💳 Marcar como pagado</div>'
+      +'<div class="mp-info">Total <b>'+fmt(total)+'</b>'+(domi?' · Comida '+fmt(comida)+' · Domi '+fmt(domi):'')+(pagado?' · Ya pagado '+fmt(pagado):'')+'</div>'
+      +'<div class="mp-lbl">Monto que pagó</div>'
+      +'<div class="mp-chips">'
+        +'<button type="button" class="mp-chip'+(sel==='total'?' on':'')+'" data-amt="'+total+'">Total '+fmt(total)+'</button>'
+        +(domi?'<button type="button" class="mp-chip'+(sel==='comida'?' on':'')+'" data-amt="'+comida+'">Solo comida '+fmt(comida)+'</button>':'')
+        +'<button type="button" class="mp-chip mp-otro'+(sel==='otro'?' on':'')+'">Otro</button>'
+      +'</div>'
+      +'<input class="mp-inp" id="mpMonto" type="number" inputmode="numeric" value="'+monto+'"'+(sel==='otro'?'':' style="display:none"')+'>'
+      +'<div class="mp-lbl">¿Dónde pagó?</div>'
+      +'<div class="mp-chips">'+metodos.map(m=>'<button type="button" class="mp-chip mp-met'+(m.nombre===metodoSel?' on':'')+'" data-met="'+escHtml(m.nombre)+'">'+escHtml(m.nombre)+'</button>').join('')+'</div>'
+      +'<div class="mp-btns"><button class="mp-cancel" type="button">Cancelar</button><button class="mp-save" type="button">Marcar pagado</button></div>'
+      +'</div>';
+    ov.querySelectorAll('.mp-chip[data-amt]').forEach(b=>b.onclick=()=>{ monto=Number(b.dataset.amt); draw(); });
+    const otroBtn=ov.querySelector('.mp-otro'); if(otroBtn) otroBtn.onclick=()=>{ monto = (preset(monto)==='otro'?monto:0); draw(); const i=ov.querySelector('#mpMonto'); if(i){ i.style.display=''; i.focus(); } };
+    const inp=ov.querySelector('#mpMonto'); if(inp) inp.oninput=()=>{ monto=Number(inp.value)||0; };
+    ov.querySelectorAll('.mp-met').forEach(b=>b.onclick=()=>{ metodoSel=b.dataset.met; ov.querySelectorAll('.mp-met').forEach(x=>x.classList.remove('on')); b.classList.add('on'); });
+    ov.querySelector('.mp-cancel').onclick=close;
+    ov.querySelector('.mp-save').onclick=guardar;
+  }
+  function close(){ ov.remove(); }
+  ov.onclick=e=>{ if(e.target===ov) close(); };
+  async function guardar(){
+    const inp=ov.querySelector('#mpMonto'); if(inp) monto=Number(inp.value)||monto;
+    if(!(monto>0)){ showToast('Pon un monto válido','error'); return; }
+    const btn=ov.querySelector('.mp-save'); btn.disabled=true; btn.textContent='Guardando…';
+    try{
+      const { error:e1 }=await sb.from('pos_payments').insert([{ order_id:ord.id, branch_id:ord.branch_id, tenant_id:ord.tenant_id, method:metodoSel, amount:monto, received:monto, vuelto:0 }]);
+      if(e1) throw e1;
+      const nuevo=pagado+monto;
+      const upd={ paid_amount:nuevo };
+      if(nuevo>=total){ upd.status='paid'; upd.payment_method=metodoSel; }
+      const { error:e2 }=await sb.from('pos_orders').update(upd).eq('id',ord.id);
+      if(e2) throw e2;
+      showToast(nuevo>=total ? ('✅ Pedido marcado como pagado ('+escHtml(metodoSel)+')') : ('💳 Abono de '+fmt(monto)+' · faltan '+fmt(total-nuevo)),'success');
+      close();
+    }catch(e){ btn.disabled=false; btn.textContent='Marcar pagado'; showToast('No se pudo registrar: '+(e&&e.message||e),'error'); }
+  }
+  document.body.appendChild(ov); draw();
 }
 
 function abrirConfirmarDomi() {
