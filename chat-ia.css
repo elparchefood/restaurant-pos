@@ -1528,6 +1528,32 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .ci-bubble.out .ci-trs b{color:#fff}
 .ci-trs svg{margin-top:3px;flex:none}
 
+/* ── Tarjeta de ubicación ── */
+.ci-card-bubble{padding:6px !important}
+.ci-meta-card{padding:2px 6px 2px}
+.ci-loc-card{width:340px;max-width:100%;background:#161821;border:1px solid #262935;border-radius:14px;overflow:hidden}
+.ci-bubble.out .ci-loc-card{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.20)}
+.ci-loc-map{height:150px;position:relative;background:
+  repeating-linear-gradient(0deg,transparent 0 26px,rgba(255,255,255,.045) 26px 27px),
+  repeating-linear-gradient(90deg,transparent 0 34px,rgba(255,255,255,.045) 34px 35px),
+  linear-gradient(150deg,#171A24 0%,#101219 100%)}
+.ci-loc-map::after{content:"";position:absolute;left:-10%;top:40%;width:120%;height:14px;background:rgba(124,92,255,.10);transform:rotate(-7deg)}
+.ci-loc-pin{position:absolute;left:50%;top:50%;transform:translate(-50%,-60%);z-index:2;display:grid;place-items:center}
+.ci-loc-map.live .ci-loc-ring{position:absolute;width:52px;height:52px;border-radius:50%;background:rgba(124,92,255,.16);animation:cipulse 2.4s ease-out infinite}
+@keyframes cipulse{0%{transform:scale(.6);opacity:.9}100%{transform:scale(1.35);opacity:0}}
+.ci-loc-dot{width:24px;height:24px;border-radius:50%;background:#7C5CFF;border:3px solid #fff;box-shadow:0 6px 16px rgba(0,0,0,.5)}
+.ci-loc-tag{position:absolute;left:10px;bottom:10px;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:#787C8B;background:rgba(8,8,10,.7);border:1px solid #262935;padding:3px 7px;border-radius:6px}
+.ci-loc-body{padding:11px 13px}
+.ci-loc-t{font-size:13.5px;font-weight:600;color:#EDEEF2}
+.ci-loc-s{font-size:12.5px;color:#787C8B;margin-top:3px;line-height:1.45}
+.ci-bubble.out .ci-loc-s{color:rgba(255,255,255,.72)}
+.ci-loc-act{display:flex;gap:8px;margin-top:11px}
+.ci-loc-mini{flex:1;text-align:center;font-size:12.5px;font-weight:600;padding:8px 10px;border-radius:9px;border:1px solid #262935;background:#111217;color:#EDEEF2;cursor:pointer;text-decoration:none;display:block}
+.ci-loc-mini:hover{background:#1C1E28}
+.ci-loc-mini.ac{background:#7C5CFF;border-color:transparent;color:#fff}
+.ci-loc-mini.ac:hover{background:#9B85FF}
+.ci-bubble.out .ci-loc-mini{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.22);color:#fff}
+
 /* ── Banner LISTA NEGRA (aviso arriba del chat) ── */
 .ci-bl-banner{display:flex;align-items:center;gap:11px;padding:10px 16px;background:rgba(239,68,68,.15);border-bottom:1px solid rgba(239,68,68,.32);color:#fca5a5;font-size:13px;font-weight:600;flex-shrink:0}
 .ci-bl-banner svg{flex-shrink:0;color:#f87171}

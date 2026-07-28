@@ -471,6 +471,14 @@ function closeMsgPopup() {
   _activeMsgId = null;
 }
 
+/* ── Ubicación: copiar dirección ── */
+function copiarDireccion(btn){
+  const t = btn.dataset.copy || '';
+  try{ navigator.clipboard.writeText(t); }catch(_e){}
+  const prev = btn.textContent; btn.textContent = 'Copiado ✓';
+  setTimeout(()=>{ btn.textContent = prev; }, 1400);
+}
+
 /* ── Nota de voz: helpers ── */
 function fmtDur(s){ s=Math.max(0,Math.floor(s||0)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
 function voiceBars(seed, n){
@@ -552,22 +560,24 @@ function messageHTML(m) {
     const label   = locName || locAddr || coords;
     const subline = (locName && locAddr) ? '<div class="ci-loc-addr">' + locAddr + '</div>' : '';
     const locQuote = m._replyTo ? `<div class="ci-reply-quote"><div class="ci-reply-quote-bar"></div><div class="ci-reply-quote-body"><div class="ci-reply-quote-who">${escHtml(m._replyTo.who||'')}</div><div class="ci-reply-quote-text">📍 Ubicación</div></div></div>` : '';
-    const locCard = `<a href="${mapsUrl}" target="_blank" rel="noopener" class="ci-location-card">
-      <div class="ci-loc-map">
-        <svg width="28" height="36" viewBox="0 0 28 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M14 0C6.268 0 0 6.268 0 14c0 9.333 14 22 14 22S28 23.333 28 14C28 6.268 21.732 0 14 0z" fill="#5B6BFF"/>
-          <circle cx="14" cy="14" r="5" fill="white"/>
-        </svg>
+    const addrLine = (locName && locAddr) ? locAddr : '';
+    const copyTxt  = (loc.name ? loc.name + ' ' : '') + (loc.addr || coords);
+    const locCard = `<div class="ci-loc-card">
+      <div class="ci-loc-map${dir==='in'?' live':''}">
+        <div class="ci-loc-pin">${dir==='in'?'<span class="ci-loc-ring"></span>':''}<span class="ci-loc-dot"></span></div>
+        <span class="ci-loc-tag">mapa · ${lat.toFixed(3)} / ${lng.toFixed(3)}</span>
       </div>
       <div class="ci-loc-body">
-        <div class="ci-loc-label">${label}</div>
-        ${subline}
-        <div class="ci-loc-coords">${coords}</div>
-        <div class="ci-loc-link">Ver en Google Maps ↗</div>
+        <div class="ci-loc-t">${label}</div>
+        ${addrLine?`<div class="ci-loc-s">${addrLine}</div>`:`<div class="ci-loc-s mono" style="font-size:11.5px">${coords}</div>`}
+        <div class="ci-loc-act">
+          <a class="ci-loc-mini ac" href="${mapsUrl}" target="_blank" rel="noopener">Abrir en Maps</a>
+          <button class="ci-loc-mini" data-copy="${escHtml(copyTxt)}" onclick="copiarDireccion(this)">Copiar dirección</button>
+        </div>
       </div>
-    </a>`;
+    </div>`;
     return `<div class="ci-row ${dir}" data-msg-id="${m.id}">
-      <div class="ci-bubble ${dir}">${menu}${locQuote}${locCard}<div class="ci-meta">${time}${check}</div></div>
+      <div class="ci-bubble ${dir} ci-card-bubble">${menu}${locQuote}${locCard}<div class="ci-meta ci-meta-card">${time}${check}</div></div>
     </div>`;
   }
 
