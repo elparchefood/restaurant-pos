@@ -1571,6 +1571,9 @@ async function cpEnviarCocina(){
     showToast('🍳 Enviado a cocina · '+cpCOP(data.total),'success');
     try{ await sb.from('chat_conversations').update({ pedido_borrador: null }).eq('id', convId); }catch(_e){}
     renderDraftBar(null);
+    // El pedido ya existe (data.orderId) → mostrar la pastilla de estado "En preparación"
+    // de inmediato, sin esperar a reabrir el chat.
+    try{ const _c=getActiveConv(); if(_c && convId===S.activeConvId){ _c.order_id=data.orderId; loadEstadoPill(_c); } }catch(_e){}
     if(window.posAutoprint && window.electronPOS){ try{
       window._pos = window._pos || {}; window._pos.sb = window._pos.sb || sb;
       window._pos.state = window._pos.state || {}; window._pos.state.branchId = S.branchId;
