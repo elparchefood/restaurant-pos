@@ -153,14 +153,22 @@ function subscribeRealtime() {
     .on('postgres_changes', { event:'*', schema:'public', table:'chat_conversations', filter:`branch_id=eq.${S.branchId}` }, handleConvChange)
     .on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages' }, payload => {
       const msg = payload.new;
+      const esActivo = msg.conversation_id === S.activeConvId;   // ¿estás viendo este chat ahora mismo?
       if (msg.direction === 'in') { chatBeep(); setTimeout(updateLabelBadges, 400); }   // sonido + refrescar badge de etiquetas
-      if (msg.conversation_id === S.activeConvId && !S.messages.find(m => m.id === msg.id)) { S.messages.push(msg); renderThread(); }
+      if (esActivo && !S.messages.find(m => m.id === msg.id)) { S.messages.push(msg); renderThread(); }
       const idx = S.conversations.findIndex(c => c.id === msg.conversation_id);
       if (idx !== -1) {
         S.conversations[idx].last_message    = msg.body || '[Imagen]';
         S.conversations[idx].last_message_at = msg.sent_at;
         S.conversations[idx].last_sender     = msg.direction === 'in' ? 'contact' : 'agent';
-        if (msg.direction === 'in') S.conversations[idx].unread_count++;
+        // "Sin leer" SOLO sube con mensajes ENTRANTES de un chat que NO estás viendo.
+        // Si el chat está abierto (o el mensaje es tuyo), no genera notificación.
+        if (msg.direction === 'in' && !esActivo) {
+          S.conversations[idx].unread_count = (Number(S.conversations[idx].unread_count) || 0) + 1;
+        } else if (esActivo && (Number(S.conversations[idx].unread_count) || 0) > 0) {
+          S.conversations[idx].unread_count = 0;                                                    // lo estás viendo → leído
+          sb.from('chat_conversations').update({ unread_count: 0 }).eq('id', msg.conversation_id);  // y también en la BD
+        }
         S.conversations.sort((a,b) => new Date(b.last_message_at) - new Date(a.last_message_at));
         renderConvList(); renderBadges();
       }
@@ -199,7 +207,12 @@ function handleConvChange(payload) {
   if (payload.eventType === 'INSERT') S.conversations.unshift(payload.new);
   else if (payload.eventType === 'UPDATE') {
     const idx = S.conversations.findIndex(c => c.id === payload.new.id);
-    if (idx !== -1) S.conversations[idx] = { ...S.conversations[idx], ...payload.new };
+    if (idx !== -1) {
+      const merged = { ...S.conversations[idx], ...payload.new };
+      // El chat que estás viendo nunca muestra "sin leer" (evita que un evento viejo lo resucite).
+      if (payload.new.id === S.activeConvId) merged.unread_count = 0;
+      S.conversations[idx] = merged;
+    }
     else S.conversations.unshift(payload.new);
     // Si cambia ai_typing en la conversación activa, re-render el thread
     if (payload.new.id === S.activeConvId && payload.new.ai_typing !== undefined) renderThread();
