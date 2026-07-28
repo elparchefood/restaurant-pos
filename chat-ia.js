@@ -155,7 +155,11 @@ function subscribeRealtime() {
       const msg = payload.new;
       const esActivo = msg.conversation_id === S.activeConvId;   // ¿estás viendo este chat ahora mismo?
       if (msg.direction === 'in') { chatBeep(); setTimeout(updateLabelBadges, 400); }   // sonido + refrescar badge de etiquetas
-      if (esActivo && !S.messages.find(m => m.id === msg.id)) { S.messages.push(msg); renderThread(); }
+      // Anti-duplicado: no re-agregar si ya está por id, NI si es un mensaje SALIENTE que
+      // aún tiene su copia optimista temporal (tmp_) en pantalla (carrera del realtime vs
+      // el envío) — el propio envío reemplazará el temporal por el real. Evita QR/carta doble.
+      const yaOptimista = msg.direction === 'out' && S.messages.some(m => String(m.id).indexOf('tmp_') === 0 && (m.media_url||'') === (msg.media_url||'') && (m.body||'') === (msg.body||''));
+      if (esActivo && !S.messages.find(m => m.id === msg.id) && !yaOptimista) { S.messages.push(msg); renderThread(); }
       const idx = S.conversations.findIndex(c => c.id === msg.conversation_id);
       if (idx !== -1) {
         S.conversations[idx].last_message    = msg.body || '[Imagen]';
