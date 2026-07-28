@@ -1529,7 +1529,8 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .cp-draft-btns{display:flex;gap:8px;padding:11px 14px;border-top:1px solid #15171E}
 .cp-draft-edit{flex:1;padding:9px 14px;border-radius:9px;border:1px solid #262935;background:#111217;color:#EDEEF2;font-weight:600;font-size:12.5px;cursor:pointer;transition:.15s}
 .cp-draft-edit:hover{background:#1C1E28;border-color:#33364a}
-.cp-draft-send{flex:1.4;padding:9px 16px;border-radius:9px;border:none;background:linear-gradient(180deg,#7C5CFF,#5B3FE0);color:#fff;font-weight:700;font-size:12.5px;cursor:pointer;transition:.15s;box-shadow:0 6px 16px rgba(124,92,255,.28)}
+.cp-draft-send{flex:1.4;display:flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap;padding:9px 14px;border-radius:9px;border:none;background:linear-gradient(180deg,#7C5CFF,#5B3FE0);color:#fff;font-weight:700;font-size:12.5px;cursor:pointer;transition:.15s;box-shadow:0 6px 16px rgba(124,92,255,.28)}
+.cp-draft-send svg{flex:none}
 .cp-draft-send:hover{filter:brightness(1.08)}
 .cp-draft-send:disabled{opacity:.6;cursor:default}
 .cp-draft-discard{padding:9px 12px;border-radius:9px;border:1px solid rgba(242,85,90,.30);background:rgba(242,85,90,.10);color:#F2555A;font-weight:600;font-size:12.5px;cursor:pointer;transition:.15s;white-space:nowrap}

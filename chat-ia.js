@@ -1706,6 +1706,8 @@ async function cpConfirm(){ if(!S.cpOrder) return; cpSyncTop(); cpSyncProdInputs
 }
 
 // Tarjeta del pre-pedido en el chat (encima del compositor).
+// Ícono de fueguito (mismo que usa la pantalla de Ventas) para "Enviar a cocina".
+const CP_FUEGO_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>';
 function renderDraftBar(borrador){
   const bar=document.getElementById('cpDraftBar'); if(!bar) return;
   if(!borrador || !(borrador.productos||[]).length){ bar.style.display='none'; bar.innerHTML=''; return; }
@@ -1725,7 +1727,7 @@ function renderDraftBar(borrador){
       +'<div class="cp-ohd-right"><span class="cp-ohd-tot">'+cpCOP(total)+'</span><span class="cp-ost">Borrador</span>'
       +'<button class="cp-ocol" onclick="toggleDraftCollapse()" title="Contraer / expandir"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg></button></div></div>'
     +'<div class="cp-obody">'+lis+'<div class="cp-otot">Total <span class="cp-op">'+cpCOP(total)+'</span></div></div>'
-    +'<div class="cp-draft-btns"><button class="cp-draft-discard" onclick="cpDescartarBorrador()" title="Descartar este pedido (el cliente se arrepintió)">🗑️ Descartar</button><button class="cp-draft-edit" onclick="cpEditarBorrador()">✏️ Editar</button><button class="cp-draft-send" id="cpDraftSend" onclick="cpEnviarCocina()">🍳 Enviar a cocina</button></div>'
+    +'<div class="cp-draft-btns"><button class="cp-draft-discard" onclick="cpDescartarBorrador()" title="Descartar este pedido (el cliente se arrepintió)">🗑️ Descartar</button><button class="cp-draft-edit" onclick="cpEditarBorrador()">✏️ Editar</button><button class="cp-draft-send" id="cpDraftSend" onclick="cpEnviarCocina()">'+CP_FUEGO_SVG+'Enviar a cocina</button></div>'
     +'</div>';
   bar.style.display='block';
 }
@@ -1814,7 +1816,7 @@ async function cpEnviarCocina(){
     showToast((e && e.name==='AbortError') ? 'Tardó demasiado, intenta de nuevo' : ('Error: '+(e&&e.message||e)), 'error');
   }finally{
     clearTimeout(to);
-    var b2=document.getElementById('cpDraftSend'); if(b2){ b2.disabled=false; b2.textContent='🍳 Enviar a cocina'; }
+    var b2=document.getElementById('cpDraftSend'); if(b2){ b2.disabled=false; b2.innerHTML=CP_FUEGO_SVG+'Enviar a cocina'; }
   }
 }
 // Guarda el cliente en localStorage 'pos.clientes' (donde domicilios/venta rápida leen la lista),
