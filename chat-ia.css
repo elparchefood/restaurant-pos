@@ -414,6 +414,9 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
   justify-content: space-between;
   padding: 0 22px;
   flex-shrink: 0;
+  /* Encima del hilo para que los desplegables (3 puntos, estado) se sobrepongan */
+  position: relative;
+  z-index: 30;
 }
 .ci-chat-id { display: flex; align-items: center; gap: 14px; }
 .ci-chat-head .ci-icon-btn {
