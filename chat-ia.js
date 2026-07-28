@@ -578,6 +578,7 @@ function renderChatHeader(conv) {
   updateSinNomBtn(!!conv.sin_nomenclatura);
   const vpb=$('verifyPagoBtn'); if(vpb) vpb.style.display='';   // verificar transferencia: siempre disponible con un chat abierto
   loadEstadoPill(conv);
+  checkBlacklist(conv);   // ⚠️ avisar si el contacto está en lista negra
   const meta     = CHANNELS[conv.channel] || {};
   const tint     = TINTS[(conv.contact_avatar_tint||0) % TINTS.length];
   const label    = conv.contact_name || conv.contact_handle || '?';
@@ -591,6 +592,34 @@ function renderChatHeader(conv) {
   $('chatMeta').innerHTML   = `
     <span class="ci-chan-chip chip-${meta.key}">${GLYPH[meta.key]||''}${meta.label||''}</span>
     <span class="ci-presence">${conv.is_online ? '<span class="ci-dot-live"></span> en línea' : 'visto recientemente'} · ${escHtml(conv.contact_handle||'')}</span>`;
+}
+
+/* ══════════════ LISTA NEGRA — aviso en el chat ══════════════
+   Revisa el teléfono (y dirección del borrador si existe) contra la lista negra.
+   Si coincide, muestra un banner rojo para que CUALQUIER cajero lo vea. */
+async function checkBlacklist(conv){
+  const bar=$('blBanner'); if(!bar) return;
+  bar.style.display='none'; bar.innerHTML='';
+  try{
+    const tel = conv.contact_handle || conv.from_phone || '';
+    let dirNorm = null;
+    try{ const { data:cd }=await sb.from('chat_conversations').select('pedido_borrador').eq('id', conv.id).maybeSingle();
+      const dir = cd && cd.pedido_borrador && cd.pedido_borrador.direccion;
+      if(dir) dirNorm = normDir(dir);
+    }catch(_e){}
+    const { data } = await sb.rpc('lista_negra_match', { p_tenant:S.tenantId, p_tel:tel||null, p_dir_norm:dirNorm });
+    const hit = Array.isArray(data) ? data[0] : data;
+    if(conv.id!==S.activeConvId) return;   // cambió de chat mientras consultaba
+    if(hit){
+      bar.innerHTML='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>'
+        +'<div><b>Cliente en LISTA NEGRA'+(hit.nombre?' · '+escHtml(hit.nombre):'')+'</b>'+(hit.razon?'<div class="ci-bl-razon">'+escHtml(hit.razon)+'</div>':'')+'</div>';
+      bar.style.display='flex';
+    }
+  }catch(e){ /* si falla, no molestar */ }
+}
+// Normaliza dirección igual que en la BB: minúsculas, sin acentos, espacios colapsados
+function normDir(s){
+  return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
 }
 
 /* ══════════════════════════════════════════════
