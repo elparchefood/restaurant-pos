@@ -1205,6 +1205,41 @@
 
         <div class="cfg-body">
           <div class="cfg-col">
+            <!-- Lista negra de clientes (autónomo, tablas pos_blacklist*) -->
+            <div class="card" id="blCfgCard" style="padding:0;overflow:hidden;border-radius:12px;margin-bottom:16px">
+              <style>
+                .bl-person{border:1px solid var(--border);border-radius:11px;padding:12px 14px;margin-bottom:10px}
+                .bl-person-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+                .bl-person-head b{font-size:14px;color:var(--text-1)}
+                .bl-del-person{border:1px solid #FECACA;background:#FEF2F2;color:#DC2626;border-radius:8px;padding:4px 10px;font-size:11.5px;font-weight:700;cursor:pointer}
+                .bl-del-person:hover{background:#FEE2E2}
+                .bl-razon2{font-size:12.5px;color:var(--text-3);margin:4px 0 8px;line-height:1.35}
+                .bl-chips{display:flex;flex-wrap:wrap;gap:6px}
+                .bl-chip{display:inline-flex;align-items:center;gap:5px;background:#EEF2FF;color:#4338CA;border-radius:7px;padding:4px 6px 4px 9px;font-size:12px;font-weight:600}
+                .bl-chip-dir{background:#F1F5F9;color:#334155}
+                .bl-chip button{border:none;background:transparent;color:inherit;opacity:.6;cursor:pointer;font-size:14px;line-height:1;padding:0 2px}
+                .bl-chip button:hover{opacity:1;color:#DC2626}
+                .bl-ov2{position:fixed;inset:0;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px}
+                .bl-box2{background:#fff;border-radius:16px;padding:22px;width:100%;max-width:380px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+                .bl-title2{font-size:16px;font-weight:800;color:#0F172A;margin-bottom:14px}
+                .bl-inp2{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #CBD5E1;border-radius:9px;font-size:13.5px;font-family:inherit;margin-bottom:9px;outline:none}
+                .bl-inp2:focus{border-color:#5B6BFF}
+                .bl-txa2{resize:vertical;min-height:42px}
+                .bl-btns2{display:flex;gap:9px;margin-top:6px}
+                .bl-c2{flex:1;padding:10px;border:1px solid #CBD5E1;border-radius:9px;background:#fff;font-weight:700;cursor:pointer}
+                .bl-s2{flex:1;padding:10px;border:none;border-radius:9px;background:#ef4444;color:#fff;font-weight:800;cursor:pointer}
+                .bl-s2:hover{background:#dc2626}
+              </style>
+              <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:700;font-size:15px">Lista negra</div>
+                  <div style="font-size:12px;color:var(--text-3)">Bloquea por teléfono o dirección exacta. Paco no les responde y te avisa al crear pedidos.</div>
+                </div>
+                <button type="button" id="blAddBtn" class="btn-primary" style="padding:8px 14px;font-size:13px;white-space:nowrap">+ Agregar</button>
+              </div>
+              <div id="blCfgBody" style="padding:14px 20px;font-size:13px;color:var(--text-3)">Cargando…</div>
+            </div>
             <!-- Estados de pedido y avisos (autónomo, guarda ia_config.estados_config) -->
             <div class="card" id="estadosCfgCard" style="padding:0;overflow:hidden;border-radius:12px;margin-bottom:16px">
               <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border)">
@@ -2065,7 +2100,7 @@
 <script src="pos-brand.js?v=1784901500"></script>
 <script src="pos-print.js?v=1786093000"></script>
 <script src="pos-print-listener.js?v=4"></script>
-<script src="configuracion.js?v=1786132000"></script>
+<script src="configuracion.js?v=1786160000"></script>
 </body>
 </html>
 

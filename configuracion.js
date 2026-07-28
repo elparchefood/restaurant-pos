@@ -2957,9 +2957,67 @@ async function estadosCfgInit() {
   };
 }
 
+/* ══════════════ LISTA NEGRA (Configuración) ══════════════ */
+var _blTenant = null;
+async function blGetTenant(){
+  if(_blTenant) return _blTenant;
+  try{ var r=await sb.from('branches').select('tenant_id').eq('id',_cfgBranchId).maybeSingle(); _blTenant=(r.data&&r.data.tenant_id)||null; }catch(e){}
+  return _blTenant;
+}
+function blNormDir(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim(); }
+function blEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+async function blCfgInit(){
+  var card=document.getElementById('blCfgCard'); if(!card) return;
+  var addBtn=document.getElementById('blAddBtn');
+  if(addBtn && !addBtn._wired){ addBtn._wired=true; addBtn.onclick=blOpenAdd; }
+  await blRender();
+}
+async function blRender(){
+  var body=document.getElementById('blCfgBody'); if(!body) return;
+  var ten=await blGetTenant();
+  if(!ten){ body.innerHTML='No se pudo cargar (sin tenant).'; return; }
+  var res=await sb.rpc('lista_negra_listar',{p_tenant:ten});
+  var rows=(res&&res.data)||[];
+  if(!rows.length){ body.innerHTML='No hay clientes en lista negra. Toca "+ Agregar" o usa el botón desde un chat.'; return; }
+  body.innerHTML=rows.map(function(p){
+    var tels=(p.telefonos||[]).map(function(t){ return '<span class="bl-chip">'+blEsc(t.telefono)+'<button title="Quitar teléfono" onclick="blDel(\'telefono\',\''+t.id+'\')">×</button></span>'; }).join('');
+    var dirs=(p.direcciones||[]).map(function(d){ return '<span class="bl-chip bl-chip-dir">'+blEsc(d.direccion)+'<button title="Quitar dirección" onclick="blDel(\'direccion\',\''+d.id+'\')">×</button></span>'; }).join('');
+    return '<div class="bl-person"'+(p.activo?'':' style="opacity:.5"')+'>'
+      +'<div class="bl-person-head"><b>'+blEsc(p.nombre||'(sin nombre)')+'</b>'
+      +'<button class="bl-del-person" onclick="blDelPersona(\''+p.id+'\')">Quitar</button></div>'
+      +(p.razon?'<div class="bl-razon2">'+blEsc(p.razon)+'</div>':'')
+      +'<div class="bl-chips">'+(tels+dirs||'<span style="font-size:12px;color:#94A3B8">sin datos</span>')+'</div>'
+      +'</div>';
+  }).join('');
+}
+async function blDel(tipo,id){ var ten=await blGetTenant(); await sb.rpc('lista_negra_eliminar',{p_tenant:ten,p_tipo:tipo,p_id:id}); blRender(); }
+async function blDelPersona(id){ if(!confirm('¿Quitar esta persona de la lista negra? (se borran sus números y direcciones)')) return; var ten=await blGetTenant(); await sb.rpc('lista_negra_eliminar',{p_tenant:ten,p_tipo:'persona',p_id:id}); blRender(); }
+function blOpenAdd(){
+  var ov=document.createElement('div'); ov.className='bl-ov2';
+  ov.innerHTML='<div class="bl-box2"><div class="bl-title2">🚫 Agregar a lista negra</div>'
+    +'<input class="bl-inp2" id="blaN" placeholder="Nombre (referencia)">'
+    +'<input class="bl-inp2" id="blaT" placeholder="Teléfono">'
+    +'<input class="bl-inp2" id="blaD" placeholder="Dirección exacta (casa/apto)">'
+    +'<textarea class="bl-inp2 bl-txa2" id="blaR" rows="2" placeholder="Razón"></textarea>'
+    +'<div class="bl-btns2"><button class="bl-c2" type="button">Cancelar</button><button class="bl-s2" type="button">🚫 Bloquear</button></div></div>';
+  document.body.appendChild(ov);
+  var close=function(){ ov.remove(); };
+  ov.querySelector('.bl-c2').onclick=close; ov.onclick=function(e){ if(e.target===ov) close(); };
+  ov.querySelector('.bl-s2').onclick=async function(){
+    var btn=this, t=ov.querySelector('#blaT').value.trim(), d=ov.querySelector('#blaD').value.trim();
+    if(!t && !d){ alert('Pon al menos el teléfono o la dirección'); return; }
+    btn.disabled=true; btn.textContent='Guardando…';
+    try{ var ten=await blGetTenant();
+      await sb.rpc('lista_negra_agregar',{p_tenant:ten,p_nombre:ov.querySelector('#blaN').value.trim()||null,p_razon:ov.querySelector('#blaR').value.trim()||null,p_tel:t||null,p_dir:d||null,p_dir_norm:d?blNormDir(d):null,p_auto:false});
+      close(); blRender();
+    }catch(e){ btn.disabled=false; btn.textContent='🚫 Bloquear'; alert('No se pudo agregar'); }
+  };
+}
+
 function chatiaInit() {
   function $(id) { return document.getElementById(id); }
   estadosCfgInit();
+  blCfgInit();
 
   // dirty / saved indicator
   var saveChip = $('saveChip'), saveTxt = $('saveTxt'), saveBtn = $('saveBtn');
