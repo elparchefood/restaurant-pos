@@ -1034,6 +1034,27 @@ function tpCloseMP(){ const el=document.getElementById('tp-modal-producto'); if(
 
 function tpMPAddToCart(){
   const p=TP_WIP.prod;
+  // ── Inventario por VARIANTE (Fase 2) ──────────────────────────
+  // Chequea SOLO los insumos de la variante/tamaño elegidos (no todo el producto).
+  // Envuelto en try/catch: si algo falla, la venta jamás se bloquea.
+  try {
+    if (!TP_WIP._psOk && window.posStock && posStock.ready) {
+      const _sel  = Object.values(TP_WIP.vars || {}).map(function(v){ return v && v.id; }).filter(Boolean);
+      const _pres = (TP_WIP.pres && TP_WIP.pres.id && TP_WIP.pres.id !== '_base') ? TP_WIP.pres.id : null;
+      let _falt = [];
+      if (_sel.length) {
+        _sel.forEach(function(oid){ posStock.faltantesVariante(p.id, oid, _pres).forEach(function(n){ if (_falt.indexOf(n) < 0) _falt.push(n); }); });
+      } else {
+        _falt = posStock.faltantesVariante(p.id, null, _pres);
+      }
+      if (_falt.length) {
+        if (!posStock.allow) { posStock.toast('Sin inventario: ' + _falt.join(', ') + (_falt.length === 1 ? ' agotado' : ' agotados')); return; }
+        posStock.warn(p.name, _falt).then(function(ok){ if (ok) { TP_WIP._psOk = true; tpMPAddToCart(); } });
+        return;
+      }
+    }
+  } catch (e) { /* fail-safe: nunca bloquear la venta por un error del detector */ }
+  TP_WIP._psOk = false;
   // Si la presentación no tiene nombre, usar el nombre de la CATEGORÍA como prefijo.
   const _cat=S.cats.find(c=>c.id===p.category_id);
   const presLabel=(TP_WIP.pres&&TP_WIP.pres.name?TP_WIP.pres.name:'')||(_cat?(_cat.comanda_alias||_cat.name):'');

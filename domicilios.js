@@ -985,6 +985,22 @@ function tpCloseMP(){
 
 function tpMPAddToCart(){
   const p=WIP.prod;
+  // ── Inventario por VARIANTE (Fase 2) — protegido: nunca bloquea la venta ──
+  try {
+    if (!WIP._psOk && window.posStock && posStock.ready) {
+      const _sel  = Object.values(WIP.vars || {}).map(function(v){ return v && v.id; }).filter(Boolean);
+      const _pres = (WIP.pres && WIP.pres.id && WIP.pres.id !== '_base') ? WIP.pres.id : null;
+      let _falt = [];
+      if (_sel.length) { _sel.forEach(function(oid){ posStock.faltantesVariante(p.id, oid, _pres).forEach(function(n){ if (_falt.indexOf(n) < 0) _falt.push(n); }); }); }
+      else { _falt = posStock.faltantesVariante(p.id, null, _pres); }
+      if (_falt.length) {
+        if (!posStock.allow) { posStock.toast('Sin inventario: ' + _falt.join(', ') + (_falt.length === 1 ? ' agotado' : ' agotados')); return; }
+        posStock.warn(p.name, _falt).then(function(ok){ if (ok) { WIP._psOk = true; tpMPAddToCart(); } });
+        return;
+      }
+    }
+  } catch (e) {}
+  WIP._psOk = false;
   const cat=S.cats.find(c=>c.id===p.category_id);
   const unitPrice=mpComputePrice()/WIP.qty;
   // Si la presentación no tiene nombre, usar el nombre de la CATEGORÍA como prefijo.

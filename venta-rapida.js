@@ -1413,6 +1413,22 @@
 
   function vrMPAddToCart() {
     const p = VR_WIP.prod;
+    // ── Inventario por VARIANTE (Fase 2) — protegido: nunca bloquea la venta ──
+    try {
+      if (!VR_WIP._psOk && window.posStock && posStock.ready) {
+        const _sel  = Object.values(VR_WIP.vars || {}).map(function(v){ return v && v.id; }).filter(Boolean);
+        const _pres = (VR_WIP.pres && VR_WIP.pres.id && VR_WIP.pres.id !== '_base') ? VR_WIP.pres.id : null;
+        let _falt = [];
+        if (_sel.length) { _sel.forEach(function(oid){ posStock.faltantesVariante(p.id, oid, _pres).forEach(function(n){ if (_falt.indexOf(n) < 0) _falt.push(n); }); }); }
+        else { _falt = posStock.faltantesVariante(p.id, null, _pres); }
+        if (_falt.length) {
+          if (!posStock.allow) { posStock.toast('Sin inventario: ' + _falt.join(', ') + (_falt.length === 1 ? ' agotado' : ' agotados')); return; }
+          posStock.warn(p.name, _falt).then(function(ok){ if (ok) { VR_WIP._psOk = true; vrMPAddToCart(); } });
+          return;
+        }
+      }
+    } catch (e) {}
+    VR_WIP._psOk = false;
     // Si la presentación no tiene nombre, usar el nombre de la CATEGORÍA como prefijo.
     const presLabel = (VR_WIP.pres && VR_WIP.pres.name ? VR_WIP.pres.name : '') || (p.catAlias || p.catName || '');
     const varLabels = Object.values(VR_WIP.vars).map(v => v.name).join(' \xb7 ');
