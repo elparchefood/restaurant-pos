@@ -12,9 +12,35 @@
  *   }
  */
 (function () {
-  var S = { ready: false, allow: false, _falt: {} };
+  var S = { ready: false, allow: false, _lines: {}, _ins: {} };
   function num(v) { return Number(v) || 0; }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  // ── Helpers de recetas por VARIANTE ──────────────────────────
+  // Cada linea: { ins:insumo_id, varOpt:variant_option_id|'' , qty:cantidades|null }
+  //   varOpt vacio  → linea BASE: aplica a TODAS las combinaciones del producto.
+  //   varOpt lleno  → aplica solo a esa opcion (sabor/variante).
+  function insAgotado(insId) { var i = S._ins[insId]; return !!(i && i.stock <= 0); }
+
+  // Nombres de insumos agotados que aplican a una combinacion (opcion + presentacion).
+  // Si varOptId es undefined/null → SOLO lineas base (el producto "entero").
+  function faltForCombo(pid, varOptId, presId) {
+    var lines = S._lines[pid] || [], out = [], seen = {};
+    var soloBase = (varOptId === undefined || varOptId === null || varOptId === '');
+    lines.forEach(function (l) {
+      if (l.varOpt) { if (soloBase || l.varOpt !== varOptId) return; }   // linea de variante: solo si coincide la opcion
+      // Si se pasa presentacion y la linea tiene mapa de cantidades, exigir qty>0 para esa presentacion.
+      if (presId !== undefined && presId !== null && l.qty) {
+        var q = (l.qty[presId] != null) ? l.qty[presId] : (l.qty['_'] != null ? l.qty['_'] : null);
+        if (q != null && !(num(q) > 0)) return;
+      }
+      if (insAgotado(l.ins)) {
+        var nm = (S._ins[l.ins] || {}).nombre || 'insumo';
+        if (!seen[nm]) { seen[nm] = 1; out.push(nm); }
+      }
+    });
+    return out;
+  }
 
   window.posStock = {
     get allow() { return S.allow; },
@@ -22,7 +48,7 @@
 
     // Carga política + insumos + recetas y arma el mapa producto→faltantes.
     load: async function (sb) {
-      S.ready = false; S._falt = {};
+      S.ready = false; S._lines = {}; S._ins = {};
       try {
         var cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
         S.allow = !!cfg.ventaSinInventario;
@@ -34,32 +60,38 @@
 
         var qi = sb.from('iv_insumos').select('id,nombre,stock');
         if (branchId) qi = qi.eq('branch_id', branchId); else if (tenantId) qi = qi.eq('tenant_id', tenantId);
-        var qr = sb.from('iv_recetas').select('product_id,insumo_id');
+        // Ahora traemos variant_option_id + cantidades para diferenciar por sabor/variante.
+        var qr = sb.from('iv_recetas').select('product_id,insumo_id,variant_option_id,cantidades');
         if (branchId) qr = qr.eq('branch_id', branchId); else if (tenantId) qr = qr.eq('tenant_id', tenantId);
 
         var resI = await qi;
         var resR = await qr;
-        var insMap = {};
-        (resI.data || []).forEach(function (i) { insMap[i.id] = { nombre: i.nombre, stock: num(i.stock) }; });
-        var byProd = {};
+        (resI.data || []).forEach(function (i) { S._ins[i.id] = { nombre: i.nombre, stock: num(i.stock) }; });
         (resR.data || []).forEach(function (r) {
-          if (!byProd[r.product_id]) byProd[r.product_id] = {};
-          byProd[r.product_id][r.insumo_id] = true;
-        });
-        Object.keys(byProd).forEach(function (pid) {
-          var falt = [];
-          Object.keys(byProd[pid]).forEach(function (insId) {
-            var ins = insMap[insId];
-            if (ins && ins.stock <= 0) falt.push(ins.nombre);
-          });
-          if (falt.length) S._falt[pid] = falt;
+          if (!S._lines[r.product_id]) S._lines[r.product_id] = [];
+          S._lines[r.product_id].push({ ins: r.insumo_id, varOpt: r.variant_option_id || '', qty: r.cantidades || null });
         });
       } catch (e) { console.warn('[posStock] load:', e && e.message); }
       S.ready = true;
     },
 
-    faltantes: function (pid) { return S._falt[pid] || []; },
-    agotado: function (pid) { return !!(S._falt[pid] && S._falt[pid].length); },
+    // ── Producto ENTERO (solo lineas base) ──
+    // Un producto solo se marca agotado si un insumo BASE (compartido por todas
+    // las combinaciones) esta en 0. Si solo falta el insumo de UN sabor, el
+    // producto NO se marca agotado — ese sabor se bloquea al elegirlo (agotadoVariante).
+    faltantes: function (pid) { return faltForCombo(pid, null, null); },
+    agotado: function (pid) { return faltForCombo(pid, null, null).length > 0; },
+
+    // ── Combinacion concreta (sabor/variante + presentacion) ──
+    faltantesVariante: function (pid, varOptId, presId) { return faltForCombo(pid, varOptId, presId); },
+    agotadoVariante: function (pid, varOptId, presId) { return faltForCombo(pid, varOptId, presId).length > 0; },
+
+    // ¿Hay ALGUNA opcion (sabor/variante) agotada, aunque el producto entero tenga stock?
+    // Sirve para un indicador suave en la tarjeta ("algunas opciones agotadas").
+    algunasAgotadas: function (pid) {
+      var lines = S._lines[pid] || [];
+      return lines.some(function (l) { return l.varOpt && insAgotado(l.ins); });
+    },
 
     // Clase extra para la tarjeta del producto.
     cardClass: function (pid) {
