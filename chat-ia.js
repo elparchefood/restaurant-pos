@@ -144,6 +144,7 @@ async function loadMessages(convId) {
     .eq('conversation_id', convId).order('sent_at', { ascending: true });
   S.messages = data || [];
   renderThread();
+  updateWaWindow();
 }
 
 /* ══════════════════════════════════════════════
@@ -161,7 +162,7 @@ function subscribeRealtime() {
       // aún tiene su copia optimista temporal (tmp_) en pantalla (carrera del realtime vs
       // el envío) — el propio envío reemplazará el temporal por el real. Evita QR/carta doble.
       const yaOptimista = msg.direction === 'out' && S.messages.some(m => String(m.id).indexOf('tmp_') === 0 && (m.media_url||'') === (msg.media_url||'') && (m.body||'') === (msg.body||''));
-      if (esActivo && !S.messages.find(m => m.id === msg.id) && !yaOptimista) { S.messages.push(msg); renderThread(); }
+      if (esActivo && !S.messages.find(m => m.id === msg.id) && !yaOptimista) { S.messages.push(msg); renderThread(); updateWaWindow(); }
       const idx = S.conversations.findIndex(c => c.id === msg.conversation_id);
       if (idx !== -1) {
         S.conversations[idx].last_message    = msg.body || '[Imagen]';
@@ -931,10 +932,48 @@ async function openConversation(id) {
   await loadMessages(id);
 }
 
+// ── Ventana de 24h (WhatsApp / Instagram / Facebook) ──────────────
+// Estas plataformas NO permiten enviar mensajes libres si pasaron más de 24h
+// desde el ÚLTIMO mensaje del cliente. Fuera de esa ventana hay que usar una
+// plantilla aprobada. Calculamos el estado con el último mensaje ENTRANTE.
+function waWindowInfo() {
+  const conv = S.conversations.find(c => c.id === S.activeConvId);
+  if (!conv || !['whatsapp','instagram','facebook'].includes(conv.channel)) return { applies:false, open:true, conv };
+  let lastIn = null;
+  for (let i = S.messages.length - 1; i >= 0; i--) {
+    if (S.messages[i] && S.messages[i].direction === 'in') { lastIn = S.messages[i].sent_at || S.messages[i].created_at; break; }
+  }
+  if (!lastIn) return { applies:true, open:false, lastIn:null, conv };
+  const hrs = (Date.now() - new Date(lastIn).getTime()) / 3600000;
+  return { applies:true, open: hrs < 24, lastIn, hrs, conv };
+}
+function updateWaWindow() {
+  const banner = $('waWindowBanner'); if (!banner) return;
+  const composer = $('composer');
+  const w = waWindowInfo();
+  if (w.applies && !w.open) {
+    const chLbl = (CHANNELS[(w.conv && w.conv.channel) || 'whatsapp'] || {}).label || 'WhatsApp';
+    banner.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'
+      + '<div><b>Pasaron más de 24 horas</b> desde el último mensaje del cliente. ' + escHtml(chLbl) + ' no permite enviar mensajes libres fuera de esa ventana — se necesita una <b>plantilla aprobada</b>. Espera a que el cliente escriba de nuevo, o envía una plantilla.</div>';
+    banner.style.display = 'flex';
+    if (composer) composer.classList.add('ci-composer--locked');
+  } else {
+    banner.style.display = 'none';
+    if (composer) composer.classList.remove('ci-composer--locked');
+  }
+}
+
 async function sendMessage() {
   const input = $('msgInput');
   const text  = input.value.trim();
   if (!text || !S.activeConvId) return;
+  // Ventana de 24h cerrada → no dejar enviar un mensaje libre (Meta lo rechazaría).
+  const _w = waWindowInfo();
+  if (_w.applies && !_w.open) {
+    showToast('⏰ Pasaron más de 24 h desde el último mensaje del cliente. No se puede enviar un mensaje libre — se necesita una plantilla aprobada de Meta.', 'error');
+    updateWaWindow();
+    return;
+  }
   input.value = '';
 
   const tmpId = 'tmp_' + Date.now();

@@ -14,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="pos-perms.js?v=1785030000"></script>
   <script>if(window.posRequirePin) posRequirePin('chat.usar');</script>
-  <link rel="stylesheet" href="chat-ia.css?v=42">
+  <link rel="stylesheet" href="chat-ia.css?v=43">
 </head>
 <body>
 
@@ -315,6 +315,9 @@
     <!-- Tarjeta del pre-pedido guardado (borrador) — encima del compositor -->
     <div class="cp-draftbar" id="cpDraftBar" style="display:none"></div>
 
+    <!-- Aviso de ventana de 24h cerrada (WhatsApp/IG/FB) -->
+    <div class="ci-wa-banner" id="waWindowBanner" style="display:none"></div>
+
     <div class="ci-composer" id="composer" style="display:none">
       <input type="file" id="attachInput" accept="image/*,video/*,audio/*,.pdf,.doc,.docx" style="display:none">
       <button class="ci-comp-attach" id="quickBtn" title="Respuestas rápidas ( / )">
@@ -388,7 +391,7 @@
   </div>
 </div>
 
-<script src="chat-ia.js?v=1786520000"></script>
+<script src="chat-ia.js?v=1786560000"></script>
 <script src="pos-print.js?v=1786093000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>

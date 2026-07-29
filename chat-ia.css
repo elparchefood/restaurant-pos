@@ -832,6 +832,22 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
   width: 100%; height: 100%; object-fit: contain; display: block;
 }
 
+/* Aviso de ventana de 24h cerrada (WhatsApp/IG/FB) */
+.ci-wa-banner {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin: 0 18px 4px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: rgba(240,168,60,.12);
+  border: 1px solid rgba(240,168,60,.32);
+  color: #F0A83C;
+  font-size: 12.5px; line-height: 1.45;
+}
+.ci-wa-banner b { color: #FBCB77; font-weight: 700; }
+.ci-wa-banner div { color: #E8D3AE; }
+/* Compositor bloqueado: no se puede escribir/enviar fuera de la ventana */
+.ci-composer--locked { opacity: .55; pointer-events: none; filter: grayscale(.3); }
+
 /* Composer — paleta violeta-negro (handoff) */
 .ci-composer {
   background: rgba(13,14,18,.88);
