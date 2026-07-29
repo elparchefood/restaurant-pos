@@ -3125,6 +3125,9 @@ var _storedZonas = [];
       adiciones_palabras: $('adicionesPalabras')
         ? $('adicionesPalabras').value.split(',').map(function(w){ return w.trim(); }).filter(Boolean)
         : [],
+      numeros_gerentes: $('numerosGerentes')
+        ? $('numerosGerentes').value.split(/[,\n]/).map(function(n){ return n.replace(/\D/g,''); }).filter(Boolean)
+        : [],
     };
   }
 
@@ -3151,6 +3154,7 @@ var _storedZonas = [];
     }
     if ($('iaInstr')) { $('iaInstr').value = m.instrucciones || ''; updateCounter('iaInstr'); }
     if ($('adicionesPalabras')) $('adicionesPalabras').value = Array.isArray(m.adiciones_palabras) ? m.adiciones_palabras.join(', ') : '';
+    if ($('numerosGerentes')) $('numerosGerentes').value = Array.isArray(m.numeros_gerentes) ? m.numeros_gerentes.join(', ') : '';
     if ($('iaResumenPlantilla')) $('iaResumenPlantilla').value = m.resumen_plantilla || '';
     if (m.vocabulario) {
       if ($('avoid')) $('avoid').value = m.vocabulario.evitar || '';
