@@ -255,6 +255,7 @@ async function loadData() {
     await loadCustomUnits();
     await loadProductos();
     await loadInsumos();
+    await loadModGroupsDB();
     await loadRecetasDB();
     await loadParamsDB();
     await loadPlantillasDB();
@@ -350,6 +351,38 @@ async function loadInsumos() {
   }));
 }
 
+// ── Adiciones (recetas vinculadas a opciones de modificadores) ─────────
+// Una "adición" es un pseudo-producto: no vive en pos_products sino que apunta
+// a una opción de un grupo de modificadores (ej. la opción "Tocineta" del grupo
+// "Adiciones personales"). Reutiliza el mismo motor de receta y costeo.
+let adiciones = [];   // {id:optId, esAdicion:true, modOptionId, nombre, cat, precio, pres:[], grupos:[], receta:[]}
+let modGroups = [];   // {id, name, options:[{id,name,price}]}
+function findRecetable(id) {
+  return productos.find(p => p.id === id) || adiciones.find(a => a.id === id);
+}
+async function loadModGroupsDB() {
+  if (!tenantId) return;
+  try {
+    const { data, error } = await iv_sb
+      .from('pos_modifier_groups')
+      .select('id,name,options')
+      .eq('tenant_id', tenantId);
+    if (error) { console.error('[inventario] loadModGroups:', error); modGroups = []; return; }
+    modGroups = (data || []).map(g => ({
+      id: g.id, name: g.name || 'Grupo',
+      options: Array.isArray(g.options) ? g.options : [],
+    }));
+  } catch (e) { console.error('[inventario] loadModGroups:', e); modGroups = []; }
+}
+// Datos de una opción de modificador por su id (busca en todos los grupos).
+function modOptInfo(optId) {
+  for (const g of modGroups) {
+    const o = (g.options || []).find(x => x.id === optId);
+    if (o) return { nombre: o.name, precio: parseFloat(o.price) || 0, grupo: g.name };
+  }
+  return null;
+}
+
 async function loadRecetasDB() {
   if (!tenantId || !branchId) return;
   const { data, error } = await iv_sb
@@ -383,6 +416,36 @@ async function loadRecetasDB() {
           qty, porc, manual,
         };
       });
+  }
+
+  // ── Adiciones: recetas con mod_option_id (sin product_id) ────────────
+  adiciones = [];
+  const porOpt = {};
+  for (const r of recetas) {
+    if (!r.mod_option_id) continue;
+    (porOpt[r.mod_option_id] = porOpt[r.mod_option_id] || []).push(r);
+  }
+  for (const optId in porOpt) {
+    const info = modOptInfo(optId) || { nombre: '(modificador eliminado)', precio: 0, grupo: 'Adiciones' };
+    const receta = porOpt[optId].map(r => {
+      const mapa = r.cantidades || {};
+      const qty = {}, porc = {}, manual = {};
+      for (const k in mapa) {
+        qty[k]    = parseFloat(mapa[k].q) || 0;
+        porc[k]   = mapa[k].p || null;
+        manual[k] = !mapa[k].p && qty[k] > 0;
+      }
+      if (!Object.keys(qty).length) {
+        const base = parseFloat(r.cantidad) || 0;
+        qty['_'] = base; porc['_'] = null; manual['_'] = base > 0;
+      }
+      return { insId: r.insumo_id, merma: parseFloat(r.merma) || 0, varOpt: null, qty, porc, manual };
+    });
+    adiciones.push({
+      id: optId, esAdicion: true, modOptionId: optId,
+      nombre: info.nombre, cat: 'Adición · ' + info.grupo, precio: info.precio,
+      pres: [], variantes: null, grupos: [], receta,
+    });
   }
 }
 
@@ -922,7 +985,7 @@ function irAInsumos() { showScreen('insumos'); }
 let recEdit = { prodId: null, lines: [] };   // lines: [{insId, qty}]
 
 function abrirEditorInsumoReceta(prodId) {
-  const prod = productos.find(p => p.id === prodId);
+  const prod = findRecetable(prodId);
   if (!prod) return;
   recEdit = {
     prodId,
@@ -937,7 +1000,7 @@ function abrirEditorInsumoReceta(prodId) {
   renderRecEdit();
 }
 
-function recEditProd() { return productos.find(p => p.id === recEdit.prodId); }
+function recEditProd() { return findRecetable(recEdit.prodId); }
 
 // Líneas visibles en la pestaña activa.
 function recEditLineasVisibles() {
@@ -1199,8 +1262,9 @@ function recEditRegenerarIA() {
 
 async function guardarRecetaEdit() {
   const prodId = recEdit.prodId;
-  const prod = productos.find(p => p.id === prodId);
+  const prod = findRecetable(prodId);
   if (!prod) return;
+  const esAd = !!prod.esAdicion;
   const ids = presDe(prod).map(p => p.id);
 
   // Una linea sirve si tiene cantidad en al menos un tamano.
@@ -1210,7 +1274,12 @@ async function guardarRecetaEdit() {
   const btn = document.getElementById('rec-edit-save');
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando\u2026'; }
 
-  await iv_sb.from('iv_recetas').delete().eq('product_id', prodId);
+  if (esAd) {
+    await iv_sb.from('iv_recetas').delete()
+      .eq('mod_option_id', prod.modOptionId).eq('tenant_id', tenantId).eq('branch_id', branchId);
+  } else {
+    await iv_sb.from('iv_recetas').delete().eq('product_id', prodId);
+  }
   if (lines.length) {
     const rows = lines.map(l => {
       const cantidades = {};
@@ -1220,7 +1289,9 @@ async function guardarRecetaEdit() {
       }
       return {
         tenant_id: tenantId, branch_id: branchId,
-        product_id: prodId, insumo_id: l.insId,
+        product_id: esAd ? null : prodId,
+        mod_option_id: esAd ? prod.modOptionId : null,
+        insumo_id: l.insId,
         variant_option_id: l.varOpt || null,
         cantidades,
         cantidad: l.qty[ids[0]] || 0,   // compatibilidad con la columna vieja
@@ -2100,7 +2171,8 @@ function renderRecFiltros(conReceta) {
 function renderRecetasList() {
   const list=document.getElementById('rec-list');
   list.innerHTML='';
-  const conReceta=productos.filter(p=>p.receta&&p.receta.length>0);
+  const conReceta=productos.filter(p=>p.receta&&p.receta.length>0)
+    .concat(adiciones.filter(a=>a.receta&&a.receta.length>0));
   renderRecFiltros(conReceta);
   if (conReceta.length===0) {
     list.innerHTML=`<div style="padding:24px 16px;text-align:center;color:#94A3B8;font-size:13px">Aún no hay recetas configuradas.<br>Agrega insumos a tus productos.</div>`;
@@ -2140,7 +2212,7 @@ document.addEventListener('click', function (ev) {
 });
 
 function abrirRecetaDetalle(prodId) {
-  const prod=productos.find(p=>p.id===prodId);
+  const prod=findRecetable(prodId);
   if (!prod||!prod.receta||prod.receta.length===0) return;
   _recetaAbierta = prodId;
   if (!document.getElementById('screen-recetas').classList.contains('on')) {
@@ -2244,9 +2316,69 @@ function abrirRecetaDetalle(prodId) {
 }
 
 function aplicarPrecioSugerido(prodId,precio) {
-  const prod=productos.find(p=>p.id===prodId); if (!prod) return;
+  const prod=findRecetable(prodId); if (!prod) return;
   prod.precio=precio; abrirRecetaDetalle(prodId);
   showToast('✓ Precio actualizado a '+ivCOP(precio));
+}
+
+// ═══════════════════════════════════════════════════
+// NUEVA ADICIÓN (vincular opción de modificador con insumos)
+// ═══════════════════════════════════════════════════
+function abrirNuevaAdicion() {
+  if (!modGroups.length) {
+    showToast('Aún no has creado grupos de modificadores', 'info');
+    return;
+  }
+  const ov = document.createElement('div');
+  ov.id = 'adic-ov';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML = `<div id="adic-box" style="background:#fff;border-radius:16px;padding:20px 22px;width:420px;max-width:94vw;font-family:'DM Sans',system-ui,sans-serif;box-shadow:0 24px 60px -12px rgba(0,0,0,.35);max-height:86vh;overflow:auto"></div>`;
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+  renderAdicPaso1();
+}
+function _adicRow(onclick, titulo, sub, tick) {
+  return `<button onclick="${onclick}" style="display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:13px 14px;border:1px solid #E2E8F0;border-radius:11px;background:#fff;cursor:pointer;text-align:left;margin-bottom:8px">
+    <span style="min-width:0"><span style="display:block;font-size:13.5px;font-weight:700;color:#0F172A">${titulo}</span><span style="font-size:11.5px;color:#94A3B8">${sub}</span></span>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${tick?'#22C55E':'#94A3B8'}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${tick?'<polyline points="20 6 9 17 4 12"/>':'<polyline points="9 18 15 12 9 6"/>'}</svg>
+  </button>`;
+}
+function renderAdicPaso1() {
+  const box = document.getElementById('adic-box'); if (!box) return;
+  const rows = modGroups.map(g =>
+    _adicRow("renderAdicPaso2('" + g.id + "')", escHtml(g.name), (g.options||[]).length + ' opciones', false)
+  ).join('');
+  box.innerHTML = `
+    <div style="font-size:16px;font-weight:800;color:#0F172A">Nueva adición</div>
+    <div style="font-size:12.5px;color:#64748B;margin:5px 0 16px;line-height:1.5">Elige el <b>grupo de modificadores</b> donde está la adición que quieres costear.</div>
+    ${rows || '<div style="color:#94A3B8;font-size:13px;padding:12px 0">No hay grupos de modificadores.</div>'}
+    <div style="display:flex;margin-top:8px"><button style="flex:1;padding:11px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:700;font-size:13px;cursor:pointer" onclick="document.getElementById('adic-ov').remove()">Cancelar</button></div>`;
+}
+function renderAdicPaso2(grpId) {
+  const box = document.getElementById('adic-box'); if (!box) return;
+  const g = modGroups.find(x => x.id === grpId); if (!g) return;
+  const rows = (g.options || []).map(o => {
+    const ya = recetas.some(r => r.mod_option_id === o.id) || adiciones.some(a => a.id === o.id && a.receta && a.receta.length);
+    return _adicRow("crearAdicionDesde('" + escHtml(o.id) + "')", escHtml(o.name),
+      ivCOP(parseFloat(o.price)||0) + (ya ? ' · ya tiene receta' : ''), ya);
+  }).join('');
+  box.innerHTML = `
+    <button onclick="renderAdicPaso1()" style="display:inline-flex;align-items:center;gap:4px;background:none;border:none;color:#64748B;font-size:12.5px;font-weight:600;cursor:pointer;padding:0;margin-bottom:10px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> ${escHtml(g.name)}</button>
+    <div style="font-size:16px;font-weight:800;color:#0F172A">Elige el modificador</div>
+    <div style="font-size:12.5px;color:#64748B;margin:5px 0 16px;line-height:1.5">Selecciona la adición que vas a vincular con sus insumos.</div>
+    ${rows || '<div style="color:#94A3B8;font-size:13px;padding:12px 0">Este grupo no tiene opciones.</div>'}`;
+}
+function crearAdicionDesde(optId) {
+  document.getElementById('adic-ov')?.remove();
+  let ad = adiciones.find(a => a.id === optId);
+  if (!ad) {
+    const info = modOptInfo(optId) || { nombre: 'Adición', precio: 0, grupo: 'Adiciones' };
+    ad = { id: optId, esAdicion: true, modOptionId: optId, nombre: info.nombre,
+           cat: 'Adición · ' + info.grupo, precio: info.precio,
+           pres: [], variantes: null, grupos: [], receta: [] };
+    adiciones.push(ad);
+  }
+  abrirEditorInsumoReceta(optId);
 }
 
 // ═══════════════════════════════════════════════════

@@ -225,11 +225,15 @@
 
       <!-- ============ RECETAS Y COSTEO ============ -->
       <div class="screen" id="screen-recetas">
-        <div class="iv-toolbar">
+        <div class="iv-toolbar" style="display:flex;align-items:center;gap:10px">
           <div class="iv-search" style="width:240px">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input id="rec-search" placeholder="Buscar receta…" oninput="filterRecetas(this.value)">
           </div>
+          <button class="iv-btn-primary" style="margin-left:auto" onclick="abrirNuevaAdicion()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nueva adición
+          </button>
         </div>
         <div class="iv-filters" id="rec-filters">
           <!-- chips de categoría por JS -->
@@ -776,7 +780,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-perms.js?v=1785030000"></script>
 <script>if(window.posRequirePin) posRequirePin('catalogo.editar');</script>
-<script src="inventario.js?v=1786680000"></script>
+<script src="inventario.js?v=1786752000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>
 </html>
