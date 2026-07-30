@@ -70,12 +70,37 @@ function presDe(prod) {
 function opcionesDe(prod) {
   return prod.variantes ? prod.variantes.opciones : [];
 }
+// Todos los grupos de variables del producto (0, 1 o más). Fallback al grupo de
+// precio si por alguna razón no viene 'grupos'.
+function gruposDe(prod) {
+  if (prod.grupos && prod.grupos.length) return prod.grupos;
+  return prod.variantes ? [{ id: '_g', name: prod.variantes.grupo, isPricing: true, opciones: prod.variantes.opciones }] : [];
+}
+// Producto cartesiano de las opciones de todos los grupos → lista de arrays de
+// opciones (una por grupo). Ej: [[Carne,Chorizo],[Carne,Tocineta],[Pollo,Chorizo]...].
+function combosOpcionesDe(prod) {
+  const grupos = gruposDe(prod);
+  if (!grupos.length) return [[]];
+  let acc = [[]];
+  for (const g of grupos) {
+    const opts = (g.opciones && g.opciones.length) ? g.opciones : [null];
+    const next = [];
+    for (const combo of acc) for (const o of opts) next.push(o ? combo.concat([o]) : combo);
+    acc = next;
+  }
+  return acc.length ? acc : [[]];
+}
 // Precio de venta de una combinacion concreta (tamano + opcion).
-function precioDe(prod, presId, varOptId) {
+function precioDe(prod, presId, opt) {
   const lista = presDe(prod);
   const idx   = lista.findIndex(p => p.id === presId);
+  const pricingOpts = opcionesDe(prod);   // opciones del grupo de precio
+  // De todas las opciones elegidas, la del grupo de precio es la que define el valor.
+  let varOptId = null;
+  if (Array.isArray(opt)) varOptId = opt.find(id => pricingOpts.some(o => o.id === id)) || null;
+  else varOptId = opt;
   if (varOptId) {
-    const o = opcionesDe(prod).find(x => x.id === varOptId);
+    const o = pricingOpts.find(x => x.id === varOptId);
     if (o) {
       if (o.prices && idx >= 0 && o.prices[idx] > 0) return o.prices[idx];
       if (o.price > 0) return o.price;
@@ -90,50 +115,58 @@ function qtyLinea(l, presId) {
   if (l.qty && l.qty['_'] != null) return l.qty['_'];
   return 0;
 }
-// Una linea aplica si es base (sin variable) o si es de la opcion elegida.
-function lineaAplica(l, varOptId) {
-  return !l.varOpt || l.varOpt === varOptId;
+// Una linea aplica si es base (sin variable) o si su opcion esta entre las
+// elegidas para la combinacion. Acepta un id (compat) o un array de ids (2+ grupos).
+function lineaAplica(l, opt) {
+  if (!l.varOpt) return true;
+  if (Array.isArray(opt)) return opt.indexOf(l.varOpt) >= 0;
+  return l.varOpt === opt;
 }
 // Costeo de UNA combinacion (tamano + opcion de variable).
 // Sin argumentos usa el primer tamano y la primera opcion, que es el
 // comportamiento que tenian las pantallas antes de este cambio.
-function calcReceta(prod, presId, varOptId) {
+function calcReceta(prod, presId, optIds) {
   const fcPct = params.fc / 100;
   const opPct = params.op / 100;
   const lista = presDe(prod);
   if (presId == null) presId = lista[0].id;
-  if (varOptId === undefined) {
-    const ops = opcionesDe(prod);
-    varOptId = ops.length ? ops[0].id : null;
+  if (optIds === undefined) {
+    // Por defecto: la primera opción de cada grupo (una combinación válida).
+    optIds = gruposDe(prod).map(g => g.opciones[0] && g.opciones[0].id).filter(Boolean);
+  } else if (!Array.isArray(optIds)) {
+    optIds = optIds ? [optIds] : [];
   }
   let raw = 0;
   for (const l of prod.receta) {
-    if (!lineaAplica(l, varOptId)) continue;
+    if (!lineaAplica(l, optIds)) continue;
     const ins = insumos.find(i => i.id === l.insId);
     if (!ins) continue;
     raw += qtyLinea(l, presId) * costoPorUr(ins) * (params.merma ? (1 + l.merma / 100) : 1);
   }
-  const precio  = precioDe(prod, presId, varOptId);
+  const precio  = precioDe(prod, presId, optIds);
   const fc      = precio > 0 ? raw / precio : 0;
   const margen  = precio - raw;
   const otros   = precio * opPct;
   const neta    = precio - raw - otros;
   const sugerido = fcPct > 0 ? raw / fcPct : 0;
-  return { raw, fc, margen, otros, neta, sugerido, precio, presId, varOptId };
+  return { raw, fc, margen, otros, neta, sugerido, precio, presId, optIds, varOptId: optIds[0] || null };
 }
 
 // Todas las combinaciones reales del producto, ya costeadas.
+// Cruza TODOS los grupos de variables (no solo uno).
 function combosDe(prod) {
-  const out  = [];
-  const ops  = opcionesDe(prod);
-  const opsL = ops.length ? ops : [null];
+  const out = [];
+  const combosOpt = combosOpcionesDe(prod);   // arrays de opciones (una por grupo)
   for (const pres of presDe(prod)) {
-    for (const op of opsL) {
-      const r = calcReceta(prod, pres.id, op ? op.id : null);
+    for (const optArr of combosOpt) {
+      const optIds = optArr.map(o => o.id);
+      const r = calcReceta(prod, pres.id, optIds);
       out.push({
         presId: pres.id, presName: pres.name,
-        varOptId: op ? op.id : null, varName: op ? op.name : '',
-        pausado: isPausado(prod, op ? op.id : null),
+        optIds,
+        varOptId: optIds[0] || null,                       // compat
+        varName: optArr.map(o => o.name).join(' · '),      // "Carne · Chorizo"
+        pausado: isPausado(prod, optIds),
         ...r,
       });
     }
@@ -161,23 +194,24 @@ function semaforo(fc) {
 }
 // Una combinacion se pausa solo si le falta un insumo QUE ELLA usa.
 // Antes, si faltaba la salchicha se pausaba tambien la version de pollo.
-function isPausado(prod, varOptId) {
+function isPausado(prod, opt) {
   if (!prod.receta || prod.receta.length === 0) return false;
-  if (varOptId === undefined) {
-    const ops = opcionesDe(prod);
-    if (ops.length) return ops.every(o => isPausado(prod, o.id));
-    varOptId = null;
+  if (opt === undefined) {
+    // Pausa "global" del producto: solo si TODAS las combinaciones están pausadas.
+    const combos = combosOpcionesDe(prod);
+    return combos.every(arr => isPausado(prod, arr.map(o => o.id)));
   }
   return prod.receta.some(l => {
-    if (!lineaAplica(l, varOptId)) return false;
+    if (!lineaAplica(l, opt)) return false;
     const ins = insumos.find(i => i.id === l.insId);
     return ins && ins.prep && ins.stock <= 0;
   });
 }
 // Insumo faltante de una combinacion, para el mensaje de la tarjeta.
-function insumoFaltante(prod, varOptId) {
+// Sin opcion (undefined) → cualquier insumo agotado del producto (base o variante).
+function insumoFaltante(prod, opt) {
   const l = prod.receta.find(x => {
-    if (!lineaAplica(x, varOptId)) return false;
+    if (opt !== undefined && !lineaAplica(x, opt)) return false;
     const i = insumos.find(y => y.id === x.insId);
     return i && i.prep && i.stock <= 0;
   });
@@ -258,6 +292,17 @@ async function loadProductos() {
         })),
       };
     })(),
+    // TODOS los grupos de variables (para productos con 2+ variantes obligatorias,
+    // ej. Súper Queso: Primer Ingrediente × Segundo Ingrediente). El costeo cruza
+    // todas las combinaciones. 'variantes' (arriba) sigue siendo el grupo de PRECIO.
+    grupos: (p.variables || []).filter(g => (g.options || []).length).map(g => ({
+      id: g.id, name: g.name || 'Opción', isPricing: !!g.isPricing,
+      opciones: g.options.map(o => ({
+        id: o.id, name: o.name || '',
+        price: parseFloat(o.price) || 0,
+        prices: Array.isArray(o.prices) ? o.prices.map(v => parseFloat(v) || 0) : null,
+      })),
+    })),
     receta:      [],
   }));
 }
@@ -748,22 +793,29 @@ function renderRecEdit() {
   if (!prod) return;
   document.getElementById('rec-edit-title').textContent = 'Editar receta · ' + prod.nombre;
 
-  const lista = presDe(prod);
-  const ops   = opcionesDe(prod);
-  const host  = document.getElementById('rec-edit-list');
+  const lista  = presDe(prod);
+  const grupos = gruposDe(prod);
+  const allOps = grupos.flatMap(g => g.opciones);   // opciones de TODOS los grupos
+  const host   = document.getElementById('rec-edit-list');
 
-  // ── Pestañas de variable ──────────────────────────────────────────
+  // ── Pestañas de variable (Base + opciones de cada grupo) ───────────
   let tabsHTML = '';
-  if (ops.length) {
+  if (allOps.length) {
     const chip = (id, txt) =>
       '<button class="iv-chip ' + ((recEdit.tab || null) === id ? 'on' : '') + '" data-rectab="' + (id === null ? '' : escHtml(id)) + '">' + escHtml(txt) + '</button>';
-    const nomTab = (ops.find(o => o.id === recEdit.tab) || {}).name || '';
-    tabsHTML = '<div class="iv-filters" style="margin-bottom:10px">'
-      + chip(null, 'Base') + '<div class="vsep"></div>' + ops.map(o => chip(o.id, o.name)).join('')
+    const nomTab = (allOps.find(o => o.id === recEdit.tab) || {}).name || '';
+    // Un bloque de chips por grupo (con su nombre si hay más de uno).
+    const bloques = grupos.map(g =>
+      '<div class="vsep"></div>'
+      + (grupos.length > 1 ? '<span style="font-size:10.5px;font-weight:700;color:#94A3B8;align-self:center;margin:0 3px 0 1px">' + escHtml(g.name) + '</span>' : '')
+      + g.opciones.map(o => chip(o.id, o.name)).join('')
+    ).join('');
+    tabsHTML = '<div class="iv-filters" style="margin-bottom:10px;flex-wrap:wrap">'
+      + chip(null, 'Base') + bloques
       + '</div><p class="iv-help" style="margin:0 0 12px">'
       + (recEdit.tab
           ? 'Solo lo que diferencia a <strong>' + escHtml(nomTab) + '</strong>. Lo de Base ya va incluido.'
-          : 'Lo que pongas aquí va en las ' + ops.length + ' opciones. En cada pestaña agregas solo lo que la diferencia.')
+          : 'Lo de <strong>Base</strong> va en TODAS las combinaciones. En cada opción agregas solo lo que la diferencia (ej. la carne en “Carne”, la tocineta en “Tocineta”).')
       + '</p>';
   }
 
@@ -1819,14 +1871,14 @@ function renderRecetasList() {
 }
 
 // Combinacion visible en el detalle de receta.
-let _recetaSel = { prodId: null, presId: null, varOptId: null };
+let _recetaSel = { prodId: null, presId: null, optSel: {} };
 
 document.addEventListener('click', function (ev) {
   if (!ev.target.closest) return;
   const p = ev.target.closest('[data-recdetpres]');
   if (p) { _recetaSel.presId = p.dataset.recdetpres; abrirRecetaDetalle(_recetaSel.prodId); return; }
   const v = ev.target.closest('[data-recdetvar]');
-  if (v) { _recetaSel.varOptId = v.dataset.recdetvar; abrirRecetaDetalle(_recetaSel.prodId); return; }
+  if (v) { _recetaSel.optSel = _recetaSel.optSel || {}; _recetaSel.optSel[v.dataset.recdetgrp || '_g'] = v.dataset.recdetvar; abrirRecetaDetalle(_recetaSel.prodId); return; }
 });
 
 function abrirRecetaDetalle(prodId) {
@@ -1840,32 +1892,37 @@ function abrirRecetaDetalle(prodId) {
   }
   document.querySelectorAll('.iv-rec-listitem').forEach(b=>b.classList.toggle('on',b.dataset.receta===prodId));
 
-  // Combinacion que se esta viendo (tamano + opcion de variable).
-  const _pres = presDe(prod), _ops = opcionesDe(prod);
+  // Combinacion que se esta viendo (tamano + una opcion por cada grupo de variable).
+  const _pres = presDe(prod), _grupos = gruposDe(prod);
+  const _allOps = _grupos.flatMap(g => g.opciones);
   if (_recetaSel.prodId !== prodId) {
-    _recetaSel = { prodId, presId: _pres[0].id, varOptId: _ops.length ? _ops[0].id : null };
+    _recetaSel = { prodId, presId: _pres[0].id, optSel: {} };
   }
   if (!_pres.some(p => p.id === _recetaSel.presId)) _recetaSel.presId = _pres[0].id;
-  if (_ops.length && !_ops.some(o => o.id === _recetaSel.varOptId)) _recetaSel.varOptId = _ops[0].id;
-  const presId = _recetaSel.presId, varOptId = _recetaSel.varOptId;
+  _recetaSel.optSel = _recetaSel.optSel || {};
+  _grupos.forEach(g => {
+    if (!g.opciones.some(o => o.id === _recetaSel.optSel[g.id])) _recetaSel.optSel[g.id] = g.opciones[0] ? g.opciones[0].id : null;
+  });
+  const presId = _recetaSel.presId;
+  const optIds = _grupos.map(g => _recetaSel.optSel[g.id]).filter(Boolean);
 
-  const r=calcReceta(prod, presId, varOptId); const sem=semaforo(r.fc);
+  const r=calcReceta(prod, presId, optIds); const sem=semaforo(r.fc);
   const precioComb = r.precio;
   const fcPct=(r.fc*100).toFixed(1); const netaPct=(r.neta/precioComb*100).toFixed(1);
   const margenPct=(r.margen/precioComb*100).toFixed(1); const opPct=(r.otros/precioComb*100).toFixed(1);
 
-  // Selector de combinacion; solo aparece si hay mas de una.
+  // Selector de combinacion; una fila por presentacion y por cada grupo.
   let selectorHTML = '';
-  if (_pres.length > 1 || _ops.length > 1) {
-    const fila = (label, items, activo, attr) =>
+  if (_pres.length > 1 || _allOps.length > 1) {
+    const fila = (label, items, activo, attr, grpId) =>
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">'
-      + '<span style="font-size:11px;font-weight:700;color:#94A3B8;letter-spacing:.04em;min-width:86px">' + label + '</span>'
+      + '<span style="font-size:11px;font-weight:700;color:#94A3B8;letter-spacing:.04em;min-width:86px">' + escHtml(label) + '</span>'
       + items.map(it => '<button class="iv-chip ' + (it.id === activo ? 'on' : '') + '" '
-          + attr + '="' + escHtml(it.id) + '">' + escHtml(it.name || 'Unico') + '</button>').join('')
+          + attr + '="' + escHtml(it.id) + '"' + (grpId ? ' data-recdetgrp="' + escHtml(grpId) + '"' : '') + '>' + escHtml(it.name || 'Unico') + '</button>').join('')
       + '</div>';
     selectorHTML = '<div style="margin:0 0 14px">'
-      + (_pres.length > 1 ? fila('Presentacion', _pres, presId, 'data-recdetpres') : '')
-      + (_ops.length  > 1 ? fila((prod.variantes.grupo || 'Opcion'), _ops, varOptId, 'data-recdetvar') : '')
+      + (_pres.length > 1 ? fila('Presentacion', _pres, presId, 'data-recdetpres', null) : '')
+      + _grupos.filter(g => g.opciones.length > 1).map(g => fila(g.name || 'Opcion', g.opciones, _recetaSel.optSel[g.id], 'data-recdetvar', g.id)).join('')
       + '</div>';
   }
   let bannerHTML='';
@@ -1877,12 +1934,12 @@ function abrirRecetaDetalle(prodId) {
   }
   let recetaRows='';
   for (const l of prod.receta) {
-    if (!lineaAplica(l, varOptId)) continue;
+    if (!lineaAplica(l, optIds)) continue;
     const ins=insumos.find(i=>i.id===l.insId); if (!ins) continue;
     const q=qtyLinea(l, presId); if (q<=0) continue;
     const cpu=costoPorUr(ins); const lineCost=q*cpu*(params.merma?(1+l.merma/100):1);
     const linePct=r.raw>0?(lineCost/r.raw*100).toFixed(1):'0';
-    const orig=l.varOpt?' · solo '+escHtml((_ops.find(o=>o.id===l.varOpt)||{}).name||''):'';
+    const orig=l.varOpt?' · solo '+escHtml((_allOps.find(o=>o.id===l.varOpt)||{}).name||''):'';
     recetaRows+=`<div class="iv-recipe-row"><div style="flex:1"><div class="iv-recipe-name">${ins.nombre}</div><div class="iv-recipe-sub">${ivCOP(cpu)}/${ins.useUnit} · ${linePct}% del costo${orig}</div></div><div style="width:80px;text-align:center;font-size:13px;font-weight:700">${q} ${ins.useUnit}</div><div class="iv-recipe-cost">${ivCOP(lineCost)}</div></div>`;
   }
   const inf=params.inf/100; const raw6=r.raw*Math.pow(1+inf,0.5); const raw12=r.raw*(1+inf);
