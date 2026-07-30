@@ -15,6 +15,11 @@ const iv_sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
 let tenantId  = null;
 let branchId  = null;
 let params    = { fc: 30, op: 32, inf: 10, merma: true };
+// Plantillas de costeo (porcentajes). Cada categoría: {nombre, pct, tipo:'materia'|'costo'|'ganancia'}.
+// La plantilla ACTIVA define la meta de materia prima y el desglose que se muestra en costeo.
+let plantillas = [];
+let plantillaActivaId = null;
+let _plEdit = null;   // borrador del editor de plantilla
 let customUnits = [];
 
 let insumos   = [];
@@ -252,6 +257,7 @@ async function loadData() {
     await loadInsumos();
     await loadRecetasDB();
     await loadParamsDB();
+    await loadPlantillasDB();
     await loadBasesDB();
     await loadPorciones();
   } catch(e) {
@@ -462,6 +468,144 @@ async function loadParamsDB() {
   }
 }
 
+// ══════════════ PLANTILLAS DE COSTEO ══════════════
+function plantillaActiva() { return plantillas.find(p => p.id === plantillaActivaId) || plantillas[0] || null; }
+function plCatMateria(pl) { return ((pl && pl.cats) || []).find(c => c.tipo === 'materia'); }
+function plSumaTipo(pl, tipo) { return ((pl && pl.cats) || []).filter(c => c.tipo === tipo).reduce((s, c) => s + (parseFloat(c.pct) || 0), 0); }
+function plTotal(pl) { return ((pl && pl.cats) || []).reduce((s, c) => s + (parseFloat(c.pct) || 0), 0); }
+
+async function loadPlantillasDB() {
+  if (!branchId) return;
+  try {
+    const { data } = await iv_sb.from('branches').select('operacion_config').eq('id', branchId).maybeSingle();
+    const cfg = (data && data.operacion_config) || {};
+    if (Array.isArray(cfg.costeoPlantillas) && cfg.costeoPlantillas.length) {
+      plantillas = cfg.costeoPlantillas;
+      plantillaActivaId = cfg.costeoPlantillaActiva || plantillas[0].id;
+    }
+  } catch (e) { console.warn('[inventario] loadPlantillas:', e && e.message); }
+  if (!plantillas.length) {
+    const gan = Math.max(0, 100 - (params.fc || 30) - (params.op || 0));
+    plantillas = [{ id: 'default', nombre: 'Estándar', cats: [
+      { nombre: 'Materia prima', pct: params.fc || 30, tipo: 'materia' },
+      { nombre: 'Otros costos (empleados, servicios…)', pct: params.op || 32, tipo: 'costo' },
+      { nombre: 'Ganancia', pct: gan, tipo: 'ganancia' },
+    ] }];
+    plantillaActivaId = 'default';
+  }
+  aplicarPlantillaAParams();
+}
+// La plantilla activa manda: materia prima → meta (fc); suma de costos → op.
+function aplicarPlantillaAParams() {
+  const pl = plantillaActiva(); if (!pl) return;
+  const mat = plCatMateria(pl);
+  if (mat) params.fc = parseFloat(mat.pct) || params.fc;
+  params.op = plSumaTipo(pl, 'costo');
+}
+async function seleccionarPlantilla(id) {
+  plantillaActivaId = id;
+  aplicarPlantillaAParams();
+  await saveOpConfigPatch({ costeoPlantillas: plantillas, costeoPlantillaActiva: plantillaActivaId });
+  await guardarParams();
+  renderPlantillas(); refrescarCosteo();
+  showToast('Plantilla activa: ' + (plantillaActiva()?.nombre || ''));
+}
+function renderPlantillas() {
+  const host = document.getElementById('pl-list'); if (!host) return;
+  const cnt = document.getElementById('pl-count'); if (cnt) cnt.textContent = plantillas.length;
+  host.innerHTML = plantillas.map(pl => {
+    const activa = pl.id === plantillaActivaId;
+    const total = plTotal(pl);
+    const cats = (pl.cats || []).map(c => {
+      const col = c.tipo === 'materia' ? { bg:'#EEF2FF', ink:'#4F46E5' } : c.tipo === 'ganancia' ? { bg:'#F0FDF4', ink:'#16A34A' } : { bg:'#F8FAFC', ink:'#475569' };
+      return `<span class="iv-preset" style="background:${col.bg};color:${col.ink}">${escHtml(c.nombre)} · <b>${c.pct}%</b></span>`;
+    }).join('');
+    return `<div class="iv-units-card" style="padding:16px;margin-bottom:12px;${activa ? 'border:2px solid #5B6BFF' : ''}">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="font-size:15px;font-weight:800;color:#0F172A;flex:1">${escHtml(pl.nombre || 'Sin nombre')}${activa ? ' <span style="font-size:11px;font-weight:700;color:#5B6BFF;background:#EEF2FF;padding:2px 8px;border-radius:999px;margin-left:6px">✓ Activa</span>' : ''}</div>
+        <div style="font-size:12px;font-weight:700;color:${total === 100 ? '#16A34A' : '#DC2626'}">Total ${total}%</div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">${cats}</div>
+      <div style="display:flex;gap:8px">
+        ${activa ? '' : `<button class="iv-btn-ghost sm" onclick="seleccionarPlantilla('${pl.id}')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Usar esta</button>`}
+        <button class="iv-btn-ghost sm" onclick="abrirEditorPlantilla('${pl.id}')">Editar</button>
+        ${plantillas.length > 1 ? `<button class="iv-btn-ghost sm" style="color:#DC2626" onclick="eliminarPlantilla('${pl.id}')">Eliminar</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+function abrirEditorPlantilla(id) {
+  const pl = id ? plantillas.find(p => p.id === id) : null;
+  _plEdit = pl ? JSON.parse(JSON.stringify(pl)) : { id: 'pl_' + Date.now().toString(36), nombre: '', cats: [
+    { nombre: 'Materia prima', pct: 30, tipo: 'materia' },
+    { nombre: 'Ganancia', pct: 70, tipo: 'ganancia' },
+  ] };
+  renderEditorPlantilla();
+}
+function plRefreshTotal() {
+  const t = _plEdit ? _plEdit.cats.reduce((s, c) => s + (parseFloat(c.pct) || 0), 0) : 0;
+  const el = document.getElementById('pl-total'); if (el) { el.textContent = 'Total ' + t + '%'; el.style.color = t === 100 ? '#16A34A' : '#DC2626'; }
+}
+function plAddCat() { _plEdit.cats.push({ nombre: '', pct: 0, tipo: 'costo' }); renderEditorPlantilla(); }
+function plDelCat(i) { _plEdit.cats.splice(i, 1); renderEditorPlantilla(); }
+function renderEditorPlantilla() {
+  document.getElementById('pl-modal')?.remove();
+  const pl = _plEdit;
+  const rows = pl.cats.map((c, i) => `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+    <input class="iv-input" style="flex:1" value="${escHtml(c.nombre)}" oninput="_plEdit.cats[${i}].nombre=this.value" placeholder="Ej. Empleados">
+    <div style="position:relative;width:82px"><input class="iv-input" style="width:82px;padding-right:22px" type="number" min="0" max="100" value="${c.pct}" oninput="_plEdit.cats[${i}].pct=parseFloat(this.value)||0;plRefreshTotal()"><span style="position:absolute;right:9px;top:50%;transform:translateY(-50%);color:#94A3B8;font-size:12px">%</span></div>
+    <select class="iv-input" style="width:130px" onchange="_plEdit.cats[${i}].tipo=this.value">
+      <option value="materia" ${c.tipo === 'materia' ? 'selected' : ''}>Materia prima</option>
+      <option value="costo" ${c.tipo === 'costo' ? 'selected' : ''}>Costo</option>
+      <option value="ganancia" ${c.tipo === 'ganancia' ? 'selected' : ''}>Ganancia</option>
+    </select>
+    <button style="border:none;background:#FEE2E2;color:#DC2626;width:30px;height:30px;border-radius:8px;cursor:pointer;flex-shrink:0" onclick="plDelCat(${i})">✕</button>
+  </div>`).join('');
+  const ov = document.createElement('div');
+  ov.id = 'pl-modal';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto';
+  ov.innerHTML = `<div style="background:#fff;border-radius:16px;padding:22px;width:520px;max-width:96vw;font-family:'DM Sans',system-ui,sans-serif;box-shadow:0 24px 60px -12px rgba(0,0,0,.35)">
+    <div style="font-size:16px;font-weight:800;color:#0F172A;margin-bottom:4px">${pl.id.startsWith('pl_') && !plantillas.find(x=>x.id===pl.id) ? 'Nueva plantilla' : 'Editar plantilla'}</div>
+    <div style="font-size:12.5px;color:#64748B;margin-bottom:14px">Define en qué se reparte el precio. Debe sumar 100%. Marca UNA como "Materia prima" (será tu meta).</div>
+    <div class="iv-field-label">Nombre de la plantilla</div>
+    <input class="iv-input" id="pl-nombre" style="width:100%;margin-bottom:14px" value="${escHtml(pl.nombre)}" oninput="_plEdit.nombre=this.value" placeholder="Ej. Mi negocio">
+    <div style="display:flex;gap:8px;font-size:11px;font-weight:700;color:#94A3B8;margin-bottom:6px"><span style="flex:1">CATEGORÍA</span><span style="width:82px">%</span><span style="width:130px">TIPO</span><span style="width:30px"></span></div>
+    ${rows}
+    <button class="iv-btn-ghost sm" onclick="plAddCat()" style="margin-top:4px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Agregar categoría</button>
+    <div style="display:flex;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid #F1F5F9">
+      <div id="pl-total" style="flex:1;font-size:14px;font-weight:800;color:${plTotal(pl) === 100 ? '#16A34A' : '#DC2626'}">Total ${plTotal(pl)}%</div>
+      <button style="padding:11px 14px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:700;font-size:13px;cursor:pointer;margin-right:8px" onclick="document.getElementById('pl-modal').remove()">Cancelar</button>
+      <button style="padding:11px 18px;border-radius:10px;border:none;background:#5B6BFF;color:#fff;font-weight:700;font-size:13px;cursor:pointer" onclick="guardarPlantillaEdit()">Guardar</button>
+    </div>
+  </div>`;
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+async function guardarPlantillaEdit() {
+  const pl = _plEdit;
+  if (!pl.nombre.trim()) { alert('Ponle un nombre a la plantilla'); return; }
+  pl.cats = pl.cats.filter(c => (c.nombre || '').trim());
+  const total = plTotal(pl);
+  if (total !== 100) { alert('Los porcentajes deben sumar 100% (van en ' + total + '%)'); return; }
+  if (!pl.cats.some(c => c.tipo === 'materia')) { alert('Marca UNA categoría como "Materia prima" (es tu meta de costeo)'); return; }
+  const idx = plantillas.findIndex(p => p.id === pl.id);
+  if (idx >= 0) plantillas[idx] = pl; else plantillas.push(pl);
+  if (!plantillaActivaId) plantillaActivaId = pl.id;
+  await saveOpConfigPatch({ costeoPlantillas: plantillas, costeoPlantillaActiva: plantillaActivaId });
+  if (pl.id === plantillaActivaId) { aplicarPlantillaAParams(); await guardarParams(); }
+  document.getElementById('pl-modal')?.remove();
+  renderPlantillas(); refrescarCosteo();
+  showToast('✓ Plantilla guardada');
+}
+async function eliminarPlantilla(id) {
+  if (plantillas.length <= 1) { showToast('Debe quedar al menos una plantilla', 'info'); return; }
+  if (!confirm('¿Eliminar esta plantilla?')) return;
+  plantillas = plantillas.filter(p => p.id !== id);
+  if (plantillaActivaId === id) { plantillaActivaId = plantillas[0].id; aplicarPlantillaAParams(); await guardarParams(); }
+  await saveOpConfigPatch({ costeoPlantillas: plantillas, costeoPlantillaActiva: plantillaActivaId });
+  renderPlantillas(); refrescarCosteo();
+}
+
 function mostrarCargando(on) {
   const el = document.getElementById('iv-loading');
   if (el) el.classList.toggle('is-hidden', !on);
@@ -528,6 +672,7 @@ const screens = {
   insumos:   { title:'Insumos',            eyebrow:'Control de inventario · El Parche Food', crumb:'Insumos' },
   recetas:   { title:'Recetas y costeo',   eyebrow:'Control de inventario · El Parche Food', crumb:'Recetas y costeo' },
   unidades:  { title:'Unidades de medida', eyebrow:'Configuración', crumb:'Unidades de medida' },
+  plantillas:{ title:'Plantillas de costeo', eyebrow:'Configuración', crumb:'Plantillas de costeo' },
   bases:     { title:'Bases de recetas',    eyebrow:'Configuración', crumb:'Bases de recetas' },
 };
 function showScreen(name) {
@@ -548,6 +693,7 @@ function showScreen(name) {
   if (name === 'insumos')   renderInsumos();
   if (name === 'recetas')   refrescarCosteo();
   if (name === 'unidades')  renderUnidades();
+  if (name === 'plantillas') renderPlantillas();
   if (name === 'bases')     renderBases();
 }
 
@@ -2065,17 +2211,31 @@ function abrirRecetaDetalle(prodId) {
   const suggestCardHTML = (r.fc > metaFrac + 0.0005 && r.sugerido > 0)
     ? `<div class="iv-suggest"><div class="h"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5"/></svg> Precio sugerido</div><div class="v">${ivCOP(sugeridoRedondo)}</div><div class="x">Sube el precio para que la materia prima baje al ${params.fc}% (tu meta).</div><button class="iv-btn-primary" style="margin-top:12px;width:100%;justify-content:center" onclick="aplicarPrecioSugerido('${prod.id}',${sugeridoRedondo})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Aplicar ${ivCOP(sugeridoRedondo)}</button></div>`
     : `<div class="iv-suggest" style="background:#F0FDF4;border-color:#BBF7D0"><div class="h" style="color:#16A34A"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Precio saludable</div><div class="v" style="color:#16A34A">${ivCOP(precioComb)}</div><div class="x">Tu materia prima (${fcPct}%) está por debajo de tu meta del ${params.fc}%. El precio actual es rentable — no necesitas cambiarlo.</div></div>`;
+  // Desglose de la plantilla activa: materia prima (REAL), costos (planeados), ganancia (residual real).
+  const _plA = plantillaActiva();
+  let metricsHTML;
+  if (_plA && _plA.cats && _plA.cats.length) {
+    const costoPlan = _plA.cats.filter(c => c.tipo === 'costo').reduce((s, c) => s + precioComb * (parseFloat(c.pct) || 0) / 100, 0);
+    const gananciaReal = precioComb - r.raw - costoPlan;
+    metricsHTML = '<div class="iv-metrics">' + _plA.cats.map(c => {
+      if (c.tipo === 'materia')
+        return `<div class="iv-metric"><div class="ml">${escHtml(c.nombre)}</div><div class="mv" style="color:${sem.color}">${ivCOP(r.raw)}</div><div class="ms">${fcPct}% real · meta ${c.pct}%</div><div class="iv-bar" style="margin-top:8px"><i style="width:${Math.min(100, r.fc * 100)}%;background:${sem.color}"></i></div></div>`;
+      if (c.tipo === 'ganancia') {
+        const gp = precioComb > 0 ? (gananciaReal / precioComb * 100) : 0;
+        return `<div class="iv-metric hl"><div class="ml">${escHtml(c.nombre)}</div><div class="mv" style="color:${gananciaReal >= 0 ? '#16A34A' : '#DC2626'}">${ivCOP(gananciaReal)}</div><div class="ms">${gp.toFixed(1)}% real · meta ${c.pct}%</div></div>`;
+      }
+      const cval = precioComb * (parseFloat(c.pct) || 0) / 100;
+      return `<div class="iv-metric"><div class="ml">${escHtml(c.nombre)}</div><div class="mv">${ivCOP(cval)}</div><div class="ms">${c.pct}% del precio (planeado)</div></div>`;
+    }).join('') + '</div>';
+  } else {
+    metricsHTML = `<div class="iv-metrics"><div class="iv-metric"><div class="ml">Materia prima</div><div class="mv" style="color:${sem.color}">${ivCOP(r.raw)}</div><div class="ms">${fcPct}% del precio</div><div class="iv-bar" style="margin-top:8px"><i style="width:${Math.min(100, r.fc * 100)}%;background:${sem.color}"></i></div></div><div class="iv-metric"><div class="ml">Margen contribución</div><div class="mv">${ivCOP(r.margen)}</div><div class="ms">${margenPct}%</div></div><div class="iv-metric"><div class="ml">Otros costos op.</div><div class="mv">${ivCOP(r.otros)}</div><div class="ms">${opPct}%</div></div><div class="iv-metric hl"><div class="ml">Ganancia neta</div><div class="mv" style="color:#16A34A">${ivCOP(r.neta)}</div><div class="ms">${netaPct}%</div></div></div>`;
+  }
   document.getElementById('receta-detalle').innerHTML=`
     <div class="iv-rec-head"><div><div class="iv-prod-cat">${prod.cat}</div><div class="iv-rec-title">${prod.nombre}</div></div><div style="text-align:right"><div class="iv-rec-pricelbl">Precio de venta</div><div style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums">${ivCOP(precioComb)}</div></div></div>
     <div style="display:flex;justify-content:flex-end;margin:-2px 0 12px"><button class="iv-btn-ghost sm" onclick="abrirEditorInsumoReceta('${prod.id}')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg> Editar receta</button></div>
     ${selectorHTML}
     ${bannerHTML}
-    <div class="iv-metrics">
-      <div class="iv-metric"><div class="ml">Materia prima</div><div class="mv" style="color:${sem.color}">${ivCOP(r.raw)}</div><div class="ms">${fcPct}% del precio</div><div class="iv-bar" style="margin-top:8px"><i style="width:${Math.min(100,r.fc*100)}%;background:${sem.color}"></i></div></div>
-      <div class="iv-metric"><div class="ml">Margen contribución</div><div class="mv">${ivCOP(r.margen)}</div><div class="ms">${margenPct}%</div></div>
-      <div class="iv-metric"><div class="ml">Otros costos op.</div><div class="mv">${ivCOP(r.otros)}</div><div class="ms">${opPct}%</div></div>
-      <div class="iv-metric hl"><div class="ml">Ganancia neta</div><div class="mv" style="color:#16A34A">${ivCOP(r.neta)}</div><div class="ms">${netaPct}%</div></div>
-    </div>
+    ${metricsHTML}
     <div class="iv-recipe"><div class="iv-recipe-head"><span style="flex:1">Ingrediente</span><span style="width:80px;text-align:center">Cantidad</span><span>Costo</span></div>${recetaRows}<div class="iv-recipe-total"><span style="font-size:12.5px;font-weight:700;color:#475569">Costo total materia prima</span><span style="font-size:15px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">${ivCOP(r.raw)}</span></div></div>
     <div class="iv-cards2">
       ${suggestCardHTML}
@@ -2189,6 +2349,7 @@ document.querySelectorAll('.iv-tab').forEach(tab=>{
   tab.addEventListener('click',()=>showScreen(tab.dataset.screen));
 });
 document.getElementById('nav-unidades')?.addEventListener('click',()=>showScreen('unidades'));
+document.getElementById('nav-plantillas')?.addEventListener('click',()=>showScreen('plantillas'));
 document.getElementById('nav-params')?.addEventListener('click',()=>{
   // Sincronizar la UI del panel con lo guardado (antes mostraba valores fijos del HTML).
   const setSlider=(id,val)=>{ const s=document.getElementById(id); if(s){s.value=val; const v=document.getElementById(id+'-val'); if(v) v.textContent=val+'%';} };

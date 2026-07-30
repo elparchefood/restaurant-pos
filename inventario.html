@@ -48,6 +48,12 @@
         </span>
         <span class="iv-nav-badge" id="nav-unidades-badge">1</span>
       </button>
+      <button class="iv-nav-item" id="nav-plantillas" data-screen="plantillas">
+        <span class="lbl">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/><path d="M9 12l2 2 4-4"/></svg>
+          Plantillas de costeo
+        </span>
+      </button>
       <button class="iv-nav-item" id="nav-bases" data-screen="bases" onclick="showScreen('bases')">
         <span class="lbl">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>
@@ -280,6 +286,24 @@
           <div class="iv-preset-list">
             <span class="iv-preset">unidad</span><span class="iv-preset">libra</span><span class="iv-preset">kg</span><span class="iv-preset">gramo</span><span class="iv-preset">litro</span><span class="iv-preset">ml</span><span class="iv-preset">galón</span><span class="iv-preset">lata</span><span class="iv-preset">frasco</span><span class="iv-preset">paq. ×10</span><span class="iv-preset">paq. ×12</span><span class="iv-preset">paq. ×24</span><span class="iv-preset">paq. ×50</span><span class="iv-preset">paq. ×100</span><span class="iv-preset">caja ×12</span><span class="iv-preset">caja ×24</span><span class="iv-preset">g</span><span class="iv-preset">loncha</span><span class="iv-preset">porción</span>
           </div>
+        </div>
+      </div>
+
+      <!-- ============ PLANTILLAS DE COSTEO ============ -->
+      <div class="screen" id="screen-plantillas">
+        <div class="iv-units">
+          <p class="iv-units-help">Define en qué se reparte el precio de tus platos (materia prima, empleados, servicios, ganancia…). Crea varias plantillas y elige cuál usar. <strong>Recetas y costeo</strong> usa siempre la plantilla activa. La suma de cada plantilla debe dar 100%.</p>
+          <div class="iv-units-sechead">
+            <div class="iv-units-sectitle">
+              <span style="display:flex;color:#5B6BFF"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/><path d="M9 12l2 2 4-4"/></svg></span>
+              Tus plantillas <span class="iv-units-count" id="pl-count">0</span>
+            </div>
+            <button class="iv-btn-ghost sm" onclick="abrirEditorPlantilla(null)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Nueva plantilla
+            </button>
+          </div>
+          <div id="pl-list"></div>
         </div>
       </div>
 
@@ -752,7 +776,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-perms.js?v=1785030000"></script>
 <script>if(window.posRequirePin) posRequirePin('catalogo.editar');</script>
-<script src="inventario.js?v=1786660000"></script>
+<script src="inventario.js?v=1786680000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>
 </html>
