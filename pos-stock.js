@@ -20,7 +20,15 @@
   // Cada linea: { ins:insumo_id, varOpt:variant_option_id|'' , qty:cantidades|null }
   //   varOpt vacio  → linea BASE: aplica a TODAS las combinaciones del producto.
   //   varOpt lleno  → aplica solo a esa opcion (sabor/variante).
-  function insAgotado(insId) { var i = S._ins[insId]; return !!(i && i.stock <= 0); }
+  // Un insumo está agotado:
+  //  · control manual ON  → SOLO si lo marcaron a mano (agotado_manual), sin importar el stock.
+  //  · control manual OFF → si su stock llegó a 0 (comportamiento normal).
+  function insAgotado(insId) {
+    var i = S._ins[insId];
+    if (!i) return false;
+    if (i.manual) return !!i.agotadoManual;
+    return i.stock <= 0;
+  }
 
   // Nombres de insumos agotados que aplican a una combinacion (opcion + presentacion).
   // Si varOptId es undefined/null → SOLO lineas base (el producto "entero").
@@ -58,7 +66,7 @@
         var meta = (u && u.data && u.data.user && u.data.user.user_metadata) || {};
         var branchId = meta.branch_id, tenantId = meta.tenant_id;
 
-        var qi = sb.from('iv_insumos').select('id,nombre,stock');
+        var qi = sb.from('iv_insumos').select('id,nombre,stock,control_manual,agotado_manual');
         if (branchId) qi = qi.eq('branch_id', branchId); else if (tenantId) qi = qi.eq('tenant_id', tenantId);
         // Ahora traemos variant_option_id + cantidades para diferenciar por sabor/variante.
         var qr = sb.from('iv_recetas').select('product_id,insumo_id,variant_option_id,cantidades');
@@ -66,7 +74,7 @@
 
         var resI = await qi;
         var resR = await qr;
-        (resI.data || []).forEach(function (i) { S._ins[i.id] = { nombre: i.nombre, stock: num(i.stock) }; });
+        (resI.data || []).forEach(function (i) { S._ins[i.id] = { nombre: i.nombre, stock: num(i.stock), manual: !!i.control_manual, agotadoManual: !!i.agotado_manual }; });
         (resR.data || []).forEach(function (r) {
           if (!S._lines[r.product_id]) S._lines[r.product_id] = [];
           S._lines[r.product_id].push({ ins: r.insumo_id, varOpt: r.variant_option_id || '', qty: r.cantidades || null });

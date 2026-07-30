@@ -493,6 +493,11 @@
         <div style="flex:1"><div class="tt">Entra en preparaciones</div><div class="tx">Se puede usar dentro de recetas y afecta el costeo.</div></div>
         <span class="iv-switch on" id="toggle-prep-sw"><span class="iv-switch-label">Sí</span><span class="iv-switch-track"><span class="iv-switch-knob"></span></span></span>
       </div>
+      <div class="iv-toggle" id="toggle-manual" onclick="toggleManual()">
+        <span style="display:flex;color:#F59E0B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+        <div style="flex:1"><div class="tt">Control manual (el cocinero avisa)</div><div class="tx">El sistema descuenta, pero NO lo da por agotado por cantidad. Se marca a mano cuando se acaba (para pollo, carne, etc. que no se pesan).</div></div>
+        <span class="iv-switch" id="toggle-manual-sw"><span class="iv-switch-label">No</span><span class="iv-switch-track"><span class="iv-switch-knob"></span></span></span>
+      </div>
     </div>
     <div class="iv-panel-foot">
       <button class="iv-btn-danger is-hidden" id="btn-ins-eliminar" onclick="eliminarInsumo()">Eliminar</button>
@@ -726,7 +731,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-perms.js?v=1785030000"></script>
 <script>if(window.posRequirePin) posRequirePin('catalogo.editar');</script>
-<script src="inventario.js?v=1786600000"></script>
+<script src="inventario.js?v=1786620000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>
 </html>

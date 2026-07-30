@@ -24,6 +24,7 @@ let recetas   = [];
 let repInsumoId = null;
 let activeFilter = 'todos';
 let togglePrepOn = true;
+let toggleManualOn = false;   // "Control manual (el cocinero avisa)" del insumo en edición
 let compraQty = {};
 let compraPrices = {};
 let mermaOn = true;
@@ -42,6 +43,9 @@ function escHtml(s) {
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 function getStockState(ins) {
+  // Insumos de control manual: su disponibilidad NO depende de la cantidad,
+  // sino de la marca a mano. 'out' solo si el cocinero avisó que se acabó.
+  if (ins.controlManual) return ins.agotadoManual ? 'out' : 'ok';
   const { stock, min } = ins;
   if (stock <= 0) return 'out';
   if (stock <= min * 0.4) return 'critical';
@@ -323,6 +327,8 @@ async function loadInsumos() {
     cat:        i.categoria,
     catColor:   i.cat_color,
     prep:       i.prep_requerido,
+    controlManual: !!i.control_manual,
+    agotadoManual: !!i.agotado_manual,
     buyUnit:    i.buy_unit,
     useUnit:    i.use_unit,
     precio:     parseFloat(i.precio) || 0,
@@ -1326,7 +1332,7 @@ function buildInsRow(ins) {
   el.className = 'iv-ins-row';
   el.innerHTML = `
     <div class="iv-ins-main">
-      <div style="display:flex;align-items:center;gap:8px"><span class="iv-ins-name">${ins.nombre}</span>${tagHTML}</div>
+      <div style="display:flex;align-items:center;gap:8px"><span class="iv-ins-name">${ins.nombre}</span>${tagHTML}${ins.controlManual?'<span class="iv-tag-direct" style="color:#B45309;background:#FEF3C7"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg>Manual</span>':''}</div>
       <div class="iv-ins-meta">Compra: <strong>${ivCOP(ins.precio)}</strong> / ${ins.buyUnit} · usa en ${ins.useUnit}</div>
     </div>
     <div class="iv-ins-stock">
@@ -1337,7 +1343,9 @@ function buildInsRow(ins) {
       <div class="iv-bar"><i style="width:${pct}%;background:${colors.bar}"></i></div>
     </div>
     <div class="iv-ins-badgewrap">
-      <span class="iv-badge" style="color:${colors.txt};background:${colors.bg}">${stateLabel(state)}</span>
+      ${ins.controlManual
+        ? `<button class="iv-badge" onclick="toggleAgotadoManual('${ins.id}')" title="Toca para cambiar disponibilidad" style="cursor:pointer;border:none;font-weight:700;color:${ins.agotadoManual?'#DC2626':'#16A34A'};background:${ins.agotadoManual?'#FEE2E2':'#DCFCE7'}">${ins.agotadoManual?'⛔ Se acabó':'✅ Disponible'}</button>`
+        : `<span class="iv-badge" style="color:${colors.txt};background:${colors.bg}">${stateLabel(state)}</span>`}
     </div>
     <div class="iv-ins-actions">
       <button class="iv-btn-ghost sm btn-reponer" onclick="abrirReponer('${ins.id}')">
@@ -1349,6 +1357,19 @@ function buildInsRow(ins) {
       </button>
     </div>`;
   return el;
+}
+
+// Marca/desmarca un insumo de control manual como agotado ("Se acabó / Ya hay").
+async function toggleAgotadoManual(insId) {
+  const ins = insumos.find(i => i.id === insId); if (!ins) return;
+  const nuevo = !ins.agotadoManual;
+  ins.agotadoManual = nuevo;
+  try {
+    await iv_sb.from('iv_insumos').update({ agotado_manual: nuevo, updated_at: new Date().toISOString() }).eq('id', insId);
+    showToast(nuevo ? '⛔ ' + ins.nombre + ' marcado como agotado' : '✅ ' + ins.nombre + ' disponible de nuevo');
+  } catch (e) { ins.agotadoManual = !nuevo; showToast('No se pudo cambiar', 'error'); }
+  renderInsumos();
+  if (typeof refrescarCosteo === 'function') refrescarCosteo();
 }
 
 // ═══════════════════════════════════════════════════
@@ -1586,6 +1607,7 @@ function abrirEditorInsumo(insId) {
   document.getElementById('ins-stock').value      = ins?ins.stock:'';
   document.getElementById('ins-min').value        = ins?ins.min:'';
   togglePrepOn = ins?ins.prep:true;
+  toggleManualOn = ins?!!ins.controlManual:false;
   const catSel = document.getElementById('ins-cat');
   const cats   = [...new Set(insumos.map(i=>i.cat))];
   catSel.innerHTML='<option value="">Seleccionar categoría…</option>'+
@@ -1599,6 +1621,7 @@ function abrirEditorInsumo(insId) {
   _stockMode = { actual: 'buy', min: 'buy' };  // el stock guardado siempre está en u.compra
   updateStockLabel();
   updateTogglePrepUI();
+  updateToggleManualUI();
   document.getElementById('ins-cost-hint').classList.add('is-hidden');
   document.getElementById('btn-ins-eliminar').classList.toggle('is-hidden',!ins);
   renderPorcionesInsumo(ins ? ins.id : null);
@@ -1731,6 +1754,17 @@ function updateTogglePrepUI() {
     if (lbl) lbl.textContent=togglePrepOn?'Sí':'No';
   }
 }
+// Control manual: el insumo no se agota por cantidad; se marca a mano cuando se acaba.
+function toggleManual() { toggleManualOn=!toggleManualOn; updateToggleManualUI(); }
+function updateToggleManualUI() {
+  const box=document.getElementById('toggle-manual'); if (box) box.classList.toggle('on',toggleManualOn);
+  const sw=document.getElementById('toggle-manual-sw');
+  if (sw) {
+    sw.classList.toggle('on',toggleManualOn);
+    const lbl=sw.querySelector('.iv-switch-label');
+    if (lbl) lbl.textContent=toggleManualOn?'Sí':'No';
+  }
+}
 function updateCostHint() {
   const precio=parseFloat(document.getElementById('ins-precio').value)||0;
   const conv=parseFloat(document.getElementById('ins-conversion').value)||0;
@@ -1763,15 +1797,20 @@ async function guardarInsumo() {
   if (!nombre||!cat||precio<=0) { alert('Completa nombre, categoría y precio'); return; }
   const catColor = CAT_COLORS[cat]||'#64748B';
   const editId   = document.getElementById('ins-edit-id').value;
-  const payload  = { nombre, categoria:cat, cat_color:catColor, prep_requerido:togglePrepOn, buy_unit:buyUnit, use_unit:useUnit, precio, conversion, stock, min_stock:min, updated_at:new Date().toISOString() };
+  const _insPrev = editId ? insumos.find(i=>i.id===editId) : null;
+  const payload  = { nombre, categoria:cat, cat_color:catColor, prep_requerido:togglePrepOn, control_manual:toggleManualOn, buy_unit:buyUnit, use_unit:useUnit, precio, conversion, stock, min_stock:min, updated_at:new Date().toISOString() };
+  // Si se APAGA el control manual, se limpia el "agotado manual" (para que no quede pegado).
+  // Si sigue manual, no se toca aquí (se maneja con el botón rápido "Se acabó / Ya hay").
+  if (!toggleManualOn) payload.agotado_manual = false;
+  const agotadoManualFinal = toggleManualOn ? (_insPrev ? !!_insPrev.agotadoManual : false) : false;
   if (editId) {
     await iv_sb.from('iv_insumos').update(payload).eq('id',editId);
     const ins=insumos.find(i=>i.id===editId);
-    if (ins) Object.assign(ins,{nombre,cat,catColor,prep:togglePrepOn,buyUnit,useUnit,precio,conversion,stock,min});
+    if (ins) Object.assign(ins,{nombre,cat,catColor,prep:togglePrepOn,controlManual:toggleManualOn,agotadoManual:agotadoManualFinal,buyUnit,useUnit,precio,conversion,stock,min});
   } else {
     const {data,error}=await iv_sb.from('iv_insumos').insert({...payload,tenant_id:tenantId,branch_id:branchId,activo:true}).select().single();
     if (error) { console.error('guardarInsumo:',error); alert('Error al guardar'); return; }
-    insumos.push({id:data.id,nombre,cat,catColor,prep:togglePrepOn,buyUnit,useUnit,precio,conversion,stock,min});
+    insumos.push({id:data.id,nombre,cat,catColor,prep:togglePrepOn,controlManual:toggleManualOn,agotadoManual:agotadoManualFinal,buyUnit,useUnit,precio,conversion,stock,min});
   }
   closePanel('panel-insumo');
   showToast('✓ Insumo guardado');
