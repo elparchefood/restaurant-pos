@@ -1055,6 +1055,17 @@ function tpMPAddToCart(){
     }
   } catch (e) { /* fail-safe: nunca bloquear la venta por un error del detector */ }
   TP_WIP._psOk = false;
+  // Aviso "vendiendo de bodega" (sub-inventario) — informativo, no bloquea.
+  try {
+    if (window.posStock && posStock.avisos) {
+      const _sel2 = Object.values(TP_WIP.vars || {}).map(v => v && v.id).filter(Boolean);
+      const _pres2 = (TP_WIP.pres && TP_WIP.pres.id && TP_WIP.pres.id !== '_base') ? TP_WIP.pres.id : null;
+      let _av = [];
+      if (_sel2.length) _sel2.forEach(oid => { posStock.avisos(TP_WIP.prod.id, oid, _pres2).forEach(a => { if (_av.indexOf(a) < 0) _av.push(a); }); });
+      else _av = posStock.avisos(TP_WIP.prod.id, null, _pres2);
+      if (_av.length) posStock.toast('⚠️ ' + _av.join(' · '));
+    }
+  } catch (e) {}
   // Si la presentación no tiene nombre, usar el nombre de la CATEGORÍA como prefijo.
   const _cat=S.cats.find(c=>c.id===p.category_id);
   const presLabel=(TP_WIP.pres&&TP_WIP.pres.name?TP_WIP.pres.name:'')||(_cat?(_cat.comanda_alias||_cat.name):'');

@@ -1001,6 +1001,16 @@ function tpMPAddToCart(){
     }
   } catch (e) {}
   WIP._psOk = false;
+  try {
+    if (window.posStock && posStock.avisos) {
+      const _sel2 = Object.values(WIP.vars || {}).map(v => v && v.id).filter(Boolean);
+      const _pres2 = (WIP.pres && WIP.pres.id && WIP.pres.id !== '_base') ? WIP.pres.id : null;
+      let _av = [];
+      if (_sel2.length) _sel2.forEach(oid => { posStock.avisos(p.id, oid, _pres2).forEach(a => { if (_av.indexOf(a) < 0) _av.push(a); }); });
+      else _av = posStock.avisos(p.id, null, _pres2);
+      if (_av.length) posStock.toast('⚠️ ' + _av.join(' · '));
+    }
+  } catch (e) {}
   const cat=S.cats.find(c=>c.id===p.category_id);
   const unitPrice=mpComputePrice()/WIP.qty;
   // Si la presentación no tiene nombre, usar el nombre de la CATEGORÍA como prefijo.
