@@ -1603,36 +1603,100 @@ async function toggleAgotadoManual(insId) {
 }
 
 // Surtir: mover cantidad de Bodega (stock) → En servicio (stock_servicio).
+// El stock se guarda en unidad de COMPRA (ej. "paq. ×12"), pero surtir suele
+// hacerse por unidad INDIVIDUAL ("saqué 6 gaseosas"). El modal deja elegir en
+// cuál de las dos se escribe la cantidad y convierte solo al guardar.
+let surtirUnidad = 'compra';   // 'compra' | 'individual'
+
 function abrirSurtir(insId) {
   const ins = insumos.find(i => i.id === insId); if (!ins) return;
+  // Si la unidad de compra trae varias individuales (conversión > 1), lo más
+  // cómodo es arrancar en individual — es como se piensa al surtir.
+  surtirUnidad = ((ins.conversion || 1) > 1) ? 'individual' : 'compra';
   const ov = document.createElement('div');
   ov.id = 'surtir-ov';
   ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:20px';
-  ov.innerHTML = `<div style="background:#fff;border-radius:16px;padding:20px 22px;width:360px;max-width:94vw;font-family:'DM Sans',system-ui,sans-serif;box-shadow:0 24px 60px -12px rgba(0,0,0,.35)">
+  ov.innerHTML = `<div style="background:#fff;border-radius:16px;padding:20px 22px;width:380px;max-width:94vw;font-family:'DM Sans',system-ui,sans-serif;box-shadow:0 24px 60px -12px rgba(0,0,0,.35)">
     <div style="font-size:15px;font-weight:800;color:#0F172A">Surtir · ${escHtml(ins.nombre)}</div>
-    <div style="font-size:12.5px;color:#64748B;margin:5px 0 14px;line-height:1.5">Mover de <b>Bodega</b> (${ins.stock} ${ins.buyUnit}) a <b>En servicio</b> (${ins.servicio} ${ins.buyUnit}).</div>
-    <div class="iv-field-label">Cantidad a surtir (${ins.buyUnit})</div>
-    <input id="surtir-qty" class="iv-input" type="number" min="0" step="any" placeholder="0" style="width:100%">
-    <div style="display:flex;gap:8px;margin-top:16px">
+    <div style="font-size:12.5px;color:#64748B;margin:5px 0 14px;line-height:1.5">Mover de <b>Bodega</b> (${surtirFmt(ins.stock, ins)}) a <b>En servicio</b> (${surtirFmt(ins.servicio, ins)}).</div>
+    <div id="surtir-tabs"></div>
+    <div class="iv-field-label" id="surtir-lbl">Cantidad a surtir</div>
+    <input id="surtir-qty" class="iv-input" type="number" min="0" step="any" placeholder="0" style="width:100%" oninput="surtirPreview('${insId}')">
+    <div id="surtir-prev" style="font-size:12px;color:#64748B;margin-top:8px;min-height:17px"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
       <button style="flex:1;padding:11px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:700;font-size:13px;cursor:pointer" onclick="document.getElementById('surtir-ov').remove()">Cancelar</button>
       <button style="flex:1;padding:11px;border-radius:10px;border:none;background:#0EA5E9;color:#fff;font-weight:700;font-size:13px;cursor:pointer" onclick="confirmarSurtir('${insId}')">Surtir a servicio</button>
     </div>
   </div>`;
   ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
   document.body.appendChild(ov);
+  renderSurtirTabs(insId);
   setTimeout(() => document.getElementById('surtir-qty')?.focus(), 40);
+}
+// Muestra una cantidad (en unidad de compra) de forma legible: si la unidad de
+// compra agrupa varias, añade el equivalente individual entre paréntesis.
+function surtirFmt(qtyCompra, ins) {
+  const conv = ins.conversion || 1;
+  const base = (+qtyCompra.toFixed(3)) + ' ' + ins.buyUnit;
+  if (conv > 1) return base + ' = ' + (+(qtyCompra * conv).toFixed(2)) + ' ' + ins.useUnit;
+  return base;
+}
+function renderSurtirTabs(insId) {
+  const ins = insumos.find(i => i.id === insId); if (!ins) return;
+  const host = document.getElementById('surtir-tabs'); if (!host) return;
+  const conv = ins.conversion || 1;
+  // Sin conversión (compra e individual son lo mismo) no tiene sentido elegir.
+  if (conv <= 1) { host.innerHTML = ''; actualizarSurtirLabel(insId); return; }
+  const tab = (val, txt) =>
+    '<button class="iv-chip ' + (surtirUnidad === val ? 'on' : '') + '" style="flex:1;justify-content:center" onclick="setSurtirUnidad(\'' + val + '\',\'' + insId + '\')">' + escHtml(txt) + '</button>';
+  host.innerHTML = '<div class="iv-field-label">¿En qué unidad lo vas a escribir?</div>'
+    + '<div style="display:flex;gap:6px;margin-bottom:12px">'
+    + tab('individual', 'Individual (' + ins.useUnit + ')')
+    + tab('compra', 'Completo (' + ins.buyUnit + ')')
+    + '</div>';
+  actualizarSurtirLabel(insId);
+}
+function setSurtirUnidad(val, insId) {
+  surtirUnidad = val;
+  renderSurtirTabs(insId);
+  surtirPreview(insId);
+  document.getElementById('surtir-qty')?.focus();
+}
+function actualizarSurtirLabel(insId) {
+  const ins = insumos.find(i => i.id === insId); if (!ins) return;
+  const lbl = document.getElementById('surtir-lbl');
+  if (lbl) lbl.textContent = 'Cantidad a surtir (' + (surtirUnidad === 'individual' ? ins.useUnit : ins.buyUnit) + ')';
+}
+// Cantidad escrita → unidad de compra (que es como se guarda el stock).
+function surtirACompra(qty, ins) {
+  const conv = ins.conversion || 1;
+  return (surtirUnidad === 'individual' && conv > 0) ? (qty / conv) : qty;
+}
+function surtirPreview(insId) {
+  const ins = insumos.find(i => i.id === insId); if (!ins) return;
+  const prev = document.getElementById('surtir-prev'); if (!prev) return;
+  const qty = parseFloat(document.getElementById('surtir-qty')?.value) || 0;
+  if (qty <= 0) { prev.textContent = ''; return; }
+  const enCompra = surtirACompra(qty, ins);
+  if (enCompra > ins.stock + 0.000001) {
+    prev.innerHTML = '<span style="color:#DC2626;font-weight:700">La bodega solo tiene ' + surtirFmt(ins.stock, ins) + ' — se surtirá todo lo que hay.</span>';
+    return;
+  }
+  prev.textContent = 'Quedará → En servicio: ' + surtirFmt(ins.servicio + enCompra, ins)
+    + '  ·  Bodega: ' + surtirFmt(ins.stock - enCompra, ins);
 }
 async function confirmarSurtir(insId) {
   const ins = insumos.find(i => i.id === insId); if (!ins) return;
   const qty = parseFloat(document.getElementById('surtir-qty')?.value) || 0;
   if (qty <= 0) { showToast('Escribe una cantidad', 'info'); return; }
-  const mover = Math.min(qty, ins.stock);   // no se puede surtir más de lo que hay en bodega
-  const nuevaBodega = +(ins.stock - mover).toFixed(3);
-  const nuevoServicio = +(ins.servicio + mover).toFixed(3);
+  const pedido = surtirACompra(qty, ins);            // siempre en unidad de compra
+  const mover  = Math.min(pedido, ins.stock);        // no se puede surtir más de lo que hay en bodega
+  const nuevaBodega = +(ins.stock - mover).toFixed(4);
+  const nuevoServicio = +(ins.servicio + mover).toFixed(4);
   try {
     await iv_sb.from('iv_insumos').update({ stock: nuevaBodega, stock_servicio: nuevoServicio, updated_at: new Date().toISOString() }).eq('id', insId);
     ins.stock = nuevaBodega; ins.servicio = nuevoServicio;
-    showToast('✓ Surtido → En servicio: ' + nuevoServicio + ' ' + ins.buyUnit + (mover < qty ? ' (bodega no alcanzaba para más)' : ''));
+    showToast('✓ Surtido → En servicio: ' + surtirFmt(nuevoServicio, ins) + (mover < pedido - 0.000001 ? ' (bodega no alcanzaba para más)' : ''));
   } catch (e) { showToast('No se pudo surtir', 'error'); }
   document.getElementById('surtir-ov')?.remove();
   renderInsumos(); updateKPIs();
