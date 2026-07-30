@@ -22,12 +22,27 @@
   //   varOpt lleno  → aplica solo a esa opcion (sabor/variante).
   // Un insumo está agotado:
   //  · control manual ON  → SOLO si lo marcaron a mano (agotado_manual), sin importar el stock.
-  //  · control manual OFF → si su stock llegó a 0 (comportamiento normal).
+  //  · sub-inventario ON  → disponible si hay EN SERVICIO; si en servicio=0 pero hay
+  //       en bodega y "vender de bodega" está ON, sigue disponible (con aviso); si no, agotado.
+  //  · normal            → si su stock llegó a 0.
   function insAgotado(insId) {
     var i = S._ins[insId];
     if (!i) return false;
     if (i.manual) return !!i.agotadoManual;
+    if (i.sub) {
+      if (i.servicio > 0) return false;              // hay en servicio (nevera) → OK
+      if (i.stock > 0 && i.venderBodega) return false; // se acabó en servicio pero se puede vender de bodega
+      return true;                                    // sin servicio y sin bodega (o no se vende de bodega)
+    }
     return i.stock <= 0;
+  }
+  // Aviso a mostrar si el insumo se está vendiendo DESDE BODEGA (servicio=0, bodega>0, vender_bodega ON).
+  function avisoBodegaIns(insId) {
+    var i = S._ins[insId];
+    if (i && i.sub && i.servicio <= 0 && i.stock > 0 && i.venderBodega) {
+      return i.avisoBodega || (i.nombre + ': se acabó en servicio, queda en bodega.');
+    }
+    return null;
   }
 
   // Nombres de insumos agotados que aplican a una combinacion (opcion + presentacion).
@@ -66,7 +81,7 @@
         var meta = (u && u.data && u.data.user && u.data.user.user_metadata) || {};
         var branchId = meta.branch_id, tenantId = meta.tenant_id;
 
-        var qi = sb.from('iv_insumos').select('id,nombre,stock,control_manual,agotado_manual');
+        var qi = sb.from('iv_insumos').select('id,nombre,stock,control_manual,agotado_manual,sub_inventario,stock_servicio,vender_bodega,aviso_bodega');
         if (branchId) qi = qi.eq('branch_id', branchId); else if (tenantId) qi = qi.eq('tenant_id', tenantId);
         // Ahora traemos variant_option_id + cantidades para diferenciar por sabor/variante.
         var qr = sb.from('iv_recetas').select('product_id,insumo_id,variant_option_id,cantidades');
@@ -74,7 +89,7 @@
 
         var resI = await qi;
         var resR = await qr;
-        (resI.data || []).forEach(function (i) { S._ins[i.id] = { nombre: i.nombre, stock: num(i.stock), manual: !!i.control_manual, agotadoManual: !!i.agotado_manual }; });
+        (resI.data || []).forEach(function (i) { S._ins[i.id] = { nombre: i.nombre, stock: num(i.stock), manual: !!i.control_manual, agotadoManual: !!i.agotado_manual, sub: !!i.sub_inventario, servicio: num(i.stock_servicio), venderBodega: !!i.vender_bodega, avisoBodega: i.aviso_bodega || '' }; });
         (resR.data || []).forEach(function (r) {
           if (!S._lines[r.product_id]) S._lines[r.product_id] = [];
           S._lines[r.product_id].push({ ins: r.insumo_id, varOpt: r.variant_option_id || '', qty: r.cantidades || null });
@@ -93,6 +108,26 @@
     // ── Combinacion concreta (sabor/variante + presentacion) ──
     faltantesVariante: function (pid, varOptId, presId) { return faltForCombo(pid, varOptId, presId); },
     agotadoVariante: function (pid, varOptId, presId) { return faltForCombo(pid, varOptId, presId).length > 0; },
+
+    // Avisos de "vendiendo de bodega" de los insumos que aplican a la combinacion
+    // (sub-inventario: se acabo en servicio pero se vende de bodega, con su texto).
+    avisos: function (pid, varOptId, presId) {
+      var lines = S._lines[pid] || [], out = [], seen = {};
+      var soloBase = (varOptId === undefined || varOptId === null || varOptId === '');
+      lines.forEach(function (l) {
+        if (l.varOpt) {  // linea de variante: solo si su opcion esta elegida
+          if (soloBase) return;
+          if (Array.isArray(varOptId) ? varOptId.indexOf(l.varOpt) < 0 : l.varOpt !== varOptId) return;
+        }
+        if (presId !== undefined && presId !== null && l.qty) {
+          var q = (l.qty[presId] != null) ? l.qty[presId] : (l.qty['_'] != null ? l.qty['_'] : null);
+          if (q != null && !(num(q) > 0)) return;
+        }
+        var a = avisoBodegaIns(l.ins);
+        if (a && !seen[a]) { seen[a] = 1; out.push(a); }
+      });
+      return out;
+    },
 
     // ¿Hay ALGUNA opcion (sabor/variante) agotada, aunque el producto entero tenga stock?
     // Sirve para un indicador suave en la tarjeta ("algunas opciones agotadas").

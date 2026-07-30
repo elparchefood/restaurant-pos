@@ -498,6 +498,27 @@
         <div style="flex:1"><div class="tt">Control manual (el cocinero avisa)</div><div class="tx">El sistema descuenta, pero NO lo da por agotado por cantidad. Se marca a mano cuando se acaba (para pollo, carne, etc. que no se pesan).</div></div>
         <span class="iv-switch" id="toggle-manual-sw"><span class="iv-switch-label">No</span><span class="iv-switch-track"><span class="iv-switch-knob"></span></span></span>
       </div>
+      <div class="iv-toggle" id="toggle-sub" onclick="toggleSub()">
+        <span style="display:flex;color:#0EA5E9"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/><path d="M12 11v10"/></svg></span>
+        <div style="flex:1"><div class="tt">Sub-inventario (Bodega / En servicio)</div><div class="tx">Separa lo que hay en <b>bodega</b> de lo que está listo para vender (<b>nevera / en servicio</b>). Las ventas cuentan lo de "En servicio". Ideal para bebidas frías, carne cruda→cocida, etc.</div></div>
+        <span class="iv-switch" id="toggle-sub-sw"><span class="iv-switch-label">No</span><span class="iv-switch-track"><span class="iv-switch-knob"></span></span></span>
+      </div>
+      <div id="sub-fields" class="is-hidden" style="border:1px solid #E0F2FE;background:#F0F9FF;border-radius:12px;padding:12px 14px;margin-top:2px;display:flex;flex-direction:column;gap:12px">
+        <div class="iv-field">
+          <div class="iv-field-label">En servicio (nevera / listo para vender)</div>
+          <input id="ins-servicio" type="number" min="0" step="any" placeholder="0" class="iv-input">
+          <div class="iv-field-hint">La cantidad en bodega es el "Stock actual" de arriba. Usa <b>Surtir</b> en la lista para mover de bodega a servicio.</div>
+        </div>
+        <div class="iv-toggle" id="toggle-venderbodega" onclick="toggleVenderBodega()" style="background:#fff">
+          <span style="display:flex;color:#0EA5E9"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+          <div style="flex:1"><div class="tt">Permitir vender de bodega</div><div class="tx">Si se acaba lo de servicio pero hay en bodega: <b>Sí</b> = deja vender con un aviso. <b>No</b> = se marca agotado.</div></div>
+          <span class="iv-switch" id="toggle-venderbodega-sw"><span class="iv-switch-label">No</span><span class="iv-switch-track"><span class="iv-switch-knob"></span></span></span>
+        </div>
+        <div class="iv-field">
+          <div class="iv-field-label">Aviso al vender de bodega</div>
+          <input id="ins-aviso-bodega" type="text" placeholder="Ej. Bebida al clima, se acabó en la nevera" class="iv-input">
+        </div>
+      </div>
     </div>
     <div class="iv-panel-foot">
       <button class="iv-btn-danger is-hidden" id="btn-ins-eliminar" onclick="eliminarInsumo()">Eliminar</button>
@@ -731,7 +752,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-perms.js?v=1785030000"></script>
 <script>if(window.posRequirePin) posRequirePin('catalogo.editar');</script>
-<script src="inventario.js?v=1786620000"></script>
+<script src="inventario.js?v=1786640000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>
 </html>

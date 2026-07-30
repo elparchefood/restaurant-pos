@@ -25,6 +25,8 @@ let repInsumoId = null;
 let activeFilter = 'todos';
 let togglePrepOn = true;
 let toggleManualOn = false;   // "Control manual (el cocinero avisa)" del insumo en edición
+let toggleSubOn = false;      // "Sub-inventario (Bodega/En servicio)"
+let toggleVenderBodegaOn = false;
 let compraQty = {};
 let compraPrices = {};
 let mermaOn = true;
@@ -329,6 +331,10 @@ async function loadInsumos() {
     prep:       i.prep_requerido,
     controlManual: !!i.control_manual,
     agotadoManual: !!i.agotado_manual,
+    sub:        !!i.sub_inventario,
+    servicio:   parseFloat(i.stock_servicio) || 0,
+    venderBodega: !!i.vender_bodega,
+    avisoBodega: i.aviso_bodega || '',
     buyUnit:    i.buy_unit,
     useUnit:    i.use_unit,
     precio:     parseFloat(i.precio) || 0,
@@ -1337,7 +1343,9 @@ function buildInsRow(ins) {
     </div>
     <div class="iv-ins-stock">
       <div class="iv-ins-stock-top">
-        <span class="iv-ins-stock-val" style="color:${colors.txt}">${ins.stock} <span class="u">${ins.buyUnit}</span></span>
+        ${ins.sub
+          ? `<span class="iv-ins-stock-val" style="color:${colors.txt};font-size:12.5px">Bodega <b>${ins.stock}</b> · Servicio <b style="color:${ins.servicio>0?'#16A34A':'#DC2626'}">${ins.servicio}</b> <span class="u">${ins.buyUnit}</span></span>`
+          : `<span class="iv-ins-stock-val" style="color:${colors.txt}">${ins.stock} <span class="u">${ins.buyUnit}</span></span>`}
         <span class="iv-ins-min">mín ${ins.min}</span>
       </div>
       <div class="iv-bar"><i style="width:${pct}%;background:${colors.bar}"></i></div>
@@ -1345,9 +1353,14 @@ function buildInsRow(ins) {
     <div class="iv-ins-badgewrap">
       ${ins.controlManual
         ? `<button class="iv-badge" onclick="toggleAgotadoManual('${ins.id}')" title="Toca para cambiar disponibilidad" style="cursor:pointer;border:none;font-weight:700;color:${ins.agotadoManual?'#DC2626':'#16A34A'};background:${ins.agotadoManual?'#FEE2E2':'#DCFCE7'}">${ins.agotadoManual?'⛔ Se acabó':'✅ Disponible'}</button>`
-        : `<span class="iv-badge" style="color:${colors.txt};background:${colors.bg}">${stateLabel(state)}</span>`}
+        : ins.sub
+          ? `<span class="iv-badge" style="color:${(ins.servicio>0||(ins.stock>0&&ins.venderBodega))?'#16A34A':'#DC2626'};background:${(ins.servicio>0||(ins.stock>0&&ins.venderBodega))?'#DCFCE7':'#FEE2E2'}">${ins.servicio>0?'En servicio':(ins.stock>0&&ins.venderBodega?'Solo bodega':'Agotado')}</span>`
+          : `<span class="iv-badge" style="color:${colors.txt};background:${colors.bg}">${stateLabel(state)}</span>`}
     </div>
     <div class="iv-ins-actions">
+      ${ins.sub
+        ? `<button class="iv-btn-ghost sm" onclick="abrirSurtir('${ins.id}')" title="Mover de bodega a servicio"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3h4v4"/><path d="M21 3l-7 7"/><path d="M8 21H4v-4"/><path d="M4 21l7-7"/></svg> Surtir</button>`
+        : ''}
       <button class="iv-btn-ghost sm btn-reponer" onclick="abrirReponer('${ins.id}')">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Reponer
@@ -1370,6 +1383,42 @@ async function toggleAgotadoManual(insId) {
   } catch (e) { ins.agotadoManual = !nuevo; showToast('No se pudo cambiar', 'error'); }
   renderInsumos();
   if (typeof refrescarCosteo === 'function') refrescarCosteo();
+}
+
+// Surtir: mover cantidad de Bodega (stock) → En servicio (stock_servicio).
+function abrirSurtir(insId) {
+  const ins = insumos.find(i => i.id === insId); if (!ins) return;
+  const ov = document.createElement('div');
+  ov.id = 'surtir-ov';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML = `<div style="background:#fff;border-radius:16px;padding:20px 22px;width:360px;max-width:94vw;font-family:'DM Sans',system-ui,sans-serif;box-shadow:0 24px 60px -12px rgba(0,0,0,.35)">
+    <div style="font-size:15px;font-weight:800;color:#0F172A">Surtir · ${escHtml(ins.nombre)}</div>
+    <div style="font-size:12.5px;color:#64748B;margin:5px 0 14px;line-height:1.5">Mover de <b>Bodega</b> (${ins.stock} ${ins.buyUnit}) a <b>En servicio</b> (${ins.servicio} ${ins.buyUnit}).</div>
+    <div class="iv-field-label">Cantidad a surtir (${ins.buyUnit})</div>
+    <input id="surtir-qty" class="iv-input" type="number" min="0" step="any" placeholder="0" style="width:100%">
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button style="flex:1;padding:11px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:700;font-size:13px;cursor:pointer" onclick="document.getElementById('surtir-ov').remove()">Cancelar</button>
+      <button style="flex:1;padding:11px;border-radius:10px;border:none;background:#0EA5E9;color:#fff;font-weight:700;font-size:13px;cursor:pointer" onclick="confirmarSurtir('${insId}')">Surtir a servicio</button>
+    </div>
+  </div>`;
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+  setTimeout(() => document.getElementById('surtir-qty')?.focus(), 40);
+}
+async function confirmarSurtir(insId) {
+  const ins = insumos.find(i => i.id === insId); if (!ins) return;
+  const qty = parseFloat(document.getElementById('surtir-qty')?.value) || 0;
+  if (qty <= 0) { showToast('Escribe una cantidad', 'info'); return; }
+  const mover = Math.min(qty, ins.stock);   // no se puede surtir más de lo que hay en bodega
+  const nuevaBodega = +(ins.stock - mover).toFixed(3);
+  const nuevoServicio = +(ins.servicio + mover).toFixed(3);
+  try {
+    await iv_sb.from('iv_insumos').update({ stock: nuevaBodega, stock_servicio: nuevoServicio, updated_at: new Date().toISOString() }).eq('id', insId);
+    ins.stock = nuevaBodega; ins.servicio = nuevoServicio;
+    showToast('✓ Surtido → En servicio: ' + nuevoServicio + ' ' + ins.buyUnit + (mover < qty ? ' (bodega no alcanzaba para más)' : ''));
+  } catch (e) { showToast('No se pudo surtir', 'error'); }
+  document.getElementById('surtir-ov')?.remove();
+  renderInsumos(); updateKPIs();
 }
 
 // ═══════════════════════════════════════════════════
@@ -1608,6 +1657,10 @@ function abrirEditorInsumo(insId) {
   document.getElementById('ins-min').value        = ins?ins.min:'';
   togglePrepOn = ins?ins.prep:true;
   toggleManualOn = ins?!!ins.controlManual:false;
+  toggleSubOn = ins?!!ins.sub:false;
+  toggleVenderBodegaOn = ins?!!ins.venderBodega:false;
+  { const s=document.getElementById('ins-servicio'); if (s) s.value = ins?(ins.servicio||''):''; }
+  { const a=document.getElementById('ins-aviso-bodega'); if (a) a.value = ins?(ins.avisoBodega||''):''; }
   const catSel = document.getElementById('ins-cat');
   const cats   = [...new Set(insumos.map(i=>i.cat))];
   catSel.innerHTML='<option value="">Seleccionar categoría…</option>'+
@@ -1622,6 +1675,8 @@ function abrirEditorInsumo(insId) {
   updateStockLabel();
   updateTogglePrepUI();
   updateToggleManualUI();
+  updateToggleSubUI();
+  updateToggleVenderBodegaUI();
   document.getElementById('ins-cost-hint').classList.add('is-hidden');
   document.getElementById('btn-ins-eliminar').classList.toggle('is-hidden',!ins);
   renderPorcionesInsumo(ins ? ins.id : null);
@@ -1765,6 +1820,20 @@ function updateToggleManualUI() {
     if (lbl) lbl.textContent=toggleManualOn?'Sí':'No';
   }
 }
+// Sub-inventario: dos niveles Bodega / En servicio.
+function toggleSub() { toggleSubOn=!toggleSubOn; updateToggleSubUI(); }
+function updateToggleSubUI() {
+  const box=document.getElementById('toggle-sub'); if (box) box.classList.toggle('on',toggleSubOn);
+  const sw=document.getElementById('toggle-sub-sw');
+  if (sw) { sw.classList.toggle('on',toggleSubOn); const lbl=sw.querySelector('.iv-switch-label'); if (lbl) lbl.textContent=toggleSubOn?'Sí':'No'; }
+  const fields=document.getElementById('sub-fields'); if (fields) fields.classList.toggle('is-hidden',!toggleSubOn);
+}
+function toggleVenderBodega() { toggleVenderBodegaOn=!toggleVenderBodegaOn; updateToggleVenderBodegaUI(); }
+function updateToggleVenderBodegaUI() {
+  const box=document.getElementById('toggle-venderbodega'); if (box) box.classList.toggle('on',toggleVenderBodegaOn);
+  const sw=document.getElementById('toggle-venderbodega-sw');
+  if (sw) { sw.classList.toggle('on',toggleVenderBodegaOn); const lbl=sw.querySelector('.iv-switch-label'); if (lbl) lbl.textContent=toggleVenderBodegaOn?'Sí':'No'; }
+}
 function updateCostHint() {
   const precio=parseFloat(document.getElementById('ins-precio').value)||0;
   const conv=parseFloat(document.getElementById('ins-conversion').value)||0;
@@ -1798,19 +1867,23 @@ async function guardarInsumo() {
   const catColor = CAT_COLORS[cat]||'#64748B';
   const editId   = document.getElementById('ins-edit-id').value;
   const _insPrev = editId ? insumos.find(i=>i.id===editId) : null;
-  const payload  = { nombre, categoria:cat, cat_color:catColor, prep_requerido:togglePrepOn, control_manual:toggleManualOn, buy_unit:buyUnit, use_unit:useUnit, precio, conversion, stock, min_stock:min, updated_at:new Date().toISOString() };
+  // Sub-inventario
+  const servicio = toggleSubOn ? (parseFloat(document.getElementById('ins-servicio')?.value)||0) : 0;
+  const avisoBodega = toggleSubOn ? (document.getElementById('ins-aviso-bodega')?.value||'').trim() : '';
+  const payload  = { nombre, categoria:cat, cat_color:catColor, prep_requerido:togglePrepOn, control_manual:toggleManualOn, sub_inventario:toggleSubOn, stock_servicio:servicio, vender_bodega:(toggleSubOn && toggleVenderBodegaOn), aviso_bodega:avisoBodega, buy_unit:buyUnit, use_unit:useUnit, precio, conversion, stock, min_stock:min, updated_at:new Date().toISOString() };
   // Si se APAGA el control manual, se limpia el "agotado manual" (para que no quede pegado).
   // Si sigue manual, no se toca aquí (se maneja con el botón rápido "Se acabó / Ya hay").
   if (!toggleManualOn) payload.agotado_manual = false;
   const agotadoManualFinal = toggleManualOn ? (_insPrev ? !!_insPrev.agotadoManual : false) : false;
+  const extra = { sub:toggleSubOn, servicio, venderBodega:(toggleSubOn && toggleVenderBodegaOn), avisoBodega };
   if (editId) {
     await iv_sb.from('iv_insumos').update(payload).eq('id',editId);
     const ins=insumos.find(i=>i.id===editId);
-    if (ins) Object.assign(ins,{nombre,cat,catColor,prep:togglePrepOn,controlManual:toggleManualOn,agotadoManual:agotadoManualFinal,buyUnit,useUnit,precio,conversion,stock,min});
+    if (ins) Object.assign(ins,{nombre,cat,catColor,prep:togglePrepOn,controlManual:toggleManualOn,agotadoManual:agotadoManualFinal,buyUnit,useUnit,precio,conversion,stock,min,...extra});
   } else {
     const {data,error}=await iv_sb.from('iv_insumos').insert({...payload,tenant_id:tenantId,branch_id:branchId,activo:true}).select().single();
     if (error) { console.error('guardarInsumo:',error); alert('Error al guardar'); return; }
-    insumos.push({id:data.id,nombre,cat,catColor,prep:togglePrepOn,controlManual:toggleManualOn,agotadoManual:agotadoManualFinal,buyUnit,useUnit,precio,conversion,stock,min});
+    insumos.push({id:data.id,nombre,cat,catColor,prep:togglePrepOn,controlManual:toggleManualOn,agotadoManual:agotadoManualFinal,buyUnit,useUnit,precio,conversion,stock,min,...extra});
   }
   closePanel('panel-insumo');
   showToast('✓ Insumo guardado');
