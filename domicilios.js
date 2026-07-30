@@ -818,10 +818,13 @@ function pmBuildCustomPane(p){
           const grpOpts=(g.options||[]).map(opt=>opt.id);
           const totalGroupQty=grpOpts.reduce((s,oid)=>s+((WIP.mods[oid]&&WIP.mods[oid].qty)||0),0);
           const groupMax=g.multi?(g.max_total||(g.options||[]).length):1;
-          const canInc=totalGroupQty<groupMax;
-          return '<div class="pm-mod'+(modQty>0?' on':'')+'" data-mod-id="'+pmAttr(o.id)+'">'
+          const modOut=(window.posStock&&posStock.ready&&posStock.modAgotado)?posStock.modAgotado(o.id):false;
+          const modBlocked=modOut&&!(window.posStock&&posStock.allow);
+          const canInc=totalGroupQty<groupMax&&!modBlocked;
+          const priceHTML=modOut?'<span class="pm-mod-out-tag">Agotado</span>':(o.price?'+ '+pmFmt(o.price):'Gratis');
+          return '<div class="pm-mod'+(modQty>0?' on':'')+(modOut?' pm-mod-out':'')+'" data-mod-id="'+pmAttr(o.id)+'">'
             +'<div style="min-width:0;text-align:left;flex:1"><div class="pm-mod-name">'+pmEsc(o.name)+'</div>'
-            +'<div class="pm-mod-price">'+(o.price?'+ '+pmFmt(o.price):'Gratis')+'</div></div>'
+            +'<div class="pm-mod-price">'+priceHTML+'</div></div>'
             +'<div class="pm-mod-qty-ctrl">'
             +'<button class="pm-mod-dec"'+(modQty<=0?' disabled="disabled"':'')+' data-mod-dec="'+pmAttr(o.id)+'">&#8722;</button>'
             +'<span class="pm-mod-qty-num">'+modQty+'</span>'

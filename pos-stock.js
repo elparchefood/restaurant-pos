@@ -12,7 +12,7 @@
  *   }
  */
 (function () {
-  var S = { ready: false, allow: false, _lines: {}, _ins: {} };
+  var S = { ready: false, allow: false, _lines: {}, _ins: {}, _modLines: {} };
   function num(v) { return Number(v) || 0; }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
@@ -71,7 +71,7 @@
 
     // Carga política + insumos + recetas y arma el mapa producto→faltantes.
     load: async function (sb) {
-      S.ready = false; S._lines = {}; S._ins = {};
+      S.ready = false; S._lines = {}; S._ins = {}; S._modLines = {};
       try {
         var cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
         S.allow = !!cfg.ventaSinInventario;
@@ -83,14 +83,20 @@
 
         var qi = sb.from('iv_insumos').select('id,nombre,stock,control_manual,agotado_manual,sub_inventario,stock_servicio,vender_bodega,aviso_bodega');
         if (branchId) qi = qi.eq('branch_id', branchId); else if (tenantId) qi = qi.eq('tenant_id', tenantId);
-        // Ahora traemos variant_option_id + cantidades para diferenciar por sabor/variante.
-        var qr = sb.from('iv_recetas').select('product_id,insumo_id,variant_option_id,cantidades');
+        // Ahora traemos variant_option_id + cantidades para diferenciar por sabor/variante,
+        // y mod_option_id para las recetas de adiciones (modificadores).
+        var qr = sb.from('iv_recetas').select('product_id,insumo_id,variant_option_id,cantidades,mod_option_id');
         if (branchId) qr = qr.eq('branch_id', branchId); else if (tenantId) qr = qr.eq('tenant_id', tenantId);
 
         var resI = await qi;
         var resR = await qr;
         (resI.data || []).forEach(function (i) { S._ins[i.id] = { nombre: i.nombre, stock: num(i.stock), manual: !!i.control_manual, agotadoManual: !!i.agotado_manual, sub: !!i.sub_inventario, servicio: num(i.stock_servicio), venderBodega: !!i.vender_bodega, avisoBodega: i.aviso_bodega || '' }; });
         (resR.data || []).forEach(function (r) {
+          if (r.mod_option_id) {   // receta de una adición (opción de modificador)
+            if (!S._modLines[r.mod_option_id]) S._modLines[r.mod_option_id] = [];
+            S._modLines[r.mod_option_id].push({ ins: r.insumo_id, qty: r.cantidades || null });
+            return;
+          }
           if (!S._lines[r.product_id]) S._lines[r.product_id] = [];
           S._lines[r.product_id].push({ ins: r.insumo_id, varOpt: r.variant_option_id || '', qty: r.cantidades || null });
         });
@@ -134,6 +140,32 @@
     algunasAgotadas: function (pid) {
       var lines = S._lines[pid] || [];
       return lines.some(function (l) { return l.varOpt && insAgotado(l.ins); });
+    },
+
+    // ── Adiciones (opciones de modificadores) ──
+    // Una adición está agotada si algún insumo de su receta está agotado.
+    // Si la opción no tiene receta configurada, NUNCA se bloquea (opcional por restaurante).
+    modFaltantes: function (optId) {
+      var lines = S._modLines[optId] || [], out = [], seen = {};
+      lines.forEach(function (l) {
+        if (insAgotado(l.ins)) {
+          var nm = (S._ins[l.ins] || {}).nombre || 'insumo';
+          if (!seen[nm]) { seen[nm] = 1; out.push(nm); }
+        }
+      });
+      return out;
+    },
+    modAgotado: function (optId) {
+      var lines = S._modLines[optId] || [];
+      return lines.some(function (l) { return insAgotado(l.ins); });
+    },
+    modAvisos: function (optId) {
+      var lines = S._modLines[optId] || [], out = [], seen = {};
+      lines.forEach(function (l) {
+        var a = avisoBodegaIns(l.ins);
+        if (a && !seen[a]) { seen[a] = 1; out.push(a); }
+      });
+      return out;
     },
 
     // Clase extra para la tarjeta del producto.

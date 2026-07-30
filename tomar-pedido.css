@@ -688,6 +688,9 @@ svg { display: block; }
 .pm-mod.on{border-color:var(--indigo);background:var(--indigo-hover);}
 .pm-mod-name{font-size:12.5px;font-weight:600;color:var(--ink);}
 .pm-mod-price{font-size:11.5px;font-weight:700;color:var(--muted);margin-top:2px;}
+.pm-mod.pm-mod-out{background:#FFF7F7;border-color:#FECACA;}
+.pm-mod.pm-mod-out .pm-mod-name{color:#94A3B8;}
+.pm-mod-out-tag{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.02em;color:#fff;background:#DC2626;padding:2px 8px;border-radius:999px;}
 .pm-mod-add{width:26px;height:26px;border-radius:999px;border:none;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .pm-nomods{text-align:center;color:var(--faint);padding:40px 20px;}
 .pm-nomods p{font-size:12.5px;margin:6px 0 0;line-height:1.5;}
