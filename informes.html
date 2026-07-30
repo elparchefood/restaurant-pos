@@ -190,6 +190,27 @@
 
       </div>
 
+      <!-- Rentabilidad del negocio -->
+      <section class="rpt-card" style="margin-top:0">
+        <div class="rpt-head">
+          <div>
+            <div class="rpt-label">Rentabilidad del negocio</div>
+            <div class="rpt-sub" id="rent-sub">—</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:4px 0 14px">
+          <div style="background:#F8FAFC;border:1px solid #EEF0F4;border-radius:12px;padding:14px"><div style="font-size:11.5px;color:#64748B;font-weight:600">Ingreso por ventas</div><div id="rent-rev" style="font-size:20px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">$0</div></div>
+          <div style="background:#FFF7F7;border:1px solid #FEE2E2;border-radius:12px;padding:14px"><div style="font-size:11.5px;color:#DC2626;font-weight:600">Costo materia prima</div><div id="rent-cost" style="font-size:20px;font-weight:800;color:#DC2626;font-variant-numeric:tabular-nums">$0</div></div>
+          <div style="background:#F0FDF4;border:1px solid #DCFCE7;border-radius:12px;padding:14px"><div style="font-size:11.5px;color:#16A34A;font-weight:600">Ganancia (margen bruto)</div><div id="rent-margin" style="font-size:20px;font-weight:800;color:#16A34A;font-variant-numeric:tabular-nums">$0</div></div>
+          <div style="background:#EEF2FF;border:1px solid #E0E7FF;border-radius:12px;padding:14px"><div style="font-size:11.5px;color:#4F46E5;font-weight:600">Rentabilidad global</div><div id="rent-pct" style="font-size:20px;font-weight:800;color:#4F46E5;font-variant-numeric:tabular-nums">0%</div></div>
+        </div>
+        <table class="rpt-table">
+          <thead><tr><th>Producto</th><th>Vendidos</th><th>Ingreso</th><th>Costo</th><th>Ganancia</th><th>Margen</th></tr></thead>
+          <tbody id="rent-body"><tr><td colspan="6" class="rpt-loading">Cargando...</td></tr></tbody>
+        </table>
+        <div id="rent-cob" style="font-size:11.5px;color:#94A3B8;margin-top:10px"></div>
+      </section>
+
       <!-- Canal de venta -->
       <section class="rpt-card" style="margin-top:0">
         <div class="rpt-head">
@@ -215,6 +236,6 @@
 <script src="pos-brand.js?v=1784901500"></script>
 <script src="pos-print.js?v=1786093000"></script>
 <script src="pos-print-listener.js?v=4"></script>
-<script src="informes.js?v=1785600000"></script>
+<script src="informes.js?v=1786690000"></script>
 </body>
 </html>

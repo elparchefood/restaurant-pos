@@ -130,7 +130,7 @@ async function loadReport() {
     .select(`
       id, status, channel, total, total_final, delivery_fee, tip_amount, discount_amount,
       guests, waiter_name, payment_method, closed_at, opened_at,
-      pos_order_items ( id, product_name, name, quantity, unit_price )
+      pos_order_items ( id, product_id, product_name, name, quantity, unit_price, total )
     `)
     .eq('status', 'paid')
     .gte('closed_at', from)
@@ -168,6 +168,7 @@ async function loadReport() {
   } catch(e) { console.warn('[Informes] pos_payments:', e); }
   renderPayMethods(list, pagosRows);
   renderTopProducts(list, label);
+  try { const rawByProduct = await loadCostosRecetas(sb); renderRentabilidad(list, rawByProduct, label); } catch (e) { console.warn('[Informes] rentabilidad:', e); }
   renderMeseroRanking(list, label);
   renderCanales(list, label);
 }
@@ -351,6 +352,71 @@ function renderTopProducts(orders, label) {
       <td>${fmtN(d.qty)}</td>
       <td><span class="rpt-total">${fmt(d.total)}</span></td>
     </tr>`).join('');
+}
+
+// ── Rentabilidad del negocio (ventas × costo de receta) ────────────────────
+// Costo de materia prima por producto (combinación por defecto: base + 1ra opción
+// de cada grupo). Aproximado pero útil para la rentabilidad global.
+async function loadCostosRecetas(sb) {
+  const out = {};
+  try {
+    let qi = sb.from('iv_insumos').select('id,precio,conversion');
+    let qr = sb.from('iv_recetas').select('product_id,insumo_id,cantidad,variant_option_id,merma');
+    let qp = sb.from('pos_products').select('id,variables');
+    let qm = sb.from('iv_params').select('merma_enabled');
+    if (IR.branchId) { qi = qi.eq('branch_id', IR.branchId); qr = qr.eq('branch_id', IR.branchId); qm = qm.eq('branch_id', IR.branchId); }
+    if (IR.tenantId) { qp = qp.eq('tenant_id', IR.tenantId); }
+    const [ri, rr, rp, rm] = await Promise.all([qi, qr, qp, qm]);
+    const mermaOn = !(rm.data && rm.data[0] && rm.data[0].merma_enabled === false);
+    const costoUr = {};
+    (ri.data || []).forEach(i => { const conv = parseFloat(i.conversion) || 1; costoUr[i.id] = (parseFloat(i.precio) || 0) / (conv > 0 ? conv : 1); });
+    const defOpts = {};
+    (rp.data || []).forEach(p => { const set = new Set(); (p.variables || []).forEach(g => { const o = (g.options || [])[0]; if (o && o.id) set.add(o.id); }); defOpts[p.id] = set; });
+    (rr.data || []).forEach(l => {
+      const pid = l.product_id, vo = l.variant_option_id;
+      if (vo && !(defOpts[pid] && defOpts[pid].has(vo))) return;   // solo combinación por defecto
+      const cu = costoUr[l.insumo_id]; if (cu == null) return;
+      const cant = parseFloat(l.cantidad) || 0;
+      const merma = mermaOn ? (1 + (parseFloat(l.merma) || 0) / 100) : 1;
+      out[pid] = (out[pid] || 0) + cant * cu * merma;
+    });
+  } catch (e) { console.warn('[Informes] costos recetas:', e); }
+  return out;
+}
+function renderRentabilidad(orders, rawByProduct, label) {
+  const host = document.getElementById('rent-body'); if (!host) return;
+  setText('rent-sub', label);
+  const byProd = {};
+  let gRev = 0, gCost = 0, gConReceta = 0;
+  orders.forEach(o => (o.pos_order_items || []).forEach(it => {
+    const pid = it.product_id;
+    const name = it.product_name || it.name || 'Producto';
+    const qty = parseInt(it.quantity) || 1;
+    const rev = (it.total != null ? parseFloat(it.total) : parseFloat(it.unit_price || 0) * qty) || 0;
+    const tieneCosto = rawByProduct[pid] != null;
+    const cost = (rawByProduct[pid] || 0) * qty;
+    if (!byProd[name]) byProd[name] = { qty: 0, rev: 0, cost: 0, tieneCosto };
+    byProd[name].qty += qty; byProd[name].rev += rev; byProd[name].cost += cost;
+    gRev += rev; gCost += cost; if (tieneCosto) gConReceta += rev;
+  }));
+  const gMargin = gRev - gCost;
+  const gPct = gRev > 0 ? gMargin / gRev * 100 : 0;
+  setText('rent-rev', fmt(gRev));
+  setText('rent-cost', fmt(gCost));
+  setText('rent-margin', fmt(gMargin));
+  setText('rent-pct', gPct.toFixed(1) + '%');
+  const cob = gRev > 0 ? (gConReceta / gRev * 100) : 0;
+  setText('rent-cob', cob >= 99 ? 'Todos los productos vendidos tienen receta.' : 'Nota: ' + cob.toFixed(0) + '% de las ventas tienen receta cargada; el resto cuenta como costo 0 (súbeles receta para más precisión).');
+  const rows = Object.entries(byProd).map(([name, d]) => ({ name, qty: d.qty, rev: d.rev, cost: d.cost, tieneCosto: d.tieneCosto, margin: d.rev - d.cost, pct: d.rev > 0 ? (d.rev - d.cost) / d.rev * 100 : 0 }));
+  rows.sort((a, b) => b.margin - a.margin);
+  host.innerHTML = rows.length ? rows.map(d => `<tr>
+    <td><span class="rpt-prod-name">${d.name}</span></td>
+    <td>${fmtN(d.qty)}</td>
+    <td>${fmt(d.rev)}</td>
+    <td>${d.tieneCosto ? fmt(d.cost) : '<span style="color:#94A3B8">sin receta</span>'}</td>
+    <td><span class="rpt-total">${fmt(d.margin)}</span></td>
+    <td><span style="font-weight:700;color:${d.pct >= 60 ? '#16A34A' : d.pct >= 40 ? '#EAB308' : '#DC2626'}">${d.pct.toFixed(0)}%</span></td>
+  </tr>`).join('') : '<tr><td colspan="6" class="rpt-loading">Sin datos para el período</td></tr>';
 }
 
 // ── Ranking meseros ───────────────────────────────────────────────────────
