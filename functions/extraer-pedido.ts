@@ -70,46 +70,115 @@ function matchProducto(
   // nombre a un producto tradicional que se llame igual. Ej: "premium mixta" no infla "Mixta".
   const nameBlob = norm([catGPT, nombreGPT, tamanoGPT, notas].filter(Boolean).join(" "));
 
-  // Detectar la CATEGORÍA que menciona el pedido (hamburguesa, perro, sándwich,
-  // salchipapa, bebida…). CLAVE: un mismo nombre existe en varias categorías con
-  // precios distintos (Súper Queso hamburguesa $35.000 vs salchipapa $27.000), así que
-  // la categoría es la que decide cuál es el producto correcto.
-  const catKw = (name: string) => (norm(name).split(/\s+/)[0] || "").replace(/s$/, "");
-  const catIds = new Set(
-    (allCats || []).filter(c => { const kw = catKw(String(c.name || "")); return kw.length >= 4 && blob.includes(kw); }).map(c => String(c.id))
-  );
+  // ══════════════════════════════════════════════════════════════════
+  // RECONOCIMIENTO POR CAPAS
+  // Antes se buscaba en TODO el catálogo compitiendo nombre contra nombre,
+  // y por eso una hamburguesa le podía ganar a una salchipapa. Ahora se
+  // resuelve como toma un pedido una persona: primero QUÉ TIPO de cosa es,
+  // y solo dentro de ese grupo se busca el producto.
+  //
+  //   CAPA 1  categoría   (dicha o deducida; si es ambigua se marca)
+  //   CAPA 2  producto    (SOLO dentro de la categoría resuelta)
+  //   CAPA 3  presentación
+  //   CAPA 4  variante
+  //   CAPA 5  adiciones
+  //   CAPA 6  precio      (sale de lo anterior, nunca se inventa)
+  // ══════════════════════════════════════════════════════════════════
 
-  // Lo que ESCRIBIÓ el cliente, sin lo que interpretó GPT. Sirve para no premiar
-  // palabras que GPT agregó por su cuenta (ej. "Especial" porque la categoría se
-  // llama "Salchipapas Especiales"). Si viene vacío se cae al blob de siempre.
+  // Lo que ESCRIBIÓ el cliente. Es la verdad: si GPT agrega palabras por su
+  // cuenta (ej. "Especial" porque la categoría se llama "Salchipapas
+  // Especiales"), el texto real manda.
   const cliBlob = norm(clienteTexto) || blob;
 
-  // ¿El producto es una ADICIÓN? (categoría cuyo nombre o alias lo dice)
   const catsById = new Map((allCats || []).map(c => [String(c.id), c]));
-  const esAdicion = (p: Record<string, unknown>) => {
-    const c = catsById.get(String(p.category_id));
+  const esCatAdicion = (c: Record<string, unknown> | undefined) => {
     if (!c) return false;
     const t = norm(String(c.name || "") + " " + String((c as {comanda_alias?: string}).comanda_alias || ""));
-    return t.includes("adicion") || t.includes("adicione");
+    return t.includes("adicion");
   };
-  // ¿El cliente está pidiendo explícitamente una adición?
-  const pideAdicion = /\badicion|\bextra\b|\bagrega|\bcon extra/.test(cliBlob);
+  const esAdicion = (p: Record<string, unknown>) => esCatAdicion(catsById.get(String(p.category_id)));
+  const pideAdicion = /adicion|\bextra\b|\bagrega/.test(cliBlob);
 
-  // Elegir el producto por PUNTAJE: la CATEGORÍA pesa más (desambigua nombres iguales
-  // en distintas categorías); el nombre da la base; presentación/variante en el texto
-  // suben el puntaje del producto correcto.
+  // Palabras con las que un cliente nombra una categoría (nombre + alias, con y
+  // sin plural): "salchipapas"→salchipapa, "HAMBURGUESAS"→hamburguesa…
+  const catPalabras = (c: Record<string, unknown>) => {
+    const out: string[] = [];
+    for (const t of [String(c.name || ""), String((c as {comanda_alias?: string}).comanda_alias || "")]) {
+      for (const w of norm(t).split(/\s+/)) {
+        if (w.length >= 4) { out.push(w); out.push(w.replace(/s$/, "")); }
+      }
+    }
+    return out;
+  };
+
+  // ── CAPA 1: CATEGORÍA ───────────────────────────────────────────────
+  // 1a) ¿La nombró? Se busca en lo que escribió el cliente y en lo que
+  //     entendió GPT (el campo "categoria").
+  const textoCat = cliBlob + " " + blob;
+  let catsCand = (allCats || []).filter(c => catPalabras(c).some(w => w.length >= 4 && textoCat.includes(w)));
+  // Si no pidió una adición, las categorías de adiciones no compiten como plato.
+  if (!pideAdicion) catsCand = catsCand.filter(c => !esCatAdicion(c));
+
+  let categoriaConfirmar = false;
+  let categoriaOpciones: string[] = [];
+
+  // 1b) No la nombró → DEDUCIRLA: ¿en qué categorías existe un producto que se
+  //     llame así? Si aparece en una sola, esa es. Si aparece en varias
+  //     (maicitos: adición, hamburguesa y salchipapa) NO se adivina: se marca
+  //     para preguntar y se sigue con la más probable.
+  const nombreCoincide = (p: Record<string, unknown>) => {
+    const pn = norm(String(p.name || ""));
+    if (!pn) return false;
+    if (nl && (pn === nl || pn.includes(nl) || nl.includes(pn))) return true;
+    return pn.length >= 4 && (nameBlob.includes(pn) || cliBlob.includes(pn));
+  };
+  if (!catsCand.length) {
+    const conEseNombre = (allProducts || []).filter(nombreCoincide);
+    const ids = new Set(conEseNombre.map(p => String(p.category_id)));
+    let cats2 = [...ids].map(id => catsById.get(id)).filter(Boolean) as Array<Record<string, unknown>>;
+    if (!pideAdicion) cats2 = cats2.filter(c => !esCatAdicion(c));
+    if (cats2.length === 1) {
+      catsCand = cats2;
+    } else if (cats2.length > 1) {
+      // Antes de darla por ambigua: la PRESENTACIÓN desempata. Si el cliente dijo
+      // "personal", solo la salchipapa tiene ese tamaño — la hamburguesa no tiene
+      // tamaños configurados. Así "una personal de maicitos" se resuelve sola y
+      // solo se pregunta cuando de verdad no hay cómo saberlo ("una maicitos").
+      const conPres = conEseNombre.filter(p =>
+        ((p.presentations as Array<{ name: string }>) || []).some(pr => {
+          const prn = norm(pr.name);
+          return prn.length >= 3 && cliBlob.includes(prn);
+        })
+      );
+      let cats3 = [...new Set(conPres.map(p => String(p.category_id)))]
+        .map(id => catsById.get(id)).filter(Boolean) as Array<Record<string, unknown>>;
+      if (!pideAdicion) cats3 = cats3.filter(c => !esCatAdicion(c));
+
+      if (cats3.length === 1) {
+        catsCand = cats3;                              // la presentación lo resolvió
+      } else {
+        catsCand = cats3.length ? cats3 : cats2;
+        if (catsCand.length > 1) {
+          categoriaConfirmar = true;                   // ambigua de verdad → preguntar
+          categoriaOpciones = catsCand.map(c => String(c.name || ""));
+        }
+      }
+    }
+  }
+
+  // ── CAPA 2: PRODUCTO, solo dentro de la(s) categoría(s) de la capa 1 ──
+  const universo = catsCand.length
+    ? (allProducts || []).filter(p => catsCand.some(c => String(c.id) === String(p.category_id)))
+    : (allProducts || []).filter(p => pideAdicion || !esAdicion(p));
+
   let matched: Record<string, unknown> | null = null;
   let bestScore = 0;
-  for (const p of allProducts) {
+  for (const p of universo) {
     const pn = norm(String(p.name || ""));
     if (!pn) continue;
     let score = 0;
     if (nl && pn === nl) score += 12;
     else if (nl && (pn.includes(nl) || nl.includes(pn))) score += 7;
-    // El NOMBRE del producto aparece en el texto del pedido aunque GPT no lo puso en
-    // "nombre" (ej. producto "RANCHERA" cuando el cliente pide "salchipapa ranchera",
-    // o "SÚPER QUESO" cuando dice "súper queso"). Clave para El Parche, donde el
-    // producto se llama por su tipo y "salchipapa" es solo la categoría genérica.
     else if (pn.length >= 4 && nameBlob.includes(pn)) score += 8;
     else {
       const pWords = pn.split(/\s+/).filter(w => w.length >= 4);
@@ -117,35 +186,15 @@ function matchProducto(
       if (pWords.some(w => nl.includes(w)) || nWords.some(w => pn.includes(w))) score += 4;
     }
     if (score === 0) continue;
-    // La PRESENTACIÓN que dijo el cliente (personal/familiar/único/perro/hamburguesa…)
-    // es el desambiguador más específico: si dice "personal" y solo la salchipapa tiene
-    // esa presentación, esa gana — aunque GPT se equivoque de categoría.
+    // La presentación dicha por el cliente confirma el producto.
     const preses0 = (p.presentations as Array<{ name: string }>) || [];
     if (preses0.some(pr => { const prn = norm(pr.name); return prn && prn.length >= 3 && blob.includes(prn); })) score += 12;
     const vars0 = (p.variables as Array<{ options: Array<{ name: string }> }>) || [];
     if (vars0.some(v => (v.options || []).some(o => { const on = norm(o.name); return on && on.length >= 3 && blob.includes(on); }))) score += 3;
-    // Categoría mencionada (Súper Queso HAMBURGUESA vs SALCHIPAPA). Pesa, pero menos
-    // que la presentación (que es más específica y no depende de la adivinanza de GPT).
-    if (catIds.size && catIds.has(String(p.category_id))) score += 8;
-
-    // ── Reglas por NATURALEZA de lo que se pide ──────────────────────────
-    // 1) Palabras de MÁS: si el producto se llama "Maicitos Especial" pero el
-    //    CLIENTE solo escribió "maicitos", esa palabra extra es otro producto
-    //    (y más caro). Se compara contra lo que escribió el cliente, NO contra
-    //    lo que devolvió GPT: si GPT alucina "Especial", el texto real manda.
+    // Palabras de MÁS en el nombre del producto que el cliente nunca dijo
+    // ("Maicitos Especial" cuando solo dijo "maicitos") → es otro producto.
     const sobran = pn.split(/\s+/).filter(w => w.length >= 4 && !cliBlob.includes(w)).length;
     if (sobran) score -= sobran * 7;
-
-    // 2) Una ADICIÓN no es un plato. "Maicitos" existe como adición ($8.000) y
-    //    como salchipapa ($13.000): pedir "una salchipapa de maicitos" jamás debe
-    //    traer la adición. Solo gana si el cliente nombró la categoría adición.
-    if (esAdicion(p) && !pideAdicion) score -= 20;
-
-    // 3) Si el cliente nombró una categoría, la de otra categoría no debería
-    //    ganar por tener el nombre más parecido (una hamburguesa Maicitos no es
-    //    una salchipapa Maicitos, aunque se llamen igual).
-    if (catIds.size && !catIds.has(String(p.category_id))) score -= 10;
-
     if (score > bestScore) { bestScore = score; matched = p; }
   }
 
@@ -246,7 +295,12 @@ function matchProducto(
     unit_price: price, cantidad, tamano: presName, pres_id: presId,
     variantes: variantesObj, tipo: varParts.join(", "),
     adiciones, adic_options: options, notas, matched: true,
+    // Banderas de "esto no se pudo resolver solo" → el modal las muestra para
+    // que el operador confirme en vez de guardar algo inventado.
     tamano_confirmar: tamanoConfirmar,
+    categoria_confirmar: categoriaConfirmar,
+    categoria_opciones: categoriaOpciones,
+    precio_confirmar: precioConfirmar,
   };
 }
 
@@ -390,15 +444,77 @@ ADICIONES DISPONIBLES (ingredientes extra que el cliente puede agregar con "con"
     const telefono = tel;
     const cliente  = extracted.cliente ? String(extracted.cliente) : (conv.contact_name ? String(conv.contact_name) : "");
 
+    let direccionTxt = extracted.direccion ? String(extracted.direccion) : "";
+    const barrioTxt    = extracted.barrio ? String(extracted.barrio) : "";
+
+    // ── ¿YA ES CLIENTE? ────────────────────────────────────────────────
+    // El TELÉFONO es la llave maestra: ahí viven sus datos y sus puntos. Si ya
+    // pidió antes, el modal debe llegar con su nombre puesto y sus direcciones
+    // guardadas, para no volver a escribirlo todo ni crear un cliente repetido.
+    let clienteConocido: Record<string, unknown> | null = null;
+    try {
+      if (tel) {
+        const cl = await sbGet(`/rest/v1/pos_clientes?tenant_id=eq.${tenantId}&telefono=like.*${encodeURIComponent(tel.slice(-10))}&select=id,nombre,direccion,direcciones`) as Array<Record<string, unknown>> | null;
+        if (cl && cl.length) {
+          const c = cl[0];
+          const dirs = Array.isArray(c.direcciones) ? (c.direcciones as string[]) : [];
+          if (c.direccion && !dirs.includes(String(c.direccion))) dirs.unshift(String(c.direccion));
+          clienteConocido = { id: c.id, nombre: c.nombre, direcciones: dirs };
+          // Si el cliente no dijo dirección en este pedido, se usa la última suya.
+          if (!direccionTxt && dirs.length) direccionTxt = dirs[dirs.length - 1];
+        }
+      }
+    } catch (_e) { /* si falla, el modal sigue funcionando vacío */ }
+
+    // ── PRECIO DEL DOMICILIO desde la tabla de zonas ────────────────────
+    // Las zonas viven en ia_config.domicilios.zonas: {precio, barrios:[...]}.
+    // Se busca el barrio en el campo "barrio", en la dirección y en lo que
+    // escribió el cliente (a veces lo mete dentro de la dirección:
+    // "cr 16 #57-03 barrio La Gran Bretaña"). Gana la coincidencia MÁS LARGA
+    // para que "Claros del Bosque" no la robe "El Bosque".
+    let domiPrecio = 0;
+    let domiBarrio = "";
+    let domiConfirmar = false;
+    try {
+      const cfgRow = await sbGet(`/rest/v1/ia_config?branch_id=eq.${branchId}&select=domicilios&limit=1`) as Array<Record<string, unknown>> | null;
+      const zonas = (((cfgRow?.[0]?.domicilios || {}) as Record<string, unknown>).zonas || []) as Array<{ precio?: number; barrios?: string[] }>;
+      const donde = norm([barrioTxt, direccionTxt, clienteTexto].filter(Boolean).join(" | "));
+      // También se compara SIN espacios: la gente escribe "BELLAVISTA" y en la
+      // tabla está "Bella Vista"; sin esto no se reconocía y quedaba sin precio.
+      const dondeSinEsp = donde.replace(/\s+/g, "");
+      let mejor = 0;
+      for (const z of zonas) {
+        for (const b of (z.barrios || [])) {
+          const bn = norm(String(b || ""));
+          if (bn.length < 4) continue;
+          const bnSinEsp = bn.replace(/\s+/g, "");
+          const hay = donde.includes(bn) || (bnSinEsp.length >= 6 && dondeSinEsp.includes(bnSinEsp));
+          if (hay && bn.length > mejor) {
+            mejor = bn.length; domiPrecio = Number(z.precio) || 0; domiBarrio = String(b);
+          }
+        }
+      }
+      // Domicilio sin barrio reconocido: se deja en 0 y se avisa, en vez de
+      // inventar una tarifa. El operador lo escribe y el sistema aprende cuál era.
+      if (String(extracted.tipo || "domicilio") === "domicilio" && !domiPrecio) domiConfirmar = true;
+    } catch (_e) { domiConfirmar = true; }
+
     return json({
       ok: true,
       order: {
-        cliente, telefono,
-        direccion: extracted.direccion ? String(extracted.direccion) : "",
-        barrio: extracted.barrio ? String(extracted.barrio) : "",
+        cliente: (clienteConocido && String(clienteConocido.nombre || "")) || cliente,
+        telefono,
+        cliente_conocido: clienteConocido ? true : false,
+        cliente_id: clienteConocido ? clienteConocido.id : null,
+        direcciones_guardadas: clienteConocido ? clienteConocido.direcciones : [],
+        direccion: direccionTxt,
+        barrio: domiBarrio || barrioTxt,
         tipo: extracted.tipo ? String(extracted.tipo) : "domicilio",
         pago: extracted.pago ? String(extracted.pago) : "",
         notas: extracted.notas ? String(extracted.notas) : "",
+        domi_precio: domiPrecio,
+        domi_barrio: domiBarrio,
+        domi_confirmar: domiConfirmar,
         productos, subtotal, branch_id: branchId, tenant_id: tenantId,
       },
       catalogo, categorias, mods: allMods,

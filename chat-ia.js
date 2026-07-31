@@ -1797,12 +1797,24 @@ function cpRenderForm(o){
     ? '<button type="button" class="cp-addprod-btn" onclick="cpOpenPicker()">＋ Agregar producto</button>' : '';
   const html=
     '<div class="cp-grid">'
-    +'<div class="cp-f"><label>Nombre del cliente</label><input id="cpNombre" value="'+cpEsc(o.cliente||'')+'"></div>'
+    // Si el teléfono ya está en la base, el nombre llega puesto y se avisa que
+    // es un cliente conocido (el teléfono es la llave: ahí viven sus datos).
+    +'<div class="cp-f"><label>Nombre del cliente'
+      +(o.cliente_conocido?' <span class="cp-cli-ok">✓ cliente registrado</span>':'')
+      +'</label><input id="cpNombre" value="'+cpEsc(o.cliente||'')+'"></div>'
     +'<div class="cp-f"><label>Teléfono</label><input id="cpTelefono" value="'+cpEsc(o.telefono||'')+'"></div>'
     +'<div class="cp-f"><label>Tipo</label><select id="cpTipo" onchange="cpRerender()">'+tipos.map(t=>'<option value="'+t+'"'+(o.tipo===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
     +'<div class="cp-f"><label>Método de pago</label><input id="cpPago" value="'+cpEsc(o.pago||'')+'"></div>'
     +'</div>'
     +(o.tipo!=='mesa'?'<div class="cp-grid"><div class="cp-f"><label>Dirección</label><input id="cpDireccion" value="'+cpEsc(o.direccion||'')+'"></div><div class="cp-f"><label>Barrio</label><input id="cpBarrio" value="'+cpEsc(o.barrio||'')+'"></div></div>':'')
+    // Direcciones que este cliente ya ha usado (casa, oficina...). Un toque las pone.
+    +((o.tipo!=='mesa' && (o.direcciones_guardadas||[]).length>1)
+        ? '<div class="cp-dirs"><span>Sus direcciones:</span>'
+          +(o.direcciones_guardadas||[]).map(function(d){
+              return '<button type="button" class="cp-dir-chip" onclick="cpUsarDir(this)" data-dir="'+cpEsc(d)+'">'+cpEsc(d.length>34?d.slice(0,34)+'…':d)+'</button>';
+            }).join('')
+          +'</div>'
+        : '')
     +'<div class="cp-prods-hd">Productos</div>'
     +'<div id="cpProds">'+(prods||'<div class="cp-empty">Sin productos. Agrégalos abajo.</div>')+'</div>'
     +(addProd?'<div class="cp-addrow">'+addProd+'</div>':'')
@@ -1857,6 +1869,12 @@ async function aprenderBarrio(o){
       }]);
     }
   }catch(e){ console.warn('aprenderBarrio:', e && e.message); }
+}
+
+// Pone una de las direcciones guardadas del cliente en el campo.
+function cpUsarDir(btn){
+  const el=document.getElementById('cpDireccion');
+  if(el && btn){ el.value=btn.dataset.dir||''; el.focus(); }
 }
 
 function cpProdRow(p,i){
