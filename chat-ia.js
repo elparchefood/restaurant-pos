@@ -375,6 +375,158 @@ function clienteDe(conv) {
   return (t && S.clientesPorTel[t]) || null;
 }
 
+/* ══════════════ FICHA DEL CLIENTE (drawer derecho) ══════════════
+   Se abre desde "Información del contacto" del menú ⋮. Reúne en un solo lugar
+   lo que hoy está regado: quién es, dónde vive, cuánto ha pedido, cómo paga y
+   qué suele pedir — para atenderlo sin volver a preguntarle lo de siempre. */
+function ciMoneda(n){ return '$' + Math.round(Number(n)||0).toLocaleString('es-CO'); }
+function ciHace(fecha){
+  if(!fecha) return '';
+  const d = Math.floor((Date.now() - new Date(fecha).getTime()) / 86400000);
+  if (d <= 0) return 'hoy';
+  if (d === 1) return 'ayer';
+  if (d < 30) return 'hace ' + d + ' días';
+  const m = Math.floor(d/30);
+  return 'hace ' + m + (m === 1 ? ' mes' : ' meses');
+}
+async function abrirFichaCliente(){
+  const conv = S.conversations.find(c => c.id === S.activeConvId);
+  if(!conv){ showToast('Abre un chat primero','info'); return; }
+  const menu = document.getElementById('moreMenu'); if(menu) menu.style.display='none';
+  const ov = document.getElementById('fichaOv');
+  document.getElementById('fichaBody').innerHTML = '<div class="ci-dw-load">Cargando…</div>';
+  ov.classList.add('on');
+  try { await pintarFichaCliente(conv); }
+  catch(e){ document.getElementById('fichaBody').innerHTML = '<div class="ci-dw-load">No se pudo cargar: '+escHtml(e.message||e)+'</div>'; }
+}
+function cerrarFichaCliente(){ const o=document.getElementById('fichaOv'); if(o) o.classList.remove('on'); }
+
+async function pintarFichaCliente(conv){
+  const tel10 = String(conv.contact_handle||'').replace(/\D/g,'').slice(-10);
+  // 1) Ficha guardada (el teléfono es la llave)
+  let cli = null;
+  try {
+    const r = await sb.from('pos_clientes').select('*').eq('tenant_id', S.tenantId).ilike('telefono','%'+tel10).maybeSingle();
+    cli = r.data || null;
+  } catch(e){}
+  // 2) Sus pedidos
+  let pedidos = [];
+  if (cli) {
+    try {
+      const r = await sb.from('pos_orders')
+        .select('id,total_final,total,created_at,payment_method,status,channel')
+        .eq('cliente_id', cli.id).order('created_at',{ascending:false}).limit(40);
+      pedidos = r.data || [];
+    } catch(e){}
+  }
+  // 3) Puntos de lealtad (van por teléfono, igual que la ficha)
+  let puntos = 0;
+  try {
+    const r = await sb.from('pos_puntos').select('puntos').ilike('telefono','%'+tel10).maybeSingle();
+    puntos = Number(r.data && r.data.puntos)||0;
+  } catch(e){}
+  // 4) Qué es lo que más pide
+  let favorito = null;
+  if (pedidos.length) {
+    try {
+      const ids = pedidos.map(function(p){ return p.id; });
+      const r = await sb.from('pos_order_items').select('name,quantity').in('order_id', ids);
+      const cuenta = {};
+      (r.data||[]).forEach(function(i){ const n=(i.name||'').trim(); if(n) cuenta[n]=(cuenta[n]||0)+(Number(i.quantity)||1); });
+      const top = Object.entries(cuenta).sort(function(a,b){ return b[1]-a[1]; })[0];
+      if (top) favorito = { nombre: top[0], veces: top[1] };
+    } catch(e){}
+  }
+  // 5) ¿Está en lista negra? (debe saltar antes de despachar)
+  let negra = null;
+  try {
+    const r = await sb.rpc('lista_negra_match', { p_tenant:S.tenantId, p_tel:tel10, p_dir_norm:null });
+    if (r.data && r.data.length) negra = r.data[0];
+  } catch(e){}
+
+  const nPed    = pedidos.length;
+  const gastado = pedidos.reduce(function(a,p){ return a+(Number(p.total_final)||Number(p.total)||0); },0);
+  const prom    = nPed ? gastado/nPed : 0;
+  const ultimo  = nPed ? pedidos[0].created_at : null;
+  const sinPagar= pedidos.filter(function(p){ return p.status!=='paid' && p.status!=='completed' && p.status!=='cancelled'; }).length;
+  const pagos = {};
+  pedidos.forEach(function(p){ const m=(p.payment_method||'').toLowerCase(); if(m && m!=='multiple') pagos[m]=(pagos[m]||0)+1; });
+  const pagoTop = Object.entries(pagos).sort(function(a,b){ return b[1]-a[1]; })[0];
+
+  const dirs = cli ? ((Array.isArray(cli.direcciones)&&cli.direcciones.length) ? cli.direcciones : (cli.direccion?[cli.direccion]:[])) : [];
+  const nombre = (cli && cli.nombre) || conv.contact_name || conv.contact_handle || 'Sin nombre';
+
+  let h = '';
+  if (negra) h += '<div class="ci-dw-alert danger">Cliente en <b>lista negra</b>'+(negra.razon?'<span>'+escHtml(negra.razon)+'</span>':'')+'</div>';
+  if (sinPagar) h += '<div class="ci-dw-alert warn">Tiene <b>'+sinPagar+' pedido'+(sinPagar>1?'s':'')+' sin pagar</b></div>';
+
+  h += '<div class="ci-dw-id">'
+    +  '<div class="ci-dw-av">'+escHtml(avatarInitials(nombre))+'</div>'
+    +  '<div class="ci-dw-idtx"><div class="ci-dw-nm">'+escHtml(nombre)+'</div>'
+    +    '<div class="ci-dw-sub">'+escHtml(conv.contact_handle||'')
+    +      ((cli && cli.barrio) ? ' · '+escHtml(cli.barrio) : '')+'</div></div>'
+    + '</div>';
+
+  if (!cli) {
+    h += '<div class="ci-dw-empty">Todavía no es un cliente guardado.<br>Se crea solo cuando le tomes su primer pedido.</div>';
+  } else {
+    h += '<div class="ci-dw-stats">'
+      + '<div class="ci-dw-st"><b>'+nPed+'</b><span>pedido'+(nPed===1?'':'s')+'</span></div>'
+      + '<div class="ci-dw-st"><b>'+ciMoneda(gastado)+'</b><span>gastado</span></div>'
+      + '<div class="ci-dw-st"><b>'+ciMoneda(prom)+'</b><span>promedio</span></div>'
+      + '</div>';
+    h += '<div class="ci-dw-rows">';
+    if (ultimo)  h += '<div class="ci-dw-row"><span>Último pedido</span><b>'+ciHace(ultimo)+'</b></div>';
+    if (puntos)  h += '<div class="ci-dw-row"><span>Puntos</span><b>'+puntos+'</b></div>';
+    if (pagoTop) h += '<div class="ci-dw-row"><span>Suele pagar</span><b>'+escHtml(pagoTop[0].charAt(0).toUpperCase()+pagoTop[0].slice(1))+'</b></div>';
+    if (favorito)h += '<div class="ci-dw-row"><span>Su plato</span><b>'+escHtml(favorito.nombre)+'</b></div>';
+    if (cli.created_at) h += '<div class="ci-dw-row"><span>Cliente desde</span><b>'+new Date(cli.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short'})+'</b></div>';
+    h += '</div>';
+
+    if (dirs.length) {
+      h += '<div class="ci-dw-sec">Direcciones</div><div class="ci-dw-dirs">'
+        + dirs.map(function(d,i){ return '<div class="ci-dw-dir">'+escHtml(d)+(i===dirs.length-1?'<span>principal</span>':'')+'</div>'; }).join('')
+        + '</div>';
+    }
+    h += '<div class="ci-dw-sec">Notas</div>'
+      + '<textarea class="ci-dw-notas" id="fichaNotas" rows="3" placeholder="Ej. no timbrar, casa del portón verde, alérgico a la cebolla…" '
+      + 'onblur="guardarNotasCliente(&quot;'+cli.id+'&quot;,this.value)">'+escHtml(cli.notas||'')+'</textarea>';
+
+    if (nPed) {
+      h += '<div class="ci-dw-sec">Historial</div><div class="ci-dw-hist">'
+        + pedidos.slice(0,12).map(function(p){
+            const f = new Date(p.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short'});
+            const pagado = p.status==='paid'||p.status==='completed';
+            return '<div class="ci-dw-h"><span class="f">'+f+'</span>'
+              + '<span class="c">'+escHtml(p.channel||'')+'</span>'
+              + '<span class="v">'+ciMoneda(p.total_final||p.total)+'</span>'
+              + '<span class="e '+(pagado?'ok':'')+'">'+(pagado?'pagado':'pendiente')+'</span></div>';
+          }).join('')
+        + '</div>';
+    }
+  }
+  h += '<div class="ci-dw-acts">'
+    + '<button class="ci-dw-btn primary" onclick="cerrarFichaCliente();document.getElementById(&quot;createOrderBtn&quot;).click()">Crear pedido</button>'
+    + (cli ? '<button class="ci-dw-btn" onclick="noEnviarleCliente(&quot;'+tel10+'&quot;)">No enviarle</button>' : '')
+    + '</div>';
+  document.getElementById('fichaBody').innerHTML = h;
+}
+async function guardarNotasCliente(id, txt){
+  try {
+    await sb.from('pos_clientes').update({ notas: txt, updated_at: new Date().toISOString() }).eq('id', id);
+    showToast('Nota guardada','success');
+  } catch(e){ showToast('No se pudo guardar la nota','error'); }
+}
+async function noEnviarleCliente(tel10){
+  try {
+    const r = await sb.from('pos_wa_contactos').select('id').eq('branch_id', S.branchId).ilike('telefono','%'+tel10).maybeSingle();
+    if (r.data && r.data.id) {
+      await sb.from('pos_wa_contactos').update({ no_atender: true }).eq('id', r.data.id);
+      showToast('Marcado: no recibirá envíos','success');
+    } else showToast('Ese número no está en la lista de contactos','info');
+  } catch(e){ showToast('No se pudo marcar','error'); }
+}
+
 function convRowHTML(c) {
   const meta     = CHANNELS[c.channel] || {};
   const tint     = TINTS[(c.contact_avatar_tint||0) % TINTS.length];

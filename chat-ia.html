@@ -14,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="pos-perms.js?v=1785030000"></script>
   <script>if(window.posRequirePin) posRequirePin('chat.usar');</script>
-  <link rel="stylesheet" href="chat-ia.css?v=49">
+  <link rel="stylesheet" href="chat-ia.css?v=50">
 </head>
 <body>
 
@@ -225,15 +225,15 @@
               <span class="ci-more-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></span>
               <span class="ci-more-label">Abrir en ventana independiente</span>
             </button>
+            <button class="ci-more-item" onclick="abrirFichaCliente()">
+              <span class="ci-more-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+              <span class="ci-more-label">Información del contacto</span>
+            </button>
             <div class="ci-more-div"></div>
             <div class="ci-more-sec">Próximamente</div>
             <div class="ci-more-item is-soon">
               <span class="ci-more-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
               <span class="ci-more-label">Buscar mensajes</span>
-            </div>
-            <div class="ci-more-item is-soon">
-              <span class="ci-more-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
-              <span class="ci-more-label">Información del contacto</span>
             </div>
             <div class="ci-more-div"></div>
             <button class="ci-more-item ci-more-danger" onclick="borrarHistorialChat()">
@@ -391,8 +391,20 @@
   </div>
 </div>
 
-<script src="chat-ia.js?v=1786980000"></script>
+<script src="chat-ia.js?v=1787000000"></script>
 <script src="pos-print.js?v=1786093000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
+<!-- Ficha del cliente: entra desde la derecha al tocar "Información del contacto" -->
+<div class="ci-dw-ov" id="fichaOv" onclick="if(event.target===this)cerrarFichaCliente()">
+  <aside class="ci-dw" id="fichaDw">
+    <div class="ci-dw-head">
+      <div class="ci-dw-title">Información del contacto</div>
+      <button class="ci-dw-x" onclick="cerrarFichaCliente()" title="Cerrar">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="ci-dw-body" id="fichaBody"></div>
+  </aside>
+</div>
 </body>
 </html>
