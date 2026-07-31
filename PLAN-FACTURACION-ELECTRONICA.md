@@ -159,31 +159,57 @@ dentro de Cobra: una pantalla que le diga paso a paso qué pedir, dónde, y le
 reciba los datos. Que sienta que Cobra se lo resolvió, aunque el trámite sea suyo.
 Eso es una ventaja de venta real: la mayoría de los competidores lo deja solo.
 
-## 4-quater. Cuánto cuesta esto en el mercado (referencia 2026)
+## 4-quater. Precios — CUIDADO: son dos modelos distintos
 
-Para armar los planes de Cobra con números reales:
+> Aquí hubo una confusión en una versión anterior de este documento: se
+> mezclaron en una sola tabla el costo del **proveedor de API** y los precios de
+> la **competencia**. No son lo mismo.
 
-| Concepto | Rango en Colombia |
-|---|---|
-| Proveedor tecnológico, plan básico | $30.000 – $80.000 COP/mes |
-| Proveedor tecnológico, plan intermedio | $80.000 – $200.000 COP/mes |
-| Algunos ofrecen gratis | 20 a 50 documentos/mes |
-| Costo por documento a alto volumen | desde ~$150 COP |
-| Certificado digital | ~$150.000 COP/año, lo paga el restaurante |
-| Sistema gratuito de la DIAN | $0, pero sin integración |
+### A) Lo que Cobra le paga al proveedor de API — POR USO
 
-**Competencia directa (POS con facturación en Colombia):**
+Alanube: **"paga solo por lo que emites"**. No publica tarifas.
+Un comparador de terceros menciona **desde ~$150 COP/documento a alto volumen**
+(sí: ciento cincuenta pesos, unos 4 centavos de dólar — el proveedor solo
+transporta el documento, no vende software).
+
+**LO QUE NO SE SABE Y HAY QUE PREGUNTAR:** si además del pago por documento hay
+**mínimo mensual o costo de plataforma**. Muchos proveedores de API lo tienen.
+Sin esa respuesta no se puede calcular el margen. *(Ver §4, pregunta 2.)*
+
+### B) Lo que cobra la COMPETENCIA al restaurante — MENSUALIDAD
+
+Esto **no es un costo de Cobra**: es el precio contra el que Cobra va a competir.
 
 | Sistema | Precio | Qué incluye |
 |---|---|---|
 | Alegra | desde ~$39.000 COP/mes | POS + facturación + contabilidad + inventario |
 | Siigo POS Gastrobar | $87.494 COP/mes | POS para restaurante/bar |
 
-**Lectura para Cobra:** a $150 COP/documento, un restaurante que emite 500
-facturas al mes le cuesta a Cobra ~$75.000. Si Cobra se vende en el rango de
-Siigo ($87.000), la facturación electrónica **se come el plan completo**. Por eso
-lo sano es: **incluir un cupo de facturas en el plan y cobrar el excedente**, o
-cobrar la facturación como un módulo aparte. Definirlo ANTES de vender, no después.
+Referencia de lo que cobran otros proveedores tecnológicos al restaurante
+directo: $30.000–$80.000/mes (básico), $80.000–$200.000/mes (intermedio), y
+algunos regalan de 20 a 50 documentos al mes.
+
+### C) La cuenta que hay que hacer antes de poner precio
+
+A $150 COP/documento, un restaurante que emite **500 facturas/mes** le cuesta a
+Cobra **~$75.000**. Si Cobra se vende al precio de Siigo (~$87.000), la
+facturación **se come el plan casi completo**.
+
+Salidas posibles:
+- Incluir un **cupo de facturas** en cada plan y cobrar el excedente.
+- Cobrar la facturación electrónica como **módulo aparte**.
+- Subir el precio del plan para los que facturan.
+
+**Esta es una decisión de negocio de Sergio, no técnica**, y es la razón por la
+que esta función se hace **de última**: para poder fijar los planes con el costo
+real ya conocido, no con estimaciones.
+
+### D) Lo que paga el restaurante aparte, en cualquier caso
+
+| Concepto | Costo |
+|---|---|
+| Certificado digital | ~$150.000 COP/año |
+| Habilitación DIAN y resolución | Gratis, pero es trámite suyo |
 
 ---
 
@@ -198,6 +224,37 @@ resolución. Falta agregar:
 - Prefijo y rango de numeración autorizado, con su vigencia.
 - Interruptor maestro **"Facturar electrónicamente"**, apagado por defecto —
   igual que impuestos: quien no lo usa no lo ve.
+
+### 5.1-bis Asistente de habilitación 🟢 *(aprobado por Sergio)*
+
+El trámite ante la DIAN no se puede delegar, pero **la experiencia sí**. En vez
+de mandarle un PDF al dueño, Cobra lo lleva de la mano.
+
+**Pantalla:** Configuración → Facturación electrónica → *Activar*.
+Un asistente con pasos, que guarda el avance y se puede retomar.
+
+| Paso | Qué hace el dueño | Qué hace Cobra |
+|---|---|---|
+| 1. Tus datos | Escribe NIT, razón social, dirección, régimen | Valida el formato del NIT y lo guarda |
+| 2. ¿Ya estás habilitado? | Responde sí / no | Si dice que no, muestra el paso 3; si sí, salta al 4 |
+| 3. Habilitación DIAN | Sigue las instrucciones y avisa cuando termine | Muestra **qué pedir, dónde y con qué datos**, con enlace directo al portal de la DIAN |
+| 4. Resolución de numeración | Escribe prefijo, desde, hasta y vigencia | Valida el rango y calcula cuántas facturas le alcanzan |
+| 5. Certificado digital | Lo sube, o indica que ya lo cargó | Lo envía al proveedor (nunca se guarda en Cobra) |
+| 6. Prueba | Toca "Emitir factura de prueba" | Emite en **sandbox**, muestra el CUFE y el resultado |
+| 7. Listo | Confirma | Pasa a producción y enciende el interruptor |
+
+**Reglas del asistente**
+- Cada paso se puede dejar a medias y retomar después: el trámite de la DIAN
+  toma días, no se hace de una sentada.
+- Ningún paso puede saltarse en falso: sin resolución válida no se factura.
+- El paso 6 (prueba en sandbox) es **obligatorio** antes de producción. Nadie
+  debería emitir su primera factura real a un cliente de verdad.
+- Si algo falla, el mensaje dice **qué hacer**, no un código de error.
+- Cobra **no guarda** el certificado digital: lo pasa al proveedor y lo olvida.
+
+**Por qué vale la pena:** es el momento más frágil de la venta. Un dueño que se
+traba en la habilitación cancela el servicio. La mayoría de los competidores lo
+deja solo aquí — hacerlo bien es una ventaja comercial real, no un adorno.
 
 ### 5.2 Consecutivo seguro 🔴
 **El punto que más duele si se hace mal.** Si dos cajas facturan al mismo tiempo
@@ -255,6 +312,7 @@ es una multa esperando.
 |---|---|---|
 | 0 | **Confirmar proveedor** | Las 5 preguntas del §4. Sin esto no se escribe código. |
 | 1 | **Configuración + consecutivo** | Credenciales, rangos, bloqueo del número, alertas |
+| 1b | **Asistente de habilitación** | Los 7 pasos del §5.1-bis, con prueba en sandbox |
 | 2 | **Emisión en sandbox** | Edge Function, tabla `pos_facturas`, CUFE de prueba |
 | 3 | **Cola y reintento** | Recibo provisional, reenvío automático, idempotencia |
 | 4 | **Notas de crédito** | Anulación real de una factura emitida |
