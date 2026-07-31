@@ -96,6 +96,9 @@ emitida no se borra, se anula con una nota de crédito. Hoy anular un pedido sol
 lo marca `cancelled`. Facturar sin eso deja un problema legal en la primera
 anulación.
 
+**→ El plan completo está en [`PLAN-FACTURACION-ELECTRONICA.md`](PLAN-FACTURACION-ELECTRONICA.md)**: investigación de proveedores, arquitectura, fases y reglas duras.
+**Cuándo:** es lo ÚLTIMO antes de lanzar, después de corregir todo lo demás (decisión de Sergio, 2026-07-31).
+
 **Qué hay que construir**
 - Integración con un proveedor autorizado (en el contexto quedó **Factus API**, pay-per-use).
 - Resolución de numeración y consecutivo de facturación.
