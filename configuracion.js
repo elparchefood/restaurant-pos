@@ -1867,6 +1867,9 @@ var _cfgBranchId = null; // se rellena al cargar el usuario
 var OP_DEFAULTS = {
   entregaMin: 12, cocinaMax: 20, propinaPct: 10, propinaObligatoria: false,
   metaDiaria: 1500000, cobroAdelantado: false, pin: '',
+  // Impuestos: APAGADO por defecto. Un restaurante pequeño en Colombia suele
+  // ser "no responsable" de impoconsumo y no cobra nada.
+  impuestos: { activo: false, tipo: 'inc', pct: 8, incluido: true, nit: '', razon_social: '', resolucion: '' },
   // Propina (nuevo modelo — sección "Impuestos y propina")
   propinaActiva: true,          // ¿el restaurante recibe propina?
   propinaPorcentajes: [10],     // porcentajes sugeridos que aparecen en el cobro
@@ -2635,11 +2638,126 @@ function opBindEvents() {
   }
 }
 
+// ════════════════════════════════════════════════════════════
+// IMPUESTOS — Configuración → Impuestos y propina
+// Viaja dentro del mismo blob operacion_config, así que se sincroniza a la
+// base y a todos los equipos igual que el resto de Operación.
+// ════════════════════════════════════════════════════════════
+var IMP_TARIFAS = { inc: 8, iva: 19 };
+
+function impLeerCfg() {
+  var d = _opDraft || opLoad();
+  return Object.assign((window.posImpuestos ? posImpuestos.defaults() : {}), d.impuestos || {});
+}
+function impGuardarCfg(patch) {
+  var d = _opDraft || opLoad();
+  d.impuestos = Object.assign(impLeerCfg(), patch || {});
+  _opDraft = d;
+  opSave(d);
+  if (window.posImpuestos) posImpuestos.setConfig(d.impuestos);
+  impPintar();
+  return d.impuestos;
+}
+
+function impToggleActivo() { impGuardarCfg({ activo: !impLeerCfg().activo }); }
+function impSetTipo(t) {
+  var patch = { tipo: t };
+  if (IMP_TARIFAS[t] != null) patch.pct = IMP_TARIFAS[t];
+  impGuardarCfg(patch);
+}
+function impSetIncluido(v) { impGuardarCfg({ incluido: !!v }); }
+
+// Pinta toda la tarjeta a partir de la config guardada.
+function impPintar() {
+  var c = impLeerCfg();
+
+  var sw = document.getElementById('toggle-imp-sw');
+  if (sw) {
+    sw.classList.toggle('on', c.activo);
+    var lbl = sw.querySelector('.iv-switch-label');
+    if (lbl) lbl.textContent = c.activo ? 'Sí' : 'No';
+  }
+  var box = document.getElementById('toggle-imp');
+  if (box) box.classList.toggle('on', c.activo);
+
+  var st = document.getElementById('imp-state');
+  if (st) {
+    st.textContent = c.activo ? ((window.posImpuestos ? posImpuestos.nombre() : 'Impuesto') + ' ' + posImpuestos.fmtPct(c.pct) + '%') : 'Desactivado';
+    st.className = 'op-state ' + (c.activo ? 'on' : 'off');
+  }
+  var hint = document.getElementById('imp-hint');
+  if (hint) {
+    hint.innerHTML = c.activo
+      ? 'Cada venta guardará su base gravable y su impuesto, y el recibo lo mostrará desglosado.'
+      : 'Tus precios se cobran tal cual, sin desglose. Si eres <b>no responsable de impoconsumo</b>, déjalo en No — es lo normal en un restaurante pequeño.';
+  }
+  var fields = document.getElementById('imp-fields');
+  if (fields) fields.classList.toggle('is-hidden', !c.activo);
+
+  document.querySelectorAll('[data-imp-tipo]').forEach(function (b) {
+    b.classList.toggle('on', b.dataset.impTipo === c.tipo);
+  });
+  var pw = document.getElementById('imp-pct-wrap');
+  if (pw) pw.classList.toggle('is-hidden', c.tipo !== 'otro');
+  var pct = document.getElementById('imp-pct');
+  if (pct && document.activeElement !== pct) pct.value = c.pct;
+
+  document.querySelectorAll('[data-imp-modo]').forEach(function (b) {
+    b.classList.toggle('on', (b.dataset.impModo === '1') === !!c.incluido);
+  });
+
+  [['imp-nit', 'nit'], ['imp-razon', 'razon_social'], ['imp-resol', 'resolucion']].forEach(function (par) {
+    var el = document.getElementById(par[0]);
+    if (el && document.activeElement !== el) el.value = c[par[1]] || '';
+  });
+
+  impPintarEjemplo();
+}
+
+// El ejemplo en vivo: ver el efecto en un precio real quita el miedo a activarlo.
+function impPintarEjemplo() {
+  var out = document.getElementById('imp-ejemplo-out'); if (!out) return;
+  var c = impLeerCfg();
+  var pctEl = document.getElementById('imp-pct');
+  if (c.tipo === 'otro' && pctEl) c.pct = parseFloat(pctEl.value) || 0;
+  var precio = parseFloat((document.getElementById('imp-ejemplo') || {}).value) || 0;
+
+  if (!window.posImpuestos) { out.textContent = ''; return; }
+  posImpuestos.setConfig(c);
+  var d = posImpuestos.desglosar(precio, c.pct);
+  var nom = posImpuestos.nombre() + ' ' + posImpuestos.fmtPct(c.pct) + '%';
+  var money = function (n) { return '$' + Math.round(n || 0).toLocaleString('es-CO'); };
+
+  out.innerHTML =
+      '<div style="display:flex;justify-content:space-between"><span style="color:#475569">Base gravable</span><b>' + money(d.base) + '</b></div>'
+    + '<div style="display:flex;justify-content:space-between"><span style="color:#475569">' + nom + '</span><b>' + money(d.impuesto) + '</b></div>'
+    + '<div style="display:flex;justify-content:space-between;border-top:1px solid #E2E8F0;margin-top:5px;padding-top:5px">'
+    +   '<span style="font-weight:800">El cliente paga</span><b style="font-size:15px">' + money(d.total) + '</b></div>'
+    + (c.incluido
+        ? '<div style="font-size:11.5px;color:#16A34A;margin-top:6px">Tu carta sigue diciendo ' + money(precio) + '. El impuesto ya estaba adentro.</div>'
+        : '<div style="font-size:11.5px;color:#B45309;margin-top:6px">Ojo: al cliente se le cobra ' + money(d.total) + ', no ' + money(precio) + '.</div>');
+}
+
+// Guardar lo que se escribe a mano (tarifa "otro", NIT, razón social, resolución).
+function impBindInputs() {
+  [['imp-pct', 'pct', true], ['imp-nit', 'nit'], ['imp-razon', 'razon_social'], ['imp-resol', 'resolucion']]
+    .forEach(function (par) {
+      var el = document.getElementById(par[0]); if (!el) return;
+      el.addEventListener('blur', function () {
+        var v = par[2] ? (parseFloat(el.value) || 0) : el.value.trim();
+        var patch = {}; patch[par[1]] = v;
+        impGuardarCfg(patch);
+      });
+    });
+}
+
 // ── Impuestos y propina ───────────────────────────────────────────────
 // Comparte _opDraft / _opSaved con Operación (mismo blob operacion_config).
 function propInit() {
   propRender();
   propBind();
+  impPintar();
+  impBindInputs();
 }
 
 function propRender() {

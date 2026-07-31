@@ -44,6 +44,7 @@
     var q = s.from('pos_orders').select(
         'id,status,channel,total,total_final,delivery_fee,tip_amount,discount_amount,' +
         'guests,waiter_name,payment_method,closed_at,opened_at,cliente_id,notes,' +
+        'tax_total,tax_base,tax_detail,' +
         'pos_order_items(id,product_id,product_name,name,quantity,unit_price,total,selections)')
       .eq('status', 'paid').gte('closed_at', r.from).lt('closed_at', r.to)
       .order('closed_at', { ascending: true });
@@ -1568,6 +1569,49 @@
               v: { _neg: '– ' + $(m.costo) } }; }),
           total: { f: 'Total', i: '', q: '', m: '', d: '', w: '', v: $(total) } } },
       ],
+    };
+  };
+
+  /* ═══════════ VENTAS POR IMPUESTO ═══════════
+     Es lo que se lleva a la declaración: cuánto se vendió a cada tarifa y
+     cuánto impuesto se recaudó. Lee lo CONGELADO en cada venta, nunca
+     recalcula: las ventas ya declaradas no pueden cambiar. */
+  R['sal-impuesto'] = async function (p) {
+    var d = await pedidos(p); if (!d.lista.length) return vacio();
+    var conImp = d.lista.filter(function (o) { return (parseFloat(o.tax_total) || 0) > 0; });
+    if (!conImp.length) return vacio();
+
+    var acum = {}, base = 0, imp = 0;
+    conImp.forEach(function (o) {
+      base += parseFloat(o.tax_base) || 0;
+      imp  += parseFloat(o.tax_total) || 0;
+      (o.tax_detail || []).forEach(function (t) {
+        var k = String(t.pct);
+        if (!acum[k]) acum[k] = { pct: Number(t.pct), base: 0, monto: 0 };
+        acum[k].base += Number(t.base) || 0;
+        acum[k].monto += Number(t.monto) || 0;
+      });
+    });
+    var arr = Object.keys(acum).map(function (k) { return acum[k]; })
+      .sort(function (a, b) { return b.pct - a.pct; });
+    var venta = d.lista.reduce(function (a, o) { return a + ventaDe(o); }, 0);
+
+    return {
+      kpis: [
+        { lbl: 'Impuesto recaudado', val: $(imp), tone: 'accent', big: 1 },
+        { lbl: 'Base gravable', val: $(base) },
+        { lbl: 'Ventas con impuesto', val: n0(conImp.length),
+          sub: 'de ' + n0(d.lista.length) + ' ventas' },
+        { lbl: 'Ventas del período', val: $(venta) },
+      ],
+      blocks: [{ t: 'card', title: 'Resumen por tarifa',
+        sub: 'Esto es lo que va a la declaración. Sale de lo guardado en cada venta, no de un recálculo.',
+        body: { t: 'table', min: 460,
+        cols: [{ k: 't', label: 'Tarifa' }, { k: 'b', label: 'Base gravable', num: 1 }, { k: 'i', label: 'Impuesto', num: 1 }],
+        rows: arr.map(function (x) { return {
+          t: { _main: (Math.round(x.pct * 100) / 100).toString().replace('.', ',') + '%' },
+          b: $(x.base), i: $(x.monto) }; }),
+        total: { t: 'Total', b: $(base), i: $(imp) } } }],
     };
   };
 

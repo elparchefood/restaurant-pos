@@ -528,6 +528,21 @@ async function cobrarDespues() {
           const r = await q; return { ok: !r.error };
         };
 
+    // Impuesto CONGELADO: se guarda lo calculado hoy y los informes leen esto,
+    // nunca recalculan. Si mañana sube la tarifa, las ventas ya declaradas no
+    // pueden cambiar.
+    let _tax = null;
+    if (window.posImpuestos && posImpuestos.activo()) {
+      const _extras = [];
+      if (empaque) _extras.push({ valor: empaque });
+      // El domicilio NO entra: no es venta y su tratamiento tributario lo
+      // define el contador de cada restaurante.
+      _tax = posImpuestos.calcularPedido(
+        (SP.items || []).map(function (i) {
+          return { product_id: i.productId, category_id: i.catId, total: i.qty * i.unitPrice };
+        }), _extras);
+    }
+
     // 1. Marcar pedido como pagado con todos los datos financieros
     await _write('pos_orders', 'update', {
       status:          'paid',
@@ -542,6 +557,7 @@ async function cobrarDespues() {
       tip_amount:      tipAmt,
       packaging_fee:   empaque || 0,
       vuelto_total:    vueltoTotal,
+      ...(_tax ? { tax_total: _tax.impuesto, tax_base: _tax.base, tax_detail: _tax.porTarifa } : {}),
     }, { id: SP.orderId });
 
     // 2. Insertar desglose de pagos — SOLO los nuevos (los abonos ya guardados
@@ -987,7 +1003,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 3. Branch nombre
   if (SP.branchId) {
-    const { data: branch } = await sb.from('branches').select('name, cobro_adelantado').eq('id', SP.branchId).maybeSingle();
+    const { data: branch } = await sb.from('branches').select('name, cobro_adelantado, operacion_config').eq('id', SP.branchId).maybeSingle();
+    // Impuestos: si el restaurante no los cobra (lo normal en uno pequeño),
+    // todo lo de abajo queda en cero y el cobro se comporta como siempre.
+    if (window.posImpuestos) {
+      posImpuestos.setConfig((branch && branch.operacion_config && branch.operacion_config.impuestos) || null);
+      if (posImpuestos.activo()) {
+        try {
+          const [rc, rp] = await Promise.all([
+            sb.from('pos_categories').select('id,impuesto_pct').eq('branch_id', SP.branchId),
+            sb.from('pos_products').select('id,category_id,impuesto_pct').eq('branch_id', SP.branchId),
+          ]);
+          posImpuestos.setTarifas(rc.data || [], rp.data || []);
+        } catch (e) { console.warn('[pagos] tarifas de impuesto:', e); }
+      }
+    }
     if (branch) {
       document.getElementById('sb-branch').textContent = branch.name || '';
       // La DB es la fuente de verdad para el modo de cobro
