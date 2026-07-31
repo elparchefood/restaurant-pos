@@ -692,9 +692,11 @@
         else if (r.status === 'in_progress') estado = 'camino';
         // Estado de pago REAL: lo abonado (paid_amount — lo llenan el bot al verificar
         // transferencias y los abonos de caja) contra el total del pedido.
-        var totalNum = parseFloat(r.total) || 0;
+        // Contra lo COBRABLE (sin domicilio), no contra el total: si no, todo
+        // domicilio en que el cliente pagó solo la comida se ve "a medias".
         var paidNum  = parseFloat(r.paid_amount) || 0;
-        var payStatus = (r.status === 'paid' || r.status === 'completed' || (totalNum > 0 && paidNum >= totalNum)) ? 'pagado'
+        var payStatus = (window.posEstaPagado ? window.posEstaPagado(r)
+                          : (r.status === 'paid' || r.status === 'completed')) ? 'pagado'
                       : paidNum > 0 ? 'parcial'
                       : 'pendiente';
         return {

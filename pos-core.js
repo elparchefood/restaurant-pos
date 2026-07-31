@@ -53,6 +53,26 @@ function daysAgoISO(n) {
 (function () {
   const listeners = {};
 
+  /* ¿Cuánto tiene que recibir el restaurante por este pedido?
+     EL DOMICILIO NO CUENTA. El cliente lo paga, pero muchas veces va directo al
+     domiciliario y nunca entra a la caja; y aunque entre, no es una venta.
+     Sin esta regla, 13 domicilios reales aparecían como "pagados a medias"
+     cuando lo único que faltaba era, exactamente, el valor del domicilio. */
+  window.posCobrable = function (o) {
+    if (!o) return 0;
+    var total = parseFloat(o.total) || 0;
+    var domi  = parseFloat(o.delivery_fee) || 0;
+    return Math.max(0, total - domi);
+  };
+  /* ¿Está pagado? Se compara contra lo cobrable, no contra el total.
+     El margen de $1 absorbe los redondeos al peso. */
+  window.posEstaPagado = function (o) {
+    if (!o) return false;
+    if (o.status === 'paid' || o.status === 'completed') return true;
+    var deb = window.posCobrable(o);
+    return deb > 0 && (parseFloat(o.paid_amount) || 0) >= deb - 1;
+  };
+
   window._pos = {
     sb: sb,
     state: { user: null, branchId: null, tenantId: null },

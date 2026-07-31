@@ -299,9 +299,12 @@ function _orderRowToDelivery(o) {
   const total   = Number(o.total) || 0;
   const pagado  = Number(o.paid_amount) || 0;
   const fee     = Number(o.delivery_fee) || 0;
-  const payStatus = total > 0 && pagado >= total ? 'pagado'
-                  : pagado > 0                   ? 'parcial'
-                  :                                'pendiente';
+  // El domicilio no entra: se compara contra la comida + empaque.
+  const cobrable  = Math.max(0, total - fee);
+  const payStatus = (o.status === 'paid' || o.status === 'completed'
+                     || (cobrable > 0 && pagado >= cobrable - 1)) ? 'pagado'
+                  : pagado > 0 ? 'parcial'
+                  :              'pendiente';
   // Estado de entrega PERSISTIDO (antes todo volvía a 'recibido' al recargar)
   const estado = o.delivery_status || (o.delivered_at ? 'entregado' : 'recibido');
   return {

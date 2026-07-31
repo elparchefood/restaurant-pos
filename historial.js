@@ -279,7 +279,8 @@ function buildTimeline(o) {
   const isPaid = o.status === 'paid' || o.status === 'completed';
   const abonado = Number(o.paid_amount) || 0;
   if (!isPaid && abonado > 0 && o.status !== 'cancelled') {
-    const faltaAb = Math.max(0, (Number(o.total) || 0) - abonado);
+    // Sin el domicilio: es lo que de verdad falta por cobrar.
+    const faltaAb = Math.max(0, (Number(o.total) || 0) - (Number(o.delivery_fee) || 0) - abonado);
     steps.push({ done: true, event: 'Abono recibido · ' + COPF(abonado) + (faltaAb > 0 ? ' (faltan ' + COPF(faltaAb) + ')' : ''), time: '' });
   }
   if (isPaid) {
