@@ -492,8 +492,8 @@ async function pintarFichaCliente(conv){
       ? ((Array.isArray(cli.direcciones)&&cli.direcciones.length) ? cli.direcciones : (cli.direccion?[cli.direccion]:[]))
       : []
     ).map(function(d){
-      if (d && typeof d === 'object') return { dir: d.dir||'', barrio: d.barrio||'' };
-      return { dir: String(d||''), barrio: '' };
+      if (d && typeof d === 'object') return { id: d.id||'', dir: d.dir||'', barrio: d.barrio||'' };
+      return { id: '', dir: String(d||''), barrio: '' };
     }).filter(function(d){ return d.dir.trim(); });
   // El barrio que se muestra junto al nombre es de DONDE MAS HA PEDIDO, no el
   // ultimo: si pide casi siempre a la casa y una vez a la oficina, la etiqueta
@@ -562,7 +562,7 @@ async function pintarFichaCliente(conv){
 
     h += '<div class="ci-dw-sec">Direcciones</div><div class="ci-dw-dirs" id="fichaDirs">'
       + dirs.map(function(d,i){
-          return ciDirRowHTML(cli.id, d.dir, d.barrio, i, i===dirs.length-1);
+          return ciDirRowHTML(cli.id, d.dir, d.barrio, i, i===dirs.length-1, d.id);
         }).join('')
       + '</div>'
       + '<button class="ci-dw-addir" onclick="agregarDirCliente(&quot;'+cli.id+'&quot;)">+ Agregar dirección</button>';
@@ -608,9 +608,9 @@ function ciTitulo(s){
 }
 // Una direccion sin su barrio no sirve para cobrar el domicilio, asi que las
 // dos cosas se editan juntas en la misma tarjeta.
-function ciDirRowHTML(cliId, dir, barrio, i, esPrincipal){
+function ciDirRowHTML(cliId, dir, barrio, i, esPrincipal, dId){
   const g = 'guardarDirsCliente(&quot;'+cliId+'&quot;)';
-  return '<div class="ci-dw-dir">'
+  return '<div class="ci-dw-dir" data-did="'+escHtml(dId||'')+'">'
     + '<div class="ci-dw-dirtop">'
     +   '<input class="ci-dw-dirin" value="'+escHtml(dir||'')+'" data-i="'+i+'" '
     +     'onblur="'+g+'" placeholder="Dirección">'
@@ -632,7 +632,10 @@ function _leerDirs(){
     const a = row.querySelector('.ci-dw-dirin');
     const b = row.querySelector('.ci-dw-dirb');
     const v = ((a&&a.value)||'').trim();
-    if (v) out.push({ dir: v, barrio: ciTitulo((b&&b.value)||'') });
+    if (!v) return;
+    const id = row.getAttribute('data-did') || ('d'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36));
+    row.setAttribute('data-did', id);
+    out.push({ id: id, dir: v, barrio: ciTitulo((b&&b.value)||'') });
   });
   return out;
 }

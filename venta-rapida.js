@@ -81,6 +81,15 @@
         else S.clientes = [];
       }
     } catch(e) { S.clientes = []; }
+    // Y ahora la lista REAL (compartida con Domicilios y el chat). Lo de arriba
+    // es solo el arranque rápido mientras llega esta.
+    if (window.posClientes) {
+      const st = (window._pos && window._pos.state) || {};
+      window.posClientes.setCtx(st.tenantId, st.branchId);
+      window.posClientes.iniciar().then(function(lista){
+        if (Array.isArray(lista)) { S.clientes = lista; updateClienteDisplay(); }
+      }).catch(function(e){ console.warn('[venta-rapida] clientes:', e && e.message); });
+    }
   }
   function saveTurno() {
     try { localStorage.setItem(TURNO_KEY, String(S.turno)); } catch(e) {}
@@ -656,6 +665,15 @@
     saveClientes();
     closeModalById('modal-nuevocli');
     updateClienteDisplay();
+    // A la BASE, que es lo que ven las demás pantallas y los demás equipos.
+    const _c = S.cliente;
+    if (window.posClientes && _c) {
+      window.posClientes.guardar(_c).then(function(g){
+        const i = S.clientes.findIndex(x => x.id === _c.id);
+        if (i >= 0) { S.clientes[i] = g; if (S.cliente && S.cliente.id === _c.id) S.cliente = g; }
+        saveClientes(); updateClienteDisplay();
+      }).catch(function(e){ console.warn('[venta-rapida] guardar cliente:', e && e.message); });
+    }
   }
 
   /* ─── Modales ────────────────────────────────────────────────── */

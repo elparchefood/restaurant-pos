@@ -68,6 +68,9 @@ const S = {
   favorites: [],
   modGroups: [],
   domiciliarios: [],
+  // CACHÉ de arranque. La verdad está en la tabla pos_clientes (ver
+  // pos-clientes.js): se carga apenas hay sesión y reemplaza esto. Así lo que
+  // se edita aquí se ve en el chat y al revés, y no depende del equipo.
   clientes:  (function() {
     // Migración clave compartida pos.clientes
     const _shared = localStorage.getItem('pos.clientes');
@@ -194,6 +197,17 @@ document.addEventListener('DOMContentLoaded', () => {
       S.tenantId = (user.user_metadata && user.user_metadata.tenant_id) || user.id;
       S.branchId    = (user.user_metadata && user.user_metadata.branch_id) || null;
       S.userId      = user.id || null;
+      // Clientes compartidos: sube los que solo existían en este equipo y
+      // trae la lista de la base. Si falla, se sigue con la caché local.
+      if (window.posClientes) {
+        window.posClientes.setCtx(S.tenantId, S.branchId);
+        window.posClientes.iniciar().then(function(lista){
+          if (!Array.isArray(lista)) return;
+          S.clientes = lista;
+          try { (S.clientes || []).forEach(cliNormalize); } catch(e) {}
+          if (typeof renderCliList === 'function' && $('cli-list')) renderCliList('');
+        }).catch(function(e){ console.warn('[domicilios] clientes:', e && e.message); });
+      }
       S.waiterName  = (user.user_metadata && (user.user_metadata.nombre || user.user_metadata.full_name)) || user.email || null;
       const name = (user.user_metadata && (user.user_metadata.nombre || user.user_metadata.full_name)) || user.email || 'Usuario';
       const role = (user.user_metadata && user.user_metadata.role)      || 'Operador';
@@ -1505,16 +1519,19 @@ function guardarCliente() {
     barrio: activa ? activa.barrio : '', dir: activa ? activa.dir : '', dirId: activa ? activa.id : null,
   };
 
+  let cli;
   if (S.editCliId) {
     const idx = S.clientes.findIndex(c => c.id === S.editCliId);
     if (idx !== -1) {
       Object.assign(S.clientes[idx], campos, extra);
-      if (S.cliente && S.cliente.id === S.editCliId) S.cliente = S.clientes[idx];
+      cli = S.clientes[idx];
+      if (S.cliente && S.cliente.id === S.editCliId) S.cliente = cli;
     }
-  } else {
-    const newCli = Object.assign({ id: 'c' + Date.now() }, campos, extra);
-    S.clientes.unshift(newCli);
-    S.cliente = newCli;
+  }
+  if (!cli) {
+    cli = Object.assign({ id: 'c' + Date.now() }, campos, extra);
+    S.clientes.unshift(cli);
+    S.cliente = cli;
   }
 
   localStorage.setItem('pos.clientes', JSON.stringify(S.clientes));
@@ -1523,6 +1540,21 @@ function guardarCliente() {
   renderClienteCard();
   renderDetBtn();
   toast('Cliente guardado');
+
+  // Y a la BASE, que es la que ven las demás pantallas. Se hace después de
+  // pintar para que el guardado se sienta inmediato; si falla, se avisa y el
+  // dato queda en la caché local para no perderlo.
+  if (window.posClientes) {
+    window.posClientes.guardar(cli).then(function(g){
+      const i = S.clientes.findIndex(x => x.id === cli.id);
+      if (i !== -1) { S.clientes[i] = cliNormalize(g); if (S.cliente && S.cliente.id === cli.id) S.cliente = S.clientes[i]; }
+      localStorage.setItem('pos.clientes', JSON.stringify(S.clientes));
+      renderCliList(''); renderClienteCard();
+    }).catch(function(e){
+      console.warn('[domicilios] guardar cliente:', e && e.message);
+      toast('Guardado aquí, pero no se pudo sincronizar');
+    });
+  }
 }
 
 // ── Enviar a cocina ────────────────────────────────────────────────────
