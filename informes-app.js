@@ -36,6 +36,16 @@ const FDEF = {
 };
 const PRESETS = [['hoy','Hoy'],['ayer','Ayer'],['semana','Esta semana'],['mes','Este mes'],['custom','Personalizado']];
 
+/* ¿La categoría se ve desplegada?
+   Al buscar se abren todas. Si el usuario la abrió o cerró a mano, manda eso.
+   Si no la ha tocado, se abre sola cuando contiene el informe abierto (o si es
+   Ventas, la primera). */
+function catAbierta(k, q, curCat){
+  if(q) return true;
+  if(state.open[k] !== undefined) return state.open[k];
+  return !!curCat || k === 'ventas';
+}
+
 /* ═══════════ NAVEGADOR ═══════════ */
 function renderNav(){
   const q = state.search.trim().toLowerCase();
@@ -45,7 +55,7 @@ function renderNav(){
     if(q) reps = reps.filter(r=>r.name.toLowerCase().includes(q)||r.desc.toLowerCase().includes(q));
     if(!reps.length) return;
     const curCat = state.current && reps.some(r=>r.id===state.current);
-    const open = q||curCat ? true : (state.open[c.k]!==false && (state.open[c.k]||c.k==='ventas'));
+    const open = catAbierta(c.k, q, curCat);
     html+=`<div class="r-cat${open?' open':''}" data-cat="${c.k}">
       <button class="r-cat-head" data-cathead="${c.k}">
         <span class="r-cat-ic" style="background:${c.tint};color:${c.color}">${c.icon}</span>
@@ -326,7 +336,11 @@ document.addEventListener('click',e=>{
   const t=e.target;
   const rep=t.closest('[data-rep]'); if(rep){ go(rep.dataset.rep); return; }
   if(t.closest('[data-home]')){ go(null); return; }
-  const ch=t.closest('[data-cathead]'); if(ch){ const k=ch.dataset.cathead; state.open[k]=!(state.open[k]!==false && (state.open[k]||k==='ventas')); renderNav(); return; }
+  const ch=t.closest('[data-cathead]'); if(ch){
+    const k=ch.dataset.cathead;
+    const curCat = state.current && REPORTS.some(r=>r.id===state.current && r.cat===k);
+    state.open[k] = !catAbierta(k, state.search.trim().toLowerCase(), curCat);
+    renderNav(); return; }
   const pr=t.closest('[data-preset]'); if(pr){ state.preset=pr.dataset.preset; renderReport(state.current); return; }
   const pr2=t.closest('[data-preset2]'); if(pr2){ state.preset=pr2.dataset.preset2; renderReport(state.current); return; }
   const cl=t.closest('[data-clear]'); if(cl){ state.chips[state.current]={}; renderReport(state.current); return; }

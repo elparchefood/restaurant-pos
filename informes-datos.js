@@ -74,43 +74,89 @@
   }
   function limpiarCache() { _cache = { key: null, datos: null }; }
 
-  // ── Costo de receta por producto (para margen y food cost) ─────────────
-  var _costos = null;
-  async function costosReceta() {
-    if (_costos) return _costos;
-    var s = sb(); var out = {};
+  // ── Costo de receta, POR PRESENTACIÓN ─────────────────────────────────
+  // Cada línea de receta guarda la cantidad de CADA presentación en
+  // `cantidades` ({presId:{q}}). El campo suelto `cantidad` es el formato
+  // viejo y solo vale cuando `cantidades` está vacío. Usar `cantidad` para
+  // todo cobraría lo mismo a una Personal que a una Familiar: es el mismo
+  // error que ya nos costó el descuento cruzado de inventario.
+  var _rec = null;
+  async function motorCostos() {
+    if (_rec) return _rec;
+    var s = sb();
+    var unit = {}, lineas = [], presDe = {}, porDefecto = {};
     try {
       var qi = s.from('iv_insumos').select('id,precio,conversion');
-      var qr = s.from('iv_recetas').select('product_id,insumo_id,cantidad,variant_option_id,merma');
-      var qp = s.from('pos_products').select('id,variables');
+      var qr = s.from('iv_recetas').select('product_id,insumo_id,cantidad,cantidades,variant_option_id,mod_option_id,merma');
+      var qp = s.from('pos_products').select('id,presentations,variables');
       var qm = s.from('iv_params').select('merma_enabled');
       if (CTX.branchId) { qi = qi.eq('branch_id', CTX.branchId); qr = qr.eq('branch_id', CTX.branchId); qm = qm.eq('branch_id', CTX.branchId); }
       if (CTX.tenantId) qp = qp.eq('tenant_id', CTX.tenantId);
       var res = await Promise.all([qi, qr, qp, qm]);
-      var ri = res[0], rr = res[1], rp = res[2], rm = res[3];
-      var mermaOn = !(rm.data && rm.data[0] && rm.data[0].merma_enabled === false);
-      var unit = {};
-      (ri.data || []).forEach(function (i) {
-        var c = parseFloat(i.conversion) || 1;
-        unit[i.id] = (parseFloat(i.precio) || 0) / (c > 0 ? c : 1);
+      var mermaOn = !(res[3].data && res[3].data[0] && res[3].data[0].merma_enabled === false);
+
+      (res[0].data || []).forEach(function (x) {
+        var conv = parseFloat(x.conversion) || 1;
+        unit[x.id] = (parseFloat(x.precio) || 0) / (conv > 0 ? conv : 1);
       });
-      // Solo la combinación POR DEFECTO de cada producto: si no, un producto con
-      // 5 sabores sumaría el costo de los 5.
-      var porDefecto = {};
-      (rp.data || []).forEach(function (p) {
+      (res[2].data || []).forEach(function (pr) {
+        var mapa = {};
+        (pr.presentations || []).forEach(function (ps) { if (ps && ps.name) mapa[String(ps.name).trim().toLowerCase()] = ps.id; });
+        presDe[pr.id] = { mapa: mapa, primera: (pr.presentations || [])[0] && pr.presentations[0].id };
         var set = {};
-        (p.variables || []).forEach(function (g) { var o = (g.options || [])[0]; if (o && o.id) set[o.id] = 1; });
-        porDefecto[p.id] = set;
+        (pr.variables || []).forEach(function (g) { var o = (g.options || [])[0]; if (o && o.id) set[o.id] = 1; });
+        porDefecto[pr.id] = set;
       });
-      (rr.data || []).forEach(function (l) {
-        if (l.variant_option_id && !(porDefecto[l.product_id] && porDefecto[l.product_id][l.variant_option_id])) return;
-        var cu = unit[l.insumo_id]; if (cu == null) return;
-        var merma = mermaOn ? (1 + (parseFloat(l.merma) || 0) / 100) : 1;
-        out[l.product_id] = (out[l.product_id] || 0) + (parseFloat(l.cantidad) || 0) * cu * merma;
+      (res[1].data || []).forEach(function (l) {
+        l._merma = mermaOn ? (1 + (parseFloat(l.merma) || 0) / 100) : 1;
+        lineas.push(l);
       });
     } catch (e) { console.warn('[Informes] costos:', e); }
-    _costos = out;
-    return out;
+
+    var porProd = {};
+    lineas.forEach(function (l) { (porProd[l.product_id] = porProd[l.product_id] || []).push(l); });
+
+    function cantidadDe(l, presId) {
+      var cs = l.cantidades;
+      var tieneCs = cs && typeof cs === 'object' && Object.keys(cs).length;
+      if (!tieneCs) return parseFloat(l.cantidad) || 0;          // receta vieja
+      if (presId && cs[presId]) return parseFloat(cs[presId].q) || 0;
+      // La receta es por presentación y esta no está listada: no lleva ese
+      // insumo. Devolver `cantidad` aquí inventaría un costo que no existe.
+      return 0;
+    }
+
+    _rec = {
+      /* Costo de un ítem vendido: su presentación, su variante y sus adiciones. */
+      costo: function (productId, presNombre, mods) {
+        var ls = porProd[productId];
+        if (!ls) return { costo: 0, tiene: false };
+        var info = presDe[productId] || { mapa: {}, primera: null };
+        var presId = info.mapa[String(presNombre || '').trim().toLowerCase()] || info.primera || null;
+        var total = 0;
+        ls.forEach(function (l) {
+          // Adiciones: solo cuentan si el ítem la lleva de verdad.
+          if (l.mod_option_id) { if (!mods || !mods[l.mod_option_id]) return; }
+          // Variantes: solo la combinación por defecto (si no, un producto con
+          // 5 sabores sumaría el costo de los 5).
+          else if (l.variant_option_id && !(porDefecto[productId] && porDefecto[productId][l.variant_option_id])) return;
+          var cu = unit[l.insumo_id]; if (cu == null) return;
+          total += cantidadDe(l, presId) * cu * l._merma;
+        });
+        return { costo: total, tiene: true };
+      },
+      productosConReceta: function () { return Object.keys(porProd); },
+    };
+    return _rec;
+  }
+
+  // Costo de un ítem del pedido tal como se vendió.
+  function costoItem(motor, it) {
+    var mods = {};
+    var m = (it.selections && it.selections.mods) || {};
+    Object.keys(m).forEach(function (k) { mods[k] = 1; });
+    var pres = (it.selections && it.selections.pres) || '';
+    return motor.costo(it.product_id, pres, mods);
   }
 
   // ── Agrupadores ────────────────────────────────────────────────────────
@@ -395,15 +441,15 @@
   /* Margen por producto — la rentabilidad */
   R['inv-margen'] = async function (p) {
     var d = await pedidos(p); if (!d.lista.length) return vacio();
-    var costo = await costosReceta();
+    var motor = await motorCostos();
     var acc = {}, gRev = 0, gCost = 0, gConReceta = 0;
     items(d.lista, function (it) {
       var k = it.product_name || it.name || 'Producto';
       var q = parseInt(it.quantity) || 1, rev = revDe(it);
-      var tiene = costo[it.product_id] != null;
+      var cst = costoItem(motor, it), tiene = cst.tiene;
       if (!acc[k]) acc[k] = { qty: 0, rev: 0, cost: 0, tiene: tiene };
-      acc[k].qty += q; acc[k].rev += rev; acc[k].cost += (costo[it.product_id] || 0) * q;
-      gRev += rev; gCost += (costo[it.product_id] || 0) * q;
+      acc[k].qty += q; acc[k].rev += rev; acc[k].cost += cst.costo * q;
+      gRev += rev; gCost += cst.costo * q;
       if (tiene) gConReceta += rev;
     });
     var arr = Object.keys(acc).map(function (k) {
@@ -438,12 +484,13 @@
   /* Food Cost */
   R['inv-foodcost'] = async function (p) {
     var d = await pedidos(p); if (!d.lista.length) return vacio();
-    var costo = await costosReceta();
+    var motor = await motorCostos();
     var gRev = 0, gCost = 0, gConReceta = 0;
     items(d.lista, function (it) {
       var q = parseInt(it.quantity) || 1, rev = revDe(it);
-      gRev += rev; gCost += (costo[it.product_id] || 0) * q;
-      if (costo[it.product_id] != null) gConReceta += rev;
+      var cst = costoItem(motor, it);
+      gRev += rev; gCost += cst.costo * q;
+      if (cst.tiene) gConReceta += rev;
     });
     var fc = gRev > 0 ? gCost / gRev * 100 : 0;
     var OBJ = 30;   // objetivo por defecto del sector
@@ -509,11 +556,11 @@
   /* Resumen del negocio */
   R['ger-resumen'] = async function (p) {
     var d = await pedidos(p); if (!d.lista.length) return vacio();
-    var costo = await costosReceta();
+    var motor = await motorCostos();
     var venta = d.lista.reduce(function (a, o) { return a + ventaDe(o); }, 0);
     var domi  = d.lista.reduce(function (a, o) { return a + (parseFloat(o.delivery_fee) || 0); }, 0);
     var gCost = 0;
-    items(d.lista, function (it) { gCost += (costo[it.product_id] || 0) * (parseInt(it.quantity) || 1); });
+    items(d.lista, function (it) { gCost += costoItem(motor, it).costo * (parseInt(it.quantity) || 1); });
     var canales = {};
     d.lista.forEach(function (o) {
       var k = o.channel || 'otro';
@@ -548,7 +595,7 @@
   };
 
   window.INFORMES_DATOS = {
-    setCtx: function (t, b) { CTX.tenantId = t || null; CTX.branchId = b || null; limpiarCache(); _costos = null; },
+    setCtx: function (t, b) { CTX.tenantId = t || null; CTX.branchId = b || null; limpiarCache(); _rec = null; },
     tiene:  function (id) { return !!R[id]; },
     cargar: function (id, preset) { return R[id](preset || 'mes'); },
     limpiarCache: limpiarCache,
