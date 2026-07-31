@@ -3126,7 +3126,7 @@ async function vpResult(conv, d){
     +'<div class="vp-txt">'+qrEsc(d.mensaje||'')+'</div>'
     +checksHtml+extra
     +(etqMsg?'<div class="vp-etq">🏷️ '+qrEsc(etqMsg)+'</div>':'')
-    +'<button class="vp-pay" type="button">💳 Marcar como pagado</button>'
+    +'<button class="vp-pay" type="button">💳 Registrar el pago…</button>'
     +'<button class="vp-close" type="button">Entendido</button></div>';
   document.body.appendChild(ov);
   const done=function(){ ov.remove(); };
@@ -3179,7 +3179,8 @@ async function marcarPagadoModal(prefill){
   function draw(){
     let sel=preset(monto);
     ov.innerHTML='<div class="mp-box">'
-      +'<div class="mp-title">💳 Marcar como pagado</div>'
+      +'<div class="mp-title">💳 Confirma el pago</div>'
+      +'<div class="mp-sub">Falta este paso: el pedido todavía <b>no</b> está marcado como pagado.</div>'
       +'<div class="mp-info">Total <b>'+fmt(total)+'</b>'+(domi?' · Comida '+fmt(comida)+' · Domi '+fmt(domi):'')+(pagado?' · Ya pagado '+fmt(pagado):'')+'</div>'
       +'<div class="mp-lbl">Monto que pagó</div>'
       +'<div class="mp-chips">'

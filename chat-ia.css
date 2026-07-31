@@ -1976,3 +1976,7 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
    comprobante sea solo de la comida y el pedido quede sin pagar sin que se note. */
 .mp-falta{ margin-top:12px; padding:9px 11px; border-radius:10px; font-size:12px; line-height:1.45;
   background:rgba(240,168,60,.12); border:1px solid rgba(240,168,60,.35); color:#8a5a00; }
+
+/* El paso de confirmación tiene que ser evidente: el botón anterior solo abre
+   esta ventana, no registra nada. */
+.mp-sub{ margin:-6px 0 12px; font-size:12px; line-height:1.45; color:#b45309; }
