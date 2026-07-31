@@ -970,24 +970,22 @@ input::placeholder { color: var(--ink-4); }
   text-transform: uppercase;
   color: var(--ink-3);
 }
-.zone-list { display: flex; flex-direction: column; }
+.zone-list { display: flex; flex-direction: column; gap: 10px; }
+/* Una zona = un PRECIO con la lista de barrios que lo pagan */
 .zone-row {
-  display: grid;
-  grid-template-columns: 1fr 130px 36px;
-  gap: 0;
-  border-bottom: 1px solid var(--border-card);
-  align-items: center;
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--cloud, #F8FAFC);
 }
-.zone-row:last-child { border-bottom: none; }
-.zone-row .inp {
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  padding: 9px 12px;
-  font-size: 0.85rem;
+.zone-row-hd { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.zone-lb { font-size: 0.72rem; font-weight: 700; color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase; }
+.zone-row .zone-precio { width: 110px; padding: 7px 10px; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.zone-count { flex: 1; font-size: 0.75rem; color: var(--ink-3); }
+.zone-row .zone-barrios {
+  width: 100%; resize: vertical; min-height: 66px;
+  font-size: 0.8rem; line-height: 1.5;
 }
-.zone-row .inp:focus { background: color-mix(in srgb, var(--ink-accent) 5%, transparent); }
-.zone-row .inp + .inp { border-left: 1px solid var(--border-card); }
 .zone-del {
   background: none;
   border: none;

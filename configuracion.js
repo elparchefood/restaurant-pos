@@ -3518,19 +3518,35 @@ var _storedZonas = [];
   if ($('domiLlevarPrepago')) $('domiLlevarPrepago').addEventListener('change', markDirty);
   if ($('domiTiempo')) $('domiTiempo').addEventListener('input', markDirty);
 
-  function addZoneRow(nombre, precio) {
+  // Las zonas se guardan AGRUPADAS POR PRECIO: {precio, barrios:[...]}. Una zona
+  // de $5.000 puede tener 61 barrios. Antes la pantalla esperaba una fila por
+  // barrio ({nombre, precio}) y por eso mostraba filas vacías: no encontraba
+  // "nombre". Peor: al guardar se habrían perdido los barrios.
+  function addZoneRow(precio, barrios) {
     var list = $('zoneList');
     if (!list) return;
     var row = document.createElement('div');
     row.className = 'zone-row';
+    var lista = Array.isArray(barrios) ? barrios : (barrios ? [barrios] : []);
     row.innerHTML =
-      '<input class="inp zone-nombre" placeholder="Barrio / Zona" value="' + (nombre||'') + '">' +
-      '<input class="inp zone-precio" placeholder="0" type="number" min="0" step="500" value="' + (precio||'') + '">' +
-      '<button class="zone-del" type="button">&times;</button>';
-    row.querySelector('.zone-del').addEventListener('click', function() {
-      row.remove(); markDirty();
+      '<div class="zone-row-hd">' +
+        '<span class="zone-lb">Precio</span>' +
+        '<input class="inp zone-precio" type="number" min="0" step="500" placeholder="0" value="' + (precio || '') + '">' +
+        '<span class="zone-count"></span>' +
+        '<button class="zone-del" type="button" title="Quitar zona">&times;</button>' +
+      '</div>' +
+      '<textarea class="txa zone-barrios" rows="4" placeholder="Un barrio por línea"></textarea>';
+    row.querySelector('.zone-barrios').value = lista.join('\n');
+    var cont = row.querySelector('.zone-count');
+    var pinta = function () {
+      var n = row.querySelector('.zone-barrios').value.split('\n').map(function (x) { return x.trim(); }).filter(Boolean).length;
+      cont.textContent = n + (n === 1 ? ' barrio' : ' barrios');
+    };
+    pinta();
+    row.querySelector('.zone-del').addEventListener('click', function () { row.remove(); markDirty(); });
+    row.querySelectorAll('input, textarea').forEach(function (i) {
+      i.addEventListener('input', function () { pinta(); markDirty(); });
     });
-    row.querySelectorAll('input').forEach(function(i) { i.addEventListener('input', markDirty); });
     list.appendChild(row);
   }
 
@@ -3538,21 +3554,38 @@ var _storedZonas = [];
     var list = $('zoneList');
     if (!list) return;
     list.innerHTML = '';
-    (zonas || []).forEach(function(z) { addZoneRow(z.nombre, z.precio); });
+    // Compatibilidad: si vienen del formato viejo ({nombre, precio}) se agrupan
+    // por precio para no perder nada.
+    var arr = zonas || [];
+    var viejas = arr.filter(function (z) { return z && z.nombre !== undefined && !Array.isArray(z.barrios); });
+    if (viejas.length) {
+      var porPrecio = {};
+      arr.forEach(function (z) {
+        var pr = Number(z.precio) || 0;
+        porPrecio[pr] = porPrecio[pr] || [];
+        if (Array.isArray(z.barrios)) porPrecio[pr] = porPrecio[pr].concat(z.barrios);
+        else if (z.nombre) porPrecio[pr].push(z.nombre);
+      });
+      arr = Object.keys(porPrecio).sort(function (a, b) { return a - b; })
+        .map(function (pr) { return { precio: Number(pr), barrios: porPrecio[pr] }; });
+    }
+    arr.slice().sort(function (a, b) { return (Number(a.precio) || 0) - (Number(b.precio) || 0); })
+       .forEach(function (z) { addZoneRow(z.precio, z.barrios); });
   }
 
   function readZones() {
     var rows = document.querySelectorAll('.zone-row');
     var result = [];
-    rows.forEach(function(r) {
-      var nombre = r.querySelector('.zone-nombre') ? r.querySelector('.zone-nombre').value.trim() : '';
+    rows.forEach(function (r) {
       var precio = r.querySelector('.zone-precio') ? parseInt(r.querySelector('.zone-precio').value) || 0 : 0;
-      if (nombre) result.push({ nombre: nombre, precio: precio });
+      var txt = r.querySelector('.zone-barrios') ? r.querySelector('.zone-barrios').value : '';
+      var barrios = txt.split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
+      if (precio > 0 && barrios.length) result.push({ precio: precio, barrios: barrios });
     });
     return result;
   }
 
-  if ($('zoneAdd')) $('zoneAdd').addEventListener('click', function() { addZoneRow('', ''); markDirty(); });
+  if ($('zoneAdd')) $('zoneAdd').addEventListener('click', function() { addZoneRow('', []); markDirty(); });
   document.querySelectorAll('[data-frase], [data-situacion]').forEach(function(el) {
     el.addEventListener('input', markDirty);
   });
