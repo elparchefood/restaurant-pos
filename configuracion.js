@@ -4160,9 +4160,15 @@ function wcFiltrados(){
     if (WC.filtro === 'pedidos'     && !((+x.n_pedidos||0) > 0)) return false;
     if (WC.filtro === 'sin_nombre'  && x.tiene_nombre) return false;
     if (q){
-      var et = String(x.etiqueta||'').toLowerCase();
-      var te = String(x.telefono||'').replace(/\D/g,'');
-      if (et.indexOf(q) < 0 && te.indexOf(q.replace(/\D/g,'')) < 0) return false;
+      // Se busca por nombre Y por número. El número solo se compara si lo que
+      // escribieron tiene dígitos: si no, la búsqueda numérica queda vacía y
+      // coincidiría con todos (por eso antes no filtraba nada).
+      var et  = String(x.etiqueta||'').toLowerCase();
+      var te  = String(x.telefono||'').replace(/\D/g,'');
+      var qN  = q.replace(/\D/g,'');
+      var okT = et.indexOf(q) >= 0;
+      var okN = qN.length >= 3 && te.indexOf(qN) >= 0;
+      if (!okT && !okN) return false;
     }
     return true;
   });
