@@ -63,6 +63,39 @@ Un restaurante formal en Colombia no puede operar así.
 
 # 3. Facturación electrónica DIAN 🔴
 
+> **Corrección (2026-07-31).** Aquí se había recomendado *esperar al primer
+> cliente que la pida*. **Mal.** Sergio lo refutó con dos argumentos correctos:
+> (1) *"el cliente no me debe decir qué necesita, solo dice necesito facturación
+> electrónica y ya; la mayoría ni siquiera sabe cómo funciona"* — es una casilla
+> que se marca, no un descubrimiento; y (2) **si el proveedor cobra por uso,
+> tenerla construida y sin usar cuesta $0 al mes**, así que no hay razón
+> económica para esperar. Además ya estaba decidido en `03-REQUERIMIENTOS.md`
+> (*"vía Factus API pay-per-use"*). Mientras no exista, **cada restaurante
+> formal es una venta perdida en la primera reunión**.
+
+**Quién paga qué** — Cobra no paga nada por tenerla lista:
+| Costo | Lo paga | Cuándo |
+|---|---|---|
+| La integración (una vez, sirve para todos) | Cobra | Ahora |
+| Habilitación DIAN + resolución de numeración | Cada restaurante | Al contratar |
+| Certificado digital (~$150.000/año) | Cada restaurante | Al contratar |
+| Costo por factura emitida | Cada restaurante, o dentro del plan | Al usar |
+
+**Oportunidad comercial:** incluir N facturas en el plan mensual y cobrar el
+excedente.
+
+**Por confirmar con la documentación de Factus antes de arrancar**
+1. Que sea multi-tenant real: una integración emitiendo a nombre de muchos
+   restaurantes, cada uno con sus credenciales. Si exige una cuenta por
+   restaurante, cambia el diseño.
+2. Que tengan ambiente de pruebas, para construirlo completo sin cliente real.
+3. Precio actual por factura, para armar los planes.
+
+**Va junto con las notas de crédito (§4), no separado:** una factura electrónica
+emitida no se borra, se anula con una nota de crédito. Hoy anular un pedido solo
+lo marca `cancelled`. Facturar sin eso deja un problema legal en la primera
+anulación.
+
 **Qué hay que construir**
 - Integración con un proveedor autorizado (en el contexto quedó **Factus API**, pay-per-use).
 - Resolución de numeración y consecutivo de facturación.
@@ -249,7 +282,9 @@ el módulo de anuncios no existe todavía.
 2. **Impuestos** (§2) — sin esto no se le vende a un restaurante formal.
 3. **Merma** (§5) — barato de hacer y mejora el paloteo, que es el informe que más plata recupera.
 4. **Cuadre de stock** (§6) — cierra el ciclo de inventario.
-5. **DIAN + notas** (§3, §4) — el paso grande para vender el producto.
+5. **DIAN + notas de crédito** (§3, §4) — juntas, y **no hay que esperar cliente**:
+   con el proveedor por uso, tenerla lista no cuesta nada y desbloquea vender a
+   restaurantes formales.
 6. El resto, según lo pida el mercado.
 
 Los arreglos del §13 son pequeños y se pueden ir haciendo en cualquier momento;
