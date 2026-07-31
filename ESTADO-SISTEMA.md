@@ -1137,6 +1137,58 @@ semanas, para tener la tasa real en vez de adivinarla.
 
 ---
 
+## 🔴 URGENTE — [Chat IA] Prometió la carta y la mandó 44 MINUTOS DESPUÉS — Sergio 2026-07-31
+
+**Caso real** (conversación con "Maykol", 573142379592, fuera del horario):
+
+```
+23:12:04  cliente : "Para ver la  carta"
+23:12:19  bot     : "¡Claro! La carta la puedes ver aquí mismo. ¿Qué se te antoja? 🍟☺️"
+                     ↑ texto de GPT, SIN imágenes
+23:56:21  bot     : "¿Qué se te antoja? 🍟☺️"  + IMAGEN  ← 44 MINUTOS DESPUÉS
+23:56:23  bot     : (sin texto)               + IMAGEN
+```
+
+**Sergio lo vio a las 6:55 p.m. y creyó que nunca se envió.** En realidad llegó,
+pero 44 minutos tarde — para entonces el cliente ya se había ido.
+
+### Lo YA descartado (no perder tiempo mañana)
+- ✅ La carta **sí está configurada**: `ia_config.menu_imagenes` con 2 URLs.
+- ✅ Las imágenes **son válidas y accesibles**: HTTP 200, `image/png`,
+  1,58 MB y 1,09 MB en `raw.githubusercontent.com`. No es un problema de URL.
+- ✅ Es **la misma sucursal** (66e5f12d) y la misma `ia_config`. No es un tema
+  de multi-canal.
+- ✅ La palabra clave **coincide**: `menuKw` incluye `"la carta"` y el mensaje
+  fue "Para ver la carta". `wantsMenu` tenía que dar true.
+
+### La hipótesis (por confirmar con logs)
+En `delay-reply` (v195) pasaron **dos cosas que deberían ser una sola**:
+1. A las 23:12 respondió **GPT** con texto inventado ("la puedes ver aquí mismo")
+   sin enviar imágenes.
+2. A las 23:56, **sin ningún mensaje entrante nuevo**, corrió el bloque de la
+   carta (línea ~535) y mandó las imágenes con su frase configurada.
+
+O sea: el bloque de la carta y el de GPT **no están coordinados**, y el de la
+carta se ejecutó tardísimo. Sospechas a revisar:
+- El mecanismo de **batching/delay** (`delay_segundos`) reprocesó el lote tarde.
+- Algún **reintento** de la función que corrió el bloque 6 fuera de tiempo.
+- El bloque 6 corre DESPUÉS del corte de modo automático (línea 533:
+  `if (modoAsistente === "auto" && isOpen) return;`) — revisar si fuera de
+  horario hay otro camino que llega antes a GPT.
+
+### Y un defecto claro que hay que arreglar igual
+El envío de imágenes **no revisa la respuesta de Meta** (línea ~545: `await fetch(...)`
+sin mirar el resultado). Si Meta rechaza la imagen, nadie se entera y el bot
+igual manda el texto prometiéndola. **Hay que verificar la respuesta y registrar
+el error**, como se hizo con "marcar pagado".
+
+### Regla de fondo
+**El bot nunca debe prometer algo que no envió.** O manda la carta primero y
+luego habla, o no dice que la está mandando. Un cliente que ve "aquí mismo" y no
+recibe nada, se va.
+
+---
+
 ## PENDIENTE — [Caja] Abrir caja: contar billete por billete (opcional) — Sergio 2026-07-31
 
 **Lo que pidió:** que al abrir la caja se pueda elegir entre **escribir el monto
