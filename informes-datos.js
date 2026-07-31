@@ -145,6 +145,21 @@
         });
         return { costo: total, tiene: true };
       },
+      /* Igual que costo(), pero devuelve cuánto lleva de CADA insumo.
+         Lo usa el paloteo para comparar contra lo que salió del inventario. */
+      detalle: function (productId, presNombre, mods) {
+        var ls = porProd[productId]; if (!ls) return [];
+        var info = presDe[productId] || { mapa: {}, primera: null };
+        var presId = info.mapa[String(presNombre || '').trim().toLowerCase()] || info.primera || null;
+        var out = [];
+        ls.forEach(function (l) {
+          if (l.mod_option_id) { if (!mods || !mods[l.mod_option_id]) return; }
+          else if (l.variant_option_id && !(porDefecto[productId] && porDefecto[productId][l.variant_option_id])) return;
+          var cant = cantidadDe(l, presId) * l._merma;
+          if (cant > 0) out.push({ insumo_id: l.insumo_id, cant: cant });
+        });
+        return out;
+      },
       productosConReceta: function () { return Object.keys(porProd); },
     };
     return _rec;
@@ -1224,6 +1239,225 @@
             c: { _main: x.cli }, b: x.barrio,
             m: { _pill: [x.min > 45 ? 'bad' : x.min > 30 ? 'warn' : 'ok', x.min + ' min'] } }; }) } },
       ],
+    };
+  };
+
+  /* ═══════════ AFLUENCIA ═══════════
+     El ticket por PERSONA dice más que el ticket por mesa: una mesa de 6 que
+     deja $90.000 no es lo mismo que una pareja que deja $90.000. */
+  R['can-afluencia'] = async function (p) {
+    var d = await pedidos(p); if (!d.lista.length) return vacio();
+    var salon = d.lista.filter(function (o) { return (parseInt(o.guests) || 0) > 0; });
+    if (!salon.length) return vacio();
+    var personas = salon.reduce(function (a, o) { return a + (parseInt(o.guests) || 0); }, 0);
+    var venta = salon.reduce(function (a, o) { return a + ventaDe(o); }, 0);
+
+    // Por franja horaria: para saber cuándo se llena de verdad.
+    var horas = {};
+    salon.forEach(function (o) {
+      var h = new Date(o.closed_at || o.opened_at).getHours();
+      if (!horas[h]) horas[h] = { per: 0, n: 0, rev: 0 };
+      horas[h].per += parseInt(o.guests) || 0;
+      horas[h].n++; horas[h].rev += ventaDe(o);
+    });
+    var hs = Object.keys(horas).map(Number).sort(function (a, b) { return a - b; });
+    var mx = Math.max.apply(null, hs.map(function (h) { return horas[h].per; })) || 1;
+
+    // Tamaño de grupo: cuántas mesas son parejas, familias, etc.
+    var tam = { '1': 0, '2': 0, '3-4': 0, '5+': 0 };
+    salon.forEach(function (o) {
+      var g = parseInt(o.guests) || 0;
+      if (g <= 1) tam['1']++; else if (g === 2) tam['2']++;
+      else if (g <= 4) tam['3-4']++; else tam['5+']++;
+    });
+    var COLS = { '1': '#94A3B8', '2': '#5B6BFF', '3-4': '#16A34A', '5+': '#8B5CF6' };
+    var NOM = { '1': 'Solos', '2': 'Parejas', '3-4': 'Grupos de 3-4', '5+': 'Grupos de 5 o más' };
+    var segs = Object.keys(tam).filter(function (k) { return tam[k]; }).map(function (k) {
+      return { name: NOM[k], val: n0(tam[k]), pct: Math.round(tam[k] / salon.length * 100), color: COLS[k] };
+    });
+    var suma = segs.reduce(function (a, s) { return a + s.pct; }, 0);
+    if (segs.length && suma !== 100) segs[0].pct += (100 - suma);
+
+    return {
+      kpis: [
+        { lbl: 'Personas atendidas', val: n0(personas), tone: 'accent', big: 1 },
+        { lbl: 'Ticket por persona', val: $(personas ? venta / personas : 0), big: 1 },
+        { lbl: 'Ticket por mesa', val: $(venta / salon.length) },
+        { lbl: 'Personas por mesa', val: (Math.round(personas / salon.length * 10) / 10).toString().replace('.', ',') },
+      ],
+      blocks: [
+        { t: 'card', title: 'A qué hora se llena', sub: 'Personas atendidas por franja', body: {
+          t: 'vbars', autopeak: 1, items: hs.map(function (h) {
+            return { x: (h % 12 === 0 ? 12 : h % 12) + (h < 12 ? 'a' : 'p'),
+                     w: Math.round(horas[h].per / mx * 100), val: n0(horas[h].per) + ' pers.' }; }) } },
+        { t: 'grid2', children: [
+          { t: 'card', title: 'Cómo vienen', body: { t: 'donut',
+            centerBig: n0(salon.length), centerLbl: 'mesas', segs: segs } },
+          { t: 'card', title: 'Detalle por hora', body: { t: 'table', min: 340,
+            cols: [{ k: 'h', label: 'Hora' }, { k: 'm', label: 'Mesas', num: 1 },
+                   { k: 'p', label: 'Personas', num: 1 }, { k: 'tp', label: 'Por persona', num: 1 }],
+            rows: hs.map(function (h) { return {
+              h: { _main: (h % 12 === 0 ? 12 : h % 12) + (h < 12 ? ' a.m.' : ' p.m.') },
+              m: n0(horas[h].n), p: n0(horas[h].per),
+              tp: $(horas[h].per ? horas[h].rev / horas[h].per : 0) }; }),
+            total: { h: 'Total', m: n0(salon.length), p: n0(personas), tp: $(personas ? venta / personas : 0) } } },
+        ] },
+      ],
+    };
+  };
+
+  /* ═══════════ CONSUMO TEÓRICO (PALOTEO) ═══════════
+     Lo que las recetas dicen que DEBISTE gastar, contra lo que de verdad salió
+     del inventario. La diferencia es desperdicio, mal porcionado, o algo que
+     se está yendo sin venderse. Es el informe que más plata recupera. */
+  R['inv-paloteo'] = async function (p) {
+    var d = await pedidos(p); if (!d.lista.length) return vacio();
+    var s = sb(); var r = rango(p);
+
+    // 1. TEÓRICO: recetas × unidades vendidas, insumo por insumo.
+    var motor = await motorCostos();
+    var teorico = {};
+    items(d.lista, function (it) {
+      var det = motor.detalle(it.product_id, (it.selections && it.selections.pres) || '',
+                              (it.selections && it.selections.mods) || {});
+      var q = parseInt(it.quantity) || 1;
+      det.forEach(function (l) { teorico[l.insumo_id] = (teorico[l.insumo_id] || 0) + l.cant * q; });
+    });
+    if (!Object.keys(teorico).length) return vacio();
+
+    // 2. REAL: lo que efectivamente salió del inventario en el mismo rango.
+    var real = {};
+    try {
+      var qm = s.from('iv_movimientos').select('insumo_id,delta,motivo')
+        .lt('delta', 0).gte('created_at', r.from).lt('created_at', r.to).limit(3000);
+      if (CTX.branchId) qm = qm.eq('branch_id', CTX.branchId);
+      var rm = await qm;
+      (rm.data || []).forEach(function (m) {
+        real[m.insumo_id] = (real[m.insumo_id] || 0) + Math.abs(parseFloat(m.delta) || 0);
+      });
+    } catch (e) { console.warn('[Informes] paloteo:', e); }
+
+    var ins = {};
+    try {
+      var qi = s.from('iv_insumos').select('id,nombre,use_unit,precio,conversion');
+      if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
+      var ri = await qi;
+      (ri.data || []).forEach(function (x) { ins[x.id] = x; });
+    } catch (e) {}
+
+    var todos = {};
+    Object.keys(teorico).forEach(function (k) { todos[k] = 1; });
+    Object.keys(real).forEach(function (k) { todos[k] = 1; });
+
+    var filas = Object.keys(todos).map(function (k) {
+      var i = ins[k] || {};
+      var conv = parseFloat(i.conversion) || 1;
+      var unit = (parseFloat(i.precio) || 0) / (conv > 0 ? conv : 1);
+      var t = teorico[k] || 0, rl = real[k] || 0;
+      var dif = rl - t;                       // positivo = salió MÁS de lo que debía
+      return { nombre: i.nombre || '—', uso: i.use_unit || '', teo: t, real: rl,
+               dif: dif, pct: t > 0 ? dif / t * 100 : 0, valor: dif * unit };
+    }).filter(function (x) { return x.teo > 0 || x.real > 0; })
+      .sort(function (a, b) { return b.valor - a.valor; });
+
+    var perdido = filas.filter(function (x) { return x.valor > 0; })
+      .reduce(function (a, x) { return a + x.valor; }, 0);
+    var desviados = filas.filter(function (x) { return Math.abs(x.pct) > 10 && x.teo > 0; });
+
+    return {
+      kpis: [
+        { lbl: 'Insumos revisados', val: n0(filas.length), tone: 'accent' },
+        { lbl: 'Se fue de más', val: $(perdido), tone: perdido > 0 ? 'bad' : 'good',
+          sub: 'Valor del consumo por encima de la receta' },
+        { lbl: 'Con desviación > 10%', val: n0(desviados.length), tone: desviados.length ? 'warn' : 'good' },
+      ],
+      blocks: [{ t: 'card', title: 'Lo que la receta dice vs lo que salió',
+        sub: 'Positivo = se gastó MÁS de lo que las recetas justifican. Ahí hay desperdicio, mal porcionado o fuga.',
+        body: { t: 'table', min: 700,
+        cols: [{ k: 'i', label: 'Insumo' }, { k: 't', label: 'Debió salir', num: 1 },
+               { k: 'r', label: 'Salió', num: 1 }, { k: 'd', label: 'Diferencia', num: 1 },
+               { k: 'p', label: '%', num: 1 }, { k: 'v', label: 'Costo', num: 1 }],
+        rows: filas.map(function (x) { return {
+          i: { _main: x.nombre },
+          t: n0(x.teo) + ' ' + x.uso, r: n0(x.real) + ' ' + x.uso,
+          d: x.dif > 0 ? { _neg: '+' + n0(x.dif) + ' ' + x.uso } : n0(x.dif) + ' ' + x.uso,
+          p: x.teo > 0 ? { _pill: [Math.abs(x.pct) <= 10 ? 'ok' : Math.abs(x.pct) <= 25 ? 'warn' : 'bad',
+                                   (x.pct > 0 ? '+' : '') + pct(x.pct)] } : '—',
+          v: x.valor > 0 ? { _neg: '– ' + $(x.valor) } : $(Math.abs(x.valor)) }; }),
+        total: { i: 'Costo de lo que se fue de más', t: '', r: '', d: '', p: '', v: $(perdido) } } }],
+    };
+  };
+
+  /* ═══════════ PLANIFICADOR DE COMPRAS ═══════════
+     Qué comprar y cuánto, según lo que se está consumiendo de verdad. */
+  R['inv-planificador'] = async function (p) {
+    var s = sb(); var r = rango(p);
+    var qi = s.from('iv_insumos')
+      .select('id,nombre,categoria,use_unit,buy_unit,precio,conversion,stock,stock_servicio,min_stock,sub_inventario,activo');
+    if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
+    var ri = await qi; if (ri.error) throw ri.error;
+    var ins = (ri.data || []).filter(function (x) { return x.activo !== false; });
+    if (!ins.length) return vacio();
+
+    // Consumo real del período, para proyectar cuántos días aguanta el stock.
+    var cons = {};
+    try {
+      var qm = s.from('iv_movimientos').select('insumo_id,delta')
+        .lt('delta', 0).gte('created_at', r.from).lt('created_at', r.to).limit(3000);
+      if (CTX.branchId) qm = qm.eq('branch_id', CTX.branchId);
+      var rm = await qm;
+      (rm.data || []).forEach(function (m) {
+        cons[m.insumo_id] = (cons[m.insumo_id] || 0) + Math.abs(parseFloat(m.delta) || 0);
+      });
+    } catch (e) {}
+    var dias = Math.max(1, Math.round((new Date(r.to) - new Date(r.from)) / 86400000));
+
+    var filas = ins.map(function (x) {
+      var conv = parseFloat(x.conversion) || 1;
+      var unit = (parseFloat(x.precio) || 0) / (conv > 0 ? conv : 1);
+      var stock = (parseFloat(x.stock) || 0) + (x.sub_inventario ? (parseFloat(x.stock_servicio) || 0) : 0);
+      var min = parseFloat(x.min_stock) || 0;
+      var porDia = (cons[x.id] || 0) / dias;
+      // Objetivo: cubrir el mínimo y además 7 días de consumo al ritmo actual.
+      var objetivo = Math.max(min, porDia * 7);
+      var falta = Math.max(0, objetivo - stock);
+      return { nombre: x.nombre, cat: x.categoria || '—', uso: x.use_unit || '', compra: x.buy_unit || '',
+               stock: stock, min: min, porDia: porDia,
+               diasQueAguanta: porDia > 0 ? stock / porDia : null,
+               falta: falta, costo: falta * unit, conv: conv };
+    }).filter(function (x) { return x.falta > 0; })
+      .sort(function (a, b) {
+        var da = a.diasQueAguanta == null ? 999 : a.diasQueAguanta;
+        var db = b.diasQueAguanta == null ? 999 : b.diasQueAguanta;
+        return da - db;
+      });
+
+    if (!filas.length) return vacio();
+    var costoTotal = filas.reduce(function (a, x) { return a + x.costo; }, 0);
+    var urgentes = filas.filter(function (x) { return x.diasQueAguanta != null && x.diasQueAguanta <= 2; });
+
+    return {
+      kpis: [
+        { lbl: 'Insumos a comprar', val: n0(filas.length), tone: 'accent', big: 1 },
+        { lbl: 'Urgentes', val: n0(urgentes.length), tone: urgentes.length ? 'bad' : 'good',
+          sub: 'Aguantan 2 días o menos' },
+        { lbl: 'Costo del pedido', val: $(costoTotal) },
+        { lbl: 'Base del cálculo', val: dias + (dias === 1 ? ' día' : ' días'), sub: 'Consumo del período elegido' },
+      ],
+      blocks: [{ t: 'card', title: 'Sugerido de compra',
+        sub: 'Cubre el stock mínimo más 7 días al ritmo que estás consumiendo. Ordenado por urgencia.',
+        body: { t: 'table', min: 760,
+        cols: [{ k: 'i', label: 'Insumo' }, { k: 'c', label: 'Categoría' }, { k: 's', label: 'Tienes', num: 1 },
+               { k: 'd', label: 'Aguanta', num: 1 }, { k: 'f', label: 'Comprar', num: 1 }, { k: 'v', label: 'Costo', num: 1 }],
+        rows: filas.map(function (x) { return {
+          i: { _main: x.nombre }, c: x.cat,
+          s: n0(x.stock) + ' ' + x.uso,
+          d: x.diasQueAguanta == null ? { _pill: ['neu', 'sin consumo'] }
+             : { _pill: [x.diasQueAguanta <= 2 ? 'bad' : x.diasQueAguanta <= 5 ? 'warn' : 'ok',
+                         (Math.round(x.diasQueAguanta * 10) / 10).toString().replace('.', ',') + ' días'] },
+          f: { _main: n0(Math.ceil(x.falta)) + ' ' + x.uso },
+          v: $(x.costo) }; }),
+        total: { i: 'Total del pedido', c: '', s: '', d: '', f: '', v: $(costoTotal) } } }],
     };
   };
 
