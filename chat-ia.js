@@ -1769,6 +1769,16 @@ function cpProdRow(p,i){
       +'<div class="cp-price">'+cpCOP(p.unit_price||0)+'</div>'
       +'<button class="cp-del" title="Quitar" onclick="cpDelProd('+i+')">✕</button>'
     +'</div>'
+    // Avisos de lo que el sistema NO pudo resolver solo. Se muestran para que
+    // el operador confirme, en vez de guardar algo adivinado.
+    +(function(){
+      const av=[];
+      if(p.categoria_confirmar) av.push('Puede ser '+cpEsc((p.categoria_opciones||[]).join(' o '))+' — confirma cuál');
+      if(p.tamano_confirmar)    av.push('Falta el tamaño — confirma cuál pidió');
+      if(p.precio_confirmar)    av.push('Revisa el precio: el cliente no dijo la variedad');
+      if(!av.length) return '';
+      return '<div class="cp-check">'+av.map(t=>'<span>⚠ '+t+'</span>').join('')+'</div>';
+    })()
     +(chips?'<div class="cp-chips">'+chips+'</div>':'')
     +(picker?'<div class="cp-prod-actions">'+picker+'</div>':'')
     +'<input class="cp-pnota" placeholder="Nota (ej. sin cebolla)" value="'+cpEsc(p.notas||'')+'" oninput="cpNoteInput('+i+',this.value)">'
