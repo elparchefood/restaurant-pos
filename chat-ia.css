@@ -515,6 +515,24 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .ci-row.in  { justify-content: flex-start; }
 .ci-row.out { justify-content: flex-end; }
 
+/* Reacción (emoji) pegada a la burbuja del mensaje, estilo WhatsApp. La fila
+   reserva espacio abajo para que el emoji no se monte sobre el mensaje siguiente. */
+.ci-row.has-rx { position: relative; padding-bottom: 13px; margin-bottom: 6px; }
+.ci-reaction {
+  position: absolute; bottom: 0;
+  display: inline-flex; align-items: center;
+  background: #1D2130;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 13.5px; line-height: 1.5;
+  box-shadow: 0 3px 8px rgba(0,0,0,.4);
+  z-index: 2; pointer-events: none;
+  white-space: nowrap;
+}
+.ci-row.in  .ci-reaction { left: 12px; }
+.ci-row.out .ci-reaction { right: 12px; }
+
 .ci-bubble {
   max-width: 72%;
   padding: 10px 13px;

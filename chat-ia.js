@@ -183,6 +183,18 @@ function subscribeRealtime() {
         renderConvList(); renderBadges();
       }
     })
+    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'chat_messages' }, payload => {
+      // Las REACCIONES llegan como UPDATE del mensaje al que reaccionaron (no
+      // como mensaje nuevo): se repinta la burbuja para que aparezca el emoji
+      // al instante. También cubre cambios de estado de entrega (visto/leído).
+      const msg = payload.new; if (!msg) return;
+      if (msg.conversation_id !== S.activeConvId) return;
+      const i = S.messages.findIndex(m => m.id === msg.id);
+      if (i === -1) return;
+      const cambioReaccion = (S.messages[i].reaction || '') !== (msg.reaction || '');
+      S.messages[i] = { ...S.messages[i], ...msg };
+      if (cambioReaccion) renderThread();
+    })
     .on('postgres_changes', { event:'*', schema:'public', table:'chat_channels', filter:`branch_id=eq.${S.branchId}` }, () => {
       loadChannels(); // refrescar canales si cambia alguno
     })
@@ -529,7 +541,20 @@ function voiceSpeed(el){
   if(btn && btn._audio) btn._audio.playbackRate=next;
 }
 
+// Una reacción no es un mensaje: es un emoji que va PEGADO a la burbuja del
+// mensaje al que reaccionaron (como en WhatsApp). messageHTML envuelve el
+// dibujo normal de la burbuja y le engancha el emoji si lo tiene.
 function messageHTML(m) {
+  let html = messageBubbleHTML(m);
+  const rx = (m.reaction || '').trim();
+  if (!rx) return html;
+  html = html.replace('class="ci-row ', 'class="ci-row has-rx ');
+  const i = html.lastIndexOf('</div>');          // cierre de .ci-row
+  if (i < 0) return html;
+  return html.slice(0, i) + `<span class="ci-reaction">${escHtml(rx)}</span>` + html.slice(i);
+}
+
+function messageBubbleHTML(m) {
   const dir   = m.direction === 'in' ? 'in' : 'out';
   const time  = formatTime(m.sent_at);
   const check = dir === 'out'
