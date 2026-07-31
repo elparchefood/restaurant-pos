@@ -84,7 +84,7 @@ async function boot() {
       S.user = user || null;
     } catch (e) { S.user = null; }
 
-    await Promise.all([loadChannels(), loadConversations(), loadIaMaster(), loadQuickReplies(), loadEtiquetas()]);
+    await Promise.all([loadChannels(), loadConversations(), loadIaMaster(), loadQuickReplies(), loadEtiquetas(), loadClientes()]);
     document.querySelectorAll('#iaModes .ia-modo-btn').forEach(function(b){
       b.addEventListener('click', function(){ setIaModo(b.dataset.iamodo); });
     });
@@ -352,10 +352,34 @@ function renderConvList() {
   }
 }
 
+/* CLIENTES GUARDADOS — el teléfono es la llave.
+   Si quien escribe ya es cliente, en el chat se muestra el NOMBRE CON EL QUE
+   quedó guardado (no el del perfil de WhatsApp, que suele ser un apodo) y una
+   etiqueta discreta con su barrio, para saber de dónde nos escriben. */
+S.clientesPorTel = S.clientesPorTel || {};
+async function loadClientes() {
+  try {
+    const { data } = await sb.from('pos_clientes')
+      .select('nombre,telefono,barrio').eq('tenant_id', S.tenantId).limit(5000);
+    const mapa = {};
+    (data || []).forEach(function (c) {
+      const t = String(c.telefono || '').replace(/\D/g, '').slice(-10);
+      if (t.length === 10) mapa[t] = { nombre: c.nombre, barrio: c.barrio };
+    });
+    S.clientesPorTel = mapa;
+  } catch (e) { console.warn('loadClientes:', e && e.message); }
+}
+function clienteDe(conv) {
+  if (!conv) return null;
+  const t = String(conv.contact_handle || '').replace(/\D/g, '').slice(-10);
+  return (t && S.clientesPorTel[t]) || null;
+}
+
 function convRowHTML(c) {
   const meta     = CHANNELS[c.channel] || {};
   const tint     = TINTS[(c.contact_avatar_tint||0) % TINTS.length];
-  const label    = c.contact_name || c.contact_handle || '?';
+  const cli      = clienteDe(c);
+  const label    = (cli && cli.nombre) || c.contact_name || c.contact_handle || '?';
   const initials = avatarInitials(label);
   const avatarUrl = c.contact_avatar_url || null;
   const isUnread = isRealUnread(c);
@@ -383,6 +407,7 @@ function convRowHTML(c) {
       <span class="ci-conv-main">
         <span class="ci-conv-top">
           <span class="ci-conv-name">${escHtml(label)}</span>
+          ${cli && cli.barrio ? `<span class="ci-barrio">${escHtml(cli.barrio)}</span>` : ''}
           <span class="ci-conv-time">${time}</span>
         </span>
         <span class="ci-conv-bot">
@@ -697,14 +722,16 @@ function renderChatHeader(conv) {
   checkBlacklist(conv);   // ⚠️ avisar si el contacto está en lista negra
   const meta     = CHANNELS[conv.channel] || {};
   const tint     = TINTS[(conv.contact_avatar_tint||0) % TINTS.length];
-  const label    = conv.contact_name || conv.contact_handle || '?';
+  const _cli     = clienteDe(conv);
+  const label    = (_cli && _cli.nombre) || conv.contact_name || conv.contact_handle || '?';
   const initials = avatarInitials(label);
 
   $('chatAv').innerHTML = `
     <span style="width:100%;height:100%;border-radius:13px;background:${tint[0]};color:${tint[1]};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">${initials}</span>
     <span class="ci-av-badge chan-${meta.key}" style="position:absolute;right:-4px;bottom:-4px">${GLYPH[meta.key]||''}</span>`;
 
-  $('chatName').textContent = label;
+  $('chatName').innerHTML = escHtml(label)
+    + (_cli && _cli.barrio ? ' <span class="ci-barrio">' + escHtml(_cli.barrio) + '</span>' : '');
   $('chatMeta').innerHTML   = `
     <span class="ci-chan-chip chip-${meta.key}">${GLYPH[meta.key]||''}${meta.label||''}</span>
     <span class="ci-presence">${conv.is_online ? '<span class="ci-dot-live"></span> en línea' : 'visto recientemente'} · ${escHtml(conv.contact_handle||'')}</span>`;

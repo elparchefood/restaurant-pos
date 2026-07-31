@@ -1520,6 +1520,16 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .cp-domi-ok   { font-size: 11.5px; font-weight: 600; color: #4ADE80; margin-top: 5px; }
 .cp-domi-warn { font-size: 11.5px; font-weight: 600; color: #F0A83C; margin-top: 5px; line-height: 1.35; }
 .cp-cli-ok { font-size: 10.5px; font-weight: 700; color: #4ADE80; margin-left: 6px; }
+/* Etiqueta discreta del barrio del cliente, junto a su nombre */
+.ci-barrio {
+  font-size: 10px; font-weight: 600;
+  color: #9BA6C7; background: rgba(155,166,199,.13);
+  border: 1px solid rgba(155,166,199,.18);
+  padding: 1px 7px; border-radius: 999px;
+  white-space: nowrap; flex-shrink: 0; margin-left: 6px;
+  vertical-align: middle;
+}
+.ci-conv-top { align-items: center; }
 .cp-dirs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -4px 0 10px; }
 .cp-dirs > span { font-size: 11px; color: var(--text-4); }
 .cp-dir-chip { background: #1D2231; border: 1px solid var(--border); color: var(--text-2); border-radius: 999px; padding: 4px 10px; font-family: inherit; font-size: 11px; cursor: pointer; }
