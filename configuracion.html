@@ -1527,7 +1527,15 @@
                   Ocultar lista negra y marcados “no atender” (recomendado)
                 </label>
 
-                <div id="wcResumen" style="font-size:12.5px;color:#0F172A;font-weight:700;margin-bottom:8px"></div>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+                  <div id="wcResumen" style="font-size:12.5px;color:#0F172A;font-weight:700"></div>
+                  <div id="wcSelBar" style="display:none;align-items:center;gap:8px;margin-left:auto">
+                    <span id="wcSelN" style="font-size:12px;font-weight:700;color:#5B6BFF"></span>
+                    <button type="button" class="cfg-qr-btn ghost" style="padding:5px 10px;font-size:11.5px" onclick="wcSelNinguno()">Quitar selección</button>
+                    <button type="button" class="cfg-qr-btn ghost" style="padding:5px 10px;font-size:11.5px;color:#DC2626;border-color:#FECACA" onclick="wcBorrarSeleccionados()">Eliminar seleccionados</button>
+                  </div>
+                  <button type="button" class="cfg-qr-btn ghost" id="wcSelTodos" style="padding:5px 10px;font-size:11.5px;margin-left:auto" onclick="wcSelTodosFiltrados()">Seleccionar todos los filtrados</button>
+                </div>
                 <div id="wcLista" style="border:1px solid #E2E8F0;border-radius:10px;max-height:340px;overflow:auto"></div>
                 <div style="display:flex;justify-content:center;margin-top:8px">
                   <button type="button" class="cfg-qr-btn ghost" id="wcMas" style="display:none" onclick="wcVerMas()">Ver más</button>
@@ -2223,7 +2231,7 @@
 <script src="pos-brand.js?v=1784901500"></script>
 <script src="pos-print.js?v=1786093000"></script>
 <script src="pos-print-listener.js?v=4"></script>
-<script src="configuracion.js?v=1786850000"></script>
+<script src="configuracion.js?v=1786860000"></script>
 </body>
 </html>
 

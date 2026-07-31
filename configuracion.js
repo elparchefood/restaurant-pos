@@ -4075,7 +4075,7 @@ async function cfgQrPersist(){
    lista negra. Las listas guardan los FILTROS (no los contactos), así se
    recalculan solas.
    ══════════════════════════════════════════════════════════════════════════ */
-var WC = { items: [], filtro: 'todos', tope: 60, listas: [], branchId: '' };
+var WC = { items: [], filtro: 'todos', tope: 60, listas: [], branchId: '', sel: {} };
 
 async function wcBranch(){
   if (WC.branchId) return WC.branchId;
@@ -4186,7 +4186,10 @@ function wcRender(){
     if (x.guardado)      tags.push('<span style="font-size:9.5px;font-weight:700;color:#64748B;background:#F1F5F9;padding:2px 6px;border-radius:999px">Guardado</span>');
     if (x.en_lista_negra) tags.push('<span style="font-size:9.5px;font-weight:700;color:#DC2626;background:#FEE2E2;padding:2px 6px;border-radius:999px">Lista negra</span>');
     if (x.no_atender)    tags.push('<span style="font-size:9.5px;font-weight:700;color:#DC2626;background:#FEE2E2;padding:2px 6px;border-radius:999px">No atender</span>');
-    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border-bottom:1px solid #F1F5F9">'
+    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border-bottom:1px solid #F1F5F9'
+      + (WC.sel[x.id] ? ';background:#F5F3FF' : '') + '">'
+      + '<input type="checkbox" style="width:15px;height:15px;flex:none;cursor:pointer"'
+      +   (WC.sel[x.id] ? ' checked' : '') + ' onchange="wcToggleSel(\''+x.id+'\')">'
       + '<div style="flex:1;min-width:0">'
       +   '<div style="font-size:12.5px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+etq+'</div>'
       +   '<div style="font-size:11px;color:#94A3B8;font-variant-numeric:tabular-nums">'+wcTel(x.telefono)+'</div>'
@@ -4202,8 +4205,56 @@ function wcRender(){
     if (list.length > WC.tope){ mas.style.display=''; mas.textContent = 'Ver más ('+(list.length - WC.tope)+' restantes)'; }
     else mas.style.display = 'none';
   }
+  wcSelBarra();
 }
 function wcVerMas(){ WC.tope += 100; wcRender(); }
+
+// ── Selección múltiple y borrado ──────────────────────────────────────
+function wcSelCount(){ return Object.keys(WC.sel).length; }
+function wcSelBarra(){
+  var bar = document.getElementById('wcSelBar');
+  var n   = document.getElementById('wcSelN');
+  var todos = document.getElementById('wcSelTodos');
+  var c = wcSelCount();
+  if (bar)   bar.style.display = c ? 'flex' : 'none';
+  if (todos) todos.style.display = c ? 'none' : '';
+  if (n)     n.textContent = c + (c === 1 ? ' seleccionado' : ' seleccionados');
+}
+function wcToggleSel(id){
+  if (WC.sel[id]) delete WC.sel[id]; else WC.sel[id] = true;
+  wcRender();
+}
+function wcSelTodosFiltrados(){
+  wcFiltrados().forEach(function(x){ WC.sel[x.id] = true; });
+  wcRender();
+}
+function wcSelNinguno(){ WC.sel = {}; wcRender(); }
+async function wcBorrarSeleccionados(){
+  var ids = Object.keys(WC.sel);
+  if (!ids.length) return;
+  var msg = 'Vas a ELIMINAR ' + ids.length + ' contacto' + (ids.length===1?'':'s') + ' de forma permanente.\n\n'
+          + 'Esto no se puede deshacer. Si solo quieres dejar de escribirles, usa “No contactar” en vez de borrar.\n\n¿Continuar?';
+  if (!confirm(msg)) return;
+  var msgEl = document.getElementById('wcMsg');
+  var setMsg = function(t, ok){ if (msgEl){ msgEl.style.color = ok ? '#16A34A' : '#DC2626'; msgEl.textContent = t; } };
+  setMsg('Eliminando…', true);
+  try {
+    // Por lotes: una sola petición con 1.400 ids es demasiado larga para la URL.
+    var LOTE = 100, borrados = 0;
+    for (var i = 0; i < ids.length; i += LOTE){
+      var trozo = ids.slice(i, i + LOTE);
+      var r = await sb.from('pos_wa_contactos').delete().in('id', trozo);
+      if (r.error) throw r.error;
+      borrados += trozo.length;
+    }
+    var fuera = {};
+    ids.forEach(function(id){ fuera[id] = true; });
+    WC.items = WC.items.filter(function(x){ return !fuera[x.id]; });
+    WC.sel = {};
+    setMsg('✓ ' + borrados + ' contacto' + (borrados===1?'':'s') + ' eliminado' + (borrados===1?'':'s') + '.', true);
+    wcStats(); wcRender(); wcRenderListas();
+  } catch(e){ setMsg('No se pudieron eliminar: ' + (e.message||e), false); }
+}
 async function wcNoAtender(id, valor){
   try {
     await sb.from('pos_wa_contactos').update({ no_atender: valor }).eq('id', id);
