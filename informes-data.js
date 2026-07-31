@@ -204,7 +204,7 @@ const REPORTS = [
  filters:['fecha','sucursal','caja','empleado'],
  kpis:[{lbl:'Egresos',val:'– $ 486.000',tone:'bad'},{lbl:'Ingresos extra',val:'+ $ 120.000',tone:'good'},{lbl:'Neto',val:'– $ 366.000'}],
  blocks:[{t:'card',title:'Movimientos',body:{t:'table',min:620,cols:[{k:'h',label:'Fecha'},{k:'ca',label:'Categoría'},{k:'co',label:'Concepto'},{k:'u',label:'Usuario'},{k:'v',label:'Monto',num:1}],rows:[
-   {h:'12 jul',ca:{_pill:['bad','Egreso']},co:'Compra de gas',u:'María Gómez',v:{_neg:'– $ 180.000'}},{h:'12 jul',ca:{_pill:['bad','Egreso']},co:'Domiciliario externo',u:'Luis Pardo',v:{_neg:'– $ 60.000'}},{h:'11 jul',ca:{_pill:['ok','Ingreso']},co:'Abono cliente fiado',u:'María Gómez',v:'+ $ 120.000'}]}}]},
+   {h:'12 jul',ca:{_pill:['bad','Egreso']},co:'Compra de gas',u:'María Gómez',v:{_neg:'– $ 180.000'}},{h:'12 jul',ca:{_pill:['bad','Egreso']},co:'Domiciliario externo',u:'Luis Pardo',v:{_neg:'– $ 60.000'}},{h:'11 jul',ca:{_pill:['ok','Ingreso']},co:'Abono a crédito',u:'María Gómez',v:'+ $ 120.000'}]}}]},
 
 {id:'caj-empleado', cat:'caja', viz:'chart', name:'Ventas por empleado',
  desc:'Rendimiento por mesero, cajero y domiciliario.',
@@ -216,7 +216,7 @@ const REPORTS = [
    {t:'card',title:'Detalle',body:{t:'table',min:640,cols:[{k:'e',label:'Empleado'},{k:'r',label:'Rol'},{k:'p',label:'# Pedidos',num:1},{k:'t',label:'Total vendido',num:1},{k:'pr',label:'Propinas',num:1},{k:'co',label:'Comisión',num:1}],rows:[
      {e:{_main:'Luis Pardo'},r:{_pill:['brand','Cajero']},p:'86',t:'$ 1.284.000',pr:'$ 74.000',co:'$ 64.200'},{e:{_main:'María Gómez'},r:{_pill:['brand','Cajero']},p:'71',t:'$ 1.052.000',pr:'$ 58.000',co:'$ 52.600'},{e:{_main:'Andrés Ruiz'},r:{_pill:['neu','Mesero']},p:'52',t:'$ 742.000',pr:'$ 34.000',co:'$ 37.100'},{e:{_main:'Felipe Ríos'},r:{_pill:['violet','Domic.']},p:'38',t:'$ 436.000',pr:'$ 20.000',co:'$ 21.800'}]}}]},
 
-{id:'caj-fiados', cat:'caja', viz:'table', name:'Fiados / créditos de clientes',
+{id:'caj-creditos', cat:'caja', viz:'table', name:'Créditos de clientes y empleados',
  desc:'Cuentas por cobrar con antigüedad de saldo. Sin gráfico.',
  filters:['fecha','cliente'],
  kpis:[{lbl:'Cartera total',val:'$ 842.000',tone:'warn'},{lbl:'Clientes con saldo',val:'9'},{lbl:'Vencido +30d',val:'$ 214.000',tone:'bad'}],

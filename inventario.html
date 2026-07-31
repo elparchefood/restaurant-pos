@@ -526,6 +526,11 @@
         <div style="flex:1"><div class="tt">Control manual (el cocinero avisa)</div><div class="tx">El sistema descuenta, pero NO lo da por agotado por cantidad. Se marca a mano cuando se acaba (para pollo, carne, etc. que no se pesan).</div></div>
         <span class="iv-switch" id="toggle-manual-sw"><span class="iv-switch-label">No</span><span class="iv-switch-track"><span class="iv-switch-knob"></span></span></span>
       </div>
+      <div class="iv-toggle" id="toggle-merma" onclick="toggleMerma()">
+        <span style="display:flex;color:#DC2626"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></span>
+        <div style="flex:1"><div class="tt">Puede tener merma</div><div class="tx">Actívalo en lo que de verdad se daña, se vence o se cae: carne, pollo, queso, verduras. <b>Déjalo en No</b> para lo empaquetado (gaseosas, agua), que es exacto y nunca merma. Solo lo que esté en Sí aparecerá al registrar una merma.</div></div>
+        <span class="iv-switch" id="toggle-merma-sw"><span class="iv-switch-label">No</span><span class="iv-switch-track"><span class="iv-switch-knob"></span></span></span>
+      </div>
       <div class="iv-toggle" id="toggle-sub" onclick="toggleSub()">
         <span style="display:flex;color:#0EA5E9"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/><path d="M12 11v10"/></svg></span>
         <div style="flex:1"><div class="tt">Sub-inventario (Bodega / En servicio)</div><div class="tx">Separa lo que hay en <b>bodega</b> de lo que está listo para vender (<b>nevera / en servicio</b>). Las ventas cuentan lo de "En servicio". Ideal para bebidas frías, carne cruda→cocida, etc.</div></div>
@@ -780,7 +785,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-perms.js?v=1785030000"></script>
 <script>if(window.posRequirePin) posRequirePin('catalogo.editar');</script>
-<script src="inventario.js?v=1786790000"></script>
+<script src="inventario.js?v=1787520000"></script>
 <script src="pos-brand.js?v=1784901500"></script>
 </body>
 </html>

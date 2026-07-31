@@ -56,7 +56,7 @@ Fórmula visible: **Utilidades = Ventas facturadas − Compras − Cuentas por p
 | Pedidos por mesero y cajero | Cantidad de pedidos por empleado. |
 | Comisión por mesero y cajero | Cálculo de comisiones sobre ventas. |
 | Ventas por cliente | Historial y total por cliente. |
-| Estado de créditos de cliente | Cuentas por cobrar (fiado). |
+| Estado de créditos de cliente | Cuentas por cobrar. |
 | Ventas registradas y pendientes | Ventas sin cerrar/cobrar. |
 | Pedidos modificados | Auditoría: qué pedidos se editaron después de enviados. |
 | Pedidos anulados | Auditoría de ítems/pedidos anulados antes de cobrar. |
@@ -188,7 +188,7 @@ Todos los datos ya existen en Supabase (`pos_orders`, `pos_order_items` con `sel
 11. **Ventas por mesero/cajero** + pedidos por empleado + propinas.
 12. **Descuentos** — quién aplicó cada descuento (auditoría anti-fraude).
 13. **Ventas anuladas + pedidos modificados** — auditoría con motivo y usuario.
-14. **Ventas por cliente** + estado de créditos (fiados) — base para lealtad/NFC.
+14. **Ventas por cliente** + estado de créditos — base para lealtad/NFC.
 15. **Compras por insumo** + historial de precios por proveedor.
 16. **Stock valorizado** + kardex de movimientos (ya hay iv_kardex implícito en inventario).
 17. **Merma** — registrar y valorizar pérdidas.

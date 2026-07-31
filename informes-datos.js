@@ -174,6 +174,19 @@
     return motor.costo(it.product_id, pres, mods);
   }
 
+  // ── UNIDADES (leer antes de tocar cualquier cálculo de inventario) ──
+  //   iv_insumos.precio      → costo de UNA unidad de COMPRA (un bulto, una caja)
+  //   iv_insumos.conversion  → cuántas unidades de USO trae una de compra
+  //   iv_insumos.stock       → en unidad de COMPRA
+  //   iv_movimientos.delta   → en unidad de COMPRA
+  //   iv_recetas.cantidad(es)→ en unidad de USO (gramos, mililitros…)
+  // Mezclarlas da valores errados: stock(compra) × costo-por-uso subvalúa el
+  // inventario tantas veces como diga la conversión.
+  function costoCompra(i) { return parseFloat(i.precio) || 0; }                    // $ por unidad de compra
+  function costoUso(i) { var c = parseFloat(i.conversion) || 1; return (parseFloat(i.precio) || 0) / (c > 0 ? c : 1); }
+  function aUso(qtyCompra, i) { return (parseFloat(qtyCompra) || 0) * (parseFloat(i.conversion) || 1); }
+  function nDec(v) { var r = Math.round((Number(v) || 0) * 100) / 100; return NUM.format(r); }
+
   // ── Agrupadores ────────────────────────────────────────────────────────
   function items(lista, fn) {
     lista.forEach(function (o) { (o.pos_order_items || []).forEach(function (it) { fn(it, o); }); });
@@ -871,14 +884,15 @@
     if (!ins.length) return vacio();
 
     var filas = ins.map(function (x) {
-      var conv = parseFloat(x.conversion) || 1;
-      var unit = (parseFloat(x.precio) || 0) / (conv > 0 ? conv : 1);   // costo por unidad de uso
+      // El stock está en unidad de COMPRA, así que se valoriza con el precio de
+      // compra. Usar el costo por unidad de uso lo subvaluaría.
       var bod = parseFloat(x.stock) || 0;
       var ser = x.sub_inventario ? (parseFloat(x.stock_servicio) || 0) : 0;
       var tot = bod + ser;
-      return { nombre: x.nombre, cat: x.categoria || '—', uso: x.use_unit || '',
-               bod: bod, ser: ser, tot: tot, unit: unit, valor: tot * unit,
-               min: parseFloat(x.min_stock) || 0, sub: !!x.sub_inventario };
+      return { nombre: x.nombre, cat: x.categoria || '—',
+               compra: x.buy_unit || '', uso: x.use_unit || '',
+               bod: bod, ser: ser, tot: tot, unit: costoCompra(x), valor: tot * costoCompra(x),
+               enUso: aUso(tot, x), min: parseFloat(x.min_stock) || 0, sub: !!x.sub_inventario };
     }).sort(function (a, b) { return b.valor - a.valor; });
 
     var valorTotal = filas.reduce(function (a, x) { return a + x.valor; }, 0);
@@ -894,15 +908,17 @@
       blocks: [
         bajos.length ? { t: 'card', title: 'Hay que surtir', sub: 'Están en el mínimo o por debajo', body: { t: 'table', min: 480,
           cols: [{ k: 'i', label: 'Insumo' }, { k: 'q', label: 'Quedan', num: 1 }, { k: 'm', label: 'Mínimo', num: 1 }],
-          rows: bajos.map(function (x) { return { i: { _main: x.nombre }, q: { _pill: [x.tot <= 0 ? 'bad' : 'warn', n0(x.tot) + ' ' + x.uso] }, m: n0(x.min) + ' ' + x.uso }; }) } } : null,
+          rows: bajos.map(function (x) { return { i: { _main: x.nombre }, q: { _pill: [x.tot <= 0 ? 'bad' : 'warn', nDec(x.tot) + ' ' + x.compra] }, m: nDec(x.min) + ' ' + x.compra }; }) } } : null,
         { t: 'card', title: 'Inventario valorizado', body: { t: 'table', min: 720,
           cols: [{ k: 'i', label: 'Insumo' }, { k: 'c', label: 'Categoría' }, { k: 'b', label: 'Bodega', num: 1 },
-                 { k: 's', label: 'Servicio', num: 1 }, { k: 'u', label: 'Costo unit.', num: 1 }, { k: 'v', label: 'Valor', num: 1 }],
+                 { k: 's', label: 'Servicio', num: 1 }, { k: 'e', label: 'Equivale a', num: 1 },
+                 { k: 'u', label: 'Costo unit.', num: 1 }, { k: 'v', label: 'Valor', num: 1 }],
           rows: filas.map(function (x) { return {
             i: { _main: x.nombre }, c: x.cat,
-            b: n0(x.bod) + ' ' + x.uso, s: x.sub ? n0(x.ser) + ' ' + x.uso : '—',
-            u: $(x.unit), v: $(x.valor) }; }),
-          total: { i: 'Total', c: '', b: '', s: '', u: '', v: $(valorTotal) } } },
+            b: nDec(x.bod) + ' ' + x.compra, s: x.sub ? nDec(x.ser) + ' ' + x.compra : '—',
+            e: nDec(x.enUso) + ' ' + x.uso,
+            u: $(x.unit) + ' / ' + x.compra, v: $(x.valor) }; }),
+          total: { i: 'Total', c: '', b: '', s: '', e: '', u: '', v: $(valorTotal) } } },
       ].filter(Boolean),
     };
   };
@@ -963,7 +979,7 @@
 
     var ins = {};
     try {
-      var qi = s.from('iv_insumos').select('id,nombre,use_unit,precio,conversion,categoria');
+      var qi = s.from('iv_insumos').select('id,nombre,buy_unit,use_unit,precio,conversion,categoria');
       if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
       var ri = await qi;
       (ri.data || []).forEach(function (x) { ins[x.id] = x; });
@@ -973,11 +989,10 @@
     mov.forEach(function (m) {
       var i = ins[m.insumo_id] || {};
       var k = i.nombre || 'Insumo';
-      var conv = parseFloat(i.conversion) || 1;
-      var unit = (parseFloat(i.precio) || 0) / (conv > 0 ? conv : 1);
-      if (!acc[k]) acc[k] = { qty: 0, val: 0, uso: i.use_unit || '', cat: i.categoria || '—', veces: 0 };
+      // delta viene en unidad de COMPRA → se valoriza con el precio de compra.
+      if (!acc[k]) acc[k] = { qty: 0, val: 0, compra: i.buy_unit || '', cat: i.categoria || '—', veces: 0 };
       acc[k].qty += parseFloat(m.delta) || 0;
-      acc[k].val += (parseFloat(m.delta) || 0) * unit;
+      acc[k].val += (parseFloat(m.delta) || 0) * costoCompra(i);
       acc[k].veces++;
     });
     var arr = ordenar(acc, 'val');
@@ -995,7 +1010,7 @@
           cols: [{ k: 'i', label: 'Insumo' }, { k: 'c', label: 'Categoría' }, { k: 'q', label: 'Cantidad', num: 1 },
                  { k: 'n', label: 'Veces', num: 1 }, { k: 'v', label: 'Costo', num: 1 }],
           rows: arr.map(function (x) { return { i: { _main: x._k }, c: x.cat,
-            q: n0(x.qty) + ' ' + x.uso, n: n0(x.veces), v: $(x.val) }; }),
+            q: nDec(x.qty) + ' ' + x.compra, n: n0(x.veces), v: $(x.val) }; }),
           total: { i: 'Total', c: '', q: '', n: '', v: $(tot) } } },
       ],
     };
@@ -1129,14 +1144,13 @@
       var qi = s.from('iv_insumos').select('id,precio,conversion');
       if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
       var res = await Promise.all([qm, qi]);
-      var unit = {};
-      (res[1].data || []).forEach(function (x) {
-        var c = parseFloat(x.conversion) || 1;
-        unit[x.id] = (parseFloat(x.precio) || 0) / (c > 0 ? c : 1);
-      });
+      var precio = {};
+      // delta está en unidad de COMPRA, así que se multiplica por el precio de
+      // compra, no por el costo por unidad de uso.
+      (res[1].data || []).forEach(function (x) { precio[x.id] = parseFloat(x.precio) || 0; });
       (res[0].data || []).forEach(function (m) {
         if (String(m.motivo || '').toLowerCase().indexOf('devol') >= 0) return;
-        compras += (parseFloat(m.delta) || 0) * (unit[m.insumo_id] || 0);
+        compras += (parseFloat(m.delta) || 0) * (precio[m.insumo_id] || 0);
       });
     } catch (e) { console.warn('[Informes] compras:', e); }
 
@@ -1339,7 +1353,7 @@
 
     var ins = {};
     try {
-      var qi = s.from('iv_insumos').select('id,nombre,use_unit,precio,conversion');
+      var qi = s.from('iv_insumos').select('id,nombre,use_unit,buy_unit,precio,conversion');
       if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
       var ri = await qi;
       (ri.data || []).forEach(function (x) { ins[x.id] = x; });
@@ -1351,12 +1365,11 @@
 
     var filas = Object.keys(todos).map(function (k) {
       var i = ins[k] || {};
-      var conv = parseFloat(i.conversion) || 1;
-      var unit = (parseFloat(i.precio) || 0) / (conv > 0 ? conv : 1);
-      var t = teorico[k] || 0, rl = real[k] || 0;
+      var t  = teorico[k] || 0;               // recetas → unidad de USO
+      var rl = aUso(real[k] || 0, i);         // movimientos → de COMPRA a USO
       var dif = rl - t;                       // positivo = salió MÁS de lo que debía
       return { nombre: i.nombre || '—', uso: i.use_unit || '', teo: t, real: rl,
-               dif: dif, pct: t > 0 ? dif / t * 100 : 0, valor: dif * unit };
+               dif: dif, pct: t > 0 ? dif / t * 100 : 0, valor: dif * costoUso(i) };
     }).filter(function (x) { return x.teo > 0 || x.real > 0; })
       .sort(function (a, b) { return b.valor - a.valor; });
 
@@ -1379,8 +1392,8 @@
                { k: 'p', label: '%', num: 1 }, { k: 'v', label: 'Costo', num: 1 }],
         rows: filas.map(function (x) { return {
           i: { _main: x.nombre },
-          t: n0(x.teo) + ' ' + x.uso, r: n0(x.real) + ' ' + x.uso,
-          d: x.dif > 0 ? { _neg: '+' + n0(x.dif) + ' ' + x.uso } : n0(x.dif) + ' ' + x.uso,
+          t: nDec(x.teo) + ' ' + x.uso, r: nDec(x.real) + ' ' + x.uso,
+          d: x.dif > 0 ? { _neg: '+' + nDec(x.dif) + ' ' + x.uso } : nDec(x.dif) + ' ' + x.uso,
           p: x.teo > 0 ? { _pill: [Math.abs(x.pct) <= 10 ? 'ok' : Math.abs(x.pct) <= 25 ? 'warn' : 'bad',
                                    (x.pct > 0 ? '+' : '') + pct(x.pct)] } : '—',
           v: x.valor > 0 ? { _neg: '– ' + $(x.valor) } : $(Math.abs(x.valor)) }; }),
@@ -1413,18 +1426,17 @@
     var dias = Math.max(1, Math.round((new Date(r.to) - new Date(r.from)) / 86400000));
 
     var filas = ins.map(function (x) {
-      var conv = parseFloat(x.conversion) || 1;
-      var unit = (parseFloat(x.precio) || 0) / (conv > 0 ? conv : 1);
       var stock = (parseFloat(x.stock) || 0) + (x.sub_inventario ? (parseFloat(x.stock_servicio) || 0) : 0);
       var min = parseFloat(x.min_stock) || 0;
       var porDia = (cons[x.id] || 0) / dias;
       // Objetivo: cubrir el mínimo y además 7 días de consumo al ritmo actual.
       var objetivo = Math.max(min, porDia * 7);
       var falta = Math.max(0, objetivo - stock);
-      return { nombre: x.nombre, cat: x.categoria || '—', uso: x.use_unit || '', compra: x.buy_unit || '',
+      // Todo en unidad de COMPRA: es lo que de verdad se pide al proveedor.
+      return { nombre: x.nombre, cat: x.categoria || '—', compra: x.buy_unit || '',
                stock: stock, min: min, porDia: porDia,
                diasQueAguanta: porDia > 0 ? stock / porDia : null,
-               falta: falta, costo: falta * unit, conv: conv };
+               falta: falta, costo: falta * costoCompra(x) };
     }).filter(function (x) { return x.falta > 0; })
       .sort(function (a, b) {
         var da = a.diasQueAguanta == null ? 999 : a.diasQueAguanta;
@@ -1451,13 +1463,111 @@
                { k: 'd', label: 'Aguanta', num: 1 }, { k: 'f', label: 'Comprar', num: 1 }, { k: 'v', label: 'Costo', num: 1 }],
         rows: filas.map(function (x) { return {
           i: { _main: x.nombre }, c: x.cat,
-          s: n0(x.stock) + ' ' + x.uso,
+          s: nDec(x.stock) + ' ' + x.compra,
           d: x.diasQueAguanta == null ? { _pill: ['neu', 'sin consumo'] }
              : { _pill: [x.diasQueAguanta <= 2 ? 'bad' : x.diasQueAguanta <= 5 ? 'warn' : 'ok',
                          (Math.round(x.diasQueAguanta * 10) / 10).toString().replace('.', ',') + ' días'] },
-          f: { _main: n0(Math.ceil(x.falta)) + ' ' + x.uso },
+          f: { _main: nDec(Math.ceil(x.falta * 100) / 100) + ' ' + x.compra },
           v: $(x.costo) }; }),
         total: { i: 'Total del pedido', c: '', s: '', d: '', f: '', v: $(costoTotal) } } }],
+    };
+  };
+
+  /* ═══════════ MERMA ═══════════
+     Lo que se perdió y no se vendió. Solo aparecen los insumos que el dueño
+     marcó como "puede tener merma": las bebidas embotelladas no ensucian esto. */
+  R['inv-merma'] = async function (p) {
+    var s = sb(); var r = rango(p);
+    var q = s.from('iv_merma').select('insumo_id,cantidad,campo,motivo,nota,costo,registrado_por,created_at')
+      .gte('created_at', r.from).lt('created_at', r.to).order('created_at', { ascending: false });
+    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    var rm = await q; if (rm.error) throw rm.error;
+    var mer = rm.data || []; if (!mer.length) return vacio();
+
+    var ins = {};
+    try {
+      var qi = s.from('iv_insumos').select('id,nombre,buy_unit,use_unit,precio,conversion,categoria');
+      if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
+      var ri = await qi;
+      (ri.data || []).forEach(function (x) { ins[x.id] = x; });
+    } catch (e) {}
+
+    var MOT = { dano: 'Se dañó', vencimiento: 'Se venció', preparacion: 'Error de preparación',
+                derrame: 'Se cayó o derramó', robo: 'Faltante sin explicación', otro: 'Otro' };
+    var COL = { dano: '#F59E0B', vencimiento: '#DC2626', preparacion: '#8B5CF6',
+                derrame: '#0EA5E9', robo: '#E11D48', otro: '#64748B' };
+
+    var total = mer.reduce(function (a, m) { return a + (parseFloat(m.costo) || 0); }, 0);
+
+    // Por motivo: saber SI se está venciendo o SI se está cayendo cambia qué hacer.
+    var porMot = {};
+    mer.forEach(function (m) {
+      var k = m.motivo || 'otro';
+      if (!porMot[k]) porMot[k] = { val: 0, n: 0 };
+      porMot[k].val += parseFloat(m.costo) || 0; porMot[k].n++;
+    });
+    var arrMot = Object.keys(porMot).map(function (k) { return { k: k, val: porMot[k].val, n: porMot[k].n }; })
+      .sort(function (a, b) { return b.val - a.val; });
+    var segs = arrMot.map(function (x) {
+      return { name: MOT[x.k] || x.k, val: $(x.val), pct: total ? Math.round(x.val / total * 100) : 0,
+               color: COL[x.k] || '#64748B' };
+    });
+    var suma = segs.reduce(function (a, x) { return a + x.pct; }, 0);
+    if (segs.length && suma !== 100) segs[0].pct += (100 - suma);
+
+    // Por insumo: cuál se está botando más.
+    var porIns = {};
+    mer.forEach(function (m) {
+      var i = ins[m.insumo_id] || {};
+      var k = i.nombre || 'Insumo';
+      if (!porIns[k]) porIns[k] = { val: 0, qty: 0, n: 0, compra: i.buy_unit || '' };
+      porIns[k].val += parseFloat(m.costo) || 0;
+      porIns[k].qty += parseFloat(m.cantidad) || 0;
+      porIns[k].n++;
+    });
+    var arrIns = ordenar(porIns, 'val');
+    var mx = arrIns.length ? arrIns[0].val : 1;
+
+    // Cuánto pesa la merma sobre la venta del mismo período.
+    var venta = 0;
+    try {
+      var d = await pedidos(p);
+      venta = d.lista.reduce(function (a, o) { return a + ventaDe(o); }, 0);
+    } catch (e) {}
+
+    return {
+      kpis: [
+        { lbl: 'Perdido en merma', val: $(total), tone: 'bad', big: 1 },
+        { lbl: 'Registros', val: n0(mer.length) },
+        { lbl: 'Lo que más se pierde', val: arrIns.length ? arrIns[0]._k : '—',
+          sub: arrIns.length ? $(arrIns[0].val) : '' },
+        { lbl: '% sobre la venta', val: venta ? pct(total / venta * 100) : '—',
+          tone: venta && (total / venta * 100) > 3 ? 'bad' : 'warn',
+          sub: 'Más del 3% ya es mucho' },
+      ],
+      blocks: [
+        { t: 'grid2', children: [
+          { t: 'card', title: 'Por qué se pierde', sub: 'Saber la causa dice qué corregir', body: {
+            t: 'donut', centerBig: n0(mer.length), centerLbl: 'registros', segs: segs } },
+          { t: 'card', title: 'Qué se pierde más', body: { t: 'hbars', items: arrIns.slice(0, 8).map(function (x) {
+            return { lbl: x._k, w: Math.round(x.val / mx * 100), val: $(x.val), color: '#DC2626' }; }) } },
+        ] },
+        { t: 'card', title: 'Detalle', body: { t: 'table', min: 720,
+          cols: [{ k: 'f', label: 'Fecha' }, { k: 'i', label: 'Insumo' }, { k: 'q', label: 'Cantidad', num: 1 },
+                 { k: 'm', label: 'Motivo' }, { k: 'd', label: 'Dónde' },
+                 { k: 'w', label: 'Registró' }, { k: 'v', label: 'Costo', num: 1 }],
+          rows: mer.map(function (m) {
+            var i = ins[m.insumo_id] || {};
+            return {
+              f: new Date(m.created_at).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+              i: { _main: i.nombre || '—' },
+              q: nDec(m.cantidad) + ' ' + (i.buy_unit || ''),
+              m: { _pill: [m.motivo === 'robo' ? 'bad' : m.motivo === 'vencimiento' ? 'warn' : 'neu', MOT[m.motivo] || m.motivo] },
+              d: m.campo === 'stock_servicio' ? 'Servicio' : 'Bodega',
+              w: m.registrado_por || '—',
+              v: { _neg: '– ' + $(m.costo) } }; }),
+          total: { f: 'Total', i: '', q: '', m: '', d: '', w: '', v: $(total) } } },
+      ],
     };
   };
 

@@ -23,7 +23,7 @@ Los 14 restantes esperan alguna de las funciones de abajo.
 
 # 1. Sistema de créditos 🔴
 
-**Reemplaza a lo que llamábamos "fiados".** Definición de Sergio (2026-07-31):
+**Sergio pidió no usar la palabra "fiado" en ninguna parte** (2026-07-31). Su definición:
 
 > *"El sistema igual no dejará cerrar la caja si no está pago, pero se pagará
 > con créditos. Y esos créditos son los que cada dueño de restaurante les podrá
@@ -40,7 +40,7 @@ el cliente/empleado, no en el pedido.
 - Pantalla de gestión: asignar cupo, ver saldo, registrar abonos.
 - Regla dura: **el cierre de caja sigue exigiendo que todo esté pagado**.
 
-**Desbloquea:** `caj-fiados` (Fiados / créditos de clientes)
+**Desbloquea:** `caj-creditos` (Créditos de clientes y empleados)
 **Nota:** los 13 pedidos que parecían "a medio pagar" NO eran deuda — ver §13.
 
 ---

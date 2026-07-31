@@ -31,6 +31,7 @@ let activeFilter = 'todos';
 let togglePrepOn = true;
 let toggleManualOn = false;   // "Control manual (el cocinero avisa)" del insumo en edición
 let toggleSubOn = false;      // "Sub-inventario (Bodega/En servicio)"
+let toggleMermaOn = false;    // "Puede tener merma" (las bebidas no)
 let toggleVenderBodegaOn = false;
 let compraQty = {};
 let compraPrices = {};
@@ -337,6 +338,7 @@ async function loadInsumos() {
     catColor:   i.cat_color,
     prep:       i.prep_requerido,
     controlManual: !!i.control_manual,
+    merma:      !!i.merma_activa,
     agotadoManual: !!i.agotado_manual,
     sub:        !!i.sub_inventario,
     servicio:   parseFloat(i.stock_servicio) || 0,
@@ -1576,7 +1578,7 @@ function buildInsRow(ins) {
     </div>
     <div class="iv-ins-actions">
       ${ins.sub
-        ? `<button class="iv-btn-ghost sm" onclick="abrirSurtir('${ins.id}')" title="Mover de bodega a servicio"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3h4v4"/><path d="M21 3l-7 7"/><path d="M8 21H4v-4"/><path d="M4 21l7-7"/></svg> Surtir</button>`
+        ? `${ins.merma ? `<button class="iv-btn-ghost sm" onclick="abrirMerma('${ins.id}')" title="Registrar producto perdido" style="color:#DC2626"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg> Merma</button>` : ''}<button class="iv-btn-ghost sm" onclick="abrirSurtir('${ins.id}')" title="Mover de bodega a servicio"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3h4v4"/><path d="M21 3l-7 7"/><path d="M8 21H4v-4"/><path d="M4 21l7-7"/></svg> Surtir</button>`
         : ''}
       <button class="iv-btn-ghost sm btn-reponer" onclick="abrirReponer('${ins.id}')">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1607,6 +1609,136 @@ async function toggleAgotadoManual(insId) {
 // hacerse por unidad INDIVIDUAL ("saqué 6 gaseosas"). El modal deja elegir en
 // cuál de las dos se escribe la cantidad y convierte solo al guardar.
 let surtirUnidad = 'compra';   // 'compra' | 'individual'
+
+/* ══════════════ REGISTRAR MERMA ══════════════
+   Merma REAL: lo que se dañó, se venció, se cayó o se quemó. No confundir con
+   el % de merma de las recetas, que es el estimado de recortes y cáscaras.
+   Solo aparece en los insumos marcados con "Puede tener merma": las bebidas
+   embotelladas son exactas y no tienen por qué ensuciar esta pantalla. */
+const MERMA_MOTIVOS = [
+  ['dano',        'Se dañó'],
+  ['vencimiento', 'Se venció'],
+  ['preparacion', 'Error de preparación'],
+  ['derrame',     'Se cayó o se derramó'],
+  ['robo',        'Faltante sin explicación'],
+  ['otro',        'Otro'],
+];
+let mermaMotivo = 'dano';
+let mermaCampo  = 'stock';
+let mermaInsId  = null;
+
+function abrirMerma(insId) {
+  const ins = insumos.find(i => i.id === insId); if (!ins) return;
+  if (!ins.merma) {
+    showToast('Este insumo no tiene la merma activada. Actívala en su ficha.', 'info');
+    return;
+  }
+  mermaInsId  = insId;
+  mermaMotivo = 'dano';
+  mermaCampo  = (ins.sub && ins.servicio > 0) ? 'stock_servicio' : 'stock';
+  const conv = ins.conversion || 1;
+  const ov = document.createElement('div');
+  ov.id = 'merma-ov';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:20px';
+
+  const campoHtml = ins.sub
+    ? '<div class="iv-field-label">¿De dónde se perdió?</div>'
+      + '<div style="display:flex;gap:6px;margin-bottom:12px" id="merma-campo">'
+      + '<button class="iv-chip ' + (mermaCampo === 'stock_servicio' ? 'on' : '') + '" style="flex:1;justify-content:center" onclick="setMermaCampo(\'stock_servicio\')">En servicio (' + surtirFmt(ins.servicio, ins) + ')</button>'
+      + '<button class="iv-chip ' + (mermaCampo === 'stock' ? 'on' : '') + '" style="flex:1;justify-content:center" onclick="setMermaCampo(\'stock\')">Bodega (' + surtirFmt(ins.stock, ins) + ')</button>'
+      + '</div>'
+    : '';
+
+  const motivosHtml = MERMA_MOTIVOS.map(function (m) {
+    return '<button class="iv-chip ' + (m[0] === 'dano' ? 'on' : '') + '" onclick="setMermaMotivo(\'' + m[0] + '\')">' + escHtml(m[1]) + '</button>';
+  }).join('');
+
+  const equivHtml = conv > 1
+    ? '<div style="font-size:11.5px;color:#94A3B8;margin-top:5px">1 ' + escHtml(ins.buyUnit) + ' = ' + conv + ' ' + escHtml(ins.useUnit) + '</div>'
+    : '';
+
+  ov.innerHTML =
+    '<div style="background:#fff;border-radius:16px;padding:20px 22px;width:400px;max-width:94vw;font-family:\'DM Sans\',system-ui,sans-serif;box-shadow:0 24px 60px -12px rgba(0,0,0,.35)">'
+    + '<div style="font-size:15px;font-weight:800;color:#0F172A">Registrar merma · ' + escHtml(ins.nombre) + '</div>'
+    + '<div style="font-size:12.5px;color:#64748B;margin:5px 0 14px;line-height:1.5">Lo que se perdió y no se vendió. Se descuenta del inventario y queda registrado con su costo.</div>'
+    + campoHtml
+    + '<div class="iv-field-label">¿Qué pasó?</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px" id="merma-motivos">' + motivosHtml + '</div>'
+    + '<div class="iv-field-label">Cantidad perdida (' + escHtml(ins.buyUnit) + ')</div>'
+    + '<input id="merma-qty" class="iv-input" type="number" min="0" step="any" placeholder="0" style="width:100%" oninput="mermaPreview()">'
+    + equivHtml
+    + '<div id="merma-prev" style="font-size:12px;color:#64748B;margin-top:8px;min-height:34px"></div>'
+    + '<div class="iv-field-label">Nota (opcional)</div>'
+    + '<input id="merma-nota" class="iv-input" type="text" placeholder="Ej. se quedó fuera de la nevera" style="width:100%">'
+    + '<div style="display:flex;gap:8px;margin-top:14px">'
+    + '<button style="flex:1;padding:11px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:700;font-size:13px;cursor:pointer" onclick="document.getElementById(\'merma-ov\').remove()">Cancelar</button>'
+    + '<button style="flex:1;padding:11px;border-radius:10px;border:none;background:#DC2626;color:#fff;font-weight:700;font-size:13px;cursor:pointer" onclick="confirmarMerma()">Registrar merma</button>'
+    + '</div></div>';
+
+  ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+  setTimeout(function () { const q = document.getElementById('merma-qty'); if (q) q.focus(); }, 40);
+}
+
+function setMermaMotivo(m) {
+  mermaMotivo = m;
+  document.querySelectorAll('#merma-motivos .iv-chip').forEach(function (b, i) {
+    b.classList.toggle('on', MERMA_MOTIVOS[i][0] === m);
+  });
+}
+function setMermaCampo(k) {
+  mermaCampo = k;
+  const btns = document.querySelectorAll('#merma-campo .iv-chip');
+  if (btns[0]) btns[0].classList.toggle('on', k === 'stock_servicio');
+  if (btns[1]) btns[1].classList.toggle('on', k === 'stock');
+  mermaPreview();
+}
+function mermaPreview() {
+  const ins = insumos.find(function (i) { return i.id === mermaInsId; }); if (!ins) return;
+  const prev = document.getElementById('merma-prev'); if (!prev) return;
+  const el = document.getElementById('merma-qty');
+  const qty = parseFloat(el && el.value) || 0;
+  if (qty <= 0) { prev.innerHTML = ''; return; }
+  const disp = mermaCampo === 'stock_servicio' ? ins.servicio : ins.stock;
+  const real = Math.min(qty, disp);
+  // El costo va con el precio de COMPRA, porque la cantidad se escribe en
+  // unidad de compra igual que el stock. Usar el costo por unidad de uso lo
+  // subvaluaría tantas veces como diga la conversión.
+  const costo = real * (ins.precio || 0);
+  let html = 'Costo de lo perdido: <b style="color:#DC2626">' + ivCOP(costo) + '</b>';
+  if (qty > disp + 0.000001) {
+    html += '<br><span style="color:#DC2626;font-weight:700">Solo hay ' + surtirFmt(disp, ins) + '. Se descontará todo lo que hay.</span>';
+  } else {
+    html += '<br>Quedará: ' + surtirFmt(disp - real, ins);
+  }
+  prev.innerHTML = html;
+}
+async function confirmarMerma() {
+  const ins = insumos.find(function (i) { return i.id === mermaInsId; }); if (!ins) return;
+  const el = document.getElementById('merma-qty');
+  const qty = parseFloat(el && el.value) || 0;
+  if (qty <= 0) { showToast('Escribe una cantidad', 'info'); return; }
+  const nt = document.getElementById('merma-nota');
+  const nota = ((nt && nt.value) || '').trim();
+  const st = (window._pos && window._pos.state) || {};
+  const quien = (st.user && (st.user.user_metadata && st.user.user_metadata.nombre || st.user.email)) || null;
+  try {
+    const r = await iv_sb.rpc('fn_iv_registrar_merma', {
+      p_insumo: mermaInsId, p_cantidad: qty, p_campo: mermaCampo,
+      p_motivo: mermaMotivo, p_nota: nota || null, p_quien: quien,
+    });
+    if (r.error) throw r.error;
+    const out = (r.data && r.data[0]) || {};
+    // Refrescar lo que quedó sin recargar toda la lista.
+    if (mermaCampo === 'stock_servicio') ins.servicio = Number(out.stock_nuevo) || 0;
+    else ins.stock = Number(out.stock_nuevo) || 0;
+    const ov = document.getElementById('merma-ov'); if (ov) ov.remove();
+    showToast('Merma registrada · ' + ivCOP(Number(out.costo) || 0) + ' perdidos');
+    if (typeof render === 'function') render();
+  } catch (e) {
+    showToast('No se pudo registrar: ' + (e && e.message || e), 'error');
+  }
+}
 
 function abrirSurtir(insId) {
   const ins = insumos.find(i => i.id === insId); if (!ins) return;
@@ -1939,6 +2071,7 @@ function abrirEditorInsumo(insId) {
   togglePrepOn = ins?ins.prep:true;
   toggleManualOn = ins?!!ins.controlManual:false;
   toggleSubOn = ins?!!ins.sub:false;
+  toggleMermaOn = ins?!!ins.merma:false;
   toggleVenderBodegaOn = ins?!!ins.venderBodega:false;
   { const s=document.getElementById('ins-servicio'); if (s) s.value = ins?(ins.servicio||''):''; }
   { const a=document.getElementById('ins-aviso-bodega'); if (a) a.value = ins?(ins.avisoBodega||''):''; }
@@ -1957,6 +2090,7 @@ function abrirEditorInsumo(insId) {
   updateTogglePrepUI();
   updateToggleManualUI();
   updateToggleSubUI();
+  updateToggleMermaUI();
   updateToggleVenderBodegaUI();
   document.getElementById('ins-cost-hint').classList.add('is-hidden');
   document.getElementById('btn-ins-eliminar').classList.toggle('is-hidden',!ins);
@@ -2101,6 +2235,16 @@ function updateToggleManualUI() {
     if (lbl) lbl.textContent=toggleManualOn?'Sí':'No';
   }
 }
+// Merma: NO todos los insumos la tienen. Las bebidas embotelladas son exactas
+// y nunca se merman; la carne, el queso o las verduras sí. Cada dueño decide
+// cuáles, y solo esos aparecen al registrar una merma.
+function toggleMerma() { toggleMermaOn=!toggleMermaOn; updateToggleMermaUI(); }
+function updateToggleMermaUI() {
+  const box=document.getElementById('toggle-merma'); if (box) box.classList.toggle('on',toggleMermaOn);
+  const sw=document.getElementById('toggle-merma-sw');
+  if (sw) { sw.classList.toggle('on',toggleMermaOn); const lbl=sw.querySelector('.iv-switch-label'); if (lbl) lbl.textContent=toggleMermaOn?'Sí':'No'; }
+}
+
 // Sub-inventario: dos niveles Bodega / En servicio.
 function toggleSub() { toggleSubOn=!toggleSubOn; updateToggleSubUI(); }
 function updateToggleSubUI() {
@@ -2151,7 +2295,7 @@ async function guardarInsumo() {
   // Sub-inventario
   const servicio = toggleSubOn ? (parseFloat(document.getElementById('ins-servicio')?.value)||0) : 0;
   const avisoBodega = toggleSubOn ? (document.getElementById('ins-aviso-bodega')?.value||'').trim() : '';
-  const payload  = { nombre, categoria:cat, cat_color:catColor, prep_requerido:togglePrepOn, control_manual:toggleManualOn, sub_inventario:toggleSubOn, stock_servicio:servicio, vender_bodega:(toggleSubOn && toggleVenderBodegaOn), aviso_bodega:avisoBodega, buy_unit:buyUnit, use_unit:useUnit, precio, conversion, stock, min_stock:min, updated_at:new Date().toISOString() };
+  const payload  = { nombre, categoria:cat, cat_color:catColor, prep_requerido:togglePrepOn, control_manual:toggleManualOn, merma_activa:toggleMermaOn, sub_inventario:toggleSubOn, stock_servicio:servicio, vender_bodega:(toggleSubOn && toggleVenderBodegaOn), aviso_bodega:avisoBodega, buy_unit:buyUnit, use_unit:useUnit, precio, conversion, stock, min_stock:min, updated_at:new Date().toISOString() };
   // Si se APAGA el control manual, se limpia el "agotado manual" (para que no quede pegado).
   // Si sigue manual, no se toca aquí (se maneja con el botón rápido "Se acabó / Ya hay").
   if (!toggleManualOn) payload.agotado_manual = false;
