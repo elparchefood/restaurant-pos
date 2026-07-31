@@ -504,6 +504,17 @@ async function pintarFichaCliente(conv){
         + '<div class="ci-dw-nivpc">'
         +   (niv.siguiente ? 'Faltan '+fal+uni+' para <b>'+escHtml(niv.siguiente)+'</b>' : 'Nivel máximo alcanzado')
         + '</div>'
+        // El nivel CADUCA si deja de pedir. Se avisa siempre, y se resalta
+        // cuando ya está cerca, para poder recuperarlo con una promo a tiempo.
+        + (function(){
+            const dd = niv.dias_para_caducar;
+            if (dd === null || dd === undefined) return '';
+            const meses = niv.caduca_meses || 6;
+            if (dd <= 0) return '<div class="ci-dw-nivcad urge">Su nivel caducó por '+meses+' meses sin pedir</div>';
+            if (dd <= 45) return '<div class="ci-dw-nivcad urge">Pierde su nivel en '+dd+' día'+(dd===1?'':'s')+' si no vuelve a pedir</div>';
+            const m = Math.round(dd/30);
+            return '<div class="ci-dw-nivcad">Conserva su nivel '+(m<=1?'menos de un mes':m+' meses')+' más</div>';
+          })()
         + '</div>';
     }
     h += '<div class="ci-dw-rows">';

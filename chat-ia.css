@@ -1947,3 +1947,8 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .vp-etq{font-size:12.5px;font-weight:700;color:#16a34a;margin-top:12px;background:rgba(34,197,94,.1);border-radius:8px;padding:8px 10px}
 .vp-close{margin-top:18px;width:100%;padding:11px;border:none;border-radius:10px;background:#7C5CFF;color:#fff;font-weight:800;font-size:13.5px;cursor:pointer;transition:.15s}
 .vp-close:hover{background:#6A4FF0}
+
+/* Aviso de caducidad del nivel: informativo normalmente, en ámbar cuando ya
+   está cerca de perderlo (ahí sí conviene mandarle una promo). */
+.ci-dw-nivcad{ margin-top:5px; font-size:11px; color:var(--ci-txt-3,#8A8FA3); }
+.ci-dw-nivcad.urge{ color:#F0A83C; font-weight:600; }
