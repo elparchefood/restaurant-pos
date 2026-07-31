@@ -45,7 +45,7 @@ el cliente/empleado, no en el pedido.
 
 ---
 
-# 2. Impuestos: IVA e impoconsumo 🔴
+# 2. Impuestos: IVA e impoconsumo ✅ HECHO (2026-07-31, commit `3683f45`)
 
 Hoy **no existe ningún campo de impuesto** en `pos_products` ni en `pos_orders`.
 Un restaurante formal en Colombia no puede operar así.
@@ -56,8 +56,9 @@ Un restaurante formal en Colombia no puede operar así.
 - Guardar la base gravable y el impuesto en cada línea del pedido, congelados al momento de la venta (si cambia la tarifa, las ventas viejas no se pueden alterar).
 - Mostrar el desglose en la factura impresa.
 
-**Desbloquea:** `sal-impuesto`
-**Depende de esto:** la facturación DIAN (§3) no se puede hacer sin impuestos.
+**Desbloquea:** `sal-impuesto` — ✅ ya funciona. Viene APAGADO por defecto (El Parche es no
+responsable). Ver entrada 62 de `ESTADO-SISTEMA.md`.
+**Ya no bloquea** la facturación DIAN (§3): el prerrequisito está cumplido.
 
 ---
 
@@ -125,7 +126,7 @@ dinero. Hoy anular un pedido solo lo marca `cancelled`; no genera documento.
 
 ---
 
-# 5. Merma (desperdicio real) 🟠
+# 5. Merma (desperdicio real) ✅ HECHO (2026-07-31, commit `4b89924`)
 
 Ojo con la confusión, ya la tuvimos antes:
 - La **merma de receta** (el % que ya existe en `iv_recetas.merma`) es un estimado de recortes y cáscaras. **Ya está.**
@@ -137,9 +138,9 @@ Ojo con la confusión, ya la tuvimos antes:
   *(Hoy `iv_movimientos` solo tiene movimientos con motivo `venta`.)*
 - Valorizarla al costo del insumo.
 
-**Desbloquea:** `inv-merma`
-**Mejora también:** `inv-paloteo` — hoy toda la desviación se ve como fuga; con
-la merma registrada se separa lo que se botó de lo que no se explica.
+**Desbloquea:** `inv-merma` — ✅ ya funciona. **Es opcional POR INSUMO** (`iv_insumos.merma_activa`):
+las bebidas embotelladas no mermana y no ensucian la pantalla. Ver entrada 61.
+**Mejoró también** `inv-paloteo`: ahora se separa lo que se botó de lo que no se explica.
 
 ---
 
@@ -237,14 +238,15 @@ La base ya es multi-sucursal (`branch_id` está en todo). Lo que falta es la
 
 # 13. Cosas que NO son informes, pero están pendientes
 
-### 13.1 El domicilio "pendiente de pago" que no existe 🟠
-13 pedidos aparecen como pagados a medias. En **los 13** lo que falta es
-exactamente el valor del domicilio: el cliente pagó la comida y el domicilio se
-pagó aparte. No es deuda.
+### 13.1 El domicilio "pendiente de pago" ✅ CORREGIDO (commit `a8306ef`)
+13 pedidos aparecían pagados a medias y en **los 13** lo que faltaba era
+exactamente el valor del domicilio. Regla nueva en `pos-core.js`:
+`posCobrable(o) = total − delivery_fee` y `posEstaPagado(o)` compara contra eso.
+Aplicada en Ventas, Domicilios, Historial y Caja.
 
-**Qué corregir:** un domicilio debe considerarse pagado cuando
-`paid_amount >= total − delivery_fee`, o bien el domicilio debe registrarse
-también como pago. Hoy queda como una deuda fantasma.
+**Queda 1 deuda real**, antigua: 14-jun, salón, faltan $2.700 de $29.700, método
+'multiple' con 0 pagos registrados — anterior a que el registro de pagos
+funcionara. No es plata que deban hoy.
 
 ### 13.2 Propinas desactivadas — NO es un bug ✅
 **0 de 91 ventas pagadas tienen propina**, pero no hay nada que arreglar:
@@ -281,10 +283,12 @@ el módulo de anuncios no existe todavía.
 
 # Orden sugerido
 
-1. **Créditos** (§1) — es el que Sergio ya definió y ordena las cuentas por cobrar.
-2. **Impuestos** (§2) — sin esto no se le vende a un restaurante formal.
-3. **Merma** (§5) — barato de hacer y mejora el paloteo, que es el informe que más plata recupera.
-4. **Cuadre de stock** (§6) — cierra el ciclo de inventario.
+~~1. Créditos (§1)~~ ✅ · ~~2. Impuestos (§2)~~ ✅ · ~~3. Merma (§5)~~ ✅
+
+Lo que sigue:
+1. **Cuadre de stock** (§6) — cierra el ciclo de inventario.
+2. **Vencimientos y lotes** (§7) — evita botar plata.
+3. **Notas de crédito** (§4) — va junto con DIAN.
 5. **DIAN + notas de crédito** (§3, §4) — juntas, y **no hay que esperar cliente**:
    con el proveedor por uso, tenerla lista no cuesta nada y desbloquea vender a
    restaurantes formales.
