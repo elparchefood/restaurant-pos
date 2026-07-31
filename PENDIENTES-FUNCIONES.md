@@ -158,17 +158,29 @@ Contar lo que hay de verdad y compararlo contra lo que el sistema cree.
 
 ---
 
-# 7. Vencimientos y lotes 🟠
+# 7. Vencimientos y lotes — ❌ DESCARTADO (2026-07-31)
 
-`iv_insumos` **no tiene ninguna columna de fecha de vencimiento ni de lote.**
+**Decisión de Sergio, tras analizar sus datos reales.** No se va a construir.
 
-**Qué hay que construir**
-- Tabla `iv_lotes`: insumo, cantidad, fecha de vencimiento, proveedor, costo.
-- Capturar el vencimiento al surtir y al cargar una factura.
-- Alertas: crítico ≤7 días, pronto ≤30 días.
-- Decidir si se consume por FIFO (lo que vence primero sale primero).
+**Por qué no aplica a El Parche:** sus insumos son papa, carne desmechada,
+salchicha, maicitos, tocineta — cosas de **rotación rápida**, que se compran y
+se gastan en días. No hay un problema de vencimientos que resolver.
 
-**Desbloquea:** `inv-vencer`
+Los lotes sirven a una charcutería con quesos madurados, un bar con licores o un
+supermercado. Aquí sería llevar una contabilidad de fechas que nadie va a usar, y
+encima complica el descuento de inventario: en vez de restar de un número habría
+que ir restando lote por lote.
+
+**Qué implicaría si algún día se retoma** (para no volver a analizarlo desde cero):
+- Tabla `iv_lotes`: insumo, cantidad, vencimiento, proveedor, costo.
+- Capturar el vencimiento al surtir y al cargar una factura por WhatsApp.
+- Consumo FIFO: el descuento deja de tocar un número y pasa a recorrer lotes.
+- Alertas: crítico ≤7 días, pronto ≤30 días, avisando por WhatsApp.
+
+**Cuándo reconsiderarlo:** solo si un cliente con producto de larga vida lo pide.
+
+**Informe `inv-vencer`:** queda en el catálogo mostrando "Aún sin conectar".
+Es correcto — el dato no existe porque la función no se hizo a propósito.
 
 ---
 
@@ -286,9 +298,8 @@ el módulo de anuncios no existe todavía.
 ~~1. Créditos (§1)~~ ✅ · ~~2. Impuestos (§2)~~ ✅ · ~~3. Merma (§5)~~ ✅
 
 Lo que sigue:
-1. **Cuadre de stock** (§6) — cierra el ciclo de inventario.
-2. **Vencimientos y lotes** (§7) — evita botar plata.
-3. **Notas de crédito** (§4) — va junto con DIAN.
+1. **Cuadre de stock** (§6) — motor y registro de ajustes HECHOS (commit `7415fe8`); falta la pantalla de conteo.
+2. **Notas de crédito** (§4) — va junto con DIAN.
 5. **DIAN + notas de crédito** (§3, §4) — juntas, y **no hay que esperar cliente**:
    con el proveedor por uso, tenerla lista no cuesta nada y desbloquea vender a
    restaurantes formales.
