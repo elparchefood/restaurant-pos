@@ -4134,7 +4134,7 @@ function wcStats(){
     ['Nunca han escrito', n(function(x){ return !x.ya_escribio; }),     '#5B6BFF'],
     ['Guardados',        n(function(x){ return x.guardado; }),          '#0F172A'],
     ['Con pedidos',      n(function(x){ return (+x.n_pedidos||0) > 0; }),'#16A34A'],
-    ['No contactar',     n(function(x){ return x.no_atender || x.en_lista_negra; }), '#DC2626'],
+    ['Sin envíos',       n(function(x){ return x.no_atender || x.en_lista_negra; }), '#B45309'],
   ];
   c.innerHTML = cards.map(function(k){
     return '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:9px 11px">'
@@ -4191,7 +4191,7 @@ function wcRender(){
     if ((+x.n_pedidos||0)>0) tags.push('<span style="font-size:9.5px;font-weight:700;color:#5B6BFF;background:#EEF0FF;padding:2px 6px;border-radius:999px">'+x.n_pedidos+' pedido'+((+x.n_pedidos)>1?'s':'')+'</span>');
     if (x.guardado)      tags.push('<span style="font-size:9.5px;font-weight:700;color:#64748B;background:#F1F5F9;padding:2px 6px;border-radius:999px">Guardado</span>');
     if (x.en_lista_negra) tags.push('<span style="font-size:9.5px;font-weight:700;color:#DC2626;background:#FEE2E2;padding:2px 6px;border-radius:999px">Lista negra</span>');
-    if (x.no_atender)    tags.push('<span style="font-size:9.5px;font-weight:700;color:#DC2626;background:#FEE2E2;padding:2px 6px;border-radius:999px">No atender</span>');
+    if (x.no_atender)    tags.push('<span style="font-size:9.5px;font-weight:700;color:#B45309;background:#FEF3C7;padding:2px 6px;border-radius:999px" title="El cliente pidió no recibir envíos. Se atiende normal.">Sin envíos</span>');
     return '<div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border-bottom:1px solid #F1F5F9'
       + (WC.sel[x.id] ? ';background:#F5F3FF' : '') + '">'
       + '<input type="checkbox" style="width:15px;height:15px;flex:none;cursor:pointer"'
@@ -4202,7 +4202,7 @@ function wcRender(){
       + '</div>'
       + '<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:52%">'+tags.join('')+'</div>'
       + '<button type="button" class="cfg-qr-btn ghost" style="padding:4px 8px;font-size:10.5px;flex:none" onclick="wcNoAtender(\''+x.id+'\','+(x.no_atender?'false':'true')+')">'
-      +   (x.no_atender ? 'Permitir' : 'No contactar')
+      +   (x.no_atender ? 'Permitir envíos' : 'No enviarle')
       + '</button>'
     + '</div>';
   }).join('');
@@ -4239,7 +4239,7 @@ async function wcBorrarSeleccionados(){
   var ids = Object.keys(WC.sel);
   if (!ids.length) return;
   var msg = 'Vas a ELIMINAR ' + ids.length + ' contacto' + (ids.length===1?'':'s') + ' de forma permanente.\n\n'
-          + 'Esto no se puede deshacer. Si solo quieres dejar de escribirles, usa “No contactar” en vez de borrar.\n\n¿Continuar?';
+          + 'Esto no se puede deshacer. Si solo quieres dejar de mandarles publicidad, usa “No enviarle” en vez de borrar.\n\n¿Continuar?';
   if (!confirm(msg)) return;
   var msgEl = document.getElementById('wcMsg');
   var setMsg = function(t, ok){ if (msgEl){ msgEl.style.color = ok ? '#16A34A' : '#DC2626'; msgEl.textContent = t; } };
