@@ -1678,6 +1678,11 @@ async function openCrearPedido(draftOverride){
       cpFooter(false); return;
     }
     S.cpOrder = draftOverride || data.order;   // al EDITAR se usa el borrador guardado; el catálogo viene igual del análisis
+    // Se guarda el precio que puso el SISTEMA para poder comparar después: si el
+    // operador lo cambia, es que la tarifa de ese barrio ya no es esa.
+    if (S.cpOrder && S.cpOrder.domi_precio_auto === undefined) {
+      S.cpOrder.domi_precio_auto = Number(S.cpOrder.domi_precio) || 0;
+    }
     S.cpCatalogo=data.catalogo||[];
     S.cpCategorias=data.categorias||[];
     S.cpMods=data.mods||[];
@@ -1776,19 +1781,29 @@ async function aprenderBarrio(o){
     if(!o || o.tipo!=='domicilio') return;
     const precio = Number(o.domi_precio)||0;
     if(precio<=0) return;
-    if(o.domi_barrio) return;                 // ya estaba en la tabla → nada que aprender
-    const barrio = String(o.barrio||'').trim();
-    if(!barrio || barrio.length<3) return;    // sin barrio no hay nada que guardar
+    const auto = Number(o.domi_precio_auto)||0;
+    let barrio, tipo, precioTabla = null;
+    if(o.domi_barrio){
+      // El barrio SÍ estaba en la tabla. Solo interesa si se cobró distinto:
+      // eso significa que la tarifa de esa zona cambió.
+      if(precio === auto) return;
+      barrio = String(o.domi_barrio); tipo = 'cambio'; precioTabla = auto;
+    } else {
+      // Barrio que la tabla no conoce.
+      barrio = String(o.barrio||'').trim(); tipo = 'nuevo';
+      if(!barrio || barrio.length<3) return;
+    }
     const prev = await sb.from('pos_domi_aprendidos').select('id,veces')
       .eq('branch_id', o.branch_id).ilike('barrio', barrio).maybeSingle();
     if(prev.data && prev.data.id){
       await sb.from('pos_domi_aprendidos')
-        .update({ precio, veces:(Number(prev.data.veces)||1)+1, updated_at:new Date().toISOString() })
+        .update({ precio, tipo, precio_tabla:precioTabla, veces:(Number(prev.data.veces)||1)+1, updated_at:new Date().toISOString() })
         .eq('id', prev.data.id);
     } else {
       await sb.from('pos_domi_aprendidos').insert([{
         tenant_id:o.tenant_id||null, branch_id:o.branch_id,
-        barrio, precio, direccion:String(o.direccion||'').slice(0,200),
+        barrio, precio, tipo, precio_tabla:precioTabla,
+        direccion:String(o.direccion||'').slice(0,200),
       }]);
     }
   }catch(e){ console.warn('aprenderBarrio:', e && e.message); }

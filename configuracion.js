@@ -3563,19 +3563,33 @@ var _storedZonas = [];
     catch (e) { host.innerHTML = ''; return; }
     var items = (r && r.data) || [];
     if (!items.length) { host.innerHTML = ''; return; }
-    host.innerHTML =
-      '<div class="domi-apr">' +
-        '<div class="domi-apr-hd">⚠ ' + items.length + ' barrio' + (items.length === 1 ? '' : 's') +
-        ' que cobraste a mano y no está' + (items.length === 1 ? '' : 'n') + ' en tu tabla</div>' +
-        items.map(function (x, i) {
-          return '<div class="domi-apr-row">' +
-            '<span class="domi-apr-nm">' + cfgQrEsc(x.barrio) + '</span>' +
-            '<span class="domi-apr-pr">$' + (Number(x.precio) || 0).toLocaleString('es-CO') + '</span>' +
-            '<span class="domi-apr-n">' + (x.veces > 1 ? x.veces + ' veces' : '') + '</span>' +
-            '<button type="button" class="cfg-qr-btn primary domi-apr-add" data-i="' + i + '">Agregar a la tabla</button>' +
-            '<button type="button" class="cfg-qr-btn ghost domi-apr-del" data-i="' + i + '">Descartar</button>' +
-          '</div>';
-        }).join('') +
+    var nuevos  = items.filter(function (x) { return x.tipo !== 'cambio'; });
+    var cambios = items.filter(function (x) { return x.tipo === 'cambio'; });
+    var fila = function (x) {
+      var i = items.indexOf(x);
+      var esCambio = x.tipo === 'cambio';
+      var precio = (Number(x.precio) || 0).toLocaleString('es-CO');
+      var antes  = (Number(x.precio_tabla) || 0).toLocaleString('es-CO');
+      return '<div class="domi-apr-row">' +
+        '<span class="domi-apr-nm">' + cfgQrEsc(x.barrio) + '</span>' +
+        '<span class="domi-apr-pr">' + (esCambio ? '<s>$' + antes + '</s> → ' : '') + '$' + precio + '</span>' +
+        '<span class="domi-apr-n">' + (x.veces > 1 ? x.veces + ' veces' : '') + '</span>' +
+        '<button type="button" class="cfg-qr-btn primary domi-apr-add" data-i="' + i + '">' +
+          (esCambio ? 'Actualizar precio' : 'Agregar a la tabla') + '</button>' +
+        '<button type="button" class="cfg-qr-btn ghost domi-apr-del" data-i="' + i + '">Descartar</button>' +
+      '</div>';
+    };
+    host.innerHTML = '<div class="domi-apr">' +
+      (nuevos.length
+        ? '<div class="domi-apr-hd">⚠ ' + nuevos.length + ' barrio' + (nuevos.length === 1 ? '' : 's') +
+          ' que cobraste a mano y no está' + (nuevos.length === 1 ? '' : 'n') + ' en tu tabla</div>' +
+          nuevos.map(fila).join('')
+        : '') +
+      (cambios.length
+        ? '<div class="domi-apr-hd" style="margin-top:' + (nuevos.length ? '12px' : '0') + '">💲 ' + cambios.length +
+          ' barrio' + (cambios.length === 1 ? '' : 's') + ' que cobraste a un precio distinto al de la tabla</div>' +
+          cambios.map(fila).join('')
+        : '') +
       '</div>';
     host.querySelectorAll('.domi-apr-add').forEach(function (b) {
       b.addEventListener('click', function () { agregarAprendido(items[+b.dataset.i]); });
@@ -3588,6 +3602,19 @@ var _storedZonas = [];
   function agregarAprendido(x) {
     var precio = Number(x.precio) || 0;
     var puesto = false;
+    // Si es un CAMBIO de precio, primero se saca el barrio de su zona anterior
+    // (si no, quedaría repetido en dos zonas con precios distintos).
+    if (x.tipo === 'cambio') {
+      document.querySelectorAll('.zone-row').forEach(function (r) {
+        var ta = r.querySelector('.zone-barrios');
+        var lineas = ta.value.split(String.fromCharCode(10)).map(function (t) { return t.trim(); }).filter(Boolean);
+        var quedan = lineas.filter(function (t) { return t.toLowerCase() !== String(x.barrio).toLowerCase(); });
+        if (quedan.length !== lineas.length) {
+          ta.value = quedan.join(String.fromCharCode(10));
+          ta.dispatchEvent(new Event('input'));
+        }
+      });
+    }
     document.querySelectorAll('.zone-row').forEach(function (r) {
       if (puesto) return;
       var pr = parseInt(r.querySelector('.zone-precio').value) || 0;
@@ -3604,7 +3631,7 @@ var _storedZonas = [];
     });
     if (!puesto) { addZoneRow(precio, [String(x.barrio)]); markDirty(); }
     descartarAprendido(x, true);
-    showToast('Barrio agregado a la zona de $' + precio.toLocaleString('es-CO') + '. Dale Guardar cambios para que quede.');
+    showToast((x.tipo === 'cambio' ? 'Precio actualizado a $' : 'Barrio agregado a la zona de $') + precio.toLocaleString('es-CO') + '. Dale Guardar cambios para que quede.');
   }
   async function descartarAprendido(x, silencioso) {
     try { await sb.from('pos_domi_aprendidos').delete().eq('id', x.id); } catch (e) {}
