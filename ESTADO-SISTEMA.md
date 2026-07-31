@@ -1022,6 +1022,42 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
+## PENDIENTE — [Chat IA] Respuestas rápidas EDITABLES y CON VARIABLES — Sergio 2026-07-31
+
+**Lo que pidió:** poder **crear y editar** respuestas rápidas que se rellenen solas
+con datos del cliente y del sistema, igual que las dos que ya existen hoy:
+
+- La que **calcula el total** del pedido que el cliente tiene en ese momento.
+- La que **calcula los puntos** de ese pedido y se los da.
+
+Hoy esas dos están **escritas a mano en el código**: no se pueden editar ni se
+pueden crear otras parecidas. Eso es lo que hay que abrir.
+
+**Variables que debería poder usar** (lo que se pueda sacar del cliente y del sistema):
+- Del cliente: nombre exacto, teléfono, dirección exacta, barrio, puntos, nivel, último pedido
+- Del pedido en curso: total, subtotal, domicilio, productos, tiempo estimado
+- Del negocio: horario, dirección del local, métodos de pago
+
+**Qué hay que construir**
+1. Editor de respuestas rápidas en Configuración → Asistente IA (la pestaña
+   "Respuestas" ya existe): crear, editar, borrar, ordenar.
+2. Un **insertador de variables** en el editor (lista de las disponibles, se
+   clickean y se meten en el texto). Ya existe algo así para las plantillas de
+   Meta — revisar si se puede reusar (`varList`, `cfgQr*`).
+3. Un **motor de resolución**: al enviar, reemplaza cada variable por su valor
+   real leyendo del cliente, del pedido abierto de esa conversación y de la
+   configuración. Debe manejar el caso "no hay dato" sin dejar un `{{x}}` crudo
+   en el mensaje al cliente.
+4. **Migrar las dos que ya existen** (total y puntos) a este sistema, para que
+   Sergio las pueda editar como cualquier otra.
+5. Vista previa con datos de ejemplo antes de guardar.
+
+**Ojo:** las respuestas con cálculo (total, puntos) no son solo texto — necesitan
+leer el pedido en curso. El motor tiene que soportar variables *calculadas*, no
+solo campos sueltos.
+
+---
+
 ## PENDIENTE — [Chat IA] Multi-línea de WhatsApp (varias líneas, flujo por línea) + precios por plan — Sergio 2026-07-24
 
 **HECHO ya (2026-07-24, commit 67d49d0):** Instagram/Facebook/TikTok marcados como "Próximamente" en el Chat IA (Meta aún no aprobó permisos); al tocarlos avisa en vez de abrir el flujo de conexión roto. WhatsApp sigue activo. (`chat-ia.js`: `SOON_CHANNELS`.)
