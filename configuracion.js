@@ -4089,7 +4089,13 @@ function wcTel(t){
   return String(t||'');
 }
 async function wcCargar(){
-  var bid = await wcBranch(); if (!bid) return;
+  var _l = document.getElementById('wcLista');
+  if (_l && !WC.items.length) _l.innerHTML = '<div style="padding:16px;font-size:12.5px;color:#94A3B8;text-align:center">Cargando contactos…</div>';
+  var bid = await wcBranch();
+  if (!bid){
+    if (_l) _l.innerHTML = '<div style="padding:16px;font-size:12.5px;color:#DC2626">No se pudo identificar la sede. Cierra sesión y vuelve a entrar.</div>';
+    return;
+  }
   try {
     // La API corta en 1.000 filas por respuesta, así que se pide por páginas
     // hasta traerlos todos (si no, con 1.421 contactos se perdían 421).
@@ -4289,6 +4295,11 @@ async function wcBorrarLista(id){
   function hook(){
     var btn = document.querySelector('.cia-tab[data-tab="contactos"]');
     if (btn) btn.addEventListener('click', function(){ if (!WC.items.length) wcCargar(); });
+    // La pestaña se restaura sola si era la última abierta, SIN que nadie haga
+    // clic. Sin esto, al recargar la página quedaba vacía.
+    var abierta = '';
+    try { abierta = localStorage.getItem('cia-tab') || ''; } catch(e){}
+    if (abierta === 'contactos') wcCargar();
   }
   if (document.readyState !== 'loading') hook();
   else document.addEventListener('DOMContentLoaded', hook);
@@ -4452,6 +4463,11 @@ async function wtpBorrar(nombre){
   function hook(){
     var btn = document.querySelector('.cia-tab[data-tab="plantillas"]');
     if (btn) btn.addEventListener('click', function(){ wtpCargar(); wtpPreview(); });
+    // Igual que en Contactos: si la pestaña se restaura sola al recargar, no
+    // hay clic que dispare la carga.
+    var abierta = '';
+    try { abierta = localStorage.getItem('cia-tab') || ''; } catch(e){}
+    if (abierta === 'plantillas') { wtpCargar(); wtpPreview(); }
   }
   if (document.readyState !== 'loading') hook();
   else document.addEventListener('DOMContentLoaded', hook);
