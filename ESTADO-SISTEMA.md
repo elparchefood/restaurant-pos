@@ -1137,6 +1137,42 @@ semanas, para tener la tasa real en vez de adivinarla.
 
 ---
 
+## PENDIENTE — [Caja] Abrir caja: contar billete por billete (opcional) — Sergio 2026-07-31
+
+**Lo que pidió:** que al abrir la caja se pueda elegir entre **escribir el monto
+libremente** (como hoy) o **contar por denominaciones**, *"por si al cajero le
+queda más fácil contar los billetes uno por uno"*.
+
+### Estado hoy (verificado)
+- El modal `#panel-abrir` (`caja.html:273`) solo tiene un campo de monto y
+  botones rápidos ($100.000 / $200.000 / $300.000 / $500.000).
+- **El conteo por denominaciones YA EXISTE, pero solo para el CIERRE**:
+  `arqueo_denoms` / `arqueo_contado` / `arqueo_diff` en `pos_sessions`, con su
+  planilla de paloteo e impresión (`caja.js:1114`, `1209`, `1248`).
+- O sea: **la mitad del trabajo ya está hecha**, solo hay que reusar ese
+  componente en la apertura.
+
+### Qué hay que hacer
+1. En el modal de abrir, un selector arriba: **"Escribir el monto"** (por
+   defecto, como hoy) / **"Contar billetes"**.
+2. Al elegir contar: mostrar la misma grilla de denominaciones del cierre. El
+   total se calcula solo y llena `opening_cash`.
+3. Guardar el detalle en una columna nueva `pos_sessions.apertura_denoms` (jsonb),
+   igual que `arqueo_denoms`. Sirve para reimprimir la planilla de apertura y
+   para auditar de qué se compuso la base.
+4. Poder **imprimir la planilla de apertura**, igual que se imprime la de cierre.
+
+### Ojo al hacerlo
+- **No cambiar el flujo actual.** Escribir el monto a mano debe seguir siendo lo
+  predeterminado: es más rápido y es lo que se usa a diario. Contar billetes es
+  la opción, no la obligación.
+- El componente de denominaciones distingue **billete vs moneda** para el
+  $1.000 (existe en ambos). Al reusarlo hay que conservar esa distinción.
+- Se conecta con el **cierre ciego** (pendiente aparte): si el cajero cuenta al
+  abrir y al cerrar, el descuadre queda bien sustentado de punta a punta.
+
+---
+
 ## PENDIENTE — [Contabilidad] GASTOS y GANANCIA NETA REAL — Sergio 2026-07-31
 
 **Lo que pidió:** que el dueño sepa **cuánto está ganando de verdad**, mes a mes.
