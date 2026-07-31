@@ -1602,7 +1602,9 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 }
 .ci-dw-nivtop { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .ci-dw-nivnm { font-size: 13px; font-weight: 800; letter-spacing: -.01em; }
-.ci-dw-nivpc { font-size: 10.5px; color: #787C8B; }
+.ci-dw-nivxp { font-size: 11px; font-weight: 700; color: #A6A9B6; font-variant-numeric: tabular-nums; }
+.ci-dw-nivpc { font-size: 10.5px; color: #787C8B; margin-top: 7px; }
+.ci-dw-nivpc b { color: #A6A9B6; font-weight: 700; }
 .ci-dw-nivbar { height: 6px; background: rgba(255,255,255,.06); border-radius: 999px; overflow: hidden; }
 .ci-dw-nivbar i { display: block; height: 100%; border-radius: 999px; transition: width .35s ease; }
 

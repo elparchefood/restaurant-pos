@@ -490,16 +490,20 @@ async function pintarFichaCliente(conv){
       + '</div>';
     // Nivel + barra de avance hacia el siguiente
     if (niv && niv.nivel) {
-      const unidad = niv.criterio === 'gastado' ? '' : (niv.criterio === 'pedidos' ? ' pedidos' : ' pts');
-      const faltaTxt = niv.criterio === 'gastado' ? ciMoneda(niv.falta) : (niv.falta + unidad);
+      // La barra muestra EXPERIENCIA, nunca el dinero: el cliente ve XP subir,
+      // no cuánto lleva gastado (eso solo lo ve el negocio, arriba).
+      const uni = niv.criterio === 'pedidos' ? ' pedidos' : ' XP';
+      const val = Math.round(Number(niv.valor)||0).toLocaleString('es-CO');
+      const fal = Math.round(Number(niv.falta)||0).toLocaleString('es-CO');
       h += '<div class="ci-dw-niv">'
         + '<div class="ci-dw-nivtop">'
         +   '<span class="ci-dw-nivnm" style="color:'+escHtml(niv.color||'#7C5CFF')+'">'+escHtml(niv.nivel)+'</span>'
-        +   '<span class="ci-dw-nivpc">'
-        +     (niv.siguiente ? escHtml(faltaTxt)+' para '+escHtml(niv.siguiente) : 'Nivel máximo')
-        +   '</span>'
+        +   '<span class="ci-dw-nivxp">'+val+uni+'</span>'
         + '</div>'
         + '<div class="ci-dw-nivbar"><i style="width:'+(niv.progreso||0)+'%;background:'+escHtml(niv.color||'#7C5CFF')+'"></i></div>'
+        + '<div class="ci-dw-nivpc">'
+        +   (niv.siguiente ? 'Faltan '+fal+uni+' para <b>'+escHtml(niv.siguiente)+'</b>' : 'Nivel máximo alcanzado')
+        + '</div>'
         + '</div>';
     }
     h += '<div class="ci-dw-rows">';
