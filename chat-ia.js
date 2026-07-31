@@ -3161,7 +3161,7 @@ async function marcarPagadoModal(prefill){
   let ord=null;
   try{
     const { data:cd }=await sb.from('chat_conversations').select('order_id').eq('id',conv.id).maybeSingle();
-    if(cd && cd.order_id){ const r=await sb.from('pos_orders').select('id,total,total_final,delivery_fee,paid_amount,branch_id,tenant_id').eq('id',cd.order_id).maybeSingle(); ord=r.data; }
+    if(cd && cd.order_id){ const r=await sb.from('pos_orders').select('id,total,total_final,delivery_fee,packaging_fee,paid_amount,branch_id,tenant_id,channel,status').eq('id',cd.order_id).maybeSingle(); ord=r.data; }
   }catch(e){}
   if(!ord){ showToast('Este chat no tiene un pedido enviado a cocina. Envíalo primero (🍳 Enviar a cocina).','info'); return; }
   let metodos=[];
@@ -3190,11 +3190,15 @@ async function marcarPagadoModal(prefill){
       +'<input class="mp-inp" id="mpMonto" type="number" inputmode="numeric" value="'+monto+'"'+(sel==='otro'?'':' style="display:none"')+'>'
       +'<div class="mp-lbl">¿Dónde pagó?</div>'
       +'<div class="mp-chips">'+metodos.map(m=>'<button type="button" class="mp-chip mp-met'+(m.nombre===metodoSel?' on':'')+'" data-met="'+escHtml(m.nombre)+'">'+escHtml(m.nombre)+'</button>').join('')+'</div>'
-      +'<div class="mp-btns"><button class="mp-cancel" type="button">Cancelar</button><button class="mp-save" type="button">Marcar pagado</button></div>'
+      +(monto>0 && monto+pagado<total
+          ? '<div class="mp-falta">⚠ Con este monto quedan <b>'+fmt(total-pagado-monto)+'</b> sin pagar, así que el pedido <b>seguirá apareciendo sin pagar</b> en Ventas.</div>'
+          : '')
+      +'<div class="mp-btns"><button class="mp-cancel" type="button">Cancelar</button><button class="mp-save" type="button">'+(monto+pagado>=total?'Marcar pagado':'Guardar abono')+'</button></div>'
       +'</div>';
     ov.querySelectorAll('.mp-chip[data-amt]').forEach(b=>b.onclick=()=>{ monto=Number(b.dataset.amt); draw(); });
     const otroBtn=ov.querySelector('.mp-otro'); if(otroBtn) otroBtn.onclick=()=>{ monto = (preset(monto)==='otro'?monto:0); draw(); const i=ov.querySelector('#mpMonto'); if(i){ i.style.display=''; i.focus(); } };
-    const inp=ov.querySelector('#mpMonto'); if(inp) inp.oninput=()=>{ monto=Number(inp.value)||0; };
+    const inp=ov.querySelector('#mpMonto');
+    if(inp){ inp.oninput=()=>{ monto=Number(inp.value)||0; }; inp.onblur=()=>{ draw(); const i=ov.querySelector('#mpMonto'); if(i) i.focus(); }; }
     ov.querySelectorAll('.mp-met').forEach(b=>b.onclick=()=>{ metodoSel=b.dataset.met; ov.querySelectorAll('.mp-met').forEach(x=>x.classList.remove('on')); b.classList.add('on'); });
     ov.querySelector('.mp-cancel').onclick=close;
     ov.querySelector('.mp-save').onclick=guardar;
@@ -3206,14 +3210,36 @@ async function marcarPagadoModal(prefill){
     if(!(monto>0)){ showToast('Pon un monto válido','error'); return; }
     const btn=ov.querySelector('.mp-save'); btn.disabled=true; btn.textContent='Guardando…';
     try{
-      const { error:e1 }=await sb.from('pos_payments').insert([{ order_id:ord.id, branch_id:ord.branch_id, tenant_id:ord.tenant_id, method:metodoSel, amount:monto, received:monto, vuelto:0 }]);
+      const { data:pagoIns, error:e1 }=await sb.from('pos_payments')
+        .insert([{ order_id:ord.id, branch_id:ord.branch_id, tenant_id:ord.tenant_id, method:metodoSel, amount:monto, received:monto, vuelto:0 }])
+        .select('id');
       if(e1) throw e1;
+      // Un insert que no devuelve fila = lo bloqueó un permiso. Antes esto
+      // pasaba callado y el pedido quedaba sin pagar sin avisar a nadie.
+      if(!pagoIns || !pagoIns.length) throw new Error('el pago no quedó guardado (permisos)');
+
       const nuevo=pagado+monto;
       const upd={ paid_amount:nuevo };
-      if(nuevo>=total){ upd.status='paid'; upd.payment_method=metodoSel; }
-      const { error:e2 }=await sb.from('pos_orders').update(upd).eq('id',ord.id);
+      if(nuevo>=total){
+        // Cerrar el pedido EXACTAMENTE como lo hace la pantalla de pagos. Antes
+        // solo se ponía status y paid_amount: sin closed_at el pedido quedaba a
+        // medio cerrar y Ventas/caja no lo veían igual que uno cobrado ahí.
+        upd.status='paid';
+        upd.payment_method=metodoSel;
+        upd.closed_at=new Date().toISOString();
+        // "Las ventas son las ventas": total_final es SOLO comida+empaque, el
+        // domicilio va aparte en delivery_fee y nunca suma a la venta.
+        upd.total_final=Math.max(0, total-domi);
+        if(String(ord.channel||'')==='domicilio') upd.delivery_status='entregado';
+      }
+      const { data:updRows, error:e2 }=await sb.from('pos_orders').update(upd).eq('id',ord.id).select('id,status,paid_amount');
       if(e2) throw e2;
-      showToast(nuevo>=total ? ('✅ Pedido marcado como pagado ('+escHtml(metodoSel)+')') : ('💳 Abono de '+fmt(monto)+' · faltan '+fmt(total-nuevo)),'success');
+      // Un update filtrado por RLS NO da error: simplemente no cambia nada. Hay
+      // que comprobar que de verdad quedó escrito, o se repite lo de siempre:
+      // el chat dice "pagado" y Ventas lo sigue mostrando sin pagar.
+      if(!updRows || !updRows.length) throw new Error('el pedido no se actualizó (permisos)');
+
+      showToast(nuevo>=total ? ('✅ Pedido marcado como pagado ('+escHtml(metodoSel)+')') : ('💳 Abono de '+fmt(monto)+' · faltan '+fmt(total-nuevo)+' — el pedido sigue SIN pagar en Ventas'),'success');
       close();
     }catch(e){ btn.disabled=false; btn.textContent='Marcar pagado'; showToast('No se pudo registrar: '+(e&&e.message||e),'error'); }
   }
