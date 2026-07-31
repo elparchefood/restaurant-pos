@@ -4069,6 +4069,220 @@ async function cfgQrPersist(){
 
 
 /* ══════════════════════════════════════════════════════════════════════════
+   CONTACTOS DE WHATSAPP + LISTAS DE ENVÍO
+   Los contactos viven en pos_wa_contactos; la vista v_wa_contactos ya trae
+   calculado si el contacto escribió a Cobra, si tiene pedidos y si está en
+   lista negra. Las listas guardan los FILTROS (no los contactos), así se
+   recalculan solas.
+   ══════════════════════════════════════════════════════════════════════════ */
+var WC = { items: [], filtro: 'todos', tope: 60, listas: [], branchId: '' };
+
+async function wcBranch(){
+  if (WC.branchId) return WC.branchId;
+  WC.branchId = await cfgQrGetBranch();
+  return WC.branchId;
+}
+function wcEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function wcTel(t){
+  var d = String(t||'').replace(/\D/g,'');
+  if (d.length >= 10){ d = d.slice(-10); return d.slice(0,3)+' '+d.slice(3,6)+' '+d.slice(6); }
+  return String(t||'');
+}
+async function wcCargar(){
+  var bid = await wcBranch(); if (!bid) return;
+  try {
+    var r = await sb.from('v_wa_contactos').select('*').eq('branch_id', bid).limit(5000);
+    if (r.error) throw r.error;
+    WC.items = r.data || [];
+  } catch(e){
+    console.error('wcCargar:', e);
+    var l = document.getElementById('wcLista');
+    if (l) l.innerHTML = '<div style="padding:16px;font-size:12.5px;color:#DC2626">No se pudieron cargar los contactos: '+wcEsc(e.message||e)+'</div>';
+    return;
+  }
+  try {
+    var rl = await sb.from('pos_wa_listas').select('*').eq('branch_id', bid).order('created_at',{ascending:false});
+    WC.listas = rl.data || [];
+  } catch(e){ WC.listas = []; }
+  wcStats(); wcRender(); wcRenderListas();
+}
+function wcStats(){
+  var c = document.getElementById('wcStats'); if (!c) return;
+  var it = WC.items;
+  var n = function(f){ return it.filter(f).length; };
+  var cards = [
+    ['Total',            it.length,                                    '#0F172A'],
+    ['Nunca han escrito', n(function(x){ return !x.ya_escribio; }),     '#5B6BFF'],
+    ['Guardados',        n(function(x){ return x.guardado; }),          '#0F172A'],
+    ['Con pedidos',      n(function(x){ return (+x.n_pedidos||0) > 0; }),'#16A34A'],
+    ['No contactar',     n(function(x){ return x.no_atender || x.en_lista_negra; }), '#DC2626'],
+  ];
+  c.innerHTML = cards.map(function(k){
+    return '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:9px 11px">'
+      + '<div style="font-size:18px;font-weight:800;color:'+k[2]+';font-variant-numeric:tabular-nums">'+k[1]+'</div>'
+      + '<div style="font-size:10.5px;color:#94A3B8;margin-top:1px">'+k[0]+'</div></div>';
+  }).join('');
+}
+function wcFiltro(f){
+  WC.filtro = f; WC.tope = 60;
+  document.querySelectorAll('#wcFiltros .wc-chip').forEach(function(b){ b.classList.toggle('on', b.dataset.f === f); });
+  wcRender();
+}
+// Contactos que pasan los filtros actuales.
+function wcFiltrados(){
+  var q = (document.getElementById('wcBuscar')||{}).value || '';
+  q = q.toLowerCase().trim();
+  var soloEnv = (document.getElementById('wcSoloEnviables')||{}).checked;
+  return WC.items.filter(function(x){
+    if (soloEnv && (x.no_atender || x.en_lista_negra)) return false;
+    if (WC.filtro === 'no_escribio' && x.ya_escribio) return false;
+    if (WC.filtro === 'escribio'    && !x.ya_escribio) return false;
+    if (WC.filtro === 'guardado'    && !x.guardado) return false;
+    if (WC.filtro === 'pedidos'     && !((+x.n_pedidos||0) > 0)) return false;
+    if (WC.filtro === 'sin_nombre'  && x.tiene_nombre) return false;
+    if (q){
+      var et = String(x.etiqueta||'').toLowerCase();
+      var te = String(x.telefono||'').replace(/\D/g,'');
+      if (et.indexOf(q) < 0 && te.indexOf(q.replace(/\D/g,'')) < 0) return false;
+    }
+    return true;
+  });
+}
+function wcRender(){
+  var cont = document.getElementById('wcLista'); if (!cont) return;
+  var res  = document.getElementById('wcResumen');
+  var list = wcFiltrados();
+  if (res) res.textContent = list.length + (list.length===1 ? ' contacto' : ' contactos') + ' con estos filtros';
+  if (!list.length){
+    cont.innerHTML = '<div style="padding:18px;font-size:12.5px;color:#94A3B8;text-align:center">Ningún contacto coincide.</div>';
+    var m0 = document.getElementById('wcMas'); if (m0) m0.style.display = 'none';
+    return;
+  }
+  var pag = list.slice(0, WC.tope);
+  cont.innerHTML = pag.map(function(x){
+    var etq = x.tiene_nombre ? wcEsc(x.etiqueta) : '<span style="color:#94A3B8">Sin nombre</span>';
+    var tags = [];
+    if (x.ya_escribio)   tags.push('<span style="font-size:9.5px;font-weight:700;color:#16A34A;background:#DCFCE7;padding:2px 6px;border-radius:999px">Ya escribió</span>');
+    if ((+x.n_pedidos||0)>0) tags.push('<span style="font-size:9.5px;font-weight:700;color:#5B6BFF;background:#EEF0FF;padding:2px 6px;border-radius:999px">'+x.n_pedidos+' pedido'+((+x.n_pedidos)>1?'s':'')+'</span>');
+    if (x.guardado)      tags.push('<span style="font-size:9.5px;font-weight:700;color:#64748B;background:#F1F5F9;padding:2px 6px;border-radius:999px">Guardado</span>');
+    if (x.en_lista_negra) tags.push('<span style="font-size:9.5px;font-weight:700;color:#DC2626;background:#FEE2E2;padding:2px 6px;border-radius:999px">Lista negra</span>');
+    if (x.no_atender)    tags.push('<span style="font-size:9.5px;font-weight:700;color:#DC2626;background:#FEE2E2;padding:2px 6px;border-radius:999px">No atender</span>');
+    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border-bottom:1px solid #F1F5F9">'
+      + '<div style="flex:1;min-width:0">'
+      +   '<div style="font-size:12.5px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+etq+'</div>'
+      +   '<div style="font-size:11px;color:#94A3B8;font-variant-numeric:tabular-nums">'+wcTel(x.telefono)+'</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:52%">'+tags.join('')+'</div>'
+      + '<button type="button" class="cfg-qr-btn ghost" style="padding:4px 8px;font-size:10.5px;flex:none" onclick="wcNoAtender(\''+x.id+'\','+(x.no_atender?'false':'true')+')">'
+      +   (x.no_atender ? 'Permitir' : 'No contactar')
+      + '</button>'
+    + '</div>';
+  }).join('');
+  var mas = document.getElementById('wcMas');
+  if (mas){
+    if (list.length > WC.tope){ mas.style.display=''; mas.textContent = 'Ver más ('+(list.length - WC.tope)+' restantes)'; }
+    else mas.style.display = 'none';
+  }
+}
+function wcVerMas(){ WC.tope += 100; wcRender(); }
+async function wcNoAtender(id, valor){
+  try {
+    await sb.from('pos_wa_contactos').update({ no_atender: valor }).eq('id', id);
+    var it = WC.items.find(function(x){ return x.id === id; });
+    if (it) it.no_atender = valor;
+    wcStats(); wcRender();
+  } catch(e){ alert('No se pudo actualizar: ' + (e.message||e)); }
+}
+// ── Listas ────────────────────────────────────────────────────────────
+function wcFiltrosActuales(){
+  return {
+    filtro: WC.filtro,
+    buscar: ((document.getElementById('wcBuscar')||{}).value || '').trim(),
+    solo_enviables: !!(document.getElementById('wcSoloEnviables')||{}).checked,
+  };
+}
+var WC_FILTRO_LBL = {
+  todos:'Todos', no_escribio:'Nunca han escrito a Cobra', escribio:'Ya escribieron',
+  guardado:'Guardados en el celular', pedidos:'Con pedidos', sin_nombre:'Sin nombre real',
+};
+// Cuántos contactos tiene HOY una lista guardada (se recalcula al vuelo).
+function wcContarLista(f){
+  var prev = { filtro: WC.filtro, buscar: (document.getElementById('wcBuscar')||{}).value, solo: (document.getElementById('wcSoloEnviables')||{}).checked };
+  WC.filtro = f.filtro || 'todos';
+  if (document.getElementById('wcBuscar')) document.getElementById('wcBuscar').value = f.buscar || '';
+  if (document.getElementById('wcSoloEnviables')) document.getElementById('wcSoloEnviables').checked = f.solo_enviables !== false;
+  var n = wcFiltrados().length;
+  WC.filtro = prev.filtro;
+  if (document.getElementById('wcBuscar')) document.getElementById('wcBuscar').value = prev.buscar;
+  if (document.getElementById('wcSoloEnviables')) document.getElementById('wcSoloEnviables').checked = prev.solo;
+  return n;
+}
+function wcRenderListas(){
+  var c = document.getElementById('wcListas'); if (!c) return;
+  if (!WC.listas.length){
+    c.innerHTML = '<div style="font-size:12px;color:#94A3B8;padding:8px 0">Todavía no tienes listas guardadas.</div>';
+    return;
+  }
+  c.innerHTML = WC.listas.map(function(l){
+    var f = l.filtros || {};
+    var n = wcContarLista(f);
+    var desc = [WC_FILTRO_LBL[f.filtro] || 'Todos'];
+    if (f.buscar) desc.push('busca “'+wcEsc(f.buscar)+'”');
+    if (f.solo_enviables !== false) desc.push('sin lista negra');
+    return '<div style="display:flex;align-items:center;gap:10px;border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px;margin-bottom:8px">'
+      + '<div style="flex:1;min-width:0">'
+      +   '<div style="font-size:12.5px;font-weight:700;color:#0F172A">'+wcEsc(l.nombre)+'</div>'
+      +   '<div style="font-size:11px;color:#94A3B8">'+desc.join(' · ')+'</div>'
+      + '</div>'
+      + '<span style="font-size:13px;font-weight:800;color:#5B6BFF;font-variant-numeric:tabular-nums">'+n+'</span>'
+      + '<button type="button" class="cfg-qr-btn ghost" style="padding:4px 9px;font-size:11px" onclick="wcAplicarLista(\''+l.id+'\')">Ver</button>'
+      + '<button type="button" class="cfg-qr-btn ghost" style="padding:4px 9px;font-size:11px" onclick="wcBorrarLista(\''+l.id+'\')">Eliminar</button>'
+    + '</div>';
+  }).join('');
+}
+function wcAplicarLista(id){
+  var l = WC.listas.find(function(x){ return x.id === id; }); if (!l) return;
+  var f = l.filtros || {};
+  if (document.getElementById('wcBuscar')) document.getElementById('wcBuscar').value = f.buscar || '';
+  if (document.getElementById('wcSoloEnviables')) document.getElementById('wcSoloEnviables').checked = f.solo_enviables !== false;
+  wcFiltro(f.filtro || 'todos');
+}
+async function wcGuardarLista(){
+  var nEl = document.getElementById('wcListaNombre');
+  var msg = document.getElementById('wcMsg');
+  var setMsg = function(t, ok){ if (msg){ msg.style.color = ok ? '#16A34A' : '#DC2626'; msg.textContent = t; } };
+  var nombre = (nEl.value||'').trim();
+  if (!nombre){ setMsg('Ponle un nombre a la lista.', false); nEl.focus(); return; }
+  var bid = await wcBranch(); if (!bid){ setMsg('No se pudo identificar la sede.', false); return; }
+  var filtros = wcFiltrosActuales();
+  try {
+    var r = await sb.from('pos_wa_listas').insert([{ branch_id: bid, nombre: nombre, filtros: filtros }]).select();
+    if (r.error) throw r.error;
+    WC.listas.unshift((r.data||[])[0] || { id:'', nombre:nombre, filtros:filtros });
+    nEl.value = '';
+    setMsg('Lista guardada con ' + wcFiltrados().length + ' contactos.', true);
+    wcRenderListas();
+  } catch(e){ setMsg('No se pudo guardar: ' + (e.message||e), false); }
+}
+async function wcBorrarLista(id){
+  if (!confirm('¿Eliminar esta lista? Los contactos no se borran, solo la lista.')) return;
+  try {
+    await sb.from('pos_wa_listas').delete().eq('id', id);
+    WC.listas = WC.listas.filter(function(x){ return x.id !== id; });
+    wcRenderListas();
+  } catch(e){ alert('No se pudo eliminar: ' + (e.message||e)); }
+}
+(function(){
+  function hook(){
+    var btn = document.querySelector('.cia-tab[data-tab="contactos"]');
+    if (btn) btn.addEventListener('click', function(){ if (!WC.items.length) wcCargar(); });
+  }
+  if (document.readyState !== 'loading') hook();
+  else document.addEventListener('DOMContentLoaded', hook);
+})();
+
+
+/* ══════════════════════════════════════════════════════════════════════════
    PLANTILLAS DE WHATSAPP (Meta)
    Pasadas 24 h desde el último mensaje del cliente, WhatsApp solo permite
    escribirle con una plantilla aprobada por Meta. Aquí se crean y se consulta
