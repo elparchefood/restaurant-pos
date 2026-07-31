@@ -21,7 +21,7 @@ Los 14 restantes esperan alguna de las funciones de abajo.
 
 ---
 
-# 1. Sistema de créditos 🔴
+# 1. Sistema de créditos ✅ HECHO (2026-07-31, commits `d9e7f4d` + `36d90d0`)
 
 **Sergio pidió no usar la palabra "fiado" en ninguna parte** (2026-07-31). Su definición:
 
@@ -40,7 +40,7 @@ el cliente/empleado, no en el pedido.
 - Pantalla de gestión: asignar cupo, ver saldo, registrar abonos.
 - Regla dura: **el cierre de caja sigue exigiendo que todo esté pagado**.
 
-**Desbloquea:** `caj-creditos` (Créditos de clientes y empleados)
+**Desbloquea:** `caj-creditos` — ✅ ya funciona. Ver entradas 64 y 65 de `ESTADO-SISTEMA.md`.
 **Nota:** los 13 pedidos que parecían "a medio pagar" NO eran deuda — ver §13.
 
 ---
