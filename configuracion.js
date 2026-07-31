@@ -3416,7 +3416,18 @@ var _storedZonas = [];
         para_llevar:      $('domiParaLlevar')? $('domiParaLlevar').checked: true,
         llevar_prepago:   $('domiLlevarPrepago') ? $('domiLlevarPrepago').checked : true,
         tiempo_estimado:  $('domiTiempo')   ? $('domiTiempo').value.trim(): '',
-        copias_recibo:    $('domiCopias')  ? (parseInt($('domiCopias').value,10)||1) : 1,
+        copias_recibo:    (function(){
+          // El selector vive en la pantalla de Domicilios, pero la IMPRESIÓN lee
+          // el blob de Operación (branches.operacion_config, cacheado en
+          // localStorage). Se guarda en los dos o quedan desincronizados y el
+          // usuario elige 2 copias pero sale una.
+          var n = $('domiCopias') ? (parseInt($('domiCopias').value,10)||1) : 1;
+          try {
+            var d = (typeof opLoad === 'function') ? opLoad() : null;
+            if (d && d.domiCopias !== n) { d.domiCopias = n; if (typeof opSave === 'function') opSave(d); }
+          } catch(e) { console.warn('sync domiCopias:', e); }
+          return n;
+        })(),
         zonas:            (function() { var z = readZones(); return z.length ? z : _storedZonas; })(),
       },
       frases:      readFrases(),
