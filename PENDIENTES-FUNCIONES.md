@@ -210,10 +210,11 @@ pagó aparte. No es deuda.
 `paid_amount >= total − delivery_fee`, o bien el domicilio debe registrarse
 también como pago. Hoy queda como una deuda fantasma.
 
-### 13.2 Propinas que nunca se cobran 🟠
-**0 de 91 ventas pagadas tienen propina.** El campo existe y siempre está en $0.
-Hay que revisar si la pantalla de cobro la ofrece. Sin esto, el informe de
-propinas siempre saldrá vacío.
+### 13.2 Propinas desactivadas — NO es un bug ✅
+**0 de 91 ventas pagadas tienen propina**, pero no hay nada que arreglar:
+Sergio tiene la propina **desactivada a propósito** en Configuración → Operación
+(`op-sw-propina`). El informe `caj-propinas` seguirá vacío mientras siga así, y
+eso es correcto. El día que la active, el informe funciona solo.
 
 ### 13.3 Métodos de pago duplicados por mayúscula 🟠
 `pos_payments.method` tiene `'Efectivo'` y `'efectivo'`, `'Transferencia'` y
