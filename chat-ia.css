@@ -1595,6 +1595,17 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .ci-dw-st b { display: block; font-size: 14px; font-weight: 800; color: #EDEEF2; font-variant-numeric: tabular-nums; }
 .ci-dw-st span { display: block; font-size: 10px; color: #585C6B; margin-top: 2px; }
 /* Filas de datos */
+/* Nivel del cliente + barra de avance */
+.ci-dw-niv {
+  background: #161821; border: 1px solid rgba(255,255,255,.07);
+  border-radius: 12px; padding: 11px 12px; margin-bottom: 10px;
+}
+.ci-dw-nivtop { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.ci-dw-nivnm { font-size: 13px; font-weight: 800; letter-spacing: -.01em; }
+.ci-dw-nivpc { font-size: 10.5px; color: #787C8B; }
+.ci-dw-nivbar { height: 6px; background: rgba(255,255,255,.06); border-radius: 999px; overflow: hidden; }
+.ci-dw-nivbar i { display: block; height: 100%; border-radius: 999px; transition: width .35s ease; }
+
 .ci-dw-rows { background: #161821; border: 1px solid rgba(255,255,255,.07); border-radius: 12px; overflow: hidden; }
 .ci-dw-row {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;

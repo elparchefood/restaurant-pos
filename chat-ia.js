@@ -442,7 +442,15 @@ async function pintarFichaCliente(conv){
       if (top) favorito = { nombre: top[0], veces: top[1] };
     } catch(e){}
   }
-  // 5) ¿Está en lista negra? (debe saltar antes de despachar)
+  // 5) Nivel del cliente. El cálculo vive en la BASE (fn_nivel_cliente) para
+  //    que la futura pantalla del cliente lea exactamente el mismo número.
+  let niv = null;
+  try {
+    const r = await sb.rpc('fn_nivel_cliente', { p_tenant: S.tenantId, p_tel: tel10 });
+    if (r.data && r.data.length) niv = r.data[0];
+  } catch(e){}
+
+  // 6) ¿Está en lista negra? (debe saltar antes de despachar)
   let negra = null;
   try {
     const r = await sb.rpc('lista_negra_match', { p_tenant:S.tenantId, p_tel:tel10, p_dir_norm:null });
@@ -480,6 +488,20 @@ async function pintarFichaCliente(conv){
       + '<div class="ci-dw-st"><b>'+ciMoneda(gastado)+'</b><span>gastado</span></div>'
       + '<div class="ci-dw-st"><b>'+ciMoneda(prom)+'</b><span>promedio</span></div>'
       + '</div>';
+    // Nivel + barra de avance hacia el siguiente
+    if (niv && niv.nivel) {
+      const unidad = niv.criterio === 'gastado' ? '' : (niv.criterio === 'pedidos' ? ' pedidos' : ' pts');
+      const faltaTxt = niv.criterio === 'gastado' ? ciMoneda(niv.falta) : (niv.falta + unidad);
+      h += '<div class="ci-dw-niv">'
+        + '<div class="ci-dw-nivtop">'
+        +   '<span class="ci-dw-nivnm" style="color:'+escHtml(niv.color||'#7C5CFF')+'">'+escHtml(niv.nivel)+'</span>'
+        +   '<span class="ci-dw-nivpc">'
+        +     (niv.siguiente ? escHtml(faltaTxt)+' para '+escHtml(niv.siguiente) : 'Nivel máximo')
+        +   '</span>'
+        + '</div>'
+        + '<div class="ci-dw-nivbar"><i style="width:'+(niv.progreso||0)+'%;background:'+escHtml(niv.color||'#7C5CFF')+'"></i></div>'
+        + '</div>';
+    }
     h += '<div class="ci-dw-rows">';
     if (ultimo)  h += '<div class="ci-dw-row"><span>Último pedido</span><b>'+ciHace(ultimo)+'</b></div>';
     if (puntos)  h += '<div class="ci-dw-row"><span>Puntos</span><b>'+puntos+'</b></div>';
