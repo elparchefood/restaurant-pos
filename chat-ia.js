@@ -1563,7 +1563,7 @@ function renderQuickDropdown(q) {
     + '<button class="ci-qr-manage" onmousedown="event.preventDefault();openQuickManage()">Administrar</button></div>';
   const rows = list.map((r,i) =>
     '<div class="ci-qr-item'+(i===S.qrIndex?' active':'')+'" data-i="'+i+'" onmousedown="qrPick(event,'+i+')" onmouseenter="qrHover('+i+')">'
-    + '<span class="ci-qr-k">'+(r.img?'📷 ':'')+(r.loc?'📍 ':'')+'/'+qrEsc(r.k)+'</span>'
+    + '<span class="ci-qr-k">'+(r.img?'📷 ':'')+(r.loc?'📍 ':'')+(r.btn?'▭ ':'')+'/'+qrEsc(r.k)+'</span>'
     + '<span class="ci-qr-t">'+qrEsc(r.t).replace(/\n/g,' ')+'</span></div>'
   ).join('');
   dd.innerHTML = head + '<div class="ci-qr-scroll">' + rows + '</div>';
@@ -1583,8 +1583,58 @@ function qrPick(ev, i) {
   if (r.img === '@menu') { sendQuickMenu(r); return; }  // la carta = varias imágenes del menú
   if (r.img) { sendQuickMedia(r); return; }     // respuestas con imagen se envían directo (imagen + texto)
   if (r.dyn) { resolveDynReply(r).then(function(t){ if(t!=null){ var el=document.getElementById('msgInput'); if(el){ el.value=t; el.focus(); } } }); return; }  // /total, /puntos → valores reales del pedido
+  if (r.btn) { sendQuickBotones(r); return; }   // respuestas con botones → se envían directo
   const inp = document.getElementById('msgInput');
   if (inp) { inp.value = r.t; inp.focus(); }
+}
+
+// Envía una respuesta rápida CON BOTONES (mensaje interactivo de WhatsApp).
+// Se manda directo (no se pega en el compositor) porque los botones no son texto.
+// En el hilo queda el texto con los botones listados, para que el operador vea
+// exactamente lo que recibió el cliente.
+async function sendQuickBotones(r) {
+  if (!S.activeConvId || !r.btn) return;
+  const conv = S.conversations.find(c => c.id === S.activeConvId);
+  if (!conv || conv.channel !== 'whatsapp') {
+    showToast('Los botones solo funcionan en WhatsApp', 'info');
+    const inp = document.getElementById('msgInput');
+    if (inp) { inp.value = r.t; inp.focus(); }     // se deja el texto para enviarlo a mano
+    return;
+  }
+  // Fuera de la ventana de 24 h Meta no acepta mensajes libres (ni con botones).
+  const w = waWindowInfo();
+  if (w.applies && !w.open) { showToast('Pasaron 24 h: usa una plantilla', 'info'); return; }
+
+  const etiquetas = (r.btn.tipo === 'url')
+    ? [r.btn.texto_boton || 'Abrir']
+    : (r.btn.opciones || []).map(o => o.titulo || o.texto).filter(Boolean);
+  const cuerpo = r.t + (etiquetas.length ? '\n\n' + etiquetas.map(t => '▸ ' + t).join('\n') : '');
+
+  const tmpId = 'tmp_' + Date.now();
+  S.messages.push({ id: tmpId, conversation_id: S.activeConvId, tenant_id: S.tenantId,
+    direction: 'out', body: cuerpo, delivery_status: 'sending', sent_at: new Date().toISOString() });
+  renderThread();
+
+  const { data, error } = await sb.from('chat_messages').insert([{
+    conversation_id: S.activeConvId, tenant_id: S.tenantId, direction: 'out',
+    body: cuerpo, delivery_status: 'sent', agent_id: S.user?.id || null,
+  }]).select().single();
+  if (error) { S.messages = S.messages.filter(m => m.id !== tmpId); renderThread(); showToast('No se pudo enviar', 'error'); return; }
+  S.messages = S.messages.map(m => m.id === tmpId ? data : m);
+  renderThread();
+  if (conv) {
+    conv.last_message = r.t; conv.last_message_at = data.sent_at; conv.last_sender = 'agent';
+    S.conversations.sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at));
+    renderConvList();
+  }
+  try {
+    const res = await fetch(META_SEND_FN, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation_id: S.activeConvId, text: r.t, botones: r.btn, message_id: data.id }),
+    });
+    const rd = await res.json();
+    if (rd.error) showToast('WhatsApp no aceptó los botones: ' + rd.error, 'error');
+  } catch (e) { showToast('Error al enviar: ' + e.message, 'error'); }
 }
 
 // Envía una respuesta rápida de UBICACIÓN como tarjeta de mapa nativa de WhatsApp.

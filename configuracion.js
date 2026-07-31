@@ -4146,26 +4146,119 @@ function cfgQrRender(){
   if (!n){ cont.innerHTML = '<div class="cfg-qr-empty">Aún no hay respuestas rápidas. Agrega la primera abajo.</div>'; return; }
   cont.innerHTML = '<div class="cfg-qr-count">'+n+' respuesta'+(n===1?'':'s')+'</div>' + CFGQR.list.map(function(r,i){
     return '<div class="cfg-qr-row">'
-      + '<div class="cfg-qr-info"><div class="cfg-qr-k">'+(r.img?'📷 ':'')+'/'+cfgQrEsc(r.k)+'</div><div class="cfg-qr-t">'+cfgQrEsc(r.t).replace(/\n/g,' ')+'</div></div>'
+      + '<div class="cfg-qr-info"><div class="cfg-qr-k">'+(r.img?'📷 ':'')+'/'+cfgQrEsc(r.k)+(r.btn ? ' <span class="cfg-qr-btag">'+(r.btn.tipo==="lista"?"lista":(r.btn.tipo==="url"?"enlace":((r.btn.opciones||[]).length)+" botones"))+'</span>' : '')+'</div><div class="cfg-qr-t">'+cfgQrEsc(r.t).replace(/\n/g,' ')+'</div></div>'
       + '<button type="button" class="cfg-qr-ed" title="Editar" onclick="cfgQrEdit('+i+')">✎</button>'
       + '<button type="button" class="cfg-qr-del" title="Eliminar" onclick="cfgQrDelete('+i+')">✕</button>'
       + '</div>';
   }).join('');
 }
+// ── Botones en las respuestas rápidas (mensajes interactivos de WhatsApp) ──
+// Se guardan dentro de la respuesta: {k, t, btn:{tipo, texto_boton, url, pie, opciones:[...]}}
+function cfgQrBtnTipoChange(){
+  var tipo = document.getElementById('cfgQrBtnTipo').value;
+  document.getElementById('cfgQrBtnBox').style.display   = tipo ? '' : 'none';
+  document.getElementById('cfgQrUrlWrap').style.display  = tipo === 'url'   ? '' : 'none';
+  document.getElementById('cfgQrOpcWrap').style.display  = tipo === 'url'   ? 'none' : '';
+  document.getElementById('cfgQrBtnTextoWrap').style.display = (tipo === 'lista' || tipo === 'url') ? '' : 'none';
+  var lb = document.querySelector('#cfgQrBtnTextoWrap .field-lb');
+  if (lb) lb.textContent = tipo === 'url' ? 'Texto del botón' : 'Texto del botón que abre la lista';
+  var add = document.getElementById('cfgQrOpcAdd');
+  if (add) add.style.display = cfgQrOpcCount() >= cfgQrOpcMax() ? 'none' : '';
+  cfgQrPrev();
+  markDirty();
+}
+function cfgQrOpcMax(){ return document.getElementById('cfgQrBtnTipo').value === 'lista' ? 10 : 3; }
+function cfgQrOpcCount(){ return document.querySelectorAll('#cfgQrOpciones .cfg-qr-opc').length; }
+function cfgQrOpcAdd(titulo, desc){
+  if (cfgQrOpcCount() >= cfgQrOpcMax()) return;
+  var esLista = document.getElementById('cfgQrBtnTipo').value === 'lista';
+  var row = document.createElement('div');
+  row.className = 'cfg-qr-opc';
+  row.innerHTML =
+    '<input class="inp cfg-qr-opc-t" maxlength="' + (esLista ? 24 : 20) + '" placeholder="Texto del botón" value="' + cfgQrEsc(titulo || '') + '">' +
+    (esLista ? '<input class="inp cfg-qr-opc-d" maxlength="72" placeholder="Descripción (opcional)" value="' + cfgQrEsc(desc || '') + '">' : '') +
+    '<button type="button" class="cfg-qr-opc-x" title="Quitar">&times;</button>';
+  row.querySelector('.cfg-qr-opc-x').addEventListener('click', function(){
+    row.remove();
+    var add = document.getElementById('cfgQrOpcAdd'); if (add) add.style.display = '';
+    cfgQrPrev(); markDirty();
+  });
+  row.querySelectorAll('input').forEach(function(i){ i.addEventListener('input', function(){ cfgQrPrev(); markDirty(); }); });
+  document.getElementById('cfgQrOpciones').appendChild(row);
+  var add = document.getElementById('cfgQrOpcAdd');
+  if (add && cfgQrOpcCount() >= cfgQrOpcMax()) add.style.display = 'none';
+  cfgQrPrev();
+}
+// Lo que hay en el formulario → objeto de botones (o null si no tiene)
+function cfgQrLeerBtn(){
+  var tipo = document.getElementById('cfgQrBtnTipo').value;
+  if (!tipo) return null;
+  var out = { tipo: tipo };
+  var tb = (document.getElementById('cfgQrBtnTexto').value || '').trim();
+  var pie = (document.getElementById('cfgQrPie').value || '').trim();
+  if (tb)  out.texto_boton = tb;
+  if (pie) out.pie = pie;
+  if (tipo === 'url'){ out.url = (document.getElementById('cfgQrUrl').value || '').trim(); return out; }
+  out.opciones = [];
+  document.querySelectorAll('#cfgQrOpciones .cfg-qr-opc').forEach(function(r, i){
+    var t = (r.querySelector('.cfg-qr-opc-t').value || '').trim();
+    if (!t) return;
+    var o = { id: 'op' + i, titulo: t };
+    var d = r.querySelector('.cfg-qr-opc-d');
+    if (d && d.value.trim()) o.desc = d.value.trim();
+    out.opciones.push(o);
+  });
+  return out;
+}
+function cfgQrPonerBtn(btn){
+  var sel = document.getElementById('cfgQrBtnTipo');
+  document.getElementById('cfgQrOpciones').innerHTML = '';
+  document.getElementById('cfgQrBtnTexto').value = (btn && btn.texto_boton) || '';
+  document.getElementById('cfgQrUrl').value      = (btn && btn.url) || '';
+  document.getElementById('cfgQrPie').value      = (btn && btn.pie) || '';
+  sel.value = (btn && btn.tipo) || '';
+  cfgQrBtnTipoChange();
+  if (btn && btn.opciones) btn.opciones.forEach(function(o){ cfgQrOpcAdd(o.titulo || o.texto, o.desc); });
+  cfgQrPrev();
+}
+// Vista previa: burbuja de WhatsApp con sus botones
+function cfgQrPrev(){
+  var host = document.getElementById('cfgQrPrev'); if (!host) return;
+  var txt = (document.getElementById('cfgQrText').value || '').trim() || 'Escribe el mensaje…';
+  var btn = cfgQrLeerBtn();
+  var pie = btn && btn.pie ? '<div style="font-size:11px;color:#8FA6A0;margin-top:5px">' + cfgQrEsc(btn.pie) + '</div>' : '';
+  var abajo = '';
+  if (btn && btn.tipo === 'url'){
+    abajo = '<div class="qrp-btn">🔗 ' + cfgQrEsc(btn.texto_boton || 'Abrir') + '</div>';
+  } else if (btn && btn.tipo === 'lista'){
+    abajo = '<div class="qrp-btn">☰ ' + cfgQrEsc(btn.texto_boton || 'Ver opciones') + '</div>' +
+      (btn.opciones || []).map(function(o){
+        return '<div class="qrp-lista">' + cfgQrEsc(o.titulo) +
+          (o.desc ? '<span>' + cfgQrEsc(o.desc) + '</span>' : '') + '</div>';
+      }).join('');
+  } else if (btn && btn.opciones && btn.opciones.length){
+    abajo = btn.opciones.map(function(o){ return '<div class="qrp-btn">' + cfgQrEsc(o.titulo) + '</div>'; }).join('');
+  }
+  host.innerHTML = '<div class="qrp-bub">' + cfgQrEsc(txt).replace(/\n/g, '<br>') + pie + '</div>' + abajo;
+}
+
 function cfgQrEdit(i){
   var r = CFGQR.list[i]; if (!r) return;
   CFGQR.editIdx = i;
   document.getElementById('cfgQrKey').value  = r.k || '';
   document.getElementById('cfgQrText').value = r.t || '';
+  cfgQrPonerBtn(r.btn || null);
   document.getElementById('cfgQrCancel').style.display = '';
   document.getElementById('cfgQrSaveBtn').textContent = 'Guardar cambios';
   var f = document.getElementById('cfgQrKey'); if (f){ f.focus(); f.scrollIntoView({block:'nearest'}); }
+  cfgQrPrev();
 }
 function cfgQrCancel(){
   CFGQR.editIdx = -1;
   var k=document.getElementById('cfgQrKey'), t=document.getElementById('cfgQrText'),
       c=document.getElementById('cfgQrCancel'), s=document.getElementById('cfgQrSaveBtn');
   if(k) k.value=''; if(t) t.value=''; if(c) c.style.display='none'; if(s) s.textContent='Agregar respuesta';
+  cfgQrPonerBtn(null);
 }
 async function cfgQrSave(){
   var kEl=document.getElementById('cfgQrKey'), tEl=document.getElementById('cfgQrText');
@@ -4173,8 +4266,20 @@ async function cfgQrSave(){
   var t = (tEl.value||'').trim();
   if (!k){ kEl.focus(); return; }
   if (!t){ tEl.focus(); return; }
-  if (CFGQR.editIdx >= 0){ CFGQR.list[CFGQR.editIdx] = Object.assign({}, CFGQR.list[CFGQR.editIdx], { k:k, t:t }); }
-  else CFGQR.list.unshift({ k:k, t:t });
+  var btn = cfgQrLeerBtn();
+  // Sin esto Meta rechaza el mensaje y el cliente no recibe nada.
+  if (btn){
+    if (btn.tipo === 'url' && !btn.url){ alert('Escribe el enlace del boton.'); return; }
+    if (btn.tipo !== 'url' && !(btn.opciones||[]).length){ alert('Agrega al menos una opcion.'); return; }
+  }
+  var reg = { k:k, t:t };
+  if (btn) reg.btn = btn;
+  if (CFGQR.editIdx >= 0){
+    var prev = Object.assign({}, CFGQR.list[CFGQR.editIdx], reg);
+    if (!btn) delete prev.btn;
+    CFGQR.list[CFGQR.editIdx] = prev;
+  }
+  else CFGQR.list.unshift(reg);
   await cfgQrPersist();
   cfgQrRender(); cfgQrCancel();
 }
