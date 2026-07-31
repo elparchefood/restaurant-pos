@@ -73,7 +73,7 @@ y devuelve el CUFE.
 | Países | Colombia, Rep. Dominicana, Costa Rica, Panamá — **misma API** | Solo Colombia |
 | Enfoque | **API-first, pensado para ISV** (software que factura para muchos) | POS/ERP, modelo de parámetros simplificado |
 | Sandbox | Sí, **gratis** | Sí |
-| Precio | Publicado: **desde ~$150 COP/documento** a alto volumen | No publicado |
+| Precio | No publicado en su sitio ("paga solo por lo que emites"). Un comparador de terceros menciona **desde ~$150 COP/doc a alto volumen** | No publicado |
 | Webhooks | Sí, con firma HMAC e idempotencia | Por confirmar |
 | SDKs | Node, Python, Go | Comunidad (SDK no oficial en GitHub) |
 | Autenticación | Token por ambiente | `client_id` + `client_secret` + usuario/contraseña |
@@ -83,8 +83,8 @@ y devuelve el CUFE.
 1. **Está diseñado para lo que es Cobra**: un software que factura a nombre de
    muchas empresas. Factus está más pensado para *una* empresa que factura lo suyo.
 2. **Sandbox gratis** → se construye y se prueba completo sin cliente real.
-3. **Precio público** (~$150 COP/doc a volumen) → se pueden armar los planes de
-   Cobra con números, no con suposiciones.
+3. **Modelo por documento**, no por licencia → el costo escala con lo que cada
+   restaurante factura, que es como debe ser en un SaaS.
 4. **Multi-país con la misma API.** Los requerimientos dicen *"para otros países:
    exportación CSV/JSON + webhook"*. Con Alanube, expandir a Panamá o Costa Rica
    no es reescribir: es otro endpoint.
@@ -112,6 +112,78 @@ Escribirle a Alanube (y a Factus para comparar) y preguntar exactamente esto:
 > bloquea la lectura automática (HTTP 403), así que lo de Factus viene de su SDK
 > público y de comparativas de terceros. Antes de decidir, hay que leerla a mano
 > o pedirle acceso al proveedor.
+
+---
+
+## 4-bis. Multi-empresa: CONFIRMADO en la documentación
+
+La pregunta que decidía todo era: *¿una sola cuenta de Cobra puede facturar a
+nombre de muchos restaurantes, cada uno con su NIT?*
+
+**Sí.** La documentación de Alanube expone endpoints de **gestión de empresas**:
+
+- `Dar de alta a una empresa` — registrar una empresa **por API**
+- `Obtener información de la empresa` (por token o por id)
+- `Actualizar información de la empresa`
+- `Empresas asociadas` — listado paginado de las empresas vinculadas a la cuenta
+
+Es decir: **Cobra registra a cada restaurante por API bajo su propia cuenta**, y
+cada factura sale con el NIT, la razón social y la resolución de ESE restaurante.
+Exactamente el modelo que se necesita.
+
+*(Pendiente de confirmar por escrito con su equipo comercial: los términos y el
+precio de ese modelo para un ISV.)*
+
+## 4-ter. Cómo debe vivirlo el dueño del restaurante
+
+**El objetivo (Sergio):** *"lo ideal sería que mediante Cobra, las personas no
+deben registrarse en nada, pero cada facturación saldría con los datos de cada
+restaurante."*
+
+Se puede casi todo, pero hay una parte que **no se puede delegar por ley**:
+
+| Paso | ¿Lo puede hacer Cobra por él? |
+|---|---|
+| Cuenta con el proveedor tecnológico | **Sí** — se crea por API, invisible |
+| Configurar su NIT y razón social | **Sí** — lo escribe una vez en Cobra |
+| Cargar el certificado digital | **Sí**, si el proveedor lo permite por API |
+| **Habilitación ante la DIAN** | **No.** Es un acto legal del restaurante |
+| **Resolución de numeración** | **No.** La DIAN se la da a él, con su NIT |
+
+O sea: **el restaurante nunca se registra en un proveedor externo ni ve otra
+plataforma**, pero sí tiene que hacer su trámite ante la DIAN. Nadie puede
+hacerlo por él.
+
+**Recomendación — onboarding asistido.** Convertir ese trámite en un asistente
+dentro de Cobra: una pantalla que le diga paso a paso qué pedir, dónde, y le
+reciba los datos. Que sienta que Cobra se lo resolvió, aunque el trámite sea suyo.
+Eso es una ventaja de venta real: la mayoría de los competidores lo deja solo.
+
+## 4-quater. Cuánto cuesta esto en el mercado (referencia 2026)
+
+Para armar los planes de Cobra con números reales:
+
+| Concepto | Rango en Colombia |
+|---|---|
+| Proveedor tecnológico, plan básico | $30.000 – $80.000 COP/mes |
+| Proveedor tecnológico, plan intermedio | $80.000 – $200.000 COP/mes |
+| Algunos ofrecen gratis | 20 a 50 documentos/mes |
+| Costo por documento a alto volumen | desde ~$150 COP |
+| Certificado digital | ~$150.000 COP/año, lo paga el restaurante |
+| Sistema gratuito de la DIAN | $0, pero sin integración |
+
+**Competencia directa (POS con facturación en Colombia):**
+
+| Sistema | Precio | Qué incluye |
+|---|---|---|
+| Alegra | desde ~$39.000 COP/mes | POS + facturación + contabilidad + inventario |
+| Siigo POS Gastrobar | $87.494 COP/mes | POS para restaurante/bar |
+
+**Lectura para Cobra:** a $150 COP/documento, un restaurante que emite 500
+facturas al mes le cuesta a Cobra ~$75.000. Si Cobra se vende en el rango de
+Siigo ($87.000), la facturación electrónica **se come el plan completo**. Por eso
+lo sano es: **incluir un cupo de facturas en el plan y cobrar el excedente**, o
+cobrar la facturación como un módulo aparte. Definirlo ANTES de vender, no después.
 
 ---
 
@@ -210,7 +282,8 @@ La 6 necesita un restaurante real con su NIT.
 
 ## 8. Antes de empezar — checklist
 
-- [ ] Contactar Alanube y hacer las 5 preguntas del §4
+- [x] ~~Confirmar multi-empresa~~ → **confirmado en la documentación** (§4-bis)
+- [ ] Contactar Alanube: precio real para ISV, y las preguntas 3-5 del §4
 - [ ] Contactar Factus para comparar (su documentación pública está bloqueada)
 - [ ] Decidir proveedor con las respuestas en la mano
 - [ ] Abrir cuenta de sandbox
