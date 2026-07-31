@@ -644,7 +644,7 @@ En la pantalla de **Caja**, el desglose "Ventas por canal" muestra **Mostrador $
 
 ---
 
-## PENDIENTE — [Dashboard] "Inventario rápido" / "Alertas de stock" consultan la tabla EQUIVOCADA (siempre "Todo en orden") — Sergio 2026-07-24
+## ✅ HECHO 2026-07-31 — [Dashboard] "Inventario rápido" / "Alertas de stock" ahora leen `iv_insumos` (commit `3e0a9f8`)
 
 **Bug confirmado:** el dashboard consulta `pos_ingredients` (tabla VIEJA/VACÍA: 0 filas) en vez de `iv_insumos` (el inventario real: 43 filas, lo que usa la pantalla de Inventario). Por eso el modal "Inventario rápido" y la tarjeta "Alertas de stock" SIEMPRE dicen "Todo en orden / Inventario al día" aunque haya insumos en 0. Está mirando una tabla vacía.
 
@@ -657,7 +657,7 @@ En la pantalla de **Caja**, el desglose "Ventas por canal" muestra **Mostrador $
 
 ---
 
-## PENDIENTE — [Dashboard] Modal "Imprimir comprobantes": los botones NO imprimen + nombres de mesa crudos — Sergio 2026-07-24
+## ✅ HECHO 2026-07-31 — [Dashboard] Modal "Imprimir comprobantes": los botones ya imprimen de verdad (commit `3e0a9f8`)
 
 (El modal ya muestra los pedidos — eso se arregló en #3 — pero quedaron dos cosas.)
 
@@ -1081,7 +1081,7 @@ El azul actual del Chat IA le parece "raro" a Sergio y es la pantalla que MÁS v
 
 ---
 
-## PENDIENTE — [Impresión] Recibo del domiciliario: mostrar TOTAL completo + opción de 2 copias — Sergio 2026-07-24
+## ✅ HECHO 2026-07-31 — [Impresión] Recibo del domiciliario: TOTAL completo + selector de 1 o 2 copias (commits `3e0a9f8`, `682aaad`)
 
 **1. El recibo del domiciliario debe mostrar el TOTAL A COBRAR completo (comida + domicilio), no el "restante".** Hoy en `pos-print.js` (~líneas 13-19, la caja "COBRAR") cuando hay abono/cobro adelantado imprime `COBRAR: total − paid` = solo el restante. En un domicilio (sobre todo con externo) el domiciliario le cobra al cliente el **total completo** (comida + domi); si el recibo muestra solo el restante, confunde al domiciliario Y al cliente. **Fix:** en el recibo de domicilio mostrar claro el **TOTAL que el cliente paga** (comida + domicilio), no el neto tras el cobro adelantado. Revisar la caja "COBRAR" (líneas 13-19) y los builds de recibo (RECIBO ~línea 113 y "RECIBO DEL CLIENTE" ~línea 148). Ojo: `order.total` ya incluye el domicilio; el problema es la lógica de "restante" del cobro adelantado.
 
