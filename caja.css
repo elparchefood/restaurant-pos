@@ -408,3 +408,18 @@ button{font-family:inherit;}
 .cj-cierre-click:hover .cj-cierre-hint {
   color: #5B6BFF;
 }
+
+/* ══ Créditos en caja ══ */
+.cj-cred-kpi{ flex:1; background:#F8FAFC; border:1px solid #ECEEF2; border-radius:11px; padding:10px 12px; }
+.cj-cred-kpi b{ display:block; font-size:16px; font-weight:800; color:#0F172A; font-variant-numeric:tabular-nums; }
+.cj-cred-kpi span{ font-size:11px; color:#64748B; }
+.cj-cred-row{ display:flex; align-items:center; gap:12px; background:#fff; border:1px solid #ECEEF2;
+  border-radius:11px; padding:10px 12px; }
+.cj-cred-nom{ font-size:13px; font-weight:700; color:#0F172A; }
+.cj-cred-sub{ font-size:11px; color:#94A3B8; margin-top:1px; }
+.cj-cred-saldo{ text-align:right; font-size:13.5px; font-weight:700; font-variant-numeric:tabular-nums;
+  display:flex; flex-direction:column; min-width:88px; }
+.cj-cred-saldo span{ font-size:10px; font-weight:600; }
+.cj-cred-saldo.debe{ color:#DC2626; }
+.cj-cred-saldo.ok{ color:#16A34A; }
+.cj-btn-primary.sm{ padding:7px 12px; font-size:12px; border-radius:9px; }

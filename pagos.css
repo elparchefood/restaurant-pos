@@ -934,3 +934,18 @@ svg { display: block; }
 .pg-tip-modeseg button{padding:5px 12px;border:none;background:#fff;font-size:12.5px;font-weight:600;color:#64748B;cursor:pointer;}
 .pg-tip-modeseg button.is-on{background:#5B6BFF;color:#fff;}
 .pg-tip-amt{font-size:15px;font-weight:700;color:#0F172A;font-variant-numeric:tabular-nums;}
+
+/* ══ Selector de crédito en el cobro ══ */
+.cr-pick{ display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+  background:#fff; border:1px solid #ECEEF2; border-radius:11px; padding:10px 12px;
+  font-family:inherit; cursor:pointer; }
+.cr-pick:hover:not(:disabled){ border-color:#5B6BFF; background:#F8FAFF; }
+.cr-pick:disabled{ opacity:.5; cursor:not-allowed; }
+.cr-pick-l{ flex:1; display:flex; flex-direction:column; gap:2px; }
+.cr-pick-l b{ font-size:13px; font-weight:700; color:#0F172A; }
+.cr-pick-l span{ font-size:11px; color:#94A3B8; }
+.cr-pick-r{ text-align:right; font-size:13px; font-weight:700; font-variant-numeric:tabular-nums;
+  display:flex; flex-direction:column; }
+.cr-pick-r span{ font-size:10px; font-weight:600; }
+.cr-pick-r.ok{ color:#16A34A; }
+.cr-pick-r.bad{ color:#DC2626; }

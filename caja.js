@@ -2121,3 +2121,153 @@ renderCierres = function(sessions) {
 
   cont.innerHTML = html;
 };
+
+// ══════════════ CRÉDITOS EN CAJA ══════════════
+// Aquí se ve quién debe y se registran los abonos. Va en Caja y no en
+// Configuración porque **el abono es plata que entra al turno abierto**: si se
+// registrara en otro lado, el arqueo no cuadraría.
+// Asignar cupos NO se hace aquí: eso es del administrador, en Configuración.
+var _cjCred = [];
+
+async function abrirCreditosCaja() {
+  var st = (window._pos && window._pos.state) || {};
+  if (!window.posCreditos) { alert('El módulo de créditos no está disponible.'); return; }
+  posCreditos.setCtx(st.tenantId, S.branchId || st.branchId);
+
+  var ov = document.createElement('div');
+  ov.id = 'cj-cred-ov';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML =
+    '<div style="background:#fff;border-radius:16px;padding:20px 22px;width:560px;max-width:96vw;font-family:\'DM Sans\',system-ui,sans-serif;box-shadow:0 24px 60px -12px rgba(0,0,0,.35);max-height:88vh;display:flex;flex-direction:column">'
+    + '<div style="display:flex;align-items:flex-start;gap:12px">'
+    +   '<div style="flex:1"><div style="font-size:16px;font-weight:800;color:#0F172A">Créditos</div>'
+    +   '<div style="font-size:12.5px;color:#64748B;margin-top:4px;line-height:1.5">Quién debe y cuánto. Los abonos entran a la caja de este turno.</div></div>'
+    +   '<button id="cj-cred-x" style="background:none;border:none;font-size:20px;color:#94A3B8;cursor:pointer;line-height:1">×</button>'
+    + '</div>'
+    + '<div id="cj-cred-kpis" style="display:flex;gap:8px;margin:14px 0"></div>'
+    + '<input id="cj-cred-q" class="iv-input" placeholder="Buscar…" style="width:100%;margin-bottom:10px">'
+    + '<div id="cj-cred-list" style="flex:1;overflow:auto;display:flex;flex-direction:column;gap:6px">'
+    +   '<div style="padding:24px;text-align:center;color:#94A3B8;font-size:12.5px">Cargando…</div></div>'
+    + '<div style="font-size:11.5px;color:#94A3B8;margin-top:12px;line-height:1.5">Para cambiar el cupo de alguien: <b>Configuración → Créditos</b>.</div>'
+    + '</div>';
+  ov.querySelector('#cj-cred-x').onclick = function () { ov.remove(); };
+  ov.onclick = function (e) { if (e.target === ov) ov.remove(); };
+  document.body.appendChild(ov);
+
+  try { _cjCred = await posCreditos.listar(); }
+  catch (e) {
+    document.getElementById('cj-cred-list').innerHTML =
+      '<div style="padding:24px;text-align:center;color:#DC2626;font-size:12.5px">No se pudo cargar: ' + posCreditos.esc(e.message || e) + '</div>';
+    return;
+  }
+  document.getElementById('cj-cred-q').oninput = function () { cjCredRender(this.value.toLowerCase().trim()); };
+  cjCredRender('');
+}
+
+function cjCredRender(q) {
+  var conDeuda = _cjCred.filter(function (c) { return Number(c.saldo) > 0; });
+  var total = conDeuda.reduce(function (a, c) { return a + Number(c.saldo); }, 0);
+  var kpis = document.getElementById('cj-cred-kpis');
+  if (kpis) {
+    kpis.innerHTML =
+        '<div class="cj-cred-kpi"><b>' + posCreditos.money(total) + '</b><span>te deben en total</span></div>'
+      + '<div class="cj-cred-kpi"><b>' + conDeuda.length + '</b><span>' + (conDeuda.length === 1 ? 'persona debe' : 'personas deben') + '</span></div>';
+  }
+
+  // Primero los que deben: es lo que se viene a mirar.
+  var lista = _cjCred.slice().sort(function (a, b) { return Number(b.saldo) - Number(a.saldo); });
+  if (q) lista = lista.filter(function (c) { return (c.nombre || '').toLowerCase().indexOf(q) >= 0; });
+
+  var host = document.getElementById('cj-cred-list'); if (!host) return;
+  if (!lista.length) {
+    host.innerHTML = '<div style="padding:24px;text-align:center;color:#94A3B8;font-size:12.5px">'
+      + (q ? 'Nadie coincide' : 'Nadie tiene crédito todavía') + '</div>';
+    return;
+  }
+  host.innerHTML = lista.map(function (c) {
+    var saldo = Number(c.saldo) || 0;
+    return '<div class="cj-cred-row">'
+      + '<div style="flex:1;min-width:0"><div class="cj-cred-nom">' + posCreditos.esc(c.nombre) + '</div>'
+      +   '<div class="cj-cred-sub">' + (c.tipo === 'empleado' ? 'Empleado' : 'Cliente')
+      +   ' · cupo ' + posCreditos.money(c.cupo) + '</div></div>'
+      + '<div class="cj-cred-saldo ' + (saldo > 0 ? 'debe' : 'ok') + '">' + posCreditos.money(saldo)
+      +   '<span>' + (saldo > 0 ? 'debe' : 'al día') + '</span></div>'
+      + (saldo > 0 ? '<button class="cj-btn-primary sm" onclick="cjAbonar(\'' + c.id + '\')">Abonar</button>' : '')
+      + '</div>';
+  }).join('');
+}
+
+function cjAbonar(id) {
+  var c = _cjCred.filter(function (x) { return x.id === id; })[0]; if (!c) return;
+  var saldo = Number(c.saldo) || 0;
+  var ov = document.createElement('div');
+  ov.id = 'cj-abono-ov';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML =
+    '<div style="background:#fff;border-radius:16px;padding:20px 22px;width:380px;max-width:94vw;font-family:\'DM Sans\',system-ui,sans-serif;box-shadow:0 24px 60px -12px rgba(0,0,0,.35)">'
+    + '<div style="font-size:15px;font-weight:800;color:#0F172A">Abono · ' + posCreditos.esc(c.nombre) + '</div>'
+    + '<div style="font-size:12.5px;color:#64748B;margin:5px 0 14px">Debe <b>' + posCreditos.money(saldo) + '</b>. El abono entra a la caja de este turno.</div>'
+    + '<div class="iv-field-label">¿Cuánto abona?</div>'
+    + '<div style="display:flex;gap:6px;margin-bottom:8px">'
+    +   '<button type="button" class="iv-chip on" id="cj-ab-todo" onclick="cjAbonoTodo(' + saldo + ')">Todo (' + posCreditos.money(saldo) + ')</button>'
+    +   '<button type="button" class="iv-chip" onclick="cjAbonoOtro()">Otro</button>'
+    + '</div>'
+    + '<input id="cj-ab-monto" class="iv-input" type="number" min="0" step="any" style="width:100%" value="' + saldo + '" oninput="cjAbonoPrev(' + saldo + ')">'
+    + '<div id="cj-ab-prev" style="font-size:12px;color:#64748B;margin-top:6px;min-height:17px"></div>'
+    + '<div class="iv-field-label" style="margin-top:10px">¿Con qué pagó?</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px" id="cj-ab-metodos">'
+    +   '<button type="button" class="iv-chip on" data-m="efectivo" onclick="cjAbonoMetodo(this)">Efectivo</button>'
+    +   '<button type="button" class="iv-chip" data-m="transferencia" onclick="cjAbonoMetodo(this)">Transferencia</button>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;margin-top:16px">'
+    +   '<button style="flex:1;padding:11px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:700;font-size:13px;cursor:pointer" onclick="document.getElementById(\'cj-abono-ov\').remove()">Cancelar</button>'
+    +   '<button style="flex:1;padding:11px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:700;font-size:13px;cursor:pointer" onclick="cjAbonoGuardar(\'' + id + '\')">Registrar abono</button>'
+    + '</div></div>';
+  ov.onclick = function (e) { if (e.target === ov) ov.remove(); };
+  document.body.appendChild(ov);
+  ov._metodo = 'efectivo';
+  cjAbonoPrev(saldo);
+}
+function cjAbonoTodo(saldo) {
+  var i = document.getElementById('cj-ab-monto'); if (i) { i.value = saldo; cjAbonoPrev(saldo); }
+  document.getElementById('cj-ab-todo').classList.add('on');
+}
+function cjAbonoOtro() {
+  document.getElementById('cj-ab-todo').classList.remove('on');
+  var i = document.getElementById('cj-ab-monto'); if (i) { i.value = ''; i.focus(); }
+}
+function cjAbonoMetodo(b) {
+  document.querySelectorAll('#cj-ab-metodos .iv-chip').forEach(function (x) { x.classList.remove('on'); });
+  b.classList.add('on');
+  var ov = document.getElementById('cj-abono-ov'); if (ov) ov._metodo = b.dataset.m;
+}
+function cjAbonoPrev(saldo) {
+  var prev = document.getElementById('cj-ab-prev'); if (!prev) return;
+  var v = parseFloat((document.getElementById('cj-ab-monto') || {}).value) || 0;
+  if (v <= 0) { prev.textContent = ''; return; }
+  if (v > saldo) {
+    // No se deja saldo a favor: lo que sobra se le devuelve.
+    prev.innerHTML = 'Solo se aplican ' + posCreditos.money(saldo) + '. Los ' + posCreditos.money(v - saldo)
+      + ' restantes hay que <b>devolvérselos</b>.';
+  } else {
+    prev.textContent = 'Le quedaría debiendo ' + posCreditos.money(saldo - v);
+  }
+}
+async function cjAbonoGuardar(id) {
+  var ov = document.getElementById('cj-abono-ov'); if (!ov) return;
+  var monto = parseFloat((document.getElementById('cj-ab-monto') || {}).value) || 0;
+  if (monto <= 0) { alert('Escribe un monto'); return; }
+  var st = (window._pos && window._pos.state) || {};
+  var quien = (st.user && (st.user.user_metadata && st.user.user_metadata.nombre || st.user.email)) || null;
+  try {
+    var r = await posCreditos.abonar(id, monto, ov._metodo || 'efectivo',
+      (S.session && S.session.id) || null, quien, null);
+    ov.remove();
+    _cjCred = await posCreditos.listar();
+    cjCredRender((document.getElementById('cj-cred-q') || {}).value || '');
+    var msg = 'Abono registrado';
+    if (Number(r.sobrante) > 0) msg += ' · devuélvele ' + posCreditos.money(r.sobrante);
+    if (typeof toast === 'function') toast(msg); else alert(msg);
+    if (typeof loadAll === 'function') loadAll();   // refrescar el turno
+  } catch (e) { alert('No se pudo registrar: ' + (e.message || e)); }
+}

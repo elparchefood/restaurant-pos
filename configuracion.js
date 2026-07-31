@@ -199,6 +199,7 @@ var SECTION_LABELS = {
   impuesto:  'Impuestos y propina',
   impresora: 'Impresoras',
   operacion: 'Operación',
+  creditos:  'Créditos',
   usuarios:  'Usuarios y roles',
   chatia:    'Asistente IA'
 };
@@ -227,6 +228,8 @@ function setSection(sec) {
   if (_screenHorario) _screenHorario.classList.remove('on');
   var _screenMp = $('screen-metodos-pago');
   if (_screenMp) _screenMp.classList.remove('on');
+  var _screenCr = $('screen-creditos');
+  if (_screenCr) _screenCr.classList.remove('on');
 
   if (sec === 'mesas') {
     screenMesas.classList.add('on');
@@ -255,6 +258,14 @@ function setSection(sec) {
       // Comparte el mismo borrador/guardado que Operación (mismo blob).
       if (!window._opLoaded) { opInit(); window._opLoaded = true; }
       propInit();
+    }
+  } else if (sec === 'creditos') {
+    var screenCr = $('screen-creditos');
+    if (screenCr) {
+      screenCr.classList.add('on');
+      $('crumb').textContent = 'Créditos';
+      _ciaToggleTopbar(false);
+      if (!window._crLoaded) { crInit(); window._crLoaded = true; }
     }
   } else if (sec === 'usuarios') {
     var screenUr = $('screen-usuarios');
@@ -2749,6 +2760,180 @@ function impBindInputs() {
         impGuardarCfg(patch);
       });
     });
+}
+
+// ════════════════════════════════════════════════════════════
+// CRÉDITOS — Configuración (asignar cupos)
+// Aquí SOLO se asignan y editan los cupos: es un acto del administrador y se
+// hace poco. El día a día (ver saldos, registrar abonos) vive en Caja, porque
+// el abono es plata que entra al turno y si no el arqueo no cuadra.
+// ════════════════════════════════════════════════════════════
+var _crTipo = 'cliente';     // pestaña activa
+var _crLista = [];
+var _crBuscar = '';
+
+async function crInit() {
+  var st = (window._pos && window._pos.state) || {};
+  if (window.posCreditos) posCreditos.setCtx(st.tenantId, st.branchId);
+  await crCargar();
+}
+
+async function crCargar() {
+  var host = document.getElementById('cr-lista');
+  if (host) host.innerHTML = '<div class="cf-empty">Cargando…</div>';
+  try {
+    _crLista = await posCreditos.listar();
+  } catch (e) {
+    if (host) host.innerHTML = '<div class="cf-empty">No se pudo cargar: ' + posCreditos.esc(e.message || e) + '</div>';
+    return;
+  }
+  crRender();
+}
+
+function crSetTipo(t) { _crTipo = t; crRender(); }
+function crBuscarInput(v) { _crBuscar = (v || '').toLowerCase().trim(); crRender(); }
+
+function crRender() {
+  document.querySelectorAll('[data-cr-tab]').forEach(function (b) {
+    b.classList.toggle('on', b.dataset.crTab === _crTipo);
+  });
+
+  var lista = _crLista.filter(function (c) { return c.tipo === _crTipo; });
+  if (_crBuscar) {
+    lista = lista.filter(function (c) {
+      return (c.nombre || '').toLowerCase().indexOf(_crBuscar) >= 0
+          || (c.telefono || '').indexOf(_crBuscar) >= 0;
+    });
+  }
+
+  // Resumen arriba: lo primero que quiere saber el dueño es cuánto le deben.
+  var deuda = lista.reduce(function (a, c) { return a + (Number(c.saldo) || 0); }, 0);
+  var cupo  = lista.reduce(function (a, c) { return a + (Number(c.cupo) || 0); }, 0);
+  var res = document.getElementById('cr-resumen');
+  if (res) {
+    res.innerHTML =
+        '<div class="cr-kpi"><b>' + lista.length + '</b><span>' + (_crTipo === 'cliente' ? 'clientes' : 'empleados') + '</span></div>'
+      + '<div class="cr-kpi"><b>' + posCreditos.money(deuda) + '</b><span>deben hoy</span></div>'
+      + '<div class="cr-kpi"><b>' + posCreditos.money(cupo) + '</b><span>cupo asignado</span></div>';
+  }
+
+  var host = document.getElementById('cr-lista'); if (!host) return;
+  if (!lista.length) {
+    host.innerHTML = '<div class="cf-empty">'
+      + (_crBuscar ? 'Nadie coincide con “' + posCreditos.esc(_crBuscar) + '”.'
+                   : 'Todavía no le has dado crédito a ningún ' + (_crTipo === 'cliente' ? 'cliente' : 'empleado') + '.')
+      + '</div>';
+    return;
+  }
+
+  host.innerHTML = lista.map(function (c) {
+    var saldo = Number(c.saldo) || 0, disp = Number(c.disponible) || 0;
+    // Semáforo por lo que le queda: rojo si ya no puede consumir.
+    var tono = disp <= 0 ? 'bad' : (Number(c.cupo) > 0 && disp / Number(c.cupo) < 0.25) ? 'warn' : 'ok';
+    return '<div class="cr-row' + (c.activo ? '' : ' off') + '">'
+      + '<div class="cr-row-main">'
+      +   '<div class="cr-nom">' + posCreditos.esc(c.nombre) + (c.activo ? '' : ' <span class="cr-off">desactivado</span>') + '</div>'
+      +   '<div class="cr-sub">' + posCreditos.esc(c.telefono || c.documento || '—') + '</div>'
+      + '</div>'
+      + '<div class="cr-num"><b>' + posCreditos.money(c.cupo) + '</b><span>cupo</span></div>'
+      + '<div class="cr-num"><b>' + posCreditos.money(saldo) + '</b><span>debe</span></div>'
+      + '<div class="cr-num ' + tono + '"><b>' + posCreditos.money(disp) + '</b><span>le queda</span></div>'
+      + '<button class="lm-btn-ghost sm" onclick="crEditar(\'' + c.id + '\')">Editar</button>'
+      + '</div>';
+  }).join('');
+}
+
+// ── Alta y edición ─────────────────────────────────────────────────────
+function crNuevo() { crModal(null); }
+function crEditar(id) { crModal(_crLista.filter(function (c) { return c.id === id; })[0] || null); }
+
+function crModal(c) {
+  var esNuevo = !c;
+  c = c || { tipo: _crTipo, nombre: '', telefono: '', documento: '', cupo: 0, activo: true, notas: '' };
+  var ov = document.createElement('div');
+  ov.id = 'cr-ov';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:20px';
+  var esCliente = c.tipo === 'cliente';
+  ov.innerHTML =
+    '<div style="background:#fff;border-radius:16px;padding:20px 22px;width:420px;max-width:94vw;font-family:\'DM Sans\',system-ui,sans-serif;box-shadow:0 24px 60px -12px rgba(0,0,0,.35);max-height:90vh;overflow:auto">'
+    + '<div style="font-size:15px;font-weight:800;color:#0F172A">' + (esNuevo ? 'Dar crédito a un ' + (esCliente ? 'cliente' : 'empleado') : posCreditos.esc(c.nombre)) + '</div>'
+    + '<div style="font-size:12.5px;color:#64748B;margin:5px 0 14px;line-height:1.5">El cupo es el máximo que puede deber. Al llegar al límite, el sistema no lo deja pagar con crédito hasta que abone.</div>'
+    + (esNuevo ? '<div class="iv-field-label">¿Para quién?</div>'
+        + '<div style="display:flex;gap:6px;margin-bottom:12px" id="cr-m-tipo">'
+        + '<button type="button" class="iv-chip ' + (esCliente ? 'on' : '') + '" onclick="crMTipo(\'cliente\')">Cliente</button>'
+        + '<button type="button" class="iv-chip ' + (!esCliente ? 'on' : '') + '" onclick="crMTipo(\'empleado\')">Empleado</button>'
+        + '</div>' : '')
+    + '<div class="iv-field-label">Nombre</div>'
+    + '<input id="cr-m-nombre" class="iv-input" style="width:100%" value="' + posCreditos.esc(c.nombre) + '" placeholder="Nombre y apellido">'
+    + '<div style="display:flex;gap:8px;margin-top:10px">'
+    +   '<div style="flex:1"><div class="iv-field-label">Teléfono</div>'
+    +     '<input id="cr-m-tel" class="iv-input" style="width:100%" value="' + posCreditos.esc(c.telefono || '') + '"></div>'
+    +   '<div style="flex:1"><div class="iv-field-label">Documento</div>'
+    +     '<input id="cr-m-doc" class="iv-input" style="width:100%" value="' + posCreditos.esc(c.documento || '') + '"></div>'
+    + '</div>'
+    + '<div class="iv-field-label" style="margin-top:10px">Cupo</div>'
+    + '<input id="cr-m-cupo" class="iv-input" type="number" min="0" step="any" style="width:100%" value="' + (Number(c.cupo) || 0) + '" oninput="crMPreview()">'
+    + '<div id="cr-m-prev" style="font-size:12px;color:#64748B;margin-top:6px;min-height:17px"></div>'
+    + '<div class="iv-field-label" style="margin-top:10px">Nota (opcional)</div>'
+    + '<input id="cr-m-notas" class="iv-input" style="width:100%" value="' + posCreditos.esc(c.notas || '') + '" placeholder="Ej. cocinero, paga los viernes">'
+    + (esNuevo ? '' :
+        '<div class="iv-toggle" id="cr-m-activo" onclick="crMToggleActivo()" style="margin-top:12px">'
+        + '<div style="flex:1"><div class="tt">Crédito activo</div><div class="tx">Si lo apagas, no podrá volver a pagar con crédito. Su historial y su deuda se conservan.</div></div>'
+        + '<span class="iv-switch' + (c.activo ? ' on' : '') + '" id="cr-m-activo-sw"><span class="iv-switch-label">' + (c.activo ? 'Sí' : 'No') + '</span><span class="iv-switch-track"><span class="iv-switch-knob"></span></span></span>'
+        + '</div>')
+    + '<div style="display:flex;gap:8px;margin-top:16px">'
+    +   '<button style="flex:1;padding:11px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:700;font-size:13px;cursor:pointer" onclick="document.getElementById(\'cr-ov\').remove()">Cancelar</button>'
+    +   '<button style="flex:1;padding:11px;border-radius:10px;border:none;background:#5B6BFF;color:#fff;font-weight:700;font-size:13px;cursor:pointer" onclick="crGuardar()">Guardar</button>'
+    + '</div></div>';
+  ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+  ov._cred = c;
+  crMPreview();
+  setTimeout(function () { var n = document.getElementById('cr-m-nombre'); if (n) n.focus(); }, 40);
+}
+function crMTipo(t) {
+  var ov = document.getElementById('cr-ov'); if (!ov) return;
+  ov._cred.tipo = t;
+  ov.querySelectorAll('#cr-m-tipo .iv-chip').forEach(function (b, i) {
+    b.classList.toggle('on', (i === 0) === (t === 'cliente'));
+  });
+}
+function crMToggleActivo() {
+  var ov = document.getElementById('cr-ov'); if (!ov) return;
+  ov._cred.activo = !ov._cred.activo;
+  var sw = document.getElementById('cr-m-activo-sw');
+  if (sw) { sw.classList.toggle('on', ov._cred.activo); sw.querySelector('.iv-switch-label').textContent = ov._cred.activo ? 'Sí' : 'No'; }
+}
+function crMPreview() {
+  var ov = document.getElementById('cr-ov'); if (!ov) return;
+  var prev = document.getElementById('cr-m-prev'); if (!prev) return;
+  var cupo = parseFloat((document.getElementById('cr-m-cupo') || {}).value) || 0;
+  var saldo = Number(ov._cred.saldo) || 0;
+  if (cupo <= 0) { prev.innerHTML = '<span style="color:#B45309">Con cupo en $0 no va a poder pagar con crédito.</span>'; return; }
+  if (saldo > 0) {
+    var disp = cupo - saldo;
+    prev.innerHTML = 'Debe ' + posCreditos.money(saldo) + ' → le quedarían <b>' + posCreditos.money(Math.max(0, disp)) + '</b>'
+      + (disp < 0 ? ' <span style="color:#DC2626;font-weight:700">(el cupo queda por debajo de lo que ya debe)</span>' : '');
+  } else {
+    prev.textContent = 'Podrá consumir hasta ' + posCreditos.money(cupo) + ' antes de tener que abonar.';
+  }
+}
+async function crGuardar() {
+  var ov = document.getElementById('cr-ov'); if (!ov) return;
+  var c = ov._cred;
+  c.nombre = (document.getElementById('cr-m-nombre').value || '').trim();
+  c.telefono = (document.getElementById('cr-m-tel').value || '').trim();
+  c.documento = (document.getElementById('cr-m-doc').value || '').trim();
+  c.cupo = parseFloat(document.getElementById('cr-m-cupo').value) || 0;
+  c.notas = (document.getElementById('cr-m-notas').value || '').trim();
+  if (!c.nombre) { opToast('El nombre es obligatorio'); return; }
+  try {
+    await posCreditos.guardar(c);
+    ov.remove();
+    _crTipo = c.tipo;
+    await crCargar();
+    opToast('Crédito guardado');
+  } catch (e) { opToast('No se pudo guardar: ' + (e.message || e)); }
 }
 
 // ── Impuestos y propina ───────────────────────────────────────────────

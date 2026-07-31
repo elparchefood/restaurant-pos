@@ -443,13 +443,101 @@ function renderAll() {
   if (typeof renderSplitStrip === 'function') renderSplitStrip();
 }
 
+// ══════════════ CRÉDITO COMO MÉTODO DE PAGO ══════════════
+// El pedido queda PAGADO y la caja cuadra; la deuda pasa a la persona. Por eso
+// el crédito se aplica como cualquier otro pago y no deja el pedido a medias.
+// El consumo contra la base se hace al FINALIZAR (no al aplicar el pago), para
+// que cancelar el cobro a medias no le deje deuda a nadie.
+var _crPagoSel = null;   // { id, nombre, disponible }
+
+function _crEsCredito() {
+  var d = _payDef();
+  return String(d && (d.tipo || d.key || d.nombre) || '').toLowerCase().indexOf('credito') >= 0
+      || String(d && d.nombre || '').toLowerCase().indexOf('crédito') >= 0;
+}
+
+// Al tocar "Aplicar" con el método Crédito, primero hay que elegir a quién.
+async function crElegirPersona(monto) {
+  var lista = [];
+  try { lista = await posCreditos.listar(); } catch (e) { alert('No se pudo cargar los créditos: ' + (e.message || e)); return null; }
+  lista = lista.filter(function (c) { return c.activo; });
+  if (!lista.length) {
+    alert('Todavía no hay nadie con crédito. Un administrador puede asignarlo en Configuración → Créditos.');
+    return null;
+  }
+  return new Promise(function (resolve) {
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;padding:20px';
+    function filas(q) {
+      var l = lista;
+      if (q) l = l.filter(function (c) { return (c.nombre || '').toLowerCase().indexOf(q) >= 0; });
+      if (!l.length) return '<div style="padding:24px;text-align:center;color:#94A3B8;font-size:12.5px">Nadie coincide</div>';
+      return l.map(function (c) {
+        var disp = Number(c.disponible) || 0;
+        // Se ve a todos, pero el que no alcanza queda deshabilitado con el
+        // motivo a la vista: es más claro que esconderlo.
+        var alcanza = disp >= monto;
+        return '<button class="cr-pick" data-id="' + c.id + '"' + (alcanza ? '' : ' disabled') + '>'
+          + '<span class="cr-pick-l"><b>' + posCreditos.esc(c.nombre) + '</b>'
+          + '<span>' + (c.tipo === 'empleado' ? 'Empleado' : 'Cliente')
+          + (Number(c.saldo) > 0 ? ' · debe ' + posCreditos.money(c.saldo) : '') + '</span></span>'
+          + '<span class="cr-pick-r ' + (alcanza ? 'ok' : 'bad') + '">' + posCreditos.money(disp)
+          + '<span>' + (alcanza ? 'disponible' : 'no alcanza') + '</span></span></button>';
+      }).join('');
+    }
+    ov.innerHTML =
+      '<div style="background:#fff;border-radius:16px;padding:20px 22px;width:440px;max-width:94vw;font-family:\'DM Sans\',system-ui,sans-serif;box-shadow:0 24px 60px -12px rgba(0,0,0,.35);max-height:88vh;display:flex;flex-direction:column">'
+      + '<div style="font-size:15px;font-weight:800;color:#0F172A">¿A nombre de quién?</div>'
+      + '<div style="font-size:12.5px;color:#64748B;margin:5px 0 12px;line-height:1.5">Se le van a cargar <b>' + posCreditos.money(monto) + '</b> a su crédito.</div>'
+      + '<input id="cr-pick-q" class="iv-input" placeholder="Buscar…" style="width:100%;margin-bottom:10px">'
+      + '<div id="cr-pick-list" style="flex:1;overflow:auto;display:flex;flex-direction:column;gap:6px">' + filas('') + '</div>'
+      + '<button style="width:100%;margin-top:14px;padding:11px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:700;font-size:13px;cursor:pointer" id="cr-pick-cancel">Cancelar</button>'
+      + '</div>';
+    document.body.appendChild(ov);
+    var listEl = ov.querySelector('#cr-pick-list');
+    function bind() {
+      listEl.querySelectorAll('.cr-pick').forEach(function (b) {
+        b.onclick = function () {
+          var c = lista.filter(function (x) { return x.id === b.dataset.id; })[0];
+          ov.remove();
+          resolve({ id: c.id, nombre: c.nombre, disponible: Number(c.disponible) || 0 });
+        };
+      });
+    }
+    bind();
+    ov.querySelector('#cr-pick-q').oninput = function () {
+      listEl.innerHTML = filas(this.value.toLowerCase().trim()); bind();
+    };
+    ov.querySelector('#cr-pick-cancel').onclick = function () { ov.remove(); resolve(null); };
+    ov.onclick = function (e) { if (e.target === ov) { ov.remove(); resolve(null); } };
+    setTimeout(function () { ov.querySelector('#cr-pick-q').focus(); }, 40);
+  });
+}
+
 // ── Acciones ──────────────────────────────────────────────────────────────
-function applyPayment() {
+async function applyPayment() {
   const { falta, total } = calc();
   if (SP.entry <= 0 || falta <= 0) return;
   const amount   = _esEfectivo() ? Math.min(SP.entry, falta) : SP.entry;
   const received = SP.entry;
   const def      = _payDef();
+
+  // Crédito: hay que decir a nombre de QUIÉN queda la deuda. El cargo real se
+  // hace al finalizar, no aquí: si se cancela el cobro a medias, nadie queda
+  // debiendo algo que nunca se cobró.
+  if (_crEsCredito()) {
+    if (!window.posCreditos) { alert('El módulo de créditos no está disponible.'); return; }
+    const st = (window._pos && window._pos.state) || {};
+    posCreditos.setCtx(st.tenantId, SP.branchId);
+    const sel = await crElegirPersona(amount);
+    if (!sel) return;                       // canceló
+    _crPagoSel = sel;
+    SP.payments.push({ id: Date.now(), method: def.nombre, methodKey: def.key, methodTipo: 'credito',
+                       amount, received: amount, creditoId: sel.id, creditoNombre: sel.nombre });
+    SP.entry = 0;
+    renderAll();
+    return;
+  }
   // Guardamos el NOMBRE del método (lo que se muestra y con lo que agrupa el
   // cuadre de caja) + su id/tipo para referencia.
   SP.payments.push({ id: Date.now(), method: def.nombre, methodKey: def.key, methodTipo: def.tipo, amount, received });
@@ -541,6 +629,24 @@ async function cobrarDespues() {
         (SP.items || []).map(function (i) {
           return { product_id: i.productId, category_id: i.catId, total: i.qty * i.unitPrice };
         }), _extras);
+    }
+
+    // CRÉDITO: cargar la deuda ANTES de cerrar el pedido. Si el cupo no alcanza
+    // la base lo rechaza, se avisa y NO se cobra nada — así el pedido nunca
+    // queda pagado con un crédito que no existía.
+    const _cred = (SP.payments || []).filter(function (p) { return p.creditoId && !p.saved; });
+    for (const cp of _cred) {
+      try {
+        const st = (window._pos && window._pos.state) || {};
+        const quien = (st.user && (st.user.user_metadata && st.user.user_metadata.nombre || st.user.email)) || null;
+        await posCreditos.consumir(cp.creditoId, cp.amount, SP.orderId, quien, 'Pedido ' + (SP.orderId || '').slice(0, 8));
+        cp.creditoOk = true;
+      } catch (e) {
+        btnFinish.disabled = false; btnFinish.textContent = 'Finalizar';
+        if (e && e.codigo === 'CREDITO_INSUFICIENTE') posCreditos.modalInsuficiente(e, cp.creditoNombre);
+        else alert('No se pudo cargar el crédito: ' + (e.message || e));
+        return;
+      }
     }
 
     // 1. Marcar pedido como pagado con todos los datos financieros

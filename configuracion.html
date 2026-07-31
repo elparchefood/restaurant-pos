@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css">
-<link rel="stylesheet" href="configuracion.css?v=1786950000">
+<link rel="stylesheet" href="configuracion.css?v=1787650000">
 </head>
 <body>
 <div class="cf-root">
@@ -87,6 +87,12 @@
 
       <div class="cf-navgroup-wrap">
         <div class="cf-navgroup">Equipo</div>
+        <button class="lm-nav" id="nav-creditos" data-section="creditos">
+          <span class="cf-nav-l">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            <span class="cf-nav-label">Créditos</span>
+          </span>
+        </button>
         <button class="lm-nav" id="nav-usuarios" data-section="usuarios">
           <span class="cf-nav-l">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -391,6 +397,33 @@
     </div>
 
     <!-- ─────── SECCIÓN: USUARIOS Y ROLES ─────── -->
+    <!-- ══ CRÉDITOS ══
+         Aquí SOLO se asignan cupos (acto del administrador). Ver saldos y
+         registrar abonos vive en Caja, porque el abono entra al turno. -->
+    <div class="cf-screen" id="screen-creditos">
+      <section class="cf-pagehead">
+        <div>
+          <div class="cf-eyebrow">Equipo y clientes</div>
+          <h2 class="cf-pagetitle">Créditos</h2>
+        </div>
+        <button class="lm-btn-primary" onclick="crNuevo()">＋ Dar crédito</button>
+      </section>
+      <section class="cf-body" style="max-width:900px">
+        <div class="cr-note">
+          El crédito es una <b>forma de pago</b>: el pedido queda pagado y la caja cuadra, y la deuda
+          queda en la persona. Cuando alguien llega a su cupo, el sistema no lo deja pagar con crédito
+          hasta que abone. Los abonos se registran en <b>Caja → Créditos</b>.
+        </div>
+        <div class="cr-tabs">
+          <button class="iv-chip on" data-cr-tab="cliente"  onclick="crSetTipo('cliente')">Clientes</button>
+          <button class="iv-chip"    data-cr-tab="empleado" onclick="crSetTipo('empleado')">Empleados</button>
+          <input class="iv-input cr-search" placeholder="Buscar por nombre o teléfono…" oninput="crBuscarInput(this.value)">
+        </div>
+        <div class="cr-resumen" id="cr-resumen"></div>
+        <div class="cr-lista" id="cr-lista"></div>
+      </section>
+    </div>
+
     <div class="cf-screen" id="screen-usuarios">
       <section class="cf-pagehead">
         <div>
@@ -2341,7 +2374,8 @@
 <script src="pos-print.js?v=1787560000"></script>
 <script src="pos-print-listener.js?v=4"></script>
 <script src="pos-impuestos.js?v=1"></script>
-<script src="configuracion.js?v=1787560000"></script>
+<script src="pos-creditos.js?v=1"></script>
+<script src="configuracion.js?v=1787650000"></script>
 </body>
 </html>
 

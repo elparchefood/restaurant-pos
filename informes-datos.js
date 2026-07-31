@@ -1615,6 +1615,72 @@
     };
   };
 
+  /* ═══════════ CRÉDITOS ═══════════
+     Cuentas por cobrar: quién debe, cuánto y desde cuándo. El crédito es una
+     forma de pago, así que el pedido ya está pagado y la caja cuadró: lo que
+     se ve aquí es la deuda de la PERSONA. */
+  R['caj-creditos'] = async function (p) {
+    var s = sb();
+    var q = s.from('v_creditos').select('*');
+    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    var rc = await q; if (rc.error) throw rc.error;
+    var lista = rc.data || []; if (!lista.length) return vacio();
+
+    var conDeuda = lista.filter(function (c) { return Number(c.saldo) > 0; });
+    var total = conDeuda.reduce(function (a, c) { return a + Number(c.saldo); }, 0);
+    var cupo  = lista.reduce(function (a, c) { return a + (Number(c.cupo) || 0); }, 0);
+
+    // Movimientos del período, para ver el flujo y no solo la foto.
+    var r = rango(p);
+    var consumo = 0, abonos = 0;
+    try {
+      var qm = s.from('pos_credito_movimientos').select('tipo,monto')
+        .gte('created_at', r.from).lt('created_at', r.to);
+      if (CTX.branchId) qm = qm.eq('branch_id', CTX.branchId);
+      var rm = await qm;
+      (rm.data || []).forEach(function (m) {
+        if (m.tipo === 'abono') abonos += Number(m.monto) || 0;
+        else if (m.tipo === 'consumo') consumo += Number(m.monto) || 0;
+      });
+    } catch (e) {}
+
+    // Antigüedad: una deuda vieja es la que hay que salir a cobrar.
+    var hoy = Date.now();
+    function dias(c) {
+      if (!c.ultimo_mov) return null;
+      return Math.floor((hoy - new Date(c.ultimo_mov).getTime()) / 86400000);
+    }
+    var arr = conDeuda.slice().sort(function (a, b) { return Number(b.saldo) - Number(a.saldo); });
+    var viejas = arr.filter(function (c) { var d = dias(c); return d != null && d > 30; });
+
+    return {
+      kpis: [
+        { lbl: 'Te deben', val: $(total), tone: total > 0 ? 'warn' : 'good', big: 1 },
+        { lbl: 'Personas con deuda', val: n0(conDeuda.length), sub: 'de ' + n0(lista.length) + ' con crédito' },
+        { lbl: 'Consumido en el período', val: $(consumo) },
+        { lbl: 'Abonado en el período', val: $(abonos), tone: 'good' },
+        { lbl: 'Sin moverse +30 días', val: n0(viejas.length), tone: viejas.length ? 'bad' : 'good' },
+      ],
+      blocks: [
+        { t: 'card', title: 'Cuentas por cobrar', sub: 'Ordenadas por lo que más deben',
+          body: { t: 'table', min: 700,
+          cols: [{ k: 'n', label: 'Quién' }, { k: 't', label: 'Tipo' }, { k: 'c', label: 'Cupo', num: 1 },
+                 { k: 'd', label: 'Debe', num: 1 }, { k: 'q', label: 'Le queda', num: 1 }, { k: 'u', label: 'Último movimiento' }],
+          rows: arr.map(function (c) {
+            var dd = dias(c);
+            return {
+              n: { _main: c.nombre },
+              t: { _pill: [c.tipo === 'empleado' ? 'violet' : 'brand', c.tipo === 'empleado' ? 'Empleado' : 'Cliente'] },
+              c: $(c.cupo),
+              d: { _neg: $(c.saldo) },
+              q: $(c.disponible),
+              u: dd == null ? '—' : { _pill: [dd > 30 ? 'bad' : dd > 15 ? 'warn' : 'neu',
+                                              dd === 0 ? 'hoy' : 'hace ' + dd + (dd === 1 ? ' día' : ' días')] } }; }),
+          total: { n: 'Total', t: '', c: $(cupo), d: $(total), q: '', u: '' } } },
+      ],
+    };
+  };
+
   window.INFORMES_DATOS = {
     setCtx: function (t, b) { CTX.tenantId = t || null; CTX.branchId = b || null; limpiarCache(); _rec = null; },
     tiene:  function (id) { return !!R[id]; },
