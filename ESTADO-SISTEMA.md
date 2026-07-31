@@ -1022,6 +1022,78 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
+## PENDIENTE — [Contabilidad] GASTOS y GANANCIA NETA REAL — Sergio 2026-07-31
+
+**Lo que pidió:** que el dueño sepa **cuánto está ganando de verdad**, mes a mes.
+Hoy el sistema sabe lo que entra, pero no lo que sale de forma ordenada.
+
+> *"Añadir algo con lo que el dueño pueda saber cuántos gastos tiene: servicios
+> públicos, arriendo, nómina… que el sistema le ayude a hacer las cuentas, saber
+> cuánto gastó en nómina, en servicios, en materia prima, y cuánto le quedó de
+> ganancia neta, con comparativos, para que realmente sepa cuánto gana mes a mes."*
+
+### Lo que YA existe (no rehacer)
+- `pos_cash_moves` — egresos e ingresos de caja (tipo, monto, concepto, medio).
+  **Le falta CATEGORÍA**: hoy todo es texto libre en `concept`, así que no se
+  puede agrupar "cuánto va en servicios" vs "cuánto en nómina".
+- `iv_movimientos` — las compras de materia prima, ya valorizadas.
+- Informe `ger-ventascompras` — hace ventas − compras − egresos, pero con los
+  egresos sin clasificar. Es la base sobre la que se construye esto.
+
+### Lo que falta
+**1. Categorías de gasto** (catálogo editable, con unas por defecto):
+   materia prima · nómina · servicios públicos · arriendo · impuestos ·
+   mantenimiento · transporte · publicidad · otros.
+   Se agrega `categoria_id` a `pos_cash_moves`.
+
+**2. Gastos FIJOS y RECURRENTES.** El arriendo y los servicios no se registran
+   como un egreso de caja cualquiera: se repiten todos los meses y muchas veces
+   se pagan por fuera de la caja (transferencia desde el banco).
+   - Tabla `pos_gastos_fijos`: concepto, categoría, monto estimado, día del mes,
+     activo.
+   - El sistema **recuerda** cuando llega la fecha ("mañana vence el arriendo")
+     y permite marcarlo como pagado con el monto real.
+   - Distinguir **estimado vs real**: el recibo de luz varía cada mes.
+
+**3. Nómina.** Es el gasto más grande y hoy no existe en el sistema.
+   - Tabla `pos_nomina`: empleado, periodo, salario, extras, deducciones, pagado.
+   - Se conecta con **asistencia** (pendiente aparte) para calcular horas.
+   - Ojo: el consumo de empleados con **crédito** (ya implementado) debería poder
+     descontarse de la nómina. Es la conexión natural entre las dos funciones.
+
+**4. Informe de GANANCIA NETA (el que de verdad quiere).**
+```
+   Ventas del mes                      $ 3.791.000
+   − Materia prima (compras)           $   ...
+   − Nómina                            $   ...
+   − Servicios públicos                $   ...
+   − Arriendo                          $   ...
+   − Otros gastos                      $   ...
+   ─────────────────────────────────────────────
+   = GANANCIA NETA                     $   ...     (margen %)
+```
+   Con **comparativo contra el mes anterior** (mismo tramo de días, como ya hace
+   `ger-comparativo`) y la evolución de los últimos meses.
+
+**5. Alertas útiles:** "este mes la nómina se llevó el 38% de las ventas",
+   "los servicios subieron 22% frente al mes pasado".
+
+### Advertencias
+- **No mezclar la caja con la contabilidad.** Un gasto pagado por transferencia
+  desde el banco NO puede afectar el arqueo de caja. Hay que separar
+  *movimiento de caja* de *gasto del negocio*: todo gasto de caja es un gasto,
+  pero no todo gasto pasa por la caja.
+- **El domicilio sigue sin ser venta** (regla de oro): la ganancia neta se
+  calcula sobre `total_final`, nunca sobre `total`.
+- Esto **no es contabilidad formal** ni reemplaza al contador: es para que el
+  dueño sepa cómo va su negocio. Decirlo claro en la pantalla.
+
+### Por dónde empezar
+Categorías de gasto (§1) — es lo más barato y ya mejora `ger-ventascompras`
+inmediatamente. Después gastos fijos (§2), y nómina (§3) de último por su tamaño.
+
+---
+
 ## PENDIENTE — [Chat IA] Respuestas rápidas EDITABLES y CON VARIABLES — Sergio 2026-07-31
 
 **Lo que pidió:** poder **crear y editar** respuestas rápidas que se rellenen solas
