@@ -1560,7 +1560,12 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
   padding: 4px; border-radius: 8px; display: flex;
 }
 .ci-dw-x:hover { background: rgba(255,255,255,.055); color: #EDEEF2; }
-.ci-dw-body { flex: 1; overflow-y: auto; padding: 16px 18px 22px; }
+.ci-dw-body { flex: 1; overflow-y: auto; padding: 16px 18px 22px;
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.12) transparent; }
+.ci-dw-body::-webkit-scrollbar { width: 3px; }
+.ci-dw-body::-webkit-scrollbar-track { background: transparent; }
+.ci-dw-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 3px; }
+.ci-dw-body::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.22); }
 .ci-dw-load, .ci-dw-empty {
   font-size: 12.5px; color: #787C8B; text-align: center;
   padding: 22px 6px; line-height: 1.6;
@@ -1625,10 +1630,21 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 }
 .ci-dw-dirs { display: flex; flex-direction: column; gap: 6px; }
 .ci-dw-dir {
-  display: flex; align-items: center; gap: 6px;
+  display: flex; flex-direction: column;
   background: #161821; border: 1px solid rgba(255,255,255,.07);
-  border-radius: 11px; padding: 4px 6px 4px 10px;
+  border-radius: 11px; padding: 4px 6px 5px 10px;
 }
+.ci-dw-dirtop { display: flex; align-items: center; gap: 6px; }
+/* El barrio va debajo de su dirección: sin él no se puede cobrar el domicilio. */
+.ci-dw-dirbar { display: flex; align-items: center; gap: 5px; margin-top: 1px; }
+.ci-dw-pin { flex: none; font-size: 9px; color: #585C6B; line-height: 1; }
+.ci-dw-dirb {
+  flex: 1; min-width: 0; background: transparent; border: none; outline: none;
+  color: #787C8B; font-family: inherit; font-size: 11px; line-height: 1.3;
+  padding: 1px 0 2px;
+}
+.ci-dw-dirb:focus { color: #9B85FF; }
+.ci-dw-dirb::placeholder { color: #4A4E5C; font-style: italic; }
 .ci-dw-dirin {
   flex: 1; min-width: 0; background: transparent; border: none; outline: none;
   color: #A6A9B6; font-family: inherit; font-size: 12px; line-height: 1.4; padding: 5px 0;

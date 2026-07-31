@@ -406,7 +406,27 @@ async function abrirFichaCliente(){
 }
 function cerrarFichaCliente(){ const o=document.getElementById('fichaOv'); if(o) o.classList.remove('on'); }
 
+// Los barrios que ya se han usado, para no volver a escribirlos a mano al
+// corregir una direccion. Se cargan una sola vez por sesion.
+let _ciBarrios = null;
+async function ciCargarBarrios(){
+  const dl = document.getElementById('ciBarriosList');
+  if (!dl) return;
+  if (!_ciBarrios) {
+    _ciBarrios = [];
+    try {
+      const r = await sb.from('pos_clientes').select('barrio')
+        .eq('tenant_id', S.tenantId).not('barrio','is',null).limit(5000);
+      const set = {};
+      (r.data||[]).forEach(function(x){ const b = ciTitulo(x.barrio); if (b) set[b] = 1; });
+      _ciBarrios = Object.keys(set).sort();
+    } catch(e){}
+  }
+  dl.innerHTML = _ciBarrios.map(function(b){ return '<option value="'+escHtml(b)+'">'; }).join('');
+}
+
 async function pintarFichaCliente(conv){
+  ciCargarBarrios();
   const tel10 = String(conv.contact_handle||'').replace(/\D/g,'').slice(-10);
   // 1) Ficha guardada (el teléfono es la llave)
   let cli = null;
@@ -419,7 +439,7 @@ async function pintarFichaCliente(conv){
   if (cli) {
     try {
       const r = await sb.from('pos_orders')
-        .select('id,total_final,total,created_at,payment_method,status,channel')
+        .select('id,total_final,total,created_at,payment_method,status,channel,notes')
         .eq('cliente_id', cli.id).order('created_at',{ascending:false}).limit(40);
       pedidos = r.data || [];
     } catch(e){}
@@ -466,7 +486,19 @@ async function pintarFichaCliente(conv){
   pedidos.forEach(function(p){ const m=(p.payment_method||'').toLowerCase(); if(m && m!=='multiple') pagos[m]=(pagos[m]||0)+1; });
   const pagoTop = Object.entries(pagos).sort(function(a,b){ return b[1]-a[1]; })[0];
 
-  const dirs = cli ? ((Array.isArray(cli.direcciones)&&cli.direcciones.length) ? cli.direcciones : (cli.direccion?[cli.direccion]:[])) : [];
+  // Cada direccion lleva SU barrio: {dir, barrio}. Las viejas eran texto
+  // suelto, asi que se aceptan los dos formatos.
+  const dirs = (cli
+      ? ((Array.isArray(cli.direcciones)&&cli.direcciones.length) ? cli.direcciones : (cli.direccion?[cli.direccion]:[]))
+      : []
+    ).map(function(d){
+      if (d && typeof d === 'object') return { dir: d.dir||'', barrio: d.barrio||'' };
+      return { dir: String(d||''), barrio: '' };
+    }).filter(function(d){ return d.dir.trim(); });
+  // El barrio que se muestra junto al nombre es de DONDE MAS HA PEDIDO, no el
+  // ultimo: si pide casi siempre a la casa y una vez a la oficina, la etiqueta
+  // debe seguir diciendo el barrio de la casa.
+  const barrioTop = ciBarrioMasPedido(pedidos) || (cli && cli.barrio) || '';
   const nombre = (cli && cli.nombre) || conv.contact_name || conv.contact_handle || 'Sin nombre';
 
   let h = '';
@@ -477,7 +509,7 @@ async function pintarFichaCliente(conv){
     +  '<div class="ci-dw-av">'+escHtml(avatarInitials(nombre))+'</div>'
     +  '<div class="ci-dw-idtx"><div class="ci-dw-nm">'+escHtml(nombre)+'</div>'
     +    '<div class="ci-dw-sub">'+escHtml(conv.contact_handle||'')
-    +      ((cli && cli.barrio) ? ' · '+escHtml(cli.barrio) : '')+'</div></div>'
+    +      (barrioTop ? ' · '+escHtml(barrioTop) : '')+'</div></div>'
     + '</div>';
 
   if (!cli) {
@@ -530,12 +562,7 @@ async function pintarFichaCliente(conv){
 
     h += '<div class="ci-dw-sec">Direcciones</div><div class="ci-dw-dirs" id="fichaDirs">'
       + dirs.map(function(d,i){
-          return '<div class="ci-dw-dir">'
-            + '<input class="ci-dw-dirin" value="'+escHtml(d)+'" data-i="'+i+'" '
-            +   'onblur="guardarDirsCliente(&quot;'+cli.id+'&quot;)" placeholder="Dirección">'
-            + (i===dirs.length-1?'<span class="ci-dw-tag">principal</span>':'')
-            + '<button class="ci-dw-dirx" title="Quitar" onclick="quitarDirCliente(&quot;'+cli.id+'&quot;,'+i+')">✕</button>'
-          + '</div>';
+          return ciDirRowHTML(cli.id, d.dir, d.barrio, i, i===dirs.length-1);
         }).join('')
       + '</div>'
       + '<button class="ci-dw-addir" onclick="agregarDirCliente(&quot;'+cli.id+'&quot;)">+ Agregar dirección</button>';
@@ -562,13 +589,50 @@ async function pintarFichaCliente(conv){
     + '</div>';
   document.getElementById('fichaBody').innerHTML = h;
 }
+// El barrio de donde MAS ha pedido. Sale de la etiqueta [barrio:X] que cada
+// pedido guarda en sus notas, que es el dato que de verdad se cobro.
+function ciBarrioMasPedido(pedidos){
+  const cuenta = {};
+  (pedidos||[]).forEach(function(p){
+    const m = /\[barrio:([^\]]+)\]/i.exec(p.notes||'');
+    if (!m) return;
+    const b = ciTitulo(m[1]);
+    if (b) cuenta[b] = (cuenta[b]||0) + 1;
+  });
+  const top = Object.entries(cuenta).sort(function(a,b){ return b[1]-a[1]; })[0];
+  return top ? top[0] : '';
+}
+// Los barrios vienen en MAYUSCULA desde la comanda; se muestran normales.
+function ciTitulo(s){
+  return String(s||'').trim().toLowerCase().replace(/(^|\s)\S/g, function(t){ return t.toUpperCase(); });
+}
+// Una direccion sin su barrio no sirve para cobrar el domicilio, asi que las
+// dos cosas se editan juntas en la misma tarjeta.
+function ciDirRowHTML(cliId, dir, barrio, i, esPrincipal){
+  const g = 'guardarDirsCliente(&quot;'+cliId+'&quot;)';
+  return '<div class="ci-dw-dir">'
+    + '<div class="ci-dw-dirtop">'
+    +   '<input class="ci-dw-dirin" value="'+escHtml(dir||'')+'" data-i="'+i+'" '
+    +     'onblur="'+g+'" placeholder="Dirección">'
+    +   (esPrincipal ? '<span class="ci-dw-tag">principal</span>' : '')
+    +   '<button class="ci-dw-dirx" title="Quitar" onclick="quitarDirCliente(&quot;'+cliId+'&quot;,'+i+')">✕</button>'
+    + '</div>'
+    + '<div class="ci-dw-dirbar">'
+    +   '<span class="ci-dw-pin">◍</span>'
+    +   '<input class="ci-dw-dirb" value="'+escHtml(barrio||'')+'" list="ciBarriosList" '
+    +     'onblur="'+g+'" placeholder="Barrio">'
+    + '</div>'
+  + '</div>';
+}
 // Las direcciones se editan en la misma ficha. La ULTIMA de la lista es la
 // principal (la que se usa por defecto al crear un pedido).
 function _leerDirs(){
   const out = [];
-  document.querySelectorAll('#fichaDirs .ci-dw-dirin').forEach(function(i){
-    const v = (i.value||'').trim();
-    if (v) out.push(v);
+  document.querySelectorAll('#fichaDirs .ci-dw-dir').forEach(function(row){
+    const a = row.querySelector('.ci-dw-dirin');
+    const b = row.querySelector('.ci-dw-dirb');
+    const v = ((a&&a.value)||'').trim();
+    if (v) out.push({ dir: v, barrio: ciTitulo((b&&b.value)||'') });
   });
   return out;
 }
@@ -577,7 +641,10 @@ async function guardarDirsCliente(id){
   try {
     await sb.from('pos_clientes').update({
       direcciones: dirs,
-      direccion: dirs.length ? dirs[dirs.length-1] : null,
+      // 'direccion' se queda como TEXTO plano: lo leen otras pantallas (crear
+      // pedido, domicilios) que no entienden el formato con barrio.
+      direccion: dirs.length ? dirs[dirs.length-1].dir : null,
+      barrio: dirs.length && dirs[dirs.length-1].barrio ? dirs[dirs.length-1].barrio : undefined,
       updated_at: new Date().toISOString(),
     }).eq('id', id);
     showToast('Direcciones guardadas','success');
@@ -588,7 +655,7 @@ async function quitarDirCliente(id, idx){
   try {
     await sb.from('pos_clientes').update({
       direcciones: dirs,
-      direccion: dirs.length ? dirs[dirs.length-1] : null,
+      direccion: dirs.length ? dirs[dirs.length-1].dir : null,
       updated_at: new Date().toISOString(),
     }).eq('id', id);
     const conv = S.conversations.find(function(c){ return c.id===S.activeConvId; });
@@ -600,12 +667,12 @@ function agregarDirCliente(id){
   const cont = document.getElementById('fichaDirs'); if(!cont) return;
   const n = cont.querySelectorAll('.ci-dw-dirin').length;
   const div = document.createElement('div');
-  div.className = 'ci-dw-dir';
-  div.innerHTML = '<input class="ci-dw-dirin" value="" data-i="'+n+'" placeholder="Nueva dirección" '
-    + 'onblur="guardarDirsCliente(&quot;'+id+'&quot;)">'
-    + '<button class="ci-dw-dirx" title="Quitar" onclick="this.parentElement.remove()">✕</button>';
-  cont.appendChild(div);
-  div.querySelector('input').focus();
+  div.innerHTML = ciDirRowHTML(id, '', '', n, false);
+  const row = div.firstElementChild;
+  // Todavia no esta guardada, asi que la ✕ solo quita la fila de pantalla.
+  row.querySelector('.ci-dw-dirx').setAttribute('onclick', 'this.closest(".ci-dw-dir").remove()');
+  cont.appendChild(row);
+  row.querySelector('.ci-dw-dirin').focus();
 }
 
 async function guardarNotasCliente(id, txt){

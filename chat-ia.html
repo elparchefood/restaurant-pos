@@ -14,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="pos-perms.js?v=1785030000"></script>
   <script>if(window.posRequirePin) posRequirePin('chat.usar');</script>
-  <link rel="stylesheet" href="chat-ia.css?v=54">
+  <link rel="stylesheet" href="chat-ia.css?v=55">
 </head>
 <body>
 
@@ -404,6 +404,8 @@
       </button>
     </div>
     <div class="ci-dw-body" id="fichaBody"></div>
+    <!-- Barrios ya conocidos, para no volver a escribirlos a mano. -->
+    <datalist id="ciBarriosList"></datalist>
   </aside>
 </div>
 </body>
