@@ -547,7 +547,7 @@
       // Solo se descarta si está cancelada.
       const r = await sb
         .from('pos_orders')
-        .select('id, status, total, created_at, opened_at, waiter_name, guests')
+        .select('id, status, total, subtotal, packaging_fee, created_at, opened_at, waiter_name, guests')
         .eq('id', _curId)
         .not('status', 'eq', 'cancelled')
         .limit(1);
@@ -557,7 +557,7 @@
       // reciente (excluyendo cerradas) para no resucitar huérfanas.
       const r = await sb
         .from('pos_orders')
-        .select('id, status, total, created_at, opened_at, waiter_name, guests')
+        .select('id, status, total, subtotal, packaging_fee, created_at, opened_at, waiter_name, guests')
         .eq('table_id', tableId)
         .not('status', 'eq', 'completed')
         .not('status', 'eq', 'cancelled')
@@ -577,7 +577,7 @@
     // Sin join a pos_products — evita fallo silencioso si no hay FK definida en Supabase
     const { data: items, error: itemErr } = await sb
       .from('pos_order_items')
-      .select('id, quantity, product_name, name, product_price, unit_price, notes, product_id')
+      .select('id, quantity, product_name, name, product_price, unit_price, notes, product_id, selections')
       .eq('order_id', order.id)
       .order('created_at', { ascending: true });
 
@@ -668,7 +668,7 @@
     try {
       var cajaStart = await getCajaSessionStart();
       var q = sb.from('pos_orders')
-        .select('id, customer_name, channel, total, paid_amount, payment_method, waiter_name, status, created_at, opened_at, delivery_status, delivered_at')
+        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, status, created_at, opened_at, delivery_status, delivered_at')
         .eq('channel', 'domicilio')
         .not('status', 'eq', 'cancelled')
         .gte('created_at', cajaStart)
@@ -699,6 +699,9 @@
           canal: r.channel || 'whatsapp',
           items: 0,
           total: totalNum,
+          subtotal: parseFloat(r.subtotal) || 0,        // solo productos
+          empaque:  parseFloat(r.packaging_fee) || 0,
+          domiFee:  parseFloat(r.delivery_fee) || 0,
           paidAmount: paidNum,
           estado: estado,
           payStatus: payStatus,
@@ -1330,6 +1333,103 @@
   }
 
 
+  // ═══════════════════════════════════════════════════════
+  // COMANDA DESPLEGABLE (compartida por domicilios, mesas y rápidas)
+  // Cerrado: el producto y su total, ya con adiciones y empaque incluidos.
+  // Desplegado: precio del producto, cada adición con su valor, y el empaque.
+  // ═══════════════════════════════════════════════════════
+  function vsEmpaqueCfg() {
+    try { return JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}'); }
+    catch (e) { return {}; }
+  }
+  // El empaque solo se puede repartir entre los productos si se cobra POR
+  // PRODUCTO (por unidad, específico por producto, o un porcentaje). Si está
+  // configurado como un monto único POR PEDIDO no pertenece a ningún plato:
+  // en ese caso se muestra abajo, junto a los demás totales.
+  function vsEmpaqueEsPorPedido() {
+    const c = vsEmpaqueCfg();
+    return c.empaqueModo !== 'especifico' && c.empaqueBase === 'pedido' && c.empaqueTipo !== 'porcentaje';
+  }
+  // Reparte el empaque cobrado entre los productos. El redondeo se ajusta en la
+  // última línea para que la suma dé EXACTO lo que se cobró (nunca $1 de más).
+  function vsEmpaquePorItem(its, fee) {
+    const n = (its || []).length;
+    const cero = new Array(n).fill(0);
+    if (!n || !fee || vsEmpaqueEsPorPedido()) return cero;
+    const cfg = vsEmpaqueCfg();
+    const esPct = cfg.empaqueTipo === 'porcentaje';
+    const pesos = its.map(function (it) {
+      if (cfg.empaqueModo === 'especifico' && window.posEmpaqueCalc) {
+        const v = window.posEmpaqueCalc([{
+          productId: it.product_id || null, catId: null, presId: null,
+          qty: Number(it.quantity) || 0, unitPrice: Number(it.unit_price) || 0,
+        }], { domicilio: true });
+        return Number(v) || 0;
+      }
+      return esPct ? (Number(it.total) || 0) : (Number(it.quantity) || 0);
+    });
+    const suma = pesos.reduce(function (a, b) { return a + b; }, 0);
+    if (suma <= 0) return cero;
+    const out = pesos.map(function (p) { return Math.round(fee * p / suma); });
+    out[n - 1] += fee - out.reduce(function (a, b) { return a + b; }, 0);
+    return out;
+  }
+  // Adiciones del ítem (selections.mods) → [{name, price, qty}]
+  function vsAdiciones(it) {
+    const mods = (it && it.selections && it.selections.mods) || {};
+    const out = [];
+    for (const k in mods) {
+      const m = mods[k] || {};
+      const p = Number(m.price) || 0;
+      if (m.name || p > 0) out.push({ name: m.name || 'Adición', price: p, qty: Number(m.qty) || 1 });
+    }
+    return out;
+  }
+  function vsComandaHTML(its, empaques) {
+    if (!its) return '<div class="vs-comanda-empty">Cargando…</div>';
+    if (!its.length) return '<div class="vs-comanda-empty">Sin ítems</div>';
+    return its.map(function (it, i) {
+      const qty   = Number(it.quantity) || 1;
+      const unit  = Number(it.unit_price) || 0;
+      const linea = Number(it.total) || unit * qty;
+      const emp   = (empaques && empaques[i]) || 0;
+      const adics = vsAdiciones(it);
+      // El precio unitario ya trae las adiciones sumadas: se descuentan para
+      // mostrar cuánto vale el producto solo.
+      const baseUnit = unit - adics.reduce(function (s, a) { return s + a.price * a.qty; }, 0);
+      const uid = 'vscmd_' + i + '_' + String(it.id || '').slice(0, 8);
+      let det = '<div class="vs-cmd-row"><span>Producto'
+        + (qty > 1 ? ' · ' + qty + ' × ' + fmt(baseUnit) : '')
+        + '</span><span>' + fmt(baseUnit * qty) + '</span></div>';
+      adics.forEach(function (a) {
+        const uds = qty * a.qty;
+        det += '<div class="vs-cmd-row is-adic"><span>+ ' + a.name + ' · adición'
+          + (uds > 1 ? ' · ' + uds : '') + '</span><span>' + fmt(a.price * uds) + '</span></div>';
+      });
+      if (emp > 0) det += '<div class="vs-cmd-row"><span>Empaque</span><span>' + fmt(emp) + '</span></div>';
+      if (it.notes) det += '<div class="vs-cmd-note">' + it.notes + '</div>';
+      return '<div class="vs-cmd" data-cmd="' + uid + '">'
+        + '<button class="vs-cmd-head" data-cmd-toggle="' + uid + '">'
+        +   '<span class="vs-cmd-chev">›</span>'
+        +   '<span class="vs-item-qty">' + qty + '×</span>'
+        +   '<span class="vs-item-name">' + (it.name || 'Producto') + '</span>'
+        +   '<span class="vs-item-price">' + fmt(linea + emp) + '</span>'
+        + '</button>'
+        + '<div class="vs-cmd-detail">' + det + '</div>'
+      + '</div>';
+    }).join('');
+  }
+  // Abrir/cerrar el detalle (delegado: el panel se repinta constantemente).
+  if (!window._vsCmdBound) {
+    window._vsCmdBound = true;
+    document.addEventListener('click', function (ev) {
+      const b = ev.target && ev.target.closest && ev.target.closest('[data-cmd-toggle]');
+      if (!b) return;
+      const box = b.closest('.vs-cmd');
+      if (box) box.classList.toggle('is-open');
+    });
+  }
+
   // ─── Render: Domicilio rail ───────────────────────────
   function renderDomiRailContent() {
     if (!state.selectedDomiId) return renderDomiRailEmpty();
@@ -1366,9 +1466,9 @@
     const payLabel = isPagado ? 'Pagado'
                    : isParcial ? ('Abonado ' + fmtCurrency(d.paidAmount||0) + ' · faltan ' + fmtCurrency(Math.max(0, (d.total||0)-(d.paidAmount||0))))
                    : 'Por pagar';
-    const subtotal = d.total || 0;
-    const domiFee  = 5000;
-    const total    = subtotal + (isPagado ? 0 : 0); // total ya incluye domicilio en seed
+    // Los totales se arman abajo con los valores REALES del pedido
+    // (subtotal + empaque + domicilio). Antes aquí había un domicilio fijo
+    // de $5.000 de la maqueta y se usaba d.total como "subtotal".
     const hasNext  = !!DELIVERY_NEXT[d.estado];
     const nextLabel = DELIVERY_BTN[d.estado];
 
@@ -1439,19 +1539,25 @@
           <span style="font-size:11px;color:#94A3B8">${d.metodo}</span>
         </div>
         <div class="vs-order-list">
-          ${(function(){
-            var _its = state.domiItems[d.id];
-            if (!_its) return '<div style="font-size:12px;color:#94A3B8;padding:16px 0;text-align:center">Cargando…</div>';
-            if (!_its.length) return '<div style="font-size:12px;color:#94A3B8;padding:16px 0;text-align:center">Sin ítems</div>';
-            return _its.map(function(it){ return '<div class="vs-item-row"><span class="vs-item-qty">'+it.quantity+'×</span><span class="vs-item-name">'+it.name+'</span><span class="vs-item-price">'+fmt(it.total || it.unit_price * it.quantity)+'</span></div>'+(it.notes ? '<div class="vs-item-note">'+it.notes+'</div>' : ''); }).join('');
-          })()}
+          ${vsComandaHTML(state.domiItems[d.id], vsEmpaquePorItem(state.domiItems[d.id] || [], d.empaque))}
         </div>
       </div>
 
       <div class="vs-rail-footer">
         <div class="vs-totals">
-          <div class="vs-total-row"><span>Subtotal</span><span>${fmt(subtotal)}</span></div>
-          <div class="vs-total-row vs-total-grand"><span>Total</span><span>${fmt(subtotal)}</span></div>
+          ${(function(){
+            // "Pedido" = productos + empaque (eso es la VENTA). El domicilio va
+            // aparte y solo suma en el total a cobrar — nunca es venta.
+            const _empPedido = vsEmpaqueEsPorPedido() ? d.empaque : 0;
+            const _pedido = (d.subtotal || 0) + (d.empaque || 0);
+            const _domi   = d.domiFee || 0;
+            const _cobrar = d.total || (_pedido + _domi);
+            return ''
+              + '<div class="vs-total-row"><span>Pedido</span><span>' + fmt(_pedido - _empPedido) + '</span></div>'
+              + (_empPedido ? '<div class="vs-total-row"><span>Empaque</span><span>' + fmt(_empPedido) + '</span></div>' : '')
+              + (_domi ? '<div class="vs-total-row"><span>Domicilio</span><span>' + fmt(_domi) + '</span></div>' : '')
+              + '<div class="vs-total-row vs-total-grand"><span>Total a cobrar</span><span>' + fmt(_cobrar) + '</span></div>';
+          })()}
         </div>
         ${actionsHtml}
       </div>
@@ -1468,7 +1574,7 @@
     // turno se quedan visibles en estado "Entregado" hasta que se cierre la
     // caja (al cerrar, cajaStart avanza y estos quedan fuera del rango).
     let q = sb.from('pos_orders')
-      .select('id, customer_name, turno, total, subtotal, discount, status, channel, created_at, waiter_name, notes, delivered_at, paid_amount, estado, estado_at')
+      .select('id, customer_name, turno, total, subtotal, packaging_fee, discount, status, channel, created_at, waiter_name, notes, delivered_at, paid_amount, estado, estado_at')
       .eq('channel', 'rapido')
       .neq('status', 'cancelled')
       .gte('created_at', cajaStart)
@@ -1572,22 +1678,18 @@
       ? Math.round((Date.now() - new Date(openedAt).getTime()) / 60000)
       : (mesa.minutes || 0);
 
+    // Comanda desplegable: cerrado el producto con su total, desplegado el
+    // detalle (producto, adiciones y empaque). Mismo componente que domicilios.
+    const _mesaEmp   = parseFloat(ord?.packaging_fee) || 0;
+    const _mesaItems = state.orderItems.map(it => ({
+      id: it.id, name: it.product_name || it.name || '—',
+      quantity: it.quantity, unit_price: it.product_price || it.unit_price || 0,
+      total: (it.product_price || it.unit_price || 0) * it.quantity,
+      notes: it.notes, selections: it.selections, product_id: it.product_id,
+    }));
     const itemsHtml = state.orderItems.length
-      ? state.orderItems.map(it => {
-          const itemName = it.product_name || it.name || '—';
-          const itemPrice = it.product_price || it.unit_price || 0;
-          const categoryName = it.pos_products?.pos_categories?.name || '';
-        return `
-          <div class="vs-order-item">
-            <span class="vs-order-qty">${it.quantity}×</span>
-            <div class="vs-order-item-info">
-              <div class="vs-order-item-name">${itemName}</div>
-              ${categoryName ? `<div class="vs-order-item-area">${categoryName}</div>` : (it.notes ? `<div class="vs-order-item-area">${it.notes}</div>` : '')}
-            </div>
-            <div class="vs-order-item-price">${fmt(itemPrice * it.quantity)}</div>
-          </div>`;
-        }).join('')
-      : `<div style="font-size:12px;color:#94A3B8;padding:16px 0;text-align:center">Sin ítems registrados</div>`;
+      ? vsComandaHTML(_mesaItems, vsEmpaquePorItem(_mesaItems, _mesaEmp))
+      : `<div class="vs-comanda-empty">Sin ítems registrados</div>`;
 
     const canCobrar = state.canCobrar;
 
@@ -1690,8 +1792,9 @@
 
       <div class="vs-rail-footer">
         <div class="vs-totals">
-          <div class="vs-total-row"><span>Subtotal</span><span>${fmt(subtotal)}</span></div>
-          <div class="vs-total-row"><span>Servicio 10%</span><span>${fmt(servicio)}</span></div>
+          <div class="vs-total-row"><span>Pedido</span><span>${fmt(subtotal - (vsEmpaqueEsPorPedido() ? _mesaEmp : 0))}</span></div>
+          ${vsEmpaqueEsPorPedido() && _mesaEmp ? `<div class="vs-total-row"><span>Empaque</span><span>${fmt(_mesaEmp)}</span></div>` : ''}
+          ${servicio ? `<div class="vs-total-row"><span>Servicio 10%</span><span>${fmt(servicio)}</span></div>` : ''}
           <div class="vs-total-row vs-total-grand"><span>Total</span><span>${fmt(total)}</span></div>
         </div>
         ${actionsHtml}
@@ -1849,6 +1952,7 @@
     const total = o.total || 0;
     const subtotal = o.subtotal || total;
     const descuento = o.discount || 0;
+    const _qEmp = parseFloat(o.packaging_fee) || 0;   // empaque cobrado en esta venta
     const hora = new Date(o.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 
     const isPendientePagoQ = o.status === 'pendiente_pago';
@@ -1923,7 +2027,8 @@
         </div>
         <div class="vs-divider"></div>
         <div class="vs-totals">
-          <div class="vs-total-row"><span>Subtotal</span><span>${fmt(subtotal)}</span></div>
+          <div class="vs-total-row"><span>Pedido</span><span>${fmt(subtotal + (vsEmpaqueEsPorPedido() ? 0 : _qEmp))}</span></div>
+          ${vsEmpaqueEsPorPedido() && _qEmp ? `<div class="vs-total-row"><span>Empaque</span><span>${fmt(_qEmp)}</span></div>` : ''}
           ${descuento ? `<div class="vs-total-row"><span>Descuento</span><span>-${fmt(descuento)}</span></div>` : ''}
           <div class="vs-total-row vs-total-grand"><span>Total</span><span>${fmt(total)}</span></div>
           ${(function(){
@@ -2027,7 +2132,7 @@
           const _sb = window._pos && window._pos.sb;
           if (!_sb) return;
           const { data: _items } = await _sb.from('pos_order_items')
-            .select('name,quantity,unit_price,total,notes')
+            .select('id,name,quantity,unit_price,total,notes,selections,product_id')
             .eq('order_id', btn.dataset.domiId);
           state.domiItems[btn.dataset.domiId] = _items || [];
           if (state.selectedDomiId === btn.dataset.domiId) {
@@ -3059,7 +3164,7 @@
       const link = document.createElement('link');
       link.id = 'vs-styles';
       link.rel = 'stylesheet';
-      link.href = 'styles/modules/ventas-salon.css?v=20250709';
+      link.href = 'styles/modules/ventas-salon.css?v=20260730';
       document.head.appendChild(link);
     }
 

@@ -887,6 +887,56 @@
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
+/* ── Comanda desplegable: cerrado muestra el producto y su total (ya con
+   adiciones y empaque); al abrirlo se ve el detalle de cada valor. ── */
+.vs-cmd { border-bottom: 1px solid #F1F5F9; }
+.vs-cmd:last-child { border-bottom: none; }
+.vs-cmd-head {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 9px 2px;
+  background: none; border: none; cursor: pointer;
+  font-family: inherit; text-align: left;
+  border-radius: 8px;
+}
+.vs-cmd-head:hover { background: #F8FAFC; }
+.vs-cmd-chev {
+  width: 12px; flex-shrink: 0;
+  font-size: 14px; font-weight: 700; color: #94A3B8; line-height: 1;
+  transition: transform .15s;
+}
+.vs-cmd.is-open .vs-cmd-chev { transform: rotate(90deg); }
+.vs-cmd-head .vs-item-qty {
+  width: 24px; flex-shrink: 0;
+  font-size: 11px; font-weight: 700; color: #5B6BFF;
+}
+.vs-cmd-head .vs-item-name {
+  flex: 1; min-width: 0;
+  font-size: 12px; font-weight: 600; color: #0F172A;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vs-cmd-head .vs-item-price {
+  flex-shrink: 0;
+  font-size: 12px; font-weight: 700; color: #0F172A;
+  font-variant-numeric: tabular-nums;
+}
+.vs-cmd-detail { display: none; padding: 0 2px 10px 22px; }
+.vs-cmd.is-open .vs-cmd-detail { display: block; }
+.vs-cmd-row {
+  display: flex; justify-content: space-between; gap: 10px;
+  font-size: 11.5px; color: #64748B;
+  padding: 2.5px 0;
+  font-variant-numeric: tabular-nums;
+}
+.vs-cmd-row.is-adic { color: #5B6BFF; font-weight: 600; }
+.vs-cmd-note {
+  font-size: 11px; color: #94A3B8; font-style: italic;
+  padding-top: 4px;
+}
+.vs-comanda-empty {
+  font-size: 12px; color: #94A3B8;
+  padding: 16px 0; text-align: center;
+}
+
 .vs-totals { display: flex; flex-direction: column; gap: 6px; }
 .vs-total-row {
   display: flex;
