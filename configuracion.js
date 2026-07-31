@@ -4091,9 +4091,22 @@ function wcTel(t){
 async function wcCargar(){
   var bid = await wcBranch(); if (!bid) return;
   try {
-    var r = await sb.from('v_wa_contactos').select('*').eq('branch_id', bid).limit(5000);
-    if (r.error) throw r.error;
-    WC.items = r.data || [];
+    // La API corta en 1.000 filas por respuesta, así que se pide por páginas
+    // hasta traerlos todos (si no, con 1.421 contactos se perdían 421).
+    var todos = [], desde = 0, PAG = 1000;
+    while (true) {
+      var r = await sb.from('v_wa_contactos').select('*')
+        .eq('branch_id', bid)
+        .order('created_at', { ascending: true })
+        .range(desde, desde + PAG - 1);
+      if (r.error) throw r.error;
+      var lote = r.data || [];
+      todos = todos.concat(lote);
+      if (lote.length < PAG) break;      // última página
+      desde += PAG;
+      if (desde > 50000) break;          // tope de seguridad
+    }
+    WC.items = todos;
   } catch(e){
     console.error('wcCargar:', e);
     var l = document.getElementById('wcLista');
