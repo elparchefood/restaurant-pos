@@ -2302,9 +2302,25 @@ async function guardarInsumo() {
   const agotadoManualFinal = toggleManualOn ? (_insPrev ? !!_insPrev.agotadoManual : false) : false;
   const extra = { sub:toggleSubOn, servicio, venderBodega:(toggleSubOn && toggleVenderBodegaOn), avisoBodega };
   if (editId) {
+    // Se guarda EXACTAMENTE igual que siempre. Lo único nuevo viene después.
+    const _stockAntes = (function(){ const p=insumos.find(i=>i.id===editId); return p ? (parseFloat(p.stock)||0) : null; })();
     await iv_sb.from('iv_insumos').update(payload).eq('id',editId);
     const ins=insumos.find(i=>i.id===editId);
     if (ins) Object.assign(ins,{nombre,cat,catColor,prep:togglePrepOn,controlManual:toggleManualOn,agotadoManual:agotadoManualFinal,buyUnit,useUnit,precio,conversion,stock,min,...extra});
+    // NUEVO (aditivo, no cambia nada de lo anterior): si el stock quedó distinto
+    // al que había, se deja constancia. Antes alguien corregía el número a mano
+    // y no quedaba rastro de cuánto faltaba ni de quién lo ajustó — con más de
+    // un millón parado en inventario, esa diferencia importa.
+    // Es best-effort: si esto falla, el insumo ya quedó guardado igual.
+    try {
+      const _dif = (parseFloat(stock)||0) - (_stockAntes == null ? (parseFloat(stock)||0) : _stockAntes);
+      if (Math.abs(_dif) > 0.0001) {
+        await iv_sb.from('iv_movimientos').insert({
+          tenant_id: tenantId, branch_id: branchId, insumo_id: editId,
+          delta: _dif, campo: 'stock', motivo: 'ajuste manual',
+        });
+      }
+    } catch (e) { console.warn('[inventario] no se pudo registrar el ajuste:', e); }
   } else {
     const {data,error}=await iv_sb.from('iv_insumos').insert({...payload,tenant_id:tenantId,branch_id:branchId,activo:true}).select().single();
     if (error) { console.error('guardarInsumo:',error); alert('Error al guardar'); return; }

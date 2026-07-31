@@ -1681,6 +1681,87 @@
     };
   };
 
+  /* ═══════════ CUADRE DE STOCK ═══════════
+     Lo que el sistema creía vs lo que había de verdad. Incluye también los
+     ajustes hechos a mano desde la ficha del insumo: antes esos no dejaban
+     rastro y la plata que faltaba desaparecía sin que nadie se enterara. */
+  R['inv-cuadre'] = async function (p) {
+    var s = sb(); var r = rango(p);
+    var qc = s.from('iv_conteos').select('*')
+      .gte('created_at', r.from).lt('created_at', r.to).order('created_at', { ascending: false });
+    if (CTX.branchId) qc = qc.eq('branch_id', CTX.branchId);
+    var rc = await qc; if (rc.error) throw rc.error;
+    var conteos = (rc.data || []).filter(function (x) { return x.estado === 'cerrado'; });
+
+    // Ajustes manuales del período (los que NO vienen de un conteo).
+    var manuales = [];
+    try {
+      var qm = s.from('iv_movimientos').select('insumo_id,delta,motivo,created_at')
+        .eq('motivo', 'ajuste manual').gte('created_at', r.from).lt('created_at', r.to).limit(500);
+      if (CTX.branchId) qm = qm.eq('branch_id', CTX.branchId);
+      var rm = await qm; manuales = rm.data || [];
+    } catch (e) {}
+
+    if (!conteos.length && !manuales.length) return vacio();
+
+    var ins = {};
+    try {
+      var qi = s.from('iv_insumos').select('id,nombre,buy_unit,precio');
+      if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
+      var ri = await qi;
+      (ri.data || []).forEach(function (x) { ins[x.id] = x; });
+    } catch (e) {}
+
+    var falta = conteos.reduce(function (a, x) { return a + (Number(x.valor_faltante) || 0); }, 0);
+    var sobra = conteos.reduce(function (a, x) { return a + (Number(x.valor_sobrante) || 0); }, 0);
+    var valManual = manuales.reduce(function (a, m) {
+      var i = ins[m.insumo_id] || {};
+      return a + Math.abs((parseFloat(m.delta) || 0) * costoCompra(i));
+    }, 0);
+
+    var bloques = [];
+
+    if (conteos.length) {
+      bloques.push({ t: 'card', title: 'Conteos hechos', sub: 'La diferencia es lo que había de menos o de más frente al sistema',
+        body: { t: 'table', min: 620,
+        cols: [{ k: 'f', label: 'Fecha' }, { k: 'q', label: 'Qué se contó' }, { k: 'n', label: 'Insumos', num: 1 },
+               { k: 'd', label: 'Con diferencia', num: 1 }, { k: 'fa', label: 'Faltó', num: 1 }, { k: 'so', label: 'Sobró', num: 1 }],
+        rows: conteos.map(function (x) { return {
+          f: new Date(x.closed_at || x.created_at).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+          q: { _main: x.categoria || 'Todo el inventario' },
+          n: n0(x.n_items), d: n0(x.n_diferencias),
+          fa: Number(x.valor_faltante) > 0 ? { _neg: '– ' + $(x.valor_faltante) } : '—',
+          so: Number(x.valor_sobrante) > 0 ? $(x.valor_sobrante) : '—' }; }),
+        total: { f: 'Total', q: '', n: '', d: '', fa: $(falta), so: $(sobra) } } });
+    }
+
+    if (manuales.length) {
+      bloques.push({ t: 'card', title: 'Ajustes hechos a mano',
+        sub: 'Stock corregido directamente en la ficha del insumo, sin conteo. Muchos ajustes seguidos del mismo insumo son señal de que algo no cuadra.',
+        body: { t: 'table', min: 520,
+        cols: [{ k: 'f', label: 'Fecha' }, { k: 'i', label: 'Insumo' }, { k: 'd', label: 'Cambio', num: 1 }, { k: 'v', label: 'Valor', num: 1 }],
+        rows: manuales.slice(0, 100).map(function (m) {
+          var i = ins[m.insumo_id] || {};
+          var dl = parseFloat(m.delta) || 0;
+          return {
+            f: new Date(m.created_at).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+            i: { _main: i.nombre || '—' },
+            d: dl < 0 ? { _neg: nDec(dl) + ' ' + (i.buy_unit || '') } : { _pill: ['ok', '+' + nDec(dl) + ' ' + (i.buy_unit || '')] },
+            v: $(Math.abs(dl * costoCompra(i))) }; }) } });
+    }
+
+    return {
+      kpis: [
+        { lbl: 'Faltó en los conteos', val: $(falta), tone: falta > 0 ? 'bad' : 'good', big: 1 },
+        { lbl: 'Sobró', val: $(sobra), tone: sobra > 0 ? 'warn' : 'good' },
+        { lbl: 'Conteos', val: n0(conteos.length) },
+        { lbl: 'Ajustes a mano', val: n0(manuales.length), tone: manuales.length > 5 ? 'warn' : '',
+          sub: manuales.length ? 'mueven ' + $(valManual) : 'ninguno' },
+      ],
+      blocks: bloques,
+    };
+  };
+
   window.INFORMES_DATOS = {
     setCtx: function (t, b) { CTX.tenantId = t || null; CTX.branchId = b || null; limpiarCache(); _rec = null; },
     tiene:  function (id) { return !!R[id]; },
