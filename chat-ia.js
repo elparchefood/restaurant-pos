@@ -382,7 +382,12 @@ function clienteDe(conv) {
 function ciMoneda(n){ return '$' + Math.round(Number(n)||0).toLocaleString('es-CO'); }
 function ciHace(fecha){
   if(!fecha) return '';
-  const d = Math.floor((Date.now() - new Date(fecha).getTime()) / 86400000);
+  // Se comparan DIAS DE CALENDARIO, no horas transcurridas: un pedido de ayer
+  // a las 7pm son menos de 24h y decia "hoy" aunque fuera de otro dia.
+  const f = new Date(fecha), h = new Date();
+  const dia = new Date(f.getFullYear(), f.getMonth(), f.getDate());
+  const hoy = new Date(h.getFullYear(), h.getMonth(), h.getDate());
+  const d = Math.round((hoy - dia) / 86400000);
   if (d <= 0) return 'hoy';
   if (d === 1) return 'ayer';
   if (d < 30) return 'hace ' + d + ' días';
@@ -480,14 +485,23 @@ async function pintarFichaCliente(conv){
     if (puntos)  h += '<div class="ci-dw-row"><span>Puntos</span><b>'+puntos+'</b></div>';
     if (pagoTop) h += '<div class="ci-dw-row"><span>Suele pagar</span><b>'+escHtml(pagoTop[0].charAt(0).toUpperCase()+pagoTop[0].slice(1))+'</b></div>';
     if (favorito)h += '<div class="ci-dw-row"><span>Su plato</span><b>'+escHtml(favorito.nombre)+'</b></div>';
-    if (cli.created_at) h += '<div class="ci-dw-row"><span>Cliente desde</span><b>'+new Date(cli.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short'})+'</b></div>';
+    // Desde su PRIMER PEDIDO, no desde que se creo la ficha (los clientes
+    // reconstruidos se crearon todos anoche y decian "cliente desde hoy").
+    const desde = nPed ? pedidos[pedidos.length-1].created_at : cli.created_at;
+    if (desde) h += '<div class="ci-dw-row"><span>Cliente desde</span><b>'+new Date(desde).toLocaleDateString('es-CO',{day:'numeric',month:'short'})+'</b></div>';
     h += '</div>';
 
-    if (dirs.length) {
-      h += '<div class="ci-dw-sec">Direcciones</div><div class="ci-dw-dirs">'
-        + dirs.map(function(d,i){ return '<div class="ci-dw-dir">'+escHtml(d)+(i===dirs.length-1?'<span>principal</span>':'')+'</div>'; }).join('')
-        + '</div>';
-    }
+    h += '<div class="ci-dw-sec">Direcciones</div><div class="ci-dw-dirs" id="fichaDirs">'
+      + dirs.map(function(d,i){
+          return '<div class="ci-dw-dir">'
+            + '<input class="ci-dw-dirin" value="'+escHtml(d)+'" data-i="'+i+'" '
+            +   'onblur="guardarDirsCliente(&quot;'+cli.id+'&quot;)" placeholder="Dirección">'
+            + (i===dirs.length-1?'<span class="ci-dw-tag">principal</span>':'')
+            + '<button class="ci-dw-dirx" title="Quitar" onclick="quitarDirCliente(&quot;'+cli.id+'&quot;,'+i+')">✕</button>'
+          + '</div>';
+        }).join('')
+      + '</div>'
+      + '<button class="ci-dw-addir" onclick="agregarDirCliente(&quot;'+cli.id+'&quot;)">+ Agregar dirección</button>';
     h += '<div class="ci-dw-sec">Notas</div>'
       + '<textarea class="ci-dw-notas" id="fichaNotas" rows="3" placeholder="Ej. no timbrar, casa del portón verde, alérgico a la cebolla…" '
       + 'onblur="guardarNotasCliente(&quot;'+cli.id+'&quot;,this.value)">'+escHtml(cli.notas||'')+'</textarea>';
@@ -511,6 +525,52 @@ async function pintarFichaCliente(conv){
     + '</div>';
   document.getElementById('fichaBody').innerHTML = h;
 }
+// Las direcciones se editan en la misma ficha. La ULTIMA de la lista es la
+// principal (la que se usa por defecto al crear un pedido).
+function _leerDirs(){
+  const out = [];
+  document.querySelectorAll('#fichaDirs .ci-dw-dirin').forEach(function(i){
+    const v = (i.value||'').trim();
+    if (v) out.push(v);
+  });
+  return out;
+}
+async function guardarDirsCliente(id){
+  const dirs = _leerDirs();
+  try {
+    await sb.from('pos_clientes').update({
+      direcciones: dirs,
+      direccion: dirs.length ? dirs[dirs.length-1] : null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+    showToast('Direcciones guardadas','success');
+  } catch(e){ showToast('No se pudieron guardar','error'); }
+}
+async function quitarDirCliente(id, idx){
+  const dirs = _leerDirs().filter(function(_,i){ return i!==idx; });
+  try {
+    await sb.from('pos_clientes').update({
+      direcciones: dirs,
+      direccion: dirs.length ? dirs[dirs.length-1] : null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+    const conv = S.conversations.find(function(c){ return c.id===S.activeConvId; });
+    if (conv) await pintarFichaCliente(conv);
+    showToast('Dirección quitada','success');
+  } catch(e){ showToast('No se pudo quitar','error'); }
+}
+function agregarDirCliente(id){
+  const cont = document.getElementById('fichaDirs'); if(!cont) return;
+  const n = cont.querySelectorAll('.ci-dw-dirin').length;
+  const div = document.createElement('div');
+  div.className = 'ci-dw-dir';
+  div.innerHTML = '<input class="ci-dw-dirin" value="" data-i="'+n+'" placeholder="Nueva dirección" '
+    + 'onblur="guardarDirsCliente(&quot;'+id+'&quot;)">'
+    + '<button class="ci-dw-dirx" title="Quitar" onclick="this.parentElement.remove()">✕</button>';
+  cont.appendChild(div);
+  div.querySelector('input').focus();
+}
+
 async function guardarNotasCliente(id, txt){
   try {
     await sb.from('pos_clientes').update({ notas: txt, updated_at: new Date().toISOString() }).eq('id', id);

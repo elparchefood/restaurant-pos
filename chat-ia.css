@@ -1612,15 +1612,33 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 }
 .ci-dw-dirs { display: flex; flex-direction: column; gap: 6px; }
 .ci-dw-dir {
+  display: flex; align-items: center; gap: 6px;
   background: #161821; border: 1px solid rgba(255,255,255,.07);
-  border-radius: 11px; padding: 9px 11px;
-  font-size: 12px; color: #A6A9B6; line-height: 1.4;
+  border-radius: 11px; padding: 4px 6px 4px 10px;
 }
-.ci-dw-dir span {
-  display: inline-block; margin-left: 6px; font-size: 9.5px; font-weight: 700;
+.ci-dw-dirin {
+  flex: 1; min-width: 0; background: transparent; border: none; outline: none;
+  color: #A6A9B6; font-family: inherit; font-size: 12px; line-height: 1.4; padding: 5px 0;
+}
+.ci-dw-dirin:focus { color: #EDEEF2; }
+.ci-dw-dirin::placeholder { color: #585C6B; }
+.ci-dw-tag {
+  flex: none; font-size: 9.5px; font-weight: 700;
   color: #9B85FF; background: rgba(124,92,255,.14);
-  padding: 1px 7px; border-radius: 999px; vertical-align: middle;
+  padding: 2px 7px; border-radius: 999px;
 }
+.ci-dw-dirx {
+  flex: none; background: none; border: none; color: #585C6B;
+  cursor: pointer; font-size: 12px; padding: 3px 5px; border-radius: 7px;
+}
+.ci-dw-dirx:hover { background: rgba(239,68,68,.14); color: #FCA5A5; }
+.ci-dw-addir {
+  width: 100%; margin-top: 7px; padding: 9px;
+  background: transparent; border: 1px dashed rgba(255,255,255,.12);
+  border-radius: 11px; color: #787C8B;
+  font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.ci-dw-addir:hover { border-color: rgba(124,92,255,.4); color: #9B85FF; }
 .ci-dw-notas {
   width: 100%; background: #161821; color: #EDEEF2;
   border: 1px solid rgba(255,255,255,.07); border-radius: 12px;
