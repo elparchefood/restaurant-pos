@@ -4069,6 +4069,169 @@ async function cfgQrPersist(){
 
 
 /* ══════════════════════════════════════════════════════════════════════════
+   PLANTILLAS DE WHATSAPP (Meta)
+   Pasadas 24 h desde el último mensaje del cliente, WhatsApp solo permite
+   escribirle con una plantilla aprobada por Meta. Aquí se crean y se consulta
+   su estado. Todo pasa por la función 'wa-plantillas' del servidor porque el
+   token de la cuenta de WhatsApp no puede quedar expuesto en el navegador.
+   ══════════════════════════════════════════════════════════════════════════ */
+var WTP_FN = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/wa-plantillas';
+var WTP = { items: [], branchId: '' };
+
+async function wtpBranch(){
+  if (WTP.branchId) return WTP.branchId;
+  WTP.branchId = await cfgQrGetBranch();
+  return WTP.branchId;
+}
+async function wtpCall(payload){
+  var bid = await wtpBranch();
+  if (!bid) return { error: 'No se pudo identificar la sede.' };
+  try {
+    var r = await fetch(WTP_FN, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ branch_id: bid }, payload)),
+    });
+    return await r.json();
+  } catch(e){ return { error: 'Sin conexión con el servidor.' }; }
+}
+function wtpEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// Nombre como lo exige Meta: minúsculas, números y guion bajo.
+function wtpSlug(s){
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,60);
+}
+function wtpVars(txt){
+  var m = String(txt||'').match(/\{\{\s*\d+\s*\}\}/g) || [];
+  var s = {}; m.forEach(function(x){ s[x.replace(/\D/g,'')] = 1; });
+  return Object.keys(s).sort(function(a,b){ return a-b; });
+}
+var WTP_ESTADOS = {
+  APPROVED: { t:'Aprobada',   c:'#16A34A', bg:'#DCFCE7' },
+  PENDING:  { t:'En revisión', c:'#B45309', bg:'#FEF3C7' },
+  REJECTED: { t:'Rechazada',  c:'#DC2626', bg:'#FEE2E2' },
+  PAUSED:   { t:'Pausada',    c:'#B45309', bg:'#FEF3C7' },
+  DISABLED: { t:'Desactivada', c:'#DC2626', bg:'#FEE2E2' },
+};
+async function wtpCargar(){
+  var cont = document.getElementById('wtpList');
+  var cnt  = document.getElementById('wtpCount');
+  if (cnt) cnt.textContent = 'Cargando plantillas…';
+  var d = await wtpCall({ action:'list' });
+  if (d.error){
+    if (cnt) cnt.textContent = '';
+    if (cont) cont.innerHTML = '<div style="font-size:12.5px;color:#DC2626;padding:10px 0">'+wtpEsc(d.error)+'</div>';
+    return;
+  }
+  WTP.items = d.items || [];
+  if (cnt) cnt.textContent = WTP.items.length
+    ? WTP.items.length + (WTP.items.length===1 ? ' plantilla' : ' plantillas')
+    : 'Todavía no tienes plantillas';
+  if (!cont) return;
+  if (!WTP.items.length){
+    cont.innerHTML = '<div style="font-size:12.5px;color:#94A3B8;padding:14px 0;line-height:1.5">Crea tu primera plantilla abajo. Meta la revisa y, apenas quede <b>aprobada</b>, aparecerá en el chat para escribirle a clientes con los que se pasaron las 24 horas.</div>';
+    return;
+  }
+  cont.innerHTML = WTP.items.map(function(t){
+    var e = WTP_ESTADOS[String(t.estado||'').toUpperCase()] || { t:t.estado, c:'#64748B', bg:'#F1F5F9' };
+    return '<div style="border:1px solid #E2E8F0;border-radius:10px;padding:11px 12px;margin-bottom:8px">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+      +   '<span style="font-size:13px;font-weight:700;color:#0F172A;flex:1;min-width:0">'+wtpEsc(t.nombre)+'</span>'
+      +   '<span style="font-size:10.5px;font-weight:700;color:'+e.c+';background:'+e.bg+';padding:3px 8px;border-radius:999px">'+e.t+'</span>'
+      +   '<button type="button" class="cfg-qr-btn ghost" style="padding:4px 9px;font-size:11px" onclick="wtpBorrar(\''+wtpEsc(t.nombre)+'\')">Eliminar</button>'
+      + '</div>'
+      + '<div style="font-size:12.5px;color:#475569;white-space:pre-wrap;line-height:1.45">'+wtpEsc(t.cuerpo)+'</div>'
+      + (t.pie ? '<div style="font-size:11px;color:#94A3B8;margin-top:4px">'+wtpEsc(t.pie)+'</div>' : '')
+      + '<div style="font-size:11px;color:#94A3B8;margin-top:6px">'
+      +   (t.categoria==='MARKETING'?'Marketing':'Utilidad') + ' · ' + wtpEsc(t.idioma)
+      +   (t.variables ? ' · '+t.variables+' dato(s) por llenar' : '')
+      + '</div>'
+      + (t.motivo_rechazo ? '<div style="font-size:11.5px;color:#DC2626;margin-top:6px">Meta la rechazó: '+wtpEsc(t.motivo_rechazo)+'</div>' : '')
+    + '</div>';
+  }).join('');
+}
+function wtpPreview(){
+  var nom = document.getElementById('wtpNombre');
+  var cue = document.getElementById('wtpCuerpo');
+  var pie = document.getElementById('wtpPie');
+  var slugEl = document.getElementById('wtpSlug');
+  if (slugEl) slugEl.textContent = nom && nom.value ? 'Meta la guardará como: ' + wtpSlug(nom.value) : '';
+
+  // Un campo de ejemplo por cada {{n}} — Meta los exige para revisar.
+  var vars = wtpVars(cue ? cue.value : '');
+  var wrap = document.getElementById('wtpEjemplosWrap');
+  var host = document.getElementById('wtpEjemplos');
+  if (wrap && host){
+    if (!vars.length){ wrap.style.display='none'; host.innerHTML=''; }
+    else {
+      wrap.style.display='';
+      var previos = {};
+      host.querySelectorAll('input[data-vi]').forEach(function(i){ previos[i.dataset.vi] = i.value; });
+      host.innerHTML = vars.map(function(v){
+        return '<input class="inp" data-vi="'+v+'" placeholder="Ejemplo para {{'+v+'}} — ej. '+(v==='1'?'David':'Salchipapa 2x1')+'" value="'+wtpEsc(previos[v]||'')+'" oninput="wtpPreview()">';
+      }).join('');
+    }
+  }
+  // Vista previa con los ejemplos ya reemplazados.
+  var txt = (cue && cue.value) ? cue.value : '';
+  if (host){
+    host.querySelectorAll('input[data-vi]').forEach(function(i){
+      if (i.value) txt = txt.replace(new RegExp('\\{\\{\\s*'+i.dataset.vi+'\\s*\\}\\}','g'), i.value);
+    });
+  }
+  var prev = document.getElementById('wtpPrev');
+  if (prev){
+    var p = (pie && pie.value) ? '\n\n' + pie.value : '';
+    prev.textContent = (txt.trim() ? txt : 'Escribe el mensaje…') + p;
+  }
+}
+async function wtpCrear(){
+  var nom = document.getElementById('wtpNombre');
+  var cue = document.getElementById('wtpCuerpo');
+  var pie = document.getElementById('wtpPie');
+  var cat = document.getElementById('wtpCat');
+  var btn = document.getElementById('wtpSaveBtn');
+  var msg = document.getElementById('wtpMsg');
+  var setMsg = function(t, ok){ if (msg){ msg.style.color = ok ? '#16A34A' : '#DC2626'; msg.textContent = t; } };
+
+  if (!nom.value.trim()){ setMsg('Ponle un nombre a la plantilla.', false); nom.focus(); return; }
+  if (!cue.value.trim()){ setMsg('Escribe el mensaje.', false); cue.focus(); return; }
+  var vars = wtpVars(cue.value);
+  var ejemplos = [];
+  var faltan = false;
+  document.querySelectorAll('#wtpEjemplos input[data-vi]').forEach(function(i){
+    if (!i.value.trim()) faltan = true;
+    ejemplos.push(i.value.trim());
+  });
+  if (vars.length && faltan){ setMsg('Completa un ejemplo para cada dato — Meta los exige para revisar la plantilla.', false); return; }
+
+  btn.disabled = true; btn.textContent = 'Enviando a Meta…'; setMsg('', true);
+  var d = await wtpCall({
+    action:'create', nombre: nom.value, categoria: cat.value, idioma: 'es',
+    cuerpo: cue.value.trim(), pie: pie.value.trim(), ejemplos: ejemplos,
+  });
+  btn.disabled = false; btn.textContent = 'Enviar a aprobación';
+  if (d.error){ setMsg(d.error, false); return; }
+  setMsg('Plantilla enviada a Meta. Queda "En revisión" — puede tardar de unos minutos a 24 horas.', true);
+  nom.value = ''; cue.value = ''; pie.value = '';
+  wtpPreview(); wtpCargar();
+}
+async function wtpBorrar(nombre){
+  if (!confirm('¿Eliminar la plantilla "'+nombre+'"? Si estaba aprobada, dejarás de poder enviarla.')) return;
+  var d = await wtpCall({ action:'delete', nombre: nombre });
+  if (d.error){ alert(d.error); return; }
+  wtpCargar();
+}
+(function(){
+  function hook(){
+    var btn = document.querySelector('.cia-tab[data-tab="plantillas"]');
+    if (btn) btn.addEventListener('click', function(){ wtpCargar(); wtpPreview(); });
+  }
+  if (document.readyState !== 'loading') hook();
+  else document.addEventListener('DOMContentLoaded', hook);
+})();
+
+
+/* ══════════════════════════════════════════════════════════════════════════
    MÉTODOS DE PAGO — editor (fuente de verdad: ia_config.pagos)
    El bot sigue leyendo ia_config.pagos IGUAL: preservamos metodos, titular,
    llave, qr_imagen_url, qr_texto, esperar_comprobante, nota, bancos_correo.

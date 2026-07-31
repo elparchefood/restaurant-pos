@@ -122,6 +122,7 @@
         <button class="cia-tab" data-tab="domicilios"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Domicilios</button>
         <button class="cia-tab" data-tab="pagos"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Pagos</button>
         <button class="cia-tab" data-tab="respuestas"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Respuestas rápidas</button>
+        <button class="cia-tab" data-tab="plantillas"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Plantillas</button>
       </nav>
         <div class="cf-crumbs">
           <span class="cf-crumb-mut">Configuración</span>
@@ -1496,6 +1497,61 @@
               </div>
             </div>
 
+            <div class="card" id="card-plantillas" data-tab="plantillas" style="display:none">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Plantillas de WhatsApp</div>
+                  <div class="card-hd-ds">Si pasaron más de <b>24 horas</b> desde el último mensaje del cliente, WhatsApp solo deja escribirle con una plantilla aprobada por Meta. Créalas aquí y Meta las revisa (tarda de minutos a 24 h).</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px">
+                  <div style="font-size:12.5px;color:#64748B" id="wtpCount">Cargando plantillas…</div>
+                  <button type="button" class="cfg-qr-btn ghost" onclick="wtpCargar()">Actualizar estado</button>
+                </div>
+                <div id="wtpList" class="cfg-qr-list"></div>
+
+                <div class="cfg-qr-form">
+                  <div class="field">
+                    <label class="field-lb" for="wtpNombre">Nombre (para identificarla)</label>
+                    <input class="inp" id="wtpNombre" placeholder="Ej. Promo del día" maxlength="60" autocomplete="off" oninput="wtpPreview()">
+                    <div class="field-hint" id="wtpSlug" style="font-size:11px;color:#94A3B8;margin-top:4px"></div>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb" for="wtpCat">Tipo</label>
+                    <select class="inp" id="wtpCat" onchange="wtpPreview()">
+                      <option value="UTILITY">Utilidad — avisos de pedidos, recordatorios (más barata y se aprueba fácil)</option>
+                      <option value="MARKETING">Marketing — promociones y reactivación de clientes</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb" for="wtpCuerpo">Mensaje</label>
+                    <textarea class="txa" id="wtpCuerpo" rows="4" placeholder="Hola {{1}}, hoy en El Parche tenemos {{2}}. ¿Te enviamos el menú?" oninput="wtpPreview()"></textarea>
+                    <div class="field-hint" style="font-size:11px;color:#94A3B8;margin-top:4px">Usa <code>{{1}}</code>, <code>{{2}}</code>… para los datos que cambian en cada envío (el nombre del cliente, la promoción del día…).</div>
+                  </div>
+                  <div class="field" id="wtpEjemplosWrap" style="display:none">
+                    <label class="field-lb">Ejemplos de cada dato <span style="color:#94A3B8;font-weight:400">(Meta los exige para revisar)</span></label>
+                    <div id="wtpEjemplos" style="display:flex;flex-direction:column;gap:8px"></div>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb" for="wtpPie">Pie de página <span style="color:#94A3B8;font-weight:400">(opcional)</span></label>
+                    <input class="inp" id="wtpPie" placeholder="Ej. El Parche Food" maxlength="60" oninput="wtpPreview()">
+                  </div>
+
+                  <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px;margin-bottom:12px">
+                    <div style="font-size:11px;font-weight:700;color:#94A3B8;letter-spacing:.04em;margin-bottom:8px">ASÍ LE LLEGA AL CLIENTE</div>
+                    <div id="wtpPrev" style="background:#DCF8C6;border-radius:10px;padding:10px 12px;font-size:13.5px;color:#0F172A;white-space:pre-wrap;line-height:1.45;max-width:300px">Escribe el mensaje…</div>
+                  </div>
+
+                  <div class="cfg-qr-actions">
+                    <button type="button" class="cfg-qr-btn primary" id="wtpSaveBtn" onclick="wtpCrear()">Enviar a aprobación</button>
+                  </div>
+                  <div id="wtpMsg" style="font-size:12.5px;margin-top:10px"></div>
+                </div>
+              </div>
+            </div>
+
             <div class="card" id="card-lenguaje" data-tab="asistente">
               <div class="card-hd">
                 <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"/></svg></div>
@@ -2117,7 +2173,7 @@
 <script src="pos-brand.js?v=1784901500"></script>
 <script src="pos-print.js?v=1786093000"></script>
 <script src="pos-print-listener.js?v=4"></script>
-<script src="configuracion.js?v=1786570000"></script>
+<script src="configuracion.js?v=1786820000"></script>
 </body>
 </html>
 

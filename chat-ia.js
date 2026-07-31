@@ -979,12 +979,120 @@ function updateWaWindow() {
   if (w.applies && !w.open) {
     const chLbl = (CHANNELS[(w.conv && w.conv.channel) || 'whatsapp'] || {}).label || 'WhatsApp';
     banner.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'
-      + '<div><b>Pasaron más de 24 horas</b> desde el último mensaje del cliente. ' + escHtml(chLbl) + ' no permite enviar mensajes libres fuera de esa ventana — se necesita una <b>plantilla aprobada</b>. Espera a que el cliente escriba de nuevo, o envía una plantilla.</div>';
+      + '<div style="flex:1"><b>Pasaron más de 24 horas</b> desde el último mensaje del cliente. ' + escHtml(chLbl) + ' no permite enviar mensajes libres fuera de esa ventana — se necesita una <b>plantilla aprobada</b>.</div>'
+      + '<button class="ci-wa-tplbtn" onclick="abrirEnviarPlantilla()">Enviar plantilla</button>';
     banner.style.display = 'flex';
     if (composer) composer.classList.add('ci-composer--locked');
   } else {
     banner.style.display = 'none';
     if (composer) composer.classList.remove('ci-composer--locked');
+  }
+}
+
+/* ══ Enviar plantilla (fuera de la ventana de 24 h) ══
+   Solo se pueden enviar las que Meta ya APROBÓ. Se crean en
+   Configuración → Chat IA → Plantillas. */
+const WA_TPL_FN = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/wa-plantillas';
+let _tplSel = null;
+
+async function abrirEnviarPlantilla() {
+  if (!S.activeConvId) return;
+  const ov = document.createElement('div');
+  ov.id = 'tpl-ov';
+  ov.className = 'ci-tpl-ov';
+  ov.innerHTML = '<div class="ci-tpl-box" id="tpl-box"><div class="ci-tpl-load">Cargando plantillas…</div></div>';
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+
+  let d = {};
+  try {
+    const r = await fetch(WA_TPL_FN, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ branch_id: S.branchId, action: 'list' }),
+    });
+    d = await r.json();
+  } catch (e) { d = { error: 'Sin conexión con el servidor.' }; }
+
+  const box = document.getElementById('tpl-box'); if (!box) return;
+  if (d.error) { box.innerHTML = '<div class="ci-tpl-head">Enviar plantilla</div><div class="ci-tpl-err">' + escHtml(d.error) + '</div>' + _tplCerrar(); return; }
+
+  const aprobadas = (d.items || []).filter(t => String(t.estado).toUpperCase() === 'APPROVED');
+  if (!aprobadas.length) {
+    box.innerHTML = '<div class="ci-tpl-head">Enviar plantilla</div>'
+      + '<div class="ci-tpl-empty">No tienes plantillas aprobadas todavía.<br><br>Créalas en <b>Configuración → Chat IA → Plantillas</b>. Meta las revisa y, apenas queden aprobadas, aparecerán aquí.</div>'
+      + _tplCerrar();
+    return;
+  }
+  box.innerHTML = '<div class="ci-tpl-head">Enviar plantilla</div>'
+    + '<div class="ci-tpl-sub">El cliente lleva más de 24 h sin escribir, así que WhatsApp solo permite estos mensajes aprobados.</div>'
+    + '<div class="ci-tpl-list">' + aprobadas.map((t, i) =>
+        '<button class="ci-tpl-item" onclick="_tplElegir(' + i + ')">'
+        + '<div class="ci-tpl-nm">' + escHtml(t.nombre) + '</div>'
+        + '<div class="ci-tpl-tx">' + escHtml(t.cuerpo) + '</div>'
+        + '</button>').join('')
+    + '</div>' + _tplCerrar();
+  window._tplAprobadas = aprobadas;
+}
+function _tplCerrar() {
+  return '<div class="ci-tpl-foot"><button class="ci-tpl-btn ghost" onclick="document.getElementById(\'tpl-ov\').remove()">Cerrar</button></div>';
+}
+function _tplElegir(i) {
+  const t = (window._tplAprobadas || [])[i]; if (!t) return;
+  _tplSel = t;
+  const conv = S.conversations.find(c => c.id === S.activeConvId);
+  const nombreCliente = (conv && conv.contact_name) || '';
+  const box = document.getElementById('tpl-box'); if (!box) return;
+  const campos = [];
+  for (let v = 1; v <= (t.variables || 0); v++) {
+    campos.push('<input class="ci-tpl-inp" data-tv="' + v + '" placeholder="Dato {{' + v + '}}"'
+      + (v === 1 && nombreCliente ? ' value="' + escHtml(nombreCliente) + '"' : '')
+      + ' oninput="_tplPrev()">');
+  }
+  box.innerHTML = '<div class="ci-tpl-head">' + escHtml(t.nombre) + '</div>'
+    + (campos.length ? '<div class="ci-tpl-sub">Completa los datos que cambian en este mensaje.</div><div class="ci-tpl-campos">' + campos.join('') + '</div>' : '')
+    + '<div class="ci-tpl-prevlbl">Así le llega</div><div class="ci-tpl-prev" id="tpl-prev"></div>'
+    + '<div class="ci-tpl-foot">'
+    +   '<button class="ci-tpl-btn ghost" onclick="abrirEnviarPlantilla()">Volver</button>'
+    +   '<button class="ci-tpl-btn primary" id="tpl-send" onclick="_tplEnviar()">Enviar</button>'
+    + '</div>';
+  _tplPrev();
+}
+function _tplPrev() {
+  const t = _tplSel; if (!t) return;
+  let txt = t.cuerpo || '';
+  document.querySelectorAll('#tpl-box input[data-tv]').forEach(function (i) {
+    if (i.value) txt = txt.replace(new RegExp('\\{\\{\\s*' + i.dataset.tv + '\\s*\\}\\}', 'g'), i.value);
+  });
+  const p = document.getElementById('tpl-prev');
+  if (p) p.textContent = txt + (t.pie ? '\n\n' + t.pie : '');
+}
+async function _tplEnviar() {
+  const t = _tplSel; if (!t || !S.activeConvId) return;
+  const params = [];
+  let faltan = false;
+  document.querySelectorAll('#tpl-box input[data-tv]').forEach(function (i) {
+    if (!i.value.trim()) faltan = true;
+    params.push(i.value.trim());
+  });
+  if (faltan) { showToast('Completa todos los datos de la plantilla', 'info'); return; }
+  const btn = document.getElementById('tpl-send');
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
+  try {
+    const r = await fetch(WA_TPL_FN, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        branch_id: S.branchId, action: 'send', conversation_id: S.activeConvId,
+        nombre: t.nombre, idioma: t.idioma || 'es', params,
+      }),
+    });
+    const d = await r.json();
+    if (d.error) { showToast(d.error, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Enviar'; } return; }
+    document.getElementById('tpl-ov')?.remove();
+    showToast('✓ Plantilla enviada', 'success');
+    await loadMessages(S.activeConvId);
+  } catch (e) {
+    showToast('No se pudo enviar la plantilla', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Enviar'; }
   }
 }
 
