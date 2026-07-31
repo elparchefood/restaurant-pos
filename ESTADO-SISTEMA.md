@@ -1022,6 +1022,60 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
+## PENDIENTE — [Inventario] EMPAQUES Y DESECHABLES como insumo — Sergio 2026-07-31
+
+**Estado hoy (verificado):** el empaque es SOLO UN PRECIO. Hay **51 pedidos con
+`packaging_fee` cobrado** y **0 movimientos de inventario por empaque**. No
+existe ningún insumo de desechables. O sea: se le cobra al cliente pero el
+costo no está en ninguna parte → **el margen por producto está inflado**.
+
+**Lo que pidió Sergio:** saber cuánto se gasta en empaques, cuánto queda en
+inventario, y que se descuenten solos como los insumos. Él mismo identificó la
+dificultad: *"lo más difícil son los vasos y las servilletas porque son
+inciertos"*.
+
+### Caso A — Empaques DETERMINISTAS: **no requiere código nuevo**
+Bandeja, tenedor, bolsa del domicilio. Cada salchipapa lleva exactamente una
+bandeja → **es una receta**. Se crean como insumos (categoría "Desechables") y
+se agregan a `iv_recetas` como cualquier ingrediente.
+
+Sale gratis, con lo ya construido:
+- Descuento automático al vender (`fn_iv_consumir_item`)
+- Stock, mínimos y alertas
+- Gasto en empaques en el informe `inv-compras`
+- **El margen por producto se vuelve real** (hoy la bandeja no está contada)
+
+**Esto es tarea de Sergio, no de desarrollo:** crear 3-4 insumos y meterlos en
+las recetas.
+
+### Caso B — Empaques INCIERTOS: sí requiere construir
+Servilletas y vasos. **El error sería meterlos en la receta del producto**: no se
+gastan por plato sino **por PERSONA**. Quien pide dos platos no usa el doble de
+servilletas.
+
+**Propuesta — insumo de "consumo general"** con tasa estimada:
+- `iv_insumos.consumo_general` (boolean) + `consumo_por` ('persona' | 'pedido')
+  + `consumo_tasa` (numeric).
+- Al cerrar el pedido se descuenta `tasa × guests` (o × 1 si es por pedido).
+  `pos_orders.guests` YA se registra (167 personas este mes).
+- Queda en `iv_movimientos` con motivo `consumo estimado`, distinguible del
+  consumo por receta.
+- **Se autocorrige con el cuadre de stock** (ya construido): la diferencia entre
+  lo estimado y el conteo real dice si la tasa está mal. Si estimaste 2,5
+  servilletas por persona y gastas 4, se ve en un mes.
+
+**Antes de programarlo, Sergio debe MEDIR:** contar servilletas hoy y en dos
+semanas, para tener la tasa real en vez de adivinarla.
+
+### Conexión con lo demás
+- Es el complemento natural del informe de **gastos** (sección de arriba): los
+  desechables son un gasto recurrente importante.
+- Mejora `inv-margen` e `inv-foodcost`, que hoy ignoran el costo del empaque.
+- El `packaging_fee` que se le cobra al cliente pasa a tener su costo al lado:
+  ahí se ve si el empaque se está cobrando bien o se está perdiendo plata.
+
+---
+
 ## PENDIENTE — [Contabilidad] GASTOS y GANANCIA NETA REAL — Sergio 2026-07-31
 
 **Lo que pidió:** que el dueño sepa **cuánto está ganando de verdad**, mes a mes.
