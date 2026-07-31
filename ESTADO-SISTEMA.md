@@ -1103,7 +1103,32 @@ El azul actual del Chat IA le parece "raro" a Sergio y es la pantalla que MÁS v
 
 ---
 
-## PENDIENTE — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
+## 🔴 PRIORIDAD MÁXIMA — Gestión de MARCAS (multi-marca) — **PRÓXIMA SESIÓN** (Sergio 2026-07-31)
+
+> **Sergio lo marcó como lo más importante para la próxima sesión**, incluyendo
+> los tres puntos verificados el 2026-07-31:
+>
+> 1. **Validar el plan al crear una marca** — `tenants.plan` define el límite.
+>    Es directamente el modelo de negocio de Cobra.
+> 2. **`pos_roles` NO tiene `brand_id`** (verificado): hoy los roles son del
+>    tenant y los comparten todas las marcas. Hay que agregarlo como nullable
+>    (null = plantilla compartida, con valor = rol propio de esa marca).
+> 3. **EL PUNTO DELICADO — el catálogo NO sabe a qué marca pertenece.**
+>    `pos_products` y `pos_categories` tienen `branch_id` y `tenant_id` pero
+>    **no `brand_id`** (verificado 2026-07-31). Con una sucursal por marca
+>    funciona por accidente; en cuanto una marca tenga dos sucursales habría que
+>    duplicar el menú. **Decisión de producto pendiente: ¿el menú es de la MARCA
+>    o de la SUCURSAL?** Recomendación: de la marca, y que la sucursal pueda
+>    desactivar productos.
+>
+> **Riesgo a no olvidar:** tocar el alcance de roles y catálogo puede romper el
+> aislamiento entre marcas (que una vea datos de otra). Hacerlo junto con el
+> blindaje de permisos (RLS). Es el tipo de error que no se nota hasta que un
+> cliente ve los datos de otro.
+>
+> **Estado hoy:** 1 tenant → 1 marca (El Parche Food) → 1 sucursal.
+
+### Detalle original — Gestión de MARCAS (multi-marca) — pedido por Sergio 2026-07-24, para DESPUÉS de los fáciles
 
 **Contexto:** el sistema se vende a dueños con UNA marca o VARIAS (ej. una heladería + un restaurante bajo el mismo dueño, pero independientes por dentro). Cada marca crea sus sucursales (eso ya funciona). Falta la **creación/gestión de marcas** y dividir bien qué configuración es por-marca vs por-sucursal.
 
