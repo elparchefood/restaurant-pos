@@ -156,7 +156,7 @@ async function loadWaiters(branchId) {
 async function loadTodayOrders(branchId) {
   const { start, end } = todayRange();
   const q = sb.from('pos_orders')
-    .select('id,total,total_final,delivery_fee,status,channel,payment_method,created_at,pos_order_items(id,quantity,unit_price,total,product_id,pos_products(id,name,pos_categories(name)))')
+    .select('id,total,total_final,delivery_fee,status,channel,payment_method,created_at,waiter_name,waiter_id,table_id,pos_order_items(id,quantity,unit_price,total,product_id,pos_products(id,name,pos_categories(name)))')
     .gte('created_at', start).lte('created_at', end).neq('status','cancelled');
   if (branchId) q.eq('branch_id', branchId);
   const { data } = await q;
@@ -274,10 +274,13 @@ async function renderGoal(orders, branchId) {
 
 // ── Stock ─────────────────────────────────────────────
 async function loadStock(branchId) {
-  const q = sb.from('pos_ingredients').select('name,stock,purchase_unit,min_stock').order('stock',{ascending:true}).limit(10);
-  if (branchId) q.eq('branch_id', branchId);
-  const { data } = await q;
-  const alerts = (data||[]).filter(i => i.stock != null && i.stock <= (i.min_stock||5));
+  const data = await dashLeerInsumos(branchId);
+  // Solo avisa de lo que TIENE mínimo configurado: si no, todo insumo con poco
+  // stock saldría como alerta aunque sea normal que ande bajo.
+  const alerts = data
+    .filter(i => (i.min_stock > 0 && i.stock <= i.min_stock) || i.manual)
+    .sort((a, b) => (a.min_stock ? a.stock / a.min_stock : 0) - (b.min_stock ? b.stock / b.min_stock : 0))
+    .slice(0, 10);
   $('stock-sub').textContent = alerts.length ? alerts.length + ' producto' + (alerts.length!==1?'s':'') + ' requieren atencion' : 'Stock en orden';
   if (!alerts.length) {
     $('stock-list').innerHTML = '<div class="empty"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span>Todo en orden</span></div>';
@@ -659,15 +662,35 @@ function renderDesglose(orders) {
 }
 
 // ── MAS SOBRE MI NEGOCIO ──────────────────────────────
+/* Tres cosas estaban mal aquí:
+   1. Agrupaba por `waiter_id`, que solo está lleno en 60 de 91 pedidos. Los
+      demás se perdían. Ahora agrupa por `waiter_name`, que es lo que de verdad
+      se guarda al cobrar.
+   2. **"Chat IA" competía como mesero.** El bot toma pedidos y quedaba primero
+      en el ranking con más pedidos que cualquier persona. Ahora se excluye.
+   3. El texto decía "% de las ventas totales" pero calculaba el % de PEDIDOS.
+      Con tickets distintos son números diferentes: ahora sí es sobre la plata.
+   Y se muestran las MESAS atendidas, que no es lo mismo que los pedidos: una
+   mesa puede pedir tres veces. */
+const MESERO_EXCLUIR = ['chat ia', 'sistema', 'bot'];
 function renderMeseroDelDia(orders) {
   const map = {};
+  let ventaTotal = 0;
   orders.forEach(o => {
-    if (!o.waiter_id) return;
-    map[o.waiter_id] = map[o.waiter_id] || { n: 0, total: 0 };
-    map[o.waiter_id].n++;
-    map[o.waiter_id].total += o.total || 0;
+    // `o.total` YA viene sin domicilio desde loadTodayOrders: volver a restarlo
+    // lo descontaría dos veces.
+    const venta = parseFloat(o.total) || 0;
+    ventaTotal += venta;
+    const nombre = (o.waiter_name || (o.waiter_id && S2.waiters[o.waiter_id]) || '').trim();
+    if (!nombre) return;
+    if (MESERO_EXCLUIR.indexOf(nombre.toLowerCase()) >= 0) return;
+    map[nombre] = map[nombre] || { n: 0, total: 0, mesas: new Set() };
+    map[nombre].n++;
+    map[nombre].total += venta;
+    if (o.table_id) map[nombre].mesas.add(o.table_id);
   });
-  const sorted = Object.entries(map).sort((a, b) => b[1].n - a[1].n);
+  // Gana quien más VENDIÓ, no quien más pedidos registró.
+  const sorted = Object.entries(map).sort((a, b) => b[1].total - a[1].total);
   const nameEl   = document.getElementById('mesero-name');
   const ordersEl = document.getElementById('mesero-orders');
   const pctEl    = document.getElementById('mesero-pct');
@@ -680,14 +703,16 @@ function renderMeseroDelDia(orders) {
     pctEl.textContent   = '—';
     return;
   }
-  const [wid, data] = sorted[0];
-  const name = S2.waiters[wid] || 'Mesero';
+  const [name, data] = sorted[0];
   const ini  = name.split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
   avEl.textContent     = ini;
   nameEl.textContent   = name;
   ordersEl.textContent = data.n;
-  const p = orders.length > 0 ? Math.round((data.n / orders.length) * 100) : 0;
-  pctEl.textContent    = '↑ ' + p + '% de las ventas totales';
+  const p = ventaTotal > 0 ? Math.round((data.total / ventaTotal) * 100) : 0;
+  const nm = data.mesas.size;
+  // Las mesas solo tienen sentido si atendió salón; si no, se omite y no se
+  // inventa un dato.
+  pctEl.textContent = (nm ? nm + (nm === 1 ? ' mesa' : ' mesas') + ' · ' : '') + p + '% de las ventas';
 }
 
 function renderClientes(orders) {
@@ -1467,6 +1492,34 @@ async function qmLoadMeseros() {
   if (sub2) sub2.textContent = meseros.length + ' en turno';
 }
 
+/* El inventario real vive en `iv_insumos`, no en `pos_ingredients` (esa es la
+   tabla vieja y está vacía: por eso el dashboard decía siempre "Todo en orden"
+   aunque hubiera cosas agotadas). Se lee de la buena y se traduce a la forma
+   que ya espera el resto del código.
+   OJO con dos cosas propias del inventario nuevo:
+     · sub_inventario  → lo disponible es bodega + lo que está en servicio
+     · agotado_manual  → el cocinero lo marcó agotado aunque el número diga otra
+                         cosa; para el dashboard cuenta como agotado. */
+async function dashLeerInsumos(branchId) {
+  var q = sb.from('iv_insumos')
+    .select('nombre,categoria,stock,stock_servicio,sub_inventario,min_stock,buy_unit,use_unit,activo,agotado_manual,control_manual');
+  if (branchId) q = q.eq('branch_id', branchId);
+  var r = await q;
+  if (r.error) { console.warn('[dashboard] iv_insumos:', r.error); return []; }
+  return (r.data || [])
+    .filter(function (i) { return i.activo !== false; })
+    .map(function (i) {
+      var disp = (parseFloat(i.stock) || 0) + (i.sub_inventario ? (parseFloat(i.stock_servicio) || 0) : 0);
+      if (i.agotado_manual) disp = 0;
+      return {
+        name: i.nombre, category: i.categoria || '',
+        stock: disp, min_stock: parseFloat(i.min_stock) || 0,
+        purchase_unit: i.buy_unit || i.use_unit || 'und',
+        manual: !!i.agotado_manual,
+      };
+    });
+}
+
 // ── INVENTARIO ────────────────────────────────────────────────
 async function qmLoadInventario() {
   var invList = document.getElementById('invList');
@@ -1474,10 +1527,8 @@ async function qmLoadInventario() {
   invList.innerHTML = '<div style="text-align:center;color:#94A3B8;font-size:13px;padding:20px">Cargando...</div>';
 
   var branchId = window._branchId || null;
-  var q = sb.from('pos_ingredients').select('*');
-  if (branchId) q = q.eq('branch_id', branchId);
-  var { data: items } = await q;
-  items = (items || []).filter(function(it){ return it.min_stock && it.stock < it.min_stock; });
+  var items = await dashLeerInsumos(branchId);
+  items = items.filter(function(it){ return (it.min_stock && it.stock < it.min_stock) || it.manual; });
   items.sort(function(a,b){ return (a.stock/a.min_stock) - (b.stock/b.min_stock); });
 
   var nOut   = items.filter(function(i){ return i.stock <= 0; }).length;
@@ -1630,7 +1681,7 @@ function qmSelectOrder(id) {
     ? '<div><span class="qm-meta-k">Domiciliario</span><span class="qm-meta-v">' + (o.delivery_person || 'Por asignar') + '</span></div>'
     : '<div><span class="qm-meta-k">Canal</span><span class="qm-meta-v">' + chLabel + '</span></div>';
   var driverBtn = ch === 'delivery' ? (
-    '<button class="qm-reprint qm-reprint-driver" data-doc="Copia para domiciliario">' +
+    '<button class="qm-reprint qm-reprint-driver" data-doc="Copia para domiciliario" data-tipo="domiciliario">' +
       '<span class="qm-reprint-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M2 17h2l1-7h12l4 7h2"/><path d="M9 17h6"/></svg></span>' +
       '<span class="qm-reprint-text"><span class="qm-reprint-name">Copia para domiciliario</span><span class="qm-reprint-desc">Incluye dirección y ruta · ' + (o.delivery_person||'Domiciliario') + '</span></span>' +
       '<svg class="qm-reprint-chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>' +
@@ -1656,26 +1707,42 @@ function qmSelectOrder(id) {
     '</div>' +
     '<div class="qm-reprint-label">Reimprimir</div>' +
     '<div class="qm-reprint-grid">' +
-      qmReprintBtn('Comanda','Ticket de cocina · Impresora Cocina','M9 4H5a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-4') +
-      qmReprintBtn('Precuenta','Cuenta previa al pago · Impresora Caja','M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z') +
-      qmReprintBtn('Recibo','Comprobante de venta · Impresora Caja','M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z') +
+      qmReprintBtn('Comanda','Ticket de cocina · Impresora Cocina','M9 4H5a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-4','comanda') +
+      qmReprintBtn('Precuenta','Cuenta previa al pago · Impresora Caja','M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z','precuenta') +
+      qmReprintBtn('Recibo','Comprobante de venta · Impresora Caja','M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z','recibo') +
       driverBtn +
     '</div>' +
     '<div class="qm-toast is-hidden" id="printToast"></div>';
 
   detail.querySelectorAll('.qm-reprint').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      var doc = btn.dataset.doc;
+    btn.addEventListener('click', async function(){
+      var doc  = btn.dataset.doc;
+      var tipo = btn.dataset.tipo;            // comanda | precuenta | recibo | domiciliario
       var toast = document.getElementById('printToast');
-      toast.innerHTML = '✓ Enviando <strong>' + doc + '</strong> del pedido #' + idStr + ' a la impresora...';
-      toast.classList.remove('is-hidden');
-      setTimeout(function(){ toast.classList.add('is-hidden'); }, 2600);
+      function aviso(txt, ms) {
+        toast.innerHTML = txt;
+        toast.classList.remove('is-hidden');
+        setTimeout(function(){ toast.classList.add('is-hidden'); }, ms || 2600);
+      }
+      if (typeof window.posPrintAction !== 'function') {
+        aviso('⚠ La impresión no está disponible en esta pantalla', 3200);
+        return;
+      }
+      btn.disabled = true;
+      aviso('Enviando <strong>' + doc + '</strong> del pedido #' + idStr + '…', 6000);
+      try {
+        await window.posPrintAction(tipo, o.id);
+        aviso('✓ <strong>' + doc + '</strong> enviado a la impresora');
+      } catch (e) {
+        console.warn('[dashboard] reimprimir:', e);
+        aviso('⚠ No se pudo imprimir: ' + ((e && e.message) || e), 4000);
+      } finally { btn.disabled = false; }
     });
   });
 }
 
-function qmReprintBtn(name, desc, svgPath) {
-  return '<button class="qm-reprint" data-doc="' + name + '">' +
+function qmReprintBtn(name, desc, svgPath, tipo) {
+  return '<button class="qm-reprint" data-doc="' + name + '" data-tipo="' + (tipo || name.toLowerCase()) + '">' +
     '<span class="qm-reprint-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="' + svgPath + '"/></svg></span>' +
     '<span class="qm-reprint-text"><span class="qm-reprint-name">' + name + '</span><span class="qm-reprint-desc">' + desc + '</span></span>' +
     '<svg class="qm-reprint-chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>' +

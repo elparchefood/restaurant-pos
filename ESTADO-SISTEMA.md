@@ -890,7 +890,7 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
-## PENDIENTE — [Contabilidad] El domicilio infla las ventas (pass-through al domiciliario) — Sergio 2026-07-24
+## ✅ HECHO — [Contabilidad] El domicilio ya NO infla las ventas — confirmado por Sergio 2026-07-31
 
 **Problema:** hoy `pos_orders.total = comida + empaque + domicilio` (domicilios.js:1539), y el dashboard suma `o.total` en TODAS las métricas de ventas (dashboard.js:181,242,258-260,687,701,897). Por eso el **domicilio se cuenta como venta**. En el caso de Sergio el domicilio NO es ingreso suyo: el cliente le paga todo (ej. por transferencia) y él le pasa el valor del domicilio al domiciliario. Resultado: ventas infladas por la suma de los domicilios.
 
@@ -937,7 +937,12 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
-## PENDIENTE GRANDE — [Inventario] Sub-inventario / inventario en DOS NIVELES (Bodega vs En servicio) — Sergio 2026-07-24
+
+> **Nota (2026-07-31):** Sergio confirmó de memoria que estos quedaron hechos.
+> **Cuando se termine toda la lista de pendientes se hará una auditoría** para
+> verificar que cada uno quedó bien de verdad.
+
+## ✅ HECHO — [Inventario] Sub-inventario / inventario en DOS NIVELES (Bodega vs En servicio) — confirmado por Sergio 2026-07-31
 
 **Problema real:** "tener el insumo" no es lo mismo que "tenerlo listo para vender". Ej.: hay carne pero está CRUDA (no se cocina toda el mismo día); hay bebidas en bodega pero las que se venden son las de la NEVERA (frías). El sistema hoy solo ve el total → puede decir "hay carne" cuando está cruda, o "hay gaseosa" cuando las frías ya se acabaron.
 
@@ -966,7 +971,7 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
-## PENDIENTE — [Inventario] Control MANUAL de disponibilidad por insumo ("86" / el cocinero avisa) — Sergio 2026-07-24
+## ✅ HECHO — [Inventario] Control MANUAL de disponibilidad por insumo ("86") — confirmado por Sergio 2026-07-31
 
 **Contexto real:** la cocinera (mamá de Sergio) NO puede pesar antes de cocinar (a veces cocina en pleno turno). Para pollo y carne, contar por gramos no es viable. Solución de Sergio (= patrón estándar de restaurantes, "86 the item"): que ciertos insumos se controlen MANUALMENTE — el sistema los da por disponibles hasta que la cocina avise que se acabaron.
 
@@ -1030,7 +1035,7 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
-## PENDIENTE — [Chat IA] Pausar asistente (global) + CREAR PEDIDO desde el chat — Sergio 2026-07-24
+## ✅ HECHO — [Chat IA] Pausar asistente + CREAR PEDIDO desde el chat — confirmado por Sergio 2026-07-31
 
 **Contexto:** mientras Sergio afína el asistente (aún no contesta solo sin equivocarse), quiere (a) poder contestar manual, (b) crear el pedido en el mismo chat sin copiar de WhatsApp a Cobra.
 
@@ -1049,7 +1054,7 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
-## PENDIENTE — [Domicilios] Ajustar los ESTADOS del pedido — Sergio 2026-07-24
+## ✅ HECHO — [Domicilios] Estados del pedido ajustados — confirmado por Sergio 2026-07-31
 
 Estados actuales (ventas-salon.js:50, `DELIVERY_NEXT`): recibido → preparacion → listo → camino → entregado.
 
@@ -1066,7 +1071,7 @@ Estados actuales (ventas-salon.js:50, `DELIVERY_NEXT`): recibido → preparacion
 
 ---
 
-## PENDIENTE — [Chat IA] Cambiar la paleta de color de la pantalla — Sergio 2026-07-24
+## ✅ HECHO — [Chat IA] Paleta de color de la pantalla — confirmado por Sergio 2026-07-31
 
 El azul actual del Chat IA le parece "raro" a Sergio y es la pantalla que MÁS va a usar (está todo el día ahí). Quiere una paleta más cómoda a la vista.
 - Probar: **azul más oscuro**, o **negro/gris** (neutros), o un tema oscuro tipo bandeja de mensajería.
@@ -1173,7 +1178,7 @@ Sergio (2026-07-23) aprobó hacer AHORA el arreglo de permisos del lado de la ap
 
 **Qué implica (proyecto separado, más grande y delicado):** políticas RLS de NEGOCIO en Supabase que validen el permiso del rol del usuario ANTES de permitir cada operación sensible (`pos_payments` insert/delete, `pos_orders` update de status/descuento, `pos_roles`, `pos_users`, lectura de ventas de otras sesiones). Hoy las RLS existentes solo aíslan por tenant/branch, no por permiso de rol. Requiere una función SQL que lea el rol del `auth.uid()` y sus `perms`, y aplicarla en cascada. Es lo que convierte los permisos de "candado visual" en "candado real". No mezclar con el arreglo de UI para no arriesgar la operación diaria.
 
-## PENDIENTE — Modo Gerente en el bot IA (propuesto y aprobado, sin implementar)
+## ✅ HECHO — Modo Gerente en el bot IA — confirmado por Sergio 2026-07-31
 
 **Qué es:** un número de teléfono (o lista) configurado como "administrativo". Cuando el bot recibe un WhatsApp DE ese número, no lo atiende como cliente: entra en una rama aparte donde el gerente puede (a) **consultar** inventario ("¿cómo está el pollo?", "¿qué falta comprar?", "¿qué se va a acabar?", precios, ventas del turno) y (b) **registrar compras** por chat ("compré 5 kilos de pollo a 21 mil") que suben stock y actualizan precio, igual que el botón "Registrar compra" del inventario.
 

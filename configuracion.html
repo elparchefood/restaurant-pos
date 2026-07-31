@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css">
-<link rel="stylesheet" href="configuracion.css?v=1787650000">
+<link rel="stylesheet" href="configuracion.css?v=1787700000">
 </head>
 <body>
 <div class="cf-root">
@@ -2026,6 +2026,14 @@
                     <div class="field-hint">El bot lo menciona como referencia pero siempre avisa cuando salga el pedido.</div>
                   </div>
                   <div class="field">
+                    <label class="lbl">Copias del recibo del domiciliario</label>
+                    <select class="inp" id="domiCopias">
+                      <option value="1">1 copia — solo para el cliente</option>
+                      <option value="2">2 copias — una para el cliente y otra que el domiciliario devuelve</option>
+                    </select>
+                    <div class="field-hint">La segunda copia sirve para que el domiciliario tenga respaldo de lo que cobró.</div>
+                  </div>
+                  <div class="field">
                     <label class="field-lb">Zonas y precios de domicilio</label>
                     <div id="domiAprendidos"></div>
                     <div id="zoneList" class="zone-list"></div>
@@ -2371,11 +2379,11 @@
 <script src="pos-perms.js?v=1785030000"></script>
 <script>if(window.posRequirePin) posRequirePin(['config.general','config.salon','config.usuarios']);</script>
 <script src="pos-brand.js?v=1784901500"></script>
-<script src="pos-print.js?v=1787560000"></script>
+<script src="pos-print.js?v=1787700000"></script>
 <script src="pos-print-listener.js?v=4"></script>
 <script src="pos-impuestos.js?v=1"></script>
 <script src="pos-creditos.js?v=1"></script>
-<script src="configuracion.js?v=1787650000"></script>
+<script src="configuracion.js?v=1787700000"></script>
 </body>
 </html>
 

@@ -3416,6 +3416,7 @@ var _storedZonas = [];
         para_llevar:      $('domiParaLlevar')? $('domiParaLlevar').checked: true,
         llevar_prepago:   $('domiLlevarPrepago') ? $('domiLlevarPrepago').checked : true,
         tiempo_estimado:  $('domiTiempo')   ? $('domiTiempo').value.trim(): '',
+        copias_recibo:    $('domiCopias')  ? (parseInt($('domiCopias').value,10)||1) : 1,
         zonas:            (function() { var z = readZones(); return z.length ? z : _storedZonas; })(),
       },
       frases:      readFrases(),
@@ -3529,6 +3530,7 @@ var _storedZonas = [];
     if ($('domiParaLlevar'))$('domiParaLlevar').checked= d.para_llevar  !== false;
     if ($('domiLlevarPrepago')) $('domiLlevarPrepago').checked = d.llevar_prepago !== false;
     if ($('domiTiempo'))    $('domiTiempo').value      = d.tiempo_estimado || '';
+    if ($('domiCopias'))    $('domiCopias').value      = String(d.copias_recibo || 1);
     _storedZonas = d.zonas || [];
     renderZones(d.zonas || []);
     toggleDomiFields();

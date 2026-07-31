@@ -14,9 +14,13 @@
     var total = Number(order.total || 0), paid = Number(order.paid || 0);
     if (total <= 0) return '';
     var f = function(n){ return '$' + Number(Math.round(n)).toLocaleString('es-CO'); };
-    if (paid >= total) return '<div style="text-align:center;font-size:15px;font-weight:900;border:2px solid #000;padding:3px;margin:6px 0;">*** PAGADO ***</div>';
-    if (paid > 0) return '<div style="text-align:center;font-size:13px;font-weight:900;border:2px solid #000;padding:3px;margin:6px 0;">ABONADO ' + f(paid) + '<br>COBRAR: ' + f(total - paid) + '</div>';
-    return '<div style="text-align:center;font-size:14px;font-weight:900;border:2px solid #000;padding:3px;margin:6px 0;">COBRAR: ' + f(total) + '</div>';
+    var caja = 'text-align:center;font-weight:900;border:2px solid #000;padding:4px;margin:6px 0;';
+    // El TOTAL del pedido (comida + domicilio) va SIEMPRE y de primero: el
+    // domiciliario necesita saber cuánto vale lo que lleva, no solo el saldo.
+    var cab = '<div style="' + caja + 'font-size:13px">TOTAL DEL PEDIDO: ' + f(total) + '</div>';
+    if (paid >= total) return cab + '<div style="' + caja + 'font-size:15px">*** PAGADO ***<br><span style="font-size:11px;font-weight:700">No cobrar nada</span></div>';
+    if (paid > 0)      return cab + '<div style="' + caja + 'font-size:13px">Ya abonó ' + f(paid) + '<br>COBRAR: ' + f(total - paid) + '</div>';
+    return cab + '<div style="' + caja + 'font-size:14px">COBRAR: ' + f(total) + '</div>';
   }
 
   function _buildComanda(order, items) {
@@ -282,10 +286,33 @@
 
   // Imprimir un ticket ya armado (cierre de caja / paloteo). Usa la impresora
   // configurada; docType 'recibo' → impresora de caja.
+  /* ¿Cuántas copias imprimir de este documento?
+     El recibo del domicilio suele necesitar dos: una para el cliente y otra
+     que el domiciliario devuelve firmada. Se configura en Operación
+     (`domiCopias`); si no hay config, una sola. */
+  function _copias(docType) {
+    try {
+      var cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
+      if (docType === 'domiciliario' || docType === 'recibo-domi') {
+        return Math.max(1, Math.min(3, parseInt(cfg.domiCopias, 10) || 1));
+      }
+    } catch (e) {}
+    return 1;
+  }
+
   window.posPrintTicket = async function (html, docType) {
     var hasPrinter = await _hasPrinter();
     if (!hasPrinter) { _noprinterToast(); return false; }
-    try { await _printHtml(html, docType || 'recibo'); return true; }
+    var n = _copias(docType);
+    try {
+      for (var i = 0; i < n; i++) {
+        await _printHtml(html, docType || 'recibo');
+        // Un respiro entre copias: algunas térmicas se atropellan si les llegan
+        // dos trabajos pegados y sacan una sola.
+        if (i < n - 1) await new Promise(function (r) { setTimeout(r, 400); });
+      }
+      return true;
+    }
     catch (e) { _diagToast('❌ Error al imprimir: ' + (e && e.message || e), '#dc2626'); return false; }
   };
 
