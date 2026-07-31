@@ -3550,6 +3550,78 @@ var _storedZonas = [];
     list.appendChild(row);
   }
 
+  // ── Barrios cobrados a mano que NO están en la tabla ────────────────
+  // El chat los va guardando solo cuando el operador escribe el domicilio
+  // porque el sistema no reconoció el barrio. Aquí se aprueban con un clic.
+  async function cargarAprendidos() {
+    var host = $('domiAprendidos');
+    if (!host) return;
+    var bid = await cfgQrGetBranch();
+    if (!bid) return;
+    var r;
+    try { r = await sb.from('pos_domi_aprendidos').select('*').eq('branch_id', bid).order('veces', { ascending: false }); }
+    catch (e) { host.innerHTML = ''; return; }
+    var items = (r && r.data) || [];
+    if (!items.length) { host.innerHTML = ''; return; }
+    host.innerHTML =
+      '<div class="domi-apr">' +
+        '<div class="domi-apr-hd">⚠ ' + items.length + ' barrio' + (items.length === 1 ? '' : 's') +
+        ' que cobraste a mano y no está' + (items.length === 1 ? '' : 'n') + ' en tu tabla</div>' +
+        items.map(function (x, i) {
+          return '<div class="domi-apr-row">' +
+            '<span class="domi-apr-nm">' + cfgQrEsc(x.barrio) + '</span>' +
+            '<span class="domi-apr-pr">$' + (Number(x.precio) || 0).toLocaleString('es-CO') + '</span>' +
+            '<span class="domi-apr-n">' + (x.veces > 1 ? x.veces + ' veces' : '') + '</span>' +
+            '<button type="button" class="cfg-qr-btn primary domi-apr-add" data-i="' + i + '">Agregar a la tabla</button>' +
+            '<button type="button" class="cfg-qr-btn ghost domi-apr-del" data-i="' + i + '">Descartar</button>' +
+          '</div>';
+        }).join('') +
+      '</div>';
+    host.querySelectorAll('.domi-apr-add').forEach(function (b) {
+      b.addEventListener('click', function () { agregarAprendido(items[+b.dataset.i]); });
+    });
+    host.querySelectorAll('.domi-apr-del').forEach(function (b) {
+      b.addEventListener('click', function () { descartarAprendido(items[+b.dataset.i]); });
+    });
+  }
+  // Mete el barrio en la zona de ese precio (o crea la zona si no existe).
+  function agregarAprendido(x) {
+    var precio = Number(x.precio) || 0;
+    var puesto = false;
+    document.querySelectorAll('.zone-row').forEach(function (r) {
+      if (puesto) return;
+      var pr = parseInt(r.querySelector('.zone-precio').value) || 0;
+      if (pr === precio) {
+        var ta = r.querySelector('.zone-barrios');
+        var actuales = ta.value.split('\n').map(function (t) { return t.trim(); }).filter(Boolean);
+        if (!actuales.some(function (t) { return t.toLowerCase() === String(x.barrio).toLowerCase(); })) {
+          actuales.push(String(x.barrio));
+          ta.value = actuales.join('\n');
+          ta.dispatchEvent(new Event('input'));
+        }
+        puesto = true;
+      }
+    });
+    if (!puesto) { addZoneRow(precio, [String(x.barrio)]); markDirty(); }
+    descartarAprendido(x, true);
+    showToast('Barrio agregado a la zona de $' + precio.toLocaleString('es-CO') + '. Dale Guardar cambios para que quede.');
+  }
+  async function descartarAprendido(x, silencioso) {
+    try { await sb.from('pos_domi_aprendidos').delete().eq('id', x.id); } catch (e) {}
+    if (!silencioso) cargarAprendidos(); else setTimeout(cargarAprendidos, 100);
+  }
+  (function () {
+    function hook() {
+      var btn = document.querySelector('.cia-tab[data-tab="domicilios"]');
+      if (btn) btn.addEventListener('click', cargarAprendidos);
+      var abierta = '';
+      try { abierta = localStorage.getItem('cia-tab') || ''; } catch (e) {}
+      if (abierta === 'domicilios') cargarAprendidos();
+    }
+    if (document.readyState !== 'loading') hook();
+    else document.addEventListener('DOMContentLoaded', hook);
+  })();
+
   function renderZones(zonas) {
     var list = $('zoneList');
     if (!list) return;

@@ -1767,6 +1767,33 @@ function cpRenderForm(o){
     +'<div class="cp-total">Total del pedido: <b id="cpTotal">'+cpCOP(cpOrderTotal())+'</b></div>';
   cpSetBody(html);
 }
+/* Guarda el barrio que se cobró A MANO porque no estaba en la tabla de zonas.
+   No agrega nada a la tabla por su cuenta: lo deja pendiente para que en
+   Configuración → Chat IA → Domicilios se apruebe con un clic. Si el mismo
+   barrio se repite, sube el contador y se queda con el último precio cobrado. */
+async function aprenderBarrio(o){
+  try{
+    if(!o || o.tipo!=='domicilio') return;
+    const precio = Number(o.domi_precio)||0;
+    if(precio<=0) return;
+    if(o.domi_barrio) return;                 // ya estaba en la tabla → nada que aprender
+    const barrio = String(o.barrio||'').trim();
+    if(!barrio || barrio.length<3) return;    // sin barrio no hay nada que guardar
+    const prev = await sb.from('pos_domi_aprendidos').select('id,veces')
+      .eq('branch_id', o.branch_id).ilike('barrio', barrio).maybeSingle();
+    if(prev.data && prev.data.id){
+      await sb.from('pos_domi_aprendidos')
+        .update({ precio, veces:(Number(prev.data.veces)||1)+1, updated_at:new Date().toISOString() })
+        .eq('id', prev.data.id);
+    } else {
+      await sb.from('pos_domi_aprendidos').insert([{
+        tenant_id:o.tenant_id||null, branch_id:o.branch_id,
+        barrio, precio, direccion:String(o.direccion||'').slice(0,200),
+      }]);
+    }
+  }catch(e){ console.warn('aprenderBarrio:', e && e.message); }
+}
+
 function cpProdRow(p,i){
   const chips=(p.adiciones||[]).map(a=>'<span class="cp-chip">'+cpEsc(a.name)+' +'+cpCOP(a.price)+'<button title="Quitar" onclick="cpDelAdic('+i+',\''+a.id+'\')">✕</button></span>').join('');
   const used={}; (p.adiciones||[]).forEach(a=>used[a.id]=1);
@@ -1994,6 +2021,10 @@ async function cpEnviarCocina(){
     if(data.error){ showToast('Error: '+data.error,'error'); return; }
     showToast('🍳 Enviado a cocina · '+cpCOP(data.total),'success');
     try{ await sb.from('chat_conversations').update({ pedido_borrador: null }).eq('id', convId); }catch(_e){}
+    // APRENDER: si el barrio no estaba en la tabla de zonas y se cobró el
+    // domicilio a mano, se guarda para poder agregarlo después con un clic
+    // (Configuración → Chat IA → Domicilios). Así el sistema mejora solo.
+    aprenderBarrio(o);
     renderDraftBar(null);
     // El pedido ya existe (data.orderId) → mostrar la pastilla de estado "En preparación"
     // de inmediato, sin esperar a reabrir el chat.

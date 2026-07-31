@@ -971,6 +971,14 @@ input::placeholder { color: var(--ink-4); }
   color: var(--ink-3);
 }
 .zone-list { display: flex; flex-direction: column; gap: 10px; }
+/* Barrios cobrados a mano, pendientes de agregar a la tabla */
+.domi-apr { border: 1px solid #FCD34D; background: #FFFBEB; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
+.domi-apr-hd { font-size: 0.8rem; font-weight: 700; color: #92400E; margin-bottom: 8px; }
+.domi-apr-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; flex-wrap: wrap; }
+.domi-apr-nm { font-size: 0.83rem; font-weight: 600; color: #0F172A; flex: 1; min-width: 120px; }
+.domi-apr-pr { font-size: 0.83rem; font-weight: 700; color: #92400E; font-variant-numeric: tabular-nums; }
+.domi-apr-n  { font-size: 0.72rem; color: #A16207; min-width: 52px; }
+.domi-apr .cfg-qr-btn { padding: 5px 10px; font-size: 0.72rem; }
 /* Una zona = un PRECIO con la lista de barrios que lo pagan */
 .zone-row {
   border: 1px solid var(--border-card);
