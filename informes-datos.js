@@ -594,6 +594,639 @@
     };
   };
 
+  /* ═══════════ PROPINAS ═══════════
+     Sin este informe las propinas se reparten "a ojo", que es de donde salen
+     los conflictos. El dato ya se guarda en cada pedido (tip_amount). */
+  R['caj-propinas'] = async function (p) {
+    var d = await pedidos(p); if (!d.lista.length) return vacio();
+    var conProp = d.lista.filter(function (o) { return (parseFloat(o.tip_amount) || 0) > 0; });
+    if (!conProp.length) return vacio();
+    var total = conProp.reduce(function (a, o) { return a + (parseFloat(o.tip_amount) || 0); }, 0);
+    var venta = d.lista.reduce(function (a, o) { return a + ventaDe(o); }, 0);
+    var acc = {};
+    conProp.forEach(function (o) {
+      var k = o.waiter_name || 'Sin asignar';
+      if (!acc[k]) acc[k] = { prop: 0, n: 0, venta: 0 };
+      acc[k].prop += parseFloat(o.tip_amount) || 0;
+      acc[k].n++; acc[k].venta += ventaDe(o);
+    });
+    var arr = ordenar(acc, 'prop');
+    var mx = arr.length ? arr[0].prop : 1;
+    return {
+      kpis: [
+        { lbl: 'Propinas del período', val: $(total), tone: 'accent', big: 1 },
+        { lbl: 'Pedidos con propina', val: n0(conProp.length), sub: pct(d.lista.length ? conProp.length / d.lista.length * 100 : 0) + ' de las ventas' },
+        { lbl: 'Propina promedio', val: $(total / conProp.length) },
+        { lbl: '% sobre la venta', val: pct(venta ? total / venta * 100 : 0) },
+      ],
+      blocks: [
+        { t: 'card', title: 'Cuánto le corresponde a cada uno', body: { t: 'hbars', items: arr.map(function (x) {
+          return { lbl: x._k, w: Math.round(x.prop / mx * 100), val: $(x.prop) }; }) } },
+        { t: 'card', title: 'Detalle', sub: 'Para repartir con un dato, no a ojo', body: { t: 'table', min: 560,
+          cols: [{ k: 'e', label: 'Empleado' }, { k: 'n', label: 'Pedidos', num: 1 },
+                 { k: 'v', label: 'Vendió', num: 1 }, { k: 'p', label: 'Propina', num: 1 }, { k: 'pc', label: '% s/venta', num: 1 }],
+          rows: arr.map(function (x) { return { e: { _main: x._k }, n: n0(x.n), v: $(x.venta), p: $(x.prop),
+            pc: pct(x.venta ? x.prop / x.venta * 100 : 0) }; }),
+          total: { e: 'Total', n: n0(conProp.length), v: '', p: $(total), pc: '' } } },
+      ],
+    };
+  };
+
+  /* ═══════════ CONVERSIÓN DEL CHAT IA ═══════════
+     Dice si el asistente está VENDIENDO o solo conversando. */
+  R['can-chatia'] = async function (p) {
+    var s = sb(); var r = rango(p);
+    var qc = s.from('chat_conversations')
+      .select('id,contact_name,contact_handle,order_id,created_at,last_message_at,human_takeover,labels');
+    if (CTX.branchId) qc = qc.eq('branch_id', CTX.branchId);
+    var rc = await qc; if (rc.error) throw rc.error;
+    var convs = (rc.data || []).filter(function (c) {
+      var f = c.last_message_at || c.created_at;
+      return f && f >= r.from && f < r.to;
+    });
+    if (!convs.length) return vacio();
+
+    var conPedido = convs.filter(function (c) { return c.order_id; });
+    var ids = conPedido.map(function (c) { return c.order_id; });
+    var ventas = {}, totalVendido = 0;
+    if (ids.length) {
+      try {
+        var ro = await s.from('pos_orders').select('id,total_final,total,delivery_fee,status').in('id', ids);
+        (ro.data || []).forEach(function (o) {
+          if (o.status === 'cancelled') return;
+          var dom = parseFloat(o.delivery_fee) || 0, tot = parseFloat(o.total) || 0;
+          var v = dom > 0 ? tot - dom : (parseFloat(o.total_final) || tot);
+          ventas[o.id] = v; totalVendido += v;
+        });
+      } catch (e) { console.warn('[Informes] chat:', e); }
+    }
+    var conv = convs.length ? conPedido.length / convs.length * 100 : 0;
+    var humano = convs.filter(function (c) { return c.human_takeover; }).length;
+
+    return {
+      kpis: [
+        { lbl: 'Conversión a pedido', val: pct(conv), tone: conv >= 40 ? 'good' : conv >= 20 ? 'warn' : 'bad', big: 1,
+          sub: n0(conPedido.length) + ' de ' + n0(convs.length) + ' conversaciones' },
+        { lbl: 'Vendido por el chat', val: $(totalVendido), tone: 'accent' },
+        { lbl: 'Ticket promedio', val: $(conPedido.length ? totalVendido / conPedido.length : 0) },
+        { lbl: 'Necesitaron a una persona', val: n0(humano),
+          sub: pct(convs.length ? humano / convs.length * 100 : 0) + ' de los chats' },
+      ],
+      blocks: [
+        { t: 'grid2', children: [
+          { t: 'card', title: 'De cada 100 que escriben', body: { t: 'donut',
+            centerBig: Math.round(conv) + '%', centerLbl: 'compran',
+            segs: [
+              { name: 'Terminaron en pedido', val: n0(conPedido.length), pct: Math.round(conv), color: '#16A34A' },
+              { name: 'Solo conversaron', val: n0(convs.length - conPedido.length), pct: 100 - Math.round(conv), color: '#ECEEF2' },
+            ] } },
+          { t: 'card', title: 'Qué mirar aquí', body: { t: 'table', min: 300,
+            cols: [{ k: 'a', label: 'Indicador' }, { k: 'b', label: '', num: 1 }],
+            rows: [
+              { a: { _main: 'Conversaciones' }, b: n0(convs.length) },
+              { a: 'Terminaron en pedido', b: n0(conPedido.length) },
+              { a: 'Conversión', b: pct(conv) },
+              { a: 'Tuvo que entrar una persona', b: n0(humano) },
+            ],
+            total: { a: 'Vendido por el chat', b: $(totalVendido) } } },
+        ] },
+        { t: 'card', title: 'Chats que sí compraron', body: { t: 'table', min: 520,
+          cols: [{ k: 'c', label: 'Contacto' }, { k: 't', label: 'Teléfono' }, { k: 'v', label: 'Pedido', num: 1 }],
+          rows: conPedido.slice(0, 60).map(function (c) { return {
+            c: { _main: c.contact_name || 'Sin nombre' }, t: c.contact_handle || '—',
+            v: ventas[c.order_id] != null ? $(ventas[c.order_id]) : { _pill: ['neu', 'anulado'] } }; }),
+          total: { c: 'Total', t: '', v: $(totalVendido) } } },
+      ],
+    };
+  };
+
+  /* ═══════════ AUDITORÍA DE VENTAS (anuladas) ═══════════ */
+  R['sal-auditoria'] = async function (p) {
+    var s = sb(); var r = rango(p);
+    var q = s.from('pos_orders')
+      .select('id,customer_name,channel,total,total_final,delivery_fee,waiter_name,notes,created_at,opened_at,closed_at,discount_amount,discount_motivo')
+      .eq('status', 'cancelled').gte('created_at', r.from).lt('created_at', r.to)
+      .order('created_at', { ascending: false });
+    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    var ra = await q; if (ra.error) throw ra.error;
+    var anul = ra.data || [];
+
+    var d = await pedidos(p);
+    var conDesc = d.lista.filter(function (o) { return (parseFloat(o.discount_amount) || 0) > 0; });
+    var totalDesc = conDesc.reduce(function (a, o) { return a + (parseFloat(o.discount_amount) || 0); }, 0);
+    if (!anul.length && !conDesc.length) return vacio();
+
+    var perdido = anul.reduce(function (a, o) {
+      var dom = parseFloat(o.delivery_fee) || 0, t = parseFloat(o.total) || 0;
+      return a + (dom > 0 ? t - dom : t);
+    }, 0);
+    var porQuien = {};
+    anul.forEach(function (o) {
+      var k = o.waiter_name || 'Sin asignar';
+      porQuien[k] = (porQuien[k] || 0) + 1;
+    });
+    var arrQ = Object.keys(porQuien).map(function (k) { return { k: k, n: porQuien[k] }; })
+      .sort(function (a, b) { return b.n - a.n; });
+
+    return {
+      kpis: [
+        { lbl: 'Pedidos anulados', val: n0(anul.length), tone: anul.length ? 'bad' : 'good', big: 1 },
+        { lbl: 'Valor anulado', val: $(perdido), sub: 'Venta que no entró' },
+        { lbl: 'Ventas con descuento', val: n0(conDesc.length) },
+        { lbl: 'Total descontado', val: $(totalDesc), tone: totalDesc ? 'warn' : '' },
+      ],
+      blocks: [
+        arrQ.length ? { t: 'card', title: 'Quién anula más', sub: 'Muchas anulaciones de una misma persona merecen una conversación',
+          body: { t: 'hbars', items: arrQ.map(function (x) {
+            return { lbl: x.k, w: Math.round(x.n / arrQ[0].n * 100), val: n0(x.n) + (x.n === 1 ? ' anulación' : ' anulaciones') }; }) } } : null,
+        { t: 'card', title: 'Pedidos anulados', body: { t: 'table', min: 640,
+          cols: [{ k: 'f', label: 'Fecha' }, { k: 'c', label: 'Cliente' }, { k: 'ch', label: 'Canal' },
+                 { k: 'w', label: 'Registró' }, { k: 'v', label: 'Valor', num: 1 }],
+          rows: anul.slice(0, 150).map(function (o) {
+            var dom = parseFloat(o.delivery_fee) || 0, t = parseFloat(o.total) || 0;
+            return {
+              f: new Date(o.created_at).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+              c: { _main: o.customer_name || '—' }, ch: o.channel || '—', w: o.waiter_name || '—',
+              v: { _neg: '– ' + $(dom > 0 ? t - dom : t) } }; }),
+          total: { f: 'Total', c: '', ch: '', w: '', v: $(perdido) } } },
+        conDesc.length ? { t: 'card', title: 'Ventas con descuento', body: { t: 'table', min: 560,
+          cols: [{ k: 'f', label: 'Fecha' }, { k: 'c', label: 'Cliente' }, { k: 'm', label: 'Motivo' }, { k: 'd', label: 'Descuento', num: 1 }],
+          rows: conDesc.slice(0, 100).map(function (o) { return {
+            f: new Date(o.closed_at || o.opened_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }),
+            c: { _main: o.customer_name || '—' }, m: o.discount_motivo || 'Sin motivo',
+            d: $(o.discount_amount) }; }),
+          total: { f: 'Total', c: '', m: '', d: $(totalDesc) } } } : null,
+      ].filter(Boolean),
+    };
+  };
+
+  /* ═══════════ CIERRES DE CAJA ═══════════
+     Lo importante es el DESCUADRE: si el arqueo no cuadra con lo que debería
+     haber, hay que revisarlo el mismo día. */
+  R['caj-cierres'] = async function (p) {
+    var s = sb(); var r = rango(p);
+    var q = s.from('pos_sessions')
+      .select('id,cashier_name,opened_at,closed_at,opening_cash,closing_cash,total_sales,arqueo_contado,arqueo_diff,status,shift_type')
+      .gte('opened_at', r.from).lt('opened_at', r.to).order('opened_at', { ascending: false });
+    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    var rs = await q; if (rs.error) throw rs.error;
+    var ses = rs.data || []; if (!ses.length) return vacio();
+
+    var descuadres = ses.filter(function (x) { return Math.abs(parseFloat(x.arqueo_diff) || 0) > 0; });
+    var sumaDesc = descuadres.reduce(function (a, x) { return a + (parseFloat(x.arqueo_diff) || 0); }, 0);
+    var ventas = ses.reduce(function (a, x) { return a + (parseFloat(x.total_sales) || 0); }, 0);
+    return {
+      kpis: [
+        { lbl: 'Cierres', val: n0(ses.length), tone: 'accent' },
+        { lbl: 'Ventas de esos turnos', val: $(ventas) },
+        { lbl: 'Turnos descuadrados', val: n0(descuadres.length), tone: descuadres.length ? 'bad' : 'good' },
+        { lbl: 'Descuadre acumulado', val: (sumaDesc < 0 ? '– ' : '') + $(Math.abs(sumaDesc)),
+          tone: sumaDesc ? 'warn' : 'good', sub: sumaDesc < 0 ? 'Faltó dinero' : sumaDesc > 0 ? 'Sobró dinero' : 'Todo cuadró' },
+      ],
+      blocks: [{ t: 'card', title: 'Histórico de cierres', sub: 'El descuadre es lo primero que hay que mirar', body: {
+        t: 'table', min: 760,
+        cols: [{ k: 'f', label: 'Abrió' }, { k: 'c', label: 'Cajero' }, { k: 'ap', label: 'Base', num: 1 },
+               { k: 'v', label: 'Ventas', num: 1 }, { k: 'ct', label: 'Contado', num: 1 },
+               { k: 'df', label: 'Descuadre', num: 1 }, { k: 'e', label: 'Estado' }],
+        rows: ses.map(function (x) {
+          var df = parseFloat(x.arqueo_diff) || 0;
+          return {
+            f: new Date(x.opened_at).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+            c: { _main: x.cashier_name || '—' },
+            ap: $(x.opening_cash), v: $(x.total_sales),
+            ct: x.arqueo_contado != null ? $(x.arqueo_contado) : '—',
+            df: df === 0 ? { _pill: ['ok', 'Cuadró'] } : (df < 0 ? { _neg: '– ' + $(Math.abs(df)) } : { _pill: ['warn', '+ ' + $(df)] }),
+            e: { _pill: [x.status === 'closed' ? 'neu' : 'brand', x.status === 'closed' ? 'Cerrada' : 'Abierta'] } }; }),
+        total: { f: 'Total', c: '', ap: '', v: $(ventas), ct: '', df: (sumaDesc < 0 ? '– ' : '') + $(Math.abs(sumaDesc)), e: '' } } }],
+    };
+  };
+
+  /* ═══════════ EGRESOS E INGRESOS EXTRA ═══════════ */
+  R['caj-egresos'] = async function (p) {
+    var s = sb(); var r = rango(p);
+    var q = s.from('pos_cash_moves').select('id,type,amount,concept,medio,created_by,created_at')
+      .gte('created_at', r.from).lt('created_at', r.to).order('created_at', { ascending: false });
+    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    var rm = await q; if (rm.error) throw rm.error;
+    var mov = rm.data || []; if (!mov.length) return vacio();
+
+    var esEgreso = function (m) { return String(m.type || '').toLowerCase().indexOf('egre') === 0 || m.type === 'out'; };
+    var egresos = mov.filter(esEgreso), ingresos = mov.filter(function (m) { return !esEgreso(m); });
+    var sumE = egresos.reduce(function (a, m) { return a + (parseFloat(m.amount) || 0); }, 0);
+    var sumI = ingresos.reduce(function (a, m) { return a + (parseFloat(m.amount) || 0); }, 0);
+    var porConcepto = {};
+    egresos.forEach(function (m) {
+      var k = (m.concept || 'Sin concepto').trim();
+      porConcepto[k] = (porConcepto[k] || 0) + (parseFloat(m.amount) || 0);
+    });
+    var arr = Object.keys(porConcepto).map(function (k) { return { k: k, v: porConcepto[k] }; })
+      .sort(function (a, b) { return b.v - a.v; });
+    return {
+      kpis: [
+        { lbl: 'Egresos', val: $(sumE), tone: 'bad', big: 1 },
+        { lbl: 'Ingresos extra', val: $(sumI), tone: 'good' },
+        { lbl: 'Neto', val: $(sumI - sumE), tone: (sumI - sumE) < 0 ? 'warn' : 'accent' },
+        { lbl: 'Movimientos', val: n0(mov.length) },
+      ],
+      blocks: [
+        arr.length ? { t: 'card', title: 'En qué se va la plata', body: { t: 'hbars', items: arr.slice(0, 12).map(function (x) {
+          return { lbl: x.k, w: Math.round(x.v / arr[0].v * 100), val: $(x.v), color: '#DC2626' }; }) } } : null,
+        { t: 'card', title: 'Todos los movimientos', body: { t: 'table', min: 640,
+          cols: [{ k: 'f', label: 'Fecha' }, { k: 't', label: 'Tipo' }, { k: 'c', label: 'Concepto' },
+                 { k: 'm', label: 'Medio' }, { k: 'v', label: 'Valor', num: 1 }],
+          rows: mov.map(function (m) { return {
+            f: new Date(m.created_at).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+            t: { _pill: [esEgreso(m) ? 'bad' : 'ok', esEgreso(m) ? 'Egreso' : 'Ingreso'] },
+            c: { _main: m.concept || '—' }, m: m.medio || '—',
+            v: esEgreso(m) ? { _neg: '– ' + $(m.amount) } : $(m.amount) }; }),
+          total: { f: 'Neto', t: '', c: '', m: '', v: $(sumI - sumE) } } },
+      ].filter(Boolean),
+    };
+  };
+
+  /* ═══════════ STOCK VALORIZADO ═══════════
+     Cuánta plata tienes parada en la bodega y en la nevera. */
+  R['inv-stock'] = async function () {
+    var s = sb();
+    var q = s.from('iv_insumos')
+      .select('id,nombre,categoria,buy_unit,use_unit,precio,conversion,stock,stock_servicio,min_stock,sub_inventario,activo');
+    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    var ri = await q; if (ri.error) throw ri.error;
+    var ins = (ri.data || []).filter(function (x) { return x.activo !== false; });
+    if (!ins.length) return vacio();
+
+    var filas = ins.map(function (x) {
+      var conv = parseFloat(x.conversion) || 1;
+      var unit = (parseFloat(x.precio) || 0) / (conv > 0 ? conv : 1);   // costo por unidad de uso
+      var bod = parseFloat(x.stock) || 0;
+      var ser = x.sub_inventario ? (parseFloat(x.stock_servicio) || 0) : 0;
+      var tot = bod + ser;
+      return { nombre: x.nombre, cat: x.categoria || '—', uso: x.use_unit || '',
+               bod: bod, ser: ser, tot: tot, unit: unit, valor: tot * unit,
+               min: parseFloat(x.min_stock) || 0, sub: !!x.sub_inventario };
+    }).sort(function (a, b) { return b.valor - a.valor; });
+
+    var valorTotal = filas.reduce(function (a, x) { return a + x.valor; }, 0);
+    var bajos = filas.filter(function (x) { return x.min > 0 && x.tot <= x.min; });
+    var enCero = filas.filter(function (x) { return x.tot <= 0; });
+    return {
+      kpis: [
+        { lbl: 'Plata parada en inventario', val: $(valorTotal), tone: 'accent', big: 1 },
+        { lbl: 'Insumos activos', val: n0(filas.length) },
+        { lbl: 'Bajo el mínimo', val: n0(bajos.length), tone: bajos.length ? 'warn' : 'good' },
+        { lbl: 'En cero', val: n0(enCero.length), tone: enCero.length ? 'bad' : 'good' },
+      ],
+      blocks: [
+        bajos.length ? { t: 'card', title: 'Hay que surtir', sub: 'Están en el mínimo o por debajo', body: { t: 'table', min: 480,
+          cols: [{ k: 'i', label: 'Insumo' }, { k: 'q', label: 'Quedan', num: 1 }, { k: 'm', label: 'Mínimo', num: 1 }],
+          rows: bajos.map(function (x) { return { i: { _main: x.nombre }, q: { _pill: [x.tot <= 0 ? 'bad' : 'warn', n0(x.tot) + ' ' + x.uso] }, m: n0(x.min) + ' ' + x.uso }; }) } } : null,
+        { t: 'card', title: 'Inventario valorizado', body: { t: 'table', min: 720,
+          cols: [{ k: 'i', label: 'Insumo' }, { k: 'c', label: 'Categoría' }, { k: 'b', label: 'Bodega', num: 1 },
+                 { k: 's', label: 'Servicio', num: 1 }, { k: 'u', label: 'Costo unit.', num: 1 }, { k: 'v', label: 'Valor', num: 1 }],
+          rows: filas.map(function (x) { return {
+            i: { _main: x.nombre }, c: x.cat,
+            b: n0(x.bod) + ' ' + x.uso, s: x.sub ? n0(x.ser) + ' ' + x.uso : '—',
+            u: $(x.unit), v: $(x.valor) }; }),
+          total: { i: 'Total', c: '', b: '', s: '', u: '', v: $(valorTotal) } } },
+      ].filter(Boolean),
+    };
+  };
+
+  /* ═══════════ KARDEX ═══════════ */
+  R['inv-kardex'] = async function (p) {
+    var s = sb(); var r = rango(p);
+    var q = s.from('iv_movimientos').select('id,insumo_id,delta,campo,motivo,order_id,reversed,created_at')
+      .gte('created_at', r.from).lt('created_at', r.to).order('created_at', { ascending: false }).limit(1000);
+    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    var rm = await q; if (rm.error) throw rm.error;
+    var mov = rm.data || []; if (!mov.length) return vacio();
+
+    var nombres = {};
+    try {
+      var qi = s.from('iv_insumos').select('id,nombre,use_unit');
+      if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
+      var ri = await qi;
+      (ri.data || []).forEach(function (x) { nombres[x.id] = x; });
+    } catch (e) {}
+
+    var entradas = mov.filter(function (m) { return (parseFloat(m.delta) || 0) > 0; });
+    var salidas  = mov.filter(function (m) { return (parseFloat(m.delta) || 0) < 0; });
+    return {
+      kpis: [
+        { lbl: 'Movimientos', val: n0(mov.length), tone: 'accent' },
+        { lbl: 'Entradas', val: n0(entradas.length), tone: 'good' },
+        { lbl: 'Salidas', val: n0(salidas.length) },
+        { lbl: 'Reversados', val: n0(mov.filter(function (m) { return m.reversed; }).length),
+          sub: 'Por pedidos anulados' },
+      ],
+      blocks: [{ t: 'card', title: 'Movimientos de stock', sub: mov.length >= 1000 ? 'Mostrando los 1.000 más recientes' : '',
+        body: { t: 'table', min: 720,
+        cols: [{ k: 'f', label: 'Fecha' }, { k: 'i', label: 'Insumo' }, { k: 'd', label: 'Cambio', num: 1 },
+               { k: 'c', label: 'Dónde' }, { k: 'm', label: 'Motivo' }],
+        rows: mov.map(function (m) {
+          var ins = nombres[m.insumo_id] || {};
+          var dl = parseFloat(m.delta) || 0;
+          return {
+            f: new Date(m.created_at).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+            i: { _main: ins.nombre || '—' },
+            d: dl < 0 ? { _neg: n0(dl) + ' ' + (ins.use_unit || '') } : { _pill: ['ok', '+' + n0(dl) + ' ' + (ins.use_unit || '')] },
+            c: m.campo === 'stock_servicio' ? 'Servicio' : 'Bodega',
+            m: (m.reversed ? '↩ ' : '') + (m.motivo || '—') }; }) } }],
+    };
+  };
+
+  /* ═══════════ COMPRAS POR INSUMO ═══════════ */
+  R['inv-compras'] = async function (p) {
+    var s = sb(); var r = rango(p);
+    var q = s.from('iv_movimientos').select('insumo_id,delta,motivo,created_at')
+      .gt('delta', 0).gte('created_at', r.from).lt('created_at', r.to).limit(2000);
+    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    var rm = await q; if (rm.error) throw rm.error;
+    // Las entradas por devolución de un pedido anulado NO son compras.
+    var mov = (rm.data || []).filter(function (m) { return String(m.motivo || '').toLowerCase().indexOf('devol') < 0; });
+    if (!mov.length) return vacio();
+
+    var ins = {};
+    try {
+      var qi = s.from('iv_insumos').select('id,nombre,use_unit,precio,conversion,categoria');
+      if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
+      var ri = await qi;
+      (ri.data || []).forEach(function (x) { ins[x.id] = x; });
+    } catch (e) {}
+
+    var acc = {};
+    mov.forEach(function (m) {
+      var i = ins[m.insumo_id] || {};
+      var k = i.nombre || 'Insumo';
+      var conv = parseFloat(i.conversion) || 1;
+      var unit = (parseFloat(i.precio) || 0) / (conv > 0 ? conv : 1);
+      if (!acc[k]) acc[k] = { qty: 0, val: 0, uso: i.use_unit || '', cat: i.categoria || '—', veces: 0 };
+      acc[k].qty += parseFloat(m.delta) || 0;
+      acc[k].val += (parseFloat(m.delta) || 0) * unit;
+      acc[k].veces++;
+    });
+    var arr = ordenar(acc, 'val');
+    var tot = arr.reduce(function (a, x) { return a + x.val; }, 0);
+    return {
+      kpis: [
+        { lbl: 'Comprado en el período', val: $(tot), tone: 'accent', big: 1 },
+        { lbl: 'Insumos distintos', val: n0(arr.length) },
+        { lbl: 'El que más te cuesta', val: arr.length ? arr[0]._k : '—', sub: arr.length ? $(arr[0].val) : '' },
+      ],
+      blocks: [
+        { t: 'card', title: 'En qué insumos se va la plata', body: { t: 'hbars', items: arr.slice(0, 12).map(function (x) {
+          return { lbl: x._k, w: Math.round(x.val / arr[0].val * 100), val: $(x.val), color: '#B45309' }; }) } },
+        { t: 'card', title: 'Detalle de compras', body: { t: 'table', min: 620,
+          cols: [{ k: 'i', label: 'Insumo' }, { k: 'c', label: 'Categoría' }, { k: 'q', label: 'Cantidad', num: 1 },
+                 { k: 'n', label: 'Veces', num: 1 }, { k: 'v', label: 'Costo', num: 1 }],
+          rows: arr.map(function (x) { return { i: { _main: x._k }, c: x.cat,
+            q: n0(x.qty) + ' ' + x.uso, n: n0(x.veces), v: $(x.val) }; }),
+          total: { i: 'Total', c: '', q: '', n: '', v: $(tot) } } },
+      ],
+    };
+  };
+
+  /* ═══════════ DETALLE DE CLIENTE ═══════════ */
+  R['cli-detalle'] = async function (p) {
+    var d = await pedidos(p);
+    var conCli = d.lista.filter(function (o) { return o.cliente_id; });
+    if (!conCli.length) return vacio();
+    var cli = {};
+    try {
+      var ids = conCli.map(function (o) { return o.cliente_id; });
+      var uniq = ids.filter(function (v, i) { return ids.indexOf(v) === i; });
+      var rc = await sb().from('pos_clientes').select('id,nombre,telefono,barrio,direccion').in('id', uniq);
+      (rc.data || []).forEach(function (c) { cli[c.id] = c; });
+    } catch (e) {}
+
+    var acc = {};
+    conCli.forEach(function (o) {
+      var c = cli[o.cliente_id] || {};
+      var k = o.cliente_id;
+      if (!acc[k]) acc[k] = { nombre: c.nombre || 'Cliente', tel: c.telefono || '', barrio: c.barrio || '',
+                              n: 0, rev: 0, ultimo: null, prods: {} };
+      acc[k].n++; acc[k].rev += ventaDe(o);
+      var f = o.closed_at || o.opened_at;
+      if (!acc[k].ultimo || f > acc[k].ultimo) acc[k].ultimo = f;
+      (o.pos_order_items || []).forEach(function (it) {
+        var pn = it.product_name || it.name || '';
+        if (pn) acc[k].prods[pn] = (acc[k].prods[pn] || 0) + (parseInt(it.quantity) || 1);
+      });
+    });
+    var arr = ordenar(acc, 'rev');
+    var tot = arr.reduce(function (a, x) { return a + x.rev; }, 0);
+    return {
+      kpis: [
+        { lbl: 'Clientes identificados', val: n0(arr.length), tone: 'accent' },
+        { lbl: 'Gastado por ellos', val: $(tot) },
+        { lbl: 'Pedidos por cliente', val: (Math.round(conCli.length / arr.length * 10) / 10).toString().replace('.', ',') },
+      ],
+      blocks: [{ t: 'card', title: 'Ficha de cada cliente', sub: 'Qué pide, cada cuánto y cuánto deja', body: {
+        t: 'table', min: 820,
+        cols: [{ k: 'c', label: 'Cliente' }, { k: 't', label: 'Teléfono' }, { k: 'b', label: 'Barrio' },
+               { k: 'n', label: 'Pedidos', num: 1 }, { k: 'v', label: 'Gastado', num: 1 },
+               { k: 'tk', label: 'Ticket', num: 1 }, { k: 'u', label: 'Último' }, { k: 'p', label: 'Lo que más pide' }],
+        rows: arr.map(function (x) {
+          var top = Object.keys(x.prods).sort(function (a, b) { return x.prods[b] - x.prods[a]; })[0];
+          return { c: { _main: x.nombre }, t: x.tel || '—', b: x.barrio || '—',
+            n: n0(x.n), v: $(x.rev), tk: $(x.rev / x.n),
+            u: x.ultimo ? new Date(x.ultimo).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : '—',
+            p: top || '—' }; }),
+        total: { c: 'Total', t: '', b: '', n: n0(conCli.length), v: $(tot), tk: '', u: '', p: '' } } }],
+    };
+  };
+
+  /* ═══════════ COMPARATIVO MENSUAL ═══════════
+     Compara este mes contra el anterior, con el mismo número de días
+     transcurridos: comparar 15 días contra 30 no dice nada. */
+  R['ger-comparativo'] = async function () {
+    var s = sb();
+    var hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    var iniEste = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    var iniAnt  = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+    var diaDeHoy = hoy.getDate();
+    var finAnt = new Date(hoy.getFullYear(), hoy.getMonth() - 1, diaDeHoy);
+    finAnt.setDate(finAnt.getDate() + 1);
+    var finEste = new Date(hoy); finEste.setDate(finEste.getDate() + 1);
+
+    async function traer(desde, hasta) {
+      var q = s.from('pos_orders').select('total,total_final,delivery_fee,channel,tip_amount')
+        .eq('status', 'paid').gte('closed_at', desde.toISOString()).lt('closed_at', hasta.toISOString());
+      if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+      var r = await q; if (r.error) throw r.error;
+      var L = r.data || [];
+      var venta = L.reduce(function (a, o) {
+        var dom = parseFloat(o.delivery_fee) || 0, t = parseFloat(o.total) || 0;
+        return a + (dom > 0 ? t - dom : (parseFloat(o.total_final) || t));
+      }, 0);
+      return { n: L.length, venta: venta, ticket: L.length ? venta / L.length : 0 };
+    }
+    var este = await traer(iniEste, finEste);
+    var ant  = await traer(iniAnt, finAnt);
+    if (!este.n && !ant.n) return vacio();
+
+    function variacion(a, b) { return b > 0 ? (a - b) / b * 100 : (a > 0 ? 100 : 0); }
+    var vVenta = variacion(este.venta, ant.venta);
+    var vN = variacion(este.n, ant.n);
+    var vT = variacion(este.ticket, ant.ticket);
+    var nomEste = iniEste.toLocaleDateString('es-CO', { month: 'long' });
+    var nomAnt  = iniAnt.toLocaleDateString('es-CO', { month: 'long' });
+    var mx = Math.max(este.venta, ant.venta) || 1;
+
+    function pill(v) { return { _pill: [v >= 0 ? 'ok' : 'bad', (v >= 0 ? '+' : '') + pct(v)] }; }
+    return {
+      kpis: [
+        { lbl: 'Ventas este mes', val: $(este.venta), tone: 'accent', big: 1,
+          sub: 'Primeros ' + diaDeHoy + ' días' },
+        { lbl: 'Mismo tramo del mes pasado', val: $(ant.venta) },
+        { lbl: 'Variación', val: (vVenta >= 0 ? '+' : '') + pct(vVenta), tone: vVenta >= 0 ? 'good' : 'bad', big: 1 },
+        { lbl: 'Ticket promedio', val: $(este.ticket), sub: (vT >= 0 ? '+' : '') + pct(vT) + ' vs mes pasado' },
+      ],
+      blocks: [
+        { t: 'card', title: 'Comparación justa', sub: 'Se comparan los mismos ' + diaDeHoy + ' días de cada mes, no un mes completo contra medio mes',
+          body: { t: 'hbars', items: [
+            { lbl: nomEste.charAt(0).toUpperCase() + nomEste.slice(1), w: Math.round(este.venta / mx * 100), val: $(este.venta) },
+            { lbl: nomAnt.charAt(0).toUpperCase() + nomAnt.slice(1), w: Math.round(ant.venta / mx * 100), val: $(ant.venta), color: '#94A3B8' },
+          ] } },
+        { t: 'card', title: 'Detalle', body: { t: 'table', min: 480,
+          cols: [{ k: 'a', label: '' }, { k: 'b', label: nomAnt, num: 1 }, { k: 'c', label: nomEste, num: 1 }, { k: 'd', label: 'Variación', num: 1 }],
+          rows: [
+            { a: { _main: 'Ventas' }, b: $(ant.venta), c: $(este.venta), d: pill(vVenta) },
+            { a: { _main: '# Pedidos' }, b: n0(ant.n), c: n0(este.n), d: pill(vN) },
+            { a: { _main: 'Ticket promedio' }, b: $(ant.ticket), c: $(este.ticket), d: pill(vT) },
+          ] } },
+      ],
+    };
+  };
+
+  /* ═══════════ VENTAS vs COMPRAS ═══════════ */
+  R['ger-ventascompras'] = async function (p) {
+    var s = sb(); var r = rango(p);
+    var d = await pedidos(p);
+    var venta = d.lista.reduce(function (a, o) { return a + ventaDe(o); }, 0);
+
+    // Compras = entradas de inventario valorizadas (sin las devoluciones).
+    var compras = 0;
+    try {
+      var qm = s.from('iv_movimientos').select('insumo_id,delta,motivo')
+        .gt('delta', 0).gte('created_at', r.from).lt('created_at', r.to).limit(2000);
+      if (CTX.branchId) qm = qm.eq('branch_id', CTX.branchId);
+      var qi = s.from('iv_insumos').select('id,precio,conversion');
+      if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
+      var res = await Promise.all([qm, qi]);
+      var unit = {};
+      (res[1].data || []).forEach(function (x) {
+        var c = parseFloat(x.conversion) || 1;
+        unit[x.id] = (parseFloat(x.precio) || 0) / (c > 0 ? c : 1);
+      });
+      (res[0].data || []).forEach(function (m) {
+        if (String(m.motivo || '').toLowerCase().indexOf('devol') >= 0) return;
+        compras += (parseFloat(m.delta) || 0) * (unit[m.insumo_id] || 0);
+      });
+    } catch (e) { console.warn('[Informes] compras:', e); }
+
+    // Egresos de caja del mismo rango.
+    var egresos = 0;
+    try {
+      var qe = s.from('pos_cash_moves').select('type,amount')
+        .gte('created_at', r.from).lt('created_at', r.to);
+      if (CTX.branchId) qe = qe.eq('branch_id', CTX.branchId);
+      var re = await qe;
+      (re.data || []).forEach(function (m) {
+        var esE = String(m.type || '').toLowerCase().indexOf('egre') === 0 || m.type === 'out';
+        if (esE) egresos += parseFloat(m.amount) || 0;
+      });
+    } catch (e) {}
+
+    if (!venta && !compras && !egresos) return vacio();
+    var utilidad = venta - compras - egresos;
+    var mx = Math.max(venta, compras + egresos) || 1;
+    return {
+      kpis: [
+        { lbl: 'Ventas', val: $(venta), tone: 'accent', big: 1 },
+        { lbl: 'Compras de insumos', val: $(compras) },
+        { lbl: 'Egresos de caja', val: $(egresos) },
+        { lbl: 'Utilidad estimada', val: $(utilidad), tone: utilidad >= 0 ? 'good' : 'bad', big: 1 },
+      ],
+      blocks: [
+        { t: 'card', title: 'Lo que entra contra lo que sale', body: { t: 'hbars', items: [
+          { lbl: 'Ventas', w: Math.round(venta / mx * 100), val: $(venta), color: '#16A34A' },
+          { lbl: 'Compras', w: Math.round(compras / mx * 100), val: $(compras), color: '#B45309' },
+          { lbl: 'Egresos', w: Math.round(egresos / mx * 100), val: $(egresos), color: '#DC2626' },
+        ] } },
+        { t: 'card', title: 'Cuentas del período', sub: 'Utilidad estimada = ventas − compras − egresos. No incluye nómina ni arriendo si no los registras como egreso.',
+          body: { t: 'table', min: 400,
+          cols: [{ k: 'a', label: 'Concepto' }, { k: 'b', label: 'Valor', num: 1 }],
+          rows: [
+            { a: { _main: 'Ventas' }, b: $(venta) },
+            { a: 'Compras de insumos', b: { _neg: '– ' + $(compras) } },
+            { a: 'Egresos de caja', b: { _neg: '– ' + $(egresos) } },
+          ],
+          total: { a: 'Utilidad estimada', b: $(utilidad) } } },
+      ],
+    };
+  };
+
+  /* ═══════════ TIEMPO DE DESPACHO ═══════════ */
+  R['can-despacho'] = async function (p) {
+    var s = sb(); var r = rango(p);
+    var q = s.from('pos_orders').select('id,customer_name,notes,opened_at,created_at,delivered_at,closed_at,total,delivery_fee')
+      .eq('channel', 'domicilio').eq('status', 'paid')
+      .gte('closed_at', r.from).lt('closed_at', r.to);
+    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    var ro = await q; if (ro.error) throw ro.error;
+    var L = (ro.data || []).filter(function (o) { return o.delivered_at; });
+    if (!L.length) return vacio();
+
+    var filas = L.map(function (o) {
+      var ini = new Date(o.opened_at || o.created_at).getTime();
+      var fin = new Date(o.delivered_at).getTime();
+      var min = Math.max(0, Math.round((fin - ini) / 60000));
+      var m = /\[barrio:([^\]]+)\]/i.exec(o.notes || '');
+      return { cli: o.customer_name || '—', min: min,
+               barrio: m ? m[1].trim().toLowerCase().replace(/(^|\s)\S/g, function (t) { return t.toUpperCase(); }) : 'Sin barrio',
+               f: o.opened_at || o.created_at };
+    }).filter(function (x) { return x.min < 60 * 8; });   // descarta los que quedaron sin cerrar bien
+    if (!filas.length) return vacio();
+
+    var prom = filas.reduce(function (a, x) { return a + x.min; }, 0) / filas.length;
+    var ordenados = filas.slice().sort(function (a, b) { return a.min - b.min; });
+    var mediana = ordenados[Math.floor(ordenados.length / 2)].min;
+    var lentos = filas.filter(function (x) { return x.min > 45; });
+
+    var porBarrio = {};
+    filas.forEach(function (x) {
+      if (!porBarrio[x.barrio]) porBarrio[x.barrio] = { suma: 0, n: 0 };
+      porBarrio[x.barrio].suma += x.min; porBarrio[x.barrio].n++;
+    });
+    var arr = Object.keys(porBarrio).map(function (k) {
+      return { k: k, prom: porBarrio[k].suma / porBarrio[k].n, n: porBarrio[k].n };
+    }).sort(function (a, b) { return b.prom - a.prom; });
+    var mxb = arr.length ? arr[0].prom : 1;
+
+    return {
+      kpis: [
+        { lbl: 'Tiempo promedio', val: Math.round(prom) + ' min',
+          tone: prom <= 30 ? 'good' : prom <= 45 ? 'warn' : 'bad', big: 1 },
+        { lbl: 'Mediana', val: mediana + ' min', sub: 'La mitad llega antes de esto' },
+        { lbl: 'Domicilios medidos', val: n0(filas.length) },
+        { lbl: 'Pasaron de 45 min', val: n0(lentos.length), tone: lentos.length ? 'warn' : 'good' },
+      ],
+      blocks: [
+        { t: 'card', title: 'Barrios donde más se demora', sub: 'Sirve para ajustar el tiempo que le prometes al cliente',
+          body: { t: 'hbars', items: arr.slice(0, 12).map(function (x) {
+            return { lbl: x.k + ' (' + x.n + ')', w: Math.round(x.prom / mxb * 100), val: Math.round(x.prom) + ' min',
+                     color: x.prom > 45 ? '#DC2626' : x.prom > 30 ? '#F59E0B' : '#16A34A' }; }) } },
+        { t: 'card', title: 'Los más demorados', body: { t: 'table', min: 520,
+          cols: [{ k: 'f', label: 'Fecha' }, { k: 'c', label: 'Cliente' }, { k: 'b', label: 'Barrio' }, { k: 'm', label: 'Tardó', num: 1 }],
+          rows: filas.slice().sort(function (a, b) { return b.min - a.min; }).slice(0, 25).map(function (x) { return {
+            f: new Date(x.f).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }),
+            c: { _main: x.cli }, b: x.barrio,
+            m: { _pill: [x.min > 45 ? 'bad' : x.min > 30 ? 'warn' : 'ok', x.min + ' min'] } }; }) } },
+      ],
+    };
+  };
+
   window.INFORMES_DATOS = {
     setCtx: function (t, b) { CTX.tenantId = t || null; CTX.branchId = b || null; limpiarCache(); _rec = null; },
     tiene:  function (id) { return !!R[id]; },

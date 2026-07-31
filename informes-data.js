@@ -184,6 +184,9 @@ const REPORTS = [
      {u:'María Gómez',an:'4',mo:'11',re:'9',fl:{_pill:['bad','Revisar']}},{u:'Luis Pardo',an:'1',mo:'8',re:'3',fl:{_pill:['warn','Vigilar']}},{u:'Admin',an:'0',mo:'4',re:'2',fl:{_pill:['ok','Normal']}}]}}]},
 
 /* ─────── CAJA Y DINERO ─────── */
+{id:'caj-propinas', cat:'caja', viz:'chart', name:'Propinas',
+ desc:'Cuánta propina entró y cuánto le corresponde a cada persona.',
+ filters:['fecha','sucursal','empleado']},
 {id:'caj-cierres', cat:'caja', viz:'chart', name:'Histórico de cierres de caja',
  desc:'Aperturas y cierres por turno, con descuadres resaltados.',
  filters:['fecha','sucursal','caja','empleado'],
@@ -336,6 +339,9 @@ const REPORTS = [
    {h:'12 jul',r:'V-2043',it:'3 ítems',p:pay(['Efectivo','']),t:'$ 42.000'},{h:'6 jul',r:'V-1988',it:'2 ítems',p:pay(['Nequi','']),t:'$ 36.000'},{h:'1 jul',r:'V-1902',it:'4 ítems',p:pay(['Tarjeta','']),t:'$ 58.000'}],total:{h:'Total',t:'$ 486.000'}}}]},
 
 /* ─────── CANALES Y MÓDULOS ─────── */
+{id:'can-chatia', cat:'canales', viz:'chart', name:'Conversión del chat IA',
+ desc:'De cada 100 personas que escriben, cuántas terminan comprando.',
+ filters:['fecha','sucursal']},
 {id:'can-domicilios', cat:'canales', viz:'chart', module:'delivery', name:'Domicilios',
  desc:'Pedidos a domicilio por canal, con vista por producto y participación.',
  filters:['fecha','canal','empleado'],
