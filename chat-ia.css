@@ -1490,7 +1490,12 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .cp-title { font-weight: 800; font-size: 15px; color: #fff; }
 .cp-x { background: none; border: none; color: rgba(255,255,255,.5); font-size: 17px; cursor: pointer; padding: 4px 8px; border-radius: 7px; }
 .cp-x:hover { background: rgba(255,255,255,.08); color: #fff; }
-.cp-body { padding: 16px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.cp-body { padding: 16px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.12) transparent; }
+.cp-body::-webkit-scrollbar { width: 3px; }
+.cp-body::-webkit-scrollbar-track { background: transparent; }
+.cp-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 3px; }
+.cp-body::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.22); }
 .cp-loading { text-align: center; color: rgba(255,255,255,.75); font-size: 13.5px; padding: 34px 0; }
 .cp-spin { width: 30px; height: 30px; margin: 0 auto 14px; border: 3px solid rgba(139,92,246,.25); border-top-color: #8B5CF6; border-radius: 50%; animation: cpspin .8s linear infinite; }
 @keyframes cpspin { to { transform: rotate(360deg); } }
@@ -1699,10 +1704,8 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .ci-dw-btn:hover { background: rgba(255,255,255,.055); color: #EDEEF2; }
 .ci-dw-btn.primary { background: #7C5CFF; border-color: #7C5CFF; color: #fff; }
 .ci-dw-btn.primary:hover { background: #6A4FF0; }
-.cp-dirs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -4px 0 10px; }
-.cp-dirs > span { font-size: 11px; color: var(--text-4); }
-.cp-dir-chip { background: #1D2231; border: 1px solid var(--border); color: var(--text-2); border-radius: 999px; padding: 4px 10px; font-family: inherit; font-size: 11px; cursor: pointer; }
-.cp-dir-chip:hover { border-color: #7C5CFF; color: #fff; }
+.cp-dirsel { margin-top: -4px; }
+.cp-dirsel select { color: var(--text-2); }
 .cp-price { font-size: 13px; font-weight: 800; color: #a78bfa; font-variant-numeric: tabular-nums; }
 .cp-del { width: 26px; height: 26px; border: none; background: rgba(239,68,68,.15); color: #fca5a5; border-radius: 7px; cursor: pointer; font-size: 12px; flex-shrink: 0; }
 .cp-del:hover { background: rgba(239,68,68,.3); }

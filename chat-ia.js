@@ -2154,13 +2154,7 @@ function cpRenderForm(o){
     +'</div>'
     +(o.tipo!=='mesa'?'<div class="cp-grid"><div class="cp-f"><label>Dirección</label><input id="cpDireccion" value="'+cpEsc(o.direccion||'')+'"></div><div class="cp-f"><label>Barrio</label><input id="cpBarrio" value="'+cpEsc(o.barrio||'')+'"></div></div>':'')
     // Direcciones que este cliente ya ha usado (casa, oficina...). Un toque las pone.
-    +((o.tipo!=='mesa' && (o.direcciones_guardadas||[]).length>1)
-        ? '<div class="cp-dirs"><span>Sus direcciones:</span>'
-          +(o.direcciones_guardadas||[]).map(function(d){
-              return '<button type="button" class="cp-dir-chip" onclick="cpUsarDir(this)" data-dir="'+cpEsc(d)+'">'+cpEsc(d.length>34?d.slice(0,34)+'…':d)+'</button>';
-            }).join('')
-          +'</div>'
-        : '')
+    +cpDirsSelect(o)
     +'<div class="cp-prods-hd">Productos</div>'
     +'<div id="cpProds">'+(prods||'<div class="cp-empty">Sin productos. Agrégalos abajo.</div>')+'</div>'
     +(addProd?'<div class="cp-addrow">'+addProd+'</div>':'')
@@ -2171,7 +2165,9 @@ function cpRenderForm(o){
     +(o.tipo==='domicilio'
       ? '<div class="cp-f cp-domi"><label>💵 Valor del domicilio</label>'
         +'<input id="cpDomi" type="number" min="0" value="'+(Number(o.domi_precio)||0)+'" oninput="cpUpdTotal()">'
-        +(o.domi_barrio
+        +(!cpBarrioCuadra(o)
+            ? '<div class="cp-domi-warn">⚠ Esta tarifa es de <b>'+cpEsc(o.domi_barrio)+'</b>, no de <b>'+cpEsc(o.barrio)+'</b>. Revisa el valor.</div>'
+          : o.domi_barrio
             ? '<div class="cp-domi-ok">✓ '+cpEsc(o.domi_barrio)+' — tarifa de tu tabla de zonas</div>'
             : (o.domi_confirmar ? '<div class="cp-domi-warn">⚠ No reconocí el barrio en tu tabla de zonas. Escribe el valor.</div>' : ''))
         +'</div>'
@@ -2217,10 +2213,57 @@ async function aprenderBarrio(o){
   }catch(e){ console.warn('aprenderBarrio:', e && e.message); }
 }
 
-// Pone una de las direcciones guardadas del cliente en el campo.
-function cpUsarDir(btn){
-  const el=document.getElementById('cpDireccion');
-  if(el && btn){ el.value=btn.dataset.dir||''; el.focus(); }
+// Las direcciones guardadas del cliente, en formato parejo {dir, barrio}.
+// (Antes eran texto suelto; hoy cada una carga su barrio.)
+function cpDirsNorm(o){
+  return ((o && o.direcciones_guardadas) || []).map(function(d){
+    if (d && typeof d === 'object') return { dir: String(d.dir||''), barrio: String(d.barrio||'') };
+    return { dir: String(d||''), barrio: '' };
+  }).filter(function(d){ return d.dir.trim(); });
+}
+// Desplegable de sus direcciones. La direccion y el barrio van SIEMPRE juntos:
+// usar una direccion con el barrio de otra cobraria mal el domicilio.
+function cpDirsSelect(o){
+  if (o.tipo === 'mesa') return '';
+  const dirs = cpDirsNorm(o);
+  if (!dirs.length) return '';
+  const act = String(o.direccion||'').trim().toLowerCase();
+  return '<div class="cp-f cp-dirsel"><label>Sus direcciones guardadas</label>'
+    + '<select id="cpDirSel" onchange="cpUsarDir(this)">'
+    +   dirs.map(function(d,i){
+          const sel = d.dir.trim().toLowerCase() === act ? ' selected' : '';
+          const txt = d.dir + (d.barrio ? '  ·  ' + d.barrio : '  ·  sin barrio');
+          return '<option value="'+i+'"'+sel+'>'+cpEsc(txt)+'</option>';
+        }).join('')
+    +   '<option value="nueva"'+(dirs.some(function(d){ return d.dir.trim().toLowerCase()===act; })?'':' selected')+'>✎ Otra dirección…</option>'
+    + '</select></div>';
+}
+// Pone la direccion elegida Y su barrio. Nunca uno sin el otro.
+function cpUsarDir(sel){
+  if (!sel || !S.cpOrder) return;
+  const dirEl = document.getElementById('cpDireccion');
+  const barEl = document.getElementById('cpBarrio');
+  if (sel.value === 'nueva'){
+    if (dirEl){ dirEl.value=''; dirEl.focus(); }
+    if (barEl) barEl.value='';
+    cpSyncTop();
+    return;
+  }
+  const d = cpDirsNorm(S.cpOrder)[+sel.value];
+  if (!d) return;
+  if (dirEl) dirEl.value = d.dir;
+  if (barEl) barEl.value = d.barrio;
+  cpSyncTop();
+  // El domicilio se tarifo con el barrio del pedido. Si se cambia a una
+  // direccion de OTRO barrio, la tarifa ya no corresponde: hay que avisar en
+  // vez de cobrar callados un valor que no es.
+  cpRerender();
+}
+// ¿La tarifa que trae el pedido corresponde al barrio que esta puesto ahora?
+function cpBarrioCuadra(o){
+  const a = String(o.domi_barrio||'').trim().toLowerCase();
+  const b = String(o.barrio||'').trim().toLowerCase();
+  return !a || !b || a === b;
 }
 
 function cpProdRow(p,i){
