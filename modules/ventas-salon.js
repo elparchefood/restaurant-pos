@@ -371,7 +371,7 @@
         if (sbFallback && branchFallback) {
           var fbResult = await sbFallback
             .from('pos_tables')
-            .select('id, name, status, current_order_id, zone_id, zone_name, sort_order, capacity')
+            .select('id, name, status, current_order_id, zone_id, zone_name, sort_order, capacity, pendiente_pago_at, esperando_at, comiendo_at')
             .eq('branch_id', branchFallback)
             .order('sort_order', { ascending: true });
           var fbRows = fbResult.data || [];
@@ -411,7 +411,7 @@
       if (sb && branchId) {
         const { data: sbRows } = await sb
           .from('pos_tables')
-          .select('id, name, status, current_order_id, zone_id, zone_name, sort_order, capacity')
+          .select('id, name, status, current_order_id, zone_id, zone_name, sort_order, capacity, pendiente_pago_at, esperando_at, comiendo_at')
           .eq('branch_id', branchId)
           .order('sort_order', { ascending: true });
         const sbMap = {};
@@ -511,6 +511,10 @@
             current_order_id: t.current_order_id || null,
             openedAt:        openedAt || null,
             status:          t.status || 'libre',
+            // Sellos por estado: el reloj arranca desde el del estado ACTUAL
+            pendiente_pago_at: t.pendiente_pago_at || null,
+            esperando_at:      t.esperando_at || null,
+            comiendo_at:       t.comiendo_at || null,
             total:           ord ? (ord.total || 0) : 0,
             items_count:     ord ? (itemsCountMap[ord.id] || 0) : 0,
             minutes:         minutes,
@@ -1321,7 +1325,7 @@
             <span class="vs-state-dot" style="background:${meta.color}"></span>
             ${meta.label}
           </span>
-          ${!isLibre ? `<span class="vs-time-badge" data-timer="${t.openedAt || new Date(Date.now() - (t.minutes||0)*60000).toISOString()}">${SVG_CLOCK(10)} <span class="vs-timer-val">${t.minutes || 0} min</span></span>` : ''}
+          ${!isLibre ? `<span class="vs-time-badge" data-timer="${vsEstadoDesde(t) || new Date(Date.now() - (t.minutes||0)*60000).toISOString()}">${SVG_CLOCK(10)} <span class="vs-timer-val">${t.minutes || 0} min</span></span>` : ''}
         </div>
         <div class="vs-mesa-num-row">
           <div class="vs-mesa-num ${isLibre ? 'vs-mesa-num--libre' : 'vs-mesa-num--active'}">${numStr}</div>
@@ -1765,7 +1769,7 @@
           </div>
           <div class="vs-info-cell">
             <div class="vs-info-label">Tiempo</div>
-            <div class="vs-info-value ${minutesElapsed > 60 ? 'vs-info-value--alert' : ''}" data-timer="${openedAt || new Date(Date.now() - minutesElapsed*60000).toISOString()}" data-timer-alert="60"><span class="vs-timer-val">${minutesElapsed} min</span></div>
+            <div class="vs-info-value vs-timer-click ${minutesElapsed > 60 ? 'vs-info-value--alert' : ''}" data-timer="${vsEstadoDesde(mesa) || openedAt || new Date(Date.now() - minutesElapsed*60000).toISOString()}" data-timer-alert="60" data-tiempos="${mesa.id}" title="Ver el desglose por estado"><span class="vs-timer-val">${minutesElapsed} min</span></div>
           </div>
           <div class="vs-info-cell">
             <div class="vs-info-label">Ítems</div>
@@ -2742,12 +2746,142 @@
     inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') validar(); });
   };
 
+  // ══════════════════════════════════════════════════════════════
+  // TIEMPOS POR ESTADO DE LA MESA
+  // Antes un solo reloj corría desde que se abría el pedido hasta que se
+  // liberaba la mesa. Ahora cada estado tiene su propio sello de tiempo y el
+  // reloj se reinicia en cada cambio: se ve cuánto lleva EN ESO, no cuánto
+  // lleva sentada la gente. Al salir de un estado se guarda el tramo en
+  // pos_mesa_tiempos para poder sacar promedios después (Informes).
+  // ══════════════════════════════════════════════════════════════
+  const VS_TS = { pendiente_pago: 'pendiente_pago_at', esperando: 'esperando_at', comiendo: 'comiendo_at' };
+
+  function vsEstadoDesde(t) {
+    if (!t) return null;
+    const campo = VS_TS[t.status];
+    return (campo && t[campo]) || t.openedAt || null;
+  }
+  async function vsMarcarEstado(tableId, nuevoEstado, extra) {
+    const sb = window._pos && window._pos.sb;
+    if (!sb) return;
+    const t = state.tables.find(x => x.id === tableId);
+    const ahora = new Date();
+    const patch = Object.assign({ status: nuevoEstado }, extra || {});
+    const campoNuevo = VS_TS[nuevoEstado];
+    if (campoNuevo) patch[campoNuevo] = ahora.toISOString();
+    if (nuevoEstado === 'libre') {
+      patch.pendiente_pago_at = null; patch.esperando_at = null; patch.comiendo_at = null;
+    }
+    try { await sb.from('pos_tables').update(patch).eq('id', tableId); }
+    catch (e) { console.error('[VS] vsMarcarEstado:', e); }
+    try {
+      const desde = t ? vsEstadoDesde(t) : null;
+      if (t && desde && t.status && t.status !== 'libre' && t.status !== nuevoEstado) {
+        const seg = Math.max(0, Math.round((ahora - new Date(desde)) / 1000));
+        if (seg > 0) {
+          await sb.from('pos_mesa_tiempos').insert([{
+            tenant_id: (window._pos.state && window._pos.state.tenantId) || null,
+            branch_id: (window._pos.state && window._pos.state.branchId) || null,
+            table_id: tableId, order_id: t.current_order_id || null,
+            estado: t.status, desde: new Date(desde).toISOString(),
+            hasta: ahora.toISOString(), segundos: seg,
+          }]);
+        }
+      }
+    } catch (e) { console.warn('[VS] tiempo no registrado:', e && e.message); }
+    if (t) {
+      t.status = nuevoEstado;
+      if (campoNuevo) t[campoNuevo] = ahora.toISOString();
+      if (nuevoEstado === 'libre') { t.pendiente_pago_at = null; t.esperando_at = null; t.comiendo_at = null; }
+    }
+  }
+
+  // Modal con el desglose de tiempos de ESTA mesa: cuánto tardó en pagar,
+  // cuánto en prepararse y cuánto lleva comiendo. Los tramos cerrados salen de
+  // pos_mesa_tiempos; el estado actual se calcula en vivo.
+  const VS_EST_LBL = {
+    pendiente_pago: 'Esperando el pago',
+    esperando:      'En preparación',
+    comiendo:       'Comiendo',
+  };
+  function vsFmtDur(seg) {
+    seg = Math.max(0, Math.round(seg));
+    const h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60), sg = seg % 60;
+    if (h) return h + 'h ' + String(m).padStart(2, '0') + 'm';
+    if (m) return m + ' min ' + String(sg).padStart(2, '0') + 's';
+    return sg + 's';
+  }
+  async function vsAbrirTiempos(tableId) {
+    const mesa = state.tables.find(t => t.id === tableId);
+    if (!mesa) return;
+    const sb = window._pos && window._pos.sb;
+    let tramos = [];
+    try {
+      if (sb && mesa.current_order_id) {
+        const r = await sb.from('pos_mesa_tiempos').select('estado,segundos,desde')
+          .eq('order_id', mesa.current_order_id).order('desde', { ascending: true });
+        tramos = r.data || [];
+      }
+    } catch (e) { console.warn('[VS] tiempos:', e && e.message); }
+
+    // El estado actual sigue corriendo: se calcula al vuelo.
+    const desdeActual = vsEstadoDesde(mesa);
+    if (mesa.status && mesa.status !== 'libre' && desdeActual) {
+      tramos = tramos.concat([{
+        estado: mesa.status, desde: desdeActual,
+        segundos: Math.max(0, Math.round((Date.now() - new Date(desdeActual)) / 1000)),
+        _vivo: true,
+      }]);
+    }
+    // Si el cobro adelantado está apagado no existe el tiempo de "esperando pago".
+    if (!state.cobroAdelantado) tramos = tramos.filter(t => t.estado !== 'pendiente_pago');
+
+    const total = tramos.reduce((a, t) => a + (Number(t.segundos) || 0), 0);
+    const filas = tramos.length
+      ? tramos.map(t => {
+          const pct = total > 0 ? Math.round((Number(t.segundos) || 0) * 100 / total) : 0;
+          const meta = STATE_META[t.estado] || {};
+          const color = meta.color || '#5B6BFF';
+          return '<div class="vs-tm-row">'
+            + '<div class="vs-tm-top">'
+            +   '<span class="vs-tm-dot" style="background:' + color + '"></span>'
+            +   '<span class="vs-tm-lbl">' + (VS_EST_LBL[t.estado] || t.estado) + (t._vivo ? ' <i>· ahora</i>' : '') + '</span>'
+            +   '<span class="vs-tm-val">' + vsFmtDur(t.segundos) + '</span>'
+            + '</div>'
+            + '<div class="vs-tm-bar"><i style="width:' + pct + '%;background:' + color + '"></i></div>'
+          + '</div>';
+        }).join('')
+      : '<div class="vs-tm-empty">Todavía no hay tiempos que mostrar.</div>';
+
+    const ov = document.createElement('div');
+    ov.className = 'vs-tm-ov';
+    ov.innerHTML = '<div class="vs-tm-box">'
+      + '<div class="vs-tm-hd">Tiempos de ' + (mesa.name || ('Mesa ' + (mesa.number || ''))) + '</div>'
+      + '<div class="vs-tm-sub">Desde que se abrió el pedido</div>'
+      + filas
+      + (tramos.length ? '<div class="vs-tm-tot"><span>Total en la mesa</span><b>' + vsFmtDur(total) + '</b></div>' : '')
+      + '<button type="button" class="vs-tm-close">Cerrar</button>'
+    + '</div>';
+    ov.addEventListener('click', e => {
+      if (e.target === ov || e.target.classList.contains('vs-tm-close')) ov.remove();
+    });
+    document.body.appendChild(ov);
+  }
+  // Un solo oyente para toda la pantalla (el panel se repinta constantemente).
+  if (!window._vsTmBound) {
+    window._vsTmBound = true;
+    document.addEventListener('click', function (ev) {
+      const el = ev.target && ev.target.closest && ev.target.closest('[data-tiempos]');
+      if (el) vsAbrirTiempos(el.dataset.tiempos);
+    });
+  }
+
   async function cobrarMesa(tableId) {
     const sb = window._pos && window._pos.sb;
     if (!sb) return;
     try {
-      // Marcar mesa como esperando (cocina puede verlo)
-      await sb.from('pos_tables').update({ status: 'esperando' }).eq('id', tableId);
+      // Marcar mesa como esperando (cocina puede verlo) + reiniciar el reloj
+      await vsMarcarEstado(tableId, 'esperando');
       // Hacer visible en cocina el pedido activo de esta mesa
       await sb.from('pos_orders')
         .update({ visible_cocina: true })
@@ -2836,10 +2970,7 @@
     try {
       const sbRef = window._pos && window._pos.sb;
       if (!sbRef) return;
-      const { error } = await sbRef.from('pos_tables').update({ status: 'comiendo' }).eq('id', tableId);
-      if (error) throw error;
-      const t = state.tables.find(x => x.id === tableId);
-      if (t) t.status = 'comiendo';
+      await vsMarcarEstado(tableId, 'comiendo');
       render();
     } catch(e) { console.error('[VS] marcarComiendo:', e); }
   }
@@ -2891,10 +3022,7 @@
     try {
       const sbRef = window._pos && window._pos.sb;
       if (!sbRef) return;
-      const { error } = await sbRef.from('pos_tables').update({ status: 'comiendo' }).eq('id', tableId);
-      if (error) throw error;
-      const t = state.tables.find(x => x.id === tableId);
-      if (t) t.status = 'comiendo';
+      await vsMarcarEstado(tableId, 'comiendo');
       render();
     } catch(e) { console.error('[VS] advanceMesa:', e); }
   }
@@ -3051,9 +3179,9 @@
     try {
       var sbRef = window._pos && window._pos.sb;
       if (!sbRef) return;
-      await sbRef.from('pos_tables').update({ status: 'libre', current_order_id: null }).eq('id', tableId);
+      await vsMarcarEstado(tableId, 'libre', { current_order_id: null });
       var t = state.tables.find(function(x) { return x.id === tableId; });
-      if (t) { t.status = 'libre'; t.current_order_id = null; }
+      if (t) t.current_order_id = null;
       render();
     } catch(e) { console.error('[VS] advanceMesaLibre:', e); }
   }
@@ -3164,7 +3292,7 @@
       const link = document.createElement('link');
       link.id = 'vs-styles';
       link.rel = 'stylesheet';
-      link.href = 'styles/modules/ventas-salon.css?v=20260730';
+      link.href = 'styles/modules/ventas-salon.css?v=20260731';
       document.head.appendChild(link);
     }
 
