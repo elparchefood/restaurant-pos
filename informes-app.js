@@ -54,7 +54,12 @@ function renderNav(){
         <span class="r-cat-chev">${IC.chev}</span>
       </button>
       <div class="r-cat-items">
-        ${reps.map(r=>`<button class="r-rep${state.current===r.id?' on':''}" data-rep="${r.id}"><span class="mdot"></span><span style="flex:1">${esc(r.name)}</span>${r.viz==='chart'?`<span class="r-rep-tag" title="Incluye gráfico">${IC.vizmini}</span>`:''}</button>`).join('')}
+        ${reps.map(r=>{
+          // Punto verde = ya trae datos del negocio. Sin punto = está diseñado
+          // pero todavía sin conectar (y lo dice al abrirlo, no inventa cifras).
+          const vivo = window.INFORMES_DATOS && window.INFORMES_DATOS.tiene(r.id);
+          return `<button class="r-rep${state.current===r.id?' on':''}" data-rep="${r.id}"><span class="mdot"></span><span style="flex:1">${esc(r.name)}</span>${vivo?`<span class="r-live" title="Con datos reales"></span>`:''}${r.viz==='chart'?`<span class="r-rep-tag" title="Incluye gráfico">${IC.vizmini}</span>`:''}</button>`;
+        }).join('')}
       </div></div>`;
   });
   if(!html) html=`<div style="padding:30px 14px;text-align:center;color:var(--muted);font-size:12px">Sin informes que coincidan con “${esc(state.search)}”.</div>`;
