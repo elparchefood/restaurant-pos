@@ -1752,7 +1752,17 @@ function cpRenderForm(o){
     +'<div id="cpProds">'+(prods||'<div class="cp-empty">Sin productos. Agrégalos abajo.</div>')+'</div>'
     +(addProd?'<div class="cp-addrow">'+addProd+'</div>':'')
     +'<div class="cp-f"><label>Notas generales</label><textarea id="cpNotas" rows="2">'+cpEsc(o.notas||'')+'</textarea></div>'
-    +(o.tipo==='domicilio'?'<div class="cp-f cp-domi"><label>💵 Valor del domicilio</label><input id="cpDomi" type="number" min="0" value="'+(Number(o.domi_precio)||0)+'" oninput="cpUpdTotal()"></div>':'')
+    // El valor del domicilio se llena solo desde la tabla de zonas (Configuración →
+    // Chat IA → Domicilios). Si el barrio no está en la tabla, se deja en 0 y se
+    // avisa, en vez de inventar una tarifa.
+    +(o.tipo==='domicilio'
+      ? '<div class="cp-f cp-domi"><label>💵 Valor del domicilio</label>'
+        +'<input id="cpDomi" type="number" min="0" value="'+(Number(o.domi_precio)||0)+'" oninput="cpUpdTotal()">'
+        +(o.domi_barrio
+            ? '<div class="cp-domi-ok">✓ '+cpEsc(o.domi_barrio)+' — tarifa de tu tabla de zonas</div>'
+            : (o.domi_confirmar ? '<div class="cp-domi-warn">⚠ No reconocí el barrio en tu tabla de zonas. Escribe el valor.</div>' : ''))
+        +'</div>'
+      : '')
     +(cpEmpaque()>0?'<div class="cp-emp">Empaque <b>'+cpCOP(cpEmpaque())+'</b></div>':'')
     +'<div class="cp-total">Total del pedido: <b id="cpTotal">'+cpCOP(cpOrderTotal())+'</b></div>';
   cpSetBody(html);
