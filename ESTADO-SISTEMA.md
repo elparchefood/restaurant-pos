@@ -1022,6 +1022,67 @@ Para productos que se venden tal cual (gaseosa, agua, cerveza, papas de paquete)
 
 ---
 
+## 🏁 LO ÚLTIMO DE TODO — INSTALADOR para vender — Sergio 2026-07-31
+
+> **Orden acordado con Sergio:** primero todo lo demás → después **facturación
+> electrónica** → y **de últimas el instalador**. Es el paso final para empaquetar
+> Cobra y venderlo.
+
+**Objetivo:** que el cliente descargue un archivo, siga un paso a paso y quede
+todo instalado, sin hacer nada más.
+
+### Estado real (verificado 2026-07-31) — está al 90%
+`C:\Prueba Claude Code\cobra-pos-electron\package.json`:
+- `electron-builder` ^24.13.3 y **`electron-updater` ^6.3.4 ya instalados**
+- Bloque `nsis` YA configurado: `oneClick:false`, elegir carpeta, acceso en
+  escritorio y menú inicio
+- `build.win.icon` apuntando al ícono azul oscuro correcto
+- **Falta:** `build.win.target` está en `"portable"` → pasarlo a `"nsis"` y
+  `npm run build`
+- **Falta:** `build.publish` está SIN CONFIGURAR → sin esto no hay auto-update
+
+**⚠️ Aviso:** el último rebuild del .exe se hizo con `@electron/packager`, NO con
+`electron-builder`, por un problema que hubo con este último. Al retomar,
+verificar que `electron-builder` compile bien antes de dar por hecho el camino.
+
+### Cómo funcionan las actualizaciones (respuesta a la pregunta de Sergio)
+
+**Lo clave: la app CARGA EL SITIO EN VIVO** (`main.js` hace `loadURL` a
+`cobrapos.app`). Eso significa que hay **dos tipos de actualización**:
+
+**1. Cambios de la aplicación (el 95%)** — pantallas, informes, cálculos, arreglos.
+   **Llegan solos, al instante, sin instalar nada.** El cliente recarga y ya
+   tiene la versión nueva. No hay que avisarle ni pedirle que actualice.
+   *(Ojo: por eso importa tanto el cache-bust `?v=` en los HTML.)*
+
+**2. Cambios del programa de escritorio (raros)** — impresión, lector NFC,
+   comportamiento de la ventana. Solo eso necesita un .exe nuevo.
+   Con `electron-updater` + `build.publish` configurado (GitHub Releases o un
+   servidor propio):
+   - La app consulta al abrir si hay versión nueva
+   - La descarga **en segundo plano**, sin molestar
+   - Muestra un aviso: *"Hay una actualización lista — reiniciar"*
+   - Al reiniciar, queda actualizada
+
+   El cliente **nunca vuelve a descargar nada a mano**. Solo instala una vez.
+
+### Pendiente aparte: FIRMA DE CÓDIGO
+Sin certificado, Windows muestra *"Windows protegió tu PC — Publicador
+desconocido"* al instalar. Se puede seguir de largo, pero para vender da mala
+impresión. Un certificado OV cuesta alrededor de USD 200-400/año.
+**Es decisión de negocio de Sergio**, no técnica. Se puede lanzar sin él y
+agregarlo cuando haya volumen.
+
+### Checklist para ese día
+- [ ] Verificar que `electron-builder` compile (ver aviso de arriba)
+- [ ] `build.win.target` → `nsis`
+- [ ] Configurar `build.publish` (GitHub Releases es lo más simple)
+- [ ] Probar el ciclo completo: instalar → publicar una versión → ver que avise
+- [ ] Decidir si se compra certificado de firma
+- [ ] Instalador de la APK/tablet si aplica
+
+---
+
 ## PENDIENTE — [Inventario] EMPAQUES Y DESECHABLES como insumo — Sergio 2026-07-31
 
 **Estado hoy (verificado):** el empaque es SOLO UN PRECIO. Hay **51 pedidos con
