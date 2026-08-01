@@ -1895,15 +1895,18 @@ function ptRenderCanje(canjeValor) {
 /* ══════════════════════════════════════════════════════════════════
    VERIFICAR TRANSFERENCIA desde la pantalla de cobro
    Sergio lo pidio para no tener que irse al chat a confirmar que la plata
-   llego. Usa la MISMA funcion que ya usa el chat (verify-transfer), que lee el
-   comprobante que mando el cliente y lo contrasta con el correo del banco.
-   Solo aparece si el metodo es digital Y el pedido viene del chat: sin
-   comprobante no hay nada que verificar, y un boton que siempre falla estorba.
+   llego. Consulta el CORREO DEL BANCO buscando un abono por ese monto en las
+   ultimas horas, en modo SOLO LECTURA: no marca nada como pagado ni le escribe
+   al cliente. El cajero mira el resultado y decide.
+   Sirve para cualquier pedido (mesa, venta rapida, domicilio) porque no
+   necesita que exista un comprobante en el chat.
    ══════════════════════════════════════════════════════════════════ */
 function ptRenderVerificar() {
   var host = document.getElementById('pg-verificar');
   var def = _payDef();
-  var aplica = !!SP.convId && !!def && def.tipo !== 'efectivo' && def.tipo !== 'puntos';
+  // Sirve para CUALQUIER pedido: la consulta va al correo del banco por monto,
+  // no depende de que haya un comprobante en el chat.
+  var aplica = !!def && def.tipo !== 'efectivo' && def.tipo !== 'puntos';
   if (!host) {
     var anchor = document.querySelector('.pg-method-row');
     if (!anchor) return;
@@ -1927,29 +1930,37 @@ async function ptVerificarTransferencia() {
   var host = document.getElementById('pg-verificar');
   var btn = document.getElementById('pg-verif-btn');
   var res = document.getElementById('pg-verif-res');
-  if (!SP.convId) return;
+  var falta = calc().falta;
+  var monto = Math.round(falta > 0 ? falta : calc().total);
+  if (monto <= 0) return;
   host.dataset.busy = '1';
   btn.disabled = true; btn.textContent = 'Consultando el banco…';
-  res.innerHTML = '';
+  res.innerHTML = '<span style="color:#94A3B8">Buscando un abono por ' + fmt(monto) + '…</span>';
   try {
-    var r = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/verify-transfer', {
+    /* Consulta de SOLO LECTURA: busca en el correo del banco un abono por ese
+       monto en las ultimas horas. No marca nada como pagado ni le escribe al
+       cliente — el cajero decide. (La funcion `verify-transfer` del chat NO
+       sirve aqui: su modo manual da el pago por bueno sin verificar, puede
+       crear un pedido duplicado y le manda un WhatsApp al cliente.) */
+    var r = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/verificar-transferencia', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversation_id: SP.convId, manual: true }),
+      body: JSON.stringify({ branch_id: SP.branchId, monto: String(monto), horas: 6 }),
     });
     var d = await r.json().catch(function () { return {}; });
-    if (d && (d.verified || d.ok)) {
-      res.innerHTML = '<span style="color:#16A34A;font-weight:700">✓ Pago verificado</span>'
-        + (d.mensaje ? '<br><span style="color:#64748B">' + _payEsc(d.mensaje) + '</span>' : '');
-      // La funcion escribe paid_amount en el pedido: se recarga para verlo.
-      setTimeout(function () { location.reload(); }, 1200);
+    if (d && d.ok && d.encontrado) {
+      res.innerHTML = '<span style="color:#16A34A;font-weight:700">✓ Abono encontrado en el banco</span>'
+        + (d.detalle ? '<br><span style="color:#64748B">' + _payEsc(d.detalle) + '</span>' : '')
+        + '<br><span style="color:#94A3B8">Puedes registrar el pago con tranquilidad.</span>';
+    } else if (d && d.ok) {
+      res.innerHTML = '<span style="color:#B45309">' + _payEsc(d.mensaje || 'No aparece el abono todavia.') + '</span>'
+        + '<br><span style="color:#94A3B8">El banco puede demorarse unos minutos en avisar.</span>';
     } else {
       res.innerHTML = '<span style="color:#B45309">' +
-        _payEsc((d && (d.mensaje || d.razon || d.error)) || 'No se pudo confirmar el pago.') + '</span>';
-      btn.disabled = false; btn.textContent = 'Verificar transferencia';
+        _payEsc((d && (d.mensaje || d.error)) || 'No se pudo consultar el banco.') + '</span>';
     }
   } catch (e) {
     res.innerHTML = '<span style="color:#DC2626">No se pudo consultar: ' + _payEsc(e.message || e) + '</span>';
-    btn.disabled = false; btn.textContent = 'Verificar transferencia';
   }
+  btn.disabled = false; btn.textContent = 'Verificar transferencia';
   host.dataset.busy = '';
 }
