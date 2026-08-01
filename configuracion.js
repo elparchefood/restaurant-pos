@@ -2763,6 +2763,133 @@ function impBindInputs() {
 }
 
 // ════════════════════════════════════════════════════════════
+// LISTAS DE ENVÍO — Configuración → Asistente IA → Plantillas
+// Meta limita las conversaciones que inicia el negocio (hoy 250 cada 24 h), así
+// que el envío va por tandas desde una COLA con estado: se sabe a quién ya se
+// le escribió y se puede retomar mañana sin repetir ni saltarse a nadie.
+// ════════════════════════════════════════════════════════════
+var _wlListas = [];
+
+// Mismo patrón que el resto de llamadas a Edge Functions (ver manageUser).
+async function wlToken() {
+  try { var s = await sb.auth.getSession(); return (s.data.session && s.data.session.access_token) || SB_SVC; }
+  catch (e) { return SB_SVC; }
+}
+
+async function wlCargar() {
+  var host = document.getElementById('wlLista');
+  if (!host) return;
+  host.innerHTML = '<div class="cfg-empty">Cargando…</div>';
+  try {
+    var r = await sb.from('pos_wa_listas').select('*').eq('branch_id', _cfgBranchId)
+      .order('created_at', { ascending: false });
+    if (r.error) throw r.error;
+    _wlListas = r.data || [];
+
+    // Conteo por estado de cada lista (una consulta por lista: son pocas).
+    for (var i = 0; i < _wlListas.length; i++) {
+      var L = _wlListas[i];
+      var c = await sb.from('pos_wa_envios').select('estado').eq('lista_id', L.id).limit(5000);
+      var por = { pendiente: 0, enviado: 0, fallido: 0, omitido: 0, respondio: 0 };
+      (c.data || []).forEach(function (x) { por[x.estado] = (por[x.estado] || 0) + 1; });
+      L._c = por;
+      L._total = (c.data || []).length;
+    }
+  } catch (e) {
+    host.innerHTML = '<div class="cfg-empty">No se pudo cargar: ' + (e.message || e) + '</div>';
+    return;
+  }
+  wlRender();
+  wlCupo();
+}
+
+// Cuánto queda del cupo diario de Meta. Se pregunta al servidor porque la
+// ventana es de 24 h móviles, no del día calendario.
+async function wlCupo() {
+  var el = document.getElementById('wlCupo');
+  if (!el || !_wlListas.length) return;
+  try {
+    var r = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/wa-enviar-lista', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (await wlToken()) },
+      body: JSON.stringify({ lista_id: _wlListas[0].id, branch_id: _cfgBranchId, solo_contar: true }),
+    });
+    var d = await r.json();
+    if (d && d.ok) {
+      el.innerHTML = 'Hoy puedes enviar <b>' + d.disponible + '</b> mensajes más '
+        + '<span style="color:#94A3B8">(' + d.enviados24h + ' enviados en las últimas 24 h · límite ' + d.limite + ')</span>';
+    }
+  } catch (e) { /* si falla, no se bloquea la pantalla */ }
+}
+
+function wlRender() {
+  var host = document.getElementById('wlLista'); if (!host) return;
+  if (!_wlListas.length) {
+    host.innerHTML = '<div class="cfg-empty">Todavía no hay listas de envío.</div>';
+    return;
+  }
+  host.innerHTML = _wlListas.map(function (L) {
+    var c = L._c || {};
+    var pend = c.pendiente || 0, env = c.enviado || 0, fall = c.fallido || 0;
+    var hechos = env + fall + (c.omitido || 0);
+    var pct = L._total ? Math.round(hechos / L._total * 100) : 0;
+    return '<div class="wl-row">'
+      + '<div class="wl-top">'
+      +   '<div><div class="wl-nom">' + (L.nombre || 'Lista') + '</div>'
+      +     '<div class="wl-sub">' + (L._total || 0) + ' contactos · plantilla <b>'
+      +       ((L.filtros && L.filtros.plantilla) || '—') + '</b></div></div>'
+      +   '<button type="button" class="cfg-qr-btn" onclick="wlEnviar(\'' + L.id + '\')" id="wlBtn-' + L.id + '"'
+      +     (pend ? '' : ' disabled') + '>'
+      +     (pend ? 'Enviar tanda de hoy' : 'Lista completada') + '</button>'
+      + '</div>'
+      + '<div class="wl-bar"><i style="width:' + pct + '%"></i></div>'
+      + '<div class="wl-nums">'
+      +   '<span class="ok">' + env + ' enviados</span>'
+      +   '<span>' + pend + ' pendientes</span>'
+      +   (fall ? '<span class="bad">' + fall + ' fallidos</span>' : '')
+      +   '<span class="pct">' + pct + '%</span>'
+      + '</div>'
+      + '<div class="wl-res" id="wlRes-' + L.id + '"></div>'
+      + '</div>';
+  }).join('');
+}
+
+async function wlEnviar(id) {
+  var L = _wlListas.filter(function (x) { return x.id === id; })[0];
+  if (!L) return;
+  var pend = (L._c && L._c.pendiente) || 0;
+  if (!confirm('Se va a enviar la plantilla "' + ((L.filtros && L.filtros.plantilla) || '') + '"\n'
+    + 'a hasta 250 contactos de "' + L.nombre + '".\n\n'
+    + 'Quedan ' + pend + ' pendientes en total.\n\n¿Enviar la tanda de hoy?')) return;
+
+  var btn = document.getElementById('wlBtn-' + id);
+  var res = document.getElementById('wlRes-' + id);
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
+  if (res) res.innerHTML = '<span style="color:#64748B">Enviando, no cierres esta pantalla…</span>';
+
+  try {
+    var r = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/wa-enviar-lista', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (await wlToken()) },
+      body: JSON.stringify({ lista_id: id, branch_id: _cfgBranchId, cantidad: 250 }),
+    });
+    var d = await r.json();
+    if (d.error) throw new Error(d.error);
+    if (d.ok === false && d.razon === 'limite') {
+      if (res) res.innerHTML = '<span style="color:#B45309">⚠ ' + d.mensaje + '</span>';
+    } else {
+      if (res) res.innerHTML = '<span style="color:#16A34A">✓ ' + d.enviados + ' enviados'
+        + (d.fallidos ? ' · <span style="color:#DC2626">' + d.fallidos + ' fallidos</span>' : '')
+        + ' · quedan ' + d.pendientes + ' pendientes</span>';
+    }
+    await wlCargar();
+  } catch (e) {
+    if (res) res.innerHTML = '<span style="color:#DC2626">No se pudo enviar: ' + (e.message || e) + '</span>';
+    if (btn) { btn.disabled = false; btn.textContent = 'Enviar tanda de hoy'; }
+  }
+}
+
+// ════════════════════════════════════════════════════════════
 // CRÉDITOS — Configuración (asignar cupos)
 // Aquí SOLO se asignan y editan los cupos: es un acto del administrador y se
 // hace poco. El día a día (ver saldos, registrar abonos) vive en Caja, porque
@@ -5061,7 +5188,7 @@ async function wtpCrear(){
   if (d.error){ setMsg(d.error, false); return; }
   setMsg('Plantilla enviada a Meta. Queda "En revisión" — puede tardar de unos minutos a 24 horas.', true);
   nom.value = ''; cue.value = ''; pie.value = '';
-  wtpPreview(); wtpCargar();
+  wtpPreview(); wtpCargar(); wlCargar();
 }
 async function wtpBorrar(nombre){
   if (!confirm('¿Eliminar la plantilla "'+nombre+'"? Si estaba aprobada, dejarás de poder enviarla.')) return;

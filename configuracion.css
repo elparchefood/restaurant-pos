@@ -1296,3 +1296,22 @@ div.master[data-tab].cia-active { display: flex !important; }
 .cr-num.ok b{ color:#16A34A; }
 .cr-num.warn b{ color:#B45309; }
 .cr-num.bad b{ color:#DC2626; }
+
+/* ══ LISTAS DE ENVÍO DE PLANTILLAS ══ */
+.wl-box{ background:#F8FAFF; border:1px solid #E0E7FF; border-radius:12px; padding:14px; margin-bottom:16px; }
+.wl-hd{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.wl-hd-tt{ font-size:13.5px; font-weight:800; color:#0F172A; }
+.wl-hd-ds{ font-size:12px; color:#64748B; line-height:1.5; margin-top:3px; max-width:520px; }
+.wl-cupo{ font-size:12px; color:#475569; background:#fff; border:1px solid #E2E8F0;
+  border-radius:9px; padding:8px 11px; margin-bottom:10px; }
+.wl-row{ background:#fff; border:1px solid #ECEEF2; border-radius:11px; padding:12px 14px; margin-bottom:8px; }
+.wl-top{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.wl-nom{ font-size:13.5px; font-weight:700; color:#0F172A; }
+.wl-sub{ font-size:11.5px; color:#94A3B8; margin-top:2px; }
+.wl-bar{ height:6px; background:#F1F5F9; border-radius:999px; overflow:hidden; margin:10px 0 7px; }
+.wl-bar i{ display:block; height:100%; background:#5B6BFF; border-radius:999px; transition:width .4s; }
+.wl-nums{ display:flex; gap:12px; font-size:11.5px; color:#64748B; flex-wrap:wrap; }
+.wl-nums .ok{ color:#16A34A; font-weight:700; }
+.wl-nums .bad{ color:#DC2626; font-weight:700; }
+.wl-nums .pct{ margin-left:auto; font-weight:700; color:#0F172A; }
+.wl-res{ font-size:12px; margin-top:8px; min-height:16px; }
