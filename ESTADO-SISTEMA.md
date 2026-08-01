@@ -1153,6 +1153,12 @@ guardados**, pero el chat siguió mostrando el nombre de WhatsApp.
 del chat debe pasar a mostrarse con **su nombre guardado + la etiqueta del
 barrio**, automáticamente y sin recargar.
 
+> **CONFIRMADO por Sergio (2026-07-31):** *"Recargué la ventana y ya salió todo
+> perfecto, así que lo único que habría que hacer sería algo para que el cambio
+> se vea reflejado en tiempo real."*
+> **El alcance es solo el refresco.** El guardado, el cruce por teléfono y el
+> pintado del nombre + barrio ya funcionan bien. No hay que tocar nada de eso.
+
 ### Causa (localizada)
 `chat-ia.js` → `loadClientes()` (línea ~360) arma el mapa teléfono → {nombre,
 barrio} en `S.clientesPorTel`, y `clienteDe()` lo usa para pintar el nombre y la
