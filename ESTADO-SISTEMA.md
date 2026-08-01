@@ -2106,3 +2106,58 @@ hace 4 dias y el ultimo mensaje es un saludo suelto (corte por hueco de 4 h).
 
 **Nota:** se reviso `delay-reply` y `crear-pedido-chat` por el mismo error de
 subcadena — **no lo tienen**. Era exclusivo de `extraer-pedido`.
+
+
+---
+
+## 72. Los perros, hamburguesas y sandwiches NO descontaban inventario (2026-08-01)
+
+Sergio: *"ayer en el inventario habian 3 panes de perro, durante el turno se
+vendio un perro, y al terminar el turno seguia diciendo los mismos 3 panes"*.
+
+**Confirmado, y era peor de lo que parecia:** `Pan perro`, `Salchicha Perro`,
+`Jamon`, `Pan Hamburguesa`, `Pan Sandwich`, `Carne de hamburguesa`, `Tomate` y
+`Pina Calada` **NUNCA** habian tenido un solo movimiento de inventario. Ni uno,
+en toda la historia de la tabla.
+
+### La causa
+`fn_iv_consumir_item` resuelve la presentacion vendida por NOMBRE:
+
+```sql
+WHERE p.id = it.product_id AND elem->>'name' = v_pres_name
+```
+
+Pero **los perros, hamburguesas y sandwiches tienen UNA sola presentacion y su
+nombre esta VACIO** (`{"id":"pr_kds0i9","name":"","price":13000}`). El pedido
+guarda un nombre cualquiera (`"pres":"Perro"`), que nunca puede emparejar con
+`""` -> `v_pres_id` quedaba **NULL**.
+
+Y entonces el `COALESCE` de la receta caia hasta el ultimo caso:
+`CASE WHEN r.cantidades IS NULL OR = '{}' THEN r.cantidad ELSE 0 END` -> como
+`cantidades` SI existe (con la clave `pr_kds0i9`), daba **0**. El
+`HAVING SUM(use_qty) > 0` borraba todas las lineas y **el producto no
+descontaba absolutamente nada**. Las recetas siempre estuvieron bien.
+
+### El arreglo (`sql/2026-08-01-fix-descuento-presentacion-sin-nombre.sql`)
+1. La comparacion por nombre ahora ignora mayusculas y espacios.
+2. **Red de seguridad:** si aun asi no se resuelve y el producto tiene **UNA
+   sola presentacion**, se usa esa. No hay ambiguedad posible. Con dos o mas se
+   deja en NULL A PROPOSITO: adivinar cual se vendio descontaria el insumo
+   equivocado, que es peor que no descontar.
+
+### Verificado con el perro real del turno (item `645b659b`)
+| Insumo | Antes | Despues |
+|---|---|---|
+| Pan perro | 3,00 | **2,00** |
+| Salchicha Perro | 6,00 | 5,00 |
+| Jamon | 12,96 | 10,98 |
+| Queso | 147,02 | 146,02 |
+| Ripio | 4.580 | 4.550 |
+
+**Las botellas de agua SI se descontaban** (verificado: `Paquete Agua Cristal`
+-0,0417 = 1 de 24 en el turno de ayer). Esa sospecha no tenia fundamento.
+
+### PENDIENTE de decidir con Sergio
+Quedan **14 ventas historicas** sin descontar (21/07 a 28/07): 8 hamburguesas,
+4 perros, 1 sandwich. Se pueden reprocesar con `fn_iv_consumir_item` una por
+una, pero eso baja el stock actual y es decision suya.
