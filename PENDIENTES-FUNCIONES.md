@@ -356,3 +356,73 @@ Las clases que llevan las cifras grandes son:
 impresion real. **Ojo con el ancho:** el recibo esta fijado a 72 mm; si la letra
 crece de mas, las cifras largas pueden partirse a dos lineas o cortarse. Hay que
 imprimir un cierre de prueba y mirarlo en papel antes de darlo por bueno.
+
+
+---
+
+## PARA MAÑANA — La verificación de pago rechaza transferencias Bre-B legítimas
+
+**Diagnosticado el 2026-08-01, con el comprobante real a la vista. NO se toco
+nada: Sergio pidio analizarlo y arreglarlo mañana.**
+
+### El sintoma
+`verificar-pago-manual` (el boton **"Verificar pago"** del chat) respondio:
+
+> *"El pago fue enviado a otra cuenta (EL PARCHE FOOD SERGIO ABADIA), no a la
+> tuya (0092726260)"*
+
+**El pago SI era de Sergio.** El se dio cuenta: *"el comprobante si decia la
+cuenta... no se por que la verificacion al mirar el comprobante se distrajo e
+hizo como si no la hubiera visto"*.
+
+### La causa (verificada mirando la imagen)
+El comprobante de **Bre-B** dice, textual:
+
+```
+¿A quién le llegó la plata?
+   Enviado a           EL PARCHE FOOD SERGIO ABADIA
+   Código de negocio   0092726260        <-- la cuenta, exacta
+```
+
+El prompt de Vision en `extractComprobante` (`verificar-pago-manual`, ~linea 166)
+le dice al modelo que busque el destino en estas etiquetas:
+
+> `Busca 'Para', 'Destinatario', 'A', 'Llave destino', 'Enviado a'.`
+
+**"Código de negocio" NO esta en la lista.** Y remata con:
+
+> `Si el destino solo aparece como un nombre y no un número, deja esto vacío.`
+
+Bajo "Enviado a" solo hay un nombre, asi que el modelo **obedecio** y dejo
+`llave` vacio, ignorando el numero de la linea siguiente. Despues `cuentaOk`
+comparo vacio contra `0092726260` y dio false.
+
+**No fue un fallo del modelo: fue una instruccion mia incompleta.**
+
+### El arreglo
+1. Agregar a la lista de etiquetas: **"Código de negocio"**, "Codigo de
+   negocio", "Llave", "Cuenta destino", "Recibe", "Para (llave)".
+2. **Quitar** la frase *"si el destino solo aparece como un nombre... deja esto
+   vacio"*: el numero puede venir en la linea de abajo con otra etiqueta.
+3. Como red de seguridad, aceptar tambien el **nombre del negocio** como
+   destino valido (configurable, ej. "EL PARCHE FOOD" / "SERGIO ABADIA"), para
+   los comprobantes que de verdad no muestran numero.
+
+### Por que urge
+**Bre-B es lo que mas se esta usando ahora.** Mientras esto siga asi, la
+mayoria de las verificaciones de transferencia se rechazan y a Sergio le toca
+aprobarlas a mano, perdiendo la verificacion real.
+
+### Lo que SI quedo confirmado y funciona bien (revisado el 2026-08-01)
+- El boton del chat usa `verificar-pago-manual`, **una funcion distinta** a las
+  que se tocaron hoy. No se modifico.
+- Es **de solo lectura**: sus unicos envios salen a OpenAI (leer la imagen) y a
+  Google (refrescar el token). No marca pagos, no crea pedidos, no escribe al
+  cliente.
+- El veredicto es **estricto**: solo dice "verificado" si coinciden **cuenta +
+  monto + correo del banco**. Si el correo no aparece, NO lo da por bueno. Un
+  comprobante falso no pasa.
+- **Gmail esta conectado y respondiendo** (verificado: contesta "Sin correos
+  bancarios con monto X en las ultimas 5h", o sea que la consulta corre).
+- La ventana de busqueda del correo es de **5 horas** (`pagos.ventana_comprobante_horas`).
+  Por eso un comprobante de hace 12 h no se confirma: es correcto.
