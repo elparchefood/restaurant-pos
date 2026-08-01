@@ -2346,3 +2346,50 @@ Quedan otros sitios decidiendo por texto: metodo de pago (`nequi/daviplata/
 transfer`), deteccion de nombre del cliente, `para llevar / recoger`, y el
 rechazo de direccion (`no / cambia / otra`). Conviene ampliar el mismo
 clasificador en vez de seguir alargando listas.
+
+
+---
+
+## 77. Intenciones tambien para pago, entrega y rechazo de direccion (2026-08-01)
+
+Continuacion de la entrada 76. Quedaban tres sitios decidiendo por texto exacto;
+ya obedecen la intencion (`delay-reply` v200).
+
+**El clasificador devuelve ademas:**
+- `pago`: `"efectivo"` | `"transferencia"` | null
+- `entrega`: `"domicilio"` | `"recoger"` | null
+- `rechaza_direccion`: bool
+
+**Donde se aplica** (siempre como RESPALDO, nunca reemplazando la lectura por
+texto — si el modelo falla, el bot se comporta como antes):
+- Los **5 puntos** donde se decidia el metodo de pago con
+  `extractPago(clienteTexto, pagosCfg)` ahora caen a `pagoPorIntencion()` si el
+  texto no reconocio nada. La intencion se traduce **al metodo que el
+  restaurante tenga configurado** (busca el digital o el no-digital en
+  `getMetodosPago`), no inventa uno nuevo.
+- `runExtractors` recibe las intenciones como septimo parametro y las usa para
+  el pago y para `rechazaDir`.
+
+**Probado (18 de 18), con la escritura real de la gente:**
+
+| Mensaje | Resultado |
+|---|---|
+| `nequii`, `davi plata`, `x nequi`, `transfe` | pago = transferencia |
+| `te consigno`, `le mando el comprobante` | pago = transferencia |
+| `en efectivo`, `con plata`, `pago contra entrega` | pago = efectivo |
+| `yo paso por el`, `pa llevar`, `lo recojo yo` | entrega = recoger |
+| `me lo llevan a la casa` | entrega = domicilio |
+| `no, cambiala`, `no es en otro lado` | rechaza_direccion = true |
+| `si esa misma` | rechaza_direccion = **false** |
+| `Monteluna casa 45`, `hola buenas` | nada |
+
+Ninguna de las cuatro primeras filas la reconocia el codigo viejo, que buscaba
+literalmente `"nequi"`, `"daviplata"` o `"transfer"`.
+
+**Como se probo sin molestar a nadie:** se desplego una funcion temporal con el
+MISMO prompt, se corrieron los casos y **se borro**. No se envio ni un mensaje a
+un cliente real. Verificado al cerrar: 24 funciones, ninguna temporal.
+
+**Lo que se dejo a proposito sin tocar:** los usos de `extractPago` como filtro
+negativo (`si esto es un pago, entonces no es un nombre`). Ahi meter el modelo
+no aporta y si arriesga la deteccion de nombres y productos.

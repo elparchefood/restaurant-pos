@@ -561,7 +561,9 @@ async function processConversation(convId: string): Promise<void> {
           { role: "system", content:
 `Eres el clasificador de intenciones de un restaurante colombiano por WhatsApp.
 Lee lo que escribio el CLIENTE y responde SOLO este JSON:
-{"carta":bool,"ubicacion":bool,"domicilio":bool,"horario":bool,"pedir":bool}
+{"carta":bool,"ubicacion":bool,"domicilio":bool,"horario":bool,"pedir":bool,
+ "pago":"efectivo"|"transferencia"|null,"entrega":"domicilio"|"recoger"|null,
+ "rechaza_direccion":bool}
 
 - "carta": quiere ver la carta, el menu, los productos o los precios en general.
   Ejemplos que SI son carta: "la carta", "q tienen", "menucito", "que venden",
@@ -572,6 +574,14 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
 - "domicilio": pregunta si hacen domicilios o cuanto cuesta el envio.
 - "horario": pregunta a que hora abren o cierran, o si estan abiertos.
 - "pedir": quiere ordenar algo concreto ya.
+- "pago": como va a pagar. "efectivo" si dice efectivo, plata, en la mano, contra
+  entrega. "transferencia" si dice nequi, daviplata, transferencia, bancolombia,
+  QR, "te consigno", "te mando el comprobante". Escrito como sea: "nequii",
+  "davi plata", "transfe", "x nequi". Si no dice nada de pago -> null.
+- "entrega": "domicilio" si quiere que se lo lleven, "recoger" si el pasa por el
+  pedido ("yo paso", "lo recojo", "pa llevar", "voy por el"). Si no dice -> null.
+- "rechaza_direccion": true SOLO si esta diciendo que NO quiere la direccion que
+  se le propuso y quiere otra ("no", "no, otra", "cambiala", "es en otro lado").
 Puede haber varias en true. Si no estas seguro, pon false.
 La gente escribe con errores, sin tildes y con espacios de mas: interpreta la
 INTENCION, no las palabras exactas.` },
@@ -588,6 +598,17 @@ INTENCION, no las palabras exactas.` },
   } catch (e) {
     console.error("[intencion] fallo, se usan las palabras clave:", String(e).slice(0, 200));
   }
+
+  /* Traduce la intencion de pago al metodo configurado. Respaldo de
+     extractPago, que solo reconoce el texto tal cual. */
+  const pagoPorIntencion = (): string | null => {
+    if (!intenciones.pago) return null;
+    const ms = getMetodosPago(pagosCfg);
+    if (intenciones.pago === "transferencia") {
+      const d = ms.find(m => m.digital); return d ? d.nombre.toLowerCase() : "transferencia";
+    }
+    const e = ms.find(m => !m.digital); return e ? e.nombre.toLowerCase() : "efectivo";
+  };
 
   // 6. Detectar solicitud de carta / PRECIOS → enviar imágenes de la carta (traen los precios)
   let extraRespondido = false;
@@ -903,7 +924,7 @@ INTENCION, no las palabras exactas.` },
     // en EFECTIVO. Antes quedaba en bucle repitiendo el recordatorio. Ahora se reabre
     // el pedido en efectivo y se re-muestra el resumen para confirmar.
     const stPend = (pendStatePrev && (pendStatePrev._v as number)) ? (pendStatePrev as unknown as PacoState) : null;
-    const pagoNuevoPend = extractPago(clienteTexto, pagosCfg);
+    const pagoNuevoPend = (extractPago(clienteTexto, pagosCfg) || pagoPorIntencion());
     const cambiaEfectivoPend = !!(pagoNuevoPend && !esMetodoDigital(pagoNuevoPend, pagosCfg));
     const esLlevarPend = stPend?.direccion ? LLEVAR_REGEX.test(stPend.direccion.toLowerCase()) : false;
     const prepagoPend  = domiciliosCfg?.llevar_prepago !== false;
@@ -1108,7 +1129,7 @@ INTENCION, no las palabras exactas.` },
     {
       // Solo es CORRECCIÓN si ya había un pago distinto. Si el pago aún no se dio
       // (state.pago vacío), lo maneja la confirmación normal ("bueno, por nequi").
-      const pagoNuevoRes = extractPago(clienteTexto, pagosCfg);
+      const pagoNuevoRes = (extractPago(clienteTexto, pagosCfg) || pagoPorIntencion());
       const cambiaPago = !!(pagoNuevoRes && state.pago && normalizarTexto(pagoNuevoRes) !== normalizarTexto(state.pago));
       const esLlevarRes = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
       const prepagoRes  = domiciliosCfg?.llevar_prepago !== false;
@@ -1142,7 +1163,7 @@ INTENCION, no las palabras exactas.` },
       // Si el método de pago quedó liberado (caso "para llevar + efectivo"), capturarlo
       // de este mismo mensaje: "bueno entonces por nequi" confirma Y trae el método.
       if (!state.pago) {
-        const pagoNuevo = extractPago(clienteTexto, pagosCfg);
+        const pagoNuevo = (extractPago(clienteTexto, pagosCfg) || pagoPorIntencion());
         if (pagoNuevo) {
           state.pago = pagoNuevo;
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
@@ -1245,7 +1266,7 @@ INTENCION, no las palabras exactas.` },
     }
 
     // Corrección o mensaje no claro → extractores + respuesta conversacional
-    const correctedSlots = runExtractors(clienteTexto, state, null, pagosCfg, currentProductData, nombreConfirmar);
+    const correctedSlots = runExtractors(clienteTexto, state, null, pagosCfg, currentProductData, nombreConfirmar, intenciones);
     if (Object.keys(correctedSlots).length > 0) {
       state = mergeSlots(state, { ...correctedSlots, resumen_enviado: false });
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
@@ -1427,7 +1448,7 @@ INTENCION, no las palabras exactas.` },
   const currentStepId = currentStep?.id || null;
 
   // 14d. Correr extractores de slots
-  const extracted = runExtractors(clienteTexto, state, currentStepId, pagosCfg, currentProductData, nombreConfirmar);
+  const extracted = runExtractors(clienteTexto, state, currentStepId, pagosCfg, currentProductData, nombreConfirmar, intenciones);
 
   // 14e. Merge
   // Capturar ANTES del merge: si ya había una pregunta de dirección pendiente → es el segundo intento
@@ -1533,7 +1554,7 @@ INTENCION, no las palabras exactas.` },
     const exigePrepagoFlujo = domiciliosCfg?.llevar_prepago !== false;
     if (llevarState && exigePrepagoFlujo && state.producto) {
       const metodoDigital = getMetodosPago(pagosCfg).find(m => m.digital);
-      const pagoMencionado = extractPago(clienteTexto, pagosCfg);
+      const pagoMencionado = (extractPago(clienteTexto, pagosCfg) || pagoPorIntencion());
       const mencionaNoDigital = pagoMencionado && !esMetodoDigital(pagoMencionado, pagosCfg);
       // También cubre el caso: eligió "efectivo" en el paso de pago y DESPUÉS dijo "yo paso"
       const pagoNoDigitalPrevio = state.pago && !esMetodoDigital(state.pago, pagosCfg);
@@ -1567,7 +1588,7 @@ INTENCION, no las palabras exactas.` },
     // SIEMPRE se informa antes de pagar.
     const CUANTO_RE = /(cu[aá]nto\s+(es|sale|vale|cuesta|queda|ser[ií]a|cobran?)|qu[eé]\s+precio|precio\s+total|el\s+total|cuanto\s+te\s+debo|la\s+cuenta\s+para\s+pagar|dame\s+la\s+cuenta)/i;
     if (state.producto && !state.resumen_enviado &&
-        CUANTO_RE.test(clienteTexto) && !extractPago(clienteTexto, pagosCfg)) {
+        CUANTO_RE.test(clienteTexto) && !(extractPago(clienteTexto, pagosCfg) || pagoPorIntencion())) {
       const stepAhora = findNextStep(state, pasos);
       if (stepAhora) {
         const precios = await calcularPreciosPedido(state, branchId, domiciliosCfg);
@@ -2152,6 +2173,10 @@ function runExtractors(
   pagosCfg: Record<string, unknown> | null | undefined,
   productData: ProductData | null,
   nombreWa: string | null = null,
+  // Lo que ENTENDIO el clasificador. Se usa solo como respaldo cuando la
+  // lectura por texto no encuentra nada: la gente escribe "nequii", "davi
+  // plata" o "transfe" y ninguna lista los cubre.
+  intenciones: Record<string, unknown> = {},
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -2185,7 +2210,19 @@ function runExtractors(
     if (v) result.tipo = v;
   }
   if (!state.pago) {
-    const p = extractPago(text, pagosCfg);
+    let p = extractPago(text, pagosCfg);
+    if (!p && intenciones.pago) {
+      // El texto no lo reconocio, pero la intencion si. Se traduce al metodo
+      // que el restaurante tenga configurado.
+      const metodos = getMetodosPago(pagosCfg);
+      if (intenciones.pago === "transferencia") {
+        const dig = metodos.find(m => m.digital);
+        p = dig ? dig.nombre.toLowerCase() : "transferencia";
+      } else if (intenciones.pago === "efectivo") {
+        const efe = metodos.find(m => !m.digital);
+        p = efe ? efe.nombre.toLowerCase() : "efectivo";
+      }
+    }
     if (p) result.pago = p;
   }
   if (state.adiciones === null) {
@@ -2203,7 +2240,9 @@ function runExtractors(
   if (currentStepId === "confirmar_dir" && state.direccion && state.direccion_heredada) {
     const textoLow = text.toLowerCase().trim();
     const confirmaDir = CONFIRM_WORDS.some(w => textoLow === w || textoLow.includes(w));
-    const rechazaDir = textoLow === "no" || textoLow === "no." || textoLow.startsWith("no,") || textoLow.includes("cambia") || textoLow.includes("otra");
+    const rechazaDir = intenciones.rechaza_direccion === true
+      || textoLow === "no" || textoLow === "no." || textoLow.startsWith("no,")
+      || textoLow.includes("cambia") || textoLow.includes("otra");
     const nuevaDir = extractDireccion(text, true, productData);
     // PRIORIDAD: si el mensaje TRAE la nueva dirección ("No, mándala a la Calle 5..."),
     // se usa esa — el "no" del inicio no puede borrarla
