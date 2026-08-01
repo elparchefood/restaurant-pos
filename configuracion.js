@@ -4506,6 +4506,10 @@ var _storedZonas = [];
     var aside = document.querySelector('#cfgAsistenteIA .cfg-aside');
     if (aside) aside.style.display = tab === 'flujo' ? 'none' : '';
     try { localStorage.setItem('cia-tab', tab); } catch(e) {}
+    // Al abrir Plantillas se cargan las listas de envío (y sus contadores).
+    if (tab === 'plantillas' && typeof wlCargar === 'function') {
+      setTimeout(function(){ try { wlCargar(); } catch(e) { console.warn('wlCargar:', e); } }, 60);
+    }
   }
   document.addEventListener('DOMContentLoaded', function(){
     var saved = 'asistente';
@@ -5188,7 +5192,7 @@ async function wtpCrear(){
   if (d.error){ setMsg(d.error, false); return; }
   setMsg('Plantilla enviada a Meta. Queda "En revisión" — puede tardar de unos minutos a 24 horas.', true);
   nom.value = ''; cue.value = ''; pie.value = '';
-  wtpPreview(); wtpCargar(); wlCargar();
+  wtpPreview(); wtpCargar();
 }
 async function wtpBorrar(nombre){
   if (!confirm('¿Eliminar la plantilla "'+nombre+'"? Si estaba aprobada, dejarás de poder enviarla.')) return;
