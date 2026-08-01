@@ -2451,10 +2451,105 @@ async function cpDescartarConfirmar(){
     showToast('Pedido descartado','success');
   }catch(e){ showToast('No se pudo descartar el pedido','error'); }
 }
+/* La tarjeta NO desaparece al enviar a cocina.
+   Sergio: "en el chat quiero que la tarjeta del pedido no desaparezca hasta que
+   el pedido se haya entregado". Antes, al enviarlo, se borraba el borrador y la
+   tarjeta se iba: el operador perdia de vista el pedido dentro del chat.
+   Ahora hay dos caras de la misma tarjeta:
+     · hay borrador            -> Descartar / Editar / Enviar a cocina (como siempre)
+     · ya se envio, sin entregar -> estado, total, tiempo y el siguiente paso
+     · entregado o anulado     -> ahi si desaparece  */
 async function loadDraftBar(convId){
-  try{ const { data }=await sb.from('chat_conversations').select('pedido_borrador').eq('id', convId).maybeSingle();
-    renderDraftBar(data && data.pedido_borrador);
+  try{
+    const { data }=await sb.from('chat_conversations')
+      .select('pedido_borrador,order_id').eq('id', convId).maybeSingle();
+    if(data && data.pedido_borrador && (data.pedido_borrador.productos||[]).length){
+      renderDraftBar(data.pedido_borrador); return;
+    }
+    if(data && data.order_id){ await renderPedidoEnviado(data.order_id, convId); return; }
+    renderDraftBar(null);
   }catch(e){ renderDraftBar(null); }
+}
+
+const CP_Q = String.fromCharCode(39);   // comilla simple, para el onclick
+// Siguiente paso segun el canal (mismo recorrido que la pastilla de estado).
+function cpSiguienteEstado(canal, actual){
+  const flow=CI_ESTADO_FLOW[canal]||CI_ESTADO_FLOW.rapido;
+  const i=flow.indexOf(actual);
+  return (i>=0 && i<flow.length-1) ? flow[i+1] : null;
+}
+function cpFmtDesde(iso){
+  if(!iso) return '';
+  const m=Math.max(0, Math.round((Date.now()-new Date(iso).getTime())/60000));
+  return m<60 ? (m+'m aqui') : (Math.floor(m/60)+'h '+(m%60)+'m aqui');
+}
+
+async function renderPedidoEnviado(orderId, convId){
+  const bar=document.getElementById('cpDraftBar'); if(!bar) return;
+  let o=null, items=[];
+  try{
+    const r=await sb.from('pos_orders')
+      .select('id,total,channel,estado,estado_at,status,delivery_fee,packaging_fee,subtotal')
+      .eq('id', orderId).maybeSingle();
+    o=r.data;
+    if(o){
+      const ri=await sb.from('pos_order_items')
+        .select('product_name,quantity,unit_price').eq('order_id', orderId);
+      items=ri.data||[];
+    }
+  }catch(e){ /* si no se puede leer, no se inventa una tarjeta */ }
+
+  // Entregado o anulado -> la tarjeta desaparece, que es justo lo pedido.
+  if(!o || o.status==='cancelled' || o.estado==='entregado'){
+    bar.style.display='none'; bar.innerHTML=''; return;
+  }
+
+  const canal=(String(o.channel||'').toLowerCase()==='domicilio')?'domicilio':'rapido';
+  const meta=CI_ESTADOS[o.estado]||CI_ESTADOS.en_preparacion;
+  const total=Number(o.total)||0;
+  const sig=cpSiguienteEstado(canal, o.estado||'en_preparacion');
+  const sigMeta=sig?CI_ESTADOS[sig]:null;
+  const tiempo=cpFmtDesde(o.estado_at);
+
+  let lis=items.map(function(p){
+    const q=Number(p.quantity)||1, pr=(Number(p.unit_price)||0)*q;
+    return '<div class="cp-oli"><span class="cp-q">'+q+'×</span><span class="cp-oname">'
+      +cpEsc(p.product_name||'Producto')+'</span><span class="cp-op">'+cpCOP(pr)+'</span></div>';
+  }).join('');
+  const emp=Number(o.packaging_fee)||0, dom=Number(o.delivery_fee)||0;
+  if(emp>0) lis+='<div class="cp-oli"><span class="cp-q"></span><span class="cp-oname">Empaque</span><span class="cp-op">'+cpCOP(emp)+'</span></div>';
+  if(dom>0) lis+='<div class="cp-oli"><span class="cp-q"></span><span class="cp-oname">Domicilio</span><span class="cp-op">'+cpCOP(dom)+'</span></div>';
+
+  const col=S._draftCollapsed?' collapsed':'';
+  bar.innerHTML='<div class="cp-ocard'+col+'">'
+    +'<div class="cp-ohd"><span style="color:'+meta.color+';display:inline-flex">'+meta.ico+'</span>'
+      +'<b>Pedido enviado · '+(canal==='domicilio'?'Domicilio':'Para llevar')+'</b>'
+      +'<div class="cp-ohd-right"><span class="cp-ohd-tot">'+cpCOP(total)+'</span>'
+      +'<span class="cp-ost" style="color:'+meta.color+';background:'+meta.bg+'">'+meta.label+'</span>'
+      +'<button class="cp-ocol" onclick="toggleDraftCollapse()" title="Contraer / expandir"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg></button></div></div>'
+    +'<div class="cp-obody">'+lis
+      +'<div class="cp-otot">Total <span class="cp-op">'+cpCOP(total)+'</span></div>'
+      +(tiempo?'<div style="color:#94A3B8;font-size:11.5px;margin-top:4px">'+tiempo+'</div>':'')
+    +'</div>'
+    +'<div class="cp-draft-btns">'
+      +(sigMeta
+        ? '<button class="cp-draft-send" onclick="cpAvanzarPedido(' + CP_Q + sig + CP_Q + ')">'+sigMeta.ico+' '+sigMeta.label+'</button>'
+        : '')
+    +'</div>'
+    +'</div>';
+  bar.style.display='block';
+  S._pedidoEnviadoId=orderId;
+}
+
+// Avanza el estado desde la tarjeta. Reutiliza `cambiarEstado`, que es el unico
+// camino que escribe estado + delivery_status y avisa al cliente: asi la
+// tarjeta, la pastilla de arriba y la pantalla de Ventas dicen lo mismo.
+async function cpAvanzarPedido(nuevo){
+  if(!S.estadoOrder && S._pedidoEnviadoId){
+    try{ const c=getActiveConv(); if(c) await loadEstadoPill(c); }catch(e){}
+  }
+  await cambiarEstado(nuevo);
+  try{ if(S.activeConvId) await loadDraftBar(S.activeConvId); }catch(e){}
 }
 // Reabrir el modal con el borrador guardado (para modificarlo).
 async function cpEditarBorrador(){
@@ -2504,7 +2599,9 @@ async function cpEnviarCocina(){
     // domicilio a mano, se guarda para poder agregarlo después con un clic
     // (Configuración → Chat IA → Domicilios). Así el sistema mejora solo.
     aprenderBarrio(o);
-    renderDraftBar(null);
+    // La tarjeta no se va: pasa a mostrar el pedido ya enviado y su estado.
+    try{ if(data.orderId) await renderPedidoEnviado(data.orderId, convId); else renderDraftBar(null); }
+    catch(_e){ renderDraftBar(null); }
     // El pedido ya existe (data.orderId) → mostrar la pastilla de estado "En preparación"
     // de inmediato, sin esperar a reabrir el chat.
     try{ const _c=getActiveConv(); if(_c && convId===S.activeConvId){ _c.order_id=data.orderId; loadEstadoPill(_c); } }catch(_e){}
@@ -2977,6 +3074,9 @@ async function cambiarEstado(nuevo){
     const d=await res.json().catch(function(){return {};});
     if(d.error){ o.estado=prev; renderEstadoPill(); showToast('No se pudo cambiar el estado: '+d.error,'error'); return; }
     showToast('Estado: '+meta.label, 'success');
+    // La tarjeta de abajo muestra lo mismo: no puede haber dos versiones del
+    // estado en la misma pantalla diciendo cosas distintas.
+    try{ if(S.activeConvId) await loadDraftBar(S.activeConvId); }catch(_e){}
   }catch(e){ o.estado=prev; renderEstadoPill(); showToast('No se pudo cambiar el estado','error'); }
 }
 /* Config de estados (etiqueta + mensaje por tipo/estado + minutos auto-entregado) */
