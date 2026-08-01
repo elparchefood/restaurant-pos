@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css">
-<link rel="stylesheet" href="configuracion.css?v=1787820000">
+<link rel="stylesheet" href="configuracion.css?v=1787970000">
 </head>
 <body>
 <div class="cf-root">
@@ -87,6 +87,12 @@
 
       <div class="cf-navgroup-wrap">
         <div class="cf-navgroup">Equipo</div>
+        <button class="lm-nav" id="nav-puntos" data-section="puntos">
+          <span class="cf-nav-l">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <span class="cf-nav-label">Puntos</span>
+          </span>
+        </button>
         <button class="lm-nav" id="nav-creditos" data-section="creditos">
           <span class="cf-nav-l">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
@@ -400,6 +406,27 @@
     <!-- ══ CRÉDITOS ══
          Aquí SOLO se asignan cupos (acto del administrador). Ver saldos y
          registrar abonos vive en Caja, porque el abono entra al turno. -->
+
+    <div class="cf-screen" id="screen-puntos">
+      <section class="cf-pagehead">
+        <div>
+          <div class="cf-eyebrow">Fidelización</div>
+          <h2 class="cf-pagetitle">Puntos</h2>
+        </div>
+        <button class="lm-btn-primary" onclick="ptNuevo()">＋ Agregar producto</button>
+      </section>
+      <section class="cf-body" style="max-width:900px">
+        <div class="cr-note">
+          Los puntos son <b>un método de pago más</b>: nada sale gratis, simplemente se paga con
+          puntos en vez de dinero. Solo se pueden pagar así los productos que estén en esta lista.
+          Si alguien intenta pagar con puntos algo que no está aquí, la pantalla de cobro lo rechaza.
+          <br><br>
+          Los clientes acumulan <b>1 punto por cada $1.000</b> de comida y empaque (el domicilio no
+          suma). Lo acumulan solo si el pedido queda con un cliente identificado.
+        </div>
+        <div class="pt-lista" id="pt-lista"></div>
+      </section>
+    </div>
     <div class="cf-screen" id="screen-creditos">
       <section class="cf-pagehead">
         <div>
@@ -2398,7 +2425,8 @@
 <script src="pos-print-listener.js?v=4"></script>
 <script src="pos-impuestos.js?v=1"></script>
 <script src="pos-creditos.js?v=1"></script>
-<script src="configuracion.js?v=1787890000"></script>
+<script src="configuracion-puntos.js?v=1787970000"></script>
+<script src="configuracion.js?v=1787970000"></script>
 </body>
 </html>
 

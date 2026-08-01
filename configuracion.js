@@ -228,6 +228,8 @@ function setSection(sec) {
   if (_screenHorario) _screenHorario.classList.remove('on');
   var _screenMp = $('screen-metodos-pago');
   if (_screenMp) _screenMp.classList.remove('on');
+  var _screenPt = $('screen-puntos');
+  if (_screenPt) _screenPt.classList.remove('on');
   var _screenCr = $('screen-creditos');
   if (_screenCr) _screenCr.classList.remove('on');
 
@@ -258,6 +260,14 @@ function setSection(sec) {
       // Comparte el mismo borrador/guardado que Operación (mismo blob).
       if (!window._opLoaded) { opInit(); window._opLoaded = true; }
       propInit();
+    }
+  } else if (sec === 'puntos') {
+    var screenPt = $('screen-puntos');
+    if (screenPt) {
+      screenPt.classList.add('on');
+      $('crumb').textContent = 'Puntos';
+      _ciaToggleTopbar(false);
+      if (!window._ptLoaded) { ptInit(); window._ptLoaded = true; }
     }
   } else if (sec === 'creditos') {
     var screenCr = $('screen-creditos');
