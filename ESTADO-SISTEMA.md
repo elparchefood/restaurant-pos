@@ -1318,16 +1318,23 @@ como **producto** (Salchipapas Tradicionales, Personal $17.000) y como **variant
 de Premium ($28.000). Puede que el desempate entre "producto" y "variante" esté
 mandando a "Pollo" por el camino equivocado.
 
-### 🔴 Y algo peor: el bot le cotizó un precio EQUIVOCADO
+### ✅ FALSA ALARMA — el precio que cotizó el bot estaba BIEN (corregido 2026-08-01)
 ```
 00:59  Bot: "serían $18.000 de tu pedido y $5.000 del domicilio, total $23.000"
 ```
-**Pollo Personal cuesta $17.000, no $18.000** ($18.000 es Carne Personal).
-O sea: el bot conversacional (`delay-reply`) y el extractor (`extraer-pedido`)
-**dan respuestas distintas, y las dos están mal**: uno cobró $1.000 de más y el
-otro dejó el pedido en $0.
-**Hay que unificar el cálculo de precios en un solo lugar** — que los dos usen la
-misma función, o van a seguir divergiendo.
+Anoté esto como bug diciendo que Salchipapa Pollo Personal vale $17.000 y el bot
+cobró $18.000. **Estaba equivocado: comparé contra el precio pelado y olvidé el
+empaque.** Sergio lo corrigió: *"si son $18.000, ese mensaje le está dando los
+$17.000 del pedido + $1.000 del empaque"*.
+
+Verificado en `branches.operacion_config`: `empaqueTipo: fijo`,
+`empaqueMonto: 1000`, `empaqueBase: unidad`. Entonces
+**$17.000 + $1.000 = $18.000**. El cálculo del bot es correcto y **no hay que
+unificar nada por este motivo**.
+
+**Regla para no repetir el error:** antes de declarar mal un precio del bot, hay
+que sumarle SIEMPRE el empaque (y la propina si estuviera activa). El precio de
+`pos_products` NO es lo que paga el cliente.
 
 ### Bug 3 en la misma pantalla: el barrio no se autocompleta
 El campo Barrio salió vacío y dijo *"No reconocí el barrio en tu tabla de zonas"*,
