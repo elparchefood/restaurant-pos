@@ -3231,7 +3231,10 @@ async function marcarPagadoModal(prefill){
         // "Las ventas son las ventas": total_final es SOLO comida+empaque, el
         // domicilio va aparte en delivery_fee y nunca suma a la venta.
         upd.total_final=Math.max(0, total-domi);
-        if(String(ord.channel||'')==='domicilio') upd.delivery_status='entregado';
+        // NO se toca `delivery_status`. Pagar NO es entregar: un domicilio se
+        // puede pagar por transferencia mientras todavía está en preparación.
+        // (Se había puesto 'entregado' aquí por error el 2026-07-31 y los
+        // pedidos aparecían como entregados apenas se marcaban pagados.)
       }
       const { data:updRows, error:e2 }=await sb.from('pos_orders').update(upd).eq('id',ord.id).select('id,status,paid_amount');
       if(e2) throw e2;
