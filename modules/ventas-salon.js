@@ -3375,11 +3375,16 @@
   // estado". Los tramos cerrados los escribe la función `cambiar-estado` en
   // pos_domi_tiempos; el estado actual se calcula en vivo.
   // ══════════════════════════════════════════════════════════════
+  /* Ojo: `cambiar-estado` normaliza los nombres, asi que en pos_domi_tiempos
+     quedan como `en_preparacion` / `en_camino`, mientras que la tarjeta usa
+     `preparacion` / `camino`. Se contemplan las dos formas. */
   const VS_DOMI_LBL = {
-    recibido:    'Recibido',
-    preparacion: 'En preparación',
-    camino:      'En camino',
-    entregado:   'Entregado',
+    recibido:       'Recibido',
+    preparacion:    'En preparación',
+    en_preparacion: 'En preparación',
+    camino:         'En camino',
+    en_camino:      'En camino',
+    entregado:      'Entregado',
   };
   function vsDomiFmtDur(seg) {
     seg = Math.max(0, Math.round(seg));
