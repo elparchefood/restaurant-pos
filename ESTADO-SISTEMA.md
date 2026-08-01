@@ -2215,3 +2215,75 @@ adicion de papas): las 4 descontaron correcto — Pan perro -1, Pan Hamburguesa
 - `Salsa rosada` en **-3,36** y `Salsa ajo casera` en **-1,02**: stock negativo.
   Falta registrar una compra o hay un consumo no contabilizado.
 - `Salsa` (Adiciones) sigue **sin receta**.
+
+
+---
+
+## 74. La carta: el bot NUNCA la envio (2026-08-01) — y de quien es cada mensaje
+
+### Correccion de un diagnostico mio
+Yo habia anotado que el bot mando la carta **44 minutos tarde**. **Falso.**
+Sergio lo corrigio: *"nunca la envio, yo fui quien envio la carta manualmente a
+los 44 minutos"*. Las imagenes de las 23:56 las mando **el**, no Pako.
+Yo no podia distinguirlo porque **`chat_messages` no guardaba quien enviaba**.
+
+### La causa real: DOS ESPACIOS
+El cliente escribio literalmente `"Para ver la  carta"` — con **dos espacios**
+entre "la" y "carta". Las palabras clave son `"la carta"`, `"ver la carta"`…
+con UN espacio, y se comparaba con `includes()` sobre el texto crudo. Con dos
+espacios **ninguna coincide**. Y `"carta"` sola solo valia si el mensaje era
+exactamente esa palabra. Asi que `wantsMenu` dio **false**, el bloque de la
+carta nunca corrio, y contesto GPT inventando *"la puedes ver aqui mismo"*.
+
+### Arreglos en `delay-reply` (v198)
+1. **Se normaliza antes de comparar**: minusculas, sin tildes y espacios
+   colapsados.
+2. **Palabra suelta**: basta con que aparezca `carta`, `menu` o `precio` como
+   palabra. En un restaurante no significan otra cosa. Verificado que
+   *"cartagena"* y *"descartar"* **no** disparan la carta.
+3. **Se revisa la respuesta de Meta en cada imagen**. Antes se enviaba a ciegas.
+4. Si **no salio ninguna imagen**, el bot ya no promete la carta: dice que no
+   puede enviarla y ofrece decir los precios.
+
+### Y lo que pidio Sergio: saber quien envio cada mensaje
+Nueva columna **`chat_messages.origen`**: `cliente` | `bot` | `humano` |
+`sistema`. Marcado en el origen de cada envio: `delay-reply` y `meta-webhook`
+-> `bot`; `cambiar-estado`, `confirm-domi`, `confirm-payment`,
+`verify-transfer` -> `sistema`; los 8 envios de `chat-ia.js` -> `humano`.
+En el chat sale una **etiqueta en la burbuja**: *Pako* / *Tú* / *Sistema*.
+El historial viejo queda en NULL a proposito — no hay forma de saberlo y
+marcarlo seria inventar el dato.
+
+---
+
+## 75. ⚠️ REGLA CRITICA — redesplegar una funcion con imports remotos LA ROMPE
+
+Al marcar el `origen` redespliegue varias funciones y **cuatro quedaron
+caidas** (`cambiar-estado`, `confirm-domi`, `confirm-payment`,
+`verify-transfer`). Dos motivos, los dos importantes:
+
+**(a) El endpoint `/functions/{slug}/body` DEVUELVE EL CODIGO TRUNCADO.**
+Corta entre 4 y 8 caracteres del principio, y la cantidad **varia**. Bajar el
+codigo, editarlo y volverlo a subir **destruye la primera linea**. Nunca
+redesplegar a partir de lo que devuelve `/body` sin reconstruirla entera.
+
+**(b) El entorno ya NO permite imports remotos.** `confirm-domi` importaba
+`https://deno.land/std@0.168.0/http/server.ts` y `tiktok-webhook` importa
+`https://esm.sh/@supabase/supabase-js@2`. El bundle viejo seguia funcionando,
+pero **al redesplegar** falla con
+`A remote specifier was requested… but --no-remote is specified`.
+`confirm-domi` se paso a `Deno.serve`. **`tiktok-webhook` sigue caida** — ya lo
+estaba antes de esta sesion, no se toco y TikTok no esta en uso.
+
+**Como se diagnostico** (dejarlo escrito, ahorra horas): los logs de arranque se
+leen con
+`GET /v1/projects/{ref}/analytics/endpoints/logs.all?sql=select event_message from function_logs order by timestamp desc`.
+Ahi salio el error exacto, incluida una linea de `verify-transfer` a la que le
+faltaba un `;` por caracteres perdidos en un despliegue anterior.
+
+**MEDIDA TOMADA:** el codigo de las funciones ya vive en el repo, en
+`supabase/functions/<slug>/index.ts`. **Editar SIEMPRE desde ahi**, no desde lo
+que devuelve `/body`.
+
+**Verificado al cerrar:** las 24 funciones responden; la unica en 503 es
+`tiktok-webhook`, que ya estaba asi.

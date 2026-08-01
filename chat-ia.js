@@ -1014,8 +1014,15 @@ function messageBubbleHTML(m) {
 
   const body = quoteHtml + mediaHtml + textHtml;
 
+  /* Quién mandó el mensaje. Sin esto no se puede saber si un fallo fue del bot
+     o si alguien lo resolvió a mano: pasó con la carta del 31/07, que se creyó
+     que la había mandado el bot cuando la mandó Sergio. */
+  const _org = m.direction === 'out' ? (m.origen || '') : '';
+  const orgTag = _org === 'bot'     ? '<span class="ci-org ci-org-bot">Pako</span>'
+               : _org === 'humano'  ? '<span class="ci-org ci-org-hum">Tú</span>'
+               : _org === 'sistema' ? '<span class="ci-org ci-org-sys">Sistema</span>' : '';
   return `<div class="ci-row ${dir}" data-msg-id="${m.id}">
-    <div class="ci-bubble ${dir}">${menu}${body}<div class="ci-meta">${time}${check}</div></div>
+    <div class="ci-bubble ${dir}">${menu}${body}<div class="ci-meta">${orgTag}${time}${check}</div></div>
   </div>`;
 }
 
@@ -1461,7 +1468,7 @@ async function sendMessage() {
 
   const { data, error } = await sb.from('chat_messages').insert([{
     conversation_id: S.activeConvId, tenant_id: S.tenantId,
-    direction:'out', body: text, delivery_status:'sent', agent_id: S.user?.id || null,
+    direction:'out', body: text, delivery_status:'sent', agent_id: S.user?.id || null, origen: 'humano',
   }]).select().single();
 
   if (error) { S.messages = S.messages.filter(m => m.id !== tmpId); renderThread(); return; }
@@ -1679,7 +1686,7 @@ async function sendSticker(mediaUrl) {
   const { data, error } = await sb.from('chat_messages').insert([{
     conversation_id: S.activeConvId, tenant_id: S.tenantId,
     direction: 'out', body: '[sticker]', media_url: mediaUrl, media_type: 'sticker',
-    delivery_status: 'sent', agent_id: S.user?.id || null,
+    delivery_status: 'sent', agent_id: S.user?.id || null, origen: 'humano',
   }]).select().single();
 
   if (error) { S.messages = S.messages.filter(m => m.id !== tmpId); renderThread(); return; }
@@ -1731,7 +1738,7 @@ async function handleAttachment(file) {
   const { data, error } = await sb.from('chat_messages').insert([{
     conversation_id: S.activeConvId, tenant_id: S.tenantId,
     direction: 'out', body: file.name, media_url: publicUrl, media_type: mediaType,
-    delivery_status: 'sent', agent_id: S.user?.id || null,
+    delivery_status: 'sent', agent_id: S.user?.id || null, origen: 'humano',
   }]).select().single();
 
   if (error) { S.messages = S.messages.filter(m => m.id !== tmpId); renderThread(); return; }
@@ -1963,7 +1970,7 @@ async function sendQuickBotones(r) {
 
   const { data, error } = await sb.from('chat_messages').insert([{
     conversation_id: S.activeConvId, tenant_id: S.tenantId, direction: 'out',
-    body: cuerpo, delivery_status: 'sent', agent_id: S.user?.id || null,
+    body: cuerpo, delivery_status: 'sent', agent_id: S.user?.id || null, origen: 'humano',
   }]).select().single();
   if (error) { S.messages = S.messages.filter(m => m.id !== tmpId); renderThread(); showToast('No se pudo enviar', 'error'); return; }
   S.messages = S.messages.map(m => m.id === tmpId ? data : m);
@@ -1996,7 +2003,7 @@ async function sendQuickLocation(r) {
   renderThread();
   const { data, error } = await sb.from('chat_messages').insert([{
     conversation_id: S.activeConvId, tenant_id: S.tenantId, direction:'out',
-    body: bodyJson, media_type:'location', delivery_status:'sent', agent_id: S.user?.id || null,
+    body: bodyJson, media_type:'location', delivery_status:'sent', agent_id: S.user?.id || null, origen: 'humano',
   }]).select().single();
   if (error) { S.messages = S.messages.filter(m => m.id !== tmpId); renderThread(); showToast('No se pudo enviar', 'error'); return; }
   S.messages = S.messages.map(m => m.id === tmpId ? data : m);
@@ -2036,7 +2043,7 @@ async function sendOneImage(url, caption, conv){
   const tmpId='tmp_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
   S.messages.push({ id:tmpId, conversation_id:S.activeConvId, tenant_id:S.tenantId, direction:'out', media_url:url, media_type:'image', body:caption, delivery_status:'sending', sent_at:new Date().toISOString() });
   renderThread();
-  const { data, error }=await sb.from('chat_messages').insert([{ conversation_id:S.activeConvId, tenant_id:S.tenantId, direction:'out', body:caption, media_url:url, media_type:'image', delivery_status:'sent', agent_id:S.user?.id||null }]).select().single();
+  const { data, error }=await sb.from('chat_messages').insert([{ conversation_id:S.activeConvId, tenant_id:S.tenantId, direction:'out', body:caption, media_url:url, media_type:'image', delivery_status:'sent', agent_id:S.user?.id||null, origen:'humano' }]).select().single();
   if(error){ S.messages=S.messages.filter(m=>m.id!==tmpId); renderThread(); showToast('No se pudo enviar','error'); return; }
   S.messages=S.messages.map(m=>m.id===tmpId?data:m); renderThread();
   if(conv){ conv.last_message='📷 '+(caption||'Imagen'); conv.last_message_at=data.sent_at; conv.last_sender='agent'; S.conversations.sort((a,b)=>new Date(b.last_message_at)-new Date(a.last_message_at)); renderConvList(); }
@@ -2675,7 +2682,7 @@ async function sendQuickMedia(r) {
   renderThread();
   const { data, error } = await sb.from('chat_messages').insert([{
     conversation_id: S.activeConvId, tenant_id: S.tenantId, direction:'out',
-    body: caption, media_url: url, media_type:'image', delivery_status:'sent', agent_id: S.user?.id || null,
+    body: caption, media_url: url, media_type:'image', delivery_status:'sent', agent_id: S.user?.id || null, origen: 'humano',
   }]).select().single();
   if (error) { S.messages = S.messages.filter(m => m.id !== tmpId); renderThread(); showToast('No se pudo enviar', 'error'); return; }
   S.messages = S.messages.map(m => m.id === tmpId ? data : m);
@@ -3034,8 +3041,9 @@ async function aplicarEfectosEstado(conv, orderChannel, estado){
   }
 }
 async function enviarMensajeAuto(convId, text, channel){
+  // Sale solo, sin que nadie lo escriba: no es 'humano'.
   try{
-    const { data, error }=await sb.from('chat_messages').insert([{ conversation_id:convId, tenant_id:S.tenantId, direction:'out', body:text, delivery_status:'sent', agent_id:S.user?.id||null }]).select().single();
+    const { data, error }=await sb.from('chat_messages').insert([{ conversation_id:convId, tenant_id:S.tenantId, direction:'out', body:text, delivery_status:'sent', agent_id:S.user?.id||null, origen:'sistema' }]).select().single();
     if(error){ console.error('msg auto insert:', error); return; }
     if(convId===S.activeConvId){ S.messages.push(data); renderThread(); }
     if(['instagram','facebook','whatsapp'].indexOf(channel)>=0){
