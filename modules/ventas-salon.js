@@ -1670,7 +1670,14 @@
 
     const ord = state.currentOrder;
     const subtotal = ord?.total || mesa.total || 0;
-    const servicio = Math.round(subtotal * 0.10);
+    // La propina NO es fija: sale de la configuración del restaurante. Estaba
+    // escrito 10% a fuego, así que el panel la sumaba al total aunque el
+    // restaurante la tuviera apagada — mostrando un total que no se iba a cobrar.
+    const _cfgProp = vsEmpaqueCfg();
+    const _propOn  = _cfgProp.propinaActiva !== false;
+    const _propPct = Number(_cfgProp.propinaPct);
+    const servicio = _propOn ? Math.round(subtotal * ((isFinite(_propPct) ? _propPct : 10) / 100)) : 0;
+    const _propLbl = 'Servicio ' + (isFinite(_propPct) ? _propPct : 10) + '%';
     const total = subtotal + servicio;
     const waiterName = ord?.waiter_name || '—';
     const waiterInitials = waiterName !== '—'
@@ -1801,7 +1808,7 @@
         <div class="vs-totals">
           <div class="vs-total-row"><span>Pedido</span><span>${fmt(subtotal - (vsEmpaqueEsPorPedido() ? _mesaEmp : 0))}</span></div>
           ${vsEmpaqueEsPorPedido() && _mesaEmp ? `<div class="vs-total-row"><span>Empaque</span><span>${fmt(_mesaEmp)}</span></div>` : ''}
-          ${servicio ? `<div class="vs-total-row"><span>Servicio 10%</span><span>${fmt(servicio)}</span></div>` : ''}
+          ${servicio ? `<div class="vs-total-row"><span>${_propLbl}</span><span>${fmt(servicio)}</span></div>` : ''}
           <div class="vs-total-row vs-total-grand"><span>Total</span><span>${fmt(total)}</span></div>
         </div>
         ${actionsHtml}
