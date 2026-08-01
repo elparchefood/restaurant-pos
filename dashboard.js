@@ -1419,19 +1419,44 @@ async function qmLoadMeseros() {
   var { data: meseros } = await q;
   meseros = meseros || [];
 
-  // Contar mesas activas por mesero
-  var { data: openOrders } = await sb.from('pos_orders')
-    .select('waiter_id, table_id')
-    .eq('status', 'open')
-    .not('table_id', 'is', null);
-  openOrders = openOrders || [];
+  /* Se cuentan las mesas ATENDIDAS EN EL TURNO, no solo las que siguen abiertas:
+     a las 10 de la noche todas están cobradas y el panel decía "0 mesas"
+     aunque el mesero hubiera trabajado toda la jornada.
+     Ojo con el identificador: el pedido guarda el id de la SESIÓN (auth) y
+     pos_users tiene su propio id, distinto. Comparando solo contra m.id nunca
+     coinciden y todos los meseros salen en cero. */
+  /* El corte es la apertura de caja, no la medianoche: el servicio se pasa de
+     las 12 y con medianoche se partiría el turno en dos. */
+  var desde = null;
+  try {
+    var _s = await sb.from('pos_sessions').select('opened_at,created_at')
+      .eq('status','open').order('created_at',{ascending:false}).limit(1);
+    var _r = (_s.data || [])[0];
+    if (_r) desde = _r.opened_at || _r.created_at;
+  } catch (e) { /* si no hay caja abierta se cae al día calendario */ }
+  if (!desde) { var _h = new Date(); _h.setHours(0,0,0,0); desde = _h.toISOString(); }
 
-  var tablesByWaiter = {};
-  openOrders.forEach(function(o) {
-    if (!o.waiter_id) return;
-    if (!tablesByWaiter[o.waiter_id]) tablesByWaiter[o.waiter_id] = [];
-    if (o.table_id && tablesByWaiter[o.waiter_id].indexOf(o.table_id) < 0)
-      tablesByWaiter[o.waiter_id].push(o.table_id);
+  var oq = sb.from('pos_orders')
+    .select('waiter_id, waiter_name, table_id, status')
+    .not('table_id', 'is', null)
+    .gte('created_at', desde);
+  if (branchId) oq = oq.eq('branch_id', branchId);
+  var { data: ordenes } = await oq;
+  ordenes = ordenes || [];
+
+  var tablesByWaiter = {}, abiertasByWaiter = {};
+  meseros.forEach(function(m) {
+    var ids = [m.id, m.auth_user_id, String(m.name || '').trim().toLowerCase()];
+    var mesas = [], abiertas = 0;
+    ordenes.forEach(function(o) {
+      var coincide = (o.waiter_id && ids.indexOf(o.waiter_id) >= 0)
+                  || (o.waiter_name && ids.indexOf(String(o.waiter_name).trim().toLowerCase()) >= 0);
+      if (!coincide) return;
+      if (mesas.indexOf(o.table_id) < 0) mesas.push(o.table_id);
+      if (o.status === 'open') abiertas++;
+    });
+    tablesByWaiter[m.id] = mesas;
+    abiertasByWaiter[m.id] = abiertas;
   });
 
   // Ordenar por mesas (desc)
@@ -1440,7 +1465,10 @@ async function qmLoadMeseros() {
   });
 
   var totalMesas = Object.values(tablesByWaiter).reduce(function(s,t){return s+t.length;},0);
-  sub.textContent = meseros.length + ' activo' + (meseros.length!==1?'s':'') + ' · ' + totalMesas + ' mesa' + (totalMesas!==1?'s':'') + ' en servicio';
+  var totalAbiertas = Object.values(abiertasByWaiter).reduce(function(s,n){return s+n;},0);
+  sub.textContent = meseros.length + ' en turno · ' + totalMesas + ' mesa' + (totalMesas!==1?'s':'')
+    + ' atendida' + (totalMesas!==1?'s':'') + ' hoy'
+    + (totalAbiertas ? ' · ' + totalAbiertas + ' abierta' + (totalAbiertas!==1?'s':'') : '');
   note.textContent = 'Actualizado ahora';
 
   var gradients = [
@@ -1482,7 +1510,7 @@ async function qmLoadMeseros() {
       '</div>' +
       '<div class="qm-mesero-count">' +
         '<div class="qm-count-num">' + tables.length + '</div>' +
-        '<div class="qm-count-label">mesas</div>' +
+        '<div class="qm-count-label">mesas hoy</div>' +
       '</div>';
     list.appendChild(row);
   });
