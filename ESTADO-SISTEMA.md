@@ -1137,6 +1137,47 @@ semanas, para tener la tasa real en vez de adivinarla.
 
 ---
 
+## PENDIENTE — [Chat IA] El chat no toma el nombre del cliente recién creado — Sergio 2026-07-31
+
+**Caso real** (Lau / 573204989138, pedido de las 6:58 p.m.):
+Sergio le tomó el pedido a una clienta nueva. Los datos quedaron **bien
+guardados**, pero el chat siguió mostrando el nombre de WhatsApp.
+
+| | Valor |
+|---|---|
+| `pos_clientes.nombre` | **Laura Sofía** ✅ |
+| `pos_clientes.barrio` | **Torres del Bosque** ✅ |
+| `chat_conversations.contact_name` | **"Lau"** ← lo que se sigue viendo |
+
+**Lo esperado (Sergio):** al guardar los datos de un cliente nuevo, el contacto
+del chat debe pasar a mostrarse con **su nombre guardado + la etiqueta del
+barrio**, automáticamente y sin recargar.
+
+### Causa (localizada)
+`chat-ia.js` → `loadClientes()` (línea ~360) arma el mapa teléfono → {nombre,
+barrio} en `S.clientesPorTel`, y `clienteDe()` lo usa para pintar el nombre y la
+etiqueta de barrio.
+
+**Se llama UNA SOLA VEZ**, en el arranque (línea 87, dentro del `Promise.all`
+inicial). Al crear un pedido —que es cuando nace el cliente— **nadie vuelve a
+cargar el mapa**, así que la conversación se queda con el nombre de WhatsApp
+hasta que se recargue la página.
+
+### Arreglo
+1. Después de crear el pedido (`cpEnviarCocina` / `crear-pedido-chat` OK),
+   llamar a `loadClientes()` y volver a pintar la lista y la cabecera del chat.
+2. Hacer lo mismo al guardar datos desde la **ficha del contacto** (el drawer ya
+   edita nombre, direcciones y barrio).
+3. Idealmente refrescar solo esa conversación, no toda la lista, para no hacer
+   parpadear la pantalla.
+
+**Ojo:** NO tocar `chat_conversations.contact_name` en la base — ese campo es el
+nombre del perfil de WhatsApp y lo actualiza Meta. El nombre del cliente debe
+seguir saliendo del cruce por teléfono con `pos_clientes`, como está hoy.
+Solo falta refrescar el mapa en el momento correcto.
+
+---
+
 ## 🔴 URGENTE — [Chat IA] Prometió la carta y la mandó 44 MINUTOS DESPUÉS — Sergio 2026-07-31
 
 **Caso real** (conversación con "Maykol", 573142379592, fuera del horario):
