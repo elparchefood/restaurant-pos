@@ -532,6 +532,63 @@ async function processConversation(convId: string): Promise<void> {
   // tomar pedidos (lo garantiza puedeTomarPedidos + la regla estricta del prompt).
   if (modoAsistente === "auto" && isOpen) { await setTyping(convId, false); return; }
 
+  /* ══════════════════════════════════════════════════════════════════
+     QUE QUIERE EL CLIENTE (intencion, no texto exacto)
+     Regla de Sergio: "absolutamente todos los mensajes el bot debe detectar
+     intenciones, no texto exacto. Las personas escriben con errores, con
+     espacios o cosas diferentes; siempre se debe identificar la intencion".
+     Tenia razon: la carta no se envio porque el cliente escribio
+     "Para ver la  carta" con DOS espacios y ninguna frase de la lista
+     coincidio. Comparar texto nunca va a cubrir como escribe la gente.
+
+     Ahora lo decide el modelo, que entiende "mandame el menucito", "q tienen
+     pa comer", "dnd kedan" o cualquier forma con errores. Las listas de
+     palabras se conservan como RESPALDO: si el modelo falla o se demora, el
+     bot se comporta como antes y nunca peor.
+     ══════════════════════════════════════════════════════════════════ */
+  const textoDelCliente = batchMsgs.map(m => m.body).join(" ").slice(0, 900);
+  let intenciones: Record<string, boolean> = {};
+  try {
+    const rInt = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        max_tokens: 120,
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content:
+`Eres el clasificador de intenciones de un restaurante colombiano por WhatsApp.
+Lee lo que escribio el CLIENTE y responde SOLO este JSON:
+{"carta":bool,"ubicacion":bool,"domicilio":bool,"horario":bool,"pedir":bool}
+
+- "carta": quiere ver la carta, el menu, los productos o los precios en general.
+  Ejemplos que SI son carta: "la carta", "q tienen", "menucito", "que venden",
+  "cuanto cuestan las salchipapas", "tienen algo pa comer", "precios".
+- "ubicacion": pregunta DONDE QUEDA EL RESTAURANTE o pide el mapa.
+  OJO: si el cliente esta DANDO su propia direccion para que le lleven el
+  pedido, eso NO es "ubicacion" -> false.
+- "domicilio": pregunta si hacen domicilios o cuanto cuesta el envio.
+- "horario": pregunta a que hora abren o cierran, o si estan abiertos.
+- "pedir": quiere ordenar algo concreto ya.
+Puede haber varias en true. Si no estas seguro, pon false.
+La gente escribe con errores, sin tildes y con espacios de mas: interpreta la
+INTENCION, no las palabras exactas.` },
+          { role: "user", content: textoDelCliente },
+        ],
+      }),
+    });
+    if (rInt.ok) {
+      const dInt = await rInt.json();
+      intenciones = JSON.parse(dInt.choices?.[0]?.message?.content || "{}");
+    } else {
+      console.error("[intencion] OpenAI respondio", rInt.status);
+    }
+  } catch (e) {
+    console.error("[intencion] fallo, se usan las palabras clave:", String(e).slice(0, 200));
+  }
+
   // 6. Detectar solicitud de carta / PRECIOS → enviar imágenes de la carta (traen los precios)
   let extraRespondido = false;
   const menuImagenes = (cfg.menu_imagenes as string[]) || [];
@@ -554,7 +611,7 @@ async function processConversation(convId: string): Promise<void> {
        no significan otra cosa. Se exige que no venga pegada a otras letras,
        para no confundirla con "cartagena". */
     const palabraSuelta = /(^|[^a-z])(cartas|carta|menus|menu|precios|precio)([^a-z]|$)/.test(combinedLower);
-    const wantsMenu = isExact || palabraSuelta || menuKw.some(kw => {
+    const wantsMenu = intenciones.carta === true || isExact || palabraSuelta || menuKw.some(kw => {
       const k = kw.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
       return combinedLower.includes(k);
     });
@@ -627,7 +684,7 @@ async function processConversation(convId: string): Promise<void> {
       // es exactamente una de estas frases (no si aparece dentro de una dirección de entrega).
       const dirExacta = ["direccion","la direccion","cual es la direccion","cual es su direccion","me das la direccion","me da la direccion","dame la direccion","me regalas la direccion","cual direccion","que direccion","direccion del local","direccion porfavor","direccion por favor","cual es la direccion del local","direcion","la direcion"];
       const pideDir = batchMsgs.some(m => { const mm = norm(m.body).replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim(); return dirExacta.includes(mm); });
-      if (ubiKw.some(kw => cL.includes(kw)) || pideDir) {
+      if (intenciones.ubicacion === true || ubiKw.some(kw => cL.includes(kw)) || pideDir) {
         let dirTxt = dirRR ? String((dirRR as Record<string, unknown>).t || "").trim()
                            : `Estamos ubicados en ${String(ubiLoc.address || "").trim()}`.trim();
         // Si está CERRADO, damos la dirección IGUAL pero avisando el horario (pedido de Sergio).

@@ -2287,3 +2287,62 @@ que devuelve `/body`.
 
 **Verificado al cerrar:** las 24 funciones responden; la unica en 503 es
 `tiktok-webhook`, que ya estaba asi.
+
+
+---
+
+## 76. El bot entiende INTENCIONES, no texto exacto (2026-08-01)
+
+**Regla de Sergio, y tiene razon de fondo:** *"es absurdo que simplemente por un
+espacio doble el bot no entienda. Absolutamente todos los mensajes el bot debe
+detectar intenciones, no texto exacto. Las personas describen con errores, con
+espacios o cosas diferentes; siempre se debe identificar la intencion"*.
+
+El arreglo anterior (normalizar espacios + palabra suelta) tapaba ESE caso, no
+el problema: comparar texto nunca va a cubrir como escribe la gente de verdad.
+
+### Que se hizo (`delay-reply` v199)
+Antes de los bloques que decidian por palabras, corre un **clasificador de
+intenciones** (gpt-4o-mini, temperatura 0, respuesta JSON) sobre lo que escribio
+el cliente. Devuelve: `carta`, `ubicacion`, `domicilio`, `horario`, `pedir`.
+
+Los bloques ahora obedecen la INTENCION:
+- carta: `intenciones.carta === true || <palabras, como respaldo>`
+- ubicacion: `intenciones.ubicacion === true || <palabras, como respaldo>`
+
+**Las listas de palabras se conservaron a proposito como respaldo:** si OpenAI
+falla o se demora, el bot se comporta como antes y **nunca peor**. Es una
+mejora aditiva, no un reemplazo con riesgo.
+
+### Probado (18 de 18 correctos)
+Se desplego una funcion temporal con el MISMO prompt, se probo y **se borro**
+(no se envio ningun mensaje a ningun cliente real).
+
+| Lo que escribe la gente | Intencion detectada |
+|---|---|
+| `Para ver la  carta` (dos espacios) | carta |
+| `mandame el menucito` | carta |
+| `q tienen pa comer` | carta |
+| `q precios manejan` | carta |
+| `dnd kedan?` | ubicacion |
+| `me pasas la ubi` | ubicacion |
+| `hacen domicilio` | domicilio |
+| `a que hora abren` | horario |
+| `kiero pedir algo` | pedir |
+| `Monteluna casa 45` | **ninguna** (el cliente esta dando SU direccion) |
+| `soy de cartagena` | **ninguna** |
+| `hola` / `gracias` | ninguna |
+
+Los dos ultimos casos son los que importan tanto como los aciertos: no basta con
+detectar de mas. `Monteluna casa 45` con listas de palabras podia confundirse
+con "donde quedan", y ahora no.
+
+### Costo
+Una llamada extra a gpt-4o-mini por tanda de mensajes (~120 tokens de salida).
+Despreciable frente a la llamada de respuesta que ya se hacia.
+
+### Pendiente de aplicar el mismo criterio
+Quedan otros sitios decidiendo por texto: metodo de pago (`nequi/daviplata/
+transfer`), deteccion de nombre del cliente, `para llevar / recoger`, y el
+rechazo de direccion (`no / cambia / otra`). Conviene ampliar el mismo
+clasificador en vez de seguir alargando listas.
