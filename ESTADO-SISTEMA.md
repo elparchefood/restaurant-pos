@@ -1137,6 +1137,60 @@ semanas, para tener la tasa real en vez de adivinarla.
 
 ---
 
+## PENDIENTE — [Pagos] Botón "Verificar transferencia" en la pantalla de cobro — Sergio 2026-07-31
+
+**Lo que pidió:** en la pantalla de cobro (`pagos.html`), cuando el cliente paga
+por **Transferencia**, un botón para verificar el pago ahí mismo — *"así un
+empleado lo puede hacer de manera sencilla"*.
+
+Hoy el empleado tiene que creerle al cliente o irse a mirar el correo del banco
+a mano. En una venta de mostrador eso no es práctico.
+
+### Lo que YA existe (reusar, no rehacer)
+- **`verificar-pago-manual` (v10)** — verificación bajo demanda. Lee las
+  **notificaciones del banco en Gmail** de esa sucursal y busca una
+  transferencia por el monto esperado.
+- **`verify-transfer` (v19)** — la verificación automática del bot.
+- En el chat ya hay UI: `verificarPagoModal()` en `chat-ia.js`, con su modal de
+  resultado (verificado / no verificado) y el botón para registrar el pago.
+
+### ⚠️ El obstáculo (esto define el trabajo)
+`verificar-pago-manual` **exige `conversation_id`**:
+```
+const conversationId = String(b.conversation_id || "");
+if (!conversationId) return { verified:false, razon:"input", ... }
+```
+Lo usa solo para sacar el `branch_id` y los datos de contacto. **Pero una venta
+de mostrador NO tiene conversación de WhatsApp**, así que hoy no se puede llamar
+desde `pagos.js`.
+
+**Qué hay que hacer:** agregarle un modo sin conversación — que acepte
+`branch_id` + `monto` (y opcionalmente una ventana de tiempo) y haga la misma
+búsqueda en Gmail. Es un cambio pequeño en la Edge Function: la lógica de
+verificación ya no depende de la conversación, solo la obtención del branch.
+
+### Cómo debería verse
+1. El empleado elige **Transferencia** en el cobro.
+2. Aparece un botón **"Verificar transferencia"** (solo con ese método).
+3. Al tocarlo: busca en las notificaciones del banco una transferencia por el
+   monto que falta, en los últimos N minutos.
+4. Resultado claro:
+   - ✅ **Verificado** — muestra monto, hora y de quién viene; deja aplicar el
+     pago con un toque.
+   - ❌ **No encontrado** — dice qué se buscó (monto y ventana de tiempo) y deja
+     reintentar o aplicar el pago a mano bajo responsabilidad del empleado.
+
+### Reglas
+- **Nunca aplicar el pago solo**: verificar y aplicar son dos pasos. Lo aprendido
+  con "marcar pagado" del chat (entrada 57): un botón que promete y no cumple es
+  peor que no tenerlo.
+- **Si falla, decir por qué.** Nada de fallar en silencio.
+- Debe funcionar en **venta rápida y en mesa**, no solo en domicilios.
+- Requiere que la sucursal tenga **Gmail conectado** (`ia_config.gmail_*`). Si no
+  lo tiene, el botón no debe aparecer — o debe explicar que hay que conectarlo.
+
+---
+
 ## PENDIENTE — [Chat IA] El chat no toma el nombre del cliente recién creado — Sergio 2026-07-31
 
 **Caso real** (Lau / 573204989138, pedido de las 6:58 p.m.):
