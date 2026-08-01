@@ -262,6 +262,7 @@ async function loadData() {
     await loadPlantillasDB();
     await loadBasesDB();
     await loadPorciones();
+    ivAlertasCargar();          // no bloquea: si falla, la pantalla sigue igual
   } catch(e) {
     console.error('[inventario] loadData:', e);
   } finally {
@@ -3141,3 +3142,76 @@ function closeIAReceta() {
 }
 
 // ═══════════════════════════════════════════════════
+
+
+/* ══════════════════════════════════════════════════════════════
+   VENTAS QUE NO DESCONTARON INVENTARIO
+   Durante semanas los perros, hamburguesas y sándwiches se vendieron sin
+   descontar un solo insumo y nadie se enteró, porque el sistema no se quejaba:
+   simplemente no escribía nada. Ahora, cuando un producto CON receta no mueve
+   ningún insumo, queda anotado en `iv_consumo_alertas` y se ve aquí.
+   ══════════════════════════════════════════════════════════════ */
+async function ivAlertasCargar() {
+  const host = document.getElementById('iv-aviso-consumo');
+  if (!host) return;
+  let filas = [];
+  try {
+    let q = iv_sb.from('iv_consumo_alertas')
+      .select('id, product_name, pres_guardada, created_at')
+      .eq('revisado', false)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (branchId) q = q.eq('branch_id', branchId);
+    const { data, error } = await q;
+    if (error) throw error;
+    filas = data || [];
+  } catch (e) {
+    console.error('[inventario] alertas:', e);
+    return;                       // sin aviso es mejor que un aviso roto
+  }
+  if (!filas.length) { host.style.display = 'none'; host.innerHTML = ''; return; }
+
+  // Se agrupa por producto: 20 veces el mismo perro es UN problema, no 20.
+  const porProd = {};
+  filas.forEach(f => {
+    const k = f.product_name || 'Producto';
+    if (!porProd[k]) porProd[k] = { n: 0, ids: [] };
+    porProd[k].n++; porProd[k].ids.push(f.id);
+  });
+  const lista = Object.keys(porProd)
+    .map(k => escHtml(k) + (porProd[k].n > 1 ? ' <b>×' + porProd[k].n + '</b>' : ''))
+    .join(' · ');
+
+  host.style.display = '';
+  host.innerHTML =
+    '<div style="margin:14px 26px 0;padding:13px 16px;border-radius:12px;'
+  + 'background:#FEF2F2;border:1px solid #FECACA;display:flex;gap:12px;align-items:flex-start">'
+  +   '<span style="font-size:17px;line-height:1.2">⚠️</span>'
+  +   '<div style="flex:1;min-width:0">'
+  +     '<div style="font-weight:700;color:#991B1B;font-size:13.5px">'
+  +       filas.length + (filas.length === 1 ? ' venta no descontó' : ' ventas no descontaron')
+  +       ' inventario</div>'
+  +     '<div style="color:#7F1D1D;font-size:12.5px;margin-top:3px;line-height:1.5">' + lista + '</div>'
+  +     '<div style="color:#B91C1C;font-size:11.5px;margin-top:5px">'
+  +       'Estos productos tienen receta pero no movieron ningún insumo. '
+  +       'Revisa que su tamaño y su receta estén bien configurados.</div>'
+  +   '</div>'
+  +   '<button type="button" onclick="ivAlertasMarcar()" '
+  +     'style="border:1px solid #FCA5A5;background:#fff;color:#991B1B;border-radius:9px;'
+  +     'padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">'
+  +     'Ya lo revisé</button>'
+  + '</div>';
+  host.dataset.ids = JSON.stringify(filas.map(f => f.id));
+}
+
+async function ivAlertasMarcar() {
+  const host = document.getElementById('iv-aviso-consumo');
+  if (!host) return;
+  let ids = [];
+  try { ids = JSON.parse(host.dataset.ids || '[]'); } catch (e) { ids = []; }
+  if (!ids.length) { host.style.display = 'none'; return; }
+  try {
+    await iv_sb.from('iv_consumo_alertas').update({ revisado: true }).in('id', ids);
+  } catch (e) { console.error('[inventario] marcar alertas:', e); }
+  ivAlertasCargar();
+}

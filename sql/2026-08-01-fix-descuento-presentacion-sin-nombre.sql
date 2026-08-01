@@ -1,3 +1,25 @@
+
+CREATE TABLE IF NOT EXISTS iv_consumo_alertas (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id     uuid,
+  branch_id     uuid,
+  order_id      uuid,
+  item_id       uuid UNIQUE,
+  product_id    uuid,
+  product_name  text,
+  pres_guardada text,
+  detalle       text,
+  revisado      boolean NOT NULL DEFAULT false,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS iv_consumo_alertas_branch ON iv_consumo_alertas (branch_id, created_at DESC);
+ALTER TABLE iv_consumo_alertas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS iv_consumo_alertas_tenant ON iv_consumo_alertas;
+CREATE POLICY iv_consumo_alertas_tenant ON iv_consumo_alertas FOR ALL
+  USING (current_tenant_id() = tenant_id) WITH CHECK (current_tenant_id() = tenant_id);
+-- Las Edge Functions y las funciones SECURITY DEFINER entran como service_role.
+GRANT SELECT, INSERT, UPDATE, DELETE ON iv_consumo_alertas TO authenticated, service_role;
+
 CREATE OR REPLACE FUNCTION public.fn_iv_consumir_item(p_item_id uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -14,6 +36,7 @@ DECLARE
   de_servicio numeric;   -- cuánto sale de "en servicio"
   de_bodega   numeric;   -- cuánto sale de bodega
   disp_serv   numeric;
+  v_lineas    int := 0;
 BEGIN
   SELECT * INTO it FROM pos_order_items WHERE id = p_item_id;
   IF NOT FOUND THEN RETURN; END IF;
@@ -48,6 +71,19 @@ BEGIN
     FROM pos_products p, jsonb_array_elements(COALESCE(p.presentations, '[]'::jsonb)) elem
     WHERE p.id = it.product_id
       AND jsonb_array_length(COALESCE(p.presentations, '[]'::jsonb)) = 1
+    LIMIT 1;
+  END IF;
+
+  /* TERCERA RED: hay pedidos guardados SIN el campo 'pres' (paso el 21 y el 25
+     de julio con productos de dos tamanos). El nombre del item si lo trae
+     ("Personal - Premium - Mixta"), asi que se deduce de ahi. Se exige que el
+     nombre de la presentacion aparezca completo en el nombre del item. */
+  IF v_pres_id IS NULL THEN
+    SELECT elem->>'id' INTO v_pres_id
+    FROM pos_products p, jsonb_array_elements(COALESCE(p.presentations, '[]'::jsonb)) elem
+    WHERE p.id = it.product_id
+      AND btrim(COALESCE(elem->>'name','')) <> ''
+      AND lower(COALESCE(it.product_name,'')) LIKE '%' || lower(btrim(elem->>'name')) || '%'
     LIMIT 1;
   END IF;
 
@@ -93,6 +129,7 @@ BEGIN
            i.vender_bodega, COALESCE(i.stock_servicio,0) AS servicio
     FROM agg a JOIN iv_insumos i ON i.id = a.insumo_id
   LOOP
+    v_lineas := v_lineas + 1;
     need_buy := rec.use_qty / GREATEST(COALESCE(rec.conversion, 1), 0.0000001);
 
     IF NOT rec.sub_inventario THEN
@@ -132,5 +169,18 @@ BEGIN
       END IF;
     END IF;
   END LOOP;
+
+  /* NO FALLAR EN SILENCIO. Que los perros no descontaran nada paso inadvertido
+     semanas porque el sistema no se quejaba: simplemente no escribia nada.
+     Si un producto TIENE receta y aun asi no movio un solo insumo, queda
+     registrado para que se vea en Inventario en vez de perderse. */
+  IF v_lineas = 0 AND EXISTS (SELECT 1 FROM iv_recetas r WHERE r.product_id = it.product_id) THEN
+    INSERT INTO iv_consumo_alertas(tenant_id, branch_id, order_id, item_id, product_id,
+                                   product_name, pres_guardada, detalle)
+    VALUES (it.tenant_id, it.branch_id, it.order_id, it.id, it.product_id,
+            it.product_name, it.selections->>'pres',
+            'El producto tiene receta pero no descontó ningún insumo')
+    ON CONFLICT (item_id) DO NOTHING;
+  END IF;
 END;
 $function$

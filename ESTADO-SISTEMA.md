@@ -2161,3 +2161,57 @@ descontaba absolutamente nada**. Las recetas siempre estuvieron bien.
 Quedan **14 ventas historicas** sin descontar (21/07 a 28/07): 8 hamburguesas,
 4 perros, 1 sandwich. Se pueden reprocesar con `fn_iv_consumir_item` una por
 una, pero eso baja el stock actual y es decision suya.
+
+
+---
+
+## 73. Auditoria completa del descuento de inventario del turno (2026-08-01)
+
+Sergio pidio no reprocesar nada, sino **auditar el turno entero** y dejar el
+sistema bien: *"lo importante es que quede bien... no hay problema que el
+inventario quede mal, yo vuelvo a actualizar"*.
+
+### Resultado de la auditoria (turno 31/07 23:41 -> 01/08 04:06)
+Se comparo, **item por item**, lo que la receta manda descontar contra lo que
+de verdad se descontó. **32 items vendidos**:
+
+- **30 correctos** — descontaron todos sus insumos.
+- **2 fallaron**, los dos por la MISMA causa (presentacion sin nombre):
+  - `Perro · SENCILLO` (7 insumos, 0 descontados)
+  - `Adición · Papas` (500 g de Papa, 0 descontados)
+- **1 item sin receta**: `Ajo · Salsa`. No es un fallo del motor — ese producto
+  no tiene receta cargada. Es el unico del catalogo activo en esa situacion.
+
+Las bebidas, las salchipapas (tradicionales y especiales) y las adiciones
+dentro de un plato **descontaron bien**, con la cantidad exacta.
+
+### Tres redes de seguridad en `fn_iv_consumir_item`
+1. Comparacion del nombre de la presentacion **sin mayusculas ni espacios**.
+2. Si no resuelve y el producto tiene **UNA sola presentacion**, es esa.
+   (Arregla perros, hamburguesas, sandwiches y adiciones: su unica presentacion
+   tiene el nombre vacio.)
+3. Si sigue sin resolver, se **deduce del nombre del item** ("Personal · Premium
+   · Mixta"). Cubre 8 ventas del 21 y 25 de julio guardadas SIN el campo `pres`.
+
+Con dos o mas presentaciones y ninguna pista se deja en NULL **a proposito**:
+descontar el insumo equivocado es peor que no descontar.
+
+### Y lo mas importante: ya no falla en silencio
+Nueva tabla **`iv_consumo_alertas`**. Si un producto TIENE receta y aun asi no
+mueve un solo insumo, queda registrado con el pedido, el item y la presentacion
+que venia guardada. En **Inventario** sale una franja roja arriba con los
+productos afectados, agrupados, y un boton "Ya lo revisé".
+
+Esto es lo que fallo de verdad durante semanas: no el calculo, sino que
+**nadie se enteraba**. Un cero silencioso parecia normal.
+
+### Probado de punta a punta
+Venta de prueba de las 4 categorias que fallaban (perro, hamburguesa, sandwich,
+adicion de papas): las 4 descontaron correcto — Pan perro -1, Pan Hamburguesa
+-1 + Carne de hamburguesa -1 + Tomate -2, Pan Sandwich -1, Papa -500 g.
+**Datos de prueba borrados y stock devuelto a su valor exacto anterior.**
+
+### Aparte (no es de este bug)
+- `Salsa rosada` en **-3,36** y `Salsa ajo casera` en **-1,02**: stock negativo.
+  Falta registrar una compra o hay un consumo no contabilizado.
+- `Salsa` (Adiciones) sigue **sin receta**.
