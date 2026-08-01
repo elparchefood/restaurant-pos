@@ -17,6 +17,7 @@ const S = {
   modGroups: [],
   favs: new Set(JSON.parse(localStorage.getItem('pos_favs') || '[]')),
   personas: 2,
+  clienteId: null, clienteNombre: '', clienteTel: '',
   openAt: null,
 };
 
@@ -233,6 +234,17 @@ async function loadOpenOrder() {
 
     if (!data) return;
     S.order = data;
+    // Cliente ya asociado a esta mesa (si lo hay), para pintarlo en la fila.
+    S.clienteId = data.cliente_id || null;
+    S.clienteNombre = data.customer_name || '';
+    S.clienteTel = '';
+    if (S.clienteId) {
+      try {
+        const rc = await sb.from('pos_clientes').select('telefono,nombre').eq('id', S.clienteId).maybeSingle();
+        if (rc.data) { S.clienteTel = rc.data.telefono || ''; S.clienteNombre = S.clienteNombre || rc.data.nombre || ''; }
+      } catch (e) { /* sin telefono solo se pierde el contador de puntos */ }
+    }
+    tpPintarCliente();
     // Reconstruir carrito desde ítems guardados
     S.cart = (data.pos_order_items || []).map(it => ({
       id:        it.id,
@@ -1173,6 +1185,9 @@ async function saveOrder() {
         total:       grand,
         guests:      S.personas,
         opened_at:   new Date().toISOString(),
+        // Cliente identificado: sin esto la mesa nunca acumula puntos.
+        cliente_id:    S.clienteId || null,
+        customer_name: S.clienteNombre || null,
       };
       const itemsData = cartRows.map(r => ({ ...r })); // order_id se asigna en el batch
 
@@ -1621,3 +1636,161 @@ async function releaseTable() {
     toast('Error al liberar: ' + (e?.message || e), 'error');
   }
 }
+
+
+/* ══════════════════════════════════════════════════════════════════
+   CLIENTE DE LA MESA
+   La fila "Selecciona un cliente" existia en el HTML pero NO tenia codigo
+   detras: era decorativa. Por eso ninguna mesa acumulaba puntos — de 50
+   pedidos de salon, 0 tenian cliente.
+
+   Al elegirlo se guarda `cliente_id` en el pedido, y con eso la base le suma
+   los puntos sola cuando la mesa se cobra (trigger `award_loyalty_points`).
+   ══════════════════════════════════════════════════════════════════ */
+function tpDig(s) { return String(s == null ? '' : s).replace(/[^0-9]/g, ''); }
+function tpTel10(s) { const d = tpDig(s); return d.length > 10 ? d.slice(-10) : d; }
+function tpEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+async function tpBuscarCliente(tel) {
+  const t = tpTel10(tel);
+  if (t.length < 7) return null;
+  try {
+    const r = await sb.from('pos_clientes').select('id,nombre,telefono,barrio')
+      .eq('tenant_id', S.tenantId).ilike('telefono', '%' + t).limit(1);
+    return (r.data && r.data[0]) || null;
+  } catch (e) { return null; }
+}
+
+async function tpPuntosDe(tel) {
+  const t = tpTel10(tel);
+  if (t.length < 7) return 0;
+  try {
+    const r = await sb.from('pos_puntos').select('puntos')
+      .eq('tenant_id', S.tenantId).ilike('telefono', '%' + t).maybeSingle();
+    return (r.data && Number(r.data.puntos)) || 0;
+  } catch (e) { return 0; }
+}
+
+async function tpPintarCliente() {
+  const ph = document.getElementById('cliente-placeholder');
+  const row = document.getElementById('cliente-row');
+  if (!ph) return;
+  if (!S.clienteId && !S.clienteTel) {
+    ph.textContent = 'Selecciona un cliente';
+    if (row) row.classList.remove('has-client');
+    return;
+  }
+  if (row) row.classList.add('has-client');
+  const pts = S.clienteTel ? await tpPuntosDe(S.clienteTel) : 0;
+  ph.textContent = (S.clienteNombre || S.clienteTel)
+    + (S.clienteTel ? '  ·  ' + pts + ' pts' : '');
+}
+
+function tpModalCliente() {
+  const bd = document.createElement('div');
+  bd.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
+  bd.innerHTML =
+    '<div style="background:#fff;border-radius:16px;max-width:380px;width:100%;padding:22px;box-shadow:0 20px 55px rgba(0,0,0,.25);font-family:inherit">'
+  +   '<div style="font-weight:700;font-size:16px;color:#0F172A">Cliente de la mesa</div>'
+  +   '<div style="color:#64748B;font-size:12.5px;margin-top:3px">Con el teléfono se le acumulan los puntos de este pedido.</div>'
+  +   '<input id="tpCliTel" type="tel" inputmode="numeric" placeholder="Número de celular" autocomplete="off"'
+  +     ' style="width:100%;box-sizing:border-box;margin-top:14px;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;outline:none">'
+  +   '<div id="tpCliInfo" style="margin-top:10px;font-size:13px;min-height:22px;color:#64748B"></div>'
+  +   '<div id="tpCliNomWrap" style="display:none;margin-top:6px">'
+  +     '<input id="tpCliNom" placeholder="Nombre del cliente" autocomplete="off"'
+  +       ' style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;outline:none">'
+  +   '</div>'
+  +   '<div style="display:flex;gap:8px;margin-top:16px">'
+  +     '<button id="tpCliQuitar" type="button" style="border:1.5px solid #E2E8F0;background:#fff;color:#64748B;border-radius:10px;padding:11px 12px;font-size:13px;font-weight:600;cursor:pointer">Sin cliente</button>'
+  +     '<button id="tpCliCancel" type="button" style="flex:1;border:1.5px solid #E2E8F0;background:#fff;color:#334155;border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Cancelar</button>'
+  +     '<button id="tpCliOk" type="button" style="flex:1;border:0;background:#5B6BFF;color:#fff;border-radius:10px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">Guardar</button>'
+  +   '</div>'
+  + '</div>';
+  document.body.appendChild(bd);
+
+  const inp = document.getElementById('tpCliTel');
+  const info = document.getElementById('tpCliInfo');
+  const wrap = document.getElementById('tpCliNomWrap');
+  const nom = document.getElementById('tpCliNom');
+  let encontrado = null;
+  if (S.clienteTel) inp.value = S.clienteTel;
+  setTimeout(() => inp.focus(), 40);
+
+  let t = null;
+  inp.addEventListener('input', () => {
+    clearTimeout(t);
+    t = setTimeout(async () => {
+      const t10 = tpTel10(inp.value);
+      encontrado = null; wrap.style.display = 'none';
+      if (t10.length < 7) { info.textContent = ''; return; }
+      info.textContent = 'Buscando…';
+      encontrado = await tpBuscarCliente(t10);
+      if (encontrado) {
+        const pts = await tpPuntosDe(t10);
+        info.innerHTML = '<b style="color:#0F172A">' + tpEsc(encontrado.nombre || 'Cliente') + '</b>'
+          + (encontrado.barrio ? ' <span style="color:#94A3B8">· ' + tpEsc(encontrado.barrio) + '</span>' : '')
+          + '<br><span style="color:#16A34A;font-weight:600">' + pts + ' puntos acumulados</span>';
+      } else {
+        info.innerHTML = '<span style="color:#B45309">No está guardado. Se creará con este número.</span>';
+        wrap.style.display = '';
+      }
+    }, 350);
+  });
+
+  const cerrar = () => bd.remove();
+  document.getElementById('tpCliCancel').onclick = cerrar;
+  bd.addEventListener('click', e => { if (e.target === bd) cerrar(); });
+
+  document.getElementById('tpCliQuitar').onclick = async () => {
+    await tpGuardarCliente(null, '', '');
+    cerrar();
+  };
+
+  document.getElementById('tpCliOk').onclick = async function () {
+    const t10 = tpTel10(inp.value);
+    if (t10.length < 7) { info.innerHTML = '<span style="color:#DC2626">Escribe un número válido.</span>'; return; }
+    this.disabled = true; this.textContent = 'Guardando…';
+    try {
+      let id = encontrado ? encontrado.id : null;
+      let nombre = encontrado ? (encontrado.nombre || '') : String(nom.value || '').trim();
+      if (!id) {
+        const ins = await sb.from('pos_clientes').insert([{
+          tenant_id: S.tenantId, branch_id: S.branchId,
+          nombre: nombre || ('Cliente ' + t10.slice(-4)), telefono: t10,
+        }]).select('id,nombre').single();
+        if (ins.error) throw ins.error;
+        id = ins.data.id; nombre = ins.data.nombre;
+      }
+      await tpGuardarCliente(id, nombre, t10);
+      cerrar();
+    } catch (e) {
+      this.disabled = false; this.textContent = 'Guardar';
+      info.innerHTML = '<span style="color:#DC2626">No se pudo guardar: ' + tpEsc(e.message || e) + '</span>';
+    }
+  };
+}
+
+/* Si la mesa ya tiene pedido, se guarda YA. Si todavia no existe (comanda
+   vacia), queda en memoria y se escribe al crear la orden. */
+async function tpGuardarCliente(id, nombre, tel) {
+  S.clienteId = id; S.clienteNombre = nombre || ''; S.clienteTel = tel || '';
+  if (S.order && S.order.id) {
+    try {
+      await sb.from('pos_orders').update({
+        cliente_id: id, customer_name: nombre || null,
+      }).eq('id', S.order.id);
+    } catch (e) { console.error('[tomar-pedido] no se pudo asociar el cliente:', e); }
+  }
+  tpPintarCliente();
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const row = document.getElementById('cliente-row');
+  if (row) {
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', tpModalCliente);
+  }
+});

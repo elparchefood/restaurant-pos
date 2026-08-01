@@ -2883,3 +2883,72 @@ tablet y el computador suenan igual sin configurarlos por separado.
 apagado, volumen 0, tono inexistente, volumen fuera de rango y **config
 corrupta** — en todos cae al valor seguro. El defecto (0,09 de ganancia) es
 **exactamente el volumen actual**, asi que a quien no lo toque no le cambia nada.
+
+
+---
+
+## 88. El boton "Selecciona un cliente" de la mesa NO existia (2026-08-01)
+
+Sergio: *"el boton de seleccionar cliente cuando se va a hacer un pedido de mesa
+no sirve"*. **Cierto, y de la peor forma: era decorativo.** La fila
+`#cliente-row` estaba en `tomar-pedido.html` con su icono y su flechita, pero
+**ningun JavaScript la escuchaba**. Nunca hizo nada.
+
+Eso explica el dato de la entrada 81: **0 de 50 pedidos de salon tenian
+cliente**. No era que los meseros no lo usaran — es que no se podia usar.
+
+### Lo que se hizo
+- La fila abre un modal igual al de Pagos: busca por telefono, muestra el
+  nombre, el barrio y **cuantos puntos lleva**; si no existe, lo crea con ese
+  numero. Tambien tiene "Sin cliente".
+- El pedido nuevo se crea con `cliente_id` y `customer_name`.
+- Si la mesa **ya tiene pedido**, se guarda al instante; si la comanda todavia
+  esta vacia, queda en memoria y se escribe al crear la orden.
+- Al reabrir una mesa que ya tiene cliente, la fila lo muestra con sus puntos.
+- Verificado que `posSync.writeOrderBatch` **no descarta** el campo (hace
+  `{...orderData}`) y que el `select('*')` de la mesa lo trae de vuelta.
+
+### Probado de punta a punta contra la base
+| Paso | Puntos |
+|---|---|
+| Cliente nuevo | 0 |
+| Mesa abierta con cliente ($46.000) | 0 — todavia no se cobra |
+| **Mesa cobrada** | **46** + movimiento `acumulacion` registrado |
+
+Datos de prueba borrados.
+
+---
+
+## 89. Las respuestas a BOTONES se guardaban como "[interactive]" (2026-08-01)
+
+**Durante el servicio.** Sergio mando un mensaje con botones (*Familiar /
+Personal*), el cliente toco uno, y en el chat solo aparecio `[interactive]`.
+
+**El dato se perdio.** `meta-webhook` recibia la respuesta completa de Meta
+—con el titulo del boton adentro— y guardaba solo `[${msgType}]`, botando el
+contenido. No estaba en la base, ni en `pending_order_data` (el bot no
+intervino: contestaba Sergio a mano), ni en los logs. **Meta no permite volver
+a pedir el contenido de un mensaje ya recibido**, asi que ese pedido hubo que
+preguntarselo al cliente.
+
+### Arreglo (meta-webhook v54)
+Se agregaron los tipos que faltaban:
+- `interactive` -> `button_reply.title` o `list_reply.title` (con su
+  descripcion si la trae). Si no viniera el titulo, al menos el id del boton.
+- `button` -> `button.text` (botones de plantilla / quick reply).
+
+### Probado enviandole al webhook payloads reales de Meta
+| Lo que toca el cliente | Lo que queda guardado |
+|---|---|
+| Boton "Personal" | `Personal` |
+| Lista "Familiar" + descripcion | `Familiar — Para 2 personas` |
+| Boton de plantilla | `Sí, quiero` |
+
+Antes los tres decian `[interactive]`. Conversacion de prueba borrada.
+
+**Ojo:** el canal se identifica por el `waba_id` que viene en `entry[].id`, no
+por el `phone_number_id`. Una prueba con waba_id falso se descarta en silencio
+(el webhook responde 200 igual) — util saberlo para no perder tiempo.
+
+**Lo viejo no se puede reconstruir:** los mensajes que ya estan guardados como
+`[interactive]` se quedan asi.

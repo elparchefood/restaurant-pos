@@ -91,6 +91,27 @@ Deno.serve(async (req) => {
             if (msgType === "text") {
               bodyText = ((msg.text as Record<string, unknown>)?.body as string) || "";
 
+            } else if (msgType === "interactive") {
+              /* Respuesta a un mensaje con BOTONES o LISTA.
+                 Antes se guardaba solo "[interactive]" y se perdia QUE eligio el
+                 cliente: paso el 01/08 con un "Familiar / Personal" y no hubo
+                 forma de recuperarlo (Meta no deja volver a pedir el contenido
+                 de un mensaje ya recibido). Ahora se guarda el texto del boton
+                 y, si no viniera, al menos su id. */
+              const inter = (msg.interactive as Record<string, unknown>) || {};
+              const br = (inter.button_reply as Record<string, unknown>) || {};
+              const lr = (inter.list_reply as Record<string, unknown>) || {};
+              const titulo = String(br.title || lr.title || "").trim();
+              const idBtn  = String(br.id || lr.id || "").trim();
+              const desc   = String(lr.description || "").trim();
+              bodyText = titulo || idBtn || "[interactive]";
+              if (titulo && desc) bodyText = titulo + " — " + desc;
+
+            } else if (msgType === "button") {
+              // Botones de plantilla (quick reply): el texto viene en button.text
+              const btn = (msg.button as Record<string, unknown>) || {};
+              bodyText = String(btn.text || btn.payload || "").trim() || "[button]";
+
             } else if (["sticker", "image", "video", "audio", "document"].includes(msgType)) {
               const mediaObj = (msg[msgType] as Record<string, unknown>) || {};
               const mediaId  = mediaObj.id as string;
