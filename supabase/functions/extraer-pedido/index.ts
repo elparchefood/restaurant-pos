@@ -429,6 +429,20 @@ Deno.serve(async (req) => {
       (allMods || []).flatMap(m => ((m.options as Array<{ name: string }>) || []).map(o => o.name)).filter(Boolean)
     )].join(", ");
 
+    /* Barrios conocidos, ANTES de preguntarle al modelo.
+       Sergio: el barrio solo falla "cuando el cliente escribe de una manera
+       extraña en la direccion". Darle la lista al modelo es lo que resuelve eso:
+       ya no tiene que adivinar un nombre suelto, tiene que ESCOGER de los
+       barrios que el negocio maneja. Se incluyen los APRENDIDOS (los que el
+       sistema guardo cuando se cobro el domicilio a mano), aunque todavia no
+       esten autorizados: sirven para reconocer, no para cobrar solos. */
+    const cfgDomiRow = await sbGet(`/rest/v1/ia_config?branch_id=eq.${branchId}&select=domicilios&limit=1`) as Array<Record<string, unknown>> | null;
+    const zonasCfg = (((cfgDomiRow?.[0]?.domicilios || {}) as Record<string, unknown>).zonas || []) as Array<{ precio?: number; barrios?: string[] }>;
+    const aprendidos = await sbGet(`/rest/v1/pos_domi_aprendidos?branch_id=eq.${branchId}&select=barrio,precio`) as Array<Record<string, unknown>> | null || [];
+    const barriosTabla = zonasCfg.flatMap(z => (z.barrios || []).map(b => String(b)));
+    const barriosAprend = aprendidos.map(a => String(a.barrio || "")).filter(Boolean);
+    const barriosConocidos = [...new Set([...barriosTabla, ...barriosAprend])].filter(Boolean);
+
     const sysMsg =
 `Eres un asistente que extrae el PEDIDO de una conversación de WhatsApp de un restaurante colombiano.
 Analiza la conversación y devuelve SOLO un JSON con esta forma exacta:
@@ -454,13 +468,22 @@ REGLAS IMPORTANTES:
 - "adiciones": ingredientes EXTRA que el cliente pide sobre el producto. El cliente NO siempre dice la palabra "adición": puede decir "con", "y", "más", "extra", "le agregas", o solo el nombre (ej. "una premium mixta CON ranchera" o "una ranchera CON tocineta" → adiciones: "tocineta"). Usa la lista ADICIONES DISPONIBLES de abajo para reconocerlas; si un ingrediente aparece ahí, es una adición.
 - Distingue el PRODUCTO (nombre del menú) de sus ADICIONES: el producto es lo principal que pide; lo que agrega "con/más/extra" son adiciones.
 - Separa el BARRIO en su propio campo "barrio" (no lo mezcles dentro de "direccion").
+- BARRIO: mira la lista BARRIOS CONOCIDOS de abajo. Si lo que dice el cliente
+  corresponde a uno de esos barrios, pon el nombre EXACTAMENTE como aparece en la
+  lista, aunque el cliente lo escriba distinto, con errores, sin tildes, pegado,
+  abreviado o con una referencia ("por el uvo", "detras del Canterbury",
+  "bellavista", "sta teresa", "la esperanza cerca al parque"). Si de verdad no
+  corresponde a ninguno, escribe el barrio tal como lo dijo el cliente. Si no
+  menciona ningun barrio, pon null. NO inventes un barrio que el cliente no dijo.
 - Usa EXACTAMENTE los nombres, tamaños y tipos del MENÚ cuando coincidan. Si un dato no aparece, ponlo null.
 Responde solo el JSON.
 
 MENÚ DISPONIBLE:
 ${menuLines || "(sin menú cargado)"}
 
-ADICIONES DISPONIBLES (ingredientes extra que el cliente puede agregar con "con", "más", "extra" o solo el nombre): ${adicList || "(ninguna)"}`;
+ADICIONES DISPONIBLES (ingredientes extra que el cliente puede agregar con "con", "más", "extra" o solo el nombre): ${adicList || "(ninguna)"}
+
+BARRIOS CONOCIDOS (escribe el barrio EXACTAMENTE como aparece aquí cuando corresponda): ${barriosConocidos.join(", ") || "(ninguno)"}`;
 
     const gptRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -539,8 +562,7 @@ ADICIONES DISPONIBLES (ingredientes extra que el cliente puede agregar con "con"
     let domiBarrio = "";
     let domiConfirmar = false;
     try {
-      const cfgRow = await sbGet(`/rest/v1/ia_config?branch_id=eq.${branchId}&select=domicilios&limit=1`) as Array<Record<string, unknown>> | null;
-      const zonas = (((cfgRow?.[0]?.domicilios || {}) as Record<string, unknown>).zonas || []) as Array<{ precio?: number; barrios?: string[] }>;
+      const zonas = zonasCfg;
       const donde = norm([barrioTxt, direccionTxt, clienteTexto].filter(Boolean).join(" | "));
       // También se compara SIN espacios: la gente escribe "BELLAVISTA" y en la
       // tabla está "Bella Vista"; sin esto no se reconocía y quedaba sin precio.
@@ -557,6 +579,73 @@ ADICIONES DISPONIBLES (ingredientes extra que el cliente puede agregar con "con"
           }
         }
       }
+      /* Si la comparacion literal no encontro nada, se intenta PARECIDO: la
+         gente escribe "bellabista", "kanterbury", "la esperansa". Se acepta
+         cuando la diferencia es de una o dos letras sobre nombres largos, para
+         no confundir barrios distintos que se parecen. */
+      if (!domiPrecio) {
+        const dist = (a: string, b: string) => {
+          const m = a.length, n2 = b.length;
+          let prev = Array.from({ length: n2 + 1 }, (_, j) => j);
+          for (let i = 1; i <= m; i++) {
+            const cur = [i];
+            for (let j = 1; j <= n2; j++) {
+              cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+            }
+            prev = cur;
+          }
+          return prev[n2];
+        };
+        const palabras = donde.split(/[^a-z0-9]+/).filter(w => w.length >= 5);
+        let mejorD = 99;
+        for (const z of zonas) {
+          for (const b of (z.barrios || [])) {
+            const bn = norm(String(b || "")); if (bn.length < 6) continue;
+            const bnj = bn.replace(/\s+/g, "");
+            for (const w of palabras) {
+              const d = dist(w, bnj);
+              const tope = bnj.length >= 9 ? 2 : 1;
+              if (d <= tope && d < mejorD) {
+                mejorD = d; domiPrecio = Number(z.precio) || 0; domiBarrio = String(b);
+              }
+            }
+          }
+        }
+      }
+
+      /* Ultimo respaldo: los barrios que el sistema YA APRENDIO. No fija el
+         precio como definitivo — lo sugiere — porque autorizarlos es decision
+         del dueno desde Configuracion. Pero al menos deja de salir en $0 y con
+         el barrio vacio cuando ya se cobro ese mismo barrio antes. */
+      let domiSugerido = false;
+      if (!domiPrecio) {
+        let mejorA = 0;
+        for (const a of aprendidos) {
+          const bn = norm(String(a.barrio || "")); if (bn.length < 4) continue;
+          const bnSinEsp = bn.replace(/\s+/g, "");
+          const hay = donde.includes(bn) || (bnSinEsp.length >= 6 && dondeSinEsp.includes(bnSinEsp));
+          if (hay && bn.length > mejorA) {
+            mejorA = bn.length;
+            domiPrecio = Number(a.precio) || 0;
+            domiBarrio = String(a.barrio);
+            domiSugerido = true;
+          }
+        }
+      }
+
+      /* Y si el CLIENTE ya tiene barrio guardado, se usa ese: es el mismo
+         cliente pidiendo a la misma casa, aunque hoy haya escrito la direccion
+         de otra forma. */
+      if (!domiBarrio && clienteConocido && (clienteConocido as Record<string, unknown>).barrio) {
+        domiBarrio = String((clienteConocido as Record<string, unknown>).barrio);
+        for (const z of zonas) {
+          for (const b of (z.barrios || [])) {
+            if (norm(String(b)) === norm(domiBarrio)) domiPrecio = Number(z.precio) || 0;
+          }
+        }
+      }
+
+      (extracted as Record<string, unknown>)._domiSugerido = domiSugerido;
       // Domicilio sin barrio reconocido: se deja en 0 y se avisa, en vez de
       // inventar una tarifa. El operador lo escribe y el sistema aprende cuál era.
       if (String(extracted.tipo || "domicilio") === "domicilio" && !domiPrecio) domiConfirmar = true;
@@ -578,6 +667,7 @@ ADICIONES DISPONIBLES (ingredientes extra que el cliente puede agregar con "con"
         domi_precio: domiPrecio,
         domi_barrio: domiBarrio,
         domi_confirmar: domiConfirmar,
+        domi_sugerido: !!(extracted as Record<string, unknown>)._domiSugerido,
         productos, subtotal, branch_id: branchId, tenant_id: tenantId,
       },
       catalogo, categorias, mods: allMods,

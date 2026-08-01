@@ -2449,3 +2449,81 @@ estado desde la pastilla, la tarjeta se repinta sola.
 domicilio en preparacion -> siguiente "listo"; en camino -> siguiente
 "entregado"; para llevar listo -> siguiente "entregado"; y **entregado y anulado
 ocultan la tarjeta**, que es lo pedido.
+
+
+---
+
+## 79. Que el barrio no falle aunque lo escriban mal (2026-08-01)
+
+Sergio aclaro dos cosas y en las dos tenia razon:
+1. *"El barrio se llena solo esta bien. El problema solo pasa cuando el cliente
+   escribe de una manera extraña en la direccion y el bot no logra detectar el
+   barrio"*. Mi diagnostico de "no se autocompleta" estaba mal enfocado.
+2. *"No creo que haya necesidad de corregir precios de barrios porque por lo
+   mismo tu hiciste el sistema para que auto aprenda"*. Correcto: el sistema ya
+   los aprende y el los autoriza desde Configuracion. No habia nada que arreglar
+   ahi.
+
+### El problema real: reconocer el barrio escrito de cualquier forma
+Antes se comparaba por **subcadena exacta** contra `ia_config.domicilios.zonas`.
+Con eso, `bellabista`, `kanterbury`, `la esperansa` o `por el uvo` no
+coincidian con nada y el domicilio quedaba en $0.
+
+### Cuatro mejoras (extraer-pedido v28)
+1. **Al modelo se le da la LISTA de barrios conocidos** y se le pide que escoja
+   de ahi, no que adivine un nombre suelto. Es lo que resuelve las referencias
+   ("queda por el uvo detras del colegio").
+2. **Emparejado por PARECIDO** (distancia de edicion) para erratas: 1 letra en
+   nombres de 6+, 2 en nombres de 9+. Umbral corto a proposito, para no
+   confundir barrios distintos que se parecen.
+3. **Los barrios APRENDIDOS entran al reconocimiento.** Antes el sistema los
+   guardaba pero **no los usaba**: aprendia y seguia fallando. Ahora los usa
+   para reconocer y **sugiere** el precio ya cobrado (`domi_sugerido: true`),
+   sin darlo por autorizado — autorizarlos sigue siendo decision del dueno.
+4. **El barrio guardado del cliente** como ultimo respaldo: mismo cliente,
+   misma casa, aunque hoy escriba la direccion de otra forma.
+
+### Probado (8 de 8) con conversaciones de prueba, borradas al terminar
+| Lo que escribe el cliente | Resultado |
+|---|---|
+| `bellabista` | Bella Vista · $5.000 |
+| `kanterbury` | Canterbury · $5.000 |
+| `la esperansa` | La Esperanza · $5.000 |
+| `queda por el uvo detras del colegio` | El Uvo · $5.000 |
+| `sta teresa` | Santa Teresa · $10.000 |
+| `BELLAVISTA` (pegado) | Bella Vista · $5.000 |
+| `torres del bosque` (aprendido) | Torres del Bosque · $5.000 *(sugerido)* |
+| `barrio Los Manzanos` (no existe) | **$0, sin reconocer** |
+
+El ultimo caso importa tanto como los otros: **no se inventa una tarifa**. Queda
+para que el operador la escriba, y ahi el sistema lo aprende.
+
+---
+
+## 80. BARRIDO DE PERMISOS — 28 GRANTs faltantes (2026-08-01)
+
+Buscando por que no se leian los barrios aprendidos apareció **otra vez** el
+mismo error: `pos_domi_aprendidos` no tenia `SELECT` para `service_role`, asi
+que la Edge Function no podia leerla. **Es la tercera vez** (antes:
+`iv_porciones` y `pos_wa_envios`).
+
+Se hizo el barrido completo que estaba pendiente desde el 2026-07-24. **Faltaban
+28 permisos:**
+
+- **Sin acceso para la APP (`authenticated`), 6 tablas:** `iv_movimientos`,
+  `pos_blacklist`, `pos_blacklist_direcciones`, `pos_registrations`,
+  `pos_reservations`, `pos_gerente_procesados`.
+- **Sin acceso para las FUNCIONES (`service_role`), 22 tablas:** las anteriores
+  mas `iv_conteos`, `iv_conteo_lineas`, `iv_merma`, `iv_params`, `pos_bases`,
+  `pos_cash_moves`, `pos_creditos`, `pos_credito_movimientos`,
+  `pos_domi_aprendidos`, `pos_mesa_tiempos`, `pos_print_config`, `pos_printers`,
+  `pos_puntos`, `pos_roles`, `pos_shifts`, `pos_wa_contactos`,
+  `pos_blacklist_telefonos`.
+
+Aplicados y verificados: **no queda ninguna tabla sin permisos**.
+
+**REGLA, para no repetirlo una cuarta vez:** al crear una tabla nueva, el
+`GRANT` va **a los dos roles**:
+`GRANT SELECT, INSERT, UPDATE, DELETE ON public.<tabla> TO authenticated, service_role;`
+La RLS sigue protegiendo por tenant; el GRANT solo abre la puerta.
+Consulta de chequeo en `sql/2026-08-01-barrido-grants.sql`.
