@@ -2054,3 +2054,55 @@ perdio, nada se duplico, y los 1.255 restantes siguieron en `pendiente`.
 **Leccion.** Un proceso largo detras de un boton tiene que poder reanudarse.
 El diseno de cola estaba bien; lo que faltaba era que la funcion admitiera
 quedarse a medias en vez de morir.
+
+
+---
+
+## 71. Productos en $0 al armar el pedido desde el chat — RESUELTO (2026-08-01)
+
+Sergio: *"acabo de hacer un pedido y todavia sigue colocando productos en 0
+pesos"*, *"sigue pasando con varias, en especial las tradicionales"*, *"y la
+bebida tampoco"*. Las dos observaciones suyas eran **dos bugs distintos** y las
+dos apuntaban justo al sitio correcto.
+
+Reproducido en vivo contra la conversacion real del 01/08 00:55
+(`db2f9908`, "una salchipapa pollo personal"): `matched:false`, `$0`.
+
+### Bug A — "tradicionales" contiene la palabra "adicion"
+`esCatAdicion()` decidia si una categoria era de ADICIONES con
+`nombre.includes("adicion")`. Y **"tradicionales" = tr + ADICION + ales**.
+Resultado: *Salchipapas Tradicionales* se clasificaba como categoria de
+adiciones y quedaba **excluida del universo de busqueda**. Por eso fallaban las
+tradicionales y no las especiales — exactamente como lo describio Sergio.
+Arreglo: comparar por PALABRA COMPLETA (`/(^|\s)adicion/`), no por subcadena.
+
+### Bug B — un pedido de dos cosas se contaminaba a si mismo
+La categoria se deducia mirando **todo** lo que escribio el cliente. En
+*"una salchipapa familiar mixta y una coca cola"*, al procesar la BEBIDA el
+texto todavia contenia "salchipapa", asi que la categoria se resolvia a
+Salchipapas, la Coca Cola no estaba ahi y salia en **$0**.
+Pasaba en las dos capas (1a y 1b). Arreglo: `pareceEste()` compara solo contra
+el texto de ESE producto (`nl` / `nameBlob`), nunca contra `cliBlob`. Si la
+categoria hallada no contiene ningun producto que se parezca, se descarta.
+
+### Bug C — GPT pone la categoria en "nombre" y el producto en "tipo"
+"una salchipapa pollo personal" -> `nombre:"Salchipapa"`, `tipo:"pollo"`, pero
+el producto se llama **"Pollo"**. Como `nameBlob` excluye el tipo A PROPOSITO
+(para que "premium mixta" no le infle el puntaje al producto "Mixta"), ningun
+producto puntuaba. Arreglo: bloque de RESCATE que reintenta usando el tipo como
+nombre, **solo si la via normal fallo** y **solo dentro de la categoria ya
+resuelta**, para no tocar el caso que `nameBlob` protege.
+
+### Verificacion (funcion v27)
+Regresion sobre **10 conversaciones reales** de los ultimos 5 dias:
+**0 productos sin resolver** (antes fallaban 3). Ejemplos:
+- "salchipapa pollo personal" -> Pollo Personal **$17.000** (antes $0)
+- "salchipapa familiar mixta + coca cola 1.5" -> $49.000 + **$8.000** (antes $0)
+- "premium de pollo personal + HIT mora" -> $28.000 + **$5.000** (antes $0)
+- Premium/Super Queso/Hamburguesa doble carne: sin cambios, siguen bien.
+
+Una conversacion devuelve "(sin productos)" y **es correcto**: su pedido es de
+hace 4 dias y el ultimo mensaje es un saludo suelto (corte por hueco de 4 h).
+
+**Nota:** se reviso `delay-reply` y `crear-pedido-chat` por el mismo error de
+subcadena — **no lo tienen**. Era exclusivo de `extraer-pedido`.
