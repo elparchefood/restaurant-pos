@@ -155,6 +155,9 @@
             </div>
           </div>
           <div class="pg-trow pg-tgrand"><span>Total a pagar</span><span id="t-total">$0</span></div>
+          <!-- Puntos que ganaria el cliente con este pedido (antes de cobrar).
+               Se llena en renderTotals(); ver pgPuntosPreview(). -->
+          <div class="pg-puntos-pre" id="t-puntos" hidden></div>
         </div>
       </aside>
 
@@ -325,7 +328,7 @@
 <script src="pos-impuestos.js?v=1"></script>
 <script src="pos-creditos.js?v=1"></script>
 <script src="pos-clientes.js?v=1787940000"></script>
-<script src="pagos.js?v=1787950000"></script>
+<script src="pagos.js?v=1787960000"></script>
 
   <!-- ════ MODAL: DESCUENTO ════ -->
   <div class="pg-overlay" id="discount-modal" hidden>

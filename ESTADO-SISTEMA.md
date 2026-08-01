@@ -2577,3 +2577,46 @@ Pedido de **mesa** por $35.000 (comida + empaque) con cliente asociado:
   este en el catalogo de canje.
 - **Catalogo de canje** (que se puede pedir con puntos y cuanto cuesta).
 - Sergio debe escoger **cual de las dos plantillas** de puntos se usa.
+
+
+---
+
+## 82. Puntos ANUNCIADOS antes de cobrar (2026-08-01)
+
+Sergio: *"en la pantalla de pagos, antes de pagar, ya aparecera cuantos puntos
+va a ganar el cliente... esto se hace por si algun cliente al momento de pagar
+pregunta cuantos puntos va a ganar, podemos informarle de inmediato"*.
+
+Debajo del **Total a pagar** aparece ahora una franja verde:
+`Andrea ganara 35 puntos con este pedido`. Se recalcula en cada
+`renderTotals()`, asi que sigue en vivo al empaque, al domicilio y al cambiar de
+cliente.
+
+**Es solo un anuncio: no suma nada.** Los puntos los carga la base cuando el
+pedido queda pagado. Si el cobro se cancela, nunca se sumo nada — no hay que
+deshacer nada, que es justo lo que pidio Sergio.
+
+**Sin cliente identificado** se muestra en gris: *"Este pedido vale 35 puntos.
+Toca Consumidor final arriba para asignarselos a un cliente"*. Se dice la
+verdad (no se van a acumular) y de paso se recuerda como hacerlo.
+
+### Un desalineamiento que se detecto a tiempo
+La primera version restaba el **descuento** al calcular los puntos. **El trigger
+de la base NO lo resta**, porque `subtotal` se guarda sin descuento y al
+finalizar el cobro no se reescribe. Con un descuento, la pantalla habria
+anunciado menos puntos de los que la base iba a cargar.
+Se alineo la pantalla con la base y quedo el comentario en las dos partes.
+
+**PENDIENTE (decision de Sergio):** hoy un pedido con descuento acumula puntos
+sobre el precio SIN descuento. Si se quiere que el descuento baje los puntos hay
+que cambiar `award_loyalty_points` **y** `pgPuntosPreview` a la vez.
+
+### Verificado: lo anunciado == lo cargado
+| Escenario | Anuncio | Cargado |
+|---|---|---|
+| Mesa $34.000 + empaque $1.000 | 35 | **35** |
+| Domicilio $17.000 + empaque, con envio $5.000 | 18 | **18** |
+| Venta rapida $20.000 + empaque, descuento $5.000 | 21 | **21** |
+
+El domicilio no da puntos (no es venta) y la propina tampoco. Datos de prueba
+borrados.

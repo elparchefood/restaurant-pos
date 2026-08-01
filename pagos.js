@@ -296,6 +296,9 @@ function renderTotals() {
     document.querySelector('[data-action="discount"]').classList.remove('is-active');
   }
 
+  // Puntos que ganaria el cliente con este pedido (todavia no cobrado)
+  pgPuntosPreview(subtotal, empaque);
+
   // Propina (bloque completo)
   renderTip(subtotal, tipAmt);
 
@@ -1631,6 +1634,7 @@ async function pgGuardarCliente(id, nombre, tel) {
     }).eq('id', SP.orderId);
   } catch (e) { console.error('[pagos] no se pudo asociar el cliente:', e); }
   pgPintarCliente();
+  renderTotals();   // el anuncio de puntos cambia al identificar o quitar al cliente
 }
 
 async function pgPintarCliente() {
@@ -1682,5 +1686,51 @@ async function pgMostrarPuntosGanados(total, domi, empaque) {
   } catch (e) {
     var s2 = document.getElementById('done-puntos-tot');
     if (s2) s2.textContent = '';
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   PUNTOS QUE VA A GANAR EL CLIENTE — ANTES DE COBRAR
+   Sergio: "por si algun cliente al momento de pagar pregunta cuantos puntos va
+   a ganar, podemos informarle de inmediato".
+
+   Es solo un ANUNCIO: no suma nada. Los puntos los carga la base cuando el
+   pedido queda pagado. Si el cobro se cancela, no se sumo nunca nada, asi que
+   no hay que deshacer nada.
+
+   Se recalcula en cada `renderTotals()`, o sea que sigue al descuento, al
+   empaque y al domicilio en vivo. La propina NO cuenta: no es venta del
+   restaurante. El domicilio tampoco.
+   ══════════════════════════════════════════════════════════════════ */
+function pgPuntosPreview(subtotal, empaque) {
+  var el = document.getElementById('t-puntos');
+  if (!el) return;
+
+  /* OJO: se calcula EXACTAMENTE igual que el trigger de la base
+     (`subtotal + packaging_fee`), y el trigger NO descuenta el descuento
+     porque `subtotal` se guarda sin el. Si aqui se restara, la pantalla
+     anunciaria unos puntos y la base cargaria otros. Que el descuento deba o
+     no bajar los puntos es una decision del negocio: el dia que se cambie,
+     hay que cambiar el trigger Y esta linea. */
+  var base = (Number(subtotal) || 0) + (Number(empaque) || 0);
+  var pts = window.posPuntosPedido
+    ? window.posPuntosPedido({ subtotal: base, packaging_fee: 0, total: base, delivery_fee: 0 })
+    : Math.max(0, Math.floor(base / 1000));
+
+  if (pts <= 0) { el.hidden = true; return; }
+
+  el.hidden = false;
+  if (SP.clienteTel) {
+    el.classList.remove('is-anon');
+    el.innerHTML = '<span>\u2b50</span><span>'
+      + (SP.cliente ? _payEsc(SP.cliente) + ' ganar\u00e1 ' : 'Ganar\u00e1 ')
+      + '<b>' + pts + ' puntos</b> con este pedido</span>';
+  } else {
+    // Sin cliente identificado los puntos NO se van a acumular. Se dice tal
+    // cual, y de paso se recuerda como hacerlo.
+    el.classList.add('is-anon');
+    el.innerHTML = '<span>\u2b50</span><span>Este pedido vale <b>' + pts
+      + ' puntos</b>. Toca <b>Consumidor final</b> arriba para asign\u00e1rselos a un cliente.</span>';
   }
 }
