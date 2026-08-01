@@ -307,3 +307,35 @@ Lo que sigue:
 
 Los arreglos del §13 son pequeños y se pueden ir haciendo en cualquier momento;
 el 13.1, el 13.2 y el 13.5 afectan números que ya se están mirando.
+
+
+---
+
+## Puntos al cliente en TODOS los pedidos (pedido por Sergio 2026-07-31)
+
+Hoy los puntos solo se acumulan por algunos caminos. Deben acumularse **siempre
+que haya un cliente identificado**, sin importar de donde venga el pedido:
+
+- Mesa
+- Venta rapida
+- Domicilio
+
+**Como debe funcionar:**
+
+1. En la pantalla de pagos (o donde se elija el cliente) debe poder
+   **seleccionarse un cliente** antes de cobrar.
+2. Si el cliente **ya esta guardado** -> los puntos de esa venta se le suman a el.
+3. Si **no esta guardado** -> se guarda en ese momento con el telefono que se
+   escriba, y los puntos quedan asociados a ese numero. El telefono es la
+   llave del cliente (`pos_clientes`), asi que aunque solo se tenga el numero
+   los puntos ya quedan en su cuenta y aparecen cuando despues se le complete
+   el nombre.
+4. Si no se identifica a nadie, la venta sigue igual que hoy: sin puntos.
+
+**Ojo:** el mismo cliente tiene que sumar en su unica cuenta aunque un dia pida
+a domicilio y otro dia venga a la mesa. Es el mismo telefono, es el mismo
+cliente, es el mismo saldo de puntos.
+
+**Relacionado:** ese mismo dia hay que dejar los **puntos como metodo de pago**
+en la pantalla de pagos (solo para redimir lo que este en el catalogo de
+canje), y Sergio va a escoger cual de las dos plantillas de puntos se usa.
