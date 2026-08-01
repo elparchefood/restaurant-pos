@@ -52,6 +52,29 @@ async function ptCargar() {
     return;
   }
   ptRender();
+  ptKpis();
+}
+
+/* Las tres cifras de arriba. La de "puntos en circulacion" es la que importa:
+   es plata comprometida en premios que todavia no se han canjeado. */
+async function ptKpis() {
+  var host = document.getElementById('pt-kpis');
+  if (!host) return;
+  var canjeables = _ptCat.filter(function (f) { return f.activo; }).length;
+  var clientes = 0, circulacion = 0;
+  try {
+    var st = ptCtx();
+    var r = await ptSb().from('pos_puntos').select('puntos').eq('tenant_id', st.tenantId);
+    (r.data || []).forEach(function (x) {
+      var n = Number(x.puntos) || 0;
+      if (n > 0) { clientes++; circulacion += n; }
+    });
+  } catch (e) { /* si no se pueden leer, se muestran las que si */ }
+  var mil = function (n) { return Number(n || 0).toLocaleString('es-CO'); };
+  host.innerHTML =
+      '<div class="pt-kpi"><b>' + canjeables + '</b><span>producto' + (canjeables === 1 ? '' : 's') + ' canjeable' + (canjeables === 1 ? '' : 's') + '</span></div>'
+    + '<div class="pt-kpi"><b>' + mil(clientes) + '</b><span>cliente' + (clientes === 1 ? '' : 's') + ' con puntos</span></div>'
+    + '<div class="pt-kpi is-pts"><b>' + mil(circulacion) + '</b><span>puntos en circulación</span></div>';
 }
 
 function ptProd(id) {
@@ -102,7 +125,7 @@ function ptRender() {
         +   '<div class="pt-pres">' + ptEsc(f.pres_nombre || 'Único') + '</div>'
         +   '<div class="pt-vars">' + ptEsc(ptVariantesTxt(f, prod)) + '</div>'
         + '</div>'
-        + '<div class="pt-pts">' + f.puntos + ' pts</div>'
+        + '<span class="pt-pts">' + Number(f.puntos).toLocaleString('es-CO') + ' pts</span>'
         + '<button class="cf-mini-btn" onclick="ptToggle(' + "'" + f.id + "'" + ')">'
         +   (f.activo ? 'Desactivar' : 'Activar') + '</button>'
         + '<button class="cf-mini-btn is-danger" onclick="ptBorrar(' + "'" + f.id + "'" + ')">Quitar</button>'
@@ -148,7 +171,7 @@ function ptModal(productId) {
   +     '<button class="pt-x" onclick="this.closest(' + "'.pt-bd'" + ').remove()">✕</button>'
   +   '</div>'
   +   '<div class="pt-modal-bd">'
-  +     '<input class="iv-input" id="pt-buscar" placeholder="Buscar producto…" autocomplete="off">'
+  +     '<input class="cf-search" style="width:100%;box-sizing:border-box" id="pt-buscar" placeholder="Buscar producto…" autocomplete="off">'
   +     '<div id="pt-sug" class="pt-sug"></div>'
   +     '<div id="pt-detalle"></div>'
   +   '</div>'
@@ -206,7 +229,7 @@ function ptElegir(productId) {
       +   ' data-nombre="' + ptEsc(pr.name || 'Único') + '"' + (on ? ' checked' : '') + '>'
       + '<span class="pt-pres-n">' + ptEsc(pr.name || 'Único') + '</span>'
       + '<span class="pt-pres-p">'
-      +   '<input type="number" min="1" step="1" class="iv-input pt-inp-pts" placeholder="puntos"'
+      +   '<input type="number" min="1" step="1" class="pt-inp-pts" placeholder="puntos"'
       +     ' data-pres="' + ptEsc(pr.id || '') + '" value="' + (g ? g.puntos : '') + '">'
       +   '<span class="pt-pts-lbl">puntos</span>'
       + '</span></label>';

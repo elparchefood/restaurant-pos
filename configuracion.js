@@ -3032,6 +3032,15 @@ function crRender() {
       +   '<div class="cr-nom">' + posCreditos.esc(c.nombre) + (c.activo ? '' : ' <span class="cr-off">desactivado</span>') + '</div>'
       +   '<div class="cr-sub">' + posCreditos.esc(c.telefono || c.documento || '—') + '</div>'
       + '</div>'
+      + (function(){
+            /* Barra de cupo: se ve de un vistazo a quien ya casi no se le
+               puede fiar, sin tener que comparar dos cifras mentalmente. */
+            var cu = Number(c.cupo) || 0;
+            var usado = cu > 0 ? Math.min(100, Math.round(saldo / cu * 100)) : 0;
+            var clase = tono === 'bad' ? ' bad' : tono === 'warn' ? ' warn' : '';
+            return '<div class="cr-bar" title="' + usado + '% del cupo usado">'
+                 + '<i class="' + clase.trim() + '" style="width:' + usado + '%"></i></div>';
+          })()
       + '<div class="cr-num"><b>' + posCreditos.money(c.cupo) + '</b><span>cupo</span></div>'
       + '<div class="cr-num"><b>' + posCreditos.money(saldo) + '</b><span>debe</span></div>'
       + '<div class="cr-num ' + tono + '"><b>' + posCreditos.money(disp) + '</b><span>le queda</span></div>'

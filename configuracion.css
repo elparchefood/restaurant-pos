@@ -1317,43 +1317,107 @@ div.master[data-tab].cia-active { display: flex !important; }
 .wl-res{ font-size:12px; margin-top:8px; min-height:16px; }
 
 
-/* ═══════════ Catálogo de canje por puntos ═══════════ */
-.pt-lista{display:flex;flex-direction:column;gap:12px;margin-top:14px}
-.pt-card{border:1.5px solid #ECEEF2;border-radius:13px;overflow:hidden;background:#fff}
-.pt-card-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:12px 15px;background:#FAFBFC;border-bottom:1px solid #F1F5F9}
-.pt-prod{font-weight:700;color:#0F172A;font-size:14px}
-.pt-cat{font-size:11.5px;color:#94A3B8;margin-top:1px}
-.pt-row{display:flex;align-items:center;gap:10px;padding:11px 15px;border-bottom:1px solid #F6F8FA}
-.pt-row:last-child{border-bottom:0}
-.pt-row.is-off{opacity:.5}
-.pt-row-l{flex:1;min-width:0}
-.pt-pres{font-size:13px;font-weight:600;color:#334155}
-.pt-vars{font-size:11.5px;color:#94A3B8;margin-top:1px}
-.pt-pts{font-weight:800;color:#7C3AED;font-size:13.5px;white-space:nowrap}
+/* ══════════════════════════════════════════════════════════════
+   CUERPO DE UNA SOLA COLUMNA
+   `cf-body` es una rejilla de DOS columnas (contenido + panel lateral) hecha
+   para la pantalla de Mesas. Creditos y Puntos la usaban y por eso el
+   contenido salia partido en dos y descuadrado. Las pantallas que son una
+   lista larga usan esta.
+   ══════════════════════════════════════════════════════════════ */
+.cf-body-solo{ flex:1; min-height:0; overflow-y:auto; padding:0 24px 24px; }
+.cf-body-solo > *{ max-width:860px; }
 
-.pt-bd{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:99999;
-  display:flex;align-items:center;justify-content:center;padding:20px}
-.pt-modal{background:#fff;border-radius:16px;max-width:520px;width:100%;max-height:86vh;
-  display:flex;flex-direction:column;box-shadow:0 20px 55px rgba(0,0,0,.25)}
-.pt-modal-hd{display:flex;align-items:center;justify-content:space-between;
-  padding:16px 20px;border-bottom:1px solid #F1F5F9}
-.pt-modal-t{font-weight:700;color:#0F172A;font-size:15px}
-.pt-x{border:0;background:none;font-size:16px;color:#94A3B8;cursor:pointer;padding:2px 6px}
-.pt-modal-bd{padding:16px 20px;overflow-y:auto;flex:1}
-.pt-modal-ft{display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid #F1F5F9}
-.pt-sug{margin-top:8px;display:flex;flex-direction:column;gap:2px;max-height:220px;overflow-y:auto}
-.pt-sug-item{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;
-  border:0;background:none;padding:9px 11px;border-radius:8px;cursor:pointer;font-size:13px;color:#334155}
-.pt-sug-item:hover{background:#F1F5F9}
-.pt-sug-cat{color:#94A3B8;font-size:11.5px}
-.pt-sub{font-weight:700;color:#0F172A;font-size:13px;margin:16px 0 4px}
-.pt-nota{font-size:12px;color:#64748B;margin-bottom:9px;line-height:1.45}
-.pt-pres-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #F6F8FA}
-.pt-pres-n{flex:1;font-size:13px;color:#334155;font-weight:600}
-.pt-pres-p{display:flex;align-items:center;gap:6px}
-.pt-inp-pts{width:92px;text-align:right}
-.pt-pts-lbl{font-size:11.5px;color:#94A3B8}
-.pt-vgroup{margin-top:10px}
-.pt-vgroup-n{font-size:12px;font-weight:700;color:#64748B;margin-bottom:5px}
-.pt-vopt{display:inline-flex;align-items:center;gap:6px;margin:0 14px 6px 0;font-size:12.5px;color:#334155}
+/* Controles compartidos (antes se usaban clases de Inventario que aqui no existen) */
+.cf-chip{ border:1px solid var(--border); background:var(--surface); color:var(--ink-2);
+  padding:7px 13px; border-radius:999px; font-family:inherit; font-size:12.5px;
+  font-weight:600; cursor:pointer; transition:background .14s,border-color .14s,color .14s; }
+.cf-chip:hover{ background:var(--soft); }
+.cf-chip.on{ background:var(--accent-50); border-color:#D6DCFF; color:var(--accent); }
+.cf-search{ flex:1; min-width:200px; border:1px solid var(--border); border-radius:var(--r-sm);
+  padding:8px 12px; font-family:inherit; font-size:12.5px; color:var(--ink);
+  background:var(--surface); outline:none; }
+.cf-search:focus{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
+.cf-search::placeholder{ color:var(--ink-4); }
+.cf-mini-btn{ border:1px solid var(--border); background:var(--surface); color:var(--ink-3);
+  border-radius:8px; padding:6px 10px; font-family:inherit; font-size:11.5px;
+  font-weight:600; cursor:pointer; white-space:nowrap; }
+.cf-mini-btn:hover{ background:var(--soft); }
+.cf-mini-btn.is-danger{ color:var(--danger); border-color:var(--danger-bd); }
+.cf-mini-btn.is-danger:hover{ background:var(--danger-bg); }
+
+/* Barra de cupo del credito: se ve de un vistazo quien esta por pasarse */
+.cr-bar{ width:120px; height:6px; border-radius:99px; background:var(--soft); overflow:hidden; flex:0 0 auto; }
+.cr-bar i{ display:block; height:100%; background:var(--accent); }
+.cr-bar i.warn{ background:#F59E0B; }
+.cr-bar i.bad{ background:var(--danger); }
+
+/* ═══════════ Catalogo de canje por puntos ═══════════ */
+.pt-kpis{ display:flex; gap:10px; margin:14px 0; flex-wrap:wrap; }
+.pt-kpi{ flex:1; min-width:132px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r-md); padding:12px 14px; }
+.pt-kpi b{ display:block; font-size:18px; font-weight:800; color:var(--ink); letter-spacing:-.02em; }
+.pt-kpi span{ font-size:11px; color:var(--ink-3); }
+.pt-kpi.is-pts b{ color:#7C3AED; }
+
+.pt-lista{ display:flex; flex-direction:column; gap:11px; }
+.pt-card{ background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r-md); overflow:hidden; }
+.pt-card-hd{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:11px 15px; background:var(--soft-2); border-bottom:1px solid var(--border); }
+.pt-prod{ font-weight:700; color:var(--ink); font-size:13.5px; }
+.pt-cat{ font-size:11px; color:var(--ink-4); margin-top:1px; }
+.pt-row{ display:flex; align-items:center; gap:12px; padding:11px 15px; border-top:1px solid #F6F8FA; }
+.pt-row:first-of-type{ border-top:0; }
+.pt-row.is-off{ opacity:.5; }
+.pt-row-l{ flex:1; min-width:0; }
+.pt-pres{ font-size:13px; font-weight:600; color:var(--ink-2); }
+.pt-vars{ font-size:11.5px; color:var(--ink-4); margin-top:1px; }
+.pt-pts{ font-weight:800; font-size:13px; color:#7C3AED; background:#F5F3FF;
+  border:1px solid #DDD6FE; padding:4px 9px; border-radius:8px; white-space:nowrap; }
+
+.pt-bd{ position:fixed; inset:0; background:rgba(15,23,42,.45); z-index:99999;
+  display:flex; align-items:center; justify-content:center; padding:20px; }
+.pt-modal{ background:var(--surface); border-radius:var(--r-card); max-width:470px; width:100%;
+  max-height:86vh; display:flex; flex-direction:column; box-shadow:0 20px 55px rgba(0,0,0,.25); }
+.pt-modal-hd{ display:flex; align-items:center; justify-content:space-between;
+  padding:15px 19px; border-bottom:1px solid var(--border); }
+.pt-modal-t{ font-weight:700; color:var(--ink); font-size:14.5px; }
+.pt-x{ border:0; background:none; font-size:15px; color:var(--ink-4); cursor:pointer; padding:2px 6px; }
+.pt-modal-bd{ padding:15px 19px; overflow-y:auto; flex:1; }
+.pt-modal-ft{ display:flex; gap:8px; justify-content:flex-end; padding:13px 19px;
+  border-top:1px solid var(--border); }
+.pt-sug{ margin-top:8px; display:flex; flex-direction:column; gap:2px; max-height:220px; overflow-y:auto; }
+.pt-sug-item{ display:flex; justify-content:space-between; gap:10px; width:100%; text-align:left;
+  border:0; background:none; padding:9px 11px; border-radius:8px; cursor:pointer;
+  font-family:inherit; font-size:13px; color:var(--ink-2); }
+.pt-sug-item:hover{ background:var(--soft); }
+.pt-sug-cat{ color:var(--ink-4); font-size:11.5px; }
+.pt-sub{ font-weight:700; color:var(--ink); font-size:12.5px; margin:15px 0 3px; }
+.pt-nota{ font-size:11.5px; color:var(--ink-3); margin-bottom:9px; line-height:1.5; }
+.pt-pres-row{ display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid #F6F8FA; }
+.pt-pres-n{ flex:1; font-size:13px; color:var(--ink-2); font-weight:600; }
+.pt-pres-p{ display:flex; align-items:center; gap:6px; }
+.pt-inp-pts{ width:78px; text-align:right; border:1px solid var(--border); border-radius:var(--r-sm);
+  padding:7px 9px; font-family:inherit; font-size:12.5px; color:var(--ink); background:var(--surface); outline:none; }
+.pt-inp-pts:focus{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
+.pt-pts-lbl{ font-size:11px; color:var(--ink-4); }
+.pt-vgroup{ margin-top:9px; }
+.pt-vgroup-n{ font-size:11.5px; font-weight:700; color:var(--ink-3); margin-bottom:5px;
+  text-transform:uppercase; letter-spacing:.05em; }
+.pt-vopt{ display:inline-flex; align-items:center; gap:6px; margin:0 13px 6px 0;
+  font-size:12.5px; color:var(--ink-2); }
+.pt-modal input[type=checkbox], .pt-vopt input[type=checkbox]{ accent-color:var(--accent); width:15px; height:15px; }
+
+
+/* Alias de las clases que vienen de Inventario y en esta pantalla no existian
+   (Impuestos las usa en 10 sitios). Mismo aspecto que .cf-chip / .cf-search,
+   asi no hay que tocar el HTML y no se rompe nada. */
+.iv-chip{ border:1px solid var(--border); background:var(--surface); color:var(--ink-2);
+  padding:7px 13px; border-radius:999px; font-family:inherit; font-size:12.5px;
+  font-weight:600; cursor:pointer; transition:background .14s,border-color .14s,color .14s; }
+.iv-chip:hover{ background:var(--soft); }
+.iv-chip.on{ background:var(--accent-50); border-color:#D6DCFF; color:var(--accent); }
+.iv-input{ border:1px solid var(--border); border-radius:var(--r-sm); padding:8px 11px;
+  font-family:inherit; font-size:12.5px; color:var(--ink); background:var(--surface); outline:none; }
+.iv-input:focus{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
+.iv-input::placeholder{ color:var(--ink-4); }

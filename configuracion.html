@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css">
-<link rel="stylesheet" href="configuracion.css?v=1787970000">
+<link rel="stylesheet" href="configuracion.css?v=1787980000">
 </head>
 <body>
 <div class="cf-root">
@@ -415,7 +415,7 @@
         </div>
         <button class="lm-btn-primary" onclick="ptNuevo()">＋ Agregar producto</button>
       </section>
-      <section class="cf-body" style="max-width:900px">
+      <section class="cf-body-solo">
         <div class="cr-note">
           Los puntos son <b>un método de pago más</b>: nada sale gratis, simplemente se paga con
           puntos en vez de dinero. Solo se pueden pagar así los productos que estén en esta lista.
@@ -424,6 +424,7 @@
           Los clientes acumulan <b>1 punto por cada $1.000</b> de comida y empaque (el domicilio no
           suma). Lo acumulan solo si el pedido queda con un cliente identificado.
         </div>
+        <div class="pt-kpis" id="pt-kpis"></div>
         <div class="pt-lista" id="pt-lista"></div>
       </section>
     </div>
@@ -435,16 +436,16 @@
         </div>
         <button class="lm-btn-primary" onclick="crNuevo()">＋ Dar crédito</button>
       </section>
-      <section class="cf-body" style="max-width:900px">
+      <section class="cf-body-solo">
         <div class="cr-note">
           El crédito es una <b>forma de pago</b>: el pedido queda pagado y la caja cuadra, y la deuda
           queda en la persona. Cuando alguien llega a su cupo, el sistema no lo deja pagar con crédito
           hasta que abone. Los abonos se registran en <b>Caja → Créditos</b>.
         </div>
         <div class="cr-tabs">
-          <button class="iv-chip on" data-cr-tab="cliente"  onclick="crSetTipo('cliente')">Clientes</button>
-          <button class="iv-chip"    data-cr-tab="empleado" onclick="crSetTipo('empleado')">Empleados</button>
-          <input class="iv-input cr-search" placeholder="Buscar por nombre o teléfono…" oninput="crBuscarInput(this.value)">
+          <button class="cf-chip on" data-cr-tab="cliente"  onclick="crSetTipo('cliente')">Clientes</button>
+          <button class="cf-chip"    data-cr-tab="empleado" onclick="crSetTipo('empleado')">Empleados</button>
+          <input class="cf-search cr-search" placeholder="Buscar por nombre o teléfono…" oninput="crBuscarInput(this.value)">
         </div>
         <div class="cr-resumen" id="cr-resumen"></div>
         <div class="cr-lista" id="cr-lista"></div>
@@ -1155,7 +1156,7 @@
           <h2 class="cf-pagetitle">Impuestos y propina</h2>
         </div>
       </section>
-      <section class="cf-body" style="max-width:720px">
+      <section class="cf-body-solo" style="max-width:720px">
 
         <!-- ══ IMPUESTOS ══
              Viene APAGADO: un restaurante pequeño suele ser "no responsable" y
@@ -2425,8 +2426,8 @@
 <script src="pos-print-listener.js?v=4"></script>
 <script src="pos-impuestos.js?v=1"></script>
 <script src="pos-creditos.js?v=1"></script>
-<script src="configuracion-puntos.js?v=1787970000"></script>
-<script src="configuracion.js?v=1787970000"></script>
+<script src="configuracion-puntos.js?v=1787980000"></script>
+<script src="configuracion.js?v=1787980000"></script>
 </body>
 </html>
 
