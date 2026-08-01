@@ -2393,3 +2393,59 @@ un cliente real. Verificado al cerrar: 24 funciones, ninguna temporal.
 **Lo que se dejo a proposito sin tocar:** los usos de `extractPago` como filtro
 negativo (`si esto es un pago, entonces no es un nombre`). Ahi meter el modelo
 no aporta y si arriesga la deteccion de nombres y productos.
+
+
+---
+
+## 78. Reloj por estado en domicilios + la tarjeta del chat que no desaparece (2026-08-01)
+
+### (a) El reloj del domicilio contaba lo que no era
+Sergio: *"los pedidos que estan en camino llevan casi 1 hora en camino"*, y
+luego la correccion importante: *"tenemos que aplicar el mismo sistema de reloj
+que en mesa, se debe reiniciar cada vez que cambien de estado y mostrar cuanto
+se ha demorado en cada estado"*.
+
+**Causa:** `fetchDeliveries` calculaba los minutos desde `created_at`, o sea
+**toda la vida del pedido**. Un domicilio entregado seguia sumando.
+
+**Arreglo:** el reloj cuenta desde `estado_at` (que ya existia y no se estaba
+usando) y la tarjeta dice **"18m aqui"**. Nueva tabla **`pos_domi_tiempos`**;
+`cambiar-estado` (v6) guarda el tramo cerrado en cada cambio, igual que
+`pos_mesa_tiempos` hace con las mesas. Tocando el reloj se abre el desglose.
+
+**Probado de punta a punta** con un pedido de prueba SIN conversacion asociada
+(la funcion solo escribe al cliente si existe conversacion, asi que no se envio
+ningun mensaje — verificado: 0 mensajes):
+`Recibido 7,1 min · En preparacion 12,1 min · En camino 9,0 min`. Datos borrados.
+
+**Ojo:** `cambiar-estado` normaliza los nombres, asi que en `pos_domi_tiempos`
+quedan `en_preparacion` / `en_camino`, mientras la tarjeta usa
+`preparacion` / `camino`. El mapa de etiquetas contempla las dos formas.
+
+**Limitacion honesta:** los pedidos anteriores a hoy no tienen tramos
+guardados; el reloj les funciona, pero el desglose sale vacio hasta su primer
+cambio de estado.
+
+### (b) La tarjeta del pedido en el chat
+Sergio: *"en el chat quiero que la tarjeta del pedido no desaparezca hasta que
+el pedido se haya entregado"*.
+
+Antes, al enviar a cocina se borraba `pedido_borrador` y la tarjeta se iba: el
+operador perdia de vista el pedido dentro del chat. Ahora es **la misma tarjeta
+con tres caras**:
+
+| Situacion | Que muestra |
+|---|---|
+| Hay borrador | Descartar · Editar · Enviar a cocina (igual que antes) |
+| Enviado, sin entregar | Estado, total, items, tiempo en el estado y boton del siguiente paso |
+| Entregado o anulado | Desaparece |
+
+El boton **reutiliza `cambiarEstado`**, que es el unico camino que escribe
+`estado` + `delivery_status` y avisa al cliente. Asi la tarjeta, la pastilla de
+arriba y la pantalla de Ventas no pueden decir cosas distintas; y al cambiar el
+estado desde la pastilla, la tarjeta se repinta sola.
+
+**Probado** con un banco de casos ejecutando el codigo real de render:
+domicilio en preparacion -> siguiente "listo"; en camino -> siguiente
+"entregado"; para llevar listo -> siguiente "entregado"; y **entregado y anulado
+ocultan la tarjeta**, que es lo pedido.
