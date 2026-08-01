@@ -1263,12 +1263,50 @@ igual con "sin precio" en vez de bloquear.
 2. **Nunca dejar un ítem sin precio.** Si no se puede resolver, el modal debe
    marcarlo en rojo y **no dejar guardar** hasta que se elija el producto real.
    Un pedido en $0 que se guarda es plata perdida.
-3. Revisar el resto del catálogo: **"Premium" y "Maicitos Especial" tienen las
-   dos presentaciones en precio 0** (con precio base 28.000 y 26.000). Eso es
-   dato mal cargado y hay que arreglarlo — cualquiera de esos dos también saldría
-   en $0.
+3. ~~"Premium" y "Maicitos Especial" tienen dato mal cargado~~ **← ESTO ESTABA MAL.**
+   **Corrección de Sergio (2026-07-31):** *"cuando un producto tiene variantes,
+   el precio lo tienen las variantes; cuando no tiene variantes, el precio va en
+   la presentación. Todo está implementado en el sistema, solo necesitas que lo
+   identifique el bot."*
+   **Verificado y es exactamente así:** `Premium` tiene `variables` con
+   `isPricing: true`, y cada opción trae `price` + `prices: [Familiar, Personal]`
+   (ej. Pollo → `[60000, 28000]`). Las presentaciones en 0 **son correctas**: el
+   precio no vive ahí.
+   **Y `extraer-pedido` YA lo implementa** (líneas 238-261: `priceMode==='matrix'`,
+   busca el grupo con `isPricing` y lee `prices[presIdx]`). O sea que el motor de
+   precios NO es el problema.
 
-### Bug 2 en la misma pantalla: el barrio no se autocompleta
+### El mensaje real de la clienta — era el caso FÁCIL
+```
+00:55  Shirley: "Una salchipapa pollo personal"
+```
+**Categoría, producto y presentación, los tres explícitos.** Como bien dijo
+Sergio: *"nuestra preocupación era que la gente no dijera la palabra salchipapa,
+pero en este caso sí la dijo, o sea que debió haber sido más fácil"*. Si falla el
+caso ideal, el sistema de capas no se está aplicando donde debe.
+
+**Y `catPalabras()` sí maneja el plural** (línea 104: por cada palabra mete
+`salchipapas` y `salchipapa`), así que la CAPA 1 tenía que emparejar las dos
+categorías de Salchipapas. El fallo está después: la CAPA 2 no resolvió el
+producto "Pollo" dentro de esas categorías y devolvió `matched:false`.
+
+**Sospecha a revisar primero:** "Pollo" existe DOS veces —
+como **producto** (Salchipapas Tradicionales, Personal $17.000) y como **variante**
+de Premium ($28.000). Puede que el desempate entre "producto" y "variante" esté
+mandando a "Pollo" por el camino equivocado.
+
+### 🔴 Y algo peor: el bot le cotizó un precio EQUIVOCADO
+```
+00:59  Bot: "serían $18.000 de tu pedido y $5.000 del domicilio, total $23.000"
+```
+**Pollo Personal cuesta $17.000, no $18.000** ($18.000 es Carne Personal).
+O sea: el bot conversacional (`delay-reply`) y el extractor (`extraer-pedido`)
+**dan respuestas distintas, y las dos están mal**: uno cobró $1.000 de más y el
+otro dejó el pedido en $0.
+**Hay que unificar el cálculo de precios en un solo lugar** — que los dos usen la
+misma función, o van a seguir divergiendo.
+
+### Bug 3 en la misma pantalla: el barrio no se autocompleta
 El campo Barrio salió vacío y dijo *"No reconocí el barrio en tu tabla de zonas"*,
 aunque:
 - La clienta **tiene barrio guardado**: `pos_clientes.barrio = 'Monteluna'`, y su
