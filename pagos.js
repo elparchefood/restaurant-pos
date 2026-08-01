@@ -349,12 +349,17 @@ function renderTotals() {
 
   // Botón agregar pago
   const btnApply = document.getElementById('btn-apply');
-  const canApply = SP.entry > 0 && !cubierto;
+  /* Con PUNTOS no se digita un valor: el monto sale de los productos que se
+     elijan en el modal. Si se exigiera `SP.entry > 0` el botón quedaría
+     bloqueado para siempre y el método no se podría usar. */
+  const esPuntos = _ptEsPuntos();
+  const canApply = (esPuntos ? true : SP.entry > 0) && !cubierto;
   btnApply.disabled = !canApply;
   const toAdd = _esEfectivo() ? Math.min(SP.entry, falta) : SP.entry;
-  document.getElementById('apply-label').textContent = canApply
-    ? 'Agregar pago · ' + fmt(toAdd)
-    : 'Agregar pago';
+  document.getElementById('apply-label').textContent = !canApply
+    ? 'Agregar pago'
+    : esPuntos ? 'Elegir productos a canjear'
+    : 'Agregar pago · ' + fmt(toAdd);
 
   // Pie cobro
   document.getElementById('foot-paid').textContent = fmt(paid);

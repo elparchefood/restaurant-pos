@@ -2736,3 +2736,35 @@ Sergio todavia no ha cargado sus productos).
 - Conectar `fn_puntos_devolver` a la anulacion de pedidos desde Ventas (hoy la
   funcion existe pero nadie la llama).
 - La tasa de acumulacion sigue fija en $1.000 = 1 punto dentro del trigger.
+
+
+---
+
+## 85. Pago MIXTO: unos productos con puntos y otros con dinero (2026-08-01)
+
+Sergio pregunto si el cajero puede escoger **cual** producto se redime cuando el
+cliente lleva dos del catalogo y solo quiere canjear uno. **Si**, es exactamente
+como quedo: el modal marca por producto y lo no marcado queda pendiente de
+cobrar con otro metodo.
+
+### Un fallo encontrado ANTES de que Sergio lo viviera
+El boton **"Agregar pago" exigia `SP.entry > 0`** (un valor digitado en el
+teclado). Con Puntos no se digita nada — el monto sale de los productos que se
+elijan — asi que el boton habria quedado **bloqueado para siempre** y el metodo
+no se habria podido usar. Corregido: con Puntos el boton se habilita solo y dice
+**"Elegir productos a canjear"**.
+
+### Verificado ejecutando la `calc()` real de la pantalla
+Pedido: Coca Cola 1.5 ($8.000) + Salchipapa Pollo Personal ($17.000) + empaque
+$1.000 = **$26.000**.
+
+| Paso | Resultado |
+|---|---|
+| Se marca SOLO la Coca Cola (300 pts) | pago de $8.000 con puntos |
+| Queda pendiente | **$18.000** — y *no* deja finalizar todavia |
+| Se cobra el resto en efectivo ($20.000) | falta $0, vuelto $2.000, deja finalizar |
+| Queda registrado | Puntos $8.000 + Efectivo $18.000 = **$26.000** |
+
+La venta suma completa: **nada salio gratis**, que es la regla. El desglose deja
+ver cuanto entro en dinero y cuanto se pago con puntos, con el detalle de que
+producto se canjeo.
