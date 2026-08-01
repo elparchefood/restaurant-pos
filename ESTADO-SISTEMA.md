@@ -1276,7 +1276,30 @@ igual con "sin precio" en vez de bloquear.
    busca el grupo con `isPricing` y lee `prices[presIdx]`). O sea que el motor de
    precios NO es el problema.
 
-### El mensaje real de la clienta — era el caso FÁCIL
+### 🔴 SEGUNDO CASO (Jimmy, 8:06 p.m.) — el nombre SÍ era correcto y falló igual
+```
+Mixta · Familiar          sin precio   $0
+Coca Cola · 1.5 Litros    sin precio   $0
+```
+**"Mixta" y "Coca Cola" son nombres EXACTOS del catálogo** (Mixta Familiar =
+$49.000; Coca Cola 1.5 Litros existe en Bebidas). Aquí GPT **no** devolvió la
+categoría — devolvió el producto bien — **y aun así `matched:false` y $0**.
+
+**Esto invalida la teoría de que el problema es solo "GPT devuelve la categoría".**
+El emparejamiento está fallando de forma general, y también en **Bebidas**, que
+no tiene variantes ni ambigüedad. Sergio: *"sigue pasando con varias, en especial
+las tradicionales, y la bebida tampoco"*.
+
+**Empezar por aquí mañana:** reproducir con Coca Cola 1.5 Litros, que es el caso
+más simple posible (producto único, sin variantes, precio en la presentación).
+Si ESE falla, el problema está en la resolución de producto/presentación, no en
+la lógica de categorías ni en la de variantes.
+
+**Nota de método:** no se puede probar `extraer-pedido` mandándole un texto
+suelto — lee los mensajes de la conversación, no el parámetro. Para reproducir
+hay que usar una conversación real o de prueba con los mensajes dentro.
+
+### El primer caso (Shirley) — era el caso FÁCIL
 ```
 00:55  Shirley: "Una salchipapa pollo personal"
 ```
