@@ -1235,6 +1235,42 @@ verificación ya no depende de la conversación, solo la obtención del branch.
 
 ---
 
+## PENDIENTE — [Chat IA] La tarjeta del pedido debe quedarse hasta ENTREGADO — Sergio 2026-07-31
+
+**Lo que pidió:** *"En el chat quiero que la tarjeta del pedido no desaparezca
+hasta que el pedido se haya entregado."*
+
+**Hoy:** la tarjeta que se ve encima del campo de escribir (`cp-ohd`,
+`chat-ia.js` ~2417) muestra el **borrador** ("Pedido sin enviar · Domicilio ·
+$40.000 · Borrador") con sus botones Descartar / Editar / Enviar a cocina.
+Al enviarlo a cocina, `pedido_borrador` se limpia y **la tarjeta desaparece**.
+Desde ese momento el operador pierde de vista el pedido dentro del chat.
+
+**Lo que debe pasar:** la tarjeta sigue ahí, cambiando de cara según el estado:
+
+| Estado | Qué muestra la tarjeta |
+|---|---|
+| Borrador | Como hoy: Descartar · Editar · Enviar a cocina |
+| En preparación | Total, hora, y botón para cambiar de estado |
+| En camino | Igual + a quién se le asignó |
+| **Entregado** | Ahí sí desaparece (o se colapsa a una línea) |
+
+**Dónde está el dato:** el pedido ya queda enlazado en
+`chat_conversations.order_id`, y su estado vive en `pos_orders.delivery_status`
+/ `estado`. La tarjeta puede leer de ahí en vez de depender solo de
+`pedido_borrador`.
+
+**Ojo:**
+- El selector de estado que ya existe arriba (En preparación / Listo / En camino
+  / Entregado) debe quedar sincronizado con la tarjeta — que no haya dos formas
+  distintas de ver lo mismo diciendo cosas diferentes.
+- Debe actualizarse **en vivo** cuando el estado cambie desde Ventas o desde el
+  propio chat, sin recargar.
+- Para pedidos de mesa/venta rápida (sin entrega) el criterio es que desaparezca
+  al quedar **pagado**.
+
+---
+
 ## PENDIENTE — [Chat IA] El chat no toma el nombre del cliente recién creado — Sergio 2026-07-31
 
 **Caso real** (Lau / 573204989138, pedido de las 6:58 p.m.):
