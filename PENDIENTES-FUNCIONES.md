@@ -399,14 +399,40 @@ comparo vacio contra `0092726260` y dio false.
 
 **No fue un fallo del modelo: fue una instruccion mia incompleta.**
 
-### El arreglo
-1. Agregar a la lista de etiquetas: **"Código de negocio"**, "Codigo de
-   negocio", "Llave", "Cuenta destino", "Recibe", "Para (llave)".
-2. **Quitar** la frase *"si el destino solo aparece como un nombre... deja esto
-   vacio"*: el numero puede venir en la linea de abajo con otra etiqueta.
-3. Como red de seguridad, aceptar tambien el **nombre del negocio** como
-   destino valido (configurable, ej. "EL PARCHE FOOD" / "SERGIO ABADIA"), para
-   los comprobantes que de verdad no muestran numero.
+### El arreglo — POR SEMANTICA, no por lista de etiquetas
+**Instruccion de Sergio (2026-08-01):** *"las personas me van a enviar
+comprobantes de varios bancos, y en cada banco puede que los datos esten en
+lugares diferentes, asi que el sistema debe extraer absolutamente todos los
+datos del comprobante sin importar en que parte estan ubicados"*.
+
+Tiene razon, y **eso descarta la solucion facil**. Agregar "Codigo de negocio"
+a la lista tapa a Bre-B y manana aparece otro banco con otra palabra. Es el
+MISMO error de fondo que ya se corrigio hoy con las intenciones del chat
+(entrada 76): buscar texto exacto en vez de entender.
+
+**Como debe quedar:**
+
+1. **Que el modelo entienda el rol, no la etiqueta.** En vez de darle una lista
+   de palabras, se le describe QUE es cada dato:
+   *"la llave destino es el numero (celular, cuenta, NIT o codigo) que
+   identifica a QUIEN RECIBIO la plata, este bajo la etiqueta que este:
+   'Codigo de negocio', 'Llave', 'Para', 'Convenio', o ninguna."*
+2. **Que devuelva TODO lo que ve.** Un campo nuevo `campos: [{etiqueta, valor}]`
+   con cada par etiqueta-valor del comprobante, mas `numeros: [...]` con todos
+   los numeros largos. Asi, aunque el modelo se equivoque clasificando, el dato
+   igual llego y se puede comparar.
+3. **La comparacion se hace del lado nuestro, no del modelo.** `cuentaOk` = la
+   cuenta configurada aparece en CUALQUIER parte del comprobante **y no esta
+   bajo una etiqueta de origen** ("De donde salio", "Cuenta origen", "Desde").
+   Esto es robusto contra cualquier disposicion de cualquier banco.
+4. Y **quitar** la frase *"si el destino solo aparece como un nombre... deja
+   esto vacio"*, que es la que hizo que ignorara el numero de la linea de abajo.
+5. Como ultima red, aceptar el **nombre del negocio** como destino valido
+   (configurable), para comprobantes que de verdad no muestran ningun numero.
+
+**Como probarlo:** guardar comprobantes reales de varios bancos (Bre-B, Nequi,
+Bancolombia, Daviplata, Davivienda) y pasarlos todos por la extraccion. No se
+da por bueno hasta que los saque bien **todos**, sin una lista por banco.
 
 ### Por que urge
 **Bre-B es lo que mas se esta usando ahora.** Mientras esto siga asi, la
