@@ -694,6 +694,7 @@
         // transferencias y los abonos de caja) contra el total del pedido.
         // Contra lo COBRABLE (sin domicilio), no contra el total: si no, todo
         // domicilio en que el cliente pagó solo la comida se ve "a medias".
+        var totalNum = parseFloat(r.total) || 0;
         var paidNum  = parseFloat(r.paid_amount) || 0;
         var payStatus = (window.posEstaPagado ? window.posEstaPagado(r)
                           : (r.status === 'paid' || r.status === 'completed')) ? 'pagado'
