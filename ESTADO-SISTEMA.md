@@ -2021,3 +2021,29 @@ era enganoso: cualquier fallo de lectura terminaba en esa misma frase.
 **Leccion (ya van tres veces con el tope de 1.000).** Nunca contar con
 `.length`. Y un `catch` no debe convertir un fallo de lectura en un diagnostico
 inventado: si no se pudo consultar, el mensaje tiene que decir eso.
+
+
+---
+
+## 70. "Failed to fetch" a mitad del envio (2026-07-31)
+
+Al enviar la primera tanda, la pantalla mostro *"No se pudo enviar: Failed to
+fetch"*. **No fue un fallo de envio:** salieron **126 mensajes, todos
+exitosos, cero fallidos**. La funcion excedio el tiempo maximo que el servidor
+le permite correr (250 mensajes x 350 ms de pausa + latencia de Meta) y la
+conexion se corto en el 126.
+
+Que la cola guarde el estado de cada contacto salvo la situacion: nada se
+perdio, nada se duplico, y los 1.255 restantes siguieron en `pendiente`.
+
+**Arreglo (`a8a5b8f`, funcion v4):**
+- La funcion se detiene sola a los **50 segundos** y devuelve
+  `corto_por_tiempo: true` en vez de dejar que la maten.
+- La pantalla la llama **en ciclo** (hasta 12 vueltas) hasta agotar el cupo del
+  dia o vaciar la cola, mostrando el avance en vivo.
+- Si aun asi se cae la conexion, el mensaje ya no miente: dice cuantos
+  alcanzaron a salir y que se puede volver a dar al boton para seguir.
+
+**Leccion.** Un proceso largo detras de un boton tiene que poder reanudarse.
+El diseno de cola estaba bien; lo que faltaba era que la funcion admitiera
+quedarse a medias en vez de morir.
