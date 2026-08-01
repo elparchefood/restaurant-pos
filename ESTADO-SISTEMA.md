@@ -1137,6 +1137,50 @@ semanas, para tener la tasa real en vez de adivinarla.
 
 ---
 
+## PENDIENTE — [Configuración] Tono y volumen de las notificaciones — Sergio 2026-07-31
+
+**Lo que pidió:** una parte en Configuración para elegir el **tono** del mensaje
+y el **volumen**.
+
+### Estado hoy (verificado)
+El sonido es un pitido generado por código (WebAudio: 880 Hz → 660 Hz, 0,28 s),
+**con volumen fijo en 0.09** y **duplicado en dos archivos**:
+- `pos-notify.js` línea 31 → `beep()`
+- `chat-ia.js` línea 215 → `chatBeep()`  *(el mismo código, copiado)*
+
+No hay forma de cambiarlo ni de bajarlo. En un restaurante con ruido puede que
+no se oiga; en uno silencioso, que moleste.
+
+### Qué hay que construir
+1. **Unificar primero.** Un solo `posSonido()` (en `pos-notify.js`, que ya lo
+   cargan casi todas las pantallas) y que `chat-ia.js` lo use. Hoy hay dos copias
+   del mismo código: cambiar el tono en una no cambia la otra.
+2. **Sección en Configuración → Operación** (o "Notificaciones"):
+   - **Tono:** varias opciones (campana, pitido, marimba, ding, alerta corta) con
+     botón **▶ Probar** al lado de cada una. Sin probar, nadie elige a ciegas.
+   - **Volumen:** deslizador 0-100%. Que suene mientras se arrastra.
+   - **Silencio:** interruptor para apagarlo del todo.
+3. **Tonos distintos por evento** (esto es lo que de verdad sirve):
+   | Evento | Por qué separarlo |
+   |---|---|
+   | Mensaje nuevo del cliente | El más frecuente |
+   | Pedido nuevo | Hay que actuar ya |
+   | Pago recibido / verificado | Buena noticia |
+   | Alerta (stock, error) | Debe sonar distinto |
+   Con el tiempo el equipo aprende a distinguirlos sin mirar la pantalla.
+4. Guardar en `branches.operacion_config.sonidos` → sincroniza a todos los
+   equipos como el resto de Operación.
+
+### Ojo
+- **Los navegadores bloquean el audio** hasta que el usuario interactúe con la
+  página. Si el sonido no suena tras recargar, es eso — hay que avisarlo en la
+  pantalla de configuración, no dejar que parezca un bug.
+- Si se usan archivos de audio en vez de tonos generados, deben ir **empaquetados
+  en el repo** (no CDN): el .exe debe sonar aunque el internet esté lento.
+- Mantener el tono generado como respaldo si el archivo no carga.
+
+---
+
 ## PENDIENTE — [Pagos] Botón "Verificar transferencia" en la pantalla de cobro — Sergio 2026-07-31
 
 **Lo que pidió:** en la pantalla de cobro (`pagos.html`), cuando el cliente paga
