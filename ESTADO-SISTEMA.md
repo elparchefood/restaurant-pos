@@ -2527,3 +2527,53 @@ Aplicados y verificados: **no queda ninguna tabla sin permisos**.
 `GRANT SELECT, INSERT, UPDATE, DELETE ON public.<tabla> TO authenticated, service_role;`
 La RLS sigue protegiendo por tenant; el GRANT solo abre la puerta.
 Consulta de chequeo en `sql/2026-08-01-barrido-grants.sql`.
+
+
+---
+
+## 81. Puntos en TODOS los pedidos: mesa, venta rapida y domicilio (2026-08-01)
+
+Pedido de Sergio: *"al seleccionar el cliente, si el cliente esta guardado se le
+sumaran los puntos a ese cliente tambien en los pedidos de mesa y venta rapida,
+y domicilio. Y si no se ha guardado el cliente, guardarlo, que quedaran guardados
+los puntos en ese numero de telefono"*.
+
+### El motor YA existia; el hueco era otro
+Los puntos los da la base sola: el trigger `award_loyalty_points` sobre
+`pos_orders` los suma cuando el pedido pasa a `paid`/`completed`, tomando el
+telefono de `notes [tel:...]` o de `cliente_id`. Funciona para cualquier canal.
+**El problema era que las mesas nunca traian a quien asignarselos:**
+
+| Canal | Pedidos pagados | Con cliente | Puntos |
+|---|---|---|---|
+| Domicilio | 39 | 39 | siempre |
+| Venta rapida | 26 | 10 | a veces |
+| **Mesa** | 50 | **0** | **nunca** |
+
+### Lo que se hizo
+En la pantalla de **Pagos** ya existia el boton "Consumidor final"
+(`data-action="cliente"`), pero no hacia nada: su `case` decia *"Modulos
+futuros"*. Ahora abre un modal que:
+
+1. Busca por **telefono** en `pos_clientes`.
+2. Si existe: muestra nombre, barrio y **cuantos puntos lleva** (util para
+   decirselo al cliente en el momento).
+3. Si no existe: pide el nombre y **lo crea** con ese telefono.
+4. Deja el `cliente_id` en el pedido **al instante, no al finalizar**: si el
+   cajero se sale a mitad de camino, el cliente ya quedo asociado.
+5. La fila del ticket pasa a mostrar `Nombre - N pts`.
+
+Tambien hay boton **"Sin cliente"** para quitarlo.
+
+Sirve igual en mesa, venta rapida y domicilio, porque la pantalla de Pagos es la
+misma para los tres.
+
+### Probado
+Pedido de **mesa** por $35.000 (comida + empaque) con cliente asociado:
+`0 puntos -> se marca pagado -> 35 puntos`. Cliente y pedido de prueba borrados.
+
+### Pendiente de esta funcion (lo que sigue)
+- **Puntos como metodo de pago** en la misma pantalla, solo para redimir lo que
+  este en el catalogo de canje.
+- **Catalogo de canje** (que se puede pedir con puntos y cuanto cuesta).
+- Sergio debe escoger **cual de las dos plantillas** de puntos se usa.

@@ -912,9 +912,11 @@ document.addEventListener('click', e => {
       SM.n = Math.min(8, SM.n + 1);
       renderSplitModal();
       break;
+    case 'cliente':
+      pgCliente();
+      break;
     case 'voucher':
     case 'credit':
-    case 'cliente':
       // Módulos futuros
       break;
   }
@@ -1027,13 +1029,17 @@ async function loadOrder() {
   SP.domicilio = Number(order.delivery_fee) || 0;
   SP.cobrarDomicilio = false;
 
-  // Datos del cliente
+  // Datos del cliente (si el pedido ya trae uno, se muestra con sus puntos)
   SP.cliente = order.customer_name || '';
-  if (SP.cliente) {
-    const row = document.getElementById('cliente-row');
-    row.classList.add('has-client');
-    document.getElementById('cliente-name').textContent = SP.cliente;
+  SP.clienteId = order.cliente_id || null;
+  SP.clienteTel = '';
+  if (SP.clienteId) {
+    try {
+      const rc = await sb.from('pos_clientes').select('telefono,nombre').eq('id', SP.clienteId).maybeSingle();
+      if (rc.data) { SP.clienteTel = rc.data.telefono || ''; SP.cliente = SP.cliente || rc.data.nombre || ''; }
+    } catch (e) { /* sin telefono solo se pierde el contador, no el cliente */ }
   }
+  pgPintarCliente();
 
   // Topbar + meta
   const mesaName = SP.table?.name || (SP.channel === 'rapido' ? 'Venta Rápida' : SP.channel === 'domicilio' ? 'Domicilio' : 'Mesa');
@@ -1486,4 +1492,155 @@ function pinDigit(d) {
   document.getElementById('pin-error').hidden = true;
   renderPinDots();
   if (_pinBuffer.length === 4) validatePin();
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   IDENTIFICAR AL CLIENTE PARA QUE ACUMULE PUNTOS
+   Pedido de Sergio: que los puntos se sumen "también en los pedidos de mesa y
+   venta rápida, y domicilio", y que si el cliente no está guardado se guarde
+   con ese teléfono.
+
+   Los puntos NO se calculan aquí: los da la base sola (trigger
+   `award_loyalty_points`) cuando el pedido queda pagado, siempre que el pedido
+   tenga a quién asignárselos. Ese era justo el hueco: los domicilios traían el
+   cliente (39 de 39), la venta rápida a veces (10 de 26) y las mesas NUNCA
+   (0 de 50). Aquí solo se le pone nombre y teléfono al pedido.
+
+   El teléfono es la llave del cliente, así que aunque solo se tenga el número
+   los puntos ya quedan en su cuenta y aparecen después al completarle el nombre.
+   ══════════════════════════════════════════════════════════════════ */
+function pgSoloDigitos(s) { return String(s == null ? '' : s).replace(/[^0-9]/g, ''); }
+function pgTel10(s) { var d = pgSoloDigitos(s); return d.length > 10 ? d.slice(-10) : d; }
+
+async function pgBuscarCliente(tel) {
+  var t10 = pgTel10(tel);
+  if (t10.length < 7) return null;
+  try {
+    var r = await sb.from('pos_clientes').select('id,nombre,telefono,barrio')
+      .eq('tenant_id', SP.tenantId).ilike('telefono', '%' + t10).limit(1);
+    return (r.data && r.data[0]) || null;
+  } catch (e) { return null; }
+}
+
+async function pgPuntosDe(tel) {
+  var t10 = pgTel10(tel);
+  if (t10.length < 7) return 0;
+  try {
+    var r = await sb.from('pos_puntos').select('puntos')
+      .eq('tenant_id', SP.tenantId).ilike('telefono', '%' + t10).maybeSingle();
+    return (r.data && Number(r.data.puntos)) || 0;
+  } catch (e) { return 0; }
+}
+
+function pgCliente() {
+  var bd = document.createElement('div');
+  bd.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
+  bd.innerHTML =
+    '<div style="background:#fff;border-radius:16px;max-width:380px;width:100%;padding:22px;box-shadow:0 20px 55px rgba(0,0,0,.25)">'
+  +   '<div style="font-weight:700;font-size:16px;color:#0F172A">Cliente del pedido</div>'
+  +   '<div style="color:#64748B;font-size:12.5px;margin-top:3px">Con el teléfono se le acumulan los puntos de esta compra.</div>'
+  +   '<input id="pgCliTel" type="tel" inputmode="numeric" placeholder="Número de celular" autocomplete="off"'
+  +     ' style="width:100%;margin-top:14px;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;outline:none">'
+  +   '<div id="pgCliInfo" style="margin-top:10px;font-size:13px;min-height:22px;color:#64748B"></div>'
+  +   '<div id="pgCliNombreWrap" style="display:none;margin-top:6px">'
+  +     '<input id="pgCliNombre" placeholder="Nombre del cliente" autocomplete="off"'
+  +       ' style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;outline:none">'
+  +   '</div>'
+  +   '<div style="display:flex;gap:8px;margin-top:16px">'
+  +     '<button id="pgCliQuitar" type="button" style="border:1.5px solid #E2E8F0;background:#fff;color:#64748B;border-radius:10px;padding:11px 12px;font-size:13px;font-weight:600;cursor:pointer">Sin cliente</button>'
+  +     '<button id="pgCliCancel" type="button" style="flex:1;border:1.5px solid #E2E8F0;background:#fff;color:#334155;border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Cancelar</button>'
+  +     '<button id="pgCliOk" type="button" style="flex:1;border:0;background:#0F172A;color:#fff;border-radius:10px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">Guardar</button>'
+  +   '</div>'
+  + '</div>';
+  document.body.appendChild(bd);
+
+  var inp  = document.getElementById('pgCliTel');
+  var info = document.getElementById('pgCliInfo');
+  var wrap = document.getElementById('pgCliNombreWrap');
+  var nom  = document.getElementById('pgCliNombre');
+  var encontrado = null;
+  if (SP.clienteTel) inp.value = SP.clienteTel;
+  inp.focus();
+
+  var timer = null;
+  inp.addEventListener('input', function () {
+    clearTimeout(timer);
+    timer = setTimeout(async function () {
+      var t10 = pgTel10(inp.value);
+      encontrado = null; wrap.style.display = 'none';
+      if (t10.length < 7) { info.textContent = ''; return; }
+      info.textContent = 'Buscando...';
+      encontrado = await pgBuscarCliente(t10);
+      if (encontrado) {
+        var pts = await pgPuntosDe(t10);
+        info.innerHTML = '<b style="color:#0F172A">' + _payEsc(encontrado.nombre || 'Cliente') + '</b>'
+          + (encontrado.barrio ? ' <span style="color:#94A3B8">&middot; ' + _payEsc(encontrado.barrio) + '</span>' : '')
+          + '<br><span style="color:#16A34A;font-weight:600">' + pts + ' puntos acumulados</span>';
+      } else {
+        info.innerHTML = '<span style="color:#B45309">No está guardado. Se creará con este número.</span>';
+        wrap.style.display = '';
+      }
+    }, 350);
+  });
+
+  function cerrar() { bd.remove(); }
+  document.getElementById('pgCliCancel').addEventListener('click', cerrar);
+  bd.addEventListener('click', function (e) { if (e.target === bd) cerrar(); });
+
+  document.getElementById('pgCliQuitar').addEventListener('click', async function () {
+    await pgGuardarCliente(null, '', '');
+    cerrar();
+  });
+
+  document.getElementById('pgCliOk').addEventListener('click', async function () {
+    var t10 = pgTel10(inp.value);
+    if (t10.length < 7) { info.innerHTML = '<span style="color:#DC2626">Escribe un número válido.</span>'; return; }
+    var btn = this; btn.disabled = true; btn.textContent = 'Guardando...';
+    try {
+      var id = encontrado ? encontrado.id : null;
+      var nombre = encontrado ? (encontrado.nombre || '') : String(nom.value || '').trim();
+      if (!id) {
+        // Cliente nuevo: el teléfono es la llave, igual que en el chat.
+        var ins = await sb.from('pos_clientes').insert([{
+          tenant_id: SP.tenantId, branch_id: SP.branchId,
+          nombre: nombre || ('Cliente ' + t10.slice(-4)), telefono: t10
+        }]).select('id,nombre').single();
+        if (ins.error) throw ins.error;
+        id = ins.data.id; nombre = ins.data.nombre;
+      }
+      await pgGuardarCliente(id, nombre, t10);
+      cerrar();
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Guardar';
+      info.innerHTML = '<span style="color:#DC2626">No se pudo guardar: ' + _payEsc(e.message || e) + '</span>';
+    }
+  });
+}
+
+/* Se guarda en el pedido AL INSTANTE, no al finalizar: si el cajero se sale a
+   mitad de camino, el cliente ya quedó asociado y los puntos no se pierden. */
+async function pgGuardarCliente(id, nombre, tel) {
+  SP.clienteId = id; SP.cliente = nombre || ''; SP.clienteTel = tel || '';
+  try {
+    await sb.from('pos_orders').update({
+      cliente_id: id,
+      customer_name: nombre || null
+    }).eq('id', SP.orderId);
+  } catch (e) { console.error('[pagos] no se pudo asociar el cliente:', e); }
+  pgPintarCliente();
+}
+
+async function pgPintarCliente() {
+  var row = document.getElementById('cliente-row');
+  var lbl = document.getElementById('cliente-name');
+  if (!row || !lbl) return;
+  if (!SP.cliente && !SP.clienteTel) {
+    row.classList.remove('has-client');
+    lbl.textContent = 'Consumidor final';
+    return;
+  }
+  row.classList.add('has-client');
+  var pts = SP.clienteTel ? await pgPuntosDe(SP.clienteTel) : 0;
+  lbl.textContent = (SP.cliente || SP.clienteTel) + (SP.clienteTel ? ' · ' + pts + ' pts' : '');
 }
