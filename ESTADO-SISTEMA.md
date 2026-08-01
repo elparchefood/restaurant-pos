@@ -2620,3 +2620,61 @@ que cambiar `award_loyalty_points` **y** `pgPuntosPreview` a la vez.
 
 El domicilio no da puntos (no es venta) y la propina tampoco. Datos de prueba
 borrados.
+
+
+---
+
+## 83. Catalogo de canje por puntos — Configuracion -> Puntos (2026-08-01)
+
+### La regla, en palabras de Sergio
+*"Ante el sistema nada fue gratis, simplemente se usaron puntos para hacer el
+pago... los puntos son un metodo de pago mas. Y solo aplica para productos que
+esten dentro del catalogo; si se quiere pagar con puntos un producto que no
+esta, debe aparecer la alerta"*.
+
+Yo habia propuesto "producto gratis" y **estaba equivocado**: el pedido se cobra
+igual, solo cambia con que se paga. La caja cuadra, la venta existe, el
+inventario descuenta. Es el mismo criterio que ya se uso con los creditos.
+
+### Donde quedo y por que
+**Configuracion -> Puntos**, seccion nueva junto a Creditos. Se descarto ponerlo
+dentro de la ficha de cada producto (Catalogo): habria obligado a entrar
+producto por producto y **nunca se veria la lista completa de lo canjeable**.
+Ademas el dia que se quiera premiar con algo que no esta en el menu, el Catalogo
+no sirve.
+
+### Como se arma (requisito textual de Sergio)
+*"El catalogo de puntos me debe dar la opcion de poder incluir productos que ya
+esten previamente creados con sus presentaciones y sus variantes, tambien poder
+colocar el precio en puntos para todas las presentaciones y para todas las
+variables o bloquear algunas presentaciones y algunas variables"*.
+
+Se elige un producto existente y aparecen **sus presentaciones**, cada una con
+casilla y su propio precio en puntos: se puede ofrecer la Personal a 900 puntos
+y **no ofrecer la Familiar**. Debajo salen **sus variantes**, marcadas todas por
+defecto; desmarcar deja el canje limitado a las marcadas.
+
+### Modelo de datos
+- `pos_puntos_catalogo`: **una fila por presentacion** (no por producto), con
+  `puntos`, `activo` y `variantes` (jsonb `{grupo: [opciones]}`).
+  **Si todas las variantes quedan marcadas se guarda `null`**, no la lista
+  completa: asi, si manana se agrega una variante nueva al producto, entra sola
+  en vez de quedar bloqueada sin que nadie se entere.
+- `pos_puntos_movimientos`: para poder auditar de donde salen los puntos de un
+  cliente. **Hoy solo existia el saldo** en `pos_puntos` y no habia forma de
+  reconstruirlo.
+- Los dos GRANTs desde el primer dia (leccion de las 4 veces anteriores).
+
+### Verificacion
+No se pudo revisar con sesion iniciada (la pantalla exige login y no se manejan
+contrasenas). Se probo **ejecutando el codigo real de la pantalla** contra un
+DOM simulado, 5 escenarios: lista con variantes limitadas y una presentacion
+desactivada, lista vacia, modal de producto con variantes (respetando cuales
+estaban permitidas), modal de producto sin variantes, y el texto resumen.
+**Todo correcto.** Falta la revision visual de Sergio.
+
+### PENDIENTE
+- **Puntos como metodo de pago** en la pantalla de cobro, con la alerta cuando
+  el producto no este en el catalogo.
+- La tasa de acumulacion sigue fija en $1.000 = 1 punto **dentro del trigger**.
+  Si se quiere configurable hay que cambiar el trigger, no solo la pantalla.
