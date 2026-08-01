@@ -2786,14 +2786,23 @@ async function wlCargar() {
     if (r.error) throw r.error;
     _wlListas = r.data || [];
 
-    // Conteo por estado de cada lista (una consulta por lista: son pocas).
+    // Conteo por estado. Se pide un CONTEO, no las filas: PostgREST corta en
+    // 1000 filas aunque se pida `.limit(5000)`, y con 1.381 contactos la
+    // pantalla mostraba 1.000 — un número falso que asustaba con razón.
+    var ESTADOS = ['pendiente', 'enviado', 'fallido', 'omitido', 'respondio'];
     for (var i = 0; i < _wlListas.length; i++) {
       var L = _wlListas[i];
-      var c = await sb.from('pos_wa_envios').select('estado').eq('lista_id', L.id).limit(5000);
-      var por = { pendiente: 0, enviado: 0, fallido: 0, omitido: 0, respondio: 0 };
-      (c.data || []).forEach(function (x) { por[x.estado] = (por[x.estado] || 0) + 1; });
+      var por = {}, total = 0;
+      for (var k = 0; k < ESTADOS.length; k++) {
+        var e = ESTADOS[k];
+        var r2 = await sb.from('pos_wa_envios')
+          .select('id', { count: 'exact', head: true })
+          .eq('lista_id', L.id).eq('estado', e);
+        por[e] = r2.count || 0;
+        total += por[e];
+      }
       L._c = por;
-      L._total = (c.data || []).length;
+      L._total = total;
     }
   } catch (e) {
     host.innerHTML = '<div class="cfg-empty">No se pudo cargar: ' + (e.message || e) + '</div>';
