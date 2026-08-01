@@ -1346,6 +1346,36 @@ aunque:
 
 ---
 
+## PENDIENTE — [Ventas] El reloj de la tarjeta de domicilio engaña — Sergio 2026-07-31
+
+**Sergio reportó:** *"los pedidos que están en camino llevan casi 1 hora en
+camino y se tuvieron que haber puesto entregados automáticamente"*.
+
+**NO era un bug del auto-entregado — ese funciona.** Verificado:
+- `cron.job #1 auto-entregado-domi` corre cada 3 min, todas las ejecuciones
+  recientes `succeeded`.
+- `auto_entregar_domicilios()` marca entregado cuando
+  `estado_at < now() - auto_entregado_min` (configurado en **30 min**).
+- Al revisar: David llevaba **29 min** en camino y Valentina **25 min**. Les
+  faltaba 1 y 5 minutos. Iban a marcarse solos.
+
+**El problema real es el RELOJ de la tarjeta:** muestra `52:10`, que es el
+tiempo **desde que se creó el pedido**, no el tiempo **en el estado actual**.
+Por eso parecía que llevaban una hora en camino cuando llevaban 29 minutos.
+
+**Qué hay que hacer**
+1. El reloj de la tarjeta de domicilio debe contar desde `estado_at` (cuándo
+   entró al estado actual), no desde `created_at`.
+2. Idealmente mostrar las dos cosas: *"29 min en camino · 52 min en total"*.
+3. Un aviso visual cuando se acerque al umbral de auto-entregado, para que el
+   operador sepa que está por marcarse solo.
+
+**Ya se resolvió lo mismo en las MESAS** (reloj por estado + modal de desglose,
+`VS_TS` / `vsEstadoDesde` / `vsAbrirTiempos` en `ventas-salon.js`). A los
+domicilios se les quedó pendiente — **reusar ese mismo componente**.
+
+---
+
 ## PENDIENTE — [Chat IA] La tarjeta del pedido debe quedarse hasta ENTREGADO — Sergio 2026-07-31
 
 **Lo que pidió:** *"En el chat quiero que la tarjeta del pedido no desaparezca
