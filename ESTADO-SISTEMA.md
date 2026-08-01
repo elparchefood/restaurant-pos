@@ -1236,6 +1236,55 @@ verificación ya no depende de la conversación, solo la obtención del branch.
 
 ---
 
+## 🔴 URGENTE — [Chat IA] Productos en $0 al crear pedido — Sergio 2026-07-31
+
+**Caso real** (Shirley Cantillo, 7:59 p.m.): el modal mostró
+`Salchipapa · Personal · Pollo` **sin precio · $0** y el total del pedido en **$0**.
+
+### Causa (identificada)
+**No existe ningún producto llamado "Salchipapa"** — verificado:
+`SELECT count(*) FROM pos_products WHERE name ILIKE '%salchipapa%'` → **0**.
+
+"Salchipapa" es la CATEGORÍA (Salchipapas Tradicionales / Especiales). El
+producto real es **"Pollo"**, y su presentación Personal **sí tiene precio: $17.000**.
+
+Es decir: **GPT devolvió el nombre de la categoría como si fuera el producto**,
+no encontró ese producto en el catálogo, y quedó sin precio. El modal lo mostró
+igual con "sin precio" en vez de bloquear.
+
+**Ya existe un guardarraíl parcial** en `delay-reply` (~línea 1292:
+*"producto GPT inválido — descartado (no está en el catálogo)"*), pero
+`extraer-pedido` / el modal **no lo aplican**: dejan pasar el producto sin precio.
+
+### Qué hay que hacer
+1. **En `extraer-pedido`:** si el producto no empareja con el catálogo, intentar
+   resolverlo por categoría + variante antes de rendirse
+   (`Salchipapa` + `Pollo` → producto "Pollo" de Salchipapas Tradicionales).
+2. **Nunca dejar un ítem sin precio.** Si no se puede resolver, el modal debe
+   marcarlo en rojo y **no dejar guardar** hasta que se elija el producto real.
+   Un pedido en $0 que se guarda es plata perdida.
+3. Revisar el resto del catálogo: **"Premium" y "Maicitos Especial" tienen las
+   dos presentaciones en precio 0** (con precio base 28.000 y 26.000). Eso es
+   dato mal cargado y hay que arreglarlo — cualquiera de esos dos también saldría
+   en $0.
+
+### Bug 2 en la misma pantalla: el barrio no se autocompleta
+El campo Barrio salió vacío y dijo *"No reconocí el barrio en tu tabla de zonas"*,
+aunque:
+- La clienta **tiene barrio guardado**: `pos_clientes.barrio = 'Monteluna'`, y su
+  dirección guardada es `{"dir":"Monteluna casa 45","barrio":"Monteluna"}`.
+- El desplegable de direcciones mostró correctamente *"Monteluna casa 45 · Monteluna"*.
+
+**Dos cosas:**
+- Al abrir el modal con una dirección guardada, el barrio debe llenarse SOLO
+  (hoy solo se llena al elegir del desplegable a mano).
+- **"Monteluna" NO está en la tabla de zonas** (verificado: 0 coincidencias).
+  Por eso no calculó el domicilio. Sergio debe agregarlo en
+  Configuración → Chat IA → Domicilios, o usar el aprendizaje de barrios que ya
+  existe (`pos_domi_aprendidos`).
+
+---
+
 ## PENDIENTE — [Chat IA] La tarjeta del pedido debe quedarse hasta ENTREGADO — Sergio 2026-07-31
 
 **Lo que pidió:** *"En el chat quiero que la tarjeta del pedido no desaparezca
