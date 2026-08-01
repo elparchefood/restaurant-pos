@@ -2780,8 +2780,22 @@ async function wlCargar() {
   var host = document.getElementById('wlLista');
   if (!host) return;
   host.innerHTML = '<div class="cfg-empty">Cargando…</div>';
+
+  // La pestaña se activa al cargar la página, ANTES de que la sesión resuelva
+  // la sucursal. Sin esperarla, la consulta salía con branch_id "null" y la
+  // base respondía "invalid input syntax for type uuid".
+  var bid = _cfgBranchId || (window._pos && window._pos.state && window._pos.state.branchId);
+  if (!bid) {
+    for (var t = 0; t < 40 && !bid; t++) {
+      await new Promise(function (r) { setTimeout(r, 150); });
+      bid = _cfgBranchId || (window._pos && window._pos.state && window._pos.state.branchId);
+    }
+  }
+  if (!bid) { host.innerHTML = '<div class="cfg-empty">No se pudo identificar la sucursal. Recarga la página.</div>'; return; }
+  _cfgBranchId = _cfgBranchId || bid;
+
   try {
-    var r = await sb.from('pos_wa_listas').select('*').eq('branch_id', _cfgBranchId)
+    var r = await sb.from('pos_wa_listas').select('*').eq('branch_id', bid)
       .order('created_at', { ascending: false });
     if (r.error) throw r.error;
     _wlListas = r.data || [];
@@ -2821,7 +2835,7 @@ async function wlCupo() {
     var r = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/wa-enviar-lista', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (await wlToken()) },
-      body: JSON.stringify({ lista_id: _wlListas[0].id, branch_id: _cfgBranchId, solo_contar: true }),
+      body: JSON.stringify({ lista_id: _wlListas[0].id, branch_id: (_cfgBranchId || (window._pos && window._pos.state && window._pos.state.branchId)), solo_contar: true }),
     });
     var d = await r.json();
     if (d && d.ok) {
@@ -2880,7 +2894,7 @@ async function wlEnviar(id) {
     var r = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/wa-enviar-lista', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (await wlToken()) },
-      body: JSON.stringify({ lista_id: id, branch_id: _cfgBranchId, cantidad: 250 }),
+      body: JSON.stringify({ lista_id: id, branch_id: (_cfgBranchId || (window._pos && window._pos.state && window._pos.state.branchId)), cantidad: 250 }),
     });
     var d = await r.json();
     if (d.error) throw new Error(d.error);
