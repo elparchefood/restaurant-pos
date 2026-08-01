@@ -225,3 +225,18 @@ function daysAgoISO(n) {
     boot();
   }
 })();
+
+/* ══════════════════════════════════════════════════════════════
+   PUNTOS QUE DEJA UN PEDIDO
+   La cuenta REAL la hace la base (trigger `award_loyalty_points`) cuando el
+   pedido queda pagado. Esta funcion solo repite la MISMA formula para poder
+   mostrarsela al cliente en el momento; si algun dia cambia una, hay que
+   cambiar la otra.
+   Se cuenta comida + empaque; el domicilio NO da puntos (no es venta).
+   ══════════════════════════════════════════════════════════════ */
+window.posPuntosPedido = function (o) {
+  if (!o) return 0;
+  var comida = (parseFloat(o.subtotal) || 0) + (parseFloat(o.packaging_fee) || 0);
+  if (comida <= 0) comida = (parseFloat(o.total) || 0) - (parseFloat(o.delivery_fee) || 0);
+  return Math.max(0, Math.floor(comida / 1000));
+};

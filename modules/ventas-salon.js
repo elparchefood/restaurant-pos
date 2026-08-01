@@ -672,7 +672,7 @@
     try {
       var cajaStart = await getCajaSessionStart();
       var q = sb.from('pos_orders')
-        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, status, created_at, opened_at, delivery_status, delivered_at, estado, estado_at')
+        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, status, created_at, opened_at, delivery_status, delivered_at, estado, estado_at, cliente_id')
         .eq('channel', 'domicilio')
         .not('status', 'eq', 'cancelled')
         .gte('created_at', cajaStart)
@@ -719,6 +719,7 @@
           payStatus: payStatus,
           metodo: r.payment_method || 'efectivo',
           domiciliario: r.waiter_name || '—',
+          clienteId: r.cliente_id || null,
           min: mins,                 // en el estado actual
           minTotal: minsTotal,       // desde que entro el pedido
           estadoAt: r.estado_at || r.created_at || null,
@@ -1549,6 +1550,7 @@
           if (_hasInt) return '<div class="vs-mesero-row"><div class="lm-avatar lm-avatar-md">'+_domNombre[0].toUpperCase()+'</div><div class="vs-mesero-spacer"><div class="vs-mesero-label">Domiciliario</div><div class="vs-mesero-name">'+_domNombre+'</div></div>'+_payChip+'</div>';
           return '<div class="vs-mesero-row" style="justify-content:flex-end">'+_payChip+'</div>';
         })()}
+        ${vsPuntosHTML(d, isPagado)}
       </div>
 
       <div class="vs-rail-scroll">
@@ -3445,6 +3447,25 @@
     // Aviso honesto: el total no siempre es la suma de los tramos, porque los
     // pedidos anteriores a hoy no tienen registro por estado.
     void total;
+  }
+
+
+  /* Puntos que dejo el pedido, en el resumen de Ventas.
+     Sergio lo pidio "cuando el cliente ha pagado": antes de pagar no hay
+     puntos que anunciar, y sin cliente identificado tampoco — decirle al
+     operador unos puntos que no se van a acumular seria enganarlo. */
+  function vsPuntosHTML(d, pagado) {
+    if (!pagado || !d || !d.clienteId) return '';
+    var pts = window.posPuntosPedido ? window.posPuntosPedido({
+      subtotal: d.subtotal, packaging_fee: d.empaque, total: d.total, delivery_fee: d.domiFee,
+    }) : 0;
+    if (pts <= 0) return '';
+    return '<div style="margin-top:8px;padding:9px 12px;border-radius:10px;background:#F0FDF4;'
+      + 'border:1px solid #BBF7D0;display:flex;align-items:center;gap:8px">'
+      + '<span style="font-size:14px">⭐</span>'
+      + '<span style="font-size:12.5px;color:#166534;font-weight:600">'
+      + (d.cliente && d.cliente !== 'Sin cliente' ? d.cliente + ' ganó ' : 'Ganó ')
+      + pts + ' puntos con este pedido</span></div>';
   }
 
 })();

@@ -709,6 +709,8 @@ async function cobrarDespues() {
         ? `El domicilio de <strong>${mesaName}</strong> fue cobrado correctamente.`
         : `Venta rápida <strong>${mesaName}</strong> cobrada correctamente.`;
     document.getElementById('done-overlay').hidden     = false;
+    // Puntos que gano el cliente con esta compra (solo si quedo identificado).
+    pgMostrarPuntosGanados(total, domi, empaque);
 
   } catch(e) {
     console.error('finalizarPago:', e);
@@ -1643,4 +1645,42 @@ async function pgPintarCliente() {
   row.classList.add('has-client');
   var pts = SP.clienteTel ? await pgPuntosDe(SP.clienteTel) : 0;
   lbl.textContent = (SP.cliente || SP.clienteTel) + (SP.clienteTel ? ' · ' + pts + ' pts' : '');
+}
+
+
+/* Cuantos puntos gano el cliente con ESTA compra, en la pantalla de "Pago
+   registrado". Pedido de Sergio: que se vea el resumen de puntos apenas se
+   cobra, para poder decirselo. Si no se identifico a nadie, no se muestra nada:
+   inventar unos puntos que no se van a acumular seria peor que no decir nada. */
+async function pgMostrarPuntosGanados(total, domi, empaque) {
+  var caja = document.getElementById('done-puntos');
+  var stats = document.querySelector('.pg-done-stats');
+  if (!stats) return;
+  if (!caja) {
+    caja = document.createElement('div');
+    caja.id = 'done-puntos';
+    caja.style.cssText = 'margin-top:12px;padding:11px 14px;border-radius:11px;background:#F0FDF4;border:1px solid #BBF7D0;text-align:left';
+    stats.parentNode.insertBefore(caja, stats.nextSibling);
+  }
+  if (!SP.clienteTel) { caja.style.display = 'none'; return; }
+
+  var gano = window.posPuntosPedido
+    ? window.posPuntosPedido({ subtotal: (total - domi - (empaque || 0)), packaging_fee: empaque || 0, total: total, delivery_fee: domi })
+    : 0;
+  if (gano <= 0) { caja.style.display = 'none'; return; }
+
+  caja.style.display = '';
+  caja.innerHTML = '<div style="font-size:13px;color:#166534;font-weight:700">'
+    + (SP.cliente ? _payEsc(SP.cliente) + ' gano ' : 'Gano ') + gano + ' puntos con esta compra</div>'
+    + '<div id="done-puntos-tot" style="font-size:12px;color:#15803D;margin-top:2px">Actualizando su total...</div>';
+
+  // El total lo da la base, ya sumado por el trigger: no se calcula aqui.
+  try {
+    var pts = await pgPuntosDe(SP.clienteTel);
+    var sub = document.getElementById('done-puntos-tot');
+    if (sub) sub.textContent = 'Ahora tiene ' + pts + ' puntos en total.';
+  } catch (e) {
+    var s2 = document.getElementById('done-puntos-tot');
+    if (s2) s2.textContent = '';
+  }
 }
