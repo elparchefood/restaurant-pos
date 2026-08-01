@@ -2678,3 +2678,61 @@ estaban permitidas), modal de producto sin variantes, y el texto resumen.
   el producto no este en el catalogo.
 - La tasa de acumulacion sigue fija en $1.000 = 1 punto **dentro del trigger**.
   Si se quiere configurable hay que cambiar el trigger, no solo la pantalla.
+
+
+---
+
+## 84. Puntos como METODO DE PAGO en la pantalla de cobro (2026-08-01)
+
+Cierra lo de la entrada 83. Regla de Sergio: *"nada fue gratis, simplemente se
+usaron puntos para hacer el pago... solo aplica para productos que esten dentro
+del catalogo; si se quiere pagar con puntos un producto que no esta, debe
+aparecer la alerta"*.
+
+### Como quedo
+**No se descuenta un valor suelto.** Al elegir el metodo *Puntos* se abre un
+modal con **los productos del pedido**:
+- Los que estan en el catalogo: casilla + lo que cuestan en puntos.
+- Los que NO: se muestran **apagados y con el motivo** ("no esta en el catalogo
+  de puntos", "ese tamano no se puede pagar con puntos", "esa variante no entra
+  en el canje"). Esconderlos haria que el cajero no entienda por que faltan.
+
+El pago que se registra vale **exactamente los pesos de esos productos**, con
+metodo *Puntos*. La venta existe, la caja cuadra y el inventario descuenta
+igual: solo cambia con que se pago.
+
+### Decisiones
+- **El metodo solo aparece cuando de verdad sirve**: hay cliente identificado,
+  tiene saldo y existe catalogo. Un boton que siempre falla es peor que uno que
+  no esta. Y se recarga al identificar o quitar al cliente, sin refrescar.
+- **Los puntos se descuentan AL FINALIZAR**, no al aplicar el pago — mismo
+  criterio del credito: si el cobro se cancela a medias, al cliente no se le
+  quito nada.
+- **Un solo pago con puntos por pedido**, para no enredar el arqueo.
+- El monto nunca se pasa de lo que falta por cobrar.
+
+### Base de datos
+- `fn_puntos_consumir` con **`SELECT … FOR UPDATE`**: dos cajas cobrandole al
+  mismo cliente a la vez no pueden gastar los mismos puntos. Lanza
+  `PUNTOS_INSUFICIENTES|saldo|pedidos` para que el modal muestre cifras.
+- `fn_puntos_devolver(order, motivo)`: si se anula el pedido, los puntos
+  vuelven y **queda el movimiento**, no se borra el rastro.
+- El emparejamiento producto->catalogo reutiliza las **tres redes** del
+  descuento de inventario (nombre exacto, presentacion unica, deducir del
+  nombre del item), porque es el mismo problema de las presentaciones sin nombre.
+
+### Probado contra la base real
+| Prueba | Resultado |
+|---|---|
+| Canjear 300 de 1.000 puntos | saldo 700 + movimiento con detalle |
+| Intentar gastar 5.000 teniendo 700 | **bloqueado**, saldo intacto |
+| Canjear 200 y anular el pedido | vuelve a 700, con movimiento de ajuste |
+| Catalogo con solo la 1.5 Litros | la Personal queda fuera del canje |
+
+Datos de prueba borrados. **El catalogo quedo vacio** (estaba vacio antes:
+Sergio todavia no ha cargado sus productos).
+
+### PENDIENTE
+- Conectar `fn_puntos_devolver` a la anulacion de pedidos desde Ventas (hoy la
+  funcion existe pero nadie la llama).
+- La tasa de acumulacion sigue fija en $1.000 = 1 punto dentro del trigger.

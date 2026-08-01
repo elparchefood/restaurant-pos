@@ -62,6 +62,8 @@ const TIPO_STYLE = {
   banco:         { cssKey:'transferencia', icon: METHOD_ICONS.transferencia, color:'var(--transfer)', tint:'var(--transfer-tint)', ring:'var(--transfer-ring)', sub:'Cuenta bancaria' },
   billetera:     { cssKey:'nequi',         icon: METHOD_ICONS.nequi,         color:'var(--qr)',       tint:'var(--qr-tint)',       ring:'var(--qr-ring)',       sub:'Billetera digital' },
   otro:          { cssKey:'efectivo',      icon: METHOD_ICONS.efectivo,      color:'var(--cash)',     tint:'var(--cash-tint)',     ring:'var(--cash-ring)',     sub:'' },
+  // Puntos: método propio, para que se distinga de un pago en dinero.
+  puntos:        { cssKey:'efectivo',      icon: '⭐',                    color:'#7C3AED',         tint:'#F5F3FF',              ring:'#DDD6FE',              sub:'Canje del catálogo' },
 };
 function _payEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function _payAttr(s){ return String(s==null?'':s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -83,6 +85,20 @@ async function loadPaymentMethods(){
   if (!list.length) list = [{ id:'efectivo', nombre:'Efectivo', tipo:'efectivo', digital:false }];
   list.sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
   SP.methodDefs = list.map(function(m){ return { key:(m.id||m.nombre), nombre:m.nombre, tipo:m.tipo||'otro', digital:!!m.digital }; });
+  /* Los puntos aparecen como un método más, pero SOLO cuando de verdad se
+     pueden usar: hay cliente identificado, tiene puntos y hay catálogo de
+     canje. Un botón que siempre falla es peor que un botón que no está. */
+  try {
+    if (window.posPuntos) {
+      var _st = (window._pos && window._pos.state) || {};
+      posPuntos.setCtx(_st.tenantId || SP.tenantId, SP.branchId);
+      await posPuntos.cargar();
+      SP.puntosSaldo = SP.clienteTel ? await posPuntos.disponibles(SP.clienteTel) : 0;
+      if (posPuntos.hayCatalogo() && SP.clienteTel && SP.puntosSaldo > 0) {
+        SP.methodDefs.push({ key: '__puntos', nombre: 'Puntos', tipo: 'puntos', digital: false });
+      }
+    }
+  } catch (e) { console.warn('[pagos] puntos no disponibles:', e); }
   var def = list.find(function(m){ return m.porDefecto; }) || list[0];
   SP.method = (def.id||def.nombre);
   _renderMethodButtons();
@@ -520,6 +536,7 @@ async function crElegirPersona(monto) {
 // ── Acciones ──────────────────────────────────────────────────────────────
 async function applyPayment() {
   const { falta, total } = calc();
+  if (_ptEsPuntos()) { if (falta <= 0) return; ptAplicarPuntos(); return; }
   if (SP.entry <= 0 || falta <= 0) return;
   const amount   = _esEfectivo() ? Math.min(SP.entry, falta) : SP.entry;
   const received = SP.entry;
@@ -528,6 +545,10 @@ async function applyPayment() {
   // Crédito: hay que decir a nombre de QUIÉN queda la deuda. El cargo real se
   // hace al finalizar, no aquí: si se cancela el cobro a medias, nadie queda
   // debiendo algo que nunca se cobró.
+  // Puntos: no se descuenta un valor suelto, se eligen los PRODUCTOS que se
+  // pagan con puntos. El cargo real se hace al finalizar, igual que el crédito.
+  if (_ptEsPuntos()) { ptAplicarPuntos(); return; }
+
   if (_crEsCredito()) {
     if (!window.posCreditos) { alert('El módulo de créditos no está disponible.'); return; }
     const st = (window._pos && window._pos.state) || {};
@@ -546,6 +567,11 @@ async function applyPayment() {
   SP.payments.push({ id: Date.now(), method: def.nombre, methodKey: def.key, methodTipo: def.tipo, amount, received });
   SP.entry = 0;
   renderAll();
+}
+
+function ptEtiquetaPago(p) {
+  return p && p.methodTipo === 'puntos' && p.puntos
+    ? ' · ' + Number(p.puntos).toLocaleString('es-CO') + ' pts' : '';
 }
 
 function removePayment(id) {
@@ -648,6 +674,23 @@ async function cobrarDespues() {
         btnFinish.disabled = false; btnFinish.textContent = 'Finalizar';
         if (e && e.codigo === 'CREDITO_INSUFICIENTE') posCreditos.modalInsuficiente(e, cp.creditoNombre);
         else alert('No se pudo cargar el crédito: ' + (e.message || e));
+        return;
+      }
+    }
+
+    // Puntos: se descuentan aquí, no al aplicar. Si el cobro se cancela a
+    // medias, al cliente no se le quitó nada. Es el mismo criterio del crédito.
+    const pp = SP.payments.find(p => p.methodTipo === 'puntos' && !p.puntosOk);
+    if (pp) {
+      try {
+        const st2 = (window._pos && window._pos.state) || {};
+        const quien2 = (st2.user && (st2.user.user_metadata && st2.user.user_metadata.nombre || st2.user.email)) || null;
+        await posPuntos.consumir(SP.clienteTel, pp.puntos, SP.orderId, pp.detallePuntos, quien2);
+        pp.puntosOk = true;
+      } catch (e) {
+        btnFinish.disabled = false; btnFinish.textContent = 'Finalizar';
+        if (e && e.codigo === 'PUNTOS_INSUFICIENTES') posPuntos.modalInsuficiente(e);
+        else alert('No se pudieron descontar los puntos: ' + (e.message || e));
         return;
       }
     }
@@ -1014,6 +1057,9 @@ async function loadOrder() {
       name:      it.name || it.product_name || 'Producto',
       qty:       it.quantity || 1,
       unitPrice: parseFloat(it.unit_price) || 0,
+      // Presentación y variantes elegidas: sin esto no se puede saber si ese
+      // tamaño concreto está en el catálogo de puntos.
+      selections: it.selections || {},
       catName:   cat.name  || '',
       catColor:  cat.color || catColorFor(it.product_id),
     };
@@ -1634,7 +1680,10 @@ async function pgGuardarCliente(id, nombre, tel) {
     }).eq('id', SP.orderId);
   } catch (e) { console.error('[pagos] no se pudo asociar el cliente:', e); }
   pgPintarCliente();
-  renderTotals();   // el anuncio de puntos cambia al identificar o quitar al cliente
+  /* Recargar los métodos: "Puntos" solo se ofrece cuando hay cliente con
+     saldo, así que aparece (o desaparece) al identificarlo o quitarlo. */
+  try { await loadPaymentMethods(); } catch (e) { /* no bloquea el cobro */ }
+  renderAll();
 }
 
 async function pgPintarCliente() {
@@ -1733,4 +1782,45 @@ function pgPuntosPreview(subtotal, empaque) {
     el.innerHTML = '<span>\u2b50</span><span>Este pedido vale <b>' + pts
       + ' puntos</b>. Toca <b>Consumidor final</b> arriba para asign\u00e1rselos a un cliente.</span>';
   }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   PUNTOS COMO MÉTODO DE PAGO
+   Regla de Sergio: nada es gratis. Se eligen los PRODUCTOS que se pagan con
+   puntos y el pago se registra por el valor en pesos de esos productos, así la
+   venta y la caja quedan igual que si hubiera pagado en efectivo.
+   Solo se pueden pagar así los productos del catálogo; el resto sale apagado
+   y con el motivo a la vista.
+   ══════════════════════════════════════════════════════════════════ */
+function _ptEsPuntos() {
+  var d = _payDef();
+  return !!(d && (d.tipo === 'puntos' || d.key === '__puntos'));
+}
+
+function ptAplicarPuntos() {
+  if (!window.posPuntos) { alert('El módulo de puntos no está disponible.'); return; }
+  if (!SP.clienteTel) {
+    alert('Primero identifica al cliente: toca "Consumidor final" arriba del ticket.');
+    return;
+  }
+  // Un pedido no se paga dos veces con puntos.
+  if (SP.payments.some(function (p) { return p.methodTipo === 'puntos'; })) {
+    alert('Este pedido ya tiene un pago con puntos. Quítalo si quieres cambiarlo.');
+    return;
+  }
+  var def = _payDef();
+  posPuntos.modalCanje(SP.items, Number(SP.puntosSaldo) || 0, function (sel) {
+    if (!sel || sel.puntos <= 0) return;
+    var falta = calc().falta;
+    // El pago no puede pasarse de lo que falta por cobrar.
+    var monto = Math.min(sel.pesos, falta);
+    SP.payments.push({
+      id: Date.now(), method: def.nombre, methodKey: def.key, methodTipo: 'puntos',
+      amount: monto, received: monto,
+      puntos: sel.puntos, detallePuntos: sel.detalle,
+    });
+    SP.entry = 0;
+    renderAll();
+  });
 }
