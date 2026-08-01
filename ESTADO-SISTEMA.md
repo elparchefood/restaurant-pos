@@ -1991,3 +1991,33 @@ se muestran aparte en el subtitulo: `"1 en turno - 3 mesas atendidas hoy"`.
 **Nota para el futuro.** Cualquier consulta que relacione un pedido con un
 usuario tiene que pasar por `auth_user_id`. Si en algun sitio se compara
 `pos_orders.waiter_id` con `pos_users.id` directamente, esta mal.
+
+
+---
+
+## 69. "WhatsApp no esta conectado" al enviar la lista (2026-07-31)
+
+El boton "Enviar tanda de hoy" fallaba con *"WhatsApp no esta conectado en esta
+sucursal"*. **Las credenciales estaban perfectas** (`chat_channels`, canal
+whatsapp, con `phone_id` y `access_token`, en la sucursal correcta). El mensaje
+era enganoso: cualquier fallo de lectura terminaba en esa misma frase.
+
+**Tres errores encadenados, todos mios, en `wa-enviar-lista` (v3):**
+
+1. **Ruta duplicada.** Los ayudantes `sbGet`/`sbPatch` anteponian `/rest/v1` y
+   todas las llamadas ya lo traian -> la URL quedaba `/rest/v1/rest/v1/...` y
+   **ninguna consulta devolvia nada**.
+2. **Faltaba el permiso de `service_role`.** La migracion daba privilegios solo
+   a `authenticated`, pero las Edge Functions entran con la llave de servicio.
+   Resultado: `403 permission denied for table pos_wa_envios`. Ya corregido en
+   la BD y anadido al .sql para que no se pierda.
+3. **Tope de 1.000 filas otra vez.** Contaba pendientes con `.length` sobre la
+   consulta; la API corta en 1.000 y `limit=2000` NO levanta ese tope, asi que
+   decia 1.000 pendientes habiendo 1.381. Ahora hay un `sbCount()` que cuenta
+   con `Prefer: count=exact` sin traer las filas.
+
+**Verificado:** la funcion responde `{pendientes: 1381, disponible: 250}`.
+
+**Leccion (ya van tres veces con el tope de 1.000).** Nunca contar con
+`.length`. Y un `catch` no debe convertir un fallo de lectura en un diagnostico
+inventado: si no se pudo consultar, el mensaje tiene que decir eso.

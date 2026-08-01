@@ -44,3 +44,9 @@ RETURNS int LANGUAGE sql STABLE AS $$
      AND enviado_at > now() - interval '24 hours';
 $$;
 GRANT EXECUTE ON FUNCTION fn_wa_enviados_24h(uuid) TO authenticated, service_role;
+
+-- Las Edge Functions entran con la llave de servicio, NO como 'authenticated'.
+-- Sin este GRANT la funcion de envio recibia 403 en cada consulta y el error
+-- salia disfrazado de "WhatsApp no esta conectado en esta sucursal".
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.pos_wa_envios  TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.pos_wa_listas  TO service_role;
