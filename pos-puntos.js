@@ -156,7 +156,7 @@
         +     (falta ? 'no alcanza · tiene ' + saldo.toLocaleString('es-CO')
                      : (saldo - pts).toLocaleString('es-CO')) + '</span></div>'
         + '<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px">'
-        +   '<span style="color:#94A3B8">Equivale a</span>'
+        +   '<span style="color:#94A3B8">Sale de la venta</span>'
         +   '<span style="color:#64748B">' + money(pesos) + '</span></div>';
       ov.querySelector('#pp-ok').disabled = (pts <= 0 || falta);
     }
@@ -213,14 +213,16 @@
     ov.onclick = function (e) { if (e.target === ov) cerrar(); };
     ov.querySelector('#pp-ok').onclick = function () {
       var sel = [].slice.call(ov.querySelectorAll('.pp-chk:checked'));
-      var pts = 0, pesos = 0, nombres = [];
+      var pts = 0, pesos = 0, nombres = [], ids = [];
       sel.forEach(function (ch) {
         pts += Number(ch.dataset.pts) || 0;
         pesos += Number(ch.dataset.pesos) || 0;
-        nombres.push(filas[Number(ch.dataset.i)].it.name);
+        var it = filas[Number(ch.dataset.i)].it;
+        nombres.push(it.name); ids.push(it.id);
       });
       cerrar();
-      onOk({ puntos: pts, pesos: pesos, detalle: nombres.join(', ') });
+      // itemIds: la pantalla los necesita para SACAR esos productos del total.
+      onOk({ puntos: pts, pesos: pesos, detalle: nombres.join(', '), itemIds: ids });
     };
   }
 

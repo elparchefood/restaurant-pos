@@ -502,6 +502,19 @@ function renderKPIs(orders) {
   el('kpi-ticket').textContent     = COPF(ticket);
   el('kpi-trans').textContent      = orders.length;
   el('kpi-trans-sub').textContent  = cancelled.length + ' anuladas';
+
+  /* Puntos redimidos en el turno. Va APARTE de las ventas a proposito:
+     regla de Sergio, "300 puntos no es igual a 8.000 pesos... en las ventas no
+     se suma lo que no entro". Aqui se ve cuanto se entrego en producto sin que
+     eso ensucie el total de ventas ni el arqueo. */
+  const pts  = active.reduce((s,o)=>s+(parseInt(o.puntos_redimidos,10)||0),0);
+  const vale = active.reduce((s,o)=>s+(parseFloat(o.puntos_valor)||0),0);
+  const nCanjes = active.filter(o=>(parseInt(o.puntos_redimidos,10)||0)>0).length;
+  const elPts = el('kpi-puntos'), elPtsSub = el('kpi-puntos-sub');
+  if (elPts) elPts.textContent = pts.toLocaleString('es-CO');
+  if (elPtsSub) elPtsSub.textContent = nCanjes
+    ? (nCanjes + (nCanjes===1?' canje · ':' canjes · ') + COPF(vale) + ' en producto')
+    : 'sin canjes en el turno';
 }
 
 // ── Desglose por medio de pago ─────────────────────────────────
@@ -523,7 +536,7 @@ async function getPedidosAbiertos() {
   try {
     if (!S.session) return [];
     const q = sb.from('pos_orders')
-      .select('id, status, estado, delivered_at, table_id, channel, total, total_final, paid_amount, customer_name, created_at')
+      .select('id, status, estado, delivered_at, table_id, channel, total, total_final, paid_amount, customer_name, created_at, puntos_redimidos, puntos_valor')
       .not('status', 'in', '("cancelled","abandoned")')
       .gte('created_at', S.session.opened_at)
       .order('created_at', { ascending: true });

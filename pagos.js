@@ -206,7 +206,16 @@ var _tipCustomOpen = false;
 
 // ── Cálculos ──────────────────────────────────────────────────────────────
 function calc() {
-  const subtotal = SP.items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
+  /* Lo canjeado con puntos NO es venta.
+     Regla de Sergio: "300 puntos no es igual a 8.000 pesos... en las ventas no
+     se suma lo que no entró". El producto se entrega y descuenta inventario,
+     pero su precio sale del total: si se cobrara como un pago de $8.000, la
+     venta del día quedaría inflada con plata que nunca llegó a la caja. */
+  const canjeIds = (SP.canje && SP.canje.itemIds) || [];
+  const subtotal = SP.items.reduce((s, i) =>
+    s + (canjeIds.indexOf(i.id) >= 0 ? 0 : i.qty * i.unitPrice), 0);
+  const canjeValor = SP.items.reduce((s, i) =>
+    s + (canjeIds.indexOf(i.id) >= 0 ? i.qty * i.unitPrice : 0), 0);
   const empaque  = Number(SP.empaque) || 0;                       // siempre se cobra
   const domi     = SP.cobrarDomicilio ? (Number(SP.domicilio) || 0) : 0; // opcional
   const tipAmt   = tipCalc(subtotal);                             // propina solo sobre productos
@@ -221,7 +230,7 @@ function calc() {
     ? vueltoGuardado + Math.max(0, SP.entry - falta)   // exceso ya guardado + lo que se está digitando de más
     : vueltoGuardado + Math.max(0, paid - total);
   const cubierto = paid >= total && total > 0;
-  return { subtotal, empaque, domi, tipAmt, total, paid, falta, vuelto, cubierto };
+  return { subtotal, empaque, domi, tipAmt, total, paid, falta, vuelto, cubierto, canjeValor };
 }
 
 // Calcula el empaque desde la config de Operación (mismo criterio que domicilios.js).
@@ -274,7 +283,7 @@ function renderItems() {
 }
 
 function renderTotals() {
-  const { subtotal, empaque, domi, tipAmt, total, paid, falta, vuelto, cubierto } = calc();
+  const { subtotal, empaque, domi, tipAmt, total, paid, falta, vuelto, cubierto, canjeValor } = calc();
   const cobro = document.getElementById('cobro');
 
   document.getElementById('t-subtotal').textContent = fmt(subtotal);
@@ -313,6 +322,9 @@ function renderTotals() {
   }
 
   // Puntos que ganaria el cliente con este pedido (todavia no cobrado)
+  // Canje: los productos pagados con puntos salen del total
+  ptRenderCanje(canjeValor);
+
   pgPuntosPreview(subtotal, empaque);
 
   // Propina (bloque completo)
@@ -685,13 +697,13 @@ async function cobrarDespues() {
 
     // Puntos: se descuentan aquí, no al aplicar. Si el cobro se cancela a
     // medias, al cliente no se le quitó nada. Es el mismo criterio del crédito.
-    const pp = SP.payments.find(p => p.methodTipo === 'puntos' && !p.puntosOk);
+    const pp = (SP.canje && SP.canje.puntos > 0 && !SP.canje.hecho) ? SP.canje : null;
     if (pp) {
       try {
         const st2 = (window._pos && window._pos.state) || {};
         const quien2 = (st2.user && (st2.user.user_metadata && st2.user.user_metadata.nombre || st2.user.email)) || null;
-        await posPuntos.consumir(SP.clienteTel, pp.puntos, SP.orderId, pp.detallePuntos, quien2);
-        pp.puntosOk = true;
+        await posPuntos.consumir(SP.clienteTel, pp.puntos, SP.orderId, pp.detalle, quien2);
+        pp.hecho = true;
       } catch (e) {
         btnFinish.disabled = false; btnFinish.textContent = 'Finalizar';
         if (e && e.codigo === 'PUNTOS_INSUFICIENTES') posPuntos.modalInsuficiente(e);
@@ -707,7 +719,12 @@ async function cobrarDespues() {
       closed_at:       now,
       // "Las ventas son las ventas": total_final = SOLO comida+empaque, SIN domicilio.
       // El domi va aparte (delivery_fee). paid_amount sí es todo lo que pagó el cliente (incluye domi).
+      // "Las ventas son las ventas": lo canjeado con puntos NO entra aquí.
+      // `total` ya viene sin ello (calc lo resta), así que total_final es lo
+      // que de verdad se vendió en dinero.
       total_final:     total - domi,
+      puntos_redimidos: (SP.canje && SP.canje.puntos) || null,
+      puntos_valor:     (SP.canje && SP.canje.puntos) ? (calc().canjeValor || 0) : null,
       paid_amount:     total,
       discount_amount: SP.discount || 0,
       discount_motivo: SP.discountObj?.motivo || null,
@@ -1809,23 +1826,57 @@ function ptAplicarPuntos() {
     alert('Primero identifica al cliente: toca "Consumidor final" arriba del ticket.');
     return;
   }
-  // Un pedido no se paga dos veces con puntos.
-  if (SP.payments.some(function (p) { return p.methodTipo === 'puntos'; })) {
-    alert('Este pedido ya tiene un pago con puntos. Quítalo si quieres cambiarlo.');
+  // Un pedido no se canjea dos veces.
+  if (SP.canje && SP.canje.puntos > 0) {
+    alert('Este pedido ya tiene un canje con puntos. Quítalo si quieres cambiarlo.');
     return;
   }
-  var def = _payDef();
   posPuntos.modalCanje(SP.items, Number(SP.puntosSaldo) || 0, function (sel) {
     if (!sel || sel.puntos <= 0) return;
-    var falta = calc().falta;
-    // El pago no puede pasarse de lo que falta por cobrar.
-    var monto = Math.min(sel.pesos, falta);
-    SP.payments.push({
-      id: Date.now(), method: def.nombre, methodKey: def.key, methodTipo: 'puntos',
-      amount: monto, received: monto,
-      puntos: sel.puntos, detallePuntos: sel.detalle,
-    });
+    /* El canje NO es un pago: es una salida de la venta. Se guarda aparte y
+       calc() resta esos productos del total a cobrar. Así la caja solo cuenta
+       el dinero que de verdad entró. */
+    SP.canje = { puntos: sel.puntos, itemIds: sel.itemIds || [], detalle: sel.detalle };
     SP.entry = 0;
+    // Si el método sigue en Puntos no se puede seguir cobrando: se vuelve al primero.
+    if (_ptEsPuntos()) {
+      var otro = (SP.methodDefs || []).filter(function (m) { return m.tipo !== 'puntos'; })[0];
+      if (otro) SP.method = otro.key;
+      _renderMethodButtons();
+    }
     renderAll();
   });
+}
+
+// Quitar el canje (el cliente cambió de opinión).
+function ptQuitarCanje() {
+  SP.canje = null;
+  renderAll();
+}
+
+
+/* La fila del canje en el ticket. Se muestra en NEGATIVO y con los puntos,
+   nunca como un pago: lo que se entrego a cambio de puntos no es venta. */
+function ptRenderCanje(canjeValor) {
+  var row = document.getElementById('t-canje-row');
+  if (!row) {
+    var totalRow = document.querySelector('.pg-trow.pg-tgrand');
+    if (!totalRow) return;
+    row = document.createElement('div');
+    row.id = 't-canje-row';
+    row.className = 'pg-trow pg-canje-row';
+    totalRow.parentNode.insertBefore(row, totalRow);
+  }
+  if (!SP.canje || !SP.canje.puntos) { row.hidden = true; return; }
+  row.hidden = false;
+  row.innerHTML =
+      '<span>Canjeado con puntos'
+    +   '<button type="button" onclick="ptQuitarCanje()" title="Quitar el canje"'
+    +     ' style="margin-left:7px;border:0;background:none;color:#94A3B8;cursor:pointer;font-size:12px">\u2715</button>'
+    +   '<span style="display:block;font-size:11px;color:#94A3B8">' + _payEsc(SP.canje.detalle || '') + '</span>'
+    + '</span>'
+    + '<span style="text-align:right"><b style="color:#7C3AED">'
+    +   Number(SP.canje.puntos).toLocaleString('es-CO') + ' pts</b>'
+    +   '<span style="display:block;font-size:11px;color:#94A3B8">\u2212 ' + fmt(canjeValor) + ' no es venta</span>'
+    + '</span>';
 }

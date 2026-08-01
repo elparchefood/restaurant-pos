@@ -2768,3 +2768,64 @@ $1.000 = **$26.000**.
 La venta suma completa: **nada salio gratis**, que es la regla. El desglose deja
 ver cuanto entro en dinero y cuanto se pago con puntos, con el detalle de que
 producto se canjeo.
+
+
+---
+
+## 86. CORRECCION IMPORTANTE — lo canjeado con puntos NO es venta (2026-08-01)
+
+**Sergio corrigio un error de fondo mio.** Yo habia registrado el canje como un
+**pago de $8.000 con metodo "Puntos"**. Sus palabras:
+
+> *"300 puntos no equivalen a 8.000 pesos... la gaseosa costo 300 puntos, no
+> 8.000 pesos. En las ventas solo debe entrar el dinero real, no debe entrar
+> dinero ficticio. Si dimos una Coca Cola a cambio de puntos, esa Coca Cola no
+> puede entrar en la suma de las ventas, debe aparecer como si no se hubiera
+> vendido, pero si se descuenta de los insumos, asi las cuentas no se van a
+> inflar."*
+
+Tiene razon: con mi version, un dia con 10 canjes habria mostrado ~$80.000 de
+ventas que **nunca entraron a la caja**, y el arqueo no habria cuadrado.
+
+### Como quedo
+El canje **ya no es un pago**: es una **salida de la venta**.
+- `calc()` **resta del subtotal** los productos canjeados. El total a cobrar es
+  solo lo que el cliente paga en dinero.
+- El ticket muestra una fila morada: *"Canjeado con puntos · 300 pts ·
+  −$8.000 no es venta"*, con una X para quitarlo.
+- Al finalizar se guardan en el pedido `puntos_redimidos` (300) y
+  `puntos_valor` ($8.000). **`puntos_valor` NO es venta**: es solo para saber
+  cuanto se regalo en producto.
+- El producto **sigue en el pedido**, asi que el inventario descuenta igual.
+
+### Y el trigger tambien estaba mal
+`award_loyalty_points` daba puntos sobre el total **incluyendo lo canjeado**:
+canjear generaba puntos nuevos y la bola de nieve no paraba. Ahora resta
+`puntos_valor` antes de calcular. Ademas escribe el movimiento de acumulacion
+en `pos_puntos_movimientos`, que antes no quedaba registrado.
+
+### En el cierre de caja
+Tarjeta nueva **"Puntos redimidos"** con los puntos del turno y, debajo,
+cuantos canjes y **cuanto se entrego en producto**. Va aparte de las ventas a
+proposito, para que el total de ventas siga siendo dinero real.
+
+### Verificado con la `calc()` real
+Pedido: Coca Cola $8.000 + Salchipapa $17.000 + empaque $1.000.
+Se canjea la Coca Cola por 300 puntos:
+
+| | |
+|---|---|
+| Subtotal que SI es venta | **$17.000** (la Coca Cola salio) |
+| Valor canjeado | $8.000 — *no entra a ventas* |
+| Total a cobrar | **$18.000** |
+| Dinero que entro | **$18.000** |
+| Venta registrada | **$18.000** |
+
+Caso extremo (todo el pedido canjeado): la venta queda en **$1.000**, solo el
+empaque, que si se cobra.
+
+### PENDIENTE (lo pidio Sergio para despues)
+Informe de puntos: cuantos se redimen, cuanto se regala en producto al mes,
+cuantos hay en circulacion. Los datos ya quedan guardados
+(`pos_puntos_movimientos`, `puntos_redimidos`, `puntos_valor`) para poder
+armarlo sin tocar nada mas.

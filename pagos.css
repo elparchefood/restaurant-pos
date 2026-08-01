@@ -958,3 +958,9 @@ svg { display: block; }
   color:#166534;font-weight:600;line-height:1.35}
 .pg-puntos-pre.is-anon{background:#F8FAFC;border-color:#E2E8F0;color:#64748B;font-weight:500}
 .pg-puntos-pre b{font-weight:800}
+
+
+/* Fila del canje en el ticket: se ve que salio de la venta, no que se cobro */
+.pg-canje-row{ align-items:flex-start; background:#F5F3FF; border:1px solid #DDD6FE;
+  border-radius:9px; padding:8px 11px; margin-top:8px; }
+.pg-canje-row > span:first-child{ font-size:12.5px; color:#5B21B6; font-weight:600; }
