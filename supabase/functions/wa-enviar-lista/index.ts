@@ -86,8 +86,17 @@ Deno.serve(async (req) => {
       return json({ ok: true, enviados: 0, fallidos: 0, pendientes: 0, mensaje: "No quedan contactos pendientes en esta lista." });
     }
 
-    let ok = 0, fallidos = 0;
+    /* La funcion no puede correr indefinidamente: el servidor la corta. Con 250
+       mensajes se moria a mitad (la primera vez, en el 126) y el navegador solo
+       veia "Failed to fetch". No se perdia nada porque la cola guarda el estado
+       de cada uno, pero la pantalla quedaba sin saber que habia pasado.
+       Ahora la propia funcion se detiene ANTES del corte y avisa que quedo a
+       medias, para que la pantalla la vuelva a llamar y siga donde iba. */
+    const T0 = Date.now();
+    const LIMITE_MS = 50_000;
+    let ok = 0, fallidos = 0, corto_por_tiempo = false;
     for (const c of cola) {
+      if (Date.now() - T0 > LIMITE_MS) { corto_por_tiempo = true; break; }
       // El teléfono va sin '+' ni espacios, como lo exige Meta.
       const tel = String(c.telefono || "").replace(/\D/g, "");
       if (tel.length < 10) {
@@ -132,7 +141,7 @@ Deno.serve(async (req) => {
     }
 
     return json({
-      ok: true, enviados: ok, fallidos,
+      ok: true, enviados: ok, fallidos, corto_por_tiempo,
       pendientes: await sbCount(`/rest/v1/pos_wa_envios?lista_id=eq.${listaId}&estado=eq.pendiente`),
       disponible_hoy: Math.max(0, disponible - ok - fallidos),
     });

@@ -2880,35 +2880,72 @@ function wlRender() {
 async function wlEnviar(id) {
   var L = _wlListas.filter(function (x) { return x.id === id; })[0];
   if (!L) return;
+  var NL = String.fromCharCode(10);
   var pend = (L._c && L._c.pendiente) || 0;
-  if (!confirm('Se va a enviar la plantilla "' + ((L.filtros && L.filtros.plantilla) || '') + '"\n'
-    + 'a hasta 250 contactos de "' + L.nombre + '".\n\n'
-    + 'Quedan ' + pend + ' pendientes en total.\n\n¿Enviar la tanda de hoy?')) return;
+  if (!confirm('Se va a enviar la plantilla "' + ((L.filtros && L.filtros.plantilla) || '') + '"' + NL
+    + 'a los contactos de "' + L.nombre + '" que quepan en el cupo de hoy.' + NL + NL
+    + 'Quedan ' + pend + ' pendientes en total.' + NL + NL
+    + '¿Enviar la tanda de hoy?')) return;
 
   var btn = document.getElementById('wlBtn-' + id);
   var res = document.getElementById('wlRes-' + id);
   if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
-  if (res) res.innerHTML = '<span style="color:#64748B">Enviando, no cierres esta pantalla…</span>';
+
+  /* Se llama a la función VARIAS veces seguidas, no una sola: el servidor la
+     corta si tarda demasiado, y mandando 250 de un tirón se moría a mitad de
+     camino (la primera vez alcanzó a mandar 126 y el navegador solo decía
+     "Failed to fetch"). Como la cola guarda el estado de cada contacto, basta
+     con volver a llamarla y sigue donde iba, sin repetirle a nadie. */
+  var totalOk = 0, totalMal = 0, quedan = pend, vueltas = 0, avisoLimite = false;
+
+  function pinta(color, texto) {
+    if (res) res.innerHTML = '<span style="color:' + color + '">' + texto + '</span>';
+  }
+  function resumen() {
+    return totalOk + ' enviados'
+      + (totalMal ? ' · <span style="color:#DC2626">' + totalMal + ' fallidos</span>' : '')
+      + ' · quedan ' + quedan + ' pendientes';
+  }
+  pinta('#64748B', resumen() + ' — no cierres esta pantalla…');
 
   try {
-    var r = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/wa-enviar-lista', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (await wlToken()) },
-      body: JSON.stringify({ lista_id: id, branch_id: (_cfgBranchId || (window._pos && window._pos.state && window._pos.state.branchId)), cantidad: 250 }),
-    });
-    var d = await r.json();
-    if (d.error) throw new Error(d.error);
-    if (d.ok === false && d.razon === 'limite') {
-      if (res) res.innerHTML = '<span style="color:#B45309">⚠ ' + d.mensaje + '</span>';
-    } else {
-      if (res) res.innerHTML = '<span style="color:#16A34A">✓ ' + d.enviados + ' enviados'
-        + (d.fallidos ? ' · <span style="color:#DC2626">' + d.fallidos + ' fallidos</span>' : '')
-        + ' · quedan ' + d.pendientes + ' pendientes</span>';
+    while (vueltas++ < 12) {
+      var r = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/wa-enviar-lista', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (await wlToken()) },
+        body: JSON.stringify({ lista_id: id, branch_id: _cfgBranchId, cantidad: 250 }),
+      });
+      var d = await r.json();
+      if (d.error) throw new Error(d.error);
+
+      if (d.ok === false && d.razon === 'limite') {
+        avisoLimite = true;
+        pinta('#B45309', '⚠ ' + d.mensaje);
+        break;
+      }
+      totalOk  += (d.enviados || 0);
+      totalMal += (d.fallidos || 0);
+      if (typeof d.pendientes === 'number') quedan = d.pendientes;
+      pinta('#64748B', resumen() + ' — no cierres esta pantalla…');
+
+      // Parar cuando la tanda terminó, se acabó el cupo o dejó de avanzar.
+      if (!d.corto_por_tiempo) break;
+      if (!quedan) break;
+      if (d.disponible_hoy !== undefined && d.disponible_hoy <= 0) break;
+      if (!d.enviados && !d.fallidos) break;
+    }
+    if (!avisoLimite) {
+      pinta('#16A34A', '✓ ' + totalOk + ' enviados'
+        + (totalMal ? ' · <span style="color:#DC2626">' + totalMal + ' fallidos</span>' : '')
+        + ' · quedan ' + quedan + ' para la próxima tanda');
     }
     await wlCargar();
   } catch (e) {
-    if (res) res.innerHTML = '<span style="color:#DC2626">No se pudo enviar: ' + (e.message || e) + '</span>';
+    // Aunque se caiga la conexión, lo ya enviado quedó guardado en la cola.
+    pinta('#B45309', 'Se interrumpió: ' + (e.message || e) + '. Alcanzaron a salir '
+      + totalOk + '. Vuelve a darle al botón y sigue donde iba.');
     if (btn) { btn.disabled = false; btn.textContent = 'Enviar tanda de hoy'; }
+    await wlCargar();
   }
 }
 
