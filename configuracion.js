@@ -2009,6 +2009,7 @@ async function opSyncCobroDesdeBranch() {
     _opSaved.cobroAdelantado = real;
     if (sinCambios) _opDraft.cobroAdelantado = real;
     opSetToggle('op-sw-cobro', _opDraft.cobroAdelantado);
+    opPintarNotif();
     var cobroSt = $('op-cobro-state');
     if (cobroSt) { cobroSt.textContent = _opDraft.cobroAdelantado ? 'Activado' : 'Desactivado'; cobroSt.className = 'op-state ' + (_opDraft.cobroAdelantado ? 'on' : 'off'); }
     opCheckDirty();
@@ -2017,6 +2018,7 @@ async function opSyncCobroDesdeBranch() {
 
 // ── Render completo desde el borrador ─────────────────────
 function opRender() {
+  try { opPintarNotif(); } catch (e) {}
   var d = _opDraft;
 
   // Sección 1
@@ -5514,3 +5516,57 @@ window._mpMakeAsistenteReadonly=function(){
   }
 };
 
+
+
+/* ══════════════════════════════════════════════════════════════
+   NOTIFICACIONES — tono y volumen del aviso de pedido nuevo
+   Vive dentro de la config de Operación (`notif`) porque se sincroniza a la
+   base y así la tablet y el computador suenan igual sin configurarlos aparte.
+   ══════════════════════════════════════════════════════════════ */
+function opNotifCfg() {
+  if (!_opDraft.notif) _opDraft.notif = { activo: true, tono: 'clasico', vol: 60 };
+  return _opDraft.notif;
+}
+
+function opPintarNotif() {
+  var n = opNotifCfg();
+  opSetToggle('op-sw-notif', n.activo !== false);
+  document.querySelectorAll('[data-notif-tono]').forEach(function (b) {
+    b.classList.toggle('on', b.dataset.notifTono === (n.tono || 'clasico'));
+  });
+  var sl = document.getElementById('op-notif-vol');
+  var vl = document.getElementById('op-notif-vol-val');
+  if (sl) sl.value = (typeof n.vol === 'number') ? n.vol : 60;
+  if (vl) vl.textContent = ((typeof n.vol === 'number') ? n.vol : 60) + '%';
+}
+
+function opProbarTono() {
+  var n = opNotifCfg();
+  if (window.posNotifProbar) posNotifProbar(n.tono || 'clasico', (typeof n.vol === 'number') ? n.vol : 60);
+}
+
+document.addEventListener('click', function (e) {
+  var b = e.target && e.target.closest && e.target.closest('[data-notif-tono]');
+  if (!b || !_opDraft) return;
+  opNotifCfg().tono = b.dataset.notifTono;
+  opPintarNotif();
+  opProbarTono();              // se oye al elegirlo, que es como se escoge un tono
+  opCheckDirty();
+});
+
+document.addEventListener('input', function (e) {
+  if (!e.target || e.target.id !== 'op-notif-vol' || !_opDraft) return;
+  opNotifCfg().vol = Number(e.target.value) || 0;
+  var vl = document.getElementById('op-notif-vol-val');
+  if (vl) vl.textContent = opNotifCfg().vol + '%';
+  opCheckDirty();
+});
+
+document.addEventListener('click', function (e) {
+  if (!e.target || !e.target.closest || !e.target.closest('#op-sw-notif') || !_opDraft) return;
+  var n = opNotifCfg();
+  n.activo = !(n.activo !== false);
+  opPintarNotif();
+  if (n.activo) opProbarTono();
+  opCheckDirty();
+});

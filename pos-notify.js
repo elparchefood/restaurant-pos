@@ -28,18 +28,58 @@
       .subscribe();
   }
 
-  function beep() {
+  /* Tonos disponibles. Se eligen en Configuración → Operación → Notificaciones.
+     Cada uno son dos notas: la primera llama la atención y la segunda cierra,
+     para que se distinga de cualquier otro pitido del local. */
+  var TONOS = {
+    suave:   { tipo: 'sine',     f1: 660, f2: 880, dur: 0.30 },
+    clasico: { tipo: 'sine',     f1: 880, f2: 660, dur: 0.25 },
+    campana: { tipo: 'triangle', f1: 1320, f2: 990, dur: 0.45 },
+    alerta:  { tipo: 'square',   f1: 740, f2: 988, dur: 0.22 },
+  };
+
+  function cfgNotif() {
     try {
+      var op = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}');
+      var n = op.notif || {};
+      return {
+        activo: n.activo !== false,
+        vol: (typeof n.vol === 'number') ? Math.max(0, Math.min(100, n.vol)) : 60,
+        tono: TONOS[n.tono] ? n.tono : 'clasico',
+      };
+    } catch (e) { return { activo: true, vol: 60, tono: 'clasico' }; }
+  }
+
+  function beep(forzar) {
+    try {
+      var cfg = cfgNotif();
+      if (!cfg.activo && !forzar) return;
+      if (cfg.vol <= 0 && !forzar) return;
       var Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return;
+      var t = TONOS[cfg.tono] || TONOS.clasico;
+      // 0.15 al 100% es el techo: más alto satura en las tablets.
+      var vol = (cfg.vol / 100) * 0.15;
       var ctx = new Ctx(); var o = ctx.createOscillator(); var g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination); o.type = 'sine';
-      o.frequency.setValueAtTime(880, ctx.currentTime);
-      o.frequency.setValueAtTime(660, ctx.currentTime + 0.1);
-      g.gain.setValueAtTime(0.09, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
-      o.start(); setTimeout(function () { try { o.stop(); ctx.close(); } catch (e) {} }, 280);
+      o.connect(g); g.connect(ctx.destination); o.type = t.tipo;
+      o.frequency.setValueAtTime(t.f1, ctx.currentTime);
+      o.frequency.setValueAtTime(t.f2, ctx.currentTime + t.dur * 0.4);
+      g.gain.setValueAtTime(vol, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t.dur);
+      o.start();
+      setTimeout(function () { try { o.stop(); ctx.close(); } catch (e) {} }, t.dur * 1000 + 30);
     } catch (e) {}
   }
+  // Para poder oírlo al configurarlo, aunque las notificaciones estén apagadas.
+  window.posNotifProbar = function (tono, vol) {
+    var prev = localStorage.getItem('pos.config.operacion.v1');
+    try {
+      var op = JSON.parse(prev || '{}');
+      op.notif = { activo: true, tono: tono, vol: vol };
+      localStorage.setItem('pos.config.operacion.v1', JSON.stringify(op));
+      beep(true);
+    } catch (e) {}
+    setTimeout(function () { if (prev !== null) localStorage.setItem('pos.config.operacion.v1', prev); }, 50);
+  };
 
   function notif(m) {
     beep();

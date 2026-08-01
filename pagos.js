@@ -359,6 +359,8 @@ function renderTotals() {
   const btnExact = document.getElementById('btn-exact');
   btnExact.disabled = falta === 0;
 
+  ptRenderVerificar();
+
   // Botón agregar pago
   const btnApply = document.getElementById('btn-apply');
   /* Con PUNTOS no se digita un valor: el monto sale de los productos que se
@@ -1113,6 +1115,14 @@ async function loadOrder() {
     } catch (e) { /* sin telefono solo se pierde el contador, no el cliente */ }
   }
   pgPintarCliente();
+  /* La verificación de transferencia lee el COMPROBANTE que el cliente mandó
+     por el chat, así que solo tiene sentido en pedidos que vienen de ahí.
+     Si el pedido no tiene conversación, el botón no se ofrece. */
+  SP.convId = null;
+  try {
+    const rc2 = await sb.from('chat_conversations').select('id').eq('order_id', SP.orderId).maybeSingle();
+    SP.convId = (rc2.data && rc2.data.id) || null;
+  } catch (e) { /* sin chat, simplemente no hay botón */ }
 
   // Topbar + meta
   const mesaName = SP.table?.name || (SP.channel === 'rapido' ? 'Venta Rápida' : SP.channel === 'domicilio' ? 'Domicilio' : 'Mesa');
@@ -1879,4 +1889,67 @@ function ptRenderCanje(canjeValor) {
     +   Number(SP.canje.puntos).toLocaleString('es-CO') + ' pts</b>'
     +   '<span style="display:block;font-size:11px;color:#94A3B8">\u2212 ' + fmt(canjeValor) + ' no es venta</span>'
     + '</span>';
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   VERIFICAR TRANSFERENCIA desde la pantalla de cobro
+   Sergio lo pidio para no tener que irse al chat a confirmar que la plata
+   llego. Usa la MISMA funcion que ya usa el chat (verify-transfer), que lee el
+   comprobante que mando el cliente y lo contrasta con el correo del banco.
+   Solo aparece si el metodo es digital Y el pedido viene del chat: sin
+   comprobante no hay nada que verificar, y un boton que siempre falla estorba.
+   ══════════════════════════════════════════════════════════════════ */
+function ptRenderVerificar() {
+  var host = document.getElementById('pg-verificar');
+  var def = _payDef();
+  var aplica = !!SP.convId && !!def && def.tipo !== 'efectivo' && def.tipo !== 'puntos';
+  if (!host) {
+    var anchor = document.querySelector('.pg-method-row');
+    if (!anchor) return;
+    host = document.createElement('div');
+    host.id = 'pg-verificar';
+    host.style.cssText = 'margin-top:10px';
+    anchor.parentNode.insertBefore(host, anchor.nextSibling);
+  }
+  if (!aplica) { host.hidden = true; return; }
+  host.hidden = false;
+  if (host.dataset.busy === '1') return;
+  host.innerHTML =
+      '<button type="button" id="pg-verif-btn" onclick="ptVerificarTransferencia()"'
+    + ' style="width:100%;padding:10px;border-radius:10px;border:1.5px solid #E2E8F0;background:#fff;'
+    + 'color:#334155;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer">'
+    + 'Verificar transferencia</button>'
+    + '<div id="pg-verif-res" style="font-size:12px;margin-top:6px;line-height:1.45"></div>';
+}
+
+async function ptVerificarTransferencia() {
+  var host = document.getElementById('pg-verificar');
+  var btn = document.getElementById('pg-verif-btn');
+  var res = document.getElementById('pg-verif-res');
+  if (!SP.convId) return;
+  host.dataset.busy = '1';
+  btn.disabled = true; btn.textContent = 'Consultando el banco…';
+  res.innerHTML = '';
+  try {
+    var r = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/verify-transfer', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation_id: SP.convId, manual: true }),
+    });
+    var d = await r.json().catch(function () { return {}; });
+    if (d && (d.verified || d.ok)) {
+      res.innerHTML = '<span style="color:#16A34A;font-weight:700">✓ Pago verificado</span>'
+        + (d.mensaje ? '<br><span style="color:#64748B">' + _payEsc(d.mensaje) + '</span>' : '');
+      // La funcion escribe paid_amount en el pedido: se recarga para verlo.
+      setTimeout(function () { location.reload(); }, 1200);
+    } else {
+      res.innerHTML = '<span style="color:#B45309">' +
+        _payEsc((d && (d.mensaje || d.razon || d.error)) || 'No se pudo confirmar el pago.') + '</span>';
+      btn.disabled = false; btn.textContent = 'Verificar transferencia';
+    }
+  } catch (e) {
+    res.innerHTML = '<span style="color:#DC2626">No se pudo consultar: ' + _payEsc(e.message || e) + '</span>';
+    btn.disabled = false; btn.textContent = 'Verificar transferencia';
+  }
+  host.dataset.busy = '';
 }

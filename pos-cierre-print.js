@@ -44,8 +44,11 @@
     + '.r{display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin:1px 0}'
     + '.r span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
     + '.r span:last-child{text-align:right;white-space:nowrap;flex-shrink:0}'
-    + '.big{font-size:12px;font-weight:900}'
-    + '.xl{font-size:13px;font-weight:900}'
+    /* Totales más grandes: Sergio los lee en papel térmico y a 12-13px
+       costaban. Se suben 2px. OJO: el recibo está fijado a 72 mm, así que
+       no se puede crecer mucho más sin que las cifras largas se partan. */
+    + '.big{font-size:14px;font-weight:900}'
+    + '.xl{font-size:15.5px;font-weight:900}'
     + '.sep{border-top:1px dashed #000;margin:5px 0}'
     + '.sepd{border-top:2px solid #000;margin:5px 0}'
     + '.sm{font-size:10px;font-weight:400}'

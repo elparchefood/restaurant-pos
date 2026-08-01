@@ -2829,3 +2829,57 @@ Informe de puntos: cuantos se redimen, cuanto se regala en producto al mes,
 cuantos hay en circulacion. Los datos ya quedan guardados
 (`pos_puntos_movimientos`, `puntos_redimidos`, `puntos_valor`) para poder
 armarlo sin tocar nada mas.
+
+
+---
+
+## 87. Los cinco pendientes cortos (2026-08-01)
+
+### 1. Anular un pedido devuelve los puntos
+**Hay SEIS sitios que anulan pedidos** (caja, domicilios, ventas x3,
+tomar-pedido). Parchear los seis dejaba la puerta abierta al septimo, asi que se
+resolvio **en la base**: trigger `trg_puntos_anular` sobre `pos_orders`.
+
+Revierte **las dos direcciones**: devuelve los puntos que se canjearon Y quita
+los que se ganaron (un pedido anulado no puede dejar puntos ganados). Columna
+`revertido` en `pos_puntos_movimientos` para que anular dos veces no duplique.
+El trigger traga sus propios errores: **anular nunca puede fallar por los
+puntos**.
+
+**Probado:** 1.000 -> canjea 300 (700) -> paga y gana 20 (720) -> **anula ->
+1.000**. Anulando dos veces sigue en 1.000.
+
+### 2. El nombre del cliente ya se refresca solo en el chat
+El nombre sale del cruce por telefono con `pos_clientes`, y ese mapa solo se
+cargaba al abrir la pantalla: si el pedido acababa de crear al cliente, la
+conversacion seguia mostrando el numero pelado hasta recargar. Ahora, al crear
+el pedido, se vuelve a bajar el mapa y se repintan lista y cabecera.
+**No se toca `chat_conversations.contact_name`** — ese es el nombre del perfil
+de WhatsApp y lo maneja Meta.
+
+### 3. Letra mas grande en los totales del recibo de cierre
+`.big` 12 -> **14 px** (TOTAL CONTADO, EFECT. ESPERADO) y `.xl` 13 -> **15,5 px**
+(CUADRE / SOBRANTE / FALTANTE). **Falta la prueba en papel**: el recibo esta
+fijado a 72 mm y si una cifra larga se parte hay que bajarlo.
+
+### 4. Verificar transferencia desde la pantalla de cobro
+Boton que usa la MISMA funcion del chat (`verify-transfer`): lee el comprobante
+que mando el cliente y lo contrasta con el correo del banco. Si confirma,
+recarga para mostrar el pago ya aplicado.
+
+**Solo aparece cuando sirve**: metodo digital **y** pedido que viene del chat.
+Sin comprobante no hay nada que verificar, y un boton que siempre falla estorba
+mas de lo que ayuda.
+
+### 5. Tono y volumen de las notificaciones
+En **Configuracion -> Operacion -> Notificaciones**: interruptor, cuatro tonos
+(Suave, Clasico, Campana, Alerta), volumen 0-100% y boton **Probar**. El tono
+suena al elegirlo, que es como se escoge un sonido.
+
+Vive dentro de la config de Operacion, que **se sincroniza a la base**: la
+tablet y el computador suenan igual sin configurarlos por separado.
+
+**Probado con el codigo real**, incluidos los casos feos: sin configurar,
+apagado, volumen 0, tono inexistente, volumen fuera de rango y **config
+corrupta** — en todos cae al valor seguro. El defecto (0,09 de ganancia) es
+**exactamente el volumen actual**, asi que a quien no lo toque no le cambia nada.

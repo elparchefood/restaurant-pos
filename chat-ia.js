@@ -2599,6 +2599,18 @@ async function cpEnviarCocina(){
     // domicilio a mano, se guarda para poder agregarlo después con un clic
     // (Configuración → Chat IA → Domicilios). Así el sistema mejora solo.
     aprenderBarrio(o);
+    /* El nombre del cliente sale del cruce por teléfono con pos_clientes, y ese
+       mapa solo se carga al abrir la pantalla. Si el pedido acaba de crear al
+       cliente, la conversación seguía diciendo el número pelado hasta recargar.
+       Se vuelve a bajar el mapa y se repinta: la lista y la cabecera del chat.
+       (NO se toca chat_conversations.contact_name: ese es el nombre del perfil
+       de WhatsApp y lo maneja Meta.) */
+    try {
+      await loadClientes();
+      renderConvList();
+      var _c = getActiveConv();
+      if (_c) renderChatHeader(_c);
+    } catch (_e) { /* si falla, solo se ve el número hasta recargar */ }
     // La tarjeta no se va: pasa a mostrar el pedido ya enviado y su estado.
     try{ if(data.orderId) await renderPedidoEnviado(data.orderId, convId); else renderDraftBar(null); }
     catch(_e){ renderDraftBar(null); }
