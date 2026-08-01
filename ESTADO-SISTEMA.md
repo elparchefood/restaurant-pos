@@ -1363,16 +1363,24 @@ camino y se tuvieron que haber puesto entregados automáticamente"*.
 tiempo **desde que se creó el pedido**, no el tiempo **en el estado actual**.
 Por eso parecía que llevaban una hora en camino cuando llevaban 29 minutos.
 
-**Qué hay que hacer**
-1. El reloj de la tarjeta de domicilio debe contar desde `estado_at` (cuándo
-   entró al estado actual), no desde `created_at`.
-2. Idealmente mostrar las dos cosas: *"29 min en camino · 52 min en total"*.
-3. Un aviso visual cuando se acerque al umbral de auto-entregado, para que el
-   operador sepa que está por marcarse solo.
+**LO QUE HAY QUE HACER (definido por Sergio):** *"aplicar el mismo sistema de
+reloj que en mesa: se debe reiniciar cada vez que cambie de estado y mostrar
+cuánto se ha demorado en cada estado"*.
 
-**Ya se resolvió lo mismo en las MESAS** (reloj por estado + modal de desglose,
-`VS_TS` / `vsEstadoDesde` / `vsAbrirTiempos` en `ventas-salon.js`). A los
-domicilios se les quedó pendiente — **reusar ese mismo componente**.
+1. **El reloj se REINICIA en cada cambio de estado.** Cuenta desde `estado_at`,
+   no desde `created_at`. Al pasar de "en preparación" a "en camino", vuelve a 0.
+2. **Guardar el tiempo de CADA estado**, no solo el actual — para poder decir
+   *"12 min en preparación · 8 min listo · 29 min en camino"*.
+3. **Modal de desglose** al tocar el reloj, igual que en las mesas.
+4. Aviso visual cuando se acerque al umbral de auto-entregado (30 min), para que
+   el operador sepa que está por marcarse solo y no crea que el sistema se olvidó.
+
+**Ya está resuelto igual en las MESAS** — reusar ese componente, no rehacerlo:
+`VS_TS`, `vsEstadoDesde()`, `vsMarcarEstado()`, `vsAbrirTiempos()`, `vsFmtDur()`
+en `modules/ventas-salon.js`, y la tabla `pos_mesa_tiempos`.
+Para domicilios probablemente convenga una tabla equivalente (o reusar la misma
+con el tipo de origen), porque `estado_at` solo guarda el ÚLTIMO cambio: con un
+solo campo no se puede reconstruir cuánto duró cada etapa.
 
 ---
 
