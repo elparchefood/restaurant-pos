@@ -42,7 +42,7 @@ Deno.serve(async (req: Request) => {
     if (!order_id || !estado) return json({ error: "order_id y estado requeridos" }, 400);
     if (!ESTADOS.includes(estado)) return json({ error: "estado invalido" }, 400);
 
-    const ord = await sbGet(`/pos_orders?id=eq.${order_id}&select=id,branch_id,channel`) as Array<Record<string, unknown>> | null;
+    const ord = await sbGet(`/pos_orders?id=eq.${order_id}&select=id,branch_id,tenant_id,channel,estado,estado_at,created_at`) as Array<Record<string, unknown>> | null;
     const order = ord?.[0];
     if (!order) return json({ error: "pedido no encontrado" }, 404);
 
@@ -54,6 +54,29 @@ Deno.serve(async (req: Request) => {
     };
     if (estado === "entregado") patch.delivered_at = new Date().toISOString();
     await sbPatch(`/pos_orders?id=eq.${order_id}`, patch);
+
+    /* Cuanto duro en el estado ANTERIOR. El reloj de la tarjeta se reinicia en
+       cada cambio (cuenta desde `estado_at`), y aqui queda el tramo cerrado
+       para poder ver el desglose: cuanto tardo en prepararse y cuanto en el
+       camino. Antes un solo reloj corria desde que se creo el pedido, y por eso
+       un domicilio ya entregado se veia "1 hora en camino".
+       Es best-effort: si falla, el cambio de estado ya quedo guardado. */
+    try {
+      const antes  = String(order.estado || "");
+      const desde  = String(order.estado_at || order.created_at || "");
+      if (antes && antes !== estado && desde) {
+        const seg = Math.round((Date.now() - new Date(desde).getTime()) / 1000);
+        if (seg > 0 && seg < 60 * 60 * 24 * 7) {   // descarta fechas absurdas
+          await sbPost(`/pos_domi_tiempos`, {
+            tenant_id: order.tenant_id || null, branch_id: order.branch_id || null,
+            order_id, estado: antes, desde,
+            hasta: new Date().toISOString(), segundos: seg,
+          });
+        }
+      }
+    } catch (e) {
+      console.error("[cambiar-estado] no se registro el tiempo:", String(e).slice(0, 200));
+    }
 
     const cfgRow = await sbGet(`/ia_config?branch_id=eq.${order.branch_id}&select=estados_config`) as Array<Record<string, unknown>> | null;
     const cfg = (cfgRow?.[0]?.estados_config || {}) as Record<string, Record<string, { etiqueta?: string; mensaje?: string }>>;

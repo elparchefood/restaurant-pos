@@ -672,7 +672,7 @@
     try {
       var cajaStart = await getCajaSessionStart();
       var q = sb.from('pos_orders')
-        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, status, created_at, opened_at, delivery_status, delivered_at')
+        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, status, created_at, opened_at, delivery_status, delivered_at, estado, estado_at')
         .eq('channel', 'domicilio')
         .not('status', 'eq', 'cancelled')
         .gte('created_at', cajaStart)
@@ -682,8 +682,13 @@
       var result = await q;
       var rows = result.data || [];
       return rows.map(function(r) {
+        /* El reloj cuenta desde el ULTIMO CAMBIO DE ESTADO, no desde que se creo
+           el pedido. Antes un domicilio entregado seguia diciendo "1 hora",
+           porque sumaba toda la vida del pedido en vez de lo que lleva EN ESO. */
         var createdMs = r.created_at ? new Date(r.created_at).getTime() : Date.now();
-        var mins = Math.round((Date.now() - createdMs) / 60000);
+        var desdeEstado = r.estado_at ? new Date(r.estado_at).getTime() : createdMs;
+        var mins = Math.round((Date.now() - desdeEstado) / 60000);
+        var minsTotal = Math.round((Date.now() - createdMs) / 60000);
         // Estado de entrega PERSISTIDO (delivery_status); fallback al status legacy
         var estado = 'preparacion';
         if (r.delivery_status) estado = (r.delivery_status === 'recibido') ? 'preparacion' : r.delivery_status;
@@ -714,7 +719,9 @@
           payStatus: payStatus,
           metodo: r.payment_method || 'efectivo',
           domiciliario: r.waiter_name || '—',
-          min: mins,
+          min: mins,                 // en el estado actual
+          minTotal: minsTotal,       // desde que entro el pedido
+          estadoAt: r.estado_at || r.created_at || null,
         };
       });
     } catch(e) {
@@ -1224,7 +1231,9 @@
     const meta  = DELIVERY_META[d.estado] || DELIVERY_META.preparacion;
     const canal = CANAL_META[d.canal] || { label: d.canal, color: '#64748B', bg: '#F1F5F9' };
     const mins  = d.min || 0;
-    const timeStr = mins < 60 ? `hace ${mins}m` : `hace ${Math.floor(mins/60)}h ${mins%60}m`;
+    // "18m aqui" se lee como lo que es: lleva 18 minutos EN ESTE ESTADO.
+    const _dur = mins < 60 ? `${mins}m` : `${Math.floor(mins/60)}h ${mins%60}m`;
+    const timeStr = d.estado === 'entregado' ? _dur : `${_dur} aqui`;
     const isPagado  = d.payStatus === 'pagado';
     const isParcial = d.payStatus === 'parcial';
     const payColor = isPagado ? '#16A34A' : isParcial ? '#C2410C' : '#D97706';
@@ -1242,7 +1251,9 @@
             <span class="vs-state-dot" style="background:${meta.color}"></span>
             ${meta.label}
           </span>
-          <span class="vs-time-badge" ${d.estado !== 'entregado' ? `data-timer="${new Date(Date.now() - (d.min||0)*60000).toISOString()}"` : ''}>${SVG_CLOCK(10)} <span class="vs-timer-val">${timeStr}</span></span>
+          <span class="vs-time-badge" title="Tiempo en este estado &middot; toca para ver el desglose"
+            data-domi-tiempos="${d.id}"
+            ${d.estado !== 'entregado' ? `data-timer="${d.estadoAt || new Date(Date.now() - (d.min||0)*60000).toISOString()}"` : ''}>${SVG_CLOCK(10)} <span class="vs-timer-val">${timeStr}</span></span>
         </div>
         <div class="vs-mesa-num-row">
           <div class="vs-mesa-num vs-mesa-num--active" style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${d.cliente}</div>
@@ -1524,7 +1535,7 @@
           </div>
           <div class="vs-info-cell">
             <div class="vs-info-label">Tiempo</div>
-            <div class="vs-info-value" ${d.estado !== 'entregado' ? `data-timer="${new Date(Date.now() - (d.min||0)*60000).toISOString()}"` : ''}><span class="vs-timer-val">${d.min || 0} min</span></div>
+            <div class="vs-info-value" ${d.estado !== 'entregado' ? `data-timer="${d.estadoAt || new Date(Date.now() - (d.min||0)*60000).toISOString()}"` : ''}><span class="vs-timer-val">${d.min || 0} min</span></div>
           </div>
           <div class="vs-info-cell">
             <div class="vs-info-label">Ítems</div>
@@ -2120,6 +2131,14 @@
         state.floor = btn.dataset.floor;
         state.selectedTableId = null;
         render();
+      });
+    });
+
+    // El reloj de la tarjeta abre el desglose por estado (no selecciona la tarjeta).
+    container.querySelectorAll('[data-domi-tiempos]').forEach(el => {
+      el.addEventListener('click', ev => {
+        ev.stopPropagation();
+        vsDomiTiempos(el.getAttribute('data-domi-tiempos'));
       });
     });
 
@@ -3346,5 +3365,81 @@
   window._pos = window._pos || {};
   window._pos.modules = window._pos.modules || {};
   window._pos.modules.ventasSalon = { init, destroy };
+
+
+  // ══════════════════════════════════════════════════════════════
+  // DESGLOSE DE TIEMPOS DE UN DOMICILIO
+  // Sergio: "los pedidos que están en camino llevan casi 1 hora en camino...
+  // tenemos que aplicar el mismo sistema de reloj que en mesa: que se reinicie
+  // cada vez que cambien de estado y mostrar cuánto se ha demorado en cada
+  // estado". Los tramos cerrados los escribe la función `cambiar-estado` en
+  // pos_domi_tiempos; el estado actual se calcula en vivo.
+  // ══════════════════════════════════════════════════════════════
+  const VS_DOMI_LBL = {
+    recibido:    'Recibido',
+    preparacion: 'En preparación',
+    camino:      'En camino',
+    entregado:   'Entregado',
+  };
+  function vsDomiFmtDur(seg) {
+    seg = Math.max(0, Math.round(seg));
+    const h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60), s = seg % 60;
+    if (h) return h + 'h ' + String(m).padStart(2, '0') + 'm';
+    if (m) return m + ' min ' + String(s).padStart(2, '0') + 's';
+    return s + 's';
+  }
+  async function vsDomiTiempos(domiId) {
+    const d = state.deliveries.find(x => x.id === domiId);
+    if (!d) return;
+    const sb = window._pos && window._pos.sb;
+    let tramos = [];
+    try {
+      if (sb) {
+        const r = await sb.from('pos_domi_tiempos').select('estado,segundos,desde')
+          .eq('order_id', domiId).order('desde', { ascending: true });
+        tramos = r.data || [];
+      }
+    } catch (e) { console.warn('[VS] tiempos domi:', e && e.message); }
+
+    // El estado actual sigue corriendo mientras no esté entregado.
+    if (d.estado !== 'entregado' && d.estadoAt) {
+      tramos = tramos.concat([{
+        estado: d.estado, desde: d.estadoAt,
+        segundos: Math.max(0, Math.round((Date.now() - new Date(d.estadoAt).getTime()) / 1000)),
+        _vivo: true,
+      }]);
+    }
+
+    const total = tramos.reduce((a, t) => a + (Number(t.segundos) || 0), 0);
+    const filas = tramos.length
+      ? tramos.map(t =>
+          '<div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #F1F5F9">'
+        +   '<span style="color:#334155;font-size:13px">' + (VS_DOMI_LBL[t.estado] || t.estado)
+        +     (t._vivo ? ' <span style="color:#F97316;font-size:11px;font-weight:600">· ahora</span>' : '') + '</span>'
+        +   '<span style="font-weight:600;color:#0F172A;font-size:13px">' + vsDomiFmtDur(t.segundos) + '</span>'
+        + '</div>').join('')
+      : '<div style="color:#94A3B8;font-size:13px;padding:10px 0">Todavía no hay cambios de estado registrados.</div>';
+
+    const bd = document.createElement('div');
+    bd.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+    bd.innerHTML =
+      '<div style="background:#fff;border-radius:16px;max-width:340px;width:100%;padding:20px 22px;box-shadow:0 18px 50px rgba(0,0,0,.22)">'
+    +   '<div style="font-weight:700;color:#0F172A;font-size:15px">Tiempos del pedido</div>'
+    +   '<div style="color:#64748B;font-size:12.5px;margin-top:2px;margin-bottom:12px">' + (d.cliente || '') + '</div>'
+    +   filas
+    +   '<div style="display:flex;justify-content:space-between;padding-top:11px;margin-top:4px">'
+    +     '<span style="color:#64748B;font-size:13px">Desde que entró</span>'
+    +     '<span style="font-weight:700;color:#0F172A;font-size:13px">' + vsDomiFmtDur((d.minTotal || 0) * 60) + '</span>'
+    +   '</div>'
+    +   '<button type="button" style="margin-top:14px;width:100%;border:0;background:#0F172A;color:#fff;border-radius:10px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">Cerrar</button>'
+    + '</div>';
+    const cerrar = () => bd.remove();
+    bd.addEventListener('click', e => { if (e.target === bd) cerrar(); });
+    bd.querySelector('button').addEventListener('click', cerrar);
+    document.body.appendChild(bd);
+    // Aviso honesto: el total no siempre es la suma de los tramos, porque los
+    // pedidos anteriores a hoy no tienen registro por estado.
+    void total;
+  }
 
 })();
