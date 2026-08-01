@@ -1961,3 +1961,33 @@ Sergio (2026-07-23) aprobó hacer AHORA el arreglo de permisos del lado de la ap
 3. **Órdenes sin cerrar**: Si el flujo de pago no marca una orden como `completed`, reaparecerá como activa la próxima vez que se limpie el filtro. Vigilar que el cierre de orden siempre escriba `status='completed'`.
 
 4. **delay-reply — `last_sender` bloqueado**: Si el EF termina antes del bloque de actualización final (línea ~724), `last_sender` queda en `"contact"` y el bot no vuelve a responder hasta que se resetee manualmente en DB (`UPDATE chat_conversations SET last_sender='agent' WHERE id='...'`). El try-catch de v52 previene este escenario en el bloque isResumen, pero si hay un nuevo error no capturado en otra parte del código, puede volver a ocurrir.
+
+
+---
+
+## 68. "Meseros en turno" mostraba 0 mesas (2026-07-31)
+
+**Sintoma.** Monica Villareal atendio varias mesas desde la tablet y el panel
+"Meseros en turno" del dashboard la mostraba con **0 MESAS**.
+
+**Dos causas distintas, las dos reales:**
+
+1. **Los ids nunca coincidian.** `pos_orders.waiter_id` guarda el id de la
+   sesion (`auth.users.id`), mientras que `pos_users` tiene su **propio** id.
+   Para Monica: `auth = 137b7051...` pero `pos_users.id = 4cc6fbdf...`.
+   `qmLoadMeseros()` agrupaba por `waiter_id` y luego buscaba
+   `tablesByWaiter[m.id]` -> **ningun mesero podia dar distinto de 0, nunca**.
+   La columna que los une es `pos_users.auth_user_id`.
+
+2. **Contaba solo mesas `status='open'`.** Al final de la noche todas estan
+   cobradas, asi que aunque los ids hubieran coincidido igual habria dado 0.
+
+**Arreglo (`f84f6da`).** El cruce ahora se hace contra
+`[pos_users.id, pos_users.auth_user_id, nombre]` y se cuentan las **mesas
+distintas atendidas desde la apertura de caja** (no desde medianoche: el
+servicio se pasa de las 12 y partiria el turno en dos). Las que siguen abiertas
+se muestran aparte en el subtitulo: `"1 en turno - 3 mesas atendidas hoy"`.
+
+**Nota para el futuro.** Cualquier consulta que relacione un pedido con un
+usuario tiene que pasar por `auth_user_id`. Si en algun sitio se compara
+`pos_orders.waiter_id` con `pos_users.id` directamente, esta mal.
