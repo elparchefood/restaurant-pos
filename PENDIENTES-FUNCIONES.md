@@ -339,3 +339,20 @@ cliente, es el mismo saldo de puntos.
 **Relacionado:** ese mismo dia hay que dejar los **puntos como metodo de pago**
 en la pantalla de pagos (solo para redimir lo que este en el catalogo de
 canje), y Sergio va a escoger cual de las dos plantillas de puntos se usa.
+
+
+## Letra mas grande en los totales del recibo de cierre de caja (pedido 2026-07-31)
+
+Sergio quiere que los **totales** del recibo impreso del cierre de caja se lean
+mas facil. Solo los totales, no todo el recibo.
+
+**Donde:** `pos-cierre-print.js`, el bloque de estilos de impresion.
+Las clases que llevan las cifras grandes son:
+- `.xl` -> 13 px (lo mas destacado)
+- `.big` -> 12 px
+- `td` -> 10.5 px (las filas normales)
+
+**Que hacer:** subir `.xl` y `.big` (algo como 15 px y 14 px) y verificar en una
+impresion real. **Ojo con el ancho:** el recibo esta fijado a 72 mm; si la letra
+crece de mas, las cifras largas pueden partirse a dos lineas o cortarse. Hay que
+imprimir un cierre de prueba y mirarlo en papel antes de darlo por bueno.
