@@ -1627,6 +1627,91 @@ inmediatamente. Después gastos fijos (§2), y nómina (§3) de último por su t
 
 ---
 
+## PENDIENTE — [Puntos] Catálogo de canje + puntos como MÉTODO DE PAGO + 2 plantillas — Sergio 2026-07-31
+
+### Lo que hay hoy
+- **Se ganan:** `Math.floor(prod/1000)` → **1 punto por cada $1.000** del pedido
+  (sin domicilio). En `chat-ia.js` ~2654, dentro de la respuesta rápida `puntos`.
+- **Se guardan:** `pos_puntos` (telefono, puntos). **37 clientes** con puntos,
+  15.562 en total; los reales tienen entre 60 y 84.
+- **NO EXISTE regla de canje.** El sistema sabe DAR puntos pero no sabe qué se
+  puede hacer con ellos. No hay configuración, ni catálogo, ni equivalencia.
+- ⚠️ **Dato de prueba a borrar:** el teléfono `3000000001` tiene **14.098 puntos**.
+  Limpiarlo ANTES de mandar cualquier plantilla que mencione el saldo.
+
+### Lo que pidió Sergio para mañana
+1. **Definir qué productos se pueden redimir** (él trae la lista).
+2. **Catálogo de canje:** qué producto cuesta cuántos puntos.
+3. **Puntos como MÉTODO DE PAGO** en la pantalla de cobro.
+   ⚠️ **Regla que él dejó clara:** *"sólo servirán para redimir lo que se puede
+   redimir en el catálogo de puntos"*. **NO es un método de pago general**: no se
+   paga cualquier monto con puntos. Solo cubre los ítems que están en el catálogo
+   de canje. El diseño debe impedir usar puntos para abonar a un pedido cualquiera.
+4. **Elegir entre las dos plantillas** de abajo (él decide mañana).
+
+### Las plantillas ya redactadas (falta que Sergio elija)
+
+**PLANTILLA 1 — para quienes YA tienen puntos** (lleva variable)
+```
+¡Hola! 👋🔥 Te saluda El Parche Food 🍟
+
+🎁 ¡Tienes {{1}} puntos acumulados! ⭐
+
+😋 Ya puedes redimirlos por productos de nuestra carta. Solo escríbenos y te
+contamos qué puedes llevar 🌭🍔
+
+¡Te esperamos! 😊❤️
+                                                    — El Parche Food
+```
+`{{1}}` = los puntos. Ejemplo para Meta: **73** (número real de un cliente).
+**Falta:** completar con la regla de canje una vez Sergio la defina, para que no
+quede vago y el cliente no tenga que preguntar cuánto vale.
+
+**PLANTILLA 2 — invitación general (sin variables, aprueba más rápido)**
+
+*Opción A — directa*
+```
+¡Hola! 👋🔥 Te saluda El Parche Food 🍟
+
+⭐ ¿Sabías que acumulas puntos cada vez que pides? 🎉
+
+🎁 Si ya tienes, escríbenos y los redimes por producto.
+🛵 Y si aún no, con tu próximo pedido empiezas a sumar.
+
+Solo recuerda dar tu número al pedir 📱
+
+¡Te esperamos! 😊❤️
+                                                    — El Parche Food
+```
+
+*Opción B — con gancho de pregunta* ← **recomendada**
+```
+¡Hola! 👋 Te saluda El Parche Food 🍟🔥
+
+⭐ ¿Tienes puntos acumulados con nosotros?
+
+🎁 Escríbenos y te decimos cuántos tienes para que los redimas.
+🌭 Y si todavía no tienes, ¡tu próximo pedido ya suma!
+
+¡Te esperamos! 😊❤️
+                                                    — El Parche Food
+```
+**Por qué la B:** la pregunta invita a responder, y cada respuesta abre la
+ventana de 24 h para conversar sin gastar plantilla.
+
+**Nota de estilo (aprendida el 2026-07-31):** **NO usar variable de nombre.**
+Sergio la rechazó en la plantilla anterior: *"hay muchas personas que tienen
+nombres raros en su WhatsApp"*.
+
+### Se conecta con
+- El **nivel del cliente** (Estándar/Premium/VIP, entrada 55): los puntos y el
+  nivel son dos cosas distintas y no hay que mezclarlas.
+- La **tarjeta NFC** (idea pendiente): misma base de puntos por teléfono.
+- Los **créditos** (entrada 65): son otro método de pago, pero con lógica
+  distinta — el crédito es deuda, los puntos son premio.
+
+---
+
 ## PENDIENTE — [Chat IA] Respuestas rápidas EDITABLES y CON VARIABLES — Sergio 2026-07-31
 
 **Lo que pidió:** poder **crear y editar** respuestas rápidas que se rellenen solas
