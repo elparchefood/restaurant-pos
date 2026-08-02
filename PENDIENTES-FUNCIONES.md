@@ -434,6 +434,25 @@ MISMO error de fondo que ya se corrigio hoy con las intenciones del chat
 Bancolombia, Daviplata, Davivienda) y pasarlos todos por la extraccion. No se
 da por bueno hasta que los saque bien **todos**, sin una lista por banco.
 
+### Caso real capturado el 2026-08-01 a las 7:10 pm (WILLIAM AMOR AL)
+Pedido de $55.000. El modal mostro:
+
+```
+✓ Monto: $55.000 (pedido $55.000)
+✗ Cuenta
+✓ Correo del banco        <-- Bancolombia · 2026-08-01 19:09 · Ref TRPzcx32juEC
+```
+
+**El correo del banco CONFIRMO el abono y el monto cuadraba exacto.** El unico
+chequeo que fallo fue el de la cuenta, por el bug de las etiquetas. O sea que
+se esta rechazando un pago que el banco ya confirmo — el peor tipo de falso
+negativo, porque el dato bueno estaba ahi.
+
+**Mientras se arregla:** si Monto y Correo del banco salen en ✓, el pago esta
+confirmado por el banco y se puede registrar con tranquilidad. El chequeo que
+de verdad protege contra un comprobante falso es el del CORREO, y ese esta
+funcionando.
+
 ### Por que urge
 **Bre-B es lo que mas se esta usando ahora.** Mientras esto siga asi, la
 mayoria de las verificaciones de transferencia se rechazan y a Sergio le toca
