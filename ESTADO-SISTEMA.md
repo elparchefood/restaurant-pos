@@ -2952,3 +2952,68 @@ por el `phone_number_id`. Una prueba con waba_id falso se descarta en silencio
 
 **Lo viejo no se puede reconstruir:** los mensajes que ya estan guardados como
 `[interactive]` se quedan asi.
+
+
+---
+
+## 90. El bot ya NO inventa productos + el audio entra al analisis (2026-08-02)
+
+Los dos pendientes rojos de anoche, que resultaron ser el mismo problema visto
+por dos lados.
+
+### La regla que lo ordena todo (Sergio)
+> *"No puede inventarse productos, solo debe colocar productos que esten
+> guardados... si el cliente indica su pedido de manera muy rara, es mejor que
+> diga que no se reconocio el producto, pero que no invente. Caemos en el mismo
+> error: detectar intenciones, no palabras exactas, porque si trabaja con
+> palabras exactas en un chat siempre se va a equivocar."*
+
+### 1. El modelo ESCOGE de la lista, ya no escribe nombres
+El menu va **numerado** (`#12 [Bebidas] COCA COLA | tamaños: …`) y el modelo
+devuelve **el numero**, no el nombre. Con un numero **no hay nada que
+emparejar**: o eligio un producto que existe, o no eligio.
+
+**Por que era necesario:** al modelo YA se le mandaba el menu completo y YA
+tenia la instruccion *"usa EXACTAMENTE los nombres del MENU"*. **La desobedecio
+igual** y escribio `Coca-Cola` (con guion) contra `COCA COLA` del catalogo, y el
+producto quedo en $0. Pedirselo mejor no funcionaba.
+
+Si no encuentra el producto en la lista devuelve `n: null` y el producto sale
+**sin reconocer**, nunca inventado.
+
+### 2. El audio transcrito entra al analisis
+El filtro preguntaba *"¿es de tipo texto?"* y botaba los audios **con
+transcripcion y todo**. Ahora pregunta *"¿tiene texto?"*. Se excluyen solo los
+mensajes que traen un marcador de archivo (`[imagen]`, nombres de archivo).
+Ademas se limpia el emoji de microfono del principio, que ensuciaba el analisis.
+
+### 3. Respaldo: guiones y puntos cuentan como espacio
+`norm()` ahora trata `- _ . / ,` como espacio. Es **solo respaldo** — lo que de
+verdad resuelve es el numero.
+
+### Un error propio, detectado y corregido en la prueba
+Al elegir por numero se **saltaba la regla de las adiciones**: *"una personal de
+pollo"* eligio el Pollo de **Adiciones ($9.000)** en vez de la Salchipapa Pollo
+Personal (**$17.000**). Se agrego un guard: si el modelo elige algo de Adiciones
+y el cliente no pidio ninguna adicion, esa eleccion se descarta y se reconoce
+por nombre. **Elegir por numero es correcto, pero no puede saltarse las reglas
+del negocio.**
+
+### Verificado
+| Lo que escribe el cliente | Resultado |
+|---|---|
+| `Coca-Cola` (con guion) | COCA COLA Personal **$5.000** *(antes $0)* |
+| `cocacola` (pegado) | COCA COLA Personal $5.000 |
+| `coquita` (diminutivo) | COCA COLA Personal $5.000 |
+| 🎙️ `premiumista` (de un audio) | Premium **$34.000** *(antes 0 productos)* |
+| `una personal de pollo` | Salchipapa Pollo **$17.000**, no la adicion de $9.000 |
+| `con adicion de pollo` | Premium Mixta + adicion Pollo |
+| `una pizza hawaiana` (no existe) | **sin productos — no inventa** |
+
+**Regresion:** 12 conversaciones reales, **18 productos, 0 sin resolver**.
+Conversaciones de prueba borradas.
+
+### Nota de proceso
+Durante el arreglo la funcion quedo unos minutos rota (`Assignment to constant
+variable`: agregue el guard sin cambiar `const` por `let`). Se detecto en la
+prueba y se corrigio. **Probar despues de cada despliegue no es opcional.**

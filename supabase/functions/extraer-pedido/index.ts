@@ -16,8 +16,32 @@ async function sbGet(path: string): Promise<Array<Record<string, unknown>> | nul
   return res.json();
 }
 
+/* Un mensaje sirve si TRAE TEXTO, sin importar si vino como audio o como texto.
+   Se excluyen los que solo traen un marcador de archivo ([imagen], [sticker],
+   nombre del archivo): eso no lo escribio el cliente. */
+function tieneTexto(m: Record<string, unknown>): boolean {
+  const t = limpiarCuerpo(String(m.body || ""));
+  if (!t) return false;
+  if (/^\[[^\]]+\]$/.test(t)) return false;          // "[imagen]", "[sticker]"
+  const tipo = String(m.media_type || "");
+  if (tipo && tipo !== "text" && tipo !== "audio") {
+    // De imagenes/documentos solo sirve el pie de foto, no el nombre del archivo.
+    if (/\.(jpg|jpeg|png|gif|webp|pdf|mp4|ogg|opus)$/i.test(t)) return false;
+  }
+  return true;
+}
+
+/* El audio transcrito llega con un microfono al principio; estorba al analisis. */
+function limpiarCuerpo(s: string): string {
+  return String(s || "").replace(/^\s*\p{Extended_Pictographic}+\s*/u, "").trim();
+}
+
 function norm(s: string): string {
-  return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  /* Guiones, puntos, comas y barras cuentan como espacio: "Coca-Cola",
+     "Coca.Cola" y "Coca  Cola" tienen que dar lo mismo. Es solo un RESPALDO —
+     lo que de verdad resuelve es que el modelo escoja de la lista. */
+  return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[-_./,]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
 type ModOpt = { id: string; name: string; price: number };
@@ -51,6 +75,13 @@ function matchProducto(
   allCats: Array<Record<string, unknown>>,
   clienteTexto = "",
 ): Record<string, unknown> {
+  /* Si el modelo eligio un numero de la lista, ese ES el producto: no se
+     compara texto ni se adivina nada. Solo si no vino numero (o vino uno
+     invalido) se cae al reconocimiento por nombre de siempre. */
+  const nSel = Number(prod.n);
+  let prodPorNumero = (Number.isFinite(nSel) && nSel >= 1 && nSel <= allProducts.length)
+    ? allProducts[nSel - 1] : null;
+
   const nombreGPT = String(prod.nombre || "").trim();
   const tamanoGPT = String(prod.tamano || "").trim();
   const tipoGPT   = String(prod.tipo   || "").trim();
@@ -103,6 +134,15 @@ function matchProducto(
   };
   const esAdicion = (p: Record<string, unknown>) => esCatAdicion(catsById.get(String(p.category_id)));
   const pideAdicion = /adicion|\bextra\b|\bagrega/.test(cliBlob);
+
+  /* Una ADICION no es un plato. Si el modelo eligio por numero algo de la
+     categoria Adiciones pero el cliente no pidio ninguna adicion, se descarta
+     esa eleccion y se reconoce por nombre como siempre: "una personal de pollo"
+     es la salchipapa de $17.000, no la adicion de pollo de $9.000.
+     Elegir por numero es lo correcto, pero no puede saltarse esta regla. */
+  if (prodPorNumero && !pideAdicion && esAdicion(prodPorNumero)) {
+    prodPorNumero = null;
+  }
 
   // Palabras con las que un cliente nombra una categoría (nombre + alias, con y
   // sin plural): "salchipapas"→salchipapa, "HAMBURGUESAS"→hamburguesa…
@@ -207,7 +247,8 @@ function matchProducto(
 
   let matched: Record<string, unknown> | null = null;
   let bestScore = 0;
-  for (const p of universo) {
+  if (prodPorNumero) { matched = prodPorNumero; bestScore = 99; }
+  for (const p of prodPorNumero ? [] : universo) {
     const pn = norm(String(p.name || ""));
     if (!pn) continue;
     let score = 0;
@@ -241,7 +282,7 @@ function matchProducto(
      Se reintenta usando el tipo como nombre, SOLO dentro de la categoria ya
      resuelta y SOLO si la via normal fallo, para no tocar el caso que el
      `nameBlob` protege. */
-  if ((!matched || bestScore < 4) && tipoGPT) {
+  if (!prodPorNumero && (!matched || bestScore < 4) && tipoGPT) {
     const terminos = norm(String(tipoGPT))
       .split(/[,;]|\sy\s/).map(t => t.trim()).filter(t => t.length >= 3);
     for (const pt of universo) {
@@ -395,8 +436,12 @@ Deno.serve(async (req) => {
     }
     const msgs = sesion.reverse();
     const convText = msgs
-      .filter(m => m.media_type == null || m.media_type === "text")
-      .map(m => (m.direction === "in" ? "Cliente: " : "Nosotros: ") + String(m.body || "").replace(/\n/g, " "))
+      /* Antes se filtraba por TIPO de mensaje y se botaban los audios — con
+         transcripcion y todo. El cliente mandaba una nota de voz, el operador
+         la leia en pantalla y el analisis nunca la veia.
+         Ahora la pregunta es "¿tiene texto?", no "¿es de tipo texto?". */
+      .filter(m => tieneTexto(m))
+      .map(m => (m.direction === "in" ? "Cliente: " : "Nosotros: ") + limpiarCuerpo(String(m.body || "")).replace(/\n/g, " "))
       .join("\n");
     if (!convText.trim()) return json({ error: "La conversacion no tiene mensajes de texto" }, 400);
 
@@ -413,11 +458,18 @@ Deno.serve(async (req) => {
 
     const catNameById: Record<string, string> = {};
     for (const c of allCats) catNameById[String(c.id)] = String(c.name || "");
-    const menuLines = allProducts.map(p => {
+    /* El menu va NUMERADO y el modelo devuelve el numero, no el nombre.
+       Antes escribia el nombre libre y despues habia que adivinar a cual se
+       referia: escribio "Coca-Cola" (con guion) contra "COCA COLA" del catalogo
+       y el producto quedo en $0. Pedirle que "use el nombre exacto" ya estaba
+       en el prompt y lo desobedecio igual.
+       Con un numero no hay nada que emparejar: o eligio un producto que existe,
+       o no eligio ninguno. */
+    const menuLines = allProducts.map((p, i) => {
       const pres = ((p.presentations as Array<{name:string}>) || []).map(x => x.name).filter(Boolean);
       const vars = ((p.variables as Array<{options:Array<{name:string}>}>) || []).flatMap(v => (v.options||[]).map(o => o.name)).filter(Boolean);
       const cat = catNameById[String(p.category_id)] || "";
-      let line = "- " + (cat ? `[${cat}] ` : "") + String(p.name);
+      let line = "#" + (i + 1) + " " + (cat ? `[${cat}] ` : "") + String(p.name).trim();
       if (pres.length) line += " | tamaños: " + pres.join(", ");
       if (vars.length) line += " | tipos: " + [...new Set(vars)].join(", ");
       return line;
@@ -455,12 +507,14 @@ Analiza la conversación y devuelve SOLO un JSON con esta forma exacta:
   "pago": string|null,
   "notas": string|null,
   "productos": [
-    { "categoria": string|null, "nombre": string, "tamano": string|null, "tipo": string|null, "cantidad": number, "adiciones": string|null, "notas": string|null }
+    { "n": number|null, "categoria": string|null, "nombre": string, "tamano": string|null, "tipo": string|null, "cantidad": number, "adiciones": string|null, "notas": string|null }
   ]
 }
 
 REGLAS IMPORTANTES:
 - "categoria": pon la categoría SOLO si el cliente la dice EXPLÍCITAMENTE con la palabra (hamburguesa, perro/perro caliente, sándwich). NO la adivines. Un mismo nombre existe en varias categorías con precios distintos (ej. "Súper Queso" hay de HAMBURGUESA, de SALCHIPAPA y de PERRO), por eso importa. REGLA: si el cliente dice el tamaño "personal" o "familiar" (o no dice categoría), es una SALCHIPAPA → pon "Salchipapa". Si dice "hamburguesa X" → "Hamburguesa". Si dice "perro X" → "Perro". Si dice "sandwich X" → "Sandwich". Si de verdad no hay ninguna pista, pon null.
+- "n" (LO MÁS IMPORTANTE): el NÚMERO del producto en la lista MENÚ DISPONIBLE (el que aparece como #12). Es OBLIGATORIO cuando reconozcas el producto. NO inventes productos: si lo que pidió el cliente NO está en la lista, pon "n": null y deja "nombre" con lo que él dijo, tal cual. Es MUCHO mejor devolver null que escoger un producto parecido que no es.
+- Escoge el número aunque el cliente escriba distinto: con guion, pegado, mal escrito, en diminutivo o transcrito de un audio. Ej.: "Coca-Cola" / "cocacola" / "una coca" → el #de COCA COLA. "premiumista" (de una nota de voz) → el # de Premium. Tú entiendes lo que quiso decir; la lista manda.
 - Incluye SOLO los productos que el CLIENTE pidió EXPLÍCITAMENTE en ESTA conversación. NO inventes ni agregues productos que no pidió.
 - Si el cliente no pidió nada concreto, devuelve "productos": [].
 - COLISIÓN DE NOMBRES (MUY IMPORTANTE): algunas palabras como "pollo", "carne" y "mixta" pueden ser el NOMBRE de un plato tradicional O el TIPO/variante de un plato ESPECIAL. Si el cliente menciona un plato especial (por su nombre propio en el menú, ej. "Premium", "Maicitos Especial", "Súper Queso"), ESE nombre especial va en "nombre" y "pollo"/"carne"/"mixta" va en "tipo" (NUNCA como un producto aparte). Ej: "una premium mixta" → nombre: "Premium", tipo: "mixta"; "maicitos especial de pollo" → nombre: "Maicitos Especial", tipo: "pollo". Usa "pollo"/"carne"/"mixta" como NOMBRE solo si NO se menciona ninguna especial (ej. "una salchipapa mixta" → nombre: "Mixta").
@@ -506,8 +560,8 @@ BARRIOS CONOCIDOS (escribe el barrio EXACTAMENTE como aparece aquí cuando corre
     // Solo lo que escribió el CLIENTE (sin nuestras respuestas): es la verdad
     // contra la que se valida lo que interpretó GPT.
     const clienteTexto = msgs
-      .filter(m => m.direction === "in" && (m.media_type == null || m.media_type === "text"))
-      .map(m => String(m.body || "")).join(" ");
+      .filter(m => m.direction === "in" && tieneTexto(m))
+      .map(m => limpiarCuerpo(String(m.body || ""))).join(" ");
     const productos = productosRaw.map(p => matchProducto(p, allProducts, allMods, allCats, clienteTexto));
     const subtotal = productos.reduce((s, p) => {
       const adic = ((p.adiciones as ModOpt[]) || []).reduce((a, x) => a + (Number(x.price) || 0), 0);
