@@ -694,9 +694,16 @@
           var sb2 = window._pos && window._pos.sb;
           var bid = order.branch_id || (window._pos.state && window._pos.state.branchId);
           if (sb2 && bid) {
-            var br = await sb2.from('branches').select('name,address,phone,brand_id').eq('id', bid).maybeSingle();
+            var br = await sb2.from('branches').select('name,address,phone,brand_id,operacion_config').eq('id', bid).maybeSingle();
             if (br && br.data) {
               branch = br.data;
+              // La config de impuestos se carga AQUI, no en la pantalla. Antes
+              // solo la cargaba Pagos, asi que el desglose de impuestos salia
+              // impreso unicamente si se cobraba desde alli: el mismo pedido
+              // impreso desde Ventas, Domicilios o el Chat salia sin nada.
+              if (window.posImpuestos && branch.operacion_config && branch.operacion_config.impuestos) {
+                posImpuestos.setConfig(branch.operacion_config.impuestos);
+              }
               if (branch.brand_id) { var bd = await sb2.from('brands').select('name').eq('id', branch.brand_id).maybeSingle(); if (bd && bd.data) branch.brand_name = bd.data.name; }
             }
           }

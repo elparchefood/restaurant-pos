@@ -3336,3 +3336,55 @@ pago) y mesa (propina, desglose con cambio sangrado, puntos).
 
 **Falta probar en papel.** Nadie ha impreso todavía el de mesa con el diseño
 nuevo a 72 mm.
+---
+
+## 96. Impuestos en los tres recibos
+
+Sergio pidió que los impuestos salgan en los recibos de mesa, venta rápida y
+domicilio, solo si el restaurante los tiene activados.
+
+**La mitad ya estaba resuelta** por la unificación de la ronda anterior: el
+único recibo que quedó ya traía el desglose. Pero probándolo apareció el motivo
+real de que no se vieran.
+
+**El fallo: la config de impuestos solo la cargaba la pantalla de Pagos.**
+`posImpuestos` arranca con `CFG = null` y `activo()` devuelve `false` hasta que
+alguien llama a `setConfig(...)`. En todo el sistema solo lo hacían
+`configuracion.js` y `pagos.js`. Resultado: el desglose de impuestos se imprimía
+**únicamente si el cobro salía desde la pantalla de Pagos**. El mismo pedido
+impreso desde Ventas, Domicilios, Historial, Caja o el Chat salía sin una sola
+línea de impuesto, en silencio y sin error.
+
+Y no era un caso raro: los tres recibos se imprimen casi siempre desde otras
+pantallas.
+
+**Arreglo:** la config se carga en `pos-print.js`, no en la pantalla. Se pide
+`operacion_config` en la **misma** consulta a `branches` que ya se hacía para el
+encabezado, así que no hay viaje extra a la base:
+
+```js
+var br = await sb2.from('branches').select('name,address,phone,brand_id,operacion_config')...
+if (window.posImpuestos && branch.operacion_config && branch.operacion_config.impuestos) {
+  posImpuestos.setConfig(branch.operacion_config.impuestos);
+}
+```
+
+Solo se pisa la config si de verdad llegó una: si la consulta no la trae, se
+respeta la que la pantalla hubiera cargado.
+
+**Cómo sale:** `Base gravable` y `Impoconsumo 8%` (o IVA, según el tipo
+configurado) entre el Subtotal y el Empaque. Si el restaurante no cobra
+impuesto, no se imprime nada — ni una línea en cero.
+
+**Probado** con el archivo ya instalado, los tres canales, activado y
+desactivado. Con impuestos apagados el recibo sale exactamente igual que antes.
+
+**Ojo — El Parche hoy tiene `activo: false`,** así que Sergio no verá ningún
+cambio hasta que los active en Configuración. No hay ningún pedido con
+`tax_total > 0` en la base todavía. Esto es para cuando los active, o para otro
+restaurante que sí sea responsable.
+
+**Queda suelto:** existe `posImpuestos.leyendaNoResponsable()` —
+*"No responsable de impuesto al consumo"*— y **no la usa nadie**. En Colombia
+esa leyenda debe ir en el documento del que no cobra impuesto. Está sin decidir
+si se imprime.
