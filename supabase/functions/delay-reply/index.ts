@@ -3060,31 +3060,47 @@ async function buildConversationResponse(
   const situacionesObj = (cfg.situaciones as Record<string, string>) || {};
   const vocabCfg      = (cfg.vocabulario as { usar?: string[]; evitar?: string }) || {};
   const prohibArr     = (cfg.prohibiciones as string[]) || [];
-  const hayContexto = negocioTxt || faqArr.length > 0 || Object.keys(situacionesObj).length > 0 ||
-    (vocabCfg.usar && vocabCfg.usar.length > 0) || prohibArr.length > 0;
+  /* CONEXIONES — qué información de las otras pestañas ve el asistente.
+     Cada fuente se puede desconectar sin borrarla: el dato sigue ahí para el
+     resto del sistema, pero el asistente deja de verlo. Sin configuración,
+     todo conectado (así se comporta desde siempre). */
+  const conex = (cfg.conexiones as Record<string, unknown>) || {};
+  const conectado = (k: string): boolean => conex[k] !== false;
+
+  const usarNegocio     = conectado("negocio")      && !!negocioTxt;
+  const usarFaq         = conectado("faq")          && faqArr.length > 0;
+  const usarSituaciones = conectado("situaciones")  && Object.keys(situacionesObj).length > 0;
+  const usarVocabulario = conectado("vocabulario")  && !!(vocabCfg.usar && vocabCfg.usar.length > 0);
+  const usarProhibido   = conectado("prohibiciones") && prohibArr.length > 0;
+
+  const hayContexto = usarNegocio || usarFaq || usarSituaciones || usarVocabulario || usarProhibido;
   if (hayContexto) {
     sysLines.push("", "CONTEXTO DEL NEGOCIO — úsalo SOLO para responder preguntas del cliente o manejar situaciones. El flujo del pedido, sus pasos y sus frases los dicta PRÓXIMO PASO — NADA de esta sección los modifica:");
-    if (negocioTxt) sysLines.push(`INFO: ${negocioTxt}`);
+    if (usarNegocio) sysLines.push(`INFO: ${negocioTxt}`);
     const faqLines = faqArr
       .filter(f => f && f.pregunta && f.respuesta)
       .map(f => `- ${f.pregunta} → ${String(f.respuesta)
         .replace(/\{hora_apertura\}/g, horaAperturaHoy || "")
         .replace(/\{hora_cierre\}/g, horaCierreHoy || "")}`);
-    if (faqLines.length) sysLines.push("PREGUNTAS FRECUENTES (responde con estas respuestas):", ...faqLines);
+    if (usarFaq && faqLines.length) sysLines.push("PREGUNTAS FRECUENTES (responde con estas respuestas):", ...faqLines);
     const sitLines = Object.entries(situacionesObj)
       .filter(([, v]) => v)
       .map(([k, v]) => `- ${k.replace(/_/g, " ")}: ${v}`);
-    if (sitLines.length) sysLines.push("SITUACIONES ESPECIALES (cómo actuar):", ...sitLines);
+    if (usarSituaciones && sitLines.length) sysLines.push("SITUACIONES ESPECIALES (cómo actuar):", ...sitLines);
     if (vocabCfg.usar && vocabCfg.usar.length) {
-      sysLines.push(`EXPRESIONES: usa "${vocabCfg.usar.join('", "')}".${vocabCfg.evitar ? ` Evita: ${vocabCfg.evitar}.` : ""}`);
+      if (usarVocabulario) sysLines.push(`EXPRESIONES: usa "${vocabCfg.usar.join('", "')}".${vocabCfg.evitar ? ` Evita: ${vocabCfg.evitar}.` : ""}`);
     }
-    if (prohibArr.length) sysLines.push(`PROHIBIDO: ${prohibArr.join(" · ")}`);
+    if (usarProhibido) sysLines.push(`PROHIBIDO: ${prohibArr.join(" · ")}`);
   }
 
-  if (menuText)       sysLines.push("", "MENÚ:", menuText);
-  if (horariosText)   sysLines.push("", horariosText);
-  if (pagosText)      sysLines.push("", pagosText);
-  if (domiciliosText) sysLines.push("", domiciliosText);
+  /* La carta, los horarios, los métodos de pago y las zonas de domicilio salen
+     de otras pantallas del sistema. También se pueden desconectar: un
+     restaurante puede preferir que el asistente NO hable de precios de
+     domicilio, por ejemplo, y lo diga siempre una persona. */
+  if (conectado("menu")       && menuText)       sysLines.push("", "MENÚ:", menuText);
+  if (conectado("horarios")   && horariosText)   sysLines.push("", horariosText);
+  if (conectado("pagos")      && pagosText)      sysLines.push("", pagosText);
+  if (conectado("domicilios") && domiciliosText) sysLines.push("", domiciliosText);
 
   const messages: Array<{ role: string; content: string }> = [
     { role: "system", content: sysLines.join("\n") },

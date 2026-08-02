@@ -1393,7 +1393,13 @@
                 .bl-c2{flex:1;padding:10px;border:1px solid #CBD5E1;border-radius:9px;background:#fff;font-weight:700;cursor:pointer}
                 .bl-s2{flex:1;padding:10px;border:none;border-radius:9px;background:#ef4444;color:#fff;font-weight:800;cursor:pointer}
                 .bl-s2:hover{background:#dc2626}
-              </style>
+              
+    .cfg-conex-row{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--line,#ECEEF2)}
+    .cfg-conex-row:last-child{border-bottom:none}
+    .cfg-conex-tx{flex:1;min-width:0}
+    .cfg-conex-tt{font-size:13.5px;font-weight:700;color:#0F172A}
+    .cfg-conex-ds{font-size:11.5px;color:#94A3B8;line-height:1.5;margin-top:2px}
+</style>
               <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border)">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>
                 <div style="flex:1;min-width:0">
@@ -1872,6 +1878,117 @@
                   <label class="field-lb" for="iaBiz">Datos del negocio</label>
                   <div class="ia-field-wrap"><div class="ia-field-wrap"><textarea class="txa txa--xl" id="iaBiz" data-max="2000" placeholder="Direcci&#243;n, zonas de cobertura, especialidades, promociones..."></textarea><button class="ia-imp-btn" data-type="negocio" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M12 1l2.5 7.5H22l-6.5 4.7 2.5 7.8L12 16.3l-6 4.7 2.5-7.8L2 8.5h7.5z"/></svg><span>Mejorar con IA</span></button></div><button class="ia-imp-btn" data-type="negocio" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M12 1l2.5 7.5H22l-6.5 4.7 2.5 7.8L12 16.3l-6 4.7 2.5-7.8L2 8.5h7.5z"/></svg><span>Mejorar con IA</span></button></div>
                   <div class="field-foot"><span class="field-hint">El bot usar&#225; estos datos como fuente de verdad.</span><span class="charc" id="charc-iaBiz">0 / 2000</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" id="card-conexiones" data-tab="asistente">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Qu&eacute; informaci&oacute;n ve el asistente</div>
+                  <div class="card-hd-ds">Ya tienes esta informaci&oacute;n configurada en otras pantallas. Aqu&iacute; decides cu&aacute;l puede usar el asistente. Desconectar no borra nada: el dato sigue ah&iacute; para el resto del sistema.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="cfg-conex-row" data-conex="faq">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">Preguntas frecuentes</div>
+                    <div class="cfg-conex-ds">Tus preguntas y respuestas ya escritas. Con esto el bot contesta "¿hasta qué hora atienden?" sin arrancar un pedido.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="faq" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
+                <div class="cfg-conex-row" data-conex="menu">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">La carta</div>
+                    <div class="cfg-conex-ds">Productos, presentaciones, variantes y precios. Sin esto el bot no puede decir qué hay ni cuánto vale.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="menu" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
+                <div class="cfg-conex-row" data-conex="horarios">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">Horarios</div>
+                    <div class="cfg-conex-ds">Los días y horas de atención, para saber si puede tomar pedidos.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="horarios" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
+                <div class="cfg-conex-row" data-conex="pagos">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">Métodos de pago</div>
+                    <div class="cfg-conex-ds">Los métodos que aceptas y los datos para pagar.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="pagos" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
+                <div class="cfg-conex-row" data-conex="domicilios">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">Zonas y domicilios</div>
+                    <div class="cfg-conex-ds">Los barrios y sus precios. Desconéctalo si prefieres que el precio del domicilio lo diga siempre una persona.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="domicilios" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
+                <div class="cfg-conex-row" data-conex="negocio">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">Sobre el negocio</div>
+                    <div class="cfg-conex-ds">La descripción de tu restaurante, para que responda con contexto.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="negocio" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
+                <div class="cfg-conex-row" data-conex="situaciones">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">Situaciones especiales</div>
+                    <div class="cfg-conex-ds">Cómo actuar cuando llueve, se agota un producto o hay demora.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="situaciones" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
+                <div class="cfg-conex-row" data-conex="vocabulario">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">Cómo habla</div>
+                    <div class="cfg-conex-ds">Las expresiones que quieres que use y las que debe evitar.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="vocabulario" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
+                <div class="cfg-conex-row" data-conex="prohibiciones">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">Lo que nunca debe decir</div>
+                    <div class="cfg-conex-ds">Temas o frases prohibidas.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="prohibiciones" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
                 </div>
               </div>
             </div>
@@ -2452,7 +2569,7 @@
 <script src="pos-impuestos.js?v=1"></script>
 <script src="pos-creditos.js?v=1"></script>
 <script src="configuracion-puntos.js?v=1787980000"></script>
-<script src="configuracion.js?v=1788420000"></script>
+<script src="configuracion.js?v=1788440000"></script>
 </body>
 </html>
 

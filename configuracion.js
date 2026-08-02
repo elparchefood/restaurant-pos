@@ -3677,6 +3677,16 @@ var _storedZonas = [];
     }
     if ($('iaInstr')) { $('iaInstr').value = m.instrucciones || ''; updateCounter('iaInstr'); }
     if ($('adicionesPalabras')) $('adicionesPalabras').value = Array.isArray(m.adiciones_palabras) ? m.adiciones_palabras.join(', ') : '';
+
+    /* Qué información ve el asistente. Solo se guarda lo DESCONECTADO, así que
+       una fuente que no aparezca en el guardado se pinta conectada — y una
+       fuente nueva arranca conectada sin migrar nada. */
+    (function () {
+      var conex = m.conexiones || {};
+      document.querySelectorAll('.cfg-conex-chk').forEach(function (ch) {
+        ch.checked = conex[ch.dataset.k] !== false;
+      });
+    })();
     if ($('numerosGerentes')) $('numerosGerentes').value = Array.isArray(m.numeros_gerentes) ? m.numeros_gerentes.join(', ') : '';
     if ($('iaResumenPlantilla')) $('iaResumenPlantilla').value = m.resumen_plantilla || '';
     if (m.vocabulario) {
@@ -4242,6 +4252,16 @@ var _storedZonas = [];
     model.branch_id = meta.branch_id;
     model.tenant_id = meta.tenant_id;
     model.updated_at = new Date().toISOString();
+    // Qué información ve el asistente. Solo se guarda lo DESCONECTADO: así, si
+    // mañana se agrega una fuente nueva, arranca conectada sin migrar nada.
+    (function () {
+      var conex = {};
+      document.querySelectorAll('.cfg-conex-chk').forEach(function (ch) {
+        if (!ch.checked) conex[ch.dataset.k] = false;
+      });
+      model.conexiones = conex;
+    })();
+
     var { error } = await sb.from('ia_config').upsert(model, { onConflict: 'branch_id' });
     if (!error) {
       markSaved();

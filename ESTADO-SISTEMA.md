@@ -4652,3 +4652,54 @@ configurada, todo se comporta exactamente como antes.
   plantilla).
 - En la de dirección: reglas por país y dónde no se reparte.
 - En la de cliente: las opciones del nombre configurables.
+---
+
+## 118. Conexiones: el dueño decide qué información ve el asistente
+
+Idea de Sergio: mucha información ya está configurada en otras pantallas y **el
+asistente la usa siempre, sin que nadie se lo haya autorizado**.
+
+> *"Lo más importante es que cada dueño de restaurante pueda elegir conectar o
+> no conectar lo que desee."*
+
+### Inventario: lo que ya estaba configurado
+
+Se revisaron las 40 columnas de `ia_config`. **34 tienen contenido**, y estas son
+las que el asistente consume:
+
+| Fuente | Tamaño | ¿La leía? |
+|---|---:|---|
+| Preguntas frecuentes | 1.849 car. | Sí, siempre |
+| Sobre el negocio | 591 car. | Sí, siempre |
+| Situaciones especiales | 1.045 car. | Sí, siempre |
+| Vocabulario | 304 car. | Sí, siempre |
+| Zonas y domicilios | 3.017 car. | Sí, siempre |
+| Métodos de pago | 1.000 car. | Sí, siempre |
+| Horarios | 454 car. | Sí, siempre |
+| La carta | — | Sí, siempre |
+
+**Las preguntas frecuentes ya existían y el bot ya las leía** — no había que
+construir el mecanismo, había que darle el interruptor.
+
+### Lo que se construyó
+
+Una tarjeta en la pestaña **Asistente** (configuración global del canvas, fuera
+del flujo, como pidió Sergio) con un interruptor por fuente. Y en el motor, cada
+bloque del contexto se arma solo si su fuente está conectada.
+
+**Desconectar no borra nada:** el dato sigue ahí para el resto del sistema, el
+asistente deja de verlo. Un restaurante puede querer que el precio del domicilio
+lo diga siempre una persona, y ahora puede.
+
+**Solo se guarda lo DESCONECTADO.** Así, el día que se agregue una fuente nueva,
+arranca conectada sin migrar nada y sin que nadie se encuentre el asistente
+cambiado de un día para otro.
+
+`delay-reply` v212, verificada que arranca.
+
+### Lo que queda de la lista del canvas
+
+- Confirmación y resumen como cajas con misión (hoy son comportamiento y
+  plantilla).
+- En la de dirección: reglas por país y dónde no se reparte.
+- En la de cliente: las opciones del nombre configurables.
