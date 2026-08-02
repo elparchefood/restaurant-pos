@@ -3686,3 +3686,69 @@ Se revisó **todo** el catálogo cruzado con lo vendido: solo **"Salsa"** (3
 ventas) no tiene receta, así que es lo único que se vende sin descontar
 inventario. **Falta que Sergio diga de qué insumo sale y cuánto**, que eso no se
 puede adivinar.
+---
+
+## 103. Multi-marca — Fase 1: la base
+
+Decisión de Sergio (2026-08-02), tomada sobre tres opciones con maqueta: **la
+carta es de la MARCA, con ajustes por local.** La más flexible y la más cara,
+pero es la que usan las cadenas y la que permite vender a food courts.
+
+### La regla de precedencia, escrita para que no se discuta después
+
+> **El ajuste del local manda cuando existe.** Si el local no tiene fila de
+> ajuste, o la tiene con el precio en NULL, se aplica el precio base de la
+> marca. Cambiar el precio base **no pisa** a los locales que ya tienen ajuste
+> propio.
+
+Esto era lo que había que decidir: con el precio viviendo en dos sitios, sin una
+regla escrita cada pantalla habría resuelto el empate a su manera y dos
+pantallas habrían cobrado distinto.
+
+### Lo que se construyó
+
+| Pieza | Para qué |
+|---|---|
+| `pos_marca_sucursal` | Qué marcas operan en cada local, **N a N**. `branches.brand_id` amarraba un local a UNA marca; un food court tiene varias con una sola caja |
+| `pos_products.brand_id` | La carta pertenece a la marca. Los 53 productos quedaron asignados |
+| `pos_categories.brand_id` | Igual para las categorías |
+| `pos_producto_sucursal` | El ajuste del local: precio y/o activo. **Solo hay fila cuando el local se aparta** — no hay que duplicar 53 productos por local para cambiarle el precio a uno |
+| `pos_orders.brand_id` | Sin esto no se puede separar la venta por marca en el cierre. Los 137 pedidos quedaron asignados |
+| `pos_printers.brand_id` | Cada marca tiene su cocina: la comanda sale por la impresora de su marca. NULL = sirve a todas |
+| `v_carta_sucursal` | **Un solo sitio** que resuelve la precedencia, para que ninguna pantalla la reimplemente |
+
+**Todo aditivo.** No se borró ninguna columna y `pos_products.branch_id` sigue
+donde estaba: lo usan 48 tablas y media aplicación. El sistema funciona hoy
+exactamente igual que ayer.
+
+### Probado simulando un food court
+
+Se creó una segunda marca temporal en el mismo local y se comprobó:
+
+| Prueba | Resultado |
+|---|---|
+| Dos marcas en un local | 53 productos de El Parche + 1 de la marca nueva |
+| Ajuste de precio del local | SÚPER QUESO a $99.000, con `precio_base` intacto en $35.000 y `precio_ajustado = true` |
+| Solo se ajusta el producto tocado | Los otros dos SÚPER QUESO (otras presentaciones) siguieron en su precio |
+| Desactivar solo en ese local | MEXICANA quedó inactiva ahí, sin tocar la carta de la marca |
+
+Todo se deshizo después y se verificó que la base volvió a su estado exacto: 53
+productos, 0 ajustes, una sola marca.
+
+Los GRANTs para `authenticated` y `service_role` van en la propia migración —
+olvidarlos ya reventó dos veces en pleno servicio.
+
+### Lo que falta (fases 2 a 4)
+
+2. **Lectura:** que las pantallas de carta lean `v_carta_sucursal` en vez de
+   `pos_products` directo. Hasta que esto no pase, los ajustes por local existen
+   en la base pero no se ven.
+3. **Escritura:** que el pedido guarde su `brand_id`, que el cierre de caja
+   separe por marca y que la comanda salga por la impresora de la marca.
+4. **Pantallas:** crear y editar marcas, asignarlas a locales, y editar los
+   ajustes de precio por local.
+
+**Decisión que queda para la fase 3:** cuando en un local operan varias marcas,
+¿cómo elige el cajero la marca al tomar un pedido — un selector arriba, o se
+deduce del producto que toca primero? Y qué pasa si un pedido mezcla productos
+de dos marcas: ¿se parte en dos pedidos, o se permite mezclar?
