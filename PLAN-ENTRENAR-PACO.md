@@ -1,178 +1,154 @@
-# Plan para entrenar a Paco
+# Cómo vende Sergio — material para entrenar a Paco
 
-**Hecho el 2026-08-01 sobre datos reales:** 88 conversaciones, 1.540 mensajes,
-del 16 de julio al 1 de agosto. Nada de lo que sigue es supuesto — todo sale de
-lo que de verdad escribieron los clientes.
-
----
-
-## 1. La foto de hoy
-
-| | |
-|---|---|
-| Conversaciones | 88 |
-| Terminaron en pedido | 39 (**44%**) |
-| Mensajes para cerrar UN pedido | **33,5 de promedio** |
-| Respuesta típica | 18 segundos (mediana) |
-| Casos que tardaron más de 10 min | 48 |
-| Mensajes que nunca se respondieron | 22 |
-
-**Cuándo escriben** (el 69% entre 6 y 9 de la noche):
-
-```
-18:00  ██████████████████████████ 102
-19:00  ████████████████████████████████████████ 193
-20:00  █████████████████████████████ 116
-21:00  ████████████████████████████ 114
-22:00  ██████████ 39
-```
-
-**De qué hablan**, en orden: saludo (163) · pedir (123) · **pago/Nequi (94)** ·
-carta y precios (61) · domicilio (21) · horarios (10) · demoras (9).
+**Base:** las 39 conversaciones que terminaron en pedido, del 16 de julio al 1 de
+agosto. **Todas las atendió Sergio a mano** — Paco no ha tomado ninguna. Este
+documento no es una lista de errores: es **el método que funciona**, escrito
+para que Paco lo aprenda.
 
 ---
 
-## 2. Los cinco hallazgos
+## 1. El método, paso a paso
 
-### 🔴 1. Los anuncios traen gente que NO compra — y es el hueco más grande
+Medido sobre las 39 conversaciones exitosas. El porcentaje es en cuántas aparece
+cada paso:
 
-| De dónde viene | Conversaciones | Pedidos | Conversión |
-|---|---|---|---|
-| Escribió directo | 56 | 38 | **68%** |
-| **Vino de un anuncio** | **32** | **1** | **3%** |
+| Paso | Aparece en | Qué significa |
+|---|---|---|
+| Saludar | 97% | Casi siempre, y con la hora del día |
+| Invitar a pedir | 87% | "¿Qué se te antoja?" |
+| Preguntar tamaño | 28% | **Solo cuando el cliente no lo dijo** |
+| Preguntar dirección | 53% | Solo si es domicilio y no la dio |
+| Preguntar nombre | 66% | |
+| **Confirmar el pedido** | **100%** | **Nunca falla. Es la columna vertebral** |
+| **Dar el total desglosado** | **100%** | **Nunca falla** |
+| Pedir el pago | 87% | QR + llaves, o efectivo |
+| Quedar pendiente del comprobante | 76% | |
+| Avisar "en preparación" | 30% | |
+| Avisar "en camino" | 76% | |
+| Avisar los puntos ganados | 89% | |
 
-**32 personas tocaron el anuncio y solo 1 compró.** Todas abren igual:
-*"¡Hola! Quiero más información."* — y casi siempre reciben **una sola
-respuesta** y se pierden.
+### Lo que NUNCA se salta: confirmar y totalizar
 
-No es que sean malos clientes: es que llegan sin saber qué vendemos y se les
-contesta con un *"¿en qué te podemos ayudar?"* que les devuelve la pelota. El
-que escribe directo ya sabe qué quiere y por eso cierra al 68%.
+En **las 39 de 39** hay una confirmación del pedido antes de cobrar y un total
+dicho con claridad. Ese es el corazón del método:
 
-**Esto es lo primero que hay que entrenar.** Si esos 32 convirtieran aunque
-fuera al 20%, serían ~6 pedidos más por semana sin gastar un peso extra en
-publicidad.
+> *"Familiar maicitos especial mixta correcto?"*
+> *"ya te confirmo el total, es personal premium mixta correcto?"*
+> *"Para San Bernardino cierto?"*
 
-### 🔴 2. Se ignoran preguntas que el cliente ya hizo
+Y el total **siempre separa el domicilio**:
 
-Caso real (01/08, pedido de Ulby):
+> *"Con gusto, serían $35.000 de tu pedido y $5.000 del domicilio,
+> total $40.000 😊 En un momento enviamos tu pedido 🍟"*
 
-```
-23:37  cliente:  ...una salchipapa premio mixta con poquita salsa
-23:37  cliente:  Me regalas el número de Nequi      <-- preguntó aquí
-23:38  Paco:     ¿Cómo la deseas? Familiar / Personal
-23:39  Paco:     ¿para dónde va tu pedido?
-23:40  Paco:     ¿A nombre de quién?
-23:43  cliente:  Ah qué número puedo pagar          <-- tuvo que repetirla
-23:46  Paco:     [por fin le da el dato]
-```
+### Lo que solo se pregunta si hace falta
 
-El cliente preguntó por el Nequi y siguió contestando el interrogatorio durante
-**9 minutos** hasta que le tocó repetir. Paco atiende **un tema a la vez** y
-descarta lo demás.
-
-### 🟠 3. Las notas del pedido se pierden
-
-En esa misma conversación el cliente dijo **"con poquita salsa"** desde el
-primer mensaje. Nadie la registró, y a las 23:52 —con el pedido ya en
-preparación— tuvo que repetirla.
-
-### ✅ 4. CORREGIDO — NO se pregunta lo que el cliente ya dijo
-
-Yo habia escrito que se vuelve a preguntar aunque el cliente ya haya dado el
-dato. **Sergio lo refuto** (*"solo pregunto cuando un cliente no me ha dicho los
-datos, es ilogico preguntar nombre, metodo de pago, direccion etc si el cliente
-ya me lo dijo"*) **y los datos le dan la razon.**
-
-Verificado sobre las 88 conversaciones: dentro de una ventana realista de
-pedido (10 minutos), se pregunto un dato ya dicho **1 sola vez**.
-
-Mi primer conteo daba 21 casos, pero al mirarlos uno por uno **todos estaban
-entre 2 y 7 horas despues** de que el cliente lo dijera: son pedidos
-DISTINTOS del mismo cliente, donde preguntar de nuevo es lo correcto. El error
-fue mio: compare sin separar por sesion de pedido.
-
-**Los 33,5 mensajes de promedio son reales, pero la causa NO es esa.** Queda
-por medir de donde salen (saludos, confirmaciones, avisos de estado, ida y
-vuelta del comprobante). No se propone nada hasta saberlo.
-
-### 🟡 5. Hay 22 mensajes sin responder — pero la mitad no son clientes
-
-Revisados uno por uno: 8 son **mensajes automáticos de otros negocios**
-(INTERDOMICILIOS, Grijalba Motors, ENVIENTREGA) y del otro número de El Parche.
-Los que sí duelen son pocos pero graves:
-
-- *"Buenas noches / Para pedir un domicilio"* (28/07) — **nunca se respondió**
-- *"Mira el domi ya salió?"* (28/07) — sin respuesta
-- *"Me avisas cuando salga el pedido por favor"* — sin respuesta
+Tamaño 28%, dirección 53%, nombre 66%. **No se pregunta lo que el cliente ya
+dijo** — verificado: en 88 conversaciones eso pasó 1 sola vez. Paco tiene que
+respetar esa regla, que ya cumple.
 
 ---
 
-## 3. El plan, en cuatro fases
+## 2. La voz de Sergio
 
-### Fase 1 — Que no se pierda nada de lo que el cliente dijo
-*Ataca los hallazgos 2, 3 y 4.*
+Frases reales, con su frecuencia. Esta es la personalidad que Paco debe imitar:
 
-1. **Leer TODO el mensaje, no solo el dato que se está pidiendo.** Esto **ya
-   funciona para los datos del pedido** (nombre, dirección, pago, tamaño): está
-   verificado que no se pregunta lo que el cliente ya dio. Lo que falta es que
-   aplique igual a **lo que el cliente pregunta** y a **las notas**.
-2. **Cola de preguntas pendientes.** Si el cliente pregunta algo mientras se le
-   toma el pedido (el Nequi, el precio, cuánto se demora), se responde **en el
-   mismo mensaje** en que se le pide el siguiente dato. Nunca se descarta.
-3. **Las notas van al pedido.** "Con poquita salsa", "sin cebolla", "bien
-   caliente" tienen que quedar en la comanda desde que se dicen.
+**Abrir**
+- *"Buenas noches, cuéntame ¿En qué te podemos ayudar? ☺️🍟"* (17)
+- *"¿Qué se te antoja? 🍟☺️"* (20)
+- *"Claro que si 🍟¿Qué deseas? ☺️"* (18)
 
-**Cómo se mide:** que ninguna pregunta del cliente quede sin responder en el
-mismo hilo, y que las notas lleguen a la comanda.
+**Pedir datos**
+- *"Con mucho gusto, ¿para dónde va tu pedido? 😊"* (19)
+- *"A nombre de quien se recibe el pedido?🍟"* (26)
 
-### Fase 2 — Rescatar a los que vienen del anuncio
-*Ataca el hallazgo 1, el de más plata.*
+**Cobrar**
+- *"Te comparto el código QR para que puedas realizar tu pago ☺️ O si deseas, mediante llaves…"* (31)
+- *"Con gusto, me confirmas si el pago es transferencia o efectivo? para pasar tu pedido a cocina🍟☺️"* (11)
+- *"Quedo pendiente del comprobante para poderte preparar ☺️"* (16)
 
-Cuando el primer mensaje sea *"Quiero más información"* (o llegue por anuncio),
-la respuesta **no puede ser una pregunta abierta**. Debe:
-1. Saludar y **mostrar la carta de una vez** (ya sabemos que ese es el 100% de
-   lo que quieren, aunque no lo pidan).
-2. Decir en una línea qué vendemos y desde cuánto.
-3. Cerrar con una pregunta fácil de contestar: *"¿Te antojas de algo?"*
+**Acompañar y cerrar**
+- *"Tu pedido está en preparación 😋 Apenas esté en camino, te avisamos"* (11)
+- *"🛵 Tu pedido está en camino, esperamos que lo disfrutes 😋"* (27)
+- *"Con muchísimo gusto, estamos para servirte 🫶🏼☺️"* (12)
 
-**Cómo se mide:** conversión de leads de anuncio, de 3% a 20% o más.
-
-### Fase 3 — Que nadie se quede sin respuesta
-*Ataca el hallazgo 5.*
-
-1. **Aviso de mensaje sin responder**: si un mensaje entrante lleva más de X
-   minutos sin respuesta en horario de atención, que salte la alerta en Cobra.
-2. **Reconocer los mensajes de otros negocios** (los automáticos de
-   domiciliarios y proveedores) para que no ensucien la bandeja ni el conteo.
-3. Responder los **"¿ya salió mi pedido?"** con el estado real, que el sistema
-   ya lo tiene.
-
-### Fase 4 — Aprender de lo que ya pasó
-1. Con `origen` en cada mensaje (bot / humano / sistema) ya se puede medir
-   **qué contesta Paco y qué toca contestar a mano**. Eso señala exactamente
-   qué falta entrenar.
-2. Guardar las conversaciones que **Sergio resolvió a mano** como ejemplos: son
-   la mejor guía de cómo debe contestar.
-3. Revisar cada semana los casos donde el cliente tuvo que repetir algo.
+**Patrones de la voz:**
+- Empieza casi siempre con **"Con gusto" / "Con mucho gusto" / "Claro que sí"**
+- Emojis suaves y constantes: 🍟 ☺️ 😊 😋 — nunca recargado
+- Trato de **tú**, cálido pero no meloso
+- Frases cortas, una idea por mensaje
 
 ---
 
-## 4. Lo que ya está a favor
+## 3. Lo único que sí se le escapa: ofrecer más
 
-- **Responde en 18 segundos** (mediana). La velocidad no es el problema.
-- **68% de conversión** en quien escribe directo. El flujo funciona cuando el
-  cliente llega decidido.
-- Ya entiende **intenciones** y no texto exacto (carta, ubicación, pago,
-  entrega), así que la base para las fases 1 y 2 está puesta.
-- Los pedidos vienen creciendo: **19 pedidos y $682.500 el 26/07**, el mejor día.
+**Es el hallazgo con plata directa.**
+
+| | Pedidos | Ticket promedio |
+|---|---|---|
+| Con bebida | 8 | **$41.938** |
+| Sin bebida | 59 | $35.441 |
+
+**Una bebida sube el ticket $6.500.** Y solo **1 de las 39** conversaciones
+ofreció algo extra:
+
+> *"Listo 👍. Perfecto, ¿deseas adicionar alguna bebida, salchicha ranchera,
+> súper queso o alguna de nuestras adiciones?"*
+
+Solo el **12% de los pedidos** llevan bebida. Si Paco ofreciera siempre —justo
+después de confirmar el pedido y antes de dar el total— y llegara al 40%,
+serían **unos 19 pedidos más con bebida**, es decir **~$123.000 adicionales** en
+el mismo periodo, sin un cliente nuevo.
+
+**Es lo más fácil de entrenar y lo que más rinde.**
 
 ---
 
-## 5. Por dónde empezar
+## 4. Cómo entrenar a Paco, en orden
 
-**La fase 2 primero.** Es la que más plata deja (32 personas desperdiciadas), es
-la más fácil de hacer —una regla para un caso muy concreto— y se puede medir en
-una semana.
+### Fase 1 — Que copie el esqueleto
+Grabar el método como el flujo obligatorio de Paco:
 
-Después la fase 1, que es la que hace la conversación corta y natural.
+1. Saludar según la hora
+2. Invitar a pedir
+3. **Preguntar SOLO lo que falte** (tamaño, variante, dirección, nombre)
+4. **Ofrecer algo más** ← el paso nuevo
+5. **Confirmar el pedido en voz alta** ("Familiar premium mixta, correcto?")
+6. **Dar el total desglosado**, separando el domicilio
+7. Pedir el pago (QR / llaves / efectivo)
+8. Quedar pendiente del comprobante
+9. Avisar "en preparación" → "en camino"
+10. Avisar los puntos ganados
+
+Los pasos 5 y 6 son **obligatorios**: en 39 de 39 estuvieron.
+
+### Fase 2 — Que hable como Sergio
+Cargar las frases de la sección 2 como el banco de respuestas de Paco, con
+variantes para que no suene a robot. La regla de tono: **"Con gusto" al abrir,
+un emoji, una idea por mensaje.**
+
+### Fase 3 — Que ofrezca siempre
+Después de confirmar el pedido y antes del total, ofrecer bebida o adición.
+Una sola vez, sin insistir.
+**Se mide:** % de pedidos con bebida, de 12% a 40%.
+
+### Fase 4 — Comparar a Paco contra Sergio
+Ya se guarda `origen` en cada mensaje (bot / humano / sistema). Con eso, cada
+semana se puede mirar:
+- Qué conversaciones cerró Paco solo y cuáles tocó rescatar a mano
+- En qué paso se cae cuando falla
+- Si sus pedidos tienen el mismo ticket promedio que los de Sergio
+
+**La meta no es que Paco conteste rápido —eso ya lo hace—, sino que cierre con
+el mismo ticket y la misma calidez.**
+
+---
+
+## 5. Notas de criterio (dichas por Sergio)
+
+- **Que un cliente repita algo no es una falla.** Si dice "con poquita salsa"
+  tres veces, es porque quiere recalcarlo. Paco debe **tomar la nota y
+  confirmarla**, no tratarlo como un problema.
+- **No preguntar lo que ya se dijo.** Es ilógico y molesta.
+- **Todos los pedidos de estos días se recibieron con éxito.** El estándar está
+  puesto; Paco tiene que igualarlo, no reinventarlo.
