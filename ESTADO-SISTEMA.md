@@ -3752,3 +3752,88 @@ olvidarlos ya reventó dos veces en pleno servicio.
 ¿cómo elige el cajero la marca al tomar un pedido — un selector arriba, o se
 deduce del producto que toca primero? Y qué pasa si un pedido mezcla productos
 de dos marcas: ¿se parte en dos pedidos, o se permite mezclar?
+---
+
+## 104. Multi-marca — Fase 1b: corregido el modelo, y los planes en la base
+
+### Un error mío, corregido
+
+En la fase 1 creé `pos_marca_sucursal` (marca ↔ sucursal, N a N) porque venía
+pensando en un food court: varias marcas compartiendo local y caja. **El modelo
+de Sergio es otro**, y lo explicó claro:
+
+> Una **sucursal pertenece a una marca**. A una persona se le asignan una o
+> varias sucursales **dentro** de su marca. Entre marcas no se comparte nada,
+> ni siquiera los informes.
+
+Eso ya lo resolvía `branches.brand_id` desde el principio. Dejar la tabla N a N
+habría creado **dos fuentes de verdad** sobre qué marca opera dónde. Se eliminó
+y la vista `v_carta_sucursal` ahora cuelga de `branches.brand_id`. Verificado:
+la carta sigue devolviendo los 53 productos.
+
+*(Un food court con dos marcas en la misma dirección se modela como dos
+sucursales con la misma dirección, cada una con su caja. Más simple y encaja
+con el aislamiento total entre marcas.)*
+
+### Lo que se agregó
+
+- **`pos_roles.brand_id`** — los roles son por marca y no se mezclan jamás. Los
+  5 roles existentes quedaron asignados a El Parche Food.
+- **`brands.email_domain`** — para los logins automáticos. El gerente escribe el
+  usuario (`sergioabadia`) y el sistema completa el resto.
+
+  **Por qué lleva `cobrapos.app` y no solo `elparchefood.com`:** el correo es
+  único en TODO el sistema de acceso, no por restaurante. Dos clientes distintos
+  con un restaurante llamado igual —y "El Parche", "Donde Pepe", "La Esquina" se
+  repiten muchísimo— generarían el mismo dominio, y **el segundo cliente no
+  podría crear a sus empleados** sin entender por qué. Con el sufijo propio no
+  puede pasar. El empleado nunca lo ve: en el login solo escribe su usuario.
+
+  Generado: `elparchefood.cobrapos.app`. Editable, con índice único.
+
+- **`pos_planes`** — los límites de cada plan viven en la base, no en el código,
+  para poder ajustarlos sin tocar nada:
+
+| plan | marcas | sucursales | usuarios | mensajes IA | DIAN | chat IA | puntos |
+|---|---|---|---|---|---|---|---|
+| starter | 1 | 1 | 5 | 0 | 0 | ❌ | ❌ |
+| pro | 2 | ∞ | 15 | 5.000 | 1.000 | ✅ | ❌ |
+| premium | ∞ | ∞ | ∞ | 20.000 | 3.000 | ✅ | ✅ |
+
+El Parche quedó en **premium** a pedido de Sergio, para poder probar todas las
+funciones antes de definir el reparto final entre planes.
+
+### De dónde salen esos números — auditoría del plan comercial
+
+Se auditó `04-PLANES-COMERCIALES.md` contra datos reales. Cinco hallazgos:
+
+1. **El tope de mensajes no aguantaba ni al cliente de referencia.** El Parche
+   hizo 651 mensajes entrantes en julio y va a ~3.000/mes en agosto; Pro traía
+   2.000. Subido a 5.000 (Pro) y 20.000 (Premium), con el criterio de Sergio:
+   *"que un restaurante con atención normal nunca tenga que pagar recargas"*.
+2. **La recarga del modelo avanzado perdía plata:** $40.000 por 1.000 mensajes
+   que cuestan ~$36.000. Ahora hay **una sola recarga** ($120.000 el millar) y
+   el cliente no ve nada de modelos.
+3. **DIAN ilimitada en Starter era una bomba:** ~$150 COP por documento contra
+   un plan de $99.000. Sale de Starter; Pro trae 1.000 y Premium 3.000.
+4. **El plan vendía funciones sin construir** (modo offline, kardex, costeo,
+   anuncios). Marcadas 🔨 en la tabla comparativa.
+5. **Marcas:** sin cobro extra —se cobra por sucursal, y una segunda marca ya
+   exige otra sucursal— pero **con límite por plan**, como pidió Sergio.
+
+### Política de modelos de IA (decisión de Sergio, 2026-08-02)
+
+> **El modelo es decisión de desarrollo, el cliente nunca sabe que hay dos.**
+
+- **El avanzado** para todo lo que toque el pedido, la plata o la conversación:
+  entender qué pidió, leer comprobantes, sacar la dirección.
+- **El barato** solo donde se pueda **demostrar** que da el mismo resultado. El
+  caso probado: partir una lista larga de inventario línea por línea, donde el
+  avanzado se quedaba sin cupo y el barato acertó 28 de 28.
+- **Los precios se costean como si todo fuera avanzado.** Así el ahorro es
+  margen, nunca riesgo, y mover algo al modelo caro no obliga a resubir precios.
+
+**Acción pendiente para Sergio:** pedirle a OpenAI que suba el tope de tokens
+por minuto (hoy en el mínimo, 30.000, compartido por todo el sistema). Es
+gratis. Mientras no lo suban, una ráfaga larga puede dejar al bot mudo en hora
+pico — ya pasó esta mañana con la lista de bebidas.
