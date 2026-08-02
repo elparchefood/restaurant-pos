@@ -651,7 +651,10 @@ async function cobrarDespues() {
 
   try {
     const { subtotal, empaque, domi, tipAmt, total } = calc();
-    const payMethod   = SP.payments.length === 1 ? SP.payments[0].method : 'multiple';
+    // Siempre en minusculas: convivian 'Efectivo' (61 pedidos) y 'efectivo'
+    // (6) como si fueran metodos distintos. Quien lo muestre le pone la
+    // mayuscula; quien lo agrupa necesita un solo valor.
+    const payMethod   = SP.payments.length === 1 ? String(SP.payments[0].method || '').toLowerCase() : 'multiple';
     const vueltoTotal = SP.payments.reduce((s, p) => s + Math.max(0, (p.received || p.amount) - p.amount), 0);
     const now         = new Date().toISOString();
 

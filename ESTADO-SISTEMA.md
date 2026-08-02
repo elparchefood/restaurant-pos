@@ -3642,3 +3642,47 @@ Monica $133.333 por mesa contra $26.400 de Sergio.
 
 Hizo falta traer `total` en la consulta y excluir los cancelados, que antes se
 contaban.
+---
+
+## 102. Métodos de pago en un solo formato, y limpieza de puntos de prueba
+
+### Corrección: los informes NO estaban partidos
+
+Le dije a Sergio que tener `Efectivo` (61) y `efectivo` (6) conviviendo le
+partía los informes en cuatro filas. **Lo comprobé y no era cierto:** `caja.js`
+y `dashboard.js` ya hacían `.toLowerCase()` antes de agrupar, y el dashboard usa
+`normPM()`. Las cuentas siempre estuvieron bien.
+
+El daño real era menor: dos sitios que mostraban el valor crudo como etiqueta
+(a veces "efectivo" en minúscula), y el riesgo latente de que cualquier código
+futuro agrupara sin normalizar y partiera los números sin que nadie lo notara.
+
+### Lo que se hizo igual
+
+- **Datos normalizados a minúsculas** en `pos_orders.payment_method` y
+  `pos_payments.method`. Se compararon los totales antes y después: efectivo
+  $2.958.800 y transferencia $3.000.500 en los dos casos. No se movió un peso.
+- **El origen arreglado:** `pagos.js` guardaba el nombre tal como salía del
+  botón (`Efectivo`). Ahora guarda siempre minúsculas. La mayúscula la pone
+  quien lo muestra.
+- Los dos sitios que pintaban el valor crudo (`caja.js`, `dashboard.js`) ahora
+  capitalizan la primera letra.
+
+Regla: **el método de pago se guarda en minúsculas; el nombre bonito es cosa de
+quien lo muestra.**
+
+### Puntos de prueba borrados
+
+`3000000001` tenía **14.098 puntos** de mis pruebas. Verificado antes de borrar:
+sin ficha de cliente, sin pedidos y sin movimientos — un fantasma. Si ese número
+llegaba algún día como cliente real, se llevaba medio menú gratis.
+
+Los saldos reales más altos que quedan son de 140 y 124 puntos, así que aquello
+desentonaba por dos órdenes de magnitud.
+
+### Productos sin receta
+
+Se revisó **todo** el catálogo cruzado con lo vendido: solo **"Salsa"** (3
+ventas) no tiene receta, así que es lo único que se vende sin descontar
+inventario. **Falta que Sergio diga de qué insumo sale y cuánto**, que eso no se
+puede adivinar.

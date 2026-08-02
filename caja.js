@@ -835,7 +835,8 @@ function renderHistorial(orders, items) {
     const pi      = PAGO_INFO[pm] || PAGO_INFO.efectivo;
     const ch      = (o.channel||'salon').toLowerCase();
     const ci      = CANAL_INFO[ch]  || CANAL_INFO.salon;
-    const pmLabel = (o.payment_method||'Efectivo');
+    const _pmRaw = String(o.payment_method || 'efectivo');
+    const pmLabel = _pmRaw.charAt(0).toUpperCase() + _pmRaw.slice(1);
     const deleteBtn = (anulada || (S.histSessionId && S.histSessionId!=='current')) ? '' : `<button class="cj-row-btn danger" onclick="anularVenta('${o.id}')">${xIcon}</button>`;
     const anulBadge = anulada ? `<span class="cj-badge" style="color:#DC2626;background:#FEE2E2">Anulada</span>` : '';
     const cliente   = o.customer_name ? `<span style="font-size:11.5px;color:#94A3B8">· ${cjEsc(o.customer_name)}</span>` : '';

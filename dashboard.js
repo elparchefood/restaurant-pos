@@ -1743,7 +1743,7 @@ function qmSelectOrder(id) {
       '<div class="qm-detail-total">' + total + '</div>' +
     '</div>' +
     '<div class="qm-detail-meta">' +
-      '<div><span class="qm-meta-k">Pago</span><span class="qm-meta-v">' + (o.payment_method || '—') + '</span></div>' +
+      '<div><span class="qm-meta-k">Pago</span><span class="qm-meta-v">' + (function(){ var _p = String(o.payment_method || ''); return _p ? _p.charAt(0).toUpperCase() + _p.slice(1) : '—'; })() + '</span></div>' +
       '<div><span class="qm-meta-k">Estado</span><span class="qm-meta-v">' + (o.status || '—') + '</span></div>' +
       thirdMeta +
     '</div>' +
