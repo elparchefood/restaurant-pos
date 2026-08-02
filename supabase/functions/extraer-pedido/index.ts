@@ -74,6 +74,9 @@ function matchProducto(
   allMods: Array<Record<string, unknown>>,
   allCats: Array<Record<string, unknown>>,
   clienteTexto = "",
+  // Config del restaurante: de aqui salen las palabras de tamaño, para que
+  // cada uno ponga las suyas sin tocar codigo.
+  cfgIA: Record<string, unknown> | null = null,
 ): Record<string, unknown> {
   /* Si el modelo eligio un numero de la lista, ese ES el producto: no se
      compara texto ni se adivina nada. Solo si no vino numero (o vino uno
@@ -324,6 +327,60 @@ function matchProducto(
     return !!prn && (tl === prn || (tl.length >= 3 && (tl.includes(prn) || prn.includes(tl))) || (prn.length >= 3 && blob.includes(prn)));
   });
   let tamanoConfirmar = false;
+  /* El cliente casi nunca dice el tamaño con el nombre exacto del menú: dice
+     "grande", "de caja", "pequeña", "de litro". Esto lo traduce a la
+     presentación real del producto ANTES de darse por vencido.
+
+     Se resuelve en código y no pidiéndoselo al modelo: probado con
+     conversaciones reales, meterlo en el prompt arreglaba las bebidas pero
+     desestabilizaba otras decisiones (elegía la adición equivocada, subía un
+     plato a su versión "premium"). Una tabla de sinónimos no se desestabiliza.
+
+     Es genérico: ordena las presentaciones POR PRECIO, así "grande" es la
+     mayor de ese producto sea cual sea su nombre en cada restaurante. */
+  if (!presMatch && presentations.length > 1) {
+    /* 1) Lo generico y seguro: que una palabra del nombre de la presentacion
+       aparezca en lo que dijo el cliente. Sirve igual para "1.5 Litros" que
+       para "Termino medio" o "Sin picante" — cada restaurante llama a sus
+       presentaciones como quiera. */
+    const porNombre = presentations.find(pr => {
+      const n = norm(pr.name);
+      return n.split(/[^a-z0-9]+/).filter(w => w.length >= 3).some(w => blob.includes(w));
+    });
+    if (porNombre) presMatch = porNombre;
+
+    /* 2) Solo si las presentaciones de ESTE producto son de verdad TAMANOS se
+       intenta traducir "grande"/"pequena". No se puede dar por hecho: las
+       presentaciones son lo que cada restaurante quiera. En una carne serian
+       terminos de coccion, y ahi "grande" no significa "tres cuartos" por
+       costar mas. Si no parecen tamanos, se prefiere preguntar.
+
+       Las palabras salen del canvas (ia_config.tamano_palabras); las de aqui
+       son solo el arranque por defecto y cualquier restaurante las cambia. */
+    if (!presMatch) {
+      const cfgTam = ((cfgIA?.tamano_palabras) || {}) as Record<string, unknown>;
+      const SON_TAMANOS = (Array.isArray(cfgTam.nombres) ? cfgTam.nombres.map(String) : [
+        "personal", "familiar", "individual", "porcion", "litro", "litros",
+        "ml", "onza", "oz", "grande", "mediano", "pequeno", "chico", "jumbo",
+      ]).map(norm);
+      const MAYOR = (Array.isArray(cfgTam.mayor) ? cfgTam.mayor.map(String) : [
+        "grande", "familiar", "litro", "caja", "jumbo", "mayor", "doble",
+      ]).map(norm);
+      const MENOR = (Array.isArray(cfgTam.menor) ? cfgTam.menor.map(String) : [
+        "pequen", "pequeñ", "individual", "chica", "chico", "menor", "sencilla",
+      ]).map(norm);
+
+      const pareceTamanos = presentations.some(pr => {
+        const n = norm(pr.name);
+        return SON_TAMANOS.some(t => n.includes(t));
+      });
+      if (pareceTamanos) {
+        const porPrecio = [...presentations].sort((x, y) => (Number(x.price) || 0) - (Number(y.price) || 0));
+        if (MAYOR.some(w => blob.includes(w)))      presMatch = porPrecio[porPrecio.length - 1];
+        else if (MENOR.some(w => blob.includes(w))) presMatch = porPrecio[0];
+      }
+    }
+  }
   if (!presMatch) {
     if (presentations.length === 1) presMatch = presentations[0];   // solo hay una presentación → esa
     else if (presentations.length > 1) tamanoConfirmar = true;       // varias y ninguna clara → NO adivinar el tamaño
@@ -488,7 +545,7 @@ Deno.serve(async (req) => {
        barrios que el negocio maneja. Se incluyen los APRENDIDOS (los que el
        sistema guardo cuando se cobro el domicilio a mano), aunque todavia no
        esten autorizados: sirven para reconocer, no para cobrar solos. */
-    const cfgDomiRow = await sbGet(`/rest/v1/ia_config?branch_id=eq.${branchId}&select=domicilios&limit=1`) as Array<Record<string, unknown>> | null;
+    const cfgDomiRow = await sbGet(`/rest/v1/ia_config?branch_id=eq.${branchId}&select=domicilios,tamano_palabras&limit=1`) as Array<Record<string, unknown>> | null;
     const zonasCfg = (((cfgDomiRow?.[0]?.domicilios || {}) as Record<string, unknown>).zonas || []) as Array<{ precio?: number; barrios?: string[] }>;
     const aprendidos = await sbGet(`/rest/v1/pos_domi_aprendidos?branch_id=eq.${branchId}&select=barrio,precio`) as Array<Record<string, unknown>> | null || [];
     const barriosTabla = zonasCfg.flatMap(z => (z.barrios || []).map(b => String(b)));
@@ -529,6 +586,9 @@ REGLAS IMPORTANTES:
   "bellavista", "sta teresa", "la esperanza cerca al parque"). Si de verdad no
   corresponde a ninguno, escribe el barrio tal como lo dijo el cliente. Si no
   menciona ningun barrio, pon null. NO inventes un barrio que el cliente no dijo.
+- CADA MENCIÓN ES UNA LÍNEA: si el cliente pide dos cosas parecidas ("una maicitos especial mixta" y después "y una maicitos personal también"), son DOS productos distintos, cada uno con su línea. No los juntes ni los descartes por parecidos. Solo súmalos en "cantidad" cuando el cliente diga explícitamente que quiere varios del MISMO ("dos premium mixtas").
+- UNA ADICIÓN PEDIDA SUELTA ES SU PROPIA LÍNEA: si el cliente la pide como algo aparte ("véndeme una adición de ajo", "y una porción de papas", "aparte una salsa de piña"), búscala en el MENÚ y ponla como un producto más, con su "n". Distinto es cuando la pide SOBRE el plato ("una premium con tocineta"): ahí va en "adiciones" de ese producto.
+- UNA PALABRA DEL SABOR BASTA: si el cliente dice una parte del nombre de la variante ("tropical" por "Frutos tropicales", "naranja" por "Naranja piña"), esa es la variante. Ponla en "tipo" con el nombre completo del MENÚ.
 - Usa EXACTAMENTE los nombres, tamaños y tipos del MENÚ cuando coincidan. Si un dato no aparece, ponlo null.
 Responde solo el JSON.
 
@@ -562,7 +622,7 @@ BARRIOS CONOCIDOS (escribe el barrio EXACTAMENTE como aparece aquí cuando corre
     const clienteTexto = msgs
       .filter(m => m.direction === "in" && tieneTexto(m))
       .map(m => limpiarCuerpo(String(m.body || ""))).join(" ");
-    const productos = productosRaw.map(p => matchProducto(p, allProducts, allMods, allCats, clienteTexto));
+    const productos = productosRaw.map(p => matchProducto(p, allProducts, allMods, allCats, clienteTexto, (cfgDomiRow?.[0] as Record<string, unknown>) || null));
     const subtotal = productos.reduce((s, p) => {
       const adic = ((p.adiciones as ModOpt[]) || []).reduce((a, x) => a + (Number(x.price) || 0), 0);
       return s + ((Number(p.unit_price) || 0) + adic) * (Number(p.cantidad) || 1);

@@ -4283,3 +4283,74 @@ Sergio, sin riesgo para el servicio.
 Replicar conversaciones reales contra el resultado real es lo que ha destapado
 todo lo de hoy: las preferencias perdidas, los precios de barrio inventados y
 el borrado de la pantalla de aprobación. Ninguno se habría visto leyendo código.
+---
+
+## 112. Prueba real con OpenAI: 20 conversaciones contra su pedido
+
+Sergio: *"no importa que gastes tokens, necesito que quede perfecto... tiene que
+reconocer a la perfección los productos, categorías, presentaciones, variantes,
+notas, bebidas, dirección, barrio."*
+
+`extraer-pedido` es de **solo lectura** (recibe un `conversation_id`, lee los
+mensajes, pregunta al modelo y devuelve JSON; no crea pedidos ni manda
+mensajes), así que se puede correr contra conversaciones reales sin tocar nada.
+
+### Resultado final
+
+| | |
+|---|---|
+| Pedidos exactos | **19/20 (95%)** |
+| Productos con nombre y cantidad correctos | **29/30 (97%)** |
+| Precio de domicilio | 20/20 |
+| Barrio | 17/20 |
+| Método de pago | 17/20 |
+
+### El camino, que no fue recto
+
+| Versión | Cambio | Exactos |
+|---|---|---|
+| v31 | punto de partida | 18/20 |
+| v32 | 4 reglas nuevas al prompt | 18/20 — arregla la adición suelta y la línea repetida, rompe el tamaño de bebidas |
+| v33 | regla del tamaño más fuerte | **17/20** — peor: elige la adición equivocada y sube un plato a su versión "premium" |
+| v34 | tamaño resuelto en CÓDIGO, no en el prompt | **19/20** |
+| v35 | genérico + configurable | 19/20 |
+| v36 | buscar el tamaño también en el texto del cliente | **18/20** — revertido |
+| v37 | mapa de la carta en el prompt | **0/20 — la función no arrancó**, revertido |
+| v38 | vuelta al estado bueno | **19/20** |
+
+**Lección cara: cada regla que se le agrega al prompt puede desestabilizar
+decisiones que ya funcionaban.** La regla del tamaño arreglaba las bebidas y a
+la vez hacía que eligiera mal la adición de otro cliente. Lo que funcionó fue
+sacarla del prompt y resolverla en código, donde no compite con nada.
+
+### Dos correcciones de Sergio durante la prueba
+
+**1. Las presentaciones NO son tamaños.** Yo asumí que "grande" es la
+presentación más cara. *"Los tamaños son parte de una presentación que creé en
+mi restaurante; otros pueden tener términos de carne u otras cosas."* Corregido:
+la traducción solo se intenta **si las presentaciones de ese producto parecen
+tamaños**, y las palabras salen del canvas (`ia_config.tamano_palabras`). En un
+asadero con "Bien asada / Término medio / Cruda" no se intenta nada.
+
+**2. Su idea de fondo, que es mejor que mis heurísticas:** conectar el canvas
+con las presentaciones, categorías y variables REALES de la carta, para que el
+asistente sepa que las bebidas tienen "Personal / 1.5 Litros" y las salchipapas
+"Personal / Familiar", y no las cruce.
+
+Se intentó (v37) metiendo ese mapa en el prompt y **la función dejó de
+arrancar**; se revirtió en minutos. Queda pendiente hacerlo bien —
+probablemente no metiendo más texto al prompt, sino **validando en código** que
+la presentación elegida pertenezca a la categoría del producto.
+
+### El único caso que falla
+
+*"Y un jugo hit tropical **de caja**"* → sale como Personal en vez de Litro. El
+cliente dijo el tamaño con una palabra suya y en el mismo mensaje había otro
+producto "personal", así que la pista se cruza. Es exactamente lo que resolvería
+la idea de Sergio.
+
+### Método
+
+Comparar contra el pedido que de verdad se creó es lo que hace la prueba fiable.
+Y hay que correrla **después de cada cambio**: tres de los siete intentos
+empeoraron el resultado, y sin medir se habrían quedado.
