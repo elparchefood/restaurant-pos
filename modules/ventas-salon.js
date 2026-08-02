@@ -706,7 +706,7 @@
     try {
       var cajaStart = await getCajaSessionStart();
       var q = sb.from('pos_orders')
-        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, status, created_at, opened_at, delivery_status, delivered_at, estado, estado_at, cliente_id')
+        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, domiciliario, status, created_at, opened_at, delivery_status, delivered_at, estado, estado_at, cliente_id')
         .eq('channel', 'domicilio')
         .not('status', 'eq', 'cancelled')
         .gte('created_at', cajaStart)
@@ -752,7 +752,10 @@
           estado: estado,
           payStatus: payStatus,
           metodo: r.payment_method || 'efectivo',
-          domiciliario: r.waiter_name || '—',
+          // `waiter_name` es quien TOMO el pedido (cajero o Chat IA), no quien
+          // reparte. Estaban confundidos y la tarjeta decia "Domiciliario: Chat IA".
+          cajero:       r.waiter_name || '',
+          domiciliario: r.domiciliario || '',
           clienteId: r.cliente_id || null,
           min: mins,                 // en el estado actual
           minTotal: minsTotal,       // desde que entro el pedido
@@ -1440,6 +1443,36 @@
     }
     return out;
   }
+  /* Quien atendio y, si lo hay, quien reparte. Son dos personas distintas:
+     el cajero TOMA el pedido y el domiciliario lo LLEVA. Estaban mezclados
+     bajo la etiqueta "Domiciliario", que ademas mostraba "Chat IA" cuando el
+     pedido entraba por el bot. El domiciliario solo sale si es interno: del
+     externo no sabemos ni el nombre. */
+  function vsQuienRow(cajero, domiciliario, chipHtml) {
+    const limpio = function (s) {
+      const t = String(s == null ? '' : s).trim();
+      if (!t || t === '—' || t === 'Externo' || t.indexOf('@') >= 0) return '';
+      return t;
+    };
+    const caj = limpio(cajero);
+    const dom = limpio(domiciliario);
+    const fila = function (etiqueta, nombre, chip) {
+      return '<div class="vs-mesero-row">'
+        + '<div class="lm-avatar lm-avatar-md">' + _esc(nombre[0].toUpperCase()) + '</div>'
+        + '<div class="vs-mesero-spacer"><div class="vs-mesero-label">' + etiqueta + '</div>'
+        + '<div class="vs-mesero-name">' + _esc(nombre) + '</div></div>'
+        + (chip || '') + '</div>';
+    };
+    if (!caj && !dom) {
+      // Sin nombres no se pinta una fila vacia: solo el chip de pago.
+      return chipHtml ? '<div class="vs-mesero-row" style="justify-content:flex-end">' + chipHtml + '</div>' : '';
+    }
+    // El chip de pago va con la primera fila, que es la que siempre esta.
+    if (caj && dom) return fila('Cajero', caj, chipHtml) + fila('Domiciliario', dom, '');
+    if (caj)        return fila('Cajero', caj, chipHtml);
+    return fila('Domiciliario', dom, chipHtml);
+  }
+
   function vsComandaHTML(its, empaques) {
     if (!its) return '<div class="vs-comanda-empty">Cargando…</div>';
     if (!its.length) return '<div class="vs-comanda-empty">Sin ítems</div>';
@@ -1583,13 +1616,8 @@
             <div class="vs-info-value">${(state.domiItems[d.id] || []).length || d.items || 0}</div>
           </div>
         </div>
-        ${(function(){
-          const _domNombre = d.domiciliario;
-          const _hasInt = _domNombre && _domNombre !== 'Externo' && _domNombre !== '—' && !_domNombre.includes('@');
-          const _payChip = '<span style="font-size:11px;font-weight:600;color:'+payColor+';background:'+payBg+';padding:3px 8px;border-radius:6px">'+payLabel+'</span>';
-          if (_hasInt) return '<div class="vs-mesero-row"><div class="lm-avatar lm-avatar-md">'+_domNombre[0].toUpperCase()+'</div><div class="vs-mesero-spacer"><div class="vs-mesero-label">Domiciliario</div><div class="vs-mesero-name">'+_domNombre+'</div></div>'+_payChip+'</div>';
-          return '<div class="vs-mesero-row" style="justify-content:flex-end">'+_payChip+'</div>';
-        })()}
+        ${vsQuienRow(d.cajero, d.domiciliario,
+            '<span style="font-size:11px;font-weight:600;color:'+payColor+';background:'+payBg+';padding:3px 8px;border-radius:6px">'+payLabel+'</span>')}
 
       </div>
 
@@ -2128,8 +2156,6 @@
           </div>
         </div>
         ${(function () {
-          /* Quien atendio, igual que la fila del domiciliario. Faltaba: en la
-             venta rapida no habia forma de saber quien la hizo. */
           const _pagQ = Number(o.paid_amount) || 0;
           const _okQ  = _qPagado || (total > 0 && _pagQ >= total);
           const _parQ = !_okQ && _pagQ > 0;
@@ -2139,15 +2165,7 @@
                       : _parQ ? ('Abonado ' + fmt(_pagQ) + ' · faltan ' + fmt(Math.max(0, total - _pagQ)))
                       : 'Por pagar';
           const _chip = '<span style="font-size:11px;font-weight:600;color:' + _col + ';background:' + _bg + ';padding:3px 8px;border-radius:6px">' + _lbl + '</span>';
-          const _quien = (o.waiter_name || '').trim();
-          if (!_quien || _quien.indexOf('@') >= 0) {
-            return '<div class="vs-mesero-row" style="justify-content:flex-end">' + _chip + '</div>';
-          }
-          return '<div class="vs-mesero-row">'
-            + '<div class="lm-avatar lm-avatar-md">' + _esc(_quien[0].toUpperCase()) + '</div>'
-            + '<div class="vs-mesero-spacer"><div class="vs-mesero-label">Atendió</div>'
-            + '<div class="vs-mesero-name">' + _esc(_quien) + '</div></div>'
-            + _chip + '</div>';
+          return vsQuienRow(o.waiter_name, '', _chip);
         })()}
       </div>
 

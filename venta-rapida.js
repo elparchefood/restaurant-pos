@@ -1092,10 +1092,15 @@
       // Atar el pedido al turno abierto (si no, queda fuera de todo cuadre)
       let _vrSes = null;
       try { if (typeof window.posSessionId === 'function') _vrSes = await window.posSessionId(); } catch(e) {}
+      // El nombre de quien atiende. Sin esto la tarjeta de Ventas mostraba la
+      // fila del cajero en blanco: 19 de 31 pedidos rapidos no tenian nombre.
+      const _vrQuien = (user && ((user.user_metadata && (user.user_metadata.nombre || user.user_metadata.name || user.user_metadata.full_name))
+                      || (user.email || '').split('@')[0])) || null;
       const { data: order, error } = await sb.from('pos_orders').insert({
         session_id:     _vrSes,
         branch_id:      S.branchId,
         waiter_id:      userId,
+        waiter_name:    _vrQuien,
         table_id:       null,
         channel:        'rapido',
         status:         status,

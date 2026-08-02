@@ -1741,6 +1741,9 @@ async function enviarACocina() {
       total:          prod + _empaque + (S.fee || 0),
       delivery_fee:   S.fee || 0,
       delivery_status:'recibido',
+      // Quien REPARTE, solo si es de la casa. El externo no se guarda: no es
+      // gente nuestra y en la tarjeta no aporta nada.
+      domiciliario:   externo ? null : (dm ? dm.nombre : null),
       payment_method: metodo,
       opened_at:      new Date().toISOString(),
     };

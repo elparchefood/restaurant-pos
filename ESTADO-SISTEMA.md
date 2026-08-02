@@ -3521,3 +3521,45 @@ pedía.
 
 **Diferencia que queda a propósito:** domicilio tiene el menú "⋮" con Cancelar
 en la cabecera; venta rápida lleva Cancelar entre los botones. No se tocó.
+---
+
+## 99. Cajero y domiciliario son dos personas distintas
+
+Sergio: *"no debe ir el título domiciliario, debe decir cajero. El domicilio no
+recibe pedidos jajaja. Y justo debajo puede aparecer el domiciliario pero
+solamente cuando tengamos domiciliario interno."*
+
+Tenía razón, y era un error de raíz, no de etiqueta: la tarjeta pintaba
+`waiter_name` bajo el título **Domiciliario**, pero `waiter_name` es **quien
+TOMÓ el pedido** — el cajero, o `Chat IA` cuando entra por el bot. De ahí salían
+cosas como *"Domiciliario: Chat IA"*.
+
+**Y el domiciliario asignado no se guardaba en ningún lado.** `domicilios.js` lo
+hacía elegir (`S.asignado`) y se perdía al enviar: no existía columna para él.
+Columna nueva `pos_orders.domiciliario`, que **solo se llena cuando el
+repartidor es interno** — del externo no sabemos ni el nombre.
+
+**La fila en blanco de venta rápida** era otro fallo distinto: `upsertOrder`
+nunca guardaba `waiter_name`. 19 de 31 pedidos rápidos lo tienen vacío, por eso
+la fila salía sin nada. Ya se guarda.
+
+**Ayudante compartido `vsQuienRow(cajero, domiciliario, chip)`**, que usan las
+dos tarjetas. Probado con los casos reales:
+
+| Caso | Sale |
+|---|---|
+| Cajero y domiciliario interno | `Cajero: Sergio Abadia` + `Domiciliario: Camilo` |
+| Domicilio externo | Solo `Cajero: Sergio Abadia` |
+| Pedido del bot | `Cajero: Chat IA` |
+| Sin nombres | Solo el chip de pago, sin fila vacía |
+| Un correo en vez de nombre | Solo el chip |
+
+El chip de pago va siempre con la primera fila, que es la que nunca falta.
+
+**Lo que no se puede arreglar hacia atrás:** los domicilios ya cerrados no
+tienen domiciliario guardado, así que solo mostrarán el cajero. Y los 19 pedidos
+rápidos viejos seguirán sin nombre. Desde ahora se guardan.
+
+**Sin decidir:** en un pedido que entra por el chat, la fila dice *"Cajero: Chat
+IA"*. Es cierto — es quien lo tomó — pero suena raro. Habría que ver si merece
+otra etiqueta.
