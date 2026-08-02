@@ -48,6 +48,23 @@ async function verificarPagoManual(conversationId: string, montoEsperado: number
   const refreshToken = cfg?.gmail_refresh_token as string | null;
   const pagos        = (cfg?.pagos as Record<string, unknown>) || {};
   const llaveCfg     = String(pagos?.llave || "");
+  /* TODAS las cuentas del restaurante, no solo la principal.
+     Las cuentas ya estan en Configuracion -> Metodos de pago (cada metodo
+     digital guarda la suya), asi que se leen de ahi: si el dueno agrega otro
+     banco, el sistema lo reconoce solo, sin tocar codigo.
+     Pedido de Sergio: "si un dueno de restaurante pone mas cuentas, el sistema
+     deberia poder ver todas las que estan ahi". */
+  const cuentasCfg: string[] = [];
+  const sumarCuenta = (x: unknown) => {
+    const d = String(x || "").replace(/\D/g, "");
+    if (d.length >= 6 && !cuentasCfg.includes(d)) cuentasCfg.push(d);
+  };
+  sumarCuenta(pagos?.llave);
+  sumarCuenta(pagos?.nequi);
+  sumarCuenta(pagos?.daviplata);
+  for (const m of ((pagos?.metodos as Array<Record<string, unknown>>) || [])) {
+    if (m && m.activo !== false) sumarCuenta(m.cuenta);
+  }
   const monedaCfg    = (cfg?.moneda as Record<string, unknown>) || null;
   const tzRest       = tzStrFromCfg(cfg?.zona_horaria);
   const bancosRe     = bancosRegexFromCfg(pagos);
@@ -103,9 +120,10 @@ async function verificarPagoManual(conversationId: string, montoEsperado: number
     return larga.endsWith(corta);
   };
 
-  const cuentaOk = !cfgDig
+  // Vale si el comprobante fue a CUALQUIERA de las cuentas del restaurante.
+  const cuentaOk = !cuentasCfg.length
     ? true
-    : candidatos.some(x => coincide(x, cfgDig));
+    : candidatos.some(x => cuentasCfg.some(cta => coincide(x, cta)));
 
   // 6. Chequeo MONTO (tolerancia 12%)
   let montoOk = true;
@@ -143,12 +161,15 @@ async function verificarPagoManual(conversationId: string, montoEsperado: number
     fecha: v.fecha, hora: v.hora, banco: v.banco, referencia: v.referencia,
     checks, correo_detalle: correoDetalle,
     numeros_vistos: (v.numeros || []).map(x => x.valor + " (" + x.donde + ")"),
+    cuentas_del_negocio: cuentasCfg,
   };
 
   // 8. Veredicto — razón EXACTA del primer fallo (cuenta > monto > correo)
   if (!cuentaOk) {
     const destino = cuentaComprob || (v.destinatario ? `“${v.destinatario}”` : "no visible");
-    return { verified: false, razon: "cuenta", mensaje: `El pago fue enviado a otra cuenta (${destino}), no a la tuya (${llaveCfg}).`, datos };
+    return { verified: false, razon: "cuenta",
+      mensaje: `El pago fue enviado a otra cuenta (${destino}). Las tuyas son: ${cuentasCfg.join(", ") || "(ninguna configurada)"}.`,
+      datos };
   }
   if (!montoOk) {
     return { verified: false, razon: "monto", mensaje: `El monto del comprobante (${datos.monto_comprobante_fmt}) no coincide con el del pedido (${datos.monto_esperado_fmt}).`, datos };

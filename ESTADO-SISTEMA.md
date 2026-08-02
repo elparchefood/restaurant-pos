@@ -3077,3 +3077,29 @@ Hoy solo se compara contra UNA cuenta (`pagos.llave`). Si algun dia recibe en
 mas de una, hay que permitir **varias cuentas** en la configuracion; si no, los
 pagos a las otras se rechazan. La cuenta de Davivienda `0089912015` es vieja y
 ya no se usa, asi que por ahora no hace falta.
+
+
+### Complemento — la verificacion lee TODAS las cuentas del restaurante (v13)
+
+**Sergio:** *"hay una parte de metodos de pago en configuraciones, de ahi puede
+coger la cuenta, y si un dueno de restaurante pone mas cuentas el sistema
+deberia poder ver todas las que estan ahi."*
+
+**Como estaba:** se comparaba contra **una sola** cuenta (`pagos.llave`).
+
+**Como quedo:** se arma la lista con **todas** las cuentas del negocio:
+- `pagos.llave` (la principal)
+- `pagos.nequi` y `pagos.daviplata` si tienen numero
+- **la `cuenta` de cada metodo de pago ACTIVO** de
+  *Configuracion → Metodos de pago*
+
+El comprobante vale si fue a **cualquiera** de ellas. Si el dueno agrega otro
+banco en Configuracion, **el sistema lo reconoce solo, sin tocar codigo** — que
+es justo la regla de que nada quede quemado.
+
+**Probado en vivo:** se agrego temporalmente un segundo metodo con la cuenta
+`0089912015`; el sistema paso a ver `['0092726260', '0089912015']` al instante.
+**La configuracion se restauro identica** (verificado comparando el JSON).
+
+El mensaje de rechazo tambien mejoro: antes decia *"no a la tuya (0092726260)"*;
+ahora lista todas — *"Las tuyas son: 0092726260, 0089912015"*.
