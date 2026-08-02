@@ -3600,3 +3600,45 @@ dato está en otra columna. Aquí lo estaba.
 
 `pos_users` tiene GRANT de SELECT para `authenticated` y una política por
 tenant, así que la consulta funciona desde la pantalla.
+---
+
+## 101. Nombre del mesero en la tarjeta de mesa, y estadística útil en Meseros en turno
+
+### La tarjeta de mesa decía "SA" en vez de "Sergio Abadia"
+
+El nombre completo **sí llegaba** en el pedido, pero el código lo reducía a
+iniciales al cargar las mesas y luego intentaba reconstruirlo con
+`MESERO_NAMES`, una lista fija de ejemplo:
+
+```js
+const MESERO_NAMES = { SA: 'Sergio Andrés', JM: 'Juan Manuel', AC: 'Andrea Castro', LM: 'Laura Mejía' };
+```
+
+Ninguno de esos es personal real, así que la búsqueda fallaba siempre y caía al
+fallback: mostrar las iniciales. Y si hubiera acertado habría sido peor —
+"Sergio Abadia" habría salido como "Sergio Andrés".
+
+Ahora la mesa lleva el **nombre completo** (`mesero`), con respaldo por
+`waiter_id` contra `pos_users` como en las otras tarjetas. `MESERO_NAMES` y
+`getMeseroName` se borraron: eran datos de maqueta quemados en el código.
+
+### "Meseros en turno" mostraba ids internos de mesa
+
+Salían fichas como `Mtmry2e6v7wjt`: el código pegaba una `M` delante del id
+interno de la mesa (`'M' + tid`). Con ids cortos (`t01`) pasaba disimulado —
+`Mt01` parecía "Mesa 01"— pero con los ids largos quedaba a la vista.
+
+Sergio: *"creo que ni siquiera es necesario mostrar el número ni nombre de las
+mesas que atendió, no tiene lógica. En lugar de eso podría recomendarme alguna
+estadística."*
+
+Tiene razón: saber **cuáles** mesas atendió no ayuda a decidir nada. Se
+reemplazó por **cuánto vendió** y **ticket promedio por mesa**.
+
+El ticket promedio es la medida directa de si el mesero ofrece de más — justo lo
+que se quiere entrenar con Paco (ver `PLAN-ENTRENAR-PACO.md`, el upsell es la
+mayor oportunidad). Y separa de verdad: con los datos reales de estos dos días,
+Monica $133.333 por mesa contra $26.400 de Sergio.
+
+Hizo falta traer `total` en la consulta y excluir los cancelados, que antes se
+contaban.

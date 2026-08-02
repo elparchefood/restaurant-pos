@@ -1437,26 +1437,29 @@ async function qmLoadMeseros() {
   if (!desde) { var _h = new Date(); _h.setHours(0,0,0,0); desde = _h.toISOString(); }
 
   var oq = sb.from('pos_orders')
-    .select('waiter_id, waiter_name, table_id, status')
+    .select('waiter_id, waiter_name, table_id, status, total')
     .not('table_id', 'is', null)
+    .neq('status', 'cancelled')
     .gte('created_at', desde);
   if (branchId) oq = oq.eq('branch_id', branchId);
   var { data: ordenes } = await oq;
   ordenes = ordenes || [];
 
-  var tablesByWaiter = {}, abiertasByWaiter = {};
+  var tablesByWaiter = {}, abiertasByWaiter = {}, ventasByWaiter = {};
   meseros.forEach(function(m) {
     var ids = [m.id, m.auth_user_id, String(m.name || '').trim().toLowerCase()];
-    var mesas = [], abiertas = 0;
+    var mesas = [], abiertas = 0, ventas = 0;
     ordenes.forEach(function(o) {
       var coincide = (o.waiter_id && ids.indexOf(o.waiter_id) >= 0)
                   || (o.waiter_name && ids.indexOf(String(o.waiter_name).trim().toLowerCase()) >= 0);
       if (!coincide) return;
       if (mesas.indexOf(o.table_id) < 0) mesas.push(o.table_id);
       if (o.status === 'open') abiertas++;
+      ventas += Number(o.total) || 0;
     });
     tablesByWaiter[m.id] = mesas;
     abiertasByWaiter[m.id] = abiertas;
+    ventasByWaiter[m.id] = ventas;
   });
 
   // Ordenar por mesas (desc)
@@ -1491,7 +1494,18 @@ async function qmLoadMeseros() {
     var nombre = m.name || 'Mesero';
     var initials = nombre.trim().split(/\s+/).map(function(p){return p[0]||'';}).slice(0,2).join('').toUpperCase();
     var isTop = i === 0 && tables.length > 0;
-    var chips = tables.slice(0,6).map(function(tid){ return '<span class="qm-chip">M' + (typeof tid==='number'?tid:tid) + '</span>'; }).join('');
+    /* Antes aqui salian los ids INTERNOS de las mesas pegados a una M
+       ("Mtmry2e6v7wjt"), que ademas no le dicen nada a nadie: saber cuales
+       mesas atendio no ayuda a decidir. En su lugar, lo que si sirve para
+       mirar a un mesero: cuanto vendio y cuanto deja cada mesa suya. El
+       ticket promedio es la medida directa de si esta ofreciendo de mas. */
+    var _ventas = ventasByWaiter[m.id] || 0;
+    var _ticket = tables.length ? Math.round(_ventas / tables.length) : 0;
+    var _pesos = function (n) { return '$' + Number(n || 0).toLocaleString('es-CO'); };
+    var chips = tables.length
+      ? '<span class="qm-chip">Vendió ' + _pesos(_ventas) + '</span>'
+        + '<span class="qm-chip">Ticket promedio ' + _pesos(_ticket) + '</span>'
+      : '';
     var grad = gradients[i % gradients.length];
     var row = document.createElement('div');
     row.className = 'qm-mesero';

@@ -203,8 +203,6 @@
 
   const DEFAULT_CHIP_ORDER = ['libre', 'pendiente_pago', 'esperando', 'comiendo'];
 
-  const MESERO_NAMES = { SA: 'Sergio Andrés', JM: 'Juan Manuel', AC: 'Andrea Castro', LM: 'Laura Mejía' };
-
   // ─── UI state (no data) ─────────────────────────────
   let sidebarExpanded = false;
 
@@ -458,7 +456,7 @@
         const allIds = Object.keys(mergedMap);
         const { data: ordersData } = await sb
           .from('pos_orders')
-          .select('id, table_id, total, guests, waiter_name, opened_at, created_at')
+          .select('id, table_id, total, guests, waiter_name, waiter_id, opened_at, created_at')
           .in('table_id', allIds)
           .not('status', 'eq', 'completed')
           .not('status', 'eq', 'cancelled')
@@ -476,7 +474,7 @@
         if (curIds.length > 0) {
           const curOrders = (await Promise.all(curIds.map(function(oid){
             return sb.from('pos_orders')
-              .select('id, table_id, total, guests, waiter_name, opened_at, created_at')
+              .select('id, table_id, total, guests, waiter_name, waiter_id, opened_at, created_at')
               .eq('id', oid)
               .not('status', 'eq', 'cancelled')
               .maybeSingle()
@@ -498,8 +496,14 @@
           countResults.forEach(function(c){ itemsCountMap[c.oid] = c.count; });
         }
 
+        const _vsUsr = await vsUsuarios();
         const enriched = Object.values(mergedMap).map(function(t) {
           const ord = orderMap[t.id];
+          // El nombre completo de quien atiende. Antes solo se guardaban las
+          // iniciales y luego se intentaba reconstruir el nombre con una lista
+          // fija de ejemplo; como los meseros reales no estaban en esa lista,
+          // la tarjeta terminaba mostrando "SA" en vez de "Sergio Abadia".
+          const _mesero = (ord && ord.waiter_name) || (ord && _vsUsr[ord.waiter_id]) || '';
           const now = Date.now();
           const openedAt = ord ? (ord.opened_at || ord.created_at) : null;
           const minutes = openedAt ? Math.round((now - new Date(openedAt).getTime()) / 60000) : 0;
@@ -524,7 +528,8 @@
             total:           ord ? (ord.total || 0) : 0,
             items_count:     ord ? (itemsCountMap[ord.id] || 0) : 0,
             minutes:         minutes,
-            mesero_initials: initials,
+            mesero:          _mesero,
+            mesero_initials: initials || (_mesero ? _mesero.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2) : ''),
             persons:         ord ? (ord.guests || 0) : 0,
           };
         });
@@ -930,10 +935,6 @@
     const occupied = state.tables.filter(t => t.status !== 'libre' && t.minutes);
     if (!occupied.length) return 0;
     return Math.round(occupied.reduce((a, t) => a + t.minutes, 0) / occupied.length);
-  }
-
-  function getMeseroName(initials) {
-    return MESERO_NAMES[initials] || initials || '—';
   }
 
   function getSelectedTable() {
@@ -1794,7 +1795,7 @@
         return s + ((t > 0 && (Number(o.paid_amount) || 0) >= t - 1) ? t : 0);
       }, 0);
     const _totalMesa = _yaPagado + total;
-    const waiterName = ord?.waiter_name || '—';
+    const waiterName = ord?.waiter_name || mesa.mesero || '—';
     const waiterInitials = waiterName !== '—'
       ? waiterName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2)
       : '?';
@@ -1903,10 +1904,10 @@
           </div>
         </div>
         <div class="vs-mesero-row">
-          <div class="lm-avatar lm-avatar-md">${mesa.mesero_initials || '?'}</div>
+          <div class="lm-avatar lm-avatar-md">${waiterInitials}</div>
           <div class="vs-mesero-spacer">
             <div class="vs-mesero-label">Mesero asignado</div>
-            <div class="vs-mesero-name">${getMeseroName(mesa.mesero_initials)}</div>
+            <div class="vs-mesero-name">${_esc(waiterName)}</div>
           </div>
           <button class="lm-btn-ghost-sm" data-action="reassign" data-table-id="${mesa.id}">Reasignar</button>
         </div>
