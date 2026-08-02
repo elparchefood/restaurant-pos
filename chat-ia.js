@@ -219,6 +219,12 @@ function subscribeRealtime() {
       if (S.estadoOrder && o && o.id === S.estadoOrder.id && o.estado) {
         S.estadoOrder.estado = o.estado;
         renderEstadoPill();
+        /* La TARJETA muestra el mismo estado que la pastilla. Antes solo se
+           repintaba la pastilla, así que si el estado cambiaba desde Ventas la
+           tarjeta se quedaba vieja: la de arriba decía "En camino" y la de
+           abajo "En preparación". Al repintarla también se refrescan el total y
+           los productos, y si quedó entregada desaparece sola. */
+        if (S.activeConvId) loadDraftBar(S.activeConvId);
       }
     })
     .subscribe();

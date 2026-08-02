@@ -224,6 +224,7 @@
     deliveries: [],
     selectedDomiId: null,
     domiItems: {},
+    quickItems: {},      // items del pedido rapido, para mostrar la comanda
     quickOrders: [],
     quickDeliveredCount: 0,
     selectedQuickId: null,
@@ -1597,7 +1598,7 @@
     // turno se quedan visibles en estado "Entregado" hasta que se cierre la
     // caja (al cerrar, cajaStart avanza y estos quedan fuera del rango).
     let q = sb.from('pos_orders')
-      .select('id, customer_name, turno, total, subtotal, packaging_fee, discount, status, channel, created_at, waiter_name, notes, delivered_at, paid_amount, estado, estado_at')
+      .select('id, customer_name, turno, total, subtotal, packaging_fee, discount, status, channel, created_at, waiter_name, notes, delivered_at, paid_amount, estado, estado_at, cliente_id, delivery_fee')
       .eq('channel', 'rapido')
       .neq('status', 'cancelled')
       .gte('created_at', cajaStart)
@@ -2034,7 +2035,12 @@
         <div>
           <div class="vs-eyebrow">Pedido rápido</div>
           <div class="vs-rail-title-row">
-            <h2 class="vs-rail-title">${titulo}</h2>
+            <div class="vs-rail-title-main">
+              <h2 class="vs-rail-title" title="${_esc(titulo)}" data-nombre-largo="${_esc(titulo)}">${titulo}</h2>
+              ${vsPuntosChip({ id: o.id, clienteId: o.cliente_id, cliente: titulo,
+                               subtotal: o.subtotal, empaque: o.packaging_fee,
+                               total: total, domiFee: o.delivery_fee }, isPaid)}
+            </div>
             <span class="vs-state-pill" style="color:${meta.color};background:${meta.tint}">
               <span class="vs-state-dot" style="background:${meta.color}"></span>
               ${meta.label}
@@ -2044,16 +2050,32 @@
       </div>
       <div class="vs-rail-body">
         ${quickEstadoControl(o)}
-        <div class="vs-order-meta">
-          <div class="vs-info-row">
-            <span class="vs-info-label">Canal</span>
-            <span class="vs-info-value">Venta rápida</span>
+        <div class="vs-info-row">
+          <div class="vs-info-cell">
+            <div class="vs-info-label">Canal</div>
+            <div class="vs-info-value" style="font-size:12px">Venta rápida</div>
           </div>
-          <div class="vs-info-row">
-            <span class="vs-info-label">Hora</span>
-            <span class="vs-info-value">${hora}</span>
+          <div class="vs-info-cell">
+            <div class="vs-info-label">Hora</div>
+            <div class="vs-info-value" style="font-size:12px">${hora}</div>
           </div>
-          ${o.notes ? `<div class="vs-info-row"><span class="vs-info-label">Notas</span><span class="vs-info-value">${o.notes}</span></div>` : ''}
+          <div class="vs-info-cell">
+            <div class="vs-info-label">Ítems</div>
+            <div class="vs-info-value">${(state.quickItems[o.id] || []).length || 0}</div>
+          </div>
+        </div>
+        ${(function () {
+          /* Las notas se limpian de los marcadores internos ([etq:...],
+             [tel:...], [barrio:...]) que el sistema mete para uso propio: al
+             operador le salia "[etq:ESPERAN]" en pantalla. */
+          const _n = vsNotasLimpias(o.notes);
+          return _n ? `<div class="vs-order-nota">${_n}</div>` : '';
+        })()}
+        <div class="vs-order-head">
+          <div class="vs-order-section-label">Comanda</div>
+        </div>
+        <div class="vs-order-list">
+          ${vsComandaHTML(state.quickItems[o.id], vsEmpaquePorItem(state.quickItems[o.id] || [], _qEmp))}
         </div>
         <div class="vs-divider"></div>
         <div class="vs-totals">
@@ -2216,6 +2238,21 @@
         const rail = document.getElementById('vs-rail');
         if (rail) { rail.innerHTML = renderQuickRailContent(); attachQuickRailEvents(); }
         showSheet();
+        /* La comanda del pedido rapido se trae igual que la del domicilio.
+           Antes este panel NO mostraba los productos —solo el total—, asi que
+           no se podia ver que pidio el cliente sin abrir otra pantalla. */
+        (async function () {
+          const _sb = window._pos && window._pos.sb;
+          if (!_sb) return;
+          const { data: _items } = await _sb.from('pos_order_items')
+            .select('id,name,quantity,unit_price,total,notes,selections,product_id')
+            .eq('order_id', btn.dataset.quickId);
+          state.quickItems[btn.dataset.quickId] = _items || [];
+          if (state.selectedQuickId === btn.dataset.quickId) {
+            const _r = document.getElementById('vs-rail');
+            if (_r) { _r.innerHTML = renderQuickRailContent(); attachQuickRailEvents(); }
+          }
+        })();
         container.querySelectorAll('.lm-mesa[data-quick-id]').forEach(c2 => {
           const o2 = state.quickOrders.find(x => x.id === c2.dataset.quickId);
           const m2 = (o2 && QUICK_STATE_META[o2.status]) || QUICK_STATE_META.esperando;
@@ -3347,7 +3384,7 @@
       const link = document.createElement('link');
       link.id = 'vs-styles';
       link.rel = 'stylesheet';
-      link.href = 'styles/modules/ventas-salon.css?v=20260801b';
+      link.href = 'styles/modules/ventas-salon.css?v=20260802';
       document.head.appendChild(link);
     }
 
@@ -3478,6 +3515,20 @@
      Sergio lo pidio "cuando el cliente ha pagado": antes de pagar no hay
      puntos que anunciar, y sin cliente identificado tampoco — decirle al
      operador unos puntos que no se van a acumular seria enganarlo. */
+  /* Los marcadores internos ([etq:...], [tel:...], [barrio:...], Ref:) los mete
+     el sistema para uso propio; en pantalla no significan nada para nadie.
+     `pos-print.js` ya los limpiaba antes de imprimir — aqui faltaba. */
+  function vsNotasLimpias(notas) {
+    var t = String(notas == null ? '' : notas)
+      .replace(/\[etq:[^\]]*\]/gi, '')
+      .replace(/\[tel:[^\]]*\]/gi, '')
+      .replace(/\[barrio:[^\]]*\]/gi, '')
+      .replace(/·?\s*Ref:\S+/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return t ? _esc(t) : '';
+  }
+
   function _esc(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');

@@ -1654,3 +1654,8 @@
     display: flex;
   }
 }
+
+
+/* Nota del pedido (ya limpia de marcadores internos) */
+.vs-order-nota{ margin-top:9px; padding:9px 11px; border-radius:10px; background:#FFFBEB;
+  border:1px solid #FDE68A; font-size:12.5px; color:#92400E; line-height:1.45; }
