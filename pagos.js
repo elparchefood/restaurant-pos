@@ -1617,87 +1617,19 @@ async function pgPuntosDe(tel) {
 }
 
 function pgCliente() {
-  var bd = document.createElement('div');
-  bd.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
-  bd.innerHTML =
-    '<div style="background:#fff;border-radius:16px;max-width:380px;width:100%;padding:22px;box-shadow:0 20px 55px rgba(0,0,0,.25)">'
-  +   '<div style="font-weight:700;font-size:16px;color:#0F172A">Cliente del pedido</div>'
-  +   '<div style="color:#64748B;font-size:12.5px;margin-top:3px">Con el teléfono se le acumulan los puntos de esta compra.</div>'
-  +   '<input id="pgCliTel" type="tel" inputmode="numeric" placeholder="Número de celular" autocomplete="off"'
-  +     ' style="width:100%;margin-top:14px;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;outline:none">'
-  +   '<div id="pgCliInfo" style="margin-top:10px;font-size:13px;min-height:22px;color:#64748B"></div>'
-  +   '<div id="pgCliNombreWrap" style="display:none;margin-top:6px">'
-  +     '<input id="pgCliNombre" placeholder="Nombre del cliente" autocomplete="off"'
-  +       ' style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;outline:none">'
-  +   '</div>'
-  +   '<div style="display:flex;gap:8px;margin-top:16px">'
-  +     '<button id="pgCliQuitar" type="button" style="border:1.5px solid #E2E8F0;background:#fff;color:#64748B;border-radius:10px;padding:11px 12px;font-size:13px;font-weight:600;cursor:pointer">Sin cliente</button>'
-  +     '<button id="pgCliCancel" type="button" style="flex:1;border:1.5px solid #E2E8F0;background:#fff;color:#334155;border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Cancelar</button>'
-  +     '<button id="pgCliOk" type="button" style="flex:1;border:0;background:#0F172A;color:#fff;border-radius:10px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">Guardar</button>'
-  +   '</div>'
-  + '</div>';
-  document.body.appendChild(bd);
-
-  var inp  = document.getElementById('pgCliTel');
-  var info = document.getElementById('pgCliInfo');
-  var wrap = document.getElementById('pgCliNombreWrap');
-  var nom  = document.getElementById('pgCliNombre');
-  var encontrado = null;
-  if (SP.clienteTel) inp.value = SP.clienteTel;
-  inp.focus();
-
-  var timer = null;
-  inp.addEventListener('input', function () {
-    clearTimeout(timer);
-    timer = setTimeout(async function () {
-      var t10 = pgTel10(inp.value);
-      encontrado = null; wrap.style.display = 'none';
-      if (t10.length < 7) { info.textContent = ''; return; }
-      info.textContent = 'Buscando...';
-      encontrado = await pgBuscarCliente(t10);
-      if (encontrado) {
-        var pts = await pgPuntosDe(t10);
-        info.innerHTML = '<b style="color:#0F172A">' + _payEsc(encontrado.nombre || 'Cliente') + '</b>'
-          + (encontrado.barrio ? ' <span style="color:#94A3B8">&middot; ' + _payEsc(encontrado.barrio) + '</span>' : '')
-          + '<br><span style="color:#16A34A;font-weight:600">' + pts + ' puntos acumulados</span>';
-      } else {
-        info.innerHTML = '<span style="color:#B45309">No está guardado. Se creará con este número.</span>';
-        wrap.style.display = '';
-      }
-    }, 350);
-  });
-
-  function cerrar() { bd.remove(); }
-  document.getElementById('pgCliCancel').addEventListener('click', cerrar);
-  bd.addEventListener('click', function (e) { if (e.target === bd) cerrar(); });
-
-  document.getElementById('pgCliQuitar').addEventListener('click', async function () {
-    await pgGuardarCliente(null, '', '');
-    cerrar();
-  });
-
-  document.getElementById('pgCliOk').addEventListener('click', async function () {
-    var t10 = pgTel10(inp.value);
-    if (t10.length < 7) { info.innerHTML = '<span style="color:#DC2626">Escribe un número válido.</span>'; return; }
-    var btn = this; btn.disabled = true; btn.textContent = 'Guardando...';
-    try {
-      var id = encontrado ? encontrado.id : null;
-      var nombre = encontrado ? (encontrado.nombre || '') : String(nom.value || '').trim();
-      if (!id) {
-        // Cliente nuevo: el teléfono es la llave, igual que en el chat.
-        var ins = await sb.from('pos_clientes').insert([{
-          tenant_id: SP.tenantId, branch_id: SP.branchId,
-          nombre: nombre || ('Cliente ' + t10.slice(-4)), telefono: t10
-        }]).select('id,nombre').single();
-        if (ins.error) throw ins.error;
-        id = ins.data.id; nombre = ins.data.nombre;
-      }
-      await pgGuardarCliente(id, nombre, t10);
-      cerrar();
-    } catch (e) {
-      btn.disabled = false; btn.textContent = 'Guardar';
-      info.innerHTML = '<span style="color:#DC2626">No se pudo guardar: ' + _payEsc(e.message || e) + '</span>';
-    }
+  /* El MISMO selector de Domicilios y de la toma de pedido en mesa
+     (pos-cliente-picker.js): lista completa con avatar, teléfono, dirección y
+     puntos, buscador que filtra al escribir, y creación de cliente nuevo.
+     Antes esta pantalla tenía un modal propio que solo pedía el teléfono: tres
+     pantallas distintas para lo mismo. */
+  if (!window.posClientePicker) { alert('El selector de clientes no está disponible.'); return; }
+  posClientePicker.abrir({
+    tenantId: SP.tenantId,
+    branchId: SP.branchId,
+    onPick: function (c) {
+      if (!c) return;
+      pgGuardarCliente(c.id || null, c.nombre || '', c.tel || '');
+    },
   });
 }
 
