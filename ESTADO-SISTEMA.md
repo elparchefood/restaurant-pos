@@ -3388,3 +3388,76 @@ restaurante que sí sea responsable.
 *"No responsable de impuesto al consumo"*— y **no la usa nadie**. En Colombia
 esa leyenda debe ir en el documento del que no cobra impuesto. Está sin decidir
 si se imprime.
+---
+
+## 97. Agregar ítems: mesa (comanda completa) y domicilio
+
+### El problema que reportó Sergio
+
+Al agregar un ítem a una mesa ya pagada, el panel de Ventas se quedaba
+mostrando **solo lo último agregado**. Las salchipapas de la primera ronda
+desaparecían de la pantalla y el mesero no podía ver qué llevaba la mesa.
+
+**La causa:** `tomar-pedido.js` → `loadOpenOrder()` solo busca órdenes
+`open`/`in_progress`. Una orden **pagada no se carga**, así que arranca con el
+carrito vacío y crea una orden NUEVA. El panel sigue `current_order_id`, que
+pasa a apuntar a la nueva.
+
+Eso **no es un error**: es justamente lo que hace que al cobrar aparezca solo lo
+nuevo, que es lo que Sergio quiere. Así que no se deshizo. Lo que cambió es que
+el panel junta los pedidos de la misma visita.
+
+### La marca de visita (`pos_tables.sesion_at`)
+
+Para juntarlos hacía falta saber cuándo empezó la visita, y no había forma:
+
+- Los pedidos se quedan en `paid` **para siempre** — la mesa 1 tiene 17 de días
+  distintos. Agrupar por estado juntaría la cena de hoy con la del martes.
+- Existe `pos_orders.session_id`, pero es **el turno de caja**: 17 pedidos
+  comparten uno.
+
+Columna nueva: se pone al ocupar la mesa **estando libre** (con `.is('sesion_at',
+null)`, para que una segunda ronda no reinicie la visita) y se borra al
+liberarla, en los dos sitios donde eso pasa (`tomar-pedido.js:releaseTable` y
+`ventas-salon.js`).
+
+### En pantalla
+
+- La comanda muestra **todos** los ítems de la visita; las rondas ya cobradas
+  llevan marca `pagado`.
+- Los totales se separan en **Ya pagado / Por cobrar / Total de la mesa**. Sin
+  separarlos, el "Total" diría solo lo que falta por cobrar y parecería que la
+  mesa consumió menos de lo que consumió.
+
+**Caso real que lo comprueba:** la mesa `tmry2e6a4but` pidió $77.000 y 39
+minutos después agregó $4.000. Antes el panel mostraba $4.000 solo.
+
+### Domicilio: agregar al mismo pedido
+
+Regla de Sergio: *"se suma automáticamente al pedido que ya está… solo cuando
+todavía se está preparando, para que alcancemos a enviarlo junto. Si ya salió,
+simplemente hacen un nuevo domicilio."*
+
+- El botón **solo aparece en preparación**. En camino o entregado no sale.
+- `domicilios.html?agregar=<orderId>` entra en **modo agregar**: se salta el
+  modal de registro, no se elige canal, ni cliente, ni dirección, ni
+  domiciliario — todo eso ya es del pedido. Solo se escogen productos.
+- Banner azul recordando a quién se le está agregando, y el botón pasa a
+  *"Agregar al pedido"*.
+- **El envío no se vuelve a cobrar** (`S.fee = 0`): ya se cobró en ese pedido.
+- Al guardar: los ítems se insertan con el `order_id` existente y el pedido
+  crece en `subtotal`, `packaging_fee` y `total`. No se crea orden nueva.
+- Guardas: si el pedido está cancelado o ya salió, avisa y devuelve a Ventas.
+- El modo se activa **al final del arranque**, con la pantalla ya pintada: si
+  entra antes, el repintado normal deshace el banner y el botón.
+- La comanda de cocina imprime **solo lo nuevo** (lo ya impreso queda marcado
+  con `kitchen_printed_at`), que es lo correcto: nadie vuelve a preparar lo de
+  antes.
+
+### Lo que falta
+
+- **Venta rápida no tiene "Agregar ítem".** Falta decidir qué debe hacer:
+  ¿sumar al mismo pedido como domicilio, o crear uno nuevo como mesa?
+- **Nada de esto se ha probado en el navegador.** La sesión de mesa se validó
+  con la consulta contra datos reales, y el flujo de domicilio solo por
+  sintaxis: hay que probarlo con un pedido de verdad antes de confiar en él.

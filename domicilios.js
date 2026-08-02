@@ -240,6 +240,13 @@ document.addEventListener('DOMContentLoaded', () => {
     try { renderMonitor();       } catch(e) { console.error('renderMonitor:', e); }
     try { updateMonitorBadge();  } catch(e) { console.error('updateMonitorBadge:', e); }
 
+    // Modo agregar: al FINAL, con la pantalla ya pintada. Si entra antes, el
+    // repintado normal deshace lo que deja puesto (banner, boton, carrito).
+    try {
+      const _ag = new URLSearchParams(window.location.search).get('agregar');
+      if (_ag) { await entrarModoAgregar(_ag); }
+    } catch(e) { console.error('[domicilios] modo agregar:', e); }
+
   })();
 });
 
@@ -1572,7 +1579,60 @@ function canEnviar() {
   return count > 0 && !!S.cliente && (!needAsig || !!S.asignado);
 }
 
+// Suma los productos nuevos AL MISMO pedido. No crea uno aparte: el domicilio
+// ya se cobro alli y la idea es que todo salga junto.
+async function agregarAlPedido() {
+  const ag = S.agregarA;
+  const count = S.cart.reduce(function(a, x){ return a + x.qty; }, 0);
+  if (!count) { toast('Agrega productos al pedido'); return; }
+
+  const prod  = computeProductsTotal();
+  const empNuevo = computeEmpaque();
+  const snap  = S.cart.map(function(it){ return Object.assign({}, it); });
+
+  try {
+    const filas = snap.map(function(it){ return {
+      tenant_id: S.tenantId, branch_id: S.branchId, order_id: ag.id,
+      product_id: it.id, name: it.name, product_name: it.name,
+      unit_price: it.price, product_price: it.price,
+      quantity: it.qty, total: it.price * it.qty,
+      notes: it.note || null, status: 'pending',
+      selections: { mods: it.mods || {} },
+    }; });
+    if (filas.length) {
+      const r = await sb.from('pos_order_items').insert(filas);
+      if (r.error) throw r.error;
+    }
+    // El pedido crece: subtotal, empaque y total. El envio NO se vuelve a sumar.
+    const up = await sb.from('pos_orders').update({
+      subtotal:      ag.subtotal + prod,
+      packaging_fee: ag.empaque + empNuevo,
+      total:         ag.total + prod + empNuevo,
+    }).eq('id', ag.id);
+    if (up.error) throw up.error;
+
+    // La comanda de cocina imprime solo lo nuevo (lo ya impreso queda marcado),
+    // que es justo lo que hace falta: nadie vuelve a preparar lo de antes.
+    if (typeof posAutoprint === 'function' && window.electronPOS) {
+      await Promise.race([posAutoprint(ag.id), new Promise(function(res){ setTimeout(res, 9000); })]);
+    }
+  } catch (e) {
+    console.error('[domicilios] agregarAlPedido:', e);
+    toast('No se pudo agregar: ' + (e.message || e));
+    return;
+  }
+
+  S.cart = [];
+  S.agregarA = null;
+  toast(count + (count === 1 ? ' ítem agregado' : ' ítems agregados') + ' al pedido');
+  volverAVentas();
+}
+
 async function enviarACocina() {
+  // Modo agregar: se suma a un pedido que ya existe y listo. No pasa por las
+  // validaciones de cliente y domiciliario porque esos ya son del pedido.
+  if (S.agregarA) { return await agregarAlPedido(); }
+
   if (!canEnviar()) {
     const count = S.cart.reduce((a, x) => a + x.qty, 0);
     if (count === 0)    { toast('Agrega productos al pedido'); return; }
@@ -1715,6 +1775,58 @@ async function enviarACocina() {
 
   toast(`${id} enviado a cocina`);
   setTimeout(() => { window.location.href = 'ventas.html?floor=__domicilios__'; }, window.electronPOS ? 600 : 0);
+}
+
+// ── Modo AGREGAR: sumarle items a un domicilio en preparacion ─────────
+// No se elige canal, ni cliente, ni direccion, ni domicilio: todo eso ya es
+// del pedido. Solo se escogen los productos nuevos y se suman.
+async function entrarModoAgregar(orderId) {
+  const { data: o, error } = await sb.from('pos_orders')
+    .select('id, customer_name, notes, delivery_fee, packaging_fee, subtotal, total, delivery_status, status, channel')
+    .eq('id', orderId).maybeSingle();
+
+  if (error || !o) { toast('No encontré ese pedido'); return; }
+  // Cancelado o ya en la calle: no se le suma nada, se hace uno nuevo.
+  if (o.status === 'cancelled') { toast('Ese pedido está cancelado'); volverAVentas(); return; }
+  const _est = o.delivery_status || 'recibido';
+  if (_est !== 'recibido' && _est !== 'preparacion') {
+    toast('Ese pedido ya salió. Haz un domicilio nuevo.');
+    volverAVentas(); return;
+  }
+
+  S.agregarA = {
+    id: o.id,
+    subtotal: Number(o.subtotal) || 0,
+    empaque:  Number(o.packaging_fee) || 0,
+    total:    Number(o.total) || 0,
+  };
+  // El domicilio ya se cobró en ese pedido: no se vuelve a cobrar.
+  S.fee = 0;
+  S.cart = [];
+
+  document.body.classList.remove('d-gate');
+  closeAllModals();
+  flipToPedido();
+
+  const _dir = String(o.notes || '')
+    .replace(/\[barrio:[^\]]*\]/ig, '').replace(/\[tel:[^\]]*\]/ig, '')
+    .replace(/\[etq:[^\]]*\]/ig, '').replace(/·?\s*Ref:\S+/ig, '').trim();
+  const _av = document.createElement('div');
+  _av.id = 'd-modo-agregar';
+  _av.style.cssText = 'margin:10px 0;padding:11px 13px;border-radius:11px;background:#EEF2FF;'
+    + 'border:1px solid #C7CDFF;color:#3730A3;font-size:13px;line-height:1.5';
+  _av.innerHTML = '<b>Agregando al pedido de ' + (o.customer_name || 'cliente') + '</b>'
+    + (_dir ? '<br>' + _dir : '')
+    + '<br>Lo que agregues sale en el mismo domicilio. El envío no se cobra otra vez.';
+  const _host = document.querySelector('[data-face="pedido"]') || document.body;
+  _host.insertBefore(_av, _host.firstChild);
+
+  const _btn = document.getElementById('btn-enviar');
+  if (_btn) _btn.innerHTML = 'Agregar al pedido';
+}
+
+function volverAVentas() {
+  setTimeout(function(){ window.location.href = 'ventas.html?floor=__domicilios__'; }, 1200);
 }
 
 // ── Monitor kanban ─────────────────────────────────────────────────────

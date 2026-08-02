@@ -1594,7 +1594,9 @@
       <div class="vs-rail-scroll">
         <div class="vs-order-head">
           <div class="vs-order-section-label">Comanda</div>
-          <span style="font-size:11px;color:#94A3B8">${d.metodo}</span>
+          ${d.estado === 'preparacion'
+            ? `<button class="lm-link" data-domi-action="add-item" data-domi-id="${d.id}">+ Agregar ítem</button>`
+            : `<span style="font-size:11px;color:#94A3B8">${d.metodo}</span>`}
         </div>
         <div class="vs-order-list">
           ${vsComandaHTML(state.domiItems[d.id], vsEmpaquePorItem(state.domiItems[d.id] || [], d.empaque))}
@@ -2391,6 +2393,12 @@
         if (action === 'print') {
           if (typeof posOpenPrintModal === 'function') posOpenPrintModal(id);
           else if (typeof toast === 'function') toast('Impresión no disponible');
+          return;
+        }
+        if (action === 'add-item') {
+          // Se suma AL MISMO pedido para que salga todo junto. Solo tiene
+          // sentido mientras se prepara; si ya salio, se hace uno nuevo.
+          window.location.href = 'domicilios.html?agregar=' + encodeURIComponent(id);
           return;
         }
         if (action === 'cobrar') {
