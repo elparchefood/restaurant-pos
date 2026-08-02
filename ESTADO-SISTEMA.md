@@ -4390,3 +4390,79 @@ no se debilita:
 2. **Probar el tiempo real después de tocar seguridad.** Esto se escapó porque
    las pruebas midieron lectura y escritura, pero nunca la entrega en vivo — y
    lo detectó Sergio usando el sistema, no yo.
+---
+
+## 114. Estructura del canvas y preferencias por producto
+
+### Corrección a una afirmación mía
+
+Le dije a Sergio que *"el motor guarda una sola presentación para todo el
+pedido"*. **Es falso.** Al detectar un producto nuevo, el motor **archiva el
+anterior en `items[]` con su propia presentación, variante, cantidad y
+adiciones**. La estructura por producto ya existía. Lo comprobé leyendo el
+archivado antes de tocar nada, después de haberlo afirmado.
+
+### Lo que sí faltaba
+
+Las **preferencias** que se agregaron esta tarde quedaron a nivel de PEDIDO, no
+de producto. Con un caso real de los datos: *"dos salchipapas de pollo
+personales, **una sin salsa y otra normal**"* — las dos habrían salido iguales.
+
+**Corregido:** `preferencias` pasa a `SlotItem`, se archiva con su producto, se
+limpia al cambiar de producto, aparece en el resumen debajo de la línea que le
+toca, y **viaja al pedido como nota del PRODUCTO** (`crear-pedido-chat` ya
+aceptaba `p.notas` por producto). Así la comanda la muestra pegada a su plato y
+el cocinero sabe a cuál aplica.
+
+### Datos que orientaron el diseño del canvas
+
+| | |
+|---|---|
+| Líneas de UNA unidad | **97%** (216 de 222) |
+| Pedidos con más de un producto | **51%** (70 de 137) |
+
+**Por eso la cantidad NO lleva caja propia:** una caja es un paso que pregunta, y
+preguntaría de más en 97 de cada 100 pedidos. Se captura en silencio dentro de la
+caja del producto, con una casilla opcional *"confirmar cuando sea más de una"*
+que se dispara justo en el 3% donde importa.
+
+### La estructura acordada con Sergio
+
+Cajas **con misión** (tipo ManyChat), arrastrables, cada una con su propia
+configuración — no cajas libres, que producirían errores. Las cajas libres solo
+envían mensajes, **nunca capturan datos**.
+
+| Caja | Qué guarda |
+|---|---|
+| Saludo | — |
+| Pedido | producto + cantidad |
+| Presentaciones | por producto, solo si tiene |
+| Variantes | por producto, solo si tiene |
+| Preferencias | sin ajo, poca salsa |
+| Upsell | productos que el dueño conectó |
+| Dirección | + barrio → precio, reglas por país |
+| Cliente | nombre |
+| Resumen | plantilla con placeholders |
+| Pago | métodos + comprobante + verificación |
+| Confirmación | — |
+| Envío | conectado (o no) a los disparadores de estado |
+
+Aparte: **preguntas frecuentes**, con lo que distingue una pregunta suelta de una
+pregunta dentro del pedido.
+
+**Decisiones de Sergio en esta ronda:**
+- El envío SÍ es una caja configurable, como complemento del disparador de
+  estado que ya existe — para que el dueño pueda conectarlo o no.
+- Las preguntas frecuentes son un mecanismo aparte del flujo del pedido.
+
+**Principio que hay que respetar:** el canvas define el orden de las PREGUNTAS,
+no el orden de la CONVERSACIÓN. El motor ya rellena huecos y salta lo que el
+cliente ya dijo; las cajas dicen qué hace falta y en qué orden preguntarlo
+cuando toque.
+
+### Un hallazgo de paso
+
+**Hoy el pago se pregunta ANTES del resumen**, al revés de como Sergio toma los
+pedidos (*"si el cliente no sabe cuánto es, no sabe con qué pagar"*). Su propio
+flujo está configurado en contra de su experiencia. Se arregla moviendo la caja
+— justo lo que el canvas debe permitir.

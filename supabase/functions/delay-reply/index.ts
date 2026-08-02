@@ -20,6 +20,10 @@ interface SlotItem {
   tipo:      string | null;
   cantidad:  number;
   adiciones: string | null;
+  // Cómo lo quiere preparado ESE producto. Va aquí y no en el pedido porque un
+  // cliente pide "dos salchipapas, una sin salsa y otra normal": si la
+  // preferencia fuera del pedido, las dos saldrían iguales.
+  preferencias?: string | null;
   categoria?: string | null;  // categoría del producto (desambiguación de nombres repetidos)
 }
 
@@ -1416,6 +1420,7 @@ INTENCION, no las palabras exactas.` },
       const archived: SlotItem = {
         producto: state.producto, tamano: state.tamano, tipo: state.tipo,
         cantidad: state.cantidad, adiciones: state.adiciones,
+        preferencias: state.preferencias,
         categoria: state.producto_categoria,
       };
       const prevDir  = state.direccion;
@@ -1435,6 +1440,9 @@ INTENCION, no las palabras exactas.` },
       // cada producto nuevo que agregue. El extractor sigue capturando
       // adiciones si él las menciona por su cuenta.
       if (archived.adiciones !== null) state.adiciones = "";
+      // La preferencia se queda con el producto que la recibió. El siguiente
+      // arranca limpio: "una sin salsa y otra normal" son dos cosas distintas.
+      state.preferencias = null;
     } else if (!state.producto) {
       state.producto = productoDetectado;
       state.producto_categoria = productoCategoriaDet;
@@ -2754,7 +2762,7 @@ async function buildConversationResponse(
 
   // Resumen del estado del pedido
   const allItems = [...(state.items || [])];
-  if (state.producto) allItems.push({ producto: state.producto, tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones });
+  if (state.producto) allItems.push({ producto: state.producto, tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, preferencias: state.preferencias });
 
   const stateLines: string[] = ["PEDIDO EN CURSO:"];
   if (allItems.length === 0) {
@@ -3056,7 +3064,7 @@ async function buildSummaryFromState(
 
     const allItems: SlotItem[] = [
       ...(state.items || []),
-      { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, categoria: state.producto_categoria },
+      { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, preferencias: state.preferencias, categoria: state.producto_categoria },
     ];
 
     for (const item of allItems) {
@@ -3074,7 +3082,8 @@ async function buildSummaryFromState(
       productoLines.push(`🍟 ${item.cantidad}x ${display}${tamStr}${adStr}`);
       // La preferencia va DEBAJO del producto y en el resumen, para que el
       // cliente la vea y la corrija antes de que se prepare mal.
-      if (state.preferencias) productoLines.push(`   ↳ ${state.preferencias}`);
+      const prefItem = (item as { preferencias?: string | null }).preferencias;
+      if (prefItem) productoLines.push(`   ↳ ${prefItem}`);
       precioProducto += getPrecioItem(item.producto, item.tamano, item.tipo, item.cantidad, item.categoria);
     }
   } catch (err) { console.error("buildSummaryFromState lookup error:", err); }
@@ -3170,7 +3179,7 @@ async function buildSummaryFromState(
       const lineaItem = lineas[idxItem];
       const allItemsForTemplate: SlotItem[] = [
         ...(state.items || []),
-        { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones },
+        { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, preferencias: state.preferencias },
       ];
       const itemsRendered = allItemsForTemplate.filter(i => i.producto).map(item => {
         const tamStr = [item.tipo, item.tamano].filter(Boolean).join(" ");
@@ -3239,7 +3248,7 @@ async function calcularPreciosPedido(
     ) as Array<Record<string, unknown>> | null;
     const allItems: SlotItem[] = [
       ...(state.items || []),
-      { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, categoria: state.producto_categoria },
+      { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, preferencias: state.preferencias, categoria: state.producto_categoria },
     ];
     for (const item of allItems) {
       if (!item.producto || !allProducts) continue;
@@ -3269,7 +3278,7 @@ async function calcularPreciosPedido(
 function buildOrderArgs(state: PacoState, domiPrecio: number): Record<string, unknown> {
   const allItems: SlotItem[] = [
     ...(state.items || []),
-    { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, categoria: state.producto_categoria },
+    { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, preferencias: state.preferencias, categoria: state.producto_categoria },
   ];
   return {
     cliente:     state.nombre    || "Cliente WhatsApp",
@@ -3283,6 +3292,10 @@ function buildOrderArgs(state: PacoState, domiPrecio: number): Record<string, un
       tipo:      capFirst(i.tipo   || ""),
       cantidad:  i.cantidad,
       categoria: i.categoria || null,
+      // Cómo lo quiere preparado. Va como nota del PRODUCTO (no del pedido)
+      // para que la comanda de cocina lo muestre pegado a su plato: si va
+      // suelta al final, el cocinero no sabe a cuál de los dos aplica.
+      notas:     i.preferencias || null,
     })),
   };
 }
