@@ -1986,6 +1986,14 @@
     const _qEmp = parseFloat(o.packaging_fee) || 0;   // empaque cobrado en esta venta
     const hora = new Date(o.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 
+    /* "Pagado" NO es solo status==='paid': al entregar, el estado pasa a
+       'entregado' y se perdia el pagado. Se mira lo que de verdad se cobro. */
+    const _qPagado = isPaid || ((Number(o.paid_amount) || 0) >= total - 1 && total > 0);
+    /* El reloj cuenta desde el ultimo cambio de estado, igual que el domicilio
+       (no desde que se creo el pedido). */
+    const _qDesde = o.estado_at || o.created_at;
+    const _qMin = Math.max(0, Math.round((Date.now() - new Date(_qDesde).getTime()) / 60000));
+
     const isPendientePagoQ = o.status === 'pendiente_pago';
     const isEntregadoQ = o.status === 'entregado';
     let actionsHtml;
@@ -2039,7 +2047,7 @@
               <h2 class="vs-rail-title" title="${_esc(titulo)}" data-nombre-largo="${_esc(titulo)}">${titulo}</h2>
               ${vsPuntosChip({ id: o.id, clienteId: o.cliente_id, cliente: titulo,
                                subtotal: o.subtotal, empaque: o.packaging_fee,
-                               total: total, domiFee: o.delivery_fee }, isPaid)}
+                               total: total, domiFee: o.delivery_fee }, _qPagado)}
             </div>
             <span class="vs-state-pill" style="color:${meta.color};background:${meta.tint}">
               <span class="vs-state-dot" style="background:${meta.color}"></span>
@@ -2056,8 +2064,9 @@
             <div class="vs-info-value" style="font-size:12px">Venta rápida</div>
           </div>
           <div class="vs-info-cell">
-            <div class="vs-info-label">Hora</div>
-            <div class="vs-info-value" style="font-size:12px">${hora}</div>
+            <div class="vs-info-label">Tiempo</div>
+            <div class="vs-info-value" title="En este estado desde las ${hora}"
+              ${isEntregadoQ ? '' : `data-timer="${_qDesde}"`}><span class="vs-timer-val">${_qMin} min</span></div>
           </div>
           <div class="vs-info-cell">
             <div class="vs-info-label">Ítems</div>
