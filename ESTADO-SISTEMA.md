@@ -4466,3 +4466,54 @@ cuando toque.
 pedidos (*"si el cliente no sabe cuánto es, no sabe con qué pagar"*). Su propio
 flujo está configurado en contra de su experiencia. Se arregla moviendo la caja
 — justo lo que el canvas debe permitir.
+
+---
+
+## 115. El pago va después del resumen (y la caja que lo permite)
+
+Sergio, describiendo cómo toma pedidos: *"en mi restaurante el método de pago va
+después del resumen, porque si le preguntamos al cliente con qué paga y no sabe
+cuánto es, no va a saber con qué pagar. Sin embargo cada restaurante lo puede
+colocar en el orden que quiera."*
+
+**Su propio flujo estaba configurado al revés**: el pago era el paso 6 de 6, y el
+resumen solo salía cuando todos los pasos estaban llenos. O sea, Paco preguntaba
+el pago antes de decir cuánto era.
+
+### Lo que se construyó
+
+Una casilla en la caja del canvas: **`despues_resumen`**.
+
+- `findNextStep` **ignora** las cajas marcadas al decidir si el pedido está
+  completo. Si contaran, el resumen nunca saldría.
+- El resumen sale sin ese dato.
+- Al confirmar el cliente, **antes de crear el pedido** se revisa si queda alguna
+  caja post-resumen sin responder. Si la hay, se pregunta y el pedido espera.
+
+No es una regla de El Parche: es una casilla que cada restaurante marca en las
+cajas que quiera.
+
+### Lo que ya existía y ayudó
+
+El motor **ya sabía** recibir el pago junto con la confirmación (*"bueno,
+entonces por nequi"*) y disparar el QR si el método es digital. Solo faltaba
+**preguntarlo** cuando el cliente confirma sin decirlo.
+
+### Un efecto secundario que había que atender
+
+La plantilla del resumen trae una línea `💳 {{pago}}`. Sin pago todavía, esa
+línea salía con el icono solo y nada al lado.
+
+Se resolvió **en general, no para el pago**: después de reemplazar las
+variables, se borran las líneas que quedaron con adorno pero sin texto. Sirve
+para cualquier variable vacía. Las líneas en blanco a propósito (separadoras) se
+conservan.
+
+Probado con la plantilla real: quita la del pago y deja intactas las de
+producto, dirección, pedido, domicilio, total y la separación antes de la
+confirmación.
+
+### Estado
+
+`delay-reply` v208, verificada que arranca. El flujo de El Parche quedó:
+presentación → variante → adiciones → dirección → nombre → **resumen** → pago.

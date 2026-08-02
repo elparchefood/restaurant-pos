@@ -61,6 +61,10 @@ interface ProductData {
 interface PasoDefinicion {
   id:         string;
   campo:      string;
+  /* La caja se pregunta DESPUÉS de mostrar el resumen. Nace del pago: "si el
+     cliente no sabe cuánto es, no sabe con qué pagar" (Sergio). Cada
+     restaurante lo decide: es una casilla de la caja en el canvas. */
+  despues_resumen?: boolean;
   modo?:      "fija" | "conversacional";
   texto?:     string;   // frase exacta (modo fija)
   guia?:      string;   // descripción para GPT (modo conversacional)
@@ -1174,6 +1178,24 @@ INTENCION, no las palabras exactas.` },
         if (pagoNuevo) {
           state.pago = pagoNuevo;
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+        }
+      }
+
+      /* Si quedan cajas marcadas "después del resumen" sin responder, se
+         preguntan AHORA y el pedido no se crea todavía. El cliente confirmó lo
+         que va a comer; falta el dato que no podía dar antes de ver el total. */
+      {
+        const faltaPost = findNextStep(state, pasos, true);
+        if (faltaPost && faltaPost.despues_resumen) {
+          const pregunta = await buildConversationResponse(
+            clienteTexto, histCtx, state, faltaPost,
+            cfg, frasesCfg, menuText, horariosText, pagosText, domiciliosText, currentProductData,
+            true, nombreParaBot, colTimeStr, colDayStr, horaAperturaHoy, horaCierreHoy, proxDia, !!nombreKnown,
+          );
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+          await sendWaAndSave(convId, tenantId, pregunta, fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: pregunta, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+          return;
         }
       }
       // Rama digital (QR + comprobante) decidida por el flag "digital" del método
@@ -2437,13 +2459,17 @@ function mergeSlots(state: PacoState, updates: Record<string, unknown>): PacoSta
 
 // ── findNextStep ──────────────────────────────────────────────────────────────
 
-function findNextStep(state: PacoState, pasos: PasoDefinicion[]): PasoDefinicion | null {
+/* Las cajas marcadas "después del resumen" no cuentan para decidir si el
+   pedido está completo: si contaran, el resumen nunca saldría. Se preguntan
+   aparte, cuando el cliente ya vio cuánto es. */
+function findNextStep(state: PacoState, pasos: PasoDefinicion[], incluirPostResumen = false): PasoDefinicion | null {
   // Si hay un complemento de dirección pendiente (barrio, número, referencia)
   // el slot "direccion" no se considera completo hasta que se resuelva
   if (state.complemento_dir_pendiente) {
     return { id: "complemento_dir", campo: "direccion", modo: "fija", texto: state.complemento_dir_pendiente };
   }
   for (const paso of pasos) {
+    if (paso.despues_resumen && !incluirPostResumen) continue;
     if (paso.id === "presentacion") {
       if (!state.tamano) return paso;
     } else if (paso.id.startsWith("variable_")) {
@@ -2583,7 +2609,8 @@ function procesarFlujoCanvas(
         guia: guia || "Pregunta si quiere algo especial en la preparación. Si dice que no, sigue sin insistir.",
       });
     } else if (campo === "pago") {
-      out.push({ id: "pago", campo: "pago", modo, texto: texto || "¿Cómo nos vas a pagar? ({{metodos_pago}}) ☺️", guia });
+      out.push({ id: "pago", campo: "pago", modo, texto: texto || "¿Cómo nos vas a pagar? ({{metodos_pago}}) ☺️", guia,
+                 despues_resumen: p.despues_resumen === true });
     } else if (campo === "nombre") {
       // El canvas MANDA: si el usuario configuró una frase fija para el nombre, se usa esa
       // (puede incluir {{cliente}} para el nombre del contacto). La confirmación automática
@@ -3222,6 +3249,21 @@ async function buildSummaryFromState(
     .replace(/\{\{precio_total\}\}/g,    precioTotalStr)
     .replace(/\{\{gran_total\}\}/g,      precioTotalStr)
     .replace(/\{\{confirmacion\}\}/g,    confirmFrase);
+
+  /* Una variable vacia deja su linea coja: con el pago despues del resumen,
+     la plantilla mostraba el icono solo, sin nada al lado. Se borran las
+     lineas que quedaron con adorno pero sin texto. Vale para cualquier
+     variable, no solo el pago. */
+  resumenFinal = resumenFinal.split("\n").filter((l) => {
+    const sinAdorno = l
+      .replace(/[\u{1F300}-\u{1FAFF}]/gu, "")
+      .replace(/[\u2600-\u27BF\uFE0F]/g, "")
+      .replace(/[*_~`:-]/g, "")
+      .trim();
+    // Una linea en blanco a proposito se conserva; solo cae la que trae
+    // adorno y ningun texto real.
+    return sinAdorno.length > 0 || l.trim().length === 0;
+  }).join("\n");
 
   // Safety net: si la plantilla no incluía {{confirmacion}}, se agrega siempre al final
   if (confirmFrase && !resumenFinal.includes(confirmFrase)) {
