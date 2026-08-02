@@ -4354,3 +4354,31 @@ la idea de Sergio.
 Comparar contra el pedido que de verdad se creó es lo que hace la prueba fiable.
 Y hay que correrla **después de cada cambio**: tres de los siete intentos
 empeoraron el resultado, y sin medir se habrían quedado.
+
+---
+
+## 113. El tiempo real se cayó con el aislamiento
+
+**Sergio:** *"los mensajes en Cobra no están llegando en tiempo real... llega el
+mensaje pero no se ve, tengo que actualizar la página."* Tenía razón en la
+sospecha: fue por el aislamiento de esta misma tarde.
+
+**La causa NO eran los datos ni la condición.** Se verificó: los 498 mensajes de
+los últimos días tienen su , la política existe y la función es
+. El fallo estaba en una palabra: las políticas se crearon
+, y **el motor de tiempo real de Supabase evalúa los
+permisos con otro rol**. Para él la tabla no tenía ninguna política aplicable, así
+que no entregaba nada. Las viejas () eran para todos los roles, por eso
+el tiempo real funcionaba antes.
+
+**El arreglo:** recrear las 23 políticas sin restringir el rol. El aislamiento no
+se debilita — la condición sigue siendo la misma y para otro restaurante da falso.
+
+**Verificado después:** El Parche ve todo lo suyo (1.725 mensajes, 137 pedidos,
+540 movimientos de inventario) y un usuario de otro tenant ve **0 en las 8 tablas
+probadas**.
+
+**Regla para la próxima vez:** no restringir por rol en políticas de tablas
+publicadas en tiempo real. Y probar el tiempo real después de tocar seguridad —
+esto se escapó porque las pruebas midieron lectura y escritura, pero no la
+entrega en vivo.
