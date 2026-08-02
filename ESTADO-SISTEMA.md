@@ -4359,26 +4359,34 @@ empeoraron el resultado, y sin medir se habrían quedado.
 
 ## 113. El tiempo real se cayó con el aislamiento
 
-**Sergio:** *"los mensajes en Cobra no están llegando en tiempo real... llega el
+**Sergio:** *"los mensajes en Cobra no están llegando en tiempo real… llega el
 mensaje pero no se ve, tengo que actualizar la página."* Tenía razón en la
 sospecha: fue por el aislamiento de esta misma tarde.
 
 **La causa NO eran los datos ni la condición.** Se verificó: los 498 mensajes de
-los últimos días tienen su , la política existe y la función es
-. El fallo estaba en una palabra: las políticas se crearon
-, y **el motor de tiempo real de Supabase evalúa los
-permisos con otro rol**. Para él la tabla no tenía ninguna política aplicable, así
-que no entregaba nada. Las viejas () eran para todos los roles, por eso
-el tiempo real funcionaba antes.
+los últimos días tienen su `tenant_id`, la política existe y la función
+`current_tenant_id()` es `STABLE`. El fallo estaba en una palabra: las políticas
+se crearon `for all TO AUTHENTICATED`, y **el motor de tiempo real de Supabase
+evalúa los permisos con otro rol**. Para él la tabla no tenía ninguna política
+aplicable, así que no entregaba nada. Las viejas (`allow_all`) eran para todos
+los roles — por eso el tiempo real funcionaba antes.
 
-**El arreglo:** recrear las 23 políticas sin restringir el rol. El aislamiento no
-se debilita — la condición sigue siendo la misma y para otro restaurante da falso.
+**El arreglo:** recrear las 23 políticas sin restringir el rol. El aislamiento
+no se debilita:
 
-**Verificado después:** El Parche ve todo lo suyo (1.725 mensajes, 137 pedidos,
-540 movimientos de inventario) y un usuario de otro tenant ve **0 en las 8 tablas
-probadas**.
+- La condición sigue siendo `current_tenant_id() = tenant_id`.
+- Para un usuario de otro restaurante da falso → 0 filas.
+- Para `anon` (sin sesión) no resuelve → 0 filas.
+- Para `service_role` la seguridad de filas ni se aplica, así que las Edge
+  Functions siguen igual.
 
-**Regla para la próxima vez:** no restringir por rol en políticas de tablas
-publicadas en tiempo real. Y probar el tiempo real después de tocar seguridad —
-esto se escapó porque las pruebas midieron lectura y escritura, pero no la
-entrega en vivo.
+**Verificado después del cambio:** El Parche ve todo lo suyo (1.725 mensajes,
+137 pedidos, 540 movimientos de inventario) y un usuario de otro tenant ve
+**0 en las 8 tablas probadas**.
+
+**Dos reglas para la próxima vez:**
+
+1. No restringir por rol en políticas de tablas publicadas en tiempo real.
+2. **Probar el tiempo real después de tocar seguridad.** Esto se escapó porque
+   las pruebas midieron lectura y escritura, pero nunca la entrega en vivo — y
+   lo detectó Sergio usando el sistema, no yo.
