@@ -1690,87 +1690,19 @@ async function tpPintarCliente() {
 }
 
 function tpModalCliente() {
-  const bd = document.createElement('div');
-  bd.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
-  bd.innerHTML =
-    '<div style="background:#fff;border-radius:16px;max-width:380px;width:100%;padding:22px;box-shadow:0 20px 55px rgba(0,0,0,.25);font-family:inherit">'
-  +   '<div style="font-weight:700;font-size:16px;color:#0F172A">Cliente de la mesa</div>'
-  +   '<div style="color:#64748B;font-size:12.5px;margin-top:3px">Con el teléfono se le acumulan los puntos de este pedido.</div>'
-  +   '<input id="tpCliTel" type="tel" inputmode="numeric" placeholder="Número de celular" autocomplete="off"'
-  +     ' style="width:100%;box-sizing:border-box;margin-top:14px;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;outline:none">'
-  +   '<div id="tpCliInfo" style="margin-top:10px;font-size:13px;min-height:22px;color:#64748B"></div>'
-  +   '<div id="tpCliNomWrap" style="display:none;margin-top:6px">'
-  +     '<input id="tpCliNom" placeholder="Nombre del cliente" autocomplete="off"'
-  +       ' style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;outline:none">'
-  +   '</div>'
-  +   '<div style="display:flex;gap:8px;margin-top:16px">'
-  +     '<button id="tpCliQuitar" type="button" style="border:1.5px solid #E2E8F0;background:#fff;color:#64748B;border-radius:10px;padding:11px 12px;font-size:13px;font-weight:600;cursor:pointer">Sin cliente</button>'
-  +     '<button id="tpCliCancel" type="button" style="flex:1;border:1.5px solid #E2E8F0;background:#fff;color:#334155;border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Cancelar</button>'
-  +     '<button id="tpCliOk" type="button" style="flex:1;border:0;background:#5B6BFF;color:#fff;border-radius:10px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">Guardar</button>'
-  +   '</div>'
-  + '</div>';
-  document.body.appendChild(bd);
-
-  const inp = document.getElementById('tpCliTel');
-  const info = document.getElementById('tpCliInfo');
-  const wrap = document.getElementById('tpCliNomWrap');
-  const nom = document.getElementById('tpCliNom');
-  let encontrado = null;
-  if (S.clienteTel) inp.value = S.clienteTel;
-  setTimeout(() => inp.focus(), 40);
-
-  let t = null;
-  inp.addEventListener('input', () => {
-    clearTimeout(t);
-    t = setTimeout(async () => {
-      const t10 = tpTel10(inp.value);
-      encontrado = null; wrap.style.display = 'none';
-      if (t10.length < 7) { info.textContent = ''; return; }
-      info.textContent = 'Buscando…';
-      encontrado = await tpBuscarCliente(t10);
-      if (encontrado) {
-        const pts = await tpPuntosDe(t10);
-        info.innerHTML = '<b style="color:#0F172A">' + tpEsc(encontrado.nombre || 'Cliente') + '</b>'
-          + (encontrado.barrio ? ' <span style="color:#94A3B8">· ' + tpEsc(encontrado.barrio) + '</span>' : '')
-          + '<br><span style="color:#16A34A;font-weight:600">' + pts + ' puntos acumulados</span>';
-      } else {
-        info.innerHTML = '<span style="color:#B45309">No está guardado. Se creará con este número.</span>';
-        wrap.style.display = '';
-      }
-    }, 350);
+  /* El MISMO selector de Domicilios (pos-cliente-picker.js): lista completa con
+     avatar, telefono y direccion, buscador que filtra al escribir y creacion de
+     cliente nuevo. Lee y escribe en `pos_clientes` por `posClientes`, o sea la
+     misma base que Domicilios — un cliente creado aqui aparece alla y al reves. */
+  if (!window.posClientePicker) { alert('El selector de clientes no está disponible.'); return; }
+  posClientePicker.abrir({
+    tenantId: S.tenantId,
+    branchId: S.branchId,
+    onPick: function (c) {
+      if (!c) return;
+      tpGuardarCliente(c.id || null, c.nombre || '', c.tel || '');
+    },
   });
-
-  const cerrar = () => bd.remove();
-  document.getElementById('tpCliCancel').onclick = cerrar;
-  bd.addEventListener('click', e => { if (e.target === bd) cerrar(); });
-
-  document.getElementById('tpCliQuitar').onclick = async () => {
-    await tpGuardarCliente(null, '', '');
-    cerrar();
-  };
-
-  document.getElementById('tpCliOk').onclick = async function () {
-    const t10 = tpTel10(inp.value);
-    if (t10.length < 7) { info.innerHTML = '<span style="color:#DC2626">Escribe un número válido.</span>'; return; }
-    this.disabled = true; this.textContent = 'Guardando…';
-    try {
-      let id = encontrado ? encontrado.id : null;
-      let nombre = encontrado ? (encontrado.nombre || '') : String(nom.value || '').trim();
-      if (!id) {
-        const ins = await sb.from('pos_clientes').insert([{
-          tenant_id: S.tenantId, branch_id: S.branchId,
-          nombre: nombre || ('Cliente ' + t10.slice(-4)), telefono: t10,
-        }]).select('id,nombre').single();
-        if (ins.error) throw ins.error;
-        id = ins.data.id; nombre = ins.data.nombre;
-      }
-      await tpGuardarCliente(id, nombre, t10);
-      cerrar();
-    } catch (e) {
-      this.disabled = false; this.textContent = 'Guardar';
-      info.innerHTML = '<span style="color:#DC2626">No se pudo guardar: ' + tpEsc(e.message || e) + '</span>';
-    }
-  };
 }
 
 /* Si la mesa ya tiene pedido, se guarda YA. Si todavia no existe (comanda
