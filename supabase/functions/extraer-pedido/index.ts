@@ -273,7 +273,19 @@ function matchProducto(
   let matched: Record<string, unknown> | null = null;
   let bestScore = 0;
   if (prodPorNumero) { matched = prodPorNumero; bestScore = 99; }
-  for (const p of prodPorNumero ? [] : universo) {
+
+  /* ¿El producto del numero trae palabras que el cliente nunca escribio?
+     ("Maicitos Especial" cuando solo dijo "maicitos"). Si es asi, el numero
+     queda a prueba: se deja correr el reconocimiento por nombre y, si aparece
+     un producto que se llama exactamente como lo pedido, ese gana. */
+  const palabrasDeMas = prodPorNumero
+    ? norm(String(prodPorNumero.name || "")).split(/\s+/)
+        .filter(w => w.length >= 4 && !cliBlob.includes(w)).length
+    : 0;
+  const numeroAPrueba = !!prodPorNumero && palabrasDeMas > 0;
+  let exacto: Record<string, unknown> | null = null;
+
+  for (const p of (prodPorNumero && !numeroAPrueba) ? [] : universo) {
     const pn = norm(String(p.name || ""));
     if (!pn) continue;
     let score = 0;
@@ -295,7 +307,26 @@ function matchProducto(
     // ("Maicitos Especial" cuando solo dijo "maicitos") → es otro producto.
     const sobran = pn.split(/\s+/).filter(w => w.length >= 4 && !cliBlob.includes(w)).length;
     if (sobran) score -= sobran * 7;
+    if (nl && pn === nl && !exacto) exacto = p;
     if (score > bestScore) { bestScore = score; matched = p; }
+  }
+
+  /* Nombre exacto contra numero con palabras de mas: gana el exacto. Es lo que
+     haria una persona: si pidio "maicitos" y existe un producto que se llama
+     "Maicitos", no se le cobra el "Maicitos Especial". */
+  /* El nombre exacto se busca en TODO el catalogo, no solo en la categoria
+     deducida: en el caso de "maicitos" la categoria se resolvia a Salchipapas
+     Especiales y el producto MAICITOS (tradicional, $13.000) quedaba fuera del
+     universo, asi que el exacto nunca aparecia y ganaba el de $28.000. */
+  if (numeroAPrueba && !exacto && nl) {
+    exacto = (allProducts || []).find(p =>
+      norm(String(p.name || "")) === nl && (pideAdicion || !esAdicion(p))) || null;
+  }
+
+  if (numeroAPrueba && exacto && exacto !== prodPorNumero) {
+    matched = exacto;
+    bestScore = 99;
+    prodPorNumero = exacto;
   }
 
   /* RESCATE: a veces GPT pone la CATEGORIA en "nombre" y el nombre real del
@@ -694,7 +725,17 @@ BARRIOS CONOCIDOS (escribe el barrio EXACTAMENTE como aparece aquí cuando corre
     const categorias = allCats.map(c => ({ id: String(c.id), name: String(c.name), comanda_alias: c.comanda_alias ? String(c.comanda_alias) : null }));
 
     // Teléfono SIN indicativo (57 de Colombia): 573XXXXXXXXX -> 3XXXXXXXXX
-    let tel = extracted.telefono ? String(extracted.telefono) : String(conv.contact_handle || "");
+    /* El numero de WhatsApp MANDA sobre cualquier numero que aparezca escrito
+       en la conversacion. Antes ganaba el que sacaba el modelo, y agarraba
+       cualquier cosa de 10 digitos: en un chat real tomo el NEQUI de la clienta
+       ("3123790592 / ese es mi nequi") y en otro un numero de "me puede llamar
+       a este". Como el telefono es la llave con la que se busca al cliente y se
+       le abonan los puntos, ese error manda el pedido y los puntos a otro lado.
+       El numero escrito solo se usa cuando el canal no da uno (Instagram,
+       Facebook), donde el "handle" no es un telefono. */
+    const handleDig = String(conv.contact_handle || "").replace(/\D/g, "");
+    const handleEsTel = handleDig.length >= 10;
+    let tel = handleEsTel ? handleDig : (extracted.telefono ? String(extracted.telefono) : "");
     tel = tel.replace(/\D/g, "");
     if (tel.length === 12 && tel.startsWith("57")) tel = tel.slice(2);
     const telefono = tel;
