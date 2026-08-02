@@ -4233,3 +4233,53 @@ guardado sale bien**.
 Los 7 que van al humano son barrios que **nunca se han cobrado**: Torres del
 Campestre, Asturias, Mallorca, Aida Lucía, Hojarazca y uno sin barrio anotado.
 Paco los irá pasando y Sergio les pone precio una vez.
+
+---
+
+## 111. Replay: 20 conversaciones reales pasadas por Paco
+
+Se replicaron **20 conversaciones que terminaron en pedido**, pasando cada
+mensaje del cliente por los extractores del asistente y comparando el resultado
+contra el pedido que de verdad se creó. Sin llamar a OpenAI y sin mandar nada
+por WhatsApp.
+
+### Direcciones: 17 de 17
+
+Todas las direcciones registradas resuelven precio de domicilio. **Ninguna
+llamaría al humano.**
+
+*(Una primera medición dio 12 de 16 al humano y era falsa: la prueba le quitaba
+el marcador `[barrio:X]` a la dirección antes de compararla, justo el dato que
+Paco usa. Corregido antes de reportarlo.)*
+
+### Preferencias: se están perdiendo hoy
+
+En **3 de las 20 conversaciones** el cliente dijo cómo quería su comida y **el
+pedido quedó sin ninguna nota**:
+
+| Cliente | Lo que escribió | Nota en el pedido real |
+|---|---|---|
+| Yury Ordoñez | *"Por favor **sin salsa rosada y d tomate**"* · *"**Solo ajo y bbq**"* | **(ninguna)** |
+| Fabián Sánchez | *"Personal y **extra de salsa** por favor"* · *"**Salsa de ajo** por favor"* | **(ninguna)** |
+| William | *"Un perro especial **sin salsa de ajo**"* | "SOLO BBQ" *(escrita a mano)* |
+
+El pedido de Yury salió de cocina **con salsa rosada y de tomate**, que era
+exactamente lo que pidió que no le pusieran. Eso ya pasó, con un humano
+atendiendo.
+
+Con el cambio de la ronda anterior, Paco captura las tres y las muestra en el
+resumen para que el cliente las confirme.
+
+### Lo que este replay NO prueba
+
+**Que Paco identifique bien el producto.** Esa parte la decide el modelo de
+lenguaje y no se puede replicar sin gastar llamadas a OpenAI. Lo único honesto
+es probarlo en vivo: como el asistente solo contesta fuera del horario de
+atención, ahí se puede comparar lo que arma Paco contra lo que habría armado
+Sergio, sin riesgo para el servicio.
+
+### Método que vale repetir
+
+Replicar conversaciones reales contra el resultado real es lo que ha destapado
+todo lo de hoy: las preferencias perdidas, los precios de barrio inventados y
+el borrado de la pantalla de aprobación. Ninguno se habría visto leyendo código.
