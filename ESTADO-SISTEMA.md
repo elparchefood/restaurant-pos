@@ -4015,3 +4015,28 @@ Ese re-enrutamiento es el siguiente paso y es el 90% del trabajo de multi-marca.
 - **Los cuatro botones** se pintan y se conectan a su función.
 
 **Falta la prueba real:** nadie ha abierto el menú en el navegador.
+
+---
+
+## 108. Barrido posterior: cuatro tablas que negaban todo
+
+Tras cerrar las 22 politicas abiertas se compararon **todas** las tablas: lo que
+hay contra lo que ve un usuario real. Aparecieron cuatro con la seguridad activa
+y **ninguna politica**, que en PostgreSQL significa negar todo.
+
+| Tabla | Filas | Quien la usa |
+|---|---:|---|
+|  | 540 | **Inventario e Informes** |
+|  | 88 | Solo el servidor |
+|  | 154 | Solo el servidor |
+|  | 3 | El menu de marcas (creada hoy) |
+
+** no era culpa del aislamiento de hoy: ya venia asi.** El
+kardex llevaba tiempo invisible para Inventario e Informes, y nadie lo habia
+notado. Se corrigio de paso.
+
+ se deja negando todo a proposito: ninguna pantalla la
+lee.  y  no son del POS y no se tocan.
+
+**Barrido final:** no queda ninguna tabla del POS donde el dueno vea menos de lo
+suyo.
