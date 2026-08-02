@@ -2098,8 +2098,16 @@ async function openCrearPedido(draftOverride){
     const _raw=await res.text(); let data={}; try{ data=JSON.parse(_raw); }catch(_e){}
     if(data.error && !draftOverride){ cpSetBody('<div class="cp-error">⚠️ '+cpEsc(data.error)+'</div>'); return; }
     if(!draftOverride && (!data.order || !((data.order.productos||[]).length) )){
-      cpSetBody('<div class="cp-error" style="text-align:left;font-size:11px;line-height:1.5">🔎 DIAGNÓSTICO (temporal)<br>HTTP: '+res.status+'<br>conv: '+cpEsc(String(S.activeConvId))+'<br>keys: '+cpEsc(Object.keys(data||{}).join(', ')||'(ninguna)')+'<br>productos: '+((data.order&&data.order.productos)?data.order.productos.length:'(sin order)')+'<br>respuesta: '+cpEsc(String(_raw).slice(0,400))+'</div>');
-      cpFooter(false); return;
+      /* Antes aqui salia un panel de DIAGNOSTICO con el JSON crudo de la
+         respuesta. Era temporal y se quedo puesto: al operador le aparecia un
+         muro de texto tecnico en pleno servicio. El detalle sigue estando en la
+         consola para poder depurar, pero en pantalla va un mensaje util. */
+      console.warn('[crear-pedido] sin productos', { http: res.status, conv: S.activeConvId, raw: String(_raw).slice(0, 600) });
+      cpSetBody('<div class="cp-error" style="text-align:left;line-height:1.6">'
+        + 'No se reconocieron productos en esta conversación.<br>'
+        + '<span style="color:#94A3B8;font-size:12px">Puedes agregarlos a mano con '
+        + '<b>+ Agregar producto</b>, o revisar que el cliente los haya escrito.</span></div>');
+      cpFooter(true); return;
     }
     S.cpOrder = draftOverride || data.order;   // al EDITAR se usa el borrador guardado; el catálogo viene igual del análisis
     // Se guarda el precio que puso el SISTEMA para poder comparar después: si el
