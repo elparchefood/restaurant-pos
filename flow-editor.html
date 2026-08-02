@@ -433,13 +433,31 @@ function renderPanelBody(id, d) {
     }
   }
 
-  const CAMPOS_UI = ['producto','tamano','tipo','direccion','pago','nombre','adiciones'];
+  /* Cada caja tiene una MISIÓN. El dueño elige por lo que hace, no por el
+     nombre interno del dato. Los nombres internos ("tamano", "tipo") vienen de
+     El Parche y no se pueden cambiar sin romper los flujos ya guardados, así
+     que se traducen aquí. */
+  const CAJAS = [
+    { campo:'producto',     titulo:'Qué va a pedir',   ayuda:'Descubre qué quiere el cliente y cuántos' },
+    { campo:'tamano',       titulo:'Presentación',     ayuda:'La presentación de cada producto (la que tú creaste: tamaño, término, envase…)' },
+    { campo:'tipo',         titulo:'Variante',         ayuda:'La variante de cada producto (sabor, ingrediente, tipo…)' },
+    { campo:'preferencias', titulo:'Preferencias',     ayuda:'Cómo lo quiere preparado: sin ajo, poca salsa, sin cebolla' },
+    { campo:'upsell',       titulo:'Ofrecer algo más', ayuda:'Ofrece los productos que tú elijas, una sola vez por pedido' },
+    { campo:'adiciones',    titulo:'Adiciones',        ayuda:'Ingredientes extra sobre el producto' },
+    { campo:'direccion',    titulo:'Dirección',        ayuda:'Dirección y barrio, para saber el precio del domicilio' },
+    { campo:'nombre',       titulo:'A nombre de quién',ayuda:'El nombre con el que se recibe' },
+    { campo:'pago',         titulo:'Método de pago',   ayuda:'Cómo paga, y el comprobante si es digital' },
+  ];
+  const CAMPOS_UI = CAJAS.map(x => x.campo);
+  const tituloCaja = (campo) => (CAJAS.find(x => x.campo === campo) || {}).titulo || campo;
+  const ayudaCaja  = (campo) => (CAJAS.find(x => x.campo === campo) || {}).ayuda  || '';
   if(d.type === 'pregunta') {
     html += `<div class="cp-section">
       <div class="cp-label">Variable a capturar</div>
       <select class="cp-input" onchange="setCampo(${id},this.value)">
-        ${CAMPOS_UI.map(c=>`<option value="${c}" ${d.campo===c?'selected':''}>${c}</option>`).join('')}
+        ${CAJAS.map(x=>`<option value="${x.campo}" ${d.campo===x.campo?'selected':''}>${x.titulo}</option>`).join('')}
       </select>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">${ayudaCaja(d.campo)}</div>
     </div>`;
   } else if(['ia','fija'].includes(d.type)) {
     // Los nodos de mensaje también pueden capturar una variable (ej: el Upsell captura "adiciones").
@@ -448,11 +466,43 @@ function renderPanelBody(id, d) {
       <div class="cp-label">Variable a capturar (opcional)</div>
       <select class="cp-input" onchange="setCampo(${id},this.value)">
         <option value="" ${!d.campo?'selected':''}>— ninguna (solo mensaje) —</option>
-        ${CAMPOS_UI.map(c=>`<option value="${c}" ${d.campo===c?'selected':''}>${c}</option>`).join('')}
+        ${CAJAS.map(x=>`<option value="${x.campo}" ${d.campo===x.campo?'selected':''}>${x.titulo}</option>`).join('')}
       </select>
       <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Si este paso debe obtener un dato del pedido (ej. el upsell captura <b>adiciones</b>, el paso "¿qué deseas?" captura <b>producto</b>), selecciónalo aquí para que el bot lo ejecute en su lugar del flujo.</div>
     </div>`;
   }
+  /* Opciones que tiene CUALQUIER caja: si es obligatoria, cuándo aplica y qué
+     hacer si el cliente no la responde. Son las tres preguntas que se repiten
+     en todos los pasos, así que viven en un solo sitio. */
+  if(['pregunta','ia','fija'].includes(d.type) && d.campo) {
+    html += `<div class="cp-section">
+      <div class="cp-toggle-row">
+        <span class="cp-toggle-label">Obligatoria — sin esto no se cierra el pedido</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.obligatoria!==false?'checked':''} onchange="updateField(${id},'obligatoria',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Si la apagas y el cliente no lo dice, el pedido sigue sin ese dato.</div>
+
+      <div class="cp-label" style="margin-top:14px">Cuándo aplica</div>
+      <select class="cp-input" onchange="updateField(${id},'cuando',this.value)">
+        <option value="siempre"   ${(d.cuando||'siempre')==='siempre'?'selected':''}>Siempre</option>
+        <option value="domicilio" ${d.cuando==='domicilio'?'selected':''}>Solo si es a domicilio</option>
+        <option value="recoger"   ${d.cuando==='recoger'?'selected':''}>Solo si lo recoge</option>
+        <option value="nuevo"     ${d.cuando==='nuevo'?'selected':''}>Solo si es cliente nuevo</option>
+      </select>
+
+      <div class="cp-label" style="margin-top:14px">Si el cliente no responde</div>
+      <select class="cp-input" onchange="updateField(${id},'si_falla',this.value)">
+        <option value="insistir" ${(d.si_falla||'insistir')==='insistir'?'selected':''}>Volver a preguntar</option>
+        <option value="seguir"   ${d.si_falla==='seguir'?'selected':''}>Seguir sin ese dato</option>
+        <option value="humano"   ${d.si_falla==='humano'?'selected':''}>Pasar la conversación a una persona</option>
+      </select>
+    </div>`;
+  }
+
   // Paso PRODUCTO: interruptor "mostrar carta"
   if(['pregunta','ia','fija'].includes(d.type) && d.campo === 'producto') {
     html += `<div class="cp-section">
@@ -465,6 +515,31 @@ function renderPanelBody(id, d) {
         </label>
       </div>
       <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Si el cliente expresa que quiere pedir sin decir cuál producto, el bot dice tu frase y muestra el menú con precios.</div>
+
+      <div class="cp-toggle-row" style="margin-top:14px">
+        <span class="cp-toggle-label">Confirmar la cantidad cuando sea más de una</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.confirmar_cantidad===true?'checked':''} onchange="updateField(${id},'confirmar_cantidad',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Casi todos los pedidos son de una unidad, así que el bot no pregunta. Enciéndelo y confirmará solo cuando entienda dos o más — que es donde un error cuesta.</div>
+    </div>`;
+  }
+
+  // Paso PAGO: puede ir después del resumen
+  if(['pregunta','ia','fija'].includes(d.type) && d.campo === 'pago') {
+    html += `<div class="cp-section">
+      <div class="cp-toggle-row">
+        <span class="cp-toggle-label">Preguntarlo DESPUÉS del resumen</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.despues_resumen===true?'checked':''} onchange="updateField(${id},'despues_resumen',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Si el cliente todavía no sabe cuánto es, no sabe con qué pagar. Con esto encendido el bot muestra primero el resumen con el total y luego pregunta el pago.</div>
     </div>`;
   }
   // Paso DIRECCIÓN: sub-preguntas configurables
@@ -589,7 +664,7 @@ function markDirty() {
   document.getElementById('saveStatus').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;color:var(--amber)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Sin guardar`;
 }
 // Convierte un nodo del canvas en un paso del motor (solo si captura un slot).
-const CAMPOS_SLOT = ['producto','tamano','tipo','direccion','pago','nombre','adiciones'];
+const CAMPOS_SLOT = ['producto','tamano','tipo','direccion','pago','nombre','adiciones','preferencias','upsell'];
 function pushPaso(d, pasos) {
   if (!d || !d.campo || !CAMPOS_SLOT.includes(d.campo)) return; // nodos sin variable no son pasos de pedido
   // modo: el toggle interno (tipo) manda; sin toggle, hereda del tipo de nodo (ia → conversacional)
@@ -601,7 +676,16 @@ function pushPaso(d, pasos) {
     guia:  d.instrucciones || '',
     activo: d.activo !== false,
   };
-  if (d.campo === 'producto')  paso.mostrar_menu = d.mostrar_menu !== false;
+  if (d.campo === 'producto') {
+    paso.mostrar_menu = d.mostrar_menu !== false;
+    paso.confirmar_cantidad = d.confirmar_cantidad === true;
+  }
+  if (d.campo === 'pago') paso.despues_resumen = d.despues_resumen === true;
+  if (d.campo === 'upsell' && Array.isArray(d.upsell_productos)) paso.upsell_productos = d.upsell_productos;
+  // Comunes a todas las cajas
+  paso.obligatoria = d.obligatoria !== false;
+  if (d.cuando && d.cuando !== 'siempre') paso.cuando = d.cuando;
+  if (d.si_falla && d.si_falla !== 'insistir') paso.si_falla = d.si_falla;
   if (d.campo === 'direccion') {
     if (d.preg_incompleta) paso.preg_incompleta = d.preg_incompleta;
     if (d.preg_barrio)     paso.preg_barrio     = d.preg_barrio;

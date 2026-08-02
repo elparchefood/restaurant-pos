@@ -4517,3 +4517,81 @@ confirmación.
 
 `delay-reply` v208, verificada que arranca. El flujo de El Parche quedó:
 presentación → variante → adiciones → dirección → nombre → **resumen** → pago.
+
+---
+
+## 116. Las cajas del canvas, cada una con su misión
+
+Decisión de Sergio: **cajas tipadas, no cajas libres.** *"Si colocamos box
+totalmente libres va a haber muchos errores. En lugar de eso, box con
+exactamente cada misión, para que el dueño los arrastre según lo que necesita."*
+Las cajas libres se quedan solo para mandar mensajes — **nunca capturan datos**.
+
+### Nombres de verdad
+
+El selector mostraba los nombres internos: `tamano`, `tipo`. Eso viene de la
+carta de El Parche. Ahora muestra **Presentación** y **Variante**, con su
+explicación — *"la que tú creaste: tamaño, término, envase…"*. Los nombres
+internos se mantienen para no romper los flujos ya guardados; solo se traducen
+en pantalla.
+
+### Cajas disponibles
+
+| Caja | Misión |
+|---|---|
+| Qué va a pedir | Descubre el producto y cuántos |
+| Presentación | La presentación de cada producto |
+| Variante | La variante de cada producto |
+| **Preferencias** | Sin ajo, poca salsa — **el motor ya la usaba y la pantalla no la ofrecía** |
+| **Ofrecer algo más** | Upsell con **sus propios productos**, separado de las adiciones |
+| Adiciones | Ingredientes extra sobre el producto |
+| Dirección | Dirección y barrio → precio del domicilio |
+| A nombre de quién | El nombre con el que se recibe |
+| Método de pago | Cómo paga, y el comprobante si es digital |
+
+**El upsell es caja aparte de las adiciones a propósito:** una adición va SOBRE
+el plato (*"con tocineta"*), el upsell es otro producto (*"¿te provoca una
+gaseosa?"*). El dueño elige qué ofrecer; si no elige nada, el asistente propone
+de la carta.
+
+### Opciones que tiene CUALQUIER caja
+
+- **Obligatoria** — si se apaga y el cliente no lo dice, el pedido sigue sin ese
+  dato. El nombre lo es; las preferencias no.
+- **Cuándo aplica** — siempre · solo a domicilio · solo si recoge · solo si es
+  cliente nuevo. Esto es lo que evita preguntarle la dirección a quien va a
+  recoger, que hasta hoy estaba resuelto a punta de código.
+- **Si el cliente no responde** — volver a preguntar · seguir sin el dato ·
+  **pasar la conversación a una persona**.
+
+En el motor se aplican **en un solo sitio** (`comunes()`), recorriendo lo que
+cada caja agregó. Así, el día que se agregue un tipo de caja nuevo, hereda las
+tres opciones sin tocar nada más.
+
+*(Primero se llamó `comunes()` solo en dos ramas — pago y upsell — y las otras
+siete se habrían quedado sin las opciones. Se corrigió antes de desplegar.)*
+
+### Opciones propias de dos cajas
+
+- **Qué va a pedir:** *"confirmar la cantidad cuando sea más de una"*. Apagado
+  por defecto porque **el 97% de las líneas son de una unidad**; encendido,
+  confirma justo en el 3% donde un error cuesta plata.
+- **Método de pago:** *"preguntarlo DESPUÉS del resumen"*, con su explicación —
+  si el cliente no sabe cuánto es, no sabe con qué pagar.
+
+### Lo que esto cierra
+
+Dos cosas construidas hoy —la caja de preferencias y la casilla del pago— **no
+se podían usar desde la pantalla**. Estaban activas porque se pusieron a mano en
+la base, y **se habrían borrado la próxima vez que Sergio guardara el flujo**,
+porque el editor no sabía que existían. Ya no.
+
+### Lo que falta de la lista acordada
+
+- Caja de **envío**, conectada (o no) a los disparadores de estado.
+- **Preguntas frecuentes**, como mecanismo aparte del flujo.
+- Caja de **confirmación** como caja (hoy es comportamiento).
+- **Resumen** como caja con misión (hoy es una plantilla en frases).
+- En la de dirección: reglas por país y dónde no se reparte.
+- En la de cliente: las opciones del nombre configurables.
+- Variantes: leer **todos** los grupos, no solo el primero.

@@ -61,6 +61,15 @@ interface ProductData {
 interface PasoDefinicion {
   id:         string;
   campo:      string;
+  /* Si el pedido NO se puede cerrar sin esto. Una caja no obligatoria que el
+     cliente no responde se salta y el pedido sigue. */
+  obligatoria?: boolean;
+  /* Cuándo aplica la caja: "domicilio", "recoger", "nuevo". Sin valor, siempre.
+     Es lo que evita preguntarle la dirección a quien va a recoger. */
+  cuando?: string;
+  /* Qué hacer si el cliente no la responde: "insistir" (por defecto),
+     "seguir" o "humano". */
+  si_falla?: string;
   /* La caja se pregunta DESPUÉS de mostrar el resumen. Nace del pago: "si el
      cliente no sabe cuánto es, no sabe con qué pagar" (Sergio). Cada
      restaurante lo decide: es una casilla de la caja en el canvas. */
@@ -2468,8 +2477,23 @@ function findNextStep(state: PacoState, pasos: PasoDefinicion[], incluirPostResu
   if (state.complemento_dir_pendiente) {
     return { id: "complemento_dir", campo: "direccion", modo: "fija", texto: state.complemento_dir_pendiente };
   }
+  /* Para poder decidir si una caja aplica: si el cliente va a recoger, la de
+     dirección no tiene sentido; si ya es cliente conocido, la de "cliente
+     nuevo" tampoco. */
+  const esRecoger = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
+  const aplica = (paso: PasoDefinicion): boolean => {
+    if (!paso.cuando) return true;
+    if (paso.cuando === "recoger")   return esRecoger;
+    if (paso.cuando === "domicilio") return !esRecoger;
+    return true;   // "nuevo" se evalúa donde se conoce al cliente
+  };
+
   for (const paso of pasos) {
     if (paso.despues_resumen && !incluirPostResumen) continue;
+    if (!aplica(paso)) continue;
+    // Una caja no obligatoria nunca DETIENE el pedido: si el cliente lo dice
+    // se captura igual, pero no se le pregunta ni se le espera.
+    if (paso.obligatoria === false) continue;
     if (paso.id === "presentacion") {
       if (!state.tamano) return paso;
     } else if (paso.id.startsWith("variable_")) {
@@ -2519,6 +2543,15 @@ function getFlowPasos(cfg: Record<string, unknown>, frasesCfg: Record<string, un
   ];
 }
 
+/* Copia a cada paso las opciones que tiene CUALQUIER caja del canvas. Se hace
+   en un solo sitio para que agregar una opción nueva no obligue a tocar los
+   nueve tipos de caja. */
+function comunes(paso: PasoDefinicion, p: Record<string, unknown>): void {
+  paso.obligatoria = p.obligatoria !== false;
+  if (p.cuando && p.cuando !== "siempre") paso.cuando = String(p.cuando);
+  if (p.si_falla && p.si_falla !== "insistir") paso.si_falla = String(p.si_falla);
+}
+
 function buildAllPasos(productData: ProductData | null, cfg: Record<string, unknown>, frasesCfg: Record<string, unknown>, nombreConfirmar: string | null = null, esRecurrente = false): PasoDefinicion[] {
   // Flujo configurado desde el canvas (ia_config.flujo_pasos) — respeta orden/modo/frase de cada paso,
   // pero inyecta las opciones dinámicas del producto (tamaño/tipo vienen del catálogo, no del canvas).
@@ -2548,6 +2581,7 @@ function procesarFlujoCanvas(
 ): PasoDefinicion[] {
   const out: PasoDefinicion[] = [];
   for (const p of canvasPasos) {
+    const antes = out.length;
     if (!p || typeof p !== "object") continue;
     if (p.activo === false) continue;
     const campo = String(p.campo || "");
@@ -2599,6 +2633,20 @@ function procesarFlujoCanvas(
         preg_incompleta: p.preg_incompleta ? String(p.preg_incompleta) : undefined,
         preg_barrio:     p.preg_barrio ? String(p.preg_barrio) : undefined,
       });
+    } else if (campo === "upsell") {
+      /* Ofrecer algo más. Es su propia caja y no las adiciones: una adición va
+         SOBRE el plato ("con tocineta"), el upsell es otro producto ("¿te
+         provoca una gaseosa?"). El dueño elige qué ofrecer; si no elige nada,
+         el asistente propone de la carta. */
+      const cuales = Array.isArray(p.upsell_productos) ? (p.upsell_productos as unknown[]).map(String).filter(Boolean) : [];
+      const lista = cuales.length ? cuales.join(", ") : "";
+      out.push({
+        id: "upsell", campo: "adiciones", modo,
+        texto: texto || undefined,
+        guia: guia || (lista
+          ? `Ofrece de forma natural y breve: ${lista}. Una sola vez. Si el cliente no quiere, sigue sin insistir.`
+          : "Ofrece algo más de forma natural y breve, una sola vez. Si el cliente no quiere, sigue sin insistir."),
+      });
     } else if (campo === "preferencias") {
       // Solo existe si el restaurante lo agrega a su flujo. El Parche no lo
       // necesita —sus clientes lo dicen solos— pero otro puede querer
@@ -2632,6 +2680,11 @@ function procesarFlujoCanvas(
       }
     }
     // Nodos sin campo de slot (saludo, resumen, inicio, timer) no son pasos de slot-filling → ignorados aquí.
+
+    /* Las opciones comunes se aplican a CUALQUIER caja que se haya agregado en
+       esta vuelta, no solo a algunas: si mañana se agrega un tipo de caja
+       nuevo, hereda obligatoria/cuando/si_falla sin tocar nada más. */
+    for (let k = antes; k < out.length; k++) comunes(out[k], p);
   }
   return out;
 }
