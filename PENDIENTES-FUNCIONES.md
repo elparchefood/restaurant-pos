@@ -672,3 +672,51 @@ ser **el contenido de las celdas** (domiciliario vs turno) y los botones.
 
 Conviene sacar la parte comun a una funcion compartida en vez de mantener dos
 copias que se van separando — que es exactamente como se llego a esto.
+
+
+---
+
+## 🟠 MAÑANA — la tarjeta del pedido en el chat no se sincroniza
+
+**Sergio (01/08, 11:11 pm):** *"La tarjeta del pedido del chat dice en
+preparacion, pero el pedido ya esta en estado en camino. La pastilla de la
+tarjeta de pedido tambien debe estar sincronizada siempre."*
+
+### La causa, ya localizada
+`chat-ia.js` **ya tiene** una suscripcion en vivo a `pos_orders` (linea ~214)
+que actualiza el estado cuando cambia desde otra pantalla. Pero **solo repinta
+la pastilla de arriba**:
+
+```js
+if (S.estadoOrder && o && o.id === S.estadoOrder.id && o.estado) {
+  S.estadoOrder.estado = o.estado;
+  renderEstadoPill();          // <-- solo la pastilla; a la tarjeta nadie le avisa
+}
+```
+
+La tarjeta (`renderPedidoEnviado`) solo se dibuja:
+- al abrir la conversacion (`loadDraftBar` en `openConversation`),
+- al enviar el pedido a cocina,
+- y al cambiar el estado **desde el chat**.
+
+**Si el estado cambia desde Ventas, la tarjeta se queda vieja.** Es justo lo que
+paso: la pastilla decia "En camino" y la tarjeta "En preparacion".
+
+### El arreglo
+Agregar el repintado de la tarjeta dentro de esa misma suscripcion:
+
+```js
+if (S.estadoOrder && o && o.id === S.estadoOrder.id && o.estado) {
+  S.estadoOrder.estado = o.estado;
+  renderEstadoPill();
+  if (S.activeConvId) loadDraftBar(S.activeConvId);   // <-- la tarjeta tambien
+}
+```
+
+Ojo: `loadDraftBar` vuelve a leer el pedido, asi que tambien refresca el total y
+los productos si cambiaron. Y si el pedido quedo **entregado**, la tarjeta
+desaparece sola, que es el comportamiento acordado.
+
+**Regla de fondo:** la pastilla de arriba y la tarjeta de abajo muestran el
+MISMO dato. Cada vez que se actualice una, hay que actualizar la otra — o mejor,
+que las dos salgan de la misma funcion para que no puedan separarse.
