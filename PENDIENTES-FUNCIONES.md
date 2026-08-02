@@ -624,3 +624,51 @@ Ojo con dos cosas:
    lista de productos en vez de comparar texto).
 
 **Hay que arreglar las dos.** Con una sola, el pedido por audio sigue fallando.
+
+
+---
+
+## 🟠 MAÑANA — unificar el panel de VENTA RAPIDA con el de domicilio y mesa
+
+**Sergio:** *"el panel de la comanda de informacion de venta rapida es muy
+diferente a los de domicilio y los de mesa, hay que unificarlo, se ve raro como
+esta."*
+
+Comparado `renderQuickRailDetail()` contra `renderDomiRailDetail()`. **Cinco
+diferencias**, y una no es cosmetica:
+
+### 🔴 1. NO muestra la comanda
+El panel de domicilio pinta los productos con `vs-order-head` + `vs-order-list`
++ `vsComandaHTML(...)`. **El de venta rapida no los muestra: solo el total.**
+Es lo mas importante de la tarjeta y es justo lo que falta — no se puede ver
+que pidio el cliente sin abrir otra pantalla.
+
+### 🟠 2. Los datos van en lista vertical, no en la rejilla de 3
+- Domicilio: `vs-info-row` con **tres `vs-info-cell`** (Canal · Tiempo · Ítems),
+  en horizontal.
+- Venta rapida: usa `vs-info-row` como **filas de etiqueta/valor** (Canal,
+  Hora, Notas) una debajo de otra. Por eso se ve alto y desordenado.
+
+### 🟠 3. El nombre y la pastilla de estado se parten en dos lineas
+El de venta rapida usa `vs-rail-title` **sin** el `vs-rail-title-main` que se
+agrego hoy al de domicilio. Por eso se ve *"Jenifer Jime…"* partido y la
+pastilla "Pendiente de pago" en dos renglones.
+
+### 🟠 4. Muestra una marca interna al operador
+En NOTAS sale **`[etq:ESPERAN]`**. Ese `[etq:...]` es un marcador interno que
+`venta-rapida.js` mete en `notes` para guardar la etiqueta, y que `pos-print.js`
+**ya sabe limpiar** antes de imprimir (`.replace(/\[etq:[^\]]+\]/ig,'')`).
+El panel no lo limpia. Deberia mostrar la etiqueta bonita (*Esperan*) o nada.
+
+### 🟡 5. No tiene el chip de puntos
+El de domicilio ya muestra `⭐ N pts` junto al nombre. El de venta rapida no,
+aunque la venta rapida tambien acumula puntos.
+
+### El arreglo
+Que los dos paneles usen **la misma estructura**: cabecera con nombre en una
+linea + chip de puntos + pastilla de estado, rejilla de tres celdas, comanda con
+los productos, totales y acciones. Lo unico que cambia entre uno y otro deberia
+ser **el contenido de las celdas** (domiciliario vs turno) y los botones.
+
+Conviene sacar la parte comun a una funcion compartida en vez de mantener dos
+copias que se van separando — que es exactamente como se llego a esto.
