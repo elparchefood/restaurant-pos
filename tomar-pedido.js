@@ -1203,6 +1203,11 @@ async function saveOrder() {
             if (error) throw error;
             const oid = data.id;
             await sb.from('pos_tables').update({ status: 'ocupada' }).eq('id', S.tableId);
+            // Marca de la VISITA. Solo si no habia: si esta mesa ya estaba
+            // ocupada y esto es un pedido mas (una segunda ronda), la visita
+            // sigue siendo la misma y no se reinicia.
+            await sb.from('pos_tables').update({ sesion_at: new Date().toISOString() })
+              .eq('id', S.tableId).is('sesion_at', null);
             await sb.from('pos_order_items').insert(itemsData.map(r => ({ ...r, order_id: oid })));
             return { ok: true, offline: false, orderId: oid };
           })();
@@ -1627,7 +1632,9 @@ async function releaseTable() {
     if (!okRelease) return;
   }
   try {
-    await sb.from('pos_tables').update({ status: 'libre' }).eq('id', S.tableId);
+    // Al liberar termina la visita: sin borrar la marca, la proxima gente que
+    // se siente heredaria los pedidos de la anterior en la comanda.
+    await sb.from('pos_tables').update({ status: 'libre', sesion_at: null }).eq('id', S.tableId);
     if (S.order?.id && S.order.status === 'open') {
       await sb.from('pos_orders').update({ status: 'cancelled' }).eq('id', S.order.id);
     }

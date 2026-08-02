@@ -213,6 +213,7 @@
     selectedTableId: null,
     tables: [],
     orderItems: [],
+    sessionOrders: [],   // todos los pedidos de la visita actual de la mesa
     openPax: 2,   // nº de personas elegido en el selector de "abrir mesa"
     loading: true,
     chipOrder: loadChipOrder(),
@@ -372,7 +373,7 @@
         if (sbFallback && branchFallback) {
           var fbResult = await sbFallback
             .from('pos_tables')
-            .select('id, name, status, current_order_id, zone_id, zone_name, sort_order, capacity, pendiente_pago_at, esperando_at, comiendo_at')
+            .select('id, name, status, current_order_id, zone_id, zone_name, sort_order, capacity, pendiente_pago_at, esperando_at, comiendo_at, sesion_at')
             .eq('branch_id', branchFallback)
             .order('sort_order', { ascending: true });
           var fbRows = fbResult.data || [];
@@ -412,7 +413,7 @@
       if (sb && branchId) {
         const { data: sbRows } = await sb
           .from('pos_tables')
-          .select('id, name, status, current_order_id, zone_id, zone_name, sort_order, capacity, pendiente_pago_at, esperando_at, comiendo_at')
+          .select('id, name, status, current_order_id, zone_id, zone_name, sort_order, capacity, pendiente_pago_at, esperando_at, comiendo_at, sesion_at')
           .eq('branch_id', branchId)
           .order('sort_order', { ascending: true });
         const sbMap = {};
@@ -446,6 +447,7 @@
             sort_order: (r.sort_order != null) ? r.sort_order : 9999,
             status:     r.status || 'libre',
             current_order_id: r.current_order_id || null,
+            sesion_at:  r.sesion_at || null,
             total: 0, items_count: 0, minutes: 0, mesero_initials: '', persons: 0, openedAt: null
           };
         });
@@ -510,6 +512,7 @@
             zone_id:         t.zone_id,
             sort_order:      t.sort_order,
             current_order_id: t.current_order_id || null,
+            sesion_at:       t.sesion_at || null,
             openedAt:        openedAt || null,
             status:          t.status || 'libre',
             // Sellos por estado: el reloj arranca desde el del estado ACTUAL
@@ -579,15 +582,43 @@
     if (!orders || !orders.length) return { order: null, items: [] };
 
     const order = orders[0];
+
+    // TODOS los pedidos de esta visita, no solo el que se va a cobrar. Cuando
+    // se agrega algo a una mesa ya pagada nace un pedido aparte (asi al cobrar
+    // sale solo lo nuevo), pero en pantalla el mesero tiene que seguir viendo
+    // la mesa completa.
+    let sessionOrders = [order];
+    const _ses = _tRow && _tRow.sesion_at;
+    if (_ses) {
+      const rs = await sb
+        .from('pos_orders')
+        .select('id, status, total, subtotal, packaging_fee, created_at, paid_amount')
+        .eq('table_id', tableId)
+        .gte('created_at', _ses)
+        .not('status', 'eq', 'cancelled')
+        .not('status', 'eq', 'abandoned')
+        .order('created_at', { ascending: true });
+      if (rs.data && rs.data.length) sessionOrders = rs.data;
+    }
+
     // Sin join a pos_products — evita fallo silencioso si no hay FK definida en Supabase
     const { data: items, error: itemErr } = await sb
       .from('pos_order_items')
-      .select('id, quantity, product_name, name, product_price, unit_price, notes, product_id, selections')
-      .eq('order_id', order.id)
+      .select('id, order_id, quantity, product_name, name, product_price, unit_price, notes, product_id, selections')
+      .in('order_id', sessionOrders.map(o => o.id))
       .order('created_at', { ascending: true });
 
     if (itemErr) { console.error('[ventas-salon] fetchOrderData items:', itemErr); }
-    return { order, items: items || [] };
+
+    // Que ronda esta cobrada y cual no, para poder marcarlo en la comanda.
+    const _pagadoDe = {};
+    sessionOrders.forEach(function (o) {
+      const t = Number(o.total) || 0;
+      _pagadoDe[o.id] = t > 0 && (Number(o.paid_amount) || 0) >= t - 1;
+    });
+    (items || []).forEach(function (it) { it._pagado = !!_pagadoDe[it.order_id]; });
+
+    return { order, items: items || [], sessionOrders };
   }
 
   // ─── Permisos de usuario ─────────────────────────────
@@ -739,9 +770,10 @@
 
     state.loading = false;
     if (state.selectedTableId) {
-      const { order, items } = await fetchOrderData(state.selectedTableId);
+      const { order, items, sessionOrders: _sess } = await fetchOrderData(state.selectedTableId);
       state.currentOrder = order;
       state.orderItems   = items;
+      state.sessionOrders = _sess || [];
     }
     render();
     syncMesaTimers(); // C9: sync per-table notification timers
@@ -759,11 +791,12 @@
     state.openPax = 2; // reiniciar el selector de personas al elegir otra mesa
     updateMesaHighlight(tableId);
     showSheetLoading(); // muestra "Cargando…" en tablet; no-op en desktop
-    const { order, items } = await fetchOrderData(tableId);
+    const { order, items, sessionOrders } = await fetchOrderData(tableId);
     // Guardia: si el usuario cambió de mesa o cerró el sheet durante el fetch, descartar
     if (state.selectedTableId !== tableId) return;
     state.currentOrder = order;
     state.orderItems = items;
+    state.sessionOrders = sessionOrders || [];
     renderRail();          // actualiza el rail de desktop
     updateSheetContent();  // actualiza el sheet de tablet
   }
@@ -1433,6 +1466,7 @@
         +   '<span class="vs-cmd-chev">›</span>'
         +   '<span class="vs-item-qty">' + qty + '×</span>'
         +   '<span class="vs-item-name">' + (it.name || 'Producto') + '</span>'
+        +   (it.pagado ? '<span class="vs-cmd-pagado">pagado</span>' : '')
         +   '<span class="vs-item-price">' + fmt(linea + emp) + '</span>'
         + '</button>'
         + '<div class="vs-cmd-detail">' + det + '</div>'
@@ -1696,6 +1730,15 @@
     const servicio = _propOn ? Math.round(subtotal * ((isFinite(_propPct) ? _propPct : 10) / 100)) : 0;
     const _propLbl = 'Servicio ' + (isFinite(_propPct) ? _propPct : 10) + '%';
     const total = subtotal + servicio;
+    // Lo de las rondas ya cobradas. Sin separarlo, el "Total" del panel diria
+    // solo lo que falta por cobrar y pareceria que la mesa consumio menos.
+    const _yaPagado = (state.sessionOrders || [])
+      .filter(o => o.id !== (ord && ord.id))
+      .reduce((s, o) => {
+        const t = Number(o.total) || 0;
+        return s + ((t > 0 && (Number(o.paid_amount) || 0) >= t - 1) ? t : 0);
+      }, 0);
+    const _totalMesa = _yaPagado + total;
     const waiterName = ord?.waiter_name || '—';
     const waiterInitials = waiterName !== '—'
       ? waiterName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2)
@@ -1717,6 +1760,7 @@
       quantity: it.quantity, unit_price: it.product_price || it.unit_price || 0,
       total: (it.product_price || it.unit_price || 0) * it.quantity,
       notes: it.notes, selections: it.selections, product_id: it.product_id,
+      pagado: !!it._pagado,
     }));
     const itemsHtml = state.orderItems.length
       ? vsComandaHTML(_mesaItems, vsEmpaquePorItem(_mesaItems, _mesaEmp))
@@ -1826,7 +1870,9 @@
           <div class="vs-total-row"><span>Pedido</span><span>${fmt(subtotal - (vsEmpaqueEsPorPedido() ? _mesaEmp : 0))}</span></div>
           ${vsEmpaqueEsPorPedido() && _mesaEmp ? `<div class="vs-total-row"><span>Empaque</span><span>${fmt(_mesaEmp)}</span></div>` : ''}
           ${servicio ? `<div class="vs-total-row"><span>${_propLbl}</span><span>${fmt(servicio)}</span></div>` : ''}
-          <div class="vs-total-row vs-total-grand"><span>Total</span><span>${fmt(total)}</span></div>
+          ${_yaPagado ? `<div class="vs-total-row"><span>Ya pagado</span><span>${fmt(_yaPagado)}</span></div>` : ''}
+          <div class="vs-total-row vs-total-grand"><span>${_yaPagado ? 'Por cobrar' : 'Total'}</span><span>${fmt(total)}</span></div>
+          ${_yaPagado ? `<div class="vs-total-row vs-total-mesa"><span>Total de la mesa</span><span>${fmt(_totalMesa)}</span></div>` : ''}
         </div>
         ${actionsHtml}
       </div>
@@ -2545,7 +2591,7 @@
               const { error: ordErr } = await sbC.from('pos_orders').update({ status: 'cancelled' }).eq('id', ordId);
               if (ordErr) throw ordErr;
             }
-            const { error: tblErr } = await sbC.from('pos_tables').update({ status: 'libre', current_order_id: null }).eq('id', tableId);
+            const { error: tblErr } = await sbC.from('pos_tables').update({ status: 'libre', current_order_id: null, sesion_at: null }).eq('id', tableId);
             if (tblErr) throw tblErr;
             const tbl = state.tables.find(x => x.id === tableId);
             if (tbl) { tbl.status = 'libre'; tbl.current_order_id = null; }
@@ -3393,7 +3439,7 @@
       const link = document.createElement('link');
       link.id = 'vs-styles';
       link.rel = 'stylesheet';
-      link.href = 'styles/modules/ventas-salon.css?v=20260802';
+      link.href = 'styles/modules/ventas-salon.css?v=1788320000';
       document.head.appendChild(link);
     }
 
