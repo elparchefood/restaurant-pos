@@ -995,9 +995,9 @@ INTENCION, no las palabras exactas.` },
 
   // Cargar historial una sola vez (usado en todas las respuestas GPT)
   const histRes = await sbGet(
-    `/rest/v1/chat_messages?conversation_id=eq.${convId}&sent_at=lt.${encodeURIComponent(batchStart)}&order=sent_at.desc&limit=15&select=direction,body`
+    `/rest/v1/chat_messages?conversation_id=eq.${convId}&sent_at=lt.${encodeURIComponent(batchStart)}&order=sent_at.desc&limit=15&select=direction,body,origen`
   );
-  const histCtx = ((histRes || []) as Array<{ direction: string; body: string }>).reverse();
+  const histCtx = ((histRes || []) as Array<{ direction: string; body: string; origen?: string }>).reverse();
 
   // Construir textos de contexto del restaurante (una sola vez)
   const horariosText   = buildHorariosText(horariosCfg, fmtHora);
@@ -1821,6 +1821,21 @@ INTENCION, no las palabras exactas.` },
       }
     }
 
+    // ¿Sabemos cuanto cobrar el domicilio? Si el barrio no esta en las zonas
+    // configuradas, Paco NO cierra el pedido: no puede totalizar algo que no
+    // sabe cuanto vale. Se lo pasa al humano.
+    {
+      const esLlevarFin = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
+      if (!esLlevarFin && state.direccion && lookupDomiPrice(state.direccion, domiciliosCfg) === null) {
+        await pasarAHumano(
+          convId, tenantId,
+          `No hay precio de domicilio configurado para: ${state.direccion}`,
+          cfg, fromPhone, phoneId, accessToken,
+        );
+        return;
+      }
+    }
+
     try {
       const sumMsg = await buildSummaryFromState(state, cfg, branchId, domiciliosCfg);
       state.resumen_enviado = true;
@@ -1889,6 +1904,48 @@ function isProductAttribute(text: string, productData: ProductData | null): bool
     if (extractVariable(text, vg.options)) return true;
   }
   return false;
+}
+
+// ── Cuando Paco no sabe: se calla y llama al humano ─────────────────────────────
+// Deja la conversacion en la pestana de HUMANO y se apaga para ese chat. No
+// contesta nada por defecto: inventar o decir "a confirmar" es peor que el
+// silencio de 30 segundos que tarda una persona en responder.
+//
+// El restaurante puede configurar una frase de espera desde el canvas
+// (ia_config.handoff.frase). Si no la pone, silencio.
+async function pasarAHumano(
+  convId: string,
+  tenantId: string,
+  motivo: string,
+  cfg: Record<string, unknown>,
+  fromPhone: string,
+  phoneId: string,
+  accessToken: string,
+): Promise<void> {
+  const handoff = (cfg.handoff as Record<string, unknown>) || {};
+  const frase = String(handoff.frase || "").trim();
+  try {
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+      human_takeover: true,
+      // Queda escrito POR QUE se paso, para que el humano lo vea al abrirla y
+      // sepa que le falta configurar.
+      handoff_motivo: motivo,
+      handoff_at: new Date().toISOString(),
+      ai_typing: false,
+    });
+  } catch (err) {
+    console.error("pasarAHumano:", err);
+  }
+  if (frase) {
+    try {
+      await sendWaAndSave(convId, tenantId, frase, fromPhone, phoneId, accessToken);
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+        last_message: frase, last_message_at: new Date().toISOString(),
+        last_sender: "agent", last_read: false, ai_typing: false,
+      });
+    } catch (err) { console.error("pasarAHumano frase:", err); }
+  }
+  await setTyping(convId, false);
 }
 
 // ── Preferencias de preparación ─────────────────────────────────────────────────
@@ -2917,7 +2974,16 @@ async function buildConversationResponse(
 
   const messages: Array<{ role: string; content: string }> = [
     { role: "system", content: sysLines.join("\n") },
-    ...history.map(h => ({ role: h.direction === "in" ? "user" : "assistant", content: h.body })),
+    // Lo que respondio un HUMANO va marcado. Antes Paco lo leia como suyo y
+    // podia contradecir lo que la persona ya le habia prometido al cliente
+    // (un precio, una promesa de tiempo). Ahora sabe que eso lo dijo el
+    // restaurante y que manda sobre lo suyo.
+    ...history.map(h => ({
+      role: h.direction === "in" ? "user" : "assistant",
+      content: (h.direction !== "in" && h.origen && h.origen !== "bot")
+        ? "[Respondido por el restaurante, no por ti — esto manda]: " + h.body
+        : h.body,
+    })),
     { role: "user", content: clienteTexto },
   ];
 
@@ -3612,27 +3678,74 @@ function levenshtein(a: string, b: string): number {
 function fuzzyBarrioMatch(direccion: string, barrio: string): boolean {
   const dirNorm = normalizarTexto(direccion);
   const barNorm = normalizarTexto(barrio);
+  if (!dirNorm || !barNorm) return false;
+
+  // 1) El nombre aparece tal cual. Este camino nunca fallo y se conserva.
   if (dirNorm.includes(barNorm)) return true;
-  const dirSinEsp = dirNorm.replace(/\s/g, "");
-  const barSinEsp = barNorm.replace(/\s/g, "");
+  const dirSinEsp = dirNorm.replace(/[ ]/g, "");
+  const barSinEsp = barNorm.replace(/[ ]/g, "");
   if (dirSinEsp.includes(barSinEsp)) return true;
-  const dirWords = dirNorm.split(" ");
-  const barWords = barNorm.split(" ");
+
+  // 2) Palabras de relleno de una direccion: aparecen en casi todas y no
+  //    pueden ser las que hagan coincidir un barrio. Sin esto, "Catay"
+  //    coincidia con el "casa" de "Monteluna casa 45".
+  const RELLENO: Record<string, boolean> = {
+    calle: true, carrera: true, cra: true, kra: true, cr: true, kr: true,
+    avenida: true, av: true, transversal: true, diagonal: true, via: true,
+    casa: true, apto: true, apartamento: true, torre: true, bloque: true,
+    manzana: true, mz: true, lote: true, piso: true, interior: true,
+    barrio: true, conjunto: true, edificio: true, urbanizacion: true,
+    norte: true, sur: true, este: true, oeste: true, numero: true, no: true,
+  };
+
+  const dirWords = dirNorm.split(" ").filter(w => w && !RELLENO[w] && !/^[0-9#-]+$/.test(w));
+  const barWords = barNorm.split(" ").filter(Boolean);
+  if (!dirWords.length || !barWords.length) return false;
+
+  // 3) Un barrio de UNA palabra corta exige coincidencia exacta: con "Catay"
+  //    o "Toez" cualquier tolerancia produce falsos.
+  if (barWords.length === 1 && barSinEsp.length <= 6) {
+    return dirWords.includes(barNorm);
+  }
+
+  // 4) Tolerancia estricta: 1 letra en palabras cortas, 2 solo en largas.
+  //    Antes una palabra de 5 letras admitia 2 cambios (40% de la palabra) y
+  //    por eso "calle" pasaba por "bella".
+  const cerca = (a: string, b: string): boolean => {
+    if (a === b) return true;
+    const maxDist = b.length >= 8 ? 2 : 1;
+    return levenshtein(a, b) <= maxDist;
+  };
+
+  // Cada palabra del barrio debe encontrar SU propia palabra en la direccion:
+  // dos palabras del barrio no pueden apoyarse en la misma.
+  const usadas: Record<number, boolean> = {};
   const todasCoinciden = barWords.every(bw => {
-    if (bw.length <= 2) return dirWords.includes(bw);
-    const maxDist = Math.floor(bw.length / 5) + 1;
-    return dirWords.some(dw => levenshtein(dw, bw) <= maxDist);
+    if (bw.length <= 2) {
+      const i = dirWords.findIndex((dw, k) => !usadas[k] && dw === bw);
+      if (i < 0) return false;
+      usadas[i] = true;
+      return true;
+    }
+    const i = dirWords.findIndex((dw, k) => !usadas[k] && cerca(dw, bw));
+    if (i < 0) return false;
+    usadas[i] = true;
+    return true;
   });
   if (todasCoinciden) return true;
-  if (barSinEsp.length >= 8) {
+
+  // 5) Nombre largo escrito de corrido o con erratas ("bellohorizonte").
+  //    Se mantiene, pero mas estricto: 1 error cada 10 letras.
+  if (barSinEsp.length >= 10) {
     const L = barSinEsp.length;
-    const maxDist = Math.floor(L / 8);
+    const maxDist = Math.floor(L / 10);
     for (let i = 0; i <= dirSinEsp.length - L; i++) {
       if (levenshtein(dirSinEsp.slice(i, i + L), barSinEsp) <= maxDist) return true;
     }
   }
   return false;
 }
+
 
 function parseHHMM(s: string): number {
   const parts = (s || "00:00").split(":");

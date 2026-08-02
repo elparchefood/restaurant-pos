@@ -4139,3 +4139,97 @@ Tres patrones más que aparecieron y todavía no están cubiertos:
 2. **Piden por precio, no por nombre** (*"la de 59"*, *"premium mixta de 35
    mil"*).
 3. **Varias unidades con notas distintas** (*"una sin salsa y otra normal"*).
+
+---
+
+## 110. Entrenar a Paco (2): cuando no sabe, llama al humano
+
+Pedido de Sergio: *"si un cliente pregunta algo que Paco no sabe —el precio del
+domicilio de un barrio que no está guardado— no debe improvisar. Deja de
+contestar, guarda la conversación en la pestaña de humano y se desactiva. Cuando
+el humano lo vuelva a activar, Paco debe tener el contexto de lo que el humano
+respondió."*
+
+### Lo que ya existía
+
+`human_takeover`, la pestaña de humano y el interruptor. Y el historial que lee
+Paco **ya incluía** lo que escribió el humano.
+
+### Lo que se agregó (`delay-reply` v204)
+
+- **`pasarAHumano()`** — deja la conversación en la pestaña de humano, apaga a
+  Paco para ese chat y **no contesta nada**. Guarda `handoff_motivo` y
+  `handoff_at` en la conversación, para que el operador vea al abrirla *por qué*
+  se la pasaron y qué le falta configurar.
+- **Silencio por defecto.** Inventar o decir "a confirmar" es peor que los 30
+  segundos que tarda una persona. El restaurante puede poner una frase de espera
+  desde el canvas (`ia_config.handoff.frase`); si no la pone, silencio.
+- **Se dispara** cuando va a cerrar el pedido y el barrio no tiene precio.
+- **Al volver, Paco sabe qué dijo el humano.** Los mensajes con `origen`
+  distinto de `bot` le llegan marcados como *"Respondido por el restaurante, no
+  por ti — esto manda"*. Antes los leía como suyos y podía contradecir un precio
+  que la persona ya le había prometido al cliente.
+
+### Corrección: los barrios aprendidos NO eran un olvido
+
+Se detectó que `pos_domi_aprendidos` tenía barrios con precio y que `delay-reply`
+nunca los consultaba, y **se dio por bug**. Se conectaron automáticamente a las
+zonas y se desplegó (v202).
+
+**Sergio corrigió:** *"no es que no los consulte, es que yo no he aprobado que se
+ingresen"*. Existe una pantalla de aprobación donde él decide el precio de cada
+barrio nuevo. El cambio **se saltaba ese control** y Paco estuvo unos minutos
+cobrando precios no autorizados. **Revertido en v203.**
+
+Lección: antes de llamar bug a algo que "no se usa", buscar si hay un control
+humano deliberado detrás.
+
+### 🔴 Dos fallos graves encontrados al probar
+
+**1. La comparación de barrios inventaba precios.**
+
+| Dirección | Cobraba | Por qué |
+|---|---|---|
+| "Calle 5 #10-20 barrio **Villa Fantasía**" | **$5.000** | *calle*≈*bella*, *villa*≈*vista* → "Bella Vista" |
+| "**Monteluna** casa 45" | **$8.000** | *casa*≈*catay* → "Catay" |
+
+`fuzzyBarrioMatch` aceptaba **2 letras de diferencia en palabras de 5** (40% de
+la palabra), y permitía que las palabras de relleno de una dirección —*calle*,
+*casa*, *torre*— fueran las que hicieran coincidir el barrio.
+
+Es peor que no saber: Paco cobraba con seguridad el precio de otro barrio, y
+además **tapaba el caso "no lo conozco"** que ahora debe ir al humano.
+
+**Arreglo (genérico, sirve a cualquier restaurante):**
+1. Las palabras de relleno de una dirección no pueden ser las que hagan
+   coincidir un barrio.
+2. Tolerancia estricta: 1 letra en palabras cortas, 2 solo en las de 8+.
+3. Un barrio de una sola palabra corta ("Catay", "Toez") exige coincidencia
+   exacta.
+4. Dos palabras del barrio no pueden apoyarse en la misma palabra de la
+   dirección.
+
+**2. La pantalla de aprobación borraba los barrios.**
+
+"Agregar a la tabla" añadía el barrio a la zona **solo en pantalla** y
+**borraba la fila de pendientes en la base de inmediato**. Si el usuario no
+pulsaba "Guardar cambios", el barrio **desaparecía de los dos lados**.
+
+Le pasó a Sergio con los 6 que aprobó: salieron de pendientes y nunca entraron
+a la tabla. **Se recuperaron** (Torres del Bosque $5.000, Estancia $8.000,
+Monteluna $5.000, Villa Hermosa $5.000, Ciudad Verde $10.000, Mirador del Sol
+$6.000) y se corrigió: ahora se ocultan al aprobar y **solo se borran cuando el
+guardado sale bien**.
+
+### Probado con las 46 direcciones reales
+
+| | |
+|---|---|
+| Cobra el domicilio solo | **39 (85%)** |
+| Llama al humano | **7 (15%)** |
+| Barrio inventado ("Villa Fantasía") | **No sabe → humano** ✅ |
+| "Monteluna casa 45" | **$5.000** (el precio que aprobó Sergio) ✅ |
+
+Los 7 que van al humano son barrios que **nunca se han cobrado**: Torres del
+Campestre, Asturias, Mallorca, Aida Lucía, Hojarazca y uno sin barrio anotado.
+Paco los irá pasando y Sergio les pone precio una vez.

@@ -4094,7 +4094,7 @@ var _storedZonas = [];
       var esCambio = x.tipo === 'cambio';
       var precio = (Number(x.precio) || 0).toLocaleString('es-CO');
       var antes  = (Number(x.precio_tabla) || 0).toLocaleString('es-CO');
-      return '<div class="domi-apr-row">' +
+      return '<div class="domi-apr-row" data-aprendido="' + x.id + '">' +
         '<span class="domi-apr-nm">' + cfgQrEsc(x.barrio) + '</span>' +
         '<span class="domi-apr-pr">' + (esCambio ? '<s>$' + antes + '</s> → ' : '') + '$' + precio + '</span>' +
         '<span class="domi-apr-n">' + (x.veces > 1 ? x.veces + ' veces' : '') + '</span>' +
@@ -4154,9 +4154,29 @@ var _storedZonas = [];
       }
     });
     if (!puesto) { addZoneRow(precio, [String(x.barrio)]); markDirty(); }
-    descartarAprendido(x, true);
+    // NO se borra de pendientes todavia. Antes se borraba aqui mismo: si el
+    // usuario no le daba a Guardar cambios, el barrio desaparecia de los DOS
+    // lados —ya no estaba en pendientes y nunca entro a la tabla— y se perdia
+    // el precio aprendido. Le paso a Sergio con 6 barrios.
+    // Ahora se apunta y se borra SOLO cuando el guardado sale bien.
+    if (!window._domiAprobadosPendientes) window._domiAprobadosPendientes = [];
+    window._domiAprobadosPendientes.push(x);
+    var fila = document.querySelector('[data-aprendido="' + x.id + '"]');
+    if (fila) fila.style.display = 'none';   // se oculta, no se borra
     showToast((x.tipo === 'cambio' ? 'Precio actualizado a $' : 'Barrio agregado a la zona de $') + precio.toLocaleString('es-CO') + '. Dale Guardar cambios para que quede.');
   }
+  // Se llama despues de un guardado exitoso: recien ahi se pueden borrar de
+  // pendientes, porque recien ahi el barrio quedo de verdad en la tabla.
+  window.domiConfirmarAprobados = async function () {
+    var lista = window._domiAprobadosPendientes || [];
+    if (!lista.length) return;
+    for (var i = 0; i < lista.length; i++) {
+      try { await sb.from('pos_domi_aprendidos').delete().eq('id', lista[i].id); } catch (e) {}
+    }
+    window._domiAprobadosPendientes = [];
+    try { cargarAprendidos(); } catch (e) {}
+  };
+
   async function descartarAprendido(x, silencioso) {
     try { await sb.from('pos_domi_aprendidos').delete().eq('id', x.id); } catch (e) {}
     if (!silencioso) cargarAprendidos(); else setTimeout(cargarAprendidos, 100);
@@ -4223,7 +4243,14 @@ var _storedZonas = [];
     model.tenant_id = meta.tenant_id;
     model.updated_at = new Date().toISOString();
     var { error } = await sb.from('ia_config').upsert(model, { onConflict: 'branch_id' });
-    if (!error) { markSaved(); } else { alert('Error guardando: ' + error.message); }
+    if (!error) {
+      markSaved();
+      // Recien ahora los barrios aprobados quedaron de verdad en la tabla, asi
+      // que se pueden sacar de pendientes. Si el guardado falla, siguen ahi.
+      if (typeof window.domiConfirmarAprobados === 'function') {
+        try { await window.domiConfirmarAprobados(); } catch (e) {}
+      }
+    } else { alert('Error guardando: ' + error.message); }
   });
 
   // ── Variables (constructor: dato / frase) ───────────────
