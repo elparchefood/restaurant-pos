@@ -750,19 +750,49 @@
   border-bottom: 1px solid #ECEEF2;
   flex-shrink: 0;
 }
+/* El nombre va SIEMPRE en una linea. Si no cabe se corta con "..." y al tocarlo
+   se ve completo: un nombre largo partido en dos lineas empujaba la comanda
+   hacia abajo, que es lo que de verdad hay que ver en esta tarjeta. */
 .vs-rail-title {
   font-size: 28px;
   font-weight: 800;
   color: #0F172A;
   margin: 0;
   letter-spacing: -0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  max-width: 100%;
 }
+.vs-rail-title.is-cortado { cursor: pointer; }
 .vs-rail-title-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   margin-top: 4px;
+  min-width: 0;
 }
+.vs-rail-title-main { flex: 1; min-width: 0; }
+
+/* Puntos del cliente: un chip que no ocupa fila propia (opcion aprobada). */
+.vs-pts-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #7C3AED;
+  background: #F5F3FF;
+  border: 1px solid #DDD6FE;
+  padding: 3px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.vs-pts-chip:hover { background: #EDE9FE; }
 .vs-rail-fixed-top {
   display: flex;
   flex-direction: column;

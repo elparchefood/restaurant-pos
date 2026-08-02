@@ -1511,7 +1511,10 @@
         <div>
           <div class="vs-eyebrow">Domicilio seleccionado</div>
           <div class="vs-rail-title-row">
-            <h2 class="vs-rail-title">${d.cliente}</h2>
+            <div class="vs-rail-title-main">
+              <h2 class="vs-rail-title" title="${_esc(d.cliente)}" data-nombre-largo="${_esc(d.cliente)}">${d.cliente}</h2>
+              ${vsPuntosChip(d, isPagado)}
+            </div>
             <span class="vs-state-pill" style="color:${meta.color};background:${meta.tint}">
               <span class="vs-state-dot" style="background:${meta.color}"></span>${meta.label}
             </span>
@@ -1550,7 +1553,7 @@
           if (_hasInt) return '<div class="vs-mesero-row"><div class="lm-avatar lm-avatar-md">'+_domNombre[0].toUpperCase()+'</div><div class="vs-mesero-spacer"><div class="vs-mesero-label">Domiciliario</div><div class="vs-mesero-name">'+_domNombre+'</div></div>'+_payChip+'</div>';
           return '<div class="vs-mesero-row" style="justify-content:flex-end">'+_payChip+'</div>';
         })()}
-        ${vsPuntosHTML(d, isPagado)}
+
       </div>
 
       <div class="vs-rail-scroll">
@@ -2134,6 +2137,27 @@
         state.selectedTableId = null;
         render();
       });
+    });
+
+    // Chip de puntos: abre el detalle sin seleccionar la tarjeta.
+    container.querySelectorAll('[data-pts-domi]').forEach(function (el) {
+      el.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        vsPuntosDetalle(el.getAttribute('data-pts-domi'));
+      });
+    });
+
+    /* Nombre recortado: si no cabe en una línea, al tocarlo se ve completo.
+       Se marca solo cuando de verdad está cortado, para no dar un cursor de
+       "tocable" a un nombre que ya se lee entero. */
+    container.querySelectorAll('.vs-rail-title[data-nombre-largo]').forEach(function (el) {
+      if (el.scrollWidth > el.clientWidth + 1) {
+        el.classList.add('is-cortado');
+        el.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          vsAviso('Cliente', _esc(el.getAttribute('data-nombre-largo')));
+        });
+      }
     });
 
     // El reloj de la tarjeta abre el desglose por estado (no selecciona la tarjeta).
@@ -3323,7 +3347,7 @@
       const link = document.createElement('link');
       link.id = 'vs-styles';
       link.rel = 'stylesheet';
-      link.href = 'styles/modules/ventas-salon.css?v=20260731';
+      link.href = 'styles/modules/ventas-salon.css?v=20260801b';
       document.head.appendChild(link);
     }
 
@@ -3454,18 +3478,73 @@
      Sergio lo pidio "cuando el cliente ha pagado": antes de pagar no hay
      puntos que anunciar, y sin cliente identificado tampoco — decirle al
      operador unos puntos que no se van a acumular seria enganarlo. */
-  function vsPuntosHTML(d, pagado) {
+  function _esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /* Puntos del cliente, como CHIP junto al nombre (diseño aprobado por Sergio).
+     Antes era una franja de ancho completo que empujaba la comanda hacia abajo;
+     lo importante de esta tarjeta es ver qué pidió y cuánto es. El chip no
+     ocupa fila propia y al tocarlo muestra el detalle.
+     Solo aparece si el pedido ya se pagó y hay cliente identificado: anunciar
+     puntos que no se le van a acumular a nadie sería engañar al operador. */
+  function vsPuntosChip(d, pagado) {
     if (!pagado || !d || !d.clienteId) return '';
     var pts = window.posPuntosPedido ? window.posPuntosPedido({
       subtotal: d.subtotal, packaging_fee: d.empaque, total: d.total, delivery_fee: d.domiFee,
     }) : 0;
     if (pts <= 0) return '';
-    return '<div style="margin-top:8px;padding:9px 12px;border-radius:10px;background:#F0FDF4;'
-      + 'border:1px solid #BBF7D0;display:flex;align-items:center;gap:8px">'
-      + '<span style="font-size:14px">⭐</span>'
-      + '<span style="font-size:12.5px;color:#166534;font-weight:600">'
-      + (d.cliente && d.cliente !== 'Sin cliente' ? d.cliente + ' ganó ' : 'Ganó ')
-      + pts + ' puntos con este pedido</span></div>';
+    return '<button type="button" class="vs-pts-chip" data-pts-domi="' + d.id + '"'
+      + ' title="Puntos que ganó con este pedido">\u2b50 ' + pts + ' pts</button>';
   }
+
+  // Detalle de los puntos: cuántos ganó y cuántos tiene ahora.
+  async function vsPuntosDetalle(domiId) {
+    var d = state.deliveries.filter(function (x) { return x.id === domiId; })[0];
+    if (!d) return;
+    var pts = window.posPuntosPedido ? window.posPuntosPedido({
+      subtotal: d.subtotal, packaging_fee: d.empaque, total: d.total, delivery_fee: d.domiFee,
+    }) : 0;
+    var total = null;
+    try {
+      var sb = window._pos && window._pos.sb;
+      var st = (window._pos && window._pos.state) || {};
+      if (sb && d.clienteId) {
+        var rc = await sb.from('pos_clientes').select('telefono').eq('id', d.clienteId).maybeSingle();
+        var tel = (rc.data && String(rc.data.telefono || '').replace(/[^0-9]/g, '').slice(-10)) || '';
+        if (tel) {
+          var rp = await sb.from('pos_puntos').select('puntos')
+            .eq('tenant_id', st.tenantId).ilike('telefono', '%' + tel).maybeSingle();
+          total = (rp.data && Number(rp.data.puntos)) || 0;
+        }
+      }
+    } catch (e) { /* si no se puede leer el total, se muestra solo lo ganado */ }
+    vsAviso('\u2b50 Puntos',
+      (d.cliente && d.cliente !== 'Sin cliente' ? _esc(d.cliente) + ' gan\u00f3 ' : 'Gan\u00f3 ')
+      + '<b>' + pts + ' puntos</b> con este pedido.'
+      + (total !== null ? '<br><span style="color:#64748B">Ahora tiene <b>' + total.toLocaleString('es-CO')
+          + ' puntos</b> en total.</span>' : '')
+      + '<br><span style="color:#94A3B8;font-size:12px">El domicilio no suma puntos.</span>');
+  }
+
+  // Avisito reutilizable (nombre completo, detalle de puntos).
+  function vsAviso(titulo, htmlCuerpo) {
+    var bd = document.createElement('div');
+    bd.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:99999;'
+      + 'display:flex;align-items:center;justify-content:center;padding:20px';
+    bd.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:340px;width:100%;'
+      + 'padding:20px 22px;box-shadow:0 18px 50px rgba(0,0,0,.22);font-family:inherit">'
+      + '<div style="font-weight:700;color:#0F172A;font-size:14.5px;margin-bottom:7px">' + titulo + '</div>'
+      + '<div style="font-size:13.5px;color:#334155;line-height:1.55">' + htmlCuerpo + '</div>'
+      + '<button type="button" style="margin-top:15px;width:100%;border:0;background:#0F172A;color:#fff;'
+      + 'border-radius:10px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">'
+      + 'Cerrar</button></div>';
+    var cerrar = function () { bd.remove(); };
+    bd.addEventListener('click', function (e) { if (e.target === bd) cerrar(); });
+    bd.querySelector('button').addEventListener('click', cerrar);
+    document.body.appendChild(bd);
+  }
+
 
 })();
