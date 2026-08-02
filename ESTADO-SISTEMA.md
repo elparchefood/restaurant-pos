@@ -3268,3 +3268,71 @@ maqueta aprobada; y la cadena de consultas se validó contra un pedido real
 mismo fallo del nombre de columna, es que nunca las mostraron. Queda pendiente
 si Sergio lo quiere ahí también. La comanda de cocina sigue igual: ahí no van ni
 puntos ni teléfonos.
+
+---
+
+## 95. Un solo recibo para los tres canales
+
+Mesa tenía su propio recibo (`_buildReceiptFinal`) y se había quedado muy atrás:
+letra monoespaciada, 80 mm en vez de 72, **sin el nombre del negocio**, sin
+cliente, sin adiciones, sin notas y sin puntos. Lo único que tenía de más era la
+propina y el desglose de cómo pagó.
+
+Lo más grave no eran las adiciones: **el recibo que recibía un cliente sentado
+en la mesa no decía en ningún lado El Parche Food** — ni nombre, ni dirección,
+ni teléfono. Y salía a 80 mm en una impresora de 72, así que podía estar
+recortando el borde derecho.
+
+**En vez de mantener dos recibos, ahora hay uno.** `_buildReceiptDomicilio`
+sirve a domicilio, venta rápida y mesa; cada canal solo cambia lo suyo:
+
+| | Domicilio | Venta rápida | Mesa |
+|---|---|---|---|
+| Título | RECIBO DE DOMICILIO | RECIBO · PARA LLEVAR | RECIBO DE MESA |
+| Bloque de arriba | Cliente + barrio + dirección | Cliente + "Recoge en el local" | Mesa + salón + personas + mesero, y el cliente solo si lo seleccionaron |
+
+Todo lo demás es idéntico: encabezado del negocio, adiciones con precio, notas,
+totales, estado de pago, puntos y pie.
+
+**En mesa la mesa va primero y el cliente después** — al revés que en domicilio.
+El mesero reparte cuentas buscando la mesa, no el nombre.
+
+**Lo que tenía mesa no se perdió, y ahora lo tienen los tres:**
+
+- **Propina**, si el pedido la lleva.
+- **Desglose de forma de pago**, pero **solo si pagó con más de un método**. Con
+  un solo método se queda la línea de siempre; un "Forma de pago" de un solo
+  renglón es gastar papel.
+
+**Efectivo y cambio** (pedido de Sergio). Los datos ya existían en
+`pos_payments` (`received` y `vuelto`), solo faltaba imprimirlos. Reglas:
+
+- Solo en pagos **en efectivo** y **solo si hubo cambio**. Si pagó justo no se
+  imprime nada: el TOTAL ya lo dice y un "Cambio: $0" es ruido.
+- **Si el efectivo fue el único pago**, las filas son `Efectivo $150.000` /
+  `Cambio $13.600`, como en cualquier recibo de caja — y se quita la línea
+  "Pago: Efectivo" de encima, que diría lo mismo.
+- **Si hubo varios métodos**, va **solo** `Cambio`, sangrado bajo la línea de
+  efectivo. No se repite el monto recibido: arriba ya está lo que se abonó en
+  efectivo, y sumándole el cambio se sabe con cuánto pagó. (Se probó una fila
+  "Recibido" y Sergio la quitó: sobraba.)
+- El cambio va en **negrilla** y el resto no. Es el número que el cliente
+  revisa.
+
+También se quitó el emoji de "Recoge en el local".
+
+**Código muerto borrado:** `_buildReceiptDesc` (ya no lo llamaba nadie desde
+hacía tiempo) y `_buildReceiptFinal`. Dejar dos constructores de recibo sin uso
+es una invitación a reconectarlos por error.
+
+**Un tropiezo que vale anotar:** al borrar ese bloque se fue por delante también
+`_money`, que vivía entre medias. `node --check` pasó igual — era un error de
+ejecución, no de sintaxis. Lo cazó la prueba de render de los tres canales.
+**Moraleja: después de borrar código, renderizar, no solo chequear sintaxis.**
+
+**Probado** generando los tres recibos con el archivo ya instalado: domicilio
+(cliente, segundo teléfono, puntos), venta rápida (Efectivo/Cambio con un solo
+pago) y mesa (propina, desglose con cambio sangrado, puntos).
+
+**Falta probar en papel.** Nadie ha impreso todavía el de mesa con el diseño
+nuevo a 72 mm.

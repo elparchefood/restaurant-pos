@@ -105,52 +105,36 @@
       + '</body></html>';
   }
 
-  function _buildReceiptDesc(order, items) {
-    var now = new Date();
-    var timeStr = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-    var dateStr = now.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
-    var rows = (items || []).map(function(it) {
-      return '<tr><td style="padding:4px 0">' + (it.qty || 1) + 'x ' + (it.name || 'Item') + '</td><td style="text-align:right;padding:4px 0">$' + Number(it.total || 0).toLocaleString('es-CO') + '</td></tr>';
-    }).join('');
-    return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:monospace;font-size:13px;width:80mm;max-width:80mm;margin:0;padding:10px}table{width:100%;border-collapse:collapse}</style></head><body>'
-      + '<div style="text-align:center;border-bottom:1px dashed #000;padding-bottom:8px;margin-bottom:8px"><div style="font-size:16px;font-weight:bold">RECIBO</div><div style="font-size:11px;color:#555">' + dateStr + ' - ' + timeStr + '</div></div>'
-      + (order.table ? '<div style="margin-bottom:6px">Mesa: <b>' + order.table + '</b></div>' : '')
-      + '<table><tbody>' + rows + '</tbody><tr><td colspan="2" style="border-top:1px dashed #000;padding-top:4px"></td></tr><tr><td><b>TOTAL</b></td><td style="text-align:right;font-weight:bold">$' + Number(order.total || 0).toLocaleString('es-CO') + '</td></tr></table>'
-      + _pagoEstadoHtml(order)
-      + '<div style="text-align:center;font-size:10px;color:#888;margin-top:12px;border-top:1px dashed #000;padding-top:6px">Gracias por su preferencia</div>'
-      + '</body></html>';
-  }
+  // Aqui vivian _buildReceiptDesc y _buildReceiptFinal, los recibos viejos de
+  // mesa. Se borraron al unificar: a _buildReceiptDesc no lo llamaba nadie
+  // desde hacia tiempo, y _buildReceiptFinal quedo reemplazado por el recibo
+  // comun, que ademas lleva encabezado del negocio, adiciones, notas y puntos.
+  // La propina y el desglose de pago que solo tenia mesa se conservaron alli.
 
-  function _buildReceiptFinal(order, items, payments) {
-    var now = new Date();
-    var timeStr = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-    var dateStr = now.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
-    var rows = (items || []).map(function(it) {
-      return '<tr><td style="padding:3px 0">' + (it.qty || 1) + 'x ' + (it.name || 'Item') + '</td><td style="text-align:right;padding:3px 0">$' + Number(it.total || 0).toLocaleString('es-CO') + '</td></tr>';
-    }).join('');
-    var pRows = (payments || []).map(function(p) {
-      return '<tr><td style="padding:2px 0;font-size:12px">' + (p.method || 'Pago') + '</td><td style="text-align:right;padding:2px 0;font-size:12px">$' + Number(p.amount || 0).toLocaleString('es-CO') + '</td></tr>';
-    }).join('');
-    return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:monospace;font-size:13px;width:80mm;max-width:80mm;margin:0;padding:10px}table{width:100%;border-collapse:collapse}</style></head><body>'
-      + '<div style="text-align:center;border-bottom:1px dashed #000;padding-bottom:8px;margin-bottom:8px"><div style="font-size:16px;font-weight:bold">CUENTA FINAL</div><div style="font-size:11px;color:#555">' + dateStr + ' - ' + timeStr + '</div></div>'
-      + (order.table ? '<div style="margin-bottom:6px">Mesa: <b>' + order.table + '</b></div>' : '')
-      + '<table><tbody>' + rows + '</tbody>'
-      + '<tr><td colspan="2" style="border-top:1px dashed #000;padding-top:4px"></td></tr>'
-      + '<tr><td style="color:#555;font-size:12px">Subtotal</td><td style="text-align:right;font-size:12px">$' + Number(order.subtotal || order.total || 0).toLocaleString('es-CO') + '</td></tr>'
-      + (order.discount ? '<tr><td style="color:#555;font-size:12px">Descuento</td><td style="text-align:right;font-size:12px;color:#DC2626">-$' + Number(order.discount || 0).toLocaleString('es-CO') + '</td></tr>' : '')
-      + (order.tip ? '<tr><td style="color:#555;font-size:12px">Propina</td><td style="text-align:right;font-size:12px">$' + Number(order.tip || 0).toLocaleString('es-CO') + '</td></tr>' : '')
-      + '<tr><td colspan="2" style="border-top:1px solid #000;padding-top:4px"></td></tr>'
-      + '<tr><td><b>TOTAL</b></td><td style="text-align:right;font-weight:bold">$' + Number(order.total || 0).toLocaleString('es-CO') + '</td></tr>'
-      + (pRows ? '<tr><td colspan="2" style="border-top:1px dashed #000;padding-top:4px;font-size:11px;color:#555">Forma de pago</td></tr>' + pRows : '')
-      + '</table>'
-      + _pagoEstadoHtml(order)
-      + '<div style="text-align:center;font-size:10px;color:#888;margin-top:12px;border-top:1px dashed #000;padding-top:6px">Gracias por su preferencia</div>'
-      + '</body></html>';
-  }
-
-  // ── RECIBO DEL CLIENTE (domicilio/rápido) — detallado, con datos y precios ──
+  // ── RECIBO DEL CLIENTE (domicilio / venta rapida / mesa) ──
   function _money(n){ return '$' + Number(Math.round(n||0)).toLocaleString('es-CO'); }
-  function _buildReceiptDomicilio(order, items, branch) {
+
+  // `solo` = fue el unico pago: entonces la fila se llama "Efectivo", como en
+  // cualquier recibo de caja. Si hubo varios metodos NO puede llamarse igual:
+  // arriba ya hay una linea "Efectivo" con lo que se aplico a la cuenta, y dos
+  // lineas "Efectivo" con numeros distintos se contradicen. Ahi va "Recibido".
+  function _vueltoFilas(p, solo) {
+    var met = String((p && p.method) || '').toLowerCase();
+    if (met.indexOf('efect') < 0) return '';
+    var recibido = Number(p.received || 0), cambio = Number(p.vuelto || 0);
+    if (!(cambio > 0) || !(recibido > 0)) return '';
+    // Con varios metodos solo va el cambio: arriba ya esta lo que se abono en
+    // efectivo, y sumandole el cambio se sabe con cuanto pago. Una fila mas
+    // seria decir lo mismo con otro numero.
+    var sangria = solo ? '' : 'padding-left:14px;';
+    var fila1 = solo
+      ? '<tr><td style="font-size:12px;color:#333">Efectivo</td><td class="pcol" style="font-size:12px">'+_money(recibido)+'</td></tr>'
+      : '';
+    return fila1
+         + '<tr><td style="font-size:12.5px;'+sangria+'font-weight:800">Cambio</td><td class="pcol" style="font-size:12.5px;font-weight:800">'+_money(cambio)+'</td></tr>';
+  }
+
+  function _buildReceiptDomicilio(order, items, branch, payments) {
     var now = new Date();
     var timeStr = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
     var dateStr = now.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -164,6 +148,7 @@
     var mT = notes.match(/\[tel:([^\]]+)\]/i);    var telCli = mT ? mT[1] : (order.customer_phone || '');
     var dirCli = notes.replace(/\[barrio:[^\]]+\]/ig,'').replace(/\[tel:[^\]]+\]/ig,'').replace(/\[etq:[^\]]+\]/ig,'').replace(/·\s*Ref:\S+/ig,'').trim();
     var esLlevar = String(order.channel||'').toLowerCase().indexOf('rapid')>=0 || /para\s+llevar|recog/i.test(dirCli);
+    var esMesa = !!order.table || String(order.channel||'').toLowerCase() === 'mesa';
     var num = '#' + String(order.id||'').slice(-5).toUpperCase();
 
     var itemRows = (items||[]).map(function(it){
@@ -196,7 +181,7 @@
     var empaque  = Number(order.packaging_fee || 0);
     var domi     = Number(order.delivery_fee || 0);
     var descuento= Number(order.discount || 0);
-    var total    = Number(order.total || 0) || (subtotal+empaque+domi-descuento);
+    var total    = Number(order.total || 0) || (subtotal+empaque+domi-descuento+Number(order.tip||0));
     var footer = '';
     try { footer = localStorage.getItem('pos.config.recibo.footer') || ''; } catch(e){}
     if (!footer) footer = '¡Gracias por tu pedido! 🍟';
@@ -209,19 +194,37 @@
     if (telLocal) h += '<div style="font-size:10.5px;color:#333">Tel: '+telLocal+'</div>';
     h += '</div>'+sep;
     // Título + pedido
-    h += '<div style="text-align:center"><div style="font-size:13px;font-weight:800">'+(esLlevar?'RECIBO · PARA LLEVAR':'RECIBO DE DOMICILIO')+'</div>'
+    var titulo = esMesa ? 'RECIBO DE MESA' : (esLlevar ? 'RECIBO · PARA LLEVAR' : 'RECIBO DE DOMICILIO');
+    h += '<div style="text-align:center"><div style="font-size:13px;font-weight:800">'+titulo+'</div>'
        + '<div style="font-size:11px;color:#333">Pedido '+num+' · '+dateStr+' '+timeStr+'</div></div>'+sep;
-    // Cliente
-    h += '<div style="font-size:10px;font-weight:700;color:#555;text-transform:uppercase">Cliente</div>';
-    h += '<div style="font-size:13px;font-weight:700">'+(order.customer_name||'—')+'</div>';
-    if (telCli) h += '<div style="font-size:12px">Tel: '+telCli+'</div>';
-    // Segundo numero del cliente, solo si lo tiene guardado.
-    if (order.customer_phone2) h += '<div style="font-size:12px">Otro: '+order.customer_phone2+'</div>';
-    if (!esLlevar) {
-      if (barrio) h += '<div style="font-size:12.5px;font-weight:700;margin-top:2px">'+barrio+'</div>';
-      if (dirCli) h += '<div style="font-size:12px">'+dirCli+'</div>';
+    if (esMesa) {
+      // En mesa lo primero es DONDE, que es lo que busca el mesero al repartir
+      // las cuentas. El cliente va despues y solo si lo seleccionaron.
+      h += '<div style="font-size:10px;font-weight:700;color:#555;text-transform:uppercase">Mesa</div>';
+      h += '<div style="font-size:13px;font-weight:700">'+(order.table||'—')+'</div>';
+      var linea2 = [];
+      if (order.sala)   linea2.push(order.sala);
+      if (order.guests) linea2.push(order.guests + (order.guests === 1 ? ' persona' : ' personas'));
+      if (order.waiter) linea2.push('Atendió ' + order.waiter);
+      if (linea2.length) h += '<div style="font-size:12px">'+linea2.join(' · ')+'</div>';
+      if (order.customer_name) {
+        h += '<div style="font-size:12px;margin-top:3px">Cliente: <b>'+order.customer_name+'</b></div>';
+        if (telCli) h += '<div style="font-size:12px">Tel: '+telCli+'</div>';
+        if (order.customer_phone2) h += '<div style="font-size:12px">Otro: '+order.customer_phone2+'</div>';
+      }
     } else {
-      h += '<div style="font-size:12px;font-weight:700;margin-top:2px">Recoge en el local 🏃</div>';
+      // Cliente
+      h += '<div style="font-size:10px;font-weight:700;color:#555;text-transform:uppercase">Cliente</div>';
+      h += '<div style="font-size:13px;font-weight:700">'+(order.customer_name||'—')+'</div>';
+      if (telCli) h += '<div style="font-size:12px">Tel: '+telCli+'</div>';
+      // Segundo numero del cliente, solo si lo tiene guardado.
+      if (order.customer_phone2) h += '<div style="font-size:12px">Otro: '+order.customer_phone2+'</div>';
+      if (!esLlevar) {
+        if (barrio) h += '<div style="font-size:12.5px;font-weight:700;margin-top:2px">'+barrio+'</div>';
+        if (dirCli) h += '<div style="font-size:12px">'+dirCli+'</div>';
+      } else {
+        h += '<div style="font-size:12px;font-weight:700;margin-top:2px">Recoge en el local</div>';
+      }
     }
     h += sep;
     // Items
@@ -240,12 +243,37 @@
     if (empaque>0)  h += '<tr><td style="font-size:12px;color:#333">Empaque</td><td class="pcol" style="font-size:12px">'+_money(empaque)+'</td></tr>';
     if (!esLlevar && domi>0) h += '<tr><td style="font-size:12px;color:#333">Domicilio</td><td class="pcol" style="font-size:12px">'+_money(domi)+'</td></tr>';
     if (descuento>0) h += '<tr><td style="font-size:12px;color:#333">Descuento</td><td class="pcol" style="font-size:12px">-'+_money(descuento)+'</td></tr>';
+    // La propina venia solo en el recibo viejo de mesa; ahora la lleva
+    // cualquiera que la tenga.
+    var propina = Number(order.tip || 0);
+    if (propina>0) h += '<tr><td style="font-size:12px;color:#333">Propina</td><td class="pcol" style="font-size:12px">'+_money(propina)+'</td></tr>';
     h += '<tr><td colspan="2" style="border-top:1px solid #000;padding-top:3px"></td></tr>';
     h += '<tr><td style="font-size:15px;font-weight:900">TOTAL</td><td class="pcol" style="font-size:15px;font-weight:900">'+_money(total)+'</td></tr>';
     h += '</table>';
     // Estado de pago (grande, para el domiciliario)
+    // Si pago con varios metodos se desglosa; si fue uno solo basta la linea.
+    // El desglose solo lo tenia el recibo de mesa y le sirve a todos.
+    var pgs = (payments || []).filter(function(p){ return Number(p.amount) > 0; });
     var pm = order.payment_method ? String(order.payment_method) : '';
-    if (pm && pm!=='multiple') h += '<div style="text-align:center;font-size:11.5px;margin-top:6px">Pago: '+pm.charAt(0).toUpperCase()+pm.slice(1)+'</div>';
+    if (pgs.length > 1) {
+      h += '<div style="font-size:10px;font-weight:700;color:#555;text-transform:uppercase;margin-top:6px">Forma de pago</div>';
+      h += '<table>';
+      pgs.forEach(function(p){
+        var met = String(p.method || 'Pago');
+        h += '<tr><td style="font-size:12px">'+met.charAt(0).toUpperCase()+met.slice(1)+'</td><td class="pcol" style="font-size:12px">'+_money(p.amount)+'</td></tr>';
+        h += _vueltoFilas(p, false);
+      });
+      h += '</table>';
+    } else if (pgs.length === 1) {
+      var m1 = String(pgs[0].method || '');
+      var fv = _vueltoFilas(pgs[0], true);
+      // Con cambio, la fila ya dice "Efectivo": repetir "Pago: Efectivo" arriba
+      // seria decir lo mismo dos veces.
+      if (fv) h += '<table>'+fv+'</table>';
+      else h += '<div style="text-align:center;font-size:11.5px;margin-top:6px">Pago: '+m1.charAt(0).toUpperCase()+m1.slice(1)+'</div>';
+    } else if (pm && pm!=='multiple') {
+      h += '<div style="text-align:center;font-size:11.5px;margin-top:6px">Pago: '+pm.charAt(0).toUpperCase()+pm.slice(1)+'</div>';
+    }
     h += _pagoEstadoHtml(order);
     var mRef = notes.match(/Ref:(\S+)/i); if (mRef) h += '<div style="text-align:center;font-size:10.5px;color:#555">Ref: '+mRef[1]+'</div>';
     // Puntos del cliente. Solo si es un cliente guardado; en una venta al paso
@@ -657,8 +685,10 @@
     if (type === 'comanda') html = _buildComanda(orderData, items);
     else if (type === 'recibo') {
       var ch = String(order.channel||'').toLowerCase();
-      if (ch === 'domicilio' || ch === 'rapido') {
-        // Info del negocio para el encabezado del recibo
+      {
+        // El mismo recibo para domicilio, venta rapida y mesa. Antes mesa
+        // tenia el suyo aparte y se habia quedado atras: sin el nombre del
+        // negocio, sin adiciones, sin notas y sin puntos.
         var branch = {};
         try {
           var sb2 = window._pos && window._pos.sb;
@@ -675,14 +705,14 @@
         // buscarlos a la ficha del cliente. Si falla (sin internet, por ejemplo)
         // el recibo sale como siempre en vez de no salir.
         try { await _datosClienteRecibo(order, orderData); } catch(e) { console.warn('[posprint] datos cliente:', e); }
-        html = _buildReceiptDomicilio(orderData, items, branch);
-      } else {
+        // Los pagos: para el desglose cuando pago con varios metodos y para
+        // el cambio cuando pago en efectivo.
         var payments = [];
         try {
-          var sb = window._pos && window._pos.sb;
-          if (sb && orderId) { var pr = await sb.from('pos_payments').select('*').eq('order_id', orderId); payments = (pr && pr.data) ? pr.data : []; }
+          var sbP = window._pos && window._pos.sb;
+          if (sbP && orderId) { var pr = await sbP.from('pos_payments').select('*').eq('order_id', orderId); payments = (pr && pr.data) ? pr.data : []; }
         } catch(e) {}
-        html = _buildReceiptFinal(orderData, items, payments);
+        html = _buildReceiptDomicilio(orderData, items, branch, payments);
       }
     }
     if (html) _printHtml(html, type === 'comanda' ? 'comanda' : 'recibo');
