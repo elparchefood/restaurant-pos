@@ -77,11 +77,24 @@ En esa misma conversación el cliente dijo **"con poquita salsa"** desde el
 primer mensaje. Nadie la registró, y a las 23:52 —con el pedido ya en
 preparación— tuvo que repetirla.
 
-### 🟠 4. Son 33 mensajes para vender una salchipapa
+### ✅ 4. CORREGIDO — NO se pregunta lo que el cliente ya dijo
 
-El flujo pregunta de a un dato: tamaño → dirección → nombre → pago →
-comprobante. Cuando el cliente **ya lo dijo todo en su primer mensaje**, se le
-vuelve a preguntar igual.
+Yo habia escrito que se vuelve a preguntar aunque el cliente ya haya dado el
+dato. **Sergio lo refuto** (*"solo pregunto cuando un cliente no me ha dicho los
+datos, es ilogico preguntar nombre, metodo de pago, direccion etc si el cliente
+ya me lo dijo"*) **y los datos le dan la razon.**
+
+Verificado sobre las 88 conversaciones: dentro de una ventana realista de
+pedido (10 minutos), se pregunto un dato ya dicho **1 sola vez**.
+
+Mi primer conteo daba 21 casos, pero al mirarlos uno por uno **todos estaban
+entre 2 y 7 horas despues** de que el cliente lo dijera: son pedidos
+DISTINTOS del mismo cliente, donde preguntar de nuevo es lo correcto. El error
+fue mio: compare sin separar por sesion de pedido.
+
+**Los 33,5 mensajes de promedio son reales, pero la causa NO es esa.** Queda
+por medir de donde salen (saludos, confirmaciones, avisos de estado, ida y
+vuelta del comprobante). No se propone nada hasta saberlo.
 
 ### 🟡 5. Hay 22 mensajes sin responder — pero la mitad no son clientes
 
@@ -100,18 +113,18 @@ Los que sí duelen son pocos pero graves:
 ### Fase 1 — Que no se pierda nada de lo que el cliente dijo
 *Ataca los hallazgos 2, 3 y 4.*
 
-1. **Leer TODO el mensaje, no solo el dato que se está pidiendo.** Si el cliente
-   escribe *"una salchipapa premium mixta personal con poquita salsa, para
-   Bello Horizonte, pago con Nequi"*, Paco debe extraer producto, tamaño,
-   variante, nota, dirección y forma de pago **de una sola vez**, y preguntar
-   solo lo que falte de verdad.
+1. **Leer TODO el mensaje, no solo el dato que se está pidiendo.** Esto **ya
+   funciona para los datos del pedido** (nombre, dirección, pago, tamaño): está
+   verificado que no se pregunta lo que el cliente ya dio. Lo que falta es que
+   aplique igual a **lo que el cliente pregunta** y a **las notas**.
 2. **Cola de preguntas pendientes.** Si el cliente pregunta algo mientras se le
    toma el pedido (el Nequi, el precio, cuánto se demora), se responde **en el
    mismo mensaje** en que se le pide el siguiente dato. Nunca se descarta.
 3. **Las notas van al pedido.** "Con poquita salsa", "sin cebolla", "bien
    caliente" tienen que quedar en la comanda desde que se dicen.
 
-**Cómo se mide:** mensajes para cerrar un pedido, de 33,5 a menos de 15.
+**Cómo se mide:** que ninguna pregunta del cliente quede sin responder en el
+mismo hilo, y que las notas lleguen a la comanda.
 
 ### Fase 2 — Rescatar a los que vienen del anuncio
 *Ataca el hallazgo 1, el de más plata.*
