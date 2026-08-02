@@ -569,3 +569,58 @@ escriba mejor.
 **Nota positiva:** en esa misma conversacion la respuesta al boton quedo
 guardada como **"Familiar"** (no `[interactive]`), o sea que el arreglo de
 `meta-webhook` v54 ya esta funcionando en vivo.
+
+
+---
+
+## 🔴 MAÑANA — el pedido por AUDIO no llega al analisis (2026-08-01)
+
+**Pedido de Sergio:** *"Vilma Ortiz me envio audio y tenemos una tarjeta que
+transcribe ese audio, y eso esta perfecto porque con eso pude entender el
+pedido. Pero necesitamos que ese texto de transcripcion tambien sea accesible
+para el sistema, para que se pueda crear el pedido desde el boton Crear pedido
+incluso cuando hayan mandado audios."*
+
+### Verificado: la transcripcion SI se guarda, pero se descarta al analizar
+
+En la base el mensaje quedo asi:
+
+```
+media_type = audio
+body       = 🎙️ ¡Hola! Oye, ¿será que tú me puedes mandar una salchipapa
+             premiumista a la parcelación Ciudad Verde...
+```
+
+O sea **el texto esta ahi**. Pero `extraer-pedido` filtra los mensajes que no
+son de texto, **en dos sitios** (lineas ~398 y ~509):
+
+```js
+.filter(m => m.media_type == null || m.media_type === "text")
+```
+
+El audio se bota **con transcripcion y todo**. Por eso Sergio si entendio el
+pedido (leyo la tarjeta en pantalla) y el sistema no: **nunca lo vio**.
+
+### El arreglo
+Cambiar el filtro para que **acepte cualquier mensaje que tenga texto**, sin
+importar el `media_type`. Lo que hay que excluir no es el audio: son las
+imagenes y los stickers **sin texto util**.
+
+```js
+// en vez de filtrar por media_type, filtrar por si HAY texto
+.filter(m => String(m.body || "").trim().length > 0)
+```
+
+Ojo con dos cosas:
+1. El cuerpo del audio trae el prefijo **🎙️**; conviene quitarlo antes de
+   mandarlo al analisis para que no ensucie.
+2. Las imagenes guardan `[imagen]` o el nombre del archivo como body — eso si
+   hay que seguir excluyendolo (no es texto del cliente).
+
+### Este caso fueron DOS fallas encadenadas
+1. El audio se descarto -> el analisis vio 0 mensajes utiles.
+2. Aunque no se hubiera descartado, **"premiumista"** no habria emparejado con
+   "Premium mixta" (ver el pendiente de arriba: que el modelo escoja de la
+   lista de productos en vez de comparar texto).
+
+**Hay que arreglar las dos.** Con una sola, el pedido por audio sigue fallando.
