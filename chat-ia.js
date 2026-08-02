@@ -332,11 +332,19 @@ function renderConvList() {
   if (S.activeFilter !== 'all') list = list.filter(c => c.channel === S.activeFilter);
   if (S.query.trim()) {
     const q = S.query.toLowerCase();
-    list = list.filter(c =>
-      (c.contact_name||'').toLowerCase().includes(q) ||
-      (c.contact_handle||'').toLowerCase().includes(q) ||
-      (c.last_message||'').toLowerCase().includes(q)
-    );
+    /* Se busca TAMBIÉN por el nombre con el que está guardado el cliente y su
+       barrio. La lista muestra ese nombre (no el del perfil de WhatsApp), así
+       que buscar solo por `contact_name` hacía que un chat visible como
+       "Vilma Ortiz" desapareciera al escribir "Vilma", porque en WhatsApp se
+       llama "Sammy". Se buscaba por un nombre que en pantalla no existe. */
+    list = list.filter(c => {
+      const cli = clienteDe(c) || {};
+      return (c.contact_name||'').toLowerCase().includes(q) ||
+             (c.contact_handle||'').toLowerCase().includes(q) ||
+             (c.last_message||'').toLowerCase().includes(q) ||
+             (cli.nombre||'').toLowerCase().includes(q) ||
+             (cli.barrio||'').toLowerCase().includes(q);
+    });
   }
   if (!list.length) {
     $('convList').innerHTML = `<div class="ci-list-empty"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><p>${S.query ? 'Sin resultados para "'+escHtml(S.query)+'"' : 'Sin conversaciones'}</p></div>`;
