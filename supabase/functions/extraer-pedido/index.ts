@@ -147,6 +147,28 @@ function matchProducto(
     prodPorNumero = null;
   }
 
+  /* El numero manda sobre todo lo demas, asi que si el modelo se equivoca de
+     numero entra al pedido un producto que el cliente NUNCA nombro. Paso de
+     verdad: "vale vendeme adicion de ajo" -> el numero apunto a la adicion de
+     CARNE ($10.000) en vez de la salsa de ajo ($2.000).
+     Guarda: el producto elegido tiene que compartir por lo menos una palabra
+     con lo que se escribio (el nombre que entendio el modelo o el texto del
+     cliente). Si no comparte nada, el numero no se cree y se reconoce por
+     nombre como siempre. Se compara tambien contra las VARIANTES del producto,
+     porque el cliente puede nombrar la variante y no el producto. */
+  if (prodPorNumero) {
+    const pn = norm(String(prodPorNumero.name || ""));
+    const texto = nl + " " + cliBlob;
+    const suena = (t: string) => {
+      const w = norm(t).split(/\s+/).filter(x => x.length >= 3);
+      return w.length > 0 && w.some(x => texto.includes(x));
+    };
+    const varsN = (prodPorNumero.variables as Array<{ options?: Array<{ name: string }> }>) || [];
+    const cuadra = suena(pn) ||
+      varsN.some(v => (v.options || []).some(o => suena(String(o.name || ""))));
+    if (!cuadra) prodPorNumero = null;
+  }
+
   // Palabras con las que un cliente nombra una categoría (nombre + alias, con y
   // sin plural): "salchipapas"→salchipapa, "HAMBURGUESAS"→hamburguesa…
   const catPalabras = (c: Record<string, unknown>) => {
@@ -302,6 +324,40 @@ function matchProducto(
       const sobran1 = pn.split(/\s+/).filter(w => w.length >= 4 && !cliBlob.includes(w)).length;
       if (sobran1) score -= sobran1 * 7;
       if (score > bestScore) { bestScore = score; matched = pt; }
+    }
+  }
+
+  /* RESCATE POR VARIANTE. Lo que el cliente nombra no siempre es un producto:
+     "una salsa de ajo" tiene producto "Salsa" y variante "Ajo", pero muchos
+     dicen solo "ajo". Como la busqueda mira nombres de PRODUCTO, eso no
+     encontraba nada. Aqui se busca el nombre entre las variantes, y solo si
+     todo lo anterior fallo, para no quitarle un match bueno a nadie. */
+  if (!matched || bestScore < 4) {
+    const term = nl.split(/\s+/).filter(w => w.length >= 3);
+    const suelto = (t: string) => {
+      const on = norm(String(t || ""));
+      return on.length >= 3 && (on === nl || term.includes(on));
+    };
+    for (const pv of universo) {
+      const varsV = (pv.variables as Array<{ options?: Array<{ name: string }> }>) || [];
+      // Tambien las PRESENTACIONES: en El Parche "Ajo" es una presentacion del
+      // producto "Salsa", no una variante. En otro restaurante puede ser al
+      // reves, asi que se miran las dos.
+      const presV = (pv.presentations as Array<{ name: string }>) || [];
+      const pega = presV.some(pr => suelto(pr.name)) || varsV.some(v => (v.options || []).some(o => {
+        const on = norm(String(o.name || ""));
+        // SOLO el texto de ESTA linea. Con  (toda la conversacion) se
+        // colaba una variante nombrada en OTRO producto del mismo pedido: en el
+        // chat de Yury, "premium" de la salchipapa hacia que la salsa de ajo se
+        // resolviera como una segunda Premium de $34.000.
+        return on.length >= 3 && (on === nl || term.includes(on));
+      }));
+      if (!pega) continue;
+      // Palabras de mas en el nombre del producto que el cliente no dijo: es otro.
+      const sobranV = norm(String(pv.name || "")).split(/\s+/)
+        .filter(w => w.length >= 4 && !cliBlob.includes(w)).length;
+      const sc = 6 - sobranV * 2;
+      if (sc > bestScore) { bestScore = sc; matched = pv; }
     }
   }
 
