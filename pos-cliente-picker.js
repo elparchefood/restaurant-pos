@@ -118,7 +118,7 @@
     +   '<div class="pcp-body">'
     +     '<div class="pcp-search">'
     +       '<div class="pcp-searchbox">' + SVG.lupa
-    +         '<input type="text" id="pcp-q" placeholder="Buscar cliente por nombre, teléfono o dirección..." autocomplete="off">'
+    +         '<input type="text" id="pcp-q" placeholder="Buscar por nombre, teléfono (cualquiera de los dos) o dirección..." autocomplete="off">'
     +       '</div>'
     +       '<button class="pcp-new" id="pcp-nuevo">' + SVG.mas + ' Crear nuevo cliente</button>'
     +     '</div>'
@@ -157,7 +157,9 @@
       // Al escribir un número filtra por teléfono; también por nombre y dirección.
       var l = lq
         ? lista.filter(function (c) {
-            return (String(c.nombre || '') + ' ' + String(c.tel || '') + ' ' + dirDe(c))
+            // Busca tambien por el segundo numero: si el cliente escribe
+            // desde el otro celular, hay que poder encontrarlo igual.
+            return (String(c.nombre || '') + ' ' + String(c.tel || '') + ' ' + String(c.tel2 || '') + ' ' + dirDe(c))
               .toLowerCase().indexOf(lq) >= 0;
           })
         : lista;
@@ -215,6 +217,7 @@
         '<div class="pcp-form">'
       +   '<div class="pcp-f"><span class="pcp-lbl">Nombre</span><input class="pcp-in" id="pcp-n" placeholder="Nombre del cliente" value="' + esc(nomPre) + '"></div>'
       +   '<div class="pcp-f"><span class="pcp-lbl">Teléfono</span><input class="pcp-in" id="pcp-t" type="tel" inputmode="numeric" placeholder="Número de celular" value="' + esc(telPre) + '"></div>'
+      +   '<div class="pcp-f"><span class="pcp-lbl">Otro teléfono</span><input class="pcp-in" id="pcp-t2" type="tel" inputmode="numeric" placeholder="Opcional, solo contacto"></div>'
       +   '<div class="pcp-f"><span class="pcp-lbl">Barrio</span><input class="pcp-in" id="pcp-b" placeholder="Barrio (opcional)"></div>'
       +   '<div class="pcp-f"><span class="pcp-lbl">Dirección</span><input class="pcp-in" id="pcp-d" placeholder="Dirección (opcional)"></div>'
       +   '<div class="pcp-err" id="pcp-e"></div>'
@@ -233,7 +236,7 @@
       try {
         var c = {
           nombre: nombre || ('Cliente ' + tel.slice(-4)),
-          tel: tel, barrio: barrio,
+          tel: tel, tel2: tel10(document.getElementById('pcp-t2').value), barrio: barrio,
           direcciones: dir ? [{ id: 'd' + Date.now(), dir: dir, barrio: barrio }] : [],
         };
         var guardado = await window.posClientes.guardar(c);

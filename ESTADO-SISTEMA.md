@@ -3168,3 +3168,41 @@ en mini.
 devuelve la primera línea truncada (aquí se comió `// g`), y escribir el archivo
 con `io.open(p,'w')` lo deja en **0 bytes** si falla la codificación. Desde
 ahora: reconstruir la línea 1 y escribir siempre a un `.tmp` y luego `os.replace`.
+
+---
+
+## 93. Segundo número de contacto del cliente
+
+**De dónde salió.** Vilma Ortiz escribió desde un celular distinto al que tenía
+guardado. En el chat aparecía como si nunca hubiera pedido, aunque el pedido ya
+estaba en camino. Sergio pidió dos cosas: corregir esa ficha (hecho en la ronda
+anterior) y **poder anotar un segundo número** "por si acaso el cliente lo
+indica".
+
+**La regla, que es lo importante:** el **teléfono principal es la identidad** del
+cliente y el único que acumula puntos. El segundo **solo sirve para contactarlo
+y para encontrarlo al buscar**. Nunca crea una ficha aparte ni recibe puntos.
+
+**Qué se hizo:**
+
+- `pos-clientes.js` — el campo viaja en las dos direcciones (`tel2` en la app,
+  `telefono2` en la tabla). Como todas las pantallas leen por aquí, con esto
+  solo el dato ya llega a todas.
+- **Domicilios** — campo *"Otro teléfono (opcional)"* junto al principal, con la
+  aclaración en letra pequeña de que los puntos van al principal. La búsqueda de
+  clientes ya encuentra por cualquiera de los dos.
+- **Selector de cliente compartido** (el que usan Pagos, Tomar pedido y
+  Domicilios) — busca por los dos números y el alta rápida permite anotarlo.
+- **Chat** — si no encuentra ficha con el número que escribe, **la busca por el
+  segundo**. Cuando la encuentra así, muestra un aviso: *"Escribe desde su
+  segundo número. Su número principal es …, y ahí van sus puntos"*. Sin ese
+  aviso la ficha parecería no corresponder con el número de arriba.
+- Los **puntos y el nivel** se leen siempre del teléfono principal. Si no, al
+  escribir desde el segundo saldrían en cero y parecería que perdió sus puntos.
+
+**Probado contra la base:** se creó una ficha con los dos números, se comprobó
+que se encuentra por el principal **y** por el segundo, y se borró.
+
+**Lo que queda suelto:** cuando un cliente escribe desde un número que no es el
+suyo, el sistema todavía no ofrece *"¿lo guardo como su segundo número?"* — hay
+que escribirlo a mano en la ficha. Se puede añadir más adelante si estorba.

@@ -51,6 +51,9 @@
     var act = dirs.filter(function (d) { return d.dir === r.direccion; })[0] || dirs[dirs.length - 1] || null;
     return {
       id: r.id, nombre: r.nombre || '', tel: r.telefono || '',
+      // Segundo numero: solo contacto. La identidad y los puntos son del
+      // telefono principal, siempre.
+      tel2: r.telefono2 || '',
       direcciones: dirs,
       dir:    act ? act.dir    : '',
       barrio: act ? act.barrio : '',
@@ -66,6 +69,7 @@
     var act = dirs.filter(function (d) { return d.id === c.dirId; })[0] || dirs[dirs.length - 1] || null;
     return {
       nombre: c.nombre || '', telefono: c.tel || '',
+      telefono2: c.tel2 || null,
       direcciones: dirs,
       // `direccion` y `barrio` sueltos = la dirección activa. Otras pantallas
       // y las funciones del servidor los leen así, no como lista.

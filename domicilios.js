@@ -1402,7 +1402,7 @@ function renderCliList(q) {
   if (!el) return;
   const lq   = (q || '').trim().toLowerCase();
   const list = lq
-    ? S.clientes.filter(c => (c.nombre + ' ' + (c.tel || '') + ' ' + (c.dir || '')).toLowerCase().includes(lq))
+    ? S.clientes.filter(c => (c.nombre + ' ' + (c.tel || '') + ' ' + (c.tel2 || '') + ' ' + (c.dir || '')).toLowerCase().includes(lq))
     : S.clientes;
 
   if (!list.length) {
@@ -1476,6 +1476,7 @@ function openNuevoCli(editId) {
       if ($('cli-nombres'))   $('cli-nombres').value   = nombres;
       if ($('cli-apellidos')) $('cli-apellidos').value = apellidos;
       if ($('cli-telefono'))  $('cli-telefono').value  = c.tel    || '';
+      if ($('cli-telefono2')) $('cli-telefono2').value = c.tel2   || '';
       cliNormalize(c);
       renderCliDirRows(c.direcciones);
       if ($('cli-tipdoc'))    $('cli-tipdoc').value    = c.tipdoc || 'CC';
@@ -1484,7 +1485,7 @@ function openNuevoCli(editId) {
       if ($('cli-notas'))     $('cli-notas').value     = c.notas  || '';
     }
   } else {
-    ['cli-nombres','cli-apellidos','cli-telefono','cli-numdoc','cli-email','cli-notas'].forEach(id => {
+    ['cli-nombres','cli-apellidos','cli-telefono','cli-telefono2','cli-numdoc','cli-email','cli-notas'].forEach(id => {
       if ($(id)) $(id).value = '';
     });
     renderCliDirRows([{}]);
@@ -1516,6 +1517,8 @@ function guardarCliente() {
     numdoc: ($('cli-numdoc') && $('cli-numdoc').value || '').trim(),
     email:  ($('cli-email')  && $('cli-email').value  || '').trim(),
     notas:  ($('cli-notas')  && $('cli-notas').value  || '').trim(),
+    // Segundo numero: contacto y busqueda. Nunca identidad ni puntos.
+    tel2:   ($('cli-telefono2') && $('cli-telefono2').value || '').trim(),
   };
   const campos = {
     nombre, tel: telefono, direcciones: dirs,

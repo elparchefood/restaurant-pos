@@ -460,6 +460,13 @@ async function pintarFichaCliente(conv){
   try {
     const r = await sb.from('pos_clientes').select('*').eq('tenant_id', S.tenantId).ilike('telefono','%'+tel10).maybeSingle();
     cli = r.data || null;
+    // Si no hay ficha con ese numero, puede que sea su SEGUNDO telefono (le
+    // paso a Vilma: escribio desde otro celular y aparecia como desconocida).
+    // Se busca tambien por ahi, pero la ficha que manda sigue siendo la misma.
+    if (!cli) {
+      const r2 = await sb.from('pos_clientes').select('*').eq('tenant_id', S.tenantId).ilike('telefono2','%'+tel10).limit(1);
+      cli = (r2.data && r2.data[0]) || null;
+    }
   } catch(e){}
   // 2) Sus pedidos
   let pedidos = [];
@@ -474,7 +481,10 @@ async function pintarFichaCliente(conv){
   // 3) Puntos de lealtad (van por teléfono, igual que la ficha)
   let puntos = 0;
   try {
-    const r = await sb.from('pos_puntos').select('puntos').ilike('telefono','%'+tel10).maybeSingle();
+    // Los puntos viven en el telefono PRINCIPAL del cliente. Si escribio desde
+    // el segundo, hay que mirar el principal o saldrian en cero.
+    const telPuntos = cli ? String(cli.telefono||'').replace(/[^0-9]/g,'').slice(-10) : tel10;
+    const r = await sb.from('pos_puntos').select('puntos').ilike('telefono','%'+telPuntos).maybeSingle();
     puntos = Number(r.data && r.data.puntos)||0;
   } catch(e){}
   // 4) Qué es lo que más pide
@@ -493,7 +503,8 @@ async function pintarFichaCliente(conv){
   //    que la futura pantalla del cliente lea exactamente el mismo número.
   let niv = null;
   try {
-    const r = await sb.rpc('fn_nivel_cliente', { p_tenant: S.tenantId, p_tel: tel10 });
+    const telNivel = cli ? String(cli.telefono||'').replace(/[^0-9]/g,'').slice(-10) : tel10;
+    const r = await sb.rpc('fn_nivel_cliente', { p_tenant: S.tenantId, p_tel: telNivel });
     if (r.data && r.data.length) niv = r.data[0];
   } catch(e){}
 
@@ -538,6 +549,16 @@ async function pintarFichaCliente(conv){
     +    '<div class="ci-dw-sub">'+escHtml(conv.contact_handle||'')
     +      (barrioTop ? ' · '+escHtml(barrioTop) : '')+'</div></div>'
     + '</div>';
+
+  // Si escribe desde su segundo numero conviene decirlo: si no, parece que la
+  // ficha no corresponde con el numero que se ve arriba.
+  if (cli) {
+    const principal10 = String(cli.telefono||'').replace(/[^0-9]/g,'').slice(-10);
+    if (principal10 && principal10 !== tel10) {
+      h += '<div class="ci-dw-alert warn">Escribe desde su <b>segundo número</b>. '
+        +  'Su número principal es ' + escHtml(cli.telefono || '') + ', y ahí van sus puntos.</div>';
+    }
+  }
 
   if (!cli) {
     h += '<div class="ci-dw-empty">Todavía no es un cliente guardado.<br>Se crea solo cuando le tomes su primer pedido.</div>';
