@@ -508,15 +508,41 @@ Igual que el doble espacio de *"Para ver la  carta"*: se esta **comparando
 texto** en vez de entender. La regla que dio Sergio para el chat aplica aqui
 tambien.
 
-### El arreglo (que sea general, no un parche para el guion)
-1. En `norm()`: tratar **guiones, puntos, comas, barras y underscores como
-   espacios**, y colapsar espacios. Con eso caen "Coca-Cola", "Coca.Cola",
-   "coca/cola" y "Coca  Cola" de una vez.
-2. **Limpiar el catalogo**: `COCA COLA ` tiene un espacio al final. Conviene un
-   `trim()` al guardar el producto para que no vuelva a pasar.
-3. Aprovechar y darle al modelo **la lista de productos** para que escoja de
-   ahi (como se hizo con los barrios en la entrada 79), en vez de que escriba
-   el nombre libre y despues haya que adivinar a cual se referia.
+### El arreglo de verdad — que NO pueda inventar productos
+
+**Regla de Sergio (2026-08-01), y es la que manda:**
+
+> *"No puede inventarse productos, solo debe colocar productos que esten
+> guardados. En un caso muy extremo donde el cliente indique su pedido de manera
+> muy rara, es mejor que diga que no se reconocio el producto, pero que no
+> invente productos que no existen... el cliente lo dijo de una manera muy
+> sencilla, es superfacil reconocer que quiere una Coca Cola personal. Caemos en
+> el mismo error: detectar intenciones, no palabras exactas, porque si trabaja
+> con palabras exactas en un chat siempre se va a equivocar."*
+
+**Dato clave verificado:** al modelo **YA se le manda el menu completo**
+(`MENÚ DISPONIBLE:` en el prompt) y **ya hay una instruccion** que dice
+*"Usa EXACTAMENTE los nombres del MENÚ"*. **La desobedecio igual** y escribio
+"Coca-Cola". O sea: **pedirle por favor que use el nombre exacto no sirve.**
+
+**Lo que hay que hacer:**
+
+1. **Que devuelva un ID, no un nombre.** Se le pasa el menu numerado y se le
+   pide `product_id` (o el numero de la lista), no texto libre. Asi
+   **no hay nada que emparejar**: o eligio un producto que existe, o no eligio.
+   Es el mismo salto que se hizo con los barrios (entrada 79) y con las
+   intenciones del chat (entrada 76).
+2. **Si no reconoce, lo dice.** Cuando el modelo no encuentre el producto en la
+   lista, devuelve `null` y la pantalla muestra **"no se reconocio el producto"**
+   en rojo, sin permitir guardarlo. **Nunca una linea en $0**, que es lo que
+   parece un producto valido y no lo es.
+3. **La pantalla no deja guardar un producto sin precio.** Hoy dejo pasar
+   `Coca-Cola · Personal — sin precio — $0`. Eso es un candado que falta.
+4. Como respaldo (no como solucion), `norm()` deberia tratar **guiones, puntos,
+   comas y barras como espacios**. Ayuda, pero **no es el arreglo**: si se deja
+   solo eso, manana falla con otra forma de escribirlo.
+5. **Limpiar el catalogo**: `COCA COLA ` tiene un espacio al final; poner
+   `trim()` al guardar el producto.
 
 ### Como probarlo
 Pasar por el emparejador variantes escritas como las escribe la gente y el
