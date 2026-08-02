@@ -3103,3 +3103,68 @@ es justo la regla de que nada quede quemado.
 
 El mensaje de rechazo tambien mejoro: antes decia *"no a la tuya (0092726260)"*;
 ahora lista todas — *"Las tuyas son: 0092726260, 0089912015"*.
+
+---
+
+## 92. Inventario por WhatsApp: la lista larga de bebidas
+
+**Lo que pasó.** El gerente mandó las 14 bebidas de una sola vez ("6 Quatro
+1.5 litros en bodega, 3 en servicio" y así 14 líneas) y el bot contestó
+**"No te entendí"** sin haber tocado nada.
+
+**No era una causa, eran cuatro encadenadas:**
+
+1. **Cupo de respuesta del modelo.** 14 líneas × (bodega + servicio) = 28
+   operaciones. El `max_tokens: 900` no daba ni para 12: el JSON llegaba
+   partido, `JSON.parse` reventaba y el `catch` devolvía cero operaciones.
+   Desde fuera eso se veía exactamente igual que "no entendí nada".
+2. **Números mezclados entre líneas.** Con varias líneas juntas el modelo
+   confundía productos de nombre parecido: *Hit Litro Naranja Piña … 4 en
+   servicio* quedó en **5**, que era el número del *Hit Litro Lulo* de la
+   línea siguiente.
+3. **Número sin unidad leído como paquete.** *"1 Hit Litro Mango en bodega"*
+   quedó en **12** — el modelo entendió 1 paquete en vez de 1 botella.
+4. **Cupo por minuto de OpenAI.** Al pasar a una llamada por línea, cada una
+   mandaba el inventario entero (~3.500 tokens): 15 líneas = 52.000 tokens
+   contra un límite de 30.000/min. OpenAI rechazaba 13 de 15 llamadas **y las
+   líneas se perdían en silencio**.
+
+**Cómo quedó (`gerente-inventario` v16):**
+
+- Los mensajes de más de 3 líneas se parten y **cada línea se interpreta por
+  separado**, en tandas de 8. Sin líneas vecinas no hay números que mezclar.
+- A cada línea se le mandan **solo los insumos que se le parecen** (máximo 15,
+  por coincidencia de palabras) en vez del inventario completo.
+- Esas llamadas de línea suelta usan **gpt-4o-mini**: la tarea es mínima y su
+  cupo por minuto aguanta la ráfaga. Los mensajes normales, de una sola frase,
+  siguen con gpt-4o.
+- Si aun así rebota por cupo, **espera 8 segundos y reintenta** una vez.
+- Regla nueva: un número sin unidad son **unidades sueltas**, nunca paquetes,
+  salvo que se diga "paquete/paca/caja/bulto". Excepción: lo que se compra por
+  peso o volumen (kg, litro) sigue en su unidad de compra.
+- Regla nueva: una línea puede llevar **los dos destinos** ("6 en bodega, 3 en
+  servicio" = dos operaciones del mismo insumo).
+- **Respuesta compacta** cuando hay más de 6 cambios: una línea por insumo. El
+  formato detallado de siempre ocupaba ~5.600 caracteres con 28 cambios y
+  WhatsApp corta en 4.096 — el mensaje no habría llegado nunca.
+- **Las líneas que no se entienden se dicen**, una por una ("Estas no las
+  entendí, no las toqué"). Antes se perdían sin que nadie se enterara.
+- Si el procesamiento se atasca, ya no dice "No te entendí" (que echa la culpa
+  al gerente) sino *"se me enredó, mándamelo en dos partes"*.
+
+**Probado en vivo** con las 14 bebidas reales: **28 valores, todos exactos**,
+17,5 segundos, respuesta de 1.485 caracteres. La prueba se hizo con los valores
+que ya tenía el inventario, así que no se alteró ningún dato; los dos que sí
+movió una prueba anterior (*Hit Litro Mango* y *Hit Litro Naranja Piña*) se
+devolvieron a su valor original, y los registros de prueba se borraron de
+`pos_gerente_ops`.
+
+**Ojo para el futuro:** el cupo de gpt-4o es de 30.000 tokens por minuto **para
+todo el sistema**. Una ráfaga larga de una función puede dejar sin cupo al bot
+que atiende clientes. Por eso lo que se pueda resolver con `gpt-4o-mini` debe ir
+en mini.
+
+**Trampa de herramientas (para no repetirla):** `GET /functions/{slug}/body`
+devuelve la primera línea truncada (aquí se comió `// g`), y escribir el archivo
+con `io.open(p,'w')` lo deja en **0 bytes** si falla la codificación. Desde
+ahora: reconstruir la línea 1 y escribir siempre a un `.tmp` y luego `os.replace`.
