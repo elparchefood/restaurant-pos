@@ -3837,3 +3837,81 @@ Se auditó `04-PLANES-COMERCIALES.md` contra datos reales. Cinco hallazgos:
 por minuto (hoy en el mínimo, 30.000, compartido por todo el sistema). Es
 gratis. Mientras no lo suban, una ráfaga larga puede dejar al bot mudo en hora
 pico — ya pasó esta mañana con la lista de bebidas.
+---
+
+## 105. Aislamiento entre clientes — el arreglo más importante antes de vender
+
+### El problema, medido
+
+**22 tablas tenían una política `qual = true` que dejaba pasar todo.** En ocho
+de ellas convivía con la política correcta que filtra por cliente — pero
+**PostgreSQL suma las políticas permisivas con un OR**, así que la abierta ganaba
+siempre y la que aislaba no servía de nada.
+
+Tablas afectadas: `pos_orders`, `pos_products`, `pos_order_items`, `pos_tables`,
+`pos_sessions`, `pos_cash_moves`, `pos_categories`, `pos_bases`,
+`chat_messages`, `chat_conversations`, `chat_channels`, `ia_config`,
+`pos_shifts`, `pos_reservations`, `pos_wa_listas`, `pos_niveles_config`,
+`pos_mesa_tiempos`, `pos_domi_aprendidos`, `pos_gerente_ops`,
+`iv_facturas_pendientes`, `iv_insumo_alias`.
+
+**Esto no se rompía con 100 clientes: se rompía con el cliente número 2.** Hoy no
+se notaba porque solo hay uno.
+
+### El arreglo
+
+Una política `aislar_<tabla>` por tabla, `for all to authenticated`, usando
+`current_tenant_id()` (que lee `user_metadata.tenant_id` del token). Se crean
+**primero** las nuevas y solo después se borran las abiertas: al revés habría
+un instante en que nadie puede leer.
+
+`pos_gerente_ops` no tiene `tenant_id`, así que se aísla por su sucursal
+(`branch_id in (select id from branches where tenant_id = current_tenant_id())`).
+
+**Lo que NO se tocó, y por qué:**
+
+- **`pos_registrations`** → *"publico puede registrarse"* es INSERT y es
+  intencional: sin ella nadie podría crear su cuenta.
+- **`pos_bases.bases_insert`** → INSERT que ya valida el tenant en su WITH CHECK.
+- **`mypass_vault`** → ⚠️ **no es del POS.** Es una bóveda de contraseñas
+  (datos cifrados, secreto TOTP, blob de recuperación) de otro proyecto que
+  comparte este Supabase; ningún archivo del POS la menciona. Tocarla podría
+  romper esa app. **Queda abierta y hay que revisarla aparte.**
+
+### Un hallazgo que salió de la verificación
+
+Al comprobar los accesos, El Parche veía **118 de sus 137 pedidos**. Los 19
+faltantes eran de **venta rápida y no tenían `tenant_id`**: esa pantalla nunca
+lo guardaba. Con el aislamiento activo **se habrían vuelto invisibles esta misma
+noche**.
+
+Se rellenaron los 19 y se corrigió `venta-rapida.js` para que siempre lo guarde.
+Sin la verificación, el error habría aparecido en pleno servicio.
+
+### Probado
+
+| Prueba | Resultado |
+|---|---|
+| El Parche lee lo suyo (12 tablas) | ✅ Todo, 137 pedidos incluidos |
+| Mónica (mesera) lee lo suyo | ✅ Igual que el gerente |
+| **Intruso de otro tenant** | ✅ **0 filas en las 12 tablas** |
+| Crear pedido, ítem, mesa, movimiento de caja, mensaje | ✅ Pasan |
+| Actualizar pedido | ✅ Pasa |
+| Crear pedido a nombre de OTRO tenant | ✅ Bloqueado |
+| Edge Functions (bot de WhatsApp) | ✅ Usan `service_role`, se saltan RLS por diseño |
+
+**Nota de método:** dos escrituras aparecieron "bloqueadas" en la primera
+pasada. Antes de tocar ninguna política se miró el error real: eran columnas
+obligatorias que faltaban en **mi consulta de prueba** (`number`,
+`product_price`), no el aislamiento. **Leer el error antes de arreglar lo que no
+está roto.**
+
+### Lo que sigue
+
+Quedan dos frenos de escala, ya diagnosticados:
+
+1. **El tiempo real no filtra por cliente** — seis suscripciones escuchan tablas
+   completas. Con 100 clientes, un pedido en cualquier restaurante dispara 300
+   recargas simultáneas.
+2. **El cupo de OpenAI es uno solo para todos** — 30.000 tokens/minuto
+   compartidos, que ya fallaron con un cliente.

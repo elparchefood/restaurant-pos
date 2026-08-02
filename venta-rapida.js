@@ -1098,6 +1098,9 @@
                       || (user.email || '').split('@')[0])) || null;
       const { data: order, error } = await sb.from('pos_orders').insert({
         session_id:     _vrSes,
+        // SIN tenant_id el pedido queda sin dueno y, con el aislamiento entre
+        // clientes activo, deja de verse: 19 pedidos rapidos quedaron asi.
+        tenant_id:      S.tenantId,
         branch_id:      S.branchId,
         waiter_id:      userId,
         waiter_name:    _vrQuien,
