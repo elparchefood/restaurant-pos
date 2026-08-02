@@ -3963,3 +3963,55 @@ de 12.
 medición tomada en otro contexto. El número de 3.510 tokens era real, pero de
 otra función; darlo por bueno para todo el sistema produjo una alarma falsa que
 casi cambia el producto y los precios.
+---
+
+## 107. Marcas, sucursales y plan en el menú de usuario
+
+Sergio preguntó por qué no aparecía el switch de marca, dónde se crean las
+sucursales y por qué no se veía su plan. La respuesta descubrió algo peor de lo
+esperado:
+
+**Nunca ha existido forma de crear una marca ni una sucursal.** El sistema sabe
+leerlas (`caja.js`, `configuracion.js`, `impresoras.js`) y renombrar la marca
+(`configuracion.js:939`), pero **no hay un solo `insert` sobre `brands` ni sobre
+`branches` en todo el código**. El Parche existe porque se creó a mano.
+
+### Lo que se construyó (`pos-marcas.js`)
+
+Se inyecta en el desplegable del usuario del Escritorio:
+
+- **El plan contratado**, leído de `tenants.plan`.
+- **Marca y sucursal actuales**, con el conteo de cuántas hay.
+- **Crear nueva marca** — pide nombre y el de su primera sucursal, porque una
+  marca sin sucursal no puede vender. Muestra en vivo cómo quedarán los logins
+  (`usuario@pollosdonarosa.cobrapos.app`) y crea las dos cosas juntas.
+- **Crear nueva sucursal** — dentro de la marca actual.
+- **Validación contra el plan**: los topes salen de `pos_planes`, no del código.
+  Si el plan no da, el botón dice *"(mejora tu plan)"* y abre un aviso que
+  explica cuántas incluye su plan, en vez de un error.
+
+### El switch NO se construyó, a propósito
+
+Cambiar de marca exige que **las 12 pantallas que hoy leen la sucursal del
+login** obedezcan un contexto central. Mientras eso no exista, un switch
+mostraría los datos de la sucursal equivocada — peor que no tenerlo. Por eso el
+menú **muestra** el contexto pero no deja cambiarlo, y al crear una marca avisa
+que todavía no se puede trabajar en ella.
+
+Ese re-enrutamiento es el siguiente paso y es el 90% del trabajo de multi-marca.
+
+### Probado
+
+- **Permisos:** con la sesión de un usuario real (JWT simulado) se comprobó que
+  puede leer `tenants`, `pos_planes`, `brands` y `branches`, y **crear** marcas
+  y sucursales. Importante, porque el aislamiento se acababa de endurecer.
+- **Render:** como no se puede entrar al sistema sin login, se simuló la
+  pantalla en node con los datos reales de El Parche. Resultado:
+
+  > Tu plan · Plan contratado · **PREMIUM** · Estás trabajando en · **El Parche
+  > Food** · Principal · 1 marca · 1 sucursal · Crear nueva marca · Crear nueva
+  > sucursal
+
+- **Los cuatro botones** se pintan y se conectan a su función.
+
+**Falta la prueba real:** nadie ha abierto el menú en el navegador.
