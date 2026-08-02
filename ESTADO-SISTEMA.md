@@ -3461,3 +3461,25 @@ simplemente hacen un nuevo domicilio."*
 - **Nada de esto se ha probado en el navegador.** La sesión de mesa se validó
   con la consulta contra datos reales, y el flujo de domicilio solo por
   sintaxis: hay que probarlo con un pedido de verdad antes de confiar en él.
+### Venta rápida: igual que domicilio
+
+Sergio: *"en venta rápida funciona igual, no veo la diferencia: se agrega el
+ítem, se cobra solo lo que quedó pendiente."*
+
+Se hizo con el mismo modelo que domicilio — sumar al mismo pedido — y no con el
+de mesa. Sumando al mismo pedido, el total crece y lo ya cobrado no se toca, así
+que **lo que queda pendiente es exactamente lo nuevo**, que es lo que pidió, y
+la comanda muestra todo sin necesitar marca de sesión.
+
+**No se reutilizó `upsertOrder`**, que es la función normal de guardado de venta
+rápida: esa **borra todos los ítems y los vuelve a insertar**, y con ello se
+perdería `kitchen_printed_at` — la cocina reimprimiría el pedido entero y
+volvería a preparar lo ya servido. Se insertan solo los nuevos.
+
+El botón no sale en pedidos ya entregados.
+
+**Un error que cazó el barrido, no el chequeo de sintaxis:** el `case` nuevo
+usaba `btn.dataset.quickId`, pero dentro de `handleAction` la variable se llama
+`el`. `node --check` pasa igual porque es un nombre válido; habría reventado al
+primer clic. Se revisó todo el cuerpo de la función: 5 usos de `el.dataset`, 0
+de `btn.dataset`.

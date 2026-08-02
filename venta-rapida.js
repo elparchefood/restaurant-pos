@@ -916,6 +916,88 @@
   }
 
   /* ─── Supabase: enviar pedido ────────────────────────────────── */
+  // Suma los productos nuevos AL MISMO pedido. Se insertan solo los nuevos y
+  // el pedido crece: lo ya cobrado no se toca, asi que lo que queda pendiente
+  // es exactamente lo que se acaba de agregar.
+  async function agregarAlPedido() {
+    const sb = getSb();
+    const ag = S.agregarA;
+    if (!sb || !ag || !S.cart.length) return;
+
+    const prod = calcSubtotal();
+    const emp  = calcEmpaque();
+    try {
+      const filas = S.cart.map(function (i) { return {
+        order_id:      ag.id,
+        product_id:    i.productId || i.id,
+        name:          i.name,
+        product_name:  i.name,
+        product_price: i.price,
+        unit_price:    i.price,
+        quantity:      i.qty,
+        total:         i.price * i.qty,
+        notes:         i.note || null,
+        status:        'pending',
+        selections:    { mods: i.mods || {} },
+        branch_id:     S.branchId,
+      }; });
+      const r = await sb.from('pos_order_items').insert(filas);
+      if (r.error) throw r.error;
+
+      const up = await sb.from('pos_orders').update({
+        subtotal:      ag.subtotal + prod,
+        packaging_fee: ag.empaque + emp,
+        total:         ag.total + prod + emp,
+      }).eq('id', ag.id);
+      if (up.error) throw up.error;
+
+      // La comanda imprime solo lo nuevo: lo ya impreso queda marcado.
+      if (typeof posAutoprint === 'function' && window.electronPOS) {
+        await Promise.race([posAutoprint(ag.id), new Promise(function (res) { setTimeout(res, 9000); })]);
+      }
+    } catch (e) {
+      console.error('[venta-rapida] agregarAlPedido:', e);
+      alert('No se pudo agregar: ' + (e.message || e));
+      return;
+    }
+
+    S.cart = []; saveCart();
+    S.agregarA = null;
+    window.location.href = 'ventas.html?floor=__rapidas__';
+  }
+
+  // Prepara la pantalla para sumarle algo a un pedido que ya existe. No se
+  // elige nada: el cliente y la etiqueta ya son del pedido.
+  async function entrarModoAgregar(orderId) {
+    const sb = getSb();
+    if (!sb) return;
+    const { data: o, error } = await sb.from('pos_orders')
+      .select('id, customer_name, subtotal, packaging_fee, total, status, delivered_at')
+      .eq('id', orderId).maybeSingle();
+    if (error || !o) { alert('No encontré ese pedido'); return; }
+    if (o.status === 'cancelled' || o.delivered_at) {
+      alert('Ese pedido ya se cerró. Haz una venta nueva.');
+      window.location.href = 'ventas.html?floor=__rapidas__';
+      return;
+    }
+
+    S.agregarA = {
+      id: o.id,
+      subtotal: Number(o.subtotal) || 0,
+      empaque:  Number(o.packaging_fee) || 0,
+      total:    Number(o.total) || 0,
+    };
+    S.cart = []; saveCart();
+    try { renderCart(); } catch (e) {}
+
+    const av = document.createElement('div');
+    av.style.cssText = 'margin:10px;padding:11px 13px;border-radius:11px;background:#EEF2FF;'
+      + 'border:1px solid #C7CDFF;color:#3730A3;font-size:13px;line-height:1.5';
+    av.innerHTML = '<b>Agregando al pedido' + (o.customer_name ? ' de ' + o.customer_name : '') + '</b>'
+      + '<br>Se suma al mismo pedido. Al cobrar solo quedará pendiente lo nuevo.';
+    document.body.insertBefore(av, document.body.firstChild);
+  }
+
   async function guardarPedido() {
     if (!S.cart.length) return;
     const sb = getSb();
@@ -948,6 +1030,8 @@
 
   async function enviarACocina() {
     if (!S.cart.length) return;
+    // Modo agregar: se suma al pedido existente y listo.
+    if (S.agregarA) { return await agregarAlPedido(); }
     const sb = getSb();
     if (!sb) return;
     try {
@@ -1602,6 +1686,11 @@
         await loadCatalog();
         if (window.posStock) { try { await posStock.load(getSb()); } catch (e) { console.warn('posStock:', e); } if (S.currentCatId) openCategory(S.currentCatId); }
         refreshBadges();
+        // Modo agregar: al final, con la pantalla ya pintada.
+        try {
+          const _ag = new URLSearchParams(window.location.search).get('agregar');
+          if (_ag) await entrarModoAgregar(_ag);
+        } catch (e) { console.error('[venta-rapida] modo agregar:', e); }
       });
     }
   });

@@ -2130,6 +2130,7 @@
         })()}
         <div class="vs-order-head">
           <div class="vs-order-section-label">Comanda</div>
+          ${!isEntregadoQ ? `<button class="lm-link" data-action="quick-add-item" data-quick-id="${o.id}">+ Agregar ítem</button>` : ''}
         </div>
         <div class="vs-order-list">
           ${vsComandaHTML(state.quickItems[o.id], vsEmpaquePorItem(state.quickItems[o.id] || [], _qEmp))}
@@ -2708,6 +2709,17 @@
               });
           }
         });
+        break;
+      }
+      case 'quick-add-item': {
+        // Se suma al MISMO pedido: al cobrar queda pendiente solo lo nuevo.
+        const _qid = el.dataset.quickId;
+        if (!_qid) break;
+        (async function() {
+          if (await window.cajaGuard(window._pos && window._pos.state && window._pos.state.branchId)) {
+            window.location.href = 'venta-rapida.html?agregar=' + encodeURIComponent(_qid);
+          }
+        })();
         break;
       }
       case 'quick-nueva':
