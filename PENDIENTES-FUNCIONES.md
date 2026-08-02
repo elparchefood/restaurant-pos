@@ -471,3 +471,54 @@ aprobarlas a mano, perdiendo la verificacion real.
   bancarios con monto X en las ultimas 5h", o sea que la consulta corre).
 - La ventana de busqueda del correo es de **5 horas** (`pagos.ventana_comprobante_horas`).
   Por eso un comprobante de hace 12 h no se confirma: es correcto.
+
+
+---
+
+## 🔴 MAÑANA CON URGENCIA — la bebida vuelve a salir en $0 (2026-08-01, 7:40 pm)
+
+**Caso real.** Sergio creo un pedido desde el chat y en el modal aparecio:
+
+```
+1x  Personal · SÚPER QUESO · Pollo · Tocineta      $27.000
+1x  Coca-Cola · Personal   sin precio                   $0
+```
+
+(El toco borrarla y volver a elegirla bien, asi que en la base el pedido quedo
+correcto. El bug esta en el modal, no en el dato guardado.)
+
+### La causa, ya verificada
+El modelo devolvio el nombre **`Coca-Cola`, con guion**. En el catalogo esta
+guardado **`COCA COLA `, con espacio** (y con un espacio al final).
+
+`norm()` en `extraer-pedido` baja a minusculas y quita tildes, **pero no toca
+los guiones**:
+
+```
+catalogo -> "coca cola"
+modelo   -> "coca-cola"
+¿iguales? NO   ¿uno contiene al otro? NO
+```
+
+Sin coincidencia, el producto no se empareja y queda en $0.
+**Quitando el guion coinciden exactamente.**
+
+### Es el MISMO error de fondo de la carta
+Igual que el doble espacio de *"Para ver la  carta"*: se esta **comparando
+texto** en vez de entender. La regla que dio Sergio para el chat aplica aqui
+tambien.
+
+### El arreglo (que sea general, no un parche para el guion)
+1. En `norm()`: tratar **guiones, puntos, comas, barras y underscores como
+   espacios**, y colapsar espacios. Con eso caen "Coca-Cola", "Coca.Cola",
+   "coca/cola" y "Coca  Cola" de una vez.
+2. **Limpiar el catalogo**: `COCA COLA ` tiene un espacio al final. Conviene un
+   `trim()` al guardar el producto para que no vuelva a pasar.
+3. Aprovechar y darle al modelo **la lista de productos** para que escoja de
+   ahi (como se hizo con los barrios en la entrada 79), en vez de que escriba
+   el nombre libre y despues haya que adivinar a cual se referia.
+
+### Como probarlo
+Pasar por el emparejador variantes escritas como las escribe la gente y el
+modelo: `Coca-Cola`, `coca cola`, `COCA-COLA`, `cocacola`, `Coca Cola 1.5`,
+`gaseosa coca cola`. **Ninguna puede quedar en $0.**
