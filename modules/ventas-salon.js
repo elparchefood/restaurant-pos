@@ -61,10 +61,12 @@
     const idx = QUICK_ESTADO_FLOW.indexOf(est);
     const next = (idx >= 0 && idx < QUICK_ESTADO_FLOW.length - 1) ? QUICK_ESTADO_FLOW[idx + 1] : null;
     const nextLbl = next ? QUICK_ESTADO_META[next].label : null;
-    return '<div class="vs-estado-row" style="display:flex;align-items:center;gap:8px;margin-bottom:14px">'
-      + '<span style="display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;font-size:12.5px;font-weight:700;color:' + meta.color + ';background:' + meta.color + '1f">' + meta.label + '</span>'
-      + (next ? '<button class="lm-btn-ghost" data-action="quick-estado" data-estado="' + next + '" data-quick-id="' + o.id + '" style="font-size:12.5px">Marcar ' + nextLbl + '</button>' : '')
-      + '</div>';
+    // Solo el boton de avanzar. La pastilla del estado ya esta arriba, junto
+    // al nombre: repetirla debajo en grande era decir lo mismo dos veces y es
+    // parte de lo que hacia que esta tarjeta se viera distinta a las otras.
+    return next
+      ? '<button class="lm-btn-ghost" data-action="quick-estado" data-estado="' + next + '" data-quick-id="' + o.id + '">Marcar ' + nextLbl + '</button>'
+      : '';
   }
 
   const CHIP_ORDER_KEY = 'pos.ventas.chipOrder';
@@ -1634,7 +1636,7 @@
     // turno se quedan visibles en estado "Entregado" hasta que se cierre la
     // caja (al cerrar, cajaStart avanza y estos quedan fuera del rango).
     let q = sb.from('pos_orders')
-      .select('id, customer_name, turno, total, subtotal, packaging_fee, discount, status, channel, created_at, waiter_name, notes, delivered_at, paid_amount, estado, estado_at, cliente_id, delivery_fee')
+      .select('id, customer_name, turno, total, subtotal, packaging_fee, discount, status, channel, created_at, waiter_name, notes, delivered_at, paid_amount, estado, estado_at, cliente_id, delivery_fee, payment_method')
       .eq('channel', 'rapido')
       .neq('status', 'cancelled')
       .gte('created_at', cajaStart)
@@ -2060,6 +2062,7 @@
         </div>`;
     } else if (isPaid) {
       actionsHtml = `<div class="vs-actions">
+          <button class="lm-btn-ghost" data-action="quick-print" data-quick-id="${o.id}">Imprimir</button>
           <button class="lm-btn-ghost" data-action="quick-nueva" data-quick-id="${o.id}">Nueva venta</button>
           <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-entregar" data-quick-id="${o.id}">Ya entregué</button>
         </div>`;
@@ -2086,6 +2089,10 @@
         </div>`;
     }
 
+    // El boton de avanzar estado va con los demas botones, no suelto arriba.
+    const _avanzar = quickEstadoControl(o);
+    if (_avanzar) actionsHtml = actionsHtml.replace('<div class="vs-actions">', '<div class="vs-actions">' + _avanzar);
+
     return `
       <div class="vs-rail-head">
         <div>
@@ -2104,8 +2111,7 @@
           </div>
         </div>
       </div>
-      <div class="vs-rail-body">
-        ${quickEstadoControl(o)}
+      <div class="vs-rail-fixed-top">
         <div class="vs-info-row">
           <div class="vs-info-cell">
             <div class="vs-info-label">Canal</div>
@@ -2122,6 +2128,31 @@
           </div>
         </div>
         ${(function () {
+          /* Quien atendio, igual que la fila del domiciliario. Faltaba: en la
+             venta rapida no habia forma de saber quien la hizo. */
+          const _pagQ = Number(o.paid_amount) || 0;
+          const _okQ  = _qPagado || (total > 0 && _pagQ >= total);
+          const _parQ = !_okQ && _pagQ > 0;
+          const _col  = _okQ ? '#16A34A' : _parQ ? '#C2410C' : '#D97706';
+          const _bg   = _okQ ? '#DCFCE7' : _parQ ? '#FFEDD5' : '#FEF3C7';
+          const _lbl  = _okQ ? 'Pagado'
+                      : _parQ ? ('Abonado ' + fmt(_pagQ) + ' · faltan ' + fmt(Math.max(0, total - _pagQ)))
+                      : 'Por pagar';
+          const _chip = '<span style="font-size:11px;font-weight:600;color:' + _col + ';background:' + _bg + ';padding:3px 8px;border-radius:6px">' + _lbl + '</span>';
+          const _quien = (o.waiter_name || '').trim();
+          if (!_quien || _quien.indexOf('@') >= 0) {
+            return '<div class="vs-mesero-row" style="justify-content:flex-end">' + _chip + '</div>';
+          }
+          return '<div class="vs-mesero-row">'
+            + '<div class="lm-avatar lm-avatar-md">' + _esc(_quien[0].toUpperCase()) + '</div>'
+            + '<div class="vs-mesero-spacer"><div class="vs-mesero-label">Atendió</div>'
+            + '<div class="vs-mesero-name">' + _esc(_quien) + '</div></div>'
+            + _chip + '</div>';
+        })()}
+      </div>
+
+      <div class="vs-rail-scroll">
+        ${(function () {
           /* Las notas se limpian de los marcadores internos ([etq:...],
              [tel:...], [barrio:...]) que el sistema mete para uso propio: al
              operador le salia "[etq:ESPERAN]" en pantalla. */
@@ -2130,24 +2161,21 @@
         })()}
         <div class="vs-order-head">
           <div class="vs-order-section-label">Comanda</div>
-          ${!isEntregadoQ ? `<button class="lm-link" data-action="quick-add-item" data-quick-id="${o.id}">+ Agregar ítem</button>` : ''}
+          ${!isEntregadoQ
+            ? `<button class="lm-link" data-action="quick-add-item" data-quick-id="${o.id}">+ Agregar ítem</button>`
+            : `<span style="font-size:11px;color:#94A3B8">${_esc(o.payment_method || '')}</span>`}
         </div>
         <div class="vs-order-list">
           ${vsComandaHTML(state.quickItems[o.id], vsEmpaquePorItem(state.quickItems[o.id] || [], _qEmp))}
         </div>
-        <div class="vs-divider"></div>
+      </div>
+
+      <div class="vs-rail-footer">
         <div class="vs-totals">
           <div class="vs-total-row"><span>Pedido</span><span>${fmt(subtotal + (vsEmpaqueEsPorPedido() ? 0 : _qEmp))}</span></div>
           ${vsEmpaqueEsPorPedido() && _qEmp ? `<div class="vs-total-row"><span>Empaque</span><span>${fmt(_qEmp)}</span></div>` : ''}
           ${descuento ? `<div class="vs-total-row"><span>Descuento</span><span>-${fmt(descuento)}</span></div>` : ''}
-          <div class="vs-total-row vs-total-grand"><span>Total</span><span>${fmt(total)}</span></div>
-          ${(function(){
-            const paidQ = Number(o.paid_amount) || 0;
-            if (isPaid || total <= 0) return '';
-            if (paidQ >= total) return '<div class="vs-total-row" style="color:#16A34A;font-weight:700"><span>✔ Pagado</span><span>'+fmt(paidQ)+'</span></div>';
-            if (paidQ > 0) return '<div class="vs-total-row" style="color:#C2410C;font-weight:700"><span>Abonado '+fmt(paidQ)+'</span><span>Faltan '+fmt(total-paidQ)+'</span></div>';
-            return '';
-          })()}
+          <div class="vs-total-row vs-total-grand"><span>Total a cobrar</span><span>${fmt(total)}</span></div>
         </div>
         ${actionsHtml}
       </div>
@@ -2709,6 +2737,12 @@
               });
           }
         });
+        break;
+      }
+      case 'quick-print': {
+        const _pid = el.dataset.quickId;
+        if (_pid && typeof posOpenPrintModal === 'function') posOpenPrintModal(_pid);
+        else if (typeof toast === 'function') toast('Impresión no disponible');
         break;
       }
       case 'quick-add-item': {

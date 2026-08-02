@@ -3483,3 +3483,41 @@ usaba `btn.dataset.quickId`, pero dentro de `handleAction` la variable se llama
 `el`. `node --check` pasa igual porque es un nombre válido; habría reventado al
 primer clic. Se revisó todo el cuerpo de la función: 5 usos de `el.dataset`, 0
 de `btn.dataset`.
+---
+
+## 98. La tarjeta de venta rápida, unificada de verdad
+
+Sergio: *"todavía se ve muy diferente a las otras. No se ve la persona que
+atendió, la distribución de algunas cosas está muy diferente."*
+
+**Lo que seguía distinto:**
+
+| | Antes | Ahora |
+|---|---|---|
+| Quién atendió | No aparecía | Fila con avatar, "Atendió" y el nombre, igual que la del domiciliario |
+| Estado | Dos veces: pastilla arriba **y** pastilla verde grande debajo | Una sola vez, en el título |
+| Estructura | `vs-rail-body` suelto | Cabecera fija + comanda con scroll + pie, como domicilio |
+| Estado de pago | Fila suelta "✔ Pagado" entre los totales | Chip en la fila de arriba, como domicilio |
+| Totales | "Total" | "Total a cobrar" |
+| Método de pago | No salía | Junto a la comanda |
+| Imprimir | No tenía | Sí |
+
+El botón de **avanzar estado** ("Marcar entregado") no se perdió: se movió a la
+fila de botones, que es donde domicilio tiene el suyo. La pastilla verde grande
+que lo acompañaba sí se borró — repetía el estado que ya dice el título, y era
+buena parte de lo que hacía que la tarjeta se viera de otra familia.
+
+**Comprobado comparando el esqueleto de las dos tarjetas en orden:**
+
+```
+rail-head > eyebrow > rail-title-row > rail-fixed-top > info-row >
+mesero-row > rail-scroll > order-head > order-list > rail-footer > totals
+```
+
+Idéntico en las dos.
+
+Hizo falta traer `payment_method` en la consulta de pedidos rápidos, que no se
+pedía.
+
+**Diferencia que queda a propósito:** domicilio tiene el menú "⋮" con Cancelar
+en la cabecera; venta rápida lleva Cancelar entre los botones. No se tocó.
