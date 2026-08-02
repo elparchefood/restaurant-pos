@@ -3915,3 +3915,51 @@ Quedan dos frenos de escala, ya diagnosticados:
    recargas simultáneas.
 2. **El cupo de OpenAI es uno solo para todos** — 30.000 tokens/minuto
    compartidos, que ya fallaron con un cliente.
+---
+
+## 106. Corrección de un costeo equivocado por 12 veces
+
+Se auditó el plan comercial y se concluyó que **Premium perdía 40%** y que había
+que optimizar urgente la lectura de pedidos. **Las dos conclusiones eran falsas.**
+
+### El error
+
+1. **Se asumió que el chat con clientes usa el modelo avanzado.** Verificado en
+   el código desplegado: `delay-reply`, `extraer-pedido` y `meta-webhook` usan
+   **gpt-4o-mini**. El avanzado solo aparece en `verificar-pago-manual` (leer un
+   comprobante) y `analyze-menu` (montar la carta una vez).
+2. **Se usó el tamaño de petición equivocado.** El dato real de 3.510 tokens
+   venía del error 429 de `gerente-inventario`, que manda la lista completa de
+   insumos. El prompt de `extraer-pedido` es de ~1.428 tokens: 476 de reglas,
+   802 de carta y ~150 de conversación.
+
+Un modelo 17 veces más barato y un prompt 2,5 veces más chico: de ahí el factor
+de 12.
+
+### Lo real
+
+| | Dicho | Real |
+|---|---|---|
+| Costo por mensaje | $35 | **$2,9** |
+| Margen Pro (5.000 msj) | 30% | **91%** |
+| Margen Premium (20.000 msj) | **−40%** | **+82%** |
+| El Parche, julio (651 msj) | $22.778 | **$3.410** |
+
+### Lo que cambia
+
+- **Premium se puede vender.** No hay que bajarle el tope ni subirle el precio.
+- **La optimización de prompts no hace falta.** Se evitó un día de trabajo
+  riesgoso sobre la función que toma los pedidos, que es la más delicada del
+  sistema.
+- **La recarga había quedado abusiva:** $120.000 por mil mensajes que cuestan
+  $2.900 es 97% de margen. Bajada a **$35.000** (92%), que sigue siendo
+  excelente y es defendible.
+- **Con 100 clientes en Pro:** ingresos $24.900.000/mes contra ~$2.800.000 de
+  costos → margen bruto ~89%.
+
+### La lección
+
+**Verificar qué modelo usa cada función antes de costear**, y no reutilizar una
+medición tomada en otro contexto. El número de 3.510 tokens era real, pero de
+otra función; darlo por bueno para todo el sistema produjo una alarma falsa que
+casi cambia el producto y los precios.
