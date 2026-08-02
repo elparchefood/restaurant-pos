@@ -78,10 +78,27 @@ Deno.serve(async (req: Request) => {
       console.error("[cambiar-estado] no se registro el tiempo:", String(e).slice(0, 200));
     }
 
-    const cfgRow = await sbGet(`/ia_config?branch_id=eq.${order.branch_id}&select=estados_config`) as Array<Record<string, unknown>> | null;
+    const cfgRow = await sbGet(`/ia_config?branch_id=eq.${order.branch_id}&select=estados_config,flujo_envio`) as Array<Record<string, unknown>> | null;
     const cfg = (cfgRow?.[0]?.estados_config || {}) as Record<string, Record<string, { etiqueta?: string; mensaje?: string }>>;
     const tipo = String(order.channel).toLowerCase() === "domicilio" ? "domicilio" : "llevar";
-    const e = (cfg[tipo] && cfg[tipo][estado]) || {};
+    const e = { ...((cfg[tipo] && cfg[tipo][estado]) || {}) };
+
+    /* La CAJA DE ENVÍO del canvas gobierna este aviso. No lo reemplaza: lo
+       gobierna. Sin caja configurada, todo se comporta como siempre.
+         · apagada          -> no se avisa nada en ese estado
+         · conectada        -> sale el mensaje de la pantalla de Estados
+         · con frase propia -> sale la de la caja
+       Sin esto, el aviso se disparaba SIEMPRE y el dueño no tenía cómo
+       desconectarlo (planteado por Sergio). */
+    const envio = (cfgRow?.[0]?.flujo_envio || null) as
+      { activo?: boolean; estado?: string; usar_estados?: boolean; frase?: string } | null;
+    if (envio && String(envio.estado || "en_camino") === estado) {
+      if (envio.activo === false) {
+        e.mensaje = "";                       // el estado cambia igual, pero no se avisa
+      } else if (envio.usar_estados === false && String(envio.frase || "").trim()) {
+        e.mensaje = String(envio.frase).trim();
+      }
+    }
 
     const convs = await sbGet(`/chat_conversations?order_id=eq.${order_id}&select=id,channel,labels,tenant_id`) as Array<Record<string, unknown>> | null;
     const conv = convs?.[0];

@@ -4595,3 +4595,60 @@ porque el editor no sabía que existían. Ya no.
 - En la de dirección: reglas por país y dónde no se reparte.
 - En la de cliente: las opciones del nombre configurables.
 - Variantes: leer **todos** los grupos, no solo el primero.
+---
+
+## 117. Variantes de varios grupos, y la caja de envío
+
+### Las variantes solo leían el primer grupo
+
+Un producto puede tener varios grupos de variante. El **SÚPER QUESO** tiene dos
+(dos ingredientes), y otro restaurante puede tener "salsa" + "punto de cocción"
++ "acompañamiento".
+
+El motor **construía un paso por grupo** —eso estaba bien— pero:
+
+- el extractor solo miraba `productData.variables[0]`;
+- `findNextStep` daba por respondidos **todos** los grupos en cuanto había algo
+  en `state.tipo`, que es uno solo para todo el producto.
+
+Resultado: en un producto de dos grupos, **el segundo nunca se preguntaba ni se
+capturaba**. En el pedido real *"SÚPER QUESO · Carne · Tocineta"* la tocineta se
+habría perdido.
+
+**Arreglo:** `state.tipos` guarda una respuesta **por grupo**; el extractor los
+recorre todos (*"de pollo y tocineta"* responde dos grupos en un mensaje);
+`findNextStep` mira el grupo de SU paso; y `state.tipo` sigue existiendo como el
+texto junto, que es lo que usan el resumen y el pedido. Al cambiar de producto
+las variantes se limpian, porque son de cada producto.
+
+### La caja de envío
+
+Sergio: *"que el envío sea una caja para poder conectarlo con los disparadores
+de estado o desconectarlos, porque si no, automáticamente siempre se
+dispararía."*
+
+Los disparadores ya existían en `ia_config.estados_config` y los ejecuta
+`cambiar-estado`. **La caja no los reemplaza: los gobierna.**
+
+| Caja | Qué pasa |
+|---|---|
+| Apagada | El estado cambia igual, pero al cliente no se le avisa |
+| Conectada | Sale el mensaje de la pantalla de Estados (como hoy) |
+| Con frase propia | Sale la de la caja, y la de Estados queda quieta |
+
+Se elige además **en qué estado** avisa: en preparación, listo, en camino o
+entregado.
+
+Se guarda en `ia_config.flujo_envio`, aparte de `flujo_pasos`, porque **no es un
+paso del pedido**: el pedido ya existe y esto avisa después. Sin caja
+configurada, todo se comporta exactamente como antes.
+
+`delay-reply` v211 · `cambiar-estado` v7 · las dos verificadas que arrancan.
+
+### Lo que queda de la lista
+
+- **Preguntas frecuentes**, como mecanismo aparte del flujo.
+- Confirmación y resumen como cajas con misión (hoy son comportamiento y
+  plantilla).
+- En la de dirección: reglas por país y dónde no se reparte.
+- En la de cliente: las opciones del nombre configurables.

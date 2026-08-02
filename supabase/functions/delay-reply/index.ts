@@ -31,7 +31,13 @@ interface PacoState {
   producto:           string | null;
   producto_categoria: string | null;  // categoría del producto activo (nombres repetidos entre categorías)
   tamano:             string | null;
+  /* Texto junto de todas las variantes ("Carne, Tocineta"). Es lo que ven el
+     resumen y el pedido. */
   tipo:               string | null;
+  /* Una por GRUPO. Un producto puede tener varios (dos ingredientes, salsa +
+     punto de cocción…) y antes se daban todos por respondidos en cuanto
+     llegaba el primero. */
+  tipos?:             Record<string, string>;
   cantidad:           number;
   adiciones:          string | null;  // null=no preguntado, ""=rechazado, "texto"=pidió
   // Cómo lo quiere preparado: "sin ajo", "solo bbq", "poca salsa"... Es lo que
@@ -90,7 +96,7 @@ type TipoDireccion = "residencial" | "publico" | "rechazado" | "incompleta" | "p
 function newPacoState(): PacoState {
   return {
     producto: null, producto_categoria: null, tamano: null, tipo: null, cantidad: 1,
-    adiciones: null, preferencias: null, direccion: null, pago: null, nombre: null,
+    adiciones: null, preferencias: null, direccion: null, pago: null, nombre: null, tipos: {},
     items: [], resumen_enviado: false, direccion_heredada: false, complemento_dir_pendiente: null,
     last_activity: new Date(Date.now() - 30 * 60_000).toISOString(), // 30min atrás → sesionExpirada=true
     _v: 120,
@@ -1474,6 +1480,7 @@ INTENCION, no las palabras exactas.` },
       // La preferencia se queda con el producto que la recibió. El siguiente
       // arranca limpio: "una sin salsa y otra normal" son dos cosas distintas.
       state.preferencias = null;
+      state.tipos = {};   // las variantes son de cada producto
     } else if (!state.producto) {
       state.producto = productoDetectado;
       state.producto_categoria = productoCategoriaDet;
@@ -2382,10 +2389,26 @@ function runExtractors(
     const p = extractPresentacion(text, productData.presentations);
     if (p) result.tamano = p;
   }
-  if (!state.tipo && productData && productData.variables.length > 0) {
-    const firstVg = productData.variables[0];
-    const v = extractVariable(text, firstVg.options);
-    if (v) result.tipo = v;
+  if (productData && productData.variables.length > 0) {
+    /* Se recorren TODOS los grupos, no solo el primero: "de pollo y tocineta"
+       responde dos grupos en un solo mensaje. */
+    const yaTipos: Record<string, string> = { ...(state.tipos || {}) };
+    let cambio = false;
+    for (const vg of productData.variables) {
+      if (!vg.options || vg.options.length === 0) continue;
+      if (yaTipos[vg.id]) continue;                 // ese grupo ya está resuelto
+      const v = extractVariable(text, vg.options);
+      if (v) { yaTipos[vg.id] = v; cambio = true; }
+    }
+    if (cambio) {
+      result.tipos = yaTipos;
+      // `tipo` sigue siendo el texto junto, en el orden de los grupos, que es
+      // lo que espera el resumen y lo que se manda al crear el pedido.
+      result.tipo = productData.variables
+        .map(vg => yaTipos[vg.id])
+        .filter(Boolean)
+        .join(", ");
+    }
   }
   if (!state.pago) {
     let p = extractPago(text, pagosCfg);
@@ -2497,7 +2520,10 @@ function findNextStep(state: PacoState, pasos: PasoDefinicion[], incluirPostResu
     if (paso.id === "presentacion") {
       if (!state.tamano) return paso;
     } else if (paso.id.startsWith("variable_")) {
-      if (!state.tipo) return paso;
+      // Un paso por grupo: se mira SU grupo, no el texto junto. Antes bastaba
+      // con que hubiera cualquier variante para dar por hechos todos.
+      const grupoId = paso.id.slice("variable_".length);
+      if (!(state.tipos || {})[grupoId]) return paso;
     } else if (paso.id === "upsell") {
       if (state.adiciones === null) return paso;
     } else if (paso.id === "confirmar_dir") {

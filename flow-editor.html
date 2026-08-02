@@ -528,6 +528,56 @@ function renderPanelBody(id, d) {
     </div>`;
   }
 
+  /* Caja de ENVÍO. No es un paso del pedido: el pedido ya existe y esto avisa
+     al cliente cuando cambia de estado. Por eso no captura ningún dato — solo
+     gobierna el disparador que ya existe. */
+  if(['ia','fija'].includes(d.type) && d.rol_envio === true) {
+    html += `<div class="cp-section">
+      <div class="cp-label">Avisar cuando el pedido pase a</div>
+      <select class="cp-input" onchange="updateField(${id},'envio_estado',this.value)">
+        <option value="en_preparacion" ${(d.envio_estado||'en_camino')==='en_preparacion'?'selected':''}>En preparación</option>
+        <option value="listo"          ${d.envio_estado==='listo'?'selected':''}>Listo</option>
+        <option value="en_camino"      ${(d.envio_estado||'en_camino')==='en_camino'?'selected':''}>En camino</option>
+        <option value="entregado"      ${d.envio_estado==='entregado'?'selected':''}>Entregado</option>
+      </select>
+
+      <div class="cp-toggle-row" style="margin-top:14px">
+        <span class="cp-toggle-label">Usar el mensaje que ya tengo configurado en Estados</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.envio_usar_estados!==false?'checked':''} onchange="updateField(${id},'envio_usar_estados',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Encendido, usa el mensaje de la pantalla de Estados. Apagado, usa la frase de esta caja y deja el de Estados quieto.</div>
+
+      <div class="cp-toggle-row" style="margin-top:14px">
+        <span class="cp-toggle-label">Avisar al cliente</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.activo!==false?'checked':''} onchange="updateField(${id},'activo',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Apágalo si no quieres que se le avise nada al cliente en ese estado.</div>
+    </div>`;
+  }
+
+  // Marcar un nodo de mensaje como la caja de envío
+  if(['ia','fija'].includes(d.type) && !d.campo) {
+    html += `<div class="cp-section">
+      <div class="cp-toggle-row">
+        <span class="cp-toggle-label">Esta caja es el aviso de envío</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.rol_envio===true?'checked':''} onchange="updateField(${id},'rol_envio',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">El aviso de envío no es un paso del pedido: el pedido ya existe y esto avisa cuando cambia de estado.</div>
+    </div>`;
+  }
+
   // Paso PAGO: puede ir después del resumen
   if(['pregunta','ia','fija'].includes(d.type) && d.campo === 'pago') {
     html += `<div class="cp-section">
@@ -695,6 +745,24 @@ function pushPaso(d, pasos) {
 
 // Recorre el grafo desde el nodo "inicio" siguiendo las conexiones y devuelve
 // el array ordenado de pasos para el motor (ia_config.flujo_pasos).
+/* La caja de envío no es un paso del pedido, así que no va en flujo_pasos:
+   se guarda aparte y la lee `cambiar-estado`. */
+function exportarEnvio(data) {
+  const nodes = (data.drawflow?.Home?.data) || {};
+  for (const nid of Object.keys(nodes)) {
+    const d = nodes[nid].data || {};
+    if (d.rol_envio === true) {
+      return {
+        activo: d.activo !== false,
+        estado: d.envio_estado || 'en_camino',
+        usar_estados: d.envio_usar_estados !== false,
+        frase: d.frase || '',
+      };
+    }
+  }
+  return null;
+}
+
 function exportarFlujoPasos(data) {
   const nodes = (data.drawflow?.Home?.data) || {};
   const entries = Object.entries(nodes);
@@ -812,6 +880,7 @@ async function saveFlow() {
       branch_id: branchId,
       frases,
       flujo_pasos:  exportarFlujoPasos(data),
+      flujo_envio:  exportarEnvio(data),
       flujo_saludo: exportarSaludo(data),
       flujo_extras: exportarExtras(data),
       flujo_canvas: data,
