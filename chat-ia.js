@@ -119,7 +119,20 @@ async function loadConversations() {
   if (['all','mine','pending'].includes(S.activeView)) { q = q.eq('status','open').eq('human_takeover', false); }
   const { data } = await q;
   S.conversations = data || [];
-  if (S.activeView === 'all') S.conversations = S.conversations.filter(function(c){ return !(Array.isArray(c.labels) && c.labels.length>0); });  // etiquetados: solo en su pestaña
+  /* Los etiquetados se ven en SU pestaña, no en la bandeja. Pero solo cuentan
+     las etiquetas que TODAVIA EXISTEN: si una etiqueta se borro o se renombro,
+     su id queda pegado en la conversacion y esta desaparecia de la bandeja Y de
+     toda pestaña, quedando invisible en el sistema. Le paso al chat de Vilma
+     Ortiz (etiqueta `ems1311u0`, ya inexistente) en pleno servicio. */
+  if (S.activeView === 'all') {
+    var _idsVivos = {};
+    (S.etiquetas || []).forEach(function (e) { if (e && e.id) _idsVivos[e.id] = true; });
+    S.conversations = S.conversations.filter(function (c) {
+      if (!Array.isArray(c.labels) || !c.labels.length) return true;
+      // Si NINGUNA de sus etiquetas existe ya, la conversacion vuelve a la bandeja.
+      return !c.labels.some(function (id) { return _idsVivos[id]; });
+    });
+  }
   renderConvList();
   renderBadges();
   updateLabelBadges();
