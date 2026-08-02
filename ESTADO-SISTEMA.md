@@ -3017,3 +3017,63 @@ Conversaciones de prueba borradas.
 Durante el arreglo la funcion quedo unos minutos rota (`Assignment to constant
 variable`: agregue el guard sin cambiar `const` por `let`). Se detecto en la
 prueba y se corrigio. **Probar despues de cada despliegue no es opcional.**
+
+
+---
+
+## 91. El comprobante se lee por SIGNIFICADO, no por etiquetas (2026-08-02)
+
+Cierra el pendiente de Bre-B. **Regla de Sergio:** *"las personas me van a enviar
+comprobantes de varios bancos, y en cada banco los datos pueden estar en lugares
+diferentes; el sistema debe extraerlos sin importar en que parte estan."*
+
+### La evidencia: tres bancos, tres formas de nombrar lo mismo
+Sergio mando comprobantes reales:
+
+| Banco | Como etiqueta la cuenta destino |
+|---|---|
+| Davivienda | *"a la llave Bancolombia **0089912015** de El Parche Food"* — suelta en una frase, **sin etiqueta** |
+| Nequi | *"Llave: **0092726260**"* |
+| Bre-B | *"Codigo de negocio: **0092726260**"* |
+
+Ir agregando etiquetas a una lista era una carrera perdida.
+
+### Lo que se hizo
+1. **El prompt describe el ROL, no la etiqueta.** Se le dice al modelo que la
+   llave destino es *"el numero que identifica a QUIEN RECIBIO la plata, no te
+   guies por la etiqueta"*, con las tres formas como ejemplo, y que **nunca** use
+   los numeros de las secciones de origen (*"¿De donde salio?"*, *"¿Desde donde
+   se hizo el envio?"*).
+2. **Devuelve TODOS los numeros** que ve, cada uno marcado como
+   `destino | origen | referencia | otro`. Asi, **aunque el modelo se equivoque
+   clasificando, el numero llego** y se puede comparar.
+3. **La comparacion la hace nuestro codigo**, no el modelo: busca la cuenta
+   configurada entre todos los numeros que no sean del remitente.
+
+### Un riesgo propio, encontrado en la prueba
+La primera version comparaba con `includes`, asi que **un numero de 6 digitos
+que fuera subcadena daba por buena una transferencia a OTRA cuenta**. Se
+endurecio: iguales, o una termina en la otra **con minimo 8 digitos**.
+
+### Verificado
+**Con los tres comprobantes reales que ya estan en el sistema:** los tres pasan
+ahora `monto ✓ cuenta ✓` (el correo falla porque son pagos de hace dias y la
+ventana de Gmail es de 5 h — comportamiento correcto). El de Bre-B que ayer
+decia *"El pago fue enviado a otra cuenta (EL PARCHE FOOD SERGIO ABADIA)"* ahora
+lee **0092726260 (destino)** y valida.
+
+**Y rechaza lo que debe rechazar:**
+
+| Numero | Resultado |
+|---|---|
+| `0092726260` (la cuenta) | coincide |
+| `92726260` (sin los ceros) | coincide |
+| `0089912015` (cuenta VIEJA de Davivienda) | **rechaza** |
+| `272626` (subcadena corta) | **rechaza** |
+| `3112317166` (celular del remitente) | **rechaza** |
+
+### PENDIENTE menor (decision de Sergio)
+Hoy solo se compara contra UNA cuenta (`pagos.llave`). Si algun dia recibe en
+mas de una, hay que permitir **varias cuentas** en la configuracion; si no, los
+pagos a las otras se rechazan. La cuenta de Davivienda `0089912015` es vieja y
+ya no se usa, asi que por ahora no hace falta.
