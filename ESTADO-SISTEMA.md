@@ -4020,23 +4020,28 @@ Ese re-enrutamiento es el siguiente paso y es el 90% del trabajo de multi-marca.
 
 ## 108. Barrido posterior: cuatro tablas que negaban todo
 
-Tras cerrar las 22 politicas abiertas se compararon **todas** las tablas: lo que
+Tras cerrar las 22 políticas abiertas se compararon **todas** las tablas: lo que
 hay contra lo que ve un usuario real. Aparecieron cuatro con la seguridad activa
-y **ninguna politica**, que en PostgreSQL significa negar todo.
+y **ninguna política**, que en PostgreSQL significa negar todo.
 
-| Tabla | Filas | Quien la usa |
+| Tabla | Filas | Quién la usa |
 |---|---:|---|
-|  | 540 | **Inventario e Informes** |
-|  | 88 | Solo el servidor |
-|  | 154 | Solo el servidor |
-|  | 3 | El menu de marcas (creada hoy) |
+| `iv_movimientos` | 540 | **Inventario e Informes** |
+| `chat_ai_queue` | 88 | Solo el servidor |
+| `pos_gerente_procesados` | 154 | Solo el servidor |
+| `pos_planes` | 3 | El menú de marcas (creada hoy) |
 
-** no era culpa del aislamiento de hoy: ya venia asi.** El
-kardex llevaba tiempo invisible para Inventario e Informes, y nadie lo habia
-notado. Se corrigio de paso.
+**`iv_movimientos` no era culpa del aislamiento de hoy: ya venía así.** El kardex
+llevaba tiempo invisible para Inventario e Informes, y nadie lo había notado. Se
+corrigió de paso.
 
- se deja negando todo a proposito: ninguna pantalla la
-lee.  y  no son del POS y no se tocan.
+`pos_gerente_procesados` se deja negando todo a propósito: ninguna pantalla la
+lee, solo las funciones del servidor. `mypass_vault` y `user_profiles` no son
+del POS (otro proyecto en el mismo Supabase) y no se tocan.
 
-**Barrido final:** no queda ninguna tabla del POS donde el dueno vea menos de lo
-suyo.
+**Barrido final: no queda ninguna tabla del POS donde el dueño vea menos de lo
+suyo.**
+
+**Método que vale la pena repetir:** después de tocar seguridad, no basta con
+probar las tablas que uno cambió. Comparar *todas* contra lo que ve un usuario
+real fue lo que destapó que el kardex estaba caído desde antes.
