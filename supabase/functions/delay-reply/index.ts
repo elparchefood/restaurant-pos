@@ -30,6 +30,9 @@ interface PacoState {
   tipo:               string | null;
   cantidad:           number;
   adiciones:          string | null;  // null=no preguntado, ""=rechazado, "texto"=pidió
+  // Cómo lo quiere preparado: "sin ajo", "solo bbq", "poca salsa"... Es lo que
+  // más reclama un cliente si se pierde, y no tenía dónde vivir.
+  preferencias:       string | null;
   direccion:          string | null;
   pago:               string | null;
   nombre:             string | null;
@@ -70,10 +73,10 @@ type TipoDireccion = "residencial" | "publico" | "rechazado" | "incompleta" | "p
 function newPacoState(): PacoState {
   return {
     producto: null, producto_categoria: null, tamano: null, tipo: null, cantidad: 1,
-    adiciones: null, direccion: null, pago: null, nombre: null,
+    adiciones: null, preferencias: null, direccion: null, pago: null, nombre: null,
     items: [], resumen_enviado: false, direccion_heredada: false, complemento_dir_pendiente: null,
     last_activity: new Date(Date.now() - 30 * 60_000).toISOString(), // 30min atrás → sesionExpirada=true
-    _v: 119,
+    _v: 120,
   };
 }
 
@@ -1448,7 +1451,7 @@ INTENCION, no las palabras exactas.` },
   const currentStepId = currentStep?.id || null;
 
   // 14d. Correr extractores de slots
-  const extracted = runExtractors(clienteTexto, state, currentStepId, pagosCfg, currentProductData, nombreConfirmar, intenciones);
+  const extracted = runExtractors(clienteTexto, state, currentStepId, pagosCfg, currentProductData, nombreConfirmar, intenciones, cfg);
 
   // 14e. Merge
   // Capturar ANTES del merge: si ya había una pregunta de dirección pendiente → es el segundo intento
@@ -1888,6 +1891,65 @@ function isProductAttribute(text: string, productData: ProductData | null): bool
   return false;
 }
 
+// ── Preferencias de preparación ─────────────────────────────────────────────────
+// "sin ajo", "solo bbq", "poca salsa", "sin queso", "extra tocineta"...
+//
+// Los disparadores son del ESPAÑOL, no de ningún restaurante: cualquier negocio
+// dice "sin", "solo", "poca". El restaurante puede sumar los suyos desde el
+// canvas (ia_config.preferencias_palabras), igual que las adiciones.
+//
+// Sin barras invertidas de letra (\b, \s): se corrompen al desplegar.
+function extractPreferencias(text: string, cfg: Record<string, unknown>): string | null {
+  const t = String(text || "").trim();
+  if (!t || t.length > 300) return null;
+
+  const extra = Array.isArray(cfg.preferencias_palabras)
+    ? (cfg.preferencias_palabras as unknown[]).map(x => String(x || "").trim().toLowerCase()).filter(Boolean)
+    : [];
+  const base = ["sin", "solo", "solamente", "unicamente", "únicamente",
+                "poca", "poco", "mucha", "mucho", "extra", "aparte", "nada de"];
+  const disparadores = base.concat(extra);
+
+  const bajo = normalizarTexto(t);
+  const frases: string[] = [];
+
+  for (const d of disparadores) {
+    const dn = normalizarTexto(d);
+    // El disparador debe ir suelto, no dentro de otra palabra: "sin" sí,
+    // pero no el "sin" de "sinceramente".
+    const re = new RegExp("(^|[^a-z0-9])" + dn + "([^a-z0-9])", "g");
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(bajo)) !== null) {
+      const desde = m.index + m[1].length;
+      // Se toma lo que sigue hasta el final de esa idea (coma, "y", punto).
+      const resto = t.slice(desde);
+      // NO se corta en " y ": "solo ajo y bbq" es UNA preferencia con dos
+      // salsas, y cortando ahi se perdia el bbq.
+      // El " y " corta SOLO cuando empieza otra idea ("y una adicion",
+      // "y me regalas"). En "solo ajo y bbq" el " y " enumera salsas y
+      // cortar ahi perdia el bbq.
+      const corte = resto.search(/[,.;]| pero | y (un|una|uno|dos|tres|el |la |los |las |me |para |tambien|ademas)/i);
+      let frase = (corte > 0 ? resto.slice(0, corte) : resto).trim();
+      // Las cortesias del final no son parte de la preferencia: "poca salsa
+      // por favor" tiene que llegar a la cocina como "poca salsa".
+      frase = frase.replace(/[ ]+(por[ ]+favor|porfavor|porfa|porfis|gracias)[ .!]*$/i, "").trim();
+      if (frase.length >= 4 && frase.length <= 60) frases.push(frase);
+      if (frases.length >= 4) break;
+    }
+    if (frases.length >= 4) break;
+  }
+  if (!frases.length) return null;
+  // Sin repetidas y en el orden en que las dijo.
+  const vistas: Record<string, boolean> = {};
+  const limpias = frases.filter(f => {
+    const k = normalizarTexto(f);
+    if (vistas[k]) return false;
+    vistas[k] = true;
+    return true;
+  });
+  return limpias.join(", ");
+}
+
 // ── Métodos de pago CONFIGURABLES ────────────────────────────────────────────────
 // La lista vive en ia_config.pagos.metodos = [{nombre, digital}] — editable desde la
 // pantalla Pagos. "digital" = el bot envía QR y espera comprobante. Si no hay lista,
@@ -2177,6 +2239,7 @@ function runExtractors(
   // lectura por texto no encuentra nada: la gente escribe "nequii", "davi
   // plata" o "transfe" y ninguna lista los cubre.
   intenciones: Record<string, unknown> = {},
+  cfgGlobal: Record<string, unknown> = {},
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -2197,6 +2260,25 @@ function runExtractors(
       }
       result.complemento_dir_pendiente = null;
       return result;
+    }
+  }
+
+  // Las preferencias pueden llegar en CUALQUIER momento ("ah, y sin ajo"), no
+  // solo al pedir. Por eso se lee siempre y se sSUMA a lo que ya había, en vez
+  // de reemplazarlo: el cliente puede agregar condiciones de a poco.
+  {
+    const pref = extractPreferencias(text, cfgGlobal);
+    if (pref) {
+      const previas = state.preferencias ? state.preferencias + ", " : "";
+      const juntas = (previas + pref).split(", ");
+      const vistas: Record<string, boolean> = {};
+      const unicas = juntas.filter(x => {
+        const k = normalizarTexto(x);
+        if (!k || vistas[k]) return false;
+        vistas[k] = true;
+        return true;
+      });
+      result.preferencias = unicas.join(", ");
     }
   }
 
@@ -2307,6 +2389,8 @@ function findNextStep(state: PacoState, pasos: PasoDefinicion[]): PasoDefinicion
       if (state.direccion && state.direccion_heredada) return paso;
     } else if (paso.id === "direccion") {
       if (!state.direccion) return paso;
+    } else if (paso.id === "preferencias") {
+      if (!state.preferencias) return paso;
     } else if (paso.id === "pago") {
       if (!state.pago) return paso;
     } else if (paso.id === "nombre") {
@@ -2424,6 +2508,15 @@ function procesarFlujoCanvas(
         preg_incompleta: p.preg_incompleta ? String(p.preg_incompleta) : undefined,
         preg_barrio:     p.preg_barrio ? String(p.preg_barrio) : undefined,
       });
+    } else if (campo === "preferencias") {
+      // Solo existe si el restaurante lo agrega a su flujo. El Parche no lo
+      // necesita —sus clientes lo dicen solos— pero otro puede querer
+      // preguntarlo siempre ("¿alguna preferencia? ¿algo que le quitemos?").
+      out.push({
+        id: "preferencias", campo: "preferencias", modo,
+        texto: texto || "¿Alguna preferencia para prepararlo? (por ejemplo, sin algún ingrediente) ☺️",
+        guia: guia || "Pregunta si quiere algo especial en la preparación. Si dice que no, sigue sin insistir.",
+      });
     } else if (campo === "pago") {
       out.push({ id: "pago", campo: "pago", modo, texto: texto || "¿Cómo nos vas a pagar? ({{metodos_pago}}) ☺️", guia });
     } else if (campo === "nombre") {
@@ -2480,6 +2573,7 @@ function resolverDato(
   switch (fuente) {
     // Del pedido en curso
     case "producto":  return state.producto || "";
+    case "preferencias": return state.preferencias || "";
     case "tamano":    return state.tamano || "";
     case "tipo":      return state.tipo || "";
     case "cantidad":  return String(state.cantidad || 1);
@@ -2912,6 +3006,9 @@ async function buildSummaryFromState(
       const adStr   = item.adiciones && item.adiciones.length > 0 ? ` + ${item.adiciones}` : "";
       const tamStr  = item.tamano ? ` ${item.tamano}` : "";
       productoLines.push(`🍟 ${item.cantidad}x ${display}${tamStr}${adStr}`);
+      // La preferencia va DEBAJO del producto y en el resumen, para que el
+      // cliente la vea y la corrija antes de que se prepare mal.
+      if (state.preferencias) productoLines.push(`   ↳ ${state.preferencias}`);
       precioProducto += getPrecioItem(item.producto, item.tamano, item.tipo, item.cantidad, item.categoria);
     }
   } catch (err) { console.error("buildSummaryFromState lookup error:", err); }

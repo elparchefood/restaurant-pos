@@ -4045,3 +4045,97 @@ suyo.**
 **Método que vale la pena repetir:** después de tocar seguridad, no basta con
 probar las tablas que uno cambió. Comparar *todas* contra lo que ve un usuario
 real fue lo que destapó que el kardex estaba caído desde antes.
+---
+
+## 109. Entrenar a Paco (1): las preferencias de preparación
+
+Primer trabajo real de entrenamiento, hecho **con datos, no con intuición**.
+
+### Lo que se revisó primero
+
+Se sacaron los **164 mensajes de apertura reales** de clientes y se
+clasificaron:
+
+| Cómo abren | % |
+|---|---:|
+| Solo saludan | 23% |
+| Piden producto directo | 18% |
+| Dicen cantidad | 17% |
+| Piden la carta | 9% |
+| Preguntan por el domicilio | 7% |
+| Dan la dirección de una | 2% |
+
+**Lo que YA estaba bien:** `findNextStep` solo devuelve un paso si el dato está
+vacío, así que Paco **no pregunta lo que el cliente ya dijo** — la queja de
+Sergio del 1 de agosto ya estaba resuelta de fondo. Y el flujo del canvas manda
+de verdad: orden, frases y modo salen de `ia_config.flujo_pasos`.
+
+### El hueco encontrado
+
+De los 29 mensajes que son pedido directo, **9 llevan una indicación de
+preparación** — casi un tercio:
+
+> *"un perro **sin salsa de ajo**"* · *"**solo ajo y bbq**"* · *"**SOLO CON
+> SALSAS DE AJO Y BBQ**"* · *"**sin queso**"* · *"**sin salsa de piña**"* ·
+> *"con **poca salsa**"* · *"una **sin salsa** y otra normal"*
+
+**`PacoState` no tenía dónde guardarlo.** Tenía producto, tamaño, tipo,
+adiciones, dirección, pago y nombre — nada de preferencias. La extracción final
+sí las recoge, pero durante la conversación Paco nunca las confirmaba, y si el
+cliente las decía suelto en otro mensaje no había ranura que las sostuviera.
+
+Es el error que más reclama un cliente: **pidió sin ajo y le llegó con ajo.**
+
+### Lo que se construyó (`delay-reply` v201)
+
+- **Ranura nueva `preferencias`** en la memoria de la conversación.
+- **`extractPreferencias()`** — lee la preferencia de **cualquier** mensaje, no
+  solo del primero, y **suma** en vez de reemplazar: el cliente puede agregar
+  condiciones de a poco ("ah, y sin cebolla").
+- **Aparece en el resumen**, debajo del producto, para que el cliente la
+  confirme o la corrija antes de que se prepare mal.
+- **Paso opcional** `campo: "preferencias"` para el restaurante que quiera
+  preguntarlas siempre. El Parche no lo necesita —sus clientes lo dicen solos—
+  pero otro puede activarlo desde su canvas.
+- **Variable `{{preferencias}}`** disponible para las frases del canvas.
+
+### Nada quemado
+
+Los disparadores son del **español**, no de El Parche: "sin", "solo", "poca",
+"mucha", "extra", "aparte", "nada de". Cualquier restaurante los dice. Y cada
+uno puede sumar los suyos desde el canvas en `ia_config.preferencias_palabras`
+— probado con "bien" → *"bien tostada"*.
+
+### Probado con los mensajes reales, sin tocar WhatsApp
+
+Se extrajo la función del archivo que se iba a desplegar y se corrió contra 13
+casos reales: **13/13**.
+
+| Mensaje real | Paco guarda |
+|---|---|
+| "un perro sin salsa de ajo" | `sin salsa de ajo` |
+| "solo ajo y bbq y una adicion de salsa de ajo" | `solo ajo y bbq` |
+| "SOLO CON SALSAS DE AJO Y BBQ" | `SOLO CON SALSAS DE AJO Y BBQ` |
+| "con poca salsa por favor" | `poca salsa` |
+| "Sinceramente me encantó" | *(nada)* |
+| "Una salchipapa premium mixta personal" | *(nada)* |
+
+**Dos afinaciones que salieron de esa prueba:**
+
+1. Cortar en `" y "` perdía el bbq de *"solo ajo y bbq"*. Ahora el `" y "` solo
+   corta cuando **empieza otra idea** (*"y una adición"*, *"y me regalas"*).
+2. *"poca salsa por favor"* se llevaba la cortesía. Ahora llega a la cocina como
+   *"poca salsa"*.
+
+Sin la prueba contra mensajes reales, las dos se habrían ido a producción.
+
+### Lo que sigue
+
+Tres patrones más que aparecieron y todavía no están cubiertos:
+
+1. **Preguntan antes de pedir** (*"¿a qué precio sale el domicilio si pido…?"*,
+   *"¿cuánto demoraría?"*) — Paco no debe arrancar el flujo como si fuera pedido
+   cerrado.
+2. **Piden por precio, no por nombre** (*"la de 59"*, *"premium mixta de 35
+   mil"*).
+3. **Varias unidades con notas distintas** (*"una sin salsa y otra normal"*).
