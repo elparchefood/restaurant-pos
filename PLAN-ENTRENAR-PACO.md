@@ -5,6 +5,64 @@ agosto. **Todas las atendió Sergio a mano** — Paco no ha tomado ninguna. Este
 documento no es una lista de errores: es **el método que funciona**, escrito
 para que Paco lo aprenda.
 
+
+---
+
+## 0. REGLA DE ARQUITECTURA — nada de esto va quemado en el código
+
+**Instrucción de Sergio (2026-08-01), y manda sobre todo lo demás de este
+documento:**
+
+> *"Nada de mi método va a ir hardcodeado. Todo va a ir directamente en el flujo
+> de canvas del asistente, para que cada restaurante pueda colocar sus propios
+> datos, su propio entrenamiento, su propio estilo... si hay cosas que sí hay
+> que cambiar internamente en el código lo puedes hacer, pero que sea general,
+> es decir que le pueda servir a todos los restaurantes... El orden de la
+> atención, los datos necesarios para hacer el pedido, todo eso lo determina
+> cada restaurante. Incluso Paco se llama el asistente de mi restaurante, pero
+> otros le pondrán otro nombre, entonces el nombre Paco tampoco puede ir
+> hardcodeado."*
+
+### Cómo se traduce eso
+- **El método de las secciones 1 a 3 NO se programa.** Se carga como el flujo
+  por defecto en el canvas del asistente, y cada restaurante lo edita: el orden
+  de los pasos, qué datos pide, qué ofrece y cómo habla.
+- **En el código solo va el MOTOR**, que debe servirle a cualquier restaurante:
+  saber leer el flujo del canvas, ejecutar los pasos en el orden que el dueño
+  puso, ofrecer lo que el dueño marcó como upsell, y hablar con el tono que el
+  dueño configuró.
+- **El nombre del asistente es un dato**, no una constante. "Paco" es de El
+  Parche; otro restaurante le pondrá otro.
+- Lo que hoy es de El Parche (frases, productos, cuenta de pago, ubicación)
+  pasa a ser **el ejemplo de arranque**, no la regla.
+
+### Auditoría: lo que HOY está quemado y hay que sacar
+Revisado el 2026-08-01. **Lo bueno:** no hay ningún `tenant_id` ni `branch_id`
+de El Parche quemado en el front — eso ya estaba bien resuelto.
+
+| Dónde | Qué está quemado | Riesgo |
+|---|---|---|
+| `chat-ia.html:195` | *"Asistente (Paco)"* | El nombre, visible en pantalla |
+| `configuracion.html:1401` | *"Paco no les responde…"* | El nombre, visible |
+| `chat-ia.js:1868` | **Coordenadas y dirección de El Parche** como semilla de la respuesta rápida de ubicación | Otro restaurante arrancaría mandando el mapa de El Parche |
+| `chat-ia.js:1871` | **La cuenta de pago `0092726260`** en la respuesta rápida del QR | Otro restaurante pediría plata a la cuenta de Sergio |
+| `chat-ia.js:2792` | *"…redimirlos en productos de El Parche"* | Texto de puntos |
+| `configuracion.js:5411` | *"Ventas · El Parche Food"* | |
+| `domicilios.js:1385 y 1647` | *"Reparte un domiciliario de El Parche"* | |
+| `historial.js:357` | *"El Parche Food"* en el encabezado | |
+
+**Los dos graves son la ubicación y la cuenta de pago**: si otro restaurante
+instala Cobra hoy, arranca con el mapa y la cuenta bancaria de El Parche.
+
+`PacoState` en el código del asistente es solo el nombre interno de una
+estructura — no se ve en pantalla y no urge, pero conviene renombrarlo cuando
+se toque ese archivo.
+
+### Regla para todo lo que se haga de aquí en adelante
+Antes de escribir una frase, un producto o un dato en el código, la pregunta es:
+**¿esto es igual para todos los restaurantes?** Si la respuesta es no, va a la
+configuración o al canvas, nunca al código.
+
 ---
 
 ## 1. El método, paso a paso
@@ -101,6 +159,16 @@ serían **unos 19 pedidos más con bebida**, es decir **~$123.000 adicionales** 
 el mismo periodo, sin un cliente nuevo.
 
 **Es lo más fácil de entrenar y lo que más rinde.**
+
+**Y es trabajo del asistente, no del dueño.** Sergio: *"con Paco podemos
+ofrecer siempre upsell, yo no lo hago porque debo contestar y atender el local
+al tiempo"*. Ahí está el punto: **el que atiende el local no puede acordarse de
+ofrecer; el asistente no se ocupa nunca.** Por eso este paso rinde tanto en el
+asistente y casi nada exigiéndoselo a una persona.
+
+**Ojo (ver sección 0):** qué se ofrece, cuándo y con qué palabras lo define cada
+restaurante en su flujo. El código solo debe saber **ejecutar** el paso de
+ofrecer, no qué ofrecer.
 
 ---
 
