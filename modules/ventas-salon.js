@@ -706,7 +706,7 @@
     try {
       var cajaStart = await getCajaSessionStart();
       var q = sb.from('pos_orders')
-        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, domiciliario, status, created_at, opened_at, delivery_status, delivered_at, estado, estado_at, cliente_id')
+        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, waiter_id, domiciliario, status, created_at, opened_at, delivery_status, delivered_at, estado, estado_at, cliente_id')
         .eq('channel', 'domicilio')
         .not('status', 'eq', 'cancelled')
         .gte('created_at', cajaStart)
@@ -715,6 +715,7 @@
       if (branchId) q = q.eq('branch_id', branchId);
       var result = await q;
       var rows = result.data || [];
+      var _vsUsr = await vsUsuarios();
       return rows.map(function(r) {
         /* El reloj cuenta desde el ULTIMO CAMBIO DE ESTADO, no desde que se creo
            el pedido. Antes un domicilio entregado seguia diciendo "1 hora",
@@ -754,7 +755,7 @@
           metodo: r.payment_method || 'efectivo',
           // `waiter_name` es quien TOMO el pedido (cajero o Chat IA), no quien
           // reparte. Estaban confundidos y la tarjeta decia "Domiciliario: Chat IA".
-          cajero:       r.waiter_name || '',
+          cajero:       r.waiter_name || _vsUsr[r.waiter_id] || '',
           domiciliario: r.domiciliario || '',
           clienteId: r.cliente_id || null,
           min: mins,                 // en el estado actual
@@ -1464,8 +1465,9 @@
         + (chip || '') + '</div>';
     };
     if (!caj && !dom) {
-      // Sin nombres no se pinta una fila vacia: solo el chip de pago.
-      return chipHtml ? '<div class="vs-mesero-row" style="justify-content:flex-end">' + chipHtml + '</div>' : '';
+      // Sin ningun nombre no se pinta la banda: quedaba un recuadro gris vacio
+      // con el chip flotando dentro. Solo el chip, alineado a la derecha.
+      return chipHtml ? '<div style="display:flex;justify-content:flex-end;margin:8px 0 2px">' + chipHtml + '</div>' : '';
     }
     // El chip de pago va con la primera fila, que es la que siempre esta.
     if (caj && dom) return fila('Cajero', caj, chipHtml) + fila('Domiciliario', dom, '');
@@ -1654,6 +1656,23 @@
     `;
   }
 
+  /* Quien atiende no siempre queda escrito con nombre: muchos pedidos guardan
+     solo el id del usuario (los 19 pedidos rapidos sin nombre SI tenian id).
+     Aqui se traduce id -> nombre, una sola vez por carga de pantalla. */
+  let _vsUsuariosCache = null;
+  async function vsUsuarios() {
+    if (_vsUsuariosCache) return _vsUsuariosCache;
+    const sb = window._pos && window._pos.sb;
+    if (!sb) return {};
+    try {
+      const r = await sb.from('pos_users').select('auth_user_id, name');
+      const m = {};
+      (r.data || []).forEach(function (u) { if (u.auth_user_id && u.name) m[u.auth_user_id] = u.name; });
+      _vsUsuariosCache = m;
+      return m;
+    } catch (e) { return {}; }
+  }
+
   // ─── Fetch: Quick Orders ────────────────────────────────
   async function fetchQuickOrders() {
     const sb = window._pos && window._pos.sb;
@@ -1664,7 +1683,7 @@
     // turno se quedan visibles en estado "Entregado" hasta que se cierre la
     // caja (al cerrar, cajaStart avanza y estos quedan fuera del rango).
     let q = sb.from('pos_orders')
-      .select('id, customer_name, turno, total, subtotal, packaging_fee, discount, status, channel, created_at, waiter_name, notes, delivered_at, paid_amount, estado, estado_at, cliente_id, delivery_fee, payment_method')
+      .select('id, customer_name, turno, total, subtotal, packaging_fee, discount, status, channel, created_at, waiter_name, waiter_id, notes, delivered_at, paid_amount, estado, estado_at, cliente_id, delivery_fee, payment_method')
       .eq('channel', 'rapido')
       .neq('status', 'cancelled')
       .gte('created_at', cajaStart)
@@ -1673,8 +1692,12 @@
     const { data, error } = await q;
     if (error) { console.error('[VS] fetchQuickOrders:', error); return []; }
     // Estado derivado: si ya se entregó, se muestra como "entregado".
+    const _vsUsr = await vsUsuarios();
     return (data || []).map(function (o) {
       if (o.delivered_at) o.status = 'entregado';
+      // Muchos pedidos rapidos guardaron solo el id de quien atendio, sin el
+      // nombre: por eso la fila del cajero salia en blanco.
+      if (!o.waiter_name && o.waiter_id && _vsUsr[o.waiter_id]) o.waiter_name = _vsUsr[o.waiter_id];
       return o;
     });
   }

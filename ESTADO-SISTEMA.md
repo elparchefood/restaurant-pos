@@ -3563,3 +3563,40 @@ rápidos viejos seguirán sin nombre. Desde ahora se guardan.
 **Sin decidir:** en un pedido que entra por el chat, la fila dice *"Cajero: Chat
 IA"*. Es cierto — es quien lo tomó — pero suena raro. Habría que ver si merece
 otra etiqueta.
+---
+
+## 100. La fila del cajero seguía en blanco: el nombre estaba en otro campo
+
+Tras la ronda anterior Sergio reportó que en venta rápida la fila seguía vacía.
+Yo había dado por hecho que esos pedidos no tenían el dato y que solo se
+arreglaría de ahí en adelante. **Estaba equivocado.**
+
+Mirando los datos: los **19 pedidos rápidos sin `waiter_name` sí tienen
+`waiter_id`**, y `pos_users` mapea `auth_user_id → name`. El pedido de la
+captura (Jenifer Jimenez) tenía el id de Sergio. El nombre siempre estuvo, solo
+que en otro campo.
+
+**Arreglo:** `vsUsuarios()` trae `pos_users` una sola vez por carga y traduce
+id → nombre. Se aplica en los dos sitios:
+
+- `fetchQuickOrders`: si falta `waiter_name` pero hay `waiter_id`, se rellena.
+- `fetchDeliveries`: igual para el `cajero`.
+
+Comprobado contra las filas reales de la base:
+
+| Pedido | Antes | Ahora |
+|---|---|---|
+| Andrés | (vacío) | Sergio Abadia |
+| Natlia Guachaves | (vacío) | Monica Villareal |
+| Jenifer Jimenez | (vacío) | Sergio Abadia |
+| Andrés (del bot) | Chat IA | Chat IA |
+
+**Y la banda vacía:** cuando de verdad no hay ningún nombre (ni id), antes se
+pintaba igual el recuadro gris con el chip de pago flotando dentro. Ahora en ese
+caso no se pinta la banda: solo el chip alineado a la derecha.
+
+**Lección:** antes de decir "esto no se puede arreglar hacia atrás", mirar si el
+dato está en otra columna. Aquí lo estaba.
+
+`pos_users` tiene GRANT de SELECT para `authenticated` y una política por
+tenant, así que la consulta funciona desde la pantalla.
