@@ -14,13 +14,12 @@
     var total = Number(order.total || 0), paid = Number(order.paid || 0);
     if (total <= 0) return '';
     var f = function(n){ return '$' + Number(Math.round(n)).toLocaleString('es-CO'); };
-    var caja = 'text-align:center;font-weight:900;border:2px solid #000;padding:4px;margin:6px 0;';
-    // El TOTAL del pedido (comida + domicilio) va SIEMPRE y de primero: el
-    // domiciliario necesita saber cuánto vale lo que lleva, no solo el saldo.
-    var cab = '<div style="' + caja + 'font-size:13px">TOTAL DEL PEDIDO: ' + f(total) + '</div>';
-    if (paid >= total) return cab + '<div style="' + caja + 'font-size:15px">*** PAGADO ***<br><span style="font-size:11px;font-weight:700">No cobrar nada</span></div>';
-    if (paid > 0)      return cab + '<div style="' + caja + 'font-size:13px">Ya abonó ' + f(paid) + '<br>COBRAR: ' + f(total - paid) + '</div>';
-    return cab + '<div style="' + caja + 'font-size:14px">COBRAR: ' + f(total) + '</div>';
+    // Sin repetir el TOTAL DEL PEDIDO: ya sale en la tabla de totales, dos
+    // lineas mas arriba. Y sin asteriscos, que solo hacian ruido.
+    var caja = 'text-align:center;font-weight:900;border:2px solid #000;border-radius:9px;padding:6px;margin:6px 0;';
+    if (paid >= total) return '<div style="' + caja + 'font-size:15px">PAGADO<br><span style="font-size:11px;font-weight:700">No cobrar nada</span></div>';
+    if (paid > 0)      return '<div style="' + caja + 'font-size:13px">Ya abonó ' + f(paid) + '<br>COBRAR: ' + f(total - paid) + '</div>';
+    return '<div style="' + caja + 'font-size:14px">COBRAR: ' + f(total) + '</div>';
   }
 
   function _buildComanda(order, items) {
@@ -170,10 +169,26 @@
     var itemRows = (items||[]).map(function(it){
       var qty = it.qty || 1;
       var line = _money(it.total || 0);
+      // Las adiciones con su cantidad y su precio. Antes salia solo "+ Papas",
+      // sin decir cuanto costo, y el cliente no entendia de donde salia el
+      // total. El precio va ENTRE PARENTESIS porque ya esta dentro del valor
+      // de la linea: con un "+ $8.000" pareceria que hay que sumarlo aparte.
       var mods = (it.mods && it.mods.length)
-        ? it.mods.map(function(m){ return '<div style="font-size:11px;color:#333;padding-left:14px">+ '+String(m)+'</div>'; }).join('')
+        ? it.mods.map(function(m){
+            var nom = (m && m.name) ? m.name : String(m);
+            var cuantos = ((m && m.qty) || 1) * qty;
+            var vale = (m && m.price) ? m.price * cuantos : 0;
+            return '<div style="font-size:11px;color:#333;padding-left:14px">+ '
+                 + (cuantos > 1 ? cuantos + 'x ' : '') + nom
+                 + (vale > 0 ? ' (' + _money(vale) + ')' : '')
+                 + '</div>';
+          }).join('')
         : '';
-      return '<tr><td style="padding:3px 0;vertical-align:top">'+qty+'x '+(it.name||'Item')+mods+'</td>'
+      // La nota del producto ("SIN AJO", "poca salsa"), en negrilla: es lo que
+      // mas reclama el cliente si sale mal. Nunca se imprimia porque el recibo
+      // pedia it.note y en la base la columna se llama notes.
+      var nota = it.notes ? '<div style="font-size:11px;font-weight:700;padding-left:14px">Nota: '+it.notes+'</div>' : '';
+      return '<tr><td style="padding:3px 0;vertical-align:top">'+qty+'x '+(it.name||'Item')+mods+nota+'</td>'
            + '<td class="pcol" style="padding:3px 0">'+line+'</td></tr>';
     }).join('');
 
@@ -200,6 +215,8 @@
     h += '<div style="font-size:10px;font-weight:700;color:#555;text-transform:uppercase">Cliente</div>';
     h += '<div style="font-size:13px;font-weight:700">'+(order.customer_name||'—')+'</div>';
     if (telCli) h += '<div style="font-size:12px">Tel: '+telCli+'</div>';
+    // Segundo numero del cliente, solo si lo tiene guardado.
+    if (order.customer_phone2) h += '<div style="font-size:12px">Otro: '+order.customer_phone2+'</div>';
     if (!esLlevar) {
       if (barrio) h += '<div style="font-size:12.5px;font-weight:700;margin-top:2px">'+barrio+'</div>';
       if (dirCli) h += '<div style="font-size:12px">'+dirCli+'</div>';
@@ -231,10 +248,66 @@
     if (pm && pm!=='multiple') h += '<div style="text-align:center;font-size:11.5px;margin-top:6px">Pago: '+pm.charAt(0).toUpperCase()+pm.slice(1)+'</div>';
     h += _pagoEstadoHtml(order);
     var mRef = notes.match(/Ref:(\S+)/i); if (mRef) h += '<div style="text-align:center;font-size:10.5px;color:#555">Ref: '+mRef[1]+'</div>';
+    // Puntos del cliente. Solo si es un cliente guardado; en una venta al paso
+    // el recibo queda igual que siempre, sin un "0 puntos" que no dice nada.
+    if (order.puntos_total != null) {
+      h += sep;
+      h += '<div style="text-align:center;font-size:10px;font-weight:700;color:#555;text-transform:uppercase">Tus puntos</div>';
+      h += '<table>';
+      // Lo que gano con ESTA compra solo se imprime si ya esta acreditado. Si
+      // el recibo sale antes de cobrar, todavia no existe y no se inventa.
+      if (order.puntos_ganados > 0) {
+        h += '<tr><td style="font-size:12px">Ganaste con esta compra</td><td class="pcol" style="font-size:12px">+'+Number(order.puntos_ganados).toLocaleString('es-CO')+'</td></tr>';
+      }
+      h += '<tr><td style="font-size:13px;font-weight:800">Tu total acumulado</td><td class="pcol" style="font-size:13px;font-weight:800">'+Number(order.puntos_total).toLocaleString('es-CO')+'</td></tr>';
+      h += '</table>';
+    }
     // Pie
     h += sep+'<div style="text-align:center;font-size:11px;color:#333;margin-top:2px">'+footer+'</div>';
     h += '</body></html>';
     return h;
+  }
+
+  // Trae de la ficha del cliente lo que el pedido no guarda: su segundo
+  // numero y sus puntos. El telefono PRINCIPAL manda: los puntos viven ahi,
+  // aunque el pedido haya entrado por el otro numero.
+  async function _datosClienteRecibo(order, orderData) {
+    var sb = window._pos && window._pos.sb;
+    if (!sb) return;
+    var tenant = order.tenant_id || (window._pos.state && window._pos.state.tenantId);
+    var mT = String(order.notes || '').match(/\[tel:([^\]]+)\]/i);
+    var tel10 = String((mT && mT[1]) || order.customer_phone || '').replace(/[^0-9]/g, '').slice(-10);
+
+    var cli = null;
+    if (order.cliente_id) {
+      var r0 = await sb.from('pos_clientes').select('telefono,telefono2').eq('id', order.cliente_id).maybeSingle();
+      cli = (r0 && r0.data) || null;
+    }
+    if (!cli && tel10.length >= 7 && tenant) {
+      var r1 = await sb.from('pos_clientes').select('telefono,telefono2').eq('tenant_id', tenant).ilike('telefono', '%' + tel10).limit(1);
+      cli = (r1 && r1.data && r1.data[0]) || null;
+      if (!cli) {
+        var r2 = await sb.from('pos_clientes').select('telefono,telefono2').eq('tenant_id', tenant).ilike('telefono2', '%' + tel10).limit(1);
+        cli = (r2 && r2.data && r2.data[0]) || null;
+      }
+    }
+    if (!cli) return;   // venta al paso: el recibo queda como siempre
+
+    if (cli.telefono2) orderData.customer_phone2 = cli.telefono2;
+
+    var principal = String(cli.telefono || '').replace(/[^0-9]/g, '').slice(-10);
+    if (!principal) return;
+    var rp = await sb.from('pos_puntos').select('puntos').ilike('telefono', '%' + principal).maybeSingle();
+    if (!rp || !rp.data) return;
+    orderData.puntos_total = Number(rp.data.puntos) || 0;
+
+    // Lo ganado con ESTE pedido, tal como quedo registrado. Si todavia no se
+    // acredito (recibo impreso antes de cobrar), no se imprime esa linea.
+    var rm = await sb.from('pos_puntos_movimientos').select('puntos,tipo,revertido').eq('order_id', order.id);
+    var gano = ((rm && rm.data) || []).reduce(function(a, m) {
+      return a + ((m.tipo === 'acumulacion' && !m.revertido) ? (Number(m.puntos) || 0) : 0);
+    }, 0);
+    if (gano > 0) orderData.puntos_ganados = gano;
   }
 
   var _printerCache = null;
@@ -569,8 +642,15 @@
     if (!order) { _noprinterToast(); return; }
     var items = (order.pos_order_items || []).map(function(it) {
       var sel = it.selections || {};
-      var modsArr = Object.values(sel.mods || {}).map(function(m){ return m.name || String(m); });
-      return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', mods: modsArr, total: (it.unit_price || 0) * (it.quantity || 1) };
+      // La adicion completa (nombre, cuantas y a cuanto), no solo el nombre:
+      // el recibo necesita poder decir "+ 2x Papas ($16.000)".
+      var modsArr = Object.values(sel.mods || {}).map(function(m){
+        if (m && typeof m === 'object') return { name: m.name || '', qty: Number(m.qty) || 1, price: Number(m.price) || 0 };
+        return { name: String(m), qty: 1, price: 0 };
+      }).filter(function(m){ return m.name; });
+      // `notes`, no `note`: asi se llama la columna. Con el nombre viejo la
+      // nota llegaba siempre vacia y no se imprimia nunca.
+      return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, notes: it.notes || '', mods: modsArr, total: (it.unit_price || 0) * (it.quantity || 1) };
     });
     var orderData = { table: _tableDisplay(order), channel: order.channel, id: order.id, total: order.total || 0, tax_total: order.tax_total || 0, tax_base: order.tax_base || 0, tax_detail: order.tax_detail || null, paid: order.paid_amount || 0, subtotal: order.subtotal || order.total || 0, packaging_fee: order.packaging_fee || 0, delivery_fee: order.delivery_fee || 0, discount: order.discount_amount || 0, tip: order.tip_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '', payment_method: order.payment_method || '' };
     var html;
@@ -591,6 +671,10 @@
             }
           }
         } catch(e) {}
+        // El segundo telefono y los puntos no viven en el pedido: hay que ir a
+        // buscarlos a la ficha del cliente. Si falla (sin internet, por ejemplo)
+        // el recibo sale como siempre en vez de no salir.
+        try { await _datosClienteRecibo(order, orderData); } catch(e) { console.warn('[posprint] datos cliente:', e); }
         html = _buildReceiptDomicilio(orderData, items, branch);
       } else {
         var payments = [];

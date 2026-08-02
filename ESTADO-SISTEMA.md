@@ -3206,3 +3206,65 @@ que se encuentra por el principal **y** por el segundo, y se borró.
 **Lo que queda suelto:** cuando un cliente escribe desde un número que no es el
 suyo, el sistema todavía no ofrece *"¿lo guardo como su segundo número?"* — hay
 que escribirlo a mano en la ficha. Se puede añadir más adelante si estorba.
+
+---
+
+## 94. Recibo del cliente: segundo teléfono, puntos, adiciones y notas
+
+Aprobado por Sergio sobre maqueta, generando el recibo **real** (ejecutando
+`_buildReceiptDomicilio` en node) en vez de dibujarlo — la primera maqueta que
+hice a mano se saltó las cajas de `TOTAL DEL PEDIDO` y `PAGADO`, y no servía
+para decidir.
+
+**Cambios en `pos-print.js`:**
+
+1. **Fuera la caja "TOTAL DEL PEDIDO".** Repetía el `TOTAL` de dos líneas más
+   arriba. Se había puesto para el domiciliario, pero el número ya estaba ahí.
+2. **La caja de pago sin asteriscos y con esquinas redondeadas** (`border-radius:9px`).
+   Los tres estados siguen igual: `PAGADO` / `COBRAR: $X` / `Ya abonó $X ·
+   COBRAR: $Y`.
+3. **Segundo teléfono** del cliente (`Otro: …`) debajo del principal, solo si lo
+   tiene guardado.
+4. **Bloque de puntos** entre el estado de pago y el pie: lo que ganó con esa
+   compra y su total acumulado.
+5. **Adiciones con cantidad y precio**: `+ 2x Papas ($16.000)`. El precio va
+   **entre paréntesis a propósito** — ya está dentro del valor de la línea; con
+   un `+ $8.000` parecería que hay que sumarlo aparte y el cliente creería que
+   la cuenta está mal. Si el producto va por dos, la adición se multiplica sola,
+   así lo impreso siempre cuadra con el total de la línea.
+6. **Nota de cada producto** en negrilla (`Nota: SIN AJO`). Es lo que más
+   reclama el cliente si sale mal, así que tiene que saltar a la vista.
+
+**El fallo que salió de paso:** el recibo pedía `it.note` y la columna de
+`pos_order_items` se llama **`notes`**. Con el nombre equivocado la nota llegaba
+siempre vacía, así que **nunca se ha impreso una sola nota de producto**. Además
+las adiciones se aplanaban a solo el nombre (`m.name`), perdiendo `qty` y
+`price`, que es justo lo que hacía falta para imprimirlas completas.
+
+**De dónde salen los datos.** Ni el segundo teléfono ni los puntos viven en el
+pedido, así que hay que ir a buscarlos antes de armar el recibo
+(`_datosClienteRecibo`):
+
+- Ficha del cliente por `cliente_id`; si no hay, por el teléfono del pedido
+  contra `telefono` y luego contra `telefono2`.
+- Saldo desde `pos_puntos`, **siempre por el teléfono principal** — si el pedido
+  entró por el segundo número, los puntos igual están en el principal.
+- Lo ganado con ese pedido desde `pos_puntos_movimientos` filtrando por
+  `order_id`, `tipo = 'acumulacion'` y `revertido = false`.
+
+**Reglas de fallo:** si la consulta falla (sin internet), el recibo sale como
+siempre en vez de no salir. Si no hay cliente guardado (venta al paso), no se
+imprime nada de puntos ni de segundo teléfono — nada de "0 puntos". Y si los
+puntos de ese pedido aún no están acreditados (recibo impreso antes de cobrar),
+esa línea no se imprime: **no se inventa el número**, solo se muestra el
+acumulado real.
+
+**Probado:** el recibo generado con el archivo ya modificado sale idéntico a la
+maqueta aprobada; y la cadena de consultas se validó contra un pedido real
+(pedido → ficha → `pos_puntos` = 49 → movimiento de ese pedido = 49).
+
+**Lo que NO se tocó:** los recibos de mesa (`_buildReceiptDesc`,
+`_buildReceiptFinal`) **no imprimen adiciones ni notas en absoluto** — no es el
+mismo fallo del nombre de columna, es que nunca las mostraron. Queda pendiente
+si Sergio lo quiere ahí también. La comanda de cocina sigue igual: ahí no van ni
+puntos ni teléfonos.
