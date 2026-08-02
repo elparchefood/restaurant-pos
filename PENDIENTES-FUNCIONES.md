@@ -548,3 +548,24 @@ tambien.
 Pasar por el emparejador variantes escritas como las escribe la gente y el
 modelo: `Coca-Cola`, `coca cola`, `COCA-COLA`, `cocacola`, `Coca Cola 1.5`,
 `gaseosa coca cola`. **Ninguna puede quedar en $0.**
+
+
+### Segundo caso el mismo dia — nota de voz: "premiumista" (7:50 pm)
+
+Vilma Ortiz mando una **nota de voz** y la transcripcion quedo:
+
+> *"¿sera que tu me puedes mandar una salchipapa **premiumista**...?"*
+
+Dijo **"Premium mixta"** y el transcriptor lo pego en una sola palabra. El
+emparejador compara texto, no encontro nada, y el modal salio con **0
+productos**.
+
+**Refuerza el mismo arreglo:** que el modelo **escoja de la lista de productos**
+en vez de que se compare texto. Un humano entiende "premiumista" al instante;
+comparar cadenas no. Y aqui el cliente hablo bien — el ruido lo metio la
+transcripcion, o sea que el problema no se resuelve pidiendole al cliente que
+escriba mejor.
+
+**Nota positiva:** en esa misma conversacion la respuesta al boton quedo
+guardada como **"Familiar"** (no `[interactive]`), o sea que el arreglo de
+`meta-webhook` v54 ya esta funcionando en vivo.
