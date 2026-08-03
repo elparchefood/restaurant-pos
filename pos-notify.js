@@ -43,14 +43,51 @@
       .subscribe();
   }
 
-  /* Tonos disponibles. Se eligen en Configuración → Operación → Notificaciones.
-     Cada uno son dos notas: la primera llama la atención y la segunda cierra,
-     para que se distinga de cualquier otro pitido del local. */
+  /* Los cuatro tonos. Se eligen en Configuración → Operación → Notificaciones.
+
+     Antes cada uno era un oscilador pelado haciendo dos notas seguidas: sonaba
+     a pitido de microondas y los cuatro se parecían entre sí. Lo que hace que
+     un sonido se oiga "bien" no es la nota, son los ARMÓNICOS y cómo se apaga.
+     Así que cada nota aquí se arma con varios osciladores a la vez —el
+     fundamental y sus parciales, cada uno con su peso— y se apaga con una
+     curva, no de golpe.
+
+     La campana lleva parciales INARMÓNICOS (0,5 · 1 · 1,2 · 1,5 · 2 · 2,66).
+     Ese desajuste es literalmente lo que hace que un metal suene a metal; con
+     armónicos exactos suena a órgano.
+
+     Las notas son intervalos musicales de verdad (quintas y terceras), por eso
+     las dos que suenan juntas no chocan. */
   var TONOS = {
-    suave:   { tipo: 'sine',     f1: 660, f2: 880, dur: 0.30 },
-    clasico: { tipo: 'sine',     f1: 880, f2: 660, dur: 0.25 },
-    campana: { tipo: 'triangle', f1: 1320, f2: 990, dur: 0.45 },
-    alerta:  { tipo: 'square',   f1: 740, f2: 988, dur: 0.22 },
+    // Marimba: ataque redondo, dos notas bajando una cuarta. Para local tranquilo.
+    suave: {
+      notas: [
+        { t: 0,    f: 783.99, dur: 0.45, ataque: 0.012, parciales: [[1, 1], [2, 0.16], [3, 0.05]] },
+        { t: 0.12, f: 587.33, dur: 0.60, ataque: 0.012, parciales: [[1, 1], [2, 0.14], [3, 0.04]] },
+      ],
+    },
+    // Timbre de puerta: tercera mayor descendente, el aviso que todo el mundo reconoce.
+    clasico: {
+      notas: [
+        { t: 0,    f: 987.77, dur: 0.30, ataque: 0.004, parciales: [[1, 1], [2, 0.30], [3, 0.11], [4, 0.04]] },
+        { t: 0.14, f: 659.25, dur: 0.55, ataque: 0.004, parciales: [[1, 1], [2, 0.26], [3, 0.09], [4, 0.03]] },
+      ],
+    },
+    // Campana de verdad: una sola nota, parciales inarmónicos, cola larga.
+    campana: {
+      notas: [
+        { t: 0, f: 659.25, dur: 1.6, ataque: 0.002,
+          parciales: [[0.5, 0.22], [1, 1], [1.2, 0.45], [1.5, 0.30], [2, 0.20], [2.66, 0.12], [3.01, 0.07]] },
+      ],
+    },
+    // Tres pulsos y sube: para cocina ruidosa, sin llegar a chillido.
+    alerta: {
+      notas: [
+        { t: 0,    f: 880.00, dur: 0.09, ataque: 0.002, parciales: [[1, 1], [2, 0.45], [3, 0.20]] },
+        { t: 0.13, f: 880.00, dur: 0.09, ataque: 0.002, parciales: [[1, 1], [2, 0.45], [3, 0.20]] },
+        { t: 0.26, f: 1174.66, dur: 0.26, ataque: 0.002, parciales: [[1, 1], [2, 0.40], [3, 0.16]] },
+      ],
+    },
   };
 
   function cfgNotif() {
@@ -71,17 +108,43 @@
       if (!cfg.activo && !forzar) return;
       if (cfg.vol <= 0 && !forzar) return;
       var Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return;
+
+      var ctx = new Ctx();
+      /* Un filtro suave arriba: los parciales agudos son los que raspan en el
+         parlante pequeño de una tablet. Quitarlos no cambia el carácter del
+         sonido y sí quita el chirrido. */
+      var lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
+      lp.frequency.value = 7000; lp.Q.value = 0.7;
+      var master = ctx.createGain();
+      // 0,20 al 100% es el techo: más alto satura en las tablets.
+      master.gain.value = (cfg.vol / 100) * 0.20;
+      master.connect(lp); lp.connect(ctx.destination);
+
       var t = TONOS[cfg.tono] || TONOS.clasico;
-      // 0.15 al 100% es el techo: más alto satura en las tablets.
-      var vol = (cfg.vol / 100) * 0.15;
-      var ctx = new Ctx(); var o = ctx.createOscillator(); var g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination); o.type = t.tipo;
-      o.frequency.setValueAtTime(t.f1, ctx.currentTime);
-      o.frequency.setValueAtTime(t.f2, ctx.currentTime + t.dur * 0.4);
-      g.gain.setValueAtTime(vol, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t.dur);
-      o.start();
-      setTimeout(function () { try { o.stop(); ctx.close(); } catch (e) {} }, t.dur * 1000 + 30);
+      var ahora = ctx.currentTime + 0.02, fin = 0;
+
+      t.notas.forEach(function (n) {
+        var ps = n.parciales || [[1, 1]];
+        // Se reparte el volumen entre los parciales de la nota; si no, una nota
+        // con siete parciales sonaría al doble y recortaría.
+        var suma = ps.reduce(function (s, x) { return s + x[1]; }, 0) || 1;
+        var t0 = ahora + n.t;
+        ps.forEach(function (pp) {
+          var o = ctx.createOscillator(), g = ctx.createGain();
+          o.type = 'sine';
+          o.frequency.setValueAtTime(n.f * pp[0], t0);
+          var pico = Math.max(0.0002, pp[1] / suma);
+          var atk = n.ataque || 0.005;
+          g.gain.setValueAtTime(0.0001, t0);
+          g.gain.exponentialRampToValueAtTime(pico, t0 + atk);
+          g.gain.exponentialRampToValueAtTime(0.0001, t0 + n.dur);
+          o.connect(g); g.connect(master);
+          o.start(t0); o.stop(t0 + n.dur + 0.03);
+        });
+        fin = Math.max(fin, n.t + n.dur);
+      });
+
+      setTimeout(function () { try { ctx.close(); } catch (e) {} }, (fin + 0.35) * 1000);
     } catch (e) {}
   }
   // Para poder oírlo al configurarlo, aunque las notificaciones estén apagadas.

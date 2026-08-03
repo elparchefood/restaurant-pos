@@ -5569,7 +5569,7 @@ window._mpMakeAsistenteReadonly=function(){
 
 
 /* ══════════════════════════════════════════════════════════════
-   NOTIFICACIONES — tono y volumen del aviso de pedido nuevo
+   NOTIFICACIONES — tono y volumen del aviso de mensaje nuevo del chat
    Vive dentro de la config de Operación (`notif`) porque se sincroniza a la
    base y así la tablet y el computador suenan igual sin configurarlos aparte.
    ══════════════════════════════════════════════════════════════ */
@@ -5588,11 +5588,27 @@ function opPintarNotif() {
   var vl = document.getElementById('op-notif-vol-val');
   if (sl) sl.value = (typeof n.vol === 'number') ? n.vol : 60;
   if (vl) vl.textContent = ((typeof n.vol === 'number') ? n.vol : 60) + '%';
+
+  // Apagado: el rótulo lo dice y el tono y el volumen se atenúan, como en las
+  // demás secciones que se encienden con interruptor.
+  var activo = n.activo !== false;
+  var st = document.getElementById('op-notif-state');
+  if (st) { st.textContent = activo ? 'Activado' : 'Desactivado'; st.className = 'op-state' + (activo ? '' : ' off'); }
+  var body = document.getElementById('op-notif-body');
+  if (body) { body.style.opacity = activo ? '' : '.45'; body.style.pointerEvents = activo ? '' : 'none'; }
 }
 
+/* Probar el tono. Antes esto no sonaba NUNCA: `posNotifProbar` la define
+   pos-notify.js, y ese archivo no estaba cargado en esta pantalla. Ahora sí lo
+   está; el aviso de abajo queda por si algún día se vuelve a caer, para que el
+   botón diga algo en vez de no hacer nada. */
 function opProbarTono() {
   var n = opNotifCfg();
-  if (window.posNotifProbar) posNotifProbar(n.tono || 'clasico', (typeof n.vol === 'number') ? n.vol : 60);
+  if (typeof window.posNotifProbar !== 'function') {
+    if (typeof showToast === 'function') showToast('No se pudo reproducir el sonido — recarga la pantalla', 'red');
+    return;
+  }
+  posNotifProbar(n.tono || 'clasico', (typeof n.vol === 'number') ? n.vol : 60);
 }
 
 document.addEventListener('click', function (e) {

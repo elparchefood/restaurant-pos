@@ -1060,28 +1060,58 @@
               </div>
             </div>
 
-            <!-- Notificaciones: tono y volumen del aviso de pedido nuevo -->
-            <div class="cf-card">
-              <div class="cf-card-hd">
-                <div>
-                  <div class="cf-card-t">Notificaciones</div>
-                  <div class="cf-card-s">El sonido que avisa cuando entra un mensaje nuevo al chat</div>
-                </div>
-                <button type="button" class="lm-switch" id="op-sw-notif" role="switch" aria-checked="true"></button>
+            </div>
+          </div>
+
+          <!-- SECCIÓN 8 · Notificaciones
+               Estaba metida DENTRO de la tarjeta de recibos y con nombres de
+               clase que no existen en el CSS (cf-card, lm-switch...), así que
+               se veía como texto suelto sin recuadro ni interruptor. Ahora es
+               una sección propia, con las mismas piezas que las demás. -->
+          <div class="op-card">
+            <div class="op-card-head">
+              <div class="op-card-icon amber"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+              <div>
+                <div class="op-card-num">Sección 8</div>
+                <div class="op-card-title">Notificaciones</div>
+                <div class="op-card-sub">El sonido que avisa cuando entra un mensaje nuevo al chat.</div>
               </div>
-              <div class="cf-card-bd">
-                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+            </div>
+            <div class="op-card-body">
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">Avisar con sonido</div>
+                  <div class="op-hint">Si lo apagas, los mensajes siguen llegando; simplemente no suenan.</div>
+                </div>
+                <div class="op-control">
+                  <span class="op-state" id="op-notif-state">Activado</span>
+                  <button type="button" class="cf-switch on" id="op-sw-notif" role="switch" aria-checked="true"><span class="cf-switch-knob"></span></button>
+                </div>
+              </div>
+              <div id="op-notif-body">
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label">Tono</div>
+                    <div class="op-hint">Se oye apenas lo tocas, para que escojas oyendo.</div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:0 18px 16px">
                   <button type="button" class="cf-chip" data-notif-tono="suave">Suave</button>
                   <button type="button" class="cf-chip on" data-notif-tono="clasico">Clásico</button>
                   <button type="button" class="cf-chip" data-notif-tono="campana">Campana</button>
                   <button type="button" class="cf-chip" data-notif-tono="alerta">Alerta</button>
-                  <button type="button" class="cf-mini-btn" onclick="opProbarTono()">▶ Probar</button>
+                  <button type="button" class="cf-mini-btn" onclick="opProbarTono()">&#9654; Probar</button>
                 </div>
-                <label style="display:flex;align-items:center;gap:12px;font-size:12.5px;color:var(--ink-3)">
-                  <span style="min-width:64px">Volumen</span>
-                  <input type="range" id="op-notif-vol" min="0" max="100" step="5" value="60" style="flex:1;accent-color:var(--accent)">
-                  <b id="op-notif-vol-val" style="min-width:38px;text-align:right;color:var(--ink)">60%</b>
-                </label>
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label">Volumen</div>
+                    <div class="op-hint">Súbelo si la cocina es ruidosa.</div>
+                  </div>
+                  <div class="op-control" style="gap:12px;min-width:230px">
+                    <input type="range" id="op-notif-vol" min="0" max="100" step="5" value="60" style="flex:1;accent-color:var(--accent, #5B6BFF)">
+                    <b id="op-notif-vol-val" style="min-width:42px;text-align:right;font-variant-numeric:tabular-nums">60%</b>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -2581,7 +2611,10 @@
 <script src="pos-impuestos.js?v=1"></script>
 <script src="pos-creditos.js?v=1"></script>
 <script src="configuracion-puntos.js?v=1787980000"></script>
-<script src="configuracion.js?v=1788440000"></script>
+<!-- Es quien sabe tocar los tonos con el volumen configurado. Sin esto el
+     boton Probar no sonaba: la funcion que llama no existia. -->
+<script src="pos-notify.js?v=1788700000"></script>
+<script src="configuracion.js?v=1788440001"></script>
 </body>
 </html>
 
