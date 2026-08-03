@@ -15,7 +15,11 @@
 (function () {
   'use strict';
 
-  var LOGO_SRC = 'assets/brand/cobra-logo.png';
+  /* La version al final obliga a volver a bajar la imagen. El .exe guarda los
+     archivos en cache con mas insistencia que el navegador, y una entrada
+     dañada deja el logo roto aunque el archivo del servidor este perfecto —
+     que es justo lo que paso: en Chrome se veia bien y en la app no. */
+  var LOGO_SRC = 'assets/brand/cobra-logo.png?v=2';
   var LS_KEY   = 'pos.brand.restaurante';
 
   /* Páginas donde la segunda línea la controla la propia página
