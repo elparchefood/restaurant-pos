@@ -148,7 +148,14 @@
     var mT = notes.match(/\[tel:([^\]]+)\]/i);    var telCli = mT ? mT[1] : (order.customer_phone || '');
     var dirCli = notes.replace(/\[barrio:[^\]]+\]/ig,'').replace(/\[tel:[^\]]+\]/ig,'').replace(/\[etq:[^\]]+\]/ig,'').replace(/·\s*Ref:\S+/ig,'').trim();
     var esLlevar = String(order.channel||'').toLowerCase().indexOf('rapid')>=0 || /para\s+llevar|recog/i.test(dirCli);
-    var esMesa = !!order.table || String(order.channel||'').toLowerCase() === 'mesa';
+    /* OJO con el guion: cuando el pedido no tiene mesa, `_tableDisplay`
+       devuelve "-", que NO esta vacio. Con `!!order.table` todos los
+       domicilios se tomaban por pedidos de mesa: salian titulados "RECIBO DE
+       MESA", con "Mesa: -", y sin direccion ni barrio, porque la rama de mesa
+       no los imprime. El domiciliario salia con un recibo sin direccion. */
+    var mesaTxt = String(order.table == null ? '' : order.table).trim();
+    if (mesaTxt === '-' || mesaTxt === '—') mesaTxt = '';
+    var esMesa = String(order.channel||'').toLowerCase() === 'mesa' || (!!mesaTxt && !esLlevar);
     var num = '#' + String(order.id||'').slice(-5).toUpperCase();
 
     var itemRows = (items||[]).map(function(it){
@@ -201,7 +208,7 @@
       // En mesa lo primero es DONDE, que es lo que busca el mesero al repartir
       // las cuentas. El cliente va despues y solo si lo seleccionaron.
       h += '<div style="font-size:10px;font-weight:700;color:#555;text-transform:uppercase">Mesa</div>';
-      h += '<div style="font-size:13px;font-weight:700">'+(order.table||'—')+'</div>';
+      h += '<div style="font-size:13px;font-weight:700">'+(mesaTxt||'—')+'</div>';
       var linea2 = [];
       if (order.sala)   linea2.push(order.sala);
       if (order.guests) linea2.push(order.guests + (order.guests === 1 ? ' persona' : ' personas'));
@@ -285,9 +292,10 @@
       // Lo que gano con ESTA compra solo se imprime si ya esta acreditado. Si
       // el recibo sale antes de cobrar, todavia no existe y no se inventa.
       if (order.puntos_ganados > 0) {
-        h += '<tr><td style="font-size:12px">Ganaste con esta compra</td><td class="pcol" style="font-size:12px">+'+Number(order.puntos_ganados).toLocaleString('es-CO')+'</td></tr>';
+        // Antes de cobrar se habla en futuro: todavia no estan acreditados.
+        h += '<tr><td style="font-size:12px">'+(order.puntos_estimados ? 'Ganar&aacute;s con esta compra' : 'Ganaste con esta compra')+'</td><td class="pcol" style="font-size:12px">+'+Number(order.puntos_ganados).toLocaleString('es-CO')+'</td></tr>';
       }
-      h += '<tr><td style="font-size:13px;font-weight:800">Tu total acumulado</td><td class="pcol" style="font-size:13px;font-weight:800">'+Number(order.puntos_total).toLocaleString('es-CO')+'</td></tr>';
+      h += '<tr><td style="font-size:13px;font-weight:800">'+(order.puntos_estimados ? 'Tu total quedar&aacute; en' : 'Tu total acumulado')+'</td><td class="pcol" style="font-size:13px;font-weight:800">'+Number(order.puntos_total).toLocaleString('es-CO')+'</td></tr>';
       h += '</table>';
     }
     // Pie
@@ -326,8 +334,9 @@
     var principal = String(cli.telefono || '').replace(/[^0-9]/g, '').slice(-10);
     if (!principal) return;
     var rp = await sb.from('pos_puntos').select('puntos').ilike('telefono', '%' + principal).maybeSingle();
-    if (!rp || !rp.data) return;
-    orderData.puntos_total = Number(rp.data.puntos) || 0;
+    // Sin fila de puntos todavia (primera compra) el saldo es 0, no "no hay
+    // puntos": igual hay que decirle cuantos va a ganar.
+    orderData.puntos_total = Number(rp && rp.data && rp.data.puntos) || 0;
 
     // Lo ganado con ESTE pedido, tal como quedo registrado. Si todavia no se
     // acredito (recibo impreso antes de cobrar), no se imprime esa linea.
@@ -335,8 +344,29 @@
     var gano = ((rm && rm.data) || []).reduce(function(a, m) {
       return a + ((m.tipo === 'acumulacion' && !m.revertido) ? (Number(m.puntos) || 0) : 0);
     }, 0);
-    if (gano > 0) orderData.puntos_ganados = gano;
+    if (gano > 0) {
+      orderData.puntos_ganados = gano;
+      return;
+    }
+
+    /* Todavia no se acreditaron porque los puntos entran al COBRAR, y la
+       mayoria de recibos se imprimen antes. Se calculan con la MISMA regla que
+       usa la respuesta rapida del chat (/puntos): productos + empaque, SIN el
+       domicilio, un punto por cada mil. Se marcan como estimados para que el
+       recibo hable en futuro y no prometa un saldo que aun no existe. */
+    var basePuntos = (Number(order.subtotal) || 0) + (Number(order.packaging_fee) || 0);
+    var estimado = Math.floor(basePuntos / PUNTOS_POR_MIL);
+    if (estimado > 0) {
+      orderData.puntos_ganados   = estimado;
+      orderData.puntos_estimados = true;
+      orderData.puntos_total     = orderData.puntos_total + estimado;
+    }
   }
+
+  /* Un punto por cada mil pesos de producto. Es la misma regla que aplica la
+     respuesta rapida del chat; el dia que se haga configurable por restaurante,
+     los dos sitios tienen que leer de la configuracion. */
+  var PUNTOS_POR_MIL = 1000;
 
   var _printerCache = null;
   var _printerCacheTs = 0;
