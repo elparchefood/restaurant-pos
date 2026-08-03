@@ -3486,7 +3486,7 @@ async function blCfgInit(){
 async function blRender(){
   var body=document.getElementById('blCfgBody'); if(!body) return;
   var ten=await blGetTenant();
-  if(!ten){ body.innerHTML='No se pudo cargar (sin tenant).'; return; }
+  if(!ten){ body.innerHTML='No se pudo cargar la lista.'; return; }
   var res=await sb.rpc('lista_negra_listar',{p_tenant:ten});
   var rows=(res&&res.data)||[];
   if(!rows.length){ body.innerHTML='No hay clientes en lista negra. Toca "+ Agregar" o usa el botón desde un chat.'; return; }

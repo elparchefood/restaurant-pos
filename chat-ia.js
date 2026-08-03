@@ -64,7 +64,7 @@ async function boot() {
 
   try {
     const { data: tenant } = await sb.from('tenants').select('id,name').limit(1).single();
-    if (!tenant) { showFatalError('No hay tenant configurado'); return; }
+    if (!tenant) { showFatalError('Tu cuenta no tiene un restaurante configurado. Escríbenos para activarla.'); return; }
     S.tenantId = tenant.id;
 
     const { data: branch } = await sb.from('branches').select('id,name').eq('tenant_id', S.tenantId).limit(1).single();

@@ -75,14 +75,19 @@ function badgeHtml(tone, label, dot) {
     label+'</span>';
 }
 function statusBadge(estado) {
+  /* Las claves son las que guarda la BASE, no las que uno esperaría en español.
+     Antes el mapa usaba 'pendiente'/'aprobado' y la base guarda
+     'pending'/'approved', así que ninguna coincidía y la pantalla mostraba la
+     palabra cruda en inglés. */
   var map = {
-    pendiente: {tone:'amber',label:'Pendiente',dot:true},
-    aprobado:  {tone:'green', label:'Aprobado', dot:true},
-    rechazado: {tone:'red',   label:'Rechazado',dot:true},
-    activo:    {tone:'green', label:'Activo',   dot:true},
-    suspendido:{tone:'gray',  label:'Suspendido',dot:true}
+    pending:   {tone:'amber', label:'Esperando aprobación', dot:true},
+    approved:  {tone:'green', label:'Activo',               dot:true},
+    rejected:  {tone:'red',   label:'Rechazado',            dot:true},
+    suspended: {tone:'gray',  label:'Suspendido',           dot:true},
+    active:    {tone:'green', label:'Activo',               dot:true},
+    cancelled: {tone:'gray',  label:'Cancelado',            dot:true}
   };
-  var m = map[estado] || {tone:'gray',label:estado,dot:false};
+  var m = map[estado] || {tone:'gray', label:estado || '—', dot:false};
   return badgeHtml(m.tone, m.label, m.dot);
 }
 function greetWord() {
@@ -178,7 +183,7 @@ function signOut() {
 // ────────────────────── RESUMEN ──────────────────────
 
 function renderResumen(regs) {
-  var activos    = regs.filter(function(r) { return r.status==='activo'||r.status==='aprobado'; });
+  var activos    = regs.filter(function(r) { return r.status === 'approved' && r.tenant_status !== 'suspended'; });
   var pendientes = regs.filter(function(r) { return r.status==='pendiente'||r.status==='pending'; });
   var starter    = activos.filter(function(r) { return r.plan==='starter'; });
   var pro        = activos.filter(function(r) { return r.plan==='pro'; });
@@ -377,9 +382,13 @@ function setCliFilter(f) {
 function renderClientes() {
   var search = (S.cliSearch||'').toLowerCase();
   var rows = S.registrations.filter(function(r) {
-    if (r.status!=='activo'&&r.status!=='aprobado'&&r.status!=='suspendido') return false;
-    if (S.cliFilter==='activo'    && r.status==='suspendido') return false;
-    if (S.cliFilter==='suspendido'&& r.status!=='suspendido') return false;
+    /* La base guarda 'approved', no 'aprobado'. Con las palabras en español la
+       lista de clientes salia SIEMPRE vacia aunque hubiera cuentas activas.
+       Quien esta suspendido se sabe por tenants.status, no por la solicitud. */
+    if (r.status !== 'approved') return false;
+    var susp = r.tenant_status === 'suspended';
+    if (S.cliFilter==='activo'     && susp) return false;
+    if (S.cliFilter==='suspendido' && !susp) return false;
     if (search) {
       var hay = ((r.negocio||r.nombre||'')+' '+(r.email||'')).toLowerCase();
       if (hay.indexOf(search)<0) return false;
@@ -387,10 +396,10 @@ function renderClientes() {
     return true;
   });
 
-  var todos = S.registrations.filter(function(r){return r.status==='activo'||r.status==='aprobado'||r.status==='suspendido';});
+  var todos = S.registrations.filter(function(r){ return r.status === 'approved'; });
   document.getElementById('cli-cnt-todos').textContent      = todos.length;
-  document.getElementById('cli-cnt-activo').textContent     = todos.filter(function(r){return r.status!=='suspendido';}).length;
-  document.getElementById('cli-cnt-suspendido').textContent = todos.filter(function(r){return r.status==='suspendido';}).length;
+  document.getElementById('cli-cnt-activo').textContent     = todos.filter(function(r){return r.tenant_status!=='suspended';}).length;
+  document.getElementById('cli-cnt-suspendido').textContent = todos.filter(function(r){return r.tenant_status==='suspended';}).length;
 
   if (!rows.length) {
     document.getElementById('cli-tbody').innerHTML = '<tr><td colspan="7" class="a-empty">Sin clientes en este filtro.</td></tr>';
@@ -401,7 +410,7 @@ function renderClientes() {
     var nombre   = r.negocio || r.nombre || 'Sin nombre';
     var branches = r.sucursales || r.branches || 1;
     var total    = cop(planTotal(r.plan||'starter', branches));
-    var activo   = r.status !== 'suspendido';
+    var activo   = r.tenant_status !== 'suspended';
     var fechaRaw = r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}) : '—';
     var planBadge= r.plan==='pro' ? badgeHtml('indigo','Pro',false) : badgeHtml('violet','Starter',false);
 
@@ -412,15 +421,25 @@ function renderClientes() {
       '<td class="a-num">'+branches+'</td>'+
       '<td class="a-num a-cell-strong">'+total+'<span style="font-weight:500;color:#94A3B8;font-size:11.5px">/mes</span></td>'+
       '<td class="a-cell-muted">'+fechaRaw+'</td>'+
-      '<td>'+statusBadge(r.status)+'</td>'+
+      '<td>'+statusBadge(r.tenant_status || r.status)+'</td>'+
       '<td><div class="a-act-col">'+
         '<button class="a-act a-act--neutral"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg> Detalle</button>'+
+        /* Dar acceso a la consola desde AQUI: los dueños de restaurante son
+           clientes, no equipo de Cobra. Solo aparece si la cuenta ya existe
+           (una solicitud sin aprobar todavia no tiene usuario). */
+        (r.user_id
+          ? '<button class="a-act a-act--neutral" data-uid="'+r.user_id+'" data-admin="1" title="Podra ver la consola de plataforma">Dar acceso a la consola</button>'
+          : '')+
         (activo
           ? '<button class="a-act a-act--warn" onclick="handleSuspend(\''+r.id+'\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> Suspender</button>'
           : '<button class="a-act a-act--approve" onclick="handleReactivate(\''+r.id+'\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg> Reactivar</button>'
         )+'</div></td>'+
     '</tr>';
   }).join('');
+
+  // Los botones de acceso a la consola se enganchan por evento (ver EQUIPO).
+  var cont = document.getElementById('cli-tbody');
+  if (cont && typeof engancharBotonesAcceso === 'function') engancharBotonesAcceso(cont);
 }
 
 // ────────────────────── EQUIPO ──────────────────────
@@ -437,24 +456,29 @@ function escapeHtml(s) {
 }
 
 function renderEquipo() {
+  /* EQUIPO = las personas que ayudan a Sergio a manejar COBRA. No los dueños de
+     restaurante (esos son clientes, y su acceso se da desde Clientes), ni los
+     meseros o cajeros de un restaurante (esos viven en la configuración de cada
+     restaurante). Son tres cosas distintas y antes estaban revueltas. */
   var ROLES = [
-    {rol:'Dueño',   tone:'indigo', desc:'Control total: facturación, equipo y configuración.'},
-    {rol:'Admin',   tone:'violet', desc:'Aprueba solicitudes y gestiona clientes.'},
-    {rol:'Soporte', tone:'sky',    desc:'Acceso de lectura y atención a clientes.'},
-    {rol:'Finanzas',tone:'green',  desc:'Facturación, planes e ingresos.'}
+    {rol:'Dueño',   tone:'indigo', desc:'Control total: facturación, clientes y configuración de la plataforma.'},
+    {rol:'Soporte', tone:'sky',    desc:'Atiende a los clientes y consulta sus cuentas. Sin tocar facturación.'},
+    {rol:'Finanzas',tone:'green',  desc:'Ingresos, planes y cobros.'}
   ];
   var grid = document.getElementById('eq-roles-grid');
-  if (grid) grid.innerHTML = ROLES.map(function(x) {
-    return '<div class="a-card eq-role-card">' + badgeHtml(x.tone, x.rol, false) +
+  if (grid) grid.innerHTML = ROLES.map(function (x) {
+    var pend = x.rol !== 'Dueño'
+      ? '<span style="font-size:11px;color:#B45309;background:#FFFBEB;border:1px solid #FCD34D;' +
+        'border-radius:6px;padding:1px 7px;margin-left:7px">por construir</span>' : '';
+    return '<div class="a-card eq-role-card">' + badgeHtml(x.tone, x.rol, false) + pend +
       '<p class="eq-role-desc">' + x.desc + '</p></div>';
   }).join('');
-  cargarUsuarios();
+  cargarEquipo();
 }
 
-/* Los usuarios REALES de la plataforma. Antes esta lista estaba escrita a mano
-   con un solo nombre, así que no servía para nada: no se veía quién más tiene
-   cuenta ni quién es administrador. */
-async function cargarUsuarios() {
+/* Solo las cuentas CON acceso a esta consola. Antes aquí salían todos los
+   dueños de restaurante, que no son equipo de Cobra: son los clientes. */
+async function cargarEquipo() {
   var tb = document.getElementById('eq-tbody');
   if (!tb) return;
   tb.innerHTML = '<tr><td colspan="4" class="a-cell-muted" style="padding:22px;text-align:center">Cargando…</td></tr>';
@@ -462,75 +486,81 @@ async function cargarUsuarios() {
   var r = await sb.rpc('admin_listar_usuarios');
   if (r.error) {
     tb.innerHTML = '<tr><td colspan="4" class="a-cell-muted" style="padding:22px;text-align:center">' +
-      'No se pudo cargar la lista: ' + escapeHtml(r.error.message || '') + '</td></tr>';
+      'No se pudo cargar: ' + escapeHtml(r.error.message || '') + '</td></tr>';
     return;
   }
 
   S.usuarios = r.data || [];
-  var yo = S.currentUser ? S.currentUser.id : null;
+  var yo = await miId();
+  var equipo = S.usuarios.filter(function (u) { return u.rol === 'admin'; });
 
-  tb.innerHTML = S.usuarios.map(function (u, i) {
-    var esAdmin = u.rol === 'admin';
-    var eresTu  = u.id === yo;
-    var nombre  = escapeHtml(u.nombre || '');
-    var acceso  = esAdmin ? 'Toda la plataforma' : 'Solo su propio restaurante';
-    var visto   = u.ultimo_acceso
+  tb.innerHTML = equipo.map(function (u, i) {
+    var eresTu = u.id === yo;
+    var visto  = u.ultimo_acceso
       ? new Date(u.ultimo_acceso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
       : 'nunca';
-
-    var accion;
-    if (eresTu) {
-      accion = '<span class="eq-online"><span class="eq-online-dot"></span>Eres tú</span>';
-    } else if (esAdmin) {
-      accion = '<button class="a-act a-act--warn" data-uid="' + u.id + '" data-admin="0">' +
-               'Quitar administrador</button>';
-    } else {
-      accion = '<button class="a-act a-act--approve" data-uid="' + u.id + '" data-admin="1">' +
-               'Hacer administrador</button>';
-    }
-
     return '<tr>' +
       '<td><div class="a-cell-row">' + avatarHtml(u.nombre, 38, i + 1) +
-        '<div class="a-cell-info"><div class="a-cell-strong">' + nombre +
+        '<div class="a-cell-info"><div class="a-cell-strong">' + escapeHtml(u.nombre || '') +
           (eresTu ? '<span class="eq-you">· Tú</span>' : '') +
         '</div><div class="a-cell-muted">' + escapeHtml(u.email || '') + '</div></div></div></td>' +
-      '<td>' + badgeHtml(esAdmin ? 'violet' : 'gray', esAdmin ? 'Administrador' : 'Dueño de restaurante', false) + '</td>' +
-      '<td class="a-cell-muted">' + acceso +
+      '<td>' + badgeHtml('indigo', 'Dueño', false) + '</td>' +
+      '<td class="a-cell-muted">Toda la plataforma' +
         '<div style="font-size:11px;opacity:.7">últ. acceso ' + visto + '</div></td>' +
-      '<td>' + accion + '</td>' +
-    '</tr>';
+      '<td>' + (eresTu
+        ? '<span class="eq-online"><span class="eq-online-dot"></span>Eres tú</span>'
+        : '<button class="a-act a-act--warn" data-uid="' + u.id + '" data-admin="0">Quitar acceso</button>') +
+      '</td></tr>';
   }).join('');
 
-  /* Los botones se enganchan aquí y no con onclick en el HTML: así el nombre
-     del usuario nunca se mete dentro de una cadena de código. Un nombre con
-     comilla —"D'Angelo"— rompería el onclick, y uno con etiquetas podría
-     ejecutar lo que quisiera. */
-  tb.querySelectorAll('button[data-uid]').forEach(function (b) {
+  if (!equipo.length) {
+    tb.innerHTML = '<tr><td colspan="4" class="a-cell-muted" style="padding:22px;text-align:center">' +
+      'Nadie más tiene acceso a esta consola.</td></tr>';
+  }
+
+  engancharBotonesAcceso(tb);
+}
+
+/* Mi propio id de usuario. Se pide a la sesión y no solo a S.currentUser porque
+   esta lista puede pintarse ANTES de que checkAdmin lo guarde — y entonces
+   nadie coincidía y a Sergio le salía "Quitar acceso" sobre su propia fila. */
+async function miId() {
+  if (S.currentUser && S.currentUser.id) return S.currentUser.id;
+  try {
+    var res = await sb.auth.getUser();
+    if (res.data && res.data.user) { S.currentUser = res.data.user; return res.data.user.id; }
+  } catch (e) {}
+  return null;
+}
+
+/* Los botones se enganchan por evento y no con onclick en el HTML: así el
+   nombre del usuario nunca se mete dentro de una cadena de código. */
+function engancharBotonesAcceso(cont) {
+  cont.querySelectorAll('button[data-uid]').forEach(function (b) {
     b.addEventListener('click', function () {
-      var u = S.usuarios.filter(function (x) { return x.id === b.dataset.uid; })[0];
+      var u = (S.usuarios || []).filter(function (x) { return x.id === b.dataset.uid; })[0];
       cambiarAdmin(b.dataset.uid, b.dataset.admin === '1', (u && u.nombre) || 'Este usuario');
     });
   });
 }
 
-/* Nombrar o quitar administrador. Siempre pide confirmación: dar acceso a la
-   consola es dar acceso a TODOS los restaurantes y a su facturación.
-   Los candados de verdad están en la base (solo un admin puede nombrar, nadie
-   puede quitarse a sí mismo, y no se puede quitar al último). Esto es la puerta
-   de adelante; la cerradura está adentro. */
-function cambiarAdmin(uid, hacerAdmin, nombre) {
-  var titulo = hacerAdmin ? 'Hacer administrador' : 'Quitar administrador';
-  var texto  = hacerAdmin
-    ? '<b>' + escapeHtml(nombre) + '</b> va a poder ver la consola de plataforma: todos los ' +
-      'restaurantes, sus solicitudes y su facturación. ¿Seguro?'
-    : '<b>' + escapeHtml(nombre) + '</b> dejará de ver la consola de plataforma. Su restaurante ' +
-      'sigue funcionando exactamente igual.';
+/* Dar o quitar acceso a la consola. Los candados de verdad están en la base
+   (solo un admin puede dar acceso, nadie puede quitarse a sí mismo, y no se
+   puede quitar al último). Esto es la puerta de adelante. */
+function cambiarAdmin(uid, dar, nombre) {
+  var titulo = dar ? 'Dar acceso a la consola' : 'Quitar acceso a la consola';
+  var texto  = dar
+    ? '<b>' + escapeHtml(nombre) + '</b> va a poder ver esta consola: todos los restaurantes ' +
+      'clientes, sus ventas y su facturación. ¿Seguro?'
+    : '<b>' + escapeHtml(nombre) + '</b> dejará de ver esta consola. Si tiene un restaurante, ' +
+      'ese sigue funcionando exactamente igual.';
 
   showConfirm(titulo, texto, async function () {
-    var r = await sb.rpc('admin_definir_rol', { p_usuario: uid, p_admin: hacerAdmin });
-    if (r.error) { showToast(r.error.message || 'No se pudo cambiar'); return; }
-    showToast(hacerAdmin ? nombre + ' ya es administrador' : nombre + ' ya no es administrador');
-    cargarUsuarios();
+    var r = await sb.rpc('admin_definir_rol', { p_usuario: uid, p_admin: dar });
+    if (r.error) { showToast(r.error.message || 'No se pudo cambiar', 'red'); return; }
+    showToast(dar ? nombre + ' ya tiene acceso a la consola' : nombre + ' ya no tiene acceso', 'green');
+    renderEquipo();
+    if (typeof loadRegistrations === 'function') loadRegistrations();
   });
 }
 window.cambiarAdmin = cambiarAdmin;
@@ -590,19 +620,49 @@ function handleReopen(id) {
     loadRegistrations();
   });
 }
-function handleSuspend(id) {
-  showConfirm('Suspender cliente', 'El cliente perderá acceso a la plataforma. ¿Continuar?', async function() {
-    await sb.from('pos_registrations').update({status:'suspendido'}).eq('id', id);
-    showToast('Cliente suspendido','amber');
-    loadRegistrations();
-  });
+
+/* Suspender y reactivar un cliente.
+ *
+ * Antes esto escribía 'suspendido' / 'activo' en `pos_registrations.status`,
+ * que solo acepta pending/approved/rejected. La base rechazaba el cambio y
+ * NADIE miraba el error: el aviso decía "cliente suspendido" y el cliente
+ * seguía trabajando igual. Peor que no tener el botón.
+ *
+ * El corte de acceso vive en `tenants.status` (active/suspended/cancelled), que
+ * es lo que de verdad manda sobre si la cuenta puede entrar. La solicitud queda
+ * como 'approved', porque aprobada sí fue: suspender no deshace eso.
+ */
+async function cambiarEstadoCliente(id, suspender) {
+  var reg = (S.registrations || []).filter(function (r) { return r.id === id; })[0];
+  if (!reg || !reg.tenant_id) {
+    showToast('Esa solicitud todavía no tiene una cuenta creada', 'red');
+    return;
+  }
+  var r = await sb.from('tenants')
+    .update({ status: suspender ? 'suspended' : 'active' })
+    .eq('id', reg.tenant_id)
+    .select('id');
+
+  // Se comprueba el resultado: sin esto un rechazo de la base pasaba por bueno.
+  if (r.error || !r.data || !r.data.length) {
+    showToast('No se pudo cambiar: ' + ((r.error && r.error.message) || 'sin permisos'), 'red');
+    return;
+  }
+  showToast(suspender ? 'Cliente suspendido' : 'Cliente reactivado', 'green');
+  loadRegistrations();
 }
+
+function handleSuspend(id) {
+  showConfirm('Suspender cliente',
+    'El restaurante dejará de poder entrar al sistema. Sus datos y sus ventas se conservan, ' +
+    'y vuelve a funcionar apenas lo reactives. ¿Continuar?',
+    function () { cambiarEstadoCliente(id, true); });
+}
+
 function handleReactivate(id) {
-  showConfirm('Reactivar cliente', '¿Reactivar el acceso de este cliente a la plataforma?', async function() {
-    await sb.from('pos_registrations').update({status:'activo'}).eq('id', id);
-    showToast('Cliente reactivado','green');
-    loadRegistrations();
-  });
+  showConfirm('Reactivar cliente',
+    'El restaurante vuelve a entrar al sistema con todo como lo dejó. ¿Continuar?',
+    function () { cambiarEstadoCliente(id, false); });
 }
 
 // ────────────────────── DATA LOAD ──────────────────────
@@ -611,6 +671,18 @@ async function loadRegistrations() {
   try {
     var res = await sb.from('pos_registrations').select('*').order('created_at',{ascending:false});
     S.registrations = res.data || [];
+
+    /* Si el restaurante esta suspendido NO se sabe por la solicitud (esa queda
+       'approved' para siempre: aprobada si fue). Se sabe por el estado de su
+       cuenta. Se trae aparte y se pega a cada fila. */
+    var ten = await sb.from('tenants').select('id,status,plan');
+    var porId = {};
+    (ten.data || []).forEach(function (t) { porId[t.id] = t; });
+    S.registrations.forEach(function (r) {
+      var t = r.tenant_id ? porId[r.tenant_id] : null;
+      r.tenant_status = t ? t.status : null;
+      r.plan_actual   = t ? t.plan : r.plan;
+    });
   } catch(e) {
     console.error('loadRegistrations:', e);
     S.registrations = [];
@@ -626,7 +698,7 @@ async function loadRegistrations() {
 async function approveRegistration(id, email) {
   showConfirm(
     'Aprobar solicitud',
-    '¿Confirmar? Se creará el tenant, sucursales y cuenta de acceso para ' + email + '.',
+    'Se va a crear la cuenta del restaurante con sus sucursales, y se le enviará el acceso a ' + email + '. ¿Confirmas?',
     async function() {
       try {
         // Todo el aprovisionamiento (tenant, brand, branches, usuario auth,
@@ -648,7 +720,7 @@ async function approveRegistration(id, email) {
         if (!provRes.ok || !prov.ok) throw new Error(prov.error || 'No se pudo aprobar');
 
         await loadRegistrations();
-        showToast('Cuenta activada — tenant, ' + (prov.branches || 1) + ' sucursal(es) y acceso creados para ' + email, 'green');
+        showToast('Listo — cuenta creada con ' + (prov.branches || 1) + ' sucursal' + ((prov.branches||1)>1?'es':'') + '. Ya puede entrar con ' + email, 'green');
 
       } catch(e) {
         console.error('approveRegistration:', e);
