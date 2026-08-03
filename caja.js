@@ -1227,13 +1227,31 @@ function getArqueoContado() {
 // Antes solo se persistía el total contado → la separación billetes/sencillo/
 // monedas se perdía al cerrar. Devuelve { lineas:[{denom,qty,total,grupo}], ... }
 // ── Datos consolidados del turno para los tickets de caja ──────────
+/* Plural de la unidad de uso: "1 unidad" / "21 unidades", "1 porción" /
+   "40 porciones" (las palabras en -ón pierden la tilde al pluralizar). */
+function cjPlural(n, u) {
+  u = String(u || '').trim();
+  if (!u || Math.abs(n) === 1) return u;
+  if (/ón$/i.test(u)) return u.replace(/ón$/i, 'ones');
+  return /[aeiouáéíóú]$/i.test(u) ? u + 's' : u + 'es';
+}
+/* Cuánto es el stock en unidades de uso. Se redondea a entero cuando pasa de 1
+   (nadie dice "39,65 porciones") y a un decimal cuando es menos, para no
+   mostrar un "0" que parecería que no queda nada. */
+function cjEquivalencia(stock, conversion, useUnit) {
+  var n = (Number(stock) || 0) * (Number(conversion) || 0);
+  if (!n || !useUnit) return '';
+  var v = n >= 1 ? Math.round(n) : Math.round(n * 10) / 10;
+  return v + ' ' + cjPlural(v, useUnit);
+}
+
 /* Insumos por comprar. Se piden al cerrar porque es cuando Sergio puede anotar
    lo del día siguiente. Si el restaurante no lleva inventario o la consulta
    falla, devuelve lista vacía y el cierre sale igual que siempre. */
 async function cjInsumosBajos() {
   try {
     const { data } = await sb.from('iv_insumos')
-      .select('nombre, stock, min_stock, buy_unit, control_manual, agotado_manual, sub_inventario, stock_servicio')
+      .select('nombre, stock, min_stock, buy_unit, use_unit, conversion, control_manual, agotado_manual, sub_inventario, stock_servicio')
       .eq('branch_id', S.branchId).eq('activo', true);
     return (data || []).filter(function (i) {
       // Marcado a mano como agotado ("se acabó") — no depende de la cantidad.
@@ -1248,6 +1266,9 @@ async function cjInsumosBajos() {
         stock:   Number(i.stock) || 0,
         min:     Number(i.min_stock) || 0,
         unidad:  i.buy_unit || '',
+        // Equivalencia en unidades de uso: "0.084 Paquete" no dice nada,
+        // "1 unidad" sí.
+        equiv:   cjEquivalencia(i.stock, i.conversion, i.use_unit),
         agotado: !!(i.control_manual && i.agotado_manual) || (Number(i.stock) || 0) <= 0,
       };
     }).sort(function (a, b) {
@@ -1273,7 +1294,7 @@ function cjPintarBajos(bajos) {
     const der = i.agotado
       ? '<span style="font-size:12.5px;font-weight:800;color:#DC2626">Se acabó</span>'
       : '<span style="font-size:12.5px;font-weight:700;color:#B45309">' + i.stock + (i.unidad ? ' ' + i.unidad : '')
-        + ' <span style="color:#94A3B8;font-weight:600">/ min ' + i.min + '</span></span>';
+        + (i.equiv ? ' <span style="color:#94A3B8;font-weight:600">(' + i.equiv + ')</span>' : '') + '</span>';
     return '<div class="cj-channel-row"><span style="display:inline-flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:#0F172A">'
          + '<span style="width:9px;height:9px;border-radius:999px;background:' + (i.agotado ? '#DC2626' : '#F59E0B') + '"></span>'
          + (i.nombre || '') + '</span>' + der + '</div>';
@@ -1287,7 +1308,7 @@ async function imprimirPorComprar() {
   if (!bajos.length) { showToast('No hay insumos bajos'); return; }
   if (typeof window.posPrintTicket !== 'function') { showToast('Impresión no disponible en esta pantalla'); return; }
   const filas = bajos.map(function (i) {
-    const der = i.agotado ? 'SE ACABO' : (i.stock + (i.unidad ? ' ' + i.unidad : '') + ' / min ' + i.min);
+    const der = i.agotado ? 'SE ACABO' : (i.stock + (i.unidad ? ' ' + i.unidad : '') + (i.equiv ? ' (' + i.equiv + ')' : ''));
     return '<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;font-size:12.5px">'
          + '<span>' + i.nombre + '</span><span>' + der + '</span></div>';
   }).join('');

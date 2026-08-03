@@ -28,6 +28,25 @@ async function sbGet(path: string) {
   return r.ok ? await r.json() : null;
 }
 
+/* Plural de la unidad de uso: "1 unidad" / "21 unidades", "1 porción" /
+   "40 porciones" (las palabras en -ón pierden la tilde al pluralizar). */
+function plural(n: number, u: string): string {
+  u = String(u || "").trim();
+  if (!u || Math.abs(n) === 1) return u;
+  if (/ón$/i.test(u)) return u.replace(/ón$/i, "ones");
+  return /[aeiouáéíóú]$/i.test(u) ? u + "s" : u + "es";
+}
+/* Cuánto es el stock en unidades de uso. "0.084 Paquete" no le dice nada a
+   nadie; "1 unidad" sí. Se redondea a entero cuando pasa de 1 (nadie dice
+   "39,65 porciones") y a un decimal cuando es menos, para no mostrar un "0"
+   que parecería que ya no queda nada. */
+function equivalencia(stock: number, conversion: number, useUnit: string): string {
+  const n = stock * conversion;
+  if (!n || !useUnit) return "";
+  const v = n >= 1 ? Math.round(n) : Math.round(n * 10) / 10;
+  return `${v} ${plural(v, useUnit)}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const json = (b: unknown, s = 200) =>
@@ -55,7 +74,7 @@ Deno.serve(async (req) => {
     // ── Qué está bajo ────────────────────────────────────────────────
     const insumos = await sbGet(
       `/rest/v1/iv_insumos?branch_id=eq.${branchId}&activo=eq.true` +
-      `&select=nombre,stock,min_stock,buy_unit,control_manual,agotado_manual`
+      `&select=nombre,stock,min_stock,buy_unit,use_unit,conversion,control_manual,agotado_manual`
     ) as Array<Record<string, unknown>> | null;
 
     const bajos = (insumos || []).filter(i => {
@@ -69,6 +88,7 @@ Deno.serve(async (req) => {
       min: Number(i.min_stock) || 0,
       unidad: String(i.buy_unit || ""),
       agotado: !!(i.control_manual && i.agotado_manual) || (Number(i.stock) || 0) <= 0,
+      equiv: equivalencia(Number(i.stock) || 0, Number(i.conversion) || 0, String(i.use_unit || "")),
     })).sort((a, b) => (a.agotado !== b.agotado ? (a.agotado ? -1 : 1) : a.nombre.localeCompare(b.nombre, "es")));
 
     // Nada bajo: no se manda nada. Un "todo bien" cada noche se vuelve ruido y
@@ -77,7 +97,7 @@ Deno.serve(async (req) => {
 
     const lineas = bajos.map(i => i.agotado
       ? `• ${i.nombre} — se acabó`
-      : `• ${i.nombre} — quedan ${i.stock}${i.unidad ? " " + i.unidad : ""} (mínimo ${i.min})`);
+      : `• ${i.nombre} — quedan ${i.stock}${i.unidad ? " " + i.unidad : ""}${i.equiv ? " (" + i.equiv + ")" : ""}`);
     const texto = `🛒 *Por comprar* — cierre de caja\n\n${lineas.join("\n")}\n\n${bajos.length} insumo${bajos.length === 1 ? "" : "s"}.`;
 
     // ── Con qué número se manda ──────────────────────────────────────

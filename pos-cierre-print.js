@@ -187,7 +187,7 @@
          + '<div class="r big"><span>POR COMPRAR</span><span>' + c.bajos.length + '</span></div>';
       c.bajos.forEach(function (i) {
         var der = i.agotado ? 'SE ACABO'
-                : (i.stock + (i.unidad ? ' ' + i.unidad : '') + ' / min ' + i.min);
+                : (i.stock + (i.unidad ? ' ' + i.unidad : '') + (i.equiv ? ' (' + i.equiv + ')' : ''));
         h += '<div class="r"><span>' + esc(i.nombre) + '</span><span>' + esc(der) + '</span></div>';
       });
     }
