@@ -138,6 +138,20 @@ async function checkAdmin() {
   try {
     var res = await sb.auth.getUser();
     if (!res.data.user) { window.location.href = 'login.html'; return; }
+
+    /* Que haya sesion NO basta: esta es la consola del DUEÑO DE LA PLATAFORMA.
+       Sin esto, cualquier restaurante con su cuenta abierta podia entrar y ver
+       "Consola de Plataforma" — vacia, porque la base le bloquea los datos,
+       pero enterandose de que existe una consola de administracion.
+
+       El candado de verdad lo pone la base (las politicas exigen rol admin para
+       leer solicitudes y clientes). Esto es para que ni siquiera vea la puerta. */
+    var perfil = await sb.from('user_profiles').select('role').eq('id', res.data.user.id).maybeSingle();
+    if (!perfil.data || perfil.data.role !== 'admin') {
+      window.location.href = 'dashboard.html';
+      return;
+    }
+
     S.currentUser = res.data.user;
     var email = res.data.user.email || '';
     var meta  = res.data.user.user_metadata || {};
