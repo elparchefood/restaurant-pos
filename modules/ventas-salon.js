@@ -776,8 +776,10 @@
 
   // ─── Data loading ─────────────────────────────────────
   async function loadData() {
+    // El mapa de productos se necesita para desglosar el empaque por linea.
+    // Va dentro del mismo Promise.all para no agregar una espera.
     [state.tables, state.deliveries, state.quickOrders, state.quickDeliveredCount] =
-      await Promise.all([fetchTables(), fetchDeliveries(), fetchQuickOrders(), fetchQuickDeliveredCount()]);
+      await Promise.all([fetchTables(), fetchDeliveries(), fetchQuickOrders(), fetchQuickDeliveredCount(), vsProdMapCargar()]);
 
     state.loading = false;
     if (state.selectedTableId) {
@@ -1398,6 +1400,33 @@
   // Cerrado: el producto y su total, ya con adiciones y empaque incluidos.
   // Desplegado: precio del producto, cada adición con su valor, y el empaque.
   // ═══════════════════════════════════════════════════════
+  /* Los ítems del pedido guardan el producto pero NO su categoría ni el id de
+     su presentación, y el empaque se configura justamente por ahí. Se carga
+     una vez y se guarda en memoria. Si falla, todo sigue funcionando: el
+     empaque simplemente no se desglosa por línea. */
+  let _vsProdMap = null;
+  async function vsProdMapCargar() {
+    if (_vsProdMap) return _vsProdMap;
+    const sb = window._pos && window._pos.sb;
+    if (!sb) return {};
+    try {
+      const { data } = await sb.from('pos_products').select('id,category_id,presentations');
+      const m = {};
+      (data || []).forEach(function (pr) { m[pr.id] = pr; });
+      _vsProdMap = m;
+    } catch (e) { _vsProdMap = {}; }
+    return _vsProdMap;
+  }
+  // La presentación se guarda por NOMBRE en el ítem ("Personal"), y la config
+  // del empaque la busca por id: hay que traducir.
+  function vsPresId(it) {
+    const pr = (_vsProdMap || {})[it && it.product_id];
+    const nom = it && it.selections && it.selections.pres;
+    if (!pr || !nom) return null;
+    const hit = (pr.presentations || []).find(function (x) { return x && x.name === nom; });
+    return hit ? hit.id : null;
+  }
+
   function vsEmpaqueCfg() {
     try { return JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}'); }
     catch (e) { return {}; }
@@ -1418,14 +1447,27 @@
     if (!n || !fee || vsEmpaqueEsPorPedido()) return cero;
     const cfg = vsEmpaqueCfg();
     const esPct = cfg.empaqueTipo === 'porcentaje';
-    const pesos = its.map(function (it) {
-      if (cfg.empaqueModo === 'especifico' && window.posEmpaqueCalc) {
+    /* Modo ESPECIFICO: cada producto tiene su propio empaque configurado, asi
+       que se muestra el suyo y NO se reparte nada. Repartir era lo que ponia
+       $500 en una salsa que no lleva empaque. */
+    if (cfg.empaqueModo === 'especifico' && window.posEmpaqueCalc) {
+      const reales = its.map(function (it) {
+        const pr = (_vsProdMap || {})[it.product_id] || {};
         const v = window.posEmpaqueCalc([{
-          productId: it.product_id || null, catId: null, presId: null,
+          productId: it.product_id || null,
+          catId: pr.category_id || null,
+          presId: vsPresId(it),
           qty: Number(it.quantity) || 0, unitPrice: Number(it.unit_price) || 0,
         }], { domicilio: true });
         return Number(v) || 0;
-      }
+      });
+      const sumaR = reales.reduce(function (a, b) { return a + b; }, 0);
+      // Si no cuadra con lo cobrado (la configuracion cambio despues de crear
+      // el pedido) no se inventa un desglose: se deja el empaque en el total.
+      return sumaR === Number(fee) ? reales : cero;
+    }
+
+    const pesos = its.map(function (it) {
       return esPct ? (Number(it.total) || 0) : (Number(it.quantity) || 0);
     });
     const suma = pesos.reduce(function (a, b) { return a + b; }, 0);
