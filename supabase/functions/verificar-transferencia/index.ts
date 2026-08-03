@@ -175,6 +175,23 @@ async function searchGmailForAmount(
 
 // Extrae texto del body del email (parte text/plain o snippet como fallback)
 
+function extractEmailBody(msgData: Record<string, unknown>): string {
+  try {
+    const payload = msgData.payload as Record<string, unknown>;
+    const parts   = (payload?.parts as Array<Record<string, unknown>>) || [];
+    const plain = parts.find(p => (p.mimeType as string) === "text/plain");
+    if (plain?.body) {
+      const data = ((plain.body as Record<string,string>).data || "");
+      return atob(data.replace(/-/g, "+").replace(/_/g, "/"));
+    }
+    if (payload?.body) {
+      const data = ((payload.body as Record<string,string>).data || "");
+      return atob(data.replace(/-/g, "+").replace(/_/g, "/"));
+    }
+  } catch { /* ignorar */ }
+  return "";
+}
+
 function bancosRegexFromCfg(pagos: Record<string, unknown> | null | undefined): RegExp {
   const lista = pagos?.bancos_correo as unknown;
   if (Array.isArray(lista) && lista.length > 0) {
