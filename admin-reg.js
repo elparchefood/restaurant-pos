@@ -10,7 +10,9 @@ var PROVISION_URL = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/provi
 // ── Estado global ──
 var S = {
   registrations: [], tenants: [], solFilter: 'pendiente', cliFilter: 'todos',
-  solSearch: '', cliSearch: '', currentUser: null
+  solSearch: '', cliSearch: '', currentUser: null,
+  planes: [],        // catálogo real, leído de pos_planes
+  cambioPlan: null   // el cambio de plan que se está armando en el modal
 };
 
 // ── Pricing (fiel al diseño) ──
@@ -52,15 +54,64 @@ var AV_COLORS = [
   ['#F59E0B','#EF4444'],['#EC4899','#8B5CF6'],['#8B5CF6','#5B6BFF']
 ];
 
+/* El catálogo de planes REAL vive en la tabla `pos_planes`: nombre, precio y la
+   lista de funciones que incluye. PLANS_DATA (arriba) es solo el texto de venta
+   de la pantalla de Planes. Antes el precio estaba escrito a mano en el código,
+   así que cambiar un precio obligaba a volver a desplegar la consola — y no
+   existía Premium por ninguna parte aunque en la base sí. */
+var PLAN_TONE = {starter: 'violet', pro: 'indigo', premium: 'amber'};
+
+/* Qué es cada función, dicha como la diría un dueño de restaurante. Se usa para
+   mostrarle a Sergio qué gana o qué pierde el cliente ANTES de confirmar. */
+var FUNCION_ETIQUETA = {
+  inventario:         'Control de inventario',
+  chat_ia:            'Chat con IA en WhatsApp',
+  comprobantes_ia:    'Lectura de comprobantes de pago',
+  avisos_estado:      'Avisos automáticos al cliente',
+  puntos:             'Puntos y fidelización',
+  multimarca:         'Varias marcas y sucursales',
+  informes_avanzados: 'Todos los informes',
+  dian:               'Facturación electrónica (DIAN)',
+  admin_whatsapp:     'Administrar el negocio por WhatsApp',
+  nfc:                'Tarjetas y llaveros NFC',
+  consolidado:        'Consolidado de todas las sucursales',
+  kardex:             'Kardex de inventario',
+  marketing:          'Campañas de marketing'
+};
+
+function planDe(planId) {
+  return (S.planes || []).find(function(p) { return p.plan === planId; }) || null;
+}
+function planNombre(planId) {
+  var p = planDe(planId);
+  return (p && p.nombre) || (planId ? planId[0].toUpperCase()+planId.slice(1) : '—');
+}
+/* Devuelve null —no 0— cuando el plan todavía no tiene precio decidido. Un 0
+   pasaría por "gratis" en toda la pantalla, incluido el total que factura la
+   plataforma. Premium está así hoy. */
+function planPrecio(planId) {
+  var p = planDe(planId);
+  if (p && p.precio != null) return Number(p.precio);
+  var v = PLANS_DATA.find(function(x) { return x.id === planId; });
+  return v ? v.price : null;
+}
+function planFunciones(planId) {
+  var p = planDe(planId);
+  return (p && p.funciones) || [];
+}
+
 function tierFor(n) {
   return TIERS.find(function(t) { return n >= t.min; }) || TIERS[TIERS.length-1];
 }
 function planTotal(planId, branches) {
-  var plan = PLANS_DATA.find(function(p) { return p.id === planId; });
-  if (!plan) return 0;
-  return plan.price * (1 - tierFor(branches).off) * branches;
+  var precio = planPrecio(planId);
+  if (precio == null) return null;
+  return precio * (1 - tierFor(branches).off) * branches;
 }
 function cop(n) { return '$' + Math.round(n||0).toLocaleString('es-CO'); }
+/* Para plata que puede no estar definida todavía. `cop(null)` diría "$0", que
+   en una columna de facturación se lee como "no paga nada". */
+function copPlan(n) { return n == null ? 'Por definir' : cop(n); }
 function initials(name) {
   return (name||'??').split(' ').filter(Boolean).slice(0,2).map(function(w){return w[0];}).join('').toUpperCase();
 }
@@ -185,11 +236,17 @@ function signOut() {
 function renderResumen(regs) {
   var activos    = regs.filter(function(r) { return r.status === 'approved' && r.tenant_status !== 'suspended'; });
   var pendientes = regs.filter(function(r) { return r.status==='pendiente'||r.status==='pending'; });
-  var starter    = activos.filter(function(r) { return r.plan==='starter'; });
-  var pro        = activos.filter(function(r) { return r.plan==='pro'; });
-  var mrr        = activos.reduce(function(s,r) { return s+planTotal(r.plan, r.branches||r.sucursales||1); }, 0);
-  var total      = starter.length + pro.length;
-  var proPct     = total ? Math.round((pro.length/total)*100) : 0;
+  var starter    = activos.filter(function(r) { return (r.plan_actual||r.plan)==='starter'; });
+  var dePago     = activos.filter(function(r) { return (r.plan_actual||r.plan)!=='starter'; });
+  /* Se suma el plan que el cliente TIENE hoy (`plan_actual`, de tenants), no el
+     que pidió al registrarse. Después de un cambio de plan son cosas distintas,
+     y lo que se factura es lo que tiene. Un plan sin precio no suma en vez de
+     ensuciar el total con NaN. */
+  var mrr        = activos.reduce(function(s,r) {
+    return s + (planTotal(r.plan_actual||r.plan, r.branches||r.sucursales||1) || 0);
+  }, 0);
+  var total      = activos.length;
+  var proPct     = total ? Math.round((dePago.length/total)*100) : 0;
 
   // greeting + lead
   var name = (document.getElementById('admin-name').textContent||'Sergio').split(' ')[0];
@@ -211,7 +268,7 @@ function renderResumen(regs) {
 
   // Donut
   var C = 2*Math.PI*52;
-  var proFrac = total ? pro.length/total : 0;
+  var proFrac = total ? dePago.length/total : 0;
   document.getElementById('donut-svg').innerHTML =
     '<circle cx="70" cy="70" r="52" fill="none" stroke="#8B5CF6" stroke-width="18"/>'+
     '<circle cx="70" cy="70" r="52" fill="none" stroke="#5B6BFF" stroke-width="18" stroke-linecap="round"'+
@@ -219,25 +276,30 @@ function renderResumen(regs) {
   document.getElementById('donut-total').textContent = total;
   document.getElementById('plan-sub').textContent    = total+' cuentas activas distribuidas';
 
-  // Plan lines
-  document.getElementById('planlines').innerHTML = [
-    {color:'#5B6BFF',name:'Pro',count:pro.length},
-    {color:'#8B5CF6',name:'Starter',count:starter.length}
-  ].map(function(pl) {
-    var pct = total ? (pl.count/total*100) : 0;
+  /* Las líneas de planes salen del catálogo de la base, no de una lista escrita
+     a mano con dos planes y sus precios repetidos. Antes Premium existía en la
+     base y aquí no aparecía por ningún lado. */
+  var COLOR_PLAN = {starter:'#8B5CF6', pro:'#5B6BFF', premium:'#F59E0B'};
+  var lineas = (S.planes || []).slice().sort(function(a,b){ return (b.orden||0)-(a.orden||0); });
+
+  document.getElementById('planlines').innerHTML = lineas.map(function(pl) {
+    var count  = activos.filter(function(r){ return (r.plan_actual||r.plan) === pl.plan; }).length;
+    var pct    = total ? (count/total*100) : 0;
+    var color  = COLOR_PLAN[pl.plan] || '#94A3B8';
+    var precio = planPrecio(pl.plan);
     return '<div class="rs-plan-line">'+
       '<div class="rs-plan-line-header">'+
         '<span class="rs-plan-line-name">'+
-          '<span class="rs-plan-dot" style="background:'+pl.color+'"></span>'+
-          pl.name+'<span class="rs-plan-price">· '+
-          (pl.name==='Pro'?'$249.000 / suc.':'$149.000 / suc.')+'</span>'+
+          '<span class="rs-plan-dot" style="background:'+color+'"></span>'+
+          escapeHtml(pl.nombre||pl.plan)+'<span class="rs-plan-price">· '+
+          (precio == null ? 'precio por definir' : cop(precio)+' / suc.')+'</span>'+
         '</span>'+
-        '<span class="rs-plan-count">'+pl.count+'</span>'+
+        '<span class="rs-plan-count">'+count+'</span>'+
       '</div>'+
-      '<div class="rs-plan-bar-bg"><div class="rs-plan-bar" style="width:'+pct+'%;background:'+pl.color+'"></div></div>'+
+      '<div class="rs-plan-bar-bg"><div class="rs-plan-bar" style="width:'+pct+'%;background:'+color+'"></div></div>'+
     '</div>';
   }).join('')+
-  '<div class="rs-plan-mix"><span class="rs-plan-mix-label">Mix Pro</span><span class="rs-plan-mix-val">'+proPct+'%</span></div>';
+  '<div class="rs-plan-mix"><span class="rs-plan-mix-label">Mix de pago</span><span class="rs-plan-mix-val">'+proPct+'%</span></div>';
 
   // MRR chart
   var mrrData   = [3.2, 3.9, 4.6, 5.4, 6.5, 7.4];
@@ -329,9 +391,10 @@ function renderSolicitudes() {
     var nombre   = r.negocio || r.nombre || 'Sin nombre';
     var branches = r.sucursales || r.branches || 1;
     var off      = tierFor(branches).off;
-    var total    = cop(planTotal(r.plan||'starter', branches));
+    var total    = copPlan(planTotal(r.plan||'starter', branches));
     var fechaRaw = r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}) : '—';
-    var planBadge= r.plan==='pro' ? badgeHtml('indigo','Pro',false) : badgeHtml('violet','Starter',false);
+    // Aquí sí es el plan que PIDIÓ: la solicitud todavía no tiene cuenta creada.
+    var planBadge= badgeHtml(PLAN_TONE[r.plan] || 'violet', planNombre(r.plan||'starter'), false);
     var isPend   = r.status==='pendiente'||r.status==='pending';
 
     return '<tr>'+
@@ -409,10 +472,14 @@ function renderClientes() {
   document.getElementById('cli-tbody').innerHTML = rows.map(function(r,i) {
     var nombre   = r.negocio || r.nombre || 'Sin nombre';
     var branches = r.sucursales || r.branches || 1;
-    var total    = cop(planTotal(r.plan||'starter', branches));
+    /* El plan que se muestra y se factura es el que la cuenta TIENE hoy
+       (`plan_actual`, de tenants), no el que pidió al registrarse. Después de un
+       cambio de plan son cosas distintas. */
+    var planHoy  = r.plan_actual || r.plan || 'starter';
+    var total    = copPlan(planTotal(planHoy, branches));
     var activo   = r.tenant_status !== 'suspended';
     var fechaRaw = r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}) : '—';
-    var planBadge= r.plan==='pro' ? badgeHtml('indigo','Pro',false) : badgeHtml('violet','Starter',false);
+    var planBadge= badgeHtml(PLAN_TONE[planHoy] || 'gray', planNombre(planHoy), false);
 
     return '<tr style="'+(!activo?'opacity:.62':'')+'">'+
       '<td><div class="a-cell-row">'+avatarHtml(nombre,36,i+2)+
@@ -427,6 +494,11 @@ function renderClientes() {
         /* Dar acceso a la consola desde AQUI: los dueños de restaurante son
            clientes, no equipo de Cobra. Solo aparece si la cuenta ya existe
            (una solicitud sin aprobar todavia no tiene usuario). */
+        /* Cambiar de plan. Solo si la cuenta ya existe: una solicitud aprobada a
+           medias no tiene `tenant_id` y no habría a quién cambiarle nada. */
+        (r.tenant_id
+          ? '<button class="a-act a-act--neutral" data-plan-tenant="'+r.tenant_id+'" data-plan-reg="'+r.id+'"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h13l-3-3"/><path d="M21 17H8l3 3"/></svg> Cambiar plan</button>'
+          : '')+
         (r.user_id
           ? '<button class="a-act a-act--neutral" data-uid="'+r.user_id+'" data-admin="1" title="Podra ver la consola de plataforma">Dar acceso a la consola</button>'
           : '')+
@@ -440,6 +512,150 @@ function renderClientes() {
   // Los botones de acceso a la consola se enganchan por evento (ver EQUIPO).
   var cont = document.getElementById('cli-tbody');
   if (cont && typeof engancharBotonesAcceso === 'function') engancharBotonesAcceso(cont);
+  if (cont) cont.querySelectorAll('button[data-plan-tenant]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      abrirCambioPlan(b.dataset.planReg, b.dataset.planTenant);
+    });
+  });
+}
+
+// ────────────────────── CAMBIAR DE PLAN ──────────────────────
+/* El plan de un restaurante es lo que decide qué puede usar (lo lee pos-plan.js
+   de `tenants.plan`) y lo que se le cobra. Por eso el cambio:
+     · lo hace una función de la base que comprueba que quien llama sea
+       administrador de la plataforma — no un UPDATE suelto desde el navegador;
+     · queda anotado en `pos_plan_historial` con quién, cuándo y por qué;
+     · avisa ANTES de confirmar qué gana y qué pierde el cliente, porque bajar de
+       plan le apaga funciones que está usando ahora mismo. */
+
+async function cargarPlanes() {
+  var r = await sb.from('pos_planes').select('plan,nombre,precio,funciones,orden,mensajes_ia').order('orden');
+  if (r.error) { console.error('cargarPlanes:', r.error); return; }
+  S.planes = r.data || [];
+}
+
+function abrirCambioPlan(regId, tenantId) {
+  var r = (S.registrations || []).filter(function(x){ return x.id === regId; })[0];
+  if (!r) return;
+
+  var actual   = r.plan_actual || r.plan || 'starter';
+  var branches = r.sucursales || r.branches || 1;
+  S.cambioPlan = {tenant: tenantId, reg: regId, actual: actual, elegido: null, branches: branches};
+
+  document.getElementById('plan-ch-who').innerHTML =
+    '<div class="pl-ch-neg">' + escapeHtml(r.negocio || r.nombre || 'Sin nombre') + '</div>' +
+    '<div class="pl-ch-mail">' + escapeHtml(r.email || '') + ' · ' + branches +
+      ' sucursal' + (branches === 1 ? '' : 'es') + '</div>';
+
+  pintarOpcionesPlan();
+  document.getElementById('plan-ch-motivo').value = '';
+  document.getElementById('plan-ch-nota').innerHTML = '';
+  var ok = document.getElementById('plan-ch-ok');
+  ok.disabled = true;
+  ok.textContent = 'Cambiar el plan';
+  document.getElementById('modal-plan').classList.add('show');
+}
+
+function cerrarCambioPlan() {
+  document.getElementById('modal-plan').classList.remove('show');
+  S.cambioPlan = null;
+}
+
+function pintarOpcionesPlan() {
+  var c = S.cambioPlan;
+  var cont = document.getElementById('plan-ch-opts');
+
+  cont.innerHTML = (S.planes || []).map(function(p) {
+    var esActual = p.plan === c.actual;
+    var elegido  = p.plan === c.elegido;
+    var precio   = planPrecio(p.plan);
+    var mes      = planTotal(p.plan, c.branches);
+    var off      = tierFor(c.branches).off;
+
+    return '<button class="pl-ch-opt' + (elegido ? ' pl-ch-opt--sel' : '') +
+             (esActual ? ' pl-ch-opt--now' : '') + '" data-plan="' + p.plan + '"' +
+             (esActual ? ' disabled' : '') + '>' +
+      '<div class="pl-ch-opt-head">' +
+        '<span class="pl-ch-opt-name">' + escapeHtml(p.nombre || p.plan) + '</span>' +
+        (esActual ? '<span class="pl-ch-now">Plan actual</span>' : '') +
+      '</div>' +
+      '<div class="pl-ch-opt-price">' +
+        (precio == null
+          ? '<span class="pl-ch-sin">Precio por definir</span>'
+          : cop(precio) + '<span class="pl-ch-per"> / mes · sucursal</span>') +
+      '</div>' +
+      (precio == null ? '' :
+        '<div class="pl-ch-opt-tot">' + copPlan(mes) + ' al mes' +
+        (c.branches > 1 ? ' · ' + c.branches + ' sucursales' + (off ? ' (−' + Math.round(off*100) + '%)' : '') : '') +
+        '</div>') +
+    '</button>';
+  }).join('');
+
+  cont.querySelectorAll('button[data-plan]').forEach(function(b) {
+    b.addEventListener('click', function() { elegirPlanNuevo(b.dataset.plan); });
+  });
+}
+
+function elegirPlanNuevo(plan) {
+  var c = S.cambioPlan;
+  if (!c || plan === c.actual) return;
+  c.elegido = plan;
+  pintarOpcionesPlan();
+
+  var tiene = planFunciones(c.actual);
+  var va    = planFunciones(plan);
+  var gana  = va.filter(function(f){ return tiene.indexOf(f) < 0; });
+  var pierde= tiene.filter(function(f){ return va.indexOf(f) < 0; });
+
+  function lista(arr) {
+    return '<ul class="pl-ch-lista">' + arr.map(function(f) {
+      return '<li>' + escapeHtml(FUNCION_ETIQUETA[f] || f) + '</li>';
+    }).join('') + '</ul>';
+  }
+
+  var antes = planTotal(c.actual, c.branches);
+  var desp  = planTotal(plan, c.branches);
+  var html  = '<div class="pl-ch-plata">' +
+    'Pasa de <b>' + copPlan(antes) + '</b> a <b>' + copPlan(desp) + '</b> al mes.' +
+    (desp == null ? ' <span class="pl-ch-sin">Ese plan todavía no tiene precio; ponlo antes de facturarlo.</span>' : '') +
+  '</div>';
+
+  if (gana.length)   html += '<div class="pl-ch-gana"><b>Se le habilita:</b>' + lista(gana) + '</div>';
+  /* Bajar de plan apaga cosas que el restaurante puede estar usando en este
+     momento. Se dice antes de confirmar, no después. */
+  if (pierde.length) html += '<div class="pl-ch-pierde"><b>Deja de tener, apenas confirmes:</b>' + lista(pierde) + '</div>';
+
+  document.getElementById('plan-ch-nota').innerHTML = html;
+
+  var ok = document.getElementById('plan-ch-ok');
+  ok.disabled = false;
+  ok.textContent = 'Cambiar a ' + planNombre(plan);
+}
+
+async function confirmarCambioPlan() {
+  var c = S.cambioPlan;
+  if (!c || !c.elegido) return;
+
+  var btn = document.getElementById('plan-ch-ok');
+  btn.disabled = true;
+  btn.textContent = 'Cambiando…';
+
+  var motivo = (document.getElementById('plan-ch-motivo').value || '').trim();
+  var r = await sb.rpc('admin_cambiar_plan', {
+    p_tenant: c.tenant, p_plan: c.elegido, p_motivo: motivo || null
+  });
+
+  if (r.error) {
+    btn.disabled = false;
+    btn.textContent = 'Cambiar a ' + planNombre(c.elegido);
+    showToast('No se pudo cambiar: ' + (r.error.message || ''), 'red');
+    return;
+  }
+
+  var nombre = planNombre(c.elegido);
+  cerrarCambioPlan();
+  await loadRegistrations();
+  showToast('Listo — ahora está en el plan ' + nombre + '. Le aplica apenas recargue.', 'green');
 }
 
 // ────────────────────── EQUIPO ──────────────────────
@@ -763,5 +979,9 @@ document.addEventListener('DOMContentLoaded', async function() {
 
   // Auth + data
   await checkAdmin();
+  /* El catálogo de planes va PRIMERO: los nombres, los precios y las funciones
+     de las tablas salen de ahí. Sin él, la lista de clientes se pintaría con el
+     precio en blanco. */
+  await cargarPlanes();
   await loadRegistrations();
 });

@@ -280,3 +280,52 @@ body { background: #FAFAFB; font-family: 'DM Sans', -apple-system, BlinkMacSyste
 .a-modal-msg { font-size: 14px; color: #475569; line-height: 1.55; margin-bottom: 22px; }
 .a-modal-foot { display: flex; gap: 10px; justify-content: flex-end; }
 .a-modal-img { width: 100%; border-radius: 8px; margin-top: 12px; }
+
+/* ── CAMBIAR DE PLAN ──
+   Tres tarjetas en fila, el plan actual apagado y sin poder tocarse, y debajo
+   el resumen de lo que gana o pierde el cliente. Todo tiene que caber sin
+   scroll: es una decisión de plata y se toma de una sola mirada. */
+/* Alto tope y cuerpo con scroll propio: el título y los botones se quedan
+   quietos, y solo se desplaza lo de en medio. */
+.a-modal--plan { width: 560px; max-height: 88vh; display: flex; flex-direction: column; }
+.pl-ch-cuerpo { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -28px; padding: 0 28px; }
+.pl-ch-who { margin-bottom: 18px; }
+.pl-ch-neg { font-size: 15px; font-weight: 700; color: #0F172A; letter-spacing: -.01em; }
+.pl-ch-mail { font-size: 12.5px; color: #64748B; margin-top: 2px; }
+
+.pl-ch-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.pl-ch-opt { text-align: left; font-family: inherit; cursor: pointer;
+  background: #fff; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 13px 14px;
+  transition: border-color .15s, background .15s, box-shadow .15s; }
+.pl-ch-opt:hover:not(:disabled) { border-color: #C7D2FE; background: #FAFBFF; }
+.pl-ch-opt--sel { border-color: #5B6BFF; background: #F5F7FF;
+  box-shadow: 0 0 0 3px rgba(91,107,255,.12); }
+.pl-ch-opt--now { background: #F8FAFC; cursor: default; opacity: .72; }
+.pl-ch-opt-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.pl-ch-opt-name { font-size: 14px; font-weight: 700; color: #0F172A; }
+.pl-ch-now { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: #475569; background: #E2E8F0; border-radius: 5px; padding: 2px 6px; white-space: nowrap; }
+.pl-ch-opt-price { font-size: 15px; font-weight: 800; color: #0F172A; margin-top: 8px;
+  font-variant-numeric: tabular-nums; }
+.pl-ch-per { font-size: 11px; font-weight: 600; color: #94A3B8; }
+.pl-ch-opt-tot { font-size: 11.5px; color: #64748B; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.pl-ch-sin { font-size: 12.5px; font-weight: 600; color: #B45309; }
+
+.pl-ch-nota:not(:empty) { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+.pl-ch-plata { font-size: 13.5px; color: #334155; background: #F8FAFC;
+  border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px 12px;
+  font-variant-numeric: tabular-nums; }
+.pl-ch-gana, .pl-ch-pierde { font-size: 12.5px; border-radius: 10px; padding: 10px 12px; border: 1px solid; }
+.pl-ch-gana   { color: #14532D; background: #F0FDF4; border-color: #BBF7D0; }
+.pl-ch-pierde { color: #7F1D1D; background: #FEF2F2; border-color: #FECACA; }
+.pl-ch-lista { margin: 6px 0 0; padding-left: 18px; columns: 2; column-gap: 18px; }
+.pl-ch-lista li { line-height: 1.45; }
+
+.pl-ch-campo { display: block; margin: 16px 0 22px; }
+.pl-ch-lista li { break-inside: avoid; }
+.pl-ch-lbl { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: #64748B; margin-bottom: 6px; }
+.pl-ch-opc { font-weight: 600; text-transform: none; letter-spacing: 0; color: #94A3B8; }
+.pl-ch-input { width: 100%; height: 38px; padding: 0 12px; font-family: inherit; font-size: 13.5px;
+  color: #0F172A; background: #fff; border: 1.5px solid #E2E8F0; border-radius: 10px; }
+.pl-ch-input:focus { outline: none; border-color: #5B6BFF; box-shadow: 0 0 0 3px rgba(91,107,255,.12); }

@@ -290,6 +290,30 @@
   </div>
 </div>
 
+<!-- MODAL CAMBIAR DE PLAN -->
+<div class="a-overlay" id="modal-plan">
+  <div class="a-modal a-modal--plan">
+    <div class="a-modal-title">Cambiar de plan</div>
+    <!-- El cuerpo va aparte y con su propio scroll: bajar de Premium a Starter
+         lista 13 funciones perdidas, y sin esto el modal crecía más alto que la
+         pantalla y el botón de confirmar quedaba por fuera. -->
+    <div class="pl-ch-cuerpo">
+      <div class="pl-ch-who" id="plan-ch-who"></div>
+      <div class="pl-ch-opts" id="plan-ch-opts"></div>
+      <div class="pl-ch-nota" id="plan-ch-nota"></div>
+      <label class="pl-ch-campo">
+        <span class="pl-ch-lbl">¿Por qué el cambio? <span class="pl-ch-opc">· opcional</span></span>
+        <input class="pl-ch-input" id="plan-ch-motivo" maxlength="120"
+               placeholder="Ej. pagó la diferencia por transferencia">
+      </label>
+    </div>
+    <div class="a-modal-foot">
+      <button class="a-btn a-btn--ghost a-btn--md" onclick="cerrarCambioPlan()">Cancelar</button>
+      <button class="a-btn a-btn--primary a-btn--md" id="plan-ch-ok" onclick="confirmarCambioPlan()" disabled>Cambiar el plan</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-core.js?v=1787950000"></script>
   <script src="pos-plan.js?v=1788500000"></script>
