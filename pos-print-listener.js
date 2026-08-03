@@ -89,7 +89,11 @@
       if (_sweeping) return;
       _sweeping = true;
       try {
-        var r = await sb.from('pos_orders')
+        /* SOLO los de esta sucursal. El aislamiento por restaurante no basta
+           aqui: dos sucursales del MISMO dueño comparten tenant, asi que sin
+           esto la impresora de una sucursal imprimiria los pedidos de la otra.
+           Con una sola sucursal no se nota; con dos, si. */
+        var q = sb.from('pos_orders')
           .select('id, reprint_at')
           .eq('visible_cocina', true)
           .is('printed_at', null)
@@ -97,6 +101,9 @@
           .not('status', 'in', '("cancelled","abandoned")')
           .order('created_at', { ascending: true })
           .limit(10);
+        var _brSweep = window._pos && window._pos.state && window._pos.state.branchId;
+        if (_brSweep) q = q.eq('branch_id', _brSweep);
+        var r = await q;
         var rows = (r && r.data) || [];
         for (var i = 0; i < rows.length; i++) await window.posAutoprint(rows[i].id);
       } catch (e) { /* silencioso: reintenta en el próximo ciclo */ }
