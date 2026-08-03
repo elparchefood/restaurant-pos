@@ -2,7 +2,12 @@
    Muestra un toast arriba a la derecha + un sonido corto; al tocarlo va al chat.
    Se carga en las pantallas de operación (después de pos-core.js). No corre en el chat. */
 (function () {
-  if (location.pathname.indexOf('chat-ia') >= 0) return;   // en el chat ya se ven los mensajes
+  /* En el chat NO se muestra el aviso flotante —los mensajes ya se ven ahí—,
+     pero el SONIDO sí tiene que sonar, y con el tono y el volumen que el dueño
+     escogió. Antes este archivo se salía completo en el chat y chat-ia.js
+     tocaba un pitido suyo, fijo: subir el volumen en Configuración no hacía
+     nada mientras se estaba en la pantalla del chat. */
+  var enChat = location.pathname.indexOf('chat-ia') >= 0;
 
   var started = false, lastTs = 0, tries = 0;
 
@@ -117,5 +122,11 @@
     st.textContent = '@keyframes posNotifIn{from{transform:translateX(22px);opacity:0}to{transform:translateX(0);opacity:1}}';
     document.head.appendChild(st);
   }
+  /* El sonido, disponible para quien lo necesite con la configuración del
+     dueño ya aplicada. Es la única copia: el tono y el volumen se definen en un
+     solo sitio. */
+  window.posNotifSonar = function () { beep(); };
+
+  if (enChat) return;   // en el chat, solo el sonido; el aviso flotante no
   if (document.readyState !== 'loading') start(); else document.addEventListener('DOMContentLoaded', start);
 })();

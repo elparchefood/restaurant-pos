@@ -230,8 +230,13 @@ function subscribeRealtime() {
     .subscribe();
 }
 
-// Sonido corto de notificación (mismo tono que el aviso global pos-notify.js).
+/* El sonido de mensaje nuevo. Lo toca pos-notify.js, que es donde viven el tono
+   y el volumen que el dueño escogió en Configuración → Operación.
+   Antes aquí había un pitido propio, fijo: subir el volumen no cambiaba nada
+   mientras se estaba en esta pantalla. El respaldo de abajo solo entra si por
+   lo que sea pos-notify.js no cargó, para no quedarse sin aviso. */
 function chatBeep(){
+  if (typeof window.posNotifSonar === 'function') { window.posNotifSonar(); return; }
   try{
     var Ctx=window.AudioContext||window.webkitAudioContext; if(!Ctx) return;
     var ctx=new Ctx(); var o=ctx.createOscillator(); var g=ctx.createGain();
