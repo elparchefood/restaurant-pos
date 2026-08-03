@@ -1879,10 +1879,20 @@ async function ptVerificarTransferencia() {
        crear un pedido duplicado y le manda un WhatsApp al cliente.) */
     var r = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/verificar-transferencia', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ branch_id: SP.branchId, monto: String(monto), horas: 6 }),
+      // 2 horas, no 6: aqui NO hay comprobante que cruzar (ese lo tiene el chat),
+      // asi que la unica prueba es el monto — y los montos se repiten todas las
+      // noches. Mientras mas corta la ventana, menos chance de confundir el abono
+      // de un cliente con el de otro.
+      body: JSON.stringify({ branch_id: SP.branchId, monto: String(monto), horas: 2 }),
     });
     var d = await r.json().catch(function () { return {}; });
-    if (d && d.ok && d.encontrado) {
+    if (d && d.ok && d.encontrado && d.varios) {
+      /* Varios abonos por el MISMO monto en la ventana: NO se da por bueno solo.
+         El cajero es el unico que puede saber cual es el de su cliente. */
+      res.innerHTML = '<span style="color:#B45309;font-weight:700">⚠ Hay ' + (d.cuantos || 2) + ' abonos por ese mismo monto</span>'
+        + '<br><span style="color:#64748B">' + _payEsc(d.detalle || '') + '</span>'
+        + '<br><span style="color:#94A3B8">Revisa cual es el de tu cliente antes de registrar el pago.</span>';
+    } else if (d && d.ok && d.encontrado) {
       res.innerHTML = '<span style="color:#16A34A;font-weight:700">✓ Abono encontrado en el banco</span>'
         + (d.detalle ? '<br><span style="color:#64748B">' + _payEsc(d.detalle) + '</span>' : '')
         + '<br><span style="color:#94A3B8">Puedes registrar el pago con tranquilidad.</span>';

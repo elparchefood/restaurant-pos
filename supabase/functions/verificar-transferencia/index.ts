@@ -50,6 +50,10 @@ async function refreshGmailToken(refreshToken: string): Promise<string | null> {
 // ── Gmail: buscar correo bancario con el monto ────────────────────────────────
 
 interface GmailMatch {
+  varios?:     boolean;
+  cuantos?:    number;
+  hora?:       string;
+  referencia?: string;
   found:  boolean;
   detail: string;
 }
@@ -68,6 +72,10 @@ async function searchGmailForAmount(
   try {
     const digits = monto.replace(/\D/g, "");
     if (!digits) return { found: false, detail: "monto vacío" };
+
+    const hallazgos: Array<{ hora: string; referencia: string; detalle: string }> = [];
+    // tzRest viene como "-05:00"; para pintar la hora local basta el numero.
+    const horasTz = Number(String(tzRest).slice(0, 3)) || -5;
 
     // Formatos que usan los bancos: 40000, 40.000, 40.000,00 (CO) y 40,000, 40,000.00
     // (Bancolombia escribe "$40,000.00" con coma de miles en sus correos)
@@ -154,16 +162,36 @@ async function searchGmailForAmount(
 
         console.log(`Gmail: from="${from}" fechaOk=${fechaOk} llaveOk=${llaveOk}`);
 
-        if (isBankEmail && fechaOk && llaveOk) {
-          return { found: true, detail: `Remitente: ${from} | Asunto: ${subject}` };
-        }
-
-        // Si la llave no coincide en el email pero todo lo demás sí, devolver found=true
-        // (algunos emails no muestran la llave completa)
         if (isBankEmail && fechaOk) {
-          return { found: true, detail: `Remitente: ${from} | Asunto: ${subject} (llave no verificada en email)` };
+          /* Se APUNTAN todos los que cuadran en vez de devolver el primero: si
+             hay dos abonos por el mismo monto hay que avisarlo, no escoger uno
+             en silencio. Sin comprobante que cruzar, esa es la unica defensa. */
+          const hhmm = internalMs
+            ? new Date(internalMs + horasTz * 3600000).toISOString().slice(11, 16)
+            : "";
+          hallazgos.push({
+            hora: hhmm,
+            referencia: extraerReferencia(bodyText + " " + snippet),
+            detalle: `Remitente: ${from} | Asunto: ${subject}`
+                   + (llaveOk ? "" : " (llave no verificada en email)"),
+          });
         }
       }
+    }
+
+    if (hallazgos.length > 0) {
+      const h0 = hallazgos[0];
+      const partes = [h0.detalle];
+      if (h0.hora)       partes.unshift(`Lleg\u00f3 a las ${h0.hora}`);
+      if (h0.referencia) partes.push(`Referencia ${h0.referencia}`);
+      return {
+        found: true,
+        varios: hallazgos.length > 1,
+        cuantos: hallazgos.length,
+        hora: h0.hora,
+        referencia: h0.referencia,
+        detail: partes.join(" | "),
+      };
     }
 
     return { found: false, detail: `Sin emails bancarios con monto ${digits} en las últimas ${ventanaHoras}h` };
@@ -189,6 +217,24 @@ function extractEmailBody(msgData: Record<string, unknown>): string {
       return atob(data.replace(/-/g, "+").replace(/_/g, "/"));
     }
   } catch { /* ignorar */ }
+  return "";
+}
+
+/* El NUMERO DE REFERENCIA que da el banco. Es el identificador unico de la
+   transferencia, y es lo que va a permitir que un mismo abono no pueda dar por
+   bueno dos pedidos distintos. Cada banco lo llama diferente, asi que se
+   prueban las etiquetas mas comunes en Colombia. */
+function extraerReferencia(texto: string): string {
+  const etiquetas = [
+    "n[uú]mero de referencia", "referencia", "n[uú]mero de comprobante",
+    "comprobante n[oº°.]?", "n[uú]mero de transacci[oó]n", "id de la transacci[oó]n",
+    "id de transacci[oó]n", "c[oó]digo de aprobaci[oó]n", "\\bcus\\b", "\\bnro\\b",
+  ];
+  for (const et of etiquetas) {
+    const re = new RegExp(et + "\\s*[:#-]?\\s*([A-Za-z0-9-]{4,40})", "i");
+    const m = texto.match(re);
+    if (m && m[1] && /\d/.test(m[1])) return m[1];
+  }
   return "";
 }
 
@@ -235,8 +281,14 @@ Deno.serve(async (req) => {
     return json({
       ok: true, encontrado: !!r.found, detalle: r.detail || "",
       monto, horas,
+      // Varios abonos por el MISMO monto: se avisa. Sin comprobante que cruzar,
+      // el cajero es el unico que puede saber cual es el de su cliente.
+      varios: !!r.varios, cuantos: r.cuantos || (r.found ? 1 : 0),
+      hora: r.hora || "", referencia: r.referencia || "",
       mensaje: r.found
-        ? `Encontrado en el correo del banco: ${r.detail || monto}`
+        ? (r.varios
+            ? `Ojo: hay ${r.cuantos} abonos por ${monto} en las ultimas ${horas} horas. ${r.detail}`
+            : `Encontrado en el correo del banco: ${r.detail || monto}`)
         : `No aparece ningun abono por ${monto} en las ultimas ${horas} horas.`,
     });
   } catch (e) {
