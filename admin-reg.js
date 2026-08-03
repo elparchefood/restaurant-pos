@@ -473,7 +473,7 @@ async function cargarUsuarios() {
     var esAdmin = u.rol === 'admin';
     var eresTu  = u.id === yo;
     var nombre  = escapeHtml(u.nombre || '');
-    var acceso  = esAdmin ? 'Consola de plataforma' : 'Solo su restaurante';
+    var acceso  = esAdmin ? 'Toda la plataforma' : 'Solo su propio restaurante';
     var visto   = u.ultimo_acceso
       ? new Date(u.ultimo_acceso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
       : 'nunca';
@@ -494,7 +494,7 @@ async function cargarUsuarios() {
         '<div class="a-cell-info"><div class="a-cell-strong">' + nombre +
           (eresTu ? '<span class="eq-you">· Tú</span>' : '') +
         '</div><div class="a-cell-muted">' + escapeHtml(u.email || '') + '</div></div></div></td>' +
-      '<td>' + badgeHtml(esAdmin ? 'violet' : 'gray', esAdmin ? 'Administrador' : 'Restaurante', false) + '</td>' +
+      '<td>' + badgeHtml(esAdmin ? 'violet' : 'gray', esAdmin ? 'Administrador' : 'Dueño de restaurante', false) + '</td>' +
       '<td class="a-cell-muted">' + acceso +
         '<div style="font-size:11px;opacity:.7">últ. acceso ' + visto + '</div></td>' +
       '<td>' + accion + '</td>' +
