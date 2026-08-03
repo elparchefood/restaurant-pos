@@ -103,6 +103,9 @@ async function refreshAll() {
   renderDesglosePago(S.orders);
   renderCanalVentas(S.orders, moves);
   renderTopVentas(S.items);
+  // "Por comprar" se calcula aparte (consulta el inventario) y se pinta cuando
+  // llega, sin hacer esperar al resto de la pantalla.
+  cjInsumosBajos().then(function (b) { S.insumosBajos = b; cjPintarBajos(b); });
   renderMovimientos(moves);
   renderMovimientosSummary(moves);
   renderCierres(S.sessions);
@@ -1224,6 +1227,84 @@ function getArqueoContado() {
 // Antes solo se persistía el total contado → la separación billetes/sencillo/
 // monedas se perdía al cerrar. Devuelve { lineas:[{denom,qty,total,grupo}], ... }
 // ── Datos consolidados del turno para los tickets de caja ──────────
+/* Insumos por comprar. Se piden al cerrar porque es cuando Sergio puede anotar
+   lo del día siguiente. Si el restaurante no lleva inventario o la consulta
+   falla, devuelve lista vacía y el cierre sale igual que siempre. */
+async function cjInsumosBajos() {
+  try {
+    const { data } = await sb.from('iv_insumos')
+      .select('nombre, stock, min_stock, buy_unit, control_manual, agotado_manual, sub_inventario, stock_servicio')
+      .eq('branch_id', S.branchId).eq('activo', true);
+    return (data || []).filter(function (i) {
+      // Marcado a mano como agotado ("se acabó") — no depende de la cantidad.
+      if (i.control_manual && i.agotado_manual) return true;
+      // Sin mínimo definido no se vigila: no se inventa un umbral.
+      const min = Number(i.min_stock) || 0;
+      if (min <= 0) return false;
+      return (Number(i.stock) || 0) <= min;
+    }).map(function (i) {
+      return {
+        nombre:  i.nombre,
+        stock:   Number(i.stock) || 0,
+        min:     Number(i.min_stock) || 0,
+        unidad:  i.buy_unit || '',
+        agotado: !!(i.control_manual && i.agotado_manual) || (Number(i.stock) || 0) <= 0,
+      };
+    }).sort(function (a, b) {
+      // Primero lo agotado, después lo que está por acabarse.
+      if (a.agotado !== b.agotado) return a.agotado ? -1 : 1;
+      return a.nombre.localeCompare(b.nombre, 'es');
+    });
+  } catch (e) { console.warn('[caja] insumos bajos:', e); return []; }
+}
+
+/* Pinta "Por comprar". Si no hay nada bajo la tarjeta se esconde: en una noche
+   normal no debe ocupar espacio ni parecer una alerta. */
+function cjPintarBajos(bajos) {
+  const card = document.getElementById('cj-card-bajos');
+  const lista = document.getElementById('cj-bajos-lista');
+  const n = document.getElementById('cj-bajos-n');
+  if (!card || !lista) return;
+  bajos = bajos || [];
+  if (!bajos.length) { card.classList.add('is-hidden'); return; }
+  card.classList.remove('is-hidden');
+  if (n) n.textContent = '· ' + bajos.length;
+  lista.innerHTML = bajos.map(function (i) {
+    const der = i.agotado
+      ? '<span style="font-size:12.5px;font-weight:800;color:#DC2626">Se acabó</span>'
+      : '<span style="font-size:12.5px;font-weight:700;color:#B45309">' + i.stock + (i.unidad ? ' ' + i.unidad : '')
+        + ' <span style="color:#94A3B8;font-weight:600">/ min ' + i.min + '</span></span>';
+    return '<div class="cj-channel-row"><span style="display:inline-flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:#0F172A">'
+         + '<span style="width:9px;height:9px;border-radius:999px;background:' + (i.agotado ? '#DC2626' : '#F59E0B') + '"></span>'
+         + (i.nombre || '') + '</span>' + der + '</div>';
+  }).join('');
+}
+
+/* Imprimir SOLO la lista de compras, sin el cierre entero: sirve para llevarla
+   al mercado. El cierre completo la trae igual al final. */
+async function imprimirPorComprar() {
+  const bajos = (S.insumosBajos && S.insumosBajos.length) ? S.insumosBajos : await cjInsumosBajos();
+  if (!bajos.length) { showToast('No hay insumos bajos'); return; }
+  if (typeof window.posPrintTicket !== 'function') { showToast('Impresión no disponible en esta pantalla'); return; }
+  const filas = bajos.map(function (i) {
+    const der = i.agotado ? 'SE ACABO' : (i.stock + (i.unidad ? ' ' + i.unidad : '') + ' / min ' + i.min);
+    return '<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;font-size:12.5px">'
+         + '<span>' + i.nombre + '</span><span>' + der + '</span></div>';
+  }).join('');
+  const fecha = new Date().toLocaleString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}'
+    + 'body{font-family:Arial,Helvetica,sans-serif;width:72mm;max-width:72mm;padding:8px 6px;color:#000;line-height:1.35}</style></head><body>'
+    + '<div style="text-align:center;font-size:15px;font-weight:900">POR COMPRAR</div>'
+    + '<div style="text-align:center;font-size:10.5px;color:#333;margin-bottom:6px">' + (S.negocioNombre || '') + ' · ' + fecha + '</div>'
+    + '<div style="border-top:1px dashed #000;margin:6px 0"></div>' + filas
+    + '<div style="border-top:1px dashed #000;margin:6px 0"></div>'
+    + '<div style="font-size:11px;text-align:center">' + bajos.length + ' insumo' + (bajos.length === 1 ? '' : 's') + '</div>'
+    + '</body></html>';
+  const ok = await window.posPrintTicket(html, 'recibo');
+  if (ok) showToast('Lista enviada a la impresora');
+}
+window.imprimirPorComprar = imprimirPorComprar;
+
 async function buildCierreData() {
   const moves    = await getMoves();
   const ventasEf = (S.pagosMetodo && S.pagosMetodo['efectivo']) || 0;
@@ -1251,11 +1332,15 @@ async function buildCierreData() {
       S.negocioNombre = nom || 'CAJA';
     } catch (e) { S.negocioNombre = 'CAJA'; }
   }
+  const bajos = await cjInsumosBajos();
+  S.insumosBajos = bajos;   // la pantalla lo usa sin volver a consultar
+  cjPintarBajos(bajos);
   return {
     negocio:  S.negocioNombre,
     session:  S.session,
     base, ventas, nPedidos: activos.length,
     metodos, ingresos, egresos, esperado,
+    bajos,
   };
 }
 
@@ -1427,6 +1512,18 @@ async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoCon
       const cerrada = Object.assign({}, S.session, upd);
       await imprimirCierre(cerrada);
     } catch(e) { console.warn('imprimir cierre:', e); }
+
+    /* Avisarle por WhatsApp al gerente qué hay que comprar. Va del lado del
+       servidor porque hace falta el token de Meta y ese no puede llegar al
+       navegador. Si falla, el cierre NO se interrumpe: ya está guardado. */
+    try {
+      const rAv = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/aviso-insumos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branch_id: S.branchId }),
+      });
+      const dAv = await rAv.json().catch(function(){ return {}; });
+      if (dAv && dAv.enviado) showToast('Aviso de compras enviado al gerente');
+    } catch(e) { console.warn('aviso insumos:', e); }
 
     showToast('Caja cerrada correctamente');
     await refreshAll();

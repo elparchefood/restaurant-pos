@@ -3648,6 +3648,8 @@ var _storedZonas = [];
       adiciones_palabras: $('adicionesPalabras')
         ? $('adicionesPalabras').value.split(',').map(function(w){ return w.trim(); }).filter(Boolean)
         : [],
+      // Interruptor del aviso de compras al cerrar caja.
+      avisar_insumos: $('avisarInsumos') ? $('avisarInsumos').checked : true,
       numeros_gerentes: $('numerosGerentes')
         ? $('numerosGerentes').value.split(/[,\n]/).map(function(n){ return n.replace(/\D/g,''); }).filter(Boolean)
         : [],
@@ -3688,6 +3690,7 @@ var _storedZonas = [];
       });
     })();
     if ($('numerosGerentes')) $('numerosGerentes').value = Array.isArray(m.numeros_gerentes) ? m.numeros_gerentes.join(', ') : '';
+    if ($('avisarInsumos')) $('avisarInsumos').checked = m.avisar_insumos !== false;
     if ($('iaResumenPlantilla')) $('iaResumenPlantilla').value = m.resumen_plantilla || '';
     if (m.vocabulario) {
       if ($('avoid')) $('avoid').value = m.vocabulario.evitar || '';

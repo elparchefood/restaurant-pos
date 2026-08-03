@@ -127,6 +127,15 @@
             </div>
           </div>
 
+          <!-- Por comprar (solo aparece si hay algo bajo) -->
+          <div class="cj-card is-hidden" id="cj-card-bajos" style="padding:18px 20px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+              <div class="cj-card-title" style="margin:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg> Por comprar <span id="cj-bajos-n" style="color:#94A3B8;font-weight:600"></span></div>
+              <button class="cj-btn-ghost" style="font-size:11.5px;padding:5px 10px" onclick="imprimirPorComprar()">Imprimir la lista</button>
+            </div>
+            <div id="cj-bajos-lista" style="display:flex;flex-direction:column;gap:8px;margin-top:14px"></div>
+          </div>
+
           <!-- Top ventas -->
           <div class="cj-card" style="padding:18px 20px">
             <div class="cj-card-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Top ventas del turno</div>

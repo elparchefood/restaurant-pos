@@ -2022,6 +2022,17 @@
                   <textarea class="txa" id="numerosGerentes" rows="2" placeholder="Ej. 573244756271, 573001234567"></textarea>
                   <div class="field-hint">Separados por coma (con indicativo del pa&iacute;s, sin el +). Desde estos n&uacute;meros puedes escribirle al bot cosas como <strong>&ldquo;hay 3 kilos de carne&rdquo;</strong> (deja el total) o <strong>&ldquo;compr&eacute; 2 pacas de gaseosa a 30 mil&rdquo;</strong> (repone y actualiza el precio), y el inventario se actualiza solo. Tambi&eacute;n puedes preguntar <strong>&ldquo;&iquest;qu&eacute; falta?&rdquo;</strong>.</div>
                 </div>
+                <div class="cfg-conex-row">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">Avisar qu&eacute; comprar al cerrar la caja</div>
+                    <div class="cfg-conex-ds">Al cerrar el turno le llega un WhatsApp a estos n&uacute;meros con los insumos que est&aacute;n bajos o se acabaron. Si no hay nada bajo, no se manda nada.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" id="avisarInsumos" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
               </div>
             </div>
 
