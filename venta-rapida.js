@@ -940,6 +940,9 @@
         status:        'pending',
         selections:    { mods: i.mods || {} },
         branch_id:     S.branchId,
+        // Sin tenant_id la politica de aislamiento rechaza el insert. El insert
+        // normal (mas abajo) si lo manda; a este se le habia quedado.
+        tenant_id:     S.tenantId,
       }; });
       const r = await sb.from('pos_order_items').insert(filas);
       if (r.error) throw r.error;
