@@ -167,7 +167,7 @@ function subscribeRealtime() {
   if (S.realtimeSub) sb.removeChannel(S.realtimeSub);
   S.realtimeSub = sb.channel('chat-ia-' + S.branchId)
     .on('postgres_changes', { event:'*', schema:'public', table:'chat_conversations', filter:`branch_id=eq.${S.branchId}` }, handleConvChange)
-    .on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages' }, payload => {
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages', filter:S.tenantId?`tenant_id=eq.${S.tenantId}`:undefined }, payload => {
       const msg = payload.new;
       const esActivo = msg.conversation_id === S.activeConvId;   // ¿estás viendo este chat ahora mismo?
       if (msg.direction === 'in') { chatBeep(); setTimeout(updateLabelBadges, 400); }   // sonido + refrescar badge de etiquetas
@@ -196,7 +196,7 @@ function subscribeRealtime() {
         renderConvList(); renderBadges();
       }
     })
-    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'chat_messages' }, payload => {
+    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'chat_messages', filter:S.tenantId?`tenant_id=eq.${S.tenantId}`:undefined }, payload => {
       // Las REACCIONES llegan como UPDATE del mensaje al que reaccionaron (no
       // como mensaje nuevo): se repinta la burbuja para que aparezca el emoji
       // al instante. También cubre cambios de estado de entrega (visto/leído).
@@ -211,7 +211,7 @@ function subscribeRealtime() {
     .on('postgres_changes', { event:'*', schema:'public', table:'chat_channels', filter:`branch_id=eq.${S.branchId}` }, () => {
       loadChannels(); // refrescar canales si cambia alguno
     })
-    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'pos_orders' }, payload => {
+    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'pos_orders', filter:S.branchId?`branch_id=eq.${S.branchId}`:undefined }, payload => {
       // Sincronía en vivo de la pastilla de estado: si cambian el estado del pedido
       // activo desde Ventas (o el auto-entregado), se refleja al instante en el chat.
       // (Sin filtro por branch — el filtro dejaba caer los eventos.)

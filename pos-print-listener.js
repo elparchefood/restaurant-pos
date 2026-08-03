@@ -73,10 +73,14 @@
       }, 2500);
     }
 
+    // Solo los pedidos de esta sucursal: la impresora de un restaurante no
+    // tiene nada que ver con los pedidos de otro.
+    var _br = window._pos && window._pos.state && window._pos.state.branchId;
+    var _fb = _br ? 'branch_id=eq.' + _br : undefined;
     sb.channel('pos-print-listener')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pos_orders' }, function (p) { handleRow(p.new); })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pos_orders' }, function (p) { handleRow(p.new); })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pos_order_items' }, function (p) { handleItemInsert(p.new); })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pos_orders', filter: _fb }, function (p) { handleRow(p.new); })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pos_orders', filter: _fb }, function (p) { handleRow(p.new); })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pos_order_items', filter: _fb }, function (p) { handleItemInsert(p.new); })
       .subscribe();
 
     // Barrido de seguridad: pedidos visibles sin imprimir (ventana reciente).

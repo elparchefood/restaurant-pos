@@ -651,12 +651,15 @@
     const sb = window._pos && window._pos.sb;
     if (!sb) return;
 
+    const _br = window._pos && window._pos.state && window._pos.state.branchId;
+    const _fb = _br ? `branch_id=eq.${_br}` : undefined;
+
     realtimeSub = sb
       .channel('ventas-salon-tables')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_tables' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_tables', filter: _fb }, () => {
         loadData();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_orders' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_orders', filter: _fb }, (payload) => {
         loadData();
         if (payload.eventType === 'UPDATE'
             && payload.new && payload.new.status === 'in_progress'

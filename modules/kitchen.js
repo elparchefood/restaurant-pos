@@ -306,6 +306,7 @@
         event: '*',
         schema: 'public',
         table: 'pos_order_items',
+        filter: st && st.branchId ? `branch_id=eq.${st.branchId}` : undefined,
       }, () => reload())
       .subscribe();
   }

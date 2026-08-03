@@ -16,11 +16,21 @@
   function start() {
     if (started) return;
     var SB = getSB();
-    if (!SB) { if (tries++ < 40) setTimeout(start, 700); return; }   // esperar a que cargue pos-core
+    /* Se espera al cliente de Supabase Y al tenant. Si se suscribe antes de que
+       pos-core llene el estado, el filtro sale vacio y esta pantalla vuelve a
+       escuchar los mensajes de TODO el sistema. Si tras los reintentos sigue sin
+       tenant, arranca igual (sin filtro): mejor sin filtrar que sin avisar. */
+    var _tn0 = window._pos && window._pos.state && window._pos.state.tenantId;
+    if (!SB || !_tn0) { if (tries++ < 40) { setTimeout(start, 700); return; } }
+    if (!SB) return;
     started = true;
-    // Sin filtro (igual que el chat, que sí funciona): RLS ya limita a la sucursal del usuario.
+    /* Filtrado por RESTAURANTE: `chat_messages` no tiene `branch_id`, solo
+       `tenant_id`. Igual pasa de "todos los mensajes del sistema" a "los míos",
+       que es casi toda la mejora. RLS sigue siendo quien aísla. */
+    var _tn = window._pos && window._pos.state && window._pos.state.tenantId;
+    var _ft = _tn ? 'tenant_id=eq.' + _tn : undefined;
     SB.channel('pos-notify-msgs')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, function (payload) {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: _ft }, function (payload) {
         var m = payload && payload.new; if (!m || m.direction !== 'in') return;
         var now = Date.now(); if (now - lastTs < 400) { lastTs = now; return; } lastTs = now;   // anti-ráfaga
         notif(m);

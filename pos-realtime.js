@@ -6,10 +6,14 @@
 window._pos.on('core:ready', () => {
 
   const sb = window._pos.sb;
+  /* Solo los cambios de MI sucursal. Sin esto el servidor evalúa cada pedido
+     de cada restaurante contra esta pantalla. */
+  const _br = window._pos.state && window._pos.state.branchId;
+  const _fb = _br ? `branch_id=eq.${_br}` : undefined;
 
   // Escuchar cambios en pedidos
   sb.channel('pos_orders')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_orders' }, payload => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_orders', filter: _fb }, payload => {
       console.log('[Realtime] Pedido actualizado:', payload);
       window._pos.emit('order:updated', payload.new);
       // La auto-impresión ahora vive en pos-print-listener.js (receptor GLOBAL,
@@ -19,14 +23,14 @@ window._pos.on('core:ready', () => {
 
   // Escuchar cambios en ítems de pedido
   sb.channel('pos_order_items')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_order_items' }, payload => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_order_items', filter: _fb }, payload => {
       console.log('[Realtime] Ítem actualizado:', payload);
     })
     .subscribe();
 
   // Escuchar cambios en mesas
   sb.channel('pos_tables')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_tables' }, payload => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_tables', filter: _fb }, payload => {
       console.log('[Realtime] Mesa actualizada:', payload);
       window._pos.emit('table:updated', payload.new);
     })

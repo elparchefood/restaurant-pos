@@ -281,6 +281,8 @@ function subscribeNewOrders() {
       event:  'INSERT',
       schema: 'public',
       table:  'pos_orders',
+      // Ya se descartaba en el navegador (más abajo); ahora el servidor ni lo manda.
+      filter: `branch_id=eq.${S.branchId}`,
     }, payload => {
       const o = payload.new;
       if (!o || o.branch_id !== S.branchId) return;
