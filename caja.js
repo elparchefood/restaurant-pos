@@ -156,6 +156,12 @@ function cjDomiCanjeEfectivo(orders){
     if(ch!=='domicilio' && ch!=='delivery') return s;
     if((o.domi_courier||'externo')!=='externo') return s;          // interno: esa plata SÍ es del negocio
     if((o.domi_pago||'efectivo')!=='efectivo') return s;           // se le pagó al domiciliario en efectivo
+    /* Pedido SIN COBRAR: no hay nada que netear. Nadie pagó, así que no entró
+       plata al banco ni salió del cajón. Antes se colaba porque la comprobación
+       de abajo mira payment_method, y un pedido abierto no tiene ninguno: al no
+       decir "efectivo" se daba por transferencia y se restaba el domicilio de
+       la nada. Un pedido abierto al cerrar caja inflaba el sobrante. */
+    if(!(parseFloat(o.paid_amount)||0)) return s;
     if(String(o.payment_method||'').toLowerCase()==='efectivo') return s; // domi entró en efectivo → ya neteado
     return s + (parseFloat(o.delivery_fee)||0);
   }, 0);
