@@ -1,0 +1,13 @@
+-- La llave del servidor necesita leer los perfiles.
+--
+-- `user_profiles` no le daba NINGUN permiso util a `service_role` (solo
+-- REFERENCES, TRIGGER y TRUNCATE). La funcion que aprueba clientes consulta esa
+-- tabla para saber si quien llama es administrador de la plataforma, y sin
+-- SELECT la consulta volvia vacia: bloqueaba hasta al propio Sergio con "solo un
+-- administrador puede aprobar".
+--
+-- `service_role` es la llave de confianza: solo la usan las funciones del lado
+-- del servidor y nunca llega al navegador. `anon` y `authenticated` siguen sin
+-- ningun acceso a esta tabla, que es lo que impide que alguien se ponga
+-- administrador solo.
+grant select, insert, update, delete on public.user_profiles to service_role;
