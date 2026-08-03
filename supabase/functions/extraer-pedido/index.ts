@@ -743,6 +743,8 @@ BARRIOS CONOCIDOS (escribe el barrio EXACTAMENTE como aparece aquí cuando corre
 
     let direccionTxt = extracted.direccion ? String(extracted.direccion) : "";
     const barrioTxt    = extracted.barrio ? String(extracted.barrio) : "";
+    // Barrio que sale de la ficha del cliente, no de lo que escribio hoy.
+    let barrioGuardado = "";
 
     // ── ¿YA ES CLIENTE? ────────────────────────────────────────────────
     // El TELÉFONO es la llave maestra: ahí viven sus datos y sus puntos. Si ya
@@ -751,14 +753,36 @@ BARRIOS CONOCIDOS (escribe el barrio EXACTAMENTE como aparece aquí cuando corre
     let clienteConocido: Record<string, unknown> | null = null;
     try {
       if (tel) {
-        const cl = await sbGet(`/rest/v1/pos_clientes?tenant_id=eq.${tenantId}&telefono=like.*${encodeURIComponent(tel.slice(-10))}&select=id,nombre,direccion,direcciones`) as Array<Record<string, unknown>> | null;
+        const cl = await sbGet(`/rest/v1/pos_clientes?tenant_id=eq.${tenantId}&telefono=like.*${encodeURIComponent(tel.slice(-10))}&select=id,nombre,direccion,direcciones,barrio`) as Array<Record<string, unknown>> | null;
         if (cl && cl.length) {
           const c = cl[0];
-          const dirs = Array.isArray(c.direcciones) ? (c.direcciones as string[]) : [];
-          if (c.direccion && !dirs.includes(String(c.direccion))) dirs.unshift(String(c.direccion));
-          clienteConocido = { id: c.id, nombre: c.nombre, direcciones: dirs };
-          // Si el cliente no dijo dirección en este pedido, se usa la última suya.
-          if (!direccionTxt && dirs.length) direccionTxt = dirs[dirs.length - 1];
+          /* Cada direccion guardada es {dir, barrio}. Se aceptan tambien las
+             viejas, que eran texto suelto, para no perder a los clientes
+             antiguos. Antes se metian tal cual en el campo de texto del modal
+             y salia "[object Object]". */
+          const dirs = (Array.isArray(c.direcciones) ? c.direcciones : [])
+            .map((d: unknown) => (d && typeof d === "object")
+              ? { dir: String((d as Record<string, unknown>).dir || ""), barrio: String((d as Record<string, unknown>).barrio || "") }
+              : { dir: String(d || ""), barrio: "" })
+            .filter((d: { dir: string }) => d.dir.trim());
+          /* `pos_clientes.direccion` es la principal en texto plano. Si por lo
+             que sea no esta en la lista, se agrega AL FINAL, porque la ultima
+             es la principal (misma regla que usa la ficha del cliente). */
+          if (c.direccion && !dirs.some((d: { dir: string }) => norm(d.dir) === norm(String(c.direccion)))) {
+            dirs.push({ dir: String(c.direccion), barrio: String(c.barrio || "") });
+          }
+          const principal = dirs.length ? dirs[dirs.length - 1] : null;
+          clienteConocido = {
+            id: c.id, nombre: c.nombre, direcciones: dirs,
+            barrio: (principal && principal.barrio) || String(c.barrio || ""),
+          };
+          /* No dijo direccion porque ya la tenemos: se usa la suya, CON su
+             barrio. Los dos juntos siempre — usar la direccion de una casa con
+             el barrio de otra cobraria mal el domicilio. */
+          if (!direccionTxt && principal) {
+            direccionTxt   = principal.dir;
+            barrioGuardado = principal.barrio;
+          }
         }
       }
     } catch (_e) { /* si falla, el modal sigue funcionando vacío */ }
@@ -774,7 +798,7 @@ BARRIOS CONOCIDOS (escribe el barrio EXACTAMENTE como aparece aquí cuando corre
     let domiConfirmar = false;
     try {
       const zonas = zonasCfg;
-      const donde = norm([barrioTxt, direccionTxt, clienteTexto].filter(Boolean).join(" | "));
+      const donde = norm([barrioTxt, barrioGuardado, direccionTxt, clienteTexto].filter(Boolean).join(" | "));
       // También se compara SIN espacios: la gente escribe "BELLAVISTA" y en la
       // tabla está "Bella Vista"; sin esto no se reconocía y quedaba sin precio.
       const dondeSinEsp = donde.replace(/\s+/g, "");
@@ -871,7 +895,7 @@ BARRIOS CONOCIDOS (escribe el barrio EXACTAMENTE como aparece aquí cuando corre
         cliente_id: clienteConocido ? clienteConocido.id : null,
         direcciones_guardadas: clienteConocido ? clienteConocido.direcciones : [],
         direccion: direccionTxt,
-        barrio: domiBarrio || barrioTxt,
+        barrio: domiBarrio || barrioTxt || barrioGuardado,
         tipo: extracted.tipo ? String(extracted.tipo) : "domicilio",
         pago: extracted.pago ? String(extracted.pago) : "",
         notas: extracted.notas ? String(extracted.notas) : "",
