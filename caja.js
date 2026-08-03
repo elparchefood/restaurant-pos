@@ -148,6 +148,54 @@ function cjNormalizeVenta(o){
 // si entró en efectivo ya quedó neteado (los cobros en efectivo se registran sin el domi).
 // Por defecto TODO domicilio se trata como externo pagado en efectivo (o.domi_courier /
 // o.domi_pago, con default 'externo'/'efectivo'); cuando exista el chip por pedido, se leen.
+/* Pedidos del turno que todavía no están cobrados. Se compara contra lo
+   COBRABLE (total menos el domicilio), que es la misma regla que usa el resto
+   del sistema: el domicilio del externo no es plata del negocio. */
+// Ultimo "esperado" calculado, para que el aviso pueda decir cuanto deberia
+// haber si se cobrara lo pendiente.
+let _cjEsperadoActual = 0;
+
+function cjPedidosSinCobrar(orders){
+  const list = orders || (typeof S !== 'undefined' ? S.orders : null) || [];
+  const pagado = window.posEstaPagado || function(){ return true; };
+  const cobrable = window.posCobrable || function(o){ return parseFloat(o && o.total) || 0; };
+  return list.filter(function(o){
+    return o && o.status !== 'cancelled' && !pagado(o);
+  }).map(function(o){
+    const falta = cobrable(o) - (parseFloat(o.paid_amount) || 0);
+    return { nombre: o.customer_name || o.table_name || 'Sin nombre', canal: o.channel || '', falta: Math.max(0, falta) };
+  }).filter(function(x){ return x.falta > 0; });
+}
+
+/* El aviso va ANTES de que el cajero vea la diferencia: si sale después, ya se
+   asustó buscando un error que no existe. */
+function cjPintarPendientes(){
+  const box = document.getElementById('arqueo-pendientes');
+  if (!box) return;
+  const pend = cjPedidosSinCobrar();
+  if (!pend.length) { box.classList.add('is-hidden'); return; }
+  const total = pend.reduce(function(s,x){ return s + x.falta; }, 0);
+  const tt = document.getElementById('arqueo-pend-tt');
+  const ds = document.getElementById('arqueo-pend-ds');
+  if (tt) tt.textContent = pend.length === 1
+    ? 'Hay 1 pedido sin cobrar por ' + COPF(total)
+    : 'Hay ' + pend.length + ' pedidos sin cobrar por ' + COPF(total);
+  if (ds) ds.innerHTML = pend.map(function(x){
+    return '<div>· <strong>' + (x.nombre || '') + '</strong>' + (x.canal ? ' (' + x.canal + ')' : '') + ' — ' + COPF(x.falta) + '</div>';
+  }).join('');
+  /* Cuanto DEBERIA haber en el cajon si esos cobros ya estuvieran registrados.
+     Sin esta linea el cajero ve el aviso pero igual no sabe contra que numero
+     comparar lo que conto: es la mitad que faltaba. */
+  const sum = document.getElementById('arqueo-pend-sum');
+  if (sum) {
+    const esp = Number(_cjEsperadoActual) || 0;
+    sum.innerHTML = esp
+      ? 'Ahora el sistema espera <strong>' + COPF(esp) + '</strong>. Con estos cobros deber&iacute;an ser <strong>' + COPF(esp + total) + '</strong>.'
+      : '';
+  }
+  box.classList.remove('is-hidden');
+}
+
 function cjDomiCanjeEfectivo(orders){
   const list = orders || (typeof S !== 'undefined' ? S.orders : null) || [];
   return list.reduce(function(s,o){
@@ -928,7 +976,12 @@ document.querySelectorAll('.cj-nav-item[data-screen]').forEach(function(btn) {
 });
 
 // ── Paneles ────────────────────────────────────────────────────
-function openPanel(id) { document.getElementById(id)?.classList.remove('is-hidden'); }
+function openPanel(id) {
+  document.getElementById(id)?.classList.remove('is-hidden');
+  // Al abrir el arqueo se recalcula el aviso de pedidos sin cobrar: el cajero
+  // pudo haber cobrado alguno desde que cargó la pantalla.
+  if (id === 'panel-arqueo') { try { cjPintarPendientes(); } catch(e) { console.warn('pendientes:', e); } }
+}
 function closePanel(id){ document.getElementById(id)?.classList.add('is-hidden'); }
 window.openPanel  = openPanel;
 window.closePanel = closePanel;
@@ -1478,7 +1531,9 @@ async function updateArqueoEsperado() {
   const esperado = base + ventasEf + ingresos - egresos - cjDomiCanjeEfectivo();
   const contado  = getArqueoContado();
   const diff     = contado - esperado;
+  _cjEsperadoActual = esperado;
   document.getElementById('arqueo-esperado').textContent = COPF(esperado);
+  try { cjPintarPendientes(); } catch(e) {}
   const diffEl  = document.getElementById('arqueo-diff');
   const diffLbl = document.getElementById('arqueo-diff-lbl');
   const diffCard= document.getElementById('arqueo-diff-card');
