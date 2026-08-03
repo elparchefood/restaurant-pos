@@ -75,7 +75,11 @@
     },
     admin_whatsapp: {
       titulo: 'Administración por WhatsApp',
-      plan: 'Premium',
+      /* Está en Pro, no en Premium. Quien más la necesita es el dueño que anda
+         en la cocina con el celular, no la cadena que tiene a alguien sentado
+         frente a un computador; y a Cobra no le cuesta nada, porque los
+         mensajes los factura Meta a la cuenta del propio restaurante. */
+      plan: 'Pro',
       que: 'Maneja el inventario y pide reportes escribiéndole al sistema por WhatsApp, sin abrir el computador.',
       mas: ['"Compré 2 pacas de gaseosa a 30 mil" y el inventario se actualiza solo', '"¿Qué falta?" y te responde'],
     },
