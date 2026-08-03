@@ -1420,7 +1420,8 @@ async function buildCierreData() {
     session:  S.session,
     base, ventas, nPedidos: activos.length,
     metodos, ingresos, egresos, esperado,
-    bajos,
+    // Los insumos por comprar NO van en el ticket de cierre: es una lista
+    // aparte, que se imprime sola desde su propia tarjeta.
   };
 }
 

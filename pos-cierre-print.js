@@ -180,18 +180,6 @@
       h += '<div class="sepd"></div>'
         + '<div class="r xl"><span>' + (diff === 0 ? 'CUADRE' : diff > 0 ? 'SOBRANTE' : 'FALTANTE') + '</span><span>' + cop(diff) + '</span></div>';
     }
-    /* POR COMPRAR. Va al final, después del cuadre: el cierre es lo último de
-       la noche y esto es lo que se lleva para el otro día. */
-    if (c.bajos && c.bajos.length) {
-      h += '<div class="sepd"></div>'
-         + '<div class="r big"><span>POR COMPRAR</span><span>' + c.bajos.length + '</span></div>';
-      c.bajos.forEach(function (i) {
-        var der = i.agotado ? 'SE ACABO'
-                : (i.stock + (i.unidad ? ' ' + i.unidad : '') + (i.equiv ? ' (' + i.equiv + ')' : ''));
-        h += '<div class="r"><span>' + esc(i.nombre) + '</span><span>' + esc(der) + '</span></div>';
-      });
-    }
-
     if (c.obs) h += '<div class="sep"></div><div class="sm">OBS: ' + esc(c.obs) + '</div>';
 
     h += firma('Firma') + '</body></html>';
