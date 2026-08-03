@@ -146,8 +146,13 @@ async function checkAdmin() {
 
        El candado de verdad lo pone la base (las politicas exigen rol admin para
        leer solicitudes y clientes). Esto es para que ni siquiera vea la puerta. */
-    var perfil = await sb.from('user_profiles').select('role').eq('id', res.data.user.id).maybeSingle();
-    if (!perfil.data || perfil.data.role !== 'admin') {
+    /* Se pregunta por la funcion es_admin_plataforma() y NO leyendo la tabla:
+       user_profiles no le da permiso de lectura a nadie (a proposito), asi que
+       una consulta directa fallaba y dejaba a Sergio fuera de su propia consola.
+       La funcion corre con permisos de su dueño y es la MISMA que usan las
+       politicas de la base: una sola fuente de verdad. */
+    var esAdmin = await sb.rpc('es_admin_plataforma');
+    if (esAdmin.error || esAdmin.data !== true) {
       window.location.href = 'dashboard.html';
       return;
     }
