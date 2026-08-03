@@ -292,7 +292,12 @@ function renderChannelsSidebar() {
     const isSoon = SOON_CHANNELS.indexOf(ch) >= 0;
     const right = connected
       ? (pic
-          ? `<img src="${pic}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;" alt="">`
+          /* Si la foto no carga se muestra el numero, no un icono roto. Las
+             fotos de perfil de WhatsApp llevan firma y VENCEN a los pocos dias;
+             la de este canal se quedo rota una semana. Ahora la imagen se guarda
+             en nuestro propio almacenamiento, pero el respaldo se queda por si
+             algun dia falla otra vez. */
+          ? `<img src="${pic}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;" alt="" onerror="this.outerHTML='<span class='n'>${count || ''}</span>'">`
           : `<span class="n">${count || ''}</span>`)
       : (isSoon
           ? `<span class="ci-connect-tag" style="background:#F1F5F9;color:#94A3B8">Próximamente</span>`
