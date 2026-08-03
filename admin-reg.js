@@ -425,45 +425,116 @@ function renderClientes() {
 
 // ────────────────────── EQUIPO ──────────────────────
 
+/* Neutraliza el texto que escribio otra persona antes de pintarlo.
+   Los nombres y correos de esta lista los escribio el que se registro, y van a
+   parar a la consola del DUEÑO de la plataforma: si alguien se registra con un
+   nombre que lleve etiquetas, sin esto se ejecutarian en la pantalla de Sergio.
+   Es el peor sitio posible para dejar ese hueco. */
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 function renderEquipo() {
-  var EQUIPO = [
-    {id:'e1',nombre:'Sergio A. Abadía', email:'elparche.foodpopayan@gmail.com',rol:'Dueño',  acceso:'Total',       last:'Activo ahora', you:true},
-  ];
   var ROLES = [
     {rol:'Dueño',   tone:'indigo', desc:'Control total: facturación, equipo y configuración.'},
     {rol:'Admin',   tone:'violet', desc:'Aprueba solicitudes y gestiona clientes.'},
     {rol:'Soporte', tone:'sky',    desc:'Acceso de lectura y atención a clientes.'},
     {rol:'Finanzas',tone:'green',  desc:'Facturación, planes e ingresos.'}
   ];
+  var grid = document.getElementById('eq-roles-grid');
+  if (grid) grid.innerHTML = ROLES.map(function(x) {
+    return '<div class="a-card eq-role-card">' + badgeHtml(x.tone, x.rol, false) +
+      '<p class="eq-role-desc">' + x.desc + '</p></div>';
+  }).join('');
+  cargarUsuarios();
+}
 
-  document.getElementById('eq-tbody').innerHTML = EQUIPO.map(function(m,i) {
-    var tone = ROLE_TONE[m.rol] || 'gray';
-    return '<tr>'+
-      '<td><div class="a-cell-row">'+avatarHtml(m.nombre,38,i+1)+
-        '<div class="a-cell-info"><div class="a-cell-strong">'+m.nombre+
-          (m.you ? '<span class="eq-you">· Tú</span>' : '')+
-        '</div><div class="a-cell-muted">'+m.email+'</div></div></div></td>'+
-      '<td>'+badgeHtml(tone,m.rol,false)+'</td>'+
-      '<td class="a-cell-muted">'+m.acceso+'</td>'+
-      '<td>'+
-        (m.you
-          ? '<span class="eq-online"><span class="eq-online-dot"></span>Activo ahora</span>'
-          : '<span style="color:#64748B;font-size:13px">'+m.last+'</span>'
-        )+'</td>'+
-      '<td><div class="a-act-col">'+
-        '<button class="a-act a-act--neutral"'+(m.you?' disabled':'')+'>Rol</button>'+
-        '<button class="a-act a-act--reject"'+(m.you?' disabled':'')+'>Revocar</button>'+
-      '</div></td>'+
+/* Los usuarios REALES de la plataforma. Antes esta lista estaba escrita a mano
+   con un solo nombre, así que no servía para nada: no se veía quién más tiene
+   cuenta ni quién es administrador. */
+async function cargarUsuarios() {
+  var tb = document.getElementById('eq-tbody');
+  if (!tb) return;
+  tb.innerHTML = '<tr><td colspan="4" class="a-cell-muted" style="padding:22px;text-align:center">Cargando…</td></tr>';
+
+  var r = await sb.rpc('admin_listar_usuarios');
+  if (r.error) {
+    tb.innerHTML = '<tr><td colspan="4" class="a-cell-muted" style="padding:22px;text-align:center">' +
+      'No se pudo cargar la lista: ' + escapeHtml(r.error.message || '') + '</td></tr>';
+    return;
+  }
+
+  S.usuarios = r.data || [];
+  var yo = S.currentUser ? S.currentUser.id : null;
+
+  tb.innerHTML = S.usuarios.map(function (u, i) {
+    var esAdmin = u.rol === 'admin';
+    var eresTu  = u.id === yo;
+    var nombre  = escapeHtml(u.nombre || '');
+    var acceso  = esAdmin ? 'Consola de plataforma' : 'Solo su restaurante';
+    var visto   = u.ultimo_acceso
+      ? new Date(u.ultimo_acceso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
+      : 'nunca';
+
+    var accion;
+    if (eresTu) {
+      accion = '<span class="eq-online"><span class="eq-online-dot"></span>Eres tú</span>';
+    } else if (esAdmin) {
+      accion = '<button class="a-act a-act--warn" data-uid="' + u.id + '" data-admin="0">' +
+               'Quitar administrador</button>';
+    } else {
+      accion = '<button class="a-act a-act--approve" data-uid="' + u.id + '" data-admin="1">' +
+               'Hacer administrador</button>';
+    }
+
+    return '<tr>' +
+      '<td><div class="a-cell-row">' + avatarHtml(u.nombre, 38, i + 1) +
+        '<div class="a-cell-info"><div class="a-cell-strong">' + nombre +
+          (eresTu ? '<span class="eq-you">· Tú</span>' : '') +
+        '</div><div class="a-cell-muted">' + escapeHtml(u.email || '') + '</div></div></div></td>' +
+      '<td>' + badgeHtml(esAdmin ? 'violet' : 'gray', esAdmin ? 'Administrador' : 'Restaurante', false) + '</td>' +
+      '<td class="a-cell-muted">' + acceso +
+        '<div style="font-size:11px;opacity:.7">últ. acceso ' + visto + '</div></td>' +
+      '<td>' + accion + '</td>' +
     '</tr>';
   }).join('');
 
-  document.getElementById('eq-roles-grid').innerHTML = ROLES.map(function(x) {
-    return '<div class="a-card eq-role-card">'+
-      badgeHtml(x.tone,x.rol,false)+
-      '<p class="eq-role-desc">'+x.desc+'</p>'+
-    '</div>';
-  }).join('');
+  /* Los botones se enganchan aquí y no con onclick en el HTML: así el nombre
+     del usuario nunca se mete dentro de una cadena de código. Un nombre con
+     comilla —"D'Angelo"— rompería el onclick, y uno con etiquetas podría
+     ejecutar lo que quisiera. */
+  tb.querySelectorAll('button[data-uid]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var u = S.usuarios.filter(function (x) { return x.id === b.dataset.uid; })[0];
+      cambiarAdmin(b.dataset.uid, b.dataset.admin === '1', (u && u.nombre) || 'Este usuario');
+    });
+  });
 }
+
+/* Nombrar o quitar administrador. Siempre pide confirmación: dar acceso a la
+   consola es dar acceso a TODOS los restaurantes y a su facturación.
+   Los candados de verdad están en la base (solo un admin puede nombrar, nadie
+   puede quitarse a sí mismo, y no se puede quitar al último). Esto es la puerta
+   de adelante; la cerradura está adentro. */
+function cambiarAdmin(uid, hacerAdmin, nombre) {
+  var titulo = hacerAdmin ? 'Hacer administrador' : 'Quitar administrador';
+  var texto  = hacerAdmin
+    ? '<b>' + escapeHtml(nombre) + '</b> va a poder ver la consola de plataforma: todos los ' +
+      'restaurantes, sus solicitudes y su facturación. ¿Seguro?'
+    : '<b>' + escapeHtml(nombre) + '</b> dejará de ver la consola de plataforma. Su restaurante ' +
+      'sigue funcionando exactamente igual.';
+
+  showConfirm(titulo, texto, async function () {
+    var r = await sb.rpc('admin_definir_rol', { p_usuario: uid, p_admin: hacerAdmin });
+    if (r.error) { showToast(r.error.message || 'No se pudo cambiar'); return; }
+    showToast(hacerAdmin ? nombre + ' ya es administrador' : nombre + ' ya no es administrador');
+    cargarUsuarios();
+  });
+}
+window.cambiarAdmin = cambiarAdmin;
+
 
 // ────────────────────── PLANES ──────────────────────
 
