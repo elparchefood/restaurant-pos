@@ -1,5 +1,11 @@
 # Funciones pendientes — Cobra POS
 
+> ⚠️ **ESTE DOCUMENTO YA NO SE USA PARA ANOTAR TAREAS** (2026-08-02).
+> Todo lo que seguia pendiente se paso a la lista unica de la memoria:
+> `cobra_pos_tareas.md`. Aqui quedan el detalle y la justificacion de cada
+> funcion, que sirven al construirlas — pero **las tareas nuevas NO van aqui**,
+> porque estaban repartidas en 7 documentos y se estaban perdiendo.
+
 > Actualizado: 2026-07-31
 > Este documento lista **todo lo que falta construir**, con qué informe desbloquea
 > cada cosa y qué se necesita exactamente. Nace de la pregunta de Sergio:
