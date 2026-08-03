@@ -4703,3 +4703,41 @@ cambiado de un día para otro.
   plantilla).
 - En la de dirección: reglas por país y dónde no se reparte.
 - En la de cliente: las opciones del nombre configurables.
+
+## 119. Cambiar el plan de un cliente, y el hueco que había debajo
+
+Sergio pidió poder cambiarle el plan a un cliente desde la consola de plataforma. Al ir a
+escribirlo apareció algo más grave: **el cliente podía cambiárselo él mismo.**
+
+La política `owner_tenant` de la tabla `tenants` daba permiso `ALL` al dueño sobre su propia
+fila. El plan vive en esa fila y es lo que `pos-plan.js` lee para decidir qué puede usar cada
+restaurante. Con la consola del navegador abierta, un `update` de una línea pasaba a cualquiera
+de Starter a Premium sin pagar nada. Ahora esa política es solo `SELECT`: el restaurante ve su
+fila y no la toca. La única escritura es la del administrador de plataforma.
+
+**El cambio va por función, no por UPDATE suelto.** `admin_cambiar_plan(tenant, plan, motivo)`
+comprueba `es_admin_plataforma()`, valida que el plan exista en el catálogo, cambia
+`tenants.plan` y anota la fila en `pos_plan_historial` — todo junto: o pasan las dos cosas o no
+pasa ninguna. Un cambio de plan sin rastro no sirve para cobrar.
+
+**El modal avisa lo que se pierde, no solo lo que se gana.** Subir de plan es inofensivo; bajar
+apaga funciones que el restaurante está usando en este momento. Antes de confirmar se listan
+las dos cosas, comparando `pos_planes.funciones` del plan viejo contra el nuevo.
+
+De paso:
+
+- **El precio de cada plan pasó a la base** (`pos_planes.precio`). Estaba escrito a mano en el
+  código de la consola, así que cambiar un precio obligaba a volver a desplegar. Premium existía
+  en la base con sus 13 funciones y **no aparecía en ninguna pantalla**; ahora sale, con el
+  precio en NULL y mostrado como "por definir" en vez de inventarse uno — un 0 se habría leído
+  como "no paga nada" en la columna de facturación.
+- **La lista de clientes mostraba el plan que pidieron al registrarse**, no el que tienen.
+  Después de un cambio de plan son cosas distintas, y lo que se factura es lo que tienen. Ahora
+  la tabla, el total facturado y el resumen usan `plan_actual` (de `tenants`).
+
+Probado en un banco de pruebas con base simulada, sin tocar producción. Ahí salió un fallo
+real: bajando de Premium a Starter la lista de 13 funciones perdidas estiraba el modal a 770 px
+en una pantalla de 720, y **el botón de confirmar quedaba por fuera**. El cuerpo del modal
+quedó con scroll propio y tope de 88vh; las listas largas van a dos columnas.
+
+SQL: `sql/2026-08-03-cambiar-plan.sql`.
