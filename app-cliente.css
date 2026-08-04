@@ -1,14 +1,133 @@
 /* Página del cliente — compartida por todos los restaurantes.
-   Por ahora solo lo mínimo; el diseño completo del handoff entra aquí. */
-:root { color-scheme: light dark; }
-* { box-sizing: border-box; }
-body {
-  margin: 0; min-height: 100vh; display: grid; place-items: center;
-  font-family: 'DM Sans', system-ui, sans-serif; text-align: center; padding: 28px;
-  background: #08080a; color: #f4f4f6;
+   Tokens tomados del handoff. Tema oscuro por defecto y tema claro completo:
+   arranca como lo tenga el celular del cliente. */
+
+:root {
+  --bg: #08080a;  --surf: #121215;  --surf2: #191920;
+  --line: #26262e;
+  --ink: #f4f4f6; --sub: #9698a3;   --dim: #7b7d89;
+  --accent: #e3b04b; --accent2: #c08c2c;
+  --wine: #8f2242;   --wa: #25d366;
+  --maxw: 460px;
 }
-.c-marca { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
-.c-sub { color: #9698a3; margin-top: 8px; font-size: 14.5px; max-width: 30ch; }
-.c-estado { margin-top: 18px; font-size: 13px; padding: 7px 15px; border-radius: 999px;
-  border: 1px solid #26262e; background: #121215; color: #9698a3; }
-.c-estado.abierto { color: #25d366; border-color: rgba(37,211,102,.35); }
+html.tema-claro {
+  --bg: #f6f4f1;  --surf: #ffffff;  --surf2: #f2efeb;
+  --line: #e4dfd8;
+  --ink: #17161a; --sub: #605e66;   --dim: #6f6c76;
+  --accent: #b8842a; --accent2: #96681c;
+}
+@media (prefers-color-scheme: light) {
+  html:not(.tema-oscuro) {
+    --bg: #f6f4f1;  --surf: #ffffff;  --surf2: #f2efeb;
+    --line: #e4dfd8;
+    --ink: #17161a; --sub: #605e66;   --dim: #6f6c76;
+    --accent: #b8842a; --accent2: #96681c;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  font-size: 15px; line-height: 1.5; letter-spacing: -.01em;
+  -webkit-font-smoothing: antialiased;
+  /* El aura vive en el body y NO en el contenedor de la app: las muescas de las
+     tarjetas pintan el fondo plano y tienen que coincidir. (Nota del handoff.) */
+  background-image:
+    radial-gradient(900px 420px at 18% -8%, rgba(143,34,66,.20), transparent 62%),
+    radial-gradient(760px 380px at 92% 4%, rgba(227,176,75,.10), transparent 60%);
+  background-attachment: fixed;
+}
+html.tema-claro body, html:not(.tema-oscuro) body {
+  background-image:
+    radial-gradient(900px 420px at 18% -8%, rgba(143,34,66,.10), transparent 62%),
+    radial-gradient(760px 380px at 92% 4%, rgba(184,132,42,.10), transparent 60%);
+}
+
+/* ── Entrar ─────────────────────────────────────────────────────────── */
+.ep-login {
+  min-height: 100%; display: flex; flex-direction: column; justify-content: center;
+  align-items: center; gap: 22px; padding: 34px 24px;
+  max-width: var(--maxw); margin: 0 auto; text-align: center;
+}
+.ep-marca {
+  width: 70px; height: 70px; border-radius: 22px;
+  background: var(--surf2); border: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center; color: var(--accent);
+  flex-shrink: 0;
+}
+.ep-h1 { font-size: 27px; font-weight: 600; letter-spacing: -.02em; margin: 0; }
+.ep-lead { font-size: 14px; color: var(--sub); margin: 6px 0 0; }
+
+.ep-form { width: 100%; display: flex; flex-direction: column; gap: 14px; text-align: left; }
+.ep-campo { display: flex; flex-direction: column; gap: 6px; }
+.ep-lbl { font-size: 12px; font-weight: 500; color: var(--sub); }
+.ep-in {
+  width: 100%; padding: 15px 16px; border-radius: 14px;
+  background: var(--surf); border: 1px solid var(--line); color: var(--ink);
+  font-family: inherit; font-size: 15px; outline: none; transition: border-color .15s;
+}
+.ep-in:focus { border-color: var(--sub); }
+.ep-in::placeholder { color: var(--dim); }
+.ep-in--codigo { text-align: center; font-size: 26px; letter-spacing: .34em; font-weight: 600; padding: 16px; }
+
+.ep-fila { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--sub); }
+.ep-fila input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
+
+.ep-btn {
+  width: 100%; padding: 16px; border-radius: 15px; border: 1px solid transparent;
+  font-family: inherit; font-size: 16px; font-weight: 600; cursor: pointer;
+  transition: filter .15s, transform .06s;
+}
+.ep-btn:active { transform: scale(.985); }
+.ep-btn:disabled { opacity: .45; cursor: default; }
+.ep-btn--main { background: var(--ink); color: var(--bg); }
+html.tema-claro .ep-btn--main, html:not(.tema-oscuro) .ep-btn--main { background: #17161a; color: #fff; }
+.ep-btn--ghost { background: var(--surf); border-color: var(--line); color: var(--ink); font-size: 15px; }
+
+.ep-link {
+  background: none; border: none; color: var(--accent); font-family: inherit;
+  font-size: 13.5px; font-weight: 500; cursor: pointer; padding: 4px;
+}
+.ep-nota { font-size: 12px; color: var(--dim); }
+
+.ep-msg { width: 100%; border-radius: 13px; padding: 12px 14px; font-size: 13.5px; border: 1px solid; text-align: left; }
+.ep-msg--mal { color: #f0999b; background: rgba(143,34,66,.14); border-color: rgba(143,34,66,.5); }
+.ep-msg--ok  { color: var(--wa); background: rgba(37,211,102,.10); border-color: rgba(37,211,102,.35); }
+html.tema-claro .ep-msg--mal, html:not(.tema-oscuro) .ep-msg--mal { color: #8f2242; }
+html.tema-claro .ep-msg--ok,  html:not(.tema-oscuro) .ep-msg--ok  { color: #177a45; }
+
+/* Cerrado NO es apagado: se ve el estado pero la página se navega igual. */
+.ep-estado {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12.5px; padding: 7px 14px; border-radius: 999px;
+  background: var(--surf); border: 1px solid var(--line); color: var(--sub);
+}
+.ep-punto { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+.ep-estado.abierto { color: var(--wa); border-color: rgba(37,211,102,.32); }
+.ep-estado.abierto .ep-punto { background: var(--wa); }
+
+.ep-cargando { min-height: 100%; display: grid; place-items: center; color: var(--dim); font-size: 14px; }
+
+/* ── Dentro (provisional, mientras entran las pantallas del handoff) ── */
+.ep-dentro { max-width: 560px; margin: 0 auto; padding: 26px 20px 60px; }
+.ep-hola { font-size: 13px; color: var(--sub); }
+.ep-nombre { font-size: 21px; font-weight: 600; letter-spacing: -.02em; margin: 2px 0 20px; }
+.ep-tarjeta {
+  background: var(--surf); border: 1px solid var(--line); border-radius: 24px;
+  padding: 20px; margin-bottom: 12px;
+}
+.ep-pts {
+  background: linear-gradient(150deg,#f0c366 0%,#e3b04b 45%,#c99228 100%);
+  color: #1a1204; border: none;
+}
+.ep-pts-lbl { font-size: 12.5px; font-weight: 600; opacity: .72; }
+.ep-pts-num { font-size: 40px; font-weight: 700; letter-spacing: -.03em; line-height: 1.1; }
+.ep-pts-num span { font-size: 17px; font-weight: 600; margin-left: 5px; }
+.ep-rango-lbl { font-size: 13px; color: var(--sub); }
+.ep-rango-nom { font-size: 17px; font-weight: 700; margin: 2px 0 10px; }
+.ep-barra { height: 7px; border-radius: 999px; background: var(--surf2); overflow: hidden; }
+.ep-barra i { display: block; height: 100%; border-radius: 999px; transition: width 1s cubic-bezier(.2,.8,.2,1); }
+.ep-mini { font-size: 12px; color: var(--dim); margin-top: 8px; }
+.ep-salir { margin-top: 18px; }
