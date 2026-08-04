@@ -4870,3 +4870,46 @@ tampoco necesita que le avisen de él.
 Falla ABIERTO a propósito: si el módulo de permisos no carga o se demora más de
 6 s, sí avisa. Que a un mesero le suene de más es una molestia; que el dueño se
 pierda un pedido porque los permisos no cargaron es plata.
+
+## 123. Un abono, un solo pedido — se cerró el candado que quedó a medias
+
+El 2 de agosto se le enseñó a `verificar-transferencia` a leer el número de
+referencia del banco, y quedó escrito en el commit: *"hoy solo se muestra; es la
+base para que mañana un mismo abono no pueda dar por bueno dos pedidos"*. Ese
+mañana no había llegado. Sergio creía que sí, y con razón: la referencia salía en
+pantalla, así que parecía estar controlando algo.
+
+**Lo que de verdad estaba y lo que no.** El anti-replay SÍ existía, pero en
+`verify-transfer` (la del chat): lee la referencia del comprobante, la guarda en
+las notas del pedido como `Ref:XXXX` y, si vuelve a llegar, rechaza y pasa a
+humano. La pantalla de pagos usa otra función —`verificar-transferencia`— que
+leía la referencia pero nunca la guardaba ni la comparaba. Ahí no había candado.
+
+**Ahora hay uno solo para todo.** El control vive dentro de
+`verificar-transferencia`, que es lo que llaman la pantalla de pagos y —cuando
+exista— la página de clientes. Recibe `order_id`, y si el banco devuelve una
+referencia:
+
+- busca si otro pedido de esa sucursal ya la tiene → responde `ya_usada` con cuál
+  fue, y la pantalla lo muestra en rojo: *"Ese abono ya se usó"*;
+- si está libre, la deja reclamada por ese pedido.
+
+Se marca al VERIFICAR y no al cobrar: el cajero le dio a Verificar sobre ESE
+pedido y el banco muestra ese abono, así que ya quedó reclamado. Si no termina de
+cobrar, la reserva se queda donde debe. El mismo pedido puede re-verificar las
+veces que quiera.
+
+**Un hueco que apareció al mirarlo.** El chat guardaba la referencia tal cual la
+devolvía el banco y la búsqueda la limpia de guiones y espacios: una referencia
+con guion no se habría reconocido a sí misma y el candado se habría abierto solo.
+Las dos partes guardan ahora la versión limpia. No había pasado todavía porque
+**no existe ni un solo pedido con referencia guardada** — o sea que el anti-replay
+del chat nunca ha llegado a actuar.
+
+No hay tabla nueva: la referencia vive dentro del pedido, en el mismo formato que
+`pos-print.js` ya sabe limpiar del recibo. Un solo formato para todo el sistema.
+
+Probado con 8 casos sobre base simulada: referencia libre, ya usada por otro, el
+mismo pedido re-verificando, referencias demasiado cortas, guiones y espacios, y
+que marcarla no pise la dirección ni el barrio ni se duplique.
+Desplegado: `verificar-transferencia` v6, `verify-transfer` v24.

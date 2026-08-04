@@ -1883,10 +1883,19 @@ async function ptVerificarTransferencia() {
       // asi que la unica prueba es el monto — y los montos se repiten todas las
       // noches. Mientras mas corta la ventana, menos chance de confundir el abono
       // de un cliente con el de otro.
-      body: JSON.stringify({ branch_id: SP.branchId, monto: String(monto), horas: 2 }),
+      // De que pedido se trata: sin esto la funcion no puede saber si ese abono
+      // ya se uso para otro, y el mismo comprobante daba por buenos dos pedidos.
+      body: JSON.stringify({ branch_id: SP.branchId, monto: String(monto), horas: 2, order_id: SP.orderId }),
     });
     var d = await r.json().catch(function () { return {}; });
-    if (d && d.ok && d.encontrado && d.varios) {
+    if (d && d.ok && d.ya_usada) {
+      /* Ese abono ya lo reclamo otro pedido. Es el caso que faltaba: dos pedidos
+         del mismo monto y un solo comprobante. */
+      res.innerHTML = '<span style="color:#DC2626;font-weight:700">✕ Ese abono ya se uso</span>'
+        + '<br><span style="color:#64748B">Referencia ' + _payEsc(d.referencia || '') + ', ya registrada en otro pedido.</span>'
+        + '<br><span style="color:#94A3B8">No se puede cobrar dos veces con la misma transferencia. '
+        + 'Si el cliente pago de verdad, pidele el comprobante de ESTE pedido.</span>';
+    } else if (d && d.ok && d.encontrado && d.varios) {
       /* Varios abonos por el MISMO monto en la ventana: NO se da por bueno solo.
          El cajero es el unico que puede saber cual es el de su cliente. */
       res.innerHTML = '<span style="color:#B45309;font-weight:700">⚠ Hay ' + (d.cuantos || 2) + ' abonos por ese mismo monto</span>'
@@ -1895,6 +1904,10 @@ async function ptVerificarTransferencia() {
     } else if (d && d.ok && d.encontrado) {
       res.innerHTML = '<span style="color:#16A34A;font-weight:700">✓ Abono encontrado en el banco</span>'
         + (d.detalle ? '<br><span style="color:#64748B">' + _payEsc(d.detalle) + '</span>' : '')
+        + (d.referencia
+            ? '<br><span style="color:#94A3B8">Referencia ' + _payEsc(d.referencia)
+              + ' — queda reservada para este pedido.</span>'
+            : '')
         + '<br><span style="color:#94A3B8">Puedes registrar el pago con tranquilidad.</span>';
     } else if (d && d.ok) {
       res.innerHTML = '<span style="color:#B45309">' + _payEsc(d.mensaje || 'No aparece el abono todavia.') + '</span>'
