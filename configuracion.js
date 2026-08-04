@@ -5587,7 +5587,9 @@ function opPintarNotif() {
   var sl = document.getElementById('op-notif-vol');
   var vl = document.getElementById('op-notif-vol-val');
   if (sl) sl.value = (typeof n.vol === 'number') ? n.vol : 60;
-  if (vl) vl.textContent = ((typeof n.vol === 'number') ? n.vol : 60) + '%';
+  // En cero se dice "Silencio": un "0%" se lee como si algo estuviera fallando.
+  var vv = (typeof n.vol === 'number') ? n.vol : 60;
+  if (vl) vl.textContent = vv > 0 ? vv + '%' : 'Silencio';
 
   // Apagado: el rótulo lo dice y el tono y el volumen se atenúan, como en las
   // demás secciones que se encienden con interruptor.
@@ -5624,7 +5626,7 @@ document.addEventListener('input', function (e) {
   if (!e.target || e.target.id !== 'op-notif-vol' || !_opDraft) return;
   opNotifCfg().vol = Number(e.target.value) || 0;
   var vl = document.getElementById('op-notif-vol-val');
-  if (vl) vl.textContent = opNotifCfg().vol + '%';
+  if (vl) vl.textContent = opNotifCfg().vol > 0 ? opNotifCfg().vol + '%' : 'Silencio';
   opCheckDirty();
 });
 

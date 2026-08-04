@@ -9,6 +9,39 @@
      nada mientras se estaba en la pantalla del chat. */
   var enChat = location.pathname.indexOf('chat-ia') >= 0;
 
+  /* ¿ESTÁ ABIERTA LA VENTANA DEL CHAT?
+
+     Sergio casi siempre trabaja con dos ventanas: el chat y otra pantalla.
+     Cuando entraba un mensaje sonaban LAS DOS —el aviso del chat y el de la
+     otra— casi al tiempo. Se oía como un solo ruido raro, y por eso parecía que
+     el tono no cambiaba nunca: eran dos tonos encimados.
+
+     Regla: si la ventana del chat está abierta, solo suena el chat. Las otras
+     pantallas solo suenan cuando el chat NO está abierto.
+
+     La ventana del chat deja una marca de tiempo cada 3 segundos. Las demás
+     miran si esa marca es reciente. Se usa el almacenamiento del navegador
+     porque es lo único que comparten dos ventanas distintas del mismo equipo.
+     Si el chat se cierra de golpe y no alcanza a borrar su marca, a los 9
+     segundos vence sola y las otras pantallas vuelven a sonar. */
+  var LATIDO = 'pos.chat.abierto';
+
+  function chatAbierto() {
+    try {
+      var t = Number(localStorage.getItem(LATIDO) || 0);
+      return t > 0 && (Date.now() - t) < 9000;
+    } catch (e) { return false; }   // sin acceso al almacenamiento: mejor que suene
+  }
+
+  if (enChat) {
+    var latir = function () { try { localStorage.setItem(LATIDO, String(Date.now())); } catch (e) {} };
+    latir();
+    setInterval(latir, 3000);
+    var apagar = function () { try { localStorage.removeItem(LATIDO); } catch (e) {} };
+    window.addEventListener('beforeunload', apagar);
+    window.addEventListener('pagehide', apagar);
+  }
+
   var started = false, lastTs = 0, tries = 0;
 
   function getSB() {
@@ -58,6 +91,18 @@
 
      Las notas son intervalos musicales de verdad (quintas y terceras), por eso
      las dos que suenan juntas no chocan. */
+  /* Curva de saturación suave (tanh). Cerca de cero es casi una recta, así que
+     los volúmenes bajos pasan limpios; arriba se dobla y nunca se sale de 1.
+     Se calcula una vez: son 1.024 valores y no cambian nunca. */
+  var CURVA_SUAVE = (function () {
+    var n = 1024, c = new Float32Array(n), k = 2.5, tk = Math.tanh(k);
+    for (var i = 0; i < n; i++) {
+      var x = (i * 2) / (n - 1) - 1;
+      c[i] = Math.tanh(k * x) / tk;
+    }
+    return c;
+  })();
+
   var TONOS = {
     // Marimba: ataque redondo, dos notas bajando una cuarta. Para local tranquilo.
     suave: {
@@ -80,12 +125,16 @@
           parciales: [[0.5, 0.22], [1, 1], [1.2, 0.45], [1.5, 0.30], [2, 0.20], [2.66, 0.12], [3.01, 0.07]] },
       ],
     },
-    // Tres pulsos y sube: para cocina ruidosa, sin llegar a chillido.
+    /* Tres pulsos y sube: para cocina ruidosa.
+       Los pulsos duran mas de lo que parece necesario a proposito. Con notas de
+       9 centesimas medía 4 dB MENOS de energia que los demas tonos — o sea que
+       el tono "para cuando hay ruido" era el mas flojo de los cuatro. Alargarlos
+       no cambia el caracter y sí lo hace oirse. */
     alerta: {
       notas: [
-        { t: 0,    f: 880.00, dur: 0.09, ataque: 0.002, parciales: [[1, 1], [2, 0.45], [3, 0.20]] },
-        { t: 0.13, f: 880.00, dur: 0.09, ataque: 0.002, parciales: [[1, 1], [2, 0.45], [3, 0.20]] },
-        { t: 0.26, f: 1174.66, dur: 0.26, ataque: 0.002, parciales: [[1, 1], [2, 0.40], [3, 0.16]] },
+        { t: 0,    f: 880.00, dur: 0.16, ataque: 0.002, parciales: [[1, 1], [2, 0.45], [3, 0.20]] },
+        { t: 0.15, f: 880.00, dur: 0.16, ataque: 0.002, parciales: [[1, 1], [2, 0.45], [3, 0.20]] },
+        { t: 0.30, f: 1174.66, dur: 0.42, ataque: 0.002, parciales: [[1, 1], [2, 0.40], [3, 0.16]] },
       ],
     },
   };
@@ -105,20 +154,61 @@
   function beep(forzar) {
     try {
       var cfg = cfgNotif();
+      /* `forzar` es para el botón Probar: deja oír el tono aunque el aviso esté
+         apagado. Pero NO se salta el volumen en cero — barra en cero significa
+         silencio, y un botón que suena con el volumen abajo confunde más de lo
+         que ayuda. */
       if (!cfg.activo && !forzar) return;
-      if (cfg.vol <= 0 && !forzar) return;
+      if (cfg.vol <= 0) return;
       var Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return;
 
       var ctx = new Ctx();
       /* Un filtro suave arriba: los parciales agudos son los que raspan en el
          parlante pequeño de una tablet. Quitarlos no cambia el carácter del
          sonido y sí quita el chirrido. */
+      /* LA CADENA DE SONIDO — por qué no basta con subir el número.
+
+         Sergio tenía el volumen al 100% y aun así sonaba flojo. Subir la
+         ganancia no lo arregla: un pitido de ondas puras tiene mucho PICO y
+         poca ENERGÍA, y el oído oye energía, no picos. Al llegar el pico a 1
+         ya no se puede subir más sin que reviente, y sigue sonando suave.
+
+         Lo que sí sube el volumen percibido, sin pasarse del tope:
+           · una curva de saturación suave, que redondea los picos y llena el
+             hueco con armónicos — el sonido queda "gordo" en vez de más alto;
+           · un realce en 3 kHz, que es donde el oído humano es más sensible
+             (por eso los pitos de los electrodomésticos viven ahí);
+           · un compresor al final, que empareja y deja subir el conjunto.
+
+         Con la barra abajo nada de esto actúa: la señal es tan pequeña que
+         pasa derecho, limpia y suave. La saturación solo aparece arriba. */
+      var nivel = Math.pow(Math.max(0, Math.min(100, cfg.vol)) / 100, 2);
+
+      // Empuje: al 100% mete la señal DENTRO de la curva de saturación.
+      var empuje = ctx.createGain();
+      empuje.gain.value = 0.02 + 3.40 * nivel;
+
+      var forma = ctx.createWaveShaper();
+      forma.curve = CURVA_SUAVE;
+      forma.oversample = '4x';        // sin esto la saturación suena a arena
+
+      var presencia = ctx.createBiquadFilter();
+      presencia.type = 'peaking';
+      presencia.frequency.value = 3000; presencia.Q.value = 1.1; presencia.gain.value = 5;
+
       var lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
-      lp.frequency.value = 7000; lp.Q.value = 0.7;
-      var master = ctx.createGain();
-      // 0,20 al 100% es el techo: más alto satura en las tablets.
-      master.gain.value = (cfg.vol / 100) * 0.20;
-      master.connect(lp); lp.connect(ctx.destination);
+      lp.frequency.value = 9000; lp.Q.value = 0.7;
+
+      var comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -14; comp.knee.value = 8;
+      comp.ratio.value = 4; comp.attack.value = 0.002; comp.release.value = 0.12;
+
+      var salida = ctx.createGain();
+      salida.gain.value = 1.00;
+
+      var master = empuje;   // las notas se cuelgan aquí
+      empuje.connect(forma); forma.connect(presencia); presencia.connect(lp);
+      lp.connect(comp); comp.connect(salida); salida.connect(ctx.destination);
 
       var t = TONOS[cfg.tono] || TONOS.clasico;
       var ahora = ctx.currentTime + 0.02, fin = 0;
@@ -160,7 +250,9 @@
   };
 
   function notif(m) {
-    beep();
+    /* El aviso visual se queda: ver que entro un mensaje sin cambiar de ventana
+       sigue sirviendo. Lo que no se repite es el SONIDO. */
+    if (!chatAbierto()) beep();
     var host = document.getElementById('pos-notify-host');
     if (!host) {
       host = document.createElement('div'); host.id = 'pos-notify-host';
@@ -189,6 +281,8 @@
      dueño ya aplicada. Es la única copia: el tono y el volumen se definen en un
      solo sitio. */
   window.posNotifSonar = function () { beep(); };
+  // Solo para el banco de pruebas: permite disparar el aviso sin base de datos.
+  window.__notifPrueba = notif;
 
   if (enChat) return;   // en el chat, solo el sonido; el aviso flotante no
   if (document.readyState !== 'loading') start(); else document.addEventListener('DOMContentLoaded', start);
