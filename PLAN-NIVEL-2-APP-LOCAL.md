@@ -158,6 +158,47 @@ Con Nivel 2 eso deja de existir.
 7. Reconstruir el .exe (ver la memoria `cobra_pos_electron_build`: se usa
    `@electron/packager`, no `electron-builder`).
 
+## 5.bis PENDIENTE OBLIGATORIO — El INSTALADOR
+
+> Pedido expreso de Sergio, 4 de agosto de 2026:
+> *"Al final vamos a encerrar todo en un instalador, para que todo lo que yo
+> tengo instalado otra persona lo pueda instalar con el instalador paso a paso."*
+
+**Hoy no existe instalador.** El programa se "instala" copiando a mano una
+carpeta de 172 MB y creando accesos directos también a mano. Eso funciona en el
+equipo de Sergio pero **no se le puede pedir a un cliente**.
+
+Estado actual del equipo de Sergio (4 de agosto de 2026):
+- App real: `C:\Prueba Claude Code\cobra-pos-electron\dist\Cobra POS-win32-x64\`
+- Accesos directos: escritorio y menú Inicio, ambos apuntando ahí (el del menú
+  Inicio apuntaba a una instalación vieja distinta; se enderezó ese mismo día).
+
+Lo que el instalador tiene que hacer:
+
+1. Un solo archivo `.exe` que el cliente baja y ejecuta.
+2. Pantallas paso a paso: bienvenida, dónde instalar, instalar, terminar.
+3. Instalar en `%LOCALAPPDATA%\Cobra POS` (no en `Program Files`: así no pide
+   permisos de administrador, y el actualizador del Nivel 2 puede escribir).
+4. Crear acceso directo en escritorio y en el menú Inicio, con el ícono oficial.
+5. Registrar la aplicación en "Agregar o quitar programas", **con desinstalador**.
+6. Detectar si ya está instalada y ofrecer actualizar en vez de duplicar.
+   *(Justo el problema que Sergio reportó: se llenó de copias y no sabía cuál era
+   la buena.)*
+7. Idealmente **firmar el ejecutable**, o Windows SmartScreen le va a mostrar al
+   cliente una advertencia de "aplicación desconocida" que asusta. Requiere
+   comprar un certificado — decisión comercial, no técnica.
+
+Herramienta: `electron-builder` con destino NSIS. Ya está en `package.json` y la
+configuración `nsis` está escrita (oneClick false, elegir carpeta, accesos
+directos). **Ojo:** `electron-builder` falla en este equipo por los symlinks de
+winCodeSign, que piden privilegio de administrador — por eso hoy se empaqueta con
+`@electron/packager`. Hay que resolver eso o construir el instalador en otra
+máquina / con Windows en modo desarrollador.
+
+**Orden recomendado: instalador ANTES que actualizador.** Sin instalador no hay
+clientes; y el actualizador del Nivel 2 necesita saber dónde quedó instalada la
+aplicación, cosa que hoy no está definida.
+
 ## 6. Qué YA se hizo (Nivel 1) y no hay que repetir
 
 - La foto del restaurante se reduce a 256×256 al subirla y se guarda en el equipo
