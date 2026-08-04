@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mi página web — Cobra POS</title>
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/brand/favicon-192.png">
+  <link rel="apple-touch-icon" href="assets/brand/favicon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="pagina-web.css?v=1788900000">
+</head>
+<body>
+
+<div class="pw-root">
+  <header class="pw-top">
+    <a class="pw-back" href="dashboard.html" aria-label="Regresar">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+      Regresar
+    </a>
+    <div>
+      <div class="pw-kicker">Tu segundo canal, después del chat</div>
+      <h1 class="pw-title">Mi página web</h1>
+    </div>
+  </header>
+
+  <main class="pw-main" id="pw-main">
+    <div class="pw-cargando">Cargando…</div>
+  </main>
+</div>
+
+<div class="pw-toast" id="pw-toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="pos-core.js?v=1787950000"></script>
+<script src="pos-perms.js?v=1785030000"></script>
+<script src="pos-plan.js?v=1788500000"></script>
+<script src="pos-brand.js?v=1788600000"></script>
+<script src="pos-notify.js?v=1788790000"></script>
+<script src="pagina-web.js?v=1788900000"></script>
+</body>
+</html>
