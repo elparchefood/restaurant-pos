@@ -183,8 +183,22 @@ async function fichaCliente(tenantId: string, clienteId: string) {
     if (r.ok) { const d = await r.json(); nivel = Array.isArray(d) ? d[0] : d; }
   } catch (e) { console.error("[acceso] nivel:", String(e).slice(0, 200)); }
 
+  /* Los últimos pedidos, para la lista de actividad del inicio. Solo lo que el
+     cliente puede ver de lo suyo: qué pidió, cuándo y cuánto. */
+  const ped = await sbGet(
+    `/pos_orders?cliente_id=eq.${clienteId}&status=neq.cancelled&select=id,total,total_final,created_at,channel,estado&order=created_at.desc&limit=8`
+  ) as Array<Record<string, unknown>> | null;
+
   return {
     id: c.id, nombre: c.nombre || "", telefono: tel,
+    /* El saldo recargable todavía no existe: se manda en cero para que la
+       tarjeta se pueda pintar desde ya y no haya que tocar la página cuando
+       entre. */
+    saldo: 0,
+    pedidos: (ped || []).map((o) => ({
+      id: o.id, total: Number(o.total_final ?? o.total ?? 0),
+      fecha: o.created_at, canal: o.channel, estado: o.estado,
+    })),
     direccion: c.direccion || "", barrio: c.barrio || "",
     direcciones: c.direcciones || [],
     puntos: Number(pts?.[0]?.puntos || 0),
@@ -248,17 +262,32 @@ Deno.serve(async (req) => {
       }
 
       const codigo = String(Math.floor(100000 + Math.random() * 900000));
-      const enviado = await mandarCodigo(tenantId, tel, codigo, String(negocio.name || "tu restaurante"));
-      if (!enviado) {
-        return json({ ok: false, razon: "whatsapp",
-          mensaje: "No pudimos enviarte el código por WhatsApp. Escríbele al restaurante y te ayudan." });
-      }
-      await sbPost(`/pos_web_codigos`, {
+
+      /* SE GUARDA PRIMERO, SE MANDA DESPUÉS.
+         Al revés —que es como estaba— pasó lo peor posible: al cliente le llegó
+         el código por WhatsApp y aquí no se guardó nada, así que al escribirlo
+         le decía "pide un código nuevo". Y como no se miraba el resultado del
+         guardado, la función respondía "enviado" tan campante.
+         Ahora si no se puede guardar, no se manda nada y se dice la verdad. */
+      const guardado = await sbPost(`/pos_web_codigos`, {
         tenant_id: tenantId, telefono: tel,
         codigo_hash: await sha256(codigo + "|" + tel),   // el número entra en la huella: un código no sirve en otro teléfono
         motivo: String(b.motivo || "alta"),
         expira_at: new Date(Date.now() + CODIGO_VIVE_MIN * 60000).toISOString(),
-      });
+      }, true) as Array<Record<string, unknown>> | null;
+      const filaId = guardado?.[0]?.id ? String(guardado[0].id) : "";
+      if (!filaId) {
+        return json({ ok: false, razon: "no_se_guardo",
+          mensaje: "No pudimos preparar tu código. Intenta de nuevo en un momento." });
+      }
+
+      const enviado = await mandarCodigo(tenantId, tel, codigo, String(negocio.name || "tu restaurante"));
+      if (!enviado) {
+        // No salió: se quema para que no ocupe el cupo del cliente.
+        await sbPatch(`/pos_web_codigos?id=eq.${filaId}`, { usado: true });
+        return json({ ok: false, razon: "whatsapp",
+          mensaje: "No pudimos enviarte el código por WhatsApp. Escríbele al restaurante y te ayudan." });
+      }
       return json({ ok: true, vence_en_min: CODIGO_VIVE_MIN });
     }
 
@@ -296,10 +325,11 @@ Deno.serve(async (req) => {
       }
       // Pase corto para completar el registro sin volver a pedir el código.
       const pase = aB64(aleatorio(24));
-      await sbPost(`/pos_web_codigos`, {
+      const pOk = await sbPost(`/pos_web_codigos`, {
         tenant_id: tenantId, telefono: tel, codigo_hash: await sha256("PASE|" + pase + "|" + tel),
         motivo: "pase", expira_at: new Date(Date.now() + 20 * 60000).toISOString(),
-      });
+      }, true);
+      if (!pOk) return json({ ok: false, razon: "no_se_guardo", mensaje: "No se pudo continuar. Intenta de nuevo." });
       return json({
         ok: true, pase, ya_registrado: !!existente, tiene_clave: tieneClave,
         cliente: existente ? { nombre: existente.nombre || "", direccion: existente.direccion || "", barrio: existente.barrio || "" } : null,

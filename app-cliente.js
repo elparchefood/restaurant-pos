@@ -278,6 +278,7 @@
         vista = b.dataset.ir;
         // Se trae lo que esa pestaña necesita ANTES de pintarla, para que no
         // aparezca vacia un instante y luego se llene de golpe.
+        if (vista !== 'pedido') pedidoHecho = null;
         if (vista === 'carta')  await cargarCarta();
         if (vista === 'puntos') await cargarCatalogo();
         catActiva = 0;
@@ -297,6 +298,20 @@
     document.querySelectorAll('[data-rango]').forEach(function (b) {
       b.addEventListener('click', function () { chartRango = b.dataset.rango; pantallaDentro(); });
     });
+    document.querySelectorAll('[data-plato]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var x = b.dataset.plato.split('|');
+        abrirPlato(Number(x[0]), Number(x[1]));
+      });
+    });
+    document.querySelectorAll('[data-quitar]').forEach(function (b) {
+      b.addEventListener('click', function () { carro.splice(Number(b.dataset.quitar), 1); pantallaDentro(); });
+    });
+    document.querySelectorAll('[data-entrega]').forEach(function (b) {
+      b.addEventListener('click', function () { entrega = b.dataset.entrega; pantallaDentro(); });
+    });
+    var env = $('pd-enviar');
+    if (env) env.addEventListener('click', enviarPedido);
   }
 
   async function salir() {
@@ -522,7 +537,7 @@
       return '<button class="ep-cat' + (i === catActiva ? ' on' : '') + '" data-cat="' + i + '">' + esc(x.categoria) + '</button>';
     }).join('') + '</div>';
 
-    var platos = '<div class="ep-platos">' + (c.productos || []).map(function (p) {
+    var platos = '<div class="ep-platos">' + (c.productos || []).map(function (p, i) {
       /* Si tiene presentaciones (Personal / Familiar) el precio se muestra como
          "desde": enseñar solo uno haría que el cliente se lleve una sorpresa. */
       var pres = p.presentaciones || [];
@@ -532,7 +547,7 @@
         var mins = pres.map(function (x) { return Number(x.precio) || 0; }).filter(function (x) { return x > 0; });
         if (mins.length) { precio = Math.min.apply(null, mins); desde = mins.length > 1; }
       }
-      return '<button class="ep-plato">' +
+      return '<button class="ep-plato" data-plato="' + catActiva + '|' + i + '">' +
         '<div class="ep-plato-img">' + (p.foto ? '<img src="' + esc(p.foto) + '" alt="" loading="lazy">' : ico('bolsa', 34)) + '</div>' +
         '<div class="ep-plato-b">' +
           '<div class="ep-plato-n">' + esc(p.nombre) + '</div>' +
@@ -548,7 +563,11 @@
           : 'Puedes mirar la carta, pero los pedidos se toman cuando abrimos.') + '</div>'
       : '';
 
-    return encabezado('Carta', 'Lo que hay hoy') + chips + cerrado + platos;
+    var barra = carro.length
+      ? '<button class="ep-cartbar" data-ir="pedido"><span class="ep-cart-n">' + carroCuantos() + '</span>' +
+        'Ver mi pedido<span class="ep-cart-tot">' + COP(carroTotal()) + '</span></button>'
+      : '';
+    return encabezado('Carta', 'Lo que hay hoy') + chips + cerrado + platos + barra;
   }
 
   // ── Puntos ──────────────────────────────────────────────────────────
@@ -655,6 +674,206 @@
              : '<div class="ep-aviso">El restaurante todavía no ha publicado sus horarios.</div>');
   }
 
+  /* ── El carrito ────────────────────────────────────────────────────
+     Vive en memoria, no se guarda: un carrito viejo que reaparece al día
+     siguiente con precios de ayer confunde más de lo que ayuda. */
+  var carro = [];
+  var sheet = null;   // el plato que se está configurando
+
+  function carroTotal() {
+    var t = 0;
+    for (var i = 0; i < carro.length; i++) t += carro[i].precio * carro[i].cantidad;
+    return t;
+  }
+  function carroCuantos() {
+    var n = 0;
+    for (var i = 0; i < carro.length; i++) n += carro[i].cantidad;
+    return n;
+  }
+
+  // ── Hoja del plato ──────────────────────────────────────────────────
+  function abrirPlato(catIdx, prodIdx) {
+    var p = ((S.carta[catIdx] || {}).productos || [])[prodIdx];
+    if (!p) return;
+    sheet = { p: p, talla: 0, cant: 1, nota: '' };
+    pintarSheet();
+  }
+
+  function precioDe(p, talla) {
+    var pres = p.presentaciones || [];
+    if (pres.length) return Number(pres[talla] && pres[talla].precio) || Number(p.precio) || 0;
+    return Number(p.precio) || 0;
+  }
+
+  function pintarSheet() {
+    var vieja = document.querySelector('.ep-scrim');
+    if (vieja) vieja.remove();
+    if (!sheet) return;
+    var p = sheet.p;
+    var pres = p.presentaciones || [];
+
+    var tallas = pres.length > 1 ? '<div class="ep-tallas">' + pres.map(function (x, i) {
+      return '<button class="ep-talla' + (i === sheet.talla ? ' on' : '') + '" data-talla="' + i + '">' +
+        esc(x.nombre) + '<span>' + COP(x.precio) + '</span></button>';
+    }).join('') + '</div>' : '';
+
+    var d = document.createElement('div');
+    d.className = 'ep-scrim';
+    d.innerHTML = '<div class="ep-sheet">' +
+      '<div class="ep-grab"></div>' +
+      '<div class="ep-sheet-n">' + esc(p.nombre) + '</div>' +
+      (p.descripcion ? '<div class="ep-sheet-d">' + esc(p.descripcion) + '</div>' : '') +
+      tallas +
+      '<textarea class="ep-nota-in" id="sh-nota" rows="2" maxlength="120" ' +
+        'placeholder="¿Algo para la cocina? Sin cebolla, bien caliente…">' + esc(sheet.nota) + '</textarea>' +
+      '<div class="ep-sheet-pie">' +
+        '<div class="ep-cant">' +
+          '<button data-cant="-1"' + (sheet.cant <= 1 ? ' disabled' : '') + '>−</button>' +
+          '<b>' + sheet.cant + '</b>' +
+          '<button data-cant="1">+</button>' +
+        '</div>' +
+        '<button class="ep-btn ep-btn--main" id="sh-add">Agregar · ' +
+          COP(precioDe(p, sheet.talla) * sheet.cant) + '</button>' +
+      '</div>' +
+    '</div>';
+    document.body.appendChild(d);
+
+    d.addEventListener('click', function (ev) { if (ev.target === d) { sheet = null; pintarSheet(); } });
+    d.querySelectorAll('[data-talla]').forEach(function (b) {
+      b.addEventListener('click', function () { sheet.talla = Number(b.dataset.talla); pintarSheet(); });
+    });
+    d.querySelectorAll('[data-cant]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        sheet.nota = (document.getElementById('sh-nota') || {}).value || sheet.nota;
+        sheet.cant = Math.max(1, Math.min(20, sheet.cant + Number(b.dataset.cant)));
+        pintarSheet();
+      });
+    });
+    d.querySelector('#sh-add').addEventListener('click', function () {
+      var pres = sheet.p.presentaciones || [];
+      carro.push({
+        producto_id: sheet.p.id,
+        nombre: sheet.p.nombre,
+        presentacion: pres.length > 1 ? String(pres[sheet.talla].nombre) : '',
+        precio: precioDe(sheet.p, sheet.talla),
+        cantidad: sheet.cant,
+        nota: (document.getElementById('sh-nota') || {}).value || '',
+      });
+      sheet = null; pintarSheet(); pantallaDentro();
+    });
+  }
+
+  // ── Pantalla del pedido ─────────────────────────────────────────────
+  var entrega = 'recoger';
+  var pedidoHecho = null;
+
+  function cuerpoPedido() {
+    if (pedidoHecho) return cuerpoConfirmado();
+    if (!carro.length) {
+      return encabezado('Tu pedido') +
+        '<div class="ep-vacio" style="padding:40px 0">Tu pedido está vacío.</div>' +
+        '<button class="ep-btn ep-btn--ghost" data-ir="carta">Ver la carta</button>';
+    }
+    var c = S.cliente || {};
+    var lineas = carro.map(function (l, i) {
+      return '<div class="ep-linea">' +
+        '<div class="ep-linea-b"><div class="ep-linea-n">' + l.cantidad + '× ' + esc(l.nombre) +
+          (l.presentacion ? ' · ' + esc(l.presentacion) : '') + '</div>' +
+          (l.nota ? '<div class="ep-linea-s">' + esc(l.nota) + '</div>' : '') +
+          '<button class="ep-quitar" data-quitar="' + i + '">Eliminar</button></div>' +
+        '<div class="ep-li-m">' + COP(l.precio * l.cantidad) + '</div></div>';
+    }).join('');
+
+    var sub = carroTotal();
+    var gana = Math.floor(sub / 1000);
+
+    return encabezado('Tu pedido') + lineas +
+      '<div class="ep-seg-full">' +
+        '<button data-entrega="recoger"' + (entrega === 'recoger' ? ' class="on"' : '') + '>Recoger</button>' +
+        '<button data-entrega="domicilio"' + (entrega === 'domicilio' ? ' class="on"' : '') + '>Domicilio</button>' +
+      '</div>' +
+      (entrega === 'domicilio'
+        ? '<label class="ep-campo" style="margin-bottom:10px"><span class="ep-lbl">Dirección</span>' +
+            '<input class="ep-in" id="pd-dir" value="' + esc(c.direccion || '') + '" placeholder="Calle 5 # 10-20"></label>' +
+          '<label class="ep-campo" style="margin-bottom:10px"><span class="ep-lbl">Barrio</span>' +
+            '<input class="ep-in" id="pd-barrio" value="' + esc(c.barrio || '') + '" placeholder="Tu barrio"></label>'
+        : '') +
+      '<label class="ep-campo"><span class="ep-lbl">Nota para la cocina</span>' +
+        '<input class="ep-in" id="pd-nota" maxlength="200" placeholder="Opcional"></label>' +
+
+      '<div style="margin-top:18px">' +
+        '<div class="ep-total-fila"><span style="color:var(--sub)">Productos</span><span>' + COP(sub) + '</span></div>' +
+        (entrega === 'domicilio'
+          ? '<div class="ep-total-fila"><span style="color:var(--sub)">Domicilio</span><span style="color:var(--dim)">se calcula al enviar</span></div>'
+          : '') +
+        '<div class="ep-total-fila grande"><span>Total</span><b>' + COP(sub) + '</b></div>' +
+        '<div class="ep-gana">Ganarás +' + gana + ' puntos con este pedido</div>' +
+      '</div>' +
+      (S.negocio && !S.negocio.abierto
+        ? '<div class="ep-aviso">' + esc(S.negocio.detalle || 'Ahora está cerrado') + '. ' +
+          (S.negocio.permite_programar
+            ? 'Tu pedido quedará <b>programado</b> para cuando abramos.'
+            : 'No podemos recibir pedidos en este momento.') + '</div>'
+        : '') +
+      '<button class="ep-btn ep-btn--main" id="pd-enviar" style="margin-top:16px"' +
+        ((S.negocio && !S.negocio.abierto && !S.negocio.permite_programar) ? ' disabled' : '') +
+        '>Enviar mi pedido</button>' +
+      '<p class="ep-nota" style="text-align:center;margin-top:10px">Se paga por transferencia. Te mostramos los datos al enviarlo.</p>';
+  }
+
+  function cuerpoConfirmado() {
+    var d = pedidoHecho;
+    return '<div style="text-align:center;padding:26px 0 10px">' +
+        '<div class="ep-ok-ico">' + ico('estrella', 28) + '</div>' +
+        '<div class="ep-saludo-n">' + (d.programado ? '¡Pedido programado!' : '¡Pedido recibido!') + '</div>' +
+        '<div class="ep-perfil-t" style="margin-top:6px">' +
+          (d.programado ? 'Lo preparamos apenas abramos.' : 'Ya lo tenemos. Falta el pago.') + '</div>' +
+      '</div>' +
+      '<div class="ep-tile">' +
+        '<div class="ep-total-fila"><span style="color:var(--sub)">Productos</span><span>' + COP(d.subtotal) + '</span></div>' +
+        (d.domicilio ? '<div class="ep-total-fila"><span style="color:var(--sub)">Domicilio</span><span>' + COP(d.domicilio) + '</span></div>' : '') +
+        '<div class="ep-total-fila grande"><span>Total a pagar</span><b>' + COP(d.total) + '</b></div>' +
+        (d.domicilio === 0 && d.barrio_conocido === false
+          ? '<div class="ep-nota" style="margin-top:6px">El domicilio de tu barrio lo confirma el restaurante.</div>' : '') +
+      '</div>' +
+      '<div class="ep-pago">' +
+        '<div class="ep-tile-lbl" style="margin-bottom:6px">Paga por transferencia</div>' +
+        (d.pago && d.pago.llave ? '<div class="ep-dato"><span>Llave / cuenta</span><span>' + esc(d.pago.llave) + '</span></div>' : '') +
+        (d.pago && d.pago.titular ? '<div class="ep-dato"><span>A nombre de</span><span>' + esc(d.pago.titular) + '</span></div>' : '') +
+        '<div class="ep-dato"><span>Valor</span><span>' + COP(d.total) + '</span></div>' +
+      '</div>' +
+      '<div class="ep-aviso">Cuando transfieras, mándale el comprobante al restaurante por WhatsApp y tu pedido entra a cocina.</div>' +
+      '<button class="ep-btn ep-btn--ghost" style="margin-top:14px" data-ir="inicio">Volver al inicio</button>';
+  }
+
+  async function enviarPedido() {
+    var b = $('pd-enviar');
+    b.disabled = true; b.textContent = 'Enviando…';
+    var d = await fetch(SB_URL + '/functions/v1/web-pedido', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: leerToken(), tipo: entrega,
+        direccion: entrega === 'domicilio' ? (($('pd-dir') || {}).value || '') : '',
+        barrio:    entrega === 'domicilio' ? (($('pd-barrio') || {}).value || '') : '',
+        notas: ($('pd-nota') || {}).value || '',
+        items: carro.map(function (l) {
+          return { producto_id: l.producto_id, presentacion: l.presentacion, cantidad: l.cantidad, nota: l.nota };
+        }),
+      }),
+    }).then(function (r) { return r.json(); }).catch(function () {
+      return { ok: false, mensaje: 'No hay conexión.' };
+    });
+
+    if (!d.ok) {
+      b.disabled = false; b.textContent = 'Enviar mi pedido';
+      alert(d.mensaje || 'No se pudo enviar.');
+      return;
+    }
+    pedidoHecho = d;
+    carro = [];
+    pantallaDentro();
+  }
+
   function cuerpoDe(vista, c, n, saludo) {
     if (vista === 'inicio')    return cuerpoInicio(c, n, saludo);
     if (vista === 'carta')     return cuerpoCarta();
@@ -662,6 +881,7 @@
     if (vista === 'billetera') return cuerpoBilletera();
     if (vista === 'perfil')    return cuerpoPerfil();
     if (vista === 'local')     return cuerpoLocal();
+    if (vista === 'pedido')    return cuerpoPedido();
     return cuerpoInicio(c, n, saludo);
   }
 

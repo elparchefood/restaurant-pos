@@ -498,3 +498,103 @@ html.tema-claro .ep-gold, html:not(.tema-oscuro) .ep-gold { color: #fff; }
   .ep-plot { height: 210px; }
   .ep-acts { margin-top: 20px; }
 }
+
+/* ── Hoja del plato ───────────────────────────────────────────────── */
+.ep-scrim {
+  position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.68);
+  backdrop-filter: blur(4px); display: flex; align-items: flex-end; justify-content: center;
+}
+html.tema-claro .ep-scrim, html:not(.tema-oscuro) .ep-scrim { background: rgba(23,22,26,.42); }
+.ep-sheet {
+  width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto;
+  background: var(--surf); border-radius: 26px 26px 0 0; padding: 14px 20px 22px;
+  animation: subir .26s cubic-bezier(.2,.9,.2,1);
+}
+@keyframes subir { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@media (min-width: 520px) {
+  .ep-scrim { align-items: center; }
+  .ep-sheet { border-radius: 26px; }
+}
+@media (prefers-reduced-motion: reduce) { .ep-sheet { animation: none; } }
+.ep-grab { width: 38px; height: 4px; border-radius: 999px; background: var(--line); margin: 0 auto 16px; }
+.ep-sheet-n { font-size: 20px; font-weight: 600; letter-spacing: -.02em; }
+.ep-sheet-d { font-size: 14px; color: var(--sub); margin-top: 4px; }
+
+.ep-tallas { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.ep-talla {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 13px 15px; border-radius: 14px; cursor: pointer;
+  background: var(--surf2); border: 1.5px solid transparent; color: var(--ink);
+  font-family: inherit; font-size: 14px; font-weight: 600; text-align: left;
+}
+.ep-talla.on { border-color: var(--accent); background: rgba(227,176,75,.1); }
+.ep-talla span { color: var(--accent); font-weight: 700; }
+
+.ep-nota-in {
+  width: 100%; margin-top: 14px; padding: 13px 15px; border-radius: 14px; resize: none;
+  background: var(--surf2); border: 1px solid var(--line); color: var(--ink);
+  font-family: inherit; font-size: 14px; outline: none;
+}
+.ep-nota-in:focus { border-color: var(--sub); }
+
+.ep-sheet-pie { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+.ep-cant { display: flex; align-items: center; gap: 4px; background: var(--surf2); border-radius: 14px; padding: 5px; }
+.ep-cant button {
+  width: 34px; height: 34px; border-radius: 10px; border: none; cursor: pointer;
+  background: none; color: var(--ink); font-family: inherit; font-size: 18px; font-weight: 600;
+}
+.ep-cant button:disabled { opacity: .3; cursor: default; }
+.ep-cant b { min-width: 26px; text-align: center; font-size: 15px; font-variant-numeric: tabular-nums; }
+.ep-sheet-pie .ep-btn { flex: 1; margin: 0; }
+
+/* ── Barra del carrito ────────────────────────────────────────────── */
+.ep-cartbar {
+  position: sticky; bottom: 12px; z-index: 15; width: 100%;
+  display: flex; align-items: center; gap: 12px; margin-top: 16px;
+  background: var(--ink); color: var(--bg); border: none; border-radius: 17px;
+  padding: 14px 16px; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 14px 34px rgba(0,0,0,.4);
+}
+html.tema-claro .ep-cartbar, html:not(.tema-oscuro) .ep-cartbar { background: #17161a; color: #fff; }
+.ep-cart-n {
+  background: rgba(0,0,0,.14); border-radius: 9px; padding: 3px 9px; font-size: 13px;
+}
+html.tema-claro .ep-cart-n, html:not(.tema-oscuro) .ep-cart-n { background: rgba(255,255,255,.2); }
+.ep-cart-tot { margin-left: auto; }
+
+/* ── Pantalla del pedido ──────────────────────────────────────────── */
+.ep-linea {
+  display: flex; align-items: center; gap: 12px; padding: 13px 14px; margin-bottom: 9px;
+  background: var(--surf); border: 1px solid var(--line); border-radius: 18px;
+}
+.ep-linea-b { flex: 1; min-width: 0; }
+.ep-linea-n { font-size: 14px; font-weight: 600; }
+.ep-linea-s { font-size: 11.5px; color: var(--dim); }
+.ep-quitar {
+  background: none; border: none; color: var(--dim); cursor: pointer;
+  font-family: inherit; font-size: 11.5px; text-decoration: underline; padding: 2px;
+}
+.ep-seg-full { display: flex; background: var(--surf2); border-radius: 14px; padding: 4px; gap: 3px; margin: 16px 0 12px; }
+.ep-seg-full button {
+  flex: 1; border: none; background: none; cursor: pointer; font-family: inherit;
+  font-size: 13.5px; font-weight: 700; color: var(--sub); padding: 11px; border-radius: 11px;
+}
+.ep-seg-full button.on { background: var(--accent); color: #1a1204; }
+html.tema-claro .ep-seg-full button.on, html:not(.tema-oscuro) .ep-seg-full button.on { color: #fff; }
+
+.ep-total-fila { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 0; font-size: 14px; }
+.ep-total-fila.grande { font-size: 16px; font-weight: 700; }
+.ep-total-fila.grande b { font-size: 21px; letter-spacing: -.02em; }
+.ep-gana { color: var(--accent); font-size: 13px; font-weight: 600; margin-top: 4px; }
+.ep-btn--wa { background: var(--wa); color: #04240f; }
+
+/* ── Confirmación ─────────────────────────────────────────────────── */
+.ep-ok-ico {
+  width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 14px;
+  background: rgba(37,211,102,.12); color: var(--wa);
+  display: flex; align-items: center; justify-content: center;
+}
+.ep-pago {
+  background: var(--surf2); border-radius: 16px; padding: 15px; margin-top: 14px;
+}
+.ep-pago .ep-dato:last-child { border-bottom: none; }
