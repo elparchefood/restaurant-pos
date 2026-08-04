@@ -5656,3 +5656,111 @@ document.addEventListener('click', function (e) {
   if (n.activo) opProbarTono();
   opCheckDirty();
 });
+
+/* ══════════════════════════════════════════════════════════════
+   FOTO DEL RESTAURANTE (General)
+   Se guarda en el almacenamiento, bajo una carpeta con el id del restaurante —
+   las reglas de la base solo dejan escribir en la carpeta propia, así que un
+   restaurante no puede pisarle la foto a otro ni por error ni a propósito.
+   La dirección queda en `brands.logo_url`, que es lo que leen todas las
+   pantallas para pintarla en el círculo de arriba a la derecha.
+   ══════════════════════════════════════════════════════════════ */
+var _logoBrandId = null;
+
+async function genCargarLogo() {
+  var caja = document.getElementById('gen-logo-box');
+  if (!caja) return;
+  try {
+    var u = await sb.auth.getUser();
+    var tid = u.data && u.data.user && u.data.user.user_metadata && u.data.user.user_metadata.tenant_id;
+    if (!tid) return;
+    var r = await sb.from('brands').select('id,name,logo_url').eq('tenant_id', tid)
+      .order('created_at').limit(1).maybeSingle();
+    if (!r.data) return;
+    _logoBrandId = r.data.id;
+    genPintarLogo(r.data.logo_url, r.data.name);
+  } catch (e) { console.warn('logo:', e); }
+}
+
+function genPintarLogo(url, nombre) {
+  var caja = document.getElementById('gen-logo-box');
+  var quitar = document.getElementById('gen-logo-quitar');
+  if (!caja) return;
+  if (url) {
+    caja.innerHTML = '<img src="' + url + '" alt="">';
+    if (quitar) quitar.style.display = '';
+  } else {
+    var ini = (nombre || '?').split(/\s+/).filter(Boolean).slice(0, 2)
+      .map(function (w) { return w[0]; }).join('').toUpperCase();
+    caja.innerHTML = '<span>' + ini + '</span>';
+    if (quitar) quitar.style.display = 'none';
+  }
+}
+
+function genLogoNota(txt, mal) {
+  var n = document.getElementById('gen-logo-nota');
+  if (!n) return;
+  n.textContent = txt;
+  n.className = 'gen-logo-nota' + (mal ? ' mal' : '');
+}
+
+async function genSubirLogo(input) {
+  var f = input.files && input.files[0];
+  input.value = '';
+  if (!f) return;
+  if (f.size > 3 * 1024 * 1024) { genLogoNota('Esa imagen pesa más de 3 MB. Escoge una más liviana.', true); return; }
+  if (!_logoBrandId) { genLogoNota('No se pudo identificar tu restaurante. Recarga la pantalla.', true); return; }
+
+  genLogoNota('Subiendo…');
+  try {
+    var u = await sb.auth.getUser();
+    var tid = u.data.user.user_metadata.tenant_id;
+    /* El nombre lleva la hora: si se reemplaza la foto, el navegador y el .exe
+       tienen que bajar una dirección distinta. Con el mismo nombre se quedarían
+       mostrando la vieja — es lo que nos pasó con el logo de Cobra. */
+    var ext = (f.type === 'image/png' ? 'png' : f.type === 'image/webp' ? 'webp' : 'jpg');
+    var ruta = tid + '/logo-' + Date.now() + '.' + ext;
+
+    var up = await sb.storage.from('marca').upload(ruta, f, { contentType: f.type, upsert: true });
+    if (up.error) { genLogoNota('No se pudo subir: ' + (up.error.message || ''), true); return; }
+
+    var pub = sb.storage.from('marca').getPublicUrl(ruta);
+    var url = pub.data && pub.data.publicUrl;
+    if (!url) { genLogoNota('No se pudo obtener la dirección de la imagen.', true); return; }
+
+    var g = await sb.from('brands').update({ logo_url: url }).eq('id', _logoBrandId).select('id');
+    if (g.error || !g.data || !g.data.length) {
+      genLogoNota('Se subió, pero no se pudo guardar: ' + ((g.error && g.error.message) || 'sin permisos'), true);
+      return;
+    }
+    genPintarLogo(url, '');
+    if (typeof window.posBrandLogo === 'function') window.posBrandLogo(url);   // se ve al instante, sin recargar
+    genLogoNota('Listo. Ya la ven todas tus cuentas.');
+  } catch (e) {
+    genLogoNota('No se pudo subir: ' + (e.message || e), true);
+  }
+}
+
+async function genQuitarLogo() {
+  if (!_logoBrandId) return;
+  var g = await sb.from('brands').update({ logo_url: null }).eq('id', _logoBrandId).select('id,name');
+  if (g.error) { genLogoNota('No se pudo quitar: ' + g.error.message, true); return; }
+  genPintarLogo('', (g.data && g.data[0] && g.data[0].name) || '');
+  if (typeof window.posBrandLogo === 'function') window.posBrandLogo('');
+  genLogoNota('Se quitó. Vuelven las iniciales.');
+}
+
+(function () {
+  function enganchar() {
+    var s = document.getElementById('gen-logo-subir');
+    var q = document.getElementById('gen-logo-quitar');
+    var f = document.getElementById('gen-logo-file');
+    if (!s || !f) { setTimeout(enganchar, 500); return; }
+    s.addEventListener('click', function () { f.click(); });
+    f.addEventListener('change', function () { genSubirLogo(f); });
+    if (q) q.addEventListener('click', genQuitarLogo);
+    genCargarLogo();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', enganchar);
+  else enganchar();
+})();

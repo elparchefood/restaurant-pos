@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css">
-<link rel="stylesheet" href="configuracion.css?v=1788760000">
+<link rel="stylesheet" href="configuracion.css?v=1789100000">
 </head>
 <body>
 <div class="cf-root">
@@ -297,6 +297,27 @@
         <!-- MARCA / RESTAURANTE -->
         <div class="cf-form-card">
           <h3 class="cf-form-card-title">Marca / Restaurante</h3>
+
+          <!-- La foto del negocio. Va en el circulo de arriba a la DERECHA, el
+               del nombre y el rol, en TODAS las cuentas del restaurante. El
+               recuadro de arriba a la izquierda sigue siendo el de Cobra POS. -->
+          <div class="cf-form-field">
+            <label class="cf-form-label">Foto del restaurante</label>
+            <div class="gen-logo-row">
+              <div class="gen-logo-box" id="gen-logo-box"><span id="gen-logo-ini">?</span></div>
+              <div class="gen-logo-txt">
+                <div class="gen-logo-t">La ven todas tus cuentas</div>
+                <div class="gen-logo-s">Aparece arriba a la derecha, junto al nombre y el rol, en el computador, la caja y la tablet de tus meseros.</div>
+                <div class="gen-logo-btns">
+                  <button type="button" class="lm-btn-ghost sm" id="gen-logo-subir">Subir foto</button>
+                  <button type="button" class="lm-btn-ghost sm" id="gen-logo-quitar" style="display:none">Quitar</button>
+                </div>
+                <div class="gen-logo-nota" id="gen-logo-nota">Cuadrada, mínimo 200×200. Máximo 3 MB.</div>
+              </div>
+            </div>
+            <input type="file" id="gen-logo-file" accept="image/png,image/jpeg,image/webp" style="display:none">
+          </div>
+
           <div class="cf-form-field">
             <label class="cf-form-label" for="gen-nombre">Nombre del gerente</label>
             <input class="cf-form-input" id="gen-nombre" placeholder="Ej. Juan Garcia" autocomplete="off">
@@ -2621,7 +2642,7 @@
   <script src="pos-plan.js?v=1788500000"></script>
 <script src="pos-perms.js?v=1785030000"></script>
 <script>if(window.posRequirePin) posRequirePin(['config.general','config.salon','config.usuarios']);</script>
-<script src="pos-brand.js?v=1788600000"></script>
+<script src="pos-brand.js?v=1789100000"></script>
 <script src="pos-print.js?v=1788310000"></script>
 <script src="pos-print-listener.js?v=4"></script>
 <script src="pos-impuestos.js?v=1"></script>
@@ -2630,7 +2651,7 @@
 <!-- Es quien sabe tocar los tonos con el volumen configurado. Sin esto el
      boton Probar no sonaba: la funcion que llama no existia. -->
 <script src="pos-notify.js?v=1788790000"></script>
-<script src="configuracion.js?v=1788790000"></script>
+<script src="configuracion.js?v=1789100000"></script>
 </body>
 </html>
 

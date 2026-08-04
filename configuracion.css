@@ -1421,3 +1421,20 @@ div.master[data-tab].cia-active { display: flex !important; }
   font-family:inherit; font-size:12.5px; color:var(--ink); background:var(--surface); outline:none; }
 .iv-input:focus{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
 .iv-input::placeholder{ color:var(--ink-4); }
+
+/* ── Foto del restaurante (General) ──
+   Va en el círculo de arriba a la derecha de TODAS las cuentas del negocio. */
+.gen-logo-row { display: flex; gap: 16px; align-items: flex-start; }
+.gen-logo-box {
+  width: 76px; height: 76px; border-radius: 20px; flex-shrink: 0; overflow: hidden;
+  background: #EEF2FF; border: 1px solid #E2E8F0; color: #5B6BFF;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; font-weight: 800;
+}
+.gen-logo-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gen-logo-txt { flex: 1; min-width: 0; }
+.gen-logo-t { font-size: 13.5px; font-weight: 700; color: #0F172A; }
+.gen-logo-s { font-size: 12.5px; color: #64748B; margin-top: 2px; line-height: 1.45; }
+.gen-logo-btns { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.gen-logo-nota { font-size: 11.5px; color: #94A3B8; margin-top: 7px; }
+.gen-logo-nota.mal { color: #DC2626; }

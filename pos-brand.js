@@ -152,5 +152,90 @@
   if (document.body) observar();
   else document.addEventListener('DOMContentLoaded', observar);
 
+
+  /* ── LA FOTO DEL RESTAURANTE ────────────────────────────────────────
+     El recuadro de arriba a la IZQUIERDA lleva siempre el logo de Cobra POS:
+     eso no cambia. Esta foto va en el círculo de arriba a la DERECHA, el que
+     acompaña al nombre y al rol de quien tiene la sesión abierta.
+
+     Es del RESTAURANTE, no de la persona: la sube el dueño una vez y la ven
+     todas las cuentas de ese negocio — el cajero, el mesero, la cocina. Por eso
+     sale de `brands.logo_url` y no de los datos de cada usuario.
+
+     Cada pantalla bautizó ese círculo a su manera (tb-avatar, user-avatar,
+     topbar-avatar, userAv...), así que se buscan todos en vez de editar diez
+     archivos. Es el mismo criterio con el que este archivo normaliza el bloque
+     de marca. */
+  var LS_LOGO = 'pos.brand.logo';
+  var AVATARES = ['tb-avatar', 'dd-avatar', 'user-avatar', 'topbar-avatar', 'userAv', 'mesero-avatar'];
+
+  function logoCache() {
+    try { return localStorage.getItem(LS_LOGO) || ''; } catch (e) { return ''; }
+  }
+
+  async function logoDesdeDB() {
+    var s = cliente();
+    if (!s) return '';
+    try {
+      var u = await s.auth.getUser();
+      var tid = u && u.data && u.data.user && u.data.user.user_metadata && u.data.user.user_metadata.tenant_id;
+      if (!tid) return '';
+      var r = await s.from('brands').select('logo_url').eq('tenant_id', tid)
+        .order('created_at').limit(1).maybeSingle();
+      return (r && r.data && r.data.logo_url) || '';
+    } catch (e) { return ''; }   // sin conexión: se queda con lo que haya en cache
+  }
+
+  function pintarFoto(el, url) {
+    if (!el || !url) return;
+    if (el.dataset.fotoUrl === url) return;   // ya está puesta
+    el.dataset.fotoUrl = url;
+    el.innerHTML = '<img src="' + url + '" alt="" ' +
+      'style="width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit">';
+    el.style.background = 'transparent';
+    el.style.color = 'transparent';
+  }
+
+  function pintarFotoEnTodos(url) {
+    if (!url) return;
+    for (var i = 0; i < AVATARES.length; i++) pintarFoto(document.getElementById(AVATARES[i]), url);
+  }
+
+  function arrancarFoto() {
+    var url = logoCache();
+    pintarFotoEnTodos(url);
+
+    /* Varias pantallas escriben las iniciales en ese círculo DESPUÉS de que
+       esto corre, y borrarían la foto. En vez de adivinar el orden de carga, se
+       vigila el elemento y se vuelve a poner si alguien lo pisa. */
+    if (url && window.MutationObserver) {
+      for (var i = 0; i < AVATARES.length; i++) {
+        (function (el) {
+          if (!el) return;
+          new MutationObserver(function () {
+            if (!el.querySelector('img')) { el.dataset.fotoUrl = ''; pintarFoto(el, logoCache()); }
+          }).observe(el, { childList: true, characterData: true, subtree: true });
+        })(document.getElementById(AVATARES[i]));
+      }
+    }
+
+    // Y se refresca desde la base, por si el dueño la cambió en otro equipo.
+    logoDesdeDB().then(function (nueva) {
+      if (nueva === url) return;
+      try { nueva ? localStorage.setItem(LS_LOGO, nueva) : localStorage.removeItem(LS_LOGO); } catch (e) {}
+      if (nueva) pintarFotoEnTodos(nueva);
+    });
+  }
+
+  /* Para que Configuración avise cuando la acaban de cambiar, sin recargar. */
+  window.posBrandLogo = function (url) {
+    try { url ? localStorage.setItem(LS_LOGO, url) : localStorage.removeItem(LS_LOGO); } catch (e) {}
+    if (url) pintarFotoEnTodos(url);
+    return url || '';
+  };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arrancarFoto);
+  else arrancarFoto();
+
   window.posBrandRefresh = init;
 })();
