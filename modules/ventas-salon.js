@@ -384,6 +384,41 @@
      Esto se saca aparte para poder llamarlo también al arrancar, sin esperas.
      Lo que SÍ viene del servidor es el estado de cada mesa (libre, ocupada, el
      reloj, la cuenta): eso cambia a cada rato y llega un instante después. */
+  /* El plano del salón, guardado por NOSOTROS. No basta con leer la
+     configuración: esa llave solo existe si el dueño pasó por Configuración y
+     guardó en ESTE computador. En el equipo de Sergio no estaba, y por eso al
+     entrar seguía diciendo "Cargando mesas…". Ahora, la primera vez que las
+     mesas llegan del servidor —vengan de donde vengan— se guarda su plano
+     (cuáles son, cómo se llaman, en qué zona), y a partir de ahí el salón se
+     dibuja al instante. El ESTADO de cada mesa nunca se guarda: eso cambia a
+     cada rato y siempre viene fresco. */
+  function guardarPlanoSalon() {
+    if (!window.posCache || !state.tables || !state.tables.length) return;
+    posCache.guardarPronto('salon', function () {
+      return {
+        zones: state.zones || [],
+        tables: state.tables.map(function (t) {
+          return { id: t.id, name: t.name, number: t.number, seats: t.seats, zone_id: t.zone_id };
+        })
+      };
+    }, 300);
+  }
+
+  function planoGuardado() {
+    var g = window.posCache && posCache.leer('salon');
+    var d = g && g.datos;
+    if (!d || !d.tables || !d.tables.length) return null;
+    return {
+      zones: d.zones || [],
+      tables: d.tables.map(function (t) {
+        return {
+          id: t.id, name: t.name, number: t.number, seats: t.seats, zone_id: t.zone_id,
+          status: 'libre', total: 0, items_count: 0, minutes: 0, mesero_initials: '', persons: 0
+        };
+      })
+    };
+  }
+
   function mesasBase() {
     var localConfig = (function() {
       try {
@@ -832,6 +867,7 @@
       await Promise.all([fetchTables(), fetchDeliveries(), fetchQuickOrders(), fetchQuickDeliveredCount(), vsProdMapCargar()]);
 
     state.loading = false;
+    guardarPlanoSalon();   // para que la próxima vez el salón salga al instante
     if (state.selectedTableId) {
       const { order, items, sessionOrders: _sess } = await fetchOrderData(state.selectedTableId);
       state.currentOrder = order;
@@ -3659,8 +3695,19 @@
        todas en libre. Un instante después llega el estado real y las que estén
        ocupadas se pintan. Antes esto decía "Cargando mesas…" contra el
        servidor teniendo el plano del salón en el disco. */
-    var _mesas = mesasBase();
-    if (_mesas.length) state.tables = _mesas;
+    /* Primero lo que guardamos nosotros la última vez (siempre existe si ya se
+       entró una vez); si no, la configuración local. */
+    var _plano = planoGuardado();
+    if (_plano) {
+      state.tables = _plano.tables;
+      if (!state.zones.length && _plano.zones.length) {
+        state.zones = _plano.zones;
+        if (!state.floor) state.floor = state.zones[0].id;
+      }
+    } else {
+      var _mesas = mesasBase();
+      if (_mesas.length) state.tables = _mesas;
+    }
     /* Ojo: NO se apaga state.loading. Si se apagara, los pedidos rápidos y los
        domicilios —que sí dependen del servidor— dirían "no hay ninguno" antes
        de saberlo, y eso es mentirle a un mesero. Solo el salón se adelanta. */
