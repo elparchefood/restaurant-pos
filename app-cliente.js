@@ -236,12 +236,23 @@
     }).join('') + '</nav>';
 
     pinta('<div class="ep-app">' + lateral +
-      '<div class="ep-cuerpo"><div class="ep-scroll">' +
-        (vista === 'inicio' ? cuerpoInicio(c, n, saludo) : enConstruccion()) +
-      '</div>' + tabs + '</div></div>');
+      '<div class="ep-cuerpo"><div class="ep-scroll">' + cuerpoDe(vista, c, n, saludo) + '</div>' +
+      tabs + '</div></div>');
 
     document.querySelectorAll('[data-ir]').forEach(function (b) {
-      b.addEventListener('click', function () { vista = b.dataset.ir; pantallaDentro(); });
+      b.addEventListener('click', async function () {
+        vista = b.dataset.ir;
+        // Se trae lo que esa pestaña necesita ANTES de pintarla, para que no
+        // aparezca vacia un instante y luego se llene de golpe.
+        if (vista === 'carta')  await cargarCarta();
+        if (vista === 'puntos') await cargarCatalogo();
+        catActiva = 0;
+        window.scrollTo(0, 0);
+        pantallaDentro();
+      });
+    });
+    document.querySelectorAll('[data-cat]').forEach(function (b) {
+      b.addEventListener('click', function () { catActiva = Number(b.dataset.cat) || 0; pantallaDentro(); });
     });
     document.querySelectorAll('[data-salir]').forEach(function (b) {
       b.addEventListener('click', salir);
@@ -341,16 +352,183 @@
       acts + actividad;
   }
 
-  function enConstruccion() {
-    var t = null;
-    for (var i = 0; i < TABS.length; i++) if (TABS[i].k === vista) t = TABS[i];
+  /* ── Las demás pantallas ──────────────────────────────────────────
+     La carta y el catálogo de puntos se piden UNA vez y quedan en memoria: son
+     los mismos para todos y no cambian entre pestaña y pestaña. */
+  var catActiva = 0;
+
+  function encabezado(titulo, sub) {
     return '<div class="ep-saludo">' +
-        '<div><div class="ep-saludo-t">' + esc((S.negocio && S.negocio.nombre) || '') + '</div>' +
-        '<div class="ep-saludo-n">' + esc(t ? t.n : 'El local') + '</div></div>' +
-        '<div class="ep-saludo-btns"><button class="ep-redondo" data-ir="inicio">' + ico('home', 17) + '</button></div>' +
+      '<div><div class="ep-saludo-t">' + esc(sub || (S.negocio && S.negocio.nombre) || '') + '</div>' +
+      '<div class="ep-saludo-n">' + esc(titulo) + '</div></div>' +
+      '<div class="ep-saludo-btns"><button class="ep-redondo" data-ir="inicio">' + ico('home', 17) + '</button></div>' +
+    '</div>';
+  }
+
+  // ── Carta ───────────────────────────────────────────────────────────
+  function cuerpoCarta() {
+    var cats = S.carta || [];
+    if (!cats.length) return encabezado('Carta') + '<div class="ep-vacio">La carta todavía no está publicada.</div>';
+    if (catActiva >= cats.length) catActiva = 0;
+    var c = cats[catActiva];
+
+    var chips = '<div class="ep-cats">' + cats.map(function (x, i) {
+      return '<button class="ep-cat' + (i === catActiva ? ' on' : '') + '" data-cat="' + i + '">' + esc(x.categoria) + '</button>';
+    }).join('') + '</div>';
+
+    var platos = '<div class="ep-platos">' + (c.productos || []).map(function (p) {
+      /* Si tiene presentaciones (Personal / Familiar) el precio se muestra como
+         "desde": enseñar solo uno haría que el cliente se lleve una sorpresa. */
+      var pres = p.presentaciones || [];
+      var precio = Number(p.precio) || 0;
+      var desde = false;
+      if (pres.length) {
+        var mins = pres.map(function (x) { return Number(x.precio) || 0; }).filter(function (x) { return x > 0; });
+        if (mins.length) { precio = Math.min.apply(null, mins); desde = mins.length > 1; }
+      }
+      return '<button class="ep-plato">' +
+        '<div class="ep-plato-img">' + (p.foto ? '<img src="' + esc(p.foto) + '" alt="" loading="lazy">' : ico('bolsa', 34)) + '</div>' +
+        '<div class="ep-plato-b">' +
+          '<div class="ep-plato-n">' + esc(p.nombre) + '</div>' +
+          (p.descripcion ? '<div class="ep-plato-d">' + esc(p.descripcion) + '</div>' : '') +
+          '<div class="ep-plato-p">' + (desde ? '<small>desde </small>' : '') + COP(precio) + '</div>' +
+        '</div></button>';
+    }).join('') + '</div>';
+
+    var cerrado = (S.negocio && !S.negocio.abierto)
+      ? '<div class="ep-aviso">' + esc(S.negocio.detalle || 'Ahora está cerrado') + '. ' +
+        (S.negocio.permite_programar
+          ? 'Puedes dejar tu pedido programado para cuando abramos.'
+          : 'Puedes mirar la carta, pero los pedidos se toman cuando abrimos.') + '</div>'
+      : '';
+
+    return encabezado('Carta', 'Lo que hay hoy') + chips + cerrado + platos;
+  }
+
+  // ── Puntos ──────────────────────────────────────────────────────────
+  function cuerpoPuntos() {
+    var c = S.cliente || {};
+    var mios = Number(c.puntos) || 0;
+    var cat = S.catalogo || [];
+
+    var hero = '<div class="ep-pts-hero" style="margin-bottom:16px">' +
+      '<div class="ep-pts-gema"></div>' +
+      '<div class="ep-pts-lbl">Mis puntos</div>' +
+      '<div class="ep-pts-num">' + mios + '<span>pts</span></div>' +
+      '<div class="ep-pts-nota">Ganas 1 punto por cada $1.000 de tus pedidos</div>' +
+    '</div>';
+
+    /* El catálogo se muestra SIEMPRE completo, con la distancia de cada premio.
+       Nunca "todavía no puedes redimir nada": ver cuánto falta es lo que hace
+       que el cliente vuelva. */
+    var lista = cat.length ? cat.map(function (k) {
+      var costo = Number(k.costo) || 0;
+      var alcanza = mios >= costo;
+      var faltan = Math.max(0, costo - mios);
+      return '<div class="ep-canje' + (alcanza ? '' : ' lejos') + '">' +
+        '<div class="ep-canje-ico">' + (k.foto ? '<img src="' + esc(k.foto) + '" alt="">' : ico('gift', 20)) + '</div>' +
+        '<div class="ep-canje-b"><div class="ep-canje-n">' + esc(k.nombre) + '</div>' +
+        '<div class="ep-canje-s">' + (alcanza ? '¡Ya puedes pedirlo!' : 'Te faltan ' + faltan + ' pts') + '</div></div>' +
+        '<button class="ep-canje-btn"' + (alcanza ? '' : ' disabled') + '>' + costo + ' pts</button>' +
+      '</div>';
+    }).join('') : '<div class="ep-vacio">Todavía no hay premios para canjear. Sigue sumando puntos.</div>';
+
+    return encabezado('Puntos', 'Tu programa de fidelidad') + hero +
+      '<div class="ep-tile-lbl" style="font-size:16px;margin:4px 0 2px">Qué puedes pedir con ellos</div>' + lista;
+  }
+
+  // ── Billetera ───────────────────────────────────────────────────────
+  function cuerpoBilletera() {
+    var c = S.cliente || {};
+    return encabezado('Billetera', 'Tu saldo') +
+      '<div class="ep-wcard" style="margin-bottom:14px">' +
+        '<div class="ep-wc-top"><span class="ep-wc-marca">' + esc(((S.negocio && S.negocio.nombre) || '').toUpperCase()) + '</span></div>' +
+        '<div class="ep-wc-lbl">Saldo disponible</div>' +
+        '<div class="ep-wc-monto">' + COP(c.saldo) + '</div>' +
+        '<div class="ep-wc-num">•••• •••• •••• ' + esc(String(c.telefono || '').slice(-4)) + '</div>' +
+        '<div class="ep-wc-nom">' + esc(c.nombre || '') + '</div>' +
       '</div>' +
-      '<div class="ep-tile"><div class="ep-tile-lbl">Ya casi</div>' +
-        '<div class="ep-tile-sub" style="margin-top:6px">Esta pantalla es la que sigue. Vuelve a Inicio mientras tanto.</div></div>';
+      '<div class="ep-aviso">Las recargas todavía no están abiertas. Cuando lo estén, vas a poder recargar aquí y pagar tus pedidos con tu saldo.</div>';
+  }
+
+  // ── Perfil ──────────────────────────────────────────────────────────
+  function cuerpoPerfil() {
+    var c = S.cliente || {};
+    var n = c.nivel || null;
+    var tel = String(c.telefono || '');
+    return encabezado('Perfil', 'Tu cuenta') +
+      '<div class="ep-perfil-hd">' +
+        '<div class="ep-avatar-g">' + esc(iniciales(c.nombre)) + '</div>' +
+        '<div class="ep-perfil-n">' + esc(c.nombre || '') + '</div>' +
+        '<div class="ep-perfil-t">' + esc(tel.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3')) + '</div>' +
+        (n ? '<span class="ep-chip-rango" style="color:' + esc(n.color || '') + '">' + esc(n.nombre) + '</span>' : '') +
+      '</div>' +
+
+      (n ? '<div class="ep-tile" style="margin-bottom:12px">' +
+        '<div class="ep-tile-lbl">Tu progreso</div>' +
+        '<div class="ep-tile-sub">' + (n.siguiente
+          ? (Number(n.progreso) || 0) + '% del camino a ' + esc(n.siguiente)
+          : 'Estás en el nivel más alto') + '</div>' +
+        '<div class="ep-bar" style="margin-top:12px"><i style="width:' + (Number(n.progreso) || 0) + '%;background:' + esc(n.color || '#7C5CFF') + '"></i></div>' +
+      '</div>' : '') +
+
+      '<div class="ep-stats">' +
+        '<div class="ep-stat"><div class="ep-stat-v">' + ((n && n.pedidos) || (c.pedidos || []).length) + '</div><div class="ep-stat-l">Pedidos</div></div>' +
+        '<div class="ep-stat"><div class="ep-stat-v">' + (Number(c.puntos) || 0) + '</div><div class="ep-stat-l">Puntos</div></div>' +
+        '<div class="ep-stat"><div class="ep-stat-v">' + COP(c.saldo) + '</div><div class="ep-stat-l">Saldo</div></div>' +
+      '</div>' +
+
+      '<div class="ep-tile" style="margin-top:12px">' +
+        '<div class="ep-tile-lbl" style="margin-bottom:4px">Tus datos</div>' +
+        '<div class="ep-dato"><span>Dirección</span><span>' + (esc(c.direccion) || '—') + '</span></div>' +
+        '<div class="ep-dato"><span>Barrio</span><span>' + (esc(c.barrio) || '—') + '</span></div>' +
+      '</div>' +
+
+      '<button class="ep-btn ep-btn--ghost" style="margin-top:16px" data-salir="1">Cerrar sesión</button>';
+  }
+
+  // ── El local ────────────────────────────────────────────────────────
+  function cuerpoLocal() {
+    var e = S.negocio || {};
+    var h = S.horarios || null;
+    var dias = [['lunes','Lunes'],['martes','Martes'],['miercoles','Miércoles'],['jueves','Jueves'],
+                ['viernes','Viernes'],['sabado','Sábado'],['domingo','Domingo']];
+    var filas = h ? dias.map(function (d) {
+      var x = h[d[0]] || {};
+      return '<div class="ep-dato"><span>' + d[1] + '</span><span>' +
+        (x.activo ? esc(x.abre + ' – ' + x.cierra) : 'Cerrado') + '</span></div>';
+    }).join('') : '';
+
+    return encabezado('El local', esc(e.nombre || '')) +
+      '<div class="ep-tile" style="margin-bottom:12px">' +
+        '<div class="ep-tile-lbl">Ahora mismo</div>' +
+        '<div class="ep-estado' + (e.abierto ? ' abierto' : '') + '" style="margin-top:10px">' +
+          '<span class="ep-punto"></span>' + esc(e.detalle || (e.abierto ? 'Abierto' : 'Cerrado')) + '</div>' +
+      '</div>' +
+      (filas ? '<div class="ep-tile"><div class="ep-tile-lbl" style="margin-bottom:4px">Horarios</div>' + filas + '</div>'
+             : '<div class="ep-aviso">El restaurante todavía no ha publicado sus horarios.</div>');
+  }
+
+  function cuerpoDe(vista, c, n, saludo) {
+    if (vista === 'inicio')    return cuerpoInicio(c, n, saludo);
+    if (vista === 'carta')     return cuerpoCarta();
+    if (vista === 'puntos')    return cuerpoPuntos();
+    if (vista === 'billetera') return cuerpoBilletera();
+    if (vista === 'perfil')    return cuerpoPerfil();
+    if (vista === 'local')     return cuerpoLocal();
+    return cuerpoInicio(c, n, saludo);
+  }
+
+  /* Se piden una sola vez, la primera que se entra a esa pestaña. */
+  async function cargarCarta() {
+    if (S.carta) return;
+    var r = await S.sb.rpc('fn_web_carta', { p_slug: S.slug });
+    S.carta = (r.data || []);
+  }
+  async function cargarCatalogo() {
+    if (S.catalogo) return;
+    var r = await S.sb.rpc('fn_web_puntos_catalogo', { p_slug: S.slug });
+    S.catalogo = (r.data || []);
   }
 
   // ── Arranque ────────────────────────────────────────────────────────
@@ -361,6 +539,7 @@
        devuelve lo público: sin eso, un desconocido tendría que poder leer la
        tabla de restaurantes, donde están los correos y los planes de todos. */
     var sb = window.supabase.createClient(SB_URL, ANON, { auth: { persistSession: false } });
+    S.sb = sb;
     var r = await sb.rpc('fn_web_publica', { p_slug: S.slug });
     var neg = (r.data && r.data[0]) || null;
     if (!neg) {
@@ -372,6 +551,7 @@
     S.negocio = neg;
     // Los rangos de ESTE restaurante, para la escalera. Cada uno tiene los suyos.
     S.niveles = Array.isArray(neg.niveles) ? neg.niveles : [];
+    S.horarios = neg.horarios || null;
     document.title = neg.nombre;
 
     // ¿Ya tenía sesión abierta? (la casilla "mantener mi sesión")

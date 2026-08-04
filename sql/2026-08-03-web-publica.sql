@@ -26,7 +26,10 @@ RETURNS TABLE (
   permite_programar boolean,
   -- Los rangos de ESTE restaurante, para pintar la escalera. Solo el nombre y
   -- el color: los umbrales en pesos son suyos y no se le muestran al cliente.
-  niveles   jsonb
+  niveles   jsonb,
+  -- Los horarios, para la pantalla "El local". Es información que el
+  -- restaurante quiere que su cliente vea.
+  horarios  jsonb
 )
 LANGUAGE plpgsql STABLE SECURITY DEFINER
 SET search_path = public
@@ -68,6 +71,10 @@ BEGIN
     CROSS JOIN LATERAL jsonb_array_elements(coalesce(c.niveles, '[]'::jsonb)) x
    WHERE c.tenant_id = t.id
       OR c.branch_id IN (SELECT b.id FROM branches b WHERE b.tenant_id = t.id);
+  SELECT c2.horarios INTO horarios
+    FROM ia_config c2 JOIN branches b2 ON b2.id = c2.branch_id
+   WHERE b2.tenant_id = t.id LIMIT 1;
+
   RETURN NEXT;
 END;
 $$;
