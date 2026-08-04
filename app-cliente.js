@@ -62,6 +62,32 @@
     return texto ? '<div class="ep-msg ep-msg--' + (mal ? 'mal' : 'ok') + '">' + esc(texto) + '</div>' : '';
   }
 
+  /* ── Tema claro / oscuro ──────────────────────────────────────────
+     Arranca como lo tenga el celular del cliente y él lo puede cambiar. Su
+     elección se recuerda: es su pantalla y sus ojos. */
+  var LLAVE_TEMA = 'cobra.web.tema';
+  function temaActual() {
+    try { return localStorage.getItem(LLAVE_TEMA) || 'auto'; } catch (e) { return 'auto'; }
+  }
+  function aplicarTema(t) {
+    var h = document.documentElement;
+    h.classList.remove('tema-claro', 'tema-oscuro');
+    if (t === 'claro')  h.classList.add('tema-claro');
+    if (t === 'oscuro') h.classList.add('tema-oscuro');
+    try { localStorage.setItem(LLAVE_TEMA, t); } catch (e) {}
+  }
+  function esOscuroAhora() {
+    var t = temaActual();
+    if (t === 'claro')  return false;
+    if (t === 'oscuro') return true;
+    return !window.matchMedia || !window.matchMedia('(prefers-color-scheme: light)').matches;
+  }
+  function alternarTema() {
+    aplicarTema(esOscuroAhora() ? 'claro' : 'oscuro');
+    if (S.cliente) pantallaDentro(); else pantallaEntrar('', false);
+  }
+  aplicarTema(temaActual());
+
   // ── 1. Entrar: teléfono + contraseña ────────────────────────────────
   function pantallaEntrar(aviso, malo) {
     pinta('<div class="ep-login">' + cabecera() +
@@ -185,7 +211,15 @@
     pin:   'M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z|M12 7a3 3 0 1 1 0 6 3 3 0 0 1 0-6z',
     plus:  'M12 5v14|M5 12h14',
     salir: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4|M16 17l5-5-5-5|M21 12H9',
-    bolsa: 'M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z|M3 6h18|M16 10a4 4 0 0 1-8 0'
+    bolsa: 'M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z|M3 6h18|M16 10a4 4 0 0 1-8 0',
+    circulo: 'M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18z',
+    estrella: 'M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z',
+    corona: 'M2 18h20|M3 18l1.5-9 4.5 4 3-6 3 6 4.5-4L21 18z',
+    diamante: 'M6 3h12l4 6-10 12L2 9z|M2 9h20|M12 3 8 9l4 12 4-12z',
+    sol: 'M12 3v2|M12 19v2|M5.6 5.6l1.4 1.4|M17 17l1.4 1.4|M3 12h2|M19 12h2|M5.6 18.4 7 17|M17 7l1.4-1.4|M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8z',
+    luna: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+    tarjeta: 'M2 6h20v12H2z|M2 10h20',
+    reloj: 'M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18z|M12 7v5l3 2'
   };
   function ico(n, t) {
     t = t || 20;
@@ -257,11 +291,123 @@
     document.querySelectorAll('[data-salir]').forEach(function (b) {
       b.addEventListener('click', salir);
     });
+    document.querySelectorAll('[data-tema]').forEach(function (b) {
+      b.addEventListener('click', alternarTema);
+    });
+    document.querySelectorAll('[data-rango]').forEach(function (b) {
+      b.addEventListener('click', function () { chartRango = b.dataset.rango; pantallaDentro(); });
+    });
   }
 
   async function salir() {
     await acceso({ accion: 'salir', token: leerToken() });
     borrarToken(); S.cliente = null; vista = 'inicio'; pantallaEntrar('', false);
+  }
+
+  /* La escalera de rangos. Los iconos van por posición —círculo, estrella,
+     corona, diamante— así que sirve igual para un restaurante con tres niveles
+     que para uno con cuatro. */
+  var ICO_PASO = ['circulo', 'estrella', 'corona', 'diamante'];
+
+  function escalera(n) {
+    var lista = S.niveles || [];
+    if (!lista.length) return '';
+    var actual = -1;
+    for (var i = 0; i < lista.length; i++) if (n && lista[i].nombre === n.nombre) actual = i;
+    var html = '';
+    for (var j = 0; j < lista.length; j++) {
+      var hecho = j <= actual;
+      html += '<div class="ep-paso' + (hecho ? ' hecho' : '') + '" style="color:' +
+        esc(hecho ? (lista[j].color || '#e3b04b') : '') + '">' +
+        '<div class="ep-paso-o">' + ico(ICO_PASO[j] || 'circulo', 13) + '</div>' +
+        '<div class="ep-paso-l"' + (hecho ? ' style="color:inherit"' : '') + '>' + esc(lista[j].nombre) + '</div></div>';
+    }
+    return '<div class="ep-escalera">' + html + '</div>';
+  }
+
+  /* Panel "Mi billetera": el saldo grande, las cuatro cifras de un vistazo y la
+     barra de nivel con su escalera. */
+  function panelBilletera(c, n) {
+    var mini = [
+      { i: 'tarjeta', v: COP(c.saldo), d: 'Listo para pedir', l: 'Saldo' },
+      { i: 'gift',    v: (Number(c.puntos) || 0) + ' pts', d: 'Para redimir', l: 'Puntos' },
+      { i: 'bolsa',   v: String((n && n.pedidos) || (c.pedidos || []).length), d: 'Historial total', l: 'Pedidos' },
+      { i: 'estrella', v: (n && n.nombre) || '—', d: n && n.siguiente ? 'Siguiente: ' + n.siguiente : 'El más alto', l: 'Rango' }
+    ].map(function (m) {
+      return '<div class="ep-mini-c"><div class="ep-mini-ico">' + ico(m.i, 14) + '</div>' +
+        '<div class="ep-mini-d" style="margin:0 0 3px">' + esc(m.l) + '</div>' +
+        '<div class="ep-mini-v">' + esc(m.v) + '</div>' +
+        '<div class="ep-mini-d">' + esc(m.d) + '</div></div>';
+    }).join('');
+
+    return '<div class="ep-panel">' +
+      '<div class="ep-panel-hd"><div>' +
+        '<div class="ep-panel-lbl">Mi billetera</div>' +
+        '<div class="ep-panel-val">' + COP(c.saldo) + '</div></div>' +
+        '<button class="ep-gold" data-ir="billetera">＋ Recargar</button>' +
+      '</div>' +
+      '<div class="ep-mini-grid">' + mini + '</div>' +
+      (n ? '<div class="ep-nivel-fila">' +
+          '<span class="ep-nivel-chip">' + ico('estrella', 13) + esc(n.nombre) + '</span>' +
+          '<span class="ep-nivel-sig">' + (n.siguiente ? 'Siguiente · ' + esc(n.siguiente) : 'Nivel máximo') + '</span>' +
+        '</div>' +
+        '<div class="ep-bar" style="margin-top:9px"><i style="width:' + (Number(n.progreso) || 0) +
+          '%;background:linear-gradient(90deg,#8f2242,#e3b04b)"></i></div>' +
+        '<div class="ep-nivel-txt">' + (n.siguiente
+          ? 'Llevas <b>' + (Number(n.progreso) || 0) + '%</b> del camino a <b>' + esc(n.siguiente) + '</b>. Cada pedido te acerca.'
+          : 'Llegaste al nivel más alto. Gracias por volver.') + '</div>' +
+        escalera(n)
+      : '') +
+    '</div>';
+  }
+
+  /* Gráfica de actividad: los pedidos del cliente por mes. Es SU historial, no
+     un dato de ejemplo — la barra más alta es su mejor mes. */
+  var chartRango = 'mes';
+  function panelGrafica(c) {
+    var peds = c.pedidos || [];
+    var ahora = new Date();
+    var etiquetas = [], valores = [];
+
+    if (chartRango === 'mes') {
+      for (var d = 6; d >= 0; d--) {
+        var f = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() - d);
+        etiquetas.push(f.toLocaleDateString('es-CO', { weekday: 'short' }).replace('.', ''));
+        valores.push(peds.filter(function (p) {
+          var x = new Date(p.fecha);
+          return x.toDateString() === f.toDateString();
+        }).length);
+      }
+    } else {
+      for (var m = 6; m >= 0; m--) {
+        var g = new Date(ahora.getFullYear(), ahora.getMonth() - m, 1);
+        etiquetas.push(g.toLocaleDateString('es-CO', { month: 'short' }).replace('.', ''));
+        valores.push(peds.filter(function (p) {
+          var y = new Date(p.fecha);
+          return y.getMonth() === g.getMonth() && y.getFullYear() === g.getFullYear();
+        }).length);
+      }
+    }
+
+    var max = Math.max.apply(null, valores.concat([1]));
+    var barras = valores.map(function (v, i) {
+      var alto = Math.round((v / max) * 100);
+      return '<div class="ep-col">' +
+        '<div class="ep-barra-v' + (v === max && v > 0 ? ' top' : '') + '" style="height:' + Math.max(alto, 4) + '%"></div>' +
+        '<div class="ep-col-l">' + esc(etiquetas[i]) + '</div></div>';
+    }).join('');
+
+    return '<div class="ep-panel">' +
+      '<div class="ep-panel-hd"><div>' +
+        '<div class="ep-panel-lbl">Tu actividad</div>' +
+        '<div class="ep-panel-val">' + peds.length + ' pedido' + (peds.length === 1 ? '' : 's') + '</div></div>' +
+        '<div class="ep-seg">' +
+          '<button data-rango="mes"' + (chartRango === 'mes' ? ' class="on"' : '') + '>Mes</button>' +
+          '<button data-rango="anio"' + (chartRango === 'anio' ? ' class="on"' : '') + '>Año</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="ep-plot">' + barras + '</div>' +
+    '</div>';
   }
 
   function cuerpoInicio(c, n, saludo) {
@@ -277,6 +423,7 @@
       '<div class="ep-wc-monto">' + COP(c.saldo) + '</div>' +
       '<div class="ep-wc-num">•••• •••• •••• ' + esc(tel.slice(-4)) + '</div>' +
       '<div class="ep-wc-nom">' + esc(c.nombre || '') + '</div>' +
+      '<div class="ep-wc-spark">' + ico('estrella', 17) + '</div>' +
       '<div class="ep-wc-cut"></div>' +
       '<button class="ep-wc-btn" data-ir="billetera">＋ Recargar</button>' +
     '</div>';
@@ -294,24 +441,16 @@
        lista escrita aquí: cada uno tiene los suyos y puede cambiarlos. */
     var rango = '';
     if (n) {
-      var pasos = '';
-      var lista = S.niveles || [];
-      var idxActual = -1;
-      for (var i = 0; i < lista.length; i++) if (lista[i].nombre === n.nombre) idxActual = i;
-      for (var j = 0; j < lista.length; j++) {
-        var hecho = j <= idxActual;
-        pasos += '<div class="ep-paso' + (hecho ? ' hecho' : '') + '" style="color:' + esc(lista[j].color || '#7C5CFF') + '">' +
-          '<div class="ep-paso-o">' + (hecho ? '✓' : (j + 1)) + '</div>' +
-          '<div class="ep-paso-l">' + esc(lista[j].nombre) + '</div></div>';
-      }
       rango = '<div class="ep-tile">' +
         '<div class="ep-tile-lbl">Tu rango</div>' +
         '<div class="ep-tile-sub">' + (n.siguiente
-          ? (Number(n.progreso) || 0) + '% del camino a ' + esc(n.siguiente)
+          ? (Number(n.progreso) || 0) + '% a ' + esc(n.siguiente)
           : 'Estás en el nivel más alto') + '</div>' +
-        '<div class="ep-rango-nom" style="color:' + esc(n.color || '#7C5CFF') + '">' + esc(n.nombre || '') + '</div>' +
-        '<div class="ep-bar"><i style="width:' + (Number(n.progreso) || 0) + '%;background:' + esc(n.color || '#7C5CFF') + '"></i></div>' +
-        (pasos ? '<div class="ep-escalera">' + pasos + '</div>' : '') +
+        '<div class="ep-rango-nom" style="color:' + esc(n.color || '#e3b04b') + '">' +
+          ico('estrella', 15) + ' ' + esc(n.nombre || '') + '</div>' +
+        '<div class="ep-bar"><i style="width:' + (Number(n.progreso) || 0) +
+          '%;background:linear-gradient(90deg,#8f2242,#e3b04b)"></i></div>' +
+        escalera(n) +
       '</div>';
     }
 
@@ -340,15 +479,22 @@
         '<div><div class="ep-saludo-t">' + saludo + '</div>' +
         '<div class="ep-saludo-n">' + esc((c.nombre || '').split(' ')[0] || 'Hola') + '</div></div>' +
         '<div class="ep-saludo-btns">' +
+          '<button class="ep-redondo ep-tema" data-tema="1" title="Cambiar el tema">' +
+            ico(esOscuroAhora() ? 'sol' : 'luna', 17) + '</button>' +
           '<button class="ep-redondo" data-ir="local">' + ico('pin', 17) + '</button>' +
           '<button class="ep-redondo" data-salir="1">' + ico('salir', 17) + '</button>' +
         '</div>' +
       '</div>' +
       '<div class="ep-sec-hd"><div><div class="ep-sec-t">Resumen</div>' +
-        '<div class="ep-sec-s">' + esc(e.detalle || (e.abierto ? 'Abierto' : 'Cerrado')) + '</div></div>' +
-        (n ? '<span class="ep-chip-rango" style="color:' + esc(n.color || '') + '">' + esc(n.nombre) + '</span>' : '') +
+        '<div class="ep-sec-s">Aquí está el estado de tu cuenta en ' + esc(e.nombre || '') + '</div></div>' +
+        '<div class="ep-hd-der">' +
+          (n ? '<span class="ep-chip-rango" style="color:' + esc(n.color || '') + '">' +
+                 ico('estrella', 12) + ' ' + esc(n.nombre) + '</span>' : '') +
+          '<button class="ep-gold" data-ir="carta">' + ico('bolsa', 15) + ' Pedir ahora</button>' +
+        '</div>' +
       '</div>' +
       '<div class="ep-over">' + saldo + puntos + rango + '</div>' +
+      '<div class="ep-mid">' + panelBilletera(c, n) + panelGrafica(c) + '</div>' +
       acts + actividad;
   }
 
