@@ -27,7 +27,16 @@ input,select,textarea,button{font-family:inherit;}
 .cp-nav-inner{display:flex;align-items:center;gap:10px;}
 .cp-nav-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;color:#94A3B8;background:#F1F5F9;}
 .cp-nav-item.active .cp-nav-badge{color:#5B6BFF;background:#fff;}
-.cp-sidebar-footer{padding:12px;border-top:1px solid #ECEEF2;flex-shrink:0;}
+/* El pie va PEGADO ABAJO. `margin-top:auto` y no `flex:1` en el menu, porque
+   el contenedor del menu se rellena por JavaScript y no siempre lleva la
+   clase que lo estiraba — por eso el bloque de la cuenta quedaba a media
+   altura, flotando debajo del ultimo renglon. */
+.cp-sidebar-footer{margin-top:auto;padding:12px;border-top:1px solid #ECEEF2;flex-shrink:0;}
+/* Mismo bloque que el pie de Ventas y del chat: circulo de 36, nombre y rol. */
+.cp-user-row{display:flex;align-items:center;gap:10px;padding:6px 4px;min-width:0;}
+.cp-user-info{display:flex;flex-direction:column;min-width:0;padding:0;border:none;cursor:default;}
+.cp-user-name{font-size:12.5px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cp-user-role{font-size:10.5px;color:#94A3B8;font-weight:500;}
 .cp-stat-mini{display:flex;align-items:center;justify-content:space-around;padding:10px 6px;border-radius:10px;background:#F8FAFC;border:1px solid #ECEEF2;text-align:center;}
 .cp-stat-divider{width:1px;align-self:stretch;background:#ECEEF2;}
 .cp-stat-big{font-size:17px;font-weight:800;color:#0F172A;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1;}
@@ -48,7 +57,8 @@ input,select,textarea,button{font-family:inherit;}
 .cp-pill-success{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#16A34A;background:#DCFCE7;padding:5px 10px;border-radius:999px;}
 .cp-ram-chip{font-size:11px;color:#94A3B8;font-weight:500;padding:6px 10px;border-radius:8px;background:#F8FAFC;border:1px solid #ECEEF2;}
 .cp-user-info{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 4px;border-radius:8px;border:1px solid #ECEEF2;cursor:pointer;}
-.cp-avatar{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,#5B6BFF,#8B5CF6);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.cp-avatar{width:36px;height:36px;border-radius:50%;background:#EEF2FF;color:#5B6BFF;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;}
+.cp-avatar img{width:100%;height:100%;object-fit:cover;display:block;}
 .cp-user-name{font-size:12px;font-weight:600;color:#0F172A;}
 .cp-user-role{font-size:10px;color:#5B6BFF;font-weight:600;}
 

@@ -373,7 +373,11 @@ function updateStats(){}
 /* La cuenta que tiene la sesion abierta. La foto del restaurante la pone
    pos-brand.js, que conoce este circulo por su id (user-avatar). */
 async function pintarCuentaCP(){
-  const s=(window._pos&&window._pos.sb)||window.sb; if(!s) return;
+  /* Si el cliente de la base todavia no existe, se REINTENTA. Antes se rendia
+     en silencio y el bloque se quedaba en "Cargando..." para siempre: este
+     script corre antes de que pos-core termine de armar la sesion. */
+  const s=(window._pos&&window._pos.sb)||window.sb;
+  if(!s){ setTimeout(pintarCuentaCP,400); return; }
   let nombre='',rol='';
   try{
     const u=await s.auth.getUser();
@@ -381,6 +385,8 @@ async function pintarCuentaCP(){
     nombre=m.nombre||m.full_name||m.name||(u.data.user&&u.data.user.email)||'';
     rol=m.role||m.rol||'';
   }catch(e){}
+  // Sin sesion legible tampoco se deja el "Cargando..." puesto: se reintenta.
+  if(!nombre){ setTimeout(pintarCuentaCP,700); return; }
   const n=$('cp-user-nom'), r=$('cp-user-rol'), a=$('user-avatar');
   if(n)n.textContent=nombre||'Mi cuenta';
   if(r)r.textContent=rol?(rol.charAt(0).toUpperCase()+rol.slice(1)):'Usuario';
