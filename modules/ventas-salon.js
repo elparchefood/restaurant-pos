@@ -377,17 +377,22 @@
   // ─── Supabase — fetch data ────────────────────────────
 
   // Devuelve mesas del config localStorage enriquecidas con estado live de Supabase
-  async function fetchTables() {
-    // 1. Base: mesas configuradas en localStorage
-    const localConfig = (function() {
+  /* El salón —cuántas mesas hay, cómo se llaman, en qué zona están— ya vive en
+     el equipo: lo guarda Configuración. No hay ninguna razón para esperar al
+     servidor para dibujarlo. Palabras de Sergio: "pintar una mesa siempre es la
+     misma, ¿por qué tiene que tardarse cargando?".
+     Esto se saca aparte para poder llamarlo también al arrancar, sin esperas.
+     Lo que SÍ viene del servidor es el estado de cada mesa (libre, ocupada, el
+     reloj, la cuenta): eso cambia a cada rato y llega un instante después. */
+  function mesasBase() {
+    var localConfig = (function() {
       try {
         var raw = localStorage.getItem(CONFIG_KEY);
         if (raw) { var c = JSON.parse(raw); if (c.tables) return c; }
       } catch(e) {}
       return { zones: [], tables: [] };
     })();
-
-    const baseTables = localConfig.tables.map(function(t, i) {
+    return localConfig.tables.map(function(t, i) {
       return {
         id: t.id,
         name: t.name,
@@ -402,6 +407,10 @@
         persons: 0,
       };
     });
+  }
+
+  async function fetchTables() {
+    const baseTables = mesasBase();
 
     // Fallback: si localStorage no tiene mesas, leer desde Supabase con zone_id/zone_name/sort_order
     if (!baseTables.length) {
@@ -1358,7 +1367,10 @@
 
   // ─── Render: Mesa grid ────────────────────────────────
   function renderGrid() {
-    if (state.loading) {
+    /* Solo se dice "Cargando mesas…" si de verdad no hay mesas que mostrar
+       (primera vez en este equipo). Si el plano del salón ya está guardado, se
+       dibuja de una y los estados entran encima cuando lleguen. */
+    if (state.loading && !state.tables.length) {
       return `<div class="vs-grid"><div class="vs-loading">Cargando mesas…</div></div>`;
     }
 
@@ -3642,6 +3654,16 @@
     var _usr = window._pos && window._pos.state && window._pos.state.user;
     state.userRole = (_usr && (_usr.user_metadata?.role || _usr.app_metadata?.role)) || 'mesero';
     state.canCobrar = true;
+
+    /* El salón se dibuja YA con las mesas que están guardadas en el equipo,
+       todas en libre. Un instante después llega el estado real y las que estén
+       ocupadas se pintan. Antes esto decía "Cargando mesas…" contra el
+       servidor teniendo el plano del salón en el disco. */
+    var _mesas = mesasBase();
+    if (_mesas.length) state.tables = _mesas;
+    /* Ojo: NO se apaga state.loading. Si se apagara, los pedidos rápidos y los
+       domicilios —que sí dependen del servidor— dirían "no hay ninguno" antes
+       de saberlo, y eso es mentirle a un mesero. Solo el salón se adelanta. */
 
     // Initial render (loading state)
     render();

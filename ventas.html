@@ -74,7 +74,7 @@
   <!-- 5. Guard de caja -->
   <script src="pos-caja-guard.js?v=1"></script>
   <!-- 6. Módulo ventas salón -->
-  <script src="modules/ventas-salon.js?v=1789530000"></script>
+  <script src="modules/ventas-salon.js?v=1789540000"></script>
 
   <script>
     // Muestra error en el loader y agrega botón de reintento
@@ -105,11 +105,19 @@
       const loader = document.getElementById('pos-loader');
 
       if (window._pos.modules && window._pos.modules.ventasSalon) {
-        window._pos.modules.ventasSalon.init(app).then(function () {
-          clearTimeout(window._ventasBootTimeout);
-          if (loader) loader.style.display = 'none';
-          app.style.display = 'block';
-        }).catch(function (err) {
+        /* ── AQUÍ ESTABA EL "Cargando ventas…" QUE NO SE IBA ──────────────
+           El velo se quitaba cuando init() TERMINABA, e init() no termina
+           hasta que llegan las cinco consultas de mesas, domicilios y
+           pedidos. O sea: aunque el salón ya estuviera dibujado debajo, el
+           usuario seguía viendo la ruedita girando contra el servidor.
+           init() ahora pinta el salón antes de su primera espera, así que
+           en cuanto vuelve de la llamada ya hay algo debajo: se quita el
+           velo de una y los datos van entrando encima. */
+        var _p = window._pos.modules.ventasSalon.init(app);
+        clearTimeout(window._ventasBootTimeout);
+        if (loader) loader.style.display = 'none';
+        app.style.display = 'block';
+        _p.catch(function (err) {
           console.error('[ventas.html] init() falló:', err);
           _ventasShowError(err && err.message ? err.message : String(err));
         });
