@@ -4828,3 +4828,45 @@ volver a abrir el modal.
 Probado con 16 casos sobre la tabla de decisión, incluidos los dos que pueden
 trancar la caja: sin etiquetas creadas no se exige nada, y con la configuración
 corrupta tampoco se bloquea.
+
+## 122. El sonido de caja registradora, y el mesero que no tiene por qué enterarse
+
+**Sintetizar tiene un techo.** Se intentaron dos rondas de sonidos fabricados —la
+segunda ya con golpe de ataque, decaimiento distinto por armónico, modos
+desafinados entre sí y relaciones inarmónicas de campana— y Sergio los descartó
+las dos veces: "suenan como pitos". Tenía razón. Una registradora real es madera,
+resortes, un cajón que golpea y una campana dentro de un cuerpo metálico. Eso se
+aproxima, no se clava. Trajo una grabación y esa fue la salida.
+
+**Lo que se le hizo al archivo.** Venía como video de 7,3 s con el sonido
+repetido tres veces. Se comparó las tres tomas (idénticas), se recortó una a
+**1,34 s** quitando el silencio de los bordes, se le puso desvanecido de 60 ms
+para que no quede un clic, y se comprimió y niveló.
+
+**El nivel fue el trabajo de verdad.** Recortada y normalizada al pico, la
+grabación medía **7 dB por debajo** de los tonos fabricados: cambiar a ella se
+habría sentido como si bajaran el volumen. Se corrigió en dos sitios —compresión
+en el archivo y ganancia propia al reproducir— hasta dejarla en **-14,0 dB, el
+mismo nivel que Campana**, con pico 0,91 y sin recorte.
+
+**Una grabación NO puede pasar por la cadena de los tonos fabricados.** A los
+fabricados se les mete una curva de saturación para que suenen fuertes, porque
+son ondas puras y vienen "vacíos"; una grabación ya trae su energía adentro y con
+ese mismo empuje se frita. Por eso tiene camino propio: ganancia con la misma
+curva al cuadrado (para que la barra de volumen se comporte igual) y un limitador,
+sin saturación.
+
+Va **incrustada en `pos-notify.js`** (17 KB) y no como archivo aparte: así suena
+igual en el .exe y en el navegador y no depende de poder descargar nada en el
+momento — que es exactamente el error que dejó la carta sin fotos (ver 120). Se
+descodifica una sola vez y queda en memoria.
+
+**Al mesero no le llegan los avisos del chat.** Ni el sonido ni el aviso de
+pantalla. No se pregunta por el nombre del rol ("mesero") sino por el PERMISO
+`chat.usar`: Cobra se vende a otros restaurantes y cada uno bautiza sus roles
+como quiera, pero el permiso es el mismo en todos. Quien no puede abrir el chat
+tampoco necesita que le avisen de él.
+
+Falla ABIERTO a propósito: si el módulo de permisos no carga o se demora más de
+6 s, sí avisa. Que a un mesero le suene de más es una molestia; que el dueño se
+pierda un pedido porque los permisos no cargaron es plata.
