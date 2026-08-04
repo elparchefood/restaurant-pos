@@ -4913,3 +4913,52 @@ Probado con 8 casos sobre base simulada: referencia libre, ya usada por otro, el
 mismo pedido re-verificando, referencias demasiado cortas, guiones y espacios, y
 que marcarla no pise la dirección ni el barrio ni se duplique.
 Desplegado: `verificar-transferencia` v6, `verify-transfer` v24.
+
+## 124. La puerta de la página de clientes (`web-acceso` v1)
+
+Un solo camino, no dos. El código de WhatsApp **no registra ni inicia sesión**:
+lo único que hace es probar que el teléfono es de quien lo escribe. Después se
+mira si ya existe un cliente con ese número: si existe se enlaza, si no se crea.
+Por eso aquí nunca puede salir "este número ya está registrado" — el error que
+rompió la aprobación de clientes en agosto.
+
+El teléfono ES la cuenta: es donde ya viven los puntos y el nivel, y es el único
+dato que tienen los 72 clientes (ninguno tiene correo).
+
+**El día a día no lleva código.** El código se manda una sola vez, para crear la
+cuenta; de ahí en adelante se entra con teléfono y contraseña, con la casilla
+"mantener mi sesión" que escoge el cliente (12 horas si no la marca, 90 días si
+sí). El código vuelve solo si olvida la contraseña. Mandar un código cada vez
+sería un estorbo — decisión de Sergio.
+
+**Nada delicado se guarda tal cual.** La contraseña va derivada con PBKDF2 y
+120.000 vueltas, con sal distinta para cada cliente: dos personas con la misma
+contraseña tienen huellas distintas, y aunque alguien se llevara la tabla,
+probar contraseñas le costaría carísimo. Del código y del token de sesión solo
+se guarda su huella. Se usa lo que trae el propio motor (Web Crypto), sin
+librerías de terceros en algo tan delicado.
+
+**Detalles que importan:**
+- Las comparaciones son en tiempo constante. Un `===` corriente se sale en cuanto
+  encuentra la primera letra distinta, y esa diferencia de milésimas alcanza para
+  ir adivinando una credencial letra por letra.
+- El código va atado al teléfono (entra en la huella): el mismo código no sirve
+  en otro número.
+- Tope de 3 códigos por hora y 8 por día por número. Sin eso, la página sería una
+  forma de llenarle el WhatsApp a cualquiera.
+- El código vence a los 10 minutos, admite 3 intentos y se quema al usarse.
+- Al entrar con contraseña, el mensaje es el MISMO si el número no existe o si la
+  contraseña está mal: decir "ese número no está registrado" le confirmaría a un
+  desconocido quién es cliente del restaurante. Cuando el número no existe se
+  deriva igual una clave falsa, para que tampoco delate por el tiempo de
+  respuesta.
+- El nivel y la barra los calcula `fn_nivel_cliente`, la misma que usa el chat.
+  Aquí no se recalcula nada. El gasto acumulado NUNCA sale al cliente.
+
+Probado: 17 comprobaciones sobre el cifrado y la normalización del teléfono, y
+los candados de la puerta contra la función ya desplegada (dirección que no
+existe, página apagada, token inventado, acción desconocida).
+
+**Falta para poder entrar de verdad:** encender la página (`tenants.web_activa`)
+y la plantilla de autenticación de Meta para mandar el código fuera de la ventana
+de 24 h.
