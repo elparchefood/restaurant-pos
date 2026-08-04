@@ -110,24 +110,230 @@ html.tema-claro .ep-msg--ok,  html:not(.tema-oscuro) .ep-msg--ok  { color: #177a
 
 .ep-cargando { min-height: 100%; display: grid; place-items: center; color: var(--dim); font-size: 14px; }
 
-/* ── Dentro (provisional, mientras entran las pantallas del handoff) ── */
-.ep-dentro { max-width: 560px; margin: 0 auto; padding: 26px 20px 60px; }
-.ep-hola { font-size: 13px; color: var(--sub); }
-.ep-nombre { font-size: 21px; font-weight: 600; letter-spacing: -.02em; margin: 2px 0 20px; }
-.ep-tarjeta {
-  background: var(--surf); border: 1px solid var(--line); border-radius: 24px;
-  padding: 20px; margin-bottom: 12px;
+
+/* ══════════════════════════════════════════════════════════════════════
+   DENTRO — formas y medidas del handoff.
+   Escritorio (≥900px): barra lateral de 250px + tablero en rejilla.
+   Móvil (<900px): una columna con barra de pestañas abajo.
+   ══════════════════════════════════════════════════════════════════════ */
+.ep-app { min-height: 100%; display: flex; }
+
+/* ── Barra lateral (solo escritorio) ── */
+.ep-side { display: none; }
+.ep-side-hd { display: flex; align-items: center; gap: 11px; margin-bottom: 22px; padding: 0 6px; }
+.ep-side-logo {
+  width: 38px; height: 38px; border-radius: 13px;
+  background: linear-gradient(150deg,#a02a4e,#5c1530);
+  border: 1px solid rgba(227,176,75,.35); box-shadow: 0 8px 20px rgba(143,34,66,.4);
+  display: flex; align-items: center; justify-content: center; color: var(--accent); flex-shrink: 0;
 }
-.ep-pts {
+.ep-side-nom { font-size: 16px; font-weight: 700; letter-spacing: -.02em; }
+.ep-side-sec { font-size: 10px; text-transform: uppercase; letter-spacing: .14em; color: var(--dim); margin: 18px 0 7px; padding: 0 6px; }
+.ep-nav {
+  position: relative; display: flex; align-items: center; gap: 12px; width: 100%;
+  height: 44px; padding: 0 12px; border-radius: 14px; border: none; cursor: pointer;
+  background: none; color: var(--sub); font-family: inherit; font-size: 14px; font-weight: 600;
+  text-align: left; transition: background .15s, color .15s;
+}
+.ep-nav:hover { background: var(--surf2); color: var(--ink); }
+.ep-nav.on {
+  background: linear-gradient(120deg, rgba(227,176,75,.13), var(--surf2) 60%);
+  box-shadow: inset 0 0 0 1px rgba(227,176,75,.22), 0 8px 22px rgba(0,0,0,.45);
+  color: var(--ink);
+}
+.ep-nav.on svg { color: var(--accent); }
+.ep-nav.on::before {
+  content: ""; position: absolute; left: -14px; top: 11px; width: 3px; height: 22px;
+  background: var(--accent); border-radius: 0 3px 3px 0; box-shadow: 0 0 14px rgba(227,176,75,.75);
+}
+.ep-nav.on::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: auto; }
+html.tema-claro .ep-nav.on, html:not(.tema-oscuro) .ep-nav.on {
+  background: linear-gradient(120deg, rgba(184,132,42,.16), var(--surf2) 62%);
+  box-shadow: inset 0 0 0 1px rgba(184,132,42,.3);
+}
+
+/* ── Cuerpo ── */
+.ep-cuerpo { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ep-scroll { flex: 1; padding: 0 18px 26px; max-width: 1560px; width: 100%; margin: 0 auto; }
+
+.ep-saludo { display: flex; align-items: center; gap: 12px; padding: 20px 0 16px; }
+.ep-avatar {
+  width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+  background: var(--surf2); border: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 16px; color: var(--accent);
+}
+.ep-saludo-t { font-size: 13px; color: var(--sub); }
+.ep-saludo-n { font-size: 21px; font-weight: 600; letter-spacing: -.02em; }
+.ep-saludo-btns { margin-left: auto; display: flex; gap: 8px; }
+.ep-redondo {
+  width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line);
+  background: var(--surf); color: var(--accent); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.ep-sec-hd { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 6px 0 14px; }
+.ep-sec-t { font-size: 20px; font-weight: 600; letter-spacing: -.02em; }
+.ep-sec-s { font-size: 12.5px; color: var(--sub); }
+.ep-chip-rango {
+  font-size: 11.5px; font-weight: 700; padding: 5px 12px; border-radius: 999px;
+  background: var(--surf); border: 1px solid var(--line); white-space: nowrap;
+}
+
+.ep-over { display: flex; flex-direction: column; gap: 14px; }
+
+/* ── Tarjeta de saldo — forma exacta, no cambiar ── */
+.ep-wcard {
+  position: relative; overflow: hidden;
+  background: linear-gradient(152deg,#a02a4e 0%,#7a1d3c 42%,#3d0f1f 100%);
+  border-radius: 26px; padding: 20px 20px 18px; color: #fff;
+  box-shadow: 0 26px 70px rgba(143,34,66,.34);
+}
+.ep-wcard::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,.14), transparent 42%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.22);
+}
+.ep-wcard::after {
+  content: ""; position: absolute; top: -60px; right: -50px; width: 220px; height: 220px;
+  background: radial-gradient(circle, rgba(227,176,75,.30), transparent 68%); pointer-events: none;
+}
+.ep-wc-top { display: flex; align-items: center; justify-content: space-between; position: relative; }
+.ep-wc-marca { font-size: 15px; font-weight: 700; letter-spacing: .14em; }
+.ep-wc-rango { font-size: 11px; opacity: .85; }
+.ep-wc-lbl { font-size: 12px; opacity: .8; margin-top: 16px; position: relative; }
+.ep-wc-monto { font-size: 32px; font-weight: 700; letter-spacing: -.03em; position: relative; }
+.ep-wc-num { font-size: 13px; letter-spacing: .12em; opacity: .8; margin-top: 14px; position: relative; }
+.ep-wc-nom { font-size: 14px; margin-top: 2px; position: relative; }
+/* La muesca: un rectángulo del color del fondo con la esquina curvada, y dos
+   filetes para que la unión no quede en pico. Por eso el aura va en el body y
+   no aquí: este trozo pinta el fondo PLANO y tiene que coincidir. */
+.ep-wc-cut {
+  position: absolute; right: 0; bottom: 0; width: 150px; height: 54px;
+  background: var(--bg); border-top-left-radius: 22px; z-index: 1;
+}
+.ep-wc-cut::before, .ep-wc-cut::after { content: ""; position: absolute; width: 16px; height: 16px; }
+.ep-wc-cut::before { left: -16px; bottom: 0; background: radial-gradient(circle 16px at 0 0, transparent 15.4px, var(--bg) 15.6px); }
+.ep-wc-cut::after  { right: 0; top: -16px; background: radial-gradient(circle 16px at 0 0, transparent 15.4px, var(--bg) 15.6px); }
+.ep-wc-btn {
+  position: absolute; right: 6px; bottom: 6px; z-index: 2;
+  background: var(--accent); color: #1a1204; border: none; border-radius: 22px;
+  padding: 11px 16px; font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 10px 26px rgba(227,176,75,.34);
+}
+
+/* ── Tarjeta de puntos — forma exacta, no cambiar ── */
+.ep-pts-hero {
+  position: relative; overflow: hidden; border-radius: 26px; padding: 20px;
   background: linear-gradient(150deg,#f0c366 0%,#e3b04b 45%,#c99228 100%);
-  color: #1a1204; border: none;
+  color: #1a1204; box-shadow: 0 26px 70px rgba(227,176,75,.22);
 }
-.ep-pts-lbl { font-size: 12.5px; font-weight: 600; opacity: .72; }
-.ep-pts-num { font-size: 40px; font-weight: 700; letter-spacing: -.03em; line-height: 1.1; }
+.ep-pts-hero::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,.30), transparent 46%);
+}
+.ep-pts-gema {
+  position: absolute; right: -40px; bottom: -50px; width: 150px; height: 150px;
+  border-radius: 34px; transform: rotate(24deg);
+  background: linear-gradient(150deg, rgba(255,255,255,.34), rgba(26,18,4,.16));
+  pointer-events: none;
+}
+.ep-pts-lbl { font-size: 12.5px; font-weight: 600; opacity: .72; position: relative; }
+.ep-pts-num { font-size: 40px; font-weight: 700; letter-spacing: -.03em; line-height: 1.15; position: relative; }
 .ep-pts-num span { font-size: 17px; font-weight: 600; margin-left: 5px; }
-.ep-rango-lbl { font-size: 13px; color: var(--sub); }
-.ep-rango-nom { font-size: 17px; font-weight: 700; margin: 2px 0 10px; }
-.ep-barra { height: 7px; border-radius: 999px; background: var(--surf2); overflow: hidden; }
-.ep-barra i { display: block; height: 100%; border-radius: 999px; transition: width 1s cubic-bezier(.2,.8,.2,1); }
-.ep-mini { font-size: 12px; color: var(--dim); margin-top: 8px; }
-.ep-salir { margin-top: 18px; }
+.ep-pts-pill {
+  display: inline-block; background: #151519; color: var(--accent);
+  font-size: 11.5px; font-weight: 600; padding: 5px 12px; border-radius: 999px;
+  margin-top: 8px; position: relative;
+}
+.ep-pts-nota { font-size: 11.5px; opacity: .7; margin-top: 8px; position: relative; }
+.ep-pts-cut {
+  position: absolute; right: 0; top: 0; width: 54px; height: 54px;
+  background: var(--bg); border-bottom-left-radius: 22px; z-index: 1;
+}
+.ep-pts-cut::before, .ep-pts-cut::after { content: ""; position: absolute; width: 16px; height: 16px; }
+.ep-pts-cut::before { left: -16px; top: 0; background: radial-gradient(circle 16px at 0 100%, transparent 15.4px, var(--bg) 15.6px); }
+.ep-pts-cut::after  { right: 0; bottom: -16px; background: radial-gradient(circle 16px at 0 100%, transparent 15.4px, var(--bg) 15.6px); }
+.ep-pts-btn {
+  position: absolute; right: 4px; top: 4px; z-index: 2;
+  width: 42px; height: 42px; border-radius: 50%; border: none; cursor: pointer;
+  background: #151519; color: var(--accent); display: flex; align-items: center; justify-content: center;
+}
+
+/* ── Tarjeta de rango, con su escalera ── */
+.ep-tile {
+  background: var(--surf); border: 1px solid var(--line); border-radius: 26px; padding: 20px;
+  display: flex; flex-direction: column;
+}
+.ep-tile-lbl { font-size: 14px; font-weight: 600; }
+.ep-tile-sub { font-size: 12px; color: var(--sub); margin-top: 2px; }
+.ep-rango-nom { font-size: 17px; font-weight: 700; margin: 12px 0 8px; }
+.ep-bar { height: 5px; border-radius: 999px; background: var(--surf2); overflow: hidden; }
+.ep-bar i { display: block; height: 100%; border-radius: 999px; transition: width 1s cubic-bezier(.2,.8,.2,1); }
+.ep-escalera { display: flex; justify-content: space-between; gap: 6px; margin-top: auto; padding-top: 18px; }
+.ep-paso { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
+.ep-paso-o {
+  width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--line);
+  display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--dim);
+}
+.ep-paso.hecho .ep-paso-o { border-color: currentColor; }
+.ep-paso-l { font-size: 10px; color: var(--dim); text-align: center; }
+
+/* ── Accesos rápidos ── */
+.ep-acts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
+.ep-act {
+  background: var(--surf); border: 1px solid var(--line); border-radius: 19px;
+  padding: 14px 8px; display: flex; flex-direction: column; align-items: center; gap: 7px;
+  cursor: pointer; color: var(--ink); font-family: inherit; font-size: 11px; font-weight: 600;
+}
+.ep-act.primary { background: var(--ink); color: var(--bg); border-color: transparent; }
+html.tema-claro .ep-act.primary, html:not(.tema-oscuro) .ep-act.primary { background: #17161a; color: #fff; }
+
+/* ── Actividad ── */
+.ep-lista { margin-top: 22px; }
+.ep-li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.045); }
+html.tema-claro .ep-li, html:not(.tema-oscuro) .ep-li { border-bottom-color: rgba(23,22,26,.08); }
+.ep-li-ico {
+  width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
+  background: var(--surf2); display: flex; align-items: center; justify-content: center; color: var(--sub);
+}
+.ep-li-b { flex: 1; min-width: 0; }
+.ep-li-t { font-size: 13.5px; font-weight: 600; }
+.ep-li-s { font-size: 11.5px; color: var(--dim); }
+.ep-li-m { font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ep-vacio { color: var(--dim); font-size: 13px; padding: 26px 0; text-align: center; }
+
+/* ── Barra inferior (solo móvil) ── */
+.ep-tabs {
+  position: sticky; bottom: 0; z-index: 20; display: flex;
+  background: rgba(10,10,12,.86); backdrop-filter: blur(18px);
+  border-top: 1px solid var(--line); padding: 9px 8px calc(9px + env(safe-area-inset-bottom));
+}
+html.tema-claro .ep-tabs, html:not(.tema-oscuro) .ep-tabs { background: rgba(255,255,255,.9); }
+.ep-tab {
+  flex: 1; background: none; border: none; cursor: pointer; color: var(--sub);
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  font-family: inherit; font-size: 10px; font-weight: 600; opacity: .55; padding: 4px 0;
+}
+.ep-tab.on { opacity: 1; color: var(--ink); }
+.ep-tab.on svg { color: var(--accent); }
+
+/* ── Escritorio ── */
+@media (min-width: 900px) {
+  .ep-side {
+    display: block; width: 250px; flex-shrink: 0; padding: 22px 14px;
+    background: var(--surf); border-right: 1px solid var(--line);
+  }
+  .ep-tabs { display: none; }
+  .ep-scroll { padding: 0 32px 40px; }
+  .ep-saludo-n { font-size: 26px; }
+  .ep-sec-t { font-size: 25px; }
+  .ep-over { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(0,1fr) minmax(0,1fr); gap: 20px; }
+  .ep-wcard, .ep-pts-hero, .ep-tile { padding: 24px; }
+  .ep-wc-monto { font-size: 38px; }
+  .ep-act { font-size: 13px; }
+}
+@media (min-width: 900px) and (max-width: 1199px) {
+  .ep-over { grid-template-columns: 1fr 1fr; }
+  .ep-wcard { grid-column: 1 / -1; }
+}

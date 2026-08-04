@@ -10,7 +10,11 @@
 --
 -- Y solo responde por restaurantes con la página PUBLICADA: mientras el dueño no
 -- la encienda, ni siquiera se puede averiguar si esa dirección existe.
-CREATE OR REPLACE FUNCTION fn_web_publica(p_slug text)
+-- Se borra antes de crearla: al agregarle una columna de salida, Postgres no
+-- deja reemplazarla sin más.
+DROP FUNCTION IF EXISTS fn_web_publica(text);
+
+CREATE FUNCTION fn_web_publica(p_slug text)
 RETURNS TABLE (
   tenant_id uuid,
   nombre    text,
@@ -19,7 +23,10 @@ RETURNS TABLE (
   detalle   text,
   abre      text,
   cierra    text,
-  permite_programar boolean
+  permite_programar boolean,
+  -- Los rangos de ESTE restaurante, para pintar la escalera. Solo el nombre y
+  -- el color: los umbrales en pesos son suyos y no se le muestran al cliente.
+  niveles   jsonb
 )
 LANGUAGE plpgsql STABLE SECURITY DEFINER
 SET search_path = public
@@ -55,6 +62,12 @@ BEGIN
   abre      := e.abre;
   cierra    := e.cierra;
   permite_programar := e.permite_programar;
+  SELECT coalesce(jsonb_agg(jsonb_build_object('nombre', x->>'nombre', 'color', x->>'color')), '[]'::jsonb)
+    INTO niveles
+    FROM pos_niveles_config c
+    CROSS JOIN LATERAL jsonb_array_elements(coalesce(c.niveles, '[]'::jsonb)) x
+   WHERE c.tenant_id = t.id
+      OR c.branch_id IN (SELECT b.id FROM branches b WHERE b.tenant_id = t.id);
   RETURN NEXT;
 END;
 $$;
