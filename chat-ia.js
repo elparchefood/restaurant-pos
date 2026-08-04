@@ -79,16 +79,15 @@ async function boot() {
         tenantId = (u.data && u.data.user && u.data.user.user_metadata && u.data.user.user_metadata.tenant_id) || null;
       } catch (e) {}
     }
-    let tenant = null;
-    if (tenantId) {
-      const r = await sb.from('tenants').select('id,name').eq('id', tenantId).maybeSingle();
-      tenant = r.data;
-    } else {
-      // Sin tenant en la sesion (cuentas viejas): se cae al comportamiento de
-      // antes, para no dejar a nadie por fuera.
-      const r = await sb.from('tenants').select('id,name').order('created_at').limit(1).maybeSingle();
-      tenant = r.data;
-    }
+    /* Si la sesion no dice de que restaurante es, NO se adivina. Antes se cogia
+       "el primero que se pueda ver", y para el administrador de plataforma eso
+       podia ser el restaurante de otro. Comprobado: las 4 cuentas que existen
+       llevan su restaurante en la sesion, asi que este camino no deja a nadie
+       por fuera — y si algun dia falta, es mejor un aviso claro que abrir la
+       pantalla de otro negocio. */
+    if (!tenantId) { showFatalError('Tu cuenta no tiene un restaurante asignado. Vuelve a iniciar sesión.'); return; }
+    const rT = await sb.from('tenants').select('id,name').eq('id', tenantId).maybeSingle();
+    const tenant = rT.data;
     if (!tenant) { showFatalError('Tu cuenta no tiene un restaurante configurado. Escríbenos para activarla.'); return; }
     S.tenantId = tenant.id;
 
