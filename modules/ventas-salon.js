@@ -123,19 +123,57 @@
     return meta.symbol + converted.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
   }
 
+  /* El pie del panel de Ventas: la cuenta que tiene la sesión abierta.
+     Antes aquí iba un selector de moneda. En Colombia todo se cobra en pesos y
+     ese selector estaba escondido detrás de un PIN, así que ocupaba el mejor
+     sitio del panel para algo que nadie usa. Ahora va el mismo bloque del
+     dashboard —foto del restaurante, nombre y rol— para que el mesero sepa de un
+     vistazo con qué cuenta está trabajando.
+     La conversión de moneda sigue funcionando igual; lo único que se fue es su
+     botón de esta pantalla. */
   function updateFxChip() {
     var chipEl = document.getElementById('vs-fx-chip');
-    if (!chipEl) return;
-    var meta = getCurrencyMeta(activeCurrency);
-    var rateText = '—';
-    if (activeCurrency === 'COP') {
-      rateText = 'Moneda base';
-    } else if (fxRates[activeCurrency]) {
-      var rate = fxRates[activeCurrency];
-      rateText = '1 COP = ' + rate.toFixed(6) + ' ' + activeCurrency;
-    }
+    if (!chipEl || chipEl.dataset.userDone === '1') return;
+    chipEl.dataset.userDone = '1';
     chipEl.innerHTML =
-      '<button class="lm-nav" style="color:#475569;width:100%;text-align:left" onclick="_posVSOpenCurrencyModal()" title="Cambiar moneda">'      +'<span class="lm-nav-inner">'      +'<span style="font-size:16px">'+meta.flag+'</span>'      +'<div style="min-width:0">'      +'<div style="font-weight:600;font-size:12px;color:#0F172A">'+activeCurrency+'</div>'      +'<div style="font-size:10px;color:#94A3B8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+rateText+'</div>'      +'</div></span></button>';
+      '<div style="display:flex;align-items:center;gap:10px;padding:8px 6px;min-width:0">'
+      + '<div class="user-avatar" id="vs-user-av" style="width:36px;height:36px;border-radius:50%;'
+      +   'background:#EEF2FF;color:#5B6BFF;display:flex;align-items:center;justify-content:center;'
+      +   'font-weight:700;font-size:13px;flex-shrink:0;overflow:hidden">?</div>'
+      + '<div style="min-width:0">'
+      +   '<div id="vs-user-nom" style="font-weight:600;font-size:12.5px;color:#0F172A;'
+      +     'white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Cargando…</div>'
+      +   '<div id="vs-user-rol" style="font-size:10.5px;color:#94A3B8;'
+      +     'white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>'
+      + '</div></div>';
+    pintarCuentaVS();
+  }
+
+  async function pintarCuentaVS() {
+    var sbRef = (window._pos && window._pos.sb) || window.sb;
+    if (!sbRef) return;
+    var nombre = '', rol = '';
+    try {
+      var u = await sbRef.auth.getUser();
+      var meta = (u && u.data && u.data.user && u.data.user.user_metadata) || {};
+      nombre = meta.nombre || meta.full_name || meta.name || (u.data.user && u.data.user.email) || '';
+      rol    = meta.role || meta.rol || '';
+    } catch (e) {}
+
+    var nEl = document.getElementById('vs-user-nom');
+    var rEl = document.getElementById('vs-user-rol');
+    var aEl = document.getElementById('vs-user-av');
+    if (nEl) nEl.textContent = nombre || 'Mi cuenta';
+    if (rEl) rEl.textContent = rol ? (rol.charAt(0).toUpperCase() + rol.slice(1)) : 'Usuario';
+    if (aEl && !aEl.querySelector('img')) {
+      aEl.textContent = (nombre || '?').split(/\s+/).filter(Boolean).slice(0, 2)
+        .map(function (w) { return w[0]; }).join('').toUpperCase() || '?';
+    }
+    /* La foto del restaurante la pone pos-brand.js, que conoce este círculo por
+       su id. Se le pide que repase por si ya la tenía en cache. */
+    if (typeof window.posBrandLogo === 'function') {
+      try { window.posBrandLogo(localStorage.getItem('pos.brand.logo') || ''); } catch (e) {}
+    }
   }
 
   window._posVSOpenCurrencyModal = function() {

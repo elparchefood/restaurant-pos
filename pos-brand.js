@@ -167,7 +167,7 @@
      archivos. Es el mismo criterio con el que este archivo normaliza el bloque
      de marca. */
   var LS_LOGO = 'pos.brand.logo';
-  var AVATARES = ['tb-avatar', 'dd-avatar', 'user-avatar', 'topbar-avatar', 'userAv', 'mesero-avatar'];
+  var AVATARES = ['tb-avatar', 'dd-avatar', 'user-avatar', 'topbar-avatar', 'userAv', 'mesero-avatar', 'vs-user-av'];
 
   function logoCache() {
     try { return localStorage.getItem(LS_LOGO) || ''; } catch (e) { return ''; }
@@ -225,6 +225,23 @@
       try { nueva ? localStorage.setItem(LS_LOGO, nueva) : localStorage.removeItem(LS_LOGO); } catch (e) {}
       if (nueva) pintarFotoEnTodos(nueva);
     });
+  }
+
+  /* Ventas dibuja su panel por JavaScript despues del load, asi que ese circulo
+     todavia no existe cuando esto corre. Se vigila el documento y se pinta en
+     cuanto aparezca — mismo criterio que el bloque de marca de mas arriba. */
+  if (window.MutationObserver) {
+    var obsFoto = new MutationObserver(function () {
+      var url = logoCache();
+      if (!url) return;
+      for (var k = 0; k < AVATARES.length; k++) {
+        var el = document.getElementById(AVATARES[k]);
+        if (el && !el.querySelector('img')) pintarFoto(el, url);
+      }
+    });
+    var arrancarObs = function () { obsFoto.observe(document.body, { childList: true, subtree: true }); };
+    if (document.body) arrancarObs();
+    else document.addEventListener('DOMContentLoaded', arrancarObs);
   }
 
   /* Para que Configuración avise cuando la acaban de cambiar, sin recargar. */
