@@ -63,11 +63,48 @@ async function boot() {
   }
 
   try {
-    const { data: tenant } = await sb.from('tenants').select('id,name').limit(1).single();
+    /* EL RESTAURANTE DE ESTA CUENTA, no "el primero que se pueda ver".
+       Antes esto pedia `tenants` con `limit(1)` y confiaba en que el aislamiento
+       devolviera uno solo. Para un dueño de restaurante es cierto; para el
+       ADMINISTRADOR DE PLATAFORMA no: el ve todos los restaurantes, y `limit(1)`
+       sin orden devuelve el que la base tenga de primero — que cambia cuando la
+       tabla se reescribe. El 3 de agosto, al agregarle columnas a `tenants`, el
+       orden cambio y a Sergio le empezo a salir "No hay sucursal configurada" en
+       pleno turno: le estaba tocando un restaurante de prueba, sin sucursales.
+       El tenant sale de la sesion, que es el unico dato que dice cual es SUYO. */
+    let tenantId = (window._pos && window._pos.state && window._pos.state.tenantId) || null;
+    if (!tenantId) {
+      try {
+        const u = await sb.auth.getUser();
+        tenantId = (u.data && u.data.user && u.data.user.user_metadata && u.data.user.user_metadata.tenant_id) || null;
+      } catch (e) {}
+    }
+    let tenant = null;
+    if (tenantId) {
+      const r = await sb.from('tenants').select('id,name').eq('id', tenantId).maybeSingle();
+      tenant = r.data;
+    } else {
+      // Sin tenant en la sesion (cuentas viejas): se cae al comportamiento de
+      // antes, para no dejar a nadie por fuera.
+      const r = await sb.from('tenants').select('id,name').order('created_at').limit(1).maybeSingle();
+      tenant = r.data;
+    }
     if (!tenant) { showFatalError('Tu cuenta no tiene un restaurante configurado. Escríbenos para activarla.'); return; }
     S.tenantId = tenant.id;
 
-    const { data: branch } = await sb.from('branches').select('id,name').eq('tenant_id', S.tenantId).limit(1).single();
+    /* La sucursal, igual: la de la sesion. Y con orden fijo si toca escoger, para
+       que no dependa de como esten guardadas las filas. */
+    let branchId = (window._pos && window._pos.state && window._pos.state.branchId) || null;
+    let branch = null;
+    if (branchId) {
+      const r = await sb.from('branches').select('id,name').eq('id', branchId).maybeSingle();
+      branch = r.data;
+    }
+    if (!branch) {
+      const r = await sb.from('branches').select('id,name').eq('tenant_id', S.tenantId)
+        .order('created_at').limit(1).maybeSingle();
+      branch = r.data;
+    }
     if (!branch) { showFatalError('No hay sucursal configurada'); return; }
     S.branchId = branch.id;
 
