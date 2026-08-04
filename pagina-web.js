@@ -32,6 +32,18 @@
   async function cargar() {
     var s = sb();
     if (!s) { setTimeout(cargar, 400); return; }
+
+    /* MODULO EN PRUEBAS, solo para el administrador de la plataforma.
+       Esconder el boton no protege nada: cualquiera puede escribir la direccion
+       de esta pantalla. El candado va aqui, y ademas la base no le devolveria
+       datos a quien no sea dueño de ese restaurante.
+       Se pregunta por es_admin_plataforma(), la misma funcion que abre la
+       consola, para no inventar un criterio distinto que despues se desincronice. */
+    try {
+      var adm = await s.rpc('es_admin_plataforma');
+      if (!adm || adm.data !== true) { window.location.href = 'dashboard.html'; return; }
+    } catch (e) { window.location.href = 'dashboard.html'; return; }
+
     /* El restaurante sale de la SESIÓN, nunca "el primero que se pueda ver":
        un administrador de plataforma ve todos, y adivinar le abriría la página
        de otro negocio. */
