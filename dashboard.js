@@ -20,6 +20,19 @@ function renderDate() {
 }
 
 // ── Branch ────────────────────────────────────────────
+/* Pintar la cabecera con los datos de la sucursal. Separado de la consulta
+   para poder pintarla también desde la copia guardada en el equipo. */
+function pintarSucursal(data) {
+  if (!data) return;
+  S.branch = data;
+  const brand = data.brands?.name || data.name;
+  // La marca del sidebar la gestiona pos-brand.js (siempre "Cobra POS").
+  $('tb-branch').innerHTML = brand + (data.name !== brand ? ' &middot; <span style="color:#64748B;font-weight:500">' + data.name + '</span>' : '');
+  $('tb-mode').textContent = data.is_open ? 'En operacion' : 'Cerrado';
+  $('sb-status').textContent = '● en linea';
+  $('sb-status').style.color = '#16A34A';
+}
+
 async function loadBranch() {
   const { data, error } = await sb.from('branches')
     .select('*, brands(*), tenants(*)')
@@ -32,13 +45,8 @@ async function loadBranch() {
     $('tb-mode').textContent = 'Desconectado';
     return null;
   }
-  S.branch = data;
-  const brand = data.brands?.name || data.name;
-  // La marca del sidebar la gestiona pos-brand.js (siempre "Cobra POS").
-  $('tb-branch').innerHTML = brand + (data.name !== brand ? ' &middot; <span style="color:#64748B;font-weight:500">' + data.name + '</span>' : '');
-  $('tb-mode').textContent = data.is_open ? 'En operacion' : 'Cerrado';
-  $('sb-status').textContent = '● en linea';
-  $('sb-status').style.color = '#16A34A';
+  pintarSucursal(data);
+  if (window.posCache) posCache.guardar('sucursal', data);
   return data;
 }
 
@@ -1250,7 +1258,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   renderAllExtra([], null); // render empty structure immediately
   renderDate();
-  const branch   = await loadBranch();
+
+  /* La sucursal casi nunca cambia, pero había que esperar a que llegara del
+     servidor ANTES de poder empezar las otras nueve preguntas: una fila india
+     de esperas. Ahora, si ya se conoce de otra vez, se usa la copia del equipo
+     y las nueve salen de una; la sucursal se confirma por detrás.
+     La primera vez en un equipo nuevo se comporta como antes. */
+  const _suc = window.posCache && posCache.leer('sucursal');
+  let branch = (_suc && _suc.datos) || null;
+  if (branch) pintarSucursal(branch);
+  const _fresca = loadBranch();          // sigue su curso pase lo que pase
+  if (!branch) branch = await _fresca;
   const branchId = branch?.id;
   // Exponer la sucursal para los modales rápidos (Comprobantes, Meseros,
   // Inventario), que antes leían window._branchId y nunca se asignaba.

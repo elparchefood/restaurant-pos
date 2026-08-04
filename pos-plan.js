@@ -130,7 +130,7 @@
       if (!s) return (ctx = por_defecto);
       try {
         var u = (window._pos && window._pos.state && window._pos.state.user) || null;
-        if (!u) { try { u = (await s.auth.getUser()).data.user; } catch (e) {} }
+        if (!u) { try { u = (await s.auth.getSession()).data.session.user; } catch (e) {} }
         if (!u) return (ctx = por_defecto);   // sin sesion: no bloquear
         var tenantId = (u.user_metadata && u.user_metadata.tenant_id) || u.id;
 

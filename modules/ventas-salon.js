@@ -3628,12 +3628,26 @@
     const _urlFloor = new URLSearchParams(location.search).get('floor');
     if (_urlFloor) state.floor = _urlFloor;
 
-    // Cargar modo cobro y permisos del usuario en paralelo
-    await Promise.all([loadCobroAdelantado(), fetchUserPerms()]);
-    hookCobroRefresh();
+    /* ── Dibujar YA, preguntar después ────────────────────────────────────
+       Antes esto esperaba a que volvieran DOS preguntas al servidor antes de
+       pintar un solo pixel, y la pantalla se quedaba en blanco mientras tanto.
+       En la conexión de Popayán el saludo al servidor solo ya cuesta 739 ms.
+       Las dos respuestas se pueden tener después sin que nadie espere:
+         · el modo de cobro adelantado ya vive en el equipo (COBRO_KEY);
+         · el rol sale de la sesión, que también está en el equipo;
+         · el botón Cobrar SIEMPRE se muestra (el permiso se revisa al tocarlo),
+           así que no hay riesgo de enseñar de más mientras llegan los permisos.
+       Cuando lleguen, se vuelve a dibujar. */
+    state.cobroAdelantado = localStorage.getItem(COBRO_KEY) === 'true';
+    var _usr = window._pos && window._pos.state && window._pos.state.user;
+    state.userRole = (_usr && (_usr.user_metadata?.role || _usr.app_metadata?.role)) || 'mesero';
+    state.canCobrar = true;
 
     // Initial render (loading state)
     render();
+    hookCobroRefresh();
+
+    Promise.all([loadCobroAdelantado(), fetchUserPerms()]).then(function () { render(); });
 
     // Start RAM monitor
     startRamMonitor();

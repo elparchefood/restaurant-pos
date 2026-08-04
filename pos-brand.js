@@ -49,8 +49,11 @@
       if (r && r.data) return (r.data.brands && r.data.brands.name) || r.data.name || '';
     } catch (e) { /* sin conexión: se queda con el cache */ }
     try {
-      var u = await sb.auth.getUser();
-      var meta = (u && u.data && u.data.user && u.data.user.user_metadata) || {};
+      /* De la sesión guardada en el equipo. Ojo con la forma: getSession
+         devuelve data.session.user, no data.user como getUser. */
+      var u = await sb.auth.getSession();
+      var meta = (u && u.data && u.data.session && u.data.session.user
+                  && u.data.session.user.user_metadata) || {};
       if (meta.restaurant_name) return meta.restaurant_name;
     } catch (e) {}
     return '';
@@ -227,8 +230,9 @@
     var s = cliente();
     if (!s) return '';
     try {
-      var u = await s.auth.getUser();
-      var tid = u && u.data && u.data.user && u.data.user.user_metadata && u.data.user.user_metadata.tenant_id;
+      var u = await s.auth.getSession();
+      var _u = u && u.data && u.data.session && u.data.session.user;
+      var tid = _u && _u.user_metadata && _u.user_metadata.tenant_id;
       if (!tid) return '';
       var r = await s.from('brands').select('logo_url').eq('tenant_id', tid)
         .order('created_at').limit(1).maybeSingle();

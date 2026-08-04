@@ -150,7 +150,13 @@ function daysAgoISO(n) {
         }
         return;
       }
-      const { data: { user } } = await sb.auth.getUser();
+      /* La sesión que acabamos de leer YA trae al usuario con sus datos. Antes
+         aquí se volvía a preguntar al servidor exactamente lo mismo
+         (auth.getUser sale a internet; medido: 350-700 ms en cada pantalla).
+         Nota: si se le cambia el rol a alguien, lo verá cuando su sesión se
+         renueve —dentro de la hora— o al volver a entrar. Es un cambio raro y
+         no justifica un viaje al servidor en cada pantalla. */
+      const user = session.user;
       window._pos.state.user     = user;
       window._pos.state.tenantId = user.user_metadata?.tenant_id || null;
       window._pos.state.branchId = user.user_metadata?.branch_id || null;

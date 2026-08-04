@@ -40,8 +40,10 @@
     var sb = cliente();
     if (!sb) { _perms = '*'; return; }
     try {
-      var ur = await sb.auth.getUser();
-      var user = ur && ur.data && ur.data.user;
+      /* De la sesion guardada en el equipo, no del servidor: getUser sale a
+         internet y esto corre en 14 pantallas. */
+      var ur = await sb.auth.getSession();
+      var user = ur && ur.data && ur.data.session && ur.data.session.user;
       if (!user) { _perms = '*'; return; }
       var meta = user.user_metadata || {};
       var role = (meta.role || '').toString().toLowerCase().trim();
@@ -136,9 +138,10 @@
       if (!entered) { err.textContent = 'Ingresa el PIN'; err.style.display = 'block'; return; }
       if (!sb) { err.textContent = 'Error de conexión'; err.style.display = 'block'; return; }
       try {
-        var ur = await sb.auth.getUser();
-        var tenantId = ur && ur.data && ur.data.user && ur.data.user.user_metadata && ur.data.user.user_metadata.tenant_id;
-        var branchId = ur && ur.data && ur.data.user && ur.data.user.user_metadata && ur.data.user.user_metadata.branch_id;
+        var ur = await sb.auth.getSession();
+        var _u = ur && ur.data && ur.data.session && ur.data.session.user;
+        var tenantId = _u && _u.user_metadata && _u.user_metadata.tenant_id;
+        var branchId = _u && _u.user_metadata && _u.user_metadata.branch_id;
         var q = sb.from('pos_users').select('pin').eq('is_authorized_admin', true).limit(1);
         if (branchId) q = q.eq('branch_id', branchId);
         else if (tenantId) q = q.eq('tenant_id', tenantId);
