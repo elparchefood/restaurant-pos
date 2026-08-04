@@ -239,8 +239,12 @@ function countRecipes(insId) {
 async function loadData() {
   mostrarCargando(true);
   try {
-    const { data: { user }, error: authErr } = await iv_sb.auth.getUser();
-    if (authErr || !user) { window.location.href = 'login.html'; return; }
+    /* De la sesión guardada en el equipo, no del servidor: getUser sale a
+       internet y aquí solo se necesitan el restaurante, la sucursal y el
+       nombre, que ya vienen dentro de la sesión. */
+    const { data: { session } } = await iv_sb.auth.getSession();
+    const user = session && session.user;
+    if (!user) { window.location.href = 'login.html'; return; }
     tenantId = user.user_metadata?.tenant_id || null;
     branchId = user.user_metadata?.branch_id || null;
 
@@ -253,15 +257,23 @@ async function loadData() {
     document.getElementById('tb-urole').textContent   = meta.role || 'Administrador';
     // Bloque de marca del sidebar: lo gestiona pos-brand.js.
 
-    await loadCustomUnits();
-    await loadProductos();
-    await loadInsumos();
-    await loadModGroupsDB();
-    await loadRecetasDB();
-    await loadParamsDB();
-    await loadPlantillasDB();
-    await loadBasesDB();
-    await loadPorciones();
+    /* ── Las nueve cargas iban en FILA INDIA ───────────────────────────────
+       Cada una esperaba a que terminara la anterior, y cada viaje al servidor
+       cuesta entre 350 y 700 ms en la conexión de Popayán: nueve seguidas son
+       varios segundos con la pantalla tapada.
+       Se revisó una por una cuál necesita de verdad a otra: SOLO las recetas,
+       que recorren los productos para armarse. Esa se deja encadenada; las
+       otras ocho salen todas a la vez. */
+    await Promise.all([
+      loadCustomUnits(),
+      loadInsumos(),
+      loadModGroupsDB(),
+      loadParamsDB(),
+      loadPlantillasDB(),
+      loadBasesDB(),
+      loadPorciones(),
+      loadProductos().then(loadRecetasDB)   // recetas necesita los productos ya cargados
+    ]);
     ivAlertasCargar();          // no bloquea: si falla, la pantalla sigue igual
   } catch(e) {
     console.error('[inventario] loadData:', e);

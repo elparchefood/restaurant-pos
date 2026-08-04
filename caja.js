@@ -84,17 +84,36 @@ window._pos.on('core:ready', async function({ user }) {
 
 // ── Refresh ────────────────────────────────────────────────────
 async function refreshAll() {
-  S.session  = await loadActiveSession(S.branchId);
-  S.sessions = await loadAllSessions(S.branchId);
+  /* ── Estas consultas iban una detrás de otra sin necesidad ──────────────
+     Se revisó qué necesita de verdad a qué:
+       · el turno abierto, la lista de turnos y los métodos de pago no dependen
+         de nada → salen los tres a la vez;
+       · los pedidos y sus ítems necesitan la hora de apertura del turno, pero
+         no se necesitan entre ellos → salen los dos a la vez;
+       · los pagos por método sí necesitan los pedidos ya cargados;
+       · los movimientos de caja necesitan el id del turno.
+     De siete esperas en fila se pasa a tres tandas. */
+  const [_ses, _sess, _met] = await Promise.all([
+    loadActiveSession(S.branchId),
+    loadAllSessions(S.branchId),
+    loadPayMethodsConfig()
+  ]);
+  S.session    = _ses;
+  S.sessions   = _sess;
+  S.payMethods = _met;
+
   if (S.session) {
-    S.orders = await loadOrders(S.branchId, S.session.opened_at);
-    S.items  = await loadOrderItems(S.branchId, S.session.opened_at);
+    const [_ords, _its] = await Promise.all([
+      loadOrders(S.branchId, S.session.opened_at),
+      loadOrderItems(S.branchId, S.session.opened_at)
+    ]);
+    S.orders = _ords;
+    S.items  = _its;
     S.pagosMetodo = await loadPagosPorMetodo(S.branchId, S.session.opened_at, S.orders);
     // Recuperar arqueo guardado en la sesión (sobrevive recargas de página)
     if (S.session.arqueo_contado != null) S.arqueoContado = parseFloat(S.session.arqueo_contado);
     if (S.session.arqueo_denoms) S.arqueoDenoms = S.session.arqueo_denoms;
   } else { S.orders = []; S.items = []; S.pagosMetodo = {}; }
-  S.payMethods = await loadPayMethodsConfig();
   renderMetodosDinamicos();
   const moves = await getMoves();
   renderCajaState();

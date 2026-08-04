@@ -32,11 +32,22 @@ var S = {
 // NUNCA se borra en masa por diferencia contra la copia local (eso causaba
 // que abrir Configuración en un equipo con memoria vacía borrara las mesas
 // reales de todos). Ver #13 en ESTADO-SISTEMA.md.
+/* ── Quién tiene la sesión abierta ────────────────────────────────────────
+   sb.auth.getUser() SALE A INTERNET a preguntárselo al servidor. Esta pantalla
+   lo hacía doce veces, y lo único que necesita —el restaurante, la sucursal y
+   el rol— ya viene dentro de la sesión que está guardada en el equipo.
+   Medido en la conexión de Popayán: entre 350 y 700 ms cada viaje. */
+async function cfgUsuario() {
+  try {
+    var r = await sb.auth.getSession();
+    return (r && r.data && r.data.session && r.data.session.user) || null;
+  } catch (e) { return null; }
+}
+
 async function loadState() {
   // 1) Cargar desde la base — manda lo que hay en Configuración/BD
   try {
-    var res = await sb.auth.getUser();
-    var user = res.data && res.data.user;
+    var user = await cfgUsuario();
     var branchId = user && user.user_metadata && user.user_metadata.branch_id;
     if (branchId) {
       _cfgBranchId = branchId;
@@ -103,8 +114,7 @@ function saveState() {
 // ── Sync a Supabase pos_tables ────────────────────────
 async function syncToSupabase() {
   try {
-    var res = await sb.auth.getUser();
-    var user = res.data && res.data.user;
+    var user = await cfgUsuario();
     if (!user) return;
     var branchId = user.user_metadata && user.user_metadata.branch_id;
     if (!branchId) return;
@@ -703,8 +713,7 @@ function bindInspector() {
 // ── Cargar usuario desde Supabase ────────────────────────
 async function loadUser() {
   try {
-    var res = await sb.auth.getUser();
-    var user = res.data && res.data.user;
+    var user = await cfgUsuario();
     if (!user) { window.location.href = 'login.html'; return; }
     var meta = user.user_metadata || {};
     var name = meta.name || user.email || 'Usuario';
@@ -830,8 +839,7 @@ function initMonedaSelect(actual) {
 
 async function loadGeneral() {
   try {
-    var res = await sb.auth.getUser();
-    var user = res.data && res.data.user;
+    var user = await cfgUsuario();
     if (!user) return;
     var meta     = user.user_metadata || {};
     var branchId = meta.branch_id;
@@ -902,8 +910,7 @@ async function saveGeneral() {
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
 
   try {
-    var res = await sb.auth.getUser();
-    var user = res.data && res.data.user;
+    var user = await cfgUsuario();
     if (!user) throw new Error('Sin sesion');
     var meta        = user.user_metadata || {};
     var branchId    = meta.branch_id;
@@ -1146,7 +1153,7 @@ async function manageUser(payload) {
 async function urLoad() {
   var tenantId = window._pos && window._pos.state ? window._pos.state.tenantId : null;
   if (!tenantId) {
-    var { data: { user } } = await sb.auth.getUser();
+    var user = await cfgUsuario();
     tenantId = user && user.user_metadata && user.user_metadata.tenant_id;
   }
 
@@ -1157,7 +1164,7 @@ async function urLoad() {
   });
 
   // Usuarios (pos_users) — solo los del tenant
-  var { data: { user: me } } = await sb.auth.getUser();
+  var me = await cfgUsuario();
   var branchId = me && me.user_metadata && me.user_metadata.branch_id;
   var usersRes = await sb.from('pos_users').select('*').eq('branch_id', branchId);
   UR.users = (usersRes.data || []).map(function(u){
@@ -1272,7 +1279,7 @@ async function urDeleteAuthUser(u) {
 async function urSaveRole(r) {
   var tenantId = window._pos && window._pos.state ? window._pos.state.tenantId : null;
   if (!tenantId) {
-    var { data: { user } } = await sb.auth.getUser();
+    var user = await cfgUsuario();
     tenantId = user && user.user_metadata && user.user_metadata.tenant_id;
   }
   if (r._isNew) {
@@ -1743,7 +1750,7 @@ async function urConfirmCreateUser(u) {
   if (!prefixCheck || !u.pass) { urShowToast('Completa el nombre de usuario y la contrasena'); return; }
   u.email = prefixCheck + '@' + slugNegocio();
   try {
-    var { data: { user: me } } = await sb.auth.getUser();
+    var me = await cfgUsuario();
     if (!me) {
       var { data: { session } } = await sb.auth.getSession();
       me = session ? session.user : null;
@@ -2234,7 +2241,7 @@ function _empFmt(n){ return '$' + Number(Math.round(n||0)).toLocaleString('es-CO
 async function _empLoadCatalog() {
   if (_empCatalog) return _empCatalog;
   try {
-    var u = await sb.auth.getUser();
+    var u = { data: { user: await cfgUsuario() } };
     var t = u && u.data && u.data.user && u.data.user.user_metadata ? u.data.user.user_metadata.tenant_id : null;
     if (!t) return null;
     var rc = await sb.from('pos_categories').select('id,name').eq('active', true).eq('tenant_id', t).order('name');
@@ -5671,7 +5678,7 @@ async function genCargarLogo() {
   var caja = document.getElementById('gen-logo-box');
   if (!caja) return;
   try {
-    var u = await sb.auth.getUser();
+    var u = { data: { user: await cfgUsuario() } };
     var tid = u.data && u.data.user && u.data.user.user_metadata && u.data.user.user_metadata.tenant_id;
     if (!tid) return;
     var r = await sb.from('brands').select('id,name,logo_url').eq('tenant_id', tid)
@@ -5738,7 +5745,7 @@ async function genSubirLogo(input) {
 
   genLogoNota('Subiendo…');
   try {
-    var u = await sb.auth.getUser();
+    var u = { data: { user: await cfgUsuario() } };
     var tid = u.data.user.user_metadata.tenant_id;
     /* El nombre lleva la hora: si se reemplaza la foto, el navegador y el .exe
        tienen que bajar una dirección distinta. Con el mismo nombre se quedarían
