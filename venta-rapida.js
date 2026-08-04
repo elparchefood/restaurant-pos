@@ -570,6 +570,20 @@
     });
   }
 
+  /* Llevar el ojo a donde falta. Decir "escoge una etiqueta" sin mostrar dónde
+     obliga a buscarla en plena atención; la fila se marca sola un momento y se
+     desplaza hasta quedar a la vista. */
+  function vrResaltarEtiquetas() {
+    var row = $('vr-etq-row');
+    if (!row) return;
+    try { row.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
+    row.style.transition = 'box-shadow .2s, background .2s';
+    row.style.boxShadow = '0 0 0 3px rgba(239,68,68,.35)';
+    row.style.background = '#FEF2F2';
+    row.style.borderRadius = '10px';
+    setTimeout(function () { row.style.boxShadow = ''; row.style.background = ''; }, 1800);
+  }
+
   /* ─── Cliente ─────────────────────────────────────────────── */
   function setupClienteRow() {
     const row = $('vr-cliente-row');
@@ -1001,8 +1015,39 @@
     document.body.insertBefore(av, document.body.firstChild);
   }
 
+  /* ¿Falta escoger etiqueta?
+     La etiqueta es lo que le dice a la cocina qué hacer con el pedido —esperar,
+     avisar, dejarlo programado—. Si se puede saltar, tarde o temprano alguien la
+     salta y el plato sale sin que nadie sepa qué hacer con él. Por eso el dueño
+     puede exigirla desde Configuración → Operación → Sección 4b.
+
+     Venta rápida es TODA para llevar (`channel='rapido'`), así que aquí
+     'siempre' y 'solo si es para recoger' quieren decir lo mismo. La diferencia
+     pesa en el chat, donde sí hay domicilios.
+
+     Devuelve el aviso a mostrar, o null si todo está en orden. */
+  function vrFaltaEtiqueta() {
+    var cfg = {};
+    try { cfg = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || '{}'); } catch (e) {}
+    if (!cfg.etiquetasVRActivo) return null;
+    var exigir = cfg.etiquetasVRExigir || 'no';
+    if (exigir === 'no') return null;
+    var hay = Array.isArray(cfg.etiquetasVR) && cfg.etiquetasVR.filter(function (e) { return e && e.nombre; }).length;
+    if (!hay) return null;          // exigir algo que no existe dejaría la caja trancada
+    if (S.etiqueta) return null;
+    return 'Escoge una etiqueta antes de guardar el pedido';
+  }
+
+  /* Aviso corto arriba, no un alert: un alert obliga a soltar la pantalla táctil
+     y darle a Aceptar en plena atención. */
+  function vrAviso(msg) {
+    try { if (window.posStock && typeof window.posStock.toast === 'function') { window.posStock.toast(msg); return; } } catch (e) {}
+    alert(msg);
+  }
+
   async function guardarPedido() {
     if (!S.cart.length) return;
+    var _f = vrFaltaEtiqueta(); if (_f) { vrAviso(_f); vrResaltarEtiquetas(); return; }
     const sb = getSb();
     if (!sb) return;
     try {
@@ -1035,6 +1080,7 @@
     if (!S.cart.length) return;
     // Modo agregar: se suma al pedido existente y listo.
     if (S.agregarA) { return await agregarAlPedido(); }
+    var _f = vrFaltaEtiqueta(); if (_f) { vrAviso(_f); vrResaltarEtiquetas(); return; }
     const sb = getSb();
     if (!sb) return;
     try {
@@ -1065,6 +1111,7 @@
 
   async function irAPagos() {
     if (!S.cart.length) return;
+    var _f = vrFaltaEtiqueta(); if (_f) { vrAviso(_f); vrResaltarEtiquetas(); return; }
     const sb = getSb();
     if (!sb) return;
     try {

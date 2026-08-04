@@ -1911,6 +1911,10 @@ var OP_DEFAULTS = {
   empaquePacks: [],          // [{id, nombre, monto}] empaques personalizados
   etiquetasVRActivo: false,  // etiquetas de venta rápida (Espera / Avisar / …)
   etiquetasVR: [],           // [{id, nombre}]
+  /* 'no' | 'recoger' | 'siempre' — ¿se puede guardar sin escoger etiqueta?
+     Por defecto 'no' (opcional): quien ya venía trabajando así no se encuentra
+     de un día para otro con que el sistema le exige algo nuevo. */
+  etiquetasVRExigir: 'no',
   empaqueCatCfg: {},         // {catId: {on:bool, packId:string|null}} — null = valor general
   empaqueProdCfg: {},        // {prodId: 'none' | 'general' | packId} — ausente = hereda categoría
   empaquePresCfg: {},        // {'prodId::presId': 'none'|'general'|packId} — ausente = hereda producto
@@ -2142,12 +2146,17 @@ function opRenderEtiquetas() {
   var body = $('op-etiquetas-body');
   if (body) body.style.display = d.etiquetasVRActivo ? '' : 'none';
   var cont = $('op-etq-chips');
-  if (!cont || !d.etiquetasVRActivo) return;
+  if (!cont || !d.etiquetasVRActivo) return;   // apagado: no hay nada que pintar
   var chips = (d.etiquetasVR || []).map(function (e) {
     return '<span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;background:#EEF2FF;color:#4F5BE3;border:1px solid #C7D2FE;padding:5px 11px;border-radius:999px">'
       + _empEsc(e.nombre)
       + '<button type="button" data-etq-del="' + _empEsc(e.id) + '" title="Quitar" style="border:none;background:none;cursor:pointer;color:#818CF8;font-size:15px;line-height:1;padding:0">&times;</button></span>';
   }).join('');
+  var ex = $('op-etq-exigir');
+  if (ex) ex.querySelectorAll('[data-etq-exigir]').forEach(function (b) {
+    b.classList.toggle('on', b.dataset.etqExigir === (d.etiquetasVRExigir || 'no'));
+  });
+
   cont.innerHTML = chips + (_etqForm
     ? '<span style="display:inline-flex;align-items:center;gap:6px;background:#FAFAFF;border:1.5px solid #C7D2FE;padding:5px 8px;border-radius:12px">'
       + '<input id="op-etq-nombre" placeholder="Nombre (ej. Avisar)" style="font-family:inherit;font-size:12px;border:1px solid #E2E8F0;border-radius:7px;padding:5px 8px;width:150px;outline:none">'
@@ -2490,6 +2499,15 @@ function opBindEvents() {
       _opDraft.etiquetasVR = (_opDraft.etiquetasVR || []).filter(function (x) { return x.id !== t.dataset.etqDel; });
       opRenderEtiquetas(); opCheckDirty(); return;
     }
+  });
+
+  // Exigir etiqueta: opcional / solo para recoger / siempre
+  var exWrap = $('op-etq-exigir');
+  if (exWrap) exWrap.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-etq-exigir]');
+    if (!b || !_opDraft) return;
+    _opDraft.etiquetasVRExigir = b.dataset.etqExigir;
+    opRenderEtiquetas(); opCheckDirty();
   });
 
   // Notas frecuentes — segmented + crear/borrar (delegación de clics)

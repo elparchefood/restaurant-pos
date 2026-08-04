@@ -4782,3 +4782,49 @@ Probado con Meta y la base simulados, 13 comprobaciones: sube una vez, la
 segunda vez no vuelve a bajar de GitHub, renueva a los 26 días, cae al link si
 la subida falla, y un envío rechazado no se cuenta como enviado ni ensucia el
 hilo. Desplegado: delay-reply v213.
+
+## 121. Las etiquetas del pedido: exigirlas, y que existan en el chat
+
+Dos cosas que estaban anotadas desde hace días.
+
+**1. Se pueden exigir.** Hasta ahora la etiqueta (Espera / Avisar / Programado /
+A carro) siempre se podía saltar: el cajero guardaba y no pasaba nada. Pero la
+etiqueta es lo que le dice a la cocina qué hacer con el pedido — si se puede
+saltar, tarde o temprano alguien la salta y el plato sale sin que nadie sepa si
+es para esperar o para avisar.
+
+Nuevo ajuste en Configuración → Operación → Sección 4b, con tres estados:
+`etiquetasVRExigir` = `'no'` (opcional, es el que viene puesto) · `'recoger'`
+(obligatoria solo si el pedido es para recoger) · `'siempre'`.
+
+Se decidió dejar las dos formas de exigir en vez de escoger una, porque en venta
+rápida son lo mismo —todo es para llevar— pero en el chat no: ahí un pedido
+puede ser domicilio, y quien quiera etiquetar también los domicilios necesita
+`'siempre'`.
+
+**Un candado que no se puede abrir es peor que no tenerlo:** si el dueño exige
+etiqueta pero no ha creado ninguna, NO se exige nada. Si no, la caja quedaría
+trancada sin forma de resolverlo desde la pantalla donde se está.
+
+En venta rápida se comprueba en los tres caminos de guardado —guardar, enviar a
+cocina y opciones de pago—, no solo en uno. El aviso no es un `alert` (obliga a
+soltar la pantalla táctil en plena atención): sale arriba y la fila de etiquetas
+se resalta y se desplaza a la vista, porque decir "falta la etiqueta" sin mostrar
+dónde está obliga a buscarla con el cliente en frente.
+
+**2. Ya existen en el chat.** Verificado antes de empezar: `etiquetasVR` aparecía
+**cero veces** en `chat-ia.js`. Solo las pintaba venta rápida, así que creando el
+pedido desde el chat no había dónde escogerla — justo en los pedidos para
+recoger, que es donde más sirven. Ahora salen en el modal de Crear pedido
+(no en los de mesa: por WhatsApp no se toma mesa), viajan en el envío y
+`crear-pedido-chat` v16 las escribe como `[etq:X]` junto a `[barrio:X]` y
+`[tel:X]`, que es el formato que `pos-print.js` ya sabe leer y limpiar. No se
+mete dentro del texto libre de notas.
+
+La comprobación de obligatoriedad al enviar está en `cpEnviarCocina` y no solo en
+el formulario, porque el borrador se puede mandar desde la tarjeta del chat sin
+volver a abrir el modal.
+
+Probado con 16 casos sobre la tabla de decisión, incluidos los dos que pueden
+trancar la caja: sin etiquetas creadas no se exige nada, y con la configuración
+corrupta tampoco se bloquea.

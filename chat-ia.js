@@ -2210,6 +2210,51 @@ function cpRerender(){ cpSyncTop(); cpSyncProdInputs(); cpRenderForm(S.cpOrder);
 function cpUpdTotal(){ cpSyncTop(); cpSyncProdInputs(); const t=document.getElementById('cpTotal'); if(t) t.textContent=cpCOP(cpOrderTotal()); }
 function cpNoteInput(i,v){ if(S.cpOrder&&S.cpOrder.productos[i]) S.cpOrder.productos[i].notas=v; }
 
+/* ETIQUETAS DEL PEDIDO (Espera / Avisar / Programado / A carro).
+   Vienen de Configuración → Operación → Sección 4b, las mismas que usa venta
+   rápida. Antes solo existían allá: creando el pedido desde el chat no había
+   dónde escogerlas, justo en los pedidos para recoger, que es donde más sirven.
+   No se muestran para pedidos de mesa (por WhatsApp no se toma mesa). */
+function cpEtiquetas(){
+  try{
+    const cfg=JSON.parse(localStorage.getItem('pos.config.operacion.v1')||'{}');
+    if(!cfg.etiquetasVRActivo) return [];
+    return Array.isArray(cfg.etiquetasVR) ? cfg.etiquetasVR.filter(e=>e&&e.nombre) : [];
+  }catch(e){ return []; }
+}
+/* ¿Hay que exigirla? 'no' nunca; 'recoger' solo cuando es para recoger;
+   'siempre' también en domicilio. Si no hay etiquetas creadas no se exige
+   nada: dejaría el pedido trancado sin forma de resolverlo. */
+function cpExigeEtiqueta(tipo){
+  if(tipo==='mesa') return false;
+  if(!cpEtiquetas().length) return false;
+  let ex='no';
+  try{ ex=(JSON.parse(localStorage.getItem('pos.config.operacion.v1')||'{}').etiquetasVRExigir)||'no'; }catch(e){}
+  if(ex==='siempre') return true;
+  if(ex==='recoger') return tipo==='recoger';
+  return false;
+}
+function cpEtiquetasHtml(o){
+  const list=cpEtiquetas();
+  if(!list.length || o.tipo==='mesa') return '';
+  const req=cpExigeEtiqueta(o.tipo);
+  const chips=list.map(e=>{
+    const on=o.etiqueta===e.nombre;
+    return '<button type="button" class="cp-etq'+(on?' on':'')+'" data-cpetq="'+cpEsc(e.nombre)+'" onclick="cpSetEtiqueta(this.dataset.cpetq)">'+cpEsc(e.nombre)+'</button>';
+  }).join('');
+  return '<div class="cp-f" id="cpEtqRow"><label>Etiqueta'
+    +(req?' <span class="cp-etq-req">· obligatoria</span>':' <span class="cp-etq-opt">· opcional</span>')
+    +'</label><div class="cp-etq-row">'+chips+'</div></div>';
+}
+function cpSetEtiqueta(v){
+  if(!S.cpOrder) return;
+  /* Se sincroniza lo escrito ANTES de repintar: sin esto, tocar una etiqueta
+     borraba el nombre, la dirección y las notas que se acabaran de teclear. */
+  cpSyncTop(); cpSyncProdInputs();
+  S.cpOrder.etiqueta = (S.cpOrder.etiqueta===v) ? null : v;   // tocarla otra vez la quita
+  cpRenderForm(S.cpOrder);
+}
+
 function cpRenderForm(o){
   const tipos=['domicilio','recoger','mesa'];
   const prods=(o.productos||[]).map((p,i)=>cpProdRow(p,i)).join('');
@@ -2233,6 +2278,7 @@ function cpRenderForm(o){
     +'<div id="cpProds">'+(prods||'<div class="cp-empty">Sin productos. Agrégalos abajo.</div>')+'</div>'
     +(addProd?'<div class="cp-addrow">'+addProd+'</div>':'')
     +'<div class="cp-f"><label>Notas generales</label><textarea id="cpNotas" rows="2">'+cpEsc(o.notas||'')+'</textarea></div>'
+    +cpEtiquetasHtml(o)
     // El valor del domicilio se llena solo desde la tabla de zonas (Configuración →
     // Chat IA → Domicilios). Si el barrio no está en la tabla, se deja en 0 y se
     // avisa, en vez de inventar una tarifa.
@@ -2634,6 +2680,14 @@ async function cpEnviarCocina(){
   let o=null;
   try{ const { data }=await sb.from('chat_conversations').select('pedido_borrador').eq('id', convId).maybeSingle(); o=data&&data.pedido_borrador; }catch(e){}
   if(!o || !(o.productos||[]).length){ showToast('No hay pedido para enviar','error'); return; }
+  /* La etiqueta es lo que le dice a la cocina qué hacer con el pedido. Si el
+     dueño la puso como obligatoria, no se envía sin ella. Se comprueba aquí y
+     no solo en el formulario porque el borrador se puede enviar desde la
+     tarjeta del chat sin volver a abrir el modal. */
+  if(cpExigeEtiqueta(o.tipo) && !o.etiqueta){
+    showToast('Falta la etiqueta: ábrelo en Editar y escoge una','error');
+    return;
+  }
   // ── LISTA NEGRA: si el cliente del pedido está bloqueado (teléfono o dirección), avisar y confirmar ──
   try{
     const _tel=o.telefono||'', _dir=o.direccion||'';
@@ -2651,7 +2705,7 @@ async function cpEnviarCocina(){
       }
     }
   }catch(_e){}
-  const payload={ conversation_id:convId, branch_id:o.branch_id, tenant_id:o.tenant_id, cliente:o.cliente, telefono:o.telefono, direccion:o.direccion||'', barrio:o.barrio||'', tipo:o.tipo, pago:o.pago, notas:o.notas, domi_precio:(o.tipo==='domicilio'?(Number(o.domi_precio)||0):0), empaque:Number(o.empaque)||0,
+  const payload={ conversation_id:convId, branch_id:o.branch_id, tenant_id:o.tenant_id, cliente:o.cliente, telefono:o.telefono, direccion:o.direccion||'', barrio:o.barrio||'', tipo:o.tipo, pago:o.pago, notas:o.notas, etiqueta:o.etiqueta||'', domi_precio:(o.tipo==='domicilio'?(Number(o.domi_precio)||0):0), empaque:Number(o.empaque)||0,
     productos:(o.productos||[]).map(p=>({ product_id:p.product_id, product_name:p.product_name, unit_price:p.unit_price, cantidad:p.cantidad, tamano:p.tamano, variantes:p.variantes||{}, adiciones:p.adiciones||[], notas:p.notas })) };
   const btn=document.getElementById('cpDraftSend'); if(btn){ btn.disabled=true; btn.textContent='Enviando…'; }
   var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
