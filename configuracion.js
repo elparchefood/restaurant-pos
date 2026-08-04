@@ -5704,6 +5704,31 @@ function genLogoNota(txt, mal) {
   n.className = 'gen-logo-nota' + (mal ? ' mal' : '');
 }
 
+/* La foto se ve en un círculo de 36 píxeles, pero la que escoge el dueño sale
+   de su celular y puede pesar varios MB. Antes se subía tal cual: la de El
+   Parche pesaba 566 KB y había que bajarla en CADA pantalla. Aquí se reduce a
+   256 (el doble de lo que se ve en pantallas retina) antes de subirla; queda
+   en unos 20-30 KB. */
+function genLogoReducir(file) {
+  return new Promise(function (listo) {
+    var img = new Image();
+    img.onload = function () {
+      try {
+        var LADO = 256;
+        var lienzo = document.createElement('canvas');
+        lienzo.width = lienzo.height = LADO;
+        var g = lienzo.getContext('2d');
+        // Recorte cuadrado desde el centro: es lo que se ve dentro del círculo.
+        var lado = Math.min(img.width, img.height);
+        g.drawImage(img, (img.width - lado) / 2, (img.height - lado) / 2, lado, lado, 0, 0, LADO, LADO);
+        lienzo.toBlob(function (b) { listo(b || file); }, 'image/png');
+      } catch (e) { listo(file); }   // si algo falla, se sube la original
+    };
+    img.onerror = function () { listo(file); };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 async function genSubirLogo(input) {
   var f = input.files && input.files[0];
   input.value = '';
@@ -5718,10 +5743,15 @@ async function genSubirLogo(input) {
     /* El nombre lleva la hora: si se reemplaza la foto, el navegador y el .exe
        tienen que bajar una dirección distinta. Con el mismo nombre se quedarían
        mostrando la vieja — es lo que nos pasó con el logo de Cobra. */
-    var ext = (f.type === 'image/png' ? 'png' : f.type === 'image/webp' ? 'webp' : 'jpg');
-    var ruta = tid + '/logo-' + Date.now() + '.' + ext;
+    var ruta = tid + '/logo-' + Date.now() + '.png';
+    var chica = await genLogoReducir(f);
 
-    var up = await sb.storage.from('marca').upload(ruta, f, { contentType: f.type, upsert: true });
+    /* cacheControl: sin esto Supabase manda "no-cache" y el programa vuelve a
+       bajar la foto entera en cada pantalla. Un año es seguro justamente porque
+       cada foto nueva estrena dirección. */
+    var up = await sb.storage.from('marca').upload(ruta, chica, {
+      contentType: 'image/png', upsert: true, cacheControl: '31536000'
+    });
     if (up.error) { genLogoNota('No se pudo subir: ' + (up.error.message || ''), true); return; }
 
     var pub = sb.storage.from('marca').getPublicUrl(ruta);

@@ -143,12 +143,31 @@
 
   /* Ventas ("Por salón") dibuja su sidebar por JS después del load.
      Observamos el DOM para pintar el bloque en cuanto aparezca. */
+  /* OJO con el costo: este vigilante se despierta con CUALQUIER cambio del
+     documento, y las pantallas que redibujan listas largas (Ventas, Catálogo)
+     cambian el documento sin parar. Por eso:
+       · se agrupa el trabajo con requestAnimationFrame — muchos cambios
+         seguidos se atienden UNA vez, no una por cambio;
+       · se apaga a los 20 segundos. El bloque de marca lo dibujan las pantallas
+         al arrancar; pasado ese rato ya no aparece ninguno nuevo y seguir
+         mirando solo cuesta.
+     Antes no tenía ninguna de las dos cosas y revisaba el documento entero en
+     cada movimiento: eso es parte de lo que puso lento el sistema. */
+  var obsPedido = false;
   var obs = new MutationObserver(function () {
-    var pendiente = document.querySelector(
-      '[class*="brand-logo"]:not([data-brand-done]), [class*="brand-mark"]:not([data-brand-done])');
-    if (pendiente) aplicar(nombreCache());
+    if (obsPedido) return;
+    obsPedido = true;
+    requestAnimationFrame(function () {
+      obsPedido = false;
+      var pendiente = document.querySelector(
+        '[class*="brand-logo"]:not([data-brand-done]), [class*="brand-mark"]:not([data-brand-done])');
+      if (pendiente) aplicar(nombreCache());
+    });
   });
-  function observar() { obs.observe(document.body, { childList: true, subtree: true }); }
+  function observar() {
+    obs.observe(document.body, { childList: true, subtree: true });
+    setTimeout(function () { obs.disconnect(); }, 20000);
+  }
   if (document.body) observar();
   else document.addEventListener('DOMContentLoaded', observar);
 
@@ -167,10 +186,41 @@
      archivos. Es el mismo criterio con el que este archivo normaliza el bloque
      de marca. */
   var LS_LOGO = 'pos.brand.logo';
+  var LS_FOTO = 'pos.brand.foto';   // la imagen misma, guardada en el equipo
   var AVATARES = ['tb-avatar', 'dd-avatar', 'user-avatar', 'topbar-avatar', 'userAv', 'mesero-avatar', 'vs-user-av'];
 
   function logoCache() {
     try { return localStorage.getItem(LS_LOGO) || ''; } catch (e) { return ''; }
+  }
+
+  /* La foto guardada AQUÍ, en el equipo, no en internet. Se guarda junto con la
+     dirección de la que salió: si el dueño la cambia, la dirección cambia y
+     sabemos que la copia local quedó vieja. Así ninguna pantalla tiene que
+     esperar a la red para pintar el círculo. */
+  function fotoLocal(url) {
+    try {
+      var g = JSON.parse(localStorage.getItem(LS_FOTO) || 'null');
+      return (g && g.url === url && g.datos) ? g.datos : '';
+    } catch (e) { return ''; }
+  }
+
+  function guardarFotoLocal(url) {
+    if (!url || fotoLocal(url)) return;
+    fetch(url).then(function (r) { return r.blob(); }).then(function (b) {
+      if (b.size > 400 * 1024) return;         // demasiado grande para guardarla
+      var fr = new FileReader();
+      fr.onload = function () {
+        try { localStorage.setItem(LS_FOTO, JSON.stringify({ url: url, datos: fr.result })); }
+        catch (e) {}                            // sin espacio: se sigue usando la de internet
+      };
+      fr.readAsDataURL(b);
+    }).catch(function () {});
+  }
+
+  // Lo que se pinta: primero la copia local; si no hay, la dirección de internet.
+  function fuenteFoto() {
+    var url = logoCache();
+    return url ? (fotoLocal(url) || url) : '';
   }
 
   async function logoDesdeDB() {
@@ -203,7 +253,7 @@
 
   function arrancarFoto() {
     var url = logoCache();
-    pintarFotoEnTodos(url);
+    pintarFotoEnTodos(fuenteFoto());
 
     /* Varias pantallas escriben las iniciales en ese círculo DESPUÉS de que
        esto corre, y borrarían la foto. En vez de adivinar el orden de carga, se
@@ -213,7 +263,7 @@
         (function (el) {
           if (!el) return;
           new MutationObserver(function () {
-            if (!el.querySelector('img')) { el.dataset.fotoUrl = ''; pintarFoto(el, logoCache()); }
+            if (!el.querySelector('img')) { el.dataset.fotoUrl = ''; pintarFoto(el, fuenteFoto()); }
           }).observe(el, { childList: true, characterData: true, subtree: true });
         })(document.getElementById(AVATARES[i]));
       }
@@ -221,9 +271,9 @@
 
     // Y se refresca desde la base, por si el dueño la cambió en otro equipo.
     logoDesdeDB().then(function (nueva) {
-      if (nueva === url) return;
+      if (nueva === url) { guardarFotoLocal(url); return; }
       try { nueva ? localStorage.setItem(LS_LOGO, nueva) : localStorage.removeItem(LS_LOGO); } catch (e) {}
-      if (nueva) pintarFotoEnTodos(nueva);
+      if (nueva) { pintarFotoEnTodos(nueva); guardarFotoLocal(nueva); }
     });
   }
 
@@ -231,23 +281,35 @@
      todavia no existe cuando esto corre. Se vigila el documento y se pinta en
      cuanto aparezca — mismo criterio que el bloque de marca de mas arriba. */
   if (window.MutationObserver) {
+    var fotoPedido = false;
     var obsFoto = new MutationObserver(function () {
-      var url = logoCache();
-      if (!url) return;
-      for (var k = 0; k < AVATARES.length; k++) {
-        var el = document.getElementById(AVATARES[k]);
-        if (el && !el.querySelector('img')) pintarFoto(el, url);
-      }
+      if (fotoPedido) return;          // mismo criterio de arriba: agrupar y apagar
+      fotoPedido = true;
+      requestAnimationFrame(function () {
+        fotoPedido = false;
+        var src = fuenteFoto();
+        if (!src) return;
+        for (var k = 0; k < AVATARES.length; k++) {
+          var el = document.getElementById(AVATARES[k]);
+          if (el && !el.querySelector('img')) pintarFoto(el, src);
+        }
+      });
     });
-    var arrancarObs = function () { obsFoto.observe(document.body, { childList: true, subtree: true }); };
+    var arrancarObs = function () {
+      obsFoto.observe(document.body, { childList: true, subtree: true });
+      setTimeout(function () { obsFoto.disconnect(); }, 20000);
+    };
     if (document.body) arrancarObs();
     else document.addEventListener('DOMContentLoaded', arrancarObs);
   }
 
   /* Para que Configuración avise cuando la acaban de cambiar, sin recargar. */
   window.posBrandLogo = function (url) {
-    try { url ? localStorage.setItem(LS_LOGO, url) : localStorage.removeItem(LS_LOGO); } catch (e) {}
-    if (url) pintarFotoEnTodos(url);
+    try {
+      if (url) localStorage.setItem(LS_LOGO, url);
+      else { localStorage.removeItem(LS_LOGO); localStorage.removeItem(LS_FOTO); }
+    } catch (e) {}
+    if (url) { pintarFotoEnTodos(url); guardarFotoLocal(url); }
     return url || '';
   };
 
