@@ -354,8 +354,6 @@ function renderNav(){
     {id:'modificadores',icon:'tag',label:'Modificadores',badge:()=>S.mods.length},
     {sep:true},
     {id:'ai',icon:'sparkle',label:'Importar con IA',ai:true},
-    {sep:true},
-    {id:'logout',icon:'logout',label:'Cerrar sesión',logout:true},
   ];
   nav.innerHTML=tabs.map(t=>{
     if(t.sep) return '<div class="cp-nav-divider"></div>';
@@ -368,12 +366,31 @@ function renderNav(){
   }).join('');
 }
 
-function updateStats(){
-  const sp=$('stat-products'),sc=$('stat-cats'),sm=$('stat-mods');
-  if(sp)sp.textContent=S.products.length;
-  if(sc)sc.textContent=S.cats.length;
-  if(sm)sm.textContent=S.mods.length;
+/* La fila de cifras se quito del pie: lo que decia ya esta en las insignias de
+   cada renglon del menu. Se deja la funcion por si algo la llama. */
+function updateStats(){}
+
+/* La cuenta que tiene la sesion abierta. La foto del restaurante la pone
+   pos-brand.js, que conoce este circulo por su id (user-avatar). */
+async function pintarCuentaCP(){
+  const s=(window._pos&&window._pos.sb)||window.sb; if(!s) return;
+  let nombre='',rol='';
+  try{
+    const u=await s.auth.getUser();
+    const m=(u&&u.data&&u.data.user&&u.data.user.user_metadata)||{};
+    nombre=m.nombre||m.full_name||m.name||(u.data.user&&u.data.user.email)||'';
+    rol=m.role||m.rol||'';
+  }catch(e){}
+  const n=$('cp-user-nom'), r=$('cp-user-rol'), a=$('user-avatar');
+  if(n)n.textContent=nombre||'Mi cuenta';
+  if(r)r.textContent=rol?(rol.charAt(0).toUpperCase()+rol.slice(1)):'Usuario';
+  if(a&&!a.querySelector('img')){
+    a.textContent=(nombre||'?').split(/\s+/).filter(Boolean).slice(0,2)
+      .map(w=>w[0]).join('').toUpperCase()||'?';
+  }
 }
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',pintarCuentaCP);
+else pintarCuentaCP();
 
 function setTab(tab){if(tab==='ai'){openAIImport();return;}S.tab=tab;S.filterCat=null;renderPage();}
 

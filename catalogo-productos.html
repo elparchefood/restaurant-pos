@@ -26,19 +26,16 @@
     </div>
     <div class="cp-nav-section-label">Catálogo</div>
     <div id="cp-nav"><!-- renderNav() --></div>
+    <!-- El pie: la cuenta que tiene la sesion abierta, igual que en el
+         dashboard y en Ventas. Antes aqui iba una fila con cuantos productos,
+         categorias y grupos hay — informacion que ya esta en las insignias de
+         cada renglon del menu, dos centimetros mas arriba. -->
     <div class="cp-sidebar-footer">
-      <div class="cp-stat-row">
-        <span class="cp-stat"><span id="stat-products">0</span><span class="cp-stat-label">productos</span></span>
-        <span class="cp-stat-sep"></span>
-        <span class="cp-stat"><span id="stat-cats">0</span><span class="cp-stat-label">categorías</span></span>
-        <span class="cp-stat-sep"></span>
-        <span class="cp-stat"><span id="stat-mods">0</span><span class="cp-stat-label">grupos</span></span>
-      </div>
       <div class="cp-user-row">
-        <div class="cp-avatar">EP</div>
+        <div class="cp-avatar" id="user-avatar">?</div>
         <div class="cp-user-info">
-          <span class="cp-user-name">El Parche Food</span>
-          <span class="cp-user-role">Administrador</span>
+          <span class="cp-user-name" id="cp-user-nom">Cargando…</span>
+          <span class="cp-user-role" id="cp-user-rol">—</span>
         </div>
       </div>
     </div>
@@ -96,7 +93,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="pos-perms.js?v=1785030000"></script>
 <script>if(window.posRequirePin) posRequirePin('catalogo.ver');</script>
-<script src="catalogo-productos.js?v=1785040000"></script>
+<script src="catalogo-productos.js?v=1789300000"></script>
 <script src="pos-brand.js?v=1789200000"></script>
 
 </body>
