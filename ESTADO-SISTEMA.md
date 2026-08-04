@@ -4741,3 +4741,44 @@ en una pantalla de 720, y **el botón de confirmar quedaba por fuera**. El cuerp
 quedó con scroll propio y tope de 88vh; las listas largas van a dos columnas.
 
 SQL: `sql/2026-08-03-cambiar-plan.sql`.
+
+## 120. La carta llegaba sin las fotos
+
+Sergio: "Paco contesta fuera del horario, la gente pregunta la carta, manda la
+frase pero no está enviando las imágenes a veces."
+
+Un cliente escribió "Hola tienes carta ?" y Paco contestó "¿Qué se te antoja?
+🍟☺️" — que es exactamente `menu_frase.texto`, la frase que ACOMPAÑA a la carta.
+Así que la rama de la carta sí corrió, y aun así no llegó ninguna foto.
+
+**La causa.** Las imágenes se mandaban con `image: { link: url }` apuntando a
+`raw.githubusercontent.com`. Meta contesta 200 al instante y descarga la imagen
+**después**, por su cuenta. Esas dos fotos pesan 1,5 MB y 1,1 MB, y GitHub tarda
+entre 2 y 4 segundos en entregarlas (medido). Cuando se demora de más o GitHub
+limita el tráfico —no es un CDN, y castiga el hotlinking— Meta desiste y el
+cliente no recibe nada. Pero aquí `rImg.ok` ya había contado el envío como
+bueno, así que se mandaba la frase igual. De ahí el "a veces".
+
+**Lo que lo hacía invisible.** Las imágenes **nunca se anotaban en
+`chat_messages`**. Comprobado en los datos: de todos los mensajes salientes con
+`origen='bot'`, **cero** tienen media, mientras que los humanos tienen 12
+imágenes y 9 stickers. En el panel, Paco siempre pareció mandar solo la frase.
+Sergio no tenía forma de saber si el cliente había recibido la carta — y cuando
+la carta la mandaba un humano desde las respuestas rápidas, esa sí se veía,
+porque va desde el storage de Supabase. Ese contraste es el "a veces" que veía.
+
+**El arreglo.** La carta se sube a Meta **una sola vez** (`POST /media`) y se
+guarda el id en `ia_config.menu_media`. Los envíos siguientes van con
+`image: { id }`: no hay descarga en el momento del envío, la imagen ya vive en
+los servidores de Meta. El id se renueva a los 25 días porque Meta los guarda
+30. Si la subida falla se manda por link como antes —peor, pero mejor que nada—
+y queda anotado en el registro.
+
+Y cada imagen enviada se anota ahora en el hilo con su `external_id`, así que
+aparece en el panel y, si Meta avisa después que falló, el estado se actualiza
+solo.
+
+Probado con Meta y la base simulados, 13 comprobaciones: sube una vez, la
+segunda vez no vuelve a bajar de GitHub, renueva a los 26 días, cae al link si
+la subida falla, y un envío rechazado no se cuenta como enviado ni ensucia el
+hilo. Desplegado: delay-reply v213.

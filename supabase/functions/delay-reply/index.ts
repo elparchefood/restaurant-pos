@@ -663,24 +663,84 @@ INTENCION, no las palabras exactas.` },
       return combinedLower.includes(k);
     });
     if (wantsMenu) {
-      /* Antes se mandaba la imagen y no se miraba la respuesta: si Meta la
-         rechazaba (peso, formato, URL caida) NADIE se enteraba y el bot igual
-         escribia el texto prometiendola. Ahora se revisa cada envio. */
+      /* LA CARTA SE SUBE A META UNA VEZ Y SE REUTILIZA EL ID.
+
+         Antes se mandaba `image: { link: url }` con la direccion de GitHub.
+         Meta contesta 200 al instante y descarga la imagen DESPUES, por su
+         cuenta. Esas dos fotos pesan 1,5 MB y 1,1 MB, y GitHub tarda entre 2 y
+         4 segundos en entregarlas: cuando se demora mas de la cuenta o GitHub
+         limita el trafico, Meta desiste y el cliente no recibe nada — pero aqui
+         ya habiamos contado el envio como bueno y le mandabamos igual la frase
+         "¿Que se te antoja?". Eso es exactamente lo que veia Sergio: la frase
+         sola, sin las fotos, y sin ninguna señal de que algo hubiera fallado.
+
+         Con el id ya subido no hay descarga en el momento del envio: la imagen
+         vive en los servidores de Meta. Se renueva a los 25 dias porque Meta
+         las guarda 30. */
+      const cacheMedia = (cfg.menu_media as Record<string, { id?: string; at?: string }>) || {};
+      let cacheCambio = false;
+
+      const idDeMeta = async (url: string): Promise<string> => {
+        const g = cacheMedia[url] || {};
+        const dias = g.at ? (Date.now() - Date.parse(g.at)) / 86400000 : 999;
+        if (g.id && dias < 25) return g.id;
+        try {
+          const bin = await fetch(url);
+          if (!bin.ok) { console.error("[carta] no se pudo bajar la imagen", url, bin.status); return ""; }
+          const blob = await bin.blob();
+          const fd = new FormData();
+          fd.append("messaging_product", "whatsapp");
+          fd.append("type", blob.type || "image/png");
+          fd.append("file", blob, (url.split("?")[0].split("/").pop() || "carta.png"));
+          const up = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/media`, {
+            method: "POST", headers: { "Authorization": `Bearer ${accessToken}` }, body: fd,
+          });
+          const uj = await up.json().catch(() => ({})) as Record<string, unknown>;
+          const id = String(uj.id || "");
+          if (id) { cacheMedia[url] = { id, at: new Date().toISOString() }; cacheCambio = true; }
+          else console.error("[carta] Meta no acepto la subida", url, JSON.stringify(uj).slice(0, 300));
+          return id;
+        } catch (e) {
+          console.error("[carta] fallo subiendo la carta", url, String(e).slice(0, 200));
+          return "";
+        }
+      };
+
       let imgsOk = 0;
       for (const imgUrl of menuImagenes) {
         try {
+          const mediaId = await idDeMeta(imgUrl);
+          // Si la subida fallo se intenta por link, como antes: peor, pero es
+          // mejor que no mandar nada.
+          const foto = mediaId ? { id: mediaId } : { link: imgUrl };
           const rImg = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
             method: "POST",
             headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "image", image: { link: imgUrl } }),
+            body: JSON.stringify({ messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "image", image: foto }),
           });
-          if (rImg.ok) imgsOk++;
-          else console.error("[carta] Meta rechazo la imagen", imgUrl, (await rImg.text()).slice(0, 300));
+          const rj = await rImg.json().catch(() => ({})) as Record<string, unknown>;
+          if (rImg.ok) {
+            imgsOk++;
+            /* Queda anotada en el hilo. Antes NO se anotaba ninguna: en el panel
+               Paco parecia haber mandado solo la frase, y no habia forma de
+               saber si el cliente habia recibido la carta. Con el id del mensaje
+               guardado, si Meta avisa despues que fallo, el estado se actualiza
+               solo y se ve. */
+            const imgId = ((rj.messages as Array<Record<string, unknown>>)?.[0]?.id as string) || "";
+            await sbPost(`/rest/v1/chat_messages`, {
+              conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot",
+              body: "Carta", media_url: imgUrl, media_type: "image",
+              delivery_status: "sent", external_id: imgId || null, sent_at: new Date().toISOString(),
+            });
+          } else {
+            console.error("[carta] Meta rechazo la imagen", imgUrl, JSON.stringify(rj).slice(0, 300));
+          }
         } catch (e) {
           console.error("[carta] no se pudo enviar la imagen", imgUrl, String(e).slice(0, 200));
         }
         await sleep(600);
       }
+      if (cacheCambio) await sbPatch(`/rest/v1/ia_config?branch_id=eq.${branchId}`, { menu_media: cacheMedia });
       if (imgsOk === 0) console.error("[carta] NO se envio ninguna imagen de la carta a", fromPhone);
       // Frase que acompaña la carta: nodo "Evento: Pide la carta" del canvas
       // (flujo_extras.carta) > menu_frase config > apertura > default
