@@ -18,6 +18,9 @@ input,select,textarea,button{font-family:inherit;}
 .cp-section-label-wrap{padding:14px 22px 6px;}
 .cp-section-label{font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.1em;}
 .cp-nav{display:flex;flex-direction:column;gap:2px;padding:0 12px;flex:1;}
+/* Al quitar el rotulo "Catalogo" el menu quedaba pegado al logo: ese aire lo
+   daba el rotulo. Ahora lo da el menu mismo. */
+#cp-nav{padding-top:10px;}
 .cp-nav-divider{height:1px;background:#ECEEF2;margin:8px 4px;}
 .cp-nav-item{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-radius:9px;border:none;background:transparent;cursor:pointer;font-size:13px;font-weight:500;color:#475569;width:100%;text-align:left;text-decoration:none;transition:background .15s;}
 .cp-nav-item:hover{background:#F8FAFC;}
