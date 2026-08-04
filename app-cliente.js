@@ -12,7 +12,10 @@
   'use strict';
 
   var SB_URL = 'https://tblujfduscslxjmrjbdr.supabase.co';
-  var ANON   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMxNDk2NzUsImV4cCI6MjA2ODcyNTY3NX0.CjLcMOJHDCgTPnE3ZhOlgGZgEZLM1SXCK6-fzq6rz9Q';
+  // La MISMA llave publica que usa el resto de Cobra (pos-core.js). La primera
+  // vez puse una inventada y la pagina no podia ni preguntar quien era el
+  // restaurante: decia "esta pagina no esta disponible" sin mas.
+  var ANON   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
   var ACCESO = SB_URL + '/functions/v1/web-acceso';
   var LLAVE_SESION = 'cobra.web.sesion';
 
