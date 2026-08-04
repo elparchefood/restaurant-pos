@@ -163,7 +163,9 @@ function _invalidateCatalogCache(){try{['v2','v3','v4'].forEach(function(v){loca
 async function deleteModGroupFromSupabase(id){try{await sb.from('pos_modifier_groups').delete().eq('id',id).eq('tenant_id',S.tenantId);_invalidateCatalogCache();}catch(e){}}
 
 // ── Auth ──────────────────────────────────────────────────────────────────
-async function signOut(){await sb.auth.signOut();window.location.href='login.html';}
+/* Al salir se borra lo guardado en el equipo: en un computador compartido no
+   puede quedar el catálogo del restaurante anterior. */
+async function signOut(){if(window.posCache)posCache.limpiar();await sb.auth.signOut();window.location.href='login.html';}
 
 // ── UI helpers ────────────────────────────────────────────────────────────
 function toast(msg){const el=$('cp-toast');if(!el)return;el.innerHTML='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="16 9 11 14 8.5 11.5"/></svg> '+msg;el.style.display='flex';clearTimeout(el._t);el._t=setTimeout(()=>{el.style.display='none';},2600);}
@@ -398,7 +400,17 @@ else pintarCuentaCP();
 
 function setTab(tab){if(tab==='ai'){openAIImport();return;}S.tab=tab;S.filterCat=null;renderPage();}
 
-function renderPage(){renderNav();updateStats();renderPageHead();renderTabsRow();renderFilterRow();renderBody();}
+/* La copia del equipo se rehace cada vez que la pantalla cambia de verdad
+   (crear, editar o borrar algo). Va con espera para no rehacerla veinte veces
+   seguidas mientras se redibuja. */
+function guardarCatalogoLocal(){
+  if(!window.posCache || S.loading) return;
+  posCache.guardarPronto('catalogo', ()=>({
+    cats:S.cats, products:S.products, combos:S.combos, mods:S.mods, bases:S.bases
+  }));
+}
+
+function renderPage(){renderNav();updateStats();renderPageHead();renderTabsRow();renderFilterRow();renderBody();guardarCatalogoLocal();}
 
 function renderPageHead(){
   const titles={productos:'Catálogo de productos',combos:'Combos',categorias:'Categorías',modificadores:'Modificadores'};;
@@ -1117,10 +1129,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   const chip = document.getElementById('cp-user-chip-name');
   if (chip) chip.textContent = (user.user_metadata?.name || user.email || '').split('@')[0];
 
-  // Render inmediato con estructura vacía
+  /* ── Pintar YA con lo que está guardado en el equipo ──────────────────────
+     El catálogo cambia dos o tres veces al mes, pero se volvía a pedir entero
+     cada vez que se abría la pantalla, y hasta que llegaba no había nada que
+     ver. Ahora sale del computador al instante y la base solo confirma después.
+     Si es la primera vez en este equipo no hay nada guardado y se comporta
+     igual que antes. */
+  var guardado = window.posCache && posCache.leer('catalogo');
+  if (guardado && guardado.datos && guardado.datos.products) {
+    S.cats     = guardado.datos.cats     || [];
+    S.products = guardado.datos.products || [];
+    S.combos   = guardado.datos.combos   || [];
+    S.mods     = guardado.datos.mods     || [];
+    S.bases    = guardado.datos.bases    || [];
+    S.loading  = false;
+  }
   renderPage();
 
-  // Cargar datos del usuario autenticado
+  // Y ahora sí, la verdad de la base — sin que el usuario haya esperado nada.
   try {
     await Promise.all([loadCategories(), loadModifierGroups(), loadBases()]);
     await loadProducts();
@@ -1130,6 +1156,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   } finally {
     S.loading=false;
     renderPage();
+    guardarCatalogoLocal();
   }
 
   // Redirigir si la sesión expira (ignorar INITIAL_SESSION al registrar el listener)
