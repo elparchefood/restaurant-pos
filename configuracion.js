@@ -221,27 +221,19 @@ function setSection(sec) {
     b.classList.toggle('on', b.dataset.section === sec);
   });
 
+  /* ── Ocultar TODAS las pantallas, sin lista escrita a mano ───────────────
+     Aquí había una lista con las pantallas una por una, y a "Impuestos y
+     propina" se le olvidó ponerla: se le añadía la marca de visible pero nunca
+     se le quitaba. Resultado: una vez abierta, esa pantalla se quedaba pegada
+     debajo de TODAS las demás — por eso Operación y Métodos de pago se veían
+     cortadas, con los impuestos colgando abajo.
+     Con esto, cualquier pantalla que se agregue mañana se oculta sola. */
+  var _panes = document.querySelectorAll('.cf-screen');
+  for (var _i = 0; _i < _panes.length; _i++) _panes[_i].classList.remove('on');
+
   var screenMesas    = $('screen-mesas');
   var screenGeneral  = $('screen-general');
   var screenPh       = $('screen-placeholder');
-
-  screenMesas.classList.remove('on');
-  screenGeneral.classList.remove('on');
-  screenPh.classList.remove('on');
-  var _screenUr = $('screen-usuarios');
-  if (_screenUr) _screenUr.classList.remove('on');
-  var _screenOp = $('screen-operacion');
-  if (_screenOp) _screenOp.classList.remove('on');
-  var _screenChatia = $('screen-chatia');
-  if (_screenChatia) _screenChatia.classList.remove('on');
-  var _screenHorario = $('screen-horario');
-  if (_screenHorario) _screenHorario.classList.remove('on');
-  var _screenMp = $('screen-metodos-pago');
-  if (_screenMp) _screenMp.classList.remove('on');
-  var _screenPt = $('screen-puntos');
-  if (_screenPt) _screenPt.classList.remove('on');
-  var _screenCr = $('screen-creditos');
-  if (_screenCr) _screenCr.classList.remove('on');
 
   if (sec === 'mesas') {
     screenMesas.classList.add('on');
