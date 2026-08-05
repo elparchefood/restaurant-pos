@@ -58,7 +58,7 @@
   es('cabecera igual', $('head-progress').textContent, '1 de 3 completados');
   es('contador de pendientes', $('f-pendientes').textContent, '1');
   es('contador en curso', $('f-curso').textContent, '1');
-  es('contador completos', $('f-completos').textContent, '1');
+  // el chip de completos se quito a proposito: ya no hay contador que mirar
   es('faltan 2', /Te faltan 2 tutoriales/.test($('nudge-t').textContent), true);
 
   // ── abre solo el que estaba en curso ──
@@ -78,8 +78,10 @@
   es('con su minuto', /0:30/.test($('chap-list').textContent), true);
 
   // ── filtros y búsqueda ──
-  document.querySelector('.cc-fchip[data-filter="completos"]').click();
-  es('filtro completos deja 1', document.querySelectorAll('#rail-list .tu-item').length, 1);
+  document.querySelector('.cc-fchip[data-filter="curso"]').click();
+  es('filtro "en curso" deja 1', document.querySelectorAll('#rail-list .tu-item').length, 1);
+  document.querySelector('.cc-fchip[data-filter="pendientes"]').click();
+  es('filtro "pendientes" deja 1', document.querySelectorAll('#rail-list .tu-item').length, 1);
   document.querySelector('.cc-fchip[data-filter="todos"]').click();
   $('search').value = 'pedido';
   $('search').dispatchEvent(new Event('input'));
@@ -107,6 +109,45 @@
   es('sin el nombre inventado', /Valentina/.test(document.body.innerText), false);
   es('sin la sede inventada', /Sede Centro/.test(document.body.innerText), false);
   es('el bloque de cuenta existe', !!document.getElementById('tb-uname'), true);
+
+  // La búsqueda anterior dejó la lista filtrada: se limpia para volver a verla entera.
+  $('search').value = '';
+  $('search').dispatchEvent(new Event('input'));
+  document.querySelector('.cc-fchip[data-filter="todos"]').click();
+
+  // ── la miniatura de YouTube ──
+  var mini = document.querySelector('.tu-item .tu-mini');
+  es('cada video trae su miniatura', !!mini, true);
+  es('sale del id del video', /i\.ytimg\.com\/vi\/ccc\/mqdefault\.jpg/.test(
+      document.querySelector('[data-video="v3"] .tu-mini').src), true);
+  es('una miniatura por video', document.querySelectorAll('.tu-item .tu-mini').length, 3);
+
+  // ── el filtro Completos ya no está ──
+  es('quedan 3 filtros', document.querySelectorAll('.cc-fchip').length, 3);
+  es('sin el de completos', !!document.querySelector('[data-filter="completos"]'), false);
+  es('siguen los tres útiles',
+     [].map.call(document.querySelectorAll('.cc-fchip'), function(c){return c.dataset.filter;}),
+     ['todos','pendientes','curso']);
+
+  // ── la barra se DESLIZA ──
+  // Reproductor de mentira: guarda a donde se le manda saltar.
+  var saltos = [];
+  window.YT = { PlayerState:{PLAYING:1,ENDED:0} };
+  var falso = { getCurrentTime:function(){return 60;}, getDuration:function(){return 600;},
+                seekTo:function(t){ saltos.push(Math.round(t)); }, playVideo:function(){},
+                pauseVideo:function(){}, getPlayerState:function(){return 2;} };
+  // Se le mete al modulo por la puerta que ya usa: el evento de YouTube listo.
+  var barra = document.getElementById('scrub');
+  es('la barra existe', !!barra, true);
+
+  function pt(tipo, x){
+    var r = barra.getBoundingClientRect();
+    var e = new PointerEvent(tipo, {clientX: r.left + x, bubbles:true, cancelable:true});
+    (tipo === 'pointerdown' ? barra : document).dispatchEvent(e);
+  }
+  // Sin reproductor no debe hacer nada ni quedarse colgada.
+  pt('pointerdown', 10); pt('pointermove', 50); pt('pointerup', 50);
+  es('sin video, no se cuelga arrastrando', barra.classList.contains('dragging'), false);
 
   out.textContent = (mal?log.join('\n')+'\n\n':'') + ok+' bien, '+mal+' mal';
   document.title = mal ? 'FALLAN '+mal : 'TODO BIEN ('+ok+')';

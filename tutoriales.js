@@ -122,9 +122,15 @@
       ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4"><path d="m5 12 5 5L19 7"/></svg>' : '';
     var barra = (est === 'new') ? ''
       : '<span class="tu-thumbnail-bar"><i style="width:' + (est === 'done' ? 100 : avance).toFixed(1) + '%"></i></span>';
+    /* La miniatura la sirve YouTube a partir del id del video: no hay que
+       subirla ni guardarla. mqdefault es la de 320x180, que sobra para un
+       recuadro de 68x39 y pesa poco. */
+    var mini = v.youtube_id
+      ? '<img class="tu-mini" src="https://i.ytimg.com/vi/' + ESC(v.youtube_id) + '/mqdefault.jpg" alt="" loading="lazy">'
+      : '';
     return '<button class="tu-item is-' + est + (S.actual === v.id ? ' on' : '') + '" data-video="' + v.id + '">'
       + '<span class="tu-mark">' + marca + '</span>'
-      + '<span class="tu-thumbnail"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="m8 5 12 7-12 7V5Z"/></svg>'
+      + '<span class="tu-thumbnail">' + mini + '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="m8 5 12 7-12 7V5Z"/></svg>'
       + '<span class="tu-thumbnail-d">' + (dur ? fmt(dur) : '') + '</span>' + barra + '</span>'
       + '<span class="tu-item-txt"><span class="tu-item-name">' + ESC(v.titulo) + '</span>'
       + '<span class="tu-item-sub">' + sub + '</span></span>'
@@ -348,6 +354,8 @@
 
   var _guardadoUlt = 0;
   function sincronizar() {
+    var b = $('scrub');
+    if (b && b.classList.contains('dragging')) return;   // manda el dedo, no el reloj
     var t = tiempo(), d = duracion();
     if ($('time-cur')) $('time-cur').textContent = fmt(t);
     if ($('time-dur')) $('time-dur').textContent = d ? fmt(d) : '0:00';
@@ -478,12 +486,54 @@
     if ($('search')) {
       $('search').addEventListener('input', function () { S.busca = this.value; pintarRail(); });
     }
-    if ($('scrub')) {
-      $('scrub').addEventListener('click', function (e) {
-        if (!S.yt) return;
-        var r = this.getBoundingClientRect();
+    /* La barra se DESLIZA, no solo se toca. La mayoria de la gente arrastra por
+       sentido comun; con solo el toque hay que acertar al punto exacto a la
+       primera. Mientras se arrastra solo se mueve lo que se ve; el salto de
+       verdad se hace al soltar, para no pedirle a YouTube cien saltos seguidos. */
+    var barra = $('scrub');
+    if (barra) {
+      var arrastrando = false;
+
+      function posicion(e) {
+        var r = barra.getBoundingClientRect();
+        var x = Math.min(Math.max(e.clientX - r.left, 0), r.width);
+        return r.width ? x / r.width : 0;
+      }
+      function pintarArrastre(f) {
         var d = duracion();
-        if (d) { S.yt.seekTo((e.clientX - r.left) / r.width * d, true); sincronizar(); }
+        if ($('scrub-fill')) $('scrub-fill').style.width = (f * 100) + '%';
+        if ($('time-cur')) $('time-cur').textContent = fmt(f * d);
+      }
+      function soltar(e) {
+        if (!arrastrando) return;
+        arrastrando = false;
+        barra.classList.remove('dragging');
+        document.removeEventListener('pointermove', mover);
+        document.removeEventListener('pointerup', soltar);
+        document.removeEventListener('pointercancel', soltar);
+        var d = duracion();
+        if (S.yt && d) { S.yt.seekTo(posicion(e) * d, true); sincronizar(); }
+        /* Se vuelve a mandar el minuto: si se suelta y se cierra la pantalla de
+           una, el guardado periodico todavia no habia pasado por aqui. */
+        if (S.actual) guardarProgreso(S.actual, { segundos: tiempo() });
+      }
+      function mover(e) {
+        if (!arrastrando) return;
+        e.preventDefault();
+        pintarArrastre(posicion(e));
+      }
+
+      barra.addEventListener('pointerdown', function (e) {
+        if (!S.yt) return;
+        arrastrando = true;
+        barra.classList.add('dragging');
+        pintarArrastre(posicion(e));
+        /* Los eventos se escuchan en el DOCUMENTO y no en la barra: si se
+           escucharan en la barra, sacar el dedo de ella mientras se arrastra
+           dejaria el arrastre colgado. */
+        document.addEventListener('pointermove', mover);
+        document.addEventListener('pointerup', soltar);
+        document.addEventListener('pointercancel', soltar);
       });
     }
     /* Al salir de la pantalla se guarda el minuto exacto: si no, se pierden los

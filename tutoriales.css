@@ -351,3 +351,25 @@ a:hover{color:var(--brand-press);}
 }
 /* Encima del video, no debajo. */
 .tu-chapbadge, .tu-resume, .tu-ph-lbl, .tu-bigplay { z-index: 2; }
+
+
+/* La miniatura del video, servida por YouTube. Va DEBAJO del icono de play y de
+   la barra de avance, que siguen encima. */
+.tu-thumbnail .tu-mini {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%; object-fit: cover;
+  border-radius: inherit; display: block;
+}
+/* El icono de play tiene que leerse sobre cualquier foto. */
+.tu-thumbnail svg { position: relative; z-index: 1; filter: drop-shadow(0 1px 3px rgba(0,0,0,.65)); }
+.tu-thumbnail .tu-thumbnail-d,
+.tu-thumbnail .tu-thumbnail-bar { z-index: 2; }
+/* El video visto se atenua; con foto tambien tiene que notarse. */
+.tu-item.is-done .tu-mini { opacity: .62; }
+
+/* Arrastrar la barra: mientras se arrastra el cursor no cambia al salirse de
+   ella, y no se selecciona texto de la pagina sin querer. */
+.tu-scrub { touch-action: none; }
+.tu-scrub.dragging { cursor: grabbing; }
+.tu-scrub.dragging, .tu-scrub.dragging * { user-select: none; -webkit-user-select: none; }
+.tu-scrub.dragging .tu-scrub-track { height: 6px; }
