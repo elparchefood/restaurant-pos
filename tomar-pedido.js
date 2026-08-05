@@ -945,7 +945,10 @@ function pmAttachHandlers(inner,p,cur){
       nfWrap._bound=true;
       nfWrap.addEventListener('click',function(e){
         const add=e.target.closest('#pm-nf-add');
-        if(add){ _pmPickerOpen=!_pmPickerOpen; pmRenderNotasFrec(); if(_pmPickerOpen){ const s=document.getElementById('pm-nf-search'); if(s) s.focus(); } return; }
+        if(add){ _pmPickerOpen=!_pmPickerOpen; pmRenderNotasFrec(); if(_pmPickerOpen){ const s=document.getElementById('pm-nf-search');
+          /* En la tablet, enfocar el buscador ABRE el teclado y tapa justo la
+             lista que se acaba de abrir. Solo se enfoca donde hay raton. */
+          if(s && window.matchMedia && window.matchMedia('(pointer: fine)').matches) s.focus(); } return; }
         const rm=e.target.closest('[data-nf-rm]');
         if(rm){ const t=pmNoteTokens().filter(function(x){return x!==rm.dataset.nfRm;}); pmSetNoteTokens(t); pmRefreshSelArea(); if(_pmPickerOpen) pmRenderPickerList(); return; }
         const pick=e.target.closest('[data-nf-pick]');

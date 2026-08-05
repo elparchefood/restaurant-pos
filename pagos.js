@@ -600,6 +600,22 @@ function removePayment(id) {
 }
 
 // ── Guardar ABONO: registra los pagos nuevos sin cerrar la orden ──────────
+
+/* ── COMO SE GUARDA EL METODO DE PAGO ──────────────────────────────────────
+   Encontrado el 4-ago-2026: en la base convivian 'efectivo' y 'Efectivo',
+   'transferencia' y 'Transferencia'. Los de mayuscula eran TODOS del 3 y 4 de
+   agosto — o sea que no era suciedad vieja: los metodos de pago configurables
+   empezaron a guardar el nombre TAL COMO lo escribio el dueño, mientras que
+   antes se guardaba una clave fija en minuscula.
+   Los informes lo disimulaban al pintar, pero los datos quedaban partidos en
+   dos y cualquier calculo nuevo se equivocaria.
+   Aqui se guarda SIEMPRE en minuscula y sin tildes. El nombre bonito se sigue
+   mostrando en pantalla; lo que se normaliza es lo que queda escrito. */
+function metodoNormalizado(p) {
+  var base = (p && (p.methodKey || p.method)) || 'efectivo';
+  return String(base).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+}
+
 async function guardarAbono() {
   const nuevos = SP.payments.filter(p => !p.saved);
   if (!nuevos.length) return;
@@ -610,7 +626,7 @@ async function guardarAbono() {
       order_id:  SP.orderId,
       branch_id: SP.branchId,
       tenant_id: SP.tenantId,
-      method:    p.method,
+      method:    metodoNormalizado(p),
       amount:    p.amount,
       received:  p.received || p.amount,
       vuelto:    Math.max(0, (p.received || p.amount) - p.amount),
@@ -747,7 +763,7 @@ async function cobrarDespues() {
         order_id:  SP.orderId,
         branch_id: SP.branchId,
         tenant_id: SP.tenantId,
-        method:    p.method,
+        method:    metodoNormalizado(p),
         amount:    p.amount,
         received:  p.received || p.amount,
         vuelto:    Math.max(0, (p.received || p.amount) - p.amount),

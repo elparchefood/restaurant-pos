@@ -34,9 +34,17 @@ function pintarSucursal(data) {
 }
 
 async function loadBranch() {
-  const { data, error } = await sb.from('branches')
-    .select('*, brands(*), tenants(*)')
-    .eq('is_active', true).limit(1).maybeSingle();
+  /* La sucursal se pide POR RESTAURANTE y por id, no "la primera activa".
+     Con una cuenta que ve varios restaurantes —la de plataforma— esto podia
+     traer la sucursal de otro negocio. Es el mismo patron que causo el susto
+     del chat el 3 de agosto: alli tambien era un .limit(1) sin filtrar. */
+  const _u = (window._pos && window._pos.state && window._pos.state.user) || null;
+  const _meta = (_u && _u.user_metadata) || {};
+  let q = sb.from('branches').select('*, brands(*), tenants(*)').eq('is_active', true);
+  if (_meta.branch_id)      q = q.eq('id', _meta.branch_id);
+  else if (_meta.tenant_id) q = q.eq('tenant_id', _meta.tenant_id).order('created_at').limit(1);
+  else                      q = q.limit(1);
+  const { data, error } = await q.maybeSingle();
 
   if (error || !data) {
     $('tb-branch').textContent = 'Sin sucursal configurada';
