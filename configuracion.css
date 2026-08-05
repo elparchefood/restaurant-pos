@@ -1447,3 +1447,12 @@ div.master[data-tab].cia-active { display: flex !important; }
   background:#F5F3FF; color:#8B5CF6; border:1px solid #DDD6FE;
   font-size:10px; font-weight:800; letter-spacing:.03em; vertical-align:middle;
 }
+
+/* Canje mixto: puntos + plata ("200 pts + $10.000"). Un premio grande a puros
+   puntos no lo alcanza casi nadie; partido, si. */
+.pt-inp-dinero{
+  width:82px; padding:5px 7px; border:1px solid var(--line-2,#E2E8F0); border-radius:7px;
+  font-size:12.5px; text-align:right; font-variant-numeric:tabular-nums;
+}
+.pt-mas{ font-weight:800; color:var(--ink-4,#94A3B8); padding:0 2px; }
+@media (max-width:820px){ .pt-inp-dinero{ width:70px; font-size:15px; } }

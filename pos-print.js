@@ -591,6 +591,14 @@
       var items = fuente.map(function (it) {
         var sel = it.selections || {};
         var modsArr = Object.values(sel.mods || {}).map(function (m) { return m.name || String(m); });
+        /* Un COMBO se imprime con su contenido debajo. Al cocinero "Combo El
+           Parche" no le dice que preparar; los productos si. Van como si fueran
+           adiciones para no tocar el diseño de la comanda. */
+        if (sel.combo_id) {
+          modsArr = (sel.combo_items || []).map(function (ci) {
+            return ((ci.cantidad || 1) > 1 ? ci.cantidad + 'x ' : '') + (ci.nombre || '?');
+          }).concat(modsArr);
+        }
         return { id: it.id, name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', notes: it.notes || '', mods: modsArr };
       });
       _diagToast('✓ Pedido OK — enviando a impresora…', '#15803d');
@@ -706,6 +714,13 @@
         if (m && typeof m === 'object') return { name: m.name || '', qty: Number(m.qty) || 1, price: Number(m.price) || 0 };
         return { name: String(m), qty: 1, price: 0 };
       }).filter(function(m){ return m.name; });
+      // En el recibo el combo tambien lista lo que lleva, a $0: el cliente paga
+      // el precio del combo, no la suma, y asi lo ve.
+      if (sel.combo_id) {
+        modsArr = (sel.combo_items || []).map(function (ci) {
+          return { name: ci.nombre || '?', qty: Number(ci.cantidad) || 1, price: 0 };
+        }).concat(modsArr);
+      }
       // `notes`, no `note`: asi se llama la columna. Con el nombre viejo la
       // nota llegaba siempre vacia y no se imprimia nunca.
       return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, notes: it.notes || '', mods: modsArr, total: (it.unit_price || 0) * (it.quantity || 1) };

@@ -135,6 +135,39 @@ function paintTableInfo(t) {
 }
 
 // ── Catálogo ─────────────────────────────────────────────────
+/* ── COMBOS ────────────────────────────────────────────────────────────────
+   Se suman al catalogo con forma de producto, para que la grilla, el buscador,
+   los favoritos y el carrito sigan funcionando sin cambios. Es idempotente: se
+   quitan los que hubiera antes y se vuelven a poner, porque el catalogo se
+   recarga en segundo plano y si no se duplicarian.
+   A proposito NO se guardan en la cache del equipo: son pocos y cambian mas
+   seguido que la carta. */
+/* Un combo no es un producto: product_id queda vacio y lo que llevaba se anota
+   en selections, para que la comanda y el inventario lo lean despues aunque
+   mañana el combo cambie en el catalogo. */
+function _filaConCombo(fila, id) {
+  if (!window.posCombos || !posCombos.esCombo(id)) return fila;
+  var extra = posCombos.camposDB(id);
+  if (!extra) return fila;
+  fila.product_id = null;
+  fila.selections = Object.assign({}, fila.selections || {}, extra.selections);
+  return fila;
+}
+
+async function _sumarCombos() {
+  if (!window.posCombos) return;
+  try {
+    await posCombos.cargar(sb, S.tenantId);
+    var nuevos = posCombos.comoProductos();
+    S.cats = (S.cats || []).filter(function (c) { return c.id !== posCombos.CAT_ID; });
+    S.products = (S.products || []).filter(function (p) { return !posCombos.esCombo(p.id); });
+    if (nuevos.length) {
+      S.cats = S.cats.concat([posCombos.categoria()]);
+      S.products = S.products.concat(nuevos);
+    }
+  } catch (e) { console.warn('combos:', e); }
+}
+
 async function loadCatalog() {
   var _ck = 'pos.catalog.v4.' + S.tenantId;
   // Servir desde caché si existe — sin delay de red
@@ -151,6 +184,8 @@ async function loadCatalog() {
         S.modGroups = _cd.modGroups || [];
         // Actualizar en segundo plano sin bloquear el arranque
         setTimeout(function() { _catalogFetch(_ck, true); }, 0);
+        await _sumarCombos();
+        renderCatGrid(); renderMenuTab();
         return;
       }
     }
@@ -198,6 +233,7 @@ async function _catalogFetch(cacheKey, isBackground) {
           }));
         }
       } catch(e) {}
+      await _sumarCombos();
       renderCatGrid(); renderMenuTab();
       return;
     } catch(e) {
@@ -1155,7 +1191,7 @@ async function saveOrder() {
 
     let orderId = S.order?.id;
 
-    const cartRows = S.cart.map(it => ({
+    const cartRows = S.cart.map(it => (_filaConCombo({
       tenant_id:     S.tenantId,
       branch_id:     S.branchId,
       order_id:      null, // se rellena abajo con el orderId real o temporal
@@ -1169,7 +1205,7 @@ async function saveOrder() {
       notes:         it.note || null,
       status:        'pending',
       selections:    it.selections || {},
-    }));
+    }, it.productId)));
 
     if (!orderId) {
       // ── Orden nueva: usar batch offline-safe ────────────────
@@ -1246,13 +1282,13 @@ async function saveOrder() {
 
       // Insertar los nuevos (kitchen_printed_at queda null → se imprimen como nuevos)
       if (nuevos.length) {
-        const rowsNuevos = nuevos.map(it => ({
+        const rowsNuevos = nuevos.map(it => (_filaConCombo({
           tenant_id: S.tenantId, branch_id: S.branchId, order_id: orderId,
           product_id: it.productId, name: it.name, product_name: it.name,
           unit_price: it.unitPrice, product_price: it.unitPrice,
           quantity: it.qty, total: it.unitPrice * it.qty,
           notes: it.note || null, status: 'pending', selections: it.selections || {},
-        }));
+        }, it.productId)));
         const { error: insErr } = await sb.from('pos_order_items').insert(rowsNuevos);
         if (insErr) throw insErr;
       }

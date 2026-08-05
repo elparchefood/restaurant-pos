@@ -851,7 +851,40 @@
     }
   }
 
-  async function loadCatalog() {
+  /* ── COMBOS ────────────────────────────────────────────────────────────────
+   Se suman al catalogo con forma de producto, para que la grilla, el buscador,
+   los favoritos y el carrito sigan funcionando sin cambios. Es idempotente: se
+   quitan los que hubiera antes y se vuelven a poner, porque el catalogo se
+   recarga en segundo plano y si no se duplicarian.
+   A proposito NO se guardan en la cache del equipo: son pocos y cambian mas
+   seguido que la carta. */
+/* Un combo no es un producto: product_id queda vacio y lo que llevaba se anota
+   en selections, para que la comanda y el inventario lo lean despues aunque
+   mañana el combo cambie en el catalogo. */
+function _filaConCombo(fila, id) {
+  if (!window.posCombos || !posCombos.esCombo(id)) return fila;
+  var extra = posCombos.camposDB(id);
+  if (!extra) return fila;
+  fila.product_id = null;
+  fila.selections = Object.assign({}, fila.selections || {}, extra.selections);
+  return fila;
+}
+
+async function _sumarCombos() {
+  if (!window.posCombos) return;
+  try {
+    await posCombos.cargar(sb, S.tenantId);
+    var nuevos = posCombos.comoProductos();
+    S.categories = (S.categories || []).filter(function (c) { return c.id !== posCombos.CAT_ID; });
+    S.products = (S.products || []).filter(function (p) { return !posCombos.esCombo(p.id); });
+    if (nuevos.length) {
+      S.categories = S.categories.concat([posCombos.categoria()]);
+      S.products = S.products.concat(nuevos);
+    }
+  } catch (e) { console.warn('combos:', e); }
+}
+
+async function loadCatalog() {
     const sb = getSb();
     if (!sb || !S.tenantId) return;
     const _ck = 'pos.catalog.v4.' + S.tenantId;
@@ -910,6 +943,7 @@
           catColor: cat ? cat.color : '#94A3B8',
         };
       });
+      await _sumarCombos();
       S.modGroups = (mods || []).map(g => ({
         id: g.id, name: g.name, rule: g.rule || 'opcional', multi: !!g.multi,
         options: Array.isArray(g.options) ? g.options : [],
@@ -941,7 +975,7 @@
     const prod = calcSubtotal();
     const emp  = calcEmpaque();
     try {
-      const filas = S.cart.map(function (i) { return {
+      const filas = S.cart.map(function (i) { return _filaConCombo({
         order_id:      ag.id,
         product_id:    i.productId || i.id,
         name:          i.name,
@@ -957,7 +991,7 @@
         // Sin tenant_id la politica de aislamiento rechaza el insert. El insert
         // normal (mas abajo) si lo manda; a este se le habia quedado.
         tenant_id:     S.tenantId,
-      }; });
+      }, i.productId || i.id); });
       const r = await sb.from('pos_order_items').insert(filas);
       if (r.error) throw r.error;
 
@@ -1193,7 +1227,7 @@
     }
 
     // Insertar ítems
-    const items = S.cart.map(i => ({
+    const items = S.cart.map(i => (_filaConCombo({
       order_id:      S.orderId,
       product_id:    i.productId || i.id,
       name:          i.name,
@@ -1207,7 +1241,7 @@
       notes:         i.note || null,
       selections:    i.selections || {},
       status:        'pending',
-    }));
+    }, i.productId || i.id)));
     if (items.length) {
       const { error: itemErr } = await sb.from('pos_order_items').insert(items);
       if (itemErr) console.warn('items insert:', itemErr);

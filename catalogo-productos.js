@@ -879,9 +879,13 @@ function comboPickCompleto(){
 function comboPickProd(id){
   const p=S.products.find(x=>x.id===id);
   S._comboSel={product_id:id,pres_id:null,variantes:{}};
-  // Si solo hay una presentacion y no tiene nombre propio, se toma sola.
-  const press=(p&&p.presentations||[]).filter(x=>x&&x.name);
-  if(!comboPideTamano(p)&&press.length===1) S._comboSel.pres_id=press[0].id;
+  /* Si el producto tiene UNA sola presentacion, se toma sola: no hay que
+     preguntar nada. Ojo con el filtro por nombre — los perros, hamburguesas y
+     sandwiches tienen una presentacion con el nombre VACIO, asi que hay que
+     mirar la lista COMPLETA. Filtrando por nombre se quedaban sin pres_id y el
+     inventario no los descontaba. */
+  const todas=(p&&p.presentations)||[];
+  if(!comboPideTamano(p)&&todas.length===1) S._comboSel.pres_id=todas[0].id;
   renderComboPickList($('combo-pick-q')?$('combo-pick-q').value:'');
 }
 function comboPickPres(id){S._comboSel.pres_id=id;renderComboPickList($('combo-pick-q')?$('combo-pick-q').value:'');}

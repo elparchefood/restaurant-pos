@@ -95,6 +95,14 @@ function ptComboTxt(c) {
     return ((it.cantidad || 1) > 1 ? it.cantidad + 'x ' : '') + (it.nombre || it.texto || it.name || '?');
   }).join(' + ');
 }
+/* El precio de un canje puede ser mixto: puntos + plata. Un premio grande a
+   puros puntos no lo alcanza casi nadie; partido, sí — y de paso al negocio le
+   cuesta menos, porque el cliente sigue pagando una parte. */
+function ptPrecioTxt(f) {
+  var t = Number(f.puntos || 0).toLocaleString('es-CO') + ' pts';
+  if (Number(f.dinero) > 0) t += ' + $' + Number(f.dinero).toLocaleString('es-CO');
+  return t;
+}
 function ptProd(id) {
   for (var i = 0; i < _ptProds.length; i++) if (_ptProds[i].id === id) return _ptProds[i];
   return null;
@@ -145,7 +153,7 @@ function ptRender() {
       + '</div>'
       + '<div class="pt-row' + (f.activo ? '' : ' is-off') + '">'
       +   '<div class="pt-row-l"><div class="pt-pres">Combo completo</div></div>'
-      +   '<span class="pt-pts">' + Number(f.puntos).toLocaleString('es-CO') + ' pts</span>'
+      +   '<span class="pt-pts">' + ptPrecioTxt(f) + '</span>'
       +   '<button class="cf-mini-btn" onclick="ptToggle(' + "'" + f.id + "'" + ')">'
       +     (f.activo ? 'Desactivar' : 'Activar') + '</button>'
       +   '<button class="cf-mini-btn is-danger" onclick="ptBorrar(' + "'" + f.id + "'" + ')">Quitar</button>'
@@ -162,7 +170,7 @@ function ptRender() {
         +   '<div class="pt-pres">' + ptEsc(f.pres_nombre || 'Único') + '</div>'
         +   '<div class="pt-vars">' + ptEsc(ptVariantesTxt(f, prod)) + '</div>'
         + '</div>'
-        + '<span class="pt-pts">' + Number(f.puntos).toLocaleString('es-CO') + ' pts</span>'
+        + '<span class="pt-pts">' + ptPrecioTxt(f) + '</span>'
         + '<button class="cf-mini-btn" onclick="ptToggle(' + "'" + f.id + "'" + ')">'
         +   (f.activo ? 'Desactivar' : 'Activar') + '</button>'
         + '<button class="cf-mini-btn is-danger" onclick="ptBorrar(' + "'" + f.id + "'" + ')">Quitar</button>'
@@ -279,7 +287,11 @@ function ptElegir(productId) {
       + '<span class="pt-pres-p">'
       +   '<input type="number" min="1" step="1" class="pt-inp-pts" placeholder="puntos"'
       +     ' data-pres="' + ptEsc(pr.id || '') + '" value="' + (g ? g.puntos : '') + '">'
-      +   '<span class="pt-pts-lbl">puntos</span>'
+      +   '<span class="pt-pts-lbl">pts</span>'
+      +   '<span class="pt-mas">+</span>'
+      +   '<input type="number" min="0" step="1000" class="pt-inp-dinero" placeholder="0"'
+      +     ' data-pres="' + ptEsc(pr.id || '') + '" value="' + (g && g.dinero ? g.dinero : '') + '">'
+      +   '<span class="pt-pts-lbl">$</span>'
       + '</span></label>';
   }).join('');
 
@@ -307,7 +319,8 @@ function ptElegir(productId) {
       '<input type="hidden" id="pt-pid" value="' + ptEsc(productId) + '">'
     + '<div class="pt-sub">Presentaciones y su precio en puntos</div>'
     + '<div class="pt-nota">Marca solo las que quieras ofrecer. Lo que dejes sin marcar '
-    + 'no se podrá pagar con puntos.</div>'
+    + 'no se podrá pagar con puntos.<br>El campo de <b>$</b> es opcional: si lo llenas, '
+    + 'el cliente paga esa plata <b>además</b> de los puntos.</div>'
     + htmlPres + htmlVars;
   var bg = document.getElementById('pt-guardar');
   if (bg) bg.disabled = false;
@@ -332,8 +345,14 @@ function ptElegirCombo(comboId) {
     +   '<span class="pt-pres-p">'
     +     '<input type="number" min="1" step="1" class="pt-inp-pts" id="pt-combo-pts"'
     +       ' placeholder="puntos" value="' + (ya ? ya.puntos : '') + '">'
-    +     '<span class="pt-pts-lbl">puntos</span>'
-    +   '</span></label>';
+    +     '<span class="pt-pts-lbl">pts</span>'
+    +     '<span class="pt-mas">+</span>'
+    +     '<input type="number" min="0" step="1000" class="pt-inp-dinero" id="pt-combo-din"'
+    +       ' placeholder="0" value="' + (ya && ya.dinero ? ya.dinero : '') + '">'
+    +     '<span class="pt-pts-lbl">$</span>'
+    +   '</span></label>'
+    + '<div class="pt-nota">El campo de <b>$</b> es opcional: si lo llenas, el cliente '
+    + 'paga esa plata <b>además</b> de los puntos.</div>';
   var bg = document.getElementById('pt-guardar');
   if (bg) bg.disabled = false;
 }
@@ -343,13 +362,15 @@ async function ptGuardarCombo(cid) {
   var btn = document.getElementById('pt-guardar');
   var pts = parseInt((document.getElementById('pt-combo-pts') || {}).value || '0', 10);
   if (!pts || pts <= 0) { alert('Falta el precio en puntos del combo.'); return; }
+  var din = parseInt((document.getElementById('pt-combo-din') || {}).value || '0', 10);
   btn.disabled = true; btn.textContent = 'Guardando…';
   try {
     await s.from('pos_puntos_catalogo').delete().eq('tenant_id', st.tenantId).eq('combo_id', cid);
     var r = await s.from('pos_puntos_catalogo').insert([{
       tenant_id: st.tenantId, branch_id: st.branchId || null,
       combo_id: cid, product_id: null, pres_id: null, pres_nombre: 'Combo completo',
-      puntos: pts, variantes: null, activo: true, updated_at: new Date().toISOString(),
+      puntos: pts, dinero: (din > 0 ? din : 0), variantes: null, activo: true,
+      updated_at: new Date().toISOString(),
     }]);
     if (r.error) throw r.error;
     var bd = document.querySelector('.pt-bd'); if (bd) bd.remove();
@@ -390,10 +411,12 @@ async function ptGuardar() {
     var inp = document.querySelector('.pt-inp-pts[data-pres="' + presId + '"]');
     var pts = parseInt((inp && inp.value) || '0', 10);
     if (!pts || pts <= 0) { errores.push(ch.dataset.nombre); return; }
+    var ind = document.querySelector('.pt-inp-dinero[data-pres="' + presId + '"]');
+    var din = parseInt((ind && ind.value) || '0', 10);
     filas.push({
       tenant_id: st.tenantId, branch_id: st.branchId || null,
       product_id: pid, pres_id: presId || null, pres_nombre: ch.dataset.nombre,
-      puntos: pts, variantes: variantes, activo: true,
+      puntos: pts, dinero: (din > 0 ? din : 0), variantes: variantes, activo: true,
       updated_at: new Date().toISOString(),
     });
   });

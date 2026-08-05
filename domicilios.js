@@ -352,6 +352,39 @@ async function loadData() {
   _fetchDomiciliarios();
 }
 
+/* ── COMBOS ────────────────────────────────────────────────────────────────
+   Se suman al catalogo con forma de producto, para que la grilla, el buscador,
+   los favoritos y el carrito sigan funcionando sin cambios. Es idempotente: se
+   quitan los que hubiera antes y se vuelven a poner, porque el catalogo se
+   recarga en segundo plano y si no se duplicarian.
+   A proposito NO se guardan en la cache del equipo: son pocos y cambian mas
+   seguido que la carta. */
+/* Un combo no es un producto: product_id queda vacio y lo que llevaba se anota
+   en selections, para que la comanda y el inventario lo lean despues aunque
+   mañana el combo cambie en el catalogo. */
+function _filaConCombo(fila, id) {
+  if (!window.posCombos || !posCombos.esCombo(id)) return fila;
+  var extra = posCombos.camposDB(id);
+  if (!extra) return fila;
+  fila.product_id = null;
+  fila.selections = Object.assign({}, fila.selections || {}, extra.selections);
+  return fila;
+}
+
+async function _sumarCombos() {
+  if (!window.posCombos) return;
+  try {
+    await posCombos.cargar(sb, S.tenantId);
+    var nuevos = posCombos.comoProductos();
+    S.cats = (S.cats || []).filter(function (c) { return c.id !== posCombos.CAT_ID; });
+    S.products = (S.products || []).filter(function (p) { return !posCombos.esCombo(p.id); });
+    if (nuevos.length) {
+      S.cats = S.cats.concat([posCombos.categoria()]);
+      S.products = S.products.concat(nuevos);
+    }
+  } catch (e) { console.warn('combos:', e); }
+}
+
 async function loadCatalog() {
   const _ck = 'pos.catalog.v4.' + S.tenantId;
   try {
@@ -366,6 +399,8 @@ async function loadCatalog() {
         S.modGroups = _cd.modGroups || [];
         // Pintar inmediatamente desde caché, refrescar en segundo plano
         setTimeout(function() { _catalogFetch(_ck, true); }, 0);
+        await _sumarCombos();
+        renderCatGrid(); renderMenuPane(); renderFavPane();
         return;
       }
     }
@@ -415,6 +450,7 @@ async function _catalogFetch(cacheKey, isBackground) {
         }));
       }
     } catch(e) {}
+    await _sumarCombos();
     renderCatGrid(); renderMenuPane(); renderFavPane();
     return;
   } catch(e) {
@@ -1602,14 +1638,14 @@ async function agregarAlPedido() {
   const snap  = S.cart.map(function(it){ return Object.assign({}, it); });
 
   try {
-    const filas = snap.map(function(it){ return {
+    const filas = snap.map(function(it){ return _filaConCombo({
       tenant_id: S.tenantId, branch_id: S.branchId, order_id: ag.id,
       product_id: it.id, name: it.name, product_name: it.name,
       unit_price: it.price, product_price: it.price,
       quantity: it.qty, total: it.price * it.qty,
       notes: it.note || null, status: 'pending',
       selections: { mods: it.mods || {} },
-    }; });
+    }, it.id); });
     if (filas.length) {
       const r = await sb.from('pos_order_items').insert(filas);
       if (r.error) throw r.error;
@@ -1763,7 +1799,7 @@ async function enviarACocina() {
     const { data: _saved, error: _err } = await sb.from('pos_orders').insert(_orderData).select().single();
     if (_err) throw _err;
     const _oid = _saved.id;
-    const _itemsData = _cartSnapshot.map(function(it) { return {
+    const _itemsData = _cartSnapshot.map(function(it) { return _filaConCombo({
       tenant_id:     S.tenantId,
       branch_id:     S.branchId,
       order_id:      _oid,
@@ -1777,7 +1813,7 @@ async function enviarACocina() {
       notes:         it.note || null,
       status:        'pending',
       selections:    { mods: it.mods || {} },
-    }; });
+    }, it.id); });
     if (_itemsData.length) await sb.from('pos_order_items').insert(_itemsData);
     // Guardar ID de Supabase en el objeto de delivery (para poder cancelar después)
     nuevo.supabaseId = _oid;
