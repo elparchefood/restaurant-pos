@@ -39,6 +39,15 @@ setTimeout(function () {
   es('pero cae en la esquina de abajo a la derecha',
      rb.right <= rc.right + 2 && rb.right > rc.right - 160 && rb.bottom <= rc.bottom + 2, true);
 
+  // El boton tiene que VERSE: opaco y con su color, no un fantasma.
+  var bg = g(btn, 'backgroundColor');
+  es('el boton de recargar es opaco', /rgba?\([^)]*(,\s*1)?\)$/.test(bg) && bg.indexOf('rgba') < 0, true);
+  es('y no lleva desenfoque de fondo', g(btn, 'backdropFilter') === 'none' || !g(btn, 'backdropFilter'), true);
+
+  // Las dos tarjetas de la fila miden lo mismo de alto.
+  var rp = pts.getBoundingClientRect();
+  es('las dos tarjetas miden igual de alto', Math.abs(rc.height - rp.height) < 2, true);
+
   document.getElementById('out').textContent =
     (mal ? log.join('\n') + '\n\n' : '') + ok + ' bien, ' + mal + ' mal' +
     '\n\nmascara: ' + m1.slice(0, 110);
