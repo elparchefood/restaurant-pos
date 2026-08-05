@@ -15,6 +15,7 @@
 // ══════════════════════════════════════════════════════════════════
 var _ptCat = [];        // filas de pos_puntos_catalogo
 var _ptProds = [];      // productos del catálogo (con presentaciones y variantes)
+var _ptCombos = [];     // combos armados en el catálogo (papas + gaseosa, etc.)
 var _ptCats = {};       // id categoría -> nombre
 
 function ptSb() { return (window._pos && window._pos.sb) || (typeof sb !== 'undefined' ? sb : null); }
@@ -28,12 +29,17 @@ async function ptInit() {
   var s = ptSb(), st = ptCtx();
   if (!s) return;
   try {
-    var rp = await s.from('pos_products')
-      .select('id,name,category_id,presentations,variables,available')
-      .eq('tenant_id', st.tenantId).order('name');
-    _ptProds = (rp.data || []).filter(function (p) { return p.available !== false; });
-    var rc = await s.from('pos_categories').select('id,name').eq('tenant_id', st.tenantId);
-    (rc.data || []).forEach(function (c) { _ptCats[c.id] = c.name; });
+    /* Las tres en paralelo y no en fila india: son independientes, y en fila
+       cada una espera el viaje completo de la anterior (~200 ms hasta Oregon). */
+    var res = await Promise.all([
+      s.from('pos_products').select('id,name,category_id,presentations,variables,available')
+        .eq('tenant_id', st.tenantId).order('name'),
+      s.from('pos_categories').select('id,name').eq('tenant_id', st.tenantId),
+      s.from('pos_combos').select('id,name,price,items,active').eq('tenant_id', st.tenantId).order('name'),
+    ]);
+    _ptProds = (res[0].data || []).filter(function (p) { return p.available !== false; });
+    (res[1].data || []).forEach(function (c) { _ptCats[c.id] = c.name; });
+    _ptCombos = res[2].data || [];
   } catch (e) { console.error('[puntos] catálogo de productos:', e); }
   await ptCargar();
 }
@@ -77,6 +83,18 @@ async function ptKpis() {
     + '<div class="pt-kpi is-pts"><b>' + mil(circulacion) + '</b><span>puntos en circulación</span></div>';
 }
 
+function ptCombo(id) {
+  for (var i = 0; i < _ptCombos.length; i++) if (_ptCombos[i].id === id) return _ptCombos[i];
+  return null;
+}
+/* Un combo no tiene presentaciones ni variantes: ya viene armado. Por eso su
+   fila lleva un solo precio en puntos y no la tabla de tamaños. */
+function ptComboTxt(c) {
+  if (!c) return '';
+  return (c.items || []).map(function (it) {
+    return ((it.cantidad || 1) > 1 ? it.cantidad + 'x ' : '') + (it.nombre || it.texto || it.name || '?');
+  }).join(' + ');
+}
 function ptProd(id) {
   for (var i = 0; i < _ptProds.length; i++) if (_ptProds[i].id === id) return _ptProds[i];
   return null;
@@ -109,11 +127,30 @@ function ptRender() {
     return;
   }
   // Agrupado por producto: el mismo plato puede tener varias presentaciones.
-  var porProd = {};
+  // Los combos van aparte: uno por fila, sin tamaños ni variantes.
+  var porProd = {}, deCombo = [];
   _ptCat.forEach(function (f) {
+    if (f.combo_id) { deCombo.push(f); return; }
     if (!porProd[f.product_id]) porProd[f.product_id] = [];
     porProd[f.product_id].push(f);
   });
+
+  var htmlCombos = deCombo.map(function (f) {
+    var c = ptCombo(f.combo_id);
+    return '<div class="pt-card">'
+      + '<div class="pt-card-hd">'
+      +   '<div><div class="pt-prod">' + ptEsc(c ? c.name : '(combo eliminado)')
+      +   ' <span class="pt-chip-combo">Combo</span></div>'
+      +   (c ? '<div class="pt-cat">' + ptEsc(ptComboTxt(c)) + '</div>' : '') + '</div>'
+      + '</div>'
+      + '<div class="pt-row' + (f.activo ? '' : ' is-off') + '">'
+      +   '<div class="pt-row-l"><div class="pt-pres">Combo completo</div></div>'
+      +   '<span class="pt-pts">' + Number(f.puntos).toLocaleString('es-CO') + ' pts</span>'
+      +   '<button class="cf-mini-btn" onclick="ptToggle(' + "'" + f.id + "'" + ')">'
+      +     (f.activo ? 'Desactivar' : 'Activar') + '</button>'
+      +   '<button class="cf-mini-btn is-danger" onclick="ptBorrar(' + "'" + f.id + "'" + ')">Quitar</button>'
+      + '</div></div>';
+  }).join('');
 
   host.innerHTML = Object.keys(porProd).map(function (pid) {
     var prod = ptProd(pid);
@@ -137,7 +174,7 @@ function ptRender() {
       +   (cat ? '<div class="pt-cat">' + ptEsc(cat) + '</div>' : '') + '</div>'
       +   '<button class="cf-mini-btn" onclick="ptEditar(' + "'" + pid + "'" + ')">Editar</button>'
       + '</div>' + filas + '</div>';
-  }).join('');
+  }).join('') + htmlCombos;
 }
 
 async function ptToggle(id) {
@@ -193,15 +230,26 @@ function ptSugerir(txt) {
   var host = document.getElementById('pt-sug');
   if (!host) return;
   var t = String(txt || '').toLowerCase().trim();
+  /* Los COMBOS van primero: son pocos y son los que mejor funcionan como
+     premio ("papas + gaseosa por 60 puntos" se entiende de una). */
+  var combos = _ptCombos.filter(function (c) {
+    return c.active !== false && (!t || String(c.name || '').toLowerCase().indexOf(t) >= 0);
+  }).slice(0, 6);
   var lista = _ptProds.filter(function (p) {
     return !t || String(p.name || '').toLowerCase().indexOf(t) >= 0
       || String(_ptCats[p.category_id] || '').toLowerCase().indexOf(t) >= 0;
   }).slice(0, 12);
-  host.innerHTML = lista.map(function (p) {
+
+  var h = combos.map(function (c) {
+    return '<button class="pt-sug-item" onclick="ptElegirCombo(' + "'" + c.id + "'" + ')">'
+      + '<span>' + ptEsc(c.name) + ' <span class="pt-chip-combo">Combo</span></span>'
+      + '<span class="pt-sug-cat">' + ptEsc(ptComboTxt(c)) + '</span></button>';
+  }).join('') + lista.map(function (p) {
     return '<button class="pt-sug-item" onclick="ptElegir(' + "'" + p.id + "'" + ')">'
       + '<span>' + ptEsc(p.name) + '</span>'
       + '<span class="pt-sug-cat">' + ptEsc(_ptCats[p.category_id] || '') + '</span></button>';
-  }).join('') || '<div class="cf-empty">Sin resultados</div>';
+  }).join('');
+  host.innerHTML = h || '<div class="cf-empty">Sin resultados</div>';
 }
 
 // Pinta las presentaciones y variantes del producto elegido, con lo que ya
@@ -265,7 +313,56 @@ function ptElegir(productId) {
   if (bg) bg.disabled = false;
 }
 
+/* Un combo se canjea entero o no se canjea: no hay tamaño que elegir ni
+   variante que permitir, porque eso ya quedo decidido al armarlo. */
+function ptElegirCombo(comboId) {
+  var c = ptCombo(comboId);
+  if (!c) return;
+  document.getElementById('pt-sug').innerHTML = '';
+  var inp = document.getElementById('pt-buscar');
+  if (inp) inp.value = c.name;
+
+  var ya = _ptCat.filter(function (f) { return f.combo_id === comboId; })[0];
+  document.getElementById('pt-detalle').innerHTML =
+      '<input type="hidden" id="pt-cid" value="' + ptEsc(comboId) + '">'
+    + '<div class="pt-sub">Qué lleva</div>'
+    + '<div class="pt-nota">' + ptEsc(ptComboTxt(c)) + '</div>'
+    + '<label class="pt-pres-row">'
+    +   '<span class="pt-pres-n">Combo completo</span>'
+    +   '<span class="pt-pres-p">'
+    +     '<input type="number" min="1" step="1" class="pt-inp-pts" id="pt-combo-pts"'
+    +       ' placeholder="puntos" value="' + (ya ? ya.puntos : '') + '">'
+    +     '<span class="pt-pts-lbl">puntos</span>'
+    +   '</span></label>';
+  var bg = document.getElementById('pt-guardar');
+  if (bg) bg.disabled = false;
+}
+
+async function ptGuardarCombo(cid) {
+  var st = ptCtx(), s = ptSb();
+  var btn = document.getElementById('pt-guardar');
+  var pts = parseInt((document.getElementById('pt-combo-pts') || {}).value || '0', 10);
+  if (!pts || pts <= 0) { alert('Falta el precio en puntos del combo.'); return; }
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  try {
+    await s.from('pos_puntos_catalogo').delete().eq('tenant_id', st.tenantId).eq('combo_id', cid);
+    var r = await s.from('pos_puntos_catalogo').insert([{
+      tenant_id: st.tenantId, branch_id: st.branchId || null,
+      combo_id: cid, product_id: null, pres_id: null, pres_nombre: 'Combo completo',
+      puntos: pts, variantes: null, activo: true, updated_at: new Date().toISOString(),
+    }]);
+    if (r.error) throw r.error;
+    var bd = document.querySelector('.pt-bd'); if (bd) bd.remove();
+    ptCargar();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Guardar';
+    alert('No se pudo guardar: ' + (e.message || e));
+  }
+}
+
 async function ptGuardar() {
+  var cid = (document.getElementById('pt-cid') || {}).value;
+  if (cid) return ptGuardarCombo(cid);
   var pid = (document.getElementById('pt-pid') || {}).value;
   if (!pid) return;
   var st = ptCtx(), s = ptSb();

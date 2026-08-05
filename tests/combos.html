@@ -1,0 +1,98 @@
+<meta charset="utf-8"><title>Prueba de combos</title>
+<pre id="out" style="font:12px/1.6 monospace;white-space:pre-wrap"></pre>
+<script>
+/* La pantalla del catalogo redirige al login antes de correr su JS, asi que
+   aqui se cargan SOLO las funciones de combos y se prueban con productos de
+   mentira. Lo que se prueba es la logica, que es donde estaba el problema. */
+(async function () {
+  const src = await (await fetch('../catalogo-productos.js')).text();
+  const ini = src.indexOf('function comboItemLabel');
+  const fin = src.indexOf('// ── Mod Group Editor');
+  if (ini < 0 || fin < 0) { out.textContent = 'no encontre el bloque de combos'; return; }
+
+  // Lo que esas funciones usan de la pantalla, en version minima.
+  const S = { products: [], cats: [], combos: [], editCombo: null, _comboSel: null, _comboIdx: 0 };
+  const escHtml = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const icon = () => '';
+  const fmt = n => '$' + Number(n || 0).toLocaleString('es-CO');
+  const $ = () => null;
+  const catOf = id => S.cats.find(c => c.id === id) || null;
+  const uid = p => p + Math.round(performance.now());
+  const openOverlay = () => {}, closeOverlay = () => {}, toast = () => {};
+  const uploadPhoto = async () => null, saveComboToSupabase = async c => c.id;
+  const renderPage = () => {};
+
+  new Function('S','escHtml','icon','fmt','$','catOf','uid','openOverlay','closeOverlay',
+               'toast','uploadPhoto','saveComboToSupabase','renderPage','window',
+    src.slice(ini, fin) + ';Object.assign(window.__c={}, {comboItemLabel,comboNombreDe,comboListo,comboSumaHTML,comboPideTamano,comboPickCompleto,comboPrecioSuelto,comboPickProd,comboItemsHTML});'
+  )(S, escHtml, icon, fmt, $, catOf, uid, openOverlay, closeOverlay, toast, uploadPhoto, saveComboToSupabase, renderPage, window);
+
+  const C = window.__c;
+  let ok = 0, mal = 0; const log = [];
+  const es = (n, a, b) => { if (JSON.stringify(a) === JSON.stringify(b)) ok++;
+    else { mal++; log.push('FALLA ' + n + '\n   dio      ' + JSON.stringify(a) + '\n   esperaba ' + JSON.stringify(b)); } };
+
+  // Un producto con tamaños y una variante que FIJA el precio (modo matriz)
+  const salchi = { id:'p1', cat:'c1', name:'MAICITOS', active:true,
+    presentations:[{id:'pr1',name:'Personal',price:13000},{id:'pr2',name:'Familiar',price:26000}],
+    variables:[{id:'g1',name:'Tipo',isPricing:true,options:[
+      {id:'o1',name:'Pollo',prices:[13000,26000]},{id:'o2',name:'Mixta',prices:[15000,30000]}]}] };
+  // Uno simple, sin tamaño propio ni variantes
+  const gaseosa = { id:'p2', cat:'c2', name:'Coca-Cola', active:true,
+    presentations:[{id:'pr9',name:'Único',price:4000}], variables:[] };
+  // Uno con una variante que SUMA en vez de fijar
+  const perro = { id:'p3', cat:'c1', name:'Perro', active:true,
+    presentations:[{id:'pr5',name:'Único',price:10000}],
+    variables:[{id:'g2',name:'Extra',options:[{id:'o5',name:'Con tocineta',price:3000}]}] };
+  S.products = [salchi, gaseosa, perro];
+  S.cats = [{id:'c1',name:'Salchipapas'},{id:'c2',name:'Bebidas'}];
+
+  es('pide tamaño si tiene dos', C.comboPideTamano(salchi), true);
+  es('no pide tamaño si es Único', C.comboPideTamano(gaseosa), false);
+  es('precio de matriz segun el tamaño', C.comboPrecioSuelto(salchi,'pr2',{g1:'o2'}), 30000);
+  es('precio de matriz personal', C.comboPrecioSuelto(salchi,'pr1',{g1:'o1'}), 13000);
+  es('variante que suma', C.comboPrecioSuelto(perro,'pr5',{g2:'o5'}), 13000);
+  es('precio simple', C.comboPrecioSuelto(gaseosa,'pr9',{}), 4000);
+  es('nombre completo', C.comboNombreDe(salchi,'pr1',{g1:'o1'}), 'MAICITOS · Personal · Pollo');
+  es('nombre sin tamaño postizo', C.comboNombreDe(gaseosa,'pr9',{}), 'Coca-Cola');
+
+  // ── lo que Sergio pidió: nada de productos imaginarios ──
+  S.editCombo = { id:'c9', name:'Combo prueba', price:30000, items:[{cantidad:1}] };
+  es('un item sin elegir NO deja guardar', C.comboListo(), false);
+  S.editCombo.items = [{cantidad:1,product_id:'p1',pres_id:'pr1',variantes:{g1:'o1'},nombre:'x',precio:13000}];
+  es('con un producto real si deja', C.comboListo(), true);
+  S.editCombo.items.push({cantidad:1,product_id:'NO_EXISTE',nombre:'Hamburguesa imaginaria'});
+  es('un producto que no existe lo bloquea', C.comboListo(), false);
+  S.editCombo.items = [{cantidad:1,product_id:'p1',pres_id:'pr1',variantes:{g1:'o1'},nombre:'x',precio:13000}];
+  S.editCombo.price = 0;
+  es('sin precio no deja guardar', C.comboListo(), false);
+  S.editCombo.name = ''; S.editCombo.price = 30000;
+  es('sin nombre no deja guardar', C.comboListo(), false);
+
+  // el formato viejo (texto libre) se ve, marcado, y no deja guardar
+  es('el texto viejo se marca', C.comboItemLabel({name:'Papas'}), 'Papas · sin vincular');
+
+  // ── el selector obliga a decidir tamaño y variante ──
+  S._comboSel = {product_id:'p1', pres_id:null, variantes:{}};
+  es('falta tamaño y variante', C.comboPickCompleto(), false);
+  S._comboSel.pres_id = 'pr1';
+  es('falta la variante', C.comboPickCompleto(), false);
+  S._comboSel.variantes = {g1:'o1'};
+  es('ya está completo', C.comboPickCompleto(), true);
+  C.comboPickProd('p2');
+  es('el producto simple queda listo de una', C.comboPickCompleto(), true);
+  es('y se le puso el tamaño solo', S._comboSel.pres_id, 'pr9');
+
+  // ── el ahorro, para no vender a pérdida sin darse cuenta ──
+  S.editCombo = { id:'c9', name:'x', price:25000, items:[
+    {cantidad:2,product_id:'p1',precio:13000,nombre:'a'},
+    {cantidad:1,product_id:'p2',precio:4000,nombre:'b'}] };
+  es('suma el suelto por cantidad', /\$30\.000/.test(C.comboSumaHTML()), true);
+  es('dice cuánto ahorra', /ahorra/.test(C.comboSumaHTML()), true);
+  S.editCombo.price = 40000;
+  es('avisa si el combo cuesta MÁS que suelto', /MÁS que suelto/.test(C.comboSumaHTML()), true);
+
+  out.textContent = (mal ? log.join('\n\n') + '\n\n' : '') + ok + ' bien, ' + mal + ' mal';
+  document.title = mal ? 'FALLAN ' + mal : 'TODO BIEN (' + ok + ')';
+})();
+</script>

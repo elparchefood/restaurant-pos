@@ -528,7 +528,7 @@ function renderComboGrid(body){
 function comboCardHTML(c){
   const thumb=c.photo?'<img class="cp-thumb-img" src="'+escHtml(c.photo)+'" alt="">':'<div class="cp-thumb-placeholder"><span class="cp-thumb-label">foto · combo</span></div>';
   const inactive=c.active?'':'<span class="cp-inactive-chip">Inactivo</span>';
-  const items=(c.items||[]).map(it=>'<div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#475569"><span style="color:#8B5CF6;display:flex">'+icon('check',12,3)+'</span>'+escHtml(it.name)+'</div>').join('');
+  const items=(c.items||[]).map(it=>'<div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#475569"><span style="color:#8B5CF6;display:flex">'+icon('check',12,3)+'</span>'+((it.cantidad||1)>1?(it.cantidad+'x '):'')+escHtml(comboItemLabel(it))+'</div>').join('');
   return '<div class="cp-card" style="'+(c.active?'':'opacity:.72')+'" onclick="openEditor(\''+c.id+'\',\'combo\')">'+'<div class="cp-thumb">'+thumb+'<span class="cp-cat-chip" style="color:#8B5CF6;background:#F5F3FF">Combo</span>'+inactive+'</div>'+'<div class="cp-card-body"><div class="cp-card-row"><div class="cp-card-name">'+escHtml(c.name)+'</div><div class="cp-card-price">'+fmt(c.price)+'</div></div>'+(c.desc?'<div class="cp-card-desc">'+escHtml(c.desc)+'</div>':'')+'<div style="display:flex;flex-direction:column;gap:4px;margin-top:10px">'+items+'</div></div>'+'<div class="cp-card-foot" onclick="event.stopPropagation()"><button class="cp-switch'+(c.active?' on':'')+'" onclick="toggleCombo(\''+c.id+'\')"><span class="cp-switch-lbl">'+(c.active?'Activo':'Inactivo')+'</span><span class="cp-switch-track"><span class="cp-switch-knob"></span></span></button><button class="cp-card-edit-btn" onclick="openEditor(\''+c.id+'\',\'combo\')">Editar '+icon('chevron',13)+'</button></div></div>';
 }
 async function toggleCombo(id){const c=S.combos.find(x=>x.id===id);if(!c)return;c.active=!c.active;await sb.from('pos_combos').update({active:c.active}).eq('id',id).eq('tenant_id',S.tenantId);renderBody();}
@@ -565,7 +565,7 @@ function openEditor(id,type){
     S.overlay='product';renderProductEditor();
   } else {
     const existing=id?S.combos.find(c=>c.id===id):null;
-    S.editCombo=existing?JSON.parse(JSON.stringify(existing)):{id:uid('c'),name:'',desc:'',price:0,active:true,photo:null,items:[{name:''}],_photoFile:null};
+    S.editCombo=existing?JSON.parse(JSON.stringify(existing)):{id:uid('c'),name:'',desc:'',price:0,active:true,photo:null,items:[],_photoFile:null};
     S.overlay='combo';renderComboEditor();
   }
 }
@@ -732,25 +732,191 @@ async function saveProduct(){
 
 // ── Combo Editor ──────────────────────────────────────────────────────────
 function openModEditorInProduct(){openModEditor(null,true);}
+/* Un combo se arma con productos QUE YA EXISTEN. Antes cada item era un campo
+   de texto libre: se podia escribir "2 Hamburguesas Sencillas" sin que existiera
+   ese producto, y el combo quedaba apuntando a algo imaginario -- imposible de
+   descontar del inventario, de imprimir en comanda o de canjear por puntos.
+   Ahora se eligen del catalogo, con su presentacion y su variante. */
+
+function comboItemLabel(it){
+  if(it && it.nombre) return it.nombre;                       // ya resuelto al elegirlo
+  if(it && (it.texto||it.name)) return (it.texto||it.name)+' · sin vincular';  // formato viejo
+  return 'Sin elegir';
+}
+// Nombre completo tal como se veria en la comanda: producto · presentacion · variantes
+function comboNombreDe(prod,presId,vars){
+  const pres=(prod.presentations||[]).find(x=>x.id===presId);
+  const partes=[prod.name];
+  if(pres&&pres.name&&pres.name!=='Unico'&&pres.name!=='Único') partes.push(pres.name);
+  (prod.variables||[]).forEach(g=>{
+    const oid=vars&&vars[g.id]; if(!oid) return;
+    const o=(g.options||[]).find(x=>x.id===oid); if(o) partes.push(o.name);
+  });
+  return partes.join(' · ');
+}
+function comboItemRow(it,i){
+  const prod=it.product_id?S.products.find(p=>p.id===it.product_id):null;
+  return '<div class="cc-combo-item'+(prod?'':' falta')+'">'
+    +'<span class="cc-item-num">'+(i+1)+'</span>'
+    +'<input type="number" min="1" step="1" class="cc-input flat cc-combo-qty" value="'+(it.cantidad||1)+'" title="Cantidad" oninput="setComboQty('+i+',parseInt(this.value)||1)">'
+    +'<button class="cc-combo-pick" onclick="openComboPicker('+i+')">'
+      +'<span class="cc-combo-nom">'+escHtml(comboItemLabel(it))+'</span>'
+      +'<span class="cc-combo-cam">'+(prod?'Cambiar':'Elegir producto')+'</span>'
+    +'</button>'
+    +'<button class="cc-mini-del" onclick="delComboItem('+i+')">'+icon('trash',13)+'</button>'
+  +'</div>';
+}
+function comboItemsHTML(){
+  const c=S.editCombo;
+  if(!c.items.length) return '<div class="cc-combo-vacio">Todavía no has puesto nada. Toca <b>Producto</b> y elígelo del catálogo.</div>';
+  return c.items.map(comboItemRow).join('');
+}
+/* Solo se puede guardar si TODOS los items apuntan a un producto de verdad.
+   Antes bastaba con que uno tuviera texto escrito. */
+function comboListo(){
+  const c=S.editCombo;
+  return !!(c.name.trim() && c.price>0 && c.items.length
+    && c.items.every(it=>it.product_id && S.products.some(p=>p.id===it.product_id)));
+}
 function renderComboEditor(){
   const c=S.editCombo,isNew=!S.combos.find(x=>x.id===c.id);
-  const canSave=c.name.trim()&&c.price>0&&c.items.some(x=>x.name.trim());
-  const itemRows=c.items.map((it,i)=>'<div class="cp-pres-row"><span class="cc-item-num">'+(i+1)+'</span><input class="cc-input flat" value="'+escHtml(it.name)+'" placeholder="Ej. 2 Hamburguesas Sencillas" style="flex:1" oninput="setComboItem('+i+',this.value)"><button class="cc-mini-del" '+(c.items.length===1?'disabled':'')+' onclick="delComboItem('+i+')">'+icon('trash',13)+'</button></div>').join('');
   const photoHTML=c.photo?'<div class="cc-photo-wrap"><img src="'+escHtml(c.photo)+'" alt=""><div class="cc-photo-overlay"><button class="cc-pill-btn" onclick="document.getElementById(\'combo-photo-input\').click()">'+icon('image',13)+' Cambiar</button><button class="cc-pill-btn danger" onclick="clearComboPhoto()">'+icon('trash',13)+' Quitar</button></div></div>':'<div class="cc-drop" onclick="document.getElementById(\'combo-photo-input\').click()"><div class="cc-drop-icon">'+icon('upload',20)+'</div><div style="font-size:13px;font-weight:700;color:#0F172A">Foto del combo</div><div style="font-size:11.5px;color:#94A3B8;margin-top:3px">Arrastra o <span style="color:#5B6BFF;font-weight:700">búscala</span></div></div>';
-  openOverlay('<div class="cc-overlay" onmousedown="handleOverlayClose(event)"><aside class="cc-drawer" onmousedown="event.stopPropagation()"><div class="cc-drawer-head"><div style="display:flex;align-items:center;gap:10px"><span class="cc-drawer-glyph" style="color:#8B5CF6;background:#F5F3FF">'+icon('combo',16)+'</span><div><div class="cc-drawer-eyebrow">'+(isNew?'Nuevo combo':'Editar combo')+'</div><div class="cc-drawer-title">'+(escHtml(c.name)||'Sin nombre')+'</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div class="cc-drawer-body"><input type="file" id="combo-photo-input" accept="image/*" style="display:none" onchange="handleComboPhotoFile(this)">'+photoHTML+'<div style="display:grid;grid-template-columns:1.6fr 1fr;gap:12px;margin-top:18px"><label><span class="field-label">Nombre del combo</span><input class="cc-input" value="'+escHtml(c.name)+'" placeholder="Ej. Combo El Parche x2" oninput="setComboName(this.value)"></label><label><span class="field-label">Precio del combo</span><div class="cc-money"><span class="cc-money-sym">$</span><input type="number" min="0" step="1000" value="'+(c.price||'')+'" placeholder="0" oninput="setComboPrice(parseInt(this.value)||0)"></div></label></div><div style="margin-top:12px"><label><span class="field-label">Descripción <span class="hint">· opcional</span></span><input class="cc-input" value="'+escHtml(c.desc||'')+'" placeholder="Ideal para compartir…" oninput="setComboDesc(this.value)"></label></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Productos incluidos</div></div><button class="lm-btn-ghost sm" onclick="addComboItem()">'+icon('plus',13)+' Ítem</button></div><div id="combo-items">'+itemRows+'</div></div></div><div class="cc-drawer-foot"><div style="display:flex;flex-direction:column"><span style="font-size:10.5px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Precio combo</span><span id="combo-price-display" style="font-size:15px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">'+fmt(c.price)+'</span></div><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button><button class="lm-btn-primary" id="save-combo-btn" '+(canSave?'':'disabled')+' onclick="saveCombo()">'+icon('check',14)+' Guardar</button></div></div></aside></div>');
+  openOverlay('<div class="cc-overlay" onmousedown="handleOverlayClose(event)"><aside class="cc-drawer" onmousedown="event.stopPropagation()"><div class="cc-drawer-head"><div style="display:flex;align-items:center;gap:10px"><span class="cc-drawer-glyph" style="color:#8B5CF6;background:#F5F3FF">'+icon('combo',16)+'</span><div><div class="cc-drawer-eyebrow">'+(isNew?'Nuevo combo':'Editar combo')+'</div><div class="cc-drawer-title">'+(escHtml(c.name)||'Sin nombre')+'</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div class="cc-drawer-body"><input type="file" id="combo-photo-input" accept="image/*" style="display:none" onchange="handleComboPhotoFile(this)">'+photoHTML+'<div style="display:grid;grid-template-columns:1.6fr 1fr;gap:12px;margin-top:18px"><label><span class="field-label">Nombre del combo</span><input class="cc-input" value="'+escHtml(c.name)+'" placeholder="Ej. Combo El Parche x2" oninput="setComboName(this.value)"></label><label><span class="field-label">Precio del combo</span><div class="cc-money"><span class="cc-money-sym">$</span><input type="number" min="0" step="1000" value="'+(c.price||'')+'" placeholder="0" oninput="setComboPrice(parseInt(this.value)||0)"></div></label></div><div style="margin-top:12px"><label><span class="field-label">Descripción <span class="hint">· opcional</span></span><input class="cc-input" value="'+escHtml(c.desc||'')+'" placeholder="Ideal para compartir…" oninput="setComboDesc(this.value)"></label></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Productos incluidos</div><div class="cc-section-sub">Se eligen del catálogo. El combo se cobra al precio de arriba, no a la suma.</div></div><button class="lm-btn-ghost sm" onclick="addComboItem()">'+icon('plus',13)+' Producto</button></div><div id="combo-items">'+comboItemsHTML()+'</div><div id="combo-suma" class="cc-combo-suma">'+comboSumaHTML()+'</div></div></div><div class="cc-drawer-foot"><div style="display:flex;flex-direction:column"><span style="font-size:10.5px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Precio combo</span><span id="combo-price-display" style="font-size:15px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">'+fmt(c.price)+'</span></div><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button><button class="lm-btn-primary" id="save-combo-btn" '+(comboListo()?'':'disabled')+' onclick="saveCombo()">'+icon('check',14)+' Guardar</button></div></div></aside></div>');
+}
+/* Cuanto costaria suelto, para que se vea el descuento que se esta dando. Sin
+   esto el dueño pone el precio a ojo y puede terminar vendiendo a perdida. */
+function comboSumaHTML(){
+  const c=S.editCombo;
+  let suma=0, completo=true;
+  c.items.forEach(it=>{
+    if(typeof it.precio==='number') suma+=it.precio*(it.cantidad||1);
+    else completo=false;
+  });
+  if(!c.items.length||!completo) return '';
+  const dif=suma-(c.price||0);
+  return 'Suelto costaría <b>'+fmt(suma)+'</b>'
+    + (c.price>0 ? (dif>0 ? ' · el cliente ahorra <b>'+fmt(dif)+'</b>'
+                  : (dif<0 ? ' · <b style="color:#DC2626">el combo cuesta '+fmt(-dif)+' MÁS que suelto</b>' : ' · igual que suelto'))
+                 : '');
+}
+function refreshComboItems(){
+  const el=$('combo-items'); if(el) el.innerHTML=comboItemsHTML();
+  const su=$('combo-suma'); if(su) su.innerHTML=comboSumaHTML();
+  updateComboSaveBtn();
 }
 function setComboName(v){S.editCombo.name=v;updateComboSaveBtn();}
-function setComboPrice(v){S.editCombo.price=v;const el=$('combo-price-display');if(el)el.textContent=fmt(v);updateComboSaveBtn();}
+function setComboPrice(v){S.editCombo.price=v;const el=$('combo-price-display');if(el)el.textContent=fmt(v);const su=$('combo-suma');if(su)su.innerHTML=comboSumaHTML();updateComboSaveBtn();}
 function setComboDesc(v){S.editCombo.desc=v;}
+function setComboQty(i,v){const it=S.editCombo.items[i];if(it)it.cantidad=Math.max(1,v);const su=$('combo-suma');if(su)su.innerHTML=comboSumaHTML();}
 function clearComboPhoto(){S.editCombo.photo=null;S.editCombo._photoFile=null;renderComboEditor();}
 function handleComboPhotoFile(inp){const f=inp.files[0];if(!f||!f.type.startsWith('image/'))return;S.editCombo._photoFile=f;const r=new FileReader();r.onload=e=>{S.editCombo.photo=e.target.result;renderComboEditor();};r.readAsDataURL(f);}
-function setComboItem(i,v){S.editCombo.items[i].name=v;updateComboSaveBtn();}
-function addComboItem(){S.editCombo.items.push({name:''});refreshComboItems();}
-function delComboItem(i){if(S.editCombo.items.length===1)return;S.editCombo.items.splice(i,1);refreshComboItems();}
-function refreshComboItems(){const el=$('combo-items');if(!el)return;el.innerHTML=S.editCombo.items.map((it,i)=>'<div class="cp-pres-row"><span class="cc-item-num">'+(i+1)+'</span><input class="cc-input flat" value="'+escHtml(it.name)+'" placeholder="Ej. 2 Hamburguesas" style="flex:1" oninput="setComboItem('+i+',this.value)"><button class="cc-mini-del" '+(S.editCombo.items.length===1?'disabled':'')+' onclick="delComboItem('+i+')">'+icon('trash',13)+'</button></div>').join('');}
-function updateComboSaveBtn(){const btn=$('save-combo-btn');if(btn)btn.disabled=!(S.editCombo.name.trim()&&S.editCombo.price>0&&S.editCombo.items.some(x=>x.name.trim()));}
+function addComboItem(){S.editCombo.items.push({cantidad:1});refreshComboItems();openComboPicker(S.editCombo.items.length-1);}
+function delComboItem(i){S.editCombo.items.splice(i,1);refreshComboItems();}
+function updateComboSaveBtn(){const btn=$('save-combo-btn');if(btn)btn.disabled=!comboListo();}
+
+/* -- Elegir el producto del combo -----------------------------------------
+   Busca en el catalogo y, si el producto tiene tamaños o variantes, obliga a
+   decir cual: un combo que diga solo "Salchipapa" no se puede preparar, ni
+   descontar del inventario, ni imprimir en una comanda. */
+function openComboPicker(i){
+  S._comboIdx=i;
+  const it=S.editCombo.items[i]||{};
+  S._comboSel={product_id:it.product_id||null,pres_id:it.pres_id||null,variantes:Object.assign({},it.variantes||{})};
+  const bd=document.createElement('div');
+  bd.className='cc-pick-bd'; bd.id='combo-pick';
+  bd.innerHTML='<div class="cc-pick"><div class="cc-pick-hd"><b>Elegir producto</b><button class="lm-icon-sm" onclick="closeComboPicker()">'+icon('x',15)+'</button></div>'
+    +'<input class="cc-input" id="combo-pick-q" placeholder="Buscar en el catálogo…" oninput="renderComboPickList(this.value)" autocomplete="off">'
+    +'<div class="cc-pick-list" id="combo-pick-list"></div>'
+    +'<div class="cc-pick-ft"><button class="lm-btn-ghost" onclick="closeComboPicker()">Cancelar</button>'
+    +'<button class="lm-btn-primary" id="combo-pick-ok" onclick="comboPickConfirm()" disabled>Poner en el combo</button></div></div>';
+  document.body.appendChild(bd);
+  bd.addEventListener('mousedown',e=>{ if(e.target===bd) closeComboPicker(); });
+  renderComboPickList('');
+  /* En la tablet, enfocar el buscador abre el teclado y tapa la lista que se
+     acaba de abrir. Solo se enfoca donde hay raton. */
+  const q=$('combo-pick-q');
+  if(q&&window.matchMedia&&window.matchMedia('(pointer: fine)').matches) q.focus();
+}
+function closeComboPicker(){const b=$('combo-pick');if(b)b.remove();}
+function comboPideTamano(p){
+  const press=(p&&p.presentations||[]).filter(x=>x&&x.name);
+  if(press.length>1) return true;
+  return press.length===1 && press[0].name!=='Unico' && press[0].name!=='Único';
+}
+function renderComboPickList(txt){
+  const host=$('combo-pick-list'); if(!host) return;
+  const t=String(txt||'').toLowerCase().trim(), sel=S._comboSel;
+  const lista=S.products.filter(function(p){
+    if(p.active===false) return false;
+    if(!t) return true;
+    const cn=(catOf(p.cat)||{}).name||'';
+    return p.name.toLowerCase().indexOf(t)>=0 || cn.toLowerCase().indexOf(t)>=0;
+  }).slice(0,40);
+  let h=lista.map(p=>'<button class="cc-pick-item'+(sel.product_id===p.id?' on':'')+'" onclick="comboPickProd(\''+p.id+'\')"><span>'+escHtml(p.name)+'</span><span class="cc-pick-cat">'+escHtml((catOf(p.cat)||{}).name||'')+'</span></button>').join('');
+  if(!lista.length) h='<div class="cc-combo-vacio">Nada coincide en el catálogo.</div>';
+  if(sel.product_id){
+    const p=S.products.find(x=>x.id===sel.product_id);
+    if(p){
+      if(comboPideTamano(p)){
+        h+='<div class="cc-pick-sub">¿Cuál tamaño?</div><div class="cc-pick-chips">'
+          +(p.presentations||[]).filter(x=>x&&x.name).map(pr=>'<button class="cc-pick-chip'+(sel.pres_id===pr.id?' on':'')+'" onclick="comboPickPres(\''+pr.id+'\')">'+escHtml(pr.name)+(pr.price?' · '+fmt(pr.price):'')+'</button>').join('')+'</div>';
+      }
+      (p.variables||[]).forEach(g=>{
+        h+='<div class="cc-pick-sub">'+escHtml(g.name)+'</div><div class="cc-pick-chips">'
+          +(g.options||[]).map(o=>'<button class="cc-pick-chip'+(sel.variantes[g.id]===o.id?' on':'')+'" onclick="comboPickVar(\''+g.id+'\',\''+o.id+'\')">'+escHtml(o.name)+'</button>').join('')+'</div>';
+      });
+    }
+  }
+  host.innerHTML=h;
+  const ok=$('combo-pick-ok'); if(ok) ok.disabled=!comboPickCompleto();
+}
+function comboPickCompleto(){
+  const sel=S._comboSel; if(!sel.product_id) return false;
+  const p=S.products.find(x=>x.id===sel.product_id); if(!p) return false;
+  if(comboPideTamano(p)&&!sel.pres_id) return false;
+  return (p.variables||[]).every(g=>!!sel.variantes[g.id]);
+}
+function comboPickProd(id){
+  const p=S.products.find(x=>x.id===id);
+  S._comboSel={product_id:id,pres_id:null,variantes:{}};
+  // Si solo hay una presentacion y no tiene nombre propio, se toma sola.
+  const press=(p&&p.presentations||[]).filter(x=>x&&x.name);
+  if(!comboPideTamano(p)&&press.length===1) S._comboSel.pres_id=press[0].id;
+  renderComboPickList($('combo-pick-q')?$('combo-pick-q').value:'');
+}
+function comboPickPres(id){S._comboSel.pres_id=id;renderComboPickList($('combo-pick-q')?$('combo-pick-q').value:'');}
+function comboPickVar(gid,oid){S._comboSel.variantes[gid]=oid;renderComboPickList($('combo-pick-q')?$('combo-pick-q').value:'');}
+function comboPickConfirm(){
+  if(!comboPickCompleto()) return;
+  const sel=S._comboSel, p=S.products.find(x=>x.id===sel.product_id);
+  const it=S.editCombo.items[S._comboIdx]||{cantidad:1};
+  it.product_id=sel.product_id;
+  it.pres_id=sel.pres_id||null;
+  it.variantes=sel.variantes;
+  it.nombre=comboNombreDe(p,sel.pres_id,sel.variantes);
+  /* Se guarda tambien el precio suelto del dia en que se armo, y solo sirve
+     para mostrar el ahorro. El cobro SIEMPRE es el precio del combo. */
+  it.precio=comboPrecioSuelto(p,sel.pres_id,sel.variantes);
+  delete it.texto; delete it.name;
+  S.editCombo.items[S._comboIdx]=it;
+  closeComboPicker(); refreshComboItems();
+}
+function comboPrecioSuelto(p,presId,vars){
+  if(!p) return 0;
+  const lista=p.presentations||[];
+  const pres=lista.find(x=>x.id===presId), idx=lista.findIndex(x=>x.id===presId);
+  let precio=Number(pres&&pres.price)||Number(p.price)||0;
+  (p.variables||[]).forEach(g=>{
+    const o=(g.options||[]).find(x=>x.id===(vars&&vars[g.id])); if(!o) return;
+    if(g.isPricing&&Array.isArray(o.prices)&&idx>=0&&idx<o.prices.length){
+      const v=Number(o.prices[idx]); if(v>0) precio=v;
+    } else if(Number(o.price)>0) precio+=Number(o.price);
+  });
+  return precio;
+}
+
 async function saveCombo(){
-  const c=S.editCombo;if(!c.name.trim())return;
+  const c=S.editCombo;if(!comboListo())return;
   const saveBtn=$('save-combo-btn');if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='Guardando…';}
   if(c._photoFile){c.photo=await uploadPhoto(c._photoFile,c.id||uid('c'));c._photoFile=null;}
   const savedId=await saveComboToSupabase(c);c.id=savedId;

@@ -1943,12 +1943,12 @@ const DEFAULT_QUICK_REPLIES = [
   { k:'efectivotransferencia', t:'Con gusto, me confirmas si el pago es transferencia o efectivo? para pasar tu pedido a cocina🍟☺️' },
   { k:'QR2',      t:'Te comparto el código QR para que puedas realizar tu pago ☺️\n\nO si deseas, mediante llaves con el siguiente número: 0092726260\n\nRecuerda enviarnos tu comprobante de pago😁', img:'@qr' },
   { k:'comprobante', t:'Quedo pendiente del comprobante para poderte preparar ☺️' },
-  /* Estas dos eran las unicas "dinamicas", y su texto ni se leia. Ahora son
-     plantillas normales: cualquiera puede editarlas o hacer otras iguales.
-     No llevan el desglose del domicilio a proposito — sin frases condicionales
-     un pedido para recoger diria "y $0 del domicilio". Ver la nota del commit. */
-  { k:'total',    t:'Con gusto, el total de tu pedido es {total} 😊\nEn un momento enviamos tu pedido 🍟' },
-  { k:'puntos',   t:'Tus puntos por esta compra: {puntos_ganados} 🎉\nCuando nos visites o vuelvas a pedir, recuerda dar tu numero de celular para seguir acumulando y redimirlos en productos de {negocio} 🍟' },
+  /* Estas dos eran las unicas "dinamicas", y su texto ni se leia: se devolvia
+     una frase escrita en el codigo. Ahora son plantillas normales y cualquiera
+     puede editarlas o hacer otras iguales. El valor del domicilio sale del
+     borrador del pedido, que es donde ya esta calculado por barrio. */
+  { k:'total',    t:'Con gusto, serían {total_productos} de tu pedido y {domicilio} del domicilio, total {total} 😊\nEn un momento enviamos tu pedido 🍟' },
+  { k:'puntos',   t:'Acabas de ganar {puntos_ganados} puntos con tu compra 🎉\nCuando nos visites o vuelvas a pedir, recuerda dar tu número de celular para seguir acumulando y redimirlos en productos de {negocio} 🍟' },
   { k:'30',       t:'Tu pedido tarda 30 minutos aproximadamente 🍟' },
   { k:'40',       t:'Tu pedido tarda 40 minutos aproximadamente 🍟' },
   { k:'saturaso', t:'Hola! 😎 En este momento nos encontramos saturados, por lo que no estamos brindando servicio temporalmente.\nEstamos trabajando para poder tomar tu pedido lo antes posible!\nGracias por tu paciencia. 😊' },
