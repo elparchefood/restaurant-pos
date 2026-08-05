@@ -88,6 +88,26 @@
   $('search').dispatchEvent(new Event('input'));
   es('sin resultados, lo dice', /No hay tutoriales/.test($('rail-list').textContent), true);
 
+  // ── el video llena el recuadro entero ──
+  // Al crearse, el reproductor de YouTube trae su propio tamaño (640x360) y
+  // quedaba flotando dentro del marco, mas pequeño que el hueco.
+  var pantalla = document.querySelector('.tu-screen');
+  var hueco = document.getElementById('yt-player');
+  // Se simula lo que hace YouTube: cambia el div por un iframe.
+  var ifr = document.createElement('iframe');
+  ifr.id = 'yt-player'; ifr.width = 640; ifr.height = 360; ifr.src = 'about:blank';
+  hueco.parentNode.replaceChild(ifr, hueco);
+  await new Promise(function(r){ setTimeout(r, 60); });
+  var rp = pantalla.getBoundingClientRect(), ri = ifr.getBoundingClientRect();
+  es('el video mide lo mismo de ancho', Math.round(ri.width), Math.round(rp.width));
+  es('y lo mismo de alto', Math.round(ri.height), Math.round(rp.height));
+  es('el recuadro guarda 16/9', Math.abs(rp.width / rp.height - 16/9) < 0.02, true);
+
+  // ── la cuenta es la de verdad, no la del handoff ──
+  es('sin el nombre inventado', /Valentina/.test(document.body.innerText), false);
+  es('sin la sede inventada', /Sede Centro/.test(document.body.innerText), false);
+  es('el bloque de cuenta existe', !!document.getElementById('tb-uname'), true);
+
   out.textContent = (mal?log.join('\n')+'\n\n':'') + ok+' bien, '+mal+' mal';
   document.title = mal ? 'FALLAN '+mal : 'TODO BIEN ('+ok+')';
 })();

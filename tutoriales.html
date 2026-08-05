@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css?v=1789840000">
 <link rel="stylesheet" href="dashboard.css?v=1789510000">
-<link rel="stylesheet" href="tutoriales.css?v=1789840000">
+<link rel="stylesheet" href="tutoriales.css?v=1789850000">
 </head>
 <body>
 <div class="lm-app">
@@ -100,13 +100,19 @@
   <main class="lm-main">
     <div class="lm-topbar">
       <div class="lm-top-left">
-        <span class="lm-modebadge"><span class="lm-mode-dot"></span>Turno abierto</span>
         <div class="lm-crumbs"><span class="lm-crumb-mut">Sistema</span><span>/</span><span class="lm-crumb-on" id="crumb">Tutoriales</span></div>
       </div>
       <div class="lm-top-right">
-        <span class="lm-pill-success">● En línea</span>
-        <span class="lm-ram">Sede <strong>Centro</strong></span>
-        <div class="lm-user"><div class="lm-user-av">VM</div><div><div class="lm-user-name">Valentina M.</div><div class="lm-user-role">Administrador</div></div></div>
+        <!-- La cuenta de VERDAD. El handoff traia "Valentina M. · Sede Centro"
+             inventados; los mismos ids que el dashboard, para que pos-brand.js
+             encuentre el circulo y le ponga la foto del restaurante. -->
+        <div class="user-info" style="cursor:default">
+          <div class="user-avatar" id="tb-avatar">?</div>
+          <div>
+            <div class="user-name" id="tb-uname">Cargando…</div>
+            <div class="user-role" id="tb-urole">—</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -229,6 +235,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="pos-core.js?v=1789820000"></script>
   <script src="pos-brand.js?v=1789790000"></script>
-  <script src="tutoriales.js?v=1789820000"></script>
+  <script src="tutoriales.js?v=1789850000"></script>
 </body>
 </html>

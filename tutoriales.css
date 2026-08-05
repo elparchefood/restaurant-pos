@@ -337,3 +337,17 @@ h1{margin:0;}
 a{color:var(--brand);}
 a:hover{color:var(--brand-press);}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms !important;transition-duration:.01ms !important;}}
+
+
+/* El video de YouTube llena el recuadro entero. Al crearse, el reproductor trae
+   su propio tamaño (640x360) y quedaba flotando dentro del marco rayado, mas
+   pequeño que el hueco. El rayado es el fondo de "aqui va un video": una vez
+   hay video, no debe verse por ningun borde. */
+.tu-screen #yt-player,
+.tu-screen iframe {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  border: 0; display: block;
+}
+/* Encima del video, no debajo. */
+.tu-chapbadge, .tu-resume, .tu-ph-lbl, .tu-bigplay { z-index: 2; }

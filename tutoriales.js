@@ -499,7 +499,27 @@
     if (S._pendiente) { cargarYT.apply(null, S._pendiente); S._pendiente = null; }
   };
 
+  /* La cuenta de quien tiene la sesion abierta, arriba a la derecha. Con los
+     MISMOS ids que el dashboard: asi pos-brand.js encuentra el circulo y le
+     pone la foto del restaurante sin que haya que decirle nada. */
+  function pintarCuenta() {
+    var u = usuario(); if (!u) return;
+    var meta = u.user_metadata || {};
+    var nombre = meta.nombre || meta.full_name || u.email || '';
+    if ($('tb-uname')) $('tb-uname').textContent = nombre || 'Mi cuenta';
+    if ($('tb-urole')) {
+      var r = meta.role || '';
+      $('tb-urole').textContent = r ? r[0].toUpperCase() + r.slice(1) : 'Usuario';
+    }
+    var av = $('tb-avatar');
+    if (av && !av.querySelector('img')) {
+      av.textContent = (nombre || '?').split(/\s+/).filter(Boolean).slice(0, 2)
+        .map(function (w) { return w[0]; }).join('').toUpperCase() || '?';
+    }
+  }
+
   async function iniciar() {
+    pintarCuenta();
     await cargar();
     conectar();
     pintarRail();
