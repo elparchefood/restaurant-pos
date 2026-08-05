@@ -505,8 +505,6 @@
     '</div>';
 
     return '<div class="ep-saludo">' +
-        '<div class="ep-avatar">' + (c.foto
-          ? '<img src="' + esc(c.foto) + '" alt="">' : esc(iniciales(c.nombre))) + '</div>' +
         '<div><div class="ep-saludo-t">' + saludo + '</div>' +
         '<div class="ep-saludo-n">' + esc((c.nombre || '').split(' ')[0] || 'Hola') + '</div></div>' +
         '<div class="ep-saludo-btns">' +
@@ -518,7 +516,6 @@
           '<button class="ep-redondo ep-yo" data-ir="perfil" title="Mi perfil">' +
             (c.foto ? '<img src="' + esc(c.foto) + '" alt="">' : esc(iniciales(c.nombre))) +
           '</button>' +
-          '<button class="ep-redondo" data-salir="1">' + ico('salir', 17) + '</button>' +
         '</div>' +
       '</div>' +
       '<div class="ep-sec-hd"><div><div class="ep-sec-t">Resumen</div>' +

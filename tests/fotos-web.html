@@ -29,7 +29,6 @@
   es('arriba a la derecha ya no está el pin', /data-ir="local">' \+ ico\('pin', 17\)/.test(js), false);
   es('y en su lugar va la foto del cliente', /ep-redondo ep-yo[\s\S]{0,160}c\.foto/.test(js), true);
   es('que lleva al perfil', /ep-yo" data-ir="perfil"/.test(js), true);
-  es('el saludo también usa la foto', /ep-avatar">' \+ \(c\.foto/.test(js), true);
   es('el perfil deja cambiarla', /id="pf-foto"/.test(js), true);
 
   // ── 4) se achica antes de mandarla ──
@@ -49,6 +48,16 @@
     body: JSON.stringify({accion:'foto', token:'inventado', foto:'esto no es una imagen'})
   }).then(function(x){return x.json();});
   es('una imagen inválida tampoco', mala2.ok, false);
+
+  // ── lo que se quito del saludo ──
+  es('el saludo ya no repite la foto', /ep-saludo">' \+[\s\S]{0,80}ep-avatar"/.test(js), false);
+  es('arriba a la derecha ya no esta cerrar sesion',
+     /ep-saludo-btns[\s\S]{0,400}data-salir/.test(js), false);
+  es('pero sigue en el menu de la izquierda', /ep-nav" data-salir="1"/.test(js), true);
+  es('y en el perfil', /data-salir="1">Cerrar sesión/.test(js), true);
+  var arriba = (js.match(/ep-saludo-btns[\s\S]{0,700}/) || [''])[0];
+  es('arriba queda el boton de tema', /ep-tema/.test(arriba), true);
+  es('y la foto del cliente', /ep-yo/.test(arriba), true);
 
   out.textContent = (mal?log.join('\n')+'\n\n':'') + ok+' bien, '+mal+' mal';
   document.title = mal ? 'FALLAN '+mal : 'TODO BIEN ('+ok+')';
