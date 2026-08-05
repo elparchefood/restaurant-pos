@@ -648,7 +648,7 @@ html.tema-claro .ep-seg-full button.on, html:not(.tema-oscuro) .ep-seg-full butt
 .ep-wcard {
   --cw: 150px; --ch: 54px; --cr: 22px; --cf: 16px;
   --pieza-recta: linear-gradient(#000 0 0);
-  --pieza-disco: radial-gradient(circle var(--cr) at 50% 50%, #000 var(--cr), transparent calc(var(--cr) + .5px));
+  --pieza-disco: radial-gradient(circle calc(var(--cr) + 1px) at 50% 50%, #000 calc(var(--cr) + 1px), transparent calc(var(--cr) + 1.5px));
   --pieza-filete: radial-gradient(circle var(--cf) at 0 0, transparent var(--cf), #000 calc(var(--cf) + .5px));
 
   -webkit-mask-image: var(--pieza-recta), var(--pieza-filete), var(--pieza-filete),
@@ -656,18 +656,18 @@ html.tema-claro .ep-seg-full button.on, html:not(.tema-oscuro) .ep-seg-full butt
           mask-image: var(--pieza-recta), var(--pieza-filete), var(--pieza-filete),
                       var(--pieza-disco), var(--pieza-recta), var(--pieza-recta);
   -webkit-mask-size: 100% 100%, var(--cf) var(--cf), var(--cf) var(--cf),
-                     calc(var(--cr) * 2) calc(var(--cr) * 2),
-                     var(--cw) calc(var(--ch) - var(--cr)),
-                     calc(var(--cw) - var(--cr)) var(--ch);
+                     calc(var(--cr) * 2 + 2px) calc(var(--cr) * 2 + 2px),
+                     var(--cw) calc(var(--ch) - var(--cr) + 1px),
+                     calc(var(--cw) - var(--cr) + 1px) var(--ch);
           mask-size: 100% 100%, var(--cf) var(--cf), var(--cf) var(--cf),
-                     calc(var(--cr) * 2) calc(var(--cr) * 2),
-                     var(--cw) calc(var(--ch) - var(--cr)),
-                     calc(var(--cw) - var(--cr)) var(--ch);
-  -webkit-mask-position: 0 0, right var(--cw) bottom 0, right 0 bottom var(--ch),
-                         right calc(var(--cw) - var(--cr) * 2) bottom calc(var(--ch) - var(--cr) * 2),
+                     calc(var(--cr) * 2 + 2px) calc(var(--cr) * 2 + 2px),
+                     var(--cw) calc(var(--ch) - var(--cr) + 1px),
+                     calc(var(--cw) - var(--cr) + 1px) var(--ch);
+  -webkit-mask-position: 0 0, right calc(var(--cw) - 1px) bottom 0, right 0 bottom calc(var(--ch) - 1px),
+                         right calc(var(--cw) - var(--cr) * 2 - 1px) bottom calc(var(--ch) - var(--cr) * 2 - 1px),
                          right 0 bottom 0, right 0 bottom 0;
-          mask-position: 0 0, right var(--cw) bottom 0, right 0 bottom var(--ch),
-                         right calc(var(--cw) - var(--cr) * 2) bottom calc(var(--ch) - var(--cr) * 2),
+          mask-position: 0 0, right calc(var(--cw) - 1px) bottom 0, right 0 bottom calc(var(--ch) - 1px),
+                         right calc(var(--cw) - var(--cr) * 2 - 1px) bottom calc(var(--ch) - var(--cr) * 2 - 1px),
                          right 0 bottom 0, right 0 bottom 0;
   -webkit-mask-repeat: no-repeat;
           mask-repeat: no-repeat;
@@ -680,7 +680,7 @@ html.tema-claro .ep-seg-full button.on, html:not(.tema-oscuro) .ep-seg-full butt
 .ep-pts-hero {
   --cw: 54px; --ch: 54px; --cr: 22px; --cf: 16px;
   --pieza-recta: linear-gradient(#000 0 0);
-  --pieza-disco: radial-gradient(circle var(--cr) at 50% 50%, #000 var(--cr), transparent calc(var(--cr) + .5px));
+  --pieza-disco: radial-gradient(circle calc(var(--cr) + 1px) at 50% 50%, #000 calc(var(--cr) + 1px), transparent calc(var(--cr) + 1.5px));
   --pieza-filete: radial-gradient(circle var(--cf) at 0 100%, transparent var(--cf), #000 calc(var(--cf) + .5px));
 
   -webkit-mask-image: var(--pieza-recta), var(--pieza-filete), var(--pieza-filete),
@@ -688,18 +688,18 @@ html.tema-claro .ep-seg-full button.on, html:not(.tema-oscuro) .ep-seg-full butt
           mask-image: var(--pieza-recta), var(--pieza-filete), var(--pieza-filete),
                       var(--pieza-disco), var(--pieza-recta), var(--pieza-recta);
   -webkit-mask-size: 100% 100%, var(--cf) var(--cf), var(--cf) var(--cf),
-                     calc(var(--cr) * 2) calc(var(--cr) * 2),
-                     var(--cw) calc(var(--ch) - var(--cr)),
-                     calc(var(--cw) - var(--cr)) var(--ch);
+                     calc(var(--cr) * 2 + 2px) calc(var(--cr) * 2 + 2px),
+                     var(--cw) calc(var(--ch) - var(--cr) + 1px),
+                     calc(var(--cw) - var(--cr) + 1px) var(--ch);
           mask-size: 100% 100%, var(--cf) var(--cf), var(--cf) var(--cf),
-                     calc(var(--cr) * 2) calc(var(--cr) * 2),
-                     var(--cw) calc(var(--ch) - var(--cr)),
-                     calc(var(--cw) - var(--cr)) var(--ch);
-  -webkit-mask-position: 0 0, right var(--cw) top 0, right 0 top var(--ch),
-                         right calc(var(--cw) - var(--cr) * 2) top calc(var(--ch) - var(--cr) * 2),
+                     calc(var(--cr) * 2 + 2px) calc(var(--cr) * 2 + 2px),
+                     var(--cw) calc(var(--ch) - var(--cr) + 1px),
+                     calc(var(--cw) - var(--cr) + 1px) var(--ch);
+  -webkit-mask-position: 0 0, right calc(var(--cw) - 1px) top 0, right 0 top calc(var(--ch) - 1px),
+                         right calc(var(--cw) - var(--cr) * 2 - 1px) top calc(var(--ch) - var(--cr) * 2 - 1px),
                          right 0 top 0, right 0 top 0;
-          mask-position: 0 0, right var(--cw) top 0, right 0 top var(--ch),
-                         right calc(var(--cw) - var(--cr) * 2) top calc(var(--ch) - var(--cr) * 2),
+          mask-position: 0 0, right calc(var(--cw) - 1px) top 0, right 0 top calc(var(--ch) - 1px),
+                         right calc(var(--cw) - var(--cr) * 2 - 1px) top calc(var(--ch) - var(--cr) * 2 - 1px),
                          right 0 top 0, right 0 top 0;
   -webkit-mask-repeat: no-repeat;
           mask-repeat: no-repeat;
