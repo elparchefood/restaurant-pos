@@ -446,7 +446,7 @@
 
     /* Tarjeta de saldo. Va en cero porque las recargas todavía no existen: se
        pinta desde ya para no tener que rehacer el tablero cuando entren. */
-    var saldo = '<div class="ep-wcard-wrap"><div class="ep-wcard">' +
+    var saldo = '<div class="ep-wcard">' +
       '<div class="ep-wc-top"><span class="ep-wc-marca">' + esc((e.nombre || '').toUpperCase()) + '</span>' +
         '<span class="ep-wc-rango">' + esc((n && n.nombre) || '') + '</span></div>' +
       '<div class="ep-wc-lbl">Saldo disponible</div>' +
@@ -454,16 +454,16 @@
       '<div class="ep-wc-num">•••• •••• •••• ' + esc(tel.slice(-4)) + '</div>' +
       '<div class="ep-wc-nom">' + esc(c.nombre || '') + '</div>' +
       '<div class="ep-wc-spark">' + ico('estrella', 17) + '</div>' +
-    '</div>' +
+      '<div class="ep-wc-cut"></div>' +
       '<button class="ep-wc-btn" data-ir="billetera">＋ Recargar</button>' +
     '</div>';
 
-    var puntos = '<div class="ep-pts-wrap"><div class="ep-pts-hero">' +
+    var puntos = '<div class="ep-pts-hero">' +
       '<div class="ep-pts-gema"></div>' +
       '<div class="ep-pts-lbl">Puntos disponibles</div>' +
       '<div class="ep-pts-num">' + (Number(c.puntos) || 0) + '<span>pts</span></div>' +
       '<div class="ep-pts-nota">Ganas puntos con todos tus pedidos</div>' +
-    '</div>' +
+      '<div class="ep-pts-cut"></div>' +
       '<button class="ep-pts-btn" data-ir="puntos">' + ico('gift', 18) + '</button>' +
     '</div>';
 
@@ -528,8 +528,7 @@
   var catActiva = 0;
 
   /* Los botones de arriba a la derecha. En UN solo sitio porque los usan el
-     inicio y todas las demas pantallas: copiados, un dia dejarian de coincidir.
-     La foto del cliente va en todas — es como sabe de quien es la sesion. */
+     inicio y todas las demas pantallas: copiados, un dia dejarian de coincidir. */
   function botonesArriba(extra) {
     var c = S.cliente || {};
     return '<div class="ep-saludo-btns">' + (extra || '') +
@@ -629,13 +628,13 @@
   function cuerpoBilletera() {
     var c = S.cliente || {};
     return encabezado('Billetera', 'Tu saldo') +
-      '<div class="ep-wcard-wrap" style="margin-bottom:14px"><div class="ep-wcard">' +
+      '<div class="ep-wcard" style="margin-bottom:14px">' +
         '<div class="ep-wc-top"><span class="ep-wc-marca">' + esc(((S.negocio && S.negocio.nombre) || '').toUpperCase()) + '</span></div>' +
         '<div class="ep-wc-lbl">Saldo disponible</div>' +
         '<div class="ep-wc-monto">' + COP(c.saldo) + '</div>' +
         '<div class="ep-wc-num">•••• •••• •••• ' + esc(String(c.telefono || '').slice(-4)) + '</div>' +
         '<div class="ep-wc-nom">' + esc(c.nombre || '') + '</div>' +
-      '</div></div>' +
+      '</div>' +
       '<div class="ep-aviso">Las recargas todavía no están abiertas. Cuando lo estén, vas a poder recargar aquí y pagar tus pedidos con tu saldo.</div>';
   }
 
