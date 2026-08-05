@@ -1886,7 +1886,7 @@ var OP_KEY = 'pos.config.operacion.v1';
 var _cfgBranchId = null; // se rellena al cargar el usuario
 var OP_DEFAULTS = {
   entregaMin: 12, cocinaMax: 20, propinaPct: 10, propinaObligatoria: false,
-  metaDiaria: 1500000, cobroAdelantado: false, pin: '',
+  metaDiaria: 1500000, cobroAdelantado: false, aceptaReservas: false, pin: '',
   // Impuestos: APAGADO por defecto. Un restaurante pequeño en Colombia suele
   // ser "no responsable" de impoconsumo y no cobra nada.
   impuestos: { activo: false, tipo: 'inc', pct: 8, incluido: true, nit: '', razon_social: '', resolucion: '' },
@@ -1962,12 +1962,13 @@ function opSave(data) {
   } catch (eV) { opToast('⚠️ No se pudo guardar la configuración en este equipo'); }
   // Sync claves heredadas para compatibilidad con otros módulos
   localStorage.setItem('pos.config.cobro_adelantado', data.cobroAdelantado ? 'true' : 'false');
+  localStorage.setItem('pos.config.acepta_reservas', data.aceptaReservas ? 'true' : 'false');
   // Sync a la base de datos (fuente de verdad para TODOS los dispositivos —
   // sin esto la tablet no ve la config de Operación: empaque, reglas, etc.)
   // Con reintentos, y si aun así falla se AVISA en pantalla (nunca silencioso).
   if (_cfgBranchId) {
     var _syncOp = function (intento) {
-      sb.from('branches').update({ cobro_adelantado: !!data.cobroAdelantado, operacion_config: data }).eq('id', _cfgBranchId)
+      sb.from('branches').update({ cobro_adelantado: !!data.cobroAdelantado, acepta_reservas: !!data.aceptaReservas, operacion_config: data }).eq('id', _cfgBranchId)
         .then(function (r) {
           if (r && r.error) {
             console.warn('opSave branch sync (intento ' + intento + '):', r.error);
@@ -2003,7 +2004,7 @@ function opInit() {
 async function opSyncCobroDesdeBranch() {
   if (!_cfgBranchId) return;
   try {
-    var r = await sb.from('branches').select('cobro_adelantado').eq('id', _cfgBranchId).maybeSingle();
+    var r = await sb.from('branches').select('cobro_adelantado, acepta_reservas').eq('id', _cfgBranchId).maybeSingle();
     if (!r || !r.data || typeof r.data.cobro_adelantado !== 'boolean') return;
     var real = r.data.cobro_adelantado;
     // Corre al abrir el panel, antes de que el usuario toque nada: draft y
@@ -2015,6 +2016,16 @@ async function opSyncCobroDesdeBranch() {
     opPintarNotif();
     var cobroSt = $('op-cobro-state');
     if (cobroSt) { cobroSt.textContent = _opDraft.cobroAdelantado ? 'Activado' : 'Desactivado'; cobroSt.className = 'op-state ' + (_opDraft.cobroAdelantado ? 'on' : 'off'); }
+    /* Reservas: mismo camino que el cobro adelantado — la columna de la base
+       manda, para que la tablet y el .exe vean lo mismo. */
+    if (typeof r.data.acepta_reservas === 'boolean') {
+      _opSaved.aceptaReservas = r.data.acepta_reservas;
+      if (sinCambios) _opDraft.aceptaReservas = r.data.acepta_reservas;
+      opSetToggle('op-sw-reservas', _opDraft.aceptaReservas);
+      var resSt = $('op-reservas-state');
+      if (resSt) { resSt.textContent = _opDraft.aceptaReservas ? 'Activado' : 'Desactivado'; resSt.className = 'op-state ' + (_opDraft.aceptaReservas ? 'on' : 'off'); }
+      try { localStorage.setItem('pos.config.acepta_reservas', _opDraft.aceptaReservas ? 'true' : 'false'); } catch (e) {}
+    }
     opCheckDirty();
   } catch (e) { /* si falla, queda la copia local */ }
 }
@@ -2049,8 +2060,11 @@ function opRender() {
 
   // Sección 3 — cobro adelantado
   opSetToggle('op-sw-cobro', d.cobroAdelantado);
+  opSetToggle('op-sw-reservas', d.aceptaReservas);
   var cobroSt = $('op-cobro-state');
   if (cobroSt) { cobroSt.textContent = d.cobroAdelantado ? 'Activado' : 'Desactivado'; cobroSt.className = 'op-state ' + (d.cobroAdelantado ? 'on' : 'off'); }
+  var resSt2 = $('op-reservas-state');
+  if (resSt2) { resSt2.textContent = d.aceptaReservas ? 'Activado' : 'Desactivado'; resSt2.className = 'op-state ' + (d.aceptaReservas ? 'on' : 'off'); }
 
   // PIN status
   var pinSt = $('op-pin-status');

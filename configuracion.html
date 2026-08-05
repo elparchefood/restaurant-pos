@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css?v=1789510000">
-<link rel="stylesheet" href="configuracion.css?v=1789100000">
+<link rel="stylesheet" href="configuracion.css?v=1789600000">
 </head>
 <body>
 <div class="cf-root">
@@ -748,6 +748,19 @@
                 <div class="op-control">
                   <span class="op-state off" id="op-cobro-state">Desactivado</span>
                   <button class="cf-switch" id="op-sw-cobro" role="switch" aria-checked="false" data-field="cobroAdelantado"><span class="cf-switch-knob"></span></button>
+                </div>
+              </div>
+              <!-- Reservas. Apagado (lo normal en un restaurante que no las
+                   maneja) la pantalla de Reservas se ve pero no se puede usar,
+                   y el estado "Reservada" ni siquiera aparece en las mesas. -->
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">Este restaurante acepta reservas</div>
+                  <div class="op-hint">Actívalo si tus clientes apartan mesa. Se enciende la pantalla de Reservas y las mesas pueden quedar en estado "Reservada". Si lo dejas apagado, nada de eso aparece.</div>
+                </div>
+                <div class="op-control">
+                  <span class="op-state off" id="op-reservas-state">Desactivado</span>
+                  <button class="cf-switch" id="op-sw-reservas" role="switch" aria-checked="false" data-field="aceptaReservas"><span class="cf-switch-knob"></span></button>
                 </div>
               </div>
               <div class="op-row col">
@@ -2651,7 +2664,7 @@
 <!-- Es quien sabe tocar los tonos con el volumen configurado. Sin esto el
      boton Probar no sonaba: la funcion que llama no existia. -->
 <script src="pos-notify.js?v=1788790000"></script>
-<script src="configuracion.js?v=1789570000"></script>
+<script src="configuracion.js?v=1789600000"></script>
 </body>
 </html>
 

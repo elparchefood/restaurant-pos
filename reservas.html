@@ -1,195 +1,240 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reservas · Cobra POS</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reservas — Cobra POS</title>
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/favicon-32.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/brand/favicon-192.png">
   <link rel="apple-touch-icon" href="assets/brand/favicon-192.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="pos-core.css?v=1789510000">
-<link rel="stylesheet" href="reservas.css?v=1789510000">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="reservas.css?v=1789610000">
 </head>
 <body>
-<div id="app">
 
-  <!-- SIDEBAR -->
-  <aside id="sidebar">
-    <div class="brand-mark">
-      <div class="brand-logo">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M6 2v6a3 3 0 0 0 6 0V2"/><path d="M9 2v20"/><path d="M17 2v10"/><path d="M17 12c0 5 4 5 4 0V2h-4"/></svg>
-      </div>
+<div class="lm-app">
+  <!-- ── Barra lateral ── -->
+  <aside class="lm-side">
+    <div class="lm-brand">
+      <div class="lm-brand-logo">L</div>
       <div>
-        <div class="brand-name" id="sb-brand">Comanda</div>
-        <div class="brand-ver">POS · v1.0</div>
+        <div class="lm-brand-name">Cobra POS</div>
+        <div class="lm-brand-sub">Cargando…</div>
       </div>
     </div>
-    <div class="sidebar-section">
-      <div class="sidebar-label">Operacion</div>
-      <a class="nav-item" href="dashboard.html">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-        Escritorio
-      </a>
-      <a class="nav-item" href="ventas.html">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>
-        Ventas
-      </a>
-      <a class="nav-item active" href="reservas.html">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        Reservas
-      </a>
-      <a class="nav-item" href="domicilios.html">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-        Domicilio
-      </a>
-    </div>
-    <div class="sidebar-section">
-      <div class="sidebar-label">Backoffice</div>
-      <a class="nav-item" href="informes.html">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-        Informes
-      </a>
-      <a class="nav-item" href="historial.html">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        Historial
-      </a>
-    </div>
-    <div class="sidebar-section sidebar-section--bottom">
-      <a class="nav-item" href="configuracion.html">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        Configuración
-      </a>
-    </div>
-    <div class="sys-status">
-      <div class="sys-row"><span>Sistema</span><span id="sb-status" style="color:#F97316">cargando...</span></div>
-      <div class="sys-meta"><span id="sb-user">—</span><span>v1.0.0</span></div>
+    <div class="lm-side-section">Operación</div>
+    <nav class="lm-navlist">
+      <a class="lm-nav" href="ventas.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>Ventas</a>
+      <button class="lm-nav on"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>Reservas</button>
+      <a class="lm-nav" href="caja.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20"></path></svg>Caja</a>
+      <a class="lm-nav" href="inventario.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8 12 3 3 8v8l9 5 9-5Z"></path><path d="m3 8 9 5 9-5"></path><path d="M12 13v8"></path></svg>Inventario</a>
+      <a class="lm-nav" href="catalogo-productos.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"></path></svg>Catálogo</a>
+    </nav>
+    <div class="lm-side-section">Sistema</div>
+    <nav class="lm-navlist">
+      <a class="lm-nav" href="informes.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"></path><path d="m7 14 3-3 3 3 4-6"></path></svg>Informes</a>
+      <a class="lm-nav" href="configuracion.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 9.4a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82-1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9H20a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path></svg>Configuración</a>
+    </nav>
+    <div class="lm-side-grow"></div>
+    <!-- El pie: la cuenta que tiene la sesión abierta, igual que en Ventas,
+         Catálogo y el chat. La foto del restaurante la pone pos-brand.js, que
+         conoce este círculo por su id. -->
+    <div class="lm-side-foot">
+      <div style="display:flex;align-items:center;gap:10px;padding:6px 4px;min-width:0">
+        <div class="lm-user-av" id="user-avatar" style="width:36px;height:36px;border-radius:50%;overflow:hidden;flex-shrink:0">?</div>
+        <div style="min-width:0">
+          <div id="rs-user-nom" style="font-weight:600;font-size:12.5px;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Cargando…</div>
+          <div id="rs-user-rol" style="font-size:10.5px;color:#94A3B8">—</div>
+        </div>
+      </div>
     </div>
   </aside>
 
-  <!-- MAIN -->
-  <main id="main">
-    <header id="topbar">
-      <div class="topbar-left">
-        <div>
-          <div class="branch-eyebrow">Operacion</div>
-          <div class="branch-name" id="tb-branch">Reservas</div>
-        </div>
+  <main class="lm-main">
+    <div class="lm-topbar">
+      <div class="lm-top-left">
+        <span class="lm-modebadge"><span class="lm-mode-dot"></span><span id="rs-turno">Reservas</span></span>
+        <div class="lm-crumbs"><span class="lm-crumb-mut">Operación</span><span>/</span><span class="lm-crumb-on" id="crumb">Reservas · Hoy</span></div>
       </div>
-      <div class="topbar-right">
-        <!-- Date navigator -->
-        <div class="rv-date-nav">
-          <button class="rv-date-btn" id="rv-prev" onclick="changeDate(-1)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-          <span class="rv-date-label" id="rv-date-label">Hoy</span>
-          <button class="rv-date-btn" id="rv-next" onclick="changeDate(1)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-        </div>
-        <button class="btn-primary" onclick="openNewModal()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Nueva reserva
-        </button>
+      <div class="lm-top-right">
+        <span class="lm-pill-success">● En línea</span>
+        <span class="lm-ram" id="rs-sede">Sede</span>
       </div>
-    </header>
-
-    <div id="content">
-
-      <!-- Status bar -->
-      <div class="rv-status-row" id="rv-status-row">
-        <div class="rv-status-chip rv-status-chip--pendiente">
-          <span id="cnt-pendiente">0</span> Pendientes
-        </div>
-        <div class="rv-status-chip rv-status-chip--confirmada">
-          <span id="cnt-confirmada">0</span> Confirmadas
-        </div>
-        <div class="rv-status-chip rv-status-chip--llego">
-          <span id="cnt-llego">0</span> Llegaron
-        </div>
-        <div class="rv-status-chip rv-status-chip--cancelada">
-          <span id="cnt-cancelada">0</span> Canceladas
-        </div>
-        <div class="rv-status-chip rv-status-chip--noshow">
-          <span id="cnt-noshow">0</span> No show
-        </div>
-      </div>
-
-      <!-- Reservation list -->
-      <div id="rv-list"></div>
-
     </div>
+
+    <div class="lm-pagehead">
+      <div><div class="lm-eyebrow">Operación</div><h1 class="lm-pagetitle">Reservas</h1></div>
+      <div class="lm-head-actions">
+        <div class="lm-search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4-4"></path></svg><input id="rs-buscar" placeholder="Buscar por nombre o teléfono…"></div>
+        <button class="cc-btn-ai js-open-ai"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"></path></svg>Crear con IA</button>
+        <button class="lm-btn-primary js-open-drawer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"></path></svg>Nueva reserva</button>
+      </div>
+    </div>
+
+    <!-- Aviso cuando el restaurante NO acepta reservas -->
+    <div class="rs-aviso" id="rs-aviso-off" hidden>
+      <div class="rs-aviso-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg></div>
+      <div>
+        <div class="rs-aviso-tit">Este restaurante no acepta reservas</div>
+        <div class="rs-aviso-sub">La pantalla está apagada. Para usarla, enciende <strong>“Este restaurante acepta reservas”</strong> en <a href="configuracion.html">Configuración → Operación</a>.</div>
+      </div>
+    </div>
+
+    <!-- Aviso de reservas que no llegaron. El sistema PREGUNTA: nunca libera solo. -->
+    <div class="rs-aviso warn" id="rs-aviso-noshow" hidden>
+      <div class="rs-aviso-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v5M12 16h.01"></path></svg></div>
+      <div style="flex:1">
+        <div class="rs-aviso-tit" id="rs-noshow-tit">Hay reservas que no se han presentado</div>
+        <div class="rs-aviso-sub" id="rs-noshow-sub"></div>
+      </div>
+      <div id="rs-noshow-btns" style="display:flex;gap:8px;flex-shrink:0"></div>
+    </div>
+
+    <div class="lm-tabsrow">
+      <button class="cc-tab on" data-screen="hoy" data-crumb="Reservas · Hoy">Hoy <span class="cc-tab-n" id="n-hoy">0</span></button>
+      <button class="cc-tab" data-screen="proximas" data-crumb="Reservas · Próximas">Próximas <span class="cc-tab-n" id="n-proximas">0</span></button>
+      <button class="cc-tab" data-screen="espera" data-crumb="Reservas · Lista de espera">Lista de espera <span class="cc-tab-n" id="n-espera">0</span></button>
+      <button class="cc-tab" data-screen="mapa" data-crumb="Reservas · Mapa de salón">Mapa de salón</button>
+      <button class="cc-tab" data-screen="historial" data-crumb="Reservas · Historial">Historial</button>
+    </div>
+
+    <!-- ══ HOY ══ -->
+    <section class="screen on" id="screen-hoy">
+      <div class="lm-filterrow" id="rs-chips"></div>
+      <div class="lm-body">
+        <div class="rs-statgrid" id="rs-stats"></div>
+
+        <div class="rs-viewbar">
+          <div class="rs-daynav">
+            <button class="lm-icon-sm" id="day-prev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m15 18-6-6 6-6"></path></svg></button>
+            <button class="lm-icon-sm" id="day-next"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m9 18 6-6-6-6"></path></svg></button>
+            <span class="rs-date" id="rs-fecha">—</span>
+            <button class="lm-btn-ghost sm" id="day-today">Hoy</button>
+          </div>
+          <div class="cc-seg" id="rs-seg">
+            <button class="on" data-view="agenda">Agenda</button>
+            <button data-view="timeline">Timeline por mesa</button>
+            <button data-view="bands">Franjas</button>
+          </div>
+        </div>
+
+        <div id="view-agenda" class="rs-agenda"></div>
+        <div id="view-timeline" hidden></div>
+        <div id="view-bands" hidden></div>
+      </div>
+    </section>
+
+    <!-- ══ PRÓXIMAS ══ -->
+    <section class="screen" id="screen-proximas">
+      <div class="lm-body"><div id="rs-proximas"></div></div>
+    </section>
+
+    <!-- ══ LISTA DE ESPERA ══ -->
+    <section class="screen" id="screen-espera">
+      <div class="lm-body"><div id="rs-espera"></div></div>
+    </section>
+
+    <!-- ══ MAPA DE SALÓN ══ -->
+    <section class="screen" id="screen-mapa">
+      <div class="lm-body"><div id="rs-mapa"></div></div>
+    </section>
+
+    <!-- ══ HISTORIAL ══ -->
+    <section class="screen" id="screen-historial">
+      <div class="lm-body"><div id="rs-historial"></div></div>
+    </section>
   </main>
 </div>
 
-<!-- ══════════ MODAL: Nueva / Editar reserva ══════════ -->
-<div class="rv-overlay" id="rv-overlay" style="display:none" onclick="closeModal(event)">
-  <div class="rv-modal" id="rv-modal">
-    <div class="rv-modal-head">
-      <div class="rv-modal-title" id="modal-title">Nueva reserva</div>
-      <button class="rv-modal-close" onclick="closeModal()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
+<!-- ══ CAJÓN · NUEVA RESERVA ══ -->
+<div class="cc-overlay" id="ov-drawer" hidden></div>
+<aside class="cc-drawer" id="drawer-nueva" hidden>
+  <div class="rs-dw-head">
+    <div><div class="rs-dw-title" id="drawer-title">Nueva reserva</div><div class="rs-dw-sub">Datos del cliente y de la mesa</div></div>
+    <button class="lm-icon-sm js-close" data-close="drawer-nueva"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+  </div>
+  <div class="rs-dw-body">
+    <div class="cc-field"><label class="cc-label">Nombre del cliente</label><input class="cc-input" id="f-nombre" placeholder="Nombre y apellido"></div>
+    <div class="cc-field"><label class="cc-label">Teléfono</label><input class="cc-input" id="f-tel" placeholder="300 000 0000"></div>
+    <div class="cc-field">
+      <label class="cc-label">Personas</label>
+      <div class="rs-stepper"><button type="button" id="pax-minus">−</button><span id="pax-val">2</span><button type="button" id="pax-plus">+</button></div>
     </div>
-    <div class="rv-modal-body">
-      <input type="hidden" id="edit-id">
-      <div class="rv-form-row">
-        <div class="rv-form-group">
-          <label class="rv-label">Nombre del cliente *</label>
-          <input class="rv-input" id="f-name" placeholder="Ej: Familia Martínez" required>
-        </div>
-        <div class="rv-form-group">
-          <label class="rv-label">Teléfono</label>
-          <input class="rv-input" id="f-phone" placeholder="Ej: 3001234567" type="tel">
-        </div>
-      </div>
-      <div class="rv-form-row">
-        <div class="rv-form-group">
-          <label class="rv-label">Fecha *</label>
-          <input class="rv-input" id="f-date" type="date" required>
-        </div>
-        <div class="rv-form-group">
-          <label class="rv-label">Hora *</label>
-          <input class="rv-input" id="f-time" type="time" required>
-        </div>
-        <div class="rv-form-group">
-          <label class="rv-label">Personas *</label>
-          <input class="rv-input" id="f-guests" type="number" min="1" max="100" value="2" required>
-        </div>
-      </div>
-      <div class="rv-form-group">
-        <label class="rv-label">Mesa (opcional)</label>
-        <select class="rv-input" id="f-table">
-          <option value="">Sin asignar</option>
-        </select>
-      </div>
-      <div class="rv-form-group">
-        <label class="rv-label">Notas</label>
-        <textarea class="rv-input rv-textarea" id="f-notes" placeholder="Ocasión especial, alergias, preferencias…" rows="3"></textarea>
+    <div class="rs-2col">
+      <div class="cc-field"><label class="cc-label">Fecha</label><input class="cc-input" type="date" id="f-fecha"></div>
+      <div class="cc-field"><label class="cc-label">Duración</label>
+        <select class="cc-input" id="f-dur"><option value="60">60 min</option><option value="90" selected>90 min</option><option value="120">120 min</option></select>
       </div>
     </div>
-    <div class="rv-modal-foot">
-      <button class="rv-btn-cancel" onclick="closeModal()">Cancelar</button>
-      <button class="rv-btn-save" onclick="saveReservation()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-        <span id="btn-save-lbl">Guardar reserva</span>
-      </button>
+    <div class="cc-field"><label class="cc-label">Hora</label><div class="rs-slots" id="f-slots"></div></div>
+    <div class="rs-2col">
+      <div class="cc-field"><label class="cc-label">Zona</label><select class="cc-input" id="f-zona"></select></div>
+      <div class="cc-field"><label class="cc-label">Mesa</label><select class="cc-input" id="f-mesa"></select></div>
     </div>
+    <div class="rs-2col">
+      <div class="cc-field"><label class="cc-label">Origen</label>
+        <select class="cc-input" id="f-origen"><option value="whatsapp">WhatsApp</option><option value="telefono" selected>Teléfono</option><option value="web">Web</option><option value="mesero">Lo tomó el personal</option></select>
+      </div>
+      <div class="cc-field"><label class="cc-label">Abono</label><input class="cc-input" id="f-abono" placeholder="$ 0"></div>
+    </div>
+    <div class="cc-field"><label class="cc-label">Notas</label><textarea class="rs-textarea" id="f-notas" rows="3" placeholder="Alergias, celebración, silla para bebé…"></textarea></div>
+  </div>
+  <div class="rs-dw-foot">
+    <button class="lm-btn-ghost js-close" data-close="drawer-nueva">Cancelar</button>
+    <button class="lm-btn-primary" id="btn-save">Guardar reserva</button>
+  </div>
+</aside>
+
+<!-- ══ MODAL · SENTAR ══ -->
+<div class="cc-overlay" id="ov-seat" hidden></div>
+<div class="cc-modal" id="modal-seat" hidden>
+  <div class="rs-mo-head"><div class="rs-dw-title">Sentar reserva</div>
+    <button class="lm-icon-sm js-close" data-close="modal-seat"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+  </div>
+  <div class="rs-mo-body" id="seat-body"></div>
+  <div class="rs-mo-foot">
+    <button class="lm-btn-ghost js-close" data-close="modal-seat">Volver</button>
+    <button class="lm-btn-primary" id="btn-seat-ok">Sentar</button>
   </div>
 </div>
 
+<!-- ══ MODAL · PASAR A OTRA MESA ══ -->
+<div class="cc-overlay" id="ov-mover" hidden></div>
+<div class="cc-modal" id="modal-mover" hidden>
+  <div class="rs-mo-head"><div class="rs-dw-title">Pasar a otra mesa</div>
+    <button class="lm-icon-sm js-close" data-close="modal-mover"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+  </div>
+  <div class="rs-mo-body" id="mover-body"></div>
+  <div class="rs-mo-foot"><button class="lm-btn-ghost js-close" data-close="modal-mover">Volver</button></div>
+</div>
+
+<!-- ══ MODAL · CREAR CON IA ══ -->
+<div class="cc-overlay" id="ov-ai" hidden></div>
+<div class="cc-modal wide" id="modal-ai" hidden>
+  <div class="rs-mo-head"><div class="rs-dw-title">Reserva desde WhatsApp</div>
+    <button class="lm-icon-sm js-close" data-close="modal-ai"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+  </div>
+  <div class="rs-mo-body">
+    <div class="cc-field"><label class="cc-label">Pega aquí el mensaje del cliente</label>
+      <textarea class="rs-textarea ai" id="ai-text" rows="5" placeholder="Buenas, quiero reservar para el sábado a las 8 de la noche para 6 personas a nombre de Andrea"></textarea>
+    </div>
+    <div id="ai-result" hidden></div>
+  </div>
+  <div class="rs-mo-foot">
+    <button class="lm-btn-ghost" id="btn-ai-parse">Analizar mensaje</button>
+    <button class="lm-btn-primary" id="btn-ai-create" disabled>Crear reserva</button>
+  </div>
+</div>
+
+<div id="rs-toast" class="cc-toast" hidden></div>
+
 <script src="vendor/supabase-2.js?v=1789520000"></script>
+<script src="pos-cache.js?v=1789530000"></script>
 <script src="pos-core.js?v=1789530000"></script>
-  <script src="pos-plan.js?v=1789530000"></script>
 <script src="pos-perms.js?v=1789530000"></script>
-<script>if(window.posRequirePin) posRequirePin('reservas.gestionar');</script>
+<script src="reservas.js?v=1789610000"></script>
 <script src="pos-brand.js?v=1789530000"></script>
-<script src="pos-impuestos.js?v=1"></script>
-<script src="pos-print.js?v=1788310000"></script>
-<script src="pos-print-listener.js?v=4"></script>
-<script src="reservas.js?v=1"></script>
+
 </body>
 </html>
