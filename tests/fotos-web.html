@@ -1,0 +1,56 @@
+<meta charset="utf-8"><title>Fotos de la página</title>
+<pre id="out" style="font:12px/1.6 monospace;white-space:pre-wrap;padding:12px"></pre>
+<script>
+(async function () {
+  var ok=0, mal=0, log=[];
+  function es(n,a,b){ if(JSON.stringify(a)===JSON.stringify(b)) ok++;
+    else {mal++; log.push('FALLA '+n+': dio '+JSON.stringify(a)+', esperaba '+JSON.stringify(b));} }
+
+  var js = await (await fetch('../app-cliente.js')).text();
+
+  // ── 1) la foto del restaurante llega de VERDAD del servidor ──
+  var SB='https://tblujfduscslxjmrjbdr.supabase.co';
+  var ANON=(js.match(/ANON\s*=\s*'([^']+)'/)||[])[1];
+  es('la página trae su llave pública', !!ANON, true);
+  var r = await fetch(SB+'/rest/v1/rpc/fn_web_publica', {
+    method:'POST', headers:{apikey:ANON,'Content-Type':'application/json'},
+    body: JSON.stringify({p_slug:'elparchefood'})
+  }).then(function(x){return x.json();});
+  var neg = r && r[0];
+  es('el servidor responde', !!neg, true);
+  es('y manda el logo del restaurante', /storage\/v1\/object\/public\/marca\//.test(neg.logo||''), true);
+  es('con el nombre de la marca', neg.nombre, 'El Parche Food');
+
+  // ── 2) la página lo usa en los tres sitios ──
+  es('la cabecera pinta el logo', /ep-marca-img[\s\S]{0,120}e\.logo|e\.logo[\s\S]{0,120}ep-marca-img/.test(js), true);
+  es('el menú lateral también', /ep-side-logo[\s\S]{0,200}S\.negocio && S\.negocio\.logo/.test(js), true);
+
+  // ── 3) la foto del cliente ──
+  es('arriba a la derecha ya no está el pin', /data-ir="local">' \+ ico\('pin', 17\)/.test(js), false);
+  es('y en su lugar va la foto del cliente', /ep-redondo ep-yo[\s\S]{0,160}c\.foto/.test(js), true);
+  es('que lleva al perfil', /ep-yo" data-ir="perfil"/.test(js), true);
+  es('el saludo también usa la foto', /ep-avatar">' \+ \(c\.foto/.test(js), true);
+  es('el perfil deja cambiarla', /id="pf-foto"/.test(js), true);
+
+  // ── 4) se achica antes de mandarla ──
+  es('hay recorte antes de subir', /function achicar/.test(js), true);
+  es('a 256 px', /achicar\(archivo, 256\)/.test(js), true);
+  es('recorta cuadrado desde el centro', /im\.width - m\) \/ 2/.test(js), true);
+  es('la manda como jpeg comprimido', /toDataURL\('image\/jpeg', 0\.82\)/.test(js), true);
+
+  // ── 5) el servidor rechaza lo que no debe ──
+  var mala = await fetch(SB+'/functions/v1/web-acceso', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({accion:'foto', token:'inventado', foto:'data:image/jpeg;base64,AAAA'})
+  }).then(function(x){return x.json();});
+  es('sin sesión válida no deja subir', mala.ok, false);
+  var mala2 = await fetch(SB+'/functions/v1/web-acceso', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({accion:'foto', token:'inventado', foto:'esto no es una imagen'})
+  }).then(function(x){return x.json();});
+  es('una imagen inválida tampoco', mala2.ok, false);
+
+  out.textContent = (mal?log.join('\n')+'\n\n':'') + ok+' bien, '+mal+' mal';
+  document.title = mal ? 'FALLAN '+mal : 'TODO BIEN ('+ok+')';
+})();
+</script>

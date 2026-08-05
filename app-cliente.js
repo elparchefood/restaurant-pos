@@ -50,7 +50,12 @@
 
   function cabecera() {
     var e = S.negocio || {};
-    return '<div class="ep-marca">' + ICONO + '</div>' +
+    /* La foto del restaurante, la MISMA que ya esta configurada en Cobra. Si
+       no hay ninguna se cae al icono, para que la cabecera nunca quede coja. */
+    var marca = e.logo
+      ? '<img class="ep-marca-img" src="' + esc(e.logo) + '" alt="">'
+      : ICONO;
+    return '<div class="ep-marca">' + marca + '</div>' +
       '<div><h1 class="ep-h1">' + esc(e.nombre || '') + '</h1>' +
       '<p class="ep-lead">Tu cuenta, tu saldo y tus puntos.</p></div>' +
       /* Cerrado NO es apagado: se avisa, pero la página se usa igual. */
@@ -219,7 +224,8 @@
     sol: 'M12 3v2|M12 19v2|M5.6 5.6l1.4 1.4|M17 17l1.4 1.4|M3 12h2|M19 12h2|M5.6 18.4 7 17|M17 7l1.4-1.4|M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8z',
     luna: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
     tarjeta: 'M2 6h20v12H2z|M2 10h20',
-    reloj: 'M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18z|M12 7v5l3 2'
+    reloj: 'M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18z|M12 7v5l3 2',
+    camara: 'M4 8h3l1.5-2h7L17 8h3v11H4z|M12 11a3.2 3.2 0 1 1 0 6.4 3.2 3.2 0 0 1 0-6.4z'
   };
   function ico(n, t) {
     t = t || 20;
@@ -252,7 +258,7 @@
     var saludo = hora < 12 ? 'Buenos días' : hora < 18 ? 'Buenas tardes' : 'Buenas noches';
 
     var lateral = '<aside class="ep-side">' +
-      '<div class="ep-side-hd"><div class="ep-side-logo">' + ico('bolsa', 19) + '</div>' +
+      '<div class="ep-side-hd"><div class="ep-side-logo">' + ((S.negocio && S.negocio.logo) ? '<img class="ep-marca-img" src="' + esc(S.negocio.logo) + '" alt="">' : ico('bolsa', 19)) + '</div>' +
       '<div class="ep-side-nom">' + esc(e.nombre || '') + '</div></div>' +
       '<div class="ep-side-sec">Mi cuenta</div>' +
       TABS.map(function (t) {
@@ -292,6 +298,15 @@
     document.querySelectorAll('[data-salir]').forEach(function (b) {
       b.addEventListener('click', salir);
     });
+    // La foto del perfil. El campo va escondido dentro del circulo: se toca la
+    // foto y se escoge, sin un boton aparte que explicar.
+    var campoFoto = $('pf-foto');
+    if (campoFoto) {
+      campoFoto.addEventListener('change', function () {
+        if (this.files && this.files[0]) guardarFoto(this.files[0]);
+        this.value = '';   // para poder escoger la MISMA foto otra vez
+      });
+    }
     document.querySelectorAll('[data-tema]').forEach(function (b) {
       b.addEventListener('click', alternarTema);
     });
@@ -490,13 +505,19 @@
     '</div>';
 
     return '<div class="ep-saludo">' +
-        '<div class="ep-avatar">' + esc(iniciales(c.nombre)) + '</div>' +
+        '<div class="ep-avatar">' + (c.foto
+          ? '<img src="' + esc(c.foto) + '" alt="">' : esc(iniciales(c.nombre))) + '</div>' +
         '<div><div class="ep-saludo-t">' + saludo + '</div>' +
         '<div class="ep-saludo-n">' + esc((c.nombre || '').split(' ')[0] || 'Hola') + '</div></div>' +
         '<div class="ep-saludo-btns">' +
           '<button class="ep-redondo ep-tema" data-tema="1" title="Cambiar el tema">' +
             ico(esOscuroAhora() ? 'sol' : 'luna', 17) + '</button>' +
-          '<button class="ep-redondo" data-ir="local">' + ico('pin', 17) + '</button>' +
+          /* La foto del cliente, no el pin del local: es SU cuenta. Va mas
+             grande que los otros redondos y lleva al perfil, que es donde la
+             cambia. El local sigue estando en el menu. */
+          '<button class="ep-redondo ep-yo" data-ir="perfil" title="Mi perfil">' +
+            (c.foto ? '<img src="' + esc(c.foto) + '" alt="">' : esc(iniciales(c.nombre))) +
+          '</button>' +
           '<button class="ep-redondo" data-salir="1">' + ico('salir', 17) + '</button>' +
         '</div>' +
       '</div>' +
@@ -617,13 +638,63 @@
   }
 
   // ── Perfil ──────────────────────────────────────────────────────────
+  /* La foto se achica EN EL NAVEGADOR antes de mandarla. Una foto de celular
+     son 3 o 4 MB; el circulo donde se ve mide 96 pixeles. Mandar el original
+     seria gastarle los datos al cliente y llenar el almacenamiento con fotos
+     que nadie va a ver a ese tamaño. Se recorta cuadrada, que es como se
+     muestra: si se estirara, todos saldrian deformados. */
+  function achicar(archivo, lado) {
+    return new Promise(function (listo, falla) {
+      var fr = new FileReader();
+      fr.onerror = function () { falla(new Error('no se pudo leer')); };
+      fr.onload = function () {
+        var im = new Image();
+        im.onerror = function () { falla(new Error('no es una imagen')); };
+        im.onload = function () {
+          var lienzo = document.createElement('canvas');
+          lienzo.width = lienzo.height = lado;
+          var cx = lienzo.getContext('2d');
+          var m = Math.min(im.width, im.height);        // el cuadrado del centro
+          cx.drawImage(im, (im.width - m) / 2, (im.height - m) / 2, m, m, 0, 0, lado, lado);
+          listo(lienzo.toDataURL('image/jpeg', 0.82));
+        };
+        im.src = fr.result;
+      };
+      fr.readAsDataURL(archivo);
+    });
+  }
+
+  async function guardarFoto(archivo) {
+    if (!archivo || !/^image\//.test(archivo.type)) { alert('Escoge una imagen.'); return; }
+    var caja = document.querySelector('.ep-avatar-g');
+    if (caja) caja.classList.add('cargando');
+    try {
+      var chica = await achicar(archivo, 256);
+      var d = await fetch(SB_URL + '/functions/v1/web-acceso', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'foto', token: leerToken(), foto: chica }),
+      }).then(function (r) { return r.json(); });
+      if (!d.ok) { alert(d.mensaje || 'No se pudo guardar la foto.'); return; }
+      S.cliente.foto = d.foto;
+      pantallaDentro();               // se ve al momento, en el perfil y arriba
+    } catch (e) {
+      alert('No se pudo usar esa imagen.');
+    } finally {
+      if (caja) caja.classList.remove('cargando');
+    }
+  }
+
   function cuerpoPerfil() {
     var c = S.cliente || {};
     var n = c.nivel || null;
     var tel = String(c.telefono || '');
     return encabezado('Perfil', 'Tu cuenta') +
       '<div class="ep-perfil-hd">' +
-        '<div class="ep-avatar-g">' + esc(iniciales(c.nombre)) + '</div>' +
+        '<label class="ep-avatar-g ep-avatar-sub" title="Cambiar mi foto">' +
+          (c.foto ? '<img src="' + esc(c.foto) + '" alt="">' : esc(iniciales(c.nombre))) +
+          '<input type="file" id="pf-foto" accept="image/*" hidden>' +
+          '<span class="ep-avatar-cam">' + ico('camara', 15) + '</span>' +
+        '</label>' +
         '<div class="ep-perfil-n">' + esc(c.nombre || '') + '</div>' +
         '<div class="ep-perfil-t">' + esc(tel.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3')) + '</div>' +
         (n ? '<span class="ep-chip-rango" style="color:' + esc(n.color || '') + '">' + esc(n.nombre) + '</span>' : '') +

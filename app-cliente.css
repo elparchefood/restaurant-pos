@@ -598,3 +598,32 @@ html.tema-claro .ep-seg-full button.on, html:not(.tema-oscuro) .ep-seg-full butt
   background: var(--surf2); border-radius: 16px; padding: 15px; margin-top: 14px;
 }
 .ep-pago .ep-dato:last-child { border-bottom: none; }
+
+/* ── Las fotos ────────────────────────────────────────────────────────────
+   La del restaurante sale de lo que ya se configuro en Cobra; la del cliente
+   la sube el cliente desde su perfil. */
+.ep-marca-img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
+.ep-marca { overflow: hidden; }
+
+/* El circulo del cliente arriba a la derecha: mas grande que los otros
+   redondos, porque es SU cara y es el que van a buscar. */
+.ep-redondo.ep-yo {
+  width: 44px; height: 44px; padding: 0; overflow: hidden;
+  font-weight: 800; font-size: 14px; letter-spacing: .02em;
+}
+.ep-redondo.ep-yo img,
+.ep-avatar img, .ep-avatar-g img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ep-avatar, .ep-avatar-g { overflow: hidden; }
+
+/* Tocar la foto del perfil la cambia: el campo va escondido adentro, sin un
+   boton aparte que haya que explicar. */
+.ep-avatar-sub { position: relative; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.ep-avatar-cam {
+  position: absolute; right: -2px; bottom: -2px;
+  width: 28px; height: 28px; border-radius: 999px;
+  background: var(--marca, #7C5CFF); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,.3); border: 2px solid var(--fondo, #fff);
+}
+.ep-avatar-g.cargando { opacity: .5; pointer-events: none; }
+.ep-side-logo { overflow: hidden; }
