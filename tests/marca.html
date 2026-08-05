@@ -1,0 +1,28 @@
+<meta charset="utf-8"><title>Bloque de marca</title>
+<style>body{font-family:system-ui;padding:16px}.tp-brand{display:flex;gap:10px;align-items:center}
+.tp-brand-logo{width:38px;height:38px;border-radius:10px;background:#5B6BFF}
+.tp-brand-name{font-weight:700}.tp-brand-sub{color:#64748B;font-size:12px}</style>
+<h4>Mesa</h4>
+<div class="tp-brand"><div class="tp-brand-logo">L</div><div>
+  <div class="tp-brand-name">Cobra POS</div>
+  <div class="tp-brand-sub" id="tp-branch-name">Cargando…</div></div></div>
+<h4>Venta rápida</h4>
+<div class="tp-brand"><div class="tp-brand-logo">L</div><div>
+  <div class="tp-brand-name">Cobra POS</div>
+  <div class="tp-brand-sub" id="vr-branch-name">Cargando…</div></div></div>
+<pre id="out" style="font:12px/1.6 monospace"></pre>
+<script>localStorage.setItem('pos.brand.restaurante','El Parche Food');</script>
+<script src="../pos-brand.js"></script>
+<script>
+setTimeout(function () {
+  var ok=0, mal=0, log=[];
+  function es(n,a,b){ if(a===b) ok++; else {mal++; log.push('FALLA '+n+': dio '+JSON.stringify(a)+', esperaba '+JSON.stringify(b));} }
+  var nombres = document.querySelectorAll('.tp-brand-name');
+  es('mesa: arriba dice Cobra POS', nombres[0].textContent, 'Cobra POS');
+  es('mesa: abajo el restaurante', document.getElementById('tp-branch-name').textContent, 'El Parche Food');
+  es('venta rápida: arriba Cobra POS', nombres[1].textContent, 'Cobra POS');
+  es('venta rápida: abajo el restaurante', document.getElementById('vr-branch-name').textContent, 'El Parche Food');
+  out.textContent = (mal?log.join('\n')+'\n\n':'') + ok+' bien, '+mal+' mal';
+  document.title = mal ? 'FALLAN '+mal : 'TODO BIEN ('+ok+')';
+}, 400);
+</script>

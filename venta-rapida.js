@@ -745,11 +745,8 @@
       || (window._pos && window._pos.state && window._pos.state.user);
     S.branchId = (user && user.user_metadata && user.user_metadata.branch_id) || null;
     S.tenantId = (user && user.user_metadata && user.user_metadata.tenant_id) || null;
-    // Nombre sucursal
-    if (S.branchId) {
-      const { data } = await sb.from('branches').select('name').eq('id', S.branchId).maybeSingle();
-      if (data) $('vr-branch-name').textContent = data.name || '';
-    }
+    /* Ese renglon es del nombre del restaurante y lo pone pos-brand.js. Antes
+       se pisaba con el nombre de la sucursal y el dueño nunca veia su negocio. */
     // Usuario
     if (user) {
       const meta = user.user_metadata || {};

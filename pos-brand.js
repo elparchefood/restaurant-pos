@@ -24,7 +24,11 @@
 
   /* Páginas donde la segunda línea la controla la propia página
      (en tablet muestra la ZONA de la mesa, no el restaurante). */
-  var SUB_RESERVADO = ['tp-branch-name', 'vr-branch-name'];
+  /* Antes mesa y venta rapida escribian aqui la zona del salon o la sucursal,
+     y por eso el nombre del restaurante no aparecia en ninguna de las dos. Ya
+     no: las dos muestran el restaurante como el resto. Se deja la lista por si
+     alguna pantalla futura necesita ese renglon para otra cosa. */
+  var SUB_RESERVADO = [];
 
   /* ── Nombre del restaurante ─────────────────────────────────────────── */
 
@@ -92,15 +96,11 @@
       sub.parentNode.insertBefore(name, sub);
     }
 
-    /* Normalmente arriba va "Cobra POS" y debajo el restaurante. Pero en mesa y
-       en venta rapida la linea de abajo esta RESERVADA para la mesa o la
-       sucursal, asi que el nombre del restaurante no tenia donde ir y el dueño
-       veia "Cobra POS" y un guion. En esas pantallas el nombre sube arriba: al
-       que atiende le importa mas en que restaurante esta que como se llama el
-       programa, y el logo de Cobra ya esta al lado. */
-    var subReservado = sub && SUB_RESERVADO.indexOf(sub.id) !== -1;
-    if (name) name.textContent = (subReservado && restaurante) ? restaurante : 'Cobra POS';
-    if (sub && !subReservado && restaurante) {
+    /* Arriba "Cobra POS", abajo el restaurante. En TODAS las pantallas igual:
+       el bloque de marca dice de quien es el programa y de quien es el negocio,
+       y no cambia de significado segun donde este uno parado. */
+    if (name) name.textContent = 'Cobra POS';
+    if (sub && SUB_RESERVADO.indexOf(sub.id) === -1 && restaurante) {
       sub.textContent = restaurante;
     }
   }

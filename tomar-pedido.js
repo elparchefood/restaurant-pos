@@ -126,7 +126,11 @@ function paintTableInfo(t) {
   const _mn = $('tp-mesa-title');
   if (_mn) _mn.style.fontSize = name.length <= 3 ? '19px' : name.length <= 5 ? '14px' : '11px';
   $('tp-crumb-mesa').textContent   = name;
-  $('tp-branch-name').textContent  = t.zone || t.zoneId || '—';
+  /* La zona del salon va en el titulo de la seccion, no en el bloque de marca:
+     ese renglon es del nombre del restaurante. Antes decia "—" casi siempre. */
+  var _z = t.zone || t.zoneId || '';
+  var _sec = document.querySelector('.tp-side-section');
+  if (_sec) _sec.textContent = _z ? 'Mesa · ' + _z : 'Mesa';
   // hora apertura: usar la del pedido activo; por ahora marcar now como fallback
   if (!S.openAt) {
     S.openAt = new Date().toISOString();
