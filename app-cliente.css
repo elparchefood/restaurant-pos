@@ -626,99 +626,86 @@ html.tema-claro .ep-seg-full button.on, html:not(.tema-oscuro) .ep-seg-full butt
 
 
 /* ── La muesca es un HUECO, no un relleno ─────────────────────────────────
-   El diseño la pintaba con el color del fondo: un rectangulo opaco encima de
-   la tarjeta. Eso se ve como un parche -- claro sobre la tarjeta vino, negro
-   en el tema oscuro -- y ademas tapa el resplandor de la tarjeta, que si debe
-   verse. Sergio lo dijo exacto: "no deberia rellenarse con nada, deberia ser
-   la tarjeta con esa forma sobre el fondo y ya".
+   El diseño la pintaba con el color del fondo: un rectangulo opaco encima de la
+   tarjeta. Se veia como un parche y tapaba el resplandor. Ahora se RECORTA.
 
-   Ahora el hueco se RECORTA de la tarjeta con una mascara, asi que por ahi se
-   ve lo que haya detras: el fondo, su degradado, lo que sea.
+   COMO SE ARMA, y por que asi:
+   La silueta del hueco se construye UNIENDO sus piezas (add), y solo al final
+   se resta UNA VEZ de la tarjeta (exclude). El primer intento restaba cada
+   pieza por separado: donde dos piezas se tocan, restar dos veces se cancela y
+   queda un filo de medio pixel. Esos eran los "bordes fantasma" que se veian
+   dibujando el rectangulo. Uniendo primero, los bordes compartidos se suman en
+   vez de cancelarse y no queda ninguna costura.
 
-   La mascara se arma por capas, de abajo hacia arriba:
-     1. la tarjeta entera
-     2. menos el rectangulo de la muesca
-     3. menos los dos filetes de 16px que suavizan la union con el borde
-     4. mas la esquina de 22px, para que la muesca no quede en angulo recto
-   Las capas 2 y 3 no se solapan, por eso `exclude` se comporta como restar. */
+   Las capas se listan de arriba hacia abajo; la de arriba es la tarjeta entera
+   y su operador (exclude) es el que hace el recorte. Las de abajo son las
+   piezas del hueco, todas con add:
+     · el rectangulo, en dos mitades que se solapan (asi la esquina redondeada
+       queda libre para el disco)
+     · el disco de 22px que redondea esa esquina
+     · los dos filetes de 16px que suavizan la union con el borde
+   La forma resultante es EXACTAMENTE la del diseño. */
 .ep-wcard {
   --cw: 150px; --ch: 54px; --cr: 22px; --cf: 16px;
-  -webkit-mask-image:
-    radial-gradient(circle var(--cr) at 100% 100%, transparent var(--cr), #000 calc(var(--cr) + .5px)),
-    radial-gradient(circle var(--cf) at 0 0, transparent var(--cf), #000 calc(var(--cf) + .5px)),
-    radial-gradient(circle var(--cf) at 0 0, transparent var(--cf), #000 calc(var(--cf) + .5px)),
-    linear-gradient(#000 0 0),
-    linear-gradient(#000 0 0);
-  -webkit-mask-size:
-    var(--cr) var(--cr), var(--cf) var(--cf), var(--cf) var(--cf),
-    var(--cw) var(--ch), 100% 100%;
-  -webkit-mask-position:
-    right calc(var(--cw) - var(--cr)) bottom calc(var(--ch) - var(--cr)),
-    right var(--cw) bottom 0,
-    right 0 bottom var(--ch),
-    right 0 bottom 0,
-    0 0;
+  --pieza-recta: linear-gradient(#000 0 0);
+  --pieza-disco: radial-gradient(circle var(--cr) at 50% 50%, #000 var(--cr), transparent calc(var(--cr) + .5px));
+  --pieza-filete: radial-gradient(circle var(--cf) at 0 0, transparent var(--cf), #000 calc(var(--cf) + .5px));
+
+  -webkit-mask-image: var(--pieza-recta), var(--pieza-filete), var(--pieza-filete),
+                      var(--pieza-disco), var(--pieza-recta), var(--pieza-recta);
+          mask-image: var(--pieza-recta), var(--pieza-filete), var(--pieza-filete),
+                      var(--pieza-disco), var(--pieza-recta), var(--pieza-recta);
+  -webkit-mask-size: 100% 100%, var(--cf) var(--cf), var(--cf) var(--cf),
+                     calc(var(--cr) * 2) calc(var(--cr) * 2),
+                     var(--cw) calc(var(--ch) - var(--cr)),
+                     calc(var(--cw) - var(--cr)) var(--ch);
+          mask-size: 100% 100%, var(--cf) var(--cf), var(--cf) var(--cf),
+                     calc(var(--cr) * 2) calc(var(--cr) * 2),
+                     var(--cw) calc(var(--ch) - var(--cr)),
+                     calc(var(--cw) - var(--cr)) var(--ch);
+  -webkit-mask-position: 0 0, right var(--cw) bottom 0, right 0 bottom var(--ch),
+                         right calc(var(--cw) - var(--cr) * 2) bottom calc(var(--ch) - var(--cr) * 2),
+                         right 0 bottom 0, right 0 bottom 0;
+          mask-position: 0 0, right var(--cw) bottom 0, right 0 bottom var(--ch),
+                         right calc(var(--cw) - var(--cr) * 2) bottom calc(var(--ch) - var(--cr) * 2),
+                         right 0 bottom 0, right 0 bottom 0;
   -webkit-mask-repeat: no-repeat;
-  -webkit-mask-composite: source-over, destination-out, destination-out, destination-out, source-over;
-  mask-composite: add, exclude, exclude, exclude, add;
-  mask-image:
-    radial-gradient(circle var(--cr) at 100% 100%, transparent var(--cr), #000 calc(var(--cr) + .5px)),
-    radial-gradient(circle var(--cf) at 0 0, transparent var(--cf), #000 calc(var(--cf) + .5px)),
-    radial-gradient(circle var(--cf) at 0 0, transparent var(--cf), #000 calc(var(--cf) + .5px)),
-    linear-gradient(#000 0 0),
-    linear-gradient(#000 0 0);
-  mask-size:
-    var(--cr) var(--cr), var(--cf) var(--cf), var(--cf) var(--cf),
-    var(--cw) var(--ch), 100% 100%;
-  mask-position:
-    right calc(var(--cw) - var(--cr)) bottom calc(var(--ch) - var(--cr)),
-    right var(--cw) bottom 0,
-    right 0 bottom var(--ch),
-    right 0 bottom 0,
-    0 0;
-  mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  /* La de arriba RESTA; las demas se UNEN entre ellas. */
+  -webkit-mask-composite: destination-out, source-over, source-over, source-over, source-over, source-over;
+          mask-composite: exclude, add, add, add, add, add;
 }
 
-/* La de puntos: la muesca va arriba a la derecha. */
+/* La de puntos: la muesca va arriba a la derecha, cuadrada de 54x54. */
 .ep-pts-hero {
   --cw: 54px; --ch: 54px; --cr: 22px; --cf: 16px;
-  -webkit-mask-image:
-    radial-gradient(circle var(--cr) at 100% 0, transparent var(--cr), #000 calc(var(--cr) + .5px)),
-    radial-gradient(circle var(--cf) at 0 100%, transparent var(--cf), #000 calc(var(--cf) + .5px)),
-    radial-gradient(circle var(--cf) at 0 100%, transparent var(--cf), #000 calc(var(--cf) + .5px)),
-    linear-gradient(#000 0 0),
-    linear-gradient(#000 0 0);
-  -webkit-mask-size:
-    var(--cr) var(--cr), var(--cf) var(--cf), var(--cf) var(--cf),
-    var(--cw) var(--ch), 100% 100%;
-  -webkit-mask-position:
-    right calc(var(--cw) - var(--cr)) top calc(var(--ch) - var(--cr)),
-    right var(--cw) top 0,
-    right 0 top var(--ch),
-    right 0 top 0,
-    0 0;
+  --pieza-recta: linear-gradient(#000 0 0);
+  --pieza-disco: radial-gradient(circle var(--cr) at 50% 50%, #000 var(--cr), transparent calc(var(--cr) + .5px));
+  --pieza-filete: radial-gradient(circle var(--cf) at 0 100%, transparent var(--cf), #000 calc(var(--cf) + .5px));
+
+  -webkit-mask-image: var(--pieza-recta), var(--pieza-filete), var(--pieza-filete),
+                      var(--pieza-disco), var(--pieza-recta), var(--pieza-recta);
+          mask-image: var(--pieza-recta), var(--pieza-filete), var(--pieza-filete),
+                      var(--pieza-disco), var(--pieza-recta), var(--pieza-recta);
+  -webkit-mask-size: 100% 100%, var(--cf) var(--cf), var(--cf) var(--cf),
+                     calc(var(--cr) * 2) calc(var(--cr) * 2),
+                     var(--cw) calc(var(--ch) - var(--cr)),
+                     calc(var(--cw) - var(--cr)) var(--ch);
+          mask-size: 100% 100%, var(--cf) var(--cf), var(--cf) var(--cf),
+                     calc(var(--cr) * 2) calc(var(--cr) * 2),
+                     var(--cw) calc(var(--ch) - var(--cr)),
+                     calc(var(--cw) - var(--cr)) var(--ch);
+  -webkit-mask-position: 0 0, right var(--cw) top 0, right 0 top var(--ch),
+                         right calc(var(--cw) - var(--cr) * 2) top calc(var(--ch) - var(--cr) * 2),
+                         right 0 top 0, right 0 top 0;
+          mask-position: 0 0, right var(--cw) top 0, right 0 top var(--ch),
+                         right calc(var(--cw) - var(--cr) * 2) top calc(var(--ch) - var(--cr) * 2),
+                         right 0 top 0, right 0 top 0;
   -webkit-mask-repeat: no-repeat;
-  -webkit-mask-composite: source-over, destination-out, destination-out, destination-out, source-over;
-  mask-composite: add, exclude, exclude, exclude, add;
-  mask-image:
-    radial-gradient(circle var(--cr) at 100% 0, transparent var(--cr), #000 calc(var(--cr) + .5px)),
-    radial-gradient(circle var(--cf) at 0 100%, transparent var(--cf), #000 calc(var(--cf) + .5px)),
-    radial-gradient(circle var(--cf) at 0 100%, transparent var(--cf), #000 calc(var(--cf) + .5px)),
-    linear-gradient(#000 0 0),
-    linear-gradient(#000 0 0);
-  mask-size:
-    var(--cr) var(--cr), var(--cf) var(--cf), var(--cf) var(--cf),
-    var(--cw) var(--ch), 100% 100%;
-  mask-position:
-    right calc(var(--cw) - var(--cr)) top calc(var(--ch) - var(--cr)),
-    right var(--cw) top 0,
-    right 0 top var(--ch),
-    right 0 top 0,
-    0 0;
-  mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-composite: destination-out, source-over, source-over, source-over, source-over, source-over;
+          mask-composite: exclude, add, add, add, add, add;
 }
-/* Los botones van FUERA del recorte, si no la mascara se los llevaria. */
-.ep-wc-btn, .ep-pts-btn { -webkit-mask: none; mask: none; }
 
 /* El boton va FUERA de la tarjeta, no dentro: la mascara recorta a todos sus
    hijos, y el boton se apoya justo en el hueco. El envoltorio es quien le da
