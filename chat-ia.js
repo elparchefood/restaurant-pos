@@ -2291,6 +2291,14 @@ function cpSetEtiqueta(v){
   cpRenderForm(S.cpOrder);
 }
 
+/* El supervisor relee el pedido armado contra lo que escribio el cliente. No
+   cambia nada: avisa. Si no tiene nada que decir, no ocupa espacio. */
+function cpRevisionHtml(o){
+  const pr=((o.revision&&o.revision.problemas)||[]).filter(Boolean);
+  if(!pr.length) return '';
+  return '<div class="cp-revision"><b>Revisa este pedido antes de guardarlo</b>'
+    +pr.map(t=>'<span>'+cpEsc(t)+'</span>').join('')+'</div>';
+}
 function cpRenderForm(o){
   const tipos=['domicilio','recoger','mesa'];
   const prods=(o.productos||[]).map((p,i)=>cpProdRow(p,i)).join('');
@@ -2310,6 +2318,9 @@ function cpRenderForm(o){
     +(o.tipo!=='mesa'?'<div class="cp-grid"><div class="cp-f"><label>Dirección</label><input id="cpDireccion" value="'+cpEsc(o.direccion||'')+'"></div><div class="cp-f"><label>Barrio</label><input id="cpBarrio" value="'+cpEsc(o.barrio||'')+'"></div></div>':'')
     // Direcciones que este cliente ya ha usado (casa, oficina...). Un toque las pone.
     +cpDirsSelect(o)
+    // Lo que vio el AGENTE SUPERVISOR. Va aqui, arriba del pedido y una sola
+    // vez, no repetido en cada linea: es una opinion sobre el pedido entero.
+    +cpRevisionHtml(o)
     +'<div class="cp-prods-hd">Productos</div>'
     +'<div id="cpProds">'+(prods||'<div class="cp-empty">Sin productos. Agrégalos abajo.</div>')+'</div>'
     +(addProd?'<div class="cp-addrow">'+addProd+'</div>':'')
