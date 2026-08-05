@@ -678,7 +678,12 @@
       S.cliente.foto = d.foto;
       pantallaDentro();               // se ve al momento, en el perfil y arriba
     } catch (e) {
-      alert('No se pudo usar esa imagen.');
+      /* El motivo, no un "algo fallo". Un mensaje generico aqui me costo dos
+         vueltas: el error de verdad era que la funcion del servidor pedia una
+         variable que no existia, y desde afuera se veia igual que una foto
+         corrupta. Si no se dice que paso, no hay como arreglarlo. */
+      console.error('[foto]', e);
+      alert('No se pudo guardar la foto.\n\n' + ((e && e.message) || e));
     } finally {
       if (caja) caja.classList.remove('cargando');
     }
