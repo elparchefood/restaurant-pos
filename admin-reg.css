@@ -329,3 +329,42 @@ body { background: #FAFAFB; font-family: 'DM Sans', -apple-system, BlinkMacSyste
 .pl-ch-input { width: 100%; height: 38px; padding: 0 12px; font-family: inherit; font-size: 13.5px;
   color: #0F172A; background: #fff; border: 1.5px solid #E2E8F0; border-radius: 10px; }
 .pl-ch-input:focus { outline: none; border-color: #5B6BFF; box-shadow: 0 0 0 3px rgba(91,107,255,.12); }
+
+/* ── Tutoriales en la consola ─────────────────────────────────────────────
+   Los videos que ven TODOS los restaurantes. Se agrupan por modulo, y dentro
+   de cada uno el orden es el que se ve en la ruta de aprendizaje. */
+.tu-mod { margin-bottom: 14px; padding: 0; overflow: hidden; }
+.tu-mod-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 16px; }
+.tu-mod-t { font-size: 14px; font-weight: 700; color: #0F172A; }
+.tu-mod-s { font-size: 12px; color: #64748B; margin-top: 2px; }
+.tu-mod-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.tu-vids { border-top: 1px solid #ECEEF2; }
+.tu-vids a { color: #5B6BFF; text-decoration: none; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+/* Lo oculto se ve, atenuado: esconderlo haria pensar que se borro. */
+.tu-off { display: inline-block; padding: 1px 6px; border-radius: 999px; background: #F1F5F9; color: #64748B; font-size: 10.5px; font-weight: 700; }
+.tu-off-row { opacity: .55; }
+
+/* El editor */
+.tu-adm-bd { position: fixed; inset: 0; z-index: 200; background: rgba(15,23,42,.45); display: flex; justify-content: flex-end; }
+.tu-adm { width: 520px; max-width: 100%; height: 100%; display: flex; flex-direction: column; background: #fff; box-shadow: -18px 0 40px -20px rgba(15,23,42,.4); }
+.tu-adm-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid #ECEEF2; font-size: 15px; }
+.tu-adm-body { flex: 1; overflow-y: auto; padding: 18px; }
+.tu-adm-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 18px; border-top: 1px solid #ECEEF2; }
+.tu-f { display: block; margin-bottom: 13px; }
+.tu-f-l { display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 5px; }
+.tu-f-l i { font-weight: 500; color: #94A3B8; font-style: normal; }
+.tu-f-h { display: block; font-size: 11.5px; color: #94A3B8; margin-top: 4px; line-height: 1.45; }
+.tu-f input, .tu-f select, .tu-f textarea {
+  width: 100%; box-sizing: border-box; padding: 9px 11px;
+  border: 1px solid #E2E8F0; border-radius: 9px; font-size: 13px; font-family: inherit; color: #0F172A;
+}
+.tu-f input:focus, .tu-f select:focus, .tu-f textarea:focus { outline: none; border-color: #5B6BFF; box-shadow: 0 0 0 3px rgba(91,107,255,.13); }
+.tu-f2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tu-sep { margin: 18px 0 10px; padding-top: 14px; border-top: 1px solid #F1F5F9; font-size: 12px; font-weight: 800; color: #334155; }
+.tu-sep i { font-weight: 500; color: #94A3B8; font-style: normal; }
+.tu-chk { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 13px; color: #334155; }
+.tu-paso { display: flex; gap: 7px; margin-bottom: 7px; }
+.tu-paso .p-min { width: 74px; flex: 0 0 74px; text-align: center; }
+.tu-paso input { padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 12.5px; font-family: inherit; }
+.tu-paso .p-txt { flex: 1; min-width: 0; }
+@media (max-width: 640px) { .tu-f2 { grid-template-columns: 1fr; } }

@@ -1,0 +1,104 @@
+<meta charset="utf-8"><title>Consola · Tutoriales</title>
+<link rel="stylesheet" href="../admin-reg.css">
+<div id="host"></div><pre id="out" style="font:12px/1.6 monospace;white-space:pre-wrap;padding:12px;background:#fff"></pre>
+<script>
+(async function () {
+  var ok=0, mal=0, log=[];
+  function es(n,a,b){ if(JSON.stringify(a)===JSON.stringify(b)) ok++;
+    else {mal++; log.push('FALLA '+n+': dio '+JSON.stringify(a)+', esperaba '+JSON.stringify(b));} }
+
+  var html = await (await fetch('../admin-reg.html')).text();
+  var doc = new DOMParser().parseFromString(html, 'text/html');
+  document.getElementById('host').appendChild(document.importNode(doc.querySelector('#view-tutoriales'), true));
+  document.getElementById('host').appendChild(document.importNode(doc.querySelector('#tu-adm-bd'), true));
+  document.getElementById('view-tutoriales').classList.add('on');
+
+  // Base de mentira que recuerda lo que se le manda.
+  var MOD=[{id:'m1',titulo:'Ventas',descripcion:null,orden:1,activo:true}];
+  var VID=[{id:'v1',modulo_id:'m1',titulo:'Tomar pedido',youtube_id:'abc12345678',duracion_seg:0,
+            nivel:'basico',pasos:[],orden:1,activo:true,ruta_destino:null,ruta_texto:null}];
+  var escrito = [];
+  function tabla(t){
+    var api={ _t:t, data: t==='tuto_modulos'?MOD:VID };
+    api.select=function(){return api;}; api.order=function(){return api;}; api.eq=function(){return api;};
+    api.insert=function(f){ escrito.push(['insert',t,f]); return Promise.resolve({}); };
+    api.update=function(f){ escrito.push(['update',t,f]); return Promise.resolve({eq:function(){}}); };
+    api.delete=function(){ escrito.push(['delete',t]); return {eq:function(){return Promise.resolve({});}}; };
+    api.then=function(r){ return Promise.resolve({data:api.data}).then(r); };
+    return api;
+  }
+  window.sb = { from: tabla };
+  window.showToast = function(m,t){ window._ultimoToast = [m,t]; };
+  window.showConfirm = function(_t,_m,onOk){ window._confirmado = _m; onOk(); };
+  window.setView = function(){};
+
+  var sc=document.createElement('script'); sc.src='../admin-tutoriales.js';
+  document.head.appendChild(sc);
+  await new Promise(function(r){ sc.onload=r; });
+  window.setView('tutoriales');
+  await new Promise(function(r){ setTimeout(r,80); });
+  var $=function(id){return document.getElementById(id);};
+
+  // ── la lista ──
+  es('pinta el módulo', document.querySelectorAll('.tu-mod').length, 1);
+  es('con su video', document.querySelectorAll('.tu-vids tbody tr').length, 1);
+  es('la duración vacía se explica', /la calcula sola/.test($('tu-admin-list').textContent), true);
+
+  // ── crear un video: el enlace de YouTube en todas sus formas ──
+  document.querySelector('[data-vid-new]').click();
+  es('se abre el editor', $('tu-adm-bd').hidden, false);
+  $('f-titulo').value='Cobrar un pedido';
+  $('f-yt').value='https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL123&t=42s';
+  $('f-resumen').value='Cómo cobrar';
+  $('f-ruta').value='pagos.html';
+  $('f-ruta-txt').value='Ir a Cobrar';
+  $('f-paso-add').click(); $('f-paso-add').click();
+  var ps=document.querySelectorAll('#f-pasos .tu-paso');
+  ps[0].querySelector('.p-min').value='2:30'; ps[0].querySelector('.p-txt').value='Elegir método';
+  ps[1].querySelector('.p-min').value='0:45'; ps[1].querySelector('.p-txt').value='Abrir el pedido';
+  $('tu-adm-save').click();
+  await new Promise(function(r){ setTimeout(r,80); });
+
+  var ins = escrito.filter(function(x){return x[0]==='insert';})[0];
+  es('guarda el video', !!ins, true);
+  es('saca el id del enlace, sin la lista ni el minuto', ins[2].youtube_id, 'dQw4w9WgXcQ');
+  es('guarda el destino del botón', ins[2].ruta_destino, 'pagos.html');
+  es('y su texto', ins[2].ruta_texto, 'Ir a Cobrar');
+  es('los pasos quedan EN ORDEN DEL VIDEO', ins[2].pasos.map(function(p){return p.t;}), [45,150]);
+  es('con su texto', ins[2].pasos[0].texto, 'Abrir el pedido');
+  es('se cierra el editor', $('tu-adm-bd').hidden, true);
+
+  // ── un enlace que no se entiende no se guarda ──
+  escrito.length = 0;
+  document.querySelector('[data-vid-new]').click();
+  $('f-titulo').value='Malo'; $('f-yt').value='esto no es un enlace';
+  $('tu-adm-save').click();
+  await new Promise(function(r){ setTimeout(r,60); });
+  es('no guarda un enlace roto', escrito.length, 0);
+  es('y lo dice', /no se entiende/.test(window._ultimoToast[0]), true);
+  es('en rojo', window._ultimoToast[1], 'red');
+
+  // ── las otras formas del enlace ──
+  var casos = [['https://youtu.be/dQw4w9WgXcQ','dQw4w9WgXcQ'],
+               ['https://www.youtube.com/shorts/dQw4w9WgXcQ','dQw4w9WgXcQ'],
+               ['https://www.youtube.com/embed/dQw4w9WgXcQ','dQw4w9WgXcQ'],
+               ['dQw4w9WgXcQ','dQw4w9WgXcQ']];
+  for (var i=0;i<casos.length;i++){
+    escrito.length=0;
+    $('f-titulo').value='X'; $('f-yt').value=casos[i][0];
+    $('tu-adm-save').click();
+    await new Promise(function(r){ setTimeout(r,40); });
+    var e2 = escrito.filter(function(x){return x[0]==='insert';})[0];
+    es('entiende '+casos[i][0].slice(0,38), e2 && e2[2].youtube_id, casos[i][1]);
+    document.querySelector('[data-vid-new]').click();
+  }
+  $('tu-adm-cancel').click();
+
+  // ── borrar avisa cuántos videos arrastra ──
+  document.querySelector('[data-mod-del]').click();
+  es('avisa que se lleva los videos', /y sus 1 videos|y su 1 video|y sus 1/.test(window._confirmado||''), true);
+
+  out.textContent = (mal?log.join('\n')+'\n\n':'') + ok+' bien, '+mal+' mal';
+  document.title = mal ? 'FALLAN '+mal : 'TODO BIEN ('+ok+')';
+})();
+</script>

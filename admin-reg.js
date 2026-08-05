@@ -152,7 +152,8 @@ var PAGE_META = {
   solicitudes: {kicker:'Plataforma',      crumb:'Solicitudes de registro'},
   clientes:    {kicker:'Plataforma',      crumb:'Clientes activos'},
   equipo:      {kicker:'Administración',  crumb:'Gestión de equipo'},
-  planes:      {kicker:'Administración',  crumb:'Configuración de planes'}
+  planes:      {kicker:'Administración',  crumb:'Configuración de planes'},
+  tutoriales:  {kicker:'Administración',  crumb:'Tutoriales'}
 };
 
 // ── VIEW SWITCHING ──
