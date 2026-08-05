@@ -63,5 +63,34 @@ for (const [html, js] of PANTALLAS) {
   }
 }
 
+/* -- Botones dentro de botones ---------------------------------------------
+   La tarjeta de producto es un <button>. Meterle otro <button> adentro (la
+   estrella de favorito) es HTML invalido: el navegador cierra el de fuera y
+   saca el resto como hermanos, asi que UNA tarjeta ocupaba TRES celdas de la
+   rejilla. Se veia como "tarjetas de tamaño raro", y saltaba sobre todo en los
+   productos SIN FOTO, donde el pedazo que quedaba era diminuto. */
+const CARDS = ['tomar-pedido.js', 'venta-rapida.js', 'domicilios.js'];
+for (const js of CARDS) {
+  const j = leer(js);
+  if (!j) continue;
+  // Fuera los comentarios: justamente hablan de esto y darian falsos positivos.
+  const limpio = j.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '');
+  let anidados = 0;
+  const re = /<button[^>]*class="[^"]*lm-prod/g;
+  let m;
+  while ((m = re.exec(limpio))) {
+    const resto = limpio.slice(m.index);
+    const cierre = resto.indexOf('</button>');
+    if (cierre < 0) continue;
+    anidados += (resto.slice(0, cierre).match(/<button/g) || []).length - 1;
+  }
+  if (anidados > 0) {
+    malos += anidados;
+    console.log(`FALLA ${js} mete ${anidados} <button> dentro de la tarjeta (.lm-prod)`);
+  } else {
+    console.log(`ok  ${js.padEnd(18)} sin botones anidados en la tarjeta`);
+  }
+}
+
 console.log(malos ? `\n${malos} ids rotos` : '\nTodo cuadra');
 process.exit(malos ? 1 : 0);
