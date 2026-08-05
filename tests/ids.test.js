@@ -21,6 +21,7 @@ const PANTALLAS = [
   ['caja.html',         'caja.js'],
   ['pagos.html',        'pagos.js'],
   ['chat-ia.html',      'chat-ia.js'],
+  ['tutoriales.html',   'tutoriales.js'],
 ];
 
 /* Faltaban desde antes de que existiera esta prueba. No son de hoy y no rompen

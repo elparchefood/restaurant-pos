@@ -1,0 +1,94 @@
+<meta charset="utf-8"><title>Tutoriales</title>
+<link rel="stylesheet" href="../pos-core.css"><link rel="stylesheet" href="../dashboard.css"><link rel="stylesheet" href="../tutoriales.css">
+<div id="host"></div><pre id="out" style="font:12px/1.6 monospace;white-space:pre-wrap;padding:12px;background:#fff"></pre>
+<script>
+/* Se monta la pantalla REAL con un cliente de mentira, para probar el rail, los
+   filtros, el progreso y el boton "ir a la pantalla" sin entrar al sistema. */
+(async function () {
+  var ok=0, mal=0, log=[];
+  function es(n,a,b){ if(JSON.stringify(a)===JSON.stringify(b)) ok++;
+    else {mal++; log.push('FALLA '+n+': dio '+JSON.stringify(a)+', esperaba '+JSON.stringify(b));} }
+
+  var html = await (await fetch('../tutoriales.html')).text();
+  var doc = new DOMParser().parseFromString(html, 'text/html');
+  document.getElementById('host').appendChild(document.importNode(doc.querySelector('.lm-app'), true));
+
+  var MOD = [ {id:'m1',titulo:'Primeros pasos',orden:1,activo:true},
+              {id:'m2',titulo:'Ventas',orden:2,activo:true},
+              {id:'m3',titulo:'Vacio',orden:3,activo:true} ];
+  var VID = [
+    {id:'v1',modulo_id:'m1',titulo:'Bienvenido',youtube_id:'aaa',duracion_seg:180,nivel:'basico',pasos:[],orden:1,activo:true,resumen:'R1'},
+    {id:'v2',modulo_id:'m1',titulo:'Configura tu negocio',youtube_id:'bbb',duracion_seg:300,nivel:'basico',pasos:[{t:30,texto:'Paso uno'}],orden:2,activo:true,
+     ruta_destino:'configuracion.html',ruta_texto:'Ir a Configuración'},
+    {id:'v3',modulo_id:'m2',titulo:'Tomar pedido',youtube_id:'ccc',duracion_seg:420,nivel:'intermedio',pasos:[],orden:1,activo:true},
+  ];
+  var PROG = [ {video_id:'v1',segundos:180,completado:true}, {video_id:'v3',segundos:100,completado:false} ];
+
+  function tabla(t){
+    var d = t==='tuto_modulos'?MOD : t==='tuto_videos'?VID : PROG;
+    var api={data:d};
+    api.select=function(){return api;}; api.eq=function(){return api;};
+    api.order=function(){return api;}; api.upsert=function(){return Promise.resolve({});};
+    api.then=function(r){ return Promise.resolve({data:api.data}).then(r); };
+    return api;
+  }
+  window._pos = { sb:{ from:tabla, rpc:function(){return Promise.resolve({});} },
+                  state:{ user:{ id:'u1' } }, on:function(_e,f){ window._arrancar=f; } };
+
+  var sc = document.createElement('script');
+  sc.src = '../tutoriales.js';
+  document.head.appendChild(sc);
+  await new Promise(function(r){ sc.onload=r; });
+  await window._arrancar();
+  await new Promise(function(r){ setTimeout(r, 120); });
+
+  var $ = function(id){ return document.getElementById(id); };
+
+  // ── el rail ──
+  es('pinta 2 módulos (el vacío no)', document.querySelectorAll('#rail-list .tu-topic').length, 2);
+  es('pinta los 3 videos', document.querySelectorAll('#rail-list .tu-item').length, 3);
+  es('el visto sale como completo', !!document.querySelector('.tu-item.is-done[data-video="v1"]'), true);
+  es('el empezado sale en curso', !!document.querySelector('.tu-item.is-partial[data-video="v3"]'), true);
+  es('el nuevo sale sin ver', !!document.querySelector('.tu-item.is-new[data-video="v2"]'), true);
+  es('"vas en" con el minuto', /vas en 1:40/.test(document.querySelector('[data-video="v3"]').textContent), true);
+
+  // ── progreso global ──
+  es('1 de 3 completados', $('rail-count').textContent, '1 de 3 tutoriales');
+  es('33%', $('rail-pct').textContent, '33%');
+  es('cabecera igual', $('head-progress').textContent, '1 de 3 completados');
+  es('contador de pendientes', $('f-pendientes').textContent, '1');
+  es('contador en curso', $('f-curso').textContent, '1');
+  es('contador completos', $('f-completos').textContent, '1');
+  es('faltan 2', /Te faltan 2 tutoriales/.test($('nudge-t').textContent), true);
+
+  // ── abre solo el que estaba en curso ──
+  es('abre el que estaba a medias', $('v-title').textContent, 'Tomar pedido');
+  es('y dice su módulo', $('v-topic').textContent, 'Ventas');
+  es('la lección va numerada', /Lección 3 de 3/.test($('v-meta').textContent), true);
+  es('el nivel en español', /Intermedio/.test($('v-meta').textContent), true);
+
+  // ── el botón que lleva a la pantalla ──
+  es('sin destino, el botón se esconde', $('btn-ir').hidden, true);
+  document.querySelector('[data-video="v2"]').click();
+  await new Promise(function(r){ setTimeout(r, 60); });
+  es('con destino, aparece', $('btn-ir').hidden, false);
+  es('y lleva donde debe', $('btn-ir').getAttribute('href'), 'configuracion.html');
+  es('con el texto que puso Sergio', $('btn-ir').textContent, 'Ir a Configuración');
+  es('los pasos se pintan', document.querySelectorAll('#chap-list .tu-chap').length, 1);
+  es('con su minuto', /0:30/.test($('chap-list').textContent), true);
+
+  // ── filtros y búsqueda ──
+  document.querySelector('.cc-fchip[data-filter="completos"]').click();
+  es('filtro completos deja 1', document.querySelectorAll('#rail-list .tu-item').length, 1);
+  document.querySelector('.cc-fchip[data-filter="todos"]').click();
+  $('search').value = 'pedido';
+  $('search').dispatchEvent(new Event('input'));
+  es('buscar "pedido" deja 1', document.querySelectorAll('#rail-list .tu-item').length, 1);
+  $('search').value = 'zzz';
+  $('search').dispatchEvent(new Event('input'));
+  es('sin resultados, lo dice', /No hay tutoriales/.test($('rail-list').textContent), true);
+
+  out.textContent = (mal?log.join('\n')+'\n\n':'') + ok+' bien, '+mal+' mal';
+  document.title = mal ? 'FALLAN '+mal : 'TODO BIEN ('+ok+')';
+})();
+</script>
