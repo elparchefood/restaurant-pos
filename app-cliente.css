@@ -627,3 +627,13 @@ html.tema-claro .ep-seg-full button.on, html:not(.tema-oscuro) .ep-seg-full butt
 }
 .ep-avatar-g.cargando { opacity: .5; pointer-events: none; }
 .ep-side-logo { overflow: hidden; }
+
+
+/* El relleno de las muescas, transparente. El diseño lo pintaba con el color
+   del fondo para que el boton pareciera colgar por fuera de la tarjeta; sobre
+   la tarjeta ese parche se ve como un bloque claro pegado encima. Se quita el
+   relleno y ya: el boton queda sobre la tarjeta y no hay parche que se vea.
+   La tarjeta conserva su forma y su tamaño — no se toca nada mas. */
+.ep-wc-cut, .ep-pts-cut { background: transparent; }
+.ep-wc-cut::before, .ep-wc-cut::after,
+.ep-pts-cut::before, .ep-pts-cut::after { background: none; }
