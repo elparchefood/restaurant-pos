@@ -209,8 +209,9 @@ html.tema-claro .ep-nav.on, html:not(.tema-oscuro) .ep-nav.on {
    filetes para que la unión no quede en pico. Por eso el aura va en el body y
    no aquí: este trozo pinta el fondo PLANO y tiene que coincidir. */
 .ep-wc-cut {
-  position: absolute; right: 0; bottom: 0; width: 150px; height: 54px;
-  background: var(--bg); border-top-left-radius: 22px; z-index: 1;
+  /* Ya no pinta: el hueco lo hace la mascara de la tarjeta. Se deja el
+     elemento porque el diseño lo usa para colocar el boton. */
+  position: absolute; right: 0; bottom: 0; width: 150px; height: 54px; z-index: 1;
 }
 .ep-wc-btn {
   position: absolute; right: 6px; bottom: 6px; z-index: 2;
@@ -245,8 +246,7 @@ html.tema-claro .ep-nav.on, html:not(.tema-oscuro) .ep-nav.on {
 }
 .ep-pts-nota { font-size: 11.5px; opacity: .7; margin-top: 8px; position: relative; }
 .ep-pts-cut {
-  position: absolute; right: 0; top: 0; width: 54px; height: 54px;
-  background: var(--bg); border-bottom-left-radius: 22px; z-index: 1;
+  position: absolute; right: 0; top: 0; width: 54px; height: 54px; z-index: 1;
 }
 .ep-pts-btn {
   position: absolute; right: 4px; top: 4px; z-index: 2;
@@ -622,9 +622,120 @@ html.tema-claro .ep-seg-full button.on, html:not(.tema-oscuro) .ep-seg-full butt
 .ep-avatar-g.cargando { opacity: .5; pointer-events: none; }
 .ep-side-logo { overflow: hidden; }
 
-/* Los "filetes" de las muescas, quitados. Eran cuadraditos de 16x16 pintados
-   con el color del fondo para cuadrar las esquinas de la muesca y que la
-   tarjeta se leyera como un rectangulo perfecto. Sobre una tarjeta oscura esos
-   parches se ven como un blanco muy blanco pegado encima -- es lo que Sergio
-   señalaba. Sin ellos la tarjeta conserva su forma y su curva, que es lo que
-   se queria mostrar. */
+
+/* ── Fuera la muesca de las tarjetas ──────────────────────────────────────
+   Las dos tarjetas traian del diseño un "mordisco" en la esquina: un recuadro
+   pintado del color del fondo para que el boton pareciera colgar por fuera.
+   Medido: el color era EXACTO al del fondo, no estaba mal pintado. El problema
+   era la forma — ese recuadro claro sobre una tarjeta oscura se lee como un
+   bloque blanco pegado encima, y era justo lo que Sergio veia.
+   Ahora el boton va sobre la tarjeta, que es lo que se queria mostrar. */
+.ep-wc-cut, .ep-pts-cut { display: none; }
+.ep-wc-btn {
+  background: rgba(255,255,255,.16); color: #fff;
+  border: 1px solid rgba(255,255,255,.26);
+  backdrop-filter: blur(6px); box-shadow: none;
+}
+.ep-wc-btn:hover { background: rgba(255,255,255,.24); }
+.ep-pts-btn { box-shadow: 0 6px 18px rgba(0,0,0,.18); }
+
+
+/* ── La muesca es un HUECO, no un relleno ─────────────────────────────────
+   El diseño la pintaba con el color del fondo: un rectangulo opaco encima de
+   la tarjeta. Eso se ve como un parche -- claro sobre la tarjeta vino, negro
+   en el tema oscuro -- y ademas tapa el resplandor de la tarjeta, que si debe
+   verse. Sergio lo dijo exacto: "no deberia rellenarse con nada, deberia ser
+   la tarjeta con esa forma sobre el fondo y ya".
+
+   Ahora el hueco se RECORTA de la tarjeta con una mascara, asi que por ahi se
+   ve lo que haya detras: el fondo, su degradado, lo que sea.
+
+   La mascara se arma por capas, de abajo hacia arriba:
+     1. la tarjeta entera
+     2. menos el rectangulo de la muesca
+     3. menos los dos filetes de 16px que suavizan la union con el borde
+     4. mas la esquina de 22px, para que la muesca no quede en angulo recto
+   Las capas 2 y 3 no se solapan, por eso `exclude` se comporta como restar. */
+.ep-wcard {
+  --cw: 150px; --ch: 54px; --cr: 22px; --cf: 16px;
+  -webkit-mask-image:
+    radial-gradient(circle var(--cr) at 100% 100%, transparent var(--cr), #000 calc(var(--cr) + .5px)),
+    radial-gradient(circle var(--cf) at 0 0, transparent var(--cf), #000 calc(var(--cf) + .5px)),
+    radial-gradient(circle var(--cf) at 0 0, transparent var(--cf), #000 calc(var(--cf) + .5px)),
+    linear-gradient(#000 0 0),
+    linear-gradient(#000 0 0);
+  -webkit-mask-size:
+    var(--cr) var(--cr), var(--cf) var(--cf), var(--cf) var(--cf),
+    var(--cw) var(--ch), 100% 100%;
+  -webkit-mask-position:
+    right calc(var(--cw) - var(--cr)) bottom calc(var(--ch) - var(--cr)),
+    right var(--cw) bottom 0,
+    right 0 bottom var(--ch),
+    right 0 bottom 0,
+    0 0;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-composite: source-over, destination-out, destination-out, destination-out, source-over;
+  mask-composite: add, exclude, exclude, exclude, add;
+  mask-image:
+    radial-gradient(circle var(--cr) at 100% 100%, transparent var(--cr), #000 calc(var(--cr) + .5px)),
+    radial-gradient(circle var(--cf) at 0 0, transparent var(--cf), #000 calc(var(--cf) + .5px)),
+    radial-gradient(circle var(--cf) at 0 0, transparent var(--cf), #000 calc(var(--cf) + .5px)),
+    linear-gradient(#000 0 0),
+    linear-gradient(#000 0 0);
+  mask-size:
+    var(--cr) var(--cr), var(--cf) var(--cf), var(--cf) var(--cf),
+    var(--cw) var(--ch), 100% 100%;
+  mask-position:
+    right calc(var(--cw) - var(--cr)) bottom calc(var(--ch) - var(--cr)),
+    right var(--cw) bottom 0,
+    right 0 bottom var(--ch),
+    right 0 bottom 0,
+    0 0;
+  mask-repeat: no-repeat;
+}
+
+/* La de puntos: la muesca va arriba a la derecha. */
+.ep-pts-hero {
+  --cw: 54px; --ch: 54px; --cr: 22px; --cf: 16px;
+  -webkit-mask-image:
+    radial-gradient(circle var(--cr) at 100% 0, transparent var(--cr), #000 calc(var(--cr) + .5px)),
+    radial-gradient(circle var(--cf) at 0 100%, transparent var(--cf), #000 calc(var(--cf) + .5px)),
+    radial-gradient(circle var(--cf) at 0 100%, transparent var(--cf), #000 calc(var(--cf) + .5px)),
+    linear-gradient(#000 0 0),
+    linear-gradient(#000 0 0);
+  -webkit-mask-size:
+    var(--cr) var(--cr), var(--cf) var(--cf), var(--cf) var(--cf),
+    var(--cw) var(--ch), 100% 100%;
+  -webkit-mask-position:
+    right calc(var(--cw) - var(--cr)) top calc(var(--ch) - var(--cr)),
+    right var(--cw) top 0,
+    right 0 top var(--ch),
+    right 0 top 0,
+    0 0;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-composite: source-over, destination-out, destination-out, destination-out, source-over;
+  mask-composite: add, exclude, exclude, exclude, add;
+  mask-image:
+    radial-gradient(circle var(--cr) at 100% 0, transparent var(--cr), #000 calc(var(--cr) + .5px)),
+    radial-gradient(circle var(--cf) at 0 100%, transparent var(--cf), #000 calc(var(--cf) + .5px)),
+    radial-gradient(circle var(--cf) at 0 100%, transparent var(--cf), #000 calc(var(--cf) + .5px)),
+    linear-gradient(#000 0 0),
+    linear-gradient(#000 0 0);
+  mask-size:
+    var(--cr) var(--cr), var(--cf) var(--cf), var(--cf) var(--cf),
+    var(--cw) var(--ch), 100% 100%;
+  mask-position:
+    right calc(var(--cw) - var(--cr)) top calc(var(--ch) - var(--cr)),
+    right var(--cw) top 0,
+    right 0 top var(--ch),
+    right 0 top 0,
+    0 0;
+  mask-repeat: no-repeat;
+}
+/* Los botones van FUERA del recorte, si no la mascara se los llevaria. */
+.ep-wc-btn, .ep-pts-btn { -webkit-mask: none; mask: none; }
+
+/* El boton va FUERA de la tarjeta, no dentro: la mascara recorta a todos sus
+   hijos, y el boton se apoya justo en el hueco. El envoltorio es quien le da
+   la referencia de posicion. */
+.ep-wcard-wrap, .ep-pts-wrap { position: relative; }
