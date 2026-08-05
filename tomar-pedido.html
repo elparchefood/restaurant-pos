@@ -210,8 +210,8 @@
         <!-- Pestañas -->
         <div class="tp-browser-tabs">
           <button class="lm-bigtab is-active" data-tab="categoria">Categorías</button>
-          <button class="lm-bigtab" data-tab="menu">Menú</button>
-          <button class="lm-bigtab" data-tab="busqueda">Búsqueda</button>
+          <button class="lm-bigtab" data-tab="combos">Combos</button>
+          <button class="lm-bigtab" data-tab="puntos">Puntos</button>
           <button class="lm-bigtab" data-tab="favoritos">Favoritos</button>
         </div>
 
@@ -243,27 +243,13 @@
           </div>
 
           <!-- PANE: Menú completo -->
-          <div class="tp-pane" data-pane="menu">
-            <div class="tp-menuscroll" id="menu-scroll">
-              <div style="color:#94A3B8;font-size:13px;padding:24px 0;text-align:center">Cargando menú…</div>
-            </div>
+          <div class="tp-pane" data-pane="combos">
+            <div class="tp-prodgrid" id="tp-combos-grid"></div>
           </div>
 
           <!-- PANE: Búsqueda -->
-          <div class="tp-pane" data-pane="busqueda">
-            <div class="tp-searchbig">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input id="search-input" placeholder="Buscar producto…" autocomplete="off">
-              <button class="lm-link" id="search-clear" style="display:none">Limpiar</button>
-            </div>
-            <div class="tp-soft-empty" id="search-empty">
-              <div class="tp-soft-empty-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              </div>
-              <div class="tp-soft-empty-title">Escribe para buscar</div>
-              <div class="tp-soft-empty-text" id="search-hint">Busca entre los productos del menú</div>
-            </div>
-            <div class="tp-prodgrid" id="search-results" style="display:none"></div>
+          <div class="tp-pane" data-pane="puntos">
+            <div class="tp-prodgrid" id="tp-puntos-grid"></div>
           </div>
 
           <!-- PANE: Favoritos -->
@@ -305,7 +291,9 @@
 <script src="pos-clientes.js?v=1788280000"></script>
 <script src="pos-cliente-picker.js?v=1788280000"></script>
 <script src="pos-notas.js?v=1789660000"></script>
-<script src="pos-combos.js?v=1789740000"></script>
-  <script src="tomar-pedido.js?v=1789740000"></script>
+<script src="pos-combos.js?v=1789760000"></script>
+  <script src="pos-puntos.js?v=1789760000"></script>
+  <script src="pos-tabs.js?v=1789760000"></script>
+  <script src="tomar-pedido.js?v=1789760000"></script>
 </body>
 </html>

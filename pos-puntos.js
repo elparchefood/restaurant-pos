@@ -264,8 +264,33 @@
       + ' y se necesitan ' + (e.pedidos || 0) + '.');
   }
 
+  /* Para la pestaña de PUNTOS de las pantallas de venta: que producto (o combo)
+     del catalogo se puede canjear, y a que precio. Se muestra el escalon MAS
+     BARATO cuando el producto tiene varios tamaños: es el que decide si al
+     cliente le alcanza, y es lo que hay que poder ver de un vistazo. */
+  function precioMin(filas) {
+    var f = null;
+    filas.forEach(function (x) { if (!f || Number(x.puntos) < Number(f.puntos)) f = x; });
+    return f ? { puntos: Number(f.puntos) || 0, dinero: Number(f.dinero) || 0 } : null;
+  }
+  function puntosDeProducto(productId) {
+    return precioMin(_cat.filter(function (f) { return f.product_id === productId; }));
+  }
+  function puntosDeCombo(comboId) {
+    return precioMin(_cat.filter(function (f) { return String(f.combo_id) === String(comboId); }));
+  }
+  /* Acepta el id tal como lo maneja la pantalla: el de un producto, o el
+     "combo:<uuid>" que usa pos-combos. */
+  function precioDe(id) {
+    if (window.posCombos && posCombos.esCombo(id)) return puntosDeCombo(posCombos.idReal(id));
+    return puntosDeProducto(id);
+  }
+  function enCatalogo(id) { return !!precioDe(id); }
+
   window.posPuntos = {
     setCtx: setCtx, cargar: cargar, disponibles: disponibles,
+    precioDe: precioDe, enCatalogo: enCatalogo,
+    catalogo: function () { return _cat.slice(); },
     canjeDe: canjeDe, consumir: consumir,
     modalCanje: modalCanje, modalInsuficiente: modalInsuficiente,
     hayCatalogo: function () { return _cat.length > 0; },

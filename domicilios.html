@@ -174,8 +174,8 @@
       <div class="d-browser">
         <div class="d-browser-tabs">
           <button class="lm-bigtab on" data-tab="categoria">Categoría</button>
-          <button class="lm-bigtab" data-tab="menu">Menú</button>
-          <button class="lm-bigtab" data-tab="busqueda">Búsqueda</button>
+          <button class="lm-bigtab" data-tab="combos">Combos</button>
+          <button class="lm-bigtab" data-tab="puntos">Puntos</button>
           <button class="lm-bigtab" data-tab="favoritos">Favoritos</button>
         </div>
         <div class="d-browser-body">
@@ -187,13 +187,11 @@
             </div>
             <div class="d-prodgrid" id="prod-grid"></div>
           </div>
-          <div hidden data-browserpane="menu" id="pane-menu">
-            <div class="d-menuscroll" id="menu-scroll"></div>
+          <div hidden data-browserpane="combos" id="pane-menu">
+            <div class="d-prodgrid" id="do-combos-grid"></div>
           </div>
-          <div hidden data-browserpane="busqueda" id="pane-busqueda">
-            <div class="d-searchbig"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="busq-input" placeholder="Buscar productos..." /></div>
-            <div class="d-prodgrid" id="busq-grid"></div>
-            <div class="d-softempty" id="busq-empty" hidden><div class="d-softempty-ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div><div style="font-size:13px;font-weight:600;color:var(--ink-2)">Sin resultados</div></div>
+          <div hidden data-browserpane="puntos" id="pane-busqueda">
+            <div class="d-prodgrid" id="do-puntos-grid"></div>
           </div>
           <div hidden data-browserpane="favoritos" id="pane-favoritos">
             <div class="d-prodgrid" id="fav-grid"></div>
@@ -375,7 +373,9 @@
 <script src="pos-stock.js?v=1786752000"></script>
 <script src="pos-clientes.js?v=1788280000"></script>
 <script src="pos-notas.js?v=1789660000"></script>
-<script src="pos-combos.js?v=1789740000"></script>
-  <script src="domicilios.js?v=1789740000"></script>
+<script src="pos-combos.js?v=1789760000"></script>
+  <script src="pos-puntos.js?v=1789760000"></script>
+  <script src="pos-tabs.js?v=1789760000"></script>
+  <script src="domicilios.js?v=1789760000"></script>
 </body>
 </html>

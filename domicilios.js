@@ -379,8 +379,17 @@ async function _sumarCombos() {
     S.cats = (S.cats || []).filter(function (c) { return c.id !== posCombos.CAT_ID; });
     S.products = (S.products || []).filter(function (p) { return !posCombos.esCombo(p.id); });
     if (nuevos.length) {
-      S.cats = S.cats.concat([posCombos.categoria()]);
       S.products = S.products.concat(nuevos);
+    }
+    /* La pestaña de COMBOS y la de PUNTOS. Se registran aqui porque es donde
+       el catalogo ya quedo completo. */
+    if (window.posTabs) {
+      posTabs.registrar({
+        combos: 'do-combos-grid', puntos: 'do-puntos-grid',
+        tenantId: S.tenantId, branchId: S.branchId,
+        productos: function () { return S.products || []; },
+        card: function (p) { return domProdCard(p); },
+      });
     }
   } catch (e) { console.warn('combos:', e); }
 }
@@ -615,7 +624,12 @@ function renderProdGrid(el, prods) {
     el.innerHTML = `<div class="d-softempty" style="grid-column:1/-1"><div class="d-softempty-ic">${svgInline('bag', 24, 1.5)}</div><div style="font-size:13px;font-weight:600;color:var(--ink-2)">Sin productos</div></div>`;
     return;
   }
-  el.innerHTML = prods.map(p => {
+  el.innerHTML = prods.map(domProdCard).join('');
+}
+
+/* La tarjeta, fuera del map: asi las pestañas de Combos y Puntos usan
+   EXACTAMENTE la misma, en vez de una copia que se va quedando atras. */
+function domProdCard(p) {
     const inCart = S.cart.find(i => i.id === p.id);
     const qty    = inCart ? inCart.qty : 0;
     const thumb  = p.photo_url
@@ -632,8 +646,8 @@ function renderProdGrid(el, prods) {
         <div class="d-prod-name">${p.name}</div>
         <div class="d-prod-row"><span class="d-prod-price">${fmt(p.price)}</span><span class="d-add">${svgInline('plus', 14, 2.5)}</span></div>
       </div></button>`;
-  }).join('');
-}
+  }
+
 
 function renderMenuPane() {
   const el = $('menu-scroll');

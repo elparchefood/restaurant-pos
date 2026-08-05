@@ -1,0 +1,78 @@
+<meta charset="utf-8"><title>Prueba de las pestañas Combos y Puntos</title>
+<div id="combos"></div><div id="puntos"></div>
+<pre id="out" style="font:12px/1.6 monospace;white-space:pre-wrap"></pre>
+<script src="../pos-combos.js"></script>
+<script src="../pos-puntos.js"></script>
+<script src="../pos-tabs.js"></script>
+<script>
+(async function () {
+  var ok = 0, mal = 0, log = [];
+  function es(n, a, b) { if (JSON.stringify(a) === JSON.stringify(b)) ok++;
+    else { mal++; log.push('FALLA ' + n + '\n   dio      ' + JSON.stringify(a) + '\n   esperaba ' + JSON.stringify(b)); } }
+
+  // ── 1) las tres pantallas quedaron con las pestañas nuevas y sin la vieja ──
+  var paginas = ['tomar-pedido', 'venta-rapida', 'domicilios'];
+  var pref = { 'tomar-pedido': 'tp', 'venta-rapida': 'vr', 'domicilios': 'do' };
+  for (var i = 0; i < paginas.length; i++) {
+    var nom = paginas[i];
+    var html = await (await fetch('../' + nom + '.html')).text();
+    es(nom + ': pestaña Combos', /data-tab="combos">Combos</.test(html), true);
+    es(nom + ': pestaña Puntos', /data-tab="puntos">Puntos</.test(html), true);
+    es(nom + ': ya no hay pestaña Menú', /data-tab="menu"/.test(html), false);
+    es(nom + ': ya no hay pestaña Búsqueda', /data-tab="busqueda"/.test(html), false);
+    es(nom + ': grilla de combos', html.indexOf(pref[nom] + '-combos-grid') > 0, true);
+    es(nom + ': grilla de puntos', html.indexOf(pref[nom] + '-puntos-grid') > 0, true);
+    es(nom + ': carga pos-tabs.js', html.indexOf('pos-tabs.js') > 0, true);
+    // Los divs tienen que seguir cuadrando: un </div> de mas deja la pantalla en blanco.
+    var ab = (html.match(/<div\b/g) || []).length, ce = (html.match(/<\/div>/g) || []).length;
+    es(nom + ': los div cuadran', ab - ce, 0);
+    // El JS ya no mete los combos como categoria.
+    var js = await (await fetch('../' + nom + '.js')).text();
+    es(nom + ': los combos ya no son categoría', /concat\(\[posCombos\.categoria\(\)\]\)/.test(js), false);
+    es(nom + ': registra las pestañas', /posTabs\.registrar\(/.test(js), true);
+  }
+
+  // ── 2) el modulo pinta lo que debe ──
+  var card = function (p, color) { return '<b data-id="' + p.id + '" data-color="' + (color||'') + '">' + p.name + '</b>'; };
+  var PRODS = [
+    { id: 'p1', name: 'Salchipapa' },
+    { id: 'p2', name: 'Gaseosa' },
+    { id: 'combo:c1', name: 'Combo El Parche' },
+  ];
+  posTabs.pintarCombos(document.getElementById('combos'), PRODS, card);
+  es('solo pinta combos', document.querySelectorAll('#combos b').length, 1);
+  es('y es el combo', document.querySelector('#combos b').textContent, 'Combo El Parche');
+
+  posTabs.pintarCombos(document.getElementById('combos'), [PRODS[0]], card);
+  es('sin combos, avisa dónde se arman', /Catálogo/.test(document.getElementById('combos').textContent), true);
+
+  // Catálogo de puntos de mentira, por el camino real de carga.
+  window._pos = { sb: { from: function (t) {
+    var data = t === 'pos_puntos_catalogo'
+      ? [{ product_id: 'p2', pres_id: null, puntos: 400, dinero: 0 },
+         { combo_id: 'c1', product_id: null, pres_id: null, puntos: 800, dinero: 15000 }]
+      : [{ id: 'p2', presentations: [], variables: [] }];
+    var api = { data: data };
+    api.select = function () { return api; };
+    api.eq = function () { return api; };
+    api.in = function () { return api; };
+    api.then = function (r) { return Promise.resolve({ data: api.data }).then(r); };
+    return api;
+  } } };
+  posPuntos.setCtx('t1', 'b1');
+  await posPuntos.cargar();
+
+  posTabs.pintarPuntos(document.getElementById('puntos'), PRODS, card);
+  var tarjetas = document.querySelectorAll('#puntos b');
+  es('pinta los dos que están en el catálogo', tarjetas.length, 2);
+  var txt = document.getElementById('puntos').textContent;
+  es('la gaseosa muestra sus puntos', /400 pts/.test(txt), true);
+  es('el combo muestra puntos + plata', /800 pts \+ \$15\.000/.test(txt), true);
+  es('la salchipapa no aparece', /Salchipapa/.test(txt), false);
+
+  document.getElementById('combos').innerHTML = '';
+  document.getElementById('puntos').innerHTML = '';
+  out.textContent = (mal ? log.join('\n\n') + '\n\n' : '') + ok + ' bien, ' + mal + ' mal';
+  document.title = mal ? 'FALLAN ' + mal : 'TODO BIEN (' + ok + ')';
+})();
+</script>

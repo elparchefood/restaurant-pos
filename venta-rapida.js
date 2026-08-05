@@ -878,8 +878,17 @@ async function _sumarCombos() {
     S.categories = (S.categories || []).filter(function (c) { return c.id !== posCombos.CAT_ID; });
     S.products = (S.products || []).filter(function (p) { return !posCombos.esCombo(p.id); });
     if (nuevos.length) {
-      S.categories = S.categories.concat([posCombos.categoria()]);
       S.products = S.products.concat(nuevos);
+    }
+    /* La pestaña de COMBOS y la de PUNTOS. Se registran aqui porque es
+       donde el catalogo ya esta completo. */
+    if (window.posTabs) {
+      posTabs.registrar({
+        combos: 'vr-combos-grid', puntos: 'vr-puntos-grid',
+        tenantId: S.tenantId, branchId: S.branchId,
+        productos: function () { return S.products || []; },
+        card: function (p) { return renderProdCards([p]); },
+      });
     }
   } catch (e) { console.warn('combos:', e); }
 }

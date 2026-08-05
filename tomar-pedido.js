@@ -162,8 +162,17 @@ async function _sumarCombos() {
     S.cats = (S.cats || []).filter(function (c) { return c.id !== posCombos.CAT_ID; });
     S.products = (S.products || []).filter(function (p) { return !posCombos.esCombo(p.id); });
     if (nuevos.length) {
-      S.cats = S.cats.concat([posCombos.categoria()]);
       S.products = S.products.concat(nuevos);
+    }
+    /* La pestaña de COMBOS y la de PUNTOS. Se registran aqui porque es
+       donde el catalogo ya esta completo. */
+    if (window.posTabs) {
+      posTabs.registrar({
+        combos: 'tp-combos-grid', puntos: 'tp-puntos-grid',
+        tenantId: S.tenantId, branchId: S.branchId,
+        productos: function () { return S.products || []; },
+        card: function (p, color) { return prodCard(p, color); },
+      });
     }
   } catch (e) { console.warn('combos:', e); }
 }
