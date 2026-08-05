@@ -1,0 +1,35 @@
+<meta charset="utf-8"><title>Muesca</title>
+<link rel="stylesheet" href="../app-cliente.css">
+<div class="ep-app"><div class="ep-cuerpo"><div class="ep-scroll" style="padding:20px">
+  <div class="ep-over">
+    <div class="ep-wcard">
+      <div class="ep-wc-lbl">Saldo disponible</div>
+      <div class="ep-wc-monto">$0</div>
+      <div class="ep-wc-nom">Sergio Abadia</div>
+      <div class="ep-wc-cut"></div>
+      <button class="ep-wc-btn">＋ Recargar</button>
+    </div>
+    <div class="ep-pts-hero">
+      <div class="ep-pts-lbl">Puntos disponibles</div>
+      <div class="ep-pts-num">0<span>pts</span></div>
+      <div class="ep-pts-cut"></div>
+      <button class="ep-pts-btn">R</button>
+    </div>
+  </div>
+</div></div></div>
+<pre id="out" style="font:12px/1.6 monospace;padding:12px"></pre>
+<script>
+setTimeout(function(){
+  var g = function(el,p){ return getComputedStyle(el)[p]; };
+  var cut = document.querySelector('.ep-wc-cut');
+  var body = document.body;
+  var salida =
+    'fondo del body (color):  ' + g(body,'backgroundColor') + '\n' +
+    'fondo del body (imagen): ' + g(body,'backgroundImage').slice(0,60) + '…\n' +
+    'muesca vino:             ' + g(cut,'backgroundColor') + '\n' +
+    'muesca puntos:           ' + g(document.querySelector('.ep-pts-cut'),'backgroundColor') + '\n' +
+    'variable --bg:           ' + getComputedStyle(document.documentElement).getPropertyValue('--bg') + '\n' +
+    'tamaño de la muesca:     ' + Math.round(cut.getBoundingClientRect().width) + 'x' + Math.round(cut.getBoundingClientRect().height);
+  document.getElementById('out').textContent = salida;
+},150);
+</script>

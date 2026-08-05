@@ -454,7 +454,6 @@
       '<div class="ep-wc-num">•••• •••• •••• ' + esc(tel.slice(-4)) + '</div>' +
       '<div class="ep-wc-nom">' + esc(c.nombre || '') + '</div>' +
       '<div class="ep-wc-spark">' + ico('estrella', 17) + '</div>' +
-      '<div class="ep-wc-cut"></div>' +
       '<button class="ep-wc-btn" data-ir="billetera">＋ Recargar</button>' +
     '</div>';
 
@@ -463,7 +462,6 @@
       '<div class="ep-pts-lbl">Puntos disponibles</div>' +
       '<div class="ep-pts-num">' + (Number(c.puntos) || 0) + '<span>pts</span></div>' +
       '<div class="ep-pts-nota">Ganas puntos con todos tus pedidos</div>' +
-      '<div class="ep-pts-cut"></div>' +
       '<button class="ep-pts-btn" data-ir="puntos">' + ico('gift', 18) + '</button>' +
     '</div>';
 
@@ -507,16 +505,7 @@
     return '<div class="ep-saludo">' +
         '<div><div class="ep-saludo-t">' + saludo + '</div>' +
         '<div class="ep-saludo-n">' + esc((c.nombre || '').split(' ')[0] || 'Hola') + '</div></div>' +
-        '<div class="ep-saludo-btns">' +
-          '<button class="ep-redondo ep-tema" data-tema="1" title="Cambiar el tema">' +
-            ico(esOscuroAhora() ? 'sol' : 'luna', 17) + '</button>' +
-          /* La foto del cliente, no el pin del local: es SU cuenta. Va mas
-             grande que los otros redondos y lleva al perfil, que es donde la
-             cambia. El local sigue estando en el menu. */
-          '<button class="ep-redondo ep-yo" data-ir="perfil" title="Mi perfil">' +
-            (c.foto ? '<img src="' + esc(c.foto) + '" alt="">' : esc(iniciales(c.nombre))) +
-          '</button>' +
-        '</div>' +
+        botonesArriba() +
       '</div>' +
       '<div class="ep-sec-hd"><div><div class="ep-sec-t">Resumen</div>' +
         '<div class="ep-sec-s">Aquí está el estado de tu cuenta en ' + esc(e.nombre || '') + '</div></div>' +
@@ -536,11 +525,26 @@
      los mismos para todos y no cambian entre pestaña y pestaña. */
   var catActiva = 0;
 
+  /* Los botones de arriba a la derecha. En UN solo sitio porque los usan el
+     inicio y todas las demas pantallas: copiados, un dia dejarian de coincidir.
+     La foto del cliente va en todas — es como sabe de quien es la sesion sin
+     tener que ir a buscarlo. */
+  function botonesArriba(extra) {
+    var c = S.cliente || {};
+    return '<div class="ep-saludo-btns">' + (extra || '') +
+      '<button class="ep-redondo ep-tema" data-tema="1" title="Cambiar el tema">' +
+        ico(esOscuroAhora() ? 'sol' : 'luna', 17) + '</button>' +
+      '<button class="ep-redondo ep-yo" data-ir="perfil" title="Mi perfil">' +
+        (c.foto ? '<img src="' + esc(c.foto) + '" alt="">' : esc(iniciales(c.nombre))) +
+      '</button>' +
+    '</div>';
+  }
+
   function encabezado(titulo, sub) {
     return '<div class="ep-saludo">' +
       '<div><div class="ep-saludo-t">' + esc(sub || (S.negocio && S.negocio.nombre) || '') + '</div>' +
       '<div class="ep-saludo-n">' + esc(titulo) + '</div></div>' +
-      '<div class="ep-saludo-btns"><button class="ep-redondo" data-ir="inicio">' + ico('home', 17) + '</button></div>' +
+      botonesArriba('<button class="ep-redondo" data-ir="inicio" title="Inicio">' + ico('home', 17) + '</button>') +
     '</div>';
   }
 

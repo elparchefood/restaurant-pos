@@ -6,7 +6,7 @@
   function es(n,a,b){ if(JSON.stringify(a)===JSON.stringify(b)) ok++;
     else {mal++; log.push('FALLA '+n+': dio '+JSON.stringify(a)+', esperaba '+JSON.stringify(b));} }
 
-  var js = await (await fetch('../app-cliente.js')).text();
+  var js = await (await fetch('../app-cliente.js?t=' + Date.now())).text();
 
   // ── 1) la foto del restaurante llega de VERDAD del servidor ──
   var SB='https://tblujfduscslxjmrjbdr.supabase.co';
@@ -58,6 +58,19 @@
   var arriba = (js.match(/ep-saludo-btns[\s\S]{0,700}/) || [''])[0];
   es('arriba queda el boton de tema', /ep-tema/.test(arriba), true);
   es('y la foto del cliente', /ep-yo/.test(arriba), true);
+
+  // ── la foto en TODAS las pantallas ──
+  es('los botones de arriba viven en un solo sitio', /function botonesArriba/.test(js), true);
+  es('el inicio los usa', /'<div class="ep-saludo">' \+[\s\S]{0,400}botonesArriba\(\)/.test(js), true);
+  es('y las demas pantallas tambien', /function encabezado[\s\S]{0,400}botonesArriba\(/.test(js), true);
+  es('no quedaron dos copias de la foto',
+     (js.match(/ep-redondo ep-yo/g) || []).length, 1);
+
+  // ── la muesca de las tarjetas ──
+  es('la tarjeta de saldo ya no la dibuja', /ep-wc-cut"><\/div>/.test(js), false);
+  es('la de puntos tampoco', /ep-pts-cut"><\/div>/.test(js), false);
+  var css = await (await fetch('../app-cliente.css?t=' + Date.now())).text();
+  es('y el estilo la apaga', /\.ep-wc-cut, \.ep-pts-cut \{ display: none/.test(css), true);
 
   out.textContent = (mal?log.join('\n')+'\n\n':'') + ok+' bien, '+mal+' mal';
   document.title = mal ? 'FALLAN '+mal : 'TODO BIEN ('+ok+')';

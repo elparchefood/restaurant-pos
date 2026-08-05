@@ -627,3 +627,20 @@ html.tema-claro .ep-seg-full button.on, html:not(.tema-oscuro) .ep-seg-full butt
 }
 .ep-avatar-g.cargando { opacity: .5; pointer-events: none; }
 .ep-side-logo { overflow: hidden; }
+
+
+/* ── Fuera la muesca de las tarjetas ──────────────────────────────────────
+   Las dos tarjetas traian del diseño un "mordisco" en la esquina: un recuadro
+   pintado del color del fondo para que el boton pareciera colgar por fuera.
+   Medido: el color era EXACTO al del fondo, no estaba mal pintado. El problema
+   era la forma — ese recuadro claro sobre una tarjeta oscura se lee como un
+   bloque blanco pegado encima, y era justo lo que Sergio veia.
+   Ahora el boton va sobre la tarjeta, que es lo que se queria mostrar. */
+.ep-wc-cut, .ep-pts-cut { display: none; }
+.ep-wc-btn {
+  background: rgba(255,255,255,.16); color: #fff;
+  border: 1px solid rgba(255,255,255,.26);
+  backdrop-filter: blur(6px); box-shadow: none;
+}
+.ep-wc-btn:hover { background: rgba(255,255,255,.24); }
+.ep-pts-btn { box-shadow: 0 6px 18px rgba(0,0,0,.18); }
