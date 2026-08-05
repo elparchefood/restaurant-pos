@@ -2011,3 +2011,13 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .cp-etq.on { background: #5B6BFF; border-color: #5B6BFF; color: #fff; }
 .cp-etq-req { font-size: 11px; font-weight: 700; color: #B45309; }
 .cp-etq-opt { font-size: 11px; font-weight: 600; color: #94A3B8; }
+
+
+/* ── Respuestas rapidas: el editor se abre al crear o editar ─────────────── */
+.ci-qm-nuevo { padding: 10px 12px; border-top: 1px solid var(--line-2, #e2e5ea); }
+.ci-qm-nuevo button {
+  width: 100%; padding: 9px; border-radius: 9px; cursor: pointer;
+  border: 1px dashed var(--line-2, #e2e5ea); background: transparent;
+  font-size: 12.5px; font-weight: 700; color: var(--text-3, #6b7280);
+}
+.ci-qm-nuevo button:hover { border-color: #5B6BFF; color: #5B6BFF; }

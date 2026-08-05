@@ -14,7 +14,8 @@
   <script src="vendor/supabase-2.js?v=1789520000"></script>
   <script src="pos-perms.js?v=1789530000"></script>
   <script>if(window.posRequirePin) posRequirePin('chat.usar');</script>
-  <link rel="stylesheet" href="chat-ia.css?v=1789700000">
+  <link rel="stylesheet" href="chat-ia.css?v=1789710000">
+  <link rel="stylesheet" href="pos-vars.css?v=1789710000">
 </head>
 <body>
 
@@ -299,11 +300,18 @@
         <button class="ci-picker-close" onclick="closeQuickManage()">✕</button>
       </div>
       <div class="ci-qm-list" id="quickMngList"></div>
-      <div class="ci-qm-form">
+      <!-- Cerrado solo se ve la lista. El editor se abre al crear o editar y se
+           cierra al guardar: si esta siempre abierto, la lista no cabe. -->
+      <div class="ci-qm-nuevo" id="qmNuevoWrap">
+        <button id="qmNuevoBtn" onclick="qmNueva()">＋ Nueva respuesta</button>
+      </div>
+      <div class="ci-qm-form" id="qmForm" style="display:none">
         <input id="qmKey" placeholder="Palabra clave (ej. pollo)" maxlength="40" autocomplete="off">
-        <textarea id="qmText" placeholder="Mensaje de la respuesta…" rows="3"></textarea>
+        <div id="qmEditor" data-ph="Escribe el mensaje. Usa los botones de abajo para meter datos del cliente o del pedido."></div>
+        <div class="pv-barra" id="qmBarra"></div>
+        <div class="pv-previa" id="qmPrevia"></div>
         <div class="ci-qm-actions">
-          <button id="qmCancelEdit" onclick="qmClearForm()" style="display:none">Cancelar</button>
+          <button id="qmCancelEdit" onclick="qmClearForm()">Cancelar</button>
           <button id="qmSaveBtn" onclick="qmSave()">Agregar respuesta</button>
         </div>
       </div>
@@ -391,7 +399,9 @@
   </div>
 </div>
 
-<script src="chat-ia.js?v=1789700000"></script>
+<script src="pos-vars.js?v=1789710000"></script>
+  <script src="pos-vars-ui.js?v=1789710000"></script>
+  <script src="chat-ia.js?v=1789710000"></script>
 <script src="pos-impuestos.js?v=1"></script>
 <script src="pos-print.js?v=1788310000"></script>
 <script src="pos-brand.js?v=1789530000"></script>

@@ -1,0 +1,172 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   pos-vars.css — El editor de plantillas con fichas
+   ───────────────────────────────────────────────────────────────────────────
+   Va aparte y no dentro de chat-ia.css porque el editor lo van a usar también
+   el editor de flujos y las plantillas de fidelización. Meterlo en el CSS de
+   una pantalla es lo que hizo que las notas frecuentes no pudieran dibujarse
+   fuera de mesa.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── El área de escritura ────────────────────────────────────────────────── */
+.pv-editor {
+  min-height: 96px; max-height: 240px; overflow-y: auto;
+  padding: 10px 11px;
+  border: 1px solid var(--line-2, #e2e5ea); border-radius: 10px;
+  background: var(--surface-1, #fff); color: var(--text-1, #16181d);
+  font-size: 13px; line-height: 1.85;   /* aire de sobra: las fichas son más altas que el texto */
+  white-space: pre-wrap; word-break: break-word;
+  outline: none;
+}
+.pv-editor:focus { border-color: #5B6BFF; box-shadow: 0 0 0 3px rgba(91,107,255,.14); }
+.pv-editor:empty::before {
+  content: attr(data-ph); color: var(--text-4, #9aa1ad);
+}
+
+/* ── Las fichas ──────────────────────────────────────────────────────────
+   Cada grupo tiene su color, para que se reconozca de un vistazo de dónde
+   sale el dato. El texto siempre en español y sin llaves: los corchetes
+   viven adentro. */
+.pv-chip {
+  display: inline-block; vertical-align: baseline;
+  padding: 1px 8px; margin: 0 1px;
+  border-radius: 999px; border: 1px solid transparent;
+  font-size: 11.5px; font-weight: 700; line-height: 1.6;
+  white-space: nowrap; cursor: default;
+  user-select: none; -webkit-user-select: none;
+}
+.pv-g-cli  { background: rgba(91,107,255,.13);  color: #4553d6; border-color: rgba(91,107,255,.28); }
+.pv-g-ped  { background: rgba(47,203,111,.14);  color: #1f8a4c; border-color: rgba(47,203,111,.30); }
+.pv-g-pts  { background: rgba(240,168,60,.16);  color: #a76c07; border-color: rgba(240,168,60,.34); }
+.pv-g-neg  { background: rgba(124,92,255,.13);  color: #6440d8; border-color: rgba(124,92,255,.28); }
+.pv-g-domi { background: rgba(14,165,233,.13);  color: #0369a1; border-color: rgba(14,165,233,.28); }
+.pv-g-calc { background: rgba(236,72,153,.12);  color: #be1e6d; border-color: rgba(236,72,153,.28); }
+
+/* ── La barra de insertar ────────────────────────────────────────────────── */
+.pv-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 7px 0 0; }
+.pv-barra-lbl { font-size: 11.5px; font-weight: 600; color: var(--text-4, #9aa1ad); margin-right: 2px; }
+.pv-ins {
+  padding: 3px 9px; border-radius: 999px; cursor: pointer;
+  font-size: 11.5px; font-weight: 700; line-height: 1.6;
+  border: 1px solid transparent; background: rgba(0,0,0,.05); color: var(--text-2, #4a505c);
+}
+.pv-ins:hover { filter: brightness(.96); }
+.pv-ins-mas { background: transparent; border-color: var(--line-2, #e2e5ea); color: var(--text-3, #6b7280); }
+
+/* ── El buscador de variables ────────────────────────────────────────────── */
+.pv-picker {
+  position: fixed; z-index: 9000; width: 320px; max-height: 340px;
+  display: flex; flex-direction: column;
+  background: var(--surface-1, #fff); border: 1px solid var(--line-2, #e2e5ea);
+  border-radius: 12px; box-shadow: 0 12px 32px rgba(16,20,30,.18); overflow: hidden;
+}
+.pv-busca {
+  border: 0; border-bottom: 1px solid var(--line-2, #e2e5ea);
+  padding: 10px 12px; font-size: 12.5px; outline: none;
+  background: transparent; color: var(--text-1, #16181d);
+}
+.pv-lista { overflow-y: auto; padding: 4px; }
+.pv-grp {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--text-4, #9aa1ad); padding: 8px 8px 4px;
+}
+.pv-op {
+  display: flex; flex-direction: column; gap: 1px; width: 100%; text-align: left;
+  padding: 7px 9px; border: 0; border-radius: 8px; background: transparent; cursor: pointer;
+}
+.pv-op:hover { background: rgba(91,107,255,.08); }
+.pv-op-n { font-size: 12.5px; font-weight: 700; color: var(--text-1, #16181d); }
+.pv-op-d { font-size: 11px; color: var(--text-4, #9aa1ad); line-height: 1.35; }
+/* Las que no aplican aquí NO se esconden: esconderlas hace creer que no
+   existen. Salen atenuadas y con el motivo en lugar de la descripción. */
+.pv-op.off { opacity: .5; }
+.pv-op.off .pv-op-d { font-style: italic; }
+.pv-op-calc { border-top: 1px solid var(--line-2, #e2e5ea); border-radius: 0 0 8px 8px; margin-top: 4px; }
+.pv-nada { padding: 16px; text-align: center; font-size: 12px; color: var(--text-4, #9aa1ad); }
+
+/* ── Vista previa "Así le llega" ─────────────────────────────────────────── */
+.pv-previa { margin-top: 10px; }
+.pv-prev-head {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;
+  font-size: 11.5px; font-weight: 700; color: var(--text-3, #6b7280); margin-bottom: 6px;
+}
+.pv-mtabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.pv-mtab {
+  padding: 2px 8px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line-2, #e2e5ea); background: transparent;
+  font-size: 10.5px; font-weight: 700; color: var(--text-4, #9aa1ad);
+}
+.pv-mtab.on { background: #5B6BFF; border-color: #5B6BFF; color: #fff; }
+/* Burbuja verde de WhatsApp: se ve como lo va a ver el cliente, no como una
+   caja de texto más del sistema. */
+.pv-burbuja {
+  padding: 9px 12px; border-radius: 12px 12px 12px 3px;
+  background: #d9fdd3; color: #111b21;
+  font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+}
+.pv-vacio { color: #667781; font-style: italic; }
+.pv-aviso {
+  margin-bottom: 6px; padding: 6px 9px; border-radius: 8px;
+  background: rgba(240,168,60,.12); border: 1px solid rgba(240,168,60,.32);
+  font-size: 11.5px; font-weight: 600; color: #a76c07;
+}
+
+/* ── El armador de cuentas ───────────────────────────────────────────────── */
+.pv-modal-ov {
+  position: fixed; inset: 0; z-index: 9100;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: rgba(16,20,30,.45);
+}
+.pv-modal {
+  width: 100%; max-width: 460px;
+  background: var(--surface-1, #fff); border-radius: 14px;
+  box-shadow: 0 20px 48px rgba(16,20,30,.28); overflow: hidden;
+}
+.pv-modal-h {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 15px; border-bottom: 1px solid var(--line-2, #e2e5ea);
+  font-size: 13.5px; font-weight: 800; color: var(--text-1, #16181d);
+}
+.pv-x { border: 0; background: transparent; cursor: pointer; font-size: 15px; color: var(--text-4, #9aa1ad); }
+.pv-calc-fila { display: flex; flex-wrap: wrap; gap: 7px; padding: 15px 15px 8px; }
+.pv-calc-fila select, .pv-calc-fila input {
+  flex: 1 1 130px; min-width: 0;
+  padding: 8px 9px; border: 1px solid var(--line-2, #e2e5ea); border-radius: 8px;
+  font-size: 12.5px; background: var(--surface-1, #fff); color: var(--text-1, #16181d);
+}
+.pv-calc-luego, .pv-calc-fmt {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  padding: 6px 15px; font-size: 12px; color: var(--text-2, #4a505c);
+}
+.pv-calc-luego input[type=number], .pv-calc-fmt select {
+  padding: 5px 8px; border: 1px solid var(--line-2, #e2e5ea); border-radius: 7px;
+  font-size: 12px; width: 110px; background: var(--surface-1, #fff); color: var(--text-1, #16181d);
+}
+.pv-calc-luego input[disabled] { opacity: .45; }
+/* El resultado en vivo es lo que hace que el dueño se atreva a usar la cuenta:
+   ve el numero con un cliente de verdad ANTES de guardar. */
+.pv-calc-res { margin: 8px 15px 0; padding: 9px 11px; border-radius: 9px; background: rgba(0,0,0,.04); font-size: 12.5px; }
+.pv-ok  { color: var(--text-1, #16181d); }
+.pv-ok b { font-size: 14px; }
+.pv-mal { color: #c2410c; font-weight: 600; }
+.pv-modal-acc { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 15px; }
+.pv-btn-sec, .pv-btn-pri {
+  padding: 8px 14px; border-radius: 9px; cursor: pointer; font-size: 12.5px; font-weight: 700;
+}
+.pv-btn-sec { border: 1px solid var(--line-2, #e2e5ea); background: transparent; color: var(--text-2, #4a505c); }
+.pv-btn-pri { border: 0; background: #5B6BFF; color: #fff; }
+.pv-btn-pri:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ── Tablet: el editor ocupa toda la pantalla ────────────────────────────── */
+@media (max-width: 820px) {
+  .pv-picker { width: calc(100vw - 24px); left: 12px !important; max-height: 50vh; }
+  .pv-editor { max-height: 40vh; font-size: 15px; }   /* 15px: por debajo de 16 iOS hace zoom al enfocar */
+  .pv-calc-fila select, .pv-calc-fila input { flex-basis: 100%; font-size: 15px; }
+}
+
+/* ── Modo oscuro ─────────────────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  .pv-burbuja { background: #005c4b; color: #e9edef; }
+  .pv-vacio { color: #8696a0; }
+  .pv-ins { background: rgba(255,255,255,.08); }
+  .pv-calc-res { background: rgba(255,255,255,.06); }
+}

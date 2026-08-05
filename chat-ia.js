@@ -1943,8 +1943,12 @@ const DEFAULT_QUICK_REPLIES = [
   { k:'efectivotransferencia', t:'Con gusto, me confirmas si el pago es transferencia o efectivo? para pasar tu pedido a cocina🍟☺️' },
   { k:'QR2',      t:'Te comparto el código QR para que puedas realizar tu pago ☺️\n\nO si deseas, mediante llaves con el siguiente número: 0092726260\n\nRecuerda enviarnos tu comprobante de pago😁', img:'@qr' },
   { k:'comprobante', t:'Quedo pendiente del comprobante para poderte preparar ☺️' },
-  { k:'total',    t:'Con gusto, serian $0 de tu pedido y $0 del domicilio, total $0 😊\nEn un momento enviamos tu pedido 🍟', dyn:'total' },
-  { k:'puntos',   t:'Acabas de ganar X puntos con tu compra 🎉', dyn:'puntos' },
+  /* Estas dos eran las unicas "dinamicas", y su texto ni se leia. Ahora son
+     plantillas normales: cualquiera puede editarlas o hacer otras iguales.
+     No llevan el desglose del domicilio a proposito — sin frases condicionales
+     un pedido para recoger diria "y $0 del domicilio". Ver la nota del commit. */
+  { k:'total',    t:'Con gusto, el total de tu pedido es {total} 😊\nEn un momento enviamos tu pedido 🍟' },
+  { k:'puntos',   t:'Tus puntos por esta compra: {puntos_ganados} 🎉\nCuando nos visites o vuelvas a pedir, recuerda dar tu numero de celular para seguir acumulando y redimirlos en productos de {negocio} 🍟' },
   { k:'30',       t:'Tu pedido tarda 30 minutos aproximadamente 🍟' },
   { k:'40',       t:'Tu pedido tarda 40 minutos aproximadamente 🍟' },
   { k:'saturaso', t:'Hola! 😎 En este momento nos encontramos saturados, por lo que no estamos brindando servicio temporalmente.\nEstamos trabajando para poder tomar tu pedido lo antes posible!\nGracias por tu paciencia. 😊' },
@@ -1965,6 +1969,20 @@ async function loadQuickReplies() {
     const { data } = await sb.from('ia_config').select('respuestas_rapidas').eq('branch_id', S.branchId).maybeSingle();
     let list = (data && Array.isArray(data.respuestas_rapidas)) ? data.respuestas_rapidas : [];
     if (!list.length) { list = DEFAULT_QUICK_REPLIES.slice(); await saveQuickReplies(list); }
+    /* Las guardadas de antes traen dyn:'total' y un texto con $0 escrito a
+       mano, porque ese texto nunca se usaba. Se cambian por la plantilla real
+       una sola vez; si no, el dueño abre /total y ve ceros sin entender por que. */
+    const viejas = list.filter(r => r && r.dyn);
+    if (viejas.length) {
+      list = list.map(r => {
+        if (!r || !r.dyn) return r;
+        const def = DEFAULT_QUICK_REPLIES.find(x => x.k === r.dyn);
+        const n = Object.assign({}, r, { t: def ? def.t : r.t });
+        delete n.dyn;
+        return n;
+      });
+      await saveQuickReplies(list);
+    }
     S.quickReplies = list;
   } catch (e) { console.warn('loadQuickReplies:', e); S.quickReplies = DEFAULT_QUICK_REPLIES.slice(); }
 }
@@ -2029,7 +2047,12 @@ function qrPick(ev, i) {
   if (r.loc) { sendQuickLocation(r); return; }  // respuestas de ubicación → tarjeta de mapa
   if (r.img === '@menu') { sendQuickMenu(r); return; }  // la carta = varias imágenes del menú
   if (r.img) { sendQuickMedia(r); return; }     // respuestas con imagen se envían directo (imagen + texto)
-  if (r.dyn) { resolveDynReply(r).then(function(t){ if(t!=null){ var el=document.getElementById('msgInput'); if(el){ el.value=t; el.focus(); } } }); return; }  // /total, /puntos → valores reales del pedido
+  // Cualquier respuesta con variables se resuelve antes de pegarla. Ya no hay
+  // lista de respuestas "especiales": lo que manda es lo que dice la plantilla.
+  if (window.posVars && posVars.usadas(r.t).length) {
+    resolverRR(r).then(function(t){ if(t!=null){ var el=document.getElementById('msgInput'); if(el){ el.value=t; el.focus(); } } });
+    return;
+  }
   if (r.btn) { sendQuickBotones(r); return; }   // respuestas con botones → se envían directo
   const inp = document.getElementById('msgInput');
   if (inp) { inp.value = r.t; inp.focus(); }
@@ -2908,36 +2931,108 @@ async function toggleConvLabel(id){
 }
 function closeEtqAssign(){ document.getElementById('etqAssignModal').style.display='none'; }
 
-/* ══ Respuestas dinámicas: /total y /puntos ══
-   Con el flujo de BORRADOR, el precio a cotizar sale del pedido sin enviar
-   (chat_conversations.pedido_borrador). Si ya no hay borrador (ya se envió a
-   cocina), se usa el pedido creado (conv.order_id → pos_orders). ══ */
-async function resolveDynReply(r){
-  var cid=S.activeConvId; if(!cid){ showToast('Abre una conversación primero','info'); return null; }
-  var prod=0, domi=0, total=0, got=false;
-  try{
-    var dres=await sb.from('chat_conversations').select('pedido_borrador,order_id').eq('id',cid).maybeSingle();
-    var d=dres&&dres.data;
-    // 1) Preferir el BORRADOR sin enviar (lo que el cliente aún va a confirmar)
-    if(d && d.pedido_borrador && Array.isArray(d.pedido_borrador.productos) && d.pedido_borrador.productos.length){
-      var b=d.pedido_borrador;
-      domi=(String(b.tipo)==='domicilio')?(Number(b.domi_precio)||0):0;
-      total=Number(b.total)||0;
-      prod=total-domi;            // productos + adiciones + empaque, SIN domicilio
-      got=true;
+/* ══ Respuestas con VARIABLES ═══════════════════════════════════════════════
+   Antes esto eran dos frases escritas aqui adentro: /total y /puntos. El texto
+   que el dueño guardaba se IGNORABA, y por eso solo podian existir esas dos.
+   Ahora la plantilla manda: se leen las variables que usa, se buscan sus
+   valores de verdad y se arma el mensaje. El dueño puede escribir las que
+   quiera sin que nadie toque el codigo.
+
+   Los valores del pedido salen del BORRADOR sin enviar (lo que el cliente
+   todavia va a confirmar); si ya se envio a cocina, del pedido creado. ══ */
+async function datosPlantilla(claves) {
+  const d = {}, cid = S.activeConvId;
+  const necesita = (k) => claves.indexOf(k) >= 0;
+
+  // ── Negocio: solo se consulta si la plantilla lo pide ──
+  if (necesita('negocio') || necesita('direccion') || necesita('tiempo_entrega')) {
+    try {
+      const { data:b } = await sb.from('branches').select('name,address,operacion_config')
+        .eq('id', S.branchId).maybeSingle();
+      if (b) {
+        d.negocio = b.name || '';
+        d.direccion = b.address || '';
+        const oc = b.operacion_config || {};
+        if (oc.tiempo_entrega) d.tiempo_entrega = oc.tiempo_entrega;
+      }
+    } catch (e) {}
+  }
+  if (necesita('horario_hoy')) {
+    try {
+      const { data:ic } = await sb.from('ia_config').select('horarios').eq('branch_id', S.branchId).maybeSingle();
+      const dias = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
+      const h = (ic && ic.horarios || {})[dias[new Date().getDay()]];
+      /* Si hoy no se atiende se dice, en vez de dejar el hueco vacio: un
+         mensaje que dice "Hoy atendemos de  a " es peor que no mandarlo. */
+      d.horario_hoy = (h && h.activo) ? (h.abre + ' a ' + h.cierra) : 'hoy no hay servicio';
+    } catch (e) {}
+  }
+
+  // ── Cliente ──
+  const conv = (S.conversations||[]).find(c => c.id === cid);
+  if (necesita('nombre')) d.nombre = (conv && (conv.customer_name || conv.contact_name || conv.contact_handle)) || '';
+  if (necesita('puntos')) {
+    const tel = String((conv && (conv.contact_handle || conv.telefono)) || '').replace(/[^0-9]/g,'').slice(-10);
+    if (tel) {
+      try {
+        const { data:pt } = await sb.from('pos_puntos').select('puntos').ilike('telefono','%'+tel).maybeSingle();
+        d.puntos = Number(pt && pt.puntos) || 0;
+      } catch (e) {}
     }
-    // 2) Si no hay borrador, usar el pedido YA creado
-    else if(d && d.order_id){
-      var res=await sb.from('pos_orders').select('subtotal,packaging_fee,delivery_fee,total').eq('id',d.order_id).maybeSingle();
-      var order=res&&res.data;
-      if(order){ prod=(Number(order.subtotal)||0)+(Number(order.packaging_fee)||0); domi=Number(order.delivery_fee)||0; total=Number(order.total)||(prod+domi); got=true; }
-    }
-  }catch(e){}
-  if(!got){ showToast('Primero guarda o crea el pedido para calcular los valores','info'); return null; }
-  var puntos=Math.floor(prod/1000);
-  if(r.dyn==='total') return 'Con gusto, serían '+cpCOP(prod)+' de tu pedido'+(domi>0?' y '+cpCOP(domi)+' del domicilio':'')+', total '+cpCOP(total)+' 😊\nEn un momento enviamos tu pedido 🍟';
-  if(r.dyn==='puntos') return 'Acabas de ganar '+puntos+' punto'+(puntos===1?'':'s')+' con tu compra 🎉 Cuando nos visites en el establecimiento o vuelvas a pedir, recuerda dar tu número de celular para seguir acumulando puntos y redimirlos en productos de El Parche 🍟';
-  return r.t;
+  }
+
+  // ── Pedido ──
+  const dePedido = ['total','total_productos','domicilio','puntos_ganados'];
+  if (cid && dePedido.some(necesita)) {
+    try {
+      const { data:cc } = await sb.from('chat_conversations').select('pedido_borrador,order_id').eq('id', cid).maybeSingle();
+      let prod = null, domi = 0, total = 0;
+      if (cc && cc.pedido_borrador && Array.isArray(cc.pedido_borrador.productos) && cc.pedido_borrador.productos.length) {
+        const b = cc.pedido_borrador;
+        domi  = (String(b.tipo) === 'domicilio') ? (Number(b.domi_precio)||0) : 0;
+        total = Number(b.total)||0;
+        prod  = total - domi;             // productos + adiciones + empaque, SIN domicilio
+      } else if (cc && cc.order_id) {
+        const { data:o } = await sb.from('pos_orders').select('subtotal,packaging_fee,delivery_fee,total')
+          .eq('id', cc.order_id).maybeSingle();
+        if (o) {
+          prod  = (Number(o.subtotal)||0) + (Number(o.packaging_fee)||0);
+          domi  = Number(o.delivery_fee)||0;
+          total = Number(o.total) || (prod + domi);
+        }
+      }
+      if (prod !== null) {
+        d.total = total; d.total_productos = prod; d.domicilio = domi;
+        /* 1 punto por cada $1.000 de productos y empaque. El domicilio NO da
+           puntos: es la regla de oro, el domi nunca cuenta como venta. */
+        d.puntos_ganados = Math.floor(prod / 1000);
+      }
+    } catch (e) {}
+  }
+  return d;
+}
+
+/* Devuelve el texto listo para el compositor, o null si falta algo. */
+async function resolverRR(r) {
+  const claves = window.posVars ? posVars.usadas(r.t) : [];
+  if (!claves.length) return r.t;                 // sin variables: tal cual
+
+  const datos = await datosPlantilla(claves);
+  const dePedido = ['total','total_productos','domicilio','puntos_ganados'];
+  /* Si la plantilla pide plata del pedido y todavia no hay pedido, NO se manda
+     "serian $0": se avisa y no se pega nada. Un cero enviado al cliente es un
+     error que cuesta plata; un aviso solo cuesta un segundo. */
+  if (claves.some(k => dePedido.indexOf(k) >= 0) && datos.total === undefined) {
+    showToast('Primero guarda o crea el pedido para calcular los valores', 'info');
+    return null;
+  }
+  const out = posVars.resolver(r.t, datos);
+  const sinDato = out.faltantes.filter(f => String(f).indexOf('cálculo:') !== 0);
+  if (sinDato.length) {
+    const nom = sinDato.map(k => (posVars.POR_CLAVE[k] || {}).nombre || k);
+    showToast('Sin dato para: ' + nom.join(', ') + ' — revisa antes de enviar', 'info');
+  }
+  return out.texto;
 }
 
 // Envía una respuesta rápida que lleva IMAGEN (ej. el QR de pago) + su texto como caption.
@@ -3007,32 +3102,63 @@ function qmRenderList() {
   if (!list.length) { cont.innerHTML = '<div style="padding:14px;color:var(--text-4);font-size:12.5px;text-align:center">Sin respuestas rápidas aún</div>'; return; }
   cont.innerHTML = list.map((r,i) =>
     '<div class="ci-qm-row">'
-    + '<div class="ci-qm-info"><div class="ci-qm-k">/'+qrEsc(r.k)+'</div><div class="ci-qm-t">'+qrEsc(r.t).replace(/\n/g,' ')+'</div></div>'
+    /* Debajo del nombre va un pedazo del mensaje: con 30 respuestas, una lista
+       de puros nombres no dice cual es cual. Las variables salen con su nombre
+       en español entre comillas angulares, nunca como {puntos}. */
+    + '<div class="ci-qm-info"><div class="ci-qm-k">/'+qrEsc(r.k)+'</div><div class="ci-qm-t">'
+      + qrEsc(window.posVarsUI ? posVarsUI.resumen(r.t) : String(r.t||'')) + '</div></div>'
     + '<button class="ci-qm-ed" title="Editar" onclick="qmEdit('+i+')">✎</button>'
     + '<button class="ci-qm-del" title="Eliminar" onclick="qmDelete('+i+')">✕</button>'
     + '</div>'
   ).join('');
 }
+/* El editor se abre al crear o al editar, y se cierra al guardar. Cerrado solo
+   se ve la lista: si estuviera siempre abierto, con la vista previa debajo, la
+   lista de respuestas no cabria en el panel. */
+function qmAbrirEditor(abierto) {
+  const f = document.getElementById('qmForm'), n = document.getElementById('qmNuevoWrap');
+  if (f) f.style.display = abierto ? '' : 'none';
+  if (n) n.style.display = abierto ? 'none' : '';
+  if (abierto && window.posVarsUI) {
+    /* Contexto 'pedido': estas respuestas se mandan dentro de una conversacion,
+       asi que hay cliente y casi siempre hay pedido. Las que no aplican no se
+       esconden — salen atenuadas y con el motivo. */
+    posVarsUI.montar({ editor:'qmEditor', barra:'qmBarra', previa:'qmPrevia', contexto:'pedido' });
+  }
+}
+function qmNueva() { qmClearForm(); qmAbrirEditor(true); const k = document.getElementById('qmKey'); if (k) k.focus(); }
 function qmClearForm() {
   S.qmEditIdx = -1;
-  const k = document.getElementById('qmKey'), t = document.getElementById('qmText'), c = document.getElementById('qmCancelEdit'), s = document.getElementById('qmSaveBtn');
-  if (k) k.value = ''; if (t) t.value = ''; if (c) c.style.display = 'none'; if (s) s.textContent = 'Agregar respuesta';
+  const k = document.getElementById('qmKey'), s = document.getElementById('qmSaveBtn');
+  if (k) k.value = '';
+  if (window.posVarsUI) posVarsUI.poner('');
+  if (s) s.textContent = 'Agregar respuesta';
+  qmAbrirEditor(false);
 }
 function qmEdit(i) {
   const r = (S.quickReplies||[])[i]; if (!r) return;
   S.qmEditIdx = i;
-  const k = document.getElementById('qmKey'), t = document.getElementById('qmText'), c = document.getElementById('qmCancelEdit'), s = document.getElementById('qmSaveBtn');
-  if (k) k.value = r.k; if (t) t.value = r.t; if (c) c.style.display = 'inline-flex'; if (s) s.textContent = 'Guardar cambios';
+  qmAbrirEditor(true);
+  const k = document.getElementById('qmKey'), s = document.getElementById('qmSaveBtn');
+  if (k) k.value = r.k;
+  if (window.posVarsUI) posVarsUI.poner(r.t || '');
+  if (s) s.textContent = 'Guardar cambios';
   if (k) k.focus();
 }
 async function qmSave() {
   const k = (document.getElementById('qmKey').value||'').trim();
-  const t = (document.getElementById('qmText').value||'').trim();
+  const t = (window.posVarsUI ? posVarsUI.leer() : '').trim();
   if (!k || !t) { showToast('Escribe la palabra clave y el mensaje', 'error'); return; }
-  const key = k.replace(/^\/+/, '');   // sin la barra
+  const key = k.replace(/^[/]+/, '');   // sin la barra
   S.quickReplies = S.quickReplies || [];
-  if (S.qmEditIdx >= 0) S.quickReplies[S.qmEditIdx] = { k:key, t };
-  else S.quickReplies.unshift({ k:key, t });
+  if (S.qmEditIdx >= 0) {
+    /* Se conserva lo que el editor no maneja (imagen, ubicacion, botones): si se
+       reemplazara la fila entera, editarle el texto a /QR2 le borraria el QR. */
+    const ant = S.quickReplies[S.qmEditIdx] || {};
+    const nuevo = Object.assign({}, ant, { k:key, t:t });
+    delete nuevo.dyn;                   // ya no hace falta: ahora el texto manda
+    S.quickReplies[S.qmEditIdx] = nuevo;
+  } else S.quickReplies.unshift({ k:key, t:t });
   await saveQuickReplies();
   qmRenderList(); qmClearForm();
   showToast('Respuesta guardada ✓', 'success');
