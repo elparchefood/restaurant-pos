@@ -212,9 +212,6 @@ html.tema-claro .ep-nav.on, html:not(.tema-oscuro) .ep-nav.on {
   position: absolute; right: 0; bottom: 0; width: 150px; height: 54px;
   background: var(--bg); border-top-left-radius: 22px; z-index: 1;
 }
-.ep-wc-cut::before, .ep-wc-cut::after { content: ""; position: absolute; width: 16px; height: 16px; }
-.ep-wc-cut::before { left: -16px; bottom: 0; background: radial-gradient(circle 16px at 0 0, transparent 15.4px, var(--bg) 15.6px); }
-.ep-wc-cut::after  { right: 0; top: -16px; background: radial-gradient(circle 16px at 0 0, transparent 15.4px, var(--bg) 15.6px); }
 .ep-wc-btn {
   position: absolute; right: 6px; bottom: 6px; z-index: 2;
   background: var(--accent); color: #1a1204; border: none; border-radius: 22px;
@@ -251,9 +248,6 @@ html.tema-claro .ep-nav.on, html:not(.tema-oscuro) .ep-nav.on {
   position: absolute; right: 0; top: 0; width: 54px; height: 54px;
   background: var(--bg); border-bottom-left-radius: 22px; z-index: 1;
 }
-.ep-pts-cut::before, .ep-pts-cut::after { content: ""; position: absolute; width: 16px; height: 16px; }
-.ep-pts-cut::before { left: -16px; top: 0; background: radial-gradient(circle 16px at 0 100%, transparent 15.4px, var(--bg) 15.6px); }
-.ep-pts-cut::after  { right: 0; bottom: -16px; background: radial-gradient(circle 16px at 0 100%, transparent 15.4px, var(--bg) 15.6px); }
 .ep-pts-btn {
   position: absolute; right: 4px; top: 4px; z-index: 2;
   width: 42px; height: 42px; border-radius: 50%; border: none; cursor: pointer;
@@ -628,19 +622,9 @@ html.tema-claro .ep-seg-full button.on, html:not(.tema-oscuro) .ep-seg-full butt
 .ep-avatar-g.cargando { opacity: .5; pointer-events: none; }
 .ep-side-logo { overflow: hidden; }
 
-
-/* ── Fuera la muesca de las tarjetas ──────────────────────────────────────
-   Las dos tarjetas traian del diseño un "mordisco" en la esquina: un recuadro
-   pintado del color del fondo para que el boton pareciera colgar por fuera.
-   Medido: el color era EXACTO al del fondo, no estaba mal pintado. El problema
-   era la forma — ese recuadro claro sobre una tarjeta oscura se lee como un
-   bloque blanco pegado encima, y era justo lo que Sergio veia.
-   Ahora el boton va sobre la tarjeta, que es lo que se queria mostrar. */
-.ep-wc-cut, .ep-pts-cut { display: none; }
-.ep-wc-btn {
-  background: rgba(255,255,255,.16); color: #fff;
-  border: 1px solid rgba(255,255,255,.26);
-  backdrop-filter: blur(6px); box-shadow: none;
-}
-.ep-wc-btn:hover { background: rgba(255,255,255,.24); }
-.ep-pts-btn { box-shadow: 0 6px 18px rgba(0,0,0,.18); }
+/* Los "filetes" de las muescas, quitados. Eran cuadraditos de 16x16 pintados
+   con el color del fondo para cuadrar las esquinas de la muesca y que la
+   tarjeta se leyera como un rectangulo perfecto. Sobre una tarjeta oscura esos
+   parches se ven como un blanco muy blanco pegado encima -- es lo que Sergio
+   señalaba. Sin ellos la tarjeta conserva su forma y su curva, que es lo que
+   se queria mostrar. */

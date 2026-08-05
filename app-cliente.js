@@ -454,6 +454,7 @@
       '<div class="ep-wc-num">•••• •••• •••• ' + esc(tel.slice(-4)) + '</div>' +
       '<div class="ep-wc-nom">' + esc(c.nombre || '') + '</div>' +
       '<div class="ep-wc-spark">' + ico('estrella', 17) + '</div>' +
+      '<div class="ep-wc-cut"></div>' +
       '<button class="ep-wc-btn" data-ir="billetera">＋ Recargar</button>' +
     '</div>';
 
@@ -462,6 +463,7 @@
       '<div class="ep-pts-lbl">Puntos disponibles</div>' +
       '<div class="ep-pts-num">' + (Number(c.puntos) || 0) + '<span>pts</span></div>' +
       '<div class="ep-pts-nota">Ganas puntos con todos tus pedidos</div>' +
+      '<div class="ep-pts-cut"></div>' +
       '<button class="ep-pts-btn" data-ir="puntos">' + ico('gift', 18) + '</button>' +
     '</div>';
 
@@ -527,8 +529,7 @@
 
   /* Los botones de arriba a la derecha. En UN solo sitio porque los usan el
      inicio y todas las demas pantallas: copiados, un dia dejarian de coincidir.
-     La foto del cliente va en todas — es como sabe de quien es la sesion sin
-     tener que ir a buscarlo. */
+     La foto del cliente va en todas — es como sabe de quien es la sesion. */
   function botonesArriba(extra) {
     var c = S.cliente || {};
     return '<div class="ep-saludo-btns">' + (extra || '') +
