@@ -36,10 +36,16 @@
     var r = await s.from('pos_puntos_catalogo').select('*').eq('tenant_id', _tenant).eq('activo', true);
     _cat = r.data || [];
     if (!_cat.length) return;
+    /* Solo los que son PRODUCTO. Las filas de combo no tienen product_id, y
+       colar un null en el `in(...)` es pedirle a la base una fila que no existe. */
     var ids = [];
-    _cat.forEach(function (f) { if (ids.indexOf(f.product_id) < 0) ids.push(f.product_id); });
-    var rp = await s.from('pos_products').select('id,presentations,variables').in('id', ids);
-    (rp.data || []).forEach(function (p) { _prods[p.id] = p; });
+    _cat.forEach(function (f) {
+      if (f.product_id && ids.indexOf(f.product_id) < 0) ids.push(f.product_id);
+    });
+    if (ids.length) {
+      var rp = await s.from('pos_products').select('id,presentations,variables').in('id', ids);
+      (rp.data || []).forEach(function (p) { _prods[p.id] = p; });
+    }
   }
 
   async function disponibles(tel) {
@@ -86,7 +92,19 @@
   /* Cuántos puntos cuesta UNA unidad de este ítem, o null si no se puede pagar
      con puntos. El motivo se devuelve para poder decírselo al cajero. */
   function canjeDe(item) {
-    if (!item || !item.productId) return { ok: false, motivo: 'no está en el catálogo de puntos' };
+    if (!item) return { ok: false, motivo: 'no está en el catálogo de puntos' };
+
+    /* Un COMBO no tiene product_id: se reconoce por el combo_id que quedó
+       guardado en el pedido. Y no tiene tamaño ni variantes que revisar —
+       todo eso quedó decidido al armarlo en el catálogo. */
+    var comboId = item.selections && item.selections.combo_id;
+    if (comboId) {
+      var fc = _cat.filter(function (f) { return String(f.combo_id) === String(comboId); })[0];
+      if (!fc) return { ok: false, motivo: 'ese combo no está en el catálogo de puntos' };
+      return { ok: true, puntos: Number(fc.puntos) || 0, dinero: Number(fc.dinero) || 0, fila: fc };
+    }
+
+    if (!item.productId) return { ok: false, motivo: 'no está en el catálogo de puntos' };
     var filas = _cat.filter(function (f) { return f.product_id === item.productId; });
     if (!filas.length) return { ok: false, motivo: 'no está en el catálogo de puntos' };
 
@@ -99,7 +117,7 @@
     }
     if (!fila) return { ok: false, motivo: 'ese tamaño no se puede pagar con puntos' };
     if (!variantesOk(fila, item)) return { ok: false, motivo: 'esa variante no entra en el canje' };
-    return { ok: true, puntos: Number(fila.puntos) || 0, fila: fila };
+    return { ok: true, puntos: Number(fila.puntos) || 0, dinero: Number(fila.dinero) || 0, fila: fila };
   }
 
   async function consumir(tel, puntos, orderId, detalle, quien) {
@@ -130,7 +148,7 @@
   function modalCanje(items, saldo, onOk) {
     var filas = items.map(function (it) {
       var c = canjeDe(it);
-      return { it: it, ok: c.ok, puntos: c.puntos || 0, motivo: c.motivo || '' };
+      return { it: it, ok: c.ok, puntos: c.puntos || 0, dinero: c.dinero || 0, motivo: c.motivo || '' };
     });
     var canjeables = filas.filter(function (f) { return f.ok; });
 
@@ -140,11 +158,15 @@
     function money(n) { return '$' + Number(n || 0).toLocaleString('es-CO'); }
     function pinta() {
       var sel = [].slice.call(ov.querySelectorAll('.pp-chk:checked'));
-      var pts = 0, pesos = 0;
+      var pts = 0, pesos = 0, dinero = 0;
       sel.forEach(function (ch) {
         pts += Number(ch.dataset.pts) || 0;
         pesos += Number(ch.dataset.pesos) || 0;
+        dinero += Number(ch.dataset.dinero) || 0;
       });
+      /* En un canje MIXTO el cliente pone plata además de los puntos, así que
+         esa parte SÍ entra a la venta: solo sale del total la diferencia. */
+      pesos = Math.max(0, pesos - dinero);
       var falta = pts > saldo;
       ov.querySelector('#pp-tot').innerHTML =
           '<div style="display:flex;justify-content:space-between;font-size:13px">'
@@ -155,6 +177,11 @@
         +   '<span style="color:' + (falta ? '#DC2626' : '#64748B') + '">'
         +     (falta ? 'no alcanza · tiene ' + saldo.toLocaleString('es-CO')
                      : (saldo - pts).toLocaleString('es-CO')) + '</span></div>'
+        + (dinero > 0
+            ? '<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px">'
+            +   '<span style="color:#94A3B8">Y además paga</span>'
+            +   '<b style="color:#0F172A">' + money(dinero) + '</b></div>'
+            : '')
         + '<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px">'
         +   '<span style="color:#94A3B8">Sale de la venta</span>'
         +   '<span style="color:#64748B">' + money(pesos) + '</span></div>';
@@ -181,14 +208,16 @@
               + '<span style="font-size:12px;color:#94A3B8">' + money(pesos) + '</span></div>';
           }
           var ptsTot = f.puntos * (Number(f.it.qty) || 1);
+          var dinTot = f.dinero * (Number(f.it.qty) || 1);
           return '<label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #F1F5F9;cursor:pointer">'
             + '<input type="checkbox" class="pp-chk" data-i="' + i + '" data-pts="' + ptsTot + '"'
-            +   ' data-pesos="' + pesos + '" style="width:15px;height:15px;accent-color:#5B6BFF">'
+            +   ' data-pesos="' + pesos + '" data-dinero="' + dinTot + '" style="width:15px;height:15px;accent-color:#5B6BFF">'
             + '<span style="flex:1;min-width:0"><span style="font-size:13px;color:#0F172A;font-weight:600">'
             +   esc(f.it.name) + '</span>'
             + '<span style="display:block;font-size:11.5px;color:#94A3B8">' + money(pesos) + '</span></span>'
             + '<span style="font-weight:800;font-size:12.5px;color:#7C3AED;background:#F5F3FF;border:1px solid #DDD6FE;padding:3px 8px;border-radius:7px;white-space:nowrap">'
-            +   ptsTot.toLocaleString('es-CO') + ' pts</span></label>';
+            +   ptsTot.toLocaleString('es-CO') + ' pts'
+            +   (dinTot > 0 ? ' + ' + money(dinTot) : '') + '</span></label>';
         }).join('')
         : '<div style="padding:24px;text-align:center;color:#94A3B8;font-size:12.5px">Este pedido no tiene productos.</div>')
       + (canjeables.length ? '' :
@@ -213,16 +242,20 @@
     ov.onclick = function (e) { if (e.target === ov) cerrar(); };
     ov.querySelector('#pp-ok').onclick = function () {
       var sel = [].slice.call(ov.querySelectorAll('.pp-chk:checked'));
-      var pts = 0, pesos = 0, nombres = [], ids = [];
+      var pts = 0, pesos = 0, dinero = 0, nombres = [], ids = [];
       sel.forEach(function (ch) {
         pts += Number(ch.dataset.pts) || 0;
         pesos += Number(ch.dataset.pesos) || 0;
+        dinero += Number(ch.dataset.dinero) || 0;
         var it = filas[Number(ch.dataset.i)].it;
         nombres.push(it.name); ids.push(it.id);
       });
       cerrar();
-      // itemIds: la pantalla los necesita para SACAR esos productos del total.
-      onOk({ puntos: pts, pesos: pesos, detalle: nombres.join(', '), itemIds: ids });
+      /* itemIds: la pantalla los necesita para SACAR esos productos del total.
+         dinero: lo que el cliente igual paga en un canje mixto, y que por lo
+         tanto SÍ es venta. */
+      onOk({ puntos: pts, pesos: Math.max(0, pesos - dinero), dinero: dinero,
+             detalle: nombres.join(', '), itemIds: ids });
     };
   }
 

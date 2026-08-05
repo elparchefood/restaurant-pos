@@ -212,10 +212,14 @@ function calc() {
      pero su precio sale del total: si se cobrara como un pago de $8.000, la
      venta del día quedaría inflada con plata que nunca llegó a la caja. */
   const canjeIds = (SP.canje && SP.canje.itemIds) || [];
+  /* CANJE MIXTO: si el premio es "200 puntos + $10.000", esos $10.000 los paga
+     el cliente de verdad, así que SÍ son venta. Solo sale del total la
+     diferencia. Sin esto la caja quedaría corta justo por la plata que entró. */
+  const canjeDinero = Number(SP.canje && SP.canje.dinero) || 0;
   const subtotal = SP.items.reduce((s, i) =>
-    s + (canjeIds.indexOf(i.id) >= 0 ? 0 : i.qty * i.unitPrice), 0);
-  const canjeValor = SP.items.reduce((s, i) =>
-    s + (canjeIds.indexOf(i.id) >= 0 ? i.qty * i.unitPrice : 0), 0);
+    s + (canjeIds.indexOf(i.id) >= 0 ? 0 : i.qty * i.unitPrice), 0) + canjeDinero;
+  const canjeValor = Math.max(0, SP.items.reduce((s, i) =>
+    s + (canjeIds.indexOf(i.id) >= 0 ? i.qty * i.unitPrice : 0), 0) - canjeDinero);
   const empaque  = Number(SP.empaque) || 0;                       // siempre se cobra
   const domi     = SP.cobrarDomicilio ? (Number(SP.domicilio) || 0) : 0; // opcional
   const tipAmt   = tipCalc(subtotal);                             // propina solo sobre productos
@@ -1797,7 +1801,8 @@ function ptAplicarPuntos() {
     /* El canje NO es un pago: es una salida de la venta. Se guarda aparte y
        calc() resta esos productos del total a cobrar. Así la caja solo cuenta
        el dinero que de verdad entró. */
-    SP.canje = { puntos: sel.puntos, itemIds: sel.itemIds || [], detalle: sel.detalle };
+    SP.canje = { puntos: sel.puntos, itemIds: sel.itemIds || [],
+                 dinero: Number(sel.dinero) || 0, detalle: sel.detalle };
     SP.entry = 0;
     // Si el método sigue en Puntos no se puede seguir cobrando: se vuelve al primero.
     if (_ptEsPuntos()) {

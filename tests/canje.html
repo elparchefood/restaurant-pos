@@ -1,0 +1,101 @@
+<meta charset="utf-8"><title>Prueba del canje</title>
+<pre id="out" style="font:12px/1.6 monospace;white-space:pre-wrap"></pre>
+<script src="../pos-puntos.js"></script>
+<script>
+/* pos-puntos.js decide qué del pedido se puede pagar con puntos. Aquí se le
+   mete un catálogo de mentira para probar los dos casos nuevos: combos, y
+   premios que se pagan con puntos MÁS plata. */
+(async function () {
+  var ok = 0, mal = 0, log = [];
+  function es(n, a, b) { if (JSON.stringify(a) === JSON.stringify(b)) ok++;
+    else { mal++; log.push('FALLA ' + n + '\n   dio      ' + JSON.stringify(a) + '\n   esperaba ' + JSON.stringify(b)); } }
+
+  // Catálogo de puntos de mentira, con las tres formas que existen hoy.
+  var CAT = [
+    { product_id:'p-coca',   pres_id:'pr-personal', puntos:400, dinero:0,     variantes:null },
+    { product_id:'p-salchi', pres_id:'pr-fam',      puntos:200, dinero:10000, variantes:null },
+    { combo_id:'c-sand', product_id:null, pres_id:null, puntos:800, dinero:15000, variantes:null },
+  ];
+  var PRODS = [
+    { id:'p-coca',   presentations:[{id:'pr-personal',name:'Personal'},{id:'pr-litro',name:'Litro'}], variables:[] },
+    { id:'p-salchi', presentations:[{id:'pr-per',name:'Personal'},{id:'pr-fam',name:'Familiar'}],     variables:[] },
+  ];
+  /* Un cliente de mentira, para probar el camino REAL de carga en vez de
+     meterle los datos por la puerta de atras. */
+  var pedidos = [];
+  window._pos = { sb: {
+    from: function (t) {
+      pedidos.push(t);
+      var api = { data: t === 'pos_puntos_catalogo' ? CAT : PRODS };
+      api.select = function () { return api; };
+      api.eq = function () { return api; };
+      api.in = function (col, ids) { api.data = PRODS.filter(function (p) { return ids.indexOf(p.id) >= 0; }); return api; };
+      api.then = function (res) { return Promise.resolve({ data: api.data }).then(res); };
+      return api;
+    },
+  } };
+
+  posPuntos.setCtx('t1', 'b1');
+  await posPuntos.cargar();
+  es('cargó el catálogo', posPuntos.hayCatalogo(), true);
+  es('no pidió productos con id nulo', pedidos.indexOf('pos_products') >= 0, true);
+
+  // ── producto suelto, solo puntos ──
+  var r = posPuntos.canjeDe({ productId:'p-coca', name:'Coca Personal', qty:1, unitPrice:5000,
+                              selections:{ pres:'Personal' } });
+  es('coca personal se puede', r.ok, true);
+  es('cuesta 400 pts', r.puntos, 400);
+  es('sin plata extra', r.dinero, 0);
+
+  var r2 = posPuntos.canjeDe({ productId:'p-coca', name:'Coca Litro', qty:1, unitPrice:9000,
+                               selections:{ pres:'Litro' } });
+  es('el litro NO está en el catálogo', r2.ok, false);
+  es('y dice por qué', /tamaño/.test(r2.motivo), true);
+
+  // ── producto con canje MIXTO ──
+  var r3 = posPuntos.canjeDe({ productId:'p-salchi', name:'Salchipapa Familiar', qty:1, unitPrice:27000,
+                               selections:{ pres:'Familiar' } });
+  es('la familiar se puede', r3.ok, true);
+  es('cuesta 200 pts', r3.puntos, 200);
+  es('y además $10.000', r3.dinero, 10000);
+
+  // ── COMBO ──
+  var r4 = posPuntos.canjeDe({ productId:null, name:'Combo Sandwich', qty:1, unitPrice:35000,
+                               selections:{ combo_id:'c-sand', combo_nombre:'Combo Sandwich' } });
+  es('el combo se reconoce', r4.ok, true);
+  es('cuesta 800 pts', r4.puntos, 800);
+  es('y además $15.000', r4.dinero, 15000);
+
+  var r5 = posPuntos.canjeDe({ productId:null, name:'Otro combo', qty:1, unitPrice:20000,
+                               selections:{ combo_id:'c-otro' } });
+  es('un combo que no está, no se puede', r5.ok, false);
+  es('y lo dice claro', /combo/.test(r5.motivo), true);
+
+  // ── un producto que no está en el catálogo ──
+  var r6 = posPuntos.canjeDe({ productId:'p-x', name:'Perro', qty:1, unitPrice:12000, selections:{} });
+  es('producto fuera del catálogo', r6.ok, false);
+
+  // ── LO QUE SALE DE LA VENTA ──
+  // Es la cuenta que importa: en un canje mixto el cliente SÍ paga su parte,
+  // así que esa plata no puede desaparecer de la venta del día.
+  function saleDeLaVenta(item) {
+    var c = posPuntos.canjeDe(item);
+    if (!c.ok) return null;
+    var linea = (item.qty || 1) * (item.unitPrice || 0);
+    return Math.max(0, linea - c.dinero * (item.qty || 1));
+  }
+  es('solo puntos: sale la línea entera',
+     saleDeLaVenta({ productId:'p-coca', qty:1, unitPrice:5000, selections:{pres:'Personal'} }), 5000);
+  es('mixto: sale solo la diferencia',
+     saleDeLaVenta({ productId:'p-salchi', qty:1, unitPrice:27000, selections:{pres:'Familiar'} }), 17000);
+  es('mixto x2: la plata también se multiplica',
+     saleDeLaVenta({ productId:'p-salchi', qty:2, unitPrice:27000, selections:{pres:'Familiar'} }), 34000);
+  es('combo mixto',
+     saleDeLaVenta({ productId:null, qty:1, unitPrice:35000, selections:{combo_id:'c-sand'} }), 20000);
+  es('si la plata cubre todo, no sale nada de la venta',
+     saleDeLaVenta({ productId:'p-salchi', qty:1, unitPrice:8000, selections:{pres:'Familiar'} }), 0);
+
+  out.textContent = (mal ? log.join('\n\n') + '\n\n' : '') + ok + ' bien, ' + mal + ' mal';
+  document.title = mal ? 'FALLAN ' + mal : 'TODO BIEN (' + ok + ')';
+})();
+</script>
