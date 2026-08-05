@@ -397,7 +397,7 @@ function prodCard(p, color) {
       ${window.posStock ? posStock.badge(p.id) : ''}
       ${p.photo_url
         ? `<img src="${p.photo_url}" alt="${escHtml(p.name)}" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:9px 9px 0 0;display:block">`
-        : `<div class="tp-thumb" style="height:90px;width:100%;border-radius:9px 9px 0 0;border:none">
+        : `<div class="tp-thumb" style="aspect-ratio:4/3;width:100%;border-radius:9px 9px 0 0;border:none">
              <div class="tp-thumb-label">${escHtml(p.name.slice(0,12))}</div>
            </div>`
       }
@@ -1494,7 +1494,6 @@ function bindEvents() {
         // ("Cobrar" / "Cobrar y enviar a cocina", modules/ventas-salon.js). Este
         // botón dentro de la mesa era un atajo duplicado.
         case 'vaciar':       clearCart(); break;
-        case 'release':      releaseTable(); break;
         default: break;
       }
     });
@@ -1609,26 +1608,6 @@ async function clearCart() {
   S.cart = [];
   paintCartState();
 }
-
-// ── Liberar mesa ──────────────────────────────────────────────
-async function releaseTable() {
-  if (S.cart.length) {
-    const okRelease = await tpConfirm({ title: 'Liberar mesa', msg: 'La comanda tiene ítems sin guardar. ¿Seguro que quieres liberar la mesa?', okLabel: 'Liberar mesa', variant: 'danger' });
-    if (!okRelease) return;
-  }
-  try {
-    // Al liberar termina la visita: sin borrar la marca, la proxima gente que
-    // se siente heredaria los pedidos de la anterior en la comanda.
-    await sb.from('pos_tables').update({ status: 'libre', sesion_at: null }).eq('id', S.tableId);
-    if (S.order?.id && S.order.status === 'open') {
-      await sb.from('pos_orders').update({ status: 'cancelled' }).eq('id', S.order.id);
-    }
-    window.location.href = 'ventas.html';
-  } catch(e) {
-    toast('Error al liberar: ' + (e?.message || e), 'error');
-  }
-}
-
 
 /* ══════════════════════════════════════════════════════════════════
    CLIENTE DE LA MESA

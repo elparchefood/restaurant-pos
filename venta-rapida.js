@@ -399,7 +399,7 @@
             ${window.posStock ? posStock.badge(p.id) : ''}
             ${p.photo_url
               ? `<img src="${p.photo_url}" alt="" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:9px 9px 0 0;display:block">`
-              : `<div class="tp-thumb" style="height:90px"><span class="tp-thumb-label">foto · …</span></div>`
+              : `<div class="tp-thumb" style="aspect-ratio:4/3;width:100%"><span class="tp-thumb-label">foto · …</span></div>`
             }
             ${p.is_favorite ? `<span class="tp-star-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>` : ''}
             ${qty > 0 ? `<span class="tp-qty-badge">${qty}</span>` : ''}

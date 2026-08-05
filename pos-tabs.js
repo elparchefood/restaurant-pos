@@ -56,11 +56,16 @@
         + (pr.dinero > 0 ? ' + $' + Number(pr.dinero).toLocaleString('es-CO') : '');
       /* El precio en puntos va ENCIMA de la tarjeta, no reemplazando el precio
          en plata: el producto se sigue pudiendo cobrar normal, y el cajero
-         necesita ver los dos números para explicárselo al cliente. */
-      return '<div style="position:relative">' + card(p, '#7C3AED')
-        + '<span style="position:absolute;top:6px;left:6px;z-index:2;background:#7C3AED;color:#fff;'
-        + 'font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:999px;white-space:nowrap;'
-        + 'box-shadow:0 1px 4px rgba(0,0,0,.2)">' + etiqueta + '</span></div>';
+         necesita ver los dos números para explicárselo al cliente.
+         La etiqueta se mete DENTRO de la tarjeta, no envolviéndola en otro div:
+         la rejilla coloca a sus hijos directos, y un envoltorio de más le
+         cambia el tamaño a la tarjeta y la saca de la cuadrícula. */
+      var html = card(p, '#7C3AED');
+      var cierre = html.indexOf('>');
+      if (cierre < 0) return html;
+      return html.slice(0, cierre + 1)
+        + '<span class="pos-pts-badge">' + etiqueta + '</span>'
+        + html.slice(cierre + 1);
     }).join('');
   }
 
