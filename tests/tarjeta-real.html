@@ -1,0 +1,89 @@
+<meta charset="utf-8"><title>Tarjeta en la pantalla real</title>
+<link rel="stylesheet" href="../tomar-pedido.css">
+<link rel="stylesheet" href="../pos-core.css">
+<div id="host"></div>
+<pre id="out" style="font:12px/1.6 monospace;white-space:pre-wrap;padding:12px"></pre>
+<script>
+/* En vez de copiar la tarjeta (que fue mi error antes), se trae el HTML REAL de
+   tomar-pedido.html y se pinta dentro de sus propios contenedores. Asi se mide
+   la tarjeta donde de verdad vive, con el CSS y la anidacion de la pantalla. */
+(async function () {
+  var ok = 0, mal = 0, log = [];
+  function es(n, a, b) { if (JSON.stringify(a) === JSON.stringify(b)) ok++;
+    else { mal++; log.push('FALLA ' + n + ': dio ' + JSON.stringify(a) + ', esperaba ' + JSON.stringify(b)); } }
+
+  var html = await (await fetch('../tomar-pedido.html')).text();
+  var doc = new DOMParser().parseFromString(html, 'text/html');
+  var browser = doc.querySelector('.tp-browser');
+  // El navegador de productos vive dentro del cuerpo, con su alto: se replica.
+  var caja = document.createElement('div');
+  caja.className = 'tp-body';
+  caja.style.cssText = 'display:flex;height:640px;width:900px';
+  caja.appendChild(document.importNode(browser, true));
+  document.getElementById('host').appendChild(caja);
+
+  // La MISMA funcion de tarjeta de la pantalla, sacada del archivo real.
+  var js = await (await fetch('../tomar-pedido.js')).text();
+  var ini = js.indexOf('function prodCard(');
+  // Se corta contando llaves: la funcion lleva plantillas con llaves adentro.
+  var fin = (function () {
+    var k = js.indexOf('{', ini), prof = 0;
+    for (; k < js.length; k++) {
+      if (js[k] === '{') prof++;
+      else if (js[k] === '}') { prof--; if (!prof) return k + 1; }
+    }
+    return js.length;
+  })();
+  var S = { favs: new Set(), cart: [] };
+  var escHtml = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var COPF = function (n) { return '$' + Number(n||0).toLocaleString('es-CO'); };
+  var basePrice = function (p) { return Number(p.price) || 0; };
+  var prodCard = new Function('S','escHtml','COPF','basePrice','window',
+    js.slice(ini, fin) + '; return prodCard;')(S, escHtml, COPF, basePrice, {});
+
+  var FOTO = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="#cbd5e1"/></svg>');
+  var conFoto  = { id:'p1', name:'Con foto',  price:12000, photo_url:FOTO };
+  var sinFoto  = { id:'p2', name:'Sin foto',  price:12000, photo_url:null };
+  var combo    = { id:'combo:c1', name:'Combo El Parche', price:35000, photo_url:null };
+
+  // Grid de una categoría (donde las tarjetas se ven bien) y grid de combos.
+  var gCat = document.querySelector('#prod-grid');
+  var gCom = document.querySelector('#tp-combos-grid');
+  es('existe la grilla de categoría', !!gCat, true);
+  es('existe la grilla de combos', !!gCom, true);
+  gCat.innerHTML = prodCard(conFoto) + prodCard(sinFoto);
+  gCom.innerHTML = prodCard(combo);
+
+  // Los dos paneles tienen que estar visibles para poder medir.
+  document.querySelectorAll('.tp-pane').forEach(function (p) { p.classList.add('on'); });
+  document.querySelectorAll('.tp-sub').forEach(function (p) { p.classList.add('on'); });
+  await new Promise(function (r) { setTimeout(r, 80); });
+
+  function medir(el) { var r = el.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }
+  var cat1 = medir(gCat.children[0]), cat2 = medir(gCat.children[1]), com = medir(gCom.children[0]);
+
+  /* Lo que se rompio de verdad: la tarjeta llevaba un <button> DENTRO de otro
+     <button>, que es HTML invalido. El navegador cerraba el de fuera y sacaba
+     el resto como hermanos, asi que UNA tarjeta ocupaba TRES celdas. */
+  es('dos productos son dos celdas, no seis', gCat.children.length, 2);
+  es('un combo es una sola celda', gCom.children.length, 1);
+  es('la celda del combo es la tarjeta', gCom.children[0].classList.contains('lm-prod'), true);
+  es('la tarjeta lleva su nombre y precio dentro', !!gCom.children[0].querySelector('.tp-prod-foot'), true);
+  es('y la estrella de favorito dentro', !!gCat.children[0].querySelector('.lm-fav-btn'), true);
+
+  es('la del combo mide igual de ancho que una de categoría', com[0], cat1[0]);
+  es('y igual de alto', com[1], cat1[1]);
+  es('con foto y sin foto miden igual', cat1, cat2);
+
+  var f = function (el) { var t = el.querySelector('img, .tp-thumb').getBoundingClientRect();
+                          return Math.round(t.width / t.height * 100) / 100; };
+  es('la foto guarda la misma proporción', f(gCom.children[0]), f(gCat.children[0]));
+
+  out.textContent = 'categoría con foto: ' + cat1.join('x')
+    + '\ncategoría sin foto: ' + cat2.join('x')
+    + '\ncombo:              ' + com.join('x')
+    + '\n\n' + (mal ? log.join('\n') + '\n\n' : '') + ok + ' bien, ' + mal + ' mal';
+  document.title = mal ? 'FALLAN ' + mal : 'TODO BIEN (' + ok + ')';
+})();
+</script>

@@ -405,9 +405,16 @@ function prodCard(p, color) {
              <div class="tp-thumb-label">${escHtml(p.name.slice(0,12))}</div>
            </div>`
       }
-      <button class="lm-fav-btn${isFav ? ' is-fav' : ''}" data-fav-id="${p.id}" title="Favorito" style="position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.9);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;z-index:1">
+      <!-- OJO: span y no button. Un <button> DENTRO de otro <button> es HTML
+           invalido: el navegador cierra el de fuera al encontrar el de dentro y
+           saca el resto como hermanos. La tarjeta se partia en TRES celdas de la
+           rejilla (el recuadro de la foto, la estrella y el pie con nombre y
+           precio), y por eso se veia de un tamaño raro. Se notaba sobre todo en
+           Combos, donde hay una sola tarjeta. El clic va por delegacion
+           (data-fav-id), asi que un span funciona igual. -->
+      <span role="button" tabindex="-1" class="lm-fav-btn${isFav ? ' is-fav' : ''}" data-fav-id="${p.id}" title="Favorito" style="position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.9);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;z-index:1">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="${isFav ? '#F59E0B' : 'none'}" stroke="${isFav ? '#F59E0B' : '#94A3B8'}" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-      </button>
+      </span>
     </div>
     <div class="tp-prod-foot">
       <div class="tp-prod-name">${escHtml(p.name)}</div>
