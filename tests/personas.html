@@ -1,0 +1,56 @@
+<meta charset="utf-8"><title>Número de personas</title>
+<div id="host"></div><pre id="out" style="font:12px/1.6 monospace;white-space:pre-wrap"></pre>
+<script>
+/* El contador de personas de la mesa. Se trae el HTML y las funciones REALES
+   del archivo, y se comprueba la secuencia tal como pasa al abrir la mesa. */
+(async function () {
+  var ok=0, mal=0, log=[];
+  function es(n,a,b){ if(JSON.stringify(a)===JSON.stringify(b)) ok++;
+    else {mal++; log.push('FALLA '+n+': dio '+JSON.stringify(a)+', esperaba '+JSON.stringify(b));} }
+
+  var html = await (await fetch('../tomar-pedido.html')).text();
+  var doc  = new DOMParser().parseFromString(html, 'text/html');
+  var num  = doc.querySelector('#personas-num');
+  es('el HTML trae el 2 escrito a mano', num.textContent.trim(), '2');
+  document.getElementById('host').appendChild(document.importNode(num.closest('div'), true));
+
+  var js = await (await fetch('../tomar-pedido.js')).text();
+  function sacar(nombre) {
+    var i = js.indexOf('function ' + nombre + '('), k = js.indexOf('{', i), prof = 0;
+    for (; k < js.length; k++) {
+      if (js[k]==='{') prof++;
+      else if (js[k]==='}') { prof--; if(!prof) return js.slice(i, k+1); }
+    }
+  }
+  var S = { personas: 2 };
+  var $ = function (id) { return document.getElementById(id); };
+  var api = new Function('S','$', sacar('pintarPersonas') + sacar('changPersonas')
+    + '; return {pintar:pintarPersonas, cambiar:changPersonas};')(S, $);
+
+  // Así llega desde el salón: ?table=X&guests=5
+  var urlGuests = 5;
+  if (urlGuests > 0) S.personas = urlGuests;
+  api.pintar();
+  es('al abrir la mesa con 5 personas, muestra 5', $('personas-num').textContent, '5');
+
+  // Un pedido ya guardado SIN personas no debe pisar lo que se eligió.
+  var data = { guests: null };
+  if (Number(data.guests) > 0) S.personas = Number(data.guests);
+  api.pintar();
+  es('un pedido sin personas no lo pisa con 2', $('personas-num').textContent, '5');
+
+  // Un pedido guardado CON personas sí manda.
+  data = { guests: 8 };
+  if (Number(data.guests) > 0) S.personas = Number(data.guests);
+  api.pintar();
+  es('un pedido con 8 personas manda', $('personas-num').textContent, '8');
+
+  api.cambiar(1);  es('el + suma', $('personas-num').textContent, '9');
+  api.cambiar(-1); es('el − resta', $('personas-num').textContent, '8');
+  S.personas = 1; api.pintar(); api.cambiar(-1);
+  es('nunca baja de 1', $('personas-num').textContent, '1');
+
+  out.textContent = (mal?log.join('\n')+'\n\n':'') + ok+' bien, '+mal+' mal';
+  document.title = mal ? 'FALLAN '+mal : 'TODO BIEN ('+ok+')';
+})();
+</script>

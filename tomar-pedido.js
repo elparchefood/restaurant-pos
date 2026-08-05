@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!S.tableId) { window.location.href = 'ventas.html'; return; }
   const urlGuests = parseInt(params.get('guests') || '0', 10);
   if (urlGuests > 0) S.personas = urlGuests;
+  pintarPersonas();
 
   // 3. Pintar shell inmediato
   paintShell();
@@ -304,8 +305,10 @@ async function loadOpenOrder() {
       catColor:  catColorFor(it.product_id),
       selections: it.selections || {},
     }));
-    S.personas = data.guests || 2;
-    $('personas-num').textContent = S.personas;
+    /* Si el pedido guardado no trae personas, se deja lo que ya se sabia (lo
+       que se eligio al abrir la mesa). Antes lo pisaba con un 2 fijo. */
+    if (Number(data.guests) > 0) S.personas = Number(data.guests);
+    pintarPersonas();
     S.openAt = data.created_at || S.openAt || new Date().toISOString();
     $('tp-hora-apertura').textContent = fmtTime(S.openAt);
   } catch(e) {
@@ -1382,9 +1385,17 @@ function switchTab(name) {
 }
 
 // ── Personas stepper ──────────────────────────────────────────
+/* El numero de personas se pintaba en dos sitios y se OLVIDABA en un tercero:
+   el que llega por la URL al abrir la mesa desde el salon. Se guardaba bien (por
+   eso la comanda salia correcta) pero en pantalla quedaba el "2" escrito a mano
+   en el HTML. Ahora hay un solo sitio que lo pinta. */
+function pintarPersonas() {
+  var el = $('personas-num');
+  if (el) el.textContent = S.personas;
+}
 function changPersonas(dir) {
   S.personas = Math.max(1, S.personas + dir);
-  $('personas-num').textContent = S.personas;
+  pintarPersonas();
 }
 
 // ── Sub-vistas de categoría ───────────────────────────────────
