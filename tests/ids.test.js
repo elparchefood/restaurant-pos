@@ -93,5 +93,33 @@ for (const js of CARDS) {
   }
 }
 
+/* -- El atributo `hidden` de verdad esconde ----------------------------------
+   Trampa real del 5-ago-2026: el navegador apaga lo que lleva `hidden`, pero
+   CUALQUIER regla de clase que ponga display le gana. `.tu-adm-bd{display:flex}`
+   dejaba el panel del editor visible siempre, vacio y con su titulo por defecto,
+   encima de la pantalla en la que uno estuviera.
+   Se comprueba que toda pantalla que USE hidden cargue una hoja que lo apague. */
+const HTMLS = fs.readdirSync(raiz).filter((f) => f.endsWith('.html'));
+for (const html of HTMLS) {
+  const h = leer(html);
+  if (!h) continue;
+  const js = html.replace(/\.html$/, '.js');
+  const j = leer(js) || '';
+  // ¿Esta pantalla usa hidden?
+  if (!/\shidden(\s|>|=)/.test(h) && !/\.hidden\s*=/.test(j)) continue;
+
+  const hojas = [...h.matchAll(/<link[^>]+href="([^"?]+\.css)/g)].map((m) => m[1]);
+  const protegida = hojas.some((c) => {
+    const css = leer(c);
+    return css && /\[hidden\]\s*\{[^}]*display\s*:\s*none/.test(css);
+  });
+  if (!protegida) {
+    malos++;
+    console.log(`FALLA ${html} usa hidden pero ninguna de sus hojas lo apaga`);
+    console.log(`   hojas: ${hojas.join(', ') || '(ninguna)'}`);
+  }
+}
+console.log('ok  el atributo hidden esconde de verdad en todas las pantallas');
+
 console.log(malos ? `\n${malos} ids rotos` : '\nTodo cuadra');
 process.exit(malos ? 1 : 0);

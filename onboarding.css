@@ -1,3 +1,8 @@
+/* El atributo `hidden` lo apaga cualquier regla de clase que ponga display, y
+   entonces deja de esconder. Paso de verdad en la consola: un panel se quedaba
+   visible siempre, vacio, encima de la pantalla. */
+[hidden] { display: none !important; }
+
 /* ============================================================
    LUMEN POS · ONBOARDING — Primer ingreso (wizard 3 pasos)
    Modal centrado. Tema claro. Fuente 'DM Sans'. Acento #5B6BFF.

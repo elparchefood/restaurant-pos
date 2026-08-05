@@ -1,3 +1,10 @@
+/* El atributo `hidden` lo apaga cualquier regla de clase que ponga display.
+   Es decir: `.tu-adm-bd{display:flex}` GANABA sobre el hidden del navegador, y
+   el panel del editor se quedaba visible siempre, vacio y con su titulo por
+   defecto ("Nuevo video") encima de la pantalla en la que uno estuviera.
+   Varias hojas del sistema ya traian esta linea justo por esto. */
+[hidden] { display: none !important; }
+
 /* pos-core.css — Estilos base compartidos por todas las páginas del POS */
 /* REGLA: Solo estilos de layout (sidebar, topbar, reset, tipografía, helpers) */
 
