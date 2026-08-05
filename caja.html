@@ -90,6 +90,13 @@
               <div class="cj-compose-row">+ Ventas en efectivo <span class="v" style="color:#16A34A" id="compose-ventas-ef">$0</span></div>
               <div class="cj-compose-row">+ Ingresos <span class="v" style="color:#16A34A" id="compose-ingresos">$0</span></div>
               <div class="cj-compose-row">− Egresos <span class="v" style="color:#DC2626" id="compose-egresos">$0</span></div>
+              <!-- Domicilios propios: esa plata SI es del negocio, pero NO es
+                   venta. Se informa aparte, sin sumarse al total de ventas ni
+                   al efectivo en caja: es solo para saber cuanto entro por ahi.
+                   Nace oculta y solo aparece si hay domicilios internos. -->
+              <div class="cj-compose-row" id="compose-domi-int-row" style="display:none;color:#64748B">
+                Domicilios (internos) <span class="v" id="compose-domi-int">$0</span>
+              </div>
               <div style="height:1px;background:#ECEEF2;margin:10px 0"></div>
               <div class="cj-compose-total"><span class="t">Total en caja</span><span class="v" id="compose-total">$0</span></div>
             </div>
@@ -440,6 +447,6 @@
 <script src="pos-print.js?v=1788310000"></script>
 <script src="pos-print-listener.js?v=4"></script>
 <script src="pos-creditos.js?v=1"></script>
-<script src="caja.js?v=1789560000"></script>
+<script src="caja.js?v=1789650000"></script>
 </body>
 </html>

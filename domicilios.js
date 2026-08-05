@@ -257,7 +257,7 @@ async function loadActiveOrders() {
   try {
     const { data: orders, error } = await sb
       .from('pos_orders')
-      .select('id, customer_name, channel, notes, payment_method, total, paid_amount, opened_at, delivery_status, delivery_fee, delivered_at')
+      .select('id, customer_name, channel, notes, payment_method, total, paid_amount, opened_at, delivery_status, delivery_fee, delivered_at,domi_courier,domi_pago')
       .eq('branch_id', S.branchId)
       .in('channel', ['domicilio', 'whatsapp'])
       .eq('status', 'open')
@@ -329,7 +329,8 @@ function _orderRowToDelivery(o) {
     paidAmount:   pagado,
     payWhen:      payStatus === 'pagado' ? 'adelantado' : 'contraentrega',
     metodo:       metodo,
-    courier:      'interno',
+    courier:      o.domi_courier || 'externo',
+    domiPago:     o.domi_pago || 'efectivo',
     cobramos:     false,
     domiciliario: '—',
     min:          0,
@@ -1787,7 +1788,7 @@ async function enviarACocina() {
 // del pedido. Solo se escogen los productos nuevos y se suman.
 async function entrarModoAgregar(orderId) {
   const { data: o, error } = await sb.from('pos_orders')
-    .select('id, customer_name, notes, delivery_fee, packaging_fee, subtotal, total, delivery_status, status, channel')
+    .select('id, customer_name, notes, delivery_fee, packaging_fee, subtotal, total, delivery_status, status, channel,domi_courier,domi_pago')
     .eq('id', orderId).maybeSingle();
 
   if (error || !o) { toast('No encontré ese pedido'); return; }
@@ -1896,6 +1897,18 @@ function renderKanCard(d) {
     }
   }
 
+  /* Chip de un toque para decir como se le pago al domiciliario. Sin ventana y
+     sin PIN, como pidio Sergio: es la excepcion del dia, no una configuracion.
+     Importa para el arqueo: si se le pago en efectivo, ese efectivo salio del
+     cajon; si fue por transferencia, la caja no se entera. */
+  const domiChip = (d.fee > 0 && d.courier === 'externo')
+    ? `<button class="d-tag js-domi-pago" data-id="${d.supabaseId || ''}"
+         style="border:none;cursor:pointer;color:${d.domiPago === 'transferencia' ? '#5B6BFF' : '#64748B'};
+                background:${d.domiPago === 'transferencia' ? '#EEF2FF' : '#F1F5F9'}"
+         title="Tocar para cambiar como se le pago al domiciliario">
+         ${svgInline(d.domiPago === 'transferencia' ? 'transfer' : 'cash', 11)} Domi ${d.domiPago === 'transferencia' ? 'transferido' : 'en efectivo'}</button>`
+    : '';
+
   const totalSub = (d.courier === 'externo' && !d.cobramos) ? ' <span class="sub">· dom. aparte</span>' : '';
   const advBtn   = next
     ? `<button class="d-adv" data-advance="${d.id}">${KAN_BTN[d.estado] || ''} ${svgInline('arrowr', 12)}</button>`
@@ -1924,7 +1937,7 @@ function renderKanCard(d) {
       <span class="d-tag" style="color:#475569;background:#F1F5F9">${svgInline('bag', 11)} ${d.items}</span>
       ${courierBadge}
     </div>
-    <div class="d-domi-row">${pagoRow}</div>
+    <div class="d-domi-row">${pagoRow}${domiChip}</div>
     <div class="d-domi-tot">
       <div class="d-domi-money">${fmt(M.cobrar)}${totalSub}</div>
       ${advBtn}
@@ -2281,3 +2294,25 @@ function attachEvents() {
   const cliSearchInput = $('cli-search-input');
   if (cliSearchInput) cliSearchInput.addEventListener('input', function () { renderCliList(this.value); });
 }
+
+/* ── El chip del domicilio: un toque cambia efectivo <-> transferencia ─────
+   Se engancha al documento entero para que siga funcionando cuando las
+   tarjetas se vuelvan a dibujar (que es todo el rato). */
+document.addEventListener('click', async function (ev) {
+  const b = ev.target.closest && ev.target.closest('.js-domi-pago');
+  if (!b) return;
+  ev.stopPropagation();
+  const id = b.dataset.id;
+  if (!id) return;
+  const d = (S.deliveries || []).find(x => String(x.supabaseId) === String(id));
+  if (!d) return;
+  const nuevo = d.domiPago === 'transferencia' ? 'efectivo' : 'transferencia';
+  d.domiPago = nuevo;                       // se pinta ya, sin esperar a la nube
+  try { typeof renderMonitor === "function" && renderMonitor(); } catch (e) {}
+  const r = await sb.from('pos_orders').update({ domi_pago: nuevo }).eq('id', id);
+  if (r && r.error) {
+    d.domiPago = nuevo === 'transferencia' ? 'efectivo' : 'transferencia';   // se deshace
+    try { typeof renderMonitor === "function" && renderMonitor(); } catch (e) {}
+    if (typeof toast === 'function') toast('No se pudo cambiar: ' + r.error.message);
+  }
+});

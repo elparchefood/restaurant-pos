@@ -215,6 +215,22 @@ function cjPintarPendientes(){
   box.classList.remove('is-hidden');
 }
 
+/* Domicilios INTERNOS: la plata del domicilio SI es del negocio, pero NO es
+   venta (regla de oro de Sergio: el domi nunca se suma a ventas). Va como una
+   linea informada aparte, para que se pueda ver cuanto entro por domicilios
+   propios sin ensuciar el numero de ventas. */
+function cjDomiInternos(orders){
+  const list = orders || (typeof S !== 'undefined' ? S.orders : null) || [];
+  return list.reduce(function(s,o){
+    if(!o || o.status==='cancelled') return s;
+    const ch = String(o.channel||'').toLowerCase();
+    if(ch!=='domicilio' && ch!=='delivery') return s;
+    if((o.domi_courier||'externo')!=='interno') return s;
+    if(!(parseFloat(o.paid_amount)||0)) return s;      // sin cobrar no entro nada
+    return s + (parseFloat(o.delivery_fee)||0);
+  }, 0);
+}
+
 function cjDomiCanjeEfectivo(orders){
   const list = orders || (typeof S !== 'undefined' ? S.orders : null) || [];
   return list.reduce(function(s,o){
@@ -556,6 +572,12 @@ function renderHero(orders, moves) {
   el('compose-ingresos').textContent   = COPF(ingresos);
   el('compose-egresos').textContent    = COPF(egresos);
   el('compose-total').textContent      = COPF(total);
+  /* Los domicilios internos NO entran en el total de caja (no son venta ni
+     efectivo del turno): la linea solo informa. Si no hay ninguno, ni aparece. */
+  const domiInt = cjDomiInternos(orders);
+  const filaDI = el('compose-domi-int-row');
+  if (filaDI) filaDI.style.display = domiInt > 0 ? '' : 'none';
+  if (el('compose-domi-int')) el('compose-domi-int').textContent = COPF(domiInt);
   if (S.session) {
     const d = new Date(S.session.opened_at);
     const fecha = d.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'});
