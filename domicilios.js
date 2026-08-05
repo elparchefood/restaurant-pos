@@ -870,6 +870,8 @@ function pmBuildCustomPane(p){
     +'<div class="pm-modsum" id="pm-mod-sum">'+pmEsc(modSumTxt)+'</div>'
     +'<div class="pm-field-lbl">'+PM_SVG.note+' Nota para cocina</div>'
     +'<textarea class="pm-note" placeholder="Ej. caliente, con aji, sin salsa..." id="pm-note-input">'+pmEsc(WIP.note)+'</textarea>'
+    /* Notas frecuentes: el mismo motor que en mesa, ahora compartido. */
+    +'<div class="pm-nf-wrap" id="pm-nf-wrap"></div>'
     +'</div>'
     +'<div class="pm-right">'
     +'<div class="pm-qty-row">'
@@ -926,6 +928,12 @@ function pmAttachHandlers(inner,p,cur){
     if(qinc) qinc.addEventListener('click',()=>{ WIP.qty++; pmUpdatePrices(); });
     const noteEl=document.getElementById('pm-note-input');
     if(noteEl){ noteEl.value=WIP.note; noteEl.addEventListener('input',function(){ WIP.note=this.value; }); }
+    if (window.posNotas) posNotas.montar({
+      wrap: 'pm-nf-wrap', inputNota: 'pm-note-input',
+      leer: function(){ return WIP.note; },
+      escribir: function(t){ WIP.note = t; },
+      categoria: function(){ var p = WIP.prod || {}; var c = (S.cats||[]).find(function(x){return x.id===p.category_id;}); return c ? c.name : ''; },
+    });
     inner.querySelectorAll("[data-mod-inc]").forEach(function(incBtn){
       incBtn.addEventListener("click",function(e){
         e.stopPropagation();

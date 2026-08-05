@@ -1434,6 +1434,7 @@
       +'<div class="pm-modsum" id="vr-mod-sum">'+vrEsc(modSumTxt)+'</div>'
       +'<div class="pm-field-lbl">'+VR_SVG.note+' Nota para cocina</div>'
       +'<textarea class="pm-note" placeholder="Ej. sin cebolla, bien caliente..." id="vr-note-input">'+vrEsc(VR_WIP.note)+'</textarea>'
+      +'<div class="pm-nf-wrap" id="vr-nf-wrap"></div>'
       +'</div>'
       +'<div class="pm-right">'
       +'<div class="pm-qty-row">'
@@ -1490,6 +1491,12 @@
       if (qinc) qinc.addEventListener('click', () => { VR_WIP.qty++; vrUpdatePrices(); });
       const noteEl = document.getElementById('vr-note-input');
       if (noteEl) { noteEl.value = VR_WIP.note; noteEl.addEventListener('input', function(){ VR_WIP.note = this.value; }); }
+      if (window.posNotas) posNotas.montar({
+        wrap: 'vr-nf-wrap', inputNota: 'vr-note-input',
+        leer: function(){ return VR_WIP.note; },
+        escribir: function(t){ VR_WIP.note = t; },
+        categoria: function(){ var p = VR_WIP.prod || {}; var c = (S.cats||[]).find(function(x){return x.id===p.category_id;}); return c ? c.name : ''; },
+      });
       inner.querySelectorAll('[data-mod-inc]').forEach(function(incBtn){
         incBtn.addEventListener('click', function(e){
           e.stopPropagation();
