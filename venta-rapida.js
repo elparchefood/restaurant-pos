@@ -426,47 +426,8 @@
   function renderAllProducts() {
     // Re-renderizar grid de productos si está visible
     if (S.currentCatId) openCategory(S.currentCatId);
-    renderMenuPane();
+    
     renderFavs();
-  }
-
-  function renderMenuPane() {
-    const scroll = $('vr-menuscroll');
-    if (!scroll) return;
-    if (!S.categories.length) { scroll.innerHTML = '<div style="color:#94A3B8;font-size:12px;padding:20px 0;text-align:center">Sin productos</div>'; return; }
-
-    scroll.innerHTML = S.categories.map(cat => {
-      const prods = S.products.filter(p => String(p.category_id) === String(cat.id));
-      if (!prods.length) return '';
-      const rows = prods.map(p => {
-        const qty = prodQtyInCart(p.id);
-        return `
-          <button class="lm-menurow" data-menu-add="${p.id}">
-            <div class="tp-menurow-main">
-              <div class="tp-menurow-name">${p.name}</div>
-              ${p.is_favorite ? `<div class="tp-menurow-fav">★ Favorito</div>` : ''}
-            </div>
-            <span class="tp-menurow-price">${fmt(p.price)}</span>
-            ${qty > 0 ? `<span class="tp-menu-qty">${qty}</span>` : ''}
-            <span class="tp-addbtn-sm">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </span>
-          </button>`;
-      }).join('');
-      return `
-        <div class="tp-menu-group">
-          <div class="tp-menu-grouphead">
-            <span class="tp-catdot" style="background:${cat.color || '#94A3B8'}"></span>
-            <span class="tp-menu-groupname">${cat.name}</span>
-            <div class="tp-menu-grouprule"></div>
-          </div>
-          <div class="tp-menu-rows">${rows}</div>
-        </div>`;
-    }).join('');
-
-    scroll.querySelectorAll('[data-menu-add]').forEach(btn => {
-      btn.addEventListener('click', function() { vrOpenProductModal(this.dataset.menuAdd); });
-    });
   }
 
   function renderFavs() {
@@ -490,56 +451,6 @@
   }
 
   /* ─── Búsqueda ───────────────────────────────────────────────── */
-  function setupSearch() {
-    const input   = $('vr-search-input');
-    const clear   = $('vr-search-clear');
-    const empty   = $('vr-search-empty');
-    const results = $('vr-search-results');
-    const hint    = $('vr-search-hint');
-
-    if (!input) return;
-
-    // Total hint
-    hint.textContent = 'Busca entre los ' + S.products.length + ' productos del catálogo.';
-
-    input.addEventListener('input', function() {
-      const q = this.value.trim().toLowerCase();
-      clear.hidden = !q;
-      if (!q) {
-        empty.hidden   = false;
-        results.hidden = true;
-        return;
-      }
-      const found = S.products.filter(p =>
-        p.name.toLowerCase().includes(q) ||
-        (p.catName || '').toLowerCase().includes(q)
-      );
-      if (!found.length) {
-        empty.hidden   = false;
-        results.hidden = true;
-        const t = empty.querySelector('.tp-soft-empty-title');
-        if (t) t.textContent = 'Sin resultados para "' + q + '"';
-        return;
-      }
-      const t = empty.querySelector('.tp-soft-empty-title');
-      if (t) t.textContent = 'Escribe para buscar';
-      empty.hidden   = true;
-      results.hidden = false;
-      results.innerHTML = renderProdCards(found);
-      attachProdEvents(results);
-      refreshBadges();
-    });
-
-    clear.addEventListener('click', function() {
-      input.value = '';
-      clear.hidden = true;
-      empty.hidden = false;
-      results.hidden = true;
-      const t = empty.querySelector('.tp-soft-empty-title');
-      if (t) t.textContent = 'Escribe para buscar';
-    });
-  }
-
   /* ─── Etiquetas de venta rápida ───────────────────────────────
      Se crean en Configuración › Operación y se sincronizan por BD, así que
      la tablet ve las mismas. Una sola por pedido; volver a tocarla la quita. */
@@ -761,7 +672,7 @@
         const pane = document.querySelector(`[data-pane="${this.dataset.tab}"]`);
         if (pane) {
           pane.classList.add('on');
-          if (this.dataset.tab === 'menu')      renderMenuPane();
+          if (this.dataset.tab === 'menu')      
           if (this.dataset.tab === 'favoritos') renderFavs();
         }
       });
@@ -907,7 +818,7 @@ async function loadCatalog() {
           S.categories = _cd.cats;
           S.products   = _cd.products;
           S.modGroups  = _cd.modGroups || [];
-          renderCatGrid(); renderFavs(); setupSearch(); refreshBadges();
+          renderCatGrid(); renderFavs(); refreshBadges();
           setTimeout(function() { _catalogFetch(sb, _ck, true); }, 0);
           return;
         }
@@ -962,14 +873,14 @@ async function loadCatalog() {
           localStorage.setItem(cacheKey, JSON.stringify({ cats: S.categories, products: S.products, modGroups: S.modGroups }));
         }
       } catch(e) {}
-      renderCatGrid(); renderFavs(); setupSearch(); refreshBadges();
+      renderCatGrid(); renderFavs(); refreshBadges();
       return;
     } catch(e) {
       console.error('[venta-rapida] _catalogFetch intento ' + intento + ':', e);
       if (intento < 3) await new Promise(function(r){ setTimeout(r, 1200 * intento); });
     }
     }
-    renderCatGrid(); renderFavs(); setupSearch(); refreshBadges();
+    renderCatGrid(); renderFavs(); refreshBadges();
   }
 
   /* ─── Supabase: enviar pedido ────────────────────────────────── */

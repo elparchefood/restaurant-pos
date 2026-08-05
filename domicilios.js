@@ -231,7 +231,6 @@ document.addEventListener('DOMContentLoaded', () => {
     try { subscribeNewOrders(); } catch(e) { console.error('subscribeNewOrders:', e); }
 
     try { renderCatGrid();       } catch(e) { console.error('renderCatGrid:', e); }
-    try { renderMenuPane();      } catch(e) { console.error('renderMenuPane:', e); }
     try { renderFavPane();       } catch(e) { console.error('renderFavPane:', e); }
     try { renderCart();          } catch(e) { console.error('renderCart:', e); }
     try { renderDetBtn();        } catch(e) { console.error('renderDetBtn:', e); }
@@ -409,7 +408,7 @@ async function loadCatalog() {
         // Pintar inmediatamente desde caché, refrescar en segundo plano
         setTimeout(function() { _catalogFetch(_ck, true); }, 0);
         await _sumarCombos();
-        renderCatGrid(); renderMenuPane(); renderFavPane();
+        renderCatGrid();  renderFavPane();
         return;
       }
     }
@@ -460,14 +459,14 @@ async function _catalogFetch(cacheKey, isBackground) {
       }
     } catch(e) {}
     await _sumarCombos();
-    renderCatGrid(); renderMenuPane(); renderFavPane();
+    renderCatGrid();  renderFavPane();
     return;
   } catch(e) {
     console.error('[domicilios] _catalogFetch intento ' + intento + ':', e);
     if (intento < 3) await new Promise(function(r){ setTimeout(r, 1200 * intento); });
   }
   }
-  renderCatGrid(); renderMenuPane(); renderFavPane();
+  renderCatGrid();  renderFavPane();
 }
 
 function _fetchDomiciliarios() {
@@ -508,7 +507,7 @@ function setBrowserTab(tab) {
   if ($('pane-menu'))         $('pane-menu').hidden         = (tab !== 'menu');
   if ($('pane-busqueda'))     $('pane-busqueda').hidden     = (tab !== 'busqueda');
   if ($('pane-favoritos'))    $('pane-favoritos').hidden    = (tab !== 'favoritos');
-  if (tab === 'menu')      renderMenuPane();
+  if (tab === 'menu')      
   if (tab === 'favoritos') renderFavPane();
 }
 
@@ -649,31 +648,6 @@ function domProdCard(p) {
   }
 
 
-function renderMenuPane() {
-  const el = $('menu-scroll');
-  if (!el) return;
-  if (!S.cats.length) { el.innerHTML = `<div class="d-softempty" style="padding:24px;text-align:center;color:var(--muted)">Sin categorías</div>`; return; }
-  el.innerHTML = S.cats.map(cat => {
-    const prods = S.products.filter(p => p.category_id === cat.id);
-    if (!prods.length) return '';
-    const color = cat.color || '#5B6BFF';
-    const rows = prods.map(p => {
-      const inCart = S.cart.find(i => i.id === p.id);
-      const qty    = inCart ? inCart.qty : 0;
-      return `<button class="lm-menurow" data-add="${p.id}">
-        <span class="d-menuqty" style="${qty > 0 ? '' : 'visibility:hidden'}">${qty}</span>
-        <span style="flex:1;font-size:12.5px;font-weight:600;color:var(--ink)">${p.name}</span>
-
-        <span style="font-size:13px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;margin-right:4px">${fmt(p.price)}</span>
-        <span class="d-add-sm">${svgInline('plus', 13, 2.5)}</span>
-        </button>`;
-    }).join('');
-    return `<div class="d-menugroup">
-      <div class="d-menughead"><span class="d-catdot" style="background:${color}"></span><span class="d-menugname">${cat.name}</span><span class="d-menugrule"></span></div>
-      <div class="d-menurows">${rows}</div></div>`;
-  }).join('');
-}
-
 function renderFavPane() {
   const el    = $('fav-grid');
   const empty = $('fav-empty');
@@ -685,20 +659,6 @@ function renderFavPane() {
   } else {
     el.innerHTML = '';
   }
-}
-
-function renderBusqResults(q) {
-  const grid  = $('busq-grid');
-  const empty = $('busq-empty');
-  if (!q.trim()) {
-    if (grid)  grid.innerHTML = '';
-    if (empty) empty.hidden   = true;
-    return;
-  }
-  const results = S.products.filter(p => p.name.toLowerCase().includes(q.toLowerCase()));
-  if (empty) empty.hidden = results.length > 0;
-  if (results.length) renderProdGrid(grid, results);
-  else if (grid) grid.innerHTML = '';
 }
 
 // ── Carrito ────────────────────────────────────────────────────────────
@@ -2344,9 +2304,6 @@ function attachEvents() {
     if (advEl) { advanceDelivery(advEl.dataset.advance); return; }
   });
 
-  // Input búsqueda de productos
-  const busqInput = $('busq-input');
-  if (busqInput) busqInput.addEventListener('input', function () { renderBusqResults(this.value); });
 
   // Input búsqueda de clientes
   const cliSearchInput = $('cli-search-input');

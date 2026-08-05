@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 6. Renderizar vistas
   renderCatGrid();
-  renderMenuTab();
+  
   renderFavs();
   paintCartState();
 
@@ -194,7 +194,7 @@ async function loadCatalog() {
         // Actualizar en segundo plano sin bloquear el arranque
         setTimeout(function() { _catalogFetch(_ck, true); }, 0);
         await _sumarCombos();
-        renderCatGrid(); renderMenuTab();
+        renderCatGrid(); 
         return;
       }
     }
@@ -243,7 +243,7 @@ async function _catalogFetch(cacheKey, isBackground) {
         }
       } catch(e) {}
       await _sumarCombos();
-      renderCatGrid(); renderMenuTab();
+      renderCatGrid(); 
       return;
     } catch(e) {
       console.error('loadCatalog intento ' + intento + ':', e);
@@ -251,7 +251,7 @@ async function _catalogFetch(cacheKey, isBackground) {
     }
   }
   // Tras agotar reintentos: refrescar la UI con lo que haya (evita pantalla congelada)
-  renderCatGrid(); renderMenuTab();
+  renderCatGrid(); 
 }
 
 // ── Pedido abierto ───────────────────────────────────────────
@@ -376,29 +376,6 @@ function renderProdGrid(catId, catName, catColor) {
 }
 
 // ── RENDER: Menú completo ─────────────────────────────────────
-function renderMenuTab() {
-  const scroll = $('menu-scroll');
-  if (!S.cats.length) {
-    scroll.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:28px 0;text-align:center">Sin productos en el catálogo</div>`;
-    return;
-  }
-  scroll.innerHTML = S.cats.map(cat => {
-    const prods = S.products.filter(p => p.category_id === cat.id);
-    if (!prods.length) return '';
-    return `
-    <div class="tp-menusection" style="margin-bottom:22px">
-      <div class="tp-gridhead" style="margin-bottom:10px;flex-shrink:0">
-        <span class="tp-catdot" style="background:${cat.color}"></span>
-        <span class="tp-gridhead-title" style="font-size:14px;font-weight:700">${escHtml(cat.name)}</span>
-        <span class="tp-countpill">${prods.length}</span>
-      </div>
-      <div class="tp-prodgrid-row" style="display:flex;flex-wrap:wrap;gap:12px">
-        ${prods.map(p => prodCard(p, cat.color)).join('')}
-      </div>
-    </div>`;
-  }).join('');
-}
-
 // ── RENDER: Favoritos ─────────────────────────────────────────
 function renderFavs() {
   const grid = $('fav-grid');
@@ -1381,39 +1358,6 @@ async function sendToKitchen() {
 }
 
 // ── Búsqueda ──────────────────────────────────────────────────
-function doSearch(q) {
-  const results   = $('search-results');
-  const empty     = $('search-empty');
-  const clearBtn  = $('search-clear');
-  const hint      = $('search-hint');
-  q = q.trim().toLowerCase();
-
-  if (!q) {
-    results.style.display = 'none';
-    empty.style.display   = '';
-    clearBtn.style.display = 'none';
-    hint.textContent = 'Busca entre los productos del menú';
-    return;
-  }
-
-  clearBtn.style.display = '';
-  const found = S.products.filter(p =>
-    p.name.toLowerCase().includes(q) ||
-    (p.description || '').toLowerCase().includes(q)
-  );
-
-  if (!found.length) {
-    results.style.display = 'none';
-    empty.style.display   = '';
-    hint.textContent = `Sin resultados para "${q}"`;
-    return;
-  }
-
-  empty.style.display   = 'none';
-  results.style.display = '';
-  results.innerHTML = found.map(p => prodCard(p, catColorFor(p.id))).join('');
-}
-
 // ── Tabs ──────────────────────────────────────────────────────
 function switchTab(name) {
   document.querySelectorAll('.lm-bigtab').forEach(b => {
@@ -1638,13 +1582,6 @@ function bindEvents() {
     }
   });
 
-  // Búsqueda
-  const searchInput = $('search-input');
-  searchInput?.addEventListener('input', () => doSearch(searchInput.value));
-  $('search-clear')?.addEventListener('click', () => {
-    searchInput.value = '';
-    doSearch('');
-  });
 }
 
 // ── Favoritos ─────────────────────────────────────────────────
