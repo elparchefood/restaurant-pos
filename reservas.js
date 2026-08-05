@@ -79,9 +79,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   S.tenantId = u.user_metadata && u.user_metadata.tenant_id || null;
   S.branchId = u.user_metadata && u.user_metadata.branch_id || null;
   S.usuario  = (u.user_metadata && (u.user_metadata.nombre || u.user_metadata.full_name)) || u.email || '';
-  const nom = $('rs-user-nom'), rol = $('rs-user-rol');
+  /* El bloque de la cuenta vive arriba a la derecha, con los mismos ids que
+     usa el dashboard: asi pos-brand.js encuentra el circulo y le pone la foto
+     del restaurante sin que haya que decirle nada. */
+  const nom = $('tb-uname'), rol = $('tb-urole'), av = $('tb-avatar');
   if (nom) nom.textContent = S.usuario || 'Mi cuenta';
   if (rol) { const r = (u.user_metadata && u.user_metadata.role) || ''; rol.textContent = r ? r[0].toUpperCase() + r.slice(1) : 'Usuario'; }
+  if (av && !av.querySelector('img')) {
+    av.textContent = (S.usuario || '?').split(/\s+/).filter(Boolean).slice(0, 2)
+      .map(w => w[0]).join('').toUpperCase() || '?';
+  }
 
   enganchar();
   pintarFecha();
@@ -96,7 +103,6 @@ async function cargarConfig() {
       S.aceptaReservas  = !!r.data.acepta_reservas;
       S.cobroAdelantado = !!r.data.cobro_adelantado;
       S.sucursal = r.data.name || '';
-      const sede = $('rs-sede'); if (sede) sede.innerHTML = 'Sede <strong>' + esc(S.sucursal) + '</strong>';
     }
   } catch (e) { console.warn('[reservas] config:', e); }
   aplicarInterruptor();
@@ -644,7 +650,6 @@ function enganchar() {
       t.classList.add('on');
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('on'));
       const s = $('screen-' + t.dataset.screen); if (s) s.classList.add('on');
-      $('crumb').textContent = t.dataset.crumb || 'Reservas';
       return;
     }
     if (t.dataset.chip) { S.filtro = t.dataset.chip; pintarChips(); pintarAgenda(); pintarTimeline(); pintarFranjas(); return; }

@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="assets/brand/favicon-192.png">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="pos-core.css?v=1789510000">
-  <link rel="stylesheet" href="reservas.css?v=1789620000">
+  <link rel="stylesheet" href="reservas.css?v=1789630000">
 </head>
 <body>
 
@@ -89,25 +89,25 @@
       </a>
     </div>
     <div class="sys-status">
-      <div style="display:flex;align-items:center;gap:10px;padding:2px 0;min-width:0">
-        <div id="user-avatar" style="width:36px;height:36px;border-radius:50%;background:#EEF2FF;color:#5B6BFF;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;overflow:hidden">?</div>
-        <div style="min-width:0">
-          <div id="rs-user-nom" style="font-weight:600;font-size:12.5px;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Cargando…</div>
-          <div id="rs-user-rol" style="font-size:10.5px;color:#94A3B8">—</div>
-        </div>
-      </div>
+      <div class="sys-row"><span>Sistema</span><span id="sb-status" style="color:#F97316">cargando...</span></div>
+      <div class="sys-meta"><span id="sb-ram">Cobra POS</span><span>v1.0.0</span></div>
     </div>
   </aside>
 
   <main class="lm-main">
     <div class="lm-topbar">
-      <div class="lm-top-left">
-        <span class="lm-modebadge"><span class="lm-mode-dot"></span><span id="rs-turno">Reservas</span></span>
-        <div class="lm-crumbs"><span class="lm-crumb-mut">Operación</span><span>/</span><span class="lm-crumb-on" id="crumb">Reservas · Hoy</span></div>
-      </div>
+      <div class="lm-top-left"></div>
+      <!-- El bloque de la cuenta va arriba a la derecha, como en el dashboard:
+           foto del restaurante (la pone pos-brand.js por el id tb-avatar),
+           nombre y rol de quien tiene la sesion abierta. -->
       <div class="lm-top-right">
-        <span class="lm-pill-success">● En línea</span>
-        <span class="lm-ram" id="rs-sede">Sede</span>
+        <div class="user-info" style="cursor:default">
+          <div class="user-avatar" id="tb-avatar">?</div>
+          <div>
+            <div class="user-name" id="tb-uname">Cargando…</div>
+            <div class="user-role" id="tb-urole">—</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -281,7 +281,7 @@
 <script src="pos-cache.js?v=1789530000"></script>
 <script src="pos-core.js?v=1789530000"></script>
 <script src="pos-perms.js?v=1789530000"></script>
-<script src="reservas.js?v=1789620000"></script>
+<script src="reservas.js?v=1789630000"></script>
 <script src="pos-brand.js?v=1789530000"></script>
 
 </body>
