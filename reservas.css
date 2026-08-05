@@ -362,3 +362,8 @@ a:hover{color:var(--brand-press);}
 .cc-badge.reservada { color: var(--brand); background: var(--brand-tint); }
 
 .rs-cargando { padding: 40px; text-align: center; color: var(--muted); font-size: 13px; }
+
+/* El menú de la izquierda es el REAL del sistema (#sidebar, estilado en
+   pos-core.css), no uno inventado. Solo hay que decirle que no se encoja
+   dentro del contenedor flex de esta pantalla. */
+.lm-app > #sidebar { flex-shrink: 0; height: 100vh; }

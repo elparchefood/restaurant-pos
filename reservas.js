@@ -18,10 +18,10 @@
      Configuracion, aparece sola aqui.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const SUPABASE_URL = 'https://tblujfduscslxjmrjbdr.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'cobra-pos-session' } });
-const $ = id => document.getElementById(id);
+/* OJO: `sb` y `$` los declara pos-core.js, que se carga ANTES que este
+   archivo. Si se vuelven a declarar aqui, el navegador tira el archivo entero
+   por "identificador ya declarado" y la pantalla se queda en blanco sin decir
+   por que. Paso exactamente eso en la primera version. Se usan los de alli. */
 
 const S = {
   tenantId: null, branchId: null, sucursal: '',
