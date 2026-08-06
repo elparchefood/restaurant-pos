@@ -627,3 +627,204 @@ html.tema-claro .ep-seg-full button.on, html:not(.tema-oscuro) .ep-seg-full butt
 }
 .ep-avatar-g.cargando { opacity: .5; pointer-events: none; }
 .ep-side-logo { overflow: hidden; }
+
+
+/* ══ TARJETAS SALDO Y PUNTOS — handoff corregido por Sergio (5-ago-2026) ══════
+   Entra tal cual viene del diseño. La muesca NO es un relleno del color del
+   fondo: la tarjeta esta RECORTADA de verdad con una mascara, asi que por ese
+   hueco se ve el fondo real de la pagina, sea cual sea.
+
+   Va al final del archivo a proposito: manda sobre las reglas viejas de las
+   tarjetas sin tener que ir borrandolas una por una.
+
+   REGLA DEL HANDOFF, no cambiar: los botones van FUERA de la tarjeta, como
+   hermanos dentro del wrap. Metidos dentro, la mascara los recorta. */
+/* ═══════════════════════════════════════════════════════════════════════════
+   TARJETAS SALDO Y PUNTOS — El Parche Food
+   Tarjetas con muesca recortada (máscara CSS real, sin relleno) y botón externo.
+   Requiere fuente DM Sans. Tema oscuro por defecto; tema claro con .tema-claro
+   en <html> (o en cualquier ancestro si cambias el selector).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Tokens ───────────────────────────────────────────────────────────────── */
+:root{
+  --bg:#08080a;          /* fondo de página (lo que se ve por la muesca) */
+  --surf:#121215; --surf2:#191920; --line:#26262e;
+  --ink:#f4f4f6; --sub:#9698a3; --dim:#7b7d89;
+  --accent:#e3b04b;      /* dorado */
+  --accent2:#c08c2c;
+  --wine:#8f2242;
+}
+html.tema-claro{
+  --bg:#f6f4f1; --surf:#ffffff; --surf2:#f2efeb; --line:#e4dfd8;
+  --ink:#17161a; --sub:#605e66; --dim:#6f6c76;
+  --accent:#b8842a; --accent2:#96681c;
+}
+
+/* ── Demo (opcional: bórralo al integrar) ─────────────────────────────────── */
+.ep-ic{display:block;flex-shrink:0}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   1. TARJETA DE SALDO — muesca abajo-derecha
+   ═══════════════════════════════════════════════════════════════════════════ */
+.ep-wc-wrap{position:relative}
+
+.ep-wcard{
+  /* geometría de la muesca: ancho, alto, radio interno y radio de los filetes */
+  --cw:150px;   /* ancho de la muesca  */
+  --ch:54px;    /* alto de la muesca   */
+  --cr:22px;    /* radio de la esquina interna */
+  --fl:16px;    /* radio de los filetes cóncavos */
+
+  position:relative;border-radius:26px;padding:20px 20px 18px;overflow:hidden;isolation:isolate;
+  background:linear-gradient(152deg,#a02a4e 0%,#7a1d3c 42%,#3d0f1f 100%);
+
+  /* ── RECORTE REAL (la muesca queda transparente) ──────────────────────────
+     6 capas: [base] − ( A ∪ B ∪ C ∪ D ∪ E )
+       base = tarjeta completa
+       A    = rectángulo principal de la muesca
+       B    = franja izquierda (bajo la esquina redondeada)
+       C    = arco de la esquina interna
+       D    = filete cóncavo superior
+       E    = filete cóncavo lateral
+     Todas las formas se suman (add) y luego se restan una sola vez (subtract).
+     Los +2px de solape/desborde evitan costuras de antialias ("líneas fantasma").
+     No cambies los centros de los gradientes radiales: definen las curvas.      */
+  -webkit-mask-image:
+    linear-gradient(#000,#000),
+    linear-gradient(#000,#000),
+    linear-gradient(#000,#000),
+    radial-gradient(circle var(--cr) at calc(100% - 2px) calc(100% - 2px),#000 calc(var(--cr) - .4px),transparent calc(var(--cr) + .2px)),
+    radial-gradient(circle var(--fl) at 0 0,transparent calc(var(--fl) - .4px),#000 calc(var(--fl) + .2px)),
+    radial-gradient(circle var(--fl) at 0 0,transparent calc(var(--fl) - .4px),#000 calc(var(--fl) + .2px));
+  mask-image:
+    linear-gradient(#000,#000),
+    linear-gradient(#000,#000),
+    linear-gradient(#000,#000),
+    radial-gradient(circle var(--cr) at calc(100% - 2px) calc(100% - 2px),#000 calc(var(--cr) - .4px),transparent calc(var(--cr) + .2px)),
+    radial-gradient(circle var(--fl) at 0 0,transparent calc(var(--fl) - .4px),#000 calc(var(--fl) + .2px)),
+    radial-gradient(circle var(--fl) at 0 0,transparent calc(var(--fl) - .4px),#000 calc(var(--fl) + .2px));
+  -webkit-mask-size:100% 100%,calc(var(--cw) - var(--cr) + 2px) calc(var(--ch) + 2px),calc(var(--cr) + 2px) calc(var(--ch) - var(--cr) + 2px),calc(var(--cr) + 2px) calc(var(--cr) + 2px),calc(var(--fl) + 2px) calc(var(--fl) + 2px),calc(var(--fl) + 2px) calc(var(--fl) + 2px);
+  mask-size:100% 100%,calc(var(--cw) - var(--cr) + 2px) calc(var(--ch) + 2px),calc(var(--cr) + 2px) calc(var(--ch) - var(--cr) + 2px),calc(var(--cr) + 2px) calc(var(--cr) + 2px),calc(var(--fl) + 2px) calc(var(--fl) + 2px),calc(var(--fl) + 2px) calc(var(--fl) + 2px);
+  -webkit-mask-position:0 0,right -2px bottom -2px,right calc(var(--cw) - var(--cr) - 2px) bottom -2px,right calc(var(--cw) - var(--cr) - 2px) bottom calc(var(--ch) - var(--cr) - 2px),right -2px bottom calc(var(--ch) - 2px),right calc(var(--cw) - 2px) bottom -2px;
+  mask-position:0 0,right -2px bottom -2px,right calc(var(--cw) - var(--cr) - 2px) bottom -2px,right calc(var(--cw) - var(--cr) - 2px) bottom calc(var(--ch) - var(--cr) - 2px),right -2px bottom calc(var(--ch) - 2px),right calc(var(--cw) - 2px) bottom -2px;
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-composite:source-out,source-over,source-over,source-over,source-over,source-over;
+  mask-composite:subtract,add,add,add,add,add;
+}
+/* brillo tipo cristal en el borde superior */
+.ep-wcard:before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:2;
+  background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,0) 42%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22),inset 0 0 0 1px rgba(255,255,255,.06)}
+/* halo dorado arriba-derecha */
+.ep-wcard:after{content:"";position:absolute;top:-55%;right:-22%;width:300px;height:300px;border-radius:50%;
+  background:radial-gradient(circle,rgba(240,214,122,.22),transparent 66%);pointer-events:none}
+/* IMPORTANTE: no pongas box-shadow ni filter:drop-shadow en la tarjeta —
+   la sombra se proyecta dentro de la muesca transparente y se ve como una línea. */
+
+.ep-wc-head{display:flex;align-items:center;justify-content:space-between;position:relative;z-index:1;min-width:0}
+.ep-wc-brand{font-size:15px;font-weight:700;letter-spacing:.14em;color:#fff;white-space:nowrap}
+.ep-wc-exp{display:inline-flex;align-items:center;gap:5px;font-size:11px;letter-spacing:.06em;color:rgba(255,255,255,.7);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ep-wc-lbl{display:block;margin:22px 0 4px;font-size:12px;color:rgba(255,255,255,.62);position:relative;z-index:1}
+.ep-wc-bal{display:flex;align-items:center;justify-content:space-between;gap:12px;position:relative;z-index:1}
+.ep-wc-amt{font-size:32px;font-weight:700;letter-spacing:-.03em;line-height:1.1;color:#fff;white-space:nowrap}
+.ep-wc-spark{width:36px;height:36px;border-radius:12px;background:var(--accent);color:#1a1204;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  box-shadow:0 6px 20px rgba(227,176,75,.45),inset 0 1px 0 rgba(255,255,255,.5)}
+.ep-wc-num{margin:14px 0 16px;font-size:13px;letter-spacing:.12em;color:rgba(255,255,255,.62);position:relative;z-index:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* el nombre se trunca antes de la muesca */
+.ep-wc-holder{font-size:14px;font-weight:500;color:#fff;position:relative;z-index:1;max-width:calc(100% - 168px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* botón EXTERNO: es hermano de la tarjeta, encajado en la muesca */
+.ep-wc-cta{position:absolute;right:5px;bottom:5px;display:inline-flex;align-items:center;gap:6px;
+  background:var(--accent);color:#1a1204;border-radius:22px;padding:11px 18px;font-size:13.5px;font-weight:600;z-index:3;
+  box-shadow:0 10px 26px rgba(227,176,75,.34),inset 0 1px 0 rgba(255,255,255,.45);transition:.16s}
+.ep-wc-cta:hover{filter:brightness(1.06)}
+.ep-wc-cta:active{transform:scale(.96)}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   2. TARJETA DE PUNTOS — muesca arriba-derecha
+   ═══════════════════════════════════════════════════════════════════════════ */
+.ep-pts-wrap{position:relative}
+
+.ep-pts-hero{
+  --cw:64px; --ch:64px; --cr:22px; --fl:16px;
+  position:relative;overflow:hidden;border-radius:26px;padding:20px;color:#1a1204;isolation:isolate;
+  background:linear-gradient(150deg,#f0c366 0%,var(--accent) 45%,#c99228 100%);
+
+  /* mismo sistema de recorte, anclado arriba-derecha */
+  -webkit-mask-image:
+    linear-gradient(#000,#000),
+    linear-gradient(#000,#000),
+    linear-gradient(#000,#000),
+    radial-gradient(circle var(--cr) at calc(100% - 2px) 2px,#000 calc(var(--cr) - .4px),transparent calc(var(--cr) + .2px)),
+    radial-gradient(circle var(--fl) at 0 100%,transparent calc(var(--fl) - .4px),#000 calc(var(--fl) + .2px)),
+    radial-gradient(circle var(--fl) at 0 100%,transparent calc(var(--fl) - .4px),#000 calc(var(--fl) + .2px));
+  mask-image:
+    linear-gradient(#000,#000),
+    linear-gradient(#000,#000),
+    linear-gradient(#000,#000),
+    radial-gradient(circle var(--cr) at calc(100% - 2px) 2px,#000 calc(var(--cr) - .4px),transparent calc(var(--cr) + .2px)),
+    radial-gradient(circle var(--fl) at 0 100%,transparent calc(var(--fl) - .4px),#000 calc(var(--fl) + .2px)),
+    radial-gradient(circle var(--fl) at 0 100%,transparent calc(var(--fl) - .4px),#000 calc(var(--fl) + .2px));
+  -webkit-mask-size:100% 100%,calc(var(--cw) - var(--cr) + 2px) calc(var(--ch) + 2px),calc(var(--cr) + 2px) calc(var(--ch) - var(--cr) + 2px),calc(var(--cr) + 2px) calc(var(--cr) + 2px),calc(var(--fl) + 2px) calc(var(--fl) + 2px),calc(var(--fl) + 2px) calc(var(--fl) + 2px);
+  mask-size:100% 100%,calc(var(--cw) - var(--cr) + 2px) calc(var(--ch) + 2px),calc(var(--cr) + 2px) calc(var(--ch) - var(--cr) + 2px),calc(var(--cr) + 2px) calc(var(--cr) + 2px),calc(var(--fl) + 2px) calc(var(--fl) + 2px),calc(var(--fl) + 2px) calc(var(--fl) + 2px);
+  -webkit-mask-position:0 0,right -2px top -2px,right calc(var(--cw) - var(--cr) - 2px) top -2px,right calc(var(--cw) - var(--cr) - 2px) top calc(var(--ch) - var(--cr) - 2px),right -2px top calc(var(--ch) - 2px),right calc(var(--cw) - 2px) top -2px;
+  mask-position:0 0,right -2px top -2px,right calc(var(--cw) - var(--cr) - 2px) top -2px,right calc(var(--cw) - var(--cr) - 2px) top calc(var(--ch) - var(--cr) - 2px),right -2px top calc(var(--ch) - 2px),right calc(var(--cw) - 2px) top -2px;
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-composite:source-out,source-over,source-over,source-over,source-over,source-over;
+  mask-composite:subtract,add,add,add,add,add;
+}
+.ep-pts-hero:before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:2;
+  background:linear-gradient(180deg,rgba(255,255,255,.3),rgba(255,255,255,0) 46%);box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
+
+.ep-pts-head{display:flex;align-items:flex-start;justify-content:space-between;position:relative;z-index:2;padding-right:70px}
+.ep-pts-lbl{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:rgba(26,18,4,.72);white-space:nowrap}
+.ep-pts-big{display:block;position:relative;z-index:2;margin:16px 0 14px;font-size:52px;font-weight:700;letter-spacing:-.04em;line-height:1}
+.ep-pts-big small{font-size:17px;font-weight:600;letter-spacing:-.01em;margin-left:7px;color:rgba(26,18,4,.6)}
+.ep-pts-tags{display:flex;flex-direction:column;gap:8px;align-items:flex-start;position:relative;z-index:2}
+.ep-pts-tag{background:#151519;color:var(--accent);border-radius:20px;padding:7px 14px;font-size:12.5px;font-weight:600;white-space:nowrap}
+.ep-pts-note{font-size:12.5px;font-weight:500;color:rgba(26,18,4,.7)}
+/* gema decorativa abajo-derecha */
+.ep-pts-gem{position:absolute;right:-26px;bottom:-46px;width:150px;height:150px;border-radius:34px;z-index:1;transform:rotate(24deg);
+  background:linear-gradient(150deg,rgba(255,255,255,.34),rgba(26,18,4,.16));box-shadow:inset 0 2px 14px rgba(255,255,255,.28)}
+
+/* botón circular EXTERNO en la muesca */
+.ep-pts-orb{position:absolute;right:4px;top:4px;width:48px;height:48px;border-radius:50%;
+  background:#151519;color:var(--accent);display:flex;align-items:center;justify-content:center;z-index:4;
+  box-shadow:0 10px 26px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.08);transition:.16s}
+.ep-pts-orb:hover{color:#f4d489}
+.ep-pts-orb:active{transform:scale(.94)}
+
+/* ── Variante compacta .sm (para rejillas de dashboard) ───────────────────── */
+.ep-pts-hero.sm{--cw:54px;--ch:54px;padding:20px;min-height:150px;display:flex;flex-direction:column}
+.ep-pts-hero.sm .ep-pts-head{padding-right:54px}
+.ep-pts-hero.sm .ep-pts-big{margin:12px 0 10px;font-size:40px}
+.ep-pts-hero.sm .ep-pts-gem{right:-34px;bottom:-54px;width:120px;height:120px}
+.ep-pts-wrap:has(.ep-pts-hero.sm) .ep-pts-orb{width:42px;height:42px;right:3px;top:3px}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3. Responsive — solo cambia el tamaño de la muesca y del botón
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media(min-width:900px){
+  .ep-wcard{--cw:120px;--ch:50px;padding:24px 24px 22px}
+  .ep-wc-amt{font-size:38px}
+  .ep-wc-lbl{margin-top:28px;font-size:13px}
+  .ep-wc-holder{max-width:calc(100% - 126px)}
+  .ep-wc-cta{right:5px;bottom:5px;padding:10px 13px;font-size:12.5px}
+  .ep-pts-hero.sm{min-height:0;height:100%}
+  .ep-pts-big{font-size:60px}
+  .ep-wcard,.ep-pts-hero{transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+}
+@media(min-width:1500px){
+  .ep-wcard{--cw:150px;--ch:56px}
+  .ep-wc-holder{max-width:calc(100% - 156px)}
+  .ep-wc-cta{right:6px;bottom:6px;padding:12px 17px;font-size:13.5px}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4. Tema claro — solo color; las formas no cambian
+   ═══════════════════════════════════════════════════════════════════════════ */
+html.tema-claro .ep-wcard:before,
+html.tema-claro .ep-pts-hero:before{background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0) 44%)}
+html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}

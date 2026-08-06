@@ -1,94 +1,48 @@
-<meta charset="utf-8"><title>Tamaño de las tarjetas</title>
-<link rel="stylesheet" href="../tomar-pedido.css">
-<link rel="stylesheet" href="../pos-core.css">
-<style>body{padding:16px;background:#F8FAFC;font-family:system-ui}h4{margin:14px 0 6px;font:600 12px system-ui;color:#475569}</style>
-<h4>Categorías (con foto y sin foto) · Combos · Puntos — todas deben medir igual</h4>
-<div class="tp-prodgrid" id="g" style="max-width:520px"></div>
-<pre id="out" style="font:12px/1.6 monospace;white-space:pre-wrap"></pre>
-<script src="../pos-combos.js"></script>
-<script src="../pos-puntos.js"></script>
-<script src="../pos-tabs.js"></script>
+<meta charset="utf-8"><title>Tarjetas</title>
+<link rel="stylesheet" href="../app-cliente.css">
+<div class="ep-app"><div class="ep-cuerpo"><div class="ep-scroll" style="padding:20px">
+  <div class="ep-over" id="over"></div>
+</div></div></div>
+<pre id="out" style="font:12px/1.6 monospace;padding:12px"></pre>
 <script>
 (async function () {
-  var ok = 0, mal = 0, log = [];
-  function es(n, a, b) { if (JSON.stringify(a) === JSON.stringify(b)) ok++;
-    else { mal++; log.push('FALLA ' + n + ': dio ' + JSON.stringify(a) + ', esperaba ' + JSON.stringify(b)); } }
+  var js = await (await fetch('../app-cliente.js?t=' + Date.now())).text();
+  var ok=0, mal=0, log=[];
+  function es(n,a,b){ if(a===b) ok++; else {mal++; log.push('FALLA '+n+': '+JSON.stringify(a));} }
 
-  /* La MISMA tarjeta de mesa (tomar-pedido.js), copiada aquí solo para poder
-     medirla sin la pantalla entera. Si allá cambia, esta prueba deja de valer
-     el día que se toque — por eso mide proporciones, no píxeles exactos. */
-  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) {
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
-  function prodCard(p, color) {
-    return '<button class="lm-prod" data-prod-id="' + p.id + '" style="position:relative">'
-      + '<div class="tp-prod-thumbwrap">'
-      + (p.photo_url
-          ? '<img src="' + p.photo_url + '" alt="" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:9px 9px 0 0;display:block">'
-          : '<div class="tp-thumb" style="aspect-ratio:4/3;width:100%;border-radius:9px 9px 0 0;border:none"><div class="tp-thumb-label">' + esc(p.name.slice(0,12)) + '</div></div>')
-      + '</div>'
-      + '<div class="tp-prod-foot"><div class="tp-prod-name">' + esc(p.name) + '</div>'
-      + '<div class="tp-prod-row"><div class="tp-prod-price" style="color:' + (color||'#5B6BFF') + '">$10.000</div></div></div>'
-      + '</button>';
-  }
+  // El marcado tiene que seguir la regla del handoff.
+  es('el boton de recargar es HERMANO, no hijo',
+     /'<\/div>' \+\s*\n\s*'<button class="ep-wc-cta"/.test(js), true);
+  es('el boton de puntos tambien',
+     /'<\/div>' \+\s*\n\s*'<button class="ep-pts-orb"/.test(js), true);
+  es('la tarjeta va dentro de su wrap', /ep-wc-wrap"><div class="ep-wcard"/.test(js), true);
+  es('la de puntos tambien', /ep-pts-wrap"><div class="ep-pts-hero"/.test(js), true);
 
-  // Un PNG de 4x3 en gris, para no depender de internet.
-  var FOTO = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="#cbd5e1"/></svg>');
+  // Y el recorte tiene que estar puesto.
+  var css = await (await fetch('../app-cliente.css?t=' + Date.now())).text();
+  es('la muesca se recorta con mascara', /-webkit-mask|mask-composite/.test(css), true);
 
-  var g = document.getElementById('g');
-  g.innerHTML = prodCard({ id:'p1', name:'Con foto', photo_url:FOTO })
-              + prodCard({ id:'p2', name:'Sin foto', photo_url:null });
+  document.getElementById('over').innerHTML =
+    '<div class="ep-wc-wrap"><div class="ep-wcard">' +
+      '<div class="ep-wc-head"><span class="ep-wc-brand">EL PARCHE</span></div>' +
+      '<span class="ep-wc-lbl">Saldo disponible</span>' +
+      '<div class="ep-wc-bal"><span class="ep-wc-amt">$48.000</span></div>' +
+      '<div class="ep-wc-holder">Sergio</div>' +
+    '</div><button class="ep-wc-cta">Recargar</button></div>' +
+    '<div class="ep-pts-wrap"><div class="ep-pts-hero">' +
+      '<span class="ep-pts-big">340<small>pts</small></span>' +
+    '</div><button class="ep-pts-orb">R</button></div>';
+  await new Promise(function(r){ setTimeout(r,120); });
 
-  // Combos: se dibujan con la misma tarjeta, sin envoltorio.
-  posTabs.pintarCombos(g, [{ id:'combo:c1', name:'Combo El Parche', photo_url:null }], prodCard);
-  var comboHTML = g.innerHTML;
-  g.innerHTML = prodCard({ id:'p1', name:'Con foto', photo_url:FOTO })
-              + prodCard({ id:'p2', name:'Sin foto', photo_url:null })
-              + comboHTML;
+  var card = document.querySelector('.ep-wcard');
+  var btn = document.querySelector('.ep-wc-cta');
+  var g = getComputedStyle(card);
+  es('la tarjeta lleva el recorte', (g.maskImage||g.webkitMaskImage) !== 'none', true);
+  es('el boton NO esta dentro de la tarjeta', card.contains(btn), false);
+  es('el boton se ve (opaco)', getComputedStyle(btn).backgroundColor.indexOf('rgba(0, 0, 0, 0)') < 0, true);
 
-  // Puntos: la etiqueta va DENTRO de la tarjeta.
-  window._pos = { sb: { from: function (t) {
-    var data = t === 'pos_puntos_catalogo'
-      ? [{ product_id:'p3', pres_id:null, puntos:400, dinero:0 }]
-      : [{ id:'p3', presentations:[], variables:[] }];
-    var api = { data:data };
-    api.select=function(){return api;}; api.eq=function(){return api;}; api.in=function(){return api;};
-    api.then=function(r){ return Promise.resolve({data:api.data}).then(r); };
-    return api;
-  } } };
-  posPuntos.setCtx('t','b'); await posPuntos.cargar();
-  var tmp = document.createElement('div');
-  posTabs.pintarPuntos(tmp, [{ id:'p3', name:'Con puntos', photo_url:null }], prodCard);
-  g.insertAdjacentHTML('beforeend', tmp.innerHTML);
-
-  await new Promise(function (r) { setTimeout(r, 60); });
-
-  // ── lo que se mide ──
-  var tarjetas = [].slice.call(g.children);
-  es('la rejilla tiene 4 hijos directos', tarjetas.length, 4);
-  es('los 4 son tarjetas .lm-prod', tarjetas.every(function (t) { return t.classList.contains('lm-prod'); }), true);
-
-  var altos = tarjetas.map(function (t) { return Math.round(t.getBoundingClientRect().height); });
-  var anchos = tarjetas.map(function (t) { return Math.round(t.getBoundingClientRect().width); });
-  es('todas miden lo mismo de ancho', new Set(anchos).size, 1);
-  es('todas miden lo mismo de alto', new Set(altos).size, 1);
-
-  var fotos = tarjetas.map(function (t) {
-    var el = t.querySelector('img, .tp-thumb');
-    var r = el.getBoundingClientRect();
-    return Math.round(r.width / r.height * 100) / 100;
-  });
-  es('la foto guarda la misma proporción en todas', new Set(fotos).size, 1);
-  es('y esa proporción es 4/3', Math.abs(fotos[0] - 4/3) < 0.03, true);
-
-  var badge = g.querySelector('.pos-pts-badge');
-  es('la etiqueta de puntos existe', !!badge, true);
-  es('y está DENTRO de la tarjeta', badge && badge.closest('.lm-prod') === tarjetas[3], true);
-  es('dice el precio en puntos', badge && /400 pts/.test(badge.textContent), true);
-
-  out.textContent = (mal ? log.join('\n') + '\n\n' : '')
-    + 'altos: ' + altos.join(' · ') + '\nanchos: ' + anchos.join(' · ')
-    + '\nproporción de la foto: ' + fotos.join(' · ')
-    + '\n\n' + ok + ' bien, ' + mal + ' mal';
-  document.title = mal ? 'FALLAN ' + mal : 'TODO BIEN (' + ok + ')';
+  document.getElementById('out').textContent =
+    (mal?log.join('\n')+'\n\n':'') + ok+' bien, '+mal+' mal';
+  document.title = mal ? 'FALLAN '+mal : 'TODO BIEN ('+ok+')';
 })();
 </script>

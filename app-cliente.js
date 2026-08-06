@@ -446,25 +446,34 @@
 
     /* Tarjeta de saldo. Va en cero porque las recargas todavía no existen: se
        pinta desde ya para no tener que rehacer el tablero cuando entren. */
-    var saldo = '<div class="ep-wcard">' +
-      '<div class="ep-wc-top"><span class="ep-wc-marca">' + esc((e.nombre || '').toUpperCase()) + '</span>' +
-        '<span class="ep-wc-rango">' + esc((n && n.nombre) || '') + '</span></div>' +
-      '<div class="ep-wc-lbl">Saldo disponible</div>' +
-      '<div class="ep-wc-monto">' + COP(c.saldo) + '</div>' +
-      '<div class="ep-wc-num">•••• •••• •••• ' + esc(tel.slice(-4)) + '</div>' +
-      '<div class="ep-wc-nom">' + esc(c.nombre || '') + '</div>' +
-      '<div class="ep-wc-spark">' + ico('estrella', 17) + '</div>' +
-      '<div class="ep-wc-cut"></div>' +
-      '<button class="ep-wc-btn" data-ir="billetera">＋ Recargar</button>' +
+    /* Estructura del handoff corregido: el boton es HERMANO de la tarjeta,
+       dentro del wrap. Si va dentro, la mascara de la muesca lo recorta. */
+    var saldo = '<div class="ep-wc-wrap"><div class="ep-wcard">' +
+      '<div class="ep-wc-head">' +
+        '<span class="ep-wc-brand">' + esc((e.nombre || '').toUpperCase()) + '</span>' +
+        '<span class="ep-wc-exp"><svg class="ep-ic" width="13" height="13" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="m12 4.4 2.3 4.9 5.2.7-3.8 3.7.9 5.3-4.6-2.6-4.6 2.6.9-5.3L4.5 10l5.2-.7z"/></svg>' +
+          '<span class="ep-wc-rank">' + esc(((n && n.nombre) || '').toUpperCase()) + '</span></span>' +
+      '</div>' +
+      '<span class="ep-wc-lbl">Saldo disponible</span>' +
+      '<div class="ep-wc-bal">' +
+        '<span class="ep-wc-amt">' + COP(c.saldo) + '</span>' +
+        '<span class="ep-wc-spark"><svg class="ep-ic" width="19" height="19" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 3.6c.6 4.3 2.5 6.2 6.8 6.8-4.3.6-6.2 2.5-6.8 6.8-.6-4.3-2.5-6.2-6.8-6.8 4.3-.6 6.2-2.5 6.8-6.8z"/></svg></span>' +
+      '</div>' +
+      '<div class="ep-wc-num">\u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 ' + esc(tel.slice(-4)) + '</div>' +
+      '<div class="ep-wc-holder">' + esc(c.nombre || '') + '</div>' +
+    '</div>' +
+      '<button class="ep-wc-cta" data-ir="billetera"><svg class="ep-ic" width="15" height="15" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg> Recargar</button>' +
     '</div>';
 
-    var puntos = '<div class="ep-pts-hero">' +
-      '<div class="ep-pts-gema"></div>' +
-      '<div class="ep-pts-lbl">Puntos disponibles</div>' +
-      '<div class="ep-pts-num">' + (Number(c.puntos) || 0) + '<span>pts</span></div>' +
-      '<div class="ep-pts-nota">Ganas puntos con todos tus pedidos</div>' +
-      '<div class="ep-pts-cut"></div>' +
-      '<button class="ep-pts-btn" data-ir="puntos">' + ico('gift', 18) + '</button>' +
+    var puntos = '<div class="ep-pts-wrap"><div class="ep-pts-hero">' +
+      '<div class="ep-pts-head"><span class="ep-pts-lbl"><svg class="ep-ic" width="14" height="14" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="9" width="17" height="11" rx="2"/><path d="M3.5 13h17M12 9v11"/><path d="M12 9c-2.5 0-4.2-.6-4.2-2.2S9.2 4 12 9zm0 0c2.5 0 4.2-.6 4.2-2.2S14.8 4 12 9z"/></g></svg> Puntos disponibles</span></div>' +
+      '<span class="ep-pts-big">' + (Number(c.puntos) || 0) + '<small>pts</small></span>' +
+      '<div class="ep-pts-tags">' +
+        '<span class="ep-pts-note">Ganas puntos con todos tus pedidos</span>' +
+      '</div>' +
+      '<span class="ep-pts-gem"></span>' +
+    '</div>' +
+      '<button class="ep-pts-orb" data-ir="puntos"><svg class="ep-ic" width="19" height="19" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="9" width="17" height="11" rx="2"/><path d="M3.5 13h17M12 9v11"/><path d="M12 9c-2.5 0-4.2-.6-4.2-2.2S9.2 4 12 9zm0 0c2.5 0 4.2-.6 4.2-2.2S14.8 4 12 9z"/></g></svg></button>' +
     '</div>';
 
     /* La escalera de rangos sale de la CONFIGURACIÓN del restaurante, no de una
@@ -628,13 +637,16 @@
   function cuerpoBilletera() {
     var c = S.cliente || {};
     return encabezado('Billetera', 'Tu saldo') +
-      '<div class="ep-wcard" style="margin-bottom:14px">' +
-        '<div class="ep-wc-top"><span class="ep-wc-marca">' + esc(((S.negocio && S.negocio.nombre) || '').toUpperCase()) + '</span></div>' +
-        '<div class="ep-wc-lbl">Saldo disponible</div>' +
-        '<div class="ep-wc-monto">' + COP(c.saldo) + '</div>' +
-        '<div class="ep-wc-num">•••• •••• •••• ' + esc(String(c.telefono || '').slice(-4)) + '</div>' +
-        '<div class="ep-wc-nom">' + esc(c.nombre || '') + '</div>' +
-      '</div>' +
+      '<div class="ep-wc-wrap" style="margin-bottom:14px"><div class="ep-wcard">' +
+        '<div class="ep-wc-head"><span class="ep-wc-brand">' +
+          esc(((S.negocio && S.negocio.nombre) || '').toUpperCase()) + '</span></div>' +
+        '<span class="ep-wc-lbl">Saldo disponible</span>' +
+        '<div class="ep-wc-bal"><span class="ep-wc-amt">' + COP(c.saldo) + '</span>' +
+          '<span class="ep-wc-spark"><svg class="ep-ic" width="19" height="19" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 3.6c.6 4.3 2.5 6.2 6.8 6.8-4.3.6-6.2 2.5-6.8 6.8-.6-4.3-2.5-6.2-6.8-6.8 4.3-.6 6.2-2.5 6.8-6.8z"/></svg></span></div>' +
+        '<div class="ep-wc-num">\u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 ' +
+          esc(String(c.telefono || '').slice(-4)) + '</div>' +
+        '<div class="ep-wc-holder">' + esc(c.nombre || '') + '</div>' +
+      '</div></div>' +
       '<div class="ep-aviso">Las recargas todavía no están abiertas. Cuando lo estén, vas a poder recargar aquí y pagar tus pedidos con tu saldo.</div>';
   }
 
