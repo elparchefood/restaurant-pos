@@ -300,7 +300,29 @@
     });
     // La foto del perfil. El campo va escondido dentro del circulo: se toca la
     // foto y se escoge, sin un boton aparte que explicar.
-    var campoFoto = $('pf-foto');
+    document.querySelectorAll('[data-monto]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        recargaMonto = Number(b.dataset.monto) || 0;
+        recargaOtro = '';
+        pantallaDentro();
+      });
+    });
+    var otro = $('rc-otro');
+    if (otro) {
+      otro.addEventListener('input', function () { recargaOtro = this.value; });
+      /* Solo al salir del campo se repinta: hacerlo en cada tecla le quitaria
+         el foco al usuario mientras escribe. */
+      otro.addEventListener('blur', pantallaDentro);
+    }
+    var comp = $('rc-comp');
+    if (comp) {
+      comp.addEventListener('change', function () {
+        var l = $('rc-comp-lbl');
+        if (l) l.textContent = (this.files && this.files[0]) ? this.files[0].name : 'Adjuntar comprobante';
+      });
+    }
+
+        var campoFoto = $('pf-foto');
     if (campoFoto) {
       campoFoto.addEventListener('change', function () {
         if (this.files && this.files[0]) guardarFoto(this.files[0]);
@@ -607,55 +629,153 @@
     var mios = Number(c.puntos) || 0;
     var cat = S.catalogo || [];
 
-    var hero = '<div class="ep-pts-hero" style="margin-bottom:16px">' +
-      '<div class="ep-pts-gema"></div>' +
-      '<div class="ep-pts-lbl">Mis puntos</div>' +
-      '<div class="ep-pts-num">' + mios + '<span>pts</span></div>' +
-      '<div class="ep-pts-nota">Ganas 1 punto por cada $1.000 de tus pedidos</div>' +
+    /* La tarjeta de puntos, con la estructura del handoff corregido: el boton
+       circular va FUERA, como hermano dentro del wrap. Dentro lo recortaria la
+       mascara de la muesca. */
+    var hero = '<div class="ep-pts-wrap" style="margin-bottom:14px"><div class="ep-pts-hero">' +
+      '<div class="ep-pts-head"><span class="ep-pts-lbl"><svg class="ep-ic" width="14" height="14" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="9" width="17" height="11" rx="2"/><path d="M3.5 13h17M12 9v11"/><path d="M12 9c-2.5 0-4.2-.6-4.2-2.2S9.2 4 12 9zm0 0c2.5 0 4.2-.6 4.2-2.2S14.8 4 12 9z"/></g></svg> Puntos disponibles</span></div>' +
+      '<span class="ep-pts-big">' + mios + '<small>pts</small></span>' +
+      '<div class="ep-pts-tags">' +
+        (c.puntos_ultimo ? '<span class="ep-pts-tag">+' + c.puntos_ultimo + ' pts en tu último pedido</span>' : '') +
+        '<span class="ep-pts-note">Ganas 1 punto por cada $1.000 de tus pedidos</span>' +
+      '</div>' +
+      '<span class="ep-pts-gem"></span>' +
+    '</div>' +
+      '<button class="ep-pts-orb" data-ir="carta"><svg class="ep-ic" width="19" height="19" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="9" width="17" height="11" rx="2"/><path d="M3.5 13h17M12 9v11"/><path d="M12 9c-2.5 0-4.2-.6-4.2-2.2S9.2 4 12 9zm0 0c2.5 0 4.2-.6 4.2-2.2S14.8 4 12 9z"/></g></svg></button>' +
     '</div>';
 
-    /* El catálogo se muestra SIEMPRE completo, con la distancia de cada premio.
-       Nunca "todavía no puedes redimir nada": ver cuánto falta es lo que hace
-       que el cliente vuelva. */
-    var lista = cat.length ? cat.map(function (k) {
-      var costo = Number(k.costo) || 0;
-      var alcanza = mios >= costo;
-      var faltan = Math.max(0, costo - mios);
-      return '<div class="ep-canje' + (alcanza ? '' : ' lejos') + '">' +
-        '<div class="ep-canje-ico">' + (k.foto ? '<img src="' + esc(k.foto) + '" alt="">' : ico('gift', 20)) + '</div>' +
-        '<div class="ep-canje-b"><div class="ep-canje-n">' + esc(k.nombre) + '</div>' +
-        '<div class="ep-canje-s">' + (alcanza ? '¡Ya puedes pedirlo!' : 'Te faltan ' + faltan + ' pts') + '</div></div>' +
-        '<button class="ep-canje-btn"' + (alcanza ? '' : ' disabled') + '>' + costo + ' pts</button>' +
-      '</div>';
-    }).join('') : '<div class="ep-vacio">Todavía no hay premios para canjear. Sigue sumando puntos.</div>';
+    /* El catalogo se muestra SIEMPRE COMPLETO, con la distancia a cada premio.
+       Decision de Sergio: nunca decirle a alguien "todavia no puedes redimir
+       nada" — se le muestra todo y cuanto le falta, que es lo que hace que
+       vuelva. En tres grupos, para que se vea de un golpe donde esta parado. */
+    var listos = [], cerca = [], lejos = [];
+    cat.forEach(function (k) {
+      var falta = Math.max(0, (Number(k.puntos) || 0) - mios);
+      var it = { k: k, falta: falta };
+      if (falta === 0) listos.push(it);
+      else if (falta <= 20) cerca.push(it);
+      else lejos.push(it);
+    });
+    [listos, cerca, lejos].forEach(function (g) {
+      g.sort(function (a, b) { return (Number(a.k.puntos) || 0) - (Number(b.k.puntos) || 0); });
+    });
 
-    return encabezado('Puntos', 'Tu programa de fidelidad') + hero +
-      '<div class="ep-tile-lbl" style="font-size:16px;margin:4px 0 2px">Qué puedes pedir con ellos</div>' + lista;
+    function fila(it) {
+      var k = it.k, pts = Number(k.puntos) || 0;
+      var din = Number(k.dinero) || 0;
+      var precio = pts + ' pts' + (din > 0 ? ' + ' + COP(din) : '');
+      /* Cuando ya le alcanza, NO se le dice cuanto le falta: es la razon de
+         tener dos grupos y no una lista con condiciones dentro del texto. */
+      var sub = it.falta === 0
+        ? (din > 0 ? 'Lo puedes pedir poniendo ' + COP(din) : 'Ya lo puedes pedir')
+        : 'Te faltan ' + it.falta + ' pts · un pedido de ' + COP(it.falta * 1000);
+      return '<div class="ep-redeem' + (it.falta === 0 ? '' : ' soon') + '">' +
+        '<span class="ep-redeem-ic">' + (k.foto
+          ? '<img src="' + esc(k.foto) + '" alt="">' : ico('gift', 19)) + '</span>' +
+        '<div class="ep-redeem-body"><b>' + esc(k.nombre || '') + '</b>' +
+          '<small>' + esc(sub) + '</small></div>' +
+        '<span class="ep-btn ' + (it.falta === 0 ? 'light' : 'ghost') + ' sm">' + esc(precio) + '</span>' +
+      '</div>';
+    }
+
+    function grupo(titulo, g) {
+      if (!g.length) return '';   // un titulo sin nada debajo solo estorba
+      return '<div class="ep-block"><div class="ep-block-h"><h3>' + titulo + '</h3></div>' +
+        g.map(fila).join('') + '</div>';
+    }
+
+    var lista = cat.length
+      ? grupo('Ya puedes pedir', listos) + grupo('Te falta poco', cerca) + grupo('Para ir juntando', lejos)
+      : '<div class="ep-vacio">Todavía no hay premios para canjear. Sigue sumando puntos.</div>';
+
+    /* Como se redime: en Cobra lo aplica el restaurante al cobrar, no se manda
+       por WhatsApp como en el diseño. Se dice para que nadie se quede esperando
+       un boton que no existe. */
+    var comoVa = cat.length
+      ? '<div class="ep-ok">Para usar tus puntos, dilos al hacer tu pedido o al pagar. ' +
+        'El restaurante los descuenta en ese momento.</div>'
+      : '';
+
+    return encabezado('Puntos', 'Tu programa de fidelidad') + hero + lista + comoVa;
   }
 
-  // ── Billetera ───────────────────────────────────────────────────────
+  /* Los montos que se ofrecen de un toque. Redondos y en el orden en que la
+     gente los piensa; el que quiera otro lo escribe. */
+  var MONTOS = [20000, 50000, 100000, 200000];
+  var recargaMonto = 50000, recargaOtro = '';
+
   function cuerpoBilletera() {
     var c = S.cliente || {};
-    return encabezado('Billetera', 'Tu saldo') +
-      '<div class="ep-wc-wrap" style="margin-bottom:14px"><div class="ep-wcard">' +
-        '<div class="ep-wc-head"><span class="ep-wc-brand">' +
-          esc(((S.negocio && S.negocio.nombre) || '').toUpperCase()) + '</span></div>' +
-        '<span class="ep-wc-lbl">Saldo disponible</span>' +
-        '<div class="ep-wc-bal"><span class="ep-wc-amt">' + COP(c.saldo) + '</span>' +
-          '<span class="ep-wc-spark"><svg class="ep-ic" width="19" height="19" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 3.6c.6 4.3 2.5 6.2 6.8 6.8-4.3.6-6.2 2.5-6.8 6.8-.6-4.3-2.5-6.2-6.8-6.8 4.3-.6 6.2-2.5 6.8-6.8z"/></svg></span></div>' +
-        '<div class="ep-wc-num">\u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 ' +
-          esc(String(c.telefono || '').slice(-4)) + '</div>' +
-        '<div class="ep-wc-holder">' + esc(c.nombre || '') + '</div>' +
-      '</div></div>' +
-      '<div class="ep-aviso">Las recargas todavía no están abiertas. Cuando lo estén, vas a poder recargar aquí y pagar tus pedidos con tu saldo.</div>';
+    var e = S.negocio || {};
+    var pago = S.pago || {};
+    var final = recargaOtro
+      ? parseInt(String(recargaOtro).replace(/\D/g, '') || '0', 10)
+      : recargaMonto;
+
+    /* La tarjeta, con la estructura del handoff: el boton va FUERA del recorte. */
+    var tarjeta = '<div class="ep-wc-wrap" style="margin-bottom:14px"><div class="ep-wcard">' +
+      '<div class="ep-wc-head"><span class="ep-wc-brand">' + esc((e.nombre || '').toUpperCase()) + '</span></div>' +
+      '<span class="ep-wc-lbl">Saldo disponible</span>' +
+      '<div class="ep-wc-bal"><span class="ep-wc-amt">' + COP(c.saldo) + '</span>' +
+        '<span class="ep-wc-spark"><svg class="ep-ic" width="19" height="19" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 3.6c.6 4.3 2.5 6.2 6.8 6.8-4.3.6-6.2 2.5-6.8 6.8-.6-4.3-2.5-6.2-6.8-6.8 4.3-.6 6.2-2.5 6.8-6.8z"/></svg></span></div>' +
+      '<div class="ep-wc-num">\u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 ' +
+        esc(String(c.telefono || '').slice(-4)) + '</div>' +
+      '<div class="ep-wc-holder">' + esc(c.nombre || '') + '</div>' +
+    '</div></div>';
+
+    var botones = MONTOS.map(function (m) {
+      var on = !recargaOtro && recargaMonto === m;
+      return '<button class="ep-monto' + (on ? ' on' : '') + '" data-monto="' + m + '">' + COP(m) + '</button>';
+    }).join('');
+
+    /* Los datos de pago salen de la CONFIGURACION del restaurante, no escritos
+       aqui: cada uno tiene su cuenta, y una cuenta equivocada manda la plata a
+       otro lado. Si no estan configurados, no se muestra el formulario. */
+    var datos = '';
+    if (pago.llave || pago.numero) {
+      datos = '<div class="ep-pay"><h4>Datos de pago</h4>' +
+        (pago.llave   ? '<div class="ep-pay-row"><span>Llave / Nequi</span><b>' + esc(pago.llave) + '</b></div>' : '') +
+        (pago.numero  ? '<div class="ep-pay-row"><span>' + esc(pago.entidad || 'Cuenta') + '</span><b>' + esc(pago.numero) + '</b></div>' : '') +
+        (pago.titular ? '<div class="ep-pay-row"><span>Titular</span><b>' + esc(pago.titular) + '</b></div>' : '') +
+        '<div class="ep-pay-total"><span>Vas a recargar</span><b>' + COP(final) + '</b></div>' +
+      '</div>';
+    }
+
+    var formulario = (pago.llave || pago.numero)
+      ? '<div class="ep-card">' +
+          '<h3>Recargar</h3>' +
+          '<p class="sub">Elige el monto, transfiere y sube el comprobante. ' +
+            'Tu saldo se acredita cuando el pago quede verificado.</p>' +
+          '<div class="ep-montos">' + botones + '</div>' +
+          '<input class="ep-input" id="rc-otro" placeholder="Otro monto" inputmode="numeric" value="' + esc(recargaOtro) + '">' +
+          datos +
+          '<label class="ep-field"><span>Referencia del pago</span>' +
+            '<input class="ep-input" id="rc-ref" placeholder="N\u00ba de transacci\u00f3n"></label>' +
+          '<label class="ep-upload"><input type="file" id="rc-comp" accept="image/*" hidden>' +
+            '<span id="rc-comp-lbl">Adjuntar comprobante</span></label>' +
+          '<button class="ep-btn gold big" id="rc-enviar"' + (final < 5000 ? ' disabled' : '') + '>Enviar recarga</button>' +
+          /* Se dice ANTES de que pague, no despues: es plata suya y tiene
+             derecho a saber la regla antes de entregarla. */
+          '<div class="ep-nota" style="margin-top:12px">El saldo solo se usa en ' + esc(e.nombre || 'el restaurante') +
+            ' y no se devuelve en efectivo. No vence.</div>' +
+        '</div>'
+      : '<div class="ep-aviso">El restaurante todav\u00eda no ha configurado sus datos de pago, ' +
+        'as\u00ed que las recargas no est\u00e1n abiertas.</div>';
+
+    var movs = (c.movimientos || []).length
+      ? '<div class="ep-block"><div class="ep-block-h"><h3>Tus movimientos</h3></div>' +
+        c.movimientos.map(function (m) {
+          var suma = Number(m.monto) > 0;
+          return '<div class="ep-row"><span class="ep-row-ic">' + ico(suma ? 'tarjeta' : 'bolsa', 18) + '</span>' +
+            '<div class="ep-row-body"><b>' + (suma ? 'Recarga' : 'Consumo') + '</b>' +
+            '<small>' + esc(new Date(m.fecha).toLocaleDateString('es-CO')) + (m.detalle ? ' \u00b7 ' + esc(m.detalle) : '') + '</small></div>' +
+            '<span class="ep-row-amt' + (suma ? ' up' : '') + '">' + (suma ? '+' : '') + COP(m.monto) + '</span></div>';
+        }).join('') + '</div>'
+      : '';
+
+    return encabezado('Billetera', 'Tu saldo') + tarjeta + formulario + movs;
   }
 
-  // ── Perfil ──────────────────────────────────────────────────────────
-  /* La foto se achica EN EL NAVEGADOR antes de mandarla. Una foto de celular
-     son 3 o 4 MB; el circulo donde se ve mide 96 pixeles. Mandar el original
-     seria gastarle los datos al cliente y llenar el almacenamiento con fotos
-     que nadie va a ver a ese tamaño. Se recorta cuadrada, que es como se
-     muestra: si se estirara, todos saldrian deformados. */
   function achicar(archivo, lado) {
     return new Promise(function (listo, falla) {
       var fr = new FileReader();
@@ -1007,6 +1127,7 @@
     // Los rangos de ESTE restaurante, para la escalera. Cada uno tiene los suyos.
     S.niveles = Array.isArray(neg.niveles) ? neg.niveles : [];
     S.horarios = neg.horarios || null;
+    S.pago = neg.pago || null;   // los datos para transferir, de la recarga
     document.title = neg.nombre;
 
     // ¿Ya tenía sesión abierta? (la casilla "mantener mi sesión")

@@ -836,3 +836,76 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
 .ep-over .ep-wc-wrap, .ep-over .ep-pts-wrap { display: flex; height: 100%; }
 .ep-over .ep-wc-wrap > .ep-wcard,
 .ep-over .ep-pts-wrap > .ep-pts-hero { flex: 1; min-width: 0; }
+
+
+/* ══ PANTALLA DE PUNTOS — estilos del handoff ════════════════════════════════
+   Tal cual vienen del prototipo. Van al final para que manden sobre lo viejo. */
+.ep-btn:active {transform:scale(.975)}
+.ep-btn.gold {background:var(--accent);color:#1a1204}
+.ep-btn.light {background:var(--ink);color:#0d0d10}
+.ep-btn.wa {background:var(--wa);color:#04240f}
+.ep-btn.ghost {background:var(--surf);color:var(--ink);border:1px solid var(--line)}
+.ep-btn.sm {width:auto;padding:9px 15px;font-size:13px;border-radius:12px}
+.ep-btn.big {padding:16px;font-size:16px}
+.ep-btn:disabled {opacity:.35;pointer-events:none}
+.ep-block-h {display:flex;align-items:center;justify-content:space-between;padding:6px 2px 8px}
+.ep-block-h h3 {margin:0;font-size:15px;font-weight:600}
+.ep-block-h button {font-size:12.5px;color:var(--sub)}
+.ep-row {display:flex;align-items:center;gap:13px;background:var(--surf);border:1px solid var(--line);border-radius:17px;padding:13px 14px;margin-bottom:9px;text-align:left;width:100%}
+.ep-row-ic {width:40px;height:40px;border-radius:13px;background:var(--surf2);display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid var(--line);color:var(--sub)}
+.ep-row-body {flex:1;min-width:0}
+.ep-row-body b {display:block;font-size:14px;font-weight:600}
+.ep-row-body small {color:var(--dim);font-size:12px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ep-row-amt {font-weight:600;font-size:13.5px;white-space:nowrap}
+.ep-row-amt.up {color:var(--wa)}
+.ep-row-amt.gold {color:var(--accent)}
+.ep-pill {font-size:10.5px;font-weight:600;padding:4px 9px;border-radius:8px;background:rgba(227,176,75,.13);color:var(--accent);border:1px solid rgba(227,176,75,.25)}
+.ep-ok {background:rgba(37,211,102,.1);border:1px solid rgba(37,211,102,.28);color:#7fe6ab;border-radius:14px;padding:13px 15px;font-size:13px;margin-top:13px;line-height:1.5}
+.ep-ok.err {background:rgba(143,34,66,.18);border-color:rgba(143,34,66,.5);color:#f0aabd}
+.ep-redeem {display:flex;align-items:center;gap:13px;background:var(--surf);border:1px solid var(--line);border-radius:17px;padding:13px 14px;margin-bottom:9px}
+.ep-redeem.soon {opacity:.5}
+.ep-redeem-ic {width:42px;height:42px;border-radius:13px;background:var(--surf2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--sub)}
+.ep-redeem-body {flex:1;min-width:0}
+.ep-redeem-body b {display:block;font-size:14px;font-weight:600}
+.ep-redeem-body small {color:var(--dim);font-size:11.5px}
+.ep-soon {font-size:9px;background:var(--surf2);border:1px solid var(--line);color:var(--sub);padding:2px 6px;border-radius:6px;vertical-align:middle;font-weight:600;margin-left:5px}
+.ep-btn.gold {box-shadow:0 10px 24px rgba(227,176,75,.26),inset 0 1px 0 rgba(255,255,255,.4)}
+.ep-btn.gold:hover {filter:brightness(1.07)}
+.ep-btn.wa {box-shadow:0 10px 26px rgba(37,211,102,.26),inset 0 1px 0 rgba(255,255,255,.35)}
+.ep-btn.light:hover,.ep-btn.wa:hover {filter:brightness(1.05)}
+.ep-btn.ghost:hover {border-color:var(--sub)}
+.ep-redeem-ic img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.ep-redeem-ic { overflow: hidden; }
+/* El precio en puntos no es un boton: no se redime desde aqui. Se le quita el
+   aspecto de algo que se pueda tocar para no prometer lo que no hace. */
+.ep-redeem .ep-btn { display: inline-flex; align-items: center; cursor: default; }
+
+
+/* ══ PANTALLA DE BILLETERA — estilos del handoff ═════════════════════════════ */
+.ep-field {display:flex;flex-direction:column;gap:7px}
+.ep-field>span {font-size:12px;font-weight:500;color:var(--sub);padding-left:3px}
+.ep-input,.ep-note {width:100%;background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:15px 16px;color:var(--ink);font-size:15px;font-family:inherit}
+.ep-input::placeholder,.ep-note::placeholder {color:var(--dim)}
+.ep-input:focus,.ep-note:focus {outline:none;border-color:var(--sub)}
+.ep-card {background:var(--surf);border:1px solid var(--line);border-radius:var(--r);padding:17px}
+.ep-card h3 {margin:0 0 13px;font-size:15px;font-weight:600}
+.ep-card .sub {margin:-8px 0 13px;color:var(--dim);font-size:12.5px;line-height:1.5}
+.ep-monto {background:var(--surf2);border:1px solid var(--line);border-radius:13px;padding:13px 4px;font-weight:600;font-size:13px;color:var(--sub)}
+.ep-monto.on {border-color:var(--accent);background:rgba(227,176,75,.1);color:var(--accent)}
+.ep-pay {background:var(--surf2);border:1px solid var(--line);border-radius:16px;padding:15px;margin:14px 0}
+.ep-pay h4 {margin:0 0 11px;font-size:12px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+.ep-pay-row {display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.045);font-size:13.5px}
+.ep-pay-row:last-child {border-bottom:none}
+.ep-pay-row span {color:var(--dim)}
+.ep-pay-row b {font-weight:600}
+.ep-pay-total {display:flex;justify-content:space-between;align-items:center;margin-top:11px;padding-top:12px;border-top:1px solid var(--line)}
+.ep-pay-total span {color:var(--sub);font-size:13.5px}
+.ep-pay-total b {font-size:21px;font-weight:700;letter-spacing:-.02em}
+.ep-upload {display:block;margin:11px 0;background:var(--surf2);border:1px dashed var(--line);border-radius:15px;padding:16px;text-align:center;font-size:13px;color:var(--dim);cursor:pointer}
+.ep-montos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+.ep-upload {
+  display: block; margin: 12px 0; padding: 15px 16px; text-align: center; cursor: pointer;
+  border: 1px dashed var(--line); border-radius: 14px; color: var(--sub); font-size: 13.5px;
+}
+.ep-upload:hover { border-color: var(--accent); color: var(--accent); }
+@media (max-width: 480px) { .ep-montos { grid-template-columns: repeat(2, 1fr); } }
