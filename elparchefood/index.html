@@ -2,6 +2,14 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<!-- Este archivo NO se guarda en cache. Es de 15 lineas y es el que dice que
+     version de la aplicacion cargar; si el navegador se queda con una copia
+     vieja, sigue pidiendo la version anterior y los cambios nunca llegan
+     aunque esten publicados. Paso el 6-ago-2026: el codigo nuevo estaba
+     desplegado y Sergio seguia viendo las pantallas viejas.
+     La aplicacion (app-cliente.js/css) SI se cachea, y se renueva con el ?v=. -->
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>El Parche Food</title>
 <!-- La página de UN restaurante.
@@ -12,12 +20,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../app-cliente.css?v=1790050000">
+<link rel="stylesheet" href="../app-cliente.css?v=1790060000">
 </head>
 <body>
 <div id="app"></div>
 <script>window.COBRA_SLUG = 'elparchefood';</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="../app-cliente.js?v=1790050000"></script>
+<script src="../app-cliente.js?v=1790060000"></script>
 </body>
 </html>
