@@ -828,3 +828,11 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 html.tema-claro .ep-wcard:before,
 html.tema-claro .ep-pts-hero:before{background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0) 44%)}
 html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
+
+/* Las dos tarjetas miden lo mismo de alto. En la rejilla del inicio el que
+   estira es el WRAP (que existe para que el boton quede fuera del recorte), y
+   la tarjeta de adentro se quedaba con el alto de su contenido: como la de
+   puntos tiene menos texto, salia mas baja. El wrap le pasa su alto. */
+.ep-over .ep-wc-wrap, .ep-over .ep-pts-wrap { display: flex; height: 100%; }
+.ep-over .ep-wc-wrap > .ep-wcard,
+.ep-over .ep-pts-wrap > .ep-pts-hero { flex: 1; min-width: 0; }

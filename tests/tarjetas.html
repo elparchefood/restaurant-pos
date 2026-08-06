@@ -41,6 +41,10 @@
   es('el boton NO esta dentro de la tarjeta', card.contains(btn), false);
   es('el boton se ve (opaco)', getComputedStyle(btn).backgroundColor.indexOf('rgba(0, 0, 0, 0)') < 0, true);
 
+  var pts = document.querySelector('.ep-pts-hero');
+  es('las dos tarjetas miden igual de alto',
+     Math.abs(card.getBoundingClientRect().height - pts.getBoundingClientRect().height) < 2, true);
+
   document.getElementById('out').textContent =
     (mal?log.join('\n')+'\n\n':'') + ok+' bien, '+mal+' mal';
   document.title = mal ? 'FALLAN '+mal : 'TODO BIEN ('+ok+')';
