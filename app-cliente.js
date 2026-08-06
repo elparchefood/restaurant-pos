@@ -300,6 +300,13 @@
     });
     // La foto del perfil. El campo va escondido dentro del circulo: se toca la
     // foto y se escoge, sin un boton aparte que explicar.
+    var irRecarga = $('rc-ir');
+    if (irRecarga) {
+      irRecarga.addEventListener('click', function () {
+        var f = $('rc-otro');
+        if (f) f.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
     document.querySelectorAll('[data-monto]').forEach(function (b) {
       b.addEventListener('click', function () {
         recargaMonto = Number(b.dataset.monto) || 0;
@@ -721,7 +728,13 @@
       '<div class="ep-wc-num">\u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 ' +
         esc(String(c.telefono || '').slice(-4)) + '</div>' +
       '<div class="ep-wc-holder">' + esc(c.nombre || '') + '</div>' +
-    '</div></div>';
+    '</div>' +
+      /* El mismo boton de la pantalla principal. Aqui no navega: baja al
+         formulario, que esta justo debajo. */
+      '<button class="ep-wc-cta" id="rc-ir"><svg class="ep-ic" width="15" height="15" viewBox="0 0 24 24">' +
+        '<path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" ' +
+        'stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg> Recargar</button>' +
+    '</div>';
 
     var botones = MONTOS.map(function (m) {
       var on = !recargaOtro && recargaMonto === m;
