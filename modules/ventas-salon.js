@@ -536,13 +536,19 @@
 
         // Órdenes activas para todas las mesas combinadas
         const allIds = Object.keys(mergedMap);
-        const { data: ordersData } = await sb
-          .from('pos_orders')
+        // El ESTADO de la mesa ya lo tenemos de pos_tables. Los pedidos solo
+        // añaden total, tiempo y mesero: si fallan, se pinta sin ellos.
+        let ordersData = null;
+        try {
+          const _ordRes = await sb
+            .from('pos_orders')
           .select('id, table_id, total, guests, waiter_name, waiter_id, opened_at, created_at')
           .in('table_id', allIds)
           .not('status', 'eq', 'completed')
           .not('status', 'eq', 'cancelled')
-          .not('status', 'eq', 'paid');
+            .not('status', 'eq', 'paid');
+          ordersData = _ordRes.data;
+        } catch (_e) { ordersData = null; }
         const orderMap = {};
         (ordersData || []).forEach(function(o){ orderMap[o.table_id] = o; });
 
@@ -571,14 +577,19 @@
         const itemsCountMap = {};
         const activeOrders = Object.values(orderMap).filter(function(o){ return o && o.id; });
         if (activeOrders.length > 0) {
+          // Un adorno no puede tumbar la pantalla: si el conteo falla, la mesa
+          // se pinta igual sin el numerito de items.
           const countResults = await Promise.all(activeOrders.map(function(o) {
             return sb.from('pos_order_items').select('id').eq('order_id', o.id)
-              .then(function(r){ return { oid: o.id, count: (r.data || []).length }; });
+              .then(function(r){ return { oid: o.id, count: (r.data || []).length }; })
+              .catch(function(){ return { oid: o.id, count: 0 }; });
           }));
           countResults.forEach(function(c){ itemsCountMap[c.oid] = c.count; });
         }
 
-        const _vsUsr = await vsUsuarios();
+        // Idem: sin los nombres de meseros la mesa se ve igual de bien.
+        let _vsUsr = {};
+        try { _vsUsr = await vsUsuarios(); } catch (_e) { _vsUsr = {}; }
         const enriched = Object.values(mergedMap).map(function(t) {
           const ord = orderMap[t.id];
           // El nombre completo de quien atiende. Antes solo se guardaban las
@@ -620,6 +631,11 @@
       }
     } catch(e) {
       console.warn('[ventas-salon] Supabase fetch failed:', e.message || e);
+      /* Antes se devolvia el plano local, con TODAS las mesas en libre. Eso es
+         mentir: el mesero ve la mesa libre, vuelve a sentar gente y el pedido
+         anterior queda sin cobrar. Mejor decir que no se pudo cargar. */
+      state.errorCarga = 'No pude cargar el estado de las mesas. Revisa la conexión y vuelve a intentar.';
+      return baseTables.map(function(t){ return Object.assign({}, t, { status: 'desconocido' }); });
     }
 
     return baseTables;
