@@ -708,8 +708,30 @@
 
   /* Los montos que se ofrecen de un toque. Redondos y en el orden en que la
      gente los piensa; el que quiera otro lo escribe. */
-  var MONTOS = [20000, 50000, 100000, 200000];
+  /* El mínimo es $40.000, así que $20.000 ya no tiene sentido ofrecerlo.
+     $50.000 va de segundo a propósito: es el primero que da saldo extra. */
+  var MONTOS = [40000, 50000, 100000, 200000];
+  var RECARGA_MINIMO = 40000, RECARGA_BLOQUE = 50000;
   var recargaMonto = 50000, recargaOtro = '';
+
+  /* Cuánto saldo extra le queda por esta recarga. Bloques COMPLETOS de $50.000
+     por lo que valga su nivel: $70.000 es un bloque, no uno y medio. El valor
+     por bloque lo manda el servidor con los datos del cliente; si no viene, no
+     se promete nada. */
+  function bonoTexto(monto) {
+    var c = S.cliente || {};
+    var porBloque = Number(c.bono_por_bloque || 0);
+    if (!porBloque || monto < RECARGA_MINIMO) {
+      return '<div class="ep-nota" style="margin:-2px 0 10px">Desde ' + COP(RECARGA_BLOQUE) +
+             ' ganas saldo extra.</div>';
+    }
+    var bloques = Math.floor(monto / RECARGA_BLOQUE);
+    if (!bloques) return '<div class="ep-nota" style="margin:-2px 0 10px">Desde ' +
+                          COP(RECARGA_BLOQUE) + ' ganas saldo extra.</div>';
+    var bono = bloques * porBloque;
+    return '<div class="ep-ok" style="margin:-2px 0 10px">Recargas ' + COP(monto) +
+           ' y recibes <b>' + COP(monto + bono) + '</b> · ' + COP(bono) + ' de regalo</div>';
+  }
 
   function cuerpoBilletera() {
     var c = S.cliente || {};
@@ -760,13 +782,12 @@
           '<p class="sub">Elige el monto, transfiere y sube el comprobante. ' +
             'Tu saldo se acredita cuando el pago quede verificado.</p>' +
           '<div class="ep-montos">' + botones + '</div>' +
+          bonoTexto(final) +
           '<input class="ep-input" id="rc-otro" placeholder="Otro monto" inputmode="numeric" value="' + esc(recargaOtro) + '">' +
           datos +
-          '<label class="ep-field"><span>Referencia del pago</span>' +
-            '<input class="ep-input" id="rc-ref" placeholder="N\u00ba de transacci\u00f3n"></label>' +
           '<label class="ep-upload"><input type="file" id="rc-comp" accept="image/*" hidden>' +
             '<span id="rc-comp-lbl">Adjuntar comprobante</span></label>' +
-          '<button class="ep-btn gold big" id="rc-enviar"' + (final < 5000 ? ' disabled' : '') + '>Enviar recarga</button>' +
+          '<button class="ep-btn gold big" id="rc-enviar"' + (final < RECARGA_MINIMO ? ' disabled' : '') + '>Enviar recarga</button>' +
           /* Se dice ANTES de que pague, no despues: es plata suya y tiene
              derecho a saber la regla antes de entregarla. */
           '<div class="ep-nota" style="margin-top:12px">El saldo solo se usa en ' + esc(e.nombre || 'el restaurante') +
