@@ -880,8 +880,26 @@
   async function loadData() {
     // El mapa de productos se necesita para desglosar el empaque por linea.
     // Va dentro del mismo Promise.all para no agregar una espera.
-    [state.tables, state.deliveries, state.quickOrders, state.quickDeliveredCount] =
-      await Promise.all([fetchTables(), fetchDeliveries(), fetchQuickOrders(), fetchQuickDeliveredCount(), vsProdMapCargar()]);
+    /* allSettled, no all: cada carga responde por si misma. Con Promise.all,
+       si una sola fallaba no se asignaba ninguna y el render() de abajo ni se
+       ejecutaba — la pantalla se quedaba con el plano instantaneo, que tiene
+       todas las mesas en 'libre'. Asi es como dos pedidos de mesa reales se
+       vieron como mesas libres toda una noche. Ahora lo que llega se pinta, y
+       lo que falla solo se queda sin actualizar su parte. */
+    const _res = await Promise.allSettled([
+      fetchTables(), fetchDeliveries(), fetchQuickOrders(), fetchQuickDeliveredCount(), vsProdMapCargar()
+    ]);
+    const _ok = function (i, actual) {
+      if (_res[i] && _res[i].status === 'fulfilled' && _res[i].value !== undefined) return _res[i].value;
+      if (_res[i] && _res[i].status === 'rejected') {
+        console.warn('[ventas-salon] carga ' + i + ' fallo:', (_res[i].reason && _res[i].reason.message) || _res[i].reason);
+      }
+      return actual;
+    };
+    state.tables              = _ok(0, state.tables);
+    state.deliveries          = _ok(1, state.deliveries);
+    state.quickOrders         = _ok(2, state.quickOrders);
+    state.quickDeliveredCount = _ok(3, state.quickDeliveredCount);
 
     state.loading = false;
     guardarPlanoSalon();   // para que la próxima vez el salón salga al instante
