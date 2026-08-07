@@ -843,12 +843,12 @@
   async function enviarRecarga() {
     var campo = $('rc-comp');
     var archivo = campo && campo.files && campo.files[0];
-    if (!archivo) { alert('Sube la foto del comprobante para acreditarte el saldo.'); return; }
+    if (!archivo) { aviso('Sube la foto del comprobante para acreditarte el saldo.', 'mal'); return; }
 
     var monto = recargaOtro
       ? parseInt(String(recargaOtro).replace(/\D/g, '') || '0', 10)
       : recargaMonto;
-    if (monto < RECARGA_MINIMO) { alert('La recarga mínima es ' + COP(RECARGA_MINIMO) + '.'); return; }
+    if (monto < RECARGA_MINIMO) { aviso('La recarga mínima es ' + COP(RECARGA_MINIMO) + '.', 'mal'); return; }
 
     var btn = $('rc-enviar');
     if (btn) { btn.disabled = true; btn.textContent = 'Verificando…'; }
@@ -861,24 +861,58 @@
         body: JSON.stringify({ token: leerToken(), monto: monto, comprobante_url: img }),
       }).then(function (r) { return r.json(); });
 
-      if (!d.ok) { alert(d.mensaje || 'No pudimos acreditar la recarga.'); return; }
+      if (!d.ok) { aviso(d.mensaje || 'No pudimos acreditar la recarga.', 'mal'); return; }
 
       if (d.saldo != null) S.cliente.saldo = d.saldo;
       recargaOtro = '';
-      alert(d.mensaje || '¡Listo!');
+      aviso(d.mensaje || '\u00a1Listo!', 'bien');
       pantallaDentro();          // el saldo nuevo se ve al momento
     } catch (e) {
       /* El motivo, no un "algo falló": aquí hay plata de por medio y el cliente
          tiene derecho a saber por qué no se le acreditó. */
       console.error('[recarga]', e);
-      alert('No se pudo enviar la recarga.\n\n' + ((e && e.message) || e));
+      aviso('No se pudo enviar la recarga.\n\n' + ((e && e.message) || e), 'mal');
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = 'Enviar recarga'; }
     }
   }
 
+  /* Un aviso con la cara de la página. `alert()` lo dibuja el navegador: sale
+     gris, con el dominio arriba, y aparece justo cuando el cliente está por
+     pagar — el peor momento para que algo parezca roto.
+
+     Tres tonos: mal (algo falló), bien (salió), y neutro. Se cierra tocando
+     fuera, con Escape o con el botón. */
+  function aviso(texto, tono) {
+    var viejo = document.querySelector('.ep-aviso-cap');
+    if (viejo) viejo.remove();
+
+    var cap = document.createElement('div');
+    cap.className = 'ep-aviso-cap';
+    cap.innerHTML =
+      '<div class="ep-aviso-box ' + (tono || '') + '" role="alertdialog" aria-live="assertive">' +
+        '<div class="ep-aviso-ic">' + (tono === 'bien' ? '\u2713' : tono === 'mal' ? '!' : 'i') + '</div>' +
+        '<p class="ep-aviso-txt"></p>' +
+        '<button class="ep-btn gold big ep-aviso-ok" type="button">Entendido</button>' +
+      '</div>';
+    /* El texto por textContent, no por innerHTML: parte de estos mensajes
+       vienen del servidor y no se pintan como HTML ni por accidente. */
+    cap.querySelector('.ep-aviso-txt').textContent = String(texto || '');
+    document.body.appendChild(cap);
+
+    function cerrar() {
+      cap.remove();
+      document.removeEventListener('keydown', porTecla);
+    }
+    function porTecla(e) { if (e.key === 'Escape') cerrar(); }
+    cap.querySelector('.ep-aviso-ok').addEventListener('click', cerrar);
+    cap.addEventListener('click', function (e) { if (e.target === cap) cerrar(); });
+    document.addEventListener('keydown', porTecla);
+    setTimeout(function () { cap.querySelector('.ep-aviso-ok').focus(); }, 30);
+  }
+
   async function guardarFoto(archivo) {
-    if (!archivo || !/^image\//.test(archivo.type)) { alert('Escoge una imagen.'); return; }
+    if (!archivo || !/^image\//.test(archivo.type)) { aviso('Escoge una imagen.', 'mal'); return; }
     var caja = document.querySelector('.ep-avatar-g');
     if (caja) caja.classList.add('cargando');
     try {
@@ -887,7 +921,7 @@
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accion: 'foto', token: leerToken(), foto: chica }),
       }).then(function (r) { return r.json(); });
-      if (!d.ok) { alert(d.mensaje || 'No se pudo guardar la foto.'); return; }
+      if (!d.ok) { aviso(d.mensaje || 'No se pudo guardar la foto.', 'mal'); return; }
       S.cliente.foto = d.foto;
       pantallaDentro();               // se ve al momento, en el perfil y arriba
     } catch (e) {
@@ -896,7 +930,7 @@
          variable que no existia, y desde afuera se veia igual que una foto
          corrupta. Si no se dice que paso, no hay como arreglarlo. */
       console.error('[foto]', e);
-      alert('No se pudo guardar la foto.\n\n' + ((e && e.message) || e));
+      aviso('No se pudo guardar la foto.\n\n' + ((e && e.message) || e), 'mal');
     } finally {
       if (caja) caja.classList.remove('cargando');
     }
