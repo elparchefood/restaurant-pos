@@ -54,10 +54,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   paintShell();
 
   // 4. Cargar datos en paralelo
-  await Promise.all([
+  /* allSettled, no all: en la venta rapida NO hay mesa, asi que loadTable()
+     falla — y con Promise.all esa caida se llevaba tambien el catalogo, aunque
+     el catalogo hubiera cargado bien. El renderCatGrid() de mas abajo no
+     llegaba a ejecutarse nunca y la pantalla se quedaba en Cargando
+     categorias... para siempre. Cada carga responde por si misma. */
+  const _cargas = await Promise.allSettled([
     loadTable(),
     loadCatalog(),
   ]);
+  _cargas.forEach(function (r, i) {
+    if (r.status === 'rejected') {
+      console.warn('[tomar-pedido] carga ' + (i === 0 ? 'mesa' : 'catalogo') + ' fallo:',
+                   (r.reason && r.reason.message) || r.reason);
+    }
+  });
 
   // 4b. Estado de inventario (para bloquear/avisar productos sin insumo)
   if (window.posStock) { try { await posStock.load(sb); } catch (e) { console.warn('posStock:', e); } }
