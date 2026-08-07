@@ -620,6 +620,23 @@
       }
     } catch(e) {
       console.warn('[ventas-salon] Supabase fetch failed:', e.message || e);
+      /* En el ejecutable no hay consola, asi que el error se guarda en la base
+         para poder leerlo desde fuera. Solo escribe cuando YA fallo; no cambia
+         nada de lo que se ve. */
+      try {
+        var _sbD = window._pos && window._pos.sb;
+        if (_sbD) {
+          _sbD.from('pos_diag').insert({
+            donde: 'ventas-salon/fetchTables',
+            mensaje: String((e && (e.message || e.error_description)) || e).slice(0, 500),
+            extra: {
+              nombre: e && e.name, codigo: e && e.code, detalle: e && e.details, hint: e && e.hint,
+              mesas_local: (baseTables || []).length,
+              branch: (window._pos && window._pos.state && window._pos.state.branchId) || null
+            }
+          }).then(function(){}, function(){});
+        }
+      } catch (_ignore) {}
     }
 
     return baseTables;
