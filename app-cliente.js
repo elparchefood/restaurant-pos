@@ -321,6 +321,8 @@
          el foco al usuario mientras escribe. */
       otro.addEventListener('blur', pantallaDentro);
     }
+    var env = $('rc-enviar');
+    if (env) env.addEventListener('click', enviarRecarga);
     var comp = $('rc-comp');
     if (comp) {
       comp.addEventListener('change', function () {
@@ -829,6 +831,50 @@
       };
       fr.readAsDataURL(archivo);
     });
+  }
+
+  /* Manda la recarga. El comprobante viaja como imagen y el servidor es quien
+     decide: lee cuánto dice de verdad, lo cruza con el correo del banco (valor,
+     referencia y hora de la transacción) y solo entonces acredita.
+
+     El monto elegido se manda SOLO para que el servidor pueda avisar si no
+     coincide con el comprobante. No decide nada: si mandara el monto como
+     verdad, cualquiera escribiría medio millón. */
+  async function enviarRecarga() {
+    var campo = $('rc-comp');
+    var archivo = campo && campo.files && campo.files[0];
+    if (!archivo) { alert('Sube la foto del comprobante para acreditarte el saldo.'); return; }
+
+    var monto = recargaOtro
+      ? parseInt(String(recargaOtro).replace(/\D/g, '') || '0', 10)
+      : recargaMonto;
+    if (monto < RECARGA_MINIMO) { alert('La recarga mínima es ' + COP(RECARGA_MINIMO) + '.'); return; }
+
+    var btn = $('rc-enviar');
+    if (btn) { btn.disabled = true; btn.textContent = 'Verificando…'; }
+    try {
+      /* 1100px: suficiente para que se lea la referencia y la hora en la
+         captura, sin mandar una foto de 4 MB desde un celular con datos. */
+      var img = await achicar(archivo, 1100);
+      var d = await fetch(SB_URL + '/functions/v1/web-recarga', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: leerToken(), monto: monto, comprobante_url: img }),
+      }).then(function (r) { return r.json(); });
+
+      if (!d.ok) { alert(d.mensaje || 'No pudimos acreditar la recarga.'); return; }
+
+      if (d.saldo != null) S.cliente.saldo = d.saldo;
+      recargaOtro = '';
+      alert(d.mensaje || '¡Listo!');
+      pantallaDentro();          // el saldo nuevo se ve al momento
+    } catch (e) {
+      /* El motivo, no un "algo falló": aquí hay plata de por medio y el cliente
+         tiene derecho a saber por qué no se le acreditó. */
+      console.error('[recarga]', e);
+      alert('No se pudo enviar la recarga.\n\n' + ((e && e.message) || e));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Enviar recarga'; }
+    }
   }
 
   async function guardarFoto(archivo) {
