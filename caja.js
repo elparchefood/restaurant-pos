@@ -700,9 +700,10 @@ async function loadPayMethodsConfig(){
       }; });
   } catch(e){ return []; }
 }
-const _DP_COLOR = { efectivo:'#16A34A', tarjeta:'#5B6BFF', transferencia:'#0EA5E9', banco:'#0EA5E9', billetera:'#8B5CF6', otro:'#94A3B8' };
-const _DP_TINT  = { efectivo:'#DCFCE7', tarjeta:'#EEF2FF', transferencia:'#F0F9FF', banco:'#F0F9FF', billetera:'#F5F3FF', otro:'#F1F5F9' };
+const _DP_COLOR = { puntos:'#F0A83C', efectivo:'#16A34A', tarjeta:'#5B6BFF', transferencia:'#0EA5E9', banco:'#0EA5E9', billetera:'#8B5CF6', otro:'#94A3B8' };
+const _DP_TINT  = { puntos:'#FEF3C7', efectivo:'#DCFCE7', tarjeta:'#EEF2FF', transferencia:'#F0F9FF', banco:'#F0F9FF', billetera:'#F5F3FF', otro:'#F1F5F9' };
 const _DP_ICON  = {
+  puntos:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.6 5.6 6.1.8-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 9.4l6.1-.8z"/></svg>',
   efectivo:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>',
   tarjeta:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',
   transferencia:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16l-3-3"/><path d="M20 15H4l3 3"/></svg>',
@@ -720,16 +721,29 @@ function renderDesglosePago(orders) {
   let otros = 0;
   Object.keys(pagos).forEach(function(k){ if(!used[k]) otros += pagos[k]||0; });
   if (otros > 0) rows.push({ nombre:'Otros', tipo:'otro', amt:otros });
+  /* Los PUNTOS no son plata: no entran en el total ni en la barra de nadie. Se
+     muestran aparte, en puntos, y solo si alguien redimio ese dia. La parte en
+     dinero de un canje mixto ya viaja en su metodo real (efectivo o
+     transferencia), asi que no se cuenta dos veces. */
+  const puntos = (orders || [])
+    .filter(function(o){ return o.status !== 'cancelled'; })
+    .reduce(function(s,o){ return s + (parseInt(o.puntos_redimidos, 10) || 0); }, 0);
+
   const total = rows.reduce(function(s,r){ return s+r.amt; }, 0);
+  if (puntos > 0) rows.push({ nombre:'Puntos', tipo:'puntos', amt:0, pts:puntos });
   if (!rows.length) { cont.innerHTML = '<div class="cj-empty-row" style="padding:16px 0">Configura tus métodos en <strong>Métodos de pago</strong></div>'; return; }
   cont.innerHTML = rows.map(function(r){
     const color = _DP_COLOR[r.tipo] || _DP_COLOR.otro;
     const tint  = _DP_TINT[r.tipo]  || _DP_TINT.otro;
     const icon  = _DP_ICON[r.tipo]  || _DP_ICON.otro;
-    const pct   = total>0 ? (r.amt/total*100) : 0;
+    /* La barra de los puntos va llena: no compite con los pesos, solo dice
+       cuantos se redimieron. */
+    const esPts = r.pts != null;
+    const pct   = esPts ? 100 : (total>0 ? (r.amt/total*100) : 0);
+    const valor = esPts ? (Number(r.pts).toLocaleString('es-CO') + ' pts') : COPF(r.amt);
     return '<div class="cj-method-row">'
       +'<div class="cj-method-ic" style="background:'+tint+';color:'+color+'">'+icon+'</div>'
-      +'<div style="flex:1;min-width:0"><div class="cj-method-top"><span class="cj-method-name">'+cjEsc(r.nombre)+'</span><span class="cj-method-val">'+COPF(r.amt)+'</span></div>'
+      +'<div style="flex:1;min-width:0"><div class="cj-method-top"><span class="cj-method-name">'+cjEsc(r.nombre)+'</span><span class="cj-method-val">'+valor+'</span></div>'
       +'<div class="cj-track"><i style="width:'+pct.toFixed(1)+'%;background:'+color+'"></i></div></div>'
     +'</div>';
   }).join('');
