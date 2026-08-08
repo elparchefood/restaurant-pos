@@ -5403,10 +5403,10 @@ var MP_CANALES = [['mesa','Mesa'],['rapida','Rápida'],['domicilio','Domicilio']
    pagina no tiene donde recargar, asi que ni siquiera ve la tarjeta. */
 var MP_FIJOS = [
   { id:'__puntos', tipo:'puntos', nombre:'Puntos',
-    sub:'El cliente paga con los puntos que acumulo. Se descuentan de su bolsa.',
+    sub:'El cliente paga con los puntos que acumuló. Se descuentan de su bolsa.',
     requierePagina:false },
   { id:'__saldo', tipo:'saldo', nombre:'Saldo',
-    sub:'El cliente paga con el saldo que recargo en tu pagina. Se le descuenta al cobrar.',
+    sub:'El cliente paga con el saldo que recargó en tu página. Se le descuenta al cobrar.',
     requierePagina:true }
 ];
 function _mpEsFijo(m){ return !!(m && MP_FIJOS.some(function(f){ return f.id === m.id; })); }
@@ -5529,7 +5529,7 @@ function _mpTileHtml(m){
   var canales = (m.canales||[]).map(function(c){
     for (var i=0;i<MP_CANALES.length;i++) if (MP_CANALES[i][0]===c) return MP_CANALES[i][1];
     return c;
-  }).join(' \u00b7 ') || 'En ningun canal';
+  }).join(' · ') || 'En ningún canal';
   return '<button type="button" class="mp-tile'+(MP.sel===m.id?' on':'')+(m.activo?'':' off')+'" onclick="mpSelect(\''+m.id+'\')">'
     +'<div class="mp-tile-top"><span class="mp-tile-ico">'+_mpIco(m.tipo)+'</span>'
       +'<span class="mp-tile-marks">'
@@ -5550,7 +5550,7 @@ function _mpFijoHtml(m){
   return '<div class="mp-fijo'+(m.activo?' on':'')+'">'
     +'<span class="mp-fijo-ico">'+_mpIco(m.tipo)+'</span>'
     +'<span class="mp-fijo-txt"><span class="mp-fijo-n">'+_mpEsc(m.nombre)+'</span>'
-      +'<span class="mp-fijo-s">'+(m.activo?_mpEsc(f.sub||''):'Apagado \u00b7 no aparece al cobrar')+'</span></span>'
+      +'<span class="mp-fijo-s">'+(m.activo?_mpEsc(f.sub||''):'Apagado · no aparece al cobrar')+'</span></span>'
     +'<label class="mp-sw" title="Se puede usar"><input type="checkbox"'+(m.activo?' checked':'')
       +' onchange="mpToggle(\''+m.id+'\',\'activo\',this.checked)"><span></span></label>'
   +'</div>';
@@ -5566,16 +5566,16 @@ function _mpInspectorHtml(m){
   }).join('');
   var digRow = m.digital ? (
      '<div class="cf-gen-sep"><div class="cf-rail-sublabel">Datos de la cuenta</div>'
-    +_mpFieldInline('Cuenta / llave','mpField(\''+m.id+'\',\'cuenta\',this.value)',m.cuenta,'Numero o llave')
+    +_mpFieldInline('Cuenta / llave','mpField(\''+m.id+'\',\'cuenta\',this.value)',m.cuenta,'Número o llave')
     +'<div style="height:9px"></div>'
     +_mpFieldInline('Banco','mpField(\''+m.id+'\',\'banco\',this.value)',m.banco,'Ej. Bancolombia')
     +'</div>') : '';
-  return '<div class="cf-rail-head"><div><div class="cf-eyebrow">Metodo</div>'
+  return '<div class="cf-rail-head"><div><div class="cf-eyebrow">Método</div>'
       +'<div class="cf-rail-title">'+(_mpEsc(m.nombre)||'Sin nombre')+'</div></div>'
       +'<button class="cf-mini-del" title="Cerrar" onclick="mpSelect(null)">&times;</button></div>'
     +'<div class="cf-rail-body">'
       +'<div class="cf-form-field"><label class="cf-form-label">Nombre</label>'
-        +'<input class="cf-form-input" value="'+_mpEsc(m.nombre)+'" oninput="mpField(\''+m.id+'\',\'nombre\',this.value);mpRefrescarTiles()" placeholder="Ej. Nequi, Efectivo..."></div>'
+        +'<input class="cf-form-input" value="'+_mpEsc(m.nombre)+'" oninput="mpField(\''+m.id+'\',\'nombre\',this.value);mpRefrescarTiles()" placeholder="Ej. Nequi, Efectivo…"></div>'
       +'<div class="cf-form-field" style="margin-top:12px"><label class="cf-form-label">Tipo</label>'
         +'<select class="cf-form-input" onchange="mpField(\''+m.id+'\',\'tipo\',this.value);_mpRender()">'+tipoOpts+'</select></div>'
       +'<div class="cf-gen-sep"><label class="mp-check"><input type="checkbox"'+(m.activo?' checked':'')+' onchange="mpToggle(\''+m.id+'\',\'activo\',this.checked)"> Se puede usar</label>'
@@ -5584,7 +5584,7 @@ function _mpInspectorHtml(m){
       +'<div class="cf-gen-sep"><div class="cf-rail-sublabel">Disponible en</div>'
         +'<div class="mp-chips">'+canalChips+'</div></div>'
       + digRow
-      +'<div class="cf-gen-sep"><div class="cf-rail-sublabel">Comision</div>'
+      +'<div class="cf-gen-sep"><div class="cf-rail-sublabel">Comisión</div>'
         +'<div class="mp-comision"><input type="number" min="0" step="0.1" class="cf-form-input" value="'+(m.comision||'')+'" oninput="mpField(\''+m.id+'\',\'comision\',this.value)" placeholder="0"><span>%</span></div></div>'
     +'</div>'
     +'<div class="cf-rail-foot">'
@@ -5601,15 +5601,15 @@ function _mpResumenHtml(){
   var act = normales.filter(function(m){ return m.activo!==false; }).length;
   var def = normales.find(function(m){ return m.porDefecto; });
   return '<div class="cf-rail-head"><div><div class="cf-eyebrow">Resumen</div>'
-      +'<div class="cf-rail-title">Como cobras</div></div></div>'
+      +'<div class="cf-rail-title">Cobras así</div></div></div>'
     +'<div class="cf-rail-body">'
       +'<div class="cf-stat-row">'
         +'<div class="cf-stat-box"><div class="cf-stat-big">'+act+'</div><div class="cf-stat-lbl">se pueden usar</div></div>'
-        +'<div class="cf-stat-box"><div class="cf-stat-big">'+normales.length+'</div><div class="cf-stat-lbl">metodos en total</div></div>'
+        +'<div class="cf-stat-box"><div class="cf-stat-big">'+normales.length+'</div><div class="cf-stat-lbl">métodos en total</div></div>'
       +'</div>'
       +'<div class="cf-rail-sublabel">Por defecto</div>'
       +'<div class="mp-defbox">'+(def?_mpEsc(def.nombre):'Ninguno marcado')+'</div>'
-      +'<div class="cf-gen-sep cf-rail-hint">Selecciona un metodo para editarlo.</div>'
+      +'<div class="cf-gen-sep cf-rail-hint">Selecciona un método para editarlo.</div>'
     +'</div>';
 }
 
@@ -5621,7 +5621,7 @@ function _mpRender(){
   var tiles = normales.map(_mpTileHtml).join('')
     + '<button type="button" class="mp-add" onclick="mpAddMetodo()">'
       + '<span class="mp-add-ico"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>'
-      + '<span class="mp-add-l">Nuevo metodo</span></button>';
+      + '<span class="mp-add-l">Nuevo método</span></button>';
 
   /* Los fijos van abajo del panel, no en el rail: si estuvieran en el rail
      desapareceran apenas selecciones un metodo, y son justo lo que uno viene
@@ -5635,8 +5635,8 @@ function _mpRender(){
   root.innerHTML =
     '<section class="cf-pagehead">'
       +'<div><div class="cf-eyebrow">Ventas</div>'
-      +'<h2 class="cf-pagehead-title">Metodos de pago</h2>'
-      +'<p class="cf-pagehead-sub">Lo unico que leen la pantalla de cobro, el cuadre de caja y el asistente de WhatsApp.</p></div>'
+      +'<h2 class="cf-pagehead-title">Métodos de pago</h2>'
+      +'<p class="cf-pagehead-sub">Lo único que leen la pantalla de cobro, el cuadre de caja y el asistente de WhatsApp.</p></div>'
       +'<button class="lm-btn-primary" id="mp-save" onclick="mpSave()" disabled style="opacity:.5">Guardar cambios</button>'
     +'</section>'
     +'<section class="cf-body cf-body-mp">'
