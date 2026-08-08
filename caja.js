@@ -700,9 +700,10 @@ async function loadPayMethodsConfig(){
       }; });
   } catch(e){ return []; }
 }
-const _DP_COLOR = { puntos:'#F0A83C', efectivo:'#16A34A', tarjeta:'#5B6BFF', transferencia:'#0EA5E9', banco:'#0EA5E9', billetera:'#8B5CF6', otro:'#94A3B8' };
-const _DP_TINT  = { puntos:'#FEF3C7', efectivo:'#DCFCE7', tarjeta:'#EEF2FF', transferencia:'#F0F9FF', banco:'#F0F9FF', billetera:'#F5F3FF', otro:'#F1F5F9' };
+const _DP_COLOR = { saldo:'#8B5CF6', puntos:'#F0A83C', efectivo:'#16A34A', tarjeta:'#5B6BFF', transferencia:'#0EA5E9', banco:'#0EA5E9', billetera:'#8B5CF6', otro:'#94A3B8' };
+const _DP_TINT  = { saldo:'#F5F3FF', puntos:'#FEF3C7', efectivo:'#DCFCE7', tarjeta:'#EEF2FF', transferencia:'#F0F9FF', banco:'#F0F9FF', billetera:'#F5F3FF', otro:'#F1F5F9' };
 const _DP_ICON  = {
+  saldo:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="2.5"/><path d="M16 12.5h3"/></svg>',
   puntos:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.6 5.6 6.1.8-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 9.4l6.1-.8z"/></svg>',
   efectivo:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>',
   tarjeta:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',
@@ -725,11 +726,23 @@ function renderDesglosePago(orders) {
      muestran aparte, en puntos, y solo si alguien redimio ese dia. La parte en
      dinero de un canje mixto ya viaja en su metodo real (efectivo o
      transferencia), asi que no se cuenta dos veces. */
+  /* PAGOS CON SALDO: esa plata ya entro el dia que el cliente recargo, y ese
+     dia se conto en su metodo real. Contarla otra vez aqui seria contar la
+     misma plata dos veces y dejar la caja larga.
+
+     Se muestra aparte, para que se vea que hubo consumo, pero fuera del total
+     de dinero del turno. */
+  const saldoUsado = (orders || [])
+    .filter(function(o){ return o.status !== 'cancelled' &&
+      String(o.payment_method || '').toLowerCase() === 'saldo'; })
+    .reduce(function(s,o){ return s + (parseFloat(o.total_final ?? o.total) || 0) + (parseFloat(o.delivery_fee) || 0); }, 0);
+
   const puntos = (orders || [])
     .filter(function(o){ return o.status !== 'cancelled'; })
     .reduce(function(s,o){ return s + (parseInt(o.puntos_redimidos, 10) || 0); }, 0);
 
   const total = rows.reduce(function(s,r){ return s+r.amt; }, 0);
+  if (saldoUsado > 0) rows.push({ nombre:'Con saldo', tipo:'saldo', amt:0, aparte:saldoUsado });
   if (puntos > 0) rows.push({ nombre:'Puntos', tipo:'puntos', amt:0, pts:puntos });
   if (!rows.length) { cont.innerHTML = '<div class="cj-empty-row" style="padding:16px 0">Configura tus métodos en <strong>Métodos de pago</strong></div>'; return; }
   cont.innerHTML = rows.map(function(r){
@@ -739,8 +752,10 @@ function renderDesglosePago(orders) {
     /* La barra de los puntos va llena: no compite con los pesos, solo dice
        cuantos se redimieron. */
     const esPts = r.pts != null;
-    const pct   = esPts ? 100 : (total>0 ? (r.amt/total*100) : 0);
-    const valor = esPts ? (Number(r.pts).toLocaleString('es-CO') + ' pts') : COPF(r.amt);
+    const esAparte = r.aparte != null;
+    const pct   = (esPts || esAparte) ? 100 : (total>0 ? (r.amt/total*100) : 0);
+    const valor = esPts ? (Number(r.pts).toLocaleString('es-CO') + ' pts')
+                : esAparte ? COPF(r.aparte) : COPF(r.amt);
     return '<div class="cj-method-row">'
       +'<div class="cj-method-ic" style="background:'+tint+';color:'+color+'">'+icon+'</div>'
       +'<div style="flex:1;min-width:0"><div class="cj-method-top"><span class="cj-method-name">'+cjEsc(r.nombre)+'</span><span class="cj-method-val">'+valor+'</span></div>'
