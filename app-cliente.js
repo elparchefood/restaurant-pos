@@ -1117,9 +1117,8 @@
   }
 
   function pintarSheet() {
-    var vieja = document.querySelector('.ep-scrim');
-    if (vieja) vieja.remove();
-    if (!sheet) return;
+    var existente = document.querySelector('.ep-scrim');
+    if (!sheet) { if (existente) existente.remove(); return; }
     var p = sheet.p;
     var pres = p.presentaciones || [];
     var pasos = pasosDe(p);
@@ -1217,23 +1216,36 @@
     var atras = sheet.paso > 0
       ? '<button class="ep-paso-atras" id="sh-back">← Atrás</button>' : '';
 
-    var d = document.createElement('div');
-    d.className = 'ep-scrim';
-    d.innerHTML = '<div class="ep-sheet">' +
-      '<div class="ep-grab"></div>' +
-      atras +
+    var dentro = '<div class="ep-grab"></div>' + atras +
       '<div class="ep-sheet-n">' + esc(p.nombre) + '</div>' +
       (p.descripcion ? '<div class="ep-sheet-d">' + esc(p.descripcion) + '</div>' : '') +
-      guia + opciones + nota + pie +
-    '</div>';
-    document.body.appendChild(d);
+      guia + opciones + nota + pie;
+
+    /* Si la hoja YA esta abierta solo se cambia su contenido. Antes se borraba
+       y se volvia a crear en cada toque, y eso repetia la animacion de entrada:
+       la hoja "reaparecia" cada vez que elegias algo. Se conserva ademas la
+       posicion del desplazamiento, para que no salte al principio. */
+    var d, scroll = 0;
+    if (existente) {
+      d = existente;
+      var hoja = d.querySelector('.ep-sheet');
+      scroll = hoja.scrollTop;
+      hoja.innerHTML = dentro;
+      hoja.scrollTop = scroll;
+    } else {
+      d = document.createElement('div');
+      d.className = 'ep-scrim';
+      d.innerHTML = '<div class="ep-sheet">' + dentro + '</div>';
+      document.body.appendChild(d);
+      // Cerrar tocando fuera se engancha UNA vez, no en cada repintado.
+      d.addEventListener('click', function (ev) { if (ev.target === d) { sheet = null; pintarSheet(); } });
+    }
 
     function recordarNota() {
       var t = document.getElementById('sh-nota');
       if (t) sheet.nota = t.value;
     }
 
-    d.addEventListener('click', function (ev) { if (ev.target === d) { sheet = null; pintarSheet(); } });
     d.querySelectorAll('[data-talla]').forEach(function (b) {
       b.addEventListener('click', function () { sheet.talla = Number(b.dataset.talla); pintarSheet(); });
     });
