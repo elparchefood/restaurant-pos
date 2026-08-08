@@ -1037,18 +1037,44 @@
     var h = S.horarios || null;
     var dias = [['lunes','Lunes'],['martes','Martes'],['miercoles','Miércoles'],['jueves','Jueves'],
                 ['viernes','Viernes'],['sabado','Sábado'],['domingo','Domingo']];
+    /* En Colombia nadie dice "cierro a las 22:30": dice "a las 10:30 de la
+       noche". El horario se guarda en 24 h y se muestra en 12 h. */
+    function h12(t) {
+      var m = String(t || '').match(/^(\d{1,2}):(\d{2})/);
+      if (!m) return String(t || '');
+      var hh = Number(m[1]), am = hh < 12;
+      var h = hh % 12; if (h === 0) h = 12;
+      return h + ':' + m[2] + ' ' + (am ? 'a.m.' : 'p.m.');
+    }
     var filas = h ? dias.map(function (d) {
       var x = h[d[0]] || {};
       return '<div class="ep-dato"><span>' + d[1] + '</span><span>' +
-        (x.activo ? esc(x.abre + ' – ' + x.cierra) : 'Cerrado') + '</span></div>';
+        (x.activo ? esc(h12(x.abre) + ' – ' + h12(x.cierra)) : 'Cerrado') + '</span></div>';
     }).join('') : '';
+
+    /* Dónde queda, con enlace al mapa. Es lo primero que busca quien va a
+       recoger, y tenerlo solo en el chat obliga a preguntar. */
+    var dir = String(e.direccion || '').trim();
+    var ubic = dir
+      ? '<div class="ep-tile" style="margin-bottom:12px">' +
+          '<div class="ep-tile-lbl" style="margin-bottom:8px">Dónde estamos</div>' +
+          '<div class="ep-dato"><span>Dirección</span><span>' + esc(dir) + '</span></div>' +
+          (e.ciudad ? '<div class="ep-dato"><span>Ciudad</span><span>' + esc(e.ciudad) + '</span></div>' : '') +
+          '<a class="ep-btn ep-btn--ghost" style="margin-top:10px;display:block;text-align:center" ' +
+            'target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' +
+            encodeURIComponent(dir + (e.ciudad ? ', ' + e.ciudad : '')) + '">Ver en el mapa</a>' +
+        '</div>'
+      : '';
 
     return encabezado('El local', esc(e.nombre || '')) +
       '<div class="ep-tile" style="margin-bottom:12px">' +
         '<div class="ep-tile-lbl">Ahora mismo</div>' +
         '<div class="ep-estado' + (e.abierto ? ' abierto' : '') + '" style="margin-top:10px">' +
-          '<span class="ep-punto"></span>' + esc(e.detalle || (e.abierto ? 'Abierto' : 'Cerrado')) + '</div>' +
+          '<span class="ep-punto"></span>' +
+          esc(String(e.detalle || (e.abierto ? 'Abierto' : 'Cerrado'))
+                .replace(/(\d{1,2}):(\d{2})/g, function (_, hh, mm) { return h12(hh + ':' + mm); })) + '</div>' +
       '</div>' +
+      ubic +
       (filas ? '<div class="ep-tile"><div class="ep-tile-lbl" style="margin-bottom:4px">Horarios</div>' + filas + '</div>'
              : '<div class="ep-aviso">El restaurante todavía no ha publicado sus horarios.</div>');
   }
