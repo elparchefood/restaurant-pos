@@ -902,6 +902,25 @@
     state.quickDeliveredCount = _ok(3, state.quickDeliveredCount);
 
     state.loading = false;
+    /* RASTRO: el salon volvio a mostrar todas las mesas libres teniendo los
+       datos buenos, y sin ningun error. Se anota que trajo la carga y que quedo
+       en pantalla, para verlo escrito la proxima vez en vez de deducirlo. */
+    try {
+      var _libres = (state.tables || []).filter(function (t) { return t.status === 'libre'; }).length;
+      var _tot = (state.tables || []).length;
+      if (_tot && _libres === _tot) {
+        var _sbD = window._pos && window._pos.sb;
+        if (_sbD) _sbD.from('pos_diag').insert({
+          donde: 'ventas-salon/todasLibres',
+          mensaje: 'Quedaron ' + _tot + ' mesas y TODAS libres tras cargar',
+          extra: {
+            desde_plano: !!(window.posCache && posCache.leer('salon')),
+            mesas: (state.tables || []).map(function (t) { return t.name + ':' + t.status; }).join(' '),
+            branch: (window._pos && window._pos.state && window._pos.state.branchId) || null
+          }
+        }).then(function(){}, function(){});
+      }
+    } catch (_e) {}
     guardarPlanoSalon();   // para que la próxima vez el salón salga al instante
     if (state.selectedTableId) {
       const { order, items, sessionOrders: _sess } = await fetchOrderData(state.selectedTableId);
