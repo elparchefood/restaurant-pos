@@ -1025,23 +1025,33 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
 .ep-rec-pie { font-size: 12.5px; color: var(--sub, #787c8b); margin-bottom: 16px; }
 
 
-/* ══ PROMOCIONES ═════════════════════════════════════════════════════════════
-   Una tira horizontal. En movil se desliza con el dedo; en pantalla grande
-   caben dos o tres. */
-.ep-promos {
-  display: flex; gap: 12px; margin: 4px 0 18px;
-  overflow-x: auto; scroll-snap-type: x mandatory;
-  padding-bottom: 4px; -webkit-overflow-scrolling: touch;
+/* ══ BANNER ══════════════════════════════════════════════════════════════════
+   Una sola imagen, de lado a lado y con las esquinas redondeadas. Si hay
+   varias, se pasan solas y tambien con el dedo.
+
+   Sin texto encima: la imagen ES el mensaje. Lo que el restaurante quiera
+   decir lo escribe en la imagen, donde puede verlo antes de publicarlo. */
+.ep-banner { margin: 4px 0 18px; }
+.ep-banner-track {
+  display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+  border-radius: 18px; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
-.ep-promos::-webkit-scrollbar { display: none; }
-.ep-promo {
-  flex: 0 0 78%; max-width: 340px; min-height: 128px; scroll-snap-align: start;
-  display: flex; flex-direction: column; justify-content: flex-end;
-  padding: 16px; border: 0; border-radius: 18px; cursor: pointer;
-  text-align: left; font: inherit; color: #fff;
-  background-size: cover; background-position: center;
+.ep-banner-track::-webkit-scrollbar { display: none; }
+.ep-slide {
+  flex: 0 0 100%; scroll-snap-align: center; display: block;
+  padding: 0; border: 0; background: none; font: inherit;
 }
-.ep-promo:not(button) { cursor: default; }
-.ep-promo-t { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
-.ep-promo-d { font-size: 13px; opacity: .9; margin-top: 3px; }
-@media (min-width: 720px) { .ep-promo { flex-basis: 46%; } }
+.ep-slide img {
+  display: block; width: 100%; aspect-ratio: 16 / 7;
+  object-fit: cover; border-radius: 18px;
+}
+/* Solo es tocable si lleva a algun lado. */
+button.ep-slide { cursor: pointer; }
+
+.ep-puntos-banner { display: flex; justify-content: center; gap: 6px; margin-top: 9px; }
+.ep-punto-banner {
+  width: 6px; height: 6px; border-radius: 999px; border: 0; padding: 0;
+  background: var(--line); cursor: pointer; transition: width .2s, background .2s;
+}
+.ep-punto-banner.on { width: 18px; background: var(--accent); }

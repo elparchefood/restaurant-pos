@@ -279,6 +279,8 @@
       '<div class="ep-cuerpo"><div class="ep-scroll">' + cuerpoDe(vista, c, n, saludo) + '</div>' +
       tabs + '</div></div>');
 
+    armarBanner();
+
     document.querySelectorAll('[data-ir]').forEach(function (b) {
       b.addEventListener('click', async function () {
         vista = b.dataset.ir;
@@ -1080,19 +1082,68 @@
 
   /* Una tira que se desliza. Con imagen se usa la imagen; sin imagen, el color
      de la promo — que se ve intencional, no incompleto. */
+  /* El banner es una imagen y nada mas: de lado a lado, esquinas redondeadas.
+     Si hay varias, se pasan solas y tambien con el dedo.
+
+     Las que no tienen imagen se saltan. Antes se pintaba una tarjeta de color
+     con titulo y texto encima, y se veia mal: el mensaje ahora va DENTRO de la
+     imagen, que el restaurante puede mirar antes de publicarla. */
   function bannerPromos() {
-    var ps = S.promos || [];
+    var ps = (S.promos || []).filter(function (x) { return x && x.imagen; });
     if (!ps.length) return '';
-    return '<div class="ep-promos">' + ps.map(function (x) {
-      var fondo = x.imagen
-        ? 'background-image:linear-gradient(180deg,rgba(0,0,0,.15),rgba(0,0,0,.62)),url(' + esc(x.imagen) + ')'
-        : 'background:linear-gradient(135deg,' + esc(x.color || '#7C5CFF') + ',rgba(0,0,0,.55))';
-      return '<' + (x.ir_a ? 'button data-ir="' + esc(x.ir_a) + '"' : 'div') +
-        ' class="ep-promo" style="' + fondo + '">' +
-        '<div class="ep-promo-t">' + esc(x.titulo || '') + '</div>' +
-        (x.texto ? '<div class="ep-promo-d">' + esc(x.texto) + '</div>' : '') +
-      '</' + (x.ir_a ? 'button' : 'div') + '>';
-    }).join('') + '</div>';
+    var slides = ps.map(function (x, i) {
+      var img = '<img src="' + esc(x.imagen) + '" alt="' + esc(x.titulo || '') +
+                '" loading="' + (i === 0 ? 'eager' : 'lazy') + '">';
+      return x.ir_a
+        ? '<button class="ep-slide" data-ir="' + esc(x.ir_a) + '">' + img + '</button>'
+        : '<div class="ep-slide">' + img + '</div>';
+    }).join('');
+    /* Con una sola imagen no hay nada que pasar: sin puntos y sin reloj. */
+    var puntos = ps.length < 2 ? '' :
+      '<div class="ep-puntos-banner">' + ps.map(function (_, i) {
+        return '<button class="ep-punto-banner' + (i ? '' : ' on') +
+               '" data-slide="' + i + '" aria-label="Imagen ' + (i + 1) + '"></button>';
+      }).join('') + '</div>';
+    return '<div class="ep-banner" id="ep-banner">' +
+      '<div class="ep-banner-track" id="ep-track">' + slides + '</div>' + puntos + '</div>';
+  }
+
+  /* Se llama despues de pintar. El carrusel es scroll de verdad, no una
+     animacion falsa: asi el dedo funciona solo y el teclado tambien. */
+  var bannerReloj = null;
+  function armarBanner() {
+    if (bannerReloj) { clearInterval(bannerReloj); bannerReloj = null; }
+    var track = document.getElementById('ep-track');
+    if (!track) return;
+    var slides = track.children.length;
+    if (slides < 2) return;
+
+    var puntos = document.querySelectorAll('.ep-punto-banner');
+    function marcar(i) {
+      puntos.forEach(function (p, k) { p.classList.toggle('on', k === i); });
+    }
+    function actual() { return Math.round(track.scrollLeft / track.clientWidth); }
+    function irA(i) {
+      track.scrollTo({ left: i * track.clientWidth, behavior: 'smooth' });
+    }
+
+    puntos.forEach(function (p) {
+      p.addEventListener('click', function () {
+        irA(Number(p.dataset.slide) || 0);
+        arrancar();                       // se reinicia la espera tras tocarlo
+      });
+    });
+    track.addEventListener('scroll', function () { marcar(actual()); }, { passive: true });
+
+    function arrancar() {
+      if (bannerReloj) clearInterval(bannerReloj);
+      bannerReloj = setInterval(function () {
+        /* Si la pestana no se ve, no se gasta nada pasando imagenes. */
+        if (document.hidden || !document.getElementById('ep-track')) return;
+        irA((actual() + 1) % slides);
+      }, 5000);
+    }
+    arrancar();
   }
 
   function cuerpoLocal() {
