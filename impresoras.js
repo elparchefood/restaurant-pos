@@ -559,6 +559,52 @@ function updatePreview() {
     ${config.copies} copia${config.copies>1?'s':''} · ${config.auto_print?'auto':'manual'} · ${cutLabel[config.cut].toLowerCase()}`;
 }
 
+/* ══ Formato de la comanda, plegado ══════════════════════════════════
+   Se abre UNA a la vez. La vista previa de la derecha no se mueve, asi que
+   al abrir cualquiera de estas secciones se ve el efecto al lado. */
+window.impAcc = function (id) {
+  var yo = document.querySelector('.imp-acc[data-acc="' + id + '"]');
+  if (!yo) return;
+  var abrir = !yo.classList.contains('on');
+  document.querySelectorAll('.imp-acc.on').forEach(function (o) { o.classList.remove('on'); });
+  if (abrir) {
+    yo.classList.add('on');
+    /* Si la seccion abierta queda fuera del borde, se acerca: abrir la ultima
+       sin esto no muestra nada. */
+    var col = yo.closest('.imp-scrollcol');
+    if (col) setTimeout(function () {
+      var r = yo.getBoundingClientRect(), p = col.getBoundingClientRect();
+      if (r.bottom > p.bottom || r.top < p.top) col.scrollTop += r.top - p.top - 8;
+    }, 20);
+  }
+};
+
+/* El texto de la derecha de cada fila plegada. Sale de la MISMA config que se
+   esta editando, asi que cambia al instante: es la confirmacion de que quedo
+   hecho sin tener que volver a abrir la seccion. */
+function impPintarResumenes() {
+  if (typeof config !== 'object' || !config) return;
+  var FUENTE = { normal: 'normal', grande: 'grande', pequena: 'pequeña' };
+  var MODELO = { estandar: 'Estándar', cocina: 'Cocina', simple: 'Simple', detallado: 'Detallado' };
+  var CORTE  = { total: 'Corte total', parcial: 'Corte parcial', ninguno: 'Sin corte' };
+  var chars = config.paper_width === 58 ? 32 : 48;
+  var datos = ['orden', 'canal', 'prep', 'cliente', 'notas', 'precio']
+    .filter(function (k) { return config['content_' + k]; }).length;
+
+  var sums = {
+    'sec-paper':    config.paper_width + ' mm · ' + chars + ' car',
+    'sec-model':    MODELO[config.comanda_model] || config.comanda_model || '',
+    'sec-content':  datos + (datos === 1 ? ' dato' : ' datos'),
+    'sec-behavior': config.copies + (config.copies > 1 ? ' copias · ' : ' copia · ')
+                    + (config.auto_print ? 'auto' : 'manual'),
+    'sec-cut':      CORTE[config.cut] || '',
+  };
+  Object.keys(sums).forEach(function (k) {
+    var el = document.getElementById('accsum-' + k);
+    if (el) el.textContent = sums[k];
+  });
+}
+
 /* ════════════════════════════════════════
    APLICAR CONFIG AL DOM
 ════════════════════════════════════════ */
@@ -612,6 +658,9 @@ function applyConfigToUI() {
   }
 
   updatePreview();
+
+  /* Los resumenes de las filas plegadas salen de esta misma config. */
+  impPintarResumenes();
 }
 
 /* ════════════════════════════════════════

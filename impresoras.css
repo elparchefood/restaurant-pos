@@ -119,7 +119,11 @@ html, body { margin: 0; padding: 0; height: 100%; width: 100%; background: var(-
 .op-hint { font-size: 12px; color: var(--ink-4); margin-top: 2px; line-height: 1.45; }
 
 /* ===== 6) SECCIÓN 1 · IMPRESORAS ===== */
-.imp-legend { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 14px 0 2px; }
+/* Ahora va arriba del todo, asi que no lleva el margen de antes. */
+.imp-legend { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 0; }
+/* Un area sin impresora asignada NO se cuenta como un detalle gris al final:
+   es lo que hay que arreglar, y se ve como tal. */
+.imp-legend-chip:has(.imp-legend-empty) { background: #FFFBEB; border-color: #FDE68A; }
 .imp-legend-chip { background: var(--soft-2); border: 1px solid var(--border); border-radius: 11px; padding: 9px 11px; min-width: 0; }
 .imp-legend-lbl { font-size: 10px; font-weight: 700; color: var(--ink-4); text-transform: uppercase; letter-spacing: 0.06em; display: block; }
 .imp-legend-val { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--ink); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
@@ -337,3 +341,30 @@ input::placeholder { color: var(--ink-4); }
   cursor: pointer; transition: background .12s, color .12s;
 }
 .imp-det-test:hover { background: var(--soft-2); color: var(--ink); }
+
+
+/* ══ Formato de la comanda, plegado ═════════════════════════════════════
+   Eran cinco secciones abiertas de golpe y numeradas 2..6. Ahora se abren de
+   a una, agrupadas por lo que hacen, y cada fila cerrada dice como esta
+   configurada — asi se revisa el formato entero sin abrir nada. */
+.imp-acc-grupo { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #94A3B8; margin: 18px 2px 8px; }
+.imp-acc { border: 1px solid #ECEEF2; border-radius: 12px; margin-bottom: 7px; background: #fff; overflow: hidden; }
+.imp-acc.on { border-color: #C7D2FE; }
+.imp-acc-h { display: flex; align-items: center; gap: 11px; width: 100%; padding: 11px 13px; border: 0; background: transparent; font-family: inherit; text-align: left; cursor: pointer; }
+.imp-acc-h:hover { background: #F8FAFC; }
+.imp-acc.on .imp-acc-h { background: #F8FAFF; }
+.imp-acc-ico { display: flex; color: #94A3B8; flex-shrink: 0; }
+.imp-acc-ico svg { width: 17px; height: 17px; }
+.imp-acc.on .imp-acc-ico { color: #5B6BFF; }
+.imp-acc-t { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: #0F172A; }
+.imp-acc.on .imp-acc-t { color: #5B6BFF; }
+.imp-acc-sum { font-size: 11.5px; color: #64748B; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.imp-acc.on .imp-acc-sum { display: none; }
+.imp-acc-chv { display: flex; color: #94A3B8; flex-shrink: 0; transition: transform .16s; }
+.imp-acc.on .imp-acc-chv { transform: rotate(90deg); color: #5B6BFF; }
+/* Cerrado no ocupa nada y no se puede tabular hacia dentro. */
+.imp-acc-b { display: none; padding: 2px 13px 12px; border-top: 1px solid #ECEEF2; }
+.imp-acc.on .imp-acc-b { display: block; }
+
+/* Quien imprime cada cosa: sube arriba del todo, que es donde se busca. */
+.imp-areas-t { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #94A3B8; margin: 0 2px 9px; }
