@@ -48,6 +48,14 @@ html, body { margin: 0; padding: 0; height: 100%; width: 100%; background: var(-
 /* alternancia de vistas internas (secciones del hub) */
 .cf-screen { display: none; flex-direction: column; min-height: 0; flex: 1; }
 .cf-screen.on { display: flex; }
+
+/* Métodos de pago: la pantalla crece hacia abajo (los métodos, y debajo Puntos
+   y Saldo) y no tenía dónde desplazarse, así que lo de abajo quedaba cortado y
+   sin manera de llegar. Las demás pantallas tienen su propio contenedor con
+   scroll (.op-scroll, .cfg-body, .cf-body-form); esta se había quedado sin él.
+   `min-height:0` es lo que de verdad lo hace funcionar: sin eso un hijo flex
+   no se encoge y el overflow nunca aparece. */
+#mp-root { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 40px; }
 /* alternancia del panel lateral: zonas (defecto) vs inspector de mesa */
 .cf-rail-pane { display: none; flex-direction: column; min-height: 0; flex: 1; }
 .cf-rail-pane.on { display: flex; }
