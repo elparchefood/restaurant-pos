@@ -482,6 +482,24 @@ async function loadAllSessions(branchId) {
 // pos_payments — sumar por pos_orders.payment_method deja los mixtos por
 // fuera y descuadra el arqueo. Fallback: pedidos pagados sin desglose
 // (históricos) usan su payment_method.
+/* Traduce lo que sea que venga guardado —id, nombre con mayusculas, con tildes—
+   a la clave del metodo CONFIGURADO al que pertenece. Si no reconoce nada,
+   devuelve null y ese pago se ve en "Otros", que a partir de ahora deberia
+   quedar siempre vacio: son los metodos de Sergio o no es nada. */
+function resolverMetodo(valor) {
+  var v = String(valor || '').trim();
+  if (!v) return null;
+  var norm = v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  var mets = S.payMethods || [];
+  for (var i = 0; i < mets.length; i++) {
+    var m = mets[i];
+    if (m.id && m.id === v) return m.key;                       // pm_x719c1pqb
+    if (m.key === norm) return m.key;                           // "Transferencia"
+    if (m.tipoKey && m.tipoKey === norm) return m.key;          // "efectivo"
+  }
+  return null;
+}
+
 async function loadPagosPorMetodo(branchId, sinceISO, orders) {
   const map = {};
   const conDesglose = new Set();
@@ -490,7 +508,7 @@ async function loadPagosPorMetodo(branchId, sinceISO, orders) {
     if (branchId) q.eq('branch_id', branchId);
     const { data } = await q;
     (data || []).forEach(p => {
-      const k = (p.method || 'efectivo').toLowerCase();
+      const k = resolverMetodo(p.method) || String(p.method || '').toLowerCase();
       map[k] = (map[k] || 0) + (parseFloat(p.amount) || 0);
       conDesglose.add(p.order_id);
     });
@@ -499,8 +517,9 @@ async function loadPagosPorMetodo(branchId, sinceISO, orders) {
     if (o.status === 'cancelled' || conDesglose.has(o.id)) return;
     const pagado = parseFloat(o.paid_amount) || 0;
     if (pagado <= 0) return;
-    const k = (o.payment_method || 'efectivo').toLowerCase();
-    if (k === 'multiple') return;
+    const crudo = String(o.payment_method || '').toLowerCase();
+    if (crudo === 'multiple') return;
+    const k = resolverMetodo(o.payment_method) || crudo || 'efectivo';
     map[k] = (map[k] || 0) + pagado;
   });
   return map;
@@ -664,7 +683,14 @@ async function loadPayMethodsConfig(){
     const arr = Array.isArray(p.metodos) ? p.metodos : [];
     return arr.filter(function(m){ return m && String(m.nombre||'').trim(); })
       .sort(function(a,b){ return (a.orden||0)-(b.orden||0); })
-      .map(function(m){ return { nombre:m.nombre, tipo:m.tipo||'otro', key:String(m.nombre).toLowerCase() }; });
+      .map(function(m){ return {
+        nombre: m.nombre, tipo: m.tipo || 'otro',
+        key: String(m.nombre).toLowerCase(),
+        /* Se guardan tambien el id y el tipo: el cobro unas veces manda el id
+           (pm_xxxx) y otras el nombre, y sin esto los del id no cuadran con
+           ningun metodo y se van a "Otros". */
+        id: String(m.id || ''), tipoKey: String(m.tipo || '').toLowerCase()
+      }; });
   } catch(e){ return []; }
 }
 const _DP_COLOR = { efectivo:'#16A34A', tarjeta:'#5B6BFF', transferencia:'#0EA5E9', banco:'#0EA5E9', billetera:'#8B5CF6', otro:'#94A3B8' };
