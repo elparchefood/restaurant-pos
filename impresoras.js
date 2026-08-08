@@ -871,13 +871,9 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function bindNavEvents() {
-  const back = document.getElementById('nav-back');
-  if (back) back.addEventListener('click', () => { window.location.href = 'configuracion.html'; });
-  document.querySelectorAll('.lm-nav[data-section]').forEach(btn => {
-    if (btn.dataset.section !== 'impresora') {
-      btn.addEventListener('click', () => { window.location.href = 'configuracion.html'; });
-    }
-  });
+  /* Los clics del menú los engancha pos-cfg-nav.js, que ademas lleva a la
+     SECCION que se toco. Antes aqui todas caian en configuracion.html a secas
+     y se perdia a donde ibas. */
 }
 
 window._pos.on('core:ready', async function({ user }) {

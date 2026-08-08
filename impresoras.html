@@ -25,47 +25,7 @@
         <div class="cf-brand-sub" id="brand-sub"></div>
       </div>
     </div>
-    <nav class="cf-nav">
-      <button class="lm-nav" id="nav-back" data-section="back">
-        <span class="cf-nav-l">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-          <span class="cf-nav-label">Regresar</span>
-        </span>
-      </button>
-
-      <div class="cf-navgroup-wrap">
-        <div class="cf-navgroup">Establecimiento</div>
-        <button class="lm-nav" id="nav-general" data-section="general">
-          <span class="cf-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><path d="M3 9h18"/><path d="M8 21v-6h4v6"/></svg><span class="cf-nav-label">General</span></span>
-        </button>
-        <button class="lm-nav" id="nav-mesas" data-section="mesas">
-          <span class="cf-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span class="cf-nav-label">Mesas y zonas</span></span>
-        </button>
-        <button class="lm-nav" id="nav-horario" data-section="horario">
-          <span class="cf-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span class="cf-nav-label">Horarios</span></span>
-        </button>
-      </div>
-
-      <div class="cf-navgroup-wrap">
-        <div class="cf-navgroup">Ventas</div>
-        <button class="lm-nav" id="nav-pagos" data-section="pagos">
-          <span class="cf-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg><span class="cf-nav-label">Métodos de pago</span></span>
-        </button>
-        <button class="lm-nav" id="nav-impuesto" data-section="impuesto">
-          <span class="cf-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg><span class="cf-nav-label">Impuestos y propina</span></span>
-        </button>
-        <button class="lm-nav on" id="nav-impresora" data-section="impresora">
-          <span class="cf-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg><span class="cf-nav-label">Impresoras</span></span>
-        </button>
-      </div>
-
-      <div class="cf-navgroup-wrap">
-        <div class="cf-navgroup">Equipo</div>
-        <button class="lm-nav" id="nav-usuarios" data-section="usuarios">
-          <span class="cf-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="cf-nav-label">Usuarios y roles</span></span>
-        </button>
-      </div>
-    </nav>
+    <nav class="cf-nav" id="cf-nav"></nav>
   </aside>
 
   <!-- ════════════ MAIN ════════════ -->
@@ -427,11 +387,13 @@
 </div>
 <script src="vendor/supabase-2.js?v=1789520000"></script>
 <script src="pos-core.js?v=1789530000"></script>
+<script src="pos-cfg-nav.js?v=1790220000"></script>
+<script>posCfgNav.render('impresora');posCfgNav.enlazarFuera();</script>
   <script src="pos-plan.js?v=1789530000"></script>
 <script src="pos-brand.js?v=1789790000"></script>
 <script src="pos-impuestos.js?v=1"></script>
 <script src="pos-print.js?v=1789740000"></script>
 <script src="pos-print-listener.js?v=4"></script>
-<script src="impresoras.js?v=1790210000"></script>
+<script src="impresoras.js?v=1790220000"></script>
 </body>
 </html>

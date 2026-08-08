@@ -1030,6 +1030,14 @@ document.addEventListener('DOMContentLoaded', async function() {
     btn.addEventListener('click', function(){ setSection(btn.dataset.section); });
   });
 
+  /* Se puede llegar aquí desde otra pantalla pidiendo una sección concreta
+     (configuracion.html?s=puntos). Sin esto, tocar "Puntos" desde Impresoras
+     aterrizaba en Mesas y había que buscarla otra vez. */
+  try {
+    var _pedida = new URLSearchParams(location.search).get('s');
+    if (_pedida && document.getElementById('nav-' + _pedida)) setSection(_pedida);
+  } catch (e) { /* si el navegador no puede, se queda en la de siempre */ }
+
   // cargar usuario async
   loadUser();
   initGenTypeGrid();
