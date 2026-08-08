@@ -352,6 +352,23 @@
     });
     document.querySelectorAll('[data-quitar]').forEach(function (b) {
       b.addEventListener('click', function () { carro.splice(Number(b.dataset.quitar), 1); pantallaDentro(); });
+    document.querySelectorAll('[data-cmas]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var l = carro[Number(b.dataset.cmas)];
+        if (l) { l.cantidad = Math.min(20, (l.cantidad || 1) + 1); pantallaDentro(); }
+      });
+    });
+    document.querySelectorAll('[data-cmenos]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var n = Number(b.dataset.cmenos), l = carro[n];
+        if (!l) return;
+        /* Bajar de uno saca la linea: es lo que espera quien toca el menos en
+           el ultimo, y evita dejar un producto en cantidad cero. */
+        if ((l.cantidad || 1) <= 1) carro.splice(n, 1);
+        else l.cantidad = l.cantidad - 1;
+        pantallaDentro();
+      });
+    });
     });
     document.querySelectorAll('[data-entrega]').forEach(function (b) {
       b.addEventListener('click', function () { entrega = b.dataset.entrega; pantallaDentro(); });
@@ -1062,9 +1079,12 @@
   function nombresExtras(p, mods) {
     var grupos = p.modificadores || [], elegidos = mods || {}, out = [];
     grupos.forEach(function (g, gi) {
-      (elegidos[gi] || []).forEach(function (oi) {
-        var o = (g.opciones || [])[oi];
-        if (o && o.nombre) out.push(String(o.nombre));
+      var cuenta = {};
+      (elegidos[gi] || []).forEach(function (oi) { cuenta[oi] = (cuenta[oi] || 0) + 1; });
+      Object.keys(cuenta).forEach(function (oi) {
+        var o = (g.opciones || [])[Number(oi)];
+        // "Carne ×2" y no "Carne, Carne": es lo que la cocina necesita leer.
+        if (o && o.nombre) out.push(String(o.nombre) + (cuenta[oi] > 1 ? ' ×' + cuenta[oi] : ''));
       });
     });
     return out;
@@ -1130,9 +1150,17 @@
       } else {
       opciones = '<div class="ep-tallas">' + (gm.opciones || []).map(function (o, oi) {
         var v = Number(o.precio) || 0;
-        return '<button class="ep-talla' + (sel.indexOf(oi) >= 0 ? ' on' : '') + '" ' +
-          'data-mod="' + paso.gi + '" data-opcion="' + oi + '">' + esc(o.nombre) +
-          (v > 0 ? '<span>+' + COP(v) + '</span>' : '') + '</button>';
+        /* Cuántas veces la eligió. Doble carne es una peticion normal, y antes
+           no habia forma de pedirla: la adicion solo se marcaba o no. */
+        var n = sel.filter(function (x) { return x === oi; }).length;
+        return '<div class="ep-mod-fila">' +
+          '<button class="ep-talla' + (n ? ' on' : '') + '" ' +
+            'data-mod="' + paso.gi + '" data-opcion="' + oi + '">' + esc(o.nombre) +
+            (n > 1 ? ' <b class="ep-mod-x">×' + n + '</b>' : '') +
+            (v > 0 ? '<span>+' + COP(v * (n || 1)) + '</span>' : '') + '</button>' +
+          (n ? '<button class="ep-mod-menos" data-menos="' + paso.gi + '" ' +
+               'data-opcion="' + oi + '" aria-label="Quitar una">−</button>' : '') +
+        '</div>';
       }).join('') + '</div>';
       }
     } else if (paso && paso.tipo === 'var') {
@@ -1218,11 +1246,21 @@
         var gi = Number(b.dataset.mod), oi = Number(b.dataset.opcion);
         var g = (p.modificadores || [])[gi] || {};
         var sel = sheet.mods[gi] || [];
+        /* Tocar SUMA una. Para quitar está el menos: si tocar quitara, no
+           habría forma de pedir dos. En los grupos de una sola opción, la
+           nueva reemplaza a la anterior. */
+        if (!g.varias) sel = [oi];
+        else sel = sel.concat(oi);
+        sheet.mods[gi] = sel;
+        pintarSheet();
+      });
+    });
+    d.querySelectorAll('[data-menos]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var gi = Number(b.dataset.menos), oi = Number(b.dataset.opcion);
+        var sel = (sheet.mods[gi] || []).slice();
         var i = sel.indexOf(oi);
-        /* Se marca y se desmarca tocando: es lo que espera cualquiera de una
-           lista de extras. Si el grupo no admite varias, la nueva reemplaza. */
-        if (i >= 0) sel = sel.filter(function (x) { return x !== oi; });
-        else sel = g.varias ? sel.concat(oi) : [oi];
+        if (i >= 0) sel.splice(i, 1);           // una sola, no todas
         sheet.mods[gi] = sel;
         pintarSheet();
       });
@@ -1275,6 +1313,11 @@
           ((l.adiciones && l.adiciones.length) ? ' · + ' + esc(l.adiciones.join(', ')) : '') +
           (l.presentacion ? ' · ' + esc(l.presentacion) : '') + '</div>' +
           (l.nota ? '<div class="ep-linea-s">' + esc(l.nota) + '</div>' : '') +
+          '<div class="ep-cant ep-cant--carro">' +
+            '<button data-cmenos="' + i + '">\u2212</button>' +
+            '<b>' + (l.cantidad || 1) + '</b>' +
+            '<button data-cmas="' + i + '">+</button>' +
+          '</div>' +
           '<button class="ep-quitar" data-quitar="' + i + '">Eliminar</button></div>' +
         '<div class="ep-li-m">' + COP(l.precio * l.cantidad) + '</div></div>';
     }).join('');
