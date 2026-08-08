@@ -77,7 +77,9 @@
     try {
       var r = await sb.from('pos_recargas_solicitudes')
         .select('id, creado, monto_dicho, monto_leido, referencia, comprobante_url, estado, cliente_id, pos_clientes(nombre, telefono)')
-        .eq('tenant_id', tenantId).neq('estado', 'aplicada')
+        /* Solo las que siguen abiertas. Con `neq('aplicada')` las descartadas
+           volvían a la lista y no había forma de sacarlas de la pantalla. */
+        .eq('tenant_id', tenantId).not('estado', 'in', '("aplicada","descartada")')
         .order('creado', { ascending: false }).limit(200);
       S.solicitudes = r.data || [];
     } catch (e) { console.error('[solicitudes]', e); S.solicitudes = []; }
