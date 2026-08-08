@@ -49,13 +49,68 @@ html, body { margin: 0; padding: 0; height: 100%; width: 100%; background: var(-
 .cf-screen { display: none; flex-direction: column; min-height: 0; flex: 1; }
 .cf-screen.on { display: flex; }
 
-/* Métodos de pago: la pantalla crece hacia abajo (los métodos, y debajo Puntos
-   y Saldo) y no tenía dónde desplazarse, así que lo de abajo quedaba cortado y
-   sin manera de llegar. Las demás pantallas tienen su propio contenedor con
-   scroll (.op-scroll, .cfg-body, .cf-body-form); esta se había quedado sin él.
-   `min-height:0` es lo que de verdad lo hace funcionar: sin eso un hijo flex
-   no se encoge y el overflow nunca aparece. */
-#mp-root { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 40px; }
+/* Metodos de pago — misma estructura que Mesas: cada metodo es una tarjeta en
+   el panel ancho y sus campos viven en el rail, de uno en uno. Antes eran
+   cuatro formularios abiertos a la vez, apilados, con dos pantallas de scroll.
+   `#mp-root` ya no se desplaza el mismo: lo hacen el panel y el rail por
+   dentro, asi la cabecera y el boton de guardar nunca se van. */
+#mp-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.cf-body-mp { grid-template-columns: minmax(0, 1fr) 320px; }
+.mp-panel { display: flex; flex-direction: column; gap: 16px; }
+.mp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px; align-content: start; }
+
+/* La tarjeta de un metodo: lo justo para reconocerlo sin abrirlo. */
+.mp-tile { display: flex; flex-direction: column; align-items: stretch; text-align: left; background: #fff; border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px 13px; font-family: inherit; cursor: pointer; min-height: 112px; transition: transform .14s, box-shadow .15s, border-color .14s; }
+.mp-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+.mp-tile.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring-strong); background: var(--accent-bg); }
+.mp-tile.on .mp-tile-n, .mp-tile.on .mp-tile-ico { color: var(--accent); }
+/* Apagado no es lo mismo que borrado: se ve, pero se ve apagado. */
+.mp-tile.off { background: var(--soft-3); }
+.mp-tile.off .mp-tile-n { color: var(--ink-4); }
+.mp-tile-top { display: flex; align-items: center; justify-content: space-between; min-height: 18px; }
+.mp-tile-ico { color: var(--ink-3); display: flex; }
+.mp-tile-marks { display: flex; gap: 5px; color: var(--accent); }
+.mp-mark { display: flex; }
+.mp-tile-n { font-size: 14.5px; font-weight: 800; color: var(--ink); letter-spacing: -.01em; margin-top: 10px; word-break: break-word; }
+.mp-tile-s { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+.mp-tile-foot { margin-top: auto; padding-top: 10px; border-top: 1px dashed var(--border); font-size: 10.5px; color: var(--ink-4); font-weight: 500; }
+
+.mp-add { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 112px; border: 1.5px dashed var(--line-soft); border-radius: var(--r-md); background: var(--soft-3); cursor: pointer; font-family: inherit; transition: all .15s; }
+.mp-add:hover { border-color: var(--accent); background: var(--accent-bg); }
+.mp-add-ico { width: 34px; height: 34px; border-radius: 10px; background: var(--accent-50); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 7px; }
+.mp-add-l { font-size: 12px; font-weight: 700; color: var(--ink); }
+
+/* Puntos y Saldo: una fila con interruptor, siempre a la vista. */
+.mp-fijos { border-top: 1px solid var(--border); padding-top: 14px; }
+.mp-fijos-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(232px, 1fr)); gap: 10px; }
+.mp-fijo { display: flex; align-items: center; gap: 11px; background: var(--soft-3); border: 1px solid var(--border); border-radius: var(--r-md); padding: 11px 13px; }
+.mp-fijo.on { background: #fff; border-color: var(--accent-100, #C7D2FE); }
+.mp-fijo-ico { color: var(--ink-4); display: flex; flex-shrink: 0; }
+.mp-fijo.on .mp-fijo-ico { color: var(--accent); }
+.mp-fijo-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mp-fijo-n { font-size: 13px; font-weight: 700; color: var(--ink); }
+.mp-fijo-s { font-size: 11px; color: var(--ink-4); margin-top: 1px; }
+/* Interruptor: se entiende sin leer, que es lo que hace falta aqui. */
+.mp-sw { position: relative; width: 36px; height: 20px; flex-shrink: 0; cursor: pointer; }
+.mp-sw input { position: absolute; opacity: 0; width: 0; height: 0; }
+.mp-sw span { position: absolute; inset: 0; background: var(--border-strong, #E2E8F0); border-radius: 999px; transition: background .16s; }
+.mp-sw span::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 999px; background: #fff; transition: transform .16s; }
+.mp-sw input:checked + span { background: var(--accent); }
+.mp-sw input:checked + span::after { transform: translateX(16px); }
+
+/* El editor, en el rail. */
+.mp-check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2, #334155); cursor: pointer; margin-bottom: 9px; }
+.mp-check:last-child { margin-bottom: 0; }
+.mp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mp-chip { font-size: 11.5px; font-weight: 600; padding: 5px 11px; border-radius: 999px; cursor: pointer; border: 1.5px solid var(--border); background: #fff; color: var(--ink-3); font-family: inherit; }
+.mp-chip.on { border-color: var(--accent); background: var(--accent-bg); color: var(--accent); }
+.mp-comision { display: flex; align-items: center; gap: 7px; }
+.mp-comision input { width: 82px; }
+.mp-defbox { font-size: 13px; font-weight: 700; color: var(--ink); background: var(--soft-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+/* Eliminar, separado de las flechas y con nombre: antes eran tres botoncitos
+   apretados y el rojo quedaba a un dedo de "bajar". */
+.mp-del { margin-left: auto; padding: 8px 14px; border-radius: var(--r-sm, 10px); border: 1px solid var(--danger-bd, #FECACA); background: var(--danger-bg, #FEF2F2); color: var(--danger, #DC2626); font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.mp-del:hover { background: #FEE2E2; }
 /* alternancia del panel lateral: zonas (defecto) vs inspector de mesa */
 .cf-rail-pane { display: none; flex-direction: column; min-height: 0; flex: 1; }
 .cf-rail-pane.on { display: flex; }

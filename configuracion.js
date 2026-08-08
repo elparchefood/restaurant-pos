@@ -5386,7 +5386,7 @@ async function wtpBorrar(nombre){
    El bot sigue leyendo ia_config.pagos IGUAL: preservamos metodos, titular,
    llave, qr_imagen_url, qr_texto, esperar_comprobante, nota, bancos_correo.
    ══════════════════════════════════════════════════════════════════════════ */
-var MP = { pagos:{}, metodos:[], branchId:'', qrUrl:'', dirty:false };
+var MP = { pagos:{}, metodos:[], branchId:'', qrUrl:'', dirty:false, sel:null };
 var MP_TIPOS = [
   ['efectivo','Efectivo'],['tarjeta','Tarjeta / datáfono'],['transferencia','Transferencia'],
   ['billetera','Billetera digital (Nequi, Daviplata…)'],['banco','Banco específico'],['otro','Otro']
@@ -5504,105 +5504,180 @@ function _mpFieldInline(label,handler,val,ph){
 }
 /* Los fijos no se renombran, no se borran y no tienen comision ni QR: lo
    unico que se decide de ellos es si se pueden usar o no, y en que canales. */
-function _mpCardFijoHtml(m){
-  var f=_mpDefFijo(m.id)||{};
-  var canalChips=MP_CANALES.map(function(c){
-    var on=(m.canales||[]).indexOf(c[0])>=0;
-    return '<button type="button" onclick="mpToggleCanal(\''+m.id+'\',\''+c[0]+'\')" style="font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:999px;cursor:pointer;border:1.5px solid '+(on?'#5B6BFF':'#E2E8F0')+';background:'+(on?'#EEF2FF':'#fff')+';color:'+(on?'#4338CA':'#64748B')+'">'+c[1]+'</button>';
-  }).join('');
-  return '<div class="mp-card" style="border:1px solid '+(m.activo?'#C7D2FE':'#E2E8F0')+';border-radius:14px;padding:14px;background:'+(m.activo?'#FBFCFF':'#FCFCFD')+'">'
-    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px">'
-      +'<div style="min-width:0">'
-        +'<div style="font-size:14px;font-weight:800;color:#0F172A">'+_mpEsc(m.nombre)+'</div>'
-        +'<div style="font-size:12px;color:#64748B;margin-top:3px;max-width:520px">'+_mpEsc(f.sub||'')+'</div>'
-      +'</div>'
-      +'<label style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:#334155;cursor:pointer;white-space:nowrap">'
-        +'<input type="checkbox"'+(m.activo?' checked':'')+' onchange="mpToggle(\''+m.id+'\',\'activo\',this.checked)"> Se puede usar</label>'
-    +'</div>'
-    +(m.activo?'<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px;padding-top:11px;border-top:1px dashed #ECEEF2"><span style="font-size:11px;color:#94A3B8;font-weight:700">Disponible en:</span>'+canalChips+'</div>':'')
+/* Un icono por tipo: en una tarjeta pequena el icono se reconoce antes que
+   la palabra, y es lo que permite barrer la fila de un vistazo. */
+var MP_ICO = {
+  efectivo:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>',
+  tarjeta:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',
+  transferencia:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>',
+  banco:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><path d="M9 21v-6h6v6"/></svg>',
+  billetera:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V8H6a2 2 0 0 1 0-4h12v4"/><path d="M4 6v12a2 2 0 0 0 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>',
+  puntos:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.1 8.6 22 9.6 17 14.5 18.2 21.5 12 18.2 5.8 21.5 7 14.5 2 9.6 8.9 8.6 12 2"/></svg>',
+  saldo:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V8H6a2 2 0 0 1 0-4h12v4"/><path d="M4 6v12a2 2 0 0 0 2 2h14v-4"/><circle cx="18" cy="14" r="1.3"/></svg>',
+  otro:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8"/></svg>'
+};
+function _mpIco(t){ return MP_ICO[t] || MP_ICO.otro; }
+var MP_TIPO_NOM = {};
+MP_TIPOS.forEach(function(t){ MP_TIPO_NOM[t[0]] = t[1]; });
+
+/* La tarjeta: lo justo para reconocer el metodo sin abrirlo. El detalle vive
+   en el rail. La estrella dice "es el de por defecto" y el QR "pide
+   comprobante" — dos cosas que antes solo se sabian leyendo tres casillas. */
+function _mpTileHtml(m){
+  var sub = m.banco || MP_TIPO_NOM[m.tipo] || 'Otro';
+  if (m.banco && m.cuenta) sub = m.banco + ' \u00b7 ' + m.cuenta;
+  var canales = (m.canales||[]).map(function(c){
+    for (var i=0;i<MP_CANALES.length;i++) if (MP_CANALES[i][0]===c) return MP_CANALES[i][1];
+    return c;
+  }).join(' \u00b7 ') || 'En ningun canal';
+  return '<button type="button" class="mp-tile'+(MP.sel===m.id?' on':'')+(m.activo?'':' off')+'" onclick="mpSelect(\''+m.id+'\')">'
+    +'<div class="mp-tile-top"><span class="mp-tile-ico">'+_mpIco(m.tipo)+'</span>'
+      +'<span class="mp-tile-marks">'
+        +(m.porDefecto?'<span class="mp-mark" title="Es el de por defecto"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.1 8.6 22 9.6 17 14.5 18.2 21.5 12 18.2 5.8 21.5 7 14.5 2 9.6 8.9 8.6 12 2"/></svg></span>':'')
+        +(m.digital?'<span class="mp-mark" title="Pide comprobante"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span>':'')
+      +'</span></div>'
+    +'<div class="mp-tile-n">'+(_mpEsc(m.nombre)||'<i>Sin nombre</i>')+'</div>'
+    +'<div class="mp-tile-s">'+_mpEsc(sub)+'</div>'
+    +'<div class="mp-tile-foot">'+(m.activo?_mpEsc(canales):'No se puede usar')+'</div>'
+  +'</button>';
+}
+
+/* Puntos y Saldo NO van al rail a proposito: si estuvieran ahi, desapareceran
+   apenas selecciones un metodo. Su unico control es prendido/apagado, asi que
+   el interruptor va en la tarjeta y siempre esta a la vista. */
+function _mpFijoHtml(m){
+  var f = _mpDefFijo(m.id) || {};
+  return '<div class="mp-fijo'+(m.activo?' on':'')+'">'
+    +'<span class="mp-fijo-ico">'+_mpIco(m.tipo)+'</span>'
+    +'<span class="mp-fijo-txt"><span class="mp-fijo-n">'+_mpEsc(m.nombre)+'</span>'
+      +'<span class="mp-fijo-s">'+(m.activo?_mpEsc(f.sub||''):'Apagado \u00b7 no aparece al cobrar')+'</span></span>'
+    +'<label class="mp-sw" title="Se puede usar"><input type="checkbox"'+(m.activo?' checked':'')
+      +' onchange="mpToggle(\''+m.id+'\',\'activo\',this.checked)"><span></span></label>'
   +'</div>';
 }
-function _mpCardHtml(m){
+
+/* El editor del metodo seleccionado. Es el mismo formulario de antes, pero de
+   uno en uno y en su sitio, no cuatro abiertos peleandose el centro. */
+function _mpInspectorHtml(m){
   var tipoOpts=MP_TIPOS.map(function(t){ return '<option value="'+t[0]+'"'+(m.tipo===t[0]?' selected':'')+'>'+t[1]+'</option>'; }).join('');
   var canalChips=MP_CANALES.map(function(c){
     var on=(m.canales||[]).indexOf(c[0])>=0;
-    return '<button type="button" onclick="mpToggleCanal(\''+m.id+'\',\''+c[0]+'\')" style="font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:999px;cursor:pointer;border:1.5px solid '+(on?'#5B6BFF':'#E2E8F0')+';background:'+(on?'#EEF2FF':'#fff')+';color:'+(on?'#4338CA':'#64748B')+'">'+c[1]+'</button>';
+    return '<button type="button" class="mp-chip'+(on?' on':'')+'" onclick="mpToggleCanal(\''+m.id+'\',\''+c[0]+'\')">'+c[1]+'</button>';
   }).join('');
   var digRow = m.digital ? (
-    '<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;padding-top:10px;border-top:1px dashed #ECEEF2">'
-    +_mpFieldInline('Cuenta / llave (opcional)','mpField(\''+m.id+'\',\'cuenta\',this.value)',m.cuenta,'Propia de este método')
-    +_mpFieldInline('Banco (opcional)','mpField(\''+m.id+'\',\'banco\',this.value)',m.banco,'Ej. Bancolombia')
+     '<div class="cf-gen-sep"><div class="cf-rail-sublabel">Datos de la cuenta</div>'
+    +_mpFieldInline('Cuenta / llave','mpField(\''+m.id+'\',\'cuenta\',this.value)',m.cuenta,'Numero o llave')
+    +'<div style="height:9px"></div>'
+    +_mpFieldInline('Banco','mpField(\''+m.id+'\',\'banco\',this.value)',m.banco,'Ej. Bancolombia')
+    +'</div>') : '';
+  return '<div class="cf-rail-head"><div><div class="cf-eyebrow">Metodo</div>'
+      +'<div class="cf-rail-title">'+(_mpEsc(m.nombre)||'Sin nombre')+'</div></div>'
+      +'<button class="cf-mini-del" title="Cerrar" onclick="mpSelect(null)">&times;</button></div>'
+    +'<div class="cf-rail-body">'
+      +'<div class="cf-form-field"><label class="cf-form-label">Nombre</label>'
+        +'<input class="cf-form-input" value="'+_mpEsc(m.nombre)+'" oninput="mpField(\''+m.id+'\',\'nombre\',this.value);mpRefrescarTiles()" placeholder="Ej. Nequi, Efectivo..."></div>'
+      +'<div class="cf-form-field" style="margin-top:12px"><label class="cf-form-label">Tipo</label>'
+        +'<select class="cf-form-input" onchange="mpField(\''+m.id+'\',\'tipo\',this.value);_mpRender()">'+tipoOpts+'</select></div>'
+      +'<div class="cf-gen-sep"><label class="mp-check"><input type="checkbox"'+(m.activo?' checked':'')+' onchange="mpToggle(\''+m.id+'\',\'activo\',this.checked)"> Se puede usar</label>'
+        +'<label class="mp-check"><input type="checkbox"'+(m.digital?' checked':'')+' onchange="mpToggle(\''+m.id+'\',\'digital\',this.checked)"> Digital (QR + comprobante)</label>'
+        +'<label class="mp-check"><input type="radio" name="mp-default"'+(m.porDefecto?' checked':'')+' onchange="mpSetDefault(\''+m.id+'\')"> Es el de por defecto</label></div>'
+      +'<div class="cf-gen-sep"><div class="cf-rail-sublabel">Disponible en</div>'
+        +'<div class="mp-chips">'+canalChips+'</div></div>'
+      + digRow
+      +'<div class="cf-gen-sep"><div class="cf-rail-sublabel">Comision</div>'
+        +'<div class="mp-comision"><input type="number" min="0" step="0.1" class="cf-form-input" value="'+(m.comision||'')+'" oninput="mpField(\''+m.id+'\',\'comision\',this.value)" placeholder="0"><span>%</span></div></div>'
     +'</div>'
-  ) : '';
-  return '<div class="mp-card" style="border:1px solid #E2E8F0;border-radius:14px;padding:14px;background:'+(m.activo?'#fff':'#FCFCFD')+'">'
-    +'<div style="display:grid;grid-template-columns:1.4fr 1fr auto;gap:10px;align-items:end">'
-      +'<div><label style="font-size:10.5px;font-weight:700;color:#94A3B8;text-transform:uppercase">Nombre</label>'
-        +'<input value="'+_mpEsc(m.nombre)+'" oninput="mpField(\''+m.id+'\',\'nombre\',this.value)" placeholder="Ej. Nequi, Bancolombia, Efectivo…" style="width:100%;margin-top:4px;padding:9px 11px;border:1px solid #E2E8F0;border-radius:9px;font-family:inherit;font-size:13px;outline:none;box-sizing:border-box"></div>'
-      +'<div><label style="font-size:10.5px;font-weight:700;color:#94A3B8;text-transform:uppercase">Tipo</label>'
-        +'<select onchange="mpField(\''+m.id+'\',\'tipo\',this.value)" style="width:100%;margin-top:4px;padding:9px 11px;border:1px solid #E2E8F0;border-radius:9px;font-family:inherit;font-size:13px;background:#fff;outline:none;box-sizing:border-box">'+tipoOpts+'</select></div>'
-      +'<div style="display:flex;gap:4px">'
-        +'<button title="Subir" onclick="mpMove(\''+m.id+'\',-1)" style="width:32px;height:36px;border:1px solid #E2E8F0;border-radius:8px;background:#fff;cursor:pointer;color:#64748B;font-size:15px">↑</button>'
-        +'<button title="Bajar" onclick="mpMove(\''+m.id+'\',1)" style="width:32px;height:36px;border:1px solid #E2E8F0;border-radius:8px;background:#fff;cursor:pointer;color:#64748B;font-size:15px">↓</button>'
-        +'<button title="Eliminar" onclick="mpDelete(\''+m.id+'\')" style="width:32px;height:36px;border:1px solid #FEE2E2;border-radius:8px;background:#FEF2F2;cursor:pointer;color:#DC2626;font-size:14px">✕</button>'
-      +'</div>'
-      +'<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-top:4px">'
-        +'<label style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:#334155;cursor:pointer"><input type="checkbox"'+(m.activo?' checked':'')+' onchange="mpToggle(\''+m.id+'\',\'activo\',this.checked)"> Activo</label>'
-        +'<label style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:#334155;cursor:pointer"><input type="checkbox"'+(m.digital?' checked':'')+' onchange="mpToggle(\''+m.id+'\',\'digital\',this.checked)"> Digital (QR + comprobante)</label>'
-        +'<label style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:#334155;cursor:pointer"><input type="radio" name="mp-default"'+(m.porDefecto?' checked':'')+' onchange="mpSetDefault(\''+m.id+'\')"> Por defecto</label>'
-        +'<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#64748B">Comisión <input type="number" min="0" step="0.1" value="'+(m.comision||'')+'" oninput="mpField(\''+m.id+'\',\'comision\',this.value)" style="width:58px;padding:5px 8px;border:1px solid #E2E8F0;border-radius:7px;font-family:inherit;font-size:12.5px;outline:none"> %</span>'
-      +'</div>'
-      +'<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:2px"><span style="font-size:11px;color:#94A3B8;font-weight:700">Disponible en:</span>'+canalChips+'</div>'
-      +digRow
-    +'</div>'
-  +'</div>';
+    +'<div class="cf-rail-foot">'
+      +'<button class="lm-btn-ghost sm" onclick="mpMove(\''+m.id+'\',-1)">&uarr; Subir</button>'
+      +'<button class="lm-btn-ghost sm" onclick="mpMove(\''+m.id+'\',1)">&darr; Bajar</button>'
+      +'<button class="mp-del" onclick="mpDelete(\''+m.id+'\')">Eliminar</button>'
+    +'</div>';
 }
+
+/* Sin nada seleccionado el rail no se queda vacio: resume el estado y dice
+   como llenarlo, igual que el panel de zonas en Mesas. */
+function _mpResumenHtml(){
+  var normales = MP.metodos.filter(function(m){ return !_mpEsFijo(m); });
+  var act = normales.filter(function(m){ return m.activo!==false; }).length;
+  var def = normales.find(function(m){ return m.porDefecto; });
+  return '<div class="cf-rail-head"><div><div class="cf-eyebrow">Resumen</div>'
+      +'<div class="cf-rail-title">Como cobras</div></div></div>'
+    +'<div class="cf-rail-body">'
+      +'<div class="cf-stat-row">'
+        +'<div class="cf-stat-box"><div class="cf-stat-big">'+act+'</div><div class="cf-stat-lbl">se pueden usar</div></div>'
+        +'<div class="cf-stat-box"><div class="cf-stat-big">'+normales.length+'</div><div class="cf-stat-lbl">metodos en total</div></div>'
+      +'</div>'
+      +'<div class="cf-rail-sublabel">Por defecto</div>'
+      +'<div class="mp-defbox">'+(def?_mpEsc(def.nombre):'Ninguno marcado')+'</div>'
+      +'<div class="cf-gen-sep cf-rail-hint">Selecciona un metodo para editarlo.</div>'
+    +'</div>';
+}
+
 function _mpRender(){
   var root=document.getElementById('mp-root'); if(!root) return;
-  var p=MP.pagos||{};
-  /* Se separan por como funcionan, no por capricho: los de arriba traen plata
-     de afuera; los de abajo consumen algo que el cliente ya tenia. Mezclarlos
-     en una sola lista hacia pensar que el saldo era otra forma de cobrar. */
   var normales=MP.metodos.filter(function(m){ return !_mpEsFijo(m); });
   var fijos=MP.metodos.filter(_mpEsFijo);
-  var cards=normales.length?normales.map(_mpCardHtml).join(''):'<div style="padding:20px;text-align:center;color:#94A3B8;font-size:13px">Aún no hay métodos. Agrega el primero.</div>';
-  var cardsFijos=fijos.length?(
-    '<div style="background:#fff;border:1px solid #ECEEF2;border-radius:16px;padding:20px;margin-top:16px">'
-    +'<div style="font-size:15px;font-weight:800;color:#0F172A">Lo que el cliente ya tiene</div>'
-    +'<div style="font-size:12px;color:#94A3B8;margin:3px 0 14px">No entra plata nueva: el cliente paga con puntos o con saldo que ya te dio. Apagados no aparecen al cobrar.</div>'
-    +'<div style="display:flex;flex-direction:column;gap:12px">'+fijos.map(_mpCardFijoHtml).join('')+'</div>'
-    +'</div>'):'';
+
+  var tiles = normales.map(_mpTileHtml).join('')
+    + '<button type="button" class="mp-add" onclick="mpAddMetodo()">'
+      + '<span class="mp-add-ico"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>'
+      + '<span class="mp-add-l">Nuevo metodo</span></button>';
+
+  /* Los fijos van abajo del panel, no en el rail: si estuvieran en el rail
+     desapareceran apenas selecciones un metodo, y son justo lo que uno viene
+     a prender. */
+  var bloqueFijos = fijos.length ? (
+    '<div class="mp-fijos"><div class="cf-rail-sublabel" style="margin:0 0 9px">Lo que el cliente ya tiene</div>'
+    + '<div class="mp-fijos-grid">' + fijos.map(_mpFijoHtml).join('') + '</div></div>') : '';
+
+  var sel = MP.sel ? _mpFind(MP.sel) : null;
+
   root.innerHTML =
-    '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">'
-      +'<div><div style="font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em">Ventas · El Parche Food</div>'
-      +'<h1 style="font-size:24px;font-weight:800;color:#0F172A;margin:2px 0 0">Métodos de pago</h1>'
-      +'<p style="font-size:13px;color:#64748B;margin:4px 0 0;max-width:660px">Único lugar para crear y editar. Alimenta <strong>la pantalla de cobro</strong>, <strong>el cuadre de caja</strong> y <strong>el asistente de WhatsApp</strong>.</p></div>'
-      +'<button id="mp-save" onclick="mpSave()" style="background:#5B6BFF;color:#fff;border:none;border-radius:10px;padding:11px 20px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;opacity:.5" disabled>Guardar cambios</button>'
-    +'</div>'
-    +'<div style="background:#fff;border:1px solid #ECEEF2;border-radius:16px;padding:20px;margin-top:16px">'
-      +'<div style="font-size:15px;font-weight:800;color:#0F172A">Métodos aceptados</div>'
-      +'<div style="font-size:12px;color:#94A3B8;margin:3px 0 14px">Crea, renombra, activa/desactiva y ordena. <strong>Digital</strong> = el bot envía el QR y espera comprobante.</div>'
-      +'<div id="mp-list" style="display:flex;flex-direction:column;gap:12px">'+cards+'</div>'
-      +'<button onclick="mpAddMetodo()" style="margin-top:14px;width:100%;padding:11px;border:1.5px dashed #CBD5E1;border-radius:12px;background:#F8FAFC;color:#5B6BFF;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">+ Agregar método</button>'
-    +'</div>'
-    +cardsFijos
-    +'<div style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;margin-bottom:40px;padding:12px 14px;background:#F8FAFF;border:1px solid #E0E7FF;border-radius:12px">'
-      +'<span style="font-size:12.5px;color:#475569;line-height:1.5">El QR de cobro, el titular, el mensaje al cliente y la verificación por Gmail se configuran en <strong>Asistente IA → Pagos</strong> (todo lo de interacción con el cliente lo maneja el bot).</span>'
-    +'</div>';
+    '<section class="cf-pagehead">'
+      +'<div><div class="cf-eyebrow">Ventas</div>'
+      +'<h2 class="cf-pagehead-title">Metodos de pago</h2>'
+      +'<p class="cf-pagehead-sub">Lo unico que leen la pantalla de cobro, el cuadre de caja y el asistente de WhatsApp.</p></div>'
+      +'<button class="lm-btn-primary" id="mp-save" onclick="mpSave()" disabled style="opacity:.5">Guardar cambios</button>'
+    +'</section>'
+    +'<section class="cf-body cf-body-mp">'
+      +'<div class="cf-gridpanel mp-panel">'
+        +'<div class="mp-grid">'+tiles+'</div>'
+        + bloqueFijos
+      +'</div>'
+      +'<aside class="cf-rail">' + (sel ? _mpInspectorHtml(sel) : _mpResumenHtml()) + '</aside>'
+    +'</section>';
   _mpUpdateSaveBtn();
 }
 
+/* Al cambiar el nombre se repinta SOLO la grilla, no el rail: repintar el rail
+   le quitaria el foco al campo en el que estas escribiendo y perderias el
+   cursor a mitad de palabra. */
+window.mpRefrescarTiles=function(){
+  var g=document.querySelector('.mp-grid'); if(!g) return;
+  var normales=MP.metodos.filter(function(m){ return !_mpEsFijo(m); });
+  var add=g.querySelector('.mp-add');
+  g.innerHTML = normales.map(_mpTileHtml).join('') + (add?add.outerHTML:'');
+};
+
+window.mpSelect=function(id){ MP.sel = id || null; _mpRender(); };
+
 window.mpDirty=function(){ MP.dirty=true; _mpUpdateSaveBtn(); };
 window.mpField=function(id,key,val){ var m=_mpFind(id); if(!m)return; m[key]=(key==='comision')?(Number(val)||0):val; MP.dirty=true; _mpUpdateSaveBtn(); };
-window.mpToggle=function(id,key,val){ var m=_mpFind(id); if(!m)return; m[key]=!!val; MP.dirty=true; if(key==='digital') _mpRender(); else _mpRender(); };
+window.mpToggle=function(id,key,val){ var m=_mpFind(id); if(!m)return; m[key]=!!val; MP.dirty=true; _mpUpdateSaveBtn(); _mpRender(); };
 window.mpToggleCanal=function(id,canal){ var m=_mpFind(id); if(!m)return; var i=(m.canales||[]).indexOf(canal); if(i>=0) m.canales.splice(i,1); else m.canales.push(canal); MP.dirty=true; _mpRender(); };
 window.mpSetDefault=function(id){ MP.metodos.forEach(function(m){ m.porDefecto=(m.id===id); }); MP.dirty=true; _mpRender(); };
 window.mpMove=function(id,dir){ var i=-1,k; for(k=0;k<MP.metodos.length;k++){ if(MP.metodos[k].id===id){ i=k; break; } } if(i<0)return; var j=i+dir; if(j<0||j>=MP.metodos.length)return; var t=MP.metodos[i]; MP.metodos[i]=MP.metodos[j]; MP.metodos[j]=t; MP.dirty=true; _mpRender(); };
-window.mpAddMetodo=function(){ MP.metodos.push({id:_mpUid(),nombre:'',digital:false,tipo:'efectivo',activo:true,orden:MP.metodos.length,porDefecto:false,cuenta:'',banco:'',instrucciones:'',canales:['mesa','rapida','domicilio'],comision:0}); MP.dirty=true; _mpRender(); };
+window.mpAddMetodo=function(){
+  /* Se crea Y se selecciona: un metodo recien creado no tiene nombre, asi que
+     lo primero que hace falta es el editor abierto. */
+  var nuevo={id:_mpUid(),nombre:'',digital:false,tipo:'efectivo',activo:true,orden:MP.metodos.length,porDefecto:false,cuenta:'',banco:'',instrucciones:'',canales:['mesa','rapida','domicilio'],comision:0};
+  MP.metodos.push(nuevo); MP.sel=nuevo.id; MP.dirty=true; _mpRender();
+};
 window.mpDelete=function(id){ var m=_mpFind(id);
   /* Puntos y Saldo no se borran: no son un metodo que el restaurante creo,
      son un modulo. Para dejar de usarlos se apagan. */
   if(_mpEsFijo(m)){ alert('"'+m.nombre+'" no se elimina. Si no quieres usarlo, apágalo con "Se puede usar".'); return; }
-  if(m&&m.nombre&&!confirm('¿Eliminar "'+m.nombre+'"? Las ventas antiguas conservan su método; solo deja de aparecer para cobrar.')) return; MP.metodos=MP.metodos.filter(function(x){return x.id!==id;}); MP.dirty=true; _mpRender(); };
+  if(m&&m.nombre&&!confirm('¿Eliminar "'+m.nombre+'"? Las ventas antiguas conservan su método; solo deja de aparecer para cobrar.')) return; MP.metodos=MP.metodos.filter(function(x){return x.id!==id;}); if(MP.sel===id) MP.sel=null; MP.dirty=true; _mpRender(); };
 window.mpQrUpload=async function(input){
   var file=input&&input.files&&input.files[0]; if(!file) return;
   try{
