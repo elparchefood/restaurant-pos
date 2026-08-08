@@ -1,0 +1,112 @@
+/* clientes.css — mismo lenguaje visual de Caja (tokens, tarjetas, filas).
+   Se repiten los tokens en vez de importar caja.css para que esta pantalla no
+   dependa de cambios hechos pensando en el arqueo. */
+
+[hidden] { display: none !important; }
+
+:root{
+  --bg:#FAFAFB; --card:#FFFFFF; --border:#ECEEF2; --border-strong:#E2E8F0;
+  --hairline:#F1F5F9; --ink:#0F172A; --muted:#64748B; --faint:#94A3B8;
+  --slate:#475569; --cloud:#F8FAFC;
+  --indigo:#5B6BFF; --indigo-600:#4F5BE3; --indigo-soft:#EEF2FF;
+  --green:#16A34A; --green-ink:#166534; --green-bg:#DCFCE7; --green-ring:#BBF7D0;
+  --red:#DC2626; --red-ink:#991B1B; --red-bg:#FEE2E2; --red-ring:#FECACA;
+  --amber-ink:#854D0E; --amber-bg:#FFFBEB; --amber-ring:#FDE68A;
+  --r-card:14px; --r-md:12px; --r-sm:10px;
+  --font:'DM Sans', system-ui, -apple-system, sans-serif;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;width:100%;}
+body{background:var(--bg);font-family:var(--font);color:var(--ink);font-size:13px;-webkit-font-smoothing:antialiased;}
+button,input{font-family:inherit;}
+::-webkit-scrollbar{width:9px;height:9px;}
+::-webkit-scrollbar-thumb{background:#DDE3EC;border-radius:99px;}
+
+/* ── Armazón ─────────────────────────────────────────────── */
+.cl-root{display:flex;height:100%;}
+.cl-side{width:236px;flex:0 0 236px;background:#fff;border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:18px 14px;}
+.cl-brand{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.cl-brand-logo{width:34px;height:34px;border-radius:10px;background:var(--indigo);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-weight:800;}
+.cl-brand-name{font-size:13.5px;font-weight:800;}
+.cl-brand-sub{font-size:10.5px;color:var(--faint);}
+.cl-side-section{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--faint);margin:0 6px 8px;}
+.cl-nav{display:flex;flex-direction:column;gap:2px;}
+.cl-nav-item{display:flex;align-items:center;gap:9px;padding:9px 11px;border:0;background:transparent;
+  border-radius:var(--r-sm);font-size:12.5px;font-weight:600;color:var(--slate);cursor:pointer;text-align:left;}
+.cl-nav-item:hover{background:var(--cloud);}
+.cl-nav-item.on{background:var(--indigo-soft);color:var(--indigo-600);}
+.cl-nav-divider{height:1px;background:var(--hairline);margin:8px 4px;}
+
+.cl-main{flex:1;min-width:0;display:flex;flex-direction:column;}
+.cl-top{height:56px;flex:0 0 56px;background:#fff;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;padding:0 22px;}
+.cl-top h1{margin:0;font-size:15px;font-weight:800;}
+.cl-top .sub{font-size:11.5px;color:var(--faint);font-weight:500;}
+.cl-body{flex:1;overflow-y:auto;padding:20px 22px 40px;}
+
+/* ── Tarjetas de cifras ──────────────────────────────────── */
+.cl-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:18px;}
+.cl-kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--r-card);padding:14px 16px;}
+.cl-kpi-l{font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px;}
+.cl-kpi-v{font-size:20px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;}
+
+/* ── Filas ───────────────────────────────────────────────── */
+.cl-panel{background:var(--card);border:1px solid var(--border);border-radius:var(--r-card);overflow:hidden;}
+.cl-fila{display:grid;grid-template-columns:minmax(180px,2fr) 1fr 1fr 1fr 1fr 1.2fr;gap:12px;
+  align-items:center;padding:11px 16px;border-bottom:1px solid var(--hairline);font-size:12.5px;
+  font-variant-numeric:tabular-nums;}
+.cl-fila:last-child{border-bottom:0;}
+.cl-fila small{display:block;color:var(--faint);font-size:11px;font-weight:500;}
+.cl-fila b{font-weight:700;}
+.cl-head{background:var(--cloud);font-size:10.5px;font-weight:800;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--muted);}
+.cl-head:hover{background:var(--cloud);}
+#cl-lista .cl-fila:not(.cl-head){cursor:pointer;}
+#cl-lista .cl-fila:not(.cl-head):hover{background:var(--indigo-soft);}
+.cl-bono{color:var(--green-ink);font-weight:700;}
+.cl-vacio{padding:34px 16px;text-align:center;color:var(--faint);font-size:12.5px;}
+
+/* Las recargas llevan menos columnas que la lista de clientes. */
+#cl-rc-lista .cl-fila{grid-template-columns:minmax(170px,1.6fr) 1.1fr 1fr .9fr .9fr .9fr;}
+
+/* ── Buscador ────────────────────────────────────────────── */
+.cl-buscar{width:100%;max-width:340px;padding:9px 12px;border:1px solid var(--border-strong);
+  border-radius:var(--r-sm);font-size:12.5px;margin-bottom:12px;}
+.cl-buscar:focus{outline:2px solid var(--indigo-soft);border-color:var(--indigo);}
+
+/* ── Filtros de periodo ──────────────────────────────────── */
+.cl-rangos{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+.cl-rango{padding:7px 13px;border:1px solid var(--border-strong);background:#fff;border-radius:99px;
+  font-size:12px;font-weight:600;color:var(--slate);cursor:pointer;}
+.cl-rango:hover{background:var(--cloud);}
+.cl-rango.on{background:var(--indigo);border-color:var(--indigo);color:#fff;}
+
+/* ── Ficha ───────────────────────────────────────────────── */
+.cl-volver{border:0;background:transparent;color:var(--indigo-600);font-size:12.5px;font-weight:700;
+  cursor:pointer;padding:0;margin-bottom:14px;}
+.cl-ficha-cab{margin-bottom:16px;}
+.cl-ficha-n{font-size:20px;font-weight:800;letter-spacing:-.02em;}
+.cl-ficha-t{font-size:12.5px;color:var(--muted);margin-top:2px;}
+
+/* ── Solicitudes ─────────────────────────────────────────── */
+.cl-sol{display:flex;align-items:center;gap:16px;padding:14px 16px;background:var(--card);
+  border:1px solid var(--amber-ring);border-radius:var(--r-card);margin-bottom:10px;}
+.cl-sol-izq{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}
+.cl-sol-izq b{font-size:13.5px;}
+.cl-sol-izq small{color:var(--muted);font-size:11.5px;}
+.cl-sol-img img{width:74px;height:74px;object-fit:cover;border-radius:var(--r-sm);border:1px solid var(--border);display:block;}
+.cl-sol-der{display:flex;flex-direction:column;gap:6px;}
+.cl-btn{padding:8px 16px;border-radius:var(--r-sm);border:1px solid transparent;font-size:12px;
+  font-weight:700;cursor:pointer;}
+.cl-btn.ok{background:var(--green);color:#fff;}
+.cl-btn.no{background:#fff;border-color:var(--border-strong);color:var(--muted);}
+
+@media (max-width:900px){
+  .cl-side{display:none;}
+  .cl-fila,#cl-rc-lista .cl-fila{grid-template-columns:1fr 1fr;row-gap:4px;}
+  .cl-head{display:none;}
+}

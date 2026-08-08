@@ -726,12 +726,11 @@ function renderDesglosePago(orders) {
      muestran aparte, en puntos, y solo si alguien redimio ese dia. La parte en
      dinero de un canje mixto ya viaja en su metodo real (efectivo o
      transferencia), asi que no se cuenta dos veces. */
-  /* PAGOS CON SALDO: esa plata ya entro el dia que el cliente recargo, y ese
-     dia se conto en su metodo real. Contarla otra vez aqui seria contar la
-     misma plata dos veces y dejar la caja larga.
-
-     Se muestra aparte, para que se vea que hubo consumo, pero fuera del total
-     de dinero del turno. */
+  /* PAGOS CON SALDO: SI son venta, y del dia en que se consumen.
+     Criterio de Sergio, y es el correcto: la recarga es plata recibida por
+     adelantado, no una venta — la venta ocurre cuando el cliente reclama su
+     comida. Por eso las recargas no entran aqui (tienen su propia pantalla) y
+     el consumo del saldo si, como un metodo de pago mas. */
   const saldoUsado = (orders || [])
     .filter(function(o){ return o.status !== 'cancelled' &&
       String(o.payment_method || '').toLowerCase() === 'saldo'; })
@@ -742,7 +741,14 @@ function renderDesglosePago(orders) {
     .reduce(function(s,o){ return s + (parseInt(o.puntos_redimidos, 10) || 0); }, 0);
 
   const total = rows.reduce(function(s,r){ return s+r.amt; }, 0);
-  if (saldoUsado > 0) rows.push({ nombre:'Con saldo', tipo:'saldo', amt:0, aparte:saldoUsado });
+  if (saldoUsado > 0) {
+    /* Lleva el nombre del negocio —"Saldo El Parche"— para que nadie lo
+       confunda con el saldo de la caja ni con el de un banco: es plata que el
+       cliente ya dejo aqui y que hoy se convierte en venta. */
+    var _u = (window._pos && window._pos.state && window._pos.state.user) || null;
+    var _neg = (_u && _u.user_metadata && _u.user_metadata.negocio) || '';
+    rows.push({ nombre: _neg ? ('Saldo ' + _neg) : 'Saldo del cliente', tipo:'saldo', amt:saldoUsado });
+  }
   if (puntos > 0) rows.push({ nombre:'Puntos', tipo:'puntos', amt:0, pts:puntos });
   if (!rows.length) { cont.innerHTML = '<div class="cj-empty-row" style="padding:16px 0">Configura tus métodos en <strong>Métodos de pago</strong></div>'; return; }
   cont.innerHTML = rows.map(function(r){

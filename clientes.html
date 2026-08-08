@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Clientes — Cobra POS</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/brand/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/brand/favicon-192.png">
+<link rel="apple-touch-icon" href="assets/brand/favicon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="clientes.css?v=1789900000">
+</head>
+<body>
+<div class="cl-root">
+
+  <aside class="cl-side">
+    <div class="cl-brand">
+      <div class="cl-brand-logo">C</div>
+      <div><div class="cl-brand-name">Cobra POS</div><div class="cl-brand-sub" id="cl-negocio">Clientes</div></div>
+    </div>
+    <div class="cl-side-section">Clientes</div>
+    <nav class="cl-nav">
+      <button class="cl-nav-item" onclick="window.location.href='dashboard.html'">← Regresar</button>
+      <div class="cl-nav-divider"></div>
+      <button class="cl-nav-item on" data-vista="todos">Todos los clientes</button>
+      <!-- Solo tiene sentido para quien tiene página de clientes: sin página no
+           hay recargas ni solicitudes que revisar. -->
+      <button class="cl-nav-item" data-vista="recargas" data-solo-pagina hidden>Recargas</button>
+      <button class="cl-nav-item" data-vista="solicitudes" data-solo-pagina hidden>Solicitudes</button>
+    </nav>
+  </aside>
+
+  <main class="cl-main">
+    <header class="cl-top">
+      <div>
+        <h1>Clientes</h1>
+        <div class="sub">Quién te compra, cuánto y cada cuánto</div>
+      </div>
+    </header>
+
+    <section class="cl-body">
+
+      <!-- ============ TODOS ============ -->
+      <div id="scr-todos">
+        <div class="cl-kpis" id="cl-kpis"></div>
+        <input class="cl-buscar" id="cl-buscar" type="search" placeholder="Buscar por nombre o teléfono…" autocomplete="off">
+        <div class="cl-panel" id="cl-lista"></div>
+      </div>
+
+      <!-- ============ FICHA DE UN CLIENTE ============ -->
+      <div id="scr-ficha" hidden>
+        <div id="cl-ficha"></div>
+      </div>
+
+      <!-- ============ RECARGAS ============ -->
+      <div id="scr-recargas" hidden>
+        <div class="cl-rangos">
+          <button class="cl-rango" data-rango="hoy">Hoy</button>
+          <button class="cl-rango" data-rango="ayer">Ayer</button>
+          <button class="cl-rango" data-rango="semana">Últimos 7 días</button>
+          <button class="cl-rango on" data-rango="mes">Este mes</button>
+          <button class="cl-rango" data-rango="todo">Todo</button>
+        </div>
+        <div class="cl-kpis" id="cl-rc-kpis"></div>
+        <div class="cl-panel" id="cl-rc-lista"></div>
+      </div>
+
+      <!-- ============ SOLICITUDES ============ -->
+      <div id="scr-solicitudes" hidden>
+        <div class="cl-kpi" style="margin-bottom:14px">
+          <div class="cl-kpi-l">Recargas que el sistema no pudo confirmar solo. Revisa el comprobante y decide.</div>
+        </div>
+        <div id="cl-sol-lista"></div>
+      </div>
+
+    </section>
+  </main>
+</div>
+
+<script src="vendor/supabase-2.js?v=1789520000"></script>
+<script src="pos-core.js?v=1789530000"></script>
+<script src="pos-perms.js?v=1789530000"></script>
+<script>if(window.posRequirePin) posRequirePin(['ventas.ver']);</script>
+<script src="pos-brand.js?v=1789790000"></script>
+<script src="clientes.js?v=1789900000"></script>
+</body>
+</html>
