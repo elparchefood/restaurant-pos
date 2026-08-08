@@ -286,6 +286,7 @@
         // aparezca vacia un instante y luego se llene de golpe.
         if (vista !== 'pedido') pedidoHecho = null;
         if (vista === 'carta')  await cargarCarta();
+        if (vista === 'inicio' && !S.promos) { await cargarPromos(); pantallaDentro(); }
         if (vista === 'puntos') await cargarCatalogo();
         catActiva = 0;
         window.scrollTo(0, 0);
@@ -574,6 +575,7 @@
         '<div class="ep-saludo-n">' + esc((c.nombre || '').split(' ')[0] || 'Hola') + '</div></div>' +
         botonesArriba() +
       '</div>' +
+      bannerPromos() +
       '<div class="ep-sec-hd"><div><div class="ep-sec-t">Resumen</div>' +
         '<div class="ep-sec-s">Aquí está el estado de tu cuenta en ' + esc(e.nombre || '') + '</div></div>' +
         '<div class="ep-hd-der">' +
@@ -1067,6 +1069,32 @@
   }
 
   // ── El local ────────────────────────────────────────────────────────
+  /* Las promociones del inicio. Se piden aparte y NUNCA bloquean: si fallan,
+     la pagina se ve igual sin ellas. Un banner no vale una pantalla en blanco. */
+  async function cargarPromos() {
+    try {
+      var r = await S.sb.rpc('fn_web_promos', { p_slug: S.slug });
+      S.promos = Array.isArray(r && r.data) ? r.data : [];
+    } catch (e) { S.promos = []; }
+  }
+
+  /* Una tira que se desliza. Con imagen se usa la imagen; sin imagen, el color
+     de la promo — que se ve intencional, no incompleto. */
+  function bannerPromos() {
+    var ps = S.promos || [];
+    if (!ps.length) return '';
+    return '<div class="ep-promos">' + ps.map(function (x) {
+      var fondo = x.imagen
+        ? 'background-image:linear-gradient(180deg,rgba(0,0,0,.15),rgba(0,0,0,.62)),url(' + esc(x.imagen) + ')'
+        : 'background:linear-gradient(135deg,' + esc(x.color || '#7C5CFF') + ',rgba(0,0,0,.55))';
+      return '<' + (x.ir_a ? 'button data-ir="' + esc(x.ir_a) + '"' : 'div') +
+        ' class="ep-promo" style="' + fondo + '">' +
+        '<div class="ep-promo-t">' + esc(x.titulo || '') + '</div>' +
+        (x.texto ? '<div class="ep-promo-d">' + esc(x.texto) + '</div>' : '') +
+      '</' + (x.ir_a ? 'button' : 'div') + '>';
+    }).join('') + '</div>';
+  }
+
   function cuerpoLocal() {
     var e = S.negocio || {};
     var h = S.horarios || null;
