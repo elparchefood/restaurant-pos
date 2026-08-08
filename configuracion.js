@@ -2779,21 +2779,52 @@ function impPintarEjemplo() {
   var pctEl = document.getElementById('imp-pct');
   if (c.tipo === 'otro' && pctEl) c.pct = parseFloat(pctEl.value) || 0;
   var precio = parseFloat((document.getElementById('imp-ejemplo') || {}).value) || 0;
-
-  if (!window.posImpuestos) { out.textContent = ''; return; }
-  posImpuestos.setConfig(c);
-  var d = posImpuestos.desglosar(precio, c.pct);
-  var nom = posImpuestos.nombre() + ' ' + posImpuestos.fmtPct(c.pct) + '%';
   var money = function (n) { return '$' + Math.round(n || 0).toLocaleString('es-CO'); };
+  var fila = function (l, v, clase) {
+    return '<div class="imp-l' + (clase ? ' ' + clase : '') + '"><span>' + l + '</span><b>' + v + '</b></div>';
+  };
 
-  out.innerHTML =
-      '<div style="display:flex;justify-content:space-between"><span style="color:#475569">Base gravable</span><b>' + money(d.base) + '</b></div>'
-    + '<div style="display:flex;justify-content:space-between"><span style="color:#475569">' + nom + '</span><b>' + money(d.impuesto) + '</b></div>'
-    + '<div style="display:flex;justify-content:space-between;border-top:1px solid #E2E8F0;margin-top:5px;padding-top:5px">'
-    +   '<span style="font-weight:800">El cliente paga</span><b style="font-size:15px">' + money(d.total) + '</b></div>'
-    + (c.incluido
-        ? '<div style="font-size:11.5px;color:#16A34A;margin-top:6px">Tu carta sigue diciendo ' + money(precio) + '. El impuesto ya estaba adentro.</div>'
-        : '<div style="font-size:11.5px;color:#B45309;margin-top:6px">Ojo: al cliente se le cobra ' + money(d.total) + ', no ' + money(precio) + '.</div>');
+  /* La propina sale de lo mismo que ve el cajero: el primer porcentaje
+     sugerido. Si el restaurante no recibe propina, la linea no existe. */
+  var d = _opDraft || _opSaved || null;
+  var propAct = !!(d && d.propinaActiva);
+  var propPct = 0;
+  if (propAct && Array.isArray(d.propinaPorcentajes) && d.propinaPorcentajes.length) {
+    propPct = parseFloat(d.propinaPorcentajes[0]) || 0;
+  }
+
+  var html = '';
+  var total = precio;
+
+  if (c.activo && window.posImpuestos) {
+    posImpuestos.setConfig(c);
+    var g = posImpuestos.desglosar(precio, c.pct);
+    var nom = posImpuestos.nombre() + ' ' + posImpuestos.fmtPct(c.pct) + '%';
+    total = g.total;
+    html += fila('Base gravable', money(g.base))
+          + fila(nom, money(g.impuesto));
+  } else {
+    /* Sin impuestos no hay desglose que mostrar: el precio es el precio. */
+    html += fila('Producto', money(precio));
+  }
+
+  var propina = propPct > 0 ? Math.round(precio * propPct / 100) : 0;
+  if (propina > 0) { html += fila('Propina ' + propPct + '%', money(propina)); total += propina; }
+
+  html += fila('El cliente paga', money(total), 'tot');
+
+  if (c.activo) {
+    html += c.incluido
+      ? '<div class="imp-nota ok">Tu carta sigue diciendo ' + money(precio) + '. El impuesto ya estaba adentro.</div>'
+      : '<div class="imp-nota mal">Ojo: al cliente se le cobra ' + money(total) + ', no ' + money(precio) + '.</div>';
+  }
+  if (propina > 0) {
+    html += '<div class="imp-nota">La propina se suma aparte y el cliente la puede quitar al pagar.</div>';
+  } else if (!propAct) {
+    html += '<div class="imp-nota">No recibes propina, así que no se le suma nada al cliente.</div>';
+  }
+
+  out.innerHTML = html;
 }
 
 // Guardar lo que se escribe a mano (tarifa "otro", NIT, razón social, resolución).
@@ -3229,6 +3260,10 @@ function propRender() {
       b.classList.toggle('on', b.dataset.modo === modo);
     });
   }
+
+  /* La cuenta de ejemplo del rail lleva la propina, asi que se repinta cuando
+     la propina cambia. Si no, mostraria un total que ya no es el real. */
+  if (typeof impPintarEjemplo === 'function') impPintarEjemplo();
 
   opCheckDirty();
 }

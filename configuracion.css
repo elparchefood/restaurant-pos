@@ -1509,6 +1509,56 @@ div.master[data-tab].cia-active { display: flex !important; }
 /* Alias de las clases que vienen de Inventario y en esta pantalla no existian
    (Impuestos las usa en 10 sitios). Mismo aspecto que .cf-chip / .cf-search,
    asi no hay que tocar el HTML y no se rompe nada. */
+/* Impuestos y propina — dos columnas, con la cuenta de ejemplo en el rail. */
+.cf-body-imp { grid-template-columns: minmax(0, 1fr) 300px; }
+.imp-campos { border: 1px solid #E0E7FF; background: #F8FAFF; border-radius: 12px; padding: 14px; margin-top: 10px; display: flex; flex-direction: column; gap: 14px; }
+/* La etiqueta a la izquierda y los controles a la derecha: cada ajuste se lee
+   en una linea en vez de ocupar dos bloques apilados. */
+.imp-fila { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.imp-fila .iv-field-label { margin-bottom: 0; flex: 1; min-width: 130px; }
+.imp-fila-c { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.imp-pct { display: inline-flex; align-items: center; gap: 5px; }
+.imp-pct input { width: 74px; }
+.imp-pct span { font-size: 12px; color: var(--ink-3); }
+
+.imp-cuenta { margin-top: 4px; }
+.imp-l { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12.5px; padding: 6px 0; }
+.imp-l span { color: var(--ink-3); }
+.imp-l b { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.imp-l.tot { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 10px; }
+.imp-l.tot span { color: var(--ink); font-weight: 800; }
+.imp-l.tot b { font-size: 17px; }
+.imp-nota { font-size: 11.5px; color: var(--ink-4); line-height: 1.5; margin-top: 10px; }
+.imp-nota.ok { color: var(--green, #16A34A); }
+.imp-nota.mal { color: #B45309; }
+
+/* ── Piezas que esta pantalla usaba sin tenerlas ─────────────────────────
+   Estaban en caja.css / inventario.css, que Configuracion no carga. Sin
+   `is-hidden` los campos de impuestos se veian con los impuestos apagados, y
+   sin `iv-switch` el interruptor era la palabra "No" en texto plano. */
+.is-hidden { display: none !important; }
+
+.iv-toggle { display: flex; align-items: center; gap: 14px; cursor: pointer; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--soft-3); }
+.iv-toggle:hover { border-color: var(--line-soft); }
+.iv-toggle .tt { font-size: 13px; font-weight: 700; color: var(--ink); }
+.iv-toggle .tx { font-size: 12px; color: var(--ink-3); margin-top: 3px; line-height: 1.5; }
+
+.iv-switch { display: inline-flex; align-items: center; gap: 9px; flex-shrink: 0; }
+.iv-switch-label { font-size: 12px; font-weight: 700; color: var(--ink-3); }
+.iv-switch-track { width: 36px; height: 20px; border-radius: 999px; background: var(--border-strong, #E2E8F0); position: relative; transition: background .18s; }
+.iv-switch-knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 999px; background: #fff; transition: transform .18s; }
+.iv-switch.on .iv-switch-track { background: var(--accent); }
+.iv-switch.on .iv-switch-knob { transform: translateX(16px); }
+.iv-switch.on .iv-switch-label { color: var(--accent); }
+
+.iv-field-label { font-size: 12px; font-weight: 700; color: var(--ink-2, #475569); margin-bottom: 7px; }
+.iv-field-hint { font-size: 11.5px; color: var(--ink-3); margin-top: 7px; line-height: 1.5; }
+
+/* Segmento de dos opciones (Porcentaje / Cantidad fija). */
+.cf-seg { display: inline-flex; gap: 3px; background: var(--soft); padding: 3px; border-radius: 9px; }
+.cf-seg button { padding: 6px 13px; border: 0; background: transparent; border-radius: 7px; font-family: inherit; font-size: 12px; font-weight: 600; color: var(--ink-3); cursor: pointer; }
+.cf-seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(15,23,42,.1); }
+
 .iv-chip{ border:1px solid var(--border); background:var(--surface); color:var(--ink-2);
   padding:7px 13px; border-radius:999px; font-family:inherit; font-size:12.5px;
   font-weight:600; cursor:pointer; transition:background .14s,border-color .14s,color .14s; }

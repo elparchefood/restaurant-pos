@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css?v=1789840000">
-<link rel="stylesheet" href="configuracion.css?v=1790180000">
+<link rel="stylesheet" href="configuracion.css?v=1790190000">
 </head>
 <body>
 <div class="cf-root">
@@ -1284,151 +1284,153 @@
           <div class="cf-eyebrow">Configuración de cobro</div>
           <h2 class="cf-pagetitle">Impuestos y propina</h2>
         </div>
+        <button class="lm-btn-primary" id="prop-btn-save" disabled>Guardar cambios</button>
       </section>
-      <section class="cf-body-solo" style="max-width:720px">
 
-        <!-- ══ IMPUESTOS ══
-             Viene APAGADO: un restaurante pequeño suele ser "no responsable" y
-             no tiene por qué ver nada de esto. Todo lo demás solo aparece si lo
-             activa. -->
-        <div class="op-card">
-          <div class="op-card-head">
-            <div class="op-card-icon" style="background:#EEF2FF;color:#5B6BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></div>
-            <div>
-              <div class="op-card-title">Impuestos</div>
-              <div class="op-card-sub">Impoconsumo o IVA que le cobras al cliente.</div>
+      <!-- Los ajustes a la izquierda; la cuenta de ejemplo a la derecha, donde
+           se queda quieta y se ve cambiar mientras tocas los numeros. -->
+      <section class="cf-body cf-body-imp">
+
+        <div class="cf-gen-main">
+
+          <!-- ══ IMPUESTOS ══
+               Viene APAGADO: un restaurante pequeno suele ser "no responsable"
+               y no tiene por que ver nada de esto. -->
+          <div class="op-card">
+            <div class="op-card-head">
+              <div class="op-card-icon" style="background:#EEF2FF;color:#5B6BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></div>
+              <div>
+                <div class="op-card-title">Impuestos</div>
+                <div class="op-card-sub">Impoconsumo o IVA que le cobras al cliente.</div>
+              </div>
+              <div class="op-state off" id="imp-state" style="margin-left:auto">Desactivado</div>
             </div>
-            <div class="op-state off" id="imp-state" style="margin-left:auto">Desactivado</div>
-          </div>
 
-          <div class="iv-toggle" id="toggle-imp" onclick="impToggleActivo()">
-            <div style="flex:1">
-              <div class="tt">¿Tu restaurante cobra impuestos al cliente?</div>
-              <div class="tx" id="imp-hint">Tus precios se cobran tal cual, sin desglose. Si eres <b>no responsable de impoconsumo</b>, déjalo en No — es lo normal en un restaurante pequeño.</div>
+            <div class="iv-toggle" id="toggle-imp" onclick="impToggleActivo()">
+              <div style="flex:1">
+                <div class="tt">¿Tu restaurante cobra impuestos al cliente?</div>
+                <div class="tx" id="imp-hint">Tus precios se cobran tal cual, sin desglose. Si eres <b>no responsable de impoconsumo</b>, déjalo en No — es lo normal en un restaurante pequeño.</div>
+              </div>
+              <span class="iv-switch" id="toggle-imp-sw"><span class="iv-switch-label">No</span><span class="iv-switch-track"><span class="iv-switch-knob"></span></span></span>
             </div>
-            <span class="iv-switch" id="toggle-imp-sw"><span class="iv-switch-label">No</span><span class="iv-switch-track"><span class="iv-switch-knob"></span></span></span>
-          </div>
 
-          <div id="imp-fields" class="is-hidden" style="border:1px solid #E0E7FF;background:#F8FAFF;border-radius:12px;padding:14px;margin-top:10px;display:flex;flex-direction:column;gap:14px">
+            <div id="imp-fields" class="is-hidden imp-campos">
 
-            <div class="iv-field">
-              <div class="iv-field-label">¿Cuál cobras?</div>
-              <div style="display:flex;flex-wrap:wrap;gap:6px" id="imp-tipos">
+              <div class="imp-fila">
+                <div class="iv-field-label">¿Cuál cobras?</div>
+                <div class="imp-fila-c">
+                  <div style="display:flex;flex-wrap:wrap;gap:6px" id="imp-tipos">
                 <button type="button" class="iv-chip on" data-imp-tipo="inc"  onclick="impSetTipo('inc')">Impoconsumo 8%</button>
                 <button type="button" class="iv-chip"    data-imp-tipo="iva"  onclick="impSetTipo('iva')">IVA 19%</button>
                 <button type="button" class="iv-chip"    data-imp-tipo="otro" onclick="impSetTipo('otro')">Otro</button>
               </div>
-              <div id="imp-pct-wrap" class="is-hidden" style="margin-top:8px">
-                <input id="imp-pct" class="iv-input" type="number" min="0" max="100" step="any" style="width:130px" oninput="impPintarEjemplo()">
-                <span style="font-size:12px;color:#64748B;margin-left:6px">%</span>
+              
+                  <span id="imp-pct-wrap" class="is-hidden imp-pct">
+                    <input id="imp-pct" class="iv-input" type="number" min="0" max="100" step="any" oninput="impPintarEjemplo()">
+                    <span>%</span>
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <div class="iv-field">
-              <div class="iv-field-label">Los precios de tu carta…</div>
-              <div style="display:flex;flex-wrap:wrap;gap:6px" id="imp-modos">
+              <div class="imp-fila">
+                <div class="iv-field-label">Los precios de tu carta…</div>
+                <div class="imp-fila-c"><div style="display:flex;flex-wrap:wrap;gap:6px" id="imp-modos">
                 <button type="button" class="iv-chip on" data-imp-modo="1" onclick="impSetIncluido(true)">Ya incluyen el impuesto</button>
                 <button type="button" class="iv-chip"    data-imp-modo="0" onclick="impSetIncluido(false)">Se le suma al cobrar</button>
               </div>
-              <div class="iv-field-hint">En Colombia lo normal es que <b>ya lo incluyan</b>: así, si mañana cambia la tarifa, tus precios siguen iguales y lo que cambia es cuánto de ese precio es impuesto.</div>
-            </div>
-
-            <!-- El ejemplo en vivo es lo más importante de esta pantalla: el
-                 dueño ve qué le va a pasar a su precio ANTES de guardar. -->
-            <div style="background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px">
-              <div style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Cómo quedaría</div>
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-                <span style="font-size:12.5px;color:#475569">Un producto de</span>
-                <input id="imp-ejemplo" class="iv-input" type="number" min="0" step="any" value="20000" style="width:110px" oninput="impPintarEjemplo()">
               </div>
-              <div id="imp-ejemplo-out" style="font-size:13px;line-height:1.9"></div>
-            </div>
-
-            <div class="iv-field">
-              <div class="iv-field-label">Datos para la factura</div>
-              <div style="display:flex;flex-wrap:wrap;gap:8px">
-                <input id="imp-nit"   class="iv-input" type="text" placeholder="NIT" style="flex:1;min-width:150px">
-                <input id="imp-razon" class="iv-input" type="text" placeholder="Razón social" style="flex:2;min-width:200px">
               </div>
-              <input id="imp-resol" class="iv-input" type="text" placeholder="Resolución DIAN (solo si facturas electrónicamente)" style="width:100%;margin-top:8px">
-              <div class="iv-field-hint">La resolución solo se usa cuando esté lista la facturación electrónica. Puedes dejarla vacía por ahora.</div>
-            </div>
+              <div class="iv-field-hint" style="margin-top:-6px">En Colombia lo normal es que <b>ya lo incluyan</b>: así, si mañana cambia la tarifa, tus precios siguen iguales y lo que cambia es cuánto de ese precio es impuesto.</div>
 
-            <div style="font-size:12px;color:#64748B;line-height:1.55;border-top:1px dashed #E2E8F0;padding-top:12px">
-              <b>Excepciones:</b> esta tarifa aplica a todo. Si una categoría o un producto lleva otra
-              (por ejemplo las bebidas), se cambia en <b>Catálogo</b>, en la categoría o en el producto.
-              Lo que dejes vacío hereda de aquí.
-            </div>
-          </div>
-        </div>
-
-
-        <div class="op-card">
-          <div class="op-card-head">
-            <div class="op-card-icon green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-            <div>
-              <div class="op-card-num">Propina</div>
-              <div class="op-card-title">Propina del restaurante</div>
-              <div class="op-card-sub">Define si recibes propina y cómo se sugiere en el cobro.</div>
-            </div>
-          </div>
-          <div class="op-card-body">
-
-            <!-- Interruptor: recibe propina o no -->
-            <div class="op-row">
-              <div class="op-row-text">
-                <div class="op-label">El restaurante recibe propina</div>
-                <div class="op-hint">Si está apagado, la propina no aparece en ninguna parte del cobro.</div>
-              </div>
-              <div class="op-control">
-                <span class="op-state off" id="prop-state">No recibe</span>
-                <button class="cf-switch" id="prop-sw-activa" role="switch" aria-checked="false"><span class="cf-switch-knob"></span></button>
-              </div>
-            </div>
-
-            <!-- Todo lo demás solo si recibe propina -->
-            <div id="prop-detalle">
-              <div class="cf-divider" style="margin:6px 0 16px"></div>
-
-              <div class="op-row" style="align-items:flex-start">
-                <div class="op-row-text">
-                  <div class="op-label">Porcentajes sugeridos</div>
-                  <div class="op-hint">Aparecerán como botones en el cobro. Puedes crear varios.</div>
+              <div class="iv-field">
+                <div class="iv-field-label">Datos para la factura</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                  <input id="imp-nit"   class="iv-input" type="text" placeholder="NIT" style="flex:1;min-width:150px">
+                  <input id="imp-razon" class="iv-input" type="text" placeholder="Razón social" style="flex:2;min-width:200px">
                 </div>
-                <div id="prop-chips" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end;max-width:60%"></div>
+                <input id="imp-resol" class="iv-input" type="text" placeholder="Resolución DIAN (solo si facturas electrónicamente)" style="width:100%;margin-top:8px">
+                <div class="iv-field-hint">La resolución solo se usa cuando esté lista la facturación electrónica. Puedes dejarla vacía por ahora.</div>
               </div>
 
-              <div class="cf-divider" style="margin:16px 0"></div>
+              <div style="font-size:12px;color:#64748B;line-height:1.55;border-top:1px dashed #E2E8F0;padding-top:12px">
+                <b>Excepciones:</b> esta tarifa aplica a todo. Si una categoría o un producto lleva otra
+                (por ejemplo las bebidas), se cambia en <b>Catálogo</b>, en la categoría o en el producto.
+                Lo que dejes vacío hereda de aquí.
+              </div>
+            </div>
+          </div>
+
+          <!-- ══ PROPINA ══ -->
+          <div class="op-card">
+            <div class="op-card-head">
+              <div class="op-card-icon green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+              <div>
+                <div class="op-card-title">Propina</div>
+                <div class="op-card-sub">Define si recibes propina y cómo se sugiere en el cobro.</div>
+              </div>
+              <div class="op-state off" id="prop-state" style="margin-left:auto">No recibe</div>
+            </div>
+            <div class="op-card-body">
 
               <div class="op-row">
                 <div class="op-row-text">
-                  <div class="op-label">Cómo llega precargada al cobro</div>
-                  <div class="op-hint">Solo es la sugerencia inicial. En el cobro siempre se puede cambiar o quitar.</div>
+                  <div class="op-label">El restaurante recibe propina</div>
+                  <div class="op-hint">Si está apagado, la propina no aparece en ninguna parte del cobro.</div>
                 </div>
-                <div class="cf-seg" id="prop-modo">
-                  <button data-modo="pct">Porcentaje</button>
-                  <button data-modo="fijo">Cantidad fija</button>
+                <div class="op-control">
+                  <button class="cf-switch" id="prop-sw-activa" role="switch" aria-checked="false"><span class="cf-switch-knob"></span></button>
+                </div>
+              </div>
+
+              <div id="prop-detalle">
+                <div class="cf-divider" style="margin:6px 0 14px"></div>
+
+                <div class="op-row" style="align-items:flex-start">
+                  <div class="op-row-text">
+                    <div class="op-label">Porcentajes sugeridos</div>
+                    <div class="op-hint">Aparecerán como botones en el cobro. Puedes crear varios.</div>
+                  </div>
+                  <div id="prop-chips" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end;max-width:60%"></div>
+                </div>
+
+                <div class="cf-divider" style="margin:14px 0"></div>
+
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label">Cómo llega precargada al cobro</div>
+                    <div class="op-hint">Solo es la sugerencia inicial. En el cobro siempre se puede cambiar o quitar.</div>
+                  </div>
+                  <div class="cf-seg" id="prop-modo">
+                    <button data-modo="pct">Porcentaje</button>
+                    <button data-modo="fijo">Cantidad fija</button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div class="op-card" style="margin-top:16px;opacity:.7">
-          <div class="op-card-head">
-            <div class="op-card-icon" style="background:#F1F5F9;color:#94A3B8"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div>
-            <div>
-              <div class="op-card-num">Impuestos</div>
-              <div class="op-card-title">Impuestos <span class="cf-soon" style="margin-left:6px">Pronto</span></div>
-              <div class="op-card-sub">La configuración de impuestos estará disponible más adelante.</div>
-            </div>
+          <div class="op-footer" style="justify-content:flex-start">
+            <button class="lm-btn-ghost" id="prop-btn-discard" hidden>Descartar cambios</button>
           </div>
+
         </div>
 
-        <div class="op-footer">
-          <button class="lm-btn-ghost" id="prop-btn-discard" hidden>Descartar cambios</button>
-          <button class="lm-btn-primary lg" id="prop-btn-save" disabled><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Guardar cambios</button>
-        </div>
+        <!-- La cuenta de ejemplo: impuesto Y propina juntos, que es la misma
+             cuenta que ve el cliente. Antes la propina no aparecia por ningun
+             lado hasta estar cobrando. -->
+        <aside class="cf-rail">
+          <div class="cf-rail-head">
+            <div><div class="cf-eyebrow">Cómo queda</div>
+            <div class="cf-rail-title">La cuenta</div></div>
+          </div>
+          <div class="cf-rail-body">
+            <div class="cf-form-field">
+              <label class="cf-form-label" for="imp-ejemplo">Un producto de</label>
+              <input id="imp-ejemplo" class="iv-input" type="number" min="0" step="any" value="20000" style="width:100%" oninput="impPintarEjemplo()">
+            </div>
+            <div id="imp-ejemplo-out" class="imp-cuenta"></div>
+          </div>
+        </aside>
 
       </section>
     </div>
@@ -2688,7 +2690,7 @@
 <!-- Es quien sabe tocar los tonos con el volumen configurado. Sin esto el
      boton Probar no sonaba: la funcion que llama no existia. -->
 <script src="pos-notify.js?v=1788790000"></script>
-<script src="configuracion.js?v=1790180000"></script>
+<script src="configuracion.js?v=1790190000"></script>
 </body>
 </html>
 
