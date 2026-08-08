@@ -861,6 +861,10 @@ async function loadGeneral() {
       if (bd.data) $('gen-brand-name').value = bd.data.name || '';
     }
 
+    // Ya estan el nombre del restaurante y el del gerente: la vista previa
+    // del rail se pinta con lo que de verdad hay guardado.
+    if (typeof genPintarPreview === 'function') genPintarPreview();
+
     // Ciudad, pais, meta diaria desde user_metadata
     $('gen-city').value    = meta.ciudad || '';
     $('gen-country').value = meta.pais   || 'Colombia';
@@ -5783,6 +5787,11 @@ async function genCargarLogo() {
   } catch (e) { console.warn('logo:', e); }
 }
 
+function genIniciales(nombre) {
+  return (nombre || '?').split(/\s+/).filter(Boolean).slice(0, 2)
+    .map(function (w) { return w[0]; }).join('').toUpperCase();
+}
+
 function genPintarLogo(url, nombre) {
   var caja = document.getElementById('gen-logo-box');
   var quitar = document.getElementById('gen-logo-quitar');
@@ -5791,12 +5800,39 @@ function genPintarLogo(url, nombre) {
     caja.innerHTML = '<img src="' + url + '" alt="">';
     if (quitar) quitar.style.display = '';
   } else {
-    var ini = (nombre || '?').split(/\s+/).filter(Boolean).slice(0, 2)
-      .map(function (w) { return w[0]; }).join('').toUpperCase();
-    caja.innerHTML = '<span>' + ini + '</span>';
+    caja.innerHTML = '<span>' + genIniciales(nombre) + '</span>';
     if (quitar) quitar.style.display = 'none';
   }
+  _genLogoUrl = url || '';
+  genPintarPreview();
 }
+
+/* La vista previa del rail: lo que de verdad sale arriba a la derecha en todas
+   las cuentas del restaurante. Antes esto era un parrafo describiendolo; se
+   entiende mucho mejor viendolo, y ademas se actualiza mientras escribes. */
+var _genLogoUrl = '';
+function genPintarPreview() {
+  var ava = document.getElementById('gen-prev-ava');
+  if (!ava) return;
+  var marca  = (document.getElementById('gen-brand-name') || {}).value || '';
+  var gerente = (document.getElementById('gen-nombre') || {}).value || '';
+  ava.innerHTML = _genLogoUrl
+    ? '<img src="' + _genLogoUrl + '" alt="">'
+    : '<span>' + genIniciales(marca) + '</span>';
+  var n = document.getElementById('gen-prev-nombre');
+  var r = document.getElementById('gen-prev-rol');
+  if (n) n.textContent = marca.trim() || 'Tu restaurante';
+  if (r) r.textContent = (gerente.trim() ? gerente.trim() + ' · ' : '') + 'Gerente';
+}
+
+/* Se engancha una sola vez, cuando el HTML ya esta puesto. */
+document.addEventListener('DOMContentLoaded', function () {
+  ['gen-brand-name', 'gen-nombre'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('input', genPintarPreview);
+  });
+  genPintarPreview();
+});
 
 function genLogoNota(txt, mal) {
   var n = document.getElementById('gen-logo-nota');

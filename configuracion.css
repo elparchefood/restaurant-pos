@@ -215,6 +215,40 @@ input::placeholder { color: var(--ink-4); }
 ::-webkit-scrollbar-thumb:hover { background: var(--ink-5); }
 
 /* ===== PANTALLA GENERAL — Formulario de marca y sucursal ===== */
+
+/* Dos columnas, como en Mesas: lo que se escribe a la izquierda y lo que solo
+   se mira a la derecha. `.cf-body` ya trae el overflow:hidden y el min-height:0
+   que hacen que cada columna se desplace sola y la cabecera no se vaya. */
+.cf-body-gen { grid-template-columns: minmax(0, 1fr) 300px; }
+.cf-gen-main { display: flex; flex-direction: column; gap: 16px; overflow-y: auto; min-height: 0; padding-right: 2px; }
+.cf-gen-rail .cf-rail-head { padding-bottom: 12px; }
+.cf-gen-sep { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+/* Tres campos cortos en una linea (telefono, ciudad, pais) en vez de tres
+   renglones sueltos: se leen como un solo dato, que es lo que son. */
+.cf-form-grid3 { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 14px; }
+
+/* Los seis tipos caben en UNA fila ahora que el panel es ancho. Antes eran dos
+   filas de tres y se comian un tercio del alto de la pantalla. */
+#screen-general .cf-type-grid { grid-template-columns: repeat(6, 1fr); gap: 6px; }
+#screen-general .cf-type-btn { padding: 10px 4px; }
+#screen-general .cf-type-lbl { font-size: 11px; }
+
+/* El logo, centrado en el rail. */
+.gen-logo-wrap { text-align: center; }
+.gen-logo-wrap .gen-logo-box { margin: 0 auto 10px; width: 84px; height: 84px; }
+.gen-logo-wrap .gen-logo-btns { justify-content: center; margin-top: 0; }
+.gen-logo-wrap .gen-logo-nota { margin-top: 8px; }
+
+/* La vista previa: en vez de un parrafo explicando donde sale la foto, sale
+   la foto donde va a salir, con el nombre y el rol al lado. */
+.gen-prev { display: flex; align-items: center; gap: 10px; background: var(--soft-2); border-radius: 11px; padding: 10px 11px; }
+.gen-prev-ava { width: 32px; height: 32px; border-radius: 999px; flex-shrink: 0; overflow: hidden; background: var(--accent-50); color: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
+.gen-prev-ava img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gen-prev-txt { min-width: 0; }
+.gen-prev-n { font-size: 12.5px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gen-prev-s { font-size: 11px; color: var(--ink-3); margin-top: 1px; }
+
 .cf-body-form {
   padding: 24px;
   display: flex;

@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css?v=1789840000">
-<link rel="stylesheet" href="configuracion.css?v=1790140000">
+<link rel="stylesheet" href="configuracion.css?v=1790150000">
 </head>
 <body>
 <div class="cf-root">
@@ -287,48 +287,35 @@
     <div class="cf-screen" id="screen-general">
       <section class="cf-pagehead">
         <div>
+          <div class="cf-eyebrow">Establecimiento</div>
           <h2 class="cf-pagehead-title">General</h2>
-          <p class="cf-pagehead-sub">Edita la información de tu marca y sucursal</p>
         </div>
         <button class="lm-btn-primary" id="btn-save-general">Guardar cambios</button>
       </section>
-      <section class="cf-body cf-body-form">
 
-        <!-- MARCA / RESTAURANTE -->
-        <div class="cf-form-card">
-          <h3 class="cf-form-card-title">Marca / Restaurante</h3>
+      <!-- Dos columnas: a la izquierda lo que se escribe, a la derecha lo que
+           se mira. Cada una se desplaza por su cuenta. -->
+      <section class="cf-body cf-body-gen">
 
-          <!-- La foto del negocio. Va en el circulo de arriba a la DERECHA, el
-               del nombre y el rol, en TODAS las cuentas del restaurante. El
-               recuadro de arriba a la izquierda sigue siendo el de Cobra POS. -->
-          <div class="cf-form-field">
-            <label class="cf-form-label">Foto del restaurante</label>
-            <div class="gen-logo-row">
-              <div class="gen-logo-box" id="gen-logo-box"><span id="gen-logo-ini">?</span></div>
-              <div class="gen-logo-txt">
-                <div class="gen-logo-t">La ven todas tus cuentas</div>
-                <div class="gen-logo-s">Aparece arriba a la derecha, junto al nombre y el rol, en el computador, la caja y la tablet de tus meseros.</div>
-                <div class="gen-logo-btns">
-                  <button type="button" class="lm-btn-ghost sm" id="gen-logo-subir">Subir foto</button>
-                  <button type="button" class="lm-btn-ghost sm" id="gen-logo-quitar" style="display:none">Quitar</button>
-                </div>
-                <div class="gen-logo-nota" id="gen-logo-nota">Cuadrada, mínimo 200×200. Máximo 3 MB.</div>
+        <div class="cf-gen-main">
+
+          <div class="cf-form-card">
+            <h3 class="cf-form-card-title">Marca</h3>
+
+            <div class="cf-form-grid2">
+              <div class="cf-form-field">
+                <label class="cf-form-label" for="gen-brand-name">Nombre del restaurante</label>
+                <input class="cf-form-input" id="gen-brand-name" placeholder="Ej. El Parche Food" autocomplete="off">
+              </div>
+              <div class="cf-form-field">
+                <label class="cf-form-label" for="gen-nombre">Nombre del gerente</label>
+                <input class="cf-form-input" id="gen-nombre" placeholder="Ej. Juan Garcia" autocomplete="off">
               </div>
             </div>
-            <input type="file" id="gen-logo-file" accept="image/png,image/jpeg,image/webp" style="display:none">
-          </div>
 
-          <div class="cf-form-field">
-            <label class="cf-form-label" for="gen-nombre">Nombre del gerente</label>
-            <input class="cf-form-input" id="gen-nombre" placeholder="Ej. Juan Garcia" autocomplete="off">
-          </div>
-          <div class="cf-form-field">
-            <label class="cf-form-label" for="gen-brand-name">Nombre del restaurante</label>
-            <input class="cf-form-input" id="gen-brand-name" placeholder="Ej. El Parche Food" autocomplete="off">
-          </div>
-          <div class="cf-form-field">
-            <label class="cf-form-label">Tipo de negocio</label>
-            <div class="cf-type-grid" id="gen-type-grid">
+            <div class="cf-form-field">
+              <label class="cf-form-label">Tipo de negocio</label>
+              <div class="cf-type-grid" id="gen-type-grid">
               <button type="button" class="cf-type-btn on" data-type="Restaurante">
                 <span class="cf-type-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h0a2 2 0 0 0 2-2V2"/><path d="M5 2v20"/><path d="M19 2v20"/><path d="M19 9c1.7 0 3-1.8 3-4s-1.3-3-3-3"/></svg></span>
                 <span class="cf-type-lbl">Restaurante</span>
@@ -355,10 +342,13 @@
               </button>
             </div>
           </div>
-          <div class="cf-form-field">
-              <label class="cf-form-label" for="gen-phone">Telefono de contacto</label>
-              <div class="cf-form-inputwrap has-dial">
-                <select class="cf-dial" id="gen-dial">
+            </div>
+
+            <div class="cf-form-grid3">
+              <div class="cf-form-field">
+                <label class="cf-form-label" for="gen-phone">Telefono de contacto</label>
+                <div class="cf-form-inputwrap has-dial">
+                  <select class="cf-dial" id="gen-dial">
               <option value="57" selected>&#127464;&#127476; +57 Colombia</option>
               <option value="52">&#127474;&#127485; +52 Mexico</option>
               <option value="54">&#127462;&#127479; +54 Argentina</option>
@@ -379,46 +369,82 @@
               <option value="34">&#127466;&#127480; +34 Espana</option>
               <option value="44">&#127468;&#127463; +44 Reino Unido</option>
                 </select>
-                <input class="cf-form-input" id="gen-phone" inputmode="tel" placeholder="300 000 0000" autocomplete="off">
+                  <input class="cf-form-input" id="gen-phone" inputmode="tel" placeholder="300 000 0000" autocomplete="off">
+                </div>
+              </div>
+              <div class="cf-form-field">
+                <label class="cf-form-label" for="gen-city">Ciudad</label>
+                <input class="cf-form-input" id="gen-city" placeholder="Ej. Medellin" autocomplete="off">
+              </div>
+              <div class="cf-form-field">
+                <label class="cf-form-label" for="gen-country">Pais</label>
+                <input class="cf-form-input" id="gen-country" placeholder="Colombia" autocomplete="off">
               </div>
             </div>
-          <div class="cf-form-grid2">
-            <div class="cf-form-field">
-              <label class="cf-form-label" for="gen-city">Ciudad</label>
-              <input class="cf-form-input" id="gen-city" placeholder="Ej. Medellin" autocomplete="off">
-            </div>
-            <div class="cf-form-field">
-              <label class="cf-form-label" for="gen-country">Pais</label>
-              <input class="cf-form-input" id="gen-country" placeholder="Colombia" autocomplete="off">
+          </div>
+
+          <div class="cf-form-card">
+            <h3 class="cf-form-card-title">Sucursal</h3>
+            <div class="cf-form-grid2">
+              <div class="cf-form-field">
+                <label class="cf-form-label" for="gen-branch-name">Nombre de la sucursal</label>
+                <input class="cf-form-input" id="gen-branch-name" placeholder="Sede Principal" autocomplete="off">
+              </div>
+              <div class="cf-form-field">
+                <label class="cf-form-label" for="gen-addr">Direccion</label>
+                <input class="cf-form-input" id="gen-addr" placeholder="Ej. Cra. 70 # 44-21" autocomplete="off">
+              </div>
             </div>
           </div>
+
         </div>
 
-        <!-- SUCURSAL -->
-        <div class="cf-form-card">
-          <h3 class="cf-form-card-title">Sucursal</h3>
-          <div class="cf-form-field">
-            <label class="cf-form-label" for="gen-branch-name">Nombre de la sucursal</label>
-            <input class="cf-form-input" id="gen-branch-name" placeholder="Sede Principal" autocomplete="off">
+        <!-- Rail: lo que se ajusta una vez y despues solo se mira. -->
+        <aside class="cf-rail cf-gen-rail">
+          <div class="cf-rail-head">
+            <div class="cf-eyebrow">Como te ven</div>
           </div>
-          <div class="cf-form-field">
-            <label class="cf-form-label" for="gen-addr">Direccion</label>
-            <input class="cf-form-input" id="gen-addr" placeholder="Ej. Cra. 70 # 44-21" autocomplete="off">
-          </div>
-          <div class="cf-form-field">
-            <label class="cf-form-label" for="gen-goal">Meta de ventas diaria <span class="cf-form-opt">Opcional</span></label>
-            <div class="cf-form-inputwrap has-pfx">
-              <span class="cf-form-pfx">$</span>
-              <input class="cf-form-input" id="gen-goal" inputmode="numeric" placeholder="1.500.000" autocomplete="off">
+          <div class="cf-rail-body">
+
+            <div class="gen-logo-wrap">
+              <div class="gen-logo-box" id="gen-logo-box"><span id="gen-logo-ini">?</span></div>
+              <div class="gen-logo-btns">
+                <button type="button" class="lm-btn-ghost sm" id="gen-logo-subir">Subir foto</button>
+                <button type="button" class="lm-btn-ghost sm" id="gen-logo-quitar" style="display:none">Quitar</button>
+              </div>
+              <div class="gen-logo-nota" id="gen-logo-nota">Cuadrada, minimo 200&times;200. Maximo 3 MB.</div>
             </div>
-            <div class="cf-form-hint">En pesos colombianos (COP)</div>
+            <input type="file" id="gen-logo-file" accept="image/png,image/jpeg,image/webp" style="display:none">
+
+            <!-- En vez de explicar con un parrafo donde aparece la foto, se
+                 muestra: esto es exactamente lo que sale arriba a la derecha. -->
+            <div class="cf-gen-sep">
+              <div class="cf-rail-sublabel">Asi se ve arriba</div>
+              <div class="gen-prev">
+                <div class="gen-prev-ava" id="gen-prev-ava"><span>?</span></div>
+                <div class="gen-prev-txt">
+                  <div class="gen-prev-n" id="gen-prev-nombre">Tu restaurante</div>
+                  <div class="gen-prev-s" id="gen-prev-rol">Gerente</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="cf-gen-sep">
+              <div class="cf-rail-sublabel">Moneda</div>
+              <select id="gen-moneda" class="hr-sel" style="width:100%"></select>
+              <div class="cf-form-hint">Como se escriben los precios en todo el sistema y en el asistente. Ej: <span id="gen-moneda-ej" style="font-weight:700;color:#0F172A">$1.234.567</span></div>
+            </div>
+
+            <div class="cf-gen-sep">
+              <div class="cf-rail-sublabel">Meta de ventas diaria <span class="cf-form-opt">Opcional</span></div>
+              <div class="cf-form-inputwrap has-pfx">
+                <span class="cf-form-pfx">$</span>
+                <input class="cf-form-input" id="gen-goal" inputmode="numeric" placeholder="1.500.000" autocomplete="off">
+              </div>
+            </div>
+
           </div>
-          <div class="cf-form-field">
-            <label class="cf-form-label" for="gen-moneda">Moneda del negocio</label>
-            <select id="gen-moneda" class="hr-sel" style="width:100%"></select>
-            <div class="cf-form-hint">C&oacute;mo se escriben los precios en todo el sistema y en el asistente (s&iacute;mbolo y formato). Ej: <span id="gen-moneda-ej" style="font-weight:700;color:#0F172A">$1.234.567</span></div>
-          </div>
-        </div>
+        </aside>
 
       </section>
     </div>
@@ -2664,7 +2690,7 @@
 <!-- Es quien sabe tocar los tonos con el volumen configurado. Sin esto el
      boton Probar no sonaba: la funcion que llama no existia. -->
 <script src="pos-notify.js?v=1788790000"></script>
-<script src="configuracion.js?v=1790140000"></script>
+<script src="configuracion.js?v=1790150000"></script>
 </body>
 </html>
 
