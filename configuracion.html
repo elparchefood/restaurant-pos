@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css?v=1789840000">
-<link rel="stylesheet" href="configuracion.css?v=1790190000">
+<link rel="stylesheet" href="configuracion.css?v=1790200000">
 </head>
 <body>
 <div class="cf-root">
@@ -688,20 +688,23 @@
           <div class="cf-eyebrow">Configuración operativa</div>
           <h1 class="cf-pagetitle">Operación</h1>
         </div>
+        <button class="lm-btn-primary" id="op-btn-save" disabled><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Guardar cambios</button>
       </section>
-      <div class="op-scroll">
-        <div class="op-inner">
 
-          <!-- SECCIÓN 1 · Tiempos de servicio -->
-          <div class="op-card">
-            <div class="op-card-head">
-              <div class="op-card-icon indigo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-              <div>
-                <div class="op-card-num">Sección 1</div>
-                <div class="op-card-title">Tiempos de servicio</div>
-                <div class="op-card-sub">Ritmos del salón y de la cocina.</div>
-              </div>
-            </div>
+      <!-- Las secciones plegadas a la izquierda; el estado de la operación a la
+           derecha, que antes solo se sabía abriendo las diez. -->
+      <section class="cf-body cf-body-op">
+
+        <div class="cf-gridpanel op-panel">
+          <div class="op-acc-grupo">Salón y cocina</div>
+          <div class="op-acc" data-acc="tiempos">
+            <button type="button" class="op-acc-h" onclick="opAcc('tiempos')">
+              <span class="op-acc-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+              <span class="op-acc-t">Tiempos de servicio</span>
+              <span class="op-acc-sum" id="accsum-tiempos"></span>
+              <span class="op-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+            </button>
+            <div class="op-acc-b">
             <div class="op-card-body">
               <div class="op-row">
                 <div class="op-row-text">
@@ -726,18 +729,170 @@
                 </div>
               </div>
             </div>
+          
+            </div>
           </div>
-
-          <!-- SECCIÓN 2 · Configuración financiera -->
-          <div class="op-card">
-            <div class="op-card-head">
-              <div class="op-card-icon green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg></div>
-              <div>
-                <div class="op-card-num">Sección 2</div>
-                <div class="op-card-title">Configuración financiera</div>
-                <div class="op-card-sub">Meta de ventas. (La propina se configura en “Impuestos y propina”.)</div>
+          <div class="op-acc" data-acc="comiendo">
+            <button type="button" class="op-acc-h" onclick="opAcc('comiendo')">
+              <span class="op-acc-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+              <span class="op-acc-t">Cuándo pasa a comiendo</span>
+              <span class="op-acc-sum" id="accsum-comiendo"></span>
+              <span class="op-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+            </button>
+            <div class="op-acc-b">
+            <div class="op-card-body">
+              <div class="op-hint" style="padding:10px 14px;background:#F8FAFC;border-radius:10px;margin-bottom:16px;line-height:1.6">
+                <b>Flujo:</b> Pedido enviado → T1 min → notificación discreta "¿Ya entregaste?" →
+                <b>Sí</b>: mesa pasa a Comiendo · <b>No</b>: re-notifica cada T2 min indefinidamente ·
+                <b>Ignorar</b>: auto-avanza tras T3 min de silencio.
+              </div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">T1 — Primera notificación</div>
+                  <div class="op-hint">Minutos desde que se envía el pedido hasta la primera pregunta al mesero.</div>
+                </div>
+                <div class="num-stepper" data-field="mesaT1" data-min="1" data-max="60">
+                  <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <div class="num-val"><b id="op-mesaT1">10</b><span>min</span></div>
+                  <button class="cf-step sm" data-step="1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                </div>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">T2 — Re-notificación tras "No"</div>
+                  <div class="op-hint">Minutos entre cada notificación cuando el mesero responde "No".</div>
+                </div>
+                <div class="num-stepper" data-field="mesaT2" data-min="1" data-max="30">
+                  <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <div class="num-val"><b id="op-mesaT2">5</b><span>min</span></div>
+                  <button class="cf-step sm" data-step="1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                </div>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">T3 — Auto-avance si se ignora</div>
+                  <div class="op-hint">Minutos que puede estar la notificación sin respuesta antes del auto-cambio.</div>
+                </div>
+                <div class="num-stepper" data-field="mesaT3" data-min="1" data-max="30">
+                  <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <div class="num-val"><b id="op-mesaT3">3</b><span>min</span></div>
+                  <button class="cf-step sm" data-step="1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                </div>
               </div>
             </div>
+          
+            </div>
+          </div>
+          <div class="op-acc" data-acc="liberar">
+            <button type="button" class="op-acc-h" onclick="opAcc('liberar')">
+              <span class="op-acc-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+              <span class="op-acc-t">Cuándo se libera la mesa</span>
+              <span class="op-acc-sum" id="accsum-liberar"></span>
+              <span class="op-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+            </button>
+            <div class="op-acc-b">
+            <div class="op-card-body">
+              <div class="op-hint" style="padding:10px 14px;background:#F8FAFC;border-radius:10px;margin-bottom:16px;line-height:1.6">
+                <b>Flujo:</b> Mesa pasa a Comiendo → T1 min → notificación "¿Ya se fueron los clientes?" →
+                <b>Sí, mesa libre</b>: mesa vuelve a Libre · <b>Siguen comiendo</b>: re-notifica cada T2 min ·
+                <b>Ignorar</b>: auto-libera tras T3 min de silencio.
+              </div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">T1 — Primera notificación</div>
+                  <div class="op-hint">Minutos desde que la mesa pasa a Comiendo hasta la primera pregunta.</div>
+                </div>
+                <div class="num-stepper" data-field="liberarT1" data-min="5" data-max="180">
+                  <button class="cf-step sm" data-step="-5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <div class="num-val"><b id="op-liberarT1">45</b><span>min</span></div>
+                  <button class="cf-step sm" data-step="5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                </div>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">T2 — Re-notificación tras "Siguen comiendo"</div>
+                  <div class="op-hint">Minutos entre cada notificación cuando el mesero responde que siguen.</div>
+                </div>
+                <div class="num-stepper" data-field="liberarT2" data-min="5" data-max="60">
+                  <button class="cf-step sm" data-step="-5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <div class="num-val"><b id="op-liberarT2">15</b><span>min</span></div>
+                  <button class="cf-step sm" data-step="5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                </div>
+              </div>
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">T3 — Auto-liberar si se ignora</div>
+                  <div class="op-hint">Minutos que puede estar la notificación sin respuesta antes de liberar automáticamente.</div>
+                </div>
+                <div class="num-stepper" data-field="liberarT3" data-min="1" data-max="30">
+                  <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <div class="num-val"><b id="op-liberarT3">10</b><span>min</span></div>
+                  <button class="cf-step sm" data-step="1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                </div>
+              </div>
+            </div>
+          
+            </div>
+          </div>
+          <div class="op-acc" data-acc="avisos">
+            <button type="button" class="op-acc-h" onclick="opAcc('avisos')">
+              <span class="op-acc-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+              <span class="op-acc-t">Notificaciones</span>
+              <span class="op-acc-sum" id="accsum-avisos"></span>
+              <span class="op-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+            </button>
+            <div class="op-acc-b">
+            <div class="op-card-body">
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">Avisar con sonido</div>
+                  <div class="op-hint">Si lo apagas, los mensajes siguen llegando; simplemente no suenan.</div>
+                </div>
+                <div class="op-control">
+                  <span class="op-state" id="op-notif-state">Activado</span>
+                  <button type="button" class="cf-switch on" id="op-sw-notif" role="switch" aria-checked="true"><span class="cf-switch-knob"></span></button>
+                </div>
+              </div>
+              <div id="op-notif-body">
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label">Tono</div>
+                    <div class="op-hint">Se oye apenas lo tocas, para que escojas oyendo.</div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:0 18px 16px">
+                  <button type="button" class="cf-chip" data-notif-tono="suave">Suave</button>
+                  <button type="button" class="cf-chip on" data-notif-tono="clasico">Clásico</button>
+                  <button type="button" class="cf-chip" data-notif-tono="campana">Campana</button>
+                  <button type="button" class="cf-chip" data-notif-tono="alerta">Alerta</button>
+                  <!-- Grabación real, no fabricado como los otros cuatro. -->
+                  <button type="button" class="cf-chip" data-notif-tono="caja">Caja registradora</button>
+                  <button type="button" class="cf-mini-btn" onclick="opProbarTono()">&#9654; Probar</button>
+                </div>
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label">Volumen</div>
+                    <div class="op-hint">Súbelo si la cocina es ruidosa.</div>
+                  </div>
+                  <div class="op-control" style="gap:12px;min-width:230px">
+                    <input type="range" id="op-notif-vol" min="0" max="100" step="5" value="60" style="flex:1;accent-color:var(--accent, #5B6BFF)">
+                    <b id="op-notif-vol-val" style="min-width:42px;text-align:right;font-variant-numeric:tabular-nums">60%</b>
+                  </div>
+                </div>
+              </div>
+            </div>
+          
+            </div>
+          </div>
+          <div class="op-acc-grupo">Cobro</div>
+          <div class="op-acc" data-acc="meta">
+            <button type="button" class="op-acc-h" onclick="opAcc('meta')">
+              <span class="op-acc-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg></span>
+              <span class="op-acc-t">Meta diaria de ventas</span>
+              <span class="op-acc-sum" id="accsum-meta"></span>
+              <span class="op-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+            </button>
+            <div class="op-acc-b">
             <div class="op-card-body">
               <div class="op-row">
                 <div class="op-row-text">
@@ -751,18 +906,17 @@
                 </div>
               </div>
             </div>
-          </div>
-
-          <!-- SECCIÓN 3 · Acceso y seguridad operativa -->
-          <div class="op-card">
-            <div class="op-card-head">
-              <div class="op-card-icon violet"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-              <div>
-                <div class="op-card-num">Sección 3</div>
-                <div class="op-card-title">Acceso y seguridad operativa</div>
-                <div class="op-card-sub">Cobro adelantado y PIN de administrador.</div>
-              </div>
+          
             </div>
+          </div>
+          <div class="op-acc" data-acc="acceso">
+            <button type="button" class="op-acc-h" onclick="opAcc('acceso')">
+              <span class="op-acc-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+              <span class="op-acc-t">Acceso y seguridad</span>
+              <span class="op-acc-sum" id="accsum-acceso"></span>
+              <span class="op-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+            </button>
+            <div class="op-acc-b">
             <div class="op-card-body">
               <div class="op-row">
                 <div class="op-row-text">
@@ -813,18 +967,77 @@
                 </div>
               </div>
             </div>
+          
+            </div>
           </div>
-
-          <!-- SECCIÓN 4 · Incremento por empaques (C3b) -->
-          <div class="op-card">
-            <div class="op-card-head">
-              <div class="op-card-icon amber"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
+          <div class="op-acc" data-acc="recibos">
+            <button type="button" class="op-acc-h" onclick="opAcc('recibos')">
+              <span class="op-acc-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg></span>
+              <span class="op-acc-t">Diseño de recibos</span>
+              <span class="op-acc-sum" id="accsum-recibos"></span>
+              <span class="op-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+            </button>
+            <div class="op-acc-b">
+            <div class="op-card-body">
+              <div style="margin-bottom:16px">
+                <div class="op-label" style="margin-bottom:10px">Recibo con descripción del producto</div>
+                <div class="op-model-grid" id="op-recibo-desc-models">
+                  <button class="op-model-card on" data-recibo="desc" data-model="estandar">
+                    <div class="op-model-preview">
+                      <div style="font-weight:700;font-size:11px;text-align:center;border-bottom:1px dashed #ccc;padding-bottom:3px;margin-bottom:3px">RECIBO</div>
+                      <div style="font-size:9px;color:#555">2x Hamburguesa — $28.000</div>
+                      <div style="font-size:9px;color:#555">1x Gaseosa — $4.000</div>
+                      <div style="font-size:9px;font-weight:700;margin-top:3px">TOTAL $32.000</div>
+                    </div>
+                    <div class="op-model-name">Estándar</div>
+                  </button>
+                  <button class="op-model-card" data-recibo="desc" data-model="compacto">
+                    <div class="op-model-preview">
+                      <div style="font-size:9px;font-weight:700;text-align:center;margin-bottom:3px">RECIBO</div>
+                      <div style="font-size:8px;color:#666">2x Hamburguesa $28k</div>
+                      <div style="font-size:8px;color:#666">1x Gaseosa $4k</div>
+                      <div style="font-size:9px;font-weight:700;border-top:1px solid #ccc;margin-top:3px;padding-top:3px">$32.000</div>
+                    </div>
+                    <div class="op-model-name">Compacto</div>
+                  </button>
+                </div>
+              </div>
               <div>
-                <div class="op-card-num">Sección 4</div>
-                <div class="op-card-title">Incremento por empaques</div>
-                <div class="op-card-sub">Aplica un cargo adicional en pedidos para llevar y domicilio.</div>
+                <div class="op-label" style="margin-bottom:10px">Recibo final con cuenta</div>
+                <div class="op-model-grid" id="op-recibo-final-models">
+                  <button class="op-model-card on" data-recibo="final" data-model="estandar">
+                    <div class="op-model-preview">
+                      <div style="font-weight:700;font-size:11px;text-align:center;border-bottom:1px dashed #ccc;padding-bottom:3px;margin-bottom:3px">CUENTA FINAL</div>
+                      <div style="font-size:9px;color:#555">Subtotal $32.000</div>
+                      <div style="font-size:9px;color:#555">Propina $3.200</div>
+                      <div style="font-size:9px;font-weight:700;margin-top:3px">TOTAL $35.200</div>
+                    </div>
+                    <div class="op-model-name">Estándar</div>
+                  </button>
+                  <button class="op-model-card" data-recibo="final" data-model="compacto">
+                    <div class="op-model-preview">
+                      <div style="font-size:9px;font-weight:700;text-align:center;margin-bottom:3px">CUENTA</div>
+                      <div style="font-size:8px;color:#666">Items: $32.000</div>
+                      <div style="font-size:8px;color:#666">Propina: $3.200</div>
+                      <div style="font-size:9px;font-weight:700;border-top:1px solid #ccc;margin-top:3px;padding-top:3px">$35.200</div>
+                    </div>
+                    <div class="op-model-name">Compacto</div>
+                  </button>
+                </div>
               </div>
             </div>
+          
+            </div>
+          </div>
+          <div class="op-acc-grupo">Pedidos</div>
+          <div class="op-acc" data-acc="empaques">
+            <button type="button" class="op-acc-h" onclick="opAcc('empaques')">
+              <span class="op-acc-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
+              <span class="op-acc-t">Incremento por empaques</span>
+              <span class="op-acc-sum" id="accsum-empaques"></span>
+              <span class="op-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+            </button>
+            <div class="op-acc-b">
             <div class="op-card-body">
               <div class="op-row">
                 <div class="op-row-text">
@@ -910,18 +1123,17 @@
                 </div>
               </div>
             </div>
-          </div>
-
-          <!-- SECCIÓN 4b · Etiquetas de venta rápida -->
-          <div class="op-card">
-            <div class="op-card-head">
-              <div class="op-card-icon" style="background:#EEF2FF;color:#5B6BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>
-              <div>
-                <div class="op-card-num">Sección 4b</div>
-                <div class="op-card-title">Etiquetas de venta rápida</div>
-                <div class="op-card-sub">Marca cómo se entrega cada pedido para llevar. Se imprime en la comanda.</div>
-              </div>
+          
             </div>
+          </div>
+          <div class="op-acc" data-acc="etiquetas">
+            <button type="button" class="op-acc-h" onclick="opAcc('etiquetas')">
+              <span class="op-acc-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span>
+              <span class="op-acc-t">Etiquetas de venta rápida</span>
+              <span class="op-acc-sum" id="accsum-etiquetas"></span>
+              <span class="op-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+            </button>
+            <div class="op-acc-b">
             <div class="op-row">
               <div class="op-row-text">
                 <div class="op-label">Activar etiquetas</div>
@@ -957,246 +1169,35 @@
                 <button type="button" class="cf-chip" data-etq-exigir="siempre">Siempre</button>
               </div>
             </div>
-          </div>
-          <!-- SECCIÓN 4c · Notas frecuentes -->
-          <div class="op-card">
-            <div class="op-card-head">
-              <div class="op-card-icon" style="background:#EEF2FF;color:#5B6BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></div>
-              <div>
-                <div class="op-card-num">Sección 4c</div>
-                <div class="op-card-title">Notas frecuentes</div>
-                <div class="op-card-sub">Notas que se repiten (sin cebolla, solo BBQ…). Aparecen al personalizar el plato y se imprimen en la comanda.</div>
-              </div>
+          
             </div>
+          </div>
+          <div class="op-acc" data-acc="notas">
+            <button type="button" class="op-acc-h" onclick="opAcc('notas')">
+              <span class="op-acc-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></span>
+              <span class="op-acc-t">Notas frecuentes</span>
+              <span class="op-acc-sum" id="accsum-notas"></span>
+              <span class="op-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+            </button>
+            <div class="op-acc-b">
             <div id="op-notas-cont" style="padding:4px 18px 18px"></div>
-          </div>
-          <!-- SECCIÓN 5 · Tiempos de automatización de mesa (C9) -->
-          <div class="op-card">
-            <div class="op-card-head">
-              <div class="op-card-icon indigo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-              <div>
-                <div class="op-card-num">Sección 5</div>
-                <div class="op-card-title">Automatización: Esperando → Comiendo</div>
-                <div class="op-card-sub">Notificaciones y auto-cambio de estado de mesa cuando el mesero no confirma la entrega.</div>
-              </div>
-            </div>
-            <div class="op-card-body">
-              <div class="op-hint" style="padding:10px 14px;background:#F8FAFC;border-radius:10px;margin-bottom:16px;line-height:1.6">
-                <b>Flujo:</b> Pedido enviado → T1 min → notificación discreta "¿Ya entregaste?" →
-                <b>Sí</b>: mesa pasa a Comiendo · <b>No</b>: re-notifica cada T2 min indefinidamente ·
-                <b>Ignorar</b>: auto-avanza tras T3 min de silencio.
-              </div>
-              <div class="op-row">
-                <div class="op-row-text">
-                  <div class="op-label">T1 — Primera notificación</div>
-                  <div class="op-hint">Minutos desde que se envía el pedido hasta la primera pregunta al mesero.</div>
-                </div>
-                <div class="num-stepper" data-field="mesaT1" data-min="1" data-max="60">
-                  <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-                  <div class="num-val"><b id="op-mesaT1">10</b><span>min</span></div>
-                  <button class="cf-step sm" data-step="1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-                </div>
-              </div>
-              <div class="op-row">
-                <div class="op-row-text">
-                  <div class="op-label">T2 — Re-notificación tras "No"</div>
-                  <div class="op-hint">Minutos entre cada notificación cuando el mesero responde "No".</div>
-                </div>
-                <div class="num-stepper" data-field="mesaT2" data-min="1" data-max="30">
-                  <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-                  <div class="num-val"><b id="op-mesaT2">5</b><span>min</span></div>
-                  <button class="cf-step sm" data-step="1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-                </div>
-              </div>
-              <div class="op-row">
-                <div class="op-row-text">
-                  <div class="op-label">T3 — Auto-avance si se ignora</div>
-                  <div class="op-hint">Minutos que puede estar la notificación sin respuesta antes del auto-cambio.</div>
-                </div>
-                <div class="num-stepper" data-field="mesaT3" data-min="1" data-max="30">
-                  <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-                  <div class="num-val"><b id="op-mesaT3">3</b><span>min</span></div>
-                  <button class="cf-step sm" data-step="1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-                </div>
-              </div>
+          
             </div>
           </div>
-
-
-          <!-- SECCIÓN 7 · Tiempos de automatización Comiendo → Libre (C10) -->
-          <div class="op-card">
-            <div class="op-card-head">
-              <div class="op-card-icon green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
-              <div>
-                <div class="op-card-num">Sección 7</div>
-                <div class="op-card-title">Automatización: Comiendo → Mesa libre</div>
-                <div class="op-card-sub">Notificaciones y auto-liberación cuando los clientes ya terminaron.</div>
-              </div>
-            </div>
-            <div class="op-card-body">
-              <div class="op-hint" style="padding:10px 14px;background:#F8FAFC;border-radius:10px;margin-bottom:16px;line-height:1.6">
-                <b>Flujo:</b> Mesa pasa a Comiendo → T1 min → notificación "¿Ya se fueron los clientes?" →
-                <b>Sí, mesa libre</b>: mesa vuelve a Libre · <b>Siguen comiendo</b>: re-notifica cada T2 min ·
-                <b>Ignorar</b>: auto-libera tras T3 min de silencio.
-              </div>
-              <div class="op-row">
-                <div class="op-row-text">
-                  <div class="op-label">T1 — Primera notificación</div>
-                  <div class="op-hint">Minutos desde que la mesa pasa a Comiendo hasta la primera pregunta.</div>
-                </div>
-                <div class="num-stepper" data-field="liberarT1" data-min="5" data-max="180">
-                  <button class="cf-step sm" data-step="-5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-                  <div class="num-val"><b id="op-liberarT1">45</b><span>min</span></div>
-                  <button class="cf-step sm" data-step="5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-                </div>
-              </div>
-              <div class="op-row">
-                <div class="op-row-text">
-                  <div class="op-label">T2 — Re-notificación tras "Siguen comiendo"</div>
-                  <div class="op-hint">Minutos entre cada notificación cuando el mesero responde que siguen.</div>
-                </div>
-                <div class="num-stepper" data-field="liberarT2" data-min="5" data-max="60">
-                  <button class="cf-step sm" data-step="-5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-                  <div class="num-val"><b id="op-liberarT2">15</b><span>min</span></div>
-                  <button class="cf-step sm" data-step="5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-                </div>
-              </div>
-              <div class="op-row">
-                <div class="op-row-text">
-                  <div class="op-label">T3 — Auto-liberar si se ignora</div>
-                  <div class="op-hint">Minutos que puede estar la notificación sin respuesta antes de liberar automáticamente.</div>
-                </div>
-                <div class="num-stepper" data-field="liberarT3" data-min="1" data-max="30">
-                  <button class="cf-step sm" data-step="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-                  <div class="num-val"><b id="op-liberarT3">10</b><span>min</span></div>
-                  <button class="cf-step sm" data-step="1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- SECCIÓN 6 · Diseños de recibos (C6) -->
-          <div class="op-card">
-            <div class="op-card-head">
-              <div class="op-card-icon green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg></div>
-              <div>
-                <div class="op-card-num">Sección 6</div>
-                <div class="op-card-title">Diseño de recibos</div>
-                <div class="op-card-sub">Selecciona el modelo para cada tipo de recibo impreso.</div>
-              </div>
-            </div>
-            <div class="op-card-body">
-              <div style="margin-bottom:16px">
-                <div class="op-label" style="margin-bottom:10px">Recibo con descripción del producto</div>
-                <div class="op-model-grid" id="op-recibo-desc-models">
-                  <button class="op-model-card on" data-recibo="desc" data-model="estandar">
-                    <div class="op-model-preview">
-                      <div style="font-weight:700;font-size:11px;text-align:center;border-bottom:1px dashed #ccc;padding-bottom:3px;margin-bottom:3px">RECIBO</div>
-                      <div style="font-size:9px;color:#555">2x Hamburguesa — $28.000</div>
-                      <div style="font-size:9px;color:#555">1x Gaseosa — $4.000</div>
-                      <div style="font-size:9px;font-weight:700;margin-top:3px">TOTAL $32.000</div>
-                    </div>
-                    <div class="op-model-name">Estándar</div>
-                  </button>
-                  <button class="op-model-card" data-recibo="desc" data-model="compacto">
-                    <div class="op-model-preview">
-                      <div style="font-size:9px;font-weight:700;text-align:center;margin-bottom:3px">RECIBO</div>
-                      <div style="font-size:8px;color:#666">2x Hamburguesa $28k</div>
-                      <div style="font-size:8px;color:#666">1x Gaseosa $4k</div>
-                      <div style="font-size:9px;font-weight:700;border-top:1px solid #ccc;margin-top:3px;padding-top:3px">$32.000</div>
-                    </div>
-                    <div class="op-model-name">Compacto</div>
-                  </button>
-                </div>
-              </div>
-              <div>
-                <div class="op-label" style="margin-bottom:10px">Recibo final con cuenta</div>
-                <div class="op-model-grid" id="op-recibo-final-models">
-                  <button class="op-model-card on" data-recibo="final" data-model="estandar">
-                    <div class="op-model-preview">
-                      <div style="font-weight:700;font-size:11px;text-align:center;border-bottom:1px dashed #ccc;padding-bottom:3px;margin-bottom:3px">CUENTA FINAL</div>
-                      <div style="font-size:9px;color:#555">Subtotal $32.000</div>
-                      <div style="font-size:9px;color:#555">Propina $3.200</div>
-                      <div style="font-size:9px;font-weight:700;margin-top:3px">TOTAL $35.200</div>
-                    </div>
-                    <div class="op-model-name">Estándar</div>
-                  </button>
-                  <button class="op-model-card" data-recibo="final" data-model="compacto">
-                    <div class="op-model-preview">
-                      <div style="font-size:9px;font-weight:700;text-align:center;margin-bottom:3px">CUENTA</div>
-                      <div style="font-size:8px;color:#666">Items: $32.000</div>
-                      <div style="font-size:8px;color:#666">Propina: $3.200</div>
-                      <div style="font-size:9px;font-weight:700;border-top:1px solid #ccc;margin-top:3px;padding-top:3px">$35.200</div>
-                    </div>
-                    <div class="op-model-name">Compacto</div>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- SECCIÓN 8 · Notificaciones
-               Estaba metida DENTRO de la tarjeta de recibos y con nombres de
-               clase que no existen en el CSS (cf-card, lm-switch...), así que
-               se veía como texto suelto sin recuadro ni interruptor. Ahora es
-               una sección propia, con las mismas piezas que las demás. -->
-          <div class="op-card">
-            <div class="op-card-head">
-              <div class="op-card-icon amber"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
-              <div>
-                <div class="op-card-num">Sección 8</div>
-                <div class="op-card-title">Notificaciones</div>
-                <div class="op-card-sub">El sonido que avisa cuando entra un mensaje nuevo al chat.</div>
-              </div>
-            </div>
-            <div class="op-card-body">
-              <div class="op-row">
-                <div class="op-row-text">
-                  <div class="op-label">Avisar con sonido</div>
-                  <div class="op-hint">Si lo apagas, los mensajes siguen llegando; simplemente no suenan.</div>
-                </div>
-                <div class="op-control">
-                  <span class="op-state" id="op-notif-state">Activado</span>
-                  <button type="button" class="cf-switch on" id="op-sw-notif" role="switch" aria-checked="true"><span class="cf-switch-knob"></span></button>
-                </div>
-              </div>
-              <div id="op-notif-body">
-                <div class="op-row">
-                  <div class="op-row-text">
-                    <div class="op-label">Tono</div>
-                    <div class="op-hint">Se oye apenas lo tocas, para que escojas oyendo.</div>
-                  </div>
-                </div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:0 18px 16px">
-                  <button type="button" class="cf-chip" data-notif-tono="suave">Suave</button>
-                  <button type="button" class="cf-chip on" data-notif-tono="clasico">Clásico</button>
-                  <button type="button" class="cf-chip" data-notif-tono="campana">Campana</button>
-                  <button type="button" class="cf-chip" data-notif-tono="alerta">Alerta</button>
-                  <!-- Grabación real, no fabricado como los otros cuatro. -->
-                  <button type="button" class="cf-chip" data-notif-tono="caja">Caja registradora</button>
-                  <button type="button" class="cf-mini-btn" onclick="opProbarTono()">&#9654; Probar</button>
-                </div>
-                <div class="op-row">
-                  <div class="op-row-text">
-                    <div class="op-label">Volumen</div>
-                    <div class="op-hint">Súbelo si la cocina es ruidosa.</div>
-                  </div>
-                  <div class="op-control" style="gap:12px;min-width:230px">
-                    <input type="range" id="op-notif-vol" min="0" max="100" step="5" value="60" style="flex:1;accent-color:var(--accent, #5B6BFF)">
-                    <b id="op-notif-vol-val" style="min-width:42px;text-align:right;font-variant-numeric:tabular-nums">60%</b>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Footer guardar -->
-          <div class="op-footer">
+          <div style="margin-top:14px">
             <button class="lm-btn-ghost" id="op-btn-discard" hidden>Descartar cambios</button>
-            <button class="lm-btn-primary lg" id="op-btn-save" disabled><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Guardar cambios</button>
           </div>
         </div>
-      </div>
+
+        <aside class="cf-rail">
+          <div class="cf-rail-head">
+            <div><div class="cf-eyebrow">Resumen</div>
+            <div class="cf-rail-title">Cómo opera hoy</div></div>
+          </div>
+          <div class="cf-rail-body" id="op-resumen"></div>
+        </aside>
+
+      </section>
     </div>
 
     <!-- SECCION: HORARIOS -->
@@ -2690,7 +2691,7 @@
 <!-- Es quien sabe tocar los tonos con el volumen configurado. Sin esto el
      boton Probar no sonaba: la funcion que llama no existia. -->
 <script src="pos-notify.js?v=1788790000"></script>
-<script src="configuracion.js?v=1790190000"></script>
+<script src="configuracion.js?v=1790200000"></script>
 </body>
 </html>
 

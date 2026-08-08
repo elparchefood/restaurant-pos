@@ -1509,6 +1509,48 @@ div.master[data-tab].cia-active { display: flex !important; }
 /* Alias de las clases que vienen de Inventario y en esta pantalla no existian
    (Impuestos las usa en 10 sitios). Mismo aspecto que .cf-chip / .cf-search,
    asi no hay que tocar el HTML y no se rompe nada. */
+/* Operacion — diez secciones plegadas, agrupadas por lo que hacen.
+   Antes estaban las diez abiertas de golpe, numeradas 1,2,3,4,4b,4c,5,7,6,8.
+   Plegada NO es escondida: la fila muestra a la derecha como esta configurada,
+   asi que se puede revisar la operacion entera sin abrir nada. */
+.cf-body-op { grid-template-columns: minmax(0, 1fr) 280px; }
+.op-panel { padding: 14px 16px 20px; }
+.op-acc-grupo { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-4); margin: 16px 2px 8px; }
+.op-acc-grupo:first-child { margin-top: 2px; }
+
+.op-acc { border: 1px solid var(--border); border-radius: var(--r-md); margin-bottom: 7px; background: #fff; overflow: hidden; }
+.op-acc.on { border-color: #C7D2FE; }
+.op-acc-h { display: flex; align-items: center; gap: 11px; width: 100%; padding: 11px 13px; border: 0; background: transparent; font-family: inherit; text-align: left; cursor: pointer; }
+.op-acc-h:hover { background: var(--soft-3); }
+.op-acc.on .op-acc-h { background: var(--accent-bg); }
+.op-acc-ico { display: flex; color: var(--ink-4); flex-shrink: 0; }
+.op-acc-ico svg { width: 17px; height: 17px; }
+.op-acc.on .op-acc-ico { color: var(--accent); }
+.op-acc-t { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: var(--ink); }
+.op-acc.on .op-acc-t { color: var(--accent); }
+/* El resumen de la fila plegada: lo que hace que plegar no sea esconder. */
+.op-acc-sum { font-size: 11.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.op-acc-sum.si { color: var(--green, #16A34A); font-weight: 700; }
+.op-acc-sum.no { color: var(--ink-4); }
+.op-acc.on .op-acc-sum { display: none; }
+.op-acc-chv { display: flex; color: var(--ink-4); flex-shrink: 0; transition: transform .16s; }
+.op-acc.on .op-acc-chv { transform: rotate(90deg); color: var(--accent); }
+
+/* El cuerpo: cerrado no ocupa nada y no se puede tabular hacia el. */
+.op-acc-b { display: none; padding: 4px 13px 14px; border-top: 1px solid var(--border); }
+.op-acc.on .op-acc-b { display: block; }
+
+/* El resumen del rail: como esta la operacion, sin abrir nada. */
+.op-res-l { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12.5px; padding: 7px 0; }
+.op-res-l + .op-res-l { border-top: 1px solid var(--hairline, #F1F5F9); }
+.op-res-l span { color: var(--ink-3); }
+.op-res-l b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.op-res-l b.si { color: var(--green, #16A34A); }
+.op-res-l b.no { color: var(--ink-4); font-weight: 600; }
+.op-res-meta { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 12px; }
+.op-res-meta .l { font-size: 11px; color: var(--ink-3); }
+.op-res-meta .v { font-size: 19px; font-weight: 800; color: var(--ink); letter-spacing: -.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
+
 /* Impuestos y propina — dos columnas, con la cuenta de ejemplo en el rail. */
 .cf-body-imp { grid-template-columns: minmax(0, 1fr) 300px; }
 .imp-campos { border: 1px solid #E0E7FF; background: #F8FAFF; border-radius: 12px; padding: 14px; margin-top: 10px; display: flex; flex-direction: column; gap: 14px; }

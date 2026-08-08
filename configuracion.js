@@ -2035,6 +2035,91 @@ async function opSyncCobroDesdeBranch() {
 }
 
 // ── Render completo desde el borrador ─────────────────────
+/* ══════════════ OPERACION — secciones plegadas ══════════════
+   Se abre UNA a la vez: abrir otra cierra la anterior. Es lo que evita volver
+   al desorden de tener las diez abiertas.
+
+   Plegada NO es escondida: cada fila muestra a la derecha como esta
+   configurada, asi que se puede revisar la operacion entera sin abrir nada. */
+window.opAcc = function (key) {
+  var yo = document.querySelector('.op-acc[data-acc="' + key + '"]');
+  if (!yo) return;
+  var abrir = !yo.classList.contains('on');
+  document.querySelectorAll('.op-acc.on').forEach(function (o) { o.classList.remove('on'); });
+  if (abrir) {
+    yo.classList.add('on');
+    /* Si la seccion queda por debajo del borde al abrirse, se acerca. Sin
+       esto, abrir la ultima no muestra nada: el contenido cae fuera. */
+    var panel = yo.closest('.op-panel');
+    if (panel) setTimeout(function () {
+      var r = yo.getBoundingClientRect(), p = panel.getBoundingClientRect();
+      if (r.bottom > p.bottom || r.top < p.top) {
+        panel.scrollTop += r.top - p.top - 8;
+      }
+    }, 20);
+  }
+};
+
+/* El texto de la derecha de cada fila plegada, y el resumen del rail. Los dos
+   salen del MISMO borrador que se esta editando, asi que cambian al instante:
+   apagar empaques y ver la fila decir "Apagado" es la confirmacion de que
+   quedo hecho, sin tener que abrirla otra vez. */
+function opPintarResumenes() {
+  var d = _opDraft || _opSaved; if (!d) return;
+  var money = function (n) { return '$' + Math.round(Number(n) || 0).toLocaleString('es-CO'); };
+  var min = function (v) { return (Number(v) || 0) + ' min'; };
+
+  var etiq = Array.isArray(d.etiquetasVR) ? d.etiquetasVR.length : 0;
+  var nf = d.notasFrecuentes || {};
+  var nNotas = (Array.isArray(nf.global) ? nf.global.length : 0)
+    + Object.keys(nf.cats || {}).reduce(function (t, k) {
+        return t + ((nf.cats[k] || []).length); }, 0);
+
+  var empaque = !d.empaquesActivo ? null
+    : (d.empaqueTipo === 'porcentaje'
+        ? (Number(d.empaquePct) || 0) + '%'
+        : money(d.empaqueMonto)) + ' por ' + (d.empaqueBase === 'pedido' ? 'pedido' : 'unidad');
+
+  var filas = {
+    tiempos:  [min(d.entregaMin) + ' \u00b7 ' + min(d.cocinaMax), null],
+    comiendo: [[d.mesaT1, d.mesaT2, d.mesaT3].map(Number).join(' \u00b7 ') + ' min', null],
+    liberar:  [[d.liberarT1, d.liberarT2, d.liberarT3].map(Number).join(' \u00b7 ') + ' min', null],
+    avisos:   ['', null],
+    meta:     [money(d.metaDiaria), null],
+    acceso:   [[d.cobroAdelantado ? 'Cobro adelantado' : null,
+                d.aceptaReservas ? 'Reservas' : null,
+                String(d.pin || '').length === 4 ? 'PIN' : null]
+                .filter(Boolean).join(' \u00b7 ') || 'Nada activo', null],
+    recibos:  ['', null],
+    empaques: [empaque || 'Apagado', d.empaquesActivo ? 'si' : 'no'],
+    etiquetas:[d.etiquetasVRActivo ? (etiq + (etiq === 1 ? ' etiqueta' : ' etiquetas')) : 'Apagado',
+               d.etiquetasVRActivo ? 'si' : 'no'],
+    notas:    [nNotas ? (nNotas + (nNotas === 1 ? ' nota' : ' notas')) : 'Ninguna',
+               nNotas ? null : 'no'],
+  };
+  Object.keys(filas).forEach(function (k) {
+    var el = document.getElementById('accsum-' + k); if (!el) return;
+    el.textContent = filas[k][0];
+    el.className = 'op-acc-sum' + (filas[k][1] ? ' ' + filas[k][1] : '');
+  });
+
+  var out = document.getElementById('op-resumen'); if (!out) return;
+  var si = function (v, sino) {
+    return v ? '<b class="si">S\u00ed</b>' : '<b class="no">' + (sino || 'No') + '</b>';
+  };
+  out.innerHTML =
+      '<div class="op-res-l"><span>Cobro adelantado</span>' + si(d.cobroAdelantado) + '</div>'
+    + '<div class="op-res-l"><span>Reservas</span>' + si(d.aceptaReservas) + '</div>'
+    + '<div class="op-res-l"><span>PIN de administrador</span>'
+      + si(String(d.pin || '').length === 4, 'Sin poner') + '</div>'
+    + '<div class="op-res-l"><span>Empaques</span>' + si(d.empaquesActivo) + '</div>'
+    + '<div class="op-res-l"><span>Etiquetas</span>' + si(d.etiquetasVRActivo) + '</div>'
+    + '<div class="op-res-l"><span>Notas frecuentes</span>'
+      + (nNotas ? '<b class="si">' + nNotas + '</b>' : '<b class="no">Ninguna</b>') + '</div>'
+    + '<div class="op-res-meta"><div class="l">Meta del d\u00eda</div>'
+      + '<div class="v">' + money(d.metaDiaria) + '</div></div>';
+}
+
 function opRender() {
   try { opPintarNotif(); } catch (e) {}
   var d = _opDraft;
@@ -2137,6 +2222,9 @@ function opRender() {
   document.querySelectorAll('[data-recibo="final"]').forEach(function(c) { c.classList.toggle('on', c.dataset.model === reciboModels.finalModel); });
 
   opCheckDirty();
+
+  /* Los resumenes salen del mismo borrador que se acaba de pintar. */
+  if (typeof opPintarResumenes === 'function') opPintarResumenes();
 }
 
 function opSetToggle(id, on) {
