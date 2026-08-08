@@ -1000,3 +1000,26 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
   padding: 12px 0 2px; margin-top: 10px;
   background: linear-gradient(to bottom, transparent, var(--surf, #fff) 30%);
 }
+
+
+/* ══ MODAL DE RECARGA ════════════════════════════════════════════════════════
+   Reusa la caja del aviso; solo cambia lo de dentro. */
+.ep-rec-box { max-width: 330px; }
+.ep-rec-tit { font-size: 15px; font-weight: 600; color: var(--sub, #787c8b); }
+.ep-rec-saldo {
+  margin-top: 8px; font-size: 40px; font-weight: 700; letter-spacing: -.03em;
+  line-height: 1.05; font-variant-numeric: tabular-nums;
+}
+.ep-rec-lbl { font-size: 12.5px; color: var(--sub, #787c8b); margin-top: 2px; }
+.ep-rec-det {
+  margin: 18px 0 12px; padding: 12px 14px; text-align: left;
+  background: rgba(120, 124, 139, .08); border-radius: 14px;
+}
+.ep-rec-fila {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 14px; padding: 3px 0;
+}
+.ep-rec-fila span { color: var(--sub, #787c8b); }
+.ep-rec-fila b { font-variant-numeric: tabular-nums; }
+.ep-rec-fila.regalo b { color: #16A34A; }
+.ep-rec-pie { font-size: 12.5px; color: var(--sub, #787c8b); margin-bottom: 16px; }

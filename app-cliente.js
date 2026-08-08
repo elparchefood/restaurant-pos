@@ -896,6 +896,41 @@
     }
   }
 
+  /* La recarga se celebra, no se notifica. Es el momento en que el cliente
+     acaba de entregar plata: ver su saldo nuevo en grande y el regalo aparte
+     es lo que hace que la próxima vez recargue más. */
+  function avisoRecarga(monto, bono, saldo) {
+    var viejo = document.querySelector('.ep-aviso-cap');
+    if (viejo) viejo.remove();
+
+    var cap = document.createElement('div');
+    cap.className = 'ep-aviso-cap';
+    cap.innerHTML =
+      '<div class="ep-aviso-box bien ep-rec-box" role="alertdialog">' +
+        '<div class="ep-rec-tit">¡Saldo recargado!</div>' +
+        '<div class="ep-rec-saldo">' + COP(saldo) + '</div>' +
+        '<div class="ep-rec-lbl">tu saldo disponible</div>' +
+        '<div class="ep-rec-det">' +
+          '<div class="ep-rec-fila"><span>Recargaste</span><b>' + COP(monto) + '</b></div>' +
+          (bono > 0
+            ? '<div class="ep-rec-fila regalo"><span>Te regalamos</span><b>+' + COP(bono) + '</b></div>'
+            : '') +
+        '</div>' +
+        (bono > 0
+          ? '<div class="ep-rec-pie">Recarga desde $50.000 y sigue ganando saldo extra 🎉</div>'
+          : '<div class="ep-rec-pie">Recarga $50.000 o más y te regalamos saldo extra 🎉</div>') +
+        '<button class="ep-btn gold big ep-aviso-ok" type="button">Entendido</button>' +
+      '</div>';
+    document.body.appendChild(cap);
+
+    function cerrar() { cap.remove(); document.removeEventListener('keydown', porTecla); }
+    function porTecla(e) { if (e.key === 'Escape') cerrar(); }
+    cap.querySelector('.ep-aviso-ok').addEventListener('click', cerrar);
+    cap.addEventListener('click', function (e) { if (e.target === cap) cerrar(); });
+    document.addEventListener('keydown', porTecla);
+    setTimeout(function () { cap.querySelector('.ep-aviso-ok').focus(); }, 30);
+  }
+
   async function enviarRecarga() {
     var campo = $('rc-comp');
     var archivo = campo && campo.files && campo.files[0];
@@ -921,7 +956,7 @@
 
       if (d.saldo != null) S.cliente.saldo = d.saldo;
       recargaOtro = '';
-      aviso(d.mensaje || '\u00a1Listo!', 'bien');
+      avisoRecarga(Number(d.monto) || 0, Number(d.bono) || 0, Number(d.saldo) || 0);
       pantallaDentro();          // el saldo nuevo se ve al momento
     } catch (e) {
       /* El motivo, no un "algo falló": aquí hay plata de por medio y el cliente
