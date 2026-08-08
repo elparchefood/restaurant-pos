@@ -1191,18 +1191,21 @@
       : (paso ? '<div class="ep-paso-g"><b>' + esc(paso.titulo) + '</b></div>' : '');
 
     var precioAhora = precioDe(p, sheet.talla, sheet.vars) + extrasDe(p, sheet.mods);
-    var pie = ultimo
-      ? '<div class="ep-sheet-pie">' +
-          '<div class="ep-cant">' +
-            '<button data-cant="-1"' + (sheet.cant <= 1 ? ' disabled' : '') + '>−</button>' +
-            '<b>' + sheet.cant + '</b>' +
-            '<button data-cant="1">+</button>' +
-          '</div>' +
-          '<button class="ep-btn ep-btn--main" id="sh-add">Agregar · ' +
-            COP(precioAhora * sheet.cant) + '</button>' +
-        '</div>'
-      : '<div class="ep-sheet-pie"><button class="ep-btn ep-btn--main" id="sh-next" ' +
-          'style="width:100%">Siguiente</button></div>';
+    /* El contador va en TODOS los pasos, desde el primero. Decidir cuantas
+       quiero es lo primero que uno piensa —"tres personales de pollo"— y
+       tenerlo solo al final obligaba a configurar el producto sin saber que iba
+       a poder pedir varios. */
+    var contador = '<div class="ep-cant">' +
+        '<button data-cant="-1"' + (sheet.cant <= 1 ? ' disabled' : '') + '>−</button>' +
+        '<b>' + sheet.cant + '</b>' +
+        '<button data-cant="1">+</button>' +
+      '</div>';
+    var pie = '<div class="ep-sheet-pie">' + contador +
+      (ultimo
+        ? '<button class="ep-btn ep-btn--main" id="sh-add">Agregar · ' +
+            COP(precioAhora * sheet.cant) + '</button>'
+        : '<button class="ep-btn ep-btn--main" id="sh-next">Siguiente</button>') +
+    '</div>';
 
     /* La nota va solo en el último paso: pedirla antes estorba, y el cliente
        todavía no sabe qué está pidiendo. */
