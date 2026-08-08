@@ -1018,14 +1018,42 @@
   function abrirPlato(catIdx, prodIdx) {
     var p = ((S.carta[catIdx] || {}).productos || [])[prodIdx];
     if (!p) return;
-    sheet = { p: p, talla: 0, cant: 1, nota: '' };
+    /* La primera opción viene elegida: obliga a menos toques y nunca deja un
+       producto a medio configurar si el cliente le da directo a Agregar. */
+    var vars0 = {};
+    (p.variables || []).forEach(function (g, i) { if ((g.opciones || []).length) vars0[i] = 0; });
+    sheet = { p: p, talla: 0, cant: 1, nota: '', vars: vars0 };
     pintarSheet();
   }
 
-  function precioDe(p, talla) {
+  /* El precio manda la VARIANTE cuando hay una elegida: una Premium Mixta
+     personal cuesta lo suyo, no lo que costaría la Premium "a secas". Cada
+     opción trae 'precios' con un valor por presentación, en el mismo orden que
+     los tamaños; si no los trae, se usa su precio suelto. */
+  function precioDe(p, talla, vars) {
+    var grupos = p.variables || [];
+    var elegidas = vars || {};
+    for (var g = 0; g < grupos.length; g++) {
+      var op = (grupos[g].opciones || [])[elegidas[g]];
+      if (!op) continue;
+      var pr = op.precios || [];
+      var v = (pr.length > talla) ? Number(pr[talla]) : Number(op.precio);
+      if (v > 0) return v;
+    }
     var pres = p.presentaciones || [];
     if (pres.length) return Number(pres[talla] && pres[talla].precio) || Number(p.precio) || 0;
     return Number(p.precio) || 0;
+  }
+
+  /* Qué eligió, en palabras: "Mixta · Personal". Es lo que ve el cliente en el
+     carrito y lo que llega a la cocina. */
+  function variantesDe(p, vars) {
+    var grupos = p.variables || [], elegidas = vars || {}, out = [];
+    for (var g = 0; g < grupos.length; g++) {
+      var op = (grupos[g].opciones || [])[elegidas[g]];
+      if (op && op.nombre) out.push(String(op.nombre));
+    }
+    return out;
   }
 
   function pintarSheet() {
@@ -1040,6 +1068,19 @@
         esc(x.nombre) + '<span>' + COP(x.precio) + '</span></button>';
     }).join('') + '</div>' : '';
 
+    /* Un grupo por fila, con los mismos botones de las presentaciones. El
+       precio de cada opción se muestra ya ajustado al tamaño elegido. */
+    var grupos = (p.variables || []).map(function (g, gi) {
+      var ops = (g.opciones || []).map(function (o, oi) {
+        var pr = o.precios || [];
+        var val = (pr.length > sheet.talla) ? Number(pr[sheet.talla]) : Number(o.precio);
+        return '<button class="ep-talla' + (sheet.vars[gi] === oi ? ' on' : '') + '" ' +
+          'data-grupo="' + gi + '" data-opcion="' + oi + '">' + esc(o.nombre) +
+          (val > 0 ? '<span>' + COP(val) + '</span>' : '') + '</button>';
+      }).join('');
+      return ops ? '<div class="ep-tallas">' + ops + '</div>' : '';
+    }).join('');
+
     var d = document.createElement('div');
     d.className = 'ep-scrim';
     d.innerHTML = '<div class="ep-sheet">' +
@@ -1047,6 +1088,7 @@
       '<div class="ep-sheet-n">' + esc(p.nombre) + '</div>' +
       (p.descripcion ? '<div class="ep-sheet-d">' + esc(p.descripcion) + '</div>' : '') +
       tallas +
+      grupos +
       '<textarea class="ep-nota-in" id="sh-nota" rows="2" maxlength="120" ' +
         'placeholder="¿Algo para la cocina? Sin cebolla, bien caliente…">' + esc(sheet.nota) + '</textarea>' +
       '<div class="ep-sheet-pie">' +
@@ -1056,7 +1098,7 @@
           '<button data-cant="1">+</button>' +
         '</div>' +
         '<button class="ep-btn ep-btn--main" id="sh-add">Agregar · ' +
-          COP(precioDe(p, sheet.talla) * sheet.cant) + '</button>' +
+          COP(precioDe(p, sheet.talla, sheet.vars) * sheet.cant) + '</button>' +
       '</div>' +
     '</div>';
     document.body.appendChild(d);
@@ -1064,6 +1106,13 @@
     d.addEventListener('click', function (ev) { if (ev.target === d) { sheet = null; pintarSheet(); } });
     d.querySelectorAll('[data-talla]').forEach(function (b) {
       b.addEventListener('click', function () { sheet.talla = Number(b.dataset.talla); pintarSheet(); });
+    });
+    d.querySelectorAll('[data-grupo]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        sheet.nota = (document.getElementById('sh-nota') || {}).value || sheet.nota;
+        sheet.vars[Number(b.dataset.grupo)] = Number(b.dataset.opcion);
+        pintarSheet();
+      });
     });
     d.querySelectorAll('[data-cant]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -1078,7 +1127,8 @@
         producto_id: sheet.p.id,
         nombre: sheet.p.nombre,
         presentacion: pres.length > 1 ? String(pres[sheet.talla].nombre) : '',
-        precio: precioDe(sheet.p, sheet.talla),
+        variantes: variantesDe(sheet.p, sheet.vars),
+        precio: precioDe(sheet.p, sheet.talla, sheet.vars),
         cantidad: sheet.cant,
         nota: (document.getElementById('sh-nota') || {}).value || '',
       });
@@ -1101,6 +1151,7 @@
     var lineas = carro.map(function (l, i) {
       return '<div class="ep-linea">' +
         '<div class="ep-linea-b"><div class="ep-linea-n">' + l.cantidad + '× ' + esc(l.nombre) +
+          ((l.variantes && l.variantes.length) ? ' · ' + esc(l.variantes.join(' · ')) : '') +
           (l.presentacion ? ' · ' + esc(l.presentacion) : '') + '</div>' +
           (l.nota ? '<div class="ep-linea-s">' + esc(l.nota) + '</div>' : '') +
           '<button class="ep-quitar" data-quitar="' + i + '">Eliminar</button></div>' +
