@@ -1153,13 +1153,18 @@
         /* Cuántas veces la eligió. Doble carne es una peticion normal, y antes
            no habia forma de pedirla: la adicion solo se marcaba o no. */
         var n = sel.filter(function (x) { return x === oi; }).length;
+        /* Cuando ya eligio alguna, aparece un contador de verdad: menos, la
+           cantidad, y mas. Antes solo estaba el menos y tocar el nombre sumaba,
+           pero eso no se le ocurre a nadie: no habia nada que lo invitara. */
         return '<div class="ep-mod-fila">' +
           '<button class="ep-talla' + (n ? ' on' : '') + '" ' +
             'data-mod="' + paso.gi + '" data-opcion="' + oi + '">' + esc(o.nombre) +
-            (n > 1 ? ' <b class="ep-mod-x">×' + n + '</b>' : '') +
             (v > 0 ? '<span>+' + COP(v * (n || 1)) + '</span>' : '') + '</button>' +
-          (n ? '<button class="ep-mod-menos" data-menos="' + paso.gi + '" ' +
-               'data-opcion="' + oi + '" aria-label="Quitar una">−</button>' : '') +
+          (n ? '<div class="ep-cant ep-cant--mod">' +
+                 '<button data-menos="' + paso.gi + '" data-opcion="' + oi + '">−</button>' +
+                 '<b>' + n + '</b>' +
+                 '<button data-mod="' + paso.gi + '" data-opcion="' + oi + '">+</button>' +
+               '</div>' : '') +
         '</div>';
       }).join('') + '</div>';
       }

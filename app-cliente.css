@@ -986,11 +986,6 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
 .ep-mod-fila { display: flex; gap: 8px; align-items: stretch; }
 .ep-mod-fila > .ep-talla { flex: 1; }
 .ep-mod-x { font-weight: 700; }
-.ep-mod-menos {
-  flex: none; width: 44px; cursor: pointer; font: inherit; font-size: 18px;
-  background: var(--card2, rgba(120,124,139,.07)); color: var(--sub, #787c8b);
-  border: 1px solid var(--line, rgba(0,0,0,.10)); border-radius: 14px;
-}
-.ep-mod-menos:hover { color: var(--txt, #14141a); }
+.ep-cant--mod { flex: none; }
 /* La cantidad dentro de la linea del carrito, mas compacta que la de la hoja. */
 .ep-cant--carro { margin-top: 8px; transform: scale(.9); transform-origin: left center; }
