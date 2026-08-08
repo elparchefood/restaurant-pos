@@ -1022,7 +1022,7 @@
        producto a medio configurar si el cliente le da directo a Agregar. */
     var vars0 = {};
     (p.variables || []).forEach(function (g, i) { if ((g.opciones || []).length) vars0[i] = 0; });
-    sheet = { p: p, talla: 0, cant: 1, nota: '', vars: vars0, paso: 0 };
+    sheet = { p: p, talla: 0, cant: 1, nota: '', vars: vars0, mods: {}, modsAbiertos: {}, paso: 0 };
     pintarSheet();
   }
 
@@ -1045,6 +1045,31 @@
     return Number(p.precio) || 0;
   }
 
+  /* Lo que suman las adiciones elegidas. Van aparte del precio base porque se
+     SUMAN: una salchipapa con carne extra es la salchipapa MÁS la carne, no
+     otra cosa distinta. */
+  function extrasDe(p, mods) {
+    var grupos = p.modificadores || [], elegidos = mods || {}, total = 0;
+    grupos.forEach(function (g, gi) {
+      (elegidos[gi] || []).forEach(function (oi) {
+        var o = (g.opciones || [])[oi];
+        if (o) total += Number(o.precio) || 0;
+      });
+    });
+    return total;
+  }
+
+  function nombresExtras(p, mods) {
+    var grupos = p.modificadores || [], elegidos = mods || {}, out = [];
+    grupos.forEach(function (g, gi) {
+      (elegidos[gi] || []).forEach(function (oi) {
+        var o = (g.opciones || [])[oi];
+        if (o && o.nombre) out.push(String(o.nombre));
+      });
+    });
+    return out;
+  }
+
   /* Qué eligió, en palabras: "Mixta · Personal". Es lo que ve el cliente en el
      carrito y lo que llega a la cocina. */
   function variantesDe(p, vars) {
@@ -1064,6 +1089,9 @@
     if ((p.presentaciones || []).length > 1) out.push({ tipo: 'pres', titulo: 'Tamaño' });
     (p.variables || []).forEach(function (g, i) {
       if ((g.opciones || []).length) out.push({ tipo: 'var', gi: i, titulo: g.nombre || 'Elige' });
+    });
+    (p.modificadores || []).forEach(function (g, i) {
+      if ((g.opciones || []).length) out.push({ tipo: 'mod', gi: i, titulo: g.nombre || 'Adiciones' });
     });
     return out;
   }
@@ -1088,6 +1116,25 @@
         return '<button class="ep-talla' + (i === sheet.talla ? ' on' : '') + '" data-talla="' + i + '">' +
           esc(x.nombre) + (v > 0 ? '<span>' + COP(v) + '</span>' : '') + '</button>';
       }).join('') + '</div>';
+    } else if (paso && paso.tipo === 'mod') {
+      var gm = (p.modificadores || [])[paso.gi] || {};
+      var sel = sheet.mods[paso.gi] || [];
+      /* La lista NO se abre sola. Soltarle veinte adiciones a alguien que solo
+         quiere su salchipapa lo abruma y alarga el pedido. Primero se le
+         pregunta; el que quiera, entra. El que no, sigue derecho. */
+      if (!sheet.modsAbiertos[paso.gi] && !sel.length) {
+        opciones = '<button class="ep-mod-invita" data-abrir="' + paso.gi + '">' +
+          '<span class="ep-mod-mas">+</span>' +
+          '<span><b>' + esc(gm.nombre || 'Adiciones') + '</b>' +
+          '<small>Toca si quieres agregar algo</small></span></button>';
+      } else {
+      opciones = '<div class="ep-tallas">' + (gm.opciones || []).map(function (o, oi) {
+        var v = Number(o.precio) || 0;
+        return '<button class="ep-talla' + (sel.indexOf(oi) >= 0 ? ' on' : '') + '" ' +
+          'data-mod="' + paso.gi + '" data-opcion="' + oi + '">' + esc(o.nombre) +
+          (v > 0 ? '<span>+' + COP(v) + '</span>' : '') + '</button>';
+      }).join('') + '</div>';
+      }
     } else if (paso && paso.tipo === 'var') {
       var g = (p.variables || [])[paso.gi] || {};
       opciones = '<div class="ep-tallas">' + (g.opciones || []).map(function (o, oi) {
@@ -1101,12 +1148,16 @@
 
     /* El paso se dice con palabras, no solo con números: "Tamaño" o "Tipo" es
        lo que el cliente está eligiendo, y el "1 de 2" le dice cuánto falta. */
+    /* En las adiciones se dice que son opcionales: si no, el cliente cree que
+       tiene que elegir algo para poder seguir. */
+    var extraGuia = (paso && paso.tipo === 'mod' && (sheet.modsAbiertos[paso.gi] || (sheet.mods[paso.gi] || []).length))
+      ? ' <span class="ep-paso-op">· opcional, puedes elegir varias</span>' : '';
     var guia = pasos.length > 1
       ? '<div class="ep-paso-g">Paso ' + (sheet.paso + 1) + ' de ' + pasos.length +
-        ' · <b>' + esc(paso ? paso.titulo : '') + '</b></div>'
+        ' · <b>' + esc(paso ? paso.titulo : '') + '</b>' + extraGuia + '</div>'
       : (paso ? '<div class="ep-paso-g"><b>' + esc(paso.titulo) + '</b></div>' : '');
 
-    var precioAhora = precioDe(p, sheet.talla, sheet.vars);
+    var precioAhora = precioDe(p, sheet.talla, sheet.vars) + extrasDe(p, sheet.mods);
     var pie = ultimo
       ? '<div class="ep-sheet-pie">' +
           '<div class="ep-cant">' +
@@ -1156,6 +1207,26 @@
         pintarSheet();
       });
     });
+    d.querySelectorAll('[data-abrir]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        sheet.modsAbiertos[Number(b.dataset.abrir)] = true;
+        pintarSheet();
+      });
+    });
+    d.querySelectorAll('[data-mod]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var gi = Number(b.dataset.mod), oi = Number(b.dataset.opcion);
+        var g = (p.modificadores || [])[gi] || {};
+        var sel = sheet.mods[gi] || [];
+        var i = sel.indexOf(oi);
+        /* Se marca y se desmarca tocando: es lo que espera cualquiera de una
+           lista de extras. Si el grupo no admite varias, la nueva reemplaza. */
+        if (i >= 0) sel = sel.filter(function (x) { return x !== oi; });
+        else sel = g.varias ? sel.concat(oi) : [oi];
+        sheet.mods[gi] = sel;
+        pintarSheet();
+      });
+    });
     d.querySelectorAll('[data-cant]').forEach(function (b) {
       b.addEventListener('click', function () {
         recordarNota();
@@ -1176,7 +1247,8 @@
         nombre: sheet.p.nombre,
         presentacion: pres.length > 1 ? String(pres[sheet.talla].nombre) : '',
         variantes: variantesDe(sheet.p, sheet.vars),
-        precio: precioDe(sheet.p, sheet.talla, sheet.vars),
+        adiciones: nombresExtras(sheet.p, sheet.mods),
+        precio: precioDe(sheet.p, sheet.talla, sheet.vars) + extrasDe(sheet.p, sheet.mods),
         cantidad: sheet.cant,
         nota: sheet.nota || '',
       });
@@ -1200,6 +1272,7 @@
       return '<div class="ep-linea">' +
         '<div class="ep-linea-b"><div class="ep-linea-n">' + l.cantidad + '× ' + esc(l.nombre) +
           ((l.variantes && l.variantes.length) ? ' · ' + esc(l.variantes.join(' · ')) : '') +
+          ((l.adiciones && l.adiciones.length) ? ' · + ' + esc(l.adiciones.join(', ')) : '') +
           (l.presentacion ? ' · ' + esc(l.presentacion) : '') + '</div>' +
           (l.nota ? '<div class="ep-linea-s">' + esc(l.nota) + '</div>' : '') +
           '<button class="ep-quitar" data-quitar="' + i + '">Eliminar</button></div>' +

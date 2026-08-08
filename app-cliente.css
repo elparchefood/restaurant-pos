@@ -963,3 +963,21 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
 }
 .ep-paso-atras:hover { color: var(--txt, #14141a); background: rgba(120,124,139,.10); }
 .ep-sheet { position: relative; }
+
+.ep-paso-op { color: var(--sub, #787c8b); font-size: 12.5px; }
+
+/* La invitación a adicionar: se ofrece, no se impone. */
+.ep-mod-invita {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  margin: 10px 0 4px; padding: 14px 16px; cursor: pointer; text-align: left;
+  background: var(--card2, rgba(120,124,139,.07));
+  border: 1px dashed var(--line, rgba(0,0,0,.14)); border-radius: 16px;
+  font: inherit; color: var(--txt, #14141a);
+}
+.ep-mod-invita:hover { border-color: var(--accent, #7C5CFF); }
+.ep-mod-invita small { display: block; color: var(--sub, #787c8b); font-size: 12.5px; margin-top: 2px; }
+.ep-mod-mas {
+  width: 32px; height: 32px; flex: none; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(120,124,139,.14); font-size: 19px; line-height: 1;
+}
