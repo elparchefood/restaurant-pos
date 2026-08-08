@@ -1022,7 +1022,7 @@
        producto a medio configurar si el cliente le da directo a Agregar. */
     var vars0 = {};
     (p.variables || []).forEach(function (g, i) { if ((g.opciones || []).length) vars0[i] = 0; });
-    sheet = { p: p, talla: 0, cant: 1, nota: '', vars: vars0 };
+    sheet = { p: p, talla: 0, cant: 1, nota: '', vars: vars0, paso: 0 };
     pintarSheet();
   }
 
@@ -1056,52 +1056,95 @@
     return out;
   }
 
+  /* Los pasos de este producto: el tamaño (si tiene más de uno) y un paso por
+     cada grupo de variantes. Un producto simple no tiene ninguno y se agrega de
+     una. */
+  function pasosDe(p) {
+    var out = [];
+    if ((p.presentaciones || []).length > 1) out.push({ tipo: 'pres', titulo: 'Tamaño' });
+    (p.variables || []).forEach(function (g, i) {
+      if ((g.opciones || []).length) out.push({ tipo: 'var', gi: i, titulo: g.nombre || 'Elige' });
+    });
+    return out;
+  }
+
   function pintarSheet() {
     var vieja = document.querySelector('.ep-scrim');
     if (vieja) vieja.remove();
     if (!sheet) return;
     var p = sheet.p;
     var pres = p.presentaciones || [];
+    var pasos = pasosDe(p);
+    var paso = pasos[sheet.paso] || null;
+    var ultimo = sheet.paso >= pasos.length - 1;
 
-    var tallas = pres.length > 1 ? '<div class="ep-tallas">' + pres.map(function (x, i) {
-      return '<button class="ep-talla' + (i === sheet.talla ? ' on' : '') + '" data-talla="' + i + '">' +
-        esc(x.nombre) + '<span>' + COP(x.precio) + '</span></button>';
-    }).join('') + '</div>' : '';
-
-    /* Un grupo por fila, con los mismos botones de las presentaciones. El
-       precio de cada opción se muestra ya ajustado al tamaño elegido. */
-    var grupos = (p.variables || []).map(function (g, gi) {
-      var ops = (g.opciones || []).map(function (o, oi) {
+    /* Un solo grupo de botones a la vez: el del paso en el que va. Los precios
+       en cero no se pintan — en varios productos el tamaño no lleva precio y
+       un "$0" solo confunde. */
+    var opciones = '';
+    if (paso && paso.tipo === 'pres') {
+      opciones = '<div class="ep-tallas">' + pres.map(function (x, i) {
+        var v = Number(x.precio) || 0;
+        return '<button class="ep-talla' + (i === sheet.talla ? ' on' : '') + '" data-talla="' + i + '">' +
+          esc(x.nombre) + (v > 0 ? '<span>' + COP(v) + '</span>' : '') + '</button>';
+      }).join('') + '</div>';
+    } else if (paso && paso.tipo === 'var') {
+      var g = (p.variables || [])[paso.gi] || {};
+      opciones = '<div class="ep-tallas">' + (g.opciones || []).map(function (o, oi) {
         var pr = o.precios || [];
-        var val = (pr.length > sheet.talla) ? Number(pr[sheet.talla]) : Number(o.precio);
-        return '<button class="ep-talla' + (sheet.vars[gi] === oi ? ' on' : '') + '" ' +
-          'data-grupo="' + gi + '" data-opcion="' + oi + '">' + esc(o.nombre) +
-          (val > 0 ? '<span>' + COP(val) + '</span>' : '') + '</button>';
-      }).join('');
-      return ops ? '<div class="ep-tallas">' + ops + '</div>' : '';
-    }).join('');
+        var v = (pr.length > sheet.talla) ? Number(pr[sheet.talla]) : Number(o.precio);
+        return '<button class="ep-talla' + (sheet.vars[paso.gi] === oi ? ' on' : '') + '" ' +
+          'data-grupo="' + paso.gi + '" data-opcion="' + oi + '">' + esc(o.nombre) +
+          (v > 0 ? '<span>' + COP(v) + '</span>' : '') + '</button>';
+      }).join('') + '</div>';
+    }
+
+    /* El paso se dice con palabras, no solo con números: "Tamaño" o "Tipo" es
+       lo que el cliente está eligiendo, y el "1 de 2" le dice cuánto falta. */
+    var guia = pasos.length > 1
+      ? '<div class="ep-paso-g">Paso ' + (sheet.paso + 1) + ' de ' + pasos.length +
+        ' · <b>' + esc(paso ? paso.titulo : '') + '</b></div>'
+      : (paso ? '<div class="ep-paso-g"><b>' + esc(paso.titulo) + '</b></div>' : '');
+
+    var precioAhora = precioDe(p, sheet.talla, sheet.vars);
+    var pie = ultimo
+      ? '<div class="ep-sheet-pie">' +
+          '<div class="ep-cant">' +
+            '<button data-cant="-1"' + (sheet.cant <= 1 ? ' disabled' : '') + '>−</button>' +
+            '<b>' + sheet.cant + '</b>' +
+            '<button data-cant="1">+</button>' +
+          '</div>' +
+          '<button class="ep-btn ep-btn--main" id="sh-add">Agregar · ' +
+            COP(precioAhora * sheet.cant) + '</button>' +
+        '</div>'
+      : '<div class="ep-sheet-pie"><button class="ep-btn ep-btn--main" id="sh-next" ' +
+          'style="width:100%">Siguiente</button></div>';
+
+    /* La nota va solo en el último paso: pedirla antes estorba, y el cliente
+       todavía no sabe qué está pidiendo. */
+    var nota = ultimo
+      ? '<textarea class="ep-nota-in" id="sh-nota" rows="2" maxlength="120" ' +
+        'placeholder="¿Algo para la cocina? Sin cebolla, bien caliente…">' + esc(sheet.nota) + '</textarea>'
+      : '';
+
+    var atras = sheet.paso > 0
+      ? '<button class="ep-paso-atras" id="sh-back">← Atrás</button>' : '';
 
     var d = document.createElement('div');
     d.className = 'ep-scrim';
     d.innerHTML = '<div class="ep-sheet">' +
       '<div class="ep-grab"></div>' +
+      atras +
       '<div class="ep-sheet-n">' + esc(p.nombre) + '</div>' +
       (p.descripcion ? '<div class="ep-sheet-d">' + esc(p.descripcion) + '</div>' : '') +
-      tallas +
-      grupos +
-      '<textarea class="ep-nota-in" id="sh-nota" rows="2" maxlength="120" ' +
-        'placeholder="¿Algo para la cocina? Sin cebolla, bien caliente…">' + esc(sheet.nota) + '</textarea>' +
-      '<div class="ep-sheet-pie">' +
-        '<div class="ep-cant">' +
-          '<button data-cant="-1"' + (sheet.cant <= 1 ? ' disabled' : '') + '>−</button>' +
-          '<b>' + sheet.cant + '</b>' +
-          '<button data-cant="1">+</button>' +
-        '</div>' +
-        '<button class="ep-btn ep-btn--main" id="sh-add">Agregar · ' +
-          COP(precioDe(p, sheet.talla, sheet.vars) * sheet.cant) + '</button>' +
-      '</div>' +
+      guia + opciones + nota + pie +
     '</div>';
     document.body.appendChild(d);
+
+    function recordarNota() {
+      var t = document.getElementById('sh-nota');
+      if (t) sheet.nota = t.value;
+    }
 
     d.addEventListener('click', function (ev) { if (ev.target === d) { sheet = null; pintarSheet(); } });
     d.querySelectorAll('[data-talla]').forEach(function (b) {
@@ -1109,20 +1152,25 @@
     });
     d.querySelectorAll('[data-grupo]').forEach(function (b) {
       b.addEventListener('click', function () {
-        sheet.nota = (document.getElementById('sh-nota') || {}).value || sheet.nota;
         sheet.vars[Number(b.dataset.grupo)] = Number(b.dataset.opcion);
         pintarSheet();
       });
     });
     d.querySelectorAll('[data-cant]').forEach(function (b) {
       b.addEventListener('click', function () {
-        sheet.nota = (document.getElementById('sh-nota') || {}).value || sheet.nota;
+        recordarNota();
         sheet.cant = Math.max(1, Math.min(20, sheet.cant + Number(b.dataset.cant)));
         pintarSheet();
       });
     });
-    d.querySelector('#sh-add').addEventListener('click', function () {
-      var pres = sheet.p.presentaciones || [];
+    var bn = d.querySelector('#sh-next');
+    if (bn) bn.addEventListener('click', function () { sheet.paso++; pintarSheet(); });
+    var bb = d.querySelector('#sh-back');
+    if (bb) bb.addEventListener('click', function () { recordarNota(); sheet.paso--; pintarSheet(); });
+
+    var ba = d.querySelector('#sh-add');
+    if (ba) ba.addEventListener('click', function () {
+      recordarNota();
       carro.push({
         producto_id: sheet.p.id,
         nombre: sheet.p.nombre,
@@ -1130,7 +1178,7 @@
         variantes: variantesDe(sheet.p, sheet.vars),
         precio: precioDe(sheet.p, sheet.talla, sheet.vars),
         cantidad: sheet.cant,
-        nota: (document.getElementById('sh-nota') || {}).value || '',
+        nota: sheet.nota || '',
       });
       sheet = null; pintarSheet(); pantallaDentro();
     });

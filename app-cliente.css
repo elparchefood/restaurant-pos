@@ -947,3 +947,19 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
 @media (prefers-reduced-motion: reduce) {
   .ep-aviso-cap, .ep-aviso-box { animation: none; }
 }
+
+
+/* ══ HOJA POR PASOS ══════════════════════════════════════════════════════════
+   Solo dos piezas nuevas: el rótulo del paso y el "Atrás". Los botones de
+   opción siguen siendo los de siempre (.ep-talla). */
+.ep-paso-g {
+  margin: 14px 0 8px; font-size: 13px; color: var(--sub, #787c8b);
+}
+.ep-paso-g b { color: var(--txt, #14141a); font-weight: 600; }
+.ep-paso-atras {
+  position: absolute; top: 14px; left: 14px;
+  background: none; border: 0; padding: 6px 8px; cursor: pointer;
+  font: inherit; font-size: 13.5px; color: var(--sub, #787c8b); border-radius: 10px;
+}
+.ep-paso-atras:hover { color: var(--txt, #14141a); background: rgba(120,124,139,.10); }
+.ep-sheet { position: relative; }
