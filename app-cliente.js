@@ -321,6 +321,14 @@
          el foco al usuario mientras escribe. */
       otro.addEventListener('blur', pantallaDentro);
     }
+    var pgS = $('pg-saldo');
+    if (pgS) pgS.addEventListener('click', function () { pagarPedido('saldo', null); });
+    var pgC = $('pg-comp');
+    if (pgC) pgC.addEventListener('change', function () {
+      var f = this.files && this.files[0];
+      if (f) pagarPedido('transferencia', f);
+    });
+
     var env = $('rc-enviar');
     if (env) env.addEventListener('click', enviarRecarga);
     var comp = $('rc-comp');
@@ -857,6 +865,37 @@
      El monto elegido se manda SOLO para que el servidor pueda avisar si no
      coincide con el comprobante. No decide nada: si mandara el monto como
      verdad, cualquiera escribiría medio millón. */
+  /* Paga el pedido. El servidor decide: con saldo lo descuenta la base sin
+     permitir negativos, y con transferencia lee el comprobante y lo cruza con
+     el correo del banco. La página solo pide y muestra el resultado. */
+  async function pagarPedido(metodo, archivo) {
+    if (!pedidoHecho || !pedidoHecho.order_id) { aviso('No encontramos tu pedido.', 'mal'); return; }
+    var btn = metodo === 'saldo' ? $('pg-saldo') : null;
+    if (btn) { btn.disabled = true; btn.textContent = 'Pagando…'; }
+    var lbl = $('pg-comp-lbl');
+    if (lbl && metodo !== 'saldo') lbl.textContent = 'Verificando…';
+    try {
+      var cuerpo = { token: leerToken(), order_id: pedidoHecho.order_id, metodo: metodo };
+      if (archivo) cuerpo.comprobante_url = await achicar(archivo, 1100);
+      var d = await fetch(SB_URL + '/functions/v1/web-pagar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cuerpo),
+      }).then(function (r) { return r.json(); });
+
+      if (!d.ok) { aviso(d.mensaje || 'No pudimos confirmar tu pago.', 'mal'); return; }
+      if (d.saldo != null && S.cliente) S.cliente.saldo = d.saldo;
+      pedidoHecho.pagado = true;
+      aviso(d.mensaje || '¡Listo!', 'bien');
+      pantallaDentro();
+    } catch (e) {
+      console.error('[pagar]', e);
+      aviso('No se pudo confirmar el pago.\n\n' + ((e && e.message) || e), 'mal');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Pagar con mi saldo'; }
+      if (lbl && metodo !== 'saldo') lbl.textContent = 'Ya transferí · subir comprobante';
+    }
+  }
+
   async function enviarRecarga() {
     var campo = $('rc-comp');
     var archivo = campo && campo.files && campo.files[0];
@@ -1400,7 +1439,20 @@
         (d.pago && d.pago.titular ? '<div class="ep-dato"><span>A nombre de</span><span>' + esc(d.pago.titular) + '</span></div>' : '') +
         '<div class="ep-dato"><span>Valor</span><span>' + COP(d.total) + '</span></div>' +
       '</div>' +
-      '<div class="ep-aviso">Cuando transfieras, mándale el comprobante al restaurante por WhatsApp y tu pedido entra a cocina.</div>' +
+      /* Las dos formas de pagar, aquí mismo. Antes esto terminaba en "mándale
+         el comprobante por WhatsApp" y el pedido quedaba esperando a que
+         alguien lo verificara a mano. */
+      (d.pagado
+        ? '<div class="ep-ok" style="margin-top:14px">Pago confirmado ✅ Ya estamos preparando tu pedido.</div>'
+        : ((S.cliente && Number(S.cliente.saldo) >= Number(d.total))
+            ? '<button class="ep-btn gold big" style="margin-top:14px" id="pg-saldo">' +
+                'Pagar con mi saldo · ' + COP(S.cliente.saldo) + '</button>'
+            : (S.cliente && Number(S.cliente.saldo) > 0
+                ? '<div class="ep-nota" style="margin-top:12px">Tu saldo es ' + COP(S.cliente.saldo) +
+                  ' y te faltan ' + COP(Number(d.total) - Number(S.cliente.saldo)) +
+                  '. <a href="#" data-ir="billetera">Recargar</a></div>' : '')) +
+          '<label class="ep-upload" style="margin-top:10px"><input type="file" id="pg-comp" accept="image/*" hidden>' +
+            '<span id="pg-comp-lbl">Ya transferí · subir comprobante</span></label>') +
       '<button class="ep-btn ep-btn--ghost" style="margin-top:14px" data-ir="inicio">Volver al inicio</button>';
   }
 
