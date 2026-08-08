@@ -989,3 +989,14 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
 .ep-cant--mod { flex: none; }
 /* La cantidad dentro de la linea del carrito, mas compacta que la de la hoja. */
 .ep-cant--carro { margin-top: 8px; transform: scale(.9); transform-origin: left center; }
+
+/* ══ PIE FIJO DE LA HOJA ═════════════════════════════════════════════════════
+   Con nueve adiciones la hoja se hace larga y el pie —el contador de cantidad
+   y el boton de agregar— quedaba por debajo del borde. El contador SI estaba:
+   no se veia. Por eso no habia forma de pedir tres salchipapas iguales. */
+.ep-sheet { max-height: 84vh; overflow-y: auto; }
+.ep-sheet-pie {
+  position: sticky; bottom: 0; z-index: 3;
+  padding: 12px 0 2px; margin-top: 10px;
+  background: linear-gradient(to bottom, transparent, var(--surf, #fff) 30%);
+}
