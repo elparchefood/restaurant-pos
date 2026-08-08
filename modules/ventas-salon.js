@@ -2627,7 +2627,7 @@
   function attachDomiRailEvents() {
     if (!container) return;
     container.querySelectorAll('[data-domi-action]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const action = btn.dataset.domiAction;
         const id = btn.dataset.domiId;
         const d = state.deliveries.find(x => x.id === id);
@@ -2638,9 +2638,17 @@
           return;
         }
         if (action === 'cancel') {
-          if (!confirm('¿Cancelar el pedido de ' + (d.cliente || id) + '? Esta acción no se puede deshacer.')) return;
+          var _preg = '¿Cancelar el pedido de ' + (d.cliente || id) + '? Esta acción no se puede deshacer.';
+          /* El saldo pagado vuelve al cliente (ver pos-saldo.js). */
+          var _perm = window.posSaldo
+            ? await posSaldo.pedirAnular(id, _preg)
+            : (confirm(_preg) ? { devolver: async function(){} } : null);
+          if (!_perm) return;
           var sb = window._pos && window._pos.sb;
-          if (sb) sb.from('pos_orders').update({ status: 'cancelled' }).eq('id', id).then(function(){});
+          if (sb) {
+            await sb.from('pos_orders').update({ status: 'cancelled' }).eq('id', id);
+            await _perm.devolver();
+          }
           state.deliveries = state.deliveries.filter(function(x) { return x.id !== id; });
           state.selectedDomiId = null;
           render();
@@ -2952,16 +2960,20 @@
           msg: '¿Cancelar este pedido rápido?',
           okLabel: 'Sí, cancelar',
           variant: 'danger',
-        }).then(function(ok) {
+        }).then(async function(ok) {
           if (!ok) return;
           const sbQX = window._pos && window._pos.sb;
           if (sbQX && qxId) {
-            sbQX.from('pos_orders').update({ status: 'cancelled' }).eq('id', qxId)
-              .then(function() {
-                state.quickOrders = state.quickOrders.filter(x => x.id !== qxId);
-                state.selectedQuickId = null;
-                render();
-              });
+            /* Ya preguntó la ventana de arriba. Aquí solo se devuelve el saldo
+               —que no es negociable— y se avisa de que se hizo. */
+            await sbQX.from('pos_orders').update({ status: 'cancelled' }).eq('id', qxId);
+            const _devQX = window.posSaldo ? await posSaldo.devolverDeOrden(qxId) : 0;
+            if (_devQX > 0 && typeof toast === 'function') {
+              toast('Se le devolvieron ' + posSaldo.money(_devQX) + ' de saldo al cliente');
+            }
+            state.quickOrders = state.quickOrders.filter(x => x.id !== qxId);
+            state.selectedQuickId = null;
+            render();
           }
         });
         break;

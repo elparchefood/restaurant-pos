@@ -2000,13 +2000,20 @@ function advanceDelivery(id) {
 }
 
 async function cancelDelivery(id) {
-  if (!confirm('¿Cancelar el pedido ' + id + '? Esta acción no se puede deshacer.')) return;
+  /* Primero se busca el pedido y LUEGO se pregunta: sin saber cuál es, la
+     ventana no podría avisar de que se pagó con saldo. */
   const d = S.deliveries.find(x => x.id === id);
   if (!d) return;
+  const preg = '¿Cancelar el pedido ' + id + '? Esta acción no se puede deshacer.';
+  const permiso = (window.posSaldo && d.supabaseId)
+    ? await posSaldo.pedirAnular(d.supabaseId, preg)
+    : (confirm(preg) ? { devolver: async function(){} } : null);
+  if (!permiso) return;
   // Cancelar en Supabase si tenemos el ID real
   if (d.supabaseId) {
     try {
       await sb.from('pos_orders').update({ status: 'cancelled' }).eq('id', d.supabaseId);
+      await permiso.devolver();
     } catch(e) { console.warn('[domicilios] cancelDelivery supabase:', e); }
   }
   S.deliveries = S.deliveries.filter(x => x.id !== id);

@@ -731,9 +731,16 @@ function renderDesglosePago(orders) {
      adelantado, no una venta — la venta ocurre cuando el cliente reclama su
      comida. Por eso las recargas no entran aqui (tienen su propia pantalla) y
      el consumo del saldo si, como un metodo de pago mas. */
+  /* OJO — doble conteo: desde que "Saldo" es un metodo configurado, un pedido
+     pagado con saldo YA entra por el camino normal (pos_payments, o el
+     payment_method del pedido). Aqui solo se recogen los que ese camino deja
+     por fuera: los pedidos viejos de la pagina, que quedaron sin paid_amount y
+     por eso el camino normal los descarta. Sin esta condicion, la plata de la
+     pagina se contaria dos veces. */
   const saldoUsado = (orders || [])
     .filter(function(o){ return o.status !== 'cancelled' &&
-      String(o.payment_method || '').toLowerCase() === 'saldo'; })
+      String(o.payment_method || '').toLowerCase() === 'saldo' &&
+      (parseFloat(o.paid_amount) || 0) <= 0; })
     .reduce(function(s,o){ return s + (parseFloat(o.total_final ?? o.total) || 0) + (parseFloat(o.delivery_fee) || 0); }, 0);
 
   const puntos = (orders || [])
@@ -1773,10 +1780,17 @@ async function deleteMov(id) {
 window.deleteMov = deleteMov;
 
 async function anularVenta(orderId) {
-  if (!confirm('¿Anular esta venta?')) return;
+  /* Si se pagó con saldo, la ventana lo avisa y el saldo vuelve al cliente.
+     Se devuelve DESPUÉS de anular: si el guardado falla, no le regalamos nada
+     por un pedido que sigue vivo. */
+  const permiso = window.posSaldo
+    ? await posSaldo.pedirAnular(orderId, '¿Anular esta venta?')
+    : (confirm('¿Anular esta venta?') ? { devolver: async function(){} } : null);
+  if (!permiso) return;
   const { error } = await sb.from('pos_orders').update({ status:'cancelled' }).eq('id', orderId);
   if (error) { showToast('Error al anular: ' + error.message); return; }
-  showToast('Venta anulada');
+  const vuelto = await permiso.devolver();
+  showToast(vuelto ? 'Venta anulada · saldo devuelto al cliente' : 'Venta anulada');
   await refreshAll();
 }
 // Anular una venta/pago registrado: permiso pagos.anular; sin permiso pide PIN.

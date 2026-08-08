@@ -5388,6 +5388,25 @@ var MP_TIPOS = [
   ['billetera','Billetera digital (Nequi, Daviplata…)'],['banco','Banco específico'],['otro','Otro']
 ];
 var MP_CANALES = [['mesa','Mesa'],['rapida','Rápida'],['domicilio','Domicilio']];
+
+/* ── Puntos y Saldo: metodos que NO traen plata de afuera ────────────────
+   El cliente paga con algo que ya tenia. Viven en la MISMA lista que los
+   demas metodos —esa es la regla: una sola fuente para todas las pantallas—
+   pero no se pueden renombrar ni borrar, porque no son un metodo que el
+   restaurante inventa: son un modulo del sistema que enciende o apaga.
+
+   El saldo solo existe donde hay pagina de clientes. Un restaurante sin
+   pagina no tiene donde recargar, asi que ni siquiera ve la tarjeta. */
+var MP_FIJOS = [
+  { id:'__puntos', tipo:'puntos', nombre:'Puntos',
+    sub:'El cliente paga con los puntos que acumulo. Se descuentan de su bolsa.',
+    requierePagina:false },
+  { id:'__saldo', tipo:'saldo', nombre:'Saldo',
+    sub:'El cliente paga con el saldo que recargo en tu pagina. Se le descuenta al cobrar.',
+    requierePagina:true }
+];
+function _mpEsFijo(m){ return !!(m && MP_FIJOS.some(function(f){ return f.id === m.id; })); }
+function _mpDefFijo(id){ for(var i=0;i<MP_FIJOS.length;i++){ if(MP_FIJOS[i].id===id) return MP_FIJOS[i]; } return null; }
 function _mpUid(){ return 'pm_' + Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-3); }
 function _mpEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function _mpV(id){ var e=document.getElementById(id); return e?e.value.trim():''; }
@@ -5421,6 +5440,25 @@ function _mpNormalize(p){
   }).sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
 }
 
+/* Los fijos se anaden si todavia no estan guardados, APAGADOS por defecto:
+   nadie quiere que un modulo nuevo aparezca cobrando sin haberlo pedido.
+   El del saldo lleva el nombre del negocio ("Saldo El Parche") porque asi lo
+   lee el cajero y asi sale en el cuadre de caja. */
+function _mpConFijos(lista, negocio, tienePagina){
+  var out = lista.slice();
+  MP_FIJOS.forEach(function(f){
+    if (f.requierePagina && !tienePagina) return;
+    var nombre = (f.id === '__saldo' && negocio) ? ('Saldo ' + negocio) : f.nombre;
+    var ya = null;
+    for (var i = 0; i < out.length; i++) { if (out[i].id === f.id) { ya = out[i]; break; } }
+    if (ya) { ya.tipo = f.tipo; if (!String(ya.nombre||'').trim()) ya.nombre = nombre; return; }
+    out.push({ id:f.id, nombre:nombre, digital:false, tipo:f.tipo, activo:false,
+               orden:out.length, porDefecto:false, cuenta:'', banco:'', instrucciones:'',
+               canales:['mesa','rapida','domicilio'], comision:0 });
+  });
+  return out;
+}
+
 window.metodosPagoInit = async function(){
   var root=document.getElementById('mp-root'); if(!root) return;
   root.innerHTML='<div style="padding:48px;text-align:center;color:#94A3B8;font-size:13px">Cargando métodos de pago…</div>';
@@ -5430,7 +5468,18 @@ window.metodosPagoInit = async function(){
     var q=await sb.from('ia_config').select('pagos').eq('branch_id',MP.branchId).maybeSingle();
     MP.pagos=(q&&q.data&&q.data.pagos)?q.data.pagos:{};
     window._loadedPagos=MP.pagos;
-    MP.metodos=_mpNormalize(MP.pagos);
+    /* El saldo solo tiene sentido donde hay pagina de clientes. Se pregunta
+       una vez, aqui, y no en cada tarjeta. */
+    var meta=(session&&session.user&&session.user.user_metadata)||{};
+    MP.negocio=meta.negocio||'';
+    MP.tienePagina=false;
+    try{
+      if(meta.tenant_id){
+        var t=await sb.from('tenants').select('web_activa').eq('id',meta.tenant_id).maybeSingle();
+        MP.tienePagina=!!(t&&t.data&&t.data.web_activa);
+      }
+    }catch(e){ console.warn('[mp] no se pudo saber si hay pagina:',e); }
+    MP.metodos=_mpConFijos(_mpNormalize(MP.pagos), MP.negocio, MP.tienePagina);
     MP.qrUrl=(MP.pagos.qr_imagen_url!=null)?MP.pagos.qr_imagen_url:'';
     MP.dirty=false;
     _mpRender();
@@ -5448,6 +5497,26 @@ function _mpTextarea(id,label,val,ph){
 function _mpFieldInline(label,handler,val,ph){
   return '<div><label style="font-size:10.5px;font-weight:700;color:#94A3B8;text-transform:uppercase">'+label+'</label>'
     +'<input value="'+_mpEsc(val)+'" oninput="'+handler+'" placeholder="'+_mpEsc(ph||'')+'" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-family:inherit;font-size:12.5px;outline:none;box-sizing:border-box"></div>';
+}
+/* Los fijos no se renombran, no se borran y no tienen comision ni QR: lo
+   unico que se decide de ellos es si se pueden usar o no, y en que canales. */
+function _mpCardFijoHtml(m){
+  var f=_mpDefFijo(m.id)||{};
+  var canalChips=MP_CANALES.map(function(c){
+    var on=(m.canales||[]).indexOf(c[0])>=0;
+    return '<button type="button" onclick="mpToggleCanal(\''+m.id+'\',\''+c[0]+'\')" style="font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:999px;cursor:pointer;border:1.5px solid '+(on?'#5B6BFF':'#E2E8F0')+';background:'+(on?'#EEF2FF':'#fff')+';color:'+(on?'#4338CA':'#64748B')+'">'+c[1]+'</button>';
+  }).join('');
+  return '<div class="mp-card" style="border:1px solid '+(m.activo?'#C7D2FE':'#E2E8F0')+';border-radius:14px;padding:14px;background:'+(m.activo?'#FBFCFF':'#FCFCFD')+'">'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px">'
+      +'<div style="min-width:0">'
+        +'<div style="font-size:14px;font-weight:800;color:#0F172A">'+_mpEsc(m.nombre)+'</div>'
+        +'<div style="font-size:12px;color:#64748B;margin-top:3px;max-width:520px">'+_mpEsc(f.sub||'')+'</div>'
+      +'</div>'
+      +'<label style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:#334155;cursor:pointer;white-space:nowrap">'
+        +'<input type="checkbox"'+(m.activo?' checked':'')+' onchange="mpToggle(\''+m.id+'\',\'activo\',this.checked)"> Se puede usar</label>'
+    +'</div>'
+    +(m.activo?'<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px;padding-top:11px;border-top:1px dashed #ECEEF2"><span style="font-size:11px;color:#94A3B8;font-weight:700">Disponible en:</span>'+canalChips+'</div>':'')
+  +'</div>';
 }
 function _mpCardHtml(m){
   var tipoOpts=MP_TIPOS.map(function(t){ return '<option value="'+t[0]+'"'+(m.tipo===t[0]?' selected':'')+'>'+t[1]+'</option>'; }).join('');
@@ -5486,7 +5555,18 @@ function _mpCardHtml(m){
 function _mpRender(){
   var root=document.getElementById('mp-root'); if(!root) return;
   var p=MP.pagos||{};
-  var cards=MP.metodos.length?MP.metodos.map(_mpCardHtml).join(''):'<div style="padding:20px;text-align:center;color:#94A3B8;font-size:13px">Aún no hay métodos. Agrega el primero.</div>';
+  /* Se separan por como funcionan, no por capricho: los de arriba traen plata
+     de afuera; los de abajo consumen algo que el cliente ya tenia. Mezclarlos
+     en una sola lista hacia pensar que el saldo era otra forma de cobrar. */
+  var normales=MP.metodos.filter(function(m){ return !_mpEsFijo(m); });
+  var fijos=MP.metodos.filter(_mpEsFijo);
+  var cards=normales.length?normales.map(_mpCardHtml).join(''):'<div style="padding:20px;text-align:center;color:#94A3B8;font-size:13px">Aún no hay métodos. Agrega el primero.</div>';
+  var cardsFijos=fijos.length?(
+    '<div style="background:#fff;border:1px solid #ECEEF2;border-radius:16px;padding:20px;margin-top:16px">'
+    +'<div style="font-size:15px;font-weight:800;color:#0F172A">Lo que el cliente ya tiene</div>'
+    +'<div style="font-size:12px;color:#94A3B8;margin:3px 0 14px">No entra plata nueva: el cliente paga con puntos o con saldo que ya te dio. Apagados no aparecen al cobrar.</div>'
+    +'<div style="display:flex;flex-direction:column;gap:12px">'+fijos.map(_mpCardFijoHtml).join('')+'</div>'
+    +'</div>'):'';
   root.innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">'
       +'<div><div style="font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em">Ventas · El Parche Food</div>'
@@ -5500,6 +5580,7 @@ function _mpRender(){
       +'<div id="mp-list" style="display:flex;flex-direction:column;gap:12px">'+cards+'</div>'
       +'<button onclick="mpAddMetodo()" style="margin-top:14px;width:100%;padding:11px;border:1.5px dashed #CBD5E1;border-radius:12px;background:#F8FAFC;color:#5B6BFF;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">+ Agregar método</button>'
     +'</div>'
+    +cardsFijos
     +'<div style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;margin-bottom:40px;padding:12px 14px;background:#F8FAFF;border:1px solid #E0E7FF;border-radius:12px">'
       +'<span style="font-size:12.5px;color:#475569;line-height:1.5">El QR de cobro, el titular, el mensaje al cliente y la verificación por Gmail se configuran en <strong>Asistente IA → Pagos</strong> (todo lo de interacción con el cliente lo maneja el bot).</span>'
     +'</div>';
@@ -5513,7 +5594,11 @@ window.mpToggleCanal=function(id,canal){ var m=_mpFind(id); if(!m)return; var i=
 window.mpSetDefault=function(id){ MP.metodos.forEach(function(m){ m.porDefecto=(m.id===id); }); MP.dirty=true; _mpRender(); };
 window.mpMove=function(id,dir){ var i=-1,k; for(k=0;k<MP.metodos.length;k++){ if(MP.metodos[k].id===id){ i=k; break; } } if(i<0)return; var j=i+dir; if(j<0||j>=MP.metodos.length)return; var t=MP.metodos[i]; MP.metodos[i]=MP.metodos[j]; MP.metodos[j]=t; MP.dirty=true; _mpRender(); };
 window.mpAddMetodo=function(){ MP.metodos.push({id:_mpUid(),nombre:'',digital:false,tipo:'efectivo',activo:true,orden:MP.metodos.length,porDefecto:false,cuenta:'',banco:'',instrucciones:'',canales:['mesa','rapida','domicilio'],comision:0}); MP.dirty=true; _mpRender(); };
-window.mpDelete=function(id){ var m=_mpFind(id); if(m&&m.nombre&&!confirm('¿Eliminar "'+m.nombre+'"? Las ventas antiguas conservan su método; solo deja de aparecer para cobrar.')) return; MP.metodos=MP.metodos.filter(function(x){return x.id!==id;}); MP.dirty=true; _mpRender(); };
+window.mpDelete=function(id){ var m=_mpFind(id);
+  /* Puntos y Saldo no se borran: no son un metodo que el restaurante creo,
+     son un modulo. Para dejar de usarlos se apagan. */
+  if(_mpEsFijo(m)){ alert('"'+m.nombre+'" no se elimina. Si no quieres usarlo, apágalo con "Se puede usar".'); return; }
+  if(m&&m.nombre&&!confirm('¿Eliminar "'+m.nombre+'"? Las ventas antiguas conservan su método; solo deja de aparecer para cobrar.')) return; MP.metodos=MP.metodos.filter(function(x){return x.id!==id;}); MP.dirty=true; _mpRender(); };
 window.mpQrUpload=async function(input){
   var file=input&&input.files&&input.files[0]; if(!file) return;
   try{
@@ -5542,7 +5627,10 @@ window.mpSave=async function(){
     // desde `old` — se editan en Asistente IA → Pagos. Cero riesgo para el bot.
     var pagos=Object.assign({},old,{
       metodos:metodos,
-      efectivo:metodos.some(function(m){return m.tipo==='efectivo'||!m.digital;}),
+      /* Estas banderas le dicen al bot que puede ofrecer. Los fijos son
+         digital:false, asi que sin excluirlos el bot creeria que hay efectivo
+         donde no lo hay. */
+      efectivo:metodos.some(function(m){return !_mpEsFijo(m)&&(m.tipo==='efectivo'||!m.digital);}),
       nequi:metodos.some(function(m){return (m.nombre||'').toLowerCase().indexOf('nequi')>=0;}),
       daviplata:metodos.some(function(m){return (m.nombre||'').toLowerCase().indexOf('daviplata')>=0;}),
       tarjeta:metodos.some(function(m){return m.tipo==='tarjeta';})

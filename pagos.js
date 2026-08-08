@@ -64,6 +64,8 @@ const TIPO_STYLE = {
   otro:          { cssKey:'efectivo',      icon: METHOD_ICONS.efectivo,      color:'var(--cash)',     tint:'var(--cash-tint)',     ring:'var(--cash-ring)',     sub:'' },
   // Puntos: método propio, para que se distinga de un pago en dinero.
   puntos:        { cssKey:'efectivo',      icon: '⭐',                    color:'#7C3AED',         tint:'#F5F3FF',              ring:'#DDD6FE',              sub:'Canje del catálogo' },
+  // Saldo: tampoco entra plata nueva — el cliente ya pagó al recargar.
+  saldo:         { cssKey:'efectivo',      icon: '👛',                    color:'#0891B2',         tint:'#ECFEFF',              ring:'#A5F3FC',              sub:'Recargado en la página' },
 };
 function _payEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function _payAttr(s){ return String(s==null?'':s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -85,20 +87,31 @@ async function loadPaymentMethods(){
   if (!list.length) list = [{ id:'efectivo', nombre:'Efectivo', tipo:'efectivo', digital:false }];
   list.sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
   SP.methodDefs = list.map(function(m){ return { key:(m.id||m.nombre), nombre:m.nombre, tipo:m.tipo||'otro', digital:!!m.digital }; });
-  /* Los puntos aparecen como un método más, pero SOLO cuando de verdad se
-     pueden usar: hay cliente identificado, tiene puntos y hay catálogo de
-     canje. Un botón que siempre falla es peor que un botón que no está. */
+  /* Puntos y Saldo YA vienen en la lista de arriba: desde hoy se prenden en
+     Configuración → Métodos de pago, como todo lo demás. Aquí solo se les
+     pregunta cuánto hay, para mostrarlo debajo del nombre.
+
+     No se esconden cuando no hay cliente: escondidos, el cajero nunca sabe que
+     existen. Se muestran y, al tocarlos, dicen qué falta. */
+  var _st = (window._pos && window._pos.state) || {};
+  SP.puntosSaldo = 0; SP.saldoDisp = 0;
   try {
-    if (window.posPuntos) {
-      var _st = (window._pos && window._pos.state) || {};
+    if (window.posPuntos && SP.methodDefs.some(function (m) { return m.tipo === 'puntos'; })) {
       posPuntos.setCtx(_st.tenantId || SP.tenantId, SP.branchId);
       await posPuntos.cargar();
       SP.puntosSaldo = SP.clienteTel ? await posPuntos.disponibles(SP.clienteTel) : 0;
-      if (posPuntos.hayCatalogo() && SP.clienteTel && SP.puntosSaldo > 0) {
-        SP.methodDefs.push({ key: '__puntos', nombre: 'Puntos', tipo: 'puntos', digital: false });
+      /* Los puntos sin catálogo no sirven para nada: no hay qué canjear. */
+      if (!posPuntos.hayCatalogo()) {
+        SP.methodDefs = SP.methodDefs.filter(function (m) { return m.tipo !== 'puntos'; });
       }
     }
   } catch (e) { console.warn('[pagos] puntos no disponibles:', e); }
+  try {
+    if (window.posSaldo && SP.methodDefs.some(function (m) { return m.tipo === 'saldo'; })) {
+      posSaldo.setCtx(_st.tenantId || SP.tenantId, SP.branchId);
+      SP.saldoDisp = SP.clienteId ? await posSaldo.disponibles(SP.clienteId) : 0;
+    }
+  } catch (e) { console.warn('[pagos] saldo no disponible:', e); }
   var def = list.find(function(m){ return m.porDefecto; }) || list[0];
   SP.method = (def.id||def.nombre);
   _renderMethodButtons();
@@ -108,9 +121,19 @@ function _renderMethodButtons(){
   if(!row) return;
   row.innerHTML = (SP.methodDefs||[]).map(function(m){
     var st = TIPO_STYLE[m.tipo] || TIPO_STYLE.otro;
+    /* Debajo del nombre, lo que de verdad importa decidir: cuánto tiene. Sin
+       cliente identificado se dice eso mismo, que es lo que falta. */
+    var sub = st.sub;
+    if (m.tipo === 'saldo') {
+      sub = !SP.clienteId ? 'Falta identificar al cliente'
+          : (SP.saldoDisp > 0 ? 'Tiene ' + _payMoney(SP.saldoDisp) : 'Sin saldo');
+    } else if (m.tipo === 'puntos') {
+      sub = !SP.clienteTel ? 'Falta identificar al cliente'
+          : (SP.puntosSaldo > 0 ? 'Tiene ' + Number(SP.puntosSaldo).toLocaleString('es-CO') + ' pts' : 'Sin puntos');
+    }
     return '<button class="lm-method'+(m.key===SP.method?' is-active':'')+'" data-method="'+_payAttr(m.key)+'">'
       +'<span class="pg-method-icon">'+st.icon+'</span>'
-      +'<span class="pg-method-txt"><span class="pg-method-label">'+_payEsc(m.nombre)+'</span><span class="pg-method-sub">'+_payEsc(st.sub)+'</span></span>'
+      +'<span class="pg-method-txt"><span class="pg-method-label">'+_payEsc(m.nombre)+'</span><span class="pg-method-sub">'+_payEsc(sub)+'</span></span>'
       +'<span class="pg-method-check"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>'
       +'</button>';
   }).join('');
@@ -572,6 +595,34 @@ async function applyPayment() {
   // pagan con puntos. El cargo real se hace al finalizar, igual que el crédito.
   if (_ptEsPuntos()) { ptAplicarPuntos(); return; }
 
+  /* SALDO: se valida aquí y se apunta, pero NO se descuenta todavía. El
+     descuento va al finalizar, igual que el crédito y los puntos: si el cobro
+     se cae a medias, al cliente no le falta plata que nadie le cobró. */
+  if (_sdEsSaldo()) {
+    if (!SP.clienteId) {
+      alert('Primero identifica al cliente: toca "Consumidor final" arriba del ticket.');
+      return;
+    }
+    /* Lo ya apuntado cuenta: dos abonos con saldo no pueden sumar más de lo
+       que tiene. Sin esto, el segundo lo rechazaría la base al finalizar, con
+       el cliente ya en la puerta. */
+    var _yaConSaldo = (SP.payments || []).reduce(function (t, p) {
+      return t + (p.methodTipo === 'saldo' && !p.saved ? (Number(p.amount) || 0) : 0);
+    }, 0);
+    var _libre = Math.max(0, (Number(SP.saldoDisp) || 0) - _yaConSaldo);
+    if (_libre <= 0) { alert('Este cliente ya no tiene saldo disponible.'); return; }
+    if (amount > _libre) {
+      alert('Solo le quedan ' + _payMoney(_libre) + ' de saldo.\n\n'
+          + 'Cobra ese valor con saldo y el resto con otro método.');
+      return;
+    }
+    SP.payments.push({ id: Date.now(), method: def.nombre, methodKey: def.key,
+                       methodTipo: 'saldo', amount: amount, received: amount });
+    SP.entry = 0;
+    renderAll();
+    return;
+  }
+
   if (_crEsCredito()) {
     if (!window.posCreditos) { alert('El módulo de créditos no está disponible.'); return; }
     const st = (window._pos && window._pos.state) || {};
@@ -626,6 +677,22 @@ async function guardarAbono() {
   const btn = document.getElementById('btn-abono');
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
   try {
+    /* Un abono con saldo tambien mueve plata de verdad, asi que se descuenta
+       aqui —antes de guardarlo— por el mismo camino que al finalizar. Sin
+       esto, el abono quedaba registrado y el saldo del cliente intacto. */
+    for (const sp of nuevos.filter(p => p.methodTipo === 'saldo' && !p.saldoOk)) {
+      try {
+        await posSaldo.consumir(SP.clienteId, sp.amount, SP.orderId,
+          'pedido:' + SP.orderId + ':' + sp.id, 'Abono del pedido');
+        sp.saldoOk = true;
+      } catch (e) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Guardar abono'; }
+        alert(e && e.codigo === 'SALDO_INSUFICIENTE'
+          ? ('Al cliente le quedan ' + _payMoney(e.disponible) + ' de saldo.')
+          : ('No se pudo descontar el saldo: ' + (e.message || e)));
+        return;
+      }
+    }
     const payRows = nuevos.map(p => ({
       order_id:  SP.orderId,
       branch_id: SP.branchId,
@@ -716,6 +783,29 @@ async function cobrarDespues() {
         btnFinish.disabled = false; btnFinish.textContent = 'Finalizar';
         if (e && e.codigo === 'CREDITO_INSUFICIENTE') posCreditos.modalInsuficiente(e, cp.creditoNombre);
         else alert('No se pudo cargar el crédito: ' + (e.message || e));
+        return;
+      }
+    }
+
+    // SALDO: se descuenta ANTES de cerrar el pedido, igual que el crédito. Si
+    // la base lo rechaza, el pedido NO queda pagado con un saldo que no había.
+    // La referencia lleva el id del pago (no solo el del pedido) porque un
+    // pedido puede tener dos abonos con saldo, y son cobros distintos.
+    const _sal = (SP.payments || []).filter(function (p) {
+      return p.methodTipo === 'saldo' && !p.saved && !p.saldoOk;
+    });
+    for (const sp of _sal) {
+      try {
+        await posSaldo.consumir(SP.clienteId, sp.amount, SP.orderId,
+          'pedido:' + SP.orderId + ':' + sp.id,
+          'Pago del pedido ' + String(SP.orderId || '').slice(0, 8));
+        sp.saldoOk = true;
+      } catch (e) {
+        btnFinish.disabled = false; btnFinish.textContent = 'Finalizar';
+        alert(e && e.codigo === 'SALDO_INSUFICIENTE'
+          ? ('Al cliente le quedan ' + _payMoney(e.disponible) + ' y este cobro es de '
+             + _payMoney(e.pedido) + '.\n\nQuita el pago con saldo y cóbralo de otra forma.')
+          : ('No se pudo descontar el saldo: ' + (e.message || e)));
         return;
       }
     }
@@ -1667,8 +1757,9 @@ async function pgGuardarCliente(id, nombre, tel) {
     }).eq('id', SP.orderId);
   } catch (e) { console.error('[pagos] no se pudo asociar el cliente:', e); }
   pgPintarCliente();
-  /* Recargar los métodos: "Puntos" solo se ofrece cuando hay cliente con
-     saldo, así que aparece (o desaparece) al identificarlo o quitarlo. */
+  /* Recargar los métodos: es aquí donde Puntos y Saldo se enteran de a quién
+     le van a cobrar. Al identificar al cliente aparece cuánto tiene de cada
+     uno debajo del botón; al quitarlo, vuelve a decir que falta. */
   try { await loadPaymentMethods(); } catch (e) { /* no bloquea el cobro */ }
   renderAll();
 }
@@ -1780,6 +1871,12 @@ function pgPuntosPreview(subtotal, empaque) {
    Solo se pueden pagar así los productos del catálogo; el resto sale apagado
    y con el motivo a la vista.
    ══════════════════════════════════════════════════════════════════ */
+function _sdEsSaldo() {
+  var d = _payDef();
+  return !!(d && (d.tipo === 'saldo' || d.key === '__saldo'));
+}
+function _payMoney(n) { return '$' + Math.round(Number(n) || 0).toLocaleString('es-CO'); }
+
 function _ptEsPuntos() {
   var d = _payDef();
   return !!(d && (d.tipo === 'puntos' || d.key === '__puntos'));

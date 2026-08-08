@@ -3575,7 +3575,7 @@ async function marcarPagadoModal(prefill){
   let ord=null;
   try{
     const { data:cd }=await sb.from('chat_conversations').select('order_id').eq('id',conv.id).maybeSingle();
-    if(cd && cd.order_id){ const r=await sb.from('pos_orders').select('id,total,total_final,delivery_fee,packaging_fee,paid_amount,branch_id,tenant_id,channel,status').eq('id',cd.order_id).maybeSingle(); ord=r.data; }
+    if(cd && cd.order_id){ const r=await sb.from('pos_orders').select('id,total,total_final,delivery_fee,packaging_fee,paid_amount,branch_id,tenant_id,channel,status,cliente_id').eq('id',cd.order_id).maybeSingle(); ord=r.data; }
   }catch(e){}
   if(!ord){ showToast('Este chat no tiene un pedido enviado a cocina. Envíalo primero (🍳 Enviar a cocina).','info'); return; }
   let metodos=[];
@@ -3591,6 +3591,20 @@ async function marcarPagadoModal(prefill){
   /* El nombre es lo que ve el cajero; el id es lo que se guarda. Traducir aqui
      evita que cada sitio invente su propia forma de nombrar el mismo metodo. */
   const metodoIdDe = n => { const m = metodos.find(x => x.nombre === n); return m && m.id ? m.id : null; };
+  const metodoPorNom = n => metodos.find(x => x.nombre === n) || null;
+
+  /* El saldo del cliente de ESTE pedido. Se pregunta una vez, al abrir, para
+     poder escribirlo en el chip: decidir a ciegas si alcanza no es decidir. */
+  let saldoDisp = 0;
+  const metSaldo = metodos.find(m => m.tipo === 'saldo');
+  if (metSaldo && ord.cliente_id && window.posSaldo) {
+    try {
+      posSaldo.setCtx(ord.tenant_id, ord.branch_id);
+      saldoDisp = await posSaldo.disponibles(ord.cliente_id);
+    } catch (e) { console.warn('[chat] saldo:', e); }
+  }
+  /* Sin cliente identificado no hay a quien cobrarle: el chip sobra. */
+  if (metSaldo && !ord.cliente_id) metodos = metodos.filter(m => m.tipo !== 'saldo');
   const ov=document.createElement('div'); ov.className='mp-ov';
   const preset = m => (m===total?'total':(domi&&m===comida?'comida':'otro'));
   function draw(){
@@ -3607,7 +3621,7 @@ async function marcarPagadoModal(prefill){
       +'</div>'
       +'<input class="mp-inp" id="mpMonto" type="number" inputmode="numeric" value="'+monto+'"'+(sel==='otro'?'':' style="display:none"')+'>'
       +'<div class="mp-lbl">¿Dónde pagó?</div>'
-      +'<div class="mp-chips">'+metodos.map(m=>'<button type="button" class="mp-chip mp-met'+(m.nombre===metodoSel?' on':'')+'" data-met="'+escHtml(m.nombre)+'">'+escHtml(m.nombre)+'</button>').join('')+'</div>'
+      +'<div class="mp-chips">'+metodos.map(m=>'<button type="button" class="mp-chip mp-met'+(m.nombre===metodoSel?' on':'')+'" data-met="'+escHtml(m.nombre)+'">'+escHtml(m.nombre)+(m.tipo==='saldo'?' · '+fmt(saldoDisp):'')+'</button>').join('')+'</div>'
       +(monto>0 && monto+pagado<total
           ? '<div class="mp-falta">⚠ Con este monto quedan <b>'+fmt(total-pagado-monto)+'</b> sin pagar, así que el pedido <b>seguirá apareciendo sin pagar</b> en Ventas.</div>'
           : '')
@@ -3628,6 +3642,26 @@ async function marcarPagadoModal(prefill){
     if(!(monto>0)){ showToast('Pon un monto válido','error'); return; }
     const btn=ov.querySelector('.mp-save'); btn.disabled=true; btn.textContent='Guardando…';
     try{
+      /* SALDO: se descuenta ANTES de guardar el pago. Si la base lo rechaza
+         —no le alcanza—, el pedido no queda marcado como pagado con un saldo
+         que no existia. La referencia lleva el id del pedido y el monto para
+         que dos abonos distintos no se pisen entre si. */
+      const _def = metodoPorNom(metodoSel);
+      if (_def && _def.tipo === 'saldo') {
+        if (!window.posSaldo) throw new Error('el módulo de saldo no está cargado');
+        posSaldo.setCtx(ord.tenant_id, ord.branch_id);
+        try {
+          await posSaldo.consumir(ord.cliente_id, monto, ord.id,
+            'pedido:' + ord.id + ':chat:' + (pagado + monto),
+            'Pago desde el chat');
+        } catch (err) {
+          btn.disabled = false; btn.textContent = 'Marcar pagado';
+          showToast(err && err.codigo === 'SALDO_INSUFICIENTE'
+            ? ('Al cliente le quedan ' + fmt(err.disponible) + ' de saldo')
+            : ('No se pudo descontar el saldo: ' + (err && err.message || err)), 'error');
+          return;
+        }
+      }
       const { data:pagoIns, error:e1 }=await sb.from('pos_payments')
         /* En pos_payments va el ID del metodo configurado, igual que en la
            pantalla de cobro. Aqui se guardaba el NOMBRE, y por eso la caja
@@ -3647,7 +3681,10 @@ async function marcarPagadoModal(prefill){
         // solo se ponía status y paid_amount: sin closed_at el pedido quedaba a
         // medio cerrar y Ventas/caja no lo veían igual que uno cobrado ahí.
         upd.status='paid';
-        upd.payment_method=metodoSel;
+        /* El id, no el nombre: es lo mismo que se guarda en pos_payments y lo
+           que la caja sabe traducir. Con el nombre, un metodo renombrado
+           dejaba de reconocerse. */
+        upd.payment_method=metodoIdDe(metodoSel)||metodoSel;
         upd.closed_at=new Date().toISOString();
         // "Las ventas son las ventas": total_final es SOLO comida+empaque, el
         // domicilio va aparte en delivery_fee y nunca suma a la venta.
