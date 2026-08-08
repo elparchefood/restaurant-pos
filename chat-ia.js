@@ -3588,6 +3588,9 @@ async function marcarPagadoModal(prefill){
   const fmt=n=>'$'+Math.round(Number(n)||0).toLocaleString('es-CO');
   let monto = (prefill&&Number(prefill.amount)>0) ? Number(prefill.amount) : (pend||total);
   let metodoSel = (prefill&&prefill.metodo) || (metodos.find(m=>m.digital)||metodos[0]).nombre;
+  /* El nombre es lo que ve el cajero; el id es lo que se guarda. Traducir aqui
+     evita que cada sitio invente su propia forma de nombrar el mismo metodo. */
+  const metodoIdDe = n => { const m = metodos.find(x => x.nombre === n); return m && m.id ? m.id : null; };
   const ov=document.createElement('div'); ov.className='mp-ov';
   const preset = m => (m===total?'total':(domi&&m===comida?'comida':'otro'));
   function draw(){
@@ -3626,7 +3629,11 @@ async function marcarPagadoModal(prefill){
     const btn=ov.querySelector('.mp-save'); btn.disabled=true; btn.textContent='Guardando…';
     try{
       const { data:pagoIns, error:e1 }=await sb.from('pos_payments')
-        .insert([{ order_id:ord.id, branch_id:ord.branch_id, tenant_id:ord.tenant_id, method:metodoSel, amount:monto, received:monto, vuelto:0 }])
+        /* En pos_payments va el ID del metodo configurado, igual que en la
+           pantalla de cobro. Aqui se guardaba el NOMBRE, y por eso la caja
+           veia dos convenciones distintas y mandaba a "Otros" todo lo que
+           llegaba con id. El id ademas aguanta que se renombre el metodo. */
+        .insert([{ order_id:ord.id, branch_id:ord.branch_id, tenant_id:ord.tenant_id, method:(metodoIdDe(metodoSel)||metodoSel), amount:monto, received:monto, vuelto:0 }])
         .select('id');
       if(e1) throw e1;
       // Un insert que no devuelve fila = lo bloqueó un permiso. Antes esto

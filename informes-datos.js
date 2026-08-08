@@ -65,6 +65,7 @@
     try {
       var ids = lista.map(function (o) { return o.id; });
       if (ids.length) {
+        if (window.posMetodos) await posMetodos.cargar(s, (window._pos && window._pos.state && window._pos.state.branchId) || null);
         var rp = await s.from('pos_payments').select('order_id,method,amount').in('order_id', ids);
         pagos = rp.data || [];
       }
@@ -337,12 +338,16 @@
     var acc = {};
     if (d.pagos.length) {
       d.pagos.forEach(function (x) {
-        var k = (x.method || 'Otro'); k = k.charAt(0).toUpperCase() + k.slice(1);
+        /* El nombre del metodo CONFIGURADO, no lo que este guardado: antes
+           salia una columna llamada "Pm_x719c1pqb". */
+        var k = window.posMetodos ? posMetodos.nombre(x.method)
+              : ((x.method || 'Otro').charAt(0).toUpperCase() + (x.method || 'Otro').slice(1));
         acc[k] = (acc[k] || 0) + (parseFloat(x.amount) || 0);
       });
     } else {
       d.lista.forEach(function (o) {
-        var k = o.payment_method || 'Otro'; k = k.charAt(0).toUpperCase() + k.slice(1);
+        var k = window.posMetodos ? posMetodos.nombre(o.payment_method)
+              : ((o.payment_method || 'Otro').charAt(0).toUpperCase() + (o.payment_method || 'Otro').slice(1));
         acc[k] = (acc[k] || 0) + ventaDe(o);
       });
     }

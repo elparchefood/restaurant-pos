@@ -190,6 +190,7 @@ async function loadTodayOrders(branchId) {
   try {
     const ids = S.todayOrders.map(o => o.id);
     if (ids.length) {
+      if (window.posMetodos) await posMetodos.cargar(sb, branchId);
       const { data: pd } = await sb.from('pos_payments').select('order_id,method,amount').in('order_id', ids);
       S.pagosHoy = pd || [];
     }
@@ -587,6 +588,24 @@ function canalIcon(type) {
 
 // ── normalise helpers ─────────────────────────────────
 function normPM(pm) {
+  /* Primero los metodos que Sergio configuro: son los unicos que existen. La
+     lista de palabras de abajo queda solo como respaldo para datos historicos
+     de antes de que existiera la configuracion.
+
+     Antes, lo que no reconocia caia en 'cash' por defecto — una transferencia
+     guardada con su id entraba como EFECTIVO y descuadraba el arqueo sin que
+     nadie lo viera. */
+  if (window.posMetodos) {
+    const m = posMetodos.resolver(pm);
+    if (m) {
+      const t = String(m.tipo || '').toLowerCase();
+      if (t.indexOf('efectivo') >= 0) return 'cash';
+      if (t.indexOf('transfer') >= 0) return 'transfer';
+      if (t.indexOf('tarjet')   >= 0) return 'card';
+      if (t.indexOf('credito')  >= 0) return 'credit';
+      return 'otro';
+    }
+  }
   const s = (pm || '').toLowerCase();
   if (s.includes('efectivo') || s.includes('cash'))            return 'cash';
   if (s.includes('tarjet')   || s.includes('card'))            return 'card';

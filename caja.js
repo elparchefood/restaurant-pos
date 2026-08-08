@@ -93,6 +93,7 @@ async function refreshAll() {
        · los pagos por método sí necesitan los pedidos ya cargados;
        · los movimientos de caja necesitan el id del turno.
      De siete esperas en fila se pasa a tres tandas. */
+  if (window.posMetodos) await posMetodos.cargar(sb, S.branchId);
   const [_ses, _sess, _met] = await Promise.all([
     loadActiveSession(S.branchId),
     loadAllSessions(S.branchId),
@@ -490,6 +491,12 @@ function resolverMetodo(valor) {
   var v = String(valor || '').trim();
   if (!v) return null;
   var norm = v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // El traductor compartido manda; el bucle de abajo queda como respaldo si
+  // esta pantalla se abriera sin pos-metodos.js cargado.
+  if (window.posMetodos) {
+    var comun = posMetodos.resolver(v);
+    if (comun) return String(comun.nombre || '').toLowerCase();
+  }
   var mets = S.payMethods || [];
   for (var i = 0; i < mets.length; i++) {
     var m = mets[i];
