@@ -144,7 +144,11 @@ async function loadChannels() {
 
 async function loadConversations() {
   $('convList').innerHTML = `<div class="ci-loading"><div class="ci-spinner"></div>Cargando…</div>`;
+  /* 'preview' es la conversación de práctica del simulador de Paco: nunca es
+     un chat de cliente. Se excluye AQUÍ, para todas las vistas — antes la
+     vista por etiqueta no filtraba estado y se habría colado. */
   let q = sb.from('chat_conversations').select('*').eq('branch_id', S.branchId)
+    .neq('status', 'preview')
     .order('last_message_at', { ascending: false });
   if (S.activeView === 'pending')  q = q.eq('last_sender','contact').gt('unread_count',0);
   if (S.activeView === 'resolved') q = q.eq('status','resolved');
@@ -213,6 +217,8 @@ function subscribeRealtime() {
       const yaOptimista = msg.direction === 'out' && S.messages.some(m => String(m.id).indexOf('tmp_') === 0 && (m.media_url||'') === (msg.media_url||'') && (m.body||'') === (msg.body||''));
       if (esActivo && !S.messages.find(m => m.id === msg.id) && !yaOptimista) { S.messages.push(msg); renderThread(); updateWaWindow(); }
       const idx = S.conversations.findIndex(c => c.id === msg.conversation_id);
+      /* Si la conversación no está en la lista (p. ej. la de práctica del
+         simulador), este evento no le incumbe a la bandeja. */
       if (idx !== -1) {
         S.conversations[idx].last_message    = msg.body || '[Imagen]';
         S.conversations[idx].last_message_at = msg.sent_at;
@@ -285,7 +291,14 @@ function chatBeep(){
   }catch(e){}
 }
 
+/* La conversación de PRÁCTICA del simulador (status 'preview') no es un chat
+   de un cliente: no va nunca en la bandeja. La consulta ya la excluía, pero el
+   tiempo real la metía igual — por eso aparecía al escribirle a Paco desde la
+   vista previa. */
+function esPractica(c) { return !!c && c.status === 'preview'; }
+
 function handleConvChange(payload) {
+  if (esPractica(payload.new) || esPractica(payload.old)) return;
   if (payload.eventType === 'INSERT') S.conversations.unshift(payload.new);
   else if (payload.eventType === 'UPDATE') {
     const idx = S.conversations.findIndex(c => c.id === payload.new.id);
