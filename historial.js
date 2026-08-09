@@ -475,8 +475,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.warn('auth:', e);
   }
 
-  /* Datos de apoyo */
-  await Promise.all([loadUsers(), loadTables()]);
+  /* Datos de apoyo: solo NOMBRES para las etiquetas. Con allSettled, que una
+     falle no deja el historial en blanco — a lo sumo una etiqueta sale con el
+     id en vez del nombre, que es infinitamente mejor que una pantalla vacia. */
+  (await Promise.allSettled([loadUsers(), loadTables()]))
+    .forEach(function (r, i) {
+      if (r.status === 'rejected') console.warn('[historial] carga de apoyo ' + i + ' fallo:', r.reason);
+    });
 
   /* Vincular filtros */
   bindFilters();

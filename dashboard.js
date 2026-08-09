@@ -1300,7 +1300,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Exponer la sucursal para los modales rápidos (Comprobantes, Meseros,
   // Inventario), que antes leían window._branchId y nunca se asignaba.
   window._branchId = branchId || null;
-  await Promise.all([
+  /* allSettled, no all: son nueve cargas independientes y varias no atrapan su
+     propio error. Con `all`, un solo tropiezo de red dejaba el dashboard
+     congelado a medio pintar y sin auto-refresco, porque `loadPrintTimes` y
+     `setupRealtime` de abajo no llegaban a correr. Ahora la que falla deja su
+     tarjeta vacia y las demas terminan. */
+  var _nombres = ['user','session','waiters','waiterNames','todayOrders','stock','chart','ratings','topProductos'];
+  (await Promise.allSettled([
     loadUser(branchId),
     loadSession(branchId),
     loadWaiters(branchId),
@@ -1310,7 +1316,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadChartData(branchId),
     loadRatings(branchId),
     loadTopProductosCompleto(branchId),
-  ]);
+  ])).forEach(function (r, i) {
+    if (r.status === 'rejected') console.warn('[dashboard] carga "' + _nombres[i] + '" fallo:', r.reason);
+  });
   loadPrintTimes();
   setupRealtime(branchId);
 
