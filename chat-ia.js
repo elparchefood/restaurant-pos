@@ -499,6 +499,8 @@ async function ciCargarBarrios(){
 }
 
 async function pintarFichaCliente(conv){
+  /* Los pagos guardan el ID del metodo: para MOSTRAR hay que traducir. */
+  try { if (window.posMetodos) await posMetodos.cargar(sb, S.branchId); } catch(e) {}
   ciCargarBarrios();
   const tel10 = String(conv.contact_handle||'').replace(/\D/g,'').slice(-10);
   // 1) Ficha guardada (el teléfono es la llave)
@@ -532,7 +534,16 @@ async function pintarFichaCliente(conv){
     const telPuntos = cli ? String(cli.telefono||'').replace(/[^0-9]/g,'').slice(-10) : tel10;
     const r = await sb.from('pos_puntos').select('puntos').ilike('telefono','%'+telPuntos).maybeSingle();
     puntos = Number(r.data && r.data.puntos)||0;
-  } catch(e){}
+    /* La base responde bien (verificado por fuera). Si aqui llega vacio o con
+       error, que quede ESCRITO: es la unica forma de dejar de adivinar. */
+    if (r.error || (!r.data && telPuntos && telPuntos.length === 10)) {
+      try { await sb.from('pos_diag').insert({ donde:'chat/puntos',
+        mensaje: r.error ? String(r.error.message||r.error.code) : 'sin fila para el telefono',
+        extra: { tel: telPuntos, con_ficha: !!cli } }); } catch(e2) {}
+    }
+  } catch(e){
+    try { await sb.from('pos_diag').insert({ donde:'chat/puntos', mensaje:String(e && e.message || e), extra:{} }); } catch(e2) {}
+  }
   // 4) Qué es lo que más pide
   let favorito = null;
   if (pedidos.length) {
@@ -567,7 +578,14 @@ async function pintarFichaCliente(conv){
   const ultimo  = nPed ? pedidos[0].created_at : null;
   const sinPagar= pedidos.filter(function(p){ return p.status!=='paid' && p.status!=='completed' && p.status!=='cancelled'; }).length;
   const pagos = {};
-  pedidos.forEach(function(p){ const m=(p.payment_method||'').toLowerCase(); if(m && m!=='multiple') pagos[m]=(pagos[m]||0)+1; });
+  pedidos.forEach(function(p){
+    let m=(p.payment_method||'').toLowerCase(); if(!m || m==='multiple') return;
+    /* Se agrupa por el NOMBRE configurado: 'transferencia', 'Transferencia' y
+       el id pm_... del mismo metodo cuentan como uno solo. */
+    try { if (window.posMetodos) { const r=posMetodos.resolver(m); if (r) m=r.nombre; } } catch(e) {}
+    if (/^pm_[a-z0-9]+$/i.test(m) || /^__/.test(m)) m='Otro';
+    pagos[m]=(pagos[m]||0)+1;
+  });
   const pagoTop = Object.entries(pagos).sort(function(a,b){ return b[1]-a[1]; })[0];
 
   // Cada direccion lleva SU barrio: {dir, barrio}. Las viejas eran texto

@@ -260,14 +260,28 @@
     // Estado de pago (grande, para el domiciliario)
     // Si pago con varios metodos se desglosa; si fue uno solo basta la linea.
     // El desglose solo lo tenia el recibo de mesa y le sirve a todos.
+    /* El metodo puede venir como ID (pm_...). En un RECIBO no puede salir eso:
+       se traduce con la configuracion si esta cargada; si no, un id se
+       disfraza de 'Pago' — mejor generico que basura tecnica. */
+    function _metVisible(v) {
+      v = String(v || '');
+      try {
+        if (window.posMetodos && posMetodos.lista().length) {
+          var m = posMetodos.resolver(v);
+          if (m) return m.nombre;
+        }
+      } catch (e) {}
+      if (/^pm_[a-z0-9]+$/i.test(v) || /^__/.test(v)) return 'Pago';
+      return v ? v.charAt(0).toUpperCase() + v.slice(1) : v;
+    }
     var pgs = (payments || []).filter(function(p){ return Number(p.amount) > 0; });
     var pm = order.payment_method ? String(order.payment_method) : '';
     if (pgs.length > 1) {
       h += '<div style="font-size:10px;font-weight:700;color:#555;text-transform:uppercase;margin-top:6px">Forma de pago</div>';
       h += '<table>';
       pgs.forEach(function(p){
-        var met = String(p.method || 'Pago');
-        h += '<tr><td style="font-size:12px">'+met.charAt(0).toUpperCase()+met.slice(1)+'</td><td class="pcol" style="font-size:12px">'+_money(p.amount)+'</td></tr>';
+        var met = _metVisible(p.method) || 'Pago';
+        h += '<tr><td style="font-size:12px">'+met+'</td><td class="pcol" style="font-size:12px">'+_money(p.amount)+'</td></tr>';
         h += _vueltoFilas(p, false);
       });
       h += '</table>';
@@ -277,9 +291,9 @@
       // Con cambio, la fila ya dice "Efectivo": repetir "Pago: Efectivo" arriba
       // seria decir lo mismo dos veces.
       if (fv) h += '<table>'+fv+'</table>';
-      else h += '<div style="text-align:center;font-size:11.5px;margin-top:6px">Pago: '+m1.charAt(0).toUpperCase()+m1.slice(1)+'</div>';
+      else h += '<div style="text-align:center;font-size:11.5px;margin-top:6px">Pago: '+_metVisible(m1)+'</div>';
     } else if (pm && pm!=='multiple') {
-      h += '<div style="text-align:center;font-size:11.5px;margin-top:6px">Pago: '+pm.charAt(0).toUpperCase()+pm.slice(1)+'</div>';
+      h += '<div style="text-align:center;font-size:11.5px;margin-top:6px">Pago: '+_metVisible(pm)+'</div>';
     }
     h += _pagoEstadoHtml(order);
     var mRef = notes.match(/Ref:(\S+)/i); if (mRef) h += '<div style="text-align:center;font-size:10.5px;color:#555">Ref: '+mRef[1]+'</div>';

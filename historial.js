@@ -306,8 +306,19 @@ function buildTimeline(o) {
 }
 
 function fmtPayMethod(m) {
+  /* Primero la configuracion del restaurante (traduce ids pm_...); el mapa
+     viejo queda para pagos historicos con claves en ingles. Un id que no se
+     reconozca jamas se le muestra al cliente: sale 'Pago'. */
+  try {
+    if (window.posMetodos && posMetodos.lista().length) {
+      const r = posMetodos.resolver(m);
+      if (r) return r.nombre;
+    }
+  } catch (e) {}
   const map = { cash:'Efectivo', card:'Tarjeta', nequi:'Nequi', daviplata:'Daviplata', transfer:'Transferencia', multiple:'Múltiple' };
-  return map[m] || m;
+  if (map[m]) return map[m];
+  if (/^pm_[a-z0-9]+$/i.test(String(m)) || /^__/.test(String(m))) return 'Pago';
+  return m;
 }
 
 /* ─── Imprimir ─── */
@@ -428,6 +439,13 @@ async function loadAndRender() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  /* Los pagos guardan el ID del metodo: para mostrarlo hay que traducirlo con
+     la configuracion. Se carga una vez; si falla, fmtPayMethod tiene respaldo. */
+  try {
+    if (window.posMetodos && window._pos) {
+      window._pos.on('core:ready', function(){ posMetodos.cargar(window._pos.sb, window._pos.state.branchId); });
+    }
+  } catch (e) {}
   /* Reloj */
   function updateClock() {
     const now = new Date();
