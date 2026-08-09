@@ -61,9 +61,14 @@ Deno.serve(async (req) => {
        Va ANTES de todo lo de WhatsApp porque no comparte nada con ello. */
     if (canal === "instagram" || canal === "facebook") {
       const pageToken = String(meta.page_token || meta.access_token || "");
-      const emisorId  = canal === "instagram"
-        ? String(meta.ig_id || "")
-        : String(meta.page_id || "");
+      /* SIEMPRE el id de la PAGINA, tambien para Instagram. Comprobado
+         mandando de verdad: al id de la cuenta de Instagram, Meta responde
+         '(#3) Application does not have the capability to make this API call';
+         al de la pagina, sale. Instagram va montado sobre la pagina y la
+         pagina es la que habla — el mensaje de error apuntaba a un permiso
+         que el token SI tenia (se verifico en /me/permissions), asi que
+         perseguirlo habria sido perder el dia. */
+      const emisorId  = String(meta.page_id || "");
       if (!pageToken) return json({ error: "Falta el token de la pagina. Vuelve a conectar el canal." }, 400);
       if (!emisorId)  return json({ error: "Falta el id de la cuenta. Vuelve a conectar el canal." }, 400);
 
