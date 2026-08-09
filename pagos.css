@@ -418,7 +418,7 @@ svg { display: block; }
 
 /* Mientras llegan los metodos reales: huecos del mismo tamano que un boton,
    para que la fila no salte cuando aparezcan. */
-.pg-method-hueco { min-height: 64px; border: 1px dashed var(--border, #ECEEF2); border-radius: 14px; background: var(--soft-3, #F8FAFC); }
+.pg-method-hueco { height: 72px; align-self: start; border: 1px dashed var(--border, #ECEEF2); border-radius: 14px; background: var(--soft-3, #F8FAFC); }
 
 .lm-method[data-tipo="efectivo"]      .pg-method-check { background: var(--cash); }
 .lm-method[data-tipo="tarjeta"]       .pg-method-check { background: var(--card); }
