@@ -1140,10 +1140,6 @@ document.addEventListener('click', e => {
       e.stopPropagation();
       pgGuardarCliente(null, '', '');
       break;
-    case 'voucher':
-    case 'credit':
-      // Módulos futuros
-      break;
   }
 });
 
