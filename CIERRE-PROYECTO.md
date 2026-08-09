@@ -37,6 +37,11 @@ Cosas que Sergio pidió en su momento y nunca se construyeron, o quedaron a medi
       mano queda en `pos_domi_aprendidos`, y Configuración → Domicilios lo
       muestra con "Agregar a la tabla" / "Descartar". Detecta también los
       **cambios de precio**. *Ya estaba; la lista estaba mal.*
+- [x] **Extender `pos-cache`** — el **plan** (17 pantallas, 2 consultas
+      seguidas) y los **métodos de pago** (7 pantallas) ya no se esperan: salen
+      de lo guardado en el equipo y se confirman por detrás. `2026-08-09`
+      *Falta `pos-perms` (15 pantallas), que solo consulta para roles que no son
+      administrador — o sea, para los meseros, no para Sergio.*
 
 ### Pendiente
 
@@ -47,8 +52,6 @@ Cosas que Sergio pidió en su momento y nunca se construyeron, o quedaron a medi
 - [ ] **Historias de Instagram** — falta el endpoint.
 - [ ] **Atajo "se acabó"** — *Sergio todavía no decidió dónde va*. No empezar
       hasta que lo diga.
-- [ ] **Extender `pos-cache`** — hoy solo lo usan catálogo, dashboard, salón y
-      pagos.
 
 ---
 

@@ -1723,6 +1723,49 @@ nombres raros en su WhatsApp"*.
 
 ---
 
+## HECHO — [Velocidad] El plan y los métodos de pago, guardados en el equipo — 2026-08-09
+
+Segunda tanda de `pos-cache`. Antes solo lo usaban catálogo, dashboard, salón y
+pagos.
+
+**`pos-plan.js` — 17 pantallas, 2 consultas SEGUIDAS** (`tenants.plan`, después
+`pos_planes`) antes de poder decidir qué se puede usar. Los candados del menú
+salían medio segundo tarde y quien entraba a una pantalla que no le tocaba
+alcanzaba a verla.
+
+⚠️ **Asimetría a propósito:** lo guardado **puede poner candados** en el menú
+(es cosmético y se corrige solo) pero **NUNCA saca a nadie de una pantalla** —
+`protegerPantalla()` arranca con `if (!ctx || !ctx.fresco) return;`. Echar a
+alguien por un dato viejo es mucho peor que dejarlo entrar el segundo que tarda
+la consulta.
+
+**Tres fallos que salieron probando, todos invisibles sin banco de pruebas:**
+
+1. **El refresco de fondo se llamaba a sí mismo.** `refrescarPorDetras()` pedía
+   `cargar()`, que veía algo guardado, lo devolvía y programaba otro refresco.
+   Nunca salía a internet y un candado viejo no se corregía jamás. Ahora
+   `cargar(porRed)` puede saltarse lo guardado.
+2. **Durante los dos viajes, `ctx` quedaba en `null`** y `puede()` respondía
+   "sí" a todo (su modo "todavía no sé"). El candado dibujado, pero el clic
+   pasando. No hace falta vaciarlo: `cargar(true)` ya ignora `ctx`.
+3. **`marcarNav()` solo sabía PONER candados.** Si lo guardado decía "bloqueado"
+   y la consulta decía que sí, el candado se quedaba. Ahora también los quita, y
+   el aviso decide **en el clic** (`if (puede(k)) return;`) — un escuchador
+   puesto una vez no se puede quitar después.
+
+**`pos-metodos.js` — 7 pantallas.** Aquí no hace falta la asimetría: son nombres
+para mostrar, no permisos. Al guardar en Configuración → Métodos de pago se
+borra lo guardado (`posCache.borrar('metodos')`), así la pantalla siguiente trae
+lo nuevo. Una lista **vacía no se guarda**: puede ser una consulta fallida y
+dejaría la pantalla siguiente sin métodos.
+
+**Falta:** `pos-perms.js` (15 pantallas). Solo consulta para roles que **no** son
+administrador — o sea, beneficia a los meseros, no a Sergio. Ojo al hacerlo:
+`posGate()` **esconde** elementos, así que un dato viejo puede ocultar un botón
+que sí corresponde, y el refresco tendría que volver a mostrarlo.
+
+---
+
 ## ARREGLADO — [Configuración] Los enganches que rompió la reorganización del Asistente IA — 2026-08-09
 
 **Síntoma:** Sergio abría Configuración y no veía los barrios pendientes de
