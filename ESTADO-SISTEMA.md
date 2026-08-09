@@ -1723,40 +1723,38 @@ nombres raros en su WhatsApp"*.
 
 ---
 
-## PENDIENTE — [Chat IA] Respuestas rápidas EDITABLES y CON VARIABLES — Sergio 2026-07-31
+## HECHO — [Configuración] Respuestas rápidas con variables — 2026-08-09
 
-**Lo que pidió:** poder **crear y editar** respuestas rápidas que se rellenen solas
-con datos del cliente y del sistema, igual que las dos que ya existen hoy:
+Se pidió el 2026-07-31 y quedó completo. Dónde vive cada pieza:
 
-- La que **calcula el total** del pedido que el cliente tiene en ese momento.
-- La que **calcula los puntos** de ese pedido y se los da.
+**El editor (uno solo):** Configuración → Asistente IA → **Mensajes** →
+"Respuestas rápidas". Es un `contenteditable`, no un textarea: cada variable es
+UNA ficha de color con su nombre en español, y al borrar se va entera. Los
+corchetes viven adentro, al dueño nunca se le muestran.
+- `pos-vars.js` — el registro de variables y el motor (`resolver`, `calcular`,
+  `buscar`, `usadas`). Soporta listas y cálculos, no solo campos sueltos.
+- `pos-vars-ui.js` — el editor de fichas: `montar / poner / leer / resumen`.
+- En `configuracion.js`, todo pasa por `cfgQrLeerTexto` / `cfgQrPonerTexto`; nada
+  vuelve a tocar `.value`. `cfgQrMontarVars()` lo monta al cargar la lista.
 
-Hoy esas dos están **escritas a mano en el código**: no se pueden editar ni se
-pueden crear otras parecidas. Eso es lo que hay que abrir.
+**Vista previa:** la burbuja de WhatsApp de siempre (con sus botones), pero con
+las variables ya resueltas contra un cliente de muestra — `posVars.resolver(t,
+posVarsUI.datosMuestra(0))`. Ver `{puntos}` crudo no dice cómo se va a leer.
 
-**Variables que debería poder usar** (lo que se pueda sacar del cliente y del sistema):
-- Del cliente: nombre exacto, teléfono, dirección exacta, barrio, puntos, nivel, último pedido
-- Del pedido en curso: total, subtotal, domicilio, productos, tiempo estimado
-- Del negocio: horario, dirección del local, métodos de pago
+**En el chat se USAN, no se administran.** Con `/` se insertan y ahí
+`resolverRR()` (chat-ia.js) las resuelve contra el pedido REAL de esa
+conversación. Si la plantilla pide plata del pedido y todavía no hay pedido, NO
+manda "$0": avisa y no pega nada.
 
-**Qué hay que construir**
-1. Editor de respuestas rápidas en Configuración → Asistente IA (la pestaña
-   "Respuestas" ya existe): crear, editar, borrar, ordenar.
-2. Un **insertador de variables** en el editor (lista de las disponibles, se
-   clickean y se meten en el texto). Ya existe algo así para las plantillas de
-   Meta — revisar si se puede reusar (`varList`, `cfgQr*`).
-3. Un **motor de resolución**: al enviar, reemplaza cada variable por su valor
-   real leyendo del cliente, del pedido abierto de esa conversación y de la
-   configuración. Debe manejar el caso "no hay dato" sin dejar un `{{x}}` crudo
-   en el mensaje al cliente.
-4. **Migrar las dos que ya existen** (total y puntos) a este sistema, para que
-   Sergio las pueda editar como cualquier otra.
-5. Vista previa con datos de ejemplo antes de guardar.
+**Por qué hay un solo editor.** Hasta hoy había dos escribiendo la misma columna
+`ia_config.respuestas_rapidas`: el bueno en Chat IA y un textarea pelado en
+Configuración. Se fueron separando y Sergio no encontraba las variables porque
+estaban en la pantalla equivocada. El botón "Administrar" del chat ahora lleva a
+`configuracion.html?s=chatia&tab=mensajes&acc=m-rapidas` — `configuracion.js`
+entiende `?tab=` y `?acc=` para aterrizar con la pestaña y la fila ya abiertas.
 
-**Ojo:** las respuestas con cálculo (total, puntos) no son solo texto — necesitan
-leer el pedido en curso. El motor tiene que soportar variables *calculadas*, no
-solo campos sueltos.
-
+**Ojo al tocar esto:** si vuelve a aparecer un segundo editor en otra pantalla,
+es el mismo error. Se administran en Configuración y punto.
 ---
 
 ## PENDIENTE — [Chat IA] Multi-línea de WhatsApp (varias líneas, flujo por línea) + precios por plan — Sergio 2026-07-24
