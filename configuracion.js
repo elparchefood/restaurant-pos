@@ -4793,6 +4793,32 @@ var _storedZonas = [];
 
 // ── Tabs Asistente IA ────────────────────────────────────
 (function(){
+  /* Acordeon de la pestana Asistente: se abre UNA a la vez. El interruptor
+     de arriba NO se pliega — es lo que se apaga con urgencia. */
+  window.ciaAcc = function (key) {
+    var yo = document.querySelector('.cia-acc[data-acc="' + key + '"]');
+    if (!yo) return;
+    var abrir = !yo.classList.contains('on');
+    document.querySelectorAll('.cia-acc.on').forEach(function (o) { o.classList.remove('on'); });
+    if (abrir) yo.classList.add('on');
+  };
+
+  /* Lo que dice cada fila plegada. Sale de lo que hay en pantalla, asi que
+     cambia al guardar sin recargar nada. */
+  window.ciaResumenes = function () {
+    function val(id) { var e = document.getElementById(id); return e ? String(e.value || '').trim() : ''; }
+    function pon(k, t) { var e = document.getElementById('ciasum-' + k); if (e) e.textContent = t || ''; }
+    var seg = val('iaDelay') || val('cfgDelay');
+    pon('tiempo', seg ? seg + ' seg' : '');
+    pon('perfil', val('iaNombrePerfil') || val('cfgBotName') || '');
+    var per = val('iaPersonalidad') || val('cfgPersonalidad');
+    pon('persona', per ? per.length.toLocaleString('es-CO') + ' car' : '');
+    var voz = document.querySelector('#iaVozSwitch, [data-voz]');
+    pon('voz', voz && voz.classList.contains('on') ? 'Activo' : '');
+    var ger = document.querySelectorAll('#iaGerentesList .ger-item, [data-gerente]').length;
+    pon('gerente', ger ? ger + (ger === 1 ? ' número' : ' números') : '');
+  };
+
   function activar(tab){
     document.querySelectorAll('.cia-tab').forEach(function(b){
       b.classList.toggle('on', b.dataset.tab === tab);
@@ -4803,6 +4829,7 @@ var _storedZonas = [];
     var aside = document.querySelector('#cfgAsistenteIA .cfg-aside');
     if (aside) aside.style.display = tab === 'flujo' ? 'none' : '';
     try { localStorage.setItem('cia-tab', tab); } catch(e) {}
+    if (tab === 'asistente' && window.ciaResumenes) setTimeout(window.ciaResumenes, 60);
     // Al abrir Plantillas se cargan las listas de envío (y sus contadores).
     if (tab === 'plantillas' && typeof wlCargar === 'function') {
       setTimeout(function(){ try { wlCargar(); } catch(e) { console.warn('wlCargar:', e); } }, 60);
@@ -4818,37 +4845,8 @@ var _storedZonas = [];
   });
 })();
 
-// Tabs Asistente IA
-(function(){
-  function activar(tab){
-    document.querySelectorAll(".cia-tab").forEach(function(b){
-      b.classList.toggle("on", b.dataset.tab === tab);
-    });
-    document.querySelectorAll(".cfg-col [data-tab]:not(.cia-tab):not(.cia-tabs)").forEach(function(el){
-      el.classList.toggle("cia-active", el.dataset.tab === tab);
-    });
-    var aside = document.querySelector("#cfgAsistenteIA .cfg-aside");
-    if (aside) aside.style.display = tab === "flujo" ? "none" : "";
-    try { localStorage.setItem("cia-tab", tab); } catch(e) {}
-  }
-
-  // Exponer para que showScreen() pueda llamarlo
-  window._ciaActivar = activar;
-
-  document.addEventListener("DOMContentLoaded", function(){
-    // Solo ejecutar si chatia ya esta visible al cargar
-    var chatia = document.getElementById("screen-chatia");
-    if (chatia && chatia.classList.contains("on")) {
-      var saved = "asistente";
-      try { saved = localStorage.getItem("cia-tab") || "asistente"; } catch(e) {}
-      activar(saved);
-      _ciaToggleTopbar(true);
-    }
-    document.querySelectorAll(".cia-tab").forEach(function(b){
-      b.addEventListener("click", function(){ activar(this.dataset.tab); });
-    });
-  });
-})();
+/* Las pestanas del Asistente las maneja UNA sola funcion (arriba). Aqui
+   habia una copia identica: cada clic corria dos veces. */
 
 function _ciaToggleTopbar(show){
   var nav   = document.getElementById("ciaTabs");
