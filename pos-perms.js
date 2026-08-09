@@ -30,18 +30,23 @@
 
   var _perms = null;   // array de ids, o '*' = todos, o null = aún cargando
   var _role  = null;
+  var _fresco = false; // true solo cuando _perms vino confirmado de la base
+  /* Lo que posGate escondio o dejo pasar, para poder re-evaluarlo cuando
+     llegue el dato confirmado. Sin esto, un boton escondido por un dato
+     viejo se quedaba escondido toda la pantalla. */
+  var _puertas = [];
 
   function cliente() {
     try { return (typeof sb !== 'undefined' && sb) ? sb : (window.sb || (window._pos && window._pos.sb)); }
     catch (e) { return window.sb || (window._pos && window._pos.sb); }
   }
 
-  async function resolver() {
+  async function resolver(porRed) {
     var sb = cliente();
     if (!sb) { _perms = '*'; return; }
     try {
       /* De la sesion guardada en el equipo, no del servidor: getUser sale a
-         internet y esto corre en 14 pantallas. */
+         internet y esto corre en 15 pantallas. */
       var ur = await sb.auth.getSession();
       var user = ur && ur.data && ur.data.session && ur.data.session.user;
       if (!user) { _perms = '*'; return; }
@@ -49,20 +54,43 @@
       var role = (meta.role || '').toString().toLowerCase().trim();
       _role = role;
 
-      if (ADMIN_ROLES.indexOf(role) >= 0) { _perms = '*'; return; }
+      /* Un administrador no consulta nada: su '*' sale de la sesion misma,
+         asi que ya es dato firme. */
+      if (ADMIN_ROLES.indexOf(role) >= 0) { _perms = '*'; _fresco = true; return; }
+
+      /* Lo guardado en el equipo sirve YA — pero solo para CONCEDER. La
+         llave lleva el rol: en un mismo equipo pueden turnarse un mesero y
+         un cajero, y los permisos de uno no pueden pintar los del otro. */
+      if (!porRed) {
+        var g = null;
+        try { g = window.posCache && posCache.leer('perms.' + role); } catch (e) {}
+        if (g && g.datos && Array.isArray(g.datos.perms)) {
+          _perms = g.datos.perms.slice();
+          _readyFresco = resolver(true);   // la base confirma por detras
+          return;
+        }
+      }
 
       var tenantId = meta.tenant_id;
       var q = sb.from('pos_roles').select('name,perms,system_role');
       if (tenantId) q = q.eq('tenant_id', tenantId);
       var rr = await q;
+      if (rr && rr.error) throw rr.error;
       var rows = (rr && rr.data) || [];
       var match = null;
       for (var i = 0; i < rows.length; i++) {
         if ((rows[i].name || '').toString().toLowerCase().trim() === role) { match = rows[i]; break; }
       }
       if (match) {
-        if (match.system_role) { _perms = '*'; return; }
+        /* Tambien con '*': si el rol paso a ser del sistema, lo que un dato
+           viejo escondio tiene que volver a verse. */
+        if (match.system_role) { _perms = '*'; _fresco = true; _reEvaluarPuertas(); return; }
         _perms = Array.isArray(match.perms) ? match.perms.slice() : [];
+        _fresco = true;
+        /* Solo se guarda lo confirmado. El '*' de un fallo no se guarda
+           nunca: dejaria el equipo concediendo todo en el proximo arranque. */
+        try { if (window.posCache) posCache.guardar('perms.' + role, { perms: _perms }); } catch (e) {}
+        _reEvaluarPuertas();
         return;
       }
       // Rol no encontrado en pos_roles → no encerrar al usuario.
@@ -70,11 +98,40 @@
       _perms = '*';
     } catch (e) {
       console.warn('[pos-perms] error resolviendo permisos', e);
+      /* Si esto es el refresco de fondo y ya hay permisos guardados del
+         equipo, se quedan: son un dato real de ayer, mejor que abrirlo todo
+         por un fallo de red de hoy. El '*' de emergencia es solo para cuando
+         no hay NADA con que trabajar. */
+      if (porRed && Array.isArray(_perms)) return;
       _perms = '*';
     }
   }
 
+  /* Vuelve a decidir cada puerta con el dato confirmado: muestra lo que un
+     dato viejo escondio de mas, y esconde lo que dejo pasar de mas. */
+  function _reEvaluarPuertas() {
+    for (var i = 0; i < _puertas.length; i++) {
+      var p = _puertas[i];
+      if (!p.el || !p.el.isConnected) continue;
+      var ok = Array.isArray(p.ids) ? window.posHasAny(p.ids) : window.posHasPerm(p.ids);
+      p.el.style.display = ok ? p.antes : 'none';
+    }
+  }
+
   var _ready = resolver();
+  var _readyFresco = _ready;
+
+  /* Espera el dato CONFIRMADO antes de negar algo. Negar con un dato viejo
+     — esconder un boton, plantar el PIN, frenar una pagina — castiga a un
+     mesero al que quiza acaban de darle ese permiso. Conceder de mas un
+     instante ya pasa hoy (mientras carga se concede todo), asi que esa
+     direccion no empeora. */
+  async function _confirmarSiNiega(idOrIds) {
+    var ok = Array.isArray(idOrIds) ? window.posHasAny(idOrIds) : window.posHasPerm(idOrIds);
+    if (ok || _fresco) return ok;
+    try { await _readyFresco; } catch (e) {}
+    return Array.isArray(idOrIds) ? window.posHasAny(idOrIds) : window.posHasPerm(idOrIds);
+  }
 
   window.posPermsReady = function () { return _ready; };
   window.posRole = function () { return _role; };
@@ -97,6 +154,10 @@
   window.posGate = function (el, idOrIds) {
     if (!el) return;
     var ok = Array.isArray(idOrIds) ? window.posHasAny(idOrIds) : window.posHasPerm(idOrIds);
+    /* Se recuerda SIEMPRE (con el display que traia), no solo cuando
+       esconde: la confirmacion de la base puede llegar diciendo lo
+       contrario en cualquiera de las dos direcciones. */
+    _puertas.push({ el: el, ids: idOrIds, antes: el.style.display === 'none' ? '' : el.style.display });
     if (!ok) el.style.display = 'none';
     return ok;
   };
@@ -168,7 +229,9 @@
         posGuard('pedidos.cobrar', function(){ irACobrar(); }); */
   window.posGuard = async function (idOrIds, onOk, motivo) {
     try { await _ready; } catch (e) {}
-    var ok = Array.isArray(idOrIds) ? window.posHasAny(idOrIds) : window.posHasPerm(idOrIds);
+    /* Antes de plantar el PIN, el dato confirmado: que el permiso se lo
+       hayan dado hace cinco minutos no puede terminar en un PIN en la cara. */
+    var ok = await _confirmarSiNiega(idOrIds);
     if (ok) { if (typeof onOk === 'function') onOk(); return; }
     window.posPinPrompt(motivo || 'Esta acción requiere permiso de administrador.', onOk);
   };
@@ -180,7 +243,8 @@
         posRequirePin(['config.general','config.salon','config.usuarios']); */
   window.posRequirePin = async function (idOrIds, backTo) {
     try { await _ready; } catch (e) {}
-    var ok = Array.isArray(idOrIds) ? window.posHasAny(idOrIds) : window.posHasPerm(idOrIds);
+    /* Frenar una pagina entera exige el dato confirmado, no el guardado. */
+    var ok = await _confirmarSiNiega(idOrIds);
     if (ok) return true;
     window.posPinPrompt(
       'Esta sección requiere permiso. Ingresa el PIN de administrador para entrar.',

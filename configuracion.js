@@ -1060,6 +1060,20 @@ document.addEventListener('DOMContentLoaded', async function() {
 // ════════════════════════════════════════════════════════════
 
 // ════════════════════════════════════════════════════════════
+/* Al cambiar un rol, los permisos guardados en ESTE equipo quedan viejos. Se
+   borran todos los del prefijo: aqui no se sabe que rol edito el dueno ni
+   cual tenia guardado el equipo del mesero. (El equipo del mesero se corrige
+   solo: su proxima consulta confirmada pisa lo guardado.) */
+function _permsInvalidar() {
+  try {
+    if (!window.posCache) return;
+    var pre = 'pos.cache.' + (posCache.tenant() || 'sin-negocio') + '.perms.';
+    for (var i = localStorage.length - 1; i >= 0; i--) {
+      var k = localStorage.key(i);
+      if (k && k.indexOf(pre) === 0) localStorage.removeItem(k);
+    }
+  } catch (e) {}
+}
 // USUARIOS Y ROLES — conectado a Supabase Auth + pos_roles
 // ════════════════════════════════════════════════════════════
 
@@ -1299,6 +1313,7 @@ async function urSaveRole(r) {
   }
   if (r._isNew) {
     delete r._isNew;
+    _permsInvalidar();
     var res = await sb.from('pos_roles').insert({
       tenant_id: tenantId, name: r.name, color: r.color,
       system_role: !!r.system, perms: r.perms
@@ -1308,6 +1323,7 @@ async function urSaveRole(r) {
   } else {
     var safeRoleId = safeUUID(r.id);
     if (!safeRoleId) { console.warn('urSaveRole: r.id no es UUID valido:', r.id); return; }
+    _permsInvalidar();
     await sb.from('pos_roles').update({
       name: r.name, color: r.color, perms: r.perms
     }).eq('id', safeRoleId);
@@ -1316,6 +1332,7 @@ async function urSaveRole(r) {
 
 // ── Eliminar rol ───────────────────────────────────────────────
 async function urDeleteRoleDb(id) {
+  _permsInvalidar();
   await sb.from('pos_roles').delete().eq('id', id);
 }
 
