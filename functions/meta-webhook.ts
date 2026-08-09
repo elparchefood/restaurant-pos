@@ -218,40 +218,33 @@ Deno.serve(async (req) => {
             const senderName = ((contact?.profile as Record<string,unknown>)?.name as string) || ("+" + fromPhone);
 
             // Upsert conversación
-            const convRes = await sbGet(
-              `/rest/v1/chat_conversations?branch_id=eq.${branch_id}&contact_handle=eq.${encodeURIComponent(fromPhone)}&channel=eq.whatsapp&select=id,unread_count&limit=1`
-            );
-            let convId: string;
-            let unread = 0;
-
-            if (convRes?.length) {
-              convId = convRes[0].id as string;
-              unread = (convRes[0].unread_count as number) || 0;
-            } else {
-              const avatarTint = Math.floor(Math.random() * 8) + 1;
-              const newConvRes = await sbPost(`/rest/v1/chat_conversations`, {
-                tenant_id, branch_id, channel: "whatsapp", channel_id,
-                contact_name: senderName, contact_handle: fromPhone,
-                contact_avatar_tint: avatarTint, status: "open", unread_count: 0,
-                last_message: bodyText, last_message_at: new Date().toISOString(),
-                last_sender: "contact", last_read: false,
-              }, "return=representation");
-              convId = newConvRes?.[0]?.id as string;
-            }
-            if (!convId) continue;
+            const convWa = await buscarOCrearConv({
+              tenant_id, branch_id, channel: "whatsapp", channel_id,
+              contact_name: senderName, contact_handle: fromPhone,
+              contact_avatar_tint: Math.floor(Math.random() * 8) + 1,
+              status: "open", unread_count: 0,
+              last_message: bodyText, last_message_at: new Date().toISOString(),
+              last_sender: "contact", last_read: false,
+            }, String(branch_id), "whatsapp", fromPhone);
+            if (!convWa) continue;
+            const convId = convWa.id;
+            const unread = convWa.unread;
 
             // Dedup
             const dupCheck = await sbGet(`/rest/v1/chat_messages?external_id=eq.${encodeURIComponent(externalId)}&limit=1`);
             if (dupCheck?.length) continue;
 
             // Guardar mensaje entrante
-            await sbPost(`/rest/v1/chat_messages`, {
+            /* Igual que en los otros canales: si el INSERT no devuelve fila,
+               este aviso es un repetido y no debe mover el contador. */
+            const guardadoWa = await sbPost(`/rest/v1/chat_messages`, {
               conversation_id: convId, tenant_id,
               direction: "in", origen: "cliente", body: bodyText,
               media_url: mediaUrl, media_type: mediaType,
               delivery_status: "delivered", external_id: externalId,
               sent_at: new Date(parseInt(msg.timestamp as string) * 1000).toISOString(),
-            });
+            }, "return=representation");
+            if (!guardadoWa?.length) continue;
 
             await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
               last_message: bodyText, last_message_at: new Date().toISOString(),
@@ -376,38 +369,34 @@ Deno.serve(async (req) => {
           } catch { /* sin nombre, con el id basta para no perder el mensaje */ }
 
           // La conversacion: la de siempre si ya escribio antes, o una nueva.
-          const convRes = await sbGet(
-            `/rest/v1/chat_conversations?branch_id=eq.${branch_id}&contact_handle=eq.${encodeURIComponent(remitente)}&channel=eq.${canal}&select=id,unread_count&limit=1`
-          );
-          let convId = "";
-          let unread = 0;
-          if (convRes?.length) {
-            convId = String(convRes[0].id);
-            unread = Number(convRes[0].unread_count) || 0;
-          } else {
-            const nueva = await sbPost(`/rest/v1/chat_conversations`, {
-              tenant_id, branch_id, channel: canal, channel_id,
-              contact_name: quien, contact_handle: remitente,
-              contact_avatar_tint: Math.floor(Math.random() * 8) + 1,
-              status: "open", unread_count: 0,
-              last_message: bodyText, last_message_at: new Date().toISOString(),
-              last_sender: "contact", last_read: false,
-            }, "return=representation");
-            convId = String(nueva?.[0]?.id || "");
-          }
-          if (!convId) continue;
+          const conv = await buscarOCrearConv({
+            tenant_id, branch_id, channel: canal, channel_id,
+            contact_name: quien, contact_handle: remitente,
+            contact_avatar_tint: Math.floor(Math.random() * 8) + 1,
+            status: "open", unread_count: 0,
+            last_message: bodyText, last_message_at: new Date().toISOString(),
+            last_sender: "contact", last_read: false,
+          }, String(branch_id), canal, remitente);
+          if (!conv) continue;
+          const convId = conv.id;
+          const unread = conv.unread;
 
           const cuando = ev.timestamp
             ? new Date(Number(ev.timestamp)).toISOString()
             : new Date().toISOString();
 
-          await sbPost(`/rest/v1/chat_messages`, {
+          /* El que manda es este INSERT. Si no devuelve fila, choco contra el
+             indice unico de external_id: el mensaje YA estaba y este aviso es
+             un repetido de Meta. Entonces NO se toca la conversacion — si no,
+             el contador de sin leer sube con cada repetido. */
+          const guardado = await sbPost(`/rest/v1/chat_messages`, {
             conversation_id: convId, tenant_id,
             direction: "in", origen: "cliente", body: bodyText,
             media_url: mediaUrl, media_type: mediaType,
             delivery_status: "delivered", external_id: externalId,
             sent_at: cuando,
-          });
+          }, "return=representation");
+          if (!guardado?.length) continue;
 
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
             last_message: bodyText, last_message_at: new Date().toISOString(),
@@ -436,6 +425,37 @@ function leerMeta(raw: unknown): Record<string, unknown> {
   if (typeof raw === "string") { try { return JSON.parse(raw); } catch { return {}; } }
   if (raw && typeof raw === "object") return raw as Record<string, unknown>;
   return {};
+}
+
+
+/* Devuelve la conversacion del contacto, creandola si hace falta.
+
+   Ojo con la carrera: Meta entrega el mismo aviso dos veces y los dos llegan a
+   la vez. Con "busco; si no existe, creo", los dos buscan, ninguno encuentra y
+   los dos crean — le paso a Sergio el 9-ago: dos conversaciones iguales
+   separadas por 84 milisegundos.
+   La base ya tiene el candado (ux_chat_conv_contacto). Aqui se atiende lo que
+   el candado provoca: si el INSERT choca, la creo el otro aviso, se vuelve a
+   buscar y se sigue con esa. */
+async function buscarOCrearConv(
+  datos: Record<string, unknown>,
+  branchId: string, canal: string, handle: string,
+): Promise<{ id: string; unread: number } | null> {
+  const buscar = async () => await sbGet(
+    `/rest/v1/chat_conversations?branch_id=eq.${branchId}&contact_handle=eq.${encodeURIComponent(handle)}&channel=eq.${canal}&select=id,unread_count&limit=1`
+  );
+
+  const ya = await buscar();
+  if (ya?.length) return { id: String(ya[0].id), unread: Number(ya[0].unread_count) || 0 };
+
+  const nueva = await sbPost(`/rest/v1/chat_conversations`, datos, "return=representation");
+  if (nueva?.[0]?.id) return { id: String(nueva[0].id), unread: 0 };
+
+  /* El INSERT no devolvio nada: casi seguro choco con el candado porque el
+     otro aviso la creo primero. Se busca otra vez y se sigue con esa. */
+  const otra = await buscar();
+  if (otra?.length) return { id: String(otra[0].id), unread: Number(otra[0].unread_count) || 0 };
+  return null;
 }
 
 // ── Cola de respuesta IA ──────────────────────────────────────────────────────
@@ -863,7 +883,7 @@ async function sbPost(
   });
   if (!res.ok) { console.error("sbPost error", path, await res.text()); return null; }
   if (prefer === "return=representation") return res.json();
-  return null;
+  return [];   // [] = salio bien; null = fallo. Antes los dos eran null.
 }
 
 async function sbDelete(path: string): Promise<void> {
