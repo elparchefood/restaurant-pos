@@ -1138,7 +1138,8 @@ document.addEventListener('click', e => {
        tocaba salirse del cobro. Se limpia igual que se puso, en el pedido. */
     case 'cliente-quitar':
       e.stopPropagation();
-      pgGuardarCliente(null, '', '');
+      /* Deshacer, no borrar: vuelve a como estaba al abrir la pantalla. */
+      pgGuardarCliente(null, SP.nombreDeFuera || '', '');
       break;
   }
 });
@@ -1257,6 +1258,13 @@ async function loadOrder() {
   SP.cliente = order.customer_name || '';
   SP.clienteId = order.cliente_id || null;
   SP.clienteTel = '';
+  /* El nombre que el pedido traia de AFUERA: un domicilio del chat llega con
+     "Katherin" escrito antes de que nadie seleccione a nadie, y ese nombre es
+     el que sale en la comanda y en la lista de Domicilios. Se guarda para que
+     la X pueda deshacer la seleccion sin llevarselo por delante. Si el pedido
+     ya venia con cliente registrado, el nombre lo puso esa seleccion y no hay
+     nada ajeno que conservar. */
+  SP.nombreDeFuera = (!order.cliente_id && order.customer_name) ? order.customer_name : '';
   if (SP.clienteId) {
     try {
       const rc = await sb.from('pos_clientes').select('telefono,nombre').eq('id', SP.clienteId).maybeSingle();
@@ -1825,11 +1833,15 @@ async function pgPintarCliente() {
      tener que ir a buscarlo. Solo aparece donde el saldo esta encendido. */
   var txt = (SP.cliente || SP.clienteTel);
   if (SP.clienteTel) txt += ' · ' + pts + ' pts';
-  if (SP.saldoActivo) txt += ' · ' + (Number(SP.saldoDisp) > 0
+  /* Solo con cliente registrado: un nombre suelto del chat no tiene bolsa,
+     y decir 'sin saldo' de alguien a quien nadie identifico engaña. */
+  if (SP.saldoActivo && SP.clienteId) txt += ' · ' + (Number(SP.saldoDisp) > 0
     ? _payMoney(SP.saldoDisp) + ' de saldo' : 'sin saldo');
   lbl.textContent = txt;
+  /* Sin cliente registrado no hay nada que deshacer: el nombre suelto de un
+     domicilio del chat no lo puso el cajero y no se quita desde aqui. */
   var x = document.getElementById('cliente-clear');
-  if (x) x.hidden = false;
+  if (x) x.hidden = !SP.clienteId;
 }
 
 
