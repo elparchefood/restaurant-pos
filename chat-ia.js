@@ -3972,17 +3972,33 @@ function elegirPagina(res, channel, meta) {
         + (sirve ? '<span class="ci-pagina-r">Conectar</span>' : '') + '</button>';
     }
 
+    /* Ninguna pagina trae Instagram: casi siempre es porque en el dialogo de
+       Meta el paso de Instagram se ve OPCIONAL y se salto. Antes esto era un
+       callejon sin salida —todo apagado y un boton de Cancelar—; ahora se
+       dice que paso y como se arregla. */
+    var ningunaConIG = esIG && !res.paginas.some(function (p) { return p.instagram; });
+
     ov.innerHTML =
       '<div class="ci-pagina-box">'
-      + '<div class="ci-pagina-tt">' + (esIG ? '¿Cuál cuenta de Instagram?' : '¿Cuál página?') + '</div>'
+      + '<div class="ci-pagina-tt">'
+      +   (ningunaConIG ? 'Falta vincular tu Instagram'
+          : (esIG ? '¿Cuál cuenta de Instagram?' : '¿Cuál página?')) + '</div>'
       + '<div class="ci-pagina-sub">'
-      +   (res.paginas.length === 1
-            ? 'Administras esta página con tu cuenta de Facebook.'
-            : 'Administras ' + res.paginas.length + ' páginas. Elige la de tu restaurante.')
+      +   (ningunaConIG
+            ? 'Ninguna de tus páginas de Facebook tiene una cuenta de Instagram '
+              + 'vinculada. En el paso de Meta, Instagram aparece como opcional y '
+              + 'es fácil pasarlo por alto.<br><br>'
+              + '<b>Vuelve a intentar</b> y marca tu cuenta de Instagram cuando te la '
+              + 'pida. Si no aparece, primero vincúlala a tu página desde Facebook '
+              + '(Configuración de la página → Instagram).'
+            : (res.paginas.length === 1
+                ? 'Administras esta página con tu cuenta de Facebook.'
+                : 'Administras ' + res.paginas.length + ' páginas. Elige la de tu restaurante.'))
       + '</div>'
-      + '<div class="ci-pagina-lista">' + res.paginas.map(fila).join('') + '</div>'
+      + (ningunaConIG ? '' : '<div class="ci-pagina-lista">' + res.paginas.map(fila).join('') + '</div>')
       + '<div class="ci-pagina-err" hidden></div>'
-      + '<button type="button" class="ci-pagina-cancel">Cancelar</button>'
+      + '<button type="button" class="ci-pagina-cancel">'
+      +   (ningunaConIG ? 'Entendido' : 'Cancelar') + '</button>'
       + '</div>';
     document.body.appendChild(ov);
 
