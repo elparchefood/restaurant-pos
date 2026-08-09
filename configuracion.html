@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css?v=1789840000">
-<link rel="stylesheet" href="configuracion.css?v=1790340000">
+<link rel="stylesheet" href="configuracion.css?v=1790350000">
 </head>
 <body>
 <div class="cf-root">
@@ -2552,18 +2552,23 @@
                   <div class="pv-st" id="pvSt"><span class="dot"></span> En l&#237;nea &middot; responde al instante</div>
                 </div>
               </div>
-              <div class="pv-thread">
-                <div class="pv-bubble in">&#161;Hola! &#191;Tienen la promo de hoy? &#127828;</div>
-                <div class="pv-bubble out">&#161;Claro! Tenemos 2x1 en hamburguesas sencillas. &#191;Te provoca una?</div>
-                <div class="pv-bubble in">De una, &#191;cu&#225;nto es el domicilio?</div>
+              <div class="pv-thread" id="pvThread">
                 <div class="pv-voice" id="pvVoice" style="display:none">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                   <div class="bars"><i style="height:6px"></i><i style="height:12px"></i><i style="height:16px"></i><i style="height:9px"></i><i style="height:14px"></i><i style="height:7px"></i><i style="height:11px"></i><i style="height:5px"></i></div>
                   <span class="dur">0:08</span>
                 </div>
-                <div class="pv-typing"><i></i><i></i><i></i></div>
+                <div class="pv-typing" id="pvTyping" style="display:none"><i></i><i></i><i></i></div>
+              </div>
+              <!-- Escribir aqui habla con Paco DE VERDAD, contra el banco de
+                   pruebas: mismo motor, misma carta, pero no puede crear
+                   pedidos ni escribirle a ningun cliente. -->
+              <div class="pv-compose">
+                <input id="pvInput" type="text" placeholder="Escríbele como un cliente…" autocomplete="off">
+                <button id="pvSend" title="Enviar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
               </div>
             </div>
+            <button class="pv-clear" id="pvClear">Borrar la prueba</button>
             <div class="pv-stats">
               <div class="pv-stat"><span class="pv-stat-l"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Resueltas por IA hoy</span><span class="pv-stat-v g">42</span></div>
               <div class="pv-stat"><span class="pv-stat-l"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent-2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg> Audios enviados</span><span class="pv-stat-v" id="statVoice">0</span></div>
@@ -2597,6 +2602,7 @@
 <script src="pos-print-listener.js?v=4"></script>
 <script src="pos-impuestos.js?v=1"></script>
 <script src="pos-creditos.js?v=1"></script>
+<script src="pos-paco-preview.js?v=1790350000"></script>
 <script src="configuracion-puntos.js?v=1789730000"></script>
 <!-- Es quien sabe tocar los tonos con el volumen configurado. Sin esto el
      boton Probar no sonaba: la funcion que llama no existia. -->
