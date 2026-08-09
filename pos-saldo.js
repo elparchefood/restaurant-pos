@@ -244,8 +244,8 @@
       + '<div style="font-size:12.5px;color:#64748B;line-height:1.55;margin-top:12px">'
       +   (tiene > 0
           ? 'Cobra <b>' + money(tiene - apuntado > 0 ? tiene - apuntado : 0)
-            + '</b> con el saldo y el resto con otro metodo, o pidele que recargue en tu pagina.'
-          : 'Puede recargar en tu pagina de clientes. Mientras tanto, cobra con otro metodo.')
+            + '</b> con el saldo y el resto con otro método, o pídele que recargue en tu página.'
+          : 'Puede recargar en tu página de clientes. Mientras tanto, cobra con otro método.')
       + '</div>'
       + '<button style="width:100%;margin-top:16px;padding:11px;border:none;border-radius:10px;'
       + 'background:#0F172A;color:#fff;font-weight:700;font-size:13.5px;cursor:pointer">Entendido</button>'
