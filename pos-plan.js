@@ -118,9 +118,51 @@
     'inventario.html': 'inventario',
   };
 
-  async function cargar() {
-    if (ctx) return ctx;
-    if (cargando) return cargando;
+  /* Lo guardado en el equipo, si sirve. `fresco:false` marca que todavia no
+     se confirmo contra la base. */
+  function delEquipo() {
+    try {
+      var g = window.posCache && posCache.leer('plan');
+      if (!g || !g.datos || typeof g.datos.plan !== 'string') return null;
+      return { plan: g.datos.plan, nombrePlan: g.datos.nombrePlan,
+               funciones: g.datos.funciones, fresco: false };
+    } catch (e) { return null; }
+  }
+
+  /* La consulta de verdad, por detras. Si el plan cambio, se vuelven a poner
+     los candados —quitando los que ya no corresponden— y recien ahi se puede
+     sacar a alguien de una pantalla. */
+  async function refrescarPorDetras() {
+    var antes = ctx ? JSON.stringify(ctx.funciones) + '|' + ctx.plan : '';
+    try {
+      /* Ojo: NO se vacia ctx. Si se vacia, durante los dos viajes a internet
+         puede() responde "si" a todo y el candado del menu deja de frenar el
+         clic. Se sigue trabajando con el dato viejo hasta tener el nuevo. */
+      cargando = null;
+      await cargar(true);
+    } catch (e) { return; }
+    var ahora = ctx ? JSON.stringify(ctx.funciones) + '|' + ctx.plan : '';
+    try { marcarNav(); } catch (e) {}
+    if (antes !== ahora) console.info('[plan] cambio:', antes, '->', ahora);
+    try { protegerPantalla(); } catch (e) {}
+  }
+
+  /* `porRed` obliga a preguntarle a la base y saltarse lo guardado. Sin eso,
+     el refresco de fondo se llamaba a si mismo: pedia cargar(), cargar() veia
+     que habia algo guardado, lo devolvia y programaba otro refresco. Nunca
+     salia a internet y el candado viejo no se corregia jamas. */
+  async function cargar(porRed) {
+    if (ctx && !porRed) return ctx;
+    if (cargando && !porRed) return cargando;
+    if (!porRed) {
+      /* Lo guardado sirve YA. La consulta sale igual, pero nadie la espera. */
+      var guardado = delEquipo();
+      if (guardado) {
+        ctx = guardado;
+        setTimeout(refrescarPorDetras, 0);
+        return ctx;
+      }
+    }
     cargando = (async function () {
       var s = sb();
       /* Sin sesion (login, registro, onboarding) no se bloquea nada:
@@ -141,12 +183,21 @@
           plan: plan,
           nombrePlan: (p.data && p.data.nombre) || plan,
           funciones: (p.data && p.data.funciones) || [],
+          fresco: true,
         };
+        /* Solo se guarda lo que vino BIEN de la base. Un fallo se responde con
+           "dejar pasar todo", y eso no se puede quedar guardado en el equipo:
+           el proximo arranque creeria que el plan lo permite todo. */
+        try {
+          if (window.posCache) posCache.guardar('plan', {
+            plan: ctx.plan, nombrePlan: ctx.nombrePlan, funciones: ctx.funciones,
+          });
+        } catch (e) {}
       } catch (e) {
         /* Si falla la consulta NO se bloquea nada: es peor dejar a un cliente
            que sí pagó sin poder trabajar que dejar entrar a uno que no. */
         console.warn('[plan] no se pudo leer, se deja pasar todo:', e);
-        ctx = { plan: 'desconocido', nombrePlan: '', funciones: null };
+        ctx = { plan: 'desconocido', nombrePlan: '', funciones: null, fresco: false };
       }
       return ctx;
     })();
@@ -231,31 +282,44 @@
   }
 
   // ── El candado en el menú ─────────────────────────────────────────────
+  /* Se puede llamar las veces que haga falta: pone los candados que faltan y
+     QUITA los que ya no corresponden. Sin lo segundo, un candado puesto con un
+     dato viejo se quedaba ahi aunque la consulta dijera que si se puede. */
   function marcarNav() {
     var items = document.querySelectorAll('a[href]');
     for (var i = 0; i < items.length; i++) {
       var a = items[i];
       var destino = (a.getAttribute('href') || '').split('?')[0].split('/').pop();
       var clave = PANTALLAS[destino];
-      if (!clave || puede(clave)) continue;
-      if (a.dataset.posPlanMarcado) continue;
-      a.dataset.posPlanMarcado = '1';
+      if (!clave) continue;
+      var lock = a.querySelector('.pos-plan-lock');
+
+      if (puede(clave)) { if (lock) lock.remove(); continue; }
+      if (lock) continue;                       // ya estaba marcado
 
       // El botón se queda igual, solo con un candado pequeño al lado.
-      var lock = document.createElement('span');
+      lock = document.createElement('span');
+      lock.className = 'pos-plan-lock';
       lock.style.cssText = 'margin-left:auto;display:inline-flex;align-items:center;opacity:.55;flex-shrink:0';
       lock.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
         'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" ' +
         'height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
       a.appendChild(lock);
 
-      (function (k) {
-        a.addEventListener('click', function (ev) {
-          ev.preventDefault();
-          ev.stopPropagation();
-          mostrar(k);
-        }, true);
-      })(clave);
+      /* El aviso decide EN EL CLIC, no ahora: asi, si la consulta de fondo
+         dice que el plan si lo permite, el enlace vuelve a funcionar solo.
+         Un escuchador puesto una vez no se puede quitar despues. */
+      if (!a.dataset.posPlanClick) {
+        a.dataset.posPlanClick = '1';
+        (function (k) {
+          a.addEventListener('click', function (ev) {
+            if (puede(k)) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            mostrar(k);
+          }, true);
+        })(clave);
+      }
     }
   }
 
@@ -263,9 +327,14 @@
      mano o llega por un enlace viejo, tiene que encontrarse lo mismo. Sin esto
      el candado del menu seria decorativo. */
   function protegerPantalla() {
+    /* Solo con el dato confirmado contra la base. Echar a alguien de una
+       pantalla por algo guardado que quedo viejo es mucho peor que dejarlo
+       entrar el segundo que tarda la consulta. */
+    if (!ctx || !ctx.fresco) return;
     var aqui = location.pathname.split('/').pop();
     var clave = PANTALLAS[aqui];
     if (!clave || puede(clave)) return;
+    if (document.getElementById('pos-plan-modal')) return;   // ya esta puesto
     mostrar(clave);
     // Al cerrar el modal se vuelve al escritorio: no tiene sentido dejarlo
     // parado en una pantalla que no puede usar.
