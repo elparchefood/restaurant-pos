@@ -2021,3 +2021,30 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
   font-size: 12.5px; font-weight: 700; color: var(--text-3, #6b7280);
 }
 .ci-qm-nuevo button:hover { border-color: #5B6BFF; color: #5B6BFF; }
+
+/* ── Elegir cuál página de Facebook conectar ─────────────────────────────
+   Es lo que Meta llama `pages_show_list`: la lista tiene que VERSE. Las
+   páginas sin Instagram vinculado salen apagadas y con el motivo, no
+   escondidas — esconderlas haría creer que la página no existe. */
+.ci-pagina-box{background:#fff;border-radius:16px;padding:22px 24px;width:420px;max-width:94vw;
+  box-shadow:0 24px 60px -12px rgba(0,0,0,.35);font-family:inherit;max-height:88vh;
+  display:flex;flex-direction:column;}
+.ci-pagina-tt{font-size:17px;font-weight:800;color:#0F172A;}
+.ci-pagina-sub{font-size:13px;color:#64748B;line-height:1.5;margin:6px 0 16px;}
+.ci-pagina-lista{display:flex;flex-direction:column;gap:8px;overflow-y:auto;}
+.ci-pagina{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;
+  padding:12px 14px;border:1.5px solid #E2E8F0;border-radius:12px;background:#fff;
+  cursor:pointer;font-family:inherit;text-align:left;transition:border-color .15s,background .15s;}
+.ci-pagina:hover:not(:disabled){border-color:#5B6BFF;background:#F8FAFF;}
+.ci-pagina:disabled{opacity:.5;cursor:not-allowed;}
+.ci-pagina-l{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.ci-pagina-l b{font-size:14px;font-weight:700;color:#0F172A;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ci-pagina-l span{font-size:12px;color:#64748B;}
+.ci-pagina-r{font-size:12.5px;font-weight:700;color:#5B6BFF;flex-shrink:0;}
+.ci-pagina-err{margin-top:12px;padding:10px 12px;border-radius:10px;background:#FEF2F2;
+  color:#DC2626;font-size:12.5px;line-height:1.45;}
+.ci-pagina-err[hidden]{display:none;}
+.ci-pagina-cancel{margin-top:16px;width:100%;padding:11px;border:1px solid #E2E8F0;
+  border-radius:10px;background:#fff;color:#475569;font-weight:700;font-size:13px;
+  cursor:pointer;font-family:inherit;}

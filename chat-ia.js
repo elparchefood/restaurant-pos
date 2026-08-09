@@ -22,8 +22,12 @@ const TINTS = [
 
 /* Metadatos de todos los canales (siempre los 4) */
 const ALL_CHANNELS = ['whatsapp', 'instagram', 'facebook', 'tiktok'];
-// Canales "próximamente" (Meta aún no aprobó permisos). Solo WhatsApp activo.
-const SOON_CHANNELS = ['instagram', 'facebook', 'tiktok'];
+/* Canales "próximamente". Instagram y Facebook salieron de aquí: la conexión
+   está construida y hace falta poder grabarla para la solicitud a Meta —los
+   permisos se piden mostrando la función andando, no al revés. Mientras Meta
+   no apruebe, solo conecta quien tenga rol en la app (modo desarrollo), que es
+   justo lo que se necesita para grabar. TikTok sí sigue sin construir. */
+const SOON_CHANNELS = ['tiktok'];
 const CHANNELS = {
   whatsapp:  { key:'wa', label:'WhatsApp',  solid:'#25D366', dotColor:'#25D366' },
   instagram: { key:'ig', label:'Instagram', solid:'#E1306C', dotColor:'#E1306C' },
@@ -1309,6 +1313,9 @@ function openChannelModal(channel) {
       if (status) status.textContent = '';
       handleMetaConnect(channel)
         .then(result => {
+          /* Facebook e Instagram devuelven la LISTA de páginas para elegir;
+             WhatsApp no, ese conecta derecho. */
+          if (result && result.paginas) return elegirPagina(result, channel, meta);
           closeModal();
           loadChannels();
           showToast(`✅ ${meta.label} conectado: ${result.handle || ''}`, 'success');
@@ -3936,6 +3943,83 @@ function loadFBSDK() {
   document.head.appendChild(s);
 }
 
+
+/* ══ ELEGIR LA PÁGINA ══════════════════════════════════════════════════
+   El dueño puede administrar varias páginas de Facebook. Antes el servidor
+   agarraba la primera sin preguntar: si tenía dos, Cobra conectaba la que no
+   era. Y para Meta esto es `pages_show_list` — el permiso de ver la lista y
+   escoger—, así que tiene que verse de verdad.
+
+   Las que no tienen Instagram vinculado se muestran igual pero apagadas y con
+   el motivo: esconderlas haría creer que la página no existe. */
+function elegirPagina(res, channel, meta) {
+  return new Promise(function (resolve) {
+    var esIG = channel === 'instagram';
+    var ov = document.createElement('div');
+    ov.className = 'ci-modal-ov';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:99999;'
+      + 'display:flex;align-items:center;justify-content:center;padding:20px';
+
+    function fila(p) {
+      var sirve = !esIG || !!p.instagram;
+      return '<button type="button" class="ci-pagina" data-id="' + escHtml(String(p.id)) + '"'
+        + (sirve ? '' : ' disabled') + '>'
+        + '<span class="ci-pagina-l">'
+        +   '<b>' + escHtml(p.nombre || 'Sin nombre') + '</b>'
+        +   '<span>' + (p.instagram ? '@' + escHtml(p.instagram)
+              : (esIG ? 'Sin cuenta de Instagram vinculada' : 'Página de Facebook')) + '</span>'
+        + '</span>'
+        + (sirve ? '<span class="ci-pagina-r">Conectar</span>' : '') + '</button>';
+    }
+
+    ov.innerHTML =
+      '<div class="ci-pagina-box">'
+      + '<div class="ci-pagina-tt">' + (esIG ? '¿Cuál cuenta de Instagram?' : '¿Cuál página?') + '</div>'
+      + '<div class="ci-pagina-sub">'
+      +   (res.paginas.length === 1
+            ? 'Administras esta página con tu cuenta de Facebook.'
+            : 'Administras ' + res.paginas.length + ' páginas. Elige la de tu restaurante.')
+      + '</div>'
+      + '<div class="ci-pagina-lista">' + res.paginas.map(fila).join('') + '</div>'
+      + '<div class="ci-pagina-err" hidden></div>'
+      + '<button type="button" class="ci-pagina-cancel">Cancelar</button>'
+      + '</div>';
+    document.body.appendChild(ov);
+
+    var err = ov.querySelector('.ci-pagina-err');
+    function cerrar() { ov.remove(); resolve(); }
+    ov.querySelector('.ci-pagina-cancel').addEventListener('click', cerrar);
+    ov.addEventListener('click', function (e) { if (e.target === ov) cerrar(); });
+
+    ov.querySelectorAll('.ci-pagina').forEach(function (b) {
+      b.addEventListener('click', async function () {
+        ov.querySelectorAll('.ci-pagina').forEach(function (x) { x.disabled = true; });
+        b.querySelector('.ci-pagina-r').textContent = 'Conectando…';
+        err.hidden = true;
+        try {
+          var r = await fetch(META_OAUTH_FN, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paso: 'guardar', sesion: res.sesion, page_id: b.dataset.id }),
+          });
+          var d = await r.json();
+          if (d.error) throw new Error(d.error);
+          ov.remove();
+          closeModal();
+          loadChannels();
+          showToast('✅ ' + meta.label + ' conectado: ' + (d.handle || ''), 'success');
+          resolve();
+        } catch (e) {
+          err.textContent = e.message || e;
+          err.hidden = false;
+          ov.querySelectorAll('.ci-pagina').forEach(function (x) { x.disabled = false; });
+          b.querySelector('.ci-pagina-r').textContent = 'Conectar';
+        }
+      });
+    });
+  });
+}
+
 function handleMetaConnect(channel) {
   return new Promise((resolve, reject) => {
     if (channel === 'whatsapp') {
@@ -4043,7 +4127,7 @@ function handleMetaConnect(channel) {
         fetch(META_OAUTH_FN, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: evt.detail.code, channel, branch_id: S.branchId, tenant_id: S.tenantId }),
+          body: JSON.stringify({ paso: 'listar', code: evt.detail.code, channel, branch_id: S.branchId, tenant_id: S.tenantId }),
         })
           .then(function(res) { return res.json(); })
           .then(function(data) { if (data.error) reject(new Error(data.error)); else resolve(data); })
@@ -4059,7 +4143,7 @@ function handleMetaConnect(channel) {
           fetch(META_OAUTH_FN, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: response.authResponse.code, channel, branch_id: S.branchId, tenant_id: S.tenantId }),
+            body: JSON.stringify({ paso: 'listar', code: response.authResponse.code, channel, branch_id: S.branchId, tenant_id: S.tenantId }),
           })
             .then(function(res) { return res.json(); })
             .then(function(data) { if (data.error) reject(new Error(data.error)); else resolve(data); })
