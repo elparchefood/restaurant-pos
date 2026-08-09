@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css?v=1789840000">
-<link rel="stylesheet" href="configuracion.css?v=1790430000">
+<link rel="stylesheet" href="configuracion.css?v=1790440000">
 </head>
 <body>
 <div class="cf-root">
@@ -1387,17 +1387,7 @@
             <!-- Lista negra de clientes (autónomo, tablas pos_blacklist*) -->
             
             <!-- Estados de pedido y avisos (autónomo, guarda ia_config.estados_config) -->
-            <div class="card" id="estadosCfgCard" data-tab="mensajes" style="padding:0;overflow:hidden;border-radius:12px;margin-bottom:16px;order:99">
-              <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border)">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B6BFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                <div style="flex:1;min-width:0">
-                  <div style="font-weight:700;font-size:15px">Estados de pedido y avisos</div>
-                  <div style="font-size:12px;color:var(--text-3)">Etiqueta y mensaje que se envía al cliente en cada estado</div>
-                </div>
-                <button class="btn-primary" id="estadosCfgSave" type="button">Guardar</button>
-              </div>
-              <div style="padding:16px 20px" id="estadosCfgBody">Cargando…</div>
-            </div>
+            
             <!-- Panel Flujo -->
             <!-- Panel Flujo -->
             <div class="cia-panel-flujo" data-tab="flujo">
@@ -1429,87 +1419,7 @@
               .var-item-act:hover{background:var(--hover,#f3f4f6)}
               .var-empty{text-align:center;color:var(--text-muted);font-size:13px;padding:20px}
             </style>
-            <div class="card" data-tab="mensajes" id="card-variables">
-              <div class="card-hd">
-                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>
-                <div class="card-hd-tx">
-                  <div class="card-hd-tt">Variables</div>
-                  <div class="card-hd-ds">Crea atajos reutilizables que puedes escribir como <b>{{nombre}}</b> en cualquier frase del bot. El bot los reemplaza por el dato real o por tu frase.</div>
-                </div>
-              </div>
-              <div class="card-bd">
-                <div class="field">
-                  <label class="field-lb" for="varNombre">Nombre de la variable</label>
-                  <input class="inp" id="varNombre" placeholder="ej: saludo, mi_hora, telefono" maxlength="40">
-                  <div class="field-hint">La usarás escribiendo <b>{{nombre}}</b>. Solo letras, números y guion bajo (sin espacios).</div>
-                </div>
-                <div class="field">
-                  <label class="field-lb">Tipo de variable</label>
-                  <div class="var-tipo-btns">
-                    <button type="button" class="var-tipo on" data-vtipo="dato">📊 Dato del sistema</button>
-                    <button type="button" class="var-tipo" data-vtipo="frase">💬 Frase mía</button>
-                  </div>
-                </div>
-                <div class="field" id="varDatoField">
-                  <label class="field-lb" for="varFuente">¿Qué dato?</label>
-                  <select class="inp" id="varFuente">
-                    <optgroup label="Pedido en curso">
-                      <option value="producto">Producto</option>
-                      <option value="tamano">Tamaño</option>
-                      <option value="tipo">Tipo (variante)</option>
-                      <option value="cantidad">Cantidad</option>
-                      <option value="adiciones">Adiciones</option>
-                      <option value="direccion">Dirección del cliente</option>
-                      <option value="pago">Método de pago elegido</option>
-                      <option value="nombre">Nombre del pedido</option>
-                    </optgroup>
-                    <optgroup label="Precios">
-                      <option value="precio_domi">Precio del domicilio</option>
-                    </optgroup>
-                    <optgroup label="Tiempo">
-                      <option value="hora">Hora actual</option>
-                      <option value="dia">Día de la semana</option>
-                      <option value="fecha">Fecha</option>
-                      <option value="saludo_hora">Saludo según la hora</option>
-                    </optgroup>
-                    <optgroup label="Restaurante">
-                      <option value="restaurante">Nombre del restaurante</option>
-                      <option value="direccion_local">Dirección del local</option>
-                      <option value="ciudad">Ciudad</option>
-                      <option value="telefono_local">Teléfono del local</option>
-                      <option value="horario_hoy">Horario de hoy</option>
-                      <option value="tiempo_domicilio">Tiempo estimado de domicilio</option>
-                    </optgroup>
-                    <optgroup label="Pagos">
-                      <option value="nequi">Llave Nequi</option>
-                      <option value="titular">Titular de la cuenta</option>
-                      <option value="metodos_pago">Métodos de pago aceptados</option>
-                    </optgroup>
-                    <optgroup label="Catálogo">
-                      <option value="menu">Menú completo</option>
-                      <option value="categorias">Categorías</option>
-                    </optgroup>
-                    <optgroup label="Cliente">
-                      <option value="cliente">Nombre del cliente</option>
-                    </optgroup>
-                  </select>
-                  <div class="field-hint">El bot lo reemplaza automáticamente por el dato real de ese momento.</div>
-                </div>
-                <div class="field" id="varFraseField" style="display:none">
-                  <label class="field-lb" for="varTexto">Frase</label>
-                  <textarea class="inp" id="varTexto" rows="3" placeholder="Ej: Buenas {{saludo_hora}}, soy el asistente de {{restaurante}} 🍟"></textarea>
-                  <div class="field-hint">Puedes usar otras variables adentro (se reemplazan también).</div>
-                </div>
-                <div style="display:flex;gap:8px;margin-top:4px">
-                  <button type="button" class="var-btn var-btn-primary" id="varAgregar">Agregar variable</button>
-                  <button type="button" class="var-btn var-btn-ghost" id="varCancelar" style="display:none">Cancelar</button>
-                </div>
-                <div class="field" style="margin-top:20px">
-                  <label class="field-lb">Mis variables</label>
-                  <div id="varList"></div>
-                </div>
-              </div>
-            </div>
+            
 
             <div class="master on" id="ia-master" data-tab="asistente">
               <div class="master-ico">
@@ -1598,84 +1508,9 @@
             </div></div></div>
 
             <!-- CARD: PLANTILLA DE RESUMEN -->
-            <div class="card" id="card-plantilla" data-tab="mensajes">
-              <div class="card-hd">
-                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></div>
-                <div class="card-hd-tx">
-                  <div class="card-hd-tt">Plantilla de resumen del pedido</div>
-                  <div class="card-hd-ds">Formato del mensaje que el bot envía antes de confirmar. Edita el texto libremente usando las variables disponibles.</div>
-                </div>
-              </div>
-              <div class="card-bd">
-                <div class="field">
-                  <label class="field-lb">Plantilla</label>
-                  <div class="field-hint">Variables disponibles: <code>{{cantidad}}</code> <code>{{producto}}</code> <code>{{tamano}}</code> <code>{{adiciones}}</code> <code>{{direccion}}</code> <code>{{pago}}</code> <code>{{linea_total}}</code> <code>{{confirmacion}}</code> — también puedes usar <code>{{precio_producto}}</code> <code>{{precio_domicilio}}</code> <code>{{precio_total}}</code> por separado.</div>
-                  <textarea class="txa txa--tall" id="iaResumenPlantilla" rows="8" placeholder="Listo! Tu pedido quedar&#237;a as&#237;:&#10;&#128; {{cantidad}}x {{producto}} {{tamano}}{{adiciones}}&#10;&#128205; {{direccion}}&#10;&#128179; {{pago}}&#10;{{linea_total}}&#10;{{confirmacion}}"></textarea>
-                </div>
-              </div>
-            </div>
+            
 
-            <div class="card" id="card-respuestas" data-tab="mensajes" style="display:none">
-              <div class="card-hd">
-                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
-                <div class="card-hd-tx">
-                  <div class="card-hd-tt">Respuestas rápidas</div>
-                  <div class="card-hd-ds">Mensajes que envías con “/” en el chat. En el chat escribe <code>/</code> y la palabra clave (ej. <code>/pollo</code>) para insertarlos. Aquí los editas.</div>
-                </div>
-              </div>
-              <div class="card-bd">
-                <div id="cfgQuickList" class="cfg-qr-list"></div>
-                <div class="cfg-qr-form">
-                  <div class="field">
-                    <label class="field-lb" for="cfgQrKey">Palabra clave</label>
-                    <input class="inp" id="cfgQrKey" placeholder="Ej. pollo" maxlength="40" autocomplete="off">
-                  </div>
-                  <div class="field">
-                    <label class="field-lb" for="cfgQrText">Mensaje</label>
-                    <textarea class="txa" id="cfgQrText" rows="3" placeholder="Mensaje de la respuesta…"></textarea>
-                  </div>
-
-                  <div class="field">
-                    <label class="field-lb">Botones <span style="color:#94A3B8;font-weight:400">(solo WhatsApp)</span></label>
-                    <select class="inp" id="cfgQrBtnTipo" onchange="cfgQrBtnTipoChange()">
-                      <option value="">Sin botones — solo texto</option>
-                      <option value="botones">Botones de respuesta (hasta 3) — el cliente toca y responde</option>
-                      <option value="lista">Lista desplegable (hasta 10 opciones)</option>
-                      <option value="url">Botón que abre un enlace</option>
-                    </select>
-                  </div>
-
-                  <div id="cfgQrBtnBox" style="display:none">
-                    <div class="field" id="cfgQrBtnTextoWrap" style="display:none">
-                      <label class="field-lb" for="cfgQrBtnTexto">Texto del botón que abre la lista</label>
-                      <input class="inp" id="cfgQrBtnTexto" maxlength="20" placeholder="Ej. Ver opciones">
-                    </div>
-                    <div class="field" id="cfgQrUrlWrap" style="display:none">
-                      <label class="field-lb" for="cfgQrUrl">Enlace</label>
-                      <input class="inp" id="cfgQrUrl" placeholder="https://…">
-                    </div>
-                    <div class="field" id="cfgQrOpcWrap">
-                      <label class="field-lb">Opciones</label>
-                      <div id="cfgQrOpciones"></div>
-                      <button type="button" class="cfg-qr-btn ghost" id="cfgQrOpcAdd" onclick="cfgQrOpcAdd()">+ Agregar opción</button>
-                    </div>
-                    <div class="field">
-                      <label class="field-lb" for="cfgQrPie">Pie de página <span style="color:#94A3B8;font-weight:400">(opcional)</span></label>
-                      <input class="inp" id="cfgQrPie" maxlength="60" placeholder="Ej. El Parche Food">
-                    </div>
-                    <div style="background:#0B141A;border-radius:10px;padding:12px;margin-bottom:12px">
-                      <div style="font-size:10.5px;font-weight:700;color:#94A3B8;letter-spacing:.04em;margin-bottom:8px">ASÍ LE LLEGA AL CLIENTE</div>
-                      <div id="cfgQrPrev"></div>
-                    </div>
-                  </div>
-
-                  <div class="cfg-qr-actions">
-                    <button type="button" class="cfg-qr-btn ghost" id="cfgQrCancel" style="display:none" onclick="cfgQrCancel()">Cancelar</button>
-                    <button type="button" class="cfg-qr-btn primary" id="cfgQrSaveBtn" onclick="cfgQrSave()">Agregar respuesta</button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            
 
             <div class="card" id="card-contactos" data-tab="difusion" style="display:none">
               <div class="card-hd">
@@ -2340,7 +2175,7 @@
             
 
             <!-- CARD: FRASES DEL BOT -->
-            <div class="card" id="card-frases" data-tab="mensajes">
+            <div class="cia-acc" data-tab="mensajes" data-acc="m-frases"><button type="button" class="cia-acc-h" onclick="ciaAcc('m-frases')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span class="cia-acc-t">Frases del bot</span><span class="cia-acc-sum" id="ciasum-m-frases"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-frases" data-tabint="mensajes">
               <div class="card-hd">
                 <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
                 <div class="card-hd-tx">
@@ -2491,10 +2326,35 @@
                   </div>
                 </div>
               </div>
-            </div>
-
-            <!-- CARD: SITUACIONES ESPECIALES -->
-            <div class="card" id="card-situaciones" data-tab="mensajes">
+            </div></div></div>
+            <div class="cia-acc" data-tab="mensajes" data-acc="m-resumen"><button type="button" class="cia-acc-h" onclick="ciaAcc('m-resumen')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span class="cia-acc-t">Resumen del pedido</span><span class="cia-acc-sum" id="ciasum-m-resumen"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-plantilla" data-tabint="mensajes">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Plantilla de resumen del pedido</div>
+                  <div class="card-hd-ds">Formato del mensaje que el bot envía antes de confirmar. Edita el texto libremente usando las variables disponibles.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="field">
+                  <label class="field-lb">Plantilla</label>
+                  <div class="field-hint">Variables disponibles: <code>{{cantidad}}</code> <code>{{producto}}</code> <code>{{tamano}}</code> <code>{{adiciones}}</code> <code>{{direccion}}</code> <code>{{pago}}</code> <code>{{linea_total}}</code> <code>{{confirmacion}}</code> — también puedes usar <code>{{precio_producto}}</code> <code>{{precio_domicilio}}</code> <code>{{precio_total}}</code> por separado.</div>
+                  <textarea class="txa txa--tall" id="iaResumenPlantilla" rows="8" placeholder="Listo! Tu pedido quedar&#237;a as&#237;:&#10;&#128; {{cantidad}}x {{producto}} {{tamano}}{{adiciones}}&#10;&#128205; {{direccion}}&#10;&#128179; {{pago}}&#10;{{linea_total}}&#10;{{confirmacion}}"></textarea>
+                </div>
+              </div>
+            </div></div></div>
+            <div class="cia-acc" data-tab="mensajes" data-acc="m-estados"><button type="button" class="cia-acc-h" onclick="ciaAcc('m-estados')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span><span class="cia-acc-t">Estados de pedido y avisos</span><span class="cia-acc-sum" id="ciasum-m-estados"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="estadosCfgCard" data-tabint="mensajes" style="padding:0;overflow:hidden;border-radius:12px;margin-bottom:16px;order:99">
+              <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B6BFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:700;font-size:15px">Estados de pedido y avisos</div>
+                  <div style="font-size:12px;color:var(--text-3)">Etiqueta y mensaje que se envía al cliente en cada estado</div>
+                </div>
+                <button class="btn-primary" id="estadosCfgSave" type="button">Guardar</button>
+              </div>
+              <div style="padding:16px 20px" id="estadosCfgBody">Cargando…</div>
+            </div></div></div>
+            <div class="cia-acc" data-tab="mensajes" data-acc="m-casos"><button type="button" class="cia-acc-h" onclick="ciaAcc('m-casos')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><span class="cia-acc-t">Situaciones especiales</span><span class="cia-acc-sum" id="ciasum-m-casos"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-situaciones" data-tabint="mensajes">
               <div class="card-hd">
                 <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
                 <div class="card-hd-tx">
@@ -2546,7 +2406,152 @@
                   </div>
                 </div>
               </div>
-            </div>
+            </div></div></div>
+            <div class="cia-acc" data-tab="mensajes" data-acc="m-rapidas"><button type="button" class="cia-acc-h" onclick="ciaAcc('m-rapidas')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span><span class="cia-acc-t">Respuestas rápidas</span><span class="cia-acc-sum" id="ciasum-m-rapidas"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-respuestas" data-tabint="mensajes" style="display:none">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Respuestas rápidas</div>
+                  <div class="card-hd-ds">Mensajes que envías con “/” en el chat. En el chat escribe <code>/</code> y la palabra clave (ej. <code>/pollo</code>) para insertarlos. Aquí los editas.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div id="cfgQuickList" class="cfg-qr-list"></div>
+                <div class="cfg-qr-form">
+                  <div class="field">
+                    <label class="field-lb" for="cfgQrKey">Palabra clave</label>
+                    <input class="inp" id="cfgQrKey" placeholder="Ej. pollo" maxlength="40" autocomplete="off">
+                  </div>
+                  <div class="field">
+                    <label class="field-lb" for="cfgQrText">Mensaje</label>
+                    <textarea class="txa" id="cfgQrText" rows="3" placeholder="Mensaje de la respuesta…"></textarea>
+                  </div>
+
+                  <div class="field">
+                    <label class="field-lb">Botones <span style="color:#94A3B8;font-weight:400">(solo WhatsApp)</span></label>
+                    <select class="inp" id="cfgQrBtnTipo" onchange="cfgQrBtnTipoChange()">
+                      <option value="">Sin botones — solo texto</option>
+                      <option value="botones">Botones de respuesta (hasta 3) — el cliente toca y responde</option>
+                      <option value="lista">Lista desplegable (hasta 10 opciones)</option>
+                      <option value="url">Botón que abre un enlace</option>
+                    </select>
+                  </div>
+
+                  <div id="cfgQrBtnBox" style="display:none">
+                    <div class="field" id="cfgQrBtnTextoWrap" style="display:none">
+                      <label class="field-lb" for="cfgQrBtnTexto">Texto del botón que abre la lista</label>
+                      <input class="inp" id="cfgQrBtnTexto" maxlength="20" placeholder="Ej. Ver opciones">
+                    </div>
+                    <div class="field" id="cfgQrUrlWrap" style="display:none">
+                      <label class="field-lb" for="cfgQrUrl">Enlace</label>
+                      <input class="inp" id="cfgQrUrl" placeholder="https://…">
+                    </div>
+                    <div class="field" id="cfgQrOpcWrap">
+                      <label class="field-lb">Opciones</label>
+                      <div id="cfgQrOpciones"></div>
+                      <button type="button" class="cfg-qr-btn ghost" id="cfgQrOpcAdd" onclick="cfgQrOpcAdd()">+ Agregar opción</button>
+                    </div>
+                    <div class="field">
+                      <label class="field-lb" for="cfgQrPie">Pie de página <span style="color:#94A3B8;font-weight:400">(opcional)</span></label>
+                      <input class="inp" id="cfgQrPie" maxlength="60" placeholder="Ej. El Parche Food">
+                    </div>
+                    <div style="background:#0B141A;border-radius:10px;padding:12px;margin-bottom:12px">
+                      <div style="font-size:10.5px;font-weight:700;color:#94A3B8;letter-spacing:.04em;margin-bottom:8px">ASÍ LE LLEGA AL CLIENTE</div>
+                      <div id="cfgQrPrev"></div>
+                    </div>
+                  </div>
+
+                  <div class="cfg-qr-actions">
+                    <button type="button" class="cfg-qr-btn ghost" id="cfgQrCancel" style="display:none" onclick="cfgQrCancel()">Cancelar</button>
+                    <button type="button" class="cfg-qr-btn primary" id="cfgQrSaveBtn" onclick="cfgQrSave()">Agregar respuesta</button>
+                  </div>
+                </div>
+              </div>
+            </div></div></div>
+            <div class="cia-acc" data-tab="mensajes" data-acc="m-atajos"><button type="button" class="cia-acc-h" onclick="ciaAcc('m-atajos')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/><path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/></svg></span><span class="cia-acc-t">Atajos {{nombre}}</span><span class="cia-acc-sum" id="ciasum-m-atajos"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" data-tabint="mensajes" id="card-variables">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Variables</div>
+                  <div class="card-hd-ds">Crea atajos reutilizables que puedes escribir como <b>{{nombre}}</b> en cualquier frase del bot. El bot los reemplaza por el dato real o por tu frase.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="field">
+                  <label class="field-lb" for="varNombre">Nombre de la variable</label>
+                  <input class="inp" id="varNombre" placeholder="ej: saludo, mi_hora, telefono" maxlength="40">
+                  <div class="field-hint">La usarás escribiendo <b>{{nombre}}</b>. Solo letras, números y guion bajo (sin espacios).</div>
+                </div>
+                <div class="field">
+                  <label class="field-lb">Tipo de variable</label>
+                  <div class="var-tipo-btns">
+                    <button type="button" class="var-tipo on" data-vtipo="dato">📊 Dato del sistema</button>
+                    <button type="button" class="var-tipo" data-vtipo="frase">💬 Frase mía</button>
+                  </div>
+                </div>
+                <div class="field" id="varDatoField">
+                  <label class="field-lb" for="varFuente">¿Qué dato?</label>
+                  <select class="inp" id="varFuente">
+                    <optgroup label="Pedido en curso">
+                      <option value="producto">Producto</option>
+                      <option value="tamano">Tamaño</option>
+                      <option value="tipo">Tipo (variante)</option>
+                      <option value="cantidad">Cantidad</option>
+                      <option value="adiciones">Adiciones</option>
+                      <option value="direccion">Dirección del cliente</option>
+                      <option value="pago">Método de pago elegido</option>
+                      <option value="nombre">Nombre del pedido</option>
+                    </optgroup>
+                    <optgroup label="Precios">
+                      <option value="precio_domi">Precio del domicilio</option>
+                    </optgroup>
+                    <optgroup label="Tiempo">
+                      <option value="hora">Hora actual</option>
+                      <option value="dia">Día de la semana</option>
+                      <option value="fecha">Fecha</option>
+                      <option value="saludo_hora">Saludo según la hora</option>
+                    </optgroup>
+                    <optgroup label="Restaurante">
+                      <option value="restaurante">Nombre del restaurante</option>
+                      <option value="direccion_local">Dirección del local</option>
+                      <option value="ciudad">Ciudad</option>
+                      <option value="telefono_local">Teléfono del local</option>
+                      <option value="horario_hoy">Horario de hoy</option>
+                      <option value="tiempo_domicilio">Tiempo estimado de domicilio</option>
+                    </optgroup>
+                    <optgroup label="Pagos">
+                      <option value="nequi">Llave Nequi</option>
+                      <option value="titular">Titular de la cuenta</option>
+                      <option value="metodos_pago">Métodos de pago aceptados</option>
+                    </optgroup>
+                    <optgroup label="Catálogo">
+                      <option value="menu">Menú completo</option>
+                      <option value="categorias">Categorías</option>
+                    </optgroup>
+                    <optgroup label="Cliente">
+                      <option value="cliente">Nombre del cliente</option>
+                    </optgroup>
+                  </select>
+                  <div class="field-hint">El bot lo reemplaza automáticamente por el dato real de ese momento.</div>
+                </div>
+                <div class="field" id="varFraseField" style="display:none">
+                  <label class="field-lb" for="varTexto">Frase</label>
+                  <textarea class="inp" id="varTexto" rows="3" placeholder="Ej: Buenas {{saludo_hora}}, soy el asistente de {{restaurante}} 🍟"></textarea>
+                  <div class="field-hint">Puedes usar otras variables adentro (se reemplazan también).</div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:4px">
+                  <button type="button" class="var-btn var-btn-primary" id="varAgregar">Agregar variable</button>
+                  <button type="button" class="var-btn var-btn-ghost" id="varCancelar" style="display:none">Cancelar</button>
+                </div>
+                <div class="field" style="margin-top:20px">
+                  <label class="field-lb">Mis variables</label>
+                  <div id="varList"></div>
+                </div>
+              </div>
+            </div></div></div>
+
+            <!-- CARD: SITUACIONES ESPECIALES -->
+            
 
             <div style="height:8px;"></div>
           </div>
@@ -2582,6 +2587,8 @@
             <div class="cia-sabe" id="ciaSabe" style="display:none"></div>
             <!-- El rail de Pedido: la cuenta con las tarifas reales. -->
             <div class="cia-sabe" id="ciaCuenta" style="display:none"></div>
+            <!-- El rail de Mensajes: el resumen ya renderizado. -->
+            <div class="cia-sabe" id="ciaMensaje" style="display:none"></div>
             <div class="pv-stats">
               <div class="pv-stat"><span class="pv-stat-l"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Resueltas por IA hoy</span><span class="pv-stat-v g">42</span></div>
               <div class="pv-stat"><span class="pv-stat-l"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent-2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg> Audios enviados</span><span class="pv-stat-v" id="statVoice">0</span></div>
@@ -2620,7 +2627,7 @@
 <!-- Es quien sabe tocar los tonos con el volumen configurado. Sin esto el
      boton Probar no sonaba: la funcion que llama no existia. -->
 <script src="pos-notify.js?v=1790370000"></script>
-<script src="configuracion.js?v=1790430000"></script>
+<script src="configuracion.js?v=1790440000"></script>
 </body>
 </html>
 

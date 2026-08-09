@@ -1730,3 +1730,7 @@ div.master[data-tab].cia-active { display: flex !important; }
 .cia-sabe-l.cia-total { border-top: 1px solid var(--border, #ECEEF2); margin-top: 4px; padding-top: 11px; }
 .cia-sabe-l.cia-total span { color: var(--ink, #0F172A); font-weight: 800; }
 .cia-sabe-l.cia-total b { font-size: 17px; }
+
+/* El mensaje de ejemplo, con pinta de burbuja de WhatsApp. */
+.cia-msg { background: var(--soft-3, #F8FAFC); border: 1px solid var(--border, #ECEEF2); border-radius: 12px; padding: 11px 13px; font-size: 12px; line-height: 1.65; color: var(--ink, #0F172A); margin-bottom: 6px; word-break: break-word; }
+.cia-msg b { font-weight: 800; }

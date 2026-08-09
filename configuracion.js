@@ -4813,19 +4813,24 @@ var _storedZonas = [];
     var saber = document.getElementById('ciaSabe');
     if (!phone) return;
     var cuenta = document.getElementById('ciaCuenta');
+    var msg    = document.getElementById('ciaMensaje');
     var esInfo = (tab === 'informacion');
     var esPed  = (tab === 'pedido');
-    var esChat = !esInfo && !esPed;
+    var esMsg  = (tab === 'mensajes');
+    var esChat = !esInfo && !esPed && !esMsg;
     phone.style.display = esChat ? '' : 'none';
     if (clear) clear.style.display = esChat ? '' : 'none';
     if (stats) stats.style.display = esChat ? '' : 'none';
     if (saber)  saber.style.display  = esInfo ? '' : 'none';
     if (cuenta) cuenta.style.display = esPed  ? '' : 'none';
+    if (msg)    msg.style.display    = esMsg  ? '' : 'none';
     if (cap) cap.lastChild.textContent = esInfo ? ' Lo que Paco sabe hoy'
                                        : esPed ? ' Un pedido de ejemplo'
+                                       : esMsg ? ' Asi se ve el mensaje'
                                        : ' Vista previa en vivo';
     if (esInfo) ciaPintarSabe();
     if (esPed)  ciaPintarCuenta();
+    if (esMsg)  ciaPintarMensaje();
   };
 
   /* Los conteos salen de la MISMA configuración que lee Paco. Si algo aquí
@@ -4835,6 +4840,54 @@ var _storedZonas = [];
      tarifas REALES que el dueño acaba de configurar. Es la misma idea del
      simulador de impuestos: cambias el precio de un barrio y ves el total
      moverse, en vez de imaginártelo. */
+  /* El resumen del pedido, RENDERIZADO como le llega al cliente: con la
+     plantilla del duenno y los atajos ya reemplazados. Un texto con
+     {{producto}} suelto no dice como se va a leer; esto si. */
+  window.ciaPintarMensaje = async function () {
+    var out = document.getElementById('ciaMensaje');
+    if (!out) return;
+    var plantilla = '', frases = 0, casos = 0, rapidas = 0;
+    try {
+      var st = (window._pos && window._pos.state) || {};
+      var r = await sb.from('ia_config')
+        .select('resumen_plantilla, frases, situaciones, respuestas_rapidas')
+        .eq('branch_id', st.branchId).maybeSingle();
+      var c = (r && r.data) || {};
+      plantilla = String(c.resumen_plantilla || '');
+      var arr = function (v) { return Array.isArray(v) ? v.length : (v && typeof v === 'object' ? Object.keys(v).length : 0); };
+      frases = arr(c.frases); casos = arr(c.situaciones); rapidas = arr(c.respuestas_rapidas);
+    } catch (e) { console.warn('[cia] mensaje:', e); }
+
+    /* Un pedido de mentira para rellenar los atajos, con los mismos nombres
+       que reemplaza el motor. */
+    var ej = {
+      cliente: 'Ana', negocio: ciaNegocio() || 'tu restaurante',
+      productos: '1x Salchipapa Premium personal@@   > Extra queso',
+      total: '$33.000', domicilio: '$4.000', direccion: 'Cra 9b #63n-58',
+      barrio: 'La Paz', pago: 'Transferencia', puntos: '33'
+    };
+    var texto = plantilla || 'Tu pedido@@{{productos}}@@Domicilio: {{domicilio}}@@*Total: {{total}}*';
+    texto = texto.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, function (todo, k) {
+      var v = ej[String(k).toLowerCase()];
+      return v === undefined ? todo : v;
+    });
+    texto = texto.split('@@').join('\n');
+
+    out.innerHTML =
+        '<div class="cia-msg">' + ciaEsc(texto).split('\n').join('<br>')
+          .replace(/[*]([^*]+)[*]/g, '<b>$1</b>') + '</div>'
+      + '<div class="cia-sabe-l"><span>Frases del bot</span><b>' + frases + '</b></div>'
+      + '<div class="cia-sabe-l"><span>Situaciones especiales</span><b>' + casos + '</b></div>'
+      + '<div class="cia-sabe-l"><span>Respuestas rapidas</span><b>' + rapidas + '</b></div>'
+      + '<div class="cia-sabe-pie">Ejemplo con un pedido de mentira: los atajos ya estan reemplazados, como los vera el cliente.</div>';
+  };
+  function ciaNegocio() {
+    try {
+      var u = (window._pos && window._pos.state && window._pos.state.user) || null;
+      return (u && u.user_metadata && u.user_metadata.negocio) || '';
+    } catch (e) { return ''; }
+  }
+
   window.ciaPintarCuenta = async function () {
     var out = document.getElementById('ciaCuenta');
     if (!out) return;
