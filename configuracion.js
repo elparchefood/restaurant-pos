@@ -4282,6 +4282,10 @@ var _storedZonas = [];
     try { r = await sb.from('pos_domi_aprendidos').select('*').eq('branch_id', bid).order('veces', { ascending: false }); }
     catch (e) { host.innerHTML = ''; return; }
     var items = (r && r.data) || [];
+    /* La cuenta va en la fila plegada: con la fila cerrada, un "3 por aprobar"
+       es lo unico que le dice al dueno que hay algo que mirar ahi dentro. */
+    var sum = document.getElementById('ciasum-p-domi');
+    if (sum) sum.textContent = items.length ? items.length + ' por aprobar' : '';
     if (!items.length) { host.innerHTML = ''; return; }
     var nuevos  = items.filter(function (x) { return x.tipo !== 'cambio'; });
     var cambios = items.filter(function (x) { return x.tipo === 'cambio'; });
@@ -4379,11 +4383,12 @@ var _storedZonas = [];
   }
   (function () {
     function hook() {
-      var btn = document.querySelector('.cia-tab[data-tab="domicilios"]');
-      if (btn) btn.addEventListener('click', cargarAprendidos);
-      var abierta = '';
-      try { abierta = localStorage.getItem('cia-tab') || ''; } catch (e) {}
-      if (abierta === 'domicilios') cargarAprendidos();
+      if (window.ciaAlAbrir) ciaAlAbrir('pedido', 'p-domi', cargarAprendidos);
+      /* Y ademas SIEMPRE al abrir Configuracion: la fila viene plegada, asi
+         que si esto solo corriera al desplegarla, el aviso de barrios por
+         aprobar solo lo veria quien ya fue a buscarlo. La cuenta sale en la
+         fila plegada justamente para que no haya que ir a buscarla. */
+      cargarAprendidos();
     }
     if (document.readyState !== 'loading') hook();
     else document.addEventListener('DOMContentLoaded', hook);
@@ -5032,7 +5037,7 @@ var _storedZonas = [];
     if (!yo) return;
     var abrir = !yo.classList.contains('on');
     document.querySelectorAll('.cia-acc.on').forEach(function (o) { o.classList.remove('on'); });
-    if (abrir) yo.classList.add('on');
+    if (abrir) { yo.classList.add('on'); ciaDisparar(CIA_AL_ABRIR.acc, key); }
   };
 
   /* Lo que dice cada fila plegada. Sale de lo que hay en pantalla, asi que
@@ -5051,6 +5056,21 @@ var _storedZonas = [];
     pon('gerente', ger ? ger + (ger === 1 ? ' número' : ' números') : '');
   };
 
+  /* Que hay que cargar cuando se abre cada parte. Un bloque se registra con
+     su pestana y su fila plegable, y se dispara con cualquiera de las dos.
+     Antes cada uno buscaba su pestana por nombre; al cambiarles el nombre
+     los cuatro se quedaron callados. */
+  var CIA_AL_ABRIR = { tab: {}, acc: {} };
+  window.ciaAlAbrir = function (tab, acc, fn) {
+    if (tab) (CIA_AL_ABRIR.tab[tab] = CIA_AL_ABRIR.tab[tab] || []).push(fn);
+    if (acc) (CIA_AL_ABRIR.acc[acc] = CIA_AL_ABRIR.acc[acc] || []).push(fn);
+  };
+  function ciaDisparar(mapa, clave) {
+    (mapa[clave] || []).forEach(function (fn) {
+      try { fn(); } catch (e) { console.warn('[cia] al abrir ' + clave + ':', e); }
+    });
+  }
+
   function activar(tab){
     document.querySelectorAll('.cia-tab').forEach(function(b){
       b.classList.toggle('on', b.dataset.tab === tab);
@@ -5063,8 +5083,9 @@ var _storedZonas = [];
     try { localStorage.setItem('cia-tab', tab); } catch(e) {}
     if (tab === 'asistente' && window.ciaResumenes) setTimeout(window.ciaResumenes, 60);
     if (window.ciaRail) ciaRail(tab);
-    // Al abrir Plantillas se cargan las listas de envío (y sus contadores).
-    if (tab === 'plantillas' && typeof wlCargar === 'function') {
+    ciaDisparar(CIA_AL_ABRIR.tab, tab);
+    // Las listas de envío (y sus contadores) viven en Difusión.
+    if (tab === 'difusion' && typeof wlCargar === 'function') {
       setTimeout(function(){ try { wlCargar(); } catch(e) { console.warn('wlCargar:', e); } }, 60);
     }
   }
@@ -5298,8 +5319,7 @@ async function cfgQrPersist(){
 }
 (function(){
   function hook(){
-    var btn = document.querySelector('.cia-tab[data-tab="mensajes"]');
-    if (btn) btn.addEventListener('click', loadCfgQuickReplies);
+    if (window.ciaAlAbrir) ciaAlAbrir('mensajes', 'm-rapidas', loadCfgQuickReplies);
     // Cargar una vez para que la lista esté lista aunque no se haya abierto la pestaña
     loadCfgQuickReplies();
   }
@@ -5590,13 +5610,9 @@ async function wcBorrarLista(id){
 }
 (function(){
   function hook(){
-    var btn = document.querySelector('.cia-tab[data-tab="contactos"]');
-    if (btn) btn.addEventListener('click', function(){ if (!WC.items.length) wcCargar(); });
-    // La pestaña se restaura sola si era la última abierta, SIN que nadie haga
-    // clic. Sin esto, al recargar la página quedaba vacía.
-    var abierta = '';
-    try { abierta = localStorage.getItem('cia-tab') || ''; } catch(e){}
-    if (abierta === 'contactos') wcCargar();
+    if (window.ciaAlAbrir) ciaAlAbrir('difusion', 'd-contactos', function(){
+      if (!WC.items.length) wcCargar();
+    });
   }
   if (document.readyState !== 'loading') hook();
   else document.addEventListener('DOMContentLoaded', hook);
@@ -5758,13 +5774,9 @@ async function wtpBorrar(nombre){
 }
 (function(){
   function hook(){
-    var btn = document.querySelector('.cia-tab[data-tab="plantillas"]');
-    if (btn) btn.addEventListener('click', function(){ wtpCargar(); wtpPreview(); });
-    // Igual que en Contactos: si la pestaña se restaura sola al recargar, no
-    // hay clic que dispare la carga.
-    var abierta = '';
-    try { abierta = localStorage.getItem('cia-tab') || ''; } catch(e){}
-    if (abierta === 'plantillas') { wtpCargar(); wtpPreview(); }
+    if (window.ciaAlAbrir) ciaAlAbrir('difusion', 'd-plantillas', function(){
+      wtpCargar(); wtpPreview();
+    });
   }
   if (document.readyState !== 'loading') hook();
   else document.addEventListener('DOMContentLoaded', hook);
