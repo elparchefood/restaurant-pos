@@ -112,11 +112,34 @@
     return _porId[v] || _porNom[norm(v)] || _porTipo[norm(v)] || null;
   }
 
-  /* El nombre para mostrar. Lo que no se reconoce NO se disfraza de nada: se
-     devuelve "Otros" para que se vea que hay algo por revisar. */
+  /* Marcadores del sistema y claves viejas en ingles. No son metodos que el
+     restaurante configure, pero estan guardados en pedidos y hay que saber
+     leerlos. Vivian repartidos: historial tenia su propio mapita. */
+  var ESPECIALES = {
+    multiple: 'Varios métodos',
+    cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia',
+    nequi: 'Nequi', daviplata: 'Daviplata',
+  };
+
+  /* El nombre para mostrar, en el orden en que hay que preguntarse las cosas. */
   function nombre(valor) {
     var m = resolver(valor);
-    return m ? m.nombre : 'Otros';
+    if (m) return m.nombre;
+
+    var v = String(valor == null ? '' : valor).trim();
+    if (!v) return 'Otros';
+
+    var esp = ESPECIALES[norm(v)];
+    if (esp) return esp;
+
+    /* Un id interno NUNCA se le muestra a nadie: 'pm_x719c1pqb' ya salio una
+       vez en la pantalla de un cliente y no puede volver a pasar. */
+    if (/^pm_[a-z0-9]+$/i.test(v) || v.indexOf('__') === 0) return 'Otros';
+
+    /* Texto libre que anoto el bot desde la conversacion ("Nequi"): se muestra
+       tal cual. Es mas honesto que "Otros" — el pago SI se hizo por ahi; lo
+       que falta es que ese metodo este configurado. */
+    return v.charAt(0).toUpperCase() + v.slice(1);
   }
 
   /* Agrupa una lista de pagos por método configurado.

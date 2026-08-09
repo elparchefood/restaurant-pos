@@ -306,19 +306,11 @@ function buildTimeline(o) {
 }
 
 function fmtPayMethod(m) {
-  /* Primero la configuracion del restaurante (traduce ids pm_...); el mapa
-     viejo queda para pagos historicos con claves en ingles. Un id que no se
-     reconozca jamas se le muestra al cliente: sale 'Pago'. */
-  try {
-    if (window.posMetodos && posMetodos.lista().length) {
-      const r = posMetodos.resolver(m);
-      if (r) return r.nombre;
-    }
-  } catch (e) {}
-  const map = { cash:'Efectivo', card:'Tarjeta', nequi:'Nequi', daviplata:'Daviplata', transfer:'Transferencia', multiple:'Múltiple' };
-  if (map[m]) return map[m];
-  if (/^pm_[a-z0-9]+$/i.test(String(m)) || /^__/.test(String(m))) return 'Pago';
-  return m;
+  /* La regla vive en pos-metodos.js y es la misma para todas las pantallas:
+     ids configurados, marcadores del sistema, claves viejas en ingles y texto
+     libre del bot. Aqui habia una copia que se iba quedando atras. */
+  try { if (window.posMetodos) return posMetodos.nombre(m); } catch (e) {}
+  return m || 'Otros';
 }
 
 /* ─── Imprimir ─── */
