@@ -86,9 +86,19 @@ Sergio se etiqueta desde su cuenta personal para grabar.
 - Las páginas sin Instagram vinculado salen **apagadas y con el motivo**, no
   escondidas, y el aviso aparece **antes** de elegir.
 
-**Cómo grabar el video 1:** Chat IA → Conexiones → Instagram → *Conectar con
-Meta* → entrar con Facebook → **se ve la lista de páginas** → elegir la del
-restaurante → Instagram conectado. Sin cortes, de punta a punta.
+**Video 1 GRABADO el 9-ago-2026** — 1:50, guardado en
+`C:\Users\USUARIO\Videos\Cobra - Permisos Meta\01-conectar-instagram-facebook.mp4`
+
+Revisado fotograma a fotograma: se ve la lista de páginas y la elección
+**las dos veces** (Instagram y Facebook). Cuentas usadas: Instagram
+**@sergiosaac_** (página *Cobra Pos*) y Facebook *Sergio Saac*.
+
+⚠️ Al revisarlo salió un fallo que habría reventado el video 2: el `meta` de
+la conexión se guardaba como CADENA JSON en una columna `jsonb`, así que
+`meta->>'access_token'` devolvía null y nada habría podido enviar. Corregido
+en la función (v28) y reparadas las filas ya guardadas, sin reconectar.
+
+Los videos viven en `C:\Users\USUARIO\Videos\Cobra - Permisos Meta\`, con su propio LEEME.
 
 ### Video 2 — Mensajes 🔴 no se puede
 
