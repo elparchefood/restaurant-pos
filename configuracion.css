@@ -1666,6 +1666,10 @@ div.master[data-tab].cia-active { display: flex !important; }
 .cia-acc.on .cia-acc-chv { transform: rotate(90deg); color: #5B6BFF; }
 /* Cerrado no ocupa nada. La tarjeta de adentro pierde su marco: ya lo pone el acordeon. */
 .cia-acc-b { display: none; border-top: 1px solid var(--border, #ECEEF2); }
+/* El bloque de adentro ya no lleva data-tab (lo lleva la fila), asi que la
+   regla que esconde lo de otras pestanas no le aplica: se ve cuando su fila
+   esta abierta, y punto. */
+.cia-acc-b > [data-tabint] { display: block !important; }
 .cia-acc.on .cia-acc-b { display: block; }
 .cia-acc-b > .card, .cia-acc-b > div[data-tab] { border: 0 !important; border-radius: 0 !important; margin: 0 !important; box-shadow: none !important; }
 
