@@ -76,13 +76,16 @@ solo hay un restaurante usándolo.
       `pos_diag` confirma: el error paró en el minuto exacto del arreglo del
       8-ago y no ha vuelto. `2026-08-09`
 - [ ] **Auditoría de los `Promise.all`** — congelan pantallas sin dar error.
-- [ ] **`mypass_vault` en "Allow all"** — verificado: es la bóveda de
-      contraseñas personal de Sergio (otro proyecto, misma base). Cualquiera
-      con la llave pública de Cobra puede leerla o borrarla. **Copia de
-      seguridad hecha el 9-ago** en `Documents/mypass-boveda-copia-2026-08-09.json`.
-      Plan acordado: mudar MyPass a su propio proyecto Supabase — falta saber
-      dónde vive el código/la página de MyPass. NO cerrar la regla antes de
-      eso: rompería la app.
+- [x] **`mypass_vault` estaba abierta a cualquiera** — CERRADO el 9-ago.
+      Era la bóveda de contraseñas personal de Sergio (app `mypass`, repo
+      público, misma base). La llave pública de la página la leía entera; y el
+      `totp_secret` se guardaba EN CLARO junto al `recovery_blob`, del cual se
+      deriva la llave de la bóveda: la contraseña maestra no protegía nada.
+      Arreglado: MyPass entra con cuenta (Supabase Auth), `grant` a
+      `authenticated`, `revoke` a `anon`, y política `mypass_solo_el_dueno`.
+      Comprobado: leer y borrar con la llave pública → *permission denied*.
+      **Pendiente aparte:** rotar contraseñas y separar MyPass de la base de
+      Cobra antes de vender (no es urgente, ya está cerrada).
 - [ ] **El envío de campañas vive en la pantalla** — si se cierra, se para.
       Debe correr en el servidor.
 
