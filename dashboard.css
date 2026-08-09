@@ -199,3 +199,41 @@
 .canal-card { box-shadow: 0 2px 8px rgba(15,23,42,.09), 0 1px 3px rgba(15,23,42,.06); }
 .top-others-card { box-shadow: 0 2px 8px rgba(15,23,42,.09), 0 1px 3px rgba(15,23,42,.06); }
 .top-hero-card { box-shadow: 0 4px 14px rgba(91,107,255,.14), 0 2px 5px rgba(91,107,255,.08); }
+
+
+/* ══ Notificaciones — la campana del escritorio ══════════════════════════
+   El panel cuelga de la campana. Cada notificacion: icono con su tinte,
+   titulo, subtitulo con el "hace cuanto", y un punto indigo si es nueva.
+   Los "Primeros pasos" son estado (sin fecha) y viven en su propio grupo. */
+.notif-wrap { position: relative; }
+.notif-dot { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px;
+  border-radius: 999px; background: #DC2626; color: #fff; font-size: 9.5px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; padding: 0 4px;
+  border: 2px solid #fff; pointer-events: none; }
+.ntf-panel { position: absolute; top: calc(100% + 10px); right: -6px; width: 360px;
+  max-height: 440px; overflow-y: auto; background: #fff; border: 1px solid #ECEEF2;
+  border-radius: 16px; box-shadow: 0 14px 40px rgba(15,23,42,.14), 0 2px 8px rgba(15,23,42,.08);
+  z-index: 90; display: none; padding: 6px; }
+.ntf-panel.on { display: block; }
+.ntf-head { font-size: 13px; font-weight: 800; color: #0F172A; padding: 10px 12px 8px; }
+.ntf-grupo { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  color: #94A3B8; padding: 8px 12px 4px; }
+.ntf-item { display: flex; align-items: flex-start; gap: 11px; width: 100%; padding: 10px 12px;
+  border: 0; background: transparent; border-radius: 11px; font-family: inherit;
+  text-align: left; cursor: pointer; position: relative; }
+.ntf-item:hover { background: #F8FAFC; }
+.ntf-item.urgente { background: #FFFBEB; }
+.ntf-item.urgente:hover { background: #FEF3C7; }
+.ntf-ico { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0; }
+.ntf-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ntf-t { font-size: 12.5px; font-weight: 700; color: #0F172A; line-height: 1.35; }
+.ntf-s { font-size: 11.5px; color: #64748B; line-height: 1.4; }
+.ntf-punto { width: 8px; height: 8px; border-radius: 999px; background: #5B6BFF;
+  flex-shrink: 0; margin-top: 5px; }
+.ntf-vacio { text-align: center; padding: 30px 22px 26px; }
+.ntf-vacio-ico { width: 52px; height: 52px; border-radius: 15px; background: #F1F5F9;
+  color: #94A3B8; display: inline-flex; align-items: center; justify-content: center;
+  margin-bottom: 10px; }
+.ntf-vacio-t { font-size: 13.5px; font-weight: 800; color: #0F172A; }
+.ntf-vacio-s { font-size: 12px; color: #94A3B8; margin-top: 4px; line-height: 1.5; }
