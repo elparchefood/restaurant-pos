@@ -1723,6 +1723,44 @@ nombres raros en su WhatsApp"*.
 
 ---
 
+## HECHO — [Fase 2] La tanda de WhatsApp la termina el servidor — 2026-08-09
+
+El bucle que reintenta vivía en `wlEnviar()`: mandaba de a 250 y volvía a
+llamar hasta 12 veces, **todo en la pantalla**. Cerrarla dejaba la tanda a
+medias — por eso quedaron 110 contactos esperando.
+
+**La cola ya estaba bien.** `pos_wa_envios` guarda el estado de CADA contacto,
+así que nunca se le repite a nadie. Lo único que faltaba era alguien que
+siguiera dándole al botón. Ese alguien es ahora un reloj en la base.
+
+**Decisión de Sergio (le pregunté antes de construir):** sigue solo **la tanda
+de HOY**. Al acabarse el cupo de 24 h o la lista, se desarma; mañana él vuelve
+a darle. Es su regla de siempre — *nada automático sin que alguien apriete un
+botón* — y aquí además cada mensaje cuesta plata.
+
+**Piezas** (`sql/2026-08-09-envio-en-el-servidor.sql`):
+- `pg_net` instalado (`pg_cron` ya estaba, lo usa `auto-entregado-domi`).
+- `pos_wa_listas.envio_activo` + `envio_armado_at`.
+- `pos_wa_continuar_tandas()` cada 2 min: por cada lista armada, si hay
+  pendientes y cupo, una tanda más; si no, la **desarma**.
+- `pos_wa_desarmar_viejas()` cada hora: corte de seguridad a las 24 h de
+  armada, por si algo quedara colgado.
+
+El botón **arma y suelta** (marca la lista + un primer empujón para que se vea
+arrancar). La pantalla pasa de motor a **tablero**: dice *"ya puedes cerrar
+esta pantalla"*, se refresca sola cada 20 s y ofrece **Detener**.
+
+**Comprobado contra la base real:** con la lista desarmada el reloj no toca
+nada; el corte de seguridad desarma una armada hace 30 h; **con el cupo lleno
+(250/250) desarma en vez de mandar** — cero mensajes salieron en toda la
+prueba; y la tubería base→función responde `200` con datos reales, probada con
+`solo_contar` para no gastar ni un mensaje.
+
+⏳ **Lo que NO se pudo probar:** el envío real, porque el cupo de 24 h estaba
+lleno ese día. Se ve en la primera tanda de mañana.
+
+---
+
 ## HECHO — [Fase 2] Auditoría de los `Promise.all` — 2026-08-09
 
 `Promise.all` es **todo o nada**: si una promesa falla, la espera entera falla y

@@ -94,7 +94,11 @@ solo hay un restaurante usándolo.
       Comprobado: leer y borrar con la llave pública → *permission denied*.
       **Pendiente aparte:** rotar contraseñas y separar MyPass de la base de
       Cobra antes de vender (no es urgente, ya está cerrada).
-- [ ] **El envío de campañas vive en la pantalla** — si se cierra, se para.
+- [x] **El envío de campañas vivía en la pantalla** — el botón ahora ARMA y un
+      reloj en la base termina la tanda de hoy aunque se cierre todo. Se
+      desarma solo al acabarse el cupo o la lista. `2026-08-09`
+      ⏳ *Falta ver la primera tanda real: el día de la prueba el cupo de 24 h
+      ya estaba lleno (250/250), así que no salió ningún mensaje.*
       Debe correr en el servidor.
 
 ---
