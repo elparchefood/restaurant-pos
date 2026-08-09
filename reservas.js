@@ -733,20 +733,26 @@ function iaPasarAlFormulario() {
      DESPUES de poner los dos. */
   pintarMesasDrawer();
 
+  /* La agenda solo tiene huecos dentro del horario. Si el cliente pidio una
+     hora que no existe ahi, no se marca ninguno — y hay que DECIRLO: si no, se
+     ve la hora en la pantalla de la IA, se toca guardar y sale un "elige una
+     hora" que no se entiende de donde salio. */
+  var horaFuera = false;
   if (d.hora) {
     var sl = document.querySelector('#f-slots .rs-slot[data-h="' + d.hora + '"]');
     if (sl) {
       document.querySelectorAll('#f-slots .rs-slot').forEach(function (b) { b.classList.remove('on'); });
       sl.classList.add('on');
       sl.scrollIntoView({ block: 'nearest', inline: 'center' });
-    }
+    } else { horaFuera = true; }
   }
   /* El origen queda en WhatsApp: de ahi salio. */
   var or = $('f-origen'); if (or) { for (var i = 0; i < or.options.length; i++) {
     if (/whats/i.test(or.options[i].value + or.options[i].text)) { or.selectedIndex = i; break; } } }
 
-  var falta = (d.falta || []).length;
-  toast(falta ? 'Revisa: no dice ' + d.falta.join(', ') : 'Revisa y guarda');
+  var pend = (d.falta || []).slice();
+  if (horaFuera) pend.push('la hora ' + d.hora + ' no está en la agenda');
+  toast(pend.length ? 'Revisa: ' + pend.join(', ') : 'Revisa y guarda');
 }
 
 /* ═══ ENGANCHES ══════════════════════════════════════════════════════════ */
