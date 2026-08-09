@@ -3,6 +3,12 @@
 Plan que definió Sergio para rematar Cobra POS antes de venderlo. Tres fases en
 orden, y después la fase de marketing.
 
+⚠️ **Todo lo que toque a Paco va al FINAL**, junto con su entrenamiento
+(`PLAN-ENTRENAR-PACO.md`). No se mete en estas fases: enseñarle algo nuevo no
+es agregar una respuesta, es un bloque de trabajo propio que se hace y se
+prueba de una sola vez. Y antes de proponer algo "para que el bot avise",
+revisar si Sergio ya lo resuelve **a mano** con una respuesta rápida.
+
 Este archivo existe porque el plan solo vivía en la conversación. Cuando algo
 se termina, se marca aquí y se documenta a fondo en `ESTADO-SISTEMA.md`.
 
@@ -34,8 +40,6 @@ Cosas que Sergio pidió en su momento y nunca se construyeron, o quedaron a medi
 
 ### Pendiente
 
-- [ ] **Plantilla de redención de puntos** — el mensaje que se le manda al
-      cliente cuando canjea.
 - [ ] **Subida del banner en "Mi página web"** — *aplazado por Sergio el
       2026-08-09*: las imágenes del carrusel se suben desde Cobra.
 - [ ] **Multi-marca, fases 2 a 4** — la fase 1 (la base) está hecha; ver
@@ -79,6 +83,20 @@ solo hay un restaurante usándolo.
 - [ ] Aviso de "sin conexión" + página de estado
 - [ ] Limpiar los residuos de las pruebas
 - [ ] Piloto con 1 o 2 restaurantes
+
+---
+
+## Al final: entrenar a Paco
+
+Todo junto y de una vez, contra conversaciones reales del banco de pruebas.
+Plan completo en `PLAN-ENTRENAR-PACO.md`.
+
+- [ ] **Puntos por chat** — que Paco sepa cuántos puntos tiene un cliente, qué
+      puede canjear y cuánto le falta. Hoy su motor **no menciona los puntos ni
+      una vez**. El aviso de "ganaste X puntos" ya existe como la respuesta
+      rápida `/puntos` (con la variable `{puntos_ganados}`) y **Sergio la manda
+      a mano** — eso ya funciona; lo que falta es que Paco lo haga solo y sepa
+      responder si le preguntan.
 
 ---
 
