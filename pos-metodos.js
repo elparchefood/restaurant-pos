@@ -34,6 +34,9 @@
     _mets.forEach(function (m) {
       if (m.id) _porId[String(m.id)] = m;
       if (m.nombre) _porNom[norm(m.nombre)] = m;
+      /* El nombre con el que se guardaron los pagos viejos. Sin esto, un cobro
+         de la semana pasada aparecería en "Otros" al cambiarle el nombre. */
+      if (m._alias) _porNom[norm(m._alias)] = m;
       /* El tipo se indexa DESPUÉS del nombre y sin pisarlo: si dos métodos son
          de tipo "transferencia" (Nequi y Daviplata), el tipo solo desempata
          cuando no hay nada mejor. */
@@ -43,13 +46,27 @@
   }
 
   /* Carga los métodos del restaurante. Se pide una sola vez por pantalla. */
+  /* "Saldo <negocio>" pasó a llamarse "Billetera <negocio>". El tipo interno
+     sigue siendo `saldo` —eso NO se toca, es lo que llevan los pagos ya
+     registrados—. Se guarda el nombre viejo como alias para que un pago hecho
+     antes del cambio se siga reconociendo. */
+  function _renombrarSaldo(m) {
+    if (!m || String(m.tipo || '') !== 'saldo') return m;
+    var n = String(m.nombre || '');
+    if (!/^Saldo\b/i.test(n)) return m;
+    var c = {}; for (var k in m) if (Object.prototype.hasOwnProperty.call(m, k)) c[k] = m[k];
+    c.nombre = n.replace(/^Saldo\b/i, 'Billetera');
+    c._alias = n;
+    return c;
+  }
+
   async function cargar(sb, branchId) {
     if (_mets) return _mets;
     try {
       if (!sb || !branchId) return indexar([]);
       var r = await sb.from('ia_config').select('pagos').eq('branch_id', branchId).maybeSingle();
       var p = (r && r.data && r.data.pagos) || {};
-      var arr = Array.isArray(p.metodos) ? p.metodos : [];
+      var arr = (Array.isArray(p.metodos) ? p.metodos : []).map(_renombrarSaldo);
       return indexar(arr
         .filter(function (m) { return m && String(m.nombre || '').trim(); })
         .sort(function (a, b) { return (a.orden || 0) - (b.orden || 0); }));

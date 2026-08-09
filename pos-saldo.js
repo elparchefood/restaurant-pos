@@ -196,9 +196,70 @@
     } catch (e) { console.error('[saldo] no se pudo devolver:', e); return 0; }
   }
 
+  /* Modal de "no le alcanza el saldo". Solo informa: recargar es un acto del
+     cliente en la pagina, no algo que el cajero se salte en el cobro.
+     Se le dice cuanto tiene y cuanto falta, porque es justo lo que el cajero
+     va a tener que decirle al cliente en voz alta. */
+  function modalInsuficiente(op) {
+    op = op || {};
+    var tiene    = Math.round(Number(op.tiene) || 0);
+    var necesita = Math.round(Number(op.necesita) || 0);
+    var falta    = Math.max(0, necesita - tiene);
+    var nombre   = String(op.nombre || '').trim();
+    var apuntado = Math.round(Number(op.yaApuntado) || 0);
+
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.5);'
+      + 'display:flex;align-items:center;justify-content:center;padding:20px';
+
+    function linea(l, v, color) {
+      return '<div style="display:flex;justify-content:space-between;align-items:baseline;'
+        + 'padding:7px 0;font-size:13px"><span style="color:#64748B">' + l + '</span>'
+        + '<b style="color:' + (color || '#0F172A') + ';font-variant-numeric:tabular-nums">' + v + '</b></div>';
+    }
+
+    ov.innerHTML =
+      '<div style="background:#fff;border-radius:16px;padding:22px 24px;width:390px;max-width:94vw;'
+      + 'font-family:\'DM Sans\',system-ui,sans-serif;box-shadow:0 24px 60px -12px rgba(0,0,0,.35)">'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'
+      +   '<span style="width:36px;height:36px;border-radius:10px;background:#ECFEFF;color:#0891B2;'
+      +   'display:flex;align-items:center;justify-content:center">'
+      +     '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+      +     'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'
+      +     '<rect x="2" y="5" width="20" height="14" rx="2.5"/>'
+      +     '<rect x="5" y="9.5" width="4.5" height="3.5" rx="1"/>'
+      +     '<path d="M15.5 10a3.2 3.2 0 0 1 0 4"/><path d="M18 8.4a6 6 0 0 1 0 7.2"/></svg></span>'
+      +   '<div style="font-size:16px;font-weight:800;color:#0F172A">'
+      +     (tiene > 0 ? 'No le alcanza el saldo' : 'Este cliente no tiene saldo') + '</div>'
+      + '</div>'
+      + (nombre ? '<div style="font-size:13px;color:#475569;line-height:1.6;margin-bottom:10px">'
+                  + '<b>' + esc(nombre) + '</b></div>' : '')
+      + '<div style="background:#F8FAFC;border-radius:11px;padding:6px 13px">'
+      +   linea('Tiene', money(tiene))
+      +   (apuntado > 0 ? linea('Ya apuntado en este pedido', money(apuntado), '#B45309') : '')
+      +   (necesita > 0 ? linea('Se necesita', money(necesita)) : '')
+      +   (falta > 0 ? '<div style="border-top:1px solid #E2E8F0">'
+                       + linea('Le falta', money(falta), '#DC2626') + '</div>' : '')
+      + '</div>'
+      + '<div style="font-size:12.5px;color:#64748B;line-height:1.55;margin-top:12px">'
+      +   (tiene > 0
+          ? 'Cobra <b>' + money(tiene - apuntado > 0 ? tiene - apuntado : 0)
+            + '</b> con el saldo y el resto con otro metodo, o pidele que recargue en tu pagina.'
+          : 'Puede recargar en tu pagina de clientes. Mientras tanto, cobra con otro metodo.')
+      + '</div>'
+      + '<button style="width:100%;margin-top:16px;padding:11px;border:none;border-radius:10px;'
+      + 'background:#0F172A;color:#fff;font-weight:700;font-size:13.5px;cursor:pointer">Entendido</button>'
+      + '</div>';
+
+    ov.querySelector('button').onclick = function () { ov.remove(); };
+    ov.onclick = function (e) { if (e.target === ov) ov.remove(); };
+    document.body.appendChild(ov);
+  }
+
   w.posSaldo = {
     setCtx: setCtx, disponibles: disponibles, consumir: consumir,
     devolver: devolver, pagadoEn: pagadoEn, pedirAnular: pedirAnular,
-    devolverDeOrden: devolverDeOrden, money: money, esc: esc,
+    devolverDeOrden: devolverDeOrden, modalInsuficiente: modalInsuficiente,
+    money: money, esc: esc,
   };
 })(window);

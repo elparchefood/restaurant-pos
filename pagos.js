@@ -65,7 +65,7 @@ const TIPO_STYLE = {
   // Puntos: método propio, para que se distinga de un pago en dinero.
   puntos:        { cssKey:'puntos',      icon: '⭐',                    color:'#7C3AED',         tint:'#F5F3FF',              ring:'#DDD6FE',              sub:'Canje del catálogo' },
   // Saldo: tampoco entra plata nueva — el cliente ya pagó al recargar.
-  saldo:         { cssKey:'saldo',      icon: '👛',                    color:'#0891B2',         tint:'#ECFEFF',              ring:'#A5F3FC',              sub:'Recargado en la página' },
+  saldo:         { cssKey:'saldo',      icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><rect x="5" y="9.5" width="4.5" height="3.5" rx="1"/><path d="M15.5 10a3.2 3.2 0 0 1 0 4"/><path d="M18 8.4a6 6 0 0 1 0 7.2"/></svg>`, color:'#0891B2', tint:'#ECFEFF', ring:'#A5F3FC', sub:'Recargado en la página' },
 };
 function _payEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function _payAttr(s){ return String(s==null?'':s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -80,7 +80,15 @@ function _mpAplicarLista(metodos){
   list = list.filter(function(m){ return !Array.isArray(m.canales) || !m.canales.length || m.canales.indexOf(canal)>=0; });
   if (!list.length) list = [{ id:'efectivo', nombre:'Efectivo', tipo:'efectivo', digital:false }];
   list.sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
-  SP.methodDefs = list.map(function(m){ return { key:(m.id||m.nombre), nombre:m.nombre, tipo:m.tipo||'otro', digital:!!m.digital }; });
+  /* El saldo se llamaba "Saldo <negocio>" y ahora es "Billetera <negocio>".
+     Se corrige al pintar y no solo en Configuracion, para que el cajero vea el
+     nombre nuevo desde ya, sin esperar a que alguien vuelva a guardar la
+     pantalla de metodos de pago. El tipo interno sigue siendo `saldo`. */
+  SP.methodDefs = list.map(function(m){
+    var nom = String(m.nombre||'');
+    if ((m.tipo||'') === 'saldo') nom = nom.replace(/^Saldo\b/i, 'Billetera');
+    return { key:(m.id||m.nombre), nombre:nom, tipo:m.tipo||'otro', digital:!!m.digital };
+  });
   /* Si el cajero ya habia elegido uno y sigue existiendo, se respeta: el
      repintado fresco no le puede quitar la seleccion de las manos. */
   var sigue = SP.method && SP.methodDefs.some(function(m){ return m.key===SP.method; });
@@ -110,6 +118,7 @@ async function loadPaymentMethods(){
      Llega un instante despues y solo refresca los subtitulos. */
   var _st = (window._pos && window._pos.state) || {};
   SP.puntosSaldo = 0; SP.saldoDisp = 0;
+  SP.saldoActivo = SP.methodDefs.some(function (m) { return m.tipo === 'saldo'; });
   try {
     if (window.posPuntos && SP.methodDefs.some(function (m) { return m.tipo === 'puntos'; })) {
       posPuntos.setCtx(_st.tenantId || SP.tenantId, SP.branchId);
@@ -128,6 +137,9 @@ async function loadPaymentMethods(){
     }
   } catch (e) { console.warn('[pagos] saldo no disponible:', e); }
   _renderMethodButtons();
+  /* El saldo llega un instante despues que el nombre, asi que el nombre se
+     repinta cuando ya se sabe cuanto tiene. */
+  try { pgPintarCliente(); } catch (e) {}
 }
 function _renderMethodButtons(){
   var row = document.querySelector('.pg-method-row');
@@ -534,6 +546,20 @@ function _crEsCredito() {
       || String(d && d.nombre || '').toLowerCase().indexOf('crédito') >= 0;
 }
 
+/* El aviso de "no le alcanza", con nombre y cifras. Antes eran tres alert()
+   distintos del navegador que no decian de quien hablaban. */
+function _sdAvisoSinSaldo(necesita, yaApuntado, disponible) {
+  var tiene = (disponible != null) ? disponible : (Number(SP.saldoDisp) || 0);
+  if (!window.posSaldo || !posSaldo.modalInsuficiente) {
+    alert('Al cliente no le alcanza el saldo: tiene ' + _payMoney(tiene) + '.');
+    return;
+  }
+  posSaldo.modalInsuficiente({
+    nombre: SP.cliente || SP.clienteTel || '',
+    tiene: tiene, necesita: necesita, yaApuntado: yaApuntado || 0,
+  });
+}
+
 // Al tocar "Aplicar" con el método Crédito, primero hay que elegir a quién.
 async function crElegirPersona(monto) {
   var lista = [];
@@ -623,10 +649,8 @@ async function applyPayment() {
       return t + (p.methodTipo === 'saldo' && !p.saved ? (Number(p.amount) || 0) : 0);
     }, 0);
     var _libre = Math.max(0, (Number(SP.saldoDisp) || 0) - _yaConSaldo);
-    if (_libre <= 0) { alert('Este cliente ya no tiene saldo disponible.'); return; }
-    if (amount > _libre) {
-      alert('Solo le quedan ' + _payMoney(_libre) + ' de saldo.\n\n'
-          + 'Cobra ese valor con saldo y el resto con otro método.');
+    if (_libre <= 0 || amount > _libre) {
+      _sdAvisoSinSaldo(amount, _yaConSaldo);
       return;
     }
     SP.payments.push({ id: Date.now(), method: def.nombre, methodKey: def.key,
@@ -700,9 +724,8 @@ async function guardarAbono() {
         sp.saldoOk = true;
       } catch (e) {
         if (btn) { btn.disabled = false; btn.textContent = 'Guardar abono'; }
-        alert(e && e.codigo === 'SALDO_INSUFICIENTE'
-          ? ('Al cliente le quedan ' + _payMoney(e.disponible) + ' de saldo.')
-          : ('No se pudo descontar el saldo: ' + (e.message || e)));
+        if (e && e.codigo === 'SALDO_INSUFICIENTE') _sdAvisoSinSaldo(sp.amount, 0, e.disponible);
+        else alert('No se pudo descontar el saldo: ' + (e.message || e));
         return;
       }
     }
@@ -815,10 +838,8 @@ async function cobrarDespues() {
         sp.saldoOk = true;
       } catch (e) {
         btnFinish.disabled = false; btnFinish.textContent = 'Finalizar';
-        alert(e && e.codigo === 'SALDO_INSUFICIENTE'
-          ? ('Al cliente le quedan ' + _payMoney(e.disponible) + ' y este cobro es de '
-             + _payMoney(e.pedido) + '.\n\nQuita el pago con saldo y cóbralo de otra forma.')
-          : ('No se pudo descontar el saldo: ' + (e.message || e)));
+        if (e && e.codigo === 'SALDO_INSUFICIENTE') _sdAvisoSinSaldo(e.pedido, 0, e.disponible);
+        else alert('No se pudo descontar el saldo: ' + (e.message || e));
         return;
       }
     }
@@ -1112,6 +1133,12 @@ document.addEventListener('click', e => {
       break;
     case 'cliente':
       pgCliente();
+      break;
+    /* Si se selecciono al cliente equivocado no habia forma de deshacerlo:
+       tocaba salirse del cobro. Se limpia igual que se puso, en el pedido. */
+    case 'cliente-quitar':
+      e.stopPropagation();
+      pgGuardarCliente(null, '', '');
       break;
     case 'voucher':
     case 'credit':
@@ -1788,14 +1815,25 @@ async function pgPintarCliente() {
   var row = document.getElementById('cliente-row');
   var lbl = document.getElementById('cliente-name');
   if (!row || !lbl) return;
+  var xq = document.getElementById('cliente-clear');
   if (!SP.cliente && !SP.clienteTel) {
     row.classList.remove('has-client');
     lbl.textContent = 'Consumidor final';
+    if (xq) xq.hidden = true;
     return;
   }
   row.classList.add('has-client');
   var pts = SP.clienteTel ? await pgPuntosDe(SP.clienteTel) : 0;
-  lbl.textContent = (SP.cliente || SP.clienteTel) + (SP.clienteTel ? ' · ' + pts + ' pts' : '');
+  /* El saldo va aqui y no solo debajo del boton de pago: el cajero necesita
+     poder decirle al cliente cuanto tiene ANTES de elegir como cobrar, sin
+     tener que ir a buscarlo. Solo aparece donde el saldo esta encendido. */
+  var txt = (SP.cliente || SP.clienteTel);
+  if (SP.clienteTel) txt += ' · ' + pts + ' pts';
+  if (SP.saldoActivo) txt += ' · ' + (Number(SP.saldoDisp) > 0
+    ? _payMoney(SP.saldoDisp) + ' de saldo' : 'sin saldo');
+  lbl.textContent = txt;
+  var x = document.getElementById('cliente-clear');
+  if (x) x.hidden = false;
 }
 
 

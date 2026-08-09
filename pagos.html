@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css?v=1789840000">
-<link rel="stylesheet" href="pagos.css?v=1790250000">
+<link rel="stylesheet" href="pagos.css?v=1790470000">
 </head>
 <body>
 <div class="pg-root">
@@ -40,12 +40,6 @@
       <button class="lm-nav" data-action="discount">
         <span class="pg-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg><span>Aplicar descuento</span></span>
         <span class="pg-nav-flag" id="discount-flag" hidden>Activo</span>
-      </button>
-      <button class="lm-nav" data-action="voucher">
-        <span class="pg-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4z"/><line x1="12" y1="7" x2="12" y2="17" stroke-dasharray="2 3"/></svg><span>Vale de pago</span></span>
-      </button>
-      <button class="lm-nav" data-action="credit">
-        <span class="pg-nav-l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>Dejar a crédito</span></span>
       </button>
     </nav>
     <div class="pg-side-spacer"></div>
@@ -109,6 +103,7 @@
         <button class="pg-cliente" id="cliente-row" data-action="cliente">
           <div class="pg-cliente-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
           <span class="pg-cliente-name" id="cliente-name">Consumidor final</span>
+          <span class="pg-cliente-clear" id="cliente-clear" data-action="cliente-quitar" role="button" tabindex="0" title="Quitar el cliente" aria-label="Quitar el cliente" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
         <div class="pg-ticket-scroll" id="ticket-scroll">
@@ -317,8 +312,8 @@
 <script src="pos-cliente-picker.js?v=1788280000"></script>
 <script src="pos-puntos.js?v=1789750000"></script>
 <script src="pos-cache.js?v=1790260000"></script>
-<script src="pos-saldo.js?v=1790130000"></script>
-<script src="pagos.js?v=1790260000"></script>
+<script src="pos-saldo.js?v=1790470000"></script>
+<script src="pagos.js?v=1790470000"></script>
 
   <!-- ════ MODAL: DESCUENTO ════ -->
   <div class="pg-overlay" id="discount-modal" hidden>

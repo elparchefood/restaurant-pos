@@ -348,7 +348,10 @@ svg { display: block; }
 .pg-cobro {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--r-7xl); display: flex; flex-direction: column;
-  overflow: hidden; min-height: 0; padding: 18px 20px;
+  /* `auto`, no `hidden`: al verificar una transferencia el resultado agrega
+     hasta cuatro lineas, la tarjeta crecia mas que la pantalla y el boton de
+     cobrar quedaba recortado abajo, imposible de tocar. */
+  overflow-y: auto; overflow-x: hidden; min-height: 0; padding: 18px 20px;
 }
 .pg-cobro-head {
   display: flex; align-items: flex-start; justify-content: space-between;
@@ -553,7 +556,26 @@ svg { display: block; }
 .pg-cobro-foot {
   display: flex; align-items: center; margin-top: 16px; padding-top: 14px;
   border-top: 1px solid var(--border); flex-shrink: 0;
+  /* Pegado abajo: el boton de cobrar es lo unico que SIEMPRE tiene que estar
+     al alcance, pase lo que pase con el alto del contenido. */
+  position: sticky; bottom: -18px; z-index: 3;
+  background: var(--surface); padding-bottom: 18px; margin-bottom: -18px;
+  /* Que se parta en dos lineas antes que salirse: en pantallas de 1024 la fila
+     pedia 502px en 312 y el boton de cobrar quedaba fuera del recorte, otra vez
+     imposible de tocar. En 1280 cabe en una linea y esto no cambia nada. */
+  flex-wrap: wrap; row-gap: 10px;
 }
+
+/* La X para quitar al cliente. Es un <span> y no un <button> porque la fila
+   entera ya es un boton. */
+.pg-cliente-clear {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  color: var(--ink-4); cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.pg-cliente-clear:hover { background: var(--danger-tint, #FEF2F2); color: var(--danger, #DC2626); }
+.pg-cliente-clear[hidden] { display: none; }
 .pg-foot-stat { display: flex; flex-direction: column; gap: 2px; padding: 0 18px; flex-shrink: 0; }
 .pg-foot-stat.bordered { border-left: 1px solid var(--border); }
 .pg-foot-label {

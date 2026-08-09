@@ -5795,7 +5795,7 @@ var MP_FIJOS = [
   { id:'__puntos', tipo:'puntos', nombre:'Puntos',
     sub:'El cliente paga con los puntos que acumuló. Se descuentan de su bolsa.',
     requierePagina:false },
-  { id:'__saldo', tipo:'saldo', nombre:'Saldo',
+  { id:'__saldo', tipo:'saldo', nombre:'Billetera',
     sub:'El cliente paga con el saldo que recargó en tu página. Se le descuenta al cobrar.',
     requierePagina:true }
 ];
@@ -5842,10 +5842,15 @@ function _mpConFijos(lista, negocio, tienePagina){
   var out = lista.slice();
   MP_FIJOS.forEach(function(f){
     if (f.requierePagina && !tienePagina) return;
-    var nombre = (f.id === '__saldo' && negocio) ? ('Saldo ' + negocio) : f.nombre;
+    var nombre = (f.id === '__saldo' && negocio) ? ('Billetera ' + negocio) : f.nombre;
     var ya = null;
     for (var i = 0; i < out.length; i++) { if (out[i].id === f.id) { ya = out[i]; break; } }
-    if (ya) { ya.tipo = f.tipo; if (!String(ya.nombre||'').trim()) ya.nombre = nombre; return; }
+    if (ya) {
+      ya.tipo = f.tipo;
+      var act = String(ya.nombre||'').trim();
+      if (!act || /^Saldo\b/i.test(act)) ya.nombre = nombre;
+      return;
+    }
     out.push({ id:f.id, nombre:nombre, digital:false, tipo:f.tipo, activo:false,
                orden:out.length, porDefecto:false, cuenta:'', banco:'', instrucciones:'',
                canales:['mesa','rapida','domicilio'], comision:0 });
@@ -5903,7 +5908,7 @@ var MP_ICO = {
   banco:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><path d="M9 21v-6h6v6"/></svg>',
   billetera:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V8H6a2 2 0 0 1 0-4h12v4"/><path d="M4 6v12a2 2 0 0 0 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>',
   puntos:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.1 8.6 22 9.6 17 14.5 18.2 21.5 12 18.2 5.8 21.5 7 14.5 2 9.6 8.9 8.6 12 2"/></svg>',
-  saldo:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V8H6a2 2 0 0 1 0-4h12v4"/><path d="M4 6v12a2 2 0 0 0 2 2h14v-4"/><circle cx="18" cy="14" r="1.3"/></svg>',
+  saldo:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><rect x="5" y="9.5" width="4.5" height="3.5" rx="1"/><path d="M15.5 10a3.2 3.2 0 0 1 0 4"/><path d="M18 8.4a6 6 0 0 1 0 7.2"/></svg>',
   otro:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8"/></svg>'
 };
 function _mpIco(t){ return MP_ICO[t] || MP_ICO.otro; }
