@@ -1723,6 +1723,38 @@ nombres raros en su WhatsApp"*.
 
 ---
 
+## HECHO — [Velocidad] Los permisos del rol, guardados en el equipo — 2026-08-09
+
+Cierra la tanda de `pos-cache`. `pos-perms.js` corre en 15 pantallas; a un
+administrador no le cambia nada (su rol viene en la sesión, sin consulta) —
+esto es para los **meseros**, que esperaban la consulta de `pos_roles` en cada
+pantalla antes de ver sus botones.
+
+⚠️ **La asimetría es AL REVÉS que la del plan.** `posGate()` ESCONDE botones,
+así que el dato viejo peligroso es el que **niega**. Regla: lo guardado puede
+**conceder al instante** (hoy, mientras carga, ya se concede todo — esa
+dirección no empeora), pero para **negar** —esconder un botón, plantar el PIN,
+frenar una página— se espera la confirmación de la base (`_confirmarSiNiega`).
+
+- `posGate()` recuerda cada puerta (`_puertas`, con el display original) y la
+  re-evalúa al confirmar, **en las dos direcciones**.
+- La llave del caché lleva el rol (`perms.<rol>`): en un equipo se turnan un
+  mesero y un cajero.
+- El `'*'` de un fallo **no se guarda nunca**, y si el refresco de fondo falla
+  habiendo permisos guardados, **se quedan los guardados** — esta fue una
+  regresión que salió probando: el fallo pisaba lo guardado con `'*'` y un
+  fallo de red le abría todo a un mesero.
+- Al crear/editar/borrar un rol en Configuración, `_permsInvalidar()` borra los
+  `perms.*` del equipo del dueño; el del mesero se corrige solo en su próxima
+  confirmación.
+
+Comprobado con el módulo real: permiso recién dado (el botón aparece solo y
+`posGuard` no pide PIN), recién quitado (se esconde y el PIN vuelve), fallo sin
+guardado (fail-open, no se guarda), fallo con guardado (se queda), y admin
+(cero consultas).
+
+---
+
 ## HECHO — [Velocidad] El plan y los métodos de pago, guardados en el equipo — 2026-08-09
 
 Segunda tanda de `pos-cache`. Antes solo lo usaban catálogo, dashboard, salón y

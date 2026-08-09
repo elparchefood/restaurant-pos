@@ -40,8 +40,8 @@ Cosas que Sergio pidió en su momento y nunca se construyeron, o quedaron a medi
 - [x] **Extender `pos-cache`** — el **plan** (17 pantallas, 2 consultas
       seguidas) y los **métodos de pago** (7 pantallas) ya no se esperan: salen
       de lo guardado en el equipo y se confirman por detrás. `2026-08-09`
-      *Falta `pos-perms` (15 pantallas), que solo consulta para roles que no son
-      administrador — o sea, para los meseros, no para Sergio.*
+      `pos-perms` (15 pantallas) cerrado el mismo día: lo guardado puede
+      CONCEDER al instante pero para NEGAR espera la confirmación de la base.
 
 ### Pendiente
 
