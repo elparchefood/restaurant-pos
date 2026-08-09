@@ -1723,6 +1723,57 @@ nombres raros en su WhatsApp"*.
 
 ---
 
+## HECHO — [Pagos] Los 7 arreglos de la pantalla de cobro — 2026-08-09
+
+Lista que dio Sergio el 2026-08-08. Uno por uno:
+
+**1. El aviso de "no le alcanza el saldo".** Eran tres `alert()` del navegador
+en sitios distintos, y ninguno decía de quién hablaba. Ahora es
+`posSaldo.modalInsuficiente({nombre, tiene, necesita, yaApuntado})` — mismo
+patrón que `posCreditos.modalInsuficiente`, que ya existía. Muestra cuánto
+tiene, cuánto falta y las dos salidas reales: cobrar la diferencia con otro
+método, o recargar en la página. Lo llama `_sdAvisoSinSaldo()` en `pagos.js`
+desde los tres puntos (al aplicar, al guardar abono, al finalizar).
+
+**2 y 3. "Saldo El Parche" → "Billetera El Parche"**, con icono de tarjeta
+prepago (chip + ondas) en vez del monedero.
+⚠️ **El `tipo` interno sigue siendo `saldo`.** Eso NO se toca: es lo que llevan
+los pagos ya registrados, y renombrarlo los dejaría sin método.
+El nombre estaba GUARDADO en `ia_config.pagos`, así que se corrige en tres
+puntas: `configuracion.js` (`_mpConFijos` renombra lo guardado si empieza por
+"Saldo"), `pagos.js` (`_mpAplicarLista` lo corrige al pintar, para que se vea
+ya sin esperar a que alguien vuelva a guardar) y `pos-metodos.js`, que **guarda
+el nombre viejo como `_alias`** — sin eso, un cobro de la semana pasada
+aparecería en "Otros" en la caja.
+
+**4. Fuera "Vale de pago" y "Dejar a crédito"** del menú izquierdo. Eran
+`case 'voucher': case 'credit': // Módulos futuros; break;` — un botón que se
+toca y no pasa nada es peor que no tenerlo. El crédito SÍ funciona, pero como
+**método de pago** en la fila de arriba, no como opción del menú.
+
+**5. El botón de cobrar que quedaba fuera de alcance.** Causa: `.pg-cobro` era
+`overflow: hidden` con todo dentro en `flex-shrink: 0`. Al verificar una
+transferencia el resultado agrega hasta 4 líneas, la tarjeta crecía más que la
+pantalla y el pie se recortaba — sin scroll, no había forma de llegar.
+Arreglo: `overflow-y: auto` en la tarjeta + `position: sticky` en
+`.pg-cobro-foot` + `flex-wrap: wrap` (en 1024 la fila del pie pedía 502px en
+312 y el botón se salía **por el lado**, no por abajo).
+Comprobado con `elementFromPoint`: antes `clicable:false`, ahora `true` —
+arriba y abajo del scroll, en 1280×720 y en 1024×600.
+
+**6. Quitar al cliente seleccionado.** Una X en la fila del cliente
+(`data-action="cliente-quitar"` → `pgGuardarCliente(null,'','')`). Va como
+`<span role="button">` y **no** como `<button>`: la fila entera ya es un
+botón, y un botón dentro de otro no es HTML válido — el navegador lo desarma y
+deja de funcionar el de afuera.
+
+**7. El saldo junto al nombre del cliente.** `Ana María · 45 pts · $12.000 de
+saldo`. Solo donde el saldo está encendido (`SP.saldoActivo`). Como el saldo
+llega un instante después que el nombre, `loadPaymentMethods()` vuelve a llamar
+a `pgPintarCliente()` al terminar.
+
+---
+
 ## HECHO — [Configuración] Respuestas rápidas con variables — 2026-08-09
 
 Se pidió el 2026-07-31 y quedó completo. Dónde vive cada pieza:
