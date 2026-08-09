@@ -1458,7 +1458,11 @@ async function loadCatalog() {
         wrap: 'vr-nf-wrap', inputNota: 'vr-note-input',
         leer: function(){ return VR_WIP.note; },
         escribir: function(t){ VR_WIP.note = t; },
-        categoria: function(){ var p = VR_WIP.prod || {}; var c = (S.cats||[]).find(function(x){return x.id===p.category_id;}); return c ? c.name : ''; },
+        /* OJO: aqui las categorias son S.categories, no S.cats. El bloque se
+           copio de domicilios (donde SI se llaman S.cats) y por ese nombre las
+           notas por categoria nunca aparecieron en esta pantalla: la busqueda
+           caia en una lista vacia y devolvia '', sin un solo error. */
+        categoria: function(){ var p = VR_WIP.prod || {}; var c = (S.categories||[]).find(function(x){return x.id===p.category_id;}); return c ? c.name : ''; },
       });
       inner.querySelectorAll('[data-mod-inc]').forEach(function(incBtn){
         incBtn.addEventListener('click', function(e){
