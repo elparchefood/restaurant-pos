@@ -1711,5 +1711,17 @@ div.master[data-tab].cia-active { display: flex !important; }
    verdad: un recuadro roto no le dice nada a nadie. */
 .menu-img-thumb { width: 54px; height: 54px; flex-shrink: 0; border-radius: 10px; object-fit: cover; border: 1px solid var(--border, #ECEEF2); background: var(--soft-3, #F8FAFC); display: none; }
 .menu-img-thumb.loaded { display: block; }
+.menu-img-thumb { cursor: zoom-in; transition: border-color .14s, transform .14s; }
+.menu-img-thumb:hover { border-color: var(--accent, #5B6BFF); transform: scale(1.06); }
 .menu-img-del { width: 34px; height: 34px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border, #ECEEF2); border-radius: 9px; background: #fff; color: var(--ink-4, #94A3B8); cursor: pointer; }
 .menu-img-del:hover { color: var(--danger, #DC2626); border-color: var(--danger-bd, #FECACA); background: var(--danger-bg, #FEF2F2); }
+
+
+/* ══ Visor de imagen ═════════════════════════════════════════════════════
+   La miniatura sirve para reconocer la foto; para LEER la carta hay que
+   verla grande. Se abre encima, sin sacar al dueño de donde estaba. */
+.cfg-visor { position: fixed; inset: 0; z-index: 300; display: none; align-items: center; justify-content: center; padding: 40px; background: rgba(15,23,42,.72); cursor: zoom-out; }
+.cfg-visor.on { display: flex; }
+.cfg-visor img { max-width: min(900px, 92vw); max-height: 88vh; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.4); background: #fff; cursor: default; }
+.cfg-visor-x { position: absolute; top: 18px; right: 22px; width: 40px; height: 40px; border: 0; border-radius: 999px; background: rgba(255,255,255,.14); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.cfg-visor-x:hover { background: rgba(255,255,255,.26); }

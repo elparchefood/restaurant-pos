@@ -4083,6 +4083,12 @@ var _storedZonas = [];
     inp.className = 'inp'; inp.placeholder = 'https://...enlace-directo-a-imagen.png'; inp.value = url || '';
     var thumb = document.createElement('img');
     thumb.className = 'menu-img-thumb';
+    /* Tocar la miniatura la abre grande: en 54 px no se lee lo que dice la
+       carta, y esa es justamente la razon de mirarla. */
+    thumb.title = 'Ver la imagen completa';
+    thumb.addEventListener('click', function () {
+      if (thumb.src) cfgVerImagen(thumb.src);
+    });
     inp.addEventListener('input', function() {
       thumb.src = inp.value.trim();
       thumb.onload = function() { thumb.classList.add('loaded'); };
@@ -5846,6 +5852,32 @@ window.mpRefrescarTiles=function(){
 };
 
 window.mpSelect=function(id){ MP.sel = id || null; _mpRender(); };
+
+/* Visor de imagen a pantalla completa. Uno solo para todas las miniaturas:
+   se crea la primera vez y se reutiliza. Se cierra tocando el fondo, la X o
+   la tecla Escape — los tres caminos que la gente intenta. */
+window.cfgVerImagen = function (src) {
+  var ov = document.getElementById('cfg-visor');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'cfg-visor';
+    ov.className = 'cfg-visor';
+    ov.innerHTML = '<button class="cfg-visor-x" type="button" aria-label="Cerrar">'
+      + '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+      + '</button><img alt="">';
+    document.body.appendChild(ov);
+    var cerrar = function () { ov.classList.remove('on'); };
+    ov.addEventListener('click', function (e) {
+      /* Solo el fondo cierra: un clic sobre la foto no debe cerrarla. */
+      if (e.target === ov || e.target.closest('.cfg-visor-x')) cerrar();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') cerrar();
+    });
+  }
+  ov.querySelector('img').src = src;
+  ov.classList.add('on');
+};
 
 window.mpDirty=function(){ MP.dirty=true; _mpUpdateSaveBtn(); };
 window.mpField=function(id,key,val){ var m=_mpFind(id); if(!m)return; m[key]=(key==='comision')?(Number(val)||0):val; MP.dirty=true; _mpUpdateSaveBtn(); };
