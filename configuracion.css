@@ -1737,3 +1737,7 @@ div.master[data-tab].cia-active { display: flex !important; }
 
 /* Lo que pide atencion en la difusion: la cola pendiente y lo que fallo. */
 .cia-sabe-l.cia-ojo b { color: #B45309; background: #FFFBEB; border-radius: 7px; padding: 1px 8px; }
+
+/* La tanda que va sola en el servidor. Verde y quieto: es una buena noticia,
+   no una alarma. */
+.wl-vivo{margin-top:8px;padding:7px 11px;border-radius:9px;background:#F0FDF4;border:1px solid #BBF7D0;color:#16A34A;font-size:12px;font-weight:600;}

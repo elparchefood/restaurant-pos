@@ -3063,9 +3063,13 @@ function wlRender() {
       +   '<div><div class="wl-nom">' + (L.nombre || 'Lista') + '</div>'
       +     '<div class="wl-sub">' + (L._total || 0) + ' contactos · plantilla <b>'
       +       ((L.filtros && L.filtros.plantilla) || '—') + '</b></div></div>'
-      +   '<button type="button" class="cfg-qr-btn" onclick="wlEnviar(\'' + L.id + '\')" id="wlBtn-' + L.id + '"'
-      +     (pend ? '' : ' disabled') + '>'
-      +     (pend ? 'Enviar tanda de hoy' : 'Lista completada') + '</button>'
+      +   (L.envio_activo
+            /* Armada: el servidor la esta terminando. El boton pasa a ser
+               el de detener, porque es lo unico que queda por decidir. */
+            ? '<button type="button" class="cfg-qr-btn ghost" onclick="wlDetener(\'' + L.id + '\')">Detener</button>'
+            : '<button type="button" class="cfg-qr-btn" onclick="wlEnviar(\'' + L.id + '\')" id="wlBtn-' + L.id + '"'
+              + (pend ? '' : ' disabled') + '>'
+              + (pend ? 'Enviar tanda de hoy' : 'Lista completada') + '</button>')
       + '</div>'
       + '<div class="wl-bar"><i style="width:' + pct + '%"></i></div>'
       + '<div class="wl-nums">'
@@ -3074,9 +3078,13 @@ function wlRender() {
       +   (fall ? '<span class="bad">' + fall + ' fallidos</span>' : '')
       +   '<span class="pct">' + pct + '%</span>'
       + '</div>'
+      + (L.envio_activo
+          ? '<div class="wl-vivo">Enviando\u2026 ya puedes cerrar esta pantalla, sigue solo.</div>'
+          : '')
       + '<div class="wl-res" id="wlRes-' + L.id + '"></div>'
       + '</div>';
   }).join('');
+  wlVigilar();
 }
 
 async function wlEnviar(id) {
@@ -3087,68 +3095,73 @@ async function wlEnviar(id) {
   if (!confirm('Se va a enviar la plantilla "' + ((L.filtros && L.filtros.plantilla) || '') + '"' + NL
     + 'a los contactos de "' + L.nombre + '" que quepan en el cupo de hoy.' + NL + NL
     + 'Quedan ' + pend + ' pendientes en total.' + NL + NL
-    + '¿Enviar la tanda de hoy?')) return;
+    + 'Ya puedes cerrar esta pantalla: el envio sigue solo.' + NL + NL
+    + 'Enviar la tanda de hoy?')) return;
 
   var btn = document.getElementById('wlBtn-' + id);
   var res = document.getElementById('wlRes-' + id);
-  if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
-
-  /* Se llama a la función VARIAS veces seguidas, no una sola: el servidor la
-     corta si tarda demasiado, y mandando 250 de un tirón se moría a mitad de
-     camino (la primera vez alcanzó a mandar 126 y el navegador solo decía
-     "Failed to fetch"). Como la cola guarda el estado de cada contacto, basta
-     con volver a llamarla y sigue donde iba, sin repetirle a nadie. */
-  var totalOk = 0, totalMal = 0, quedan = pend, vueltas = 0, avisoLimite = false;
-
-  function pinta(color, texto) {
-    if (res) res.innerHTML = '<span style="color:' + color + '">' + texto + '</span>';
-  }
-  function resumen() {
-    return totalOk + ' enviados'
-      + (totalMal ? ' · <span style="color:#DC2626">' + totalMal + ' fallidos</span>' : '')
-      + ' · quedan ' + quedan + ' pendientes';
-  }
-  pinta('#64748B', resumen() + ' — no cierres esta pantalla…');
+  if (btn) { btn.disabled = true; btn.textContent = 'Arrancando...'; }
 
   try {
-    while (vueltas++ < 12) {
-      var r = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/wa-enviar-lista', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (await wlToken()) },
-        body: JSON.stringify({ lista_id: id, branch_id: _cfgBranchId, cantidad: 250 }),
-      });
-      var d = await r.json();
-      if (d.error) throw new Error(d.error);
+    /* 1. Se ARMA: es lo unico imprescindible. A partir de aqui el reloj de la
+          base continua la tanda cada 2 minutos, aunque se cierre todo. */
+    var up = await sb.from('pos_wa_listas')
+      .update({ envio_activo: true, envio_armado_at: new Date().toISOString() })
+      .eq('id', id);
+    if (up.error) throw up.error;
 
-      if (d.ok === false && d.razon === 'limite') {
-        avisoLimite = true;
-        pinta('#B45309', '⚠ ' + d.mensaje);
-        break;
-      }
-      totalOk  += (d.enviados || 0);
-      totalMal += (d.fallidos || 0);
-      if (typeof d.pendientes === 'number') quedan = d.pendientes;
-      pinta('#64748B', resumen() + ' — no cierres esta pantalla…');
+    /* 2. El primer empujon, para que se vea que arranco de una y no haya que
+          esperar hasta dos minutos al primer tic. */
+    var r = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/wa-enviar-lista', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (await wlToken()) },
+      body: JSON.stringify({ lista_id: id, branch_id: _cfgBranchId, cantidad: 250 }),
+    });
+    var d = await r.json();
 
-      // Parar cuando la tanda terminó, se acabó el cupo o dejó de avanzar.
-      if (!d.corto_por_tiempo) break;
-      if (!quedan) break;
-      if (d.disponible_hoy !== undefined && d.disponible_hoy <= 0) break;
-      if (!d.enviados && !d.fallidos) break;
+    if (d && d.ok === false && d.razon === 'limite') {
+      /* Sin cupo no hay nada que continuar: se desarma para no dejarlo colgado
+         esperando un tic que no va a poder hacer nada. */
+      await sb.from('pos_wa_listas').update({ envio_activo: false }).eq('id', id);
+      if (res) res.innerHTML = '<span style="color:#B45309">\u26a0 ' + wlEsc(d.mensaje || 'Se acabo el cupo de hoy.') + '</span>';
     }
-    if (!avisoLimite) {
-      pinta('#16A34A', '✓ ' + totalOk + ' enviados'
-        + (totalMal ? ' · <span style="color:#DC2626">' + totalMal + ' fallidos</span>' : '')
-        + ' · quedan ' + quedan + ' para la próxima tanda');
-    }
-    await wlCargar();
   } catch (e) {
-    // Aunque se caiga la conexión, lo ya enviado quedó guardado en la cola.
-    pinta('#B45309', 'Se interrumpió: ' + (e.message || e) + '. Alcanzaron a salir '
-      + totalOk + '. Vuelve a darle al botón y sigue donde iba.');
-    if (btn) { btn.disabled = false; btn.textContent = 'Enviar tanda de hoy'; }
-    await wlCargar();
+    if (res) res.innerHTML = '<span style="color:#DC2626">No se pudo arrancar: ' + wlEsc(e.message || e) + '</span>';
   }
+  await wlCargar();
+  wlVigilar();
+}
+
+function wlEsc(t) {
+  return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+}
+
+/* Detener a mitad de camino. Lo ya enviado queda enviado —no se le puede
+   quitar un mensaje a nadie—; lo que para es lo que falta. */
+async function wlDetener(id) {
+  if (!confirm('Detener el envio?' + String.fromCharCode(10) + String.fromCharCode(10)
+    + 'Lo que ya salio no se puede devolver. Los que falten quedan pendientes '
+    + 'para cuando quieras seguir.')) return;
+  try { await sb.from('pos_wa_listas').update({ envio_activo: false }).eq('id', id); }
+  catch (e) { alert('No se pudo detener: ' + (e.message || e)); }
+  await wlCargar();
+}
+
+/* Mientras la pantalla este abierta, se refresca sola para ver avanzar la
+   tanda. Es solo un espejo: si se cierra, el envio sigue igual. */
+var _wlVigia = null;
+function wlVigilar() {
+  if (_wlVigia) clearInterval(_wlVigia);
+  var activas = (_wlListas || []).filter(function (l) { return l.envio_activo; }).length;
+  if (!activas) return;
+  _wlVigia = setInterval(async function () {
+    if (!document.getElementById('wlLista')) { clearInterval(_wlVigia); _wlVigia = null; return; }
+    await wlCargar();
+    var quedan = (_wlListas || []).filter(function (l) { return l.envio_activo; }).length;
+    if (!quedan) { clearInterval(_wlVigia); _wlVigia = null; }
+  }, 20000);
 }
 
 // ════════════════════════════════════════════════════════════
