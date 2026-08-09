@@ -91,6 +91,27 @@ Deno.serve(async (req) => {
             if (msgType === "text") {
               bodyText = ((msg.text as Record<string, unknown>)?.body as string) || "";
 
+            } else if (msgType === "interactive") {
+              /* Respuesta a un mensaje con BOTONES o LISTA.
+                 Antes se guardaba solo "[interactive]" y se perdia QUE eligio el
+                 cliente: paso el 01/08 con un "Familiar / Personal" y no hubo
+                 forma de recuperarlo (Meta no deja volver a pedir el contenido
+                 de un mensaje ya recibido). Ahora se guarda el texto del boton
+                 y, si no viniera, al menos su id. */
+              const inter = (msg.interactive as Record<string, unknown>) || {};
+              const br = (inter.button_reply as Record<string, unknown>) || {};
+              const lr = (inter.list_reply as Record<string, unknown>) || {};
+              const titulo = String(br.title || lr.title || "").trim();
+              const idBtn  = String(br.id || lr.id || "").trim();
+              const desc   = String(lr.description || "").trim();
+              bodyText = titulo || idBtn || "[interactive]";
+              if (titulo && desc) bodyText = titulo + " — " + desc;
+
+            } else if (msgType === "button") {
+              // Botones de plantilla (quick reply): el texto viene en button.text
+              const btn = (msg.button as Record<string, unknown>) || {};
+              bodyText = String(btn.text || btn.payload || "").trim() || "[button]";
+
             } else if (["sticker", "image", "video", "audio", "document"].includes(msgType)) {
               const mediaObj = (msg[msgType] as Record<string, unknown>) || {};
               const mediaId  = mediaObj.id as string;
@@ -131,7 +152,10 @@ Deno.serve(async (req) => {
               // Dedup ANTES de procesar (evita doble suma si Meta reenvía el webhook)
               const dupG = await sbGet(`/rest/v1/pos_gerente_procesados?external_id=eq.${encodeURIComponent(externalId)}&limit=1`);
               if (dupG?.length) continue;
-              await sbPost(`/rest/v1/pos_gerente_procesados`, { external_id: externalId });
+              await sbPost(`/rest/v1/pos_gerente_procesados`, {
+                external_id: externalId, telefono: fromPhone, tipo: msgType,
+                mensaje: msgType === "image" ? "[foto]" : bodyText,
+              });
 
               let reply = "";
               // ── FOTO DE FACTURA: la lee y propone reponer el inventario ──
@@ -159,19 +183,25 @@ Deno.serve(async (req) => {
                   if (fd.reply) reply = fd.reply;
                 } catch (_e) { /* si falla, sigue el flujo normal de texto */ }
               }
-              if (!reply && msgType === "text" && bodyText) {
-                try {
-                  const gr = await fetch(`${SUPABASE_URL}/functions/v1/gerente-inventario`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
-                    body: JSON.stringify({ branch_id, message: bodyText, phone: fromPhone }),
-                  });
-                  const gd = await gr.json();
-                  reply = gd.reply || "No pude procesar eso 🤔.";
-                } catch (e) { console.error("gerente-inventario:", e); reply = "Hubo un error procesando el inventario."; }
-              } else {
-                reply = "👋 Hola. Por ahora solo entiendo *texto* para el inventario. Ej: “hay 3 kilos de carne” o “compré 2 pacas de gaseosa a 30 mil”.";
+              if (!reply) {
+                if (msgType === "text" && bodyText) {
+                  try {
+                    const gr = await fetch(`${SUPABASE_URL}/functions/v1/gerente-inventario`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
+                      body: JSON.stringify({ branch_id, message: bodyText, phone: fromPhone }),
+                    });
+                    const gd = await gr.json();
+                    reply = gd.reply || "No pude procesar eso 🤔.";
+                  } catch (e) { console.error("gerente-inventario:", e); reply = "Hubo un error procesando el inventario."; }
+                } else {
+                  reply = "👋 Hola. Por ahora entiendo *texto* y *fotos de facturas* para el inventario. Ej: “hay 3 kilos de carne” o “compré 2 pacas de gaseosa a 30 mil”.";
+                }
               }
+              // Queda el par completo: lo que dijo y lo que se le contesto.
+              try {
+                await sbPatch(`/rest/v1/pos_gerente_procesados?external_id=eq.${encodeURIComponent(externalId)}`, { respuesta: reply });
+              } catch { /* el registro nunca bloquea la respuesta */ }
               if (phoneId && accessToken) {
                 try {
                   await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
@@ -217,7 +247,7 @@ Deno.serve(async (req) => {
             // Guardar mensaje entrante
             await sbPost(`/rest/v1/chat_messages`, {
               conversation_id: convId, tenant_id,
-              direction: "in", body: bodyText,
+              direction: "in", origen: "cliente", body: bodyText,
               media_url: mediaUrl, media_type: mediaType,
               delivery_status: "delivered", external_id: externalId,
               sent_at: new Date(parseInt(msg.timestamp as string) * 1000).toISOString(),
@@ -262,12 +292,151 @@ Deno.serve(async (req) => {
         }
       }
     }
+
+    /* ══ MESSENGER E INSTAGRAM ═════════════════════════════════════════════
+       Meta manda los dos con la MISMA forma —entry[].messaging[]— y solo
+       cambia el `object` y que id trae el entry. Por eso una sola rama. */
+    if (object === "page" || object === "instagram") {
+      const esIG  = object === "instagram";
+      const canal = esIG ? "instagram" : "facebook";
+      const entries = (body.entry as Array<Record<string, unknown>>) || [];
+
+      for (const entry of entries) {
+        const cuentaId = String(entry.id || "");
+        const eventos  = (entry.messaging as Array<Record<string, unknown>>) || [];
+        if (!eventos.length) continue;
+
+        /* De que canal conectado es. Para Instagram el entry trae el id de la
+           cuenta de IG; para Messenger, el de la pagina. */
+        const chRes = await sbGet(`/rest/v1/chat_channels?channel=eq.${canal}&select=id,tenant_id,branch_id,meta&limit=100`);
+        const channel = (chRes || []).find((c) => {
+          const m = leerMeta(c.meta);
+          return esIG ? String(m.ig_id || "") === cuentaId
+                      : String(m.page_id || "") === cuentaId;
+        });
+        if (!channel) continue;
+
+        const meta = leerMeta(channel.meta);
+        /* El token de la PAGINA, no el del usuario: es el que sirve para leer
+           el perfil de quien escribe y para contestarle. */
+        const pageToken = String(meta.page_token || meta.access_token || "");
+        const { tenant_id, branch_id, id: channel_id } = channel;
+
+        for (const ev of eventos) {
+          const msg = ev.message as Record<string, unknown> | undefined;
+          if (!msg) continue;
+
+          /* Lo que manda Cobra vuelve de rebote marcado como `is_echo`. Sin
+             este filtro cada respuesta aparecia DOS veces en la conversacion. */
+          if (msg.is_echo) continue;
+
+          const remitente  = String((ev.sender as Record<string, unknown>)?.id || "");
+          const externalId = String(msg.mid || "");
+          if (!remitente || !externalId) continue;
+
+          /* Lo que escribio, o que mando si no es texto. */
+          let bodyText  = String(msg.text || "").trim();
+          let mediaUrl: string | null = null;
+          let mediaType: string | null = null;
+
+          const adjuntos = (msg.attachments as Array<Record<string, unknown>>) || [];
+          if (adjuntos.length) {
+            const a = adjuntos[0];
+            const tipo = String(a.type || "");
+            const url  = String((a.payload as Record<string, unknown>)?.url || "");
+            if (tipo === "story_mention") {
+              /* Una mencion en historia NO es un mensaje normal: es la promo de
+                 los puntos, y se atiende aparte. Por ahora entra a la bandeja
+                 para que se vea; abonar los puntos es el paso siguiente. */
+              bodyText = bodyText || "[te mencionó en su historia]";
+              mediaType = "story_mention";
+              mediaUrl = url || null;
+            } else if (["image", "video", "audio", "file"].includes(tipo)) {
+              mediaType = tipo === "file" ? "document" : tipo;
+              mediaUrl  = url || null;
+              bodyText  = bodyText || `[${tipo}]`;
+            } else {
+              bodyText = bodyText || `[${tipo || "adjunto"}]`;
+            }
+          }
+          if (!bodyText && !mediaUrl) continue;
+
+          // Que no se guarde dos veces si Meta reintenta.
+          const dup = await sbGet(`/rest/v1/chat_messages?external_id=eq.${encodeURIComponent(externalId)}&limit=1`);
+          if (dup?.length) continue;
+
+          /* Quien escribe. Meta da un id opaco, no el nombre: hay que
+             preguntarlo. Si falla, se usa el id — nunca se deja sin nombre. */
+          let quien = remitente;
+          try {
+            const campos = esIG ? "name,username" : "name";
+            const pr = await fetch(`https://graph.facebook.com/v22.0/${remitente}?fields=${campos}&access_token=${pageToken}`);
+            const pd = await pr.json();
+            quien = String(pd.username ? "@" + pd.username : (pd.name || remitente));
+          } catch { /* sin nombre, con el id basta para no perder el mensaje */ }
+
+          // La conversacion: la de siempre si ya escribio antes, o una nueva.
+          const convRes = await sbGet(
+            `/rest/v1/chat_conversations?branch_id=eq.${branch_id}&contact_handle=eq.${encodeURIComponent(remitente)}&channel=eq.${canal}&select=id,unread_count&limit=1`
+          );
+          let convId = "";
+          let unread = 0;
+          if (convRes?.length) {
+            convId = String(convRes[0].id);
+            unread = Number(convRes[0].unread_count) || 0;
+          } else {
+            const nueva = await sbPost(`/rest/v1/chat_conversations`, {
+              tenant_id, branch_id, channel: canal, channel_id,
+              contact_name: quien, contact_handle: remitente,
+              contact_avatar_tint: Math.floor(Math.random() * 8) + 1,
+              status: "open", unread_count: 0,
+              last_message: bodyText, last_message_at: new Date().toISOString(),
+              last_sender: "contact", last_read: false,
+            }, "return=representation");
+            convId = String(nueva?.[0]?.id || "");
+          }
+          if (!convId) continue;
+
+          const cuando = ev.timestamp
+            ? new Date(Number(ev.timestamp)).toISOString()
+            : new Date().toISOString();
+
+          await sbPost(`/rest/v1/chat_messages`, {
+            conversation_id: convId, tenant_id,
+            direction: "in", origen: "cliente", body: bodyText,
+            media_url: mediaUrl, media_type: mediaType,
+            delivery_status: "delivered", external_id: externalId,
+            sent_at: cuando,
+          });
+
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+            last_message: bodyText, last_message_at: new Date().toISOString(),
+            last_sender: "contact", last_read: false,
+            unread_count: unread + 1, contact_name: quien,
+          });
+
+          /* Ojo: aqui NO se encola al bot. En WhatsApp contesta solo; en
+             Instagram y Messenger el mensaje entra a la bandeja y contesta una
+             persona. Enseñarle a Paco a atender estos canales es otro trabajo,
+             y va al final con el resto de su entrenamiento. */
+        }
+      }
+    }
   } catch (err) {
     console.error("meta-webhook error:", err);
   }
 
   return new Response("OK", { status: 200 });
 });
+
+
+/* El `meta` del canal puede venir como objeto o —de conexiones viejas— como
+   texto. Se lee igual en los dos casos. */
+function leerMeta(raw: unknown): Record<string, unknown> {
+  if (typeof raw === "string") { try { return JSON.parse(raw); } catch { return {}; } }
+  if (raw && typeof raw === "object") return raw as Record<string, unknown>;
+  return {};
+}
 
 // ── Cola de respuesta IA ──────────────────────────────────────────────────────
 
@@ -413,7 +582,7 @@ async function tryAiReply(opts: AiReplyOpts): Promise<void> {
     await sbPost(`/rest/v1/chat_messages`, {
       conversation_id: convId,
       tenant_id: tenantId,
-      direction: "out",
+      direction: "out", origen: "bot",
       body: reply,
       delivery_status: "sent",
       external_id: sentId || null,
