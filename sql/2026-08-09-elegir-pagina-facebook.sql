@@ -32,6 +32,17 @@ create table if not exists meta_oauth_pendiente (
 -- la llave de servicio. Sin politicas, RLS niega todo lo demas.
 alter table meta_oauth_pendiente enable row level security;
 
+-- ⚠️ El GRANT es imprescindible y se me olvido la primera vez: Postgres pide
+-- el permiso de TABLA antes que las politicas, asi que sin esto ni la llave de
+-- servicio entra —salio en pantalla como "permission denied for table
+-- meta_oauth_pendiente"—. Es el mismo error que tenia mypass_vault al reves
+-- (ahi el permiso estaba para anon y no para el usuario que entra).
+grant select, insert, delete on public.meta_oauth_pendiente to service_role;
+
+-- Y fuera lo que Supabase concede por herencia: anon y authenticated venian
+-- con TRUNCATE, que se salta las politicas — cualquiera podria vaciarla.
+revoke all on public.meta_oauth_pendiente from anon, authenticated;
+
 -- Lo que quede colgado (el dueno cerro la ventana a medias) se borra solo.
 create or replace function meta_oauth_limpiar()
 returns void
