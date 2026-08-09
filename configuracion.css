@@ -1698,3 +1698,18 @@ div.master[data-tab].cia-active { display: flex !important; }
 .cia-sabe-l b { font-weight: 800; color: var(--ink, #0F172A); font-variant-numeric: tabular-nums; }
 .cia-sabe-l b.ojo { color: #B45309; background: #FFFBEB; border-radius: 7px; padding: 1px 8px; }
 .cia-sabe-pie { font-size: 11px; color: var(--ink-4, #94A3B8); line-height: 1.5; margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--border, #ECEEF2); }
+
+
+/* ══ Imágenes de la carta ════════════════════════════════════════════════
+   Estas clases se usaban sin existir: la foto salía a tamaño natural y
+   ocupaba la pantalla entera. Cada fila es enlace + miniatura + borrar. */
+.menu-img-list { display: flex; flex-direction: column; gap: 8px; }
+.menu-img-row { display: flex; align-items: center; gap: 10px; }
+.menu-img-row .inp { flex: 1; min-width: 0; padding: 9px 11px; border: 1px solid var(--border, #ECEEF2); border-radius: 10px; font-family: inherit; font-size: 12.5px; outline: none; }
+.menu-img-row .inp:focus { border-color: var(--accent, #5B6BFF); }
+/* La miniatura nace invisible y solo aparece cuando la imagen carga de
+   verdad: un recuadro roto no le dice nada a nadie. */
+.menu-img-thumb { width: 54px; height: 54px; flex-shrink: 0; border-radius: 10px; object-fit: cover; border: 1px solid var(--border, #ECEEF2); background: var(--soft-3, #F8FAFC); display: none; }
+.menu-img-thumb.loaded { display: block; }
+.menu-img-del { width: 34px; height: 34px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border, #ECEEF2); border-radius: 9px; background: #fff; color: var(--ink-4, #94A3B8); cursor: pointer; }
+.menu-img-del:hover { color: var(--danger, #DC2626); border-color: var(--danger-bd, #FECACA); background: var(--danger-bg, #FEF2F2); }
