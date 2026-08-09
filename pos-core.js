@@ -73,16 +73,26 @@ function daysAgoISO(n) {
     return deb > 0 && (parseFloat(o.paid_amount) || 0) >= deb - 1;
   };
 
+  var _emitidos = {};   // ultimo dato de cada evento ya emitido, para los oyentes que llegan tarde
+
   window._pos = {
     sb: sb,
     state: { user: null, branchId: null, tenantId: null },
 
+    /* core:ready se emite UNA vez, apenas se lee la sesion — y eso hoy es
+       instantaneo (sale del equipo). Una pantalla que registra su oyente
+       dentro de DOMContentLoaded puede llegar TARDE: el evento ya paso y su
+       oyente no corre nunca. Asi murio venta rapida: "Cargando categorias..."
+       eterno, sin un solo error. Ahora el que llega tarde lo recibe de
+       inmediato, como si hubiera llegado a tiempo. */
     on(event, fn) {
       if (!listeners[event]) listeners[event] = [];
       listeners[event].push(fn);
+      if (event in _emitidos) { try { fn(_emitidos[event]); } catch(e) { console.error('[_pos.on tardio]', event, e); } }
     },
 
     emit(event, data) {
+      _emitidos[event] = data;
       (listeners[event] || []).forEach(fn => { try { fn(data); } catch(e) { console.error('[_pos.emit]', event, e); } });
     },
 
