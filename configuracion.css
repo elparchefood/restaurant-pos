@@ -1725,3 +1725,8 @@ div.master[data-tab].cia-active { display: flex !important; }
 .cfg-visor img { max-width: min(900px, 92vw); max-height: 88vh; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.4); background: #fff; cursor: default; }
 .cfg-visor-x { position: absolute; top: 18px; right: 22px; width: 40px; height: 40px; border: 0; border-radius: 999px; background: rgba(255,255,255,.14); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .cfg-visor-x:hover { background: rgba(255,255,255,.26); }
+
+/* La ultima linea de la cuenta es la que importa: lo que paga el cliente. */
+.cia-sabe-l.cia-total { border-top: 1px solid var(--border, #ECEEF2); margin-top: 4px; padding-top: 11px; }
+.cia-sabe-l.cia-total span { color: var(--ink, #0F172A); font-weight: 800; }
+.cia-sabe-l.cia-total b { font-size: 17px; }

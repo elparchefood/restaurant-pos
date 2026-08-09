@@ -4812,18 +4812,73 @@ var _storedZonas = [];
     var cap   = document.querySelector('.pv-cap');
     var saber = document.getElementById('ciaSabe');
     if (!phone) return;
+    var cuenta = document.getElementById('ciaCuenta');
     var esInfo = (tab === 'informacion');
-    phone.style.display = esInfo ? 'none' : '';
-    if (clear) clear.style.display = esInfo ? 'none' : '';
-    if (stats) stats.style.display = esInfo ? 'none' : '';
-    if (saber) saber.style.display = esInfo ? '' : 'none';
-    if (cap) cap.lastChild.textContent = esInfo ? ' Lo que Paco sabe hoy' : ' Vista previa en vivo';
+    var esPed  = (tab === 'pedido');
+    var esChat = !esInfo && !esPed;
+    phone.style.display = esChat ? '' : 'none';
+    if (clear) clear.style.display = esChat ? '' : 'none';
+    if (stats) stats.style.display = esChat ? '' : 'none';
+    if (saber)  saber.style.display  = esInfo ? '' : 'none';
+    if (cuenta) cuenta.style.display = esPed  ? '' : 'none';
+    if (cap) cap.lastChild.textContent = esInfo ? ' Lo que Paco sabe hoy'
+                                       : esPed ? ' Un pedido de ejemplo'
+                                       : ' Vista previa en vivo';
     if (esInfo) ciaPintarSabe();
+    if (esPed)  ciaPintarCuenta();
   };
 
   /* Los conteos salen de la MISMA configuración que lee Paco. Si algo aquí
      está en cero, Paco no lo puede responder — y eso es justo lo que el dueño
      necesita ver de un vistazo. */
+  /* La cuenta de un pedido de ejemplo: comida + empaque + domicilio, con las
+     tarifas REALES que el dueño acaba de configurar. Es la misma idea del
+     simulador de impuestos: cambias el precio de un barrio y ves el total
+     moverse, en vez de imaginártelo. */
+  window.ciaPintarCuenta = async function () {
+    var out = document.getElementById('ciaCuenta');
+    if (!out) return;
+    var money = function (n) { return '$' + Math.round(Number(n) || 0).toLocaleString('es-CO'); };
+    var COMIDA = 28000;   // una salchipapa cualquiera, para tener con qué mostrar
+    var empaque = 0, domi = 0, barrio = '—', zonas = 0, verif = false, prog = false;
+    try {
+      var st = (window._pos && window._pos.state) || {};
+      var r = await Promise.allSettled([
+        sb.from('branches').select('operacion_config').eq('id', st.branchId).maybeSingle(),
+        sb.from('ia_config').select('domicilios, pagos, pedidos_programados').eq('branch_id', st.branchId).maybeSingle(),
+      ]);
+      if (r[0].status === 'fulfilled' && r[0].value.data && window.posEmpaqueCalc) {
+        empaque = posEmpaqueCalc(
+          [{ productId: '', catId: '', presId: '', qty: 1, unitPrice: COMIDA }],
+          { domicilio: true }) || 0;
+      }
+      if (r[1].status === 'fulfilled' && r[1].value.data) {
+        var d = r[1].value.data.domicilios || {};
+        var zs = Array.isArray(d.zonas) ? d.zonas : [];
+        zonas = zs.reduce(function (t, z) { return t + ((z.barrios || []).length || 1); }, 0);
+        if (zs.length) { domi = Number(zs[0].precio) || 0; barrio = (zs[0].barrios && zs[0].barrios[0]) || zs[0].nombre || '—'; }
+        var pg = r[1].value.data.pagos || {};
+        verif = !!(pg.bancos_correo || pg.esperar_comprobante);
+        prog = !!r[1].value.data.pedidos_programados;
+      }
+    } catch (e) { console.warn('[cia] cuenta:', e); }
+    var total = COMIDA + empaque + domi;
+    function fila(l, v, cls) { return '<div class="cia-sabe-l ' + (cls || '') + '"><span>' + l + '</span><b>' + v + '</b></div>'; }
+    out.innerHTML =
+        fila('Comida', money(COMIDA))
+      + fila('Empaque', empaque ? money(empaque) : 'sin cargo')
+      + fila('Domicilio · ' + ciaEsc(barrio), domi ? money(domi) : 'sin definir')
+      + fila('El cliente paga', money(total), 'cia-total')
+      + '<div class="cia-sabe-pie">' + zonas + (zonas === 1 ? ' barrio con precio' : ' barrios con precio')
+      + ' · Verificación de pagos ' + (verif ? 'activa' : 'apagada')
+      + ' · Pedidos programados ' + (prog ? 'sí' : 'no') + '.</div>';
+  };
+  function ciaEsc(t) {
+    return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
   window.ciaPintarSabe = async function () {
     var out = document.getElementById('ciaSabe');
     if (!out) return;

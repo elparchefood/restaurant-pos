@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css?v=1789840000">
-<link rel="stylesheet" href="configuracion.css?v=1790420000">
+<link rel="stylesheet" href="configuracion.css?v=1790430000">
 </head>
 <body>
 <div class="cf-root">
@@ -1385,46 +1385,7 @@
         <div class="cfg-body">
           <div class="cfg-col">
             <!-- Lista negra de clientes (autónomo, tablas pos_blacklist*) -->
-            <div class="card" id="blCfgCard" data-tab="pedido" style="padding:0;overflow:hidden;border-radius:12px;margin-bottom:16px;order:99">
-              <style>
-                .bl-person{border:1px solid var(--border);border-radius:11px;padding:12px 14px;margin-bottom:10px}
-                .bl-person-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-                .bl-person-head b{font-size:14px;color:var(--text-1)}
-                .bl-del-person{border:1px solid #FECACA;background:#FEF2F2;color:#DC2626;border-radius:8px;padding:4px 10px;font-size:11.5px;font-weight:700;cursor:pointer}
-                .bl-del-person:hover{background:#FEE2E2}
-                .bl-razon2{font-size:12.5px;color:var(--text-3);margin:4px 0 8px;line-height:1.35}
-                .bl-chips{display:flex;flex-wrap:wrap;gap:6px}
-                .bl-chip{display:inline-flex;align-items:center;gap:5px;background:#EEF2FF;color:#4338CA;border-radius:7px;padding:4px 6px 4px 9px;font-size:12px;font-weight:600}
-                .bl-chip-dir{background:#F1F5F9;color:#334155}
-                .bl-chip button{border:none;background:transparent;color:inherit;opacity:.6;cursor:pointer;font-size:14px;line-height:1;padding:0 2px}
-                .bl-chip button:hover{opacity:1;color:#DC2626}
-                .bl-ov2{position:fixed;inset:0;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px}
-                .bl-box2{background:#fff;border-radius:16px;padding:22px;width:100%;max-width:380px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
-                .bl-title2{font-size:16px;font-weight:800;color:#0F172A;margin-bottom:14px}
-                .bl-inp2{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #CBD5E1;border-radius:9px;font-size:13.5px;font-family:inherit;margin-bottom:9px;outline:none}
-                .bl-inp2:focus{border-color:#5B6BFF}
-                .bl-txa2{resize:vertical;min-height:42px}
-                .bl-btns2{display:flex;gap:9px;margin-top:6px}
-                .bl-c2{flex:1;padding:10px;border:1px solid #CBD5E1;border-radius:9px;background:#fff;font-weight:700;cursor:pointer}
-                .bl-s2{flex:1;padding:10px;border:none;border-radius:9px;background:#ef4444;color:#fff;font-weight:800;cursor:pointer}
-                .bl-s2:hover{background:#dc2626}
-              
-    .cfg-conex-row{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--line,#ECEEF2)}
-    .cfg-conex-row:last-child{border-bottom:none}
-    .cfg-conex-tx{flex:1;min-width:0}
-    .cfg-conex-tt{font-size:13.5px;font-weight:700;color:#0F172A}
-    .cfg-conex-ds{font-size:11.5px;color:#94A3B8;line-height:1.5;margin-top:2px}
-</style>
-              <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border)">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>
-                <div style="flex:1;min-width:0">
-                  <div style="font-weight:700;font-size:15px">Lista negra</div>
-                  <div style="font-size:12px;color:var(--text-3)">Bloquea por teléfono o dirección exacta. Paco no les responde y te avisa al crear pedidos.</div>
-                </div>
-                <button type="button" id="blAddBtn" class="btn-primary" style="padding:8px 14px;font-size:13px;white-space:nowrap">+ Agregar</button>
-              </div>
-              <div id="blCfgBody" style="padding:14px 20px;font-size:13px;color:var(--text-3)">Cargando…</div>
-            </div>
+            
             <!-- Estados de pedido y avisos (autónomo, guarda ia_config.estados_config) -->
             <div class="card" id="estadosCfgCard" data-tab="mensajes" style="padding:0;overflow:hidden;border-radius:12px;margin-bottom:16px;order:99">
               <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border)">
@@ -1946,7 +1907,67 @@
             </div></div></div>
 
             <!-- CARD: PAGOS Y COBRO -->
-            <div class="card" id="card-pagos" data-tab="pedido">
+            
+
+
+            <!-- CARD: VERIFICACION GMAIL -->
+            
+            <!-- CARD: DOMICILIOS Y COBERTURA -->
+            <div class="cia-acc" data-tab="pedido" data-acc="p-domi"><button type="button" class="cia-acc-h" onclick="ciaAcc('p-domi')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span><span class="cia-acc-t">Domicilios y cobertura</span><span class="cia-acc-sum" id="ciasum-p-domi"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-domicilios" data-tabint="pedido">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/><path d="M5 3l4 4M19 3l-4 4"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Domicilios y cobertura</div>
+                  <div class="card-hd-ds">Zonas de entrega con sus precios y tiempo estimado.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="pay-rule-row">
+                  <div class="pay-rule-tx">
+                    <div class="pay-rule-tt">&iquest;Hacen domicilio?</div>
+                    <div class="pay-rule-ds">Activa si tu restaurante hace entregas a domicilio</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" id="domiActivo" checked><span class="track"></span><span class="knob"></span></label>
+                </div>
+                <div id="domi-fields">
+                  <div class="pay-rule-row" style="margin-top:14px">
+                    <div class="pay-rule-tx">
+                      <div class="pay-rule-tt">&iquest;Aceptan para llevar?</div>
+                      <div class="pay-rule-ds">El cliente puede pasar a recoger sin costo de domicilio</div>
+                    </div>
+                    <label class="switch"><input type="checkbox" id="domiParaLlevar" checked><span class="track"></span><span class="knob"></span></label>
+                  </div>
+                  <div class="pay-rule-row" style="margin-top:14px">
+                    <div class="pay-rule-tx">
+                      <div class="pay-rule-tt">Para llevar exige pago anticipado</div>
+                      <div class="pay-rule-ds">Si el cliente recoge y quiere pagar en efectivo, el bot le explica que el pedido se prepara al recibir el pago (frase "Para llevar pagando en efectivo" en Mensajes). Con pago digital, el flujo normal de comprobante.</div>
+                    </div>
+                    <label class="switch"><input type="checkbox" id="domiLlevarPrepago" checked><span class="track"></span><span class="knob"></span></label>
+                  </div>
+                  <div class="field" style="margin-top:14px">
+                    <label class="field-lb" for="domiTiempo">Tiempo estimado de entrega</label>
+                    <input class="inp" id="domiTiempo" placeholder="Ej. 30 minutos, 45-60 minutos en hora pico">
+                    <div class="field-hint">El bot lo menciona como referencia pero siempre avisa cuando salga el pedido.</div>
+                  </div>
+                  <div class="field">
+                    <label class="lbl">Copias del recibo del domiciliario</label>
+                    <select class="inp" id="domiCopias">
+                      <option value="1">1 copia — solo para el cliente</option>
+                      <option value="2">2 copias — una para el cliente y otra que el domiciliario devuelve</option>
+                    </select>
+                    <div class="field-hint">La segunda copia sirve para que el domiciliario tenga respaldo de lo que cobró.</div>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Zonas y precios de domicilio</label>
+                    <div id="domiAprendidos"></div>
+                    <div id="zoneList" class="zone-list"></div>
+                    <button class="zone-add" id="zoneAdd" type="button">+ Agregar zona</button>
+                    <div class="field-hint">Cada zona es un <b>precio</b> con los barrios que lo pagan. Escribe un barrio por l&iacute;nea. El bot consulta esta tabla para cobrar el domicilio.</div>
+                  </div>
+                </div>
+              </div>
+            </div></div></div>
+            <div class="cia-acc" data-tab="pedido" data-acc="p-pagos"><button type="button" class="cia-acc-h" onclick="ciaAcc('p-pagos')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span><span class="cia-acc-t">Pagos y cobro</span><span class="cia-acc-sum" id="ciasum-p-pagos"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-pagos" data-tabint="pedido">
               <div class="card-hd">
                 <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
                 <div class="card-hd-tx">
@@ -2004,11 +2025,8 @@
                   <input class="inp" id="payNota" placeholder="Ej. El domiciliario lleva cambio de hasta $100.000">
                 </div>
               </div>
-            </div>
-
-
-            <!-- CARD: VERIFICACION GMAIL -->
-            <div class="card" id="card-gmail" data-tab="pedido">
+            </div></div></div>
+            <div class="cia-acc" data-tab="pedido" data-acc="p-verif"><button type="button" class="cia-acc-h" onclick="ciaAcc('p-verif')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v12H5.2L4 17.6z"/><polyline points="9 10 11 12 15 8"/></svg></span><span class="cia-acc-t">Verificación de transferencias</span><span class="cia-acc-sum" id="ciasum-p-verif"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-gmail" data-tabint="pedido">
               <div class="card-hd">
                 <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
                 <div class="card-hd-tx">
@@ -2048,62 +2066,65 @@
                   <div class="field-hint">Bancos o billeteras cuyos correos cuentan como confirmaci&oacute;n de pago, separados por coma. Vac&iacute;o = bancos de Colombia. Si vendes en otro pa&iacute;s, escribe aqu&iacute; los de tu banco (ej. <code>bbva mexico, mercadopago</code>).</div>
                 </div>
               </div>
-            </div>
-            <!-- CARD: DOMICILIOS Y COBERTURA -->
-            <div class="card" id="card-domicilios" data-tab="pedido">
+            </div></div></div>
+            <div class="cia-acc" data-tab="pedido" data-acc="p-prog"><button type="button" class="cia-acc-h" onclick="ciaAcc('p-prog')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span><span class="cia-acc-t">Pedidos programados</span><span class="cia-acc-sum" id="ciasum-p-prog"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-pedidos-prog" data-tabint="pedido">
               <div class="card-hd">
-                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/><path d="M5 3l4 4M19 3l-4 4"/></svg></div>
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M12 14v4M10 16h4"/></svg></div>
                 <div class="card-hd-tx">
-                  <div class="card-hd-tt">Domicilios y cobertura</div>
-                  <div class="card-hd-ds">Zonas de entrega con sus precios y tiempo estimado.</div>
+                  <div class="card-hd-tt">Pedidos programados</div>
+                  <div class="card-hd-ds">Define qu&eacute; hace el asistente cuando un cliente quiere pedir fuera del horario de atenci&oacute;n.</div>
                 </div>
               </div>
               <div class="card-bd">
-                <div class="pay-rule-row">
-                  <div class="pay-rule-tx">
-                    <div class="pay-rule-tt">&iquest;Hacen domicilio?</div>
-                    <div class="pay-rule-ds">Activa si tu restaurante hace entregas a domicilio</div>
+                <div class="row-toggle" id="pedidosProgRow">
+                  <div class="row-toggle-tx">
+                    <div class="row-toggle-tt">Aceptar pedidos fuera de horario</div>
+                    <div class="row-toggle-ds">Si est&aacute; activo, el bot recibe pedidos aunque est&eacute; cerrado y aclara que se preparar&aacute;n cuando abramos. Si est&aacute; inactivo, solo informa el horario pero no toma el pedido.</div>
                   </div>
-                  <label class="switch"><input type="checkbox" id="domiActivo" checked><span class="track"></span><span class="knob"></span></label>
-                </div>
-                <div id="domi-fields">
-                  <div class="pay-rule-row" style="margin-top:14px">
-                    <div class="pay-rule-tx">
-                      <div class="pay-rule-tt">&iquest;Aceptan para llevar?</div>
-                      <div class="pay-rule-ds">El cliente puede pasar a recoger sin costo de domicilio</div>
-                    </div>
-                    <label class="switch"><input type="checkbox" id="domiParaLlevar" checked><span class="track"></span><span class="knob"></span></label>
-                  </div>
-                  <div class="pay-rule-row" style="margin-top:14px">
-                    <div class="pay-rule-tx">
-                      <div class="pay-rule-tt">Para llevar exige pago anticipado</div>
-                      <div class="pay-rule-ds">Si el cliente recoge y quiere pagar en efectivo, el bot le explica que el pedido se prepara al recibir el pago (frase "Para llevar pagando en efectivo" en Mensajes). Con pago digital, el flujo normal de comprobante.</div>
-                    </div>
-                    <label class="switch"><input type="checkbox" id="domiLlevarPrepago" checked><span class="track"></span><span class="knob"></span></label>
-                  </div>
-                  <div class="field" style="margin-top:14px">
-                    <label class="field-lb" for="domiTiempo">Tiempo estimado de entrega</label>
-                    <input class="inp" id="domiTiempo" placeholder="Ej. 30 minutos, 45-60 minutos en hora pico">
-                    <div class="field-hint">El bot lo menciona como referencia pero siempre avisa cuando salga el pedido.</div>
-                  </div>
-                  <div class="field">
-                    <label class="lbl">Copias del recibo del domiciliario</label>
-                    <select class="inp" id="domiCopias">
-                      <option value="1">1 copia — solo para el cliente</option>
-                      <option value="2">2 copias — una para el cliente y otra que el domiciliario devuelve</option>
-                    </select>
-                    <div class="field-hint">La segunda copia sirve para que el domiciliario tenga respaldo de lo que cobró.</div>
-                  </div>
-                  <div class="field">
-                    <label class="field-lb">Zonas y precios de domicilio</label>
-                    <div id="domiAprendidos"></div>
-                    <div id="zoneList" class="zone-list"></div>
-                    <button class="zone-add" id="zoneAdd" type="button">+ Agregar zona</button>
-                    <div class="field-hint">Cada zona es un <b>precio</b> con los barrios que lo pagan. Escribe un barrio por l&iacute;nea. El bot consulta esta tabla para cobrar el domicilio.</div>
-                  </div>
+                  <label class="switch"><input type="checkbox" id="pedidosProg"><span class="track"></span><span class="knob"></span></label>
                 </div>
               </div>
-            </div>
+            </div></div></div>
+            <div class="cia-acc" data-tab="pedido" data-acc="p-negra"><button type="button" class="cia-acc-h" onclick="ciaAcc('p-negra')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="23" y2="14"/><line x1="23" y1="8" x2="17" y2="14"/></svg></span><span class="cia-acc-t">Lista negra de clientes</span><span class="cia-acc-sum" id="ciasum-p-negra"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="blCfgCard" data-tabint="pedido" style="padding:0;overflow:hidden;border-radius:12px;margin-bottom:16px;order:99">
+              <style>
+                .bl-person{border:1px solid var(--border);border-radius:11px;padding:12px 14px;margin-bottom:10px}
+                .bl-person-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+                .bl-person-head b{font-size:14px;color:var(--text-1)}
+                .bl-del-person{border:1px solid #FECACA;background:#FEF2F2;color:#DC2626;border-radius:8px;padding:4px 10px;font-size:11.5px;font-weight:700;cursor:pointer}
+                .bl-del-person:hover{background:#FEE2E2}
+                .bl-razon2{font-size:12.5px;color:var(--text-3);margin:4px 0 8px;line-height:1.35}
+                .bl-chips{display:flex;flex-wrap:wrap;gap:6px}
+                .bl-chip{display:inline-flex;align-items:center;gap:5px;background:#EEF2FF;color:#4338CA;border-radius:7px;padding:4px 6px 4px 9px;font-size:12px;font-weight:600}
+                .bl-chip-dir{background:#F1F5F9;color:#334155}
+                .bl-chip button{border:none;background:transparent;color:inherit;opacity:.6;cursor:pointer;font-size:14px;line-height:1;padding:0 2px}
+                .bl-chip button:hover{opacity:1;color:#DC2626}
+                .bl-ov2{position:fixed;inset:0;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px}
+                .bl-box2{background:#fff;border-radius:16px;padding:22px;width:100%;max-width:380px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+                .bl-title2{font-size:16px;font-weight:800;color:#0F172A;margin-bottom:14px}
+                .bl-inp2{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #CBD5E1;border-radius:9px;font-size:13.5px;font-family:inherit;margin-bottom:9px;outline:none}
+                .bl-inp2:focus{border-color:#5B6BFF}
+                .bl-txa2{resize:vertical;min-height:42px}
+                .bl-btns2{display:flex;gap:9px;margin-top:6px}
+                .bl-c2{flex:1;padding:10px;border:1px solid #CBD5E1;border-radius:9px;background:#fff;font-weight:700;cursor:pointer}
+                .bl-s2{flex:1;padding:10px;border:none;border-radius:9px;background:#ef4444;color:#fff;font-weight:800;cursor:pointer}
+                .bl-s2:hover{background:#dc2626}
+              
+    .cfg-conex-row{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--line,#ECEEF2)}
+    .cfg-conex-row:last-child{border-bottom:none}
+    .cfg-conex-tx{flex:1;min-width:0}
+    .cfg-conex-tt{font-size:13.5px;font-weight:700;color:#0F172A}
+    .cfg-conex-ds{font-size:11.5px;color:#94A3B8;line-height:1.5;margin-top:2px}
+</style>
+              <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:700;font-size:15px">Lista negra</div>
+                  <div style="font-size:12px;color:var(--text-3)">Bloquea por teléfono o dirección exacta. Paco no les responde y te avisa al crear pedidos.</div>
+                </div>
+                <button type="button" id="blAddBtn" class="btn-primary" style="padding:8px 14px;font-size:13px;white-space:nowrap">+ Agregar</button>
+              </div>
+              <div id="blCfgBody" style="padding:14px 20px;font-size:13px;color:var(--text-3)">Cargando…</div>
+            </div></div></div>
 
 
 
@@ -2316,24 +2337,7 @@
             
 
             <!-- CARD: PEDIDOS PROGRAMADOS -->
-            <div class="card" id="card-pedidos-prog" data-tab="pedido">
-              <div class="card-hd">
-                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M12 14v4M10 16h4"/></svg></div>
-                <div class="card-hd-tx">
-                  <div class="card-hd-tt">Pedidos programados</div>
-                  <div class="card-hd-ds">Define qu&eacute; hace el asistente cuando un cliente quiere pedir fuera del horario de atenci&oacute;n.</div>
-                </div>
-              </div>
-              <div class="card-bd">
-                <div class="row-toggle" id="pedidosProgRow">
-                  <div class="row-toggle-tx">
-                    <div class="row-toggle-tt">Aceptar pedidos fuera de horario</div>
-                    <div class="row-toggle-ds">Si est&aacute; activo, el bot recibe pedidos aunque est&eacute; cerrado y aclara que se preparar&aacute;n cuando abramos. Si est&aacute; inactivo, solo informa el horario pero no toma el pedido.</div>
-                  </div>
-                  <label class="switch"><input type="checkbox" id="pedidosProg"><span class="track"></span><span class="knob"></span></label>
-                </div>
-              </div>
-            </div>
+            
 
             <!-- CARD: FRASES DEL BOT -->
             <div class="card" id="card-frases" data-tab="mensajes">
@@ -2576,6 +2580,8 @@
             <button class="pv-clear" id="pvClear">Borrar la prueba</button>
             <!-- El rail de la pestaña Información: lo que Paco sabe hoy. -->
             <div class="cia-sabe" id="ciaSabe" style="display:none"></div>
+            <!-- El rail de Pedido: la cuenta con las tarifas reales. -->
+            <div class="cia-sabe" id="ciaCuenta" style="display:none"></div>
             <div class="pv-stats">
               <div class="pv-stat"><span class="pv-stat-l"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Resueltas por IA hoy</span><span class="pv-stat-v g">42</span></div>
               <div class="pv-stat"><span class="pv-stat-l"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent-2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg> Audios enviados</span><span class="pv-stat-v" id="statVoice">0</span></div>
@@ -2614,7 +2620,7 @@
 <!-- Es quien sabe tocar los tonos con el volumen configurado. Sin esto el
      boton Probar no sonaba: la funcion que llama no existia. -->
 <script src="pos-notify.js?v=1790370000"></script>
-<script src="configuracion.js?v=1790420000"></script>
+<script src="configuracion.js?v=1790430000"></script>
 </body>
 </html>
 
