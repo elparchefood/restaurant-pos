@@ -6150,6 +6150,10 @@ window.mpSave=async function(){
     var r=await sb.from('ia_config').update({pagos:pagos}).eq('branch_id',MP.branchId);
     if(r.error) throw r.error;
     MP.pagos=pagos; window._loadedPagos=pagos; MP.dirty=false;
+    /* Lo guardado en el equipo queda viejo en este mismo instante. Se borra
+       para que la proxima pantalla traiga la lista nueva y no el nombre
+       anterior de un metodo que se acaba de cambiar. */
+    try { if (window.posCache) posCache.borrar('metodos'); } catch(e){}
     if(btn){ btn.textContent='Guardado ✓'; }
     _mpToast('Métodos de pago guardados ✓');
     setTimeout(function(){ var b=document.getElementById('mp-save'); if(b){ b.textContent='Guardar cambios'; } _mpUpdateSaveBtn(); },1200);

@@ -60,16 +60,48 @@
     return c;
   }
 
+  function _ordenar(lista) {
+    return indexar((lista || []).map(_renombrarSaldo)
+      .filter(function (m) { return m && String(m.nombre || '').trim(); })
+      .sort(function (a, b) { return (a.orden || 0) - (b.orden || 0); }));
+  }
+
+  async function _traer(sb, branchId) {
+    var r = await sb.from('ia_config').select('pagos').eq('branch_id', branchId).maybeSingle();
+    var p = (r && r.data && r.data.pagos) || {};
+    return Array.isArray(p.metodos) ? p.metodos : [];
+  }
+
   async function cargar(sb, branchId) {
     if (_mets) return _mets;
+    if (!sb || !branchId) return indexar([]);
+
+    /* Lo guardado en el equipo sirve YA: son cuatro nombres que cambian dos
+       veces al ano, y siete pantallas estaban esperando esta consulta antes de
+       pintar nada. La consulta sale igual, por detras. */
+    var g = null;
+    try { g = window.posCache && posCache.leer('metodos'); } catch (e) {}
+    if (g && Array.isArray(g.datos) && g.datos.length) {
+      var listo = _ordenar(g.datos);
+      setTimeout(function () {
+        _traer(sb, branchId).then(function (arr) {
+          if (!arr.length) return;
+          if (JSON.stringify(arr) === JSON.stringify(g.datos)) return;   // nada cambio
+          _ordenar(arr);
+          try { posCache.guardar('metodos', arr); } catch (e) {}
+          console.info('[metodos] la lista cambio; ya esta al dia');
+        }).catch(function () {});
+      }, 0);
+      return listo;
+    }
+
     try {
-      if (!sb || !branchId) return indexar([]);
-      var r = await sb.from('ia_config').select('pagos').eq('branch_id', branchId).maybeSingle();
-      var p = (r && r.data && r.data.pagos) || {};
-      var arr = (Array.isArray(p.metodos) ? p.metodos : []).map(_renombrarSaldo);
-      return indexar(arr
-        .filter(function (m) { return m && String(m.nombre || '').trim(); })
-        .sort(function (a, b) { return (a.orden || 0) - (b.orden || 0); }));
+      var arr2 = await _traer(sb, branchId);
+      /* Solo se guarda una lista con algo. Una lista vacia puede ser una
+         consulta que fallo a medias, y guardarla dejaria la pantalla siguiente
+         sin metodos de pago. */
+      try { if (window.posCache && arr2.length) posCache.guardar('metodos', arr2); } catch (e) {}
+      return _ordenar(arr2);
     } catch (e) { console.warn('[metodos] no se pudieron cargar:', e); return indexar([]); }
   }
 
