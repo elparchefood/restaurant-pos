@@ -1762,10 +1762,21 @@ Comprobado con `elementFromPoint`: antes `clicable:false`, ahora `true` —
 arriba y abajo del scroll, en 1280×720 y en 1024×600.
 
 **6. Quitar al cliente seleccionado.** Una X en la fila del cliente
-(`data-action="cliente-quitar"` → `pgGuardarCliente(null,'','')`). Va como
-`<span role="button">` y **no** como `<button>`: la fila entera ya es un
-botón, y un botón dentro de otro no es HTML válido — el navegador lo desarma y
-deja de funcionar el de afuera.
+(`data-action="cliente-quitar"`). Va como `<span role="button">` y **no** como
+`<button>`: la fila entera ya es un botón, y un botón dentro de otro no es HTML
+válido — el navegador lo desarma y deja de funcionar el de afuera.
+
+⚠️ **La X DESHACE, no borra.** En el pedido hay dos cosas distintas: el nombre
+escrito (`customer_name`, el que sale en la comanda y en la lista de
+Domicilios) y el vínculo con el cliente registrado (`cliente_id`, el que trae
+puntos y saldo). **Un domicilio del chat llega con el nombre ya escrito** antes
+de que nadie seleccione a nadie. La primera versión de la X borraba los dos, así
+que deshacer una selección equivocada dejaba el domicilio sin nombre.
+Ahora `loadOrder` guarda `SP.nombreDeFuera` = el `customer_name` que llegó **sin**
+`cliente_id`, y la X restaura eso. Si el pedido ya venía con cliente registrado,
+ese nombre lo escribió la selección y no hay nada ajeno que preservar: se limpian
+los dos. La X solo aparece cuando hay `cliente_id` — si no, no hay nada que
+deshacer. Decidido por Sergio el 2026-08-09.
 
 **7. El saldo junto al nombre del cliente.** `Ana María · 45 pts · $12.000 de
 saldo`. Solo donde el saldo está encendido (`SP.saldoActivo`). Como el saldo
