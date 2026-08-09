@@ -1,10 +1,14 @@
 /* pos-paco-preview.js — hablar con Paco de verdad, sin riesgo.
  *
  * La vista previa del rail era un dibujo: tres burbujas escritas a mano que
- * nunca cambiaban. Ahora es un chat REAL contra `delay-reply-banco`, el banco
- * de pruebas: el MISMO motor de Paco, con la carta, la personalidad y las
- * frases que el dueño acaba de guardar, pero blindado —no puede crear pedidos
- * ni escribirle a ningún cliente—.
+ * nunca cambiaban. Ahora es un chat REAL contra `delay-reply`: el MISMO Paco que
+ * atiende a los clientes, con la carta, la personalidad y las frases que el
+ * dueño acaba de guardar. No es una copia — una copia se queda atrás en cuanto
+ * se mejora a Paco, y un simulador desactualizado da confianza falsa.
+ *
+ * El motor reconoce que es una prueba por el centinela que se le manda en vez
+ * del token, y solo entonces: se finge abierto, no calla en modo auto, no crea
+ * el pedido y no llama a WhatsApp.
  *
  * Por qué así y no simulando la respuesta: probar contra una imitación no
  * prueba nada. Si el dueño cambia la personalidad y quiere saber cómo suena,
@@ -110,9 +114,12 @@
       });
       if (cola.error) throw new Error('no se pudo encolar: ' + cola.error.message);
 
-      /* Se llama al BANCO, nunca a la función de producción. */
+      /* Se llama al Paco DE VERDAD. Ya no hay una copia aparte: el motor
+         reconoce el centinela y se comporta como prueba. Asi cada mejora que
+         se le haga a Paco —interna o del canvas— se siente aqui de una, que es
+         justo lo que hace que la prueba valga. */
       var url = (w.SUPABASE_URL || 'https://tblujfduscslxjmrjbdr.supabase.co')
-              + '/functions/v1/delay-reply-banco';
+              + '/functions/v1/delay-reply';
       fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
                    body: JSON.stringify({ convId: conv }) }).catch(function () {});
 
