@@ -294,28 +294,7 @@
     </div>
 
     <!-- Panel para administrar respuestas rápidas -->
-    <div class="ci-picker-panel ci-quick-manage" id="quickManage" style="display:none">
-      <div class="ci-picker-head">
-        <div style="font-weight:700;font-size:13.5px;color:var(--text-1)">⚡ Respuestas rápidas</div>
-        <button class="ci-picker-close" onclick="closeQuickManage()">✕</button>
-      </div>
-      <div class="ci-qm-list" id="quickMngList"></div>
-      <!-- Cerrado solo se ve la lista. El editor se abre al crear o editar y se
-           cierra al guardar: si esta siempre abierto, la lista no cabe. -->
-      <div class="ci-qm-nuevo" id="qmNuevoWrap">
-        <button id="qmNuevoBtn" onclick="qmNueva()">＋ Nueva respuesta</button>
-      </div>
-      <div class="ci-qm-form" id="qmForm" style="display:none">
-        <input id="qmKey" placeholder="Palabra clave (ej. pollo)" maxlength="40" autocomplete="off">
-        <div id="qmEditor" data-ph="Escribe el mensaje. Usa los botones de abajo para meter datos del cliente o del pedido."></div>
-        <div class="pv-barra" id="qmBarra"></div>
-        <div class="pv-previa" id="qmPrevia"></div>
-        <div class="ci-qm-actions">
-          <button id="qmCancelEdit" onclick="qmClearForm()">Cancelar</button>
-          <button id="qmSaveBtn" onclick="qmSave()">Agregar respuesta</button>
-        </div>
-      </div>
-    </div>
+    <!-- El editor de respuestas rapidas vive en Configuracion. -->
 
     <!-- Desplegable de respuestas rápidas ( "/" ) -->
     <div class="ci-quick-dd" id="quickDropdown" style="display:none"></div>
@@ -403,7 +382,7 @@
   <script src="pos-vars-ui.js?v=1789710000"></script>
   <script src="pos-metodos.js?v=1790130000"></script>
 <script src="pos-saldo.js?v=1790130000"></script>
-<script src="chat-ia.js?v=1790360000"></script>
+<script src="chat-ia.js?v=1790460000"></script>
 <script src="pos-impuestos.js?v=1"></script>
 <script src="pos-print.js?v=1790300000"></script>
 <script src="pos-brand.js?v=1790290000"></script>

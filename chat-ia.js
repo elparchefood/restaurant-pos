@@ -3119,12 +3119,11 @@ function onQuickKeydown(e) {
 }
 
 /* == Administrar respuestas rápidas (agregar / editar / borrar) == */
+/* Se administran en Configuracion, no aqui: cuando habia un editor en cada
+   pantalla los dos escribian la misma tabla y se fueron separando. */
 function openQuickManage() {
   closeQuickDropdown();
-  const p = document.getElementById('quickManage'); if (!p) return;
-  S.qmEditIdx = -1;
-  qmRenderList(); qmClearForm();
-  p.style.display = 'block';
+  location.href = 'configuracion.html?s=chatia&tab=mensajes&acc=m-rapidas';
 }
 function closeQuickManage() { const p = document.getElementById('quickManage'); if (p) p.style.display = 'none'; }
 function qmRenderList() {

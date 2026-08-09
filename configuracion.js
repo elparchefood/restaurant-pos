@@ -1034,8 +1034,19 @@ document.addEventListener('DOMContentLoaded', async function() {
      (configuracion.html?s=puntos). Sin esto, tocar "Puntos" desde Impresoras
      aterrizaba en Mesas y había que buscarla otra vez. */
   try {
-    var _pedida = new URLSearchParams(location.search).get('s');
+    var _q = new URLSearchParams(location.search);
+    var _pedida = _q.get('s');
     if (_pedida && document.getElementById('nav-' + _pedida)) setSection(_pedida);
+    /* Se puede pedir tambien la pestana y la fila plegada, para llegar desde
+       el chat justo encima de las respuestas rapidas y no a buscarlas. */
+    var _tab = _q.get('tab');
+    if (_tab) { try { localStorage.setItem('cia-tab', _tab); } catch (e) {} }
+    var _acc = _q.get('acc');
+    if (_acc) setTimeout(function () {
+      if (window.ciaAcc) ciaAcc(_acc);
+      var f = document.querySelector('.cia-acc[data-acc="' + _acc + '"]');
+      if (f) f.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 400);
   } catch (e) { /* si el navegador no puede, se queda en la de siempre */ }
 
   // cargar usuario async
@@ -5089,11 +5100,30 @@ function _ciaToggleTopbar(show){
 
 /* ═══════════ Respuestas rápidas — editor (Configuración → Asistente) ═══════════
    Fuente de verdad: ia_config.respuestas_rapidas (la MISMA que usa el chat con "/"). */
-var CFGQR = { list: [], editIdx: -1, branchId: null };
+var CFGQR = { list: [], editIdx: -1, branchId: null, vars: false };
 async function cfgQrGetBranch(){
   if (CFGQR.branchId) return CFGQR.branchId;
   try { var s = (await sb.auth.getSession()).data.session; CFGQR.branchId = (s && s.user && s.user.user_metadata) ? s.user.user_metadata.branch_id : null; } catch(e){}
   return CFGQR.branchId;
+}
+/* El texto de la respuesta vive en un contenteditable con fichas, no en un
+   textarea. Todo pasa por aqui para que ningun sitio vuelva a tocar .value. */
+function cfgQrLeerTexto(){
+  if (CFGQR.vars && window.posVarsUI) return posVarsUI.leer();
+  var el = document.getElementById('cfgQrEditor');
+  return el ? (el.textContent || '') : '';
+}
+function cfgQrPonerTexto(t){
+  if (CFGQR.vars && window.posVarsUI) { posVarsUI.poner(t || ''); return; }
+  var el = document.getElementById('cfgQrEditor');
+  if (el) el.textContent = t || '';
+}
+function cfgQrMontarVars(){
+  if (CFGQR.vars) return;
+  if (!window.posVarsUI || !document.getElementById('cfgQrEditor')) return;
+  posVarsUI.montar({ editor:'cfgQrEditor', barra:'cfgQrBarra',
+                     contexto:'pedido', onCambio: cfgQrPrev });
+  CFGQR.vars = true;
 }
 function cfgQrEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 async function loadCfgQuickReplies(){
@@ -5102,6 +5132,7 @@ async function loadCfgQuickReplies(){
     var r = await sb.from('ia_config').select('respuestas_rapidas').eq('branch_id', bid).maybeSingle();
     CFGQR.list = (r.data && Array.isArray(r.data.respuestas_rapidas)) ? r.data.respuestas_rapidas : [];
   } catch(e){ console.warn('loadCfgQuickReplies:', e); CFGQR.list = []; }
+  cfgQrMontarVars();
   cfgQrRender();
 }
 function cfgQrRender(){
@@ -5110,7 +5141,7 @@ function cfgQrRender(){
   if (!n){ cont.innerHTML = '<div class="cfg-qr-empty">Aún no hay respuestas rápidas. Agrega la primera abajo.</div>'; return; }
   cont.innerHTML = '<div class="cfg-qr-count">'+n+' respuesta'+(n===1?'':'s')+'</div>' + CFGQR.list.map(function(r,i){
     return '<div class="cfg-qr-row">'
-      + '<div class="cfg-qr-info"><div class="cfg-qr-k">'+(r.img?'📷 ':'')+'/'+cfgQrEsc(r.k)+(r.btn ? ' <span class="cfg-qr-btag">'+(r.btn.tipo==="lista"?"lista":(r.btn.tipo==="url"?"enlace":((r.btn.opciones||[]).length)+" botones"))+'</span>' : '')+'</div><div class="cfg-qr-t">'+cfgQrEsc(r.t).replace(/\n/g,' ')+'</div></div>'
+      + '<div class="cfg-qr-info"><div class="cfg-qr-k">'+(r.img?'📷 ':'')+'/'+cfgQrEsc(r.k)+(r.btn ? ' <span class="cfg-qr-btag">'+(r.btn.tipo==="lista"?"lista":(r.btn.tipo==="url"?"enlace":((r.btn.opciones||[]).length)+" botones"))+'</span>' : '')+'</div><div class="cfg-qr-t">'+cfgQrEsc(window.posVarsUI ? posVarsUI.resumen(r.t) : String(r.t||'')).replace(/\n/g,' ')+'</div></div>'
       + '<button type="button" class="cfg-qr-ed" title="Editar" onclick="cfgQrEdit('+i+')">✎</button>'
       + '<button type="button" class="cfg-qr-del" title="Eliminar" onclick="cfgQrDelete('+i+')">✕</button>'
       + '</div>';
@@ -5188,7 +5219,14 @@ function cfgQrPonerBtn(btn){
 // Vista previa: burbuja de WhatsApp con sus botones
 function cfgQrPrev(){
   var host = document.getElementById('cfgQrPrev'); if (!host) return;
-  var txt = (document.getElementById('cfgQrText').value || '').trim() || 'Escribe el mensaje…';
+  /* Con un cliente de muestra: un texto con {puntos} suelto no dice como se
+     va a leer, y es justo lo que el duenno necesita ver antes de guardar. */
+  var txt = cfgQrLeerTexto().trim();
+  if (txt && window.posVars && window.posVarsUI) {
+    try { txt = posVars.resolver(txt, posVarsUI.datosMuestra(0)).texto; }
+    catch(e){ console.warn('cfgQrPrev:', e); }
+  }
+  txt = txt.trim() || 'Escribe el mensaje…';
   var btn = cfgQrLeerBtn();
   var pie = btn && btn.pie ? '<div style="font-size:11px;color:#8FA6A0;margin-top:5px">' + cfgQrEsc(btn.pie) + '</div>' : '';
   var abajo = '';
@@ -5210,7 +5248,7 @@ function cfgQrEdit(i){
   var r = CFGQR.list[i]; if (!r) return;
   CFGQR.editIdx = i;
   document.getElementById('cfgQrKey').value  = r.k || '';
-  document.getElementById('cfgQrText').value = r.t || '';
+  cfgQrPonerTexto(r.t || '');
   cfgQrPonerBtn(r.btn || null);
   document.getElementById('cfgQrCancel').style.display = '';
   document.getElementById('cfgQrSaveBtn').textContent = 'Guardar cambios';
@@ -5219,17 +5257,18 @@ function cfgQrEdit(i){
 }
 function cfgQrCancel(){
   CFGQR.editIdx = -1;
-  var k=document.getElementById('cfgQrKey'), t=document.getElementById('cfgQrText'),
+  var k=document.getElementById('cfgQrKey'),
       c=document.getElementById('cfgQrCancel'), s=document.getElementById('cfgQrSaveBtn');
-  if(k) k.value=''; if(t) t.value=''; if(c) c.style.display='none'; if(s) s.textContent='Agregar respuesta';
+  if(k) k.value=''; cfgQrPonerTexto('');
+  if(c) c.style.display='none'; if(s) s.textContent='Agregar respuesta';
   cfgQrPonerBtn(null);
 }
 async function cfgQrSave(){
-  var kEl=document.getElementById('cfgQrKey'), tEl=document.getElementById('cfgQrText');
+  var kEl=document.getElementById('cfgQrKey'), tEl=document.getElementById('cfgQrEditor');
   var k = (kEl.value||'').trim().replace(/^\/+/, '');
-  var t = (tEl.value||'').trim();
+  var t = cfgQrLeerTexto().trim();
   if (!k){ kEl.focus(); return; }
-  if (!t){ tEl.focus(); return; }
+  if (!t){ if (tEl) tEl.focus(); return; }
   var btn = cfgQrLeerBtn();
   // Sin esto Meta rechaza el mensaje y el cliente no recibe nada.
   if (btn){
@@ -5259,7 +5298,7 @@ async function cfgQrPersist(){
 }
 (function(){
   function hook(){
-    var btn = document.querySelector('.cia-tab[data-tab="respuestas"]');
+    var btn = document.querySelector('.cia-tab[data-tab="mensajes"]');
     if (btn) btn.addEventListener('click', loadCfgQuickReplies);
     // Cargar una vez para que la lista esté lista aunque no se haya abierto la pestaña
     loadCfgQuickReplies();

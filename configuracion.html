@@ -11,7 +11,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="pos-core.css?v=1789840000">
+<link rel="stylesheet" href="pos-vars.css?v=1790460000">
+  <link rel="stylesheet" href="pos-core.css?v=1789840000">
 <link rel="stylesheet" href="configuracion.css?v=1790450000">
 </head>
 <body>
@@ -2424,8 +2425,9 @@
                     <input class="inp" id="cfgQrKey" placeholder="Ej. pollo" maxlength="40" autocomplete="off">
                   </div>
                   <div class="field">
-                    <label class="field-lb" for="cfgQrText">Mensaje</label>
-                    <textarea class="txa" id="cfgQrText" rows="3" placeholder="Mensaje de la respuesta…"></textarea>
+                    <label class="field-lb">Mensaje</label>
+                    <div id="cfgQrEditor" data-ph="Escribe el mensaje. Usa los botones de abajo para meter datos del cliente o del pedido."></div>
+                    <div class="pv-barra" id="cfgQrBarra"></div>
                   </div>
 
                   <div class="field">
@@ -2630,7 +2632,9 @@
 <!-- Es quien sabe tocar los tonos con el volumen configurado. Sin esto el
      boton Probar no sonaba: la funcion que llama no existia. -->
 <script src="pos-notify.js?v=1790370000"></script>
-<script src="configuracion.js?v=1790450000"></script>
+<script src="pos-vars.js?v=1790460000"></script>
+<script src="pos-vars-ui.js?v=1790460000"></script>
+<script src="configuracion.js?v=1790460000"></script>
 </body>
 </html>
 
