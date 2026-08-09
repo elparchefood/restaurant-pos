@@ -419,14 +419,24 @@
     };
   }
 
+  /* El plano guardado en el equipo. En funcion NOMBRADA porque lo necesitan
+     DOS sitios: mesasBase() y el armado de zonas de fetchTables(). Antes vivia
+     escondido dentro de mesasBase y fetchTables lo llamaba por un nombre que
+     alli no existia: ReferenceError, el catch se lo tragaba, y la pantalla se
+     quedaba con las mesas base — que van con status 'libre' escrito a mano.
+     ESE era el "todas las mesas libres" de cada manana en el .exe. La tablet
+     nunca lo sufrio porque no tiene plano guardado: entra por el camino de
+     respaldo que lee los estados reales. */
+  function leerPlanLocal() {
+    try {
+      var raw = localStorage.getItem(CONFIG_KEY);
+      if (raw) { var c = JSON.parse(raw); if (c.tables) return c; }
+    } catch(e) {}
+    return { zones: [], tables: [] };
+  }
+
   function mesasBase() {
-    var localConfig = (function() {
-      try {
-        var raw = localStorage.getItem(CONFIG_KEY);
-        if (raw) { var c = JSON.parse(raw); if (c.tables) return c; }
-      } catch(e) {}
-      return { zones: [], tables: [] };
-    })();
+    var localConfig = leerPlanLocal();
     return localConfig.tables.map(function(t, i) {
       return {
         id: t.id,
@@ -503,8 +513,9 @@
 
         // Zonas: empezar con las de localStorage (estructura configurada por el usuario)
         const freshZonesMap = {};
-        if (localConfig && localConfig.zones) {
-          localConfig.zones.forEach(function(z){ freshZonesMap[z.id] = { id: z.id, name: z.name }; });
+        const planLocal = leerPlanLocal();
+        if (planLocal.zones) {
+          planLocal.zones.forEach(function(z){ freshZonesMap[z.id] = { id: z.id, name: z.name }; });
         }
         // Añadir zonas nuevas que Supabase reporta y que aún no están en localStorage
         (sbRows || []).forEach(function(r) {
