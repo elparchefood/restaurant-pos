@@ -4814,23 +4814,28 @@ var _storedZonas = [];
     if (!phone) return;
     var cuenta = document.getElementById('ciaCuenta');
     var msg    = document.getElementById('ciaMensaje');
+    var difu   = document.getElementById('ciaDifusion');
     var esInfo = (tab === 'informacion');
     var esPed  = (tab === 'pedido');
     var esMsg  = (tab === 'mensajes');
-    var esChat = !esInfo && !esPed && !esMsg;
+    var esDif  = (tab === 'difusion');
+    var esChat = !esInfo && !esPed && !esMsg && !esDif;
     phone.style.display = esChat ? '' : 'none';
     if (clear) clear.style.display = esChat ? '' : 'none';
     if (stats) stats.style.display = esChat ? '' : 'none';
     if (saber)  saber.style.display  = esInfo ? '' : 'none';
     if (cuenta) cuenta.style.display = esPed  ? '' : 'none';
     if (msg)    msg.style.display    = esMsg  ? '' : 'none';
+    if (difu)   difu.style.display   = esDif  ? '' : 'none';
     if (cap) cap.lastChild.textContent = esInfo ? ' Lo que Paco sabe hoy'
                                        : esPed ? ' Un pedido de ejemplo'
                                        : esMsg ? ' Asi se ve el mensaje'
+                                       : esDif ? ' Estado de la difusion'
                                        : ' Vista previa en vivo';
     if (esInfo) ciaPintarSabe();
     if (esPed)  ciaPintarCuenta();
     if (esMsg)  ciaPintarMensaje();
+    if (esDif)  ciaPintarDifusion();
   };
 
   /* Los conteos salen de la MISMA configuración que lee Paco. Si algo aquí
@@ -4843,6 +4848,52 @@ var _storedZonas = [];
   /* El resumen del pedido, RENDERIZADO como le llega al cliente: con la
      plantilla del duenno y los atajos ya reemplazados. Un texto con
      {{producto}} suelto no dice como se va a leer; esto si. */
+  /* Cuantos contactos hay, cuantos mensajes se han iniciado en las ultimas
+     24 h y cuanto queda del cupo de Meta. El contador de la pantalla decia
+     "0 enviados" con mil afuera porque no lo sacaba de ningun lado; este sale
+     de pos_wa_envios, que es donde queda el rastro real. */
+  window.ciaPintarDifusion = async function () {
+    var out = document.getElementById('ciaDifusion');
+    if (!out) return;
+    var contactos = 0, enviados24 = 0, pendientes = 0, fallidos = 0, ultima = null;
+    try {
+      var st = (window._pos && window._pos.state) || {};
+      var ayer = new Date(Date.now() - 86400000).toISOString();
+      var r = await Promise.allSettled([
+        sb.from('pos_wa_contactos').select('id', { count: 'exact', head: true }).eq('tenant_id', st.tenantId),
+        sb.from('pos_wa_envios').select('id', { count: 'exact', head: true })
+          .eq('tenant_id', st.tenantId).eq('estado', 'enviado').gte('enviado_at', ayer),
+        sb.from('pos_wa_envios').select('id', { count: 'exact', head: true })
+          .eq('tenant_id', st.tenantId).eq('estado', 'pendiente'),
+        sb.from('pos_wa_envios').select('id', { count: 'exact', head: true })
+          .eq('tenant_id', st.tenantId).eq('estado', 'fallido'),
+        sb.from('pos_wa_envios').select('enviado_at').eq('tenant_id', st.tenantId)
+          .eq('estado', 'enviado').order('enviado_at', { ascending: false }).limit(1),
+      ]);
+      if (r[0].status === 'fulfilled') contactos = r[0].value.count || 0;
+      if (r[1].status === 'fulfilled') enviados24 = r[1].value.count || 0;
+      if (r[2].status === 'fulfilled') pendientes = r[2].value.count || 0;
+      if (r[3].status === 'fulfilled') fallidos = r[3].value.count || 0;
+      if (r[4].status === 'fulfilled' && r[4].value.data && r[4].value.data[0]) ultima = r[4].value.data[0].enviado_at;
+    } catch (e) { console.warn('[cia] difusion:', e); }
+
+    function fila(l, v, cls) { return '<div class="cia-sabe-l ' + (cls || '') + '"><span>' + l + '</span><b>' + v + '</b></div>'; }
+    function hace(f) {
+      if (!f) return 'nunca';
+      var d = Math.floor((Date.now() - new Date(f).getTime()) / 86400000);
+      if (d <= 0) return 'hoy';
+      return d === 1 ? 'ayer' : 'hace ' + d + ' dias';
+    }
+    out.innerHTML =
+        fila('Contactos', contactos.toLocaleString('es-CO'))
+      + fila('Iniciados en 24 h', enviados24.toLocaleString('es-CO'))
+      + (pendientes ? fila('En cola', pendientes.toLocaleString('es-CO'), 'cia-ojo') : '')
+      + (fallidos ? fila('No se pudieron enviar', fallidos, 'cia-ojo') : '')
+      + fila('Ultimo envio', hace(ultima))
+      + '<div class="cia-sabe-pie">Meta limita cuantas conversaciones puede INICIAR tu numero cada 24 h. '
+      + 'Contestar a quien te escribio no cuenta.</div>';
+  };
+
   window.ciaPintarMensaje = async function () {
     var out = document.getElementById('ciaMensaje');
     if (!out) return;

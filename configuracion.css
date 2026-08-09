@@ -1734,3 +1734,6 @@ div.master[data-tab].cia-active { display: flex !important; }
 /* El mensaje de ejemplo, con pinta de burbuja de WhatsApp. */
 .cia-msg { background: var(--soft-3, #F8FAFC); border: 1px solid var(--border, #ECEEF2); border-radius: 12px; padding: 11px 13px; font-size: 12px; line-height: 1.65; color: var(--ink, #0F172A); margin-bottom: 6px; word-break: break-word; }
 .cia-msg b { font-weight: 800; }
+
+/* Lo que pide atencion en la difusion: la cola pendiente y lo que fallo. */
+.cia-sabe-l.cia-ojo b { color: #B45309; background: #FFFBEB; border-radius: 7px; padding: 1px 8px; }

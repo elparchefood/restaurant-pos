@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css?v=1789840000">
-<link rel="stylesheet" href="configuracion.css?v=1790440000">
+<link rel="stylesheet" href="configuracion.css?v=1790450000">
 </head>
 <body>
 <div class="cf-root">
@@ -1512,7 +1512,7 @@
 
             
 
-            <div class="card" id="card-contactos" data-tab="difusion" style="display:none">
+            <div class="cia-acc" data-tab="difusion" data-acc="d-contactos"><button type="button" class="cia-acc-h" onclick="ciaAcc('d-contactos')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="cia-acc-t">Contactos de WhatsApp</span><span class="cia-acc-sum" id="ciasum-d-contactos"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-contactos" data-tabint="difusion" style="display:none">
               <div class="card-hd">
                 <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
                 <div class="card-hd-tx">
@@ -1567,9 +1567,8 @@
                 <div id="wcMsg" style="font-size:12.5px;margin-top:10px"></div>
 
               </div>
-            </div>
-
-            <div class="card" id="card-plantillas" data-tab="difusion" style="display:none">
+            </div></div></div>
+            <div class="cia-acc" data-tab="difusion" data-acc="d-plantillas"><button type="button" class="cia-acc-h" onclick="ciaAcc('d-plantillas')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span class="cia-acc-t">Plantillas y listas de envío</span><span class="cia-acc-sum" id="ciasum-d-plantillas"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-plantillas" data-tabint="difusion" style="display:none">
               <div class="card-hd">
                 <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
                 <div class="card-hd-tx">
@@ -1637,7 +1636,9 @@
                   <div id="wtpMsg" style="font-size:12.5px;margin-top:10px"></div>
                 </div>
               </div>
-            </div>
+            </div></div></div>
+
+            
 
             <div class="cia-acc" data-tab="asistente" data-acc="lenguaje"><button type="button" class="cia-acc-h" onclick="ciaAcc('lenguaje')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"/></svg></span><span class="cia-acc-t">Lenguaje y vocabulario</span><span class="cia-acc-sum" id="ciasum-lenguaje"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-lenguaje" data-tabint="asistente">
               <div class="card-hd">
@@ -2589,6 +2590,8 @@
             <div class="cia-sabe" id="ciaCuenta" style="display:none"></div>
             <!-- El rail de Mensajes: el resumen ya renderizado. -->
             <div class="cia-sabe" id="ciaMensaje" style="display:none"></div>
+            <!-- El rail de Difusión: si puedo enviar hoy y a cuántos. -->
+            <div class="cia-sabe" id="ciaDifusion" style="display:none"></div>
             <div class="pv-stats">
               <div class="pv-stat"><span class="pv-stat-l"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Resueltas por IA hoy</span><span class="pv-stat-v g">42</span></div>
               <div class="pv-stat"><span class="pv-stat-l"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent-2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg> Audios enviados</span><span class="pv-stat-v" id="statVoice">0</span></div>
@@ -2627,7 +2630,7 @@
 <!-- Es quien sabe tocar los tonos con el volumen configurado. Sin esto el
      boton Probar no sonaba: la funcion que llama no existia. -->
 <script src="pos-notify.js?v=1790370000"></script>
-<script src="configuracion.js?v=1790440000"></script>
+<script src="configuracion.js?v=1790450000"></script>
 </body>
 </html>
 
