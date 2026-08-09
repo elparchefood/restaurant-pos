@@ -1723,6 +1723,37 @@ nombres raros en su WhatsApp"*.
 
 ---
 
+## HECHO — [Fase 2] Un pago se lee igual, se haya guardado como se haya guardado — 2026-08-09
+
+**Lo que había de verdad** (pedidos de 60 días, contados en la base):
+
+| Guardado | Veces | Quién lo escribe |
+|---|---|---|
+| `efectivo` / `transferencia` | 176 | `pagos.js` (nombre en minúsculas) y `domicilios.js` (botones fijos) |
+| `Transferencia` / `Nequi` | 12 | el bot — texto libre de la conversación |
+| `pm_q8ybbdpqb` | 2 | el id del método |
+| `multiple` | 6 | marcador de pago mixto |
+
+**Cuatro de las seis ya se traducían bien** — `pos-metodos.js` se construyó
+justo para eso (`resolver` prueba por id, por nombre normalizado y por tipo).
+Verificado corriendo el módulo real contra los valores reales antes de tocar
+nada. **Fallaban dos:**
+
+- `multiple` → "Otros". No es un método desconocido: es *pago con varios*, que
+  es lo contrario de no saber. Ahora **"Varios métodos"**.
+- `Nequi` → "Otros", aunque el pago sí se hizo por Nequi; lo que falta es que
+  ese método esté configurado, no el dato. Ahora se muestra tal cual.
+
+**Y la regla estaba repartida:** `historial.js` tenía su propia tabla con las
+claves viejas en inglés (`cash`, `transfer`, `card`) que se iba quedando atrás.
+Ahora todo vive en `pos-metodos.js` → `nombre()`, en este orden: método
+configurado → marcador/clave vieja → **id interno = "Otros"** (garantía: un
+`pm_...` no vuelve a salir en la pantalla de un cliente) → texto libre tal cual.
+
+Comprobado: 6 valores reales + 9 casos límite = **15 de 15**.
+
+---
+
 ## HECHO — [Fase 2] Fuera los rastros de El Parche + notas de venta rápida — 2026-08-09
 
 **1. Notas frecuentes en venta rápida (bug que Sergio reportó el 7-ago).**

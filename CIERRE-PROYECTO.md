@@ -67,7 +67,10 @@ solo hay un restaurante usándolo.
       `data-negocio`/`data-negocio-suf` con el restaurante real; la semilla del
       chat ya no siembra dirección, coordenadas ni cuenta bancaria. `2026-08-09`
 - [ ] **Un restaurante nuevo nace sin datos sembrados** — no arranca solo.
-- [ ] **`payment_method` se guarda de 4 formas distintas**.
+- [x] **`payment_method` guardado de varias formas** — son SEIS en los datos
+      reales; cuatro ya se traducían bien. Se arreglaron `multiple` ("Varios
+      métodos", no "Otros") y el texto libre del bot, y se quitó la copia de la
+      regla que tenía `historial.js`. `2026-08-09`
 - [x] **Las notas frecuentes no aparecían en venta rápida** — `S.cats` vs
       `S.categories`: el bloque se copió de domicilios y buscaba las categorías
       por el nombre equivocado. `2026-08-09`
