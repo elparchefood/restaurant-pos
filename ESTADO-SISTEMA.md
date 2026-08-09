@@ -1723,6 +1723,41 @@ nombres raros en su WhatsApp"*.
 
 ---
 
+## HECHO — [Fase 2] Fuera los rastros de El Parche + notas de venta rápida — 2026-08-09
+
+**1. Notas frecuentes en venta rápida (bug que Sergio reportó el 7-ago).**
+`posNotas.montar` se copió de domicilios, donde las categorías viven en
+`S.cats`; en venta rápida se llaman `S.categories`. La función `categoria()`
+buscaba en una lista inexistente, devolvía `''` y en el modo "por categoría"
+eso deja la lista vacía — sin un solo error, por el `(S.cats||[])` que tapaba
+el hueco. **Lección repetida:** copiar un bloque entre pantallas exige revisar
+los nombres del estado de CADA pantalla.
+
+**2. El Parche fuera del producto.** Lo que un restaurante nuevo se encontraba:
+títulos "· El Parche Food" (Caja ×7, Inventario ×4, Catálogo ×2), "Reparte un
+domiciliario de El Parche", el recibo del historial impreso con `<h2>El Parche
+Food</h2>`, la vista previa de Impresoras, y — lo grave — **la semilla del chat**
+(`DEFAULT_QUICK_REPLIES`, se usa con la base vacía): sembraba `/direccion` y
+`/ubicacion` con la dirección y coordenadas de El Parche y `/QR2` con el número
+de cuenta `0092726260`. Un cliente nuevo se los habría mandado a SUS clientes.
+
+**El mecanismo:** `pos-brand.js` (que ya resuelve el nombre real y lo guarda en
+`pos.brand.restaurante`) ahora rellena:
+- `<span data-negocio>` → el nombre (o "Mi negocio")
+- `<span data-negocio-suf>` → `" · " + nombre` (o vacío — el renglón queda
+  "Caja", mejor corto que con el nombre de otro restaurante)
+
+Banco de prueba: `tests/negocio.html`. Los informes de muestra
+(`informes-data.js`) quedaron con nombres genéricos. Solo quedan menciones en
+comentarios.
+
+**3. Verificado, no arreglado:** el ítem "un comprobante puede pagar dos
+pedidos" YA estaba cerrado (entrada 123, 7-ago) — la lista de Fase 2 lo tenía
+como pendiente. Segunda vez que la lista dice pendiente algo hecho: **verificar
+en el código antes de empezar cualquier ítem.**
+
+---
+
 ## HECHO — [Velocidad] Los permisos del rol, guardados en el equipo — 2026-08-09
 
 Cierra la tanda de `pos-cache`. `pos-perms.js` corre en 15 pantallas; a un

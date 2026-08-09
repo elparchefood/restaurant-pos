@@ -60,14 +60,17 @@ Cosas que Sergio pidió en su momento y nunca se construyeron, o quedaron a medi
 No son cosas que falten: son cosas que están mal y que hoy nadie ve porque
 solo hay un restaurante usándolo.
 
-- [ ] **Un comprobante puede pagar dos pedidos** cuando la mesa nunca se creó.
-- [ ] **El Parche está hardcodeado** en 6 títulos, en la ubicación del chat, en
-      el texto de domicilios y en la impresión del historial.
+- [x] **Un comprobante puede pagar dos pedidos** — YA estaba cerrado desde el
+      7-ago (entrada 123): la referencia del banco queda reclamada por el
+      pedido al verificar. Verificado en la función desplegada (v7).
+- [x] **El Parche hardcodeado** — limpio. `pos-brand` rellena
+      `data-negocio`/`data-negocio-suf` con el restaurante real; la semilla del
+      chat ya no siembra dirección, coordenadas ni cuenta bancaria. `2026-08-09`
 - [ ] **Un restaurante nuevo nace sin datos sembrados** — no arranca solo.
 - [ ] **`payment_method` se guarda de 4 formas distintas**.
-- [ ] **Las notas frecuentes no aparecen en venta rápida** — el HTML y el
-      montaje SÍ están (`vr-nf-wrap`, `posNotas.montar`, mismo orden de scripts
-      que domicilios, donde sí funciona). La causa está en otro lado.
+- [x] **Las notas frecuentes no aparecían en venta rápida** — `S.cats` vs
+      `S.categories`: el bloque se copió de domicilios y buscaba las categorías
+      por el nombre equivocado. `2026-08-09`
 - [ ] **La tarjeta de mesa dice "0 ítems · $0"**.
 - [ ] **Auditoría de los `Promise.all`** — congelan pantallas sin dar error.
 - [ ] **`mypass_vault` en "Allow all"**.
