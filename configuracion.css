@@ -1682,3 +1682,15 @@ div.master[data-tab].cia-active { display: flex !important; }
 .pv-compose button:hover { background: var(--accent-2, #4F5BE3); }
 .pv-clear { width: 100%; margin-top: 8px; padding: 8px; border: 1px solid var(--border, #ECEEF2); border-radius: 10px; background: #fff; color: var(--ink-3, #64748B); font-family: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; }
 .pv-clear:hover { background: #F8FAFC; color: var(--ink, #0F172A); }
+
+
+/* ══ Rail de la pestaña Información: lo que Paco sabe ════════════════════
+   Un cero aquí no es un dato mas: es una pregunta que Paco NO va a poder
+   responder. Por eso se marca en ambar en vez de pasar desapercibido. */
+.cia-sabe { background: #fff; border: 1px solid var(--border, #ECEEF2); border-radius: 14px; padding: 6px 14px 14px; }
+.cia-sabe-l { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12.5px; padding: 9px 0; }
+.cia-sabe-l + .cia-sabe-l { border-top: 1px solid var(--hairline, #F1F5F9); }
+.cia-sabe-l span { color: var(--ink-3, #64748B); }
+.cia-sabe-l b { font-weight: 800; color: var(--ink, #0F172A); font-variant-numeric: tabular-nums; }
+.cia-sabe-l b.ojo { color: #B45309; background: #FFFBEB; border-radius: 7px; padding: 1px 8px; }
+.cia-sabe-pie { font-size: 11px; color: var(--ink-4, #94A3B8); line-height: 1.5; margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--border, #ECEEF2); }

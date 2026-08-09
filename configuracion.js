@@ -4795,6 +4795,62 @@ var _storedZonas = [];
 (function(){
   /* Acordeon de la pestana Asistente: se abre UNA a la vez. El interruptor
      de arriba NO se pliega — es lo que se apaga con urgencia. */
+  /* El rail acompaña a SU pestaña: cada una responde una pregunta distinta.
+     En Asistente, "¿cómo suena?" (el chat de prueba). En Información, "¿qué
+     sabe?" — los conteos de lo que tiene cargado, que es lo que decide si
+     puede responder o no. */
+  window.ciaRail = function (tab) {
+    var phone = document.querySelector('.pv-phone');
+    var clear = document.getElementById('pvClear');
+    var stats = document.querySelector('.pv-stats');
+    var cap   = document.querySelector('.pv-cap');
+    var saber = document.getElementById('ciaSabe');
+    if (!phone) return;
+    var esInfo = (tab === 'informacion');
+    phone.style.display = esInfo ? 'none' : '';
+    if (clear) clear.style.display = esInfo ? 'none' : '';
+    if (stats) stats.style.display = esInfo ? 'none' : '';
+    if (saber) saber.style.display = esInfo ? '' : 'none';
+    if (cap) cap.lastChild.textContent = esInfo ? ' Lo que Paco sabe hoy' : ' Vista previa en vivo';
+    if (esInfo) ciaPintarSabe();
+  };
+
+  /* Los conteos salen de la MISMA configuración que lee Paco. Si algo aquí
+     está en cero, Paco no lo puede responder — y eso es justo lo que el dueño
+     necesita ver de un vistazo. */
+  window.ciaPintarSabe = async function () {
+    var out = document.getElementById('ciaSabe');
+    if (!out) return;
+    function fila(l, v, ojo) {
+      return '<div class="cia-sabe-l"><span>' + l + '</span><b class="' +
+        (ojo ? 'ojo' : '') + '">' + v + '</b></div>';
+    }
+    var n = { prod: 0, faq: 0, adic: 0, prohib: 0, carta: 0 };
+    try {
+      var st = (window._pos && window._pos.state) || {};
+      var r = await Promise.allSettled([
+        sb.from('pos_products').select('id', { count: 'exact', head: true })
+          .eq('tenant_id', st.tenantId).eq('available', true),
+        sb.from('ia_config').select('faq, adiciones_palabras, prohibiciones, menu_imagenes')
+          .eq('branch_id', st.branchId).maybeSingle(),
+      ]);
+      if (r[0].status === 'fulfilled') n.prod = r[0].value.count || 0;
+      if (r[1].status === 'fulfilled' && r[1].value.data) {
+        var c = r[1].value.data;
+        var arr = function (v) { return Array.isArray(v) ? v.length : (v && typeof v === 'object' ? Object.keys(v).length : 0); };
+        n.faq = arr(c.faq); n.adic = arr(c.adiciones_palabras);
+        n.prohib = arr(c.prohibiciones); n.carta = arr(c.menu_imagenes);
+      }
+    } catch (e) { console.warn('[cia] conteos:', e); }
+    out.innerHTML =
+        fila('Productos en la carta', n.prod, !n.prod)
+      + fila('Fotos de la carta', n.carta, !n.carta)
+      + fila('Preguntas frecuentes', n.faq, !n.faq)
+      + fila('Palabras de adiciones', n.adic, false)
+      + fila('Prohibiciones', n.prohib, false)
+      + '<div class="cia-sabe-pie">Si algo está en cero, Paco no lo puede responder.</div>';
+  };
+
   window.ciaAcc = function (key) {
     var yo = document.querySelector('.cia-acc[data-acc="' + key + '"]');
     if (!yo) return;
@@ -4830,6 +4886,7 @@ var _storedZonas = [];
     if (aside) aside.style.display = tab === 'flujo' ? 'none' : '';
     try { localStorage.setItem('cia-tab', tab); } catch(e) {}
     if (tab === 'asistente' && window.ciaResumenes) setTimeout(window.ciaResumenes, 60);
+    if (window.ciaRail) ciaRail(tab);
     // Al abrir Plantillas se cargan las listas de envío (y sus contadores).
     if (tab === 'plantillas' && typeof wlCargar === 'function') {
       setTimeout(function(){ try { wlCargar(); } catch(e) { console.warn('wlCargar:', e); } }, 60);

@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css?v=1789840000">
-<link rel="stylesheet" href="configuracion.css?v=1790350000">
+<link rel="stylesheet" href="configuracion.css?v=1790390000">
 </head>
 <body>
 <div class="cf-root">
@@ -1866,163 +1866,13 @@
               </div>
             </div></div></div>
 
-            <div class="card" id="card-faqs" data-tab="informacion">
-              <div class="card-hd">
-                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/><circle cx="12" cy="12" r="10"/></svg></div>
-                <div class="card-hd-tx">
-                  <div class="card-hd-tt">Preguntas frecuentes</div>
-                  <div class="card-hd-ds">Respuestas listas para las dudas m&#225;s comunes de tus clientes.</div>
-                </div>
-              </div>
-              <div class="card-bd">
-                <div class="faq-list" id="faqList"></div>
-                <button class="faq-add" id="faqAdd"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Agregar pregunta</button>
-              </div>
-            </div>
+            
 
-            <div class="card" id="card-info" data-tab="informacion">
-              <div class="card-hd">
-                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/></svg></div>
-                <div class="card-hd-tx">
-                  <div class="card-hd-tt">Informaci&#243;n del negocio</div>
-                  <div class="card-hd-ds">Todo lo que el agente necesita saber sobre tu restaurante para responder bien.</div>
-                </div>
-              </div>
-              <div class="card-bd">
-                <div class="field">
-                  <label class="field-lb" for="iaBiz">Datos del negocio</label>
-                  <div class="ia-field-wrap"><div class="ia-field-wrap"><textarea class="txa txa--xl" id="iaBiz" data-max="2000" placeholder="Direcci&#243;n, zonas de cobertura, especialidades, promociones..."></textarea><button class="ia-imp-btn" data-type="negocio" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M12 1l2.5 7.5H22l-6.5 4.7 2.5 7.8L12 16.3l-6 4.7 2.5-7.8L2 8.5h7.5z"/></svg><span>Mejorar con IA</span></button></div><button class="ia-imp-btn" data-type="negocio" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M12 1l2.5 7.5H22l-6.5 4.7 2.5 7.8L12 16.3l-6 4.7 2.5-7.8L2 8.5h7.5z"/></svg><span>Mejorar con IA</span></button></div>
-                  <div class="field-foot"><span class="field-hint">El bot usar&#225; estos datos como fuente de verdad.</span><span class="charc" id="charc-iaBiz">0 / 2000</span></div>
-                </div>
-              </div>
-            </div>
+            
 
-            <div class="card" id="card-conexiones" data-tab="informacion">
-              <div class="card-hd">
-                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
-                <div class="card-hd-tx">
-                  <div class="card-hd-tt">Qu&eacute; informaci&oacute;n ve el asistente</div>
-                  <div class="card-hd-ds">Ya tienes esta informaci&oacute;n configurada en otras pantallas. Aqu&iacute; decides cu&aacute;l puede usar el asistente. Desconectar no borra nada: el dato sigue ah&iacute; para el resto del sistema.</div>
-                </div>
-              </div>
-              <div class="card-bd">
-                <div class="cfg-conex-row" data-conex="faq">
-                  <div class="cfg-conex-tx">
-                    <div class="cfg-conex-tt">Preguntas frecuentes</div>
-                    <div class="cfg-conex-ds">Tus preguntas y respuestas ya escritas. Con esto el bot contesta "¿hasta qué hora atienden?" sin arrancar un pedido.</div>
-                  </div>
-                  <label class="toggle">
-                    <input type="checkbox" class="cfg-conex-chk" data-k="faq" checked>
-                    <div class="toggle-track"></div>
-                    <div class="toggle-thumb"></div>
-                  </label>
-                </div>
-                <div class="cfg-conex-row" data-conex="menu">
-                  <div class="cfg-conex-tx">
-                    <div class="cfg-conex-tt">La carta</div>
-                    <div class="cfg-conex-ds">Productos, presentaciones, variantes y precios. Sin esto el bot no puede decir qué hay ni cuánto vale.</div>
-                  </div>
-                  <label class="toggle">
-                    <input type="checkbox" class="cfg-conex-chk" data-k="menu" checked>
-                    <div class="toggle-track"></div>
-                    <div class="toggle-thumb"></div>
-                  </label>
-                </div>
-                <div class="cfg-conex-row" data-conex="horarios">
-                  <div class="cfg-conex-tx">
-                    <div class="cfg-conex-tt">Horarios</div>
-                    <div class="cfg-conex-ds">Los días y horas de atención, para saber si puede tomar pedidos.</div>
-                  </div>
-                  <label class="toggle">
-                    <input type="checkbox" class="cfg-conex-chk" data-k="horarios" checked>
-                    <div class="toggle-track"></div>
-                    <div class="toggle-thumb"></div>
-                  </label>
-                </div>
-                <div class="cfg-conex-row" data-conex="pagos">
-                  <div class="cfg-conex-tx">
-                    <div class="cfg-conex-tt">Métodos de pago</div>
-                    <div class="cfg-conex-ds">Los métodos que aceptas y los datos para pagar.</div>
-                  </div>
-                  <label class="toggle">
-                    <input type="checkbox" class="cfg-conex-chk" data-k="pagos" checked>
-                    <div class="toggle-track"></div>
-                    <div class="toggle-thumb"></div>
-                  </label>
-                </div>
-                <div class="cfg-conex-row" data-conex="domicilios">
-                  <div class="cfg-conex-tx">
-                    <div class="cfg-conex-tt">Zonas y domicilios</div>
-                    <div class="cfg-conex-ds">Los barrios y sus precios. Desconéctalo si prefieres que el precio del domicilio lo diga siempre una persona.</div>
-                  </div>
-                  <label class="toggle">
-                    <input type="checkbox" class="cfg-conex-chk" data-k="domicilios" checked>
-                    <div class="toggle-track"></div>
-                    <div class="toggle-thumb"></div>
-                  </label>
-                </div>
-                <div class="cfg-conex-row" data-conex="negocio">
-                  <div class="cfg-conex-tx">
-                    <div class="cfg-conex-tt">Sobre el negocio</div>
-                    <div class="cfg-conex-ds">La descripción de tu restaurante, para que responda con contexto.</div>
-                  </div>
-                  <label class="toggle">
-                    <input type="checkbox" class="cfg-conex-chk" data-k="negocio" checked>
-                    <div class="toggle-track"></div>
-                    <div class="toggle-thumb"></div>
-                  </label>
-                </div>
-                <div class="cfg-conex-row" data-conex="situaciones">
-                  <div class="cfg-conex-tx">
-                    <div class="cfg-conex-tt">Situaciones especiales</div>
-                    <div class="cfg-conex-ds">Cómo actuar cuando llueve, se agota un producto o hay demora.</div>
-                  </div>
-                  <label class="toggle">
-                    <input type="checkbox" class="cfg-conex-chk" data-k="situaciones" checked>
-                    <div class="toggle-track"></div>
-                    <div class="toggle-thumb"></div>
-                  </label>
-                </div>
-                <div class="cfg-conex-row" data-conex="vocabulario">
-                  <div class="cfg-conex-tx">
-                    <div class="cfg-conex-tt">Cómo habla</div>
-                    <div class="cfg-conex-ds">Las expresiones que quieres que use y las que debe evitar.</div>
-                  </div>
-                  <label class="toggle">
-                    <input type="checkbox" class="cfg-conex-chk" data-k="vocabulario" checked>
-                    <div class="toggle-track"></div>
-                    <div class="toggle-thumb"></div>
-                  </label>
-                </div>
-                <div class="cfg-conex-row" data-conex="prohibiciones">
-                  <div class="cfg-conex-tx">
-                    <div class="cfg-conex-tt">Lo que nunca debe decir</div>
-                    <div class="cfg-conex-ds">Temas o frases prohibidas.</div>
-                  </div>
-                  <label class="toggle">
-                    <input type="checkbox" class="cfg-conex-chk" data-k="prohibiciones" checked>
-                    <div class="toggle-track"></div>
-                    <div class="toggle-thumb"></div>
-                  </label>
-                </div>
-              </div>
-            </div>
+            
 
-            <div class="card" id="card-adiciones" data-tab="informacion">
-              <div class="card-hd">
-                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/><circle cx="12" cy="12" r="10"/></svg></div>
-                <div class="card-hd-tx">
-                  <div class="card-hd-tt">Palabras de adiciones</div>
-                  <div class="card-hd-ds">C&oacute;mo el bot reconoce que el cliente pide una adici&oacute;n o extra en su pedido.</div>
-                </div>
-              </div>
-              <div class="card-bd">
-                <div class="field">
-                  <textarea class="txa" id="adicionesPalabras" rows="2" placeholder="Ej. salchicha ranchera, super queso, salsa de ajo, borde de queso..."></textarea>
-                  <div class="field-hint">Separadas por coma. Los productos de tus categor&iacute;as de <strong>adiciones y bebidas</strong> del cat&aacute;logo se reconocen solos — aqu&iacute; solo agrega palabras que no est&eacute;n en el cat&aacute;logo.</div>
-                </div>
-              </div>
-            </div>
+            
 
             <div class="cia-acc" data-acc="gerente"><button type="button" class="cia-acc-h" onclick="ciaAcc('gerente')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span><span class="cia-acc-t">Números de gerente</span><span class="cia-acc-sum" id="ciasum-gerente"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-gerentes" data-tab="asistente">
               <div class="card-hd">
@@ -2258,7 +2108,7 @@
 
 
             <!-- CARD: CARTA DEL RESTAURANTE (imágenes) -->
-            <div class="card" id="card-menu" data-tab="informacion">
+            <div class="cia-acc" data-acc="i-carta"><button type="button" class="cia-acc-h" onclick="ciaAcc('i-carta')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span class="cia-acc-t">Carta del restaurante</span><span class="cia-acc-sum" id="ciasum-i-carta"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-menu" data-tab="informacion">
               <div class="card-hd">
                 <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
                 <div class="card-hd-tx">
@@ -2284,10 +2134,52 @@
                   </div>
                 </div>
               </div>
-            </div>
-
-            <!-- CARD: PROHIBICIONES -->
-            <div class="card" id="card-prohibiciones" data-tab="informacion">
+            </div></div></div>
+            <div class="cia-acc" data-acc="i-negocio"><button type="button" class="cia-acc-h" onclick="ciaAcc('i-negocio')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg></span><span class="cia-acc-t">Información del negocio</span><span class="cia-acc-sum" id="ciasum-i-negocio"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-info" data-tab="informacion">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Informaci&#243;n del negocio</div>
+                  <div class="card-hd-ds">Todo lo que el agente necesita saber sobre tu restaurante para responder bien.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="field">
+                  <label class="field-lb" for="iaBiz">Datos del negocio</label>
+                  <div class="ia-field-wrap"><div class="ia-field-wrap"><textarea class="txa txa--xl" id="iaBiz" data-max="2000" placeholder="Direcci&#243;n, zonas de cobertura, especialidades, promociones..."></textarea><button class="ia-imp-btn" data-type="negocio" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M12 1l2.5 7.5H22l-6.5 4.7 2.5 7.8L12 16.3l-6 4.7 2.5-7.8L2 8.5h7.5z"/></svg><span>Mejorar con IA</span></button></div><button class="ia-imp-btn" data-type="negocio" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M12 1l2.5 7.5H22l-6.5 4.7 2.5 7.8L12 16.3l-6 4.7 2.5-7.8L2 8.5h7.5z"/></svg><span>Mejorar con IA</span></button></div>
+                  <div class="field-foot"><span class="field-hint">El bot usar&#225; estos datos como fuente de verdad.</span><span class="charc" id="charc-iaBiz">0 / 2000</span></div>
+                </div>
+              </div>
+            </div></div></div>
+            <div class="cia-acc" data-acc="i-faq"><button type="button" class="cia-acc-h" onclick="ciaAcc('i-faq')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><span class="cia-acc-t">Preguntas frecuentes</span><span class="cia-acc-sum" id="ciasum-i-faq"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-faqs" data-tab="informacion">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/><circle cx="12" cy="12" r="10"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Preguntas frecuentes</div>
+                  <div class="card-hd-ds">Respuestas listas para las dudas m&#225;s comunes de tus clientes.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="faq-list" id="faqList"></div>
+                <button class="faq-add" id="faqAdd"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Agregar pregunta</button>
+              </div>
+            </div></div></div>
+            <div class="cia-acc" data-acc="i-adiciones"><button type="button" class="cia-acc-h" onclick="ciaAcc('i-adiciones')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span><span class="cia-acc-t">Palabras de adiciones</span><span class="cia-acc-sum" id="ciasum-i-adiciones"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-adiciones" data-tab="informacion">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/><circle cx="12" cy="12" r="10"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Palabras de adiciones</div>
+                  <div class="card-hd-ds">C&oacute;mo el bot reconoce que el cliente pide una adici&oacute;n o extra en su pedido.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="field">
+                  <textarea class="txa" id="adicionesPalabras" rows="2" placeholder="Ej. salchicha ranchera, super queso, salsa de ajo, borde de queso..."></textarea>
+                  <div class="field-hint">Separadas por coma. Los productos de tus categor&iacute;as de <strong>adiciones y bebidas</strong> del cat&aacute;logo se reconocen solos — aqu&iacute; solo agrega palabras que no est&eacute;n en el cat&aacute;logo.</div>
+                </div>
+              </div>
+            </div></div></div>
+            <div class="cia-acc" data-acc="i-prohibe"><button type="button" class="cia-acc-h" onclick="ciaAcc('i-prohibe')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg></span><span class="cia-acc-t">Prohibiciones</span><span class="cia-acc-sum" id="ciasum-i-prohibe"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-prohibiciones" data-tab="informacion">
               <div class="card-hd">
                 <div class="card-hd-ico" style="background:#FEF2F2;color:#DC2626;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></div>
                 <div class="card-hd-tx">
@@ -2308,7 +2200,120 @@
                   <button class="zone-add" id="prohAdd" type="button">+ Agregar prohibici&oacute;n</button>
                 </div>
               </div>
-            </div>
+            </div></div></div>
+            <div class="cia-acc" data-acc="i-ve"><button type="button" class="cia-acc-h" onclick="ciaAcc('i-ve')"><span class="cia-acc-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="cia-acc-t">Qué información ve</span><span class="cia-acc-sum" id="ciasum-i-ve"></span><span class="cia-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></button><div class="cia-acc-b"><div class="card" id="card-conexiones" data-tab="informacion">
+              <div class="card-hd">
+                <div class="card-hd-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+                <div class="card-hd-tx">
+                  <div class="card-hd-tt">Qu&eacute; informaci&oacute;n ve el asistente</div>
+                  <div class="card-hd-ds">Ya tienes esta informaci&oacute;n configurada en otras pantallas. Aqu&iacute; decides cu&aacute;l puede usar el asistente. Desconectar no borra nada: el dato sigue ah&iacute; para el resto del sistema.</div>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div class="cfg-conex-row" data-conex="faq">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">Preguntas frecuentes</div>
+                    <div class="cfg-conex-ds">Tus preguntas y respuestas ya escritas. Con esto el bot contesta "¿hasta qué hora atienden?" sin arrancar un pedido.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="faq" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
+                <div class="cfg-conex-row" data-conex="menu">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">La carta</div>
+                    <div class="cfg-conex-ds">Productos, presentaciones, variantes y precios. Sin esto el bot no puede decir qué hay ni cuánto vale.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="menu" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
+                <div class="cfg-conex-row" data-conex="horarios">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">Horarios</div>
+                    <div class="cfg-conex-ds">Los días y horas de atención, para saber si puede tomar pedidos.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="horarios" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
+                <div class="cfg-conex-row" data-conex="pagos">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">Métodos de pago</div>
+                    <div class="cfg-conex-ds">Los métodos que aceptas y los datos para pagar.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="pagos" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
+                <div class="cfg-conex-row" data-conex="domicilios">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">Zonas y domicilios</div>
+                    <div class="cfg-conex-ds">Los barrios y sus precios. Desconéctalo si prefieres que el precio del domicilio lo diga siempre una persona.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="domicilios" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
+                <div class="cfg-conex-row" data-conex="negocio">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">Sobre el negocio</div>
+                    <div class="cfg-conex-ds">La descripción de tu restaurante, para que responda con contexto.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="negocio" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
+                <div class="cfg-conex-row" data-conex="situaciones">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">Situaciones especiales</div>
+                    <div class="cfg-conex-ds">Cómo actuar cuando llueve, se agota un producto o hay demora.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="situaciones" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
+                <div class="cfg-conex-row" data-conex="vocabulario">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">Cómo habla</div>
+                    <div class="cfg-conex-ds">Las expresiones que quieres que use y las que debe evitar.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="vocabulario" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
+                <div class="cfg-conex-row" data-conex="prohibiciones">
+                  <div class="cfg-conex-tx">
+                    <div class="cfg-conex-tt">Lo que nunca debe decir</div>
+                    <div class="cfg-conex-ds">Temas o frases prohibidas.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" class="cfg-conex-chk" data-k="prohibiciones" checked>
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                  </label>
+                </div>
+              </div>
+            </div></div></div>
+
+            <!-- CARD: PROHIBICIONES -->
+            
 
             <!-- CARD: PEDIDOS PROGRAMADOS -->
             <div class="card" id="card-pedidos-prog" data-tab="pedido">
@@ -2569,6 +2574,8 @@
               </div>
             </div>
             <button class="pv-clear" id="pvClear">Borrar la prueba</button>
+            <!-- El rail de la pestaña Información: lo que Paco sabe hoy. -->
+            <div class="cia-sabe" id="ciaSabe" style="display:none"></div>
             <div class="pv-stats">
               <div class="pv-stat"><span class="pv-stat-l"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Resueltas por IA hoy</span><span class="pv-stat-v g">42</span></div>
               <div class="pv-stat"><span class="pv-stat-l"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent-2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg> Audios enviados</span><span class="pv-stat-v" id="statVoice">0</span></div>
@@ -2607,7 +2614,7 @@
 <!-- Es quien sabe tocar los tonos con el volumen configurado. Sin esto el
      boton Probar no sonaba: la funcion que llama no existia. -->
 <script src="pos-notify.js?v=1790370000"></script>
-<script src="configuracion.js?v=1790340000"></script>
+<script src="configuracion.js?v=1790390000"></script>
 </body>
 </html>
 
