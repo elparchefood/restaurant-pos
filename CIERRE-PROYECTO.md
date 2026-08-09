@@ -71,9 +71,18 @@ solo hay un restaurante usándolo.
 - [x] **Las notas frecuentes no aparecían en venta rápida** — `S.cats` vs
       `S.categories`: el bloque se copió de domicilios y buscaba las categorías
       por el nombre equivocado. `2026-08-09`
-- [ ] **La tarjeta de mesa dice "0 ítems · $0"**.
+- [x] **La tarjeta de mesa decía "0 ítems · $0"** — era otro síntoma del error
+      de las mesas libres (la carga fallaba y pintaba ceros). El rastro en
+      `pos_diag` confirma: el error paró en el minuto exacto del arreglo del
+      8-ago y no ha vuelto. `2026-08-09`
 - [ ] **Auditoría de los `Promise.all`** — congelan pantallas sin dar error.
-- [ ] **`mypass_vault` en "Allow all"**.
+- [ ] **`mypass_vault` en "Allow all"** — verificado: es la bóveda de
+      contraseñas personal de Sergio (otro proyecto, misma base). Cualquiera
+      con la llave pública de Cobra puede leerla o borrarla. **Copia de
+      seguridad hecha el 9-ago** en `Documents/mypass-boveda-copia-2026-08-09.json`.
+      Plan acordado: mudar MyPass a su propio proyecto Supabase — falta saber
+      dónde vive el código/la página de MyPass. NO cerrar la regla antes de
+      eso: rompería la app.
 - [ ] **El envío de campañas vive en la pantalla** — si se cierra, se para.
       Debe correr en el servidor.
 
