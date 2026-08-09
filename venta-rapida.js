@@ -740,9 +740,16 @@
   async function loadBranch() {
     const sb = getSb();
     if (!sb) return;
-    const { data: _authData } = await sb.auth.getUser();
-    const user = (_authData && _authData.user)
-      || (window._pos && window._pos.state && window._pos.state.user);
+    /* El usuario sale del ESTADO, que pos-core ya lleno antes de core:ready —
+       cero viajes a internet. Antes se hacia sb.auth.getUser(), un viaje que
+       con la red lenta fallaba: tenantId quedaba vacio, loadCatalog se
+       devolvia callado y el "Cargando categorias..." se quedaba para siempre.
+       getSession (lee del equipo) queda solo de respaldo. */
+    let user = (window._pos && window._pos.state && window._pos.state.user) || null;
+    if (!user) {
+      try { const { data } = await sb.auth.getSession(); user = data && data.session && data.session.user; }
+      catch (e) { console.warn('[venta-rapida] sin sesion:', e); }
+    }
     S.branchId = (user && user.user_metadata && user.user_metadata.branch_id) || null;
     S.tenantId = (user && user.user_metadata && user.user_metadata.tenant_id) || null;
     /* Ese renglon es del nombre del restaurante y lo pone pos-brand.js. Antes
@@ -1697,9 +1704,22 @@ async function loadCatalog() {
     // Esperar a que pos-core esté listo
     if (window._pos) {
       window._pos.on('core:ready', async function() {
-        if (window.cajaGuard && !(await window.cajaGuard(window._pos.state.branchId))) return;
-            await loadBranch();
+        try {
+          if (window.cajaGuard && !(await window.cajaGuard(window._pos.state.branchId))) return;
+        } catch (e) { console.warn('[venta-rapida] cajaGuard:', e); }
+        try { await loadBranch(); } catch (e) { console.error('[venta-rapida] loadBranch:', e); }
+        /* Si el estado ya sabe el negocio, el catalogo no depende de nada mas. */
+        if (!S.tenantId && window._pos.state.tenantId) S.tenantId = window._pos.state.tenantId;
+        if (!S.branchId && window._pos.state.branchId) S.branchId = window._pos.state.branchId;
         await loadCatalog();
+        /* Si aun asi no cargo, se dice y se ofrece reintentar: un "Cargando..."
+           eterno no le sirve de nada a quien esta atendiendo. */
+        if (!S.categories || !S.categories.length) {
+          var g = document.getElementById('vr-catgrid');
+          if (g) g.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B;font-size:13px">'
+            + 'No se pudo cargar el catálogo.<br><button onclick="location.reload()" '
+            + 'style="margin-top:12px;background:#5B6BFF;color:#fff;border:none;border-radius:10px;padding:10px 18px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">Reintentar</button></div>';
+        }
         if (window.posStock) { try { await posStock.load(getSb()); } catch (e) { console.warn('posStock:', e); } if (S.currentCatId) openCategory(S.currentCatId); }
         refreshBadges();
         // Modo agregar: al final, con la pantalla ya pintada.
