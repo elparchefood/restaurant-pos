@@ -1723,6 +1723,34 @@ nombres raros en su WhatsApp"*.
 
 ---
 
+## HECHO — [Fase 2] Auditoría de los `Promise.all` — 2026-08-09
+
+`Promise.all` es **todo o nada**: si una promesa falla, la espera entera falla y
+**lo que venía después no corre**. Cuando esas promesas cargan una pantalla, un
+tropiezo de red la deja congelada — y sin error a la vista, porque el que
+revienta es el `await`, no una función con su propio aviso.
+
+**Revisados los 20 del sistema, uno por uno.** Solo **dos** eran peligrosos:
+
+| Pantalla | Qué se perdía si una carga fallaba |
+|---|---|
+| **Historial** | `bindFilters()` y `loadAndRender()` — pantalla en blanco. Y las dos cargas (`loadUsers`, `loadTables`) solo traen **nombres para etiquetas**: el historial se caía por no poder traducir un nombre. |
+| **Dashboard** | `loadPrintTimes()` y `setupRealtime()` — a medio pintar y **sin auto-refresco**. 5 de las 9 cargas no atrapan su error. |
+
+**Los otros 18 se dejaron como estaban**, verificado en cada uno: o cada carga
+tiene su propio `try/catch` (reservas ×5, impresoras ×4, caja ×3), o van dentro
+de un `try` con reintento (los catálogos de venta ×3).
+
+`allSettled` mantiene la velocidad —salen todas a la vez igual— pero la que
+falla se queda en su rincón. **Lo que revienta se anota con su nombre**
+(`[dashboard] carga "stock" falló:`), para no repetir el error del trigger de
+puntos que estuvo cinco días callado.
+
+Comprobado reproduciendo el patrón: con `all`, `pantalla_pintada:false` y
+`auto_refresco:false`; con `allSettled`, ambos `true` y el fallo anotado.
+
+---
+
 ## HECHO — [Fase 2] Un restaurante nuevo arranca solo — 2026-08-09
 
 **Lo que le faltaba**, medido comparando un tenant de prueba contra El Parche:

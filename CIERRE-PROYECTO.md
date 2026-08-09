@@ -81,7 +81,9 @@ solo hay un restaurante usándolo.
       de las mesas libres (la carga fallaba y pintaba ceros). El rastro en
       `pos_diag` confirma: el error paró en el minuto exacto del arreglo del
       8-ago y no ha vuelto. `2026-08-09`
-- [ ] **Auditoría de los `Promise.all`** — congelan pantallas sin dar error.
+- [x] **Auditoría de los `Promise.all`** — revisados los 20 del sistema. Solo
+      dos eran peligrosos (historial y dashboard); los demás ya estaban
+      protegidos. `2026-08-09`
 - [x] **`mypass_vault` estaba abierta a cualquiera** — CERRADO el 9-ago.
       Era la bóveda de contraseñas personal de Sergio (app `mypass`, repo
       público, misma base). La llave pública de la página la leía entera; y el
