@@ -3737,9 +3737,11 @@
     container = mountContainer;
 
     // Inject stylesheet (always fresh)
-    const existingStyle = document.getElementById('vs-styles');
-    if (existingStyle) existingStyle.remove();
-    if (true) {
+    /* El CSS vive en el <head> de ventas.html desde el arreglo del logo
+       gigante: cargado aqui por codigo llegaba ~1 s tarde y la pantalla se
+       pintaba sin medidas. Solo se inyecta si alguna otra pagina usara este
+       modulo sin traer la hoja. */
+    if (!document.querySelector('link[href*="ventas-salon.css"]')) {
       const link = document.createElement('link');
       link.id = 'vs-styles';
       link.rel = 'stylesheet';

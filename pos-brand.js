@@ -77,6 +77,11 @@
       'border-radius:inherit">';
     // El recuadro traía un degradado de fondo con la letra placeholder
     // ("L"/"C"); el app icon oficial ya trae su propio fondo índigo.
+    /* Tope duro: si el CSS del recuadro aun no llego (pantallas que lo cargan
+       por codigo), sin esto el recuadro no tiene medida y el logo al 100% es
+       la pantalla entera durante un segundo. */
+    el.style.maxWidth  = '40px';
+    el.style.maxHeight = '40px';
     el.style.background = 'transparent';
     el.style.boxShadow  = 'none';
     el.style.color      = 'transparent';
