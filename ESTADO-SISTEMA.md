@@ -1723,6 +1723,45 @@ nombres raros en su WhatsApp"*.
 
 ---
 
+## ARREGLADO — [Configuración] Los enganches que rompió la reorganización del Asistente IA — 2026-08-09
+
+**Síntoma:** Sergio abría Configuración y no veía los barrios pendientes de
+aprobar, aunque en `pos_domi_aprendidos` había 4 filas de su sucursal.
+**Sin un solo error en la consola** — eso es lo que lo hizo invisible.
+
+**Causa:** cada bloque se colgaba de SU pestaña buscándola por nombre:
+
+| Bloque | Buscaba la pestaña | Existe hoy |
+|---|---|---|
+| Barrios por aprobar (`cargarAprendidos`) | `domicilios` | no — está en **Pedido** / fila `p-domi` |
+| Contactos de WhatsApp (`wcCargar`) | `contactos` | no — está en **Difusión** / `d-contactos` |
+| Plantillas de Meta (`wtpCargar`) | `plantillas` | no — está en **Difusión** / `d-plantillas` |
+| Listas de envío (`wlCargar`, dentro de `activar()`) | `plantillas` | no |
+
+Al reorganizar el Asistente IA en 6 pestañas, esas tres dejaron de existir.
+`document.querySelector('.cia-tab[data-tab="domicilios"]')` devuelve `null`, el
+`if (btn)` lo traga, y el bloque no se carga nunca. Callado.
+
+**Arreglo:** un registro compartido en vez de cuatro copias de la misma idea.
+
+```js
+window.ciaAlAbrir(tab, acc, fn)   // se dispara con la pestaña O con la fila
+```
+
+`activar(tab)` y `ciaAcc(key)` disparan lo registrado. Cada `fn` va en su
+`try/catch`: si un bloque revienta, los demás siguen cargando.
+
+**Además:** los barrios por aprobar se cuentan en la fila plegada
+(`ciasum-p-domi` → "3 por aprobar") y se cargan al abrir Configuración. Con la
+fila cerrada, ese número es lo único que avisa que hay algo que mirar dentro —
+si solo cargara al desplegarla, únicamente lo vería quien ya fue a buscarlo.
+
+⚠️ **Lección:** al mover algo de sitio, buscar quién lo referenciaba **por
+nombre**. Un selector que no encuentra nada no falla: devuelve `null` y el
+código sigue como si nada.
+
+---
+
 ## HECHO — [Reservas] "Crear con IA" — 2026-08-09
 
 El botón y la ventana existían desde hacía meses y **no hacían nada**:
