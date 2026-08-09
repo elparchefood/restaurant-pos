@@ -72,6 +72,26 @@ function _payAttr(s){ return String(s==null?'':s).replace(/"/g,'&quot;').replace
 function _payDef(){ return (SP.methodDefs||[]).find(function(m){ return m.key===SP.method; }) || (SP.methodDefs||[])[0] || { nombre:'Efectivo', tipo:'efectivo', key:'efectivo' }; }
 function _esEfectivo(){ var d=(SP.methodDefs||[]).find(function(m){ return m.key===SP.method; }); return d ? d.tipo==='efectivo' : SP.method==='efectivo'; }
 
+/* Aplica una lista de metodos a la pantalla. SINCRONO a proposito: es lo que
+   permite pintar al instante desde el cache del equipo, sin esperar la red. */
+function _mpAplicarLista(metodos){
+  var canal = SP.channel==='domicilio' ? 'domicilio' : (SP.channel==='rapido' ? 'rapida' : 'mesa');
+  var list = (metodos||[]).filter(function(m){ return m && String(m.nombre||'').trim() && m.activo!==false; });
+  list = list.filter(function(m){ return !Array.isArray(m.canales) || !m.canales.length || m.canales.indexOf(canal)>=0; });
+  if (!list.length) list = [{ id:'efectivo', nombre:'Efectivo', tipo:'efectivo', digital:false }];
+  list.sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
+  SP.methodDefs = list.map(function(m){ return { key:(m.id||m.nombre), nombre:m.nombre, tipo:m.tipo||'otro', digital:!!m.digital }; });
+  /* Si el cajero ya habia elegido uno y sigue existiendo, se respeta: el
+     repintado fresco no le puede quitar la seleccion de las manos. */
+  var sigue = SP.method && SP.methodDefs.some(function(m){ return m.key===SP.method; });
+  if (!sigue) {
+    var def = list.find(function(m){ return m.porDefecto; }) || list[0];
+    SP.method = (def.id||def.nombre);
+  }
+  _renderMethodButtons();
+  return list;
+}
+
 async function loadPaymentMethods(){
   var metodos = [];
   try {
@@ -81,18 +101,13 @@ async function loadPaymentMethods(){
       metodos = Array.isArray(p.metodos) ? p.metodos : [];
     }
   } catch(e){ console.warn('loadPaymentMethods:', e); }
-  var canal = SP.channel==='domicilio' ? 'domicilio' : (SP.channel==='rapido' ? 'rapida' : 'mesa');
-  var list = metodos.filter(function(m){ return m && String(m.nombre||'').trim() && m.activo!==false; });
-  list = list.filter(function(m){ return !Array.isArray(m.canales) || !m.canales.length || m.canales.indexOf(canal)>=0; });
-  if (!list.length) list = [{ id:'efectivo', nombre:'Efectivo', tipo:'efectivo', digital:false }];
-  list.sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
-  SP.methodDefs = list.map(function(m){ return { key:(m.id||m.nombre), nombre:m.nombre, tipo:m.tipo||'otro', digital:!!m.digital }; });
-  /* Puntos y Saldo YA vienen en la lista de arriba: desde hoy se prenden en
-     Configuración → Métodos de pago, como todo lo demás. Aquí solo se les
-     pregunta cuánto hay, para mostrarlo debajo del nombre.
+  /* Se guardan para la PROXIMA apertura: es lo que hace instantaneo el proximo
+     arranque. Con la red caida, lo guardado sigue sirviendo. */
+  try { if (window.posCache && metodos.length) posCache.guardar('pagos.metodos', metodos); } catch(e){}
+  _mpAplicarLista(metodos);
 
-     No se esconden cuando no hay cliente: escondidos, el cajero nunca sabe que
-     existen. Se muestran y, al tocarlos, dicen qué falta. */
+  /* Lo que SI necesita red: cuanto saldo y cuantos puntos tiene el cliente.
+     Llega un instante despues y solo refresca los subtitulos. */
   var _st = (window._pos && window._pos.state) || {};
   SP.puntosSaldo = 0; SP.saldoDisp = 0;
   try {
@@ -112,8 +127,6 @@ async function loadPaymentMethods(){
       SP.saldoDisp = SP.clienteId ? await posSaldo.disponibles(SP.clienteId) : 0;
     }
   } catch (e) { console.warn('[pagos] saldo no disponible:', e); }
-  var def = list.find(function(m){ return m.porDefecto; }) || list[0];
-  SP.method = (def.id||def.nombre);
   _renderMethodButtons();
 }
 function _renderMethodButtons(){
@@ -1352,7 +1365,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  // 5. Cargar datos
+  // 5. Pintar los metodos AL INSTANTE desde lo guardado en el equipo. La
+  //    consulta fresca corre igual mas abajo y repinta si algo cambio.
+  try {
+    var _g = window.posCache && posCache.leer('pagos.metodos');
+    if (_g && Array.isArray(_g.datos) && _g.datos.length) _mpAplicarLista(_g.datos);
+  } catch (e) { /* sin cache no pasa nada: se espera la red como siempre */ }
+
+  // 5b. Cargar datos
   await loadOrder();
   // 5b. Cargar métodos de pago configurados (fuente: Métodos de pago)
   await loadPaymentMethods();
