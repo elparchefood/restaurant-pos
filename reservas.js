@@ -639,6 +639,116 @@ async function guardarReserva() {
   await cargarTodo();
 }
 
+
+/* ═══ CREAR CON IA ═══════════════════════════════════════════════════════
+   Se pega el mensaje de WhatsApp del cliente y sale la reserva armada.
+   El motor es la funcion `extraer-reserva`, que tiene una sola regla: no
+   inventar. Lo que el mensaje no diga vuelve vacio y se avisa aqui.        */
+
+var IA = { datos: null };
+
+async function iaAnalizar() {
+  var btn = $('btn-ai-parse');
+  var caja = $('ai-result');
+  var txt = ($('ai-text').value || '').trim();
+  if (!txt) { toast('Pega el mensaje del cliente'); return; }
+
+  btn.disabled = true; btn.textContent = 'Leyendo…';
+  caja.hidden = false;
+  caja.innerHTML = '<div class="rs-ai-cargando">Leyendo el mensaje…</div>';
+  $('btn-ai-create').disabled = true;
+  IA.datos = null;
+
+  try {
+    /* La fecha de HOY se manda desde aqui, no se calcula en el servidor: el
+       servidor vive en UTC y en Colombia son 5 horas menos. A las 8 de la
+       noche de un sabado el servidor ya cree que es domingo, y "manana"
+       saldria corrido un dia. */
+    var r = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/extraer-reserva', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texto: txt, hoy: ymd(new Date()), abre: TL_INI, cierra: TL_FIN }),
+    });
+    var d = await r.json().catch(function () { return {}; });
+    if (!r.ok || d.error) { caja.innerHTML = '<div class="rs-ai-mal">' + esc(d.error || 'No se pudo leer el mensaje.') + '</div>'; return; }
+
+    if (!d.es_reserva) {
+      caja.innerHTML = '<div class="rs-ai-mal">Esto no parece una reserva de mesa.</div>'
+        + '<div class="rs-ai-pie">Si lo es, escribe el mensaje con el día, la hora y cuántas personas.</div>';
+      return;
+    }
+
+    IA.datos = d;
+    caja.innerHTML = iaPintar(d);
+    $('btn-ai-create').disabled = false;
+  } catch (e) {
+    caja.innerHTML = '<div class="rs-ai-mal">No se pudo leer el mensaje: ' + esc(e.message || e) + '</div>';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Analizar mensaje';
+  }
+}
+
+/* Lo que entendio, campo por campo. Lo que falta se muestra como hueco a la
+   vista y no se tapa: es lo que hay que preguntarle al cliente. */
+function iaPintar(d) {
+  function fila(l, v) {
+    return '<div class="rs-ai-fila"><span>' + l + '</span>'
+      + (v ? '<b>' + esc(v) + '</b>' : '<i class="rs-ai-falta">falta</i>') + '</div>';
+  }
+  var fechaTxt = '';
+  if (d.fecha) {
+    var p = d.fecha.split('-').map(Number);
+    fechaTxt = fechaLarga(new Date(p[0], p[1] - 1, p[2]));
+  }
+  return (d.entendido ? '<div class="rs-ai-frase">' + esc(d.entendido) + '</div>' : '')
+    + '<div class="rs-ai-tabla">'
+    + fila('Nombre', d.nombre)
+    + fila('Teléfono', d.telefono)
+    + fila('Personas', d.personas ? String(d.personas) : '')
+    + fila('Día', fechaTxt)
+    + fila('Hora', d.hora)
+    + (d.notas ? fila('Nota', d.notas) : '')
+    + '</div>'
+    + (d.avisos && d.avisos.length
+        ? '<div class="rs-ai-aviso">⚠ ' + d.avisos.map(esc).join(' ') + '</div>' : '')
+    + (d.falta && d.falta.length
+        ? '<div class="rs-ai-pie">No dice ' + esc(d.falta.join(', ')) + '. Lo completas en el formulario.</div>'
+        : '<div class="rs-ai-pie">Revisa y guarda en el formulario.</div>');
+}
+
+/* Pasa lo entendido al cajon de siempre. No guarda: asi la reserva pasa por
+   las mismas comprobaciones que una escrita a mano —el aviso de choque de
+   mesa, la mesa sugerida por capacidad— y una lectura equivocada se ve antes
+   de guardar, no con el cliente en la puerta. */
+function iaPasarAlFormulario() {
+  var d = IA.datos; if (!d) return;
+  cerrar('modal-ai');
+  abrirDrawer();
+
+  if (d.nombre) $('f-nombre').value = d.nombre;
+  if (d.telefono) $('f-tel').value = d.telefono;
+  if (d.notas) $('f-notas').value = d.notas;
+  if (d.personas) { PAX = d.personas; $('pax-val').textContent = PAX; }
+  if (d.fecha) $('f-fecha').value = d.fecha;
+  /* La mesa sugerida depende de cuantos son y de la fecha, asi que se repinta
+     DESPUES de poner los dos. */
+  pintarMesasDrawer();
+
+  if (d.hora) {
+    var sl = document.querySelector('#f-slots .rs-slot[data-h="' + d.hora + '"]');
+    if (sl) {
+      document.querySelectorAll('#f-slots .rs-slot').forEach(function (b) { b.classList.remove('on'); });
+      sl.classList.add('on');
+      sl.scrollIntoView({ block: 'nearest', inline: 'center' });
+    }
+  }
+  /* El origen queda en WhatsApp: de ahi salio. */
+  var or = $('f-origen'); if (or) { for (var i = 0; i < or.options.length; i++) {
+    if (/whats/i.test(or.options[i].value + or.options[i].text)) { or.selectedIndex = i; break; } } }
+
+  var falta = (d.falta || []).length;
+  toast(falta ? 'Revisa: no dice ' + d.falta.join(', ') : 'Revisa y guarda');
+}
+
 /* ═══ ENGANCHES ══════════════════════════════════════════════════════════ */
 function enganchar() {
   document.addEventListener('click', async (ev) => {
@@ -664,7 +774,17 @@ function enganchar() {
     if (t.id === 'day-today') { S.dia = new Date(); await cargarDia(); pintarTodo(); return; }
 
     if (t.classList.contains('js-open-drawer')) { abrirDrawer(); return; }
-    if (t.classList.contains('js-open-ai'))     { abrir('modal-ai'); return; }
+    if (t.classList.contains('js-open-ai')) {
+      /* Limpio: si queda el analisis del mensaje anterior, se crea la reserva
+         de otro cliente sin darse cuenta. */
+      IA.datos = null;
+      $('ai-text').value = '';
+      var cj = $('ai-result'); if (cj) { cj.hidden = true; cj.innerHTML = ''; }
+      var cb = $('btn-ai-create'); if (cb) cb.disabled = true;
+      abrir('modal-ai');
+      setTimeout(function () { var e = $('ai-text'); if (e) e.focus(); }, 60);
+      return;
+    }
     if (t.classList.contains('js-close'))       { cerrar(t.dataset.close); return; }
 
     if (t.classList.contains('js-confirm')) { await confirmar(t.dataset.id); return; }
@@ -682,6 +802,8 @@ function enganchar() {
       t.classList.add('on'); return;
     }
     if (t.id === 'btn-save') { await guardarReserva(); return; }
+    if (t.id === 'btn-ai-parse')  { await iaAnalizar(); return; }
+    if (t.id === 'btn-ai-create') { iaPasarAlFormulario(); return; }
   });
 
   document.querySelectorAll('.cc-overlay').forEach(o => o.addEventListener('click', () => {
