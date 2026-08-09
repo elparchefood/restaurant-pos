@@ -100,6 +100,18 @@ en la función (v28) y reparadas las filas ya guardadas, sin reconectar.
 
 Los videos viven en `C:\Users\USUARIO\Videos\Cobra - Permisos Meta\`, con su propio LEEME.
 
+**DECIDIDO (9-ago): se graba con las cuentas personales de Sergio.** Conectar
+las del restaurante exigía autorizaciones internas que tomaban días, y Meta no
+exige que la cuenta sea la del negocio real — revisa que el permiso se vea
+funcionando. Además los TRES videos deben usar **la misma cuenta conectada**:
+si el 1 conecta una y el 2 muestra mensajes de otra, el reviewer se pierde. Y
+con las cuentas personales es más fácil escribirse y etiquetarse para grabar
+los videos 2 y 3.
+
+⚠️ Por eso la justificación escrita describe el PRODUCTO en general —"el dueño
+conecta la cuenta de su negocio para responder a sus clientes"— sin afirmar que
+esa cuenta concreta sea la de El Parche.
+
 ### Video 2 — Mensajes 🔴 no se puede
 
 `meta-webhook` solo procesa `object === "whatsapp_business_account"`. Un
