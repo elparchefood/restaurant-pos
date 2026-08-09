@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Caja — Cobra POS · El Parche Food</title>
+<title>Caja — Cobra POS</title>
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/favicon-32.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/brand/favicon-192.png">
@@ -20,7 +20,7 @@
   <aside class="cj-sidebar">
     <div class="cj-brand">
       <div class="cj-brand-logo" style="background:transparent;box-shadow:none;padding:0;overflow:hidden"><img src="assets/brand/cobra-logo.png?v=2" alt="Cobra POS" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block"></div>
-      <div><div class="cj-brand-name">Cobra POS</div><div class="cj-brand-sub">El Parche Food · Caja 01</div></div>
+      <div><div class="cj-brand-name">Cobra POS</div><div class="cj-brand-sub">Caja 01</div></div>
     </div>
     <div class="cj-side-section">Caja</div>
     <nav class="cj-nav">
@@ -61,7 +61,7 @@
         <!-- ESTADO: CAJA ABIERTA -->
         <div id="caja-open-view">
           <div class="cj-pagehead">
-            <div><div class="cj-eyebrow">Caja · El Parche Food</div><h1 class="cj-pagetitle">Apertura y cierre</h1></div>
+            <div><div class="cj-eyebrow">Caja<span data-negocio-suf></span></div><h1 class="cj-pagetitle">Apertura y cierre</h1></div>
             <button class="cj-btn-danger" id="btn-cerrar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 14l6 0"/></svg> Cerrar caja</button>
           </div>
 
@@ -152,7 +152,7 @@
 
         <!-- ESTADO: CAJA CERRADA -->
         <div id="caja-closed-view" class="is-hidden">
-          <div style="margin-bottom:18px"><div class="cj-eyebrow">Caja · El Parche Food</div><h1 class="cj-pagetitle">Apertura y cierre</h1></div>
+          <div style="margin-bottom:18px"><div class="cj-eyebrow">Caja<span data-negocio-suf></span></div><h1 class="cj-pagetitle">Apertura y cierre</h1></div>
           <div class="cj-empty">
             <div class="cj-empty-inner">
               <div class="cj-empty-ic"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
@@ -167,7 +167,7 @@
       <!-- ============ INGRESOS Y EGRESOS ============ -->
       <div class="screen" id="screen-movimientos">
         <div class="cj-pagehead">
-          <div><div class="cj-eyebrow">Caja · El Parche Food</div><h1 class="cj-pagetitle">Ingresos y egresos</h1><p class="cj-pagesub">Movimientos de efectivo del turno que no son ventas (compras, abonos, gastos…).</p></div>
+          <div><div class="cj-eyebrow">Caja<span data-negocio-suf></span></div><h1 class="cj-pagetitle">Ingresos y egresos</h1><p class="cj-pagesub">Movimientos de efectivo del turno que no son ventas (compras, abonos, gastos…).</p></div>
           <button class="cj-btn-primary" id="btn-mov"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Registrar movimiento</button>
         </div>
         <div class="cj-mv-summary">
@@ -183,7 +183,7 @@
 
       <!-- ============ CIERRES DE CAJA ============ -->
       <div class="screen" id="screen-cierres">
-        <div style="margin-bottom:18px"><div class="cj-eyebrow">Caja · El Parche Food</div><h1 class="cj-pagetitle">Cierres de caja</h1><p class="cj-pagesub">Historial de todas las aperturas y cierres del negocio.</p></div>
+        <div style="margin-bottom:18px"><div class="cj-eyebrow">Caja<span data-negocio-suf></span></div><h1 class="cj-pagetitle">Cierres de caja</h1><p class="cj-pagesub">Historial de todas las aperturas y cierres del negocio.</p></div>
         <div class="cj-cierres-grid" id="cierres-grid"></div>
       </div>
 
@@ -194,7 +194,7 @@
           <div class="rs-head-left">
             <button class="cj-btn-ghost rs-back-btn" onclick="backToCierres()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Cierres de caja</button>
             <div>
-              <div class="cj-eyebrow">Caja · El Parche Food</div>
+              <div class="cj-eyebrow">Caja<span data-negocio-suf></span></div>
               <h1 class="cj-pagetitle" style="margin:2px 0 0">Resumen del cierre</h1>
               <p class="cj-pagesub" style="margin:5px 0 0">Todo lo que pasó en la caja, resumido y ordenado por tema.</p>
             </div>
@@ -216,7 +216,7 @@
       <!-- ============ HISTORIAL DE VENTAS ============ -->
       <div class="screen" id="screen-historial">
         <div class="cj-pagehead" style="margin-bottom:14px">
-          <div><div class="cj-eyebrow">Caja · El Parche Food</div><h1 class="cj-pagetitle">Historial de ventas</h1></div>
+          <div><div class="cj-eyebrow">Caja<span data-negocio-suf></span></div><h1 class="cj-pagetitle">Historial de ventas</h1></div>
           <div class="cj-card cj-search" style="width:250px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="hist-search" placeholder="Buscar #venta, cliente, hora…"></div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
@@ -442,7 +442,7 @@
 <script src="pos-notify.js?v=1790370000"></script>
 <script src="pos-perms.js?v=1790510000"></script>
 <script>if(window.posRequirePin) posRequirePin(['ventas.ver','pedidos.cobrar']);</script>
-<script src="pos-brand.js?v=1790290000"></script>
+<script src="pos-brand.js?v=1790530000"></script>
 <script src="pos-cierre-print.js?v=1788010000"></script>
 <script src="pos-impuestos.js?v=1"></script>
 <script src="pos-print.js?v=1790300000"></script>

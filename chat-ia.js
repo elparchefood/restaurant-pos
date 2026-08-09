@@ -1952,7 +1952,11 @@ function wireEvents() {
    Igual que WhatsApp: escribes "/" y aparece la lista; sigues escribiendo
    la palabra clave y se filtra; Enter o clic la pega lista para enviar.
 ══════════════════════════════════════════════ */
-// Semilla inicial (las de El Parche). Solo se usa si la base está vacía.
+// Semilla inicial para un restaurante NUEVO (base vacia). Solo frases
+// genericas: nada de direcciones, coordenadas ni cuentas bancarias — eso es
+// de cada negocio y se configura en su pantalla. Aqui estuvo sembrada la
+// direccion, la ubicacion y la cuenta de El Parche, y un restaurante nuevo
+// se las habria mandado a SUS clientes.
 const DEFAULT_QUICK_REPLIES = [
   { k:'gracias',  t:'¡Muchas gracias por preferirnos! Esperamos poder servirte nuevamente.' },
   { k:'gracias2', t:'Muchas gracias ☺️' },
@@ -1968,11 +1972,9 @@ const DEFAULT_QUICK_REPLIES = [
   { k:'Movil',    t:'Me podrías confirmar el móvil porfa 🙏🏽' },
   { k:'pedirdomi2', t:'Buenas noches, me envias un movil por favor, graciaaaas☺️' },
   { k:'ubicacioncliente', t:'Me podrías enviar la ubicación porfavor para que el domi pueda llegar más fácil ☺️🙏🏽' },
-  { k:'direccion', t:'Estamos ubicados en el barrio Bella Vista 📍 Cra 9B # 63 n58' },
-  { k:'ubicacion', t:'📍 Nuestra ubicación', loc:{ latitude:2.4821491, longitude:-76.5742024, name:'El Parche Comidas Rapidas', address:'Carrera 9 B # 63 N 58, Bellavista' } },
   { k:'cuanto',   t:'Me confirmas por favor con cuanto pagas porfavor, para enviarte regreso 😀' },
   { k:'efectivotransferencia', t:'Con gusto, me confirmas si el pago es transferencia o efectivo? para pasar tu pedido a cocina🍟☺️' },
-  { k:'QR2',      t:'Te comparto el código QR para que puedas realizar tu pago ☺️\n\nO si deseas, mediante llaves con el siguiente número: 0092726260\n\nRecuerda enviarnos tu comprobante de pago😁', img:'@qr' },
+  { k:'QR2',      t:'Te comparto el código QR para que puedas realizar tu pago ☺️\n\nRecuerda enviarnos tu comprobante de pago😁', img:'@qr' },
   { k:'comprobante', t:'Quedo pendiente del comprobante para poderte preparar ☺️' },
   /* Estas dos eran las unicas "dinamicas", y su texto ni se leia: se devolvia
      una frase escrita en el codigo. Ahora son plantillas normales y cualquiera

@@ -32,7 +32,7 @@ const FDEF = {
   estado:{label:'Estado',def:'Todos',applied:'Activas'},
   cliente:{label:'Cliente',def:'Todos',applied:'Carolina R.'},
   proveedor:{label:'Proveedor',def:'Todos',applied:'Cárnicos JR'},
-  marca:{label:'Marca',def:'Todas',applied:'El Parche'},
+  marca:{label:'Marca',def:'Todas',applied:'Marca 1'},
 };
 const PRESETS = [['hoy','Hoy'],['ayer','Ayer'],['semana','Esta semana'],['mes','Este mes'],['custom','Personalizado']];
 

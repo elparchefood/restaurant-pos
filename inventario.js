@@ -746,9 +746,9 @@ function updateKPIs() {
 // NAVEGACIÓN
 // ═══════════════════════════════════════════════════
 const screens = {
-  productos: { title:'Productos',          eyebrow:'Control de inventario · El Parche Food', crumb:'Productos' },
-  insumos:   { title:'Insumos',            eyebrow:'Control de inventario · El Parche Food', crumb:'Insumos' },
-  recetas:   { title:'Recetas y costeo',   eyebrow:'Control de inventario · El Parche Food', crumb:'Recetas y costeo' },
+  productos: { title:'Productos',          eyebrow:'Control de inventario', crumb:'Productos' },
+  insumos:   { title:'Insumos',            eyebrow:'Control de inventario', crumb:'Insumos' },
+  recetas:   { title:'Recetas y costeo',   eyebrow:'Control de inventario', crumb:'Recetas y costeo' },
   unidades:  { title:'Unidades de medida', eyebrow:'Configuración', crumb:'Unidades de medida' },
   plantillas:{ title:'Plantillas de costeo', eyebrow:'Configuración', crumb:'Plantillas de costeo' },
   bases:     { title:'Bases de recetas',    eyebrow:'Configuración', crumb:'Bases de recetas' },
@@ -765,7 +765,10 @@ function showScreen(name) {
   if (navItem) navItem.classList.add('on');
   const info = screens[name] || {};
   document.getElementById('page-title').textContent   = info.title || name;
-  document.getElementById('page-eyebrow').textContent = info.eyebrow || '';
+  /* El nombre del negocio va como sufijo, leido de donde lo deja pos-brand.
+     Antes venia escrito "El Parche Food" en cada titulo. */
+  var _neg = ''; try { _neg = localStorage.getItem('pos.brand.restaurante') || ''; } catch (e) {}
+  document.getElementById('page-eyebrow').textContent = (info.eyebrow || '') + (_neg ? ' \u00b7 ' + _neg : '');
   document.getElementById('crumb-title').textContent  = info.crumb || info.title || name;
   if (name === 'productos') renderProductos();
   if (name === 'insumos')   renderInsumos();

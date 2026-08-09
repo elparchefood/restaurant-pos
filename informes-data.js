@@ -89,7 +89,7 @@ const REPORTS = [
    {t:'card',title:'Top 10 por facturación',sub:'Barras horizontales · participación sobre el total',
     body:{t:'hbars',items:[
       {lbl:'Premium Mixta',w:100,val:'$ 812.000',color:CATC.burgers},
-      {lbl:'El Parche Especial',w:78,val:'$ 630.000',color:CATC.burgers},
+      {lbl:'Hamburguesa especial',w:78,val:'$ 630.000',color:CATC.burgers},
       {lbl:'Salchipapa Familiar',w:64,val:'$ 518.000',color:CATC.salchi},
       {lbl:'Doble Carne',w:55,val:'$ 445.000',color:CATC.burgers},
       {lbl:'Perro Especial',w:41,val:'$ 332.000',color:CATC.perros},
@@ -103,7 +103,7 @@ const REPORTS = [
     cols:[{k:'p',label:'Producto'},{k:'c',label:'Categoría'},{k:'q',label:'Cant.',num:1},{k:'pr',label:'Precio',num:1},{k:'sal',label:'Salón',num:1},{k:'dom',label:'Domicilio',num:1},{k:'tot',label:'Total',num:1},{k:'pct',label:'% total',num:1}],
     rows:[
       {p:{_main:'Premium Mixta'},c:{_cat:['burgers','Hamburguesas']},q:'29',pr:'$ 28.000',sal:'18',dom:'11',tot:'$ 812.000',pct:'20,7%'},
-      {p:{_main:'El Parche Especial'},c:{_cat:['burgers','Hamburguesas']},q:'18',pr:'$ 35.000',sal:'12',dom:'6',tot:'$ 630.000',pct:'16,1%'},
+      {p:{_main:'Hamburguesa especial'},c:{_cat:['burgers','Hamburguesas']},q:'18',pr:'$ 35.000',sal:'12',dom:'6',tot:'$ 630.000',pct:'16,1%'},
       {p:{_main:'Salchipapa Familiar'},c:{_cat:['salchi','Salchipapas']},q:'21',pr:'$ 24.667',sal:'14',dom:'7',tot:'$ 518.000',pct:'13,2%'},
       {p:{_main:'Doble Carne'},c:{_cat:['burgers','Hamburguesas']},q:'14',pr:'$ 31.786',sal:'9',dom:'5',tot:'$ 445.000',pct:'11,4%'},
       {p:{_main:'Perro Especial'},c:{_cat:['perros','Perros Calientes']},q:'19',pr:'$ 17.474',sal:'13',dom:'6',tot:'$ 332.000',pct:'8,5%'}],
@@ -384,9 +384,9 @@ const REPORTS = [
 {id:'can-multimarca', cat:'canales', viz:'chart', module:'multimarca', name:'Multimarca / food-court',
  desc:'Ventas por marca dentro del mismo local.',
  filters:['fecha','sucursal','marca'],
- kpis:[{lbl:'Marcas activas',val:'3'},{lbl:'Total food-court',val:'$ 3.914.500',tone:'accent'},{lbl:'Marca líder',val:'El Parche · 52%'}],
+ kpis:[{lbl:'Marcas activas',val:'3'},{lbl:'Total food-court',val:'$ 3.914.500',tone:'accent'},{lbl:'Marca líder',val:'Burgers Centro · 52%'}],
  blocks:[{t:'card',title:'Participación por marca',body:{t:'donut',centerBig:'$3,9M',centerLbl:'Total',segs:[
-   {name:'El Parche Burgers',val:'$ 2.035.000',pct:52,color:'#5B6BFF'},{name:'Dogs & Fries',val:'$ 1.096.000',pct:28,color:'#F43F5E'},{name:'Green Bowl',val:'$ 783.500',pct:20,color:'#10B981'}]}}]},
+   {name:'Burgers Centro',val:'$ 2.035.000',pct:52,color:'#5B6BFF'},{name:'Dogs & Fries',val:'$ 1.096.000',pct:28,color:'#F43F5E'},{name:'Green Bowl',val:'$ 783.500',pct:20,color:'#10B981'}]}}]},
 
 {id:'can-asistencia', cat:'canales', viz:'table', name:'Asistencia de empleados',
  desc:'Entradas y salidas del personal. Sin gráfico.',
@@ -417,7 +417,7 @@ const REPORTS = [
      {t:'card',title:'Ventas por canal',body:{t:'hbars',items:[
        {lbl:'Salón',w:100,val:'$ 1.686.000',color:'#5B6BFF'},{lbl:'Domicilios',w:78,val:'$ 1.312.000',color:'#8B5CF6'},{lbl:'QR / mesa',w:44,val:'$ 638.000',color:'#0EA5E9'},{lbl:'Para llevar',w:16,val:'$ 278.500',color:'#10B981'}]}},
      {t:'card',title:'Top 5 productos',body:{t:'table',min:0,cols:[{k:'p',label:'Producto'},{k:'q',label:'Cant.',num:1},{k:'t',label:'Total',num:1}],rows:[
-       {p:{_main:'Premium Mixta'},q:'29',t:'$ 812.000'},{p:{_main:'El Parche Especial'},q:'18',t:'$ 630.000'},{p:{_main:'Salchipapa Familiar'},q:'21',t:'$ 518.000'},{p:{_main:'Doble Carne'},q:'14',t:'$ 445.000'},{p:{_main:'Perro Especial'},q:'19',t:'$ 332.000'}]}}]}]},
+       {p:{_main:'Premium Mixta'},q:'29',t:'$ 812.000'},{p:{_main:'Hamburguesa especial'},q:'18',t:'$ 630.000'},{p:{_main:'Salchipapa Familiar'},q:'21',t:'$ 518.000'},{p:{_main:'Doble Carne'},q:'14',t:'$ 445.000'},{p:{_main:'Perro Especial'},q:'19',t:'$ 332.000'}]}}]}]},
 
 {id:'ger-comparativo', cat:'gerencial', viz:'chart', name:'Comparativo mensual',
  desc:'Comparación de ventas entre meses con variación porcentual.',

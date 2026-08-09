@@ -56,19 +56,19 @@
     { etiqueta: 'Cliente promedio · 45 pts', datos: {
       nombre: 'Ana María', puntos: 45, puntos_ganados: 27,
       total: 54500, total_productos: 27000, domicilio: 4500,
-      tiempo_entrega: '30 minutos', negocio: 'El Parche Food',
+      tiempo_entrega: '30 minutos', negocio: 'Tu restaurante',
       direccion: 'Cra 9B # 63 n58, Bellavista', horario_hoy: '5:00 p. m. a 11:00 p. m.',
     } },
     { etiqueta: 'El que más tiene · 140 pts', datos: {
       nombre: 'Carlos', puntos: 140, puntos_ganados: 38,
       total: 42000, total_productos: 38000, domicilio: 4000,
-      tiempo_entrega: '30 minutos', negocio: 'El Parche Food',
+      tiempo_entrega: '30 minutos', negocio: 'Tu restaurante',
       direccion: 'Cra 9B # 63 n58, Bellavista', horario_hoy: '5:00 p. m. a 11:00 p. m.',
     } },
     { etiqueta: 'Cliente nuevo · 0 pts', datos: {
       nombre: 'Juliana', puntos: 0, puntos_ganados: 13,
       total: 17000, total_productos: 13000, domicilio: 4000,
-      tiempo_entrega: '30 minutos', negocio: 'El Parche Food',
+      tiempo_entrega: '30 minutos', negocio: 'Tu restaurante',
       direccion: 'Cra 9B # 63 n58, Bellavista', horario_hoy: '5:00 p. m. a 11:00 p. m.',
     } },
   ];
@@ -85,6 +85,10 @@
     var m = MUESTRAS[i] || MUESTRAS[0];
     var d = {}, pts = m.datos.puntos || 0;
     Object.keys(m.datos).forEach(function (k) { d[k] = m.datos[k]; });
+    /* El nombre del negocio de verdad, si ya se conoce: la vista previa dice
+       "redimirlos en productos de X" y ese X debe ser EL restaurante del
+       dueno que esta mirando, no uno de muestra. */
+    try { d.negocio = localStorage.getItem('pos.brand.restaurante') || d.negocio; } catch (e) {}
     d.listas = {
       alcanza: CATALOGO_MUESTRA.filter(function (x) { return x.puntos_necesarios <= pts; })
         .map(function (x) { return { producto: x.producto, puntos_necesarios: x.puntos_necesarios, faltan: 0 }; }),

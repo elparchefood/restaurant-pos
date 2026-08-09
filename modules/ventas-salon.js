@@ -1144,7 +1144,7 @@
           <div class="vs-brand-logo">L</div>
           <div>
             <div class="vs-brand-name">Cobra POS</div>
-            <div class="vs-brand-sub">${branch.name || 'El Parche Food'} · Caja 01</div>
+            <div class="vs-brand-sub">${branch.name || 'Mi negocio'} · Caja 01</div>
           </div>
         </div>
 

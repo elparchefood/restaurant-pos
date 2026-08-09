@@ -365,7 +365,7 @@ function printReceipt(orderId) {
     .total td{font-size:15px;font-weight:bold;border-top:2px solid #000;border-bottom:none;padding-top:8px;}
     .foot{margin-top:14px;font-size:11px;color:#777;text-align:center;}
   </style></head><body>
-    <h2>El Parche Food</h2>
+    <h2>${(function(){ try { return localStorage.getItem('pos.brand.restaurante') || 'Recibo'; } catch(e){ return 'Recibo'; } })()}</h2>
     <div class="center">${label} · ${fmtTime(o.created_at)}</div>
     <table><tbody>
     ${items.map(i => `<tr><td>${i.product_name||'—'} ×${i.quantity||1}</td><td>${COPF(i.total||0)}</td></tr>`).join('')}

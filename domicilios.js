@@ -1410,7 +1410,7 @@ function toggleCourier() {
   if (sw)  { sw.classList.toggle('on', ext); sw.setAttribute('aria-pressed', ext); }
   if (row) row.classList.toggle('on', ext);
   if (lbl) lbl.textContent = ext ? 'Domiciliario externo' : 'Domiciliario interno';
-  if (sub) sub.textContent = ext ? 'Reparte una empresa externa' : 'Reparte un domiciliario de El Parche';
+  if (sub) sub.textContent = ext ? 'Reparte una empresa externa' : 'Reparte un domiciliario del restaurante';
 
   const panesInt = document.querySelector('[data-courier-pane="interno"]');
   const panesExt = document.querySelector('[data-courier-pane="externo"]');
@@ -1728,7 +1728,7 @@ async function enviarACocina() {
   if (sw)  { sw.classList.remove('on'); sw.setAttribute('aria-pressed', 'false'); }
   if (row) row.classList.remove('on');
   if (lbl) lbl.textContent = 'Domiciliario interno';
-  if (sub) sub.textContent = 'Reparte un domiciliario de El Parche';
+  if (sub) sub.textContent = 'Reparte un domiciliario del restaurante';
   const panesInt = document.querySelector('[data-courier-pane="interno"]');
   const panesExt = document.querySelector('[data-courier-pane="externo"]');
   if (panesInt) panesInt.hidden = false;

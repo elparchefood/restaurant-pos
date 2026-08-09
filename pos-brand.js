@@ -119,7 +119,20 @@
     return !el.querySelector('[class*="brand-logo"], [class*="brand-name"]');
   }
 
+  /* Los renglones que llevan el nombre del negocio en el texto ("Caja · El
+     Parche Food") ya no lo traen escrito: traen una marca y aqui se rellena.
+     Sin nombre conocido, el sufijo queda vacio y el renglon dice solo "Caja"
+     — mejor corto que con el nombre de otro restaurante. */
+  function pintarNegocio(restaurante) {
+    var i, els;
+    els = document.querySelectorAll('[data-negocio]');
+    for (i = 0; i < els.length; i++) els[i].textContent = restaurante || 'Mi negocio';
+    els = document.querySelectorAll('[data-negocio-suf]');
+    for (i = 0; i < els.length; i++) els[i].textContent = restaurante ? ' \u00b7 ' + restaurante : '';
+  }
+
   function aplicar(restaurante) {
+    pintarNegocio(restaurante);
     var cand = document.querySelectorAll('[class*="brand-logo"], [class*="brand-mark"]');
     var logos = [];
     for (var k = 0; k < cand.length; k++) {
