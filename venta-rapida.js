@@ -1122,6 +1122,10 @@ async function loadCatalog() {
         discount_amount: S.descuento,
         service_charge: 0,
         customer_name:  (S.cliente && S.cliente.nombre) || null,
+        /* El ID de la ficha, no solo el nombre: sin esto el pedido queda
+           huerfano — el cliente pago pero no recibe puntos ni historial
+           (le paso a Karen Benavides el 2-ago). */
+        cliente_id:     (S.cliente && /^[0-9a-f-]{36}$/i.test(String(S.cliente.id||'')) ? S.cliente.id : null),
         // La etiqueta viaja en notes con el mismo patrón que el barrio, para que
         // la comanda la lea sin necesitar una columna nueva.
         notes:          [
@@ -1142,6 +1146,7 @@ async function loadCatalog() {
         discount:        S.descuento,
         discount_amount: S.descuento,
         customer_name:  (S.cliente && S.cliente.nombre) || null,
+        cliente_id:     (S.cliente && /^[0-9a-f-]{36}$/i.test(String(S.cliente.id||'')) ? S.cliente.id : null),
         visible_cocina: !!visible,
       };
       if (orderStatus) updatePayload.status = orderStatus;
