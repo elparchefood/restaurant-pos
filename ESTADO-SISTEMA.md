@@ -1723,6 +1723,43 @@ nombres raros en su WhatsApp"*.
 
 ---
 
+## HECHO — [Fase 2] Un restaurante nuevo arranca solo — 2026-08-09
+
+**Lo que le faltaba**, medido comparando un tenant de prueba contra El Parche:
+
+| | El Parche | Nuevo |
+|---|---|---|
+| tenant · brand · branch · usuario | ✅ | ✅ (`provision` los crea) |
+| **`pos_roles`** | 5 | **0** |
+| **`ia_config`** | 1 | **0** |
+
+**Lo grave era `ia_config`.** Las **siete** pantallas que guardan ahí hacen
+`update ... eq('branch_id')`. Sobre una fila que no existe eso cambia **0 filas
+y no da error** → la pantalla dice "Guardado ✓" y no guardó nada. Comprobado
+sobre el tenant de prueba antes de tocar nada: `filas_cambiadas = 0`.
+El dueño nuevo agrega Nequi, guarda, ve el visto bueno, y al otro día no está.
+
+**Se arregló en la base, no en las pantallas.** Parchear siete sitios es
+repartir la misma regla en siete lugares — el error que ya costó el menú
+lateral, las respuestas rápidas y `payment_method`. En su lugar,
+`sql/2026-08-09-restaurante-nuevo-arranca-solo.sql`:
+
+- `trg_branch_ia_config` — **cada sucursal nace con su `ia_config`**, venga de
+  `provision`, del panel o de multi-sucursal.
+- `trg_tenant_roles` — **cada restaurante nace con sus 5 roles**
+  (Administrador `system_role`, Cajero, Mesero, Cocinero, Domiciliario).
+- Relleno de lo que ya existía: 3 sucursales sin `ia_config`, 2 tenants sin roles.
+
+⚠️ `pos_roles.perms` es `text[]`, **no jsonb** — el primer intento falló ahí.
+Falló a la vista y no se aplicó nada a medias.
+
+**Comprobado creando un restaurante de verdad y borrándolo después:** nacieron
+los 5 roles y la `ia_config`, y el guardado de métodos de pago pasó de
+**0 filas a 1**, con el dato dentro. Los roles y la config de El Parche
+quedaron intactos (verificado antes y después).
+
+---
+
 ## HECHO — [Fase 2] Un pago se lee igual, se haya guardado como se haya guardado — 2026-08-09
 
 **Lo que había de verdad** (pedidos de 60 días, contados en la base):
