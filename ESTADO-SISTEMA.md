@@ -1723,6 +1723,49 @@ nombres raros en su WhatsApp"*.
 
 ---
 
+## HECHO — [Reservas] "Crear con IA" — 2026-08-09
+
+El botón y la ventana existían desde hacía meses y **no hacían nada**:
+`ai-text`, `btn-ai-parse`, `ai-result` y `btn-ai-create` no tenían ni una línea
+de código detrás. Se pegaba el mensaje, se tocaba "Analizar" y no pasaba nada.
+
+**Motor:** Edge Function `extraer-reserva` (v4, `functions/extraer-reserva.ts`).
+Recibe `{texto, hoy, abre, cierra}` y devuelve `{es_reserva, nombre, telefono,
+personas, fecha, hora, notas, falta[], avisos[], entendido}`. `gpt-4o-mini`,
+temperatura 0. No lee ni escribe en la base de datos.
+
+**Regla de oro, la misma del bot de pedidos: no inventa.** Lo que el mensaje no
+diga vuelve `null` y sale en `falta`, que la pantalla pinta como hueco amarillo.
+
+**Cuatro decisiones que costaron una vuelta cada una:**
+
+1. **El botón NO guarda la reserva.** Pasa al cajón de siempre con todo lleno,
+   así la reserva pasa por las mismas comprobaciones que una escrita a mano
+   (aviso de choque de mesa, mesa sugerida por capacidad) y una lectura
+   equivocada se ve antes de guardar. Por eso el botón dice "Revisar y crear".
+2. **La fecha de HOY la manda la pantalla**, no el servidor. El servidor vive en
+   UTC y Colombia es UTC−5: a las 8 p.m. de un sábado ya cree que es domingo, y
+   "mañana" saldría corrido un día.
+3. **El teléfono lo saca una expresión regular, no el modelo** (10 dígitos
+   empezando por 3). Para un número una regla no se equivoca; un modelo puede
+   "corregir" un dígito y ahí se pierde el contacto.
+4. **La frase de resumen la arma el SERVIDOR** (`fraseResumen()`), no el modelo.
+   Cuando la escribía el modelo, con un mensaje sin hora los campos decían
+   "falta la hora" y la frase decía "a las 12:00" — dos versiones de la misma
+   reserva en la misma pantalla. Armada desde los campos ya validados, no puede
+   contradecirlos.
+
+**Y una que no se resolvió con el prompt:** "el 15" estando a 9 de agosto se iba
+a septiembre. Explicarle la regla al modelo no bastó; el servidor hace la cuenta
+y le entrega la fecha resuelta en el prompt (`ejemplo15`). Comprobado 5 veces
+cada caso: 15/15.
+
+**Comprobado de punta a punta** en un banco de pruebas con la pantalla real:
+mensaje completo, faltan datos, no es reserva, hora fuera de horario, mensaje
+vacío, y que al reabrir la ventana no queda el análisis del cliente anterior.
+
+---
+
 ## HECHO — [Pagos] Los 7 arreglos de la pantalla de cobro — 2026-08-09
 
 Lista que dio Sergio el 2026-08-08. Uno por uno:

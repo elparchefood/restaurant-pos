@@ -22,12 +22,11 @@ Cosas que Sergio pidió en su momento y nunca se construyeron, o quedaron a medi
 - [x] **Respuestas rápidas con variables** — un solo editor, con fichas, en
       Configuración → Mensajes. `2026-08-09`
 - [x] **Pantalla de pago** — los 7 puntos de la lista del 2026-08-08. `2026-08-09`
+- [x] **Reservas · "Crear con IA"** — se pega el mensaje de WhatsApp y sale la
+      reserva armada. Motor: `extraer-reserva` (v4). `2026-08-09`
 
 ### Pendiente
 
-- [ ] **Reservas · "Crear con IA"** — el botón y el modal existen, pero
-      `btn-ai-parse`, `btn-ai-create`, `ai-text` y `ai-result` **no tienen ni un
-      solo manejador** en `reservas.js`. Se abre la ventana y no pasa nada.
 - [ ] **Modal de recarga exitosa** — cuando un cliente recarga saldo en la
       página, no hay confirmación.
 - [ ] **Barrio desconocido** — flujo para aprobar un barrio que el bot no
