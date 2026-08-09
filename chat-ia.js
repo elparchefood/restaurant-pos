@@ -4127,7 +4127,7 @@ function handleMetaConnect(channel) {
         fetch(META_OAUTH_FN, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paso: 'listar', code: evt.detail.code, channel, branch_id: S.branchId, tenant_id: S.tenantId }),
+          body: JSON.stringify({ paso: 'listar', code: evt.detail.code, channel, branch_id: S.branchId, tenant_id: S.tenantId, redirect_uri: location.origin + location.pathname }),
         })
           .then(function(res) { return res.json(); })
           .then(function(data) { if (data.error) reject(new Error(data.error)); else resolve(data); })
