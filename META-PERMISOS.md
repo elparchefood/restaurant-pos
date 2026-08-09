@@ -71,21 +71,24 @@ Sergio se etiqueta desde su cuenta personal para grabar.
 
 **El orden es obligatorio: construir → grabar → reenviar.**
 
-### Video 1 — Conectar 🟡 casi listo
+### Video 1 — Conectar ✅ LISTO PARA GRABAR (9-ago-2026)
 
-Lo que **sí** está: `handleMetaConnect()` en `chat-ia.js` hace el login de
-Facebook con `META_CONFIG_ID`, y `meta-oauth-callback` ya sabe manejar
-`facebook` e `instagram` — pide `/me/accounts`, saca la
-`instagram_business_account` de la página y guarda todo en `chat_channels`.
+- Instagram y Facebook salieron de `SOON_CHANNELS` (`chat-ia.js`). TikTok sigue
+  ahí: no está construido.
+- **Selector de páginas hecho.** `meta-oauth-callback` (v26) tiene dos pasos,
+  porque el `code` de Facebook solo se canjea una vez:
+  `paso:'listar'` canjea y devuelve las páginas **con su cuenta de Instagram**;
+  `paso:'guardar'` recibe la elegida. El token queda en `meta_oauth_pendiente`
+  (nunca baja al navegador) y se borra al usarse; un cron limpia lo colgado a
+  los 30 min.
+- Sin `paso`, la función se comporta como antes — el ejecutable puede tener la
+  pantalla anterior.
+- Las páginas sin Instagram vinculado salen **apagadas y con el motivo**, no
+  escondidas, y el aviso aparece **antes** de elegir.
 
-Lo que **falta**:
-
-1. Los tres canales están en `SOON_CHANNELS` (`chat-ia.js:26`) y al tocarlos
-   solo sale *"Próximamente"*. Hay que abrirlos.
-2. **El selector de páginas no existe.** `meta-oauth-callback` toma
-   `pagesData.data?.[0]` — la primera, en silencio. Y `pages_show_list` es
-   justamente el permiso de *ver la lista y elegir*: si el video no la muestra,
-   ese permiso se cae otra vez, por el mismo motivo del rechazo anterior.
+**Cómo grabar el video 1:** Chat IA → Conexiones → Instagram → *Conectar con
+Meta* → entrar con Facebook → **se ve la lista de páginas** → elegir la del
+restaurante → Instagram conectado. Sin cortes, de punta a punta.
 
 ### Video 2 — Mensajes 🔴 no se puede
 
