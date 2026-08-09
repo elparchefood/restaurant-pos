@@ -396,21 +396,34 @@ svg { display: block; }
 .lm-method.is-active .pg-method-check { display: flex; }
 
 /* tinte/anillo por método cuando está activo */
-.lm-method[data-method="efectivo"].is-active      { border-color: var(--cash-ring);     background: var(--cash-tint);     box-shadow: 0 0 0 3px var(--cash-tint); }
-.lm-method[data-method="tarjeta"].is-active       { border-color: var(--card-ring);     background: var(--card-tint);     box-shadow: 0 0 0 3px var(--card-tint); }
-.lm-method[data-method="transferencia"].is-active { border-color: var(--transfer-ring); background: var(--transfer-tint); box-shadow: 0 0 0 3px var(--transfer-tint); }
-.lm-method[data-method="nequi"].is-active         { border-color: var(--qr-ring);       background: var(--qr-tint);       box-shadow: 0 0 0 3px var(--qr-tint); }
+/* El acento va por TIPO (data-tipo), no por el nombre del metodo: los metodos
+   reales llegan con su id (pm_...) y con el selector viejo ninguna regla les
+   aplicaba — al tocarlos no se marcaban y no se veia cual estaba elegido. */
+.lm-method[data-tipo="efectivo"].is-active      { border-color: var(--cash-ring);     background: var(--cash-tint);     box-shadow: 0 0 0 3px var(--cash-tint); }
+.lm-method[data-tipo="tarjeta"].is-active       { border-color: var(--card-ring);     background: var(--card-tint);     box-shadow: 0 0 0 3px var(--card-tint); }
+.lm-method[data-tipo="transferencia"].is-active { border-color: var(--transfer-ring); background: var(--transfer-tint); box-shadow: 0 0 0 3px var(--transfer-tint); }
+.lm-method[data-tipo="nequi"].is-active         { border-color: var(--qr-ring);       background: var(--qr-tint);       box-shadow: 0 0 0 3px var(--qr-tint); }
+.lm-method[data-tipo="puntos"].is-active        { border-color: #DDD6FE; background: #F5F3FF; box-shadow: 0 0 0 3px #F5F3FF; }
+.lm-method[data-tipo="saldo"].is-active         { border-color: #A5F3FC; background: #ECFEFF; box-shadow: 0 0 0 3px #ECFEFF; }
 
-.lm-method[data-method="efectivo"]      .pg-method-icon { color: var(--cash);     background: var(--cash-tint); }
-.lm-method[data-method="tarjeta"]       .pg-method-icon { color: var(--card);     background: var(--card-tint); }
-.lm-method[data-method="transferencia"] .pg-method-icon { color: var(--transfer); background: var(--transfer-tint); }
-.lm-method[data-method="nequi"]         .pg-method-icon { color: var(--qr);       background: var(--qr-tint); }
+.lm-method[data-tipo="efectivo"]      .pg-method-icon { color: var(--cash);     background: var(--cash-tint); }
+.lm-method[data-tipo="tarjeta"]       .pg-method-icon { color: var(--card);     background: var(--card-tint); }
+.lm-method[data-tipo="transferencia"] .pg-method-icon { color: var(--transfer); background: var(--transfer-tint); }
+.lm-method[data-tipo="nequi"]         .pg-method-icon { color: var(--qr);       background: var(--qr-tint); }
 .lm-method.is-active .pg-method-icon { background: #fff; }
+.lm-method[data-tipo="puntos"] .pg-method-icon { color: #7C3AED; background: #F5F3FF; }
+.lm-method[data-tipo="saldo"]  .pg-method-icon { color: #0891B2; background: #ECFEFF; }
+.lm-method[data-tipo="puntos"] .pg-method-check { background: #7C3AED; }
+.lm-method[data-tipo="saldo"]  .pg-method-check { background: #0891B2; }
 
-.lm-method[data-method="efectivo"]      .pg-method-check { background: var(--cash); }
-.lm-method[data-method="tarjeta"]       .pg-method-check { background: var(--card); }
-.lm-method[data-method="transferencia"] .pg-method-check { background: var(--transfer); }
-.lm-method[data-method="nequi"]         .pg-method-check { background: var(--qr); }
+/* Mientras llegan los metodos reales: huecos del mismo tamano que un boton,
+   para que la fila no salte cuando aparezcan. */
+.pg-method-hueco { min-height: 64px; border: 1px dashed var(--border, #ECEEF2); border-radius: 14px; background: var(--soft-3, #F8FAFC); }
+
+.lm-method[data-tipo="efectivo"]      .pg-method-check { background: var(--cash); }
+.lm-method[data-tipo="tarjeta"]       .pg-method-check { background: var(--card); }
+.lm-method[data-tipo="transferencia"] .pg-method-check { background: var(--transfer); }
+.lm-method[data-tipo="nequi"]         .pg-method-check { background: var(--qr); }
 
 /* captura de monto */
 .pg-entry-grid { display: grid; grid-template-columns: 1fr 232px; gap: 16px; margin-top: 16px; flex-shrink: 0; }

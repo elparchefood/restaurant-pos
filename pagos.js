@@ -63,9 +63,9 @@ const TIPO_STYLE = {
   billetera:     { cssKey:'nequi',         icon: METHOD_ICONS.nequi,         color:'var(--qr)',       tint:'var(--qr-tint)',       ring:'var(--qr-ring)',       sub:'Billetera digital' },
   otro:          { cssKey:'efectivo',      icon: METHOD_ICONS.efectivo,      color:'var(--cash)',     tint:'var(--cash-tint)',     ring:'var(--cash-ring)',     sub:'' },
   // Puntos: método propio, para que se distinga de un pago en dinero.
-  puntos:        { cssKey:'efectivo',      icon: '⭐',                    color:'#7C3AED',         tint:'#F5F3FF',              ring:'#DDD6FE',              sub:'Canje del catálogo' },
+  puntos:        { cssKey:'puntos',      icon: '⭐',                    color:'#7C3AED',         tint:'#F5F3FF',              ring:'#DDD6FE',              sub:'Canje del catálogo' },
   // Saldo: tampoco entra plata nueva — el cliente ya pagó al recargar.
-  saldo:         { cssKey:'efectivo',      icon: '👛',                    color:'#0891B2',         tint:'#ECFEFF',              ring:'#A5F3FC',              sub:'Recargado en la página' },
+  saldo:         { cssKey:'saldo',      icon: '👛',                    color:'#0891B2',         tint:'#ECFEFF',              ring:'#A5F3FC',              sub:'Recargado en la página' },
 };
 function _payEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function _payAttr(s){ return String(s==null?'':s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -131,7 +131,7 @@ function _renderMethodButtons(){
       sub = !SP.clienteTel ? 'Falta identificar al cliente'
           : (SP.puntosSaldo > 0 ? 'Tiene ' + Number(SP.puntosSaldo).toLocaleString('es-CO') + ' pts' : 'Sin puntos');
     }
-    return '<button class="lm-method'+(m.key===SP.method?' is-active':'')+'" data-method="'+_payAttr(m.key)+'">'
+    return '<button class="lm-method'+(m.key===SP.method?' is-active':'')+'" data-method="'+_payAttr(m.key)+'" data-tipo="'+_payAttr(st.cssKey||'efectivo')+'">'
       +'<span class="pg-method-icon">'+st.icon+'</span>'
       +'<span class="pg-method-txt"><span class="pg-method-label">'+_payEsc(m.nombre)+'</span><span class="pg-method-sub">'+_payEsc(sub)+'</span></span>'
       +'<span class="pg-method-check"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>'
