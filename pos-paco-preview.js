@@ -85,6 +85,9 @@
       await s.from('chat_messages').insert({
         conversation_id: conv, tenant_id: st().tenantId,
         direction: 'in', body: texto, sent_at: marca,
+        /* Marca el mensaje como del simulador: el avisador de la campana lo
+           usa para NO sonar como si hubiera escrito un cliente de verdad. */
+        origen: 'preview',
       });
       await s.from('chat_conversations').update({
         last_message: texto, last_message_at: marca, last_sender: 'contact',
@@ -92,8 +95,11 @@
 
       /* La cola es lo que despierta al motor. fire_at ya vencido: en la
          práctica no se espera los segundos de agrupación. */
-      await s.from('chat_ai_queue').delete().eq('conversation_id', conv).eq('processed', false);
-      await s.from('chat_ai_queue').insert({
+      /* La cola admite UNA fila por conversacion (llave unica). Borrar solo
+         las sin procesar dejaba la vieja ahi para siempre y el segundo mensaje
+         fallaba EN SILENCIO: por eso Paco contestaba una vez y nunca mas. */
+      await s.from('chat_ai_queue').delete().eq('conversation_id', conv);
+      var cola = await s.from('chat_ai_queue').insert({
         conversation_id: conv, tenant_id: st().tenantId, branch_id: st().branchId,
         from_phone: TEL,
         /* Centinelas, NO credenciales: sin token real el motor no puede
@@ -102,6 +108,7 @@
         phone_id: 'PREVIEW-SIN-CREDENCIALES', access_token: 'PREVIEW-SIN-CREDENCIALES',
         batch_start: marca, fire_at: marca, processed: false,
       });
+      if (cola.error) throw new Error('no se pudo encolar: ' + cola.error.message);
 
       /* Se llama al BANCO, nunca a la función de producción. */
       var url = (w.SUPABASE_URL || 'https://tblujfduscslxjmrjbdr.supabase.co')

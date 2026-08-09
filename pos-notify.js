@@ -102,6 +102,9 @@
     SB.channel('pos-notify-msgs')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: _ft }, function (payload) {
         var m = payload && payload.new; if (!m || m.direction !== 'in') return;
+        /* El simulador de Paco escribe mensajes de verdad para probar el motor,
+           pero NO es un cliente: ni suena ni avisa. */
+        if (m.origen === 'preview') return;
         var now = Date.now(); if (now - lastTs < 400) { lastTs = now; return; } lastTs = now;   // anti-ráfaga
         notif(m);
       })
