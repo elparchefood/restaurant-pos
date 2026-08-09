@@ -24,13 +24,16 @@ Cosas que Sergio pidió en su momento y nunca se construyeron, o quedaron a medi
 - [x] **Pantalla de pago** — los 7 puntos de la lista del 2026-08-08. `2026-08-09`
 - [x] **Reservas · "Crear con IA"** — se pega el mensaje de WhatsApp y sale la
       reserva armada. Motor: `extraer-reserva` (v4). `2026-08-09`
+- [x] **Modal de recarga exitosa** — `avisoRecarga()` en `app-cliente.js`: el
+      saldo nuevo en grande, cuánto recargó, el regalo aparte y el empujón a
+      recargar más. *Ya estaba; la lista estaba mal.*
+- [x] **Barrio desconocido** — el bot pide el barrio; lo que el operador cobra a
+      mano queda en `pos_domi_aprendidos`, y Configuración → Domicilios lo
+      muestra con "Agregar a la tabla" / "Descartar". Detecta también los
+      **cambios de precio**. *Ya estaba; la lista estaba mal.*
 
 ### Pendiente
 
-- [ ] **Modal de recarga exitosa** — cuando un cliente recarga saldo en la
-      página, no hay confirmación.
-- [ ] **Barrio desconocido** — flujo para aprobar un barrio que el bot no
-      reconoce, en vez de quedarse trabado.
 - [ ] **Plantilla de redención de puntos** — el mensaje que se le manda al
       cliente cuando canjea.
 - [ ] **Subida del banner en "Mi página web"** — *aplazado por Sergio el
@@ -80,3 +83,13 @@ solo hay un restaurante usándolo.
 ---
 
 ## Después: marketing
+
+---
+
+## Nota sobre esta lista
+
+Dos entradas de la Fase 1 (el modal de recarga y el barrio desconocido) estaban
+marcadas como pendientes **y ya existían**. La lista se escribió de memoria sin
+contrastarla con el código.
+
+**Antes de empezar cualquier pendiente de aquí, verificarlo en el código.**
