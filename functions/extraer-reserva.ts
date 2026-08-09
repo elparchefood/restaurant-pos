@@ -53,6 +53,28 @@ function telefonoDelTexto(t: string): string {
   return "";
 }
 
+/* La frase de resumen se arma AQUI, con los campos ya validados, y no se le
+   pide al modelo. Cuando la escribia el modelo pasaba esto: los campos decian
+   "falta la hora" y la frase decia "a las 12:00" — dos versiones de la misma
+   reserva en la misma pantalla. Armada asi no puede contradecirlos: sale de
+   ellos. */
+function fraseResumen(
+  nombre: string | null, personas: number | null,
+  fecha: string | null, hora: string | null,
+): string {
+  const trozos: string[] = [];
+  if (fecha) {
+    const [a, m, d] = fecha.split("-").map(Number);
+    const dia = new Date(Date.UTC(a, m - 1, d));
+    trozos.push(`el ${DIAS[dia.getUTCDay()]} ${d} de ${MESES[m - 1]}`);
+  }
+  if (hora) trozos.push(`a las ${hora}`);
+  if (personas) trozos.push(personas === 1 ? "para 1 persona" : `para ${personas} personas`);
+  if (nombre) trozos.push(`a nombre de ${nombre}`);
+  if (!trozos.length) return "";
+  return "Reserva " + trozos.join(", ") + ".";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
@@ -68,6 +90,14 @@ Deno.serve(async (req) => {
     if (!OPENAI_KEY) return json({ error: "Falta configurar la clave de OpenAI." }, 500);
 
     const hoyTxt = describirHoy(hoy) || "(no se sabe qué día es hoy)";
+    /* La cuenta del "día suelto" la hace el servidor y se le entrega resuelta:
+       explicarle la regla al modelo no bastaba —estando a 9 de agosto mandaba
+       "el 15" a septiembre—. Una fecha ya calculada no se puede malinterpretar. */
+    const pHoy = hoy.split("-").map(Number);
+    const diaHoy = pHoy[2] || 1;
+    const ejemplo15 = diaHoy <= 15
+      ? `el 15 de ${MESES[(pHoy[1] || 1) - 1]} (este mes)`
+      : `el 15 del mes siguiente, porque el 15 de este mes ya pasó`;
 
     const sys = `Eres el que lee mensajes de WhatsApp de un restaurante en Colombia y saca los datos de una RESERVA de mesa.
 
@@ -99,7 +129,9 @@ REGLAS, en orden de importancia:
    - "hoy" = la fecha de hoy. "mañana" = el día siguiente. "pasado mañana" = dos días.
    - Un día de la semana ("el sábado") es el PRÓXIMO que venga. Si hoy es ese
      mismo día, es hoy.
-   - "el 15" es el día 15 del mes en curso, o del siguiente si el 15 ya pasó.
+   - Un día suelto ("el 15", "el 3") es de ESTE mes si todavía no ha pasado, y
+     del mes siguiente si ya pasó. HOY es día ${diaHoy}: así que "el 15" es
+     ${ejemplo15}. Cuenta antes de responder.
    - Si no dice ninguna fecha, va null. NO asumas que es hoy.
 5. "hora" en formato de 24 horas. "8 de la noche" = "20:00". "8" a secas en un
    restaurante que cierra a las ${cierra} es "20:00" si las 8 de la mañana están
@@ -110,9 +142,9 @@ REGLAS, en orden de importancia:
 7. NO pongas el teléfono: ese se saca aparte.
 8. "es_reserva": false si el mensaje no está pidiendo una mesa (es un pedido a
    domicilio, una pregunta por la carta, un saludo). En ese caso el resto va null.
-9. "entendido": UNA frase corta, en español de Colombia, resumiendo lo que
-   entendiste, como se lo dirías a un compañero. Ejemplo: "Reserva para el
-   sábado 15 a las 8 de la noche, 6 personas, a nombre de Andrea".
+9. "entendido": déjalo en "". La frase de resumen la arma el sistema con los
+   campos de arriba; si la escribieras tú podría decir una hora que no está en
+   los datos, y el que atiende no sabría a cuál creerle.
 
 Responde solo el JSON.`;
 
@@ -191,7 +223,7 @@ Responde solo el JSON.`;
       es_reserva: esReserva,
       nombre, telefono, personas, fecha, hora, notas,
       falta, avisos,
-      entendido: typeof out.entendido === "string" ? out.entendido : "",
+      entendido: fraseResumen(nombre, personas, fecha, hora),
     });
   } catch (e) {
     return json({ error: "Error inesperado: " + (e instanceof Error ? e.message : String(e)) }, 500);
