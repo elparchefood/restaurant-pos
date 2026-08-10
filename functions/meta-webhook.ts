@@ -34,6 +34,10 @@ Deno.serve(async (req) => {
   try {
     const object = body.object as string;
 
+
+
+
+
     if (object === "whatsapp_business_account") {
       const entries = (body.entry as Array<Record<string, unknown>>) || [];
 
