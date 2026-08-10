@@ -5,7 +5,6 @@
 > No se puede editar ni cancelar mientras este en revision. La cuenta demo
 > (elparche.foodpopayan+metademo@gmail.com) debe seguir activa hasta el
 > resultado. El resultado llega a App Review -> Submissions y al Alert Inbox.
- — qué pedir y qué falta para poder pedirlo
 
 App: **Cobra Mensajería** · ID `1732760657903466`
 (La otra, *Cobra Pos* `2848069578867744`, **no** es la que se usa.)
