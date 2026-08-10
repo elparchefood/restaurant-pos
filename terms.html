@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Términos de Servicio — Cobra POS</title>
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/brand/favicon-192.png">
+  <link rel="apple-touch-icon" href="assets/brand/favicon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #FAFAFB;
+      --surface: #FFFFFF;
+      --border: #ECEEF2;
+      --border-soft: #F1F5F9;
+      --ink: #0F172A;
+      --ink-2: #475569;
+      --ink-3: #64748B;
+      --muted: #94A3B8;
+      --brand: #5B6BFF;
+      --brand-press: #4F5BE3;
+      --brand-tint: #EEF2FF;
+      --brand-ring: #C7D2FE;
+      --success: #16A34A;
+      --success-tint: #DCFCE7;
+      --danger: #DC2626;
+      --danger-tint: #FEF2F2;
+      --danger-border: #FECACA;
+      --r-md: 8px;
+      --r-lg: 10px;
+      --r-xl: 12px;
+      --r-2xl: 14px;
+    }
+
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      color: var(--ink);
+      font-size: 13px;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.6;
+    }
+
+    ::-webkit-scrollbar { width: 9px; }
+    ::-webkit-scrollbar-thumb { background: #ECEEF2; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #CBD5E1; }
+
+    /* HEADER */
+    .site-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #5B6BFF, #8B5CF6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 16px;
+      letter-spacing: -1px;
+      flex-shrink: 0;
+    }
+
+    .brand-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink);
+      letter-spacing: -0.02em;
+    }
+
+    .brand-name span {
+      color: var(--ink-3);
+      font-weight: 500;
+    }
+
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 11px;
+      background: var(--brand-tint);
+      color: var(--brand);
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    /* LAYOUT */
+    .page-wrap {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    /* PAGE HEAD */
+    .page-eyebrow {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 10px;
+    }
+
+    .page-title {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--ink);
+      letter-spacing: -0.025em;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+
+    .page-meta {
+      font-size: 12.5px;
+      color: var(--muted);
+      margin-bottom: 36px;
+    }
+
+    /* CARDS */
+    .cc-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-2xl);
+      padding: 24px 28px;
+      margin-bottom: 16px;
+    }
+
+    .cc-card h2 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14.5px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 14px;
+    }
+
+    .section-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      background: var(--brand-tint);
+      color: var(--brand);
+      font-size: 11px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .cc-card p {
+      font-size: 13px;
+      color: var(--ink-2);
+      margin-bottom: 10px;
+      line-height: 1.65;
+    }
+
+    .cc-card p:last-child { margin-bottom: 0; }
+
+    .cc-card ul {
+      list-style: none;
+      margin: 10px 0;
+    }
+
+    .cc-card ul li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 5px 0;
+      font-size: 13px;
+      color: var(--ink-2);
+      line-height: 1.55;
+    }
+
+    .cc-card ul li::before {
+      content: '';
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--brand);
+      flex-shrink: 0;
+      margin-top: 7px;
+    }
+
+    /* DIVIDER */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border-soft);
+      margin: 14px 0;
+    }
+
+    /* HIGHLIGHT */
+    .info-block {
+      background: var(--brand-tint);
+      border: 1px solid var(--brand-ring);
+      border-radius: var(--r-lg);
+      padding: 14px 16px;
+      margin-top: 14px;
+      font-size: 12.5px;
+      color: var(--brand-press);
+      font-weight: 500;
+      line-height: 1.55;
+    }
+
+    /* LINKS */
+    a {
+      color: var(--brand);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    a:hover { text-decoration: underline; }
+
+    /* FOOTER */
+    .site-footer {
+      border-top: 1px solid var(--border);
+      padding: 24px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .site-footer a { color: var(--ink-3); font-weight: 500; }
+    .site-footer a:hover { color: var(--brand); }
+
+    /* TOC */
+    .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-2xl);
+      padding: 20px 28px;
+      margin-bottom: 24px;
+    }
+
+    .toc-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+    }
+
+    .toc-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .toc-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 8px;
+      border-radius: 7px;
+      color: var(--ink-2);
+      font-size: 12.5px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .toc-item:hover {
+      background: var(--brand-tint);
+      color: var(--brand);
+      text-decoration: none;
+    }
+
+    .toc-item-num {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      width: 16px;
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
+</head>
+<body>
+
+<header class="site-header">
+  <a href="https://cobrapos.app" class="brand">
+    <div class="brand-logo" style="background:transparent;box-shadow:none;padding:0;overflow:hidden"><img src="assets/brand/cobra-logo.png?v=2" alt="Cobra POS" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block"></div>
+    <div class="brand-name">Cobra <span>POS</span></div>
+  </a>
+  <div class="header-badge">Legal</div>
+</header>
+
+<div class="page-wrap">
+
+  <div class="page-eyebrow">Legal</div>
+  <h1 class="page-title">Términos de Servicio</h1>
+  <p class="page-meta">Última actualización: 9 de agosto de 2026 · Versión 1.0</p>
+
+  <!-- TOC -->
+  <div class="toc">
+    <div class="toc-title">Contenido</div>
+    <div class="toc-list">
+      <a href="#s1" class="toc-item"><span class="toc-item-num">01</span> Aceptación de los términos</a>
+      <a href="#s2" class="toc-item"><span class="toc-item-num">02</span> El servicio</a>
+      <a href="#s3" class="toc-item"><span class="toc-item-num">03</span> Su cuenta</a>
+      <a href="#s4" class="toc-item"><span class="toc-item-num">04</span> Planes y pagos</a>
+      <a href="#s5" class="toc-item"><span class="toc-item-num">05</span> Canales conectados</a>
+      <a href="#s6" class="toc-item"><span class="toc-item-num">06</span> Sus datos y contenido</a>
+      <a href="#s7" class="toc-item"><span class="toc-item-num">07</span> Uso aceptable</a>
+      <a href="#s8" class="toc-item"><span class="toc-item-num">08</span> Disponibilidad del servicio</a>
+      <a href="#s9" class="toc-item"><span class="toc-item-num">09</span> Limitación de responsabilidad</a>
+      <a href="#s10" class="toc-item"><span class="toc-item-num">10</span> Terminación</a>
+      <a href="#s11" class="toc-item"><span class="toc-item-num">11</span> Cambios a estos términos</a>
+      <a href="#s12" class="toc-item"><span class="toc-item-num">12</span> Ley aplicable y contacto</a>
+    </div>
+  </div>
+
+  <!-- S1 -->
+  <div class="cc-card" id="s1">
+    <h2><span class="section-num">1</span> Aceptación de los términos</h2>
+    <p>Estos Términos de Servicio regulan el uso de <strong>Cobra POS</strong>, una plataforma de gestión para restaurantes disponible en <a href="https://cobrapos.app">cobrapos.app</a> y en sus aplicaciones de escritorio y móviles.</p>
+    <p>Al crear una cuenta o usar el servicio, usted acepta estos términos. Si los usa en nombre de un negocio, declara que tiene autoridad para aceptarlos por ese negocio.</p>
+    <hr class="divider">
+    <p>Responsable del servicio: <strong>Cobra POS</strong></p>
+    <p>Contacto: <a href="mailto:contacto@cobrapos.app">contacto@cobrapos.app</a></p>
+  </div>
+
+  <!-- S2 -->
+  <div class="cc-card" id="s2">
+    <h2><span class="section-num">2</span> El servicio</h2>
+    <p>Cobra POS ofrece herramientas de gestión para restaurantes, entre ellas:</p>
+    <ul>
+      <li>Toma de pedidos, gestión de mesas, cocina y caja</li>
+      <li>Inventario, catálogo de productos y estadísticas</li>
+      <li>Bandeja unificada de conversaciones con clientes (WhatsApp, Instagram, Messenger)</li>
+      <li>Funciones asistidas por inteligencia artificial, como respuestas sugeridas y creación de pedidos desde conversaciones</li>
+      <li>Programa de puntos y fidelización de clientes</li>
+    </ul>
+    <p>Las funciones disponibles pueden variar según el plan contratado.</p>
+  </div>
+
+  <!-- S3 -->
+  <div class="cc-card" id="s3">
+    <h2><span class="section-num">3</span> Su cuenta</h2>
+    <ul>
+      <li>Debe proporcionar información veraz al registrarse y mantenerla actualizada</li>
+      <li>Usted es responsable de mantener la confidencialidad de sus credenciales</li>
+      <li>Las cuentas de su personal (meseros, cajeros, cocina) son responsabilidad del administrador del restaurante que las crea</li>
+      <li>Debe notificarnos de inmediato cualquier uso no autorizado de su cuenta</li>
+    </ul>
+  </div>
+
+  <!-- S4 -->
+  <div class="cc-card" id="s4">
+    <h2><span class="section-num">4</span> Planes y pagos</h2>
+    <ul>
+      <li>El servicio se ofrece por suscripción, con planes según el tamaño y las necesidades del negocio</li>
+      <li>Los precios vigentes se informan antes de contratar y en cada renovación</li>
+      <li>Los pagos no son reembolsables, salvo que la ley aplicable disponga lo contrario</li>
+      <li>Podemos modificar los precios notificándolo con al menos 30 días de anticipación</li>
+    </ul>
+  </div>
+
+  <!-- S5 -->
+  <div class="cc-card" id="s5">
+    <h2><span class="section-num">5</span> Canales conectados</h2>
+    <p>Cobra POS permite conectar cuentas de terceros —WhatsApp Business, Instagram y Facebook Messenger (servicios de Meta Platforms)— para recibir y responder mensajes de sus clientes desde una sola bandeja.</p>
+    <ul>
+      <li>Usted conecta únicamente cuentas de su propiedad o sobre las que tiene autorización</li>
+      <li>El uso de esos canales está sujeto también a los términos y políticas de Meta</li>
+      <li>Puede desconectar cualquier canal en el momento que quiera desde la configuración de Cobra POS</li>
+      <li>No usamos sus conversaciones para fines distintos a prestarle el servicio</li>
+    </ul>
+    <div class="info-block">
+      Cobra POS no es un producto de Meta Platforms, Inc. y no está patrocinado ni respaldado por Meta.
+    </div>
+  </div>
+
+  <!-- S6 -->
+  <div class="cc-card" id="s6">
+    <h2><span class="section-num">6</span> Sus datos y contenido</h2>
+    <ul>
+      <li>Los datos de su negocio (productos, pedidos, clientes, conversaciones) son suyos</li>
+      <li>Nos concede una licencia limitada para procesarlos únicamente con el fin de prestarle el servicio</li>
+      <li>El tratamiento de datos personales se rige por nuestra <a href="https://cobrapos.app/privacy-policy">Política de Privacidad</a></li>
+      <li>Puede solicitar la eliminación de sus datos en <a href="https://cobrapos.app/data-deletion">cobrapos.app/data-deletion</a></li>
+    </ul>
+  </div>
+
+  <!-- S7 -->
+  <div class="cc-card" id="s7">
+    <h2><span class="section-num">7</span> Uso aceptable</h2>
+    <p>Al usar Cobra POS, usted se compromete a no:</p>
+    <ul>
+      <li>Usar el servicio para actividades ilegales o fraudulentas</li>
+      <li>Enviar spam o mensajes no solicitados a través de los canales conectados</li>
+      <li>Intentar acceder a datos de otros restaurantes o vulnerar la seguridad de la plataforma</li>
+      <li>Revender o sublicenciar el servicio sin autorización escrita</li>
+      <li>Usar el servicio de forma que infrinja derechos de terceros</li>
+    </ul>
+  </div>
+
+  <!-- S8 -->
+  <div class="cc-card" id="s8">
+    <h2><span class="section-num">8</span> Disponibilidad del servicio</h2>
+    <p>Trabajamos para que el servicio esté disponible de forma continua, pero no garantizamos disponibilidad ininterrumpida. Puede haber interrupciones por mantenimiento, fallas de proveedores externos (hosting, Meta, procesadores de pago) o causas de fuerza mayor.</p>
+    <p>Cuando sea posible, las ventanas de mantenimiento programado se realizarán en horarios de baja actividad.</p>
+  </div>
+
+  <!-- S9 -->
+  <div class="cc-card" id="s9">
+    <h2><span class="section-num">9</span> Limitación de responsabilidad</h2>
+    <p>En la máxima medida permitida por la ley:</p>
+    <ul>
+      <li>El servicio se presta "tal cual" y "según disponibilidad"</li>
+      <li>No respondemos por pérdidas indirectas, lucro cesante o pérdida de datos causada por factores fuera de nuestro control razonable</li>
+      <li>Nuestra responsabilidad total frente a usted se limita al monto pagado por el servicio en los 12 meses anteriores al hecho que la origine</li>
+    </ul>
+    <p>Nada en estos términos limita derechos que la ley del consumidor colombiana le reconozca y que no puedan renunciarse.</p>
+  </div>
+
+  <!-- S10 -->
+  <div class="cc-card" id="s10">
+    <h2><span class="section-num">10</span> Terminación</h2>
+    <ul>
+      <li>Usted puede cancelar su suscripción en cualquier momento; el servicio continúa hasta el final del período pagado</li>
+      <li>Podemos suspender o terminar cuentas que incumplan estos términos, notificándolo cuando sea razonable</li>
+      <li>Tras la terminación, sus datos se manejan según los plazos de la <a href="https://cobrapos.app/privacy-policy">Política de Privacidad</a></li>
+    </ul>
+  </div>
+
+  <!-- S11 -->
+  <div class="cc-card" id="s11">
+    <h2><span class="section-num">11</span> Cambios a estos términos</h2>
+    <p>Podemos actualizar estos términos ocasionalmente. Cuando hagamos cambios importantes, lo notificaremos por email con al menos 15 días de anticipación. Si continúa usando el servicio después de la fecha de vigencia, se entiende que acepta los nuevos términos.</p>
+  </div>
+
+  <!-- S12 -->
+  <div class="cc-card" id="s12">
+    <h2><span class="section-num">12</span> Ley aplicable y contacto</h2>
+    <p>Estos términos se rigen por las leyes de la República de Colombia. Cualquier controversia se someterá a los jueces competentes de Colombia, sin perjuicio de las normas de protección al consumidor que resulten aplicables.</p>
+    <hr class="divider">
+    <ul>
+      <li>Email: <a href="mailto:contacto@cobrapos.app">contacto@cobrapos.app</a></li>
+      <li>Sitio web: <a href="https://cobrapos.app">cobrapos.app</a></li>
+      <li>Política de Privacidad: <a href="https://cobrapos.app/privacy-policy">cobrapos.app/privacy-policy</a></li>
+      <li>Eliminación de datos: <a href="https://cobrapos.app/data-deletion">cobrapos.app/data-deletion</a></li>
+    </ul>
+  </div>
+
+</div><!-- /page-wrap -->
+
+<footer class="site-footer">
+  &copy; 2026 Cobra POS &nbsp;·&nbsp;
+  <a href="https://cobrapos.app">cobrapos.app</a> &nbsp;·&nbsp;
+  <a href="https://cobrapos.app/privacy-policy">Política de Privacidad</a> &nbsp;·&nbsp;
+  <a href="https://cobrapos.app/data-deletion">Eliminar mis datos</a>
+</footer>
+
+</body>
+</html>
