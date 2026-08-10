@@ -45,6 +45,33 @@ Cobra PUBLIQUE, y en las dos fases Cobra solo mira. Igual que publicar
 contenido, campañas e insights: van en una **ampliación futura y en la MISMA
 app**. Una app nueva empieza sin historial y levanta sospecha.
 
+### 📋 Checklist para la AMPLIACIÓN FUTURA (publicar, comentarios, insights)
+
+Decidido el 10-ago-2026: la plataforma SÍ va a publicar contenido, gestionar
+comentarios y leer estadísticas más adelante — se dejó fuera del MVP a
+propósito. Para el envío del 10-ago se limpió TODO rastro de esas funciones,
+así que cuando se pidan hay que volver a ponerlo, consistente en cada lugar:
+
+1. **Construir la función primero** y grabar su propio video (orden obligatorio:
+   construir → grabar → pedir). Un video por flujo.
+2. **Permisos a agregar en App Review:** `instagram_content_publish`,
+   `instagram_manage_comments`, `instagram_manage_insights` / `read_insights`,
+   `pages_manage_posts`, `pages_manage_engagement`, `pages_read_user_content`
+   (según qué se construya). Los cuatro últimos se ELIMINARON de los casos de
+   uso el 10-ago — hay que re-agregarlos con "Add to App Review".
+3. **Testing instructions** (App settings → Basic): el texto de agosto-2026
+   dice literalmente *"We do not publish content, and we do not read posts,
+   comments or insights"* — **quitar esa frase** y describir el flujo nuevo
+   paso a paso con la cuenta demo.
+4. **Términos de servicio** (`terms.html` → cobrapos.app/terms): la sección 5
+   "Canales conectados" solo habla de mensajes — ampliarla con publicación de
+   contenido y estadísticas, y subir la versión.
+5. **Textos del formulario:** escribir justificaciones nuevas (no reciclar las
+   de mensajería) y adjuntar el video que demuestra CADA permiso.
+6. **Cuenta demo:** darle a la cuenta `+metademo` acceso a la función nueva
+   para que el revisor la pruebe.
+7. La justificación de los permisos ya aprobados no se toca.
+
 ---
 
 ## Los 3 videos (uno por flujo, no uno para todo)
