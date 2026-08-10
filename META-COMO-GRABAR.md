@@ -18,6 +18,23 @@ verificado, con la fuente al lado.
 | Solo lo necesario | *"Graba solo lo que necesitamos ver"* |
 | Descripciones | *"Cada permiso debe tener su propia descripción. No copies y pegues"* |
 
+### ⚠️ Qué significa "sesión cerrada"
+
+Significa **desconectado EN COBRA**, no cerrar sesión de Facebook.
+
+Meta lo dice respecto a TU app: el canal aparece sin conectar, pasas por el
+flujo de Facebook, y queda conectado. Ese es el recorrido de un usuario real —
+casi todos los dueños ya están con Facebook abierto en su navegador.
+
+**NO hay que escribir usuario y contraseña en cámara.** Meta pide expresamente
+que no se incluyan credenciales personales, así que grabarlas iría en contra.
+Si la ventana de Facebook dice *"Continuar como Sergio"*, eso cuenta como el
+inicio de sesión.
+
+**Lo que de verdad tiene que verse es el punto siguiente:** la pantalla donde
+se OTORGAN los permisos. Meta lo dice literal: *"cómo el usuario le concede a
+la app el permiso que estás demostrando"*. Quédate ahí 2-3 segundos.
+
 ⚠️ Lo que nos costó julio: **cada video tiene que ser autosuficiente**. El
 revisor abre UNO solo y ahí dentro tiene que ver el inicio de sesión, el
 otorgamiento del permiso y la función andando. No puede tener que mirar otro
