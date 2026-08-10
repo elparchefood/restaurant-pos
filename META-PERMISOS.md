@@ -112,12 +112,27 @@ los videos 2 y 3.
 conecta la cuenta de su negocio para responder a sus clientes"— sin afirmar que
 esa cuenta concreta sea la de El Parche.
 
-### Video 2 — Mensajes 🔴 no se puede
+### Video 2 — Mensajes ✅ GRABADO 9-ago-2026
 
-`meta-webhook` solo procesa `object === "whatsapp_business_account"`. Un
-Messenger o un directo de Instagram llega a Meta y **no entra a Cobra**. Y
-`meta-send` está escrito solo para WhatsApp (`phone_number_id`,
-`messaging_product`). En la base hay **141 conversaciones, todas de WhatsApp**.
+`meta-webhook` (v62) aprendió `object === "page"` y `object === "instagram"`
+—los dos llegan como `entry[].messaging[]`, así que van por una sola rama— y
+`meta-send` (v14) responde por la API de mensajes de página.
+
+⚠️ **Instagram se responde por el id de la PÁGINA, no por el de la cuenta.** Al
+id de la cuenta, Meta contesta *"(#3) Application does not have the capability
+to make this API call"* — que suena a permiso faltante y no lo es: el token SÍ
+tiene `instagram_manage_messages` (verificado en `/me/permissions`).
+
+⚠️ Los **ecos** se ignoran: lo que Cobra manda vuelve por el webhook y sin ese
+filtro cada respuesta salía dos veces.
+
+⚠️ **Un contacto, una conversación:** Meta entrega el mismo aviso dos veces y
+dos llegaron con 84 ms de diferencia, creando la conversación por duplicado.
+Cerrado con el índice único `ux_chat_conv_contacto`.
+
+**El video muestra las dos puntas en los dos canales:** se escribe desde
+Instagram → aparece en Cobra sin leer → se contesta → se ve llegar en
+Instagram. Y desde Facebook → llega a Cobra → se contesta.
 
 ### Video 3 — Historias 🔴 no existe
 
