@@ -130,14 +130,41 @@ filtro cada respuesta salía dos veces.
 dos llegaron con 84 ms de diferencia, creando la conversación por duplicado.
 Cerrado con el índice único `ux_chat_conv_contacto`.
 
-**El video muestra las dos puntas en los dos canales:** se escribe desde
-Instagram → aparece en Cobra sin leer → se contesta → se ve llegar en
-Instagram. Y desde Facebook → llega a Cobra → se contesta.
+**REGRABADO el 9-ago.** La primera toma mostraba los mensajes bien pero
+**arrancaba con Cobra ya conectado**, y a Meta le faltaban dos de sus tres
+requisitos: el inicio de sesión completo y el usuario **concediendo** el
+permiso. Cada video tiene que ser autosuficiente — el revisor abre UNO solo.
 
-### Video 3 — Historias 🔴 no existe
+La segunda toma (2:40) tiene todo, sin cortes: canales en "Conectar" → pantalla
+de Meta *"Revisa lo que compartirás"* → Instagram conectado → Facebook conectado
+→ mensaje desde Instagram → aparece solo en Cobra → se contesta → se ve llegar
+en Instagram → lo mismo por Messenger.
+
+### Subtítulos ✅ 9-ago-2026
+
+Meta pide interfaz en inglés o subtítulos. Cobra no se tradujo: se incrustaron
+subtítulos en inglés que traducen los textos clave y **nombran el permiso** que
+se demuestra en cada momento. Los archivos a subir son
+`01-ENVIAR-conectar.mp4` y `02-ENVIAR-mensajes.mp4`.
+
+### Video 3 — Historias 🔴 no existe, y NO se envía
 
 Es el endpoint de menciones, todavía pendiente. Aquí van también las dos fases
 de seguridad.
+
+**No se envía en esta solicitud.** El permiso que lo cubriría
+(`instagram_manage_messages`) ya queda demostrado con el video 2. Pedir algo que
+no se puede mostrar es exactamente lo que costó el rechazo de julio. Va en la
+ampliación futura, con su propio video.
+
+---
+
+## Lo único que falta antes de enviar
+
+Meta dice *"probaremos tu app con nuestras propias cuentas de prueba"* y pide
+*"describir cómo podemos acceder a tu app"*. Hay que darle al revisor un
+**usuario de Cobra con datos de ejemplo** — no la cuenta real de El Parche,
+porque vería los pedidos y los teléfonos de los clientes.
 
 ---
 
