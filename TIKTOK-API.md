@@ -210,32 +210,104 @@ dice el documento. El orden es arreglar -> solicitar -> esperar.
 
 ---
 
-## Recomendación
+## PASO 2 — El formulario de admisión (PLAN, aun sin enviar)
 
-**No ahora, pero no está bloqueado.** Es una decisión de tiempo, no un muro:
+Formulario **Data Security and Privacy Review Intake Form** (Lark de ByteDance):
+`https://bytedance.sg.larkoffice.com/share/base/form/shrlg7vFArGhg9V20neYCEwIKrb`
 
-- **A favor:** Colombia entra, la app ya está aprobada, no hace falta socio ni
-  video, y el proceso es una sola solicitud.
-- **En contra:** son 4 a 6 semanas de reloj, buena parte del trabajo es
-  redactar políticas de seguridad, y TikTok como canal de pedidos para un
-  restaurante en Popayán rinde poco frente a WhatsApp.
+Campos revisados uno por uno en el formulario real el 10-ago-2026. Son 10.
 
-**Cuándo sí vale la pena:** cuando Cobra se venda a restaurantes que pidan
-TikTok, o cuando haya que redactar esas políticas de todos modos (que va a
-pasar: son las mismas que pide cualquier cliente mediano). Ahí el costo extra
-de pedir TikTok es casi cero.
+| # | Campo | Qué poner | Estado |
+|---|---|---|---|
+| 1 | Developer Company | `Cobra POS` | listo |
+| 2 | **Company Legal Entity Name** | *"exactamente como figura en los documentos legales o tributarios"* | 🔴 **falta: lo define Sergio** |
+| 3 | Headquarters Location | `Popayan, Cauca, Colombia` | listo |
+| 4 | Website URL | `https://cobrapos.app` | listo |
+| 5 | Contact Person's Name | `Sergio Andres Abadia Cuaji` | listo |
+| 6 | **Contact Person's Email Address** | ⚠️ **debe terminar en dominio propio** e **individual** (no buzon compartido) → `sergio@cobrapos.app` | 🔴 **falta crearlo** |
+| 7 | TikTok Representative's Email | vacio (no hay representante) | listo |
+| 8 | Tipo de solicitud | `This is my first time applying for Business Messaging API access.` | listo |
+| 9 | Your Developer App ID | `7650415130718502929` | listo |
+| 10 | Managed Business Account Regions | **solo `LATAM`** | listo |
 
-**Mientras tanto:** dejarlo en "Próximamente", que es donde está.
+### Los dos huecos, y por que importan
+
+**1. El correo tiene que ser del dominio propio.** El formulario lo dice
+literal: *"The email address provided must ends with a company domain"* y
+*"provide an individual's email instead of a group/shared email"*.
+
+Es decir: **no sirve el Gmail**, y `contacto@cobrapos.app` tampoco es ideal
+porque parece buzon compartido. Hay que crear en **Porkbun** un reenvio
+`sergio@cobrapos.app` -> el Gmail que Sergio revisa a diario.
+Porkbun -> Domain Management -> `cobrapos.app` -> icono del sobre (Email
+Forwarding).
+
+⚠️ **Ese correo es critico durante 4-6 semanas**: por ahi llega el cuestionario
+DSPR DDQ y todo el hilo con el evaluador. Si se pierde un correo, se cae la
+solicitud. **No usar el corporativo que se perdio el 10-ago.**
+
+**2. La razon social.** El campo 2 pide el nombre legal exacto (con
+mayusculas, tildes y puntuacion como en el RUT). Opciones segun como este
+constituido: la empresa registrada, o el nombre completo de Sergio si opera
+como persona natural. **Esto lo decide y lo dicta Sergio; no se inventa.**
+
+### Regiones: solo LATAM
+
+Se marca **unicamente LATAM**, siguiendo el consejo del propio documento de
+TikTok: incluir Estados Unidos obliga a la revision adicional de USDS y alarga
+todo. Colombia es LATAM. **Si algun dia hay clientes en EE. UU., se pide
+despues** con la opcion *"I already have access... and I would like to extend
+access to... the US"* (que es la opcion 2 del campo 8).
+
+### Avisos del propio formulario
+
+- *"Please do not submit multiple applications"* — se envia **una sola vez** y
+  se espera. Reenviar por impaciencia entorpece.
+- El App ID debe ser valido y de una app **aprobada** — el nuestro lo es.
 
 ---
 
-## Pendientes concretos si se decide hacerlo
+## PASO 3 — Lo que llega despues de enviar
 
-- [ ] Anotar el correo corporativo del portal
-- [ ] Corregir las URLs de redirección de la app (hoy apuntan a `auralanguage.app`)
-- [ ] Escribir las políticas: seguridad de la información, control de acceso,
-      respuesta a incidentes, retención de datos
-- [ ] Activar MFA en las cuentas de administrador y dejar constancia
-- [ ] Correr un escaneo de vulnerabilidades y guardar el informe
-- [ ] Llenar el formulario **excluyendo Estados Unidos**
-- [ ] Levantar `tiktok-webhook` (está caída) antes de integrar nada
+1. TikTok inicia la revision **en 10 dias habiles**.
+2. Llega el correo **"TikTok/ByteDance Third-Party Due Diligence
+   Questionnaire" (DSPR DDQ)** al correo del campo 6.
+3. Hay que responderlo con las politicas escritas (ver la seccion de arriba
+   sobre lo que exige la revision).
+4. Evaluacion: **2 a 4 semanas**.
+5. Si aprueban, llega un correo y **ahi se concede el scope de mensajeria**.
+
+⚠️ El avance **no se puede consultar** en el portal ni por ticket de soporte.
+
+### Lo que hay que tener listo para el cuestionario
+
+Cobra ya cumple lo tecnico (TLS, cifrado en reposo de Supabase, RLS por
+restaurante, aviso de privacidad, borrado de datos y terminos publicados).
+**Lo que falta es papel** — cuatro documentos que se escriben una sola vez y
+sirven despues para cualquier cliente mediano:
+
+- [ ] Politica de seguridad de la informacion
+- [ ] Politica de control de acceso (need-to-know, least-privilege)
+- [ ] Politica de respuesta a incidentes
+- [ ] Politica de retencion y borrado de datos
+
+Y dos evidencias:
+
+- [ ] MFA activo en las cuentas de administrador (Supabase, GitHub, Porkbun,
+      Meta, TikTok) con constancia
+- [ ] Un escaneo de vulnerabilidades con su informe guardado
+
+---
+
+## Orden de trabajo
+
+1. [x] **PASO 1** — limpiar la app (logo, redirects) ✅ 10-ago
+2. [ ] Crear `sergio@cobrapos.app` en Porkbun y comprobar que llega el correo
+3. [ ] Sergio dicta la razon social exacta
+4. [ ] Enviar el formulario (10 campos de arriba)
+5. [ ] Escribir las 4 politicas mientras llega el cuestionario
+6. [ ] Responder el DSPR DDQ
+7. [ ] Al aprobar: levantar `tiktok-webhook` (esta caida), llenar la fila de
+       `chat_channels` y sacar TikTok de `SOON_CHANNELS`
+
+**No se envia nada sin el visto bueno de Sergio**, igual que con Meta.
