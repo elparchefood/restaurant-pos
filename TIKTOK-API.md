@@ -1,8 +1,23 @@
 # TikTok API — auditoría y qué hacer
 
-Auditoría hecha el 10-ago-2026 entrando al portal. **Conclusión corta: hoy no
-se puede recibir ni enviar mensajes de TikTok, y no es cuestión de pedir un
-permiso — hace falta pasar por un socio autorizado.**
+Auditoría del 10-ago-2026, leída de la **documentación oficial** de la
+Business Messaging API (`business-api.tiktok.com/portal/docs/business-messaging-api/v1.3`
+y las páginas de acceso y revisión).
+
+> ⚠️ **Corrección.** Una primera versión de este documento decía que la
+> mensajería de TikTok solo se conseguía siendo *Messaging Partner*. **Es
+> falso.** Esa lista de socios (Blip, Gupshup, Infobip…) es para negocios que
+> quieren usar la mensajería a través de una herramienta ya hecha; **no es el
+> único camino para un desarrollador.** Cobra puede pedir el acceso directo.
+
+---
+
+## Conclusión corta
+
+**Sí se puede, y Colombia está en la región permitida.** No hay que ser socio
+de nadie. Lo que hay es **una revisión de seguridad y privacidad de la empresa**
+(no del producto, no un video) que dura entre **10 días hábiles + 2 a 4 semanas**
+y exige políticas escritas que Cobra hoy no tiene.
 
 ---
 
@@ -18,28 +33,26 @@ Portal de desarrolladores: `business-api.tiktok.com/portal/apps`
 | **Portal de desarrolladores** (la API) | correo corporativo — *pendiente de anotar* |
 
 El correo del portal es un **alias de un dominio propio en Porkbun** que
-reenvía a un Gmail; por eso los correos llegan pero el usuario no es ese Gmail.
-Los alias se ven en Porkbun → Domain Management → icono del sobre del dominio.
-Cuenta de Porkbun: `sergiosaac`. El contacto del registrante de
-`auralanguage.app` es `creatorspremium.co@gmail.com`.
+reenvía a un Gmail. Se ven en Porkbun → Domain Management → icono del sobre.
+Cuenta de Porkbun: `sergiosaac`.
 
 ---
 
-## La app que existe
+## La app que ya existe
 
 | | |
 |---|---|
 | Nombre | **Restaurant Pos** |
 | App ID | `7650415130718502929` |
 | Verification Status | **Approved** ✅ |
-| Logo | dice **ORDERFLOW** (nombre viejo del proyecto) |
+| Logo | dice **ORDERFLOW** (nombre viejo) |
 | Advertiser redirect URL | `https://auralanguage.app` ⚠️ |
-| Redirect del titular de cuenta | `https://auralanguage.app/auth/tiktok/callback` ⚠️ |
+| Redirect del titular | `https://auralanguage.app/auth/tiktok/callback` ⚠️ |
 
-⚠️ **Las URLs de redirección apuntan a `auralanguage.app`, que es el dominio de
-Aura Languages, no de Cobra.** La app se creó para otra cosa y se reutilizó.
+⚠️ Las URLs de redirección apuntan al dominio de **Aura Languages**, no al de
+Cobra. La app se creó para otra cosa y se reutilizó. Habría que corregirlas.
 
-### Permisos que SÍ tiene (todos de publicidad)
+### Permisos actuales: TODOS de publicidad
 
 Ad Account Management · Ads Management · Audience Management · Reporting ·
 Measurement · Creative Management · App Management · Pixel Management ·
@@ -50,66 +63,148 @@ Mentions · CRM Event Management · Business Recommendation · CTX Events ·
 Brand Safety · Partner Insights · Payment Portfolio · Custom Conversion ·
 Minis Management · Business Verification
 
-**Ninguno de mensajería.** Es una app de *Marketing API*, no de mensajería.
+**Ninguno de mensajería** — y el de mensajería NO se marca en esta lista: se
+concede al pasar la revisión (ver abajo).
 
 ---
 
-## Por qué no se puede pedir la mensajería
+## Disponibilidad por región (lo que dice el documento)
 
-En el portal, la **Business Messaging API** aparece listada como colección
-aparte de la Marketing API — pero **no es un permiso que se marque en la app.**
-El acceso va por el programa de **Messaging Partners**: plataformas terceras
-autorizadas por TikTok.
+La Business Messaging API está en **Open Beta en APAC, LATAM, METAP y
+Norteamérica**.
 
-**Socios autorizados hoy (9):** Blip.ai · Halosis · Haravan · Pancake ·
-Qiscus · Respond.io · Zwiz · **Gupshup** · **Infobip**
-
-El negocio conecta su cuenta de TikTok Ads Manager con uno de esos socios y le
-autoriza "acceder y gestionar conversaciones" y "recibir webhooks".
-
-✅ **Buena noticia de región:** la mensajería de TikTok está disponible para
-cuentas registradas **fuera de EE. UU., el Espacio Económico Europeo, Suiza y
-Reino Unido**. Colombia entra.
-
----
-
-## Lo que hay construido en Cobra (y que no sirve todavía)
-
-- `chat-ia.js` línea 13: `TIKTOK_CLIENT_KEY = '7650415130718502929'` — la app de
-  arriba, la de anuncios.
-- `chat-ia.js` línea 1299: arma la URL de OAuth de TikTok con esos scopes.
-- Funciones `tiktok-webhook`, `tiktok-oauth-callback`, `tiktok-check-webhook`.
-  ⚠️ **`tiktok-webhook` está caída** y ya lo estaba antes.
-- Fila `tiktok` en `chat_channels` con `meta` vacío.
-- TikTok sigue en `SOON_CHANNELS` → sale como "Próximamente". **Correcto: que
-  se quede ahí.**
-
----
-
-## Las tres salidas, y la recomendación
-
-| | Qué implica |
+| Región de la cuenta de negocio | Qué exige |
 |---|---|
-| **A. Ser Messaging Partner** | Postularse al programa de TikTok. Es una alianza comercial, no un formulario: piden escala y soporte. No es realista para el MVP. |
-| **B. Ir a través de un socio** | Cobra se integra con Gupshup, Infobip o Respond.io. Funciona ya, pero cuesta dinero por conversación y mete una dependencia de un tercero en el camino de los mensajes. |
-| **C. No hacer TikTok ahora** ⭐ | Dejarlo en "Próximamente". WhatsApp es la enorme mayoría de los pedidos y Meta ya está en revisión. |
+| Espacio Económico Europeo, Suiza, Reino Unido | ❌ **No disponible** |
+| Estados Unidos | DSPR **+ US data security review + USDS Addendum** |
+| **Resto del mundo (Colombia)** | ✅ **Solo la DSPR** |
 
-**Recomendación: C.** Y si algún día se hace, **B con Gupshup o Infobip**,
-porque los dos son además BSP de Meta — resolverían WhatsApp, Instagram,
-Messenger y TikTok con un solo proveedor. Eso ya estaba anotado el 31-jul y la
-auditoría lo confirma.
+Y una FAQ del propio documento aconseja exactamente el caso de Cobra:
+
+> *"Si las cuentas que planea gestionar están registradas en regiones no
+> estadounidenses, recomendamos excluir a EE. UU. de esta solicitud para
+> acelerar la aprobación. Siempre puede solicitar el acceso a EE. UU. después."*
+
+**Traducción:** pedirlo solo para LATAM evita la revisión gringa, que es la
+lenta y la que puede rechazar.
 
 ---
 
-## Pendientes menores (no urgentes)
+## El proceso real, paso a paso
 
-- [ ] Anotar el correo corporativo del portal.
-- [ ] Decidir qué hacer con la app `Restaurant Pos`: hoy tiene permisos de
-      anuncios y redirecciones a `auralanguage.app`. O se arregla para Cobra,
-      o se deja quieta para Aura. **No sirve para mensajería en ningún caso.**
-- [ ] `tiktok-webhook` está caída. Mientras TikTok no se use, da igual; pero
-      conviene saberlo antes de tocar nada.
+**Requisitos previos:**
 
-**Fuentes:** [Messaging Partners de TikTok](https://ads.tiktok.com/help/article/about-message-management-tools) ·
-[Especialidad de Messaging Partner](https://ads.tiktok.com/business/en/blog/introducing-messaging-partner-specialty) ·
-[Portal de la API](https://business-api.tiktok.com/portal)
+1. Tener una app de desarrollador aprobada con App ID válido → **ya lo tienes**.
+   (Si se hiciera una app nueva, el documento pide incluir los scopes
+   *Ad Account Management*, *CTX Events Management* y *Measurement*.)
+2. Haber leído la página de **Data security & privacy review**.
+
+**La solicitud:**
+
+3. Se llena **un formulario de admisión** (formulario Lark de ByteDance):
+   `https://bytedance.sg.larkoffice.com/share/base/form/shrlg7vFArGhg9V20neYCEwIKrb`
+4. TikTok procesa e inicia la revisión **en 10 días hábiles**.
+5. Llega un correo con asunto **"TikTok/ByteDance Third-Party Due Diligence
+   Questionnaire" (DSPR DDQ)** al correo de contacto que se ponga.
+6. La evaluación tarda normalmente **2 a 4 semanas**.
+7. Si se aprueba, llega un correo y **ahí sí se concede el scope de mensajería**.
+
+⚠️ El documento cierra sin ambigüedad:
+
+> *"No podrá obtener el scope de Business Messaging para su app sin completar
+> el proceso de revisión de seguridad y privacidad. **No hay excepciones.**"*
+
+⚠️ El avance **no se puede consultar** en el portal: la revisión es manual y
+los tickets de soporte no sirven para preguntar por el estado.
+
+---
+
+## Lo que de verdad exige la revisión (esta es la parte dura)
+
+No es un formulario de dos preguntas. Es una auditoría de la empresa.
+
+### Privacidad
+- Responsable de privacidad nombrado dentro de la organización (y DPO donde la
+  ley lo exija)
+- **Aviso de privacidad** que explique qué se recoge, para qué, dónde se
+  transfiere, cómo se protege y cuánto se guarda
+- **Derechos del titular**: poder acceder, descargar, actualizar y borrar
+- **Retención**: borrar los datos cuando el negocio retire la autorización
+- **Minimización**: pedir solo los datos necesarios
+
+### Seguridad
+- **Política de seguridad de la información** escrita, revisada y firmada por
+  la dirección
+- **Seguridad de red**: segregación de redes, herramientas tipo NIDS/HIPS
+- **Endpoints**: antivirus o HIPS, escaneos periódicos
+- **Líneas base**: contraseñas mínimas, **MFA en cuentas de administrador**,
+  bloqueo de pantalla (ej. 15 min), formación periódica al personal
+- **Cifrado**: en reposo **AES-256** o superior; en tránsito **TLS 1.2** o superior
+- **Control de acceso**: política publicada, *need-to-know* y *least-privilege*,
+  registros de acceso, revisión anual de privilegios
+- **Vulnerabilidades**: escaneos o pentests con informes guardados
+- **Incidentes**: política publicada, **simulacros anuales**, informes documentados
+
+**Acelera la aprobación** adjuntar ISO 27001, informe SOC 2, o el último
+escaneo de vulnerabilidades / pentest.
+
+### Qué de eso ya tiene Cobra
+
+| Requisito | Estado |
+|---|---|
+| Aviso de privacidad | ✅ `cobrapos.app/privacy-policy` |
+| Borrado de datos a petición | ✅ `cobrapos.app/data-deletion` |
+| Términos de servicio | ✅ `cobrapos.app/terms` (10-ago) |
+| TLS en tránsito | ✅ todo va por HTTPS / Supabase |
+| Cifrado en reposo | ✅ lo da Supabase |
+| Aislamiento por cliente | ✅ RLS por tenant |
+| Políticas ESCRITAS (seguridad, acceso, incidentes, retención) | 🔴 **no existen** |
+| MFA en cuentas de administrador | 🔴 por verificar |
+| Escaneo de vulnerabilidades / pentest | 🔴 no hay |
+| Formación y simulacros | 🔴 no hay |
+
+Buena parte de lo técnico ya está; **lo que falta es papel**: tres o cuatro
+políticas escritas y una evidencia de escaneo.
+
+---
+
+## Lo que hay construido en Cobra
+
+- `chat-ia.js:13` → `TIKTOK_CLIENT_KEY = '7650415130718502929'` (la app de arriba)
+- `chat-ia.js:1299` → arma la URL de OAuth con scopes de contenido/insights
+- Funciones `tiktok-webhook`, `tiktok-oauth-callback`, `tiktok-check-webhook`
+  ⚠️ **`tiktok-webhook` está caída**, y ya lo estaba antes
+- Fila `tiktok` en `chat_channels` con `meta` vacío
+- TikTok en `SOON_CHANNELS` → sale como "Próximamente"
+
+---
+
+## Recomendación
+
+**No ahora, pero no está bloqueado.** Es una decisión de tiempo, no un muro:
+
+- **A favor:** Colombia entra, la app ya está aprobada, no hace falta socio ni
+  video, y el proceso es una sola solicitud.
+- **En contra:** son 4 a 6 semanas de reloj, buena parte del trabajo es
+  redactar políticas de seguridad, y TikTok como canal de pedidos para un
+  restaurante en Popayán rinde poco frente a WhatsApp.
+
+**Cuándo sí vale la pena:** cuando Cobra se venda a restaurantes que pidan
+TikTok, o cuando haya que redactar esas políticas de todos modos (que va a
+pasar: son las mismas que pide cualquier cliente mediano). Ahí el costo extra
+de pedir TikTok es casi cero.
+
+**Mientras tanto:** dejarlo en "Próximamente", que es donde está.
+
+---
+
+## Pendientes concretos si se decide hacerlo
+
+- [ ] Anotar el correo corporativo del portal
+- [ ] Corregir las URLs de redirección de la app (hoy apuntan a `auralanguage.app`)
+- [ ] Escribir las políticas: seguridad de la información, control de acceso,
+      respuesta a incidentes, retención de datos
+- [ ] Activar MFA en las cuentas de administrador y dejar constancia
+- [ ] Correr un escaneo de vulnerabilidades y guardar el informe
+- [ ] Llenar el formulario **excluyendo Estados Unidos**
+- [ ] Levantar `tiktok-webhook` (está caída) antes de integrar nada
