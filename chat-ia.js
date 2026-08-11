@@ -160,6 +160,9 @@ async function loadConversations() {
   if (S.activeView === 'human')   q = q.eq('human_takeover', true).eq('status','open');
   if (S.activeView === 'pagos')   q = q.eq('pago_pendiente', true).eq('status','open');
   if (S.activeView && S.activeView.slice(0,6) === 'label:') q = q.filter('labels', 'cs', JSON.stringify([S.activeView.slice(6)]));
+  /* 'mine' sigue en la lista por si un .exe viejo guardó esa vista: se
+     comporta como la bandeja, que es lo que ya hacía. La pestaña se quitó de
+     la barra el 11-ago (era un duplicado literal de "Bandeja"). */
   if (['all','mine','pending'].includes(S.activeView)) { q = q.eq('status','open').eq('human_takeover', false); }
   const { data } = await q;
   S.conversations = data || [];
@@ -432,10 +435,16 @@ function renderConvList() {
     $('convList').innerHTML = `<div class="ci-list-empty"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><p>${S.query ? 'Sin resultados para "'+escHtml(S.query)+'"' : 'Sin conversaciones'}</p></div>`;
     return;
   }
+  S._listaVisible = list.map(c => c.id);
   $('convList').innerHTML = list.map(convRowHTML).join('');
   $('convList').querySelectorAll('.ci-conv').forEach(el => {
-    el.addEventListener('click', () => openConversation(el.dataset.id));
+    /* En modo selección el clic marca/desmarca en vez de abrir el chat. */
+    el.addEventListener('click', () => {
+      if (S.selMode) toggleSelConv(el.dataset.id);
+      else openConversation(el.dataset.id);
+    });
   });
+  renderSelBar();
   if (S.activeConvId) {
     const el = $('convList').querySelector(`[data-id="${S.activeConvId}"]`);
     if (el) el.classList.add('active');
@@ -624,9 +633,18 @@ async function pintarFichaCliente(conv){
   if (negra) h += '<div class="ci-dw-alert danger">Cliente en <b>lista negra</b>'+(negra.razon?'<span>'+escHtml(negra.razon)+'</span>':'')+'</div>';
   if (sinPagar) h += '<div class="ci-dw-alert warn">Tiene <b>'+sinPagar+' pedido'+(sinPagar>1?'s':'')+' sin pagar</b></div>';
 
+  /* El nombre se puede EDITAR aquí mismo. Antes solo se cambiaba desde
+     Domicilios o Clientes: si en el chat aparecía el apodo de WhatsApp, había
+     que salirse de la conversación para corregirlo. Al guardar se actualiza la
+     ficha del cliente (si existe) Y el nombre de la conversación, y la lista de
+     la izquierda se repinta sola: es el mismo nombre en las dos pantallas. */
   h += '<div class="ci-dw-id">'
     +  '<div class="ci-dw-av">'+escHtml(avatarInitials(nombre))+'</div>'
-    +  '<div class="ci-dw-idtx"><div class="ci-dw-nm">'+escHtml(nombre)+'</div>'
+    +  '<div class="ci-dw-idtx"><div class="ci-dw-nm" style="display:flex;align-items:center;gap:6px">'
+    +      '<span id="ciNmTxt">'+escHtml(nombre)+'</span>'
+    +      '<button title="Editar nombre" onclick="ciEditarNombre('+(cli?("'"+cli.id+"'"):'null')+')" style="border:none;background:none;cursor:pointer;padding:2px;line-height:0;color:#94A3B8">'
+    +        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>'
+    +      '</button></div>'
     +    '<div class="ci-dw-sub">'+escHtml(conv.contact_handle||'')
     +      (barrioTop ? ' · '+escHtml(barrioTop) : '')+'</div></div>'
     + '</div>';
@@ -768,6 +786,50 @@ function _leerDirs(){
   });
   return out;
 }
+/* Editar el nombre del contacto desde el chat.
+   Se escribe en los DOS sitios a propósito:
+   - `pos_clientes.nombre` → es lo que ven Clientes y Domicilios
+   - `chat_conversations.contact_name` → es el respaldo cuando todavía no hay
+     ficha de cliente (aún no ha hecho su primer pedido)
+   Así el cambio se ve igual se mire desde donde se mire. */
+async function ciEditarNombre(cliId){
+  const conv = S.conversations.find(c => c.id === S.activeConvId);
+  if(!conv){ showToast('Abre un chat primero','info'); return; }
+  const el = document.getElementById('ciNmTxt');
+  const actual = el ? el.textContent : (conv.contact_name || '');
+  const nuevo = prompt('Nombre del contacto:', actual);
+  if(nuevo === null) return;                       // canceló
+  const nom = String(nuevo).trim();
+  if(!nom){ showToast('El nombre no puede quedar vacío','error'); return; }
+  if(nom === actual) return;
+
+  let algo = false;
+  if(cliId){
+    const r = await sb.from('pos_clientes')
+      .update({ nombre: nom, updated_at: new Date().toISOString() })
+      .eq('id', cliId).select('id');
+    /* 0 filas sin error = no se guardó nada. No decir "listo" en ese caso. */
+    if(r.error || !r.data || !r.data.length){
+      showToast('No se pudo guardar en el cliente: ' + ((r.error && r.error.message) || 'sin permisos'), 'error');
+    } else {
+      algo = true;
+      /* El mapa por teléfono es lo que lee la lista de la izquierda. */
+      const t10 = String(conv.contact_handle||'').replace(/\D/g,'').slice(-10);
+      if(t10.length === 10 && S.clientesPorTel[t10]) S.clientesPorTel[t10].nombre = nom;
+      else if(t10.length === 10) S.clientesPorTel[t10] = { nombre: nom, barrio: '' };
+    }
+  }
+  const rc = await sb.from('chat_conversations')
+    .update({ contact_name: nom }).eq('id', conv.id).select('id');
+  if(!(rc.error) && rc.data && rc.data.length){ conv.contact_name = nom; algo = true; }
+
+  if(!algo){ showToast('No se pudo guardar el nombre','error'); return; }
+  if(el) el.textContent = nom;
+  renderConvList();
+  renderChatHeader(conv);
+  showToast('Nombre actualizado','success');
+}
+
 async function guardarDirsCliente(id){
   const dirs = _leerDirs();
   try {
@@ -864,8 +926,16 @@ function convRowHTML(c) {
     prevPrefix = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${checkColor}" stroke-width="2.4" style="flex-shrink:0"><polyline points="18 7 9 17 5 13"/><polyline points="22 7 13 17 12.5 16.5"/></svg><span style="color:#94A3B8;font-weight:500">Tú:&nbsp;</span>`;
   }
 
+  /* Casilla del modo selección. Va delante del avatar y no reemplaza nada:
+     al salir del modo, la fila vuelve a ser exactamente la de siempre. */
+  const selecc = S.selMode && (S.selIds || []).indexOf(c.id) >= 0;
+  const selBox = S.selMode
+    ? `<span style="display:flex;align-items:center;justify-content:center;width:18px;height:18px;flex-shrink:0;margin-right:8px;border-radius:5px;border:2px solid ${selecc ? '#5B6BFF' : '#CBD5E1'};background:${selecc ? '#5B6BFF' : 'transparent'};color:#fff;font-size:11px;font-weight:900;line-height:1">${selecc ? '✓' : ''}</span>`
+    : '';
+
   return `
-    <button class="ci-conv${isActive?' active':''}${isUnread?' unread':''}" data-id="${c.id}">
+    <button class="ci-conv${isActive?' active':''}${isUnread?' unread':''}${selecc?' sel':''}" data-id="${c.id}"${selecc?' style="background:#EEF2FF"':''}>
+      ${selBox}
       <span class="ci-av-wrap">
         ${avatarUrl
           ? `<img src="${escHtml(avatarUrl)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;display:block;" alt="">`
@@ -3026,8 +3096,32 @@ async function openEtiquetarChat(){
   renderEtqAssign(); document.getElementById('etqAssignModal').style.display='flex';
 }
 function renderEtqAssign(){
-  var has=Array.isArray(S._etqLabels)?S._etqLabels:[];
   var cont=document.getElementById('etqAssignList');
+  if(!cont) return;
+
+  /* MODO LOTE: no hay un "tiene / no tiene" único porque son varios chats, así
+     que en vez de una casilla se ofrecen las dos acciones explícitas. Al lado
+     de cada etiqueta se dice en cuántos de los seleccionados ya está. */
+  if(S._etqBulk){
+    var ids=S.selIds||[];
+    cont.innerHTML=(S.etiquetas||[]).map(function(e){
+      var n=0;
+      ids.forEach(function(cid){
+        var c=S.conversations.find(function(x){ return x.id===cid; });
+        if(c && Array.isArray(c.labels) && c.labels.indexOf(e.id)>=0) n++;
+      });
+      return '<div class="etq-assign-item" style="cursor:default">'
+        +'<span class="ci-lbl-dot" style="background:'+e.color+'"></span>'
+        +'<span style="flex:1;text-align:left">'+qrEsc(e.name)
+        +(n?'<span style="opacity:.6;font-size:11.5px;font-weight:600"> · en '+n+'</span>':'')+'</span>'
+        +'<button class="cp-btn" style="padding:3px 10px;font-size:11.5px;font-weight:700;margin-right:6px" onclick="etiquetaLote(\''+e.id+'\',false)">Poner</button>'
+        +'<button class="cp-btn ghost" style="padding:3px 10px;font-size:11.5px;font-weight:700" onclick="etiquetaLote(\''+e.id+'\',true)">Quitar</button>'
+        +'</div>';
+    }).join('');
+    return;
+  }
+
+  var has=Array.isArray(S._etqLabels)?S._etqLabels:[];
   cont.innerHTML=(S.etiquetas||[]).map(function(e){
     return '<button class="etq-assign-item'+(has.indexOf(e.id)>=0?' on':'')+'" onclick="toggleConvLabel(\''+e.id+'\')">'
       +'<span class="ci-lbl-dot" style="background:'+e.color+'"></span><span style="flex:1;text-align:left">'+qrEsc(e.name)+'</span>'
@@ -3046,7 +3140,95 @@ async function toggleConvLabel(id){
   renderEtqAssign();
   if(S.activeView && S.activeView.slice(0,6)==='label:') loadConversations();
 }
-function closeEtqAssign(){ document.getElementById('etqAssignModal').style.display='none'; }
+function closeEtqAssign(){
+  document.getElementById('etqAssignModal').style.display='none';
+  S._etqBulk=false;
+  var t=document.getElementById('etqAssignTitle'); if(t) t.textContent='🏷️ Etiquetar chat';
+}
+
+/* ══════════════ ETIQUETAR VARIOS CHATS A LA VEZ ══════════════
+   Antes tocaba abrir chat por chat y etiquetarlo uno por uno. En un servicio
+   con 20 pedidos eso son 20 aperturas. Aquí se marcan varios y se pone o se
+   quita la etiqueta a todos de una. */
+S.selMode = false;
+S.selIds  = [];
+
+function entrarSelMode(){
+  if(!(S.etiquetas||[]).length){ showToast('Primero crea una etiqueta','info'); openCrearEtiqueta(); return; }
+  S.selMode = true; S.selIds = [];
+  renderConvList();
+}
+function salirSelMode(){
+  S.selMode = false; S.selIds = [];
+  renderConvList();
+}
+function toggleSelConv(id){
+  if(!id) return;
+  S.selIds = S.selIds || [];
+  const i = S.selIds.indexOf(id);
+  if(i>=0) S.selIds.splice(i,1); else S.selIds.push(id);
+  renderConvList();
+}
+function selTodos(){
+  const vis = S._listaVisible || [];
+  /* El botón hace las dos cosas: si ya están todos marcados, los desmarca. */
+  S.selIds = (S.selIds && S.selIds.length === vis.length) ? [] : vis.slice();
+  renderConvList();
+}
+function renderSelBar(){
+  const bar = document.getElementById('selBar');
+  const btn = document.getElementById('selModeBtn');
+  if(!bar) return;
+  bar.style.display = S.selMode ? 'flex' : 'none';
+  if(btn) btn.classList.toggle('active', !!S.selMode);
+  const n = (S.selIds||[]).length;
+  const cnt = document.getElementById('selCount');
+  if(cnt) cnt.textContent = n === 1 ? '1 seleccionado' : n + ' seleccionados';
+  const todos = document.getElementById('selAllBtn');
+  if(todos) todos.textContent = (n && n === (S._listaVisible||[]).length) ? 'Ninguno' : 'Todos';
+}
+function openEtiquetarLote(){
+  if(!(S.selIds||[]).length){ showToast('No has seleccionado ningún chat','info'); return; }
+  if(!(S.etiquetas||[]).length){ showToast('Primero crea una etiqueta','info'); openCrearEtiqueta(); return; }
+  S._etqBulk = true;
+  const t=document.getElementById('etqAssignTitle');
+  if(t) t.textContent = '🏷️ Etiquetar ' + S.selIds.length + ' chat' + (S.selIds.length===1?'':'s');
+  renderEtqAssign();
+  document.getElementById('etqAssignModal').style.display='flex';
+}
+/* Pone o quita UNA etiqueta en todos los seleccionados.
+   Se hace chat por chat porque cada uno tiene sus otras etiquetas y no se
+   pueden pisar: se lee su lista, se cambia solo esta y se guarda. */
+async function etiquetaLote(labelId, quitar){
+  const ids = (S.selIds||[]).slice();
+  if(!ids.length) return;
+  let ok = 0, fallo = 0;
+  for(const cid of ids){
+    let actuales = [];
+    const conv = S.conversations.find(c => c.id === cid);
+    if(conv && Array.isArray(conv.labels)) actuales = conv.labels.slice();
+    else {
+      try{ const r = await sb.from('chat_conversations').select('labels').eq('id',cid).maybeSingle();
+           actuales = (r.data && Array.isArray(r.data.labels)) ? r.data.labels : []; }catch(e){ actuales = []; }
+    }
+    const tiene = actuales.indexOf(labelId) >= 0;
+    if(quitar && !tiene){ ok++; continue; }
+    if(!quitar && tiene){ ok++; continue; }
+    const nuevas = quitar ? actuales.filter(x => x !== labelId) : actuales.concat([labelId]);
+    const upd = await sb.from('chat_conversations').update({ labels: nuevas }).eq('id', cid).select('id');
+    /* Igual que en el etiquetado de a uno: 0 filas es un fallo silencioso. */
+    if(upd.error || !upd.data || !upd.data.length){ fallo++; continue; }
+    if(conv) conv.labels = nuevas;
+    ok++;
+  }
+  const etq = (S.etiquetas||[]).find(e => e.id === labelId);
+  const nom = etq ? etq.name : 'la etiqueta';
+  if(fallo) showToast('Se aplicó a ' + ok + ', fallaron ' + fallo, 'error');
+  else showToast((quitar ? 'Quitada "' : 'Puesta "') + nom + '" en ' + ok + ' chat' + (ok===1?'':'s'), 'success');
+  renderEtqAssign();
+  renderConvList();
+  if(S.activeView && S.activeView.slice(0,6)==='label:') loadConversations();
+}
 
 /* ══ Respuestas con VARIABLES ═══════════════════════════════════════════════
    Antes esto eran dos frases escritas aqui adentro: /total y /puntos. El texto
@@ -4257,6 +4439,12 @@ function toggleMoreMenu(e) {
   var menu = document.getElementById('moreMenu');
   if (!menu) return;
   var open = menu.style.display !== 'none';
+  /* El botón de archivar dice lo contrario según dónde estés: en la bandeja
+     "Archivar chat", y dentro de Archivados "Devolver a la bandeja". */
+  if (!open) {
+    var _lbl = document.getElementById('archivarLabel');
+    if (_lbl) _lbl.textContent = (S.activeView === 'archived') ? 'Devolver a la bandeja' : 'Archivar chat';
+  }
   menu.style.display = open ? 'none' : 'block';
   if (!open) {
     // Close on next outside click
@@ -4268,6 +4456,35 @@ function toggleMoreMenu(e) {
 function closeMoreMenu() {
   var menu = document.getElementById('moreMenu');
   if (menu) menu.style.display = 'none';
+}
+
+/* ARCHIVAR / DESARCHIVAR.
+   La pestaña "Archivados" ya filtraba por status='archived', pero NADA en el
+   sistema ponía ese estado: la pestaña estaba condenada a salir siempre vacía.
+   Esto es lo que le faltaba. Archivar no borra nada — el historial queda
+   intacto y el chat se puede devolver a la bandeja desde el mismo menú. */
+async function archivarChat() {
+  closeMoreMenu();
+  const convId = S.activeConvId;
+  if (!convId) { showToast('Abre primero una conversación', 'error'); return; }
+  const volver = (S.activeView === 'archived');
+  const nuevo  = volver ? 'open' : 'archived';
+  const upd = await sb.from('chat_conversations')
+    .update({ status: nuevo }).eq('id', convId).select('id');
+  /* Se comprueba el resultado: un UPDATE sobre una fila que no existe devuelve
+     0 filas SIN error, y el aviso diría "listo" sin haber cambiado nada. */
+  if (upd.error || !upd.data || !upd.data.length) {
+    showToast('No se pudo archivar: ' + ((upd.error && upd.error.message) || 'sin permisos'), 'error');
+    return;
+  }
+  const conv = S.conversations.find(c => c.id === convId);
+  if (conv) conv.status = nuevo;
+  S.conversations = S.conversations.filter(c => c.id !== convId);
+  S.activeConvId = null;
+  renderConvList();
+  renderBadges();
+  showToast(volver ? 'Chat devuelto a la bandeja' : 'Chat archivado', 'success');
+  loadConversations();
 }
 
 async function borrarHistorialChat() {

@@ -55,12 +55,11 @@
         </span>
         <span class="ci-nav-badge" id="badge-pending">0</span>
       </button>
-      <button class="ci-nav-btn" data-view="mine">
-        <span class="ci-nav-l">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          <span>Míos</span>
-        </span>
-      </button>
+      <!-- "Míos" se quitó el 11-ago-2026. No existe columna de asignación en
+           chat_conversations y el código la filtraba EXACTAMENTE igual que
+           "Bandeja": era un duplicado literal. Una pestaña que no hace nada
+           confunde al cliente nuevo. Si algún día se asignan conversaciones a
+           una persona, se vuelve a poner CON su columna y su filtro. -->
       <button class="ci-nav-btn" data-view="resolved">
         <span class="ci-nav-l">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -125,6 +124,9 @@
           <button class="ci-icon-btn active" id="filterToggle" title="Mostrar/ocultar filtros">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
           </button>
+          <button class="ci-icon-btn" id="selModeBtn" onclick="entrarSelMode()" title="Seleccionar varios chats para etiquetarlos">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          </button>
           <button class="ci-icon-btn primary" title="Nueva conversación" id="newConvBtn">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
@@ -138,6 +140,15 @@
 
     <div class="ci-filter-wrap" id="filterWrap">
       <div class="ci-seg" id="channelFilters"></div>
+    </div>
+
+    <!-- Barra de selección múltiple: aparece solo al activar "Seleccionar".
+         Permite poner y quitar etiquetas a varios chats de una vez. -->
+    <div id="selBar" style="display:none;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #ECEEF2;background:#EEF2FF">
+      <span id="selCount" style="font-size:12.5px;font-weight:700;color:#4F5BE3;flex:1">0 seleccionados</span>
+      <button class="ci-icon-btn" id="selAllBtn" onclick="selTodos()" title="Seleccionar todos" style="font-size:11.5px;font-weight:700;width:auto;padding:0 9px;color:#4F5BE3">Todos</button>
+      <button class="ci-icon-btn primary" onclick="openEtiquetarLote()" title="Etiquetar seleccionados" style="font-size:11.5px;font-weight:700;width:auto;padding:0 10px">Etiquetar</button>
+      <button class="ci-icon-btn" onclick="salirSelMode()" title="Cancelar" style="width:auto;padding:0 9px;font-size:11.5px;font-weight:700">Cancelar</button>
     </div>
 
     <div class="ci-conv-list" id="convList"></div>
@@ -230,6 +241,10 @@
             <button class="ci-more-item" onclick="abrirFichaCliente()">
               <span class="ci-more-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
               <span class="ci-more-label">Información del contacto</span>
+            </button>
+            <button class="ci-more-item" id="archivarItem" onclick="archivarChat()">
+              <span class="ci-more-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></span>
+              <span class="ci-more-label" id="archivarLabel">Archivar chat</span>
             </button>
             <div class="ci-more-div"></div>
             <div class="ci-more-sec">Próximamente</div>
@@ -346,7 +361,7 @@
 <!-- Modal: Etiquetar chat -->
 <div class="etq-overlay" id="etqAssignModal" style="display:none">
   <div class="etq-card">
-    <div class="etq-head"><b>🏷️ Etiquetar chat</b><button class="etq-x" onclick="closeEtqAssign()">✕</button></div>
+    <div class="etq-head"><b id="etqAssignTitle">🏷️ Etiquetar chat</b><button class="etq-x" onclick="closeEtqAssign()">✕</button></div>
     <div class="etq-body" id="etqAssignList"></div>
     <div class="etq-foot"><button class="cp-btn primary" onclick="closeEtqAssign()">Listo</button></div>
   </div>
@@ -383,7 +398,7 @@
   <script src="pos-vars-ui.js?v=1790530000"></script>
   <script src="pos-metodos.js?v=1790540000"></script>
 <script src="pos-saldo.js?v=1790470001"></script>
-<script src="chat-ia.js?v=1790710000"></script>
+<script src="chat-ia.js?v=1790730000"></script>
 <script src="pos-impuestos.js?v=1"></script>
 <script src="pos-print.js?v=1790300000"></script>
 <script src="pos-brand.js?v=1790530000"></script>
