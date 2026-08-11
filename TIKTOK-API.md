@@ -179,6 +179,43 @@ políticas escritas y una evidencia de escaneo.
 
 ---
 
+## PASO 1 — Arreglar los datos de la app (ANTES de solicitar)
+
+Decidido el 10-ago: **sí se solicita el acceso a mensajería.** Mucha gente le
+escribe a El Parche por TikTok; el juicio de "rinde poco" era mío y estaba mal.
+
+Pero primero hay que limpiar la app, porque la DSPR revisa **a la empresa** y
+hoy la app apunta a otro producto. Es el mismo desalineamiento que costó el
+rechazo de Meta en julio.
+
+### Qué corregir, exacto
+
+| Campo | Hoy | Debe quedar |
+|---|---|---|
+| **App logo** | dice **ORDERFLOW** | logo de Cobra POS |
+| **App Name** | `Restaurant Pos` | `Cobra POS` |
+| **Advertiser redirect URLs** | `https://auralanguage.app` (rojo) | `https://cobrapos.app` |
+| **TikTok account holder redirect URLs** | `https://auralanguage.app/auth/tiktok/callback` (rojo) | **borrarla** |
+| " | `https://...supabase.co/functions/v1/tiktok-oauth-callback` | dejarla, ya esta bien |
+
+El portal muestra en **rojo** las dos de `auralanguage.app`: las tiene marcadas
+como problema.
+
+**El logo esta listo para subir** en la carpeta Descargas:
+`cobra-logo-256.png` (256x256) o `cobra-logo-512.png` (512x512).
+
+**Como se edita:** en `business-api.tiktok.com/portal/apps/7650415130718502929`,
+con los **iconos de lapiz** al lado de cada campo. No se puede automatizar: los
+lapices solo responden a clic manual.
+
+### Confirmado en el portal
+
+La lista de *Scope of permission* **no contiene la palabra "messaging"**. No es
+una casilla que se marque: el scope se concede al pasar la revision, tal como
+dice el documento. Por eso el orden es arreglar -> solicitar -> esperar.
+
+---
+
 ## Recomendación
 
 **No ahora, pero no está bloqueado.** Es una decisión de tiempo, no un muro:
