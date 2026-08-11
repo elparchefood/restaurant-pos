@@ -110,7 +110,7 @@ empezado.
 
 ### Bugs
 
-- [ ] **Se puede crear un pedido con un producto SIN variante.** Si el cliente
+- [x] **Se puede crear un pedido con un producto SIN variante.** ✅ 11-ago Si el cliente
       escribe "un jugo Hit personal" y no dice el sabor, el botón *Crear
       pedido* del chat arma el pedido con el Hit **sin sabor**.
       ⚠️ El daño real es de inventario: **no se sabe qué unidad descontar**.
@@ -120,15 +120,46 @@ empezado.
       Sospechoso: el extractor devuelve el producto sin `variables` y nadie
       valida antes de insertar.
 
-- [ ] **"En camino" abre también el modal de "Entregado".** En domicilios, al
+- [x] **"En camino" abre también el modal de "Entregado".** ✅ 11-ago En domicilios, al
       tocar *En camino* se disparan los dos a la vez, como si se hubiera
       pulsado *Entregado* al mismo tiempo. Toca cerrar el segundo modal a mano
       siempre. Huele a un handler que quedó pegado a los dos botones (o a que
       el modal de entrega no se cierra antes de repintar).
 
-- [ ] **La comanda muestra el id crudo: `pm_q8ybbdpqb`.** Se ve en la tarjeta
+- [x] **La comanda muestra el id crudo: `pm_q8ybbdpqb`.** ✅ 11-ago Se ve en la tarjeta
       del domicilio, arriba a la derecha de COMANDA. Eso es un identificador
       interno de pago, no algo que el cliente o el mesero deban ver.
+
+
+### Como quedaron los 4 arreglados (11-ago-2026)
+
+**Pedido sin variante.** El catalogo NO tiene marca de "opcional" en los grupos
+de variantes: un grupo existe porque hay que elegir algo. Asi que ahora
+`cpVarsFaltan()` (chat-ia.js) compara los grupos del producto contra lo elegido
+y (1) avisa en el modal, (2) pone un selector para elegir el sabor ahi mismo
+—antes tocaba borrar el producto y volver a agregarlo— y (3) **bloquea el
+envio** con el mismo patron que ya usaba la etiqueta obligatoria. Se resolvio
+en el navegador, sin tocar `extraer-pedido`, asi que cubre los productos
+vengan por donde vengan.
+
+**"En camino" disparaba "Entregado".** `attachDomiRailEvents()` se llama desde
+dos sitios y enganchaba el clic con una funcion ANONIMA, que addEventListener
+no puede deduplicar: el boton quedaba con dos escuchas y el handler corria dos
+veces sobre el MISMO objeto `d`, viendo en la segunda vuelta el estado ya
+mutado. Sus hermanas `attachRailEvents` / `attachQuickRailEvents` usan
+funciones nombradas justo por esto (hay un comentario del arreglo anterior).
+Cerrado con una marca `data-domi-bound`.
+
+**El id `pm_...` en la comanda.** `pos-metodos.nombre()` ya tenia la regla
+—con el comentario "un id interno NUNCA se le muestra a nadie"— pero este sitio
+pintaba `d.metodo` en crudo. Otra vez: la regla existia, la llamada faltaba.
+
+**Etiquetas en la lista.** Pastillas del color de la etiqueta en cada fila,
+hasta 2 y "+N" si hay mas. La linea solo aparece si hay etiquetas.
+
+⚠️ **Ojo al desplegar:** `chat-ia.html` y `ventas.html` cargan el JS con
+`?v=NUMERO`. Si no se sube ese numero, el navegador y el .exe siguen sirviendo
+el archivo viejo y el arreglo "no funciona".
 
 ### Faltantes de la bandeja
 
@@ -140,7 +171,7 @@ empezado.
 - [ ] **Etiquetar varios chats a la vez.** Poner y quitar etiquetas en lote,
       con selección múltiple. Hoy es uno por uno.
 
-- [ ] **Ver la etiqueta de cada chat en la lista.** A simple vista, sin abrir
+- [x] **Ver la etiqueta de cada chat en la lista.** ✅ 11-ago A simple vista, sin abrir
       la conversación. (Las etiquetas ya existen: En preparación, Llevar, En
       camino, Pago, Entregado.)
 
