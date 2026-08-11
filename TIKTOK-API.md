@@ -45,12 +45,12 @@ Cuenta de Porkbun: `sergiosaac`.
 | Nombre | **Restaurant Pos** |
 | App ID | `7650415130718502929` |
 | Verification Status | **Approved** ✅ |
-| Logo | dice **ORDERFLOW** (nombre viejo) |
-| Advertiser redirect URL | `https://auralanguage.app` ⚠️ |
-| Redirect del titular | `https://auralanguage.app/auth/tiktok/callback` ⚠️ |
+| Logo | ✅ Cobra POS (corregido 10-ago) |
+| Advertiser redirect URL | ✅ `https://cobrapos.app` (corregido 10-ago) |
+| Redirect del titular | ✅ solo la de Supabase (corregido 10-ago) |
 
-⚠️ Las URLs de redirección apuntan al dominio de **Aura Languages**, no al de
-Cobra. La app se creó para otra cosa y se reutilizó. Habría que corregirlas.
+La app se había creado para otro proyecto (Orderflow / Aura Languages) y se
+reutilizó. **Ya está limpia** — ver PASO 1 más abajo.
 
 ### Permisos actuales: TODOS de publicidad
 
@@ -179,40 +179,34 @@ políticas escritas y una evidencia de escaneo.
 
 ---
 
-## PASO 1 — Arreglar los datos de la app (ANTES de solicitar)
+## PASO 1 — Arreglar los datos de la app  ✅ HECHO 10-ago-2026
 
 Decidido el 10-ago: **sí se solicita el acceso a mensajería.** Mucha gente le
 escribe a El Parche por TikTok; el juicio de "rinde poco" era mío y estaba mal.
 
-Pero primero hay que limpiar la app, porque la DSPR revisa **a la empresa** y
-hoy la app apunta a otro producto. Es el mismo desalineamiento que costó el
-rechazo de Meta en julio.
+Se limpió la app antes de solicitar, porque la DSPR revisa **a la empresa** y
+apuntaba a otro producto (el mismo desalineamiento que costó el rechazo de Meta
+en julio).
 
-### Qué corregir, exacto
-
-| Campo | Hoy | Debe quedar |
+| Campo | Antes | Ahora |
 |---|---|---|
-| **App logo** | dice **ORDERFLOW** | logo de Cobra POS |
-| **App Name** | `Restaurant Pos` | `Cobra POS` |
-| **Advertiser redirect URLs** | `https://auralanguage.app` (rojo) | `https://cobrapos.app` |
-| **TikTok account holder redirect URLs** | `https://auralanguage.app/auth/tiktok/callback` (rojo) | **borrarla** |
-| " | `https://...supabase.co/functions/v1/tiktok-oauth-callback` | dejarla, ya esta bien |
+| App logo | decía **ORDERFLOW** | ✅ logo de Cobra POS (512x512) |
+| Advertiser redirect URLs | `https://auralanguage.app` | ✅ `https://cobrapos.app` |
+| Account holder redirect URLs | dos, una a `auralanguage.app` | ✅ solo la de Supabase (`.../functions/v1/tiktok-oauth-callback`) |
+| App Name | `Restaurant Pos` | sin cambiar (no es bloqueante) |
 
-El portal muestra en **rojo** las dos de `auralanguage.app`: las tiene marcadas
-como problema.
+La *Advertiser authorization URL*, que TikTok arma sola, se actualizó sola y ya
+termina en `cobrapos.app`.
 
-**El logo esta listo para subir** en la carpeta Descargas:
-`cobra-logo-256.png` (256x256) o `cobra-logo-512.png` (512x512).
-
-**Como se edita:** en `business-api.tiktok.com/portal/apps/7650415130718502929`,
-con los **iconos de lapiz** al lado de cada campo. No se puede automatizar: los
-lapices solo responden a clic manual.
+ℹ️ **El rojo no es un error.** En este portal la URL en rojo marca la
+**principal**; las demás salen en negro. (Yo lo interpreté como aviso de fallo:
+era falso.)
 
 ### Confirmado en el portal
 
 La lista de *Scope of permission* **no contiene la palabra "messaging"**. No es
-una casilla que se marque: el scope se concede al pasar la revision, tal como
-dice el documento. Por eso el orden es arreglar -> solicitar -> esperar.
+una casilla que se marque: el scope se concede al pasar la revisión, tal como
+dice el documento. El orden es arreglar -> solicitar -> esperar.
 
 ---
 
