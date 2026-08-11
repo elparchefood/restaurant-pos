@@ -103,6 +103,54 @@ solo hay un restaurante usándolo.
 
 ---
 
+## FASE 2b — Reportados por Sergio el 10-ago-2026 (usando el sistema de verdad)
+
+Salieron de un turno real, mirando el chat y los domicilios. Ninguno está
+empezado.
+
+### Bugs
+
+- [ ] **Se puede crear un pedido con un producto SIN variante.** Si el cliente
+      escribe "un jugo Hit personal" y no dice el sabor, el botón *Crear
+      pedido* del chat arma el pedido con el Hit **sin sabor**.
+      ⚠️ El daño real es de inventario: **no se sabe qué unidad descontar**.
+      Regla que debe quedar: *no se puede crear un pedido sin las variantes y
+      presentaciones completas*. Si en el mensaje no hay rastro del sabor,
+      poner uno cualquiera (o preguntarlo), pero nunca dejarlo vacío.
+      Sospechoso: el extractor devuelve el producto sin `variables` y nadie
+      valida antes de insertar.
+
+- [ ] **"En camino" abre también el modal de "Entregado".** En domicilios, al
+      tocar *En camino* se disparan los dos a la vez, como si se hubiera
+      pulsado *Entregado* al mismo tiempo. Toca cerrar el segundo modal a mano
+      siempre. Huele a un handler que quedó pegado a los dos botones (o a que
+      el modal de entrega no se cierra antes de repintar).
+
+- [ ] **La comanda muestra el id crudo: `pm_q8ybbdpqb`.** Se ve en la tarjeta
+      del domicilio, arriba a la derecha de COMANDA. Eso es un identificador
+      interno de pago, no algo que el cliente o el mesero deban ver.
+
+### Faltantes de la bandeja
+
+- [ ] **Editar el nombre del contacto desde el chat.** Hoy solo se puede desde
+      otras pantallas. Debe poder hacerse desde *Información del contacto*, y
+      **el cambio debe verse reflejado solo** en la lista de clientes — igual
+      en los dos sentidos: si se edita desde Domicilios, que el chat lo muestre.
+
+- [ ] **Etiquetar varios chats a la vez.** Poner y quitar etiquetas en lote,
+      con selección múltiple. Hoy es uno por uno.
+
+- [ ] **Ver la etiqueta de cada chat en la lista.** A simple vista, sin abrir
+      la conversación. (Las etiquetas ya existen: En preparación, Llevar, En
+      camino, Pago, Entregado.)
+
+- [ ] **La pestaña "Archivados" está de adorno** — hay que hacerla funcionar.
+
+- [ ] **Revisar si "Míos" sirve para algo** o es redundante. Si no aporta, se
+      quita: una pestaña que no hace nada confunde al cliente nuevo.
+
+---
+
 ## FASE 3 — Verificar antes de vender
 
 - [ ] Migración de región del servidor
