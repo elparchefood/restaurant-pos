@@ -163,22 +163,49 @@ el archivo viejo y el arreglo "no funciona".
 
 ### Faltantes de la bandeja
 
-- [ ] **Editar el nombre del contacto desde el chat.** Hoy solo se puede desde
+- [x] **Editar el nombre del contacto desde el chat.** ✅ 11-ago Hoy solo se puede desde
       otras pantallas. Debe poder hacerse desde *Información del contacto*, y
       **el cambio debe verse reflejado solo** en la lista de clientes — igual
       en los dos sentidos: si se edita desde Domicilios, que el chat lo muestre.
 
-- [ ] **Etiquetar varios chats a la vez.** Poner y quitar etiquetas en lote,
+- [x] **Etiquetar varios chats a la vez.** ✅ 11-ago Poner y quitar etiquetas en lote,
       con selección múltiple. Hoy es uno por uno.
 
 - [x] **Ver la etiqueta de cada chat en la lista.** ✅ 11-ago A simple vista, sin abrir
       la conversación. (Las etiquetas ya existen: En preparación, Llevar, En
       camino, Pago, Entregado.)
 
-- [ ] **La pestaña "Archivados" está de adorno** — hay que hacerla funcionar.
+- [x] **La pestaña "Archivados" está de adorno**  ✅ 11-ago — hay que hacerla funcionar.
 
-- [ ] **Revisar si "Míos" sirve para algo** o es redundante. Si no aporta, se
+- [x] **Revisar si "Míos" sirve para algo** ✅ 11-ago — SE QUITÓ o es redundante. Si no aporta, se
       quita: una pestaña que no hace nada confunde al cliente nuevo.
+
+### Cómo quedaron los 4 de la bandeja (11-ago-2026)
+
+**Archivados ya funciona.** El diagnóstico: la consulta `status='archived'` YA
+existía, pero **ninguna parte del sistema ponía ese estado** — la pestaña estaba
+condenada a salir vacía para siempre. Se agregó "Archivar chat" al menú ⋮, que
+dentro de Archivados cambia solo a "Devolver a la bandeja". No borra nada: el
+historial queda intacto.
+
+**"Míos" se quitó.** No existe columna de asignación en `chat_conversations` y
+el código la filtraba con la MISMA condición que "Bandeja": era un duplicado
+literal, imposible de arreglar sin inventarse una función nueva. El valor
+'mine' se dejó reconocido en el filtro por si un .exe viejo lo tiene guardado.
+
+**Etiquetado en lote.** Botón de selección múltiple junto a "Nueva
+conversación": marca varios chats (o "Todos"), y desde ahí se pone o se quita
+una etiqueta a todos. Se hace chat por chat a propósito: cada uno tiene sus
+otras etiquetas y un guardado en bloque las pisaría.
+
+**Editar el nombre desde el chat.** Lápiz junto al nombre en Información del
+contacto. Escribe en los DOS sitios: `pos_clientes.nombre` (lo que ven Clientes
+y Domicilios) y `chat_conversations.contact_name` (el respaldo cuando todavía
+no hay ficha porque no ha pedido nunca). La lista de la izquierda se repinta
+sola.
+
+En los tres que guardan se comprueba que el UPDATE devolvió filas: 0 filas sin
+error es el fallo silencioso que ya nos mordió antes ("Guardado ✓" sin guardar).
 
 ---
 
