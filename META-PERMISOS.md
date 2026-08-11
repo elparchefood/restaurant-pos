@@ -15,6 +15,29 @@ Reenviar **no revoca** lo ya aprobado, aunque Meta avisa que puede re-revisarlo.
 
 ---
 
+## ⚠️ Lo que el acceso ESTÁNDAR sí y no permite (comprobado el 10-ago-2026)
+
+Con acceso estándar (lo de hoy, mientras Meta revisa) Instagram y Messenger
+**solo entregan mensajes de cuentas que tienen un rol en la app** —
+administrador, desarrollador o tester. Los mensajes de un cliente cualquiera
+**no llegan al webhook**.
+
+Consecuencia práctica: **conectar las cuentas reales de El Parche ahora no
+sirve de nada.** No se puede pedirle a cada cliente que acepte una invitación
+de tester. Hasta que Meta apruebe, Instagram y Messenger se siguen
+contestando desde sus apps.
+
+**WhatsApp NO está afectado** — `whatsapp_business_messaging` ya está aprobado
+y funciona con todos los clientes. La operación diaria del restaurante
+(pedidos, Paco) no depende de esto.
+
+El 10-ago se perdió medio día persiguiendo permisos de Business Suite
+("acciones sensibles", control total de la página, socios) creyendo que ese
+era el bloqueo. Sí era un bloqueo real para conectar, pero **aunque se
+resuelva, los mensajes de clientes siguen sin llegar sin la aprobación.**
+
+---
+
 ## Por qué rechazaron (revisión del 6-ago-2026)
 
 Envío del 11-jul-2026.
