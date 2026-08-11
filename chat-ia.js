@@ -838,6 +838,26 @@ function convRowHTML(c) {
     ? `<span class="ci-unread">${c.unread_count}</span>`
     : `<span class="ci-chan-tag"><span class="dot" style="background:${meta.dotColor||'#ccc'}"></span>${meta.label||''}</span>`;
 
+  /* ETIQUETAS A LA VISTA.
+     Antes había que abrir la conversación para saber si estaba "En preparación"
+     o "Pago": la etiqueta es justo lo que dice qué hacer con el pedido, así que
+     no verla obliga a entrar a cada chat. Se pintan como pastillas del color de
+     la etiqueta, hasta 2, y "+N" si tiene más. La línea solo aparece si hay
+     etiquetas, para no crecer las filas de los chats sin ninguna. */
+  const etqs = (Array.isArray(c.labels) ? c.labels : [])
+    .map(id => (S.etiquetas || []).find(e => e && e.id === id))
+    .filter(Boolean);
+  const etqPill = (bg, fg, dot, txt) =>
+    `<span style="display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:999px;font-size:10.5px;font-weight:700;line-height:1.5;background:${bg};color:${fg}">`
+    + (dot ? `<span style="width:5px;height:5px;border-radius:50%;background:${dot};flex-shrink:0"></span>` : '')
+    + escHtml(txt) + '</span>';
+  const etqHTML = etqs.length
+    ? '<span style="display:flex;gap:4px;margin-top:3px;flex-wrap:wrap">'
+      + etqs.slice(0, 2).map(e => etqPill(e.color + '1A', e.color, e.color, e.name)).join('')
+      + (etqs.length > 2 ? etqPill('#F1F5F9', '#64748B', '', '+' + (etqs.length - 2)) : '')
+      + '</span>'
+    : '';
+
   let prevPrefix = '';
   if (!isUnread && c.last_sender === 'agent') {
     const checkColor = c.last_read ? '#5B6BFF' : '#94A3B8';
@@ -862,6 +882,7 @@ function convRowHTML(c) {
           <span class="ci-conv-prev">${prevPrefix}${prettyPreview(c.last_message)}</span>
           ${rightBadge}
         </span>
+        ${etqHTML}
       </span>
     </button>`;
 }
