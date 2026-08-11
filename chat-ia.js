@@ -2515,8 +2515,20 @@ function cpProdRow(p,i){
       if(p.categoria_confirmar) av.push('Puede ser '+cpEsc((p.categoria_opciones||[]).join(' o '))+' — confirma cuál');
       if(p.tamano_confirmar)    av.push('Falta el tamaño — confirma cuál pidió');
       if(p.precio_confirmar)    av.push('Revisa el precio: el cliente no dijo la variedad');
+      (cpVarsFaltan(p)||[]).forEach(vg=>av.push('Falta '+cpEsc(vg.name)+' — elígelo abajo'));
       if(!av.length) return '';
       return '<div class="cp-check">'+av.map(t=>'<span>⚠ '+t+'</span>').join('')+'</div>';
+    })()
+    // Selector para las variantes que faltan. Se resuelve aquí mismo: antes
+    // tocaba borrar el producto y volver a agregarlo desde el catálogo.
+    +(function(){
+      const faltan=cpVarsFaltan(p);
+      if(!faltan.length) return '';
+      return '<div class="cp-prod-actions">'+faltan.map(vg=>
+        '<select class="cp-addadic" onchange="cpSetVar('+i+',\''+vg.id+'\',this.value)">'
+        +'<option value="">'+cpEsc(vg.name)+'…</option>'
+        +(vg.options||[]).map(o=>'<option value="'+o.id+'">'+cpEsc(o.name)+(Number(o.price)?' (+'+cpCOP(o.price)+')':'')+'</option>').join('')
+        +'</select>').join('')+'</div>';
     })()
     +(chips?'<div class="cp-chips">'+chips+'</div>':'')
     +(picker?'<div class="cp-prod-actions">'+picker+'</div>':'')
@@ -2527,6 +2539,38 @@ function cpAdicOptions(c,presId){ const out=[],seen={}; const gids=c.mod_group_i
   gids.forEach(gid=>{ if(pres[gid]&&presId&&pres[gid].indexOf(presId)<0) return; const g=(S.cpMods||[]).find(m=>String(m.id)===String(gid)); ((g&&g.options)||[]).forEach(o=>{ const k=cpNorm(o.name); if(!seen[k]){ seen[k]=1; out.push({id:o.id,name:o.name,price:Number(o.price)||0}); } }); }); return out; }
 function cpAddAdic(i,optId){ if(!optId||!S.cpOrder) return; const p=S.cpOrder.productos[i]; if(!p) return; const opt=(p.adic_options||[]).find(o=>o.id===optId); if(opt&&!(p.adiciones||[]).some(a=>a.id===optId)){ p.adiciones=p.adiciones||[]; p.adiciones.push({id:opt.id,name:opt.name,price:opt.price}); } cpRerender(); }
 function cpDelAdic(i,optId){ const p=S.cpOrder&&S.cpOrder.productos[i]; if(!p) return; p.adiciones=(p.adiciones||[]).filter(a=>a.id!==optId); cpRerender(); }
+/* Grupos de variantes que le FALTAN a un producto.
+   En el catálogo un grupo de variantes no tiene marca de "opcional": existe
+   porque hay que elegir algo (Sabor, Primer Ingrediente…). Así que todos los
+   grupos deben quedar resueltos.
+   Sin esto se podía crear "1× HIT" sin sabor: el pedido salía y el inventario
+   no sabía qué unidad descontar. */
+function cpVarsFaltan(p){
+  if(!p) return [];
+  const c=(S.cpCatalogo||[]).find(x=>String(x.id)===String(p.product_id));
+  if(!c) return [];
+  const sel=p.variantes||{};
+  return (c.variables||[]).filter(vg=>(vg.options||[]).length && !sel[vg.id]);
+}
+/* Elegir una variante desde el modal, sin tener que borrar y volver a agregar. */
+function cpSetVar(i,gid,optId){
+  if(!optId||!S.cpOrder) return;
+  const p=S.cpOrder.productos[i]; if(!p) return;
+  const c=(S.cpCatalogo||[]).find(x=>String(x.id)===String(p.product_id)); if(!c) return;
+  const vg=(c.variables||[]).find(g=>String(g.id)===String(gid)); if(!vg) return;
+  const o=(vg.options||[]).find(x=>String(x.id)===String(optId)); if(!o) return;
+  cpSyncTop(); cpSyncProdInputs();
+  p.variantes=p.variantes||{};
+  p.variantes[gid]={ id:o.id, name:o.name, price:Number(o.price)||0, group:vg.name };
+  /* El precio se recalcula con TODAS las variantes elegidas: en modo matriz el
+     precio vive en la opción, no en el producto. */
+  const sel={}; Object.keys(p.variantes).forEach(k=>{ sel[k]=p.variantes[k].id; });
+  const np=cpProdPrice(c,p.pres_id,sel);
+  if(np>0){ p.unit_price=np; p.precio_confirmar=false; }
+  const nm=String(p.product_name||'');
+  if(nm.indexOf(o.name)<0) p.product_name=nm+' · '+o.name;
+  cpRerender();
+}
 function cpDelProd(i){ cpSyncTop(); cpSyncProdInputs(); S.cpOrder.productos.splice(i,1); cpRenderForm(S.cpOrder); }
 /* Selector de productos con acordeón por categoría → producto → tamaño/tipo */
 // Precio considerando TODOS los grupos de variantes del producto.
@@ -2797,6 +2841,18 @@ async function cpEnviarCocina(){
   if(cpExigeEtiqueta(o.tipo) && !o.etiqueta){
     showToast('Falta la etiqueta: ábrelo en Editar y escoge una','error');
     return;
+  }
+  /* Un pedido NO sale sin sus variantes completas. Si el cliente escribió "un
+     HIT personal" sin decir el sabor, el producto salía sin variante y el
+     inventario no sabía qué unidad descontar. Se comprueba aquí y no solo en el
+     formulario porque el borrador se puede enviar desde la tarjeta del chat sin
+     volver a abrir el modal. */
+  {
+    const _falta=(o.productos||[]).map(p=>({ p:p, f:cpVarsFaltan(p) })).filter(x=>x.f.length)[0];
+    if(_falta){
+      showToast('Falta '+_falta.f[0].name+' en "'+(_falta.p.product_name||'un producto')+'": ábrelo en Editar','error');
+      return;
+    }
   }
   // ── LISTA NEGRA: si el cliente del pedido está bloqueado (teléfono o dirección), avisar y confirmar ──
   try{

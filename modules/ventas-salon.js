@@ -1672,6 +1672,19 @@
     return fila('Domiciliario', dom, chipHtml);
   }
 
+  /* El metodo de pago SIEMPRE pasa por pos-metodos: esa es la unica regla que
+     sabe traducir 'cash' -> "Efectivo" y, sobre todo, que un id interno como
+     'pm_q8ybbdpqb' NUNCA se le muestra a nadie. Aqui se pintaba `d.metodo` en
+     crudo y el id salia en la comanda del domicilio. */
+  function vsMetodoNombre(valor) {
+    if (window.posMetodos && typeof window.posMetodos.nombre === 'function') {
+      return window.posMetodos.nombre(valor);
+    }
+    var v = String(valor == null ? '' : valor).trim();
+    if (!v || /^pm_[a-z0-9]+$/i.test(v) || v.indexOf('__') === 0) return 'Otros';
+    return v.charAt(0).toUpperCase() + v.slice(1);
+  }
+
   function vsComandaHTML(its, empaques) {
     if (!its) return '<div class="vs-comanda-empty">Cargando…</div>';
     if (!its.length) return '<div class="vs-comanda-empty">Sin ítems</div>';
@@ -1825,7 +1838,7 @@
           <div class="vs-order-section-label">Comanda</div>
           ${d.estado === 'preparacion'
             ? `<button class="lm-link" data-domi-action="add-item" data-domi-id="${d.id}">+ Agregar ítem</button>`
-            : `<span style="font-size:11px;color:#94A3B8">${d.metodo}</span>`}
+            : `<span style="font-size:11px;color:#94A3B8">${vsMetodoNombre(d.metodo)}</span>`}
         </div>
         <div class="vs-order-list">
           ${vsComandaHTML(state.domiItems[d.id], vsEmpaquePorItem(state.domiItems[d.id] || [], d.empaque))}
@@ -2638,6 +2651,16 @@
   function attachDomiRailEvents() {
     if (!container) return;
     container.querySelectorAll('[data-domi-action]').forEach(btn => {
+      /* Cada boton se engancha UNA sola vez.
+         attachDomiRailEvents() se llama desde dos sitios —el render completo y
+         _attachCurrentEvents() del repintado parcial del rail— asi que sin esta
+         marca el mismo boton terminaba con DOS escuchas de clic. Un clic corria
+         el handler dos veces sobre el MISMO objeto `d`: la primera vuelta
+         preguntaba "¿pasa a En camino?" y dejaba d.estado='camino'; la segunda
+         leia ese estado ya mutado y preguntaba "¿pasa a Entregado?". De ahi el
+         modal de entrega que salia solo. */
+      if (btn.dataset.domiBound === '1') return;
+      btn.dataset.domiBound = '1';
       btn.addEventListener('click', async () => {
         const action = btn.dataset.domiAction;
         const id = btn.dataset.domiId;
