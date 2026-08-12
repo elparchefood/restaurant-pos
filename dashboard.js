@@ -315,11 +315,23 @@ async function loadStock(branchId) {
 }
 
 // ── Print times ───────────────────────────────────────
+/* Esta funcion reventaba en su PRIMERA linea: 'qb-print-sub' no existe en
+   dashboard.html (solo existe 'qb-receipt-sub'), asi que $() devolvia null.
+   Y como se llama en el arranque JUSTO ANTES de setupRealtime(), la excepcion
+   se llevaba por delante las dos lineas siguientes: el dashboard se quedaba
+   SIN tiempo real y SIN el auto-refresco de 5 minutos. Los numeros salian
+   bien al cargar y ahi se congelaban hasta un F5 — el peor tipo de fallo,
+   porque parece que funciona.
+
+   Es el mismo aprendizaje que ya esta escrito arriba para el Promise.all de
+   las nueve cargas: una tarea cosmetica no puede tumbar las de verdad.
+
+   Nota: NO se escribe "Ultima <hora actual>" porque seria mentira — esa hora
+   es la de ahora, no la de la ultima impresion, y no hay tabla que la guarde
+   (solo pos_printers y pos_print_config). El boton conserva su texto fijo
+   hasta que exista de donde sacar el dato de verdad. */
 function loadPrintTimes() {
-  const now = new Date();
-  const t = now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0');
-  $('qb-print-sub').textContent   = 'Ultima ' + t;
-  $('qb-receipt-sub').textContent = 'Ultima ' + t;
+  /* Se deja preparado para cuando haya registro real de impresiones. */
 }
 
 // ── Chart ─────────────────────────────────────────────
@@ -1319,15 +1331,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   ])).forEach(function (r, i) {
     if (r.status === 'rejected') console.warn('[dashboard] carga "' + _nombres[i] + '" fallo:', r.reason);
   });
-  loadPrintTimes();
-  setupRealtime(branchId);
+  /* PRIMERO lo que mantiene vivo el dashboard, DESPUES lo cosmetico.
+     Hasta el 11-ago esto estaba al reves y `loadPrintTimes()` —que reventaba
+     por un elemento inexistente— dejaba el dashboard sin tiempo real y sin
+     auto-refresco. Ademas van envueltos: que una tarjeta falle no puede volver
+     a congelar la pantalla entera. */
+  try { setupRealtime(branchId); }
+  catch (e) { console.warn('[dashboard] setupRealtime fallo:', e); }
 
   // Auto-refresh cada 5 minutos
   setInterval(() => {
-    loadTodayOrders(branchId);
-    loadStock(branchId);
-    loadPrintTimes();
+    try { loadTodayOrders(branchId); } catch (e) { console.warn('[dashboard] refresco pedidos:', e); }
+    try { loadStock(branchId); }      catch (e) { console.warn('[dashboard] refresco stock:', e); }
+    try { loadPrintTimes(); }         catch (e) { console.warn('[dashboard] refresco impresiones:', e); }
   }, 5 * 60 * 1000);
+
+  try { loadPrintTimes(); } catch (e) { console.warn('[dashboard] loadPrintTimes:', e); }
 });
 
 // ── User menu dropdown ──
