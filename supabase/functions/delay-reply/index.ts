@@ -350,7 +350,12 @@ function detectarPagoMixto(text: string, pagosCfg: Record<string, unknown> | nul
 const CALLE_REGEX = /\b(calle|carrera|cra|cl\b|diagonal|transversal|tv\b|dg\b|avenida|av\b|bloque|manzana|mz\b|torre)\b/i;
 // Cubre masculino/femenino/plural: "lo recojo", "la recojo", "los recojo", "paso por
 // ella", "voy por él", "paso a buscarla", "la busco", "recojo en el local"...
-const LLEVAR_REGEX = /\b(para\s+llevar|para\s+recoger|l[oa]s?\s+recojo|l[oa]s?\s+busco|voy\s+a\s+recoger(?:l[oa]s?)?|voy\s+por\s+(?:el\s+pedido|[ée]l|ella|eso)|pa\s+llevar|a\s+recoger|yo\s+paso|yo\s+l[oa]s?\s+recojo|paso\s+a\s+(?:recoger|buscar)(?:l[oa]s?)?|paso\s+por\s+(?:el\s+pedido|[ée]l|ella|ellas|ellos|eso)|paso\s+al\s+local|recojo\s+en\s+el\s+local)\b/i;
+/* RECOGER EN EL LOCAL. Solo contemplaba la primera persona del singular
+   ("paso", "voy", "recojo") y un cliente real escribio "Nosotros pasamos
+   por ella": el bot no lo entendio y le pidio la direccion CUATRO veces
+   seguidas hasta que el pedido se cayo. La gente habla en plural cuando
+   viene acompanada, que es justo cuando recoge en el local. */
+const LLEVAR_REGEX = /(para\s+llevar|para\s+recoger|l[oa]s?\s+recoj(?:o|emos)|l[oa]s?\s+busc(?:o|amos)|(?:voy|vamos)\s+a\s+recoger(?:l[oa]s?)?|(?:voy|vamos)\s+por\s+(?:el\s+pedido|[ée]l|ella|ellas|ellos|eso|la\s+comida)|pa\s+llevar|a\s+recoger|(?:yo|nosotros)\s+pas(?:o|amos)|pas(?:o|amos)\s+a\s+(?:recoger|buscar)(?:l[oa]s?)?|pas(?:o|amos)\s+por\s+(?:el\s+pedido|[ée]l|ella|ellas|ellos|eso|la\s+comida|alla|all[ií])|pas(?:o|amos)\s+al\s+local|recog(?:o|emos)\s+en\s+el\s+local|recojo\s+en\s+el\s+local|lo\s+recogemos|nos\s+lo\s+llevamos)/i;
 
 // Nuevo producto adicional — expandido para capturar más patrones naturales
 const NUEVO_PROD_REGEX = /\b(y\s+(un[ao]?\s+|[0-9]+\s+|otr[ao]?\s+|de\s+paso\s+|tambi[eé]n\s+)\w{3,}|tambi[eé]n\s+(quiero?|quisiera|dame|poneme|una?|un)\s+\w|de\s+paso\s+(quiero?|dame|una?|un|p[oó]n[gm]e)\s+\w|adem[aá]s\s+(quiero?|quisiera|dame)\s+\w|y\s+tambi[eé]n\s+\w{3,}|y\s+me\s+das?\s+\w{3,}|p[oó]n[gm]e\s+(tambi[eé]n|adem[aá]s)\s+\w)/i;
