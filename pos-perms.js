@@ -88,6 +88,37 @@
         }
       } catch (e) { /* sin red: sigue por el camino del rol */ }
 
+      /* ROL POR SUCURSAL. Una persona puede ser cajero en una sede y mesero en
+         otra, asi que los permisos dependen de DONDE esta trabajando ahora
+         mismo — no de un rol unico pegado a la persona.
+         La sucursal activa la da posContexto (pos-core).
+         Si no hay fila para esa sucursal, devuelve null y se sigue por el
+         camino de antes: durante la transicion nadie se queda encerrado. */
+      var _suc = null;
+      try { _suc = (window.posContexto && window.posContexto.sucursalId()) ||
+                   (window._pos && window._pos.state && window._pos.state.branchId) || null; } catch (e) {}
+      if (_suc) {
+        var _llaveSuc = 'perms.suc.' + _suc;
+        if (!porRed) {
+          var gs = null;
+          try { gs = window.posCache && posCache.leer(_llaveSuc); } catch (e) {}
+          if (gs && gs.datos && Array.isArray(gs.datos.perms)) {
+            _perms = gs.datos.perms.slice();
+            _readyFresco = resolver(true);
+            return;
+          }
+        }
+        try {
+          var _rs = await sb.rpc('permisos_en_sucursal', { p_branch: _suc });
+          if (!_rs.error && Array.isArray(_rs.data)) {
+            _perms = _rs.data.slice(); _fresco = true;
+            try { if (window.posCache) posCache.guardar(_llaveSuc, { perms: _perms }); } catch (e) {}
+            _reEvaluarPuertas();
+            return;
+          }
+        } catch (e) { /* sin red o sin fila: sigue por el camino del rol */ }
+      }
+
       /* Lo guardado en el equipo sirve YA — pero solo para CONCEDER. La
          llave lleva el rol: en un mismo equipo pueden turnarse un mesero y
          un cajero, y los permisos de uno no pueden pintar los del otro. */
