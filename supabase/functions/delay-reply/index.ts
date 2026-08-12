@@ -57,6 +57,9 @@ interface PacoState {
   reserva:            Record<string, string> | null;
   /* true = esta conversacion va por reserva, no por pedido. */
   es_reserva?:        boolean;
+  /* Id de la reserva ya creada. Es el seguro contra crearla dos veces si el
+     cliente vuelve a escribir. */
+  reserva_id?:        string | null;
   items:              SlotItem[];
   resumen_enviado:            boolean;
   direccion_heredada:         boolean;
@@ -1578,6 +1581,21 @@ INTENCION, no las palabras exactas.` },
   const yaHabiaPreguntadoDireccion = !!state.complemento_dir_pendiente;
   if (Object.keys(extracted).length > 0) {
     state = mergeSlots(state, extracted);
+    /* La reserva se crea en cuanto estan sus datos, no al final del flujo: una
+       reserva no tiene resumen ni cobro que esperar. El `reserva_id` evita
+       crearla dos veces si el cliente sigue escribiendo. */
+    if (state.reserva && !state.reserva_id) {
+      const pasoRes = (Array.isArray(cfg.flujo_pasos) ? cfg.flujo_pasos as Array<Record<string, unknown>> : [])
+        .find(p => p && p.campo === "reserva");
+      const pendiente = !pasoRes || pasoRes.reserva_pendiente !== false;
+      const nuevoId = await crearReserva(tenantId, branchId, fromPhone,
+                                         state.nombre || nombreConfirmar, state.reserva, pendiente);
+      if (nuevoId) {
+        state.reserva_id = nuevoId;
+        state.es_reserva = true;
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+      }
+    }
   }
   // Si llegó una dirección nueva, reiniciar cualquier complemento pendiente de pasos anteriores
   // para que 14e-bis la re-evalúe limpiamente desde cero
@@ -4111,6 +4129,54 @@ async function sbGet(path: string): Promise<Array<Record<string, unknown>> | nul
   });
   if (!res.ok) return null;
   return res.json();
+}
+
+/* CREAR LA RESERVA.
+   El motor NO crea pedidos —los junta y alguien los crea desde la bandeja—
+   pero la reserva SI la crea el, porque el sitio donde se trabaja una reserva
+   es la pantalla de Reservas y ahi tiene que aparecer.
+
+   Nace en 'pendiente' a proposito: hacerla efectiva, sentarla, aplazarla o
+   cancelarla son SIEMPRE botones manuales. El bot nunca ocupa una mesa solo.
+
+   Devuelve el id, o null si no se pudo (y entonces no se le miente al cliente
+   diciendo que quedo hecha). */
+async function crearReserva(
+  tenantId: string, branchId: string, telefono: string,
+  nombre: string | null, datos: Record<string, string>, pendiente: boolean,
+): Promise<string | null> {
+  try {
+    const cuando = datos.cuando_iso || null;
+    const personas = parseInt(String(datos.personas || "0"), 10);
+    const notas: string[] = [];
+    if (datos.zona)  notas.push(`Zona: ${datos.zona}`);
+    if (datos.notas) notas.push(datos.notas);
+    if (!cuando) notas.push(`Para: ${datos.cuando || "(sin fecha entendida)"}`);
+    const fila: Record<string, unknown> = {
+      tenant_id: tenantId,
+      branch_id: branchId,
+      customer_name: nombre || "Cliente WhatsApp",
+      customer_phone: telefono,
+      party_size: personas > 0 ? personas : null,
+      reserved_at: cuando,
+      notes: notas.length ? notas.join(" · ") : null,
+      status: pendiente ? "pendiente" : "confirmada",
+      origen: "whatsapp",
+      created_by: "asistente",
+    };
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/pos_reservations`, {
+      method: "POST",
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`,
+                 "Content-Type": "application/json", "Prefer": "return=representation" },
+      body: JSON.stringify(fila),
+    });
+    if (!r.ok) { console.error("[reserva] no se pudo crear:", await r.text()); return null; }
+    const out = await r.json() as Array<Record<string, unknown>>;
+    return out && out[0] ? String(out[0].id) : null;
+  } catch (e) {
+    console.error("[reserva] error creando:", e);
+    return null;
+  }
 }
 
 async function sbPost(path: string, data: Record<string, unknown>): Promise<void> {
