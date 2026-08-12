@@ -26,7 +26,15 @@
 (function () {
   'use strict';
 
-  var ADMIN_ROLES = ['admin', 'administrador', 'gerente', 'owner', 'dueño', 'dueno', 'propietario'];
+  /* Esta lista YA NO decide quien es el dueño.
+     Antes traia 'gerente' y 'administrador' y bastaba con tener ese texto en la
+     metadata para quedarse con acceso total. Pero la metadata la puede
+     reescribir el propio usuario (comprobado el 12-ago en la app real con
+     sb.auth.updateUser), asi que cualquier empleado podia ascenderse solo.
+     Y ademas 'administrador' es un ROL NORMAL: solo puede lo que el dueño le
+     conceda (ver DICCIONARIO-ACCESOS.md).
+     Ahora el dueño se le pregunta a la BASE, con es_dueno(). */
+  var ADMIN_ROLES = [];
 
   var _perms = null;   // array de ids, o '*' = todos, o null = aún cargando
   var _role  = null;
@@ -54,9 +62,31 @@
       var role = (meta.role || '').toString().toLowerCase().trim();
       _role = role;
 
-      /* Un administrador no consulta nada: su '*' sale de la sesion misma,
-         asi que ya es dato firme. */
       if (ADMIN_ROLES.indexOf(role) >= 0) { _perms = '*'; _fresco = true; return; }
+
+      /* ¿ES EL DUEÑO? Se le pregunta a la BASE, no a la metadata.
+         El dueño es la cuenta con la que se registro el restaurante
+         (tenants.owner_user_id) y tiene acceso total POR SERLO, sin rol
+         asignado — no porque el sistema no lo reconozca, que era lo que
+         pasaba antes.
+         Lo guardado en el equipo evita salir a la red en cada pantalla; solo
+         se guarda el SI confirmado, nunca un fallo. */
+      var _cacheDueno = null;
+      try { _cacheDueno = window.posCache && posCache.leer('dueno'); } catch (e) {}
+      if (!porRed && _cacheDueno && _cacheDueno.datos && _cacheDueno.datos.dueno === true) {
+        _perms = '*';
+        _readyFresco = resolver(true);   // la base confirma por detras
+        return;
+      }
+      try {
+        var _rd = await sb.rpc('es_dueno');
+        if (!_rd.error && _rd.data === true) {
+          _perms = '*'; _fresco = true;
+          try { if (window.posCache) posCache.guardar('dueno', { dueno: true }); } catch (e) {}
+          _reEvaluarPuertas();
+          return;
+        }
+      } catch (e) { /* sin red: sigue por el camino del rol */ }
 
       /* Lo guardado en el equipo sirve YA — pero solo para CONCEDER. La
          llave lleva el rol: en un mismo equipo pueden turnarse un mesero y
@@ -93,8 +123,20 @@
         _reEvaluarPuertas();
         return;
       }
-      // Rol no encontrado en pos_roles → no encerrar al usuario.
+      /* Rol no encontrado en pos_roles → no encerrar al usuario.
+         Se mantiene la red de seguridad (encerrar a alguien en pleno servicio
+         es peor), pero DEJANDO RASTRO: hasta hoy era un console.warn que nadie
+         miraba, y por ahi pasaba cualquier rol mal escrito con acceso total.
+         El dato de verdad ya no depende de esto: la base bloquea por su cuenta
+         aunque la pantalla abra de mas. */
       console.warn('[pos-perms] rol no reconocido:', role, '→ acceso completo (fail-open)');
+      try {
+        sb.from('pos_diag').insert({
+          donde: 'pos-perms/rol-no-reconocido',
+          mensaje: 'rol "' + role + '" no existe en pos_roles; se abrio todo por seguridad',
+          extra: { role: role, tenant: meta.tenant_id || null, roles_vistos: rows.map(function (x) { return x.name; }) }
+        });
+      } catch (e) {}
       _perms = '*';
     } catch (e) {
       console.warn('[pos-perms] error resolviendo permisos', e);
