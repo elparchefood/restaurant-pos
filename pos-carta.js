@@ -29,9 +29,19 @@
      note. */
   var _fijada = null;
 
-  function sb() {
-    try { return window.sb || (window._pos && window._pos.sb); }
-    catch (e) { return null; }
+  /* El cliente de Supabase.
+     Se llama `cli` y no `sb` a proposito: varias pantallas declaran su cliente
+     como `const sb` en el nivel superior del archivo, y eso NO queda en
+     `window`. Con el nombre `sb` esta funcion se tapaba a si misma y nunca
+     alcanzaba esa constante — el Catalogo lanzaba "no se sabe en que sucursal
+     estas" teniendo la sucursal delante. */
+  function cli() {
+    try {
+      if (window.sb) return window.sb;
+      if (window._pos && window._pos.sb) return window._pos.sb;
+      if (typeof sb !== 'undefined' && sb) return sb;
+      return null;
+    } catch (e) { return null; }
   }
   /* La sucursal activa. El ultimo recurso es lo guardado en el equipo porque
      el Catalogo NO carga pos-core (declara su propio `sb`, y cargar los dos
@@ -60,7 +70,7 @@
     _cargando = (async function () {
       var mapa = {};
       try {
-        var s = sb();
+        var s = cli();
         if (s) {
           var r = await s.from('pos_producto_sucursal')
             .select('product_id,precio,activo,precios_pres').eq('branch_id', b);
@@ -131,7 +141,7 @@
 
   /* Guardar un ajuste SOLO para esta sucursal. */
   async function ajustar(productId, opts) {
-    var s = sb(), b = sucursalActiva();
+    var s = cli(), b = sucursalActiva();
     if (!s || !b) throw new Error('No se sabe en que sucursal estas');
     var tenantId = (window._pos && window._pos.state && window._pos.state.tenantId) || null;
     var fila = { product_id: productId, branch_id: b, updated_at: new Date().toISOString() };
@@ -162,7 +172,7 @@
      marca — no se "copia de vuelta" un valor, simplemente se deja de tener
      opinion propia. */
   async function restablecer(productId) {
-    var s = sb(), b = sucursalActiva();
+    var s = cli(), b = sucursalActiva();
     if (!s || !b) throw new Error('No se sabe en que sucursal estas');
     var q = s.from('pos_producto_sucursal').delete().eq('branch_id', b);
     if (productId) q = q.eq('product_id', productId);
