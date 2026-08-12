@@ -1798,6 +1798,10 @@ async function confirmarMerma() {
     const r = await iv_sb.rpc('fn_iv_registrar_merma', {
       p_insumo: mermaInsId, p_cantidad: qty, p_campo: mermaCampo,
       p_motivo: mermaMotivo, p_nota: nota || null, p_quien: quien,
+      /* La sede en la que se está botando. Sin esto la merma usaba la
+         sucursal del insumo —que con el inventario por marca es la que lo
+         creó— y habría descontado del local equivocado. */
+      p_branch: branchId,
     });
     if (r.error) throw r.error;
     const out = (r.data && r.data[0]) || {};
