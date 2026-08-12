@@ -1212,9 +1212,25 @@ async function urLoad() {
         return saved ? saved.id : null;
       })(),
       sucursales:  u.sucursales || [],
+      rolesPorSuc: {},          // se llena abajo, desde pos_usuario_sucursal
       active:      u.active !== false
     };
   });
+
+  /* EL ROL POR SUCURSAL vive en su propia tabla (persona + sucursal + rol),
+     porque la misma persona puede ser cajera en una sede y mesera en otra.
+     Se carga en un solo viaje para todos los usuarios de la lista. */
+  try {
+    var _ids = UR.users.map(function(x){ return x.authId || x.id; }).filter(Boolean);
+    if (_ids.length) {
+      var _rs = await sb.from('pos_usuario_sucursal')
+        .select('user_id,branch_id,role_id').in('user_id', _ids);
+      (_rs.data || []).forEach(function(r){
+        var us = UR.users.find(function(x){ return (x.authId || x.id) === r.user_id; });
+        if (us && r.role_id) us.rolesPorSuc[r.branch_id] = r.role_id;
+      });
+    }
+  } catch(e) { console.warn('[usuarios] roles por sucursal:', e && e.message); }
 
   // Branches para el selector de sucursales
   var brandsRes = await sb.from('brands').select('id,name').eq('tenant_id', tenantId);
@@ -1569,10 +1585,25 @@ function urRenderAccessPanel(u) {
     var bChk=bs==='on'?'<span class="cf-check on"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>':bs==='partial'?'<span class="cf-check partial"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="5" y1="12" x2="19" y2="12"/></svg></span>':'<span class="cf-check"></span>';
     var sucItems=brand.sucursales.map(function(s){
       var isOn=(u.sucursales||[]).indexOf(s.id)>=0;
+      /* EL ROL VA POR SUCURSAL: la misma persona puede ser cajera en una sede y
+         mesera en otra. Antes el rol era uno solo para toda la persona.
+         El selector aparece solo en las sucursales a las que SÍ tiene acceso;
+         si no elige ninguno, se usa el rol general del usuario. */
+      var rolSuc = (u.rolesPorSuc && u.rolesPorSuc[s.id]) || '';
+      var selector = isOn
+        ? '<div class="cf-suc-rol" style="padding:6px 10px 10px 40px">'
+          + '<select class="cf-input" data-rolsuc="'+s.id+'" style="width:100%;font-size:12px;padding:5px 8px">'
+          + '<option value="">Mismo rol que su ficha</option>'
+          + UR.roles.map(function(r){
+              return '<option value="'+r.id+'"'+(r.id===rolSuc?' selected':'')+'>'+r.name+'</option>';
+            }).join('')
+          + '</select></div>'
+        : '';
       return '<button class="cf-access-suc'+(isOn?' on':'')+'" data-suc="'+s.id+'">'+
         (isOn?'<span class="cf-check on"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>':'<span class="cf-check"></span>')+
         '<span class="cf-suc-main"><span class="cf-suc-name">'+s.name+'</span><span class="cf-suc-addr">'+s.addr+'</span></span>'+
-        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg></button>';
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg></button>'
+        + selector;
     }).join('');
     div.innerHTML=
       '<button class="cf-marca-head" data-marca="'+brand.id+'">'+bChk+
@@ -1588,8 +1619,28 @@ function urRenderAccessPanel(u) {
     div.querySelectorAll('.cf-access-suc').forEach(function(btn){
       btn.addEventListener('click', function(){
         var sid=btn.dataset.suc, idx=(u.sucursales||[]).indexOf(sid);
-        if(idx>=0) u.sucursales.splice(idx,1); else { if(!u.sucursales) u.sucursales=[]; u.sucursales.push(sid); }
+        if(idx>=0){
+          u.sucursales.splice(idx,1);
+          /* Al quitarle la sucursal se olvida tambien su rol ahi: dejarlo
+             guardado haria que al devolverle el acceso reapareciera un rol que
+             nadie volvio a elegir. */
+          if(u.rolesPorSuc) delete u.rolesPorSuc[sid];
+        } else {
+          if(!u.sucursales) u.sucursales=[];
+          u.sucursales.push(sid);
+        }
         urRenderAccessPanel(u); urRenderUsers();
+      });
+    });
+    /* El selector de rol NO debe propagar el clic: esta dentro de la fila de la
+       sucursal, y sin esto elegir un rol quitaria el acceso. */
+    div.querySelectorAll('[data-rolsuc]').forEach(function(sel){
+      sel.addEventListener('click', function(e){ e.stopPropagation(); });
+      sel.addEventListener('change', function(e){
+        e.stopPropagation();
+        if(!u.rolesPorSuc) u.rolesPorSuc={};
+        if(sel.value) u.rolesPorSuc[sel.dataset.rolsuc]=sel.value;
+        else delete u.rolesPorSuc[sel.dataset.rolsuc];
       });
     });
     marcasEl.appendChild(div);
@@ -1711,10 +1762,55 @@ function urCancelNewUser(u) {
 }
 
 // ── Guardar cambios de usuario existente ─────────────────────
+/* Guarda QUE ROL tiene esta persona EN CADA SUCURSAL.
+   Se reescribe el juego completo de sus filas: se borran las de sucursales que
+   ya no tiene y se dejan las actuales. Si no eligio rol para una sucursal, se
+   guarda igual con el rol general de su ficha — asi la fila existe y el
+   permiso se resuelve por sucursal, que es el camino nuevo. */
+async function urGuardarRolesPorSucursal(u) {
+  var uid = u.authId || u.id;
+  if (!uid) return;
+  var tenantId = (window._pos && window._pos.state && window._pos.state.tenantId) || null;
+  if (!tenantId) {
+    var _me = await cfgUsuario();
+    tenantId = _me && _me.user_metadata && _me.user_metadata.tenant_id;
+  }
+  if (!tenantId) return;
+
+  var sucs = u.sucursales || [];
+  var filas = sucs.map(function (sid) {
+    return {
+      tenant_id: tenantId,
+      user_id:   uid,
+      branch_id: sid,
+      role_id:   (u.rolesPorSuc && u.rolesPorSuc[sid]) || u.roleId || null
+    };
+  });
+
+  /* Primero se quitan las que sobran y despues se suben las que quedan: al
+     reves habria un instante en que la persona no tendria ninguna. */
+  var del = sb.from('pos_usuario_sucursal').delete().eq('user_id', uid);
+  if (sucs.length) del = del.not('branch_id', 'in', '(' + sucs.join(',') + ')');
+  var rDel = await del;
+  if (rDel.error) throw new Error('No se pudieron limpiar los accesos: ' + rDel.error.message);
+
+  if (filas.length) {
+    var rUp = await sb.from('pos_usuario_sucursal')
+      .upsert(filas, { onConflict: 'user_id,branch_id' }).select('id');
+    /* 0 filas sin error es el fallo silencioso de siempre: diria "guardado"
+       sin haber guardado. */
+    if (rUp.error || !rUp.data || !rUp.data.length) {
+      throw new Error('No se pudo guardar el rol por sucursal: ' +
+        ((rUp.error && rUp.error.message) || 'sin permisos'));
+    }
+  }
+}
+
 async function urSaveExistingUser(u) {
   var btn=$('ur-u-save'); if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
   try {
     await urUpdateAuthUser(u);
+    await urGuardarRolesPorSucursal(u);
     urRenderUsers();
     urShowToast('Usuario guardado ✓');
   } catch(e) {
