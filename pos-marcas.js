@@ -98,6 +98,61 @@
     return (ctx.sucursales || []).filter(function (x) { return x.brand_id === brandId; });
   }
 
+  /* ══ EL SWITCH: cambiar de marca y de sucursal ══
+     Regla de Sergio: "en el desplegable no pueden aparecer todas las
+     sucursales revueltas: se debe escoger la marca y luego la sucursal".
+     Por eso van en dos niveles — marca, y debajo SOLO sus sucursales.
+
+     Se apoya en window.posContexto (pos-core), que es quien sabe cuales tiene
+     PERMITIDAS este usuario. Si solo hay una marca no se pinta el nivel de
+     marcas: seria una fila que no decide nada. Y si solo hay una sucursal, no
+     se pinta nada: no hay nada entre lo que elegir. */
+  function _cambiarHTML() {
+    var C = window.posContexto;
+    if (!C) return '';
+    var sucs = C.sucursales(), marcas = C.marcas();
+    if (sucs.length < 2) return '';
+
+    var actual = C.sucursalId(), marcaAct = C.marcaId();
+    var h = '<div class="user-dropdown-divider"></div>'
+          + '<div class="pm-sec">Cambiar de ' + (marcas.length > 1 ? 'marca o sucursal' : 'sucursal') + '</div>';
+
+    marcas.forEach(function (m) {
+      var suyas = C.sucursalesDe(m.id);
+      if (!suyas.length) return;
+      if (marcas.length > 1) {
+        h += '<div class="pm-row" style="padding-bottom:2px">'
+           + '<b style="font-size:11.5px">' + esc(m.name) + '</b>'
+           + (m.id === marcaAct ? '<span class="pm-plan" style="margin-left:auto">ACTUAL</span>' : '')
+           + '</div>';
+      }
+      suyas.forEach(function (s) {
+        var esta = s.id === actual;
+        h += '<button class="user-dropdown-item pm-ir" data-suc="' + esc(s.id) + '"'
+           + (esta ? ' disabled style="opacity:.55;cursor:default"' : '') + '>'
+           + '<span style="width:15px;display:inline-flex;justify-content:center">'
+           + (esta
+              ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+              : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>')
+           + '</span>'
+           + (marcas.length > 1 ? '<span style="padding-left:4px">' : '<span>') + esc(s.name) + '</span>'
+           + '</button>';
+      });
+    });
+    return h;
+  }
+
+  function _engancharCambiar(div) {
+    div.querySelectorAll('.pm-ir').forEach(function (b) {
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (b.disabled) return;
+        b.textContent = 'Cambiando…';
+        window.posContexto.cambiar(b.dataset.suc);   // valida y recarga
+      });
+    });
+  }
+
   // ── Lo que se inyecta en el desplegable ────────────────────────────────
   function pintar() {
     var dd = document.getElementById('user-dropdown');
@@ -129,12 +184,15 @@
       +   '<div class="pm-sub">' + esc(ctx.sucursal ? ctx.sucursal.name : '—') + ' · '
       +     nMarcas + ' marca' + (nMarcas === 1 ? '' : 's') + ' · ' + nSucs + ' sucursal' + (nSucs === 1 ? '' : 'es')
       +   '</div></span></div>'
+      + _cambiarHTML()
       + '<button class="user-dropdown-item" id="pm-nueva-marca">'
       +   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
       +   (puedeMarca ? 'Crear nueva marca' : 'Crear marca (mejora tu plan)') + '</button>'
       + '<button class="user-dropdown-item" id="pm-nueva-suc">'
       +   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
       +   (puedeSuc ? 'Crear nueva sucursal' : 'Crear sucursal (mejora tu plan)') + '</button>';
+
+    _engancharCambiar(div);
 
     var ref = dd.querySelector('.user-dropdown-divider');
     if (ref) dd.insertBefore(div, ref); else dd.appendChild(div);
