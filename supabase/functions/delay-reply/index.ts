@@ -52,6 +52,11 @@ interface PacoState {
      NO es un paso propio: es un dato que capturan los pasos que lo necesitan
      (pedido programado, reserva, para llevar). */
   programado:         string | null;
+  /* Datos de la reserva. null = no se ha preguntado. Una reserva NO es un
+     pedido: se guarda en pos_reservations, no en pos_orders. */
+  reserva:            Record<string, string> | null;
+  /* true = esta conversacion va por reserva, no por pedido. */
+  es_reserva?:        boolean;
   items:              SlotItem[];
   resumen_enviado:            boolean;
   direccion_heredada:         boolean;
@@ -105,7 +110,7 @@ function newPacoState(): PacoState {
   return {
     producto: null, producto_categoria: null, tamano: null, tipo: null, cantidad: 1,
     adiciones: null, preferencias: null, direccion: null, pago: null, nombre: null, tipos: {},
-    factura: null, programado: null,
+    factura: null, programado: null, reserva: null,
     items: [], resumen_enviado: false, direccion_heredada: false, complemento_dir_pendiente: null,
     last_activity: new Date(Date.now() - 30 * 60_000).toISOString(), // 30min atrás → sesionExpirada=true
     _v: 120,
@@ -2605,6 +2610,8 @@ function findNextStep(state: PacoState, pasos: PasoDefinicion[], incluirPostResu
       if (!state.pago) return paso;
     } else if (paso.id === "nombre") {
       if (!state.nombre) return paso;
+    } else if (paso.id === "reserva") {
+      if (state.reserva === null) return paso;
     } else if (paso.id === "programado") {
       /* "" es valido: dijo "cuando este listo". Solo null es "sin preguntar". */
       if (state.programado === null) return paso;
@@ -2790,6 +2797,30 @@ function procesarFlujoCanvas(
         id: "programado", campo: "programado", modo,
         texto: texto || "¿Para cuándo lo quieres? Dime el día y la hora ⏰",
         guia: guia || `Averigua para qué día y hora quiere el pedido, en UNA sola pregunta. ${reglas.join("; ")}.`,
+      });
+    } else if (campo === "reserva") {
+      const pide = (p.reserva_pide || {}) as Record<string, unknown>;
+      const quiere: string[] = [];
+      if (pide.personas !== false) quiere.push("cuántas personas");
+      if (pide.fecha    !== false) quiere.push("qué día");
+      if (pide.hora     !== false) quiere.push("a qué hora");
+      if (pide.zona     === true)  quiere.push("si prefiere alguna zona");
+      if (pide.notas    === true)  quiere.push("si es por alguna ocasión especial");
+      const maxPer  = p.reserva_max_personas == null ? 12 : Number(p.reserva_max_personas) || 1;
+      const minPrep = p.hora_min_prep == null ? 60 : Number(p.hora_min_prep) || 0;
+      const diasMax = p.hora_dias_max == null ? 7  : Number(p.hora_dias_max) || 0;
+      const reglas: string[] = [];
+      if (p.hora_valida_horario !== false) reglas.push("SOLO horas dentro del horario de atención");
+      if (minPrep > 0) reglas.push(`con al menos ${minPrep} minutos de anticipación`);
+      reglas.push(diasMax > 0 ? `hasta ${diasMax} día(s) adelante` : "solo para hoy");
+      reglas.push(`si piden para más de ${maxPer} personas, NO confirmes: di que el restaurante lo revisa y confirma`);
+      reglas.push(p.reserva_pendiente !== false
+        ? "al final avisa que la reserva queda PENDIENTE de confirmación del restaurante"
+        : "al final confirma la reserva");
+      out.push({
+        id: "reserva", campo: "reserva", modo,
+        texto: texto || "¡Con gusto! ¿Para cuántas personas, qué día y a qué hora? 📅",
+        guia: guia || `Estás tomando una RESERVA DE MESA, no un pedido de comida. En UNA sola pregunta averigua: ${quiere.join(", ")}. ${reglas.join("; ")}.`,
       });
     } else if (campo === "factura") {
       const pide = (p.factura_pide || {}) as Record<string, unknown>;

@@ -246,6 +246,18 @@ function acciones(r) {
     b.push('<button class="lm-btn-primary sm js-seat" data-id="' + r.id + '">Sentar</button>');
     b.push('<button class="lm-btn-ghost sm js-mover" data-id="' + r.id + '">Pasar a otra mesa</button>');
     b.push('<button class="lm-btn-ghost sm js-noshow" data-id="' + r.id + '">No-show</button>');
+    /* Aplazar, modificar y cancelar: los tres cambian la reserva SIN borrarla,
+       que es lo que casi siempre pasa de verdad (llaman a correr la hora, a
+       cambiar el numero de personas, o a cancelar). Borrar se deja aparte y
+       solo para las que ya no estan vivas. */
+    b.push('<button class="lm-btn-ghost sm js-aplazar" data-id="' + r.id + '">Aplazar</button>');
+    b.push('<button class="lm-btn-ghost sm js-editar" data-id="' + r.id + '">Modificar</button>');
+    b.push('<button class="lm-btn-ghost sm js-cancelar" data-id="' + r.id + '">Cancelar</button>');
+  }
+  if (r.status === 'cancelada' || r.status === 'no_show') {
+    /* Solo se puede borrar lo que ya no esta vivo: borrar una reserva
+       confirmada por error deja a alguien sin mesa y sin rastro. */
+    b.push('<button class="lm-btn-ghost sm js-borrar" data-id="' + r.id + '" style="color:#DC2626">Borrar</button>');
   }
   if (r.status === 'sentada' || r.status === 'llego') {
     b.push('<button class="lm-btn-ghost sm js-abrir" data-id="' + r.id + '">Ver mesa</button>');
@@ -433,6 +445,66 @@ async function confirmar(id) {
   const r = await sb.from('pos_reservations').update({ status: 'confirmada' }).eq('id', id);
   if (r.error) return toast('No se pudo confirmar: ' + r.error.message);
   toast('Reserva confirmada');
+  await cargarTodo();
+}
+
+/* CANCELAR — no borra. La reserva queda con su rastro (quien la pidio, para
+   cuando) y libera la mesa. Borrarla haria imposible saber que existio. */
+async function cancelar(id) {
+  const r = resDe(id);
+  if (!confirm('¿Cancelar la reserva de ' + ((r && r.customer_name) || 'este cliente') + '?')) return;
+  const upd = await sb.from('pos_reservations').update({ status: 'cancelada', table_id: null }).eq('id', id);
+  if (upd.error) return toast('No se pudo cancelar: ' + upd.error.message);
+  toast('Reserva cancelada');
+  await cargarTodo();
+}
+
+/* APLAZAR — lo que mas llaman a pedir. Solo cambia la fecha y la hora. */
+async function aplazar(id) {
+  const r = resDe(id);
+  if (!r) return;
+  const actual = r.reserved_at ? new Date(r.reserved_at) : new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const valor = actual.getFullYear() + '-' + pad(actual.getMonth()+1) + '-' + pad(actual.getDate())
+              + ' ' + pad(actual.getHours()) + ':' + pad(actual.getMinutes());
+  const txt = prompt('¿Para cuándo se aplaza?  (año-mes-día hora:minuto)', valor);
+  if (!txt) return;
+  const nueva = new Date(txt.replace(' ', 'T'));
+  if (isNaN(nueva.getTime())) return toast('Esa fecha no se entiende. Usa 2026-08-15 20:30');
+  const upd = await sb.from('pos_reservations')
+    .update({ reserved_at: nueva.toISOString(), status: 'pendiente' }).eq('id', id);
+  if (upd.error) return toast('No se pudo aplazar: ' + upd.error.message);
+  toast('Reserva aplazada — queda pendiente de confirmar');
+  await cargarTodo();
+}
+
+/* MODIFICAR — personas y notas. La mesa se cambia con "Pasar a otra mesa" y la
+   hora con "Aplazar": cada boton hace UNA cosa, para que nadie mueva la hora
+   creyendo que corrige el numero de personas. */
+async function editarReserva(id) {
+  const r = resDe(id);
+  if (!r) return;
+  const per = prompt('¿Cuántas personas?', String(r.party_size || 2));
+  if (per === null) return;
+  const n = parseInt(per, 10);
+  if (!n || n < 1) return toast('Ese número de personas no es válido');
+  const notas = prompt('Notas de la reserva (opcional)', r.notes || '');
+  if (notas === null) return;
+  const upd = await sb.from('pos_reservations')
+    .update({ party_size: n, notes: notas || null }).eq('id', id);
+  if (upd.error) return toast('No se pudo modificar: ' + upd.error.message);
+  toast('Reserva modificada');
+  await cargarTodo();
+}
+
+/* BORRAR — de verdad, sin rastro. Solo para canceladas o no-show. */
+async function borrarReserva(id) {
+  const r = resDe(id);
+  if (!confirm('Esto BORRA la reserva de ' + ((r && r.customer_name) || 'este cliente')
+             + ' y no se puede deshacer. Si solo quieres que no ocupe mesa, usa Cancelar.')) return;
+  const del = await sb.from('pos_reservations').delete().eq('id', id);
+  if (del.error) return toast('No se pudo borrar: ' + del.error.message);
+  toast('Reserva borrada');
   await cargarTodo();
 }
 
@@ -798,6 +870,10 @@ function enganchar() {
     if (t.classList.contains('js-mover'))   { abrirMover(t.dataset.id); return; }
     if (t.classList.contains('js-mover-a')) { await mover(t.dataset.id, t.dataset.mesa); return; }
     if (t.classList.contains('js-noshow'))  { await marcarNoShow(t.dataset.id); return; }
+    if (t.classList.contains('js-cancelar')) { await cancelar(t.dataset.id); return; }
+    if (t.classList.contains('js-aplazar'))  { await aplazar(t.dataset.id); return; }
+    if (t.classList.contains('js-editar'))   { await editarReserva(t.dataset.id); return; }
+    if (t.classList.contains('js-borrar'))   { await borrarReserva(t.dataset.id); return; }
     if (t.id === 'btn-seat-ok')             { const sel = $('seat-mesa-sel'); await sentar(t.dataset.id, sel && sel.value); return; }
     if (t.classList.contains('js-abrir'))   { const r = resDe(t.dataset.id); if (r && r.table_id) window.location.href = 'tomar-pedido.html?table=' + r.table_id; return; }
 

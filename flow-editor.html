@@ -448,6 +448,7 @@ function renderPanelBody(id, d) {
     { campo:'nombre',       titulo:'A nombre de quién',ayuda:'El nombre con el que se recibe' },
     { campo:'pago',         titulo:'Método de pago',   ayuda:'Cómo paga, y el comprobante si es digital' },
     { campo:'programado',   titulo:'Pedido programado',ayuda:'Para cuándo lo quiere: día y hora. Valida contra tu horario' },
+    { campo:'reserva',      titulo:'Reserva de mesa', ayuda:'Día, hora, cuántas personas y zona. Crea una RESERVA, no un pedido' },
     { campo:'factura',      titulo:'Datos de factura', ayuda:'Cédula o NIT, nombre y correo, para facturación electrónica' },
   ];
   const CAMPOS_UI = CAJAS.map(x => x.campo);
@@ -625,6 +626,47 @@ function renderPanelBody(id, d) {
         </label>
       </div>
       <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">El cliente puede contestar "cuando esté listo" y el pedido entra sin hora fija.</div>
+      ${bloqueHora(d, id)}
+    </div>`;
+  }
+
+  /* RESERVA DE MESA.
+     Una reserva NO es un pedido: son cosas distintas y se guardan en sitios
+     distintos (pos_reservations, no pos_orders). Poner esta caja en el flujo
+     es lo que le dice al bot que ADEMAS de pedidos puede tomar reservas; sin
+     ella, el bot sabe al 100% que todo lo que llega es un pedido — que es
+     justo lo que evita que en un restaurante sin reservas se cree una por
+     error. */
+  if(['pregunta','ia','fija'].includes(d.type) && d.campo === 'reserva') {
+    html += `<div class="cp-section">
+      <div class="cp-label">Qué debe averiguar para la reserva</div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Todo en el MISMO paso. La reserva no se crea hasta tener lo que marques.</div>
+      ${[['res_personas','Cuántas personas',true],['res_fecha','Día',true],['res_hora','Hora',true],['res_zona','Zona o preferencia de mesa',false],['res_notas','Motivo u ocasión (cumpleaños, aniversario)',false]]
+        .map(o => `<div class="cp-toggle-row" style="margin-top:14px">
+        <span class="cp-toggle-label">${o[1]}</span>
+        <label class="toggle">
+          <input type="checkbox" ${(d[o[0]]===undefined?o[2]:d[o[0]])?'checked':''} onchange="updateField(${id},'${o[0]}',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>`).join('')}
+
+      <div class="cp-section" style="margin-top:16px">
+        <div class="cp-label">Máximo de personas por reserva</div>
+        <input class="cp-input" type="number" min="1" max="200" value="${esc(String(d.res_max_personas==null?12:d.res_max_personas))}" oninput="updateField(${id},'res_max_personas',parseInt(this.value)||1)">
+        <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Por encima de esto el bot no confirma solo: avisa que lo revisa el restaurante.</div>
+      </div>
+
+      <div class="cp-toggle-row" style="margin-top:14px">
+        <span class="cp-toggle-label">La reserva queda PENDIENTE de confirmar</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.res_pendiente!==false?'checked':''} onchange="updateField(${id},'res_pendiente',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5"><b>Recomendado.</b> El bot toma los datos y la reserva aparece en la pantalla de Reservas para que ustedes la confirmen a mano. Apagarlo hace que quede confirmada sola — solo si tienes cupo de sobra.</div>
+
       ${bloqueHora(d, id)}
     </div>`;
   }
@@ -824,7 +866,7 @@ function markDirty() {
   document.getElementById('saveStatus').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;color:var(--amber)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Sin guardar`;
 }
 // Convierte un nodo del canvas en un paso del motor (solo si captura un slot).
-const CAMPOS_SLOT = ['producto','tamano','tipo','direccion','pago','nombre','adiciones','preferencias','upsell','programado','factura'];
+const CAMPOS_SLOT = ['producto','tamano','tipo','direccion','pago','nombre','adiciones','preferencias','upsell','programado','reserva','factura'];
 function pushPaso(d, pasos) {
   if (!d || !d.campo || !CAMPOS_SLOT.includes(d.campo)) return; // nodos sin variable no son pasos de pedido
   // modo: el toggle interno (tipo) manda; sin toggle, hereda del tipo de nodo (ia → conversacional)
@@ -845,6 +887,20 @@ function pushPaso(d, pasos) {
     paso.hora_min_prep       = d.hora_min_prep == null ? 60 : Number(d.hora_min_prep) || 0;
     paso.hora_dias_max       = d.hora_dias_max == null ? 7  : Number(d.hora_dias_max) || 0;
     paso.hora_permite_ya     = d.hora_permite_ya !== false;
+  }
+  if (d.campo === 'reserva') {
+    paso.reserva_pide = {
+      personas: d.res_personas !== false,
+      fecha:    d.res_fecha    !== false,
+      hora:     d.res_hora     !== false,
+      zona:     d.res_zona     === true,
+      notas:    d.res_notas    === true,
+    };
+    paso.reserva_max_personas = d.res_max_personas == null ? 12 : Number(d.res_max_personas) || 1;
+    paso.reserva_pendiente    = d.res_pendiente !== false;
+    paso.hora_valida_horario  = d.hora_valida_horario !== false;
+    paso.hora_min_prep        = d.hora_min_prep == null ? 60 : Number(d.hora_min_prep) || 0;
+    paso.hora_dias_max        = d.hora_dias_max == null ? 7  : Number(d.hora_dias_max) || 0;
   }
   if (d.campo === 'factura') {
     paso.factura_pide = {
