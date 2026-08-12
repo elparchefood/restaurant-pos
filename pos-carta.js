@@ -22,6 +22,12 @@
   var _ajustes = null;     // { product_id: {precio, activo} } de la sucursal activa
   var _branch  = null;
   var _cargando = null;
+  /* Sucursal dicha a mano por la pantalla. La usa el Catalogo, que no carga
+     pos-core y por tanto no tiene posContexto: sin esto, guardar un precio de
+     sede fallaba con "no se sabe en que sucursal estas" — y el error moria
+     dentro de un catch, que es como un ajuste desaparece sin que nadie lo
+     note. */
+  var _fijada = null;
 
   function sb() {
     try { return window.sb || (window._pos && window._pos.sb); }
@@ -33,7 +39,8 @@
      pero la eleccion del switch sigue en el mismo sitio. */
   function sucursalActiva() {
     try {
-      return (window.posContexto && window.posContexto.sucursalId())
+      return _fijada
+          || (window.posContexto && window.posContexto.sucursalId())
           || (window._pos && window._pos.state && window._pos.state.branchId)
           || localStorage.getItem('pos.contexto.sucursal')
           || null;
@@ -186,7 +193,8 @@
     activo: activo, ajustado: ajustado, ajustesDe: ajustesDe, precioBase: precioBaseDe,
     ajustar: ajustar, restablecer: restablecer,
     cuantosAjustados: cuantosAjustados,
-    sucursal: sucursalActiva
+    sucursal: sucursalActiva,
+    fijarSucursal: function (id) { if (id && id !== _fijada) { _fijada = id; _ajustes = null; } }
   };
 
   /* Se precarga en cuanto pos-core sabe la sucursal, para que la primera

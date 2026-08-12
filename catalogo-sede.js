@@ -252,6 +252,9 @@
       try {
         await cargarSedes();
         if (!multiSede()) return;
+        /* Se le dice a posCarta en qué sede estamos: aquí no hay pos-core
+           que se lo cuente. */
+        posCarta.fijarSucursal(ctx().id);
         await posCarta.cargar(true);
         if (typeof renderPage === 'function') renderPage();
       } catch (e) { console.warn('[sede] no se pudo preparar:', e && e.message); }
