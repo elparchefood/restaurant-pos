@@ -28,6 +28,9 @@
      Esta pantalla no puede cargar pos-core: los dos declaran `const sb` y
      juntos rompen la página entera. Pero el switch guarda su elección en
      localStorage y las listas en posCache, así que se lee de ahí. */
+  var _sucs = null;      // sedes conocidas en esta pantalla
+  var _propia = null;    // la sucursal del usuario, del login
+
   function ctx() {
     if (window.posContexto && posContexto.sucursalId()) {
       return {
@@ -36,15 +39,38 @@
         sucs: posContexto.sucursales() || []
       };
     }
-    var sucs = [], id = null;
-    try {
-      var g = window.posCache && posCache.leer('contexto');
-      if (g && g.datos && g.datos.sucs) sucs = g.datos.sucs;
-    } catch (e) {}
+    var sucs = _sucs || [];
+    var id = null;
     try { id = localStorage.getItem('pos.contexto.sucursal'); } catch (e) {}
-    if (!id && sucs.length) id = sucs[0].id;
+    if (!sucs.some(function (s) { return s.id === id; })) id = null;
+    /* Sin elección guardada manda la sucursal del login, NO la primera de la
+       lista: elegir "la primera" mostraría precios de una sede ajena. */
+    if (!id) id = _propia;
+    if (!id && sucs.length === 1) id = sucs[0].id;
     var s = sucs.filter(function (x) { return x.id === id; })[0];
     return { id: id, marca: s ? s.brand_id : null, sucs: sucs };
+  }
+
+  /* Esta pantalla se entera sola de las sedes.
+     Antes dependía de la caché que llena pos-core en OTRAS pantallas: recién
+     creada una sucursal, el Catálogo seguía creyendo que había una sola y el
+     botón no aparecía hasta pasar por otra pantalla. */
+  async function cargarSedes() {
+    try {
+      var g = window.posCache && posCache.leer('contexto');
+      if (g && g.datos && g.datos.sucs) _sucs = g.datos.sucs;
+    } catch (e) {}
+    try {
+      var u = await sb.auth.getUser();
+      var md = (u && u.data && u.data.user && u.data.user.user_metadata) || {};
+      _propia = md.branch_id || null;
+    } catch (e) {}
+    try {
+      /* RLS ya limita a su propio negocio. */
+      var r = await sb.from('branches').select('id,name,brand_id').order('name');
+      if (!r.error && r.data) _sucs = r.data;
+    } catch (e) {}
+    return _sucs || [];
   }
 
   /* ¿Tiene sentido hablar de "esta sede"? Solo con 2 o más sucursales
@@ -211,4 +237,24 @@
   window.cpSedeGuardar      = guardar;
   window.cpSedeRestablecer  = restablecer;
   window.cpRestablecerCarta = restablecerCarta;
+
+  /* Arranque: se espera a que el catálogo tenga sesión, se averiguan las
+     sedes y los ajustes, y solo se repinta si hay algo que mostrar — con una
+     sola sucursal la pantalla queda idéntica a como estaba. */
+  (function init(intentos) {
+    intentos = intentos || 0;
+    var listo = (typeof S !== 'undefined') && S.tenantId;
+    if (!listo) {
+      if (intentos < 40) setTimeout(function () { init(intentos + 1); }, 250);
+      return;
+    }
+    (async function () {
+      try {
+        await cargarSedes();
+        if (!multiSede()) return;
+        await posCarta.cargar(true);
+        if (typeof renderPage === 'function') renderPage();
+      } catch (e) { console.warn('[sede] no se pudo preparar:', e && e.message); }
+    })();
+  })();
 })();
