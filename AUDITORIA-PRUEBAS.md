@@ -179,6 +179,20 @@ con dos o más sedes en la marca.
 > por producto: con dos sedes habría descontado el doble sin avisar. Si ves el
 > doble descuento, es que algo se revirtió.
 
+### Que el inventario se mueva de verdad (lo del 12-ago)
+
+Estas cuatro no se habían migrado y ahora sí. **Hay que probarlas una por una:
+ninguna daba error cuando fallaba, solo un número viejo.**
+
+| # | Qué hacer | Qué debe pasar |
+|---|---|---|
+| 5B.17 | Registrar una **merma** y quedarte en la pantalla | El stock baja **ahí mismo**, no al recargar |
+| 5B.18 | Recargar Inventario | Sigue con el número nuevo |
+| 5B.19 | **Anular** un pedido ya cobrado | Los insumos vuelven, exactos |
+| 5B.20 | Abrir un **conteo físico** | Trae todos los insumos con lo que el sistema cree que hay |
+| 5B.21 | Cerrar el conteo con una diferencia | El stock queda en lo contado |
+| 5B.22 | En modo **por sucursal**, registrar una merma en la sede B | Baja el stock de **B**, no el de A |
+
 ### El interruptor (cuando exista la pantalla)
 
 | # | Qué hacer | Qué debe pasar |

@@ -114,7 +114,7 @@ sede, sin tener que abrir un pedido y mirar el total.
 | 7. El interruptor en el motor de consumo | ✅ 12-ago (`brands.inventario_modo`) |
 | 8. Que la pantalla de Inventario lea `iv_existencias` y el interruptor se pueda tocar | ✅ 12-ago |
 | 9. Alertas y agotados según el modo | ✅ 12-ago (`v_iv_insumos_sede`) |
-| 10. Quitar las columnas viejas (`iv_insumos.stock`) y el espejo | ⬜ falta |
+| 10. Quitar el puente y las columnas viejas | ✅ 12-ago |
 
 **El error que esto tapó, y que no era de multi-marca:**
 `fn_iv_consumir_item` unía las recetas **solo por producto** — no miraba la
@@ -135,9 +135,29 @@ con dos sedes se podía meter la misma receta dos veces).
 Los dos modos **conviven en la misma tabla**: al cambiar el interruptor no se
 migra nada, se lee la otra fila.
 
-**Puente temporal:** mientras la pantalla de Inventario siga leyendo
-`iv_insumos.stock`, `fn_iv_mover_existencia` escribe también ahí — solo en
-modo global, que es donde ese número significa algo. Se quita en el paso 10.
+**El puente ya no existe** (12-ago). `iv_existencias` es la única verdad.
+
+Al quitarlo aparecieron **cuatro funciones que nunca se migraron** y que
+seguían con la columna vieja:
+
+| Función | Qué hacía mal |
+|---|---|
+| `fn_iv_registrar_merma` | escribía solo la columna vieja → **la merma se registraba y la pantalla seguía mostrando el número de antes**. Además usaba la sede del *insumo*, no en la que se está botando |
+| `fn_iv_devolver_item` | igual, en cada anulación |
+| `fn_iv_cerrar_conteo` | igual, al cuadrar un conteo físico |
+| `fn_iv_abrir_conteo` | *leía* la columna vieja **y** filtraba por sede: en una sucursal nueva el conteo salía vacío, y un conteo vacío se cierra sin ajustar nada |
+
+Ninguna daba error. Daban números viejos, que es peor.
+
+**Las columnas viejas se renombraron, no se borraron**
+(`stock_migrado_no_usar`). Si quedó algún lector suelto, ahora **falla a
+gritos** —`column iv_insumos.stock does not exist`— en vez de mostrar un
+número congelado para siempre. Un error se ve; un número viejo no. Los datos
+siguen ahí por si hay que mirar atrás.
+
+Probado el 12-ago sin el puente, en una transacción deshecha: la venta
+descontó 9 insumos, la anulación **devolvió todo exacto** y la merma bajó de 7
+a 5.
 
 Probado el 12-ago con una venta real copiada, dentro de una transacción
 deshecha: los 9 insumos descontaron y existencia y espejo se movieron igual.
