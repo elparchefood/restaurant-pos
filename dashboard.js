@@ -1376,6 +1376,27 @@ function goToAdmin() {
   window.location.href = 'admin-reg.html';
 }
 
+/* El boton "Consola de plataforma" se ESCONDE si no eres admin de plataforma.
+   La consola ya estaba protegida por dos lados (la funcion es_admin_plataforma
+   en admin-reg.js y las politicas de la base), pero el boton estaba fijo en el
+   desplegable de TODOS: un dueño de restaurante lo veia, lo pulsaba y rebotaba.
+   No veia datos, pero se enteraba de que existe una consola de administracion.
+   El comentario de admin-reg.js dice "para que ni siquiera vea la puerta" — esto
+   es lo que faltaba para cumplirlo.
+
+   OJO — esto es SOLO cosmetico. El candado de verdad sigue siendo la base.
+   Esconder un boton nunca es seguridad. */
+async function _ocultarConsolaSiNoEsAdmin() {
+  var btn = document.querySelector('#user-dropdown [onclick="goToAdmin()"]');
+  if (!btn) return;
+  btn.style.display = 'none';            // oculto por defecto: si falla, no se ve
+  try {
+    var r = await sb.rpc('es_admin_plataforma');
+    if (!r.error && r.data === true) btn.style.display = '';
+  } catch (e) { /* ante la duda, sigue oculto */ }
+}
+document.addEventListener('DOMContentLoaded', function () { setTimeout(_ocultarConsolaSiNoEsAdmin, 600); });
+
 // ══════════════════════════════════════════════════════════════
 // QUICK ACTION PANELS — lógica de los 3 paneles modales
 // ══════════════════════════════════════════════════════════════
