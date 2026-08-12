@@ -822,6 +822,11 @@ async function loadCatalog() {
           S.categories = _cd.cats;
           S.products   = _cd.products;
           S.modGroups  = _cd.modGroups || [];
+          /* La copia local guarda los precios de la MARCA; la herencia del
+             local se aplica al leerla. Si se guardara ya ajustada, cambiar de
+             sucursal cobraría los precios de la anterior. */
+          try { if (window.posCarta) { await posCarta.cargar(); posCarta.aplicar(S.products); } }
+          catch (e) { console.warn('[venta-rapida] carta por sucursal:', e && e.message); }
           renderCatGrid(); renderFavs(); refreshBadges();
           setTimeout(function() { _catalogFetch(sb, _ck, true); }, 0);
           return;
@@ -877,6 +882,10 @@ async function loadCatalog() {
           localStorage.setItem(cacheKey, JSON.stringify({ cats: S.categories, products: S.products, modGroups: S.modGroups }));
         }
       } catch(e) {}
+      /* Después de guardar en el equipo: la copia queda con la carta de la
+         marca y el ajuste del local se aplica encima, aquí. */
+      try { if (window.posCarta) { await posCarta.cargar(); posCarta.aplicar(S.products); } }
+      catch (e) { console.warn('[venta-rapida] carta por sucursal:', e && e.message); }
       renderCatGrid(); renderFavs(); refreshBadges();
       return;
     } catch(e) {

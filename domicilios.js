@@ -405,6 +405,10 @@ async function loadCatalog() {
         S.cats      = _cd.cats;
         S.products  = _cd.products;
         S.modGroups = _cd.modGroups || [];
+        /* La copia local trae los precios de la MARCA; el ajuste de este local
+           se aplica encima al leerla. */
+        try { if (window.posCarta) { await posCarta.cargar(); posCarta.aplicar(S.products); } }
+        catch (e) { console.warn('[domicilios] carta por sucursal:', e && e.message); }
         // Pintar inmediatamente desde caché, refrescar en segundo plano
         setTimeout(function() { _catalogFetch(_ck, true); }, 0);
         await _sumarCombos();
@@ -439,8 +443,6 @@ async function _catalogFetch(cacheKey, isBackground) {
        resuelve la herencia en un solo sitio para que ninguna pantalla la
        reinvente y dos acaben cobrando distinto. Sin ajustes (lo normal) no
        cambia nada: se queda el precio de la marca. */
-    try { if (window.posCarta) { await posCarta.cargar(); posCarta.aplicar(prods); } }
-    catch (e) { console.warn('[domicilios] carta por sucursal:', e && e.message); }
     S.cats = (cats || []).map((c, i) => ({
       ...c,
       color: c.color || ['#5B6BFF','#8B5CF6','#EC4899','#F59E0B','#10B981','#0EA5E9','#EF4444','#14B8A6'][i % 8],
@@ -465,6 +467,12 @@ async function _catalogFetch(cacheKey, isBackground) {
         }));
       }
     } catch(e) {}
+    /* Se aplica DESPUES de guardar la copia local: asi el equipo guarda la
+       carta de la MARCA y el ajuste del local se pone encima al leerla. Si se
+       guardara ya ajustada, al cambiar de sucursal se cobrarian los precios
+       de la anterior. */
+    try { if (window.posCarta) { await posCarta.cargar(); posCarta.aplicar(S.products); } }
+    catch (e) { console.warn('[domicilios] carta por sucursal:', e && e.message); }
     await _sumarCombos();
     renderCatGrid();  renderFavPane();
     return;

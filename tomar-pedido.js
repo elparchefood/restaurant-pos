@@ -207,6 +207,11 @@ async function loadCatalog() {
         S.cats      = _cd.cats;
         S.products  = _cd.products;
         S.modGroups = _cd.modGroups || [];
+        /* La copia local guarda los precios de la MARCA; la herencia del local
+           se aplica al leerla. Si se guardara ya ajustada, cambiar de sucursal
+           cobraría los precios de la anterior. */
+        try { if (window.posCarta) { await posCarta.cargar(); posCarta.aplicar(S.products); } }
+        catch (e) { console.warn('[tomar-pedido] carta por sucursal:', e && e.message); }
         // Actualizar en segundo plano sin bloquear el arranque
         setTimeout(function() { _catalogFetch(_ck, true); }, 0);
         await _sumarCombos();
@@ -258,8 +263,12 @@ async function _catalogFetch(cacheKey, isBackground) {
           }));
         }
       } catch(e) {}
+      /* Después de guardar en el equipo: la copia queda con la carta de la
+         marca y el ajuste del local se aplica encima, aquí. */
+      try { if (window.posCarta) { await posCarta.cargar(); posCarta.aplicar(S.products); } }
+      catch (e) { console.warn('[tomar-pedido] carta por sucursal:', e && e.message); }
       await _sumarCombos();
-      renderCatGrid(); 
+      renderCatGrid();
       return;
     } catch(e) {
       console.error('loadCatalog intento ' + intento + ':', e);
