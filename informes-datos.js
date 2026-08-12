@@ -80,7 +80,7 @@
 
     var q = s.from('pos_orders').select(
         'id,status,channel,total,total_final,delivery_fee,tip_amount,discount_amount,' +
-        'guests,waiter_name,payment_method,closed_at,opened_at,cliente_id,notes,' +
+        'guests,waiter_name,payment_method,closed_at,opened_at,cliente_id,notes,session_id,' +
         'tax_total,tax_base,tax_detail,' +
         'pos_order_items(id,product_id,product_name,name,quantity,unit_price,total,selections)')
       .gte('closed_at', r.from).lt('closed_at', r.to)
