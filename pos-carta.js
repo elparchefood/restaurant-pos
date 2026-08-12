@@ -132,14 +132,26 @@
       p.price     = precio(p.id, p.price_base);
       p.available = activo(p.id, p.available);
       p.ajustado  = ajustado(p.id);
+
       /* Las presentaciones tambien: el precio que se cobra sale de aqui
          cuando el producto se vende por tamaños. */
+      var min = null;
       if (Array.isArray(p.presentations)) {
         p.presentations.forEach(function (pr) {
           if (!pr || !pr.id) return;
           if (pr.price_base === undefined) pr.price_base = pr.price;
           pr.price = precioPres(p.id, pr.id, pr.price_base);
+          if (pr.price > 0 && (min === null || pr.price < min)) min = pr.price;
         });
+      }
+      /* El cuadro del producto muestra `price`. En la carta actual el precio
+         base ES la presentacion mas barata (20 de los 22 productos con
+         tamaños de El Parche), asi que al ajustar solo las presentaciones hay
+         que mover tambien el base: si no, el cuadro anuncia $18.000 y la caja
+         cobra $15.000. No se toca si la sede fijo un precio base a mano. */
+      var a = _ajustes && _ajustes[p.id];
+      if (min !== null && a && a.pres && Object.keys(a.pres).length && a.precio == null) {
+        p.price = min;
       }
     });
     return productos || [];
