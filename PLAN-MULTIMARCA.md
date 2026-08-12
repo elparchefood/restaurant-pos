@@ -112,7 +112,7 @@ sede, sin tener que abrir un pedido y mirar el total.
 | 5. Existencias fuera de `iv_insumos` → `iv_existencias` | ✅ 12-ago |
 | 6. Definición, precio y recetas al nivel de la marca | ✅ 12-ago (`brand_id` en insumos, recetas, porciones y alias) |
 | 7. El interruptor en el motor de consumo | ✅ 12-ago (`brands.inventario_modo`) |
-| 8. Que la pantalla de Inventario lea `iv_existencias` y el interruptor se pueda tocar | ⬜ falta |
+| 8. Que la pantalla de Inventario lea `iv_existencias` y el interruptor se pueda tocar | ✅ 12-ago |
 | 9. Alertas según el modo | ⬜ falta |
 | 10. Quitar las columnas viejas (`iv_insumos.stock`) y el espejo | ⬜ falta |
 
@@ -141,6 +141,21 @@ modo global, que es donde ese número significa algo. Se quita en el paso 10.
 
 Probado el 12-ago con una venta real copiada, dentro de una transacción
 deshecha: los 9 insumos descontaron y existencia y espejo se movieron igual.
+
+**Dos cosas que la pantalla hacía mal y no eran del inventario:**
+
+1. Filtraba los insumos, las recetas y las porciones **por sucursal**. Una
+   sede nueva habría visto **cero** de todo y habría tocado crearlo dos veces.
+   Ahora filtra por marca.
+2. Tomaba la sucursal del **login**, no la del switch: con dos locales habrías
+   estado viendo el inventario del otro sin enterarte.
+
+⚠️ **Una tabla nueva no hereda los permisos.** `iv_existencias` nació con RLS y
+su política, pero sin `GRANT`: RLS decide qué filas ve cada quien, el GRANT
+decide si puede tocar la tabla siquiera. La consulta moría con *permission
+denied* y la pantalla mostraba **cero insumos** con los 44 intactos en la base.
+Se detectó porque la prueba se hizo con un insumo de verdad: sin él, una
+pantalla vacía se veía igual que una pantalla rota.
 
 **C. Separar la venta por marca**
 10. Cierre de caja e informes que no mezclen marcas
