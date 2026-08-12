@@ -161,6 +161,38 @@ Probar en **las tres** pantallas, no en una:
 
 ---
 
+## 5B. El inventario por marca ← en construcción
+
+**Ojo:** al escribir esto, el motor ya reparte bien pero **la pantalla de
+Inventario todavía no muestra el interruptor**. Estas pruebas se hacen cuando
+el paso 8 esté listo; se dejan escritas para no olvidarlas.
+
+### Lo que hay que probar sí o sí
+
+| # | Qué hacer | Qué debe pasar |
+|---|---|---|
+| 5B.1 | Crear una segunda sucursal en una marca **que ya tiene insumos y recetas** | La sede nueva ve **todos** los insumos y recetas desde el primer segundo, sin copiar nada |
+| 5B.2 | Vender un producto con receta en la sede nueva | Descuenta. **Y descuenta una sola vez** |
+| 5B.3 | Mirar el movimiento en Inventario | Una línea por insumo, no dos |
+| 5B.4 | Cambiar el precio de un insumo | Cambia para **las dos** sedes: el insumo es de la marca |
+
+> **5B.2 es la prueba clave.** Antes de esto, el motor unía las recetas solo
+> por producto: con dos sedes habría descontado el doble sin avisar. Si ves el
+> doble descuento, es que algo se revirtió.
+
+### El interruptor (cuando exista la pantalla)
+
+| # | Qué hacer | Qué debe pasar |
+|---|---|---|
+| 5B.5 | Dejar la marca en **global** y vender en la sede A | El stock baja y **las dos sedes** lo ven bajar |
+| 5B.6 | En global, poner un insumo bajo mínimo | La alerta la ven **todas** las sedes |
+| 5B.7 | Cambiar a **por sucursal** | Avisa qué va a pasar y **no deja** si el inventario no está cuadrado |
+| 5B.8 | En por sucursal, vender en la sede A | Solo baja el stock de A. B queda igual |
+| 5B.9 | En por sucursal, insumo bajo mínimo en A | La alerta la ve **solo A** |
+| 5B.10 | Cambiar el interruptor en la Marca 1 | La Marca 2 **no se entera**: cada marca decide lo suyo |
+
+---
+
 ## 6. Lo que se arregló antes y conviene volver a mirar
 
 | # | Qué hacer | Qué debe pasar |

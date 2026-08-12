@@ -105,12 +105,42 @@ apagado.
 `posCarta.diag()` en la consola dice si una pantalla aplicó la carta de su
 sede, sin tener que abrir un pedido y mirar el total.
 
-**B. Inventario** (la pieza más grande)
-5. Sacar las existencias de `iv_insumos` a su propia tabla
-6. Definición, precio y recetas al nivel de la marca
-7. El interruptor global/por sucursal, en las funciones de consumo
-8. Alertas según el modo
-9. Migrar los 44 insumos y 374 recetas actuales
+**B. Inventario** ← EN CURSO
+
+| Paso | Estado |
+|---|---|
+| 5. Existencias fuera de `iv_insumos` → `iv_existencias` | ✅ 12-ago |
+| 6. Definición, precio y recetas al nivel de la marca | ✅ 12-ago (`brand_id` en insumos, recetas, porciones y alias) |
+| 7. El interruptor en el motor de consumo | ✅ 12-ago (`brands.inventario_modo`) |
+| 8. Que la pantalla de Inventario lea `iv_existencias` y el interruptor se pueda tocar | ⬜ falta |
+| 9. Alertas según el modo | ⬜ falta |
+| 10. Quitar las columnas viejas (`iv_insumos.stock`) y el espejo | ⬜ falta |
+
+**El error que esto tapó, y que no era de multi-marca:**
+`fn_iv_consumir_item` unía las recetas **solo por producto** — no miraba la
+sucursal en ningún sitio. Con una sede funcionaba. Con dos, cada venta habría
+encontrado la receta de las dos, las habría sumado y habría **descontado el
+doble**, sin quejarse. Ahora filtra por marca, y el índice que impedía
+duplicar una receta también pasó a ser por marca (antes era por sede, así que
+con dos sedes se podía meter la misma receta dos veces).
+
+**Cómo quedó el reparto:**
+
+| | Dónde vive |
+|---|---|
+| Qué ES el insumo (nombre, unidades, conversión, precio, mínimo) | `iv_insumos` — de la **marca** |
+| CUÁNTO HAY | `iv_existencias` — `branch_id NULL` = bolsa común; lleno = esa sede |
+| Recetas | `iv_recetas` — de la **marca** |
+
+Los dos modos **conviven en la misma tabla**: al cambiar el interruptor no se
+migra nada, se lee la otra fila.
+
+**Puente temporal:** mientras la pantalla de Inventario siga leyendo
+`iv_insumos.stock`, `fn_iv_mover_existencia` escribe también ahí — solo en
+modo global, que es donde ese número significa algo. Se quita en el paso 10.
+
+Probado el 12-ago con una venta real copiada, dentro de una transacción
+deshecha: los 9 insumos descontaron y existencia y espejo se movieron igual.
 
 **C. Separar la venta por marca**
 10. Cierre de caja e informes que no mezclen marcas
