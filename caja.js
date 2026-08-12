@@ -440,7 +440,11 @@ function clearHistFilters(){
 async function loadActiveSession(branchId) {
   try {
     const q = sb.from('pos_sessions').select('*').eq('status','open');
-    if (branchId) q.eq('branch_id', branchId);
+    /* SIN SEDE NO SE MUESTRA PLATA. Antes, si no se sabia la sucursal, se
+       traia el restaurante ENTERO: con dos marcas eso son totales revueltos
+       que se ven perfectamente normales. Mejor no dar un numero que darlo mal. */
+    if (!branchId) { console.warn('[caja] sin sucursal: loadActiveSession'); return null; }
+    q.eq('branch_id', branchId);
     q.order('opened_at',{ascending:false}).limit(1);
     const { data } = await q;
     return (data && data[0]) || null;
@@ -451,7 +455,11 @@ async function loadOrders(branchId, sinceISO, untilISO) {
   try {
     const q = sb.from('pos_orders').select('*').gte('created_at', sinceISO);
     if (untilISO) q.lte('created_at', untilISO);
-    if (branchId) q.eq('branch_id', branchId);
+    /* SIN SEDE NO SE MUESTRA PLATA. Antes, si no se sabia la sucursal, se
+       traia el restaurante ENTERO: con dos marcas eso son totales revueltos
+       que se ven perfectamente normales. Mejor no dar un numero que darlo mal. */
+    if (!branchId) { console.warn('[caja] sin sucursal: loadOrders'); return []; }
+    q.eq('branch_id', branchId);
     q.order('created_at',{ascending:false});
     const { data } = await q;
     return (data || []).map(cjNormalizeVenta);
@@ -462,7 +470,11 @@ async function loadOrderItems(branchId, sinceISO, untilISO) {
   try {
     const q = sb.from('pos_order_items').select('*').gte('created_at', sinceISO);
     if (untilISO) q.lte('created_at', untilISO);
-    if (branchId) q.eq('branch_id', branchId);
+    /* SIN SEDE NO SE MUESTRA PLATA. Antes, si no se sabia la sucursal, se
+       traia el restaurante ENTERO: con dos marcas eso son totales revueltos
+       que se ven perfectamente normales. Mejor no dar un numero que darlo mal. */
+    if (!branchId) { console.warn('[caja] sin sucursal: loadOrderItems'); return []; }
+    q.eq('branch_id', branchId);
     const { data } = await q;
     return data || [];
   } catch(e) { console.error('loadOrderItems:',e); return []; }
@@ -471,7 +483,11 @@ async function loadOrderItems(branchId, sinceISO, untilISO) {
 async function loadAllSessions(branchId) {
   try {
     const q = sb.from('pos_sessions').select('*').eq('status','closed');
-    if (branchId) q.eq('branch_id', branchId);
+    /* SIN SEDE NO SE MUESTRA PLATA. Antes, si no se sabia la sucursal, se
+       traia el restaurante ENTERO: con dos marcas eso son totales revueltos
+       que se ven perfectamente normales. Mejor no dar un numero que darlo mal. */
+    if (!branchId) { console.warn('[caja] sin sucursal: loadAllSessions'); return []; }
+    q.eq('branch_id', branchId);
     q.order('closed_at',{ascending:false}).limit(30);
     const { data } = await q;
     return data || [];
@@ -512,7 +528,11 @@ async function loadPagosPorMetodo(branchId, sinceISO, orders) {
   const conDesglose = new Set();
   try {
     const q = sb.from('pos_payments').select('order_id, method, amount, created_at').gte('created_at', sinceISO);
-    if (branchId) q.eq('branch_id', branchId);
+    /* SIN SEDE NO SE MUESTRA PLATA. Antes, si no se sabia la sucursal, se
+       traia el restaurante ENTERO: con dos marcas eso son totales revueltos
+       que se ven perfectamente normales. Mejor no dar un numero que darlo mal. */
+    if (!branchId) { console.warn('[caja] sin sucursal: loadPagosPorMetodo'); return []; }
+    q.eq('branch_id', branchId);
     const { data } = await q;
     (data || []).forEach(p => {
       const k = resolverMetodo(p.method) || String(p.method || '').toLowerCase();
@@ -664,7 +684,9 @@ async function getPedidosAbiertos() {
       .not('status', 'in', '("cancelled","abandoned")')
       .gte('created_at', S.session.opened_at)
       .order('created_at', { ascending: true });
-    if (S.branchId) q.eq('branch_id', S.branchId);
+    /* Sin sede, este filtro no casa con nada: cero filas en vez de las
+       ventas de todas las marcas juntas. */
+    q.eq('branch_id', S.branchId || '00000000-0000-0000-0000-000000000000');
     const { data } = await q;
     // Vivo = en un estado de trabajo, o con saldo pendiente, o (venta rápida/domicilio)
     // que aún NO esté ENTREGADO. No se puede cerrar la caja con algo sin entregar.
@@ -1136,7 +1158,9 @@ async function checkOpenShifts() {
   try {
     const q = sb.from('pos_shifts').select('id, waiter_id, started_at, pos_users!waiter_id(name, role)')
       .eq('status', 'active');
-    if (S.branchId) q.eq('branch_id', S.branchId);
+    /* Sin sede, este filtro no casa con nada: cero filas en vez de las
+       ventas de todas las marcas juntas. */
+    q.eq('branch_id', S.branchId || '00000000-0000-0000-0000-000000000000');
     const { data } = await q;
     return data || [];
   } catch(e) { console.error('checkOpenShifts:', e); return []; }
@@ -1699,7 +1723,9 @@ async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoCon
     const qOrfanas = sb.from('pos_sessions').update({
       status: 'closed', closed_at: new Date().toISOString(),
     }).eq('status', 'open').neq('id', S.session.id);
-    if (S.branchId) qOrfanas.eq('branch_id', S.branchId);
+    /* Sin sede, este filtro no casa con nada: cero filas en vez de las
+       ventas de todas las marcas juntas. */
+    qOrfanas.eq('branch_id', S.branchId || '00000000-0000-0000-0000-000000000000');
     await qOrfanas;
 
     // Al cerrar caja, el día terminó: se limpian las etiquetas de estado de los
@@ -1945,14 +1971,18 @@ async function loadResumenData(pid) {
 
   try {
     const qOrd = sb.from('pos_orders').select('*').gte('created_at', startISO).lte('created_at', endISO);
-    if (S.branchId) qOrd.eq('branch_id', S.branchId);
+    /* Sin sede, este filtro no casa con nada: cero filas en vez de las
+       ventas de todas las marcas juntas. */
+    qOrd.eq('branch_id', S.branchId || '00000000-0000-0000-0000-000000000000');
     const { data: od } = await qOrd;
     orders = od || [];
   } catch(e) { console.warn('rsOrders:', e); }
 
   try {
     const qIt = sb.from('pos_order_items').select('*').gte('created_at', startISO).lte('created_at', endISO);
-    if (S.branchId) qIt.eq('branch_id', S.branchId);
+    /* Sin sede, este filtro no casa con nada: cero filas en vez de las
+       ventas de todas las marcas juntas. */
+    qIt.eq('branch_id', S.branchId || '00000000-0000-0000-0000-000000000000');
     const { data: it } = await qIt;
     items = it || [];
   } catch(e) { console.warn('rsItems:', e); }
@@ -1963,7 +1993,9 @@ async function loadResumenData(pid) {
       moves = mv || [];
     } else {
       const qMv = sb.from('pos_cash_moves').select('*').gte('created_at', startISO).lte('created_at', endISO);
-      if (S.branchId) qMv.eq('branch_id', S.branchId);
+      /* Sin sede, este filtro no casa con nada: cero filas en vez de las
+       ventas de todas las marcas juntas. */
+    qMv.eq('branch_id', S.branchId || '00000000-0000-0000-0000-000000000000');
       const { data: mv } = await qMv;
       moves = mv || [];
     }
@@ -1972,7 +2004,9 @@ async function loadResumenData(pid) {
   try {
     const qSess = sb.from('pos_sessions').select('*').eq('status','closed')
       .gte('closed_at', startISO).lte('closed_at', endISO);
-    if (S.branchId) qSess.eq('branch_id', S.branchId);
+    /* Sin sede, este filtro no casa con nada: cero filas en vez de las
+       ventas de todas las marcas juntas. */
+    qSess.eq('branch_id', S.branchId || '00000000-0000-0000-0000-000000000000');
     const { data: sd } = await qSess;
     periodSessions = sd || [];
   } catch(e) { console.warn('rsSessions:', e); }
@@ -1990,7 +2024,9 @@ async function loadResumenData(pid) {
     const payStart = pid === 'turno' ? s.opened_at : startISO;
     const payEnd   = pid === 'turno' ? (s.closed_at || new Date().toISOString()) : endISO;
     const qPay = sb.from('pos_payments').select('order_id, method, amount').gte('created_at', payStart).lte('created_at', payEnd);
-    if (S.branchId) qPay.eq('branch_id', S.branchId);
+    /* Sin sede, este filtro no casa con nada: cero filas en vez de las
+       ventas de todas las marcas juntas. */
+    qPay.eq('branch_id', S.branchId || '00000000-0000-0000-0000-000000000000');
     const { data: pays } = await qPay;
     const conDesglose = new Set();
     (pays||[]).forEach(p => {
@@ -2071,7 +2107,9 @@ async function loadResumenData(pid) {
   try {
     const qPrev = sb.from('pos_sessions').select('total_sales,closed_at').eq('status','closed')
       .lt('closed_at', s.opened_at).order('closed_at',{ascending:false}).limit(1);
-    if (S.branchId) qPrev.eq('branch_id', S.branchId);
+    /* Sin sede, este filtro no casa con nada: cero filas en vez de las
+       ventas de todas las marcas juntas. */
+    qPrev.eq('branch_id', S.branchId || '00000000-0000-0000-0000-000000000000');
     const { data: pd } = await qPrev;
     if (pd && pd[0]) comp.prev = parseFloat(pd[0].total_sales)||0;
   } catch(e) {}
@@ -2080,7 +2118,9 @@ async function loadResumenData(pid) {
   try {
     const qSp = sb.from('pos_sessions').select('total_sales').eq('status','closed')
       .lte('closed_at', endISO).order('closed_at',{ascending:false}).limit(6);
-    if (S.branchId) qSp.eq('branch_id', S.branchId);
+    /* Sin sede, este filtro no casa con nada: cero filas en vez de las
+       ventas de todas las marcas juntas. */
+    qSp.eq('branch_id', S.branchId || '00000000-0000-0000-0000-000000000000');
     const { data: spd } = await qSp;
     if (spd) spark = spd.reverse().map(x=>parseFloat(x.total_sales)||0);
   } catch(e) {}

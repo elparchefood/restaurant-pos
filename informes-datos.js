@@ -1,3 +1,10 @@
+/* LA SEDE ES OBLIGATORIA EN LOS INFORMES.
+   Antes cada consulta decia "si sé la sucursal, filtro; si no, traigo todo el
+   restaurante". Con una sola marca daba igual. Con dos, un informe sumaria las
+   ventas de las DOS y el numero se veria perfectamente normal — que es la peor
+   clase de error: nadie lo revisa porque nada parece roto.
+   Ahora, sin sede, el filtro apunta a una sucursal que no existe: el informe
+   sale en cero, y un cero raro se nota. */
 /* ═══════════════ INFORMES · DATOS REALES ═══════════════
    Cada cargador devuelve {kpis, blocks} con EXACTAMENTE la misma forma que el
    registro de informes-data.js, así que el renderer no cambia nunca.
@@ -15,6 +22,22 @@
 
   var sb = function () { return window._pos && window._pos.sb; };
   var CTX = { tenantId: null, branchId: null };
+  /* Una sucursal que no existe: sirve para que una consulta sin sede devuelva
+     cero filas en vez de las ventas de todas las marcas juntas. */
+  var SIN_SEDE = '00000000-0000-0000-0000-000000000000';
+
+  /* De que marca es la sede que se esta mirando. Se guarda porque lo pregunta
+     mas de un informe y no cambia mientras no se cambie de sede. */
+  var _marcaCache = { branch: null, brand: null };
+  async function marcaDeLaSede() {
+    if (!CTX.branchId) return null;
+    if (_marcaCache.branch === CTX.branchId) return _marcaCache.brand;
+    try {
+      var r = await sb().from('branches').select('brand_id').eq('id', CTX.branchId).maybeSingle();
+      _marcaCache = { branch: CTX.branchId, brand: (r.data && r.data.brand_id) || null };
+    } catch (e) { _marcaCache = { branch: CTX.branchId, brand: null }; }
+    return _marcaCache.brand;
+  }
 
   var COP = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
   var NUM = new Intl.NumberFormat('es-CO');
@@ -48,7 +71,7 @@
         'pos_order_items(id,product_id,product_name,name,quantity,unit_price,total,selections)')
       .eq('status', 'paid').gte('closed_at', r.from).lt('closed_at', r.to)
       .order('closed_at', { ascending: true });
-    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    q = q.eq('branch_id', (CTX.branchId || SIN_SEDE));
     if (CTX.tenantId) q = q.eq('tenant_id', CTX.tenantId);
     var res = await q;
     if (res.error) throw res.error;
@@ -88,11 +111,17 @@
     var s = sb();
     var unit = {}, lineas = [], presDe = {}, porDefecto = {};
     try {
+      /* Los insumos y las recetas son de la MARCA, no de la sede: filtrarlos
+         por sucursal dejaba el costeo de una sede nueva SIN recetas — y un
+         costeo sin recetas no da error, da margen del 100%. */
+      var marca = await marcaDeLaSede();
       var qi = s.from('iv_insumos').select('id,precio,conversion');
       var qr = s.from('iv_recetas').select('product_id,insumo_id,cantidad,cantidades,variant_option_id,mod_option_id,merma');
       var qp = s.from('pos_products').select('id,presentations,variables');
       var qm = s.from('iv_params').select('merma_enabled');
-      if (CTX.branchId) { qi = qi.eq('branch_id', CTX.branchId); qr = qr.eq('branch_id', CTX.branchId); qm = qm.eq('branch_id', CTX.branchId); }
+      qi = marca ? qi.eq('brand_id', marca) : qi.eq('branch_id', SIN_SEDE);
+      qr = marca ? qr.eq('brand_id', marca) : qr.eq('branch_id', SIN_SEDE);
+      qm = qm.eq('branch_id', (CTX.branchId || SIN_SEDE));
       if (CTX.tenantId) qp = qp.eq('tenant_id', CTX.tenantId);
       var res = await Promise.all([qi, qr, qp, qm]);
       var mermaOn = !(res[3].data && res[3].data[0] && res[3].data[0].merma_enabled === false);
@@ -672,7 +701,7 @@
     var s = sb(); var r = rango(p);
     var qc = s.from('chat_conversations')
       .select('id,contact_name,contact_handle,order_id,created_at,last_message_at,human_takeover,labels');
-    if (CTX.branchId) qc = qc.eq('branch_id', CTX.branchId);
+    qc = qc.eq('branch_id', (CTX.branchId || SIN_SEDE));
     var rc = await qc; if (rc.error) throw rc.error;
     var convs = (rc.data || []).filter(function (c) {
       var f = c.last_message_at || c.created_at;
@@ -741,7 +770,7 @@
       .select('id,customer_name,channel,total,total_final,delivery_fee,waiter_name,notes,created_at,opened_at,closed_at,discount_amount,discount_motivo')
       .eq('status', 'cancelled').gte('created_at', r.from).lt('created_at', r.to)
       .order('created_at', { ascending: false });
-    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    q = q.eq('branch_id', (CTX.branchId || SIN_SEDE));
     var ra = await q; if (ra.error) throw ra.error;
     var anul = ra.data || [];
 
@@ -802,7 +831,7 @@
     var q = s.from('pos_sessions')
       .select('id,cashier_name,opened_at,closed_at,opening_cash,closing_cash,total_sales,arqueo_contado,arqueo_diff,status,shift_type')
       .gte('opened_at', r.from).lt('opened_at', r.to).order('opened_at', { ascending: false });
-    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    q = q.eq('branch_id', (CTX.branchId || SIN_SEDE));
     var rs = await q; if (rs.error) throw rs.error;
     var ses = rs.data || []; if (!ses.length) return vacio();
 
@@ -840,7 +869,7 @@
     var s = sb(); var r = rango(p);
     var q = s.from('pos_cash_moves').select('id,type,amount,concept,medio,created_by,created_at')
       .gte('created_at', r.from).lt('created_at', r.to).order('created_at', { ascending: false });
-    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    q = q.eq('branch_id', (CTX.branchId || SIN_SEDE));
     var rm = await q; if (rm.error) throw rm.error;
     var mov = rm.data || []; if (!mov.length) return vacio();
 
@@ -886,7 +915,7 @@
        resuelto (bolsa comun o propia, segun el modo de la marca). */
     var q = s.from('v_iv_insumos_sede')
       .select('id,nombre,categoria,buy_unit,use_unit,precio,conversion,stock,stock_servicio,min_stock,sub_inventario,activo');
-    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    q = q.eq('branch_id', (CTX.branchId || SIN_SEDE));
     var ri = await q; if (ri.error) throw ri.error;
     var ins = (ri.data || []).filter(function (x) { return x.activo !== false; });
     if (!ins.length) return vacio();
@@ -936,14 +965,14 @@
     var s = sb(); var r = rango(p);
     var q = s.from('iv_movimientos').select('id,insumo_id,delta,campo,motivo,order_id,reversed,created_at')
       .gte('created_at', r.from).lt('created_at', r.to).order('created_at', { ascending: false }).limit(1000);
-    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    q = q.eq('branch_id', (CTX.branchId || SIN_SEDE));
     var rm = await q; if (rm.error) throw rm.error;
     var mov = rm.data || []; if (!mov.length) return vacio();
 
     var nombres = {};
     try {
       var qi = s.from('iv_insumos').select('id,nombre,use_unit');
-      if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
+      qi = qi.eq('branch_id', (CTX.branchId || SIN_SEDE));
       var ri = await qi;
       (ri.data || []).forEach(function (x) { nombres[x.id] = x; });
     } catch (e) {}
@@ -979,7 +1008,7 @@
     var s = sb(); var r = rango(p);
     var q = s.from('iv_movimientos').select('insumo_id,delta,motivo,created_at')
       .gt('delta', 0).gte('created_at', r.from).lt('created_at', r.to).limit(2000);
-    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    q = q.eq('branch_id', (CTX.branchId || SIN_SEDE));
     var rm = await q; if (rm.error) throw rm.error;
     // Las entradas por devolución de un pedido anulado NO son compras.
     var mov = (rm.data || []).filter(function (m) { return String(m.motivo || '').toLowerCase().indexOf('devol') < 0; });
@@ -988,7 +1017,7 @@
     var ins = {};
     try {
       var qi = s.from('iv_insumos').select('id,nombre,buy_unit,use_unit,precio,conversion,categoria');
-      if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
+      qi = qi.eq('branch_id', (CTX.branchId || SIN_SEDE));
       var ri = await qi;
       (ri.data || []).forEach(function (x) { ins[x.id] = x; });
     } catch (e) {}
@@ -1090,7 +1119,7 @@
     async function traer(desde, hasta) {
       var q = s.from('pos_orders').select('total,total_final,delivery_fee,channel,tip_amount')
         .eq('status', 'paid').gte('closed_at', desde.toISOString()).lt('closed_at', hasta.toISOString());
-      if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+      q = q.eq('branch_id', (CTX.branchId || SIN_SEDE));
       var r = await q; if (r.error) throw r.error;
       var L = r.data || [];
       var venta = L.reduce(function (a, o) {
@@ -1148,9 +1177,9 @@
     try {
       var qm = s.from('iv_movimientos').select('insumo_id,delta,motivo')
         .gt('delta', 0).gte('created_at', r.from).lt('created_at', r.to).limit(2000);
-      if (CTX.branchId) qm = qm.eq('branch_id', CTX.branchId);
+      qm = qm.eq('branch_id', (CTX.branchId || SIN_SEDE));
       var qi = s.from('iv_insumos').select('id,precio,conversion');
-      if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
+      qi = qi.eq('branch_id', (CTX.branchId || SIN_SEDE));
       var res = await Promise.all([qm, qi]);
       var precio = {};
       // delta está en unidad de COMPRA, así que se multiplica por el precio de
@@ -1167,7 +1196,7 @@
     try {
       var qe = s.from('pos_cash_moves').select('type,amount')
         .gte('created_at', r.from).lt('created_at', r.to);
-      if (CTX.branchId) qe = qe.eq('branch_id', CTX.branchId);
+      qe = qe.eq('branch_id', (CTX.branchId || SIN_SEDE));
       var re = await qe;
       (re.data || []).forEach(function (m) {
         var esE = String(m.type || '').toLowerCase().indexOf('egre') === 0 || m.type === 'out';
@@ -1210,7 +1239,7 @@
     var q = s.from('pos_orders').select('id,customer_name,notes,opened_at,created_at,delivered_at,closed_at,total,delivery_fee')
       .eq('channel', 'domicilio').eq('status', 'paid')
       .gte('closed_at', r.from).lt('closed_at', r.to);
-    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    q = q.eq('branch_id', (CTX.branchId || SIN_SEDE));
     var ro = await q; if (ro.error) throw ro.error;
     var L = (ro.data || []).filter(function (o) { return o.delivered_at; });
     if (!L.length) return vacio();
@@ -1352,7 +1381,7 @@
     try {
       var qm = s.from('iv_movimientos').select('insumo_id,delta,motivo')
         .lt('delta', 0).gte('created_at', r.from).lt('created_at', r.to).limit(3000);
-      if (CTX.branchId) qm = qm.eq('branch_id', CTX.branchId);
+      qm = qm.eq('branch_id', (CTX.branchId || SIN_SEDE));
       var rm = await qm;
       (rm.data || []).forEach(function (m) {
         real[m.insumo_id] = (real[m.insumo_id] || 0) + Math.abs(parseFloat(m.delta) || 0);
@@ -1362,7 +1391,7 @@
     var ins = {};
     try {
       var qi = s.from('iv_insumos').select('id,nombre,use_unit,buy_unit,precio,conversion');
-      if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
+      qi = qi.eq('branch_id', (CTX.branchId || SIN_SEDE));
       var ri = await qi;
       (ri.data || []).forEach(function (x) { ins[x.id] = x; });
     } catch (e) {}
@@ -1415,7 +1444,7 @@
     var s = sb(); var r = rango(p);
     var qi = s.from('v_iv_insumos_sede')
       .select('id,nombre,categoria,use_unit,buy_unit,precio,conversion,stock,stock_servicio,min_stock,sub_inventario,activo');
-    if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
+    qi = qi.eq('branch_id', (CTX.branchId || SIN_SEDE));
     var ri = await qi; if (ri.error) throw ri.error;
     var ins = (ri.data || []).filter(function (x) { return x.activo !== false; });
     if (!ins.length) return vacio();
@@ -1425,7 +1454,7 @@
     try {
       var qm = s.from('iv_movimientos').select('insumo_id,delta')
         .lt('delta', 0).gte('created_at', r.from).lt('created_at', r.to).limit(3000);
-      if (CTX.branchId) qm = qm.eq('branch_id', CTX.branchId);
+      qm = qm.eq('branch_id', (CTX.branchId || SIN_SEDE));
       var rm = await qm;
       (rm.data || []).forEach(function (m) {
         cons[m.insumo_id] = (cons[m.insumo_id] || 0) + Math.abs(parseFloat(m.delta) || 0);
@@ -1488,14 +1517,14 @@
     var s = sb(); var r = rango(p);
     var q = s.from('iv_merma').select('insumo_id,cantidad,campo,motivo,nota,costo,registrado_por,created_at')
       .gte('created_at', r.from).lt('created_at', r.to).order('created_at', { ascending: false });
-    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    q = q.eq('branch_id', (CTX.branchId || SIN_SEDE));
     var rm = await q; if (rm.error) throw rm.error;
     var mer = rm.data || []; if (!mer.length) return vacio();
 
     var ins = {};
     try {
       var qi = s.from('iv_insumos').select('id,nombre,buy_unit,use_unit,precio,conversion,categoria');
-      if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
+      qi = qi.eq('branch_id', (CTX.branchId || SIN_SEDE));
       var ri = await qi;
       (ri.data || []).forEach(function (x) { ins[x.id] = x; });
     } catch (e) {}
@@ -1629,7 +1658,7 @@
   R['caj-creditos'] = async function (p) {
     var s = sb();
     var q = s.from('v_creditos').select('*');
-    if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
+    q = q.eq('branch_id', (CTX.branchId || SIN_SEDE));
     var rc = await q; if (rc.error) throw rc.error;
     var lista = rc.data || []; if (!lista.length) return vacio();
 
@@ -1643,7 +1672,7 @@
     try {
       var qm = s.from('pos_credito_movimientos').select('tipo,monto')
         .gte('created_at', r.from).lt('created_at', r.to);
-      if (CTX.branchId) qm = qm.eq('branch_id', CTX.branchId);
+      qm = qm.eq('branch_id', (CTX.branchId || SIN_SEDE));
       var rm = await qm;
       (rm.data || []).forEach(function (m) {
         if (m.tipo === 'abono') abonos += Number(m.monto) || 0;
@@ -1696,7 +1725,7 @@
     var s = sb(); var r = rango(p);
     var qc = s.from('iv_conteos').select('*')
       .gte('created_at', r.from).lt('created_at', r.to).order('created_at', { ascending: false });
-    if (CTX.branchId) qc = qc.eq('branch_id', CTX.branchId);
+    qc = qc.eq('branch_id', (CTX.branchId || SIN_SEDE));
     var rc = await qc; if (rc.error) throw rc.error;
     var conteos = (rc.data || []).filter(function (x) { return x.estado === 'cerrado'; });
 
@@ -1705,7 +1734,7 @@
     try {
       var qm = s.from('iv_movimientos').select('insumo_id,delta,motivo,created_at')
         .eq('motivo', 'ajuste manual').gte('created_at', r.from).lt('created_at', r.to).limit(500);
-      if (CTX.branchId) qm = qm.eq('branch_id', CTX.branchId);
+      qm = qm.eq('branch_id', (CTX.branchId || SIN_SEDE));
       var rm = await qm; manuales = rm.data || [];
     } catch (e) {}
 
@@ -1714,7 +1743,7 @@
     var ins = {};
     try {
       var qi = s.from('iv_insumos').select('id,nombre,buy_unit,precio');
-      if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
+      qi = qi.eq('branch_id', (CTX.branchId || SIN_SEDE));
       var ri = await qi;
       (ri.data || []).forEach(function (x) { ins[x.id] = x; });
     } catch (e) {}
