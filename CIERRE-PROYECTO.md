@@ -207,6 +207,24 @@ sola.
 En los tres que guardan se comprueba que el UPDATE devolvió filas: 0 filas sin
 error es el fallo silencioso que ya nos mordió antes ("Guardado ✓" sin guardar).
 
+
+### Extra encontrado al verificar (11-ago-2026)
+
+- [x] **El Escritorio no se actualizaba solo.** Salio revisando la consola tras
+      cerrar la Fase 2b. `loadPrintTimes()` escribia en `qb-print-sub`, un
+      elemento que **no existe** en `dashboard.html` (solo existe
+      `qb-receipt-sub`), asi que reventaba en su PRIMERA linea. Y se llamaba en
+      el arranque justo ANTES de `setupRealtime()`, de modo que la excepcion se
+      llevaba por delante el tiempo real y el `setInterval` de 5 minutos.
+      **Sintoma:** los numeros salian correctos al cargar y se congelaban ahi
+      hasta un F5. El peor tipo de fallo, porque parece que funciona.
+      **Comprobado antes y despues:** antes solo existia el canal
+      `pos-notify-msgs` (de otro modulo); ahora tambien `realtime:dash :: joined`.
+      Se reordeno el arranque (primero lo que mantiene vivo el dashboard,
+      despues lo cosmetico) y se envolvieron las llamadas.
+      ⚠️ No se puso "Ultima <hora>" porque seria mentira: esa es la hora actual,
+      no la de la ultima impresion, y no hay tabla que la guarde.
+
 ---
 
 ## FASE 3 — Verificar antes de vender
