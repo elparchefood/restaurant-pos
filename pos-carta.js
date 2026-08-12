@@ -27,10 +27,15 @@
     try { return window.sb || (window._pos && window._pos.sb); }
     catch (e) { return null; }
   }
+  /* La sucursal activa. El ultimo recurso es lo guardado en el equipo porque
+     el Catalogo NO carga pos-core (declara su propio `sb`, y cargar los dos
+     revienta la pagina con "sb ya fue declarado"). Ahi no existe posContexto,
+     pero la eleccion del switch sigue en el mismo sitio. */
   function sucursalActiva() {
     try {
       return (window.posContexto && window.posContexto.sucursalId())
           || (window._pos && window._pos.state && window._pos.state.branchId)
+          || localStorage.getItem('pos.contexto.sucursal')
           || null;
     } catch (e) { return null; }
   }
@@ -51,9 +56,9 @@
         var s = sb();
         if (s) {
           var r = await s.from('pos_producto_sucursal')
-            .select('product_id,precio,activo').eq('branch_id', b);
+            .select('product_id,precio,activo,precios_pres').eq('branch_id', b);
           (r.data || []).forEach(function (x) {
-            mapa[x.product_id] = { precio: x.precio, activo: x.activo };
+            mapa[x.product_id] = { precio: x.precio, activo: x.activo, pres: x.precios_pres || null };
           });
         }
       } catch (e) { console.warn('[carta] sin ajustes de sucursal:', e && e.message); }
@@ -77,7 +82,20 @@
   }
   function ajustado(productId) {
     var a = _ajustes && _ajustes[productId];
-    return !!(a && (a.precio != null || a.activo != null));
+    if (!a) return false;
+    var tienePres = a.pres && Object.keys(a.pres).length > 0;
+    return !!(a.precio != null || a.activo != null || tienePres);
+  }
+
+  /* El precio de UNA presentacion en esta sucursal.
+     Existe porque 22 de los 53 productos de El Parche se venden por
+     presentacion (Personal/Familiar): el cobro sale de ahi, no de `price`.
+     Ajustar solo `price` habria dejado sin efecto el 41% de la carta, en
+     silencio. */
+  function precioPres(productId, presId, precioBase) {
+    var a = _ajustes && _ajustes[productId];
+    var v = a && a.pres && a.pres[presId];
+    return (v != null) ? Number(v) : Number(precioBase) || 0;
   }
   function precioBaseDe(productId, precioBase) { return Number(precioBase) || 0; }
 
@@ -91,6 +109,15 @@
       p.price     = precio(p.id, p.price_base);
       p.available = activo(p.id, p.available);
       p.ajustado  = ajustado(p.id);
+      /* Las presentaciones tambien: el precio que se cobra sale de aqui
+         cuando el producto se vende por tamaños. */
+      if (Array.isArray(p.presentations)) {
+        p.presentations.forEach(function (pr) {
+          if (!pr || !pr.id) return;
+          if (pr.price_base === undefined) pr.price_base = pr.price;
+          pr.price = precioPres(p.id, pr.id, pr.price_base);
+        });
+      }
     });
     return productos || [];
   }
@@ -100,9 +127,20 @@
     var s = sb(), b = sucursalActiva();
     if (!s || !b) throw new Error('No se sabe en que sucursal estas');
     var tenantId = (window._pos && window._pos.state && window._pos.state.tenantId) || null;
-    var fila = { tenant_id: tenantId, product_id: productId, branch_id: b, updated_at: new Date().toISOString() };
+    var fila = { product_id: productId, branch_id: b, updated_at: new Date().toISOString() };
+    /* Solo se manda si se sabe. Mandar null lo pisaria: la columna tiene
+       DEFAULT current_tenant_id(), que acierta siempre. En el Catalogo no hay
+       pos-core y por tanto no hay tenant a mano. */
+    if (tenantId) fila.tenant_id = tenantId;
     if (opts && 'precio' in opts) fila.precio = (opts.precio === null ? null : Number(opts.precio));
     if (opts && 'activo' in opts) fila.activo = opts.activo;
+    /* Se manda el mapa COMPLETO de presentaciones ajustadas, no un parche:
+       quitar el ajuste de una presentacion es mandarla fuera del mapa. */
+    if (opts && 'pres' in opts) {
+      var m = opts.pres || {}, limpio = {};
+      Object.keys(m).forEach(function (k) { if (m[k] != null) limpio[k] = Number(m[k]); });
+      fila.precios_pres = Object.keys(limpio).length ? limpio : null;
+    }
     var r = await s.from('pos_producto_sucursal')
       .upsert(fila, { onConflict: 'product_id,branch_id' }).select('id');
     /* 0 filas sin error es el fallo silencioso de siempre. */
@@ -133,9 +171,19 @@
     return Object.keys(_ajustes || {}).length;
   }
 
+  /* Lo que esta ajustado hoy para un producto. Lo usa la pantalla para pintar
+     los campos sin volver a consultar. */
+  function ajustesDe(productId) {
+    var a = (_ajustes && _ajustes[productId]) || {};
+    return { precio: a.precio != null ? Number(a.precio) : null,
+             activo: a.activo != null ? !!a.activo : null,
+             pres: a.pres ? JSON.parse(JSON.stringify(a.pres)) : {} };
+  }
+
   window.posCarta = {
     cargar: cargar, aplicar: aplicar,
-    precio: precio, activo: activo, ajustado: ajustado, precioBase: precioBaseDe,
+    precio: precio, precioPres: precioPres,
+    activo: activo, ajustado: ajustado, ajustesDe: ajustesDe, precioBase: precioBaseDe,
     ajustar: ajustar, restablecer: restablecer,
     cuantosAjustados: cuantosAjustados,
     sucursal: sucursalActiva
