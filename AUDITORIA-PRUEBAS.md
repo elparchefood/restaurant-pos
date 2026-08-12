@@ -191,6 +191,20 @@ el paso 8 esté listo; se dejan escritas para no olvidarlas.
 | 5B.9 | En por sucursal, insumo bajo mínimo en A | La alerta la ve **solo A** |
 | 5B.10 | Cambiar el interruptor en la Marca 1 | La Marca 2 **no se entera**: cada marca decide lo suyo |
 
+### Que las alertas y los agotados cuadren en TODAS las pantallas
+
+Un insumo agotado tiene que verse igual en los cinco sitios. Si dos dicen
+cosas distintas, es el error más caro de encontrar.
+
+| # | Qué hacer | Qué debe pasar |
+|---|---|---|
+| 5B.11 | Dejar un insumo en cero y mirar **Inventario** | Sale en alerta |
+| 5B.12 | Mirar el **Escritorio** (dashboard) | Sale el mismo insumo |
+| 5B.13 | Intentar **vender** un producto que lo lleva | Lo bloquea (o avisa, según cómo tengas "vender sin inventario") |
+| 5B.14 | **Cerrar caja** | Aparece en la lista de insumos bajos |
+| 5B.15 | Abrir el **informe de inventario** | Mismo número |
+| 5B.16 | En modo **por sucursal**, repetir 5B.11–5B.15 desde la **otra** sede | Esa sede **no** ve la alerta: el insumo está agotado en la primera, no en ella |
+
 ---
 
 ## 6. Lo que se arregló antes y conviene volver a mirar

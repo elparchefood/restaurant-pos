@@ -113,7 +113,7 @@ sede, sin tener que abrir un pedido y mirar el total.
 | 6. Definición, precio y recetas al nivel de la marca | ✅ 12-ago (`brand_id` en insumos, recetas, porciones y alias) |
 | 7. El interruptor en el motor de consumo | ✅ 12-ago (`brands.inventario_modo`) |
 | 8. Que la pantalla de Inventario lea `iv_existencias` y el interruptor se pueda tocar | ✅ 12-ago |
-| 9. Alertas según el modo | ⬜ falta |
+| 9. Alertas y agotados según el modo | ✅ 12-ago (`v_iv_insumos_sede`) |
 | 10. Quitar las columnas viejas (`iv_insumos.stock`) y el espejo | ⬜ falta |
 
 **El error que esto tapó, y que no era de multi-marca:**
@@ -156,6 +156,23 @@ decide si puede tocar la tabla siquiera. La consulta moría con *permission
 denied* y la pantalla mostraba **cero insumos** con los 44 intactos en la base.
 Se detectó porque la prueba se hizo con un insumo de verdad: sin él, una
 pantalla vacía se veía igual que una pantalla rota.
+
+**Una sola regla, en la base.** `v_iv_insumos_sede` devuelve una fila por
+insumo y sede con el *cuánto hay* ya resuelto según el modo de la marca. Se
+hizo así porque ya iban **cuatro pantallas** calculándolo por su cuenta
+(Inventario, pos-stock, Dashboard, Informes) — y ese es exactamente el camino
+por el que dos pantallas acaban diciendo cosas distintas, como pasó con
+`payment_method`. Ahora una pantalla solo pregunta: *dame los insumos de esta
+sede*.
+
+La vista lleva `security_invoker`: aplica el aislamiento de **quien pregunta**,
+no el de quien la creó. Sin eso sería un agujero — cualquier restaurante
+vería los insumos de todos. Comprobado el 12-ago: la cuenta demo ve **0**
+filas, no las 44 de El Parche.
+
+`pos-stock.js` tenía el mismo error que Inventario: filtraba recetas por sede,
+así que en una sucursal nueva **no habría marcado nada agotado nunca** — se
+habría vendido todo sin stock, en silencio.
 
 **C. Separar la venta por marca**
 10. Cierre de caja e informes que no mezclen marcas
