@@ -111,6 +111,22 @@
       }
     } catch (e) { console.warn('[Informes] pagos:', e); }
 
+    /* EL TURNO DE VERDAD.
+       `pos_orders.turno` es un NUMERO: el consecutivo de la venta del dia
+       ("Turno #001"). El turno que entiende un restaurante —Mañana, Tarde,
+       Noche— vive en la sesion de caja. Filtrar por el numero habria sido
+       otro filtro que dice una cosa y hace otra. */
+    try {
+      var sids = [];
+      lista.forEach(function (o) { if (o.session_id && sids.indexOf(o.session_id) < 0) sids.push(o.session_id); });
+      if (sids.length) {
+        var rs = await s.from('pos_sessions').select('id,shift_type').in('id', sids);
+        var mapa = {};
+        (rs.data || []).forEach(function (x) { mapa[x.id] = x.shift_type; });
+        lista.forEach(function (o) { o._turno = mapa[o.session_id] || null; });
+      }
+    } catch (e) { console.warn('[Informes] turnos:', e); }
+
     /* `todos` = sin los filtros de esta pantalla. De ahi salen las OPCIONES,
        para que la lista no se vacie a medida que uno filtra. */
     _cache = { key: key, datos: { lista: filtrar(lista), todos: lista, pagos: pagos, rango: r } };
@@ -121,7 +137,7 @@
   function filtrar(lista) {
     return (lista || []).filter(function (o) {
       if (FILTROS.caja     && String(o.session_id || '') !== FILTROS.caja) return false;
-      if (FILTROS.turno    && String(o.turno || '')      !== FILTROS.turno) return false;
+      if (FILTROS.turno    && String(o._turno || '')     !== FILTROS.turno) return false;
       if (FILTROS.canal    && String(o.channel || '')    !== FILTROS.canal) return false;
       if (FILTROS.empleado && String(o.waiter_name || '')!== FILTROS.empleado) return false;
       return true;
@@ -147,7 +163,7 @@
     return {
       canal:    unicos('channel'),
       empleado: unicos('waiter_name'),
-      turno:    unicos('turno'),
+      turno:    unicos('_turno'),
       caja:     unicos('session_id'),
       estado:   ['paid', 'cancelled'],
     };
