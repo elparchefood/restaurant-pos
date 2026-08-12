@@ -434,6 +434,13 @@ async function _catalogFetch(cacheKey, isBackground) {
     if (catsRes.error) throw catsRes.error;
     if (prodsRes.error) throw prodsRes.error;
     const cats = catsRes.data, prods = prodsRes.data, mods = modsRes.data;
+    /* LA CARTA ES DE LA MARCA, con ajustes por local: si esta sucursal tiene
+       un precio propio para un producto, es ESE el que se cobra. pos-carta
+       resuelve la herencia en un solo sitio para que ninguna pantalla la
+       reinvente y dos acaben cobrando distinto. Sin ajustes (lo normal) no
+       cambia nada: se queda el precio de la marca. */
+    try { if (window.posCarta) { await posCarta.cargar(); posCarta.aplicar(prods); } }
+    catch (e) { console.warn('[domicilios] carta por sucursal:', e && e.message); }
     S.cats = (cats || []).map((c, i) => ({
       ...c,
       color: c.color || ['#5B6BFF','#8B5CF6','#EC4899','#F59E0B','#10B981','#0EA5E9','#EF4444','#14B8A6'][i % 8],
