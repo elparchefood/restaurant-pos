@@ -37,8 +37,10 @@ Porque su correo lleva el dominio de la marca
 en dos marcas, **le crea dos cuentas**.
 
 **5. Una persona puede tener VARIAS sucursales, con rol distinto en cada una.**
-Puede ser cajero en una y mesero en otra. Hoy esto NO se puede: `pos_users`
-guarda un solo `role_id` para toda la persona.
+Puede ser cajero en una y mesero en otra. Vive en **`pos_usuario_sucursal`**
+(persona + sucursal + rol). `pos_users.role_id` sigue existiendo como respaldo:
+mientras no haya fila en la tabla nueva, se resuelve como antes y nadie se
+queda encerrado.
 
 **6. La identidad nunca vive en un dato que el usuario pueda editar.**
 Ver abajo.
@@ -103,7 +105,8 @@ el cliente número 2.**
 | `Administrador` como rol normal | ✅ **12-ago** — dejó de ser `system_role` |
 | `ADMIN_ROLES` en pos-perms | ✅ **vaciado** — bastaba escribirse "gerente" en la metadata |
 | Contexto de marca/sucursal | ✅ **12-ago** — `window.posContexto` en pos-core |
-| Rol por sucursal | 🔴 falta (una persona: un rol para todas sus sucursales) |
+| Rol por sucursal | ✅ **12-ago** — tabla `pos_usuario_sucursal` + `permisos_en_sucursal()` |
+| Asignar el rol por sucursal desde la pantalla | 🔴 falta (hoy solo por base de datos) |
 
 
 ---
@@ -124,3 +127,22 @@ El usuario **puede** seguir reescribiendo su metadata. Ya no le sirve de nada.
 **La distinción importante:** la pantalla puede equivocarse y mostrar de más,
 pero la base ya no entrega datos ajenos pase lo que pase. Antes las dos capas
 dependían del mismo dato manipulable.
+
+
+---
+
+## ⚠️ Trampa de arranque (12-ago-2026)
+
+`pos-perms` se resuelve **apenas se carga el archivo**, y `pos-core` averigua la
+sesion y la sucursal de forma **asincrona**. Sin esperar, pos-perms preguntaba
+"¿que permisos tengo en esta sucursal?" sin saber todavia cual era, se saltaba
+el rol-por-sucursal y caia en el camino viejo — que para un rol no reconocido
+abre TODO.
+
+**Sintoma medido:** un usuario con rol Cajero tenia `informes.ver` en true.
+
+Cerrado con `_esperarContexto()`, que aguarda `core:ready` con tope de tiempo.
+`_pos.on` reentrega los eventos ya emitidos, asi que llegar tarde no cuelga.
+
+**La leccion:** cuando un modulo depende de otro que arranca asincrono, no basta
+con el orden de los `<script>`.
