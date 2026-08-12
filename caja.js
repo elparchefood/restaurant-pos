@@ -1425,7 +1425,9 @@ function cjEquivalencia(stock, conversion, useUnit) {
    falla, devuelve lista vacía y el cierre sale igual que siempre. */
 async function cjInsumosBajos() {
   try {
-    const { data } = await sb.from('iv_insumos')
+    /* La vista ya resuelve de que bolsa sale el "cuanto hay" segun el modo de
+       la marca: aqui solo se pide "lo de esta sede". */
+    const { data } = await sb.from('v_iv_insumos_sede')
       .select('nombre, stock, min_stock, buy_unit, use_unit, conversion, control_manual, agotado_manual, sub_inventario, stock_servicio')
       .eq('branch_id', S.branchId).eq('activo', true);
     return (data || []).filter(function (i) {

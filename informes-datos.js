@@ -882,7 +882,9 @@
      Cuánta plata tienes parada en la bodega y en la nevera. */
   R['inv-stock'] = async function () {
     var s = sb();
-    var q = s.from('iv_insumos')
+    /* v_iv_insumos_sede: una fila por insumo con el stock de ESTA sede ya
+       resuelto (bolsa comun o propia, segun el modo de la marca). */
+    var q = s.from('v_iv_insumos_sede')
       .select('id,nombre,categoria,buy_unit,use_unit,precio,conversion,stock,stock_servicio,min_stock,sub_inventario,activo');
     if (CTX.branchId) q = q.eq('branch_id', CTX.branchId);
     var ri = await q; if (ri.error) throw ri.error;
@@ -1411,7 +1413,7 @@
      Qué comprar y cuánto, según lo que se está consumiendo de verdad. */
   R['inv-planificador'] = async function (p) {
     var s = sb(); var r = rango(p);
-    var qi = s.from('iv_insumos')
+    var qi = s.from('v_iv_insumos_sede')
       .select('id,nombre,categoria,use_unit,buy_unit,precio,conversion,stock,stock_servicio,min_stock,sub_inventario,activo');
     if (CTX.branchId) qi = qi.eq('branch_id', CTX.branchId);
     var ri = await qi; if (ri.error) throw ri.error;

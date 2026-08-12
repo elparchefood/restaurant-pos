@@ -1636,16 +1636,40 @@ async function qmLoadMeseros() {
      · agotado_manual  → el cocinero lo marcó agotado aunque el número diga otra
                          cosa; para el dashboard cuenta como agotado. */
 async function dashLeerInsumos(branchId) {
+  /* QUIEN VE LA ALERTA depende del modo de la marca:
+       global   → una sola bolsa: la escasez es de todas las sedes y la alerta
+                  la ven todas, porque el bulto que se acaba es el de todas.
+       sucursal → cada sede tiene lo suyo: solo esa sede ve su alerta. */
+  var brandId = null, modo = 'global';
+  try {
+    var br = await sb.from('branches').select('brand_id').eq('id', branchId).maybeSingle();
+    brandId = (br.data && br.data.brand_id) || null;
+    if (brandId) {
+      var ma = await sb.from('brands').select('inventario_modo').eq('id', brandId).maybeSingle();
+      modo = (ma.data && ma.data.inventario_modo) || 'global';
+    }
+  } catch (e) {}
+
   var q = sb.from('iv_insumos')
-    .select('nombre,categoria,stock,stock_servicio,sub_inventario,min_stock,buy_unit,use_unit,activo,agotado_manual,control_manual');
-  if (branchId) q = q.eq('branch_id', branchId);
+    .select('nombre,categoria,sub_inventario,min_stock,buy_unit,use_unit,activo,control_manual,iv_existencias(branch_id,stock,stock_servicio,agotado_manual)');
+  if (brandId) q = q.eq('brand_id', brandId);
+  else if (branchId) q = q.eq('branch_id', branchId);
   var r = await q;
   if (r.error) { console.warn('[dashboard] iv_insumos:', r.error); return []; }
+
+  var sedeEx = (modo === 'sucursal') ? branchId : null;
+  function exDe(i) {
+    var l = i.iv_existencias || [];
+    for (var k = 0; k < l.length; k++) if ((l[k].branch_id || null) === sedeEx) return l[k];
+    return {};
+  }
+
   return (r.data || [])
     .filter(function (i) { return i.activo !== false; })
     .map(function (i) {
-      var disp = (parseFloat(i.stock) || 0) + (i.sub_inventario ? (parseFloat(i.stock_servicio) || 0) : 0);
-      if (i.agotado_manual) disp = 0;
+      var e = exDe(i);
+      var disp = (parseFloat(e.stock) || 0) + (i.sub_inventario ? (parseFloat(e.stock_servicio) || 0) : 0);
+      if (e.agotado_manual) disp = 0;
       return {
         name: i.nombre, category: i.categoria || '',
         stock: disp, min_stock: parseFloat(i.min_stock) || 0,

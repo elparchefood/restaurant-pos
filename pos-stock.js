@@ -79,18 +79,54 @@
       try {
         var u = await sb.auth.getUser();
         var meta = (u && u.data && u.data.user && u.data.user.user_metadata) || {};
-        var branchId = meta.branch_id, tenantId = meta.tenant_id;
+        var tenantId = meta.tenant_id;
 
-        var qi = sb.from('iv_insumos').select('id,nombre,stock,control_manual,agotado_manual,sub_inventario,stock_servicio,vender_bodega,aviso_bodega');
-        if (branchId) qi = qi.eq('branch_id', branchId); else if (tenantId) qi = qi.eq('tenant_id', tenantId);
+        /* LA SEDE EN LA QUE SE ESTA VENDIENDO, no la del login. Este modulo
+           decide que se puede vender: con la sede equivocada bloquearia
+           productos que aqui si hay, o dejaria vender lo que no. */
+        var branchId = meta.branch_id;
+        try {
+          var elegida = localStorage.getItem('pos.contexto.sucursal');
+          if (elegida) branchId = elegida;
+        } catch (e) {}
+
+        /* Los insumos y las recetas son de la MARCA. Filtrar por sede dejaba a
+           una sucursal nueva SIN recetas — y sin recetas nada se marca agotado
+           nunca: se venderia todo, en silencio. */
+        var brandId = null, modo = 'global';
+        try {
+          var br = await sb.from('branches').select('brand_id').eq('id', branchId).maybeSingle();
+          brandId = (br.data && br.data.brand_id) || null;
+          if (brandId) {
+            var ma = await sb.from('brands').select('inventario_modo').eq('id', brandId).maybeSingle();
+            modo = (ma.data && ma.data.inventario_modo) || 'global';
+          }
+        } catch (e) {}
+
+        var qi = sb.from('iv_insumos').select('id,nombre,control_manual,sub_inventario,vender_bodega,aviso_bodega,iv_existencias(branch_id,stock,stock_servicio,agotado_manual)');
+        if (brandId) qi = qi.eq('brand_id', brandId);
+        else if (branchId) qi = qi.eq('branch_id', branchId);
+        else if (tenantId) qi = qi.eq('tenant_id', tenantId);
         // Ahora traemos variant_option_id + cantidades para diferenciar por sabor/variante,
         // y mod_option_id para las recetas de adiciones (modificadores).
         var qr = sb.from('iv_recetas').select('product_id,insumo_id,variant_option_id,cantidades,mod_option_id');
-        if (branchId) qr = qr.eq('branch_id', branchId); else if (tenantId) qr = qr.eq('tenant_id', tenantId);
+        if (brandId) qr = qr.eq('brand_id', brandId);
+        else if (branchId) qr = qr.eq('branch_id', branchId);
+        else if (tenantId) qr = qr.eq('tenant_id', tenantId);
 
         var resI = await qi;
         var resR = await qr;
-        (resI.data || []).forEach(function (i) { S._ins[i.id] = { nombre: i.nombre, stock: num(i.stock), manual: !!i.control_manual, agotadoManual: !!i.agotado_manual, sub: !!i.sub_inventario, servicio: num(i.stock_servicio), venderBodega: !!i.vender_bodega, avisoBodega: i.aviso_bodega || '' }; });
+
+        /* De que bolsa se lee: la comun de la marca, o la de esta sede. */
+        var sedeEx = (modo === 'sucursal') ? branchId : null;
+        function exDe(i) {
+          var l = i.iv_existencias || [];
+          for (var k = 0; k < l.length; k++) {
+            if ((l[k].branch_id || null) === sedeEx) return l[k];
+          }
+          return {};
+        }
+        (resI.data || []).forEach(function (i) { var e = exDe(i); S._ins[i.id] = { nombre: i.nombre, stock: num(e.stock), manual: !!i.control_manual, agotadoManual: !!e.agotado_manual, sub: !!i.sub_inventario, servicio: num(e.stock_servicio), venderBodega: !!i.vender_bodega, avisoBodega: i.aviso_bodega || '' }; });
         (resR.data || []).forEach(function (r) {
           if (r.mod_option_id) {   // receta de una adición (opción de modificador)
             if (!S._modLines[r.mod_option_id]) S._modLines[r.mod_option_id] = [];
