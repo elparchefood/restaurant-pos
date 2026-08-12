@@ -98,7 +98,29 @@ el cliente número 2.**
 |---|---|
 | Consola de plataforma: la página | ✅ `es_admin_plataforma()` + políticas de la base |
 | Consola de plataforma: el botón | ✅ oculto para quien no es admin (12-ago) |
-| Aislamiento entre clientes (RLS) | ⚠️ existe, pero apoyado en un dato editable |
-| Dueño reconocido como dueño | 🔴 falta |
-| Rol por sucursal | 🔴 falta |
-| `Administrador` como rol normal | 🔴 hoy es `system_role` = acceso total |
+| Aislamiento entre clientes (RLS) | ✅ **cerrado 12-ago** — `current_tenant_id()` lee de `pos_users`, y las 12 políticas que leían el token se reescribieron |
+| Dueño reconocido como dueño | ✅ **12-ago** — `tenants.owner_user_id` + `es_dueno()` |
+| `Administrador` como rol normal | ✅ **12-ago** — dejó de ser `system_role` |
+| `ADMIN_ROLES` en pos-perms | ✅ **vaciado** — bastaba escribirse "gerente" en la metadata |
+| Contexto de marca/sucursal | ✅ **12-ago** — `window.posContexto` en pos-core |
+| Rol por sucursal | 🔴 falta (una persona: un rol para todas sus sucursales) |
+
+
+---
+
+## Comprobado con un ataque real (12-ago-2026)
+
+Desde la cuenta demo, cambiándose `tenant_id` y `role` en su propia metadata
+para hacerse pasar por El Parche:
+
+| | Antes | Después |
+|---|---|---|
+| Productos de El Parche | **61** 🔴 | **8** (solo los suyos) ✅ |
+| Pedidos / clientes / puntos | 0 | 0 ✅ |
+| Tenant que asigna la base | el del token | **el suyo** ✅ |
+
+El usuario **puede** seguir reescribiendo su metadata. Ya no le sirve de nada.
+
+**La distinción importante:** la pantalla puede equivocarse y mostrar de más,
+pero la base ya no entrega datos ajenos pase lo que pase. Antes las dos capas
+dependían del mismo dato manipulable.
