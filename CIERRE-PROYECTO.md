@@ -28,6 +28,13 @@ Cosas que Sergio pidió en su momento y nunca se construyeron, o quedaron a medi
 - [x] **Respuestas rápidas con variables** — un solo editor, con fichas, en
       Configuración → Mensajes. `2026-08-09`
 - [x] **Pantalla de pago** — los 7 puntos de la lista del 2026-08-08. `2026-08-09`
+- [x] **Multi-marca completa** — A (cartas y precios por sede), B (inventario
+      por marca, con el interruptor global/por sucursal) y C (caja e informes
+      que no mezclan marcas). Detalle y trampas en `PLAN-MULTIMARCA.md`.
+      `2026-08-12`
+- [x] **Filtros de informes** — eran de la maqueta: mostraban valores
+      inventados y no filtraban. Ahora son reales; los que no tenían dato
+      detrás se quitaron. `2026-08-12`
 - [x] **Reservas · "Crear con IA"** — se pega el mensaje de WhatsApp y sale la
       reserva armada. Motor: `extraer-reserva` (v4). `2026-08-09`
 - [x] **Modal de recarga exitosa** — `avisoRecarga()` en `app-cliente.js`: el
@@ -47,8 +54,6 @@ Cosas que Sergio pidió en su momento y nunca se construyeron, o quedaron a medi
 
 - [ ] **Subida del banner en "Mi página web"** — *aplazado por Sergio el
       2026-08-09*: las imágenes del carrusel se suben desde Cobra.
-- [ ] **Multi-marca, fases 2 a 4** — la fase 1 (la base) está hecha; ver
-      entradas 103 y 104 de `ESTADO-SISTEMA.md`.
 - [ ] **Historias de Instagram** — falta el endpoint.
 - [ ] **Atajo "se acabó"** — *Sergio todavía no decidió dónde va*. No empezar
       hasta que lo diga.
