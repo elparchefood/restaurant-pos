@@ -28,6 +28,11 @@
      dentro de un catch, que es como un ajuste desaparece sin que nadie lo
      note. */
   var _fijada = null;
+  /* Rastro, no adivinanza: cuantas veces esta pantalla aplico la carta de su
+     sede y a cuantos productos. Sin esto, la unica forma de saber si una
+     pantalla cobra los precios del local era abrir el pedido y mirar el total.
+     `posCarta.diag()` en la consola lo responde en un segundo. */
+  var _veces = 0, _ultimo = 0;
 
   /* El cliente de Supabase.
      Se llama `cli` y no `sb` a proposito: varias pantallas declaran su cliente
@@ -120,6 +125,7 @@
      Devuelve la MISMA lista con `price` y `available` resueltos para esta
      sucursal, y deja el original en `price_base` para poder mostrarlo. */
   function aplicar(productos) {
+    _veces++; _ultimo = (productos || []).length;
     (productos || []).forEach(function (p) {
       if (!p || !p.id) return;
       if (p.price_base === undefined) p.price_base = p.price;
@@ -204,7 +210,11 @@
     ajustar: ajustar, restablecer: restablecer,
     cuantosAjustados: cuantosAjustados,
     sucursal: sucursalActiva,
-    fijarSucursal: function (id) { if (id && id !== _fijada) { _fijada = id; _ajustes = null; } }
+    fijarSucursal: function (id) { if (id && id !== _fijada) { _fijada = id; _ajustes = null; } },
+    diag: function () {
+      return { sucursal: sucursalActiva(), aplicada_veces: _veces,
+               productos_ultima_vez: _ultimo, ajustes: cuantosAjustados() };
+    }
   };
 
   /* Se precarga en cuanto pos-core sabe la sucursal, para que la primera
