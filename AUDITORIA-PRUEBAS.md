@@ -234,10 +234,21 @@ cosas distintas, es el error más caro de encontrar.
 > para la misma sede y el mismo día, algo está sumando de más — y casi siempre
 > es una marca colándose.
 
-⚠️ **Filtros de mentira:** los informes muestran *Sucursal / Caja / Turno /
-Canal* con opción "Todas". **Hoy no hacen nada** (son de la maqueta). No
-reportarlo como error nuevo, pero sí exigir que funcionen antes de vender a un
-restaurante con varias sedes.
+### Los filtros de informes
+
+| # | Qué hacer | Qué debe pasar |
+|---|---|---|
+| 5C.6 | Abrir *Todas las ventas* y mirar los desplegables | Las opciones son **cosas reales tuyas**: tus canales, tus meseros, tus turnos |
+| 5C.7 | Filtrar por un canal | El total y el número de ventas **bajan** a los de ese canal |
+| 5C.8 | Filtrar por un mesero | Solo sus ventas |
+| 5C.9 | Combinar canal + mesero | Se aplican los dos a la vez |
+| 5C.10 | *Limpiar filtros* | Vuelve al total completo |
+| 5C.11 | Con una sola sede, mirar el filtro *Sucursal* | **No aparece**: no decide nada |
+| 5C.12 | Con dos sedes, cambiar *Sucursal* | Muestra las de **esa marca**, nunca las de la otra |
+| 5C.13 | Filtrar por *Turno* | Sale Mañana/Tarde/Noche, **no** números |
+
+> Los filtros de Categoría, Cliente, Proveedor, Marca y Caja **se quitaron** a
+> propósito: no tenían dato detrás. Si los quieres, hay que construirlos.
 
 ---
 

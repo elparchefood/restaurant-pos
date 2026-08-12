@@ -222,11 +222,34 @@ puede salir por la impresora de otra. No se tocó nada.
 recetas **por sede**. En una sucursal nueva se habría quedado sin recetas — y
 un costeo sin recetas no da error: da **margen del 100%**.
 
-⚠️ **Pendiente, encontrado aquí:** los informes muestran unos filtros de
-*Sucursal / Caja / Turno / Canal* que **no hacen nada** — son parte de la
-maqueta de ejemplo (`informes-app.js` habla de «Chapinero» y «3 sucursales»,
-que no existen). Hoy es cosmético; con dos sedes, un filtro que dice «Todas» y
-no filtra es una mentira en pantalla.
+**Los filtros de informes, arreglados** (12-ago). Eran de la maqueta:
+mostraban valores inventados —«Chapinero», «Luis Pardo»— y no tocaban la
+consulta. Ahora son desplegables de verdad.
+
+| Filtro | De dónde salen las opciones |
+|---|---|
+| Sucursal | las sedes **de esta marca** (nunca de otra) |
+| Turno | `pos_sessions.shift_type` |
+| Canal | los canales que de verdad se usaron |
+| Empleado | los meseros que de verdad vendieron |
+| Estado | Cobradas / Anuladas |
+
+**Se quitaron los que no tenían dato detrás** (Categoría, Cliente, Proveedor,
+Marca) y **Caja**, cuyo único identificador es un código interno y que Turno
+ya cubre en la práctica. Un filtro que dice «Todas» y no filtra es peor que no
+tener filtro: el número se lee como si estuviera filtrado.
+
+Dos decisiones de detalle:
+1. **Las opciones salen de lo que pasó en el periodo**, no de una lista fija:
+   una lista fija enseñaría canales que este negocio no usa y meseros que ya no
+   trabajan ahí.
+2. **Con una sola opción el filtro se esconde.** Con una sede, «Sucursal» no
+   decide nada.
+
+⚠️ **El turno no es el que parece.** `pos_orders.turno` es un NÚMERO —el
+consecutivo de la venta del día, «Turno #001»—. El turno que entiende un
+restaurante (Mañana/Tarde/Noche) vive en la sesión de caja. Filtrar por el
+número habría sido otro control que dice una cosa y hace otra.
 
 Se eligió A antes que B para probar el modelo de herencia con algo pequeño y de
 bajo riesgo antes de mover el inventario.
