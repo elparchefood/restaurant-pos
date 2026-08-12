@@ -22,18 +22,21 @@ const repVisible = r => !r.module || activeModules()[r.module];
 const catReports = k => REPORTS.filter(r=>r.cat===k && repVisible(r));
 
 /* ---- filtros: definiciones ---- */
+/* Los filtros que FUNCIONAN de verdad. Los demas (categoria, cliente,
+   proveedor, marca) venian de la maqueta: pintaban un chip con un valor
+   inventado —"Chapinero", "Luis Pardo"— y no tocaban la consulta. Se quitaron:
+   un filtro que dice "Todas" y no filtra es peor que no tener filtro, porque
+   el numero se lee como si estuviera filtrado.
+   "Caja" tambien se quito: lo unico que identifica la caja es un codigo
+   interno, y "Turno" ya cubre lo que se necesita en la practica. */
 const FDEF = {
-  sucursal:{label:'Sucursal',def:'Todas',applied:'Chapinero'},
-  caja:{label:'Caja',def:'Todas',applied:'Caja 1'},
-  turno:{label:'Turno',def:'Todos',applied:'Noche'},
-  canal:{label:'Canal',def:'Todos',applied:'WhatsApp'},
-  categoria:{label:'Categoría',def:'Todas',applied:'Hamburguesas'},
-  empleado:{label:'Empleado',def:'Todos',applied:'Luis Pardo'},
-  estado:{label:'Estado',def:'Todos',applied:'Activas'},
-  cliente:{label:'Cliente',def:'Todos',applied:'Carolina R.'},
-  proveedor:{label:'Proveedor',def:'Todos',applied:'Cárnicos JR'},
-  marca:{label:'Marca',def:'Todas',applied:'Marca 1'},
+  sucursal:{label:'Sucursal',def:'Todas'},
+  turno:   {label:'Turno',   def:'Todos'},
+  canal:   {label:'Canal',   def:'Todos'},
+  empleado:{label:'Empleado',def:'Todos'},
+  estado:  {label:'Estado',  def:'Todos'},
 };
+const ESTADO_LBL = { paid:'Cobradas', cancelled:'Anuladas' };
 const PRESETS = [['hoy','Hoy'],['ayer','Ayer'],['semana','Esta semana'],['mes','Este mes'],['custom','Personalizado']];
 
 /* ¿La categoría se ve desplegada?
@@ -128,19 +131,57 @@ function renderHome(){
 /* ═══════════ INFORME ═══════════ */
 function chipState(rep){ return state.chips[rep.id]||{}; }
 
+/* Elegir en un desplegable filtra de verdad: se lo dice a la capa de datos y
+   se vuelve a pintar el informe. */
+document.addEventListener('change', function(ev){
+  const sel = ev.target.closest && ev.target.closest('[data-fsel]');
+  if(!sel || !window.INFORMES_DATOS) return;
+  if(INFORMES_DATOS.setFiltro(sel.dataset.fsel, sel.value)) renderReport(state.current);
+});
+
+/* Las opciones salen de lo que paso en el periodo. Se rellenan cuando llegan
+   los datos, no antes: una lista fija mostraria canales que este negocio no
+   usa y meseros que ya no trabajan ahi. */
+async function poblarFiltros(usados){
+  const D = window.INFORMES_DATOS;
+  if(!D || !usados || !usados.length) return;
+  let ops = {}, sedes = [];
+  try { ops = await D.opciones(state.preset); } catch(e){ return; }
+  if(usados.indexOf('sucursal') >= 0){ try { sedes = await D.sucursales(); } catch(e){} }
+  const act = D.filtros();
+  usados.forEach(f=>{
+    const sel = document.querySelector('[data-fsel="'+f+'"]');
+    if(!sel) return;
+    let lista;
+    if(f === 'sucursal')    lista = sedes.map(b=>[b.id, b.name]);
+    else if(f === 'estado') lista = (ops.estado||[]).map(v=>[v, ESTADO_LBL[v]||v]);
+    else                    lista = (ops[f]||[]).map(v=>[v, v]);
+    /* Con una sola opcion el filtro no decide nada: se esconde en vez de
+       ofrecer una eleccion que no cambia el resultado. */
+    if(lista.length < 2 && !act[f]){ const w = sel.closest('.cc-fsel'); if(w) w.style.display='none'; return; }
+    sel.innerHTML = '<option value="">'+esc(FDEF[f].def)+'</option>'
+      + lista.map(o=>'<option value="'+esc(o[0])+'"'+(act[f]===String(o[0])?' selected':'')+'>'+esc(o[1])+'</option>').join('');
+  });
+}
+
 async function renderReport(id){
   const r = REPORTS.find(x=>x.id===id); if(!r) return renderHome();
   const cat = CATEGORIES.find(c=>c.k===r.cat);
   const cs = chipState(r);
   const filtersApplied = false;
   // filtros
-  let chipsHtml = (r.filters||[]).filter(f=>f!=='fecha').map(f=>{
-    const d=FDEF[f]; if(!d) return '';
-    const on = filtersApplied || cs[f];
-    const val = on ? d.applied : d.def;
-    return `<button class="cc-fchip${on?' on':''}" data-chip="${f}"><span>${esc(d.label)}:</span><span class="v">${esc(val)}</span>${on?`<span class="x">${IC.x}</span>`:''}</button>`;
+  /* Un desplegable por filtro. Se pinta con la opcion elegida y las opciones
+     se rellenan cuando llegan los datos: salen de lo que DE VERDAD paso en el
+     periodo, no de una lista fija. */
+  const fAct = (window.INFORMES_DATOS && INFORMES_DATOS.filtros) ? INFORMES_DATOS.filtros() : {};
+  const usados = (r.filters||[]).filter(f=>f!=='fecha' && FDEF[f]);
+  let chipsHtml = usados.map(f=>{
+    const d=FDEF[f];
+    const on = !!fAct[f];
+    return `<label class="cc-fsel${on?' on':''}"><span>${esc(d.label)}:</span>`
+      + `<select data-fsel="${f}"><option value="">${esc(d.def)}</option></select></label>`;
   }).join('');
-  const anyOn = filtersApplied || Object.values(cs).some(Boolean);
+  const anyOn = usados.some(f=>!!fAct[f]);
 
   let head=`<div class="r-rep-head">
     <button class="r-back" data-home>${IC.back} Todos los informes</button>
@@ -198,6 +239,7 @@ async function renderReport(id){
   if(d.kpis && d.kpis.length) inner+=`<div class="r-kpis">${d.kpis.map(kpiCard).join('')}</div>`;
   (d.blocks||[]).forEach(b=>inner+=renderBlock(b));
   pintar(inner);
+  poblarFiltros(usados);
 }
 
 /* Informe del catálogo que todavía no tiene de dónde sacar los datos. */
@@ -343,8 +385,11 @@ document.addEventListener('click',e=>{
     renderNav(); return; }
   const pr=t.closest('[data-preset]'); if(pr){ state.preset=pr.dataset.preset; renderReport(state.current); return; }
   const pr2=t.closest('[data-preset2]'); if(pr2){ state.preset=pr2.dataset.preset2; renderReport(state.current); return; }
-  const cl=t.closest('[data-clear]'); if(cl){ state.chips[state.current]={}; renderReport(state.current); return; }
-  const cp=t.closest('[data-chip]'); if(cp){ const f=cp.dataset.chip; const cs=state.chips[state.current]=state.chips[state.current]||{}; cs[f]=!cs[f]; renderReport(state.current); return; }
+  const cl=t.closest('[data-clear]'); if(cl){
+    state.chips[state.current]={};
+    if(window.INFORMES_DATOS) INFORMES_DATOS.limpiarFiltros();
+    renderReport(state.current); return;
+  }
   if(t.closest('[data-export]')){ toast('Exportando a Excel…'); return; }
   const segb=t.closest('.cc-seg button, .r-preset button'); if(segb && !segb.hasAttribute('data-preset')){ const wrap=segb.parentElement; wrap.querySelectorAll('button').forEach(b=>b.classList.remove('on')); segb.classList.add('on'); return; }
 });

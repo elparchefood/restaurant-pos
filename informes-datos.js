@@ -57,9 +57,23 @@
   }
 
   // ── Pedidos del rango (una sola lectura, la reusan todos) ──────────────
+  /* ── LOS FILTROS ──────────────────────────────────────────────────────
+     Antes eran adorno: los chips mostraban valores inventados ("Chapinero",
+     "Luis Pardo") y no tocaban la consulta. Un filtro que dice "Todas" y no
+     filtra es peor que no tener filtro, porque el numero se lee como si
+     estuviera filtrado.
+
+     Los seis tienen dato real detras: sucursal, caja (session_id), turno,
+     canal, empleado (waiter) y estado.
+
+     La sucursal se filtra en el SERVIDOR (cambia que se trae); los demas se
+     filtran aqui sobre lo ya traido, para que las OPCIONES salgan de lo que
+     de verdad paso en el periodo y no de una lista inventada. */
+  var FILTROS = { sucursal: null, caja: null, turno: null, canal: null, empleado: null, estado: null };
+
   var _cache = { key: null, datos: null };
   async function pedidos(preset) {
-    var key = preset + '|' + CTX.branchId;
+    var key = preset + '|' + (FILTROS.sucursal || CTX.branchId) + '|' + (FILTROS.estado || 'paid');
     if (_cache.key === key) return _cache.datos;
     var s = sb(); if (!s) throw new Error('sin conexión');
     var r = rango(preset);
@@ -69,9 +83,12 @@
         'guests,waiter_name,payment_method,closed_at,opened_at,cliente_id,notes,' +
         'tax_total,tax_base,tax_detail,' +
         'pos_order_items(id,product_id,product_name,name,quantity,unit_price,total,selections)')
-      .eq('status', 'paid').gte('closed_at', r.from).lt('closed_at', r.to)
+      .gte('closed_at', r.from).lt('closed_at', r.to)
       .order('closed_at', { ascending: true });
-    q = q.eq('branch_id', (CTX.branchId || SIN_SEDE));
+    /* Por defecto solo lo COBRADO: un informe de ventas no cuenta lo anulado.
+       Si se elige un estado a mano, manda ese. */
+    q = q.eq('status', FILTROS.estado || 'paid');
+    q = q.eq('branch_id', (FILTROS.sucursal || CTX.branchId || SIN_SEDE));
     if (CTX.tenantId) q = q.eq('tenant_id', CTX.tenantId);
     var res = await q;
     if (res.error) throw res.error;
@@ -94,8 +111,46 @@
       }
     } catch (e) { console.warn('[Informes] pagos:', e); }
 
-    _cache = { key: key, datos: { lista: lista, pagos: pagos, rango: r } };
+    /* `todos` = sin los filtros de esta pantalla. De ahi salen las OPCIONES,
+       para que la lista no se vacie a medida que uno filtra. */
+    _cache = { key: key, datos: { lista: filtrar(lista), todos: lista, pagos: pagos, rango: r } };
     return _cache.datos;
+  }
+
+  /* Los filtros que no cambian la consulta: se aplican sobre lo traido. */
+  function filtrar(lista) {
+    return (lista || []).filter(function (o) {
+      if (FILTROS.caja     && String(o.session_id || '') !== FILTROS.caja) return false;
+      if (FILTROS.turno    && String(o.turno || '')      !== FILTROS.turno) return false;
+      if (FILTROS.canal    && String(o.channel || '')    !== FILTROS.canal) return false;
+      if (FILTROS.empleado && String(o.waiter_name || '')!== FILTROS.empleado) return false;
+      return true;
+    });
+  }
+
+  /* Las opciones de cada filtro salen de lo que DE VERDAD paso en el periodo.
+     Una lista fija mostraria canales que este negocio no usa y meseros que ya
+     no trabajan ahi. */
+  async function opcionesFiltro(preset) {
+    var d = await pedidos(preset);
+    var todos = d.todos || [];
+    function unicos(campo) {
+      var vistos = {}, out = [];
+      todos.forEach(function (o) {
+        var v = o[campo];
+        if (v === null || v === undefined || v === '') return;
+        if (vistos[v]) return;
+        vistos[v] = 1; out.push(String(v));
+      });
+      return out.sort();
+    }
+    return {
+      canal:    unicos('channel'),
+      empleado: unicos('waiter_name'),
+      turno:    unicos('turno'),
+      caja:     unicos('session_id'),
+      estado:   ['paid', 'cancelled'],
+    };
   }
   function limpiarCache() { _cache = { key: null, datos: null }; }
 
@@ -1799,6 +1854,35 @@
   };
 
   window.INFORMES_DATOS = {
+    /* Poner o quitar un filtro. Devuelve true si de verdad cambio algo, para
+       que la pantalla no repinte por gusto. */
+    setFiltro: function (k, v) {
+      if (!(k in FILTROS)) return false;
+      var nuevo = v || null;
+      if (FILTROS[k] === nuevo) return false;
+      FILTROS[k] = nuevo; limpiarCache();
+      return true;
+    },
+    filtros: function () { var c = {}; for (var k in FILTROS) c[k] = FILTROS[k]; return c; },
+    limpiarFiltros: function () {
+      var habia = false;
+      for (var k in FILTROS) { if (FILTROS[k]) { FILTROS[k] = null; habia = true; } }
+      if (habia) limpiarCache();
+      return habia;
+    },
+    opciones: opcionesFiltro,
+
+    /* Las sedes entre las que se puede mirar: solo las de ESTA marca. Mezclar
+       marcas en un desplegable es justo lo que se quiere evitar. */
+    sucursales: async function () {
+      var marca = await marcaDeLaSede();
+      if (!marca) return [];
+      try {
+        var r = await sb().from('branches').select('id,name').eq('brand_id', marca).order('name');
+        return r.data || [];
+      } catch (e) { return []; }
+    },
+
     setCtx: function (t, b) { CTX.tenantId = t || null; CTX.branchId = b || null; limpiarCache(); _rec = null; },
     tiene:  function (id) { return !!R[id]; },
     cargar: function (id, preset) { return R[id](preset || 'mes'); },

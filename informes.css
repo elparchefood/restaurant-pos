@@ -310,3 +310,23 @@ a:hover{color:var(--brand-press);text-decoration:underline;}
 
 /* ════ badge de "datos reales" en el navegador ════ */
 .r-live{ width:6px; height:6px; border-radius:999px; background:var(--success); flex:none; }
+
+
+/* ── Filtros de verdad ─────────────────────────────────────────────────
+   Antes eran botones que se encendian y mostraban un valor inventado. Ahora
+   cada uno es un desplegable con las opciones de lo que paso en el periodo. */
+.cc-fsel {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 6px 5px 13px;
+  background: #fff; border: 1px solid #ECEEF2; border-radius: 999px;
+  font-size: 12.5px; font-weight: 600; color: #475569;
+  transition: all .12s; font-family: inherit;
+}
+.cc-fsel:hover { background: #F8FAFC; }
+.cc-fsel.on { background: #EEF2FF; border-color: #5B6BFF; color: #5B6BFF; }
+.cc-fsel select {
+  border: none; background: transparent; font-family: inherit;
+  font-size: 12.5px; font-weight: 700; color: inherit;
+  padding: 2px 4px; cursor: pointer; max-width: 190px;
+}
+.cc-fsel select:focus { outline: 2px solid #5B6BFF; outline-offset: 1px; border-radius: 6px; }
