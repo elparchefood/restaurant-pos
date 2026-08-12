@@ -447,6 +447,8 @@ function renderPanelBody(id, d) {
     { campo:'direccion',    titulo:'Dirección',        ayuda:'Dirección y barrio, para saber el precio del domicilio' },
     { campo:'nombre',       titulo:'A nombre de quién',ayuda:'El nombre con el que se recibe' },
     { campo:'pago',         titulo:'Método de pago',   ayuda:'Cómo paga, y el comprobante si es digital' },
+    { campo:'programado',   titulo:'Pedido programado',ayuda:'Para cuándo lo quiere: día y hora. Valida contra tu horario' },
+    { campo:'factura',      titulo:'Datos de factura', ayuda:'Cédula o NIT, nombre y correo, para facturación electrónica' },
   ];
   const CAMPOS_UI = CAJAS.map(x => x.campo);
   const tituloCaja = (campo) => (CAJAS.find(x => x.campo === campo) || {}).titulo || campo;
@@ -579,6 +581,114 @@ function renderPanelBody(id, d) {
   }
 
   // Paso PAGO: puede ir después del resumen
+  /* PREFERENCIAS: una sola caja para todo lo que el cliente pide "aparte".
+     Se resolvio asi y no con un paso por cosa porque un paso solo para
+     cubiertos seria absurdo: son todas observaciones sueltas del mismo
+     pedido, y preguntarlas por separado alarga la conversacion sin ganar
+     nada. Cada interruptor solo le dice al bot QUE tener en cuenta. */
+  /* LA HORA NO ES UN PASO, ES UNA CARACTERISTICA de los pasos que la
+     necesitan (pedido programado, reserva, y para llevar cuando aplique).
+     Por eso este bloque se escribe UNA vez y se reusa: si viviera dentro de
+     cada paso, dentro de un mes cada uno validaria la hora a su manera. */
+  const bloqueHora = (d, id) => `
+      <div class="cp-toggle-row" style="margin-top:14px">
+        <span class="cp-toggle-label">Solo permitir horas dentro del horario</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.hora_valida_horario!==false?'checked':''} onchange="updateField(${id},'hora_valida_horario',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Si piden una hora en la que estás cerrado, el bot lo dice y vuelve a preguntar en vez de aceptarla.</div>
+      <div class="cp-section" style="margin-top:14px">
+        <div class="cp-label">Tiempo mínimo de anticipación (minutos)</div>
+        <input class="cp-input" type="number" min="0" step="15" value="${esc(String(d.hora_min_prep==null?60:d.hora_min_prep))}" oninput="updateField(${id},'hora_min_prep',parseInt(this.value)||0)">
+        <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">No acepta una hora antes de esto contando desde ahora. Evita el "para ya mismo" cuando no da el tiempo.</div>
+      </div>
+      <div class="cp-section" style="margin-top:14px">
+        <div class="cp-label">Con cuántos días de anticipación se puede pedir</div>
+        <input class="cp-input" type="number" min="0" max="60" step="1" value="${esc(String(d.hora_dias_max==null?7:d.hora_dias_max))}" oninput="updateField(${id},'hora_dias_max',parseInt(this.value)||0)">
+        <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">0 = solo para hoy.</div>
+      </div>`;
+
+  /* PEDIDO PROGRAMADO. */
+  if(['pregunta','ia','fija'].includes(d.type) && d.campo === 'programado') {
+    html += `<div class="cp-section">
+      <div class="cp-label">Para cuándo lo quiere</div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">El bot pregunta el día y la hora en el MISMO mensaje, y no acepta una hora imposible.</div>
+      <div class="cp-toggle-row" style="margin-top:14px">
+        <span class="cp-toggle-label">Permitir "lo antes posible"</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.hora_permite_ya!==false?'checked':''} onchange="updateField(${id},'hora_permite_ya',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">El cliente puede contestar "cuando esté listo" y el pedido entra sin hora fija.</div>
+      ${bloqueHora(d, id)}
+    </div>`;
+  }
+
+  /* DATOS DE FACTURA. Cada pais pide lo suyo; aqui solo se elige QUE se pide. */
+  if(['pregunta','ia','fija'].includes(d.type) && d.campo === 'factura') {
+    html += `<div class="cp-section">
+      <div class="cp-label">Qué datos pedir</div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Todo en el MISMO paso. El bot no continúa hasta tener los que marques.</div>
+      ${[['fact_documento','Cédula o NIT',true],['fact_razon','Nombre o razón social',true],['fact_correo','Correo electrónico',true],['fact_direccion','Dirección fiscal',false]]
+        .map(o => `<div class="cp-toggle-row" style="margin-top:14px">
+        <span class="cp-toggle-label">${o[1]}</span>
+        <label class="toggle">
+          <input type="checkbox" ${(d[o[0]]===undefined?o[2]:d[o[0]])?'checked':''} onchange="updateField(${id},'${o[0]}',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>`).join('')}
+      <div class="cp-toggle-row" style="margin-top:16px">
+        <span class="cp-toggle-label">Preguntar solo si el cliente pide factura</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.fact_solo_si_pide!==false?'checked':''} onchange="updateField(${id},'fact_solo_si_pide',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Recomendado. Apágalo solo si TODOS tus pedidos se facturan: pedirle el NIT a quien compra unas papas alarga la conversación sin motivo.</div>
+    </div>`;
+  }
+
+  if(['pregunta','ia','fija'].includes(d.type) && d.campo === 'preferencias') {
+    html += `<div class="cp-section">
+      <div class="cp-label">Qué debe tener en cuenta en este paso</div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Todo se pregunta en el MISMO paso. Enciende solo lo que aplique a tu restaurante.</div>
+      <div class="cp-toggle-row" style="margin-top:14px">
+        <span class="cp-toggle-label">Observaciones del plato</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.pref_plato!==false?'checked':''} onchange="updateField(${id},'pref_plato',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Sin cebolla, poco picante, término de la carne, alergias.</div>
+      <div class="cp-toggle-row" style="margin-top:14px">
+        <span class="cp-toggle-label">Indicaciones para la entrega</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.pref_domicilio===true?'checked':''} onchange="updateField(${id},'pref_domicilio',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Torre y apartamento, portería, "timbre dañado, llamar al llegar". Solo se pregunta si el pedido va a domicilio.</div>
+      <div class="cp-toggle-row" style="margin-top:14px">
+        <span class="cp-toggle-label">Preguntar si necesita cubiertos</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.pref_cubiertos===true?'checked':''} onchange="updateField(${id},'pref_cubiertos',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Ahorra desechables y evita el reclamo de "no me mandaron cubiertos".</div>
+    </div>`;
+  }
+
   if(['pregunta','ia','fija'].includes(d.type) && d.campo === 'pago') {
     html += `<div class="cp-section">
       <div class="cp-toggle-row">
@@ -714,7 +824,7 @@ function markDirty() {
   document.getElementById('saveStatus').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;color:var(--amber)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Sin guardar`;
 }
 // Convierte un nodo del canvas en un paso del motor (solo si captura un slot).
-const CAMPOS_SLOT = ['producto','tamano','tipo','direccion','pago','nombre','adiciones','preferencias','upsell'];
+const CAMPOS_SLOT = ['producto','tamano','tipo','direccion','pago','nombre','adiciones','preferencias','upsell','programado','factura'];
 function pushPaso(d, pasos) {
   if (!d || !d.campo || !CAMPOS_SLOT.includes(d.campo)) return; // nodos sin variable no son pasos de pedido
   // modo: el toggle interno (tipo) manda; sin toggle, hereda del tipo de nodo (ia → conversacional)
@@ -729,6 +839,33 @@ function pushPaso(d, pasos) {
   if (d.campo === 'producto') {
     paso.mostrar_menu = d.mostrar_menu !== false;
     paso.confirmar_cantidad = d.confirmar_cantidad === true;
+  }
+  if (d.campo === 'programado') {
+    paso.hora_valida_horario = d.hora_valida_horario !== false;
+    paso.hora_min_prep       = d.hora_min_prep == null ? 60 : Number(d.hora_min_prep) || 0;
+    paso.hora_dias_max       = d.hora_dias_max == null ? 7  : Number(d.hora_dias_max) || 0;
+    paso.hora_permite_ya     = d.hora_permite_ya !== false;
+  }
+  if (d.campo === 'factura') {
+    paso.factura_pide = {
+      documento: d.fact_documento !== false,
+      razon:     d.fact_razon     !== false,
+      correo:    d.fact_correo    !== false,
+      direccion: d.fact_direccion === true,
+    };
+    /* Por defecto solo se pregunta a quien pide factura: pedirle el NIT a
+       quien compra unas papas alarga la conversacion sin motivo. */
+    paso.factura_solo_si_pide = d.fact_solo_si_pide !== false;
+  }
+  if (d.campo === 'preferencias') {
+    /* Lo que el bot debe tener en cuenta. Se manda SIEMPRE el mapa completo,
+       tambien lo apagado: el motor tiene que poder distinguir "no preguntes
+       por cubiertos" de "este canvas es viejo y no sabe de cubiertos". */
+    paso.pref_opciones = {
+      plato:     d.pref_plato     !== false,
+      domicilio: d.pref_domicilio === true,
+      cubiertos: d.pref_cubiertos === true,
+    };
   }
   if (d.campo === 'pago') paso.despues_resumen = d.despues_resumen === true;
   if (d.campo === 'upsell' && Array.isArray(d.upsell_productos)) paso.upsell_productos = d.upsell_productos;

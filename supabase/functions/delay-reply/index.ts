@@ -46,6 +46,12 @@ interface PacoState {
   direccion:          string | null;
   pago:               string | null;
   nombre:             string | null;
+  /* Datos de facturacion. null = no se ha preguntado; {} = dijo que no quiere. */
+  factura:            Record<string, string> | null;
+  /* Para cuando lo quiere. "" = lo antes posible. null = sin preguntar.
+     NO es un paso propio: es un dato que capturan los pasos que lo necesitan
+     (pedido programado, reserva, para llevar). */
+  programado:         string | null;
   items:              SlotItem[];
   resumen_enviado:            boolean;
   direccion_heredada:         boolean;
@@ -70,6 +76,8 @@ interface PasoDefinicion {
   /* Si el pedido NO se puede cerrar sin esto. Una caja no obligatoria que el
      cliente no responde se salta y el pedido sigue. */
   obligatoria?: boolean;
+  /* Que debe tener en cuenta el paso de preferencias (canvas). */
+  pref_opciones?: Record<string, unknown> | null;
   /* Cuándo aplica la caja: "domicilio", "recoger", "nuevo". Sin valor, siempre.
      Es lo que evita preguntarle la dirección a quien va a recoger. */
   cuando?: string;
@@ -97,6 +105,7 @@ function newPacoState(): PacoState {
   return {
     producto: null, producto_categoria: null, tamano: null, tipo: null, cantidad: 1,
     adiciones: null, preferencias: null, direccion: null, pago: null, nombre: null, tipos: {},
+    factura: null, programado: null,
     items: [], resumen_enviado: false, direccion_heredada: false, complemento_dir_pendiente: null,
     last_activity: new Date(Date.now() - 30 * 60_000).toISOString(), // 30min atrás → sesionExpirada=true
     _v: 120,
@@ -2596,6 +2605,11 @@ function findNextStep(state: PacoState, pasos: PasoDefinicion[], incluirPostResu
       if (!state.pago) return paso;
     } else if (paso.id === "nombre") {
       if (!state.nombre) return paso;
+    } else if (paso.id === "programado") {
+      /* "" es valido: dijo "cuando este listo". Solo null es "sin preguntar". */
+      if (state.programado === null) return paso;
+    } else if (paso.id === "factura") {
+      if (state.factura === null) return paso;
     }
   }
   return null;
@@ -2737,10 +2751,60 @@ function procesarFlujoCanvas(
       // Solo existe si el restaurante lo agrega a su flujo. El Parche no lo
       // necesita —sus clientes lo dicen solos— pero otro puede querer
       // preguntarlo siempre ("¿alguna preferencia? ¿algo que le quitemos?").
+      /* TODO en UNA sola pregunta, nunca en varias: son observaciones sueltas
+         del mismo pedido y preguntarlas por separado alarga la conversacion
+         sin ganar nada. Los interruptores del canvas solo dicen QUE tener en
+         cuenta. Sin `pref_opciones` (canvas viejo) se comporta como siempre:
+         solo la preparacion del plato. */
+      const po = (p.pref_opciones || null) as Record<string, unknown> | null;
+      const quiere = {
+        plato:     po ? po.plato !== false : true,
+        domicilio: po ? po.domicilio === true : false,
+        cubiertos: po ? po.cubiertos === true : false,
+      };
+      const partes: string[] = [];
+      if (quiere.plato)     partes.push("algo especial en la preparación (sin algún ingrediente, término, picante, alergias)");
+      if (quiere.domicilio) partes.push("indicaciones para la entrega (torre, apartamento, portería, si el timbre no sirve)");
+      if (quiere.cubiertos) partes.push("si necesita cubiertos");
+      const textoDefecto = quiere.cubiertos && partes.length === 1
+        ? "¿Necesitas cubiertos? ☺️"
+        : "¿Alguna preferencia o indicación para tu pedido? ☺️";
       out.push({
         id: "preferencias", campo: "preferencias", modo,
-        texto: texto || "¿Alguna preferencia para prepararlo? (por ejemplo, sin algún ingrediente) ☺️",
-        guia: guia || "Pregunta si quiere algo especial en la preparación. Si dice que no, sigue sin insistir.",
+        texto: texto || textoDefecto,
+        guia: guia || (partes.length
+          ? `En UNA sola pregunta, corta y natural, averigua: ${partes.join("; ")}. NO lo preguntes por separado ni insistas: si dice que no o no menciona algo, sigue.`
+          : "Pregunta si quiere algo especial en la preparación. Si dice que no, sigue sin insistir."),
+      });
+    } else if (campo === "programado") {
+      const minPrep = p.hora_min_prep == null ? 60 : Number(p.hora_min_prep) || 0;
+      const diasMax = p.hora_dias_max == null ? 7  : Number(p.hora_dias_max) || 0;
+      const reglas: string[] = [];
+      if (p.hora_valida_horario !== false) reglas.push("SOLO acepta horas dentro del horario de atención; si piden una hora cerrada, dilo y vuelve a preguntar");
+      if (minPrep > 0) reglas.push(`no aceptes una hora antes de ${minPrep} minutos desde ahora`);
+      reglas.push(diasMax > 0 ? `se puede pedir hasta ${diasMax} día(s) adelante` : "solo para hoy");
+      reglas.push(p.hora_permite_ya !== false
+        ? 'si dice "cuando esté listo" o "lo antes posible", acéptalo sin hora fija'
+        : "necesitas día y hora concretos");
+      out.push({
+        id: "programado", campo: "programado", modo,
+        texto: texto || "¿Para cuándo lo quieres? Dime el día y la hora ⏰",
+        guia: guia || `Averigua para qué día y hora quiere el pedido, en UNA sola pregunta. ${reglas.join("; ")}.`,
+      });
+    } else if (campo === "factura") {
+      const pide = (p.factura_pide || {}) as Record<string, unknown>;
+      const quiere: string[] = [];
+      if (pide.documento !== false) quiere.push("cédula o NIT");
+      if (pide.razon     !== false) quiere.push("nombre o razón social");
+      if (pide.correo    !== false) quiere.push("correo electrónico");
+      if (pide.direccion === true)  quiere.push("dirección fiscal");
+      const soloSiPide = p.factura_solo_si_pide !== false;
+      out.push({
+        id: "factura", campo: "factura", modo,
+        texto: texto || (soloSiPide ? "¿Necesitas factura electrónica? 🧾" : "Para tu factura necesito unos datos 🧾"),
+        guia: guia || (soloSiPide
+          ? `Pregunta si necesita factura electrónica. Si dice que NO, sigue sin insistir. Si dice que sí, pide en UN solo mensaje: ${quiere.join(", ")}.`
+          : `Pide en UN solo mensaje: ${quiere.join(", ")}.`),
       });
     } else if (campo === "pago") {
       out.push({ id: "pago", campo: "pago", modo, texto: texto || "¿Cómo nos vas a pagar? ({{metodos_pago}}) ☺️", guia,
