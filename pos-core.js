@@ -171,6 +171,122 @@ function daysAgoISO(n) {
       window._pos.state.tenantId = user.user_metadata?.tenant_id || null;
       window._pos.state.branchId = user.user_metadata?.branch_id || null;
 
+      /* ══ CONTEXTO: en qué MARCA y SUCURSAL se está trabajando ══
+         Hasta hoy la sucursal salía del login y punto: cada pantalla leía
+         `user_metadata.branch_id` por su cuenta (configuracion.js sola lo hacía
+         en 6 sitios). Eso hacía imposible cambiar de sucursal — y por tanto de
+         marca — sin volver a entrar. Un gerente con dos sedes tenía que cerrar
+         sesión para ver la otra.
+
+         Aquí se resuelve UNA vez y todas las pantallas lo heredan por
+         `_pos.state.branchId`, que es lo que ya leen.
+
+         Reglas:
+         · Las sucursales permitidas salen de la BASE (`pos_users`), no del
+           token — el usuario puede reescribir su metadata (ver
+           DICCIONARIO-ACCESOS.md).
+         · La elegida se recuerda entre recargas, pero SIEMPRE se valida contra
+           las permitidas: un id guardado a mano no sirve de nada.
+         · Si algo falla, se queda la del login. Nunca se deja a nadie fuera.
+         · Esto es comodidad de pantalla, no seguridad: aunque alguien forzara
+           una sucursal ajena, las políticas de la base no le devuelven nada. */
+      window.posContexto = (function () {
+        var _sucs = [], _marcas = [], _bId = window._pos.state.branchId, _mId = null;
+        var LLAVE = 'pos.contexto.sucursal';
+
+        /* Lo guardado en el equipo sirve YA: esto corre en 15 pantallas y sin
+           caché serían 4 viajes al servidor en cada una. Se pinta con lo de
+           ayer y se confirma por detrás — mismo patrón que pos-plan y
+           pos-perms. Un dato viejo aquí no hace daño: si la sucursal dejó de
+           estar permitida, la base no le devuelve nada igualmente. */
+        function _aplicarGuardado() {
+          try {
+            var g = window.posCache && posCache.leer('contexto');
+            if (!g || !g.datos || !g.datos.sucs) return false;
+            _sucs = g.datos.sucs; _marcas = g.datos.marcas || [];
+            var guardada = null;
+            try { guardada = localStorage.getItem(LLAVE); } catch (e) {}
+            if (_sucs.some(function (s) { return s.id === guardada; })) _bId = guardada;
+            else if (_sucs.length && !_sucs.some(function (s) { return s.id === _bId; })) _bId = _sucs[0].id;
+            var suc = _sucs.filter(function (s) { return s.id === _bId; })[0];
+            _mId = suc ? suc.brand_id : null;
+            if (_bId) { window._pos.state.branchId = _bId; window._branchId = _bId; }
+            return true;
+          } catch (e) { return false; }
+        }
+
+        async function resolver(porRed) {
+          if (!porRed && _aplicarGuardado()) { resolver(true); return; }   // confirma por detrás
+          try {
+            var pu = await sb.from('pos_users')
+              .select('branch_id,sucursales,tenant_id')
+              .or('auth_user_id.eq.' + user.id + ',id.eq.' + user.id)
+              .limit(1).maybeSingle();
+            var fila = pu.data;
+            if (!fila) return;                    // sin ficha: se queda la del login
+
+            if (fila.tenant_id) window._pos.state.tenantId = fila.tenant_id;
+
+            /* Permitidas = su sucursal de siempre + las que el dueño le asignó.
+               El dueño las tiene todas: no se limita a sí mismo. */
+            var permitidas = [];
+            if (fila.branch_id) permitidas.push(fila.branch_id);
+            (fila.sucursales || []).forEach(function (s) {
+              if (s && permitidas.indexOf(s) < 0) permitidas.push(s);
+            });
+            try {
+              var d = await sb.rpc('es_dueno');
+              if (!d.error && d.data === true) permitidas = null;   // null = todas
+            } catch (e) {}
+
+            var q = sb.from('branches').select('id,name,brand_id').order('name');
+            var br = await q;
+            _sucs = (br.data || []).filter(function (s) {
+              return permitidas === null || permitidas.indexOf(s.id) >= 0;
+            });
+            var ma = await sb.from('brands').select('id,name').order('name');
+            var idsMarca = {};
+            _sucs.forEach(function (s) { if (s.brand_id) idsMarca[s.brand_id] = 1; });
+            _marcas = (ma.data || []).filter(function (m) { return idsMarca[m.id]; });
+
+            /* La guardada manda, pero solo si sigue permitida. */
+            var guardada = null;
+            try { guardada = localStorage.getItem(LLAVE); } catch (e) {}
+            var valida = _sucs.some(function (s) { return s.id === guardada; });
+            if (valida) _bId = guardada;
+            else if (!_sucs.some(function (s) { return s.id === _bId; }) && _sucs.length) _bId = _sucs[0].id;
+
+            var suc = _sucs.filter(function (s) { return s.id === _bId; })[0];
+            _mId = suc ? suc.brand_id : null;
+            window._pos.state.branchId = _bId;
+            window._branchId = _bId;
+            /* Solo se guarda lo confirmado por la base. */
+            try { if (window.posCache) posCache.guardar('contexto', { sucs: _sucs, marcas: _marcas }); } catch (e) {}
+          } catch (e) {
+            console.warn('[contexto] no se pudo resolver, se queda la del login:', e && e.message);
+          }
+        }
+
+        return {
+          resolver:    resolver,
+          sucursalId:  function () { return _bId; },
+          marcaId:     function () { return _mId; },
+          sucursales:  function () { return _sucs.slice(); },
+          marcas:      function () { return _marcas.slice(); },
+          /* Sucursales de UNA marca: el desplegable nunca las mezcla. */
+          sucursalesDe: function (brandId) {
+            return _sucs.filter(function (s) { return s.brand_id === brandId; });
+          },
+          cambiar: function (branchId) {
+            if (!_sucs.some(function (s) { return s.id === branchId; })) return false;
+            try { localStorage.setItem(LLAVE, branchId); } catch (e) {}
+            location.reload();     // que todas las pantallas relean su dato
+            return true;
+          }
+        };
+      })();
+      await window.posContexto.resolver();
+
       // Guard: si no tiene tenant/branch y no está en onboarding → redirigir
       var currentPath = window.location.pathname;
       var isOnboarding = currentPath.includes('onboarding');
