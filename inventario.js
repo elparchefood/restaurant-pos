@@ -14,6 +14,8 @@ const iv_sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
 // ═══════════════════════════════════════════════════
 let tenantId  = null;
 let branchId  = null;
+let brandId   = null;      // la marca dueña de los insumos y las recetas
+let invModo   = 'global';  // 'global' = una bolsa para toda la marca · 'sucursal' = cada sede la suya
 let params    = { fc: 30, op: 32, inf: 10, merma: true };
 // Plantillas de costeo (porcentajes). Cada categoría: {nombre, pct, tipo:'materia'|'costo'|'ganancia'}.
 // La plantilla ACTIVA define la meta de materia prima y el desglose que se muestra en costeo.
@@ -248,6 +250,26 @@ async function loadData() {
     tenantId = user.user_metadata?.tenant_id || null;
     branchId = user.user_metadata?.branch_id || null;
 
+    /* LA SEDE QUE ESTÁ MIRANDO, no la del login.
+       Esta pantalla se quedaba siempre con la sucursal del usuario y no se
+       enteraba del cambio de sede: con dos locales habrías visto el inventario
+       del otro sin darte cuenta. La elección del switch vive en el equipo. */
+    try {
+      const elegida = localStorage.getItem('pos.contexto.sucursal');
+      if (elegida) branchId = elegida;
+    } catch (e) {}
+
+    /* De qué MARCA es esta sede. Los insumos y las recetas son de la marca:
+       una sede nueva los ve desde el primer segundo, sin copiar nada. */
+    try {
+      const br = await iv_sb.from('branches').select('brand_id').eq('id', branchId).maybeSingle();
+      brandId = (br.data && br.data.brand_id) || null;
+      if (brandId) {
+        const ma = await iv_sb.from('brands').select('inventario_modo').eq('id', brandId).maybeSingle();
+        invModo = (ma.data && ma.data.inventario_modo) || 'global';
+      }
+    } catch (e) { console.warn('[inventario] marca/modo:', e && e.message); }
+
     const meta     = user.user_metadata || {};
     const fullName = meta.full_name || user.email || 'Usuario';
     const initials = fullName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
@@ -275,6 +297,7 @@ async function loadData() {
       loadProductos().then(loadRecetasDB)   // recetas necesita los productos ya cargados
     ]);
     ivAlertasCargar();          // no bloquea: si falla, la pantalla sigue igual
+    ivPrepararModo();           // el interruptor global/por sucursal, si hay 2+ sedes
   } catch(e) {
     console.error('[inventario] loadData:', e);
   } finally {
@@ -334,16 +357,48 @@ async function loadProductos() {
   }));
 }
 
+
+/* La sede en la que cae lo que se guarda: la bolsa comun de la marca (modo
+   global) o esta sucursal. Un solo sitio, para que los cuatro botones que
+   guardan stock no lo decidan cada uno por su lado. */
+function ivSedeExistencia() { return (invModo === 'sucursal') ? branchId : null; }
+
+/* Fijar existencia. Va por la base (fn_iv_fijar_existencia) y no por un
+   update directo porque la fila puede no existir todavia: una sede recien
+   creada hereda los insumos pero aun no tiene existencias propias. */
+async function ivFijarExistencia(insumoId, campos) {
+  const r = await iv_sb.rpc('fn_iv_fijar_existencia', {
+    p_insumo:   insumoId,
+    p_branch:   ivSedeExistencia(),
+    p_stock:    (campos && 'stock'    in campos) ? campos.stock    : null,
+    p_servicio: (campos && 'servicio' in campos) ? campos.servicio : null,
+    p_agotado:  (campos && 'agotado'  in campos) ? campos.agotado  : null,
+  });
+  if (r.error) throw new Error(r.error.message);
+  return true;
+}
+
 async function loadInsumos() {
   if (!tenantId || !branchId) return;
-  const { data, error } = await iv_sb
+  /* LOS INSUMOS SON DE LA MARCA, las existencias son de la sede.
+     Antes esto filtraba por sucursal: una sede nueva habría visto CERO
+     insumos y cero recetas, y habría tocado copiarlos a mano. Se filtra por
+     marca y las existencias se traen de una vez con el insumo. */
+  let q = iv_sb
     .from('iv_insumos')
-    .select('*')
+    .select('*, iv_existencias(branch_id,stock,stock_servicio,agotado_manual)')
     .eq('tenant_id', tenantId)
-    .eq('branch_id', branchId)
     .eq('activo', true)
     .order('nombre');
+  q = brandId ? q.eq('brand_id', brandId) : q.eq('branch_id', branchId);
+  const { data, error } = await q;
   if (error) { console.error('[inventario] loadInsumos:', error); return; }
+
+  /* De qué fila sale el "cuánto hay": la bolsa común de la marca, o la de
+     esta sede. Las dos conviven; cambiar el interruptor no migra nada. */
+  const sedeDeExistencia = (invModo === 'sucursal') ? branchId : null;
+  const existenciaDe = (i) => ((i.iv_existencias || [])
+    .find(e => (e.branch_id || null) === sedeDeExistencia)) || {};
   insumos = (data || []).map(i => ({
     id:         i.id,
     nombre:     i.nombre,
@@ -352,16 +407,16 @@ async function loadInsumos() {
     prep:       i.prep_requerido,
     controlManual: !!i.control_manual,
     merma:      !!i.merma_activa,
-    agotadoManual: !!i.agotado_manual,
+    agotadoManual: !!existenciaDe(i).agotado_manual,
     sub:        !!i.sub_inventario,
-    servicio:   parseFloat(i.stock_servicio) || 0,
+    servicio:   parseFloat(existenciaDe(i).stock_servicio) || 0,
     venderBodega: !!i.vender_bodega,
     avisoBodega: i.aviso_bodega || '',
     buyUnit:    i.buy_unit,
     useUnit:    i.use_unit,
     precio:     parseFloat(i.precio) || 0,
     conversion: parseFloat(i.conversion) || 1,
-    stock:      parseFloat(i.stock) || 0,
+    stock:      parseFloat(existenciaDe(i).stock) || 0,
     min:        parseFloat(i.min_stock) || 0,
   }));
 }
@@ -404,7 +459,7 @@ async function loadRecetasDB() {
     .from('iv_recetas')
     .select('*')
     .eq('tenant_id', tenantId)
-    .eq('branch_id', branchId);
+    .eq(brandId ? 'brand_id' : 'branch_id', brandId || branchId);
   if (error) { console.error('[inventario] loadRecetas:', error); return; }
   recetas = data || [];
   for (const prod of productos) {
@@ -473,7 +528,7 @@ async function loadPorciones() {
     .from('iv_porciones')
     .select('*')
     .eq('tenant_id', tenantId)
-    .eq('branch_id', branchId)
+    .eq(brandId ? 'brand_id' : 'branch_id', brandId || branchId)
     .order('cantidad');
   if (error) { console.error('[inventario] loadPorciones:', error); return; }
   porciones = (data || []).map(p => ({
@@ -1294,7 +1349,7 @@ async function guardarRecetaEdit() {
 
   if (esAd) {
     await iv_sb.from('iv_recetas').delete()
-      .eq('mod_option_id', prod.modOptionId).eq('tenant_id', tenantId).eq('branch_id', branchId);
+      .eq('mod_option_id', prod.modOptionId).eq('tenant_id', tenantId).eq(brandId ? 'brand_id' : 'branch_id', brandId || branchId);
   } else {
     await iv_sb.from('iv_recetas').delete().eq('product_id', prodId);
   }
@@ -1306,7 +1361,7 @@ async function guardarRecetaEdit() {
         if (q > 0) cantidades[pid] = l.porc[pid] ? { q, p: l.porc[pid] } : { q };
       }
       return {
-        tenant_id: tenantId, branch_id: branchId,
+        tenant_id: tenantId, branch_id: branchId, brand_id: brandId,
         product_id: esAd ? null : prodId,
         mod_option_id: esAd ? prod.modOptionId : null,
         insumo_id: l.insId,
@@ -1317,6 +1372,7 @@ async function guardarRecetaEdit() {
         updated_at: new Date().toISOString(),
       };
     });
+    rows.forEach(function (r) { r.brand_id = brandId; });   // la receta es de la marca
     const { error } = await iv_sb.from('iv_recetas').insert(rows);
     if (error) {
       console.error('[receta-edit] guardar:', error);
@@ -1613,7 +1669,7 @@ async function toggleAgotadoManual(insId) {
   const nuevo = !ins.agotadoManual;
   ins.agotadoManual = nuevo;
   try {
-    await iv_sb.from('iv_insumos').update({ agotado_manual: nuevo, updated_at: new Date().toISOString() }).eq('id', insId);
+    await ivFijarExistencia(insId, { agotado: nuevo });
     showToast(nuevo ? '⛔ ' + ins.nombre + ' marcado como agotado' : '✅ ' + ins.nombre + ' disponible de nuevo');
   } catch (e) { ins.agotadoManual = !nuevo; showToast('No se pudo cambiar', 'error'); }
   renderInsumos();
@@ -1842,7 +1898,7 @@ async function confirmarSurtir(insId) {
   const nuevaBodega = +(ins.stock - mover).toFixed(4);
   const nuevoServicio = +(ins.servicio + mover).toFixed(4);
   try {
-    await iv_sb.from('iv_insumos').update({ stock: nuevaBodega, stock_servicio: nuevoServicio, updated_at: new Date().toISOString() }).eq('id', insId);
+    await ivFijarExistencia(insId, { stock: nuevaBodega, servicio: nuevoServicio });
     ins.stock = nuevaBodega; ins.servicio = nuevoServicio;
     showToast('✓ Surtido → En servicio: ' + surtirFmt(nuevoServicio, ins) + (mover < pedido - 0.000001 ? ' (bodega no alcanzaba para más)' : ''));
   } catch (e) { showToast('No se pudo surtir', 'error'); }
@@ -1916,7 +1972,10 @@ async function aplicarReponer() {
   if (!ins) return;
   const nuevoStock  = ins.stock+qty;
   const nuevoPrecio = price>0?price:ins.precio;
-  await iv_sb.from('iv_insumos').update({stock:nuevoStock,precio:nuevoPrecio,updated_at:new Date().toISOString()}).eq('id',ins.id);
+  /* El precio es de la MARCA (lo pagan todas las sedes igual); el stock es
+     de esta sede. Por eso se guardan en sitios distintos. */
+  await iv_sb.from('iv_insumos').update({precio:nuevoPrecio,updated_at:new Date().toISOString()}).eq('id',ins.id);
+  await ivFijarExistencia(ins.id, { stock: nuevoStock });
   ins.stock=nuevoStock; ins.precio=nuevoPrecio;
   closePanel('panel-reponer');
   showToast('✓ '+ins.nombre+' reponido → '+nuevoStock+' '+ins.buyUnit);
@@ -1988,7 +2047,10 @@ async function aplicarCompra() {
     if (qty<=0) continue;
     const ins=insumos.find(i=>i.id===id); if (!ins) continue;
     const nuevoStock=ins.stock+qty; const nuevoPrecio=compraPrices[id]>0?compraPrices[id]:ins.precio;
-    await iv_sb.from('iv_insumos').update({stock:nuevoStock,precio:nuevoPrecio,updated_at:new Date().toISOString()}).eq('id',ins.id);
+    /* El precio es de la MARCA (lo pagan todas las sedes igual); el stock es
+     de esta sede. Por eso se guardan en sitios distintos. */
+  await iv_sb.from('iv_insumos').update({precio:nuevoPrecio,updated_at:new Date().toISOString()}).eq('id',ins.id);
+  await ivFijarExistencia(ins.id, { stock: nuevoStock });
     ins.stock=nuevoStock; ins.precio=nuevoPrecio; n++;
   }
   closePanel('panel-compra');
@@ -2332,13 +2394,15 @@ async function guardarInsumo() {
       const _dif = (parseFloat(stock)||0) - (_stockAntes == null ? (parseFloat(stock)||0) : _stockAntes);
       if (Math.abs(_dif) > 0.0001) {
         await iv_sb.from('iv_movimientos').insert({
-          tenant_id: tenantId, branch_id: branchId, insumo_id: editId,
+          tenant_id: tenantId, branch_id: branchId, brand_id: brandId, insumo_id: editId,
           delta: _dif, campo: 'stock', motivo: 'ajuste manual',
         });
       }
     } catch (e) { console.warn('[inventario] no se pudo registrar el ajuste:', e); }
   } else {
-    const {data,error}=await iv_sb.from('iv_insumos').insert({...payload,tenant_id:tenantId,branch_id:branchId,activo:true}).select().single();
+    /* brand_id: el insumo es de la MARCA. Sin esto, la otra sede no lo
+       vería y habría que crearlo dos veces. */
+    const {data,error}=await iv_sb.from('iv_insumos').insert({...payload,tenant_id:tenantId,branch_id:branchId,brand_id:brandId,activo:true}).select().single();
     if (error) { console.error('guardarInsumo:',error); alert('Error al guardar'); return; }
     insumos.push({id:data.id,nombre,cat,catColor,prep:togglePrepOn,controlManual:toggleManualOn,agotadoManual:agotadoManualFinal,buyUnit,useUnit,precio,conversion,stock,min,...extra});
   }
@@ -2636,12 +2700,67 @@ function toggleMerma() {
   const sw=document.getElementById('toggle-merma-sw');
   if (sw) { sw.classList.toggle('on',mermaOn); const lbl=sw.querySelector('.iv-switch-label'); if(lbl) lbl.textContent=mermaOn?'Sí':'No'; }
 }
+/* ── El interruptor del inventario (global / por sucursal) ──────────────
+   Vive en la MARCA, no en la sede: si viviera en la sede, dos sucursales de
+   la misma marca podrian contradecirse y no habria forma de saber de que
+   bolsa sale un descuento. */
+let modoElegido = null;   // lo que se ve en el panel, hasta que se guarda
+
+async function ivPrepararModo() {
+  const bloque = document.getElementById('bloque-modo-inv');
+  if (!bloque || !brandId) return;
+  /* Con una sola sede los dos modos son identicos: mostrar el interruptor
+     seria pedirle a Sergio una decision que no cambia nada. */
+  try {
+    const r = await iv_sb.from('branches').select('id').eq('brand_id', brandId);
+    if (!r.data || r.data.length < 2) return;
+  } catch (e) { return; }
+  bloque.style.display = '';
+  modoElegido = invModo;
+  pintarModoInv();
+}
+
+function pintarModoInv() {
+  [['global','modo-global'], ['sucursal','modo-sucursal']].forEach(function (p) {
+    const on = (modoElegido === p[0]);
+    const fila = document.getElementById(p[1]);
+    const sw   = document.getElementById(p[1] + '-sw');
+    if (fila) fila.classList.toggle('on', on);
+    if (sw) {
+      sw.classList.toggle('on', on);
+      const l = sw.querySelector('.iv-switch-label');
+      if (l) l.textContent = on ? 'Sí' : 'No';
+    }
+  });
+  const aviso = document.getElementById('modo-aviso');
+  if (!aviso) return;
+  if (modoElegido === invModo) { aviso.style.display = 'none'; return; }
+  aviso.style.display = '';
+  aviso.innerHTML = (modoElegido === 'sucursal')
+    ? 'Vas a pasar de <b>una sola bolsa</b> a <b>una por sede</b>. Lo que hay hoy está en la bolsa común y el sistema <b>no sabe cómo repartirlo</b>: cada sede arrancará en cero y toca contar. Hazlo con el inventario cuadrado.'
+    : 'Vas a pasar a <b>una sola bolsa</b>. Lo que tenga cada sede se queda guardado por si vuelves, pero <b>no se suma solo</b>: la bolsa común arranca con lo que ya tenía.';
+}
+
+function elegirModoInv(m) { modoElegido = m; pintarModoInv(); }
+
+/* Se guarda aparte de los demas parametros porque no es de la sede: es de la
+   marca, y afecta a todas sus sucursales a la vez. */
+async function ivGuardarModo() {
+  if (!brandId || !modoElegido || modoElegido === invModo) return;
+  const r = await iv_sb.from('brands').update({ inventario_modo: modoElegido }).eq('id', brandId);
+  if (r.error) { showToast('No se pudo cambiar el modo: ' + r.error.message); return; }
+  invModo = modoElegido;
+  showToast(invModo === 'global' ? '✓ Inventario en una sola bolsa' : '✓ Cada sede maneja lo suyo');
+  await loadInsumos();
+}
+
 async function guardarParams() {
   params.fc=parseInt(document.getElementById('param-fc').value);
   params.op=parseInt(document.getElementById('param-op').value);
   params.inf=parseInt(document.getElementById('param-inf').value);
   params.merma=mermaOn;
   await iv_sb.from('iv_params').upsert({tenant_id:tenantId,branch_id:branchId,fc_target:params.fc,op_cost:params.op,inflation:params.inf,merma_enabled:params.merma,updated_at:new Date().toISOString()},{onConflict:'branch_id'});
+  await ivGuardarModo();
   await saveOpConfigPatch({ ventaSinInventario: ventaSinInvOn }); // política de venta sin inventario (sincroniza a las pantallas de pedido)
   closePanel('panel-params');
   showToast('✓ Parámetros actualizados');
@@ -3094,6 +3213,7 @@ async function iaGuardarReceta() {
       precio:    0, conversion: 1, stock: 0, min_stock: 0,
       updated_at: new Date().toISOString(),
     };
+    payload.brand_id = brandId;   // el insumo es de la marca, no de la sede
     const { data, error } = await iv_sb.from('iv_insumos').insert(payload).select().single();
     if (error) { console.error('[IA] crear insumo:', error); continue; }
     const newIns = {
@@ -3120,6 +3240,7 @@ async function iaGuardarReceta() {
   }));
 
   if (recetaRows.length) {
+    recetaRows.forEach(function (r) { r.brand_id = brandId; });
     const { error } = await iv_sb.from('iv_recetas').insert(recetaRows);
     if (error) { console.error('[IA] guardar receta:', error); showToast('Error al guardar receta'); return; }
   }
