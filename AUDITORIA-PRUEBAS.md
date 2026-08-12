@@ -206,6 +206,27 @@ cosas distintas, es el error más caro de encontrar.
 
 ---
 
+## 5C. Que las marcas no se mezclen en la plata
+
+| # | Qué hacer | Qué debe pasar |
+|---|---|---|
+| 5C.1 | Vender en la sede A de la Marca 1 y cerrar caja | El cierre muestra **solo** lo de A |
+| 5C.2 | Cambiar a la sede B y abrir caja | No aparece ni un peso de A |
+| 5C.3 | Cambiar a la **Marca 2** y mirar informes | **Cero** ventas de la Marca 1 |
+| 5C.4 | Comparar el total del informe con el del cierre de caja, misma sede y día | **El mismo número** |
+| 5C.5 | Mandar una comanda a cocina desde cada marca | Sale por la impresora **de esa** marca |
+
+> **5C.4 es la prueba que importa.** Si informes y caja dan totales distintos
+> para la misma sede y el mismo día, algo está sumando de más — y casi siempre
+> es una marca colándose.
+
+⚠️ **Filtros de mentira:** los informes muestran *Sucursal / Caja / Turno /
+Canal* con opción "Todas". **Hoy no hacen nada** (son de la maqueta). No
+reportarlo como error nuevo, pero sí exigir que funcionen antes de vender a un
+restaurante con varias sedes.
+
+---
+
 ## 6. Lo que se arregló antes y conviene volver a mirar
 
 | # | Qué hacer | Qué debe pasar |

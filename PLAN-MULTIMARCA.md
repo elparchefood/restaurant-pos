@@ -174,9 +174,39 @@ filas, no las 44 de El Parche.
 así que en una sucursal nueva **no habría marcado nada agotado nunca** — se
 habría vendido todo sin stock, en silencio.
 
-**C. Separar la venta por marca**
-10. Cierre de caja e informes que no mezclen marcas
-11. Comanda por la impresora de su marca
+**C. Separar la venta por marca** ✅ (12-ago)
+
+**10. Cierre de caja e informes.** Nada mezclaba marcas *todavía* —todos los
+usuarios y los 222 pedidos tienen su sede— pero el hueco era estructural: las
+**42 consultas** de plata decían *«si sé la sucursal filtro; si no, traigo todo
+el restaurante»*. Con dos marcas, ese «todo» son totales revueltos que **se ven
+perfectamente normales**: la peor clase de error, porque nadie revisa un número
+que no parece roto.
+
+Ahora la sede es obligatoria. Sin ella, el filtro apunta a una sucursal que no
+existe: el informe sale en cero. **Un cero raro se nota; un total inflado no.**
+
+| Dónde | Consultas blindadas |
+|---|---|
+| `caja.js` (aperturas, ventas, ítems, pagos, cierres) | 15 |
+| `informes-datos.js` (los 27 informes) | 27 |
+| `dashboard.js` | ya filtraba bien |
+
+**11. Comanda por la impresora de su marca.** Ya estaba resuelto: las
+impresoras viven en `pos_printers` con su `branch_id`, y al imprimir se usa la
+sede activa — de hecho `pos-print.js` prefiere la del **propio pedido**, que es
+aún más correcto. Una sede pertenece a una sola marca, así que la comanda no
+puede salir por la impresora de otra. No se tocó nada.
+
+**De paso, otro arreglo de herencia:** el informe de costeo leía insumos y
+recetas **por sede**. En una sucursal nueva se habría quedado sin recetas — y
+un costeo sin recetas no da error: da **margen del 100%**.
+
+⚠️ **Pendiente, encontrado aquí:** los informes muestran unos filtros de
+*Sucursal / Caja / Turno / Canal* que **no hacen nada** — son parte de la
+maqueta de ejemplo (`informes-app.js` habla de «Chapinero» y «3 sucursales»,
+que no existen). Hoy es cosmético; con dos sedes, un filtro que dice «Todas» y
+no filtra es una mentira en pantalla.
 
 Se eligió A antes que B para probar el modelo de herencia con algo pequeño y de
 bajo riesgo antes de mover el inventario.
