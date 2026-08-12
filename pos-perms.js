@@ -49,9 +49,30 @@
     catch (e) { return window.sb || (window._pos && window._pos.sb); }
   }
 
+  /* Esperar a que pos-core sepa en que SUCURSAL estamos.
+     pos-perms arranca apenas se carga el archivo, y pos-core resuelve la sesion
+     y el contexto de forma asincrona. Sin esta espera, la primera resolucion no
+     sabia la sucursal, se saltaba el rol-por-sucursal y caia en el camino
+     viejo: a un cajero le daba permisos de mas. Comprobado el 12-ago.
+     `_pos.on` reentrega los eventos ya emitidos, asi que llegar tarde no
+     cuelga; y hay tope de tiempo por si esta pantalla no carga pos-core. */
+  function _esperarContexto() {
+    return new Promise(function (res) {
+      try {
+        if (!window._pos || typeof window._pos.on !== 'function') return res();
+        if (window.posContexto || (window._pos.state && window._pos.state.branchId)) return res();
+        var hecho = false;
+        var fin = function () { if (!hecho) { hecho = true; res(); } };
+        window._pos.on('core:ready', fin);
+        setTimeout(fin, 2500);
+      } catch (e) { res(); }
+    });
+  }
+
   async function resolver(porRed) {
     var sb = cliente();
     if (!sb) { _perms = '*'; return; }
+    await _esperarContexto();
     try {
       /* De la sesion guardada en el equipo, no del servidor: getUser sale a
          internet y esto corre en 15 pantallas. */
