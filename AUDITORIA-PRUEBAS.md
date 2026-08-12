@@ -161,11 +161,10 @@ Probar en **las tres** pantallas, no en una:
 
 ---
 
-## 5B. El inventario por marca ← en construcción
+## 5B. El inventario por marca
 
-**Ojo:** al escribir esto, el motor ya reparte bien pero **la pantalla de
-Inventario todavía no muestra el interruptor**. Estas pruebas se hacen cuando
-el paso 8 esté listo; se dejan escritas para no olvidarlas.
+**El interruptor está en Inventario → Parámetros de costeo**, y solo aparece
+con dos o más sedes en la marca.
 
 ### Lo que hay que probar sí o sí
 
