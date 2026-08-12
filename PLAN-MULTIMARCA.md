@@ -26,7 +26,7 @@ tocarlo en cada sede, y en un mes nadie sabe cuál carta es la buena.
 
 | Qué | De quién es | Excepción por local |
 |---|---|---|
-| Productos, precios, categorías | **Marca** | `pos_producto_sucursal` (precio y activo) |
+| Productos, precios, categorías | **Marca** | `pos_producto_sucursal` (`precio`, `activo`, `precios_pres`) |
 | Insumos: definición y precio | **Marca** | pendiente de construir |
 | Recetas | **Marca** | pendiente de construir |
 | **Existencias (stock)** | depende del interruptor | — |
@@ -70,13 +70,40 @@ herede y el stock siga el interruptor.
 
 ## Orden de trabajo
 
-**A. Cartas y precios por local** ← EN CURSO
-1. Que las pantallas lean `v_carta_sucursal` en vez de `pos_products` directo
-   (hoy los ajustes existen en la base pero **no se ven**)
-2. Editar el precio de un producto solo en esta sucursal, con aviso de ajustado
-   (la vista ya devuelve `precio_ajustado`)
-3. Botón **Restablecer**, por producto y uno general por sucursal
-4. Apagar un producto solo en una sede (el campo `activo` ya existe)
+**A. Cartas y precios por local** ✅ (12-ago)
+
+| Qué | Dónde |
+|---|---|
+| Resuelve la herencia (un solo sitio) | `pos-carta.js` |
+| La pantalla para usarlo | `catalogo-sede.js` — botón *Esta sede* en cada producto |
+| Lo aplican al cobrar | domicilios, venta rápida, mesas |
+| Restablecer | por producto y uno general por sucursal |
+| Apagar un producto solo en una sede | sí, el interruptor del panel |
+
+Probado de punta a punta el 12-ago: precio propio $15.000 con la marca en
+$18.000 → el cuadro, el selector de tamaño y **el total cobrado** dijeron
+$15.000; restablecer devolvió los tres a $18.000.
+
+**Tres cosas que casi lo dejan a medias, y por qué están así:**
+
+1. **El cobro sale de la PRESENTACIÓN, no de `price`** — 22 de los 53
+   productos de El Parche tienen tamaños. Ajustar solo `price` no habría
+   hecho nada en el 41% de la carta, y sin dar error. Por eso existe
+   `precios_pres`.
+2. **El cuadro mostraba el precio de la marca** aunque cobrara el del local.
+   En la carta actual el precio base **es** la presentación más barata (20 de
+   22), así que `aplicar()` mueve también el base cuando la sede ajusta
+   tamaños.
+3. **La copia local del catálogo guarda los precios de la MARCA.** La
+   herencia se aplica al LEERLA, nunca antes de guardarla: si se guardara ya
+   ajustada, al cambiar de sucursal se cobrarían los precios de la anterior.
+
+**Límite conocido:** las pantallas piden `.eq('available', true)`, así que una
+sede puede **apagar** un producto pero no **encender** uno que la marca tiene
+apagado.
+
+`posCarta.diag()` en la consola dice si una pantalla aplicó la carta de su
+sede, sin tener que abrir un pedido y mirar el total.
 
 **B. Inventario** (la pieza más grande)
 5. Sacar las existencias de `iv_insumos` a su propia tabla
