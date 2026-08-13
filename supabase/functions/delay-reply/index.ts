@@ -2469,6 +2469,11 @@ async function loadProductData(productName: string, branchId: string, categoria?
     `&select=id,name,price_mode,presentations,variables,category_id(name)`
   ) as Array<Record<string, unknown>> | null;
   if (!rows || !rows.length) return null;
+  /* Aqui ya viene la carta ENTERA, no solo el producto buscado: se aprovecha
+     para saber que palabras son opciones en este restaurante y cuales son
+     conversacion. Sin esto no hay como distinguir "mixta" (una opcion que este
+     producto no tiene) de "prefieres" (una palabra cualquiera). */
+  cargarVocabularioOpciones(rows);
   const matched = matchCatalogo(rows, productName, categoria);
   if (!matched) return null;
   return {
@@ -2867,6 +2872,43 @@ function buildAllPasos(productData: ProductData | null, cfg: Record<string, unkn
 // Convierte el flujo exportado del canvas (array ordenado de pasos) al formato PasoDefinicion
 // que entiende findNextStep. Inyecta opciones dinámicas para tamaño/tipo y omite pasos que
 // no aplican al producto (ej. tamaño si el producto no tiene presentaciones).
+/* ¿La frase escrita a mano cita mal las opciones de ESTE producto?
+   Mal es de las dos formas: que le falte una que si existe, o que nombre una
+   que no. La segunda es la que se colaba, porque nadie la estaba mirando. */
+/* normalizarTexto ya dejó solo minúsculas sin tildes y espacios. */
+const PALABRAS_OPCION = /[a-z0-9]+/g;
+function presentacionesMalCitadas(texto: string, nombres: string[]): boolean {
+  if (!texto) return false;
+  const t = normalizarTexto(texto);
+  // ¿Le falta alguna real?
+  if (nombres.some(n => !t.includes(normalizarTexto(n)))) return true;
+  /* ¿Nombra alguna que no es? Se comparan solo las palabras que aparecen como
+     opción en ALGÚN producto del restaurante: así "prefieres", "quieres" o
+     "😋" no cuentan como opciones inventadas. */
+  const validas = new Set(nombres.flatMap(n => normalizarTexto(n).match(PALABRAS_OPCION) || []));
+  const sospechosas = (t.match(PALABRAS_OPCION) || []).filter(w => VOCABULARIO_OPCIONES.has(w));
+  return sospechosas.some(w => !validas.has(w));
+}
+/* Se llena con las opciones de toda la carta antes de procesar el flujo. */
+const VOCABULARIO_OPCIONES = new Set<string>();
+function cargarVocabularioOpciones(productos: Array<Record<string, unknown>>) {
+  VOCABULARIO_OPCIONES.clear();
+  for (const p of productos || []) {
+    for (const g of (p.variables as Array<Record<string, unknown>>) || []) {
+      for (const o of (g.options as Array<Record<string, unknown>>) || []) {
+        for (const w of normalizarTexto(String(o.name || "")).match(PALABRAS_OPCION) || []) {
+          VOCABULARIO_OPCIONES.add(w);
+        }
+      }
+    }
+    for (const pr of (p.presentations as Array<Record<string, unknown>>) || []) {
+      for (const w of normalizarTexto(String(pr.name || "")).match(PALABRAS_OPCION) || []) {
+        VOCABULARIO_OPCIONES.add(w);
+      }
+    }
+  }
+}
+
 function procesarFlujoCanvas(
   canvasPasos: Array<Record<string, unknown>>,
   productData: ProductData | null,
@@ -2893,20 +2935,39 @@ function procesarFlujoCanvas(
       // Si la frase del canvas trae las opciones ESCRITAS A MANO ("¿personal o
       // familiar?") y este producto tiene OTRAS presentaciones (Coca Cola:
       // Personal / 1.5 Litros), la frase mentiría → usar las opciones reales.
-      const faltanPres = productData.presentations.some(x => !normalizarTexto(texto).includes(normalizarTexto(x.name)));
-      if (faltanPres) texto = `¿Cómo la prefieres? (${opciones}) 😋`;
+      // Sirve en los dos sentidos: que le falte una presentacion real, o que
+      // NOMBRE UNA QUE ESTE PRODUCTO NO TIENE. Lo segundo es lo que se
+      // escapaba: la frase "¿personal o familiar?" pasaba el filtro para un
+      // producto que solo viene familiar, y le ofrecia una personal que no
+      // existe.
+      const malaPres = presentacionesMalCitadas(texto, productData.presentations.map(x => x.name));
+      if (malaPres) texto = `¿Cómo la prefieres? (${opciones}) 😋`;
       guia  = (guia || `Pregunta cuál presentación prefiere. SOLO estas opciones exactas: ${opciones}. No ofrezcas ninguna otra.`).replace(/\{opciones\}/g, opciones);
       out.push({ id: "presentacion", campo: "tamano", modo, texto, guia });
     } else if (campo === "tipo") {
       if (!productData || productData.variables.length === 0) continue;
-      const vg = productData.variables[0];
-      if (!vg.options || vg.options.length === 0) continue;
-      const opciones = vg.options.map(o => o.name).join(", ");
-      texto = (texto || "¿{label}? ({opciones}) 🍟").replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
-      const faltanVars = vg.options.some(o => !normalizarTexto(texto).includes(normalizarTexto(o.name)));
-      if (faltanVars) texto = `¿${vg.name}? (${opciones}) 🍟`;
-      guia  = (guia || `Pregunta por "${vg.name}". SOLO estas opciones exactas: ${opciones}. Jamás menciones otra.`).replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
-      out.push({ id: `variable_${vg.id}`, campo: "tipo", modo, texto, guia });
+      /* UN PASO POR GRUPO, no solo el primero. Por aqui se colaba el agujero
+         mas grande: la SUPER QUESO tiene "Primer Ingrediente" y "Segundo
+         Ingrediente", y el segundo NUNCA se preguntaba — el bot cerraba el
+         pedido sin saber si era chorizo o tocineta. El motor por defecto
+         (buildProductPasos) si recorre todos; solo este camino, el del canvas,
+         se quedaba en variables[0]. Y el canvas es el que usa el restaurante. */
+      for (const vg of productData.variables) {
+        if (!vg.options || vg.options.length === 0) continue;
+        const opciones = vg.options.map(o => o.name).join(", ");
+        let vTexto = (texto || "¿{label}? ({opciones}) 🍟").replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
+        /* Sirve en los dos sentidos: que a la frase le falte una opcion real,
+           o que NOMBRE UNA QUE ESTE PRODUCTO NO TIENE. Lo segundo es lo que se
+           escapaba: "¿La prefieres mixta, de carne o de pollo?" pasaba el
+           filtro para la SUPER QUESO —que si tiene carne y pollo— y le ofrecia
+           una "mixta" que no existe. */
+        if (presentacionesMalCitadas(vTexto, vg.options.map(o => o.name))) {
+          vTexto = `¿${vg.name}? (${opciones}) 🍟`;
+        }
+        const vGuia = (guia || `Pregunta por "${vg.name}". SOLO estas opciones exactas: ${opciones}. Jamás menciones otra.`)
+          .replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
+        out.push({ id: `variable_${vg.id}`, campo: "tipo", modo, texto: vTexto, guia: vGuia });
+      }
     } else if (campo === "producto") {
       // El paso "producto" no entra al slot-filling (findNextStep): lo consume el caso
       // sin-producto de buildConversationResponse leyendo cfg.flujo_pasos directamente.
@@ -3035,15 +3096,22 @@ function procesarFlujoCanvas(
       if (modo === "fija" && texto) {
         out.push({ id: "nombre", campo: "nombre", modo: "fija", texto, guia });
       } else {
-        const nombreGuia = nombreConfirmar
+        /* El nombre del perfil de WhatsApp no siempre es el nombre de la
+           persona: hay perfiles que son un apodo, una empresa o solo emojis.
+           El dueño decide si sirve para confirmar o si prefiere preguntar
+           siempre. Los clientes ya guardados (recurrentes) no se ven
+           afectados: ese nombre lo verificó el restaurante. */
+        const usarWa = p.usar_nombre_wa !== false;
+        const nombreConfirmarUsable = (usarWa || esRecurrente) ? nombreConfirmar : null;
+        const nombreGuia = nombreConfirmarUsable
           ? (esRecurrente
               ? `Cliente recurrente — su nombre guardado es "${nombreConfirmar}". Salúdalo con familiaridad y confirma: "¿Va a nombre de ${nombreConfirmar}?" — si confirma úsalo; si da otro, usa ese.`
-              : `El contacto de WhatsApp se llama "${nombreConfirmar}". Confirma si el pedido va a ese nombre: "¿Va a nombre de ${nombreConfirmar}?" — si confirma úsalo; si da otro, usa ese.`)
+              : `El contacto de WhatsApp se llama "${nombreConfirmarUsable}". Confirma si el pedido va a ese nombre: "¿Va a nombre de ${nombreConfirmarUsable}?" — si confirma úsalo; si da otro, usa ese.`)
           : (guia || "Pregunta a nombre de quién se recibe el pedido.");
         out.push({
           id: "nombre", campo: "nombre",
-          modo: nombreConfirmar ? "conversacional" : modo,
-          texto: nombreConfirmar ? undefined : (texto || "¿A nombre de quién se recibe el pedido? 🍟"),
+          modo: nombreConfirmarUsable ? "conversacional" : modo,
+          texto: nombreConfirmarUsable ? undefined : (texto || "¿A nombre de quién se recibe el pedido? 🍟"),
           guia: nombreGuia,
         });
       }
@@ -3222,6 +3290,24 @@ async function buildConversationResponse(
       stateLines.push(`✅ ${item.cantidad}x ${desc}${item.adiciones && item.adiciones.length > 0 ? " + " + item.adiciones : item.adiciones === "" ? " (sin adición)" : ""}`);
     }
   }
+  /* "Confirmar la cantidad cuando sea más de una" — el interruptor llevaba
+     meses en el canvas SIN HACER NADA: el editor lo guardaba y el motor no lo
+     leía en ninguna parte. Se enciende y el bot confirma antes de seguir,
+     porque un "2" mal entendido cuesta un pedido entero.
+
+     Se le dice "si todavía no lo confirmaste": el modelo ve el historial y no
+     lo repite. Un contador aparte volvería a preguntar cada mensaje. */
+  const pasoCant = Array.isArray(cfg.flujo_pasos)
+    ? (cfg.flujo_pasos as Array<Record<string, unknown>>).find(p => p && p.campo === "producto" && p.activo !== false)
+    : null;
+  if (pasoCant && pasoCant.confirmar_cantidad === true && !state.resumen_enviado) {
+    const varios = allItems.filter(i => Number(i.cantidad) >= 2);
+    if (varios.length > 0) {
+      const cuales = varios.map(i => `${i.cantidad} ${i.producto}`).join(", ");
+      stateLines.push(`⚠️ Entendiste MÁS DE UNA unidad (${cuales}). Si todavía no se lo has confirmado en esta conversación, confírmaselo con naturalidad antes de seguir (ej: "¿son ${varios[0].cantidad} entonces?"). Si ya lo confirmó, sigue normal y NO vuelvas a preguntarlo.`);
+    }
+  }
+
   /* UN BARRIO NO ES UNA DIRECCION COMPLETA, y hay que decirselo asi al modelo.
      Cuando el cliente daba "La Paz" y despues "calle 8 # 3-45", el bot leia
      "Direccion: La Paz" y contestaba "ya me diste la direccion" — cuando lo

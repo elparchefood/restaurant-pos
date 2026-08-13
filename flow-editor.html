@@ -76,6 +76,14 @@ body{font-family:var(--font);background:var(--bg);height:100vh;overflow:hidden;c
 .pn-info{flex:1;min-width:0}
 .pn-name{font-size:13px;font-weight:600;color:var(--text-1)}
 .pn-desc{font-size:11px;color:var(--text-3);margin-top:1px}
+.cp-btn-sec{width:100%;padding:8px;border:1px solid var(--border);background:var(--bg);border-radius:var(--r-sm);font-family:inherit;font-size:11.5px;font-weight:700;color:var(--text-2);cursor:pointer}
+.cp-btn-sec:hover{border-color:var(--accent);color:var(--accent)}
+.avisos-flujo{position:absolute;top:14px;right:14px;width:330px;max-height:60%;overflow-y:auto;background:var(--surface);border:1px solid var(--amber);border-radius:var(--r);padding:14px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:20}
+.av-tit{font-size:12.5px;font-weight:800;color:var(--amber);margin-bottom:10px}
+.av-item{font-size:12px;color:var(--text-1);padding:8px 0;border-top:1px solid var(--border)}
+.av-item:first-of-type{border-top:none}
+.av-por{font-size:11.5px;color:var(--text-2);line-height:1.5;margin-top:3px}
+.av-cerrar{margin-top:10px;width:100%;padding:7px;border:1px solid var(--border);background:var(--bg);border-radius:var(--r-sm);font-family:inherit;font-size:12px;font-weight:700;color:var(--text-2);cursor:pointer}
 .palette-sep{margin:8px 10px;border:none;border-top:1px solid var(--border)}
 
 /* CANVAS AREA */
@@ -188,6 +196,7 @@ body{font-family:var(--font);background:var(--bg);height:100vh;overflow:hidden;c
   <!-- CANVAS -->
   <div class="canvas-wrap">
     <div id="drawflow"></div>
+    <div class="avisos-flujo" id="avisosFlujo" style="display:none"></div>
     <div class="canvas-hint">Arrastra pasos desde el panel izquierdo · Conecta los puntos para definir el flujo</div>
   </div>
 
@@ -578,6 +587,58 @@ function renderPanelBody(id, d) {
     </div>`;
   }
 
+
+  /* PRESENTACIÓN y VARIANTES: el problema aquí no son los interruptores, es la
+     frase. Escribir las opciones a mano ("¿personal o familiar?") funciona
+     para el producto que uno tenía en la cabeza y miente para los demás. */
+  if(['pregunta','ia','fija'].includes(d.type) && (d.campo === 'tamano' || d.campo === 'tipo')) {
+    const esPres = d.campo === 'tamano';
+    const marca  = esPres ? '{{presentaciones_producto}}' : '{{variantes_producto}}';
+    html += `<div class="cp-section">
+      <div class="cp-label">Las opciones las pone el producto</div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">
+        Escribe <b>${marca}</b> dentro de tu frase y el bot dirá las opciones del producto que el cliente esté pidiendo.
+        Si escribes las opciones a mano y no le sirven a ese producto, el bot las corrige solo antes de preguntar.
+      </div>
+      <button class="cp-btn-sec" style="margin-top:10px" onclick="insertarMarca(${id},'${marca}')">Insertar ${marca}</button>
+      ${esPres ? '' : `<div style="margin-top:12px;font-size:11px;color:var(--text-3);line-height:1.5">Si un producto tiene <b>más de un grupo</b> de variantes (por ejemplo primer y segundo ingrediente), el bot los pregunta uno por uno con esta misma frase.</div>`}
+    </div>`;
+  }
+
+  /* ADICIONES. Lo que el cliente le agrega al plato. */
+  if(['pregunta','ia','fija'].includes(d.type) && d.campo === 'adiciones') {
+    html += `<div class="cp-section">
+      <div class="cp-label">Qué cuenta como adición</div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">
+        El bot ya reconoce como adición todo lo que esté en tus categorías de adiciones y bebidas.
+        Aquí puedes agregar palabras sueltas que tus clientes usan y no están en la carta, separadas por coma.
+      </div>
+      <input class="cp-input" style="margin-top:10px" placeholder="doble queso, extra salsa, sin gaseosa"
+             value="${esc(d.adiciones_palabras||'')}" oninput="updateField(${id},'adiciones_palabras',this.value)">
+      <div style="margin-top:12px;font-size:11px;color:var(--text-3);line-height:1.5">
+        Se pregunta <b>una sola vez por pedido</b>. Si el cliente agrega otro producto después, no se le vuelve a preguntar.
+      </div>
+    </div>`;
+  }
+
+  /* NOMBRE. */
+  if(['pregunta','ia','fija'].includes(d.type) && d.campo === 'nombre') {
+    html += `<div class="cp-section">
+      <div class="cp-toggle-row">
+        <span class="cp-toggle-label">Usar el nombre del perfil de WhatsApp</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.usar_nombre_wa!==false?'checked':''} onchange="updateField(${id},'usar_nombre_wa',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">
+        Encendido, el bot no pregunta: confirma ("¿va a nombre de Ana?"). Apágalo si tus clientes tienen apodos o emojis en el perfil y prefieres que siempre pregunte.
+        A los clientes que ya te han pedido antes se les confirma igual — ese nombre lo tienes verificado.
+      </div>
+    </div>`;
+  }
+
   // Paso PRODUCTO: interruptor "mostrar carta"
   if(['pregunta','ia','fija'].includes(d.type) && d.campo === 'producto') {
     html += `<div class="cp-section">
@@ -863,6 +924,19 @@ function renderPanelBody(id, d) {
 
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')}
 
+
+/* Mete {{presentaciones_producto}} o {{variantes_producto}} al final de la
+   frase, sin borrar lo que el dueño ya escribio. */
+function insertarMarca(id, marca) {
+  const n = editor.getNodeFromId(String(id));
+  const d = (n && n.data) || {};
+  const campo = (d.tipo === 'ia') ? 'instrucciones' : 'frase';
+  const actual = d[campo] || '';
+  if (actual.indexOf(marca) >= 0) return;
+  updateField(id, campo, (actual ? actual.trimEnd() + ' ' : '') + marca);
+  openPanel(id);
+}
+
 function updateField(id, field, val) {
   const node = editor.getNodeFromId(id);
   if(!node) return;
@@ -995,6 +1069,7 @@ function pushPaso(d, pasos) {
       cubiertos: d.pref_cubiertos === true,
     };
   }
+  if (d.campo === 'nombre') paso.usar_nombre_wa = d.usar_nombre_wa !== false;
   if (d.campo === 'pago') paso.despues_resumen = d.despues_resumen === true;
   if (d.campo === 'upsell' && Array.isArray(d.upsell_productos)) paso.upsell_productos = d.upsell_productos;
   // Comunes a todas las cajas
@@ -1012,6 +1087,18 @@ function pushPaso(d, pasos) {
 // el array ordenado de pasos para el motor (ia_config.flujo_pasos).
 /* La caja de envío no es un paso del pedido, así que no va en flujo_pasos:
    se guarda aparte y la lee `cambiar-estado`. */
+/* Las palabras sueltas que el dueño escribió en la caja de Adiciones. */
+function exportarPalabrasAdiciones(data) {
+  const nodes = (data.drawflow?.Home?.data) || {};
+  for (const n of Object.values(nodes)) {
+    const d = n.data || {};
+    if (d.campo === 'adiciones' && d.adiciones_palabras) {
+      return String(d.adiciones_palabras).split(',').map(x => x.trim()).filter(Boolean);
+    }
+  }
+  return [];
+}
+
 function exportarEnvio(data) {
   const nodes = (data.drawflow?.Home?.data) || {};
   for (const nid of Object.keys(nodes)) {
@@ -1143,6 +1230,88 @@ function exportarExtras(data) {
   return Object.keys(extras).length ? extras : null;
 }
 
+
+/* ══════════════════════════════════════════════════════════════════════
+   QUE NO SE VA A USAR — y por que.
+
+   El canvas descarta cajas en silencio: una caja de mensaje que no sea el
+   Saludo, el Cierre, el Esperar comprobante o el Aviso de envio no llega al
+   motor. Uno la dibuja, escribe su frase, guarda, y no pasa nada.
+
+   Esto lo dice al guardar, con nombre y apellido.
+   ══════════════════════════════════════════════════════════════════════ */
+function revisarFlujo(data) {
+  const nodes = (data.drawflow?.Home?.data) || {};
+  const avisos = [];
+  const CAMPOS_OK = CAMPOS_SLOT;
+
+  for (const n of Object.values(nodes)) {
+    const d = n.data || {};
+    const nom = d.nombre || NODE_LABELS[d.type] || 'una caja';
+
+    /* Mensajes sueltos: sin papel y sin dato, no llegan al motor. */
+    if ((d.type === 'fija' || d.type === 'ia') && !d.campo && !d.rol) {
+      avisos.push({
+        caja: nom,
+        que: 'No se va a usar',
+        por: 'Es un mensaje suelto. Para que el bot lo diga, tiene que ser una caja con papel propio (Saludo, Cierre, Esperar comprobante o Aviso de envío) o capturar un dato.',
+      });
+      continue;
+    }
+
+    /* Una mision con un campo que el motor no conoce. */
+    if (d.campo && CAMPOS_OK.indexOf(d.campo) < 0) {
+      avisos.push({
+        caja: nom,
+        que: 'No se va a usar',
+        por: 'Pide un dato que el motor no conoce (' + d.campo + ').',
+      });
+      continue;
+    }
+
+    /* Frases fijas con las opciones escritas a mano: valen para un producto y
+       se le mandan igual a todos. */
+    if ((d.campo === 'tamano' || d.campo === 'tipo')
+        && (d.tipo || 'fija') === 'fija' && d.frase
+        && !/\{\{(presentaciones_producto|variantes_producto|opciones)\}\}/.test(d.frase)) {
+      const cual = d.campo === 'tamano' ? '{{presentaciones_producto}}' : '{{variantes_producto}}';
+      avisos.push({
+        caja: nom,
+        que: 'Le va a ofrecer opciones equivocadas',
+        por: 'Su frase escribe las opciones a mano, y se le manda igual a productos que tienen otras. Usa ' + cual + ' y el bot dirá las del producto que el cliente esté pidiendo.',
+      });
+    }
+  }
+
+  /* Adiciones y Upsell se pisan: por dentro el motor los guarda en la misma
+     casilla, así que el que quede de segundo nunca se pregunta. Son cajas
+     distintas a propósito —una adición va SOBRE el plato, el upsell es otro
+     producto— pero hoy no pueden convivir, y callarlo sería dejar al dueño
+     creyendo que configuró dos preguntas. */
+  const campos = Object.values(nodes).map(n => (n.data || {}).campo);
+  if (campos.indexOf('adiciones') >= 0 && campos.indexOf('upsell') >= 0) {
+    avisos.push({
+      caja: 'Adiciones y Upsell',
+      que: 'Solo se va a preguntar una de las dos',
+      por: 'Las dos guardan la respuesta en el mismo sitio, así que el bot pregunta la primera y da la segunda por hecha. Deja una sola.',
+    });
+  }
+  return avisos;
+}
+
+function pintarAvisos(avisos) {
+  const caja = document.getElementById('avisosFlujo');
+  if (!caja) return;
+  if (!avisos.length) { caja.style.display = 'none'; caja.innerHTML = ''; return; }
+  caja.style.display = '';
+  caja.innerHTML =
+    '<div class="av-tit">Se guardó, pero revisa esto</div>' +
+    avisos.map(a =>
+      '<div class="av-item"><b>' + esc(a.caja) + '</b> — ' + esc(a.que) +
+      '<div class="av-por">' + esc(a.por) + '</div></div>').join('') +
+    '<button class="av-cerrar" onclick="document.getElementById(\'avisosFlujo\').style.display=\'none\'">Entendido</button>';
+}
+
 async function saveFlow() {
   const data = editor.export();
   localStorage.setItem('cobrapos_flow', JSON.stringify(data));
@@ -1172,6 +1341,9 @@ async function saveFlow() {
       branch_id: branchId,
       frases,
       flujo_pasos:  exportarFlujoPasos(data),
+      /* Va suelto y no dentro del paso porque el motor lo lee de aquí:
+         reconoce las adiciones ANTES de saber en qué paso va la conversación. */
+      adiciones_palabras: exportarPalabrasAdiciones(data),
       flujo_envio:  exportarEnvio(data),
       flujo_saludo: exportarSaludo(data),
       flujo_extras: exportarExtras(data),
@@ -1187,6 +1359,9 @@ async function saveFlow() {
   }
 
   document.getElementById('saveStatus').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;color:var(--green)"><polyline points="20 6 9 17 4 12"/></svg> Guardado`;
+  /* Guardar bien no significa que todo se vaya a usar: eso es justo lo que
+     antes no se decia. */
+  try { pintarAvisos(revisarFlujo(data)); } catch (e) { console.warn('avisos:', e); }
 }
 
 editor.on('zoom', val => { document.getElementById('zoomVal').textContent = Math.round(val*100)+'%'; });
