@@ -189,6 +189,10 @@ const ADICION_BASE = [
 // Palabras genéricas que por sí solas NO bastan para dar por hecha una adición
 const ADICION_GENERICAS = ["con","adicion","adicional","agregar","añadir","extra","bebida"];
 let DYN_ADICION_KEYWORDS: string[] = [];   // nombres de productos de categorías de adiciones/bebidas
+/* Los nombres de TODAS las adiciones de los grupos de modificadores del
+   restaurante. Es donde viven de verdad, con su precio y separadas por
+   tamaño. Sin esto, "con ranchera" abria la salchipapa Ranchera. */
+let DYN_MOD_NAMES: string[] = [];
 let DYN_PROD_NAMES: string[] = [];         // nombres (normalizados) de productos y categorías del catálogo
 let DYN_PRODUCT_FULL: string[] = [];       // nombres COMPLETOS de productos (validación de extractProducto)
 let DYN_CATEGORY_NAMES: string[] = [];     // nombres de categorías (una categoría NO es un producto)
@@ -592,6 +596,21 @@ async function recordarComprobante(convId: string): Promise<void> {
   console.log("recordatorio del comprobante enviado:", convId);
 }
 
+/* El numero como lo guarda la pantalla de clientes: sin indicativo.
+
+   WhatsApp entrega 573244756271 y la pantalla guarda 3244756271. Comparando
+   uno contra otro no coincidia NUNCA, asi que el bot jamas reconocio a un
+   cliente conocido —ni para saludarlo, ni para confirmarle el nombre, ni para
+   proponerle su direccion de siempre—. Los 111 clientes de El Parche estan
+   guardados con diez digitos.
+
+   Se toman los ultimos diez, que es lo que identifica a la persona: el
+   indicativo lo pone el canal, no el cliente. */
+function telLocal(tel: string | null | undefined): string {
+  const d = String(tel || "").replace(/\D/g, "");
+  return d.length > 10 ? d.slice(-10) : d;
+}
+
 async function processConversation(convId: string): Promise<void> {
 
   // 1. Leer la entrada de la cola
@@ -708,6 +727,9 @@ async function processConversation(convId: string): Promise<void> {
      la sede, que es la misma que lee la pantalla de ventas. Se carga aqui una
      vez y se cuelga de cfg —como _varData y _cerradoInfo— para no pasar un
      parametro mas por las veinte funciones que ya reciben cfg. */
+  /* Los grupos de modificadores, temprano: de ellos sale el vocabulario que
+     necesita el clasificador para distinguir "una ranchera" de "con ranchera". */
+  try { await cargarModificadores(branchId); } catch (e) { console.error("modificadores:", e); }
   try {
     const opRes = await sbGet(`/rest/v1/branches?id=eq.${branchId}&select=operacion_config&limit=1`);
     if (cfg) (cfg as Record<string, unknown>)._operacion = opRes?.[0]?.operacion_config ?? null;
@@ -1150,7 +1172,9 @@ INTENCION, no las palabras exactas.` },
   let nombreKnown: string | null = null;
   try {
     const clienteHist = await sbGet(
-      `/rest/v1/pos_clientes?telefono=eq.${encodeURIComponent(telefonoCleanWa)}&tenant_id=eq.${tenantId}&select=nombre&order=id.desc&limit=1`
+      /* Se busca por el numero local Y por el completo: hay bases con los dos
+         formatos y no se puede dar por hecho cual usa cada restaurante. */
+      `/rest/v1/pos_clientes?telefono=in.(${encodeURIComponent(telLocal(telefonoCleanWa))},${encodeURIComponent(telefonoCleanWa)})&tenant_id=eq.${tenantId}&select=nombre&order=id.desc&limit=1`
     ) as Array<Record<string, unknown>> | null;
     if (clienteHist && clienteHist.length > 0 && clienteHist[0].nombre) {
       nombreKnown = String(clienteHist[0].nombre);
@@ -1761,6 +1785,12 @@ INTENCION, no las palabras exactas.` },
   // en curso, 3º se le pregunta al cliente (frase configurable).
   /* Se le pregunta al CATALOGO, y la lista de frases queda solo de respaldo
      para lo que el catálogo no alcance a ver (un producto escrito con typo). */
+  /* Lo que se le estaba preguntando ANTES de mirar si trae producto nuevo.
+     La deteccion reinicia el paso pendiente, y despues ya no hay como saberlo. */
+  const pasoAntesId = state.producto
+    ? (findNextStep(state, pasos, false, domiciliosCfg)?.id || null)
+    : null;
+
   const nuevosEnTexto = productosNuevosEnTexto(clienteTexto, state, currentProductData, intenciones);
   const needsProducto = !state.producto
     || nuevosEnTexto.length > 0
@@ -1940,7 +1970,7 @@ INTENCION, no las palabras exactas.` },
   const currentStepId = currentStep?.id || null;
 
   // 14d. Correr extractores de slots
-  const extracted = runExtractors(clienteTexto, state, currentStepId, pagosCfg, currentProductData, nombreConfirmar, intenciones, cfg);
+  const extracted = runExtractors(clienteTexto, state, currentStepId, pagosCfg, currentProductData, nombreConfirmar, intenciones, cfg, productoRecienDetectado, pasoAntesId);
 
   // 14e. Merge
   // Capturar ANTES del merge: si ya había una pregunta de dirección pendiente → es el segundo intento
@@ -2685,7 +2715,12 @@ function extractPago(text: string, pagosCfg: Record<string, unknown> | null | un
    "super queso" configurada como palabra de adicion — que ademas es una
    salchipapa. Preguntandole a la lista, esa salchipapa se volvia una adicion
    de otro plato y nunca se pedia. La categoria no se puede confundir. */
-const CAT_ES_ADICION = /adicion|adición|bebida|extra|salsa|postre|acompan|acompañ/i;
+/* OJO: aqui NO va `bebida`. Una gaseosa se reconoce como respuesta a "¿algo
+   mas?" (de eso se encarga CAT_ADICION_RE), pero se GUARDA como plato aparte:
+   tiene su precio, su presentacion —personal o 1.5 litros— y su linea en la
+   comanda. Metida aqui, la Coca Cola quedaba como texto pegado a la
+   salchipapa, sin preguntarle el tamaño y sin cobrarse. */
+const CAT_ES_ADICION = /adicion|adición|extra|salsa|acompan|acompañ/i;
 function esCategoriaAdicion(cat: string | null | undefined): boolean {
   return !!cat && CAT_ES_ADICION.test(cat);
 }
@@ -2721,6 +2756,9 @@ function dondeVive(nombre: string): { plato: boolean; adicion: boolean } {
      lista. Mirandola solo cuando el nombre NO era un plato, nunca llegaba a
      ser "las dos cosas" y el conector no alcanzaba a decidir. */
   if (DYN_ADICION_KEYWORDS.includes(n)) adicion = true;
+  /* Y sobre todo: las adiciones de VERDAD, las de los grupos de modificadores.
+     Ahi estan con su precio y separadas por tamaño. */
+  if (DYN_MOD_NAMES.includes(n)) adicion = true;
   return { plato, adicion };
 }
 
@@ -2789,7 +2827,30 @@ function mencionesClasificadas(
   const textoNorm = " " + normalizarTexto(texto) + " ";
   const agregados = Array.isArray(intenciones.agregados)
     ? (intenciones.agregados as unknown[]).map(String).filter(Boolean) : [];
-  return matchProductosEnTexto(texto).map(m => ({
+
+  const hallados = matchProductosEnTexto(texto);
+
+  /* Y las adiciones que viven SOLO en los grupos de modificadores. Las de El
+     Parche existen tambien como productos, asi que el buscador de arriba las
+     encuentra; en otro restaurante puede haber una que no ("Doble queso",
+     "Punto de la carne") y sin esto no se veria nunca. */
+  const yaVistos = new Set(hallados.map(h => normalizarTexto(h.name)));
+  for (const n of DYN_MOD_NAMES) {
+    if (yaVistos.has(n)) continue;
+    const i = textoNorm.indexOf(" " + n + " ");
+    if (i < 0) continue;
+    /* El nombre tal como lo escribio el restaurante, no normalizado. */
+    let real = n;
+    for (const g of (MODS_CACHE?.grupos || [])) {
+      const o = g.options.find(x => normalizarTexto(x.name) === n);
+      if (o) { real = o.name; break; }
+    }
+    hallados.push({ name: real, cat: "Adiciones", pos: i });
+    yaVistos.add(n);
+  }
+  hallados.sort((a, b) => a.pos - b.pos);
+
+  return hallados.map(m => ({
     ...m,
     clase: clasificarMencion(textoNorm, m, esPasoAdiciones, agregados),
   }));
@@ -3154,6 +3215,10 @@ function runExtractors(
   // plata" o "transfe" y ninguna lista los cubre.
   intenciones: Record<string, unknown> = {},
   cfgGlobal: Record<string, unknown> = {},
+  /* ¿Este mismo mensaje abrio un producto nuevo? */
+  productoNuevo = false,
+  /* Que se le estaba preguntando antes de que llegara ese producto. */
+  pasoAntesId: string | null = null,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -3250,6 +3315,14 @@ function runExtractors(
       if (a !== null) result.adiciones = a;
     }
   }
+  /* CONTESTAR CON UN PRODUCTO TAMBIEN ES CONTESTAR. Si a "¿quieres agregarle
+     algo mas?" el cliente responde "una coca cola", eso abre un producto nuevo
+     —no una adicion— y la pregunta ya quedo respondida. Sin esto se le volveria
+     a preguntar lo mismo despues de haberle entendido. */
+  if (state.adiciones === null && productoNuevo && pasoAntesId === "upsell") {
+    result.adiciones = "";
+  }
+
   /* La respuesta al upsell. Si acepta, el producto lo recoge el extractor de
      productos como cualquier otro; aqui solo se anota que YA se le ofrecio,
      para no volver a ofrecerle. */
@@ -3608,18 +3681,38 @@ function procesarFlujoCanvas(
         preg_barrio:     p.preg_barrio ? String(p.preg_barrio) : undefined,
       });
     } else if (campo === "upsell") {
-      /* Ofrecer algo más. Es su propia caja y no las adiciones: una adición va
-         SOBRE el plato ("con tocineta"), el upsell es otro producto ("¿te
-         provoca una gaseosa?"). El dueño elige qué ofrecer; si no elige nada,
-         el asistente propone de la carta. */
-      const cuales = Array.isArray(p.upsell_productos) ? (p.upsell_productos as unknown[]).map(String).filter(Boolean) : [];
-      const lista = cuales.length ? cuales.join(", ") : "";
+      /* Ofrecer algo más. Es su propia caja y NO la de adiciones: aquí ofrece
+         el restaurante, allá pide el cliente. El dueño escoge del catálogo lo
+         que quiere ofrecer y el bot dice exactamente eso. */
+      const items = Array.isArray(p.upsell_items) ? p.upsell_items as Array<Record<string, unknown>> : [];
+      const nombres = items.map(x => String(x.nombre || "").trim()).filter(Boolean);
+      /* Compatibilidad con lo viejo: antes era una lista de nombres sueltos. */
+      const viejos = Array.isArray(p.upsell_productos) ? (p.upsell_productos as unknown[]).map(String).filter(Boolean) : [];
+      const ofrecidos = nombres.length ? nombres : viejos;
+
+      /* La lista, uno por línea. Una categoría entera va con su nombre
+         ("Bebidas"), sin desplegar sus seis productos: es lo que el dueño
+         escribió y es lo que se lee mejor en WhatsApp. */
+      const listaLineas = ofrecidos.map(n => `• ${n}`).join("\n");
+      const listaCorta  = listaNatural(ofrecidos);
+
+      let upTexto = texto || "";
+      if (upTexto) {
+        upTexto = upTexto.replace(/\{lista\}/g, listaLineas).replace(/\{opciones\}/g, listaCorta);
+      } else if (ofrecidos.length) {
+        upTexto = `¿Deseas agregar algo a tu pedido?\n${listaLineas}`;
+      }
+
       out.push({
         id: "sugerencia", campo: "upsell", modo,
-        texto: texto || undefined,
-        guia: guia || (lista
-          ? `Ofrece de forma natural y breve: ${lista}. Una sola vez. Si el cliente no quiere, sigue sin insistir.`
-          : "Ofrece algo más de forma natural y breve, una sola vez. Si el cliente no quiere, sigue sin insistir."),
+        texto: upTexto || undefined,
+        guia: (guia && guia.replace(/\{lista\}/g, listaCorta).replace(/\{opciones\}/g, listaCorta))
+          || (ofrecidos.length
+            /* SOLO eso. Antes decía "si no elige nada, propone de la carta": el
+               bot improvisaba y ofrecía cosas que el restaurante no queria
+               empujar. */
+            ? `Ofrece SOLO esto, tal cual, sin agregar nada de la carta: ${listaCorta}. Una sola vez. Si el cliente no quiere, sigue sin insistir.`
+            : "Ofrece algo más de forma natural y breve, una sola vez. Si el cliente no quiere, sigue sin insistir."),
       });
     } else if (campo === "preferencias") {
       // Solo existe si el restaurante lo agrega a su flujo. El Parche no lo
@@ -3759,6 +3852,92 @@ function slugVariable(nombre: string): string {
     .replace(/[^a-z0-9ñ]+/g, "_")
     .replace(/^_+|_+$/g, "");
 }
+/* ══════════════════════════════════════════════════════════════════════
+   LOS GRUPOS DE MODIFICADORES — de donde sale el precio de una adición
+
+   El bot no los conocía. Toda adición entraba como texto y se cobraba cero.
+
+   La misma adición cuesta distinto según el tamaño (Ranchera: $14.000
+   personal, $28.000 familiar) porque vive en dos grupos, y `mod_group_pres`
+   dice qué presentación usa cuál. Por eso el precio se resuelve cuando ya se
+   sabe el producto Y su presentación — antes sería adivinar.
+   ══════════════════════════════════════════════════════════════════════ */
+type GrupoMod = { id: string; name: string; options: Array<{ id: string; name: string; price: number }> };
+let MODS_CACHE: { branch: string; grupos: GrupoMod[] } | null = null;
+
+async function cargarModificadores(branchId: string): Promise<GrupoMod[]> {
+  if (MODS_CACHE && MODS_CACHE.branch === branchId) return MODS_CACHE.grupos;
+  const rows = await sbGet(
+    `/rest/v1/pos_modifier_groups?branch_id=eq.${branchId}&select=id,name,options`
+  ) as Array<Record<string, unknown>> | null;
+  const grupos = (rows || []).map(r => ({
+    id: String(r.id || ""),
+    name: String(r.name || ""),
+    options: ((r.options as Array<Record<string, unknown>>) || []).map(o => ({
+      id: String(o.id || ""), name: String(o.name || ""), price: Number(o.price) || 0,
+    })),
+  }));
+  MODS_CACHE = { branch: branchId, grupos };
+  /* El vocabulario, para que el clasificador sepa que estos nombres PUEDEN ser
+     una adición. Cual de las dos cosas es lo decide el conector ("una
+     ranchera" vs "con ranchera"), igual que con cualquier nombre que viva en
+     los dos lados. */
+  const nombres = new Set<string>();
+  for (const g of grupos) for (const o of g.options) {
+    const n = normalizarTexto(o.name);
+    if (n.length >= 3) nombres.add(n);
+  }
+  DYN_MOD_NAMES = [...nombres];
+  return grupos;
+}
+
+/* Los grupos que aplican a ESTE producto en ESTA presentación. Si el producto
+   no dice qué presentación usa qué grupo, el grupo aplica a todas. */
+function gruposDelProducto(
+  prod: Record<string, unknown>,
+  presId: string | null,
+  grupos: GrupoMod[],
+): GrupoMod[] {
+  const ids = (prod.mod_group_ids as string[]) || [];
+  if (!ids.length) return [];
+  const porPres = (prod.mod_group_pres as Record<string, string[]>) || {};
+  return grupos.filter(g => {
+    if (!ids.includes(g.id)) return false;
+    const lista = porPres[g.id];
+    if (!Array.isArray(lista) || lista.length === 0) return true;
+    return !presId || lista.includes(presId);
+  });
+}
+
+/* El texto de adiciones que se le entendió al cliente ("Ranchera, Tocineta"),
+   resuelto contra los grupos que le aplican a su plato. Lo que no se encuentre
+   se devuelve con precio 0 y marcado, para que se vea que no se pudo cobrar en
+   vez de desaparecer sin dejar rastro. */
+function resolverAdiciones(
+  texto: string | null | undefined,
+  prod: Record<string, unknown> | undefined,
+  presId: string | null,
+  grupos: GrupoMod[],
+): Array<{ nombre: string; precio: number; grupo: string; op: string; sinPrecio: boolean }> {
+  if (!texto || !texto.trim() || !prod) return [];
+  const aplican = gruposDelProducto(prod, presId, grupos);
+  const out: Array<{ nombre: string; precio: number; grupo: string; op: string; sinPrecio: boolean }> = [];
+  for (const trozo of texto.split(",").map(x => x.trim()).filter(Boolean)) {
+    const n = normalizarTexto(trozo);
+    let hallado: { g: GrupoMod; o: { id: string; name: string; price: number } } | null = null;
+    for (const g of aplican) {
+      const o = g.options.find(x => normalizarTexto(x.name) === n);
+      if (o) { hallado = { g, o }; break; }
+    }
+    if (hallado) {
+      out.push({ nombre: hallado.o.name, precio: hallado.o.price, grupo: hallado.g.id, op: hallado.o.id, sinPrecio: false });
+    } else {
+      out.push({ nombre: trozo, precio: 0, grupo: "", op: "", sinPrecio: true });
+    }
+  }
+  return out;
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    EL EMPAQUE
 
@@ -4319,8 +4498,10 @@ async function buildSummaryFromState(
 
   try {
     const products = await sbGet(
-      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables,category_id(id,name)`
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables,category_id(id,name),mod_group_ids,mod_group_pres`
     ) as Array<Record<string, unknown>> | null;
+    /* Los grupos de modificadores, de donde sale el precio de cada adición. */
+    const gruposMod = await cargarModificadores(branchId);
 
     const getPrecioItem = (prod: string|null, tam: string|null, tip: string|null, cant: number, cat?: string|null): number => {
       if (!products || !prod) return 0;
@@ -4359,7 +4540,19 @@ async function buildSummaryFromState(
         : (item.categoria || "");
       const nombreDisplay = nombreConCategoria(matchedProd ? String(matchedProd.name) : item.producto, catMatched);
       const display = [nombreDisplay, item.tipo].filter(Boolean).join(" ");
-      const adStr   = item.adiciones && item.adiciones.length > 0 ? ` + ${item.adiciones}` : "";
+      /* LA ADICIÓN SE COBRA. Se resuelve contra los grupos que le aplican a
+         este plato en esta presentación: la misma Ranchera vale $14.000 en
+         personal y $28.000 en familiar. Hasta hoy era texto decorativo y no
+         sumaba un peso. */
+      const presItem = item.tamano && matchedProd
+        ? ((matchedProd.presentations as Array<Record<string, unknown>>) || [])
+            .find(p => normalizarTexto(String(p.name || "")) === normalizarTexto(item.tamano || ""))
+        : undefined;
+      const adiRes = resolverAdiciones(item.adiciones, matchedProd, presItem ? String(presItem.id || "") : null, gruposMod);
+      const adiCobradas = adiRes.filter(a => !a.sinPrecio);
+      const adStr = adiRes.length > 0
+        ? " + " + adiRes.map(a => a.nombre).join(", ")
+        : "";
       const tamStr  = item.tamano ? ` ${item.tamano}` : "";
       productoLines.push(`🍟 ${item.cantidad}x ${display}${tamStr}${adStr}`);
       /* Para el empaque hace falta saber QUE producto y QUE presentacion es:
@@ -4381,6 +4574,15 @@ async function buildSummaryFromState(
       const prefItem = (item as { preferencias?: string | null }).preferencias;
       if (prefItem) productoLines.push(`   ↳ ${prefItem}`);
       precioProducto += getPrecioItem(item.producto, item.tamano, item.tipo, item.cantidad, item.categoria);
+      /* Cada adición, por unidad del plato. */
+      for (const a of adiCobradas) {
+        precioProducto += a.precio * (Number(item.cantidad) || 1);
+      }
+      /* Una adición que no se encontró en los grupos del plato NO se cobra, y
+         se dice — antes se iba en silencio y nadie se enteraba. */
+      for (const a of adiRes.filter(x => x.sinPrecio)) {
+        console.warn(`adición sin precio en el catálogo: "${a.nombre}" (${item.producto})`);
+      }
     }
   } catch (err) { console.error("buildSummaryFromState lookup error:", err); }
 
@@ -4393,10 +4595,11 @@ async function buildSummaryFromState(
      sin empaque desde que existe la funcion. */
   const opCfg = (cfg as Record<string, unknown>)._operacion as Record<string, unknown> | null | undefined;
   const empaque = calcularEmpaque(opCfg, itemsEmpaque, !esParaLlevar);
-  if (empaque > 0) {
-    productoLines.push(`📦 Empaque: ${fmtCOP(empaque)}`);
-    precioProducto += empaque;
-  }
+  /* SUMA, PERO NO SE ENUMERA. El cliente ve un precio de pedido, no el
+     desglose de cuánto es comida y cuánto la caja donde va — igual que en la
+     caja registradora. El domicilio sí va aparte: es un servicio distinto y
+     además nunca entra a ventas. */
+  precioProducto += empaque;
 
   // Línea de domicilio
   let lineaDomi = "";
@@ -4639,7 +4842,7 @@ async function createWhatsappOrder(
 
   const allProducts = await sbGet(
     `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true` +
-    `&select=id,name,price,price_mode,presentations,variables,category_id(id,name)`
+    `&select=id,name,price,price_mode,presentations,variables,category_id(id,name),mod_group_ids,mod_group_pres`
   ) as Array<Record<string, unknown>> | null;
 
   if (!allProducts) { console.error("No se pudo cargar pos_products"); return null; }
@@ -4663,6 +4866,8 @@ async function createWhatsappOrder(
 
   const itemsEmpaque: ItemEmpaque[] = [];
   let orderTotal = 0;
+  /* Los grupos de modificadores, para poner a cada adicion su precio real. */
+  const gruposPedido = await cargarModificadores(branchId);
 
   for (const prod of productos) {
     const nombreGPT = String(prod.nombre  || "").trim();
@@ -4703,9 +4908,27 @@ async function createWhatsappOrder(
       }
     }
 
-    const itemTotal   = price * cantidad;
+    /* LAS ADICIONES DEL PLATO, con su precio real. Van en `selections.mods`,
+       que es donde las lee la caja registradora — hasta hoy iba siempre
+       vacío. */
+    const presIdMod = presName
+      ? ((matched.presentations as Array<Record<string, unknown>>) || [])
+          .find(p => normalizarTexto(String(p.name || "")) === normalizarTexto(presName))
+      : undefined;
+    const adiItem = resolverAdiciones(
+      (prod.adiciones as string) || null, matched,
+      presIdMod ? String(presIdMod.id || "") : null, gruposPedido);
+    const modsMap: Record<string, unknown> = {};
+    let adiPrecio = 0;
+    for (const a of adiItem) {
+      if (a.sinPrecio) { console.warn(`adición sin precio al crear el pedido: "${a.nombre}"`); continue; }
+      modsMap[a.op] = { id: a.op, name: a.nombre, price: a.precio, group: a.grupo };
+      adiPrecio += a.precio;
+    }
+
+    const itemTotal   = (price + adiPrecio) * cantidad;
     const displayName = [nombreConCategoria(String(matched.name), String(((matched.category_id as Record<string, unknown> | null)?.name as string) || "")), presName, tipoGPT].filter(Boolean).join(" · ");
-    items.push({ product_id: String(matched.id), name: displayName, product_name: displayName, product_price: price, unit_price: price, total: itemTotal, quantity: cantidad, selections: { mods: {}, pres: presName, vars: varsMap }, branch_id: branchId, tenant_id: tenantId || null, notes: null });
+    items.push({ product_id: String(matched.id), name: displayName, product_name: displayName, product_price: price, unit_price: price, total: itemTotal, quantity: cantidad, selections: { mods: modsMap, pres: presName, vars: varsMap }, branch_id: branchId, tenant_id: tenantId || null, notes: null });
     orderTotal += itemTotal;
     /* El empaque puede depender del producto, de su presentacion o de la
        categoria, asi que se guarda con que se cobro cada linea. */
@@ -4728,7 +4951,7 @@ async function createWhatsappOrder(
       ? `&direccion=eq.${encodeURIComponent(direccion)}`
       : `&direccion=is.null`;
     const existing = await sbGet(
-      `/rest/v1/pos_clientes?telefono=eq.${encodeURIComponent(telefonoClean)}&nombre=eq.${encodeURIComponent(cliente)}&tenant_id=eq.${tenantId}${dirQuery}&limit=1`
+      `/rest/v1/pos_clientes?telefono=in.(${encodeURIComponent(telLocal(telefonoClean))},${encodeURIComponent(telefonoClean)})&nombre=eq.${encodeURIComponent(cliente)}&tenant_id=eq.${tenantId}${dirQuery}&limit=1`
     ) as Array<Record<string, unknown>> | null;
     if (existing && existing.length > 0) {
       clienteId = String(existing[0].id);
@@ -4736,7 +4959,9 @@ async function createWhatsappOrder(
       const newCliente = await fetch(`${SUPABASE_URL}/rest/v1/pos_clientes`, {
         method: "POST",
         headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json", "Prefer": "return=representation" },
-        body: JSON.stringify({ tenant_id: tenantId || null, branch_id: branchId, nombre: cliente, telefono: telefonoClean, direccion: direccion || null }),
+        /* Se guarda como lo guarda la pantalla de clientes —sin indicativo— para no
+           sembrar dos formatos en la misma tabla. */
+        body: JSON.stringify({ tenant_id: tenantId || null, branch_id: branchId, nombre: cliente, telefono: telLocal(telefonoClean), direccion: direccion || null }),
       });
       if (newCliente.ok) {
         const newRow = await newCliente.json() as Array<Record<string, unknown>>;
