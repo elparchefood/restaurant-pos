@@ -1586,7 +1586,16 @@ INTENCION, no las palabras exactas.` },
   }
 
   // 14c. Paso actual (para contexto en extractores)
-  const currentStep = state.producto ? findNextStep(state, pasos) : null;
+  /* OJO: si el producto se acaba de detectar EN ESTE MENSAJE, el paso
+     siguiente no es el paso "actual" — el cliente todavia no lo ha visto.
+     Darlo por actual hacia que el extractor de direccion forzara la captura
+     y se tragara el mensaje entero: "La salchipapa mas economica de k precio
+     es" quedaba guardado como la direccion del cliente, y el bot contestaba
+     "en que barrio queda esa direccion" a una pregunta de precio. */
+  const productoRecienDetectado = !!productoDetectado;
+  const currentStep = (state.producto && !productoRecienDetectado)
+    ? findNextStep(state, pasos)
+    : null;
   const currentStepId = currentStep?.id || null;
 
   // 14d. Correr extractores de slots
@@ -1682,7 +1691,7 @@ INTENCION, no las palabras exactas.` },
     }
     if (clasifBis.tipo !== "para_llevar") {
       const domiPrecioBis = lookupDomiPrice(state.direccion, domiciliosCfg);
-      const tieneCalle = /\b(calle|carrera|cra|cl|diagonal|transversal|tv|dg|avenida|av)\s*\d+/i.test(state.direccion);
+      const tieneCalle = analizarDireccion(state.direccion).tieneVia;
       const tieneNumeroBis = /#\s*\d|no\.\s*\d|nro\.\s*\d|número\s*\d|numero\s*\d/.test(state.direccion);
       if (!tieneCalle && !tieneNumeroBis && domiPrecioBis !== null) {
         // Solo dio el barrio sin calle ni número — pedir la dirección completa
@@ -1955,7 +1964,7 @@ INTENCION, no las palabras exactas.` },
       }
       if (clasifDir.tipo !== "para_llevar") {
         const domiPrecioH = lookupDomiPrice(state.direccion, domiciliosCfg);
-        const tieneCalleH = /\b(calle|carrera|cra|cl|diagonal|transversal|tv|dg|avenida|av)\s*\d+/i.test(state.direccion);
+        const tieneCalleH = analizarDireccion(state.direccion).tieneVia;
         const tieneNumH   = /#\s*\d|no\.\s*\d|nro\.\s*\d|número\s*\d|numero\s*\d/.test(state.direccion);
         if (!tieneCalleH && !tieneNumH && domiPrecioH !== null) {
           const pregCalle = getFraseTexto(frasesCfg.preguntar_calle_numero)
@@ -2614,8 +2623,12 @@ function runExtractors(
        barrio; una pregunta no. */
     const puedeSerDireccion = !esPreguntaDir && (isDirStep || senalDireccion);
 
+    /* Se extrae a la fuerza tambien cuando el mensaje trae señales claras
+       (calle, carrera, #, barrio): el cliente que manda todo junto —"una
+       premium para la calle 25 N #1-84 barrio sotara"— da la direccion sin que
+       nadie se la haya preguntado, y hay que sacarla de en medio del texto. */
     const d = puedeSerDireccion
-      ? extractDireccion(text, isDirStep && !state.direccion, productData)
+      ? extractDireccion(text, (isDirStep && !state.direccion) || senalDireccion, productData)
       : null;
     if (d) { result.direccion = limpiarPrefijoDireccion(d); result.direccion_heredada = false; }
   }
@@ -3870,6 +3883,64 @@ function checkBarrioSinNomenclatura(
   return false;
 }
 
+
+/* ══════════════════════════════════════════════════════════════════════
+   EL MOTOR DE DIRECCIONES — uno solo, y todos preguntan aqui.
+
+   Antes habia TRES sitios contando numeros con reglas distintas, y una
+   direccion buena podia pasar uno y caerse en otro. Probado: "Kra 9 b 63 n 58"
+   pasaba el clasificador y el flujo le volvia a pedir la direccion, porque
+   "kra" no estaba en la lista de vias.
+
+   Una direccion colombiana completa tiene TRES partes:
+     1. la VIA PRINCIPAL  -> "carrera 9 b"   (tipo + numero + letra opcional)
+     2. el CRUCE          -> "63"            (la via que cruza)
+     3. la PLACA          -> "58"            (el numero de la casa)
+
+   Se acepta escrita como sea: con #, con "no."/"nro."/"numero", con guion,
+   con la "n" de "n 58", con puntos, con saltos de linea o sin nada.
+   ══════════════════════════════════════════════════════════════════════ */
+const VIA_TIPOS = "calle|cll|cl|carrera|cra|cr|kra|kr|k|avenida|avda|av|diagonal|diag|dg|transversal|trasversal|trans|tv|tr|circunvalar|circular|autopista|auto|manzana|mz|via";
+const VIA_RE = new RegExp("\\b(" + VIA_TIPOS + ")\\b\\.?\\s*(\\d+)\\s*([a-z]{0,2})\\b", "i");
+
+interface DireccionPartes {
+  tieneVia: boolean;    // "carrera 9"
+  viaTexto: string;     // lo que se reconocio como via
+  cruce: string | null; // "63"
+  placa: string | null; // "58"
+  completa: boolean;    // las tres partes
+}
+
+function analizarDireccion(direccion: string): DireccionPartes {
+  const dir = (direccion || "").toLowerCase().replace(/\s+/g, " ").trim();
+  const m = dir.match(VIA_RE);
+  if (!m) return { tieneVia: false, viaTexto: "", cruce: null, placa: null, completa: false };
+
+  /* Los numeros que vienen DESPUES de la via son el cruce y la placa. Se
+     cuentan por posicion, no por el separador: la gente escribe "# 63-25",
+     "63 n 58", "63-25" o "63 58" y todas significan lo mismo. */
+  const resto = dir.slice((m.index || 0) + m[0].length);
+  const nums = resto.match(/\d+/g) || [];
+
+  return {
+    tieneVia: true,
+    viaTexto: m[0],
+    cruce: nums[0] || null,
+    placa: nums[1] || null,
+    completa: nums.length >= 2,
+  };
+}
+
+/* Que le falta, para poder decirselo al cliente en vez de repetir
+   "necesito la direccion completa". */
+function faltaDeDireccion(direccion: string): "via" | "cruce" | "placa" | null {
+  const p = analizarDireccion(direccion);
+  if (!p.tieneVia) return "via";
+  if (!p.cruce) return "cruce";
+  if (!p.placa) return "placa";
+  return null;
+}
+
 function clasificarDireccion(
   direccion: string,
   domicilios: Record<string, unknown> | null | undefined,
@@ -3885,11 +3956,8 @@ function clasificarDireccion(
     return { tipo: "publico", requierePagoAdelantado: requiere };
   }
   if (!sinNomenclaturaCliente && !checkBarrioSinNomenclatura(dir, domicilios)) {
-    const tieneVia    = /\b(calle|carrera|cra|cl|diagonal|transversal|tv|dg|avenida|av)\s*\d+/i.test(dir);
-    // Predio completo: mínimo 3 números en la dirección (vía + cruce + complemento)
-    // Acepta cualquier separador: "63-25", "63 n 58", "63 58", con o sin "#"
-    const tienePredio = (dir.match(/\d+/g) || []).length >= 3;
-    if (tieneVia && !tienePredio) return { tipo: "incompleta", requierePagoAdelantado: false };
+    const partes = analizarDireccion(dir);
+    if (partes.tieneVia && !partes.completa) return { tipo: "incompleta", requierePagoAdelantado: false };
   }
   return { tipo: "residencial", requierePagoAdelantado: false };
 }
