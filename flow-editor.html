@@ -329,7 +329,10 @@ function buildNodeHtml(type, data) {
      "Pedir direccion", "Metodo de pago" y "Pedir nombre" se veian identicas
      —mismo icono amarillo, mismo "Pregunta variable" debajo— y solo se
      distinguian por el nombre que el dueño les hubiera escrito. */
-  const pal = palDe(data);
+  /* Se le pasa el tipo aparte: al crear la caja, `data` todavia no lo trae
+     (se le agrega despues, al guardarla en el editor). Sin esto, Inicio y
+     Resumen se pintaban grises. */
+  const pal = palDe({ ...data, type: data.type || type });
   const sub = pal ? pal.nombre : NODE_LABELS[type];
   const col = pal ? pal.color : 'gray';
   return `<div class="df-node n-${type} mis-${col}">
