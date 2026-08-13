@@ -52,6 +52,15 @@ Cosas que Sergio pidió en su momento y nunca se construyeron, o quedaron a medi
 
 ### Pendiente
 
+- [ ] **Registrar los conjuntos cerrados** — *lo hace Sergio*. La casilla ya
+      existe: Configuración → Domicilios, en cada zona, "Conjuntos cerrados de
+      esta zona". Mientras estén vacíos, un pedido de un conjunto se traba
+      pidiendo calle y número. `2026-08-12`
+- [ ] **Lugar desconocido que NO suena a conjunto** — debería preguntar "¿es
+      una casa o un conjunto?", etiquetar la respuesta, proponerlo y pasar a un
+      humano. No se logró: el nombre suelto no llega a guardarse como dirección
+      (el candado que impide que una pregunta se cuele como dirección lo
+      bloquea). Ver `delay-reply` → `puedeSerDireccion`. `2026-08-12`
 - [ ] **Subida del banner en "Mi página web"** — *aplazado por Sergio el
       2026-08-09*: las imágenes del carrusel se suben desde Cobra.
 - [ ] **Historias de Instagram** — falta el endpoint.

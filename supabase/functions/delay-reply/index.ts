@@ -1408,7 +1408,7 @@ INTENCION, no las palabras exactas.` },
           return;
         }
         const esParaLlevar = clasif.tipo === "para_llevar";
-        const domiPrecio = esParaLlevar ? 0 : lookupDomiPrice(state.direccion || "", domiciliosCfg);
+        const domiPrecio = esParaLlevar ? 0 : lookupDomiPrice(ubicacionPedido(state), domiciliosCfg);
         try {
           const orderArgs = buildOrderArgs(state, domiPrecio ?? 0);
           await createWhatsappOrder(orderArgs, branchId, tenantId, fromPhone);
@@ -1701,7 +1701,7 @@ INTENCION, no las palabras exactas.` },
     if (sueneAConjunto(state.direccion)
         && !esConjunto(state.direccion, domiciliosCfg)
         && !LLEVAR_REGEX.test(state.direccion.toLowerCase())
-        && lookupDomiPrice(state.direccion, domiciliosCfg) === null) {
+        && lookupDomiPrice(ubicacionPedido(state), domiciliosCfg) === null) {
       const nombreConj = state.direccion
         .replace(/^\s*(seria|sería|es|para|en|el|la)\s+/i, "")
         .split(/\b(torre|bloque|bl|interior|int|apto|apartamento|apart|casa|piso)\b/i)[0]
@@ -1754,7 +1754,7 @@ INTENCION, no las palabras exactas.` },
       return;
     }
     if (clasifBis.tipo !== "para_llevar") {
-      const domiPrecioBis = lookupDomiPrice(state.direccion, domiciliosCfg);
+      const domiPrecioBis = lookupDomiPrice(ubicacionPedido(state), domiciliosCfg);
       const tieneCalle = analizarDireccion(state.direccion).tieneVia;
       const tieneNumeroBis = /#\s*\d|no\.\s*\d|nro\.\s*\d|número\s*\d|numero\s*\d/.test(state.direccion);
       /* A UN CONJUNTO NO SE LE PIDE CALLE NI NUMERO. Este control tambien
@@ -2024,7 +2024,7 @@ INTENCION, no las palabras exactas.` },
         return;
       }
       if (clasifDir.tipo !== "para_llevar") {
-        const domiPrecioH = lookupDomiPrice(state.direccion, domiciliosCfg);
+        const domiPrecioH = lookupDomiPrice(ubicacionPedido(state), domiciliosCfg);
         const tieneCalleH = analizarDireccion(state.direccion).tieneVia;
         const tieneNumH   = /#\s*\d|no\.\s*\d|nro\.\s*\d|número\s*\d|numero\s*\d/.test(state.direccion);
         if (!tieneCalleH && !tieneNumH && domiPrecioH !== null && !esConjunto(state.direccion, domiciliosCfg)) {
@@ -2062,7 +2062,7 @@ INTENCION, no las palabras exactas.` },
     // sabe cuanto vale. Se lo pasa al humano.
     {
       const esLlevarFin = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
-      if (!esLlevarFin && state.direccion && lookupDomiPrice(state.direccion, domiciliosCfg) === null) {
+      if (!esLlevarFin && state.direccion && lookupDomiPrice(ubicacionPedido(state), domiciliosCfg) === null) {
         /* CONJUNTO QUE NO ESTA EN LA LISTA (regla de Sergio):
            se PROPONE para que el dueño lo apruebe desde Configuracion ->
            Domicilios, y la conversacion pasa a una persona para que verifique
@@ -2781,7 +2781,7 @@ function findNextStep(state: PacoState, pasos: PasoDefinicion[], incluirPostResu
          sin el no se sabe cuanto cobrar el domicilio.
          Solo se pide si hace falta — si la direccion ya cayo en una zona, el
          precio esta resuelto y preguntar seria hacerle perder el tiempo. */
-      if (!state.barrio && !esRecoger && lookupDomiPrice(state.direccion, domiciliosPaso) === null) {
+      if (!state.barrio && !esRecoger && lookupDomiPrice(ubicacionPedido(state), domiciliosPaso) === null) {
         const modoBarrio = paso.modo === "fija" ? "fija" : "conversacional";
         const fraseBarrio = paso.preg_barrio || "¿Y en qué barrio queda esa dirección? 📍";
         return modoBarrio === "fija"
@@ -3098,7 +3098,7 @@ function resolverDato(
     case "precio_domi":
     case "total_domi": {
       const esLlevar = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
-      const dp = (!esLlevar && state.direccion) ? lookupDomiPrice(state.direccion, domiciliosCfg) : null;
+      const dp = (!esLlevar && state.direccion) ? lookupDomiPrice(ubicacionPedido(state), domiciliosCfg) : null;
       return esLlevar ? "para llevar" : dp === null ? "a confirmar" : dp === 0 ? "Gratis" : fmtCOP(dp);
     }
     // Precio de producto/total requieren catálogo → capa siguiente
@@ -3148,7 +3148,7 @@ function rellenarVariables(
   const varsUsuario   = (cfg?.variables as Record<string, { tipo?: string; fuente?: string; texto?: string }>) || {};
 
   const esLlevar   = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
-  const domiPrecio = (!esLlevar && state.direccion) ? lookupDomiPrice(state.direccion, domiciliosCfg) : null;
+  const domiPrecio = (!esLlevar && state.direccion) ? lookupDomiPrice(ubicacionPedido(state), domiciliosCfg) : null;
   const barrioFaltante = (fuente: string) =>
     (fuente === "precio_domi" || fuente === "total_domi" || fuente === "precio_total" || fuente === "gran_total")
     && !esLlevar && domiPrecio === null;
@@ -3560,7 +3560,7 @@ async function buildSummaryFromState(
   } catch (err) { console.error("buildSummaryFromState lookup error:", err); }
 
   const esParaLlevar = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
-  const domiPrecio   = (!esParaLlevar && state.direccion) ? lookupDomiPrice(state.direccion, domiciliosCfg) : null;
+  const domiPrecio   = (!esParaLlevar && state.direccion) ? lookupDomiPrice(ubicacionPedido(state), domiciliosCfg) : null;
 
   // Línea de domicilio
   let lineaDomi = "";
@@ -3757,7 +3757,7 @@ async function calcularPreciosPedido(
     }
   } catch (err) { console.error("calcularPreciosPedido error:", err); }
   const esLlevar = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
-  const domi = esLlevar ? 0 : (state.direccion ? lookupDomiPrice(state.direccion, domiciliosCfg) : null);
+  const domi = esLlevar ? 0 : (state.direccion ? lookupDomiPrice(ubicacionPedido(state), domiciliosCfg) : null);
   return { pedido, domi, esLlevar };
 }
 
@@ -4066,6 +4066,14 @@ function clasificarDireccion(
     if (partes.tieneVia && !partes.completa) return { tipo: "incompleta", requierePagoAdelantado: false };
   }
   return { tipo: "residencial", requierePagoAdelantado: false };
+}
+
+/* DONDE VA EL PEDIDO, completo: el barrio y la direccion juntos.
+   El barrio vive en su propia casilla desde que dejo de ser un parche, y el
+   precio del domicilio se seguia buscando SOLO en la direccion: en cuanto el
+   cliente daba la calle, el barrio quedaba fuera y el precio se perdia. */
+function ubicacionPedido(state: PacoState): string {
+  return [state.barrio, state.direccion].filter(Boolean).join(" ").trim();
 }
 
 function lookupDomiPrice(direccion: string, domicilios: Record<string, unknown> | null | undefined): number | null {
