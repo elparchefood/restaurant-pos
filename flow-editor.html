@@ -88,8 +88,12 @@ body{font-family:var(--font);background:var(--bg);height:100vh;overflow:hidden;c
 .pg-cuenta{align-items:center;gap:9px}
 .pg-cuenta-txt{font-size:12px;line-height:1.35}
 .pg-num{font-size:10.5px;color:var(--text-3)}
+.cp-ej{margin-top:10px;padding:9px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--bg)}
+.cp-ej-t{font-size:11.5px;font-weight:700;color:var(--text-1);margin-bottom:5px}
+.cp-ej-r{font-size:11px;color:var(--text-3);line-height:1.6}
 .cp-check{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12px;color:var(--text-1);cursor:pointer}
 .cp-check input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+.cp-tag.av{color:var(--amber);background:var(--amber-bg)}
 .cp-tag{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--accent);background:var(--accent-bg);padding:1.5px 5px;border-radius:4px}
 .cp-nota{font-size:11px;line-height:1.5;padding:9px 10px;border-radius:var(--r-sm);border:1px solid var(--border)}
 .cp-nota.ok{color:var(--text-2);background:var(--bg)}
@@ -611,15 +615,31 @@ function renderPanelBody(id, d) {
      para el producto que uno tenía en la cabeza y miente para los demás. */
   if(['pregunta','ia','fija'].includes(d.type) && (d.campo === 'tamano' || d.campo === 'tipo')) {
     const esPres = d.campo === 'tamano';
-    const marca  = esPres ? '{{presentaciones_producto}}' : '{{variantes_producto}}';
+    const ejemplo = esPres
+      ? '¿La quieres {opciones}? 😋'
+      : '¿La deseas con {opciones}? 🍟';
     html += `<div class="cp-section">
-      <div class="cp-label">Las opciones las pone el producto</div>
+      <div class="cp-label">Una sola frase para todos tus productos</div>
       <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">
-        Escribe <b>${marca}</b> dentro de tu frase y el bot dirá las opciones del producto que el cliente esté pidiendo.
+        Escribe <b>{opciones}</b> dentro de tu frase y el bot lo reemplaza por las opciones
+        ${esPres ? 'de ese producto' : 'del grupo que esté preguntando'}, escritas como habla la gente.
+      </div>
+      <div class="cp-ej">
+        <div class="cp-ej-t">${esc(ejemplo)}</div>
+        ${esPres ? `
+          <div class="cp-ej-r">Premium &rarr; ¿La quieres personal o familiar? 😋</div>
+          <div class="cp-ej-r">HIT &rarr; ¿La quieres litro o personal? 😋</div>
+        ` : `
+          <div class="cp-ej-r">Súper queso &rarr; ¿La deseas con carne o pollo? 🍟</div>
+          <div class="cp-ej-r">Súper queso &rarr; ¿La deseas con chorizo o tocineta? 🍟</div>
+          <div class="cp-ej-r">Premium &rarr; ¿La deseas con mixta, carne o pollo? 🍟</div>
+        `}
+      </div>
+      <button class="cp-btn-sec" style="margin-top:10px" onclick="insertarMarca(${id},'{opciones}')">Insertar {opciones}</button>
+      ${esPres ? '' : `<div style="margin-top:12px;font-size:11px;color:var(--text-3);line-height:1.5">Si un producto tiene <b>más de un grupo</b> de variantes, el bot pregunta uno por uno con esta misma frase — no hay que escribir una por producto.</div>`}
+      <div style="margin-top:10px;font-size:11px;color:var(--text-3);line-height:1.5">
         Si escribes las opciones a mano y no le sirven a ese producto, el bot las corrige solo antes de preguntar.
       </div>
-      <button class="cp-btn-sec" style="margin-top:10px" onclick="insertarMarca(${id},'${marca}')">Insertar ${marca}</button>
-      ${esPres ? '' : `<div style="margin-top:12px;font-size:11px;color:var(--text-3);line-height:1.5">Si un producto tiene <b>más de un grupo</b> de variantes (por ejemplo primer y segundo ingrediente), el bot los pregunta uno por uno con esta misma frase.</div>`}
     </div>`;
   }
 
@@ -632,7 +652,8 @@ function renderPanelBody(id, d) {
         Aquí puedes agregar palabras sueltas que tus clientes usan y no están en la carta, separadas por coma.
       </div>
       <input class="cp-input" style="margin-top:10px" placeholder="doble queso, extra salsa, sin gaseosa"
-             value="${esc(d.adiciones_palabras||'')}" oninput="updateField(${id},'adiciones_palabras',this.value)">
+             value="${esc(d.adiciones_palabras != null ? d.adiciones_palabras : PALABRAS_ADI)}"
+             oninput="updateField(${id},'adiciones_palabras',this.value)">
       <div style="margin-top:12px;font-size:11px;color:var(--text-3);line-height:1.5">
         Se pregunta <b>una sola vez por pedido</b>. Si el cliente agrega otro producto después, no se le vuelve a preguntar.
       </div>
@@ -951,6 +972,27 @@ function renderPanelBody(id, d) {
       <button class="cp-btn-sec" style="margin-top:8px" onclick="irAPagos()">Abrir Pagos</button>
     </div>`;
 
+    /* ── LOS DEMAS METODOS ────────────────────────────────────────────
+       Efectivo, billetera, puntos. Van aparte de las cuentas porque no son
+       cuentas: no tienen QR ni numero. Los PUNTOS vienen desmarcados con una
+       nota, porque no son una forma de pagar sino de redimir — y redimir se
+       hace en el mostrador, contra un pedido que ya existe. */
+    const otros = metodos.filter(m => !m.digital);
+    if (otros.length) {
+      html += `<div class="cp-section">
+        <div class="cp-label">Otras formas de pago que puede ofrecer</div>
+        ${otros.map(m => `
+          <label class="cp-check">
+            <input type="checkbox" ${(!permitidos || permitidos.indexOf(m.id) >= 0) ? 'checked' : ''}
+                   onchange="togglePagoMetodo(${id},'${esc(m.id)}',this.checked)">
+            <span>${esc(m.nombre)}${m.id === '__puntos' ? ' <b class="cp-tag av">se redime en caja</b>' : ''}</span>
+          </label>`).join('')}
+        <div style="margin-top:8px;font-size:11px;color:var(--text-3);line-height:1.5">
+          Desmarcar aquí solo cambia lo que el bot <b>ofrece por WhatsApp</b>. En la caja se siguen pudiendo usar igual.
+        </div>
+      </div>`;
+    }
+
     /* ── EL QR ────────────────────────────────────────────────────────
        No se escoge aparte: va pegado a su cuenta, arriba se ve cuál lleva
        cada una. Una lista suelta de QR dejaría mandar el QR de una cuenta
@@ -1246,6 +1288,7 @@ function markDirty() {
 /* Lo que hay configurado en la pantalla de Pagos. Se lee al arrancar y no se
    edita desde el canvas: la caja de pago solo escoge entre esto. */
 let PAGOS_CFG = null;
+let PALABRAS_ADI = '';   // ia_config.adiciones_palabras, para no pisarlas al guardar
 let GMAIL_OK  = false;
 
 const CAMPOS_SLOT = ['producto','tamano','tipo','direccion','pago','nombre','adiciones','preferencias','upsell','programado','reserva','factura'];
@@ -1339,11 +1382,12 @@ function exportarPalabrasAdiciones(data) {
   const nodes = (data.drawflow?.Home?.data) || {};
   for (const n of Object.values(nodes)) {
     const d = n.data || {};
-    if (d.campo === 'adiciones' && d.adiciones_palabras) {
+    if (d.campo === 'adiciones' && d.adiciones_palabras != null) {
       return String(d.adiciones_palabras).split(',').map(x => x.trim()).filter(Boolean);
     }
   }
-  return [];
+  /* Nadie tocó la caja: se devuelve lo que ya estaba, para no pisarlo. */
+  return PALABRAS_ADI ? PALABRAS_ADI.split(',').map(x => x.trim()).filter(Boolean) : [];
 }
 
 function exportarEnvio(data) {
@@ -1487,21 +1531,54 @@ function exportarExtras(data) {
 
    Esto lo dice al guardar, con nombre y apellido.
    ══════════════════════════════════════════════════════════════════════ */
+/* Las cajas que SI se usan aunque no traigan papel propio, porque la regla
+   vieja por posicion sigue valiendo. Es la misma que aplica el exportador: si
+   aqui se mirara solo el papel, el aviso diria que el saludo de toda la vida no
+   se va a usar — y eso fue exactamente lo que paso. */
+function cajasUsadasPorPosicion(data) {
+  const nodes = (data.drawflow?.Home?.data) || {};
+  const ids = new Set();
+
+  /* El saludo: el primer mensaje despues de Inicio. */
+  const inicio = Object.entries(nodes).find(([, n]) => n.data && n.data.type === 'inicio');
+  if (inicio) {
+    let cur = String((inicio[1].outputs?.output_1?.connections || [])[0]?.node || '');
+    const vistos = new Set();
+    while (cur && nodes[cur] && !vistos.has(cur)) {
+      vistos.add(cur);
+      const d = nodes[cur].data || {};
+      if ((d.type === 'fija' || d.type === 'ia') && !d.campo) { ids.add(cur); break; }
+      cur = String((nodes[cur].outputs?.output_1?.connections || [])[0]?.node || '');
+    }
+  }
+
+  /* El cierre y el comprobante: lo que cuelga de las dos salidas del Resumen. */
+  const resumen = Object.entries(nodes).find(([, n]) => n.data && n.data.type === 'resumen');
+  if (resumen) {
+    for (const salida of ['output_1', 'output_2']) {
+      for (const c of (resumen[1].outputs?.[salida]?.connections || [])) ids.add(String(c.node));
+    }
+  }
+  return ids;
+}
+
 function revisarFlujo(data) {
   const nodes = (data.drawflow?.Home?.data) || {};
   const avisos = [];
   const CAMPOS_OK = CAMPOS_SLOT;
+  const porPosicion = cajasUsadasPorPosicion(data);
 
-  for (const n of Object.values(nodes)) {
+  for (const [nid, n] of Object.entries(nodes)) {
     const d = n.data || {};
     const nom = d.nombre || NODE_LABELS[d.type] || 'una caja';
 
-    /* Mensajes sueltos: sin papel y sin dato, no llegan al motor. */
-    if ((d.type === 'fija' || d.type === 'ia') && !d.campo && !d.rol) {
+    /* Mensajes sueltos: sin papel, sin dato y sin sitio, no llegan al motor. */
+    if ((d.type === 'fija' || d.type === 'ia') && !d.campo && !d.rol
+        && !d.rol_envio && !porPosicion.has(String(nid))) {
       avisos.push({
         caja: nom,
         que: 'No se va a usar',
-        por: 'Es un mensaje suelto. Para que el bot lo diga, tiene que ser una caja con papel propio (Saludo, Cierre, Esperar comprobante o Aviso de envío) o capturar un dato.',
+        por: 'Es un mensaje suelto: no captura ningún dato y no está en un sitio con papel propio. Para que el bot lo diga, cámbiala por una caja de la paleta (Saludo, Cierre, Esperar comprobante, Aviso de envío) o por una que pregunte algo.',
       });
       continue;
     }
@@ -1577,7 +1654,14 @@ async function saveFlow() {
       flujo_pasos:  exportarFlujoPasos(data),
       /* Va suelto y no dentro del paso porque el motor lo lee de aquí:
          reconoce las adiciones ANTES de saber en qué paso va la conversación. */
-      adiciones_palabras: exportarPalabrasAdiciones(data),
+      ...(function () {
+        /* SOLO si hay algo que escribir. Escribirlo siempre borró las catorce
+           palabras que el restaurante ya tenía configuradas, porque la caja
+           estaba vacía. Guardar una pantalla no puede destruir la
+           configuración de otra. */
+        const pal = exportarPalabrasAdiciones(data);
+        return pal.length > 0 ? { adiciones_palabras: pal } : {};
+      })(),
       flujo_envio:  exportarEnvio(data),
       flujo_saludo: exportarSaludo(data),
       flujo_extras: exportarExtras(data),
@@ -1624,8 +1708,11 @@ function migrarCanvas(fc) {
     if (session) {
       const branchId = session.user.user_metadata.branch_id;
       const { data: cfg } = await sb.from('ia_config')
-        .select('flujo_canvas, frases, pagos, gmail_refresh_token')
+        .select('flujo_canvas, frases, pagos, gmail_refresh_token, adiciones_palabras')
         .eq('branch_id', branchId).maybeSingle();
+      /* Lo que ya esté configurado se carga en la caja: así lo que se ve es lo
+         que hay, y guardar conserva en vez de pisar. */
+      PALABRAS_ADI = Array.isArray(cfg?.adiciones_palabras) ? cfg.adiciones_palabras.join(', ') : '';
       /* Lo de Pagos se LEE, no se edita desde aquí: la caja solo escoge. */
       PAGOS_CFG = cfg?.pagos || null;
       GMAIL_OK  = !!cfg?.gmail_refresh_token;

@@ -704,6 +704,14 @@ async function processConversation(convId: string): Promise<void> {
   // 5. Cargar config IA
   const cfgRes = await sbGet(`/rest/v1/ia_config?branch_id=eq.${branchId}&limit=1`);
   const cfg = cfgRes?.[0] as Record<string, unknown> | undefined;
+  /* El empaque NO vive en ia_config sino en la configuracion de operacion de
+     la sede, que es la misma que lee la pantalla de ventas. Se carga aqui una
+     vez y se cuelga de cfg —como _varData y _cerradoInfo— para no pasar un
+     parametro mas por las veinte funciones que ya reciben cfg. */
+  try {
+    const opRes = await sbGet(`/rest/v1/branches?id=eq.${branchId}&select=operacion_config&limit=1`);
+    if (cfg) (cfg as Record<string, unknown>)._operacion = opRes?.[0]?.operacion_config ?? null;
+  } catch (e) { console.error("operacion_config:", e); }
   // Modo del asistente: "off" (nunca contesta), "on" (contesta siempre),
   // "auto" (contesta SOLO fuera del horario de atención). Retrocompatible con
   // el booleano `activo`: si no hay modo, se deriva de activo.
@@ -1615,7 +1623,7 @@ INTENCION, no las palabras exactas.` },
           const clasifPP = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2);
           const domiPP = clasifPP.tipo === "para_llevar" ? 0 : lookupDomiPrice(ubicacionPedido(state), domiciliosCfg);
           try {
-            await createWhatsappOrder(buildOrderArgs(state, domiPP ?? 0), branchId, tenantId, fromPhone);
+            await createWhatsappOrder(buildOrderArgs(state, domiPP ?? 0), branchId, tenantId, fromPhone, cfg._operacion as Record<string, unknown> | null);
           } catch (err) { console.error("Error creando pedido (pago no previo):", err); }
         }
         /* LA ALARMA VIVE EN LA CONVERSACION, no en un vigilante que revisa a
@@ -1689,7 +1697,7 @@ INTENCION, no las palabras exactas.` },
         const domiPrecio = esParaLlevar ? 0 : lookupDomiPrice(ubicacionPedido(state), domiciliosCfg);
         try {
           const orderArgs = buildOrderArgs(state, domiPrecio ?? 0);
-          await createWhatsappOrder(orderArgs, branchId, tenantId, fromPhone);
+          await createWhatsappOrder(orderArgs, branchId, tenantId, fromPhone, cfg._operacion as Record<string, unknown> | null);
         } catch (err) { console.error("Error creando pedido:", err); }
 
         // Prioridad: nodo del canvas conectado a la salida "efectivo" del Resumen
@@ -2583,11 +2591,13 @@ function filtrarCuentas(
   if (!pagos || !permitidos || !permitidos.length) return pagos;
   const lista = pagos.metodos as Array<Record<string, unknown>> | undefined;
   if (!Array.isArray(lista)) return pagos;
-  const filtrada = lista.filter(m => !m || m.digital !== true || permitidos.includes(String(m.id || "")));
-  /* Si no quedo ninguna cuenta de transferencia se ignora el filtro: quedarse
-     sin forma de cobrar por transferencia rompe el pedido entero, y eso no
-     puede pasar por una casilla que alguien desmarco sin darse cuenta. */
-  if (!filtrada.some(m => m && m.digital === true) && lista.some(m => m && m.digital === true)) return pagos;
+  const filtrada = lista.filter(m => m && permitidos.includes(String(m.id || "")));
+  /* CANDADO: si el filtro deja la lista vacia, o deja sin ninguna cuenta de
+     transferencia habiendo alguna configurada, se ignora entero. Quedarse sin
+     forma de cobrar rompe el pedido, y eso no puede pasar porque alguien
+     desmarco una casilla sin darse cuenta. */
+  if (filtrada.length === 0) return pagos;
+  if (!filtrada.some(m => m.digital === true) && lista.some(m => m && m.digital === true)) return pagos;
   return { ...pagos, metodos: filtrada };
 }
 
@@ -2830,7 +2840,14 @@ function parecidas(a: string, b: string): boolean {
   return fallos + (a.length - i) + (b.length - j) <= 1;
 }
 
-function extractAdiciones(text: string, isCurrentStep: boolean, intenciones: Record<string, unknown> = {}): string | null {
+function extractAdiciones(
+  text: string,
+  isCurrentStep: boolean,
+  intenciones: Record<string, unknown> = {},
+  /* Lo que ya se esta pidiendo: nada de eso puede ser su propia adicion. */
+  pedidoActual: string | null = null,
+  pedidoPrevio: string[] = [],
+): string | null {
   const t = text.toLowerCase().trim();
   if (t === "no" || t === "no." || t === "noo" || t === "no," || t === "n" || t === "na") {
     return isCurrentStep ? "" : null;
@@ -2871,10 +2888,6 @@ function extractAdiciones(text: string, isCurrentStep: boolean, intenciones: Rec
     adicionesReales.push(real);
   }
 
-  if (adicionesReales.length > 0) {
-    return [...new Set(adicionesReales)].join(", ").slice(0, 80);
-  }
-
   /* Palabras que el restaurante configuró y que NO son platos de la carta
      ("queso extra", "salsa de ajo"). Se guardan esas palabras, jamás la frase
      entera del cliente. */
@@ -2884,8 +2897,42 @@ function extractAdiciones(text: string, isCurrentStep: boolean, intenciones: Rec
     /* Y tampoco si la palabra está DENTRO del nombre de un plato que se acaba
        de nombrar: en "una super queso", "super queso" es la salchipapa. */
     .filter(kw => ![...platosNombrados].some(p => p.includes(normalizarTexto(kw))));
-  if (sueltas.length > 0) {
-    return [...new Set(sueltas)].join(", ").slice(0, 80);
+
+  /* ── UNA SOLA SALIDA ──────────────────────────────────────────────────
+     Los dos caminos —lo que dijo el clasificador y las palabras del dueño—
+     se juntan aquí y se filtran juntos. Estaban separados, cada uno con su
+     `return`, y el candado se aplicó a uno solo: "super queso" volvió a
+     colarse por el otro. Dos caminos que hacen lo mismo con una regla puesta
+     en uno es como se cuela todo.
+
+     EL CANDADO: un plato no puede ser adición de sí mismo. El modelo leyó
+     "una salchipapa super queso" como "una salchipapa CON super queso" —
+     entendible, porque el nombre del plato lleva adentro el de la adición— y
+     dejaba "1x Súper queso + súper queso". Ninguna regla de conectores ni de
+     catálogo atrapa eso: hace falta saber qué se está pidiendo. */
+  const yaEsPlato = new Set(
+    [pedidoActual, ...(pedidoPrevio || [])]
+      .filter(Boolean).map(p => normalizarTexto(String(p)))
+  );
+  const candidatas = [...adicionesReales, ...sueltas].filter(a => {
+    const an = normalizarTexto(a);
+    if (yaEsPlato.has(an)) return false;
+    /* Y tampoco un pedazo del nombre del plato que se está pidiendo: en "una
+       salchipapa super queso", "queso" no es una adición. */
+    return ![...yaEsPlato].some(p => p.includes(an));
+  });
+  /* Sin repetir: el mismo nombre puede venir del catálogo y de la lista de
+     palabras del dueño, y comparados letra por letra parecen distintos
+     ("Tocineta" y "tocineta"). Se comparan normalizados y gana el del
+     CATÁLOGO, que es el que el cliente reconoce y el que va a la cocina. */
+  const unicas = new Map<string, string>();
+  for (const a of candidatas) {
+    const k = normalizarTexto(a);
+    const delCatalogo = DYN_PROD_MAP.some(e => normalizarTexto(e.name) === k && e.name === a);
+    if (!unicas.has(k) || delCatalogo) unicas.set(k, a);
+  }
+  if (unicas.size > 0) {
+    return [...unicas.values()].join(", ").slice(0, 80);
   }
   if (isCurrentStep) {
     const afirma = /^(s[íi]|claro|dale|quiero|si\s+por\s+favor|s[íi]\s+quiero)/.test(t);
@@ -3052,9 +3099,9 @@ function buildProductPasos(productData: ProductData, frasesCfg: Record<string, u
   }
   for (const vg of productData.variables) {
     if (!vg.options || vg.options.length === 0) continue;
-    const opciones = vg.options.map(o => o.name).join(", ");
+    const opciones = listaNatural(vg.options.map(o => o.name.toLowerCase()));
     const frase = getFraseCfg(frasesCfg.preguntar_variable);
-    const texto = (frase.texto || "¿{label}? ({opciones}) 🍟")
+    const texto = (frase.texto || "¿La deseas con {opciones}? 🍟")
       .replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
     const guia  = frase.guia
       ? frase.guia.replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones)
@@ -3198,7 +3245,8 @@ function runExtractors(
     const esRespuestaVariante = !isUpsellStep && text.trim().length <= 25 &&
       (("tipo" in result) || ("tamano" in result));
     if (!esRespuestaVariante) {
-      const a = extractAdiciones(text, isUpsellStep, intenciones);
+      const a = extractAdiciones(text, isUpsellStep, intenciones,
+        state.producto, (state.items || []).map(i => i.producto || ""));
       if (a !== null) result.adiciones = a;
     }
   }
@@ -3495,7 +3543,7 @@ function procesarFlujoCanvas(
 
     if (campo === "tamano") {
       if (!productData || productData.presentations.length <= 1) continue;
-      const opciones = productData.presentations.map(x => x.name).join(" o ");
+      const opciones = listaNatural(productData.presentations.map(x => x.name.toLowerCase()));
       texto = (texto || "¿La quieres {opciones}? 😋").replace(/\{opciones\}/g, opciones);
       // Si la frase del canvas trae las opciones ESCRITAS A MANO ("¿personal o
       // familiar?") y este producto tiene OTRAS presentaciones (Coca Cola:
@@ -3519,15 +3567,20 @@ function procesarFlujoCanvas(
          se quedaba en variables[0]. Y el canvas es el que usa el restaurante. */
       for (const vg of productData.variables) {
         if (!vg.options || vg.options.length === 0) continue;
-        const opciones = vg.options.map(o => o.name).join(", ");
-        let vTexto = (texto || "¿{label}? ({opciones}) 🍟").replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
+        /* Como habla la gente: "carne o pollo", "mixta, carne o pollo". La
+           lista con comas ("carne, pollo") suena a formulario. */
+        const opciones = listaNatural(vg.options.map(o => o.name.toLowerCase()));
+        let vTexto = (texto || "¿La deseas con {opciones}? 🍟").replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
         /* Sirve en los dos sentidos: que a la frase le falte una opcion real,
            o que NOMBRE UNA QUE ESTE PRODUCTO NO TIENE. Lo segundo es lo que se
            escapaba: "¿La prefieres mixta, de carne o de pollo?" pasaba el
            filtro para la SUPER QUESO —que si tiene carne y pollo— y le ofrecia
            una "mixta" que no existe. */
         if (presentacionesMalCitadas(vTexto, vg.options.map(o => o.name))) {
-          vTexto = `¿${vg.name}? (${opciones}) 🍟`;
+          /* La de reemplazo tampoco puede usar el nombre del grupo: "¿Primer
+             Ingrediente?" es un nombre de sistema y el cliente no lo entiende
+             —lo dijo Sergio viendo la conversación real—. */
+          vTexto = `¿La deseas con ${opciones}? 🍟`;
         }
         const vGuia = (guia || `Pregunta por "${vg.name}". SOLO estas opciones exactas: ${opciones}. Jamás menciones otra.`)
           .replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
@@ -3706,6 +3759,88 @@ function slugVariable(nombre: string): string {
     .replace(/[^a-z0-9ñ]+/g, "_")
     .replace(/^_+|_+$/g, "");
 }
+/* ══════════════════════════════════════════════════════════════════════
+   EL EMPAQUE
+
+   Misma configuracion y mismas reglas que la pantalla de ventas
+   (branches.operacion_config). No se copia el calculo "parecido": se copia
+   igual, porque un empaque que el chat cobra distinto al mostrador es un
+   descuadre de caja que nadie sabe de donde salio.
+
+   Dos modos:
+     - unificado: un monto (o un %) para todo el pedido, o por unidad
+     - especifico: un monto por producto/presentacion/categoria, con exentas
+   ══════════════════════════════════════════════════════════════════════ */
+type ItemEmpaque = {
+  cantidad: number;
+  precio: number;
+  producto_id?: string | null;
+  categoria_id?: string | null;
+  presentacion_id?: string | null;
+};
+
+function calcularEmpaque(
+  cfg: Record<string, unknown> | null | undefined,
+  items: ItemEmpaque[],
+  esDomicilio: boolean,
+): number {
+  if (!cfg || cfg.empaquesActivo !== true) return 0;
+  let prod = 0, units = 0;
+  for (const it of items) {
+    const q = Number(it.cantidad) || 0;
+    units += q;
+    prod  += (Number(it.precio) || 0);
+  }
+  if (prod <= 0) return 0;
+
+  const num = (v: unknown) => Number(v) || 0;
+
+  if (cfg.empaqueModo === "especifico") {
+    const packs   = (cfg.empaquePacks as Array<Record<string, unknown>>) || [];
+    const general = num(cfg.empaqueMonto);
+    const packMonto = (id: string) => {
+      const p = packs.find(x => String(x.id) === id);
+      return p ? num(p.monto) : 0;
+    };
+    const catCfg  = (cfg.empaqueCatCfg  as Record<string, { on?: boolean; packId?: string }>) || {};
+    const prodCfg = (cfg.empaqueProdCfg as Record<string, string>) || {};
+    const presCfg = (cfg.empaquePresCfg as Record<string, string>) || {};
+    let total = 0;
+    for (const it of items) {
+      let fee = general;
+      /* Categoria: puede estar exenta o tener su propio pack. */
+      const cc = it.categoria_id ? catCfg[it.categoria_id] : undefined;
+      if (cc) {
+        if (cc.on === false) fee = 0;
+        else if (cc.packId) fee = packMonto(cc.packId);
+      }
+      /* Producto: pisa a la categoria. */
+      const pc = it.producto_id ? prodCfg[it.producto_id] : undefined;
+      if (pc !== undefined && pc !== null && pc !== "") {
+        fee = pc === "none" ? 0 : pc === "general" ? general : packMonto(pc);
+      }
+      /* Presentacion: pisa a las dos. Una familiar puede llevar caja grande
+         y la personal no llevar nada. */
+      const sc = (it.producto_id && it.presentacion_id)
+        ? presCfg[String(it.producto_id) + "::" + String(it.presentacion_id)] : undefined;
+      if (sc !== undefined && sc !== null && sc !== "") {
+        fee = sc === "none" ? 0 : sc === "general" ? general : packMonto(sc);
+      }
+      total += fee * (Number(it.cantidad) || 0);
+    }
+    return total;
+  }
+
+  /* Unificado. El canal "distinto" permite cobrar otro empaque a domicilio. */
+  const usaDomi = cfg.empaqueCanal === "distinto" && esDomicilio;
+  const esPct   = cfg.empaqueTipo === "porcentaje";
+  const rate    = esPct
+    ? (usaDomi ? num(cfg.empaquePctDomicilio)   : num(cfg.empaquePct))
+    : (usaDomi ? num(cfg.empaqueMontoDomicilio) : num(cfg.empaqueMonto));
+  if (cfg.empaqueBase === "pedido") return esPct ? Math.round(prod * rate / 100) : rate;
+  return esPct ? Math.round(prod * rate / 100) : rate * units;
+}
+
 function listaNatural(items: string[]): string {
   if (items.length <= 1) return items.join("");
   return items.slice(0, -1).join(", ") + " o " + items[items.length - 1];
@@ -4180,10 +4315,11 @@ async function buildSummaryFromState(
 
   let precioProducto = 0;
   const productoLines: string[] = [];
+  const itemsEmpaque: ItemEmpaque[] = [];
 
   try {
     const products = await sbGet(
-      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=name,price,price_mode,presentations,variables,category_id(name)`
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables,category_id(id,name)`
     ) as Array<Record<string, unknown>> | null;
 
     const getPrecioItem = (prod: string|null, tam: string|null, tip: string|null, cant: number, cat?: string|null): number => {
@@ -4226,6 +4362,20 @@ async function buildSummaryFromState(
       const adStr   = item.adiciones && item.adiciones.length > 0 ? ` + ${item.adiciones}` : "";
       const tamStr  = item.tamano ? ` ${item.tamano}` : "";
       productoLines.push(`🍟 ${item.cantidad}x ${display}${tamStr}${adStr}`);
+      /* Para el empaque hace falta saber QUE producto y QUE presentacion es:
+         la configuracion permite eximir una categoria entera o cobrar distinto
+         segun el tamaño. Se guardan los ids del catalogo, no los nombres. */
+      const presMatch = item.tamano && matchedProd
+        ? ((matchedProd.presentations as Array<Record<string, unknown>>) || [])
+            .find(p => normalizarTexto(String(p.name || "")) === normalizarTexto(item.tamano || ""))
+        : undefined;
+      itemsEmpaque.push({
+        cantidad: Number(item.cantidad) || 1,
+        precio: getPrecioItem(item.producto, item.tamano, item.tipo, item.cantidad, item.categoria),
+        producto_id: matchedProd ? String(matchedProd.id || "") : null,
+        categoria_id: matchedProd ? String((matchedProd.category_id as Record<string, unknown> | null)?.id || "") : null,
+        presentacion_id: presMatch ? String(presMatch.id || "") : null,
+      });
       // La preferencia va DEBAJO del producto y en el resumen, para que el
       // cliente la vea y la corrija antes de que se prepare mal.
       const prefItem = (item as { preferencias?: string | null }).preferencias;
@@ -4236,6 +4386,17 @@ async function buildSummaryFromState(
 
   const esParaLlevar = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
   const domiPrecio   = (!esParaLlevar && state.direccion) ? lookupDomiPrice(ubicacionPedido(state), domiciliosCfg) : null;
+
+  /* EL EMPAQUE VA DENTRO DEL PEDIDO, no aparte. Regla de Sergio: productos,
+     bebidas, adiciones y empaques suman juntos; el domicilio es lo unico que
+     va por fuera. El bot no lo cobraba: todos los pedidos de WhatsApp salieron
+     sin empaque desde que existe la funcion. */
+  const opCfg = (cfg as Record<string, unknown>)._operacion as Record<string, unknown> | null | undefined;
+  const empaque = calcularEmpaque(opCfg, itemsEmpaque, !esParaLlevar);
+  if (empaque > 0) {
+    productoLines.push(`📦 Empaque: ${fmtCOP(empaque)}`);
+    precioProducto += empaque;
+  }
 
   // Línea de domicilio
   let lineaDomi = "";
@@ -4468,6 +4629,8 @@ async function createWhatsappOrder(
   branchId: string,
   tenantId: string,
   fromPhone: string,
+  /* Donde vive la configuracion del empaque (branches.operacion_config). */
+  opCfg: Record<string, unknown> | null | undefined = null,
 ): Promise<string | null> {
   const cliente   = String(data.cliente   || "Cliente WhatsApp");
   const productos = (data.productos as Array<Record<string, unknown>>) || [];
@@ -4476,7 +4639,7 @@ async function createWhatsappOrder(
 
   const allProducts = await sbGet(
     `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true` +
-    `&select=id,name,price,price_mode,presentations,variables,category_id(name)`
+    `&select=id,name,price,price_mode,presentations,variables,category_id(id,name)`
   ) as Array<Record<string, unknown>> | null;
 
   if (!allProducts) { console.error("No se pudo cargar pos_products"); return null; }
@@ -4497,6 +4660,8 @@ async function createWhatsappOrder(
   };
 
   const items: PosOrderItem[] = [];
+
+  const itemsEmpaque: ItemEmpaque[] = [];
   let orderTotal = 0;
 
   for (const prod of productos) {
@@ -4542,6 +4707,18 @@ async function createWhatsappOrder(
     const displayName = [nombreConCategoria(String(matched.name), String(((matched.category_id as Record<string, unknown> | null)?.name as string) || "")), presName, tipoGPT].filter(Boolean).join(" · ");
     items.push({ product_id: String(matched.id), name: displayName, product_name: displayName, product_price: price, unit_price: price, total: itemTotal, quantity: cantidad, selections: { mods: {}, pres: presName, vars: varsMap }, branch_id: branchId, tenant_id: tenantId || null, notes: null });
     orderTotal += itemTotal;
+    /* El empaque puede depender del producto, de su presentacion o de la
+       categoria, asi que se guarda con que se cobro cada linea. */
+    const presRow = presName
+      ? ((matched.presentations as Array<Record<string, unknown>>) || [])
+          .find(p => normalizarTexto(String(p.name || "")) === normalizarTexto(presName))
+      : undefined;
+    itemsEmpaque.push({
+      cantidad, precio: itemTotal,
+      producto_id: String(matched.id),
+      categoria_id: String(((matched.category_id as Record<string, unknown> | null)?.id as string) || ""),
+      presentacion_id: presRow ? String(presRow.id || "") : null,
+    });
   }
 
   let clienteId: string | null = null;
@@ -4571,11 +4748,18 @@ async function createWhatsappOrder(
   // PARA LLEVAR → sección "rápidas" (channel='rapido', igual que venta-rapida.html);
   // domicilio normal → channel='domicilio' (pantalla de domicilios).
   const esLlevarOrden = LLEVAR_REGEX.test(direccion.toLowerCase());
+  /* EL EMPAQUE ES VENTA y va en el pedido. Si solo apareciera en el resumen,
+     el cliente veria un total y la caja cobraria otro. El DOMICILIO no entra
+     —regla de Sergio: el domi nunca se suma a ventas— y por eso `domi_precio`
+     llega hasta aqui y no se guarda. */
+  const empaqueOrden = calcularEmpaque(opCfg, itemsEmpaque, !esLlevarOrden);
+  const totalConEmpaque = orderTotal + empaqueOrden;
   const orderRecord: Record<string, unknown> = {
     branch_id: branchId, tenant_id: tenantId || null,
     channel: esLlevarOrden ? "rapido" : "domicilio", customer_name: cliente,
     notes: direccion || null, payment_method: pago || null,
-    status: "open", total: orderTotal, subtotal: orderTotal, total_final: orderTotal,
+    status: "open", total: totalConEmpaque, subtotal: orderTotal, total_final: totalConEmpaque,
+    packaging_fee: empaqueOrden,
     waiter_name: "Asistente IA", visible_cocina: true, opened_at: new Date().toISOString(),
   };
   if (clienteId) orderRecord.cliente_id = clienteId;
