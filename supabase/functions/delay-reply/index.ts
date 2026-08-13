@@ -40,6 +40,10 @@ interface PacoState {
   tipos?:             Record<string, string>;
   cantidad:           number;
   adiciones:          string | null;  // null=no preguntado, ""=rechazado, "texto"=pidió
+  /* Lo que TU le ofreces, no lo que el pide. Va aparte de `adiciones` porque
+     son dos preguntas distintas y compartir casilla hacia que solo se hiciera
+     una de las dos. null=no ofrecido, ""=dijo que no, "texto"=acepto. */
+  upsell:             string | null;
   // Cómo lo quiere preparado: "sin ajo", "solo bbq", "poca salsa"... Es lo que
   // más reclama un cliente si se pierde, y no tenía dónde vivir.
   preferencias:       string | null;
@@ -115,7 +119,7 @@ type TipoDireccion = "residencial" | "publico" | "rechazado" | "incompleta" | "p
 function newPacoState(): PacoState {
   return {
     producto: null, producto_categoria: null, tamano: null, tipo: null, cantidad: 1,
-    adiciones: null, preferencias: null, direccion: null, barrio: null, pago: null, nombre: null, tipos: {},
+    adiciones: null, upsell: null, preferencias: null, direccion: null, barrio: null, pago: null, nombre: null, tipos: {},
     factura: null, programado: null, reserva: null,
     items: [], resumen_enviado: false, direccion_heredada: false, complemento_dir_pendiente: null,
     last_activity: new Date(Date.now() - 30 * 60_000).toISOString(), // 30min atrás → sesionExpirada=true
@@ -1589,6 +1593,7 @@ INTENCION, no las palabras exactas.` },
       const prevDir  = state.direccion;
       const prevPago = state.pago;
       const prevNom  = state.nombre;
+      const prevUpsell = state.upsell;
       const prevItems = state.items;
       state = newPacoState();
       state.producto  = productoDetectado;
@@ -1603,6 +1608,8 @@ INTENCION, no las palabras exactas.` },
       // cada producto nuevo que agregue. El extractor sigue capturando
       // adiciones si él las menciona por su cuenta.
       if (archived.adiciones !== null) state.adiciones = "";
+      // El upsell es del PEDIDO, no del producto: si ya se ofreció, no se repite.
+      if (prevUpsell !== null) state.upsell = prevUpsell;
       // La preferencia se queda con el producto que la recibió. El siguiente
       // arranca limpio: "una sin salsa y otra normal" son dos cosas distintas.
       state.preferencias = null;
@@ -2650,6 +2657,16 @@ function runExtractors(
       if (a !== null) result.adiciones = a;
     }
   }
+  /* La respuesta al upsell. Si acepta, el producto lo recoge el extractor de
+     productos como cualquier otro; aqui solo se anota que YA se le ofrecio,
+     para no volver a ofrecerle. */
+  if (state.upsell === null && currentStepId === "sugerencia") {
+    const tU = text.toLowerCase().trim();
+    const rechaza = tU === "no" || tU === "no." || tU === "n" || tU === "na" ||
+      RECHAZO_UPSELL_WORDS.some(w => tU.includes(w));
+    result.upsell = rechaza ? "" : text.trim().slice(0, 80);
+  }
+
   if (currentStepId === "confirmar_dir" && state.direccion && state.direccion_heredada) {
     const textoLow = text.toLowerCase().trim();
     const confirmaDir = CONFIRM_WORDS.some(w => textoLow === w || textoLow.includes(w));
@@ -2778,6 +2795,10 @@ function findNextStep(state: PacoState, pasos: PasoDefinicion[], incluirPostResu
       if (!(state.tipos || {})[grupoId]) return paso;
     } else if (paso.id === "upsell") {
       if (state.adiciones === null) return paso;
+    } else if (paso.id === "sugerencia") {
+      /* Se ofrece UNA sola vez por pedido (regla de Sergio): en cuanto
+         responde algo —lo que sea— la casilla queda resuelta. */
+      if (state.upsell === null) return paso;
     } else if (paso.id === "confirmar_dir") {
       if (state.direccion && state.direccion_heredada) return paso;
     } else if (paso.id === "direccion") {
@@ -2997,7 +3018,7 @@ function procesarFlujoCanvas(
       const cuales = Array.isArray(p.upsell_productos) ? (p.upsell_productos as unknown[]).map(String).filter(Boolean) : [];
       const lista = cuales.length ? cuales.join(", ") : "";
       out.push({
-        id: "upsell", campo: "adiciones", modo,
+        id: "sugerencia", campo: "upsell", modo,
         texto: texto || undefined,
         guia: guia || (lista
           ? `Ofrece de forma natural y breve: ${lista}. Una sola vez. Si el cliente no quiere, sigue sin insistir.`

@@ -1283,19 +1283,6 @@ function revisarFlujo(data) {
     }
   }
 
-  /* Adiciones y Upsell se pisan: por dentro el motor los guarda en la misma
-     casilla, así que el que quede de segundo nunca se pregunta. Son cajas
-     distintas a propósito —una adición va SOBRE el plato, el upsell es otro
-     producto— pero hoy no pueden convivir, y callarlo sería dejar al dueño
-     creyendo que configuró dos preguntas. */
-  const campos = Object.values(nodes).map(n => (n.data || {}).campo);
-  if (campos.indexOf('adiciones') >= 0 && campos.indexOf('upsell') >= 0) {
-    avisos.push({
-      caja: 'Adiciones y Upsell',
-      que: 'Solo se va a preguntar una de las dos',
-      por: 'Las dos guardan la respuesta en el mismo sitio, así que el bot pregunta la primera y da la segunda por hecha. Deja una sola.',
-    });
-  }
   return avisos;
 }
 
