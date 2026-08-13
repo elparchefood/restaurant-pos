@@ -3222,7 +3222,16 @@ async function buildConversationResponse(
       stateLines.push(`✅ ${item.cantidad}x ${desc}${item.adiciones && item.adiciones.length > 0 ? " + " + item.adiciones : item.adiciones === "" ? " (sin adición)" : ""}`);
     }
   }
-  if (state.direccion) stateLines.push(`✅ Dirección: ${state.direccion}${state.direccion_heredada ? " (heredada, pendiente confirmar)" : ""}`);
+  /* UN BARRIO NO ES UNA DIRECCION COMPLETA, y hay que decirselo asi al modelo.
+     Cuando el cliente daba "La Paz" y despues "calle 8 # 3-45", el bot leia
+     "Direccion: La Paz" y contestaba "ya me diste la direccion" — cuando lo
+     que acababa de recibir era justo lo que le faltaba. */
+  if (state.direccion) {
+    const dirCompleta = analizarDireccion(state.direccion).tieneVia;
+    stateLines.push(dirCompleta
+      ? `✅ Dirección: ${state.direccion}${state.direccion_heredada ? " (heredada, pendiente confirmar)" : ""}`
+      : `⏳ Dirección INCOMPLETA — solo tenemos "${state.direccion}": FALTA la calle o carrera con su número. Si el cliente te la da ahora, agradécela y NUNCA digas que ya te la había dado.`);
+  }
   else stateLines.push("⏳ Dirección: pendiente");
   if (state.pago)      stateLines.push(`✅ Pago: ${state.pago}`);
   else                 stateLines.push("⏳ Pago: pendiente");
@@ -3380,6 +3389,11 @@ async function buildConversationResponse(
        entendio, hay que preguntar distinto. */
     "- Si ya enviaste una LISTA de opciones y el cliente repite lo mismo sin elegir, NO vuelvas a mandar la lista. Preguntale de otra forma, mas corta y concreta (ej: '¿la quieres sencilla o de carne?'), o sugierele la mas pedida.",
     "- Si el cliente parece confundido o molesto, NO insistas con la misma pregunta: reconocelo en una frase y hazle UNA sola pregunta, la mas simple posible.",
+    /* El PEDIDO EN CURSO se arma ANTES de redactar, asi que incluye lo que el
+       cliente acaba de escribir. El bot leia "Direccion: calle 8 # 3-45",
+       veia que el cliente habia mandado justo eso, y le contestaba "que pena,
+       ya me diste la direccion" — cuando se la estaba dando por primera vez. */
+    "- Los datos del PEDIDO EN CURSO pueden venir del mensaje que ACABAS de recibir. JAMAS le digas al cliente que ya te habia dado un dato solo porque lo veas en esa lista: si te lo acaba de dar, agradecelo y sigue.",
     "- NUNCA repitas ni menciones los datos ya capturados en cada respuesta. El PEDIDO EN CURSO es solo tu contexto interno. Esos datos aparecen en el resumen final.",
     "- Cuando el cliente te dé un dato, confírmalo en máximo 2-3 palabras y pasa al siguiente paso. Usa '¡Perfecto! 🙌', 'Listo 👍', 'Claro ✅', 'Dale 🙌' — NUNCA uses 'Anotado'.",
     "- HAZ UNA SOLA PREGUNTA POR MENSAJE. Aunque falten varios datos, pregunta solo el siguiente en el flujo.",
