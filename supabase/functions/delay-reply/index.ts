@@ -609,13 +609,20 @@ async function processConversation(convId: string): Promise<void> {
           { role: "system", content:
 `Eres el clasificador de intenciones de un restaurante colombiano por WhatsApp.
 Lee lo que escribio el CLIENTE y responde SOLO este JSON:
-{"carta":bool,"ubicacion":bool,"domicilio":bool,"horario":bool,"pedir":bool,
+{"carta":bool,"precio":bool,"ubicacion":bool,"domicilio":bool,"horario":bool,"pedir":bool,
  "pago":"efectivo"|"transferencia"|null,"entrega":"domicilio"|"recoger"|null,
  "rechaza_direccion":bool}
 
-- "carta": quiere ver la carta, el menu, los productos o los precios en general.
+- "carta": quiere ver la carta o el menu COMPLETO, o los precios EN GENERAL.
   Ejemplos que SI son carta: "la carta", "q tienen", "menucito", "que venden",
-  "cuanto cuestan las salchipapas", "tienen algo pa comer", "precios".
+  "tienen algo pa comer", "precios", "cuanto valen las cosas".
+  OJO: si pregunta el precio de algo CONCRETO -> carta:false y precio:true.
+- "precio": true si pregunta cuanto vale UN producto o cual es el mas barato o
+  el mas caro. Ejemplos: "la salchipapa mas economica de k precio es",
+  "cuanto vale la premium", "que precio tiene la mixta familiar", "cual es la
+  mas barata", "de a como la sencilla". Se responde con el PRECIO, no con la
+  carta: mandarle el menu entero a quien pregunto por un plato es no
+  responderle.
 - "ubicacion": pregunta DONDE QUEDA EL RESTAURANTE o pide el mapa.
   OJO: si el cliente esta DANDO su propia direccion para que le lleven el
   pedido, eso NO es "ubicacion" -> false.
@@ -680,10 +687,14 @@ INTENCION, no las palabras exactas.` },
        no significan otra cosa. Se exige que no venga pegada a otras letras,
        para no confundirla con "cartagena". */
     const palabraSuelta = /(^|[^a-z])(cartas|carta|menus|menu|precios|precio)([^a-z]|$)/.test(combinedLower);
-    const wantsMenu = intenciones.carta === true || isExact || palabraSuelta || menuKw.some(kw => {
+    /* Preguntar POR UN PRECIO CONCRETO no es pedir la carta, aunque la palabra
+       "precio" aparezca: un cliente escribio "la salchipapa mas economica de k
+       precio es" y se llevo el menu entero en vez de la respuesta. */
+    const wantsMenu = intenciones.precio !== true
+      && (intenciones.carta === true || isExact || palabraSuelta || menuKw.some(kw => {
       const k = kw.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
       return combinedLower.includes(k);
-    });
+    }));
     if (wantsMenu) {
       /* LA CARTA SE SUBE A META UNA VEZ Y SE REUTILIZA EL ID.
 
@@ -2575,7 +2586,37 @@ function runExtractors(
     // Una dirección heredada puede ser REEMPLAZADA si el cliente escribe una nueva
     // en cualquier momento (queda confirmada de una — él mismo la dio)
     const isDirStep = currentStepId === "direccion" || currentStepId === "confirmar_dir";
-    const d = extractDireccion(text, isDirStep && !state.direccion, productData);
+
+    /* LA CAUSA COMUN DE DOS FALLOS DE LAS SIMULACIONES.
+       El extractor aceptaba como direccion casi cualquier texto, y de ahi
+       salian los dos sintomas:
+         - "Carlos primero" (un barrio suelto) se tomo como direccion y el
+           bot salto a pedir el pago SIN PREGUNTAR QUE QUERIA COMER.
+         - "La salchipapa mas economica de k precio es" tambien, y el bot
+           contesto "en que barrio queda esa direccion" a una pregunta.
+
+       Dos candados, con excepcion para el caso que SI funciona (el cliente
+       que manda producto + direccion en un solo mensaje):
+         1. Una PREGUNTA no es una direccion. Nadie da su casa preguntando.
+         2. Sin producto todavia, solo se acepta si trae senales de
+            direccion de verdad. El flujo pide la direccion DESPUES del
+            producto: capturarla antes es adivinar. */
+    const tLowDir = text.toLowerCase();
+    const esPreguntaDir = text.includes("?")
+      || /^\s*(cuanto|cuánto|que|qué|cual|cuál|como|cómo|donde|dónde|hay|tienen|tienes|a\s+como|de\s+a?\s*(k|que|qué))\b/.test(tLowDir);
+    const senalDireccion = /\b(calle|carrera|cra|cll|kra|avenida|av|diagonal|transversal|manzana|barrio|conjunto|torre|apto|apartamento|casa|vereda)\b/.test(tLowDir)
+      || text.includes("#")
+      || LLEVAR_REGEX.test(tLowDir);
+    /* Se exigen SENALES de direccion siempre que no estemos en el paso de la
+       direccion. Con "tener producto" bastaba, y no alcanza: "la salchipapa mas
+       economica de k precio es" pone el producto y el resto de la frase se
+       colaba como direccion. Una direccion de verdad trae calle, carrera, # o
+       barrio; una pregunta no. */
+    const puedeSerDireccion = !esPreguntaDir && (isDirStep || senalDireccion);
+
+    const d = puedeSerDireccion
+      ? extractDireccion(text, isDirStep && !state.direccion, productData)
+      : null;
     if (d) { result.direccion = limpiarPrefijoDireccion(d); result.direccion_heredada = false; }
   }
   if (!state.nombre) {
