@@ -143,7 +143,12 @@ const CONFIRM_WORDS = [
    "está bien" y en WhatsApp nadie escribe la tilde. Un "esta bien" no
    reconocido dejaba el pedido colgado justo en el ultimo paso. */
 const CONFIRM_NORM = CONFIRM_WORDS.map(w => normalizarTexto(w));
-function esConfirmacion(texto: string): boolean {
+/* MANDA EL SIGNIFICADO. La lista nunca va a cubrir como habla la gente:
+   "listo pues", "de una", "hagale", "sisas", "eso mismo", "tal cual" — todas
+   confirman y ninguna estaba. Quitarle las tildes tapaba UNA forma de fallar,
+   no las demas. La lista queda de respaldo para cuando el modelo falle. */
+function esConfirmacion(texto: string, intenciones: Record<string, unknown> = {}): boolean {
+  if (intenciones.confirma === true) return true;
   const t = normalizarTexto(texto);
   if (!t || t.length > 80) return false;
   return CONFIRM_NORM.some(w =>
@@ -165,6 +170,18 @@ const RECHAZO_UPSELL_WORDS = [
 // Los nombres de productos concretos se cargan del CATÁLOGO de cada restaurante:
 // las categorías cuyo nombre suene a adición/bebida/extra alimentan DYN_ADICION_KEYWORDS
 // y TODOS los productos/categorías alimentan DYN_PROD_NAMES (detección de intención).
+/* "No quiero nada mas". Igual que confirmar: manda el significado y la lista
+   respalda. La lista traia "así está", "nada más", "está bien así" CON TILDE
+   y se comparaba contra el texto crudo — o sea que en WhatsApp no acertaba
+   casi nunca. */
+const RECHAZO_NORM = RECHAZO_UPSELL_WORDS.map(w => normalizarTexto(w));
+function esRechazoDeMas(texto: string, intenciones: Record<string, unknown> = {}): boolean {
+  if (intenciones.rechaza_mas === true) return true;
+  const t = normalizarTexto(texto);
+  if (!t) return false;
+  return RECHAZO_NORM.some(w => t.includes(w));
+}
+
 const ADICION_BASE = [
   "adicion","adicional","agregar","añadir","con","extra",
   "bebida","gaseosa","jugo","agua",
@@ -810,7 +827,8 @@ async function processConversation(convId: string): Promise<void> {
 Lee lo que escribio el CLIENTE y responde SOLO este JSON:
 {"carta":bool,"precio":bool,"ubicacion":bool,"domicilio":bool,"horario":bool,"pedir":bool,
  "pago":"efectivo"|"transferencia"|null,"entrega":"domicilio"|"recoger"|null,
- "rechaza_direccion":bool,"agregados":[string]}
+ "rechaza_direccion":bool,"agregados":[string],
+ "confirma":bool,"rechaza_mas":bool}
 
 - "carta": quiere ver la carta o el menu COMPLETO, o los precios EN GENERAL.
   Ejemplos que SI son carta: "la carta", "q tienen", "menucito", "que venden",
@@ -852,6 +870,17 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
   arregla preguntando, mandarle un plato que no pidio no.
   Un mismo nombre puede ser lo uno o lo otro segun como lo diga: lo que decide
   es si va sobre otro plato o va solo.
+- "confirma": true si esta diciendo que SI, que esta de acuerdo, que siga
+  adelante. Escrito como sea: "si", "sisas", "dale", "listo", "listo pues",
+  "de una", "hagale", "eso mismo", "tal cual", "correcto", "asi es", "esta
+  bien", "perfecto", "ok", "va", "bueno", "obvio", "claro que si", "de once".
+  NO es confirmar: contestar una pregunta con un dato ("familiar", "carne",
+  "efectivo"), ni pedir algo, ni saludar.
+- "rechaza_mas": true si esta diciendo que NO quiere agregar nada mas al
+  pedido. "no", "no gracias", "asi esta bien", "nada mas", "ya con eso", "no
+  mas", "solo eso", "asi va bien", "listo asi", "ya esta". Es distinto de
+  "confirma": aqui esta cerrando la lista de cosas, no aprobando el pedido.
+  Puede haber mensajes que sean las dos ("no, asi esta bien, confirmo").
 Puede haber varias en true. Si no estas seguro, pon false.
 La gente escribe con errores, sin tildes y con espacios de mas: interpreta la
 INTENCION, no las palabras exactas.` },
@@ -1529,7 +1558,7 @@ INTENCION, no las palabras exactas.` },
       }
     }
 
-    const isConfirmacion = esConfirmacion(clienteTexto);
+    const isConfirmacion = esConfirmacion(clienteTexto, intenciones);
 
     if (isConfirmacion) {
       // Si el método de pago quedó liberado (caso "para llevar + efectivo"), capturarlo
@@ -2806,7 +2835,7 @@ function extractAdiciones(text: string, isCurrentStep: boolean, intenciones: Rec
   if (t === "no" || t === "no." || t === "noo" || t === "no," || t === "n" || t === "na") {
     return isCurrentStep ? "" : null;
   }
-  if (isCurrentStep && RECHAZO_UPSELL_WORDS.some(w => t.includes(w))) return "";
+  if (isCurrentStep && esRechazoDeMas(text, intenciones)) return "";
   const tNorm = " " + normalizarTexto(text).toLowerCase() + " ";
   /* Por PALABRA COMPLETA, no por pedazo. Con `includes` suelto, "queso" caía
      dentro de "super queso" y "coca" dentro de cualquier palabra que la
@@ -2954,8 +2983,7 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
         if (SALUDO_REGEX.test(ln)) continue;
         if (NO_ES_NOMBRE_RE.test(ln)) continue;
         if (esSoloConfirmacion(ln)) continue;
-        const lnLow = ln.toLowerCase();
-        if (RECHAZO_UPSELL_WORDS.some(w => lnLow.includes(w))) continue;
+        if (esRechazoDeMas(ln)) continue;
         const lnNorm = normalizarTexto(ln);
         if (getAdicionKeywords().some(k => k.length >= 4 && new RegExp(`\\b${k}\\b`).test(lnNorm))) continue;
         if (extractPago(ln, null)) continue;
@@ -3180,13 +3208,13 @@ function runExtractors(
   if (state.upsell === null && currentStepId === "sugerencia") {
     const tU = text.toLowerCase().trim();
     const rechaza = tU === "no" || tU === "no." || tU === "n" || tU === "na" ||
-      RECHAZO_UPSELL_WORDS.some(w => tU.includes(w));
+      esRechazoDeMas(text, intenciones);
     result.upsell = rechaza ? "" : text.trim().slice(0, 80);
   }
 
   if (currentStepId === "confirmar_dir" && state.direccion && state.direccion_heredada) {
     const textoLow = text.toLowerCase().trim();
-    const confirmaDir = esConfirmacion(text);
+    const confirmaDir = esConfirmacion(text, intenciones);
     const rechazaDir = intenciones.rechaza_direccion === true
       || textoLow === "no" || textoLow === "no." || textoLow.startsWith("no,")
       || textoLow.includes("cambia") || textoLow.includes("otra");
@@ -3250,7 +3278,7 @@ function runExtractors(
   if (!state.nombre) {
     const isNombreStep = currentStepId === "nombre";
     if (isNombreStep && nombreWa) {
-      const confirma = esConfirmacion(text);
+      const confirma = esConfirmacion(text, intenciones);
       if (confirma) {
         result.nombre = nombreWa;
       } else {
