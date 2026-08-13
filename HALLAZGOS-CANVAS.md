@@ -114,7 +114,42 @@ tienen otras. Ese aviso valdría tanto como el arreglo.
 
 ---
 
-## 4. Lo que esto sugiere, en general
+## 4. Las misiones no están en la paleta: hay que adivinarlas `2026-08-12`
+
+**Lo que Sergio vio:** los pasos con misión propia deberían estar en la lista
+de la izquierda, listos para arrastrar. No están.
+
+**Verificado.** La paleta ofrece **7 formas de caja**:
+
+> Inicio · Frase fija · Conversacional IA · **Pregunta variable** · Temporizador
+> · Resumen pedido · Evento: Pide la carta
+
+Y las **12 misiones** viven *dentro* de un desplegable que solo aparece
+**después** de arrastrar "Pregunta variable" y abrirla:
+
+> Qué va a pedir · Presentación · Variante · Preferencias · Ofrecer algo más ·
+> Adiciones · Dirección · A nombre de quién · Método de pago · Pedido
+> programado · Reserva de mesa · Datos de factura
+
+O sea: para poner el paso de **Reserva**, el dueño de un restaurante tiene que
+arrastrar algo llamado *"Pregunta variable"* —que no sugiere nada— abrirlo, y
+encontrar la misión en una lista de doce.
+
+**Consecuencia directa:** los tres pasos que se construyeron hoy —Pedido
+programado, Reserva de mesa y Datos de factura— **son invisibles en la
+práctica**. Están hechos y funcionan, pero nadie los va a encontrar.
+
+**Arreglo (a decidir):** que cada misión sea su propia caja arrastrable, con su
+nombre y su explicación, como Sergio esperaba desde el principio. "Pregunta
+variable" dejaría de existir como caja: sería el envase interno.
+
+Nota: yo mismo me confundí con esto. Al auditar el canvas reporté "7 tipos de
+paso" leyendo la paleta, cuando las misiones reales eran otra cosa. Si el
+autor del sistema se confunde mirándolo, un dueño de restaurante también.
+
+---
+
+## 5. Lo que esto sugiere, en general
 
 El canvas **descarta cajas en silencio**. Uno las dibuja, las configura, guarda
 — y no pasa nada. No hay ningún aviso.
