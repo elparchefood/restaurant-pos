@@ -965,7 +965,9 @@ function renderPanelBody(id, d) {
           </div>
           <div style="margin-top:8px;font-size:11px;color:var(--text-3);line-height:1.5">Con varias marcadas, el bot le da al cliente la que él escoja o la primera si no dice ninguna.</div>`}
       ` : `
-        <div style="font-size:11px;color:var(--amber);line-height:1.5">No tienes ninguna cuenta de transferencia configurada. Se agregan en <b>Configuración → Pagos</b>.</div>`}
+        <div class="cp-nota aviso">${PAGOS_CFG
+          ? 'No tienes ninguna cuenta de transferencia configurada. Se agregan en <b>Configuración → Pagos</b>.'
+          : 'No se pudieron leer tus métodos de pago. Recarga la pantalla (Ctrl+Shift+R); si sigue igual, avísame.'}</div>`}
       <div style="margin-top:10px;font-size:11px;color:var(--text-3);line-height:1.5">
         Las cuentas y sus QR viven en <b>Configuración → Pagos</b>. Aquí solo escoges cuáles usa el bot.
       </div>
@@ -977,21 +979,28 @@ function renderPanelBody(id, d) {
        cuentas: no tienen QR ni numero. Los PUNTOS vienen desmarcados con una
        nota, porque no son una forma de pagar sino de redimir — y redimir se
        hace en el mostrador, contra un pedido que ya existe. */
+    /* SIEMPRE se dibuja, aunque no haya nada que mostrar. Una sección que se
+       borra sola cuando no encuentra datos no deja forma de saber si el
+       problema es la lectura o el navegador — y eso fue exactamente lo que
+       pasó: no aparecía y no había manera de saber por qué. */
     const otros = metodos.filter(m => !m.digital);
-    if (otros.length) {
-      html += `<div class="cp-section">
-        <div class="cp-label">Otras formas de pago que puede ofrecer</div>
-        ${otros.map(m => `
-          <label class="cp-check">
-            <input type="checkbox" ${(!permitidos || permitidos.indexOf(m.id) >= 0) ? 'checked' : ''}
-                   onchange="togglePagoMetodo(${id},'${esc(m.id)}',this.checked)">
-            <span>${esc(m.nombre)}${m.id === '__puntos' ? ' <b class="cp-tag av">se redime en caja</b>' : ''}</span>
-          </label>`).join('')}
-        <div style="margin-top:8px;font-size:11px;color:var(--text-3);line-height:1.5">
-          Desmarcar aquí solo cambia lo que el bot <b>ofrece por WhatsApp</b>. En la caja se siguen pudiendo usar igual.
-        </div>
-      </div>`;
-    }
+    html += `<div class="cp-section">
+      <div class="cp-label">Otras formas de pago que puede ofrecer</div>
+      ${otros.length ? otros.map(m => `
+        <label class="cp-check">
+          <input type="checkbox" ${(!permitidos || permitidos.indexOf(m.id) >= 0) ? 'checked' : ''}
+                 onchange="togglePagoMetodo(${id},'${esc(m.id)}',this.checked)">
+          <span>${esc(m.nombre)}${m.id === '__puntos' ? ' <b class="cp-tag av">se redime en caja</b>' : ''}</span>
+        </label>`).join('') : `
+        <div class="cp-nota aviso">
+          ${PAGOS_CFG
+            ? 'Solo tienes cuentas de transferencia configuradas. El efectivo y la billetera se agregan en <b>Configuración → Pagos</b>.'
+            : 'No se pudieron leer tus métodos de pago. Recarga la pantalla; si sigue igual, revísalos en <b>Configuración → Pagos</b>.'}
+        </div>`}
+      <div style="margin-top:8px;font-size:11px;color:var(--text-3);line-height:1.5">
+        Desmarcar aquí solo cambia lo que el bot <b>ofrece por WhatsApp</b>. En la caja se siguen pudiendo usar igual.
+      </div>
+    </div>`;
 
     /* ── EL QR ────────────────────────────────────────────────────────
        No se escoge aparte: va pegado a su cuenta, arriba se ve cuál lleva
