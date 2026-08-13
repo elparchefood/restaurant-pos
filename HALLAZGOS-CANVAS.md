@@ -149,7 +149,68 @@ autor del sistema se confunde mirándolo, un dueño de restaurante también.
 
 ---
 
-## 5. Lo que esto sugiere, en general
+## 5. Auditoría completa: caja propia, diseño propio, config propia `2026-08-12`
+
+Sergio pidió comprobar tres cosas de cada paso con misión: que tenga **caja
+propia**, **diseño propio** y **configuración propia** — y que lo que se
+configura sea de verdad lo que hace el asistente.
+
+### ¿Existen las 12 misiones?
+
+**Sí.** El editor las ofrece las 12 y el motor entiende las 12. Eso está bien.
+
+### ¿Caja propia en la paleta? — **NO, ninguna**
+
+Las 12 se arrastran como *"Pregunta variable"*. (Ver hallazgo 4.)
+
+### ¿Diseño propio? — **NO, ninguna**
+
+El icono y el color se deciden por **tipo de nodo**, no por misión. Por eso
+*Pedir dirección*, *Método de pago* y *Pedir nombre* se ven **idénticas** en el
+lienzo: mismo icono amarillo, mismo texto "Pregunta variable" debajo. Solo se
+distinguen por el nombre que el dueño les haya escrito.
+
+### ¿Configuración propia? — **8 de 12**
+
+| Misión | ¿Config propia? |
+|---|---|
+| Qué va a pedir | ✅ mostrar la carta · confirmar cantidad |
+| Dirección | ✅ si está incompleta · si falta el barrio |
+| Método de pago | ✅ preguntarlo después del resumen |
+| Preferencias | ✅ plato · entrega · cubiertos |
+| Ofrecer algo más | ✅ qué productos ofrecer |
+| Pedido programado | ✅ horario · anticipación · días |
+| Reserva de mesa | ✅ qué pedir · máximo personas · pendiente |
+| Datos de factura | ✅ qué datos · solo si pide |
+| **Presentación** | ❌ ninguna |
+| **Variante** | ❌ ninguna |
+| **Adiciones** | ❌ ninguna |
+| **A nombre de quién** | ❌ ninguna |
+
+Las cuatro sin configuración son justo donde harían falta cosas obvias: qué
+hacer si el producto no tiene presentaciones, si la variante es obligatoria, o
+si el nombre se confirma o se pregunta.
+
+### ¿Lo que se configura es lo que hace el asistente?
+
+Se cruzó **cada interruptor del editor contra el motor**. Casi todo llega:
+
+| Ajuste | ¿Llega? |
+|---|---|
+| mostrar la carta · después del resumen · si falta el barrio · si está incompleta | ✅ |
+| preferencias (plato/entrega/cubiertos) · qué productos del upsell | ✅ |
+| reserva (qué pedir, máximo, pendiente) · factura (qué datos, solo si pide) | ✅ |
+| hora (horario, anticipación, días) · obligatoria · cuándo aplica · si falla | ✅ |
+| aviso de envío | ✅ lo lee `cambiar-estado`, no el motor del chat |
+| **"Confirmar la cantidad cuando sea más de una"** | ❌ **el motor NUNCA lo lee** |
+
+**Ese interruptor no hace nada.** Se puede encender y guardar, y el bot seguirá
+sin confirmar cantidades. Es el mismo patrón de los filtros de informes: un
+control que promete algo y no lo cumple.
+
+---
+
+## 6. Lo que esto sugiere, en general
 
 El canvas **descarta cajas en silencio**. Uno las dibuja, las configura, guarda
 — y no pasa nada. No hay ningún aviso.
