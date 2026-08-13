@@ -105,6 +105,9 @@ body{font-family:var(--font);background:var(--bg);height:100vh;overflow:hidden;c
 .av-item{font-size:12px;color:var(--text-1);padding:8px 0;border-top:1px solid var(--border)}
 .av-item:first-of-type{border-top:none}
 .av-por{font-size:11.5px;color:var(--text-2);line-height:1.5;margin-top:3px}
+.av-callar{margin-top:6px;padding:3px 8px;border:1px solid var(--border);background:transparent;border-radius:5px;font-family:inherit;font-size:10.5px;font-weight:600;color:var(--text-3);cursor:pointer}
+.av-callar:hover{color:var(--text-1);border-color:var(--text-3)}
+.av-link{color:var(--amber);font-weight:700;cursor:pointer;text-decoration:underline}
 .av-cerrar{margin-top:10px;width:100%;padding:7px;border:1px solid var(--border);background:var(--bg);border-radius:var(--r-sm);font-family:inherit;font-size:12px;font-weight:700;color:var(--text-2);cursor:pointer}
 .palette-sep{margin:8px 10px;border:none;border-top:1px solid var(--border)}
 
@@ -1606,12 +1609,15 @@ function revisarFlujo(data) {
        se le mandan igual a todos. */
     if ((d.campo === 'tamano' || d.campo === 'tipo')
         && (d.tipo || 'fija') === 'fija' && d.frase
-        && !/\{\{(presentaciones_producto|variantes_producto|opciones)\}\}/.test(d.frase)) {
-      const cual = d.campo === 'tamano' ? '{{presentaciones_producto}}' : '{{variantes_producto}}';
+        /* {opciones} —llaves SIMPLES— es el que el motor rellena por grupo.
+           Buscando solo las llaves dobles, una frase escrita como se indica
+           seguia saliendo marcada como mala. */
+        && !/\{opciones\}/.test(d.frase)
+        && !/\{\{(presentaciones_producto|variantes_producto)\}\}/.test(d.frase)) {
       avisos.push({
         caja: nom,
         que: 'Le va a ofrecer opciones equivocadas',
-        por: 'Su frase escribe las opciones a mano, y se le manda igual a productos que tienen otras. Usa ' + cual + ' y el bot dirá las del producto que el cliente esté pidiendo.',
+        por: 'Su frase escribe las opciones a mano y se le manda igual a productos que tienen otras. Escribe {opciones} en su lugar y el bot pondrá las de cada producto.',
       });
     }
   }
@@ -1619,17 +1625,73 @@ function revisarFlujo(data) {
   return avisos;
 }
 
-function pintarAvisos(avisos) {
+/* Lo que el dueño ya vio, y lo que dijo "ya lo sé". Se guarda por sede en el
+   navegador: es una preferencia de quien mira la pantalla, no del flujo. */
+function _avKey(sufijo) {
+  return 'canvas.avisos.' + (window._branchIdCanvas || 'sede') + '.' + sufijo;
+}
+function _avLeer(sufijo) {
+  try { return JSON.parse(localStorage.getItem(_avKey(sufijo)) || '[]'); } catch (e) { return []; }
+}
+function _avGuardar(sufijo, val) {
+  try { localStorage.setItem(_avKey(sufijo), JSON.stringify(val)); } catch (e) { /* sin memoria, se avisa siempre */ }
+}
+/* La huella de un aviso: la caja y qué le pasa. Si cambia el texto explicativo
+   no cuenta como aviso nuevo — lo que importa es si el problema es otro. */
+function _avHuella(a) { return a.caja + '|' + a.que; }
+
+window.callarAviso = function (huella) {
+  const callados = _avLeer('callados');
+  if (callados.indexOf(huella) < 0) { callados.push(huella); _avGuardar('callados', callados); }
+  pintarAvisos(window._avisosActuales || [], true);
+};
+
+function abrirAvisos() {
+  const caja = document.getElementById('avisosFlujo');
+  if (caja) caja.style.display = '';
+}
+
+function pintarAvisos(avisos, soloRepintar) {
   const caja = document.getElementById('avisosFlujo');
   if (!caja) return;
-  if (!avisos.length) { caja.style.display = 'none'; caja.innerHTML = ''; return; }
-  caja.style.display = '';
+  window._avisosActuales = avisos;
+
+  /* Los que el dueño ya silenció no cuentan para nada. */
+  const callados = _avLeer('callados');
+  const vivos = avisos.filter(a => callados.indexOf(_avHuella(a)) < 0);
+
+  const estado = document.getElementById('saveStatus');
+  if (!vivos.length) {
+    caja.style.display = 'none'; caja.innerHTML = '';
+    _avGuardar('vistos', []);
+    return;
+  }
+
   caja.innerHTML =
-    '<div class="av-tit">Se guardó, pero revisa esto</div>' +
-    avisos.map(a =>
+    '<div class="av-tit">Revisa esto</div>' +
+    vivos.map(a =>
       '<div class="av-item"><b>' + esc(a.caja) + '</b> — ' + esc(a.que) +
-      '<div class="av-por">' + esc(a.por) + '</div></div>').join('') +
+      '<div class="av-por">' + esc(a.por) + '</div>' +
+      '<button class="av-callar" onclick="callarAviso(' + JSON.stringify(_avHuella(a)).replace(/"/g, '&quot;') + ')">Ya lo sé, no me avises más</button>' +
+      '</div>').join('') +
     '<button class="av-cerrar" onclick="document.getElementById(\'avisosFlujo\').style.display=\'none\'">Entendido</button>';
+
+  /* ¿Hay alguno que no estuviera la vez pasada? Solo entonces se abre solo. */
+  const huellas = vivos.map(_avHuella);
+  const vistos  = _avLeer('vistos');
+  const hayNuevo = huellas.some(h => vistos.indexOf(h) < 0);
+  _avGuardar('vistos', huellas);
+
+  if (soloRepintar || hayNuevo) {
+    caja.style.display = '';
+  } else {
+    /* Nada nuevo: no se interrumpe. Queda el contador al lado del botón. */
+    caja.style.display = 'none';
+    if (estado) {
+      estado.innerHTML += ' <a class="av-link" onclick="abrirAvisos()">· ' +
+        vivos.length + (vivos.length === 1 ? ' aviso' : ' avisos') + '</a>';
+    }
+  }
 }
 
 async function saveFlow() {
@@ -1723,6 +1785,7 @@ function migrarCanvas(fc) {
          que hay, y guardar conserva en vez de pisar. */
       PALABRAS_ADI = Array.isArray(cfg?.adiciones_palabras) ? cfg.adiciones_palabras.join(', ') : '';
       /* Lo de Pagos se LEE, no se edita desde aquí: la caja solo escoge. */
+      window._branchIdCanvas = branchId;
       PAGOS_CFG = cfg?.pagos || null;
       GMAIL_OK  = !!cfg?.gmail_refresh_token;
       if (cfg?.flujo_canvas && cfg.flujo_canvas.drawflow) {
