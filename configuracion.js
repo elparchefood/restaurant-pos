@@ -1025,6 +1025,15 @@ document.addEventListener('DOMContentLoaded', async function() {
   $('btn-add-zone').addEventListener('click', createZone);
   $('btn-add-zone-tab').addEventListener('click', createZone);
 
+  /* El canvas vive dentro de un iframe y no puede cambiar de pantalla por su
+     cuenta. Cuando el dueño toca "Abrir Pagos" o "Conectar el correo" desde la
+     caja de pago, pide desde adentro que se le abra la pantalla. */
+  window.addEventListener('message', function (e) {
+    var d = e && e.data;
+    if (!d || d.cobra !== 'ir' || !d.pantalla) return;
+    if (typeof setSection === 'function') setSection(String(d.pantalla));
+  });
+
   // navegación lateral
   document.querySelectorAll('.lm-nav[data-section]').forEach(function(btn){
     btn.addEventListener('click', function(){ setSection(btn.dataset.section); });
@@ -6110,12 +6119,38 @@ function _mpInspectorHtml(m){
     var on=(m.canales||[]).indexOf(c[0])>=0;
     return '<button type="button" class="mp-chip'+(on?' on':'')+'" onclick="mpToggleCanal(\''+m.id+'\',\''+c[0]+'\')">'+c[1]+'</button>';
   }).join('');
+  /* El QR va PEGADO a su cuenta. Antes habia uno solo para todo el
+     restaurante: con dos cuentas, el cliente recibia el QR de una y el numero
+     de la otra. Aqui no existe forma de emparejarlos mal. */
+  var qrDeEsta = m.qr_url || '';
+  var qrGlobal = MP.qrUrl || '';
+  var qrBloque =
+     '<div class="cf-gen-sep"><div class="cf-rail-sublabel">QR de esta cuenta</div>'
+    +'<div class="mp-qr">'
+      +(qrDeEsta
+        ? '<img class="mp-qr-img" src="'+_mpEsc(qrDeEsta)+'" alt="QR" onclick="cfgVerImagen(\''+_mpEsc(qrDeEsta)+'\')">'
+        : (qrGlobal
+           ? '<img class="mp-qr-img heredado" src="'+_mpEsc(qrGlobal)+'" alt="QR" onclick="cfgVerImagen(\''+_mpEsc(qrGlobal)+'\')">'
+           : '<div class="mp-qr-vacio">Sin QR</div>'))
+      +'<div class="mp-qr-lado">'
+        +'<label class="lm-btn-ghost sm mp-qr-btn">'+(qrDeEsta?'Cambiar':'Subir QR')
+          +'<input type="file" accept="image/*" hidden onchange="mpQrSubir(\''+m.id+'\',this)"></label>'
+        +(qrDeEsta ? '<button class="mp-del sm" onclick="mpQrQuitar(\''+m.id+'\')">Quitar</button>' : '')
+        +'<div class="mp-qr-nota">'
+          +(qrDeEsta ? 'El bot manda este QR cuando el cliente escoge esta cuenta.'
+            : (qrGlobal ? 'Está usando el QR general del restaurante. Sube uno aquí si esta cuenta tiene el suyo.'
+                        : 'Sin QR, el bot manda solo el número de la cuenta.'))
+        +'</div>'
+      +'</div>'
+    +'</div></div>';
+
   var digRow = m.digital ? (
      '<div class="cf-gen-sep"><div class="cf-rail-sublabel">Datos de la cuenta</div>'
     +_mpFieldInline('Cuenta / llave','mpField(\''+m.id+'\',\'cuenta\',this.value)',m.cuenta,'Número o llave')
     +'<div style="height:9px"></div>'
     +_mpFieldInline('Banco','mpField(\''+m.id+'\',\'banco\',this.value)',m.banco,'Ej. Bancolombia')
-    +'</div>') : '';
+    +'</div>'
+    + qrBloque) : '';
   return '<div class="cf-rail-head"><div><div class="cf-eyebrow">Método</div>'
       +'<div class="cf-rail-title">'+(_mpEsc(m.nombre)||'Sin nombre')+'</div></div>'
       +'<button class="cf-mini-del" title="Cerrar" onclick="mpSelect(null)">&times;</button></div>'
@@ -6231,6 +6266,32 @@ window.cfgVerImagen = function (src) {
   }
   ov.querySelector('img').src = src;
   ov.classList.add('on');
+};
+
+
+/* Sube el QR de UNA cuenta. Mismo bucket que el QR general (chat-media): el
+   bot ya sabe leer de ahi y no hay que tocar permisos. */
+window.mpQrSubir = async function (id, input) {
+  var file = input && input.files && input.files[0];
+  if (!file) return;
+  var m = _mpFind(id); if (!m) return;
+  var ext  = (file.name.split('.').pop() || 'png').toLowerCase();
+  var path = 'qr/' + MP.branchId + '/' + id + '.' + ext;
+  try {
+    var up = await sb.storage.from('chat-media').upload(path, file, { upsert: true, contentType: file.type });
+    if (up.error) { console.error('QR de cuenta, error al subir:', up.error); alert('No se pudo subir el QR.'); return; }
+    var pub = sb.storage.from('chat-media').getPublicUrl(path);
+    /* Se le pega la hora para que el navegador no muestre el QR viejo cuando
+       se reemplaza: mismo nombre de archivo, misma URL, imagen distinta. */
+    m.qr_url = pub.data.publicUrl + '?t=' + Date.now();
+    MP.dirty = true; _mpRender();
+  } catch (e) { console.error('QR de cuenta:', e); alert('No se pudo subir el QR.'); }
+};
+
+window.mpQrQuitar = function (id) {
+  var m = _mpFind(id); if (!m) return;
+  m.qr_url = '';
+  MP.dirty = true; _mpRender();
 };
 
 window.mpDirty=function(){ MP.dirty=true; _mpUpdateSaveBtn(); };

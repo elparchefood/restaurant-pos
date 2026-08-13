@@ -76,6 +76,24 @@ body{font-family:var(--font);background:var(--bg);height:100vh;overflow:hidden;c
 .pn-info{flex:1;min-width:0}
 .pn-name{font-size:13px;font-weight:600;color:var(--text-1)}
 .pn-desc{font-size:11px;color:var(--text-3);margin-top:1px}
+.cp-seg{display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden}
+.cp-seg-b{flex:1;padding:7px 6px;border:none;background:var(--bg);font-family:inherit;font-size:11.5px;font-weight:700;color:var(--text-2);cursor:pointer}
+.cp-seg-b.on{background:var(--accent);color:#fff}
+.cp-link{color:var(--accent);font-weight:700;cursor:pointer;text-decoration:underline}
+.pg-qr{width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--border);background:#fff;flex:0 0 auto}
+.pg-qr.heredado{opacity:.5;border-style:dashed}
+.pg-qr.vacio{width:34px;height:34px;border-radius:6px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:8.5px;color:var(--text-3);flex:0 0 auto}
+.pg-fila{display:flex;align-items:center;gap:9px}
+.pg-fila-txt{font-size:11px;color:var(--text-3);line-height:1.45}
+.pg-cuenta{align-items:center;gap:9px}
+.pg-cuenta-txt{font-size:12px;line-height:1.35}
+.pg-num{font-size:10.5px;color:var(--text-3)}
+.cp-check{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12px;color:var(--text-1);cursor:pointer}
+.cp-check input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+.cp-tag{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--accent);background:var(--accent-bg);padding:1.5px 5px;border-radius:4px}
+.cp-nota{font-size:11px;line-height:1.5;padding:9px 10px;border-radius:var(--r-sm);border:1px solid var(--border)}
+.cp-nota.ok{color:var(--text-2);background:var(--bg)}
+.cp-nota.aviso{color:var(--amber);background:var(--amber-bg);border-color:var(--amber)}
 .cp-btn-sec{width:100%;padding:8px;border:1px solid var(--border);background:var(--bg);border-radius:var(--r-sm);font-family:inherit;font-size:11.5px;font-weight:700;color:var(--text-2);cursor:pointer}
 .cp-btn-sec:hover{border-color:var(--accent);color:var(--accent)}
 .avisos-flujo{position:absolute;top:14px;right:14px;width:330px;max-height:60%;overflow-y:auto;background:var(--surface);border:1px solid var(--amber);border-radius:var(--r);padding:14px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:20}
@@ -876,6 +894,141 @@ function renderPanelBody(id, d) {
       </div>
       <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Si el cliente todavía no sabe cuánto es, no sabe con qué pagar. Con esto encendido el bot muestra primero el resumen con el total y luego pregunta el pago.</div>
     </div>`;
+
+    /* ── LAS CUENTAS PARA RECIBIR TRANSFERENCIAS ─────────────────────
+       Solo las cuentas: el efectivo no es una cuenta y no entra aquí, así
+       nadie se queda sin poder pagar por desmarcar una casilla.
+
+       Se guarda el ID, nunca el número: si mañana cambias la cuenta en Pagos,
+       esto sigue apuntando bien sin que tengas que acordarte de venir. */
+    const metodos = (PAGOS_CFG && Array.isArray(PAGOS_CFG.metodos))
+      ? PAGOS_CFG.metodos.filter(m => m && m.activo !== false) : [];
+    const cuentas    = metodos.filter(m => m.digital);
+    const permitidos = Array.isArray(d.metodos_permitidos) ? d.metodos_permitidos : null;
+    const modoCuenta = d.modo_cuenta === 'varias' ? 'varias' : 'unica';
+    const qrGlobal   = (PAGOS_CFG && PAGOS_CFG.qr_imagen_url) || '';
+    /* La miniatura del QR de cada cuenta: la propia, o la general si no tiene.
+       Verlo aquí es la diferencia entre creer que está conectado y saberlo. */
+    const miniQR = (m) => {
+      const propio = m.qr_url || '';
+      const url    = propio || qrGlobal;
+      if (!url) return `<span class="pg-qr vacio" title="Esta cuenta no tiene QR">sin QR</span>`;
+      return `<img class="pg-qr${propio ? '' : ' heredado'}" src="${esc(url)}"
+        title="${propio ? 'QR propio de esta cuenta' : 'Usa el QR general del restaurante'}">`;
+    };
+
+    html += `<div class="cp-section">
+      <div class="cp-label">Cuentas para recibir transferencias</div>
+      ${cuentas.length ? `
+        <div class="cp-seg">
+          <button class="cp-seg-b ${modoCuenta==='unica'?'on':''}"  onclick="setModoCuenta(${id},'unica')">Una sola cuenta</button>
+          <button class="cp-seg-b ${modoCuenta==='varias'?'on':''}" onclick="setModoCuenta(${id},'varias')">Varias cuentas</button>
+        </div>
+        ${modoCuenta === 'unica' ? `
+          <select class="cp-input" style="margin-top:10px" onchange="setCuentaUnica(${id},this.value)">
+            ${cuentas.map(m => `<option value="${esc(m.id)}" ${(permitidos && permitidos[0]===m.id)?'selected':''}>${esc(m.nombre)}${m.cuenta?' — '+esc(m.cuenta):''}</option>`).join('')}
+          </select>
+          <div class="pg-fila" style="margin-top:10px">
+            ${miniQR(cuentas.find(m => permitidos && permitidos[0]===m.id) || cuentas[0])}
+            <div class="pg-fila-txt">El bot va a dar <b>solo esta cuenta</b> y su QR.</div>
+          </div>`
+        : `
+          <div style="margin-top:8px">
+            ${cuentas.map(m => `
+              <label class="cp-check pg-cuenta">
+                <input type="checkbox" ${(!permitidos || permitidos.indexOf(m.id) >= 0) ? 'checked' : ''}
+                       onchange="togglePagoMetodo(${id},'${esc(m.id)}',this.checked)">
+                ${miniQR(m)}
+                <span class="pg-cuenta-txt"><b>${esc(m.nombre)}</b>${m.cuenta?`<br><span class="pg-num">${esc(m.cuenta)}</span>`:''}</span>
+              </label>`).join('')}
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:var(--text-3);line-height:1.5">Con varias marcadas, el bot le da al cliente la que él escoja o la primera si no dice ninguna.</div>`}
+      ` : `
+        <div style="font-size:11px;color:var(--amber);line-height:1.5">No tienes ninguna cuenta de transferencia configurada. Se agregan en <b>Configuración → Pagos</b>.</div>`}
+      <div style="margin-top:10px;font-size:11px;color:var(--text-3);line-height:1.5">
+        Las cuentas y sus QR viven en <b>Configuración → Pagos</b>. Aquí solo escoges cuáles usa el bot.
+      </div>
+      <button class="cp-btn-sec" style="margin-top:8px" onclick="irAPagos()">Abrir Pagos</button>
+    </div>`;
+
+    /* ── EL QR ────────────────────────────────────────────────────────
+       No se escoge aparte: va pegado a su cuenta, arriba se ve cuál lleva
+       cada una. Una lista suelta de QR dejaría mandar el QR de una cuenta
+       con el número de otra. */
+    const sinQR = cuentas.filter(m => !m.qr_url && !qrGlobal);
+    html += `<div class="cp-section">
+      <div class="cp-toggle-row">
+        <span class="cp-toggle-label">Enviar el QR con la cuenta</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.enviar_qr!==false?'checked':''} onchange="updateField(${id},'enviar_qr',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">
+        Cada cuenta manda <b>su</b> QR — el de arriba es el que va a salir. Así no se puede mandar el QR de una cuenta con el número de otra.
+      </div>
+      ${sinQR.length ? `<div class="cp-nota aviso" style="margin-top:10px">
+        ${sinQR.length === 1 ? `<b>${esc(sinQR[0].nombre)}</b> no tiene QR` : `${sinQR.length} cuentas no tienen QR`}: el bot va a mandar solo el número.
+        <a class="cp-link" onclick="irAPagos()">Subirlo en Pagos</a>
+      </div>` : ''}
+    </div>`;
+
+    /* ── ¿EL PAGO VA ANTES DEL PEDIDO? ────────────────────────────────
+       Esto es lo que hoy no se podía cambiar: el bot SIEMPRE esperaba el
+       comprobante antes de crear el pedido. A ti te sirve; a un restaurante
+       que ya conoce a sus clientes, no. */
+    html += `<div class="cp-section">
+      <div class="cp-toggle-row">
+        <span class="cp-toggle-label">Exigir el pago antes de crear el pedido</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.pago_previo!==false?'checked':''} onchange="updateField(${id},'pago_previo',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">
+        Encendido: cuando el cliente paga por transferencia el pedido <b>no entra a la cocina</b> hasta que llegue y se acepte el comprobante.
+        Apagado: el pedido se crea de una vez y el pago queda pendiente.
+        Solo aplica a los métodos de transferencia — el efectivo nunca espera.
+      </div>
+    </div>`;
+
+    /* ── ¿QUIÉN REVISA EL COMPROBANTE? ────────────────────────────────
+       El interruptor tiene que decir la verdad sobre Gmail: sin correo del
+       banco conectado, "automática" es confiar en la foto, y una captura
+       falsa pasa. Callarlo sería vender una protección que no existe. */
+    html += `<div class="cp-section">
+      <div class="cp-toggle-row">
+        <span class="cp-toggle-label">Verificar el comprobante automáticamente</span>
+        <label class="toggle">
+          <input type="checkbox" ${d.verificacion_auto!==false?'checked':''} onchange="updateField(${id},'verificacion_auto',this.checked)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">
+        Apagado, el comprobante te llega al chat y el pedido se crea cuando tú das <b>Confirmar pago</b>.
+      </div>
+      <div class="cp-nota ${GMAIL_OK?'ok':'aviso'}" style="margin-top:10px">
+        ${GMAIL_OK
+          ? 'Tienes el correo del banco conectado: el bot compara el comprobante contra el correo real. Un comprobante falso no crea un pedido.'
+          : '<b>Ojo:</b> no tienes el correo del banco conectado. Con la verificación automática encendida, el bot solo puede mirar la foto — y una captura falsa pasa. <a class="cp-link" onclick="irAPagos()">Conectar el correo</a>'}
+      </div>
+    </div>`;
+
+    /* ── SI EL COMPROBANTE NUNCA LLEGA ────────────────────────────────
+       Hoy la conversación se queda esperando para siempre y el pedido no
+       existe: nadie se entera de que se perdió una venta. */
+    html += `<div class="cp-section">
+      <div class="cp-label">Si el comprobante no llega, avisar a los (minutos)</div>
+      <input class="cp-input" type="number" min="0" step="5"
+             value="${esc(String(d.espera_comprobante_min==null?30:d.espera_comprobante_min))}"
+             oninput="updateField(${id},'espera_comprobante_min',parseInt(this.value)||0)">
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">
+        Pasado ese tiempo la conversación se marca para que una persona la mire. 0 = esperar sin límite.
+      </div>
+    </div>`;
   }
   // Paso DIRECCIÓN: sub-preguntas configurables
   if(['pregunta','ia','fija'].includes(d.type) && d.campo === 'direccion') {
@@ -935,6 +1088,58 @@ function insertarMarca(id, marca) {
   if (actual.indexOf(marca) >= 0) return;
   updateField(id, campo, (actual ? actual.trimEnd() + ' ' : '') + marca);
   openPanel(id);
+}
+
+
+/* Marca o desmarca un metodo de pago. Guarda IDS, nunca nombres ni cuentas:
+   la pantalla de Pagos sigue siendo la dueña del dato. */
+
+/* El canvas vive dentro de Configuracion (o en su propia pestaña). Los dos
+   casos: si esta embebido se le pide al padre que cambie de pantalla; si no,
+   se abre Pagos directamente. */
+function irAPagos() {
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ cobra: 'ir', pantalla: 'pagos' }, '*');
+      return;
+    }
+  } catch (e) { /* otro origen: se abre normal */ }
+  window.open('configuracion.html#pagos', '_blank');
+}
+
+function setModoCuenta(id, modo) {
+  const n = editor.getNodeFromId(String(id));
+  const d = (n && n.data) || {};
+  const cuentas = (PAGOS_CFG && Array.isArray(PAGOS_CFG.metodos))
+    ? PAGOS_CFG.metodos.filter(m => m && m.activo !== false && m.digital) : [];
+  /* Al pasar a "una sola" se deja UNA marcada: si se quedaran las tres, el
+     desplegable diria una cosa y el bot haria otra. */
+  if (modo === 'unica') {
+    const actual = Array.isArray(d.metodos_permitidos) ? d.metodos_permitidos[0] : null;
+    const escogida = (actual && cuentas.some(m => m.id === actual)) ? actual : (cuentas[0] && cuentas[0].id);
+    if (escogida) d.metodos_permitidos = [escogida];
+  }
+  d.modo_cuenta = modo;
+  editor.updateNodeDataFromId(String(id), d);
+  openPanel(id);
+}
+
+function setCuentaUnica(id, metodoId) {
+  updateField(id, 'metodos_permitidos', [metodoId]);
+  openPanel(id);
+}
+
+function togglePagoMetodo(id, metodoId, marcado) {
+  const n = editor.getNodeFromId(String(id));
+  const d = (n && n.data) || {};
+  const todos = (PAGOS_CFG && Array.isArray(PAGOS_CFG.metodos))
+    ? PAGOS_CFG.metodos.filter(m => m && m.activo !== false).map(m => m.id) : [];
+  /* Sin lista guardada significa "todos". Al desmarcar el primero hay que
+     materializarla, o quitar uno se leeria como no quitar ninguno. */
+  let lista = Array.isArray(d.metodos_permitidos) ? d.metodos_permitidos.slice() : todos.slice();
+  if (marcado) { if (lista.indexOf(metodoId) < 0) lista.push(metodoId); }
+  else         { lista = lista.filter(x => x !== metodoId); }
+  updateField(id, 'metodos_permitidos', lista);
 }
 
 function updateField(id, field, val) {
@@ -1012,6 +1217,11 @@ function markDirty() {
   document.getElementById('saveStatus').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;color:var(--amber)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Sin guardar`;
 }
 // Convierte un nodo del canvas en un paso del motor (solo si captura un slot).
+/* Lo que hay configurado en la pantalla de Pagos. Se lee al arrancar y no se
+   edita desde el canvas: la caja de pago solo escoge entre esto. */
+let PAGOS_CFG = null;
+let GMAIL_OK  = false;
+
 const CAMPOS_SLOT = ['producto','tamano','tipo','direccion','pago','nombre','adiciones','preferencias','upsell','programado','reserva','factura'];
 function pushPaso(d, pasos) {
   if (!d || !d.campo || !CAMPOS_SLOT.includes(d.campo)) return; // nodos sin variable no son pasos de pedido
@@ -1070,7 +1280,15 @@ function pushPaso(d, pasos) {
     };
   }
   if (d.campo === 'nombre') paso.usar_nombre_wa = d.usar_nombre_wa !== false;
-  if (d.campo === 'pago') paso.despues_resumen = d.despues_resumen === true;
+  if (d.campo === 'pago') {
+    paso.despues_resumen = d.despues_resumen === true;
+    if (Array.isArray(d.metodos_permitidos)) paso.metodos_permitidos = d.metodos_permitidos;
+    paso.modo_cuenta = d.modo_cuenta === 'varias' ? 'varias' : 'unica';
+    paso.enviar_qr         = d.enviar_qr         !== false;
+    paso.pago_previo       = d.pago_previo       !== false;
+    paso.verificacion_auto = d.verificacion_auto !== false;
+    paso.espera_comprobante_min = d.espera_comprobante_min == null ? 30 : Number(d.espera_comprobante_min) || 0;
+  }
   if (d.campo === 'upsell' && Array.isArray(d.upsell_productos)) paso.upsell_productos = d.upsell_productos;
   // Comunes a todas las cajas
   paso.obligatoria = d.obligatoria !== false;
@@ -1376,7 +1594,12 @@ function migrarCanvas(fc) {
     const session = (await sb.auth.getSession()).data.session;
     if (session) {
       const branchId = session.user.user_metadata.branch_id;
-      const { data: cfg } = await sb.from('ia_config').select('flujo_canvas, frases').eq('branch_id', branchId).maybeSingle();
+      const { data: cfg } = await sb.from('ia_config')
+        .select('flujo_canvas, frases, pagos, gmail_refresh_token')
+        .eq('branch_id', branchId).maybeSingle();
+      /* Lo de Pagos se LEE, no se edita desde aquí: la caja solo escoge. */
+      PAGOS_CFG = cfg?.pagos || null;
+      GMAIL_OK  = !!cfg?.gmail_refresh_token;
       if (cfg?.flujo_canvas && cfg.flujo_canvas.drawflow) {
         try { editor.import(migrarCanvas(cfg.flujo_canvas)); loaded = true; } catch(e) { console.warn('import flujo_canvas falló', e); }
       }

@@ -111,6 +111,17 @@ html, body { margin: 0; padding: 0; height: 100%; width: 100%; background: var(-
    apretados y el rojo quedaba a un dedo de "bajar". */
 .mp-del { margin-left: auto; padding: 8px 14px; border-radius: var(--r-sm, 10px); border: 1px solid var(--danger-bd, #FECACA); background: var(--danger-bg, #FEF2F2); color: var(--danger, #DC2626); font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .mp-del:hover { background: #FEE2E2; }
+.mp-del.sm { margin-left: 0; padding: 5px 10px; font-size: 11px; }
+/* El QR de una cuenta. Se ve la miniatura al lado del boton: asi se sabe de
+   un vistazo que hay uno cargado y cual es, sin abrir nada. */
+.mp-qr { display: flex; gap: 12px; align-items: flex-start; }
+.mp-qr-img { width: 74px; height: 74px; object-fit: cover; border-radius: 10px; border: 1px solid var(--border, #E2E8F0); cursor: zoom-in; background: #fff; flex: 0 0 auto; }
+/* Heredado del QR general: se marca distinto para que no parezca propio. */
+.mp-qr-img.heredado { opacity: .55; border-style: dashed; }
+.mp-qr-vacio { width: 74px; height: 74px; border-radius: 10px; border: 1px dashed var(--border, #E2E8F0); display: flex; align-items: center; justify-content: center; font-size: 10.5px; color: #94A3B8; flex: 0 0 auto; }
+.mp-qr-lado { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mp-qr-btn { cursor: pointer; text-align: center; }
+.mp-qr-nota { font-size: 11px; color: #94A3B8; line-height: 1.45; }
 /* alternancia del panel lateral: zonas (defecto) vs inspector de mesa */
 .cf-rail-pane { display: none; flex-direction: column; min-height: 0; flex: 1; }
 .cf-rail-pane.on { display: flex; }

@@ -550,7 +550,15 @@ async function processConversation(convId: string): Promise<void> {
   const puedeTomarPedidos = isOpen || pedidosProg;
   const frasesCfg         = (cfg.frases as Record<string, unknown>) || {};
   const domiciliosCfg     = cfg.domicilios as Record<string, unknown> | null | undefined;
-  const pagosCfg          = cfg.pagos as Record<string, unknown> | null | undefined;
+  /* LAS CUENTAS QUE ESCOGIO EL DUEÑO en la caja de Pago del canvas. Se filtra
+     aqui, en el origen, y no en los nueve sitios que preguntan por los metodos:
+     si se filtrara alla, el dia que aparezca un sitio nuevo se le olvidaria a
+     alguien y el bot daria una cuenta que ya no se usa.
+
+     Solo se filtran las cuentas de TRANSFERENCIA. El efectivo no es una cuenta
+     y nunca se toca: nadie se puede quedar sin poder pagar por una casilla
+     desmarcada. */
+  const pagosCfg          = filtrarCuentas(cfg.pagos as Record<string, unknown> | null | undefined, cfgPago(cfg).metodos_permitidos);
   const proxDia           = getProximoDiaActivo(horariosCfg, colDate.getUTCDay());
 
   // ── Estado fuera de servicio (DETERMINÍSTICO, frases configurables) ──────────
@@ -1254,6 +1262,18 @@ INTENCION, no las palabras exactas.` },
   // ═══════════════════════════════════════════════════════════════════════════
 
   if (convRow?.pago_pendiente && hasImagenBatch) {
+    /* ¿LO REVISA EL SISTEMA O UNA PERSONA? Apagada la verificacion automatica,
+       el comprobante queda en el chat y el pedido se crea cuando el dueño da
+       "Confirmar pago". Ese camino ya existia; lo que no habia era como
+       escogerlo. */
+    if (!cfgPago(cfg).verificacion_auto) {
+      const msgManual = getFraseTexto(frasesCfg.comprobante_recibido)
+        || "¡Recibimos tu comprobante! 🧾 Lo revisamos y te confirmamos en un momento 🙏";
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { human_takeover: true });
+      await sendWaAndSave(convId, tenantId, msgManual, fromPhone, phoneId, accessToken);
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgManual, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+      return;
+    }
     try {
       await fetch(`${SUPABASE_URL}/functions/v1/verify-transfer`, {
         method: "POST",
@@ -1360,9 +1380,30 @@ INTENCION, no las palabras exactas.` },
         } else {
           compMsg = "Quedó pendiente del comprobante para poderte preparar ☺️";
         }
+        const cPago = cfgPago(cfg);
+        /* EL PAGO NO SIEMPRE VA ANTES DEL PEDIDO. Encendido (lo de siempre) el
+           pedido no entra a la cocina hasta que llegue el comprobante. Apagado,
+           el pedido se crea de una vez y el pago queda pendiente: hay
+           restaurantes que ya conocen a sus clientes y no quieren hacerlos
+           esperar. Antes esto no se podia cambiar desde ninguna pantalla. */
+        if (!cPago.pago_previo) {
+          const clasifPP = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2);
+          const domiPP = clasifPP.tipo === "para_llevar" ? 0 : lookupDomiPrice(ubicacionPedido(state), domiciliosCfg);
+          try {
+            await createWhatsappOrder(buildOrderArgs(state, domiPP ?? 0), branchId, tenantId, fromPhone);
+          } catch (err) { console.error("Error creando pedido (pago no previo):", err); }
+        }
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pago_pendiente: true });
         await sendWaAndSave(convId, tenantId, compMsg, fromPhone, phoneId, accessToken);
-        const qrUrl = (pagosCfg?.qr_imagen_url as string) || "";
+        /* EL QR ES EL DE LA CUENTA QUE ESCOGIO EL CLIENTE. Antes habia uno
+           global: con dos cuentas configuradas, el cliente recibia el QR de una
+           y el numero de la otra. El general queda de respaldo para quien solo
+           tenga uno. */
+        const cuentaElegida = (getMetodosPagoRaw(pagosCfg) || []).find(m =>
+          m && m.digital === true && normalizarTexto(String(m.nombre || "")) === normalizarTexto(String(state.pago || "")));
+        const qrUrl = cPago.enviar_qr
+          ? (String(cuentaElegida?.qr_url || "") || (pagosCfg?.qr_imagen_url as string) || "")
+          : "";
         const qrTxt = (pagosCfg?.qr_texto as string) || "";
         if (qrUrl) {
           await sleep(600);
@@ -2271,6 +2312,52 @@ function extractPreferencias(text: string, cfg: Record<string, unknown>): string
 // La lista vive en ia_config.pagos.metodos = [{nombre, digital}] — editable desde la
 // pantalla Pagos. "digital" = el bot envía QR y espera comprobante. Si no hay lista,
 // se derivan de los booleanos viejos (efectivo/nequi/daviplata/tarjeta) por compat.
+/* Lo que el dueño configuro en la caja de Pago del canvas. En un solo sitio
+   para que el dia que se agregue un interruptor nuevo no haya que buscarlo en
+   cinco lados. Sin caja configurada se comporta como siempre. */
+/* Deja solo las cuentas de transferencia que el dueño marco en el canvas. */
+/* getMetodosPago devuelve solo nombre y digital. Para el QR hace falta la fila
+   entera, asi que se lee aparte en vez de ensanchar el tipo de la otra y
+   obligar a tocar sus nueve sitios. */
+function getMetodosPagoRaw(pagos: Record<string, unknown> | null | undefined): Array<Record<string, unknown>> {
+  const l = pagos?.metodos;
+  return Array.isArray(l) ? l as Array<Record<string, unknown>> : [];
+}
+
+function filtrarCuentas(
+  pagos: Record<string, unknown> | null | undefined,
+  permitidos: string[] | null,
+): Record<string, unknown> | null | undefined {
+  if (!pagos || !permitidos || !permitidos.length) return pagos;
+  const lista = pagos.metodos as Array<Record<string, unknown>> | undefined;
+  if (!Array.isArray(lista)) return pagos;
+  const filtrada = lista.filter(m => !m || m.digital !== true || permitidos.includes(String(m.id || "")));
+  /* Si no quedo ninguna cuenta de transferencia se ignora el filtro: quedarse
+     sin forma de cobrar por transferencia rompe el pedido entero, y eso no
+     puede pasar por una casilla que alguien desmarco sin darse cuenta. */
+  if (!filtrada.some(m => m && m.digital === true) && lista.some(m => m && m.digital === true)) return pagos;
+  return { ...pagos, metodos: filtrada };
+}
+
+function cfgPago(cfg: Record<string, unknown>): {
+  metodos_permitidos: string[] | null;
+  enviar_qr: boolean;
+  pago_previo: boolean;
+  verificacion_auto: boolean;
+  espera_min: number;
+} {
+  const p = Array.isArray(cfg.flujo_pasos)
+    ? (cfg.flujo_pasos as Array<Record<string, unknown>>).find(x => x && x.campo === "pago" && x.activo !== false)
+    : null;
+  return {
+    metodos_permitidos: p && Array.isArray(p.metodos_permitidos) ? (p.metodos_permitidos as unknown[]).map(String) : null,
+    enviar_qr:          p ? p.enviar_qr          !== false : true,
+    pago_previo:        p ? p.pago_previo        !== false : true,
+    verificacion_auto:  p ? p.verificacion_auto  !== false : true,
+    espera_min:         p && p.espera_comprobante_min != null ? Number(p.espera_comprobante_min) || 0 : 30,
+  };
+}
+
 function getMetodosPago(pagosCfg: Record<string, unknown> | null | undefined): Array<{ nombre: string; digital: boolean }> {
   const lista = pagosCfg?.metodos as Array<{ nombre?: string; digital?: boolean }> | undefined;
   if (Array.isArray(lista) && lista.length > 0) {
