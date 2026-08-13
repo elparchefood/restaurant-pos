@@ -1020,14 +1020,40 @@ function renderPanelBody(id, d) {
     /* ── SI EL COMPROBANTE NUNCA LLEGA ────────────────────────────────
        Hoy la conversación se queda esperando para siempre y el pedido no
        existe: nadie se entera de que se perdió una venta. */
+    /* ── SI EL COMPROBANTE NUNCA LLEGA ────────────────────────────────
+       El bot solo se despierta cuando el cliente escribe. Si el cliente
+       desaparece después del QR, la conversación se queda esperando para
+       siempre: el pedido no existe, no sale en ventas, no sale en cocina, y
+       nadie se entera de que se perdió una venta. */
+    const espMin  = d.espera_comprobante_min == null ? 30 : d.espera_comprobante_min;
+    const espModo = d.espera_modo === 'ia' ? 'ia' : 'fija';
     html += `<div class="cp-section">
-      <div class="cp-label">Si el comprobante no llega, avisar a los (minutos)</div>
+      <div class="cp-label">Si el comprobante no llega, recordarle a los (minutos)</div>
       <input class="cp-input" type="number" min="0" step="5"
-             value="${esc(String(d.espera_comprobante_min==null?30:d.espera_comprobante_min))}"
+             value="${esc(String(espMin))}"
              oninput="updateField(${id},'espera_comprobante_min',parseInt(this.value)||0)">
       <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">
-        Pasado ese tiempo la conversación se marca para que una persona la mire. 0 = esperar sin límite.
+        ${espMin > 0
+          ? `A los ${espMin} minutos sin comprobante el bot le escribe una vez. Si pasan otros ${espMin} y sigue sin llegar, te marca la conversación para que la mires tú.`
+          : 'En 0 el bot no le escribe ni te avisa: la conversación espera sin límite (así funcionaba antes).'}
       </div>
+
+      ${espMin > 0 ? `
+      <div class="cp-seg" style="margin-top:12px">
+        <button class="cp-seg-b ${espModo==='fija'?'on':''}" onclick="updateField(${id},'espera_modo','fija');openPanel(${id})">Frase exacta</button>
+        <button class="cp-seg-b ${espModo==='ia'?'on':''}"   onclick="updateField(${id},'espera_modo','ia');openPanel(${id})">Con sus palabras</button>
+      </div>
+      ${espModo === 'fija' ? `
+        <textarea class="cp-textarea" style="margin-top:10px;min-height:64px"
+                  placeholder="Quedó pendiente del comprobante para poderte preparar ☺️ Envíamelo como imagen 🧾"
+                  oninput="updateField(${id},'espera_texto',this.value)">${esc(d.espera_texto||'')}</textarea>
+        <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">El bot manda esto tal cual, sin cambiarle una coma.</div>
+      ` : `
+        <textarea class="cp-textarea" style="margin-top:10px;min-height:64px"
+                  placeholder="Recuérdale con amabilidad que falta el comprobante, sin presionarlo. Dile que apenas llegue empezamos a prepararle."
+                  oninput="updateField(${id},'espera_guia',this.value)">${esc(d.espera_guia||'')}</textarea>
+        <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">Le dices <b>qué</b> decir y el bot lo escribe con sus palabras, distinto cada vez.</div>
+      `}` : ''}
     </div>`;
   }
   // Paso DIRECCIÓN: sub-preguntas configurables
@@ -1288,6 +1314,9 @@ function pushPaso(d, pasos) {
     paso.pago_previo       = d.pago_previo       !== false;
     paso.verificacion_auto = d.verificacion_auto !== false;
     paso.espera_comprobante_min = d.espera_comprobante_min == null ? 30 : Number(d.espera_comprobante_min) || 0;
+    paso.espera_modo  = d.espera_modo === 'ia' ? 'ia' : 'fija';
+    if (d.espera_texto) paso.espera_texto = d.espera_texto;
+    if (d.espera_guia)  paso.espera_guia  = d.espera_guia;
   }
   if (d.campo === 'upsell' && Array.isArray(d.upsell_productos)) paso.upsell_productos = d.upsell_productos;
   // Comunes a todas las cajas
