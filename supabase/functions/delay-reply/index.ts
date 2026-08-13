@@ -827,7 +827,23 @@ INTENCION, no las palabras exactas.` },
       // es exactamente una de estas frases (no si aparece dentro de una dirección de entrega).
       const dirExacta = ["direccion","la direccion","cual es la direccion","cual es su direccion","me das la direccion","me da la direccion","dame la direccion","me regalas la direccion","cual direccion","que direccion","direccion del local","direccion porfavor","direccion por favor","cual es la direccion del local","direcion","la direcion"];
       const pideDir = batchMsgs.some(m => { const mm = norm(m.body).replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim(); return dirExacta.includes(mm); });
-      if (intenciones.ubicacion === true || ubiKw.some(kw => cL.includes(kw)) || pideDir) {
+      /* SI ESTAMOS ESPERANDO EL BARRIO, UN BARRIO ES LA RESPUESTA.
+         El bot preguntaba "en que barrio queda esa direccion", el cliente
+         contestaba "Bella Vista" —el barrio del propio restaurante— y el bot
+         le respondia con la direccion DEL LOCAL, dejandolo sin pedido.
+         "estan en bella vista?" SIGUE siendo una pregunta: por eso se exige
+         que no traiga ninguna de las frases de ubicacion. */
+      let contestaBarrio = false;
+      if (!ubiKw.some(kw => cL.includes(kw)) && !pideDir
+          && extraerBarrio(cL, (cfg as Record<string, unknown>).domicilios as Record<string, unknown> | null)) {
+        try {
+          const pend = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=pending_order_data&limit=1`) as Array<Record<string, unknown>> | null;
+          const stPrev = pend?.[0]?.pending_order_data as Record<string, unknown> | null;
+          contestaBarrio = !!(stPrev && stPrev.direccion && !stPrev.barrio);
+        } catch (_) { /* si falla, se comporta como antes */ }
+      }
+
+      if (!contestaBarrio && (intenciones.ubicacion === true || ubiKw.some(kw => cL.includes(kw)) || pideDir)) {
         let dirTxt = dirRR ? String((dirRR as Record<string, unknown>).t || "").trim()
                            : `Estamos ubicados en ${String(ubiLoc.address || "").trim()}`.trim();
         // Si está CERRADO, damos la dirección IGUAL pero avisando el horario (pedido de Sergio).
@@ -1677,10 +1693,16 @@ INTENCION, no las palabras exactas.` },
       return;
     }
     if (clasifBis.tipo === "incompleta") {
+      /* A un CONJUNTO no se le pide una calle que no tiene: se le pide la
+         unidad. Pedirle "Carrera 9 # 63-25" a quien vive en un conjunto es lo
+         que dejaba al cliente dando vueltas sin poder pedir. */
+      const conjNom = esConjunto(state.direccion, domiciliosCfg);
       const numCount = (state.direccion.match(/\d+/g) || []).length;
-      const pregDetallada = numCount >= 2
-        ? "¡Casi! 😊 Le falta el número de tu casa. La dirección debe verse así: *Carrera 9 # 63-25* ¿Cómo es la completa?"
-        : "Necesito la dirección completa para llegar 📍 Algo así: *Carrera 9 # 63-25* ¿Cómo es la tuya?";
+      const pregDetallada = conjNom
+        ? `¡Listo, ${conjNom}! 😊 ¿En qué torre y apartamento (o casa) te lo dejamos?`
+        : (numCount >= 2
+          ? "¡Casi! 😊 Le falta el número de tu casa. La dirección debe verse así: *Carrera 9 # 63-25* ¿Cómo es la completa?"
+          : "Necesito la dirección completa para llegar 📍 Algo así: *Carrera 9 # 63-25* ¿Cómo es la tuya?");
       // Prioridad: sub-pregunta del nodo Dirección del canvas > frase config > default
       const pasoDirBis = pasos.find(p => p.campo === "direccion");
       const pregIncompleta = (pasoDirBis && pasoDirBis.preg_incompleta)
@@ -1696,7 +1718,11 @@ INTENCION, no las palabras exactas.` },
       const domiPrecioBis = lookupDomiPrice(state.direccion, domiciliosCfg);
       const tieneCalle = analizarDireccion(state.direccion).tieneVia;
       const tieneNumeroBis = /#\s*\d|no\.\s*\d|nro\.\s*\d|número\s*\d|numero\s*\d/.test(state.direccion);
-      if (!tieneCalle && !tieneNumeroBis && domiPrecioBis !== null) {
+      /* A UN CONJUNTO NO SE LE PIDE CALLE NI NUMERO. Este control tambien
+         exigia "calle o carrera y numero" y era el que dejaba a "torres del
+         bosque torre 3 apto 603" dando vueltas: la direccion esta completa,
+         solo que un conjunto no tiene calle. */
+      if (!tieneCalle && !tieneNumeroBis && domiPrecioBis !== null && !esConjunto(state.direccion, domiciliosCfg)) {
         // Solo dio el barrio sin calle ni número — pedir la dirección completa
         const pregCalle = getFraseTexto(frasesCfg.preguntar_calle_numero)
           || "Anotado el barrio 📍 ¿Y cuál es la dirección exacta? (calle o carrera y número)";
@@ -1962,7 +1988,7 @@ INTENCION, no las palabras exactas.` },
         const domiPrecioH = lookupDomiPrice(state.direccion, domiciliosCfg);
         const tieneCalleH = analizarDireccion(state.direccion).tieneVia;
         const tieneNumH   = /#\s*\d|no\.\s*\d|nro\.\s*\d|número\s*\d|numero\s*\d/.test(state.direccion);
-        if (!tieneCalleH && !tieneNumH && domiPrecioH !== null) {
+        if (!tieneCalleH && !tieneNumH && domiPrecioH !== null && !esConjunto(state.direccion, domiciliosCfg)) {
           const pregCalle = getFraseTexto(frasesCfg.preguntar_calle_numero)
             || "Anotado el barrio 📍 ¿Y cuál es la dirección exacta? (calle o carrera y número)";
           state.complemento_dir_pendiente = pregCalle;
@@ -3964,6 +3990,16 @@ function clasificarDireccion(
     return { tipo: "publico", requierePagoAdelantado: requiere };
   }
   if (!sinNomenclaturaCliente && !checkBarrioSinNomenclatura(dir, domicilios)) {
+    /* CONJUNTO CERRADO: no se le exige calle ni numero. Solo hace falta la
+       UNIDAD (torre, apto, casa, bloque): el nombre solo deja al domiciliario
+       en la porteria sin saber a donde subir. */
+    if (esConjunto(dir, domicilios)) {
+      const daUnidad = /\b(torre|bloque|bl|interior|int|apto|apartamento|apart|casa|piso)\b\s*\.?\s*[a-z0-9]/i.test(dir);
+      return daUnidad
+        ? { tipo: "residencial", requierePagoAdelantado: false }
+        : { tipo: "incompleta",  requierePagoAdelantado: false };
+    }
+
     const partes = analizarDireccion(dir);
     if (partes.tieneVia && !partes.completa) return { tipo: "incompleta", requierePagoAdelantado: false };
   }
@@ -4149,10 +4185,14 @@ function extraerBarrio(
   domicilios: Record<string, unknown> | null | undefined,
 ): string | null {
   if (!domicilios || !text) return null;
-  const zonas = (domicilios.zonas as Array<{ nombre?: string; barrios?: string[] }>) || [];
+  const zonas = (domicilios.zonas as Array<{ nombre?: string; barrios?: string[]; conjuntos?: string[] }>) || [];
   let mejor: string | null = null;
   for (const z of zonas) {
-    const barrios = z.barrios ?? (z.nombre ? z.nombre.split(",").map((b: string) => b.trim()) : []);
+    /* Los conjuntos entran por la misma puerta: para el precio del domicilio
+       son un barrio mas de su zona. Lo que cambia es que despues NO se les
+       pide calle ni numero. */
+    const barrios = (z.barrios ?? (z.nombre ? z.nombre.split(",").map((b: string) => b.trim()) : []))
+      .concat(z.conjuntos || []);
     for (const b of barrios) {
       if (!b) continue;
       /* Se queda con el nombre MAS LARGO que case: "Bella Vista" antes que
@@ -4161,6 +4201,23 @@ function extraerBarrio(
     }
   }
   return mejor;
+}
+
+/* Es un conjunto cerrado de los que el restaurante tiene registrados?
+   A un conjunto no se le pide calle ni numero: con el nombre y la unidad
+   (torre, apto, casa) el domiciliario llega. */
+function esConjunto(
+  text: string,
+  domicilios: Record<string, unknown> | null | undefined,
+): string | null {
+  if (!domicilios || !text) return null;
+  const zonas = (domicilios.zonas as Array<{ conjuntos?: string[] }>) || [];
+  for (const z of zonas) {
+    for (const c of (z.conjuntos || [])) {
+      if (c && fuzzyBarrioMatch(text, c)) return c;
+    }
+  }
+  return null;
 }
 
 function fuzzyBarrioMatch(direccion: string, barrio: string): boolean {

@@ -4368,7 +4368,7 @@ var _storedZonas = [];
   // de $5.000 puede tener 61 barrios. Antes la pantalla esperaba una fila por
   // barrio ({nombre, precio}) y por eso mostraba filas vacías: no encontraba
   // "nombre". Peor: al guardar se habrían perdido los barrios.
-  function addZoneRow(precio, barrios) {
+  function addZoneRow(precio, barrios, conjuntos) {
     var list = $('zoneList');
     if (!list) return;
     var row = document.createElement('div');
@@ -4381,8 +4381,15 @@ var _storedZonas = [];
         '<span class="zone-count"></span>' +
         '<button class="zone-del" type="button" title="Quitar zona">&times;</button>' +
       '</div>' +
-      '<textarea class="txa zone-barrios" rows="4" placeholder="Un barrio por línea"></textarea>';
+      '<textarea class="txa zone-barrios" rows="4" placeholder="Un barrio por línea"></textarea>' +
+      /* Los conjuntos van aparte porque el bot los trata distinto: cobran el
+         precio de esta zona igual que un barrio, pero a un conjunto NO se le
+         pide calle ni número — se le pide la torre y el apartamento. */
+      '<div class="zone-lb" style="margin-top:10px">Conjuntos cerrados de esta zona</div>' +
+      '<div style="font-size:11.5px;color:var(--text-3);line-height:1.5;margin:2px 0 6px">Mismo precio que la zona. El bot no les pedirá calle ni número: les pedirá torre y apartamento.</div>' +
+      '<textarea class="txa zone-conjuntos" rows="3" placeholder="Un conjunto por línea (ej. Torres del Bosque)"></textarea>';
     row.querySelector('.zone-barrios').value = lista.join('\n');
+    row.querySelector('.zone-conjuntos').value = (Array.isArray(conjuntos) ? conjuntos : []).join('\n');
     var cont = row.querySelector('.zone-count');
     var pinta = function () {
       var n = row.querySelector('.zone-barrios').value.split('\n').map(function (x) { return x.trim(); }).filter(Boolean).length;
@@ -4540,7 +4547,7 @@ var _storedZonas = [];
         .map(function (pr) { return { precio: Number(pr), barrios: porPrecio[pr] }; });
     }
     arr.slice().sort(function (a, b) { return (Number(a.precio) || 0) - (Number(b.precio) || 0); })
-       .forEach(function (z) { addZoneRow(z.precio, z.barrios); });
+       .forEach(function (z) { addZoneRow(z.precio, z.barrios, z.conjuntos); });
   }
 
   function readZones() {
@@ -4550,7 +4557,13 @@ var _storedZonas = [];
       var precio = r.querySelector('.zone-precio') ? parseInt(r.querySelector('.zone-precio').value) || 0 : 0;
       var txt = r.querySelector('.zone-barrios') ? r.querySelector('.zone-barrios').value : '';
       var barrios = txt.split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
-      if (precio > 0 && barrios.length) result.push({ precio: precio, barrios: barrios });
+      var txc = r.querySelector('.zone-conjuntos') ? r.querySelector('.zone-conjuntos').value : '';
+      var conjuntos = txc.split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
+      /* Vale la zona si tiene barrios O conjuntos: puede haber zonas que sean
+         solo conjuntos. */
+      if (precio > 0 && (barrios.length || conjuntos.length)) {
+        result.push({ precio: precio, barrios: barrios, conjuntos: conjuntos });
+      }
     });
     return result;
   }
