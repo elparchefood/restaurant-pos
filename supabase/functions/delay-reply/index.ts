@@ -380,6 +380,13 @@ Deno.serve(async (req) => {
   if (!convId) return new Response("missing convId", { status: 400 });
 
   try {
+    /* SEÑAL INTERNA: no la manda un cliente, la manda el reloj cuando se le
+       vencio la espera del comprobante. No entra al flujo normal porque no
+       hay ningun mensaje que responder — hay un silencio que romper. */
+    if (body.senal === "recordar_comprobante") {
+      await recordarComprobante(convId);
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
     await processConversation(convId);
   } catch (err) {
     console.error("delay-reply error:", err);
@@ -390,6 +397,123 @@ Deno.serve(async (req) => {
 });
 
 // ── Main ──────────────────────────────────────────────────────────────────────
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   SE LE VENCIO LA ESPERA DEL COMPROBANTE
+
+   Dos vueltas, y solo dos:
+     1a — se le recuerda UNA vez, con la frase o la intencion que configuro
+          el dueño en la caja de Pago.
+     2a — no se le vuelve a escribir: se le marca la conversacion al dueño.
+          Insistir dos veces por un comprobante es acoso, no servicio.
+
+   NO se borra el pedido en espera: el cliente puede aparecer a los 40
+   minutos con el comprobante en la mano.
+   ══════════════════════════════════════════════════════════════════════ */
+async function recordarComprobante(convId: string): Promise<void> {
+  const convRes = await sbGet(
+    `/rest/v1/chat_conversations?id=eq.${convId}` +
+    `&select=id,tenant_id,branch_id,contact_handle,pago_pendiente,human_takeover,pending_order_data&limit=1`
+  ) as Array<Record<string, unknown>> | null;
+  const conv = convRes?.[0];
+  /* Entre que sono la alarma y que llego aqui el cliente pudo mandar el
+     comprobante. Se comprueba, no se asume. */
+  if (!conv || conv.pago_pendiente !== true || conv.human_takeover === true) {
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { recordar_at: null });
+    return;
+  }
+
+  const branchId = String(conv.branch_id || "");
+  const cfgRes = await sbGet(
+    `/rest/v1/ia_config?branch_id=eq.${branchId}&select=flujo_pasos,bot,perfil,tono,frases&limit=1`
+  ) as Array<Record<string, unknown>> | null;
+  const cfg = cfgRes?.[0] || {};
+  const pasoPago = Array.isArray(cfg.flujo_pasos)
+    ? (cfg.flujo_pasos as Array<Record<string, unknown>>).find(x => x && x.campo === "pago" && x.activo !== false)
+    : null;
+  const minutos = pasoPago && pasoPago.espera_comprobante_min != null
+    ? Number(pasoPago.espera_comprobante_min) || 0 : 30;
+  const pend = (conv.pending_order_data || {}) as Record<string, unknown>;
+
+  /* ── Segunda vuelta: ya se le recordo ─────────────────────────────── */
+  if (pend._recordatorio_en) {
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+      human_takeover: true, recordar_at: null,
+      pending_order_data: { ...pend, _escalado_en: new Date().toISOString() },
+    });
+    console.log("comprobante sin llegar, se le pasa al dueño:", convId);
+    return;
+  }
+
+  /* ── Primera vuelta: el recordatorio ──────────────────────────────── */
+  const chRes = await sbGet(
+    `/rest/v1/chat_channels?branch_id=eq.${branchId}&channel=eq.whatsapp&select=meta&limit=1`
+  ) as Array<Record<string, unknown>> | null;
+  let meta: Record<string, string> = {};
+  const raw = chRes?.[0]?.meta;
+  if (typeof raw === "string") { try { meta = JSON.parse(raw); } catch { /* sin credenciales */ } }
+  else if (raw && typeof raw === "object") meta = raw as Record<string, string>;
+  const phoneId = meta.phone_id || "";
+  const token   = meta.access_token || "";
+  const to      = String(conv.contact_handle || "");
+  if (!phoneId || !token || !to) {
+    console.error("recordatorio sin credenciales de WhatsApp, sede", branchId);
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { recordar_at: null });
+    return;
+  }
+
+  const POR_DEFECTO = "Quedó pendiente del comprobante para poderte preparar ☺️ Envíamelo como imagen 🧾";
+  let msg = "";
+
+  /* Con sus palabras: se le dice QUE decir y el lo escribe. Mismo par de
+     opciones que tienen todas las cajas del canvas. */
+  if (pasoPago && pasoPago.espera_modo === "ia") {
+    const hist = await sbGet(
+      `/rest/v1/chat_messages?conversation_id=eq.${convId}&select=direction,body&order=sent_at.desc&limit=6`
+    ) as Array<Record<string, unknown>> | null;
+    const lineas = (hist || []).reverse()
+      .map(m => `${m.direction === "in" ? "Cliente" : "Tú"}: ${String(m.body || "").slice(0, 160)}`).join("\n");
+    const botCfg = (cfg.bot as Record<string, string>) || {};
+    const perfil = (cfg.perfil as Record<string, string>) || {};
+    const guia   = String(pasoPago.espera_guia || "");
+    const sys =
+      `Eres ${botCfg.nombre || perfil.nombre || "el asistente"}, de un restaurante por WhatsApp. ` +
+      `Tono ${botCfg.tono || String(cfg.tono || "cercano")}.\n` +
+      `El cliente confirmó su pedido y eligió pagar por transferencia, pero NO ha enviado el comprobante.\n` +
+      `Escríbele UN mensaje corto (máximo 2 frases) recordándoselo.\n` +
+      (guia ? `Instrucción del restaurante: ${guia}\n` : "") +
+      `PROHIBIDO: repetir el pedido completo, volver a dar el número de cuenta, presionar o reclamar.\n` +
+      `Últimos mensajes:\n${lineas}`;
+    try {
+      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "system", content: sys }], max_tokens: 120, temperature: 0.8 }),
+      });
+      if (r.ok) {
+        const d = await r.json() as Record<string, unknown>;
+        const t = ((d.choices as Array<Record<string, unknown>>)?.[0]?.message as Record<string, string> | undefined)?.content;
+        if (t && t.trim()) msg = t.trim();
+      } else { console.error("recordatorio, OpenAI:", await r.text()); }
+    } catch (e) { console.error("recordatorio:", e); }
+  }
+  /* Si el modelo no contesto se usa la frase: quedarse callado es peor. */
+  if (!msg) msg = String(pasoPago?.espera_texto || "") || POR_DEFECTO;
+
+  await sendWaAndSave(convId, String(conv.tenant_id), msg, to, phoneId, token);
+
+  /* La marca se pone SIEMPRE, haya salido o no el mensaje. Si se pusiera solo
+     cuando sale bien, una sede con el token vencido reintentaria para
+     siempre. La proxima alarma es la que se lo pasa al dueño. */
+  await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+    pending_order_data: { ...pend, _recordatorio_en: new Date().toISOString() },
+    recordar_at: minutos > 0 ? new Date(Date.now() + minutos * 60_000).toISOString() : null,
+    last_message: msg, last_message_at: new Date().toISOString(),
+    last_sender: "agent", last_read: false,
+  });
+  console.log("recordatorio del comprobante enviado:", convId);
+}
 
 async function processConversation(convId: string): Promise<void> {
 
@@ -1095,7 +1219,7 @@ INTENCION, no las palabras exactas.` },
     if (cambiaEfectivoPend && stPend && !(esLlevarPend && prepagoPend)) {
       stPend.pago = pagoNuevoPend as string;
       stPend.resumen_enviado = true;
-      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pago_pendiente: false, pending_order_data: stPend });
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pago_pendiente: false, pending_order_data: stPend, recordar_at: null });
       try {
         const sumMsg = await buildSummaryFromState(stPend, cfg, branchId, domiciliosCfg);
         await sendWaAndSave(convId, tenantId, sumMsg, fromPhone, phoneId, accessToken);
@@ -1114,7 +1238,7 @@ INTENCION, no las palabras exactas.` },
 
     if (NUEVA_ORDEN_RE.test(clienteTexto) || esOtroProducto || horasPendiente > 24) {
       pagoPendienteViejo = true;
-      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pago_pendiente: false, pending_order_data: null });
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pago_pendiente: false, pending_order_data: null, recordar_at: null });
     } else {
       const msgRecordatorio = getFraseTexto(frasesCfg.esperar_comprobante)
         || "Quedó pendiente del comprobante para poderte preparar ☺️ Envíamelo como imagen 🧾";
@@ -1181,7 +1305,7 @@ INTENCION, no las palabras exactas.` },
     const prevDir = (!state.resumen_enviado && state.direccion) ? state.direccion : null;
     state = newPacoState();
     if (prevDir) { state.direccion = prevDir; state.direccion_heredada = true; }
-    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state, pago_pendiente: false });
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state, pago_pendiente: false, recordar_at: null });
 
     if (puedeTomarPedidos) {
       // Bienvenida — SIEMPRE desde canvas/configuración, nunca hardcoded:
@@ -1393,7 +1517,15 @@ INTENCION, no las palabras exactas.` },
             await createWhatsappOrder(buildOrderArgs(state, domiPP ?? 0), branchId, tenantId, fromPhone);
           } catch (err) { console.error("Error creando pedido (pago no previo):", err); }
         }
-        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pago_pendiente: true });
+        /* LA ALARMA VIVE EN LA CONVERSACION, no en un vigilante que revisa a
+           todo el mundo cada rato. En 0 el restaurante pidio esperar sin
+           limite, y entonces no se pone ninguna. */
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+          pago_pendiente: true,
+          recordar_at: cPago.espera_min > 0
+            ? new Date(Date.now() + cPago.espera_min * 60_000).toISOString()
+            : null,
+        });
         await sendWaAndSave(convId, tenantId, compMsg, fromPhone, phoneId, accessToken);
         /* EL QR ES EL DE LA CUENTA QUE ESCOGIO EL CLIENTE. Antes habia uno
            global: con dos cuentas configuradas, el cliente recibia el QR de una

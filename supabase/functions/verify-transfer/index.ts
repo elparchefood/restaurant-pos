@@ -90,7 +90,7 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
       orderIdM = await crearPedido(conversationId, branchId, tenantId, fromPhone, pendingData, cfg, refManual);
     }
     await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, {
-      pago_pendiente: false, pending_order_data: null, human_takeover: false,
+      pago_pendiente: false, pending_order_data: null, human_takeover: false, recordar_at: null,
     });
     const cierreM = frases.cierre_pedido || "En un momento preparamos tu pedido 🍟 ¡Con muchísimo gusto!";
     const mixtoM = pendingData?.pago_mixto as Record<string, unknown> | null | undefined;
@@ -242,6 +242,9 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
       pago_pendiente:     false,
       pending_order_data: null,
       human_takeover:     false,
+      /* La alarma de la espera se apaga con el pago: si quedara puesta, el
+         despertador seguiria mandando señales por un pedido ya cobrado. */
+      recordar_at:        null,
     });
 
     const montoStr   = visionResult.monto ? ` de ${fmtMonto(Number(visionResult.monto.replace(/\D/g,"")), monedaCfg)}` : "";
