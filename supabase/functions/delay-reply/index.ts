@@ -693,7 +693,10 @@ INTENCION, no las palabras exactas.` },
     /* Preguntar POR UN PRECIO CONCRETO no es pedir la carta, aunque la palabra
        "precio" aparezca: un cliente escribio "la salchipapa mas economica de k
        precio es" y se llevo el menu entero en vez de la respuesta. */
-    const wantsMenu = intenciones.precio !== true
+    /* Tampoco es pedir la carta preguntar cuanto cuesta el ENVIO: un cliente
+       pregunto "cuanto cuesta el envio a Villa del Viento" y se llevo el menu
+       entero en vez del precio del domicilio. */
+    const wantsMenu = intenciones.precio !== true && intenciones.domicilio !== true
       && (intenciones.carta === true || isExact || palabraSuelta || menuKw.some(kw => {
       const k = kw.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
       return combinedLower.includes(k);
@@ -834,12 +837,23 @@ INTENCION, no las palabras exactas.` },
          "estan en bella vista?" SIGUE siendo una pregunta: por eso se exige
          que no traiga ninguna de las frases de ubicacion. */
       let contestaBarrio = false;
-      if (!ubiKw.some(kw => cL.includes(kw)) && !pideDir
-          && extraerBarrio(cL, (cfg as Record<string, unknown>).domicilios as Record<string, unknown> | null)) {
+      /* SI ESTAMOS A MITAD DE UN PEDIDO PREGUNTANDO A DONDE VA, lo que llega
+         es SU direccion, no una pregunta por donde quedamos.
+         No basta con reconocer el barrio de la lista: "Por la Maria
+         occidente" no esta configurado y aun asi es evidente que el cliente
+         esta diciendo para donde va su pedido. Si de verdad pregunta donde
+         quedamos usa alguna frase de ubicacion, y entonces esto no aplica. */
+      if (!ubiKw.some(kw => cL.includes(kw)) && !pideDir) {
         try {
           const pend = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=pending_order_data&limit=1`) as Array<Record<string, unknown>> | null;
           const stPrev = pend?.[0]?.pending_order_data as Record<string, unknown> | null;
-          contestaBarrio = !!(stPrev && stPrev.direccion && !stPrev.barrio);
+          /* Asi EMPIEZA quien esta DANDO un lugar, no preguntando por el
+             nuestro: "por la Maria occidente", "para el centro", "vivo en...".
+             Un cliente escribio "Por la Maria occidente" y el bot le contesto
+             con la direccion del restaurante. */
+          const suenaADarLugar = /^\s*(por|para|en|es en|queda en|vivo en|estoy en|hacia|hasta)\b/i.test(cL);
+          contestaBarrio = !!(stPrev && stPrev.producto && (!stPrev.direccion || !stPrev.barrio))
+            || suenaADarLugar;
         } catch (_) { /* si falla, se comporta como antes */ }
       }
 
@@ -3360,6 +3374,12 @@ async function buildConversationResponse(
     nextStepLine,
     "",
     "REGLAS:",
+    /* Caso real: el cliente escribio "una hamburguesa", el bot le mando la
+       lista de las cuatro, el cliente volvio a escribir "una hamburguesa" y el
+       bot mando LA MISMA LISTA. Repetir lo mismo no es responder: si no
+       entendio, hay que preguntar distinto. */
+    "- Si ya enviaste una LISTA de opciones y el cliente repite lo mismo sin elegir, NO vuelvas a mandar la lista. Preguntale de otra forma, mas corta y concreta (ej: '¿la quieres sencilla o de carne?'), o sugierele la mas pedida.",
+    "- Si el cliente parece confundido o molesto, NO insistas con la misma pregunta: reconocelo en una frase y hazle UNA sola pregunta, la mas simple posible.",
     "- NUNCA repitas ni menciones los datos ya capturados en cada respuesta. El PEDIDO EN CURSO es solo tu contexto interno. Esos datos aparecen en el resumen final.",
     "- Cuando el cliente te dé un dato, confírmalo en máximo 2-3 palabras y pasa al siguiente paso. Usa '¡Perfecto! 🙌', 'Listo 👍', 'Claro ✅', 'Dale 🙌' — NUNCA uses 'Anotado'.",
     "- HAZ UNA SOLA PREGUNTA POR MENSAJE. Aunque falten varios datos, pregunta solo el siguiente en el flujo.",
