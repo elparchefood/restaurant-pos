@@ -1679,6 +1679,31 @@ INTENCION, no las palabras exactas.` },
   // 14e-bis. Dirección recién capturada → validar barrio/complemento inmediatamente
   // (así la pregunta de barrio aparece justo después de la dirección, no al final del flujo)
   if (extracted.direccion && state.direccion && state.producto && !state.complemento_dir_pendiente) {
+    /* CONJUNTO QUE NO CONOCEMOS: se decide AQUI, en cuanto da la direccion.
+       Si se dejara para el final, el bot se quedaria pidiendo un barrio que
+       nunca va a poder resolver — que es justo el bucle que se corrigio.
+       Se propone para que el dueño lo apruebe y la conversacion pasa a una
+       persona, que es quien puede verificar si ese conjunto existe. */
+    if (sueneAConjunto(state.direccion)
+        && !esConjunto(state.direccion, domiciliosCfg)
+        && !LLEVAR_REGEX.test(state.direccion.toLowerCase())
+        && lookupDomiPrice(state.direccion, domiciliosCfg) === null) {
+      const nombreConj = state.direccion
+        .replace(/^\s*(seria|sería|es|para|en|el|la)\s+/i, "")
+        .split(/\b(torre|bloque|bl|interior|int|apto|apartamento|apart|casa|piso)\b/i)[0]
+        .replace(/[,.\-\s]+$/, "")
+        .trim();
+      if (nombreConj.length >= 3) {
+        await proponerConjunto(tenantId, branchId, nombreConj, state.direccion);
+        await pasarAHumano(
+          convId, tenantId,
+          `CONJUNTO NUEVO por aprobar: "${nombreConj}" — verificar que exista y asignarle zona. Dirección dada: ${state.direccion}`,
+          cfg, fromPhone, phoneId, accessToken,
+        );
+        return;
+      }
+    }
+
     const clasifBis = clasificarDireccion(state.direccion, domiciliosCfg, sinNomenclaturaCliente2);
     if (clasifBis.tipo === "rechazado") {
       state.direccion = null;
@@ -2024,11 +2049,28 @@ INTENCION, no las palabras exactas.` },
     {
       const esLlevarFin = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
       if (!esLlevarFin && state.direccion && lookupDomiPrice(state.direccion, domiciliosCfg) === null) {
-        await pasarAHumano(
-          convId, tenantId,
-          `No hay precio de domicilio configurado para: ${state.direccion}`,
-          cfg, fromPhone, phoneId, accessToken,
-        );
+        /* CONJUNTO QUE NO ESTA EN LA LISTA (regla de Sergio):
+           se PROPONE para que el dueño lo apruebe desde Configuracion ->
+           Domicilios, y la conversacion pasa a una persona para que verifique
+           si ese conjunto existe de verdad en la ciudad.
+           El bot no lo acepta solo porque un conjunto sin zona no tiene precio
+           de domicilio: aceptarlo a ciegas seria cobrar mal o no cobrar. */
+        let motivo = `No hay precio de domicilio configurado para: ${state.direccion}`;
+        if (sueneAConjunto(state.direccion)) {
+          /* El nombre del conjunto es lo que va ANTES de la unidad: de
+             "torres del bosque torre 3 apto 603" se propone "torres del
+             bosque", no la direccion entera con el apartamento de un cliente. */
+          const nombreConj = state.direccion
+            .replace(/^\s*(seria|sería|es|para|en|el|la)\s+/i, "")
+            .split(/\b(torre|bloque|bl|interior|int|apto|apartamento|apart|casa|piso)\b/i)[0]
+            .replace(/[,.\-\s]+$/, "")
+            .trim();
+          if (nombreConj.length >= 3) {
+            await proponerConjunto(tenantId, branchId, nombreConj, state.direccion);
+            motivo = `CONJUNTO NUEVO por aprobar: "${nombreConj}" — verificar que exista y asignarle zona. Dirección dada: ${state.direccion}`;
+          }
+        }
+        await pasarAHumano(convId, tenantId, motivo, cfg, fromPhone, phoneId, accessToken);
         return;
       }
     }
@@ -4206,6 +4248,48 @@ function extraerBarrio(
 /* Es un conjunto cerrado de los que el restaurante tiene registrados?
    A un conjunto no se le pide calle ni numero: con el nombre y la unidad
    (torre, apto, casa) el domiciliario llega. */
+/* Suena a conjunto cerrado, aunque no este en la lista?
+   Estas palabras NO sirven para decidir un precio —por eso no se usan para
+   aceptar la direccion— pero si para saber que hay que preguntarle a un
+   humano en vez de exigirle una calle que no existe. */
+const CONJUNTO_PALABRAS = /\b(conjunto|urbanizacion|urbanización|condominio|torres?|edificio|multifamiliar|agrupacion|agrupación|ciudadela|bloque|apto|apartamento)\b/i;
+
+/* Deja el conjunto propuesto para que el dueño lo apruebe desde
+   Configuracion -> Domicilios. Reusa `pos_domi_aprendidos`, que ya es el sitio
+   donde caen los lugares que el sistema no conocia. */
+async function proponerConjunto(
+  tenantId: string, branchId: string, nombre: string, direccion: string,
+): Promise<void> {
+  try {
+    const yaVa = await sbGet(
+      `/rest/v1/pos_domi_aprendidos?tenant_id=eq.${tenantId}&barrio=eq.${encodeURIComponent(nombre)}&select=id,veces&limit=1`
+    ) as Array<Record<string, unknown>> | null;
+    if (yaVa && yaVa.length) {
+      /* Ya estaba propuesto: se cuenta otra vez. Cuantas mas veces lo pidan,
+         mas claro esta que hay que agregarlo. */
+      await sbPatch(`/rest/v1/pos_domi_aprendidos?id=eq.${yaVa[0].id}`, {
+        veces: (Number(yaVa[0].veces) || 1) + 1,
+        direccion: direccion,
+        updated_at: new Date().toISOString(),
+      });
+      return;
+    }
+    await sbPost(`/rest/v1/pos_domi_aprendidos`, {
+      tenant_id: tenantId, branch_id: branchId,
+      barrio: nombre, direccion: direccion, veces: 1, tipo: "conjunto",
+      /* precio 0 = todavia no tiene. Es obligatorio en la tabla, y ponerlo en
+         cero deja claro que falta que el dueño le asigne su zona. */
+      precio: 0,
+    });
+  } catch (err) {
+    console.error("proponerConjunto:", err);
+  }
+}
+
+function sueneAConjunto(text: string): boolean {
+  return CONJUNTO_PALABRAS.test(text || "");
+}
+
 function esConjunto(
   text: string,
   domicilios: Record<string, unknown> | null | undefined,
