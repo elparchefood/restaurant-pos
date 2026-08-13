@@ -44,6 +44,9 @@ interface PacoState {
   // más reclama un cliente si se pierde, y no tenía dónde vivir.
   preferencias:       string | null;
   direccion:          string | null;
+  /* El barrio, aparte de la direccion: es lo que decide el precio del
+     domicilio. Se comprueba contra las zonas configuradas, no se adivina. */
+  barrio:             string | null;
   pago:               string | null;
   nombre:             string | null;
   /* Datos de facturacion. null = no se ha preguntado; {} = dijo que no quiere. */
@@ -112,7 +115,7 @@ type TipoDireccion = "residencial" | "publico" | "rechazado" | "incompleta" | "p
 function newPacoState(): PacoState {
   return {
     producto: null, producto_categoria: null, tamano: null, tipo: null, cantidad: 1,
-    adiciones: null, preferencias: null, direccion: null, pago: null, nombre: null, tipos: {},
+    adiciones: null, preferencias: null, direccion: null, barrio: null, pago: null, nombre: null, tipos: {},
     factura: null, programado: null, reserva: null,
     items: [], resumen_enviado: false, direccion_heredada: false, complemento_dir_pendiente: null,
     last_activity: new Date(Date.now() - 30 * 60_000).toISOString(), // 30min atrás → sesionExpirada=true
@@ -1293,7 +1296,7 @@ INTENCION, no las palabras exactas.` },
          preguntan AHORA y el pedido no se crea todavía. El cliente confirmó lo
          que va a comer; falta el dato que no podía dar antes de ver el total. */
       {
-        const faltaPost = findNextStep(state, pasos, true);
+        const faltaPost = findNextStep(state, pasos, true, domiciliosCfg);
         if (faltaPost && faltaPost.despues_resumen) {
           const pregunta = await buildConversationResponse(
             clienteTexto, histCtx, state, faltaPost,
@@ -1407,7 +1410,7 @@ INTENCION, no las palabras exactas.` },
     if (Object.keys(correctedSlots).length > 0) {
       state = mergeSlots(state, { ...correctedSlots, resumen_enviado: false });
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
-      const nextAfterCorr = findNextStep(state, pasos);
+      const nextAfterCorr = findNextStep(state, pasos, false, domiciliosCfg);
       if (!nextAfterCorr) {
         try {
           const sumMsg = await buildSummaryFromState(state, cfg, branchId, domiciliosCfg);
@@ -1422,7 +1425,7 @@ INTENCION, no las palabras exactas.` },
 
     // Respuesta conversacional (incluye correcciones con contexto y mensajes sin slot)
     const replyWait = await buildConversationResponse(
-      clienteTexto, histCtx, state, Object.keys(correctedSlots).length > 0 ? findNextStep(state, pasos) : null,
+      clienteTexto, histCtx, state, Object.keys(correctedSlots).length > 0 ? findNextStep(state, pasos, false, domiciliosCfg) : null,
       cfg, frasesCfg, menuText, horariosText, pagosText, domiciliosText, currentProductData,
       true, nombreParaBot, colTimeStr, colDayStr, horaAperturaHoy, horaCierreHoy, proxDia, !!nombreKnown,
     );
@@ -1594,7 +1597,7 @@ INTENCION, no las palabras exactas.` },
      "en que barrio queda esa direccion" a una pregunta de precio. */
   const productoRecienDetectado = !!productoDetectado;
   const currentStep = (state.producto && !productoRecienDetectado)
-    ? findNextStep(state, pasos)
+    ? findNextStep(state, pasos, false, domiciliosCfg)
     : null;
   const currentStepId = currentStep?.id || null;
 
@@ -1665,7 +1668,7 @@ INTENCION, no las palabras exactas.` },
       state.direccion = null;
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
       const reply = await buildConversationResponse(
-        clienteTexto, histCtx, state, findNextStep(state, pasos),
+        clienteTexto, histCtx, state, findNextStep(state, pasos, false, domiciliosCfg),
         cfg, frasesCfg, menuText, horariosText, pagosText, domiciliosText, currentProductData,
         true, nombreParaBot, colTimeStr, colDayStr, horaAperturaHoy, horaCierreHoy, proxDia, !!nombreKnown,
       );
@@ -1703,17 +1706,10 @@ INTENCION, no las palabras exactas.` },
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: pregCalle, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
         return;
       }
-      if (domiPrecioBis === null) {
-        const pasoDirBarrio = pasos.find(p => p.campo === "direccion");
-        const pregBarrio = (pasoDirBarrio && pasoDirBarrio.preg_barrio)
-          || getFraseTexto(frasesCfg.preguntar_barrio)
-          || "¿Y en qué barrio queda esa dirección? 📍";
-        state.complemento_dir_pendiente = pregBarrio;
-        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
-        await sendWaAndSave(convId, tenantId, pregBarrio, fromPhone, phoneId, accessToken);
-        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: pregBarrio, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
-        return;
-      }
+      /* El barrio ya NO se pregunta aqui cortando la conversacion: es una
+         casilla del flujo (paso "barrio") y espera su turno como las demas.
+         Cortar aqui era lo que producia el bucle: se mandaba la misma frase
+         antes de leer lo que el cliente habia dicho. */
     }
   }
 
@@ -1776,7 +1772,7 @@ INTENCION, no las palabras exactas.` },
     const CUANTO_RE = /(cu[aá]nto\s+(es|sale|vale|cuesta|queda|ser[ií]a|cobran?)|qu[eé]\s+precio|precio\s+total|el\s+total|cuanto\s+te\s+debo|la\s+cuenta\s+para\s+pagar|dame\s+la\s+cuenta)/i;
     if (state.producto && !state.resumen_enviado &&
         CUANTO_RE.test(clienteTexto) && !(extractPago(clienteTexto, pagosCfg) || pagoPorIntencion())) {
-      const stepAhora = findNextStep(state, pasos);
+      const stepAhora = findNextStep(state, pasos, false, domiciliosCfg);
       if (stepAhora) {
         const precios = await calcularPreciosPedido(state, branchId, domiciliosCfg);
         const pedidoStr = precios.pedido > 0 ? fmtCOP(precios.pedido) : "a confirmar";
@@ -1927,7 +1923,7 @@ INTENCION, no las palabras exactas.` },
   }
 
   // 14g. Siguiente paso
-  const nextStep = findNextStep(state, pasos);
+  const nextStep = findNextStep(state, pasos, false, domiciliosCfg);
 
   // 14h. Todos los slots completos → validar y mostrar resumen
   if (!nextStep) {
@@ -1938,7 +1934,7 @@ INTENCION, no las palabras exactas.` },
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
         const reply = await buildConversationResponse(
           clienteTexto, histCtx, state,
-          findNextStep(state, pasos),
+          findNextStep(state, pasos, false, domiciliosCfg),
           cfg, frasesCfg, menuText, horariosText, pagosText, domiciliosText, currentProductData,
           true, nombreParaBot, colTimeStr, colDayStr, horaAperturaHoy, horaCierreHoy, proxDia, !!nombreKnown,
         );
@@ -1975,17 +1971,8 @@ INTENCION, no las palabras exactas.` },
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: pregCalle, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
           return;
         }
-        if (domiPrecioH === null) {
-          const pasoDirHB = pasos.find(p => p.campo === "direccion");
-          const pregBarrio = (pasoDirHB && pasoDirHB.preg_barrio)
-            || getFraseTexto(frasesCfg.preguntar_barrio)
-            || "¿Y en qué barrio queda esa dirección? 📍";
-          state.complemento_dir_pendiente = pregBarrio;
-          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
-          await sendWaAndSave(convId, tenantId, pregBarrio, fromPhone, phoneId, accessToken);
-          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: pregBarrio, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
-          return;
-        }
+        /* El barrio lo pide el paso "barrio" del flujo, no este atajo:
+           cortar aqui era lo que producia el bucle. */
       }
       if (clasifDir.tipo === "publico" && clasifDir.requierePagoAdelantado) {
         const esEfectivo = !esMetodoDigital(state.pago || "", pagosCfg);
@@ -1994,7 +1981,7 @@ INTENCION, no las palabras exactas.` },
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
           const reply = await buildConversationResponse(
             clienteTexto, histCtx, state,
-            findNextStep(state, pasos),
+            findNextStep(state, pasos, false, domiciliosCfg),
             cfg, frasesCfg, menuText, horariosText, pagosText, domiciliosText, currentProductData,
             true, nombreParaBot, colTimeStr, colDayStr, horaAperturaHoy, horaCierreHoy, proxDia, !!nombreKnown,
           );
@@ -2632,6 +2619,13 @@ function runExtractors(
       : null;
     if (d) { result.direccion = limpiarPrefijoDireccion(d); result.direccion_heredada = false; }
   }
+  /* El barrio puede llegar en cualquier momento: en la direccion completa, o
+     solo, o mucho despues. Se lee siempre. */
+  if (!state.barrio) {
+    const b = extraerBarrio(text, (cfgGlobal.domicilios as Record<string, unknown> | null | undefined));
+    if (b) result.barrio = b;
+  }
+
   if (!state.nombre) {
     const isNombreStep = currentStepId === "nombre";
     if (isNombreStep && nombreWa) {
@@ -2666,12 +2660,11 @@ function mergeSlots(state: PacoState, updates: Record<string, unknown>): PacoSta
 /* Las cajas marcadas "después del resumen" no cuentan para decidir si el
    pedido está completo: si contaran, el resumen nunca saldría. Se preguntan
    aparte, cuando el cliente ya vio cuánto es. */
-function findNextStep(state: PacoState, pasos: PasoDefinicion[], incluirPostResumen = false): PasoDefinicion | null {
+function findNextStep(state: PacoState, pasos: PasoDefinicion[], incluirPostResumen = false,
+                      domiciliosPaso: Record<string, unknown> | null | undefined = null): PasoDefinicion | null {
   // Si hay un complemento de dirección pendiente (barrio, número, referencia)
   // el slot "direccion" no se considera completo hasta que se resuelva
-  if (state.complemento_dir_pendiente) {
-    return { id: "complemento_dir", campo: "direccion", modo: "fija", texto: state.complemento_dir_pendiente };
-  }
+
   /* Para poder decidir si una caja aplica: si el cliente va a recoger, la de
      dirección no tiene sentido; si ya es cliente conocido, la de "cliente
      nuevo" tampoco. */
@@ -2702,6 +2695,21 @@ function findNextStep(state: PacoState, pasos: PasoDefinicion[], incluirPostResu
       if (state.direccion && state.direccion_heredada) return paso;
     } else if (paso.id === "direccion") {
       if (!state.direccion) return paso;
+      /* EL BARRIO ES SU PROPIA CASILLA y va justo despues de la direccion:
+         sin el no se sabe cuanto cobrar el domicilio.
+         Solo se pide si hace falta — si la direccion ya cayo en una zona, el
+         precio esta resuelto y preguntar seria hacerle perder el tiempo. */
+      if (!state.barrio && !esRecoger && lookupDomiPrice(state.direccion, domiciliosPaso) === null) {
+        const modoBarrio = paso.modo === "fija" ? "fija" : "conversacional";
+        const fraseBarrio = paso.preg_barrio || "¿Y en qué barrio queda esa dirección? 📍";
+        return modoBarrio === "fija"
+          ? { id: "barrio", campo: "direccion", modo: "fija", texto: fraseBarrio }
+          : { id: "barrio", campo: "direccion", modo: "conversacional", texto: fraseBarrio,
+              guia: "PRIMERO responde a lo que el cliente acaba de decir. DESPUES, "
+                + "de forma natural, preguntale en que barrio queda — lo necesitas "
+                + "para saber cuanto cuesta el domicilio. Si ya se lo preguntaste, "
+                + "NO repitas la misma frase: dilo con otras palabras." };
+      }
     } else if (paso.id === "preferencias") {
       if (!state.preferencias) return paso;
     } else if (paso.id === "pago") {
@@ -4131,6 +4139,28 @@ function levenshtein(a: string, b: string): number {
     }
   }
   return prev[b.length];
+}
+
+/* Saca el barrio de un texto, PERO solo si es uno de los configurados.
+   Esa es toda la diferencia: antes cualquier texto corto pasaba como barrio y
+   por eso "A nombre de Sergio" terminaba pegado a la direccion. */
+function extraerBarrio(
+  text: string,
+  domicilios: Record<string, unknown> | null | undefined,
+): string | null {
+  if (!domicilios || !text) return null;
+  const zonas = (domicilios.zonas as Array<{ nombre?: string; barrios?: string[] }>) || [];
+  let mejor: string | null = null;
+  for (const z of zonas) {
+    const barrios = z.barrios ?? (z.nombre ? z.nombre.split(",").map((b: string) => b.trim()) : []);
+    for (const b of barrios) {
+      if (!b) continue;
+      /* Se queda con el nombre MAS LARGO que case: "Bella Vista" antes que
+         "Bella", para no cobrar la zona equivocada. */
+      if (fuzzyBarrioMatch(text, b) && (!mejor || b.length > mejor.length)) mejor = b;
+    }
+  }
+  return mejor;
 }
 
 function fuzzyBarrioMatch(direccion: string, barrio: string): boolean {
