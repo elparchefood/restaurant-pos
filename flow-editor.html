@@ -59,6 +59,18 @@ body{font-family:var(--font);background:var(--bg);height:100vh;overflow:hidden;c
 .palette-node{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r);cursor:grab;margin-bottom:4px;border:1px solid transparent;transition:background .12s,border-color .12s;user-select:none}
 .palette-node:hover{background:var(--gray-bg);border-color:var(--border)}
 .palette-node:active{cursor:grabbing;opacity:.8}
+/* Los grupos de la paleta: separan lo que se le PREGUNTA al cliente de como se
+   comporta el flujo. Antes era una lista plana de 7 cajas genericas. */
+.pal-grupo{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);margin:14px 0 6px 2px}
+.pal-grupo:first-child{margin-top:2px}
+/* Cada mision con su color, para distinguirlas de un vistazo en el lienzo. */
+.df-node.mis-amber  .df-node-icon{background:var(--amber-bg);color:var(--amber)}
+.df-node.mis-violet .df-node-icon{background:var(--violet-bg);color:var(--violet)}
+.df-node.mis-teal   .df-node-icon{background:var(--teal-bg);color:var(--teal)}
+.df-node.mis-green  .df-node-icon{background:var(--green-bg);color:var(--green)}
+.df-node.mis-red    .df-node-icon{background:var(--red-bg);color:var(--red)}
+.df-node.mis-accent .df-node-icon{background:var(--accent-bg);color:var(--accent)}
+.df-node.mis-gray   .df-node-icon{background:var(--gray-bg);color:var(--gray2)}
 .pn-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .pn-icon svg{width:15px;height:15px}
 .pn-info{flex:1;min-width:0}
@@ -169,49 +181,7 @@ body{font-family:var(--font);background:var(--bg);height:100vh;overflow:hidden;c
   <div class="palette">
     <div class="palette-header">Pasos</div>
     <div class="palette-list">
-      <div class="palette-node" draggable="true" data-type="inicio" ondragstart="onDragStart(event,'inicio')">
-        <div class="pn-icon" style="background:var(--teal-bg)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-        </div>
-        <div class="pn-info"><div class="pn-name">Inicio</div><div class="pn-desc">Punto de entrada</div></div>
-      </div>
-      <hr class="palette-sep">
-      <div class="palette-node" draggable="true" data-type="fija" ondragstart="onDragStart(event,'fija')">
-        <div class="pn-icon" style="background:var(--accent-bg)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        </div>
-        <div class="pn-info"><div class="pn-name">Frase fija</div><div class="pn-desc">Mensaje exacto</div></div>
-      </div>
-      <div class="palette-node" draggable="true" data-type="ia" ondragstart="onDragStart(event,'ia')">
-        <div class="pn-icon" style="background:var(--violet-bg)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--violet)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="3" fill="var(--violet)" stroke="none" opacity=".25"/></svg>
-        </div>
-        <div class="pn-info"><div class="pn-name">Conversacional IA</div><div class="pn-desc">OpenAI + instrucciones</div></div>
-      </div>
-      <div class="palette-node" draggable="true" data-type="pregunta" ondragstart="onDragStart(event,'pregunta')">
-        <div class="pn-icon" style="background:var(--amber-bg)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        </div>
-        <div class="pn-info"><div class="pn-name">Pregunta variable</div><div class="pn-desc">Tamaño, tipo, dirección…</div></div>
-      </div>
-      <div class="palette-node" draggable="true" data-type="timer" ondragstart="onDragStart(event,'timer')">
-        <div class="pn-icon" style="background:var(--gray-bg)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--gray2)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        </div>
-        <div class="pn-info"><div class="pn-name">Temporizador</div><div class="pn-desc">Espera N segundos</div></div>
-      </div>
-      <hr class="palette-sep">
-      <div class="palette-node" draggable="true" data-type="resumen" ondragstart="onDragStart(event,'resumen')">
-        <div class="pn-icon" style="background:var(--green-bg)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-        </div>
-        <div class="pn-info"><div class="pn-name">Resumen pedido</div><div class="pn-desc">Muestra y confirma · 2 salidas: 💵 efectivo / 📲 transferencia</div></div>
-      </div>
-      <div class="palette-node" draggable="true" data-type="carta" ondragstart="onDragStart(event,'carta')">
-        <div class="pn-icon" style="background:var(--amber-bg)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-        </div>
-        <div class="pn-info"><div class="pn-name">Evento: Pide la carta</div><div class="pn-desc">Cuando pregunten qué hay — envía el menú + tu frase</div></div>
+      <div id="paletaPasos"></div></div>
       </div>
     </div>
   </div>
@@ -255,6 +225,84 @@ const NODE_ICONS = {
   resumen:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>`,
   carta:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
 };
+
+/* ══════════════════════════════════════════════════════════════════════
+   LA PALETA — una caja por MISION.
+
+   Cada entrada dice: como se llama, que hace, de que tipo es por dentro
+   (`type`), que dato captura (`campo`) y que papel juega (`rol`).
+
+   Los grupos no son decoracion: separan lo que se le PREGUNTA al cliente de
+   como se comporta el flujo. Mezclarlos en una sola lista es parte de por que
+   costaba encontrar las cosas.
+   ══════════════════════════════════════════════════════════════════════ */
+const PALETA = [
+  { grupo:'El flujo' },
+  { k:'inicio',      nombre:'Inicio',     desc:'Por dónde empieza',                    type:'inicio', color:'accent' },
+  { k:'saludo',      nombre:'Saludo',     desc:'El primer mensaje al cliente',         type:'ia',     rol:'saludo', color:'accent' },
+
+  { grupo:'Qué va a pedir' },
+  { k:'producto',    nombre:'Productos',      desc:'Qué quiere y cuántos',                     type:'pregunta', campo:'producto',     color:'amber' },
+  { k:'tamano',      nombre:'Presentación',   desc:'Personal, familiar, litro…',               type:'pregunta', campo:'tamano',       color:'amber' },
+  { k:'tipo',        nombre:'Variantes',      desc:'Mixta, pollo, mango…',                     type:'pregunta', campo:'tipo',         color:'amber' },
+
+  { grupo:'Lo que se le suma' },
+  { k:'adiciones',   nombre:'Adiciones',      desc:'Lo que el cliente le agrega',              type:'pregunta', campo:'adiciones',    color:'violet' },
+  { k:'upsell',      nombre:'Upsell',         desc:'Lo que tú le sugieres, una vez',           type:'pregunta', campo:'upsell',       color:'violet' },
+  { k:'preferencias',nombre:'Preferencias',   desc:'Sin cebolla, cubiertos, indicaciones',     type:'pregunta', campo:'preferencias', color:'violet' },
+
+  { grupo:'Datos del cliente' },
+  { k:'direccion',   nombre:'Dirección',      desc:'Barrio y dirección, para el domicilio',    type:'pregunta', campo:'direccion',    color:'teal' },
+  { k:'nombre',      nombre:'Nombre',         desc:'A nombre de quién se recibe',              type:'pregunta', campo:'nombre',       color:'teal' },
+  { k:'pago',        nombre:'Método de pago', desc:'Cómo paga, y el comprobante',              type:'pregunta', campo:'pago',         color:'teal' },
+
+  { grupo:'Cierre' },
+  { k:'resumen',     nombre:'Resumen',              desc:'Muestra el pedido y confirma',       type:'resumen', color:'green' },
+  { k:'cierre',      nombre:'Cierre',               desc:'Mensaje final cuando paga en efectivo', type:'fija', rol:'cierre',      color:'green' },
+  { k:'comprobante', nombre:'Esperar comprobante',  desc:'Cuando paga por transferencia',      type:'fija', rol:'comprobante', color:'green' },
+  { k:'envio',       nombre:'Aviso de envío',       desc:'Avisar cuando el pedido sale',       type:'fija', rol:'envio',       color:'green' },
+
+  { grupo:'Casos especiales' },
+  { k:'carta',       nombre:'Carta',             desc:'Cuando pregunten qué hay',              type:'carta',    color:'red' },
+  { k:'programado',  nombre:'Pedido programado', desc:'Para qué día y hora lo quiere',         type:'pregunta', campo:'programado', color:'red' },
+  { k:'reserva',     nombre:'Reserva',           desc:'Día, hora, personas y zona',            type:'pregunta', campo:'reserva',    color:'red' },
+  { k:'factura',     nombre:'Factura',           desc:'Cédula o NIT para facturación',         type:'pregunta', campo:'factura',    color:'red' },
+
+  { grupo:'Piezas libres' },
+  { k:'mensaje',     nombre:'Mensaje',      desc:'Una frase tuya, donde la pongas',            type:'fija',  color:'gray' },
+  { k:'espera',      nombre:'Espera',       desc:'Pausa antes de seguir',                      type:'timer', color:'gray' },
+];
+const PAL_POR_K = Object.fromEntries(PALETA.filter(p=>p.k).map(p=>[p.k,p]));
+/* Para pintar un nodo ya guardado: se busca por su campo o su rol. */
+const PAL_POR_CAMPO = Object.fromEntries(PALETA.filter(p=>p.campo).map(p=>[p.campo,p]));
+const PAL_POR_ROL   = Object.fromEntries(PALETA.filter(p=>p.rol).map(p=>[p.rol,p]));
+
+function palDe(data) {
+  if (!data) return null;
+  if (data.campo && PAL_POR_CAMPO[data.campo]) return PAL_POR_CAMPO[data.campo];
+  if (data.rol   && PAL_POR_ROL[data.rol])     return PAL_POR_ROL[data.rol];
+  if (data.type === 'inicio')  return PAL_POR_K.inicio;
+  if (data.type === 'resumen') return PAL_POR_K.resumen;
+  if (data.type === 'carta')   return PAL_POR_K.carta;
+  if (data.type === 'timer')   return PAL_POR_K.espera;
+  return null;
+}
+
+function pintarPaleta() {
+  const cont = document.getElementById('paletaPasos');
+  if (!cont) return;
+  cont.innerHTML = PALETA.map(p => {
+    if (p.grupo) return '<div class="pal-grupo">' + p.grupo + '</div>';
+    const ico = NODE_ICONS[p.type] || NODE_ICONS.fija;
+    return '<div class="palette-node pal-' + p.color + '" draggable="true"'
+      + ' data-k="' + p.k + '" ondragstart="onDragStart(event,\'' + p.k + '\')">'
+      + '<div class="pn-icon" style="background:var(--' + p.color + '-bg)">'
+      + '<span style="color:var(--' + (p.color === 'gray' ? 'gray2' : p.color) + ')">' + ico + '</span></div>'
+      + '<div class="pn-info"><div class="pn-name">' + p.nombre + '</div>'
+      + '<div class="pn-desc">' + p.desc + '</div></div></div>';
+  }).join('');
+}
+
 const NODE_LABELS = {inicio:'Inicio',fija:'Frase fija',ia:'IA conversacional',pregunta:'Pregunta variable',timer:'Temporizador',resumen:'Resumen pedido',carta:'Evento · Carta'};
 const NODE_INPUTS = {inicio:0,fija:1,ia:1,pregunta:1,timer:1,resumen:1,carta:0};
 // Resumen tiene 2 salidas: output_1 = pago en efectivo (cierre) · output_2 = transferencia (comprobante)
@@ -264,6 +312,7 @@ let selectedNodeId = null;
 let dragType = null;
 let zoomLevel = 1;
 
+pintarPaleta();
 const container = document.getElementById('drawflow');
 const editor = new Drawflow(container);
 editor.reroute = true;
@@ -276,11 +325,18 @@ editor.zoom_value = 0.1; // incremento suave para el zoom con la rueda del mouse
 function buildNodeHtml(type, data) {
   const name = data.nombre || NODE_LABELS[type];
   const active = data.activo !== false;
-  return `<div class="df-node n-${type}">
+  /* El color y el subtitulo salen de la MISION, no del tipo de nodo. Antes
+     "Pedir direccion", "Metodo de pago" y "Pedir nombre" se veian identicas
+     —mismo icono amarillo, mismo "Pregunta variable" debajo— y solo se
+     distinguian por el nombre que el dueño les hubiera escrito. */
+  const pal = palDe(data);
+  const sub = pal ? pal.nombre : NODE_LABELS[type];
+  const col = pal ? pal.color : 'gray';
+  return `<div class="df-node n-${type} mis-${col}">
     <div class="df-node-icon">${NODE_ICONS[type]}</div>
     <div class="df-node-body">
       <div class="df-node-name">${name}</div>
-      <div class="df-node-type">${NODE_LABELS[type]}</div>
+      <div class="df-node-type">${sub}</div>
     </div>
     <div class="df-node-dot ${active?'on':''}"></div>
   </div>`;
@@ -304,7 +360,9 @@ function refreshNodeHtml(id) {
   if(el) el.innerHTML = buildNodeHtml(node.data.type, node.data);
 }
 
-function onDragStart(e, type) { dragType = type; e.dataTransfer.setData('node', type); }
+/* Se arrastra la MISION (su clave), no el tipo de nodo: la caja nace ya
+   sabiendo que dato captura y que papel juega. */
+function onDragStart(e, k) { dragType = k; e.dataTransfer.setData('node', k); }
 
 container.addEventListener('dragover', e => e.preventDefault());
 container.addEventListener('drop', e => {
@@ -314,7 +372,19 @@ container.addEventListener('drop', e => {
   const zoom = editor.zoom;
   const x = (e.clientX - rect.left - editor.canvas_x) / zoom;
   const y = (e.clientY - rect.top  - editor.canvas_y) / zoom;
-  addNode(dragType, x, y);
+  const pal = PAL_POR_K[dragType];
+  if (pal) {
+    const d = { nombre: pal.nombre };
+    if (pal.campo) d.campo = pal.campo;
+    if (pal.rol)   d.rol   = pal.rol;
+    /* Los mensajes con papel fijo (saludo, cierre, comprobante, envio) nacen
+       en modo conversacional o fija segun lo que tiene mas sentido; el dueño
+       lo cambia con el interruptor de siempre. */
+    if (pal.rol === 'saludo') d.tipo = 'ia';
+    addNode(pal.type, x, y, d);
+  } else {
+    addNode(dragType, x, y);
+  }
   dragType = null;
 });
 
@@ -944,7 +1014,7 @@ function exportarEnvio(data) {
   const nodes = (data.drawflow?.Home?.data) || {};
   for (const nid of Object.keys(nodes)) {
     const d = nodes[nid].data || {};
-    if (d.rol_envio === true) {
+    if (d.rol_envio === true || d.rol === 'envio') {
       return {
         activo: d.activo !== false,
         estado: d.envio_estado || 'en_camino',
@@ -990,7 +1060,28 @@ function exportarFlujoPasos(data) {
 // El primer nodo de mensaje SIN slot (Frase fija o IA conversacional) después de Inicio
 // es el SALUDO del bot. Se guarda en ia_config.flujo_saludo para que el motor lo use
 // como bienvenida (nada de saludos hardcoded en el código).
+/* Busca una caja por su PAPEL. Devuelve su `data`, o null. */
+function nodoConRol(data, rol) {
+  const nodes = (data.drawflow?.Home?.data) || {};
+  for (const n of Object.values(nodes)) {
+    if (n.data && n.data.rol === rol) return n.data;
+  }
+  return null;
+}
+
 function exportarSaludo(data) {
+  /* Si hay una caja Saludo, esa es — este donde este. */
+  const conRol = nodoConRol(data, 'saludo');
+  if (conRol) {
+    const esFija = conRol.tipo ? conRol.tipo === 'fija' : false;
+    return esFija
+      ? { modo: 'fija', texto: conRol.frase || '' }
+      : { modo: 'conversacional', guia: conRol.instrucciones || '' };
+  }
+  return exportarSaludoPorPosicion(data);
+}
+
+function exportarSaludoPorPosicion(data) {
   const nodes = (data.drawflow?.Home?.data) || {};
   const entries = Object.entries(nodes);
   let startId = null;
@@ -1031,14 +1122,20 @@ function exportarExtras(data) {
     const esFija = d.tipo ? d.tipo === 'fija' : d.type !== 'ia';
     return esFija ? { modo:'fija', texto: d.frase || '' } : { modo:'conversacional', texto: d.frase || '', guia: d.instrucciones || '' };
   };
+  /* Las cajas con papel propio mandan sobre la posicion. */
+  const rCierre = nodoConRol(data, 'cierre');
+  const rComp   = nodoConRol(data, 'comprobante');
+  if (rCierre) extras.cierre      = msgDe({ data: rCierre });
+  if (rComp)   extras.comprobante = msgDe({ data: rComp });
+
   for (const n of Object.values(nodes)) {
     const d = n.data || {};
     if (d.type === 'carta') { extras.carta = { texto: d.frase || '' }; }
     if (d.type === 'resumen') {
       const c1 = n.outputs?.output_1?.connections || [];
       const c2 = n.outputs?.output_2?.connections || [];
-      if (c1.length) { const m = msgDe(nodes[String(c1[0].node)]); if (m) extras.cierre = m; }
-      if (c2.length) { const m = msgDe(nodes[String(c2[0].node)]); if (m) extras.comprobante = m; }
+      if (!rCierre && c1.length) { const m = msgDe(nodes[String(c1[0].node)]); if (m) extras.cierre = m; }
+      if (!rComp   && c2.length) { const m = msgDe(nodes[String(c2[0].node)]); if (m) extras.comprobante = m; }
     }
   }
   return Object.keys(extras).length ? extras : null;
