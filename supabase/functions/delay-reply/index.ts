@@ -1176,8 +1176,12 @@ INTENCION, no las palabras exactas.` },
          formatos y no se puede dar por hecho cual usa cada restaurante. */
       `/rest/v1/pos_clientes?telefono=in.(${encodeURIComponent(telLocal(telefonoCleanWa))},${encodeURIComponent(telefonoCleanWa)})&tenant_id=eq.${tenantId}&select=nombre&order=id.desc&limit=1`
     ) as Array<Record<string, unknown>> | null;
+    if (!clienteHist || clienteHist.length === 0) {
+      console.log(`[cliente] NO reconocido — tel ${telefonoCleanWa} (local ${telLocal(telefonoCleanWa)}), tenant ${tenantId}`);
+    }
     if (clienteHist && clienteHist.length > 0 && clienteHist[0].nombre) {
       nombreKnown = String(clienteHist[0].nombre);
+      console.log(`[cliente] reconocido: "${nombreKnown}" (tel ${telefonoCleanWa} -> ${telLocal(telefonoCleanWa)})`);
     }
   } catch (_) { /* no bloquear si falla */ }
 
@@ -3065,11 +3069,21 @@ function detectarNombreWa(raw: string): string | null {
 // Frases que JAMÁS son un nombre (reclamos, referencias a mensajes anteriores)
 const NO_ES_NOMBRE_RE = /\b(ya\s+te\s+lo\s+dije|ya\s+lo\s+dije|ya\s+te\s+dije|ya\s+dije|te\s+lo\s+acabo|acabo\s+de\s+(decir|escribir)|ya\s+lo\s+escrib[ií]|ya\s+lo\s+mencion[eé]|lee\s+arriba|mira\s+arriba|revisa\s+arriba|m[aá]s\s+arriba|otra\s+vez|de\s+nuevo|no\s+s[eé]|el\s+mismo|la\s+misma|lo\s+mismo|llevar|recoger|domicilio|entrega|cocina)\b/i;
 
+/* UNA CORTESIA NO ES UN NOMBRE. Sergio mando la direccion en dos mensajes y
+   remato con "porfa": el pedido quedo a nombre de "porfa". La lista de arriba
+   tenia las excusas ("ya te lo dije", "lee arriba") pero no lo que la gente
+   escribe suelto todo el tiempo. Va aparte porque son mensajes COMPLETOS que
+   no dicen nada, no frases dentro de un mensaje. */
+const SOLO_CORTESIA_RE = /^\s*(por\s*fa(s|vor|vorcito)?|porfis|porfi|pls|plis|please|gracias|muchas\s+gracias|mil\s+gracias|graciass*|ok(is)?|oki|listo|dale|bueno|va|dele|hagale|de\s+una|ahi\s+te\s+va|ahi\s+va|eso|eso\s+es|ya|si|s[ií]|no|nada|nada\s+m[aá]s|perfecto|excelente|genial|buenas|buenas\s+tardes|buenos\s+d[ií]as|buenas\s+noches|hola|chao|adios|bye)\s*[.!]*\s*$/i;
+
 // Marcadores EXPLÍCITOS de nombre — permiten capturarlo desde cualquier mensaje
 // (no solo en el paso "nombre"), p.ej. cuando el cliente da todo en un solo mensaje.
 const NOMBRE_MARCADOR_RE = /(?:me\s+llamo|mi\s+nombre\s+es|a\s+nombre\s+de|el\s+nombre\s+es|cambia\s+el\s+nombre\s+a|el\s+pedido\s+es\s+para)\s+([a-záéíóúüñÁÉÍÓÚÜÑ]+(?:\s+[a-záéíóúüñÁÉÍÓÚÜÑ]+){0,2})/i;
 
 function extractNombre(text: string, isCurrentStep: boolean, productData: ProductData | null = null): string | null {
+  /* Un mensaje que es SOLO una cortesia no trae nombre, este o no en el paso
+     del nombre. "porfa" a secas es lo que sigue a otra cosa, no una respuesta. */
+  if (SOLO_CORTESIA_RE.test(text)) return null;
   if (!isCurrentStep) {
     // Fuera del paso nombre, dos vías seguras:
     // (a) marcador explícito ("me llamo X", "a nombre de X")
@@ -3090,6 +3104,7 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
         if (/^(una?|unos?|dos|tres|el|la|los|las|quiero|dame|me|sin|con)\b/i.test(ln)) continue;
         if (SALUDO_REGEX.test(ln)) continue;
         if (NO_ES_NOMBRE_RE.test(ln)) continue;
+        if (SOLO_CORTESIA_RE.test(ln)) continue;
         if (esSoloConfirmacion(ln)) continue;
         if (esRechazoDeMas(ln)) continue;
         const lnNorm = normalizarTexto(ln);
