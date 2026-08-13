@@ -397,8 +397,11 @@ function productosNuevosEnTexto(
   texto: string,
   state: PacoState,
   productData: ProductData | null,
+  intenciones: Record<string, unknown> = {},
 ): Array<{ name: string; cat: string; pos: number }> {
-  const matches = matchProductosEnTexto(texto);
+  /* Solo lo que el clasificador llamó PLATO. Un "con super queso" nombra un
+     producto de la carta pero no lo está pidiendo: lo está agregando. */
+  const matches = mencionesClasificadas(texto, false, intenciones).filter(m => m.clase === "plato");
   if (!matches.length) return [];
 
   const actual = state.producto ? normalizarTexto(state.producto) : "";
@@ -791,7 +794,7 @@ async function processConversation(convId: string): Promise<void> {
      bot se comporta como antes y nunca peor.
      ══════════════════════════════════════════════════════════════════ */
   const textoDelCliente = batchMsgs.map(m => m.body).join(" ").slice(0, 900);
-  let intenciones: Record<string, boolean> = {};
+  let intenciones: Record<string, unknown> = {};
   try {
     const rInt = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -807,7 +810,7 @@ async function processConversation(convId: string): Promise<void> {
 Lee lo que escribio el CLIENTE y responde SOLO este JSON:
 {"carta":bool,"precio":bool,"ubicacion":bool,"domicilio":bool,"horario":bool,"pedir":bool,
  "pago":"efectivo"|"transferencia"|null,"entrega":"domicilio"|"recoger"|null,
- "rechaza_direccion":bool}
+ "rechaza_direccion":bool,"agregados":[string]}
 
 - "carta": quiere ver la carta o el menu COMPLETO, o los precios EN GENERAL.
   Ejemplos que SI son carta: "la carta", "q tienen", "menucito", "que venden",
@@ -833,6 +836,22 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
   pedido ("yo paso", "lo recojo", "pa llevar", "voy por el"). Si no dice -> null.
 - "rechaza_direccion": true SOLO si esta diciendo que NO quiere la direccion que
   se le propuso y quiere otra ("no", "no, otra", "cambiala", "es en otro lado").
+- "agregados": lo que el cliente quiere QUE LE PONGAN ENCIMA a otro plato, no
+  como plato aparte. Devuelve los nombres tal como el los escribio, en una
+  lista. Si no esta agregando nada -> [].
+  Es agregado: "una ranchera CON super queso", "ponle tocineta", "con extra de
+  queso", "me das una adicion de chorizo", "la premium me la das con maicitos".
+  NO es agregado, es un plato mas: "y tambien me das una super queso", "quiero
+  dos tocinetas", "una salchipapa de chorizo". Fijate en si va PEGADO a otro
+  plato ("con", "ponle", "adicion de") o si lo esta pidiendo aparte ("una",
+  "dos", "tambien me das").
+  OJO con "tambien" (o "tambn", "tmb", "y de paso"): eso es UN PLATO MAS, no un
+  agregado. "una premium familiar mixta, tambn super queso" son DOS platos ->
+  agregados: []. Solo es agregado si dice que va SOBRE el otro plato.
+  Si dudas entre las dos, elige plato aparte: cobrarle un plato de menos se
+  arregla preguntando, mandarle un plato que no pidio no.
+  Un mismo nombre puede ser lo uno o lo otro segun como lo diga: lo que decide
+  es si va sobre otro plato o va solo.
 Puede haber varias en true. Si no estas seguro, pon false.
 La gente escribe con errores, sin tildes y con espacios de mas: interpreta la
 INTENCION, no las palabras exactas.` },
@@ -1705,7 +1724,7 @@ INTENCION, no las palabras exactas.` },
   // en curso, 3º se le pregunta al cliente (frase configurable).
   /* Se le pregunta al CATALOGO, y la lista de frases queda solo de respaldo
      para lo que el catálogo no alcance a ver (un producto escrito con typo). */
-  const nuevosEnTexto = productosNuevosEnTexto(clienteTexto, state, currentProductData);
+  const nuevosEnTexto = productosNuevosEnTexto(clienteTexto, state, currentProductData, intenciones);
   const needsProducto = !state.producto
     || nuevosEnTexto.length > 0
     || NUEVO_PROD_REGEX.test(clienteTexto);
@@ -2632,7 +2651,157 @@ function esCategoriaAdicion(cat: string | null | undefined): boolean {
   return !!cat && CAT_ES_ADICION.test(cat);
 }
 
-function extractAdiciones(text: string, isCurrentStep: boolean): string | null {
+/* ══════════════════════════════════════════════════════════════════════
+   ¿PLATO O ADICION?
+
+   Lo que decide no es el nombre, es lo que va justo antes. "una ranchera CON
+   super queso" y "y tambien me das UNA super queso" nombran lo mismo y son
+   cosas distintas: en la primera el super queso va sobre la ranchera, en la
+   segunda es otro plato.
+
+   Es gramatica, no catalogo, asi que vale para cualquier restaurante.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Lo que convierte el nombre en algo que se le AGREGA a otro plato. */
+const CONECTOR_ADICION = /\b(con|c\/|mas|extra|adicion|adicional|adicionar|agregale|agregar|agrega|ponle|poner|añade|anade|añadir|anadir|acompanado|acompañado)\s+(de\s+|un[ao]?\s+|el\s+|la\s+)*$/i;
+
+/* Lo que lo convierte en un plato propio: un articulo o un verbo de pedir. */
+const CONECTOR_PLATO = /\b(un|una|unos|unas|otro|otra|dos|tres|cuatro|cinco|[0-9]+|dame|das|deme|quiero|quisiera|regalame|regalas|traeme|traes|pon[gm]ame|llevo|llevar|pedir|pido)\s+(un[ao]?\s+|el\s+|la\s+|los\s+|las\s+)*$/i;
+
+/* ¿El catalogo tiene este nombre como plato, como adicion, o como los dos? */
+function dondeVive(nombre: string): { plato: boolean; adicion: boolean } {
+  const n = normalizarTexto(nombre);
+  let plato = false, adicion = false;
+  for (const e of DYN_PROD_MAP) {
+    if (normalizarTexto(e.name) !== n) continue;
+    if (esCategoriaAdicion(e.cat)) adicion = true; else plato = true;
+  }
+  /* Las palabras que el dueño escribio a mano cuentan SIEMPRE, aunque el
+     nombre ya exista como plato. Ese es justo el caso de "super queso": en la
+     carta solo vive como salchipapa, y que ademas sea adicion viene de esta
+     lista. Mirandola solo cuando el nombre NO era un plato, nunca llegaba a
+     ser "las dos cosas" y el conector no alcanzaba a decidir. */
+  if (DYN_ADICION_KEYWORDS.includes(n)) adicion = true;
+  return { plato, adicion };
+}
+
+/* Clasifica UN nombre encontrado en el texto. `pos` es donde empieza dentro
+   del texto ya normalizado — de ahi se mira lo que viene justo antes. */
+/* "y tambien me das una...", "ademas dos...", "y de paso un..." — el cliente
+   esta pidiendo OTRO PLATO, no agregando algo al que ya pidio. Es la regla que
+   Sergio enuncio expresamente, asi que manda sobre lo que adivine el modelo.
+   Cada pedazo es opcional porque la gente lo dice de todas las formas:
+   "y tambien una", "tambn", "ademas me das dos", "y de paso". */
+const PIDE_OTRO_PLATO =
+  /\b(tambien|tambn|tmb|tb|ademas|adems|de\s+paso|aparte)\b[\s,]*((me|te|le)\s+)?((das?|dame|deme|regalas?|regalame|quiero|quisiera|pon[gm]e|llevo|traeme)\s+)?((un|una|unos|unas|otr[ao]|dos|tres|cuatro|[0-9]+)\s+)?$/i;
+
+function clasificarMencion(
+  textoNorm: string,
+  m: { name: string; pos: number },
+  esPasoAdiciones: boolean,
+  agregados: string[] = [],
+): "plato" | "adicion" {
+  const vive = dondeVive(m.name);
+  /* Si solo puede ser una cosa, no hay nada que decidir. EL CATALOGO MANDA
+     sobre lo que diga el modelo: si en la carta solo existe como plato, no hay
+     forma de que sea una adicion. */
+  if (vive.plato && !vive.adicion) return "plato";
+  if (vive.adicion && !vive.plato) return "adicion";
+
+  const antesTodo = textoNorm.slice(0, m.pos + 1);
+
+  /* Vive en los dos lados. Antes que nada, LO QUE DIJO EL DUEÑO EXPRESAMENTE.
+     Sergio lo dejo dicho sin ambiguedad: "y tambien me das una super queso"
+     es un plato aparte; si fuera adicion el cliente diria "me la das CON super
+     queso". El modelo se equivoca en este caso (probado: lee "tambn super
+     queso" como agregado), y una regla que el dueño enuncio explicitamente
+     manda sobre lo que adivine el modelo. El modelo decide donde el dueño no
+     hablo, no donde ya hablo. */
+  if (PIDE_OTRO_PLATO.test(antesTodo)) return "plato";
+
+  /* Despues, LO QUE ENTENDIO EL MODELO: le lee la intencion al cliente escriba
+     como escriba ("cn", "kon", "c/", o una vuelta rara que ninguna lista
+     prevee). */
+  const nom = normalizarTexto(m.name);
+  if (agregados.some(a => {
+    const an = normalizarTexto(a);
+    return an === nom || an.includes(nom) || nom.includes(an);
+  })) return "adicion";
+
+  /* Respaldo: lo que va justo antes. Vale cuando el modelo falla, se demora o
+     no lo vio. Nunca peor que antes. */
+  const antes = antesTodo;
+  if (CONECTOR_ADICION.test(antes)) return "adicion";
+  if (CONECTOR_PLATO.test(antes))   return "plato";
+
+  /* Sin conector: si la pregunta pendiente es justo la de las adiciones, el
+     cliente esta contestando eso. Si no, es un plato — la regla de Sergio: si
+     quisiera la adicion lo habria dicho ("me la das CON super queso"). */
+  return esPasoAdiciones ? "adicion" : "plato";
+}
+
+/* Los nombres del texto, ya clasificados. Un solo recorrido para los dos
+   lados: antes eran dos códigos compitiendo y ganaba el que corriera primero. */
+function mencionesClasificadas(
+  texto: string,
+  esPasoAdiciones = false,
+  intenciones: Record<string, unknown> = {},
+): Array<{ name: string; cat: string; pos: number; clase: "plato" | "adicion" }> {
+  const textoNorm = " " + normalizarTexto(texto) + " ";
+  const agregados = Array.isArray(intenciones.agregados)
+    ? (intenciones.agregados as unknown[]).map(String).filter(Boolean) : [];
+  return matchProductosEnTexto(texto).map(m => ({
+    ...m,
+    clase: clasificarMencion(textoNorm, m, esPasoAdiciones, agregados),
+  }));
+}
+
+/* Un nombre escrito como sea, llevado al nombre real de la carta. Tolera
+   errores igual que el respaldo de productos ("qeso" -> "Queso"), pero solo
+   acepta lo que de verdad existe: el modelo dice el papel, la carta dice el
+   nombre. */
+function resolverAdicionCatalogo(nombre: string): string | null {
+  const n = normalizarTexto(nombre);
+  if (n.length < 3) return null;
+  /* Exacto primero. */
+  const exacto = DYN_PROD_MAP.find(e => normalizarTexto(e.name) === n);
+  if (exacto) return exacto.name;
+  /* Por parecido: uno contiene al otro, o comparten todas las palabras largas.
+     "super qeso" y "super queso" comparten "super" y difieren en una letra. */
+  const palabras = n.split(" ").filter(w => w.length >= 3);
+  let mejor: { name: string; puntos: number } | null = null;
+  for (const e of DYN_PROD_MAP) {
+    const en = normalizarTexto(e.name);
+    let puntos = 0;
+    if (en.includes(n) || n.includes(en)) puntos = 3;
+    else {
+      const suyas = en.split(" ").filter(w => w.length >= 3);
+      const comunes = palabras.filter(w => suyas.some(x => x === w || parecidas(x, w)));
+      if (comunes.length > 0 && comunes.length >= Math.min(palabras.length, suyas.length)) puntos = 2;
+    }
+    if (puntos > 0 && (!mejor || puntos > mejor.puntos)) mejor = { name: e.name, puntos };
+  }
+  return mejor ? mejor.name : null;
+}
+
+/* Dos palabras que difieren en una sola letra (una letra de mas, de menos o
+   cambiada). Cubre "qeso"/"queso", "gaseosa"/"gasesosa". */
+function parecidas(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  if (a.length < 4 || b.length < 4) return false;
+  let i = 0, j = 0, fallos = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++fallos > 1) return false;
+    if (a.length > b.length) i++;
+    else if (b.length > a.length) j++;
+    else { i++; j++; }
+  }
+  return fallos + (a.length - i) + (b.length - j) <= 1;
+}
+
+function extractAdiciones(text: string, isCurrentStep: boolean, intenciones: Record<string, unknown> = {}): string | null {
   const t = text.toLowerCase().trim();
   if (t === "no" || t === "no." || t === "noo" || t === "no," || t === "n" || t === "na") {
     return isCurrentStep ? "" : null;
@@ -2644,24 +2813,35 @@ function extractAdiciones(text: string, isCurrentStep: boolean): string | null {
      tuviera: media frase se volvía una adición por accidente. */
   const contiene = (kw: string) => tNorm.includes(" " + normalizarTexto(kw).toLowerCase() + " ");
 
-  /* UN PRODUCTO DE LA CARTA NUNCA ES UNA ADICION. Lo que el cliente nombró y
-     está en el menú como plato es un PEDIDO, aunque su nombre coincida con una
-     palabra de adición configurada. Es justo lo que pasó con "super queso":
-     Sergio la tiene como palabra de adición ("queso extra", "salsa de ajo"...)
-     y a la vez es una salchipapa de la carta — y la adición le ganaba, así que
-     la salchipapa nunca se pedía. */
+  /* El clasificador decide cuál nombre es plato y cuál es adición, mirando lo
+     que va justo antes. Aquí solo se toman las adiciones. */
+  const menciones = mencionesClasificadas(text, isCurrentStep, intenciones);
   const platosNombrados = new Set(
-    matchProductosEnTexto(text)
-      .filter(m => !esCategoriaAdicion(m.cat))
-      .map(m => normalizarTexto(m.name))
+    menciones.filter(m => m.clase === "plato").map(m => normalizarTexto(m.name))
   );
+  const adicionesReales = menciones.filter(m => m.clase === "adicion").map(m => m.name);
 
-  /* Una adición de verdad: un producto de las categorías de adiciones o
-     bebidas. Eso lo dice el catálogo del restaurante, no una lista escrita
-     a mano aquí. */
-  const adicionesReales = matchProductosEnTexto(text)
-    .filter(m => esCategoriaAdicion(m.cat))
-    .map(m => m.name);
+  /* LO QUE EL MODELO ENTENDIO, RESUELTO CONTRA LA CARTA. El cliente escribe
+     "cn super qeso" y el modelo entiende perfectamente que va encima de la
+     ranchera — pero ese nombre mal escrito no coincide con nada del catálogo,
+     así que se perdía. El modelo dice el papel; la carta dice el nombre real.
+     Si no se puede resolver contra la carta, no entra: preferimos perder una
+     adición a inventar un producto que no existe. */
+  for (const a of (Array.isArray(intenciones.agregados) ? intenciones.agregados as unknown[] : [])) {
+    const real = resolverAdicionCatalogo(String(a));
+    if (!real) continue;
+    const rn = normalizarTexto(real);
+    /* EL PUENTE NO SE SALTA AL CLASIFICADOR. Solo entra donde el clasificador
+       no llegó: nombres tan mal escritos que el catálogo no los reconoció de
+       frente. Si ese mismo nombre ya se clasificó como PLATO en este mensaje,
+       manda la clasificación — si no, este atajo volvería adición justo lo que
+       la regla acaba de decidir que es un plato aparte, y la regla quedaría
+       escrita pero sin cumplirse. */
+    if (platosNombrados.has(rn)) continue;
+    if (adicionesReales.some(x => normalizarTexto(x) === rn)) continue;
+    adicionesReales.push(real);
+  }
+
   if (adicionesReales.length > 0) {
     return [...new Set(adicionesReales)].join(", ").slice(0, 80);
   }
@@ -2990,7 +3170,7 @@ function runExtractors(
     const esRespuestaVariante = !isUpsellStep && text.trim().length <= 25 &&
       (("tipo" in result) || ("tamano" in result));
     if (!esRespuestaVariante) {
-      const a = extractAdiciones(text, isUpsellStep);
+      const a = extractAdiciones(text, isUpsellStep, intenciones);
       if (a !== null) result.adiciones = a;
     }
   }
