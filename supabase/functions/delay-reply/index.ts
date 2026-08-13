@@ -1974,7 +1974,19 @@ INTENCION, no las palabras exactas.` },
   const currentStepId = currentStep?.id || null;
 
   // 14d. Correr extractores de slots
-  const extracted = runExtractors(clienteTexto, state, currentStepId, pagosCfg, currentProductData, nombreConfirmar, intenciones, cfg, productoRecienDetectado, pasoAntesId);
+  /* EL LECTOR, con todo el contexto puesto: que se pregunto, que hay en el
+     pedido y cuales son las opciones reales de este producto. Entiende lo que
+     el cliente quiso decir; los comparadores de texto quedan de respaldo para
+     lo que no alcance a llenar. */
+  const histLector = histCtx.slice(-4)
+    .map(h => `${h.direction === "in" ? "Cliente" : "Tú"}: ${String(h.body || "").slice(0, 120)}`)
+    .join("\n");
+  const leidoPedido = await leerPedido(
+    clienteTexto, state, currentProductData, currentStepId || pasoAntesId,
+    pagosCfg, MODS_CACHE?.grupos || [], histLector,
+  );
+
+  const extracted = runExtractors(clienteTexto, state, currentStepId, pagosCfg, currentProductData, nombreConfirmar, intenciones, cfg, productoRecienDetectado, pasoAntesId, leidoPedido);
 
   // 14e. Merge
   // Capturar ANTES del merge: si ya había una pregunta de dirección pendiente → es el segundo intento
@@ -2472,24 +2484,54 @@ function getFraseTexto(value: unknown): string {
 
 // ── Extractores de slots ──────────────────────────────────────────────────────
 
-function extractPresentacion(text: string, presentations: ProductData["presentations"]): string | null {
-  if (!presentations || presentations.length === 0) return null;
+/* Encuentra cual de las opciones nombro el cliente.
+
+   Mira en LOS DOS SENTIDOS. El obvio: el nombre completo aparece en lo que
+   escribio ("quiero la personal"). Y el que faltaba: lo que escribio esta
+   dentro del nombre de UNA sola opcion ("1.5" dentro de "1.5 Litros").
+
+   Sin el segundo, contestar "1.5" a "¿1.5 litros o personal?" no guardaba
+   nada y el bot volvia a preguntar lo mismo — le paso a Sergio y dio vueltas
+   hasta que escribio "ya te dije".
+
+   La condicion de UNA SOLA es lo que lo hace seguro: si el pedazo encaja en
+   dos opciones no se adivina, se vuelve a preguntar. */
+function _cualOpcion(text: string, nombres: string[]): string | null {
   const t = normalizarTexto(text);
-  for (const p of presentations) {
-    const pNorm = normalizarTexto(p.name);
-    if (pNorm.length > 2 && t.includes(pNorm)) return p.name;
+  if (!t) return null;
+
+  /* 1. El nombre completo, dentro de lo que dijo. */
+  for (const n of nombres) {
+    const nn = normalizarTexto(n);
+    if (nn.length > 2 && t.includes(nn)) return n;
+  }
+
+  /* 2. Lo que dijo, dentro del nombre — y solo si no cabe en dos. */
+  /* Se quitan TODAS las muletillas del principio, no una: "la de 1.5" lleva
+     dos seguidas y con una sola pasada quedaba "de 1.5", que no encaja. */
+  const trozo = t.replace(/^((la|el|los|las|de|del|una?|unos?|quiero|dame|deme|porfa|por favor|seria|es)\s+)+/, "").trim();
+  if (trozo.length >= 2) {
+    const encajan = nombres.filter(n => normalizarTexto(n).includes(trozo));
+    if (encajan.length === 1) return encajan[0];
+  }
+
+  /* 3. Palabra por palabra, para "litros" o "dulce" sueltos. */
+  const palabras = t.split(" ").filter(w => w.length >= 3);
+  for (const w of palabras) {
+    const encajan = nombres.filter(n => normalizarTexto(n).split(" ").includes(w));
+    if (encajan.length === 1) return encajan[0];
   }
   return null;
 }
 
+function extractPresentacion(text: string, presentations: ProductData["presentations"]): string | null {
+  if (!presentations || presentations.length === 0) return null;
+  return _cualOpcion(text, presentations.map(p => p.name));
+}
+
 function extractVariable(text: string, options: Array<{ name: string }>): string | null {
   if (!options || options.length === 0) return null;
-  const t = normalizarTexto(text);
-  for (const opt of options) {
-    const oNorm = normalizarTexto(opt.name);
-    if (oNorm.length > 2 && t.includes(oNorm)) return opt.name;
-  }
-  return null;
+  return _cualOpcion(text, options.map(o => o.name));
 }
 
 function isProductAttribute(text: string, productData: ProductData | null): boolean {
@@ -3218,6 +3260,212 @@ async function extractProducto(
 
 // ── runExtractors ─────────────────────────────────────────────────────────────
 
+/* ══════════════════════════════════════════════════════════════════════
+   EL LECTOR DEL PEDIDO — entiende, no compara texto
+
+   Le pasa al modelo TODO el contexto: que se acaba de preguntar, que hay ya
+   en el pedido, y las opciones REALES del producto sacadas del catalogo. El
+   modelo dice que entendio; el catalogo dice si eso existe.
+
+   Vale la llamada: es la diferencia entre entender "1.5", "litro y medio" y
+   "la de litro y medio" o pedirle al cliente que escriba el nombre exacto.
+   ══════════════════════════════════════════════════════════════════════ */
+type PedidoLeido = {
+  producto?: string; cantidad?: number; tamano?: string;
+  variantes?: string[]; adiciones?: string[];
+  direccion?: string; barrio?: string; nombre?: string; pago?: string;
+};
+
+async function leerPedido(
+  texto: string,
+  state: PacoState,
+  productData: ProductData | null,
+  pasoPendiente: string | null,
+  pagosCfg: Record<string, unknown> | null | undefined,
+  gruposMod: GrupoMod[],
+  historial: string,
+): Promise<PedidoLeido> {
+  if (!texto || !texto.trim()) return {};
+
+  /* Las opciones REALES de este producto. Sin esto el modelo adivinaria, que
+     es justo lo que se quiere evitar. */
+  const pres = productData?.presentations?.map(p => p.name) || [];
+  const vars = (productData?.variables || []).map(g => ({
+    grupo: g.name, opciones: (g.options || []).map(o => o.name),
+  }));
+  const adis = new Set<string>();
+  for (const g of gruposMod) for (const o of g.options) adis.add(o.name);
+  const metodos = getMetodosPago(pagosCfg).map(m => m.nombre);
+
+  const yaHay = [
+    state.producto ? `producto: ${state.producto}` : null,
+    state.tamano   ? `tamaño: ${state.tamano}`     : null,
+    state.tipo     ? `variante: ${state.tipo}`     : null,
+    state.direccion? `dirección: ${state.direccion}` : null,
+    state.barrio   ? `barrio: ${state.barrio}`     : null,
+    state.nombre   ? `nombre: ${state.nombre}`     : null,
+    state.pago     ? `pago: ${state.pago}`         : null,
+  ].filter(Boolean).join(", ") || "nada todavía";
+
+  const QUE_SE_PREGUNTO: Record<string, string> = {
+    presentacion: "el TAMAÑO o presentación del producto",
+    upsell:       "si quiere agregar algo más",
+    sugerencia:   "si quiere agregar algo más",
+    direccion:    "la DIRECCIÓN de entrega",
+    confirmar_dir:"si usa la misma dirección de antes",
+    nombre:       "el NOMBRE a quien se recibe",
+    pago:         "CÓMO va a pagar",
+  };
+  const preguntado = pasoPendiente
+    ? (QUE_SE_PREGUNTO[pasoPendiente] || (pasoPendiente.startsWith("variable_") ? "una VARIANTE del producto" : pasoPendiente))
+    : "nada en particular";
+
+  const sys =
+`Eres el lector de pedidos de un restaurante por WhatsApp. Tu trabajo es ENTENDER lo que
+quiso decir el cliente, no buscar palabras exactas. La gente escribe con errores, sin
+tildes, en pedazos y de mil formas distintas.
+
+LO QUE YA ESTÁ EN EL PEDIDO: ${yaHay}
+LO QUE SE LE ACABA DE PREGUNTAR: ${preguntado}
+
+OPCIONES REALES de este producto (usa EXACTAMENTE estos nombres, no inventes):
+- tamaños: ${pres.length ? pres.join(" | ") : "(no tiene)"}
+- variantes: ${vars.length ? vars.map(v => `${v.grupo}: ${v.opciones.join(" / ")}`).join(" ; ") : "(no tiene)"}
+- adiciones: ${adis.size ? [...adis].join(" | ") : "(no tiene)"}
+- formas de pago: ${metodos.join(" | ")}
+
+Devuelve SOLO este JSON con lo que ESTE mensaje aporta (omite lo que no diga):
+{"producto":string|null,"cantidad":number|null,"tamano":string|null,
+ "variantes":[string],"adiciones":[string],"direccion":string|null,
+ "barrio":string|null,"nombre":string|null,"pago":string|null}
+
+REGLAS:
+- "1.5", "litro y medio", "la de litro y medio" -> el tamaño "1.5 Litros" si esa es
+  una de las opciones. Contestar con un pedazo TAMBIÉN es contestar.
+- Si no estás seguro de cuál opción es, deja null. Es mejor volver a preguntar que
+  adivinar mal.
+- Un saludo o una cortesía sueltos ("porfa", "gracias", "listo", "ok") NO son un
+  nombre ni nada: devuelve todo null.
+- "nombre" SOLO si de verdad está diciendo a nombre de quién va el pedido.
+- "direccion" es calle/carrera con números. Un barrio SOLO ("Bellavista") va en
+  "barrio", NO en "direccion".
+- Si el mensaje trae dirección Y barrio juntos, sepáralos en sus dos campos.
+- "adiciones": lo que quiere que le PONGAN al plato. Un plato aparte va en "producto".
+- Usa los nombres EXACTOS de las listas de arriba. Si algo no está en las listas,
+  déjalo fuera.
+
+Últimos mensajes:
+${historial}`;
+
+  try {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-4o-mini", max_tokens: 220, temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [{ role: "system", content: sys }, { role: "user", content: texto }],
+      }),
+    });
+    if (!r.ok) { console.error("[lector] OpenAI", r.status); return {}; }
+    const d = await r.json() as Record<string, unknown>;
+    const raw = ((d.choices as Array<Record<string, unknown>>)?.[0]?.message as Record<string, string> | undefined)?.content;
+    const leido = JSON.parse(raw || "{}") as PedidoLeido;
+    console.log("[lector]", JSON.stringify(leido));
+    return leido;
+  } catch (e) {
+    console.error("[lector] fallo, se usan los comparadores:", e);
+    return {};
+  }
+}
+
+/* Lo que el lector entendio, pasado por el filtro del catalogo. Devuelve solo
+   los valores que de verdad existen — el modelo aporta el entendimiento, la
+   carta pone el limite. */
+function validarLeido(
+  leido: PedidoLeido,
+  state: PacoState,
+  productData: ProductData | null,
+  pagosCfg: Record<string, unknown> | null | undefined,
+  cfgGlobal: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (!leido) return out;
+
+  /* TAMAÑO: tiene que ser una presentacion real del producto. */
+  if (leido.tamano && productData?.presentations?.length) {
+    const ok = extractPresentacion(String(leido.tamano), productData.presentations);
+    if (ok) out.tamano = ok;
+  }
+
+  /* VARIANTES: cada una tiene que ser opcion de alguno de sus grupos. */
+  if (Array.isArray(leido.variantes) && leido.variantes.length && productData?.variables?.length) {
+    const yaTipos: Record<string, string> = { ...(state.tipos || {}) };
+    let cambio = false;
+    for (const v of leido.variantes) {
+      for (const g of productData.variables) {
+        if (yaTipos[g.id]) continue;
+        const ok = extractVariable(String(v), g.options || []);
+        if (ok) { yaTipos[g.id] = ok; cambio = true; break; }
+      }
+    }
+    if (cambio) {
+      out.tipos = yaTipos;
+      out.tipo = productData.variables.map(g => yaTipos[g.id]).filter(Boolean).join(", ");
+    }
+  }
+
+  /* ADICIONES: tienen que existir en los grupos de modificadores. */
+  if (Array.isArray(leido.adiciones) && leido.adiciones.length && state.adiciones === null) {
+    const reales: string[] = [];
+    for (const a of leido.adiciones) {
+      const real = resolverAdicionCatalogo(String(a));
+      if (real && !reales.includes(real)) reales.push(real);
+    }
+    /* Un plato no es adicion de si mismo. */
+    const suyo = normalizarTexto(state.producto || "");
+    const limpias = reales.filter(r => {
+      const rn = normalizarTexto(r);
+      return rn !== suyo && !suyo.includes(rn);
+    });
+    if (limpias.length) out.adiciones = limpias.join(", ");
+  }
+
+  /* PAGO: tiene que ser un metodo configurado. */
+  if (leido.pago && !state.pago) {
+    const ok = extractPago(String(leido.pago), pagosCfg);
+    if (ok) out.pago = ok;
+  }
+
+  /* BARRIO: tiene que estar entre los configurados. */
+  if (leido.barrio && !state.barrio) {
+    const dom = cfgGlobal.domicilios as Record<string, unknown> | null | undefined;
+    const ok = extraerBarrio(String(leido.barrio), dom);
+    if (ok) out.barrio = ok;
+  }
+
+  /* DIRECCION: tiene que traer via y numero. Un barrio suelto no es una
+     direccion — es lo que fallo con "Bellavista". */
+  if (leido.direccion && !state.direccion) {
+    const d = String(leido.direccion).trim();
+    if (analizarDireccion(d).tieneVia) out.direccion = d;
+  }
+
+  /* NOMBRE: ni cortesia, ni palabra del pedido. */
+  if (leido.nombre && !state.nombre) {
+    const n = String(leido.nombre).trim();
+    if (n.length >= 2 && !SOLO_CORTESIA_RE.test(n) && !NO_ES_NOMBRE_RE.test(n)
+        && !mencionaProductoCatalogo(n)) {
+      out.nombre = n;
+    }
+  }
+
+  if (typeof leido.cantidad === "number" && leido.cantidad >= 1 && leido.cantidad <= 50) {
+    out.cantidad = Math.round(leido.cantidad);
+  }
+  return out;
+}
+
 function runExtractors(
   text: string,
   state: PacoState,
@@ -3234,8 +3482,14 @@ function runExtractors(
   productoNuevo = false,
   /* Que se le estaba preguntando antes de que llegara ese producto. */
   pasoAntesId: string | null = null,
+  /* Lo que ENTENDIO el lector del pedido. Manda sobre los comparadores de
+     texto, pero cada valor se valida contra el catalogo antes de entrar. */
+  leido: PedidoLeido = {},
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+  /* LO ENTENDIDO VA PRIMERO. Los comparadores de texto de mas abajo solo
+     llenan lo que quede vacio: son el respaldo para cuando el modelo falle o
+     se demore, no la primera opcion. */
+  const result: Record<string, unknown> = validarLeido(leido, state, productData, pagosCfg, cfgGlobal);
 
   // Complemento de dirección pendiente (barrio, número, referencia)
   // El cliente está respondiendo la pregunta específica — tomamos su texto y lo concatenamos
@@ -3276,11 +3530,11 @@ function runExtractors(
     }
   }
 
-  if (!state.tamano && productData && productData.presentations.length > 1) {
+  if (!state.tamano && !result.tamano && productData && productData.presentations.length > 1) {
     const p = extractPresentacion(text, productData.presentations);
     if (p) result.tamano = p;
   }
-  if (productData && productData.variables.length > 0) {
+  if (productData && productData.variables.length > 0 && !result.tipo) {
     /* Se recorren TODOS los grupos, no solo el primero: "de pollo y tocineta"
        responde dos grupos en un solo mensaje. */
     const yaTipos: Record<string, string> = { ...(state.tipos || {}) };
@@ -3301,7 +3555,7 @@ function runExtractors(
         .join(", ");
     }
   }
-  if (!state.pago) {
+  if (!state.pago && !result.pago) {
     let p = extractPago(text, pagosCfg);
     if (!p && intenciones.pago) {
       // El texto no lo reconocio, pero la intencion si. Se traduce al metodo
@@ -3317,7 +3571,7 @@ function runExtractors(
     }
     if (p) result.pago = p;
   }
-  if (state.adiciones === null) {
+  if (state.adiciones === null && result.adiciones === undefined) {
     const isUpsellStep = currentStepId === "upsell";
     // Si este mismo mensaje corto acaba de responder tamaño o variante, ES la
     // respuesta al paso — no una adición ("Mixta porfa" responde a la pregunta
@@ -3363,7 +3617,7 @@ function runExtractors(
     // No early return: los demás extractores corren siempre para capturar pago, nombre, etc.
     // del mismo mensaje. Cada paso es independiente del resto.
   }
-  if (!state.direccion || state.direccion_heredada) {
+  if ((!state.direccion || state.direccion_heredada) && !result.direccion) {
     // Una dirección heredada puede ser REEMPLAZADA si el cliente escribe una nueva
     // en cualquier momento (queda confirmada de una — él mismo la dio)
     const isDirStep = currentStepId === "direccion" || currentStepId === "confirmar_dir";
@@ -3411,7 +3665,7 @@ function runExtractors(
     if (b) result.barrio = b;
   }
 
-  if (!state.nombre) {
+  if (!state.nombre && !result.nombre) {
     const isNombreStep = currentStepId === "nombre";
     if (isNombreStep && nombreWa) {
       const confirma = esConfirmacion(text, intenciones);
