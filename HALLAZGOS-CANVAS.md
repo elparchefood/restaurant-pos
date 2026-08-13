@@ -243,3 +243,40 @@ El canvas **descarta cajas en silencio**. Uno las dibuja, las configura, guarda
 Antes de seguir puliendo frases una por una, conviene que al guardar el canvas
 diga qué cajas **no se van a usar y por qué**. Si no, cada frase que Sergio
 configure en una caja suelta se va a perder igual, y lo va a descubrir de a una.
+
+
+---
+
+## 13-ago-2026 (tarde) — cerrados
+
+**Aviso al guardar.** El editor ya no descarta cajas en silencio. Al guardar
+revisa el flujo y avisa, con nombre y apellido, de: mensajes sueltos que no van
+a llegar al motor, cajas que piden un dato que el motor no conoce, frases fijas
+que ofrecen opciones equivocadas, y Adiciones+Upsell conviviendo.
+
+**Variantes: un paso por grupo.** El camino del canvas se quedaba en
+`variables[0]`; el motor por defecto sí recorría todos. La SÚPER QUESO
+(Salchipapas Especiales) tiene *Primer Ingrediente* y *Segundo Ingrediente* y el
+segundo NUNCA se preguntaba. Verificado en el banco: ahora pregunta los dos.
+
+**Opciones inventadas.** La guarda solo miraba si a la frase le faltaba una
+opción real. Ahora también si nombra una que el producto no tiene — que era
+justo el caso de la SÚPER QUESO ("¿mixta, de carne o de pollo?" pasaba el
+filtro porque sí tiene carne y pollo). Premium y Maicitos conservan la frase de
+Sergio; HIT, Postobón y Coca Cola siguen corrigiéndose como antes.
+
+**`confirmar_cantidad`.** Ya lo lee el motor (`buildConversationResponse`).
+Ojo: hoy el canvas de El Parche NO exporta ningún paso con `campo: producto`
+—su caja de productos es un mensaje sin misión—, así que el interruptor no
+puede dispararse hasta que esa caja se reemplace por la de la paleta nueva.
+
+**Configuración propia** para Presentación, Variantes, Adiciones y Nombre. Todo
+lo que se agregó lo lee el motor. En Nombre, el interruptor *usar el nombre del
+perfil de WhatsApp* es nuevo y está conectado.
+
+### Sigue abierto
+- **Adiciones y Upsell comparten casilla** (`id: "upsell"` las dos). Por ahora
+  solo se avisa. Arreglarlo de verdad pide una casilla propia en el estado.
+- Registrar los conjuntos cerrados (lo hace Sergio).
+- "Lugar desconocido que no suena a conjunto" debería preguntar "¿casa o
+  conjunto?" — lo tapa la guarda `puedeSerDireccion`.
