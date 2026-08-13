@@ -1,7 +1,32 @@
 # Hallazgos del canvas — puliendo con Sergio
 
-Cosas verificadas mientras Sergio revisa el canvas de El Parche. **Anotadas, no
-corregidas todavía.**
+Cosas verificadas mientras Sergio revisa el canvas de El Parche.
+
+## ✅ Arreglado el 13-ago-2026
+
+- **Cada misión es su propia caja** (hallazgo 4): 21 cajas arrastrables en 7
+  grupos, cada una con su nombre, su explicación y su color. En el lienzo se
+  distinguen de un vistazo — antes Dirección, Pago y Nombre se veían idénticas.
+- **El papel manda sobre la posición**: Saludo, Cierre, Esperar comprobante y
+  Aviso de envío ya no dependen de dónde estén conectados. La regla vieja
+  queda de respaldo para los canvas ya guardados.
+- **La caja "¿Otro producto?" se quitó**: no hacía nada. Sus 172 caracteres de
+  instrucciones se movieron a **Situaciones especiales** (`otro_producto`),
+  donde el motor sí las lee. El flujo se cosió (Upsell → Dirección).
+  Respaldo del canvas anterior en `scratchpad/backup-canvas-2026-08-13.json`.
+
+**Probado:** arrastrar Reserva, Factura y Pedido programado crea la caja ya con
+su misión, y al guardar salen como pasos que el motor lee.
+
+## ⬜ Pendientes de estos hallazgos
+
+- La frase de una caja suelta **se sigue descartando en silencio** (hallazgo 1):
+  falta el aviso al guardar.
+- Las frases fijas **siguen ofreciendo opciones escritas a mano** (hallazgo 3):
+  falta que usen `{{variantes_producto}}` / `{{presentaciones_producto}}`.
+- **"Confirmar la cantidad"** sigue sin hacer nada (hallazgo 5).
+- **Presentación, Variantes, Adiciones y Nombre** siguen sin configuración
+  propia (hallazgo 5).
 
 ---
 
