@@ -67,7 +67,54 @@ paso, confirmar la cantidad) no se están aplicando**, porque el paso no existe.
 
 ---
 
-## 3. Lo que esto sugiere, en general
+## 3. La caja de la variante pregunta opciones que no existen `2026-08-12`
+
+**Lo que Sergio vio:** la caja *Preguntar tipo* está en **Frase fija** con el
+texto *"¿La prefieres mixta, de carne o de pollo? 🍟"*. ¿Y si piden un Súper
+Queso?
+
+**Verificado — las variantes reales de cada producto:**
+
+| Producto | Sus variantes | ¿La frase sirve? |
+|---|---|---|
+| Premium | Mixta, Carne, Pollo | ✅ |
+| Maicitos Especial | Mixta, Pollo, Carne | ✅ |
+| **SÚPER QUESO** | **Carne, Pollo, Chorizo, Tocineta** | ❌ le ofrece *Mixta* (no existe) y le esconde *Chorizo* y *Tocineta* |
+| **HIT** | Mango, Mora, Frutos tropicales, Naranja piña, Lulo | ❌ le pregunta *"¿mixta, de carne o de pollo?"* a un jugo |
+| **POSTOBÓN 1.5 L** | Uva, Manzana, Colombiana | ❌ igual |
+
+**3 de 5 productos con variantes reciben una pregunta equivocada.** En el Súper
+Queso es doble daño: ofrece algo que no se vende y oculta dos opciones que sí.
+
+**La solución ya existe y está en el propio panel:** la variable
+`{{variantes_producto}}`, que el motor reemplaza por **las opciones reales del
+producto que el cliente está pidiendo** (verificado en el código: resuelve
+contra el catálogo, con coincidencia flexible del nombre).
+
+Bastaría con que la frase dijera *"¿La prefieres {{variantes_producto}}? 🍟"*.
+
+**La caja de Presentación tiene el mismo problema** (verificado: ninguna de las
+dos frases usa variable). Sus presentaciones reales:
+
+| Presentaciones | Cuántos productos |
+|---|---|
+| Familiar / Personal | 19 |
+| **Ajo, Bbq, Cheddar, Dulce Maíz, Rosada** | 1 |
+| Litro / Personal | 1 |
+| 1.5 Litros / Personal | 1 |
+
+La frase fija sirve para los 19, y falla en los otros 3 — sobre todo en el de
+las salsas, donde preguntarle *"¿personal o familiar?"* no tiene ningún
+sentido.
+
+**Nota de fondo:** esto no es un error del sistema, es una frase fija escrita
+para un producto y aplicada a todos. Pero el panel **no avisa** de que una
+frase fija con opciones escritas a mano se va a usar igual para productos que
+tienen otras. Ese aviso valdría tanto como el arreglo.
+
+---
+
+## 4. Lo que esto sugiere, en general
 
 El canvas **descarta cajas en silencio**. Uno las dibuja, las configura, guarda
 — y no pasa nada. No hay ningún aviso.
