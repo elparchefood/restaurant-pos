@@ -139,6 +139,21 @@ const CONFIRM_WORDS = [
   "va","bueno","eso","ok","okay","positivo","afirmo",
 ];
 
+/* ¿El cliente esta confirmando? Se compara SIN TILDES: la lista dice
+   "está bien" y en WhatsApp nadie escribe la tilde. Un "esta bien" no
+   reconocido dejaba el pedido colgado justo en el ultimo paso. */
+const CONFIRM_NORM = CONFIRM_WORDS.map(w => normalizarTexto(w));
+function esConfirmacion(texto: string): boolean {
+  const t = normalizarTexto(texto);
+  if (!t || t.length > 80) return false;
+  return CONFIRM_NORM.some(w =>
+    t === w || t.startsWith(w + " ") || t.endsWith(" " + w) || t.includes(" " + w + " "));
+}
+/* Para los sitios que solo quieren saber si el mensaje ES la palabra suelta. */
+function esSoloConfirmacion(texto: string): boolean {
+  return CONFIRM_NORM.includes(normalizarTexto(texto));
+}
+
 const RECHAZO_UPSELL_WORDS = [
   "no quiero","no gracias","así está","nada más","solo eso",
   "sin adicional","sin adicion","no, gracias","no quiero nada",
@@ -365,6 +380,48 @@ const CALLE_REGEX = /\b(calle|carrera|cra|cl\b|diagonal|transversal|tv\b|dg\b|av
 const LLEVAR_REGEX = /\b(para\s+llevar|para\s+recoger|l[oa]s?\s+recoj(?:o|emos)|l[oa]s?\s+busc(?:o|amos)|(?:voy|vamos)\s+a\s+recoger(?:l[oa]s?)?|(?:voy|vamos)\s+por\s+(?:el\s+pedido|[ée]l|ella|ellas|ellos|eso|la\s+comida)|pa\s+llevar|a\s+recoger|(?:yo|nosotros)\s+pas(?:o|amos)|pas(?:o|amos)\s+a\s+(?:recoger|buscar)(?:l[oa]s?)?|pas(?:o|amos)\s+por\s+(?:el\s+pedido|[ée]l|ella|ellas|ellos|eso|la\s+comida|all[aá]|all[ií])|pas(?:o|amos)\s+al\s+local|recog(?:o|emos)\s+en\s+el\s+local|lo\s+recogemos|nos\s+lo\s+llevamos)\b/i;
 
 // Nuevo producto adicional — expandido para capturar más patrones naturales
+/* ¿Este mensaje nombra un producto de la carta que NO es el que ya está en
+   curso? Se mira el catálogo en vez de adivinar por la forma de la frase.
+
+   La lista de frases escritas a mano se quedaba corta a cada rato: "y me das
+   una super queso" la detectaba y "y tambien me das una super queso" no. Cada
+   forma nueva de decirlo era una línea más en una expresión que ya nadie podía
+   leer. Preguntarle al catálogo no se queda corto nunca.
+
+   Lo delicado es al revés: hay opciones que TAMBIÉN son productos. "Mixta" es
+   una variante de la Premium y a la vez una salchipapa de la carta. Si el
+   cliente está contestando "¿mixta, de carne o de pollo?", esa palabra es la
+   respuesta a la pregunta, no un pedido nuevo — así que se descartan las que
+   coincidan con una opción del producto en curso. */
+function productosNuevosEnTexto(
+  texto: string,
+  state: PacoState,
+  productData: ProductData | null,
+): Array<{ name: string; cat: string; pos: number }> {
+  const matches = matchProductosEnTexto(texto);
+  if (!matches.length) return [];
+
+  const actual = state.producto ? normalizarTexto(state.producto) : "";
+  const yaPedidos = new Set((state.items || []).map(i => normalizarTexto(i.producto || "")));
+
+  /* Las opciones del producto en curso: presentaciones y variantes. */
+  const opciones = new Set<string>();
+  if (productData) {
+    for (const p of productData.presentations || []) opciones.add(normalizarTexto(p.name));
+    for (const g of productData.variables || []) {
+      for (const o of g.options || []) opciones.add(normalizarTexto(o.name));
+    }
+  }
+
+  return matches.filter(m => {
+    const n = normalizarTexto(m.name);
+    if (n === actual) return false;        // el que ya está en curso
+    if (yaPedidos.has(n)) return false;    // uno que ya se agregó
+    if (opciones.has(n)) return false;     // es la respuesta a la pregunta pendiente
+    return true;
+  });
+}
+
 const NUEVO_PROD_REGEX = /\b(y\s+(un[ao]?\s+|[0-9]+\s+|otr[ao]?\s+|de\s+paso\s+|tambi[eé]n\s+)\w{3,}|tambi[eé]n\s+(quiero?|quisiera|dame|poneme|una?|un)\s+\w|de\s+paso\s+(quiero?|dame|una?|un|p[oó]n[gm]e)\s+\w|adem[aá]s\s+(quiero?|quisiera|dame)\s+\w|y\s+tambi[eé]n\s+\w{3,}|y\s+me\s+das?\s+\w{3,}|p[oó]n[gm]e\s+(tambi[eé]n|adem[aá]s)\s+\w)/i;
 
 // ── Server ────────────────────────────────────────────────────────────────────
@@ -1420,7 +1477,6 @@ INTENCION, no las palabras exactas.` },
   // ═══════════════════════════════════════════════════════════════════════════
 
   if (state.resumen_enviado) {
-    const textoLow = clienteTexto.toLowerCase().trim();
 
     // CORRECCIÓN del método de pago tras el resumen (regla de Sergio):
     // "mejor pago en efectivo" NO es confirmar — cambia el pago y RE-MUESTRA el
@@ -1454,10 +1510,7 @@ INTENCION, no las palabras exactas.` },
       }
     }
 
-    const isConfirmacion = textoLow.length <= 80 && CONFIRM_WORDS.some(w =>
-      textoLow === w || textoLow.startsWith(w + " ") || textoLow.endsWith(" " + w) ||
-      textoLow.includes(" " + w + " ")
-    );
+    const isConfirmacion = esConfirmacion(clienteTexto);
 
     if (isConfirmacion) {
       // Si el método de pago quedó liberado (caso "para llevar + efectivo"), capturarlo
@@ -1650,7 +1703,12 @@ INTENCION, no las palabras exactas.` },
   // categoría cuando el mismo nombre existe en varias ("Especial" de
   // hamburguesa/perro/sandwich): 1º contexto del texto, 2º contexto del pedido
   // en curso, 3º se le pregunta al cliente (frase configurable).
-  const needsProducto = !state.producto || NUEVO_PROD_REGEX.test(clienteTexto);
+  /* Se le pregunta al CATALOGO, y la lista de frases queda solo de respaldo
+     para lo que el catálogo no alcance a ver (un producto escrito con typo). */
+  const nuevosEnTexto = productosNuevosEnTexto(clienteTexto, state, currentProductData);
+  const needsProducto = !state.producto
+    || nuevosEnTexto.length > 0
+    || NUEVO_PROD_REGEX.test(clienteTexto);
   let productoDetectado: string | null = null;
   let productoCategoriaDet: string | null = null;
   let cantidadDetectada = 1;
@@ -1710,8 +1768,14 @@ INTENCION, no las palabras exactas.` },
   }
 
   if (needsProducto && !productoDetectado) {
-    // 1) Matching determinístico del texto contra el catálogo
-    const matches = matchProductosEnTexto(clienteTexto);
+    /* 1) Matching determinístico del texto contra el catálogo.
+
+       Con un pedido ya en curso se usan los productos FILTRADOS, no todos los
+       que aparezcan: en "Mixta porfavor, y tambien me das una super queso" el
+       primer nombre del texto es "Mixta" —que es la respuesta a la pregunta de
+       la variante y además una salchipapa de la carta— y quedarse con ese
+       perdía la Super Queso igual que antes. */
+    const matches = state.producto ? nuevosEnTexto : matchProductosEnTexto(clienteTexto);
     if (matches.length > 0) {
       const primero = matches[0];
       const res = resolverCategoria(primero.name);
@@ -1757,8 +1821,16 @@ INTENCION, no las palabras exactas.` },
     const normActual = state.producto ? normalizarTexto(state.producto) : "";
 
     if (state.producto && normNuevo !== normActual) {
+      /* LO QUE ESTE MENSAJE LE CONTESTO AL PRODUCTO QUE SE VA.
+         El mismo mensaje puede cerrar un producto y abrir otro. Los extractores
+         corren después de este punto, y para entonces el producto en curso ya
+         es el nuevo: la respuesta se perdía. La Premium se guardaba sin su
+         "Mixta" y el cliente recibía lo que no pidió. */
+      const cierre = runExtractors(clienteTexto, state, null, pagosCfg, currentProductData, nombreConfirmar, intenciones, cfg);
       const archived: SlotItem = {
-        producto: state.producto, tamano: state.tamano, tipo: state.tipo,
+        producto: state.producto,
+        tamano: state.tamano ?? (cierre.tamano as string | undefined) ?? null,
+        tipo:   state.tipo   ?? (cierre.tipo   as string | undefined) ?? null,
         cantidad: state.cantidad, adiciones: state.adiciones,
         preferencias: state.preferencias,
         categoria: state.producto_categoria,
@@ -2549,16 +2621,62 @@ function extractPago(text: string, pagosCfg: Record<string, unknown> | null | un
   return null;
 }
 
+/* ¿Esta categoria de la carta es de adiciones? Lo decide la CATEGORIA, no una
+   lista de palabras: DYN_ADICION_KEYWORDS mezcla los productos de esas
+   categorias con las palabras que escribio el dueño, y Sergio tiene
+   "super queso" configurada como palabra de adicion — que ademas es una
+   salchipapa. Preguntandole a la lista, esa salchipapa se volvia una adicion
+   de otro plato y nunca se pedia. La categoria no se puede confundir. */
+const CAT_ES_ADICION = /adicion|adición|bebida|extra|salsa|postre|acompan|acompañ/i;
+function esCategoriaAdicion(cat: string | null | undefined): boolean {
+  return !!cat && CAT_ES_ADICION.test(cat);
+}
+
 function extractAdiciones(text: string, isCurrentStep: boolean): string | null {
   const t = text.toLowerCase().trim();
   if (t === "no" || t === "no." || t === "noo" || t === "no," || t === "n" || t === "na") {
     return isCurrentStep ? "" : null;
   }
   if (isCurrentStep && RECHAZO_UPSELL_WORDS.some(w => t.includes(w))) return "";
-  const tNorm = normalizarTexto(text).toLowerCase();
-  const found = getAdicionKeywords().filter(kw => tNorm.includes(kw));
-  if (found.length > 0 && found.some(k => !ADICION_GENERICAS.includes(k))) {
-    return text.trim().slice(0, 80);
+  const tNorm = " " + normalizarTexto(text).toLowerCase() + " ";
+  /* Por PALABRA COMPLETA, no por pedazo. Con `includes` suelto, "queso" caía
+     dentro de "super queso" y "coca" dentro de cualquier palabra que la
+     tuviera: media frase se volvía una adición por accidente. */
+  const contiene = (kw: string) => tNorm.includes(" " + normalizarTexto(kw).toLowerCase() + " ");
+
+  /* UN PRODUCTO DE LA CARTA NUNCA ES UNA ADICION. Lo que el cliente nombró y
+     está en el menú como plato es un PEDIDO, aunque su nombre coincida con una
+     palabra de adición configurada. Es justo lo que pasó con "super queso":
+     Sergio la tiene como palabra de adición ("queso extra", "salsa de ajo"...)
+     y a la vez es una salchipapa de la carta — y la adición le ganaba, así que
+     la salchipapa nunca se pedía. */
+  const platosNombrados = new Set(
+    matchProductosEnTexto(text)
+      .filter(m => !esCategoriaAdicion(m.cat))
+      .map(m => normalizarTexto(m.name))
+  );
+
+  /* Una adición de verdad: un producto de las categorías de adiciones o
+     bebidas. Eso lo dice el catálogo del restaurante, no una lista escrita
+     a mano aquí. */
+  const adicionesReales = matchProductosEnTexto(text)
+    .filter(m => esCategoriaAdicion(m.cat))
+    .map(m => m.name);
+  if (adicionesReales.length > 0) {
+    return [...new Set(adicionesReales)].join(", ").slice(0, 80);
+  }
+
+  /* Palabras que el restaurante configuró y que NO son platos de la carta
+     ("queso extra", "salsa de ajo"). Se guardan esas palabras, jamás la frase
+     entera del cliente. */
+  const sueltas = getAdicionKeywords()
+    .filter(kw => !ADICION_GENERICAS.includes(kw) && contiene(kw))
+    .filter(kw => !platosNombrados.has(normalizarTexto(kw)))
+    /* Y tampoco si la palabra está DENTRO del nombre de un plato que se acaba
+       de nombrar: en "una super queso", "super queso" es la salchipapa. */
+    .filter(kw => ![...platosNombrados].some(p => p.includes(normalizarTexto(kw))));
+  if (sueltas.length > 0) {
+    return [...new Set(sueltas)].join(", ").slice(0, 80);
   }
   if (isCurrentStep) {
     const afirma = /^(s[íi]|claro|dale|quiero|si\s+por\s+favor|s[íi]\s+quiero)/.test(t);
@@ -2655,7 +2773,7 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
         if (/^(una?|unos?|dos|tres|el|la|los|las|quiero|dame|me|sin|con)\b/i.test(ln)) continue;
         if (SALUDO_REGEX.test(ln)) continue;
         if (NO_ES_NOMBRE_RE.test(ln)) continue;
-        if (CONFIRM_WORDS.includes(ln.toLowerCase())) continue;
+        if (esSoloConfirmacion(ln)) continue;
         const lnLow = ln.toLowerCase();
         if (RECHAZO_UPSELL_WORDS.some(w => lnLow.includes(w))) continue;
         const lnNorm = normalizarTexto(ln);
@@ -2678,7 +2796,7 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
   t = t.replace(/[.,;]+$/, "").trim();
   if (t.length < 2 || t.length > 60) return null;
   if (NO_ES_NOMBRE_RE.test(t)) return null;                              // reclamos/meta ("ya te lo dije")
-  if (CONFIRM_WORDS.includes(t.toLowerCase())) return null;              // "si", "dale", "ok"…
+  if (esSoloConfirmacion(t)) return null;                                // "si", "dale", "ok"…
   if (t.includes("?") || t.includes("¿")) return null;                   // preguntas no son nombres
   if (extractPago(t, null)) return null;
   if (isProductAttribute(t, productData)) return null;
@@ -2888,7 +3006,7 @@ function runExtractors(
 
   if (currentStepId === "confirmar_dir" && state.direccion && state.direccion_heredada) {
     const textoLow = text.toLowerCase().trim();
-    const confirmaDir = CONFIRM_WORDS.some(w => textoLow === w || textoLow.includes(w));
+    const confirmaDir = esConfirmacion(text);
     const rechazaDir = intenciones.rechaza_direccion === true
       || textoLow === "no" || textoLow === "no." || textoLow.startsWith("no,")
       || textoLow.includes("cambia") || textoLow.includes("otra");
@@ -2952,8 +3070,7 @@ function runExtractors(
   if (!state.nombre) {
     const isNombreStep = currentStepId === "nombre";
     if (isNombreStep && nombreWa) {
-      const tLow = text.toLowerCase().trim();
-      const confirma = CONFIRM_WORDS.some(w => tLow === w || tLow.startsWith(w + " ") || tLow.endsWith(" " + w));
+      const confirma = esConfirmacion(text);
       if (confirma) {
         result.nombre = nombreWa;
       } else {
@@ -3330,10 +3447,14 @@ function procesarFlujoCanvas(
       out.push({ id: "pago", campo: "pago", modo, texto: texto || "¿Cómo nos vas a pagar? ({{metodos_pago}}) ☺️", guia,
                  despues_resumen: p.despues_resumen === true });
     } else if (campo === "nombre") {
-      // El canvas MANDA: si el usuario configuró una frase fija para el nombre, se usa esa
-      // (puede incluir {{cliente}} para el nombre del contacto). La confirmación automática
-      // del nombre de WhatsApp queda solo como comportamiento por defecto (sin frase configurada).
-      if (modo === "fija" && texto) {
+      /* El canvas manda en la FRASE, pero no puede mandar en preguntarle el
+         nombre a alguien que ya lo dio. A Sergio, guardado como cliente desde
+         hace meses, le preguntaba "¿a nombre de quién se recibe el pedido?"
+         como si no lo conociera — porque la frase fija ganaba siempre.
+
+         Con un cliente ya guardado se confirma ("¿va a nombre de Sergio?").
+         La frase fija sigue mandando para todos los demás. */
+      if (modo === "fija" && texto && !(esRecurrente && nombreConfirmar)) {
         out.push({ id: "nombre", campo: "nombre", modo: "fija", texto, guia });
       } else {
         /* El nombre del perfil de WhatsApp no siempre es el nombre de la
@@ -3595,7 +3716,13 @@ async function buildConversationResponse(
         `• SOLO si el cliente intenta hacer o continuar un PEDIDO: empieza con la frase oficial del estado (tal cual) y dile cuándo puede pedir.\n` +
         `Hora actual: ${colTimeStr}, ${colDayStr}.`;
     }
-  } else if (state.resumen_enviado) {
+  } else if (state.resumen_enviado && !(nextStep && nextStep.despues_resumen)) {
+    /* OJO CON EL ORDEN. Una caja marcada "después del resumen" —el pago, en el
+       canvas de El Parche— llega justo cuando resumen_enviado ya es true. Como
+       esta rama iba primero, el paso pendiente se ignoraba y al modelo solo se
+       le decía "responde naturalmente": se inventó "¿me envías el comprobante
+       de pago?" sin haberle preguntado nunca al cliente CÓMO iba a pagar.
+       La caja existía, estaba bien configurada, y su pregunta no salía. */
     nextStepLine = "El resumen ya fue enviado. Responde naturalmente al cliente. Si confirma el pedido, exprésalo positivamente. Si quiere corregir algo, confirma el cambio.";
   } else if (nextStep) {
     const modo = nextStep.modo || "fija";
