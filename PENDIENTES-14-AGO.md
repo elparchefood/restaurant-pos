@@ -90,7 +90,21 @@ respaldo automático antes de cada guardado del canvas.
 
 ---
 
-## 3. Contestar el upsell con un producto no marca el paso como contestado
+## 3. ~~Contestar el upsell con un producto no marca el paso~~ — RESUELTO 14-ago (v251)
+
+**La causa anotada abajo estaba equivocada.** La regla no apuntaba a la casilla
+vieja: existía y era correcta, pero preguntaba por `currentStepId`, que queda en
+`null` a propósito cuando el mensaje trae un producto nuevo (bloque 14c). O sea
+que justo en el único caso que tenía que atrapar, no entraba nunca.
+
+Arreglado mirando también `pasoAntesId` — la misma solución que ya usaba la
+regla de adiciones tres líneas arriba. Probado en el banco con el caso real y
+con un control; `resumen_enviado` pasa de `false` a `true`.
+
+Se deja el análisis original abajo porque muestra bien el síntoma.
+
+### Análisis original (13-ago)
+
 
 **Grave: el bot dice "voy a pasarte tu pedido a cocina" y no crea el pedido.**
 
