@@ -298,31 +298,68 @@ Analiza esta imagen y extrae en JSON:
 NOTA IMPORTANTE: Nequi y otros bancos colombianos a veces muestran 'pendiente' o 'en proceso' en su interfaz incluso cuando el dinero ya salió de la cuenta. NO marques parece_valido=false solo por ver la palabra 'pendiente' — solo hazlo si la imagen no es un comprobante bancario real.
 Responde SOLO el JSON, sin explicación.`;
 
+  /* LA IMAGEN VIAJA ADENTRO DEL MENSAJE, no como un enlace.
+
+     Antes se le pasaba a OpenAI la direccion de la imagen en Supabase y él
+     tenia que ir a descargarla. Cuando Supabase se demora, OpenAI desiste:
+
+       Vision error: "Timeout while downloading .../chat-media/image/wamid....jpg"
+                      code: invalid_image_url
+
+     y el cliente recibia "no pudimos leer el monto" con un comprobante
+     perfectamente legible — con la transferencia ya hecha. Es el mismo
+     tropiezo que ya tuvimos con la carta y Meta: quien recibe el enlace
+     descarga cuando puede, y si tarda se rinde en silencio.
+
+     Bajandola nosotros y mandandola dentro del propio mensaje no hay descarga
+     que pueda fallar del otro lado. */
+  let imagenParaVision: Record<string, unknown> = { url: imageUrl, detail: "high" };
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        max_tokens: 300,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "text",      text: prompt },
-            { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
-          ],
-        }],
-      }),
-    });
-    if (!res.ok) { console.error("Vision error:", await res.text()); return empty(); }
-    const data = await res.json() as Record<string, unknown>;
-    const raw   = (((data.choices as Array<Record<string,unknown>>)?.[0]?.message as Record<string,unknown>)?.content as string || "").trim();
-    const clean = raw.replace(/```json|```/g, "").trim();
-    return JSON.parse(clean) as ComprobanteData;
+    const bin = await fetch(imageUrl);
+    if (bin.ok) {
+      const buf = new Uint8Array(await bin.arrayBuffer());
+      let s = "";
+      for (let i = 0; i < buf.length; i += 8192) s += String.fromCharCode(...buf.subarray(i, i + 8192));
+      const tipo = bin.headers.get("content-type") || "image/jpeg";
+      imagenParaVision = { url: `data:${tipo};base64,${btoa(s)}`, detail: "high" };
+      console.log(`[comprobante] imagen incrustada (${Math.round(buf.length / 1024)} KB)`);
+    } else {
+      console.error("[comprobante] no se pudo bajar la imagen:", bin.status, "— se manda el enlace");
+    }
   } catch (err) {
-    console.error("extractComprobante error:", err);
-    return empty();
+    console.error("[comprobante] falló al bajar la imagen, se manda el enlace:", String(err).slice(0, 200));
   }
+
+  /* Dos intentos: un tropiezo pasajero de OpenAI no puede costarle al cliente
+     tener que volver a mandar el comprobante. */
+  for (let intento = 0; intento < 2; intento++) {
+    try {
+      if (intento > 0) await new Promise(r => setTimeout(r, 1200));
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          max_tokens: 300,
+          messages: [{
+            role: "user",
+            content: [
+              { type: "text",      text: prompt },
+              { type: "image_url", image_url: imagenParaVision },
+            ],
+          }],
+        }),
+      });
+      if (!res.ok) { console.error(`Vision error (intento ${intento + 1}):`, await res.text()); continue; }
+      const data = await res.json() as Record<string, unknown>;
+      const raw   = (((data.choices as Array<Record<string,unknown>>)?.[0]?.message as Record<string,unknown>)?.content as string || "").trim();
+      const clean = raw.replace(/```json|```/g, "").trim();
+      return JSON.parse(clean) as ComprobanteData;
+    } catch (err) {
+      console.error(`extractComprobante error (intento ${intento + 1}):`, err);
+    }
+  }
+  return empty();
 }
 
 function empty(): ComprobanteData {
