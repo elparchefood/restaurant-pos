@@ -2718,6 +2718,41 @@ INTENCION, no las palabras exactas.` },
     return;
   }
 
+  /* 14i-bis. UNA FRASE FIJA SE MANDA TAL CUAL, SIN PASARLA POR EL MODELO.
+
+     Queja de Sergio, con su captura: antes de cada pregunta el bot repetía el
+     pedido entero — "¡Listo! 👍 Entonces, queda: 1x Premium Mixta, 1x Coca-Cola
+     personal y 1x adición de ranchera. ¿Me puedes dar la dirección completa?".
+     El resumen del pedido va en el RESUMEN, no en cada mensaje intermedio.
+
+     En el prompt ya había DOS reglas prohibiéndolo ("NUNCA generes un resumen",
+     "NUNCA repitas los datos ya capturados") y aun así lo hacía. Es lo mismo
+     que paso hoy con la confirmación del nombre y con la frase de la
+     dirección: lo que depende de que el modelo obedezca es una moneda al aire.
+     Ademas ni siquiera uso la frase configurada por Sergio.
+
+     Si el dueño escribió una frase fija, esa frase sale. Punto.
+
+     EXCEPCION: si el cliente pregunto algo, sigue redactando el modelo — hay
+     que contestarle antes de seguir con el pedido, y eso no se puede hacer con
+     una frase fija. */
+  const PREGUNTA_DEL_CLIENTE = /(\?|¿|cuanto|cuánto|precio|vale|cuesta|tienen|tienes|hay\b|puedo|podr[ií]a|demora|tarda|cuando|cuándo|donde|dónde|como|cómo|por que|por qué|porque)/i;
+  if (nextStep && (nextStep.modo || "fija") === "fija" && (nextStep.texto || nextStep.pregunta)
+      && !PREGUNTA_DEL_CLIENTE.test(clienteTexto)) {
+    const { texto: fijo } = rellenarVariables(String(nextStep.texto || nextStep.pregunta), state, cfg);
+    /* Con varios platos, la pregunta de tamaño o variante tiene que decir de
+       CUAL habla — misma regla que ya existía para el modelo. */
+    const conProd = (nextStep.campo === "tamano" || nextStep.campo === "tipo")
+      && (state.items || []).length > 0 && state.producto
+      ? `Sobre la *${capFirst(state.producto)}* 👇\n${fijo}`
+      : fijo;
+    if (conProd.trim()) {
+      await sendWaAndSave(convId, tenantId, conProd, fromPhone, phoneId, accessToken);
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: conProd, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+      return;
+    }
+  }
+
   // 14i. Respuesta conversacional — siempre GPT, maneja todo: normal, frustración, off-script
   const reply = await buildConversationResponse(
     clienteTexto, histCtx, state, nextStep, cfg, frasesCfg,
