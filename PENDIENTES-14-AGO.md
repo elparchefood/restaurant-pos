@@ -522,6 +522,62 @@ es la categoría barata.
 - **Sin la etiqueta `🍟Paco:`** del punto 6: esto lo dispara el sistema, no lo
   razona Paco.
 
+### 8b. Las variables de las plantillas de Meta — hoy no están conectadas a nada
+
+Lo detectó Sergio. Verificado, y el hueco es más grande de lo que parecía.
+
+**Lo que ya existe:** Configuración → Asistente IA → Difusión → Plantillas
+(`wtpCrear`, `configuracion.js:5886`). Crea plantillas en Meta con `{{1}}` y
+pide un ejemplo por cada una.
+
+**Los tres hallazgos:**
+
+1. **Los ejemplos son solo para Meta.** No se guarda en ningún lado que `{{1}}`
+   significa "puntos ganados". La equivalencia no existe.
+2. **El enviador no manda parámetros.** `wa-enviar-lista/index.ts:112` manda
+   `template: { name, language }` y nada más. **Una plantilla con variables
+   falla siempre.**
+3. **Ese camino nunca se ha recorrido.** La única plantilla enviada en la
+   historia (`nuevo_numero_whatsapp`, 1.380 envíos) **tiene cero variables**.
+   La de puntos sería la primera.
+
+Sin el punto 2, la plantilla radicada anoche no puede salir aunque Meta la
+apruebe. **Es lo primero de este bloque.**
+
+#### El diseño, acordado con Sergio
+
+**El dueño nunca ve un `{{1}}`.** Escribe la plantilla como escribe una
+respuesta rápida, con las variables de siempre:
+
+> 🎉 ¡Ganaste {puntos_ganados} puntos con tu compra en {negocio}!
+
+Cobra hace la traducción sola: al radicarla la convierte a `{{1}}`/`{{2}}`,
+guarda la equivalencia, y al enviar rellena cada hueco con el dato real.
+`{{n}}` es un tecnicismo de Meta y no tiene por qué salir a la superficie.
+
+Se reusa el catálogo que ya existe (`pos-vars.js`, con su selector y su vista
+previa con clientes de muestra), no se inventa uno nuevo.
+
+**Editar después: SOLO las variables.** Cambiar qué dato alimenta un hueco
+(`{{1}}` de puntos ganados a saldo total) es nuestro, se guarda y ya —
+Meta ni se entera. El texto fijo no se toca desde ahí.
+
+Consecuencia de diseño: **el texto fijo lo más neutro posible, y en variables
+todo lo que se pueda querer cambiar después.** Cada variable es libertad
+futura. Por eso el nombre del negocio quedó en `{{2}}` y no escrito.
+
+#### Las piezas
+
+1. **Mandar los parámetros al enviar** (`wa-enviar-lista`). Sin esto nada más
+   sirve. **Va primero.**
+2. **Guardar la equivalencia** `{{n}} → variable`. Hoy no hay dónde: hace falta
+   tabla o columna, por tenant y nombre de plantilla.
+3. **Traducir en los dos sentidos** al crear y al mostrar, para que el dueño
+   siempre lea `{negocio}` y Meta siempre reciba `{{2}}`.
+4. **Filtrar el catálogo según el caso.** En una difusión masiva no hay pedido,
+   así que `{total}` o `{puntos_ganados}` no existen ahí. Ofrecerlas dejaría la
+   variable vacía — **y una variable vacía hace fallar el envío.**
+
 ### Por decidir con Sergio
 - **¿Y si el cliente contesta?** Cae en el chat como conversación nueva y Paco va
   a intentar tomarle un pedido. Hay que ver cómo se comporta.
