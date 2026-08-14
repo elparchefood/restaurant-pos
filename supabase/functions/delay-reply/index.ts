@@ -931,7 +931,8 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
 - "confirma": true si esta diciendo que SI, que esta de acuerdo, que siga
   adelante. Escrito como sea: "si", "sisas", "dale", "listo", "listo pues",
   "de una", "hagale", "eso mismo", "tal cual", "correcto", "asi es", "esta
-  bien", "perfecto", "ok", "va", "bueno", "obvio", "claro que si", "de once".
+  bien", "perfecto", "ok", "va", "bueno", "obvio", "claro que si", "de once",
+  "exactamente", "efectivamente", "ese mismo", "asi mismo".
   NO es confirmar: contestar una pregunta con un dato ("familiar", "carne",
   "efectivo"), ni pedir algo, ni saludar.
 - "rechaza_mas": true si esta diciendo que NO quiere agregar nada mas al
@@ -3205,6 +3206,13 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
   /* Un mensaje que es SOLO una cortesia no trae nombre, este o no en el paso
      del nombre. "porfa" a secas es lo que sigue a otra cosa, no una respuesta. */
   if (SOLO_CORTESIA_RE.test(text)) return null;
+  /* NADIE SE LLAMA "EXACTAMENTE". A "¿el pedido va a nombre de Sergio?" el
+     cliente contesto "exactamente" y quedo guardado como su nombre: asi salio
+     en el resumen y asi habria salido en la comanda.
+     Es una regla del español y no una lista: una palabra terminada en -mente
+     es un adverbio, nunca un nombre propio. Cubre sola "efectivamente",
+     "obviamente", "correctamente", "seguramente", "claramente". */
+  if (/^\s*[a-záéíóúüñ]+mente\s*[.!]*\s*$/i.test(text)) return null;
   if (!isCurrentStep) {
     // Fuera del paso nombre, dos vías seguras:
     // (a) marcador explícito ("me llamo X", "a nombre de X")
@@ -3754,13 +3762,17 @@ function runExtractors(
   if (!state.nombre && !result.nombre) {
     const isNombreStep = currentStepId === "nombre";
     if (isNombreStep && nombreWa) {
-      const confirma = esConfirmacion(text, intenciones);
-      if (confirma) {
-        result.nombre = nombreWa;
-      } else {
-        const n = extractNombre(text, true, productData);
-        if (n) result.nombre = n;
-      }
+      /* AQUI LA PREGUNTA ES BINARIA: "¿el pedido va a nombre de Sergio?".
+         Solo hay dos respuestas: sí, o el nombre de otra persona. Antes el
+         camino por defecto era "es un nombre", y por eso "exactamente" quedo
+         guardado como el nombre del cliente.
+         Ahora manda si el mensaje trae O NO un nombre nuevo — ninguna lista de
+         palabras iba a cubrir "exactamente", "tal cual", "ese mismo",
+         "efectivamente". Lo unico que se respeta aparte es un "no" seco: ahi
+         no se confirma nada y se le vuelve a preguntar. */
+      const n = esConfirmacion(text, intenciones) ? null : extractNombre(text, true, productData);
+      if (n) result.nombre = n;
+      else if (!/^no\b/.test(normalizarTexto(text))) result.nombre = nombreWa;
     } else {
       const n = extractNombre(text, isNombreStep, productData);
       if (n) result.nombre = n;
