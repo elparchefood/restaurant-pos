@@ -585,8 +585,12 @@ function extractEmailBody(msgData: Record<string, unknown>): string {
 interface ItemNorm { producto: string; tamano: string; tipo: string; cantidad: number; categoria?: string | null;
 }
 interface PedidoResuelto {
+  /* Lo que el cliente paga en total: comida + empaque + domicilio. */
   total: number;
   domiPrecio: number;
+  /* El empaque, aparte. Los puntos se calculan sobre comida + empaque, y el
+     domicilio no puede entrar ahí. */
+  empaque: number;
   nombreCliente: string;
   itemsRows: Array<Record<string, unknown>>;
 }
@@ -628,7 +632,7 @@ async function resolverPedido(
   cfg:         Record<string, unknown>,
   tenantId:    string,
 ): Promise<PedidoResuelto> {
-  const vacio: PedidoResuelto = { total: 0, domiPrecio: 0, nombreCliente: "Cliente WhatsApp", itemsRows: [] };
+  const vacio: PedidoResuelto = { total: 0, domiPrecio: 0, empaque: 0, nombreCliente: "Cliente WhatsApp", itemsRows: [] };
   if (!pendingData) return vacio;
   try {
     const itemsNorm = normalizarItemsPedido(pendingData);
@@ -727,14 +731,16 @@ async function resolverPedido(
     const totalMostrado = Number(pendingData.total_mostrado);
     if (Number.isFinite(totalMostrado) && totalMostrado > 0) {
       const domiMostrado = Number(pendingData.domi_mostrado);
+      const empaqueMostrado = Number(pendingData.empaque_mostrado);
       return {
         total: totalMostrado,
         domiPrecio: Number.isFinite(domiMostrado) ? domiMostrado : domiPrecio,
+        empaque: Number.isFinite(empaqueMostrado) ? empaqueMostrado : 0,
         nombreCliente, itemsRows,
       };
     }
 
-    return { total: total + domiPrecio, domiPrecio, nombreCliente, itemsRows };
+    return { total: total + domiPrecio, domiPrecio, empaque: 0, nombreCliente, itemsRows };
   } catch (err) {
     console.error("resolverPedido error:", err);
     return vacio;
@@ -799,9 +805,21 @@ async function crearPedido(
     notes:          notasPedido || null,
     payment_method: mixtoCP ? "multiple" : (String(pendingData.pago || "") || null),
     status:         "open",
-    total:          pedido.total,
-    subtotal:       pedido.total,
-    total_final:    pedido.total,
+    /* CADA PESO EN SU CASILLA. Antes iba TODO junto en total/subtotal/total_final
+       —comida, empaque y domicilio— y sin delivery_fee ni packaging_fee. Dos
+       reglas de Sergio se rompían a la vez:
+         · el domicilio entraba a las ventas
+         · los puntos se daban tambien sobre el domicilio, porque el trigger
+           los calcula sobre subtotal + packaging_fee
+
+       La convención del sistema está escrita en el propio Cobra
+       (chat-ia.js): "las ventas son las ventas: total_final es SOLO comida +
+       empaque, el domicilio va aparte en delivery_fee y nunca suma a la venta". */
+    total:          pedido.total,                          // lo que el cliente paga, todo incluido
+    subtotal:       Math.max(0, pedido.total - pedido.domiPrecio - pedido.empaque),   // solo comida
+    packaging_fee:  pedido.empaque,
+    delivery_fee:   pedido.domiPrecio,
+    total_final:    Math.max(0, pedido.total - pedido.domiPrecio),                    // LA VENTA
     paid_amount:    montoPagado,
     waiter_name:    "Asistente IA",
     visible_cocina: true,

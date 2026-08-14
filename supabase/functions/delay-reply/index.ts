@@ -5325,6 +5325,10 @@ async function buildSummaryFromState(
   const stTot = state as unknown as Record<string, unknown>;
   stTot.total_mostrado = precioProducto > 0 && (domiPrecio !== null || esParaLlevar) ? precioTotalNum : null;
   stTot.domi_mostrado  = esParaLlevar ? 0 : (domiPrecio ?? null);
+  /* El empaque, por separado. No para mostrarlo —el cliente nunca lo ve— sino
+     para que quien cree el pedido pueda guardarlo en su casilla: los puntos se
+     calculan sobre comida + empaque, y el domicilio no puede colarse ahí. */
+  stTot.empaque_mostrado = empaque;
   const precioTotalStr  = precioProducto > 0
     ? (domiPrecio !== null || esParaLlevar ? fmtCOP(precioTotalNum) : fmtCOP(precioProducto) + " (+ domi a confirmar)")
     : totalDesc;
