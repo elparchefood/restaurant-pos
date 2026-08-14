@@ -2218,7 +2218,7 @@ INTENCION, no las palabras exactas.` },
        Se propone para que el dueño lo apruebe y la conversacion pasa a una
        persona, que es quien puede verificar si ese conjunto existe. */
     if (sueneAConjunto(state.direccion)
-        && !esConjunto(state.direccion, domiciliosCfg)
+        && !esConjunto(ubicacionPedido(state), domiciliosCfg)
         && !LLEVAR_REGEX.test(state.direccion.toLowerCase())
         && lookupDomiPrice(ubicacionPedido(state), domiciliosCfg) === null) {
       const nombreConj = state.direccion
@@ -2254,7 +2254,7 @@ INTENCION, no las palabras exactas.` },
       /* A un CONJUNTO no se le pide una calle que no tiene: se le pide la
          unidad. Pedirle "Carrera 9 # 63-25" a quien vive en un conjunto es lo
          que dejaba al cliente dando vueltas sin poder pedir. */
-      const conjNom = esConjunto(state.direccion, domiciliosCfg);
+      const conjNom = esConjunto(ubicacionPedido(state), domiciliosCfg);
       const numCount = (state.direccion.match(/\d+/g) || []).length;
       /* NO SE PREGUNTA POR TORRE: se pregunta ABIERTO.
 
@@ -2295,7 +2295,7 @@ INTENCION, no las palabras exactas.` },
          exigia "calle o carrera y numero" y era el que dejaba a "torres del
          bosque torre 3 apto 603" dando vueltas: la direccion esta completa,
          solo que un conjunto no tiene calle. */
-      if (!tieneCalle && !tieneNumeroBis && domiPrecioBis !== null && !esConjunto(state.direccion, domiciliosCfg)) {
+      if (!tieneCalle && !tieneNumeroBis && domiPrecioBis !== null && !esConjunto(ubicacionPedido(state), domiciliosCfg)) {
         // Solo dio el barrio sin calle ni número — pedir la dirección completa
         const pregCalle = getFraseTexto(frasesCfg.preguntar_calle_numero)
           || "Anotado el barrio 📍 ¿Y cuál es la dirección exacta? (calle o carrera y número)";
@@ -2578,7 +2578,7 @@ INTENCION, no las palabras exactas.` },
         const numCount = (state.direccion.match(/\d+/g) || []).length;
         /* El mismo caso del conjunto, que aquí no estaba contemplado: este
            camino le pedía "Carrera 9 # 63-25" a alguien que vive en uno. */
-        const conjNomH = esConjunto(state.direccion, domiciliosCfg);
+        const conjNomH = esConjunto(ubicacionPedido(state), domiciliosCfg);
         const pregDetallada = conjNomH
           ? `¡Listo, ${conjNomH}! 😊 ¿En qué casa o apartamento te lo dejamos?`
           : (numCount >= 2
@@ -2599,7 +2599,7 @@ INTENCION, no las palabras exactas.` },
         const domiPrecioH = lookupDomiPrice(ubicacionPedido(state), domiciliosCfg);
         const tieneCalleH = analizarDireccion(state.direccion).tieneVia;
         const tieneNumH   = /#\s*\d|no\.\s*\d|nro\.\s*\d|número\s*\d|numero\s*\d/.test(state.direccion);
-        if (!tieneCalleH && !tieneNumH && domiPrecioH !== null && !esConjunto(state.direccion, domiciliosCfg)) {
+        if (!tieneCalleH && !tieneNumH && domiPrecioH !== null && !esConjunto(ubicacionPedido(state), domiciliosCfg)) {
           const pregCalle = getFraseTexto(frasesCfg.preguntar_calle_numero)
             || "Anotado el barrio 📍 ¿Y cuál es la dirección exacta? (calle o carrera y número)";
           state.complemento_dir_pendiente = pregCalle;
@@ -4012,6 +4012,24 @@ function runExtractors(
       ? extractDireccion(text, (isDirStep && !state.direccion) || senalDireccion, productData)
       : null;
     if (d) { result.direccion = limpiarPrefijoDireccion(d); result.direccion_heredada = false; }
+
+    /* LA UNIDAD DE UN CONJUNTO ES SU DIRECCION. "casa 12" o "torre 3 apto 502"
+       no traen calle ni carrera, asi que el extractor de siempre —que busca
+       una direccion de verdad— las descartaba, y el cliente del conjunto se
+       quedaba dando vueltas: se le preguntaba, contestaba bien, y su respuesta
+       se tiraba a la basura. Con el conjunto ya sabido, la unidad es lo unico
+       que falta y es suficiente. */
+    if (!result.direccion && isDirStep && !state.direccion
+        && esConjunto(ubicacionPedido(state), (cfgGlobal.domicilios as Record<string, unknown> | null | undefined))) {
+      const unidad = text.trim()
+        .replace(/^(en\s+la\s+|en\s+el\s+|es\s+la\s+|es\s+el\s+|la\s+|el\s+|en\s+)+/i, "")
+        .replace(/[.,;!?]+$/, "").trim();
+      if (/\b(torre|bloque|bl|interior|int|apto|apartamento|apart|casa|piso|lote|mz|manzana)\b\s*\.?\s*[a-z0-9]/i.test(unidad)
+          || /^[a-z]?\s*-?\s*\d{1,4}\s*[a-z]?$/i.test(unidad)) {
+        result.direccion = unidad.slice(0, 80);
+        result.direccion_heredada = false;
+      }
+    }
   }
   /* El barrio puede llegar en cualquier momento: en la direccion completa, o
      solo, o mucho despues. Se lee siempre. */
@@ -4119,6 +4137,28 @@ function findNextStep(state: PacoState, pasos: PasoDefinicion[], incluirPostResu
     } else if (paso.id === "confirmar_dir") {
       if (state.direccion && state.direccion_heredada) return paso;
     } else if (paso.id === "direccion") {
+      /* SI LO QUE DIJO ES UN CONJUNTO, NO SE LE PIDE UNA CALLE QUE NO TIENE.
+
+         Regla de Sergio: "si ve que lo que acaba de decir el cliente es un
+         conjunto, porque está en la lista de conjuntos que él tiene, no le va
+         a exigir una dirección completa: con el nombre del conjunto nos basta,
+         lo único que necesita es el número del apartamento o la casa".
+
+         El nombre del conjunto cae en la casilla del BARRIO, no en la de
+         dirección, así que la decisión que ya existe en clasificarDireccion
+         nunca llegaba a ejecutarse: se le pedía "Carrera 9 # 63-25" a quien
+         vive en Asturias. Aquí se pregunta la unidad, y punto. */
+      const conjBarrio = !esRecoger ? esConjunto(ubicacionPedido(state), domiciliosPaso) : null;
+      if (conjBarrio && !state.direccion) {
+        const modoConj = paso.modo === "fija" ? "fija" : "conversacional";
+        const fraseConj = paso.preg_unidad
+          || `¡Listo, ${conjBarrio}! 😊 ¿En qué casa o apartamento te lo dejamos?`;
+        return modoConj === "fija"
+          ? { id: "direccion", campo: "direccion", modo: "fija", texto: fraseConj }
+          : { id: "direccion", campo: "direccion", modo: "conversacional", texto: fraseConj,
+              guia: `El cliente vive en el conjunto ${conjBarrio}. NO le pidas calle ni carrera: `
+                + "con el nombre del conjunto basta. Pregúntale SOLO la casa o el apartamento." };
+      }
       if (!state.direccion) return paso;
       /* EL BARRIO ES SU PROPIA CASILLA y va justo despues de la direccion:
          sin el no se sabe cuanto cobrar el domicilio.
@@ -5542,9 +5582,21 @@ async function buildSummaryFromState(
     : (state.pago || "");
   // PARA LLEVAR → etiqueta clara en vez de repetir la frase del cliente
   // ("yo paso por ella" NO es una dirección). Configurable: frases.llevar_etiqueta
+  /* EL BARRIO VA EN EL RESUMEN. Nunca salio: el cliente veia "📍 casa 12" o
+     "📍 carrera 9 b # 63 n 58" a secas, sin decir de que barrio. Con los
+     conjuntos se volvio evidente —"casa 12" no lleva al domiciliario a ningun
+     lado— pero le faltaba a TODOS los pedidos.
+     Solo se agrega si no esta ya escrito dentro de la direccion. */
+  const dirConBarrio = (() => {
+    const d = String(state.direccion || "").trim();
+    const b = String(state.barrio || "").trim();
+    if (!b) return d;
+    if (!d) return b;
+    return normalizarTexto(d).includes(normalizarTexto(b)) ? d : `${d}, ${b}`;
+  })();
   const dirResumen = esParaLlevar
     ? (getFraseTexto(frases.llevar_etiqueta) || "Para recoger en el local 🏃")
-    : (state.direccion || "");
+    : dirConBarrio;
   let resumenFinal = plantillaExpanded
     .replace(/\{\{productos\}\}/g,       productoLines.join("\n"))
     .replace(/\{\{direccion\}\}/g,       dirResumen)
@@ -5648,6 +5700,9 @@ function buildOrderArgs(state: PacoState, domiPrecio: number): Record<string, un
   return {
     cliente:     state.nombre    || "Cliente WhatsApp",
     direccion:   state.direccion || "",
+    /* El barrio viaja hasta el pedido: sin el, la comanda del domiciliario
+       dice "casa 12" y no hay forma de saber de que conjunto o barrio. */
+    barrio:      state.barrio    || "",
     pago:        state.pago      || "efectivo",
     mensaje:     "¡Pedido confirmado!",
     domi_precio: domiPrecio,
@@ -5678,6 +5733,7 @@ async function createWhatsappOrder(
   const cliente   = String(data.cliente   || "Cliente WhatsApp");
   const productos = (data.productos as Array<Record<string, unknown>>) || [];
   const direccion = String(data.direccion || "");
+  const barrioPedido = String(data.barrio || "");
   const pago      = String(data.pago      || "");
 
   const allProducts = await sbGet(
@@ -5839,7 +5895,14 @@ async function createWhatsappOrder(
   const orderRecord: Record<string, unknown> = {
     branch_id: branchId, tenant_id: tenantId || null,
     channel: esLlevarOrden ? "rapido" : "domicilio", customer_name: cliente,
-    notes: direccion || null, payment_method: pago || null,
+    /* LA COMANDA COMPLETA. Antes solo llevaba la direccion: sin barrio y sin
+       telefono, el domiciliario salia a buscar a ciegas y nadie podia llamar
+       al cliente. Los pedidos hechos a mano si los llevan; los del bot no.
+       Mismo formato que usa Cobra: [barrio:X] [tel:Y]. */
+    notes: [direccion, barrioPedido ? `[barrio:${barrioPedido}]` : "",
+            fromPhone ? `[tel:${telLocal(fromPhone)}]` : ""]
+      .filter(Boolean).join(" ") || null,
+    payment_method: pago || null,
     status: "open", total: totalConEmpaque, subtotal: orderTotal, total_final: totalConEmpaque,
     packaging_fee: empaqueOrden,
     waiter_name: "Asistente IA", visible_cocina: true, opened_at: new Date().toISOString(),
