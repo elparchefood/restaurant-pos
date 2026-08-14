@@ -323,14 +323,67 @@ domicilio, nadie improvisa con el cliente.**
    por el mismo barrio para siempre. Con el tiempo el dueño dejaría de recibir
    avisos de sitios repetidos — el sistema aprende su ciudad.
 
+### El diseño de la barra — aprobado por Sergio
+
+Va en la **cabecera del chat**, como franja de ancho completo bajo el nombre del
+contacto (no como botón: entre otros tres se pierde, y aquí no enterarse
+significa un cliente esperando). Aparece solo mientras hace falta y desaparece
+al confirmar.
+
+Lleva:
+
+- **El sitio que no reconoció** y la dirección tal como la escribió el cliente
+- **El precio**, con Enter para confirmar (en hora pico nadie mueve el mouse)
+- **Barrio / Conjunto**, con la consecuencia escrita debajo de cada uno
+  ("pide dirección completa" / "solo torre y apto") — sin eso, en tres semanas
+  nadie recuerda qué cambia, y marcar mal hace que Paco le pida a alguien de un
+  conjunto una nomenclatura que no existe
+- **A qué zona va a entrar**: "Zona de $7.000 · hoy tiene 8 sitios"
+- **Los vecinos con sus precios** como referencia, para no desalinear la tarifa
+  con el tiempo
+- **"Paco en pausa"** arriba, que al confirmar cambia a **"Paco activo"**
+
+### Al confirmar pasan TRES cosas
+
+1. **El sitio se guarda** en la zona cuyo precio coincide. Las zonas de El Parche
+   están agrupadas por precio: $5.000 (66 barrios), $6.000 (40), $7.000 (8),
+   $8.000 (37), $9.000 (9), $10.000 (3), $12.000 (1). Escribir $7.000 lo mete en
+   esa zona. No hay que inventar estructura nueva.
+2. **Queda marcado como barrio o conjunto** (`zonas[].barrios` o
+   `zonas[].conjuntos`).
+3. **Paco se reactiva con todo el contexto** y sigue por donde iba — vía la
+   señal interna, sin que el cliente tenga que escribir.
+
+### HALLAZGO: la lista de conjuntos está VACÍA, y por eso esa función nunca ha servido
+
+`esConjunto()` recorre `zonas[].conjuntos`. **Las siete zonas tienen cero
+conjuntos.** O sea que toda la lógica de conjuntos —no pedir dirección completa,
+pedir solo torre y apartamento— **nunca se ha ejecutado**. No por un error: por
+falta de datos.
+
+Registrar los conjuntos lleva semanas pendiente porque es sentarse a escribir
+cincuenta a mano. **La idea de Sergio lo resuelve solo:** la lista se llena con
+los pedidos reales, uno por uno, sin que nadie se siente a escribirlos. Es la
+mejor parte de esta propuesta.
+
+### El botón "Confirmar domi" hoy es invisible
+
+Está en `chat-ia.html` (línea 176) con `display:none`, y como nadie levanta la
+bandera nunca se muestra. Sergio tiene razón en que no existe en la práctica.
+Al implementarlo hay que decidir si se reusa ese botón o se reemplaza por la
+franja (la franja es lo aprobado).
+
 ### Por decidir
 
 - **La notificación.** Hoy solo aparece un botón dentro de esa conversación: si
   no la tienes abierta, no te enteras. Hay que mirar qué avisos ya tiene Cobra
   antes de inventar un segundo sistema.
-- ¿El barrio nuevo se guarda solo, o se le pregunta al dueño si quiere
-  guardarlo? Guardarlo solo puede meter basura en las zonas si el cliente
-  escribió mal el nombre.
+- RESUELTO: se guarda solo al confirmar el precio. Riesgo aceptado: si el
+  cliente escribió mal el nombre, entra mal. Vale la pena poder editarlo después
+  desde la pantalla de Domicilios.
+- **¿Paco le avisa al cliente que está consultando?** Hoy quedaría en silencio
+  mientras el dueño decide, y puede escribir tres veces preguntando. Un "déjame
+  confirmarte el domicilio, un momento" lo evita. Recomendado.
 
 ---
 
