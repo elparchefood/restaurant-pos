@@ -2495,6 +2495,31 @@ INTENCION, no las palabras exactas.` },
     return;
   }
 
+  /* 14f-bis. EN CUANTO NO SABE CUÁNTO COBRAR ALLÁ, PACO SE CALLA.
+
+     Va aquí y no al final a propósito: si esperara a tener todo, seguiría
+     preguntando nombre y pago con un precio que no conoce, y el cliente
+     recibiría un total inventado. Diseño de Sergio: "cuando Paco no sepa un
+     barrio automáticamente se desactiva y la conversación pasa al humano". */
+  if (state.barrio && state.direccion
+      && !LLEVAR_REGEX.test(state.direccion.toLowerCase())
+      && lookupDomiPrice(ubicacionPedido(state), domiciliosCfg) === null) {
+    const aviso = getFraseTexto(frasesCfg.consultando_domi)
+      || "Déjame confirmarte el valor del domicilio hasta allá, es un momento 🙏";
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+      pending_order_data:    state,
+      domi_precio_pendiente: true,
+      human_takeover:        true,
+      handoff_at:            new Date().toISOString(),
+      handoff_motivo:        `No sé cuánto cobrar el domicilio a "${state.barrio}"`,
+      ai_typing:             false,
+    });
+    await sendWaAndSave(convId, tenantId, aviso, fromPhone, phoneId, accessToken);
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: aviso, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+    console.log(`[domi] barrio sin zona ("${state.barrio}") — Paco se calla y espera el precio`);
+    return;
+  }
+
   // 14g. Siguiente paso
   const nextStep = findNextStep(state, pasos, false, domiciliosCfg);
 
@@ -2546,6 +2571,40 @@ INTENCION, no las palabras exactas.` },
         }
         /* El barrio lo pide el paso "barrio" del flujo, no este atajo:
            cortar aqui era lo que producia el bucle. */
+
+        /* BARRIO QUE NO ESTA EN NINGUNA ZONA: Paco se calla y pregunta adentro.
+
+           Diseño de Sergio: "cuando Paco no sepa un barrio automaticamente se
+           desactiva y la conversacion pasa al humano; luego me sale algo donde
+           yo pueda confirmar el costo, toco un boton y Paco retoma".
+
+           Hasta hoy no pasaba nada: el resumen decia "Domicilio: a confirmar",
+           el cliente confirmaba y EL PEDIDO SE CREABA CON EL DOMICILIO EN $0,
+           sin que nadie se enterara. Esa plata se estaba yendo.
+
+           La bandera domi_precio_pendiente existia desde hace tiempo y solo se
+           ponia en false, en tres sitios. Nadie la levantaba nunca. Aqui se
+           levanta. */
+        if (domiPrecioH === null) {
+          const dondeVive = ubicacionPedido(state) || state.direccion || "";
+          const aviso = getFraseTexto(frasesCfg.consultando_domi)
+            || "Déjame confirmarte el valor del domicilio hasta allá, es un momento 🙏";
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+            pending_order_data:    state,
+            domi_precio_pendiente: true,
+            human_takeover:        true,
+            handoff_at:            new Date().toISOString(),
+            handoff_motivo:        `No sé cuánto cobrar el domicilio a "${(state.barrio || dondeVive).trim()}"`,
+            ai_typing:             false,
+          });
+          /* SI se le avisa al cliente, al reves que con los pagos: aqui no hay
+             nada que sospechar, solo un dato que nos falta. Si Paco se quedara
+             mudo, el cliente escribiria tres veces creyendo que se cayo. */
+          await sendWaAndSave(convId, tenantId, aviso, fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: aviso, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+          console.log(`[domi] barrio sin zona ("${dondeVive}") — Paco se calla y espera el precio`);
+          return;
+        }
       }
       if (clasifDir.tipo === "publico" && clasifDir.requierePagoAdelantado) {
         const esEfectivo = !esMetodoDigital(state.pago || "", pagosCfg);
@@ -3920,6 +3979,30 @@ function runExtractors(
   if (!state.barrio) {
     const b = extraerBarrio(text, (cfgGlobal.domicilios as Record<string, unknown> | null | undefined));
     if (b) result.barrio = b;
+    /* UN BARRIO QUE NO ESTÁ EN LAS ZONAS TAMBIÉN ES UN BARRIO.
+
+       `extraerBarrio` solo reconoce los que ya están configurados, así que un
+       barrio nuevo NUNCA se guardaba: el cliente contestaba "Los Naranjos" a
+       la pregunta "¿en qué barrio queda?" y el dato se perdía. Y como se
+       perdía, el mecanismo de "no sé cuánto cobrar allá" no podía dispararse
+       jamás — por eso llevaba meses construido sin ejecutarse nunca.
+
+       Aquí la pregunta es cerrada: se le acaba de preguntar el barrio, así que
+       lo que conteste ES el barrio, esté o no en la lista. Lo mismo que con la
+       confirmación del nombre. Lo que el lector entendió manda; esto solo
+       recoge lo que él dejó pasar. */
+    if (!result.barrio && currentStepId === "barrio") {
+      const dicho = String(text || "").trim()
+        .replace(/^(el\s+|en\s+el\s+|en\s+|barrio\s+|el\s+barrio\s+|es\s+|queda\s+en\s+)+/i, "")
+        .replace(/[.,;!?]+$/, "")
+        .trim();
+      /* Ni una cortesía, ni un texto larguísimo que en realidad es otra cosa. */
+      if (dicho.length >= 3 && dicho.length <= 60 && !SOLO_CORTESIA_RE.test(dicho)
+          && /[a-záéíóúüñ]/i.test(dicho)) {
+        result.barrio = dicho;
+        console.log(`[barrio] no está en las zonas, pero es lo que contestó: "${dicho}"`);
+      }
+    }
   }
 
   if (!state.nombre && !result.nombre) {

@@ -3604,10 +3604,74 @@ function updatePagoConfirmBtn(isPendiente) {
   btn.style.display = isPendiente ? '' : 'none';
 }
 
+/* LA FRANJA DEL DOMICILIO SIN PRECIO.
+
+   Paco no supo cuánto cobrar hasta donde vive el cliente, se calló y dejó la
+   conversación esperando. Aquí el dueño pone el precio, dice si es barrio o
+   conjunto, y Paco retoma solo.
+
+   Va de ancho completo bajo la cabecera y no como un botón entre otros tres:
+   no enterarse de esto significa un cliente esperando en silencio. El precio
+   confirma con Enter — en hora pico nadie mueve el mouse. */
+S.domiTipo = 'barrio';
 function updateDomiConfirmBtn(isPendiente) {
-  const btn = $('domiConfirmBtn');
-  if (!btn) return;
-  btn.style.display = isPendiente ? '' : 'none';
+  const viejo = $('domiConfirmBtn');
+  if (viejo) viejo.style.display = 'none';      // reemplazado por la franja
+  const bar = $('domiBar');
+  if (!bar) return;
+  if (!isPendiente) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+
+  const conv = getActiveConv() || {};
+  const ped  = conv.pending_order_data || {};
+  const sitio = String(ped.barrio || '').trim();
+  const dir   = String(ped.direccion || '').trim();
+  S.domiTipo  = 'barrio';
+
+  const opcion = (val, titulo, consecuencia) =>
+    '<button type="button" onclick="setDomiTipo(\'' + val + '\')" data-domitipo="' + val + '"'
+    + ' style="flex:1;text-align:left;padding:7px 10px;border-radius:9px;border:1.5px solid #E2E8F0;background:#fff;cursor:pointer;line-height:1.25">'
+    + '<span style="display:block;font-size:12.5px;font-weight:700;color:#0F172A">' + titulo + '</span>'
+    + '<span style="display:block;font-size:10.5px;color:#94A3B8;margin-top:1px">' + consecuencia + '</span>'
+    + '</button>';
+
+  bar.innerHTML =
+    '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:11px 20px;'
+    + 'background:#FFFBEB;border-bottom:1px solid #FDE68A">'
+    +   '<div style="flex:1;min-width:190px">'
+    +     '<div style="font-size:12.5px;font-weight:700;color:#92400E">'
+    +       '⚠️ No sé cuánto cobrar el domicilio' + (sitio ? ' a <b>' + escHtml(sitio) + '</b>' : '')
+    +     '</div>'
+    +     (dir ? '<div style="font-size:11px;color:#B45309;margin-top:2px">' + escHtml(dir) + '</div>' : '')
+    +     '<div style="font-size:11px;color:#B45309;margin-top:2px">Paco está esperando este dato para seguir.</div>'
+    +   '</div>'
+    +   '<div style="display:flex;gap:6px;min-width:250px">'
+    +     opcion('barrio',   'Barrio',   'le pide la dirección completa')
+    +     opcion('conjunto', 'Conjunto', 'le pide solo torre y apto')
+    +   '</div>'
+    +   '<div style="display:flex;align-items:center;gap:7px">'
+    +     '<span style="font-size:15px;font-weight:700;color:#92400E">$</span>'
+    +     '<input id="domiPrecioInput" type="number" min="0" step="500" placeholder="7000" '
+    +       'onkeydown="if(event.key===\'Enter\')confirmarDomi()" '
+    +       'style="width:100px;padding:8px 10px;border:1.5px solid #FDE68A;border-radius:9px;font-size:14px;font-weight:600;outline:none;background:#fff">'
+    +     '<button id="domiBarBtn" onclick="confirmarDomi()" '
+    +       'style="padding:9px 15px;border:none;background:#B45309;color:#fff;border-radius:9px;cursor:pointer;font-size:12.5px;font-weight:700">'
+    +       'Confirmar y seguir</button>'
+    +   '</div>'
+    + '</div>';
+  bar.style.display = '';
+  setDomiTipo('barrio');
+  setTimeout(function(){ const i = $('domiPrecioInput'); if (i) i.focus(); }, 60);
+}
+
+/* Cuál de los dos quedó escogido. Se ve, porque la consecuencia es distinta:
+   a un conjunto no se le pide la dirección completa. */
+function setDomiTipo(val) {
+  S.domiTipo = val;
+  document.querySelectorAll('[data-domitipo]').forEach(function (b) {
+    const on = b.dataset.domitipo === val;
+    b.style.borderColor = on ? '#B45309' : '#E2E8F0';
+    b.style.background  = on ? '#FEF3C7' : '#fff';
+  });
 }
 
 function updateSinNomBtn(isActive) {
@@ -4056,20 +4120,35 @@ async function confirmarDomi() {
   const precio = parseInt(input?.value || '0', 10);
   if (!precio || precio < 0) { showToast('Ingresa un precio válido', 'error'); return; }
   $('domiModal')?.remove();
+  const btn = $('domiBarBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Confirmando…'; }
+  /* El nombre del sitio sale de lo que Paco entendió como barrio. Se manda
+     junto con el precio para que quede aprendido en las zonas y no vuelva a
+     preguntarse por el mismo lugar. */
+  const ped = conv.pending_order_data || {};
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/confirm-domi`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversation_id: conv.id, domi_precio: precio })
+      body: JSON.stringify({
+        conversation_id: conv.id,
+        domi_precio: precio,
+        tipo: S.domiTipo || 'barrio',
+        nombre: String(ped.barrio || '').trim(),
+      })
     });
     if (!res.ok) throw new Error(await res.text());
+    const out = await res.json().catch(function(){ return {}; });
     conv.domi_precio_pendiente = false;
     conv.human_takeover = false;
     updateDomiConfirmBtn(false);
     updateHumanToggleBtn(false);
     await loadMessages(conv.id);
-    showToast('Domicilio confirmado — pedido enviado a cocina ✅');
+    showToast(out.aprendido
+      ? '"' + out.aprendido + '" queda guardado a $' + precio.toLocaleString('es-CO') + ' — Paco sigue ✅'
+      : 'Domicilio confirmado — Paco retoma la conversación ✅');
   } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Confirmar y seguir'; }
     console.error('confirmarDomi:', e);
     showToast('Error al confirmar domicilio', 'error');
   }

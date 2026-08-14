@@ -249,9 +249,14 @@ serve(async (req) => {
   if (req.method !== "POST")    return new Response("Method Not Allowed", { status: 405 });
 
   try {
-    const { conversation_id, domi_precio } = await req.json() as {
+    const { conversation_id, domi_precio, tipo, nombre } = await req.json() as {
       conversation_id: string;
       domi_precio: number;
+      /* "barrio" pide la direccion completa; "conjunto" pide solo torre y
+         apartamento. Lo escoge el dueño en la franja. */
+      tipo?: string;
+      /* El sitio a guardar. Si no viene, se usa el barrio que entendio Paco. */
+      nombre?: string;
     };
 
     if (!conversation_id || domi_precio === undefined || domi_precio === null) {
@@ -293,73 +298,94 @@ serve(async (req) => {
     const phoneId     = String(channelMeta.phone_id || "");
     const accessToken = String(channelMeta.access_token || "");
 
-    // 3. Crear el pedido en Cobra POS
-    const pedidoConDomi = { ...pendingOrder, domi_precio };
-    const orderId = await createWhatsappOrder(pedidoConDomi, branchId, tenantId, fromPhone);
-    if (!orderId) {
-      console.error("confirm-domi: fallo al crear pedido");
-    }
+    /* ── 3. EL SITIO QUEDA APRENDIDO ──────────────────────────────────────
 
-    // 4. Calcular totales y construir mensaje para el cliente
-    const productosPrecio = Number(pendingOrder.total_productos ?? 0);
-    const totalConDomi = productosPrecio > 0
-      ? productosPrecio + domi_precio
-      : 0;
+       Regla de Sergio: "cuando yo coloque el precio del domicilio,
+       automaticamente queda guardado ese nuevo barrio o conjunto". Sin esto
+       llegaria la misma notificacion por el mismo barrio para siempre; con
+       esto el sistema aprende la ciudad sola, con los pedidos reales.
 
-    let mensaje: string;
-    if (productosPrecio > 0 && domi_precio > 0) {
-      mensaje = `Con gusto, serían ${fmtCOP(productosPrecio)} + ${fmtCOP(domi_precio)} del domicilio = ${fmtCOP(totalConDomi)} 😊 ¡En un momento enviamos tu pedido! 🍟`;
-    } else if (domi_precio > 0) {
-      mensaje = `El domicilio tiene un costo de ${fmtCOP(domi_precio)} 😊 ¡En un momento enviamos tu pedido! 🍟`;
-    } else {
-      mensaje = `¡En un momento enviamos tu pedido! 🍟`;
-    }
-
-    // 5. Enviar mensaje de WhatsApp al cliente
-    if (phoneId && accessToken && fromPhone) {
-      const waRes = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: fromPhone,
-          recipient_type: "individual",
-          type: "text",
-          text: { body: mensaje },
-        }),
-      });
-
-      if (waRes.ok) {
-        const waSent  = await waRes.json() as Record<string, unknown>;
-        const sentId  = ((waSent.messages as Array<Record<string,unknown>>)?.[0]?.id as string) || "";
-        await sbPost(`/rest/v1/chat_messages`, {
-          conversation_id,
-          tenant_id: tenantId || null,
-          direction: "out", origen: "sistema", origen: "sistema",
-          body: mensaje,
-          delivery_status: "sent",
-          external_id: sentId || null,
-          sent_at: new Date().toISOString(),
-        });
-      } else {
-        console.error("WA send error:", await waRes.text());
+       Va a la zona QUE YA TIENE ESE PRECIO: asi no se llena de zonas de una
+       sola entrada. Si ninguna lo tiene, se crea. */
+    const sitio = String(nombre || pendingOrder.barrio || "").trim();
+    const esConjunto = String(tipo || "barrio").toLowerCase() === "conjunto";
+    let aprendido = "";
+    if (sitio) {
+      try {
+        const icRows = await sbGet(
+          `/rest/v1/ia_config?branch_id=eq.${branchId}&select=domicilios&limit=1`
+        ) as Array<Record<string, unknown>> | null;
+        const dom = (icRows?.[0]?.domicilios as Record<string, unknown>) || {};
+        const zonas = Array.isArray(dom.zonas)
+          ? (dom.zonas as Array<Record<string, unknown>>).map(z => ({ ...z })) : [];
+        const norm = (x: string) => x.toLowerCase().normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+        const campo = esConjunto ? "conjuntos" : "barrios";
+        const yaEsta = zonas.some(z =>
+          ["barrios", "conjuntos"].some(c =>
+            (Array.isArray(z[c]) ? z[c] as string[] : []).some(b => norm(String(b)) === norm(sitio))));
+        if (!yaEsta) {
+          let zona = zonas.find(z => Number(z.precio) === Number(domi_precio));
+          if (!zona) {
+            zona = { nombre: `Domicilio ${fmtCOP(domi_precio)}`, precio: Number(domi_precio), barrios: [], conjuntos: [] };
+            zonas.push(zona);
+          }
+          const lista = Array.isArray(zona[campo]) ? zona[campo] as string[] : [];
+          lista.push(sitio);
+          zona[campo] = lista;
+          await sbPatch(`/rest/v1/ia_config?branch_id=eq.${branchId}`, {
+            domicilios: { ...dom, zonas },
+          });
+          aprendido = sitio;
+          console.log(`[domi] aprendido: "${sitio}" como ${campo} a ${fmtCOP(domi_precio)}`);
+        } else {
+          console.log(`[domi] "${sitio}" ya estaba en las zonas — no se duplica`);
+        }
+      } catch (err) {
+        /* Que no se pueda aprender NO puede frenar el pedido de este cliente. */
+        console.error("[domi] no se pudo guardar la zona:", err);
       }
-    } else {
-      console.warn("confirm-domi: sin credenciales WA — mensaje no enviado");
     }
 
-    // 6. Limpiar flags de la conversación
+    /* ── 4. PACO RETOMA, no se cierra el pedido ────────────────────────────
+
+       Antes aqui se creaba el pedido de una. Servia si la conversacion ya iba
+       terminada, pero si la direccion llego temprano faltaban el nombre y el
+       pago, y el pedido salia a medias.
+
+       Ahora se apagan las banderas y se le despierta por el MISMO camino que
+       un mensaje del cliente —una entrada en la cola y una llamada a
+       delay-reply—, para que siga exactamente por donde iba, ya con el precio
+       del domicilio resuelto en las zonas. */
     await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversation_id}`, {
       domi_precio_pendiente: false,
-      human_takeover: false,
-      pending_order_data: null,
-      last_message: mensaje,
-      last_message_at: new Date().toISOString(),
-      last_sender: "agent",
+      human_takeover:        false,
+      handoff_motivo:        null,
+      handoff_at:            null,
     });
 
+    let retomo = false;
+    try {
+      await sbPost(`/rest/v1/chat_ai_queue`, {
+        conversation_id, branch_id: branchId, tenant_id: tenantId || null,
+        from_phone: fromPhone, phone_id: phoneId, access_token: accessToken,
+        batch_start: new Date().toISOString(),
+        fire_at:     new Date().toISOString(),
+        processed:   false,
+      });
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/delay-reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
+        body: JSON.stringify({ convId: conversation_id }),
+      });
+      retomo = r.ok;
+      console.log("[domi] Paco retoma la conversación:", r.status);
+    } catch (err) {
+      console.error("[domi] no se pudo despertar a Paco:", err);
+    }
+
     return new Response(
-      JSON.stringify({ ok: true, orderId: orderId || null, mensaje }),
+      JSON.stringify({ ok: true, aprendido: aprendido || null, retomo }),
       { headers: CORS }
     );
 
