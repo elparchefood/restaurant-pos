@@ -162,6 +162,43 @@ nuevo parezca inexistente.
 
 ---
 
+## 6. La marca de "está contestando un asistente" en cada mensaje
+
+Sergio vio en otro restaurante (BRO'S 1952) que cada mensaje del bot llega con
+un prefijo: `🐙 IA: Hola, bienvenido a BRO'S...`. Y notó por qué sirve: **la
+gente escribe con más cuidado cuando sabe que le contesta un sistema.**
+
+**Cómo se hace:** WhatsApp NO tiene ninguna etiqueta de ese tipo. Es texto,
+pegado al principio del mensaje por el propio bot. Se confirma en la captura:
+el mensaje de "Detalle:" con los precios NO lleva la marca — sale por otro
+camino.
+
+**En Cobra:** los 39 envíos conversacionales pasan por `sendWaAndSave`, así que
+la marca es UNA línea ahí. Quedan aparte 11 envíos directos (imágenes de la
+carta, QR, avisos de otras funciones como pedido en camino o comprobante
+verificado) que hay que decidir uno por uno.
+
+**Además, Meta pide informar al cliente cuando le contesta un sistema
+automatizado.** Hoy Cobra no lo hace en ningún lado.
+
+### Decisiones pendientes con Sergio
+
+1. **¿En todos los mensajes o solo en el saludo?** BRO'S lo pone en todos. En
+   cada mensaje refuerza el cuidado al escribir pero ensucia la conversación.
+2. **Qué marca**, y que sea configurable por restaurante: `🍟 Paco:`, `🤖 IA:`.
+   Es multi-tenant, cada asistente tiene su nombre.
+3. **Cuando contesta una PERSONA, la marca no va.** Ahí está el valor real: el
+   cliente distingue al bot del dueño. Si va en todo, no informa nada.
+
+**Recomendación:** en todos los mensajes del bot, en ninguno de los humanos,
+configurable — y **NO en el resumen del pedido**, que es el mensaje que el
+cliente relee para verificar su plata.
+
+Va de la mano con el punto 1: los dos son para que el cliente sepa con quién
+habla y escriba más claro.
+
+---
+
 ## Estado al cerrar el 13-ago
 
 - Motor **v250**, arrancando (verificado con llamada real)
