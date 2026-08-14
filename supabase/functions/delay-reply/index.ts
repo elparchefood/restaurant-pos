@@ -2256,16 +2256,31 @@ INTENCION, no las palabras exactas.` },
          que dejaba al cliente dando vueltas sin poder pedir. */
       const conjNom = esConjunto(state.direccion, domiciliosCfg);
       const numCount = (state.direccion.match(/\d+/g) || []).length;
+      /* NO SE PREGUNTA POR TORRE: se pregunta ABIERTO.
+
+         Regla de Sergio: "sería muy incorrecto preguntarle torre y apartamento
+         a quien vive en Asturias, que es un conjunto de casas, y la casa solo
+         tiene un número". Y el sistema no tiene cómo saber cuáles conjuntos
+         son de casas y cuáles de torres — ni falta: preguntando abierto sirve
+         para los dos, y también para los mixtos, que no caben en ninguna
+         clasificación. */
       const pregDetallada = conjNom
-        ? `¡Listo, ${conjNom}! 😊 ¿En qué torre y apartamento (o casa) te lo dejamos?`
+        ? `¡Listo, ${conjNom}! 😊 ¿En qué casa o apartamento te lo dejamos?`
         : (numCount >= 2
           ? "¡Casi! 😊 Le falta el número de tu casa. La dirección debe verse así: *Carrera 9 # 63-25* ¿Cómo es la completa?"
           : "Necesito la dirección completa para llegar 📍 Algo así: *Carrera 9 # 63-25* ¿Cómo es la tuya?");
-      // Prioridad: sub-pregunta del nodo Dirección del canvas > frase config > default
+      /* SI ES UN CONJUNTO, MANDA SU PREGUNTA. Antes iba la última de la fila y
+         solo salía si el dueño no había configurado nada: bastaba con que
+         escribiera su frase de "dirección incompleta" en el canvas para que
+         los clientes de los 48 conjuntos recibieran "dame la dirección
+         completa" para siempre, aunque el sistema supiera que viven en uno.
+         Y por eso también salía un mensaje de más antes de reconocerlo.
+         La frase del dueño es sobre calles; un conjunto no tiene calle. */
       const pasoDirBis = pasos.find(p => p.campo === "direccion");
-      const pregIncompleta = (pasoDirBis && pasoDirBis.preg_incompleta)
+      const pregIncompleta = conjNom ? pregDetallada
+        : ((pasoDirBis && pasoDirBis.preg_incompleta)
         || getFraseTexto(frasesCfg.preguntar_complemento_dir)
-        || (yaHabiaPreguntadoDireccion ? pregDetallada : "La dirección está incompleta, ¿podrías dármela completa? 📍");
+        || (yaHabiaPreguntadoDireccion ? pregDetallada : "La dirección está incompleta, ¿podrías dármela completa? 📍"));
       state.complemento_dir_pendiente = pregIncompleta;
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
       await sendWaAndSave(convId, tenantId, pregIncompleta, fromPhone, phoneId, accessToken);
@@ -2561,13 +2576,19 @@ INTENCION, no las palabras exactas.` },
       if (clasifDir.tipo === "incompleta") {
         // Dirección sin número/nomenclatura — preguntar solo lo que falta, sin borrar lo capturado
         const numCount = (state.direccion.match(/\d+/g) || []).length;
-        const pregDetallada = numCount >= 2
-          ? "¡Casi! 😊 Le falta el número de tu casa. La dirección debe verse así: *Carrera 9 # 63-25* ¿Cómo es la completa?"
-          : "Necesito la dirección completa para llegar 📍 Algo así: *Carrera 9 # 63-25* ¿Cómo es la tuya?";
+        /* El mismo caso del conjunto, que aquí no estaba contemplado: este
+           camino le pedía "Carrera 9 # 63-25" a alguien que vive en uno. */
+        const conjNomH = esConjunto(state.direccion, domiciliosCfg);
+        const pregDetallada = conjNomH
+          ? `¡Listo, ${conjNomH}! 😊 ¿En qué casa o apartamento te lo dejamos?`
+          : (numCount >= 2
+            ? "¡Casi! 😊 Le falta el número de tu casa. La dirección debe verse así: *Carrera 9 # 63-25* ¿Cómo es la completa?"
+            : "Necesito la dirección completa para llegar 📍 Algo así: *Carrera 9 # 63-25* ¿Cómo es la tuya?");
         const pasoDirH = pasos.find(p => p.campo === "direccion");
-        const pregIncompleta = (pasoDirH && pasoDirH.preg_incompleta)
+        const pregIncompleta = conjNomH ? pregDetallada
+          : ((pasoDirH && pasoDirH.preg_incompleta)
           || getFraseTexto(frasesCfg.preguntar_complemento_dir)
-          || (yaHabiaPreguntadoDireccion ? pregDetallada : "La dirección está incompleta, ¿podrías dármela completa? 📍");
+          || (yaHabiaPreguntadoDireccion ? pregDetallada : "La dirección está incompleta, ¿podrías dármela completa? 📍"));
         state.complemento_dir_pendiente = pregIncompleta;
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
         await sendWaAndSave(convId, tenantId, pregIncompleta, fromPhone, phoneId, accessToken);
@@ -5105,7 +5126,23 @@ async function buildConversationResponse(
     "- NUNCA generes un resumen del pedido, NUNCA uses frases como 'tu pedido queda así', 'en total son', 'listo tu pedido', ni nada parecido. El sistema envía el resumen automáticamente cuando tiene TODOS los datos. Si el sistema te llama es porque AÚN FALTAN datos. Tu único trabajo es obtener el siguiente dato indicado en PRÓXIMO PASO.",
     "- NUNCA digas 'gracias por tu pedido', 'tu pedido está en camino', ni cierres la conversación. El sistema envía el resumen automáticamente cuando tiene todos los datos. Tu trabajo es recolectarlos.",
     "- CUANDO EL PRÓXIMO PASO pide elegir entre opciones (variable, presentación), usa SOLO las opciones listadas en la guía del paso. Jamás inventes, agregues ni sugieras opciones adicionales aunque aparezcan en el menú.",
-    "- No hagas la misma pregunta dos veces con las mismas palabras.",
+    /* ESTA REGLA NO APLICA A UNA FRASE FIJA, y tenerlas juntas costaba pedidos.
+
+       Al modelo se le daban dos ordenes que se contradicen: "tu respuesta debe
+       ser esta frase EXACTA, palabra por palabra" y "no hagas la misma
+       pregunta dos veces". Cuando tocaba repetir, ganaba la segunda y se
+       inventaba otra cosa.
+
+       Caso real: el cliente contesta solo su barrio ("vivo en Bellavista").
+       Falta la direccion, el motor elige bien el paso y su frase fija — y el
+       modelo, en vez de repetirla, le pregunto COMO IBA A PAGAR. El pedido se
+       quedaba sin direccion y sin salida.
+
+       Si el dueño escribio una frase fija, esa frase sale; repetida si hace
+       falta. Cuando el paso es conversacional, la regla sigue viva. */
+    (nextStep && (nextStep.modo || "fija") === "fija" && (nextStep.texto || nextStep.pregunta))
+      ? ""
+      : "- No hagas la misma pregunta dos veces con las mismas palabras.",
     "- Máximo 2-3 oraciones por respuesta.",
     esRecurrente && senderName
       ? `- Cliente recurrente — ya lo conoces, se llama ${senderName}. Trátalo con familiaridad, como a alguien que ha pedido antes.`
