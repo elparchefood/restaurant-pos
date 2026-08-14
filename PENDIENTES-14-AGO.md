@@ -199,18 +199,52 @@ verificado) que hay que decidir uno por uno.
 **Además, Meta pide informar al cliente cuando le contesta un sistema
 automatizado.** Hoy Cobra no lo hace en ningún lado.
 
-### Decisiones pendientes con Sergio
+### DECIDIDO por Sergio (13-ago, noche)
 
-1. **¿En todos los mensajes o solo en el saludo?** BRO'S lo pone en todos. En
-   cada mensaje refuerza el cuidado al escribir pero ensucia la conversación.
-2. **Qué marca**, y que sea configurable por restaurante: `🍟 Paco:`, `🤖 IA:`.
-   Es multi-tenant, cada asistente tiene su nombre.
-3. **Cuando contesta una PERSONA, la marca no va.** Ahí está el valor real: el
-   cliente distingue al bot del dueño. Si va en todo, no informa nada.
+**La etiqueta va en TODOS los mensajes que envía Paco, literalmente. En los que
+el dueño escribe a mano, NUNCA.**
 
-**Recomendación:** en todos los mensajes del bot, en ninguno de los humanos,
-configurable — y **NO en el resumen del pedido**, que es el mensaje que el
-cliente relee para verificar su plata.
+Sus tres razones, y la tercera no se había considerado:
+
+1. **El cliente sabe con quién habla** y escribe más claro — que es lo mismo
+   que busca el saludo del punto 1.
+2. **Meta pide informar** cuando contesta un sistema automatizado. Hoy Cobra no
+   lo hace en ningún lado.
+3. **Para nosotros mismos, al revisar un error:** saber de un vistazo si ese
+   mensaje lo escribió el bot o el dueño. Hoy hay que deducirlo, y en una
+   conversación larga se pierde tiempo.
+
+La tercera es la más práctica del día a día y es la que convierte esto en una
+herramienta de trabajo, no solo en un aviso legal.
+
+### Alcance: hay que cubrir los 11 envíos directos también
+
+"Todos los mensajes que envíe Paco" incluye los que NO pasan por
+`sendWaAndSave`. Hay que revisarlos uno por uno:
+
+- Las imágenes de la carta y el QR (el pie de la imagen puede llevarla)
+- Los avisos de otras funciones: pedido en camino, comprobante verificado,
+  recordatorio del comprobante
+
+Todos esos son automáticos, así que por la regla de Sergio llevan etiqueta.
+
+**Una reserva mía, dicha una vez y ya:** había recomendado dejar el RESUMEN del
+pedido sin etiqueta, porque es el mensaje que el cliente relee para verificar su
+plata. Sergio decidió que van todos. Se hace así; si al verlo en el teléfono
+estorba, se ajusta ahí mismo.
+
+### Lo que falta definir mañana
+
+1. **Qué marca exactamente**, y que sea configurable por restaurante:
+   `🍟 \`Paco:\``, `🤖 \`IA:\``. Es multi-tenant, cada asistente tiene su nombre
+   y su emoji.
+2. **Si la etiqueta lleva el nombre del bot o solo "IA".** Con el nombre es más
+   cálido ("Paco:"); con "IA" es más explícito sobre lo que es. Se puede
+   combinar: `🍟 \`Paco · IA:\``.
+3. **Qué pasa con los mensajes que dispara el dueño desde una pantalla** (por
+   ejemplo "pedido en camino" al cambiar el estado). Los escribe el sistema
+   pero los ordena una persona. Por la regla —automático lleva etiqueta— van
+   con ella, pero conviene verlo en el teléfono antes de darlo por hecho.
 
 Va de la mano con el punto 1: los dos son para que el cliente sepa con quién
 habla y escriba más claro.
