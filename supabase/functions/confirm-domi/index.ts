@@ -366,17 +366,45 @@ serve(async (req) => {
 
     let retomo = false;
     try {
+      /* QUE VUELVA A LEER EL ÚLTIMO MENSAJE DEL CLIENTE.
+
+         Paco procesa los mensajes que llegaron DESDE `batch_start`. Si se
+         pusiera "ahora", no habría ninguno: el cliente ya dijo lo suyo y está
+         esperando, así que Paco despertaría sin nada que contestar y se
+         quedaría callado igual.
+
+         Apuntando `batch_start` al último mensaje del cliente, relee justo lo
+         que dijo —el barrio— pero ahora ese barrio YA tiene precio en las
+         zonas. Sigue por donde iba, con total normalidad, como si nunca se
+         hubiera detenido. */
+      const ultimo = await sbGet(
+        `/rest/v1/chat_messages?conversation_id=eq.${conversation_id}&direction=eq.in` +
+        `&order=sent_at.desc&select=sent_at&limit=1`
+      ) as Array<Record<string, unknown>> | null;
+      const desde = String(ultimo?.[0]?.sent_at || "") || new Date().toISOString();
+      console.log("[domi] Paco relee desde:", desde);
+      /* La cola admite UNA sola fila por conversación (clave única). Si queda
+         la del mensaje que ya se proceso, el insert falla en silencio y Paco
+         despierta sin nada que leer — que es exactamente lo que pasaba. Se
+         quita la vieja antes de poner la nueva. */
+      await fetch(`${SUPABASE_URL}/rest/v1/chat_ai_queue?conversation_id=eq.${conversation_id}`, {
+        method: "DELETE",
+        headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` },
+      });
       await sbPost(`/rest/v1/chat_ai_queue`, {
         conversation_id, branch_id: branchId, tenant_id: tenantId || null,
         from_phone: fromPhone, phone_id: phoneId, access_token: accessToken,
-        batch_start: new Date().toISOString(),
+        batch_start: desde,
         fire_at:     new Date().toISOString(),
         processed:   false,
       });
       const r = await fetch(`${SUPABASE_URL}/functions/v1/delay-reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
-        body: JSON.stringify({ convId: conversation_id }),
+        /* relectura: es el MISMO mensaje del cliente, no uno nuevo. Sin esto,
+           al releerlo se disparaban los atajos de "mándame la carta" y "¿dónde
+           quedan?" y Paco contestaba cualquier otra cosa. */
+        body: JSON.stringify({ convId: conversation_id, relectura: true }),
       });
       retomo = r.ok;
       console.log("[domi] Paco retoma la conversación:", r.status);

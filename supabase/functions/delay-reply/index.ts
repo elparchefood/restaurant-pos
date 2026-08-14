@@ -496,7 +496,7 @@ Deno.serve(async (req) => {
       await recordarComprobante(convId);
       return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
     }
-    await processConversation(convId);
+    await processConversation(convId, body.relectura === true);
   } catch (err) {
     console.error("delay-reply error:", err);
     try { await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { ai_typing: false }); } catch {}
@@ -639,7 +639,17 @@ function telLocal(tel: string | null | undefined): string {
   return d.length > 10 ? d.slice(-10) : d;
 }
 
-async function processConversation(convId: string): Promise<void> {
+/* `relectura` = no es un mensaje nuevo del cliente, es el MISMO mensaje que ya
+   estaba, releido porque entre medias se resolvio lo que faltaba (hoy: el
+   precio del domicilio de un barrio que Paco no conocia).
+
+   Importa la diferencia: al releerlo, los detectores de "me manda la carta" y
+   "donde quedan ustedes" volvian a evaluarlo desde cero y contestaban otra
+   cosa. En la prueba, "Los Naranjos de Prueba" se leyo como si el cliente
+   preguntara la ubicacion del local, y Paco contesto "estamos ubicados en
+   Bella Vista". En una relectura esos atajos no corren: el pedido ya venia en
+   marcha y lo unico que hay que hacer es seguirlo. */
+async function processConversation(convId: string, relectura = false): Promise<void> {
 
   // 1. Leer la entrada de la cola
   const queueRes = await sbGet(`/rest/v1/chat_ai_queue?conversation_id=eq.${convId}&processed=eq.false&limit=1`);
@@ -971,7 +981,7 @@ INTENCION, no las palabras exactas.` },
   // 6. Detectar solicitud de carta / PRECIOS → enviar imágenes de la carta (traen los precios)
   let extraRespondido = false;
   const menuImagenes = (cfg.menu_imagenes as string[]) || [];
-  if (menuImagenes.length > 0) {
+  if (menuImagenes.length > 0 && !relectura) {
     /* Se normaliza ANTES de comparar: minusculas, sin tildes y con los espacios
        colapsados. Un cliente escribio "Para ver la  carta" con DOS espacios y
        por eso "la carta" no coincidio: el bot nunca supo que le pedian la carta
@@ -1110,7 +1120,8 @@ INTENCION, no las palabras exactas.` },
   // así queda sincronizado con lo que Sergio edita en la config. Palabras clave
   // ESPECÍFICAS de "¿dónde están USTEDES?" — se evita "dirección" a secas porque
   // el cliente la usa al DAR su propia dirección de entrega en un pedido.
-  try {
+  /* En una relectura este atajo no corre: ver la nota de processConversation. */
+  if (!relectura) try {
     const rrArr = (cfg.respuestas_rapidas as Array<Record<string, unknown>>) || [];
     const norm = (s: string) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
     const ubiRR = rrArr.find(r => r && (r as Record<string, unknown>).loc && norm(String((r as Record<string, unknown>).k || "")).includes("ubicacion"));
@@ -1960,7 +1971,14 @@ INTENCION, no las palabras exactas.` },
     }
   }
 
-  if (needsProducto && !productoDetectado) {
+  /* EN UNA RELECTURA NO SE VUELVE A EXTRAER NADA.
+
+     El estado ya tiene todo lo que el cliente dijo; lo unico que cambio fue
+     que el dato que faltaba (el precio del domicilio) ya esta resuelto. Si se
+     re-extrae, el MISMO texto se interpreta contra un paso distinto: en la
+     prueba, "Los Naranjos de Prueba" se leyo como el NOMBRE del cliente y el
+     resumen salio con "👤 Los Naranjos de Prueba". Aqui solo hay que seguir. */
+  if (needsProducto && !productoDetectado && !relectura) {
     /* 1) Matching determinístico del texto contra el catálogo.
 
        Con un pedido ya en curso se usan los productos FILTRADOS, no todos los
@@ -2128,12 +2146,12 @@ INTENCION, no las palabras exactas.` },
   const histLector = histCtx.slice(-4)
     .map(h => `${h.direction === "in" ? "Cliente" : "Tú"}: ${String(h.body || "").slice(0, 120)}`)
     .join("\n");
-  const leidoPedido = await leerPedido(
+  const leidoPedido = relectura ? {} : await leerPedido(
     clienteTexto, state, currentProductData, currentStepId || pasoAntesId,
     pagosCfg, MODS_CACHE?.grupos || [], histLector,
   );
 
-  const extracted = runExtractors(clienteTexto, state, currentStepId, pagosCfg, currentProductData, nombreConfirmar, intenciones, cfg, productoRecienDetectado, pasoAntesId, leidoPedido);
+  const extracted = relectura ? {} : runExtractors(clienteTexto, state, currentStepId, pagosCfg, currentProductData, nombreConfirmar, intenciones, cfg, productoRecienDetectado, pasoAntesId, leidoPedido);
 
   // 14e. Merge
   // Capturar ANTES del merge: si ya había una pregunta de dirección pendiente → es el segundo intento
