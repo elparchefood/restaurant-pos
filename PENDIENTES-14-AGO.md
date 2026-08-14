@@ -595,6 +595,44 @@ una plantilla. Quedan fuera `producto` y `puntos_necesarios`, que solo existen
 dentro de listas — y una lista no cabe en una plantilla de Meta de todas formas,
 porque las variables no admiten saltos de línea.
 
+#### 8c. La conexión "gana puntos → le llega este mensaje" va en el FRONTEND
+
+Regla de Sergio: **no se conecta la plantilla al sistema de puntos por dentro.**
+El dueño de cada restaurante escoge la suya desde la pantalla, o el módulo no
+sirve para nadie más que El Parche.
+
+**Dónde va: Configuración → Asistente IA → Mensajes → "Estados de pedido y
+avisos"** (`m-estados`, `configuracion.html:2348`). Esa pantalla ya es
+exactamente esto — *"etiqueta y mensaje que se envía al cliente en cada
+estado"*. **"Ganó puntos" es un evento más**, al lado de "en camino" y
+"entregado": va como una fila más de esa misma lista.
+
+Por qué ahí y no en la pantalla de Puntos: el dueño que se pregunta "¿qué
+mensaje le llega a mi cliente?" busca en Mensajes. Si el de puntos vive aparte
+quedan dos sitios donde buscar lo mismo.
+
+**La fila:**
+
+```
+Cuando un cliente gana puntos
+  [x] Avisarle por WhatsApp
+  Mensaje:  [ puntos_ganados          v ]   <- solo las APROBADAS
+  No avisar si gana menos de [ 5 ] puntos
+```
+
+**Tres detalles que deciden si funciona o estorba:**
+
+1. **Una sola selección sirve para los dos caminos.** Dentro de las 24 horas se
+   manda el mismo texto como mensaje normal; fuera, como plantilla de Meta. El
+   dueño escoge una vez y no tiene que entender la diferencia.
+2. **El desplegable solo muestra las aprobadas** — y cuando no hay ninguna tiene
+   que decir POR QUÉ ("tienes una en revisión") y llevar a Difusión →
+   Plantillas. Mismo error del punto 4: una lista vacía que no explica nada.
+3. **El mínimo importa.** Sin él, quien compra una gaseosa recibe "ganaste 2
+   puntos" y eso es ruido.
+
+Queda multi-tenant solo: cada restaurante tiene sus plantillas y escoge la suya.
+
 #### Las piezas
 
 1. **Mandar los parámetros al enviar** (`wa-enviar-lista`). Sin esto nada más
