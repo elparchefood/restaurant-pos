@@ -695,7 +695,12 @@ async function resolverPedido(
 
     // Domicilio por zona (si la dirección matchea una zona configurada)
     let domiPrecio = 0;
-    const direccion  = String(pendingData.direccion || "");
+    /* EL BARRIO VA EN SU PROPIA CASILLA desde que el lector aprendió a separar
+       "carrera 9 b # 63 n 58, en bellavista" en dirección y barrio. Aquí se
+       seguía buscando la zona SOLO dentro de la dirección, así que ya nunca
+       encontraba ninguna y el domicilio quedaba en $0. */
+    const direccion  = [String(pendingData.direccion || ""), String(pendingData.barrio || "")]
+      .filter(Boolean).join(" ");
     const domicilios = (cfg.domicilios as Record<string,unknown>) || {};
     const zonasRaw   = (domicilios.zonas as Array<{nombre?:string;barrios?:string[];precio:number}>) || [];
     if (zonasRaw.length && direccion) {
@@ -706,6 +711,27 @@ async function resolverPedido(
         const barrios = z.barrios ?? (z.nombre ? z.nombre.split(",").map(b => b.trim()) : []);
         if (barrios.some(b => b && b.length >= 4 && dirNorm.includes(norm(b)))) { domiPrecio = Number(z.precio) || 0; break; }
       }
+    }
+
+    /* LO QUE EL CLIENTE VIO MANDA.
+
+       El resumen guarda el total que le mostró (productos + empaque +
+       domicilio). Ese es el que va a transferir, y ese es el que hay que
+       esperar. Este cálculo de aquí queda solo de respaldo, por si el pedido
+       viene de una versión vieja y no trae el dato.
+
+       Sin esto pasaba: el resumen decía $40.000 (34.000 del plato + 1.000 de
+       empaque + 5.000 de domicilio) y el verificador esperaba $34.000, porque
+       no sumaba el empaque y no encontraba la zona del domicilio. El cliente
+       pagaba bien y le salía "el monto no coincide". */
+    const totalMostrado = Number(pendingData.total_mostrado);
+    if (Number.isFinite(totalMostrado) && totalMostrado > 0) {
+      const domiMostrado = Number(pendingData.domi_mostrado);
+      return {
+        total: totalMostrado,
+        domiPrecio: Number.isFinite(domiMostrado) ? domiMostrado : domiPrecio,
+        nombreCliente, itemsRows,
+      };
     }
 
     return { total: total + domiPrecio, domiPrecio, nombreCliente, itemsRows };

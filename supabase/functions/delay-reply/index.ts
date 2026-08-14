@@ -5309,6 +5309,22 @@ async function buildSummaryFromState(
     : domiPrecio === 0   ? "Gratis"
     : fmtCOP(domiPrecio);
   const precioTotalNum  = precioProducto + (!esParaLlevar && domiPrecio !== null ? domiPrecio : 0);
+
+  /* EL NÚMERO QUE EL CLIENTE VIO QUEDA GUARDADO.
+
+     El verificador de transferencias calculaba el total por su cuenta, con su
+     propia copia de la lógica — y le salía distinto: no sumaba el empaque y
+     buscaba la zona del domicilio solo dentro de la dirección, sin mirar el
+     barrio, que desde hace poco va en su propia casilla. Resultado: el resumen
+     le decía al cliente $40.000 y el verificador esperaba $34.000, así que un
+     pago correcto salía rechazado.
+
+     Dos códigos calculando el mismo dinero es el error de forma que ya se
+     repitió hoy. Aquí se guarda lo que se MOSTRÓ, y eso es lo que se espera:
+     el cliente va a transferir lo que leyó. */
+  const stTot = state as unknown as Record<string, unknown>;
+  stTot.total_mostrado = precioProducto > 0 && (domiPrecio !== null || esParaLlevar) ? precioTotalNum : null;
+  stTot.domi_mostrado  = esParaLlevar ? 0 : (domiPrecio ?? null);
   const precioTotalStr  = precioProducto > 0
     ? (domiPrecio !== null || esParaLlevar ? fmtCOP(precioTotalNum) : fmtCOP(precioProducto) + " (+ domi a confirmar)")
     : totalDesc;
