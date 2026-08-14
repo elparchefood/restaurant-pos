@@ -651,6 +651,70 @@ Queda multi-tenant solo: cada restaurante tiene sus plantillas y escoge la suya.
 
 ---
 
+## 9. Caja: ver los arqueos en el historial, y abrir caja con arqueo o base heredada
+
+Tres cosas que pidió Sergio. **Se verificó lo que ya existe antes de anotarlas**
+y dos están medio construidas.
+
+### 9a. Ver el arqueo dentro del historial de cuadres
+
+**El dato YA se guarda.** `pos_sessions.arqueo_denoms` (jsonb) tiene el conteo
+completo por denominación: **17 de los 24 turnos** lo tienen.
+
+Y ya se lee — pero **solo para reimprimir el tirillo en papel**
+(`caja.js:1630`, `reimprimirCierre`). En pantalla, el historial y el resumen
+muestran únicamente base, esperado, contado y diferencia (`caja.js:2197`).
+**El desglose por billete y moneda nunca se ve en pantalla.**
+
+O sea: **no hay que guardar nada nuevo, hay que mostrar lo que ya está.**
+
+Ojo con los **7 turnos sin arqueo** (se cerraron sin contar): la pantalla tiene
+que decir "este turno se cerró sin arqueo", no pintar una tabla vacía.
+
+### 9b. El modal de apertura: arqueo O valor libre
+
+Hoy `handleOpenSession()` (`caja.js:1692`) solo guarda `opening_cash`, un
+número suelto. No hay forma de contar al abrir.
+
+**Lo que se reusa:** el contador de denominaciones del cierre ya está hecho y
+probado — `panel-arqueo`, los `.denom-input`, `getArqueoDenoms()` y
+`fillArqueoDenoms()`. Es la misma pieza; solo cambia dónde se guarda.
+
+**Lo que falta:** una columna `apertura_denoms` (jsonb) en `pos_sessions`,
+espejo de `arqueo_denoms`. El valor libre sigue funcionando igual para quien no
+quiera contar — **son dos opciones, no un reemplazo.**
+
+### 9c. Heredar la base del día anterior
+
+**Esto ya está pensado a medias en el cierre.** `getArqueoDenoms()` ya parte los
+billetes en dos, y el comentario del código lo dice con todas las letras:
+
+```js
+// Grandes = billetes de $50.000 y $100.000 (los que se consignan/guardan).
+// Sencillo = el resto de billetes (queda como base del día siguiente).
+```
+
+Así que "usar la misma base de ayer" es leer el `arqueo_denoms` del turno
+anterior — que ya sabe qué parte se queda.
+
+### ⚠️ PERO el corte de hoy no incluye las monedas
+
+Sergio pidió **base en billetes Y base en monedas**. El cálculo de hoy es:
+
+```js
+const sencillo = billetes - grandes;   // solo billetes
+```
+
+Las monedas se suman aparte (`monedas`) y **quedan fuera del "sencillo"**. Si se
+hereda `sencillo` tal cual, la base del día siguiente llega **sin monedas** — y
+la caja arranca descuadrada contra lo que de verdad quedó en el cajón.
+
+**Hay que decidir con Sergio:** ¿la base heredada es sencillo + monedas
+completas? ¿O las monedas también se parten en algún punto? Es la única
+pregunta abierta de las tres.
+
+---
+
 ## Estado al cerrar el 13-ago
 
 - Motor **v250**, arrancando (verificado con llamada real)
