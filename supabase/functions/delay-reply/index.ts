@@ -1591,6 +1591,63 @@ INTENCION, no las palabras exactas.` },
 
   if (state.resumen_enviado) {
 
+    /* LO PRIMERO: ¿está pidiendo QUITAR algo?
+
+       Aquí también lee el lector. Era el único sitio del motor donde no
+       corría, y es justo donde el cliente habla más libre: ya vio el resumen y
+       está corrigiendo.
+
+       Y va ANTES que la confirmación a propósito. "mejor el sin la adición
+       entonces porfa" trae un "mejor" y un "porfa" y se colaba como un SÍ: el
+       bot mandaba el pedido a cocina CON la adición que le acababan de pedir
+       quitar. Pedir un cambio nunca es confirmar. */
+    const leidoCorr = await leerPedido(
+      clienteTexto, state, currentProductData, null,
+      pagosCfg, MODS_CACHE?.grupos || [],
+      histCtx.slice(-4).map(h => `${h.direction === "in" ? "Cliente" : "Tú"}: ${String(h.body || "").slice(0, 120)}`).join("\n"),
+    );
+    if (Array.isArray(leidoCorr.quitar) && leidoCorr.quitar.length) {
+      const { quitados, quitarActual } = quitarDelPedido(state, leidoCorr.quitar);
+      /* El plato en curso solo se puede sacar si queda otro en el pedido. */
+      if (quitarActual && (state.items || []).length > 0) {
+        const ultimo = state.items[state.items.length - 1];
+        state.items = state.items.slice(0, -1);
+        state.producto = ultimo.producto;
+        state.producto_categoria = ultimo.categoria ?? null;
+        state.tamano = ultimo.tamano ?? null;
+        state.tipo = ultimo.tipo ?? null;
+        state.cantidad = ultimo.cantidad || 1;
+        state.adiciones = ultimo.adiciones ?? "";
+        state.preferencias = ultimo.preferencias ?? null;
+        /* Las variantes se guardan por grupo. Sin reconstruirlas, el flujo
+           volvería a preguntar "¿mixta, carne o pollo?" por algo que el
+           cliente ya contestó hace rato. */
+        state.tipos = {};
+        currentProductData = await loadProductData(state.producto!, branchId, state.producto_categoria);
+        if (currentProductData?.variables && state.tipo) {
+          for (const t of String(state.tipo).split(",").map(x => x.trim()).filter(Boolean)) {
+            for (const g of currentProductData.variables) {
+              if (state.tipos[g.id]) continue;
+              const ok = extractVariable(t, g.options || []);
+              if (ok) { state.tipos[g.id] = ok; break; }
+            }
+          }
+        }
+        quitados.push(quitarActual);
+      }
+      if (quitados.length) {
+        console.log("[quitar] se sacaron del pedido:", JSON.stringify(quitados));
+        try {
+          const sumMsg = await buildSummaryFromState(state, cfg, branchId, domiciliosCfg);
+          state.resumen_enviado = true;
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+          await sendWaAndSave(convId, tenantId, sumMsg, fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: sumMsg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+        } catch (err) { console.error("re-resumen tras quitar:", err); }
+        return;
+      }
+    }
+
     // CORRECCIÓN del método de pago tras el resumen (regla de Sergio):
     // "mejor pago en efectivo" NO es confirmar — cambia el pago y RE-MUESTRA el
     // resumen. Sin esto, decir "efectivo" con "transferencia" ya puesto se ignoraba
@@ -1779,7 +1836,7 @@ INTENCION, no las palabras exactas.` },
     }
 
     // Corrección o mensaje no claro → extractores + respuesta conversacional
-    const correctedSlots = runExtractors(clienteTexto, state, null, pagosCfg, currentProductData, nombreConfirmar, intenciones);
+    const correctedSlots = runExtractors(clienteTexto, state, null, pagosCfg, currentProductData, nombreConfirmar, intenciones, cfg, false, null, leidoCorr);
     if (Object.keys(correctedSlots).length > 0) {
       state = mergeSlots(state, { ...correctedSlots, resumen_enviado: false });
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
@@ -3361,6 +3418,10 @@ type PedidoLeido = {
   producto?: string; cantidad?: number; tamano?: string;
   variantes?: string[]; adiciones?: string[];
   direccion?: string; barrio?: string; nombre?: string; pago?: string;
+  /* Lo que el cliente pide QUITAR de lo que ya tiene. Antes no existía: a
+     "mejor sin la adición" el bot no tenía forma de entender que había que
+     sacar algo, y lo guardaba como una preferencia del plato. */
+  quitar?: string[];
 };
 
 async function leerPedido(
@@ -3388,6 +3449,9 @@ async function leerPedido(
     state.producto ? `producto: ${state.producto}` : null,
     state.tamano   ? `tamaño: ${state.tamano}`     : null,
     state.tipo     ? `variante: ${state.tipo}`     : null,
+    /* Las adiciones que YA lleva: sin esto el lector no tiene contra qué
+       entender un "quítame la adición". */
+    state.adiciones? `adiciones: ${state.adiciones}` : null,
     state.direccion? `dirección: ${state.direccion}` : null,
     state.barrio   ? `barrio: ${state.barrio}`     : null,
     state.nombre   ? `nombre: ${state.nombre}`     : null,
@@ -3424,7 +3488,7 @@ OPCIONES REALES de este producto (usa EXACTAMENTE estos nombres, no inventes):
 Devuelve SOLO este JSON con lo que ESTE mensaje aporta (omite lo que no diga):
 {"producto":string|null,"cantidad":number|null,"tamano":string|null,
  "variantes":[string],"adiciones":[string],"direccion":string|null,
- "barrio":string|null,"nombre":string|null,"pago":string|null}
+ "barrio":string|null,"nombre":string|null,"pago":string|null,"quitar":[string]}
 
 REGLAS:
 - "1.5", "litro y medio", "la de litro y medio" -> el tamaño "1.5 Litros" si esa es
@@ -3438,6 +3502,11 @@ REGLAS:
   "barrio", NO en "direccion".
 - Si el mensaje trae dirección Y barrio juntos, sepáralos en sus dos campos.
 - "adiciones": lo que quiere que le PONGAN al plato. Un plato aparte va en "producto".
+- "quitar": lo que quiere SACAR de lo que YA tiene, con el nombre exacto de arriba.
+  "mejor sin la adición", "quítame el chorizo", "ya no quiero la tocineta", "sin la
+  gaseosa", "mejor el solo" -> quitar. Si dice "sin X" pero X NO está todavía en el
+  pedido, no es quitar: es una preferencia de cómo lo quiere, y va fuera del JSON.
+  Si dice "sin la adición" y solo lleva una, pon ESA en "quitar".
 - Usa los nombres EXACTOS de las listas de arriba. Si algo no está en las listas,
   déjalo fuera.
 
@@ -3464,6 +3533,61 @@ ${historial}`;
     console.error("[lector] fallo, se usan los comparadores:", e);
     return {};
   }
+}
+
+/* QUITAR ALGO DEL PEDIDO YA ARMADO.
+
+   "mejor el sin la adición entonces porfa" — despues del resumen, esa frase
+   no tenia a donde ir: los extractores solo saben AGREGAR, asi que la
+   guardaban como una preferencia del plato ("↳ sin la adición entonces") y la
+   iban acumulando en cada intento.
+
+   Se quita de las adiciones de cualquiera de los platos, y tambien un plato
+   entero si el cliente lo nombra. Si lo que pide sacar es el producto EN
+   CURSO, se avisa con `quitarActual` para que quien llama decida: si hay otro
+   plato en el pedido lo asciende, y si era el unico no se saca nada — un
+   pedido vacio no es un pedido. */
+function quitarDelPedido(
+  state: PacoState, nombres: string[],
+): { quitados: string[]; quitarActual: string | null } {
+  const quitados: string[] = [];
+  let quitarActual: string | null = null;
+  const trozos = (s: string | null | undefined) =>
+    String(s || "").split(",").map(x => x.trim()).filter(Boolean);
+
+  for (const bruto of nombres) {
+    const n = normalizarTexto(String(bruto || ""));
+    if (!n) continue;
+    let seFue = false;
+
+    /* 1. De las adiciones del producto en curso. */
+    const suyas = trozos(state.adiciones);
+    const quedan = suyas.filter(a => normalizarTexto(a) !== n);
+    if (quedan.length !== suyas.length) {
+      state.adiciones = quedan.join(", ");   // "" y no null: ya se pregunto
+      seFue = true;
+    }
+
+    /* 2. De las adiciones de los platos ya cerrados. */
+    for (const it of state.items || []) {
+      const sus = trozos(it.adiciones);
+      const q = sus.filter(a => normalizarTexto(a) !== n);
+      if (q.length !== sus.length) { it.adiciones = q.join(", "); seFue = true; }
+    }
+
+    /* 3. Un plato entero de los ya cerrados. */
+    const antes = (state.items || []).length;
+    state.items = (state.items || []).filter(it => normalizarTexto(it.producto || "") !== n);
+    if (state.items.length !== antes) seFue = true;
+
+    /* 4. ¿Es el plato en curso? Se avisa; no se toca aqui. */
+    if (!seFue && state.producto && normalizarTexto(state.producto) === n) {
+      quitarActual = state.producto;
+    }
+
+    if (seFue) quitados.push(String(bruto));
+  }
+  return { quitados, quitarActual };
 }
 
 /* Lo que el lector entendio, pasado por el filtro del catalogo. Devuelve solo
