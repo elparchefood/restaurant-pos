@@ -202,6 +202,9 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
   // 9. Buscar en Gmail un correo bancario que confirme el monto
   let confirmed = false;
   let verifyDetail = "";
+  /* El correo que respalda ESTE pago. Queda enlazado al pedido para que no
+     pueda respaldar ningún otro. */
+  let mailUsado = "";
 
   if (refreshToken) {
     const gmailAccessToken = await refreshGmailToken(refreshToken);
@@ -211,9 +214,10 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
       // El correo del banco NO llega al instante (segundos a 1-2 min). Reintentar:
       // hasta 3 búsquedas con ~35s de espera entre cada una antes de rendirse.
       for (let intento = 1; intento <= 3; intento++) {
-        const gmailMatch = await searchGmailForAmount(gmailAccessToken, visionResult.monto, visionResult.fecha, visionResult.hora, llaveCfg, ventanaHoras, bancosRe, tzRest);
+        const gmailMatch = await searchGmailForAmount(gmailAccessToken, visionResult.monto, visionResult.fecha, visionResult.hora, llaveCfg, ventanaHoras, bancosRe, tzRest, branchId);
         confirmed    = gmailMatch.found;
         verifyDetail = gmailMatch.detail;
+        if (gmailMatch.mailId) mailUsado = gmailMatch.mailId;
         console.log(`Gmail intento ${intento}/3:`, confirmed, verifyDetail);
         if (confirmed) break;
         if (intento < 3) await new Promise(r => setTimeout(r, 35000));
@@ -234,9 +238,9 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
     // 10a. Crear el pedido y confirmar al cliente
     let orderId: string | null = null;
     if (pendingData) {
-      orderId = await crearPedido(conversationId, branchId, tenantId, fromPhone, pendingData, cfg, refLimpia);
+      orderId = await crearPedido(conversationId, branchId, tenantId, fromPhone, pendingData, cfg, refLimpia, mailUsado);
     }
-    console.log("Pedido creado tras verificación:", orderId);
+    console.log("Pedido creado tras verificación:", orderId, mailUsado ? `· correo quemado: ${mailUsado}` : "· SIN correo (verificado por imagen)");
 
     await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, {
       pago_pendiente:     false,
@@ -394,6 +398,34 @@ async function refreshGmailToken(refreshToken: string): Promise<string | null> {
 interface GmailMatch {
   found:  boolean;
   detail: string;
+  /* El identificador del correo del banco que respalda este pago. Es lo UNICO
+     de toda la verificacion que el cliente no puede fabricar: la referencia y
+     el monto salen de una imagen, y una imagen se edita. */
+  mailId?: string;
+}
+
+/* ¿Este correo del banco ya pagó otro pedido?
+
+   Regla de Sergio: "el correo del banco es lo unico que no se puede falsificar,
+   entonces ese correo si o si debe quedar enlazado con ese pedido; asi, cuando
+   una persona mande otro comprobante, ese correo ya no se puede reutilizar y el
+   comprobante falso se queda sin correo con que compararse".
+
+   El anti-replay por referencia no basta: la referencia se lee de la imagen, y
+   basta editarla para que parezca otro pago. El correo no. */
+async function correoYaUsado(branchId: string, mailId: string): Promise<boolean> {
+  if (!mailId) return false;
+  try {
+    const usado = await sbGet(
+      `/rest/v1/pos_orders?branch_id=eq.${branchId}&notes=ilike.*Mail:${mailId}*&select=id&limit=1`
+    ) as Array<Record<string, unknown>> | null;
+    return !!(usado && usado.length > 0);
+  } catch (err) {
+    /* Si no se puede comprobar, NO se da por bueno: mejor que lo mire un
+       humano a dejar pasar un cobro dos veces. */
+    console.error("[correo-usado] no se pudo comprobar, se trata como usado:", String(err).slice(0, 200));
+    return true;
+  }
 }
 
 async function searchGmailForAmount(
@@ -405,6 +437,8 @@ async function searchGmailForAmount(
   ventanaHoras: number = 5,
   bancosRe:    RegExp = new RegExp(BANCOS_DEFAULT, "i"),
   tzRest:      string = "-05:00",
+  /* Para poder descartar los correos que ya pagaron un pedido. */
+  branchId:    string = "",
 ): Promise<GmailMatch> {
   try {
     const digits = monto.replace(/\D/g, "");
@@ -433,6 +467,15 @@ async function searchGmailForAmount(
 
       // Revisar cada mensaje para confirmar que es de un banco
       for (const gmailMsg of messages) {
+        /* UN CORREO, UN PEDIDO. Si este ya respaldó otro, no sirve: se sigue
+           buscando. Si todos los que coinciden ya están gastados, la
+           verificación falla y el pedido pasa a manos de un humano — que es
+           exactamente lo que tiene que pasar con un comprobante reenviado o
+           con uno editado, porque no va a tener correo libre que lo respalde. */
+        if (branchId && await correoYaUsado(branchId, gmailMsg.id)) {
+          console.log(`Correo ${gmailMsg.id} ya usado en otro pedido — se descarta`);
+          continue;
+        }
         const msgRes = await fetch(
           `https://gmail.googleapis.com/gmail/v1/users/me/messages/${gmailMsg.id}?format=full`,
           { headers: { "Authorization": `Bearer ${accessToken}` } }
@@ -496,13 +539,13 @@ async function searchGmailForAmount(
         console.log(`Gmail: from="${from}" fechaOk=${fechaOk} llaveOk=${llaveOk}`);
 
         if (isBankEmail && fechaOk && llaveOk) {
-          return { found: true, detail: `Remitente: ${from} | Asunto: ${subject}` };
+          return { found: true, detail: `Remitente: ${from} | Asunto: ${subject}`, mailId: gmailMsg.id };
         }
 
         // Si la llave no coincide en el email pero todo lo demás sí, devolver found=true
         // (algunos emails no muestran la llave completa)
         if (isBankEmail && fechaOk) {
-          return { found: true, detail: `Remitente: ${from} | Asunto: ${subject} (llave no verificada en email)` };
+          return { found: true, detail: `Remitente: ${from} | Asunto: ${subject} (llave no verificada en email)`, mailId: gmailMsg.id };
         }
       }
     }
@@ -691,15 +734,24 @@ async function crearPedido(
   pendingData:    Record<string, unknown>,
   cfg:            Record<string, unknown>,
   referencia:     string = "",
+  /* El correo del banco que respalda este pago. Queda enlazado aquí para que
+     no pueda respaldar ningún otro pedido nunca más. */
+  mailId:         string = "",
 ): Promise<string | null> {
   // Resolver el pedido con el ESTADO ACTUAL (v119+): precios reales del catálogo,
   // nombre del cliente del pedido, ítems con desglose. (Antes leía el formato viejo
   // → total $0, "Cliente WhatsApp" y sin productos.)
   const pedido = await resolverPedido(pendingData, branchId, cfg, tenantId);
 
-  // La referencia del comprobante queda en las notas — es la marca del ANTI-REPLAY
-  const notasPedido = [String(pendingData.direccion || ""), referencia ? `Ref:${referencia}` : ""]
-    .filter(Boolean).join(" · ");
+  /* LAS DOS MARCAS DEL ANTI-REPLAY:
+       Ref:  la del comprobante — sale de una imagen, y una imagen se edita
+       Mail: la del correo del banco — esa no se puede fabricar
+     La segunda es la que de verdad cierra la puerta. */
+  const notasPedido = [
+    String(pendingData.direccion || ""),
+    referencia ? `Ref:${referencia}` : "",
+    mailId ? `Mail:${mailId}` : "",
+  ].filter(Boolean).join(" · ");
 
   // PARA LLEVAR → sección "rápidas" (channel='rapido'); domicilio → 'domicilio'
   const LLEVAR_RE = /\b(para\s+llevar|para\s+recoger|l[oa]s?\s+recojo|l[oa]s?\s+busco|voy\s+a\s+recoger(?:l[oa]s?)?|voy\s+por\s+(?:el\s+pedido|[ée]l|ella|eso)|pa\s+llevar|a\s+recoger|yo\s+paso|yo\s+l[oa]s?\s+recojo|paso\s+a\s+(?:recoger|buscar)(?:l[oa]s?)?|paso\s+por\s+(?:el\s+pedido|[ée]l|ella|ellas|ellos|eso)|paso\s+al\s+local|recojo\s+en\s+el\s+local)\b/i;
