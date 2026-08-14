@@ -1969,11 +1969,31 @@ INTENCION, no las palabras exactas.` },
          es el nuevo: la respuesta se perdía. La Premium se guardaba sin su
          "Mixta" y el cliente recibía lo que no pidió. */
       const cierre = runExtractors(clienteTexto, state, null, pagosCfg, currentProductData, nombreConfirmar, intenciones, cfg);
+
+      /* LA ADICION NOMBRADA ANTES DEL PRODUCTO NUEVO ES DEL QUE SE VA.
+
+         "adicion de tocineta y una coca cola": la tocineta es de la
+         salchipapa, no de la gaseosa. Las adiciones se extraian DESPUES de
+         cambiar de producto, asi que caian siempre en el nuevo — el resumen le
+         mostro a Sergio "1x COCA COLA 1.5 Litros + Tocineta".
+
+         Manda el ORDEN en que lo dijo, que es como habla la gente: si la
+         nombra despues ("una hamburguesa con tocineta") si es del nuevo. */
+      let adicionesDelQueSeVa: string | null = null;
+      const posNuevo = nuevosEnTexto.find(m => normalizarTexto(m.name) === normNuevo)?.pos;
+      if (typeof posNuevo === "number") {
+        const antes = mencionesClasificadas(clienteTexto, false, intenciones)
+          .filter(m => m.clase === "adicion" && m.pos < posNuevo)
+          .map(m => resolverAdicionCatalogo(m.name))
+          .filter((x): x is string => !!x);
+        if (antes.length) adicionesDelQueSeVa = [...new Set(antes)].join(", ");
+      }
+
       const archived: SlotItem = {
         producto: state.producto,
         tamano: state.tamano ?? (cierre.tamano as string | undefined) ?? null,
         tipo:   state.tipo   ?? (cierre.tipo   as string | undefined) ?? null,
-        cantidad: state.cantidad, adiciones: state.adiciones,
+        cantidad: state.cantidad, adiciones: state.adiciones ?? adicionesDelQueSeVa,
         preferencias: state.preferencias,
         categoria: state.producto_categoria,
       };
