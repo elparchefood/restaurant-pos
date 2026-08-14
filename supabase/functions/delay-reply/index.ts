@@ -1680,7 +1680,24 @@ INTENCION, no las palabras exactas.` },
       }
     }
 
-    const isConfirmacion = esConfirmacion(clienteTexto, intenciones);
+    /* CONTESTAR EL MÉTODO DE PAGO ES CONFIRMAR.
+
+       El resumen ahora cierra con la pregunta del pago, así que "transferencia"
+       es la respuesta a todo el mensaje: ya vio qué pidió, cuánto es, y está
+       diciendo cómo paga. Antes esto caía en "corrección" y le volvía a mandar
+       el mismo resumen con el 💳 puesto, para preguntarle otra vez si confirma.
+       Dos resúmenes idénticos para un solo pedido. */
+    const pagoEraLoQueFaltaba = !state.pago
+      && findNextStep(state, pasos, true, domiciliosCfg)?.id === "pago";
+    const pagoDelMensaje = pagoEraLoQueFaltaba
+      ? (extractPago(clienteTexto, pagosCfg) || pagoPorIntencion())
+      : null;
+    if (pagoDelMensaje) {
+      state.pago = pagoDelMensaje;
+      console.log(`[resumen] el pago llegó en la respuesta al resumen: ${pagoDelMensaje} — vale como confirmación`);
+    }
+
+    const isConfirmacion = !!pagoDelMensaje || esConfirmacion(clienteTexto, intenciones);
 
     if (isConfirmacion) {
       // Si el método de pago quedó liberado (caso "para llevar + efectivo"), capturarlo
@@ -5089,7 +5106,37 @@ async function buildSummaryFromState(
   domiciliosCfg: Record<string, unknown> | null | undefined,
 ): Promise<string> {
   const frases       = (cfg.frases as Record<string, unknown>) || {};
-  const confirmFrase = getFraseTexto(frases.resumen_confirmacion)      || "¿Lo confirmamos o hay algo que cambiar?";
+
+  /* UN SOLO RESUMEN. Idea de Sergio.
+
+     Cuando el pago va DESPUÉS del resumen, el cliente veía esto:
+
+       1. el resumen  ->  "¿lo confirmamos?"
+       2. "está bien"
+       3. "¿cómo vas a pagar?"
+       4. "transferencia"
+       5. EL MISMO RESUMEN otra vez, ahora con el 💳
+       6. "sí"
+
+     Seis mensajes para lo que son dos. Ahora el resumen CIERRA con la pregunta
+     del pago: se le muestra qué pidió, cuánto es y cómo paga, todo junto. Y
+     contestar el método de pago vale como confirmación, así que del paso 1 se
+     va derecho a la cocina o al QR.
+
+     Si el pago ya está puesto, cierra con la confirmación de siempre. */
+  const pasoPagoPost = Array.isArray(cfg.flujo_pasos)
+    ? (cfg.flujo_pasos as Array<Record<string, unknown>>)
+        .find(p => p && p.campo === "pago" && p.activo !== false && p.despues_resumen === true)
+    : null;
+  /* La frase del paso trae sus propias variables ({{metodos_pago}}) y aquí ya
+     no las resuelve la plantilla: se resuelven ahora. */
+  const preguntaPagoEnResumen = (!state.pago && pasoPagoPost && pasoPagoPost.texto)
+    ? rellenarVariables(String(pasoPagoPost.texto), state, cfg).texto
+    : "";
+
+  const confirmFrase = preguntaPagoEnResumen
+    || getFraseTexto(frases.resumen_confirmacion)
+    || "¿Lo confirmamos o hay algo que cambiar?";
   const totalDesc    = getFraseTexto(frases.resumen_total_desconocido) || "ya te confirmamos el total ☺️🍟";
 
   // Modo del resumen: "fija" (plantilla exacta con variables) o "conversacional" (GPT libre)
