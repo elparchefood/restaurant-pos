@@ -74,6 +74,19 @@ Cosas que Sergio pidió en su momento y nunca se construyeron, o quedaron a medi
 No son cosas que falten: son cosas que están mal y que hoy nadie ve porque
 solo hay un restaurante usándolo.
 
+- [ ] **El inventario no sabe de qué sede es** — `iv_existencias.branch_id`
+      está **vacío en las 44 filas**. Hoy no molesta porque El Parche tiene una
+      sola sede, pero el día que abra la segunda —o el primer cliente con dos—
+      **las dos sedes van a compartir el mismo stock**: lo que se venda en una
+      descuenta el inventario de la otra, y ningún reporte lo va a delatar.
+
+      Encontrado el 14-ago-2026 al devolver el inventario de un pedido de
+      prueba: el cruce por `insumo_id + branch_id` no encontraba ninguna fila,
+      y hubo que cruzar solo por insumo. Ese fallo silencioso es la señal.
+
+      Al arreglarlo: llenar el `branch_id` de las filas existentes con la sede
+      actual, y revisar quién escribe en esa tabla para que lo ponga siempre.
+
 - [x] **Un comprobante puede pagar dos pedidos** — YA estaba cerrado desde el
       7-ago (entrada 123): la referencia del banco queda reclamada por el
       pedido al verificar. Verificado en la función desplegada (v7).
