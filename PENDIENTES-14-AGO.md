@@ -276,6 +276,64 @@ habla y escriba más claro.
 
 ---
 
+## 7. Barrio desconocido: Paco se calla, el dueño pone el precio, Paco retoma
+
+**Diseño de Sergio**, con sus palabras: *"Cuando Paco no sepa un barrio
+automáticamente se desactiva y la conversación pasa al humano. Luego me tiene
+que salir algo donde yo pueda confirmar el costo de ese domicilio, toco un
+botón y Paco vuelve a retomar la conversación ya con la información que le
+faltaba."*
+
+Es mejor que la alternativa que se propuso (que Paco siguiera preguntando
+mientras el precio quedaba pendiente): **mientras no se sabe cuánto cuesta el
+domicilio, nadie improvisa con el cliente.**
+
+### Lo que YA está construido
+
+| Pieza | Estado |
+|---|---|
+| Paco se calla al pasar a humano | ya funciona (`human_takeover`) |
+| Bandera `domi_precio_pendiente` | la columna existe |
+| Botón + ventana para escribir el precio | existen en chat-ia.js |
+| `confirm-domi` apaga las dos banderas y avisa al cliente | existe |
+
+### Lo que falta — y es poco
+
+1. **EL DISPARADOR. Nadie levanta la bandera.** `domi_precio_pendiente` solo se
+   pone en `false`, en tres sitios; el motor no la menciona ni una vez. Otro
+   mecanismo construido y sin conectar.
+
+   **Hoy, cuando el barrio no está en las zonas:** el resumen dice "Domicilio: a
+   confirmar", el cliente confirma, y **el pedido se crea con domicilio en $0**,
+   sin avisarle a nadie. Esa plata también se está yendo.
+
+   Falta: al tener la dirección y no poder resolver el precio, poner
+   `domi_precio_pendiente = true` + `human_takeover = true` y que Paco calle.
+
+2. **QUE PACO RETOME, en vez de cerrar el pedido.** Hoy `confirm-domi` crea el
+   pedido apenas se confirma el precio. Sirve si la conversación ya terminó,
+   pero si la dirección llegó temprano faltarían el nombre y el pago.
+
+   Ya existe la pieza: **la señal interna** que se construyó el 13-ago para el
+   recordatorio del comprobante (`{convId, senal: "..."}` a delay-reply). Sirve
+   igual aquí: confirmar el precio → señal → Paco despierta con el dato y sigue
+   por donde iba.
+
+3. **Guardar el barrio confirmado en las zonas.** Si no, la misma notificación
+   por el mismo barrio para siempre. Con el tiempo el dueño dejaría de recibir
+   avisos de sitios repetidos — el sistema aprende su ciudad.
+
+### Por decidir
+
+- **La notificación.** Hoy solo aparece un botón dentro de esa conversación: si
+  no la tienes abierta, no te enteras. Hay que mirar qué avisos ya tiene Cobra
+  antes de inventar un segundo sistema.
+- ¿El barrio nuevo se guarda solo, o se le pregunta al dueño si quiere
+  guardarlo? Guardarlo solo puede meter basura en las zonas si el cliente
+  escribió mal el nombre.
+
+---
+
 ## Estado al cerrar el 13-ago
 
 - Motor **v250**, arrancando (verificado con llamada real)
