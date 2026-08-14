@@ -168,10 +168,28 @@ Sergio vio en otro restaurante (BRO'S 1952) que cada mensaje del bot llega con
 un prefijo: `🐙 IA: Hola, bienvenido a BRO'S...`. Y notó por qué sirve: **la
 gente escribe con más cuidado cuando sabe que le contesta un sistema.**
 
-**Cómo se hace:** WhatsApp NO tiene ninguna etiqueta de ese tipo. Es texto,
-pegado al principio del mensaje por el propio bot. Se confirma en la captura:
-el mensaje de "Detalle:" con los precios NO lleva la marca — sale por otro
-camino.
+**Cómo se hace — corregido.** Primero se dijo "es texto normal" y Sergio
+corrigió bien: tiene otra tipografía y un gris más apagado, por eso se ve como
+etiqueta y no como texto.
+
+Es el **formato de código de WhatsApp**, con tildes invertidas:
+
+```
+🐙 `IA:` Hola 👋 Bienvenido a BRO'S
+```
+
+WhatsApp dibuja lo que va entre tildes en monoespaciado y en un tono más
+apagado. El gris no lo pone nadie: lo pone WhatsApp al aplicar el formato.
+
+Los cinco formatos que acepta: `*negrita*`, `_cursiva_`, `~tachado~`,
+`` `código` `` y `> cita`. Cobra ya usa el primero (el "Sobre la *SÚPER QUESO*").
+
+Alternativa descartada: caracteres Unicode monoespaciados (𝙸𝙰). Se ve parecido
+pero algunos teléfonos no los dibujan y los lectores de pantalla los leen letra
+por letra.
+
+Se confirma en la captura que el mensaje de "Detalle:" con los precios NO lleva
+la marca — sale por otro camino.
 
 **En Cobra:** los 39 envíos conversacionales pasan por `sendWaAndSave`, así que
 la marca es UNA línea ahí. Quedan aparte 11 envíos directos (imágenes de la
