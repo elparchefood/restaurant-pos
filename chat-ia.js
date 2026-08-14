@@ -3246,10 +3246,16 @@ async function datosPlantilla(claves) {
   // ── Negocio: solo se consulta si la plantilla lo pide ──
   if (necesita('negocio') || necesita('direccion') || necesita('tiempo_entrega')) {
     try {
-      const { data:b } = await sb.from('branches').select('name,address,operacion_config')
+      const { data:b } = await sb.from('branches').select('name,address,operacion_config,brands(name)')
         .eq('id', S.branchId).maybeSingle();
       if (b) {
-        d.negocio = b.name || '';
+        /* El nombre que ve el CLIENTE es el de la marca, no el de la sucursal.
+           Aqui se leia b.name, que es "Principal": el aviso de puntos salia
+           diciendo "redimirlos en productos de Principal". La sucursal es un
+           nombre interno. Mismo criterio que pos-print.js (brand_name || name),
+           y si un negocio no tiene marca se cae al nombre de la sucursal. */
+        const mk = b.brands;
+        d.negocio = (Array.isArray(mk) ? (mk[0] || {}).name : (mk || {}).name) || b.name || '';
         d.direccion = b.address || '';
         const oc = b.operacion_config || {};
         if (oc.tiempo_entrega) d.tiempo_entrega = oc.tiempo_entrega;

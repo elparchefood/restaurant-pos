@@ -387,6 +387,147 @@ franja (la franja es lo aprobado).
 
 ---
 
+## 8. Avisar por WhatsApp los puntos ganados — en TODOS los canales
+
+**Lo que pidió Sergio:** que el aviso de "acabas de ganar X puntos" salga solo,
+no solo a quien pidió por WhatsApp. *"las personas al pedir en la mesa me están
+dando su número, entonces independientemente si piden en la mesa, si piden
+domicilio, si es venta rápida, podemos conectar los puntos a la plantilla."*
+
+El mensaje ya existe como respuesta rápida `/puntos` (`chat-ia.js:2082`), con la
+variable `{puntos_ganados}` ya funcionando. Hoy Sergio lo manda a mano.
+
+### La buena noticia: el disparador ya existe y ya cubre los tres canales
+
+El trigger `award_loyalty_points` corre sobre `pos_orders` **cuando el pedido
+queda pagado, venga de donde venga**, y por cada acreditación escribe una fila
+en `pos_puntos_movimientos` con teléfono, puntos y saldo nuevo.
+
+O sea: **no hay que detectar nada.** Esa fila ES el aviso a enviar. Y ya lleva
+todo lo que necesita la plantilla.
+
+Últimos 30 días — 98 acreditaciones, y así se reparten:
+
+| Canal | Acreditaciones |
+|---|---|
+| Domicilio | 50 |
+| Salón (mesa) | 25 |
+| Venta rápida | 23 |
+
+**48 de esas 98 son exactamente el caso que Sergio quiere cubrir** (mesa y venta
+rápida). Hoy ninguna recibe el aviso salvo que él lo mande a mano.
+
+### El obstáculo real: la ventana de 24 horas de WhatsApp
+
+WhatsApp **no deja escribirle a alguien cuando quiera.** Solo se puede responder
+libre durante 24 horas después de que el cliente escribió. Pasadas esas horas —o
+si nunca escribió— WhatsApp exige una **plantilla aprobada por Meta**.
+
+Y el que pide en la mesa **nunca escribió al WhatsApp**. Da el número en la caja.
+
+Se midió contra las 98 acreditaciones reales, mirando si en ese momento había
+ventana abierta:
+
+| Canal | Se puede enviar hoy | Necesita plantilla de Meta |
+|---|---|---|
+| Domicilio | 33 de 50 | 17 |
+| Venta rápida | 10 de 23 | 13 |
+| **Salón (mesa)** | **3 de 25** | **22** |
+| **Total** | **46** | **52** |
+
+**Justo el canal que Sergio quiere cubrir es el que casi nunca tiene ventana
+abierta: 3 de 25.** Sin plantilla aprobada, la mesa se queda por fuera — que es
+lo contrario de lo que pidió.
+
+Ojo con la palabra: Sergio dice "plantilla" pensando en una plantilla de las
+nuestras (texto con variables, como `/puntos`). Meta usa la misma palabra para
+otra cosa: un texto que **ellos revisan y aprueban** antes de dejarlo salir. Se
+necesitan las dos, y son distintas.
+
+### Lo que hay que hacer, en orden
+
+1. **Registrar la plantilla en Meta** (categoría *utility*; el aviso de puntos
+   ganados califica, que es lo barato). Aprobación en minutos u horas. Va junto
+   con lo de `META-PERMISOS.md`. **Esto va primero porque es lo único que no
+   depende de nosotros.**
+2. **Marcar la fila como avisada.** `pos_puntos_movimientos` no tiene columna
+   para eso; sin ella se corre el riesgo de mandar el mismo aviso dos veces, o de
+   inundar a alguien al reprocesar. Una columna `avisado_at` y listo.
+3. **Enviar.** Si hay ventana abierta → mensaje normal con nuestra plantilla
+   `/puntos`. Si no → plantilla de Meta. Mismo texto, dos caminos.
+4. **Interruptor por sucursal** para prenderlo y apagarlo, y decidir un mínimo
+   (¿avisar por 3 puntos? probablemente no).
+
+### LA PLANTILLA — YA RADICADA EN META (13-ago, noche)
+
+**Estado: `PENDING`.** Enviada por la API a la WABA de El Parche Food.
+ID de la plantilla: `1025427573820326`.
+
+Ya había una aprobada en esa cuenta (`nuevo_numero_whatsapp`, MARKETING), o sea
+que el camino de aprobación funciona.
+
+**Corrección a `ESTADO-SISTEMA.md`:** ese documento dice que el WABA ID es
+`1597436841735444`. El real, leído de `chat_channels.meta`, es
+`1568013168188537`. El de la base es el que sirve. Hay que corregir el
+documento.
+
+| Campo del formulario | Valor |
+|---|---|
+| Nombre | `puntos_ganados` |
+| Categoría | **Utility** (no Marketing) |
+| Idioma | Español — `es` |
+| Encabezado | ninguno |
+| Pie de página | ninguno |
+| Botones | ninguno |
+
+**Cuerpo:**
+
+```
+🎉 ¡Ganaste {{1}} puntos con tu compra en {{2}}!
+Ya tienes {{3}} puntos acumulados.
+Cuando vuelvas a pedir, recuerda dar tu número de celular para seguir sumando y redimirlos en productos 🍟
+```
+
+**Valores de ejemplo** (Meta los pide solo para entender de qué se trata; los
+reales se mandan en cada envío):
+
+| | Ejemplo | De dónde sale al enviar |
+|---|---|---|
+| `{{1}}` | `52` | `pos_puntos_movimientos.puntos` |
+| `{{2}}` | `El Parche` | nombre del negocio de la sucursal |
+| `{{3}}` | `340` | `pos_puntos_movimientos.saldo_despues` |
+
+**El texto fijo se escribió a propósito sin nombrar a El Parche**: el negocio va
+en `{{2}}`, así que **la misma plantilla sirve para cualquier restaurante que
+compre Cobra.** No hay que radicar una por cliente.
+
+Por qué califica como *utility* y no como marketing: avisa de algo que **ya
+pasó** (una compra que el cliente acaba de hacer) y no ofrece nada nuevo. Esa
+es la categoría barata.
+
+**Trampas al enviar:**
+
+- Ninguna variable puede ir vacía o el envío falla. `{{3}}` siempre trae número
+  porque el trigger lo calcula antes de escribir la fila; `{{2}}` hay que
+  asegurarlo si un negocio no tiene nombre configurado.
+- Las variables no admiten saltos de línea, tabulaciones ni varios espacios
+  seguidos.
+- Cambiar una palabra del texto fijo obliga a pedir aprobación de nuevo. Los
+  valores de las variables no.
+
+### Decidido
+
+- **Sí sale el saldo total** además de lo ganado (`{{3}}`). La fila ya lo trae,
+  no cuesta nada más y es lo que hace que el cliente vuelva.
+- **Sin la etiqueta `🍟Paco:`** del punto 6: esto lo dispara el sistema, no lo
+  razona Paco.
+
+### Por decidir con Sergio
+- **¿Y si el cliente contesta?** Cae en el chat como conversación nueva y Paco va
+  a intentar tomarle un pedido. Hay que ver cómo se comporta.
+
+---
+
 ## Estado al cerrar el 13-ago
 
 - Motor **v250**, arrancando (verificado con llamada real)
