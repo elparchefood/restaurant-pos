@@ -566,6 +566,35 @@ Consecuencia de diseño: **el texto fijo lo más neutro posible, y en variables
 todo lo que se pueda querer cambiar después.** Cada variable es libertad
 futura. Por eso el nombre del negocio quedó en `{{2}}` y no escrito.
 
+#### Cada variable trae su propio ejemplo — tres cosas en una
+
+Idea de Sergio, y es la que simplifica todo el bloque. Cada variable del
+catálogo lleva **adentro** su valor de ejemplo. De ahí salen las tres cosas a la
+vez, de un solo lugar:
+
+| Lo que ve y escribe el dueño | El ejemplo que va a Meta | El número que Meta recibe |
+|---|---|---|
+| `{puntos_ganados}` | `48` | `{{1}}` |
+| `{negocio}` | `El Parche Food` | `{{2}}` |
+| `{puntos}` | `340` | `{{3}}` |
+
+**El dueño no ve los números NI escribe ejemplos.** Hoy la pantalla lo obliga a
+inventar un ejemplo por cada variable, a mano.
+
+Ojo con el ejemplo: Meta revisa el mensaje **ya armado**. Mandar el nombre de la
+variable como ejemplo ("¡Ganaste puntos_ganados puntos!") se lee roto y es de
+las cosas por las que rechazan. Tiene que ser un valor de verdad.
+
+**Dónde vive el ejemplo.** Hoy los valores de muestra están en una lista aparte
+(`MUESTRAS`, en `pos-vars-ui.js`) separada de la definición de la variable
+(`pos-vars.js`). Van adentro de cada variable: así una variable nueva llega con
+su ejemplo puesto y no hay una segunda lista que alguien olvide actualizar.
+
+Se revisó: hay muestra para todas las variables que pueden ir en el cuerpo de
+una plantilla. Quedan fuera `producto` y `puntos_necesarios`, que solo existen
+dentro de listas — y una lista no cabe en una plantilla de Meta de todas formas,
+porque las variables no admiten saltos de línea.
+
 #### Las piezas
 
 1. **Mandar los parámetros al enviar** (`wa-enviar-lista`). Sin esto nada más
