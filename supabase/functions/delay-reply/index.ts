@@ -290,6 +290,34 @@ function matchCatalogo(
   return exacta || candidatas[0];
 }
 function getAdicionKeywords(): string[] { return [...ADICION_BASE, ...DYN_ADICION_KEYWORDS]; }
+
+/* Lo que devuelve el respaldo GPT tiene que estar EN LO QUE EL CLIENTE ESCRIBIO.
+
+   "me das porfavor una salchipapa" -> el modelo contestaba "Papas", porque una
+   salchipapa lleva papas. Y "Papas" existe de verdad en la categoria Adiciones,
+   asi que el filtro del catalogo lo dejaba pasar: el pedido arrancaba con unas
+   papas de $8.000, y como ya habia producto, el bloque que manda la carta
+   (14f) ni siquiera se evaluaba. El cliente terminaba recibiendo una lista de
+   platos improvisada, distinta cada vez.
+
+   Se compara palabra por palabra y se tolera el error de dedo —esa es la razon
+   de ser del respaldo: "qeso" sigue llegando a "Queso"— pero no se acepta una
+   palabra que el cliente no escribio. */
+function nombreEstaEnElTexto(nombre: string, texto: string): boolean {
+  const dichas = normalizarTexto(texto).split(/\s+/).filter(Boolean);
+  const suyas  = normalizarTexto(nombre).split(/\s+/).filter(w => w.length >= 3);
+  if (!suyas.length || !dichas.length) return false;
+  return suyas.some(w => dichas.some(d => {
+    if (d === w) return true;
+    /* Singular/plural y nombres pegados ("cocacola" trae "coca"). */
+    if (w.length >= 4 && (d.startsWith(w) || w.startsWith(d))) return true;
+    if (w.length >= 4 && d.length >= 4) {
+      const maxDist = Math.floor(Math.min(d.length, w.length) / 4);
+      return maxDist > 0 && levenshtein(d, w) <= maxDist;
+    }
+    return false;
+  }));
+}
 // ¿El texto menciona algún producto o categoría del catálogo del restaurante?
 function mencionaProductoCatalogo(texto: string): boolean {
   const t = " " + normalizarTexto(texto) + " ";
@@ -1891,7 +1919,31 @@ INTENCION, no las palabras exactas.` },
     if (!productoDetectado) {
       const result = await extractProducto(clienteTexto, menuText);
       cantidadDetectada = result.cantidad;
-      if (result.producto) {
+      /* El candado: si el nombre no esta en lo que escribio el cliente, no
+         entra — aunque exista en la carta. Sin producto, el flujo cae al
+         bloque 14f y le manda la CARTA, que es justo lo que hay que hacer
+         cuando solo nombro la categoria. */
+      /* UNA CATEGORIA NO ES UN PRODUCTO — y el que solo nombra la categoria
+         necesita ver la CARTA, no que le adivinen el plato.
+
+         A "me das porfavor una salchipapa" el respaldo contestaba
+         "SALCHIPAPAS TRADICIONALES", que es la categoria. Y al buscarla en el
+         catalogo se quedaba con "Papas", porque "salchiPAPAS tradicionales"
+         contiene esa palabra: el pedido arrancaba con unas papas de $8.000.
+         Con producto ya puesto, el bloque que manda la carta (14f) ni se
+         evaluaba, y el modelo improvisaba una lista de platos — distinta cada
+         vez, incompleta y mezclando categorias con productos.
+
+         Sin producto, el flujo cae solo en 14f y manda la carta. */
+      const esNombreDeCategoria = (s: string): boolean => {
+        const n = normalizarTexto(s);
+        return DYN_CATEGORY_NAMES.some(c => c === n);
+      };
+      if (result.producto && esNombreDeCategoria(result.producto)) {
+        console.log(`producto GPT es una CATEGORÍA ("${result.producto}") — se manda la carta`);
+      } else if (result.producto && !nombreEstaEnElTexto(result.producto, clienteTexto)) {
+        console.log(`producto GPT inventado ("${result.producto}") — no está en lo que escribió el cliente, descartado`);
+      } else if (result.producto) {
         const res = resolverCategoria(result.producto);
         if (res && res !== "ambiguo") { productoDetectado = res.name; productoCategoriaDet = res.cat; }
         else if (res === "ambiguo") {
@@ -2304,8 +2356,15 @@ INTENCION, no las palabras exactas.` },
       // claramente antes de la carta (frase configurable frases.producto_no_existe).
       // Si solo nombró la categoría ("una salchipapa") → frase normal de siempre.
       const STOP_14F = new Set(["quiero","quisiera","dame","hazme","deseo","pedir","pedido","ordenar","enviame","dejame","regalas","haces","porfa","porfis","favor","gracias","hola","buenas","buenos","dias","tardes","noches","para","comer","antoja","antojo","tambien","ahora","luego","grande","pequena","personal","familiar","unico","unica","litro","litros","media","medio","doble"]);
+      /* Si el cliente nombro algo que la carta SI conoce —una categoria, por
+         ejemplo "una salchipapa"— no se le puede decir que no lo manejamos.
+         Pasaba: la frase de "no existe" se disparaba por la palabra
+         "porfavor" escrita junta, que no esta en la carta y ninguna lista de
+         palabras a ignorar iba a cubrir. Se mira lo que el cliente SI nombro,
+         no lo que no. */
       let productoInexistente: string | null = null;
-      for (const w of normalizarTexto(clienteTexto).split(/\s+/)) {
+      const nombroAlgoDeLaCarta = mencionaProductoCatalogo(clienteTexto);
+      for (const w of (nombroAlgoDeLaCarta ? [] : normalizarTexto(clienteTexto).split(/\s+/))) {
         const stem = w.replace(/s$/, "");
         if (w.length < 4 || STOP_14F.has(w) || STOP_14F.has(stem)) continue;
         if (DYN_PROD_NAMES.includes(w) || DYN_PROD_NAMES.includes(stem)) continue;
