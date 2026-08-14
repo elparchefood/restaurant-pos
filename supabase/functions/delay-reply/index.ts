@@ -5982,10 +5982,17 @@ function ubicacionPedido(state: PacoState): string {
 
 function lookupDomiPrice(direccion: string, domicilios: Record<string, unknown> | null | undefined): number | null {
   if (!domicilios) return null;
-  const zonas = (domicilios.zonas as Array<{ nombre?: string; barrios?: string[]; precio: number }>) || [];
+  const zonas = (domicilios.zonas as Array<{ nombre?: string; barrios?: string[]; conjuntos?: string[]; precio: number }>) || [];
   for (const z of zonas) {
     const barrios = z.barrios ?? (z.nombre ? z.nombre.split(",").map((b: string) => b.trim()) : []);
     for (const b of barrios) { if (fuzzyBarrioMatch(direccion, b)) return z.precio; }
+    /* LOS CONJUNTOS TAMBIÉN TIENEN PRECIO. Vivían en su propia lista y esta
+       búsqueda solo miraba la de barrios: en cuanto un sitio se marcaba como
+       conjunto, el domicilio se quedaba sin precio y Paco pasaba la
+       conversación al humano por algo que sí estaba configurado.
+       La lista dice CÓMO se pregunta la dirección (torre y apto, o completa);
+       el precio es del sitio, esté en la lista que esté. */
+    for (const c of (z.conjuntos || [])) { if (c && fuzzyBarrioMatch(direccion, c)) return z.precio; }
   }
   return null;
 }
