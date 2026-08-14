@@ -3595,7 +3595,14 @@ function runExtractors(
   /* La respuesta al upsell. Si acepta, el producto lo recoge el extractor de
      productos como cualquier otro; aqui solo se anota que YA se le ofrecio,
      para no volver a ofrecerle. */
-  if (state.upsell === null && currentStepId === "sugerencia") {
+  /* Y tambien vale si el mensaje trajo un producto nuevo. Cuando el cliente
+     contesta "una coca cola", el producto se detecta EN ESTE MENSAJE y por eso
+     currentStepId queda en null a proposito (14c) — asi que esta regla no
+     entraba y el upsell se quedaba sin contestar para siempre: el paso volvia a
+     tocar turno, el modelo improvisaba otra pregunta, y "efectivo" terminaba
+     guardado como la respuesta al upsell. El pedido nunca se creaba.
+     pasoAntesId es justo lo que se preguntó ANTES de detectar el producto. */
+  if (state.upsell === null && (currentStepId === "sugerencia" || pasoAntesId === "sugerencia")) {
     const tU = text.toLowerCase().trim();
     const rechaza = tU === "no" || tU === "no." || tU === "n" || tU === "na" ||
       esRechazoDeMas(text, intenciones);
