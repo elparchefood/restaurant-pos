@@ -4441,13 +4441,37 @@ function procesarFlujoCanvas(
       out.push({
         id: "sugerencia", campo: "upsell", modo,
         texto: upTexto || undefined,
-        guia: (guia && guia.replace(/\{lista\}/g, listaCorta).replace(/\{opciones\}/g, listaCorta))
-          || (ofrecidos.length
+        /* LO QUE EL DUEÑO ESCOGIO MANDA, ESCRIBA LO QUE ESCRIBA ARRIBA.
+
+           Antes, si la caja tenia instrucciones propias, la lista escogida NO
+           se le pasaba al modelo: solo entraba cuando NO habia instrucciones.
+           Sergio escogio Ranchera, Super Queso y Bebidas —quedaron guardados—
+           y el bot seguia diciendo "¿quieres agregarle algo? tenemos papas,
+           gaseosa, jugos...", que es el ejemplo escrito en las instrucciones.
+           Escoger del catalogo no servia de nada.
+
+           Ahora la lista se ANEXA siempre que haya algo escogido. Si el dueño
+           puso {lista} en su texto, ahi va; si no, se agrega al final. */
+        guia: (() => {
+          const manda = ofrecidos.length
             /* SOLO eso. Antes decía "si no elige nada, propone de la carta": el
                bot improvisaba y ofrecía cosas que el restaurante no queria
                empujar. */
             ? `Ofrece SOLO esto, tal cual, sin agregar nada de la carta: ${listaCorta}. Una sola vez. Si el cliente no quiere, sigue sin insistir.`
-            : "Ofrece algo más de forma natural y breve, una sola vez. Si el cliente no quiere, sigue sin insistir."),
+            : "Ofrece algo más de forma natural y breve, una sola vez. Si el cliente no quiere, sigue sin insistir.";
+          /* LA FRASE DEL DUEÑO MANDA EN LOS DOS MODOS. Como lo dijo Sergio:
+             "en frase fija utilizaría esa frase, y en modo conversacional se
+             guiaría de esa frase y lo diría a su modo".
+             Antes, en modo IA, ni la frase ni los productos escogidos llegaban
+             al bot: mandaban unas instrucciones aparte, y por eso seguía
+             diciendo "tenemos papas, gaseosa, jugos" —el ejemplo escrito en
+             ellas— por mucho que el dueño escogiera del catálogo. */
+          if (upTexto) return `Dile esto con tus palabras, sin cambiar lo que ofrece:\n"${upTexto}"\n${manda}`;
+          const propia = guia
+            ? guia.replace(/\{lista\}/g, listaCorta).replace(/\{opciones\}/g, listaCorta)
+            : "";
+          return propia ? `${propia}\n${manda}` : manda;
+        })(),
       });
     } else if (campo === "preferencias") {
       // Solo existe si el restaurante lo agrega a su flujo. El Parche no lo

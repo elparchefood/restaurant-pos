@@ -718,6 +718,11 @@ function renderPanelBody(id, d) {
     /* LA PLANTILLA. El encabezado lo escribe el dueño; la lista la pone el bot
        con lo que él mismo chuleó. La vista previa no es adorno: la frase lleva
        {lista} y sin verla armada uno no sabe cómo va a quedar. */
+    /* ESTE CUADRO SIRVE EN LOS DOS MODOS, y asi lo quiso Sergio: "en frase fija
+       utilizaria esa frase, y en modo conversacional se guiaria de esa frase y
+       lo diria a su modo". Una sola casilla para decir QUE ofrece y COMO — sin
+       dos cuadros que se contradigan. */
+    const esFijaUp = d.tipo ? d.tipo === 'fija' : d.type !== 'ia';
     const plantilla = d.frase != null ? d.frase : '¿Deseas agregar algo a tu pedido?\n{lista}';
     const previa = plantilla.replace(/\{lista\}/g,
       sel.length ? sel.map(x => '• ' + x.nombre).join('\n') : '• (nada escogido todavía)');
@@ -727,9 +732,12 @@ function renderPanelBody(id, d) {
                 oninput="updateField(${id},'frase',this.value);openPanel(${id})">${esc(plantilla)}</textarea>
       <div style="margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.5">
         Escribe tu frase y pon <b>{lista}</b> donde quieras que aparezca lo que escogiste.
+        ${esFijaUp
+          ? 'Esta caja está en <b>frase fija</b>: sale tal cual, siempre igual.'
+          : 'Esta caja está en <b>modo IA</b>: el bot se guía de tu frase y la dice a su modo, pero solo ofrece lo que escogiste.'}
       </div>
       <div class="up-previa">
-        <div class="up-previa-t">Así lo va a recibir el cliente</div>
+        <div class="up-previa-t">${esFijaUp ? 'Así lo va a recibir el cliente' : 'La idea que va a decir, con sus palabras'}</div>
         <div class="up-previa-m">${esc(previa)}</div>
       </div>
     </div>`;
@@ -1666,6 +1674,10 @@ function pushPaso(d, pasos) {
     if (d.espera_guia)  paso.espera_guia  = d.espera_guia;
   }
   if (d.campo === 'upsell') {
+    /* La frase del cuadro "Cómo lo ofrece" viaja SIEMPRE, no solo en frase
+       fija: en modo IA es de donde el bot saca la idea. Antes solo se
+       exportaban las instrucciones y la frase se quedaba en el editor. */
+    if (d.frase) paso.texto = d.frase;
     /* Lo que el dueño escogio del catalogo. El TIPO va guardado: el bot no
        tiene que adivinar si es adicion, producto o categoria. */
     if (Array.isArray(d.upsell_items)) paso.upsell_items = d.upsell_items;
