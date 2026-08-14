@@ -610,7 +610,9 @@ async function recordarComprobante(convId: string): Promise<void> {
   /* Si el modelo no contesto se usa la frase: quedarse callado es peor. */
   if (!msg) msg = String(pasoPago?.espera_texto || "") || POR_DEFECTO;
 
-  await sendWaAndSave(convId, String(conv.tenant_id), msg, to, phoneId, token);
+  /* El recordatorio del comprobante lo dispara el reloj, no Paco: sin
+     etiqueta, como quedo acordado. */
+  await sendWaAndSave(convId, String(conv.tenant_id), msg, to, phoneId, token, true);
 
   /* La marca se pone SIEMPRE, haya salido o no el mensaje. Si se pusiera solo
      cuando sale bien, una sede con el token vencido reintentaria para
@@ -818,6 +820,12 @@ async function processConversation(convId: string, relectura = false): Promise<v
   const pedidosProg       = !!(cfg.pedidos_programados);
   const puedeTomarPedidos = isOpen || pedidosProg;
   const frasesCfg         = (cfg.frases as Record<string, unknown>) || {};
+  /* La etiqueta es de cada restaurante: pone la suya, o la deja vacia para que
+     no salga ninguna. */
+  {
+    const et = (frasesCfg as Record<string, unknown>).etiqueta_ia;
+    if (et !== undefined && et !== null) ETIQUETA_IA = String(getFraseTexto(et) || "").trim();
+  }
   const domiciliosCfg     = cfg.domicilios as Record<string, unknown> | null | undefined;
   /* LAS CUENTAS QUE ESCOGIO EL DUEÑO en la caja de Pago del canvas. Se filtra
      aqui, en el origen, y no en los nueve sitios que preguntan por los metodos:
@@ -5929,10 +5937,43 @@ async function createWhatsappOrder(
 
 // ── Enviar mensaje WA + guardar en chat_messages ───────────────────────────────
 
+/* ══════════════════════════════════════════════════════════════════════
+   LA ETIQUETA DE PACO
+
+   Regla de Sergio: que en cada mensaje se vea que contesta un asistente
+   virtual. Lo vio en otro restaurante y noto POR QUE sirve — la gente escribe
+   con mas cuidado cuando sabe que le contesta un sistema, y eso evita la mitad
+   de los enredos del flujo.
+
+   Va entre tildes invertidas: WhatsApp dibuja lo que va entre ellas en
+   monoespaciado y en un tono mas apagado. El gris no lo pone nadie, lo pone
+   WhatsApp al aplicar el formato — por eso se lee como etiqueta y no como
+   texto del mensaje.
+
+   LLEVAN ETIQUETA los mensajes que Paco razona y manda. NO la llevan:
+     · los que escribe Sergio a mano desde el panel (van por otro camino)
+     · los que dispara el SISTEMA: "pago verificado", el recordatorio del
+       comprobante, los avisos de estado y las respuestas rapidas. Esos no los
+       esta enviando Paco.
+
+   Se cambia o se apaga sin tocar codigo, en frases.etiqueta_ia. Vacio = sin
+   etiqueta. ══════════════════════════════════════════════════════════════ */
+let ETIQUETA_IA = "🍟 `Paco:`";
+
+function conEtiqueta(msg: string): string {
+  const t = String(msg || "");
+  if (!ETIQUETA_IA || !t.trim()) return t;
+  if (t.startsWith(ETIQUETA_IA)) return t;      // nunca dos veces
+  return `${ETIQUETA_IA} ${t}`;
+}
+
 async function sendWaAndSave(
   convId: string, tenantId: string, msg: string,
   fromPhone: string, phoneId: string, accessToken: string,
+  /* true = lo manda el SISTEMA, no Paco: va sin etiqueta. */
+  sinEtiqueta = false,
 ): Promise<void> {
+  msg = sinEtiqueta ? msg : conEtiqueta(msg);
   const waRes = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
     method: "POST",
     headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
