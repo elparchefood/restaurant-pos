@@ -4099,10 +4099,22 @@ function procesarFlujoCanvas(
               ? `Cliente recurrente — su nombre guardado es "${nombreConfirmar}". Salúdalo con familiaridad y confirma: "¿Va a nombre de ${nombreConfirmar}?" — si confirma úsalo; si da otro, usa ese.`
               : `El contacto de WhatsApp se llama "${nombreConfirmarUsable}". Confirma si el pedido va a ese nombre: "¿Va a nombre de ${nombreConfirmarUsable}?" — si confirma úsalo; si da otro, usa ese.`)
           : (guia || "Pregunta a nombre de quién se recibe el pedido.");
+        /* CONFIRMAR NO PUEDE DEPENDER DE QUE EL MODELO OBEDEZCA. Antes, con un
+           cliente conocido este paso se volvia conversacional Y SIN TEXTO: la
+           pregunta quedaba enteramente en manos del modelo. El 14-ago el modelo
+           se la salto y pregunto el pago; el nombre nunca se lleno, el flujo
+           nunca se completo y por eso no salio el resumen. En el banco, con lo
+           mismo, si la hizo — es una moneda al aire, y por eso costo verlo.
+           Ahora se respeta el modo que escogio el dueño: si puso frase fija,
+           sale una frase fija (la de confirmar, no la de preguntar). */
+        const preguntaNombre = texto || "¿A nombre de quién se recibe el pedido? 🍟";
+        const esFija = modo === "fija";
         out.push({
           id: "nombre", campo: "nombre",
-          modo: nombreConfirmarUsable ? "conversacional" : modo,
-          texto: nombreConfirmarUsable ? undefined : (texto || "¿A nombre de quién se recibe el pedido? 🍟"),
+          modo: nombreConfirmarUsable && !esFija ? "conversacional" : modo,
+          texto: nombreConfirmarUsable
+            ? (esFija ? `¿El pedido va a nombre de ${nombreConfirmarUsable}? 😊` : undefined)
+            : preguntaNombre,
           guia: nombreGuia,
         });
       }
