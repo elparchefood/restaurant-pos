@@ -217,7 +217,36 @@ Sus tres razones, y la tercera no se había considerado:
 La tercera es la más práctica del día a día y es la que convierte esto en una
 herramienta de trabajo, no solo en un aviso legal.
 
-### Alcance: hay que cubrir los 11 envíos directos también
+### La etiqueta es `🍟Paco:` — y la regla la afinó Sergio
+
+**No es "lo automático lleva etiqueta". Es "lo que Paco razonó y contestó lleva
+etiqueta".** Con sus palabras: *"las respuestas que dispara el sistema no llevan
+etiqueta porque no las está enviando Paco, Paco no es el que está razonando en
+ese momento"*.
+
+Eso es mejor que la regla anterior: hace que la etiqueta signifique algo preciso
+—quién pensó esa respuesta— en vez de ser un sello en todo lo que sale.
+
+| | ¿Lleva `🍟Paco:`? | Por qué |
+|---|---|---|
+| Respuestas de la conversación | **sí** | Paco razonó |
+| La carta y su frase | **sí** | Paco decidió mandarla |
+| El QR y la frase del comprobante | **sí** | va dentro del flujo |
+| Pedido en camino / listo / entregado | **no** | lo dispara el estado |
+| Respuestas rápidas del dueño | **no** | es él |
+| Mensajes escritos a mano | **no** | es él |
+
+### Dos casos que la regla no resuelve sola — decidir con Sergio
+
+1. **El comprobante verificado.** El sistema verifica contra el correo del banco
+   y le confirma al cliente. ¿Es Paco contestando dentro de la conversación, o
+   el sistema reportando? Verificar es del sistema; hablarle al cliente es de
+   Paco.
+2. **El recordatorio del comprobante.** Lo *escribe* Paco (con las palabras del
+   dueño o las suyas) pero lo *dispara* un reloj. Por el criterio de Sergio
+   —quien razona y habla— parecería que sí lleva etiqueta.
+
+### Alcance técnico: los 11 envíos directos
 
 "Todos los mensajes que envíe Paco" incluye los que NO pasan por
 `sendWaAndSave`. Hay que revisarlos uno por uno:
@@ -235,16 +264,12 @@ estorba, se ajusta ahí mismo.
 
 ### Lo que falta definir mañana
 
-1. **Qué marca exactamente**, y que sea configurable por restaurante:
-   `🍟 \`Paco:\``, `🤖 \`IA:\``. Es multi-tenant, cada asistente tiene su nombre
-   y su emoji.
-2. **Si la etiqueta lleva el nombre del bot o solo "IA".** Con el nombre es más
-   cálido ("Paco:"); con "IA" es más explícito sobre lo que es. Se puede
-   combinar: `🍟 \`Paco · IA:\``.
-3. **Qué pasa con los mensajes que dispara el dueño desde una pantalla** (por
-   ejemplo "pedido en camino" al cambiar el estado). Los escribe el sistema
-   pero los ordena una persona. Por la regla —automático lleva etiqueta— van
-   con ella, pero conviene verlo en el teléfono antes de darlo por hecho.
+1. RESUELTO: la etiqueta es `🍟Paco:` — el emoji y el nombre del asistente.
+   Debe ser configurable por restaurante: es multi-tenant y cada uno tiene su
+   nombre y su emoji.
+2. Falta ver en el teléfono si el nombre entre tildes invertidas se lee bien
+   junto al emoji, o si el emoji debe quedar fuera del formato.
+3. RESUELTO por Sergio: los avisos de estado NO llevan etiqueta.
 
 Va de la mano con el punto 1: los dos son para que el cliente sepa con quién
 habla y escriba más claro.
