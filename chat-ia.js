@@ -920,6 +920,16 @@ function convRowHTML(c) {
       + '</span>'
     : '';
 
+  /* EL MOTIVO, A LA VISTA.
+     En la pestaña de Pagos lo único que hace falta saber de un vistazo es POR
+     QUÉ no se pudo confirmar. Sin eso hay que abrir cada chat, mirar el
+     comprobante y adivinar qué falló. */
+  const motivoHTML = (S.activeView === 'pagos' && c.handoff_motivo)
+    ? '<span style="display:flex;margin-top:3px;min-width:0">'
+      + '<span title="' + escHtml(c.handoff_motivo) + '" style="display:inline-block;padding:1px 7px;border-radius:999px;font-size:10.5px;font-weight:700;line-height:1.5;background:#FEF3C7;color:#B45309;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">⚠️ '
+      + escHtml(c.handoff_motivo) + '</span></span>'
+    : '';
+
   let prevPrefix = '';
   if (!isUnread && c.last_sender === 'agent') {
     const checkColor = c.last_read ? '#5B6BFF' : '#94A3B8';
@@ -953,6 +963,7 @@ function convRowHTML(c) {
           ${rightBadge}
         </span>
         ${etqHTML}
+        ${motivoHTML}
       </span>
     </button>`;
 }

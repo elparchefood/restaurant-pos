@@ -17,13 +17,46 @@ Deno.serve(async (req) => {
   try {
     orderId = await verifyTransfer(conversation_id, !!manual);
   } catch (err) {
+    /* Un error nuestro tampoco se le explica al cliente: pasa al humano con el
+       motivo, igual que los demas. */
     console.error("verify-transfer error:", err);
+    try { await pagoSinConfirmar(conversation_id, `Error interno al verificar: ${String(err).slice(0, 160)}`); } catch (_) { /* nada mas que hacer */ }
   }
 
   return new Response(JSON.stringify({ ok: true, order_id: orderId }), {
     headers: { "Content-Type": "application/json" },
   });
 });
+
+/* CUANDO ALGO NO CUADRA, AL CLIENTE NO SE LE DICE NADA.
+
+   Regla de Sergio: comprobante falso, repetido, ilegible, con un monto que no
+   coincide o un fallo interno nuestro — da igual cual sea. El cliente no
+   recibe ninguna explicacion. Ya se le dijo "dame un momento mientras lo
+   verifico" y ahi se queda, esperando, mientras un humano lo resuelve.
+
+   Por que se calla: una explicacion automatica o acusa a un cliente honesto de
+   algo que fue un fallo nuestro, o le enseña al deshonesto exactamente que
+   chequeo burlo y como esquivarlo la proxima vez.
+
+   La conversacion pasa al humano y sigue en la pestaña "Pagos por confirmar",
+   ahora con el MOTIVO escrito para que el dueño sepa que revisar antes de
+   tocar "Confirmar pago". */
+async function pagoSinConfirmar(conversationId: string, motivo: string): Promise<null> {
+  console.log(`[pago] sin confirmar -> pasa al humano: ${motivo}`);
+  try {
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, {
+      human_takeover: true,
+      handoff_at:     new Date().toISOString(),
+      handoff_motivo: motivo,
+      /* Sigue pendiente: es lo que lo mantiene en la pestaña de Pagos. */
+      pago_pendiente: true,
+    });
+  } catch (err) {
+    console.error("[pago] no se pudo marcar la conversacion:", err);
+  }
+  return null;
+}
 
 async function verifyTransfer(conversationId: string, manual = false): Promise<string | null> {
   // 1. Cargar conversación
@@ -89,8 +122,12 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
     if (pendingData) {
       orderIdM = await crearPedido(conversationId, branchId, tenantId, fromPhone, pendingData, cfg, refManual);
     }
+    /* El dueño ya lo miró y lo confirmó: la conversación vuelve al bot y el
+       motivo se borra. Si quedara puesto, mañana seguiría diciendo que algo
+       falló en un pago que ya está resuelto. */
     await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, {
       pago_pendiente: false, pending_order_data: null, human_takeover: false, recordar_at: null,
+      handoff_motivo: null, handoff_at: null,
     });
     const cierreM = frases.cierre_pedido || "En un momento preparamos tu pedido 🍟 ¡Con muchísimo gusto!";
     const mixtoM = pendingData?.pago_mixto as Record<string, unknown> | null | undefined;
@@ -112,11 +149,7 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
   const imageUrl = imgMsgs?.[0]?.media_url as string | null;
 
   if (!imageUrl) {
-    console.error("No image found for conversation:", conversationId);
-    const msg = "No encontramos el comprobante. Por favor envíalo de nuevo como imagen 📷";
-    await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
-    await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
-    return null;
+    return await pagoSinConfirmar(conversationId, "No llegó ninguna imagen de comprobante");
   }
 
   // 4b. Avisar de inmediato que estamos verificando (la verificación con Gmail puede
@@ -134,10 +167,7 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
   // NO rechazar solo porque la UI de Nequi muestra texto "pendiente" — eso es normal
   // en su interfaz aunque el pago ya salió. Solo rechazar si no tiene monto visible.
   if (!visionResult.parece_valido && !visionResult.monto) {
-    const msg = "⚠️ No pudimos leer el monto en el comprobante. Por favor envíanos una foto más clara o el comprobante definitivo 📷";
-    await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
-    await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
-    return null;
+    return await pagoSinConfirmar(conversationId, "No se pudo leer el monto en la imagen");
   }
 
   // 7. Comparar llave/cuenta del comprobante contra la nuestra en ia_config
@@ -150,11 +180,8 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
   console.log(`Llave comprobante: "${llaveEnComprobante}", config: "${llaveConfigLimpia}", coincide: ${llaveCoincide}`);
 
   if (!llaveCoincide) {
-    const msg = `⚠️ El número de cuenta del comprobante (${llaveEnComprobante}) no coincide con el nuestro (${llaveCfg}). Por favor verifica que enviaste el pago al número correcto y contáctanos 📞`;
-    await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
-    await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
-    await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, { human_takeover: true });
-    return null;
+    return await pagoSinConfirmar(conversationId,
+      `El pago fue a otra cuenta: el comprobante dice ${llaveEnComprobante} y la nuestra es ${llaveCfg}`);
   }
 
   // 8. Calcular total esperado desde pending_order_data y comparar con monto.
@@ -174,11 +201,8 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
   }
 
   if (!montoCoincide) {
-    const msg = `⚠️ El monto del comprobante (${fmtMonto(Number(visionResult.monto.replace(/\D/g,"")), monedaCfg)}) no coincide con ${parteDigital > 0 ? "la parte acordada por transferencia" : "el total del pedido"} (${fmtMonto(esperadoTransfer, monedaCfg)}). Un agente lo revisará en breve.`;
-    await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
-    await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
-    await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, { human_takeover: true });
-    return null;
+    return await pagoSinConfirmar(conversationId,
+      `Pagó ${fmtMonto(montoComprobante, monedaCfg)} y ${parteDigital > 0 ? "lo acordado por transferencia era" : "el pedido es"} ${fmtMonto(esperadoTransfer, monedaCfg)}`);
   }
 
   // 8b. ANTI-REPLAY: un mismo comprobante (referencia) NO puede pagar dos pedidos.
@@ -191,11 +215,8 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
     ) as Array<Record<string, unknown>> | null;
     if (dup && dup.length > 0) {
       console.log(`ANTI-REPLAY: referencia ${refLimpia} ya usada en pedido ${dup[0].id}`);
-      const msg = "⚠️ Este comprobante ya fue usado para un pedido anterior. Si crees que es un error, un agente te atenderá en breve 🙏";
-      await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
-      await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
-      await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, { human_takeover: true });
-      return null;
+      return await pagoSinConfirmar(conversationId,
+        `Comprobante repetido: la referencia ${refLimpia} ya pagó otro pedido`);
     }
   }
 
@@ -264,11 +285,11 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
     return orderId;
 
   } else {
-    // 10b. No se pudo verificar — NO activar human_takeover (silenciaría el bot para siempre)
-    // La conversación queda en pestaña "Pagos" de Cobra para revisión manual del operador
-    const msg = "⚠️ Recibimos tu comprobante pero no pudimos verificarlo automáticamente. Un agente lo revisará en breve y te confirmamos 🙏";
-    await sendWhatsApp(fromPhone, phoneId, accessToken, msg);
-    await saveOutMessage(conversationId, tenantId, msg, fromPhone, phoneId, accessToken);
+    /* 10b. No aparecio el correo del banco que respalde el pago. Es el caso
+       del comprobante editado: los numeros de la imagen pueden cuadrar, pero
+       el correo no se puede fabricar. */
+    return await pagoSinConfirmar(conversationId,
+      `No apareció el correo del banco que respalde el pago${verifyDetail ? " — " + verifyDetail : ""}`);
   }
   return null;
 }
