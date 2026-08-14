@@ -5,7 +5,21 @@ el motor quedó en v250 y el editor en el commit `fee4a1f`.
 
 ---
 
-## 1. El saludo: decir que es un asistente virtual y pedir el pedido claro
+## 1. ~~El saludo~~ — HECHO 14-ago. Frase FIJA con variables, aplicada y probada.
+
+> {{saludo_hora}} 😊 Soy *Paco*, el asistente virtual de {{restaurante}}.
+>
+> Para atenderte rápido, escríbeme tu pedido lo más completo que puedas:
+> *qué deseas, el tamaño y para dónde va* 🍟
+
+FIJA y no conversacional a propósito: la guía anterior decía "también PUEDES
+indicar que te llamas Paco" y por eso salió dos veces en todo un día. Lo que
+depende de que el modelo obedezca es una moneda al aire.
+
+⚠️ Vive en `flujo_saludo`, que es justo lo que el canvas reescribe al guardar
+(punto 2, sin cerrar). Si se guarda el canvas, esta frase se puede perder.
+
+### Análisis original (13-ago)
 
 **Lo que pidió Sergio**, con sus palabras: que el saludo *"indique y explique a
 la gente que está contestando una asistente virtual, y que las personas nos
