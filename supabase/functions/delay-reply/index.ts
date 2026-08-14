@@ -198,7 +198,9 @@ let DYN_PRODUCT_FULL: string[] = [];       // nombres COMPLETOS de productos (va
 let DYN_CATEGORY_NAMES: string[] = [];     // nombres de categorías (una categoría NO es un producto)
 // Mapa producto→categoría(s): motor de DESAMBIGUACIÓN cuando el mismo nombre
 // existe en varias categorías (Especial de hamburguesa/perro/sandwich...)
-let DYN_PROD_MAP: Array<{ key: string; name: string; cat: string }> = [];
+/* Cada fila lleva TAMBIEN sus presentaciones y variantes: son lo que permite
+   distinguir dos productos que se llaman igual en categorias distintas. */
+let DYN_PROD_MAP: Array<{ key: string; name: string; cat: string; opciones: string[] }> = [];
 
 // Sinónimos coloquiales de tipos de comida (mecánica general)
 const CAT_SINONIMOS: Record<string, string[]> = {
@@ -1291,7 +1293,7 @@ INTENCION, no las palabras exactas.` },
     const _dynProd = new Set<string>();
     const _dynAdi  = new Set<string>();
     const _prodFull = new Set<string>();   // nombres COMPLETOS de productos (validar extractProducto)
-    const _prodMap: Array<{ key: string; name: string; cat: string }> = [];
+    const _prodMap: Array<{ key: string; name: string; cat: string; opciones: string[] }> = [];
     const _catNames = new Set<string>();   // nombres de categorías (una categoría NO es un producto)
     const _addProdWords = (nombre: string) => {
       const norm = normalizarTexto(nombre).toLowerCase().trim();
@@ -1313,7 +1315,21 @@ INTENCION, no las palabras exactas.` },
       const normFull = normalizarTexto(nombreProd).toLowerCase().trim();
       if (normFull) _prodFull.add(normFull);
       const catNombre = String((p.category_id as Record<string, unknown> | null)?.name || "");
-      if (normFull) _prodMap.push({ key: normFull, name: nombreProd, cat: catNombre });
+      if (normFull) {
+        /* Lo que SOLO tiene esta fila: sus presentaciones y sus variantes. */
+        const opcs: string[] = [];
+        for (const pr of ((p.presentations as Array<{ name?: string }>) || [])) {
+          const n = normalizarTexto(String(pr?.name || "")).trim();
+          if (n && n !== "unico") opcs.push(n);
+        }
+        for (const g of ((p.variables as Array<{ options?: Array<{ name?: string }> }>) || [])) {
+          for (const o of (g?.options || [])) {
+            const n = normalizarTexto(String(o?.name || "")).trim();
+            if (n) opcs.push(n);
+          }
+        }
+        _prodMap.push({ key: normFull, name: nombreProd, cat: catNombre, opciones: opcs });
+      }
       const catName = String((p.category_id as Record<string, unknown> | null)?.name || "");
       if (catName) {
         _addProdWords(catName);
@@ -1939,6 +1955,26 @@ INTENCION, no las palabras exactas.` },
         Math.abs(a.length - normN.length) - Math.abs(b.length - normN.length))[0]);
     }
     if (mismos.length === 1) return { name: mismos[0].name, cat: mismos[0].cat };
+    /* LO QUE PIDIO MANDA SOBRE UNA PALABRA SUELTA DEL MENSAJE.
+
+       "una PERSONAL super queso y un PERRO especial": son DOS platos. La
+       palabra "perro" es del segundo, pero se usaba como contexto del primero
+       y la Super Queso salia de PERROS CALIENTES — que no tiene variantes, y
+       por eso Paco no pregunto ninguna.
+
+       "Personal" solo existe en la Super Queso de Salchipapas. Si el cliente
+       nombro una presentacion o una variante que SOLO tiene una de las
+       candidatas, esa es: lo dice el catalogo, no una coincidencia de texto. */
+    {
+      const tNorm = " " + normalizarTexto(clienteTexto) + " ";
+      const porOpcion = mismos.filter(m =>
+        (m.opciones || []).some(o => o.length >= 4 && tNorm.includes(" " + o + " ")));
+      if (porOpcion.length === 1) {
+        console.log(`[categoria] "${porOpcion[0].name}" resuelto por su opción, no por el texto: ${porOpcion[0].cat}`);
+        return { name: porOpcion[0].name, cat: porOpcion[0].cat };
+      }
+    }
+
     // Mismo nombre en VARIAS categorías → desambiguar
     const catTexto = categoriaMencionada(clienteTexto, mismos.map(m => m.cat));
     if (catTexto) { const m = mismos.find(x => x.cat === catTexto)!; return { name: m.name, cat: m.cat }; }
