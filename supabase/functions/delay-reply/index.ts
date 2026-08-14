@@ -4306,6 +4306,85 @@ function resolverAdiciones(
 }
 
 /* ══════════════════════════════════════════════════════════════════════
+   EL VERIFICADOR — el pedido no puede llevar lo que la carta no permite.
+
+   Regla de Sergio, con sus palabras: "si yo en la tablet voy a añadirle una
+   tocineta a una Coca Cola es imposible, porque dentro de la pantalla de Coca
+   Cola no estan los modificadores para agregarla. Asi mismo deberia pasar
+   internamente con el bot."
+
+   La validacion ya existia, pero corria AL FINAL y EN SILENCIO: el resumen le
+   mostraba al cliente "1x COCA COLA 1.5 Litros + Tocineta" mientras el pedido
+   se creaba sin la tocineta y sin cobrarla. El texto y la comanda decian cosas
+   distintas y nadie se enteraba — ni el cliente, ni la cocina, ni la caja.
+
+   Ahora corre ANTES del resumen y otra vez ANTES de crear el pedido, contra la
+   misma estructura que usa la toma de pedidos manual: los grupos de
+   modificadores de ESE producto en ESA presentacion.
+
+   Lo que no cabe no se borra a escondidas:
+     · se le pasa al plato del mismo pedido que SI lo admite (la tocineta era
+       de la salchipapa, no de la gaseosa),
+     · y si ningun plato lo admite, se devuelve para decirselo al cliente.
+   ══════════════════════════════════════════════════════════════════════ */
+type LineaPedido = {
+  producto: string | null;
+  tamano: string | null;
+  categoria: string | null;
+  adiciones: string | null;
+};
+
+function verificarAdiciones(
+  lineas: LineaPedido[],
+  products: Array<Record<string, unknown>> | null,
+  grupos: GrupoMod[],
+): { adiciones: Array<string | null>; movidas: Array<{ adicion: string; a: string }>; imposibles: string[] } {
+  const salida: Array<string | null> = lineas.map(l => l.adiciones);
+  const movidas: Array<{ adicion: string; a: string }> = [];
+  const imposibles: string[] = [];
+  if (!products || !lineas.length) return { adiciones: salida, movidas, imposibles };
+
+  const admite = (l: LineaPedido, adicion: string): boolean => {
+    if (!l.producto) return false;
+    const prod = matchCatalogo(products, l.producto, l.categoria);
+    if (!prod) return false;
+    const presId = l.tamano
+      ? String((((prod.presentations as Array<Record<string, unknown>>) || [])
+          .find(p => normalizarTexto(String(p.name || "")) === normalizarTexto(l.tamano || "")) || {}).id || "")
+      : null;
+    const n = normalizarTexto(adicion);
+    return gruposDelProducto(prod, presId, grupos)
+      .some(g => (g.options || []).some(o => normalizarTexto(o.name) === n));
+  };
+
+  const trozos = (s: string | null) => String(s || "").split(",").map(x => x.trim()).filter(Boolean);
+
+  for (let i = 0; i < lineas.length; i++) {
+    const pedidas = trozos(lineas[i].adiciones);
+    if (!pedidas.length) continue;
+    const suyas: string[] = [];
+    for (const a of pedidas) {
+      if (admite(lineas[i], a)) { suyas.push(a); continue; }
+      const j = lineas.findIndex((o, k) => k !== i && admite(o, a));
+      if (j >= 0) {
+        const ya = trozos(salida[j]);
+        if (!ya.some(x => normalizarTexto(x) === normalizarTexto(a))) ya.push(a);
+        salida[j] = ya.join(", ");
+        lineas[j].adiciones = salida[j];
+        movidas.push({ adicion: a, a: lineas[j].producto || "" });
+      } else {
+        imposibles.push(a);
+      }
+    }
+    /* "" y no null: la pregunta de adiciones YA se contesto. Con null se le
+       volveria a preguntar por algo que el cliente ya dijo. */
+    salida[i] = suyas.join(", ");
+    lineas[i].adiciones = salida[i];
+  }
+  return { adiciones: salida, movidas, imposibles };
+}
+
+/* ══════════════════════════════════════════════════════════════════════
    EL EMPAQUE
 
    Misma configuracion y mismas reglas que la pantalla de ventas
@@ -4861,6 +4940,9 @@ async function buildSummaryFromState(
 
   let precioProducto = 0;
   const productoLines: string[] = [];
+  /* Lo que el cliente pidió y ningún plato del pedido admite. No se calla:
+     se le dice, porque si no lo ve va a esperar algo que no le va a llegar. */
+  const noSePudo: string[] = [];
   const itemsEmpaque: ItemEmpaque[] = [];
 
   try {
@@ -4897,6 +4979,20 @@ async function buildSummaryFromState(
       { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, preferencias: state.preferencias, categoria: state.producto_categoria },
     ];
 
+    /* ANTES DE ESCRIBIR NADA: que lo que se va a mostrar sea lo que el pedido
+       de verdad puede tener. Si algo no cabe en su plato, se pasa al que si lo
+       admite; si no cabe en ninguno, se le dice al cliente mas abajo. */
+    const chequeo = verificarAdiciones(
+      allItems.map(i => ({ producto: i.producto, tamano: i.tamano ?? null, categoria: i.categoria ?? null, adiciones: i.adiciones ?? null })),
+      products, gruposMod,
+    );
+    allItems.forEach((it, i) => { it.adiciones = chequeo.adiciones[i]; });
+    for (const m of chequeo.movidas) console.log(`[verificador] "${m.adicion}" no cabía en su plato — se pasó a ${m.a}`);
+    for (const x of chequeo.imposibles) {
+      console.log(`[verificador] "${x}" no lo admite ningún plato del pedido`);
+      if (!noSePudo.includes(x)) noSePudo.push(x);
+    }
+
     for (const item of allItems) {
       if (!item.producto) continue;
       // Usar nombre canónico del producto desde la DB para evitar que GPT devuelva
@@ -4917,8 +5013,11 @@ async function buildSummaryFromState(
         : undefined;
       const adiRes = resolverAdiciones(item.adiciones, matchedProd, presItem ? String(presItem.id || "") : null, gruposMod);
       const adiCobradas = adiRes.filter(a => !a.sinPrecio);
-      const adStr = adiRes.length > 0
-        ? " + " + adiRes.map(a => a.nombre).join(", ")
+      /* Se MUESTRA lo mismo que se COBRA. Antes el texto salía de todas las
+         adiciones y el precio solo de las válidas: por eso el resumen decía
+         "+ Tocineta" sin sumar sus $20.000. */
+      const adStr = adiCobradas.length > 0
+        ? " + " + adiCobradas.map(a => a.nombre).join(", ")
         : "";
       const tamStr  = item.tamano ? ` ${item.tamano}` : "";
       productoLines.push(`🍟 ${item.cantidad}x ${display}${tamStr}${adStr}`);
@@ -5115,6 +5214,17 @@ async function buildSummaryFromState(
     return sinAdorno.length > 0 || l.trim().length === 0;
   }).join("\n");
 
+  /* Lo que no se pudo agregar se DICE, antes de pedir la confirmación. Si se
+     calla, el cliente confirma creyendo que lo lleva y no le va a llegar. */
+  if (noSePudo.length) {
+    const aviso = `⚠️ ${listaNatural(noSePudo)} no se puede agregar a lo que pediste, así que no va en el pedido.`;
+    /* Va ANTES de la pregunta de confirmación: si va después, el cliente ya
+       leyó "¿lo confirmamos?" y responde sin haber visto el aviso. */
+    resumenFinal = confirmFrase && resumenFinal.includes(confirmFrase)
+      ? resumenFinal.replace(confirmFrase, `${aviso}\n\n${confirmFrase}`)
+      : `${resumenFinal}\n\n${aviso}`;
+  }
+
   // Safety net: si la plantilla no incluía {{confirmacion}}, se agrega siempre al final
   if (confirmFrase && !resumenFinal.includes(confirmFrase)) {
     resumenFinal += `\n\n${confirmFrase}`;
@@ -5235,6 +5345,23 @@ async function createWhatsappOrder(
   let orderTotal = 0;
   /* Los grupos de modificadores, para poner a cada adicion su precio real. */
   const gruposPedido = await cargarModificadores(branchId);
+
+  /* EL MISMO VERIFICADOR QUE EL RESUMEN, otra vez aquí. No es repetido de más:
+     entre que el cliente ve el resumen y confirma puede cambiar algo, y la
+     comanda no puede llevar lo que el producto no admite. Es la última reja
+     antes de que esto se vuelva un pedido de verdad. */
+  {
+    const lineas: LineaPedido[] = productos.map(p => ({
+      producto: String(p.nombre || "") || null,
+      tamano: String(p.tamano || "") || null,
+      categoria: String(p.categoria || "") || null,
+      adiciones: (p.adiciones as string) || null,
+    }));
+    const chk = verificarAdiciones(lineas, allProducts, gruposPedido);
+    productos.forEach((p, i) => { (p as Record<string, unknown>).adiciones = chk.adiciones[i]; });
+    for (const m of chk.movidas) console.log(`[verificador/pedido] "${m.adicion}" se pasó a ${m.a}`);
+    for (const x of chk.imposibles) console.warn(`[verificador/pedido] "${x}" no lo admite ningún plato — no entra a la comanda`);
+  }
 
   for (const prod of productos) {
     const nombreGPT = String(prod.nombre  || "").trim();
