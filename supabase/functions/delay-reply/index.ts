@@ -3475,6 +3475,10 @@ function validarLeido(
   productData: ProductData | null,
   pagosCfg: Record<string, unknown> | null | undefined,
   cfgGlobal: Record<string, unknown>,
+  /* Lo que escribió el cliente, tal cual. NO para entender —de eso se encarga
+     el lector— sino para desempatar cuando el mismo nombre puede ser el plato
+     y la adición a la vez. */
+  texto = "",
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (!leido) return out;
@@ -3509,11 +3513,29 @@ function validarLeido(
       const real = resolverAdicionCatalogo(String(a));
       if (real && !reales.includes(real)) reales.push(real);
     }
-    /* Un plato no es adicion de si mismo. */
+    /* Un plato no es adicion de si mismo — SALVO que el cliente lo diga dos
+       veces: "una familiar ranchera CON ADICION DE RANCHERA".
+
+       En El Parche la Ranchera es un plato Y ademas un modificador de verdad
+       (vale $14.000 en personal y $28.000 en familiar), asi que ese pedido
+       existe. El lector lo entendia perfecto —devolvia producto RANCHERA y
+       adiciones ["Ranchera"], separados— y este filtro lo borraba despues.
+
+       Lo que decide es cuantas veces lo NOMBRO el cliente: una vez es el
+       plato; dos, la segunda es la adicion. El texto solo desempata — quien
+       entiende sigue siendo el lector, y el verificador comprueba despues que
+       ese modificador de verdad exista para ese plato. */
+    const vecesQueLoDijo = (nombre: string): number => {
+      const n = normalizarTexto(nombre);
+      if (!n) return 0;
+      const escapado = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return (normalizarTexto(texto).match(new RegExp("\\b" + escapado, "g")) || []).length;
+    };
     const suyo = normalizarTexto(state.producto || "");
     const limpias = reales.filter(r => {
       const rn = normalizarTexto(r);
-      return rn !== suyo && !suyo.includes(rn);
+      const esElPlatoMismo = rn === suyo || suyo.includes(rn);
+      return !esElPlatoMismo || vecesQueLoDijo(r) >= 2;
     });
     if (limpias.length) out.adiciones = limpias.join(", ");
   }
@@ -3576,7 +3598,7 @@ function runExtractors(
   /* LO ENTENDIDO VA PRIMERO. Los comparadores de texto de mas abajo solo
      llenan lo que quede vacio: son el respaldo para cuando el modelo falle o
      se demore, no la primera opcion. */
-  const result: Record<string, unknown> = validarLeido(leido, state, productData, pagosCfg, cfgGlobal);
+  const result: Record<string, unknown> = validarLeido(leido, state, productData, pagosCfg, cfgGlobal, text);
 
   // Complemento de dirección pendiente (barrio, número, referencia)
   // El cliente está respondiendo la pregunta específica — tomamos su texto y lo concatenamos
