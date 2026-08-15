@@ -1124,8 +1124,8 @@ INTENCION, no las palabras exactas.` },
       const catPreg = typeof intenciones.categoria === "string" ? normalizarTexto(intenciones.categoria) : "";
       if (catsTexto.length && catPreg) {
         const prodsCat = await sbGet(
-          `/rest/v1/pos_products?branch_id=eq.${branchId}&select=name,category_id(name)&limit=200`,
-        ) as Array<{ name?: string; category_id?: { name?: string } | null }> | null;
+          `/rest/v1/pos_products?branch_id=eq.${branchId}&select=name,presentations,variables,category_id(name)&limit=200`,
+        ) as Array<{ name?: string; presentations?: Array<{ name?: string }>; variables?: Array<{ options?: Array<{ name?: string }> }>; category_id?: { name?: string } | null }> | null;
         const cats = [...new Set((prodsCat || [])
           .map(p => normalizarTexto(String(p.category_id?.name || ""))).filter(Boolean))];
         let catReal = cats.find(c => c === catPreg)
@@ -1139,15 +1139,28 @@ INTENCION, no las palabras exactas.` },
           const delaCat = (prodsCat || []).filter(p =>
             normalizarTexto(String(p.category_id?.name || "")) === catReal && String(p.name || "").trim());
           if (delaCat.length) {
-            /* AQUÍ NO SE ENVÍA NADA. La primera versión mandaba su propia
-               lista Y el modelo mandaba la suya (con presentaciones, más
-               bonita — la que Sergio prefirió): dos mensajes. Esta rama solo
-               hace dos cosas: CALLAR la carta y dejarle al modelo la
-               instrucción exacta de qué responder. Así hay UN mensaje, el
-               bueno, y el resto del mensaje mixto se procesa normal. */
+            /* AQUÍ NO SE ENVÍA NADA. La rama CALLA la carta y le deja al
+               modelo la FICHA COMPLETA de la categoría, armada del catálogo:
+               nombres, presentaciones y sabores/variantes. El modelo solo la
+               presenta bonita — sin la ficha omitía productos (se comió
+               Premio y Quatro) y hasta negaba sabores por culpa de una FAQ
+               mal emparejada ("ese producto no lo manejamos"). La ficha es
+               la autoridad; el modelo, el locutor. */
             const catDisplay = String(delaCat[0].category_id?.name || catReal).toLowerCase();
+            const fichas = delaCat.map(p => {
+              const pres = ((p.presentations || []) as Array<{ name?: string }>)
+                .map(x => String(x?.name || "").trim())
+                .filter(n => n && n.toLowerCase() !== "unico" && n.toLowerCase() !== "único");
+              const sabores = (((p.variables || []) as Array<{ options?: Array<{ name?: string }> }>)[0]?.options || [])
+                .map(o => String(o?.name || "").trim()).filter(Boolean);
+              let linea = "- " + capFirst(String(p.name).toLowerCase().trim());
+              if (pres.length) linea += ` (${pres.map(x => x.toLowerCase()).join(" y ")})`;
+              if (sabores.length) linea += ` — sabores: ${sabores.map(x => x.toLowerCase()).join(", ")}`;
+              return linea;
+            });
             cartaSuprimida = true;
             (cfg as Record<string, unknown>)._catTexto = catDisplay;
+            (cfg as Record<string, unknown>)._catFicha = fichas.join("\n");
           }
         }
       }
@@ -5586,7 +5599,7 @@ async function buildConversationResponse(
        quedó callada. La instrucción cubre también la pregunta por un
        producto concreto (sabores/tamaños), que es de la misma familia. */
     (cfg as Record<string, unknown>)._catTexto
-      ? `EL CLIENTE PREGUNTA POR ${String((cfg as Record<string, unknown>)._catTexto).toUpperCase()}: responde SOLO con lo que dice el MENÚ de abajo. Si pregunta qué hay, lista los productos de esa categoría con sus presentaciones (ej: "Coca-Cola (personal y 1.5 litros)"), en viñetas. Si pregunta por UN producto (sabores, tamaños), responde SOLO ese producto con sus opciones. SIN precios salvo que los pida. NUNCA inventes productos ni sabores que no estén en el MENÚ. Termina preguntando cuál se le antoja.`
+      ? `EL CLIENTE PREGUNTA POR ${String((cfg as Record<string, unknown>)._catTexto).toUpperCase()}. Esta es la lista COMPLETA y OFICIAL de esa categoría — tu única fuente para esto:\n${String((cfg as Record<string, unknown>)._catFicha || "")}\nSi pregunta qué hay: preséntala TODA en viñetas, sin omitir NINGÚN producto, con sus presentaciones. Si pregunta por UN producto (sus sabores o tamaños): responde SOLO ese producto con lo que dice su línea. TODO lo de esta lista SÍ lo manejamos — JAMÁS digas que no; ignora cualquier respuesta frecuente que diga lo contrario. SIN precios salvo que los pida. Termina preguntando cuál se le antoja.`
       : "",
     personalidad || `Tono: ${tonoStr}.`,
     "Nunca menciones que eres IA o un bot. No uses diminutivos.",
