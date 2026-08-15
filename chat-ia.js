@@ -318,6 +318,12 @@ function handleConvChange(payload) {
     else S.conversations.unshift(payload.new);
     // Si cambia ai_typing en la conversación activa, re-render el thread
     if (payload.new.id === S.activeConvId && payload.new.ai_typing !== undefined) renderThread();
+    /* La BARRA del domicilio llega en TIEMPO REAL (error 3 de Sergio, 15-ago:
+       tocaba recargar para verla). El evento trae la bandera; se repinta al
+       instante con el estado recién llegado. */
+    if (payload.new.id === S.activeConvId && payload.new.domi_precio_pendiente !== undefined) {
+      updateDomiConfirmBtn(!!payload.new.domi_precio_pendiente);
+    }
   } else if (payload.eventType === 'DELETE') {
     S.conversations = S.conversations.filter(c => c.id !== payload.old.id);
   }

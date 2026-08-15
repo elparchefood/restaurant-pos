@@ -782,3 +782,28 @@ marcadas como pendientes **y ya existían**. La lista se escribió de memoria si
 contrastarla con el código.
 
 **Antes de empezar cualquier pendiente de aquí, verificarlo en el código.**
+
+### Saga del conjunto desconocido — estado al cierre del 15-ago (motor v282)
+
+**Cerrado y verificado en el banco con el ciclo completo** (pausa → barra →
+confirm-domi → relectura → resumen):
+- Error 2 de Sergio: la dirección ya sale limpia en el resumen
+  ("Rincones de Prueba Torre 3 Apto 108", no la frase entera del pedido) —
+  `limpiarDireccionCapturada` en `mergeSlots`, un solo punto de entrada.
+- Error 3: la barra del domicilio llega EN TIEMPO REAL (handleConvChange
+  repinta al ver `domi_precio_pendiente` en el evento; ya no hay que recargar).
+- El recap del pedido en el turno de retomar desapareció (marca de SISTEMA en
+  relectura + bypass extendido a pasos conversacionales con frase en relectura).
+
+**⚠️ ABIERTO — primero de mañana:** en el turno de RETOMAR tras confirmar la
+barra, sale UNA línea inventada: "Qué pena contigo, no manejamos la adición de
+salchicha ranchera" (falsa: la ranchera se aplica y se cobra bien, $49.000).
+El flujo se autocorrige al mensaje siguiente. Evidencia reunida:
+- Ocurre SOLO en ese turno, reproducido 3 veces en el banco (repro_ciclo.py +
+  repro_cont.py del scratchpad — el arnés simula hasta el clic de la barra).
+- La instrumentación de buildConversationResponse ([bcr]) NO registró llamadas
+  en ese turno → o el mensaje sale de OTRO llamador de OpenAI, o el log no
+  alcanzó la ventana. Arranca con "Qué pena contigo" (= frases.disculpa).
+- Pistas: los otros 5 llamadores de OpenAI (recordatorio 600, intenciones 894,
+  extractProducto 3581, lector 3711, resumen conversacional 5630) — revisar
+  cuál compone con frases.disculpa, y volver a correr el arnés con log en TODOS.

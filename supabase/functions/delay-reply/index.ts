@@ -3001,7 +3001,12 @@ INTENCION, no las palabras exactas.` },
   const preguntoAlgo = !relectura && (clasifico
     ? (intenciones.pregunta === true || intenciones.fuera_tema === true)
     : PREGUNTA_DEL_CLIENTE.test(clienteTexto));
-  if (nextStep && (nextStep.modo || "fija") === "fija" && (nextStep.texto || nextStep.pregunta)
+  /* En RELECTURA hasta el paso conversacional sale con su frase tal cual (si
+     el dueño escribio una): no hay cliente nuevo que atender, solo retomar.
+     Darselo al modelo en ese turno producia recaps del pedido y hasta
+     rechazos inventados ("no manejamos la adicion de ranchera" — si la
+     maneja). El texto del upsell ya viene con su lista resuelta. */
+  if (nextStep && ((nextStep.modo || "fija") === "fija" || relectura) && (nextStep.texto || nextStep.pregunta)
       && !preguntoAlgo) {
     const { texto: fijoBase } = rellenarVariables(String(nextStep.texto || nextStep.pregunta), state, cfg);
     /* FASE B: repetir no es insistir con las mismas palabras. La frase fija
@@ -3028,8 +3033,15 @@ INTENCION, no las palabras exactas.` },
 
   // 14i. Respuesta conversacional — GPT con la conversación completa: preguntas,
   // frustración, fuera de guion. El pedido en sí sigue mandando el flujo.
+  /* En RELECTURA el "mensaje del cliente" es uno VIEJO que ya fue atendido:
+     sin esta marca, el modelo lo leia como recien llegado y lo recapitulaba
+     ("¡Perfecto! Entonces tienes un pedido de...") antes de su pregunta —
+     error 1 de Sergio: los productos SOLO se informan en el resumen. */
+  const textoParaModelo = relectura
+    ? `(SISTEMA: estás RETOMANDO la conversación tras una pausa. El mensaje de abajo YA FUE ATENDIDO — no lo resumas, no lo confirmes, no repitas sus productos. Ve DIRECTO a tu siguiente pregunta.)\n${clienteTexto}`
+    : clienteTexto;
   const reply = await buildConversationResponse(
-    clienteTexto, histCtx, state, nextStep, cfg, frasesCfg,
+    textoParaModelo, histCtx, state, nextStep, cfg, frasesCfg,
     menuText, horariosText, pagosText, domiciliosText, currentProductData,
     true, nombreParaBot, colTimeStr, colDayStr, horaAperturaHoy, horaCierreHoy, proxDia, !!nombreKnown,
   );
@@ -4403,10 +4415,26 @@ function runExtractors(
 
 // ── mergeSlots ────────────────────────────────────────────────────────────────
 
+/* Si la "direccion" capturada arrastra el PEDIDO ("me das una premium mixta
+   con adicion de ranchera... para Villas de X Torre 3"), la direccion real es
+   lo que va despues del ultimo "para". Sin esto, el resumen y la comanda
+   mostraban la frase entera como direccion (error 2 de Sergio, 15-ago).
+   Solo se recorta si hay verbos de pedido — "carrera 9 para arriba" no se toca. */
+function limpiarDireccionCapturada(d: unknown): string {
+  const t = String(d ?? "").trim();
+  if (/\b(me das|dame|quiero|quisiera|deseo|me haces|regalas|pedir|adici[oó]n)\b/i.test(t)
+      && /\bpara\s+\S/i.test(t)) {
+    const cola = t.replace(/^[\s\S]*\bpara\s+/i, "").trim();
+    if (cola.length >= 4) return cola;
+  }
+  return t;
+}
+
 function mergeSlots(state: PacoState, updates: Record<string, unknown>): PacoState {
   const next = { ...state };
   for (const key of Object.keys(updates)) {
-    (next as Record<string, unknown>)[key] = updates[key];
+    (next as Record<string, unknown>)[key] =
+      key === "direccion" ? limpiarDireccionCapturada(updates[key]) : updates[key];
   }
   return next;
 }
