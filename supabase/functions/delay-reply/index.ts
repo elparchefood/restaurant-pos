@@ -6437,11 +6437,23 @@ function clasificarDireccion(
   sinNomenclaturaCliente: boolean,
 ): { tipo: TipoDireccion; requierePagoAdelantado: boolean } {
   const dir = direccion.toLowerCase().trim();
+  /* Las palabras clave se comparan como PALABRAS, no como pedazos: "ara "
+     (la tienda) hacia match dentro de "pARA Villa Ernesto" y toda direccion
+     con "para X" quedaba como lugar publico -> prepago -> el flujo del pago
+     se descarrilaba (trampa de Sergio, 15-ago). El espacio de relleno cubre
+     el inicio y el final de la cadena. */
+  const dirPad = " " + dir.replace(/[,.;]/g, " ") + " ";
+  const tieneLugar = (lista: string[]) => lista.some(kw => {
+    const k = kw.trim();
+    return k.includes(" ")
+      ? dir.includes(k)                       // frases ("centro comercial") van como antes
+      : dirPad.includes(" " + k + " ");       // palabras sueltas, completas
+  });
   if (LLEVAR_REGEX.test(dir) || dir.includes("llevar") || dir.includes("recoger")) return { tipo: "para_llevar", requierePagoAdelantado: false };
   if (domicilios?.rechazar_lugares_publicos !== false) {
-    if (LUGARES_RECHAZADOS.some(kw => dir.includes(kw))) return { tipo: "rechazado", requierePagoAdelantado: false };
+    if (tieneLugar(LUGARES_RECHAZADOS)) return { tipo: "rechazado", requierePagoAdelantado: false };
   }
-  if (LUGARES_PUBLICOS.some(kw => dir.includes(kw))) {
+  if (tieneLugar(LUGARES_PUBLICOS)) {
     const requiere = domicilios?.pago_adelantado_lugares_publicos !== false;
     return { tipo: "publico", requierePagoAdelantado: requiere };
   }

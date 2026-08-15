@@ -5515,3 +5515,28 @@ propone "Villa Ernesto".
 **Pendiente anotado:** la dirección capturada también se traga el mensaje
 completo en ese caso (state.direccion = todo el texto). La barra y la comanda
 muestran el texto largo. Es del extractor de dirección; no bloquea.
+
+## 130. "ara " hacía match dentro de "para" (v281) — 15-ago-2026
+
+El resumen fijo desaparecía tras retomar de la barra del domicilio. La cadena
+del bug, rastreada con reproducción completa en el banco (pausa + confirm-domi
++ relectura simulados):
+
+`LUGARES_PUBLICOS` incluye `"ara "` (la tienda Ara). La comparación era
+`dir.includes(kw)`, y "p**ara ** Villa Ernesto" contiene "ara ". Toda dirección
+con la palabra "para" — o sea, casi cualquier pedido dictado en una sola frase
+— quedaba clasificada como LUGAR PÚBLICO → exigía pago adelantado → borraba el
+pago en efectivo → y esa rama entrega el turno al modelo con paso nulo, que se
+inventaba su propia pregunta de pago (y antes, en v273, su propio mini-resumen).
+
+**Arreglo:** las palabras sueltas de `LUGARES_PUBLICOS` y `LUGARES_RECHAZADOS`
+se comparan como PALABRAS completas (con relleno de espacios y puntuación
+normalizada); las frases ("centro comercial") siguen como estaban.
+
+**Verificado en el banco, ciclo entero:** conjunto desconocido → pausa + barra
+→ confirm-domi aprende a $6.000 → relectura → upsell → nombre → **resumen fijo
+con totales y domicilio** → efectivo → cierre.
+
+Sigue pendiente (anotado): la dirección capturada arrastra el mensaje completo
+cuando pedido y dirección vienen en una sola frase — se ve fea en el resumen
+(📍 con todo el texto) y en la comanda, pero ya no descarrila nada.
