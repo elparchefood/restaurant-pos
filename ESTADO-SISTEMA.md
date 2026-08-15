@@ -5577,3 +5577,21 @@ con evidencia de bisección y el arnés listo (bisect_banco.py).
 **Pendiente menor nuevo:** el clasificador devolvió 400 intermitente (9 veces
 en 6 h; el respaldo de palabras clave amortigua). Instrumentar el cuerpo del
 error cuando se retome.
+
+## 131-bis. Categoría en texto, versión final (v286) — 15-ago-2026
+
+La v283 competía con el modelo: mandaba SU lista y el modelo mandaba la suya
+(con presentaciones, más bonita — la que Sergio prefirió) = dos mensajes. Y el
+guardia de producto apagaba la respuesta en el mensaje mixto.
+
+**Diseño final:** la rama determinista 6-pre NO redacta nada. Hace dos cosas:
+CALLA la carta (cartaSuprimida) y le deja al modelo la instrucción exacta
+(cfg._catTexto → línea en el prompt): listar la categoría con presentaciones
+en viñetas, sin precios salvo que los pidan, y si preguntan por UN producto,
+responder solo ese con sus opciones. El modelo redacta; el catálogo del prompt
+(MENÚ) es la única fuente.
+
+**Batería en el banco (4/4):** pura → lista con presentaciones en un solo
+mensaje · mixta ("Super queso porfa, ¿y qué tienes de tomar?") → UNA respuesta
+con la lista Y el súper queso capturado (verificado en el estado) · "sabores
+de postobón" → "Postobón en sabor Uva" · "sabores de hit" → sus opciones.

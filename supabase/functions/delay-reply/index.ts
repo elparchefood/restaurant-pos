@@ -1139,20 +1139,15 @@ INTENCION, no las palabras exactas.` },
           const delaCat = (prodsCat || []).filter(p =>
             normalizarTexto(String(p.category_id?.name || "")) === catReal && String(p.name || "").trim());
           if (delaCat.length) {
-            const nombres = [...new Set(delaCat.map(p => capFirst(String(p.name).toLowerCase().trim())))];
+            /* AQUÍ NO SE ENVÍA NADA. La primera versión mandaba su propia
+               lista Y el modelo mandaba la suya (con presentaciones, más
+               bonita — la que Sergio prefirió): dos mensajes. Esta rama solo
+               hace dos cosas: CALLAR la carta y dejarle al modelo la
+               instrucción exacta de qué responder. Así hay UN mensaje, el
+               bueno, y el resto del mensaje mixto se procesa normal. */
             const catDisplay = String(delaCat[0].category_id?.name || catReal).toLowerCase();
-            const msgCat = `De ${catDisplay} tenemos: ${listaNatural(nombres)} 😋 ¿Cuál se te antoja?`;
-            await sendWaAndSave(convId, tenantId, msgCat, fromPhone, phoneId, accessToken);
-            await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgCat, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
-            cartaSuprimida = true;    // la carta ya no hace falta en este turno
-            /* Si el MISMO mensaje además trae pedido ("Super queso porfa, ¿y
-               qué tienes de tomar?"), el turno NO termina aquí: el flujo sigue
-               y captura lo pedido. extraRespondido corta el turno tras los
-               extras — eso perdía el super queso (probado en el banco). Solo
-               la pregunta PURA termina con la lista. */
-            const traePedido = intenciones.pedir === true || intenciones.confirma === true
-              || (Array.isArray(intenciones.agregados) && (intenciones.agregados as unknown[]).length > 0);
-            if (!traePedido) extraRespondido = true;
+            cartaSuprimida = true;
+            (cfg as Record<string, unknown>)._catTexto = catDisplay;
           }
         }
       }
@@ -5586,6 +5581,13 @@ async function buildConversationResponse(
        activo. Un mesero sabe para que esta, y por eso sabe que hacer cuando
        pasa algo que el guion no previo. */
     "TU MISIÓN: que el cliente pida fácil y quede contento. Entiende SIEMPRE qué está pasando en la conversación — si pregunta, respóndele; si duda, ayúdalo; si algo no lo puedes resolver, ofrécele hablar con una persona del local. El flujo del pedido continúa DESPUÉS de atender lo que la persona dijo, nunca por encima.",
+    /* Categoría configurada en texto (6-pre): el modelo redacta la lista —
+       con presentaciones, el formato que Sergio prefirió — y la carta ya
+       quedó callada. La instrucción cubre también la pregunta por un
+       producto concreto (sabores/tamaños), que es de la misma familia. */
+    (cfg as Record<string, unknown>)._catTexto
+      ? `EL CLIENTE PREGUNTA POR ${String((cfg as Record<string, unknown>)._catTexto).toUpperCase()}: responde SOLO con lo que dice el MENÚ de abajo. Si pregunta qué hay, lista los productos de esa categoría con sus presentaciones (ej: "Coca-Cola (personal y 1.5 litros)"), en viñetas. Si pregunta por UN producto (sabores, tamaños), responde SOLO ese producto con sus opciones. SIN precios salvo que los pida. NUNCA inventes productos ni sabores que no estén en el MENÚ. Termina preguntando cuál se le antoja.`
+      : "",
     personalidad || `Tono: ${tonoStr}.`,
     "Nunca menciones que eres IA o un bot. No uses diminutivos.",
     "",
