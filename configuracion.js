@@ -3739,6 +3739,20 @@ async function estadosCfgInit() {
     cfg = (r.data && r.data.estados_config) || {};
     etqs = (r.data && r.data.etiquetas) || [];
   } catch (e) {}
+
+  /* ── Plantillas aprobadas de WhatsApp (para el aviso de puntos) ──
+     Se leen de Meta con el token de la sucursal. Solo las APROBADAS:
+     una pendiente o rechazada no se puede enviar y solo confundiría. */
+  var waTpls = [];
+  try {
+    var chR = await sb.from('chat_channels').select('meta').eq('branch_id', _cfgBranchId).eq('channel', 'whatsapp').maybeSingle();
+    var wm = (chR.data && chR.data.meta) || {};
+    if (wm.access_token && wm.waba_id) {
+      var tj = await (await fetch('https://graph.facebook.com/v22.0/' + wm.waba_id +
+        '/message_templates?fields=name,status,language,category,components&limit=50&access_token=' + wm.access_token)).json();
+      waTpls = (tj.data || []).filter(function (t) { return t.status === 'APPROVED'; });
+    }
+  } catch (e) {}
   var LBL = { en_preparacion: 'En preparación', listo: 'Listo', en_camino: 'En camino', entregado: 'Entregado' };
   var FLOW = { llevar: ['en_preparacion', 'listo', 'entregado'], domicilio: ['en_preparacion', 'listo', 'en_camino', 'entregado'] };
   var inpSt = 'width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface)';
@@ -3757,14 +3771,69 @@ async function estadosCfgInit() {
     }).join('');
     return '<div style="margin-bottom:20px"><div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);margin-bottom:12px">' + titulo + '</div>' + rows + '</div>';
   }
+  /* ── Gana puntos: el aviso de WhatsApp cuando el pago hace efectivos los
+     puntos. El TEXTO lo congela Meta al aprobar la plantilla — aquí solo se
+     decide: si está activo, CUÁL plantilla aprobada se usa, y QUÉ dato del
+     sistema alimenta cada hueco. Nunca se le muestran llaves {{n}} al dueño:
+     cada hueco se pinta como una lista con los datos en español. */
+  var PVARS = [
+    { k: 'puntos_ganados', n: 'Puntos ganados', ej: '42' },
+    { k: 'negocio',        n: 'Nombre del negocio', ej: 'El Parche Food' },
+    { k: 'puntos_total',   n: 'Puntos acumulados', ej: '131' },
+    { k: 'nombre_cliente', n: 'Nombre del cliente', ej: 'Jorge' },
+  ];
+  function escT(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function puntosBlock() {
+    var p = cfg.puntos || {};
+    var catNom = { MARKETING: 'Marketing', UTILITY: 'Utilidad', AUTHENTICATION: 'Autenticación' };
+    var opts = waTpls.map(function (t) {
+      return '<option value="' + escT(t.name) + '" data-lang="' + escT(t.language || 'es') + '"' + (t.name === (p.plantilla || '') ? ' selected' : '') + '>'
+        + escT(t.name) + ' · ' + (catNom[t.category] || t.category) + '</option>';
+    }).join('');
+    return '<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">'
+      + '<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Gana puntos</div>'
+      + '<div style="font-size:12.5px;color:var(--text-3);margin-bottom:10px">Cuando un pago hace efectivos los puntos, el cliente recibe esta plantilla de WhatsApp. El texto es el aprobado por Meta y no se puede editar; lo que sí eliges es qué dato va en cada espacio.</div>'
+      + (waTpls.length
+        ? '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">'
+          + '<label style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;cursor:pointer">'
+          + '<input type="checkbox" id="pt-activo"' + (p.activo === true ? ' checked' : '') + '> Avisar los puntos ganados</label>'
+          + '<select id="pt-plantilla" style="' + inpSt + ';width:auto;min-width:220px">' + opts + '</select>'
+          + '</div><div id="pt-slots"></div>'
+        : '<div style="font-size:13px;color:var(--text-3)">Conecta WhatsApp en esta sucursal para poder elegir una plantilla.</div>')
+      + '</div>';
+  }
+  function renderSlots() {
+    var slot = document.getElementById('pt-slots'), sel = document.getElementById('pt-plantilla');
+    if (!slot || !sel) return;
+    var t = null;
+    for (var i = 0; i < waTpls.length; i++) if (waTpls[i].name === sel.value) t = waTpls[i];
+    var bodyC = t && (t.components || []).filter(function (c) { return c.type === 'BODY'; })[0];
+    if (!bodyC || !bodyC.text) { slot.innerHTML = ''; return; }
+    var vars = (cfg.puntos && cfg.puntos.vars) || ['puntos_ganados', 'negocio', 'puntos_total'];
+    var html = escT(bodyC.text).replace(/\{\{(\d+)\}\}/g, function (_m, n) {
+      var idx = parseInt(n, 10) - 1, cur = vars[idx] || '';
+      return '<select data-pvar="' + idx + '" style="padding:2px 6px;border:1px solid var(--accent);border-radius:6px;font-family:inherit;font-size:12.5px;background:var(--surface);color:var(--accent);font-weight:600">'
+        + PVARS.map(function (v) { return '<option value="' + v.k + '"' + (v.k === cur ? ' selected' : '') + '>' + v.n + '</option>'; }).join('') + '</select>';
+    });
+    slot.innerHTML = '<div style="font-size:13px;line-height:2;padding:12px 14px;border:1px dashed var(--border);border-radius:10px;background:var(--surface);white-space:pre-wrap">' + html + '</div>';
+  }
+
   body.innerHTML = typeBlock('llevar', 'Para llevar') + typeBlock('domicilio', 'Domicilio')
     + '<div style="display:flex;align-items:center;gap:10px;padding-top:14px;border-top:1px solid var(--border)">'
     + '<span style="font-size:13px;font-weight:600">Auto-entregado domicilio externo</span>'
     + '<input type="number" min="1" data-ecfg="auto_entregado_min" value="' + (cfg.auto_entregado_min || 30) + '" style="width:74px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px">'
-    + '<span style="font-size:13px;color:var(--text-3)">minutos</span></div>';
+    + '<span style="font-size:13px;color:var(--text-3)">minutos</span></div>'
+    + puntosBlock();
+  renderSlots();
+  var ptSelEl = document.getElementById('pt-plantilla');
+  if (ptSelEl) ptSelEl.addEventListener('change', renderSlots);
   saveBtn.onclick = async function () {
     saveBtn.disabled = true; saveBtn.textContent = 'Guardando…';
-    var out = { auto_entregado_min: 30, llevar: {}, domicilio: {} };
+    /* Se parte de lo YA guardado, no de un objeto vacío. Antes esto
+       reconstruía estados_config desde cero y cualquier llave que la
+       pantalla no pintara (como la conexión de puntos) se borraba en
+       silencio al guardar — el mismo patrón del canvas que pisa config. */
+    var out = Object.assign({}, cfg, { auto_entregado_min: 30, llevar: {}, domicilio: {} });
     body.querySelectorAll('[data-ecfg]').forEach(function (el) {
       var p = el.dataset.ecfg.split('.');
       if (p.length === 1) { out.auto_entregado_min = parseInt(el.value, 10) || 30; return; }
@@ -3772,8 +3841,17 @@ async function estadosCfgInit() {
       out[p[0]][p[1]] = out[p[0]][p[1]] || { etiqueta: '', mensaje: '' };
       out[p[0]][p[1]][p[2]] = el.value;
     });
+    // La fila de Gana puntos, solo si se pintó (hay WhatsApp conectado).
+    var ptOn = document.getElementById('pt-activo'), ptSel = document.getElementById('pt-plantilla');
+    if (ptOn && ptSel) {
+      var pvars = [];
+      body.querySelectorAll('[data-pvar]').forEach(function (el) { pvars[parseInt(el.dataset.pvar, 10)] = el.value; });
+      var lang = (ptSel.selectedOptions && ptSel.selectedOptions[0] && ptSel.selectedOptions[0].dataset.lang) || 'es';
+      out.puntos = { activo: !!ptOn.checked, plantilla: ptSel.value || '', idioma: lang, vars: pvars };
+    }
     try {
       await sb.from('ia_config').update({ estados_config: out }).eq('branch_id', _cfgBranchId);
+      cfg = out;   // lo guardado pasa a ser la base del próximo guardado
       saveBtn.textContent = '✓ Guardado';
       setTimeout(function () { saveBtn.disabled = false; saveBtn.textContent = 'Guardar'; }, 1600);
     } catch (e) { saveBtn.textContent = 'Error'; saveBtn.disabled = false; }

@@ -48,15 +48,12 @@ async function sbPost(path: string, body: unknown) {
 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// El cuerpo aprobado de la plantilla, para dejar copia legible en el chat del
-// Front. Meta congela este texto al aprobarlo, por eso es seguro tenerlo aquí.
-function textoLegible(plantilla: string, pts: string, marca: string, saldo: string): string {
-  if (plantilla === "puntos_ganados") {
-    return `🎉 ¡Ganaste ${pts} puntos con tu compra en ${marca}!\n` +
-      `Ya tienes ${saldo} puntos acumulados.\n` +
-      `Cuando vuelvas a pedir, recuerda dar tu número de celular para seguir sumando y redimirlos en productos 🍟`;
-  }
-  return `[Aviso de puntos] +${pts} puntos · saldo ${saldo}`;
+// La copia legible para el chat del Front se arma con el cuerpo REAL de la
+// plantilla (leído de Meta, que lo congela al aprobar): así el Front muestra
+// exactamente lo que el cliente recibió, sea cual sea la plantilla elegida.
+function textoLegible(cuerpo: string | undefined, params: string[]): string {
+  if (!cuerpo) return `[Aviso de puntos] ${params.join(" · ")}`;
+  return cuerpo.replace(/\{\{(\d+)\}\}/g, (_m, n) => params[parseInt(n, 10) - 1] ?? "");
 }
 
 Deno.serve(async (req) => {
@@ -81,18 +78,25 @@ Deno.serve(async (req) => {
 
     // ── Datos por sucursal, una sola vez aunque haya varias filas ─────────
     const porBranch: Record<string, {
-      activo: boolean; plantilla: string; idioma: string;
-      token?: string; phoneId?: string; marca?: string;
+      activo: boolean; plantilla: string; idioma: string; vars: string[];
+      token?: string; phoneId?: string; marca?: string; cuerpo?: string;
     }> = {};
     async function datosDe(branchId: string) {
       if (porBranch[branchId]) return porBranch[branchId];
-      const d: typeof porBranch[string] = { activo: false, plantilla: "puntos_ganados", idioma: "es" };
+      const d: typeof porBranch[string] = {
+        activo: false, plantilla: "puntos_ganados", idioma: "es",
+        // El orden por defecto es el de la plantilla original: {{1}} puntos
+        // ganados, {{2}} marca, {{3}} saldo. El dueño lo cambia desde
+        // Configuración → Estados de pedido y avisos → Gana puntos.
+        vars: ["puntos_ganados", "negocio", "puntos_total"],
+      };
       const cfgR = await sbGet(`/rest/v1/ia_config?branch_id=eq.${branchId}&select=estados_config&limit=1`) as Array<Record<string, unknown>> | null;
       const pc = ((cfgR?.[0]?.estados_config as Record<string, unknown>) || {}).puntos as Record<string, unknown> | undefined;
       if (pc && pc.activo === true) {
         d.activo = true;
         if (pc.plantilla) d.plantilla = String(pc.plantilla);
         if (pc.idioma) d.idioma = String(pc.idioma);
+        if (Array.isArray(pc.vars) && pc.vars.length) d.vars = (pc.vars as unknown[]).map(String);
       }
       const chR = await sbGet(`/rest/v1/chat_channels?branch_id=eq.${branchId}&channel=eq.whatsapp&select=meta&limit=1`) as Array<Record<string, unknown>> | null;
       const meta = (chR?.[0]?.meta || {}) as Record<string, string>;
@@ -101,8 +105,35 @@ Deno.serve(async (req) => {
       const b = brR?.[0] || {};
       const mk = b.brands as { name?: string } | Array<{ name?: string }> | null;
       d.marca = (Array.isArray(mk) ? mk[0]?.name : mk?.name) || String(b.name || "el restaurante");
+      // El cuerpo aprobado de la plantilla, para la copia del Front.
+      try {
+        if (d.activo && d.token && meta.waba_id) {
+          const tr = await fetch(`https://graph.facebook.com/v22.0/${meta.waba_id}/message_templates?name=${encodeURIComponent(d.plantilla)}&fields=name,components&access_token=${d.token}`);
+          const tj = await tr.json() as { data?: Array<{ name: string; components?: Array<{ type: string; text?: string }> }> };
+          const tpl = (tj.data || []).find(t => t.name === d.plantilla);
+          d.cuerpo = tpl?.components?.find(c => c.type === "BODY")?.text;
+        }
+      } catch { /* sin cuerpo, la copia sale generica */ }
       porBranch[branchId] = d;
       return d;
+    }
+
+    // Resuelve cada variable del mapeo a su valor real para ESTE movimiento.
+    async function valorDe(key: string, m: Record<string, unknown>, d: typeof porBranch[string], tel10: string): Promise<string> {
+      if (key === "puntos_ganados") return String(m.puntos ?? "");
+      if (key === "puntos_total") return String(m.saldo_despues ?? "");
+      if (key === "negocio") return d.marca || "";
+      if (key === "nombre_cliente") {
+        try {
+          const cR = await sbGet(
+            `/rest/v1/pos_clientes?tenant_id=eq.${m.tenant_id}&or=(telefono.like.*${tel10},telefono2.like.*${tel10})&select=nombre&limit=1`,
+          ) as Array<{ nombre?: string }> | null;
+          const nom = String(cR?.[0]?.nombre || "").trim().split(/\s+/)[0];
+          if (nom) return nom;
+        } catch { /* cae al generico */ }
+        return "cliente";   // Meta rechaza parametros vacios: siempre algo neutro
+      }
+      return "-";
     }
 
     let enviados = 0, fallidos = 0, apagados = 0;
@@ -120,8 +151,10 @@ Deno.serve(async (req) => {
         if (tel.length === 10) tel = "57" + tel;
         if (tel.length < 11) { await marcar({ aviso: "fallido", aviso_error: "teléfono inválido: " + tel }); fallidos++; continue; }
 
-        const pts = String(m.puntos ?? "");
-        const saldo = String(m.saldo_despues ?? "");
+        // Los parametros salen del mapeo configurado: la posicion i del
+        // arreglo alimenta el hueco {{i+1}} de la plantilla.
+        const params: string[] = [];
+        for (const key of d.vars) params.push(await valorDe(key, m, d, tel.slice(-10)));
         const res = await fetch(`https://graph.facebook.com/v22.0/${d.phoneId}/messages`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${d.token}`, "Content-Type": "application/json" },
@@ -131,11 +164,7 @@ Deno.serve(async (req) => {
               name: d.plantilla, language: { code: d.idioma },
               components: [{
                 type: "body",
-                parameters: [
-                  { type: "text", text: pts },
-                  { type: "text", text: d.marca },
-                  { type: "text", text: saldo },
-                ],
+                parameters: params.map(p => ({ type: "text", text: p || "-" })),
               }],
             },
           }),
@@ -158,7 +187,7 @@ Deno.serve(async (req) => {
               await sbPost(`/rest/v1/chat_messages`, {
                 conversation_id: convR[0].id, tenant_id: convR[0].tenant_id,
                 direction: "out", origen: "sistema", external_id: waId,
-                body: textoLegible(d.plantilla, pts, d.marca || "", saldo),
+                body: textoLegible(d.cuerpo, params),
                 sent_at: new Date().toISOString(), delivery_status: "sent",
               });
             }
