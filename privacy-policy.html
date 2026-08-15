@@ -352,7 +352,7 @@
 
   <div class="page-eyebrow">Privacidad</div>
   <h1 class="page-title">Política de Privacidad</h1>
-  <p class="page-meta">Última actualización: 15 de junio de 2026 · Versión 1.0</p>
+  <p class="page-meta">Última actualización: 14 de agosto de 2026 · Versión 1.1</p>
 
   <!-- TOC -->
   <div class="toc">
@@ -420,11 +420,38 @@
           <td>IP, tipo de navegador, dispositivo</td>
           <td>Automáticamente al acceder</td>
         </tr>
+        <tr>
+          <td>Datos de los comensales</td>
+          <td>Teléfono, nombre, dirección y barrio de entrega</td>
+          <td>El propio comensal, al hacer su pedido por WhatsApp o al darlos en el restaurante</td>
+        </tr>
+        <tr>
+          <td>Conversaciones de WhatsApp</td>
+          <td>Mensajes intercambiados con el restaurante para armar el pedido</td>
+          <td>WhatsApp Business, cuando el comensal escribe al restaurante</td>
+        </tr>
+        <tr>
+          <td>Comprobantes de pago</td>
+          <td>Imagen del comprobante de transferencia y su referencia</td>
+          <td>El comensal, al enviarlo para confirmar su pago</td>
+        </tr>
+        <tr>
+          <td>Puntos de lealtad</td>
+          <td>Saldo de puntos y consumo acumulado, atados al teléfono</td>
+          <td>Se calculan a partir de los pedidos del comensal</td>
+        </tr>
       </tbody>
     </table>
     <div class="info-block">
       No vendemos, alquilamos ni comercializamos sus datos personales a terceros bajo ninguna circunstancia.
     </div>
+    <p><strong>Sobre los datos de los comensales:</strong> cada restaurante es el responsable
+    de los datos de sus clientes. Cobra POS los trata únicamente por cuenta del restaurante,
+    para operar sus pedidos, sus domicilios y sus puntos de lealtad. No los usamos para fines
+    propios, no los cruzamos entre restaurantes distintos y no los empleamos para entrenar
+    modelos de inteligencia artificial.</p>
+    <p><strong>No pedimos</strong> documento de identidad, fecha de nacimiento, ubicación GPS
+    continua ni acceso a los contactos del teléfono. Tampoco recogemos datos sensibles.</p>
   </div>
 
   <!-- S3 -->
@@ -474,19 +501,34 @@
           <td><a href="https://supabase.com/privacy" target="_blank">supabase.com/privacy</a></td>
         </tr>
         <tr>
-          <td>Stripe</td>
-          <td>Procesamiento de pagos</td>
-          <td><a href="https://stripe.com/privacy" target="_blank">stripe.com/privacy</a></td>
-        </tr>
-        <tr>
-          <td>Meta (Facebook)</td>
-          <td>Autenticación con Facebook Login</td>
+          <td>Meta (Facebook y WhatsApp)</td>
+          <td>Login con Facebook y mensajería de WhatsApp Business</td>
           <td><a href="https://www.facebook.com/privacy/policy/" target="_blank">facebook.com/privacy</a></td>
         </tr>
         <tr>
           <td>OpenAI</td>
-          <td>Funciones de inteligencia artificial</td>
+          <td>Funciones de inteligencia artificial: lectura de cartas y asistente de pedidos</td>
           <td><a href="https://openai.com/privacy" target="_blank">openai.com/privacy</a></td>
+        </tr>
+        <tr>
+          <td>Wompi</td>
+          <td>Procesamiento de pagos en línea</td>
+          <td><a href="https://wompi.co/es/politica-de-privacidad/" target="_blank">wompi.co/politica-de-privacidad</a></td>
+        </tr>
+        <tr>
+          <td>Google</td>
+          <td>Lectura del correo del banco (solo lectura) para verificar comprobantes de transferencia, cuando el restaurante lo autoriza</td>
+          <td><a href="https://policies.google.com/privacy" target="_blank">policies.google.com/privacy</a></td>
+        </tr>
+        <tr>
+          <td>GitHub</td>
+          <td>Alojamiento del sitio y de la aplicación web</td>
+          <td><a href="https://docs.github.com/es/site-policy/privacy-policies/github-general-privacy-statement" target="_blank">github.com/privacy</a></td>
+        </tr>
+        <tr>
+          <td>Porkbun</td>
+          <td>Dominio, DNS y reenvío de correo</td>
+          <td><a href="https://porkbun.com/privacy" target="_blank">porkbun.com/privacy</a></td>
         </tr>
       </tbody>
     </table>
@@ -498,9 +540,21 @@
     <p>Conservamos sus datos mientras su cuenta esté activa. Si cancela su suscripción o solicita la eliminación:</p>
     <ul>
       <li>Datos operativos (pedidos, productos) eliminados en máximo <strong>30 días</strong></li>
+      <li>Datos de los comensales (teléfono, nombre, dirección, puntos) eliminados en máximo <strong>30 días</strong></li>
       <li>Datos de facturación conservados por el tiempo requerido por ley colombiana (hasta 5 años)</li>
       <li>Datos de Facebook eliminados de nuestros servidores en máximo <strong>30 días</strong> desde la solicitud</li>
     </ul>
+    <p>Y con independencia de que se cancele o no la cuenta, estos datos se borran solos al cumplir su plazo:</p>
+    <ul>
+      <li>Conversaciones de WhatsApp: <strong>12 meses</strong> desde el último mensaje</li>
+      <li>Comprobantes de pago e imágenes: <strong>12 meses</strong></li>
+      <li>Registros técnicos de acceso: <strong>90 días</strong></li>
+    </ul>
+    <div class="info-block">
+      Los puntos de lealtad van atados al teléfono del comensal. Si esa persona pide que
+      borremos sus datos, pierde el saldo de puntos: no hay forma de conservarlos sin conservar
+      el teléfono que los sostiene. Se lo advertimos antes de ejecutar el borrado.
+    </div>
   </div>
 
   <!-- S7 -->
@@ -524,7 +578,7 @@
   <div class="cc-card" id="s8">
     <h2><span class="section-num">8</span> Seguridad</h2>
     <ul>
-      <li>Cifrado en tránsito (HTTPS/TLS) y en reposo</li>
+      <li>Cifrado en tránsito con <strong>TLS 1.2 o superior</strong>, y en reposo con <strong>AES-256</strong></li>
       <li>Contraseñas almacenadas con hash (nunca en texto plano)</li>
       <li>Row Level Security en base de datos — cada restaurante solo accede a sus propios datos</li>
       <li>Acceso restringido al personal autorizado</li>
