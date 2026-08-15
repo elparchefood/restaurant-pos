@@ -447,21 +447,44 @@ Ademas hay dos cosas que **no** pueden depender del modelo, nunca:
   conversacion da el mismo resultado. Si el modelo decide libremente, deja de
   poder comprobarse.
 
-**El arreglo, entonces: cambiar QUE se le pide al modelo, no cuanto manda**
+**El arreglo: pedirle al modelo que ademas ENTIENDA. No es quitarle mando al
+guion, es darle un trabajo que hoy no tiene.**
 
-Hoy el modelo solo extrae datos y el guion decide todo lo demas. Falta un paso
-en medio: que antes de responder, el modelo mire la conversacion completa y
-diga **que esta pasando** — el cliente esta pidiendo / preguntando / dudando /
-despidiendose / no entendio. Con eso:
+Precision de Sergio (14-ago), y corrige el planteamiento anterior: *"no es
+cuestion de mando, es cuestion de entendimiento. Deberia hacer las dos cosas:
+recoger datos y entender. Sacar los productos de la carta no tiene nada que ver
+con entender; entender es que una persona le diga algo fuera del guion y el sepa
+como manejarlo, sepa su mision"*.
 
-- Si esta preguntando → se le responde la pregunta (adios BUG 5).
-- Si se esta despidiendo → rama de despedida (adios BUG 6).
-- Si es el segundo o tercer intento del mismo paso → frase distinta, y a la
-  cuarta un humano (adios BUG 7).
+Son **tres trabajos distintos**, y hoy solo se hacen dos:
 
-El guion sigue mandando en **lo que se construye** (el pedido, los precios, los
-totales) y el modelo pasa a mandar en **lo que se entiende**. Esa es la linea:
-determinismo en los numeros, conversacion en el trato.
+| Trabajo | Quien lo hace | Estado |
+|---|---|---|
+| **Recoger datos** — sacar producto, cantidad, direccion, nombre del mensaje | El modelo | ✅ Ya se hace |
+| **Buscar** — que productos existen, cuanto valen, que adiciones tiene cada uno | El catalogo, en la base | ✅ Ya se hace, y asi debe seguir |
+| **Entender** — que esta pasando en esta conversacion y que corresponde hacer | Nadie | 🔴 **Falta** |
+
+Los dos primeros no se tocan. El tercero no le quita nada a ninguno: buscar un
+precio en la carta seguira siendo una consulta a la base, entienda el modelo lo
+que entienda. Son cosas separadas.
+
+**Y "entender" incluye saber cual es su mision.** Hoy Paco no tiene mision: tiene
+un paso activo. Un mesero sabe que su trabajo es que el cliente coma bien y se
+vaya contento, y por eso sabe que hacer cuando le preguntan algo que no estaba
+en el guion — no se queda mudo ni contesta cualquier cosa. Paco necesita eso
+escrito: quien es, para que esta, y que hacer cuando pasa algo que no previo.
+
+Con esa pieza:
+
+- El cliente pregunta un precio → se le responde la pregunta (adios BUG 5).
+- El cliente se despide → se despide de vuelta (adios BUG 6).
+- Va el segundo o tercer intento del mismo paso → lo dice de otra forma, y a la
+  cuarta llama a un humano (adios BUG 7).
+
+**El limite, que no es de mando sino de veracidad:** lo que Paco *dice* sale de
+entender; lo que Paco *afirma como cierto* — precios, productos, totales,
+disponibilidad — sale de la base. Puede entender que le estan preguntando cuanto
+vale una salchipapa; el precio lo lee, no lo recuerda.
 
 ---
 
