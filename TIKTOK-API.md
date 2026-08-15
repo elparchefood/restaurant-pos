@@ -210,21 +210,22 @@ dice el documento. El orden es arreglar -> solicitar -> esperar.
 
 ---
 
-## PASO 2 — El formulario de admisión (PLAN, aun sin enviar)
+## PASO 2 — El formulario de admisión  ✅ **RADICADO 14-ago-2026**
 
 Formulario **Data Security and Privacy Review Intake Form** (Lark de ByteDance):
 `https://bytedance.sg.larkoffice.com/share/base/form/shrlg7vFArGhg9V20neYCEwIKrb`
 
 Campos revisados uno por uno en el formulario real el 10-ago-2026. Son 10.
+**Enviado el 14-ago-2026** desde el navegador de Sergio; el formulario respondio "Enviada". Esto es lo que quedo radicado:
 
 | # | Campo | Qué poner | Estado |
 |---|---|---|---|
 | 1 | Developer Company | `Cobra POS` | listo |
-| 2 | **Company Legal Entity Name** | *"exactamente como figura en los documentos legales o tributarios"* | 🔴 **falta: lo define Sergio** |
+| 2 | **Company Legal Entity Name** | `ABADIA CUAJI SERGIO ANDRES` (exacto del RUT) | enviado |
 | 3 | Headquarters Location | `Popayan, Cauca, Colombia` | listo |
 | 4 | Website URL | `https://cobrapos.app` | listo |
 | 5 | Contact Person's Name | `Sergio Andres Abadia Cuaji` | listo |
-| 6 | **Contact Person's Email Address** | ⚠️ **debe terminar en dominio propio** e **individual** (no buzon compartido) → `sergio@cobrapos.app` | 🔴 **falta crearlo** |
+| 6 | **Contact Person's Email Address** | `sergio@cobrapos.app` (reenvio en Porkbun, recepcion probada) | enviado |
 | 7 | TikTok Representative's Email | vacio (no hay representante) | listo |
 | 8 | Tipo de solicitud | `This is my first time applying for Business Messaging API access.` | listo |
 | 9 | Your Developer App ID | `7650415130718502929` | listo |
@@ -264,6 +265,19 @@ access to... the US"* (que es la opcion 2 del campo 8).
 - *"Please do not submit multiple applications"* — se envia **una sola vez** y
   se espera. Reenviar por impaciencia entorpece.
 - El App ID debe ser valido y de una app **aprobada** — el nuestro lo es.
+
+---
+
+## Reloj: que se espera y cuando
+
+- **14-ago-2026** — formulario radicado (confirmacion en pantalla: "Enviada").
+- **~28-ago-2026** — vencen los **10 dias habiles** en que TikTok deberia
+  mandar el cuestionario **DSPR DDQ** a `sergio@cobrapos.app`.
+  ⚠️ Revisar ese buzon (y el spam del Gmail al que reenvia).
+- **+2 a 4 semanas** despues de responder el cuestionario — veredicto.
+
+No reenviar el formulario mientras tanto: el propio formulario advierte
+*"Please do not submit multiple applications"*.
 
 ---
 
