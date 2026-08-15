@@ -5493,3 +5493,25 @@ piezas nuevas de la madrugada la secuestraban:
 dirección → barrio limpio y sin prefijos → "Déjame confirmarte el valor del
 domicilio hasta allá, es un momento 😊" + `domi_precio_pendiente: true` (la
 barra sube). La conversación real de Sergio quedó liberada del handoff.
+
+## 129. La barra del domicilio no subía con conjuntos nuevos (v276) — 15-ago
+
+La pausa funcionaba (Paco se calló y pasó a humano con "CONJUNTO NUEVO por
+aprobar") pero la barra para confirmar el precio nunca apareció. Causa: el
+Front pinta la barra cuando ve `domi_precio_pendiente`, y las DOS ramas de
+conjunto nuevo (14e-bis y la del final del flujo) pasaban a humano SIN
+encender esa bandera — solo la rama de barrio desconocido (14f-bis) la ponía.
+Dos ramas hermanas, una con bandera y otra sin: el patrón de siempre.
+
+Ahora ambas ramas encienden `domi_precio_pendiente` y guardan el estado antes
+de pasar a humano; `confirm-domi` ya la apagaba al confirmar (verificado,
+línea 361) y retoma a Paco con relectura.
+
+De paso: si el pedido y la dirección venían en el MISMO mensaje ("me das una
+premium... para Villa Ernesto Torre 3 Apto 108"), el nombre propuesto del
+conjunto era el mensaje ENTERO. Ahora se corta en el último "para": se
+propone "Villa Ernesto".
+
+**Pendiente anotado:** la dirección capturada también se traga el mensaje
+completo en ese caso (state.direccion = todo el texto). La barra y la comanda
+muestran el texto largo. Es del extractor de dirección; no bloquea.

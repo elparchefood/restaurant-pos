@@ -2414,12 +2414,22 @@ INTENCION, no las palabras exactas.` },
         && !LLEVAR_REGEX.test(state.direccion.toLowerCase())
         && lookupDomiPrice(ubicacionPedido(state), domiciliosCfg) === null) {
       const nombreConj = state.direccion
-        .replace(/^\s*(seria|sería|es|para|en|el|la)\s+/i, "")
+        /* Si el pedido y la direccion vinieron en el MISMO mensaje ("me das
+           una premium... para Villa Ernesto Torre 3"), el nombre es lo que
+           va despues del ultimo "para": sin este corte se proponia el
+           mensaje entero como nombre del conjunto (paso el 15-ago). */
+        .replace(/^[\s\S]*\bpara\s+/i, "")
+        .replace(/^\s*(seria|sería|es|en|el|la)\s+/i, "")
         .split(/\b(torre|bloque|bl|interior|int|apto|apartamento|apart|casa|piso)\b/i)[0]
         .replace(/[,.\-\s]+$/, "")
         .trim();
       if (nombreConj.length >= 3) {
         await proponerConjunto(tenantId, branchId, nombreConj, state.direccion);
+        /* LA BARRA: el Front la pinta cuando ve domi_precio_pendiente. Esta
+           rama pasaba a humano SIN encenderla y el dueño quedaba sin donde
+           poner el precio (la trampa de Sergio del 15-ago). confirm-domi la
+           apaga al confirmar y Paco retoma. */
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { domi_precio_pendiente: true, pending_order_data: state });
         await pasarAHumano(
           convId, tenantId,
           `CONJUNTO NUEVO por aprobar: "${nombreConj}" — verificar que exista y asignarle zona. Dirección dada: ${state.direccion}`,
@@ -2880,9 +2890,12 @@ INTENCION, no las palabras exactas.` },
         if (sueneAConjunto(state.direccion)) {
           /* El nombre del conjunto es lo que va ANTES de la unidad: de
              "torres del bosque torre 3 apto 603" se propone "torres del
-             bosque", no la direccion entera con el apartamento de un cliente. */
+             bosque", no la direccion entera con el apartamento de un cliente.
+             Y si pedido y direccion vinieron juntos, lo que va despues del
+             ultimo "para". */
           const nombreConj = state.direccion
-            .replace(/^\s*(seria|sería|es|para|en|el|la)\s+/i, "")
+            .replace(/^[\s\S]*\bpara\s+/i, "")
+            .replace(/^\s*(seria|sería|es|en|el|la)\s+/i, "")
             .split(/\b(torre|bloque|bl|interior|int|apto|apartamento|apart|casa|piso)\b/i)[0]
             .replace(/[,.\-\s]+$/, "")
             .trim();
@@ -2891,6 +2904,9 @@ INTENCION, no las palabras exactas.` },
             motivo = `CONJUNTO NUEVO por aprobar: "${nombreConj}" — verificar que exista y asignarle zona. Dirección dada: ${state.direccion}`;
           }
         }
+        // La BARRA del precio: sin esta bandera el Front no la pinta y el
+        // dueño no tiene donde confirmar (misma correccion que en 14e-bis).
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { domi_precio_pendiente: true, pending_order_data: state });
         await pasarAHumano(convId, tenantId, motivo, cfg, fromPhone, phoneId, accessToken);
         return;
       }
