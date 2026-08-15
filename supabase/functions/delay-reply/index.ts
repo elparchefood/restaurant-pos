@@ -6660,7 +6660,9 @@ async function precioPuntual(texto: string, branchId: string): Promise<string | 
     if (mejor) {
       const cerca = mejor.pres.find(x => {
         const pn = normalizarTexto(x.name);
-        return pn && (t.includes(pn) || pn.split(/\s+/).some(w => w.length >= 3 && palabra(w)));
+        // Los números cuentan aunque queden cortos: "1.5" normalizado es "15".
+        return pn && (t.includes(pn) || pn.split(/\s+/).some(w =>
+          (w.length >= 3 || /\d/.test(w)) && palabra(w)));
       });
       const nom = capFirst(mejor.name.toLowerCase());
       if (cerca) return `${nom} ${cerca.name.toLowerCase()} cuesta ${fmtCOP(cerca.price)} 😊`;
