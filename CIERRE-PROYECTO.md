@@ -33,16 +33,19 @@ cierra la FASE A.
 
 ### Orden de ejecución (probar en el banco entre fase y fase)
 
-**0. Antes de tocar nada**
-- [ ] Comprobar el **pendiente #2** (guardar el canvas pisa la configuración):
-      decidir si el saludo se cayó a conversacional por un guardado del canvas
-      o si nunca se guardó en fija. Si no se resuelve esto primero, el arreglo
-      del saludo se revierte solo.
-- [ ] La **llave Nequi de la FAQ está VIEJA**: `0089912015` es la cuenta
-      vieja; la buena es `0092726260` (confirmado por Sergio el 14-ago: el QR
-      que usa todos los días ya tiene la nueva — la imagen está bien, solo la
-      FAQ quedó atrás). **Corregir la FAQ a 0092726260.** ES PLATA — va
-      primero que todo.
+**0. Antes de tocar nada — ✅ HECHO en la noche del 14-ago (arranque adelantado)**
+- [x] **Pendiente #2, resuelto y entendido.** El guardado del canvas re-exporta
+      `flujo_saludo` DESDE la caja del canvas (`exportarSaludo`,
+      flow-editor:1773): la caja es la fuente de verdad, no la base. El saludo
+      nunca "se cayó" — la caja siempre estuvo en conversacional. Revisado el
+      payload completo del guardado: `frases` se mezcla con lo existente,
+      `adiciones_palabras` solo se escribe si hay algo, y los `flujo_*` son
+      propios del canvas → **el canvas ya no pisa configuración ajena**. El
+      único pisador que quedaba era el Guardar de Estados, arreglado hoy mismo.
+- [x] **FAQ limpiada** (verificado releyendo la base): llave Nequi vieja
+      `0089912015` → `0092726260`; "¿Cuánto cuesta la Coca-Cola?" ahora
+      responde **$5.000** y la salsa cheddar **$2.000** (precios leídos del
+      catálogo real, no inventados). Ya no queda ningún ".000" roto.
 
 **FASE A — Entender** (BUGS 5 y 6; hallazgos A-D de la auditoría)
 - [ ] A1. Ampliar el clasificador (`index.ts:894`) con: `despedida`,
@@ -70,9 +73,15 @@ cierra la FASE A.
       misma frase dos veces seguidas.
 
 **FASE C — Misión y saludo** (BUG 1; hallazgo A)
-- [ ] C1. Saludo a modo **fija** con el texto acordado: presentarse como Paco,
-      asistente virtual, y pedir el pedido lo más claro posible — con "qué
-      **deseas**" (pedido expreso de Sergio del 13-ago).
+- [x] C1. ✅ **Hecho 14-ago noche.** Saludo en modo fija, arreglado EN LA CAJA
+      del canvas (rol=saludo, tipo=fija) además de en `flujo_saludo` — así el
+      próximo guardado del canvas re-exporta lo mismo y no se revierte. Texto:
+      *"¡Hola! 😊 Soy Paco, el asistente virtual de El Parche Food 🍟
+      Cuéntame, ¿qué deseas pedir? Escríbeme tu pedido lo más claro posible y
+      con gusto te lo tomo 😋"*. La guía conversacional vieja quedó guardada en
+      la caja por si algún día se vuelve a ese modo. **Sergio puede editar la
+      frase en el editor de Flujo.** ⚠️ Falta verificarlo con una conversación
+      del banco (primer punto de la verificación de mañana).
 - [ ] C2. Escribir la MISIÓN arriba del prompt conversacional: quién es, para
       qué está, qué hacer ante lo imprevisto. Podar las prohibiciones que la
       nueva arquitectura vuelve innecesarias.
