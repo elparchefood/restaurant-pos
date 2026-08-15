@@ -372,35 +372,81 @@ Paco contesta en vivo.
       porque el cliente contesto *"Esta un poquito caro"*, como si hubiera
       visto precios.
 
-      **Rastreado el 14-ago, y es al contrario: el Front tiene razon.**
+      **Sergio tenia razon: la carta SI se mando. Lo que falla es el guardado.**
 
-      1. En `chat_messages` de esa conversacion hay **7 mensajes y ninguno con
-         `media_type`**. No existe fila de carta.
-      2. En la conversacion de Jorge Piamba de esa misma noche la carta **si**
-         quedo guardada (dos filas `Carta`). O sea que cuando se manda, se
-         guarda. Aqui no hay nada que guardar.
-      3. Los logs de la funcion en la ventana 01:36–01:42 UTC no muestran
-         ningun intento de envio de carta.
+      Hay **dos caminos distintos** que mandan la carta, y solo uno la guarda:
 
-      **Conclusion: la carta no se mando.** El mensaje anuncio un adjunto que
-      nunca salio. Eso es peor que un fallo del panel: el cliente lee "esta es
-      nuestra carta" y no le llega nada.
+      | Linea | Que hace | ¿Queda en el Front? |
+      |---|---|---|
+      | `delay-reply/index.ts:1069-1091` | Manda la imagen **y** la guarda en `chat_messages` con `body:"Carta"`, `media_url`, `media_type:"image"` | ✅ Si |
+      | `delay-reply/index.ts:2551-2556` | `fetch` pelado a `graph.facebook.com` con `type:"image"`. **No guarda nada.** | ❌ No |
 
-      ⚠️ **Falta un ultimo paso para cerrarlo al 100%:** confirmar del lado de
-      Meta que no salio ningun mensaje con imagen a ese numero. La base y los
-      logs son de Cobra; Meta es el unico juez de lo que de verdad viajo.
+      El de Jorge Piamba salio por el primero — por eso se ven las dos filas
+      `Carta`. El de D.F.G salio por el segundo, el de la rama "producto no
+      existe" (`14f`): la imagen viaja a WhatsApp y **nunca se escribe en la
+      base**, asi que el Front no tiene nada que pintar. El cliente si la vio, y
+      por eso pudo decir *"esta un poquito caro"*.
 
-      **Y entonces, ¿por que dijo "esta un poquito caro"?** Sin confirmar. La
-      hipotesis mas probable es que viera precios por fuera de esta
-      conversacion — el catalogo del perfil de WhatsApp Business, que es de
-      Meta y no de Cobra. **No darlo por cierto sin comprobarlo.**
+      Los logs no mostraron nada de carta porque ese camino tampoco escribe log.
+      La ausencia de rastro no era prueba de que no se mando; era prueba de que
+      ese camino no deja rastro.
 
-- [ ] **BUG 5 — "cuanto vale" dispara "no manejamos un producto con ese
-      nombre".** Misma conversacion, mismo mensaje. El cliente no nombro ningun
-      producto: pregunto un precio. Es el mismo fallo ya visto con *"Eres muy
-      amable Paco"*: cualquier frase sin producto cae en la rama de "producto no
-      encontrado". Los dos casos hay que arreglarlos juntos, porque son el
-      mismo camino del codigo.
+      **Arreglo:** que el envio de la carta pase siempre por el mismo sitio que
+      guarda (el de la linea 1069), en vez de tener un `fetch` suelto. Mientras
+      existan dos caminos para lo mismo, van a seguir divergiendo — es el
+      patron que ya mordio con el total de la transferencia y con la direccion
+      del resumen.
+
+      **Y de paso queda claro por que dijo "esta un poquito caro":** vio los
+      precios en la carta que si le llego. No hace falta buscar explicaciones
+      raras del catalogo de Meta.
+
+      ⚠️ **Leccion para no repetirla:** al revisar esto se concluyo primero que
+      la carta no se habia mandado, mirando solo la base y los logs. Estaba
+      mal. Cuando el Front y el cliente se contradicen, **el cliente es el que
+      tiene razon**: el vio lo que le llego al telefono.
+
+- [ ] **BUG 5 — Cualquier cosa fuera del guion se contesta "no manejamos un
+      producto con ese nombre". ESTE ES DE FONDO, no un caso suelto.**
+
+      Sergio lo insistio el 14-ago: *"los clientes a veces dicen cualquier otra
+      cosa que se salga del guion y Paco les dice que ese producto no lo
+      manejamos. Es totalmente ilogico, debe ser conversacional"*.
+
+      **Casos ya vistos:**
+      - "¡Hola! Quiero mas informacion.cuanto vale" → "no manejamos un producto
+        con ese nombre" (573234799933, 14-ago 8:37 p. m.)
+      - "Eres muy amable Paco" → lo mismo (ya estaba anotado)
+
+      **Causa exacta** — `delay-reply/index.ts:2538-2545`:
+      ```ts
+      for (const w of (nombroAlgoDeLaCarta ? [] : normalizarTexto(clienteTexto).split(/\s+/))) {
+        const stem = w.replace(/s$/, "");
+        if (w.length < 4 || STOP_14F.has(w) || STOP_14F.has(stem)) continue;
+        if (DYN_PROD_NAMES.includes(w) || DYN_PROD_NAMES.includes(stem)) continue;
+        if (getAdicionKeywords().some(k => k === w || k === stem)) continue;
+        productoInexistente = w; break;   // <-- cualquier palabra desconocida
+      }
+      ```
+      Recorre **cada palabra** del cliente y, a la primera que tenga 4 letras o
+      mas y no este ni en la carta ni en `STOP_14F`, la declara "producto que no
+      existe". En "cuanto vale" la palabra que lo dispara es **"informacion"**.
+
+      **Por que esta mal de raiz:** la lista `STOP_14F` es una lista negra de
+      palabras a ignorar — hoy tiene unas 40. Para que esto funcionara habria
+      que meter ahi *todas las palabras del espanol que no son comida*. Es una
+      pelea imposible, y ya se perdio una vez: el comentario del propio codigo
+      cuenta que "porfavor" escrito junto disparaba el mismo error, y se parcheo
+      añadiendo palabras. **Añadir mas palabras no lo arregla.**
+
+      **Lo que hay que hacer:** darle la vuelta. Solo decir "no manejamos ese
+      producto" cuando el cliente **claramente estaba pidiendo algo** — que haya
+      intencion de pedido *y* una palabra que parezca comida. Si el cliente
+      pregunta, agradece, saluda, se queja o dice cualquier otra cosa, la
+      respuesta es conversacional: se le contesta lo que pregunto.
+
+      Va **junto con el BUG 6**: los dos son lo mismo visto desde dos lados —
+      Paco no distingue "el cliente esta pidiendo" de "el cliente esta hablando".
 
 - [ ] **BUG 6 — Paco no se entera de que la conversacion se acabo.** Misma
       conversacion (573234799933), 8:38–8:39 p. m.
