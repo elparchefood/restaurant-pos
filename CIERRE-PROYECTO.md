@@ -483,6 +483,51 @@ Paco contesta en vivo.
       timon al modelo otra vez, sino que exista una rama de cierre que la frase
       fija no atropelle.
 
+- [ ] **BUG 7 — Nunca repetir la misma pregunta en bucle. REGLA GENERAL, no un
+      bug suelto.**
+
+      Sergio, 14-ago: *"un ser humano nunca te preguntaria 3 o 5 veces la misma
+      cosa sin sentido. Un humano te lo diria de otra manera: 'recuerda darme la
+      direccion', 'no te olvides de la direccion', 'falta solo la direccion'"*.
+
+      **Esto ya mordio antes, y esta escrito en el propio codigo.** Dos
+      comentarios lo cuentan (`index.ts:428` y `:2239`): un cliente escribio
+      *"Nosotros pasamos por ella"*, el bot no lo entendio y **le pidio la
+      direccion cuatro veces seguidas hasta que el pedido se cayo**. Se arreglo
+      esa causa concreta (la regex de "recoger" ahora entiende el plural), pero
+      **no se arreglo el bucle**: si manana otra frase no se entiende, vuelve a
+      preguntar cuatro veces igual.
+
+      **Ya existe la pieza que hace falta, usada en un solo sitio.** En
+      `index.ts:1998-2013`, para el producto ambiguo:
+      ```ts
+      amb.intentos = (amb.intentos || 0) + 1;
+      if (amb.intentos >= 2) delete stAmb.producto_ambiguo;   // no insistir en bucle
+      ```
+      Un contador de intentos por paso. Esta hecho, esta probado, y solo cubre
+      la desambiguacion de productos.
+
+      **Lo que hay que hacer:** llevar ese contador a **todos** los pasos, y que
+      cada intento cambie de tono en vez de repetir la frase palabra por
+      palabra. Algo asi:
+
+      | Intento | Que dice |
+      |---|---|
+      | 1 | La frase fija del paso, tal cual |
+      | 2 | Un recordatorio corto y distinto: *"Me falta la direccion para poder enviarte el pedido 😊"* |
+      | 3 | Decir que no se entendio y dar salida: *"Perdon, no logro entenderte. ¿Me la escribes de nuevo o prefieres que te contacte alguien del local?"* |
+      | 4 | **No hay cuarta.** Pasa a un humano. |
+
+      ⚠️ **Esto choca de frente con el arreglo del 13-ago** (v270: las frases
+      fijas se mandan tal cual, sin pasar por el modelo). La frase fija es
+      correcta **la primera vez**; a partir de la segunda, insistir con la misma
+      frase es justo lo que un humano no haria. La salida no es volver a soltar
+      el timon al modelo: es que **el segundo y el tercer intento tengan su
+      propia frase configurable**, tan fija como la primera pero distinta.
+
+      Va junto con **BUG 5** y **BUG 6**. Los tres son la misma queja de fondo:
+      Paco sigue un guion en vez de seguir una conversacion.
+
 ---
 
 ## FASE 3 — Verificar antes de vender
