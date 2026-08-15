@@ -937,11 +937,14 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
   un "gracias" o un "bueno" solo, ES despedida — no lo trates como cortesia
   para seguir vendiendo.
 - "queja": true SOLO si esta molesto por un problema del SERVICIO o del
-  pedido: demora, algo llego mal o frio, le cobraron mal, mala atencion,
-  "ya te lo dije tres veces". NO es queja opinar del precio ("esta caro",
-  "uy tan caro") ni dudar de pedir — eso es una objecion normal de venta.
-- "quiere_humano": true si pide hablar con una persona ("me comunicas con
+  pedido YA OCURRIDO: demora, algo llego mal o frio, le cobraron mal, mala
+  atencion. NO es queja opinar del precio ("esta caro") ni dudar de pedir.
+  Y OJO: la frustracion con ESTA conversacion ("ya te dije", "ya te lo
+  dijeeee", "otra vez?", repetir un dato con rabia) NO es queja — el cliente
+  esta cooperando, solo esta impaciente. Eso lo maneja el flujo, no tu.
+- "quiere_humano": true SOLO si lo PIDE explicitamente ("me comunicas con
   alguien", "no quiero hablar con un robot", "llamame", "el dueño esta?").
+  Insistir, repetir un dato o escribir con rabia NO es pedir una persona.
 - "fuera_tema": true si habla de algo que NO tiene que ver con el restaurante
   ni con un pedido (politica, futbol, "que opinas de...", cadenas).
 
@@ -1570,6 +1573,16 @@ INTENCION, no las palabras exactas.` },
       state = rawState;
     }
   }
+
+  /* Foto de los datos ANTES de procesar este mensaje. El contador anti-bucle
+     la compara al final: si algo de esto cambió, el cliente ESTÁ cooperando y
+     no se le cuenta un "intento" — la trampa de Sergio del 15-ago: dio la
+     dirección (progreso real) y el contador le pegó el "perdón si no me hice
+     entender" a la PRIMERA pregunta del barrio. Contar sin mirar el progreso
+     castiga al que colabora. */
+  const slotsAntes14 = JSON.stringify([state.producto, state.tamano, state.tipo,
+    state.direccion, state.nombre, state.pago, state.adiciones, state.upsell,
+    (state.items || []).length]);
 
   // Cargar datos del producto actual y construir pasos
   let currentProductData: ProductData | null = null;
@@ -2929,6 +2942,12 @@ INTENCION, no las palabras exactas.` },
   if (nextStep && nextStep.campo) {
     const st14 = state as unknown as { intentos?: Record<string, number> };
     st14.intentos = st14.intentos || {};
+    // Si este mensaje AVANZÓ el pedido (llenó algo), no es un intento fallido:
+    // el contador de ese campo arranca de cero. Solo cuenta el estancamiento.
+    const slotsAhora14 = JSON.stringify([state.producto, state.tamano, state.tipo,
+      state.direccion, state.nombre, state.pago, state.adiciones, state.upsell,
+      (state.items || []).length]);
+    if (slotsAhora14 !== slotsAntes14) st14.intentos = {};
     intentoPaso = (st14.intentos[nextStep.campo] || 0) + 1;
     st14.intentos[nextStep.campo] = intentoPaso;
     if (intentoPaso >= 4) {

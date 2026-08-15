@@ -5469,3 +5469,27 @@ regresión de quitar tras el resumen sigue bien (coca eliminada, total $33.000).
 - El contador anti-bucle cuenta por CAMPO: con dos grupos de variantes, la
   segunda pregunta sale con el prefijo del 2.º intento ("Solo me falta este
   dato"). Se lee natural, pero técnicamente no es un reintento.
+
+## 128. La trampa del conjunto inexistente (motor v275) — 15-ago-2026
+
+Sergio probó "Maria Monica Casa 32" (conjunto que no existe). Lo acordado: Paco
+se pausa, sube la barra del domicilio, el dueño confirma el precio y Paco
+retoma. Lo que pasó: el bot se enredó en reintentos y terminó pasando a humano
+por "queja". La pausa (14f-bis) estaba INTACTA — nunca la dejaron llegar. Dos
+piezas nuevas de la madrugada la secuestraban:
+
+1. **El contador anti-bucle contaba sin mirar el progreso.** El cliente dio la
+   dirección (avance real) y la PRIMERA pregunta del barrio salió con el
+   "perdón si no me hice entender" del 3.er intento. Ahora se toma una foto de
+   los datos antes de procesar cada mensaje y, si algo cambió, el contador
+   arranca de cero: solo cuenta el estancamiento, nunca la cooperación.
+2. **"ya te lo dijeeee" clasificaba como queja → humano.** El propio prompt
+   traía "ya te lo dije tres veces" como ejemplo de queja. Se precisó: queja es
+   un problema del servicio YA OCURRIDO; la frustración con la conversación es
+   impaciencia de alguien que está cooperando y la maneja el flujo. Y
+   quiere_humano solo cuando lo PIDE explícitamente.
+
+**Probado en el banco (v133)** con la conversación exacta de la trampa:
+dirección → barrio limpio y sin prefijos → "Déjame confirmarte el valor del
+domicilio hasta allá, es un momento 😊" + `domi_precio_pendiente: true` (la
+barra sube). La conversación real de Sergio quedó liberada del handoff.
