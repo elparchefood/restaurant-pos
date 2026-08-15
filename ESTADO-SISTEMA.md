@@ -5595,3 +5595,19 @@ responder solo ese con sus opciones. El modelo redacta; el catálogo del prompt
 mensaje · mixta ("Super queso porfa, ¿y qué tienes de tomar?") → UNA respuesta
 con la lista Y el súper queso capturado (verificado en el estado) · "sabores
 de postobón" → "Postobón en sabor Uva" · "sabores de hit" → sus opciones.
+
+## 132. Precio puntual desde el catálogo (v288) — cierra el D2 — 15-ago-2026
+
+"¿Cuánto cuesta la coca cola 1.5?" respondía LA CUENTA del pedido (la rama del
+"¿cuánto es?" atrapaba todo lo que sonara a precio). Ahora existe
+`precioPuntual()`: si la pregunta NOMBRA un producto o una adición, responde SU
+precio, leído del catálogo en el momento — nunca de una FAQ ni de la memoria
+del modelo. Probado en el banco:
+- "coca cola 1.5" → el precio de ESA presentación ($8.000)
+- "adición de ranchera" → $14.000 en personales y $28.000 en familiares (la
+  palabra "adición" salta el plato Ranchera y va directo a los modificadores)
+- "salsa cheddar" → $4.000 (la presentación exacta)
+- "¿cuánto es?" sin nombrar nada → la cuenta, como siempre
+Si hay pedido en curso, responde el precio Y repregunta el paso donde iba.
+El punto ("1.5") sobrevive a la normalización — limpiarlo rompía el acierto
+de presentación.

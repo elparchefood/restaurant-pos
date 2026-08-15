@@ -2642,6 +2642,29 @@ INTENCION, no las palabras exactas.` },
     }
   }
 
+  /* 14e-quinto-bis. PRECIO PUNTUAL antes que la cuenta: "¿cuánto cuesta la
+     coca cola 1.5?" nombra UN producto — la respuesta es SU precio, no el
+     total del pedido (le pasó a Sergio: preguntó por la gaseosa y recibió la
+     cuenta). Si el texto no nombra nada del catálogo, precioPuntual devuelve
+     null y "¿cuánto es?" sigue siendo la cuenta, como siempre. */
+  {
+    const pidePrecio = intenciones.precio === true
+      || /(cuanto|cuánto)\s+(vale|cuesta|sale)|qu[eé]\s+precio|de\s+a\s+c[oó]mo/i.test(clienteTexto);
+    if (pidePrecio && !relectura && !state.resumen_enviado) {
+      const puntual = await precioPuntual(clienteTexto, branchId);
+      if (puntual) {
+        let msgP = puntual;
+        const stepPrecio = state.producto ? findNextStep(state, pasos, false, domiciliosCfg) : null;
+        if (stepPrecio && stepPrecio.texto) {
+          msgP += "\n\n" + rellenarVariables(String(stepPrecio.texto), state, cfg).texto;
+        }
+        await sendWaAndSave(convId, tenantId, msgP, fromPhone, phoneId, accessToken);
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgP, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+        return;
+      }
+    }
+  }
+
   // 14e-sexto. "¿CUÁNTO ES?" en el paso de PAGO (caso especial de Sergio):
   // si en vez de responder el método el cliente pregunta el precio, se le responde
   // SOLO el desglose de precios (sin el resumen) con la plantilla configurable
@@ -6593,6 +6616,84 @@ function clasificarDireccion(
    cliente daba la calle, el barrio quedaba fuera y el precio se perdia. */
 function ubicacionPedido(state: PacoState): string {
   return [state.barrio, state.direccion].filter(Boolean).join(" ").trim();
+}
+
+/* PRECIO PUNTUAL (pedido de Sergio, 15-ago — cierra el D2 del plan): "¿cuánto
+   cuesta la coca cola 1.5?" se responde con EL PRECIO DE ESO, leído del
+   catálogo — no con la cuenta del pedido, no desde una FAQ escrita a mano y
+   no de la memoria del modelo. Cubre productos (con sus presentaciones) y
+   adiciones (con su precio por tamaño). Devuelve null si el texto no nombra
+   nada del catálogo: en ese caso "cuánto es" sigue siendo la cuenta. */
+async function precioPuntual(texto: string, branchId: string): Promise<string | null> {
+  // El punto NO se limpia: "1.5" tiene que sobrevivir para acertar la presentación.
+  const t = " " + normalizarTexto(texto).replace(/[¿?¡!,;]/g, " ").replace(/\s+/g, " ").trim() + " ";
+  const palabra = (n: string) => t.includes(" " + n + " ");
+  /* "adición de ranchera" pregunta por la ADICIÓN, no por la salchipapa
+     Ranchera: con esa palabra se salta el catálogo de platos y se va directo
+     a los modificadores (le pasó al banco: respondió $27.000/$55.000 del
+     plato en vez de $14.000/$28.000 de la adición). */
+  const preguntaAdicion = /adici/i.test(texto);
+  try {
+    const prods = preguntaAdicion ? [] : await sbGet(
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&select=name,price,presentations&limit=200`,
+    ) as Array<{ name?: string; price?: number | string; presentations?: Array<{ name?: string; price?: number }> }> | null;
+
+    // Producto: gana el nombre MÁS LARGO que aparezca (completo o su primera palabra)
+    let mejor: { name: string; price: number; pres: Array<{ name: string; price: number }> } | null = null;
+    let mejorLargo = 0;
+    for (const p of (prods || [])) {
+      const n = normalizarTexto(String(p.name || "")).trim();
+      if (!n) continue;
+      const primera = n.split(/\s+/)[0];
+      const pega = (n.length >= 4 && t.includes(n)) || (primera.length >= 3 && palabra(primera));
+      if (pega && n.length > mejorLargo) {
+        mejorLargo = n.length;
+        mejor = {
+          name: String(p.name).trim(),
+          price: Number(p.price) || 0,
+          pres: ((p.presentations || []) as Array<{ name?: string; price?: number }>)
+            .map(x => ({ name: String(x?.name || "").trim(), price: Number(x?.price) || 0 }))
+            .filter(x => x.name && x.name.toLowerCase() !== "unico" && x.name.toLowerCase() !== "único"),
+        };
+      }
+    }
+    if (mejor) {
+      const cerca = mejor.pres.find(x => {
+        const pn = normalizarTexto(x.name);
+        return pn && (t.includes(pn) || pn.split(/\s+/).some(w => w.length >= 3 && palabra(w)));
+      });
+      const nom = capFirst(mejor.name.toLowerCase());
+      if (cerca) return `${nom} ${cerca.name.toLowerCase()} cuesta ${fmtCOP(cerca.price)} 😊`;
+      if (mejor.pres.length > 1) {
+        return `${nom} cuesta: ${mejor.pres.map(x => `${x.name.toLowerCase()} ${fmtCOP(x.price)}`).join(" y ")} 😊`;
+      }
+      const unico = mejor.pres[0]?.price || mejor.price;
+      return unico > 0 ? `${nom} cuesta ${fmtCOP(unico)} 😊` : null;
+    }
+
+    // Adición: se busca en los grupos de modificadores, con su precio por tamaño
+    const grupos = await sbGet(
+      `/rest/v1/pos_modifier_groups?branch_id=eq.${branchId}&select=name,options&limit=50`,
+    ) as Array<{ name?: string; options?: Array<{ name?: string; price?: number }> }> | null;
+    const halladas: Array<{ grupo: string; nombre: string; price: number }> = [];
+    for (const g of (grupos || [])) {
+      for (const o of ((g.options || []) as Array<{ name?: string; price?: number }>)) {
+        const on = normalizarTexto(String(o?.name || "")).trim();
+        if (on.length >= 4 && (t.includes(on) || palabra(on.split(/\s+/)[0]))) {
+          halladas.push({
+            grupo: String(g.name || "").replace(/adiciones/i, "").trim().toLowerCase(),
+            nombre: String(o!.name).trim(), price: Number(o!.price) || 0,
+          });
+        }
+      }
+    }
+    if (halladas.length) {
+      const nom = capFirst(halladas[0].nombre.toLowerCase());
+      const partes = halladas.map(h => `${fmtCOP(h.price)}${h.grupo ? ` en ${h.grupo}` : ""}`);
+      return `La adición de ${nom.toLowerCase()} cuesta ${[...new Set(partes)].join(" y ")} 😊`;
+    }
+  } catch { /* sin catálogo no hay respuesta puntual: se sigue como antes */ }
+  return null;
 }
 
 function lookupDomiPrice(direccion: string, domicilios: Record<string, unknown> | null | undefined): number | null {
