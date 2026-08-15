@@ -357,6 +357,51 @@ Paco contesta en vivo.
       los envios con imagen y los de texto que acompanan un medio, porque
       parece que esos no pasan por `conEtiqueta()`.
 
+- [ ] **BUG 4 — Paco dijo "esta es nuestra carta" y NO la mando.**
+
+      **Conversacion:** D.F.G · **573234799933** · 14-ago-2026 · **8:37 p. m.**
+      (`01:37 UTC` del 15-ago).
+
+      El cliente abre con *"¡Hola! Quiero mas informacion.cuanto vale"* y Paco
+      responde a las 8:37 p. m.:
+      > 🍟 `Paco:` No manejamos un producto con ese nombre 🙈 Esta es nuestra
+      > carta ☺️ ¿Cual se te antoja?
+
+      Sergio lo reporto al reves de como resulto ser: penso que la carta si se
+      habia mandado y que el Front no la mostraba (falsa alarma del panel),
+      porque el cliente contesto *"Esta un poquito caro"*, como si hubiera
+      visto precios.
+
+      **Rastreado el 14-ago, y es al contrario: el Front tiene razon.**
+
+      1. En `chat_messages` de esa conversacion hay **7 mensajes y ninguno con
+         `media_type`**. No existe fila de carta.
+      2. En la conversacion de Jorge Piamba de esa misma noche la carta **si**
+         quedo guardada (dos filas `Carta`). O sea que cuando se manda, se
+         guarda. Aqui no hay nada que guardar.
+      3. Los logs de la funcion en la ventana 01:36–01:42 UTC no muestran
+         ningun intento de envio de carta.
+
+      **Conclusion: la carta no se mando.** El mensaje anuncio un adjunto que
+      nunca salio. Eso es peor que un fallo del panel: el cliente lee "esta es
+      nuestra carta" y no le llega nada.
+
+      ⚠️ **Falta un ultimo paso para cerrarlo al 100%:** confirmar del lado de
+      Meta que no salio ningun mensaje con imagen a ese numero. La base y los
+      logs son de Cobra; Meta es el unico juez de lo que de verdad viajo.
+
+      **Y entonces, ¿por que dijo "esta un poquito caro"?** Sin confirmar. La
+      hipotesis mas probable es que viera precios por fuera de esta
+      conversacion — el catalogo del perfil de WhatsApp Business, que es de
+      Meta y no de Cobra. **No darlo por cierto sin comprobarlo.**
+
+- [ ] **BUG 5 — "cuanto vale" dispara "no manejamos un producto con ese
+      nombre".** Misma conversacion, mismo mensaje. El cliente no nombro ningun
+      producto: pregunto un precio. Es el mismo fallo ya visto con *"Eres muy
+      amable Paco"*: cualquier frase sin producto cae en la rama de "producto no
+      encontrado". Los dos casos hay que arreglarlos juntos, porque son el
+      mismo camino del codigo.
+
 ---
 
 ## FASE 3 — Verificar antes de vender
