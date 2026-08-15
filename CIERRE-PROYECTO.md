@@ -406,6 +406,65 @@ Paco contesta en vivo.
       mal. Cuando el Front y el cliente se contradicen, **el cliente es el que
       tiene razon**: el vio lo que le llego al telefono.
 
+#### El fondo de los BUGS 5, 6 y 7 — leer antes de tocar nada
+
+Sergio, 14-ago: *"la mayoria de problemas se solucionan haciendo que Paco sea
+realmente conversacional. Asi como tu: tu nunca me respondes con un bucle, tu
+entiendes lo que estoy diciendo y de que estamos hablando"*.
+
+El diagnostico es correcto. Vale la pena escribir **por que** pasa, porque de
+ahi sale el arreglo — y tambien el error que seria facil cometer.
+
+**En que se diferencia Paco de un asistente conversacional de verdad**
+
+| | Asistente conversacional | Paco hoy |
+|---|---|---|
+| Que recibe | **Toda** la conversacion, cada vez | El mensaje suelto, mas un estado con campos |
+| Quien decide que responder | El modelo, mirando el conjunto | Una maquina de pasos: `producto` → `direccion` → `pago` → … |
+| Para que se usa el modelo | Para **entender y decidir** | Solo para **extraer datos** del mensaje |
+| Que pasa con lo inesperado | Se contesta lo que la persona dijo | Cae en la rama "no lo entendi" del paso activo |
+
+Ahi estan los tres bugs de una vez. Como el paso activo es `producto`, todo lo
+que no sea un producto se contesta con la pregunta de `producto`. Da igual que
+el cliente pregunte un precio (BUG 5), se despida (BUG 6) o lleve cuatro veces
+sin ser entendido (BUG 7): el guion solo sabe una cosa.
+
+**El error que seria facil cometer manana**
+
+Concluir "entonces quitemos el guion y que el modelo decida todo". Eso ya se
+probo y es de donde vienen los arreglos del 12 y 13 de agosto: la confirmacion
+del nombre, la pregunta de la direccion y el pedido repitiendose en cada
+mensaje **eran** el modelo decidiendo. Todo lo que depende de que el modelo
+obedezca es cara o sello.
+
+Ademas hay dos cosas que **no** pueden depender del modelo, nunca:
+
+- **Los precios y el pedido.** El total, las adiciones y las presentaciones
+  salen del catalogo, no de lo que el modelo crea recordar. Es la regla del
+  verificador que puso Sergio: el bot no puede armar nada que el flujo manual
+  no pudiera armar.
+- **Poder repetir una prueba.** El banco de pruebas sirve porque la misma
+  conversacion da el mismo resultado. Si el modelo decide libremente, deja de
+  poder comprobarse.
+
+**El arreglo, entonces: cambiar QUE se le pide al modelo, no cuanto manda**
+
+Hoy el modelo solo extrae datos y el guion decide todo lo demas. Falta un paso
+en medio: que antes de responder, el modelo mire la conversacion completa y
+diga **que esta pasando** — el cliente esta pidiendo / preguntando / dudando /
+despidiendose / no entendio. Con eso:
+
+- Si esta preguntando → se le responde la pregunta (adios BUG 5).
+- Si se esta despidiendo → rama de despedida (adios BUG 6).
+- Si es el segundo o tercer intento del mismo paso → frase distinta, y a la
+  cuarta un humano (adios BUG 7).
+
+El guion sigue mandando en **lo que se construye** (el pedido, los precios, los
+totales) y el modelo pasa a mandar en **lo que se entiende**. Esa es la linea:
+determinismo en los numeros, conversacion en el trato.
+
+---
+
 - [ ] **BUG 5 — Cualquier cosa fuera del guion se contesta "no manejamos un
       producto con ese nombre". ESTE ES DE FONDO, no un caso suelto.**
 
