@@ -47,29 +47,38 @@ cierra la FASE A.
       responde **$5.000** y la salsa cheddar **$2.000** (precios leídos del
       catálogo real, no inventados). Ya no queda ningún ".000" roto.
 
+
+### ✅ FASES A, B y C EJECUTADAS la madrugada del 15-ago (motor v273)
+
+Probadas en el banco (4 corridas, 6 casos, todos en verde) y desplegadas a
+produccion. Detalle en la entrada 126 de ESTADO-SISTEMA.md. Quedan de este
+plan: FASE D parcial (D3 tiempo de entrega — decision de Sergio; D4 bebidas
+en prosa), la fila de Mensajes para las frases nuevas (despedida,
+pasar_humano, reintento_2/3), y los bugs del Front (FASE 2c, BUG 2-3-4).
+
 **FASE A — Entender** (BUGS 5 y 6; hallazgos A-D de la auditoría)
-- [ ] A1. Ampliar el clasificador (`index.ts:894`) con: `despedida`,
+- [x] ✅ A1. Ampliar el clasificador (`index.ts:894`) con: `despedida`,
       `agradecimiento_final`, `queja`, `fuera_de_tema`, `no_entendio`,
       `quiere_humano`. Temperatura 0 y JSON, como está.
-- [ ] A2. Pasarle al clasificador los últimos 4-6 mensajes (hoy ve solo el
+- [x] ✅ A2. Pasarle al clasificador los últimos 4-6 mensajes (hoy ve solo el
       actual, 900 chars).
-- [ ] A3. Enrutador ANTES del bypass v270 (`index.ts:2775`): despedida →
+- [x] ✅ A3. Enrutador — quedó ANTES de la rama de la carta (5-bis), aún mejor que v270 (`index.ts:2775`): despedida →
       frase de despedida y fin; queja → reconocer + ofrecer humano; pregunta
       → responderla y luego el paso; resto → flujo normal.
-- [ ] A4. Jubilar la regex `PREGUNTA_DEL_CLIENTE`: esa decisión pasa al
+- [x] ✅ A4. Jubilar la regex `PREGUNTA_DEL_CLIENTE`: esa decisión pasa al
       clasificador. UN solo detector de intención en el motor.
-- [ ] A5. La rama "producto no existe" (`index.ts:2538`) solo dispara si la
+- [x] ✅ A5. La rama "producto no existe" (`index.ts:2538`) solo dispara si la
       intención fue `pedir` Y hay palabra candidata a comida. "cuánto vale" →
       responder el precio desde el catálogo.
-- [ ] A6. Quitar la regla "ignora completamente lo fuera de tema"
+- [x] ✅ A6. Quitar la regla "ignora completamente lo fuera de tema"
       (`index.ts:5265`) → reconocer en una frase y redirigir.
 
 **FASE B — Nunca en bucle** (BUG 7)
-- [ ] B1. Contador de intentos por paso en el estado (generalizar el que ya
+- [x] ✅ B1. Contador de intentos por paso en el estado (generalizar el que ya
       existe en `producto_ambiguo`, `index.ts:2012`).
-- [ ] B2. Frases de 2.º y 3.er intento, fijas y configurables en Mensajes
+- [x] ✅ B2. Frases de 2.º y 3.er intento (reintento_2/reintento_3; falta su fila en Mensajes), fijas y configurables en Mensajes
       (proponer borradores a Sergio).
-- [ ] B3. Al 4.º intento: `human_takeover` + motivo visible. Nunca repetir la
+- [x] ✅ B3. Al 4.º intento: `human_takeover` + motivo visible. Nunca repetir la
       misma frase dos veces seguidas.
 
 **FASE C — Misión y saludo** (BUG 1; hallazgo A)
@@ -82,7 +91,7 @@ cierra la FASE A.
       la caja por si algún día se vuelve a ese modo. **Sergio puede editar la
       frase en el editor de Flujo.** ⚠️ Falta verificarlo con una conversación
       del banco (primer punto de la verificación de mañana).
-- [ ] C2. Escribir la MISIÓN arriba del prompt conversacional: quién es, para
+- [x] ✅ C2. Escribir la MISIÓN arriba del prompt conversacional: quién es, para
       qué está, qué hacer ante lo imprevisto. Podar las prohibiciones que la
       nueva arquitectura vuelve innecesarias.
 
