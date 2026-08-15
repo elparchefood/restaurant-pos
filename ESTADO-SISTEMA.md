@@ -5389,3 +5389,47 @@ branches.name, que es "Principal" y es interno), y saldo después.
 **Probado de punta a punta:** movimiento de prueba con el número del gerente →
 la función respondió `enviados: 1` y la plantilla llegó al teléfono. La fila
 de prueba se borró.
+
+## 126. Paco aprende a conversar (motor v273) — la madrugada del 15-ago-2026
+
+Se ejecutó el plan completo de `AUDITORIA-PACO.md` (fases A, B y C), probado
+con 6 casos en el banco (4 corridas) antes de tocar producción.
+
+**FASE A — entender.** El clasificador ganó las casillas humanas que no
+tenía: `pregunta`, `despedida`, `queja`, `quiere_humano`, `fuera_tema` — y
+ahora recibe los últimos 4 mensajes ("las gracias" tras "está caro" es
+despedida; tras otra cosa, no). El enrutador corre ARRIBA de la rama de la
+carta (5-bis): "no quiero hablar con un robot" contiene "quiero" y la carta
+se lo llevaba. Despedida → se despide (frases.despedida, cae a frases.cierre)
+salvo pedido en curso. Queja/quiere humano → aviso + `human_takeover` con
+motivo. La regex `PREGUNTA_DEL_CLIENTE` quedó solo de respaldo si el
+clasificador falla. "No manejamos ese producto" exige intención de PEDIR
+("información" ya no la dispara). La regla de "ignora lo fuera de tema" se
+cambió por reconocer y redirigir.
+
+**FASE B — nunca en bucle.** Contador de intentos por paso en el estado
+(generalización del que tenía producto_ambiguo). 2.º y 3.er intento anteponen
+frase distinta (frases.reintento_2 / reintento_3, configurables); al 4.º pasa
+a humano con motivo escrito ("Paco no logró obtener 'direccion' tras 4
+intentos"). Probado con basura tres veces: no repite, escala.
+
+**FASE C — misión y saludo.** MISIÓN arriba del prompt (entender qué pasa y
+atenderlo ANTES de continuar el flujo). El saludo fijo también sale cuando el
+PRIMER mensaje trae ganas de pedir sin producto concreto ("hola buenas para
+un servicio de domicilio" — el caso real que se quedó sin presentación: la
+regex solo aceptaba saludos puros). Nunca por encima de una pregunta, la
+carta o un producto nombrado.
+
+**Trampas de la noche:** (1) `pend` era de OTRA función — el enrutador quedó
+mudo y solo los logs lo dijeron (ReferenceError en 1067); la despedida ahora
+consulta el estado solo cuando ya es despedida. (2) "está caro" disparaba
+`queja` → humano; se precisó: queja es problema de SERVICIO, no objeción de
+precio. (3) "no gracias así está bien" en el upsell disparaba despedida y
+cortaba el pedido; guarda de pedido en curso.
+
+**Verificación (banco v128):** saludo nuevo ✓ · "cuanto vale" sin insulto ✓ ·
+despedida real ✓ · quiere humano ✓ (motivo escrito) · bucle escala al 4.º ✓ ·
+pedido completo de regresión intacto ($28.000, resumen, cierre) ✓.
+
+**Frases nuevas configurables (aún sin fila en Mensajes):** `despedida`,
+`pasar_humano`, `reintento_2`, `reintento_3`.

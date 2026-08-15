@@ -889,6 +889,22 @@ async function processConversation(convId: string, relectura = false): Promise<v
      bot se comporta como antes y nunca peor.
      ══════════════════════════════════════════════════════════════════ */
   const textoDelCliente = batchMsgs.map(m => m.body).join(" ").slice(0, 900);
+  /* MEMORIA CORTA para clasificar (15-ago, FASE A del plan). "Las gracias" a
+     secas no se puede clasificar sin saber que venia antes: despues de "esta
+     caro" es una despedida; despues de "te llevo el pedido gratis" es otra
+     cosa. Cuatro mensajes bastan y no engordan el prompt. */
+  let contextoCorto = "";
+  try {
+    const prevRes = await sbGet(
+      `/rest/v1/chat_messages?conversation_id=eq.${convId}` +
+      `&sent_at=lt.${encodeURIComponent(batchStart)}&order=sent_at.desc&limit=4&select=direction,body`,
+    ) as Array<{ direction: string; body: string }> | null;
+    if (prevRes && prevRes.length) {
+      contextoCorto = prevRes.reverse()
+        .map(m => `${m.direction === "in" ? "CLIENTE" : "RESTAURANTE"}: ${String(m.body || "").slice(0, 160)}`)
+        .join("\n");
+    }
+  } catch { /* sin contexto se clasifica igual que antes */ }
   let intenciones: Record<string, unknown> = {};
   try {
     const rInt = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -896,7 +912,7 @@ async function processConversation(convId: string, relectura = false): Promise<v
       headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        max_tokens: 120,
+        max_tokens: 170,
         temperature: 0,
         response_format: { type: "json_object" },
         messages: [
@@ -906,7 +922,28 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
 {"carta":bool,"precio":bool,"ubicacion":bool,"domicilio":bool,"horario":bool,"pedir":bool,
  "pago":"efectivo"|"transferencia"|null,"entrega":"domicilio"|"recoger"|null,
  "rechaza_direccion":bool,"agregados":[string],
- "confirma":bool,"rechaza_mas":bool}
+ "confirma":bool,"rechaza_mas":bool,
+ "pregunta":bool,"despedida":bool,"queja":bool,"quiere_humano":bool,"fuera_tema":bool}
+
+- "pregunta": true si el mensaje contiene una pregunta que espera respuesta
+  (con o sin signo de interrogacion: "cuanto vale", "hasta que hora", "sera
+  que me alcanza a llegar").
+- "despedida": true si el cliente esta CERRANDO la conversacion: se despide
+  ("chao", "hasta luego"), agradece para terminar ("gracias", "muchas
+  gracias" sin pedir nada mas), o rechaza con cortesia ("esta caro, gracias",
+  "no gracias", "otro dia sera", "lo pienso y te escribo"). OJO: "gracias"
+  seguido de mas pedido NO es despedida. Y AL REVES: si en el contexto el
+  cliente venia diciendo que esta caro, que no va a pedir o que lo piensa,
+  un "gracias" o un "bueno" solo, ES despedida — no lo trates como cortesia
+  para seguir vendiendo.
+- "queja": true SOLO si esta molesto por un problema del SERVICIO o del
+  pedido: demora, algo llego mal o frio, le cobraron mal, mala atencion,
+  "ya te lo dije tres veces". NO es queja opinar del precio ("esta caro",
+  "uy tan caro") ni dudar de pedir — eso es una objecion normal de venta.
+- "quiere_humano": true si pide hablar con una persona ("me comunicas con
+  alguien", "no quiero hablar con un robot", "llamame", "el dueño esta?").
+- "fuera_tema": true si habla de algo que NO tiene que ver con el restaurante
+  ni con un pedido (politica, futbol, "que opinas de...", cadenas).
 
 - "carta": quiere ver la carta o el menu COMPLETO, o los precios EN GENERAL.
   Ejemplos que SI son carta: "la carta", "q tienen", "menucito", "que venden",
@@ -963,7 +1000,9 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
 Puede haber varias en true. Si no estas seguro, pon false.
 La gente escribe con errores, sin tildes y con espacios de mas: interpreta la
 INTENCION, no las palabras exactas.` },
-          { role: "user", content: textoDelCliente },
+          { role: "user", content: contextoCorto
+            ? `Contexto (mensajes anteriores):\n${contextoCorto}\n\nMENSAJE ACTUAL DEL CLIENTE:\n${textoDelCliente}`
+            : textoDelCliente },
         ],
       }),
     });
@@ -987,6 +1026,57 @@ INTENCION, no las palabras exactas.` },
     }
     const e = ms.find(m => !m.digital); return e ? e.nombre.toLowerCase() : "efectivo";
   };
+
+  /* 5-bis. ENTENDER ANTES QUE TODO (FASE A, 15-ago). Va AQUI, arriba de la
+     rama de la carta, porque "no quiero hablar con un robot" contiene
+     "quiero" y la rama de la carta se lo llevaba: el cliente pedia una
+     persona y recibia el menu. Lo humano se atiende antes que lo comercial. */
+  const clasifico = Object.keys(intenciones).length > 0;
+  const handoffFraseCfg = String(((cfg.handoff as Record<string, unknown>) || {}).frase || "").trim();
+
+  // (a) Pide una persona, o esta molesto → humano, con el motivo visible.
+  if (intenciones.quiere_humano === true || intenciones.queja === true) {
+    const motivo = intenciones.quiere_humano === true
+      ? "El cliente pidió hablar con una persona"
+      : "Cliente molesto o con reclamo — lo detectó Paco";
+    if (!handoffFraseCfg) {
+      const aviso = getFraseTexto(frasesCfg.pasar_humano)
+        || "Claro que sí 🙏 Ya le aviso a una persona del equipo para que te atienda directamente.";
+      await sendWaAndSave(convId, tenantId, aviso, fromPhone, phoneId, accessToken);
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: aviso, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+    }
+    await pasarAHumano(convId, tenantId, motivo, cfg, fromPhone, phoneId, accessToken);
+    return;
+  }
+
+  /* (b) Se esta despidiendo → despedirse y YA. Un humano jamas contesta un
+     "gracias, esta caro" con la pregunta de venta (paso la noche del 14-ago,
+     dos veces seguidas). Guardas: si en el MISMO mensaje tambien pide o
+     confirma algo, no es despedida; y con un PEDIDO EN CURSO el "no gracias"
+     esta cerrando el upsell o un paso, no la conversacion — el flujo sigue
+     (la regresion del banco lo probo: cortaba el pedido a mitad). */
+  if (intenciones.despedida === true && intenciones.pedir !== true
+      && intenciones.confirma !== true && intenciones.carta !== true
+      && !(Array.isArray(intenciones.agregados) && (intenciones.agregados as unknown[]).length > 0)) {
+    /* El estado del pedido aun no esta cargado a esta altura (se carga mas
+       abajo), asi que se consulta SOLO cuando la intencion ya es despedida:
+       una consulta extra en el caso raro, cero en el resto. */
+    let pedidoEnCurso = false;
+    try {
+      const pRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=pending_order_data&limit=1`);
+      const p0 = (pRes?.[0]?.pending_order_data || {}) as Record<string, unknown>;
+      pedidoEnCurso = !!(p0.producto || (Array.isArray(p0.items) && (p0.items as unknown[]).length > 0))
+        && p0.resumen_enviado !== true;
+    } catch { /* sin estado legible, se asume conversacion sin pedido */ }
+    if (!pedidoEnCurso) {
+      const chao = getFraseTexto(frasesCfg.despedida)
+        || getFraseTexto(frasesCfg.cierre)
+        || "¡Con mucho gusto! 😊 Aquí estamos cuando se te antoje algo 🍟";
+      await sendWaAndSave(convId, tenantId, chao, fromPhone, phoneId, accessToken);
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: chao, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+      return;
+    }
+  }
 
   // 6. Detectar solicitud de carta / PRECIOS → enviar imágenes de la carta (traen los precios)
   let extraRespondido = false;
@@ -1506,7 +1596,22 @@ INTENCION, no las palabras exactas.` },
   // Sesión expirada: sin pedido en curso, timeout, o pedido ya confirmado
   const sesionExpirada = !state.producto || minutosInactivo > 15 || state.resumen_enviado;
 
-  if (esGaludo && sesionExpirada) {
+  /* FASE C1 (15-ago): la presentacion tambien sale cuando el PRIMER mensaje
+     trae ganas de pedir pero sin producto concreto ("hola buenas para un
+     servicio de domicilio" — el caso real de la primera noche, que se quedo
+     sin presentacion porque la regex solo acepta saludos PUROS). Solo en el
+     primer contacto (el bot no ha hablado nunca en esta conversacion), y
+     nunca por encima de una pregunta, la carta o un producto ya nombrado. */
+  const botYaHablo = histCtx.some(h => h.direction === "out");
+  const saludoImplicito = !botYaHablo && clasifico
+    && (intenciones.pedir === true || intenciones.domicilio === true
+        || intenciones.entrega === "domicilio")
+    && intenciones.pregunta !== true && intenciones.carta !== true
+    && intenciones.precio !== true && intenciones.horario !== true
+    && intenciones.ubicacion !== true
+    && !mencionaProductoCatalogo(clienteTexto);
+
+  if ((esGaludo || saludoImplicito) && sesionExpirada) {
     const prevDir = (!state.resumen_enviado && state.direccion) ? state.direccion : null;
     state = newPacoState();
     if (prevDir) { state.direccion = prevDir; state.direccion_heredada = true; }
@@ -2536,7 +2641,16 @@ INTENCION, no las palabras exactas.` },
          no lo que no. */
       let productoInexistente: string | null = null;
       const nombroAlgoDeLaCarta = mencionaProductoCatalogo(clienteTexto);
-      for (const w of (nombroAlgoDeLaCarta ? [] : normalizarTexto(clienteTexto).split(/\s+/))) {
+      /* FASE A5 (15-ago): "no manejamos un producto con ese nombre" SOLO se
+         puede decir si el clasificador vio intencion de PEDIR. Antes, la
+         palabra desconocida bastaba: "Quiero mas informacion.cuanto vale"
+         disparaba la frase por "informacion". Si una persona pregunta,
+         agradece o charla, no se le contesta con la rama de producto.
+         Si el clasificador fallo (objeto vacio), se comporta como antes. */
+      const clasificoAlgo = Object.keys(intenciones).length > 0;
+      const buscarInexistente = !nombroAlgoDeLaCarta
+        && (!clasificoAlgo || (intenciones.pedir === true && intenciones.pregunta !== true));
+      for (const w of (buscarInexistente ? normalizarTexto(clienteTexto).split(/\s+/) : [])) {
         const stem = w.replace(/s$/, "");
         if (w.length < 4 || STOP_14F.has(w) || STOP_14F.has(stem)) continue;
         if (DYN_PROD_NAMES.includes(w) || DYN_PROD_NAMES.includes(stem)) continue;
@@ -2772,10 +2886,56 @@ INTENCION, no las palabras exactas.` },
      EXCEPCION: si el cliente pregunto algo, sigue redactando el modelo — hay
      que contestarle antes de seguir con el pedido, y eso no se puede hacer con
      una frase fija. */
+  /* 14i-cnt. NUNCA LA MISMA PREGUNTA EN BUCLE (FASE B, 15-ago).
+     (El entender — despedida, queja, quiere humano — corre ARRIBA, en 5-bis,
+     antes de la rama de la carta. Aqui llega solo la conversacion viva.)
+
+     Ya paso: "le pidio la direccion CUATRO veces seguidas hasta que el pedido
+     se cayo". La pieza existia solo para el producto ambiguo; aqui se
+     generaliza: cada paso cuenta sus intentos en el estado. El 2.o y el 3.o
+     cambian de tono (frases configurables reintento_2 / reintento_3 en
+     Mensajes); al 4.o se pasa a un humano con el motivo escrito. */
+  let intentoPaso = 0;
+  if (nextStep && nextStep.campo) {
+    const st14 = state as unknown as { intentos?: Record<string, number> };
+    st14.intentos = st14.intentos || {};
+    intentoPaso = (st14.intentos[nextStep.campo] || 0) + 1;
+    st14.intentos[nextStep.campo] = intentoPaso;
+    if (intentoPaso >= 4) {
+      if (!handoffFraseCfg) {
+        const aviso = getFraseTexto(frasesCfg.pasar_humano)
+          || "Perdón, no logro entenderte 🙏 Ya le aviso a alguien del equipo para que te atienda personalmente.";
+        await sendWaAndSave(convId, tenantId, aviso, fromPhone, phoneId, accessToken);
+      }
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state, ai_typing: false });
+      await pasarAHumano(convId, tenantId,
+        `Paco no logró obtener "${nextStep.campo}" tras ${intentoPaso} intentos — necesita una persona`,
+        cfg, fromPhone, phoneId, accessToken);
+      return;
+    }
+  }
+
+  /* 14i-bis (v270). La frase fija sale tal cual — pero la EXCEPCION ("el
+     cliente pregunto algo") ahora la decide el CLASIFICADOR, no una lista de
+     palabras. La regex queda solo de respaldo para cuando el clasificador
+     falle: si el modelo no contesto, el bot se comporta como antes y nunca
+     peor. UN solo detector de intencion en el motor (FASE A4). */
   const PREGUNTA_DEL_CLIENTE = /(\?|¿|cuanto|cuánto|precio|vale|cuesta|tienen|tienes|hay\b|puedo|podr[ií]a|demora|tarda|cuando|cuándo|donde|dónde|como|cómo|por que|por qué|porque)/i;
+  const preguntoAlgo = clasifico
+    ? (intenciones.pregunta === true || intenciones.fuera_tema === true)
+    : PREGUNTA_DEL_CLIENTE.test(clienteTexto);
   if (nextStep && (nextStep.modo || "fija") === "fija" && (nextStep.texto || nextStep.pregunta)
-      && !PREGUNTA_DEL_CLIENTE.test(clienteTexto)) {
-    const { texto: fijo } = rellenarVariables(String(nextStep.texto || nextStep.pregunta), state, cfg);
+      && !preguntoAlgo) {
+    const { texto: fijoBase } = rellenarVariables(String(nextStep.texto || nextStep.pregunta), state, cfg);
+    /* FASE B: repetir no es insistir con las mismas palabras. La frase fija
+       es correcta la PRIMERA vez; del segundo intento en adelante se antepone
+       un recordatorio distinto, tan fijo y configurable como ella. */
+    let fijo = fijoBase;
+    if (intentoPaso === 2) {
+      fijo = (getFraseTexto(frasesCfg.reintento_2) || "Solo me falta este dato para poder seguir 😊") + "\n" + fijoBase;
+    } else if (intentoPaso === 3) {
+      fijo = (getFraseTexto(frasesCfg.reintento_3) || "Perdón si no me hice entender 🙏 ¿Me lo escribes una vez más? Si prefieres, te comunico con alguien del local.") + "\n" + fijoBase;
+    }
     /* Con varios platos, la pregunta de tamaño o variante tiene que decir de
        CUAL habla — misma regla que ya existía para el modelo. */
     const conProd = (nextStep.campo === "tamano" || nextStep.campo === "tipo")
@@ -2784,19 +2944,20 @@ INTENCION, no las palabras exactas.` },
       : fijo;
     if (conProd.trim()) {
       await sendWaAndSave(convId, tenantId, conProd, fromPhone, phoneId, accessToken);
-      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: conProd, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state, last_message: conProd, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
       return;
     }
   }
 
-  // 14i. Respuesta conversacional — siempre GPT, maneja todo: normal, frustración, off-script
+  // 14i. Respuesta conversacional — GPT con la conversación completa: preguntas,
+  // frustración, fuera de guion. El pedido en sí sigue mandando el flujo.
   const reply = await buildConversationResponse(
     clienteTexto, histCtx, state, nextStep, cfg, frasesCfg,
     menuText, horariosText, pagosText, domiciliosText, currentProductData,
     true, nombreParaBot, colTimeStr, colDayStr, horaAperturaHoy, horaCierreHoy, proxDia, !!nombreKnown,
   );
   await sendWaAndSave(convId, tenantId, reply, fromPhone, phoneId, accessToken);
-  await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: reply, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+  await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state, last_message: reply, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
 }
 
 // ── getFraseCfg / getFraseTexto — lectura de frases con compat hacia atrás ───
@@ -5236,6 +5397,10 @@ async function buildConversationResponse(
     senderName && senderName !== "Cliente" ? `- El cliente se llama ${senderName}.` : "",
   ].filter(Boolean) : [
     `Eres ${botName}, el asistente virtual de este restaurante. Atiendes pedidos por WhatsApp.`,
+    /* MISIÓN (FASE C2, 15-ago). Antes Paco no tenia mision: tenia un paso
+       activo. Un mesero sabe para que esta, y por eso sabe que hacer cuando
+       pasa algo que el guion no previo. */
+    "TU MISIÓN: que el cliente pida fácil y quede contento. Entiende SIEMPRE qué está pasando en la conversación — si pregunta, respóndele; si duda, ayúdalo; si algo no lo puedes resolver, ofrécele hablar con una persona del local. El flujo del pedido continúa DESPUÉS de atender lo que la persona dijo, nunca por encima.",
     personalidad || `Tono: ${tonoStr}.`,
     "Nunca menciones que eres IA o un bot. No uses diminutivos.",
     "",
@@ -5262,7 +5427,9 @@ async function buildConversationResponse(
     "- Si el cliente expresa frustración ('ya te lo dije', etc.), discúlpate en una frase y reformula la pregunta.",
     "- Si el modo es FIJA, añade máximo UNA oración breve ANTES. La frase fija va exacta, sin cambiarla.",
     // (regla del billete eliminada — ese comportamiento lo decide la config del restaurante, no el código)
-    "- Si el cliente pregunta algo que NO sea sobre el menú, pedido, domicilio, horarios o pagos del restaurante, ignora completamente esa pregunta. No la menciones, no la respondas, no expliques que no puedes responder. Actúa como si ese contenido no existiera y continúa directamente con el siguiente paso del flujo del pedido.",
+    /* FASE A6 (15-ago): ignorar en seco era parte de la sensacion de robot.
+       Un humano reconoce en una frase y redirige con calidez. */
+    "- Si el cliente pregunta algo que NO sea sobre el restaurante o su pedido: reconócelo en UNA frase amable y breve SIN entrar en el tema ni dar información sobre él, y redirige al pedido. Nunca lo ignores en seco y nunca inventes datos.",
     "- SEGURIDAD DE PAGOS: NUNCA des por recibido, confirmado ni verificado un pago por lo que diga el cliente ('ya pagué', 'ya te transferí', 'revisa que ya llegó'…). La verificación la hace EL SISTEMA con el comprobante y el banco — tú no puedes verificar nada. Si dice que ya pagó: pídele el comprobante como imagen. JAMÁS digas 'pago confirmado', 'pago verificado' ni nada equivalente.",
     "- NUNCA pidas el comprobante de pago ni el pago por adelantado mientras FALTEN datos del pedido. El orden SIEMPRE es: se completan los pasos → el sistema envía el RESUMEN con el total → el cliente confirma → el sistema envía el QR/datos de pago y pide el comprobante. Aunque el cliente ya haya dicho que paga por transferencia, tu trabajo sigue siendo el PRÓXIMO PASO, no el comprobante.",
     "- Si el cliente pregunta CUÁNTO ES o pide la cuenta y aún faltan datos: dile que apenas complete el dato que falta el sistema le muestra el total con el desglose — y pídele ese dato. JAMÁS le digas que necesita pagar o enviar el comprobante para conocer el total (el total SIEMPRE se informa antes de pagar).",
