@@ -298,6 +298,65 @@ error es el fallo silencioso que ya nos mordió antes ("Guardado ✓" sin guarda
       (573233776746). Si `Paco:` se ve gris y monoespaciado igual que en el
       telefono, quedo.
 
+### Primeros errores de Paco en vivo — 14-ago-2026, 8:11 p. m.
+
+**Conversacion:** Jorge Piamba (Milan club house) · **573233776746** ·
+14-ago-2026 · primer mensaje del cliente a las **8:11 p. m.** hora Colombia
+(`01:11 UTC` del 15-ago en la base). Es la primera conversacion real desde que
+Paco contesta en vivo.
+
+- [ ] **BUG 1 — Paco no dijo el saludo acordado. Este es el importante.**
+
+      **Lo que se acordo:** que se presentara como asistente virtual llamado
+      Paco y le pidiera al cliente que hiciera su pedido lo mas claro posible.
+
+      **Lo que dijo de verdad, a las 8:11 p. m.:**
+      > 🍟 `Paco:` ¡Hola! Buenas noches 🍟😊 Claro que si, estamos para servirte.
+      > ¿Que se te antoja? 🍟☺️
+
+      Ni se presento, ni pidio claridad.
+
+      **Causa, ya leida de la base** — `ia_config.flujo_saludo` de la sucursal
+      `66e5f12d-fd16-455a-a6c0-9694aa6fb01b` tiene guardado hoy esto:
+      ```json
+      { "modo": "conversacional",
+        "guia": "Saluda al cliente con la hora del dia (buenos dias / buenas
+                 tardes / buenas noches). Si ya hizo pedidos antes menciona que
+                 lo recuerdas. Pregunta si quiere hacer un pedido o si prefiere
+                 ver el menu.\n\nTambien puedes indicar que te llamas Paco y que
+                 eres el asistente virtual de El Parche Food" }
+      ```
+      Dos cosas mal, y las dos explican el fallo por si solas:
+
+      1. **`modo: "conversacional"`**, no `"fija"`. En conversacional el modelo
+         parafrasea la guia, y ya sabemos como termina eso: es cara o sello.
+         Es exactamente la misma causa de los tres bugs de ayer.
+      2. La guia dice **"Tambien puedes indicar que te llamas Paco"**.
+         *Puedes* es opcional. El modelo no desobedecio: se le dio permiso para
+         saltarselo. Y de pedir el pedido claro no dice nada.
+
+      **Arreglo:** poner `modo: "fija"` con el texto exacto acordado (con
+      **"que deseas"**, no "que quieres" — lo pidio Sergio el 13-ago). Es el
+      mismo remedio de ayer: frase fija en vez de guia.
+
+      ⚠️ **Antes de darlo por bueno hay que mirar el pendiente #2** (guardar el
+      canvas pisa la configuracion). Si el saludo se guardo bien en su momento y
+      un guardado del canvas lo devolvio a conversacional, arreglar el texto no
+      sirve de nada: vuelve a caerse al siguiente guardado. Primero comprobar
+      cual de las dos cosas paso.
+
+- [ ] **BUG 2 — La carta se mando dos veces.** A las `01:12:33.909` y a las
+      `01:12:35.065` UTC, con 1,1 segundos de diferencia. Dos mensajes `Carta`
+      identicos seguidos. El cliente recibio la misma imagen duplicada.
+
+- [ ] **BUG 3 — La etiqueta de Paco falta en algunos mensajes.** En esa misma
+      conversacion, tres mensajes salieron **sin** `` `Paco:` ``: los dos de la
+      carta y el "¿Que se te antoja? 🍟☺️" de las `01:12:36`. Los que si la
+      llevan son el saludo y el de las adiciones. La regla acordada es que
+      **todo** mensaje que manda Paco la lleva. Hay que revisar por donde salen
+      los envios con imagen y los de texto que acompanan un medio, porque
+      parece que esos no pasan por `conEtiqueta()`.
+
 ---
 
 ## FASE 3 — Verificar antes de vender
