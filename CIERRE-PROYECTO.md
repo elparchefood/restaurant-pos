@@ -14,6 +14,103 @@ se termina, se marca aquí y se documenta a fondo en `ESTADO-SISTEMA.md`.
 
 ---
 
+## ⭐ TRABAJO DEL 15-AGO — Paco conversacional (aprobado por Sergio el 14-ago)
+
+Sergio aprobó ejecutar **todo** el plan de `AUDITORIA-PACO.md`: *"Perfecto,
+mañana haremos todo eso"*. Esta sección es el mapa para no perder nada; el
+detalle técnico de cada punto está en la auditoría y en los BUGS 1-7 de la
+FASE 2c de abajo.
+
+**El diagnóstico de Sergio, que es el norte del trabajo:** *"Lo curioso es que
+después de tanto entrenarlo ya logramos que tome correctamente presentaciones,
+variantes, productos, adiciones — casi todo. Y en lo que más falla actualmente
+es lo más simple: intenciones comunes y corrientes que se salen del flujo del
+pedido."* Tiene toda la razón, y la auditoría lo confirma con código: la
+**extracción** está madura (lector, verificador, catálogo — no se tocan) y el
+**entendimiento** no existe (no hay casilla para despedida, queja, charla).
+Lo difícil ya está hecho; falta lo simple. Ese es exactamente el hueco que
+cierra la FASE A.
+
+### Orden de ejecución (probar en el banco entre fase y fase)
+
+**0. Antes de tocar nada**
+- [ ] Comprobar el **pendiente #2** (guardar el canvas pisa la configuración):
+      decidir si el saludo se cayó a conversacional por un guardado del canvas
+      o si nunca se guardó en fija. Si no se resuelve esto primero, el arreglo
+      del saludo se revierte solo.
+- [ ] La **llave Nequi de la FAQ está VIEJA**. Ya casi resuelto: la memoria del
+      proyecto registra que `0089912015` es la cuenta vieja y `0092726260` la
+      corregida (la imagen del QR también sigue apuntando a la vieja — eso
+      solo lo puede regenerar Sergio). **Corregir la FAQ a 0092726260**,
+      confirmándolo con Sergio de pasada. ES PLATA — va primero que todo.
+
+**FASE A — Entender** (BUGS 5 y 6; hallazgos A-D de la auditoría)
+- [ ] A1. Ampliar el clasificador (`index.ts:894`) con: `despedida`,
+      `agradecimiento_final`, `queja`, `fuera_de_tema`, `no_entendio`,
+      `quiere_humano`. Temperatura 0 y JSON, como está.
+- [ ] A2. Pasarle al clasificador los últimos 4-6 mensajes (hoy ve solo el
+      actual, 900 chars).
+- [ ] A3. Enrutador ANTES del bypass v270 (`index.ts:2775`): despedida →
+      frase de despedida y fin; queja → reconocer + ofrecer humano; pregunta
+      → responderla y luego el paso; resto → flujo normal.
+- [ ] A4. Jubilar la regex `PREGUNTA_DEL_CLIENTE`: esa decisión pasa al
+      clasificador. UN solo detector de intención en el motor.
+- [ ] A5. La rama "producto no existe" (`index.ts:2538`) solo dispara si la
+      intención fue `pedir` Y hay palabra candidata a comida. "cuánto vale" →
+      responder el precio desde el catálogo.
+- [ ] A6. Quitar la regla "ignora completamente lo fuera de tema"
+      (`index.ts:5265`) → reconocer en una frase y redirigir.
+
+**FASE B — Nunca en bucle** (BUG 7)
+- [ ] B1. Contador de intentos por paso en el estado (generalizar el que ya
+      existe en `producto_ambiguo`, `index.ts:2012`).
+- [ ] B2. Frases de 2.º y 3.er intento, fijas y configurables en Mensajes
+      (proponer borradores a Sergio).
+- [ ] B3. Al 4.º intento: `human_takeover` + motivo visible. Nunca repetir la
+      misma frase dos veces seguidas.
+
+**FASE C — Misión y saludo** (BUG 1; hallazgo A)
+- [ ] C1. Saludo a modo **fija** con el texto acordado: presentarse como Paco,
+      asistente virtual, y pedir el pedido lo más claro posible — con "qué
+      **deseas**" (pedido expreso de Sergio del 13-ago).
+- [ ] C2. Escribir la MISIÓN arriba del prompt conversacional: quién es, para
+      qué está, qué hacer ante lo imprevisto. Podar las prohibiciones que la
+      nueva arquitectura vuelve innecesarias.
+
+**FASE D — Limpiar la configuración** (hallazgo H)
+- [ ] D1. UNA llave Nequi, y que frase y FAQ la lean de la misma fuente.
+- [ ] D2. Precios comidos de la FAQ (".000") — mejor aún: precio de producto
+      se responde desde el catálogo, no desde texto a mano.
+- [ ] D3. Contradicción del tiempo de entrega (FAQ promete 30 min;
+      instrucciones lo prohíben). Decide Sergio.
+- [ ] D4. Bebidas no disponibles fuera de la prosa de `instrucciones` — la
+      disponibilidad vive en el catálogo.
+
+**Además, del mismo día (no son de Paco pero quedaron pendientes):**
+- [ ] El chat del Front debe verse IGUAL que WhatsApp (FASE 2c, causa en
+      `chat-ia.js:1230` — formato + `pre-wrap`, en los 4 sitios).
+- [ ] BUG 2: la carta se mandó dos veces (1,1 s de diferencia).
+- [ ] BUG 3: la etiqueta de Paco falta en los mensajes con imagen.
+- [ ] BUG 4: el envío de carta de la rama 14f no guarda en `chat_messages`
+      (dos caminos → unificar en el que guarda, `index.ts:1069`).
+- [ ] Aviso a `.nojekyll`: comprobación en el flujo de deploy para que no se
+      vuelva a borrar sin que nadie se entere.
+
+### Verificación (sin tocar producción)
+- [ ] Repetir en el banco las conversaciones reales del 14-ago: Jorge Piamba
+      (573233776746, 8:11 p. m.) y D.F.G (573234799933, 8:37 p. m.).
+- [ ] Regresión de los arreglos del 12-13-ago (nombre, dirección, resumen
+      único, frases fijas) para confirmar que no vuelven.
+- [ ] Borrar las conversaciones PRUEBA al terminar.
+
+### Decisiones de Sergio pendientes de respuesta
+1. Llave Nequi buena: ¿0092726260 o 0089912015?
+2. Textos: saludo definitivo, despedida, 2.º intento, 3.er intento (se le
+   proponen borradores; él edita).
+3. ¿Se promete "unos 30 minutos" o no se promete tiempo?
+
+---
+
 ## FASE 1 — Lo que falta de lo que ya se pidió
 
 Cosas que Sergio pidió en su momento y nunca se construyeron, o quedaron a medias.
