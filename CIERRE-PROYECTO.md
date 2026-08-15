@@ -38,11 +38,11 @@ cierra la FASE A.
       decidir si el saludo se cayó a conversacional por un guardado del canvas
       o si nunca se guardó en fija. Si no se resuelve esto primero, el arreglo
       del saludo se revierte solo.
-- [ ] La **llave Nequi de la FAQ está VIEJA**. Ya casi resuelto: la memoria del
-      proyecto registra que `0089912015` es la cuenta vieja y `0092726260` la
-      corregida (la imagen del QR también sigue apuntando a la vieja — eso
-      solo lo puede regenerar Sergio). **Corregir la FAQ a 0092726260**,
-      confirmándolo con Sergio de pasada. ES PLATA — va primero que todo.
+- [ ] La **llave Nequi de la FAQ está VIEJA**: `0089912015` es la cuenta
+      vieja; la buena es `0092726260` (confirmado por Sergio el 14-ago: el QR
+      que usa todos los días ya tiene la nueva — la imagen está bien, solo la
+      FAQ quedó atrás). **Corregir la FAQ a 0092726260.** ES PLATA — va
+      primero que todo.
 
 **FASE A — Entender** (BUGS 5 y 6; hallazgos A-D de la auditoría)
 - [ ] A1. Ampliar el clasificador (`index.ts:894`) con: `despedida`,
