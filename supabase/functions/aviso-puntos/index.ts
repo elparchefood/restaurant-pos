@@ -90,13 +90,19 @@ Deno.serve(async (req) => {
         // Configuración → Estados de pedido y avisos → Gana puntos.
         vars: ["puntos_ganados", "negocio", "puntos_total"],
       };
-      const cfgR = await sbGet(`/rest/v1/ia_config?branch_id=eq.${branchId}&select=estados_config&limit=1`) as Array<Record<string, unknown>> | null;
+      const cfgR = await sbGet(`/rest/v1/ia_config?branch_id=eq.${branchId}&select=estados_config,plantillas_vars&limit=1`) as Array<Record<string, unknown>> | null;
       const pc = ((cfgR?.[0]?.estados_config as Record<string, unknown>) || {}).puntos as Record<string, unknown> | undefined;
       if (pc && pc.activo === true) {
         d.activo = true;
         if (pc.plantilla) d.plantilla = String(pc.plantilla);
         if (pc.idioma) d.idioma = String(pc.idioma);
-        if (Array.isArray(pc.vars) && pc.vars.length) d.vars = (pc.vars as unknown[]).map(String);
+        // El mapeo hueco→dato vive CON la plantilla (Difusión →
+        // ia_config.plantillas_vars). Lo que quede en estados_config.puntos.vars
+        // es compatibilidad hacia atrás.
+        const pv = (cfgR?.[0]?.plantillas_vars as Record<string, unknown>) || {};
+        const dePlantilla = pv[d.plantilla];
+        if (Array.isArray(dePlantilla) && dePlantilla.length) d.vars = (dePlantilla as unknown[]).map(String);
+        else if (Array.isArray(pc.vars) && pc.vars.length) d.vars = (pc.vars as unknown[]).map(String);
       }
       const chR = await sbGet(`/rest/v1/chat_channels?branch_id=eq.${branchId}&channel=eq.whatsapp&select=meta&limit=1`) as Array<Record<string, unknown>> | null;
       const meta = (chR?.[0]?.meta || {}) as Record<string, string>;

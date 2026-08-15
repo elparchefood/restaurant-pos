@@ -3772,16 +3772,10 @@ async function estadosCfgInit() {
     return '<div style="margin-bottom:20px"><div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);margin-bottom:12px">' + titulo + '</div>' + rows + '</div>';
   }
   /* ── Gana puntos: el aviso de WhatsApp cuando el pago hace efectivos los
-     puntos. El TEXTO lo congela Meta al aprobar la plantilla — aquí solo se
-     decide: si está activo, CUÁL plantilla aprobada se usa, y QUÉ dato del
-     sistema alimenta cada hueco. Nunca se le muestran llaves {{n}} al dueño:
-     cada hueco se pinta como una lista con los datos en español. */
-  var PVARS = [
-    { k: 'puntos_ganados', n: 'Puntos ganados', ej: '42' },
-    { k: 'negocio',        n: 'Nombre del negocio', ej: 'El Parche Food' },
-    { k: 'puntos_total',   n: 'Puntos acumulados', ej: '131' },
-    { k: 'nombre_cliente', n: 'Nombre del cliente', ej: 'Jorge' },
-  ];
+     puntos. AQUÍ solo se decide si está activo y CUÁL plantilla aprobada se
+     usa. Qué dato alimenta cada espacio de la plantilla se configura en su
+     tarjeta de Difusión → plantillas (lo pidió Sergio así: una cosa es
+     escoger el aviso, otra es editar la plantilla). */
   function escT(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
   function puntosBlock() {
     var p = cfg.puntos || {};
@@ -3792,30 +3786,15 @@ async function estadosCfgInit() {
     }).join('');
     return '<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">'
       + '<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Gana puntos</div>'
-      + '<div style="font-size:12.5px;color:var(--text-3);margin-bottom:10px">Cuando un pago hace efectivos los puntos, el cliente recibe esta plantilla de WhatsApp. El texto es el aprobado por Meta y no se puede editar; lo que sí eliges es qué dato va en cada espacio.</div>'
+      + '<div style="font-size:12.5px;color:var(--text-3);margin-bottom:10px">Cuando un pago hace efectivos los puntos, el cliente recibe esta plantilla de WhatsApp. Los datos que van en cada espacio se configuran en <b>Difusión → plantillas</b>.</div>'
       + (waTpls.length
         ? '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">'
           + '<label style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;cursor:pointer">'
           + '<input type="checkbox" id="pt-activo"' + (p.activo === true ? ' checked' : '') + '> Avisar los puntos ganados</label>'
           + '<select id="pt-plantilla" style="' + inpSt + ';width:auto;min-width:220px">' + opts + '</select>'
-          + '</div><div id="pt-slots"></div>'
+          + '</div>'
         : '<div style="font-size:13px;color:var(--text-3)">Conecta WhatsApp en esta sucursal para poder elegir una plantilla.</div>')
       + '</div>';
-  }
-  function renderSlots() {
-    var slot = document.getElementById('pt-slots'), sel = document.getElementById('pt-plantilla');
-    if (!slot || !sel) return;
-    var t = null;
-    for (var i = 0; i < waTpls.length; i++) if (waTpls[i].name === sel.value) t = waTpls[i];
-    var bodyC = t && (t.components || []).filter(function (c) { return c.type === 'BODY'; })[0];
-    if (!bodyC || !bodyC.text) { slot.innerHTML = ''; return; }
-    var vars = (cfg.puntos && cfg.puntos.vars) || ['puntos_ganados', 'negocio', 'puntos_total'];
-    var html = escT(bodyC.text).replace(/\{\{(\d+)\}\}/g, function (_m, n) {
-      var idx = parseInt(n, 10) - 1, cur = vars[idx] || '';
-      return '<select data-pvar="' + idx + '" style="padding:2px 6px;border:1px solid var(--accent);border-radius:6px;font-family:inherit;font-size:12.5px;background:var(--surface);color:var(--accent);font-weight:600">'
-        + PVARS.map(function (v) { return '<option value="' + v.k + '"' + (v.k === cur ? ' selected' : '') + '>' + v.n + '</option>'; }).join('') + '</select>';
-    });
-    slot.innerHTML = '<div style="font-size:13px;line-height:2;padding:12px 14px;border:1px dashed var(--border);border-radius:10px;background:var(--surface);white-space:pre-wrap">' + html + '</div>';
   }
 
   body.innerHTML = typeBlock('llevar', 'Para llevar') + typeBlock('domicilio', 'Domicilio')
@@ -3824,9 +3803,6 @@ async function estadosCfgInit() {
     + '<input type="number" min="1" data-ecfg="auto_entregado_min" value="' + (cfg.auto_entregado_min || 30) + '" style="width:74px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px">'
     + '<span style="font-size:13px;color:var(--text-3)">minutos</span></div>'
     + puntosBlock();
-  renderSlots();
-  var ptSelEl = document.getElementById('pt-plantilla');
-  if (ptSelEl) ptSelEl.addEventListener('change', renderSlots);
   saveBtn.onclick = async function () {
     saveBtn.disabled = true; saveBtn.textContent = 'Guardando…';
     /* Se parte de lo YA guardado, no de un objeto vacío. Antes esto
@@ -3842,12 +3818,12 @@ async function estadosCfgInit() {
       out[p[0]][p[1]][p[2]] = el.value;
     });
     // La fila de Gana puntos, solo si se pintó (hay WhatsApp conectado).
+    // Los datos de cada espacio NO se guardan aquí: viven con la plantilla
+    // en Difusión (ia_config.plantillas_vars).
     var ptOn = document.getElementById('pt-activo'), ptSel = document.getElementById('pt-plantilla');
     if (ptOn && ptSel) {
-      var pvars = [];
-      body.querySelectorAll('[data-pvar]').forEach(function (el) { pvars[parseInt(el.dataset.pvar, 10)] = el.value; });
       var lang = (ptSel.selectedOptions && ptSel.selectedOptions[0] && ptSel.selectedOptions[0].dataset.lang) || 'es';
-      out.puntos = { activo: !!ptOn.checked, plantilla: ptSel.value || '', idioma: lang, vars: pvars };
+      out.puntos = { activo: !!ptOn.checked, plantilla: ptSel.value || '', idioma: lang };
     }
     try {
       await sb.from('ia_config').update({ estados_config: out }).eq('branch_id', _cfgBranchId);
@@ -5889,6 +5865,63 @@ var WTP_ESTADOS = {
   PAUSED:   { t:'Pausada',    c:'#B45309', bg:'#FEF3C7' },
   DISABLED: { t:'Desactivada', c:'#DC2626', bg:'#FEE2E2' },
 };
+
+/* ── Qué dato del sistema alimenta cada espacio de una plantilla ──────────
+   El texto lo congela Meta al aprobar; lo ÚNICO editable es qué variable va
+   en cada hueco. Eso se edita AQUÍ, en la tarjeta de la plantilla (no en
+   Estados de pedido, que solo escoge cuál plantilla usar). El mapeo vive en
+   ia_config.plantillas_vars = { nombre_plantilla: [dato_del_hueco_1, ...] }
+   y se guarda solo, al cambiar cada lista.
+   Regla de la casa: al dueño JAMÁS se le muestran llaves {{n}}. */
+var WTP_DATOS = [
+  { k: '',               n: '— Elegir dato —' },
+  { k: 'puntos_ganados', n: 'Puntos ganados' },
+  { k: 'puntos_total',   n: 'Puntos acumulados' },
+  { k: 'negocio',        n: 'Nombre del negocio' },
+  { k: 'nombre_cliente', n: 'Nombre del cliente' },
+];
+WTP.vars = {};
+async function wtpVarsCargar(){
+  try {
+    var bid = await wtpBranch(); if (!bid) return;
+    var r = await sb.from('ia_config').select('plantillas_vars').eq('branch_id', bid).maybeSingle();
+    WTP.vars = (r.data && r.data.plantillas_vars) || {};
+  } catch(e){ WTP.vars = {}; }
+}
+async function wtpVarGuardar(nombre, idx, valor){
+  var lista = (WTP.vars[nombre] || []).slice();
+  lista[idx] = valor;
+  WTP.vars[nombre] = lista;
+  var ok = false;
+  try {
+    var bid = await wtpBranch();
+    // Leer-mezclar-escribir: se relee lo guardado para no pisar el mapeo de
+    // OTRA plantilla (la pantalla la usa una persona a la vez).
+    var cur = await sb.from('ia_config').select('plantillas_vars').eq('branch_id', bid).maybeSingle();
+    var todo = (cur.data && cur.data.plantillas_vars) || {};
+    todo[nombre] = lista;
+    var w = await sb.from('ia_config').update({ plantillas_vars: todo }).eq('branch_id', bid);
+    ok = !w.error;
+  } catch(e){}
+  var chip = document.getElementById('wtpVarOk-' + wtpSlug(nombre));
+  if (chip){ chip.textContent = ok ? '✓ Guardado' : 'No se pudo guardar'; chip.style.color = ok ? '#16A34A' : '#DC2626';
+    setTimeout(function(){ chip.textContent = ''; }, 1800); }
+}
+// El cuerpo de la tarjeta: cada {{n}} se pinta como lista desplegable (si la
+// plantilla está aprobada) o como una ficha neutra "dato n" (si aún no).
+function wtpCuerpoHtml(t){
+  var aprobada = String(t.estado||'').toUpperCase() === 'APPROVED';
+  var guardado = WTP.vars[t.nombre] || [];
+  return wtpEsc(t.cuerpo).replace(/\{\{\s*(\d+)\s*\}\}/g, function(_m, n){
+    var idx = parseInt(n,10) - 1;
+    if (!aprobada) return '<span style="display:inline-block;padding:1px 8px;border-radius:999px;background:#F1F5F9;color:#64748B;font-size:11px;font-weight:700">dato '+n+'</span>';
+    var cur = guardado[idx] || '';
+    return '<select onchange="wtpVarGuardar(\''+wtpEsc(t.nombre)+'\','+idx+',this.value)" '
+      + 'style="padding:2px 7px;border:1.5px solid '+(cur?'#6D5DFC':'#DC2626')+';border-radius:7px;font-family:inherit;font-size:12px;font-weight:700;color:'+(cur?'#6D5DFC':'#DC2626')+';background:#fff;max-width:180px">'
+      + WTP_DATOS.map(function(v){ return '<option value="'+v.k+'"'+(v.k===cur?' selected':'')+'>'+v.n+'</option>'; }).join('')
+      + '</select>';
+  });
+}
 async function wtpCargar(){
   var cont = document.getElementById('wtpList');
   var cnt  = document.getElementById('wtpCount');
@@ -5900,6 +5933,7 @@ async function wtpCargar(){
     return;
   }
   WTP.items = d.items || [];
+  await wtpVarsCargar();
   if (cnt) cnt.textContent = WTP.items.length
     ? WTP.items.length + (WTP.items.length===1 ? ' plantilla' : ' plantillas')
     : 'Todavía no tienes plantillas';
@@ -5916,11 +5950,12 @@ async function wtpCargar(){
       +   '<span style="font-size:10.5px;font-weight:700;color:'+e.c+';background:'+e.bg+';padding:3px 8px;border-radius:999px">'+e.t+'</span>'
       +   '<button type="button" class="cfg-qr-btn ghost" style="padding:4px 9px;font-size:11px" onclick="wtpBorrar(\''+wtpEsc(t.nombre)+'\')">Eliminar</button>'
       + '</div>'
-      + '<div style="font-size:12.5px;color:#475569;white-space:pre-wrap;line-height:1.45">'+wtpEsc(t.cuerpo)+'</div>'
+      + '<div style="font-size:12.5px;color:#475569;white-space:pre-wrap;line-height:1.9">'+wtpCuerpoHtml(t)+'</div>'
       + (t.pie ? '<div style="font-size:11px;color:#94A3B8;margin-top:4px">'+wtpEsc(t.pie)+'</div>' : '')
       + '<div style="font-size:11px;color:#94A3B8;margin-top:6px">'
       +   (t.categoria==='MARKETING'?'Marketing':'Utilidad') + ' · ' + wtpEsc(t.idioma)
-      +   (t.variables ? ' · '+t.variables+' dato(s) por llenar' : '')
+      +   (t.variables ? ' · '+t.variables+' dato(s)' : '')
+      +   ' <span id="wtpVarOk-'+wtpSlug(t.nombre)+'" style="font-size:11px;font-weight:700"></span>'
       + '</div>'
       + (t.motivo_rechazo ? '<div style="font-size:11.5px;color:#DC2626;margin-top:6px">Meta la rechazó: '+wtpEsc(t.motivo_rechazo)+'</div>' : '')
     + '</div>';
