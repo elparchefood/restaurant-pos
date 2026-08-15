@@ -5311,10 +5311,20 @@ async function buildConversationResponse(
      "Direccion: La Paz" y contestaba "ya me diste la direccion" — cuando lo
      que acababa de recibir era justo lo que le faltaba. */
   if (state.direccion) {
-    const dirCompleta = analizarDireccion(state.direccion).tieneVia;
+    /* UN CONJUNTO NO TIENE CALLE. Las ramas deterministas ya lo sabian, pero
+       esta linea del prompt no: marcaba INCOMPLETA toda direccion sin via y
+       el modelo pedia "calle o carrera" a quien vive en Villa Ernesto Torre 3
+       (trampa de Sergio, 15-ago). Con conjunto reconocido: si trae numeros
+       (torre/casa/apto) esta COMPLETA; si no, falta la unidad — nunca la
+       calle. */
+    const conjDir5 = esConjunto(ubicacionPedido(state), (cfg?.domicilios as Record<string, unknown>) || null);
+    const dirCompleta = analizarDireccion(state.direccion).tieneVia
+      || (!!conjDir5 && /\d/.test(state.direccion));
     stateLines.push(dirCompleta
       ? `✅ Dirección: ${state.direccion}${state.direccion_heredada ? " (heredada, pendiente confirmar)" : ""}`
-      : `⏳ Dirección INCOMPLETA — solo tenemos "${state.direccion}": FALTA la calle o carrera con su número. Si el cliente te la da ahora, agradécela y NUNCA digas que ya te la había dado.`);
+      : conjDir5
+        ? `⏳ Dirección: es el conjunto ${conjDir5} pero FALTA la casa o el apartamento. Pídelo ABIERTO ("¿en qué casa o apartamento te lo dejamos?"). NUNCA pidas calle o carrera: un conjunto no tiene.`
+        : `⏳ Dirección INCOMPLETA — solo tenemos "${state.direccion}": FALTA la calle o carrera con su número. Si el cliente te la da ahora, agradécela y NUNCA digas que ya te la había dado.`);
   }
   else stateLines.push("⏳ Dirección: pendiente");
   if (state.pago)      stateLines.push(`✅ Pago: ${state.pago}`);
