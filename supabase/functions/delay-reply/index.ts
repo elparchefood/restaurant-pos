@@ -1104,31 +1104,30 @@ INTENCION, no las palabras exactas.` },
      vacía: todo restaurante sigue mandando la carta salvo que lo configure.
      Esto NO es volcar la carta en texto (regla de oro intacta): es una
      categoría, en nombres. */
-  {
-    const catsTexto = ((cfg.categorias_texto as string[]) || []).map(c => normalizarTexto(String(c)));
-    const catPreg = typeof intenciones.categoria === "string" ? normalizarTexto(intenciones.categoria) : "";
-    if (catsTexto.length && catPreg && !relectura) {
-      /* TODO sale de una consulta fresca del catálogo de ESTA sucursal: los
-         mapas DYN se reconstruyen más abajo y en frío podrían arrastrar el
-         catálogo del request anterior (otro restaurante). Una consulta extra,
-         solo cuando la intención es categoría y hay categorías configuradas. */
-      try {
+  // 6. Detectar solicitud de carta / PRECIOS → enviar imágenes de la carta (traen los precios)
+  let extraRespondido = false;
+  let cartaSuprimida = false;   // la categoría en texto ya respondió lo que la carta iba a responder
+  const menuImagenes = (cfg.menu_imagenes as string[]) || [];
+
+  /* 6-pre. CATEGORÍA EN TEXTO (pedido de Sergio, 15-ago). "¿Qué tienes de
+     tomar?" no es pedir la carta completa: es preguntar por UNA categoría.
+     Si el restaurante la marcó para responderse en texto
+     (ia_config.categorias_texto), la lista sale DEL CATÁLOGO — solo nombres —
+     y REEMPLAZA a la carta. No es una rama que retorna: el resto del mensaje
+     sigue procesándose ("Super queso porfa, ¿y qué tienes de tomar?" captura
+     el super queso Y responde las bebidas — la trampa mixta de Sergio).
+     La consulta del catálogo es fresca y de ESTA sucursal: los mapas DYN se
+     reconstruyen más abajo y en frío podrían arrastrar otro restaurante. */
+  if (!relectura) {
+    try {
+      const catsTexto = ((cfg.categorias_texto as string[]) || []).map(c => normalizarTexto(String(c)));
+      const catPreg = typeof intenciones.categoria === "string" ? normalizarTexto(intenciones.categoria) : "";
+      if (catsTexto.length && catPreg) {
         const prodsCat = await sbGet(
           `/rest/v1/pos_products?branch_id=eq.${branchId}&select=name,category_id(name)&limit=200`,
         ) as Array<{ name?: string; category_id?: { name?: string } | null }> | null;
         const cats = [...new Set((prodsCat || [])
           .map(p => normalizarTexto(String(p.category_id?.name || ""))).filter(Boolean))];
-        /* Si la pregunta NOMBRA un producto ("que sabores de postobon",
-           "que tamaños tiene la coca cola"), NO es pregunta de categoría:
-           sigue el flujo normal, que responde presentaciones y variantes de
-           ESE producto. El clasificador a veces la marca igual como
-           categoría; este guardia determinista manda. */
-        const textoNorm5 = normalizarTexto(clienteTexto);
-        const nombraProducto = (prodsCat || []).some(p => {
-          const primera = normalizarTexto(String(p.name || "")).split(/\s+/)[0] || "";
-          return primera.length >= 4 && textoNorm5.includes(primera);
-        });
-        if (nombraProducto) throw new Error("producto-concreto");
         let catReal = cats.find(c => c === catPreg)
           || cats.find(c => c.includes(catPreg) || catPreg.includes(c))
           || null;
@@ -1145,16 +1144,20 @@ INTENCION, no las palabras exactas.` },
             const msgCat = `De ${catDisplay} tenemos: ${listaNatural(nombres)} 😋 ¿Cuál se te antoja?`;
             await sendWaAndSave(convId, tenantId, msgCat, fromPhone, phoneId, accessToken);
             await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgCat, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
-            return;
+            cartaSuprimida = true;    // la carta ya no hace falta en este turno
+            /* Si el MISMO mensaje además trae pedido ("Super queso porfa, ¿y
+               qué tienes de tomar?"), el turno NO termina aquí: el flujo sigue
+               y captura lo pedido. extraRespondido corta el turno tras los
+               extras — eso perdía el super queso (probado en el banco). Solo
+               la pregunta PURA termina con la lista. */
+            const traePedido = intenciones.pedir === true || intenciones.confirma === true
+              || (Array.isArray(intenciones.agregados) && (intenciones.agregados as unknown[]).length > 0);
+            if (!traePedido) extraRespondido = true;
           }
         }
-      } catch { /* si el catálogo no responde, cae a la carta como siempre */ }
-    }
+      }
+    } catch { /* si el catálogo no responde, cae a la carta como siempre */ }
   }
-
-  // 6. Detectar solicitud de carta / PRECIOS → enviar imágenes de la carta (traen los precios)
-  let extraRespondido = false;
-  const menuImagenes = (cfg.menu_imagenes as string[]) || [];
   if (menuImagenes.length > 0 && !relectura) {
     /* Se normaliza ANTES de comparar: minusculas, sin tildes y con los espacios
        colapsados. Un cliente escribio "Para ver la  carta" con DOS espacios y
@@ -1180,7 +1183,8 @@ INTENCION, no las palabras exactas.` },
     /* Tampoco es pedir la carta preguntar cuanto cuesta el ENVIO: un cliente
        pregunto "cuanto cuesta el envio a Villa del Viento" y se llevo el menu
        entero en vez del precio del domicilio. */
-    const wantsMenu = intenciones.precio !== true && intenciones.domicilio !== true
+    const wantsMenu = !extraRespondido && !cartaSuprimida   // la categoría en texto ya respondió: la carta sobra
+      && intenciones.precio !== true && intenciones.domicilio !== true
       && (intenciones.carta === true || isExact || palabraSuelta || menuKw.some(kw => {
       const k = kw.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
       return combinedLower.includes(k);
