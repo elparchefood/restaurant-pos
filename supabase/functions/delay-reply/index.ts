@@ -2428,7 +2428,11 @@ INTENCION, no las palabras exactas.` },
         /* LA BARRA: el Front la pinta cuando ve domi_precio_pendiente. Esta
            rama pasaba a humano SIN encenderla y el dueño quedaba sin donde
            poner el precio (la trampa de Sergio del 15-ago). confirm-domi la
-           apaga al confirmar y Paco retoma. */
+           apaga al confirmar y Paco retoma.
+           Y el NOMBRE LIMPIO va en domi_lugar: es lo que confirm-domi aprende.
+           Solo la otra rama lo guardaba y el Confirmar respondia "no reconocí
+           el nombre del lugar" (segunda trampa de Sergio del mismo dia). */
+        (state as unknown as Record<string, unknown>).domi_lugar = nombreConj;
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { domi_precio_pendiente: true, pending_order_data: state });
         await pasarAHumano(
           convId, tenantId,
