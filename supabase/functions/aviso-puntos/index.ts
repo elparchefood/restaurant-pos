@@ -80,6 +80,7 @@ Deno.serve(async (req) => {
     const porBranch: Record<string, {
       activo: boolean; plantilla: string; idioma: string; vars: string[];
       token?: string; phoneId?: string; marca?: string; cuerpo?: string;
+      direccion?: string; tiempoEntrega?: string; horarioHoy?: string;
     }> = {};
     async function datosDe(branchId: string) {
       if (porBranch[branchId]) return porBranch[branchId];
@@ -90,7 +91,7 @@ Deno.serve(async (req) => {
         // Configuración → Estados de pedido y avisos → Gana puntos.
         vars: ["puntos_ganados", "negocio", "puntos_total"],
       };
-      const cfgR = await sbGet(`/rest/v1/ia_config?branch_id=eq.${branchId}&select=estados_config,plantillas_vars&limit=1`) as Array<Record<string, unknown>> | null;
+      const cfgR = await sbGet(`/rest/v1/ia_config?branch_id=eq.${branchId}&select=estados_config,plantillas_vars,horarios&limit=1`) as Array<Record<string, unknown>> | null;
       const pc = ((cfgR?.[0]?.estados_config as Record<string, unknown>) || {}).puntos as Record<string, unknown> | undefined;
       if (pc && pc.activo === true) {
         d.activo = true;
@@ -107,10 +108,24 @@ Deno.serve(async (req) => {
       const chR = await sbGet(`/rest/v1/chat_channels?branch_id=eq.${branchId}&channel=eq.whatsapp&select=meta&limit=1`) as Array<Record<string, unknown>> | null;
       const meta = (chR?.[0]?.meta || {}) as Record<string, string>;
       d.token = meta.access_token; d.phoneId = meta.phone_id;
-      const brR = await sbGet(`/rest/v1/branches?id=eq.${branchId}&select=name,brands(name)`) as Array<Record<string, unknown>> | null;
+      const brR = await sbGet(`/rest/v1/branches?id=eq.${branchId}&select=name,address,operacion_config,brands(name)`) as Array<Record<string, unknown>> | null;
       const b = brR?.[0] || {};
       const mk = b.brands as { name?: string } | Array<{ name?: string }> | null;
       d.marca = (Array.isArray(mk) ? mk[0]?.name : mk?.name) || String(b.name || "el restaurante");
+      d.direccion = String(b.address || "");
+      d.tiempoEntrega = String(((b.operacion_config as Record<string, unknown>) || {}).tiempo_entrega || "");
+      // El horario de HOY en hora de Colombia (UTC-5 fijo), en formato 12h.
+      try {
+        const DIAS = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
+        const hs = (cfgR?.[0]?.horarios as Record<string, { abre?: string; cierra?: string; activo?: boolean }>) || {};
+        const hoy = hs[DIAS[new Date(Date.now() - 5 * 3600e3).getUTCDay()]];
+        const a12 = (s: string) => {
+          const [H, M] = s.split(":").map(Number);
+          return `${((H + 11) % 12) + 1}:${String(M).padStart(2, "0")} ${H < 12 ? "am" : "pm"}`;
+        };
+        d.horarioHoy = (hoy && hoy.activo !== false && hoy.abre && hoy.cierra)
+          ? `${a12(hoy.abre)} a ${a12(hoy.cierra)}` : "hoy cerrado";
+      } catch { d.horarioHoy = ""; }
       // El cuerpo aprobado de la plantilla, para la copia del Front.
       try {
         if (d.activo && d.token && meta.waba_id) {
@@ -129,6 +144,9 @@ Deno.serve(async (req) => {
       if (key === "puntos_ganados") return String(m.puntos ?? "");
       if (key === "puntos_total") return String(m.saldo_despues ?? "");
       if (key === "negocio") return d.marca || "";
+      if (key === "direccion_negocio") return d.direccion || "-";
+      if (key === "horario_hoy") return d.horarioHoy || "-";
+      if (key === "tiempo_entrega") return d.tiempoEntrega || "-";
       if (key === "nombre_cliente") {
         try {
           const cR = await sbGet(

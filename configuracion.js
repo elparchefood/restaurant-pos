@@ -5874,12 +5874,15 @@ var WTP_ESTADOS = {
    y se guarda solo, al cambiar cada lista.
    Regla de la casa: al dueño JAMÁS se le muestran llaves {{n}}. */
 var WTP_DATOS = [
-  { k: '',               n: '— Elegir dato —' },
-  { k: 'puntos_ganados', n: 'Puntos ganados' },
-  { k: 'puntos_total',   n: 'Puntos acumulados' },
-  { k: 'negocio',        n: 'Nombre del negocio' },
-  { k: 'nombre_cliente', n: 'Nombre del cliente' },
-  { k: 'libre',          n: 'Se llena al enviar' },
+  { k: '',                  n: '— Elegir dato —' },
+  { k: 'puntos_ganados',    n: 'Puntos ganados' },
+  { k: 'puntos_total',      n: 'Puntos acumulados' },
+  { k: 'negocio',           n: 'Nombre del negocio' },
+  { k: 'direccion_negocio', n: 'Dirección del negocio' },
+  { k: 'horario_hoy',       n: 'Horario de hoy' },
+  { k: 'tiempo_entrega',    n: 'Tiempo de entrega' },
+  { k: 'nombre_cliente',    n: 'Nombre del cliente' },
+  { k: 'libre',             n: 'Se llena al enviar' },
 ];
 WTP.vars = {};
 async function wtpVarsCargar(){
@@ -5971,11 +5974,41 @@ async function wtpCargar(){
    de aparición). Al radicar, el mapeo hueco→dato queda guardado SOLO en
    plantillas_vars: cuando Meta apruebe, la plantilla ya nace conectada. */
 var WTP_CHIPS = {
-  nombre_cliente: { n: '👤 Nombre del cliente', ej: 'David' },
-  negocio:        { n: '🏪 Nombre del negocio', ej: 'El Parche Food' },
-  puntos_ganados: { n: '🎉 Puntos ganados',     ej: '42' },
-  puntos_total:   { n: '⭐ Puntos acumulados',  ej: '131' },
+  nombre_cliente:    { n: '👤 Nombre del cliente',     ej: 'David' },
+  negocio:           { n: '🏪 Nombre del negocio',     ej: 'El Parche Food' },
+  direccion_negocio: { n: '📍 Dirección del negocio',  ej: 'Calle 5 # 10-23' },
+  horario_hoy:       { n: '🕒 Horario de hoy',         ej: '6:30 pm a 10:30 pm' },
+  tiempo_entrega:    { n: '⏱️ Tiempo de entrega',      ej: '30-40 minutos' },
+  puntos_ganados:    { n: '🎉 Puntos ganados',         ej: '42' },
+  puntos_total:      { n: '⭐ Puntos acumulados',      ej: '131' },
 };
+/* El insertador es UN desplegable con grupos (Cliente / Negocio / Puntos /
+   Libre), no una fila de botones: con el catálogo creciendo, los botones no
+   caben — lo pidió Sergio el 14-ago. Tras insertar, vuelve a "Insertar dato…" */
+function wtpChipDesdeSel(sel){
+  var k = sel.value;
+  sel.value = '';
+  if (k) wtpChip(k);
+}
+/* El cursor se pierde al tocar el desplegable (el editor pierde el foco), así
+   que se recuerda la última posición para insertar el dato donde el dueño
+   estaba escribiendo, no al final. */
+var _wtpRango = null;
+(function(){
+  function seguirCursor(){
+    var cue = document.getElementById('wtpCuerpo');
+    if (!cue || cue._cursorOk) return;
+    cue._cursorOk = true;
+    ['keyup','mouseup','focusout'].forEach(function(ev){
+      cue.addEventListener(ev, function(){
+        var s = window.getSelection();
+        if (s && s.rangeCount && cue.contains(s.anchorNode)) _wtpRango = s.getRangeAt(0).cloneRange();
+      });
+    });
+  }
+  if (document.readyState !== 'loading') seguirCursor();
+  else document.addEventListener('DOMContentLoaded', seguirCursor);
+})();
 function wtpChip(k){
   var cue = document.getElementById('wtpCuerpo');
   if (!cue) return;
@@ -5992,11 +6025,14 @@ function wtpChip(k){
   chip.style.cssText = 'display:inline-block;padding:1px 9px;margin:0 2px;border-radius:999px;background:#EEF2FF;color:#6D5DFC;font-size:12px;font-weight:700;user-select:none;white-space:nowrap';
   cue.focus();
   var sel = window.getSelection();
-  if (sel && sel.rangeCount && cue.contains(sel.anchorNode)){
-    var rg = sel.getRangeAt(0);
+  var rg = null;
+  if (sel && sel.rangeCount && cue.contains(sel.anchorNode)) rg = sel.getRangeAt(0);
+  else if (_wtpRango && cue.contains(_wtpRango.startContainer)) rg = _wtpRango;
+  if (rg){
     rg.deleteContents(); rg.insertNode(chip);
     rg.setStartAfter(chip); rg.collapse(true);
-    sel.removeAllRanges(); sel.addRange(rg);
+    if (sel){ sel.removeAllRanges(); sel.addRange(rg); }
+    _wtpRango = rg.cloneRange();
   } else {
     cue.appendChild(chip);
   }
