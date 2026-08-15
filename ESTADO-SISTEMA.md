@@ -5352,3 +5352,40 @@ existe, página apagada, token inventado, acción desconocida).
 **Falta para poder entrar de verdad:** encender la página (`tenants.web_activa`)
 y la plantilla de autenticación de Meta para mandar el código fuera de la ventana
 de 24 h.
+
+## 125. El aviso de puntos por WhatsApp (`aviso-puntos` v1) — 14-ago-2026
+
+Cada vez que un cliente gana puntos —cuando se hacen efectivos, es decir al
+pagar— le llega la plantilla **`puntos_ganados`** (aprobada por Meta, idioma
+`es`): "¡Ganaste {{1}} puntos con tu compra en {{2}}! Ya tienes {{3}}
+acumulados…". Funciona en TODOS los canales (mesa, domicilio, venta rápida),
+que era el requisito: por eso es plantilla y no texto libre — el cliente de
+mesa no tiene ventana de 24 h abierta.
+
+**Cómo fluye:** el trigger `award_loyalty_points` (que ya existía) abona al
+pagar y deja el movimiento en `pos_puntos_movimientos`. La función nueva
+`aviso-puntos` barre cada 2 minutos (cron job 6) los movimientos de
+`acumulacion` sin avisar, y a cada uno le manda la plantilla con sus tres
+variables reales: puntos ganados, **nombre de la MARCA** (brands.name — nunca
+branches.name, que es "Principal" y es interno), y saldo después.
+
+**Detalles que importan:**
+- **El teléfono se guarda sin indicativo** (así lo escribe Sergio y así lo
+  normaliza el trigger: 10 dígitos). Meta lo exige internacional: la función
+  le antepone `57` al enviar. No hay problema con la costumbre de Sergio.
+- **Los 108 movimientos anteriores quedaron marcados `previo`**: encender el
+  aviso no le escribe a nadie por puntos viejos.
+- Reclamo atómico (`aviso='enviando'` antes de enviar): dos barridos que
+  coincidan no duplican mensajes. Estados: `enviado / fallido / apagado /
+  vencido (>48 h) / previo`. El error de Meta se guarda tal cual.
+- **Por restaurante**, en `ia_config.estados_config.puntos`:
+  `{activo, plantilla, idioma}`. Sin config → `apagado`, no se envía nada.
+  Encendido hoy SOLO para El Parche. Falta la fila visual en Mensajes →
+  Estados de pedido y avisos (desplegable de plantillas aprobadas) para que
+  cualquier restaurante lo configure solo.
+- Si el cliente tiene conversación en el chat, se guarda copia del texto con
+  `origen: 'sistema'` para que el Front muestre lo que le llegó.
+
+**Probado de punta a punta:** movimiento de prueba con el número del gerente →
+la función respondió `enviados: 1` y la plantilla llegó al teléfono. La fila
+de prueba se borró.
