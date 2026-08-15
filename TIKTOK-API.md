@@ -300,16 +300,32 @@ restaurante, aviso de privacidad, borrado de datos y terminos publicados).
 **Lo que falta es papel** — cuatro documentos que se escriben una sola vez y
 sirven despues para cualquier cliente mediano:
 
-- [ ] Politica de seguridad de la informacion
-- [ ] Politica de control de acceso (need-to-know, least-privilege)
-- [ ] Politica de respuesta a incidentes
-- [ ] Politica de retencion y borrado de datos
+- [x] Politica de seguridad de la informacion → `politicas/POL-01-seguridad-de-la-informacion.md`
+- [x] Politica de control de acceso → `politicas/POL-02-control-de-acceso.md`
+- [x] Politica de respuesta a incidentes → `politicas/POL-03-respuesta-a-incidentes.md`
+- [x] Politica de retencion y borrado → `politicas/POL-04-retencion-y-borrado.md`
+
+✅ **Escritas el 14-ago-2026.** Indice y plan de entrega en `politicas/README.md`.
+Estan en espanol (es la version que rige); la traduccion al ingles se hace
+cuando llegue el cuestionario. Se entregan al evaluador en PDF, **no** se
+publican en el sitio web.
+
+Todo dato tecnico que afirman fue verificado contra el sistema real ese dia:
+RLS en **82 de 82** tablas con **98 politicas**, ningun secreto en el
+repositorio publico (solo claves `anon`, publicas por diseno), 5 roles reales y
+los proveedores que de verdad estan conectados.
 
 Y dos evidencias:
 
 - [ ] MFA activo en las cuentas de administrador (Supabase, GitHub, Porkbun,
-      Meta, TikTok) con constancia
-- [ ] Un escaneo de vulnerabilidades con su informe guardado
+      Meta, TikTok, Google) con constancia — **antes del 31-ago-2026**
+- [ ] Un escaneo de vulnerabilidades con su informe guardado — **antes del
+      31-ago-2026** (el propio documento de TikTok dice que adjuntarlo
+      **acelera la aprobacion**)
+- [ ] Corregir el aviso de privacidad publicado: menciona **Stripe**, que no se
+      usa, y **omite a Wompi, Google y GitHub**, que si. Un evaluador compara
+      el aviso publico contra la realidad — **antes del 31-ago-2026**
+- [ ] Primer simulacro de incidente documentado — **antes del 30-sep-2026**
 
 ---
 
