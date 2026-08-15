@@ -86,6 +86,23 @@ cierra la FASE A.
 - [ ] D4. Bebidas no disponibles fuera de la prosa de `instrucciones` — la
       disponibilidad vive en el catálogo.
 
+**Puntos — hecho el 14-ago por la noche, con un pendiente:**
+- [x] ✅ **El aviso de puntos quedó VIVO** (`aviso-puntos` v1, cron cada 2 min,
+      entrada 125 de ESTADO-SISTEMA). Pago real → puntos → plantilla
+      `puntos_ganados` al número del cliente (sin indicativo: se le antepone
+      57 al enviar). Probado con el teléfono del gerente. Encendido SOLO para
+      El Parche (`ia_config.estados_config.puntos`).
+- [ ] **Radicar la versión UTILITY de la plantilla** — la actual es Marketing
+      y WhatsApp la colapsa con "Leer más" (lo hace WhatsApp, no nosotros; la
+      frase "cuando vuelvas a pedir…" es lo que la vuelve marketing). La
+      Utility se ve completa y cuesta varias veces menos. ⚠️ **El texto lo
+      decide Sergio** — no radicar sin que él lo dicte. Al aprobarse, solo se
+      cambia `estados_config.puntos.plantilla` y listo (quedó configurable a
+      propósito). Mientras tanto la Marketing sigue trabajando.
+- [ ] La **fila visual** "Gana puntos" en Mensajes → Estados de pedido y
+      avisos, con el desplegable de plantillas aprobadas (el diseño acordado:
+      la conexión se configura desde el Front, por restaurante).
+
 **Además, del mismo día (no son de Paco pero quedaron pendientes):**
 - [ ] El chat del Front debe verse IGUAL que WhatsApp (FASE 2c, causa en
       `chat-ia.js:1230` — formato + `pre-wrap`, en los 4 sitios).
