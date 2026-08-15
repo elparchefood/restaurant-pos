@@ -4055,6 +4055,30 @@ var _storedZonas = [];
         ch.checked = conex[ch.dataset.k] !== false;
       });
     })();
+    /* Categorías que se responden en TEXTO (pedido de Sergio, 15-ago).
+       Se pintan las categorías reales del catálogo como fichas con casilla;
+       lo marcado se guarda en ia_config.categorias_texto (nombres
+       normalizados, que es lo que compara el motor). Sin marcar = carta. */
+    (function () {
+      var box = $('catTextoBox');
+      if (!box) return;
+      var marcadas = Array.isArray(m.categorias_texto) ? m.categorias_texto : [];
+      var norm = function (s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim(); };
+      sb.from('pos_products').select('category_id(name)').eq('branch_id', _cfgBranchId).limit(300)
+        .then(function (r) {
+          var cats = {};
+          (r.data || []).forEach(function (p) {
+            var n = p.category_id && p.category_id.name;
+            if (n) cats[norm(n)] = n;
+          });
+          box.innerHTML = Object.keys(cats).sort().map(function (k) {
+            var on = marcadas.indexOf(k) >= 0;
+            return '<label style="display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border:1.5px solid ' + (on ? 'var(--accent)' : 'var(--border)') + ';border-radius:999px;font-size:12.5px;cursor:pointer;user-select:none">'
+              + '<input type="checkbox" class="cat-texto-chk" data-cat="' + k + '"' + (on ? ' checked' : '') + ' onchange="this.parentElement.style.borderColor=this.checked?\'var(--accent)\':\'var(--border)\'">'
+              + cats[k].replace(/</g, '&lt;') + '</label>';
+          }).join('');
+        });
+    })();
     if ($('numerosGerentes')) $('numerosGerentes').value = Array.isArray(m.numeros_gerentes) ? m.numeros_gerentes.join(', ') : '';
     if ($('avisarInsumos')) $('avisarInsumos').checked = m.avisar_insumos !== false;
     if ($('iaResumenPlantilla')) $('iaResumenPlantilla').value = m.resumen_plantilla || '';
@@ -4653,6 +4677,14 @@ var _storedZonas = [];
         if (!ch.checked) conex[ch.dataset.k] = false;
       });
       model.conexiones = conex;
+    })();
+    // Categorías marcadas para responderse en texto (nombres normalizados).
+    (function () {
+      var chks = document.querySelectorAll('.cat-texto-chk');
+      if (!chks.length) return;   // el panel no se pintó: no pisar lo guardado
+      var lista = [];
+      chks.forEach(function (ch) { if (ch.checked) lista.push(ch.dataset.cat); });
+      model.categorias_texto = lista;
     })();
 
     var { error } = await sb.from('ia_config').upsert(model, { onConflict: 'branch_id' });

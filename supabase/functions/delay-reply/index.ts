@@ -923,7 +923,8 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
  "pago":"efectivo"|"transferencia"|null,"entrega":"domicilio"|"recoger"|null,
  "rechaza_direccion":bool,"agregados":[string],
  "confirma":bool,"rechaza_mas":bool,
- "pregunta":bool,"despedida":bool,"queja":bool,"quiere_humano":bool,"fuera_tema":bool}
+ "pregunta":bool,"despedida":bool,"queja":bool,"quiere_humano":bool,"fuera_tema":bool,
+ "categoria":string|null}
 
 - "pregunta": true si el mensaje contiene una pregunta que espera respuesta
   (con o sin signo de interrogacion: "cuanto vale", "hasta que hora", "sera
@@ -947,6 +948,14 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
   Insistir, repetir un dato o escribir con rabia NO es pedir una persona.
 - "fuera_tema": true si habla de algo que NO tiene que ver con el restaurante
   ni con un pedido (politica, futbol, "que opinas de...", cadenas).
+- "categoria": si pregunta QUE HAY dentro de UNA categoria concreta, devuelve
+  esa categoria con tus palabras. Ejemplos: "que tienes de tomar" ->
+  "bebidas" · "que gaseosas hay" -> "bebidas" · "que hamburguesas manejan" ->
+  "hamburguesas" · "que perros tienen" -> "perros calientes".
+  NO es categoria: pedir el menu COMPLETO ("que tienen", "la carta") -> null
+  y carta:true. Tampoco preguntar por UN producto concreto ("que sabores de
+  postobon", "cuanto vale la coca cola") -> null. Si no pregunta que hay en
+  una categoria -> null.
 
 - "carta": quiere ver la carta o el menu COMPLETO, o los precios EN GENERAL.
   Ejemplos que SI son carta: "la carta", "q tienen", "menucito", "que venden",
@@ -1083,6 +1092,63 @@ INTENCION, no las palabras exactas.` },
       await sendWaAndSave(convId, tenantId, chao, fromPhone, phoneId, accessToken);
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: chao, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
       return;
+    }
+  }
+
+  /* 5-ter. CATEGORÍA EN TEXTO (pedido de Sergio, 15-ago). "¿Qué tienes de
+     tomar?" no es pedir la carta completa: es preguntar por UNA categoría.
+     Si el restaurante marcó esa categoría para responderse en texto
+     (ia_config.categorias_texto), la respuesta sale DEL CATÁLOGO — solo
+     nombres, nunca precios (el precio se responde si lo preguntan, con su
+     casilla de siempre) — y la carta no se manda. Por defecto la lista está
+     vacía: todo restaurante sigue mandando la carta salvo que lo configure.
+     Esto NO es volcar la carta en texto (regla de oro intacta): es una
+     categoría, en nombres. */
+  {
+    const catsTexto = ((cfg.categorias_texto as string[]) || []).map(c => normalizarTexto(String(c)));
+    const catPreg = typeof intenciones.categoria === "string" ? normalizarTexto(intenciones.categoria) : "";
+    if (catsTexto.length && catPreg && !relectura) {
+      /* TODO sale de una consulta fresca del catálogo de ESTA sucursal: los
+         mapas DYN se reconstruyen más abajo y en frío podrían arrastrar el
+         catálogo del request anterior (otro restaurante). Una consulta extra,
+         solo cuando la intención es categoría y hay categorías configuradas. */
+      try {
+        const prodsCat = await sbGet(
+          `/rest/v1/pos_products?branch_id=eq.${branchId}&select=name,category_id(name)&limit=200`,
+        ) as Array<{ name?: string; category_id?: { name?: string } | null }> | null;
+        const cats = [...new Set((prodsCat || [])
+          .map(p => normalizarTexto(String(p.category_id?.name || ""))).filter(Boolean))];
+        /* Si la pregunta NOMBRA un producto ("que sabores de postobon",
+           "que tamaños tiene la coca cola"), NO es pregunta de categoría:
+           sigue el flujo normal, que responde presentaciones y variantes de
+           ESE producto. El clasificador a veces la marca igual como
+           categoría; este guardia determinista manda. */
+        const textoNorm5 = normalizarTexto(clienteTexto);
+        const nombraProducto = (prodsCat || []).some(p => {
+          const primera = normalizarTexto(String(p.name || "")).split(/\s+/)[0] || "";
+          return primera.length >= 4 && textoNorm5.includes(primera);
+        });
+        if (nombraProducto) throw new Error("producto-concreto");
+        let catReal = cats.find(c => c === catPreg)
+          || cats.find(c => c.includes(catPreg) || catPreg.includes(c))
+          || null;
+        // "de tomar / de beber" → la categoría de bebidas, se llame como se llame
+        if (!catReal && /(tomar|beber|bebida|gaseosa|refresco|jugo)/.test(catPreg)) {
+          catReal = cats.find(c => /bebida|gaseosa|refresco/.test(c)) || null;
+        }
+        if (catReal && catsTexto.includes(catReal)) {
+          const delaCat = (prodsCat || []).filter(p =>
+            normalizarTexto(String(p.category_id?.name || "")) === catReal && String(p.name || "").trim());
+          if (delaCat.length) {
+            const nombres = [...new Set(delaCat.map(p => capFirst(String(p.name).toLowerCase().trim())))];
+            const catDisplay = String(delaCat[0].category_id?.name || catReal).toLowerCase();
+            const msgCat = `De ${catDisplay} tenemos: ${listaNatural(nombres)} 😋 ¿Cuál se te antoja?`;
+            await sendWaAndSave(convId, tenantId, msgCat, fromPhone, phoneId, accessToken);
+            await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgCat, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+            return;
+          }
+        }
+      } catch { /* si el catálogo no responde, cae a la carta como siempre */ }
     }
   }
 

@@ -5540,3 +5540,40 @@ con totales y domicilio** → efectivo → cierre.
 Sigue pendiente (anotado): la dirección capturada arrastra el mensaje completo
 cuando pedido y dirección vienen en una sola frase — se ve fea en el resumen
 (📍 con todo el texto) y en la comanda, pero ya no descarrila nada.
+
+## 131. Categorías que se responden en texto (motor v283) — 15-ago-2026
+
+Pedido de Sergio: "¿qué tienes de tomar?" no debe mandar la carta completa —
+debe responder la lista de bebidas en texto. Y no global: cada restaurante
+decide por categoría.
+
+**Cómo quedó:**
+- Casilla nueva `categoria` en el clasificador ("que tienes de tomar" →
+  "bebidas"; el menú COMPLETO sigue siendo carta; un producto concreto → null).
+- Rama determinista 5-ter: si la categoría está en `ia_config.categorias_texto`,
+  la respuesta sale de una consulta FRESCA del catálogo de la sucursal (los
+  mapas DYN se reconstruyen después y en frío podrían arrastrar el catálogo de
+  otro restaurante — trampa multi-tenant evitada). Solo NOMBRES, nunca precios.
+- Guardia determinista: si la pregunta NOMBRA un producto ("qué sabores de
+  postobón", "qué tamaños la coca cola"), NO es categoría — sigue el flujo
+  normal, que responde presentaciones y variantes de ese producto.
+- Config en Configuración → Asistente → "Qué información ve el asistente":
+  fichas por categoría real del catálogo. Sin marcar = carta (nadie cambia sin
+  decidirlo). El Parche: solo Bebidas.
+
+**Probado en el banco:** "que tienes de tomar" → "De bebidas tenemos: Hit,
+Quatro 1.5 litros, Premio 1.5 litros, Agua botella, Coca cola o Postobón 1.5
+litros 😋 ¿Cuál se te antoja?" · "qué sabores de postobón" → "Postobón de uva,
+1.5 litros" · "qué tamaño la coca cola" → "1.5 litros o personal" · "quiero
+una salchipapa" → carta como siempre · pedido completo → flujo intacto.
+
+**Verificación de no-daño (bisección con git contra el banco):** el caso
+"una ranchera personal y una coca cola personal" pierde la coca HOY — y
+también la pierde en v280, v274 y v272 (motor de ANTES de todo lo del 15-ago).
+No es regresión de hoy: es el bug ya anotado del segundo plato en una sola
+frase, que a veces acierta por varianza del modelo. Sigue en pendientes, ahora
+con evidencia de bisección y el arnés listo (bisect_banco.py).
+
+**Pendiente menor nuevo:** el clasificador devolvió 400 intermitente (9 veces
+en 6 h; el respaldo de palabras clave amortigua). Instrumentar el cuerpo del
+error cuando se retome.
