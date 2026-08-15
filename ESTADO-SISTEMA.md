@@ -5433,3 +5433,39 @@ pedido completo de regresión intacto ($28.000, resumen, cierre) ✓.
 
 **Frases nuevas configurables (aún sin fila en Mensajes):** `despedida`,
 `pasar_humano`, `reintento_2`, `reintento_3`.
+
+## 127. Agregar un plato después del resumen (motor v274) — 15-ago-2026
+
+La trampa que Paco no resolvió en la prueba exigente de Sergio: tras el
+resumen, "puedo agregar porfavor una salchi super queso" se ignoraba y el bot
+repetía el mismo resumen — dos veces. Hasta hoy, después del resumen solo
+existían tres ramas: quitar, cambiar el pago y confirmar. Agregar no tenía.
+
+**El arreglo NO duplica maquinaria.** El bloque post-resumen ahora lleva
+etiqueta (`resumen:`) y, si el lector ve un producto y el mensaje habla de
+agregar, hace `break resumen`: el mensaje sigue derecho al flujo normal, donde
+el 14b ya sabe archivar el plato en curso, arrancar el nuevo con sus propias
+preguntas y conservar dirección, pago, nombre y upsell. El resumen se rearma
+al final con todo.
+
+**La segunda capa del bug:** el lector y el clasificador, al ver el verbo
+"agregar", marcaban "super queso" como TOPPING y el flujo se lo pegaba al
+plato anterior ("Premium Mixta **+ Super Queso**", +$12.000 fantasma). Regla
+v255 aplicada: nombrado UNA vez con artículo ("una salchi super queso") es el
+PLATO. En la rama de agregar se apagan las señales de topping del mensaje
+(`intenciones.agregados = []`) y deciden las reglas deterministas del 14a.
+También se le enseñó al clasificador: "agregar UNA salchi X" = plato aparte;
+"agregaLE X" = topping — la señal es el "le", no el verbo.
+
+**Probado en el banco (v131):** flujo completo — resumen → agregar → "Sobre la
+*SÚPER QUESO* ¿personal o familiar?" → sus DOS grupos de variantes (carne/pollo
+y chorizo/tocineta) → resumen con ambos platos → efectivo → cierre. La
+regresión de quitar tras el resumen sigue bien (coca eliminada, total $33.000).
+
+**Menores anotados, sin arreglar hoy:**
+- Al quitar tras el resumen puede colarse una línea de preferencia fantasma
+  ("· sin la coca cola") — el mismo texto se procesa dos veces (quitar +
+  preferencias). No toca la plata; confunde la comanda.
+- El contador anti-bucle cuenta por CAMPO: con dos grupos de variantes, la
+  segunda pregunta sale con el prefijo del 2.º intento ("Solo me falta este
+  dato"). Se lee natural, pero técnicamente no es un reintento.

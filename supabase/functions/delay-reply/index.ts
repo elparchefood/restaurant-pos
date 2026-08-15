@@ -981,6 +981,11 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
   OJO con "tambien" (o "tambn", "tmb", "y de paso"): eso es UN PLATO MAS, no un
   agregado. "una premium familiar mixta, tambn super queso" son DOS platos ->
   agregados: []. Solo es agregado si dice que va SOBRE el otro plato.
+  OJO con "agregar/añadir/sumar": la palabra sola NO lo vuelve agregado.
+  "puedo agregar UNA salchi super queso", "agregame UN perro", "añade UNA
+  ranchera personal" -> articulo + nombre de plato = PLATO APARTE, agregados: [].
+  "agregaLE super queso", "le añades tocineta", "con extra queso" -> eso si va
+  SOBRE el plato = agregado. La señal es "le/ponle/con", no el verbo agregar.
   Si dudas entre las dos, elige plato aparte: cobrarle un plato de menos se
   arregla preguntando, mandarle un plato que no pidio no.
   Un mismo nombre puede ser lo uno o lo otro segun como lo diga: lo que decide
@@ -1729,7 +1734,7 @@ INTENCION, no las palabras exactas.` },
   // 13. Resumen enviado → confirmar o corregir
   // ═══════════════════════════════════════════════════════════════════════════
 
-  if (state.resumen_enviado) {
+  resumen: if (state.resumen_enviado) {
 
     /* LO PRIMERO: ¿está pidiendo QUITAR algo?
 
@@ -1786,6 +1791,31 @@ INTENCION, no las palabras exactas.` },
         } catch (err) { console.error("re-resumen tras quitar:", err); }
         return;
       }
+    }
+
+    /* ¿ESTÁ AGREGANDO OTRO PLATO? (trampa de Sergio, 15-ago: "puedo agregar
+       porfavor una salchi super queso" después del resumen se ignoraba y el
+       bot repetía el mismo resumen — dos veces). Hasta hoy, tras el resumen
+       solo existían quitar, cambiar el pago y confirmar; agregar no tenía
+       rama. La solución NO es construir otra maquinaria aquí: si el lector
+       vio un producto y el mensaje habla de agregar, el mensaje SIGUE DERECHO
+       al flujo normal — allí el 14b archiva el plato en curso, arranca el
+       nuevo con sus propias preguntas (tamaño, variante), conserva dirección,
+       pago, nombre y upsell ya respondidos, y el resumen se rearma al final
+       con todo. Reusar el camino maduro, no duplicarlo. */
+    const AGREGA_RE = /\b(agrega(r|me|s)?|a[nñ][aá]de(me)?|s[uú]ma(le|me)?|tambi[eé]n|otra|otro|adem[aá]s|me\s+das|dame|quiero|quisiera)\b/i;
+    if (leidoCorr.producto && (AGREGA_RE.test(clienteTexto) || intenciones.pedir === true)) {
+      console.log("[resumen] agrega otro plato:", JSON.stringify(leidoCorr.producto), "— sigue al flujo normal");
+      state.resumen_enviado = false;
+      /* "una salchi super queso" nombra el plato UNA vez → es el plato, no
+         una adición (regla v255). Pero el lector y el clasificador, al ver el
+         verbo "agregar", marcaban "super queso" como topping y el flujo se lo
+         pegaba al plato ANTERIOR (+$12.000 fantasma — lo cazó Sergio). Aquí
+         el cliente está agregando un PLATO: se apagan las señales de topping
+         de este mensaje y deciden las reglas deterministas del 14a, que ya
+         saben distinguir "una super queso" de "con super queso". */
+      intenciones.agregados = [];
+      break resumen;
     }
 
     // CORRECCIÓN del método de pago tras el resumen (regla de Sergio):
