@@ -1419,6 +1419,8 @@
               .var-item-act{background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:12px;padding:4px 8px;border-radius:6px}
               .var-item-act:hover{background:var(--hover,#f3f4f6)}
               .var-empty{text-align:center;color:var(--text-muted);font-size:13px;padding:20px}
+              /* El editor de plantillas: cuando esta vacio muestra su guia */
+              #wtpCuerpo:empty:before{content:attr(data-placeholder);color:#94A3B8}
             </style>
             
 
@@ -1614,12 +1616,16 @@
                   </div>
                   <div class="field">
                     <label class="field-lb" for="wtpCuerpo">Mensaje</label>
-                    <textarea class="txa" id="wtpCuerpo" rows="4" placeholder="Hola {{1}}, hoy en El Parche tenemos {{2}}. ¿Te enviamos el menú?" oninput="wtpPreview()"></textarea>
-                    <div class="field-hint" style="font-size:11px;color:#94A3B8;margin-top:4px">Usa <code>{{1}}</code>, <code>{{2}}</code>… para los datos que cambian en cada envío (el nombre del cliente, la promoción del día…).</div>
-                  </div>
-                  <div class="field" id="wtpEjemplosWrap" style="display:none">
-                    <label class="field-lb">Ejemplos de cada dato <span style="color:#94A3B8;font-weight:400">(Meta los exige para revisar)</span></label>
-                    <div id="wtpEjemplos" style="display:flex;flex-direction:column;gap:8px"></div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="wtpChipsRow">
+                      <span style="font-size:11px;color:#94A3B8;align-self:center">Insertar dato:</span>
+                      <button type="button" class="cfg-qr-btn ghost" style="padding:3px 10px;font-size:11.5px;border-radius:999px" onclick="wtpChip('nombre_cliente')">👤 Nombre del cliente</button>
+                      <button type="button" class="cfg-qr-btn ghost" style="padding:3px 10px;font-size:11.5px;border-radius:999px" onclick="wtpChip('negocio')">🏪 Nombre del negocio</button>
+                      <button type="button" class="cfg-qr-btn ghost" style="padding:3px 10px;font-size:11.5px;border-radius:999px" onclick="wtpChip('puntos_ganados')">🎉 Puntos ganados</button>
+                      <button type="button" class="cfg-qr-btn ghost" style="padding:3px 10px;font-size:11.5px;border-radius:999px" onclick="wtpChip('puntos_total')">⭐ Puntos acumulados</button>
+                      <button type="button" class="cfg-qr-btn ghost" style="padding:3px 10px;font-size:11.5px;border-radius:999px" onclick="wtpChip('libre')">✏️ Otro dato…</button>
+                    </div>
+                    <div class="inp" id="wtpCuerpo" contenteditable="true" style="min-height:96px;line-height:1.9;white-space:pre-wrap" data-placeholder="Escribe el mensaje y agrega los datos con los botones de arriba…" oninput="wtpPreview()"></div>
+                    <div class="field-hint" style="font-size:11px;color:#94A3B8;margin-top:4px">Cada dato se rellena solo en cada envío. Para quitar uno, bórralo como si fuera una letra.</div>
                   </div>
                   <div class="field">
                     <label class="field-lb" for="wtpPie">Pie de página <span style="color:#94A3B8;font-weight:400">(opcional)</span></label>

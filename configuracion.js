@@ -5879,6 +5879,7 @@ var WTP_DATOS = [
   { k: 'puntos_total',   n: 'Puntos acumulados' },
   { k: 'negocio',        n: 'Nombre del negocio' },
   { k: 'nombre_cliente', n: 'Nombre del cliente' },
+  { k: 'libre',          n: 'Se llena al enviar' },
 ];
 WTP.vars = {};
 async function wtpVarsCargar(){
@@ -5961,41 +5962,103 @@ async function wtpCargar(){
     + '</div>';
   }).join('');
 }
+/* ── El creador de plantillas, como se planeó ────────────────────────────
+   El dueño escribe el texto y mete los DATOS con botones: fichas de color
+   con su nombre en español. Jamás ve llaves {{n}}. Cada dato lleva su
+   ejemplo POR DENTRO, y ese ejemplo cumple los tres papeles a la vez:
+   1) lo que se ve en la vista previa, 2) el ejemplo que Meta exige para
+   revisar, 3) el numero {{n}} que la radicación necesita (sale del orden
+   de aparición). Al radicar, el mapeo hueco→dato queda guardado SOLO en
+   plantillas_vars: cuando Meta apruebe, la plantilla ya nace conectada. */
+var WTP_CHIPS = {
+  nombre_cliente: { n: '👤 Nombre del cliente', ej: 'David' },
+  negocio:        { n: '🏪 Nombre del negocio', ej: 'El Parche Food' },
+  puntos_ganados: { n: '🎉 Puntos ganados',     ej: '42' },
+  puntos_total:   { n: '⭐ Puntos acumulados',  ej: '131' },
+};
+function wtpChip(k){
+  var cue = document.getElementById('wtpCuerpo');
+  if (!cue) return;
+  var def = WTP_CHIPS[k], ej = def ? def.ej : '', nom = def ? def.n : '';
+  if (k === 'libre'){
+    ej = prompt('Escribe un EJEMPLO de ese dato (Meta lo exige para revisar la plantilla).\nPor ejemplo: "Salchipapa 2x1"');
+    if (!ej || !ej.trim()) return;
+    ej = ej.trim(); nom = '✏️ ' + (ej.length > 22 ? ej.slice(0, 22) + '…' : ej);
+  }
+  var chip = document.createElement('span');
+  chip.contentEditable = 'false';
+  chip.dataset.var = k; chip.dataset.ej = ej;
+  chip.textContent = nom;
+  chip.style.cssText = 'display:inline-block;padding:1px 9px;margin:0 2px;border-radius:999px;background:#EEF2FF;color:#6D5DFC;font-size:12px;font-weight:700;user-select:none;white-space:nowrap';
+  cue.focus();
+  var sel = window.getSelection();
+  if (sel && sel.rangeCount && cue.contains(sel.anchorNode)){
+    var rg = sel.getRangeAt(0);
+    rg.deleteContents(); rg.insertNode(chip);
+    rg.setStartAfter(chip); rg.collapse(true);
+    sel.removeAllRanges(); sel.addRange(rg);
+  } else {
+    cue.appendChild(chip);
+  }
+  wtpPreview();
+}
+/* Lee el editor y devuelve las tres cosas a la vez: el cuerpo con {{n}} por
+   orden de aparición, la lista de datos y la lista de ejemplos. */
+function wtpLeerCuerpo(){
+  var cue = document.getElementById('wtpCuerpo');
+  var out = { txt: '', chips: [] };
+  (function leer(node){
+    for (var i = 0; i < node.childNodes.length; i++){
+      var ch = node.childNodes[i];
+      if (ch.nodeType === 3){ out.txt += ch.nodeValue; continue; }
+      if (ch.nodeType !== 1) continue;
+      if (ch.dataset && ch.dataset.var){
+        out.chips.push(ch);
+        out.txt += '{{' + out.chips.length + '}}';
+        continue;
+      }
+      if (ch.tagName === 'BR'){ out.txt += '\n'; continue; }
+      var esBloque = /^(DIV|P)$/.test(ch.tagName);
+      if (esBloque && out.txt && out.txt.slice(-1) !== '\n') out.txt += '\n';
+      leer(ch);
+    }
+  })(cue || document.createElement('div'));
+  return {
+    cuerpo: out.txt.replace(/ /g, ' ').trim(),
+    vars: out.chips.map(function(c){ return c.dataset.var; }),
+    ejemplos: out.chips.map(function(c){ return c.dataset.ej || ''; }),
+  };
+}
 function wtpPreview(){
   var nom = document.getElementById('wtpNombre');
-  var cue = document.getElementById('wtpCuerpo');
   var pie = document.getElementById('wtpPie');
   var slugEl = document.getElementById('wtpSlug');
   if (slugEl) slugEl.textContent = nom && nom.value ? 'Meta la guardará como: ' + wtpSlug(nom.value) : '';
-
-  // Un campo de ejemplo por cada {{n}} — Meta los exige para revisar.
-  var vars = wtpVars(cue ? cue.value : '');
-  var wrap = document.getElementById('wtpEjemplosWrap');
-  var host = document.getElementById('wtpEjemplos');
-  if (wrap && host){
-    if (!vars.length){ wrap.style.display='none'; host.innerHTML=''; }
-    else {
-      wrap.style.display='';
-      var previos = {};
-      host.querySelectorAll('input[data-vi]').forEach(function(i){ previos[i.dataset.vi] = i.value; });
-      host.innerHTML = vars.map(function(v){
-        return '<input class="inp" data-vi="'+v+'" placeholder="Ejemplo para {{'+v+'}} — ej. '+(v==='1'?'David':'Salchipapa 2x1')+'" value="'+wtpEsc(previos[v]||'')+'" oninput="wtpPreview()">';
-      }).join('');
-    }
-  }
-  // Vista previa con los ejemplos ya reemplazados.
-  var txt = (cue && cue.value) ? cue.value : '';
-  if (host){
-    host.querySelectorAll('input[data-vi]').forEach(function(i){
-      if (i.value) txt = txt.replace(new RegExp('\\{\\{\\s*'+i.dataset.vi+'\\s*\\}\\}','g'), i.value);
-    });
-  }
+  // La vista previa: el mismo cuerpo con cada ficha vuelta su ejemplo.
+  var d = wtpLeerCuerpo();
+  var txt = d.cuerpo.replace(/\{\{(\d+)\}\}/g, function(_m, n){ return d.ejemplos[parseInt(n,10)-1] || ''; });
   var prev = document.getElementById('wtpPrev');
   if (prev){
     var p = (pie && pie.value) ? '\n\n' + pie.value : '';
     prev.textContent = (txt.trim() ? txt : 'Escribe el mensaje…') + p;
   }
 }
+// El pegado entra como texto plano: pegar HTML dentro del editor rompería
+// las fichas y metería formato invisible que Meta rechaza.
+(function(){
+  function engancharPegado(){
+    var cue = document.getElementById('wtpCuerpo');
+    if (!cue || cue._pegadoOk) return;
+    cue._pegadoOk = true;
+    cue.addEventListener('paste', function(e){
+      e.preventDefault();
+      var t = (e.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, t);
+    });
+  }
+  if (document.readyState !== 'loading') engancharPegado();
+  else document.addEventListener('DOMContentLoaded', engancharPegado);
+})();
 async function wtpCrear(){
   var nom = document.getElementById('wtpNombre');
   var cue = document.getElementById('wtpCuerpo');
@@ -6006,25 +6069,36 @@ async function wtpCrear(){
   var setMsg = function(t, ok){ if (msg){ msg.style.color = ok ? '#16A34A' : '#DC2626'; msg.textContent = t; } };
 
   if (!nom.value.trim()){ setMsg('Ponle un nombre a la plantilla.', false); nom.focus(); return; }
-  if (!cue.value.trim()){ setMsg('Escribe el mensaje.', false); cue.focus(); return; }
-  var vars = wtpVars(cue.value);
-  var ejemplos = [];
-  var faltan = false;
-  document.querySelectorAll('#wtpEjemplos input[data-vi]').forEach(function(i){
-    if (!i.value.trim()) faltan = true;
-    ejemplos.push(i.value.trim());
-  });
-  if (vars.length && faltan){ setMsg('Completa un ejemplo para cada dato — Meta los exige para revisar la plantilla.', false); return; }
+  var d0 = wtpLeerCuerpo();
+  if (!d0.cuerpo){ setMsg('Escribe el mensaje.', false); if (cue) cue.focus(); return; }
+  // Meta rechaza dos datos pegados sin texto entre ellos.
+  if (/\}\}\s*\{\{/.test(d0.cuerpo)){ setMsg('Entre dos datos tiene que haber texto: Meta rechaza dos datos pegados.', false); return; }
 
   btn.disabled = true; btn.textContent = 'Enviando a Meta…'; setMsg('', true);
   var d = await wtpCall({
     action:'create', nombre: nom.value, categoria: cat.value, idioma: 'es',
-    cuerpo: cue.value.trim(), pie: pie.value.trim(), ejemplos: ejemplos,
+    cuerpo: d0.cuerpo, pie: pie.value.trim(), ejemplos: d0.ejemplos,
   });
   btn.disabled = false; btn.textContent = 'Enviar a aprobación';
   if (d.error){ setMsg(d.error, false); return; }
+
+  /* El mapeo hueco→dato se guarda YA, con la radicación: cuando Meta
+     apruebe, la plantilla aparece conectada sin un paso más. Las fichas
+     libres quedan como 'libre' (ese dato se llenará al enviar campañas). */
+  if (d0.vars.length){
+    try {
+      var bid = await wtpBranch();
+      var cur = await sb.from('ia_config').select('plantillas_vars').eq('branch_id', bid).maybeSingle();
+      var todo = (cur.data && cur.data.plantillas_vars) || {};
+      todo[wtpSlug(nom.value)] = d0.vars;
+      await sb.from('ia_config').update({ plantillas_vars: todo }).eq('branch_id', bid);
+      WTP.vars = todo;
+    } catch(e){}
+  }
+
   setMsg('Plantilla enviada a Meta. Queda "En revisión" — puede tardar de unos minutos a 24 horas.', true);
-  nom.value = ''; cue.value = ''; pie.value = '';
+  nom.value = ''; pie.value = '';
+  if (cue) cue.innerHTML = '';
   wtpPreview(); wtpCargar();
 }
 async function wtpBorrar(nombre){
