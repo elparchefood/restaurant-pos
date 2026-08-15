@@ -48,7 +48,7 @@ se puede es dejar escrita una fecha vencida.
 |---|---|---|
 | 1 | Activar **MFA** en Supabase, GitHub, Porkbun, Meta, TikTok y Google, y guardar captura de cada una | 31-ago-2026 |
 | 2 | Correr un **escaneo de vulnerabilidades** sobre `cobrapos.app` y guardar el informe | 31-ago-2026 |
-| 3 | **Corregir el aviso de privacidad**: quitar Stripe (no se usa), añadir Wompi, Google y GitHub | 31-ago-2026 |
+| 3 | ~~Corregir el aviso de privacidad~~ — ✅ **hecho el 14-ago-2026**, aviso v1.1 | — |
 | 4 | Primer **simulacro de incidente** documentado | 30-sep-2026 |
 | 5 | **Rotar credenciales** de todos los paneles y anotar la fecha | 30-sep-2026 |
 

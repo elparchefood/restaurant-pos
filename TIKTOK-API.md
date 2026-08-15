@@ -322,9 +322,12 @@ Y dos evidencias:
 - [ ] Un escaneo de vulnerabilidades con su informe guardado — **antes del
       31-ago-2026** (el propio documento de TikTok dice que adjuntarlo
       **acelera la aprobacion**)
-- [ ] Corregir el aviso de privacidad publicado: menciona **Stripe**, que no se
-      usa, y **omite a Wompi, Google y GitHub**, que si. Un evaluador compara
-      el aviso publico contra la realidad — **antes del 31-ago-2026**
+- [x] ~~Corregir el aviso de privacidad publicado~~ ✅ **hecho el 14-ago-2026**
+      (aviso **v1.1**): se quito Stripe, se anadieron Wompi, Google, GitHub y
+      Porkbun, y se declararon los datos de los comensales — telefono,
+      direccion, conversaciones de WhatsApp, comprobantes y puntos — que el
+      aviso anterior no mencionaba pese a ser los mas sensibles que trata la
+      plataforma
 - [ ] Primer simulacro de incidente documentado — **antes del 30-sep-2026**
 
 ---

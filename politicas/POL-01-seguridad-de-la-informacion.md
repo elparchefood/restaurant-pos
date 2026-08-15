@@ -123,11 +123,14 @@ está sujeto a sus propios compromisos de seguridad y privacidad:
 | **Porkbun** | DNS y reenvío de correo del dominio | Metadatos de correo |
 | **TikTok** | Mensajería de negocio | *Pendiente de aprobación a 14-ago-2026; aún no procesa datos* |
 
-⚠️ **Discrepancia detectada y pendiente de corregir:** el aviso de privacidad
-publicado en `cobrapos.app/privacy-policy` (v1.0, 15-jun-2026) menciona a
-**Stripe**, que no se usa, y **omite a Wompi, Google y GitHub**. Debe alinearse
-con esta tabla antes de responder cualquier cuestionario externo. Ver la
-sección 8.
+✅ **Alineado el 14-ago-2026.** El aviso de privacidad publicado en
+`cobrapos.app/privacy-policy` mencionaba a **Stripe**, que no se usa, y omitía
+a **Wompi, Google, GitHub y Porkbun**, que sí procesan datos. Se corrigió en la
+**versión 1.1** del aviso, que ahora coincide con esta tabla. En la misma
+revisión se añadieron los datos de los comensales (teléfono, dirección,
+conversaciones de WhatsApp, comprobantes y puntos de lealtad), que el aviso
+anterior no declaraba pese a ser los datos personales más sensibles que trata
+la plataforma.
 
 ## 6. Desarrollo seguro
 
@@ -155,7 +158,7 @@ Se declaran abiertamente porque no están vigentes hoy:
 |---|---|---|---|
 | 1 | **MFA activo** en todas las cuentas administrativas (Supabase, GitHub, Porkbun, Meta, TikTok, Google) con captura de pantalla como constancia | 31-ago-2026 | Pendiente |
 | 2 | **Escaneo de vulnerabilidades** de `cobrapos.app` y de los endpoints públicos, con informe archivado | 31-ago-2026 | Pendiente |
-| 3 | **Alinear el aviso de privacidad** con la tabla de la sección 5 (quitar Stripe; añadir Wompi, Google y GitHub) | 31-ago-2026 | Pendiente |
+| 3 | ~~Alinear el aviso de privacidad con la tabla de la sección 5~~ | 31-ago-2026 | ✅ **Hecho 14-ago-2026** (aviso v1.1) |
 | 4 | **Primer simulacro de incidente** según [POL-03](POL-03-respuesta-a-incidentes.md), documentado | 30-sep-2026 | Pendiente |
 | 5 | **Rotación de credenciales** de todos los paneles administrativos y registro de la fecha | 30-sep-2026 | Pendiente |
 
@@ -182,3 +185,4 @@ además [POL-03](POL-03-respuesta-a-incidentes.md).
 | Versión | Fecha | Cambio | Aprobada por |
 |---|---|---|---|
 | 1.0 | 14-ago-2026 | Emisión inicial | Sergio Andrés Abadía Cuají |
+| 1.1 | 14-ago-2026 | Cerrado el compromiso 3: el aviso de privacidad se alineó con la tabla de terceros (aviso v1.1) | Sergio Andrés Abadía Cuají |
