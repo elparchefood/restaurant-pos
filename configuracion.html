@@ -1580,12 +1580,23 @@
                 </div>
               </div>
               <div class="card-bd">
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px">
+                <!-- Maqueta aprobada por Sergio el 14-ago: cerrado solo se ve
+                     la lista y el boton de crear; el creador se abre arriba,
+                     con la lista esperando abajo atenuada. -->
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px" id="wtpHeadNormal">
+                  <div style="font-size:14px;font-weight:700;color:#0F172A">Tus plantillas</div>
                   <div style="font-size:12.5px;color:#64748B" id="wtpCount">Cargando plantillas…</div>
+                  <div style="flex:1"></div>
                   <button type="button" class="cfg-qr-btn ghost" onclick="wtpCargar()">Actualizar estado</button>
+                  <button type="button" class="cfg-qr-btn primary" onclick="wtpAbrirCreador()">＋ Nueva plantilla</button>
                 </div>
-                <div id="wtpList" class="cfg-qr-list"></div>
+                <div style="display:none;align-items:center;gap:10px;margin-bottom:12px" id="wtpHeadCrear">
+                  <div style="font-size:14px;font-weight:700;color:#0F172A">Nueva plantilla</div>
+                  <div style="flex:1"></div>
+                  <button type="button" class="cfg-qr-btn ghost" onclick="wtpCerrarCreador()">✕ Cancelar</button>
+                </div>
 
+                <div id="wtpCrearWrap" style="display:none;border:1.5px solid #6D5DFC;border-radius:12px;padding:14px;margin-bottom:12px">
                 <div class="cfg-qr-form">
                   <div class="field">
                     <label class="field-lb" for="wtpNombre">Nombre (para identificarla)</label>
@@ -1625,8 +1636,11 @@
                   <div class="cfg-qr-actions">
                     <button type="button" class="cfg-qr-btn primary" id="wtpSaveBtn" onclick="wtpCrear()">Enviar a aprobación</button>
                   </div>
-                  <div id="wtpMsg" style="font-size:12.5px;margin-top:10px"></div>
                 </div>
+                </div>
+
+                <div id="wtpMsg" style="font-size:12.5px;margin-bottom:10px"></div>
+                <div id="wtpList" class="cfg-qr-list"></div>
               </div>
             </div></div></div>
 

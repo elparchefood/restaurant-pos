@@ -6059,6 +6059,23 @@ function wtpPreview(){
   if (document.readyState !== 'loading') engancharPegado();
   else document.addEventListener('DOMContentLoaded', engancharPegado);
 })();
+/* El creador vive cerrado: la lista limpia y el boton. Al abrirlo, la lista
+   espera abajo atenuada y sin recibir clics; al radicar o cancelar, vuelve. */
+function wtpAbrirCreador(){
+  var w = document.getElementById('wtpCrearWrap'), hn = document.getElementById('wtpHeadNormal'),
+      hc = document.getElementById('wtpHeadCrear'), l = document.getElementById('wtpList');
+  if (!w) return;
+  w.style.display = ''; if (hn) hn.style.display = 'none'; if (hc) hc.style.display = 'flex';
+  if (l){ l.style.opacity = '.45'; l.style.pointerEvents = 'none'; }
+  var nom = document.getElementById('wtpNombre'); if (nom) nom.focus();
+}
+function wtpCerrarCreador(){
+  var w = document.getElementById('wtpCrearWrap'), hn = document.getElementById('wtpHeadNormal'),
+      hc = document.getElementById('wtpHeadCrear'), l = document.getElementById('wtpList');
+  if (!w) return;
+  w.style.display = 'none'; if (hn) hn.style.display = 'flex'; if (hc) hc.style.display = 'none';
+  if (l){ l.style.opacity = ''; l.style.pointerEvents = ''; }
+}
 async function wtpCrear(){
   var nom = document.getElementById('wtpNombre');
   var cue = document.getElementById('wtpCuerpo');
@@ -6099,7 +6116,7 @@ async function wtpCrear(){
   setMsg('Plantilla enviada a Meta. Queda "En revisión" — puede tardar de unos minutos a 24 horas.', true);
   nom.value = ''; pie.value = '';
   if (cue) cue.innerHTML = '';
-  wtpPreview(); wtpCargar();
+  wtpPreview(); wtpCerrarCreador(); wtpCargar();
 }
 async function wtpBorrar(nombre){
   if (!confirm('¿Eliminar la plantilla "'+nombre+'"? Si estaba aprobada, dejarás de poder enviarla.')) return;
