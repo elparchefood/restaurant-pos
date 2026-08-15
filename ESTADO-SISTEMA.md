@@ -5611,3 +5611,25 @@ del modelo. Probado en el banco:
 Si hay pedido en curso, responde el precio Y repregunta el paso donde iba.
 El punto ("1.5") sobrevive a la normalización — limpiarlo rompía el acierto
 de presentación.
+
+## 133. Direcciones de conjunto en un solo mensaje + "1bis" (v291) — 15-ago
+
+Trampa de Sergio: "dame una premium mixta, para asturias casa 3b" — el bot
+preguntaba "¿para dónde va?" y luego "¿en qué casa?" en bucle, a quien ya
+había dicho todo. Tres capas, cazadas con instrumentación en el banco:
+
+1. La puerta de la dirección exigía calle+número y botaba los conjuntos.
+   Ahora acepta conjunto conocido, o algo que suene a conjunto con su unidad.
+2. El lector a veces SEPARA (barrio="Asturias", direccion="casa 3b") y la
+   unidad sola no pasaba ninguna puerta. Si el barrio es un conjunto conocido
+   y la dirección es su unidad, se guarda la UNIÓN ("Asturias casa 3b").
+3. VIA_RE aceptaba máximo 2 letras pegadas al número: "calle 1bis" no casaba
+   y la dirección real de un cliente se botaba. Ahora hasta 3 ("bis").
+
+**Verificado como pidió Sergio: con 10 direcciones REALES de clientes** —
+Claros del Bosque bloque 7 casa 10 · Llanos de Calibio bloque A1 apto 1006 ·
+Calle 1bis #4-18 (Vasquez Cobo) · Calle 53n #11-58 casa 13 (Villa del
+Viento) · Monteluna casa 45 · carrera 6 #38N-160 apto 306 (Rincón de la
+Ximena) · Calle 71N #8D-9 Torre 2B (San Eduardo) · Asturias casa 3b · y la
+regresión "Bellavista" suelto (correctamente re-pregunta). **10 de 10 con la
+dirección completa guardada al primer mensaje.**

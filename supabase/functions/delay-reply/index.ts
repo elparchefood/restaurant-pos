@@ -4223,10 +4223,28 @@ function validarLeido(
   }
 
   /* DIRECCION: tiene que traer via y numero. Un barrio suelto no es una
-     direccion — es lo que fallo con "Bellavista". */
+     direccion — es lo que fallo con "Bellavista".
+     EXCEPCION (15-ago, trampa de Sergio): un CONJUNTO no tiene calle.
+     "asturias casa 3b" es una direccion completa y esta puerta la botaba —
+     el bot preguntaba "¿para donde va?" a quien ya habia dicho todo. Entra
+     si es un conjunto conocido, o si suena a conjunto y trae su unidad. */
   if (leido.direccion && !state.direccion) {
     const d = String(leido.direccion).trim();
+    const domIns = (cfgGlobal.domicilios as Record<string, unknown>) || null;
     if (analizarDireccion(d).tieneVia) out.direccion = d;
+    else if (esConjunto(d, domIns) || (sueneAConjunto(d) && /\d/.test(d))) out.direccion = d;
+    else {
+      /* El lector a veces SEPARA: barrio="Asturias", direccion="casa 3b".
+         Si el barrio es un conjunto conocido y esto es su unidad, la
+         direccion completa es la union de los dos — botarla dejaba al bot
+         preguntando "¿en que casa?" a quien ya la habia dicho (trampa de
+         Sergio, 15-ago, y en bucle). */
+      const conjDelBarrio = leido.barrio ? esConjunto(String(leido.barrio), domIns) : null;
+      if (conjDelBarrio && /\d/.test(d)
+          && /(torre|bloque|interior|apto|apartamento|apart|casa|piso|int\b|bl\b)/i.test(d)) {
+        out.direccion = `${conjDelBarrio} ${d}`;
+      }
+    }
   }
 
   /* NOMBRE: ni cortesia, ni palabra del pedido. */
@@ -6527,7 +6545,9 @@ function checkBarrioSinNomenclatura(
    con la "n" de "n 58", con puntos, con saltos de linea o sin nada.
    ══════════════════════════════════════════════════════════════════════ */
 const VIA_TIPOS = "calle|cll|cl|carrera|cra|cr|kra|kr|k|avenida|avda|av|diagonal|diag|dg|transversal|trasversal|trans|tv|tr|circunvalar|circular|autopista|auto|manzana|mz|via";
-const VIA_RE = new RegExp("\\b(" + VIA_TIPOS + ")\\b\\.?\\s*(\\d+)\\s*([a-z]{0,2})\\b", "i");
+// Hasta 3 letras pegadas al número: "9b", "63An" y también "1BIS" — con 2,
+// "calle 1bis" no casaba y la dirección real de un cliente se botaba (15-ago).
+const VIA_RE = new RegExp("\\b(" + VIA_TIPOS + ")\\b\\.?\\s*(\\d+)\\s*([a-z]{0,3})\\b", "i");
 
 interface DireccionPartes {
   tieneVia: boolean;    // "carrera 9"
