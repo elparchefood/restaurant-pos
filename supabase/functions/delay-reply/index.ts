@@ -2902,6 +2902,9 @@ INTENCION, no las palabras exactas.` },
           if (nombreConj.length >= 3) {
             await proponerConjunto(tenantId, branchId, nombreConj, state.direccion);
             motivo = `CONJUNTO NUEVO por aprobar: "${nombreConj}" — verificar que exista y asignarle zona. Dirección dada: ${state.direccion}`;
+            // El nombre LIMPIO para la barra del Front y para aprenderlo al confirmar.
+            (state as unknown as Record<string, unknown>).domi_lugar = nombreConj;
+            (state as unknown as Record<string, unknown>).domi_tipo_sugerido = "conjunto";
           }
         }
         // La BARRA del precio: sin esta bandera el Front no la pinta y el

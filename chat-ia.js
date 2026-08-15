@@ -3623,8 +3623,10 @@ function updateDomiConfirmBtn(isPendiente) {
 
   const conv = getActiveConv() || {};
   const ped  = conv.pending_order_data || {};
-  const sitio = String(ped.barrio || '').trim();
-  const dir   = String(ped.direccion || '').trim();
+  /* El NOMBRE LIMPIO del lugar (lo puso el motor: "Villa Ernesto"), no el
+     mensaje entero del cliente — Sergio lo pidió así el 15-ago: la barra debe
+     decir el sitio, no el fragmento completo del pedido. */
+  const sitio = String(ped.domi_lugar || ped.barrio || '').trim();
   S.domiTipo  = 'barrio';
 
   const opcion = (val, titulo, consecuencia) =>
@@ -3641,7 +3643,6 @@ function updateDomiConfirmBtn(isPendiente) {
     +     '<div style="font-size:12.5px;font-weight:700;color:#92400E">'
     +       '⚠️ No sé cuánto cobrar el domicilio' + (sitio ? ' a <b>' + escHtml(sitio) + '</b>' : '')
     +     '</div>'
-    +     (dir ? '<div style="font-size:11px;color:#B45309;margin-top:2px">' + escHtml(dir) + '</div>' : '')
     +     '<div style="font-size:11px;color:#B45309;margin-top:2px">Paco está esperando este dato para seguir.</div>'
     +   '</div>'
     +   '<div style="display:flex;gap:6px;min-width:250px">'
@@ -3659,7 +3660,9 @@ function updateDomiConfirmBtn(isPendiente) {
     +   '</div>'
     + '</div>';
   bar.style.display = '';
-  setDomiTipo('barrio');
+  // Si el motor olió que es un conjunto ("Torre 3 Apto 108"), la opción llega
+  // preseleccionada — al dueño le queda solo el precio y confirmar.
+  setDomiTipo(ped.domi_tipo_sugerido === 'conjunto' ? 'conjunto' : 'barrio');
   setTimeout(function(){ const i = $('domiPrecioInput'); if (i) i.focus(); }, 60);
 }
 
@@ -4126,6 +4129,16 @@ async function confirmarDomi() {
      junto con el precio para que quede aprendido en las zonas y no vuelva a
      preguntarse por el mismo lugar. */
   const ped = conv.pending_order_data || {};
+  /* El nombre que se aprende es el LIMPIO que dejó el motor (domi_lugar).
+     Antes se mandaba ped.barrio, que con un conjunto venía VACÍO: confirm-domi
+     no aprendía nada y Paco retomaba sin conocer el lugar — las dos
+     confirmaciones de Sergio del 15-ago se fueron al vacío por esto. */
+  const nombreLugar = String(ped.domi_lugar || ped.barrio || '').trim();
+  if (!nombreLugar) {
+    showToast('No reconocí el nombre del lugar. Agrégalo en Configuración → Domicilios y vuelve a confirmar.', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Confirmar y seguir'; }
+    return;
+  }
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/confirm-domi`, {
       method: 'POST',
@@ -4134,7 +4147,7 @@ async function confirmarDomi() {
         conversation_id: conv.id,
         domi_precio: precio,
         tipo: S.domiTipo || 'barrio',
-        nombre: String(ped.barrio || '').trim(),
+        nombre: nombreLugar,
       })
     });
     if (!res.ok) throw new Error(await res.text());
