@@ -2993,9 +2993,14 @@ INTENCION, no las palabras exactas.` },
      falle: si el modelo no contesto, el bot se comporta como antes y nunca
      peor. UN solo detector de intencion en el motor (FASE A4). */
   const PREGUNTA_DEL_CLIENTE = /(\?|¿|cuanto|cuánto|precio|vale|cuesta|tienen|tienes|hay\b|puedo|podr[ií]a|demora|tarda|cuando|cuándo|donde|dónde|como|cómo|por que|por qué|porque)/i;
-  const preguntoAlgo = clasifico
+  /* En RELECTURA no hay pregunta que contestar: el mensaje ya se atendió una
+     vez y la relectura existe para CONTINUAR el flujo con lo aprendido
+     (confirm-domi). Dejarla pasar como pregunta soltaba el timón al modelo,
+     que se inventó su propio resumen ("¡Listo! 👍 Entonces, tu pedido es...")
+     en vez de dejar correr el fijo — trampa de Sergio, 15-ago. */
+  const preguntoAlgo = !relectura && (clasifico
     ? (intenciones.pregunta === true || intenciones.fuera_tema === true)
-    : PREGUNTA_DEL_CLIENTE.test(clienteTexto);
+    : PREGUNTA_DEL_CLIENTE.test(clienteTexto));
   if (nextStep && (nextStep.modo || "fija") === "fija" && (nextStep.texto || nextStep.pregunta)
       && !preguntoAlgo) {
     const { texto: fijoBase } = rellenarVariables(String(nextStep.texto || nextStep.pregunta), state, cfg);
