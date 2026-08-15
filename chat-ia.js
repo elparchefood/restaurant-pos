@@ -3629,33 +3629,37 @@ function updateDomiConfirmBtn(isPendiente) {
   const sitio = String(ped.domi_lugar || ped.barrio || '').trim();
   S.domiTipo  = 'barrio';
 
+  /* Ámbar OSCURO, nativo del tema (opción 1 aprobada por Sergio el 15-ago):
+     la barra vive en una app oscura — el crema claro se veía como un parche.
+     Fondo oscuro con tinte ámbar y acentos ámbar: integrada pero sigue
+     siendo una alarma. */
   const opcion = (val, titulo, consecuencia) =>
     '<button type="button" onclick="setDomiTipo(\'' + val + '\')" data-domitipo="' + val + '"'
-    + ' style="flex:1;text-align:left;padding:7px 10px;border-radius:9px;border:1.5px solid #E2E8F0;background:#fff;cursor:pointer;line-height:1.25">'
-    + '<span style="display:block;font-size:12.5px;font-weight:700;color:#0F172A">' + titulo + '</span>'
-    + '<span style="display:block;font-size:10.5px;color:#94A3B8;margin-top:1px">' + consecuencia + '</span>'
+    + ' style="flex:1;text-align:left;padding:7px 10px;border-radius:9px;border:1.5px solid #4A3A1E;background:#1C1917;cursor:pointer;line-height:1.25">'
+    + '<span style="display:block;font-size:12.5px;font-weight:700;color:#F4F4F5">' + titulo + '</span>'
+    + '<span style="display:block;font-size:10.5px;color:#A1A1AA;margin-top:1px">' + consecuencia + '</span>'
     + '</button>';
 
   bar.innerHTML =
     '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:11px 20px;'
-    + 'background:#FFFBEB;border-bottom:1px solid #FDE68A">'
+    + 'background:#231A0D;border-bottom:1px solid #78350F;border-top:2px solid #F59E0B">'
     +   '<div style="flex:1;min-width:190px">'
-    +     '<div style="font-size:12.5px;font-weight:700;color:#92400E">'
+    +     '<div style="font-size:12.5px;font-weight:700;color:#FCD34D">'
     +       '⚠️ No sé cuánto cobrar el domicilio' + (sitio ? ' a <b>' + escHtml(sitio) + '</b>' : '')
     +     '</div>'
-    +     '<div style="font-size:11px;color:#B45309;margin-top:2px">Paco está esperando este dato para seguir.</div>'
+    +     '<div style="font-size:11px;color:#D4A24C;margin-top:2px">Paco está esperando este dato para seguir.</div>'
     +   '</div>'
     +   '<div style="display:flex;gap:6px;min-width:250px">'
     +     opcion('barrio',   'Barrio',   'le pide la dirección completa')
     +     opcion('conjunto', 'Conjunto', 'le pide solo torre y apto')
     +   '</div>'
     +   '<div style="display:flex;align-items:center;gap:7px">'
-    +     '<span style="font-size:15px;font-weight:700;color:#92400E">$</span>'
+    +     '<span style="font-size:15px;font-weight:700;color:#FCD34D">$</span>'
     +     '<input id="domiPrecioInput" type="number" min="0" step="500" placeholder="7000" '
     +       'onkeydown="if(event.key===\'Enter\')confirmarDomi()" '
-    +       'style="width:100px;padding:8px 10px;border:1.5px solid #FDE68A;border-radius:9px;font-size:14px;font-weight:600;outline:none;background:#fff">'
+    +       'style="width:100px;padding:8px 10px;border:1.5px solid #78350F;border-radius:9px;font-size:14px;font-weight:600;outline:none;background:#1C1917;color:#F4F4F5">'
     +     '<button id="domiBarBtn" onclick="confirmarDomi()" '
-    +       'style="padding:9px 15px;border:none;background:#B45309;color:#fff;border-radius:9px;cursor:pointer;font-size:12.5px;font-weight:700">'
+    +       'style="padding:9px 15px;border:none;background:#D97706;color:#1C1002;border-radius:9px;cursor:pointer;font-size:12.5px;font-weight:700">'
     +       'Confirmar y seguir</button>'
     +   '</div>'
     + '</div>';
@@ -3672,8 +3676,9 @@ function setDomiTipo(val) {
   S.domiTipo = val;
   document.querySelectorAll('[data-domitipo]').forEach(function (b) {
     const on = b.dataset.domitipo === val;
-    b.style.borderColor = on ? '#B45309' : '#E2E8F0';
-    b.style.background  = on ? '#FEF3C7' : '#fff';
+    // Seleccionado en ámbar oscuro (tema oscuro de la barra, opción 1)
+    b.style.borderColor = on ? '#F59E0B' : '#4A3A1E';
+    b.style.background  = on ? '#3B2A10' : '#1C1917';
   });
 }
 
