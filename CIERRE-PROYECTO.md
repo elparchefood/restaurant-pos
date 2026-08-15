@@ -402,6 +402,41 @@ Paco contesta en vivo.
       encontrado". Los dos casos hay que arreglarlos juntos, porque son el
       mismo camino del codigo.
 
+- [ ] **BUG 6 — Paco no se entera de que la conversacion se acabo.** Misma
+      conversacion (573234799933), 8:38–8:39 p. m.
+
+      El cliente **se despidio**: dijo que estaba caro y dio las gracias. Eso en
+      Colombia es un "no, gracias" educado — no es una duda ni una pausa.
+      Paco contesto:
+      > 8:39 — 🍟 `Paco:` Con mucho gusto. ¿Que se te antoja? 🍟☺️
+      >
+      > 8:39 — 🍟 `Paco:` Con muchisimo gusto. ¿Que se te antoja? 🍟☺️
+
+      Le insistio **dos veces** con la pregunta de venta a alguien que acababa
+      de decir que no. Sergio: *"no tiene logica, debe ser conversacional y ser
+      consciente de lo que estan conversando"*.
+
+      **Hipotesis de la causa** (por comprobar, no dar por cierta): el mensaje
+      sale partido en dos pedazos y solo el primero mira lo que dijo el cliente.
+      "Con mucho gusto" / "Con muchisimo gusto" cambia entre un mensaje y otro,
+      asi que **eso lo escribe el modelo**; "¿Que se te antoja?" es identico las
+      dos veces, asi que **es la frase fija del paso `producto`, pegada
+      siempre**. Nadie pregunta si el cliente sigue en la conversacion: mientras
+      el paso activo sea `producto`, se repite su pregunta pase lo que pase.
+
+      **Lo que hay que hacer:** detectar el cierre — despedida, agradecimiento
+      final, rechazo por precio — y llevarlo a una rama de despedida, en vez de
+      volver a preguntar por el paso activo. Despedirse y ya; el cliente sabe
+      volver.
+
+      ⚠️ **Cuidado con el arreglo facil.** Esto es la otra cara de lo que se
+      arreglo el 13-ago (v270: las frases fijas se mandan tal cual, sin pasar
+      por el modelo). Aquel cambio quito las preguntas deformadas y el pedido
+      repetido en cada mensaje intermedio. **Si manana se revierte para ganar
+      naturalidad, vuelven los tres bugs de ayer.** El camino no es soltarle el
+      timon al modelo otra vez, sino que exista una rama de cierre que la frase
+      fija no atropelle.
+
 ---
 
 ## FASE 3 — Verificar antes de vender
