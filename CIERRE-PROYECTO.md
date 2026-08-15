@@ -254,6 +254,52 @@ error es el fallo silencioso que ya nos mordió antes ("Guardado ✓" sin guarda
 
 ---
 
+## FASE 2c — Reportado por Sergio el 14-ago-2026
+
+- [ ] **El chat del Front no muestra los mensajes como los ve el cliente.**
+      Sergio abrio una conversacion real y vio la diferencia: donde WhatsApp
+      pinta `Paco:` en gris y monoespaciado, el Front escupe los acentos graves
+      tal cual, con comillas invertidas a la vista. Y en los resumenes de
+      pedido los saltos de linea y los espacios se aplastan, asi que el resumen
+      se lee apretado y distinto a como le llego a la persona.
+
+      **Lo que quiere:** que el Front se vea *igual* que WhatsApp. No parecido,
+      igual — si no, revisar una conversacion desde el panel no sirve para
+      juzgar lo que el cliente realmente recibio.
+
+      **Causa, ya localizada** — `chat-ia.js:1230`:
+      ```js
+      const textHtml = (...) ? `<div>${escHtml(m.body)}</div>` : '';
+      ```
+      Ese `escHtml` escapa el texto y lo mete en un `<div>` pelado. Dos
+      consecuencias:
+
+      1. **No interpreta el formato de WhatsApp.** Los cuatro marcadores salen
+         crudos: `` ` ``codigo`` ` ``, `*negrita*`, `_cursiva_`, `~tachado~`.
+         La etiqueta de Paco usa justo el primero, por eso salta a la vista.
+      2. **No conserva los espacios.** Sin `white-space: pre-wrap` en la
+         burbuja, HTML colapsa los saltos de linea y los espacios repetidos.
+         Por eso los resumenes se ven apretados. Se busco `white-space` en
+         `chat-ia.html` y `chat-ia.js`: **no existe** para la burbuja.
+
+      **Como se arregla:** una funcion que reciba el texto ya escapado (primero
+      escapar, despues formatear — nunca al reves, o se abre la puerta a
+      inyeccion) y convierta los cuatro marcadores a `<code>`, `<b>`, `<i>` y
+      `<s>`, mas `white-space: pre-wrap` en el contenedor del texto.
+
+      ⚠️ **Aplicarlo en los cuatro sitios, no solo en la burbuja.** El mismo
+      texto crudo se pinta tambien en las citas de respuesta
+      (`ci-reply-quote-text`, dos veces en `chat-ia.js:1236` y `:1243`) y en la
+      vista previa de la lista de conversaciones (`prettyPreview`,
+      `chat-ia.js:4222`). Si solo se toca la burbuja, la etiqueta de Paco
+      seguira saliendo con comillas invertidas en la lista de la izquierda.
+
+      **Como se comprueba:** con la conversacion del 14-ago a las 8:11 p. m.
+      (573233776746). Si `Paco:` se ve gris y monoespaciado igual que en el
+      telefono, quedo.
+
+---
+
 ## FASE 3 — Verificar antes de vender
 
 - [ ] Migración de región del servidor
