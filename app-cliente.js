@@ -809,7 +809,11 @@
          tener dos grupos y no una lista con condiciones dentro del texto. */
       var sub = it.falta === 0
         ? (din > 0 ? 'Lo puedes pedir poniendo ' + COP(din) : 'Ya lo puedes pedir')
-        : 'Te faltan ' + it.falta + ' pts · un pedido de ' + COP(it.falta * 1000);
+        /* Solo los puntos que le faltan. Traducirlo a plata ("un pedido de
+           $400.000") le pone precio al premio y desanima; ademas le enseña al
+           cliente la cuenta con la que se ganan los puntos, que no es algo que
+           se le diga de frente. */
+        : 'Te faltan ' + it.falta + ' pts';
       /* La barra: el numero solo ("te faltan 225 pts") no dice si eso es mucho
          o poco. La barra sí — y es lo que hace volver. No va en los que ya
          alcanzan: una barra llena no informa nada. */
