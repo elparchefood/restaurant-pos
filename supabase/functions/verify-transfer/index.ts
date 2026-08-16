@@ -210,8 +210,10 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
   // se rechaza (protege contra clientes que reusan el pantallazo de un pago anterior).
   const refLimpia = String(visionResult.referencia || "").replace(/[^A-Za-z0-9]/g, "");
   if (refLimpia.length >= 5) {
+    /* Los pedidos viejos llevan la Ref en notes; los nuevos, en audit_pago.
+       El anti-replay tiene que mirar en LAS DOS o un pantallazo viejo pasaria. */
     const dup = await sbGet(
-      `/rest/v1/pos_orders?branch_id=eq.${branchId}&notes=ilike.*Ref:${refLimpia}*&select=id&limit=1`
+      `/rest/v1/pos_orders?branch_id=eq.${branchId}&or=(notes.ilike.*Ref:${refLimpia}*,audit_pago.ilike.*Ref:${refLimpia}*)&select=id&limit=1`
     ) as Array<Record<string, unknown>> | null;
     if (dup && dup.length > 0) {
       console.log(`ANTI-REPLAY: referencia ${refLimpia} ya usada en pedido ${dup[0].id}`);
@@ -438,7 +440,7 @@ async function correoYaUsado(branchId: string, mailId: string): Promise<boolean>
   if (!mailId) return false;
   try {
     const usado = await sbGet(
-      `/rest/v1/pos_orders?branch_id=eq.${branchId}&notes=ilike.*Mail:${mailId}*&select=id&limit=1`
+      `/rest/v1/pos_orders?branch_id=eq.${branchId}&or=(notes.ilike.*Mail:${mailId}*,audit_pago.ilike.*Mail:${mailId}*)&select=id&limit=1`
     ) as Array<Record<string, unknown>> | null;
     return !!(usado && usado.length > 0);
   } catch (err) {
@@ -800,8 +802,15 @@ async function crearPedido(
        Ref:  la del comprobante — sale de una imagen, y una imagen se edita
        Mail: la del correo del banco — esa no se puede fabricar
      La segunda es la que de verdad cierra la puerta. */
+  /* LAS NOTAS SON LA FACTURA (15-ago): aqui iban las marcas anti-replay y en
+     el ticket impreso salia "Ref:30027068 · Mail:1a00..." donde el domiciliario
+     esperaba leer el barrio. Las notas llevan direccion + barrio (lo que se
+     imprime); las marcas van en audit_pago, su propia casilla. */
   const notasPedido = [
     String(pendingData.direccion || ""),
+    String(pendingData.barrio || ""),
+  ].filter(Boolean).join(" · ");
+  const auditPago = [
     referencia ? `Ref:${referencia}` : "",
     mailId ? `Mail:${mailId}` : "",
   ].filter(Boolean).join(" · ");
@@ -824,6 +833,7 @@ async function crearPedido(
     channel:        esLlevarOrden ? "rapido" : "domicilio",
     customer_name:  pedido.nombreCliente,
     notes:          notasPedido || null,
+    audit_pago:     auditPago || null,
     payment_method: mixtoCP ? "multiple" : (String(pendingData.pago || "") || null),
     status:         "open",
     /* CADA PESO EN SU CASILLA. Antes iba TODO junto en total/subtotal/total_final
@@ -842,6 +852,7 @@ async function crearPedido(
     delivery_fee:   pedido.domiPrecio,
     total_final:    Math.max(0, pedido.total - pedido.domiPrecio),                    // LA VENTA
     paid_amount:    montoPagado,
+    estado:         "en_preparacion",
     waiter_name:    "Asistente IA",
     visible_cocina: true,
     opened_at:      new Date().toISOString(),
@@ -873,6 +884,20 @@ async function crearPedido(
   for (const item of pedido.itemsRows) {
     await sbPost(`/rest/v1/pos_order_items`, { ...item, order_id: orderId });
   }
+
+  /* PARIDAD CON EL CAMINO MANUAL (15-ago): crear-pedido-chat engancha el
+     order_id a la conversacion y llama a cambiar-estado. Los pedidos creados
+     al verificar la transferencia no lo hacian: la tarjeta del chat seguia
+     mostrando un pedido VIEJO, sin pastilla de estado ni etiqueta "En
+     preparacion", y el cliente no recibia el aviso del estado. */
+  try {
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversationId}`, { order_id: orderId });
+    await fetch(`${SUPABASE_URL}/functions/v1/cambiar-estado`, {
+      method: "POST",
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ order_id: orderId, estado: "en_preparacion" }),
+    });
+  } catch (err) { console.error("No se pudo enganchar/estado del pedido:", err); }
 
   // Registrar el pago verificado como abono en pos_payments (visible en caja,
   // recibos e informes — mismo desglose que usa la pantalla de cobro)

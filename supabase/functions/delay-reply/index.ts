@@ -2015,7 +2015,7 @@ INTENCION, no las palabras exactas.` },
           const clasifPP = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2);
           const domiPP = clasifPP.tipo === "para_llevar" ? 0 : lookupDomiPrice(ubicacionPedido(state), domiciliosCfg);
           try {
-            await createWhatsappOrder(buildOrderArgs(state, domiPP ?? 0), branchId, tenantId, fromPhone, cfg._operacion as Record<string, unknown> | null);
+            await createWhatsappOrder(buildOrderArgs(state, domiPP ?? 0), branchId, tenantId, fromPhone, cfg._operacion as Record<string, unknown> | null, convId);
           } catch (err) { console.error("Error creando pedido (pago no previo):", err); }
         }
         /* LA ALARMA VIVE EN LA CONVERSACION, no en un vigilante que revisa a
@@ -2089,7 +2089,7 @@ INTENCION, no las palabras exactas.` },
         const domiPrecio = esParaLlevar ? 0 : lookupDomiPrice(ubicacionPedido(state), domiciliosCfg);
         try {
           const orderArgs = buildOrderArgs(state, domiPrecio ?? 0);
-          await createWhatsappOrder(orderArgs, branchId, tenantId, fromPhone, cfg._operacion as Record<string, unknown> | null);
+          await createWhatsappOrder(orderArgs, branchId, tenantId, fromPhone, cfg._operacion as Record<string, unknown> | null, convId);
         } catch (err) { console.error("Error creando pedido:", err); }
 
         // Prioridad: nodo del canvas conectado a la salida "efectivo" del Resumen
@@ -3804,7 +3804,7 @@ const SOLO_CORTESIA_RE = /^\s*(por\s*fa(s|vor|vorcito)?|porfis|porfi|pls|plis|pl
 // (no solo en el paso "nombre"), p.ej. cuando el cliente da todo en un solo mensaje.
 const NOMBRE_MARCADOR_RE = /(?:me\s+llamo|mi\s+nombre\s+es|a\s+nombre\s+de|el\s+nombre\s+es|cambia\s+el\s+nombre\s+a|el\s+pedido\s+es\s+para)\s+([a-záéíóúüñÁÉÍÓÚÜÑ]+(?:\s+[a-záéíóúüñÁÉÍÓÚÜÑ]+){0,2})/i;
 
-function extractNombre(text: string, isCurrentStep: boolean, productData: ProductData | null = null): string | null {
+function extractNombre(text: string, isCurrentStep: boolean, productData: ProductData | null = null, domCfg: Record<string, unknown> | null = null): string | null {
   /* Un mensaje que es SOLO una cortesia no trae nombre, este o no en el paso
      del nombre. "porfa" a secas es lo que sigue a otra cosa, no una respuesta. */
   if (SOLO_CORTESIA_RE.test(text)) return null;
@@ -3843,6 +3843,12 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
         if (extractPago(ln, null)) continue;
         if (isProductAttribute(ln, productData)) continue;
         if (CALLE_REGEX.test(ln) || LLEVAR_REGEX.test(ln)) continue;
+        /* UN LUGAR NO ES UN NOMBRE (caso real, 15-ago): el cliente mando
+           "Carrera 9# 21-N 46" y "Ciudad jardín" — la linea del barrio tiene
+           forma de nombre (solo letras, dos palabras) y la factura salio a
+           nombre de "Ciudad jardín". Si la linea es una zona con precio de
+           domicilio o un conjunto conocido, es un lugar, no una persona. */
+        if (domCfg && (esConjunto(ln, domCfg) || lookupDomiPrice(ln, domCfg) !== null)) continue;
         candidato = ln;  // la última línea con forma de nombre gana (suele ir al final)
       }
       if (!candidato) return null;
@@ -3864,6 +3870,8 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
   if (isProductAttribute(t, productData)) return null;
   if (CALLE_REGEX.test(t) || LLEVAR_REGEX.test(t)) return null;
   if (/^\d+$/.test(t)) return null;
+  // Un lugar tampoco pasa por la via del marcador ("es para Ciudad Jardín").
+  if (domCfg && (esConjunto(t, domCfg) || lookupDomiPrice(t, domCfg) !== null)) return null;
   return t;
 }
 
@@ -4273,11 +4281,22 @@ function validarLeido(
     }
   }
 
-  /* NOMBRE: ni cortesia, ni palabra del pedido. */
+  /* NOMBRE: ni cortesia, ni palabra del pedido — NI UN LUGAR (caso real,
+     15-ago): el cliente mando "Carrera 9# 21-N 46" y "Ciudad jardín" en el
+     mismo lote, el lector puso el barrio en "nombre" y la factura salio a
+     nombre de "Ciudad jardín". Si lo dicho es una zona o conjunto con precio
+     de domicilio, o es el mismo barrio recien capturado, no es un nombre. */
   if (leido.nombre && !state.nombre) {
     const n = String(leido.nombre).trim();
+    const domNom = (cfgGlobal.domicilios as Record<string, unknown>) || null;
+    const nNorm = normalizarTexto(n);
+    const esLugar = !!esConjunto(n, domNom)
+      || lookupDomiPrice(n, domNom) !== null
+      || (leido.barrio && normalizarTexto(String(leido.barrio)) === nNorm)
+      || (out.barrio && normalizarTexto(String(out.barrio)) === nNorm)
+      || (state.barrio && normalizarTexto(state.barrio) === nNorm);
     if (n.length >= 2 && !SOLO_CORTESIA_RE.test(n) && !NO_ES_NOMBRE_RE.test(n)
-        && !mencionaProductoCatalogo(n)) {
+        && !mencionaProductoCatalogo(n) && !esLugar) {
       out.nombre = n;
     }
   }
@@ -4547,11 +4566,11 @@ function runExtractors(
          palabras iba a cubrir "exactamente", "tal cual", "ese mismo",
          "efectivamente". Lo unico que se respeta aparte es un "no" seco: ahi
          no se confirma nada y se le vuelve a preguntar. */
-      const n = esConfirmacion(text, intenciones) ? null : extractNombre(text, true, productData);
+      const n = esConfirmacion(text, intenciones) ? null : extractNombre(text, true, productData, (cfgGlobal.domicilios as Record<string, unknown> | null) || null);
       if (n) result.nombre = n;
       else if (!/^no\b/.test(normalizarTexto(text))) result.nombre = nombreWa;
     } else {
-      const n = extractNombre(text, isNombreStep, productData);
+      const n = extractNombre(text, isNombreStep, productData, (cfgGlobal.domicilios as Record<string, unknown> | null) || null);
       if (n) result.nombre = n;
     }
   }
@@ -5499,6 +5518,15 @@ async function buildConversationResponse(
        (trampa de Sergio, 15-ago). Con conjunto reconocido: si trae numeros
        (torre/casa/apto) esta COMPLETA; si no, falta la unidad — nunca la
        calle. */
+    /* PARA LLEVAR EN EL PROMPT (caso real de JP, 15-ago): el cliente dijo
+       "Para llevar / Yo la recojo" y eso queda guardado como su "dirección".
+       Las ramas deterministas lo entienden (LLEVAR_REGEX por todas partes),
+       pero esta linea no: como no tiene via ni es conjunto, marcaba
+       "Dirección INCOMPLETA — FALTA la calle" y el modelo, obediente, le
+       pidio la direccion a quien venia a recoger al local. */
+    if (LLEVAR_REGEX.test(state.direccion.toLowerCase())) {
+      stateLines.push("✅ PARA LLEVAR: el cliente recoge su pedido en el local. NO hay domicilio. JAMÁS pidas dirección, calle, carrera ni barrio.");
+    } else {
     const conjDir5 = esConjunto(ubicacionPedido(state), (cfg?.domicilios as Record<string, unknown>) || null);
     const dirCompleta = analizarDireccion(state.direccion).tieneVia
       || (!!conjDir5 && /\d/.test(state.direccion));
@@ -5507,6 +5535,7 @@ async function buildConversationResponse(
       : conjDir5
         ? `⏳ Dirección: es el conjunto ${conjDir5} pero FALTA la casa o el apartamento. Pídelo ABIERTO ("¿en qué casa o apartamento te lo dejamos?"). NUNCA pidas calle o carrera: un conjunto no tiene.`
         : `⏳ Dirección INCOMPLETA — solo tenemos "${state.direccion}": FALTA la calle o carrera con su número. Si el cliente te la da ahora, agradécela y NUNCA digas que ya te la había dado.`);
+    }
   }
   else stateLines.push("⏳ Dirección: pendiente");
   if (state.pago)      stateLines.push(`✅ Pago: ${state.pago}`);
@@ -6266,6 +6295,10 @@ async function createWhatsappOrder(
   fromPhone: string,
   /* Donde vive la configuracion del empaque (branches.operacion_config). */
   opCfg: Record<string, unknown> | null | undefined = null,
+  /* La conversacion que origino el pedido: con ella se engancha order_id (la
+     tarjeta del chat y la pastilla de estado leen de ahi) y se dispara el
+     estado "en preparacion" con su etiqueta, igual que el camino manual. */
+  convIdPedido: string | null = null,
 ): Promise<string | null> {
   const cliente   = String(data.cliente   || "Cliente WhatsApp");
   const productos = (data.productos as Array<Record<string, unknown>>) || [];
@@ -6442,6 +6475,7 @@ async function createWhatsappOrder(
     payment_method: pago || null,
     status: "open", total: totalConEmpaque, subtotal: orderTotal, total_final: totalConEmpaque,
     packaging_fee: empaqueOrden,
+    estado: "en_preparacion",
     waiter_name: "Asistente IA", visible_cocina: true, opened_at: new Date().toISOString(),
   };
   if (clienteId) orderRecord.cliente_id = clienteId;
@@ -6459,6 +6493,23 @@ async function createWhatsappOrder(
 
   for (const item of items) {
     await sbPost(`/rest/v1/pos_order_items`, { ...item, order_id: orderId });
+  }
+
+  /* PARIDAD CON EL CAMINO MANUAL (15-ago): crear-pedido-chat engancha el
+     order_id a la conversacion y llama a cambiar-estado; los pedidos de Paco
+     no lo hacian. Consecuencias reales: la tarjeta del chat mostraba el pedido
+     VIEJO de la conversacion, la pastilla de estado no aparecia y la etiqueta
+     "En preparacion" nunca se ponia. sin_mensaje porque Paco ya manda su frase
+     de cierre — el aviso configurado del estado seria decirlo dos veces. */
+  if (convIdPedido) {
+    try {
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convIdPedido}`, { order_id: orderId });
+      await fetch(`${SUPABASE_URL}/functions/v1/cambiar-estado`, {
+        method: "POST",
+        headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ order_id: orderId, estado: "en_preparacion", sin_mensaje: true }),
+      });
+    } catch (err) { console.error("No se pudo enganchar/estado del pedido:", err); }
   }
 
   return orderId;

@@ -99,6 +99,10 @@ Deno.serve(async (req: Request) => {
         e.mensaje = String(envio.frase).trim();
       }
     }
+    /* sin_mensaje: el que llama ya le hablo al cliente (Paco manda su frase de
+       cierre al crear el pedido). El estado y la etiqueta cambian igual; solo
+       se calla el aviso para no decirle lo mismo dos veces. */
+    if (body.sin_mensaje === true) e.mensaje = "";
 
     const convs = await sbGet(`/chat_conversations?order_id=eq.${order_id}&select=id,channel,labels,tenant_id`) as Array<Record<string, unknown>> | null;
     const conv = convs?.[0];
