@@ -218,8 +218,19 @@ Deno.serve(async (req) => {
         presId: presIdx >= 0 ? String((((Array.isArray(p.presentations) ? p.presentations : [])[presIdx] || {}) as Record<string, unknown>).id || "") : "",
         qty: cant, unitPrice: precio,
       });
+      /* `product_name` y `product_price` son OBLIGATORIOS en pos_order_items
+         (16-ago): sin ellos el insert falla y el pedido queda creado pero
+         VACÍO — a la cocina le llega un ticket en blanco y al cliente le
+         cobran algo que nadie sabe qué es. Pasó en el primer ensayo real.
+         `total` va explícito porque su valor por defecto es 0 y la comanda
+         mostraría cada línea en cero. */
       lineas.push({
-        product_id: p.id, name: nombre, quantity: cant, unit_price: precio,
+        product_id: p.id,
+        name: nombre, product_name: nombre,
+        product_price: precio, unit_price: precio,
+        total: precio * cant,
+        quantity: cant,
+        selections: { pres: presN || "", vars: {}, mods: {} },
         notes: String(it.nota || "").slice(0, 120) || null,
         branch_id: branchId, tenant_id: tenantId,
       });
@@ -303,7 +314,20 @@ Deno.serve(async (req) => {
     const orderId = creado?.[0]?.id ? String(creado[0].id) : "";
     if (!orderId) return json({ ok: false, razon: "no_se_creo", mensaje: "No pudimos crear tu pedido. Intenta de nuevo." });
 
-    for (const l of lineas) await sbPost(`/pos_order_items`, { ...l, order_id: orderId });
+    /* UN PEDIDO A MEDIAS NO SIRVE. Si una línea no entra, el pedido se anula y
+       se le dice al cliente — antes esto era un `await` suelto cuyo resultado
+       nadie miraba, y por eso nació un pedido sin productos sin que se
+       enterara nadie. */
+    let lineasOk = true;
+    for (const l of lineas) {
+      const ok = await sbPost(`/pos_order_items`, { ...l, order_id: orderId });
+      if (!ok) { lineasOk = false; break; }
+    }
+    if (!lineasOk) {
+      await fetch(`${SUPABASE_URL}/rest/v1/pos_order_items?order_id=eq.${orderId}`, { method: "DELETE", headers: H });
+      await fetch(`${SUPABASE_URL}/rest/v1/pos_orders?id=eq.${orderId}`, { method: "DELETE", headers: H });
+      return json({ ok: false, razon: "items", mensaje: "No pudimos tomar tu pedido. Intenta de nuevo." });
+    }
 
     // Los datos de pago, para que el cliente transfiera.
     const cfgP = await sbGet(`/ia_config?branch_id=eq.${branchId}&select=pagos&limit=1`) as Array<Record<string, unknown>> | null;

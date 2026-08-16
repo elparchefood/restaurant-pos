@@ -1,0 +1,210 @@
+// web-pagar — el cliente paga su pedido desde la página: con su saldo o con
+// una transferencia.
+//
+// EL PEDIDO NO SE MARCA PAGADO PORQUE LO DIGA EL NAVEGADOR. Con saldo, la base
+// descuenta con bloqueo de fila y no deja saldo negativo. Con transferencia, se
+// lee el comprobante y se cruza con el correo del banco — el mismo camino que
+// las recargas, para no tener dos formas distintas de dar un pago por bueno.
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const OPENAI_KEY   = Deno.env.get("OPENAI_API_KEY") || Deno.env.get("OPENAI_KEY") || "";
+const H = { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" };
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+async function sbGet(path: string) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1${path}`, { headers: H });
+  return r.ok ? await r.json() : null;
+}
+async function sbPatch(path: string, data: unknown) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1${path}`, { method: "PATCH", headers: H, body: JSON.stringify(data) });
+  if (!r.ok) console.error("sbPatch", path, (await r.text()).slice(0, 200));
+  return r.ok;
+}
+async function rpc(fn: string, args: unknown) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, { method: "POST", headers: H, body: JSON.stringify(args) });
+  if (!r.ok) { console.error("rpc", fn, (await r.text()).slice(0, 300)); return null; }
+  return await r.json();
+}
+async function sha256(t: string) {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
+  return btoa(String.fromCharCode(...new Uint8Array(d))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+const num = (v: unknown) => { const n = Number(String(v ?? "").replace(/[^0-9.-]/g, "")); return isFinite(n) ? n : 0; };
+
+/* Igual que en las recargas: la verdad del pago está en la imagen y en el
+   correo del banco, no en lo que manda la página. */
+async function leerComprobante(url: string) {
+  if (!OPENAI_KEY) return null;
+  try {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-4o", temperature: 0, response_format: { type: "json_object" },
+        messages: [{ role: "user", content: [
+          { type: "text", text:
+`Comprobante de transferencia colombiano. Devuelve SOLO JSON:
+{"monto":number,"referencia":"string o null","fecha":"YYYY-MM-DD o null","hora":"HH:MM en 24h o null","es_comprobante":true|false}
+- "hora" es la hora EN QUE SE HIZO la transferencia, en 24h.
+- "es_comprobante" false si la imagen no es un comprobante.` },
+          { type: "image_url", image_url: { url } },
+        ] }],
+      }),
+    });
+    const d = await r.json();
+    return JSON.parse(d?.choices?.[0]?.message?.content || "{}");
+  } catch (e) { console.error("leerComprobante:", String(e).slice(0, 200)); return null; }
+}
+
+function mismaHora(a: unknown, b: unknown) {
+  const hm = (v: unknown) => {
+    const m = String(v ?? "").match(/(\d{1,2}):(\d{2})/);
+    return m ? String(Number(m[1])).padStart(2, "0") + ":" + m[2] : null;
+  };
+  const x = hm(a), y = hm(b);
+  if (!x || !y) return null;
+  const min = (v: string) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
+  return Math.abs(min(x) - min(y)) <= 1;   // un minuto de margen
+}
+
+/* PAGADO ES PEDIDO EN COCINA (16-ago). Los pedidos web nacen invisibles para la
+   cocina —primero paga, despues se prepara— pero al pagar nadie los volvia
+   visibles: quedaban en "paid" y NINGUNA pantalla los mostraba. El cliente leia
+   "ya estamos preparando tu pedido" y en el restaurante no habia aparecido
+   nunca. Se descubrio en el primer ensayo de punta a punta (16-ago).
+   El estado se pone con `cambiar-estado`, la misma puerta que usan el POS y
+   Paco, para que ademas quede el delivery_status de la pantalla de domicilios. */
+async function aCocina(orderId: string) {
+  try {
+    await sbPatch(`/pos_orders?id=eq.${orderId}`, { visible_cocina: true });
+    await fetch(`${SUPABASE_URL}/functions/v1/cambiar-estado`, {
+      method: "POST",
+      headers: { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ order_id: orderId, estado: "en_preparacion", sin_mensaje: true }),
+    });
+  } catch (e) { console.error("[web-pagar] a cocina:", String(e).slice(0, 200)); }
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  const json = (b: unknown, s = 200) =>
+    new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json", ...CORS } });
+
+  try {
+    const b = await req.json().catch(() => ({})) as Record<string, unknown>;
+
+    const ses = await sbGet(
+      `/pos_web_sesiones?token_hash=eq.${encodeURIComponent(await sha256(String(b.token || "")))}&select=*&limit=1`
+    ) as Array<Record<string, unknown>> | null;
+    const s = ses?.[0];
+    if (!s || new Date(String(s.expira_at)).getTime() < Date.now()) {
+      return json({ ok: false, razon: "sesion", mensaje: "Tu sesión se venció. Vuelve a entrar." });
+    }
+    const tenantId  = String(s.tenant_id);
+    const clienteId = String(s.cliente_id);
+
+    /* El pedido tiene que ser SUYO y estar sin pagar. Sin esta comprobación,
+       cualquiera podría pagar —o marcar como pagado— el pedido de otro. */
+    const ords = await sbGet(
+      `/pos_orders?id=eq.${String(b.order_id || "")}&select=id,total,total_final,delivery_fee,status,cliente_id,branch_id,channel&limit=1`
+    ) as Array<Record<string, unknown>> | null;
+    const o = ords?.[0];
+    if (!o || String(o.cliente_id) !== clienteId) {
+      return json({ ok: false, razon: "pedido", mensaje: "No encontramos ese pedido." });
+    }
+    if (String(o.status) === "paid") {
+      return json({ ok: true, yaPagado: true, mensaje: "Ese pedido ya está pagado 🙂" });
+    }
+    /* Lo que se cobra es la comida MAS el domicilio. En pos_orders el `total`
+       no lleva el domicilio —viaja aparte en delivery_fee— asi que sumarlo aqui
+       no es un extra: es el precio real del pedido. Sin esto se cobraria de
+       menos justo el valor del domi. */
+    const total    = Math.round(num(o.total_final ?? o.total)) + Math.round(num(o.delivery_fee));
+    const branchId = o.branch_id ? String(o.branch_id) : null;
+    const metodo   = String(b.metodo || "saldo");
+
+    // ── A) CON SALDO ────────────────────────────────────────────────────
+    if (metodo === "saldo") {
+      const sal = await rpc("fn_saldo_cliente", { p_tenant: tenantId, p_cliente: clienteId }) as unknown;
+      const saldo = Math.round(num(Array.isArray(sal) ? (sal[0] as Record<string, unknown>)?.saldo : sal));
+      if (saldo < total) {
+        return json({ ok: false, razon: "sin_saldo", saldo,
+          mensaje: `Te faltan $${(total - saldo).toLocaleString("es-CO")} de saldo. Recarga y vuelve a intentar.` });
+      }
+      /* El descuento lo hace la base con bloqueo de fila y sin permitir
+         negativos: dos toques seguidos no pueden cobrar dos veces. */
+      const mov = await rpc("fn_saldo_mover", {
+        p_tenant: tenantId, p_cliente: clienteId, p_motivo: "consumo",
+        p_monto: -total, p_branch: branchId, p_order: o.id,
+        p_ref: "pedido:" + String(o.id), p_detalle: "Pago del pedido desde la página",
+      });
+      if (mov === null) {
+        return json({ ok: false, razon: "saldo_error",
+          mensaje: "No pudimos descontar tu saldo. Intenta de nuevo." });
+      }
+      /* `paid_amount` es lo que de verdad entro por este pedido. Sin el, el
+         cuadre de caja lo descarta y hay que recogerlo con una regla aparte
+         —que es justo como se cuenta la misma plata dos veces—.
+         El metodo se guarda con el id de la configuracion (`__saldo`) para que
+         todas las pantallas lo reconozcan igual que a los demas. */
+      await sbPatch(`/pos_orders?id=eq.${o.id}`, {
+        status: "paid", payment_method: "__saldo", paid_amount: total,
+        closed_at: new Date().toISOString(),
+      });
+      await aCocina(String(o.id));
+      const sal2 = await rpc("fn_saldo_cliente", { p_tenant: tenantId, p_cliente: clienteId }) as unknown;
+      return json({ ok: true, metodo: "saldo",
+        saldo: Math.round(num(Array.isArray(sal2) ? (sal2[0] as Record<string, unknown>)?.saldo : sal2)),
+        mensaje: "¡Listo! Pagaste con tu saldo 🎉 Ya estamos preparando tu pedido." });
+    }
+
+    // ── B) CON TRANSFERENCIA ────────────────────────────────────────────
+    const comprobante = String(b.comprobante_url || "").trim();
+    if (!comprobante) {
+      return json({ ok: false, razon: "sin_comprobante",
+        mensaje: "Súbenos la foto del comprobante para confirmar tu pago." });
+    }
+    const leido = await leerComprobante(comprobante);
+    if (!leido || leido.es_comprobante === false) {
+      return json({ ok: false, razon: "ilegible",
+        mensaje: "No pude leer ese comprobante 🤔. Mándanos una captura completa donde se vea el valor y la hora." });
+    }
+    const monto = Math.round(num(leido.monto));
+    /* Se acepta pagar de más (una propina, un redondeo), nunca de menos. */
+    if (monto < total) {
+      return json({ ok: false, razon: "monto",
+        mensaje: `Ese comprobante es por $${monto.toLocaleString("es-CO")} y tu pedido son $${total.toLocaleString("es-CO")}.` });
+    }
+
+    const ver = await fetch(`${SUPABASE_URL}/functions/v1/verificar-transferencia`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SERVICE_KEY}` },
+      body: JSON.stringify({ branch_id: branchId, monto: String(monto), horas: 24,
+        fecha: leido.fecha || null, hora: leido.hora || null, order_id: o.id }),
+    }).then((x) => x.json()).catch(() => null);
+
+    if (!ver || ver.ok !== true) {
+      return json({ ok: false, razon: "no_llego", pendiente: true,
+        mensaje: "Todavía no vemos esa transferencia en nuestra cuenta. Puede tardar unos minutos — vuelve a intentar en un momento." });
+    }
+    if (mismaHora(ver.hora_txn, leido.hora) === false) {
+      return json({ ok: false, razon: "hora",
+        mensaje: "La hora del comprobante no coincide con la transferencia que recibimos. Revisa que sea el correcto." });
+    }
+
+    await sbPatch(`/pos_orders?id=eq.${o.id}`, {
+      status: "paid", payment_method: "Transferencia", paid_amount: total,
+      closed_at: new Date().toISOString(),
+    });
+    await aCocina(String(o.id));
+    return json({ ok: true, metodo: "transferencia", referencia: ver.referencia || null,
+      mensaje: "¡Listo! Confirmamos tu pago 🎉 Ya estamos preparando tu pedido." });
+  } catch (e) {
+    console.error("web-pagar:", e);
+    return json({ ok: false, razon: "error", mensaje: "Algo falló de nuestro lado. Intenta de nuevo." });
+  }
+});
