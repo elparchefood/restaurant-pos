@@ -442,8 +442,13 @@
     var addDir = document.querySelector('[data-diragregar]');
     if (addDir) addDir.addEventListener('click', pedirDireccionNueva);
     document.querySelectorAll('[data-dirquitar]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        if (window.confirm('¿Quitar esta dirección?')) quitarDireccion(b.dataset.dirquitar);
+      b.addEventListener('click', async function () {
+        var r = await preguntar({
+          titulo: '¿Quitar esta dirección?',
+          texto: 'Puedes volver a agregarla cuando quieras.',
+          ok: 'Quitar', cancelar: 'Dejarla',
+        });
+        if (r) quitarDireccion(b.dataset.dirquitar);
       });
     });
     var env = $('pd-enviar');
@@ -1070,6 +1075,76 @@
     setTimeout(function () { cap.querySelector('.ep-aviso-ok').focus(); }, 30);
   }
 
+  /* PREGUNTAR CON LA CARA DE LA PÁGINA ─────────────────────────────────
+     Regla de Sergio (16-ago): NUNCA cuadros de diálogo del navegador. Un
+     `prompt()` o un `confirm()` salen grises, con el dominio arriba y con
+     botones en el idioma del teléfono — parecen de otra aplicación, y en el
+     celular tapan media pantalla. Esta hoja es la misma de los avisos: se
+     cierra tocando fuera o con Escape, y el Enter confirma.
+
+     Devuelve una promesa: null si cancela, o un objeto con lo que escribió
+     (o true si era solo una confirmación). */
+  function preguntar(opciones) {
+    var o = opciones || {};
+    var campos = o.campos || [];
+    return new Promise(function (resolver) {
+      var viejo = document.querySelector('.ep-aviso-cap');
+      if (viejo) viejo.remove();
+
+      var cap = document.createElement('div');
+      cap.className = 'ep-aviso-cap';
+      cap.innerHTML =
+        '<div class="ep-aviso-box ep-preg" role="dialog" aria-modal="true">' +
+          '<div class="ep-preg-tit"></div>' +
+          (o.texto ? '<p class="ep-aviso-txt ep-preg-sub"></p>' : '') +
+          campos.map(function (c, i) {
+            return '<label class="ep-campo"><span class="ep-lbl">' + esc(c.label || '') + '</span>' +
+              '<input class="ep-in" id="pg-c' + i + '" maxlength="' + (c.max || 160) + '" ' +
+              'placeholder="' + esc(c.placeholder || '') + '" value="' + esc(c.valor || '') + '"></label>';
+          }).join('') +
+          '<div class="ep-preg-btns">' +
+            '<button class="ep-btn ep-btn--ghost ep-preg-no" type="button">' + esc(o.cancelar || 'Cancelar') + '</button>' +
+            '<button class="ep-btn gold big ep-preg-si" type="button">' + esc(o.ok || 'Guardar') + '</button>' +
+          '</div>' +
+        '</div>';
+      cap.querySelector('.ep-preg-tit').textContent = String(o.titulo || '');
+      if (o.texto) cap.querySelector('.ep-preg-sub').textContent = String(o.texto);
+      document.body.appendChild(cap);
+
+      function cerrar(valor) {
+        cap.remove();
+        document.removeEventListener('keydown', porTecla);
+        resolver(valor);
+      }
+      function aceptar() {
+        if (!campos.length) return cerrar(true);
+        var out = {};
+        for (var i = 0; i < campos.length; i++) {
+          var v = String((cap.querySelector('#pg-c' + i) || {}).value || '').trim();
+          if (campos[i].minimo && v.length < campos[i].minimo) {
+            var inp = cap.querySelector('#pg-c' + i);
+            if (inp) { inp.classList.add('malo'); inp.focus(); }
+            return;
+          }
+          out[campos[i].clave || ('c' + i)] = v;
+        }
+        cerrar(out);
+      }
+      function porTecla(e) {
+        if (e.key === 'Escape') cerrar(null);
+        if (e.key === 'Enter') { e.preventDefault(); aceptar(); }
+      }
+      cap.querySelector('.ep-preg-si').addEventListener('click', aceptar);
+      cap.querySelector('.ep-preg-no').addEventListener('click', function () { cerrar(null); });
+      cap.addEventListener('click', function (e) { if (e.target === cap) cerrar(null); });
+      document.addEventListener('keydown', porTecla);
+      setTimeout(function () {
+        var primero = cap.querySelector('.ep-in') || cap.querySelector('.ep-preg-si');
+        if (primero) primero.focus();
+      }, 30);
+    });
+  }
+
   async function guardarFoto(archivo) {
     if (!archivo || !/^image\//.test(archivo.type)) { aviso('Escoge una imagen.', 'mal'); return; }
     var caja = document.querySelector('.ep-avatar-g');
@@ -1131,13 +1206,18 @@
   }
 
   async function pedirDireccionNueva() {
-    var dir = window.prompt('¿Cuál es la dirección? (calle, número, apto)');
-    if (dir === null) return false;
-    dir = String(dir).trim();
-    if (dir.length < 5) { aviso('Escribe la dirección completa.', 'mal'); return false; }
-    var barrio = window.prompt('¿En qué barrio queda?');
-    if (barrio === null) barrio = '';
-    var ok = await guardarDireccion(dir, String(barrio).trim());
+    // Los dos datos en UNA sola hoja: dirección y barrio se piensan juntos.
+    var r = await preguntar({
+      titulo: 'Agregar dirección',
+      texto: 'Para que no tengas que escribirla en cada pedido.',
+      ok: 'Guardar',
+      campos: [
+        { clave: 'dir', label: 'Dirección', placeholder: 'Calle 5 # 10-20, apto 301', minimo: 5, max: 160 },
+        { clave: 'barrio', label: 'Barrio', placeholder: 'Escríbelo como lo conoces', max: 60 },
+      ],
+    });
+    if (!r) return false;
+    var ok = await guardarDireccion(r.dir, r.barrio);
     if (ok) pantallaDentro();
     return ok;
   }
@@ -1853,7 +1933,8 @@
 
     if (!d.ok) {
       b.disabled = false; b.textContent = 'Enviar mi pedido';
-      alert(d.mensaje || 'No se pudo enviar.');
+      // Con la cara de la página, no con el cuadro gris del navegador.
+      aviso(d.mensaje || 'No se pudo enviar.', 'mal');
       return;
     }
     pedidoHecho = d;

@@ -948,6 +948,18 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
   .ep-aviso-cap, .ep-aviso-box { animation: none; }
 }
 
+/* La hoja de PREGUNTAR: la misma caja del aviso, pero con campos y dos botones.
+   Regla de Sergio (16-ago): nunca prompt() ni confirm() del navegador. Aqui el
+   texto se alinea a la izquierda porque hay que LEER lo que se escribe, no solo
+   enterarse de un mensaje corto. */
+.ep-preg { text-align: left; }
+.ep-preg-tit { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+.ep-preg-sub { font-size: 13.5px; color: var(--sub); margin-bottom: 14px; }
+.ep-preg .ep-campo { margin-bottom: 12px; }
+.ep-preg .ep-in.malo { border-color: #EF4444; }
+.ep-preg-btns { display: flex; gap: 10px; margin-top: 4px; }
+.ep-preg-btns .ep-btn { flex: 1; margin: 0; }
+
 
 /* ══ HOJA POR PASOS ══════════════════════════════════════════════════════════
    Solo dos piezas nuevas: el rótulo del paso y el "Atrás". Los botones de
