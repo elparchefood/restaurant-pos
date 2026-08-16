@@ -6513,11 +6513,17 @@ async function createWhatsappOrder(
   // domicilio normal → channel='domicilio' (pantalla de domicilios).
   const esLlevarOrden = LLEVAR_REGEX.test(direccion.toLowerCase());
   /* EL EMPAQUE ES VENTA y va en el pedido. Si solo apareciera en el resumen,
-     el cliente veria un total y la caja cobraria otro. El DOMICILIO no entra
-     —regla de Sergio: el domi nunca se suma a ventas— y por eso `domi_precio`
-     llega hasta aqui y no se guarda. */
+     el cliente veria un total y la caja cobraria otro.
+     EL DOMICILIO VA EN SU CASILLA (corregido 15-ago, pedido real de Brayan):
+     la regla de Sergio es que el domi nunca suma a LA VENTA (total_final) —
+     no que se bote. Antes este comentario decia "llega hasta aqui y no se
+     guarda" y el pedido salia SIN domicilio en la comanda y el recibo: el
+     domiciliario cobraba de menos. Misma convencion que verify-transfer:
+     total = lo que el cliente paga (con domi) · total_final = LA VENTA
+     (comida + empaque) · delivery_fee = el domi, aparte. */
   const empaqueOrden = calcularEmpaque(opCfg, itemsEmpaque, !esLlevarOrden);
   const totalConEmpaque = orderTotal + empaqueOrden;
+  const domiOrden = esLlevarOrden ? 0 : Math.max(0, Number(data.domi_precio) || 0);
   const orderRecord: Record<string, unknown> = {
     branch_id: branchId, tenant_id: tenantId || null,
     channel: esLlevarOrden ? "rapido" : "domicilio", customer_name: cliente,
@@ -6529,8 +6535,12 @@ async function createWhatsappOrder(
             fromPhone ? `[tel:${telLocal(fromPhone)}]` : ""]
       .filter(Boolean).join(" ") || null,
     payment_method: pago || null,
-    status: "open", total: totalConEmpaque, subtotal: orderTotal, total_final: totalConEmpaque,
+    status: "open",
+    total: totalConEmpaque + domiOrden,   // lo que el cliente paga, todo incluido
+    subtotal: orderTotal,                 // solo comida
+    total_final: totalConEmpaque,         // LA VENTA: comida + empaque, sin domi
     packaging_fee: empaqueOrden,
+    delivery_fee: domiOrden,
     estado: "en_preparacion",
     waiter_name: "Asistente IA", visible_cocina: true, opened_at: new Date().toISOString(),
   };

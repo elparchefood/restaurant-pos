@@ -477,7 +477,26 @@ async function loadClientes() {
 function clienteDe(conv) {
   if (!conv) return null;
   const t = String(conv.contact_handle || '').replace(/\D/g, '').slice(-10);
-  return (t && S.clientesPorTel[t]) || null;
+  const hit = (t && S.clientesPorTel[t]) || null;
+  /* CLIENTE CREADO DESPUES DE ABRIR LA PANTALLA (15-ago): el mapa se carga al
+     entrar, y los clientes que Paco crea con sus pedidos no aparecian hasta
+     recargar — Sergio los veia "no guardados" estando guardados. Si el
+     telefono no esta en el mapa, se consulta UNA vez esa ficha y se repinta.
+     `_noEs` evita preguntar en bucle por numeros que de verdad no son clientes. */
+  if (!hit && t.length === 10 && !S._clienteBuscado) S._clienteBuscado = {};
+  if (!hit && t.length === 10 && !S._clienteBuscado[t]) {
+    S._clienteBuscado[t] = true;
+    sb.from('pos_clientes').select('nombre,telefono,barrio')
+      .eq('tenant_id', S.tenantId).like('telefono', '%' + t).limit(1)
+      .then(function (r) {
+        const c = r && r.data && r.data[0];
+        if (!c) return;
+        S.clientesPorTel[t] = { nombre: c.nombre, barrio: c.barrio };
+        try { renderConvList(); } catch (_e) {}
+        try { const _a = getActiveConv(); if (_a) renderChatHeader(_a); } catch (_e) {}
+      });
+  }
+  return hit;
 }
 
 /* ══════════════ FICHA DEL CLIENTE (drawer derecho) ══════════════

@@ -199,6 +199,12 @@ async function createWhatsappOrder(
   }
 
   // Insertar pedido
+  /* CADA PESO EN SU CASILLA (corregido 15-ago, junto con el mismo bug en
+     delay-reply): antes el domi entraba a total_final —el domi sumando a LAS
+     VENTAS, contra la regla de Sergio— y delivery_fee ni se escribia, asi que
+     la comanda y el recibo no lo mostraban. Convencion de verify-transfer:
+     total = lo que paga el cliente · total_final = LA VENTA · delivery_fee
+     aparte. */
   const totalConDomi = orderTotal + domiPrecio;
   const orderRecord: Record<string, unknown> = {
     branch_id:      branchId,
@@ -210,7 +216,8 @@ async function createWhatsappOrder(
     status:         "open",
     total:          totalConDomi,
     subtotal:       orderTotal,
-    total_final:    totalConDomi,
+    total_final:    orderTotal,
+    delivery_fee:   domiPrecio,
     waiter_name:    "Asistente IA",
     visible_cocina: true,
     opened_at:      new Date().toISOString(),
