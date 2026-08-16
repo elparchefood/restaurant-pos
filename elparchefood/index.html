@@ -17,6 +17,26 @@
      aplicación, que es compartida y vive en la raíz. Así, cuando se mejora la
      página, se mejora para todos los restaurantes a la vez — no hay que tocar
      una carpeta por cliente. -->
+<!-- QUE SE INSTALE COMO APP, CON EL LOGO DEL RESTAURANTE.
+     El manifest y los iconos viven en ESTA carpeta, no en la raiz: la pagina es
+     la misma para todos los restaurantes, y el icono no. A El Parche le queda
+     el logo de El Parche; el dia que entre otro, el suyo.
+     Esto NO tiene nada que ver con los iconos del .exe ni del APK: aquellos van
+     incrustados al compilar y no comparten un solo archivo con este.
+     Todavia SIN service worker (decision de Sergio): que se instale primero;
+     lo de funcionar sin internet va despues, que es lo que se puede dañar. -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#08080a" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f6f4f1" media="(prefers-color-scheme: light)">
+<link rel="icon" type="image/png" sizes="192x192" href="icono-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icono-512.png">
+<!-- iPhone IGNORA el manifest para el icono de inicio: necesita esta etiqueta
+     aparte. Sin ella, en iPhone quedaria una miniatura de la pantalla. -->
+<link rel="apple-touch-icon" href="icono-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="El Parche">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
