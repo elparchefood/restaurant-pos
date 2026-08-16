@@ -781,6 +781,14 @@ async function calcularTotalEsperado(
 
 // ── Crear pedido ──────────────────────────────────────────────────────────────
 
+/* Telefono SIN indicativo (573113918394 -> 3113918394): el formato de
+   pos_clientes y de la marca [tel:] — mismo criterio que telLocal en
+   delay-reply y que la normalizacion del disparador de puntos. */
+function telLocalVT(tel: string): string {
+  const t = String(tel || "").replace(/\D/g, "");
+  return (t.length === 12 && t.startsWith("57")) ? t.slice(2) : t;
+}
+
 async function crearPedido(
   conversationId: string,
   branchId:       string,
@@ -804,12 +812,17 @@ async function crearPedido(
      La segunda es la que de verdad cierra la puerta. */
   /* LAS NOTAS SON LA FACTURA (15-ago): aqui iban las marcas anti-replay y en
      el ticket impreso salia "Ref:30027068 · Mail:1a00..." donde el domiciliario
-     esperaba leer el barrio. Las notas llevan direccion + barrio (lo que se
-     imprime); las marcas van en audit_pago, su propia casilla. */
+     esperaba leer el barrio. Las notas llevan el MISMO formato que todo el
+     sistema —direccion [barrio:X] [tel:Y]— porque el recibo (pos-print), la
+     comanda Y el disparador de puntos leen esas marcas. Sin [tel:] la factura
+     salia sin numero y el cliente sin puntos. Las marcas anti-replay van en
+     audit_pago, su propia casilla. */
+  const telNota = telLocalVT(fromPhone);
   const notasPedido = [
     String(pendingData.direccion || ""),
-    String(pendingData.barrio || ""),
-  ].filter(Boolean).join(" · ");
+    pendingData.barrio ? `[barrio:${String(pendingData.barrio).toUpperCase()}]` : "",
+    telNota ? `[tel:${telNota}]` : "",
+  ].filter(Boolean).join(" ");
   const auditPago = [
     referencia ? `Ref:${referencia}` : "",
     mailId ? `Mail:${mailId}` : "",
@@ -860,7 +873,10 @@ async function crearPedido(
 
   // Cliente
   if (fromPhone) {
-    const telefonoClean = fromPhone.replace(/\D/g, "");
+    /* SIN indicativo, como guarda la pantalla de clientes. Con el 57 pegado la
+       busqueda nunca encontraba a nadie: el pedido quedaba sin cliente_id y
+       por ahi tambien se perdian los puntos (caso real, 15-ago). */
+    const telefonoClean = telLocalVT(fromPhone);
     const direccion     = String(pendingData.direccion || "");
     const existing      = await sbGet(
       `/rest/v1/pos_clientes?telefono=eq.${encodeURIComponent(telefonoClean)}&tenant_id=eq.${tenantId}&limit=1`
