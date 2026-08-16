@@ -807,3 +807,5 @@ El flujo se autocorrige al mensaje siguiente. Evidencia reunida:
 - Pistas: los otros 5 llamadores de OpenAI (recordatorio 600, intenciones 894,
   extractProducto 3581, lector 3711, resumen conversacional 5630) — revisar
   cuál compone con frases.disculpa, y volver a correr el arnés con log en TODOS.
+
+- [ ] **16-ago — Paco responde por los puntos** (saldo, que le alcanza, catalogo de redencion): plan detallado y acordado en PLAN-PUNTOS-EN-CHAT.md
