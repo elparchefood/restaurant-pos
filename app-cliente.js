@@ -322,7 +322,12 @@
         // aparezca vacia un instante y luego se llene de golpe.
         if (vista !== 'pedido') pedidoHecho = null;
         if (vista === 'carta')  await cargarCarta();
-        if (vista === 'inicio' && !S.promos) { await cargarPromos(); pantallaDentro(); }
+        /* El inicio necesita las dos cosas: las fotos del banner (promos) y la
+           carta, porque las tres tarjetas son productos de verdad. */
+        if (vista === 'inicio' && (!S.promos || !S.carta)) {
+          await Promise.all([cargarPromos(), cargarCarta()]);
+          pantallaDentro();
+        }
         if (vista === 'puntos') await cargarCatalogo();
         catActiva = 0;
         window.scrollTo(0, 0);
@@ -1300,19 +1305,80 @@
      Por ahora el contenido es de MUESTRA, para ver cómo queda: cuando se
      decida qué va, sale de la configuración del restaurante (fn_web_promos)
      y esta constante desaparece. */
-  var BANNER_MUESTRA = {
-    titulo: 'Pide hoy y suma\npuntos en cada\ncombo',
-    boton: 'Ver la carta',
-    ir_a: 'carta',
-    tarjetas: [
-      { n: '01', titulo: 'Combo del día',   sub: 'Salchipapa + gaseosa', tono: 'claro' },
-      { n: '02', titulo: '2x1 en perros',   sub: 'Solo los martes',      tono: 'acento' },
-      { n: '03', titulo: 'Para compartir',  sub: 'Familiar + 2 bebidas', tono: 'claro' },
-    ],
-  };
+  /* El mensaje de la izquierda. Es lo único de muestra que queda: cuando Sergio
+     decida qué dice, sale de la configuración del restaurante. */
+  var BANNER_TEXTO = { titulo: 'Pide hoy y suma\npuntos en cada\ncombo', boton: 'Ver la carta', ir_a: 'carta' };
+
+  /* LAS TRES TARJETAS SON PRODUCTOS DE VERDAD.
+     Mientras Sergio no elija cuáles, se escogen solos: uno por categoría y con
+     foto, para que no salgan tres hamburguesas ni tres recuadros vacíos. El día
+     que se pueda elegir, esta función lee esa lista y nada más cambia. */
+  function productosDelBanner() {
+    /* Mientras Sergio no elija cuáles van, se escogen solos — pero con criterio
+       de vitrina: el plato FUERTE de cada categoría (el de mayor precio con
+       foto), no el primero de la lista. Con el orden natural salía "Agua
+       botella" de primera, que es lo último que uno quiere anunciar.
+       Las bebidas y las adiciones no compiten: son acompañamiento. */
+    var fuera = /bebida|adicion|adición|salsa|extra/i;
+    var porCat = [];
+    (S.carta || []).forEach(function (c) {
+      if (fuera.test(c.categoria || '')) return;
+      var conFoto = (c.productos || []).filter(function (p) { return p && p.foto; });
+      if (!conFoto.length) return;
+      var mejor = conFoto.slice().sort(function (a, b) { return precioDesde(b) - precioDesde(a); })[0];
+      porCat.push({ p: mejor, cat: c.categoria, precio: precioDesde(mejor) });
+    });
+    porCat.sort(function (a, b) { return b.precio - a.precio; });
+    /* Si el restaurante no tiene fotos todavía, mejor ninguna tarjeta que tres
+       recuadros vacíos: el banner se queda con el mensaje y la publicidad. */
+    return porCat.slice(0, 3);
+  }
+
+  /* Precio "desde": con presentaciones, el más barato de todas; si no, el del
+     producto. Decir "$28.000" cuando la personal vale menos sería mentir. */
+  function precioDesde(p) {
+    var pres = (p.presentaciones || []).map(function (x) { return Number(x.precio) || 0; })
+      .filter(function (n) { return n > 0; });
+    if (pres.length) return Math.min.apply(null, pres);
+    var vars = [];
+    (p.variables || []).forEach(function (g) {
+      (g.opciones || []).forEach(function (o) {
+        (o.precios || []).forEach(function (n) { if (Number(n) > 0) vars.push(Number(n)); });
+        if (Number(o.precio) > 0) vars.push(Number(o.precio));
+      });
+    });
+    if (vars.length) return Math.min.apply(null, vars);
+    return Number(p.precio) || 0;
+  }
 
   function bannerHero() {
-    var b = BANNER_MUESTRA;
+    var b = BANNER_TEXTO;
+    /* Las fotos del centro son las promociones que el restaurante sube desde su
+       panel: son SUYAS, y por eso el banner no trae ninguna imagen propia. */
+    var fotos = (S.promos || []).filter(function (x) { return x && x.imagen; }).slice(0, 3);
+    var centro = fotos.length
+      ? '<div class="ep-hero-fotos">' + fotos.map(function (f) {
+          var img = '<img src="' + esc(f.imagen) + '" alt="' + esc(f.titulo || 'Promoción') + '" loading="lazy">';
+          return f.ir_a
+            ? '<button class="ep-hfoto" data-ir="' + esc(f.ir_a) + '">' + img + '</button>'
+            : '<div class="ep-hfoto">' + img + '</div>';
+        }).join('') + '</div>'
+      /* Sin fotos no se deja un hueco: se dice dónde van, y solo lo ve el dueño
+         cuando entra a su propia página sin haber subido ninguna. */
+      : '<div class="ep-hero-fotos vacio"><span>Aquí van tus fotos de publicidad</span></div>';
+
+    var tarjetas = productosDelBanner().map(function (e, i) {
+      var p = e.p, precio = precioDesde(p);
+      return '<button class="ep-hcard" data-ir="carta"' +
+          (p.foto ? ' style="background-image:url(' + esc(p.foto) + ')"' : '') + '>' +
+        '<span class="ep-hcard-n">0' + (i + 1) + '</span>' +
+        '<div class="ep-hcard-pie">' +
+          '<div class="ep-hcard-tit">' + esc(p.nombre) + '</div>' +
+          '<div class="ep-hcard-sub">' + (precio ? 'Desde ' + COP(precio) : esc(e.cat || '')) + '</div>' +
+        '</div>' +
+      '</button>';
+    }).join('');
+
     return '<section class="ep-hero">' +
       '<div class="ep-hero-txt">' +
         '<h2 class="ep-hero-tit">' + esc(b.titulo).replace(/\n/g, '<br>') + '</h2>' +
@@ -1320,17 +1386,8 @@
           '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>' +
         '</button>' +
       '</div>' +
-      '<div class="ep-hero-cards">' +
-        b.tarjetas.map(function (t) {
-          return '<article class="ep-hcard ' + esc(t.tono) + '">' +
-            '<span class="ep-hcard-n">' + esc(t.n) + '</span>' +
-            '<div class="ep-hcard-pie">' +
-              '<div class="ep-hcard-tit">' + esc(t.titulo) + '</div>' +
-              '<div class="ep-hcard-sub">' + esc(t.sub) + '</div>' +
-            '</div>' +
-          '</article>';
-        }).join('') +
-      '</div>' +
+      centro +
+      (tarjetas ? '<div class="ep-hero-cards">' + tarjetas + '</div>' : '') +
     '</section>';
   }
 

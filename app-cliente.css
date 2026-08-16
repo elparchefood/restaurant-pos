@@ -1120,21 +1120,48 @@ button.ep-slide { cursor: pointer; }
 .ep-hcard {
   flex: 0 0 auto; width: 104px; min-height: 132px;
   display: flex; flex-direction: column; justify-content: space-between;
-  padding: 11px 12px; border-radius: 15px;
-  background: #f4f1ec; color: #17161a;
+  padding: 11px 12px; border-radius: 15px; border: 0; cursor: pointer;
+  font: inherit; text-align: left; position: relative; isolation: isolate;
+  background: #3b1020 center/cover no-repeat; color: #fff;
+  transition: transform .12s ease;
 }
-.ep-hcard.acento { background: var(--accent); color: #221204; }
-.ep-hcard-n { font-size: 11px; font-weight: 700; opacity: .55; letter-spacing: .04em; }
-.ep-hcard-tit { font-size: 13.5px; font-weight: 700; line-height: 1.2; letter-spacing: -.02em; }
-.ep-hcard-sub { font-size: 11.5px; line-height: 1.25; opacity: .7; margin-top: 3px; }
+.ep-hcard:hover { transform: translateY(-2px); }
+/* Velo sobre la foto: sin él, un plato claro se come el nombre y el precio. */
+.ep-hcard::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 15px;
+  background: linear-gradient(180deg, rgba(0,0,0,.10) 0%, rgba(0,0,0,.20) 42%, rgba(0,0,0,.78) 100%);
+}
+.ep-hcard-n { font-size: 11px; font-weight: 700; opacity: .8; letter-spacing: .04em; }
+.ep-hcard-tit { font-size: 13px; font-weight: 700; line-height: 1.2; letter-spacing: -.02em; }
+.ep-hcard-sub { font-size: 11.5px; line-height: 1.25; opacity: .85; margin-top: 3px; }
+
+/* ── Las fotos del centro ──────────────────────────────────────────────
+   Son la publicidad que el restaurante sube en Promociones. Ocupan el espacio
+   grande del medio, que antes estaba vacío. */
+.ep-hero-fotos { flex: 1 1 auto; min-width: 0; display: flex; gap: 12px; }
+.ep-hfoto {
+  flex: 1 1 0; min-width: 0; padding: 0; border: 0; background: none; cursor: default;
+  border-radius: 14px; overflow: hidden;
+}
+button.ep-hfoto { cursor: pointer; }
+.ep-hfoto img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* Sin fotos subidas: se dice dónde van, en vez de dejar un hueco raro. */
+.ep-hero-fotos.vacio {
+  align-items: center; justify-content: center; border-radius: 14px;
+  border: 1px dashed rgba(255,255,255,.28); color: rgba(255,255,255,.72);
+  font-size: 12.5px; text-align: center; padding: 10px;
+}
 
 /* En pantalla angosta el mensaje va arriba y las tarjetas debajo, deslizables:
    apretar las dos columnas en un celular deja el titular ilegible. */
 @media (max-width: 620px) {
-  .ep-hero { flex-direction: column; gap: 16px; padding: 18px; }
+  .ep-hero { flex-direction: column; gap: 14px; padding: 18px; }
   .ep-hero-tit { font-size: 21px; }
   .ep-hero-cards { gap: 12px; }
   .ep-hcard { width: 96px; min-height: 118px; }
+  .ep-hero-fotos { gap: 10px; }
+  .ep-hfoto { height: 96px; }
+  .ep-hero-fotos.vacio { min-height: 72px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ep-hero-btn { transition: none; }
