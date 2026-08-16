@@ -422,3 +422,45 @@ body{margin:0;background:var(--bg);font-family:'DM Sans',system-ui,-apple-system
    con la caja y la pagina saldria recortada por un lado. */
 .pw-marco{flex-shrink:0;}
 .pw-prev-pie{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;font-size:11.5px;color:var(--ink-3);}
+
+/* ================= DESTACADOS Y PUBLICIDAD =================
+   Los tres puestos del inicio de la pagina y las imagenes que rotan. */
+
+/* LOS TRES PUESTOS. Se ven como los tres puestos que son —en fila y numerados—
+   y no como una lista: el orden importa y una lista no lo dice. */
+.pw-huecos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+@media (max-width:820px){.pw-huecos{grid-template-columns:1fr;}}
+.pw-hueco{position:relative;display:flex;align-items:center;gap:10px;min-height:74px;padding:10px 10px 10px 30px;border:1.5px dashed var(--border-hover);border-radius:14px;background:var(--bg-soft);}
+.pw-hueco.lleno{border-style:solid;border-color:var(--border);background:#fff;}
+.pw-hueco-n{position:absolute;top:8px;left:9px;width:16px;height:16px;border-radius:999px;background:var(--surface-3);color:var(--ink-3);font-size:9.5px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+.pw-hueco.lleno .pw-hueco-n{background:var(--brand-tint);color:var(--brand);}
+.pw-hueco-foto{width:46px;height:46px;border-radius:10px;flex-shrink:0;background:var(--surface-3) center/cover no-repeat;}
+.pw-hueco-tx{min-width:0;flex:1;}
+.pw-hueco-tx b{display:block;font-size:12.5px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pw-hueco-tx small{font-size:11px;color:var(--ink-3);}
+.pw-hueco-btns{display:flex;gap:4px;flex-shrink:0;}
+.pw-hueco-add{border:none;background:none;font-family:inherit;font-size:12.5px;font-weight:700;color:var(--brand);cursor:pointer;padding:0;text-align:left;}
+.pw-hueco-add:hover{text-decoration:underline;}
+.pw-hueco-auto{position:absolute;left:30px;bottom:10px;font-size:10.5px;color:var(--muted);}
+
+/* EL BUSCADOR DE PRODUCTOS. Alto fijo con desplazamiento propio: sin eso, una
+   carta de 53 productos estira el modal fuera de la pantalla y el boton de
+   cancelar queda donde no se alcanza. */
+.pw-lista{margin-top:12px;max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;}
+.pw-item{display:flex;align-items:center;gap:10px;width:100%;padding:7px 8px;border:1px solid transparent;border-radius:10px;background:none;font-family:inherit;text-align:left;cursor:pointer;}
+.pw-item:hover{background:var(--surface-2);border-color:var(--border);}
+.pw-item-foto{width:38px;height:38px;border-radius:8px;flex-shrink:0;background:var(--surface-3) center/cover no-repeat;}
+.pw-item-tx{min-width:0;}
+.pw-item-tx b{display:block;font-size:12.5px;font-weight:700;color:var(--ink);}
+.pw-item-tx small{font-size:11px;color:var(--ink-3);}
+
+/* LA PUBLICIDAD. La imagen se ve ancha, como se va a ver en la pagina: una
+   miniatura cuadrada engaña sobre como queda de verdad. */
+.pw-promos{display:flex;flex-direction:column;gap:8px;}
+.pw-promo{display:flex;align-items:center;gap:12px;padding:9px 10px;border:1px solid var(--border);border-radius:12px;background:#fff;}
+.pw-promo.off{opacity:.55;}
+.pw-promo-img{width:96px;height:44px;border-radius:8px;flex-shrink:0;background:var(--surface-3) center/cover no-repeat;}
+.pw-promo-tx{flex:1;min-width:0;}
+.pw-promo-tx b{display:block;font-size:12.5px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pw-promo-tx small{font-size:11px;color:var(--ink-3);}
+.pw-promo-btns{display:flex;gap:4px;flex-shrink:0;}

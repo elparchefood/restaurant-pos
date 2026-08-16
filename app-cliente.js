@@ -1345,6 +1345,29 @@
   function productosDelBanner() {
     var fuera = /bebida|adicion|adición|salsa|extra/i;
     var porCat = [];
+
+    /* LOS QUE ELIGIÓ EL DUEÑO MANDAN (16-ago). Vienen como una lista de ids en
+       orden desde la pantalla "Mi página web". Si eligió menos de tres, los
+       puestos que falten se llenan solos como siempre — así la página nunca
+       queda a medias por dejar un puesto sin escoger. */
+    var pedidos = (S.negocio && S.negocio.destacados) || [];
+    var elegidos = [], yaVan = {};
+    if (pedidos.length) {
+      pedidos.forEach(function (id) {
+        (S.carta || []).forEach(function (c, ci) {
+          (c.productos || []).forEach(function (p, pi) {
+            if (String(p.id) === String(id) && !yaVan[id]) {
+              yaVan[id] = 1;
+              elegidos.push({ p: p, cat: c.categoria, precio: precioDesde(p), ci: ci, pi: pi });
+            }
+          });
+        });
+      });
+      // Un producto que el dueño eligió y luego borró de la carta no aparece:
+      // no se avisa aquí, se rellena y ya. El aviso va en la pantalla del dueño.
+      if (elegidos.length >= 3) return elegidos.slice(0, 3);
+    }
+
     (S.carta || []).forEach(function (c, ci) {
       if (fuera.test(c.categoria || '')) return;
       var conFoto = (c.productos || []).filter(function (p) { return p && p.foto; });
@@ -1356,7 +1379,9 @@
                     ci: ci, pi: (c.productos || []).indexOf(mejor) });
     });
     porCat.sort(function (a, b) { return b.precio - a.precio; });
-    return porCat.slice(0, 3);
+    // Los elegidos van primero; el resto de puestos se completa solo.
+    var libres = porCat.filter(function (x) { return !yaVan[String(x.p.id)]; });
+    return elegidos.concat(libres).slice(0, 3);
   }
 
   /* Precio "desde": con presentaciones, el más barato de todas; si no, el del

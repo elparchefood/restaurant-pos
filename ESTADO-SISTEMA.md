@@ -5907,3 +5907,24 @@ Dos ajustes que pidio Sergio despues de ver la pantalla.
 - **Medido**: marco 268x550 en celular y 300x226 en computador, los dos caben en la columna sin recortes ni desbordes; las 4 pestañas pintan sus tarjetas.
 
 **Trampa que me mordio al editar** (para la proxima): `str.find` devuelve -1 cuando no encuentra, y Python lee ese -1 como "empieza por el final". Un corte `s[:i] + s[j:]` con la j mal calculada se llevo TODO el resto del archivo sin quejarse. Los cortes por marcador van entre dos marcadores firmes y con `assert 0 < i < j`.
+
+## 166. Elegir los destacados y subir la publicidad (16-ago) — pestaña "Que ve el cliente"
+Lo que estaba pendiente desde las entradas 157 y 158: hasta hoy los tres destacados se escogian solos y la publicidad se metia a mano en la base.
+
+**LOS TRES DESTACADOS** — columna nueva `tenants.web_destacados` (jsonb, lista de ids EN ORDEN, maximo 3).
+- **Una lista de ids y no una marca en `pos_products`** porque el ORDEN importa (son tres puestos y el primero es el que mas se mira) y una columna booleana no guarda orden. Ademas asi el limite de tres vive en un solo sitio.
+- **VACIO SIGUE SIENDO AUTOMATICO**: un restaurante que nunca entre aqui sigue viendo su pagina llena igual que hoy. Y si elige uno solo, los otros dos puestos se llenan solos — asi la pagina nunca queda a medias por dejar un puesto sin escoger.
+- **La lista se guarda con los huecos incluidos**: si se guardaran solo los llenos, quitar el primero correria los otros dos de puesto sin que nadie lo hubiera pedido.
+- **El mismo plato no puede estar dos veces**: al ponerlo en un puesto se quita del otro. Repetido se ve como un error del sistema.
+- **En el buscador van primero los que TIENEN foto**: un destacado sin foto se ve como un hueco gris en la pagina, que es peor que no destacar nada.
+- **Si eligio algo que despues borro o agoto, se avisa AQUI**: en la pagina del cliente ese puesto se rellena solo y el dueño no se enteraria nunca.
+- `fn_web_publica` devuelve `destacados` y `app-cliente.js` los respeta.
+- **Comprobado con la funcion de verdad de la pagina**: con tres elegidos salen exactamente esos tres en ese orden (incluidas bebidas, que el automatico excluye a proposito — prueba de que manda la eleccion); con uno elegido sale ese y dos rellenados; con ninguno, todo automatico como siempre. La base quedo como estaba.
+
+**LA PUBLICIDAD** — sobre `pos_promos`, que ya existia pero no la manejaba ninguna pantalla.
+- Subir, encender/apagar, reordenar y quitar. La imagen se ve ANCHA en la lista, como se va a ver en la pagina: una miniatura cuadrada engaña sobre como queda de verdad.
+- **La imagen se encoge a 1.400 px ANTES de subirla y va al almacen** (`chat-media/promos/<tenant>/`), nunca a la base: una foto de 2 MB dentro de una fila tumba las consultas de la pagina. Mismo criterio que las fotos de producto.
+- **Al quitar una promo la imagen se queda en el almacen** a proposito: borrarla es lo unico que no tiene vuelta atras y ocupa muy poco. La fila si se va.
+- RLS de `pos_promos` ya permitia todo al dueño (`current_tenant_id() = tenant_id`), no hubo que tocar permisos.
+- **La vista previa se recarga** despues de cada cambio, asi que se ve el efecto de una vez.
+- **PENDIENTE**: las dos promos que hay ("Imagen de prueba 1 y 2") son marcadores de posicion que puse yo; Sergio ya las puede quitar desde la pantalla.

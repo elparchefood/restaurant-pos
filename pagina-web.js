@@ -36,7 +36,7 @@
   var TABS = [
     { k: 'pagina',  t: 'Tu página',        secs: ['direccion', 'publicar'] },
     { k: 'horario', t: 'Cuándo abres',     secs: ['estado', 'mano', 'cierres', 'pedidos'] },
-    { k: 've',      t: 'Qué ve el cliente', secs: ['ve'] },
+    { k: 've',      t: 'Qué ve el cliente', secs: ['ve', 'destacados', 'publicidad'] },
     { k: 'prueba',  t: 'Probar y medir',   secs: ['probar', 'comova'] },
   ];
 
@@ -46,6 +46,10 @@
     estado: null,     // lo que devuelve fn_web_estado
     horarios: null,   // los de ia_config
     stats: null,
+    productos: null,  // la carta, para el buscador de destacados
+    promos: null,     // las imagenes de publicidad
+    buscar: '',       // lo que se escribio en el buscador de productos
+    hueco: 0,         // que puesto de los tres se esta llenando
     prev: 'movil',
     tab: 'pagina',
     recarga: 0,       // sube cada vez que se guarda algo, para refrescar la vista previa
@@ -118,7 +122,8 @@
     if (!S.t.web_visible || typeof S.t.web_visible !== 'object') S.t.web_visible = {};
     if (!Array.isArray(S.t.web_cierres)) S.t.web_cierres = [];
 
-    await Promise.all([cargarMarca(tenantId), cargarHorario(tenantId), cargarEstado(tenantId), cargarStats(tenantId)]);
+    await Promise.all([cargarMarca(tenantId), cargarHorario(tenantId), cargarEstado(tenantId),
+                       cargarStats(tenantId), cargarProductos(tenantId), cargarPromos(tenantId)]);
     pintar();
   }
 
@@ -151,6 +156,31 @@
     } catch (e) { S.estado = null; }
   }
 
+  /* La carta, para poder elegir los destacados. Solo lo que se necesita para
+     pintar una lista: pedir la carta entera con presentaciones y variables seria
+     traer megas para mostrar un nombre y una foto. */
+  async function cargarProductos(id) {
+    try {
+      var r = await sb().from('pos_products')
+        .select('id,name,photo_url,image_url,price,available,category_id')
+        .eq('tenant_id', id).order('name');
+      var c = await sb().from('pos_categories').select('id,name').eq('tenant_id', id);
+      var cats = {};
+      (c.data || []).forEach(function (x) { cats[x.id] = x.name; });
+      S.productos = (r.data || []).map(function (p) {
+        return { id: p.id, nombre: p.name, foto: p.photo_url || p.image_url || '',
+                 precio: p.price, hay: p.available !== false, cat: cats[p.category_id] || '' };
+      });
+    } catch (e) { S.productos = []; }
+  }
+
+  async function cargarPromos(id) {
+    try {
+      var r = await sb().from('pos_promos').select('*').eq('tenant_id', id).order('orden').order('id');
+      S.promos = r.data || [];
+    } catch (e) { S.promos = []; }
+  }
+
   async function cargarStats(id) {
     S.stats = { clientes: null, semana: null, pedidos: null };
     var s = sb(), hace7 = new Date(Date.now() - 7 * 864e5).toISOString();
@@ -180,7 +210,8 @@
     var pinta = {
       direccion: seccionDireccion, publicar: seccionPublicar, estado: seccionEstado,
       mano: seccionMano, cierres: seccionCierres, pedidos: seccionPedidos,
-      ve: seccionVe, probar: seccionProbar, comova: seccionComoVa,
+      ve: seccionVe, destacados: seccionDestacados, publicidad: seccionPublicidad,
+      probar: seccionProbar, comova: seccionComoVa,
     };
     var tab = TABS.filter(function (x) { return x.k === S.tab; })[0] || TABS[0];
 
@@ -386,6 +417,83 @@
       }).join('') + '</div></section>';
   }
 
+  // 7b · LOS DESTACADOS
+  /* Tres puestos, en orden: el primero es el que mas se mira. Un puesto vacio no
+     es un error — se llena solo con el plato mas caro con foto de una categoria,
+     que es lo que la pagina ha venido haciendo desde el principio. */
+  function seccionDestacados() {
+    var ids = S.t.web_destacados || [];
+    var libres = 3 - ids.filter(Boolean).length;
+    var huecos = '';
+    for (var i = 0; i < 3; i++) {
+      var p = productoDe(ids[i]);
+      huecos += '<div class="pw-hueco' + (p ? ' lleno' : '') + '">' +
+        '<span class="pw-hueco-n">' + (i + 1) + '</span>' +
+        (p
+          ? (p.foto ? '<span class="pw-hueco-foto" style="background-image:url(' + esc(p.foto) + ')"></span>'
+                    : '<span class="pw-hueco-foto"></span>') +
+            '<span class="pw-hueco-tx"><b>' + esc(p.nombre) + '</b>' +
+              '<small>' + esc(p.cat || '') + (p.hay ? '' : ' · agotado') + '</small></span>' +
+            '<span class="pw-hueco-btns">' +
+              (i > 0 ? '<button class="lm-icon-sm" data-dsub="' + i + '" title="Subir">↑</button>' : '') +
+              '<button class="lm-icon-sm" data-dquitar="' + i + '" title="Quitar">✕</button>' +
+            '</span>'
+          : '<button class="pw-hueco-add" data-dponer="' + i + '">+ Elegir un producto</button>' +
+            '<span class="pw-hueco-auto">Ahora lo escoge el sistema</span>') +
+      '</div>';
+    }
+    /* Si eligio un producto que despues borro o agoto, hay que decirlo AQUI: en
+       la pagina del cliente el puesto se rellena solo y el dueño no se entera. */
+    var perdidos = ids.filter(Boolean).filter(function (id) { return !productoDe(id); }).length;
+    var agotados = ids.filter(Boolean).map(productoDe).filter(function (p) { return p && !p.hay; }).length;
+
+    return '<section class="mw-card">' +
+      '<div class="mw-card-head"><div><h2 class="mw-h">Productos destacados</h2>' +
+        '<p class="mw-sub">Los tres platos grandes del inicio de tu página. Ponlos en el orden que quieras: el primero es el que más se mira.</p></div>' +
+        (libres < 3 ? '<button class="lm-btn-ghost sm" data-a="dest-limpiar">Volver a automático</button>' : '') +
+      '</div>' +
+      '<div class="pw-huecos">' + huecos + '</div>' +
+      (perdidos ? '<div class="mw-note warn"><span>' + perdidos + ' de los que elegiste ya no está en tu carta. Ese puesto lo está llenando el sistema.</span></div>' : '') +
+      (agotados ? '<div class="mw-note warn"><span>Hay ' + agotados + ' destacado marcado como agotado. El cliente lo ve igual, pero no lo va a poder pedir.</span></div>' : '') +
+      '</section>';
+  }
+
+  function productoDe(id) {
+    if (!id) return null;
+    return (S.productos || []).filter(function (p) { return String(p.id) === String(id); })[0] || null;
+  }
+
+  // 7c · LA PUBLICIDAD
+  /* Las imagenes que rotan en el cuadro del inicio. Se guardan en el almacen y
+     en la base va solo la direccion: una imagen dentro de la fila viajaria en
+     cada visita a la pagina. */
+  function seccionPublicidad() {
+    var lista = S.promos || [];
+    var cuerpo = lista.length
+      ? '<div class="pw-promos">' + lista.map(function (p, i) {
+          return '<div class="pw-promo' + (p.activo ? '' : ' off') + '">' +
+            '<span class="pw-promo-img"' + (p.imagen ? ' style="background-image:url(' + esc(p.imagen) + ')"' : '') + '></span>' +
+            '<div class="pw-promo-tx"><b>' + esc(p.titulo || 'Sin título') + '</b>' +
+              '<small>' + (p.activo ? 'Se está mostrando' : 'Apagada') + '</small></div>' +
+            '<div class="pw-promo-btns">' +
+              (i > 0 ? '<button class="lm-icon-sm" data-psub="' + i + '" title="Subir">↑</button>' : '') +
+              '<button class="lm-icon-sm" data-pver="' + i + '" title="' + (p.activo ? 'Apagar' : 'Encender') + '">' + (p.activo ? '◉' : '○') + '</button>' +
+              '<button class="lm-icon-sm" data-pdel="' + i + '" title="Quitar">✕</button>' +
+            '</div></div>';
+        }).join('') + '</div>'
+      : '<div class="mw-empty"><div class="mw-empty-t">Todavía no has subido publicidad</div>' +
+        '<div class="mw-empty-s">Sin imágenes, ese espacio de tu página queda vacío.</div></div>';
+
+    return '<section class="mw-card">' +
+      '<div class="mw-card-head"><div><h2 class="mw-h">Publicidad</h2>' +
+        '<p class="mw-sub">Las imágenes que van rotando en el inicio de tu página. Se cambian solas cada 6 segundos.</p></div>' +
+        '<button class="lm-btn-ghost sm" data-a="promo-nueva">Subir imagen</button></div>' +
+      cuerpo +
+      '<input type="file" id="pw-promo-file" accept="image/*" hidden>' +
+      '<div class="mw-note"><span>Que sean anchas, tipo aviso: se ven mejor a lo largo que cuadradas. Se muestran hasta 5.</span></div>' +
+      '</section>';
+  }
+
   // 9 · PROBAR EL ACCESO
   function seccionProbar() {
     return '<section class="mw-card">' +
@@ -508,6 +616,29 @@
     document.querySelectorAll('[data-del]').forEach(function (b) {
       b.onclick = function () { quitarCierre(Number(b.dataset.del)); };
     });
+    document.querySelectorAll('[data-dponer]').forEach(function (b) {
+      b.onclick = function () { S.hueco = Number(b.dataset.dponer); S.buscar = ''; modalProducto(); };
+    });
+    document.querySelectorAll('[data-dquitar]').forEach(function (b) {
+      b.onclick = function () { ponerDestacado(Number(b.dataset.dquitar), null); };
+    });
+    document.querySelectorAll('[data-dsub]').forEach(function (b) {
+      b.onclick = function () { subirDestacado(Number(b.dataset.dsub)); };
+    });
+    document.querySelectorAll('[data-psub]').forEach(function (b) {
+      b.onclick = function () { subirPromo(Number(b.dataset.psub)); };
+    });
+    document.querySelectorAll('[data-pver]').forEach(function (b) {
+      b.onclick = function () { alternarPromo(Number(b.dataset.pver)); };
+    });
+    document.querySelectorAll('[data-pdel]').forEach(function (b) {
+      b.onclick = function () { quitarPromo(Number(b.dataset.pdel)); };
+    });
+    var f = $('pw-promo-file');
+    if (f) f.onchange = function () {
+      if (this.files && this.files[0]) subirImagen(this.files[0]);
+      this.value = '';   // para poder escoger la MISMA imagen otra vez
+    };
   }
 
   function accion(a) {
@@ -525,6 +656,8 @@
     else if (a === 'comprobar') { verificarCodigo(); }
     else if (a === 'prev-recargar') { S.recarga++; pintar(); }
     else if (a === 'prev-abrir') { window.open(urlPagina(), '_blank', 'noopener'); }
+    else if (a === 'dest-limpiar') { guardar({ web_destacados: [] }, 'Los destacados vuelven a escogerse solos'); }
+    else if (a === 'promo-nueva') { $('pw-promo-file').click(); }
   }
 
   /* Un interruptor se bloquea mientras se guarda. Sin eso, dos clics seguidos
@@ -567,6 +700,165 @@
     pintar();
     if (msg) toast(msg);
     return true;
+  }
+
+  // ── Los destacados ─────────────────────────────────────────────────
+  /* La lista siempre se guarda con tres puestos, aunque haya vacios: si se
+     guardaran solo los llenos, quitar el primero correría los otros dos de
+     puesto sin que nadie lo hubiera pedido. */
+  function tresPuestos() {
+    var a = (S.t.web_destacados || []).slice(0, 3);
+    while (a.length < 3) a.push(null);
+    return a;
+  }
+
+  async function ponerDestacado(i, id) {
+    var a = tresPuestos();
+    // Si ya estaba en otro puesto se quita de allá: el mismo plato dos veces
+    // en la fila se ve como un error del sistema.
+    if (id) a = a.map(function (x) { return String(x) === String(id) ? null : x; });
+    a[i] = id;
+    var limpia = a.filter(function (x, n) { return x || n < ultimoLleno(a); });
+    await guardar({ web_destacados: limpia }, id ? 'Destacado puesto' : 'Puesto libre otra vez');
+  }
+  function ultimoLleno(a) {
+    for (var i = a.length - 1; i >= 0; i--) if (a[i]) return i + 1;
+    return 0;
+  }
+
+  async function subirDestacado(i) {
+    var a = tresPuestos(), t = a[i];
+    a[i] = a[i - 1]; a[i - 1] = t;
+    await guardar({ web_destacados: a.filter(function (x, n) { return x || n < ultimoLleno(a); }) }, 'Orden cambiado');
+  }
+
+  function modalProducto() {
+    abrir('<div class="cc-modal mw-mo">' +
+      cabezaModal('Elegir un producto', 'Va en el puesto ' + (S.hueco + 1) + ' de tu página.') +
+      '<div class="mw-mo-body">' +
+        '<input class="cc-input" id="pw-buscar" placeholder="Busca por nombre…" value="' + esc(S.buscar) + '">' +
+        '<div class="pw-lista" id="pw-lista">' + listaProductos() + '</div>' +
+      '</div>' +
+      '<div class="mw-mo-foot"><button class="lm-btn-ghost" data-cerrar>Cancelar</button></div>' +
+    '</div>');
+    var b = $('pw-buscar');
+    b.focus();
+    b.oninput = function () {
+      S.buscar = this.value;
+      $('pw-lista').innerHTML = listaProductos();
+      engancharLista();
+    };
+    engancharLista();
+  }
+
+  function listaProductos() {
+    var q = (S.buscar || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    /* Primero los que TIENEN foto: un destacado sin foto se ve como un hueco
+       gris en la página, que es peor que no destacar nada. */
+    var lista = (S.productos || []).filter(function (p) {
+      if (!q) return true;
+      return p.nombre.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').indexOf(q) >= 0;
+    }).sort(function (a, b) { return (b.foto ? 1 : 0) - (a.foto ? 1 : 0); });
+
+    if (!lista.length) return '<div class="mw-empty"><div class="mw-empty-t">Nada con ese nombre</div></div>';
+    return lista.slice(0, 60).map(function (p) {
+      return '<button class="pw-item" data-elegir="' + esc(p.id) + '">' +
+        '<span class="pw-item-foto"' + (p.foto ? ' style="background-image:url(' + esc(p.foto) + ')"' : '') + '></span>' +
+        '<span class="pw-item-tx"><b>' + esc(p.nombre) + '</b>' +
+          '<small>' + esc(p.cat || '') + (p.foto ? '' : ' · sin foto') + (p.hay ? '' : ' · agotado') + '</small></span>' +
+      '</button>';
+    }).join('');
+  }
+
+  function engancharLista() {
+    document.querySelectorAll('[data-elegir]').forEach(function (b) {
+      b.onclick = function () { cerrarModal(); ponerDestacado(S.hueco, b.dataset.elegir); };
+    });
+  }
+
+  // ── La publicidad ──────────────────────────────────────────────────
+  /* La imagen se encoge ANTES de subirla y va al almacén, nunca a la base: una
+     foto de 2 MB dentro de una fila tumba las consultas de la página. */
+  function encoger(file) {
+    return new Promise(function (listo) {
+      try {
+        var img = new Image();
+        img.onload = function () {
+          var max = 1400, w = img.width, h = img.height;
+          if (w > max) { h = Math.round(h * max / w); w = max; }
+          var cv = document.createElement('canvas');
+          cv.width = w; cv.height = h;
+          cv.getContext('2d').drawImage(img, 0, 0, w, h);
+          cv.toBlob(function (b) { listo(b || file); }, 'image/jpeg', 0.82);
+        };
+        img.onerror = function () { listo(file); };
+        img.src = URL.createObjectURL(file);
+      } catch (e) { listo(file); }
+    });
+  }
+
+  async function subirImagen(file) {
+    guardando(true);
+    try {
+      var blob = await encoger(file);
+      var nombre = 'promos/' + S.t.id + '/' + Date.now() + '.jpg';
+      var up = await sb().storage.from('chat-media').upload(nombre, blob, { upsert: true, contentType: 'image/jpeg' });
+      if (up.error) throw up.error;
+      var url = sb().storage.from('chat-media').getPublicUrl(nombre).data.publicUrl;
+
+      var orden = (S.promos || []).length + 1;
+      var r = await sb().from('pos_promos').insert([{
+        tenant_id: S.t.id, titulo: file.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'Publicidad',
+        imagen: url, activo: true, orden: orden,
+      }]).select('*');
+      if (r.error) throw r.error;
+      S.promos = (S.promos || []).concat(r.data);
+      S.recarga++;
+      pintar();
+      toast('Imagen subida');
+    } catch (e) {
+      console.error('[publicidad]', e);
+      toast('No se pudo subir la imagen: ' + ((e && e.message) || e));
+    } finally { guardando(false); }
+  }
+
+  async function alternarPromo(i) {
+    var p = S.promos[i];
+    guardando(true);
+    var r = await sb().from('pos_promos').update({ activo: !p.activo }).eq('id', p.id).select('id');
+    guardando(false);
+    if (r.error) { toast('No se pudo guardar: ' + r.error.message); return; }
+    p.activo = !p.activo;
+    S.recarga++;
+    pintar();
+    toast(p.activo ? 'Se va a mostrar' : 'Ya no se muestra');
+  }
+
+  async function quitarPromo(i) {
+    var p = S.promos[i];
+    guardando(true);
+    var r = await sb().from('pos_promos').delete().eq('id', p.id);
+    guardando(false);
+    if (r.error) { toast('No se pudo quitar: ' + r.error.message); return; }
+    /* La imagen se queda en el almacén a propósito: borrarla es lo único que no
+       tiene vuelta atrás, y ocupa muy poco. La fila sí se va. */
+    S.promos.splice(i, 1);
+    S.recarga++;
+    pintar();
+    toast('Imagen quitada');
+  }
+
+  async function subirPromo(i) {
+    var a = S.promos[i], b = S.promos[i - 1];
+    guardando(true);
+    await sb().from('pos_promos').update({ orden: i }).eq('id', a.id);
+    await sb().from('pos_promos').update({ orden: i + 1 }).eq('id', b.id);
+    guardando(false);
+    a.orden = i; b.orden = i + 1;
+    S.promos[i] = b; S.promos[i - 1] = a;
+    S.recarga++;
+    pintar();
+    toast('Orden cambiado');
   }
 
   // ── Modales ────────────────────────────────────────────────────────
