@@ -5655,3 +5655,8 @@ Cuatro fallas reales de turno, cazadas y corregidas en caliente (delay-reply v29
 - **Arreglo**: notas en el formato canonico de TODO el sistema — direccion [barrio:X] [tel:Y] — y helper telLocalVT (573113918394 -> 3113918394) para la busqueda/creacion del cliente y la marca. El barrio va en [barrio:] (ya no en texto suelto como quedo en la v31 de esta manana).
 - **Regla para el futuro**: cualquier funcion que cree pedidos DEBE escribir notes con direccion [barrio:X] [tel:Y] — recibo, comanda y puntos dependen de ese formato.
 - **Dato corregido**: pedido de Isabella (5e316cfc) con notes canonicas y cliente_id enlazado; los puntos saldran solos al cerrar el pedido (el trigger corre al pasar a paid/completed), sobre la venta corregida: 50.
+
+## 137. Historial de puntos reconstruido (15-ago, parte 4)
+- **Sintoma (Isabella y 38 clientes mas)**: el saldo de puntos estaba bien, pero el historial mostraba solo los movimientos recientes — los puntos ganados ANTES de que existiera pos_puntos_movimientos solo vivian en el saldo (pos_puntos) y la pantalla los hacia ver como "solo los de hoy".
+- **Arreglo (solo datos, sin codigo)**: por cada cliente cuyo saldo superaba la suma de sus movimientos se inserto UN movimiento de acumulacion por la diferencia — detalle "Compras anteriores (historial reconstruido)", quien=sistema, fechado ANTES de su primer movimiento real (o en el updated_at del saldo si no tenia ninguno) y con aviso='previo' para que el cron de avisos JAMAS les escriba por esto. 39 insertados; verificacion: 0 clientes descuadrados.
+- **Nota**: los puntos de hoy de cada pedido siguen saliendo solos al cerrarlo (trigger en paid/completed); esto solo repone el pasado en el historial.
