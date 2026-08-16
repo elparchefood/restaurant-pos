@@ -259,7 +259,8 @@
     luna: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
     tarjeta: 'M2 6h20v12H2z|M2 10h20',
     reloj: 'M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18z|M12 7v5l3 2',
-    camara: 'M4 8h3l1.5-2h7L17 8h3v11H4z|M12 11a3.2 3.2 0 1 1 0 6.4 3.2 3.2 0 0 1 0-6.4z'
+    camara: 'M4 8h3l1.5-2h7L17 8h3v11H4z|M12 11a3.2 3.2 0 1 1 0 6.4 3.2 3.2 0 0 1 0-6.4z',
+    flecha: 'M5 12h13|M13 6l6 6-6 6'
   };
   function ico(n, t) {
     t = t || 20;
@@ -634,16 +635,24 @@
     '</div>';
 
     var peds = c.pedidos || [];
-    var actividad = '<div class="ep-lista">' +
-      '<div class="ep-tile-lbl" style="font-size:17px;margin-bottom:4px">Tu actividad</div>' +
-      (peds.length ? peds.map(function (p) {
+    /* EL HISTORIAL, AL LADO DE LA GRÁFICA (16-ago). Antes era una lista suelta
+       al final de la página; ahora es un bloque con su encabezado y del mismo
+       alto que Tu actividad. Se muestran los últimos tres: los que caben sin
+       que el bloque crezca y desalinee la fila. */
+    var historial = '<div class="ep-panel ep-lista">' +
+      '<div class="ep-lista-hd">' +
+        '<div><div class="ep-tile-lbl">Historial</div>' +
+        '<div class="ep-lista-sub">' + (peds.length ? 'Tus pedidos' : 'Todavía sin pedidos') + '</div></div>' +
+        (peds.length > 3 ? '<button class="ep-lista-ver" data-ir="pedido">Ver todos</button>' : '') +
+      '</div>' +
+      (peds.length ? peds.slice(0, 3).map(function (p) {
         var f = new Date(p.fecha);
         var donde = p.canal === 'domicilio' ? 'Domicilio' : (p.canal === 'salon' ? 'En el local' : 'Para llevar');
         return '<div class="ep-li"><div class="ep-li-ico">' + ico('bolsa', 16) + '</div>' +
           '<div class="ep-li-b"><div class="ep-li-t">Pedido</div>' +
           '<div class="ep-li-s">' + f.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) + ' · ' + donde + '</div></div>' +
           '<div class="ep-li-m">' + COP(p.total) + '</div></div>';
-      }).join('') : '<div class="ep-vacio">Todavía no has hecho tu primer pedido.</div>') +
+      }).join('') : '<div class="ep-vacio">Aquí verás tus pedidos cuando hagas el primero.</div>') +
     '</div>';
 
     return '<div class="ep-saludo">' +
@@ -661,9 +670,11 @@
         '</div>' +
       '</div>' +
       '<div class="ep-over">' + saldo + puntos + tarjetaPublicidad() + '</div>' +
-      filaDeHoy() +
-      '<div class="ep-mid">' + panelBilletera(c, n) + panelGrafica(c) + '</div>' +
-      acts + actividad;
+      /* Los destacados (cuadro 2x2) con la billetera al lado, y debajo la
+         gráfica junto al historial. Cada zona es una fila de la página. */
+      '<div class="ep-zona-hoy">' + filaDeHoy() + panelBilletera(c, n) + '</div>' +
+      '<div class="ep-mid">' + panelGrafica(c) + historial + '</div>' +
+      acts;
   }
 
   /* ── Las demás pantallas ──────────────────────────────────────────
@@ -1342,11 +1353,16 @@
   function rangoBarra(n) {
     if (!n) return '';
     var pct = Number(n.progreso) || 0;
-    return '<button class="ep-rangob" data-ir="puntos" title="Tus puntos y tu rango">' +
+    /* "Tu nivel" va ESCRITO, no solo en un tooltip: un `title` del navegador
+       tarda en salir y en el celular no existe, así que el cliente nunca se
+       enteraría de qué es esa barra. El hover solo confirma que se puede tocar. */
+    return '<button class="ep-rangob" data-ir="puntos" title="Mira tus puntos y cómo subir de nivel">' +
+      '<span class="ep-rangob-et">Tu nivel</span>' +
       '<span class="ep-rangob-nom" style="color:' + esc(n.color || '#e3b04b') + '">' +
         ico('estrella', 13) + ' ' + esc(n.nombre || '') + '</span>' +
       '<span class="ep-rangob-bar"><i style="width:' + pct + '%;background:linear-gradient(90deg,#8f2242,#e3b04b)"></i></span>' +
       '<span class="ep-rangob-fal">' + (n.siguiente ? pct + '% para ' + esc(n.siguiente) : 'Nivel más alto') + '</span>' +
+      '<span class="ep-rangob-ir">Ver mis puntos ' + ico('flecha', 13) + '</span>' +
     '</button>';
   }
 

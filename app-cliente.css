@@ -290,7 +290,10 @@ html.tema-claro .ep-nav.on, html:not(.tema-oscuro) .ep-nav.on {
 html.tema-claro .ep-act.primary, html:not(.tema-oscuro) .ep-act.primary { background: #17161a; color: #fff; }
 
 /* ── Actividad ── */
-.ep-lista { margin-top: 22px; }
+/* Ya no cuelga al final de la pagina: ahora es una tarjeta al lado de la
+   grafica, con el mismo aspecto (.ep-panel) y sin margen propio. */
+.ep-lista { margin-top: 0; display: flex; flex-direction: column; }
+.ep-lista .ep-li:last-child { border-bottom: 0; }
 .ep-li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.045); }
 html.tema-claro .ep-li, html:not(.tema-oscuro) .ep-li { border-bottom-color: rgba(23,22,26,.08); }
 .ep-li-ico {
@@ -1225,14 +1228,32 @@ button.ep-hfoto { cursor: pointer; }
 
 /* ── El rango, al lado del nombre ─────────────────────────────────── */
 .ep-rangob {
-  flex: 1 1 auto; min-width: 0; max-width: 420px;
+  /* Ocupa TODO el ancho que sobra entre el nombre y los botones: era una
+     barrita corta perdida en el medio y el espacio libre no servía a nadie. */
+  flex: 1 1 auto; min-width: 0;
   display: flex; align-items: center; gap: 12px;
-  margin: 0 8px; padding: 9px 15px; cursor: pointer;
+  margin: 0 8px; padding: 9px 16px; cursor: pointer;
   background: var(--surf); border: 1px solid var(--line); border-radius: 999px;
   font: inherit; color: var(--ink); text-align: left;
-  transition: border-color .15s ease;
+  transition: border-color .15s ease, background .15s ease;
 }
-.ep-rangob:hover { border-color: var(--accent); }
+.ep-rangob:hover { border-color: var(--accent); background: var(--surf2); }
+/* Al pasar el mouse aparece a dónde lleva; en el celular no hay hover, y por
+   eso el "Tu nivel" de la izquierda está siempre escrito. */
+.ep-rangob-et {
+  font-size: 11px; color: var(--sub); white-space: nowrap;
+  padding-right: 12px; border-right: 1px solid var(--line);
+}
+.ep-rangob-ir {
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+  font-size: 11.5px; color: var(--accent); opacity: 0; transform: translateX(-4px);
+  transition: opacity .15s ease, transform .15s ease;
+}
+.ep-rangob:hover .ep-rangob-ir { opacity: 1; transform: none; }
+@media (max-width: 760px) {
+  /* Sin espacio de sobra: manda la barra, lo demás se recorta. */
+  .ep-rangob-ir { display: none; }
+}
 .ep-rangob-nom { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; white-space: nowrap; }
 .ep-rangob-bar { flex: 1 1 auto; min-width: 40px; height: 6px; border-radius: 999px; background: var(--surf2); overflow: hidden; }
 .ep-rangob-bar i { display: block; height: 100%; border-radius: 999px; }
@@ -1268,9 +1289,11 @@ button.ep-pub-foto { cursor: pointer; }
 .ep-pub-hint { font-size: 11.5px; color: var(--dim); }
 
 /* ── La fila de hoy: el mensaje y tres platos ─────────────────────── */
+/* CUADRO 2x2, no fila (16-ago). El mensaje y el primer plato arriba; los otros
+   dos debajo. Así el bloque es cuadrado y deja sitio a la billetera al lado. */
 .ep-hoy {
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px; margin: 16px 0 4px;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px; margin: 0;
 }
 /* El mensaje ancla la fila por la izquierda: es la única con color, y por eso
    el ojo empieza a leer ahí antes de mirar los platos. */
@@ -1306,7 +1329,7 @@ button.ep-pub-foto { cursor: pointer; }
 .ep-hoy-pre { display: block; margin-top: 3px; font-size: 12px; color: var(--sub); }
 
 @media (max-width: 900px) {
-  .ep-hoy { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .ep-hoy { gap: 12px; }
   .ep-hoy-msg { grid-column: 1 / -1; }
   .ep-hoy-btns { flex-direction: row; }
   .ep-hoy-b1, .ep-hoy-b2 { flex: 1; }
@@ -1314,4 +1337,25 @@ button.ep-pub-foto { cursor: pointer; }
 @media (max-width: 560px) {
   /* En el celular el rango no cabe al lado del nombre sin apretarlo todo. */
   .ep-rangob { order: 3; flex-basis: 100%; max-width: none; margin: 10px 0 0; }
+}
+
+/* ══ EL NUEVO ORDEN DEL INICIO (16-ago) ══════════════════════════════════════
+   Arriba el resumen; después los destacados en cuadro con la billetera al
+   lado; y abajo la gráfica junto al historial. */
+.ep-zona-hoy { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
+
+/* El historial: mismo bloque que la gráfica, con su encabezado propio. */
+.ep-lista-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.ep-lista-sub { font-size: 13px; color: var(--sub); margin-top: 2px; }
+.ep-lista-ver {
+  flex: none; background: none; border: 0; padding: 4px 2px; cursor: pointer;
+  font: inherit; font-size: 12.5px; color: var(--accent);
+}
+.ep-lista-ver:hover { text-decoration: underline; }
+
+@media (min-width: 1000px) {
+  /* Los destacados mandan (2 partes) y la billetera acompaña (1 parte); las dos
+     columnas se estiran igual para que la fila quede pareja. */
+  .ep-zona-hoy { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; align-items: stretch; }
+  .ep-mid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 }
