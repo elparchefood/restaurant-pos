@@ -199,20 +199,47 @@ Deno.serve(async (req) => {
           await marcar({ aviso: "enviado", aviso_at: new Date().toISOString(), aviso_error: null });
           enviados++;
 
-          // Copia en el chat del Front, si ese cliente tiene conversación.
+          // Copia en el chat del Front — SIEMPRE (pedido de Sergio, 15-ago):
           // origen 'sistema': lo mandó el sistema, no Paco ni una persona.
+          // Si el cliente no tiene conversación (mesa, venta rápida), se CREA:
+          // Sergio necesita abrir el chat y ver con sus ojos que el aviso salió.
+          // Las difusiones masivas siguen sin ensuciar la bandeja — esto solo
+          // aplica al aviso de puntos, que es uno por compra.
           try {
             const tel10 = tel.slice(-10);
+            const texto = textoLegible(d.cuerpo, params);
             const convR = await sbGet(
               `/rest/v1/chat_conversations?branch_id=eq.${m.branch_id}&channel=eq.whatsapp` +
               `&contact_handle=like.*${tel10}&select=id,tenant_id&limit=1`,
             ) as Array<Record<string, unknown>> | null;
-            if (convR && convR[0]) {
+            let convFila = convR?.[0] as Record<string, unknown> | undefined;
+            if (!convFila) {
+              let nombreConv = tel10;
+              try {
+                const cN = await sbGet(`/rest/v1/pos_clientes?telefono=eq.${tel10}&tenant_id=eq.${m.tenant_id}&select=nombre&limit=1`) as Array<Record<string, unknown>> | null;
+                if (cN?.[0]?.nombre) nombreConv = String(cN[0].nombre);
+              } catch { /* con el numero basta */ }
+              const creada = await fetch(`${SUPABASE_URL}/rest/v1/chat_conversations`, {
+                method: "POST", headers: { ...H, "Prefer": "return=representation" },
+                body: JSON.stringify({
+                  tenant_id: m.tenant_id, branch_id: m.branch_id, channel: "whatsapp",
+                  contact_handle: `57${tel10}`, contact_name: nombreConv, status: "open",
+                }),
+              });
+              if (creada.ok) convFila = ((await creada.json()) as Array<Record<string, unknown>>)?.[0];
+            }
+            if (convFila) {
               await sbPost(`/rest/v1/chat_messages`, {
-                conversation_id: convR[0].id, tenant_id: convR[0].tenant_id,
+                conversation_id: convFila.id, tenant_id: convFila.tenant_id ?? m.tenant_id,
                 direction: "out", origen: "sistema", external_id: waId,
-                body: textoLegible(d.cuerpo, params),
+                body: texto,
                 sent_at: new Date().toISOString(), delivery_status: "sent",
+              });
+              /* Sin esto la bandeja no se entera: el chat existia pero no subia
+                 ni mostraba el aviso como ultimo mensaje. */
+              await sbPatch(`/rest/v1/chat_conversations?id=eq.${convFila.id}`, {
+                last_message: texto, last_message_at: new Date().toISOString(),
+                last_sender: "agent", last_read: false,
               });
             }
           } catch { /* la copia es cortesía: si falla, el envío ya salió */ }
