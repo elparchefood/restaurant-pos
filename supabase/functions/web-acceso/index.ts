@@ -59,6 +59,22 @@ async function sbPatch(path: string, data: unknown) {
 
 // ── Piezas ───────────────────────────────────────────────────────────
 const tel10 = (t: unknown) => String(t ?? "").replace(/\D/g, "").slice(-10);
+/* Para comparar direcciones: "Calle 5 #10-20" y "calle 5 # 10 - 20" son la
+   misma casa y no se pueden guardar dos veces. */
+const normDir = (s: unknown) =>
+  String(s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
+
+/* Las direcciones guardadas antes de esto no tienen `id` (se guardaban como
+   {dir, barrio}). Se les pone uno estable derivado de su contenido, y así el
+   resto del sistema puede tratarlas a todas igual sin migrar la tabla. */
+function conIds(lista: unknown): Array<{ id: string; dir: string; barrio: string }> {
+  return (Array.isArray(lista) ? lista : [])
+    .map((d: Record<string, unknown>, i: number) => ({
+      id: String(d?.id || ("d" + i + "_" + normDir(String(d?.dir || "")).slice(0, 12))),
+      dir: String(d?.dir || ""), barrio: String(d?.barrio || ""),
+    }))
+    .filter((d) => d.dir);
+}
 
 function aleatorio(bytes: number) {
   const b = new Uint8Array(bytes);
@@ -222,7 +238,7 @@ async function fichaCliente(tenantId: string, clienteId: string) {
       fecha: o.created_at, canal: o.channel, estado: o.estado,
     })),
     direccion: c.direccion || "", barrio: c.barrio || "",
-    direcciones: c.direcciones || [],
+    direcciones: conIds(c.direcciones),
     puntos: Number(pts?.[0]?.puntos || 0),
     // El gasto acumulado NO sale de aquí: el cliente ve su rango y su avance,
     // nunca cuánto lleva gastado. Es la razón de ser de la barra de experiencia.
@@ -244,6 +260,66 @@ Deno.serve(async (req) => {
     const b = await req.json().catch(() => ({})) as Record<string, unknown>;
     const accion = String(b.accion || "");
     const tel    = tel10(b.telefono);
+
+    /* ── SUS DIRECCIONES (16-ago) ────────────────────────────────────────
+       El cliente pide desde varios lados —su casa, la oficina, donde la mamá—
+       y volver a escribir la dirección en cada pedido es justo donde se
+       equivoca y el domiciliario da vueltas. Se guardan en pos_clientes
+       .direcciones, que ya existía con la forma {dir, barrio}; aquí se le
+       agrega un `id` para poder señalar una sin depender de su posición en la
+       lista (si se borra una, las demás no cambian de identidad).
+
+       Quién es lo dice la SESIÓN, nunca el navegador: con el token se sabe de
+       qué cliente son, así que nadie puede escribirle direcciones a otro. */
+    if (accion === "direccion-agregar" || accion === "direccion-quitar") {
+      const s = await sesionDe(String(b.token || ""));
+      if (!s) return json({ ok: false, razon: "sesion_vencida" });
+      const cli = await sbGet(`/pos_clientes?id=eq.${s.cliente_id}&select=direcciones,direccion,barrio&limit=1`) as Array<Record<string, unknown>> | null;
+      const fila = cli?.[0];
+      if (!fila) return json({ ok: false, razon: "no_existe" });
+
+      const conId = conIds(fila.direcciones);
+
+      if (accion === "direccion-agregar") {
+        const dir    = String(b.direccion || "").trim().slice(0, 160);
+        const barrio = String(b.barrio || "").trim().slice(0, 60);
+        if (dir.length < 5) return json({ ok: false, razon: "corta", mensaje: "Escribe la dirección completa." });
+        if (conId.length >= 10) return json({ ok: false, razon: "muchas", mensaje: "Ya tienes 10 direcciones guardadas. Borra alguna para agregar otra." });
+        // La misma dirección no se guarda dos veces aunque la escriba distinto.
+        const yaEsta = conId.find((d) => normDir(d.dir) === normDir(dir));
+        let dirEnUso = dir, barrioEnUso = barrio;
+        if (yaEsta) {
+          if (barrio && !yaEsta.barrio) yaEsta.barrio = barrio;    // se completa el barrio que faltaba
+          /* Ya la tenía guardada: manda la forma en que está guardada, no la
+             que acaba de teclear. Si no, escribir "calle 5 # 10 - 20" dejaba
+             esa version descuidada como su direccion, y es la que veria el
+             domiciliario. */
+          dirEnUso = yaEsta.dir;
+          barrioEnUso = barrio || yaEsta.barrio;
+        } else {
+          conId.push({ id: "d" + Date.now().toString(36), dir, barrio });
+        }
+        /* La última que agrega pasa a ser la de siempre: es la que acaba de
+           escribir, y es la que va a querer usar en su próximo pedido. */
+        await sbPatch(`/pos_clientes?id=eq.${s.cliente_id}`, {
+          direcciones: conId, direccion: dirEnUso, barrio: barrioEnUso || fila.barrio || null,
+          updated_at: new Date().toISOString(),
+        });
+      } else {
+        const id = String(b.id || "");
+        const quedan = conId.filter((d) => d.id !== id);
+        const borrada = conId.find((d) => d.id === id);
+        const patch: Record<string, unknown> = { direcciones: quedan, updated_at: new Date().toISOString() };
+        /* Si borró justo la que estaba en uso, la de siempre pasa a ser la
+           primera que le quede — nunca se queda con una dirección fantasma. */
+        if (borrada && normDir(borrada.dir) === normDir(String(fila.direccion || ""))) {
+          patch.direccion = quedan[0] ? quedan[0].dir : null;
+          patch.barrio    = quedan[0] ? (quedan[0].barrio || null) : null;
+        }
+        await sbPatch(`/pos_clientes?id=eq.${s.cliente_id}`, patch);
+      }
+      return json({ ok: true, cliente: await fichaCliente(String(s.tenant_id), String(s.cliente_id)) });
+    }
 
     // ── sesion / salir: no necesitan restaurante, el token ya lo dice ──
     if (accion === "sesion" || accion === "salir") {

@@ -423,7 +423,29 @@
        salir del campo) y no cada tecla, para no llamar al servidor once veces
        mientras escribe "Bellavista". */
     var barrioIn = $('pd-barrio');
-    if (barrioIn) barrioIn.addEventListener('change', function () { pantallaDentro(); });
+    if (barrioIn && barrioIn.tagName === 'INPUT') barrioIn.addEventListener('change', function () { pantallaDentro(); });
+
+    // Escoger otra dirección (o agregar una) sin salirse del pedido.
+    var dirSelEl = $('pd-dirsel');
+    if (dirSelEl) dirSelEl.addEventListener('change', async function () {
+      if (dirSelEl.value === '__nueva') {
+        var ok = await pedirDireccionNueva();
+        if (!ok) { dirSel = null; pantallaDentro(); }
+        return;
+      }
+      dirSel = dirSelEl.value;
+      S.cuenta = null;              // otra dirección puede ser otro domicilio
+      pantallaDentro();
+    });
+
+    // Perfil: agregar / quitar direcciones.
+    var addDir = document.querySelector('[data-diragregar]');
+    if (addDir) addDir.addEventListener('click', pedirDireccionNueva);
+    document.querySelectorAll('[data-dirquitar]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (window.confirm('¿Quitar esta dirección?')) quitarDireccion(b.dataset.dirquitar);
+      });
+    });
     var env = $('pd-enviar');
     if (env) env.addEventListener('click', enviarPedido);
   }
@@ -1073,6 +1095,53 @@
     }
   }
 
+  /* ── SUS DIRECCIONES ─────────────────────────────────────────────────
+     La lista viene del servidor (pos_clientes.direcciones). Si un cliente
+     todavía no tiene lista pero sí una dirección suelta —los que se
+     registraron antes—, esa cuenta como su primera dirección: nadie tiene que
+     volver a escribir lo que ya dio. */
+  function dirsDe(c) {
+    var lista = (c && c.direcciones) || [];
+    if (!lista.length && c && c.direccion) return [{ id: 'actual', dir: c.direccion, barrio: c.barrio || '' }];
+    return lista;
+  }
+  function normDirJS(s) {
+    return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+  }
+  async function guardarDireccion(dir, barrio) {
+    var d = await acceso({ accion: 'direccion-agregar', token: leerToken(), direccion: dir, barrio: barrio });
+    if (!d.ok) { aviso(d.mensaje || 'No pudimos guardar la dirección.', 'mal'); return false; }
+    S.cliente = d.cliente;
+    S.cuenta = null;                 // cambió la dirección: la cuenta se rehace
+    return true;
+  }
+  async function quitarDireccion(id) {
+    var d = await acceso({ accion: 'direccion-quitar', token: leerToken(), id: id });
+    if (d.ok) { S.cliente = d.cliente; S.cuenta = null; pantallaDentro(); }
+  }
+  /* Pedir una dirección nueva. Se usa desde el perfil y desde el checkout: es
+     la misma pregunta en los dos lados, así que es el mismo código. */
+  /* Cuál está seleccionada en el checkout: la que el cliente escogió en esta
+     visita; si no ha escogido, la que viene marcada como suya. */
+  var dirSel = null;
+  function dirElegida(lista, c) {
+    return (dirSel && lista.filter(function (d) { return d.id === dirSel; })[0]) ||
+           lista.filter(function (d) { return normDirJS(d.dir) === normDirJS(c && c.direccion); })[0] ||
+           lista[0] || { id: '', dir: '', barrio: '' };
+  }
+
+  async function pedirDireccionNueva() {
+    var dir = window.prompt('¿Cuál es la dirección? (calle, número, apto)');
+    if (dir === null) return false;
+    dir = String(dir).trim();
+    if (dir.length < 5) { aviso('Escribe la dirección completa.', 'mal'); return false; }
+    var barrio = window.prompt('¿En qué barrio queda?');
+    if (barrio === null) barrio = '';
+    var ok = await guardarDireccion(dir, String(barrio).trim());
+    if (ok) pantallaDentro();
+    return ok;
+  }
+
   function cuerpoPerfil() {
     var c = S.cliente || {};
     var n = c.nivel || null;
@@ -1103,10 +1172,22 @@
         '<div class="ep-stat"><div class="ep-stat-v">' + COP(c.saldo) + '</div><div class="ep-stat-l">Saldo</div></div>' +
       '</div>' +
 
+      /* SUS DIRECCIONES (16-ago). Antes solo se veía una, la última que había
+         escrito. Quien pide desde la casa y desde la oficina las tenía que
+         volver a teclear en cada pedido — y ahí es donde se equivoca. */
       '<div class="ep-tile" style="margin-top:12px">' +
-        '<div class="ep-tile-lbl" style="margin-bottom:4px">Tus datos</div>' +
-        '<div class="ep-dato"><span>Dirección</span><span>' + (esc(c.direccion) || '—') + '</span></div>' +
-        '<div class="ep-dato"><span>Barrio</span><span>' + (esc(c.barrio) || '—') + '</span></div>' +
+        '<div class="ep-tile-lbl" style="margin-bottom:8px">Tus direcciones</div>' +
+        (dirsDe(c).length
+          ? dirsDe(c).map(function (d) {
+              var usando = normDirJS(d.dir) === normDirJS(c.direccion);
+              return '<div class="ep-dato ep-dir-fila">' +
+                '<span>' + esc(d.dir) + (d.barrio ? ' <span style="opacity:.6">· ' + esc(d.barrio) + '</span>' : '') +
+                  (usando ? ' <b style="color:var(--oro)">·  en uso</b>' : '') + '</span>' +
+                '<button class="ep-link ep-dir-x" data-dirquitar="' + esc(d.id) + '" title="Quitar">Quitar</button>' +
+              '</div>';
+            }).join('')
+          : '<div class="ep-dato"><span style="opacity:.7">Todavía no has guardado ninguna</span><span></span></div>') +
+        '<button class="ep-btn ep-btn--ghost" style="margin-top:10px" data-diragregar="1">+ Agregar dirección</button>' +
       '</div>' +
 
       '<button class="ep-btn ep-btn--ghost" style="margin-top:16px" data-salir="1">Cerrar sesión</button>';
@@ -1664,11 +1745,28 @@
         '<button data-entrega="recoger"' + (entrega === 'recoger' ? ' class="on"' : '') + '>Recoger</button>' +
         '<button data-entrega="domicilio"' + (entrega === 'domicilio' ? ' class="on"' : '') + '>Domicilio</button>' +
       '</div>' +
+      /* A DÓNDE VA (16-ago): escoge entre las que ya tiene guardadas — sin
+         volver a teclear nada — o agrega una nueva sin salirse del pedido. */
       (entrega === 'domicilio'
-        ? '<label class="ep-campo" style="margin-bottom:10px"><span class="ep-lbl">Dirección</span>' +
-            '<input class="ep-in" id="pd-dir" value="' + esc(c.direccion || '') + '" placeholder="Calle 5 # 10-20"></label>' +
-          '<label class="ep-campo" style="margin-bottom:10px"><span class="ep-lbl">Barrio</span>' +
-            '<input class="ep-in" id="pd-barrio" value="' + esc(c.barrio || '') + '" placeholder="Tu barrio"></label>'
+        ? (function () {
+            var lista = dirsDe(c);
+            var elegida = dirElegida(lista, c);
+            return '<label class="ep-campo" style="margin-bottom:10px"><span class="ep-lbl">Dónde te lo dejamos</span>' +
+                '<select class="ep-in" id="pd-dirsel">' +
+                  lista.map(function (d) {
+                    return '<option value="' + esc(d.id) + '"' + (d.id === elegida.id ? ' selected' : '') + '>' +
+                      esc(d.dir) + (d.barrio ? ' · ' + esc(d.barrio) : '') + '</option>';
+                  }).join('') +
+                  '<option value="__nueva">+ Agregar otra dirección…</option>' +
+                '</select></label>' +
+              (elegida.barrio ? '' :
+                /* Sin barrio no se puede cobrar el domicilio: se pide, y solo
+                   entonces. Antes se pedía siempre, aunque ya se supiera. */
+                '<label class="ep-campo" style="margin-bottom:10px"><span class="ep-lbl">Barrio</span>' +
+                  '<input class="ep-in" id="pd-barrio" value="" placeholder="Tu barrio"></label>') +
+              '<input type="hidden" id="pd-dir" value="' + esc(elegida.dir || '') + '">' +
+              (elegida.barrio ? '<input type="hidden" id="pd-barrio" value="' + esc(elegida.barrio) + '">' : '');
+          })()
         : '') +
       '<label class="ep-campo"><span class="ep-lbl">Nota para la cocina</span>' +
         '<input class="ep-in" id="pd-nota" maxlength="200" placeholder="Opcional"></label>' +
