@@ -280,16 +280,37 @@ function matchCatalogo(
     return false;
   });
   if (!candidatas.length) return undefined;
-  if (categoria && candidatas.length > 1) {
+  const catDe = (p: Record<string, unknown>): string =>
+    String(((p.category_id as Record<string, unknown> | null)?.name as string) || (p.cat as string) || "");
+  let pool = candidatas;
+  /* (a) La categoria entendida manda — TOLERANTE. Era igualdad exacta:
+     "salchipapa" nunca casaba con "Salchipapas Tradicionales", el desempate
+     caia al primero de la lista y el "Pollo" de ADICIONES ($9.000) le gano a
+     la salchipapa de pollo ($17.000) en un pedido real (Emily, 15-ago). */
+  if (categoria && pool.length > 1) {
     const catNorm = normalizarTexto(categoria);
-    const porCat = candidatas.find(p => {
-      const cn = normalizarTexto(String(((p.category_id as Record<string, unknown> | null)?.name as string) || (p.cat as string) || ""));
-      return cn === catNorm;
+    const porCat = pool.filter(p => {
+      const cn = catDe(p);
+      return normalizarTexto(cn) === catNorm
+        || !!categoriaMencionada(catNorm, [cn])
+        || !!categoriaMencionada(cn, [catNorm]);
     });
-    if (porCat) return porCat;
+    if (porCat.length) pool = porCat;
   }
-  const exacta = candidatas.find(p => normalizarTexto(String(p.name || "")) === norm);
-  return exacta || candidatas[0];
+  /* (b) El tipo de comida dicho DENTRO del nombre tambien decide:
+     "salchipapa de pollo" es de la categoria de salchipapas. */
+  if (pool.length > 1) {
+    const porNombre = pool.filter(p => !!categoriaMencionada(norm, [catDe(p)]));
+    if (porNombre.length) pool = porNombre;
+  }
+  /* (c) Un producto de la categoria de adiciones NUNCA le gana al plato,
+     salvo que el cliente haya dicho "adicion". */
+  if (pool.length > 1 && !/adici/.test(norm)) {
+    const noAdic = pool.filter(p => !/adicion|extra|salsa/i.test(normalizarTexto(catDe(p))));
+    if (noAdic.length) pool = noAdic;
+  }
+  const exacta = pool.find(p => normalizarTexto(String(p.name || "")) === norm);
+  return exacta || pool[0];
 }
 function getAdicionKeywords(): string[] { return [...ADICION_BASE, ...DYN_ADICION_KEYWORDS]; }
 
