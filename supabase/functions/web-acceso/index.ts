@@ -209,12 +209,14 @@ async function fichaCliente(tenantId: string, clienteId: string) {
     `/pos_orders?cliente_id=eq.${clienteId}&status=neq.cancelled&select=id,total,total_final,created_at,channel,estado&order=created_at.desc&limit=8`
   ) as Array<Record<string, unknown>> | null;
 
+  /* EL SALDO, DE LA BASE (16-ago). Estaba escrito a mano en CERO de cuando las
+     recargas no existian, y se quedo asi despues: un cliente con plata
+     recargada entraba y veia $0 — que es lo mismo que no tenerla. */
+  const sal = await sbGet(`/pos_saldo?tenant_id=eq.${tenantId}&cliente_id=eq.${clienteId}&select=saldo&limit=1`) as Array<Record<string, unknown>> | null;
+
   return {
     id: c.id, nombre: c.nombre || "", telefono: tel,
-    /* El saldo recargable todavía no existe: se manda en cero para que la
-       tarjeta se pueda pintar desde ya y no haya que tocar la página cuando
-       entre. */
-    saldo: 0,
+    saldo: Number(sal?.[0]?.saldo || 0),
     pedidos: (ped || []).map((o) => ({
       id: o.id, total: Number(o.total_final ?? o.total ?? 0),
       fecha: o.created_at, canal: o.channel, estado: o.estado,

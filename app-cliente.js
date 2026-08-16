@@ -523,8 +523,10 @@
     var e = S.negocio || {};
     var tel = String(c.telefono || '');
 
-    /* Tarjeta de saldo. Va en cero porque las recargas todavía no existen: se
-       pinta desde ya para no tener que rehacer el tablero cuando entren. */
+    /* Tarjeta de saldo — el valor viene de la base (pos_saldo) vía web-acceso.
+       OJO: hasta el 16-ago el servidor lo mandaba escrito a mano en CERO, de
+       cuando las recargas no existían, y un cliente con plata recargada veía
+       $0. Si algún día vuelve a salir en cero, mirar fichaCliente. */
     /* Estructura del handoff corregido: el boton es HERMANO de la tarjeta,
        dentro del wrap. Si va dentro, la mascara de la muesca lo recorta. */
     var saldo = '<div class="ep-wc-wrap"><div class="ep-wcard">' +
