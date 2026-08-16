@@ -284,6 +284,22 @@
       .map(function (w) { return w[0]; }).join('').toUpperCase();
   }
 
+  /* EL INICIO NECESITA SUS DATOS AUNQUE NADIE TOQUE EL MENÚ (16-ago).
+     Quien entra con la sesión abierta cae directo en el inicio: la pantalla se
+     pintaba y ahí terminaba, así que el banner salía sin las fotos y sin las
+     tres tarjetas — parecía que se habían borrado. Se piden aquí, una sola vez,
+     y cuando llegan se repinta. No se espera a que lleguen para pintar: primero
+     se ve la pantalla, después se llena. */
+  var pidiendoInicio = false;
+  function asegurarDatosInicio() {
+    if (vista !== 'inicio' || pidiendoInicio) return;
+    if (S.promos && S.carta) return;
+    pidiendoInicio = true;
+    Promise.all([cargarPromos(), cargarCarta()])
+      .then(function () { pidiendoInicio = false; pantallaDentro(); })
+      .catch(function () { pidiendoInicio = false; });
+  }
+
   function pantallaDentro() {
     var c = S.cliente || {};
     var n = c.nivel || null;
@@ -314,6 +330,7 @@
       tabs + '</div></div>');
 
     armarBanner();
+    asegurarDatosInicio();
 
     document.querySelectorAll('[data-ir]').forEach(function (b) {
       b.addEventListener('click', async function () {
