@@ -1539,17 +1539,31 @@
         (x.activo ? esc(h12(x.abre) + ' – ' + h12(x.cierra)) : 'Cerrado') + '</span></div>';
     }).join('') : '';
 
-    /* Dónde queda, con enlace al mapa. Es lo primero que busca quien va a
-       recoger, y tenerlo solo en el chat obliga a preguntar. */
+    /* DÓNDE QUEDA. Es lo primero que busca quien va a recoger, y tenerlo solo
+       en el chat obliga a preguntar.
+
+       Va el mapa de verdad, no solo un enlace: una dirección escrita en una
+       ciudad que uno no conoce no dice nada, y un enlace obliga a salirse de la
+       página para saber si queda cerca o lejos. El mapa incrustado de Google no
+       necesita llave ni cuenta.
+
+       Para buscar se manda dirección + ciudad + país: "Carrera 9 b # 63 n 58"
+       a secas existe en media Colombia. */
     var dir = String(e.direccion || '').trim();
+    var donde = [dir, e.ciudad, e.pais].filter(Boolean).join(', ');
     var ubic = dir
       ? '<div class="ep-tile" style="margin-bottom:12px">' +
           '<div class="ep-tile-lbl" style="margin-bottom:8px">Dónde estamos</div>' +
           '<div class="ep-dato"><span>Dirección</span><span>' + esc(dir) + '</span></div>' +
           (e.ciudad ? '<div class="ep-dato"><span>Ciudad</span><span>' + esc(e.ciudad) + '</span></div>' : '') +
+          '<div class="ep-mapa"><iframe src="https://maps.google.com/maps?q=' +
+            encodeURIComponent(donde) + '&z=16&output=embed" loading="lazy" ' +
+            'title="Mapa de dónde queda el restaurante" referrerpolicy="no-referrer-when-downgrade"></iframe></div>' +
+          /* "Cómo llegar" y no "Ver en el mapa": el mapa ya está a la vista, lo
+             que falta es la ruta desde donde esté el cliente. */
           '<a class="ep-btn ep-btn--ghost" style="margin-top:10px;display:block;text-align:center" ' +
-            'target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' +
-            encodeURIComponent(dir + (e.ciudad ? ', ' + e.ciudad : '')) + '">Ver en el mapa</a>' +
+            'target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' +
+            encodeURIComponent(donde) + '">Cómo llegar</a>' +
         '</div>'
       : '';
 
@@ -1558,7 +1572,13 @@
         '<div class="ep-tile-lbl">Ahora mismo</div>' +
         '<div class="ep-estado' + (e.abierto ? ' abierto' : '') + '" style="margin-top:10px">' +
           '<span class="ep-punto"></span>' +
-          esc(String(e.detalle || (e.abierto ? 'Abierto' : 'Cerrado'))
+          /* El servidor a veces ya manda la frase en 12 horas ("Abre hoy a las
+             6:30 p.m."). Convertirla otra vez producía "6:30 a.m. p.m.": el
+             "6:30" se traducía solo y el "p.m." original quedaba pegado atrás.
+             Si la frase ya trae a.m. o p.m., se deja como viene. */
+          esc(/[ap]\.?\s?m\.?/i.test(String(e.detalle || ''))
+            ? String(e.detalle)
+            : String(e.detalle || (e.abierto ? 'Abierto' : 'Cerrado'))
                 .replace(/(\d{1,2}):(\d{2})/g, function (_, hh, mm) { return h12(hh + ':' + mm); })) + '</div>' +
       '</div>' +
       ubic +

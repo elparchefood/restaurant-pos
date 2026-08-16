@@ -5850,3 +5850,12 @@ Sergio: "hay dos productos pero creo que faltan mas, y aparte dice que ya los pu
 - **Barra de progreso en cada premio que todavia no alcanza**: "te faltan 225 pts" no dice si eso es mucho o poco; la barra si. En los que ya alcanzan no va — una barra llena no informa nada.
 - **Verificado con los 4 premios reales** en tres casos: 175 pts (todos en "Para ir juntando"), 1.100 (dos listos, el combo con plata listo, el de 1.500 en "te falta poco" al 73%) y 1.600 (los cuatro listos).
 - **Lo de arriba NO se toca**: cuantos puntos cuesta cada premio, cuanta plata se pone encima y a que ritmo se ganan los puntos lo decide Sergio, y ya esta decidido. Los dos premios del mismo combo son A PROPOSITO: uno se reclama solo con puntos (1.500) y el otro es mixto (1.000 + $20.000). No es un duplicado.
+
+## 163. "El local": donde queda, con mapa (16-ago) — fn_web_publica
+- La pantalla YA sabia pintar el bloque "Donde estamos" con la direccion y el enlace al mapa. Salia vacio porque `fn_web_publica` nunca mandaba la direccion. Otro caso del patron de siempre: un lado completo y el otro no.
+- **La direccion NO vive en `tenants`** — esa tabla ni siquiera tiene columna de direccion. Vive en la SUCURSAL (`branches.address` / `city` / `country`), que es lo correcto: un restaurante con dos sedes tiene dos direcciones. Se toma la sucursal activa mas antigua, la misma regla con la que ya se elige la marca y el logo.
+- **Va el mapa de verdad, no solo un enlace**: una direccion escrita en una ciudad que uno no conoce no dice nada, y un enlace obliga a salirse de la pagina para saber si queda cerca. Se usa el mapa incrustado de Google, que no necesita llave ni cuenta.
+- **Se busca direccion + ciudad + pais**: "Carrera 9 b # 63 n 58" a secas existe en media Colombia.
+- El boton dice **"Como llegar"**, no "Ver en el mapa": el mapa ya esta a la vista; lo que falta es la ruta.
+- **Verificado**: la direccion de El Parche resuelve a 2.4820212, -76.5739667 — Popayan. (El panel de vista previa no abre paginas con mapas incrustados, asi que se comprobo pidiendo el mapa y mirando las coordenadas.)
+- **De paso, arreglado "6:30 a.m. p.m."**: el servidor manda la frase ya en 12 horas ("Abre hoy a las 6:30 p.m.") y la pagina la volvia a convertir — el "6:30" se traducia solo y el "p.m." original quedaba pegado atras. Si la frase ya trae a.m. o p.m., se deja como viene.
