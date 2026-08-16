@@ -1084,7 +1084,7 @@ button.ep-slide { cursor: pointer; }
    tiene que separarse del resto de la pantalla, no fundirse con ella. */
 .ep-hero {
   position: relative; display: flex; align-items: stretch; gap: 18px;
-  margin: 4px 0 18px; padding: 20px 0 20px 22px;
+  margin: 4px 0 18px; padding: 20px 22px;
   border-radius: 22px; overflow: hidden;
   background:
     radial-gradient(520px 200px at 92% 120%, rgba(227,176,75,.18), transparent 60%),
@@ -1109,10 +1109,11 @@ button.ep-slide { cursor: pointer; }
 }
 .ep-hero-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(0,0,0,.28); }
 
-/* Las tres tarjetas verticales. La última se sale del borde: se ve que hay más
-   y de paso da la sensación de tira, igual que en la referencia. */
+/* Las tres tarjetas verticales, COMPLETAS. Al principio la última se salía del
+   borde (como en la referencia) y se veía cortada de verdad, no insinuada:
+   Sergio pidió verlas enteras y con más aire entre ellas. */
 .ep-hero-cards {
-  flex: 0 0 auto; display: flex; gap: 10px; margin-right: -34px;
+  flex: 0 0 auto; display: flex; gap: 16px;
   overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
 }
 .ep-hero-cards::-webkit-scrollbar { display: none; }
@@ -1130,9 +1131,9 @@ button.ep-slide { cursor: pointer; }
 /* En pantalla angosta el mensaje va arriba y las tarjetas debajo, deslizables:
    apretar las dos columnas en un celular deja el titular ilegible. */
 @media (max-width: 620px) {
-  .ep-hero { flex-direction: column; gap: 16px; padding: 18px 0 18px 18px; }
+  .ep-hero { flex-direction: column; gap: 16px; padding: 18px; }
   .ep-hero-tit { font-size: 21px; }
-  .ep-hero-cards { margin-right: 0; padding-right: 18px; }
+  .ep-hero-cards { gap: 12px; }
   .ep-hcard { width: 96px; min-height: 118px; }
 }
 @media (prefers-reduced-motion: reduce) {
