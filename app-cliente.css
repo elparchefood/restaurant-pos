@@ -1433,14 +1433,20 @@ button.ep-pub-foto { cursor: pointer; }
 .ep-li-m.sin { color: var(--dim); }
 .ep-li-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* EL MAPA DEL LOCAL. Proporcion fija para que no salte mientras carga, y las
-   esquinas redondeadas del resto de la pagina. El iframe de Google trae fondo
-   blanco propio: en tema oscuro se le baja un punto el brillo para que no
-   quede un rectangulo encendido en medio de la pantalla. */
+/* EL MAPA DEL LOCAL. Esquinas redondeadas como el resto de la pagina. El iframe
+   de Google trae fondo blanco propio: en tema oscuro se le baja un punto el
+   brillo para que no quede un rectangulo encendido en medio de la pantalla.
+
+   ALTO CON TOPE, no una proporcion suelta: con 16/9 a secas, en un computador
+   la tarjeta mide mas de 1.400 px de ancho y el mapa se iba a 800 px de alto —
+   ocupaba la pantalla entera y tapaba los horarios. Se mantiene la proporcion
+   (asi no salta mientras carga) pero se corta a 300 px, y en el celular no baja
+   de 190 px para que se alcance a ver la cuadra. */
 .ep-mapa {
   margin-top: 12px; border-radius: 14px; overflow: hidden;
   border: 1px solid var(--line); background: var(--surf2);
   aspect-ratio: 16 / 9;
+  min-height: 190px; max-height: 300px;
 }
 .ep-mapa iframe { display: block; width: 100%; height: 100%; border: 0; }
 .tema-oscuro .ep-mapa iframe { filter: brightness(.88); }
