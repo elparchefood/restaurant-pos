@@ -1289,6 +1289,120 @@
     } catch (e) { S.promos = []; }
   }
 
+  /* El mensaje de la fila "Para hoy". Es lo único de muestra que queda: cuando
+     Sergio decida qué dice, sale de la configuración del restaurante. */
+  var BANNER_TEXTO = {
+    titulo: 'Pide hoy y suma puntos',
+    /* NO se dice cuántos puntos da cada peso. Los puntos y la barra de niveles
+       son dos escalas distintas a propósito (regla de Sergio): contar la
+       equivalencia convierte el premio en una cuenta de tienda. */
+    sub: 'Cada pedido te acerca a tu próximo premio',
+    boton: 'Ver la carta', ir_a: 'carta',
+  };
+
+  /* LOS TRES PLATOS DE LA FILA son productos de verdad.
+     Mientras Sergio no elija cuáles van, se escogen solos con criterio de
+     vitrina: el plato FUERTE de cada categoría (el de mayor precio con foto).
+     Con el orden natural salía "Agua botella" de primera, que es lo último que
+     uno quiere anunciar. Las bebidas y las adiciones no compiten. */
+  function productosDelBanner() {
+    var fuera = /bebida|adicion|adición|salsa|extra/i;
+    var porCat = [];
+    (S.carta || []).forEach(function (c) {
+      if (fuera.test(c.categoria || '')) return;
+      var conFoto = (c.productos || []).filter(function (p) { return p && p.foto; });
+      if (!conFoto.length) return;
+      var mejor = conFoto.slice().sort(function (a, b) { return precioDesde(b) - precioDesde(a); })[0];
+      porCat.push({ p: mejor, cat: c.categoria, precio: precioDesde(mejor) });
+    });
+    porCat.sort(function (a, b) { return b.precio - a.precio; });
+    return porCat.slice(0, 3);
+  }
+
+  /* Precio "desde": con presentaciones, el más barato de todas; si no, el del
+     producto. Decir "$28.000" cuando la personal vale menos sería mentir. */
+  function precioDesde(p) {
+    var pres = (p.presentaciones || []).map(function (x) { return Number(x.precio) || 0; })
+      .filter(function (n) { return n > 0; });
+    if (pres.length) return Math.min.apply(null, pres);
+    var vars = [];
+    (p.variables || []).forEach(function (g) {
+      (g.opciones || []).forEach(function (o) {
+        (o.precios || []).forEach(function (n) { if (Number(n) > 0) vars.push(Number(n)); });
+        if (Number(o.precio) > 0) vars.push(Number(o.precio));
+      });
+    });
+    if (vars.length) return Math.min.apply(null, vars);
+    return Number(p.precio) || 0;
+  }
+
+  /* EL RANGO, EN LA CABECERA (16-ago). Antes ocupaba una tarjeta entera del
+     resumen; como barra larga al lado del nombre dice lo mismo —en qué nivel
+     va y cuánto le falta— y libera ese cuadro para la publicidad. */
+  function rangoBarra(n) {
+    if (!n) return '';
+    var pct = Number(n.progreso) || 0;
+    return '<button class="ep-rangob" data-ir="puntos" title="Tus puntos y tu rango">' +
+      '<span class="ep-rangob-nom" style="color:' + esc(n.color || '#e3b04b') + '">' +
+        ico('estrella', 13) + ' ' + esc(n.nombre || '') + '</span>' +
+      '<span class="ep-rangob-bar"><i style="width:' + pct + '%;background:linear-gradient(90deg,#8f2242,#e3b04b)"></i></span>' +
+      '<span class="ep-rangob-fal">' + (n.siguiente ? pct + '% para ' + esc(n.siguiente) : 'Nivel más alto') + '</span>' +
+    '</button>';
+  }
+
+  /* LA PUBLICIDAD, EN EL CUADRO DEL RESUMEN. Una sola foto grande que va
+     rotando entre las que el restaurante subió: se ve mucho mejor que tres
+     miniaturas y no gasta más espacio de página. */
+  function tarjetaPublicidad() {
+    var fotos = (S.promos || []).filter(function (x) { return x && x.imagen; }).slice(0, 5);
+    if (!fotos.length) {
+      return '<div class="ep-pub vacio"><span>Aquí va tu publicidad</span>' +
+        '<span class="ep-pub-hint">Súbela en Promociones</span></div>';
+    }
+    return '<div class="ep-pub" id="ep-pub">' +
+      fotos.map(function (f, i) {
+        var img = '<img src="' + esc(f.imagen) + '" alt="' + esc(f.titulo || 'Promoción') + '"' +
+                  (i ? ' loading="lazy"' : '') + '>';
+        return f.ir_a
+          ? '<button class="ep-pub-foto' + (i ? '' : ' on') + '" data-ir="' + esc(f.ir_a) + '">' + img + '</button>'
+          : '<div class="ep-pub-foto' + (i ? '' : ' on') + '">' + img + '</div>';
+      }).join('') +
+      (fotos.length > 1
+        ? '<div class="ep-pub-pts">' + fotos.map(function (_, i) {
+            return '<button class="ep-pub-pt' + (i ? '' : ' on') + '" data-pub="' + i + '" aria-label="Foto ' + (i + 1) + '"></button>';
+          }).join('') + '</div>'
+        : '') +
+    '</div>';
+  }
+
+  /* La fila de cuatro: el mensaje con sus botones y tres platos de la carta.
+     Aquí terminó el texto que vivía en el banner — justo encima de lo que se
+     quiere que pidan, que es donde un gancho de venta sirve. */
+  function filaDeHoy() {
+    var b = BANNER_TEXTO;
+    var platos = productosDelBanner().map(function (e) {
+      var p = e.p, precio = precioDesde(p);
+      return '<button class="ep-hoy-card" data-ir="carta">' +
+        '<span class="ep-hoy-foto"' + (p.foto ? ' style="background-image:url(' + esc(p.foto) + ')"' : '') + '></span>' +
+        '<span class="ep-hoy-tx">' +
+          '<span class="ep-hoy-nom">' + esc(p.nombre) + '</span>' +
+          '<span class="ep-hoy-pre">' + (precio ? 'Desde ' + COP(precio) : esc(e.cat || '')) + '</span>' +
+        '</span>' +
+      '</button>';
+    }).join('');
+    if (!platos) return '';
+    return '<div class="ep-hoy">' +
+      '<div class="ep-hoy-msg">' +
+        '<div><div class="ep-hoy-t">' + esc(b.titulo) + '</div>' +
+          (b.sub ? '<div class="ep-hoy-s">' + esc(b.sub) + '</div>' : '') + '</div>' +
+        '<div class="ep-hoy-btns">' +
+          '<button class="ep-hoy-b1" data-ir="' + esc(b.ir_a) + '">' + esc(b.boton) + '</button>' +
+          '<button class="ep-hoy-b2" data-ir="puntos">Mis puntos</button>' +
+        '</div>' +
+      '</div>' + platos +
+    '</div>';
+  }
+
   /* LA PUBLICIDAD ROTA SOLA. Se llama después de pintar. Las fotos están
      apiladas y se cambia cuál se ve: con una sola tarjeta no hay scroll que
      valga, y así el cambio es suave y no salta.
