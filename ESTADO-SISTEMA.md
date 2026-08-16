@@ -5816,3 +5816,12 @@ El banner funcionaba pero se sentia PUESTO ENCIMA, no parte del sistema: metia t
 - **Trampa del nombre**: el orden de "plato · presentacion" cambia segun quien creo el pedido ("Mixta · Familiar" desde el chat, "Familiar · Mixta" desde la caja). Cortar por el separador dejaba "Familiar" o "1.5 Litros" como si fuera el plato; ahora se muestra el nombre completo (sin las adiciones) y el diseño lo recorta si no cabe.
 - Si un pedido no tiene puntos ligados (los reconstruidos de la entrada 137 no tienen order_id), se muestra un guion — no se inventa un numero.
 - **Verificado con un cliente real** (Isabella): "Mixta · Familiar +50 pts" y el pedido viejo con sus dos productos. Sesion de prueba borrada.
+
+## 160. La foto de perfil del cliente (16-ago) — web-acceso v13
+- **Sintoma**: Sergio subia su foto de perfil y no pasaba nada; y quien ya tenia una guardada entraba y veia sus iniciales.
+- **Causa**: la pagina estaba completa por los dos lados (manda `accion:'foto'` con la imagen ya achicada a 256 px, y pinta `c.foto`), pero el servidor no tenia NI la accion NI el campo: subir respondia "accion desconocida" y la ficha nunca devolvia `foto_url`. El historial de git confirma que nunca estuvo — no se perdio en un despliegue.
+- **Arreglo (web-acceso v13)**: `fichaCliente` devuelve `foto: c.foto_url`, y la nueva accion `foto` valida el formato, sube la imagen a `chat-media/clientes/<tenant>/<cliente>-<fecha>.jpg` y guarda la URL publica en `pos_clientes.foto_url`.
+- **La foto va al almacen, no a la tabla**: una imagen dentro de la fila del cliente viajaria en TODAS las respuestas de la ficha, y la ficha se pide en cada visita.
+- **Quien es lo dice la sesion**, no el cuerpo del mensaje: nadie puede cambiarle la foto a otro cliente. Tope de 900 KB por si llega algo que no vino de la pagina.
+- **Verificado de punta a punta** con un cliente de PRUEBA: sube, vuelve en la ficha, la URL publica responde 200 y una imagen invalida se rechaza. Cliente de prueba borrado.
+- **Ojo**: la foto que Sergio tenia antes se perdio el 14-ago junto con su saldo, cuando su ficha de cliente se borro y se volvio a crear (misma causa de la entrada 148). Hay que volverla a subir; de ahora en adelante queda guardada.

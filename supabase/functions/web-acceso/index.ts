@@ -201,7 +201,7 @@ async function sesionDe(token: string) {
 
 // ── El cliente, con lo suyo ──────────────────────────────────────────
 async function fichaCliente(tenantId: string, clienteId: string) {
-  const rows = await sbGet(`/pos_clientes?id=eq.${clienteId}&select=id,nombre,telefono,direccion,barrio,direcciones&limit=1`) as Array<Record<string, unknown>> | null;
+  const rows = await sbGet(`/pos_clientes?id=eq.${clienteId}&select=id,nombre,telefono,direccion,barrio,direcciones,foto_url&limit=1`) as Array<Record<string, unknown>> | null;
   const c = rows?.[0];
   if (!c) return null;
   const tel = tel10(c.telefono);
@@ -268,6 +268,9 @@ async function fichaCliente(tenantId: string, clienteId: string) {
 
   return {
     id: c.id, nombre: c.nombre || "", telefono: tel,
+    /* La foto de perfil. La página la pinta desde siempre (`c.foto`) pero aquí
+       nunca se devolvía: quien ya tenía una, entraba y veía sus iniciales. */
+    foto: c.foto_url || "",
     saldo: Number(sal?.[0]?.saldo || 0),
     pedidos: (ped || []).map((o) => ({
       id: o.id, total: Number(o.total_final ?? o.total ?? 0),
@@ -357,6 +360,41 @@ Deno.serve(async (req) => {
         await sbPatch(`/pos_clientes?id=eq.${s.cliente_id}`, patch);
       }
       return json({ ok: true, cliente: await fichaCliente(String(s.tenant_id), String(s.cliente_id)) });
+    }
+
+    /* ── LA FOTO DE PERFIL (16-ago) ───────────────────────────────────
+       Llega como imagen en línea (la página ya la achica a 256 px antes de
+       mandarla) y se guarda en el almacén, no en la tabla: una foto dentro de
+       la fila del cliente viaja en TODAS las respuestas de la ficha, y la
+       ficha se pide en cada visita.
+
+       Quién es lo dice la sesión: nadie puede cambiarle la foto a otro. */
+    if (accion === "foto") {
+      const s = await sesionDe(String(b.token || ""));
+      if (!s) return json({ ok: false, razon: "sesion_vencida" });
+
+      const dataUri = String(b.foto || "");
+      const m = dataUri.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,(.+)$/i);
+      if (!m) return json({ ok: false, razon: "formato", mensaje: "Esa imagen no sirve. Prueba con otra foto." });
+      const bin = Uint8Array.from(atob(m[2]), (ch) => ch.charCodeAt(0));
+      /* Tope de tamaño: la página manda 256 px, así que una foto normal pesa
+         muy poco. Si llega algo mucho más grande, es que no vino de la página. */
+      if (bin.length > 900_000) return json({ ok: false, razon: "grande", mensaje: "La foto pesa demasiado." });
+
+      const ext = m[1].toLowerCase().includes("png") ? "png" : (m[1].toLowerCase().includes("webp") ? "webp" : "jpg");
+      const ruta = `clientes/${s.tenant_id}/${s.cliente_id}-${Date.now()}.${ext}`;
+      const sub = await fetch(`${SUPABASE_URL}/storage/v1/object/chat-media/${ruta}`, {
+        method: "POST",
+        headers: { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": m[1] },
+        body: bin,
+      });
+      if (!sub.ok) {
+        console.error("[foto] no se pudo subir:", (await sub.text()).slice(0, 200));
+        return json({ ok: false, razon: "subida", mensaje: "No pudimos guardar tu foto. Intenta de nuevo." });
+      }
+      const url = `${SUPABASE_URL}/storage/v1/object/public/chat-media/${ruta}`;
+      await sbPatch(`/pos_clientes?id=eq.${s.cliente_id}`, { foto_url: url, updated_at: new Date().toISOString() });
+      return json({ ok: true, foto: url });
     }
 
     // ── sesion / salir: no necesitan restaurante, el token ya lo dice ──
