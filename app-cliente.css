@@ -866,7 +866,18 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
 .ep-ok {background:rgba(37,211,102,.1);border:1px solid rgba(37,211,102,.28);color:#7fe6ab;border-radius:14px;padding:13px 15px;font-size:13px;margin-top:13px;line-height:1.5}
 .ep-ok.err {background:rgba(143,34,66,.18);border-color:rgba(143,34,66,.5);color:#f0aabd}
 .ep-redeem {display:flex;align-items:center;gap:13px;background:var(--surf);border:1px solid var(--line);border-radius:17px;padding:13px 14px;margin-bottom:9px}
-.ep-redeem.soon {opacity:.5}
+/* El premio que todavia no alcanza se ve apagado, pero NO tanto que no se
+   pueda leer: es justo el que tiene que dar ganas. */
+.ep-redeem.soon {opacity:.72}
+/* Lo que lleva del premio. Va debajo del texto y ocupa el ancho del cuerpo. */
+.ep-redeem-bar {
+  display: block; margin-top: 7px; height: 4px; border-radius: 999px;
+  background: var(--surf2); overflow: hidden;
+}
+.ep-redeem-bar i {
+  display: block; height: 100%; border-radius: inherit;
+  background: linear-gradient(90deg, #8f2242, var(--accent));
+}
 .ep-redeem-ic {width:42px;height:42px;border-radius:13px;background:var(--surf2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--sub)}
 .ep-redeem-body {flex:1;min-width:0}
 .ep-redeem-body b {display:block;font-size:14px;font-weight:600}

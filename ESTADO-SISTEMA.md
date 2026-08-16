@@ -5837,3 +5837,16 @@ El banner funcionaba pero se sentia PUESTO ENCIMA, no parte del sistema: metia t
 - **El velo con "Pedir"** solo sale al pasar el mouse (la foto es lo que hace pedir; taparla siempre seria trabajar en contra) y se esconde entero en pantallas tactiles, donde se quedaria pegado despues de tocar.
 - **Medido con datos reales**: tarjetas 283x143 iguales, medallas dentro de la foto, el velo la tapa exacta, y el espejo con Mi billetera intacto (580x300 los dos).
 - **PENDIENTE (lo pidio Sergio)**: elegir a mano cuales tres productos van en los destacados. Hoy se escogen solos.
+
+## 162. El catalogo de puntos dice la verdad (16-ago) — fn_web_puntos_catalogo
+Sergio: "hay dos productos pero creo que faltan mas, y aparte dice que ya los puede reclamar". Eran DOS errores distintos, los dos en la misma funcion.
+
+- **LOS COMBOS NO SALIAN.** Un premio puede apuntar a un producto O a un combo, pero la funcion solo unia con `pos_products`. De los 4 premios de El Parche, 2 son combos: se caian en silencio. Ahora la funcion une las dos tablas (union all) y salen los 4.
+- **EL COSTO LLEGABA CON OTRO NOMBRE.** La funcion devolvia la columna como `costo` y la pagina leia `k.puntos`. Como no existia, TODO premio valia 0 puntos — y con 0 puntos a todo el mundo le alcanza. Por eso decia "Ya lo puedes pedir" siempre. Nadie podia: el cliente con mas puntos lleva 175 y el premio mas barato vale 400.
+- **`dinero` tampoco se devolvia**, aunque la pagina ya sabia pintarlo: el combo de 1000 pts + $20.000 se veia gratis. Ahora dice "Lo puedes pedir poniendo $20.000".
+- **Se cambiaron los nombres de la funcion a los que la pagina ya leia** (`puntos`, `dinero`), no al reves: son los mismos nombres de la tabla `pos_puntos_catalogo`. La RPC solo la usa app-cliente.js (comprobado), asi que cambiar la firma no rompe nada mas.
+- **Un premio que apunta a un producto agotado o a un combo apagado ya no se muestra**: no se puede entregar.
+- **"Te falta poco" ahora es PROPORCIONAL**, no un corte fijo de 20 puntos. Con el corte viejo, quien llevaba 1.450 de un premio de 1.500 veia lo mismo que quien iba en cero. Ahora entra desde el 60%.
+- **Barra de progreso en cada premio que todavia no alcanza**: "te faltan 225 pts" no dice si eso es mucho o poco; la barra si. En los que ya alcanzan no va — una barra llena no informa nada.
+- **Verificado con los 4 premios reales** en tres casos: 175 pts (todos en "Para ir juntando"), 1.100 (dos listos, el combo con plata listo, el de 1.500 en "te falta poco" al 73%) y 1.600 (los cuatro listos).
+- **OJO, para hablar con Sergio**: a este ritmo nadie llega. 400 puntos son $400.000 en pedidos y el mejor cliente lleva 175 en dos meses. Y los dos premios de combo son EL MISMO combo con dos precios distintos, asi que en la lista sale "Combo Sandwich" dos veces.

@@ -785,10 +785,16 @@
        vuelva. En tres grupos, para que se vea de un golpe donde esta parado. */
     var listos = [], cerca = [], lejos = [];
     cat.forEach(function (k) {
-      var falta = Math.max(0, (Number(k.puntos) || 0) - mios);
-      var it = { k: k, falta: falta };
+      var cuesta = Number(k.puntos) || 0;
+      var falta = Math.max(0, cuesta - mios);
+      /* "Te falta poco" es PROPORCIONAL al premio, no una cantidad fija. Con un
+         corte de 20 puntos, un premio de 1.500 nunca entraba en "te falta poco"
+         aunque el cliente llevara 1.450: le decia lo mismo que a quien va en
+         cero. Se considera cerca cuando ya lleva del 60% para arriba. */
+      var it = { k: k, falta: falta, cuesta: cuesta,
+                 pct: cuesta > 0 ? Math.min(100, Math.round(mios * 100 / cuesta)) : 100 };
       if (falta === 0) listos.push(it);
-      else if (falta <= 20) cerca.push(it);
+      else if (it.pct >= 60) cerca.push(it);
       else lejos.push(it);
     });
     [listos, cerca, lejos].forEach(function (g) {
@@ -804,11 +810,16 @@
       var sub = it.falta === 0
         ? (din > 0 ? 'Lo puedes pedir poniendo ' + COP(din) : 'Ya lo puedes pedir')
         : 'Te faltan ' + it.falta + ' pts · un pedido de ' + COP(it.falta * 1000);
+      /* La barra: el numero solo ("te faltan 225 pts") no dice si eso es mucho
+         o poco. La barra sí — y es lo que hace volver. No va en los que ya
+         alcanzan: una barra llena no informa nada. */
+      var barra = it.falta === 0 ? '' :
+        '<span class="ep-redeem-bar"><i style="width:' + it.pct + '%"></i></span>';
       return '<div class="ep-redeem' + (it.falta === 0 ? '' : ' soon') + '">' +
         '<span class="ep-redeem-ic">' + (k.foto
           ? '<img src="' + esc(k.foto) + '" alt="">' : ico('gift', 19)) + '</span>' +
         '<div class="ep-redeem-body"><b>' + esc(k.nombre || '') + '</b>' +
-          '<small>' + esc(sub) + '</small></div>' +
+          '<small>' + esc(sub) + '</small>' + barra + '</div>' +
         '<span class="ep-btn ' + (it.falta === 0 ? 'light' : 'ghost') + ' sm">' + esc(precio) + '</span>' +
       '</div>';
     }
