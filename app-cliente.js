@@ -1324,7 +1324,14 @@
      y esta constante desaparece. */
   /* El mensaje de la izquierda. Es lo único de muestra que queda: cuando Sergio
      decida qué dice, sale de la configuración del restaurante. */
-  var BANNER_TEXTO = { titulo: 'Pide hoy y suma\npuntos en cada\ncombo', boton: 'Ver la carta', ir_a: 'carta' };
+  var BANNER_TEXTO = {
+    titulo: 'Pide hoy y suma puntos',
+    /* NO se dice cuántos puntos da cada peso. Los puntos y la barra de niveles
+       son dos escalas distintas a propósito (regla de Sergio): contar la
+       equivalencia convierte el premio en una cuenta de tienda. */
+    sub: 'Cada pedido te acerca a tu próximo premio',
+    boton: 'Ver la carta', ir_a: 'carta',
+  };
 
   /* LAS TRES TARJETAS SON PRODUCTOS DE VERDAD.
      Mientras Sergio no elija cuáles, se escogen solos: uno por categoría y con
@@ -1398,7 +1405,11 @@
 
     return '<section class="ep-hero">' +
       '<div class="ep-hero-txt">' +
-        '<h2 class="ep-hero-tit">' + esc(b.titulo).replace(/\n/g, '<br>') + '</h2>' +
+        /* Sin <br> a la fuerza: los cortes fijos partían el titular en cuatro
+           líneas desiguales ("Pide hoy" / "y suma" / "puntos en cada" /
+           "combo"). Ahora se parte solo, y el CSS equilibra las líneas. */
+        '<div><h2 class="ep-hero-tit">' + esc(b.titulo) + '</h2>' +
+          (b.sub ? '<p class="ep-hero-sub">' + esc(b.sub) + '</p>' : '') + '</div>' +
         '<button class="ep-hero-btn" data-ir="' + esc(b.ir_a) + '">' + esc(b.boton) +
           '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>' +
         '</button>' +

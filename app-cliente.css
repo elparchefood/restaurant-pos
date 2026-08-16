@@ -1091,13 +1091,24 @@ button.ep-slide { cursor: pointer; }
     linear-gradient(120deg, #2a0d18 0%, #4a1226 46%, #6d1a33 100%);
   color: #fff;
 }
+/* La columna del texto tiene ancho PROPIO: antes competía con las fotos y se
+   quedaba tan angosta que el titular salía en cuatro líneas de dos palabras. */
 .ep-hero-txt {
-  flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column;
-  justify-content: space-between; gap: 14px; padding: 2px 0;
+  /* Ancho propio, en px: con clamp() dentro de flex-basis el navegador dejaba
+     la columna en CERO y el titular se apilaba letra por letra. Se mide y se
+     verifica, no se supone. */
+  flex: 0 0 auto; width: 262px; max-width: 42%; min-width: 190px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  gap: 14px; padding: 2px 0;
 }
 .ep-hero-tit {
-  margin: 0; font-size: 25px; line-height: 1.15; font-weight: 700;
+  margin: 0; font-size: 23px; line-height: 1.15; font-weight: 700;
   letter-spacing: -.025em; text-wrap: balance;
+}
+/* La línea que acompaña: dice de qué se trata sin competir con el titular. */
+.ep-hero-sub {
+  margin: 7px 0 0; font-size: 12.5px; line-height: 1.4;
+  color: rgba(255,255,255,.78); text-wrap: pretty;
 }
 /* El botón claro sobre el fondo oscuro, como en la referencia: es lo único
    tocable del bloque y tiene que verse de un golpe. */
@@ -1138,7 +1149,10 @@ button.ep-slide { cursor: pointer; }
 /* ── Las fotos del centro ──────────────────────────────────────────────
    Son la publicidad que el restaurante sube en Promociones. Ocupan el espacio
    grande del medio, que antes estaba vacío. */
-.ep-hero-fotos { flex: 1 1 auto; min-width: 0; display: flex; gap: 12px; }
+/* Nunca por debajo de esto: en ventanas medianas el texto y las tarjetas se
+   comian el espacio y las fotos quedaban en CERO —el banner se desbordaba y la
+   publicidad desaparecia sin que nadie lo notara. */
+.ep-hero-fotos { flex: 1 1 auto; min-width: 190px; display: flex; gap: 12px; }
 .ep-hfoto {
   flex: 1 1 0; min-width: 0; padding: 0; border: 0; background: none; cursor: default;
   border-radius: 14px; overflow: hidden;
@@ -1154,9 +1168,11 @@ button.ep-hfoto { cursor: pointer; }
 
 /* En pantalla angosta el mensaje va arriba y las tarjetas debajo, deslizables:
    apretar las dos columnas en un celular deja el titular ilegible. */
-@media (max-width: 620px) {
+@media (max-width: 900px) {
   .ep-hero { flex-direction: column; gap: 14px; padding: 18px; }
+  .ep-hero-txt { flex: 0 0 auto; }
   .ep-hero-tit { font-size: 21px; }
+  .ep-hero-sub { font-size: 12px; }
   .ep-hero-cards { gap: 12px; }
   .ep-hcard { width: 96px; min-height: 118px; }
   .ep-hero-fotos { gap: 10px; }
