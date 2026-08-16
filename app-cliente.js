@@ -646,7 +646,7 @@
         '<div class="ep-saludo-n">' + esc((c.nombre || '').split(' ')[0] || 'Hola') + '</div></div>' +
         botonesArriba() +
       '</div>' +
-      bannerPromos() +
+      bannerHero() +
       '<div class="ep-sec-hd"><div><div class="ep-sec-t">Resumen</div>' +
         '<div class="ep-sec-s">Aquí está el estado de tu cuenta en ' + esc(e.nombre || '') + '</div></div>' +
         '<div class="ep-hd-der">' +
@@ -1291,6 +1291,49 @@
      Las que no tienen imagen se saltan. Antes se pintaba una tarjeta de color
      con titulo y texto encima, y se veia mal: el mensaje ahora va DENTRO de la
      imagen, que el restaurante puede mirar antes de publicarla. */
+  /* ── EL BANNER DEL INICIO ─────────────────────────────────────────────
+     Nuevo formato (16-ago, pedido de Sergio): bajo y con contenido dentro —
+     a la izquierda un mensaje y su botón; a la derecha tres tarjetas
+     verticales. Aquí es donde van a vivir las promos, los combos y la
+     publicidad del restaurante.
+
+     Por ahora el contenido es de MUESTRA, para ver cómo queda: cuando se
+     decida qué va, sale de la configuración del restaurante (fn_web_promos)
+     y esta constante desaparece. */
+  var BANNER_MUESTRA = {
+    titulo: 'Pide hoy y suma\npuntos en cada\ncombo',
+    boton: 'Ver la carta',
+    ir_a: 'carta',
+    tarjetas: [
+      { n: '01', titulo: 'Combo del día',   sub: 'Salchipapa + gaseosa', tono: 'claro' },
+      { n: '02', titulo: '2x1 en perros',   sub: 'Solo los martes',      tono: 'acento' },
+      { n: '03', titulo: 'Para compartir',  sub: 'Familiar + 2 bebidas', tono: 'claro' },
+    ],
+  };
+
+  function bannerHero() {
+    var b = BANNER_MUESTRA;
+    return '<section class="ep-hero">' +
+      '<div class="ep-hero-txt">' +
+        '<h2 class="ep-hero-tit">' + esc(b.titulo).replace(/\n/g, '<br>') + '</h2>' +
+        '<button class="ep-hero-btn" data-ir="' + esc(b.ir_a) + '">' + esc(b.boton) +
+          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>' +
+        '</button>' +
+      '</div>' +
+      '<div class="ep-hero-cards">' +
+        b.tarjetas.map(function (t) {
+          return '<article class="ep-hcard ' + esc(t.tono) + '">' +
+            '<span class="ep-hcard-n">' + esc(t.n) + '</span>' +
+            '<div class="ep-hcard-pie">' +
+              '<div class="ep-hcard-tit">' + esc(t.titulo) + '</div>' +
+              '<div class="ep-hcard-sub">' + esc(t.sub) + '</div>' +
+            '</div>' +
+          '</article>';
+        }).join('') +
+      '</div>' +
+    '</section>';
+  }
+
   function bannerPromos() {
     var ps = (S.promos || []).filter(function (x) { return x && x.imagen; });
     if (!ps.length) return '';

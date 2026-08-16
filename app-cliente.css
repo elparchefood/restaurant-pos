@@ -1074,3 +1074,67 @@ button.ep-slide { cursor: pointer; }
 .ep-dir-fila span:first-child { color: var(--txt); text-align: left; }
 .ep-dir-x { flex: none; padding: 0; font-size: 12.5px; opacity: .6; }
 .ep-dir-x:hover { opacity: 1; }
+
+/* ══ BANNER DEL INICIO ═══════════════════════════════════════════════════════
+   Formato pedido por Sergio (16-ago): BAJO —el anterior ocupaba media pantalla—
+   y con contenido dentro: a la izquierda el mensaje y su botón, a la derecha
+   tres tarjetas verticales. Aquí van las promos, los combos y la publicidad.
+
+   El fondo es oscuro en los dos temas a propósito: es un bloque de publicidad y
+   tiene que separarse del resto de la pantalla, no fundirse con ella. */
+.ep-hero {
+  position: relative; display: flex; align-items: stretch; gap: 18px;
+  margin: 4px 0 18px; padding: 20px 0 20px 22px;
+  border-radius: 22px; overflow: hidden;
+  background:
+    radial-gradient(520px 200px at 92% 120%, rgba(227,176,75,.18), transparent 60%),
+    linear-gradient(120deg, #2a0d18 0%, #4a1226 46%, #6d1a33 100%);
+  color: #fff;
+}
+.ep-hero-txt {
+  flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column;
+  justify-content: space-between; gap: 14px; padding: 2px 0;
+}
+.ep-hero-tit {
+  margin: 0; font-size: 25px; line-height: 1.15; font-weight: 700;
+  letter-spacing: -.025em; text-wrap: balance;
+}
+/* El botón claro sobre el fondo oscuro, como en la referencia: es lo único
+   tocable del bloque y tiene que verse de un golpe. */
+.ep-hero-btn {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 15px; border: 0; border-radius: 999px; cursor: pointer;
+  background: #fff; color: #17161a; font: inherit; font-size: 13.5px; font-weight: 600;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.ep-hero-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(0,0,0,.28); }
+
+/* Las tres tarjetas verticales. La última se sale del borde: se ve que hay más
+   y de paso da la sensación de tira, igual que en la referencia. */
+.ep-hero-cards {
+  flex: 0 0 auto; display: flex; gap: 10px; margin-right: -34px;
+  overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.ep-hero-cards::-webkit-scrollbar { display: none; }
+.ep-hcard {
+  flex: 0 0 auto; width: 104px; min-height: 132px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: 11px 12px; border-radius: 15px;
+  background: #f4f1ec; color: #17161a;
+}
+.ep-hcard.acento { background: var(--accent); color: #221204; }
+.ep-hcard-n { font-size: 11px; font-weight: 700; opacity: .55; letter-spacing: .04em; }
+.ep-hcard-tit { font-size: 13.5px; font-weight: 700; line-height: 1.2; letter-spacing: -.02em; }
+.ep-hcard-sub { font-size: 11.5px; line-height: 1.25; opacity: .7; margin-top: 3px; }
+
+/* En pantalla angosta el mensaje va arriba y las tarjetas debajo, deslizables:
+   apretar las dos columnas en un celular deja el titular ilegible. */
+@media (max-width: 620px) {
+  .ep-hero { flex-direction: column; gap: 16px; padding: 18px 0 18px 18px; }
+  .ep-hero-tit { font-size: 21px; }
+  .ep-hero-cards { margin-right: 0; padding-right: 18px; }
+  .ep-hcard { width: 96px; min-height: 118px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ep-hero-btn { transition: none; }
+}
