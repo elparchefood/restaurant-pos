@@ -1083,7 +1083,11 @@ button.ep-slide { cursor: pointer; }
    El fondo es oscuro en los dos temas a propósito: es un bloque de publicidad y
    tiene que separarse del resto de la pantalla, no fundirse con ella. */
 .ep-hero {
+  /* El alto lo marcaba el contenido: al acortar el titular a dos lineas, el
+     bloque se encogio y las fotos y las tarjetas quedaron chiquitas. Se fija un
+     minimo para que el banner conserve su presencia aunque el texto cambie. */
   position: relative; display: flex; align-items: stretch; gap: 18px;
+  min-height: 188px;
   margin: 4px 0 18px; padding: 20px 22px;
   border-radius: 22px; overflow: hidden;
   background:
@@ -1129,7 +1133,7 @@ button.ep-slide { cursor: pointer; }
 }
 .ep-hero-cards::-webkit-scrollbar { display: none; }
 .ep-hcard {
-  flex: 0 0 auto; width: 104px; min-height: 132px;
+  flex: 0 0 auto; width: 112px; min-height: 148px;
   display: flex; flex-direction: column; justify-content: space-between;
   padding: 11px 12px; border-radius: 15px; border: 0; cursor: pointer;
   font: inherit; text-align: left; position: relative; isolation: isolate;
@@ -1168,8 +1172,11 @@ button.ep-hfoto { cursor: pointer; }
 
 /* En pantalla angosta el mensaje va arriba y las tarjetas debajo, deslizables:
    apretar las dos columnas en un celular deja el titular ilegible. */
-@media (max-width: 900px) {
-  .ep-hero { flex-direction: column; gap: 14px; padding: 18px; }
+/* El layout de fila necesita ~900 px justos (texto 262 + fotos 190 + tres
+   tarjetas 368 + separaciones). Se apila antes, con holgura, para que nunca
+   quede al limite y se desborde. */
+@media (max-width: 980px) {
+  .ep-hero { flex-direction: column; gap: 14px; padding: 18px; min-height: 0; }
   .ep-hero-txt { flex: 0 0 auto; }
   .ep-hero-tit { font-size: 21px; }
   .ep-hero-sub { font-size: 12px; }
