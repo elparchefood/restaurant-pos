@@ -672,7 +672,7 @@
       '<div class="ep-over">' + saldo + puntos + tarjetaPublicidad() + '</div>' +
       /* Los destacados (cuadro 2x2) con la billetera al lado, y debajo la
          gráfica junto al historial. Cada zona es una fila de la página. */
-      '<div class="ep-zona-hoy">' + filaDeHoy() + panelBilletera(c, n) + '</div>' +
+      '<div class="ep-zona-hoy"><div class="ep-hoy-col">' + filaDeHoy() + '</div>' + panelBilletera(c, n) + '</div>' +
       '<div class="ep-mid">' + panelGrafica(c) + historial + '</div>' +
       acts;
   }

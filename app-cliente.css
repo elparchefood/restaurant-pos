@@ -1354,8 +1354,19 @@ button.ep-pub-foto { cursor: pointer; }
 .ep-lista-ver:hover { text-decoration: underline; }
 
 @media (min-width: 1000px) {
-  /* Los destacados mandan (2 partes) y la billetera acompaña (1 parte); las dos
-     columnas se estiran igual para que la fila quede pareja. */
-  .ep-zona-hoy { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; align-items: stretch; }
+  /* ESPEJO: las dos mitades iguales. Mi billetera conserva el tamaño que
+     siempre tuvo —no se encoge ni se estira— y el cuadro de destacados se
+     adapta a ella: misma anchura y misma altura, como un reflejo. */
+  .ep-zona-hoy { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: stretch; }
   .ep-mid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  /* QUIEN MANDA LA ALTURA ES LA BILLETERA. Su columna se mide sola y el cuadro
+     se ajusta a ella: por eso el cuadro va absoluto dentro de su columna — así
+     no impone su propio alto, que era lo que estiraba la billetera (201 px de
+     contenido inflados a 393). El minimo evita que las fotos se aplasten si
+     algun dia la billetera queda muy corta. */
+  .ep-hoy-col { position: relative; min-height: 300px; }
+  .ep-hoy { position: absolute; inset: 0; grid-template-rows: 1fr 1fr; margin: 0; }
+  .ep-hoy-card, .ep-hoy-msg { min-height: 0; }
+  .ep-hoy-foto { flex: 1 1 auto; aspect-ratio: auto; min-height: 60px; }
+  .ep-hoy-msg { justify-content: space-between; overflow: hidden; }
 }
