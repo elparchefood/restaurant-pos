@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="caja.css?v=1789840000">
+<link rel="stylesheet" href="caja.css?v=1791010000">
 </head>
 <body>
 <div class="cj-root">
@@ -291,23 +291,52 @@
 <div class="cj-overlay is-hidden" id="panel-abrir">
   <div class="cj-modal">
     <div class="cj-modal-head"><div style="display:flex;align-items:center;gap:12px"><div class="cj-modal-ic indigo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></div><div><div class="cj-modal-title">Abrir caja</div><div class="cj-modal-sub" id="panel-abrir-sub">Caja 01</div></div></div><button class="cj-close" onclick="closePanel('panel-abrir')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
-    <div class="cj-modal-body">
-      <div class="cj-field-label">Base inicial en efectivo</div>
-      <label class="cj-money" style="width:100%"><span class="cur">$</span><input type="number" id="abrir-monto" value="200000"></label>
-      <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px">
-        <button class="cj-btn-ghost sm" onclick="document.getElementById('abrir-monto').value=100000">$100.000</button>
-        <button class="cj-btn-ghost sm" onclick="document.getElementById('abrir-monto').value=200000">$200.000</button>
-        <button class="cj-btn-ghost sm" onclick="document.getElementById('abrir-monto').value=300000">$300.000</button>
-        <button class="cj-btn-ghost sm" onclick="document.getElementById('abrir-monto').value=500000">$500.000</button>
-      </div>
-      <div class="cj-field-label" style="margin-top:20px">Turno</div>
-      <div class="cj-seg" id="seg-turno">
-        <button onclick="segSelect(this,'seg-turno')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/></svg> Mañana</button>
-        <button onclick="segSelect(this,'seg-turno')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/></svg> Tarde</button>
-        <button class="on" onclick="segSelect(this,'seg-turno')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg> Noche</button>
-      </div>
-      <div class="cj-info" style="margin-top:18px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> La base es el efectivo con el que arrancas para dar cambio. Se descuenta al cuadrar la caja.</div>
+    <!-- TRES PESTAÑAS QUE SE SUMAN. No son opciones excluyentes: la base es
+         la suma de las tres. Ej: $100.000 que pone el cajero + las monedas que
+         quedaron de ayer. El total va SIEMPRE a la vista, abajo, porque con
+         tres fuentes nadie puede sumarlas de cabeza. -->
+    <div class="cj-aptabs" id="ap-tabs">
+      <button data-ap="0"><span class="t">Poner el valor</span><span class="m">—</span></button>
+      <button data-ap="1"><span class="t">Hacer arqueo</span><span class="m">—</span></button>
+      <button data-ap="2"><span class="t">Base que quedó</span><span class="m">—</span></button>
     </div>
+
+    <div class="cj-modal-body">
+      <div class="cj-appan" id="ap-p0">
+        <div class="cj-aphint">Plata que metes tú al cajón.</div>
+        <label class="cj-money" style="width:100%"><span class="cur">$</span><input type="number" id="abrir-monto" value="0" min="0"></label>
+        <div class="cj-aprap" id="ap-rap"></div>
+      </div>
+
+      <div class="cj-appan" id="ap-p1">
+        <div class="cj-aphint">Cuenta lo que hay en el cajón y escribe cuántos de cada uno.</div>
+        <div class="cj-denom">
+          <div class="cj-denom-head"><span style="flex:1">Denominación</span><span style="width:74px;text-align:center">Cantidad</span><span style="width:86px;text-align:right">Total</span></div>
+          <div id="ap-arqueo"></div>
+        </div>
+      </div>
+
+      <div class="cj-appan" id="ap-p2">
+        <div id="ap-viejo-cab" class="cj-apcab"></div>
+        <div class="cj-denom" id="ap-viejo-caja"><div id="ap-viejo"></div></div>
+        <div class="cj-apsaca" id="ap-saca"></div>
+      </div>
+
+      <div class="cj-info" style="margin-top:16px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> La base es el efectivo con el que arrancas para dar cambio. Se descuenta al cuadrar la caja.</div>
+
+      <div class="cj-field-label" style="margin-top:18px">Turno</div>
+      <div class="cj-seg" id="seg-turno">
+        <button onclick="segSelect(this,'seg-turno')">Mañana</button>
+        <button onclick="segSelect(this,'seg-turno')">Tarde</button>
+        <button class="on" onclick="segSelect(this,'seg-turno')">Noche</button>
+      </div>
+    </div>
+
+    <div class="cj-aptotal">
+      <div class="cj-aptotal-fila"><span>Base con la que abres</span><span id="ap-total">$0</span></div>
+      <div class="cj-apchips" id="ap-chips"></div>
+    </div>
+
     <div class="cj-modal-foot" style="justify-content:flex-end"><button class="cj-btn-ghost" onclick="closePanel('panel-abrir')">Cancelar</button><button class="cj-btn-primary" id="btn-confirmar-abrir"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg> Abrir caja</button></div>
   </div>
 </div>
@@ -450,6 +479,6 @@
 <script src="pos-creditos.js?v=1"></script>
 <script src="pos-metodos.js?v=1790540000"></script>
 <script src="pos-saldo.js?v=1790470001"></script>
-<script src="caja.js?v=1790901200"></script>
+<script src="caja.js?v=1791010000"></script>
 </body>
 </html>

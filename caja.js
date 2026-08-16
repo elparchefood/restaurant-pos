@@ -1116,6 +1116,7 @@ document.querySelectorAll('.cj-nav-item[data-screen]').forEach(function(btn) {
 // ── Paneles ────────────────────────────────────────────────────
 function openPanel(id) {
   document.getElementById(id)?.classList.remove('is-hidden');
+  if (id === 'panel-abrir') { try { apPreparar(); } catch(e) { console.error('apertura:', e); } }
   // Al abrir el arqueo se recalcula el aviso de pedidos sin cobrar: el cajero
   // pudo haber cobrado alguno desde que cargó la pantalla.
   if (id === 'panel-arqueo') { try { cjPintarPendientes(); } catch(e) { console.warn('pendientes:', e); } }
@@ -1144,12 +1145,198 @@ function selectMedio(btn) {
 }
 window.selectMedio = selectMedio;
 
+/* ══ APERTURA DE CAJA ══════════════════════════════════════════
+   La base puede venir de TRES sitios y se SUMAN, no se excluyen: lo que el
+   cajero pone a mano, lo que cuenta billete por billete, y lo que quedo en el
+   cajon del cierre anterior (marcando que denominaciones deja y cuales saca).
+
+   Caso real: dejo $100.000 de mi bolsillo y me quedo con las monedas de ayer
+   pero saco todos los billetes. Base = 100.000 + las monedas.
+
+   Por eso el total va SIEMPRE a la vista: con tres fuentes nadie las suma de
+   cabeza, y abrir con la base equivocada descuadra el cierre de todo el dia. */
+const AP_DENOMS = [100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50];
+const AP_RAPIDOS = [50000, 100000, 200000, 300000];
+const AP = { libre: 0, arqueo: {}, dejar: {}, ultimo: null, tab: 0 };
+
+function apCOP(n) { return COPF(n); }
+
+/* El ultimo cierre CON arqueo: es el unico que sabe que habia en el cajon.
+   Un cierre sin contar no sirve — no guarda denominaciones. */
+async function apUltimoCierre() {
+  try {
+    const q = sb.from('pos_sessions')
+      .select('closed_at, arqueo_denoms, arqueo_contado')
+      .eq('status', 'closed').not('arqueo_denoms', 'is', null)
+      .order('closed_at', { ascending: false }).limit(1);
+    q.eq('branch_id', S.branchId || '00000000-0000-0000-0000-000000000000');
+    const { data } = await q;
+    const r = data && data[0];
+    if (!r || !r.arqueo_denoms || !Array.isArray(r.arqueo_denoms.lineas) || !r.arqueo_denoms.lineas.length) return null;
+    return { fecha: r.closed_at, denoms: r.arqueo_denoms, total: Number(r.arqueo_denoms.total) || 0 };
+  } catch(e) { console.error('apUltimoCierre:', e); return null; }
+}
+
+async function apPreparar() {
+  AP.libre = 0; AP.arqueo = {}; AP.dejar = {}; AP.tab = 0;
+  document.getElementById('abrir-monto').value = 0;
+
+  AP.ultimo = await apUltimoCierre();
+  /* Todo marcado de entrada: lo normal es dejar la base como estaba y quitar
+     lo que uno saco. Al reves obligaria a marcar diez casillas cada mañana. */
+  if (AP.ultimo) AP.ultimo.denoms.lineas.forEach(l => { AP.dejar[l.denom] = true; });
+
+  apPintarRapidos();
+  apPintarArqueo();
+  apPintarViejo();
+  apTab(AP.ultimo ? 2 : 0);
+  apSumar();
+}
+
+function apPintarRapidos() {
+  document.getElementById('ap-rap').innerHTML = AP_RAPIDOS
+    .map(v => `<button class="cj-btn-ghost sm" data-aprap="${v}">${apCOP(v)}</button>`).join('');
+  document.querySelectorAll('[data-aprap]').forEach(b => {
+    b.onclick = () => { document.getElementById('abrir-monto').value = b.dataset.aprap; apSumar(); };
+  });
+}
+
+function apPintarArqueo() {
+  document.getElementById('ap-arqueo').innerHTML = AP_DENOMS.map(d => `
+    <div class="cj-denom-row">
+      <span class="cj-denom-name">${apCOP(d)}</span>
+      <span style="width:74px;display:flex;justify-content:center">
+        <input class="cj-num" type="number" min="0" placeholder="0" data-aparq="${d}"></span>
+      <span class="cj-denom-total" data-aptot="${d}">$0</span>
+    </div>`).join('');
+  document.querySelectorAll('[data-aparq]').forEach(inp => {
+    inp.oninput = function () {
+      const d = Number(this.dataset.aparq);
+      AP.arqueo[d] = Math.max(0, parseInt(this.value || '0', 10) || 0);
+      document.querySelector(`[data-aptot="${d}"]`).textContent = apCOP(d * AP.arqueo[d]);
+      apSumar();
+    };
+  });
+}
+
+function apPintarViejo() {
+  const caja = document.getElementById('ap-viejo-caja');
+  const cab  = document.getElementById('ap-viejo-cab');
+  if (!AP.ultimo) {
+    cab.innerHTML = '';
+    caja.style.display = 'none';
+    document.getElementById('ap-viejo').innerHTML = '';
+    document.getElementById('ap-saca').innerHTML =
+      '<span>El último cierre no se contó, así que no hay desglose para dejar.</span>';
+    return;
+  }
+  caja.style.display = '';
+  const f = new Date(AP.ultimo.fecha);
+  cab.innerHTML = `<span>Cierre del ${f.getDate()} de ${MESES[f.getMonth()]} · quedaron <b>${apCOP(AP.ultimo.total)}</b></span>` +
+    `<button class="cj-link" id="ap-todos"></button>`;
+
+  const grupos = [['Billetes', 'billete'], ['Monedas', 'moneda']];
+  let html = '';
+  grupos.forEach(([titulo, g]) => {
+    const lineas = AP.ultimo.denoms.lineas
+      .filter(l => l.grupo === g).sort((a, b) => b.denom - a.denom);
+    if (!lineas.length) return;
+    html += `<div class="cj-apgrupo">${titulo}</div>`;
+    lineas.forEach(l => {
+      const on = AP.dejar[l.denom] !== false;
+      html += `<label class="cj-apfila${on ? '' : ' off'}">
+        <input type="checkbox" data-apdej="${l.denom}"${on ? ' checked' : ''}>
+        <span class="d">${apCOP(l.denom)}</span>
+        <span class="q">×${l.qty}</span>
+        <span class="t">${apCOP(l.total)}</span></label>`;
+    });
+  });
+  document.getElementById('ap-viejo').innerHTML = html;
+  document.querySelectorAll('[data-apdej]').forEach(c => {
+    c.onchange = function () {
+      AP.dejar[Number(this.dataset.apdej)] = this.checked;
+      this.closest('.cj-apfila').classList.toggle('off', !this.checked);
+      apSumar();
+    };
+  });
+  apTodosBoton();
+}
+
+function apTodosBoton() {
+  const b = document.getElementById('ap-todos');
+  if (!b || !AP.ultimo) return;
+  const alguno = AP.ultimo.denoms.lineas.some(l => AP.dejar[l.denom] !== false);
+  b.textContent = alguno ? 'Quitar todos' : 'Marcar todos';
+  b.onclick = () => {
+    AP.ultimo.denoms.lineas.forEach(l => { AP.dejar[l.denom] = !alguno; });
+    apPintarViejo();
+    apSumar();
+  };
+}
+
+function apLibre()  { return Math.max(0, parseFloat(document.getElementById('abrir-monto').value) || 0); }
+function apArqueo() { return AP_DENOMS.reduce((s, d) => s + d * (AP.arqueo[d] || 0), 0); }
+function apViejo()  {
+  if (!AP.ultimo) return 0;
+  return AP.ultimo.denoms.lineas.reduce((s, l) => s + (AP.dejar[l.denom] !== false ? l.total : 0), 0);
+}
+
+function apSumar() {
+  const a = apLibre(), b = apArqueo(), c = apViejo(), t = a + b + c;
+  const tabs = document.querySelectorAll('#ap-tabs button');
+  [a, b, c].forEach((v, i) => {
+    const m = tabs[i].querySelector('.m');
+    m.textContent = v > 0 ? '+ ' + apCOP(v) : '—';
+    m.classList.toggle('hay', v > 0);
+  });
+
+  document.getElementById('ap-total').textContent = apCOP(t);
+  const partes = [];
+  if (a > 0) partes.push(['Pusiste', a]);
+  if (b > 0) partes.push(['Contaste', b]);
+  if (c > 0) partes.push(['Ya estaba', c]);
+  document.getElementById('ap-chips').innerHTML = partes.length > 1
+    ? partes.map(p => `<span class="cj-apchip">${p[0]} ${apCOP(p[1])}</span>`).join('')
+    : '<span class="cj-apnota">Puedes combinar las tres pestañas: se suman.</span>';
+
+  if (AP.ultimo) {
+    const fuera = AP.ultimo.total - c;
+    document.getElementById('ap-saca').innerHTML = fuera > 0
+      ? `<span>Lo que no marcaste sale del cajón</span><b>${apCOP(fuera)}</b>`
+      : '<span>Dejas todo lo que había</span><span></span>';
+  }
+  /* Abrir con base en cero es raro pero legitimo (un negocio que arranca sin
+     sencillo), asi que no se bloquea el boton: solo se avisa con el total. */
+  apTodosBoton();
+}
+
+function apTab(i) {
+  AP.tab = i;
+  document.querySelectorAll('#ap-tabs button').forEach((b, n) => b.classList.toggle('on', n === i));
+  [0, 1, 2].forEach(n => document.getElementById('ap-p' + n).classList.toggle('on', n === i));
+}
+
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+document.querySelectorAll('#ap-tabs button').forEach(b => {
+  b.onclick = () => apTab(Number(b.dataset.ap));
+});
+document.getElementById('abrir-monto').addEventListener('input', apSumar);
+
 // ── Acciones principales ───────────────────────────────────────
 document.getElementById('btn-confirmar-abrir').addEventListener('click', async function() {
-  const monto    = parseFloat(document.getElementById('abrir-monto').value)||0;
+  const monto    = apLibre() + apArqueo() + apViejo();
   const turnoBtn = document.querySelector('#seg-turno button.on');
   const turno    = turnoBtn ? turnoBtn.textContent.trim() : 'Noche';
-  await handleOpenSession(monto, turno);
+  /* De donde salio cada peso. Sin esto, al ver "$121.700" mañana nadie sabria
+     si el cajero puso plata suya o si eso venia del cajon. */
+  const detalle = {
+    puesto: apLibre(), contado: apArqueo(), heredado: apViejo(),
+    arqueo: AP_DENOMS.filter(d => AP.arqueo[d]).map(d => ({ denom: d, qty: AP.arqueo[d] })),
+    dejadas: AP.ultimo ? AP.ultimo.denoms.lineas.filter(l => AP.dejar[l.denom] !== false)
+                                 .map(l => ({ denom: l.denom, qty: l.qty })) : [],
+  };
+  await handleOpenSession(monto, turno, detalle);
   closePanel('panel-abrir');
 });
 
@@ -1691,10 +1878,11 @@ async function updateArqueoEsperado() {
 }
 
 // ── Acciones Supabase ──────────────────────────────────────────
-async function handleOpenSession(openingCash, shiftType) {
+async function handleOpenSession(openingCash, shiftType, detalle) {
   try {
     const payload = {
       status: 'open', opening_cash: openingCash, shift_type: shiftType,
+      apertura_detalle: detalle || null,
       opened_at:    new Date().toISOString(),
       cashier_name: S.user?.user_metadata?.nombre || S.user?.email || 'Cajero',
     };

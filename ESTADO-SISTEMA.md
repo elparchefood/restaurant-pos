@@ -5928,3 +5928,21 @@ Lo que estaba pendiente desde las entradas 157 y 158: hasta hoy los tres destaca
 - RLS de `pos_promos` ya permitia todo al dueño (`current_tenant_id() = tenant_id`), no hubo que tocar permisos.
 - **La vista previa se recarga** despues de cada cambio, asi que se ve el efecto de una vez.
 - **PENDIENTE**: las dos promos que hay ("Imagen de prueba 1 y 2") son marcadores de posicion que puse yo; Sergio ya las puede quitar desde la pantalla.
+
+## 167. Apertura de caja: tres fuentes que SE SUMAN (16-ago) — caja + pos_sessions.apertura_detalle
+El modal de apertura pedia un solo numero. Ahora la base se arma de tres sitios y **se suman, no se excluyen**:
+- **Poner el valor** — la plata que mete el cajero.
+- **Hacer arqueo** — cuenta billete por billete lo que hay.
+- **Base que quedo** — lo que se conto en el ULTIMO CIERRE, marcando por denominacion que deja y que saca.
+
+**El caso que pidio Sergio**: dejo $100.000 de mi bolsillo, me quedo con las monedas de ayer y saco todos los billetes → base $121.700.
+
+- **Primero lo hice excluyente y estaba mal.** Sergio dijo "interruptores" y yo entendi tres opciones donde solo una manda; lo que queria era que se sumaran. Se rehizo.
+- **El total va FIJO entre el cuerpo y los botones**, con el desglose en chips ("Pusiste $100.000 · Ya estaba $21.700"). Con tres fuentes nadie las suma de cabeza, y abrir con la base equivocada descuadra el cierre de todo el dia. Sergio: "lo bueno es que ahi esta el total, ahi me avisa".
+- **Cada pestaña muestra su aporte con un `+`** en la propia pestaña: se ve cuales estan sumando sin entrar a ninguna.
+- **Todo viene marcado de entrada** en la base que quedo: lo normal es dejarla como estaba y quitar lo que uno saco. Al reves obligaria a marcar diez casillas cada mañana.
+- **"Lo que no marcaste sale del cajon"** vive dentro de esa pestaña, porque solo aplica a esa parte: lo que se pone a mano o se cuenta no "sale" de ningun lado.
+- **NO se avisa del doble conteo** (contar un billete en el arqueo Y dejarlo marcado en la base). Decision de Sergio: el total es el aviso.
+- **Si el ultimo cierre no se conto** no hay desglose. La pestaña queda visible pero vacia, con "El ultimo cierre no se conto": esconderla haria pensar que se daño. En ese caso arranca en la primera pestaña.
+- **COLUMNA NUEVA `pos_sessions.apertura_detalle`** (jsonb): de donde salio cada peso. `opening_cash` guarda el total, que es lo que necesita el cuadre, pero al ver "$121.700" mañana nadie sabria si el cajero puso plata suya o si venia del cajon — y esa es justo la pregunta cuando algo no cuadra.
+- **Probado ejecutando la pantalla de verdad** (caja.html + caja.css + caja.js) con el ultimo cierre real: solo monedas $21.700; +$100.000 a mano = $121.700; +2 billetes de $50.000 contados = $221.700; al cambiar de pestaña no se borra nada; "sale del cajon $553.000". Y el caso sin arqueo previo. La caja no se toco.
