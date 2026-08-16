@@ -1280,9 +1280,13 @@
   /* Lo que suman las adiciones elegidas. Van aparte del precio base porque se
      SUMAN: una salchipapa con carne extra es la salchipapa MÁS la carne, no
      otra cosa distinta. */
-  function extrasDe(p, mods) {
+  /* `talla` entra aquí a propósito: aunque al cambiar de tamaño se sueltan las
+     adiciones del anterior, el precio y lo que viaja a la cocina no dependen de
+     que esa limpieza haya corrido. Un extra de otro tamaño es plata mal cobrada. */
+  function extrasDe(p, mods, talla) {
     var grupos = p.modificadores || [], elegidos = mods || {}, total = 0;
     grupos.forEach(function (g, gi) {
+      if (talla != null && !modAplica(p, g, talla)) return;
       (elegidos[gi] || []).forEach(function (oi) {
         var o = (g.opciones || [])[oi];
         if (o) total += Number(o.precio) || 0;
@@ -1291,9 +1295,10 @@
     return total;
   }
 
-  function nombresExtras(p, mods) {
+  function nombresExtras(p, mods, talla) {
     var grupos = p.modificadores || [], elegidos = mods || {}, out = [];
     grupos.forEach(function (g, gi) {
+      if (talla != null && !modAplica(p, g, talla)) return;
       var cuenta = {};
       (elegidos[gi] || []).forEach(function (oi) { cuenta[oi] = (cuenta[oi] || 0) + 1; });
       Object.keys(cuenta).forEach(function (oi) {
@@ -1316,19 +1321,47 @@
     return out;
   }
 
+  /* ¿Este grupo de adiciones es el del tamaño elegido? (16-ago)
+     Cada grupo trae `pres` con los tamaños a los que pertenece. Una Premium
+     Familiar ofrecía "Adiciones Personales" —el grupo del otro tamaño, con
+     otros precios— porque aquí se mostraban TODOS. Sin `pres` (grupo común, o
+     producto de un solo tamaño) aplica siempre: así nada desaparece por una
+     configuración incompleta. */
+  function modAplica(p, g, talla) {
+    var suyas = (g && g.pres) || [];
+    if (!suyas.length) return true;
+    var pres = (p.presentaciones || [])[talla] || {};
+    if (!pres.id) return true;
+    return suyas.indexOf(pres.id) >= 0;
+  }
+
   /* Los pasos de este producto: el tamaño (si tiene más de uno) y un paso por
      cada grupo de variantes. Un producto simple no tiene ninguno y se agrega de
-     una. */
-  function pasosDe(p) {
+     una. Los índices `gi` son los del producto COMPLETO (no los de esta lista):
+     con ellos se guarda lo elegido en sheet.mods y los lee todo lo demás. */
+  function pasosDe(p, talla) {
     var out = [];
     if ((p.presentaciones || []).length > 1) out.push({ tipo: 'pres', titulo: 'Tamaño' });
     (p.variables || []).forEach(function (g, i) {
       if ((g.opciones || []).length) out.push({ tipo: 'var', gi: i, titulo: g.nombre || 'Elige' });
     });
     (p.modificadores || []).forEach(function (g, i) {
-      if ((g.opciones || []).length) out.push({ tipo: 'mod', gi: i, titulo: g.nombre || 'Adiciones' });
+      if ((g.opciones || []).length && modAplica(p, g, talla)) {
+        out.push({ tipo: 'mod', gi: i, titulo: g.nombre || 'Adiciones' });
+      }
     });
     return out;
+  }
+
+  /* Al cambiar de tamaño, lo elegido en las adiciones del tamaño ANTERIOR se
+     suelta: si no, seguiría sumando al total y viajando a la cocina un extra
+     que ya no existe para ese plato. */
+  function soltarModsDeOtroTamano(p, mods, talla) {
+    var limpio = {};
+    (p.modificadores || []).forEach(function (g, i) {
+      if (mods[i] && modAplica(p, g, talla)) limpio[i] = mods[i];
+    });
+    return limpio;
   }
 
   function pintarSheet() {
@@ -1336,7 +1369,7 @@
     if (!sheet) { if (existente) existente.remove(); return; }
     var p = sheet.p;
     var pres = p.presentaciones || [];
-    var pasos = pasosDe(p);
+    var pasos = pasosDe(p, sheet.talla);
     var paso = pasos[sheet.paso] || null;
     var ultimo = sheet.paso >= pasos.length - 1;
 
@@ -1404,7 +1437,7 @@
         ' · <b>' + esc(paso ? paso.titulo : '') + '</b>' + extraGuia + '</div>'
       : (paso ? '<div class="ep-paso-g"><b>' + esc(paso.titulo) + '</b></div>' : '');
 
-    var precioAhora = precioDe(p, sheet.talla, sheet.vars) + extrasDe(p, sheet.mods);
+    var precioAhora = precioDe(p, sheet.talla, sheet.vars) + extrasDe(p, sheet.mods, sheet.talla);
     /* El contador va en TODOS los pasos, desde el primero. Decidir cuantas
        quiero es lo primero que uno piensa —"tres personales de pollo"— y
        tenerlo solo al final obligaba a configurar el producto sin saber que iba
@@ -1462,7 +1495,12 @@
     }
 
     d.querySelectorAll('[data-talla]').forEach(function (b) {
-      b.addEventListener('click', function () { sheet.talla = Number(b.dataset.talla); pintarSheet(); });
+      b.addEventListener('click', function () {
+        sheet.talla = Number(b.dataset.talla);
+        // Las adiciones del tamaño anterior no siguen puestas (ver soltarModsDeOtroTamano).
+        sheet.mods = soltarModsDeOtroTamano(sheet.p, sheet.mods || {}, sheet.talla);
+        pintarSheet();
+      });
     });
     d.querySelectorAll('[data-grupo]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -1520,8 +1558,8 @@
         nombre: sheet.p.nombre,
         presentacion: pres.length > 1 ? String(pres[sheet.talla].nombre) : '',
         variantes: variantesDe(sheet.p, sheet.vars),
-        adiciones: nombresExtras(sheet.p, sheet.mods),
-        precio: precioDe(sheet.p, sheet.talla, sheet.vars) + extrasDe(sheet.p, sheet.mods),
+        adiciones: nombresExtras(sheet.p, sheet.mods, sheet.talla),
+        precio: precioDe(sheet.p, sheet.talla, sheet.vars) + extrasDe(sheet.p, sheet.mods, sheet.talla),
         cantidad: sheet.cant,
         nota: sheet.nota || '',
       });
