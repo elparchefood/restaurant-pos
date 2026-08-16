@@ -4,14 +4,25 @@ const OPENAI_KEY    = Deno.env.get("OPENAI_API_KEY")!;
 const GMAIL_CLIENT_ID     = Deno.env.get("GMAIL_CLIENT_ID")!;
 const GMAIL_CLIENT_SECRET = Deno.env.get("GMAIL_CLIENT_SECRET")!;
 
+/* CORS COMPLETO (15-ago): el boton "Confirmar pago" del panel manda los
+   encabezados authorization y content-type; el preflight solo permitia el
+   Origin y el navegador bloqueaba la llamada — "Failed to fetch" y Sergio sin
+   poder confirmar en pleno turno. Cuando el que llama es otro servidor (el
+   webhook), el CORS ni estorba ni aplica. */
+const CORS_VT = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: { "Access-Control-Allow-Origin": "*" } });
+    return new Response("ok", { headers: CORS_VT });
   }
-  if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
+  if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers: CORS_VT });
 
   const { conversation_id, manual } = await req.json() as { conversation_id: string; manual?: boolean };
-  if (!conversation_id) return new Response("Missing conversation_id", { status: 400 });
+  if (!conversation_id) return new Response("Missing conversation_id", { status: 400, headers: CORS_VT });
 
   let orderId: string | null = null;
   try {
@@ -24,7 +35,7 @@ Deno.serve(async (req) => {
   }
 
   return new Response(JSON.stringify({ ok: true, order_id: orderId }), {
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...CORS_VT },
   });
 });
 
@@ -173,9 +184,24 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
   // 7. Comparar llave/cuenta del comprobante contra la nuestra en ia_config
   const llaveEnComprobante = visionResult.llave.replace(/\s/g, "");
   const llaveConfigLimpia  = llaveCfg.replace(/\s/g, "");
+  /* OCR DE UN DIGITO DOBLADO (caso real, 15-ago): la vision leyo
+     "00927626260" y la llave es "0092726260" — un 6 doblado en la mitad.
+     Quitando UN digito del mas largo queda EXACTA la nuestra: eso es un
+     tropiezo de lectura sobre digitos repetidos, no otra cuenta. Una cuenta
+     distinta de verdad difiere en varios digitos, y la SUSTITUCION de un
+     digito (misma longitud, un numero cambiado) se sigue rechazando. */
+  const unDigitoDoblado = (a: string, b: string): boolean => {
+    const [l, s] = a.length > b.length ? [a, b] : [b, a];
+    if (l.length - s.length !== 1 || !/^\d+$/.test(l) || !/^\d+$/.test(s)) return false;
+    for (let i = 0; i < l.length; i++) {
+      if (l.slice(0, i) + l.slice(i + 1) === s) return true;
+    }
+    return false;
+  };
   const llaveCoincide = !llaveConfigLimpia || !llaveEnComprobante ||
     llaveEnComprobante.includes(llaveConfigLimpia) ||
-    llaveConfigLimpia.includes(llaveEnComprobante);
+    llaveConfigLimpia.includes(llaveEnComprobante) ||
+    unDigitoDoblado(llaveEnComprobante, llaveConfigLimpia);
 
   console.log(`Llave comprobante: "${llaveEnComprobante}", config: "${llaveConfigLimpia}", coincide: ${llaveCoincide}`);
 
