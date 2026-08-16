@@ -130,6 +130,26 @@ async function mandarCodigo(tenantId: string, telefono: string, codigo: string, 
   return r.ok;
 }
 
+/* EL CLIENTE, BUSCADO COMO SE DEBE (15-ago). Antes se buscaba con
+   `telefono=eq.<10 digitos>` exacto, y basta UNA fila guardada con el
+   indicativo (573244756271) o con un espacio para que el cliente "no exista":
+   la pagina lo mandaba a registrarse de cero teniendo sus datos, sus puntos y
+   su historial. Paso de verdad con el primer cliente que intento recuperar su
+   contraseña. Se compara por los ULTIMOS 10 DIGITOS, que es la identidad real
+   del cliente en todo el sistema (misma regla que pos_tel10 en la base). */
+async function buscarCliente(tenantId: string, tel: string, campos = "id,nombre,direccion,barrio") {
+  const filas = await sbGet(
+    `/pos_clientes?tenant_id=eq.${tenantId}&telefono=like.*${tel}&select=${campos},telefono&limit=5`
+  ) as Array<Record<string, unknown>> | null;
+  const exacto = (filas || []).find((c) => tel10(c.telefono) === tel);
+  if (exacto) return exacto;
+  // Respaldo: alguna fila con separadores que el `like` no alcanzó.
+  const todas = await sbGet(
+    `/pos_clientes?tenant_id=eq.${tenantId}&select=${campos},telefono&limit=5000`
+  ) as Array<Record<string, unknown>> | null;
+  return (todas || []).find((c) => tel10(c.telefono) === tel) || null;
+}
+
 // ── El restaurante, por su dirección ─────────────────────────────────
 async function restaurantePorSlug(slug: string) {
   const s = String(slug || "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -316,8 +336,7 @@ Deno.serve(async (req) => {
       /* Ya probó que el teléfono es suyo. Se le devuelve lo que el restaurante ya
          sabe de él, para que el formulario salga PRELLENADO — es lo que le dice
          "aquí ya te conocemos". */
-      const cli = await sbGet(`/pos_clientes?tenant_id=eq.${tenantId}&telefono=eq.${tel}&select=id,nombre,direccion,barrio&limit=1`) as Array<Record<string, unknown>> | null;
-      const existente = cli?.[0] || null;
+      const existente = await buscarCliente(tenantId, tel);
       let tieneClave = false;
       if (existente) {
         const cr = await sbGet(`/pos_web_credenciales?cliente_id=eq.${existente.id}&select=cliente_id&limit=1`) as unknown[] | null;
@@ -351,7 +370,6 @@ Deno.serve(async (req) => {
       const clave  = String(b.clave || "");
       const nombre = String(b.nombre || "").trim().slice(0, 80);
       if (clave.length < 6) return json({ ok: false, razon: "clave_corta", mensaje: "La contraseña debe tener al menos 6 caracteres." });
-      if (nombre.length < 2) return json({ ok: false, razon: "nombre", mensaje: "Escribe tu nombre." });
 
       const direccion = String(b.direccion || "").trim().slice(0, 160);
       const barrio    = String(b.barrio || "").trim().slice(0, 60);
@@ -359,8 +377,15 @@ Deno.serve(async (req) => {
       /* ENLAZAR O CREAR — la misma operación. La base tiene índice único por
          (restaurante, últimos 10 dígitos), así que aquí no se pueden duplicar
          clientes ni aunque dos personas entren en el mismo instante. */
-      const cli = await sbGet(`/pos_clientes?tenant_id=eq.${tenantId}&telefono=eq.${tel}&select=id,nombre,direccion,barrio,direcciones&limit=1`) as Array<Record<string, unknown>> | null;
-      let clienteId = cli?.[0]?.id ? String(cli[0].id) : "";
+      const yaEs = await buscarCliente(tenantId, tel, "id,nombre,direccion,barrio,direcciones,telefono");
+      let clienteId = yaEs?.id ? String(yaEs.id) : "";
+
+      /* EL NOMBRE SOLO SE EXIGE A QUIEN NO LO TIENE. Quien ya es cliente y solo
+         viene a recuperar su contraseña no tiene por que volver a escribir sus
+         datos: la pagina le pide unicamente la clave nueva (15-ago). */
+      if (nombre.length < 2 && !String(yaEs?.nombre || "").trim()) {
+        return json({ ok: false, razon: "nombre", mensaje: "Escribe tu nombre." });
+      }
 
       if (clienteId) {
         // Ya existía: se respeta lo que el restaurante ya tenía si el cliente no
@@ -369,6 +394,9 @@ Deno.serve(async (req) => {
         if (nombre) upd.nombre = nombre;
         if (direccion) upd.direccion = direccion;
         if (barrio) upd.barrio = barrio;
+        /* De paso se normaliza el telefono a 10 digitos: si esta fila venia con
+           indicativo, era justo lo que impedia reconocerlo. */
+        if (tel10(yaEs?.telefono) === tel && String(yaEs?.telefono || "") !== tel) upd.telefono = tel;
         await sbPatch(`/pos_clientes?id=eq.${clienteId}`, upd);
       } else {
         const nuevo = await sbPost(`/pos_clientes`, {
@@ -402,8 +430,8 @@ Deno.serve(async (req) => {
     // ── 4. ENTRAR (teléfono + contraseña) ────────────────────────────
     if (accion === "entrar") {
       const clave = String(b.clave || "");
-      const cli = await sbGet(`/pos_clientes?tenant_id=eq.${tenantId}&telefono=eq.${tel}&select=id&limit=1`) as Array<Record<string, unknown>> | null;
-      const clienteId = cli?.[0]?.id ? String(cli[0].id) : "";
+      const cliE = await buscarCliente(tenantId, tel, "id");
+      const clienteId = cliE?.id ? String(cliE.id) : "";
       /* Mismo mensaje si el número no existe o si la contraseña está mal. Decir
          "ese número no está registrado" le confirmaría a un desconocido quién es
          cliente del restaurante. */

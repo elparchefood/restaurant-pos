@@ -169,38 +169,58 @@
   // ── 3. Sus datos y su contraseña ────────────────────────────────────
   /* Si el restaurante ya lo conoce, el formulario sale LLENO. Es lo que le dice
      "aquí ya te conocemos" — y de paso corrige una dirección vieja. */
-  function pantallaDatos(cli, yaEra, teniaClave, aviso, malo) {
+  /* AL QUE YA ES CLIENTE NO SE LE PIDEN SUS DATOS OTRA VEZ (15-ago). Quien
+     olvido su contraseña ya tiene nombre, direccion, puntos e historial: verlo
+     todo en blanco bajo un "solo falta esto y quedas registrado" da la
+     impresion de que su cuenta se perdio. Ahora solo escribe su clave nueva y
+     entra; si quiere corregir sus datos, hay un enlace que abre el formulario
+     completo (ya prellenado). `abrirDatos` lo fuerza desde ese enlace. */
+  function pantallaDatos(cli, yaEra, teniaClave, aviso, malo, abrirDatos) {
     var c = cli || {};
-    pinta('<div class="ep-login">' + cabecera() +
-      '<form class="ep-form" id="f-datos">' +
-        msg(aviso || (yaEra
-          ? (teniaClave ? 'Cambia tu contraseña y sigue.' : '¡Ya te conocemos! Revisa tus datos y crea tu contraseña.')
-          : 'Solo falta esto y quedas registrado.'), malo) +
+    var soloClave = !!yaEra && !abrirDatos;
+    var campos = soloClave ? '' :
         '<label class="ep-campo"><span class="ep-lbl">Tu nombre</span>' +
           '<input class="ep-in" id="d-nombre" autocomplete="name" maxlength="80" value="' + esc(c.nombre || '') + '" placeholder="Como quieres que te llamemos"></label>' +
         '<label class="ep-campo"><span class="ep-lbl">Dirección <span style="opacity:.6">· para tus domicilios</span></span>' +
           '<input class="ep-in" id="d-dir" autocomplete="street-address" maxlength="160" value="' + esc(c.direccion || '') + '" placeholder="Calle 5 # 10-20, apto 301"></label>' +
         '<label class="ep-campo"><span class="ep-lbl">Barrio</span>' +
-          '<input class="ep-in" id="d-barrio" maxlength="60" value="' + esc(c.barrio || '') + '" placeholder="Escríbelo como lo conoces"></label>' +
-        '<label class="ep-campo"><span class="ep-lbl">Crea tu contraseña</span>' +
+          '<input class="ep-in" id="d-barrio" maxlength="60" value="' + esc(c.barrio || '') + '" placeholder="Escríbelo como lo conoces"></label>';
+    var saludo = c.nombre ? ('¡Hola de nuevo, ' + esc(String(c.nombre).split(' ')[0]) + '! ') : '¡Ya te conocemos! ';
+    pinta('<div class="ep-login">' + cabecera() +
+      '<form class="ep-form" id="f-datos">' +
+        msg(aviso || (soloClave
+          ? saludo + (teniaClave ? 'Escribe tu contraseña nueva y entras.' : 'Crea tu contraseña y entras.')
+          : (yaEra ? 'Revisa tus datos y sigue.' : 'Solo falta esto y quedas registrado.')), malo) +
+        campos +
+        '<label class="ep-campo"><span class="ep-lbl">' + (soloClave && teniaClave ? 'Tu contraseña nueva' : 'Crea tu contraseña') + '</span>' +
           '<input class="ep-in" id="d-clave" type="password" autocomplete="new-password" placeholder="Mínimo 6 caracteres"></label>' +
         '<label class="ep-fila"><input type="checkbox" id="d-recordar" checked> Mantener mi sesión</label>' +
         '<button class="ep-btn ep-btn--main" type="submit" id="b-datos">Entrar</button>' +
       '</form>' +
-      '<p class="ep-nota">La próxima vez entras solo con tu celular y tu contraseña.</p>' +
+      (soloClave ? '<button class="ep-link" id="b-editar">Actualizar mis datos</button>' : '') +
+      '<p class="ep-nota">' + (soloClave
+        ? 'Tus puntos y tu historial siguen intactos.'
+        : 'La próxima vez entras solo con tu celular y tu contraseña.') + '</p>' +
     '</div>');
+
+    if (soloClave) $('b-editar').addEventListener('click', function () {
+      pantallaDatos(c, yaEra, teniaClave, '', false, true);
+    });
 
     $('f-datos').addEventListener('submit', async function (ev) {
       ev.preventDefault();
       var b = $('b-datos'); b.disabled = true; b.textContent = 'Un momento…';
-      var d = await acceso({
+      // En modo "solo clave" se mandan los datos que ya tenía, sin tocarlos.
+      var envio = {
         accion: 'crear-cuenta', telefono: S.tel, pase: S.pase,
-        nombre: $('d-nombre').value, direccion: $('d-dir').value,
-        barrio: $('d-barrio').value, clave: $('d-clave').value,
-        recordar: $('d-recordar').checked,
-      });
-      if (!d.ok) return pantallaDatos({ nombre: $('d-nombre').value, direccion: $('d-dir').value, barrio: $('d-barrio').value },
-                                      yaEra, teniaClave, d.mensaje || 'No se pudo.', true);
+        nombre: soloClave ? (c.nombre || '') : $('d-nombre').value,
+        direccion: soloClave ? (c.direccion || '') : $('d-dir').value,
+        barrio: soloClave ? (c.barrio || '') : $('d-barrio').value,
+        clave: $('d-clave').value, recordar: $('d-recordar').checked,
+      };
+      var d = await acceso(envio);
+      if (!d.ok) return pantallaDatos({ nombre: envio.nombre, direccion: envio.direccion, barrio: envio.barrio },
+                                      yaEra, teniaClave, d.mensaje || 'No se pudo.', true, abrirDatos);
       guardarToken(d.token); S.cliente = d.cliente; pantallaDentro();
     });
   }
