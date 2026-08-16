@@ -1391,7 +1391,8 @@
          cuando entra a su propia página sin haber subido ninguna. */
       : '<div class="ep-hero-fotos vacio"><span>Aquí van tus fotos de publicidad</span></div>';
 
-    var tarjetas = productosDelBanner().map(function (e, i) {
+    var destacados = productosDelBanner();
+    var tarjetas = destacados.map(function (e, i) {
       var p = e.p, precio = precioDesde(p);
       return '<button class="ep-hcard" data-ir="carta"' +
           (p.foto ? ' style="background-image:url(' + esc(p.foto) + ')"' : '') + '>' +
@@ -1403,7 +1404,14 @@
       '</button>';
     }).join('');
 
-    return '<section class="ep-hero">' +
+    /* EL FONDO ES UNA FOTO, DIFUMINADA. La del plato destacado: el banner se
+       ve de la casa y no de una plantilla. Va como estilo en línea porque la
+       foto cambia con el catálogo; el desenfoque y el velo los pone el CSS. */
+    var fondo = (destacados[0] || {}).p;
+    var estiloFondo = (fondo && fondo.foto)
+      ? ' style="--hero-foto:url(' + esc(fondo.foto) + ')"' : '';
+
+    return '<section class="ep-hero' + (estiloFondo ? ' con-foto' : '') + '"' + estiloFondo + '>' +
       '<div class="ep-hero-txt">' +
         /* Sin <br> a la fuerza: los cortes fijos partían el titular en cuatro
            líneas desiguales ("Pide hoy" / "y suma" / "puntos en cada" /

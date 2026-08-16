@@ -1095,6 +1095,34 @@ button.ep-slide { cursor: pointer; }
     linear-gradient(120deg, #2a0d18 0%, #4a1226 46%, #6d1a33 100%);
   color: #fff;
 }
+
+/* ── EL FONDO CON FOTO ────────────────────────────────────────────────
+   La foto va difuminada y oscurecida: es ambiente, no contenido — si se
+   leyera nítida, competiría con las fotos de publicidad del centro y con los
+   platos de las tarjetas, que sí hay que mirar.
+
+   Va en un pseudo-elemento y no en el `background` del bloque para poder
+   desenfocarla sin desenfocar el texto. El `scale` evita el borde claro que
+   deja el desenfoque en los cantos. */
+.ep-hero.con-foto::before {
+  content: ""; position: absolute; inset: 0; z-index: 0;
+  background: var(--hero-foto) center/cover no-repeat;
+  filter: blur(16px) saturate(1.1);
+  transform: scale(1.14);
+}
+/* El velo: fuerte a la izquierda, donde va el texto; suave a la derecha, para
+   que el color de la foto se siga viendo detrás de las tarjetas. */
+.ep-hero.con-foto::after {
+  content: ""; position: absolute; inset: 0; z-index: 0;
+  background:
+    linear-gradient(90deg, rgba(20,12,14,.93) 0%, rgba(20,12,14,.78) 42%, rgba(20,12,14,.55) 100%),
+    radial-gradient(520px 220px at 92% 120%, rgba(227,176,75,.16), transparent 62%);
+}
+/* Todo lo demás va por encima del fondo. */
+.ep-hero > * { position: relative; z-index: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .ep-hero.con-foto::before { filter: blur(16px); }
+}
 /* La columna del texto tiene ancho PROPIO: antes competía con las fotos y se
    quedaba tan angosta que el titular salía en cuatro líneas de dos palabras. */
 .ep-hero-txt {
