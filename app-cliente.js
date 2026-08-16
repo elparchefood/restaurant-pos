@@ -194,6 +194,10 @@
         campos +
         '<label class="ep-campo"><span class="ep-lbl">' + (soloClave && teniaClave ? 'Tu contraseña nueva' : 'Crea tu contraseña') + '</span>' +
           '<input class="ep-in" id="d-clave" type="password" autocomplete="new-password" placeholder="Mínimo 6 caracteres"></label>' +
+        /* Escribirla dos veces: la contraseña va tapada y un dedo torcido deja
+           al cliente fuera de su cuenta sin manera de saber por que. */
+        '<label class="ep-campo"><span class="ep-lbl">Repite tu contraseña</span>' +
+          '<input class="ep-in" id="d-clave2" type="password" autocomplete="new-password" placeholder="La misma de arriba"></label>' +
         '<label class="ep-fila"><input type="checkbox" id="d-recordar" checked> Mantener mi sesión</label>' +
         '<button class="ep-btn ep-btn--main" type="submit" id="b-datos">Entrar</button>' +
       '</form>' +
@@ -209,6 +213,16 @@
 
     $('f-datos').addEventListener('submit', async function (ev) {
       ev.preventDefault();
+      /* Se comprueba ANTES de mandar nada, y sin borrar lo que ya escribió:
+         se vuelve a pintar la pantalla con sus datos y el aviso. */
+      var cl1 = $('d-clave').value || '', cl2 = $('d-clave2').value || '';
+      var escrito = soloClave ? c : { nombre: $('d-nombre').value, direccion: $('d-dir').value, barrio: $('d-barrio').value };
+      if (cl1.length < 6) {
+        return pantallaDatos(escrito, yaEra, teniaClave, 'La contraseña debe tener al menos 6 caracteres.', true, abrirDatos);
+      }
+      if (cl1 !== cl2) {
+        return pantallaDatos(escrito, yaEra, teniaClave, 'Las dos contraseñas no son iguales. Escríbelas otra vez.', true, abrirDatos);
+      }
       var b = $('b-datos'); b.disabled = true; b.textContent = 'Un momento…';
       // En modo "solo clave" se mandan los datos que ya tenía, sin tocarlos.
       var envio = {
@@ -216,7 +230,7 @@
         nombre: soloClave ? (c.nombre || '') : $('d-nombre').value,
         direccion: soloClave ? (c.direccion || '') : $('d-dir').value,
         barrio: soloClave ? (c.barrio || '') : $('d-barrio').value,
-        clave: $('d-clave').value, recordar: $('d-recordar').checked,
+        clave: cl1, recordar: $('d-recordar').checked,
       };
       var d = await acceso(envio);
       if (!d.ok) return pantallaDatos({ nombre: envio.nombre, direccion: envio.direccion, barrio: envio.barrio },
