@@ -1217,3 +1217,101 @@ button.ep-hfoto { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .ep-hero-btn { transition: none; }
 }
+
+/* ══ EL BANNER, REPARTIDO ════════════════════════════════════════════════════
+   El bloque de arriba se sentía pegado encima de la página. Sus piezas viven
+   ahora dentro de las tarjetas que ya existían: el rango en la cabecera, la
+   publicidad en el cuadro del resumen y el mensaje junto a los platos. */
+
+/* ── El rango, al lado del nombre ─────────────────────────────────── */
+.ep-rangob {
+  flex: 1 1 auto; min-width: 0; max-width: 420px;
+  display: flex; align-items: center; gap: 12px;
+  margin: 0 8px; padding: 9px 15px; cursor: pointer;
+  background: var(--surf); border: 1px solid var(--line); border-radius: 999px;
+  font: inherit; color: var(--ink); text-align: left;
+  transition: border-color .15s ease;
+}
+.ep-rangob:hover { border-color: var(--accent); }
+.ep-rangob-nom { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.ep-rangob-bar { flex: 1 1 auto; min-width: 40px; height: 6px; border-radius: 999px; background: var(--surf2); overflow: hidden; }
+.ep-rangob-bar i { display: block; height: 100%; border-radius: 999px; }
+.ep-rangob-fal { font-size: 11.5px; color: var(--sub); white-space: nowrap; }
+
+/* ── La publicidad, en el cuadro del resumen ──────────────────────── */
+.ep-pub {
+  /* Altura propia: las fotos van superpuestas (absolutas) para poder cruzarse
+     suavemente, asi que el cuadro no tiene alto por si mismo. En la rejilla del
+     resumen se estira hasta igualar a sus hermanas. */
+  position: relative; border-radius: 20px; overflow: hidden;
+  background: var(--surf2); min-height: 190px;
+}
+.ep-pub-foto {
+  position: absolute; inset: 0; padding: 0; border: 0; background: none;
+  opacity: 0; transition: opacity .5s ease; pointer-events: none;
+}
+button.ep-pub-foto { cursor: pointer; }
+.ep-pub-foto.on { opacity: 1; pointer-events: auto; }
+.ep-pub-foto img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ep-pub-pts { position: absolute; left: 0; right: 0; bottom: 10px; display: flex; justify-content: center; gap: 6px; }
+.ep-pub-pt {
+  width: 6px; height: 6px; padding: 0; border: 0; border-radius: 999px; cursor: pointer;
+  background: rgba(255,255,255,.5); transition: width .2s, background .2s;
+}
+.ep-pub-pt.on { width: 16px; background: #fff; }
+/* Sin fotos subidas: se dice dónde van, en vez de dejar el cuadro vacío. */
+.ep-pub.vacio {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 5px; text-align: center; padding: 16px; min-height: 160px;
+  border: 1px dashed var(--line); color: var(--sub); font-size: 13px;
+}
+.ep-pub-hint { font-size: 11.5px; color: var(--dim); }
+
+/* ── La fila de hoy: el mensaje y tres platos ─────────────────────── */
+.ep-hoy {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px; margin: 16px 0 4px;
+}
+/* El mensaje ancla la fila por la izquierda: es la única con color, y por eso
+   el ojo empieza a leer ahí antes de mirar los platos. */
+.ep-hoy-msg {
+  display: flex; flex-direction: column; justify-content: space-between; gap: 14px;
+  padding: 16px; border-radius: 18px; color: #fff;
+  background: linear-gradient(140deg, #2a1a1e 0%, #4a1226 100%);
+}
+.ep-hoy-t { font-size: 16px; font-weight: 700; line-height: 1.2; letter-spacing: -.02em; text-wrap: balance; }
+.ep-hoy-s { margin-top: 6px; font-size: 12px; line-height: 1.4; color: rgba(255,255,255,.8); }
+.ep-hoy-btns { display: flex; flex-direction: column; gap: 8px; }
+.ep-hoy-b1, .ep-hoy-b2 {
+  border-radius: 999px; padding: 9px 14px; font: inherit; font-size: 12.5px; font-weight: 600;
+  cursor: pointer; border: 1px solid transparent; text-align: center;
+}
+.ep-hoy-b1 { background: #fff; color: #2a1016; }
+.ep-hoy-b2 { background: transparent; color: #fff; border-color: rgba(255,255,255,.35); }
+.ep-hoy-b2:hover { border-color: rgba(255,255,255,.7); }
+
+.ep-hoy-card {
+  display: flex; flex-direction: column; padding: 0; overflow: hidden; cursor: pointer;
+  background: var(--surf); border: 1px solid var(--line); border-radius: 18px;
+  font: inherit; color: var(--ink); text-align: left;
+  transition: transform .12s ease, border-color .15s ease;
+}
+.ep-hoy-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+/* La foto manda: es lo que hace pedir. Proporción fija para que todas las
+   tarjetas de la fila queden parejas aunque las fotos vengan de tamaños
+   distintos. */
+.ep-hoy-foto { display: block; width: 100%; aspect-ratio: 16 / 10; background: var(--surf2) center/cover no-repeat; }
+.ep-hoy-tx { display: block; padding: 11px 13px 13px; }
+.ep-hoy-nom { display: block; font-size: 13.5px; font-weight: 600; letter-spacing: -.01em; }
+.ep-hoy-pre { display: block; margin-top: 3px; font-size: 12px; color: var(--sub); }
+
+@media (max-width: 900px) {
+  .ep-hoy { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .ep-hoy-msg { grid-column: 1 / -1; }
+  .ep-hoy-btns { flex-direction: row; }
+  .ep-hoy-b1, .ep-hoy-b2 { flex: 1; }
+}
+@media (max-width: 560px) {
+  /* En el celular el rango no cabe al lado del nombre sin apretarlo todo. */
+  .ep-rangob { order: 3; flex-basis: 100%; max-width: none; margin: 10px 0 0; }
+}

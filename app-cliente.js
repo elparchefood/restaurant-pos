@@ -619,29 +619,12 @@
       '<div class="ep-pts-head"><span class="ep-pts-lbl"><svg class="ep-ic" width="14" height="14" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="9" width="17" height="11" rx="2"/><path d="M3.5 13h17M12 9v11"/><path d="M12 9c-2.5 0-4.2-.6-4.2-2.2S9.2 4 12 9zm0 0c2.5 0 4.2-.6 4.2-2.2S14.8 4 12 9z"/></g></svg> Puntos disponibles</span></div>' +
       '<span class="ep-pts-big">' + (Number(c.puntos) || 0) + '<small>pts</small></span>' +
       '<div class="ep-pts-tags">' +
-        '<span class="ep-pts-note">Ganas puntos con todos tus pedidos</span>' +
+        '<span class="ep-pts-note">Redímelos por lo que más te gusta</span>' +
       '</div>' +
       '<span class="ep-pts-gem"></span>' +
     '</div>' +
       '<button class="ep-pts-orb" data-ir="puntos"><svg class="ep-ic" width="19" height="19" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="9" width="17" height="11" rx="2"/><path d="M3.5 13h17M12 9v11"/><path d="M12 9c-2.5 0-4.2-.6-4.2-2.2S9.2 4 12 9zm0 0c2.5 0 4.2-.6 4.2-2.2S14.8 4 12 9z"/></g></svg></button>' +
     '</div>';
-
-    /* La escalera de rangos sale de la CONFIGURACIÓN del restaurante, no de una
-       lista escrita aquí: cada uno tiene los suyos y puede cambiarlos. */
-    var rango = '';
-    if (n) {
-      rango = '<div class="ep-tile">' +
-        '<div class="ep-tile-lbl">Tu rango</div>' +
-        '<div class="ep-tile-sub">' + (n.siguiente
-          ? (Number(n.progreso) || 0) + '% a ' + esc(n.siguiente)
-          : 'Estás en el nivel más alto') + '</div>' +
-        '<div class="ep-rango-nom" style="color:' + esc(n.color || '#e3b04b') + '">' +
-          ico('estrella', 15) + ' ' + esc(n.nombre || '') + '</div>' +
-        '<div class="ep-bar"><i style="width:' + (Number(n.progreso) || 0) +
-          '%;background:linear-gradient(90deg,#8f2242,#e3b04b)"></i></div>' +
-        escalera(n) +
-      '</div>';
-    }
 
     var acts = '<div class="ep-acts">' +
       '<button class="ep-act primary" data-ir="carta">' + ico('bolsa') + 'Pedir</button>' +
@@ -666,9 +649,9 @@
     return '<div class="ep-saludo">' +
         '<div><div class="ep-saludo-t">' + saludo + '</div>' +
         '<div class="ep-saludo-n">' + esc((c.nombre || '').split(' ')[0] || 'Hola') + '</div></div>' +
+        rangoBarra(n) +
         botonesArriba() +
       '</div>' +
-      bannerHero() +
       '<div class="ep-sec-hd"><div><div class="ep-sec-t">Resumen</div>' +
         '<div class="ep-sec-s">Aquí está el estado de tu cuenta en ' + esc(e.nombre || '') + '</div></div>' +
         '<div class="ep-hd-der">' +
@@ -677,7 +660,8 @@
           '<button class="ep-gold" data-ir="carta">' + ico('bolsa', 15) + ' Pedir ahora</button>' +
         '</div>' +
       '</div>' +
-      '<div class="ep-over">' + saldo + puntos + rango + '</div>' +
+      '<div class="ep-over">' + saldo + puntos + tarjetaPublicidad() + '</div>' +
+      filaDeHoy() +
       '<div class="ep-mid">' + panelBilletera(c, n) + panelGrafica(c) + '</div>' +
       acts + actividad;
   }
@@ -1305,182 +1289,40 @@
     } catch (e) { S.promos = []; }
   }
 
-  /* Una tira que se desliza. Con imagen se usa la imagen; sin imagen, el color
-     de la promo — que se ve intencional, no incompleto. */
-  /* El banner es una imagen y nada mas: de lado a lado, esquinas redondeadas.
-     Si hay varias, se pasan solas y tambien con el dedo.
+  /* LA PUBLICIDAD ROTA SOLA. Se llama después de pintar. Las fotos están
+     apiladas y se cambia cuál se ve: con una sola tarjeta no hay scroll que
+     valga, y así el cambio es suave y no salta.
 
-     Las que no tienen imagen se saltan. Antes se pintaba una tarjeta de color
-     con titulo y texto encima, y se veia mal: el mensaje ahora va DENTRO de la
-     imagen, que el restaurante puede mirar antes de publicarla. */
-  /* ── EL BANNER DEL INICIO ─────────────────────────────────────────────
-     Nuevo formato (16-ago, pedido de Sergio): bajo y con contenido dentro —
-     a la izquierda un mensaje y su botón; a la derecha tres tarjetas
-     verticales. Aquí es donde van a vivir las promos, los combos y la
-     publicidad del restaurante.
-
-     Por ahora el contenido es de MUESTRA, para ver cómo queda: cuando se
-     decida qué va, sale de la configuración del restaurante (fn_web_promos)
-     y esta constante desaparece. */
-  /* El mensaje de la izquierda. Es lo único de muestra que queda: cuando Sergio
-     decida qué dice, sale de la configuración del restaurante. */
-  var BANNER_TEXTO = {
-    titulo: 'Pide hoy y suma puntos',
-    /* NO se dice cuántos puntos da cada peso. Los puntos y la barra de niveles
-       son dos escalas distintas a propósito (regla de Sergio): contar la
-       equivalencia convierte el premio en una cuenta de tienda. */
-    sub: 'Cada pedido te acerca a tu próximo premio',
-    boton: 'Ver la carta', ir_a: 'carta',
-  };
-
-  /* LAS TRES TARJETAS SON PRODUCTOS DE VERDAD.
-     Mientras Sergio no elija cuáles, se escogen solos: uno por categoría y con
-     foto, para que no salgan tres hamburguesas ni tres recuadros vacíos. El día
-     que se pueda elegir, esta función lee esa lista y nada más cambia. */
-  function productosDelBanner() {
-    /* Mientras Sergio no elija cuáles van, se escogen solos — pero con criterio
-       de vitrina: el plato FUERTE de cada categoría (el de mayor precio con
-       foto), no el primero de la lista. Con el orden natural salía "Agua
-       botella" de primera, que es lo último que uno quiere anunciar.
-       Las bebidas y las adiciones no compiten: son acompañamiento. */
-    var fuera = /bebida|adicion|adición|salsa|extra/i;
-    var porCat = [];
-    (S.carta || []).forEach(function (c) {
-      if (fuera.test(c.categoria || '')) return;
-      var conFoto = (c.productos || []).filter(function (p) { return p && p.foto; });
-      if (!conFoto.length) return;
-      var mejor = conFoto.slice().sort(function (a, b) { return precioDesde(b) - precioDesde(a); })[0];
-      porCat.push({ p: mejor, cat: c.categoria, precio: precioDesde(mejor) });
-    });
-    porCat.sort(function (a, b) { return b.precio - a.precio; });
-    /* Si el restaurante no tiene fotos todavía, mejor ninguna tarjeta que tres
-       recuadros vacíos: el banner se queda con el mensaje y la publicidad. */
-    return porCat.slice(0, 3);
-  }
-
-  /* Precio "desde": con presentaciones, el más barato de todas; si no, el del
-     producto. Decir "$28.000" cuando la personal vale menos sería mentir. */
-  function precioDesde(p) {
-    var pres = (p.presentaciones || []).map(function (x) { return Number(x.precio) || 0; })
-      .filter(function (n) { return n > 0; });
-    if (pres.length) return Math.min.apply(null, pres);
-    var vars = [];
-    (p.variables || []).forEach(function (g) {
-      (g.opciones || []).forEach(function (o) {
-        (o.precios || []).forEach(function (n) { if (Number(n) > 0) vars.push(Number(n)); });
-        if (Number(o.precio) > 0) vars.push(Number(o.precio));
-      });
-    });
-    if (vars.length) return Math.min.apply(null, vars);
-    return Number(p.precio) || 0;
-  }
-
-  function bannerHero() {
-    var b = BANNER_TEXTO;
-    /* Las fotos del centro son las promociones que el restaurante sube desde su
-       panel: son SUYAS, y por eso el banner no trae ninguna imagen propia. */
-    var fotos = (S.promos || []).filter(function (x) { return x && x.imagen; }).slice(0, 3);
-    var centro = fotos.length
-      ? '<div class="ep-hero-fotos">' + fotos.map(function (f) {
-          var img = '<img src="' + esc(f.imagen) + '" alt="' + esc(f.titulo || 'Promoción') + '" loading="lazy">';
-          return f.ir_a
-            ? '<button class="ep-hfoto" data-ir="' + esc(f.ir_a) + '">' + img + '</button>'
-            : '<div class="ep-hfoto">' + img + '</div>';
-        }).join('') + '</div>'
-      /* Sin fotos no se deja un hueco: se dice dónde van, y solo lo ve el dueño
-         cuando entra a su propia página sin haber subido ninguna. */
-      : '<div class="ep-hero-fotos vacio"><span>Aquí van tus fotos de publicidad</span></div>';
-
-    var destacados = productosDelBanner();
-    var tarjetas = destacados.map(function (e, i) {
-      var p = e.p, precio = precioDesde(p);
-      return '<button class="ep-hcard" data-ir="carta"' +
-          (p.foto ? ' style="background-image:url(' + esc(p.foto) + ')"' : '') + '>' +
-        '<span class="ep-hcard-n">0' + (i + 1) + '</span>' +
-        '<div class="ep-hcard-pie">' +
-          '<div class="ep-hcard-tit">' + esc(p.nombre) + '</div>' +
-          '<div class="ep-hcard-sub">' + (precio ? 'Desde ' + COP(precio) : esc(e.cat || '')) + '</div>' +
-        '</div>' +
-      '</button>';
-    }).join('');
-
-    /* EL FONDO ES UNA FOTO, DIFUMINADA. La del plato destacado: el banner se
-       ve de la casa y no de una plantilla. Va como estilo en línea porque la
-       foto cambia con el catálogo; el desenfoque y el velo los pone el CSS. */
-    var fondo = (destacados[0] || {}).p;
-    var estiloFondo = (fondo && fondo.foto)
-      ? ' style="--hero-foto:url(' + esc(fondo.foto) + ')"' : '';
-
-    return '<section class="ep-hero' + (estiloFondo ? ' con-foto' : '') + '"' + estiloFondo + '>' +
-      '<div class="ep-hero-txt">' +
-        /* Sin <br> a la fuerza: los cortes fijos partían el titular en cuatro
-           líneas desiguales ("Pide hoy" / "y suma" / "puntos en cada" /
-           "combo"). Ahora se parte solo, y el CSS equilibra las líneas. */
-        '<div><h2 class="ep-hero-tit">' + esc(b.titulo) + '</h2>' +
-          (b.sub ? '<p class="ep-hero-sub">' + esc(b.sub) + '</p>' : '') + '</div>' +
-        '<button class="ep-hero-btn" data-ir="' + esc(b.ir_a) + '">' + esc(b.boton) +
-          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>' +
-        '</button>' +
-      '</div>' +
-      centro +
-      (tarjetas ? '<div class="ep-hero-cards">' + tarjetas + '</div>' : '') +
-    '</section>';
-  }
-
-  function bannerPromos() {
-    var ps = (S.promos || []).filter(function (x) { return x && x.imagen; });
-    if (!ps.length) return '';
-    var slides = ps.map(function (x, i) {
-      var img = '<img src="' + esc(x.imagen) + '" alt="' + esc(x.titulo || '') +
-                '" loading="' + (i === 0 ? 'eager' : 'lazy') + '">';
-      return x.ir_a
-        ? '<button class="ep-slide" data-ir="' + esc(x.ir_a) + '">' + img + '</button>'
-        : '<div class="ep-slide">' + img + '</div>';
-    }).join('');
-    /* Con una sola imagen no hay nada que pasar: sin puntos y sin reloj. */
-    var puntos = ps.length < 2 ? '' :
-      '<div class="ep-puntos-banner">' + ps.map(function (_, i) {
-        return '<button class="ep-punto-banner' + (i ? '' : ' on') +
-               '" data-slide="' + i + '" aria-label="Imagen ' + (i + 1) + '"></button>';
-      }).join('') + '</div>';
-    return '<div class="ep-banner" id="ep-banner">' +
-      '<div class="ep-banner-track" id="ep-track">' + slides + '</div>' + puntos + '</div>';
-  }
-
-  /* Se llama despues de pintar. El carrusel es scroll de verdad, no una
-     animacion falsa: asi el dedo funciona solo y el teclado tambien. */
-  var bannerReloj = null;
+     Se detiene si la pestaña no se ve y si el cliente toca un punto: nada más
+     molesto que una foto que cambia justo cuando la ibas a mirar. */
+  var pubReloj = null;
   function armarBanner() {
-    if (bannerReloj) { clearInterval(bannerReloj); bannerReloj = null; }
-    var track = document.getElementById('ep-track');
-    if (!track) return;
-    var slides = track.children.length;
-    if (slides < 2) return;
+    if (pubReloj) { clearInterval(pubReloj); pubReloj = null; }
+    var caja = document.getElementById('ep-pub');
+    if (!caja) return;
+    var fotos = caja.querySelectorAll('.ep-pub-foto');
+    var puntos = caja.querySelectorAll('.ep-pub-pt');
+    if (fotos.length < 2) return;
 
-    var puntos = document.querySelectorAll('.ep-punto-banner');
-    function marcar(i) {
-      puntos.forEach(function (p, k) { p.classList.toggle('on', k === i); });
+    var i = 0;
+    function mostrar(k) {
+      i = (k + fotos.length) % fotos.length;
+      fotos.forEach(function (f, n) { f.classList.toggle('on', n === i); });
+      puntos.forEach(function (p, n) { p.classList.toggle('on', n === i); });
     }
-    function actual() { return Math.round(track.scrollLeft / track.clientWidth); }
-    function irA(i) {
-      track.scrollTo({ left: i * track.clientWidth, behavior: 'smooth' });
-    }
-
     puntos.forEach(function (p) {
-      p.addEventListener('click', function () {
-        irA(Number(p.dataset.slide) || 0);
-        arrancar();                       // se reinicia la espera tras tocarlo
+      p.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        mostrar(Number(p.dataset.pub) || 0);
+        arrancar();
       });
     });
-    track.addEventListener('scroll', function () { marcar(actual()); }, { passive: true });
-
     function arrancar() {
-      if (bannerReloj) clearInterval(bannerReloj);
-      bannerReloj = setInterval(function () {
-        /* Si la pestana no se ve, no se gasta nada pasando imagenes. */
-        if (document.hidden || !document.getElementById('ep-track')) return;
-        irA((actual() + 1) % slides);
-      }, 5000);
+      if (pubReloj) clearInterval(pubReloj);
+      pubReloj = setInterval(function () {
+        if (document.hidden || !document.getElementById('ep-pub')) return;
+        mostrar(i + 1);
+      }, 6000);
     }
     arrancar();
   }

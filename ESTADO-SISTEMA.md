@@ -5797,3 +5797,13 @@ Sergio eligio, de 16 maquetas, la del mosaico de fotos al centro. Como quedo:
 - **El inicio ahora carga carta + promos** (antes la carta solo se cargaba al entrar a esa pestaña).
 - **Verificado con datos reales**: banner de 183 px de alto, zona de fotos de 620 px, tres tarjetas con foto y precio, sin desbordes, en escritorio y en 375 px.
 - **PENDIENTE (lo pidio Sergio)**: poder elegir a mano que productos o combos van en las tres tarjetas, desde el panel. Hoy es automatico.
+
+## 158. El banner se reparte en la pagina (16-ago, diseño de Sergio)
+El banner funcionaba pero se sentia PUESTO ENCIMA, no parte del sistema: metia tres cosas distintas (mensaje, publicidad y productos) en una franja con un lenguaje visual propio. Sergio decidio repartir sus piezas dentro de las tarjetas que ya existian:
+- **El rango sube a la cabecera**: barra larga al lado del nombre (chip + barra de progreso + "3% para Premium"), tocable, que lleva a Puntos. Deja de ocupar una tarjeta entera del resumen.
+- **La publicidad ocupa ese cuadro libre**: UNA foto grande que rota sola entre las que el restaurante sube en Promociones (6 s, con puntos para cambiarla a mano; se detiene si la pestaña no se ve o si el cliente toca un punto). Se ve mucho mejor que el mosaico de miniaturas y no gasta mas espacio de pagina.
+- **Fila "Para hoy", de cuatro**: el primer rectangulo lleva el MENSAJE del banner con sus dos botones (Ver la carta / Mis puntos) y es el unico con color, para anclar la fila; los otros tres son platos de la carta con foto grande (16/10), nombre y precio "Desde".
+- **Mi billetera y Tu actividad NO se tocaron** (peticion expresa de Sergio), igual que las muescas y las formas de las tarjetas, que son diseño suyo y quedan como estan.
+- **Retirado**: el bloque .ep-hero completo y el carrusel viejo (bannerPromos/ep-banner), que ya no se usaban en ninguna pantalla.
+- El subtitulo de la tarjeta de puntos pasa a "Redimelos por lo que mas te gusta" para no repetir lo que ahora dice el mensaje de la fila.
+- **Verificado con datos reales**: resumen en tres columnas a la misma altura (411/329/329 px) y fila de cuatro pareja (267 px cada una), fotos rotando y platos con su precio.
