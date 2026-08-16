@@ -418,6 +418,12 @@
     document.querySelectorAll('[data-entrega]').forEach(function (b) {
       b.addEventListener('click', function () { entrega = b.dataset.entrega; pantallaDentro(); });
     });
+    /* El barrio cambia el domicilio, y el domicilio cambia el total: al
+       terminar de escribirlo se vuelve a pedir la cuenta. Se usa `change` (al
+       salir del campo) y no cada tecla, para no llamar al servidor once veces
+       mientras escribe "Bellavista". */
+    var barrioIn = $('pd-barrio');
+    if (barrioIn) barrioIn.addEventListener('change', function () { pantallaDentro(); });
     var env = $('pd-enviar');
     if (env) env.addEventListener('click', enviarPedido);
   }
@@ -1571,6 +1577,49 @@
   var entrega = 'recoger';
   var pedidoHecho = null;
 
+  /* LA CUENTA, SIEMPRE DEL SERVIDOR ─────────────────────────────────────
+     `firmaCuenta` describe el pedido tal como está ahora mismo: si cambia algo
+     —una cantidad, el tipo de entrega, el barrio— la cuenta guardada ya no
+     sirve y se pide otra. Sin esa firma habría que acordarse de invalidarla en
+     cada botón, y el día que se olvide uno, el cliente vería un total viejo. */
+  function firmaCuenta() {
+    return JSON.stringify([
+      carro.map(function (l) {
+        return [l.producto_id, l.presentacion, l.cantidad, l.precio, (l.adiciones || []).join('|')];
+      }),
+      entrega,
+      entrega === 'domicilio'
+        ? (($('pd-barrio') && $('pd-barrio').value) || (S.cliente && S.cliente.barrio) || '')
+        : '',
+    ]);
+  }
+
+  var pidiendoCuenta = false;
+  async function pedirCuenta() {
+    if (pidiendoCuenta || !carro.length) return;
+    var firma = firmaCuenta();
+    pidiendoCuenta = true;
+    try {
+      var d = await fetch(SB_URL + '/functions/v1/web-pedido', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          previo: true, token: leerToken(), tipo: entrega,
+          direccion: entrega === 'domicilio' ? (($('pd-dir') && $('pd-dir').value) || (S.cliente && S.cliente.direccion) || '') : '',
+          barrio: entrega === 'domicilio' ? (($('pd-barrio') && $('pd-barrio').value) || (S.cliente && S.cliente.barrio) || '') : '',
+          items: carro.map(function (l) {
+            return { producto_id: l.producto_id, presentacion: l.presentacion, cantidad: l.cantidad,
+                     variantes: l.variantes, adiciones: l.adiciones, nota: l.nota };
+          }),
+        }),
+      }).then(function (r) { return r.json(); });
+      if (d && d.ok) { S.cuenta = { firma: firma, datos: d }; pantallaDentro(); }
+    } catch (e) {
+      /* Sin conexión no se inventa un total: se queda el de los productos y el
+         cliente vera el desglose completo al enviar. */
+      console.warn('[cuenta]', e && e.message);
+    } finally { pidiendoCuenta = false; }
+  }
+
   function cuerpoPedido() {
     if (pedidoHecho) return cuerpoConfirmado();
     if (!carro.length) {
@@ -1596,7 +1645,19 @@
     }).join('');
 
     var sub = carroTotal();
-    var gana = Math.floor(sub / 1000);
+    /* LA CUENTA LA HACE EL SERVIDOR (16-ago). Aquí se sumaban solo los
+       productos: el cliente veía $42.000, enviaba, y el pedido se creaba con el
+       empaque sumado — ver un total y que le cobren otro es lo que rompe la
+       confianza. La página ya no calcula: le pide la cuenta a web-pedido con
+       `previo`, que es la MISMA linea de codigo que despues cobra. Mientras
+       llega (o si falla la conexion) se muestra lo que se sabe. */
+    var cta = (S.cuenta && S.cuenta.firma === firmaCuenta()) ? S.cuenta.datos : null;
+    if (!cta) pedirCuenta();
+    var empaque = cta ? Number(cta.empaque) || 0 : 0;
+    var domiCta = cta ? Number(cta.domicilio) || 0 : 0;
+    var totalCta = cta ? Number(cta.total) || 0 : sub;
+    // Los puntos se ganan sobre comida + empaque, nunca sobre el domicilio.
+    var gana = Math.floor((cta ? (Number(cta.pedido) || sub) : sub) / 1000);
 
     return encabezado('Tu pedido') + lineas +
       '<div class="ep-seg-full">' +
@@ -1614,10 +1675,14 @@
 
       '<div style="margin-top:18px">' +
         '<div class="ep-total-fila"><span style="color:var(--sub)">Productos</span><span>' + COP(sub) + '</span></div>' +
-        (entrega === 'domicilio'
-          ? '<div class="ep-total-fila"><span style="color:var(--sub)">Domicilio</span><span style="color:var(--dim)">se calcula al enviar</span></div>'
+        (empaque > 0
+          ? '<div class="ep-total-fila"><span style="color:var(--sub)">Empaque</span><span>' + COP(empaque) + '</span></div>'
           : '') +
-        '<div class="ep-total-fila grande"><span>Total</span><b>' + COP(sub) + '</b></div>' +
+        (entrega === 'domicilio'
+          ? '<div class="ep-total-fila"><span style="color:var(--sub)">Domicilio</span><span' +
+            (domiCta > 0 ? '>' + COP(domiCta) : ' style="color:var(--dim)">se calcula al enviar') + '</span></div>'
+          : '') +
+        '<div class="ep-total-fila grande"><span>Total</span><b>' + COP(totalCta) + '</b></div>' +
         '<div class="ep-gana">Ganarás +' + gana + ' puntos con este pedido</div>' +
       '</div>' +
       (S.negocio && !S.negocio.abierto

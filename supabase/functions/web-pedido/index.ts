@@ -36,6 +36,65 @@ async function sha256(t: string) {
 const norm = (s: unknown) =>
   String(s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
 
+/* El empaque, con la MISMA logica que pos-core.js. No se reinventa: si un dia
+   cambia la regla, tiene que cambiar en los dos sitios a la vez o el total de
+   la pagina dejara de coincidir con el del POS, y eso es justo lo que rompe la
+   confianza en la caja.
+
+   Modo "especifico": tarifa por unidad en cascada, de lo mas concreto a lo mas
+   general — presentacion, producto, categoria, tarifa general.
+   Modo "unificado": fijo o porcentaje, por unidad o por pedido. */
+function calcEmpaque(
+  items: Array<{ productId: string; catId: string; presId: string; qty: number; unitPrice: number }>,
+  cfg: Record<string, unknown>,
+  esDomicilio: boolean,
+) {
+  try {
+    if (!cfg || cfg.empaquesActivo !== true || !items.length) return 0;
+    let prod = 0, units = 0;
+    for (const i of items) { prod += (Number(i.unitPrice) || 0) * (Number(i.qty) || 0); units += Number(i.qty) || 0; }
+    if (prod <= 0) return 0;
+
+    const general = Number(cfg.empaqueMonto) || 0;
+
+    if (cfg.empaqueModo === "especifico") {
+      const packs = (Array.isArray(cfg.empaquePacks) ? cfg.empaquePacks : []) as Array<Record<string, unknown>>;
+      const packMonto = (id: unknown) => {
+        const p = packs.find((k) => String(k.id) === String(id));
+        return p ? Number(p.monto) || 0 : 0;
+      };
+      const catCfg  = (cfg.empaqueCatCfg  || {}) as Record<string, Record<string, unknown>>;
+      const prodCfg = (cfg.empaqueProdCfg || {}) as Record<string, unknown>;
+      const presCfg = (cfg.empaquePresCfg || {}) as Record<string, unknown>;
+
+      let total = 0;
+      for (const i of items) {
+        let fee = general;
+        const cc = catCfg[i.catId];
+        if (cc) { if (cc.on === false) fee = 0; else if (cc.packId) fee = packMonto(cc.packId); }
+        const pc = prodCfg[i.productId];
+        if (pc !== undefined && pc !== null && pc !== "") {
+          fee = pc === "none" ? 0 : pc === "general" ? general : packMonto(pc);
+        }
+        const sc = i.presId ? presCfg[i.productId + "::" + i.presId] : undefined;
+        if (sc !== undefined && sc !== null && sc !== "") {
+          fee = sc === "none" ? 0 : sc === "general" ? general : packMonto(sc);
+        }
+        total += fee * (Number(i.qty) || 0);
+      }
+      return Math.round(total);
+    }
+
+    const usaDomi = cfg.empaqueCanal === "distinto" && esDomicilio;
+    const esPct = cfg.empaqueTipo === "porcentaje";
+    const rate = esPct
+      ? Number(usaDomi ? cfg.empaquePctDomicilio : cfg.empaquePct) || 0
+      : Number(usaDomi ? cfg.empaqueMontoDomicilio : cfg.empaqueMonto) || 0;
+    if (cfg.empaqueBase === "pedido") return esPct ? Math.round(prod * rate / 100) : Math.round(rate);
+    return esPct ? Math.round(prod * rate / 100) : Math.round(rate * units);
+  } catch (e) { console.error("[empaque]", String(e).slice(0, 200)); return 0; }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const json = (b: unknown, s = 200) =>
@@ -43,6 +102,14 @@ Deno.serve(async (req) => {
 
   try {
     const b = await req.json().catch(() => ({})) as Record<string, unknown>;
+
+    /* CUENTA PREVIA (16-ago). El carrito mostraba solo la suma de los productos:
+       el cliente veia $42.000, confirmaba, y el pedido se creaba con el empaque
+       sumado — ver un total y que le cobren otro es justo lo que rompe la
+       confianza. Con `previo:true` esta misma funcion hace TODAS sus cuentas y
+       devuelve el desglose SIN crear nada. No es una copia de la formula: es la
+       misma linea de codigo que cobra, por eso no se pueden desincronizar. */
+    const previo = b.previo === true;
 
     // ── 1. ¿Quién es? La sesión manda; el navegador no dice quién es. ──
     const ses = await sbGet(
@@ -67,7 +134,9 @@ Deno.serve(async (req) => {
     const permite = !!est?.[0]?.permite_programar;
     /* Cerrado: solo se acepta si el restaurante deja programar. Es la decisión de
        Sergio — cerrado no apaga la página, pero pedir sí depende del dueño. */
-    if (!abierto && !permite) {
+    /* La cuenta previa se calcula aunque esten cerrados: el cliente arma su
+       pedido mirando el total mucho antes de poder enviarlo. */
+    if (!abierto && !permite && !previo) {
       return json({ ok: false, razon: "cerrado", mensaje: String(est?.[0]?.detalle || "Ahora está cerrado.") });
     }
 
@@ -82,11 +151,20 @@ Deno.serve(async (req) => {
 
     const ids = [...new Set(items.map((i) => String(i.producto_id || "")))].filter(Boolean);
     const prods = await sbGet(
-      `/pos_products?id=in.(${ids.join(",")})&tenant_id=eq.${tenantId}&select=id,name,price,presentations,available`
+      /* `variables` y `category_id` NO son opcionales aunque el codigo de abajo
+         parezca no necesitarlos (16-ago):
+           · sin `variables` no se aplica el precio de la variante y una Premium
+             Mixta Personal se cobraba $28.000 en vez de $34.000 — el negocio
+             perdiendo $6.000 en cada pedido;
+           · sin `category_id` el empaque no reconocia las categorias exentas y
+             le cobraba empaque hasta a las bebidas.
+         El codigo los leia (p.variables, p.category_id) y aqui nunca llegaban. */
+      `/pos_products?id=in.(${ids.join(",")})&tenant_id=eq.${tenantId}&select=id,name,price,presentations,variables,category_id,available`
     ) as Array<Record<string, unknown>> | null;
     const porId: Record<string, Record<string, unknown>> = {};
     (prods || []).forEach((p) => { porId[String(p.id)] = p; });
 
+    const paraEmpaque: Array<{ productId: string; catId: string; presId: string; qty: number; unitPrice: number }> = [];
     const lineas: Array<Record<string, unknown>> = [];
     let subtotal = 0;
     for (const it of items) {
@@ -99,14 +177,47 @@ Deno.serve(async (req) => {
       let precio = Number(p.price) || 0;
       let nombre = String(p.name || "");
       const presN = String(it.presentacion || "");
+      let presIdx = -1;
       if (presN) {
-        const pres = (Array.isArray(p.presentations) ? p.presentations : [])
-          .find((x: Record<string, unknown>) => norm(x.name) === norm(presN));
+        const lista = Array.isArray(p.presentations) ? p.presentations : [];
+        presIdx = lista.findIndex((x: Record<string, unknown>) => norm(x.name) === norm(presN));
+        const pres = presIdx >= 0 ? lista[presIdx] : null;
         if (!pres) return json({ ok: false, razon: "presentacion", mensaje: "Esa presentación ya no existe." });
         precio = Number((pres as Record<string, unknown>).price) || precio;
         nombre += " · " + String((pres as Record<string, unknown>).name);
       }
+
+      /* LA VARIANTE MANDA SOBRE EL PRECIO. Una Premium Mixta personal cuesta lo
+         suyo, no lo que cuesta la Premium "a secas". Cada opcion trae un precio
+         por presentacion, en el mismo orden que los tamaños.
+
+         Y se busca AQUI, en el catalogo, no en lo que manda el navegador: si se
+         confiara en el precio que llega de la pagina, cualquiera pediria una
+         Premium por mil pesos. */
+      const varsPed = Array.isArray(it.variantes) ? it.variantes as unknown[] : [];
+      if (varsPed.length) {
+        const grupos = Array.isArray(p.variables) ? p.variables as Array<Record<string, unknown>> : [];
+        for (const nomVar of varsPed) {
+          for (const g of grupos) {
+            const ops = Array.isArray(g.options) ? g.options as Array<Record<string, unknown>> : [];
+            const op = ops.find((o) => norm(o.name) === norm(nomVar));
+            if (!op) continue;
+            const pr = Array.isArray(op.prices) ? op.prices as unknown[] : [];
+            const v = (presIdx >= 0 && pr.length > presIdx) ? Number(pr[presIdx]) : Number(op.price);
+            if (v > 0) precio = v;
+            nombre += " · " + String(op.name);
+            break;
+          }
+        }
+      }
       subtotal += precio * cant;
+      /* Lo que el motor de empaques necesita saber de cada linea. Se recoge
+         aqui, donde ya se conoce el producto y su presentacion. */
+      paraEmpaque.push({
+        productId: String(p.id), catId: String(p.category_id || ""),
+        presId: presIdx >= 0 ? String((((Array.isArray(p.presentations) ? p.presentations : [])[presIdx] || {}) as Record<string, unknown>).id || "") : "",
+        qty: cant, unitPrice: precio,
+      });
       lineas.push({
         product_id: p.id, name: nombre, quantity: cant, unit_price: precio,
         notes: String(it.nota || "").slice(0, 120) || null,
@@ -115,13 +226,23 @@ Deno.serve(async (req) => {
     }
 
     // ── 4. Domicilio: el precio sale de la tabla de zonas del restaurante ──
+    /* El empaque sale de la configuracion del restaurante, igual que el precio
+       del domicilio: nunca de lo que mande el navegador. */
+    /* Nombre propio: `brRows` ya existe arriba (la sucursal). Con el mismo
+       nombre el modulo NO ARRANCA — "Identifier has already been declared" —
+       y la pagina entera deja de tomar pedidos. */
+    const brOper = await sbGet(`/branches?id=eq.${branchId}&select=operacion_config&limit=1`) as Array<Record<string, unknown>> | null;
+    const opCfg = (brOper?.[0]?.operacion_config || {}) as Record<string, unknown>;
+
     const tipo = String(b.tipo || "recoger") === "domicilio" ? "domicilio" : "recoger";
     const direccion = String(b.direccion || "").trim().slice(0, 160);
     const barrio    = String(b.barrio || "").trim().slice(0, 60);
     let domi = 0, barrioConocido = false;
 
     if (tipo === "domicilio") {
-      if (!direccion) return json({ ok: false, razon: "direccion", mensaje: "Escribe tu dirección." });
+      // En la cuenta previa la dirección puede no estar escrita todavía: el
+      // domicilio queda en cero y se muestra cuando el barrio ya se conozca.
+      if (!direccion && !previo) return json({ ok: false, razon: "direccion", mensaje: "Escribe tu dirección." });
       const cfg = await sbGet(`/ia_config?branch_id=eq.${branchId}&select=domicilios&limit=1`) as Array<Record<string, unknown>> | null;
       const zonas = ((cfg?.[0]?.domicilios || {}) as Record<string, unknown>).zonas;
       if (Array.isArray(zonas)) {
@@ -137,7 +258,25 @@ Deno.serve(async (req) => {
          sería perder la venta por un barrio mal escrito. */
     }
 
-    const total = subtotal + domi;
+    const empaque = calcEmpaque(paraEmpaque, opCfg, tipo === "domicilio");
+
+    /* EL TOTAL NO INCLUYE EL DOMICILIO. Es la convencion del POS: `total` es
+       la comida mas el empaque, y el domicilio viaja en `delivery_fee`. La
+       pagina lo estaba metiendo dentro, y eso habria descuadrado la caja en
+       cuanto entrara el primer pedido web — justo lo que acabamos de arreglar.
+
+       Lo que el cliente PAGA sigue siendo la suma de los dos; eso se le muestra
+       y es lo que cobra web-pagar. */
+    const total = subtotal + empaque;
+    const aPagar = total + domi;
+
+    // Solo la cuenta: aquí termina, sin crear pedido ni tocar nada.
+    if (previo) {
+      return json({
+        ok: true, previo: true, subtotal, empaque, domicilio: domi,
+        pedido: total, total: aPagar, barrio_conocido: barrioConocido,
+      });
+    }
 
     // ── 5. El pedido. PENDIENTE DE PAGO: primero paga, después cocina. ──
     const notas = [
@@ -156,7 +295,7 @@ Deno.serve(async (req) => {
       status: "pendiente_pago",
       customer_name: cli?.[0]?.nombre || null,
       subtotal, total, total_final: total,
-      delivery_fee: domi, packaging_fee: 0,
+      delivery_fee: domi, packaging_fee: empaque,
       notes: notas, visible_cocina: false,
       estado: tipo === "domicilio" ? "en_preparacion" : null,
     }, true) as Array<Record<string, unknown>> | null;
@@ -171,7 +310,7 @@ Deno.serve(async (req) => {
     const pagos = (cfgP?.[0]?.pagos || {}) as Record<string, unknown>;
 
     return json({
-      ok: true, order_id: orderId, total, domicilio: domi, subtotal,
+      ok: true, order_id: orderId, total: aPagar, pedido: total, empaque, domicilio: domi, subtotal,
       barrio_conocido: barrioConocido,
       programado: !abierto,
       pago: { llave: pagos.llave || "", titular: pagos.titular || "", banco: pagos.banco || "" },
