@@ -5633,3 +5633,10 @@ Viento) · Monteluna casa 45 · carrera 6 #38N-160 apto 306 (Rincón de la
 Ximena) · Calle 71N #8D-9 Torre 2B (San Eduardo) · Asturias casa 3b · y la
 regresión "Bellavista" suelto (correctamente re-pregunta). **10 de 10 con la
 dirección completa guardada al primer mensaje.**
+
+## 134. Papas fantasma: el lector inventaba adiciones desde palabras compuestas (15-ago, URGENTE en turno)
+- **Caso real**: cliente pidio "Una salchipapa mixta / Familiar". El lector (gpt-4o-mini, no determinista) a veces descompone "salchipapa" y devuelve adiciones:["papas"]. Como "Papas" existe en el catalogo a $8.000, la compuerta de catalogo la dejaba pasar: resumen "Mixta Familiar + Papas", pedido $58.000 + domi $8.000 = $66.000. El cliente pago $66.000 por transferencia (verificada). Cobro real correcto: $58.000.
+- **No reproducible en banco** (3/3 corrio bien, incluso sembrando la historia previa del cliente): es varianza del modelo. Por eso el arreglo es una compuerta determinista, no un parche de prompt solamente.
+- **Arreglo (v292)**: en la compuerta de adiciones del mergeSlots (junto a la regla del plato-mismo), : si ninguna palabra de la adicion aparece SUELTA en el texto del cliente (tolerando singular/plural) pero SI aparece pegada al final de una palabra mas larga ("salchipapa" termina en "papa"), la adicion nacio de ese pedazo y se bota. Si no hay rastro en ninguna forma se respeta al lector (sinonimos tipo "papitas" -> Papas). Ademas se blindo el prompt del lector: "de salchipapa NO sale la adicion papas ni salchicha".
+- **Regresion en banco v156**: papas fantasma limpio; "con papas" conserva la adicion; "salsa cheddar" conserva; "familiar ranchera con adicion de ranchera" conserva. Produccion v292 ACTIVE con smoke test.
+- **Pendiente comercial**: el pedido real quedo cobrado en $66.000 (paid $66.000) — Sergio decide si devolver los $8.000 o abonarlos; la fila del pedido y los puntos (58 en vez de 50) se corrigen si el lo pide.

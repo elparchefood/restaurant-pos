@@ -4047,6 +4047,9 @@ REGLAS:
   "barrio", NO en "direccion".
 - Si el mensaje trae dirección Y barrio juntos, sepáralos en sus dos campos.
 - "adiciones": lo que quiere que le PONGAN al plato. Un plato aparte va en "producto".
+  SOLO es adición si el cliente la nombró como palabra propia. JAMÁS saques una
+  adición de un pedazo del nombre de un plato: de "salchipapa" NO sale la adición
+  "papas" ni "salchicha" — "salchipapa mixta" es UN plato y CERO adiciones.
 - "quitar": lo que quiere SACAR de lo que YA tiene, con el nombre exacto de arriba.
   "mejor sin la adición", "quítame el chorizo", "ya no quiero la tocineta", "sin la
   gaseosa", "mejor el solo" -> quitar. Si dice "sin X" pero X NO está todavía en el
@@ -4201,7 +4204,30 @@ function validarLeido(
       return (normalizarTexto(texto).match(new RegExp("\\b" + escapado, "g")) || []).length;
     };
     const suyo = normalizarTexto(state.producto || "");
+    /* PAPAS FANTASMA (pedido real, 15-ago): el lector a veces descompone una
+       palabra compuesta e inventa una adicion — de "salchipapa mixta" saco la
+       adicion "Papas" y un cliente real pago $8.000 de mas. Compuerta
+       determinista: si ninguna palabra de la adicion aparece SUELTA en el texto
+       pero SI aparece pegada al final de una palabra mas larga ("salchipapa"
+       termina en "papa"), la adicion nacio de ese pedazo y se bota. Si no hay
+       rastro de ninguna de las dos formas se respeta al lector, que pudo
+       traducir un sinonimo ("papitas" -> "Papas"). */
+    const nacioDeCompuesta = (nombre: string): boolean => {
+      const toks = normalizarTexto(texto).split(/\s+/).filter(Boolean);
+      const palabras = normalizarTexto(nombre).split(/\s+/).filter(w => w.length >= 3);
+      if (!palabras.length) return false;
+      let pegada = false;
+      for (const w of palabras) {
+        const formas = [w, w.replace(/es$/, ""), w.replace(/s$/, "")].filter(f => f.length >= 3);
+        for (const t of toks) {
+          if (formas.includes(t) || formas.includes(t.replace(/es$/, "")) || formas.includes(t.replace(/s$/, ""))) return false; // la dijo suelta
+          if (formas.some(f => t.length > f.length && t.endsWith(f))) pegada = true;
+        }
+      }
+      return pegada;
+    };
     const limpias = reales.filter(r => {
+      if (nacioDeCompuesta(r)) return false;
       const rn = normalizarTexto(r);
       const esElPlatoMismo = rn === suyo || suyo.includes(rn);
       return !esElPlatoMismo || vecesQueLoDijo(r) >= 2;
