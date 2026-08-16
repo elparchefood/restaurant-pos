@@ -848,6 +848,11 @@ async function crearPedido(
     notes:          notasPedido || null,
     audit_pago:     auditPago || null,
     payment_method: mixtoCP ? "multiple" : (String(pendingData.pago || "") || null),
+    /* Nace "open" A PROPOSITO aunque la transferencia ya este verificada: la
+       pantalla de domicilios SOLO muestra pedidos open (se intento crearlo
+       "paid" y desaparecia de ahi en pleno reparto). Los puntos NO dependen
+       de esto: el trigger award_loyalty_points tambien dispara cuando
+       paid_amount cubre el total (migracion 2026-08-16-puntos-al-pagar). */
     status:         "open",
     /* CADA PESO EN SU CASILLA. Antes iba TODO junto en total/subtotal/total_final
        —comida, empaque y domicilio— y sin delivery_fee ni packaging_fee. Dos
