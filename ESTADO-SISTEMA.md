@@ -5807,3 +5807,12 @@ El banner funcionaba pero se sentia PUESTO ENCIMA, no parte del sistema: metia t
 - **Retirado**: el bloque .ep-hero completo y el carrusel viejo (bannerPromos/ep-banner), que ya no se usaban en ninguna pantalla.
 - El subtitulo de la tarjeta de puntos pasa a "Redimelos por lo que mas te gusta" para no repetir lo que ahora dice el mensaje de la fila.
 - **Verificado con datos reales**: resumen en tres columnas a la misma altura (411/329/329 px) y fila de cuatro pareja (267 px cada una), fotos rotando y platos con su precio.
+
+## 159. Inicio: nuevo orden y el historial con lo que pidio y sus puntos (16-ago) — web-acceso v12
+- **Orden nuevo (diseño de Sergio)**: los destacados pasan de fila a CUADRO 2x2 y Mi billetera sube a su lado; abajo, Tu actividad y el HISTORIAL uno junto al otro, del mismo tamaño. Mi billetera conserva su tamaño de siempre.
+- **ESPEJO, y quien manda es la billetera**: al principio el cuadro estiraba la billetera (201 px de contenido inflados a 393). Ahora el cuadro va absoluto dentro de su columna, asi no impone su alto: los dos bloques quedan identicos (medido: 544x300 cada uno) y las fotos de los platos se reparten el alto que sobra.
+- **La barra de nivel ocupa todo el ancho libre** de la cabecera, con "Tu nivel" escrito (un title del navegador no sirve: tarda y en el celular no existe) y, al pasar el mouse, "Ver mis puntos".
+- **El historial dice QUE pidio y CUANTOS PUNTOS gano**, no "Pedido" y el precio. web-acceso trae los productos y los puntos de TODOS los pedidos en dos consultas en bloque (no una por pedido).
+- **Trampa del nombre**: el orden de "plato · presentacion" cambia segun quien creo el pedido ("Mixta · Familiar" desde el chat, "Familiar · Mixta" desde la caja). Cortar por el separador dejaba "Familiar" o "1.5 Litros" como si fuera el plato; ahora se muestra el nombre completo (sin las adiciones) y el diseño lo recorta si no cabe.
+- Si un pedido no tiene puntos ligados (los reconstruidos de la entrada 137 no tienen order_id), se muestra un guion — no se inventa un numero.
+- **Verificado con un cliente real** (Isabella): "Mixta · Familiar +50 pts" y el pedido viejo con sus dos productos. Sesion de prueba borrada.

@@ -225,6 +225,42 @@ async function fichaCliente(tenantId: string, clienteId: string) {
     `/pos_orders?cliente_id=eq.${clienteId}&status=neq.cancelled&select=id,total,total_final,created_at,channel,estado&order=created_at.desc&limit=8`
   ) as Array<Record<string, unknown>> | null;
 
+  /* QUÉ PIDIÓ Y CUÁNTOS PUNTOS GANÓ (16-ago). En el historial, "Pedido ·
+     $58.000" no le dice nada a nadie: el cliente reconoce su comida, no un
+     número de pedido. Y los puntos son el motivo por el que entra a mirar.
+
+     Las dos consultas van en bloque para TODOS los pedidos, no una por cada
+     uno: ocho pedidos serían dieciséis viajes a la base por cada visita. */
+  const idsPed = (ped || []).map((o) => String(o.id)).filter(Boolean);
+  const porPedido: Record<string, { que: string[]; puntos: number }> = {};
+  if (idsPed.length) {
+    const lista = idsPed.join(",");
+    const its = await sbGet(
+      `/pos_order_items?order_id=in.(${lista})&select=order_id,product_name,name,quantity`
+    ) as Array<Record<string, unknown>> | null;
+    (its || []).forEach((it) => {
+      const k = String(it.order_id);
+      if (!porPedido[k]) porPedido[k] = { que: [], puntos: 0 };
+      /* El nombre guardado trae el plato y su presentación, pero el ORDEN
+         cambia según quién creó el pedido ("Mixta · Familiar" desde el chat,
+         "Familiar · Mixta" desde la caja). Cortar por el separador dejaba
+         "Familiar" o "1.5 Litros" como si fuera el plato — mejor el nombre
+         completo, que el diseño recorta con puntos suspensivos si no cabe.
+         Solo se quitan las adiciones, que alargan sin identificar. */
+      const nom = String(it.product_name || it.name || "").split(" + ")[0].trim();
+      const cant = Number(it.quantity) || 1;
+      if (nom) porPedido[k].que.push(cant > 1 ? cant + "x " + nom : nom);
+    });
+    const pts = await sbGet(
+      `/pos_puntos_movimientos?order_id=in.(${lista})&tipo=eq.acumulacion&select=order_id,puntos`
+    ) as Array<Record<string, unknown>> | null;
+    (pts || []).forEach((m) => {
+      const k = String(m.order_id);
+      if (!porPedido[k]) porPedido[k] = { que: [], puntos: 0 };
+      porPedido[k].puntos += Number(m.puntos) || 0;
+    });
+  }
+
   /* EL SALDO, DE LA BASE (16-ago). Estaba escrito a mano en CERO de cuando las
      recargas no existian, y se quedo asi despues: un cliente con plata
      recargada entraba y veia $0 — que es lo mismo que no tenerla. */
@@ -236,6 +272,8 @@ async function fichaCliente(tenantId: string, clienteId: string) {
     pedidos: (ped || []).map((o) => ({
       id: o.id, total: Number(o.total_final ?? o.total ?? 0),
       fecha: o.created_at, canal: o.channel, estado: o.estado,
+      que: (porPedido[String(o.id)]?.que || []),
+      puntos: porPedido[String(o.id)]?.puntos || 0,
     })),
     direccion: c.direccion || "", barrio: c.barrio || "",
     direcciones: conIds(c.direcciones),

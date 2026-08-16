@@ -648,10 +648,21 @@
       (peds.length ? peds.slice(0, 3).map(function (p) {
         var f = new Date(p.fecha);
         var donde = p.canal === 'domicilio' ? 'Domicilio' : (p.canal === 'salon' ? 'En el local' : 'Para llevar');
+        /* Qué pidió, no "Pedido": el cliente reconoce su comida. Con más de
+           dos platos se nombran los dos primeros y se cuenta el resto — la
+           línea tiene que caber sin empujar el precio fuera de la tarjeta. */
+        var que = Array.isArray(p.que) ? p.que : [];
+        var titulo = que.length === 0 ? 'Pedido'
+          : que.length <= 2 ? que.join(' · ')
+          : que.slice(0, 2).join(' · ') + ' +' + (que.length - 2);
+        /* Y los puntos que ganó, que es a lo que entra a mirar. Si el pedido
+           todavía no los generó (aún sin pagar), no se inventa un número. */
+        var pts = Number(p.puntos) || 0;
         return '<div class="ep-li"><div class="ep-li-ico">' + ico('bolsa', 16) + '</div>' +
-          '<div class="ep-li-b"><div class="ep-li-t">Pedido</div>' +
+          '<div class="ep-li-b"><div class="ep-li-t">' + esc(titulo) + '</div>' +
           '<div class="ep-li-s">' + f.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) + ' · ' + donde + '</div></div>' +
-          '<div class="ep-li-m">' + COP(p.total) + '</div></div>';
+          '<div class="ep-li-m' + (pts > 0 ? ' pts' : ' sin') + '">' +
+            (pts > 0 ? '+' + pts + ' pts' : '—') + '</div></div>';
       }).join('') : '<div class="ep-vacio">Aquí verás tus pedidos cuando hagas el primero.</div>') +
     '</div>';
 

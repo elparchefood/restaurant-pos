@@ -1370,3 +1370,10 @@ button.ep-pub-foto { cursor: pointer; }
   .ep-hoy-foto { flex: 1 1 auto; aspect-ratio: auto; min-height: 60px; }
   .ep-hoy-msg { justify-content: space-between; overflow: hidden; }
 }
+
+/* Los puntos ganados, en la línea del historial: en dorado, que es el color de
+   los puntos en toda la página. El guion es para el pedido que todavía no los
+   generó — mejor un guion honesto que un cero que parece un error. */
+.ep-li-m.pts { color: var(--accent); white-space: nowrap; }
+.ep-li-m.sin { color: var(--dim); }
+.ep-li-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
