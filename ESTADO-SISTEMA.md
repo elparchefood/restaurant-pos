@@ -5721,3 +5721,8 @@ Cuatro fallas reales de turno, cazadas y corregidas en caliente (delay-reply v29
 - **Sintoma**: los clientes creados por Paco (Brayan, Andres Hurtado) salian en el chat con nombre pero SIN la etiqueta del barrio.
 - **Raiz**: los dos creadores de clientes del bot (delay-reply efectivo y verify-transfer) insertaban en pos_clientes solo nombre + telefono + direccion — sin la casilla , que es de donde el chat pinta la etiqueta. (La copia de createWhatsappOrder en confirm-domi resulto CODIGO MUERTO: ya no crea pedidos, reencola a delay-reply — anotado para la limpieza.)
 - **Arreglo**: ambos guardan  al crear el cliente. Backfill: 2 clientes con barrio vacio rellenados desde la marca [barrio:X] de sus pedidos (Brayan -> San Ignacio, Andres -> Altos de Morinda).
+
+## 148. La caja no cerraba por pedidos del bot entregados pero "abiertos" (15-ago) — cambiar-estado v9
+- **Sintoma**: el cierre de caja se bloqueo con Isabella Arias y Andres Hurtado "abiertos" — estaban entregados y pagados completos, pero status seguia en open (los pedidos del bot nacen open a proposito, entrada 138, y nadie los cerraba nunca).
+- **Arreglo de raiz**: cambiar-estado, al pasar un pedido a ENTREGADO, revisa el pago: si paid_amount cubre el total y sigue open, lo cierra solo (status paid + closed_at). Si falta plata (efectivo contraentrega sin registrar), queda open para cobrarlo en caja — el cierre de caja lo reclama, como debe ser.
+- **Datos**: los dos pedidos cerrados a mano (paid + closed_at); cero puntos dobles (el candado de la 143 verificado en vivo: 1 movimiento por pedido).

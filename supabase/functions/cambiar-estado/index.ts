@@ -52,7 +52,24 @@ Deno.serve(async (req: Request) => {
       estado, estado_at: new Date().toISOString(),
       delivery_status: TO_DELIV[estado] || estado,
     };
-    if (estado === "entregado") patch.delivered_at = new Date().toISOString();
+    if (estado === "entregado") {
+      patch.delivered_at = new Date().toISOString();
+      /* ENTREGADO + PAGADO COMPLETO = VENTA CERRADA (15-ago): los pedidos del
+         bot nacen open (la pantalla de domicilios solo muestra open) y nadie
+         los cerraba — la caja no dejaba cerrar el dia con pedidos entregados
+         y pagados "abiertos" (caso real: Isabella y Andres). Si la plata ya
+         esta completa, al entregarlo se cierra solo. Si falta plata (efectivo
+         contraentrega sin registrar), queda open para cobrarlo en caja. */
+      try {
+        const ordPago = await sbGet(`/pos_orders?id=eq.${order_id}&select=status,paid_amount,total`) as Array<Record<string, unknown>> | null;
+        const op = ordPago?.[0];
+        if (op && String(op.status) === "open"
+            && Number(op.paid_amount || 0) >= Number(op.total || 0) && Number(op.total || 0) > 0) {
+          patch.status = "paid";
+          patch.closed_at = new Date().toISOString();
+        }
+      } catch (_e) { /* si no se puede leer, el cambio de estado sigue igual */ }
+    }
     await sbPatch(`/pos_orders?id=eq.${order_id}`, patch);
 
     /* Cuanto duro en el estado ANTERIOR. El reloj de la tarjeta se reinicia en
