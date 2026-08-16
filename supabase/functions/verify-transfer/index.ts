@@ -919,6 +919,8 @@ async function crearPedido(
       const newCliente = await sbPostRep(`/rest/v1/pos_clientes`, {
         tenant_id: tenantId || null, branch_id: branchId,
         nombre: pedido.nombreCliente, telefono: telefonoClean, direccion: direccion || null,
+        // Con su barrio (15-ago): sin el, la etiqueta del barrio no sale en el chat.
+        barrio: String(pendingData.barrio || "") || null,
       });
       if (newCliente?.[0]?.id) orderRecord.cliente_id = String(newCliente[0].id);
     }

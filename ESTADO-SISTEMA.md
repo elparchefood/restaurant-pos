@@ -5716,3 +5716,8 @@ Cuatro fallas reales de turno, cazadas y corregidas en caliente (delay-reply v29
 - **Front (chat-ia.js clienteDe)**: los clientes que Paco crea con sus pedidos no se veian en la pantalla del chat hasta recargar (el mapa de clientes se carga al abrir). Ahora, si un telefono no esta en el mapa, se consulta UNA vez su ficha y se repinta la lista y el encabezado. (Brayan y Andres Hurtado SIEMPRE estuvieron guardados en pos_clientes — era solo el refresco.)
 - **Dato corregido**: pedido de Brayan (d6fe0464) -> delivery_fee 5000, total 31000, venta 26000. El de Altos de Morinda estaba bien (entro por verify-transfer v34+).
 - **Patron del dia (4a vez)**: tres creadores de pedidos hermanos (delay-reply, verify-transfer, confirm-domi, crear-pedido-chat) y cada uno con SU version del desglose. Pendiente de fondo ya anotado: unificar la creacion de pedidos en una sola ruta.
+
+## 147. La etiqueta del barrio faltaba en los clientes del bot (15-ago) — delay-reply v298 + verify-transfer v36
+- **Sintoma**: los clientes creados por Paco (Brayan, Andres Hurtado) salian en el chat con nombre pero SIN la etiqueta del barrio.
+- **Raiz**: los dos creadores de clientes del bot (delay-reply efectivo y verify-transfer) insertaban en pos_clientes solo nombre + telefono + direccion — sin la casilla , que es de donde el chat pinta la etiqueta. (La copia de createWhatsappOrder en confirm-domi resulto CODIGO MUERTO: ya no crea pedidos, reencola a delay-reply — anotado para la limpieza.)
+- **Arreglo**: ambos guardan  al crear el cliente. Backfill: 2 clientes con barrio vacio rellenados desde la marca [barrio:X] de sus pedidos (Brayan -> San Ignacio, Andres -> Altos de Morinda).

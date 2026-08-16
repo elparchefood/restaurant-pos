@@ -6499,8 +6499,9 @@ async function createWhatsappOrder(
         method: "POST",
         headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json", "Prefer": "return=representation" },
         /* Se guarda como lo guarda la pantalla de clientes —sin indicativo— para no
-           sembrar dos formatos en la misma tabla. */
-        body: JSON.stringify({ tenant_id: tenantId || null, branch_id: branchId, nombre: cliente, telefono: telLocal(telefonoClean), direccion: direccion || null }),
+           sembrar dos formatos en la misma tabla. CON su barrio (15-ago): sin el,
+           la etiqueta del barrio no salia en el chat para los clientes del bot. */
+        body: JSON.stringify({ tenant_id: tenantId || null, branch_id: branchId, nombre: cliente, telefono: telLocal(telefonoClean), direccion: direccion || null, barrio: barrioPedido || null }),
       });
       if (newCliente.ok) {
         const newRow = await newCliente.json() as Array<Record<string, unknown>>;
