@@ -5886,3 +5886,24 @@ La pantalla vieja tenia 4 tarjetas. La nueva sigue el handoff que trajo Sergio: 
 **Sigue con el candado de administrador de plataforma** (`es_admin_plataforma`), como estaba: el modulo todavia se esta afinando.
 - **Verificado sin iniciar sesion**: se ejecutaron las funciones de dibujo con los datos reales de El Parche y se midio el resultado — 10 tarjetas, dos columnas (821+384), estado "Cerrado por horario · Abre hoy a las 6:30 p.m.", 7 interruptores en su posicion correcta, y el escenario apagado/cerrado a mano con sus avisos. Sin desbordes.
 - **PENDIENTE (lo pidio Sergio)**: desde aqui van a salir tambien los productos destacados y las imagenes de la publicidad.
+
+## 165. Mi pagina web: pestañas y vista previa DE VERDAD (16-ago)
+Dos ajustes que pidio Sergio despues de ver la pantalla.
+
+**1 · PESTAÑAS.** Diez tarjetas seguidas eran un rollo de dos metros, y la mitad son cosas que se tocan una vez al año. Agrupadas por lo que uno viene a HACER, no por parecido:
+- **Tu pagina** — direccion, QR y publicar (se toca una vez y no se vuelve a mirar).
+- **Cuando abres** — estado, cerrar a mano, cierres programados y pedidos con el negocio cerrado. Cuatro tarjetas que siempre se miran juntas y antes estaban sueltas.
+- **Que ve el cliente** — los interruptores. Aqui van a entrar despues los destacados y la publicidad.
+- **Probar y medir** — probar el acceso y las cifras.
+- **Esconder no puede ser TAPAR**: si la pagina esta apagada, el negocio cerrado a mano, falta el horario o hay secciones ocultas, la pestaña lo dice con un punto aunque no se este mirando.
+- La pantalla paso de 2.617 px de alto a 1.702.
+
+**2 · LA VISTA PREVIA ES LA PAGINA, NO UN DIBUJO.** Antes era una maqueta pintada dentro de la propia pantalla. Una maqueta siempre se termina despegando de la pagina real, y entonces miente justo cuando mas se confia en ella. Ahora se carga cobrapos.app/{slug} dentro de un marco.
+- **Se carga al tamaño REAL** (390x800 celular, 1280x820 computador) y se encoge con zoom. Apretar la pagina a 268 px daria el diseño de celular en los dos casos y la vista de computador no serviria para nada.
+- **Al guardar cualquier cosa la vista previa se recarga** (contador en la direccion). Si no, seguiria mostrando lo de antes y el dueño creeria que su cambio no se guardo.
+- El pie aclara que **asi la ve un cliente que entra por primera vez** — el interior necesita la sesion del cliente. Y hay boton para recargar y para abrirla aparte.
+- Se comprobo que GitHub Pages **no manda X-Frame-Options**, asi que la pagina si se puede incrustar.
+- Se retiro la maqueta entera (previa/pantallaCliente/tarjeta/barra/renglon).
+- **Medido**: marco 268x550 en celular y 300x226 en computador, los dos caben en la columna sin recortes ni desbordes; las 4 pestañas pintan sus tarjetas.
+
+**Trampa que me mordio al editar** (para la proxima): `str.find` devuelve -1 cuando no encuentra, y Python lee ese -1 como "empieza por el final". Un corte `s[:i] + s[j:]` con la j mal calculada se llevo TODO el resto del archivo sin quejarse. Los cortes por marcador van entre dos marcadores firmes y con `assert 0 < i < j`.

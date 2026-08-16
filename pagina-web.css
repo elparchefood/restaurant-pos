@@ -396,3 +396,29 @@ body{margin:0;background:var(--bg);font-family:'DM Sans',system-ui,-apple-system
 
 /* Un interruptor que no se puede tocar mientras se guarda. */
 .cc-switch[disabled]{opacity:.55;cursor:progress;}
+
+/* ================= PESTAÑAS Y VISTA PREVIA DE VERDAD =================
+   Las diez tarjetas seguidas eran un rollo de dos metros, y media era cosas que
+   se tocan una vez al año. Agrupadas por lo que uno viene a HACER. */
+.pw-tabs{margin:0 0 16px;padding:0;}
+/* El punto de aviso: esconder no puede ser TAPAR. Si algo esta cerrado o
+   apagado, la pestaña lo dice aunque no se este mirando. */
+.pw-tab-pt{display:inline-block;width:6px;height:6px;border-radius:999px;background:var(--warn);margin-left:6px;vertical-align:middle;}
+.pw-tab-pt.gris{background:var(--faint);}
+
+/* EL MARCO DE LA VISTA PREVIA. Dentro va la pagina DE VERDAD, no un dibujo.
+   Se carga al tamaño real de un celular o de un computador y se encoge con
+   zoom: apretandola a 268 px saldria el diseño de celular en los dos casos y la
+   vista de computador no serviria para nada. */
+.pw-marco{position:relative;overflow:hidden;background:#fff;border:1px solid var(--border-hover);box-shadow:0 14px 30px -14px rgba(15,23,42,.22);}
+.pw-marco.movil{border-radius:26px;}
+.pw-marco.desktop{border-radius:12px;}
+.pw-marco iframe{position:absolute;top:0;left:0;border:0;transform-origin:top left;background:#fff;}
+/* En la vista de computador la barra del navegador va ENCIMA del marco, no
+   dentro: si no, le quitaria alto a la pagina y se veria recortada. */
+.pw-marco.desktop .mw-desk-bar{position:absolute;top:0;left:0;right:0;z-index:2;height:34px;box-sizing:border-box;}
+.pw-marco.desktop iframe{top:34px;}
+/* El marco no se encoge: si lo hiciera, el zoom del iframe dejaria de cuadrar
+   con la caja y la pagina saldria recortada por un lado. */
+.pw-marco{flex-shrink:0;}
+.pw-prev-pie{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;font-size:11.5px;color:var(--ink-3);}

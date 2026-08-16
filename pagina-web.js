@@ -29,6 +29,17 @@
   var DIAS = [['lunes', 'Lunes'], ['martes', 'Martes'], ['miercoles', 'Miércoles'], ['jueves', 'Jueves'],
               ['viernes', 'Viernes'], ['sabado', 'Sábado'], ['domingo', 'Domingo']];
 
+  /* LAS PESTAÑAS. Agrupadas por lo que uno viene a HACER, no por parecido:
+     "cuándo abro" junta cuatro tarjetas que antes estaban sueltas y que siempre
+     se miran juntas, y deja la dirección y el QR —que se tocan una vez y no se
+     vuelven a mirar— fuera del camino de todos los días. */
+  var TABS = [
+    { k: 'pagina',  t: 'Tu página',        secs: ['direccion', 'publicar'] },
+    { k: 'horario', t: 'Cuándo abres',     secs: ['estado', 'mano', 'cierres', 'pedidos'] },
+    { k: 've',      t: 'Qué ve el cliente', secs: ['ve'] },
+    { k: 'prueba',  t: 'Probar y medir',   secs: ['probar', 'comova'] },
+  ];
+
   var S = {
     t: null,          // la fila de tenants
     marca: '',        // el nombre que ve el cliente
@@ -36,6 +47,8 @@
     horarios: null,   // los de ia_config
     stats: null,
     prev: 'movil',
+    tab: 'pagina',
+    recarga: 0,       // sube cada vez que se guarda algo, para refrescar la vista previa
     tel: '',
     cierre: 'hoy',    // la opción marcada en el modal de cerrar
   };
@@ -164,21 +177,37 @@
     $('pill-publicada').className = 'mw-badge ' + (viva ? 'ok' : 'neutral');
     $('pill-publicada').textContent = viva ? 'Publicada' : 'Apagada';
 
+    var pinta = {
+      direccion: seccionDireccion, publicar: seccionPublicar, estado: seccionEstado,
+      mano: seccionMano, cierres: seccionCierres, pedidos: seccionPedidos,
+      ve: seccionVe, probar: seccionProbar, comova: seccionComoVa,
+    };
+    var tab = TABS.filter(function (x) { return x.k === S.tab; })[0] || TABS[0];
+
     $('pw-main').innerHTML =
+      '<div class="lm-tabsrow pw-tabs">' + TABS.map(function (x) {
+        return '<button class="cc-tab' + (x.k === S.tab ? ' on' : '') + '" data-tab="' + x.k + '">' +
+          esc(x.t) + avisoTab(x.k) + '</button>';
+      }).join('') + '</div>' +
       '<div class="mw-cols"><div class="mw-stack">' +
-        seccionDireccion() +
-        seccionPublicar() +
-        seccionEstado() +
-        seccionMano() +
-        seccionCierres() +
-        seccionPedidos() +
-        seccionVe() +
-        seccionProbar() +
-        seccionComoVa() +
+        tab.secs.map(function (k) { return pinta[k](); }).join('') +
       '</div>' + seccionPrevia() + '</div>';
 
-    dibujarQR();
+    /* El QR solo existe en su pestaña; dibujarlo cuando no está pintado tiraría
+       un error en la consola cada vez que se cambia de pestaña. */
+    if (S.tab === 'pagina') dibujarQR();
     enganchar();
+  }
+
+  /* Esconder no puede ser TAPAR: si algo esta cerrado o apagado, la pestaña lo
+     dice con un punto, aunque no se este mirando. */
+  function avisoTab(k) {
+    var e = S.estado || {};
+    if (k === 'pagina' && !S.t.web_activa) return '<span class="pw-tab-pt"></span>';
+    if (k === 'horario' && (S.t.web_cerrado_manual || e.motivo === 'programado' || !S.horarios))
+      return '<span class="pw-tab-pt"></span>';
+    if (k === 've' && VE.some(function (v) { return !ve(v.k); })) return '<span class="pw-tab-pt gris"></span>';
+    return '';
   }
 
   // 1 · DIRECCIÓN Y QR
@@ -401,68 +430,53 @@
       '</div></section>';
   }
 
-  // 8 · VISTA PREVIA
+  // 8 · VISTA PREVIA — LA PÁGINA DE VERDAD
+  /* Antes esto era una maqueta dibujada aquí. Una maqueta siempre se termina
+     despegando de la página real y entonces miente justo cuando más se confía
+     en ella. Ahora es la página, cargada de verdad dentro de un marco.
+
+     Se carga al tamaño REAL de un celular y de un computador y se encoge con
+     zoom, no se aprieta a 268 px: apretándola saldría el diseño de celular en
+     los dos casos y la vista de computador no serviría para nada. */
+  var TAMANOS = { movil: [390, 800], desktop: [1280, 820] };
+
   function seccionPrevia() {
+    var t = TAMANOS[S.prev] || TAMANOS.movil;
+    /* Lo que cabe de verdad: la columna mide 384, la tarjeta le quita 18 de cada
+       lado, el escenario otros 18 y sus bordes un par mas — quedan 309. Se deja
+       en 300 con holgura: calcularlo al milimetro se rompe el dia que alguien
+       cambie un padding, y aqui pasarse significa recortar la pagina. */
+    var caja = S.prev === 'movil' ? 268 : 300;
+    var z = caja / t[0];
+    // En la vista de computador la barra del navegador va encima y suma alto.
+    var barraNav = S.prev === 'desktop' ? 34 : 0;
     return '<aside class="mw-rail"><section class="mw-card">' +
       '<div class="mw-prev-head"><div><h2 class="mw-h">Vista previa</h2>' +
-        '<p class="mw-sub" style="margin-top:2px">Así se ve tu página ahora mismo.</p></div>' +
+        '<p class="mw-sub" style="margin-top:2px">Es tu página de verdad, no un dibujo.</p></div>' +
         '<div class="cc-seg">' +
           '<button class="' + (S.prev === 'movil' ? 'on' : '') + '" data-prev="movil">Celular</button>' +
           '<button class="' + (S.prev === 'desktop' ? 'on' : '') + '" data-prev="desktop">Computador</button>' +
         '</div></div>' +
-      '<div class="mw-prev-stage" style="margin-top:14px">' + previa() + '</div>' +
-      '<p class="mw-sub" style="margin-top:12px;font-size:11.5px">La página se abre desde el navegador del cliente, no desde aquí.</p>' +
+      '<div class="mw-prev-stage" style="margin-top:14px">' +
+        '<div class="pw-marco ' + S.prev + '" style="width:' + Math.round(t[0] * z) +
+          'px;height:' + (Math.round(t[1] * z) + barraNav) + 'px">' +
+          (S.prev === 'desktop'
+            ? '<div class="mw-desk-bar"><span class="mw-dot"></span><span class="mw-dot"></span><span class="mw-dot"></span>' +
+              '<span class="mw-desk-url">' + esc(DOMINIO + (S.t.slug || '')) + '</span></div>'
+            : '') +
+          '<iframe id="pw-iframe" title="Tu página de clientes" loading="lazy"' +
+            ' style="width:' + t[0] + 'px;height:' + t[1] + 'px;transform:scale(' + z.toFixed(4) + ')"' +
+            ' src="' + esc(urlPagina() + '/?vp=' + S.recarga) + '"></iframe>' +
+        '</div>' +
+      '</div>' +
+      '<div class="pw-prev-pie">' +
+        '<span>Así la ve un cliente que entra por primera vez.</span>' +
+        '<span class="mw-actions">' +
+          '<button class="lm-link" data-a="prev-recargar">Recargar</button>' +
+          '<button class="lm-link" data-a="prev-abrir">Abrir aparte →</button>' +
+        '</span>' +
+      '</div>' +
       '</section></aside>';
-  }
-
-  function previa() {
-    var dentro = S.t.web_activa ? pantallaCliente() : '<div class="mw-offscreen"><div class="mw-offscreen-t">Todavía no estamos abiertos aquí</div>' +
-      '<div class="mw-offscreen-s">Tu página está apagada. Enciéndela arriba para que tus clientes puedan entrar.</div></div>';
-    if (S.prev === 'desktop') {
-      return '<div class="mw-desk"><div class="mw-desk-bar"><span class="mw-dot"></span><span class="mw-dot"></span>' +
-        '<span class="mw-dot"></span><span class="mw-desk-url">' + esc(DOMINIO + (S.t.slug || '')) + '</span></div>' +
-        dentro + '</div>';
-    }
-    return '<div class="mw-phone">' + dentro + '</div>';
-  }
-
-  function pantallaCliente() {
-    var e = S.estado || {}, abierto = !!e.abierto && !S.t.web_cerrado_manual;
-    var det = String(e.detalle || (abierto ? 'Abierto' : 'Cerrado'));
-    var cta = abierto ? 'Hacer un pedido'
-      : (S.t.web_programar_pedidos ? 'Dejar pedido para después' : 'Cerrado · no se puede pedir ahora');
-
-    var tarjetas = '';
-    if (ve('puntos')) tarjetas += tarjeta('Tus puntos', '1.240', ve('nivel') ? barra() : '');
-    else if (ve('nivel')) tarjetas += tarjeta('Tu nivel', 'Habitual', barra());
-    if (ve('saldo')) tarjetas += tarjeta('Saldo', COP(32000), '');
-    if (ve('canje')) tarjetas += tarjeta('Canjea tus puntos', '', renglon('Postre del día', '400 puntos'));
-    if (ve('carta')) tarjetas += tarjeta('La carta', '',
-      renglon('Bandeja paisa', COP(32000)) + renglon('Sancocho de gallina', COP(28000)));
-    if (!tarjetas) tarjetas = '<div class="mw-scr-card"><div class="mw-scr-p">' +
-      'Apagaste todo: el cliente solo vería tu nombre.</div></div>';
-
-    return '<div class="mw-scr">' +
-      '<div class="mw-scr-top"><div class="mw-scr-name">' + esc(S.marca) + '</div>' +
-        '<span class="mw-scr-pill">● ' + esc(det) + '</span></div>' +
-      (abierto ? '' : '<div class="mw-scr-banner' + (S.t.web_cerrado_manual || e.motivo === 'programado' ? ' warn' : ' closed') + '">' +
-        esc(det) + (S.t.web_programar_pedidos ? ' · Puedes dejar tu pedido programado.' : ' · Por ahora no se pueden hacer pedidos.') + '</div>') +
-      tarjetas +
-      '<div class="mw-scr-cta' + (abierto || S.t.web_programar_pedidos ? '' : ' off') + '">' + cta + '</div>' +
-    '</div>';
-  }
-  function tarjeta(l, v, extra) {
-    return '<div class="mw-scr-card"><div class="mw-scr-l">' + esc(l) + '</div>' +
-      (v ? '<div class="mw-scr-v">' + esc(v) + '</div>' : '') + (extra || '') + '</div>';
-  }
-  function barra() { return '<div class="mw-bar"><i style="width:62%"></i></div>' +
-    '<div class="mw-scr-p" style="margin-top:6px">Nivel 3 · Habitual — te faltan 260 para el siguiente</div>'; }
-
-  /* Un renglon de producto en la vista previa: miniatura, nombre y precio. */
-  function renglon(nombre, precio) {
-    return '<div class="mw-scr-row"><span class="mw-scr-thumb"></span>' +
-      '<span class="mw-grow"><span class="mw-scr-t" style="display:block">' + esc(nombre) + '</span>' +
-      (precio ? '<span class="mw-scr-p">' + esc(precio) + '</span>' : '') + '</span></div>';
   }
 
   // ── El QR ──────────────────────────────────────────────────────────
@@ -481,6 +495,9 @@
     });
     document.querySelectorAll('[data-sw]').forEach(function (b) {
       b.onclick = function () { interruptor(b, b.dataset.sw); };
+    });
+    document.querySelectorAll('[data-tab]').forEach(function (b) {
+      b.onclick = function () { S.tab = b.dataset.tab; pintar(); };
     });
     document.querySelectorAll('[data-prev]').forEach(function (b) {
       b.onclick = function () { S.prev = b.dataset.prev; pintar(); };
@@ -506,6 +523,8 @@
     else if (a === 'add-cierre') { modalCierre(); }
     else if (a === 'enviar-codigo') { pedirCodigo(); }
     else if (a === 'comprobar') { verificarCodigo(); }
+    else if (a === 'prev-recargar') { S.recarga++; pintar(); }
+    else if (a === 'prev-abrir') { window.open(urlPagina(), '_blank', 'noopener'); }
   }
 
   /* Un interruptor se bloquea mientras se guarda. Sin eso, dos clics seguidos
@@ -542,6 +561,9 @@
     }
     Object.assign(S.t, campos);
     await cargarEstado(S.t.id);
+    /* La vista previa es la pagina de verdad: si no se recarga, seguiria
+       mostrando lo de antes y el dueño creeria que su cambio no se guardo. */
+    S.recarga++;
     pintar();
     if (msg) toast(msg);
     return true;
