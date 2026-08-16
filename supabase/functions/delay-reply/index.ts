@@ -957,7 +957,9 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
   seguido de mas pedido NO es despedida. Y AL REVES: si en el contexto el
   cliente venia diciendo que esta caro, que no va a pedir o que lo piensa,
   un "gracias" o un "bueno" solo, ES despedida — no lo trates como cortesia
-  para seguir vendiendo.
+  para seguir vendiendo. PERO un SALUDO ("hola", "buenas", "buenas noches")
+  JAMAS es despedida: el cliente esta LLEGANDO, aunque la conversacion
+  anterior haya quedado cerrada hace dias.
 - "queja": true SOLO si esta molesto por un problema del SERVICIO o del
   pedido YA OCURRIDO: demora, algo llego mal o frio, le cobraron mal, mala
   atencion. NO es queja opinar del precio ("esta caro") ni dudar de pedir.
@@ -1085,6 +1087,13 @@ INTENCION, no las palabras exactas.` },
      persona y recibia el menu. Lo humano se atiende antes que lo comercial. */
   const clasifico = Object.keys(intenciones).length > 0;
   const handoffFraseCfg = String(((cfg.handoff as Record<string, unknown>) || {}).frase || "").trim();
+  /* UN SALUDO NO ES UNA DESPEDIDA (caso real, 15-ago): un cliente volvio a los
+     12 dias con "Buenas noches" + sticker. El clasificador, leyendo la
+     historia vieja —que termino en "gracias"—, lo marco como despedida y Paco
+     lo "despidio" al llegar ("estamos para servirte"). Si lo dicho es SOLO un
+     saludo (quitando stickers), el cliente esta LLEGANDO, no yendose. */
+  const soloSaludoLote = SALUDO_REGEX.test(
+    batchMsgs.map(m => String(m.body || "")).join(" ").replace(/\[[^\]]*\]/g, " ").replace(/\s+/g, " ").trim());
 
   // (a) Pide una persona, o esta molesto → humano, con el motivo visible.
   if (intenciones.quiere_humano === true || intenciones.queja === true) {
@@ -1107,7 +1116,7 @@ INTENCION, no las palabras exactas.` },
      confirma algo, no es despedida; y con un PEDIDO EN CURSO el "no gracias"
      esta cerrando el upsell o un paso, no la conversacion — el flujo sigue
      (la regresion del banco lo probo: cortaba el pedido a mitad). */
-  if (intenciones.despedida === true && intenciones.pedir !== true
+  if (intenciones.despedida === true && !soloSaludoLote && intenciones.pedir !== true
       && intenciones.confirma !== true && intenciones.carta !== true
       && !(Array.isArray(intenciones.agregados) && (intenciones.agregados as unknown[]).length > 0)) {
     /* El estado del pedido aun no esta cargado a esta altura (se carga mas
@@ -1142,6 +1151,12 @@ INTENCION, no las palabras exactas.` },
   // 6. Detectar solicitud de carta / PRECIOS → enviar imágenes de la carta (traen los precios)
   let extraRespondido = false;
   let cartaSuprimida = false;   // la categoría en texto ya respondió lo que la carta iba a responder
+  /* CARTA + PEDIDO EN EL MISMO LOTE (caso real, 15-ago): "me regalas la carta /
+     regalame un perro pollo / y una salchi maicitos" — el bot mando la carta,
+     retorno, y el PEDIDO completo quedo ignorado. Si el clasificador dice que
+     el lote tambien PIDE, la carta se manda pero el turno NO termina ahi: el
+     flujo sigue y captura el pedido (mismo espiritu que la categoria en texto). */
+  const traePedidoEnLote = intenciones.pedir === true;
   const menuImagenes = (cfg.menu_imagenes as string[]) || [];
 
   /* 6-pre. CATEGORÍA EN TEXTO (pedido de Sergio, 15-ago). "¿Qué tienes de
@@ -1323,6 +1338,9 @@ INTENCION, no las palabras exactas.` },
           : menuFraseCfg.tipo === "variable"
             ? (getFraseTexto(frasesCfg.apertura) || "¿Qué deseas ordenar? 😋")
             : (menuFraseCfg.texto || "¿Qué deseas ordenar? 😋");
+      /* Con pedido en el lote, la frase "¿Que deseas ordenar?" sobra: el flujo
+         sigue y la siguiente pregunta sale del pedido mismo. */
+      if (!traePedidoEnLote) {
       const waText = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
@@ -1332,6 +1350,7 @@ INTENCION, no las palabras exactas.` },
       const sentId = ((waSentData.messages as Array<Record<string,unknown>>)?.[0]?.id as string) || "";
       await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot", body: followUp, delivery_status: "sent", external_id: sentId || null, sent_at: new Date().toISOString() });
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: followUp, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+      }
       extraRespondido = true;   // NO salir: puede que también pida ubicación en el mismo mensaje
     }
   }
@@ -1416,8 +1435,10 @@ INTENCION, no las palabras exactas.` },
     }
   } catch (e) { console.error("bloque ubicacion:", e); }
 
-  // Si ya se atendió carta/precios y/o ubicación (una o ambas), no seguir al flujo de GPT.
-  if (extraRespondido) { try { await setTyping(convId, false); } catch (_e) { /* noop */ } return; }
+  // Si ya se atendió carta/precios y/o ubicación (una o ambas), no seguir al flujo de GPT
+  // — SALVO que el mismo lote traiga un pedido: ese sigue derecho a capturarse.
+  if (extraRespondido && !traePedidoEnLote) { try { await setTyping(convId, false); } catch (_e) { /* noop */ } return; }
+  if (extraRespondido && traePedidoEnLote) console.log("[carta] lote con pedido: la carta salio y el flujo sigue");
 
   // 7. Cargar menú
   const menuText = await buildMenuText(branchId);
