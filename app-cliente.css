@@ -1323,7 +1323,51 @@ button.ep-pub-foto { cursor: pointer; }
 /* La foto manda: es lo que hace pedir. Proporción fija para que todas las
    tarjetas de la fila queden parejas aunque las fotos vengan de tamaños
    distintos. */
-.ep-hoy-foto { display: block; width: 100%; aspect-ratio: 16 / 10; background: var(--surf2) center/cover no-repeat; }
+.ep-hoy-foto { display: block; position: relative; width: 100%; aspect-ratio: 16 / 10; background: var(--surf2) center/cover no-repeat; }
+
+/* LAS MEDALLAS. Van sobre la foto, arriba a la izquierda, que es donde el ojo
+   entra a la tarjeta. Fondo sólido y sombra: sobre una foto clara, una etiqueta
+   translúcida se pierde. Los colores los eligió Sergio y cada uno significa
+   algo, así que no se cambian por gusto. */
+.ep-med {
+  position: absolute; top: 9px; left: 9px; z-index: 2;
+  padding: 4px 9px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .02em; white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+.ep-med--oro    { background: linear-gradient(135deg, #f0c66a, #d99f2b); color: #3a2604; }
+.ep-med--vino   { background: #8f2242; color: #fff; }
+.ep-med--blanca { background: #fff; color: #1b1b1f; }
+.ep-med--verde  { background: #1f8a4c; color: #fff; }
+
+/* EL VELO CON "PEDIR". Solo aparece al pasar el mouse: la foto es lo que hace
+   pedir y taparla todo el tiempo sería trabajar en contra. */
+.ep-hoy-velo {
+  position: absolute; inset: 0; z-index: 1;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(10,10,12,.55);
+  opacity: 0; transition: opacity .15s ease;
+}
+.ep-hoy-card:hover .ep-hoy-velo, .ep-hoy-card:focus-visible .ep-hoy-velo { opacity: 1; }
+.ep-hoy-pedir {
+  /* Menudo a propósito: en el cuadro de cuatro la foto queda de unos 76 px de
+     alto, y un botón de 35 px se come media foto. */
+  padding: 6px 15px; border-radius: 999px;
+  background: var(--accent); color: #221602;
+  font-size: 12px; font-weight: 700; letter-spacing: .01em;
+  transform: translateY(4px); transition: transform .15s ease;
+}
+.ep-hoy-card:hover .ep-hoy-pedir, .ep-hoy-card:focus-visible .ep-hoy-pedir { transform: none; }
+
+/* En el celular no existe "pasar el mouse": el velo nunca se vería, o peor,
+   se quedaría pegado después de tocar. La tarjeta entera ya abre el plato. */
+@media (hover: none) {
+  .ep-hoy-velo { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ep-hoy-velo, .ep-hoy-pedir { transition: none; }
+  .ep-hoy-pedir { transform: none; }
+}
 .ep-hoy-tx { display: block; padding: 11px 13px 13px; }
 .ep-hoy-nom { display: block; font-size: 13.5px; font-weight: 600; letter-spacing: -.01em; }
 .ep-hoy-pre { display: block; margin-top: 3px; font-size: 12px; color: var(--sub); }

@@ -5825,3 +5825,15 @@ El banner funcionaba pero se sentia PUESTO ENCIMA, no parte del sistema: metia t
 - **Quien es lo dice la sesion**, no el cuerpo del mensaje: nadie puede cambiarle la foto a otro cliente. Tope de 900 KB por si llega algo que no vino de la pagina.
 - **Verificado de punta a punta** con un cliente de PRUEBA: sube, vuelve en la ficha, la URL publica responde 200 y una imagen invalida se rechaza. Cliente de prueba borrado.
 - **Ojo**: la foto que Sergio tenia antes se perdio el 14-ago junto con su saldo, cuando su ficha de cliente se borro y se volvio a crear (misma causa de la entrada 148). Hay que volverla a subir; de ahora en adelante queda guardada.
+
+## 161. Medallas y boton "Pedir" en los destacados (16-ago) — fn_web_carta + pos_products.medalla
+- **Cuatro medallas** sobre la foto, arriba a la izquierda, UNA por tarjeta (dos encima de una foto pequeña se pelean y no se lee ninguna): **Mas pedido** (dorada), **Nuevo** (vino), **Para 2** (blanca), **2x1** (verde).
+- **"Mas pedido" NO se pone a mano**: sale de las ventas reales de los ultimos 60 dias, con un minimo de 10 unidades — con tres ventas la medalla no significa nada y solo gasta la credibilidad. Si el dueño puso una medalla a mano, manda la suya; la dorada solo llena el hueco que el dejo.
+- **Se calcula una vez por restaurante** dentro de fn_web_carta, no una consulta de ventas por cada plato de la carta.
+- **Las otras tres las marca el dueño** en el editor del producto (catalogo-productos): botones con el COLOR de verdad que va a tener la medalla, no una lista de palabras — elegir "vino" de un desplegable sin verlo no le dice nada a nadie. Columna nueva `pos_products.medalla`.
+- **Los colores estan repetidos** en app-cliente.css y en catalogo-productos.js a proposito: son dos programas distintos que no comparten hoja de estilos. Si se cambia uno, se cambian los dos.
+- **"Nuevo" no puede ser automatico** en este restaurante: los 53 productos se crearon el mismo dia (la carta se importo), asi que `created_at` no distingue nada.
+- **El destacado ahora abre ESE plato**, no la carta: antes llevaba a la carta y el cliente tenia que volver a buscar lo que acababa de ver. La tarjeta entera es el boton — en el celular no hay "pasar el mouse" y obligar a apuntarle a un boton pequeño encima de una foto es peor que tocar donde sea.
+- **El velo con "Pedir"** solo sale al pasar el mouse (la foto es lo que hace pedir; taparla siempre seria trabajar en contra) y se esconde entero en pantallas tactiles, donde se quedaria pegado despues de tocar.
+- **Medido con datos reales**: tarjetas 283x143 iguales, medallas dentro de la foto, el velo la tapa exacta, y el espejo con Mi billetera intacto (580x300 los dos).
+- **PENDIENTE (lo pidio Sergio)**: elegir a mano cuales tres productos van en los destacados. Hoy se escogen solos.

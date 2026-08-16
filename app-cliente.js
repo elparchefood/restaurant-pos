@@ -1330,12 +1330,15 @@
   function productosDelBanner() {
     var fuera = /bebida|adicion|adición|salsa|extra/i;
     var porCat = [];
-    (S.carta || []).forEach(function (c) {
+    (S.carta || []).forEach(function (c, ci) {
       if (fuera.test(c.categoria || '')) return;
       var conFoto = (c.productos || []).filter(function (p) { return p && p.foto; });
       if (!conFoto.length) return;
       var mejor = conFoto.slice().sort(function (a, b) { return precioDesde(b) - precioDesde(a); })[0];
-      porCat.push({ p: mejor, cat: c.categoria, precio: precioDesde(mejor) });
+      /* Se guarda DONDE quedó el plato en la carta, no solo el plato: el botón
+         "Pedir" abre la misma hoja de siempre, y esa hoja se pide por posición. */
+      porCat.push({ p: mejor, cat: c.categoria, precio: precioDesde(mejor),
+                    ci: ci, pi: (c.productos || []).indexOf(mejor) });
     });
     porCat.sort(function (a, b) { return b.precio - a.precio; });
     return porCat.slice(0, 3);
@@ -1402,6 +1405,29 @@
     '</div>';
   }
 
+  /* LAS MEDALLAS (16-ago, pedido de Sergio). Cuatro, y cada una dice algo
+     distinto — por eso son de colores distintos y no una sola etiqueta:
+
+       Más pedido (dorada) · no se pone a mano: sale de las ventas de verdad
+                             de los últimos 60 días, y solo si pasa de 10.
+       Nuevo      (vino)   · la marca el dueño en el producto
+       Para 2     (blanca) · la marca el dueño
+       2x1        (verde)  · la marca el dueño
+
+     Va UNA por tarjeta: la tarjeta es pequeña y dos medallas encima de la foto
+     se pelean entre ellas y no se lee ninguna. Si el dueño puso una a mano,
+     manda la suya — la dorada solo llena el hueco que él dejó. */
+  var MEDALLAS = {
+    mas_pedido: { t: 'Más pedido', c: 'oro' },
+    nuevo:      { t: 'Nuevo',      c: 'vino' },
+    para2:      { t: 'Para 2',     c: 'blanca' },
+    dosxuno:    { t: '2x1',        c: 'verde' },
+  };
+  function medalla(p) {
+    var m = MEDALLAS[String((p && p.medalla) || '')];
+    return m ? '<span class="ep-med ep-med--' + m.c + '">' + esc(m.t) + '</span>' : '';
+  }
+
   /* La fila de cuatro: el mensaje con sus botones y tres platos de la carta.
      Aquí terminó el texto que vivía en el banner — justo encima de lo que se
      quiere que pidan, que es donde un gancho de venta sirve. */
@@ -1409,8 +1435,18 @@
     var b = BANNER_TEXTO;
     var platos = productosDelBanner().map(function (e) {
       var p = e.p, precio = precioDesde(p);
-      return '<button class="ep-hoy-card" data-ir="carta">' +
-        '<span class="ep-hoy-foto"' + (p.foto ? ' style="background-image:url(' + esc(p.foto) + ')"' : '') + '></span>' +
+      /* Antes llevaba a la carta y ahí el cliente tenía que volver a buscar el
+         plato que acababa de ver. Ahora abre ESE plato. La tarjeta entera es el
+         botón: en el celular no hay "pasar el mouse" que valga, y obligar a
+         apuntarle a un botón pequeño encima de una foto es peor que tocar donde
+         sea. El "Pedir" del velo es para que en el computador se vea que la
+         tarjeta hace algo. */
+      return '<button class="ep-hoy-card" data-plato="' + e.ci + '|' + e.pi + '"' +
+             ' aria-label="Pedir ' + esc(p.nombre) + '">' +
+        '<span class="ep-hoy-foto"' + (p.foto ? ' style="background-image:url(' + esc(p.foto) + ')"' : '') + '>' +
+          medalla(p) +
+          '<span class="ep-hoy-velo"><span class="ep-hoy-pedir">Pedir</span></span>' +
+        '</span>' +
         '<span class="ep-hoy-tx">' +
           '<span class="ep-hoy-nom">' + esc(p.nombre) + '</span>' +
           '<span class="ep-hoy-pre">' + (precio ? 'Desde ' + COP(precio) : esc(e.cat || '')) + '</span>' +
