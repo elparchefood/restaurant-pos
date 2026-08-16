@@ -369,6 +369,10 @@ Deno.serve(async (req) => {
     const creado = await sbPost(`/pos_orders`, {
       tenant_id: tenantId, branch_id: branchId, cliente_id: clienteId,
       channel: tipo === "domicilio" ? "domicilio" : "rapido",
+      /* POR DONDE entro (16-ago). `channel` dice como se entrega y es igual que
+         un pedido de la caja; sin esto no habia forma de saber cuales pedidos
+         llegaron por la pagina, que es justo lo que mide la pantalla del dueño. */
+      origen: "web",
       status: "pendiente_pago",
       customer_name: cli?.[0]?.nombre || null,
       subtotal, total, total_final: total,

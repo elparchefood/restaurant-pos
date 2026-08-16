@@ -5860,3 +5860,29 @@ Sergio: "hay dos productos pero creo que faltan mas, y aparte dice que ya los pu
 - El boton dice **"Como llegar"**, no "Ver en el mapa": el mapa ya esta a la vista; lo que falta es la ruta.
 - **Verificado**: la direccion de El Parche resuelve a 2.4820212, -76.5739667 — Popayan. (El panel de vista previa no abre paginas con mapas incrustados, asi que se comprobo pidiendo el mapa y mirando las coordenadas.)
 - **De paso, arreglado "6:30 a.m. p.m."**: el servidor manda la frase ya en 12 horas ("Abre hoy a las 6:30 p.m.") y la pagina la volvia a convertir — el "6:30" se traducia solo y el "p.m." original quedaba pegado atras. Si la frase ya trae a.m. o p.m., se deja como viene.
+
+## 164. "Mi pagina web" rehecha con el handoff (16-ago) — pagina-web + pos-qr
+La pantalla vieja tenia 4 tarjetas. La nueva sigue el handoff que trajo Sergio: 10 secciones, vista previa en vivo, QR, modales y cierres programados.
+
+**Lo que hay detras de cada seccion** (todo con datos de verdad; donde el dato no existe se muestra un guion, nunca un numero inventado):
+- **Direccion y QR** — `tenants.slug`. Cambiarla avisa que los QR impresos dejan de servir.
+- **Publicar** — `web_activa`.
+- **Estado ahora mismo** — NO se calcula aqui: se llama a `fn_web_estado`, la MISMA que usa la pagina del cliente. Asi lo que ve el dueño y lo que ve el cliente no se pueden desincronizar.
+- **Cerrar a mano** — `web_cerrado_manual` + `web_cerrado_hasta`. "Solo por hoy" se guarda como FECHA de vencimiento, no como una marca que alguien tenga que acordarse de quitar: mañana el servidor ve que ya paso y abre solo.
+- **Cierres programados** — `web_cierres` (jsonb). Se valida que no se crucen: dos cierres encima del mismo dia no rompen nada, pero el dueño creeria que borro uno y sigue cerrado por el otro.
+- **Pedidos con el negocio cerrado** — `web_programar_pedidos`.
+- **Que ve el cliente** — columna NUEVA `tenants.web_visible` (jsonb). Una columna y no cinco booleanas porque la lista va a crecer (faltan los destacados y la publicidad). **Lo que falta MANDA encendido**: al reves, cada seccion nueva apareceria apagada para todos los restaurantes que ya existen.
+- **Probar el acceso** — igual que antes, manda un WhatsApp de verdad.
+- **Como va** — sesiones distintas en `pos_web_sesiones` (no filas de `pos_clientes`: casi todos llegaron por el chat y contarlos seria inflar el numero) y pedidos con `origen='web'`.
+
+**COLUMNA NUEVA `pos_orders.origen`**: `channel` dice COMO se entrega (salon/domicilio/rapido) y web-pedido guardaba lo mismo que la caja, asi que no habia forma de saber que pedido vino de la pagina. `origen` dice POR DONDE entro. Son dos preguntas distintas: mezclarlas obligaria a inventar un canal falso que romperia los informes de domicilios. Los pedidos viejos quedan sin marcar a proposito — rellenarlo a ojo seria inventar, y por eso la tarjeta dice "desde que publicaste". (web-pedido v11)
+
+**EL GENERADOR DE QR (`pos-qr.js`), escrito a mano**: Cobra corre dentro de un .exe que tiene que funcionar SIN INTERNET, y una libreria traida de un CDN dejaria la pantalla en blanco justo en el restaurante que no tiene wifi. Modo byte, correccion nivel M, versiones 1 a 6 (la direccion mas larga posible son 61 caracteres y la version 6 aguanta 106; pasar de la 6 obligaria a escribir el bloque de "informacion de version" que nunca se usaria).
+- **Comprobado leyendolo de verdad** con OpenCV, no comparando dibujos: 149 de 150 direcciones al azar se leen. El unico fallo lo reproduce igual `segno` (libreria de referencia) con el mismo texto, asi que es una rareza del lector, no del codigo.
+- **Dos errores encontrados asi, que un vistazo no habria pillado**: (1) la copia de la informacion de formato de la esquina de arriba a la izquierda iba con los bits AL REVES; (2) la regla 3 de castigo no contaba el patron cuando tocaba el BORDE del codigo — ahi los cuatro modulos claros son el margen blanco. Por eso la mascara de rayas verticales salia "limpia", ganaba, y producia un codigo que no leia nadie.
+- **Ojo si se compara contra segno**: segno mete un byte de relleno de mas cuando el flujo ya viene alineado (`8 - (192 % 8)` da 8 en vez de 0), asi que sus cuadriculas y las nuestras NO coinciden aunque las dos sean validas. Comparar dibujos no sirve; hay que LEER el codigo.
+- La hoja para la mesa se imprime desde una ventana propia, no con `window.print()` de la pantalla: si no, saldria impresa la pantalla entera de Cobra. El QR va en grande (900 px) porque uno de 180 se ve bien en pantalla pero impreso queda borroso.
+
+**Sigue con el candado de administrador de plataforma** (`es_admin_plataforma`), como estaba: el modulo todavia se esta afinando.
+- **Verificado sin iniciar sesion**: se ejecutaron las funciones de dibujo con los datos reales de El Parche y se midio el resultado — 10 tarjetas, dos columnas (821+384), estado "Cerrado por horario · Abre hoy a las 6:30 p.m.", 7 interruptores en su posicion correcta, y el escenario apagado/cerrado a mano con sus avisos. Sin desbordes.
+- **PENDIENTE (lo pidio Sergio)**: desde aqui van a salir tambien los productos destacados y las imagenes de la publicidad.
