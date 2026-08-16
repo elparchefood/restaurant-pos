@@ -159,10 +159,24 @@ Deno.serve(async (req) => {
            · sin `category_id` el empaque no reconocia las categorias exentas y
              le cobraba empaque hasta a las bebidas.
          El codigo los leia (p.variables, p.category_id) y aqui nunca llegaban. */
-      `/pos_products?id=in.(${ids.join(",")})&tenant_id=eq.${tenantId}&select=id,name,price,presentations,variables,category_id,available`
+      `/pos_products?id=in.(${ids.join(",")})&tenant_id=eq.${tenantId}&select=id,name,price,presentations,variables,category_id,mod_group_ids,mod_group_pres,available`
     ) as Array<Record<string, unknown>> | null;
     const porId: Record<string, Record<string, unknown>> = {};
     (prods || []).forEach((p) => { porId[String(p.id)] = p; });
+
+    /* Los grupos de modificadores (las adiciones) viven en su propia tabla: se
+       traen UNA vez para todo el pedido, no uno por línea. */
+    const gruposMod: Record<string, Record<string, unknown>> = {};
+    {
+      const gids = [...new Set((prods || []).flatMap((p) =>
+        (Array.isArray(p.mod_group_ids) ? p.mod_group_ids : []).map(String)))].filter(Boolean);
+      if (gids.length) {
+        const gs = await sbGet(
+          `/pos_modifier_groups?id=in.(${gids.join(",")})&tenant_id=eq.${tenantId}&select=id,name,options`
+        ) as Array<Record<string, unknown>> | null;
+        (gs || []).forEach((g) => { gruposMod[String(g.id)] = g; });
+      }
+    }
 
     const paraEmpaque: Array<{ productId: string; catId: string; presId: string; qty: number; unitPrice: number }> = [];
     const lineas: Array<Record<string, unknown>> = [];
@@ -194,6 +208,7 @@ Deno.serve(async (req) => {
          Y se busca AQUI, en el catalogo, no en lo que manda el navegador: si se
          confiara en el precio que llega de la pagina, cualquiera pediria una
          Premium por mil pesos. */
+      const varsSel: Record<string, unknown> = {};
       const varsPed = Array.isArray(it.variantes) ? it.variantes as unknown[] : [];
       if (varsPed.length) {
         const grupos = Array.isArray(p.variables) ? p.variables as Array<Record<string, unknown>> : [];
@@ -206,10 +221,59 @@ Deno.serve(async (req) => {
             const v = (presIdx >= 0 && pr.length > presIdx) ? Number(pr[presIdx]) : Number(op.price);
             if (v > 0) precio = v;
             nombre += " · " + String(op.name);
+            varsSel[String(g.id || g.name || "grupo")] = {
+              id: String(op.id || ""), name: String(op.name), group: String(g.name || ""), price: v || 0,
+            };
             break;
           }
         }
       }
+      /* LAS ADICIONES SE COBRAN Y VIAJAN A LA COCINA (16-ago). Antes ni se
+         miraban: el cliente escogía salsa cheddar o ranchera, las veía en su
+         carrito, y el pedido se creaba sin ellas — cobradas de menos y sin que
+         la cocina se enterara de que iban.
+
+         El precio sale de los grupos de modificadores del CATÁLOGO, nunca del
+         navegador. Y solo valen las del grupo que corresponde al tamaño
+         elegido (`mod_group_pres`): una adición familiar no se cobra en una
+         personal. */
+      const adisPed = Array.isArray(it.adiciones) ? it.adiciones as unknown[] : [];
+      const adisPuestas: string[] = [];
+      /* `mods` y `vars` se guardan como OBJETO por grupo, que es el formato que
+         usa todo el sistema (el POS y Paco guardan {grupo: {...}}). Se intentó
+         guardarlos como lista y el pedido no se podía marcar pagado: un trigger
+         de inventario hace jsonb_each sobre ellos y con una lista revienta
+         ("cannot call jsonb_each on a non-object") — el pago descontaba el
+         saldo y el pedido se quedaba en "pendiente de pago". */
+      const modsSel: Record<string, unknown> = {};
+      if (adisPed.length) {
+        const idsGrupo = (Array.isArray(p.mod_group_ids) ? p.mod_group_ids : []) as unknown[];
+        const mapaPres = (p.mod_group_pres || {}) as Record<string, unknown>;
+        const presIdActual = presIdx >= 0
+          ? String((((Array.isArray(p.presentations) ? p.presentations : [])[presIdx] || {}) as Record<string, unknown>).id || "")
+          : "";
+        for (const nomAdi of adisPed) {
+          for (const gid of idsGrupo) {
+            const g = gruposMod[String(gid)];
+            if (!g) continue;
+            // ¿Este grupo es de otro tamaño? Entonces no.
+            const suyas = Array.isArray(mapaPres[String(gid)]) ? mapaPres[String(gid)] as unknown[] : [];
+            if (suyas.length && presIdActual && !suyas.map(String).includes(presIdActual)) continue;
+            const ops = Array.isArray(g.options) ? g.options as Array<Record<string, unknown>> : [];
+            const op = ops.find((o) => norm(o.name) === norm(nomAdi));
+            if (!op) continue;
+            precio += Number(op.price) || 0;
+            adisPuestas.push(String(op.name));
+            const clave = String(gid);
+            const yaVan = Array.isArray(modsSel[clave]) ? modsSel[clave] as unknown[] : [];
+            yaVan.push({ id: String(op.id || ""), name: String(op.name), price: Number(op.price) || 0 });
+            modsSel[clave] = yaVan;
+            break;
+          }
+        }
+        if (adisPuestas.length) nombre += " + " + adisPuestas.join(", ");
+      }
+
       subtotal += precio * cant;
       /* Lo que el motor de empaques necesita saber de cada linea. Se recoge
          aqui, donde ya se conoce el producto y su presentacion. */
@@ -230,7 +294,9 @@ Deno.serve(async (req) => {
         product_price: precio, unit_price: precio,
         total: precio * cant,
         quantity: cant,
-        selections: { pres: presN || "", vars: {}, mods: {} },
+        /* Lo elegido, para la comanda y para el recibo: el tamaño, la variante
+           y las adiciones que de verdad se cobraron. */
+        selections: { pres: presN || "", vars: varsSel, mods: modsSel },
         notes: String(it.nota || "").slice(0, 120) || null,
         branch_id: branchId, tenant_id: tenantId,
       });

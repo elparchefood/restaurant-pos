@@ -1923,8 +1923,17 @@
         direccion: entrega === 'domicilio' ? (($('pd-dir') || {}).value || '') : '',
         barrio:    entrega === 'domicilio' ? (($('pd-barrio') || {}).value || '') : '',
         notas: ($('pd-nota') || {}).value || '',
+        /* TODO lo de cada línea, no solo el producto (16-ago): la cuenta previa
+           sí mandaba variantes y adiciones, y esto no — así que el total que
+           veía el cliente y el que se cobraba podían no coincidir, y a la
+           cocina le llegaba una salchipapa sin decir si era mixta ni con qué
+           adiciones. */
         items: carro.map(function (l) {
-          return { producto_id: l.producto_id, presentacion: l.presentacion, cantidad: l.cantidad, nota: l.nota };
+          return {
+            producto_id: l.producto_id, presentacion: l.presentacion,
+            cantidad: l.cantidad, variantes: l.variantes || [],
+            adiciones: l.adiciones || [], nota: l.nota,
+          };
         }),
       }),
     }).then(function (r) { return r.json(); }).catch(function () {
