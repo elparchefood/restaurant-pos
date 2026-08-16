@@ -20,12 +20,28 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../app-cliente.css?v=1790120000">
 </head>
 <body>
 <div id="app"></div>
 <script>window.COBRA_SLUG = 'elparchefood';</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="../app-cliente.js?v=1790120000"></script>
+<!-- EL ?v= SE CALCULA SOLO (16-ago). Antes era un numero escrito a mano que
+     habia que subir en cada despliegue... y nadie lo subia: quedo congelado en
+     1790120000 y los navegadores siguieron sirviendo la aplicacion VIEJA
+     durante dias, con los arreglos ya publicados. Se comprobo pidiendo el mismo
+     archivo con y sin ese ?v=: llegaban dos versiones distintas.
+     Ahora la marca es la FECHA Y HORA: como este index no se cachea, cada
+     visita pide la aplicacion con la marca de la hora en curso, asi que un
+     cambio publicado llega a todos en menos de una hora sin tocar nada, y
+     dentro de la misma hora el archivo se sigue cacheando (no se gasta datos
+     del cliente en cada pantalla). document.write mantiene el ORDEN: la
+     aplicacion tiene que cargar despues de supabase, como estaba. -->
+<script>
+  (function () {
+    var v = new Date().toISOString().slice(0, 13).replace(/\D/g, '');   // AAAAMMDDHH
+    document.write('<link rel="stylesheet" href="../app-cliente.css?v=' + v + '">');
+    document.write('<scr' + 'ipt src="../app-cliente.js?v=' + v + '"><\/scr' + 'ipt>');
+  })();
+</script>
 </body>
 </html>
