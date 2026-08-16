@@ -1044,6 +1044,20 @@ INTENCION, no las palabras exactas.` },
     const e = ms.find(m => !m.digital); return e ? e.nombre.toLowerCase() : "efectivo";
   };
 
+  /* 5-pre. CON HUMANO AL MANDO, PACO CALLADO — DESDE AQUI (15-ago). La
+     compuerta de human_takeover vivia mas abajo (donde se carga convRow), y
+     todas las ramas que responden antes de llegar alla —despedida, queja,
+     categoria en texto, carta— se la saltaban: Sergio apago a Paco en una
+     conversacion, la clienta dijo "gracias" y Paco contesto igual. La
+     compuerta de abajo se queda como respaldo. */
+  try {
+    const tkRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=human_takeover&limit=1`);
+    if (tkRes?.[0]?.human_takeover === true) {
+      await setTyping(convId, false);
+      return;
+    }
+  } catch { /* si no se puede leer el flag, mejor atender que dejar mudo el negocio */ }
+
   /* 5-bis. ENTENDER ANTES QUE TODO (FASE A, 15-ago). Va AQUI, arriba de la
      rama de la carta, porque "no quiero hablar con un robot" contiene
      "quiero" y la rama de la carta se lo llevaba: el cliente pedia una
