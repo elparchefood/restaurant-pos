@@ -230,7 +230,8 @@ async function _catalogFetch(cacheKey, isBackground) {
   for (var intento = 1; intento <= 3; intento++) {
     try {
       const [catsRes, prodsRes] = await Promise.all([
-        sb.from('pos_categories').select('*').eq('tenant_id', S.tenantId).order('name'),
+        sb.from('pos_categories').select('*').eq('tenant_id', S.tenantId)
+          .order('sort_order',{nullsFirst:false}).order('name'),
         sb.from('pos_products')  .select('*').eq('tenant_id', S.tenantId).eq('available', true).order('name'),
       ]);
       if (catsRes.error) throw catsRes.error;

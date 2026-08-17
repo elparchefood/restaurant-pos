@@ -2483,7 +2483,8 @@ async function _empLoadCatalog() {
     var u = { data: { user: await cfgUsuario() } };
     var t = u && u.data && u.data.user && u.data.user.user_metadata ? u.data.user.user_metadata.tenant_id : null;
     if (!t) return null;
-    var rc = await sb.from('pos_categories').select('id,name').eq('active', true).eq('tenant_id', t).order('name');
+    var rc = await sb.from('pos_categories').select('id,name').eq('active', true).eq('tenant_id', t)
+      .order('sort_order',{nullsFirst:false}).order('name');
     var rp = await sb.from('pos_products').select('id,name,category_id,presentations').eq('available', true).eq('tenant_id', t).order('name');
     _empCatalog = { cats: (rc.data || []), prods: (rp.data || []) };
   } catch (e) { console.error('empaques catálogo:', e); _empCatalog = { cats: [], prods: [] }; }

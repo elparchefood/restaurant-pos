@@ -434,3 +434,27 @@ textarea.cc-input{resize:none;line-height:1.5;}
 .cp-sede-base{font-size:11px;font-weight:600;color:#94A3B8;font-variant-numeric:tabular-nums;}
 .cp-sede-note{font-size:12.5px;line-height:1.55;color:#475569;background:#F0F9FF;border:1px solid #E0F2FE;border-radius:10px;padding:11px 13px;}
 .cp-sede-note strong{color:#0369A1;}
+
+/* ── Arrastrar para ordenar las categorias (17-ago) ───────────────────────
+   Solo el agarre lleva `touch-action:none`: es lo unico que no debe hacer
+   scroll al deslizar el dedo. En el resto de la tarjeta el scroll sigue
+   funcionando como siempre. */
+/* El agarre va DENTRO de la fila, no flotando encima: puesto en absoluto se
+   montaba sobre el cuadro de color de la categoria. */
+.cp-cat-grip{
+  display:flex;flex-direction:column;align-items:center;gap:1px;flex-shrink:0;
+  padding:4px 3px;border-radius:8px;margin-left:-4px;
+  color:#CBD5E1;background:transparent;
+  cursor:grab;touch-action:none;user-select:none;
+  transition:color .12s, background .12s;
+}
+.cp-cat-grip b{font-size:10px;font-weight:800;color:#94A3B8;line-height:1;}
+.cp-cat-card:hover .cp-cat-grip{color:#5B6BFF;background:#EEF0FF;}
+.cp-cat-card:hover .cp-cat-grip b{color:#5B6BFF;}
+.cp-cat-grip:active{cursor:grabbing;}
+/* La tarjeta que va en la mano: se ve levantada y deja ver por donde va. */
+.cp-cat-card--llevando{opacity:.55;outline:2px dashed #5B6BFF;outline-offset:2px;}
+/* Mientras se ordena, nada de seleccionar texto ni de reaccionar al hover en
+   las tarjetas que se estan corriendo de sitio. */
+.cp-cat-grid--ordenando{user-select:none;}
+.cp-cat-grid--ordenando .cp-cat-card{cursor:grabbing;}

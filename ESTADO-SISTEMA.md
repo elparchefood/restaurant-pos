@@ -6175,3 +6175,54 @@ de pestanas no existe y el boton se queda sticky como estaba):**
 taparla; en el maximo de scroll la barra no se mueve ni un pixel y el ultimo
 plato termina 20px antes del boton; cero desborde horizontal; escritorio
 identico a antes (pestanas ocultas, boton sticky).
+
+---
+
+## 178 — El orden de las categorias se arrastra (17-ago-2026)
+
+**Lo que pidio Sergio.** Poder arrastrar las categorias en Cobra para decidir en
+que orden aparecen, porque en la pagina del cliente lo primero que salia era
+*Adiciones* y ahi no se quiere empezar.
+
+**Lo que ya estaba y nadie usaba.** `pos_categories.sort_order` existe hace
+tiempo y `fn_web_carta` YA ordena por `coalesce(c.sort_order, 999), c.name`. El
+problema no era que faltara el orden: era que las 7 categorias tenian
+`sort_order = 0`, asi que el desempate caia al nombre y *Adiciones* ganaba por
+la A. Es decir, la pagina del cliente no necesito ni una linea de cambio.
+
+**Lo que se hizo:**
+- **Sembrado** `sort_order = 1..n` con el orden alfabetico de HOY, para que al
+  soltar el cambio nada se moviera solo. El orden que Sergio quiera lo pone el.
+  (La migracion solo toca tenants donde TODOS los sort_order estan en cero: es
+  idempotente y no pisa a un tenant que ya haya ordenado.)
+- **Arrastre** en la pantalla de Categorias, con un agarre (los puntitos) y el
+  numero de puesto en cada tarjeta.
+- Una categoria **nueva nace al final** (`max+1`), no en el puesto 0 — si
+  naciera en 0 se colaria de primera en la carta del cliente sola.
+- El **mismo orden en la caja** (`tomar-pedido`, `venta-rapida`) y en el
+  selector de `configuracion`. Iban por nombre; con el arrastre habria quedado
+  un orden en la pagina y otro distinto en la caja.
+
+**Dos decisiones tecnicas que valen la pena recordar:**
+1. **Eventos de puntero, no el drag-and-drop de HTML5.** El de HTML5 no existe
+   en pantallas tactiles y Cobra tambien corre en tablet.
+2. **Solo el agarre lleva `touch-action:none`.** Si se pudiera arrastrar la
+   tarjeta entera, en tablet cada intento de hacer scroll moveria una
+   categoria.
+
+**Un error propio que vale anotar.** El desplazamiento automatico (que la lista
+se corra sola cuando el dedo llega al borde, para alcanzar una categoria que
+esta fuera de pantalla) lo escribi primero como `scrollBy(0, dy)` sobre la
+ventana. En esta pantalla la ventana NO hace scroll: `.cp-root` es
+`height:100vh; overflow:hidden` y el que se desplaza es `.cp-body`. Habria sido
+codigo muerto. Ahora `catScrollerDe()` busca el contenedor que de verdad se
+desplaza y lo empuja a el.
+
+**Verificado** sobre el codigo real, con la estructura real (`cp-root > cp-main
+> cp-content > cp-body`) y 14 categorias para que la ultima quedara fuera de
+vista: arrastre hacia adelante y hacia atras; renumeracion; solo se guardan las
+filas que cambiaron de puesto (3 de 14 en el caso probado); un clic en "Editar"
+no arrastra; agarrar y soltar sin mover no guarda nada; el desplazamiento
+automatico baja hasta el tope exacto y sube de vuelta a 0, se queda quieto en
+el medio, y el bucle se detiene al soltar. El agarre no se monta sobre el
+cuadro de color de la categoria (la primera version, flotante, si lo hacia).

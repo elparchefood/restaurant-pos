@@ -848,7 +848,8 @@ async function loadCatalog() {
         {color:'#0EA5E9',tint:'#F0F9FF',ring:'#BAE6FD'},
       ];
       const [{ data: cats }, { data: prods }, { data: mods }] = await Promise.all([
-        sb.from('pos_categories').select('id,name,color,color_tint,color_ring,image_url,comanda_alias').eq('active', true).eq('tenant_id', S.tenantId).order('name'),
+        sb.from('pos_categories').select('id,name,color,color_tint,color_ring,image_url,comanda_alias').eq('active', true).eq('tenant_id', S.tenantId)
+          .order('sort_order',{nullsFirst:false}).order('name'),
         sb.from('pos_products').select('id,name,price,price_mode,category_id,photo_url,available,presentations,variables,mod_group_ids,mod_group_pres').eq('available', true).eq('tenant_id', S.tenantId).order('name'),
         sb.from('pos_modifier_groups').select('id,name,rule,multi,options').eq('tenant_id', S.tenantId),
       ]);

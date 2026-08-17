@@ -77,7 +77,10 @@ async function uploadPhoto(file, entityId, folder) {
 // ── Loaders ───────────────────────────────────────────────────────────────
 async function loadCategories() {
   try {
-    const {data,error} = await sb.from('pos_categories').select('*').eq('tenant_id',S.tenantId).order('name');
+    // El orden lo decide Sergio arrastrando (sort_order). El nombre queda solo
+    // como desempate para las que aun no se han ordenado nunca.
+    const {data,error} = await sb.from('pos_categories').select('*').eq('tenant_id',S.tenantId)
+      .order('sort_order',{nullsFirst:false}).order('name');
     if(error||!data) return;
     S.cats = data.map((c,i)=>({...c,color:c.color||CAT_PALETTE[i%8].color,tint:c.color_tint||CAT_PALETTE[i%8].tint,ring:c.color_ring||CAT_PALETTE[i%8].ring,image:c.image_url||null}));
   } catch(e){}
@@ -136,7 +139,10 @@ async function saveCategoryToSupabase(c) {
   try {
     const row={tenant_id:S.tenantId,branch_id:S.branchId,name:c.name,color:c.color,color_tint:c.tint,color_ring:c.ring,image_url:c.image||null,comanda_alias:(c.comanda_alias&&c.comanda_alias.trim())?c.comanda_alias.trim():null};
     const isNew=!c.id||c.id.startsWith('cat_');
-    if(isNew){const {data,error}=await sb.from('pos_categories').insert([row]).select().single();if(error)throw error;_invalidateCatalogCache();return{...c,id:data.id};}
+    // Una categoria nueva nace AL FINAL, no en el puesto 0: si naciera en 0 se
+    // colaria de primera en la carta del cliente sin que nadie lo pidiera.
+    if(isNew){row.sort_order=S.cats.reduce((m,x)=>Math.max(m,x.sort_order||0),0)+1;}
+    if(isNew){const {data,error}=await sb.from('pos_categories').insert([row]).select().single();if(error)throw error;_invalidateCatalogCache();return{...c,id:data.id,sort_order:row.sort_order};}
     else{await sb.from('pos_categories').update(row).eq('id',c.id).eq('tenant_id',S.tenantId);_invalidateCatalogCache();return c;}
   } catch(e){console.error('saveCat:',e);return c;}
 }
@@ -319,6 +325,7 @@ function icon(name,size,sw){
     case 'back':    return '<svg '+p+'><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>';
     case 'box':     return '<svg '+p+'><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>';
     case 'combo':   return '<svg '+p+'><rect x="2" y="3" width="9" height="9" rx="1.5"/><rect x="13" y="3" width="9" height="9" rx="1.5"/><rect x="2" y="14" width="9" height="7" rx="1.5"/><rect x="13" y="14" width="9" height="7" rx="1.5"/></svg>';
+    case 'grip':    return '<svg '+p+'><circle cx="9" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.4" fill="currentColor" stroke="none"/></svg>';
     case 'layers':  return '<svg '+p+'><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>';
     case 'tag':     return '<svg '+p+'><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>';
     case 'sparkle': return '<svg '+p+'><path d="M12 3l1.9 5.2L19 10l-5.1 1.8L12 17l-1.9-5.2L5 10l5.1-1.8L12 3z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15z"/></svg>';
@@ -539,9 +546,132 @@ async function toggleCombo(id){const c=S.combos.find(x=>x.id===id);if(!c)return;
 // ── Categories view ───────────────────────────────────────────────────────
 function renderCategoriesView(body){
   const count=id=>S.products.filter(p=>p.cat===id).length;
-  const cards=S.cats.map(c=>{const n=count(c.id);const canDel=n===0;return '<div class="cp-card" style="cursor:default;padding:16px"><div style="display:flex;align-items:center;gap:12px"><span style="width:44px;height:44px;border-radius:12px;background:'+(c.image?("#F1F5F9 center/cover no-repeat url(\'"+escHtml(c.image)+"\')"):c.tint)+';color:'+c.color+';display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">'+(c.image?'':icon('layers',20))+'</span><div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;color:#0F172A">'+escHtml(c.name)+'</div><div style="font-size:11.5px;color:#94A3B8;margin-top:1px">'+n+' '+(n===1?'producto':'productos')+'</div></div><span style="width:14px;height:14px;border-radius:999px;background:'+c.color+';flex-shrink:0"></span></div><div style="display:flex;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid #F1F5F9"><button class="lm-btn-ghost sm" style="flex:1" onclick="openCatEditor(\''+c.id+'\')">'+icon('edit',13)+' Editar</button><button class="cc-mini-del" '+(canDel?'':'disabled title="Mueve o elimina sus productos primero"')+' onclick="deleteCat(\''+c.id+'\')">'+icon('trash',14)+'</button></div></div>';}).join('');
-  body.innerHTML='<div><div class="cp-view-head"><div><div style="font-size:14px;font-weight:800;color:#0F172A">Categorías del menú</div><div style="font-size:12px;color:#94A3B8;margin-top:2px">Organizan los productos.</div></div><button class="lm-btn-primary" onclick="openCatEditor(null)">'+icon('plus',14)+' Nueva categoría</button></div><div class="cp-cat-grid">'+cards+'<button class="cp-add-tile" onclick="openCatEditor(null)"><div class="cp-add-tile-icon">'+icon('plus',20)+'</div><span>Crear categoría</span></button></div></div>';
+  const cards=S.cats.map((c,i)=>{const n=count(c.id);const canDel=n===0;return '<div class="cp-card cp-cat-card" data-cid="'+c.id+'" style="cursor:default;padding:16px"><div style="display:flex;align-items:center;gap:12px"><div class="cp-cat-grip" title="Arrastra para cambiar el orden"><b>'+(i+1)+'</b>'+icon('grip',15)+'</div><span style="width:44px;height:44px;border-radius:12px;background:'+(c.image?("#F1F5F9 center/cover no-repeat url(\'"+escHtml(c.image)+"\')"):c.tint)+';color:'+c.color+';display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">'+(c.image?'':icon('layers',20))+'</span><div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;color:#0F172A">'+escHtml(c.name)+'</div><div style="font-size:11.5px;color:#94A3B8;margin-top:1px">'+n+' '+(n===1?'producto':'productos')+'</div></div><span style="width:14px;height:14px;border-radius:999px;background:'+c.color+';flex-shrink:0"></span></div><div style="display:flex;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid #F1F5F9"><button class="lm-btn-ghost sm" style="flex:1" onclick="openCatEditor(\''+c.id+'\')">'+icon('edit',13)+' Editar</button><button class="cc-mini-del" '+(canDel?'':'disabled title="Mueve o elimina sus productos primero"')+' onclick="deleteCat(\''+c.id+'\')">'+icon('trash',14)+'</button></div></div>';}).join('');
+  body.innerHTML='<div><div class="cp-view-head"><div><div style="font-size:14px;font-weight:800;color:#0F172A">Categorías del menú</div><div style="font-size:12px;color:#94A3B8;margin-top:2px">Arrastra para cambiar el orden: es el mismo en el que las ve tu cliente en la página y tú en la caja.</div></div><button class="lm-btn-primary" onclick="openCatEditor(null)">'+icon('plus',14)+' Nueva categoría</button></div><div class="cp-cat-grid">'+cards+'<button class="cp-add-tile" onclick="openCatEditor(null)"><div class="cp-add-tile-icon">'+icon('plus',20)+'</div><span>Crear categoría</span></button></div></div>';
 }
+/* ── ARRASTRAR PARA ORDENAR LAS CATEGORIAS (17-ago) ────────────────────────
+   El orden de las categorias es el mismo en los tres lados: esta pantalla, la
+   caja y la pagina del cliente. Vive en `pos_categories.sort_order`.
+
+   Va con eventos de puntero (pointerdown/move/up) y NO con el drag-and-drop de
+   HTML5 a proposito: el de HTML5 no existe en pantallas tactiles, y Cobra
+   tambien corre en tablet.
+
+   Solo se arrastra desde el agarre (los puntitos). Si se pudiera arrastrar la
+   tarjeta entera, en tablet cada intento de hacer scroll moveria una categoria. */
+var _dragCat = null;
+
+function catDragInicio(ev){
+  const agarre = ev.target.closest('.cp-cat-grip');
+  if(!agarre || ev.button > 0) return;
+  const tarjeta = agarre.closest('.cp-cat-card');
+  const grilla  = tarjeta && tarjeta.parentElement;
+  if(!grilla) return;
+  ev.preventDefault();
+  _dragCat = { tarjeta, grilla, movio:false, x:ev.clientX, y:ev.clientY, rafOn:false,
+               scroller: catScrollerDe(grilla) };
+  // La captura es una comodidad (que el dedo pueda salirse de la tarjeta), no
+  // un requisito: si el navegador la rechaza, el arrastre igual funciona.
+  try{ agarre.setPointerCapture(ev.pointerId); }catch(e){}
+  tarjeta.classList.add('cp-cat-card--llevando');
+  grilla.classList.add('cp-cat-grid--ordenando');
+}
+
+function catDragMueve(ev){
+  if(!_dragCat) return;
+  _dragCat.movio = true;
+  _dragCat.x = ev.clientX; _dragCat.y = ev.clientY;
+  catReubicar();
+  catAutoScroll();
+}
+
+/* Quien hace scroll en esta pantalla NO es la ventana: `.cp-root` es
+   `height:100vh; overflow:hidden` y el que se desplaza es `.cp-body`. Por eso
+   se busca el contenedor real en vez de dar por hecho que es la pagina. */
+function catScrollerDe(el){
+  for(let n = el; n && n !== document.body; n = n.parentElement){
+    const ov = getComputedStyle(n).overflowY;
+    if((ov === 'auto' || ov === 'scroll') && n.scrollHeight > n.clientHeight + 1) return n;
+  }
+  return document.scrollingElement || document.documentElement;
+}
+
+/* Con muchas categorias, la de destino puede estar fuera de la pantalla: sin
+   esto habria que soltar, desplazarse y volver a agarrar. Mientras el dedo
+   este cerca del borde, la lista se corre sola. */
+function catAutoScroll(){
+  if(!_dragCat || _dragCat.rafOn) return;
+  _dragCat.rafOn = true;
+  const paso = () => {
+    if(!_dragCat) return;
+    const cont = _dragCat.scroller;
+    const caja = (cont === document.scrollingElement || cont === document.documentElement)
+      ? { top:0, bottom:innerHeight } : cont.getBoundingClientRect();
+    const BORDE = 90, y = _dragCat.y;
+    let dy = 0;
+    if(y < caja.top + BORDE)         dy = -Math.ceil((caja.top + BORDE - y) / 6);
+    else if(y > caja.bottom - BORDE) dy =  Math.ceil((y - (caja.bottom - BORDE)) / 6);
+    if(dy){ cont.scrollTop += dy; catReubicar(); }
+    requestAnimationFrame(paso);
+  };
+  requestAnimationFrame(paso);
+}
+
+function catReubicar(){
+  if(!_dragCat) return;
+  const bajo = document.elementFromPoint(_dragCat.x, _dragCat.y);
+  const destino = bajo && bajo.closest('.cp-cat-card');
+  if(!destino || destino === _dragCat.tarjeta || destino.parentElement !== _dragCat.grilla) return;
+  // Si el destino esta DESPUES en la fila, la tarjeta entra detras de el; si
+  // esta antes, entra delante. Es el mismo gesto para una lista o una grilla.
+  const hijos = [..._dragCat.grilla.children];
+  const vaDespues = hijos.indexOf(destino) > hijos.indexOf(_dragCat.tarjeta);
+  _dragCat.grilla.insertBefore(_dragCat.tarjeta, vaDespues ? destino.nextSibling : destino);
+  renumerarCats();
+}
+
+async function catDragFin(){
+  if(!_dragCat) return;
+  const { tarjeta, grilla, movio } = _dragCat;
+  _dragCat = null;
+  tarjeta.classList.remove('cp-cat-card--llevando');
+  grilla.classList.remove('cp-cat-grid--ordenando');
+  if(!movio) return;
+
+  const orden = [...grilla.querySelectorAll('.cp-cat-card')].map(n=>n.dataset.cid);
+  if(orden.join() === S.cats.map(c=>c.id).join()) return;   // volvio a su sitio
+
+  S.cats.sort((a,b)=>orden.indexOf(a.id)-orden.indexOf(b.id));
+  // Se guarda antes de saber si la base respondio: la pantalla ya muestra el
+  // orden nuevo y Sergio sigue arrastrando. Si algo falla, se avisa y se
+  // recarga desde la base para que lo que se ve sea la verdad.
+  const cambios = S.cats.map((c,i)=>({c, n:i+1})).filter(x=>x.c.sort_order !== x.n);
+  cambios.forEach(x=>{ x.c.sort_order = x.n; });
+  try{
+    const r = await Promise.all(cambios.map(x =>
+      sb.from('pos_categories').update({sort_order:x.n}).eq('id',x.c.id).eq('tenant_id',S.tenantId)));
+    const err = r.find(x=>x && x.error);
+    if(err) throw err.error;
+    _invalidateCatalogCache();
+    toast('Orden guardado');
+  }catch(e){
+    console.error('ordenCats:', e);
+    toast('No se pudo guardar el orden');
+    await loadCategories(); renderPage();
+  }
+}
+
+function renumerarCats(){
+  [...document.querySelectorAll('.cp-cat-card')].forEach((n,i)=>{
+    const b = n.querySelector('.cp-cat-grip b'); if(b) b.textContent = i+1;
+  });
+}
+
+document.addEventListener('pointerdown', catDragInicio);
+document.addEventListener('pointermove', catDragMueve);
+document.addEventListener('pointerup',   catDragFin);
+document.addEventListener('pointercancel', catDragFin);
+
 async function deleteCat(id){const n=S.products.filter(p=>p.cat===id).length;if(n>0)return;await deleteCategoryFromSupabase(id);S.cats=S.cats.filter(c=>c.id!==id);renderPage();toast('Categoría eliminada');}
 
 // ── Modifiers view ────────────────────────────────────────────────────────
