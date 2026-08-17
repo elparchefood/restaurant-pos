@@ -6131,3 +6131,9 @@ Sergio: el saludo quedaba raro, no cabia todo. Se le mostraron tres propuestas y
 2. Poner `flex: 1 1 auto` **no basto**: con `flex-wrap` activo el navegador decide partir la fila mirando el tamaño NATURAL del contenido, ANTES de intentar encogerlo. Hizo falta `flex: 1 1 0` (base cero) para que la casilla nunca fuerce el salto.
 - El logo y la foto llevan `flex-shrink: 0`: son de tamaño fijo y no ceden.
 - **Verificado**: en 390px "Hola, Sergio" en una linea de 20px, cabecera de 143px, foto en el borde (372/372); con nombre largo en 360px se recorta con puntos, no pisa la foto y la foto sigue en su fila; en 1280px el saludo por hora vuelve, el nombre a 26px y la barra en el medio — el computador identico.
+
+## 182. "El local" en el menu de la cuenta (17-ago)
+Sergio no la encontraba en el celular. **SI existia** —esta en los cuatro botones del final del Inicio (Pedir · Recargar · Redimir · El local)— pero ahi hay que bajar hasta abajo para verla, y en el celular no hay menu lateral. Se agrego al menu de la foto, que es donde uno la busca.
+- Orden del menu: **Mi perfil · El local · Modo claro/oscuro · Cerrar sesion**. Sigue tambien en los botones del inicio: es un atajo mas, no un reemplazo.
+- **Trampa evitada**: el enganche usaba `cap.querySelector('[data-mir]')` —singular—, que solo agarra el PRIMERO. Con dos opciones de navegacion, "El local" habria quedado muerta (se ve pero no hace nada). Cambiado a `querySelectorAll` con el destino leido de cada boton.
+- **Probado ejecutando el menu de verdad** con un DOM de mentira: las 4 opciones enganchadas, cada una lleva a su sitio (perfil, local, tema, salir) y el menu se cierra las 4 veces.

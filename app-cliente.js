@@ -801,6 +801,10 @@
           '<span class="ep-menu-nom">' + esc(c.nombre || '') + '</span>' +
         '</div>' +
         '<button class="ep-menu-it" data-mir="perfil">' + ico('user', 17) + 'Mi perfil</button>' +
+        /* "El local" tambien vive en los cuatro botones del final del inicio,
+           pero ahi hay que bajar hasta abajo para verla. En el celular no hay
+           menu lateral, asi que este es el sitio donde uno la busca. */
+        '<button class="ep-menu-it" data-mir="local">' + ico('pin', 17) + 'El local</button>' +
         '<button class="ep-menu-it" data-mtema="1">' +
           ico(esOscuroAhora() ? 'sol' : 'luna', 17) +
           (esOscuroAhora() ? 'Modo claro' : 'Modo oscuro') + '</button>' +
@@ -810,7 +814,11 @@
 
     function cerrar() { cap.remove(); }
     cap.addEventListener('click', function (ev) { if (ev.target === cap) cerrar(); });
-    cap.querySelector('[data-mir]').onclick = function () { cerrar(); irA('perfil'); };
+    /* Con mas de una opcion de navegacion, se recorren TODAS: `querySelector`
+       a secas solo enganchaba la primera y "El local" habria quedado muerta. */
+    cap.querySelectorAll('[data-mir]').forEach(function (b) {
+      b.onclick = function () { cerrar(); irA(b.dataset.mir); };
+    });
     cap.querySelector('[data-mtema]').onclick = function () { cerrar(); alternarTema(); };
     cap.querySelector('[data-msalir]').onclick = function () { cerrar(); salir(); };
   }
