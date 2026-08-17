@@ -407,6 +407,7 @@
       });
     });
     prepararTiraCats();
+    acomodarFotos();
     document.querySelectorAll('[data-salir]').forEach(function (b) {
       b.addEventListener('click', salir);
     });
@@ -859,6 +860,32 @@
       '<div class="ep-saludo-n">' + esc(titulo) + '</div></div>' +
       botonesArriba('<button class="ep-redondo" data-ir="inicio" title="Inicio">' + ico('home', 17) + '</button>') +
     '</div>';
+  }
+
+  /* ── FOTOS ALTAS: ENTERAS, NO RECORTADAS (17-ago) ──────────────────────
+     El marco del plato es apaisado (1.55) y la foto lo llena con `cover`, que
+     recorta lo que sobra. Con las fotos de comida eso esta bien: son apaisadas
+     y recortar un poco los lados no quita nada. Pero las bebidas son recortes
+     de producto altos o cuadrados: una botella de 140x500 metida a la fuerza en
+     un marco apaisado perdia mas del 70% — se veia la mitad de la botella.
+
+     Se mira la foto REAL (naturalWidth/naturalHeight) en vez de fiarse de la
+     categoria: sirve para cualquier restaurante, no solo para las bebidas de
+     este. Solo se cambian las MAS ALTAS que el marco; una foto apaisada se
+     sigue recortando, que es lo que se quiere. */
+  function acomodarFoto(im) {
+    if (!im || !im.naturalWidth || !im.naturalHeight) return;
+    var marco = im.parentElement;
+    if (!marco || !marco.clientHeight) return;
+    var rFoto = im.naturalWidth / im.naturalHeight;
+    var rMarco = marco.clientWidth / marco.clientHeight;
+    im.classList.toggle('ep-foto-entera', rFoto < rMarco / 1.2);
+  }
+  function acomodarFotos() {
+    document.querySelectorAll('.ep-plato-img img').forEach(function (im) {
+      if (im.complete) acomodarFoto(im);
+      else im.addEventListener('load', function () { acomodarFoto(im); }, { once: true });
+    });
   }
 
   /* La tira de categorias se desliza, pero nada lo decia: si la ultima

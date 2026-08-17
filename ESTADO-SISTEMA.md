@@ -6263,3 +6263,70 @@ completo (deslizar → tocar → repintar → restituir) en cuatro posiciones �
 final tocando la ultima, a la mitad, sin deslizar, y tocando una que queda
 cortada contra el borde: en las cuatro la categoria escogida queda entera a la
 vista.
+
+---
+
+## 180 — Por que las bebidas se veian mal (17-ago-2026)
+
+Sergio: "las imagenes de los platos se ven excelentes, pero las de las bebidas
+se ven horribles". Sospechaba de los PNG sin fondo. Tenia razon en la pista,
+pero eran TRES fallas distintas superpuestas.
+
+### 1. El recorte (la que mas se notaba)
+
+El marco del plato es apaisado (1.55) y la foto lo llena con `object-fit:
+cover`, que recorta lo que sobra. Con comida esta bien: son fotos apaisadas.
+Pero las bebidas son recortes de producto altos o cuadrados. Medido:
+
+| | proporcion | se veia con `cover` |
+|---|---|---|
+| Hamburguesas (600x287) | 2.09 | 74% |
+| Bebidas cuadradas (300x300, 600x600) | 1.00 | 64% |
+| AGUA BOTELLA (140x500) | 0.28 | **18%** |
+
+De la botella de agua se veia menos de la quinta parte: un trozo de etiqueta,
+sin botella. Arreglo: `acomodarFoto()` mide la foto REAL
+(naturalWidth/naturalHeight) contra el marco y solo las MAS ALTAS que el marco
+pasan a `contain` (enteras, con aire). Una foto apaisada se sigue recortando,
+que es lo que se quiere. Se mide la foto y no la categoria a proposito: sirve
+para cualquier restaurante, no solo para las bebidas de este.
+
+### 2. El fondo negro (la causa que Sergio intuia)
+
+`_compressImage()` exportaba TODO a JPEG. El JPEG no tiene canal alfa, asi que
+un PNG recortado se aplanaba y el navegador pintaba de NEGRO lo transparente.
+Medido en el borde de las imagenes: HIT y PREMIO **100% negro**, AGUA 95%,
+QUATRO 73%.
+
+Arreglo: se mira si la imagen trae transparencia (`getImageData`, alfa < 250) y
+si la trae se guarda en **WebP**, que si la conserva y pesa menos que PNG. Si no
+la trae, sigue en JPEG como siempre. La extension y el `contentType` ahora
+SIGUEN al blob — estaban clavados en `.jpg`, que era parte del problema.
+
+### 3. Las 6 imagenes ya daNadas
+
+El JPEG guardado ya perdio la transparencia para siempre. Se recuperaron
+quitando el fondo por **inundacion desde los bordes** (no un reemplazo global de
+color: asi el negro de una tapa o de una etiqueta INTERIOR se conserva) y
+guardando en WebP con alfa.
+
+Quedaron bien 4: AGUA BOTELLA, COCA COLA, HIT, PREMIO. Se subieron a
+`products/<tenant>/<uuid>.webp` — **archivo nuevo, el .jpg original no se
+borro**, y hay copia local en el scratchpad.
+
+**Dos NO se tocaron porque el problema es la imagen de origen**, no el
+procesamiento:
+- **POSTOBON**: el archivo que se subio ya venia daNado (manchas negras y
+  fantasmas rosados alrededor de la botella, visibles en el original).
+- **QUATRO**: no es un recorte — la foto trae su propio bloque de fondo lila
+  con barras negras arriba y abajo.
+Con el arreglo del recorte ya no se ven destrozadas, pero para que queden como
+las otras hay que volver a subirlas desde una imagen limpia.
+
+**Verificado** con las fotos reales servidas por `fn_web_carta`: las 6 bebidas
+pasan a `contain` (100% visible) y las 3 hamburguesas siguen en `cover` (74%,
+igual que antes). Comparacion visual en
+`C:/Users/USUARIO/Downloads/bebidas-resultado.png`.
+
+**Pendiente relacionado:** las pantallas de Cobra (catalogo, tomar-pedido,
+venta-rapida) tienen su propio `cover` y no se revisaron en esta entrada.

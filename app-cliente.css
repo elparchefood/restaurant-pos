@@ -399,6 +399,14 @@ html.tema-claro .ep-plato-img {
   background: radial-gradient(circle at 50% 40%, #fbfaf8, #eeeae4 74%);
 }
 .ep-plato-img img { width: 100%; height: 100%; object-fit: cover; }
+/* Recortes de producto (botellas, latas): se ven ENTEROS sobre el degradado
+   del marco, con aire alrededor para que no toquen los bordes. La clase la
+   pone acomodarFoto() midiendo la foto de verdad. */
+.ep-plato-img img.ep-foto-entera {
+  object-fit: contain;
+  padding: 8px 6px;
+  box-sizing: border-box;
+}
 .ep-plato-b { padding: 11px 12px 13px; }
 .ep-plato-n { font-size: 13.5px; font-weight: 600; }
 .ep-plato-d {

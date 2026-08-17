@@ -38,6 +38,21 @@ const S = {
 // ── Fotos Supabase Storage ──────────────────────────────────────────────
 // Comprime la imagen en el navegador (máx 600px, JPEG) ANTES de subirla. Sin
 // esto una foto de celular (2-4 MB) quedaba enorme. Devuelve un Blob liviano.
+/* ⚠️ POR QUE NO SIEMPRE JPEG (17-ago). Antes esto exportaba TODO a JPEG. El
+   JPEG no tiene transparencia, asi que un PNG recortado (una botella sin fondo,
+   como las bebidas) se aplanaba y el navegador pintaba de NEGRO todo lo que era
+   transparente: la botella quedaba dentro de un cuadro negro. Se veia en 4 de
+   las 6 bebidas de El Parche, con el 73-100% del borde en negro.
+   Ahora: si la imagen trae transparencia se guarda en WebP, que si la conserva
+   (y pesa menos que PNG). Si no la trae, sigue en JPEG como siempre. */
+function _tieneTransparencia(ctx, w, h) {
+  try {
+    var d = ctx.getImageData(0, 0, w, h).data;
+    for (var i = 3; i < d.length; i += 4) if (d[i] < 250) return true;
+  } catch(e) {}   // lienzo "sucio" por CORS: se asume opaca
+  return false;
+}
+
 function _compressImage(file) {
   return new Promise(function(resolve){
     try {
@@ -47,8 +62,18 @@ function _compressImage(file) {
         if (w > h && w > max) { h = Math.round(h*max/w); w = max; }
         else if (h >= w && h > max) { w = Math.round(w*max/h); h = max; }
         var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-        cv.getContext('2d').drawImage(img, 0, 0, w, h);
-        cv.toBlob(function(blob){ resolve(blob || file); }, 'image/jpeg', 0.82);
+        var ctx = cv.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        var conAlfa = _tieneTransparencia(ctx, w, h);
+        var tipo = conAlfa ? 'image/webp' : 'image/jpeg';
+        cv.toBlob(function(blob){
+          // Si el navegador no supiera WebP devolveria un PNG con otro type:
+          // se respeta lo que haya devuelto, nunca se fuerza la extension.
+          if (!blob) return resolve(file);
+          blob._ext = (blob.type === 'image/webp') ? 'webp'
+                    : (blob.type === 'image/png')  ? 'png' : 'jpg';
+          resolve(blob);
+        }, tipo, conAlfa ? 0.88 : 0.82);
       };
       img.onerror = function(){ resolve(file); };
       img.src = URL.createObjectURL(file);
@@ -61,9 +86,13 @@ function _compressImage(file) {
 // consultas (el catálogo y las pantallas de pedido quedaban vacías).
 async function uploadPhoto(file, entityId, folder) {
   const blob = await _compressImage(file);
-  const path = (folder||'products')+'/'+S.tenantId+'/'+entityId+'.jpg';
+  // La extension y el tipo SIGUEN al blob. Fijarlos en .jpg fue lo que dejo las
+  // botellas en un cuadro negro.
+  const ext  = blob._ext || 'jpg';
+  const tipo = blob.type || 'image/jpeg';
+  const path = (folder||'products')+'/'+S.tenantId+'/'+entityId+'.'+ext;
   try {
-    const { error } = await sb.storage.from('chat-media').upload(path, blob, {upsert:true, contentType:'image/jpeg'});
+    const { error } = await sb.storage.from('chat-media').upload(path, blob, {upsert:true, contentType:tipo});
     if (error) throw error;
     const { data } = sb.storage.from('chat-media').getPublicUrl(path);
     return data.publicUrl + '?t=' + Date.now();
