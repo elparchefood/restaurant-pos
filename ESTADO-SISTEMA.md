@@ -6622,3 +6622,78 @@ que ya no hace falta.
 la geometria. Las mediciones de la entrada 185 leyeron los textos correctos y
 los contrastes correctos de una lista que estaba mal armada. Cuando se aNade una
 clase nueva, comprobar antes que ese nombre no exista ya en la hoja.
+
+---
+
+## 187 — Los combos, como una categoria mas en la pagina del cliente (17-ago-2026)
+
+Sergio: que los combos salgan en la pagina del cliente como una categoria mas,
+de primeras por ahora, y poder cambiarles el orden mas adelante.
+
+### El riesgo que habia que resolver primero
+
+Sacar los combos en la carta y ya habria roto los pedidos: `web-pedido` busca
+cada item en `pos_products`, y un combo NO esta ahi. El pedido ENTERO se habria
+rechazado con "uno de los productos ya no esta disponible" — el cliente sin
+poder pedir y sin entender por que.
+
+### La convencion ya existia: se siguio, no se invento otra
+
+`pos-combos.js` (las tres pantallas de venta) ya define como se vende un combo:
+id con prefijo `combo:<uuid>`, `product_id` VACIO en la linea del pedido, y el
+contenido en `selections` (`combo_id`, `combo_nombre`, `combo_items`) para que
+la comanda y el inventario lo lean aunque maNana cambie el combo.
+
+La pagina usa exactamente ese formato. **Verificado ejecutando las propias
+funciones de `pos-combos.js` contra la linea que guardo la pagina**:
+`comandaTxt` devolvio "Combo PRUEBA · Brownie · Cheesecake" y `insumosDe`
+devolvio los dos productos de adentro con cantidad 2. Es decir: la comanda y el
+descuento de inventario funcionan sin tocar una linea de codigo.
+
+### Lo que se hizo
+
+- **`fn_web_carta`**: una categoria virtual "Combos" con los combos activos en
+  forma de producto (sin presentaciones, variables ni adiciones — todo eso ya
+  quedo decidido al armarlo). Solo salen los que apuntan a productos de verdad,
+  la misma regla de `pos-combos.js`: los del formato viejo no se pueden
+  preparar ni descontar.
+- **La descripcion, si el dueNo no escribio una, es lo que trae el combo**
+  ("Brownie + Cheesecake"). "Combo Sandwich" no le dice nada a un cliente que
+  esta decidiendo.
+- **`tenants.web_combos_orden`** (int, default 0): el puesto de esa categoria.
+  Cero la deja primera, porque las categorias de verdad arrancan en 1.
+- **`web-pedido` v13**: rama propia para los combos. El precio sale del
+  CATALOGO, nunca del navegador.
+- **El empaque, por lo de adentro**: un combo de tres cosas son tres empaques,
+  igual que el inventario. Y el precio de cada linea de empaque NO va en cero:
+  cuando el empaque se cobra por porcentaje ese precio es la base del calculo, y
+  un pedido de puro combo habria pagado cero. Se reparte el precio del combo
+  entre sus productos en proporcion a lo que vale cada uno suelto, asi la suma
+  da exactamente el precio del combo.
+
+### Verificado SIN tocar El Parche
+
+Se monto el banco en el tenant "Demo Restaurant", que no tiene cocina detras:
+se le dio slug, se creo un combo de prueba, se pidio y se comprobo. Un pedido de
+prueba en El Parche le habria salido a la cocina.
+- Carta del demo: Combos de primera (orden 0), luego sus categorias.
+- Combo x2: total 40.000 = precio del combo x2, **no** la suma suelta (21.000
+  x2 habria sido el error clasico).
+- Linea guardada: `product_id` vacio, nombre del combo, y `selections` con las
+  tres llaves exactas.
+- Pedido MIXTO (combo + 2 productos): 60.000, dos lineas, cada una por su
+  camino.
+- **Todo borrado al terminar**: 2 pedidos, 2 sesiones, 1 cliente y el combo; el
+  tenant demo quedo como estaba (`slug` nulo, `web_activa` false). Comprobado
+  que no queda ni una linea y que El Parche no recibio ningun pedido.
+
+### Como cambiar el orden mas adelante (lo que Sergio pidio dejar planteado)
+
+El numero ya existe y ya manda: `tenants.web_combos_orden`. Hoy esta en 0. Con
+ponerlo en 4, por ejemplo, Combos aparece entre la cuarta y la quinta categoria.
+Falta solo la parte visible: que la pantalla de Categorias muestre una tarjeta
+"Combos" que se pueda arrastrar como las demas y, al soltar, escriba ese numero
+en vez de en `pos_categories.sort_order`. Es media hora de trabajo sobre el
+arrastre que ya quedo hecho en la entrada 178.
+
+**SQL de la migracion:** `supabase/sql/2026-08-17-combos-en-la-carta.sql`.

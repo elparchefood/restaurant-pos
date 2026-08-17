@@ -149,8 +149,45 @@ Deno.serve(async (req) => {
     if (!items.length) return json({ ok: false, razon: "vacio", mensaje: "Tu pedido está vacío." });
     if (items.length > 40) return json({ ok: false, razon: "muchos", mensaje: "Demasiados productos." });
 
-    const ids = [...new Set(items.map((i) => String(i.producto_id || "")))].filter(Boolean);
-    const prods = await sbGet(
+    /* ── LOS COMBOS (17-ago) ──────────────────────────────────────────────
+       Un combo NO es un producto: no esta en pos_products. Si llegara aqui
+       como uno mas, el `porId` no lo encontraria y el pedido ENTERO se
+       rechazaria con "uno de los productos ya no esta disponible".
+
+       Se sigue la MISMA convencion que ya usan las tres pantallas de venta
+       (pos-combos.js): el id viaja como "combo:<uuid>", en la linea del pedido
+       `product_id` queda vacio y lo que llevaba se anota en `selections`, para
+       que la comanda y el inventario lo lean aunque maNana cambie el combo. */
+    const PREF = "combo:";
+    const esCombo = (id: string) => id.startsWith(PREF);
+
+    const ids = [...new Set(items.map((i) => String(i.producto_id || "")))]
+      .filter((x) => x && !esCombo(x));
+    const idsCombo = [...new Set(items.map((i) => String(i.producto_id || ""))
+      .filter(esCombo).map((x) => x.slice(PREF.length)))].filter(Boolean);
+
+    const combos: Record<string, Record<string, unknown>> = {};
+    if (idsCombo.length) {
+      const cs = await sbGet(
+        `/pos_combos?id=in.(${idsCombo.join(",")})&tenant_id=eq.${tenantId}&select=id,name,price,items,active`
+      ) as Array<Record<string, unknown>> | null;
+      (cs || []).forEach((c) => { combos[String(c.id)] = c; });
+    }
+    /* Los productos de ADENTRO de cada combo: se necesitan para el empaque,
+       que se cobra por lo que de verdad se empaca (tres cosas, tres empaques),
+       igual que el inventario descuenta lo de adentro y no el combo. */
+    const idsDentro = [...new Set(Object.values(combos).flatMap((c) =>
+      (Array.isArray(c.items) ? c.items as Array<Record<string, unknown>> : [])
+        .map((x) => String(x.product_id || ""))))].filter(Boolean);
+    const catDe: Record<string, string> = {};
+    if (idsDentro.length) {
+      const ps = await sbGet(
+        `/pos_products?id=in.(${idsDentro.join(",")})&tenant_id=eq.${tenantId}&select=id,category_id`
+      ) as Array<Record<string, unknown>> | null;
+      (ps || []).forEach((p) => { catDe[String(p.id)] = String(p.category_id || ""); });
+    }
+
+    const prods = ids.length ? await sbGet(
       /* `variables` y `category_id` NO son opcionales aunque el codigo de abajo
          parezca no necesitarlos (16-ago):
            · sin `variables` no se aplica el precio de la variante y una Premium
@@ -160,7 +197,7 @@ Deno.serve(async (req) => {
              le cobraba empaque hasta a las bebidas.
          El codigo los leia (p.variables, p.category_id) y aqui nunca llegaban. */
       `/pos_products?id=in.(${ids.join(",")})&tenant_id=eq.${tenantId}&select=id,name,price,presentations,variables,category_id,mod_group_ids,mod_group_pres,available`
-    ) as Array<Record<string, unknown>> | null;
+    ) as Array<Record<string, unknown>> | null : [];
     const porId: Record<string, Record<string, unknown>> = {};
     (prods || []).forEach((p) => { porId[String(p.id)] = p; });
 
@@ -182,7 +219,60 @@ Deno.serve(async (req) => {
     const lineas: Array<Record<string, unknown>> = [];
     let subtotal = 0;
     for (const it of items) {
-      const p = porId[String(it.producto_id || "")];
+      const idPedido = String(it.producto_id || "");
+
+      /* Un combo se resuelve aparte y se sale: no tiene tamaNo, ni variante,
+         ni adiciones — todo eso quedo decidido cuando el dueNo lo armo. */
+      if (esCombo(idPedido)) {
+        const c = combos[idPedido.slice(PREF.length)];
+        if (!c || c.active === false) {
+          return json({ ok: false, razon: "agotado", mensaje: "Uno de los combos ya no está disponible. Revisa tu pedido." });
+        }
+        const cant = Math.max(1, Math.min(20, Number(it.cantidad) || 1));
+        // El precio sale del CATALOGO, nunca de lo que manda el navegador.
+        const precio = Number(c.price) || 0;
+        const dentro = (Array.isArray(c.items) ? c.items as Array<Record<string, unknown>> : [])
+          .map((x) => ({
+            product_id: String(x.product_id || ""), pres_id: x.pres_id || null,
+            variantes: x.variantes || {}, cantidad: Number(x.cantidad) || 1,
+            nombre: String(x.nombre || ""),
+          }));
+
+        subtotal += precio * cant;
+
+        /* EL EMPAQUE, POR LO DE ADENTRO: un combo de tres cosas son tres
+           empaques, igual que el inventario descuenta lo de adentro y no el
+           combo.
+           El precio de cada linea NO puede ir en cero: cuando el empaque se
+           cobra por PORCENTAJE, ese precio es la base del calculo, y un pedido
+           de puro combo habria pagado cero empaque. Se reparte el precio del
+           combo entre sus productos, en proporcion a lo que vale cada uno
+           suelto — asi la suma da exactamente el precio del combo. */
+        const crudos = (Array.isArray(c.items) ? c.items as Array<Record<string, unknown>> : []);
+        const suelto = crudos.reduce((a, x) =>
+          a + (Number(x.precio) || 0) * (Number(x.cantidad) || 1), 0);
+        dentro.forEach((d, k) => {
+          const val = Number(crudos[k]?.precio) || 0;
+          const parte = suelto > 0 ? precio * (val / suelto) : precio / (dentro.length || 1);
+          paraEmpaque.push({
+            productId: d.product_id, catId: catDe[d.product_id] || "",
+            presId: String(d.pres_id || ""), qty: d.cantidad * cant, unitPrice: parte,
+          });
+        });
+        lineas.push({
+          product_id: null,                      // un combo no es un producto
+          name: String(c.name || "Combo"), product_name: String(c.name || "Combo"),
+          product_price: precio, unit_price: precio,
+          total: precio * cant,
+          quantity: cant,
+          selections: { combo_id: String(c.id), combo_nombre: String(c.name || ""), combo_items: dentro },
+          notes: String(it.nota || "").slice(0, 120) || null,
+          branch_id: branchId, tenant_id: tenantId,
+        });
+        continue;
+      }
+
+      const p = porId[idPedido];
       if (!p || p.available === false) {
         return json({ ok: false, razon: "agotado", mensaje: "Uno de los productos ya no está disponible. Revisa tu pedido." });
       }
