@@ -6045,3 +6045,13 @@ El caso de Emily (entrada del chat 573104031460): pidio 3 salchipapas Y una gase
 Pedido de Sergio: el boton unico "Es mi primera vez · Olvide mi contraseña" confundia — el cliente nuevo no se siente aludido por "contraseña" y el que la olvido no esta "empezando". Cada quien debe encontrar SU boton.
 - **Por dentro siguen siendo el mismo camino** (mandar codigo por WhatsApp; el servidor ya distingue solo si el numero es cliente): separar NO duplico logica, solo la entrada. Un `porCodigo(mensaje)` comun y dos botones que solo cambian el mensaje que acompaña al codigo — "¡Bienvenido! ... para crear tu cuenta" vs "Tranquilo... para crear una contraseña nueva".
 - Verificado en la vista con el codigo real: dos botones en columna con aire entre ellos.
+
+## 175. PROPUESTA en revision: el inicio de la pagina en CELULAR (17-ago, esperando el visto bueno de Sergio)
+Maqueta mostrada y en revision. **Nada implementado todavia.** Solo para pantalla pequeña — el computador no se toca:
+1. **Una sola billetera**: hoy el saldo y los puntos salen DOS veces apilados (resumen + Mi billetera). Se unen en una tarjeta con saldo|puntos lado a lado y los botones Pedir ahora / Recargar.
+2. **El nivel en una linea delgada** bajo el nombre (mas compacto, mismo contenido).
+3. **La publicidad en franja** baja de tamaño (el cuadro grande se comia media pantalla).
+4. **"Para hoy" deslizando de lado** (carrusel) en vez del cuadro 2x2, que deja tarjetas diminutas en 360px. El mensaje se resume en "Ver la carta →".
+5. Historial compacto igual al actual.
+6. **"Tu actividad" reducida a tarjetita** con mini-grafica.
+Decisiones pendientes de Sergio: (a) ¿carrusel o columna vertical en Para hoy? (b) ¿Tu actividad resumida o fuera del celular?
