@@ -1520,3 +1520,8 @@ html.ep-quieto #app {
   overscroll-behavior: contain;
   touch-action: auto;      /* aqui SI se permite el gesto vertical */
 }
+
+/* Los dos botones de la pantalla de entrar (registrarme / olvide mi clave).
+   En columna y con aire entre ellos: pegados parecerian un solo renglon, que
+   es justo lo que se quiso separar. */
+.ep-login-links { display: flex; flex-direction: column; align-items: center; gap: 12px; }

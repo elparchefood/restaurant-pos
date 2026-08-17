@@ -120,7 +120,17 @@
         '<label class="ep-fila"><input type="checkbox" id="i-recordar" checked> Mantener mi sesión</label>' +
         '<button class="ep-btn ep-btn--main" type="submit" id="b-entrar">Entrar</button>' +
       '</form>' +
-      '<button class="ep-link" id="b-codigo">Es mi primera vez · Olvidé mi contraseña</button>' +
+      /* DOS botones y no uno (pedido de Sergio, 17-ago). Por dentro hacen lo
+         mismo —mandar el código por WhatsApp; el servidor ya distingue solo si
+         el número es cliente o no—, pero "Es mi primera vez · Olvidé mi
+         contraseña" en un solo renglón confundía: el nuevo no se siente
+         aludido por "contraseña" y el que la olvidó no está "empezando".
+         Cada quien debe encontrar SU botón. Lo único que cambia entre ambos
+         es el mensaje que acompaña el código. */
+      '<div class="ep-login-links">' +
+        '<button class="ep-link" id="b-nuevo">Es mi primera vez, registrarme</button>' +
+        '<button class="ep-link" id="b-olvide">Olvidé mi contraseña</button>' +
+      '</div>' +
       '<p class="ep-nota">Entras con el mismo número con el que pides.</p>' +
     '</div>');
 
@@ -138,10 +148,16 @@
       pantallaEntrar(d.mensaje || 'No pudimos entrar.', true);
     });
 
-    $('b-codigo').addEventListener('click', function () {
+    function porCodigo(mensaje) {
       var tel = ($('i-tel').value || '').replace(/\D/g, '').slice(-10);
-      if (tel.length !== 10) return pantallaEntrar('Escribe tu celular y te mandamos un código.', true);
-      pedirCodigo(tel, '');
+      if (tel.length !== 10) return pantallaEntrar('Escribe tu celular arriba y te mandamos un código por WhatsApp.', true);
+      pedirCodigo(tel, mensaje);
+    }
+    $('b-nuevo').addEventListener('click', function () {
+      porCodigo('¡Bienvenido! Te mandamos un código por WhatsApp para crear tu cuenta.');
+    });
+    $('b-olvide').addEventListener('click', function () {
+      porCodigo('Tranquilo, pasa en las mejores familias 😊 Te mandamos un código por WhatsApp para crear una contraseña nueva.');
     });
   }
 

@@ -6040,3 +6040,8 @@ Cliente real (David, 573206960995): pregunto por la Premium y Paco contesto **"P
 El caso de Emily (entrada del chat 573104031460): pidio 3 salchipapas Y una gaseosa EN EL MISMO MENSAJE. El extractor solo devuelve UN producto por mensaje: la gaseosa cayo en "adiciones", ninguna salchipapa la admite, se descarto en silencio y el total salio $8.000 corto. Sergio corrigio a mano.
 - **Ya hecho hoy** (v302, dos redes de seguridad): si algo cae en "adiciones" pero es un producto de la carta, se agrega como linea aparte; y el aviso de "no se pudo" ya no afirma "no va en el pedido" sino que pregunta cual quiere y avisa que NO esta en el total.
 - **Lo de fondo**: que el prompt de extraccion devuelva una LISTA de productos. Es la pieza mas delicada de Paco — hacerlo con el banco de 54 pedidos al lado, con calma, no en horario de atencion.
+
+## 174. Pantalla de entrar: "registrarme" y "olvide mi contraseña" separados (17-ago)
+Pedido de Sergio: el boton unico "Es mi primera vez · Olvide mi contraseña" confundia — el cliente nuevo no se siente aludido por "contraseña" y el que la olvido no esta "empezando". Cada quien debe encontrar SU boton.
+- **Por dentro siguen siendo el mismo camino** (mandar codigo por WhatsApp; el servidor ya distingue solo si el numero es cliente): separar NO duplico logica, solo la entrada. Un `porCodigo(mensaje)` comun y dos botones que solo cambian el mensaje que acompaña al codigo — "¡Bienvenido! ... para crear tu cuenta" vs "Tranquilo... para crear una contraseña nueva".
+- Verificado en la vista con el codigo real: dos botones en columna con aire entre ellos.
