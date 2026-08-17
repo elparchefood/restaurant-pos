@@ -1123,7 +1123,10 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
   "efectivo"), ni pedir algo, ni saludar.
 - "rechaza_mas": true si esta diciendo que NO quiere agregar nada mas al
   pedido. "no", "no gracias", "asi esta bien", "nada mas", "ya con eso", "no
-  mas", "solo eso", "asi va bien", "listo asi", "ya esta". Es distinto de
+  mas", "solo eso", "asi va bien", "listo asi", "ya esta". OJO con los errores
+  de dedo: "AHI esta bien" casi siempre quiere decir "ASI esta bien" — caso
+  real que costo un pedido. "esta bien" o "todo bien" despues de ofrecerle
+  algo tambien es rechaza_mas. Es distinto de
   "confirma": aqui esta cerrando la lista de cosas, no aprobando el pedido.
   Puede haber mensajes que sean las dos ("no, asi esta bien, confirmo").
 Puede haber varias en true. Si no estas seguro, pon false.
