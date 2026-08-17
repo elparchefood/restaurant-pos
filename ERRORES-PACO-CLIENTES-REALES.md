@@ -17,6 +17,32 @@
 
 ---
 
+## Qué significa "atender sin errores" (definido por Sergio, 17-ago-2026)
+
+Este es el contrato. Paco atiende sin errores cuando cumple ESTO — ni más ni menos:
+
+**Lo que tiene que hacer PERFECTO (el flujo acotado):**
+- Recibir el pedido: producto, presentación, variable y cantidad correctos.
+- Precios correctos, siempre desde la carta. Jamás un precio inventado o interno ($0).
+- Método de pago bien capturado.
+- Si es a domicilio o para recoger, bien entendido.
+- Dar información básica: precios, carta, horarios, ubicación — todo lo que ya
+  tiene conectado.
+
+**Lo que hace cuando algo se sale de eso:**
+- Cliente que dice algo extraño, ambiguo o fuera del flujo → **pasar a humano.**
+  Eso NO es un error: es la válvula. El error sería inventar.
+
+**La única categoría que cuenta como fallo: CERRAR MAL** — cobrar mal, prometer
+mal, crear un pedido incorrecto, o afirmar algo falso. Pasar a humano de más es
+mejorable; cerrar mal es inaceptable.
+
+**Cómo se sabrá que se llegó:** la medición semanal (pendiente ya anotado) de
+cierra bien / pasa a humano / cierra mal. Meta: **cierra mal = 0** sostenido
+con volumen real durante 2-3 semanas.
+
+---
+
 ## Los patrones que más se repiten (leer antes de tocar a Paco)
 
 1. **Caminos hermanos donde solo uno está completo.** Paco crea pedidos y
