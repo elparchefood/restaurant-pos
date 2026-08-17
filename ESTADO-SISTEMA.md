@@ -6137,3 +6137,41 @@ Sergio no la encontraba en el celular. **SI existia** —esta en los cuatro boto
 - Orden del menu: **Mi perfil · El local · Modo claro/oscuro · Cerrar sesion**. Sigue tambien en los botones del inicio: es un atajo mas, no un reemplazo.
 - **Trampa evitada**: el enganche usaba `cap.querySelector('[data-mir]')` —singular—, que solo agarra el PRIMERO. Con dos opciones de navegacion, "El local" habria quedado muerta (se ve pero no hace nada). Cambiado a `querySelectorAll` con el destino leido de cada boton.
 - **Probado ejecutando el menu de verdad** con un DOM de mentira: las 4 opciones enganchadas, cada una lleva a su sitio (perfil, local, tema, salir) y el menu se cierra las 4 veces.
+
+---
+
+## 177 — PWA clientes: la barra de abajo y el boton del pedido, fijos de verdad (17-ago-2026)
+
+**Lo que Sergio vio (tres cosas, la misma causa):**
+1. El boton "Ver mi pedido" aparecia "muy abajo": habia que bajar hasta el final
+   de la carta para verlo, cuando su gracia es estar siempre a la vista.
+2. La barra de pestanas se dejaba arrastrar al llegar al maximo de scroll.
+3. Arriba pasaba lo mismo: la pantalla se estiraba mas alla de su limite.
+
+**Causa raiz.** Los dos elementos eran `position: sticky`, y sticky solo pega un
+elemento MIENTRAS su sitio natural esta a la vista — no lo saca del flujo:
+- `.ep-cartbar` se genera al FINAL de `cuerpoCarta()`, asi que su sitio natural
+  esta despues del ultimo plato: hasta no llegar ahi, no hay nada que pegar.
+- `.ep-tabs` llegaba a su sitio natural justo al final del documento, y ese
+  ultimo tramo se movia con el scroll.
+- El punto 3 era otro asunto: `overscroll-behavior` estaba puesto solo en el eje
+  X (`overscroll-behavior-x: none`), asi que el rebote elastico vertical seguia
+  vivo.
+
+**Arreglo (solo en celular, `@media (max-width: 899px)`; en escritorio la barra
+de pestanas no existe y el boton se queda sticky como estaba):**
+- `.ep-tabs` → `position: fixed; left/right: 0; bottom: 0`.
+- `.ep-cartbar` → `position: fixed`, anclado 12px por encima de la barra.
+- Variable `--barra-alto: calc(56px + env(safe-area-inset-bottom))`, usada por
+  los dos, para que no haya numeros sueltos que se desincronicen.
+- Al volverse fijos dejan de ocupar lugar: `.ep-scroll` compensa con
+  `padding-bottom`, y con `:has(.ep-cartbar)` reserva mas cuando el boton
+  flotante esta presente, para que el ultimo plato nunca quede debajo.
+- `overscroll-behavior: none` (los dos ejes) — de paso quita el "arrastrar para
+  recargar" de Android, que en una app instalada se siente a pagina web.
+
+**Verificado midiendo** (no a ojo) sobre el CSS real en 390x760, 360x640 y
+1280x820: el boton se ve sin hacer scroll; queda 13px arriba de la barra sin
+taparla; en el maximo de scroll la barra no se mueve ni un pixel y el ultimo
+plato termina 20px antes del boton; cero desborde horizontal; escritorio
+identico a antes (pestanas ocultas, boton sticky).

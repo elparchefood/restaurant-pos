@@ -1646,8 +1646,12 @@ html.ep-quieto #app {
 html, body {
   max-width: 100%;
   overflow-x: clip;
-  /* Ni rebote lateral ni "arrastrar para recargar". */
-  overscroll-behavior-x: none;
+  /* NI REBOTE LATERAL NI VERTICAL. Antes solo se frenaba el horizontal, y
+     arriba y abajo la pagina seguia estirandose mas alla de su limite — el
+     rebote elastico es lo que mas delata que una app instalada es en realidad
+     una pagina web. `none` en los dos ejes lo quita, y de paso el "arrastrar
+     para recargar" de Android. */
+  overscroll-behavior: none;
   touch-action: pan-y;
 }
 /* Las tiras que sangran al borde (chips de categoria, encabezado interno) SI
@@ -1723,3 +1727,37 @@ html.tema-claro .ep-menu { box-shadow: 0 12px 34px rgba(23,22,26,.12); }
 .ep-menu-it.malo { color: #d9556f; border-top: 1px solid var(--line); }
 html.tema-claro .ep-menu-it.malo { color: #8f2242; }
 .ep-menu-it.malo svg { color: currentColor; }
+
+/* ===== LA BARRA DE ABAJO Y EL BOTON DEL PEDIDO, FIJOS DE VERDAD (17-ago) =====
+   Los dos eran `sticky`, y `sticky` solo pega un elemento MIENTRAS su sitio
+   natural esta a la vista:
+     · la barra de pestañas se despegaba justo al llegar al final del scroll
+       (se "arrastraba" con el ultimo tramo);
+     · el boton "Ver mi pedido" vive al final de la carta, asi que no aparecia
+       hasta bajar hasta abajo — cuando su gracia es verse siempre.
+   `fixed` los saca del flujo y los ancla a la pantalla: ya no dependen de
+   donde va el scroll. */
+:root {
+  /* Alto real de la barra: 9 arriba + 21 del icono + 3 + 13 de la etiqueta + 9
+     abajo = 55, mas el borde y lo que el celular reserve abajo. */
+  --barra-alto: calc(56px + env(safe-area-inset-bottom));
+}
+@media (max-width: 899px) {
+  .ep-tabs {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  }
+  /* El contenido termina ARRIBA de la barra: fija ya no ocupa lugar, y sin
+     esto el ultimo renglon quedaria escondido detras. */
+  .ep-scroll { padding-bottom: calc(var(--barra-alto) + 26px); }
+
+  .ep-cartbar {
+    position: fixed; z-index: 25;
+    left: 18px; right: 18px; width: auto; margin: 0;
+    bottom: calc(var(--barra-alto) + 12px);
+  }
+  /* Con el boton del pedido flotando, la carta necesita AUN mas aire abajo
+     para que el ultimo plato no quede debajo de el. */
+  .ep-scroll:has(.ep-cartbar) {
+    padding-bottom: calc(var(--barra-alto) + 84px);
+  }
+}
