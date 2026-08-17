@@ -6697,3 +6697,66 @@ en vez de en `pos_categories.sort_order`. Es media hora de trabajo sobre el
 arrastre que ya quedo hecho en la entrada 178.
 
 **SQL de la migracion:** `supabase/sql/2026-08-17-combos-en-la-carta.sql`.
+
+---
+
+## 188 — Medallas ampliadas, tarjeta grande y agotado a la vista (17-ago-2026)
+
+Se le mostraron a Sergio 9 medallas y 9 adornos en dos rondas. Escogio:
+medallas **picante, para 2, ahorras, recomendado, dulce y solo hoy** (quito 2x1,
+no maneja esa promocion), y los adornos **G** (tarjeta grande) y **H** (agotado
+a la vista, "para cuando lo conectemos con el inventario").
+
+### Una decision de modelo: agotado NO es lo mismo que no venderlo
+
+Existia solo `available=false`, que ESCONDE el producto. Si se hubiera usado ese
+campo para pintar la tarjeta gris, el dia que Sergio descontinue algo quedaria
+en la carta para siempre. Se separo:
+- `available=false` → fuera de la carta (ya no lo vendo).
+- `agotado=true` → sigue en la carta, en gris y sin poder pedirse (hoy no hay).
+Es el campo que el inventario podra encender solo mas adelante; hoy se marca a
+mano con un interruptor.
+
+### Lo que se hizo
+
+- **Base**: `pos_products.agotado`, `.carta_grande`, `.medalla_valor`.
+  El monto de "ahorras" va en su propia columna y NO pegado al nombre
+  (`'ahorras:6000'`): un numero se compara y se valida; un texto con dos puntos
+  hay que partirlo cada vez que se lee.
+- **`fn_web_carta`**: manda `medalla_valor`, `grande` y `agotado`, y deja de
+  esconder los agotados.
+- **Pagina del cliente**: 8 medallas (5 colores, no 8 — el color dice de que se
+  trata antes de leer), tarjeta ancha que ocupa la fila, y tarjeta gris con
+  sello para lo agotado. "Ahorras" sin monto NO se muestra: prometer un ahorro
+  sin cifra es peor que no prometer nada.
+- **Cobra**: selector de medallas ampliado, campo de monto que aparece solo con
+  "ahorras", e interruptores de "Tarjeta grande" y "Agotado hoy".
+  **"Mas pedido" no esta en el selector a proposito**: la decide la venta, y
+  poder ponerla a mano seria poder mentir.
+
+### Tres cosas que salieron de medir, no de mirar
+
+1. **`display:flex` faltaba** en `.ep-plato--ancho`. La tarjeta normal es un
+   boton de bloque, asi que `flex-direction:row` no hacia nada — el MISMO
+   descuido de la entrada 186. Se puso explicito.
+2. **Verde y naranja no eran legibles**: 4.38 y 4.43 con texto blanco, bajo el
+   minimo de 4.5. Bajados un tono a `#1b7d44` y `#b25018` (5.17 y 5.18). Se
+   cambiaron en los DOS programas: la caja y la pagina no comparten hoja de
+   estilos, y el archivo ya avisaba de eso.
+3. **El sello de agotado era ilegible en tema claro**: velo oscuro translucido
+   con texto `--ink`, que en claro es casi negro — 4.1. Ahora es un chip opaco
+   con el color de superficie: 18.01 en los dos temas.
+
+**Verificado midiendo** con las 10 hamburguesas reales marcadas de prueba: las
+6 medallas con su color correcto, "Ahorras $6.000" con el monto, la tarjeta
+ancha ocupando la fila entera (326px contra 157), la agotada en gris y sin
+poder tocarse, cero desborde horizontal, y todas las medallas por encima de
+4.5:1 en los dos temas. **Las marcas de prueba se quitaron al terminar**: los 7
+productos volvieron a como estaban.
+
+**Nota para Sergio, ya dicha:** si TODOS los productos llevan medalla, ninguna
+se ve. Lo recomendado es marcar entre un cuarto y un tercio de la carta. La
+decision es suya.
+
+**SQL:** `supabase/sql/2026-08-17-medallas-tarjeta-grande-agotado.sql` y
+`2026-08-17-fn-web-carta.sql`.

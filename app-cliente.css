@@ -1567,7 +1567,47 @@ button.ep-pub-foto { cursor: pointer; }
 .ep-med--oro    { background: linear-gradient(135deg, #f0c66a, #d99f2b); color: #3a2604; }
 .ep-med--vino   { background: #8f2242; color: #fff; }
 .ep-med--blanca { background: #fff; color: #1b1b1f; }
-.ep-med--verde  { background: #1f8a4c; color: #fff; }
+/* Verde y naranja BAJADOS un tono (17-ago): con los originales el texto blanco
+   daba 4.38 y 4.43 de contraste, justo por debajo del minimo legible para una
+   letra pequeNa. Medido, no a ojo. */
+.ep-med--verde  { background: #1b7d44; color: #fff; }
+.ep-med--naranja{ background: #b25018; color: #fff; }
+
+/* ── LA TARJETA ANCHA (17-ago) ────────────────────────────────────────────
+   Un plato por categoria ocupa la fila entera, con la foto al lado. Rompe el
+   ritmo de dos en dos, que es lo que hace que el ojo se detenga. */
+.ep-plato--ancho {
+  grid-column: 1 / -1;
+  /* `display:flex` va explicito: la tarjeta normal es un boton de bloque, y
+     sin esto `flex-direction` no hace nada (es el mismo descuido que dejo los
+     numeros del paso a paso centrados). */
+  display: flex; flex-direction: row; align-items: stretch; text-align: left;
+}
+.ep-plato--ancho .ep-plato-img {
+  width: 44%; flex: none; aspect-ratio: auto; min-height: 118px;
+}
+.ep-plato--ancho .ep-plato-b { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.ep-plato--ancho .ep-plato-n { font-size: 15px; }
+.ep-plato--ancho .ep-plato-d { -webkit-line-clamp: 3; }
+
+/* ── AGOTADO: SE VE, PERO NO SE PIDE ──────────────────────────────────────
+   Antes desaparecia de la carta. Mostrarlo apagado le enseNa al cliente que
+   ese plato existe y que vuelva por el. */
+.ep-plato--agotado { opacity: .55; cursor: default; }
+.ep-plato--agotado:hover { transform: none; border-color: var(--line); }
+.ep-plato--agotado .ep-plato-img { filter: grayscale(1); }
+.ep-plato--agotado .ep-plato-p { color: var(--sub); }
+.ep-agotado {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  /* Chip OPACO, no un velo translucido: con el velo oscuro y `--ink`, en tema
+     claro quedaba letra casi negra sobre fondo oscuro (4.1 de contraste).
+     Con el color de superficie funciona igual en los dos temas. */
+  background: var(--surf); color: var(--ink); border: 1px solid var(--line);
+  box-shadow: 0 2px 10px rgba(0,0,0,.35);
+  font-size: 10.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+}
+/* La medalla y el sello se posicionan contra la foto. */
+.ep-plato-img { position: relative; }
 
 /* EL VELO CON "PEDIR". Solo aparece al pasar el mouse: la foto es lo que hace
    pedir y taparla todo el tiempo sería trabajar en contra. */

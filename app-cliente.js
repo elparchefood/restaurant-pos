@@ -943,8 +943,18 @@
         var mins = pres.map(function (x) { return Number(x.precio) || 0; }).filter(function (x) { return x > 0; });
         if (mins.length) { precio = Math.min.apply(null, mins); desde = mins.length > 1; }
       }
-      return '<button class="ep-plato" data-plato="' + catActiva + '|' + i + '">' +
-        '<div class="ep-plato-img">' + (p.foto ? '<img src="' + esc(p.foto) + '" alt="" loading="lazy">' : ico('bolsa', 34)) + '</div>' +
+      /* Tres formas de tarjeta (17-ago):
+           · ancha  · un plato por categoria que rompe la cuadricula
+           · agotada· hoy no hay: se ve en gris y NO se puede tocar. Antes
+                      desaparecia, y desaparecer no le enseNa al cliente que
+                      ese plato existe.
+           · normal · las demas */
+      var agotado = p.agotado === true;
+      var clases = 'ep-plato' + (p.grande ? ' ep-plato--ancho' : '') + (agotado ? ' ep-plato--agotado' : '');
+      return '<button class="' + clases + '"' +
+        (agotado ? ' disabled aria-disabled="true"' : ' data-plato="' + catActiva + '|' + i + '"') + '>' +
+        '<div class="ep-plato-img">' + (p.foto ? '<img src="' + esc(p.foto) + '" alt="" loading="lazy">' : ico('bolsa', 34)) +
+          (agotado ? '<span class="ep-agotado">Se acabó por hoy</span>' : '') + '</div>' +
         '<div class="ep-plato-b">' +
           '<div class="ep-plato-n">' + esc(p.nombre) + '</div>' +
           (p.descripcion ? '<div class="ep-plato-d">' + esc(p.descripcion) + '</div>' : '') +
@@ -2109,15 +2119,35 @@
      Va UNA por tarjeta: la tarjeta es pequeña y dos medallas encima de la foto
      se pelean entre ellas y no se lee ninguna. Si el dueño puso una a mano,
      manda la suya — la dorada solo llena el hueco que él dejó. */
+  /* AMPLIADAS (17-ago, escogidas por Sergio). El COLOR dice de que se trata
+     antes de leer la palabra, por eso son cinco colores y no uno por medalla:
+       oro    · lo mide el sistema, no se pone a mano
+       vino   · lo que el dueNo destaca
+       blanca · tamaNo
+       verde  · ahorro
+       naranja· urgencia, picante
+     Se quito 2x1: Sergio no maneja esa promocion. */
   var MEDALLAS = {
-    mas_pedido: { t: 'Más pedido', c: 'oro' },
-    nuevo:      { t: 'Nuevo',      c: 'vino' },
-    para2:      { t: 'Para 2',     c: 'blanca' },
-    dosxuno:    { t: '2x1',        c: 'verde' },
+    mas_pedido:  { t: 'Más pedido',  c: 'oro' },
+    nuevo:       { t: 'Nuevo',       c: 'vino' },
+    recomendado: { t: 'Recomendado', c: 'vino' },
+    para2:       { t: 'Para 2',      c: 'blanca' },
+    picante:     { t: 'Picante',     c: 'naranja' },
+    dulce:       { t: 'Dulce',       c: 'blanca' },
+    solo_hoy:    { t: 'Solo hoy',    c: 'naranja' },
+    ahorras:     { t: 'Ahorras',     c: 'verde' },
   };
   function medalla(p) {
     var m = MEDALLAS[String((p && p.medalla) || '')];
-    return m ? '<span class="ep-med ep-med--' + m.c + '">' + esc(m.t) + '</span>' : '';
+    if (!m) return '';
+    var txt = m.t;
+    // "Ahorras" sin monto no dice nada: si no viene, no se promete nada.
+    if (p.medalla === 'ahorras') {
+      var v = Number(p.medalla_valor) || 0;
+      if (!v) return '';
+      txt = 'Ahorras ' + COP(v);
+    }
+    return '<span class="ep-med ep-med--' + m.c + '">' + esc(txt) + '</span>';
   }
 
   /* La fila de cuatro: el mensaje con sus botones y tres platos de la carta.

@@ -119,11 +119,11 @@ async function loadProducts() {
     // Traer columnas explícitas SIN pisar la carga si photo_url es enorme. Las
     // fotos ahora son URLs pequeñas (migradas del base64 viejo que tumbaba la
     // consulta). Se excluyen productos con base64 residual del select pesado.
-    const cols = 'id,name,description,price,price_mode,category_id,available,photo_url,presentations,variables,mod_group_ids,mod_group_pres,medalla';
+    const cols = 'id,name,description,price,price_mode,category_id,available,photo_url,presentations,variables,mod_group_ids,mod_group_pres,medalla,medalla_valor,carta_grande,agotado';
     let {data,error} = await sb.from('pos_products').select(cols).eq('tenant_id',S.tenantId).order('name');
     if(error||!data){
       // Reintento sin fotos por si alguna quedó como base64 gigante (no romper el catálogo)
-      const r2 = await sb.from('pos_products').select('id,name,description,price,price_mode,category_id,available,presentations,variables,mod_group_ids,mod_group_pres,medalla').eq('tenant_id',S.tenantId).order('name');
+      const r2 = await sb.from('pos_products').select('id,name,description,price,price_mode,category_id,available,presentations,variables,mod_group_ids,mod_group_pres,medalla,medalla_valor,carta_grande,agotado').eq('tenant_id',S.tenantId).order('name');
       if(r2.error||!r2.data) return;
       data = r2.data;
     }
@@ -133,7 +133,7 @@ async function loadProducts() {
       presentations:p.presentations||[{id:uid('pr'),name:'Unico',price:p.price||0}],
       variables:p.variables||[], modGroupIds:p.mod_group_ids||[],
       modGroupPres:(p.mod_group_pres&&typeof p.mod_group_pres==='object')?p.mod_group_pres:{},
-      priceMode:p.price_mode||'simple', medalla:p.medalla||'',
+      priceMode:p.price_mode||'simple', medalla:p.medalla||'', medalla_valor:p.medalla_valor||null, carta_grande:!!p.carta_grande, agotado:!!p.agotado,
     }));
   } catch(e){}
 }
@@ -158,7 +158,7 @@ async function saveProductToSupabase(p) {
     const isMatrix=p.priceMode==='matrix';
     const matrixPrices=isMatrix?(p.variables||[]).flatMap(v=>v.isPricing?(v.options||[]).flatMap(o=>o.prices||[]):[]).filter(Boolean):[];
     const presPrices=(p.presentations||[]).map(x=>x.price||0).filter(Boolean);const varPrices=(p.variables||[]).flatMap(v=>(v.options||[]).map(o=>o.price||0)).filter(Boolean);const basePrice=isMatrix?(matrixPrices.length?Math.min(...matrixPrices):0):(presPrices.length?Math.min(...presPrices):(varPrices.length?Math.min(...varPrices):0));
-    const row={tenant_id:S.tenantId,branch_id:S.branchId,name:p.name,price:basePrice,price_mode:p.priceMode||'simple',category_id:p.cat==='_'?null:p.cat,available:p.active,description:p.desc||null,photo_url:p.photo||null,presentations:p.presentations||[],variables:p.variables||[],mod_group_ids:p.modGroupIds||[],mod_group_pres:_cleanModGroupPres(p),medalla:p.medalla||null};
+    const row={tenant_id:S.tenantId,branch_id:S.branchId,name:p.name,price:basePrice,price_mode:p.priceMode||'simple',category_id:p.cat==='_'?null:p.cat,available:p.active,description:p.desc||null,photo_url:p.photo||null,presentations:p.presentations||[],variables:p.variables||[],mod_group_ids:p.modGroupIds||[],mod_group_pres:_cleanModGroupPres(p),medalla:p.medalla||null,medalla_valor:(p.medalla==='ahorras'?(p.medalla_valor||null):null),carta_grande:!!p.carta_grande,agotado:!!p.agotado};
     const isNew=!p.id||p.id.startsWith('p_');
     if(isNew){const {data,error}=await sb.from('pos_products').insert([row]).select().single();if(error)throw error;_invalidateCatalogCache();return data.id;}
     else{await sb.from('pos_products').update(row).eq('id',p.id).eq('tenant_id',S.tenantId);_invalidateCatalogCache();return p.id;}
@@ -748,11 +748,18 @@ function handleOverlayClose(e){if(e.target===e.currentTarget)closeOverlay();}
    colores estan repetidos aqui y en app-cliente.css a proposito: son dos
    programas distintos (la caja y la pagina del cliente) y no comparten hoja de
    estilos. Si se cambia un color, se cambia en los dos. */
+/* Ampliadas el 17-ago con Sergio. Se quito 2x1 (no maneja esa promocion).
+   "Mas pedido" NO esta aqui a proposito: la pone el sistema con las ventas de
+   verdad, y poder ponerla a mano seria poder mentir. */
 var MEDALLAS_POS=[
-  {v:'',        t:'Ninguna',  bg:'#F1F5F9', fg:'#64748B'},
-  {v:'nuevo',   t:'Nuevo',    bg:'#8F2242', fg:'#FFFFFF'},
-  {v:'para2',   t:'Para 2',   bg:'#FFFFFF', fg:'#1B1B1F'},
-  {v:'dosxuno', t:'2x1',      bg:'#1F8A4C', fg:'#FFFFFF'},
+  {v:'',            t:'Ninguna',     bg:'#F1F5F9', fg:'#64748B'},
+  {v:'recomendado', t:'Recomendado', bg:'#8F2242', fg:'#FFFFFF'},
+  {v:'nuevo',       t:'Nuevo',       bg:'#8F2242', fg:'#FFFFFF'},
+  {v:'para2',       t:'Para 2',      bg:'#FFFFFF', fg:'#1B1B1F'},
+  {v:'dulce',       t:'Dulce',       bg:'#FFFFFF', fg:'#1B1B1F'},
+  {v:'picante',     t:'Picante',     bg:'#B25018', fg:'#FFFFFF'},
+  {v:'solo_hoy',    t:'Solo hoy',    bg:'#B25018', fg:'#FFFFFF'},
+  {v:'ahorras',     t:'Ahorras…',    bg:'#1B7D44', fg:'#FFFFFF'},
 ];
 function _medallaPickerHTML(p){
   var act=p.medalla||'';
@@ -763,9 +770,42 @@ function _medallaPickerHTML(p){
       'background:'+m.bg+';color:'+m.fg+';'+
       'border:2px solid '+(on?'#5B6BFF':'#E2E8F0')+';'+
       'box-shadow:'+(on?'0 0 0 3px rgba(91,107,255,.15)':'none')+'">'+escHtml(m.t)+'</button>';
-  }).join('')+'</div>';
+  }).join('')+'</div>'
+  /* "Ahorras" es la unica que necesita un numero. El campo aparece solo cuando
+     esta escogida: un campo suelto que no aplica a nada confunde mas que ayuda. */
+  +(act==='ahorras'
+    ? '<div style="margin-top:11px;max-width:230px"><span class="field-label">¿Cuánto ahorra?</span>'
+      +'<div class="cc-money"><span class="cc-money-sym">$</span>'
+      +'<input type="number" min="0" step="500" value="'+(p.medalla_valor||'')+'" placeholder="0" '
+      +'oninput="setProdMedallaValor(parseInt(this.value)||0)"></div>'
+      +'<div style="font-size:11px;color:#94A3B8;margin-top:4px">Sin monto, la medalla no se muestra.</div></div>'
+    : '');
 }
-function setProdMedalla(v){S.editProd.medalla=v;renderProductEditor();}
+/* Los dos interruptores de la carta del cliente (17-ago). */
+function _cartaTogglesHTML(p){
+  function fila(tit,sub,on,fn){
+    return '<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #F1F5F9">'
+      +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:#0F172A">'+tit+'</div>'
+      +'<div style="font-size:11.5px;color:#94A3B8;margin-top:2px;line-height:1.4">'+sub+'</div></div>'
+      +'<button class="cp-switch'+(on?' on':'')+'" onclick="'+fn+'"><span class="cp-switch-track"><span class="cp-switch-knob"></span></span></button></div>';
+  }
+  return '<div>'
+    +fila('Tarjeta grande','Ocupa la fila completa y rompe la cuadrícula. Pensada para <strong>uno por categoría</strong>: si marcas varios deja de resaltar.',p.carta_grande,'toggleCartaGrande()')
+    +fila('Agotado hoy','Sigue en la carta pero en gris y no se puede pedir. Distinto de desactivarlo, que lo esconde del todo.',p.agotado,'toggleAgotado()')
+    +'</div>';
+}
+function toggleCartaGrande(){S.editProd.carta_grande=!S.editProd.carta_grande;renderProductEditor();}
+function toggleAgotado(){S.editProd.agotado=!S.editProd.agotado;renderProductEditor();}
+
+function setProdMedalla(v){
+  S.editProd.medalla=v;
+  if(v!=='ahorras') S.editProd.medalla_valor=null;   // el numero no se queda de otra medalla
+  renderProductEditor();
+}
+function setProdMedallaValor(v){
+  S.editProd.medalla_valor=v||null;
+  const b=document.getElementById('save-prod-btn'); if(b) b.disabled=false;
+}
 
 function openEditor(id,type){
   if(type==='product'){
@@ -794,7 +834,7 @@ function renderProductEditor(){try{
      dueño; si se pudiera poner a mano dejaria de significar algo. */
   const medallaHTML=_medallaPickerHTML(p);
   const photoHTML=p.photo?'<div class="cc-photo-wrap"><img src="'+escHtml(p.photo)+'" alt=""><div class="cc-photo-overlay"><button class="cc-pill-btn" onclick="document.getElementById(\'prod-photo-input\').click()">'+icon('image',13)+' Cambiar</button><button class="cc-pill-btn danger" onclick="clearProdPhoto()">'+icon('trash',13)+' Quitar</button></div></div>':'<div class="cc-drop" ondragover="event.preventDefault();this.classList.add(\'over\')" ondragleave="this.classList.remove(\'over\')" ondrop="handleProdPhotoDrop(event)" onclick="document.getElementById(\'prod-photo-input\').click()"><div class="cc-drop-icon">'+icon('upload',20)+'</div><div style="font-size:13px;font-weight:700;color:#0F172A">Foto del producto</div><div style="font-size:11.5px;color:#94A3B8;margin-top:3px">Arrastra una imagen o <span style="color:#5B6BFF;font-weight:700">búscala en tu equipo</span></div></div><div class="cc-url-row"><span style="color:#94A3B8;display:flex">'+icon('link',14)+'</span><input id="prod-photo-url" placeholder="…o pega un enlace de imagen" style="flex:1;border:none;outline:none;background:transparent;font-family:inherit;font-size:12.5px"><button class="lm-link" onclick="useProdPhotoUrl()">Usar</button></div>';
-  openOverlay('<div class="cc-overlay" onmousedown="handleOverlayClose(event)"><aside class="cc-drawer" onmousedown="event.stopPropagation()"><div class="cc-drawer-head"><div style="display:flex;align-items:center;gap:10px"><span class="cc-drawer-glyph" style="color:'+cat.color+';background:'+cat.tint+'">'+icon('box',17)+'</span><div><div class="cc-drawer-eyebrow">'+(isNew?'Nuevo producto':'Editar producto')+'</div><div class="cc-drawer-title" id="ed-prod-title">'+(escHtml(p.name)||'Sin nombre')+'</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div class="cc-drawer-body"><input type="file" id="prod-photo-input" accept="image/*" style="display:none" onchange="handleProdPhotoFile(this)"><input type="file" id="pres-photo-input" accept="image/*" style="display:none" onchange="handlePresPhotoFile(this)">'+photoHTML+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px"><label><span class="field-label">Nombre del producto</span><input class="cc-input" value="'+escHtml(p.name)+'" placeholder="Ej. Premium Mixta" oninput="setProdName(this.value)"></label><label><span class="field-label">Categoría</span><div class="cc-select"><select onchange="setProdCat(this.value)">'+catOptions+'</select><span class="cc-sel-arrow">'+icon('down',14)+'</span></div></label></div><div style="margin-top:12px"><label><span class="field-label">Descripción <span class="hint">· opcional</span></span><textarea class="cc-input" rows="2" placeholder="Ingredientes, detalles…" oninput="setProdDesc(this.value)">'+escHtml(p.desc||'')+'</textarea></label>'+'<div id="base-type-hint" class="base-picker" style="display:none"></div>'+'</div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Presentaciones</div><div class="cc-section-sub">Cada presentación tiene su propio precio. Ej: Personal, Familiar, Para llevar.</div></div><button class="lm-btn-ghost sm" onclick="addPres()">'+icon('plus',13)+' Agregar</button></div><div id="pres-list" style="display:flex;flex-direction:column;gap:8px">'+presRows+'</div></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Variables</div><div class="cc-section-sub">El cliente elige <strong>una</strong> opción por grupo.</div></div><button class="lm-btn-ghost sm" onclick="addVar()">'+icon('plus',13)+' Variable</button></div><div id="var-list">'+varSections+'</div></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Modificadores</div><div class="cc-section-sub">Activa los grupos que aplican a este producto.</div></div><button class="lm-btn-ghost sm" onclick="openModEditorInProduct()">'+icon('plus',13)+' Crear grupo</button></div><div id="mod-list">'+modRows+'</div></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Medalla en tu p\u00e1gina</div><div class="cc-section-sub">Se ve sobre la foto en los destacados de tu p\u00e1gina de clientes. La de <strong>M\u00e1s pedido</strong> se pone sola seg\u00fan tus ventas.</div></div></div>'+medallaHTML+'</div></div><div class="cc-drawer-foot"><div style="display:flex;flex-direction:column"><span style="font-size:10.5px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Rango de precio</span><span id="ed-price-range" style="font-size:15px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">'+priceRange()+'</span></div><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button><button class="lm-btn-primary" id="save-prod-btn" '+(canSave?'':'disabled')+' onclick="saveProduct()">'+icon('check',14)+' Guardar</button></div></div></aside></div>');
+  openOverlay('<div class="cc-overlay" onmousedown="handleOverlayClose(event)"><aside class="cc-drawer" onmousedown="event.stopPropagation()"><div class="cc-drawer-head"><div style="display:flex;align-items:center;gap:10px"><span class="cc-drawer-glyph" style="color:'+cat.color+';background:'+cat.tint+'">'+icon('box',17)+'</span><div><div class="cc-drawer-eyebrow">'+(isNew?'Nuevo producto':'Editar producto')+'</div><div class="cc-drawer-title" id="ed-prod-title">'+(escHtml(p.name)||'Sin nombre')+'</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div class="cc-drawer-body"><input type="file" id="prod-photo-input" accept="image/*" style="display:none" onchange="handleProdPhotoFile(this)"><input type="file" id="pres-photo-input" accept="image/*" style="display:none" onchange="handlePresPhotoFile(this)">'+photoHTML+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px"><label><span class="field-label">Nombre del producto</span><input class="cc-input" value="'+escHtml(p.name)+'" placeholder="Ej. Premium Mixta" oninput="setProdName(this.value)"></label><label><span class="field-label">Categoría</span><div class="cc-select"><select onchange="setProdCat(this.value)">'+catOptions+'</select><span class="cc-sel-arrow">'+icon('down',14)+'</span></div></label></div><div style="margin-top:12px"><label><span class="field-label">Descripción <span class="hint">· opcional</span></span><textarea class="cc-input" rows="2" placeholder="Ingredientes, detalles…" oninput="setProdDesc(this.value)">'+escHtml(p.desc||'')+'</textarea></label>'+'<div id="base-type-hint" class="base-picker" style="display:none"></div>'+'</div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Presentaciones</div><div class="cc-section-sub">Cada presentación tiene su propio precio. Ej: Personal, Familiar, Para llevar.</div></div><button class="lm-btn-ghost sm" onclick="addPres()">'+icon('plus',13)+' Agregar</button></div><div id="pres-list" style="display:flex;flex-direction:column;gap:8px">'+presRows+'</div></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Variables</div><div class="cc-section-sub">El cliente elige <strong>una</strong> opción por grupo.</div></div><button class="lm-btn-ghost sm" onclick="addVar()">'+icon('plus',13)+' Variable</button></div><div id="var-list">'+varSections+'</div></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Modificadores</div><div class="cc-section-sub">Activa los grupos que aplican a este producto.</div></div><button class="lm-btn-ghost sm" onclick="openModEditorInProduct()">'+icon('plus',13)+' Crear grupo</button></div><div id="mod-list">'+modRows+'</div></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Medalla en tu p\u00e1gina</div><div class="cc-section-sub">Se ve sobre la foto en los destacados de tu p\u00e1gina de clientes. La de <strong>M\u00e1s pedido</strong> se pone sola seg\u00fan tus ventas.</div></div></div>'+medallaHTML+'</div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Cómo se ve en la carta</div><div class="cc-section-sub">Solo afecta tu página de clientes.</div></div></div>'+_cartaTogglesHTML(p)+'</div></div><div class="cc-drawer-foot"><div style="display:flex;flex-direction:column"><span style="font-size:10.5px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Rango de precio</span><span id="ed-price-range" style="font-size:15px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">'+priceRange()+'</span></div><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button><button class="lm-btn-primary" id="save-prod-btn" '+(canSave?'':'disabled')+' onclick="saveProduct()">'+icon('check',14)+' Guardar</button></div></div></aside></div>');
   // Mostrar la base clicable al abrir (antes solo se detectaba al escribir)
   checkBaseHint(p.desc||'');
 }catch(e){console.error('renderProductEditor error:',e);openOverlay('<div class="cc-overlay" style="display:flex;align-items:center;justify-content:center" onclick="closeOverlay()"><div style="background:#fff;padding:32px;border-radius:16px;max-width:420px;text-align:center"><div style="color:#EF4444;font-size:15px;font-weight:700;margin-bottom:12px">⚠️ Error al abrir editor</div><pre style="font-size:11px;color:#475569;text-align:left;white-space:pre-wrap">'+String(e)+'</pre><button onclick="closeOverlay()" style="margin-top:16px;padding:8px 18px;background:#5B6BFF;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">Cerrar</button></div></div>');}
