@@ -6119,3 +6119,15 @@ Sergio: la barra de experiencia quedo a la derecha y cortada; debe ir en el medi
 - **Arreglo 3 (peticion de Sergio)**: orden explicito — logo (0), saludo (1), botones/foto (2) con `margin-left:auto`, barra (3) en su fila. La foto queda de ultima en su fila pase lo que pase.
 
 **Medido en los tres tamaños**: en 390px la barra baja a su propia fila y ocupa los 354px completos, la foto termina en el borde derecho, cero piezas cortadas; en 360px igual (324 de 324); y en 1280px la barra **sigue en el medio**, entre el saludo y la foto, con su etiqueta "Tu nivel" — el computador quedo identico.
+
+## 181. El saludo del celular en UNA linea: "Hola, Sergio" (opcion B de Sergio, 17-ago)
+Sergio: el saludo quedaba raro, no cabia todo. Se le mostraron tres propuestas y eligio la **B**.
+- **El problema medido**: en 390px, entre el logo (38) y la foto (40), al saludo le quedan ~270px. Dos lineas ahi dejaban el nombre en 19px y la cabecera alta.
+- **La B**: una sola linea, "Hola, " + primer nombre, a 20px. El "Buenas noches/tardes" desaparece SOLO en el inicio (en las pantallas internas esa misma casilla lleva el nombre del restaurante, que ahi si sirve). En el COMPUTADOR se conserva el saludo por hora encima del nombre (26px): alli sobra ancho.
+- El "Hola," va en su propio span y **el nombre se escribe UNA sola vez**: dos versiones del mismo texto se desincronizan el dia que alguien cambie una.
+
+**DOS TROPIEZOS DE FLEXBOX, encontrados midiendo (no mirando):**
+1. `.ep-saludo-tx` sin `flex` crecia con el contenido: un nombre largo medía 269px y **la FOTO se caia a una segunda fila** (medido con "Maria Fernanda Restrepo" en 360px: tops 25 vs 72).
+2. Poner `flex: 1 1 auto` **no basto**: con `flex-wrap` activo el navegador decide partir la fila mirando el tamaño NATURAL del contenido, ANTES de intentar encogerlo. Hizo falta `flex: 1 1 0` (base cero) para que la casilla nunca fuerce el salto.
+- El logo y la foto llevan `flex-shrink: 0`: son de tamaño fijo y no ceden.
+- **Verificado**: en 390px "Hola, Sergio" en una linea de 20px, cabecera de 143px, foto en el borde (372/372); con nombre largo en 360px se recorta con puntos, no pisa la foto y la foto sigue en su fila; en 1280px el saludo por hora vuelve, el nombre a 26px y la barra en el medio — el computador identico.

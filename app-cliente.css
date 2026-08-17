@@ -174,6 +174,9 @@ html.tema-claro .ep-nav.on {
   font-weight: 700; font-size: 16px; color: var(--accent);
 }
 .ep-saludo-t { font-size: 13px; color: var(--sub); }
+/* El "Hola," solo existe en el celular: en el computador el saludo por hora ya
+   va encima del nombre y decir las dos cosas seria redundante. */
+.ep-hola { display: none; }
 .ep-saludo-n { font-size: 21px; font-weight: 600; letter-spacing: -.02em; }
 .ep-saludo-btns { margin-left: auto; display: flex; gap: 8px; }
 .ep-redondo {
@@ -1411,6 +1414,29 @@ button.ep-pub-foto { cursor: pointer; }
   /* La foto SIEMPRE de ultima en su fila (peticion de Sergio): el margen
      automatico la empuja al borde derecho pase lo que pase. */
   .ep-saludo-btns { order: 2; margin-left: auto; }
+
+  /* EL SALUDO EN UNA LINEA (opcion B). El "Buenas noches" desaparece SOLO en
+     el inicio: en las pantallas internas esa misma casilla lleva el nombre del
+     restaurante, que ahi si sirve. */
+  .ep-saludo:not(.ep-saludo--int) .ep-saludo-t { display: none; }
+  .ep-hola { display: inline; }
+  .ep-saludo:not(.ep-saludo--int) .ep-saludo-n {
+    font-size: 20px;
+    /* Un nombre largo se recorta con puntos en vez de empujar a la foto. */
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  /* La casilla del texto ES la que cede. Con `flex-wrap` activo, un nombre
+     largo no encogia: EMPUJABA, y la foto se caia a una segunda fila (medido
+     con "Maria Fernanda Restrepo" en 360px). Con `flex:1` + `min-width:0` se
+     encoge y el nombre se recorta con puntos, que es lo que debe pasar.
+     El logo y la foto NO ceden: son de tamaño fijo. */
+  /* `flex: 1 1 0` y NO `1 1 auto`: con `flex-wrap` activo el navegador decide
+     partir la fila mirando el tamaño NATURAL del contenido, antes de intentar
+     encogerlo. Con base `auto` un nombre largo medía 269px, no cabía, y la
+     FOTO se caía a una segunda fila. Con base 0 la casilla nunca fuerza el
+     salto: ocupa el hueco que sobre y el nombre se recorta con puntos. */
+  .ep-saludo-tx { flex: 1 1 0; min-width: 0; }
+  .ep-saludo-btns, .ep-hd-logo { flex-shrink: 0; }
   .ep-hd-logo { order: 0; }
   .ep-saludo > div:not(.ep-saludo-btns) { order: 1; min-width: 0; }
 }

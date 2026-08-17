@@ -699,9 +699,17 @@
       }).join('') : '<div class="ep-vacio">Aquí verás tus pedidos cuando hagas el primero.</div>') +
     '</div>';
 
+    /* EN EL CELULAR VA EN UNA SOLA LINEA: "Hola, Sergio" (opcion B de Sergio,
+       17-ago). Entre el logo y la foto le quedan ~270px de 390: dos lineas ahi
+       dejaban el nombre chiquito y la cabecera alta. En el computador sobra
+       ancho, asi que se conserva el saludo por hora encima del nombre.
+
+       El "Hola," va en su propio span y el nombre se escribe UNA sola vez: dos
+       versiones del mismo texto se desincronizan el dia que alguien cambie una. */
     return '<div class="ep-saludo">' + logoArriba() +
-        '<div><div class="ep-saludo-t">' + saludo + '</div>' +
-        '<div class="ep-saludo-n">' + esc((c.nombre || '').split(' ')[0] || 'Hola') + '</div></div>' +
+        '<div class="ep-saludo-tx"><div class="ep-saludo-t">' + saludo + '</div>' +
+        '<div class="ep-saludo-n"><span class="ep-hola">Hola, </span>' +
+          esc((c.nombre || '').split(' ')[0] || 'Hola') + '</div></div>' +
         rangoBarra(n) +
         botonesArriba() +
       '</div>' +
