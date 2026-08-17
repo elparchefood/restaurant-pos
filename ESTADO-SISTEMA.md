@@ -6055,3 +6055,15 @@ Maqueta mostrada y en revision. **Nada implementado todavia.** Solo para pantall
 5. Historial compacto igual al actual.
 6. **"Tu actividad" reducida a tarjetita** con mini-grafica.
 Decisiones pendientes de Sergio: (a) ¿carrusel o columna vertical en Para hoy? (b) ¿Tu actividad resumida o fuera del celular?
+
+## 176. Paco prometio un resumen que nunca llego (caso Kevin, 17-ago) — delay-reply v303
+Cliente real (573114015448): mando el pedido en formato de plantilla (PEDIDO / Direccion / Telefono), respondio "Ahi esta bien" al upsell, y Paco contesto "Con mucho gusto, en un momento te envio el resumen de tu pedido" — y ese resumen NUNCA salio. Sin resumen, sin pedido creado; Sergio tomo la conversacion.
+
+**CUATRO causas encadenadas, encontradas con el chivato en el banco** (marcar cada punto de envio con un numero «S39», «S44»... porque el panel de registros estaba caido):
+1. **"AHI esta bien" no cerraba el upsell.** La lista de rechazo conocia "asi esta" pero el cliente escribio AHI — error de dedo comunisimo. El upsell quedaba sin contestar y el turno caia al modelo. Se agregaron las formas genericas ("ahi esta bien", "esta bien", "todo bien", "ya con eso"...), seguras porque esa lista SOLO se consulta cuando el paso actual es el upsell.
+2. **"Telefono" quedo guardado como el NOMBRE del cliente.** La plantilla trae renglones-etiqueta ("Direccion", "Telefono") y el extractor tomo uno como nombre — Paco nunca pregunto el nombre. Regla nueva `ETIQUETA_PLANTILLA_RE` en las dos vias de extractNombre.
+3. **La entrega era a un LOCAL comercial ("local Crazy Ice")** → lugar publico → prepago → el efectivo se anula (regla de Sergio, correcta). Pero el mensaje que lo explica se le pedia AL MODELO... y el modelo prometio el resumen en vez de explicar el prepago. **Ahora es frase fija** (configurable `frases.publico_efectivo`), la misma leccion del 14i-bis y de llevar_efectivo: un mensaje critico del flujo no se le encarga a una moneda al aire.
+4. **Regla nueva en el prompt**: el modelo tiene PROHIBIDO prometer acciones ("en un momento te envio el resumen", "ya creo tu pedido") — el resumen y el pedido los manda el sistema, no el.
+
+- **Verificado en el banco** con la conversacion real: plantilla completa → "Ahi esta bien" avanza → pregunta el nombre (ya no "Telefono") → frase fija del prepago → "por transferencia entonces" → RESUMEN de verdad con total. Regresion: casa normal en efectivo sigue igual (resumen con $36.000, efectivo permitido).
+- **Metodo nuevo para el banco**: cuando no se sabe que rama contesto, se numeran los 45 puntos de envio («S1»...«S45») en la copia del banco y cada mensaje sale firmado. Dos intentos previos con un envoltorio de funcion tumbaron el banco con BOOT_ERROR — la concatenacion simple no puede romper nada.

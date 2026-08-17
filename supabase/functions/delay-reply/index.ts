@@ -164,6 +164,14 @@ const RECHAZO_UPSELL_WORDS = [
   "sin adicional","sin adicion","no, gracias","no quiero nada",
   "está bien así","no, así está","no quiero nada más",
   "no adicional","sin nada más","solo con eso","así va bien",
+  /* Caso real (Kevin, 17-ago): escribio "AHI esta bien" — con ahi, no asi. Es
+     error de dedo comunisimo y la lista no lo conocia: el upsell quedo sin
+     cerrar, el turno cayo al modelo y el modelo PROMETIO un resumen que nunca
+     llego. Estas formas genericas son seguras porque esta lista solo se
+     consulta CUANDO el paso actual es el upsell (isCurrentStep): ahi, "esta
+     bien" solo puede significar "no quiero nada mas". */
+  "ahi esta bien","ahi esta","esta bien","está bien","todo bien",
+  "asi esta bien","ya esta","ya con eso","con eso esta bien","dejalo asi",
 ];
 
 // Palabras GENÉRICAS de adición (mecánica general, sirven a cualquier restaurante).
@@ -3101,16 +3109,24 @@ INTENCION, no las palabras exactas.` },
       if (clasifDir.tipo === "publico" && clasifDir.requierePagoAdelantado) {
         const esEfectivo = !esMetodoDigital(state.pago || "", pagosCfg);
         if (esEfectivo) {
+          /* FRASE FIJA, no el modelo (caso real de Kevin, 17-ago). La entrega
+             era a un LOCAL comercial ("local Crazy Ice"): lugar publico ->
+             prepago -> el efectivo se anula. Todo eso estaba bien... pero el
+             mensaje que lo explica se le pedia al MODELO, y el modelo, en vez
+             de explicarlo, prometio "en un momento te envio el resumen" — un
+             resumen que el sistema jamas iba a mandar. El cliente quedo
+             esperando y Sergio tuvo que atender a mano.
+
+             Es la misma leccion del 14i-bis y de "para llevar + efectivo"
+             (frases.llevar_efectivo): un mensaje critico del flujo no se le
+             encarga a una moneda al aire. Frase configurable en Mensajes
+             (frases.publico_efectivo); esta es la de fabrica. */
           state.pago = null;
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
-          const reply = await buildConversationResponse(
-            clienteTexto, histCtx, state,
-            findNextStep(state, pasos, false, domiciliosCfg),
-            cfg, frasesCfg, menuText, horariosText, pagosText, domiciliosText, currentProductData,
-            true, nombreParaBot, colTimeStr, colDayStr, horaAperturaHoy, horaCierreHoy, proxDia, !!nombreKnown,
-          );
-          await sendWaAndSave(convId, tenantId, reply, fromPhone, phoneId, accessToken);
-          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: reply, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+          const msgPub = getFraseTexto(frasesCfg.publico_efectivo)
+            || "Para entregas en un lugar público o local, el pago se hace por transferencia antes del envío 🙏 ¿Te queda bien pagar por transferencia?";
+          await sendWaAndSave(convId, tenantId, msgPub, fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgPub, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
           return;
         }
       }
@@ -3930,6 +3946,22 @@ function detectarNombreWa(raw: string): string | null {
 // Frases que JAMÁS son un nombre (reclamos, referencias a mensajes anteriores)
 const NO_ES_NOMBRE_RE = /\b(ya\s+te\s+lo\s+dije|ya\s+lo\s+dije|ya\s+te\s+dije|ya\s+dije|te\s+lo\s+acabo|acabo\s+de\s+(decir|escribir)|ya\s+lo\s+escrib[ií]|ya\s+lo\s+mencion[eé]|lee\s+arriba|mira\s+arriba|revisa\s+arriba|m[aá]s\s+arriba|otra\s+vez|de\s+nuevo|no\s+s[eé]|el\s+mismo|la\s+misma|lo\s+mismo|llevar|recoger|domicilio|entrega|cocina)\b/i;
 
+/* UNA ETIQUETA DE PLANTILLA NO ES UN NOMBRE (caso real, Kevin 17-ago). Hay
+   clientes que mandan el pedido con formato de formulario:
+
+       PEDIDO +detalles
+       1 premium mixta de 35
+       Direccion
+       Carrera 9 ...
+       Telefono
+       3114015448
+
+   Cada renglon-etiqueta ("Telefono", "Direccion", "Pedido") es una linea
+   suelta con forma de nombre, y el extractor guardo nombre="Telefono": Paco
+   nunca pregunto el nombre y el pedido habria salido a nombre de Telefono.
+   Son palabras que NADIE tiene de nombre; se descartan completas. */
+const ETIQUETA_PLANTILLA_RE = /^\s*(tel[eé]fono|direcci[oó]n|pedido|pago|nombre|detalles?|cliente|barrio|celular|numero|n[uú]mero|datos|observaci[oó]n(es)?|nota s?)\s*[:.]?\s*$/i;
+
 /* UNA CORTESIA NO ES UN NOMBRE. Sergio mando la direccion en dos mensajes y
    remato con "porfa": el pedido quedo a nombre de "porfa". La lista de arriba
    tenia las excusas ("ya te lo dije", "lee arriba") pero no lo que la gente
@@ -3975,6 +4007,7 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
         if (SOLO_CORTESIA_RE.test(ln)) continue;
         if (esSoloConfirmacion(ln)) continue;
         if (esRechazoDeMas(ln)) continue;
+        if (ETIQUETA_PLANTILLA_RE.test(ln)) continue;   // "Telefono", "Direccion"...
         const lnNorm = normalizarTexto(ln);
         if (getAdicionKeywords().some(k => k.length >= 4 && new RegExp(`\\b${k}\\b`).test(lnNorm))) continue;
         if (extractPago(ln, null)) continue;
@@ -4001,6 +4034,7 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
   t = t.replace(/[.,;]+$/, "").trim();
   if (t.length < 2 || t.length > 60) return null;
   if (NO_ES_NOMBRE_RE.test(t)) return null;                              // reclamos/meta ("ya te lo dije")
+  if (ETIQUETA_PLANTILLA_RE.test(t)) return null;                        // "Telefono", "Direccion"...
   if (esSoloConfirmacion(t)) return null;                                // "si", "dale", "ok"…
   if (t.includes("?") || t.includes("¿")) return null;                   // preguntas no son nombres
   if (extractPago(t, null)) return null;
@@ -5854,6 +5888,12 @@ async function buildConversationResponse(
        ya me diste la direccion" — cuando se la estaba dando por primera vez. */
     "- Los datos del PEDIDO EN CURSO pueden venir del mensaje que ACABAS de recibir. JAMAS le digas al cliente que ya te habia dado un dato solo porque lo veas en esa lista: si te lo acaba de dar, agradecelo y sigue.",
     "- NUNCA repitas ni menciones los datos ya capturados en cada respuesta. El PEDIDO EN CURSO es solo tu contexto interno. Esos datos aparecen en el resumen final.",
+    /* Caso real (Kevin, 17-ago): el modelo contesto "en un momento te envio el
+       resumen de tu pedido" y ese resumen NUNCA salio — el resumen lo manda el
+       SISTEMA cuando el flujo llega alla, no el modelo. El cliente quedo
+       esperando y Sergio tuvo que entrar a mano. Prometer una accion que uno
+       no ejecuta es mentirle al cliente. */
+    "- JAMAS prometas acciones: no digas 'en un momento te envio el resumen', 'ya te mando el total', 'enseguida creo tu pedido' ni nada parecido. El resumen y el pedido los manda el sistema solo. Tu unico trabajo en cada turno es responder la duda del cliente y/o hacer LA pregunta del paso.",
     "- Cuando el cliente te dé un dato, confírmalo en máximo 2-3 palabras y pasa al siguiente paso. Usa '¡Perfecto! 🙌', 'Listo 👍', 'Claro ✅', 'Dale 🙌' — NUNCA uses 'Anotado'.",
     "- HAZ UNA SOLA PREGUNTA POR MENSAJE. Aunque falten varios datos, pregunta solo el siguiente en el flujo.",
     "- Responde brevemente al cliente solo si es necesario (pregunta, confusión). De lo contrario ve directo al siguiente paso.",

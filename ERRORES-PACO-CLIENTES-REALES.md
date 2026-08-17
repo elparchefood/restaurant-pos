@@ -13,7 +13,7 @@
 > un cliente real, se agrega AQUÍ su fila además de la entrada en
 > ESTADO-SISTEMA.md. Si esta lista se desactualiza, deja de servir.
 
-Última actualización: **17-ago-2026** · Errores resueltos: **19** · Abiertos: **2**
+Última actualización: **17-ago-2026 (noche)** · Errores resueltos: **20** · Abiertos: **2**
 
 ---
 
@@ -86,6 +86,7 @@ con volumen real durante 2-3 semanas.
 | 17 | 16-ago | Katerine, Adriana | Dijeron "puedo pasar por ella" / "para pasar a recogerlo" y Paco insistió con la dirección | LLEVAR_REGEX solo conocía verbos conjugados ("paso", "recojo"), no infinitivos | Reconocedor reescrito como lista con 50 casos de banco (27 sí / 23 no, incluidas las frases de PUNTOS que no deben confundirse) | 171 |
 | 18 | 16-ago | (la cocina) | Comandas de Paco con otro formato ("Salchipapa Premium · Familiar" vs "Familiar · Premium") | Paco anteponía el tipo de comida; la caja pone la presentación primero | `nombreComanda` con la fórmula exacta de la caja, en los DOS caminos; verificado en las 111 combinaciones del catálogo | 172 |
 | 19 | 17-ago | David | "Premium cuesta: familiar $0 y personal $0" | El precio de la Premium vive en la VARIANTE y `precioPuntual` solo leía la presentación (0 interno) | Lee el precio de donde vive + candado: $0 no se dice JAMÁS (si no se sabe, se pregunta lo que falta) | 173 |
+| 20 | 17-ago | Kevin | Prometió "en un momento te envío el resumen" y jamás llegó; sin pedido creado | Cuatro encadenadas: "AHÍ está bien" no cerraba el upsell · "Teléfono" (etiqueta de plantilla) quedó como nombre · entrega a un local = prepago, y ese mensaje lo redactaba el MODELO, que prometió en vez de explicar | Rechazos genéricos del upsell + etiquetas de plantilla nunca son nombre + frase FIJA del prepago (`frases.publico_efectivo`) + prohibido al modelo prometer acciones | 176 |
 
 ---
 
