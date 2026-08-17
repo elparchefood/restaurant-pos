@@ -922,6 +922,44 @@
   }
   addEventListener('resize', marcarTiraCats);
 
+  /* Una tarjeta de la carta. `i` es la posicion ORIGINAL del producto en su
+     categoria: es lo que usa `data-plato` para saber cual abrir, y por eso se
+     pasa aparte del orden en que se pintan. */
+  function platoHTML(p, i) {
+    /* Si tiene presentaciones (Personal / Familiar) el precio se muestra como
+       "desde": enseñar solo uno haría que el cliente se lleve una sorpresa. */
+    var pres = p.presentaciones || [];
+    var precio = Number(p.precio) || 0;
+    var desde = false;
+    if (pres.length) {
+      var mins = pres.map(function (x) { return Number(x.precio) || 0; }).filter(function (x) { return x > 0; });
+      if (mins.length) { precio = Math.min.apply(null, mins); desde = mins.length > 1; }
+    }
+    /* Tres formas de tarjeta (17-ago):
+         · ancha  · ocupa dos columnas y rompe la cuadricula
+         · agotada· hoy no hay: se ve en gris y NO se puede tocar. Antes
+                    desaparecia, y desaparecer no le enseNa al cliente que ese
+                    plato existe.
+         · normal · las demas */
+    var agotado = p.agotado === true;
+    var clases = 'ep-plato' + (p.grande ? ' ep-plato--ancho' : '') + (agotado ? ' ep-plato--agotado' : '');
+    return '<button class="' + clases + '"' +
+      (agotado ? ' disabled aria-disabled="true"' : ' data-plato="' + catActiva + '|' + i + '"') + '>' +
+      /* La medalla va DENTRO del marco de la foto: el CSS la coloca en
+         absoluto y su ancla es `.ep-plato-img`, que es lo unico posicionado.
+         Fuera de ahi se iria a la esquina de la pantalla.
+         ⚠️ Hasta hoy la carta NO pintaba medallas — solo las pintaba el banner
+         de inicio. Se marcaba un producto y no se veia por ningun lado. */
+      '<div class="ep-plato-img">' + (p.foto ? '<img src="' + esc(p.foto) + '" alt="" loading="lazy">' : ico('bolsa', 34)) +
+        medalla(p) +
+        (agotado ? '<span class="ep-agotado">Se acabó por hoy</span>' : '') + '</div>' +
+      '<div class="ep-plato-b">' +
+        '<div class="ep-plato-n">' + esc(p.nombre) + '</div>' +
+        (p.descripcion ? '<div class="ep-plato-d">' + esc(p.descripcion) + '</div>' : '') +
+        '<div class="ep-plato-p">' + (desde ? '<small>desde </small>' : '') + COP(precio) + '</div>' +
+      '</div></button>';
+  }
+
   // ── Carta ───────────────────────────────────────────────────────────
   function cuerpoCarta() {
     var cats = S.carta || [];
@@ -933,34 +971,18 @@
       return '<button class="ep-cat' + (i === catActiva ? ' on' : '') + '" data-cat="' + i + '">' + esc(x.categoria) + '</button>';
     }).join('') + '</div>';
 
-    var platos = '<div class="ep-platos">' + (c.productos || []).map(function (p, i) {
-      /* Si tiene presentaciones (Personal / Familiar) el precio se muestra como
-         "desde": enseñar solo uno haría que el cliente se lleve una sorpresa. */
-      var pres = p.presentaciones || [];
-      var precio = Number(p.precio) || 0;
-      var desde = false;
-      if (pres.length) {
-        var mins = pres.map(function (x) { return Number(x.precio) || 0; }).filter(function (x) { return x > 0; });
-        if (mins.length) { precio = Math.min.apply(null, mins); desde = mins.length > 1; }
-      }
-      /* Tres formas de tarjeta (17-ago):
-           · ancha  · un plato por categoria que rompe la cuadricula
-           · agotada· hoy no hay: se ve en gris y NO se puede tocar. Antes
-                      desaparecia, y desaparecer no le enseNa al cliente que
-                      ese plato existe.
-           · normal · las demas */
-      var agotado = p.agotado === true;
-      var clases = 'ep-plato' + (p.grande ? ' ep-plato--ancho' : '') + (agotado ? ' ep-plato--agotado' : '');
-      return '<button class="' + clases + '"' +
-        (agotado ? ' disabled aria-disabled="true"' : ' data-plato="' + catActiva + '|' + i + '"') + '>' +
-        '<div class="ep-plato-img">' + (p.foto ? '<img src="' + esc(p.foto) + '" alt="" loading="lazy">' : ico('bolsa', 34)) +
-          (agotado ? '<span class="ep-agotado">Se acabó por hoy</span>' : '') + '</div>' +
-        '<div class="ep-plato-b">' +
-          '<div class="ep-plato-n">' + esc(p.nombre) + '</div>' +
-          (p.descripcion ? '<div class="ep-plato-d">' + esc(p.descripcion) + '</div>' : '') +
-          '<div class="ep-plato-p">' + (desde ? '<small>desde </small>' : '') + COP(precio) + '</div>' +
-        '</div></button>';
-    }).join('') + '</div>';
+    /* LAS ANCHAS VAN PRIMERO (17-ago). Una tarjeta ancha en mitad de la lista
+       empuja lo que sigue a una fila nueva y deja un hueco detras: la fila de
+       arriba se queda con una sola tarjeta y el resto vacio. Poniendolas al
+       principio, la cuadricula se llena entera y lo unico que puede sobrar es
+       el final de la carta, que es lo normal.
+       Se conserva el indice ORIGINAL para `data-plato`: si se reordenara sin
+       el, tocar una tarjeta abriria otro plato. */
+    var enOrden = (c.productos || []).map(function (p, i) { return { p: p, i: i }; });
+    enOrden.sort(function (a, b) { return (b.p.grande ? 1 : 0) - (a.p.grande ? 1 : 0); });
+
+    var platos = '<div class="ep-platos">' +
+      enOrden.map(function (e) { return platoHTML(e.p, e.i); }).join('') + '</div>';
 
     var cerrado = (S.negocio && !S.negocio.abierto)
       ? '<div class="ep-aviso">' + esc(S.negocio.detalle || 'Ahora está cerrado') + '. ' +

@@ -1577,14 +1577,30 @@ button.ep-pub-foto { cursor: pointer; }
    Un plato por categoria ocupa la fila entera, con la foto al lado. Rompe el
    ritmo de dos en dos, que es lo que hace que el ojo se detenga. */
 .ep-plato--ancho {
-  grid-column: 1 / -1;
+  /* DOS COLUMNAS, NO LA FILA ENTERA (17-ago). Con `1 / -1` la tarjeta se
+     llevaba toda la fila y quedaba SOLA: en escritorio dejaba tres columnas
+     vacias, y ademas se le tenia que inventar un alto porque no tenia
+     hermanas con las que igualarse.
+     Ocupando dos columnas, en celular sigue siendo la fila completa (la
+     cuadricula tiene dos) y en escritorio comparte fila con tarjetas
+     normales — y la cuadricula le da el MISMO alto que a ellas, sola. */
+  grid-column: span 2;
   /* `display:flex` va explicito: la tarjeta normal es un boton de bloque, y
-     sin esto `flex-direction` no hace nada (es el mismo descuido que dejo los
-     numeros del paso a paso centrados). */
+     sin esto `flex-direction` no hace nada. */
   display: flex; flex-direction: row; align-items: stretch; text-align: left;
 }
 .ep-plato--ancho .ep-plato-img {
-  width: 44%; flex: none; aspect-ratio: auto; min-height: 118px;
+  /* Sin `min-height`: la foto se estira a lo que mida la tarjeta. Ese
+     min-height de 118px era lo que la dejaba mas baja que las demas. */
+  width: 44%; flex: none; aspect-ratio: auto; min-height: 0;
+}
+/* En celular la cuadricula tiene DOS columnas, asi que la ancha ocupa la fila
+   sola y no hay hermanas que le den el alto. Se calcula con la misma cuenta
+   que usa la cuadricula: (ancho de pantalla - 36 de margen - 12 de hueco) / 2
+   columnas, dividido por la proporcion de la foto, mas el alto del texto.
+   Medido: da 195 en una pantalla de 390, contra 196 de una tarjeta normal. */
+@media (max-width: 899px) {
+  .ep-plato--ancho { min-height: calc((100vw - 48px) / 2 / 1.55 + 86px); }
 }
 .ep-plato--ancho .ep-plato-b { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
 .ep-plato--ancho .ep-plato-n { font-size: 15px; }

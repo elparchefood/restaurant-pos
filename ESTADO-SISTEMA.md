@@ -6804,3 +6804,57 @@ borrado al terminar y el tenant demo devuelto a como estaba.
 |---|---|---|
 | Medalla, tarjeta grande, agotado | Sergio, en el editor | Al abrir la carta, o a los 3 min si ya estaba abierta |
 | Mas pedido | El sistema, con las ventas | Se recalcula en cada carga de la carta (60 dias, min. 10 unidades) |
+
+---
+
+## 190 — La tarjeta grande: alto igualado, sin huecos, y las medallas que no se veian (17-ago-2026)
+
+Sergio reporto dos cosas de la tarjeta grande: que quedaba mas BAJA que las
+normales, y que dejaba un HUECO en la fila de arriba. Las dos en celular y en
+escritorio.
+
+### Un arreglo resolvio las dos
+
+La causa comun era `grid-column: 1 / -1`: la tarjeta se llevaba la fila entera y
+quedaba SOLA. De ahi salian los dos sintomas:
+- **el hueco**, porque lo que venia antes se quedaba solo en su fila (en
+  escritorio con tres columnas vacias al lado);
+- **el alto**, porque sin hermanas en su fila la cuadricula no tenia con que
+  igualarla, y quedaba a merced de un `min-height: 118px` inventado.
+
+Ahora ocupa **dos columnas** (`grid-column: span 2`). En celular la cuadricula
+tiene dos, asi que se ve igual de ancha que antes; en escritorio comparte fila
+con tarjetas normales **y la cuadricula le da el mismo alto que a ellas, sola**.
+Se quito el `min-height` de la foto, que era lo que la achataba.
+
+Y las anchas se pintan **primero** dentro de su categoria, con lo que la
+cuadricula se llena entera: lo unico que puede sobrar es el final de la carta.
+Se conserva el indice ORIGINAL para `data-plato` — reordenar sin eso haria que
+tocar una tarjeta abriera otro plato. Verificado uno por uno.
+
+En celular la ancha sigue sin hermanas, asi que ahi si lleva alto propio, pero
+calculado con la MISMA cuenta que usa la cuadricula:
+`calc((100vw - 48px) / 2 / 1.55 + 86px)`. Medido: 196 contra 196 de una tarjeta
+normal.
+
+### Un hallazgo aparte: la carta NUNCA pinto medallas
+
+Al mover el codigo de la tarjeta a su propia funcion se vio que `medalla()` solo
+se llamaba desde el banner de inicio (`filaDeHoy`). **La cuadricula de la carta
+no la llamaba nunca**: se marcaba un producto y la medalla no aparecia por
+ningun lado. Ya se pinta, y va DENTRO de `.ep-plato-img`, que es lo unico
+posicionado: fuera de ahi el CSS absoluto la habria mandado a la esquina de la
+pantalla.
+
+**Verificado midiendo**, celular y cuatro anchos de escritorio:
+
+| | columnas | ancha | fila de la ancha | huecos |
+|---|---|---|---|---|
+| 390 | 2 | 196 | sola (fila propia) | 0 |
+| 900 | 3 | 253 | 253, 253 | 0 |
+| 1024 | 3 | 280 | 280, 280 | 0 |
+| 1280 | 4 | 270 | 270, 270, 270 | 0 |
+| 1600 | 4 | 276 | 276, 276, 276 | 0 |
+
+Mismo alto que sus vecinas en las cuatro anchuras de escritorio, cero huecos
+intermedios, cero desborde horizontal, y la medalla en la esquina de la foto.
