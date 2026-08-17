@@ -6369,3 +6369,42 @@ costado. Se intentaron dos caminos y los dos fallaron, con razon:
   ancha, no un hilo. Solo cayo el 5%, y las manchas siguen ahi.
 Con el arreglo del recorte ya no sale destrozada, pero para que quede como las
 otras cinco hay que volver a subirla desde una imagen limpia.
+
+---
+
+## 182 — El resplandor de la categoria activa se cortaba en seco (17-ago-2026)
+
+Sergio: "hay como un resplandor en cada categoria de la carta, pero abajo no se
+ve difuminado sino que se ve una linea".
+
+**Causa raiz, medida.** El resplandor (`box-shadow: 0 10px 24px`) baja **34px**
+por debajo del chip. La tira `.ep-cats` solo tenia **14px** de relleno abajo. Y
+la tira se desliza: al pedir `overflow-x: auto` el navegador pone tambien
+`overflow-y: auto` (verificado: el calculado daba `auto` en los dos ejes), asi
+que recorta TAMBIEN en vertical. Los 20px que sobraban se cortaban de golpe: eso
+era la linea. No era el degradado mal hecho — era el degradado partido.
+
+**Arreglo.** Darle sitio DENTRO de la tira y quitarselo por fuera, para que
+quepa entero sin mover nada de lo que hay alrededor:
+- `padding: 2px 18px 14px` -> `14px 18px 38px`
+- `margin: 0 -18px` -> `-12px -18px -24px`
+- Las cuentas: arriba `14-12 = 2`, abajo `38-24 = 14`. Identico a antes.
+- Escritorio igual: `margin: 0 0 16px` -> `-12px 0 -8px` (abajo `38-8 = 30`,
+  que es lo que habia: `14+16`).
+- `position: relative; z-index: 1` en la tira, para que pinte por ENCIMA de lo
+  que sigue: sin esto las tarjetas de los platos taparian la cola del
+  resplandor y volveria el borde duro, solo que 24px mas abajo.
+- La sombra pasa a dos capas (`0 8px 20px` + `0 2px 6px`): una sola sombra
+  grande se ve como una mancha, dos se ven como luz. De paso baja el alcance de
+  34 a 28px, con 10px de sobra dentro del relleno.
+
+**Verificado midiendo** en 390x760 y 1280x820: el resplandor cabe entero por
+arriba y por abajo en los dos tamaNos; los espacios que ve el usuario quedan
+identicos (saludo->chips 2px, chips->platos 14px en movil y 30px en escritorio,
+chips->aviso 26px); la tira sigue deslizandose en horizontal y no aparece
+barra vertical; sin desborde horizontal.
+
+**Un detalle sin consecuencia:** a los lados el resplandor alcanza 20px y hay
+18px de relleno, asi que se corta 2px — pero la tira sangra hasta el borde de
+la pantalla (`margin -18px`), de modo que esos 2px caen fuera de la pantalla y
+no se ven.
