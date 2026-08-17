@@ -1915,6 +1915,18 @@
     if (!d.ok) { aviso(d.mensaje || 'No pudimos guardar la dirección.', 'mal'); return false; }
     S.cliente = d.cliente;
     S.cuenta = null;                 // cambió la dirección: la cuenta se rehace
+
+    /* EL DOMICILIO SE DICE AQUI (17-ago). Antes el cliente se enteraba del
+       precio al final, armando ya el pedido. Ahora, al guardar la direccion:
+       si reconocemos el barrio se le dice cuanto cuesta llegarle, y si no, se
+       le dice la verdad — que se lo confirmamos — en vez de dejarlo creer que
+       el domicilio es gratis porque salio en cero. */
+    var dm = d.domicilio || null;
+    if (dm && dm.conocido) {
+      aviso('Listo. El domicilio a ' + esc(barrio || 'tu dirección') + ' cuesta ' + COP(dm.precio) + '.', 'bien');
+    } else if (dm) {
+      aviso('Dirección guardada. Te confirmamos el valor del domicilio antes de cobrarte.', 'bien');
+    }
     return true;
   }
   async function quitarDireccion(id) {

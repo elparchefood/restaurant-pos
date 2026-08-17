@@ -6908,3 +6908,73 @@ linea.**
 **Todo lo de prueba se borro**: pedido, items, solicitud, saldo, movimientos,
 puntos, sesiones y cliente; el tenant demo quedo con `slug` nulo y
 `web_activa` en false. Comprobado que El Parche no recibio nada.
+
+---
+
+## 192 — El domicilio se resuelve al guardar la direccion, no al pedir (17-ago-2026)
+
+Pedido de Sergio: que la pagina calcule el domicilio, que el barrio se compare
+al REGISTRARSE o al agregar una direccion (no al crear el pedido), y que le
+llegue un aviso cuando el barrio no se reconozca para ponerle precio.
+
+### Casi todo ya existia — se conecto, no se construyo
+
+Antes de escribir se reviso, y aparecio que:
+- Hay **8 zonas con mas de 120 barrios** cargados ($4.000 a $12.000).
+- `web-pedido` YA calculaba el domicilio, pero **al crear el pedido** y con
+  comparacion EXACTA: barrio que no estuviera identico → domicilio en $0.
+- `pos_domi_aprendidos` YA es el buzon de barrios desconocidos, y
+  **Configuracion → Domicilios YA tiene la pantalla de aprobacion de un clic**.
+- La campana del dashboard esta escrita para recibir fuentes nuevas.
+
+Asi que el trabajo real fue conectar las piezas, no inventarlas.
+
+### Lo que se hizo
+
+1. **`web-acceso` v18**: al guardar una direccion (y al crear la cuenta) se
+   resuelve el barrio y se devuelve `domicilio: {conocido, precio}`. Si no se
+   reconoce, se anota en `pos_domi_aprendidos` con `tipo:'nuevo'`, contando
+   cuantas veces lo han escrito.
+2. **La pagina** dice el precio al guardar: "El domicilio a Villa Melisa cuesta
+   $5.000", o "Te confirmamos el valor antes de cobrarte" si no se reconoce —
+   nunca dejarlo creer que es gratis porque salio en cero.
+3. **La campana** tiene una fuente nueva: "Barrio sin precio de domicilio ·
+   2 clientes lo han escrito · hoy se cobra en $0", que lleva a Configuracion →
+   Domicilios. Marcado urgente: mientras no tenga precio, es plata que se
+   pierde en cada pedido a ese barrio.
+
+### La comparacion es COPIA, no una reescritura
+
+`fuzzyBarrioMatch` y `normalizarTexto` se copiaron TAL CUAL de delay-reply. Dos
+comparadores distintos darian dos precios distintos para la misma direccion —
+uno en la pagina y otro en la comanda. Las funciones del servidor no comparten
+archivos (cada una se despliega sola), asi que la copia es el unico camino;
+queda anotado en ambos lados que si se toca alla, se toca aqui.
+
+⚠️ **El copiar-pegar se llevo la funcion que llama, no la llamada.**
+`fuzzyBarrioMatch` usa `levenshtein`, que no vino. La funcion devolvia **HTTP
+500** en cada intento de guardar una direccion. El smoke test de arranque NO lo
+detecto porque esa ruta responde antes de llegar al codigo nuevo.
+**Leccion: al copiar una funcion entre Edge Functions, listar sus llamadas y
+comprobar que todas existan en destino.** Se hizo con un barrido de
+identificadores despues del arreglo.
+
+**Verificado con los barrios REALES de El Parche**, 6 de 6:
+
+| Escribio | Direccion | Resultado |
+|---|---|---|
+| Villa Melisa | Villa Melisa casa 12 | $5.000 |
+| villa melissa | (mal escrito, minusculas) | $5.000 |
+| CAMPOBELLO | Cra 9 # 17-34 | $7.000 |
+| *(vacio)* | Calle 5 # 10-20, barrio Modelo | $8.000 — lo saco de la direccion |
+| el centro | Calle 4 # 6-20 | $9.000 — con articulo |
+| Reserva del Oeste | Reserva del oeste apto 207 | no conocido → anotado |
+
+**Limpieza**: el cliente y las 12 sesiones de prueba se borraron, y a "Reserva
+del Oeste" se le devolvio su `veces` original (la prueba lo habia subido a 2).
+
+### Pendiente relacionado
+
+`web-pedido` sigue comparando EXACTO al crear el pedido. Hoy no molesta porque
+el barrio ya viene resuelto desde que se guardo la direccion, pero deberia usar
+el mismo comparador para no dar dos respuestas distintas. **Anotado.**

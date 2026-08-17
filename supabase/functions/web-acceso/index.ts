@@ -202,6 +202,183 @@ async function sesionDe(token: string) {
 }
 
 // ── El cliente, con lo suyo ──────────────────────────────────────────
+/* ═══ EL PRECIO DEL DOMICILIO, AL GUARDAR LA DIRECCION (17-ago) ═══════════
+   Antes esto solo pasaba al CREAR el pedido: el cliente armaba todo y al final
+   se enteraba de cuanto costaba llegarle — o peor, el domicilio salia en cero
+   porque su barrio no estaba en la tabla, y alguien tenia que llamarlo.
+
+   Ahora se resuelve cuando guarda la direccion. Si el barrio se reconoce, el
+   precio queda decidido desde ese momento. Si no, se deja anotado para que el
+   dueNo le ponga precio, y a partir de ahi ya se sabe.
+
+   ⚠️ `normalizarTexto` y `fuzzyBarrioMatch` son COPIA EXACTA de delay-reply.
+   No se reescribieron a proposito: dos comparadores distintos darian dos
+   precios distintos para la misma direccion, y el cliente veria uno en la
+   pagina y otro en la comanda. Si se toca alla, se toca aqui.
+   (Las funciones del servidor no comparten archivos: cada una se despliega
+   sola, asi que la copia es el unico camino.) */
+function normalizarTexto(s: string): string {
+  return s.toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/* Copia de delay-reply tambien: `fuzzyBarrioMatch` la usa para tolerar
+   una letra de diferencia. Sin ella la funcion reventaba en tiempo de
+   ejecucion (500) — el copiar-pegar se llevo la que llama, no la llamada. */
+function levenshtein(a: string, b: string): number {
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prevDiag = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j];
+      prev[j] = a[i - 1] === b[j - 1] ? prevDiag : 1 + Math.min(prev[j], prev[j - 1], prevDiag);
+      prevDiag = tmp;
+    }
+  }
+  return prev[b.length];
+}
+
+function fuzzyBarrioMatch(direccion: string, barrio: string): boolean {
+  const dirNorm = normalizarTexto(direccion);
+  const barNorm = normalizarTexto(barrio);
+  if (!dirNorm || !barNorm) return false;
+
+  // 1) El nombre aparece tal cual. Este camino nunca fallo y se conserva.
+  if (dirNorm.includes(barNorm)) return true;
+  const dirSinEsp = dirNorm.replace(/[ ]/g, "");
+  const barSinEsp = barNorm.replace(/[ ]/g, "");
+  if (dirSinEsp.includes(barSinEsp)) return true;
+
+  // 2) Palabras de relleno de una direccion: aparecen en casi todas y no
+  //    pueden ser las que hagan coincidir un barrio. Sin esto, "Catay"
+  //    coincidia con el "casa" de "Monteluna casa 45".
+  const RELLENO: Record<string, boolean> = {
+    calle: true, carrera: true, cra: true, kra: true, cr: true, kr: true,
+    avenida: true, av: true, transversal: true, diagonal: true, via: true,
+    casa: true, apto: true, apartamento: true, torre: true, bloque: true,
+    manzana: true, mz: true, lote: true, piso: true, interior: true,
+    barrio: true, conjunto: true, edificio: true, urbanizacion: true,
+    norte: true, sur: true, este: true, oeste: true, numero: true, no: true,
+  };
+
+  const dirWords = dirNorm.split(" ").filter(w => w && !RELLENO[w] && !/^[0-9#-]+$/.test(w));
+  const barWords = barNorm.split(" ").filter(Boolean);
+  if (!dirWords.length || !barWords.length) return false;
+
+  // 3) Un barrio de UNA palabra corta exige coincidencia exacta: con "Catay"
+  //    o "Toez" cualquier tolerancia produce falsos.
+  if (barWords.length === 1 && barSinEsp.length <= 6) {
+    return dirWords.includes(barNorm);
+  }
+
+  // 4) Tolerancia estricta: 1 letra en palabras cortas, 2 solo en largas.
+  //    Antes una palabra de 5 letras admitia 2 cambios (40% de la palabra) y
+  //    por eso "calle" pasaba por "bella".
+  const cerca = (a: string, b: string): boolean => {
+    if (a === b) return true;
+    const maxDist = b.length >= 8 ? 2 : 1;
+    return levenshtein(a, b) <= maxDist;
+  };
+
+  // Cada palabra del barrio debe encontrar SU propia palabra en la direccion:
+  // dos palabras del barrio no pueden apoyarse en la misma.
+  const usadas: Record<number, boolean> = {};
+  const todasCoinciden = barWords.every(bw => {
+    if (bw.length <= 2) {
+      const i = dirWords.findIndex((dw, k) => !usadas[k] && dw === bw);
+      if (i < 0) return false;
+      usadas[i] = true;
+      return true;
+    }
+    const i = dirWords.findIndex((dw, k) => !usadas[k] && cerca(dw, bw));
+    if (i < 0) return false;
+    usadas[i] = true;
+    return true;
+  });
+  if (todasCoinciden) return true;
+
+  // 5) Nombre largo escrito de corrido o con erratas ("bellohorizonte").
+  //    Se mantiene, pero mas estricto: 1 error cada 10 letras.
+  if (barSinEsp.length >= 10) {
+    const L = barSinEsp.length;
+    const maxDist = Math.floor(L / 10);
+    for (let i = 0; i <= dirSinEsp.length - L; i++) {
+      if (levenshtein(dirSinEsp.slice(i, i + L), barSinEsp) <= maxDist) return true;
+    }
+  }
+  return false;
+}
+
+/* Busca el barrio de la tabla que mejor case con lo que escribio el cliente.
+   Se queda con el nombre MAS LARGO — "Bella Vista" antes que "Bella" — para no
+   cobrar la zona equivocada. Misma regla que usa Paco. */
+function zonaDeTexto(domicilios: Record<string, unknown> | null, texto: string) {
+  if (!domicilios || !texto) return null;
+  const zonas = (domicilios.zonas as Array<Record<string, unknown>>) || [];
+  let mejor: { barrio: string; precio: number } | null = null;
+  for (const z of zonas) {
+    const lista = ((Array.isArray(z.barrios) ? z.barrios : []) as string[])
+      .concat((Array.isArray(z.conjuntos) ? z.conjuntos : []) as string[]);
+    for (const b of lista) {
+      if (!b) continue;
+      if (fuzzyBarrioMatch(texto, b) && (!mejor || b.length > mejor.barrio.length)) {
+        mejor = { barrio: b, precio: Number(z.precio) || 0 };
+      }
+    }
+  }
+  return mejor;
+}
+
+/* Deja el barrio anotado para que el dueNo le ponga precio. Va a
+   `pos_domi_aprendidos`, que YA es el sitio donde caen los lugares que el
+   sistema no conocia y que ya tiene su pantalla de aprobacion en
+   Configuracion -> Domicilios. Se cuenta cuantas veces aparece: un barrio que
+   piden cinco personas importa mas que uno que pidio una. */
+async function anotarBarrioNuevo(tenantId: string, branchId: string, barrio: string, direccion: string) {
+  try {
+    const b = String(barrio || "").trim();
+    if (!b || b.length < 3 || b.length > 60) return;
+    const prev = await sbGet(
+      `/pos_domi_aprendidos?branch_id=eq.${branchId}&barrio=ilike.${encodeURIComponent(b)}&select=id,veces&limit=1`
+    ) as Array<Record<string, unknown>> | null;
+    const fila = prev?.[0];
+    if (fila?.id) {
+      await sbPatch(`/pos_domi_aprendidos?id=eq.${fila.id}`, {
+        veces: (Number(fila.veces) || 1) + 1, updated_at: new Date().toISOString(),
+      });
+    } else {
+      await sbPost(`/pos_domi_aprendidos`, {
+        tenant_id: tenantId, branch_id: branchId,
+        barrio: b, precio: 0, tipo: "nuevo", precio_tabla: null,
+        direccion: String(direccion || "").slice(0, 200),
+      });
+    }
+  } catch (e) { console.error("[acceso] barrio nuevo:", String(e).slice(0, 200)); }
+}
+
+/* Lo que la pagina necesita saber de una direccion recien guardada. */
+async function precioDeBarrio(tenantId: string, barrio: string, direccion: string) {
+  const brs = await sbGet(`/branches?tenant_id=eq.${tenantId}&select=id&order=created_at&limit=1`) as Array<Record<string, unknown>> | null;
+  const branchId = brs?.[0]?.id ? String(brs[0].id) : "";
+  if (!branchId) return { conocido: false, precio: 0 };
+  const cfg = await sbGet(`/ia_config?branch_id=eq.${branchId}&select=domicilios&limit=1`) as Array<Record<string, unknown>> | null;
+  const dom = (cfg?.[0]?.domicilios || null) as Record<string, unknown> | null;
+  /* Se busca en el barrio Y en la direccion completa: mucha gente escribe el
+     barrio dentro de la direccion y deja el campo del barrio vacio. */
+  const hallado = zonaDeTexto(dom, barrio) || zonaDeTexto(dom, direccion);
+  if (hallado) return { conocido: true, precio: hallado.precio, zona: hallado.barrio };
+  await anotarBarrioNuevo(tenantId, branchId, barrio || direccion, direccion);
+  return { conocido: false, precio: 0 };
+}
+
+
 async function fichaCliente(tenantId: string, clienteId: string) {
   const rows = await sbGet(`/pos_clientes?id=eq.${clienteId}&select=id,nombre,telefono,direccion,barrio,direcciones,foto_url&limit=1`) as Array<Record<string, unknown>> | null;
   const c = rows?.[0];
@@ -373,6 +550,16 @@ Deno.serve(async (req) => {
         await sbPatch(`/pos_clientes?id=eq.${s.cliente_id}`, {
           direcciones: conId, direccion: dirEnUso, barrio: barrioEnUso || fila.barrio || null,
           updated_at: new Date().toISOString(),
+        });
+
+        /* ESTE es el momento de resolver el domicilio, no el del pedido: el
+           cliente acaba de decir donde vive y tiene derecho a saber cuanto le
+           cuesta llegarle ANTES de armar nada. Si el barrio no se reconoce,
+           queda anotado para que el dueNo le ponga precio. */
+        const domi = await precioDeBarrio(String(s.tenant_id), barrioEnUso || "", dirEnUso);
+        return json({
+          ok: true, domicilio: domi,
+          cliente: await fichaCliente(String(s.tenant_id), String(s.cliente_id)),
         });
       } else {
         const id = String(b.id || "");
@@ -618,6 +805,14 @@ Deno.serve(async (req) => {
           clienteId = otra?.[0]?.id ? String(otra[0].id) : "";
         }
         if (!clienteId) return json({ ok: false, razon: "no_se_pudo", mensaje: "No pudimos crear tu cuenta. Intenta de nuevo." });
+      }
+
+      /* Al registrarse tambien: si puso direccion, el domicilio queda resuelto
+         desde el primer minuto. Si su barrio no esta en la tabla, queda
+         anotado para que el dueNo le ponga precio antes de que pida. */
+      if (direccion) {
+        try { await precioDeBarrio(tenantId, barrio, direccion); }
+        catch (e) { console.error("[acceso] domi al crear:", String(e).slice(0, 150)); }
       }
 
       const hash = await cifrarClave(clave);

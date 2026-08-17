@@ -100,6 +100,39 @@
     return items;
   }
 
+  /* BARRIOS SIN PRECIO DE DOMICILIO (17-ago).
+     Cuando un cliente guarda una direccion cuyo barrio no esta en la tabla de
+     zonas, queda anotado en `pos_domi_aprendidos` esperando que el dueNo le
+     ponga precio. La pantalla para aprobarlo YA existe (Configuracion →
+     Domicilios); lo que faltaba era enterarse sin ir a buscarlo.
+
+     Mientras nadie le ponga precio, ese domicilio se cobra en CERO: es plata
+     que el negocio esta perdiendo en cada pedido a ese barrio. Por eso va
+     como urgente. */
+  async function fuenteBarrios() {
+    var s = sb(); var items = [];
+    if (!s || !st().tenantId) return items;
+    try {
+      var r = await s.from('pos_domi_aprendidos')
+        .select('id, barrio, veces, direccion, updated_at, created_at, tipo')
+        .eq('tenant_id', st().tenantId)
+        .eq('tipo', 'nuevo')
+        .order('veces', { ascending: false }).limit(5);
+      (r.data || []).forEach(function (f) {
+        var n = Number(f.veces) || 1;
+        items.push({
+          id: 'barrio-' + f.id, tipo: 'solicitud',
+          titulo: 'Barrio sin precio de domicilio: ' + esc(f.barrio || ''),
+          sub: (n > 1 ? n + ' clientes lo han escrito' : 'Un cliente lo escribio')
+               + ' · hoy se cobra en $0',
+          cuando: f.updated_at || f.created_at,
+          ir: 'configuracion.html#domicilios', urgente: true,
+        });
+      });
+    } catch (e) {}
+    return items;
+  }
+
   /* Los primeros pasos de una cuenta nueva. Sin fecha: son estado, no evento.
      En cuanto el paso se cumple, desaparece de aquí solito. */
   async function fuentePrimerosPasos() {
@@ -184,7 +217,7 @@
 
   var _items = [];
   async function cargar() {
-    var listas = await Promise.allSettled([fuenteRecargas(), fuentePrimerosPasos()]);
+    var listas = await Promise.allSettled([fuenteRecargas(), fuenteBarrios(), fuentePrimerosPasos()]);
     _items = [];
     listas.forEach(function (r) { if (r.status === 'fulfilled') _items = _items.concat(r.value); });
     /* Lo urgente arriba; lo demás por fecha; los pasos van en su propio grupo. */
