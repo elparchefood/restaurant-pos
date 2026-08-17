@@ -6226,3 +6226,40 @@ no arrastra; agarrar y soltar sin mover no guarda nada; el desplazamiento
 automatico baja hasta el tope exacto y sube de vuelta a 0, se queda quieto en
 el medio, y el bucle se detiene al soltar. El agarre no se monta sobre el
 cuadro de color de la categoria (la primera version, flotante, si lo hacia).
+
+---
+
+## 179 — PWA clientes: aire bajo el aviso de cerrado y la tira de categorias (17-ago-2026)
+
+**1. El aviso de "estamos cerrados" montado en los platos.** `.ep-aviso` tenia
+`margin-top: 12px` y ningun margen abajo, asi que la parrilla de platos
+arrancaba pegada a el. Ahora `margin: 12px 0 20px`: abajo va mas aire que
+arriba, que es lo que separa un aviso de lo que viene despues.
+
+**2. La tira de categorias no decia que se desliza.** Si la ultima categoria
+quedaba justo por fuera, la tira parecia completa y no habia motivo para
+deslizar. Ahora el borde por donde HAY mas se desvanece, y el que ya no tiene
+nada mas queda limpio: al principio se desvanece solo la derecha, en el medio
+los dos lados, al final solo la izquierda, y si todas caben (escritorio) no se
+desvanece nada.
+
+Va con `mask-image` y no con un degradado pintado encima, porque encima habria
+que pintarlo del color del fondo — y el fondo cambia con el tema claro/oscuro.
+La mascara se aplica a la caja del elemento, asi que no se arrastra con el
+scroll.
+
+**3. Escoger una categoria de la derecha devolvia la tira al principio.** Tocar
+una categoria vuelve a pintar la pantalla entera, y la tira nace de nuevo en el
+arranque: el cliente deslizaba hasta SANDWICH, la tocaba, y la perdia de vista.
+Ahora se guarda donde iba antes de repintar y se restituye; ademas, si la
+escogida queda cortada contra un borde, se acomoda para verla entera. Lo de
+volver a su sitio es instantaneo y solo el acomodo va suave — con
+`scroll-behavior: smooth` puesto en el elemento se veia el salto al arranque y
+luego el deslizamiento de vuelta.
+
+**Verificado midiendo** en 390x760 y 1280x820 con las 7 categorias reales: el
+hueco aviso→platos pasa a 20px; los cuatro estados del desvanecido; y el ciclo
+completo (deslizar → tocar → repintar → restituir) en cuatro posiciones — al
+final tocando la ultima, a la mitad, sin deslizar, y tocando una que queda
+cortada contra el borde: en las cuatro la categoria escogida queda entera a la
+vista.

@@ -116,7 +116,6 @@ html.tema-claro .ep-msg--ok { color: #177a45; }
 
 .ep-cargando { min-height: 100%; display: grid; place-items: center; color: var(--dim); font-size: 14px; }
 
-
 /* ══════════════════════════════════════════════════════════════════════
    DENTRO — formas y medidas del handoff.
    Escritorio (≥900px): barra lateral de 250px + tablero en rejilla.
@@ -360,6 +359,22 @@ html.tema-claro .ep-tabs { background: rgba(255,255,255,.9); }
   margin: 0 -18px; scrollbar-width: none;
 }
 .ep-cats::-webkit-scrollbar { display: none; }
+/* El desvanecido va con mascara y no con un degradado encima, porque encima
+   habria que pintarlo del color del fondo — y el fondo cambia con el tema.
+   La mascara se aplica a la caja del elemento, asi que no se va con el scroll. */
+.ep-cats--mas-der {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 46px), transparent);
+          mask-image: linear-gradient(to right, #000 calc(100% - 46px), transparent);
+}
+.ep-cats--mas-izq {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 46px), transparent);
+          mask-image: linear-gradient(to left, #000 calc(100% - 46px), transparent);
+}
+.ep-cats--mas-izq.ep-cats--mas-der {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 46px, #000 calc(100% - 46px), transparent);
+          mask-image: linear-gradient(to right, transparent, #000 46px, #000 calc(100% - 46px), transparent);
+}
+
 .ep-cat {
   flex-shrink: 0; padding: 11px 15px; border-radius: 15px; cursor: pointer;
   background: var(--surf); border: 1px solid var(--line); color: var(--sub);
@@ -435,7 +450,10 @@ html.tema-claro .ep-dato { border-bottom-color: rgba(23,22,26,.08); }
 
 .ep-aviso {
   background: var(--surf); border: 1px solid var(--line); border-radius: 17px;
-  padding: 14px 16px; font-size: 13px; color: var(--sub); margin-top: 12px;
+  padding: 14px 16px; font-size: 13px; color: var(--sub);
+  /* Abajo va mas aire que arriba: pegado a los platos, el aviso de que estamos
+     cerrados parecia montado encima de la comida. */
+  margin: 12px 0 20px;
 }
 
 @media (min-width: 900px) {
@@ -643,7 +661,6 @@ html.tema-claro .ep-seg-full button.on { color: #fff; }
 }
 .ep-avatar-g.cargando { opacity: .5; pointer-events: none; }
 .ep-side-logo { overflow: hidden; }
-
 
 /* ══ TARJETAS SALDO Y PUNTOS — handoff corregido por Sergio (5-ago-2026) ══════
    Entra tal cual viene del diseño. La muesca NO es un relleno del color del
@@ -853,7 +870,6 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
 .ep-over .ep-wc-wrap > .ep-wcard,
 .ep-over .ep-pts-wrap > .ep-pts-hero { flex: 1; min-width: 0; }
 
-
 /* ══ PANTALLA DE PUNTOS — estilos del handoff ════════════════════════════════
    Tal cual vienen del prototipo. Van al final para que manden sobre lo viejo. */
 .ep-btn:active {transform:scale(.975)}
@@ -907,7 +923,6 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
    aspecto de algo que se pueda tocar para no prometer lo que no hace. */
 .ep-redeem .ep-btn { display: inline-flex; align-items: center; cursor: default; }
 
-
 /* ══ PANTALLA DE BILLETERA — estilos del handoff ═════════════════════════════ */
 .ep-field {display:flex;flex-direction:column;gap:7px}
 .ep-field>span {font-size:12px;font-weight:500;color:var(--sub);padding-left:3px}
@@ -936,7 +951,6 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
 }
 .ep-upload:hover { border-color: var(--accent); color: var(--accent); }
 @media (max-width: 480px) { .ep-montos { grid-template-columns: repeat(2, 1fr); } }
-
 
 /* ══ AVISOS ══════════════════════════════════════════════════════════════════
    Reemplazan al alert() del navegador. Usan los mismos tokens que el resto de
@@ -986,7 +1000,6 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
 .ep-preg .ep-in.malo { border-color: #EF4444; }
 .ep-preg-btns { display: flex; gap: 10px; margin-top: 4px; }
 .ep-preg-btns .ep-btn { flex: 1; margin: 0; }
-
 
 /* ══ HOJA POR PASOS ══════════════════════════════════════════════════════════
    Solo dos piezas nuevas: el rótulo del paso y el "Atrás". Los botones de
@@ -1040,7 +1053,6 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
   background: linear-gradient(to bottom, transparent, var(--surf, #fff) 30%);
 }
 
-
 /* ══ MODAL DE RECARGA ════════════════════════════════════════════════════════
    Reusa la caja del aviso; solo cambia lo de dentro. */
 .ep-rec-box { max-width: 330px; }
@@ -1062,7 +1074,6 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
 .ep-rec-fila b { font-variant-numeric: tabular-nums; }
 .ep-rec-fila.regalo b { color: #16A34A; }
 .ep-rec-pie { font-size: 12.5px; color: var(--sub, #787c8b); margin-bottom: 16px; }
-
 
 /* ══ BANNER ══════════════════════════════════════════════════════════════════
    Una sola imagen, de lado a lado y con las esquinas redondeadas. Si hay

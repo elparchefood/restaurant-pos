@@ -383,8 +383,30 @@
       b.addEventListener('click', function () { irA(b.dataset.ir); });
     });
     document.querySelectorAll('[data-cat]').forEach(function (b) {
-      b.addEventListener('click', function () { catActiva = Number(b.dataset.cat) || 0; pantallaDentro(); });
+      b.addEventListener('click', function () {
+        /* Escoger una categoria vuelve a pintar la pantalla entera, y la tira
+           de categorias nace de nuevo en el arranque. Si el cliente deslizo
+           hasta la ultima y la toco, la tira se le devolvia al principio y
+           perdia de vista la que acababa de escoger. Se guarda donde iba. */
+        var tira = b.parentElement;
+        var donde = tira ? tira.scrollLeft : 0;
+        catActiva = Number(b.dataset.cat) || 0;
+        pantallaDentro();
+        var nueva = document.querySelector('.ep-cats');
+        if (!nueva) return;
+        nueva.scrollLeft = donde;   // volver a donde iba: instantaneo, sin saltos
+        // Y si quedo cortada contra un borde, se acomoda para verla entera.
+        var on = nueva.querySelector('.ep-cat.on');
+        if (on) {
+          var izq = on.offsetLeft, der = izq + on.offsetWidth, aire = 18, meta = donde;
+          if (izq < donde + aire) meta = izq - aire;
+          else if (der > donde + nueva.clientWidth - aire) meta = der - nueva.clientWidth + aire;
+          if (meta !== donde) nueva.scrollTo({ left: meta, behavior: 'smooth' });
+        }
+        marcarTiraCats();
+      });
     });
+    prepararTiraCats();
     document.querySelectorAll('[data-salir]').forEach(function (b) {
       b.addEventListener('click', salir);
     });
@@ -838,6 +860,27 @@
       botonesArriba('<button class="ep-redondo" data-ir="inicio" title="Inicio">' + ico('home', 17) + '</button>') +
     '</div>';
   }
+
+  /* La tira de categorias se desliza, pero nada lo decia: si la ultima
+     categoria quedaba justo fuera, la tira parecia completa y el cliente no
+     tenia motivo para deslizar. Ahora el borde por donde hay mas se desvanece,
+     y el que ya no tiene nada mas queda limpio. */
+  function marcarTiraCats() {
+    var t = document.querySelector('.ep-cats');
+    if (!t) return;
+    var sobra = t.scrollWidth - t.clientWidth;
+    var hayIzq = sobra > 1 && t.scrollLeft > 4;
+    var hayDer = sobra > 1 && t.scrollLeft < sobra - 4;
+    t.classList.toggle('ep-cats--mas-izq', hayIzq);
+    t.classList.toggle('ep-cats--mas-der', hayDer);
+  }
+  function prepararTiraCats() {
+    var t = document.querySelector('.ep-cats');
+    if (!t) return;
+    t.addEventListener('scroll', marcarTiraCats, { passive: true });
+    marcarTiraCats();
+  }
+  addEventListener('resize', marcarTiraCats);
 
   // ── Carta ───────────────────────────────────────────────────────────
   function cuerpoCarta() {
