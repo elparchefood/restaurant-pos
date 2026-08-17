@@ -1450,3 +1450,37 @@ button.ep-pub-foto { cursor: pointer; }
 }
 .ep-mapa iframe { display: block; width: 100%; height: 100%; border: 0; }
 .tema-oscuro .ep-mapa iframe { filter: brightness(.88); }
+
+/* ===== INSTALAR LA APP / NOTIFICACIONES =====
+   Misma caja que los demas avisos, pero con el logo arriba: lo que se pide aqui
+   es confianza, y un cuadro sin cara no la da. */
+.ep-inst { text-align: left; max-width: 380px; }
+.ep-inst-cab { display: flex; align-items: center; gap: 13px; margin-bottom: 14px; }
+.ep-inst-ico {
+  width: 54px; height: 54px; border-radius: 15px; overflow: hidden; flex-shrink: 0;
+  background: var(--surf2); display: flex; align-items: center; justify-content: center;
+}
+.ep-inst-ico img { width: 100%; height: 100%; object-fit: cover; }
+.ep-inst-ico.campana { color: var(--accent); }
+.ep-inst-tit { font-size: 17px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+.ep-inst-sub { font-size: 12.5px; color: var(--sub); margin-top: 3px; }
+.ep-inst-por { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.ep-inst-por li { position: relative; padding-left: 20px; font-size: 13px; color: var(--sub); line-height: 1.35; }
+/* La palomita se dibuja con bordes, no con una imagen ni un emoji: pesa cero y
+   toma el color del tema sola. */
+.ep-inst-por li::before {
+  content: ''; position: absolute; left: 3px; top: 4px; width: 5px; height: 9px;
+  border: solid var(--accent); border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.ep-inst-pasos { display: flex; flex-direction: column; gap: 11px; margin-bottom: 16px; }
+.ep-inst-paso { display: flex; gap: 11px; align-items: flex-start; }
+.ep-inst-n {
+  width: 21px; height: 21px; border-radius: 999px; flex-shrink: 0;
+  background: var(--accent); color: #221602;
+  font-size: 11.5px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.ep-inst-p-t { font-size: 13.5px; line-height: 1.3; }
+.ep-inst-p-t b { font-weight: 700; }
+.ep-inst-p-s { font-size: 12px; color: var(--dim); margin-top: 2px; line-height: 1.35; }
+.ep-inst .ep-btn { width: 100%; justify-content: center; }
+.ep-inst .ep-btn--ghost { margin-top: 8px; }

@@ -5955,3 +5955,22 @@ El modal de apertura pedia un solo numero. Ahora la base se arma de tres sitios 
 - **El de mascara importa mas de lo que parece**: Android recorta el icono en circulo o en cuadrado redondeado segun el celular. Va con el logo al 75% para que el recorte no le muerda el borde. **Ese 75% se midio, no se eligio a ojo**: se calculo el radio real de los pixeles que no son fondo. Primero lo medi sobre el archivo ORIGINAL y me dio 538 de 767 — falso, porque el original tiene un degradado en las esquinas que el umbral leia como contenido. Medido sobre el archivo YA GENERADO da 178 px contra el limite de 205 de Android: cabe con holgura.
 - El logo salio del que ya estaba guardado en el almacen (757x767, la version buena; la que usa la pagina hoy es de 256). El fondo del margen se toma de la propia imagen para que no se vea el pegue.
 - **Service worker (que funcione sin internet): APLAZADO a proposito** (decision de Sergio). Es lo que mas se puede dañar y cachear mal deja a los clientes viendo precios viejos. Instalable primero.
+
+## 169. Instalar la pagina y las notificaciones (16-ago) — sw.js + web-acceso v15
+**EL PASO A PASO PARA INSTALAR.** Android y iPhone NO se instalan igual, y por eso es una pantalla y no un boton:
+- **Android** avisa al navegador que la pagina se puede instalar (`beforeinstallprompt`). Se FRENA el aviso propio del navegador (una barrita fea abajo) para mostrar el nuestro, que explica PARA QUE sirve, con un boton que instala de una.
+- **iPhone** no tiene esa señal ni ese boton: hay que decirle a la persona "toca Compartir → Agregar a inicio". Un boton que no hace nada seria peor que no ponerlo.
+- **Chrome en iPhone NO puede instalar** (solo Safari). Ahi no se ofrece nada: dejarlo intentando seria peor.
+- **Se ofrece cuando la persona YA ESTA ADENTRO**, a los 2,5 s, no al abrir: al abrir todavia no sabe que es esto y lo cierra sin leer.
+- **Un "ahora no" se respeta 7 dias.** Nunca mas seria perder a quien lo cerro sin leer; cada visita es acoso. Si dice que no al cuadro del propio navegador, se respeta igual.
+
+**LAS NOTIFICACIONES.** Sergio las pidio al abrir por primera vez la app instalada.
+- **NO se puede pedir el permiso sin poder mandar nada**: el navegador da UNA sola oportunidad de verdad, y si el cliente dice que no, no hay forma de volver a preguntar desde la pagina. Pedirlo "para despues" seria quemarlo.
+- Para mandar notificaciones hace falta un service worker — que es justo lo que habiamos aplazado. **La salida: un service worker SOLO de notificaciones, SIN cache.** El riesgo que Sergio queria evitar era el cache (un cliente viendo precios de hace tres dias sin enterarse). `sw.js` **no tiene un `fetch`**, asi que no guarda nada: todo sigue yendo a la red. El dia que se quiera funcionar sin internet, esa es OTRA decision y se agrega con cuidado — no se cuela por la puerta de atras.
+- **Se pide despues de explicar para que son**, con una pantalla propia. Un cuadro del sistema que salta de la nada casi siempre se cierra con "Bloquear".
+- **Solo con la app YA INSTALADA**: en iPhone las notificaciones web solo existen instalada. Y un "ahora no" NO le pregunta al navegador, asi el permiso queda intacto y se puede volver a ofrecer a los 14 dias.
+- **El ayudante se registra siempre que se pueda**, aunque no haya permiso: registrarlo tarda, y hacerlo justo cuando el cliente dice "sí" dejaria el permiso concedido y la suscripcion a medias.
+- **Tabla nueva `pos_web_push`** con la "direccion de entrega" de cada celular. La llave es el `endpoint`: el mismo celular no queda dos veces. Llaves VAPID generadas y guardadas como secretos (`VAPID_PUBLIC/PRIVATE/SUBJECT`); la publica va en la pagina y no sirve para enviar.
+- Nueva accion `push-suscribir` en web-acceso (v15). `sbPost` acepta ahora un `Prefer` extra, que es lo que necesita PostgREST para un upsert.
+- **FALTA EL QUE ENVIA**: hoy se guarda a quien avisarle, pero nada manda todavia. Los suscriptores se van acumulando desde ya, asi que cuando se construya el envio ya hay a quien mandarle.
+- **Probado pintando los tres modales con el codigo de verdad**: variante Android (boton Instalar), variante iPhone (3 pasos, sin boton falso) y la de notificaciones.

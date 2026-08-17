@@ -40,10 +40,12 @@ async function sbGet(path: string) {
   const r = await fetch(`${SUPABASE_URL}/rest/v1${path}`, { headers: H });
   return r.ok ? await r.json() : null;
 }
-async function sbPost(path: string, data: unknown, devolver = false) {
+async function sbPost(path: string, data: unknown, devolver = false, prefer = "") {
   const r = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
     method: "POST",
-    headers: { ...H, "Prefer": devolver ? "return=representation" : "return=minimal" },
+    /* `prefer` extra para los upsert: PostgREST necesita
+       "resolution=merge-duplicates" para no fallar si la fila ya existe. */
+    headers: { ...H, "Prefer": [devolver ? "return=representation" : "return=minimal", prefer].filter(Boolean).join(",") },
     body: JSON.stringify(data),
   });
   if (!r.ok) { console.error("sbPost", path, (await r.text()).slice(0, 300)); return null; }
@@ -395,6 +397,30 @@ Deno.serve(async (req) => {
       const url = `${SUPABASE_URL}/storage/v1/object/public/chat-media/${ruta}`;
       await sbPatch(`/pos_clientes?id=eq.${s.cliente_id}`, { foto_url: url, updated_at: new Date().toISOString() });
       return json({ ok: true, foto: url });
+    }
+
+    /* ── A QUIEN AVISARLE (16-ago) ─────────────────────────────────────
+       El celular que acepto notificaciones deja una "direccion de entrega" que
+       da el navegador. Se guarda atada al cliente para poder avisarle de SUS
+       pedidos, no de los de todos.
+
+       La llave es el endpoint: el mismo celular no puede quedar dos veces. Si
+       el cliente reinstala, llega uno nuevo y el viejo se cae solo cuando el
+       navegador lo rechace al enviar. */
+    if (accion === "push-suscribir") {
+      const s = await sesionDe(String(b.token || ""));
+      if (!s) return json({ ok: false, razon: "sesion_vencida" });
+      const endpoint = String(b.endpoint || "");
+      const p256dh = String(b.p256dh || ""), auth = String(b.auth || "");
+      if (!endpoint || !p256dh || !auth) return json({ ok: false, razon: "faltan_datos" });
+
+      /* Upsert por endpoint: si el celular ya estaba, se actualiza a que
+         cliente pertenece (puede que otra persona entre desde el mismo). */
+      await sbPost("/pos_web_push?on_conflict=endpoint", {
+        tenant_id: s.tenant_id, cliente_id: s.cliente_id,
+        endpoint, p256dh, auth,
+      }, false, "resolution=merge-duplicates");
+      return json({ ok: true });
     }
 
     // ── sesion / salir: no necesitan restaurante, el token ya lo dice ──

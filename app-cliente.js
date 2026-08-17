@@ -246,6 +246,7 @@
     carta: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20|M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z',
     wallet:'M21 12V7H5a2 2 0 0 1 0-4h14v4|M3 5v14a2 2 0 0 0 2 2h16v-5|M18 12a2 2 0 0 0 0 4h4v-4z',
     gift:  'M20 12v10H4V12|M2 7h20v5H2z|M12 22V7|M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z|M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z',
+    campana: 'M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9|M13.7 21a2 2 0 0 1-3.4 0',
     user:  'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2|M12 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8z',
     pin:   'M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z|M12 7a3 3 0 1 1 0 6 3 3 0 0 1 0-6z',
     plus:  'M12 5v14|M5 12h14',
@@ -301,7 +302,17 @@
       .catch(function () { pidiendoInicio = false; });
   }
 
+  /* Se ofrece UNA vez por visita, no en cada repintado: `pantallaDentro` se
+     llama cada vez que el cliente toca algo, y ofrecer en cada toque seria
+     insoportable. */
+  var yaOfreci = false;
   function pantallaDentro() {
+    if (!yaOfreci) {
+      yaOfreci = true;
+      registrarAyudante();
+      ofrecerInstalar();
+      ofrecerNotificar();
+    }
     var c = S.cliente || {};
     var n = c.nivel || null;
     var e = S.negocio || {};
@@ -1127,6 +1138,250 @@
 
      Devuelve una promesa: null si cancela, o un objeto con lo que escribió
      (o true si era solo una confirmación). */
+  /* ══ INSTALAR LA PAGINA EN EL CELULAR ═══════════════════════════════
+     Instalada se abre sin la barra del navegador, queda con su icono entre las
+     demas apps y —lo que de verdad importa— puede mandar notificaciones.
+
+     Android y iPhone NO se instalan igual, y esa es la razon de que esto sea
+     una pantalla propia y no un boton:
+       · Android avisa al navegador que la pagina se puede instalar
+         (beforeinstallprompt). Ahi hay un boton que instala de una.
+       · iPhone NO tiene esa señal ni ese boton: toca decirle a la persona
+         "toca Compartir y luego Agregar a inicio". Un boton que no hace nada
+         seria peor que no ponerlo.
+     Y si entra con Chrome en un iPhone no hay forma de instalar: solo Safari
+     puede. Decirselo es mas util que dejarlo intentando. */
+
+  var instalador = null;   // la señal de Android, si llega
+
+  function esIOS() {
+    return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+      /* iPad moderno se hace pasar por Mac; se le nota por la pantalla tactil. */
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+  function esSafari() {
+    var ua = navigator.userAgent;
+    return /safari/i.test(ua) && !/crios|fxios|edgios|chrome|android/i.test(ua);
+  }
+  function yaInstalada() {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+           navigator.standalone === true;
+  }
+  function esCelular() {
+    return /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent) ||
+           (window.innerWidth <= 820 && navigator.maxTouchPoints > 0);
+  }
+
+  window.addEventListener('beforeinstallprompt', function (e) {
+    /* Se frena el aviso propio del navegador (una barrita fea abajo) para
+       mostrar el nuestro, que explica PARA QUE sirve instalarla. */
+    e.preventDefault();
+    instalador = e;
+  });
+  window.addEventListener('appinstalled', function () {
+    instalador = null;
+    try { localStorage.setItem('ep-instalada', '1'); } catch (e) {}
+  });
+
+  /* Cuando volver a ofrecerlo si dijo "ahora no". Nunca mas seria perder a
+     quien lo cerro sin leer; insistir cada visita es acoso. */
+  var DIAS_ESPERA = 7;
+
+  function tocaOfrecer() {
+    if (!esCelular() || yaInstalada()) return false;
+    if (esIOS() && !esSafari()) return false;   // en iPhone solo Safari instala
+    try {
+      var v = Number(localStorage.getItem('ep-instalar-no') || 0);
+      if (v && (Date.now() - v) < DIAS_ESPERA * 864e5) return false;
+    } catch (e) {}
+    return true;
+  }
+
+  function pasosInstalar() {
+    if (esIOS()) {
+      return [
+        ['compartir', 'Toca <b>Compartir</b>', 'El cuadrito con la flecha hacia arriba, abajo en el centro.'],
+        ['mas', 'Busca <b>Agregar a inicio</b>', 'Deslízate hacia abajo en la lista de opciones.'],
+        ['ok', 'Toca <b>Agregar</b>', 'Listo: te queda con el logo entre tus aplicaciones.'],
+      ];
+    }
+    return [
+      ['mas', 'Toca los <b>tres puntos</b>', 'Arriba a la derecha, en el navegador.'],
+      ['ok', 'Elige <b>Instalar aplicación</b>', 'También puede decir “Agregar a pantalla de inicio”.'],
+    ];
+  }
+
+  function pantallaInstalar(forzado) {
+    var viejo = document.querySelector('.ep-aviso-cap');
+    if (viejo) viejo.remove();
+
+    var directo = !!instalador;   // en Android se puede instalar de un toque
+    var cap = document.createElement('div');
+    cap.className = 'ep-aviso-cap';
+    cap.innerHTML =
+      '<div class="ep-aviso-box ep-inst" role="dialog" aria-modal="true" aria-label="Instalar la aplicación">' +
+        '<div class="ep-inst-cab">' +
+          '<span class="ep-inst-ico"><img src="icono-192.png" alt=""></span>' +
+          '<div><div class="ep-inst-tit">Ten ' + esc(S.negocio && S.negocio.nombre || 'la carta') + ' a un toque</div>' +
+            '<div class="ep-inst-sub">Instálala en tu celular. Ocupa casi nada.</div></div>' +
+        '</div>' +
+        '<ul class="ep-inst-por">' +
+          '<li>Se abre sola, sin buscarla en el navegador</li>' +
+          '<li>Te avisamos cuando tu pedido va en camino</li>' +
+          '<li>Tus puntos y tu saldo siempre a la mano</li>' +
+        '</ul>' +
+        (directo
+          ? '<button class="ep-btn gold big ep-inst-ya" type="button">Instalar</button>'
+          : '<div class="ep-inst-pasos">' + pasosInstalar().map(function (p, i) {
+              return '<div class="ep-inst-paso"><span class="ep-inst-n">' + (i + 1) + '</span>' +
+                '<div><div class="ep-inst-p-t">' + p[1] + '</div>' +
+                '<div class="ep-inst-p-s">' + esc(p[2]) + '</div></div></div>';
+            }).join('') + '</div>') +
+        '<button class="ep-btn ep-btn--ghost ep-inst-no" type="button">' +
+          (directo ? 'Ahora no' : 'Entendido') + '</button>' +
+      '</div>';
+    document.body.appendChild(cap);
+
+    function cerrar(recordar) {
+      cap.remove();
+      /* Solo se apunta el "ahora no" cuando el cliente lo cierra el mismo. Si
+         se cierra porque acepto instalar, no hay nada que recordar. */
+      if (recordar) { try { localStorage.setItem('ep-instalar-no', String(Date.now())); } catch (e) {} }
+    }
+    cap.querySelector('.ep-inst-no').onclick = function () { cerrar(!forzado); };
+    cap.addEventListener('click', function (ev) { if (ev.target === cap) cerrar(!forzado); });
+
+    var ya = cap.querySelector('.ep-inst-ya');
+    if (ya) ya.onclick = async function () {
+      var ev = instalador;
+      if (!ev) { cerrar(true); return; }
+      instalador = null;
+      cerrar(false);
+      try {
+        ev.prompt();
+        var r = await ev.userChoice;
+        /* Si dijo que no al cuadro del navegador, se respeta igual que si
+           hubiera cerrado el nuestro: nada de volver a preguntar mañana. */
+        if (r && r.outcome !== 'accepted') {
+          try { localStorage.setItem('ep-instalar-no', String(Date.now())); } catch (e) {}
+        }
+      } catch (e) { console.error('[instalar]', e); }
+    };
+  }
+
+  /* Se ofrece cuando la persona YA ESTA ADENTRO, no al abrir. Al abrir todavia
+     no sabe que es esto y lo cierra sin leer; despues de entrar ya vio sus
+     puntos y la oferta tiene sentido. */
+  function ofrecerInstalar() {
+    if (!tocaOfrecer()) return;
+    setTimeout(function () { if (tocaOfrecer()) pantallaInstalar(false); }, 2500);
+  }
+
+  /* ══ LAS NOTIFICACIONES ═════════════════════════════════════════════
+     Se piden UNA sola vez y solo con la aplicacion YA INSTALADA. Dos razones:
+       · el navegador da una sola oportunidad de verdad — si dice que no, no
+         hay forma de volver a preguntar desde la pagina;
+       · en iPhone las notificaciones web SOLO existen si esta instalada.
+     Y se piden despues de explicar para que son: un cuadro del sistema que
+     salta de la nada casi siempre se cierra con "Bloquear". */
+  function pantallaNotificar() {
+    var cap = document.createElement('div');
+    cap.className = 'ep-aviso-cap';
+    cap.innerHTML =
+      '<div class="ep-aviso-box ep-inst" role="dialog" aria-modal="true">' +
+        '<div class="ep-inst-cab"><span class="ep-inst-ico campana">' + ico('campana', 26) + '</span>' +
+          '<div><div class="ep-inst-tit">¿Te avisamos?</div>' +
+          '<div class="ep-inst-sub">Solo lo importante de tus pedidos.</div></div></div>' +
+        '<ul class="ep-inst-por">' +
+          '<li>Cuando confirmamos tu pedido</li>' +
+          '<li>Cuando sale para tu casa</li>' +
+          '<li>Cuando ganas puntos o tienes un premio listo</li>' +
+        '</ul>' +
+        '<button class="ep-btn gold big ep-not-si" type="button">Sí, avísenme</button>' +
+        '<button class="ep-btn ep-btn--ghost ep-not-no" type="button">Ahora no</button>' +
+      '</div>';
+    document.body.appendChild(cap);
+
+    function cerrar() { cap.remove(); }
+    cap.querySelector('.ep-not-no').onclick = function () {
+      /* Un "ahora no" NO se le pregunta al navegador: asi el permiso queda
+         intacto y se le puede volver a ofrecer mas adelante. */
+      try { localStorage.setItem('ep-notif-no', String(Date.now())); } catch (e) {}
+      cerrar();
+    };
+    cap.querySelector('.ep-not-si').onclick = async function () {
+      cerrar();
+      try {
+        var permiso = await Notification.requestPermission();
+        try { localStorage.setItem('ep-notif-pedido', '1'); } catch (e) {}
+        if (permiso === 'granted') await suscribirPush();
+      } catch (e) { console.error('[notif]', e); }
+    };
+  }
+
+  function tocaNotificar() {
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) return false;
+    if (!yaInstalada()) return false;                  // en iPhone solo instalada funciona
+    if (Notification.permission !== 'default') return false;   // ya decidio
+    try {
+      if (localStorage.getItem('ep-notif-pedido')) return false;
+      var v = Number(localStorage.getItem('ep-notif-no') || 0);
+      if (v && (Date.now() - v) < 14 * 864e5) return false;
+    } catch (e) {}
+    return true;
+  }
+  function ofrecerNotificar() {
+    if (!tocaNotificar()) return;
+    setTimeout(function () { if (tocaNotificar()) pantallaNotificar(); }, 3500);
+  }
+
+  /* La llave publica del servidor. Es publica de verdad: sirve para que el
+     navegador sepa a quien le va a permitir mandar avisos a este celular, y no
+     sirve para mandarlos — eso necesita la privada, que vive solo en el
+     servidor y nunca sale de ahi. */
+  var LLAVE_PUSH = 'BKo8A7QSgRUy8uamhUiFUNl_moyGn4lLCRdb7hxG-4OegZibl7g3KdPqRQYBTKHXhe33D2gILr1jPNocTExwSxg';
+
+  function llaveABytes(b64) {
+    var relleno = '='.repeat((4 - b64.length % 4) % 4);
+    var limpio = (b64 + relleno).replace(/-/g, '+').replace(/_/g, '/');
+    var crudo = atob(limpio), a = new Uint8Array(crudo.length);
+    for (var i = 0; i < crudo.length; i++) a[i] = crudo.charCodeAt(i);
+    return a;
+  }
+
+  /* El ayudante se registra SIEMPRE que se pueda, aunque todavia no haya
+     permiso: registrarlo tarda y hacerlo justo cuando el cliente dice "sí"
+     dejaría el permiso concedido y la suscripción a medias. */
+  async function registrarAyudante() {
+    if (!('serviceWorker' in navigator)) return null;
+    try {
+      return await navigator.serviceWorker.register('sw.js', { scope: './' });
+    } catch (e) { console.error('[sw]', e); return null; }
+  }
+
+  async function suscribirPush() {
+    try {
+      var reg = await navigator.serviceWorker.ready;
+      var sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          /* Obligatorio: sin esto el navegador permitiría avisos silenciosos y
+             Chrome directamente lo rechaza. */
+          userVisibleOnly: true,
+          applicationServerKey: llaveABytes(LLAVE_PUSH),
+        });
+      }
+      var j = sub.toJSON();
+      await fetch(ACCESO, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accion: 'push-suscribir', token: leerToken(), slug: S.slug,
+          endpoint: j.endpoint, p256dh: j.keys && j.keys.p256dh, auth: j.keys && j.keys.auth,
+        }),
+      });
+    } catch (e) { console.error('[push]', e); }
+  }
+
   function preguntar(opciones) {
     var o = opciones || {};
     var campos = o.campos || [];
