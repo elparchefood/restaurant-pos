@@ -6408,3 +6408,53 @@ barra vertical; sin desborde horizontal.
 18px de relleno, asi que se corta 2px — pero la tira sangra hasta el borde de
 la pantalla (`margin -18px`), de modo que esos 2px caen fuera de la pantalla y
 no se ven.
+
+---
+
+## 183 — Texto invisible en modo oscuro: variables de color que no existian (17-ago-2026)
+
+Sergio: "en modo oscuro, al tomar un pedido, la parte que ofrece las adiciones
+no se ve bien la letra".
+
+**Causa raiz.** La hoja arrastraba nombres de variables de OTRA paleta que nunca
+se definieron aqui: `--txt`, `--card`, `--card2`, `--marca`, `--fondo`, `--r`.
+Cuando una variable no existe, CSS usa el valor de respaldo — y esos respaldos
+eran de tema CLARO (`#14141a`, `#fff`). En modo oscuro quedaba texto casi negro
+sobre fondo casi negro. **No fallaba nada, simplemente se veia mal, y solo en
+uno de los dos temas**, que es justo lo que hace que estos errores duren meses.
+
+En vez de parchar la linea del pantallazo se buscaron TODAS: se listaron las
+variables definidas y las usadas, y se cruzaron. Salieron 8, no 1.
+
+| Variable fantasma | Donde | Que se veia | Ahora |
+|---|---|---|---|
+| `--txt` (x5) | paso, "Atras", invitacion a adicionar, aviso, fila de direccion | texto casi negro en oscuro | `--ink` |
+| `--card` | fondo del cuadro de aviso | blanco en modo oscuro | `--surf` |
+| `--card2` | fondo de la invitacion a adicionar | gris fijo, sin tema | `--surf2` |
+| `--marca` | circulito de la camara sobre la foto | **morado** #7C5CFF, que no es de esta marca | `--wine` |
+| `--fondo` | borde de ese circulito | blanco fijo | `--surf` |
+| `--r` | radio de `.ep-card` (tarjeta de Recargar) | **esquinas cuadradas** entre puras redondeadas | `18px` |
+| `--oro` (en el .js) | "· en uso" de la direccion | sin color, heredaba | `--accent` |
+
+**Verificado midiendo el contraste real** (relacion WCAG entre el color del
+texto y el fondo opaco que tiene detras) en los dos temas. Todo por encima de
+4.5:1, que es el minimo para texto normal:
+
+| | oscuro | claro |
+|---|---|---|
+| "Paso 3 de 3" | 6.52 | 6.38 |
+| titulo del paso | 17.02 | 18.01 |
+| "Adiciones Familiares" | 15.91 | 15.71 |
+| "Toca si quieres agregar algo" | 6.09 | 5.57 |
+| "Atras" | 6.52 | 6.38 |
+
+Antes, el titulo de la invitacion daba practicamente 1:1 — invisible.
+
+**Queda una fantasma a proposito:** `--hero-foto`, en la regla
+`.ep-hero.con-foto::before`. La clase `con-foto` no se aNade en ningun sitio del
+proyecto, asi que esa regla no puede dispararse nunca. Se deja como esta: es
+codigo muerto, no un error visible.
+
+**Regla para no repetirlo:** hay un aviso escrito en `app-cliente.css`, junto a
+la paleta. Los nombres buenos son `--ink --sub --dim --surf --surf2 --line
+--accent --wine`. Antes de escribir `var(--algo)`, comprobar que exista.

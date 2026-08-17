@@ -1746,7 +1746,7 @@
               var usando = normDirJS(d.dir) === normDirJS(c.direccion);
               return '<div class="ep-dato ep-dir-fila">' +
                 '<span>' + esc(d.dir) + (d.barrio ? ' <span style="opacity:.6">· ' + esc(d.barrio) + '</span>' : '') +
-                  (usando ? ' <b style="color:var(--oro)">·  en uso</b>' : '') + '</span>' +
+                  (usando ? ' <b style="color:var(--accent)">·  en uso</b>' : '') + '</span>' +
                 '<button class="ep-link ep-dir-x" data-dirquitar="' + esc(d.id) + '" title="Quitar">Quitar</button>' +
               '</div>';
             }).join('')
