@@ -6523,3 +6523,48 @@ temporal que se borro al terminar: devuelve
 
 **Nota:** la API de Supabase reporto ACTIVE; se hizo smoke test aparte porque
 tambien reporta ACTIVE con BOOT_ERROR.
+
+---
+
+## 185 — El paso a paso de la recarga, en una hoja (17-ago-2026)
+
+Sergio: que el bloque de datos de pago sea tocable y abra un paso a paso muy
+explicito, "pero en un modal, para que esa informacion no estorbe en la
+pantalla". Se le mostraron tres opciones; escogio la que lleva la llave con
+boton de copiar, conservando los subtitulos de la version en lista.
+
+**Lo que se hizo:**
+- `.ep-pay` pasa de `<div>` a `<button>`: asi tambien se abre con el teclado y
+  el lector de pantalla lo anuncia como algo que se toca. Lleva la seNal
+  "¿Cómo recargo?" en el encabezado — sin ella el bloque parece un recuadro
+  muerto y nadie descubre el instructivo.
+- La hoja reutiliza `.ep-scrim` + `.ep-sheet`, la misma que ya usa la carta:
+  ni un patron nuevo que mantener.
+- Cuatro pasos numerados unidos por una linea. El paso 2 trae la llave grande
+  con boton **Copiar**: transcribir diez digitos a mano es donde de verdad se
+  pierde una transferencia, y esa la termina resolviendo Sergio.
+- Los datos salen de `S.pago`, nunca escritos aqui: cada restaurante tiene su
+  cuenta. Si no hay llave ni numero, el paso 2 sale sin la tarjeta.
+- Copiar SIN cuadros del navegador (regla de Sergio): el propio boton dice
+  "Copiado". Con respaldo por `execCommand`, porque el portapapeles moderno no
+  existe fuera de https ni en navegadores viejos.
+- Cierra tocando fuera, con "Entendido" o con Escape, y no se duplica si se
+  toca dos veces seguidas.
+
+**Un arreglo que salio de medir:** en una pantalla de 560px la hoja se desplaza
+y el boton "Entendido" quedaba por debajo del borde. El pie ahora va pegado
+abajo (`sticky`), con fondo opaco para tapar los pasos que pasan por detras.
+Verificado: el boton se queda en el mismo sitio con la hoja arriba, a la mitad
+y al final.
+
+⚠️ **Trampa al verificar, para la proxima:** la primera medicion dijo que el pie
+no se pegaba. Era falso — la hoja todavia estaba corriendo su animacion de
+entrada (`subir .26s`) cuando se midio. **Al medir una hoja o un modal, esperar
+a que termine la animacion**, si no las coordenadas son las del camino, no las
+del destino.
+
+**Verificado midiendo** en 390x800 y 360x560, en los dos temas: contenido y
+subtitulos correctos, la llave y el titular reales, copiar funciona, los tres
+modos de cierre funcionan, no se duplica, cero desborde horizontal, y todos los
+textos por encima de 4.5:1 (lo mas bajo: la seNal "¿Cómo recargo?" en tema
+claro, 4.92).

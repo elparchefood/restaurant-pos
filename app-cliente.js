@@ -429,6 +429,8 @@
         refrescarBono();
       });
     });
+    var pasos = $('rc-pasos');
+    if (pasos) pasos.addEventListener('click', abrirPasos);
     var otro = $('rc-otro');
     if (otro) {
       /* EN VIVO, TECLA A TECLA (pedido de Sergio). El que escribe su propio
@@ -1145,6 +1147,87 @@
     '</div>';
   }
 
+  /* EL PASO A PASO (17-ago, disenado con Sergio).
+     Vive en una hoja que se abre tocando el bloque de datos de pago, y no
+     suelto en la pantalla: quien ya sabe recargar no tiene por que leerlo cada
+     vez. El paso 2 trae la llave grande con boton de copiar — transcribir diez
+     digitos a mano es donde de verdad se pierde una transferencia. */
+  function pasosRecarga() {
+    var p = S.pago || {};
+    var destino = p.llave || p.numero || '';
+    var via = p.llave ? 'Nequi' : (p.entidad || 'transferencia');
+
+    var llave = destino
+      ? '<div class="ep-llave">' +
+          '<div class="ep-llave-lb">' + (p.llave ? 'Llave' : esc(p.entidad || 'Cuenta')) + '</div>' +
+          '<div class="ep-llave-fila">' +
+            '<span class="ep-llave-n">' + esc(destino) + '</span>' +
+            '<button class="ep-copiar" type="button" data-copiar="' + esc(destino) + '">Copiar</button>' +
+          '</div>' +
+          (p.titular ? '<div class="ep-llave-t">' + esc(p.titular) + '</div>' : '') +
+        '</div>'
+      : '';
+
+    var pasos = [
+      ['Elige cuánto quieres recargar', 'Ahí mismo ves cuánto te regalamos', ''],
+      ['Transfiere por ' + esc(via), '', llave],
+      ['Toma foto del comprobante y súbela', 'Con el botón “Adjuntar comprobante”', ''],
+      ['Toca “Enviar recarga”', 'Tu saldo entra apenas verifiquemos el pago', '']
+    ];
+
+    return '<div class="ep-tirador"></div>' +
+      '<div class="ep-pasos-t">Cómo recargar</div>' +
+      '<div class="ep-pasos">' + pasos.map(function (x, i) {
+        return '<div class="ep-paso">' +
+          '<span class="ep-paso-n">' + (i + 1) + '</span>' +
+          '<div class="ep-paso-b"><div class="ep-paso-tt">' + x[0] + '</div>' +
+            (x[1] ? '<div class="ep-paso-d">' + x[1] + '</div>' : '') + x[2] +
+          '</div></div>';
+      }).join('') + '</div>' +
+      /* El pie va pegado abajo: en una pantalla corta la hoja se desplaza y el
+         boton de cerrar quedaba por debajo del borde. */
+      '<div class="ep-pasos-pie">' +
+        '<button class="ep-btn gold big" type="button" data-cerrar-pasos>Entendido</button>' +
+      '</div>';
+  }
+
+  function abrirPasos() {
+    if (document.querySelector('.ep-scrim.pasos')) return;
+    var d = document.createElement('div');
+    d.className = 'ep-scrim pasos';
+    d.innerHTML = '<div class="ep-sheet">' + pasosRecarga() + '</div>';
+    document.body.appendChild(d);
+
+    function cerrar() {
+      d.remove();
+      document.removeEventListener('keydown', porTecla);
+    }
+    function porTecla(ev) { if (ev.key === 'Escape') cerrar(); }
+    document.addEventListener('keydown', porTecla);
+    d.addEventListener('click', function (ev) {
+      if (ev.target === d || ev.target.hasAttribute('data-cerrar-pasos')) cerrar();
+    });
+
+    var bc = d.querySelector('[data-copiar]');
+    if (bc) bc.addEventListener('click', function () {
+      var txt = bc.dataset.copiar;
+      /* Sin cuadros del navegador: el propio boton dice que copio. Y con
+         respaldo, porque el portapapeles moderno no existe fuera de https ni
+         en navegadores viejos. */
+      function listo() { bc.textContent = 'Copiado'; setTimeout(function () { bc.textContent = 'Copiar'; }, 1500); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(listo, respaldo);
+      } else respaldo();
+      function respaldo() {
+        var a = document.createElement('textarea');
+        a.value = txt; a.style.position = 'fixed'; a.style.opacity = '0';
+        document.body.appendChild(a); a.select();
+        try { document.execCommand('copy'); listo(); } catch (e) {}
+        a.remove();
+      }
+    });
+  }
+
   /* POR QUE EL BOTON ESTA APAGADO (17-ago). Debajo del minimo el boton de
      enviar se deshabilitaba y ya: el cliente veia un boton muerto sin ninguna
      explicacion y no tenia como adivinar que le faltaba plata. Un control
@@ -1230,12 +1313,16 @@
        otro lado. Si no estan configurados, no se muestra el formulario. */
     var datos = '';
     if (pago.llave || pago.numero) {
-      datos = '<div class="ep-pay"><h4>Datos de pago</h4>' +
+      /* TODO el bloque abre el paso a paso (pedido de Sergio). Va como <button>
+         y no como <div> con un onclick: asi tambien se abre con el teclado y el
+         lector de pantalla lo anuncia como algo que se toca. */
+      datos = '<button type="button" class="ep-pay" id="rc-pasos">' +
+        '<h4>Datos de pago <span class="ep-pay-como">¿Cómo recargo?</span></h4>' +
         (pago.llave   ? '<div class="ep-pay-row"><span>Llave / Nequi</span><b>' + esc(pago.llave) + '</b></div>' : '') +
         (pago.numero  ? '<div class="ep-pay-row"><span>' + esc(pago.entidad || 'Cuenta') + '</span><b>' + esc(pago.numero) + '</b></div>' : '') +
         (pago.titular ? '<div class="ep-pay-row"><span>Titular</span><b>' + esc(pago.titular) + '</b></div>' : '') +
         '<div class="ep-pay-total"><span>Vas a recargar</span><b>' + COP(final) + '</b></div>' +
-      '</div>';
+      '</button>';
     }
 
     var formulario = (pago.llave || pago.numero)

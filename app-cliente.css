@@ -974,7 +974,66 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
 .ep-card .sub {margin:-8px 0 13px;color:var(--dim);font-size:12.5px;line-height:1.5}
 .ep-monto {background:var(--surf2);border:1px solid var(--line);border-radius:13px;padding:13px 4px;font-weight:600;font-size:13px;color:var(--sub)}
 .ep-monto.on {border-color:var(--accent);background:rgba(227,176,75,.1);color:var(--accent)}
-.ep-pay {background:var(--surf2);border:1px solid var(--line);border-radius:16px;padding:15px;margin:14px 0}
+/* El bloque de datos de pago ES un boton: abre el paso a paso. Como <button>
+   trae estilos propios del navegador, hay que devolverlo a su sitio. */
+.ep-pay {
+  display:block; width:100%; text-align:left; font:inherit; color:inherit; cursor:pointer;
+  background:var(--surf2); border:1px solid var(--line); border-radius:16px; padding:15px; margin:14px 0;
+  transition: border-color .15s;
+}
+.ep-pay:hover, .ep-pay:focus-visible { border-color: var(--accent); }
+.ep-pay h4 { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+/* La sena de que se puede tocar. Sin esto el bloque parece un recuadro muerto
+   y nadie descubre el instructivo. */
+.ep-pay-como {
+  font-size:11px; letter-spacing:0; text-transform:none; font-weight:600;
+  color:var(--oro-tx);
+}
+
+/* ── El paso a paso ─────────────────────────────────────────────────── */
+.ep-tirador { width:34px; height:4px; border-radius:99px; background:var(--line); margin:0 auto 12px; }
+.ep-pasos-t { font-size:18px; font-weight:600; color:var(--ink); margin:0 0 16px; }
+.ep-pasos { position:relative; display:flex; flex-direction:column; gap:15px; margin:0 0 18px; }
+/* La linea que une los pasos: se dibuja detras de los numeros. */
+.ep-pasos::before {
+  content:""; position:absolute; left:11px; top:10px; bottom:10px;
+  width:2px; background:var(--line);
+}
+.ep-paso { position:relative; display:flex; gap:13px; }
+.ep-paso-n {
+  position:relative; z-index:1; flex:none;
+  width:24px; height:24px; border-radius:50%;
+  background:var(--wine); color:#fff; font-size:12px; font-weight:600;
+  display:flex; align-items:center; justify-content:center;
+}
+.ep-paso-b { flex:1; min-width:0; padding-top:2px; }
+.ep-paso-tt { font-size:14px; color:var(--ink); line-height:1.4; }
+.ep-paso-d { font-size:12.5px; color:var(--sub); line-height:1.5; margin-top:2px; }
+
+/* La llave, dentro del paso 2. Es el unico dato que el cliente tiene que
+   llevarse a otra aplicacion, asi que se copia de un toque. */
+.ep-llave {
+  border:1px solid var(--accent); border-radius:13px; padding:10px 12px; margin-top:9px;
+}
+.ep-llave-lb { font-size:10.5px; color:var(--sub); }
+.ep-llave-fila { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.ep-llave-n { font-size:18px; font-weight:600; color:var(--oro-tx); letter-spacing:.01em; }
+.ep-llave-t { font-size:11px; color:var(--sub); margin-top:2px; }
+.ep-copiar {
+  flex:none; padding:6px 12px; border-radius:10px; cursor:pointer;
+  border:1px solid var(--accent); background:transparent; color:var(--oro-tx);
+  font:inherit; font-size:12px; font-weight:600;
+}
+.ep-copiar:hover { background:rgba(227,176,75,.12); }
+
+/* El pie de la hoja. Pegado abajo para que en una pantalla corta el boton de
+   cerrar SIEMPRE este a la mano; el fondo tapa los pasos que pasan por detras.
+   El -1px de abajo evita la rendija de un pixel que deja el redondeo. */
+.ep-pasos-pie {
+  position: sticky; bottom: -1px; z-index: 2;
+  background: var(--surf); padding: 10px 0 0;
+}
+.ep-pasos-pie .ep-btn { margin: 0; }
 .ep-pay h4 {margin:0 0 11px;font-size:12px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase;font-weight:600}
 .ep-pay-row {display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.045);font-size:13.5px}
 .ep-pay-row:last-child {border-bottom:none}
