@@ -6005,3 +6005,23 @@ El resto del camino estaba bien: cuando el reconocedor acierta, la 14e-PRE guard
 - **Banco de casos nuevo**: 27 frases que DEBEN dar recoger y 23 que NO (direcciones reales, pedidos a domicilio explicitos, y las de puntos). **50/50.** La lista de las que NO importa mas: que falte una forma se ve y se corrige; que sobre se descubre cuando el cliente reclama que nunca le llego.
 - **Verificado en el banco repitiendo las DOS conversaciones reales** + una de control con domicilio de verdad. Katerine: antes volvia a pedir la direccion, ahora dice "Domicilio: Para llevar · Total: $35.000" y sigue al nombre, con la adicion de maicitos capturada. Adriana: pasa al nombre. Control: la direccion real se extrae bien y NO se toma como recoger. Conversaciones de prueba borradas.
 - **Trampa repetida (tercera vez)**: editar estas expresiones desde un script de Python entre comillas se rompe por las capas de escape. Se hizo con edicion directa del archivo.
+
+## 172. La comanda de Paco sale igual que la de la caja (16-ago) — delay-reply v301 · verify-transfer v38
+Sergio: los pedidos de Paco imprimian "una palabra salchipapa" y los de siempre no.
+
+**Lo que pasaba, visto en los datos reales de estos 4 dias:**
+
+| Origen | Como salia |
+|---|---|
+| Caja (salon / rapido) | `Personal · Premium · Mixta` |
+| Paco (domicilio) | `Salchipapa Premium · Familiar · Mixta` |
+
+Dos formatos en la misma pila de comandas. Paco anteponia el TIPO DE COMIDA y ponia la presentacion despues; la caja pone la PRESENTACION primero.
+
+- **No es que Paco estuviera mal en todo**: "Salchipapa Premium" esta bien para el MENSAJE al cliente por WhatsApp, porque el cliente no se sabe el menu de memoria. Estorba en la comanda, donde la cocina lee de un vistazo y lo primero que necesita es el TAMAÑO. Por eso el cambio es SOLO en el nombre del item del pedido; el resumen del chat se queda como estaba.
+- **Funcion nueva `nombreComanda`**, con la formula copiada a proposito de `domicilios.js` y `chat-ia.js`: presentacion primero; si el producto no tiene presentacion con nombre, el alias de comanda de la categoria (o su nombre); despues el producto y las variantes.
+- **Los DOS caminos de Paco crean items** (delay-reply cuando toma el pedido y verify-transfer cuando verifica la transferencia). Se toco en los dos: arreglar solo uno habria dejado la mitad de las comandas distintas — el patron de siempre, caminos hermanos donde solo uno esta completo.
+- **Hubo que ampliar el select**: ninguno de los dos traia `comanda_alias` de la categoria, que es lo que usa la caja cuando la presentacion no tiene nombre.
+- **Retirado `nombreConCategoriaVT`**, que quedo sin uso. Dejar codigo muerto invita a volver a llamarlo y revivir el formato viejo.
+
+**Verificado sobre el catalogo REAL entero, no con dos ejemplos**: se recorrieron las 111 combinaciones de producto x presentacion x variante y se exigio que la formula de Paco y la de la caja dieran la MISMA cadena. **111 de 111 iguales.**

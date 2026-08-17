@@ -261,6 +261,31 @@ function nombreConCategoria(prodName: string, catName: string | null | undefined
   return capFirst(primera) + " " + capFirst(prodName.toLowerCase());
 }
 
+/* EL NOMBRE QUE SE IMPRIME EN LA COMANDA — y tiene que ser IDENTICO al que arma
+   la caja cuando el pedido se toma a mano.
+
+   NO es el mismo que se le manda al cliente por WhatsApp. Ahi conviene decir
+   "Salchipapa Premium", porque el cliente no se sabe el menu de memoria. En la
+   comanda estorba: la cocina lee de un vistazo y lo que necesita primero es el
+   TAMAÑO. La caja siempre imprimio "Familiar · Premium · Mixta" y los pedidos
+   de Paco salian "Salchipapa Premium · Familiar · Mixta" — dos formatos en la
+   misma pila de comandas, que es justo lo que hace equivocarse a las 8 pm.
+
+   La formula es la de `domicilios.js` y `chat-ia.js`, copiada a proposito:
+   presentacion primero; si el producto no tiene presentacion con nombre, el
+   alias de comanda de la categoria (o su nombre); despues el producto y las
+   variantes. */
+function nombreComanda(
+  prodName: string,
+  presName: string | null | undefined,
+  varName: string | null | undefined,
+  cat: Record<string, unknown> | null | undefined,
+): string {
+  const alias = cat ? String(cat.comanda_alias || cat.name || "") : "";
+  const etiqueta = String(presName || "") || alias;
+  return [etiqueta, prodName, varName || ""].filter(Boolean).join(" · ");
+}
+
 // Elegir la fila correcta del catálogo por nombre + (opcional) categoría.
 // Con nombres repetidos entre categorías, la categoría define el precio correcto.
 function matchCatalogo(
@@ -6008,7 +6033,7 @@ async function buildSummaryFromState(
 
   try {
     const products = await sbGet(
-      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables,category_id(id,name),mod_group_ids,mod_group_pres`
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables,category_id(id,name,comanda_alias),mod_group_ids,mod_group_pres`
     ) as Array<Record<string, unknown>> | null;
     /* Los grupos de modificadores, de donde sale el precio de cada adición. */
     const gruposMod = await cargarModificadores(branchId);
@@ -6522,7 +6547,9 @@ async function createWhatsappOrder(
     }
 
     const itemTotal   = (price + adiPrecio) * cantidad;
-    const displayName = [nombreConCategoria(String(matched.name), String(((matched.category_id as Record<string, unknown> | null)?.name as string) || "")), presName, tipoGPT].filter(Boolean).join(" · ");
+    const displayName = nombreComanda(
+      String(matched.name), presName, tipoGPT,
+      matched.category_id as Record<string, unknown> | null);
     items.push({ product_id: String(matched.id), name: displayName, product_name: displayName, product_price: price, unit_price: price, total: itemTotal, quantity: cantidad, selections: { mods: modsMap, pres: presName, vars: varsMap }, branch_id: branchId, tenant_id: tenantId || null, notes: null });
     orderTotal += itemTotal;
     /* El empaque puede depender del producto, de su presentacion o de la

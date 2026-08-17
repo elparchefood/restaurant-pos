@@ -663,18 +663,10 @@ function normalizarItemsPedido(pendingData: Record<string, unknown>): ItemNorm[]
 }
 
 
-// Nombre con el tipo de comida adelante ("Hamburguesa Especial") — igual que el motor
-const CAT_SIN_PREFIJO = /bebida|adicion|adición|extra|salsa|postre|combo/i;
-function nombreConCategoriaVT(prodName: string, catName: string): string {
-  if (!prodName || !catName || CAT_SIN_PREFIJO.test(catName)) return prodName;
-  const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  const primera = norm(catName).split(/\s+/)[0].replace(/s$/, "");
-  if (!primera || primera.length < 4) return prodName;
-  if (norm(prodName).includes(primera)) return prodName;
-  const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
-  return cap(primera) + " " + cap(prodName.toLowerCase());
-}
-
+/* Se retiro `nombreConCategoriaVT`: el nombre con el tipo de comida adelante
+   ("Salchipapa Premium") es para el MENSAJE al cliente, no para la comanda.
+   Dejarlo aqui sin uso invitaba a volver a llamarlo y revivir el formato
+   distinto que se acaba de unificar. */
 async function resolverPedido(
   pendingData: Record<string, unknown> | null,
   branchId:    string,
@@ -689,7 +681,7 @@ async function resolverPedido(
     if (!itemsNorm.length) return { ...vacio, nombreCliente };
 
     const allProducts = await sbGet(
-      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables,category_id(name)`
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables,category_id(name,comanda_alias)`
     ) as Array<Record<string, unknown>> | null;
     if (!allProducts) return { ...vacio, nombreCliente };
 
@@ -734,7 +726,16 @@ async function resolverPedido(
       }
 
       const itemTotal = price * item.cantidad;
-      const nombreItem = [nombreConCategoriaVT(String(matched.name), String(((matched.category_id as Record<string, unknown> | null)?.name as string) || "")), presMatch?.name || item.tamano, item.tipo].filter(Boolean).join(" · ");
+      /* MISMO NOMBRE QUE IMPRIME LA CAJA (16-ago). Ver la explicacion completa
+         en `nombreComanda` de delay-reply: presentacion primero, y el tipo de
+         comida NO va — eso es para el mensaje del cliente, no para la cocina.
+         Este camino (verificar la transferencia) crea sus propios items, asi
+         que si no se toca aqui tambien, la mitad de las comandas de Paco
+         seguirian saliendo distintas. */
+      const _catVT = matched.category_id as Record<string, unknown> | null;
+      const _aliasVT = _catVT ? String(_catVT.comanda_alias || _catVT.name || "") : "";
+      const nombreItem = [String(presMatch?.name || item.tamano || "") || _aliasVT,
+                          String(matched.name), item.tipo].filter(Boolean).join(" · ");
       itemsRows.push({
         product_id: String(matched.id),
         name: nombreItem,           // la UI de ventas/domicilios pinta ESTE campo
