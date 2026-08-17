@@ -6077,3 +6077,21 @@ Sergio trajo el handoff "VERSION CELULAR" (El Parche Food (8).zip). Al compararl
 - **NOTA**: la propuesta de la entrada 175 (carrusel, billetera unificada) queda SUPERSEDIDA por este handoff — el diseño de Sergio mantiene el 2x2 y las dos tarjetas. No implementar la 175.
 - **Medido en 390px**: 2 columnas con el mensaje a media fila, flecha visible, etiqueta oculta, badge 17x17, encabezado pegado al hacer scroll, sin desborde. Y en 1280px todo lo nuevo desaparece: flecha oculta, etiqueta visible, pestañas ocultas, encabezado normal.
 - Pendientes del handoff que NO dependen de codigo: fotos reales de platos/promos y confirmar horarios.
+
+## 178. La barra de abajo salia BLANCA en modo oscuro + la app se arrastraba de lado (17-ago)
+Dos fallas del celular reportadas por Sergio.
+
+**1. LA BARRA BLANCA SOBRE LA APP OSCURA — el error de fondo.** Quince reglas del tema claro estaban escritas asi:
+`html.tema-claro .ep-tabs, html:not(.tema-oscuro) .ep-tabs { background: rgba(255,255,255,.9) }`
+...y **SUELTAS, sin media query**. `html:not(.tema-oscuro)` es cierto cuando el cliente NO ha elegido tema (modo automatico, que es el de casi todos), asi que esas reglas se aplicaban SIEMPRE — incluso con el celular en oscuro. Los TOKENS si estaban bien puestos dentro de `@media (prefers-color-scheme: light)`; las reglas de color no. Resultado: fondo oscuro (token correcto) con barra blanca (regla suelta).
+- **Arreglo**: cada regla se partio en dos — la variante `.tema-claro` (eleccion explicita) se queda donde estaba, y la variante `:not(.tema-oscuro)` (automatica) se movio DENTRO del mismo media query que los tokens. 15 reglas (12 de una linea + 3 bloques). **Cero sueltas al terminar** (comprobado).
+- Afectaba tambien a los platos, el boton principal, las acciones, la barra del carrito, los chips y los mensajes: todos se veian en version clara sobre la app oscura.
+
+**2. LA APP SE ARRASTRABA DE LADO.** Se desfasaba unos pixeles y se podia correr en horizontal — lo que delata a una pagina web disfrazada de app.
+- `overflow-x: clip` en html y body, **no `hidden`**: `hidden` en el `<html>` convierte al body en contenedor de desplazamiento y **rompe el `position: sticky`** del encabezado interno y de la barra de abajo. `clip` recorta sin crear ese contenedor. (Comprobado: los dos siguen sticky despues del cambio.)
+- `overscroll-behavior-x: none` (sin rebote lateral) y `touch-action: pan-y` (solo gesto vertical). A los chips de categoria se les devuelve `pan-x`, que si necesitan el suyo.
+- `max-width: 100%` + `min-width: 0` en app/cuerpo/scroll: ningun hijo puede empujar el ancho.
+- **Sin zoom**: `maximum-scale=1, user-scalable=no` en el viewport.
+- **Medido en 390px**: desborde 0 en html y body, e intentar arrastrar 300px deja la pagina en 0. Los chips que sobresalen son los de su propio carrusel, correcto.
+
+**Verificado en los CUATRO escenarios**: oscuro forzado (barra oscura), automatico+sistema oscuro (barra OSCURA — era el bug), automatico+sistema claro (barra clara), y claro forzado. Y el encabezado y la barra siguen pegajosos.

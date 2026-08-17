@@ -39,7 +39,7 @@ body {
     radial-gradient(760px 380px at 92% 4%, rgba(227,176,75,.10), transparent 60%);
   background-attachment: fixed;
 }
-html.tema-claro body, html:not(.tema-oscuro) body {
+html.tema-claro body {
   background-image:
     radial-gradient(900px 420px at 18% -8%, rgba(143,34,66,.10), transparent 62%),
     radial-gradient(760px 380px at 92% 4%, rgba(184,132,42,.10), transparent 60%);
@@ -89,7 +89,7 @@ html.tema-claro body, html:not(.tema-oscuro) body {
 .ep-btn:active { transform: scale(.985); }
 .ep-btn:disabled { opacity: .45; cursor: default; }
 .ep-btn--main { background: var(--ink); color: var(--bg); }
-html.tema-claro .ep-btn--main, html:not(.tema-oscuro) .ep-btn--main { background: #17161a; color: #fff; }
+html.tema-claro .ep-btn--main { background: #17161a; color: #fff; }
 .ep-btn--ghost { background: var(--surf); border-color: var(--line); color: var(--ink); font-size: 15px; }
 
 .ep-link {
@@ -101,8 +101,8 @@ html.tema-claro .ep-btn--main, html:not(.tema-oscuro) .ep-btn--main { background
 .ep-msg { width: 100%; border-radius: 13px; padding: 12px 14px; font-size: 13.5px; border: 1px solid; text-align: left; }
 .ep-msg--mal { color: #f0999b; background: rgba(143,34,66,.14); border-color: rgba(143,34,66,.5); }
 .ep-msg--ok  { color: var(--wa); background: rgba(37,211,102,.10); border-color: rgba(37,211,102,.35); }
-html.tema-claro .ep-msg--mal, html:not(.tema-oscuro) .ep-msg--mal { color: #8f2242; }
-html.tema-claro .ep-msg--ok,  html:not(.tema-oscuro) .ep-msg--ok  { color: #177a45; }
+html.tema-claro .ep-msg--mal { color: #8f2242; }
+html.tema-claro .ep-msg--ok { color: #177a45; }
 
 /* Cerrado NO es apagado: se ve el estado pero la página se navega igual. */
 .ep-estado {
@@ -153,7 +153,7 @@ html.tema-claro .ep-msg--ok,  html:not(.tema-oscuro) .ep-msg--ok  { color: #177a
   background: var(--accent); border-radius: 0 3px 3px 0; box-shadow: 0 0 14px rgba(227,176,75,.75);
 }
 .ep-nav.on::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: auto; }
-html.tema-claro .ep-nav.on, html:not(.tema-oscuro) .ep-nav.on {
+html.tema-claro .ep-nav.on {
   background: linear-gradient(120deg, rgba(184,132,42,.16), var(--surf2) 62%);
   box-shadow: inset 0 0 0 1px rgba(184,132,42,.3);
 }
@@ -293,7 +293,7 @@ html.tema-claro .ep-nav.on, html:not(.tema-oscuro) .ep-nav.on {
   cursor: pointer; color: var(--ink); font-family: inherit; font-size: 11px; font-weight: 600;
 }
 .ep-act.primary { background: var(--ink); color: var(--bg); border-color: transparent; }
-html.tema-claro .ep-act.primary, html:not(.tema-oscuro) .ep-act.primary { background: #17161a; color: #fff; }
+html.tema-claro .ep-act.primary { background: #17161a; color: #fff; }
 
 /* ── Actividad ── */
 /* Ya no cuelga al final de la pagina: ahora es una tarjeta al lado de la
@@ -301,7 +301,7 @@ html.tema-claro .ep-act.primary, html:not(.tema-oscuro) .ep-act.primary { backgr
 .ep-lista { margin-top: 0; display: flex; flex-direction: column; }
 .ep-lista .ep-li:last-child { border-bottom: 0; }
 .ep-li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.045); }
-html.tema-claro .ep-li, html:not(.tema-oscuro) .ep-li { border-bottom-color: rgba(23,22,26,.08); }
+html.tema-claro .ep-li { border-bottom-color: rgba(23,22,26,.08); }
 .ep-li-ico {
   width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
   background: var(--surf2); display: flex; align-items: center; justify-content: center; color: var(--sub);
@@ -318,7 +318,7 @@ html.tema-claro .ep-li, html:not(.tema-oscuro) .ep-li { border-bottom-color: rgb
   background: rgba(10,10,12,.86); backdrop-filter: blur(18px);
   border-top: 1px solid var(--line); padding: 9px 8px calc(9px + env(safe-area-inset-bottom));
 }
-html.tema-claro .ep-tabs, html:not(.tema-oscuro) .ep-tabs { background: rgba(255,255,255,.9); }
+html.tema-claro .ep-tabs { background: rgba(255,255,255,.9); }
 .ep-tab {
   flex: 1; background: none; border: none; cursor: pointer; color: var(--sub);
   display: flex; flex-direction: column; align-items: center; gap: 3px;
@@ -373,7 +373,7 @@ html.tema-claro .ep-tabs, html:not(.tema-oscuro) .ep-tabs { background: rgba(255
   aspect-ratio: 1.55; display: flex; align-items: center; justify-content: center;
   background: radial-gradient(circle at 50% 40%, #26262f, #131317 72%); color: var(--dim);
 }
-html.tema-claro .ep-plato-img, html:not(.tema-oscuro) .ep-plato-img {
+html.tema-claro .ep-plato-img {
   background: radial-gradient(circle at 50% 40%, #fbfaf8, #eeeae4 74%);
 }
 .ep-plato-img img { width: 100%; height: 100%; object-fit: cover; }
@@ -422,7 +422,7 @@ html.tema-claro .ep-plato-img, html:not(.tema-oscuro) .ep-plato-img {
 .ep-stat-v { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .ep-stat-l { font-size: 11px; color: var(--dim); margin-top: 2px; }
 .ep-dato { display: flex; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid rgba(255,255,255,.045); font-size: 13.5px; }
-html.tema-claro .ep-dato, html:not(.tema-oscuro) .ep-dato { border-bottom-color: rgba(23,22,26,.08); }
+html.tema-claro .ep-dato { border-bottom-color: rgba(23,22,26,.08); }
 .ep-dato span:first-child { color: var(--sub); }
 .ep-dato span:last-child { font-weight: 600; text-align: right; }
 
@@ -444,7 +444,7 @@ html.tema-claro .ep-dato, html:not(.tema-oscuro) .ep-dato { border-bottom-color:
   padding: 11px 16px; font-family: inherit; font-size: 13.5px; font-weight: 700;
   cursor: pointer; box-shadow: 0 10px 26px rgba(227,176,75,.28); white-space: nowrap;
 }
-html.tema-claro .ep-gold, html:not(.tema-oscuro) .ep-gold { color: #fff; }
+html.tema-claro .ep-gold { color: #fff; }
 .ep-hd-der { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
 /* Cuadro dorado del icono en la tarjeta de saldo */
@@ -513,7 +513,7 @@ html.tema-claro .ep-gold, html:not(.tema-oscuro) .ep-gold { color: #fff; }
   position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.68);
   backdrop-filter: blur(4px); display: flex; align-items: flex-end; justify-content: center;
 }
-html.tema-claro .ep-scrim, html:not(.tema-oscuro) .ep-scrim { background: rgba(23,22,26,.42); }
+html.tema-claro .ep-scrim { background: rgba(23,22,26,.42); }
 .ep-sheet {
   width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto;
   background: var(--surf); border-radius: 26px 26px 0 0; padding: 14px 20px 22px;
@@ -564,11 +564,11 @@ html.tema-claro .ep-scrim, html:not(.tema-oscuro) .ep-scrim { background: rgba(2
   padding: 14px 16px; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
   box-shadow: 0 14px 34px rgba(0,0,0,.4);
 }
-html.tema-claro .ep-cartbar, html:not(.tema-oscuro) .ep-cartbar { background: #17161a; color: #fff; }
+html.tema-claro .ep-cartbar { background: #17161a; color: #fff; }
 .ep-cart-n {
   background: rgba(0,0,0,.14); border-radius: 9px; padding: 3px 9px; font-size: 13px;
 }
-html.tema-claro .ep-cart-n, html:not(.tema-oscuro) .ep-cart-n { background: rgba(255,255,255,.2); }
+html.tema-claro .ep-cart-n { background: rgba(255,255,255,.2); }
 .ep-cart-tot { margin-left: auto; }
 
 /* ── Pantalla del pedido ──────────────────────────────────────────── */
@@ -589,7 +589,7 @@ html.tema-claro .ep-cart-n, html:not(.tema-oscuro) .ep-cart-n { background: rgba
   font-size: 13.5px; font-weight: 700; color: var(--sub); padding: 11px; border-radius: 11px;
 }
 .ep-seg-full button.on { background: var(--accent); color: #1a1204; }
-html.tema-claro .ep-seg-full button.on, html:not(.tema-oscuro) .ep-seg-full button.on { color: #fff; }
+html.tema-claro .ep-seg-full button.on { color: #fff; }
 
 .ep-total-fila { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 0; font-size: 14px; }
 .ep-total-fila.grande { font-size: 16px; font-weight: 700; }
@@ -1562,3 +1562,59 @@ html.ep-quieto #app {
      separador — en 360px cada palabra compite con la barra (handoff). */
   .ep-rangob-et { display: none; }
 }
+
+/* ===== EL TEMA AUTOMATICO, ARREGLADO (17-ago) =====
+   Estas reglas vivian SUELTAS, sin media query. `html:not(.tema-oscuro)` es
+   cierto cuando el cliente no ha elegido tema (modo automatico), asi que se
+   aplicaban SIEMPRE — y en un celular en modo oscuro la barra de abajo salia
+   BLANCA sobre la app oscura. Los tokens si estaban bien; estas quince reglas
+   de color no. Ahora acompañan al mismo media query que los tokens. */
+@media (prefers-color-scheme: light) {
+  html:not(.tema-oscuro) .ep-btn--main { background: #17161a; color: #fff; }
+  html:not(.tema-oscuro) .ep-msg--mal { color: #8f2242; }
+  html:not(.tema-oscuro) .ep-msg--ok { color: #177a45; }
+  html:not(.tema-oscuro) .ep-act.primary { background: #17161a; color: #fff; }
+  html:not(.tema-oscuro) .ep-li { border-bottom-color: rgba(23,22,26,.08); }
+  html:not(.tema-oscuro) .ep-tabs { background: rgba(255,255,255,.9); }
+  html:not(.tema-oscuro) .ep-dato { border-bottom-color: rgba(23,22,26,.08); }
+  html:not(.tema-oscuro) .ep-gold { color: #fff; }
+  html:not(.tema-oscuro) .ep-scrim { background: rgba(23,22,26,.42); }
+  html:not(.tema-oscuro) .ep-cartbar { background: #17161a; color: #fff; }
+  html:not(.tema-oscuro) .ep-cart-n { background: rgba(255,255,255,.2); }
+  html:not(.tema-oscuro) .ep-seg-full button.on { color: #fff; }
+  html:not(.tema-oscuro) body {
+    background-image:
+      radial-gradient(900px 420px at 18% -8%, rgba(143,34,66,.10), transparent 62%),
+      radial-gradient(760px 380px at 92% 4%, rgba(184,132,42,.10), transparent 60%);
+  }
+  html:not(.tema-oscuro) .ep-nav.on {
+    background: linear-gradient(120deg, rgba(184,132,42,.16), var(--surf2) 62%);
+    box-shadow: inset 0 0 0 1px rgba(184,132,42,.3);
+  }
+  html:not(.tema-oscuro) .ep-plato-img {
+    background: radial-gradient(circle at 50% 40%, #fbfaf8, #eeeae4 74%);
+  }
+}
+
+/* ===== LA APP NO SE ARRASTRA DE LADO NI SE HACE ZOOM (17-ago) =====
+   Pedido de Sergio: se desfasaba por unos pocos pixeles y la pantalla se podia
+   correr en horizontal, que es lo que delata a una pagina web disfrazada de
+   app. Se ataca por los dos lados: se PROHIBE el desbordamiento horizontal, y
+   se limita el gesto a vertical.
+
+   `overflow-x: clip` y no `hidden`: `hidden` en el <html> convierte al body en
+   contenedor de desplazamiento y rompe el `position: sticky` del encabezado
+   interno y de la barra de abajo. `clip` recorta sin crear ese contenedor. */
+html, body {
+  max-width: 100%;
+  overflow-x: clip;
+  /* Ni rebote lateral ni "arrastrar para recargar". */
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+}
+/* Las tiras que sangran al borde (chips de categoria, encabezado interno) SI
+   necesitan su gesto horizontal: se les devuelve. */
+.ep-cats { touch-action: pan-x; }
+/* Ningun hijo puede empujar el ancho: es lo que producia el desfase de pocos
+   pixeles que se podia arrastrar. */
+.ep-app, .ep-cuerpo, .ep-scroll { max-width: 100%; min-width: 0; }
