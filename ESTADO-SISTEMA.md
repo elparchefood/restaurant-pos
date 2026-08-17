@@ -6108,3 +6108,14 @@ Pedido de Sergio. En el celular la cabecera queda: **logo del restaurante a la i
 **REFACTOR NECESARIO — `irA(k)`**: la navegacion vivia EN LINEA dentro del enganche de `[data-ir]`, y el menu se pinta al vuelo (no pasa por `enganchar`). Copiar esas lineas en el menu habria sido exactamente el patron que mas caro nos ha costado — dos caminos que se desincronizan. Se extrajo a `irA(k)` y ahora la usan las pestañas Y el menu.
 
 - **Medido en 390px**: logo 40x40 pegado al borde (18px), saludo despues (70px), foto a la derecha (termina en 372 de 390), boton de tema oculto, menu de 232px pegado a la derecha con las tres opciones y el nombre. Sin desborde. **En 1280px**: logo oculto y boton de tema visible — el computador quedo identico.
+
+## 180. La barra de nivel se cortaba a la derecha (17-ago) — la regla que nunca pudo cumplirse
+Sergio: la barra de experiencia quedo a la derecha y cortada; debe ir en el medio, y la foto de ultima.
+
+**LA CAUSA, y llevaba ahi desde siempre**: existia una regla para bajar la barra a su propia fila en el celular —`.ep-rangob { order: 3; flex-basis: 100% }`— pero `.ep-saludo` **NO tenia `flex-wrap`**. Sin envolver, `flex-basis: 100%` no baja nada: la barra se apretaba entre el saludo y la foto y se partia. **Cero `flex-wrap` en todo el archivo** (comprobado). La regla estaba escrita y no podia cumplirse; el logo nuevo solo la dejo en evidencia.
+
+- **Arreglo 1**: `flex-wrap: wrap` en `.ep-saludo`.
+- **Arreglo 2**: el corte estaba en **560px**, pero con el logo a la izquierda ya no cabe en NINGUN celular. Se subio a **899px**, igual que el resto de las reglas de celular.
+- **Arreglo 3 (peticion de Sergio)**: orden explicito — logo (0), saludo (1), botones/foto (2) con `margin-left:auto`, barra (3) en su fila. La foto queda de ultima en su fila pase lo que pase.
+
+**Medido en los tres tamaños**: en 390px la barra baja a su propia fila y ocupa los 354px completos, la foto termina en el borde derecho, cero piezas cortadas; en 360px igual (324 de 324); y en 1280px la barra **sigue en el medio**, entre el saludo y la foto, con su etiqueta "Tu nivel" — el computador quedo identico.

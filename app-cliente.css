@@ -162,7 +162,11 @@ html.tema-claro .ep-nav.on {
 .ep-cuerpo { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ep-scroll { flex: 1; padding: 0 18px 26px; max-width: 1560px; width: 100%; margin: 0 auto; }
 
-.ep-saludo { display: flex; align-items: center; gap: 12px; padding: 20px 0 16px; }
+/* `flex-wrap` es lo que permite que la barra de nivel baje a su propia fila en
+   el celular (regla de mas abajo, `order: 3; flex-basis: 100%`). Sin el, esa
+   regla no hacia NADA: la barra se apretaba a la derecha entre el saludo y la
+   foto, y se cortaba. Estuvo escrita todo el tiempo sin poder cumplirse. */
+.ep-saludo { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 20px 0 16px; }
 .ep-avatar {
   width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
   background: var(--surf2); border: 1px solid var(--line);
@@ -1398,9 +1402,17 @@ button.ep-pub-foto { cursor: pointer; }
   .ep-hoy-msg { padding: 18px; }
   .ep-hoy-btns { flex-direction: column; }
 }
-@media (max-width: 560px) {
-  /* En el celular el rango no cabe al lado del nombre sin apretarlo todo. */
-  .ep-rangob { order: 3; flex-basis: 100%; max-width: none; margin: 10px 0 0; }
+@media (max-width: 899px) {
+  /* LA BARRA DE NIVEL, EN SU PROPIA FILA Y COMPLETA.
+     El corte estaba en 560px, pero con el logo nuevo a la izquierda ya no cabe
+     en NINGUN celular: entre logo, saludo y foto no le queda ancho util y se
+     partia. Ahora baja en todo el celular y ocupa la fila entera. */
+  .ep-rangob { order: 3; flex-basis: 100%; width: 100%; max-width: none; margin: 12px 0 0; }
+  /* La foto SIEMPRE de ultima en su fila (peticion de Sergio): el margen
+     automatico la empuja al borde derecho pase lo que pase. */
+  .ep-saludo-btns { order: 2; margin-left: auto; }
+  .ep-hd-logo { order: 0; }
+  .ep-saludo > div:not(.ep-saludo-btns) { order: 1; min-width: 0; }
 }
 
 /* ══ EL NUEVO ORDEN DEL INICIO (16-ago) ══════════════════════════════════════
