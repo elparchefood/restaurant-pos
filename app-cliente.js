@@ -363,8 +363,13 @@
     '</aside>';
 
     var tabs = '<nav class="ep-tabs">' + TABS.map(function (t) {
+      /* El badge del carrito vive en la pestaña Carta (handoff celular): el
+         cliente que sigue navegando ve cuantas cosas lleva sin tener que
+         volver. Solo aparece con algo adentro — un "0" permanente es ruido. */
+      var badge = (t.k === 'carta' && carroCuantos() > 0)
+        ? '<i class="ep-tab-badge">' + carroCuantos() + '</i>' : '';
       return '<button class="ep-tab' + (t.k === vista ? ' on' : '') + '" data-ir="' + t.k + '">' +
-        ico(t.i, 21) + '<span>' + t.n + '</span></button>';
+        '<span class="ep-tab-ic">' + ico(t.i, 21) + badge + '</span><span>' + t.n + '</span></button>';
     }).join('') + '</nav>';
 
     pinta('<div class="ep-app">' + lateral +
@@ -747,8 +752,16 @@
     '</div>';
   }
 
+  /* A donde lleva la flecha de atras en el celular (handoff): del carrito se
+     vuelve a la carta (para seguir agregando); de lo demas, al inicio. */
+  function atrasDe(v) { return v === 'pedido' ? 'carta' : 'inicio'; }
+
   function encabezado(titulo, sub) {
-    return '<div class="ep-saludo">' +
+    return '<div class="ep-saludo ep-saludo--int">' +
+      /* La flecha solo se VE en el celular (CSS); en el computador ya esta el
+         menu lateral y una flecha seria un segundo camino para lo mismo. */
+      '<button class="ep-atras" data-ir="' + esc(atrasDe(vista)) + '" aria-label="Volver">' +
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>' +
       '<div><div class="ep-saludo-t">' + esc(sub || (S.negocio && S.negocio.nombre) || '') + '</div>' +
       '<div class="ep-saludo-n">' + esc(titulo) + '</div></div>' +
       botonesArriba('<button class="ep-redondo" data-ir="inicio" title="Inicio">' + ico('home', 17) + '</button>') +

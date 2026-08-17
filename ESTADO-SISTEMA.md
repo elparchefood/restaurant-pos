@@ -6067,3 +6067,13 @@ Cliente real (573114015448): mando el pedido en formato de plantilla (PEDIDO / D
 
 - **Verificado en el banco** con la conversacion real: plantilla completa → "Ahi esta bien" avanza → pregunta el nombre (ya no "Telefono") → frase fija del prepago → "por transferencia entonces" → RESUMEN de verdad con total. Regresion: casa normal en efectivo sigue igual (resumen con $36.000, efectivo permitido).
 - **Metodo nuevo para el banco**: cuando no se sabe que rama contesto, se numeran los 45 puntos de envio («S1»...«S45») en la copia del banco y cada mensaje sale firmado. Dos intentos previos con un envoltorio de funcion tumbaron el banco con BOOT_ERROR — la concatenacion simple no puede romper nada.
+
+## 177. La version celular de la pagina, segun el handoff (17-ago)
+Sergio trajo el handoff "VERSION CELULAR" (El Parche Food (8).zip). Al compararlo contra lo construido, **casi todo ya coincidia**: barra inferior de 5 pestañas con safe-area, lateral oculto, carta a 2 columnas, barra de carrito pegajosa, muescas en 150x54 y 64x64, aura en el body, tema claro. Las diferencias reales eran CUATRO y se implementaron:
+1. **Badge dorado del carrito** (17px) sobre la pestaña Carta — solo aparece con algo adentro; un "0" permanente es ruido.
+2. **Flecha de atras en las pantallas internas** (38px circular), con el encabezado interno pegajoso y degradado hacia transparente, y titulo compacto (16px). SOLO en el celular: en el computador ya esta el menu lateral y una flecha seria un segundo camino para lo mismo. Atras: del carrito se vuelve a la CARTA (para seguir agregando); de lo demas, al inicio.
+3. **La pildora del nivel pierde la etiqueta "Tu nivel"** en el celular (handoff): en 360px cada palabra compite con la barra.
+4. **Los destacados vuelven a ser 2x2 de verdad** en el celular, con el mensaje como PRIMERA CELDA. Antes el mensaje ocupaba la fila entera: mas scroll y el mensaje gigante.
+- **NOTA**: la propuesta de la entrada 175 (carrusel, billetera unificada) queda SUPERSEDIDA por este handoff — el diseño de Sergio mantiene el 2x2 y las dos tarjetas. No implementar la 175.
+- **Medido en 390px**: 2 columnas con el mensaje a media fila, flecha visible, etiqueta oculta, badge 17x17, encabezado pegado al hacer scroll, sin desborde. Y en 1280px todo lo nuevo desaparece: flecha oculta, etiqueta visible, pestañas ocultas, encabezado normal.
+- Pendientes del handoff que NO dependen de codigo: fotos reales de platos/promos y confirmar horarios.

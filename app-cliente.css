@@ -1390,10 +1390,13 @@ button.ep-pub-foto { cursor: pointer; }
 .ep-hoy-pre { display: block; margin-top: 3px; font-size: 12px; color: var(--sub); }
 
 @media (max-width: 900px) {
+  /* CUADRO 2x2 con el mensaje como PRIMERA CELDA (handoff celular). Antes el
+     mensaje ocupaba la fila entera y los tres platos quedaban debajo: mas
+     scroll y el mensaje gigante. Como celda es un cuadrante mas, igual que en
+     el computador. */
   .ep-hoy { gap: 12px; }
-  .ep-hoy-msg { grid-column: 1 / -1; }
-  .ep-hoy-btns { flex-direction: row; }
-  .ep-hoy-b1, .ep-hoy-b2 { flex: 1; }
+  .ep-hoy-msg { padding: 18px; }
+  .ep-hoy-btns { flex-direction: column; }
 }
 @media (max-width: 560px) {
   /* En el celular el rango no cabe al lado del nombre sin apretarlo todo. */
@@ -1525,3 +1528,37 @@ html.ep-quieto #app {
    En columna y con aire entre ellos: pegados parecerian un solo renglon, que
    es justo lo que se quiso separar. */
 .ep-login-links { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+
+/* ===== AJUSTES DEL HANDOFF CELULAR (17-ago) ===== */
+
+/* El badge dorado del carrito sobre la pestaña Carta. */
+.ep-tab-ic { position: relative; display: inline-flex; }
+.ep-tab-badge {
+  position: absolute; top: -5px; right: -9px;
+  min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;
+  background: var(--accent); color: #1a1204;
+  font-style: normal; font-size: 10px; font-weight: 700; line-height: 17px; text-align: center;
+}
+
+/* La flecha de atras: solo existe en el celular. */
+.ep-atras { display: none; }
+@media (max-width: 899px) {
+  .ep-atras {
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    width: 38px; height: 38px; border-radius: 999px; cursor: pointer;
+    background: var(--surf); border: 1px solid var(--line); color: var(--ink);
+  }
+  /* El encabezado interno se queda arriba al hacer scroll, con un degradado
+     hacia transparente para no cortar el contenido en seco (handoff). */
+  .ep-saludo--int {
+    position: sticky; top: 0; z-index: 18;
+    margin: 0 -18px; padding: 12px 18px 14px;
+    background: linear-gradient(180deg, var(--bg) 72%, transparent);
+  }
+  .ep-saludo--int .ep-saludo-t { font-size: 11px; }
+  .ep-saludo--int .ep-saludo-n { font-size: 16px; }
+
+  /* La pildora del nivel, compacta: sin la etiqueta "Tu nivel" ni su
+     separador — en 360px cada palabra compite con la barra (handoff). */
+  .ep-rangob-et { display: none; }
+}
