@@ -1176,17 +1176,17 @@
     ];
 
     return '<div class="ep-tirador"></div>' +
-      '<div class="ep-pasos-t">Cómo recargar</div>' +
-      '<div class="ep-pasos">' + pasos.map(function (x, i) {
-        return '<div class="ep-paso">' +
-          '<span class="ep-paso-n">' + (i + 1) + '</span>' +
-          '<div class="ep-paso-b"><div class="ep-paso-tt">' + x[0] + '</div>' +
-            (x[1] ? '<div class="ep-paso-d">' + x[1] + '</div>' : '') + x[2] +
+      '<div class="ep-ins-t">Cómo recargar</div>' +
+      '<div class="ep-ins-lista">' + pasos.map(function (x, i) {
+        return '<div class="ep-ins">' +
+          '<span class="ep-ins-n">' + (i + 1) + '</span>' +
+          '<div class="ep-ins-b"><div class="ep-ins-tt">' + x[0] + '</div>' +
+            (x[1] ? '<div class="ep-ins-d">' + x[1] + '</div>' : '') + x[2] +
           '</div></div>';
       }).join('') + '</div>' +
       /* El pie va pegado abajo: en una pantalla corta la hoja se desplaza y el
          boton de cerrar quedaba por debajo del borde. */
-      '<div class="ep-pasos-pie">' +
+      '<div class="ep-ins-pie">' +
         '<button class="ep-btn gold big" type="button" data-cerrar-pasos>Entendido</button>' +
       '</div>';
   }

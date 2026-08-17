@@ -6568,3 +6568,57 @@ subtitulos correctos, la llave y el titular reales, copiar funciona, los tres
 modos de cierre funcionan, no se duplica, cero desborde horizontal, y todos los
 textos por encima de 4.5:1 (lo mas bajo: la seNal "¿Cómo recargo?" en tema
 claro, 4.92).
+
+---
+
+## 186 — El paso a paso en escritorio, y un choque de nombres de clase (17-ago-2026)
+
+Sergio mando pantallazo del escritorio: "un modal muy feo y con scroll, debe ser
+fijo". Y aclaro: en la PWA quedo bien, no tocarlo.
+
+### La causa raiz NO era el escritorio: era un nombre repetido
+
+`.ep-paso` **ya existia** desde antes (linea 293), para la escalera de la
+tarjeta de nivel: `display:flex; flex-direction:column; align-items:center;
+flex:1`. Mi regla nueva, mas abajo, declaraba `display:flex; gap:13px` — y en
+CSS gana la ultima SOLO en las propiedades que declara. `flex-direction:column`
+y `align-items:center` seguian vivas.
+
+Resultado: el numero salia CENTRADO ENCIMA del texto en vez de a la izquierda, y
+la lista quedaba el doble de alta — de ahi la barra de desplazamiento del
+pantallazo. No era un problema de escritorio: estaba en las dos versiones. En el
+celular pasaba mas desapercibido porque la columna estrecha lo disimula.
+
+**Arreglo:** renombrar, no parchar encima. Todo el bloque paso a
+`.ep-ins*` (`ep-ins`, `ep-ins-n`, `ep-ins-b`, `ep-ins-tt`, `ep-ins-d`,
+`ep-ins-lista`, `ep-ins-t`, `ep-ins-pie`). Anadir un `flex-direction:row` de
+mas habria tapado el sintoma dejando la bomba armada para la proxima clase que
+se llame igual.
+
+**Efecto en la PWA:** el celular CAMBIA — el numero pasa de ir centrado encima
+a ir a la izquierda con la linea que une los pasos. Es volver a la maqueta que
+Sergio aprobo, no alejarse de ella.
+
+### El escritorio
+
+Reglas acotadas a `.ep-scrim.pasos` para no tocar la hoja de la carta, que
+comparte las mismas clases. A partir de 900px: cuadro centrado de 420px, radio
+completo, sin barra de desplazamiento, sin el tirador (dice "arrastrame", y en
+un cuadro centrado no significa nada) y con el pie estatico en vez de pegado,
+que ya no hace falta.
+
+**Verificado midiendo:**
+- Escritorio 1133x830 y 1280x830: cuadro de 420px, centrado, `seDesplaza:false`,
+  numero a la izquierda del texto, tirador oculto, pie estatico y visible.
+- Ventana baja 1280x620: cabe entero (alto 463 en 620), sin desplazamiento y el
+  boton alcanzable.
+- Celular 390x800: sigue siendo hoja de abajo, ancho completo, esquinas
+  redondeadas solo arriba, tirador visible, pie pegado, sin desplazamiento y sin
+  desborde horizontal.
+- Contraste en tema claro, todo por encima de 4.5 (lo mas bajo: llave y copiar,
+  5.63; el numero sobre el vinotinto, 8.48).
+
+**Leccion, para la lista de trampas:** medir contenido y contraste NO es medir
+la geometria. Las mediciones de la entrada 185 leyeron los textos correctos y
+los contrastes correctos de una lista que estaba mal armada. Cuando se aNade una
+clase nueva, comprobar antes que ese nombre no exista ya en la hoja.

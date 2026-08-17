@@ -992,23 +992,23 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
 
 /* ── El paso a paso ─────────────────────────────────────────────────── */
 .ep-tirador { width:34px; height:4px; border-radius:99px; background:var(--line); margin:0 auto 12px; }
-.ep-pasos-t { font-size:18px; font-weight:600; color:var(--ink); margin:0 0 16px; }
-.ep-pasos { position:relative; display:flex; flex-direction:column; gap:15px; margin:0 0 18px; }
+.ep-ins-t { font-size:18px; font-weight:600; color:var(--ink); margin:0 0 16px; }
+.ep-ins-lista { position:relative; display:flex; flex-direction:column; gap:15px; margin:0 0 18px; }
 /* La linea que une los pasos: se dibuja detras de los numeros. */
-.ep-pasos::before {
+.ep-ins-lista::before {
   content:""; position:absolute; left:11px; top:10px; bottom:10px;
   width:2px; background:var(--line);
 }
-.ep-paso { position:relative; display:flex; gap:13px; }
-.ep-paso-n {
+.ep-ins { position:relative; display:flex; gap:13px; }
+.ep-ins-n {
   position:relative; z-index:1; flex:none;
   width:24px; height:24px; border-radius:50%;
   background:var(--wine); color:#fff; font-size:12px; font-weight:600;
   display:flex; align-items:center; justify-content:center;
 }
-.ep-paso-b { flex:1; min-width:0; padding-top:2px; }
-.ep-paso-tt { font-size:14px; color:var(--ink); line-height:1.4; }
-.ep-paso-d { font-size:12.5px; color:var(--sub); line-height:1.5; margin-top:2px; }
+.ep-ins-b { flex:1; min-width:0; padding-top:2px; }
+.ep-ins-tt { font-size:14px; color:var(--ink); line-height:1.4; }
+.ep-ins-d { font-size:12.5px; color:var(--sub); line-height:1.5; margin-top:2px; }
 
 /* La llave, dentro del paso 2. Es el unico dato que el cliente tiene que
    llevarse a otra aplicacion, asi que se copia de un toque. */
@@ -1029,11 +1029,34 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
 /* El pie de la hoja. Pegado abajo para que en una pantalla corta el boton de
    cerrar SIEMPRE este a la mano; el fondo tapa los pasos que pasan por detras.
    El -1px de abajo evita la rendija de un pixel que deja el redondeo. */
-.ep-pasos-pie {
+.ep-ins-pie {
   position: sticky; bottom: -1px; z-index: 2;
   background: var(--surf); padding: 10px 0 0;
 }
-.ep-pasos-pie .ep-btn { margin: 0; }
+.ep-ins-pie .ep-btn { margin: 0; }
+
+/* ── En escritorio NO es una hoja: es un cuadro ─────────────────────────
+   Pedido de Sergio: en el celular quedo bien y no se toca; en escritorio se
+   veia una hoja estirada y con barra de desplazamiento. Aqui la ventana
+   sobra, asi que el instructivo cabe entero y no tiene por que desplazarse.
+   Todo va acotado a `.ep-scrim.pasos` para no tocar la hoja de la carta, que
+   comparte las mismas clases. */
+@media (min-width: 900px) {
+  .ep-scrim.pasos .ep-sheet {
+    max-width: 420px; border-radius: 22px; padding: 24px 24px 20px;
+    /* Cabe entero: la barra de desplazamiento desaparece. El tope alto se
+       deja como red de seguridad para una ventana muy baja — con el
+       contenido real nunca se alcanza. */
+    max-height: 92vh;
+  }
+  /* El tirador dice "arrastrame hacia arriba". En un cuadro centrado no
+     significa nada. */
+  .ep-scrim.pasos .ep-tirador { display: none; }
+  .ep-scrim.pasos .ep-ins-t { font-size: 20px; margin-bottom: 18px; }
+  .ep-scrim.pasos .ep-ins-lista { gap: 17px; margin-bottom: 20px; }
+  /* Sin desplazamiento, el pie no necesita pegarse ni tapar nada. */
+  .ep-scrim.pasos .ep-ins-pie { position: static; padding: 0; background: none; }
+}
 .ep-pay h4 {margin:0 0 11px;font-size:12px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase;font-weight:600}
 .ep-pay-row {display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.045);font-size:13.5px}
 .ep-pay-row:last-child {border-bottom:none}
