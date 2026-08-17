@@ -449,7 +449,63 @@ const CALLE_REGEX = /\b(calle|carrera|cra|cl\b|diagonal|transversal|tv\b|dg\b|av
    por ella": el bot no lo entendio y le pidio la direccion CUATRO veces
    seguidas hasta que el pedido se cayo. La gente habla en plural cuando
    viene acompanada, que es justo cuando recoge en el local. */
-const LLEVAR_REGEX = /\b(para\s+llevar|para\s+recoger|l[oa]s?\s+recoj(?:o|emos)|l[oa]s?\s+busc(?:o|amos)|(?:voy|vamos)\s+a\s+recoger(?:l[oa]s?)?|(?:voy|vamos)\s+por\s+(?:el\s+pedido|[ée]l|ella|ellas|ellos|eso|la\s+comida)|pa\s+llevar|a\s+recoger|(?:yo|nosotros)\s+pas(?:o|amos)|pas(?:o|amos)\s+a\s+(?:recoger|buscar)(?:l[oa]s?)?|pas(?:o|amos)\s+por\s+(?:el\s+pedido|[ée]l|ella|ellas|ellos|eso|la\s+comida|all[aá]|all[ií])|pas(?:o|amos)\s+al\s+local|recog(?:o|emos)\s+en\s+el\s+local|lo\s+recogemos|nos\s+lo\s+llevamos)\b/i;
+/* Las piezas van en una LISTA y no en una linea de 900 caracteres, que es como
+   estaba. Con una sola linea nadie ve que falta: el 16-ago dos clientes dijeron
+   que recogian y Paco les siguio pidiendo la direccion, porque solo se habian
+   contemplado los verbos CONJUGADOS ("paso", "recojo") y la gente usa el
+   INFINITIVO ("¿puedo PASAR por ella?", "para PASAR A RECOGERLO").
+
+   Cada renglon lleva el ejemplo real que lo justifica. Antes de agregar uno
+   nuevo, correr el banco de casos: lo peligroso aqui NO es que falte una
+   forma —eso se ve y se corrige— sino que sobre y convierta en "recoger" un
+   pedido que era a domicilio, que se descubre cuando el cliente reclama que
+   nunca le llego. */
+const LLEVAR_PARTES = [
+  // Lo dicho de frente.
+  "para\\s+(?:llevar|recoger|recojer)",            // "para llevar"
+  "pa\\s+llevar",
+  "sin\\s+domicilio",                              // "Sin domicilio"
+  "no\\s+(?:es|va|seria|será|sera)\\s+(?:a\\s+|para\\s+|con\\s+)?domicilio",
+  "no\\s+(?:necesito|necesitamos|quiero|queremos)\\s+domicilio",
+
+  // El verbo CONJUGADO, primera persona del singular y del plural.
+  "l[oa]s?\\s+recoj(?:o|emos)",                    // "la recojo"
+  "l[oa]s?\\s+busc(?:o|amos)",
+  "recog(?:o|emos)\\s+en\\s+el\\s+local",
+  "lo\\s+recogemos",
+  "nos\\s+l[oa]\\s+llevamos",
+  "(?:yo|nosotros)\\s+pas(?:o|amos)",              // "nosotros pasamos"
+  "(?:voy|vamos)\\s+a\\s+(?:recoger|recojer|reclamar|buscar)(?:l[oa]s?)?",
+  "pas(?:o|amos)\\s+a\\s+(?:recoger|recojer|reclamar|buscar)(?:l[oa]s?)?",
+  "pas(?:o|amos)\\s+al\\s+local",
+  "(?:voy|vamos|pas(?:o|amos))\\s+por\\s+(?:el\\s+pedido|mi\\s+pedido|[ée]l|ella|ellas|ellos|eso|la\\s+comida|all[aá]|all[ií])",
+
+  /* EL INFINITIVO — lo que faltaba. Casi siempre viene detras de un "puedo",
+     un "quiero" o un "para". */
+  "(?:pasar|ir)\\s+a\\s+(?:recoger|recojer|reclamar|buscar)(?:l[oa]s?)?",
+  "(?:pasar|ir)\\s+por\\s+(?:el\\s+pedido|mi\\s+pedido|[ée]l|ella|ellas|ellos|eso|la\\s+comida|all[aá]|all[ií])",
+  "pasar\\s+al\\s+local",
+  "a\\s+(?:recoger|recojer)(?:l[oa]s?)?",          // "voy a recogerlo", "a recoger"
+  /* "puedo recogerlo", "quiero pasar".
+
+     OJO CON `reclamar`: en este negocio tambien es de los PUNTOS ("quiero
+     reclamar mi premio", "¿que puedo reclamar con mis puntos?"). Lo probe
+     suelto y marcaba esas frases como recoger — o sea que a un cliente que
+     pedia A DOMICILIO se le habria caido el domicilio por preguntar por sus
+     premios, y se queda esperando una comida que nadie va a llevar.
+
+     Por eso `reclamar` solo cuenta pegado a un verbo de MOVERSE ("paso a
+     reclamarlo") o nombrando el pedido ("reclamar mi pedido"), nunca solo.
+     Se pierde "¿a que horas lo puedo reclamar?", que es ambiguo de verdad —
+     preferible perder ese a convertir un domicilio en recoger. */
+  "(?:puedo|podemos|puede|podria|podría|quiero|queremos|quisiera)\\s+(?:pasar|ir|recoger|recojer|buscar)",
+  "l[oa]s?\\s+(?:puedo|podemos|puede)\\s+(?:recoger|recojer|buscar)",
+  "(?:recoger|recojer|buscar)(?:l[oa]s?)\\b",      // "recogerlo", "buscarla"
+  "reclamar\\s+(?:el|mi)\\s+pedido",
+].join("|");
+
+// Cubre masculino/femenino/plural y conjugado/infinitivo.
+const LLEVAR_REGEX = new RegExp("\\b(?:" + LLEVAR_PARTES + ")\\b", "i");
 
 // Nuevo producto adicional — expandido para capturar más patrones naturales
 /* ¿Este mensaje nombra un producto de la carta que NO es el que ya está en

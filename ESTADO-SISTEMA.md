@@ -5986,3 +5986,22 @@ Pedido de Sergio al empezar a pulir la app instalada: en la pantalla de entrar, 
 - Lo encontre midiendo el caso a proposito: pantalla de 360x420, que es lo que queda cuando se abre el teclado. Salio `botonAlcanzable: false`.
 - **Arreglado**: el que se desplaza es `#app`. Mientras todo quepa —lo normal— no hay nada que desplazar y la pantalla queda quieta; solo si el teclado la aprieta, `#app` cede.
 - **Verificado en los tres casos**: celular normal (375x812) la pagina no se mueve y arrastrar la deja en 0; con teclado (360x420) el boton y la contraseña SI se alcanzan y el telefono no queda cortado por arriba; y al entrar se quita la clase y todo vuelve a desplazarse normal.
+
+## 171. Paco entiende "puedo pasar por ella" (16-ago) — delay-reply v300
+Dos clientes reales (573203254914 y 573137734417) dijeron que iban a recoger y Paco les siguio pidiendo la direccion. Sergio tuvo que entrar a atender las dos conversaciones a mano.
+
+**La causa NO era el mecanismo, era el reconocedor.** `LLEVAR_REGEX` solo contemplaba el verbo CONJUGADO —"paso", "recojo", "vamos"— y la gente usa el INFINITIVO:
+- *"Cuanto seria y a que horas puedo **pasar** por ella"* → no lo reconocia
+- *"para **pasar a recogerlo**"* → tampoco
+- *"Sin domicilio"* → tampoco
+
+El resto del camino estaba bien: cuando el reconocedor acierta, la 14e-PRE guarda el mensaje como direccion y el clasificador lo lee como "para_llevar". Solo habia que ver mas formas.
+
+- **La lista dejo de ser una linea de 900 caracteres** y paso a ser un arreglo con un ejemplo real por renglon. Con una sola linea nadie ve lo que falta — por eso llevaba meses cojo.
+- **Se agregaron**: infinitivos con modal ("puedo/quiero pasar, ir, recoger"), "pasar a recogerlo", "recogerlo/buscarla" con el pronombre pegado, "sin domicilio", "no es/seria domicilio", "no necesito domicilio".
+
+**EL FALSO POSITIVO QUE CASI METO.** Puse `reclamar` suelto y el banco lo cazo: marcaba como "recoger" las frases de PUNTOS — *"quiero reclamar mi premio"*, *"¿que puedo reclamar con mis puntos?"*. O sea que a un cliente que pedia A DOMICILIO se le habria caido el domicilio por preguntar por sus premios, y se quedaba esperando una comida que nadie iba a llevar. **Ahora `reclamar` solo cuenta pegado a un verbo de moverse ("paso a reclamarlo") o nombrando el pedido ("reclamar mi pedido").** Se pierde "¿a que horas lo puedo reclamar?", que es ambiguo de verdad — preferible perder ese que convertir un domicilio en recoger.
+
+- **Banco de casos nuevo**: 27 frases que DEBEN dar recoger y 23 que NO (direcciones reales, pedidos a domicilio explicitos, y las de puntos). **50/50.** La lista de las que NO importa mas: que falte una forma se ve y se corrige; que sobre se descubre cuando el cliente reclama que nunca le llego.
+- **Verificado en el banco repitiendo las DOS conversaciones reales** + una de control con domicilio de verdad. Katerine: antes volvia a pedir la direccion, ahora dice "Domicilio: Para llevar · Total: $35.000" y sigue al nombre, con la adicion de maicitos capturada. Adriana: pasa al nombre. Control: la direccion real se extrae bien y NO se toma como recoger. Conversaciones de prueba borradas.
+- **Trampa repetida (tercera vez)**: editar estas expresiones desde un script de Python entre comillas se rompe por las capas de escape. Se hizo con edicion directa del archivo.
