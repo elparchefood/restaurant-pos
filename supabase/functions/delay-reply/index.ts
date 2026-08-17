@@ -6074,7 +6074,36 @@ async function buildSummaryFromState(
     );
     allItems.forEach((it, i) => { it.adiciones = chequeo.adiciones[i]; });
     for (const m of chequeo.movidas) console.log(`[verificador] "${m.adicion}" no cabía en su plato — se pasó a ${m.a}`);
+    /* ANTES DE DESCARTAR NADA: ¿lo que "no cabe" es en realidad OTRO PLATO?
+       (17-ago, caso de Emily.) El cliente pidio "3 salchipapas ... y una
+       gaseosa 1.5" en el mismo mensaje. El extractor solo devuelve UN producto,
+       asi que la gaseosa cayo en "adiciones" — y como ninguna salchipapa admite
+       una gaseosa, se descartaba en silencio: Paco cotizo $61.000 en vez de
+       $69.000 y Sergio tuvo que entrar a corregir el precio.
+
+       "Bebidas" ni siquiera es un grupo de adiciones en este restaurante: los
+       unicos son "Adiciones Personales" y "Adiciones Familiares" (carne, pollo,
+       chorizo...). Las bebidas son PRODUCTOS de su propia categoria. Asi que lo
+       correcto no es avisar que no se puede: es ponerlo como lo que es. */
     for (const x of chequeo.imposibles) {
+      const comoProducto = matchCatalogo(products, x, null);
+      if (comoProducto) {
+        const yaEsta = allItems.some(it =>
+          normalizarTexto(it.producto || "") === normalizarTexto(String(comoProducto.name || "")));
+        if (!yaEsta) {
+          console.log(`[verificador] "${x}" no era una adicion: es el producto "${comoProducto.name}" — se agrega como linea aparte`);
+          allItems.push({
+            producto: String(comoProducto.name || x),
+            /* Sin tamaño: si el producto tiene varias presentaciones, el propio
+               flujo se encarga de preguntar cual. Inventarle una seria cobrar
+               un precio que el cliente no pidio. */
+            tamano: null, tipo: null, cantidad: 1, adiciones: null,
+            preferencias: null,
+            categoria: String(((comoProducto.category_id as Record<string, unknown> | null)?.name as string) || ""),
+          });
+          continue;
+        }
+      }
       console.log(`[verificador] "${x}" no lo admite ningún plato del pedido`);
       if (!noSePudo.includes(x)) noSePudo.push(x);
     }
@@ -6335,7 +6364,13 @@ async function buildSummaryFromState(
   /* Lo que no se pudo agregar se DICE, antes de pedir la confirmación. Si se
      calla, el cliente confirma creyendo que lo lleva y no le va a llegar. */
   if (noSePudo.length) {
-    const aviso = `⚠️ ${listaNatural(noSePudo)} no se puede agregar a lo que pediste, así que no va en el pedido.`;
+    /* Se PREGUNTA, no se afirma. Antes decia "no se puede agregar a lo que
+       pediste, asi que no va en el pedido" — y era mentira dos veces: casi
+       siempre SI se puede (como plato aparte), y el cliente se quedaba con un
+       total al que le faltaba algo. Lo que sigue sin poder es adivinar CUAL:
+       "una gaseosa" no dice cual de las seis. Preguntarlo es lo que haria
+       cualquiera que atiende. */
+    const aviso = `⚠️ Sobre ${listaNatural(noSePudo)}: cuéntame exactamente cuál quieres y te lo agrego al pedido (por ahora no está incluido en el total).`;
     /* Va ANTES de la pregunta de confirmación: si va después, el cliente ya
        leyó "¿lo confirmamos?" y responde sin haber visto el aviso. */
     resumenFinal = confirmFrase && resumenFinal.includes(confirmFrase)
@@ -6881,9 +6916,15 @@ async function precioPuntual(texto: string, branchId: string): Promise<string | 
      plato en vez de $14.000/$28.000 de la adición). */
   const preguntaAdicion = /adici/i.test(texto);
   try {
+    /* Tambien las VARIABLES: hay productos cuyo precio no vive en la
+       presentacion sino en la variante (la Premium cuesta segun sea carne,
+       pollo o mixta). Sin esto, sus presentaciones valen 0 — y Paco le dijo a
+       un cliente "Premium cuesta: familiar $0 y personal $0" (17-ago). */
     const prods = preguntaAdicion ? [] : await sbGet(
-      `/rest/v1/pos_products?branch_id=eq.${branchId}&select=name,price,presentations&limit=200`,
-    ) as Array<{ name?: string; price?: number | string; presentations?: Array<{ name?: string; price?: number }> }> | null;
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&select=name,price,presentations,variables&limit=200`,
+    ) as Array<{ name?: string; price?: number | string;
+                 presentations?: Array<{ name?: string; price?: number }>;
+                 variables?: Array<{ name?: string; options?: Array<{ name?: string; price?: number; prices?: number[] }> }> }> | null;
 
     // Producto: gana el nombre MÁS LARGO que aparezca (completo o su primera palabra)
     let mejor: { name: string; price: number; pres: Array<{ name: string; price: number }> } | null = null;
@@ -6895,11 +6936,42 @@ async function precioPuntual(texto: string, branchId: string): Promise<string | 
       const pega = (n.length >= 4 && t.includes(n)) || (primera.length >= 3 && palabra(primera));
       if (pega && n.length > mejorLargo) {
         mejorLargo = n.length;
+        /* EL PRECIO DE VERDAD DE CADA TAMAÑO.
+           Si la presentacion trae precio, ese manda. Si viene en 0, el precio
+           vive en la variante: cada opcion guarda un `prices` con un valor por
+           presentacion, en el mismo orden que los tamaños.
+             · si el cliente ya dijo la variante ("premium CARNE"), se usa la
+               suya y el precio es exacto;
+             · si no la dijo y todas las variantes valen igual, tambien sirve;
+             · si no la dijo y valen distinto, NO hay un precio que decir —
+               queda en 0 y mas abajo se descarta. Regla de Sergio: el precio
+               solo se dice cuando se sabe la variante Y el tamaño. */
+        const listaPres = ((p.presentations || []) as Array<{ name?: string; price?: number }>);
+        const listaVars = ((p.variables || []) as Array<{ name?: string; options?: Array<{ name?: string; price?: number; prices?: number[] }> }>);
+        const precioDeIdx = (idx: number, base: number): number => {
+          if (base > 0) return base;
+          const valores: number[] = [];
+          for (const g of listaVars) {
+            for (const o of (g.options || [])) {
+              const nOp = normalizarTexto(String(o?.name || ""));
+              const v = Array.isArray(o?.prices) && idx < (o.prices as number[]).length
+                ? Number((o.prices as number[])[idx]) || 0
+                : Number(o?.price) || 0;
+              if (v <= 0) continue;
+              // La variante que el cliente nombro gana sobre todas.
+              if (nOp && palabra(nOp)) return v;
+              valores.push(v);
+            }
+          }
+          if (!valores.length) return 0;
+          // Todas iguales: se puede decir sin preguntar nada.
+          return valores.every(v => v === valores[0]) ? valores[0] : 0;
+        };
         mejor = {
           name: String(p.name).trim(),
           price: Number(p.price) || 0,
-          pres: ((p.presentations || []) as Array<{ name?: string; price?: number }>)
-            .map(x => ({ name: String(x?.name || "").trim(), price: Number(x?.price) || 0 }))
+          pres: listaPres
+            .map((x, i) => ({ name: String(x?.name || "").trim(), price: precioDeIdx(i, Number(x?.price) || 0) }))
             .filter(x => x.name && x.name.toLowerCase() !== "unico" && x.name.toLowerCase() !== "único"),
         };
       }
@@ -6912,9 +6984,21 @@ async function precioPuntual(texto: string, branchId: string): Promise<string | 
           (w.length >= 3 || /\d/.test(w)) && palabra(w)));
       });
       const nom = capFirst(mejor.name.toLowerCase());
-      if (cerca) return `${nom} ${cerca.name.toLowerCase()} cuesta ${fmtCOP(cerca.price)} 😊`;
+      /* NUNCA UN $0. Un precio en cero no es un precio: es un dato interno de
+         como esta armada la carta, y al cliente no le dice nada — le dice algo
+         FALSO. Si no se puede saber el precio, no se contesta el precio: se
+         devuelve null y el flujo normal sigue y pregunta el tamaño, que es
+         justo lo que hace falta para poder decirlo. */
+      if (cerca) {
+        return cerca.price > 0 ? `${nom} ${cerca.name.toLowerCase()} cuesta ${fmtCOP(cerca.price)} 😊` : null;
+      }
+      const conPrecio = mejor.pres.filter(x => x.price > 0);
+      /* Se exigen TODOS con precio, no "los que tengan": decir solo dos de tres
+         tamaños se lee como que el que falta no existe. */
       if (mejor.pres.length > 1) {
-        return `${nom} cuesta: ${mejor.pres.map(x => `${x.name.toLowerCase()} ${fmtCOP(x.price)}`).join(" y ")} 😊`;
+        return conPrecio.length === mejor.pres.length
+          ? `${nom} cuesta: ${mejor.pres.map(x => `${x.name.toLowerCase()} ${fmtCOP(x.price)}`).join(" y ")} 😊`
+          : null;
       }
       const unico = mejor.pres[0]?.price || mejor.price;
       return unico > 0 ? `${nom} cuesta ${fmtCOP(unico)} 😊` : null;

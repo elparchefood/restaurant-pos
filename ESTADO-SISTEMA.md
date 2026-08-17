@@ -6025,3 +6025,18 @@ Dos formatos en la misma pila de comandas. Paco anteponia el TIPO DE COMIDA y po
 - **Retirado `nombreConCategoriaVT`**, que quedo sin uso. Dejar codigo muerto invita a volver a llamarlo y revivir el formato viejo.
 
 **Verificado sobre el catalogo REAL entero, no con dos ejemplos**: se recorrieron las 111 combinaciones de producto x presentacion x variante y se exigio que la formula de Paco y la de la caja dieran la MISMA cadena. **111 de 111 iguales.**
+
+## 173. Paco ya no dice "$0" (17-ago) — delay-reply v302
+Cliente real (David, 573206960995): pregunto por la Premium y Paco contesto **"Premium cuesta: familiar $0 y personal $0"**. Sergio tuvo que tomar la conversacion.
+
+- **Causa**: `precioPuntual` solo leia el precio de la PRESENTACION. En productos como la Premium el precio no vive ahi sino en la VARIANTE (carne / pollo / mixta, con un precio por tamaño en `prices[]`). Las presentaciones estan en 0 a proposito — es un dato interno de como esta armada la carta — y Paco lo dijo tal cual.
+- **Arreglo 1 — leer el precio de donde vive**: si la presentacion viene en 0, se busca en las variantes. Si el cliente NOMBRO la variante ("premium carne"), se usa la suya y el precio es exacto; si no la nombro y todas valen igual, tambien se dice; si valen distinto, no hay un precio que decir.
+- **Arreglo 2 — candado de nunca-$0**: un precio en cero no se dice JAMAS. Se devuelve null y el flujo normal sigue (pregunta el tamaño o la variante, que es justo lo que falta para poder decirlo). Y si en la lista de tamaños alguno queda sin precio, no se dice ninguna: decir dos de tres se lee como que el tercero no existe.
+- **Regla de Sergio que esto implementa**: el precio solo se dice cuando se conocen variante Y presentacion (o cuando de verdad es unico).
+- **Verificado en el banco** con el catalogo real: "premium carne personal" → $29.000 exacto; "la premium" a secas → ya no hay $0 (pasa al flujo que pregunta tamaño); coca cola 1.5 → $8.000 (lo viejo sigue); "super queso" → pregunta la categoria (habia tres). Conversaciones de prueba borradas.
+- **Limite conocido, anotado**: al preguntar "cuanto vale la premium" sin variante, la rama de la CUENTA (otra distinta) responde "Pedido: $28.000" usando un precio por defecto. No es $0 y no es la rama de este bug, pero tampoco cumple la regla al 100%%. Va con el trabajo del extractor multi-producto.
+
+## PENDIENTE PARA MAÑANA (17-ago, decidido con Sergio): extractor multi-producto
+El caso de Emily (entrada del chat 573104031460): pidio 3 salchipapas Y una gaseosa EN EL MISMO MENSAJE. El extractor solo devuelve UN producto por mensaje: la gaseosa cayo en "adiciones", ninguna salchipapa la admite, se descarto en silencio y el total salio $8.000 corto. Sergio corrigio a mano.
+- **Ya hecho hoy** (v302, dos redes de seguridad): si algo cae en "adiciones" pero es un producto de la carta, se agrega como linea aparte; y el aviso de "no se pudo" ya no afirma "no va en el pedido" sino que pregunta cual quiere y avisa que NO esta en el total.
+- **Lo de fondo**: que el prompt de extraccion devuelva una LISTA de productos. Es la pieza mas delicada de Paco — hacerlo con el banco de 54 pedidos al lado, con calma, no en horario de atencion.
