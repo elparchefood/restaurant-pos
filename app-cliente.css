@@ -7,6 +7,11 @@
   --line: #26262e;
   --ink: #f4f4f6; --sub: #9698a3;   --dim: #7b7d89;
   --accent: #e3b04b; --accent2: #c08c2c;
+  /* Dorado PARA TEXTO. El --accent luce sobre fondo oscuro, pero en tema
+     claro da 2.9 de contraste sobre las tarjetas: ilegible. Medido, hace
+     falta bajarlo hasta #8a5f14 para pasar de 4.5. En oscuro es el mismo
+     --accent, asi que no cambia nada de lo que ya se veia bien. */
+  --oro-tx: #e3b04b;
   --wine: #8f2242;   --wa: #25d366;
   --maxw: 460px;
 }
@@ -15,6 +20,7 @@ html.tema-claro {
   --line: #e4dfd8;
   --ink: #17161a; --sub: #605e66;   --dim: #6f6c76;
   --accent: #b8842a; --accent2: #96681c;
+  --oro-tx: #8a5f14;
 }
 @media (prefers-color-scheme: light) {
   html:not(.tema-oscuro) {
@@ -22,6 +28,7 @@ html.tema-claro {
     --line: #e4dfd8;
     --ink: #17161a; --sub: #605e66;   --dim: #6f6c76;
     --accent: #b8842a; --accent2: #96681c;
+  --oro-tx: #8a5f14;
   }
 }
 
@@ -977,13 +984,85 @@ html.tema-claro .ep-wc-cta{background:#e3b04b;color:#1a1204}
 .ep-pay-total span {color:var(--sub);font-size:13.5px}
 .ep-pay-total b {font-size:21px;font-weight:700;letter-spacing:-.02em}
 .ep-upload {display:block;margin:11px 0;background:var(--surf2);border:1px dashed var(--line);border-radius:15px;padding:16px;text-align:center;font-size:13px;color:var(--dim);cursor:pointer}
-.ep-montos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+.ep-montos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 10px; }
+
+/* ══ EL SALDO EXTRA DE LA RECARGA (17-ago) ═══════════════════════════════════
+   Tres piezas en orden: la franja promete, cada monto muestra lo que le queda,
+   y el camino con paradas empuja al siguiente regalo. */
+
+/* La promesa. Va ANTES de que el cliente toque nada: la idea es que sepa que
+   hay regalo sin tener que elegir un monto para descubrirlo. */
+.ep-promesa {
+  border: 1px solid var(--accent); border-radius: 13px;
+  padding: 11px 13px; margin: 0 0 12px;
+  font-size: 13.5px; color: var(--oro-tx); line-height: 1.4;
+}
+
+/* El monto, con lo que le queda debajo. */
+.ep-monto small {
+  display: block; margin-top: 2px;
+  font-size: 11px; font-weight: 500; color: var(--dim);
+}
+.ep-monto.gana small { color: var(--oro-tx); }
+.ep-monto.on small { color: inherit; opacity: .9; }
+
+/* El camino. Va separado por una linea: es otra cosa que los montos — ya no
+   dice cuanto cuesta, dice cuanto lleva ganado. */
+.ep-camino {
+  border-top: 1px solid var(--line); margin: 14px 0 12px; padding: 13px 0 0;
+}
+.ep-camino-t { font-size: 13.5px; color: var(--ink); line-height: 1.5; margin: 0 0 14px; }
+.ep-camino-t b { color: var(--oro-tx); font-weight: 600; }
+.ep-camino-riel {
+  position: relative; height: 9px; border-radius: 999px; background: var(--surf2);
+}
+.ep-camino-fill {
+  position: absolute; left: 0; top: 0; height: 9px; border-radius: 999px;
+  background: var(--oro-tx); transition: width .25s ease-out;
+}
+@media (prefers-reduced-motion: reduce) { .ep-camino-fill { transition: none; } }
+/* Las paradas: apagadas son un hueco en el riel; alcanzadas se prenden. */
+.ep-parada {
+  position: absolute; top: 50%; width: 13px; height: 13px;
+  margin-left: -6.5px; margin-top: -6.5px; border-radius: 50%;
+  background: var(--surf); border: 2px solid var(--line);
+}
+.ep-parada.on { background: var(--oro-tx); border-color: var(--oro-tx); }
+/* Las etiquetas van EXACTAMENTE bajo su parada; la ultima se pega al borde
+   derecho para que no se salga de la pantalla. */
+.ep-camino-lbs { position: relative; height: 16px; }
+.ep-parada-lb {
+  position: absolute; top: 2px; transform: translateX(-50%);
+  font-size: 10.5px; white-space: nowrap; color: var(--dim);
+}
+.ep-parada-lb.fin { transform: translateX(-100%); }
+.ep-parada-lb.on { color: var(--oro-tx); }
+.ep-camino-p { font-size: 12.5px; color: var(--oro-tx); margin: 10px 0 0; line-height: 1.45; }
+
+/* El aviso del minimo. Va PEGADO al boton apagado, que es lo que el cliente
+   esta mirando cuando se pregunta por que no puede seguir. */
+.ep-minimo {
+  display: flex; align-items: center; gap: 8px;
+  margin: 12px 0; padding: 11px 13px; border-radius: 13px;
+  background: var(--surf2); border: 1px solid var(--line);
+  font-size: 12.5px; color: var(--sub); line-height: 1.45;
+}
+.ep-minimo:empty { display: none; }
+.ep-minimo b { color: var(--ink); font-weight: 600; }
+.ep-minimo::before {
+  content: "!"; flex: none;
+  width: 19px; height: 19px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--line); color: var(--ink); font-size: 12px; font-weight: 600;
+}
 .ep-upload {
   display: block; margin: 12px 0; padding: 15px 16px; text-align: center; cursor: pointer;
   border: 1px dashed var(--line); border-radius: 14px; color: var(--sub); font-size: 13.5px;
 }
 .ep-upload:hover { border-color: var(--accent); color: var(--accent); }
-@media (max-width: 480px) { .ep-montos { grid-template-columns: repeat(2, 1fr); } }
+/* Con el subtitulo "te quedan", cuatro columnas no caben en un celular:
+   la parrilla nace en dos y se abre a cuatro solo si hay sitio. */
+@media (min-width: 560px) { .ep-montos { grid-template-columns: repeat(4, 1fr); } }
 
 /* ══ AVISOS ══════════════════════════════════════════════════════════════════
    Reemplazan al alert() del navegador. Usan los mismos tokens que el resto de

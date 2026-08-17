@@ -6458,3 +6458,68 @@ codigo muerto, no un error visible.
 **Regla para no repetirlo:** hay un aviso escrito en `app-cliente.css`, junto a
 la paleta. Los nombres buenos son `--ink --sub --dim --surf --surf2 --line
 --accent --wine`. Antes de escribir `var(--algo)`, comprobar que exista.
+
+---
+
+## 184 — Recargas: el cliente ve lo que va a ganar ANTES de recargar (17-ago-2026)
+
+Sergio: que la gente sepa, incluso antes de recargar, cuanto va a recibir de
+mas, y que al tocar cada monto se lo diga. Se le mostraron 15 propuestas en
+tres rondas; escogio la franja de promesa + el camino con paradas.
+
+### El hallazgo: el aviso NUNCA mostraba una cifra
+
+`bonoTexto()` leia `S.cliente.bono_por_bloque`, pero **`web-acceso` jamas
+enviaba ese campo**: no existia en la respuesta. Asi que el aviso caia siempre
+en el texto generico "Desde $50.000 ganas saldo extra" y ningun cliente vio
+nunca cuanto ganaba. Estaba escrito el consumidor y no el productor.
+
+### Lo que se hizo
+
+**Servidor** (`web-acceso` v16): `fichaCliente` devuelve `recarga: {minimo,
+bloque, bono_por_bloque}` leido de `pos_recarga_config`. Va junto al nivel
+porque el bono DEPENDE del nivel (Estandar $5.000 · Premium $10.000 · VIP
+$15.000 por bloque de $50.000). El minimo y el bloque tambien viajan: estaban
+escritos a mano en la pagina y Cobra es multi-restaurante.
+
+**Pantalla**, tres piezas en orden:
+1. Franja: "Cada vez que recargas, te regalamos saldo". Se ve ANTES de tocar
+   nada — era el pedido de fondo.
+2. Cada monto dice lo que le QUEDA ("te quedan $110.000"), no solo lo que pone.
+3. El camino con paradas: un riel de $0 al monto mas alto, con una parada por
+   bloque; las alcanzadas se prenden. Arriba "ya te ganaste $X" y abajo
+   "sumale $Y y te ganas $Z mas".
+
+**El monto libre, en vivo (pedido de Sergio).** Antes solo se repintaba al SALIR
+del campo. Ahora refresca tecla a tecla — pero solo el bloque del bono, no la
+pantalla entera: repintarla le quitaria el foco y no podria seguir escribiendo.
+
+**Aviso del minimo (pedido de Sergio).** Debajo de $40.000 el boton se
+deshabilitaba y ya: un control muerto sin explicacion. Ahora, pegado al boton:
+"Sube a $40.000 para poder recargar · te faltan $20.000".
+
+### Tres errores propios que encontro la verificacion
+
+1. **Las etiquetas del camino se montaban.** Con 5+ paradas se solapaban
+   (medido: 7 choques con 8 paradas en 360px). Ahora los circulos se quedan
+   todos y se rotula uno de cada tantos, siempre el ultimo.
+2. **El camino contradecia al texto.** Cortar en las primeras 8 paradas hacia
+   que con $500.000 la ultima dijera "+$40.000" mientras el titulo decia
+   "$50.000". Ahora las paradas se AGRUPAN (cada una vale varios bloques) en
+   vez de cortarse, asi que la ultima siempre coincide con lo que gana.
+3. **El dorado era ilegible en tema claro.** `--accent` (#b8842a) daba 2.88 de
+   contraste sobre las tarjetas claras. Se aNadio `--oro-tx`: el mismo dorado
+   en oscuro, y #8a5f14 en claro (medido, 4.92-5.63). Todos los textos dorados
+   —y el relleno de la barra— pasan a ese token.
+
+**Verificado midiendo**, en 360px y en los dos temas: montos de $20.000 a
+$1.000.000; cero solapes de etiquetas y cero desborde horizontal; la ultima
+parada siempre coincide con el titulo; el foco se queda en el campo mientras se
+escribe; el boton se apaga exactamente bajo el minimo y el aviso aparece con el
+faltante correcto; todos los textos por encima de 4.5:1 en claro y oscuro.
+Y el dato real se comprobo EN VIVO contra la funcion desplegada, con una sesion
+temporal que se borro al terminar: devuelve
+`{"minimo":40000,"bloque":50000,"bono_por_bloque":5000}`.
+
+**Nota:** la API de Supabase reporto ACTIVE; se hizo smoke test aparte porque
+tambien reporta ACTIVE con BOOT_ERROR.

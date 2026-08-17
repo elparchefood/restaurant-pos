@@ -221,6 +221,31 @@ async function fichaCliente(tenantId: string, clienteId: string) {
     if (r.ok) { const d = await r.json(); nivel = Array.isArray(d) ? d[0] : d; }
   } catch (e) { console.error("[acceso] nivel:", String(e).slice(0, 200)); }
 
+  /* LA REGLA DE LAS RECARGAS (17-ago). La página ya sabía dibujar el saldo
+     extra, pero NADIE le mandaba cuánto vale: `bono_por_bloque` no existía en
+     esta respuesta, así que el aviso caía siempre en el texto genérico y el
+     cliente jamás veía una cifra. Va aquí, junto al nivel, porque el bono
+     DEPENDE del nivel: Estándar, Premium y VIP no reciben lo mismo.
+     El mínimo y el bloque también se mandan: estaban escritos a mano en la
+     página, y Cobra es multi-restaurante — cada uno pone los suyos. */
+  let recarga = null;
+  try {
+    const rc = await sbGet(
+      `/pos_recarga_config?tenant_id=eq.${tenantId}&select=activo,minimo,bloque,bono_nivel&limit=1`
+    ) as Array<Record<string, unknown>> | null;
+    const cfg = rc?.[0];
+    if (cfg && cfg.activo !== false) {
+      const porNivel = (cfg.bono_nivel || {}) as Record<string, unknown>;
+      recarga = {
+        minimo: Number(cfg.minimo || 0),
+        bloque: Number(cfg.bloque || 0),
+        // Si el nivel no está en la tabla de bonos, no se promete nada: es
+        // preferible no mostrar el premio que prometer uno que no se va a dar.
+        bono_por_bloque: Number(porNivel[String(nivel?.nivel || "")] || 0),
+      };
+    }
+  } catch (e) { console.error("[acceso] recarga:", String(e).slice(0, 200)); }
+
   /* Los últimos pedidos, para la lista de actividad del inicio. Solo lo que el
      cliente puede ver de lo suyo: qué pidió, cuándo y cuánto. */
   const ped = await sbGet(
@@ -290,6 +315,7 @@ async function fichaCliente(tenantId: string, clienteId: string) {
       xp: nivel.valor, falta: nivel.falta, progreso: nivel.progreso,
       pedidos: nivel.pedidos, dias_para_caducar: nivel.dias_para_caducar,
     } : null,
+    recarga,
   };
 }
 

@@ -424,15 +424,24 @@
       b.addEventListener('click', function () {
         recargaMonto = Number(b.dataset.monto) || 0;
         recargaOtro = '';
-        pantallaDentro();
+        var campo = $('rc-otro');
+        if (campo) campo.value = '';
+        refrescarBono();
       });
     });
     var otro = $('rc-otro');
     if (otro) {
-      otro.addEventListener('input', function () { recargaOtro = this.value; });
-      /* Solo al salir del campo se repinta: hacerlo en cada tecla le quitaria
-         el foco al usuario mientras escribe. */
-      otro.addEventListener('blur', pantallaDentro);
+      /* EN VIVO, TECLA A TECLA (pedido de Sergio). El que escribe su propio
+         monto tiene el mismo derecho a ver lo que va a recibir que el que toca
+         uno de los botones — y ademas es a quien mas ayuda el aviso de cuanto
+         le falta para el siguiente regalo.
+         Antes esto solo se repintaba al SALIR del campo, y se repintaba la
+         pantalla entera; ahora se refresca solo el bloque del bono, que es lo
+         unico que cambia, y el foco se queda donde esta. */
+      otro.addEventListener('input', function () {
+        recargaOtro = this.value;
+        refrescarBono();
+      });
     }
     var pgS = $('pg-saldo');
     if (pgS) pgS.addEventListener('click', function () { pagarPedido('saldo', null); });
@@ -1054,23 +1063,125 @@
   var RECARGA_MINIMO = 40000, RECARGA_BLOQUE = 50000;
   var recargaMonto = 50000, recargaOtro = '';
 
-  /* Cuánto saldo extra le queda por esta recarga. Bloques COMPLETOS de $50.000
-     por lo que valga su nivel: $70.000 es un bloque, no uno y medio. El valor
-     por bloque lo manda el servidor con los datos del cliente; si no viene, no
-     se promete nada. */
-  function bonoTexto(monto) {
-    var c = S.cliente || {};
-    var porBloque = Number(c.bono_por_bloque || 0);
-    if (!porBloque || monto < RECARGA_MINIMO) {
-      return '<div class="ep-nota" style="margin:-2px 0 10px">Desde ' + COP(RECARGA_BLOQUE) +
-             ' ganas saldo extra.</div>';
+  /* La regla la manda el servidor con la ficha del cliente, porque el bono
+     DEPENDE de su nivel. Si no viene, se usan los de siempre y no se promete
+     ningun regalo. */
+  function reglaRecarga() {
+    var r = (S.cliente && S.cliente.recarga) || {};
+    return {
+      minimo: Number(r.minimo) || RECARGA_MINIMO,
+      bloque: Number(r.bloque) || RECARGA_BLOQUE,
+      porBloque: Number(r.bono_por_bloque) || 0
+    };
+  }
+
+  /* Bloques COMPLETOS: $70.000 es un bloque, no uno y medio. */
+  function bonoDe(monto) {
+    var g = reglaRecarga();
+    if (!g.porBloque || !g.bloque) return 0;
+    return Math.floor(monto / g.bloque) * g.porBloque;
+  }
+
+  /* EL CAMINO CON PARADAS (17-ago, disenado con Sergio).
+     Tres piezas, en este orden: la franja que promete, los montos con lo que le
+     queda a cada uno, y un camino donde cada parada regala mas.
+
+     El camino llega hasta el monto mas alto que se ofrece. Si el cliente
+     escribe MAS que eso, el camino se estira hasta el: quedarse con la barra
+     llena y el mensaje quieto haria pensar que ya no gana mas, y si gana. */
+  function bloqueBono(monto) {
+    var g = reglaRecarga();
+    if (!g.porBloque) return '';               // sin regla no se promete nada
+    var bono = bonoDe(monto);
+    var resto = g.bloque ? monto % g.bloque : 0;
+    var falta = resto ? g.bloque - resto : 0;
+
+    /* Las paradas se AGRUPAN, no se cortan. Cortarlas en las primeras ocho hacia
+       que con montos grandes la ultima parada dijera "+$40.000" mientras el
+       titulo decia "$50.000": el camino contradecia al texto. Si hay demasiados
+       bloques, cada parada pasa a valer varios — pero siempre cae en un bloque
+       de verdad, asi que su cifra sigue siendo exacta. */
+    var bloques = Math.ceil(Math.max(MONTOS[MONTOS.length - 1], monto) / g.bloque);
+    var paso = Math.ceil(bloques / 8);
+    var paradas = [];
+    for (var k = paso; k <= bloques; k += paso) paradas.push(k * g.bloque);
+    if (!paradas.length || paradas[paradas.length - 1] < bloques * g.bloque) {
+      paradas.push(bloques * g.bloque);
     }
-    var bloques = Math.floor(monto / RECARGA_BLOQUE);
-    if (!bloques) return '<div class="ep-nota" style="margin:-2px 0 10px">Desde ' +
-                          COP(RECARGA_BLOQUE) + ' ganas saldo extra.</div>';
-    var bono = bloques * porBloque;
-    return '<div class="ep-ok" style="margin:-2px 0 10px">Recargas ' + COP(monto) +
-           ' y recibes <b>' + COP(monto + bono) + '</b> · ' + COP(bono) + ' de regalo</div>';
+    var tope = paradas[paradas.length - 1];
+
+    var puntos = paradas.map(function (p) {
+      var ok = monto >= p, x = (p / tope) * 100;
+      return '<span class="ep-parada' + (ok ? ' on' : '') + '" style="left:' + x + '%"></span>';
+    }).join('');
+    /* En un celular solo caben unas CUATRO etiquetas: medido, con cinco o mas
+       se montan unas sobre otras y no se lee ninguna. Los circulos se quedan
+       todos — son los que cuentan la historia — y se rotula uno de cada tantos,
+       siempre incluyendo el ultimo, que es la meta. */
+    var cada = paradas.length <= 4 ? 1 : Math.ceil(paradas.length / 3);
+    var etiquetas = paradas.map(function (p, i) {
+      var ultima = (i === paradas.length - 1);
+      if (!ultima && (paradas.length - 1 - i) % cada !== 0) return '';
+      var ok = monto >= p, x = (p / tope) * 100;
+      return '<span class="ep-parada-lb' + (ok ? ' on' : '') + (ultima ? ' fin' : '') +
+             '" style="left:' + x + '%">+' + COP((p / g.bloque) * g.porBloque) + '</span>';
+    }).join('');
+
+    return '<div class="ep-camino">' +
+      '<div class="ep-camino-t">' + (bono
+        ? 'Ya te ganaste <b>' + COP(bono) + '</b> de regalo'
+        : 'Llega a ' + COP(g.bloque) + ' y te ganas ' + COP(g.porBloque)) + '</div>' +
+      '<div class="ep-camino-riel">' +
+        '<div class="ep-camino-fill" style="width:' + Math.min(100, (monto / tope) * 100) + '%"></div>' +
+        puntos +
+      '</div>' +
+      '<div class="ep-camino-lbs">' + etiquetas + '</div>' +
+      /* Debajo del primer bloque el titulo YA dice "llega a $50.000 y te ganas
+         $5.000": repetirlo aqui con otras palabras solo confunde. */
+      (bono
+        ? '<div class="ep-camino-p">Súmale ' + COP(falta || g.bloque) +
+          ' y te ganas ' + COP(g.porBloque) + ' más</div>'
+        : '') +
+    '</div>';
+  }
+
+  /* POR QUE EL BOTON ESTA APAGADO (17-ago). Debajo del minimo el boton de
+     enviar se deshabilitaba y ya: el cliente veia un boton muerto sin ninguna
+     explicacion y no tenia como adivinar que le faltaba plata. Un control
+     apagado sin motivo es un callejon sin salida. */
+  function avisoMinimo(monto) {
+    var g = reglaRecarga();
+    if (!g.minimo || monto >= g.minimo) return '';
+    return '<div class="ep-minimo">Sube a <b>' + COP(g.minimo) + '</b> para poder recargar' +
+      (monto > 0 ? ' · te faltan ' + COP(g.minimo - monto) : '') + '</div>';
+  }
+
+  /* Repinta SOLO lo que depende del monto. Con "Otro monto" no se puede volver
+     a pintar la pantalla entera en cada tecla: el campo perderia el foco y el
+     cliente no podria seguir escribiendo. */
+  function refrescarBono() {
+    var g = reglaRecarga();
+    var monto = recargaOtro
+      ? parseInt(String(recargaOtro).replace(/\D/g, '') || '0', 10)
+      : recargaMonto;
+
+    var caja = $('rc-bono');
+    if (caja) caja.innerHTML = bloqueBono(monto);
+
+    var min = $('rc-min');
+    if (min) min.innerHTML = avisoMinimo(monto);
+
+    var tot = document.querySelector('.ep-pay-total b');
+    if (tot) tot.textContent = COP(monto);
+
+    var env = $('rc-enviar');
+    if (env) env.disabled = monto < g.minimo;
+
+    // Los montos de un toque se apagan cuando el cliente escribe el suyo.
+    document.querySelectorAll('[data-monto]').forEach(function (b) {
+      b.classList.toggle('on', !recargaOtro && Number(b.dataset.monto) === recargaMonto);
+      b.classList.toggle('gana', bonoDe(Number(b.dataset.monto)) > 0);
+    });
   }
 
   function cuerpoBilletera() {
@@ -1098,10 +1209,21 @@
         'stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg> Recargar</button>' +
     '</div>';
 
+    /* Cada monto dice lo que le QUEDA, no solo lo que pone: es la diferencia
+       entre una lista de precios y una oferta. */
     var botones = MONTOS.map(function (m) {
       var on = !recargaOtro && recargaMonto === m;
-      return '<button class="ep-monto' + (on ? ' on' : '') + '" data-monto="' + m + '">' + COP(m) + '</button>';
+      var b = bonoDe(m);
+      return '<button class="ep-monto' + (on ? ' on' : '') + (b ? ' gana' : '') + '" data-monto="' + m + '">' +
+        COP(m) +
+        (reglaRecarga().porBloque
+          ? '<small>' + (b ? 'te quedan ' + COP(m + b) : 'sin regalo') + '</small>'
+          : '') +
+      '</button>';
     }).join('');
+
+    var franja = reglaRecarga().porBloque
+      ? '<div class="ep-promesa">Cada vez que recargas, te regalamos saldo</div>' : '';
 
     /* Los datos de pago salen de la CONFIGURACION del restaurante, no escritos
        aqui: cada uno tiene su cuenta, y una cuenta equivocada manda la plata a
@@ -1121,13 +1243,15 @@
           '<h3>Recargar</h3>' +
           '<p class="sub">Elige el monto, transfiere y sube el comprobante. ' +
             'Tu saldo se acredita cuando el pago quede verificado.</p>' +
+          franja +
           '<div class="ep-montos">' + botones + '</div>' +
-          bonoTexto(final) +
+          '<div id="rc-bono">' + bloqueBono(final) + '</div>' +
           '<input class="ep-input" id="rc-otro" placeholder="Otro monto" inputmode="numeric" value="' + esc(recargaOtro) + '">' +
           datos +
           '<label class="ep-upload"><input type="file" id="rc-comp" accept="image/*" hidden>' +
             '<span id="rc-comp-lbl">Adjuntar comprobante</span></label>' +
-          '<button class="ep-btn gold big" id="rc-enviar"' + (final < RECARGA_MINIMO ? ' disabled' : '') + '>Enviar recarga</button>' +
+          '<div id="rc-min">' + avisoMinimo(final) + '</div>' +
+          '<button class="ep-btn gold big" id="rc-enviar"' + (final < reglaRecarga().minimo ? ' disabled' : '') + '>Enviar recarga</button>' +
           /* Se dice ANTES de que pague, no despues: es plata suya y tiene
              derecho a saber la regla antes de entregarla. */
           '<div class="ep-nota" style="margin-top:12px">El saldo solo se usa en ' + esc(e.nombre || 'el restaurante') +
