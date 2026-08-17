@@ -347,6 +347,28 @@ async function loadBases(){
   catch(e){}
 }
 
+/* ── FOTOS ALTAS: ENTERAS, NO RECORTADAS (17-ago, ver entrada 180) ────────
+   La miniatura es apaisada y `object-fit: cover` recorta lo que sobra. Con las
+   fotos de comida esta bien. Con un recorte de producto alto (una botella) se
+   perdia mas del 70%: se veia un trozo de etiqueta y ni se sabia que era.
+   Se mide la foto REAL, no la categoria: asi vale para cualquier restaurante.
+   ⚠️ La regla NO compara contra el marco. Se probo asi y estaba mal: en Cobra
+   el ancho de la tarjeta cambia con el tamaNo de la ventana, asi que la MISMA
+   hamburguesa salia recortada con la ventana angosta y con bordes vacios con la
+   ventana ancha. Se mira solo la forma de la FOTO, que no cambia nunca:
+   apaisada (>1.15) = foto de comida, se recorta; cuadrada o alta = recorte de
+   producto, se muestra entera. */
+function acomodarFoto(im){
+  if(!im || !im.naturalWidth || !im.naturalHeight) return;
+  im.classList.toggle('cp-foto-entera', im.naturalWidth / im.naturalHeight <= 1.15);
+}
+function acomodarFotos(){
+  document.querySelectorAll('.cp-thumb-img').forEach(im=>{
+    if(im.complete) acomodarFoto(im);
+    else im.addEventListener('load', ()=>acomodarFoto(im), {once:true});
+  });
+}
+
 function icon(name,size,sw){
   size=size||16;sw=sw||2;
   const p='width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="'+sw+'" stroke-linecap="round" stroke-linejoin="round"';
@@ -511,6 +533,7 @@ function renderProductGrid(body){
     return;
   }
   body.innerHTML='<div class="cp-card-grid">'+filtered.map(p=>productCardHTML(p)).join('')+'</div>';
+  acomodarFotos();
 }
 
 function productCardHTML(p){
@@ -563,6 +586,7 @@ async function toggleProduct(id){
 function renderComboGrid(body){
   if(!S.combos.length){body.innerHTML='<div class="cp-empty"><div class="cp-empty-icon">'+icon('combo',28,1.6)+'</div><h3>No hay combos creados</h3><p>Crea combos para ofrecer productos juntos a un precio especial.</p><div class="cp-empty-actions"><button class="lm-btn-primary" onclick="openEditor(null,\'combo\')">'+icon('plus',14)+' Nuevo combo</button></div></div>';return;}
   body.innerHTML='<div class="cp-card-grid">'+S.combos.map(c=>comboCardHTML(c)).join('')+'</div>';
+  acomodarFotos();
 }
 function comboCardHTML(c){
   const thumb=c.photo?'<img class="cp-thumb-img" src="'+escHtml(c.photo)+'" alt="">':'<div class="cp-thumb-placeholder"><span class="cp-thumb-label">foto · combo</span></div>';

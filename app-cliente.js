@@ -871,15 +871,17 @@
 
      Se mira la foto REAL (naturalWidth/naturalHeight) en vez de fiarse de la
      categoria: sirve para cualquier restaurante, no solo para las bebidas de
-     este. Solo se cambian las MAS ALTAS que el marco; una foto apaisada se
-     sigue recortando, que es lo que se quiere. */
+     este.
+     ⚠️ La regla NO compara contra el marco. Se probo asi y estaba mal: en Cobra
+     el ancho de la tarjeta cambia con el tamaNo de la ventana, asi que la MISMA
+     hamburguesa salia recortada con la ventana angosta y con bordes vacios con la
+     ventana ancha. Se mira solo la forma de la FOTO, que no cambia nunca:
+     apaisada (>1.15) = foto de comida, se recorta; cuadrada o alta = recorte de
+     producto, se muestra entera. */
   function acomodarFoto(im) {
     if (!im || !im.naturalWidth || !im.naturalHeight) return;
-    var marco = im.parentElement;
-    if (!marco || !marco.clientHeight) return;
-    var rFoto = im.naturalWidth / im.naturalHeight;
-    var rMarco = marco.clientWidth / marco.clientHeight;
-    im.classList.toggle('ep-foto-entera', rFoto < rMarco / 1.2);
+    im.classList.toggle('ep-foto-entera',
+      im.naturalWidth / im.naturalHeight <= 1.15);
   }
   function acomodarFotos() {
     document.querySelectorAll('.ep-plato-img img').forEach(function (im) {

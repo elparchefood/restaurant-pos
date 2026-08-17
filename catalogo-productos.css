@@ -110,6 +110,9 @@ input,select,textarea,button{font-family:inherit;}
 .cp-thumb-placeholder{width:100%;height:100%;background:repeating-linear-gradient(135deg,#F1F5F9 0 9px,#F8FAFC 9px 18px);display:flex;align-items:flex-end;}
 .cp-thumb-label{font-family:ui-monospace,Menlo,monospace;font-size:9px;color:#94A3B8;background:rgba(255,255,255,.82);padding:2px 6px;margin:8px;border-radius:5px;}
 .cp-thumb-img{width:100%;height:100%;object-fit:cover;display:block;}
+/* Recortes de producto (botellas, latas): enteros y no recortados. La clase la
+   pone acomodarFoto() midiendo la foto de verdad — ver entrada 180. */
+.cp-thumb-img.cp-foto-entera{object-fit:contain;padding:9px 8px;box-sizing:border-box;}
 .cp-cat-chip{position:absolute;top:10px;left:10px;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;}
 .cp-inactive-chip{position:absolute;top:10px;right:10px;font-size:10px;font-weight:700;color:#64748B;background:rgba(255,255,255,.9);padding:3px 8px;border-radius:999px;}
 .cp-card-body{padding:13px 14px 4px;display:flex;flex-direction:column;flex:1;}

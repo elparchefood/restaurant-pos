@@ -6330,3 +6330,42 @@ igual que antes). Comparacion visual en
 
 **Pendiente relacionado:** las pantallas de Cobra (catalogo, tomar-pedido,
 venta-rapida) tienen su propio `cover` y no se revisaron en esta entrada.
+
+---
+
+## 181 — Las fotos, tambien en las pantallas de Cobra + QUATRO rescatada (17-ago-2026)
+
+Sergio mando pantallazo del **catalogo de Cobra**: alli las bebidas seguian
+recortadas, porque la entrada 180 solo toco la pagina del cliente.
+
+**1. Mismo arreglo en el catalogo de Cobra** (`.cp-thumb-img`), llamado despues
+de pintar la parrilla de productos y la de combos.
+
+**2. La regla cambio, y por un error propio que valia la pena.** En 180 la regla
+comparaba la foto contra el MARCO (`rFoto < rMarco/1.2`). En la pagina del
+cliente el marco es fijo (1.55) y funcionaba. En Cobra NO: el ancho de la
+tarjeta depende del tamaNo de la ventana, asi que la misma hamburguesa salia
+recortada con la ventana angosta y con bordes vacios con la ventana ancha. Se
+vio en el arnes de prueba, no en produccion.
+
+Ahora la regla mira solo la forma de la FOTO, que no cambia nunca:
+`ancho/alto <= 1.15` = recorte de producto -> entera; mas apaisada = foto de
+comida -> se recorta. Verificado con las 16 fotos reales a 700px y a 1800px de
+ancho: resultado identico en las dos, 10 hamburguesas en `cover` y 6 bebidas en
+`contain`.
+
+**3. QUATRO rescatada.** Su foto no era un recorte: era un banner con la botella
+sobre un bloque lila y barras negras. Se recorto la botella con `grabCut`
+(OpenCV) + la mancha conexa mayor, y quedo limpia (108x245, 4 KB). Ya esta en
+vivo.
+
+**4. POSTOBON NO tiene arreglo automatico — necesita foto nueva.** No es "un
+poco de basura alrededor": el archivo trae un **fantasma de otra botella
+superpuesto** — una mancha gris ENCIMA del cuello y una franja rosada pegada al
+costado. Se intentaron dos caminos y los dos fallaron, con razon:
+- Quedarse con la mancha conexa mas grande: los jirones estan pegados a la
+  botella, no sueltos (solo cayo el 1.7%).
+- Adelgazar la silueta para romper uniones finas (erode k=5,7,9,11): la union es
+  ancha, no un hilo. Solo cayo el 5%, y las manchas siguen ahi.
+Con el arreglo del recorte ya no sale destrozada, pero para que quede como las
+otras cinco hay que volver a subirla desde una imagen limpia.
