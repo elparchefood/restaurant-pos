@@ -8,6 +8,7 @@
 ## 0. Regla de documentación continua (OBLIGATORIA)
 
 Después de cada cambio importante, corrección compleja o decisión de diseño, **actualizar `ESTADO-SISTEMA.md`** antes de terminar la sesión. Esto garantiza que cuando la conversación se compacte, toda la información esté en los documentos y no se pierda.
+- `ERRORES-PACO-CLIENTES-REALES.md` — registro unico de los errores de Paco con clientes reales. **Cada error nuevo que se arregle se agrega ALLI ademas de en ESTADO-SISTEMA.md.**
 
 **Qué registrar:**
 - Cambios en Supabase (filas nuevas, eliminadas, sort_order modificado)
