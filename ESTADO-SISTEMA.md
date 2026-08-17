@@ -6858,3 +6858,53 @@ pantalla.
 
 Mismo alto que sus vecinas en las cuatro anchuras de escritorio, cero huecos
 intermedios, cero desborde horizontal, y la medalla en la esquina de la foto.
+
+---
+
+## 191 — ¿Esta funcional la pagina de clientes? Verificacion de punta a punta (17-ago-2026)
+
+Sergio pregunto si la app de clientes ya sirve para recargar y pedir. Se
+verifico **ejecutando los caminos completos** en el tenant de demostracion, no
+leyendo codigo.
+
+### Lo que SI quedo probado hoy
+
+| Paso | Resultado |
+|---|---|
+| Crear pedido desde la pagina | `ok`, total correcto, nace `pendiente_pago` con `origen: web` |
+| ¿Lo ve la caja y la cocina? | Si — `pendiente_pago` esta en `ESTADO_ABIERTO` de caja.js y en `ACTIVE_STATUSES` de kitchen.js |
+| Pagar con saldo | `paid` + `en_preparacion`, por la misma puerta (`cambiar-estado`) que usan el POS y Paco |
+| ¿Se descuenta el saldo? | Si: 100.000 → 80.000 por un pedido de 20.000 |
+| ¿Se dan puntos? | Si: 20 puntos por 20.000 |
+| Combos | Pedido, cobrado al precio del combo, comanda e inventario correctos (entrada 187) |
+| Agotado | El servidor lo rechaza (entrada 189) |
+| Recarga | Crea la solicitud y el **OCR leyo bien el monto**: dicho 50.000 / leido 50.000 |
+
+### Lo que NO esta probado (y hay que decirlo)
+
+- **Nadie ha usado la pagina en produccion todavia**: cero pedidos con
+  `origen='web'` y cero solicitudes de recarga en toda la base. Hay 8 sesiones
+  web de 2 clientes — alguien entro, nadie completo.
+- **El pago por transferencia de un PEDIDO** no se probo; solo el pago con
+  saldo.
+- **La acreditacion final de una recarga** no se probo: exige que el correo del
+  banco confirme que la plata entro, y probarlo de verdad requeriria una
+  transferencia real. El demo no tiene correo conectado (fallo con
+  `sin_gmail`); **El Parche SI lo tiene**, desde el 28-jul.
+- **Domicilio** no se probo; solo "recoger".
+- **La impresion de la comanda** no se probo.
+
+### Un riesgo cerrado de paso
+
+`web-recarga` estaba **desplegada (v11) pero su codigo NO estaba en el repo**:
+si se perdia o habia que tocarla, no habia fuente. Se recupero del servidor con
+`GET /functions/web-recarga/body` y quedo en
+`supabase/functions/web-recarga/index.ts`.
+⚠️ Con la trampa de siempre: `/body` devuelve la linea 1 CORTADA — llego como
+`eb-recarga — el cliente...`, sin el `// w`. Se reconstruyo antes de guardar.
+**Nunca volver a subir un cuerpo bajado de `/body` sin reparar la primera
+linea.**
+
+**Todo lo de prueba se borro**: pedido, items, solicitud, saldo, movimientos,
+puntos, sesiones y cliente; el tenant demo quedo con `slug` nulo y
+`web_activa` en false. Comprobado que El Parche no recibio nada.
