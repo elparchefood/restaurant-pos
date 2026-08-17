@@ -5974,3 +5974,15 @@ El modal de apertura pedia un solo numero. Ahora la base se arma de tres sitios 
 - Nueva accion `push-suscribir` en web-acceso (v15). `sbPost` acepta ahora un `Prefer` extra, que es lo que necesita PostgREST para un upsert.
 - **FALTA EL QUE ENVIA**: hoy se guarda a quien avisarle, pero nada manda todavia. Los suscriptores se van acumulando desde ya, asi que cuando se construya el envio ya hay a quien mandarle.
 - **Probado pintando los tres modales con el codigo de verdad**: variante Android (boton Instalar), variante iPhone (3 pasos, sin boton falso) y la de notificaciones.
+
+## 170. La pantalla de entrar no se mueve (16-ago)
+Pedido de Sergio al empezar a pulir la app instalada: en la pantalla de entrar, que la pagina quede quieta. Que rebote al arrastrarla es lo que mas delata que una app instalada es en realidad una pagina web.
+
+- **El bloqueo se pone y se quita en `pinta()`**, no en cada pantalla: hay CINCO pantallas de entrada (telefono, codigo, clave, registro, recuperar) y la que se olvide se queda rebotando. Se reconoce por la clase `ep-login` del propio HTML que se esta pintando — una bandera aparte se puede desincronizar de lo que se pinta; la clase ES lo que se pinta.
+- `overscroll-behavior: none` mata el rebote elastico, y `touch-action: pan-x` mata el "arrastrar para recargar" de Android, que en una pantalla de entrar no tiene sentido y borra lo que la persona iba escribiendo.
+- **`100dvh` y no `100vh`/`100%`**: `dvh` es el alto REAL de la pantalla del celular. Con los otros, la barra del navegador queda contada de mas y sobra un pedazo que se puede arrastrar — justo lo que se queria quitar.
+
+**EL ERROR QUE COMETI Y NO SE VE MIRANDO.** Primero puse a `.ep-login` como el que se desplaza. No sirve: `.ep-login` CRECE con su contenido, asi que nunca le sobra nada que desplazar. El que recortaba a la altura de la pantalla era `#app`, con `overflow:hidden` — o sea que **con el teclado abierto, la contraseña y el boton de Entrar quedaban debajo del corte y no habia forma de llegar a ellos.** Un cliente en un celular pequeño no habria podido entrar.
+- Lo encontre midiendo el caso a proposito: pantalla de 360x420, que es lo que queda cuando se abre el teclado. Salio `botonAlcanzable: false`.
+- **Arreglado**: el que se desplaza es `#app`. Mientras todo quepa —lo normal— no hay nada que desplazar y la pantalla queda quieta; solo si el teclado la aprieta, `#app` cede.
+- **Verificado en los tres casos**: celular normal (375x812) la pagina no se mueve y arrastrar la deja en 0; con teclado (360x420) el boton y la contraseña SI se alcanzan y el telefono no queda cortado por arriba; y al entrar se quita la clase y todo vuelve a desplazarse normal.

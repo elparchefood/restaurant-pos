@@ -22,7 +22,21 @@
   var S = { slug: window.COBRA_SLUG || '', negocio: null, cliente: null, tel: '', pase: null };
 
   var app = document.getElementById('app');
-  function pinta(html) { app.innerHTML = html; }
+  /* LA PANTALLA DE ENTRAR NO SE MUEVE. En una app instalada, que la pantalla
+     rebote al arrastrarla se siente rota: las apps de verdad no hacen eso.
+
+     El bloqueo se pone y se quita AQUI y no en cada pantalla, porque hay cinco
+     pantallas de entrada (telefono, codigo, clave, registro, recuperar) y si se
+     hiciera una por una, la que se olvide se queda rebotando.
+
+     Se reconoce por la clase, no por una bandera aparte: una bandera se puede
+     desincronizar de lo que se esta pintando; la clase ES lo que se esta
+     pintando. */
+  function pinta(html) {
+    app.innerHTML = html;
+    var entrando = html.indexOf('class="ep-login"') >= 0;
+    document.documentElement.classList.toggle('ep-quieto', entrando);
+  }
   function $(id) { return document.getElementById(id); }
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {

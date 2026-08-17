@@ -47,7 +47,13 @@ html.tema-claro body, html:not(.tema-oscuro) body {
 
 /* ── Entrar ─────────────────────────────────────────────────────────── */
 .ep-login {
-  min-height: 100%; display: flex; flex-direction: column; justify-content: center;
+  /* `dvh` es el alto REAL de la pantalla en el celular. Con `100%` o `100vh` la
+     barra del navegador queda contada de mas y sobra un pedazo que se puede
+     arrastrar — justo lo que hace que la pantalla "se mueva". El `100%` va
+     primero como respaldo para los navegadores viejos. */
+  min-height: 100%;
+  min-height: 100dvh;
+  display: flex; flex-direction: column; justify-content: center;
   align-items: center; gap: 22px; padding: 34px 24px;
   max-width: var(--maxw); margin: 0 auto; text-align: center;
 }
@@ -1484,3 +1490,33 @@ button.ep-pub-foto { cursor: pointer; }
 .ep-inst-p-s { font-size: 12px; color: var(--dim); margin-top: 2px; line-height: 1.35; }
 .ep-inst .ep-btn { width: 100%; justify-content: center; }
 .ep-inst .ep-btn--ghost { margin-top: 8px; }
+
+/* ===== LA PANTALLA DE ENTRAR, QUIETA =====
+   Mientras se esta entrando, la pagina no se desplaza ni rebota. `ep-quieto` la
+   pone y la quita `pinta()`, para que valga para las cinco pantallas de entrada
+   sin tener que acordarse en cada una. */
+html.ep-quieto, html.ep-quieto body {
+  height: 100dvh;
+  overflow: hidden;
+  /* Mata el rebote elastico al arrastrar. Es lo que mas delata que una app
+     instalada es en realidad una pagina web. */
+  overscroll-behavior: none;
+  /* Y el "arrastrar para recargar" de Android, que en una pantalla de entrar no
+     tiene ningun sentido y borra lo que la persona iba escribiendo. */
+  touch-action: pan-x;
+}
+/* EL QUE SE DESPLAZA ES `#app`, NO `.ep-login`.
+   Primero lo puse al reves y quedaba mal de una forma que no se ve mirando:
+   `.ep-login` crece con su contenido, asi que NUNCA le sobra nada que
+   desplazar. Con `#app` recortando a la altura de la pantalla, la contraseña y
+   el boton de Entrar quedaban debajo del corte y no habia forma de llegar a
+   ellos con el teclado abierto. Medido en una pantalla de 420 px de alto.
+
+   Asi: mientras todo quepa —que es lo normal— no hay nada que desplazar y la
+   pantalla queda quieta. Solo si el teclado la aprieta, `#app` cede. */
+html.ep-quieto #app {
+  height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: auto;      /* aqui SI se permite el gesto vertical */
+}
