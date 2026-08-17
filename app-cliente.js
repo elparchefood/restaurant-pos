@@ -380,23 +380,7 @@
     asegurarDatosInicio();
 
     document.querySelectorAll('[data-ir]').forEach(function (b) {
-      b.addEventListener('click', async function () {
-        vista = b.dataset.ir;
-        // Se trae lo que esa pestaña necesita ANTES de pintarla, para que no
-        // aparezca vacia un instante y luego se llene de golpe.
-        if (vista !== 'pedido') pedidoHecho = null;
-        if (vista === 'carta')  await cargarCarta();
-        /* El inicio necesita las dos cosas: las fotos del banner (promos) y la
-           carta, porque las tres tarjetas son productos de verdad. */
-        if (vista === 'inicio' && (!S.promos || !S.carta)) {
-          await Promise.all([cargarPromos(), cargarCarta()]);
-          pantallaDentro();
-        }
-        if (vista === 'puntos') await cargarCatalogo();
-        catActiva = 0;
-        window.scrollTo(0, 0);
-        pantallaDentro();
-      });
+      b.addEventListener('click', function () { irA(b.dataset.ir); });
     });
     document.querySelectorAll('[data-cat]').forEach(function (b) {
       b.addEventListener('click', function () { catActiva = Number(b.dataset.cat) || 0; pantallaDentro(); });
@@ -452,6 +436,9 @@
         this.value = '';   // para poder escoger la MISMA foto otra vez
       });
     }
+    document.querySelectorAll('[data-menu]').forEach(function (b) {
+      b.addEventListener('click', menuCuenta);
+    });
     document.querySelectorAll('[data-tema]').forEach(function (b) {
       b.addEventListener('click', alternarTema);
     });
@@ -712,7 +699,7 @@
       }).join('') : '<div class="ep-vacio">Aquí verás tus pedidos cuando hagas el primero.</div>') +
     '</div>';
 
-    return '<div class="ep-saludo">' +
+    return '<div class="ep-saludo">' + logoArriba() +
         '<div><div class="ep-saludo-t">' + saludo + '</div>' +
         '<div class="ep-saludo-n">' + esc((c.nombre || '').split(' ')[0] || 'Hola') + '</div></div>' +
         rangoBarra(n) +
@@ -741,15 +728,83 @@
 
   /* Los botones de arriba a la derecha. En UN solo sitio porque los usan el
      inicio y todas las demas pantallas: copiados, un dia dejarian de coincidir. */
+  /* EL LOGO DEL RESTAURANTE, a la izquierda del saludo (celular, 17-ago).
+     En el computador ya esta arriba del menu lateral, asi que ahi estorbaria:
+     se muestra solo en pantalla pequeña, donde no hay lateral. */
+  function logoArriba() {
+    var e = S.negocio || {};
+    return '<div class="ep-hd-logo" aria-hidden="true">' +
+      (e.logo ? '<img src="' + esc(e.logo) + '" alt="">' : ico('bolsa', 19)) + '</div>';
+  }
+
+  /* IR A UNA PANTALLA. Vive aparte porque ya no solo la llaman los botones
+     `data-ir`: tambien el menu de la cuenta, que se pinta al vuelo y por eso
+     no pasa por `enganchar`. Copiar estas lineas en el menu habria sido el
+     patron que mas caro nos ha salido — dos caminos que se desincronizan. */
+  async function irA(k) {
+    vista = k;
+    // Se trae lo que esa pestaña necesita ANTES de pintarla, para que no
+    // aparezca vacia un instante y luego se llene de golpe.
+    if (vista !== 'pedido') pedidoHecho = null;
+    if (vista === 'carta')  await cargarCarta();
+    /* El inicio necesita las dos cosas: las fotos del banner (promos) y la
+       carta, porque las tres tarjetas son productos de verdad. */
+    if (vista === 'inicio' && (!S.promos || !S.carta)) {
+      await Promise.all([cargarPromos(), cargarCarta()]);
+      pantallaDentro();
+    }
+    if (vista === 'puntos') await cargarCatalogo();
+    catActiva = 0;
+    window.scrollTo(0, 0);
+    pantallaDentro();
+  }
+
   function botonesArriba(extra) {
     var c = S.cliente || {};
     return '<div class="ep-saludo-btns">' + (extra || '') +
+      /* El boton del tema se queda para el COMPUTADOR; en el celular se
+         esconde (CSS) porque su opcion vive dentro del menu de la foto. */
       '<button class="ep-redondo ep-tema" data-tema="1" title="Cambiar el tema">' +
         ico(esOscuroAhora() ? 'sol' : 'luna', 17) + '</button>' +
-      '<button class="ep-redondo ep-yo" data-ir="perfil" title="Mi perfil">' +
+      /* La foto ABRE EL MENU, no lleva al perfil: "Mi perfil" es la primera
+         opcion de ese menu, asi que no se pierde el camino de antes — y ahora
+         tambien caben el tema y cerrar sesion, que en el celular no tenian
+         donde vivir (el menu lateral no existe ahi). */
+      '<button class="ep-redondo ep-yo" data-menu="1" aria-haspopup="menu" title="Mi cuenta">' +
         (c.foto ? '<img src="' + esc(c.foto) + '" alt="">' : esc(iniciales(c.nombre))) +
       '</button>' +
     '</div>';
+  }
+
+  /* El menu de la cuenta. Se pinta al vuelo y se quita al elegir o al tocar
+     fuera: dejarlo siempre en el HTML obligaria a repintarlo con cada pantalla
+     y a sincronizar su estado con el resto. */
+  function menuCuenta() {
+    var viejo = document.querySelector('.ep-menucap');
+    if (viejo) { viejo.remove(); return; }        // segundo toque = cerrar
+    var c = S.cliente || {};
+    var cap = document.createElement('div');
+    cap.className = 'ep-menucap';
+    cap.innerHTML =
+      '<div class="ep-menu" role="menu">' +
+        '<div class="ep-menu-yo">' +
+          '<span class="ep-menu-foto">' +
+            (c.foto ? '<img src="' + esc(c.foto) + '" alt="">' : esc(iniciales(c.nombre))) + '</span>' +
+          '<span class="ep-menu-nom">' + esc(c.nombre || '') + '</span>' +
+        '</div>' +
+        '<button class="ep-menu-it" data-mir="perfil">' + ico('user', 17) + 'Mi perfil</button>' +
+        '<button class="ep-menu-it" data-mtema="1">' +
+          ico(esOscuroAhora() ? 'sol' : 'luna', 17) +
+          (esOscuroAhora() ? 'Modo claro' : 'Modo oscuro') + '</button>' +
+        '<button class="ep-menu-it malo" data-msalir="1">' + ico('salir', 17) + 'Cerrar sesión</button>' +
+      '</div>';
+    document.body.appendChild(cap);
+
+    function cerrar() { cap.remove(); }
+    cap.addEventListener('click', function (ev) { if (ev.target === cap) cerrar(); });
+    cap.querySelector('[data-mir]').onclick = function () { cerrar(); irA('perfil'); };
+    cap.querySelector('[data-mtema]').onclick = function () { cerrar(); alternarTema(); };
+    cap.querySelector('[data-msalir]').onclick = function () { cerrar(); salir(); };
   }
 
   /* A donde lleva la flecha de atras en el celular (handoff): del carrito se

@@ -6095,3 +6095,16 @@ Dos fallas del celular reportadas por Sergio.
 - **Medido en 390px**: desborde 0 en html y body, e intentar arrastrar 300px deja la pagina en 0. Los chips que sobresalen son los de su propio carrusel, correcto.
 
 **Verificado en los CUATRO escenarios**: oscuro forzado (barra oscura), automatico+sistema oscuro (barra OSCURA — era el bug), automatico+sistema claro (barra clara), y claro forzado. Y el encabezado y la barra siguen pegajosos.
+
+## 179. La cabecera del celular: logo · saludo · foto, y el menu de la cuenta (17-ago)
+Pedido de Sergio. En el celular la cabecera queda: **logo del restaurante a la izquierda · saludo al lado · foto del cliente a la derecha**, y **tocar la foto abre un menu** con Mi perfil, cambiar de tema y cerrar sesion.
+
+- **El logo solo en el celular**: en el computador ya vive arriba del menu lateral y repetirlo seria ruido.
+- **El boton del tema SALE de la cabecera en el celular** y pasa a ser una opcion del menu. Dos formas de hacer lo mismo, una al lado de la otra, solo gastaban el ancho que en 390px hace falta para el saludo. En el computador se queda como estaba.
+- **La foto ya no lleva directo al perfil, abre el menu** — pero "Mi perfil" es la PRIMERA opcion, asi que no se pierde el camino de antes. Lo que se gana es que el tema y cerrar sesion por fin tienen donde vivir en el celular: el menu lateral, que es donde estaban, no existe ahi.
+- El menu muestra arriba la foto y el nombre del cliente: se abre desde SU foto, y verse confirma que las opciones son de su cuenta. "Cerrar sesion" va en rojo y separada — es la unica sin vuelta atras.
+- Se pinta al vuelo y se quita al elegir o al tocar fuera; un segundo toque en la foto tambien lo cierra.
+
+**REFACTOR NECESARIO — `irA(k)`**: la navegacion vivia EN LINEA dentro del enganche de `[data-ir]`, y el menu se pinta al vuelo (no pasa por `enganchar`). Copiar esas lineas en el menu habria sido exactamente el patron que mas caro nos ha costado — dos caminos que se desincronizan. Se extrajo a `irA(k)` y ahora la usan las pestañas Y el menu.
+
+- **Medido en 390px**: logo 40x40 pegado al borde (18px), saludo despues (70px), foto a la derecha (termina en 372 de 390), boton de tema oculto, menu de 232px pegado a la derecha con las tres opciones y el nombre. Sin desborde. **En 1280px**: logo oculto y boton de tema visible — el computador quedo identico.

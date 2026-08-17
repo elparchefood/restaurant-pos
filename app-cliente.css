@@ -1618,3 +1618,70 @@ html, body {
 /* Ningun hijo puede empujar el ancho: es lo que producia el desfase de pocos
    pixeles que se podia arrastrar. */
 .ep-app, .ep-cuerpo, .ep-scroll { max-width: 100%; min-width: 0; }
+
+/* ===== LA CABECERA DEL CELULAR: LOGO · SALUDO · FOTO (17-ago) ===== */
+
+/* El logo del restaurante. En el computador NO se muestra: alli ya vive arriba
+   del menu lateral y repetirlo seria ruido. */
+.ep-hd-logo { display: none; }
+@media (max-width: 899px) {
+  .ep-hd-logo {
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    width: 40px; height: 40px; border-radius: 13px; overflow: hidden;
+    background: var(--surf2); border: 1px solid var(--line); color: var(--accent);
+  }
+  .ep-hd-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* El boton del tema sale de la cabecera: su opcion vive dentro del menu de
+     la foto. Dos formas de hacer lo mismo, una al lado de la otra, solo
+     ocupan el ancho que en 390px hace falta para el saludo. */
+  .ep-saludo .ep-tema { display: none; }
+}
+
+/* ===== EL MENU DE LA CUENTA ===== */
+.ep-menucap {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0,0,0,.42);
+  display: flex; align-items: flex-start; justify-content: flex-end;
+  padding: 72px 18px 0;
+  animation: epFade .16s ease;
+}
+html.tema-claro .ep-menucap { background: rgba(23,22,26,.32); }
+.ep-menu {
+  width: 232px; overflow: hidden;
+  background: var(--surf); border: 1px solid var(--line); border-radius: 18px;
+  box-shadow: 0 18px 44px rgba(0,0,0,.45);
+  animation: epMenu .18s cubic-bezier(.2,.9,.2,1);
+}
+html.tema-claro .ep-menu { box-shadow: 0 12px 34px rgba(23,22,26,.12); }
+@keyframes epFade { from { opacity: 0; } }
+@keyframes epMenu { from { opacity: 0; transform: translateY(-6px) scale(.97); } }
+@media (prefers-reduced-motion: reduce) { .ep-menu, .ep-menucap { animation: none; } }
+
+/* Quien es, arriba del todo: el menu se abre desde SU foto, y verla confirma
+   que las opciones son de su cuenta. */
+.ep-menu-yo {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 14px; border-bottom: 1px solid var(--line);
+}
+.ep-menu-foto {
+  width: 34px; height: 34px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+  background: var(--surf2); border: 1px solid var(--line); color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800;
+}
+.ep-menu-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ep-menu-nom {
+  font-size: 13.5px; font-weight: 600; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ep-menu-it {
+  display: flex; align-items: center; gap: 11px; width: 100%;
+  padding: 13px 14px; border: 0; background: none; cursor: pointer;
+  font-family: inherit; font-size: 14px; color: var(--ink); text-align: left;
+}
+.ep-menu-it svg { color: var(--sub); flex-shrink: 0; }
+.ep-menu-it:active { background: var(--surf2); }
+/* Cerrar sesion se ve distinto: es la unica que no tiene vuelta atras. */
+.ep-menu-it.malo { color: #d9556f; border-top: 1px solid var(--line); }
+html.tema-claro .ep-menu-it.malo { color: #8f2242; }
+.ep-menu-it.malo svg { color: currentColor; }
