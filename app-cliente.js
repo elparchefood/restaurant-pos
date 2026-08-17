@@ -2859,11 +2859,26 @@
     return cuerpoInicio(c, n, saludo);
   }
 
-  /* Se piden una sola vez, la primera que se entra a esa pestaña. */
-  async function cargarCarta() {
-    if (S.carta) return;
+  /* LA CARTA SE REFRESCA SOLA (17-ago). Antes se pedia UNA vez y se quedaba
+     asi toda la sesion: un cliente con la app abierta no veia nada de lo que el
+     dueNo cambiara. Con "Agotado hoy" eso deja de ser un detalle — podria pedir
+     algo que ya no hay, y alguien tiene que llamarlo a decirle que no.
+
+     Se vuelve a pedir si han pasado mas de 3 minutos desde la ultima vez, y
+     solo al entrar a la carta. No es tiempo real —eso costaria una consulta
+     constante por cada cliente abierto— pero cierra la ventana de "pedi algo
+     que ya no existe" a unos minutos. */
+  var CARTA_FRESCA_MS = 3 * 60 * 1000;
+  var cartaPedidaEn = 0;
+
+  async function cargarCarta(forzar) {
+    var vencida = (Date.now() - cartaPedidaEn) > CARTA_FRESCA_MS;
+    if (S.carta && !forzar && !vencida) return;
     var r = await S.sb.rpc('fn_web_carta', { p_slug: S.slug });
-    S.carta = (r.data || []);
+    /* Si la consulta falla se conserva lo que ya se tenia: es preferible una
+       carta de hace un rato que una pantalla vacia. */
+    if (r && !r.error && r.data) { S.carta = r.data; cartaPedidaEn = Date.now(); }
+    else if (!S.carta) S.carta = [];
   }
   async function cargarCatalogo() {
     if (S.catalogo) return;

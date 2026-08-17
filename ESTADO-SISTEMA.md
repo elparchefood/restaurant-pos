@@ -6760,3 +6760,47 @@ decision es suya.
 
 **SQL:** `supabase/sql/2026-08-17-medallas-tarjeta-grande-agotado.sql` y
 `2026-08-17-fn-web-carta.sql`.
+
+---
+
+## 189 — Cuando se ven los cambios de la carta, y el agujero del agotado (17-ago-2026)
+
+Sergio pregunto "¿los adornos cuando aparecen?". Al ir a responderlo con
+precision aparecieron dos fallas de fondo — la pregunta era buena.
+
+### 1. La carta se pedia UNA sola vez por sesion
+
+`cargarCarta()` empezaba con `if (S.carta) return`. Un cliente con la app
+abierta NO veia nada de lo que el dueNo cambiara: ni una medalla, ni un precio,
+ni un agotado. Con las medallas es cosmetico; con "Agotado hoy" no: pediria algo
+que ya no hay y alguien tiene que llamarlo a decirle que no.
+
+Ahora se vuelve a pedir si han pasado mas de **3 minutos**, y solo al entrar a
+la carta. No es tiempo real a proposito — eso seria una consulta constante por
+cada cliente con la app abierta — pero cierra la ventana a unos minutos.
+Ademas, si la consulta falla se conserva la carta anterior: mas vale una carta
+de hace un rato que una pantalla vacia.
+
+### 2. El servidor no comprobaba el agotado
+
+`web-pedido` solo miraba `available === false`. Un producto agotado tiene
+`available = true`, asi que **el pedido entraba igual**. La pantalla lo pintaba
+en gris y no dejaba tocarlo, pero eso no basta: el cliente pudo dejarlo en el
+carrito ANTES de que se acabara, o tener la pagina abierta de hace rato.
+Frenarlo solo en la pantalla habria hecho que "agotado" fuera decorativo.
+
+Ahora `web-pedido` v14 lo rechaza con el nombre del producto:
+"Se acabó Chicken Burger por hoy. Quítalo de tu pedido para continuar."
+
+**Verificado en el tenant de demostracion**, no en El Parche: mismo producto
+pedido dos veces, la primera pasa (total 20.000) y la segunda —ya marcado
+agotado— se rechaza con la razon y el mensaje correctos, mientras el producto
+SIGUE saliendo en la carta con `agotado: true` para pintarse en gris. Todo
+borrado al terminar y el tenant demo devuelto a como estaba.
+
+### Resumen de cuando aparece cada cosa
+
+| | Quien la pone | Cuando se ve |
+|---|---|---|
+| Medalla, tarjeta grande, agotado | Sergio, en el editor | Al abrir la carta, o a los 3 min si ya estaba abierta |
+| Mas pedido | El sistema, con las ventas | Se recalcula en cada carga de la carta (60 dias, min. 10 unidades) |

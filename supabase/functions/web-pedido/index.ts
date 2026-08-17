@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
            · sin `category_id` el empaque no reconocia las categorias exentas y
              le cobraba empaque hasta a las bebidas.
          El codigo los leia (p.variables, p.category_id) y aqui nunca llegaban. */
-      `/pos_products?id=in.(${ids.join(",")})&tenant_id=eq.${tenantId}&select=id,name,price,presentations,variables,category_id,mod_group_ids,mod_group_pres,available`
+      `/pos_products?id=in.(${ids.join(",")})&tenant_id=eq.${tenantId}&select=id,name,price,presentations,variables,category_id,mod_group_ids,mod_group_pres,available,agotado`
     ) as Array<Record<string, unknown>> | null : [];
     const porId: Record<string, Record<string, unknown>> = {};
     (prods || []).forEach((p) => { porId[String(p.id)] = p; });
@@ -275,6 +275,15 @@ Deno.serve(async (req) => {
       const p = porId[idPedido];
       if (!p || p.available === false) {
         return json({ ok: false, razon: "agotado", mensaje: "Uno de los productos ya no está disponible. Revisa tu pedido." });
+      }
+      /* AGOTADO TAMBIEN SE FRENA AQUI (17-ago). La pagina ya lo pinta en gris y
+         no deja tocarlo, pero eso no basta: el cliente pudo dejarlo en el
+         carrito ANTES de que se acabara, o tener la pagina abierta de hace
+         rato. Si solo se frenara en la pantalla, el pedido entraria igual y
+         alguien tendria que llamarlo a decirle que no hay. */
+      if (p.agotado === true) {
+        return json({ ok: false, razon: "agotado",
+          mensaje: `Se acabó ${String(p.name || "un producto")} por hoy. Quítalo de tu pedido para continuar.` });
       }
       const cant = Math.max(1, Math.min(20, Number(it.cantidad) || 1));
       // El precio sale de la presentación si la hay; si no, del producto.
