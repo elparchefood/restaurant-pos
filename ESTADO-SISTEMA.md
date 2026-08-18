@@ -7164,3 +7164,43 @@ Las 5 conversaciones de prueba se borraron. `delay-reply` v306, smoke test 200.
 
 **Nota:** en la prueba A se ve que el jugo HIT no entro al resumen — es el otro
 error, el de varios productos en un mensaje (entrada 194), que sigue pendiente.
+
+---
+
+## 196 — "Pra pasar recogiendo": el gerundio que faltaba (18-ago-2026)
+
+Sandra (573155928664) dijo **"Pra pasar recogiendo"** y Paco le siguio pidiendo
+"el barrio y la direccion completa". Sergio tuvo que tomarla.
+
+**Es la tercera vez que cae el mismo reconocedor** (entradas 135 y 171), y cada
+vez por una forma distinta de decir lo mismo. Esta vez el gerundio:
+- no es "para recoger" — dice "pasar";
+- no es "pasar A recoger" — le falta el "a";
+- el verbo va en gerundio, que no estaba en ninguna de las 25 formas.
+
+**Arreglo:** dos formas nuevas, atadas a un verbo de MOVERSE
+(`pasar|paso|pasamos|voy|vamos|ir` + `recogiendo`), con la misma cautela que se
+uso con "reclamar": "recogiendo" suelto tambien aparece en frases de puntos, y
+marcar eso como recoger le tumbaria el domicilio a alguien que si lo espera.
+El typo de "para" ("pra", "pa") queda cubierto solo, porque el patron empieza
+en el verbo y no en la preposicion.
+
+**Probado el patron aparte, 13 casos**: 7 que deben marcar recoger ("Pra pasar
+recogiendo", "paso recogiendo", "vamos recogiendo el pedido"…) y 6 que NO
+("quiero reclamar mi premio", "estoy recogiendo la ropa", "recogiendo a mi
+hijo"…). 13 de 13.
+
+**Y en el banco**, con la conversacion de Sandra: tras "Pra pasar recogiendo"
+Paco ya no pide direccion, sigue al nombre. Control con un pedido a domicilio:
+igual que antes.
+
+`delay-reply` v307, smoke test 200. Conversaciones de prueba borradas.
+
+**Se reviso tambien la carta:** en el chat se ven cuatro mensajes que dicen solo
+"Carta". NO es un error — son imagenes (`media_type: image`) y "Carta" es el pie
+de foto. La regla de que la carta va solo en imagenes se esta cumpliendo.
+
+⚠️ **Para la proxima:** este reconocedor ya cayo tres veces. Cuando vuelva a
+fallar, no agregar una forma mas sin antes correr la lista completa de formas
+contra un banco de frases reales — el problema no es la forma que falta, es que
+se descubre de una en una y siempre con un cliente adelante.

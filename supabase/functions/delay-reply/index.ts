@@ -535,6 +535,18 @@ const LLEVAR_PARTES = [
   "l[oa]s?\\s+(?:puedo|podemos|puede)\\s+(?:recoger|recojer|buscar)",
   "(?:recoger|recojer|buscar)(?:l[oa]s?)\\b",      // "recogerlo", "buscarla"
   "reclamar\\s+(?:el|mi)\\s+pedido",
+
+  /* EL GERUNDIO — lo que faltaba esta vez (18-ago). Sandra escribio "Pra pasar
+     recogiendo" y Paco le siguio pidiendo la direccion. Ninguna de las formas
+     de arriba lo cubria: no es "para recoger" (dice "pasar"), no es "pasar A
+     recoger" (le falta el "a"), y el verbo va en gerundio.
+     Se ata a un verbo de MOVERSE, igual que se hizo con "reclamar": asi
+     "recogiendo" suelto —que tambien aparece en frases de puntos— no le tumba
+     el domicilio a nadie.
+     El typo de "para" ("pra", "pa") queda cubierto solo, porque el patron
+     empieza en el verbo y no en la preposicion. */
+  "(?:pasar|paso|pasamos|pasa|voy|vamos|ir|iremos)\\s+recogiend[oa]",
+  "recogiend[oa]\\s+(?:el|mi|la)\\s+(?:pedido|comida|orden)",
 ].join("|");
 
 // Cubre masculino/femenino/plural y conjugado/infinitivo.
