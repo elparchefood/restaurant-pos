@@ -248,6 +248,39 @@ function matchProductosEnTexto(texto: string): Array<{ name: string; cat: string
     const idx = t.indexOf(" " + e.key + " ");
     if (idx >= 0) found.push({ name: e.name, cat: e.cat, pos: idx });
   }
+  /* UNA LETRA DE ERROR NO CAMBIA EL PLATO (18-ago). Shirley escribio "premiun
+     mixta personal": "premiun" no casaba con nada y "mixta" si — asi que Paco
+     entendio salchipapa Mixta ($26.000) en vez de Premium mixta ($34.000), y
+     de ahi salio todo el enredo de correcciones de esa conversacion.
+     Se tolera UNA letra (cambiada, sobrante o faltante), con cautelas:
+       · solo nombres de 6+ letras — con menos, una letra es media palabra
+         ("polo"/"pollo" queda fuera a proposito);
+       · nunca sobre una palabra que YA es otro producto exacto ("mixta" jamas
+         se convierte en otra cosa);
+       · el hallazgo exacto manda: esto solo AGREGA lo que el exacto no vio. */
+  {
+    const palabras = t.trim().split(" ").filter(Boolean);
+    for (const e of DYN_PROD_MAP) {
+      if (found.some(f => f.name === e.name)) continue;
+      const kWords = e.key.split(" ");
+      if (kWords.length > 2) continue;
+      const kJoin = e.key.replace(/ /g, "");
+      if (kJoin.length < 6) continue;
+      for (let i = 0; i + kWords.length <= palabras.length; i++) {
+        const winArr = palabras.slice(i, i + kWords.length);
+        const win = winArr.join("");
+        if (Math.abs(win.length - kJoin.length) > 1) continue;
+        if (win === kJoin) break;                       // el exacto ya lo vio
+        if (winArr.some(w => DYN_PROD_MAP.some(o => o.key === w))) continue;
+        if (levenshtein(win, kJoin) === 1) {
+          const pos = t.indexOf(" " + winArr[0]);
+          found.push({ name: e.name, cat: e.cat, pos: pos >= 0 ? pos : 0 });
+          break;
+        }
+      }
+    }
+  }
+
   // preferir coincidencias más largas cuando se traslapan ("doble carne" gana a "carne")
   found.sort((a, b) => a.pos - b.pos || b.name.length - a.name.length);
   const out: Array<{ name: string; cat: string; pos: number }> = [];

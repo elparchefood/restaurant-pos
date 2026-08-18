@@ -7204,3 +7204,53 @@ de foto. La regla de que la carta va solo en imagenes se esta cumpliendo.
 fallar, no agregar una forma mas sin antes correr la lista completa de formas
 contra un banco de frases reales — el problema no es la forma que falta, es que
 se descubre de una en una y siempre con un cliente adelante.
+
+---
+
+## 197 — "premiun": una letra de error cambiaba el plato (18-ago-2026)
+
+Shirley (573104409415) escribio de entrada TODO lo necesario: *"Para pedir una
+premiun mixta personal / Para Monteluna casa 45 / Pago en efectivo / Shirley"*.
+Paco cotizo la salchipapa **Mixta** ($26.000) en vez de la **Premium mixta**
+($34.000). Los intentos de correccion de ella ("Es la premium mixta", "Corrijo
+solo la...") enredaron mas el pedido — sumo un segundo item, pego la correccion
+como nota, y al final volvio a pedir la direccion. Sergio tuvo que tomarla:
+"el sistema se volvio un poco loco".
+
+### Causa raiz
+
+`matchProductosEnTexto` compara EXACTO contra el indice de nombres. "premiun"
+(errata de premium) no casaba con nada; "mixta" si — y "mixta" es a la vez una
+salchipapa tradicional y una variante de la Premium (la COLISION documentada).
+Sin la palabra "premium" reconocida, la regla de colision nunca aplico y el
+producto quedo siendo la Mixta. Todo lo demas fue consecuencia.
+
+### El arreglo
+
+Tolerancia de UNA letra (cambiada, sobrante o faltante) en el buscador de
+productos, con tres cautelas:
+- solo nombres de **6+ letras** — con menos, una letra es media palabra
+  ("polo"/"pollo" queda fuera a proposito);
+- **nunca** sobre una palabra que ya es otro producto exacto ("mixta" jamas se
+  convierte en otra cosa);
+- el hallazgo exacto manda: la tolerancia solo AGREGA lo que el exacto no vio.
+
+Reutiliza el `levenshtein` que ya existia en el archivo.
+
+**Verificado en el banco:**
+
+| | Resultado |
+|---|---|
+| "premiun mixta personal" (caso Shirley) | Salchipapa **Premium Mixta** Personal · $35.000 + $5.000 — identico a lo que cobro Sergio |
+| Control "salchipapa mixta personal" | sigue siendo la Mixta |
+| Control "premium mixta personal" bien escrito | igual que siempre |
+
+`delay-reply` v308, smoke 200, conversaciones de prueba borradas.
+
+### Lo que este caso deja pendiente (ya en la cola)
+
+Los tumbos posteriores de la conversacion —"Es la premium mixta" que SUMO un
+item en vez de corregir, y el "No" final que hizo perder la direccion— son la
+maquina de estado de la entrada 194. Este arreglo evita que esa conversacion
+entre en el enredo (el producto sale bien desde el primer mensaje), pero la
+correccion de pedidos sigue fragil y se ataca cuando Sergio cierre.
