@@ -7942,6 +7942,25 @@ entre parentesis), "media unidad" leido como 0,1, "1 paquete" de una salsa que
 se compra por galon (unidad que no existe en el sistema), y una bodega que
 salio en 0. Con el modo simulacion se ven antes de aplicar.
 
+### La cuenta la hace el CODIGO, no el modelo (lo que faltaba)
+
+Con el texto ya ordenado seguian saliendo mal tres lineas, y las tres eran de
+ARITMETICA: la papa (bulto de 43.000 g) daba 0,12 bultos en vez de 1,16; el
+jamon (paquete de 90) daba 1,43 paquetes en vez de 0,14; "0.5 unidades" de
+tomate salia 0,1. El modelo entiende perfecto QUE dijo el gerente y se equivoca
+CONVIRTIENDO — y eso no se arregla con mas instrucciones.
+
+El prompt ya pedia `unidad_dicha` y `cantidad_dicha` (lo dicho tal cual, sin
+convertir), pero solo se usaba para RESPONDER. Ahora `recalcular()` rehace la
+cuenta antes de aplicar: si lo dijo en la unidad de compra se usa tal cual; si
+lo dijo en la de uso se divide por la conversion; y si es peso o volumen se
+pasa por gramos o mililitros. Unidades que cada negocio define a su manera
+(libra, arroba, paca) NO se adivinan: ahi se respeta lo que calculo el modelo,
+asi que nunca queda peor que antes. Cada correccion queda en el log.
+
+**Resultado con el conteo real de Sergio, ya ordenado: 57 operaciones, 40 de 40
+lineas correctas.** El modelo pone el entendimiento, el codigo pone la cuenta.
+
 ⚠️ **Cuarta vez con la trampa del entorno**: `join("
 ")` escrito por el camino
 de siempre llego con un salto de linea DENTRO de la cadena → BOOT_ERROR, y la

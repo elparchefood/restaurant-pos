@@ -339,6 +339,73 @@ async function auditar(
   } catch (_e) { /* el registro nunca bloquea */ }
 }
 
+
+/* ── LA CUENTA LA HACE EL CODIGO, NO EL MODELO ───────────────────────────────
+   El modelo entiende de maravilla QUE dijo el gerente ("50 kg de papa", "13
+   unidades de jamon") pero se equivoca CONVIRTIENDO: la papa se compra por
+   bulto de 43.000 g y saco 0,12 bultos en vez de 1,16; el jamon viene en
+   paquete de 90 y saco 1,43 paquetes en vez de 0,14. Son errores de aritmetica
+   con numeros raros, y esos no se arreglan con mas instrucciones.
+
+   Por eso el prompt ya pide "unidad_dicha" y "cantidad_dicha": lo que el
+   gerente dijo, TAL CUAL, sin convertir. Con eso la conversion se hace aqui,
+   que siempre da lo mismo. Si la unidad no se reconoce, se respeta lo que
+   calculo el modelo — nunca se queda peor que antes. */
+function limpiarUnidad(u: string): string {
+  return String(u || "").toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9 ]+/g, " ").replace(/ +/g, " ").trim()
+    .replace(/s$/, "");
+}
+/* Solo las unidades de medida universales. "libra", "arroba" o "paca" no
+   entran: cada negocio les da su propio peso y adivinarlo cobraria mal. */
+const A_GRAMOS: Record<string, number> = { kilo: 1000, kilogramo: 1000, kg: 1000, gramo: 1, gr: 1, g: 1 };
+const A_MILILITROS: Record<string, number> = { litro: 1000, lt: 1000, l: 1000, mililitro: 1, ml: 1, cc: 1 };
+
+function convertirDicho(
+  cantidadDicha: number, unidadDicha: string, ins: Insumo,
+): number | null {
+  const u = limpiarUnidad(unidadDicha);
+  if (!u || !isFinite(cantidadDicha)) return null;
+  const buy = limpiarUnidad(ins.buy_unit);
+  const use = limpiarUnidad(ins.use_unit);
+  const conv = ins.conversion > 0 ? ins.conversion : 1;
+
+  /* 1. Lo dijo en la unidad de COMPRA: se usa tal cual. */
+  if (u === buy) return cantidadDicha;
+  /* 2. Lo dijo en la unidad de USO: se divide por lo que trae cada compra. */
+  if (u === use) return cantidadDicha / conv;
+  /* 3. Peso o volumen: se pasa a la unidad de uso y despues a la de compra. */
+  const gDicho = A_GRAMOS[u], gUso = A_GRAMOS[use], gCompra = A_GRAMOS[buy];
+  if (gDicho && gUso) return (cantidadDicha * gDicho) / gUso / conv;
+  if (gDicho && gCompra) return (cantidadDicha * gDicho) / gCompra;
+  const mDicho = A_MILILITROS[u], mUso = A_MILILITROS[use], mCompra = A_MILILITROS[buy];
+  if (mDicho && mUso) return (cantidadDicha * mDicho) / mUso / conv;
+  if (mDicho && mCompra) return (cantidadDicha * mDicho) / mCompra;
+  /* 4. "unidad" cuando el insumo se usa por unidad aunque se llame distinto. */
+  if ((u === "unidad" || u === "und" || u === "u") && use === "unidad") return cantidadDicha / conv;
+  return null;
+}
+
+/* Rehace la cuenta de cada operacion antes de aplicarla. */
+function recalcular(ops: Op[], byId: Record<string, Insumo>): void {
+  for (const op of ops) {
+    const ins = byId[op.insumo_id];
+    if (!ins) continue;
+    if (op.accion === "agotado" || op.accion === "disponible") continue;
+    const dicha = Number(op.cantidad_dicha);
+    if (!op.unidad_dicha || !isFinite(dicha)) continue;
+    const bien = convertirDicho(dicha, String(op.unidad_dicha), ins);
+    if (bien === null || !isFinite(bien) || bien < 0) continue;
+    const antes = Number(op.cantidad_buy_unit);
+    /* Solo se avisa cuando de verdad cambia algo (mas de un 2%). */
+    if (Math.abs(antes - bien) > Math.max(0.0001, Math.abs(bien) * 0.02)) {
+      console.log(`[cuenta] ${ins.nombre}: el modelo dijo ${antes} ${ins.buy_unit}, la cuenta da ${bien} (dijo ${dicha} ${op.unidad_dicha})`);
+    }
+    op.cantidad_buy_unit = bien;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
@@ -451,6 +518,8 @@ Deno.serve(async (req: Request) => {
     // Version corta de cada cambio. Con 28 cambios la respuesta detallada
     // pasaba de los 4096 caracteres que admite WhatsApp y no llegaba nunca.
     const compacto: Array<{ n: string; t: string }> = [];
+    recalcular(ops, byId);
+
     if (simular) {
       const prev = ops.map((op) => {
         const ins = byId[op.insumo_id];
