@@ -7051,3 +7051,62 @@ token falso — que es lo correcto.
    leyendo una foto es exactamente "cerrar mal", que es lo unico inaceptable
    segun el contrato. Pasar a humano es la respuesta correcta hasta que se pueda
    probar con muchas fotos reales.
+
+---
+
+## 194 — El precio malo de Mariam: reproducido y localizado (18-ago-2026)
+
+Mariam (573226509718) pidio en UN mensaje: *"1 salchipapa personal mixta, 1
+coca cola personal porfa y una adición de salsa de ajo"*. Paco cobro **$28.000**
+cuando eran **$33.000**: la coca cola no llego al resumen. Sergio corrigio a
+mano.
+
+### Lo importante: el extractor NO tiene la culpa
+
+Se llamo a `extraer-pedido` con el texto EXACTO de ella. Devolvio los tres
+productos, cada uno con su precio, y subtotal **$32.000** (+$1.000 de empaque =
+los $33.000 correctos). El diagnostico que estaba anotado en A1 —"el extractor
+devuelve un solo producto"— **es falso**: su esquema es una lista y tiene la
+regla "CADA MENCIÓN ES UNA LÍNEA".
+
+### Donde se pierde de verdad
+
+El resumen NO se arma con el extractor. Se arma con el ESTADO de la
+conversacion, que guarda **un producto en curso** (`state.producto`) mas una
+lista de anteriores (`state.items`). El extractor solo se usa al CREAR el
+pedido, al final.
+
+De ese mensaje con tres productos, el estado se quedo solo con la Mixta. La
+salsa aparecio en el resumen por un camino de REPARACION (el verificador ve que
+"salsa de ajo" no es una adicion de ese plato y la agrega como linea). La coca
+cola no encajaba en ningun camino de reparacion, y desaparecio sin dejar rastro.
+
+### Reproducido a voluntad
+
+En el banco, con el mismo pedido y una direccion de barrio conocido, sale
+**exactamente el mismo resumen**: `1x Mixta Personal`, `1x Salsa`, Pedido
+$28.000. Ya no hay que esperar a que le pase a un cliente para trabajarlo.
+
+⚠️ **Cuidado al reproducir en el banco:** el flujo cambia segun el estado de la
+base. Con la direccion original ("Edificio Torino") pasa a humano por CONJUNTO
+NUEVO y nunca llega al resumen. Hay que usar un barrio conocido para llegar al
+punto del fallo.
+
+### Lo que NO se hizo, y por que
+
+No se toco la maquina de estado. Es la pieza mas delicada de Paco —lo dijo
+Sergio— y el restaurante estaba EN SERVICIO cuando se investigo. Un arreglo mal
+puesto ahi rompe la toma de pedidos entera. Se deja localizado y reproducible
+para hacerlo con calma.
+
+**Tambien se intento instrumentar y se descarto:** los logs de la plataforma
+llegan incompletos, y el chivato quedo puesto en un `allItems` que NO es el del
+resumen (hay cinco listas con ese nombre en el archivo). Se revirtio en vez de
+dejar instrumentacion a medias: el repo y produccion quedan identicos en
+`delay-reply` v305.
+
+### El siguiente paso concreto
+
+Encontrar por que un mensaje con varios productos deja solo uno en el estado, y
+que el resto entren como `state.items`. El banco ya lo reproduce, asi que el
+ciclo de prueba es de minutos.

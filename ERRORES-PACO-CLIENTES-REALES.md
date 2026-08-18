@@ -13,7 +13,7 @@
 > un cliente real, se agrega AQUÍ su fila además de la entrada en
 > ESTADO-SISTEMA.md. Si esta lista se desactualiza, deja de servir.
 
-Última actualización: **17-ago-2026 (noche)** · Errores resueltos: **21** · Abiertos: **2**
+Última actualización: **17-ago-2026 (noche)** · Errores resueltos: **21** · Abiertos: **3**
 
 ---
 
@@ -96,6 +96,7 @@ con volumen real durante 2-3 semanas.
 | # | Fecha | Cliente | Qué vio el cliente | Estado |
 |---|-------|---------|--------------------|--------|
 | A1 | 17-ago | Emily | Pidió 3 salchipapas Y una gaseosa EN EL MISMO MENSAJE: la gaseosa no se sumó ($61.000 en vez de $69.000) | **Para el 17-ago con calma.** Causa: el extractor devuelve UN solo producto por mensaje. Ya hay dos redes de seguridad (v302): si una "adición" es en realidad un producto de la carta se agrega como línea, y el aviso ya no afirma "no va en el pedido" sino que pregunta cuál quiere. Lo de fondo — extractor multi-producto — es la pieza más delicada de Paco: hacerlo con el banco de 54 pedidos al lado, fuera de horario. |
+| A3 | 18-ago | Mariam | Pidió salchipapa + coca cola + salsa en UN mensaje: la coca cola no entró al resumen y cobró $28.000 en vez de $33.000 | **REPRODUCIDO y localizado.** El extractor está BIEN (con su texto exacto devuelve los 3 productos y $32.000). Se pierde después: el resumen se arma del ESTADO de la conversación, que solo guarda UN producto del mensaje. La salsa entró por un camino de reparación; la bebida no entró por ninguno. Falta el arreglo de fondo en la máquina de estado. |
 | A2 | 15-ago | — | (riesgo latente, sin caso reportado) `resolverPedido` de verify-transfer tiene su PROPIO matching de items sin los tres desempates de la entrada 140 | Los totales salen bien (usan total_mostrado), pero un item de la comanda podría salir con nombre de la categoría equivocada. Revisar junto con A1. |
 
 ---
