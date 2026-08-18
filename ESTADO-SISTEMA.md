@@ -7740,3 +7740,40 @@ correccion · notas.
 adicion Papas — lo bota la compuerta vieja de "nacio de una palabra compuesta"
 (de "salchipapa" salia "papa" y costo $8.000 a un cliente real). Se pierde un
 cobro raro para no repetir un cobro de mas; si aparece de verdad, se afina.
+
+---
+
+## 208 — El camino hermano del pedido (A2), y "Salchipapas TrADICIONales" (18-ago-2026)
+
+### A2, que llevaba vigilado desde el 15-ago
+
+`resolverPedido` de `verify-transfer` —el que crea el pedido cuando se verifica
+la transferencia— tiene su PROPIO emparejado de items y se habia quedado con la
+comparacion de categoria por **igualdad exacta**: el lector dice "salchipapa" y
+la categoria se llama "Salchipapas Tradicionales", asi que no casaba nunca y el
+desempate caia al primero de la lista, que suele ser el de Adiciones. Los
+totales salian bien (vienen de `total_mostrado`), pero **la comanda podia salir
+con el nombre y el precio de la categoria equivocada**, y eso es lo que se
+cocina. Ahora tiene los mismos tres desempates de la entrada 140: categoria
+tolerante, el tipo de comida dicho dentro del nombre, y que una adicion nunca le
+gana a un plato. Verificado 7 de 7 en las combinaciones de categoria.
+
+### Y el pedazo que se escondia dentro de una palabra
+
+Probando lo anterior salio algo peor, y estaba en produccion: la regex que
+decide si una categoria es de adiciones no exigia que la palabra EMPEZARA, y
+**"Salchipapas Tr-ADICION-ales" contiene "adicion"**. La categoria mas vendida
+del restaurante estaba clasificada como si fuera de adiciones — eso alimenta
+`dondeVive`, que es quien decide si un nombre es un plato o algo que se le pone
+encima. Corregido en los dos sitios (`CAT_ES_ADICION` de delay-reply y el nuevo
+de verify-transfer).
+
+`delay-reply` v315 · `verify-transfer` v39, ambas con smoke.
+Regresion en banco 5 de 5: pedido simple $26.000 · con tocineta $36.000 ·
+"salchipapa de pollo" (Emily) $18.000 y no los $9.000 de la adicion · Mariam 3
+lineas $61.000 · "ranchera con super queso" cobra la adicion $40.000.
+
+⚠️ **Dos lecciones del mismo dia, y son la misma**: identificar algo por su
+POSICION (el bloque 0 del arqueo) o por un PEDAZO de su nombre ("adicion"
+dentro de "Tradicionales") funciona hasta que alguien agrega algo parecido —
+y falla en silencio.

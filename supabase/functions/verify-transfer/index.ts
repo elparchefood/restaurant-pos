@@ -667,6 +667,38 @@ function normalizarItemsPedido(pendingData: Record<string, unknown>): ItemNorm[]
    ("Salchipapa Premium") es para el MENSAJE al cliente, no para la comanda.
    Dejarlo aqui sin uso invitaba a volver a llamarlo y revivir el formato
    distinto que se acaba de unificar. */
+/* ── LOS TRES DESEMPATES DE LA ENTRADA 140, TAMBIEN AQUI (18-ago) ─────────
+   Este camino —el que crea el pedido cuando se verifica la transferencia—
+   tiene su PROPIO emparejado de items, y se quedo con la comparacion de
+   categoria por igualdad exacta que ya habia costado el caso Emily: el lector
+   dice "salchipapa" y la categoria se llama "Salchipapas Tradicionales", asi
+   que no casaba nunca y el desempate caia al PRIMERO de la lista — que suele
+   ser el de Adiciones. Los totales salian bien (vienen de total_mostrado),
+   pero la COMANDA podia salir con el nombre y el precio de la categoria
+   equivocada, y eso es lo que se cocina.
+   Un camino hermano con la mitad de la regla es como se cuela todo. */
+function vtNorm(s: string): string {
+  return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+}
+/* (a) La categoria dicha por el cliente casa de forma TOLERANTE con la del
+   catalogo: "salchipapa" / "salchi" con "Salchipapas Tradicionales". */
+function vtCategoriaCasa(dicha: string, real: string): boolean {
+  const d = vtNorm(dicha), r = vtNorm(real);
+  if (!d || !r) return false;
+  if (d === r || r.includes(d) || d.includes(r)) return true;
+  const raiz = (x: string) => x.split(" ")[0].replace(/e?s$/, "");
+  const rd = raiz(d), rr = raiz(r);
+  return rd.length >= 4 && rr.length >= 4 && (rr.startsWith(rd) || rd.startsWith(rr));
+}
+/* (c) Un producto de una categoria de ADICIONES nunca le gana a un plato,
+   salvo que el cliente haya dicho justamente "adicion". */
+function vtEsAdicion(cat: string): boolean {
+  /* OJO CON EL PEDAZO: "Salchipapas TrADICIONales" contiene "adicion". Sin
+     exigir que la palabra EMPIECE, media carta quedaba clasificada como
+     adiciones. */
+  return /(^|[^a-záéíóúñ])(adicion|adici[oó]n|extra|salsa|acompan|acompañ)/i.test(String(cat || ""));
+}
+
 async function resolverPedido(
   pendingData: Record<string, unknown> | null,
   branchId:    string,
@@ -695,10 +727,25 @@ async function resolverPedido(
         return pname === nombreLow || pname.includes(nombreLow) || nombreLow.includes(pname.replace(/\s.*/,""));
       });
       // Con nombres repetidos entre categorías, la categoría del item decide el precio
+      const catDe = (p: Record<string, unknown>) =>
+        String(((p.category_id as Record<string, unknown> | null)?.name as string) || "");
       if (item.categoria && candidatas.length > 1) {
-        const catLow = item.categoria.toLowerCase();
-        const porCat = candidatas.filter(p => String(((p.category_id as Record<string, unknown> | null)?.name as string) || "").toLowerCase() === catLow);
+        const porCat = candidatas.filter(p => vtCategoriaCasa(item.categoria, catDe(p)));
         if (porCat.length) candidatas = porCat;
+      }
+      /* (b) El tipo de comida dicho DENTRO del nombre tambien decide:
+         "salchipapa de pollo" es de salchipapas aunque la casilla de categoria
+         venga vacia. */
+      if (candidatas.length > 1) {
+        const porNombre = candidatas.filter(p => vtCategoriaCasa(nombreLow, catDe(p))
+          || vtNorm(item.producto).split(" ").some(w => w.length >= 5 && vtCategoriaCasa(w, catDe(p))));
+        if (porNombre.length) candidatas = porNombre;
+      }
+      /* (c) Una adicion no le gana a un plato salvo que el cliente lo pidiera
+         como adicion. */
+      if (candidatas.length > 1 && !vtEsAdicion(item.categoria)) {
+        const platos = candidatas.filter(p => !vtEsAdicion(catDe(p)));
+        if (platos.length) candidatas = platos;
       }
       const exacta = candidatas.find(p => String(p.name || "").toLowerCase() === nombreLow);
       const matched = exacta || candidatas[0];

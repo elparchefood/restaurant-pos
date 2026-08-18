@@ -4015,7 +4015,11 @@ function extractPago(text: string, pagosCfg: Record<string, unknown> | null | un
    tiene su precio, su presentacion —personal o 1.5 litros— y su linea en la
    comanda. Metida aqui, la Coca Cola quedaba como texto pegado a la
    salchipapa, sin preguntarle el tamaño y sin cobrarse. */
-const CAT_ES_ADICION = /adicion|adición|extra|salsa|acompan|acompañ/i;
+/* OJO CON EL PEDAZO (18-ago): "Salchipapas TrADICIONales" contiene
+   "adicion". Esta regex decide si una categoria de la carta es de
+   adiciones, asi que sin exigir que la palabra EMPIECE, TODA la categoria
+   mas vendida del restaurante quedaba clasificada como adiciones. */
+const CAT_ES_ADICION = /(^|[^a-záéíóúñ])(adicion|adici[oó]n|extra|salsa|acompan|acompañ)/i;
 function esCategoriaAdicion(cat: string | null | undefined): boolean {
   return !!cat && CAT_ES_ADICION.test(cat);
 }
