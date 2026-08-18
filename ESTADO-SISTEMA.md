@@ -7653,3 +7653,42 @@ vez por el hueco que quedara.
 
 `delay-reply` v313 · `web-acceso` v19, ambas con smoke. La frase real que
 estaba colada ya quedo marcada: de 14 pendientes a 13.
+
+---
+
+## 206 — La categoria Combos ya se arrastra como las demas (18-ago-2026)
+
+Lo que quedo planteado en la entrada 179: el numero mandaba
+(`tenants.web_combos_orden`) pero no habia forma de cambiarlo sin entrar a la
+base. Ahora la pantalla de Categorias muestra una tarjeta **Combos** (morada,
+con la cuenta de combos activos) intercalada en su puesto, que se arrastra con
+el mismo gesto que las otras. Solo aparece si hay combos activos, que es cuando
+de verdad sale en la pagina del cliente. No lleva numero: no es una categoria
+de la tabla, y numerarla correria la cuenta de las demas.
+
+**Dos cosas que no eran obvias y habrian salido rotas:**
+
+1. **El dueño no puede escribir en `tenants`.** Desde el 3-ago su politica es
+   solo SELECT, porque el PLAN vive en esa tabla y con permiso de escritura
+   cualquiera se subia a Premium desde la consola del navegador. Un
+   `update` desde el navegador habria fallado siempre. Se creo
+   `fn_set_combos_orden(int)` (SECURITY DEFINER) que cambia **ese campo y nada
+   mas**, y solo del propio negocio.
+2. **El puesto empataba con una categoria.** El numero se lee como "cuantas
+   categorias van antes", asi que un 2 significa "despues de la segunda" — pero
+   la carta ordenaba por ese numero y desempataba **por nombre**: el mismo 2
+   ponia Combos antes o despues segun como se llamara la categoria. Y el
+   desempate no se podia poner en el ORDER BY porque **un UNION solo acepta
+   nombres de columna**, no expresiones (lo aprendi rompiendo la carta un par
+   de minutos: la funcion se creo bien y reventaba al ejecutarse). Va en el
+   numero: las categorias ocupan los pares (1→2, 2→4) y Combos el impar
+   siguiente a su puesto (2→5). Ese `orden` solo sirve para ordenar; la pagina
+   del cliente no lo lee.
+
+**Verificado contra la carta real de El Parche** (8 categorias), moviendo el
+puesto y volviendolo a dejar en 0: con 0 va primera, con 2 entra tercera, con 3
+cuarta, y un numero grande la manda al final. Y la logica del guardado probada
+aparte: mover Combos escribe solo su puesto, mover una categoria escribe solo
+los `sort_order`, y volver a dejar todo igual no escribe nada.
+
+SQL: `sql/2026-08-18-combos-orden.sql`.

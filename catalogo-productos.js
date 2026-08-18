@@ -137,6 +137,16 @@ async function loadProducts() {
     }));
   } catch(e){}
 }
+/* EL PUESTO DE LA CATEGORIA "COMBOS" no vive en pos_categories: Combos no es
+   una categoria de verdad, es una que se arma sola con los combos activos. Su
+   puesto vive en `tenants.web_combos_orden`, donde 0 = va primera y N = va
+   despues de la categoria N. */
+async function loadCombosOrden() {
+  try {
+    const {data} = await sb.from('tenants').select('web_combos_orden').eq('id',S.tenantId).maybeSingle();
+    S.combosOrden = Number(data && data.web_combos_orden) || 0;
+  } catch(e){ S.combosOrden = 0; }
+}
 async function loadCombos() {
   try {
     const {data,error} = await sb.from('pos_combos').select('*').eq('tenant_id',S.tenantId).order('name');
@@ -599,8 +609,30 @@ async function toggleCombo(id){const c=S.combos.find(x=>x.id===id);if(!c)return;
 // ── Categories view ───────────────────────────────────────────────────────
 function renderCategoriesView(body){
   const count=id=>S.products.filter(p=>p.cat===id).length;
-  const cards=S.cats.map((c,i)=>{const n=count(c.id);const canDel=n===0;return '<div class="cp-card cp-cat-card" data-cid="'+c.id+'" style="cursor:default;padding:16px"><div style="display:flex;align-items:center;gap:12px"><div class="cp-cat-grip" title="Arrastra para cambiar el orden"><b>'+(i+1)+'</b>'+icon('grip',15)+'</div><span style="width:44px;height:44px;border-radius:12px;background:'+(c.image?("#F1F5F9 center/cover no-repeat url(\'"+escHtml(c.image)+"\')"):c.tint)+';color:'+c.color+';display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">'+(c.image?'':icon('layers',20))+'</span><div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;color:#0F172A">'+escHtml(c.name)+'</div><div style="font-size:11.5px;color:#94A3B8;margin-top:1px">'+n+' '+(n===1?'producto':'productos')+'</div></div><span style="width:14px;height:14px;border-radius:999px;background:'+c.color+';flex-shrink:0"></span></div><div style="display:flex;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid #F1F5F9"><button class="lm-btn-ghost sm" style="flex:1" onclick="openCatEditor(\''+c.id+'\')">'+icon('edit',13)+' Editar</button><button class="cc-mini-del" '+(canDel?'':'disabled title="Mueve o elimina sus productos primero"')+' onclick="deleteCat(\''+c.id+'\')">'+icon('trash',14)+'</button></div></div>';}).join('');
-  body.innerHTML='<div><div class="cp-view-head"><div><div style="font-size:14px;font-weight:800;color:#0F172A">Categorías del menú</div><div style="font-size:12px;color:#94A3B8;margin-top:2px">Arrastra para cambiar el orden: es el mismo en el que las ve tu cliente en la página y tú en la caja.</div></div><button class="lm-btn-primary" onclick="openCatEditor(null)">'+icon('plus',14)+' Nueva categoría</button></div><div class="cp-cat-grid">'+cards+'<button class="cp-add-tile" onclick="openCatEditor(null)"><div class="cp-add-tile-icon">'+icon('plus',20)+'</div><span>Crear categoría</span></button></div></div>';
+  /* LA TARJETA DE COMBOS SE INTERCALA ENTRE LAS DEMAS. No es una categoria de
+     la tabla —se arma sola con los combos activos— pero para quien ordena la
+     carta es una mas, y tenia que poder arrastrarse igual. Su puesto sale de
+     `tenants.web_combos_orden`: 0 la deja primera, N la deja despues de la
+     categoria N. Se pinta solo si hay combos activos, que es cuando de verdad
+     aparece en la pagina del cliente. */
+  const hayCombos = (S.combos||[]).some(c=>c.active!==false);
+  const puestoCombos = Math.max(0, Math.min(S.cats.length, Number(S.combosOrden)||0));
+  const tarjetaCombos = () => {
+    const n = (S.combos||[]).filter(c=>c.active!==false).length;
+    return '<div class="cp-card cp-cat-card" data-cid="__combos" style="cursor:default;padding:16px">'
+      + '<div style="display:flex;align-items:center;gap:12px">'
+      + '<div class="cp-cat-grip" title="Arrastra para cambiar el orden"><b></b>'+icon('grip',15)+'</div>'
+      + '<span style="width:44px;height:44px;border-radius:12px;background:#F5F3FF;color:#8B5CF6;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+icon('layers',20)+'</span>'
+      + '<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;color:#0F172A">Combos</div>'
+      + '<div style="font-size:11.5px;color:#94A3B8;margin-top:1px">'+n+' '+(n===1?'combo':'combos')+' · se arma sola</div></div>'
+      + '<span style="width:14px;height:14px;border-radius:999px;background:#8B5CF6;flex-shrink:0"></span></div>'
+      + '<div style="margin-top:14px;padding-top:14px;border-top:1px solid #F1F5F9;font-size:11.5px;color:#94A3B8">'
+      + 'Solo en la página de tus clientes. Se edita desde la pestaña Combos.</div></div>';
+  };
+  const cards=S.cats.map((c,i)=>{const n=count(c.id);const canDel=n===0;return '<div class="cp-card cp-cat-card" data-cid="'+c.id+'" style="cursor:default;padding:16px"><div style="display:flex;align-items:center;gap:12px"><div class="cp-cat-grip" title="Arrastra para cambiar el orden"><b>'+(i+1)+'</b>'+icon('grip',15)+'</div><span style="width:44px;height:44px;border-radius:12px;background:'+(c.image?("#F1F5F9 center/cover no-repeat url(\'"+escHtml(c.image)+"\')"):c.tint)+';color:'+c.color+';display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">'+(c.image?'':icon('layers',20))+'</span><div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;color:#0F172A">'+escHtml(c.name)+'</div><div style="font-size:11.5px;color:#94A3B8;margin-top:1px">'+n+' '+(n===1?'producto':'productos')+'</div></div><span style="width:14px;height:14px;border-radius:999px;background:'+c.color+';flex-shrink:0"></span></div><div style="display:flex;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid #F1F5F9"><button class="lm-btn-ghost sm" style="flex:1" onclick="openCatEditor(\''+c.id+'\')">'+icon('edit',13)+' Editar</button><button class="cc-mini-del" '+(canDel?'':'disabled title="Mueve o elimina sus productos primero"')+' onclick="deleteCat(\''+c.id+'\')">'+icon('trash',14)+'</button></div></div>';});
+  if (hayCombos) cards.splice(puestoCombos, 0, tarjetaCombos());
+  const cardsHtml = cards.join('');
+  body.innerHTML='<div><div class="cp-view-head"><div><div style="font-size:14px;font-weight:800;color:#0F172A">Categorías del menú</div><div style="font-size:12px;color:#94A3B8;margin-top:2px">Arrastra para cambiar el orden: es el mismo en el que las ve tu cliente en la página y tú en la caja.</div></div><button class="lm-btn-primary" onclick="openCatEditor(null)">'+icon('plus',14)+' Nueva categoría</button></div><div class="cp-cat-grid">'+cardsHtml+'<button class="cp-add-tile" onclick="openCatEditor(null)"><div class="cp-add-tile-icon">'+icon('plus',20)+'</div><span>Crear categoría</span></button></div></div>';
 }
 /* ── ARRASTRAR PARA ORDENAR LAS CATEGORIAS (17-ago) ────────────────────────
    El orden de las categorias es el mismo en los tres lados: esta pantalla, la
@@ -692,19 +724,39 @@ async function catDragFin(){
   if(!movio) return;
 
   const orden = [...grilla.querySelectorAll('.cp-cat-card')].map(n=>n.dataset.cid);
-  if(orden.join() === S.cats.map(c=>c.id).join()) return;   // volvio a su sitio
 
-  S.cats.sort((a,b)=>orden.indexOf(a.id)-orden.indexOf(b.id));
+  /* COMBOS NO ES UNA CATEGORIA DE LA TABLA. Va en la misma grilla y se arrastra
+     igual, pero su puesto se guarda en `tenants.web_combos_orden` y no en
+     `pos_categories.sort_order`. Aqui se separan los dos: las categorias de
+     verdad se numeran 1..N ignorando la tarjeta de Combos, y el puesto de
+     Combos es cuantas categorias quedaron ANTES que ella (0 = primera). */
+  const ordenCats  = orden.filter(id => id !== '__combos');
+  const puestoNuevo = orden.indexOf('__combos');   // -1 si no esta pintada
+  const combosMovio = puestoNuevo >= 0 && puestoNuevo !== (Number(S.combosOrden)||0);
+  if(ordenCats.join() === S.cats.map(c=>c.id).join() && !combosMovio) return;   // volvio a su sitio
+
+  S.cats.sort((a,b)=>ordenCats.indexOf(a.id)-ordenCats.indexOf(b.id));
   // Se guarda antes de saber si la base respondio: la pantalla ya muestra el
   // orden nuevo y Sergio sigue arrastrando. Si algo falla, se avisa y se
   // recarga desde la base para que lo que se ve sea la verdad.
   const cambios = S.cats.map((c,i)=>({c, n:i+1})).filter(x=>x.c.sort_order !== x.n);
   cambios.forEach(x=>{ x.c.sort_order = x.n; });
+  const combosAntes = Number(S.combosOrden)||0;
+  if(combosMovio) S.combosOrden = puestoNuevo;
   try{
     const r = await Promise.all(cambios.map(x =>
       sb.from('pos_categories').update({sort_order:x.n}).eq('id',x.c.id).eq('tenant_id',S.tenantId)));
     const err = r.find(x=>x && x.error);
     if(err) throw err.error;
+    if(combosMovio){
+      /* NO se escribe en `tenants` de frente: el dueño solo puede LEER esa
+         tabla desde el 3-ago, porque el PLAN vive ahi y con permiso de
+         escritura cualquiera se subia a Premium desde la consola del
+         navegador. La funcion `fn_set_combos_orden` deja cambiar ESE campo y
+         nada mas, y solo del propio restaurante. */
+      const rc = await sb.rpc('fn_set_combos_orden', { p_orden: puestoNuevo });
+      if(rc && rc.error){ S.combosOrden = combosAntes; throw rc.error; }
+    }
     _invalidateCatalogCache();
     toast('Orden guardado');
   }catch(e){
@@ -715,8 +767,12 @@ async function catDragFin(){
 }
 
 function renumerarCats(){
-  [...document.querySelectorAll('.cp-cat-card')].forEach((n,i)=>{
-    const b = n.querySelector('.cp-cat-grip b'); if(b) b.textContent = i+1;
+  /* Combos no lleva numero: no es una categoria de la tabla, y numerarla
+     correria la cuenta de todas las demas. */
+  let k = 0;
+  [...document.querySelectorAll('.cp-cat-card')].forEach((n)=>{
+    const b = n.querySelector('.cp-cat-grip b'); if(!b) return;
+    b.textContent = n.dataset.cid === '__combos' ? '' : String(++k);
   });
 }
 
@@ -1576,6 +1632,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await Promise.all([loadCategories(), loadModifierGroups(), loadBases()]);
     await loadProducts();
     await loadCombos();
+    await loadCombosOrden();
   } catch(e) {
     console.error('Boot load error:', e);
   } finally {
