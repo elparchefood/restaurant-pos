@@ -7556,3 +7556,37 @@ reprodujo: contesta *"Solo me falta este dato 😊"* y repite la pregunta, y a u
 `delay-reply` v312, smoke 200, 45 conversaciones de prueba borradas.
 Bateria completa: cola de 3 platos ($61.000, 3 lineas), fantasma controlado,
 correccion, pregunta de precio, volcado x2, pagos 5/5, notas, adiciones.
+
+---
+
+## 203 — El recibo del cierre imprimia el sencillo y los billetes grandes en CERO (18-ago-2026)
+
+Reportado por Sergio la noche del 17: *"el cierre me da totalmente perfecto,
+pero al IMPRIMIR el recibo me sale en cero el sencillo y los billetes de 50 y
+100. Antes salia bien; ayer y hoy no"*.
+
+**La causa, y por que aparecio justo esos dias.** El conteo del arqueo decidia
+que era billete y que era moneda **por el ORDEN de los bloques en la pagina**:
+el bloque 0 eran los billetes. El 16-ago el modal de APERTURA estreno sus
+propios bloques de denominaciones, y como estan antes en el HTML, el bloque 0
+paso a ser el de la apertura: **todos los billetes del arqueo se contaron como
+monedas**. De ahi que el sencillo y los de 50/100 salieran en cero — y que el
+TOTAL siguiera perfecto, porque el total no depende del grupo. La pantalla no
+delataba nada por lo mismo.
+
+**El arreglo.** Cada bloque del arqueo dice lo que es (`data-grupo="billete"` /
+`"moneda"`) y la busqueda se hace DENTRO del panel del arqueo, nunca en toda la
+pagina. Tres funciones auxiliares (`cjBloquesArqueo`, `cjGrupoDe`,
+`cjInputsArqueo`) y los siete puntos que contaban por orden pasaron a usarlas:
+llenar el arqueo guardado, los subtotales en vivo, el total contado, el detalle
+que se guarda e imprime, el borrado y los escuchas de teclado.
+
+**Verificado** con una simulacion del mismo DOM (los bloques de la apertura
+delante): con el codigo viejo daba `grandes 0 · sencillo 0 · monedas 106.000`
+—el sintoma exacto— y con el nuevo `grandes 100.000 · sencillo 5.000 · monedas
+1.000`, total igual en los dos. Falta que Sergio lo confirme con un cierre real.
+
+⚠️ **La leccion, que ya cobro dos veces**: identificar algo por su POSICION
+(el bloque 0, el primer resultado) se rompe el dia que alguien agrega otro
+igual mas arriba, y se rompe en silencio. Se identifica por etiqueta y se busca
+dentro de su contenedor.
