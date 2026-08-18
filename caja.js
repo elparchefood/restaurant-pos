@@ -1514,14 +1514,35 @@ document.getElementById('btn-confirmar-mov').addEventListener('click', function(
   closePanel('panel-movimiento');
 });
 
+/* LOS BLOQUES DEL ARQUEO SE PIDEN POR SU ETIQUETA, NO POR EL ORDEN.
+   El 16-ago el modal de APERTURA estreno sus propios bloques .cj-denom, y
+   como estan antes en la pagina, el bloque 0 dejo de ser el de billetes del
+   arqueo: los billetes se contaban como monedas y el recibo del cierre
+   imprimia el SENCILLO y los BILLETES DE 50/100 en cero (la pantalla seguia
+   bien porque el total no depende del grupo). Ahora cada bloque dice lo que
+   es con data-grupo y se busca dentro del panel del arqueo. */
+function cjBloquesArqueo() {
+  const panel = document.getElementById('panel-arqueo');
+  const marcados = (panel || document).querySelectorAll('.cj-denom[data-grupo]');
+  if (marcados.length) return marcados;
+  return (panel || document).querySelectorAll('.cj-denom');   // respaldo
+}
+function cjGrupoDe(grp, gi) {
+  return grp.dataset.grupo || (gi === 0 ? 'billete' : 'moneda');
+}
+function cjInputsArqueo() {
+  const panel = document.getElementById('panel-arqueo');
+  return (panel || document).querySelectorAll('.denom-input');
+}
+
 // Rellena los inputs de denominaciones desde un arqueo guardado (arqueo_denoms).
 // Empareja por denominación Y grupo (billete/moneda) porque el $1.000 existe en
 // ambas columnas. Así, al reabrir el arqueo en el mismo turno, aparece prellenado
 // con lo que ya contaste y no toca volver a contar.
 function fillArqueoDenoms(denoms) {
   const lineas = (denoms && denoms.lineas) ? denoms.lineas : [];
-  document.querySelectorAll('.cj-denom').forEach((grp, gi) => {
-    const grupo = (gi === 0) ? 'billete' : 'moneda';
+  cjBloquesArqueo().forEach((grp, gi) => {
+    const grupo = cjGrupoDe(grp, gi);
     grp.querySelectorAll('.denom-input').forEach(inp => {
       const denom = parseInt(inp.dataset.val, 10) || 0;
       const l = lineas.find(x => x.denom === denom && x.grupo === grupo);
@@ -1539,7 +1560,7 @@ document.getElementById('btn-arqueo').addEventListener('click', function() {
   } else {
     // Primera vez en el turno: arqueo en blanco.
     S.arqueoContado = null;
-    document.querySelectorAll('.denom-input').forEach(inp=>{ inp.value=''; });
+    cjInputsArqueo().forEach(inp=>{ inp.value=''; });
     document.querySelectorAll('.cj-denom-total').forEach(td=>{ td.textContent='0'; });
     document.getElementById('subtotal-billetes').textContent = '$0';
     document.getElementById('subtotal-monedas').textContent  = '$0';
@@ -1574,12 +1595,12 @@ document.getElementById('btn-guardar-arqueo').addEventListener('click', async fu
   closePanel('panel-arqueo');
 });
 
-document.querySelectorAll('.denom-input').forEach(inp => {
+cjInputsArqueo().forEach(inp => {
   inp.addEventListener('input', updateArqueoTotals);
 });
 
 function updateArqueoTotals() {
-  const groups = document.querySelectorAll('.cj-denom');
+  const groups = cjBloquesArqueo();
   let billetes = 0, monedas = 0;
   groups.forEach((grp, gi) => {
     let sub = 0;
@@ -1591,7 +1612,7 @@ function updateArqueoTotals() {
       const td = inp.closest('.cj-denom-row')?.querySelector('.cj-denom-total');
       if (td) td.textContent = COPF(tot);
     });
-    if (gi===0) billetes=sub; else monedas+=sub;
+    if (cjGrupoDe(grp, gi) === 'billete') billetes+=sub; else monedas+=sub;
   });
   const total = billetes + monedas;
   document.getElementById('subtotal-billetes').textContent = COPF(billetes);
@@ -1603,7 +1624,7 @@ function updateArqueoTotals() {
 
 function getArqueoContado() {
   let t = 0;
-  document.querySelectorAll('.denom-input').forEach(inp=>{
+  cjInputsArqueo().forEach(inp=>{
     t += (parseInt(inp.value||'0',10)||0) * parseInt(inp.dataset.val,10);
   });
   return t;
@@ -1834,14 +1855,15 @@ window.reimprimirCierre = function (sessionId) {
 function getArqueoDenoms() {
   const lineas = [];
   let billetes = 0, monedas = 0;
-  document.querySelectorAll('.cj-denom').forEach((grp, gi) => {
+  cjBloquesArqueo().forEach((grp, gi) => {
+    const grupo = cjGrupoDe(grp, gi);
     grp.querySelectorAll('.denom-input').forEach(inp => {
       const qty   = parseInt(inp.value || '0', 10) || 0;
       const denom = parseInt(inp.dataset.val, 10) || 0;
       if (!qty) return;
       const total = qty * denom;
-      lineas.push({ denom: denom, qty: qty, total: total, grupo: gi === 0 ? 'billete' : 'moneda' });
-      if (gi === 0) billetes += total; else monedas += total;
+      lineas.push({ denom: denom, qty: qty, total: total, grupo: grupo });
+      if (grupo === 'billete') billetes += total; else monedas += total;
     });
   });
   // Grandes = billetes de $50.000 y $100.000 (los que se consignan/guardan).
