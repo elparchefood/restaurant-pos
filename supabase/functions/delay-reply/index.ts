@@ -590,6 +590,13 @@ const LLEVAR_PARTES = [
 ].join("|");
 
 // Cubre masculino/femenino/plural y conjugado/infinitivo.
+/* CORRECCION (18-ago, tarea 0c). El respaldo determinista para cuando el
+   clasificador no alcance: marcadores inequivocos de "me corrijo". "Es la X"
+   solo cuenta si NO es pregunta — "¿es la que lleva queso?" pregunta, no
+   corrige. La decision final es modelo-primero: intenciones.corrige. */
+const CORRIGE_RE = /(corrijo|correccion|me equivoque|me equivoqu[eé]|quise decir|mejor solo|solo seria|solo ser[ií]a|asi no era|as[ií] no era|no era es[ea])/i;
+const CORRIGE_ES_LA_RE = /^\s*(no[,.]?\s*)?(es|era)\s+(la|el|una|un)\s+/i;
+
 const LLEVAR_REGEX = new RegExp("\\b(?:" + LLEVAR_PARTES + ")\\b", "i");
 
 // Nuevo producto adicional — expandido para capturar más patrones naturales
@@ -1084,7 +1091,7 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
 {"carta":bool,"precio":bool,"ubicacion":bool,"domicilio":bool,"horario":bool,"pedir":bool,
  "pago":"efectivo"|"transferencia"|null,"entrega":"domicilio"|"recoger"|null,
  "rechaza_direccion":bool,"agregados":[string],
- "confirma":bool,"rechaza_mas":bool,
+ "confirma":bool,"rechaza_mas":bool,"corrige":bool,
  "pregunta":bool,"despedida":bool,"queja":bool,"quiere_humano":bool,"fuera_tema":bool,
  "categoria":string|null}
 
@@ -1181,6 +1188,13 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
   algo tambien es rechaza_mas. Es distinto de
   "confirma": aqui esta cerrando la lista de cosas, no aprobando el pedido.
   Puede haber mensajes que sean las dos ("no, asi esta bien, confirmo").
+- "corrige": true si esta CORRIGIENDO algo que ya dijo o que tu entendiste
+  mal — no agregando algo nuevo. "corrijo...", "es la premium, no la mixta",
+  "quise decir...", "me equivoque", "mejor solo la X", "asi no era", "era
+  familiar no personal". Mira el contexto: si acabas de resumir una cosa y el
+  cliente nombra OTRA parecida sin decir "tambien" ni "y", esta corrigiendo.
+  NO es corrige: "y tambien una super queso" (agrega), "no gracias" (cierra),
+  contestar lo que se le pregunto.
 Puede haber varias en true. Si no estas seguro, pon false.
 La gente escribe con errores, sin tildes y con espacios de mas: interpreta la
 INTENCION, no las palabras exactas.` },
@@ -2138,7 +2152,20 @@ INTENCION, no las palabras exactas.` },
        pago, nombre y upsell ya respondidos, y el resumen se rearma al final
        con todo. Reusar el camino maduro, no duplicarlo. */
     const AGREGA_RE = /\b(agrega(r|me|s)?|a[nñ][aá]de(me)?|s[uú]ma(le|me)?|tambi[eé]n|otra|otro|adem[aá]s|me\s+das|dame|quiero|quisiera)\b/i;
-    if (leidoCorr.producto && (AGREGA_RE.test(clienteTexto) || intenciones.pedir === true)) {
+    /* Y LA CORRECCION TAMBIEN PASA (18-ago, tarea 0c). "Es la premium mixta"
+       tras un resumen equivocado no decia "agregar" ni "pedir", asi que caia
+       aqui a reenviar el MISMO resumen — o peor, a sumar un segundo plato. Si
+       esta corrigiendo y nombra un producto, sigue derecho al flujo normal,
+       donde el 14b ahora REEMPLAZA en vez de archivar. */
+    const esCorrPost = intenciones.corrige === true
+      || CORRIGE_RE.test(clienteTexto)
+      || (CORRIGE_ES_LA_RE.test(clienteTexto.trim()) && !clienteTexto.includes("?") && !clienteTexto.includes("¿"));
+    const corrNombraProducto = esCorrPost && (
+      !!leidoCorr.producto ||
+      productosNuevosEnTexto(clienteTexto, state, currentProductData, intenciones).length > 0
+    );
+    if (corrNombraProducto) console.log("[resumen] corrige el plato — sigue al flujo normal");
+    if ((leidoCorr.producto && (AGREGA_RE.test(clienteTexto) || intenciones.pedir === true)) || corrNombraProducto) {
       console.log("[resumen] agrega otro plato:", JSON.stringify(leidoCorr.producto), "— sigue al flujo normal");
       state.resumen_enviado = false;
       /* "una salchi super queso" nombra el plato UNA vez → es el plato, no
@@ -2403,9 +2430,19 @@ INTENCION, no las palabras exactas.` },
     : null;
 
   const nuevosEnTexto = productosNuevosEnTexto(clienteTexto, state, currentProductData, intenciones);
-  const needsProducto = !state.producto
+  /* PREGUNTAR EL PRECIO NO CAMBIA EL PEDIDO (18-ago). "¿es la premium mas
+     cara?" en mitad de un pedido respondia el precio — bien — pero ADEMAS
+     archivaba lo que iba y arrancaba una Premium. Si la intencion es PRECIO y
+     no PEDIR, y es una pregunta, los nombres del mensaje son tema de
+     conversacion, no un plato nuevo. (Solo con pedido en curso: el
+     clasificador decide, y "¿me regalas una premium?" es pedir, no precio.) */
+  const soloPreguntaPrecio = !!state.producto
+    && intenciones.precio === true
+    && intenciones.pedir !== true
+    && (clienteTexto.includes("?") || clienteTexto.includes("¿") || intenciones.pregunta === true);
+  const needsProducto = !soloPreguntaPrecio && (!state.producto
     || nuevosEnTexto.length > 0
-    || NUEVO_PROD_REGEX.test(clienteTexto);
+    || NUEVO_PROD_REGEX.test(clienteTexto));
   let productoDetectado: string | null = null;
   let productoCategoriaDet: string | null = null;
   let cantidadDetectada = 1;
@@ -2608,6 +2645,17 @@ INTENCION, no las palabras exactas.` },
     const normNuevo = normalizarTexto(productoDetectado);
     const normActual = state.producto ? normalizarTexto(state.producto) : "";
 
+    /* ¿ESTA CORRIGIENDO O AGREGANDO? (18-ago). "Es la premium mixta" despues
+       de un resumen equivocado SUMABA un segundo plato — el enredo de Shirley
+       termino en un pedido fantasma de $66.000. Corregir REEMPLAZA el producto
+       en curso; y "solo la X" ademas vacia lo archivado: el pedido queda en
+       solo eso. Modelo primero, marcadores de respaldo. */
+    const txtCorr = clienteTexto.trim();
+    const esCorreccion = intenciones.corrige === true
+      || CORRIGE_RE.test(txtCorr)
+      || (CORRIGE_ES_LA_RE.test(txtCorr) && !txtCorr.includes("?") && !txtCorr.includes("¿"));
+    const esSoloEste = /\b(solo|solamente|unicamente|[uú]nicamente|nada mas|nada m[aá]s)\b/i.test(txtCorr);
+
     if (state.producto && normNuevo !== normActual) {
       /* LO QUE ESTE MENSAJE LE CONTESTO AL PRODUCTO QUE SE VA.
          El mismo mensaje puede cerrar un producto y abrir otro. Los extractores
@@ -2656,8 +2704,11 @@ INTENCION, no las palabras exactas.` },
       state.direccion = prevDir;
       state.pago      = prevPago;
       state.nombre    = prevNom;
-      state.items     = [...prevItems, archived];
-      state.cola      = prevCola;   // los platos en espera sobreviven al cambio
+      /* Corrigiendo: el que estaba en curso NO se archiva (era el error). Y
+         con "solo" el pedido queda unicamente en lo nuevo. */
+      state.items     = esCorreccion ? (esSoloEste ? [] : prevItems) : [...prevItems, archived];
+      state.cola      = (esCorreccion && esSoloEste) ? [] : prevCola;
+      if (esCorreccion) console.log(`[corrige] "${state.producto}" reemplaza al anterior${esSoloEste ? " y limpia el pedido" : ""}`);
       // UPSELL una sola vez por PEDIDO (regla de Sergio): si el cliente ya
       // respondió a las adiciones (sí o no), no se le vuelve a preguntar por
       // cada producto nuevo que agregue. El extractor sigue capturando
@@ -4671,7 +4722,28 @@ function validarLeido(
       }
       return pegada;
     };
-    const limpias = reales.filter(r => {
+    /* EL VOLCADO DEL LECTOR (18-ago, hallado en las pruebas de la cola): ante
+       un mensaje sin contenido ("Camila") el lector a veces devolvia LA LISTA
+       ENTERA de adiciones que se le mostro como opciones — y como todas
+       existen, pasaban la validacion y el pedido salia con diez adiciones que
+       nadie pidio (paso 1 de cada 3 corridas). Nadie pide 3+ adiciones sin
+       nombrar NINGUNA: con tres o mas, solo entran las que dejaron rastro en
+       el texto. Con 1-2 se conserva la tolerancia de sinonimos
+       ("papitas" -> Papas). Sin regex a proposito. */
+    let candidatas = reales;
+    if (candidatas.length >= 3) {
+      const toksTexto = normalizarTexto(texto).split(" ").filter(Boolean);
+      const conRastro = (nombre: string): boolean =>
+        normalizarTexto(nombre).split(" ").filter(w => w.length >= 3)
+          .some(w => toksTexto.some(t =>
+            t === w || t.startsWith(w) || w.startsWith(t) || (t.length > w.length && t.endsWith(w))));
+      const filtradas = candidatas.filter(conRastro);
+      if (filtradas.length !== candidatas.length) {
+        console.log("[lector] volcado de adiciones descartado: " + candidatas.length + " -> " + filtradas.length);
+      }
+      candidatas = filtradas;
+    }
+    const limpias = candidatas.filter(r => {
       if (nacioDeCompuesta(r)) return false;
       const rn = normalizarTexto(r);
       const esElPlatoMismo = rn === suyo || suyo.includes(rn);

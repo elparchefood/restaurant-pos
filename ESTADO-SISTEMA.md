@@ -7434,3 +7434,63 @@ estado.
 - 0b queda cubierto en la practica por la cola para el caso real (varios
   productos por mensaje); pasar TODO el estado al extractor sigue siendo la
   meta de fondo, pero ya sin un caso que lo urja.
+
+---
+
+## 201 — Corregir REEMPLAZA (0c), y dos minas halladas por el camino (18-ago-2026)
+
+Continuacion de la 200. Tarea 0c del plan de intenciones: "corrijo", "es la X",
+"mejor solo la X" hoy SUMABAN un plato en vez de reemplazar — el enredo que
+convirtio el pedido de Shirley en un fantasma de $66.000.
+
+### La correccion, modelo primero
+
+- El clasificador aprende **"corrige"** (con el contexto de los ultimos
+  mensajes: "si acabas de resumir una cosa y el cliente nombra OTRA parecida
+  sin decir 'tambien', esta corrigiendo").
+- Respaldo determinista: `CORRIGE_RE` (corrijo, me equivoque, quise decir,
+  mejor solo...) y `CORRIGE_ES_LA_RE` ("Es la premium...") — esta ultima solo
+  si NO es pregunta.
+- En el 14b: corregir **reemplaza** el producto en curso (no lo archiva); con
+  "solo/solamente" ademas **vacia** items y cola: el pedido queda unicamente en
+  lo corregido.
+- La compuerta post-resumen (que solo dejaba pasar "agregar") ahora tambien
+  deja pasar la correccion al flujo normal.
+
+### Mina 1: preguntar un precio SECUESTRABA el pedido (pre-existente)
+
+"¿es la premium mas cara?" en mitad de un pedido respondia bien el precio pero
+ADEMAS archivaba lo que iba y arrancaba una Premium. Candado: si la intencion
+es PRECIO y no PEDIR, y es una pregunta, los nombres del mensaje son tema de
+conversacion. "¿me regalas una premium?" (pregunta que SI es pedido) sigue
+funcionando — lo decide el clasificador, no el signo de interrogacion.
+
+### Mina 2: el VOLCADO del lector (pre-existente, intermitente)
+
+En la regresion, 1 de 3 corridas de un pedido simple salio con **las diez
+adiciones del catalogo** ($26.000 → $1xx.000): ante un mensaje sin contenido
+("Camila"), el lector a veces devuelve LA LISTA ENTERA de opciones que se le
+mostro — y como todas existen, pasaban la validacion. Compuerta: nadie pide 3+
+adiciones sin nombrar NINGUNA; con tres o mas solo entran las que dejaron
+rastro en el texto. Con 1-2 se conserva la tolerancia de sinonimos
+("papitas" → Papas). Verificado: 0 volcados en 3 corridas y la adicion
+legitima ("con tocineta") sigue entrando.
+
+### Bateria (banco)
+
+| Prueba | Resultado |
+|---|---|
+| "Es la premium mixta" tras resumen equivocado | REEMPLAZA (antes sumaba); pregunta el tamano |
+| "Corrijo solo la premium..." con 2 platos | queda SOLO la premium |
+| "y tambien una coca cola" (control) | sigue SUMANDO |
+| "¿es la premium mas cara?" (control) | responde el precio, el pedido intacto |
+| "¿me regalas una premium?" (control) | arranca el pedido |
+| Mariam (regresion) | 3 lineas, $33.000 |
+| Pedido simple x3 + "con tocineta" | sin volcado; Tocineta entra |
+
+`delay-reply` v311, smoke 200, 13 conversaciones de prueba borradas.
+
+⚠️ **Trampa de entorno confirmada**: los `` escritos via heredoc de Python
+llegan partidos (el transporte reduce las barras) y se vuelven backspaces
+invisibles. Regla: anclas SIN barras invertidas, regex nuevas sin `` via
+heredoc (usar chr(92) o el Edit tool), y el desplegador ya aborta si hay 0x08.
