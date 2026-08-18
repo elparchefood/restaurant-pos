@@ -7323,3 +7323,45 @@ Paco, pero dos clientes en 15 minutos es patron: verificar la llave con Nequi.
 Bucle del lugar publico (2a) · referencia tras conjunto (2b) · variante cobrada
 como adicion (3) · mapeo llave→billetera (5) · notas y "billete de X" a la
 comanda (6). El 4 refuerza la prioridad de la tarea 0b/1 (maquina de estado).
+
+---
+
+## 199 — Francisco: la pregunta que quedo de nombre y el comprobante en efectivo (18-ago-2026)
+
+Francisco (573114054680) pregunto "Cuanto se demora" justo cuando el flujo
+esperaba el nombre → el pedido quedo a nombre de **"Cuanto se demora"**. Y al
+decir "Pago con un billete de 100" (ya habia dicho efectivo), Paco le pidio
+**el comprobante de pago**.
+
+**Datos corregidos al momento:** el cliente se renombro a Francisco, y a su
+pedido (aun abierto) se le agrego la nota "Paga con billete de $100 (necesita
+cambio)" — la nota que el flujo habia perdido, la misma clase del hallazgo 6 de
+la auditoria.
+
+### Arreglos
+
+1. **Una pregunta no es un nombre** (`PREGUNTA_NO_NOMBRE_RE`): cuanto/cuando/
+   donde/demora/tarda/llega/vale/cuesta o un signo de interrogacion. Puesta en
+   los **CUATRO caminos** que capturan nombres — los dos de `extractNombre`,
+   el paso binario, y el lector GPT (`leido.nombre`), que fue por donde entro
+   este caso. Cuatro caminos, una sola regla.
+2. **"billete" es señal de EFECTIVO** en el clasificador ("pago con un billete
+   de 100" → efectivo).
+3. **Regla dura al redactor**: si el pago es en efectivo, JAMAS pedir
+   comprobante — el comprobante existe solo para transferencias.
+
+**Verificado en el banco** (conversacion completa de Francisco): a "Cuanto se
+demora" ahora **responde la pregunta** ("Unos 30 minutos") y re-pregunta el
+nombre; "Francisco" queda de nombre; el resumen sale con 👤 Francisco; y
+"billete de 100" ya no dispara comprobante. Control con nombre normal (Camila):
+igual que siempre. `delay-reply` v309, smoke 200, pruebas borradas.
+
+### ⚠️ La trampa que ya van TRES veces: regex desde Python
+
+La primera version de la compuerta NO FUNCIONABA y las pruebas salian mal sin
+razon aparente. Causa: al escribir la regex al archivo desde un string de
+Python, cada `` se convirtio en un **backspace invisible** (0x08) — la regex
+compilaba y nunca casaba con nada. Se encontro mirando los BYTES de la linea.
+Regla reforzada: una regex JAMAS se escribe a un archivo via string normal de
+Python — o Edit tool, o `chr(92)`, y despues verificar los bytes. Y el
+desplegador ahora aborta si el archivo contiene 0x08.

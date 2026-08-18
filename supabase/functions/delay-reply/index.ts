@@ -1131,7 +1131,7 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
 - "horario": pregunta a que hora abren o cierran, o si estan abiertos.
 - "pedir": quiere ordenar algo concreto ya.
 - "pago": como va a pagar. "efectivo" si dice efectivo, plata, en la mano, contra
-  entrega. "transferencia" si dice nequi, daviplata, transferencia, bancolombia,
+  entrega, o que paga con un BILLETE ("pago con un billete de 100", "con 50", "necesito cambio de 100"): quien paga con billete paga en efectivo. "transferencia" si dice nequi, daviplata, transferencia, bancolombia,
   QR, "te consigno", "te mando el comprobante". Escrito como sea: "nequii",
   "davi plata", "transfe", "x nequi". Si no dice nada de pago -> null.
 - "entrega": "domicilio" si quiere que se lo lleven, "recoger" si el pasa por el
@@ -4087,6 +4087,14 @@ const NO_ES_NOMBRE_RE = /\b(ya\s+te\s+lo\s+dije|ya\s+lo\s+dije|ya\s+te\s+dije|ya
    suelta con forma de nombre, y el extractor guardo nombre="Telefono": Paco
    nunca pregunto el nombre y el pedido habria salido a nombre de Telefono.
    Son palabras que NADIE tiene de nombre; se descartan completas. */
+/* UNA PREGUNTA NO ES UN NOMBRE (18-ago). Francisco pregunto "Cuanto se
+   demora" justo cuando el flujo esperaba el nombre, y el pedido quedo a nombre
+   de "Cuanto se demora". Nadie se llama asi: si el texto trae palabras de
+   pregunta —cuanto, cuando, donde, demora, tarda, llega, vale, cuesta— o un
+   signo de interrogacion, es una pregunta que el flujo debe RESPONDER, no un
+   nombre que capturar. */
+const PREGUNTA_NO_NOMBRE_RE = /(\?|¿|\b(cuant[oa]s?|cu[aá]nt[oa]s?|cuando|cu[aá]ndo|donde|d[oó]nde|demoran?|tardan?|llegan?|cuestan?|valen?|q(?:ue)?\s+horas?|hasta\s+q)\b)/i;
+
 const ETIQUETA_PLANTILLA_RE = /^\s*(tel[eé]fono|direcci[oó]n|pedido|pago|nombre|detalles?|cliente|barrio|celular|numero|n[uú]mero|datos|observaci[oó]n(es)?|nota s?)\s*[:.]?\s*$/i;
 
 /* UNA CORTESIA NO ES UN NOMBRE. Sergio mando la direccion en dos mensajes y
@@ -4135,6 +4143,7 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
         if (esSoloConfirmacion(ln)) continue;
         if (esRechazoDeMas(ln)) continue;
         if (ETIQUETA_PLANTILLA_RE.test(ln)) continue;   // "Telefono", "Direccion"...
+        if (PREGUNTA_NO_NOMBRE_RE.test(ln)) continue;   // "Cuanto se demora" no es un nombre
         const lnNorm = normalizarTexto(ln);
         if (getAdicionKeywords().some(k => k.length >= 4 && new RegExp(`\\b${k}\\b`).test(lnNorm))) continue;
         if (extractPago(ln, null)) continue;
@@ -4162,6 +4171,7 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
   if (t.length < 2 || t.length > 60) return null;
   if (NO_ES_NOMBRE_RE.test(t)) return null;                              // reclamos/meta ("ya te lo dije")
   if (ETIQUETA_PLANTILLA_RE.test(t)) return null;                        // "Telefono", "Direccion"...
+  if (PREGUNTA_NO_NOMBRE_RE.test(t)) return null;                        // una pregunta no es un nombre
   if (esSoloConfirmacion(t)) return null;                                // "si", "dale", "ok"…
   if (t.includes("?") || t.includes("¿")) return null;                   // preguntas no son nombres
   if (extractPago(t, null)) return null;
@@ -4593,7 +4603,12 @@ function validarLeido(
       || (leido.barrio && normalizarTexto(String(leido.barrio)) === nNorm)
       || (out.barrio && normalizarTexto(String(out.barrio)) === nNorm)
       || (state.barrio && normalizarTexto(state.barrio) === nNorm);
+    /* La MISMA compuerta de preguntas que extractNombre: este es el CUARTO
+       camino que captura nombres (el lector GPT llena la casilla), y fue por
+       donde "Cuanto se demora" quedo como nombre de Francisco aunque los otros
+       tres ya la tenian. Cuatro caminos, una sola regla. */
     if (n.length >= 2 && !SOLO_CORTESIA_RE.test(n) && !NO_ES_NOMBRE_RE.test(n)
+        && !PREGUNTA_NO_NOMBRE_RE.test(n) && !ETIQUETA_PLANTILLA_RE.test(n)
         && !mencionaProductoCatalogo(n) && !esLugar) {
       out.nombre = n;
     }
@@ -6020,6 +6035,7 @@ async function buildConversationResponse(
        SISTEMA cuando el flujo llega alla, no el modelo. El cliente quedo
        esperando y Sergio tuvo que entrar a mano. Prometer una accion que uno
        no ejecuta es mentirle al cliente. */
+    "- Si el pago es en EFECTIVO, JAMAS pidas comprobante de pago ni hables de comprobantes: el comprobante existe solo para transferencias. Pedirselo a quien paga en efectivo lo confunde (paso el 18-ago: 'pago con un billete de 100' y se le pidio comprobante).",
     "- JAMAS prometas acciones: no digas 'en un momento te envio el resumen', 'ya te mando el total', 'enseguida creo tu pedido' ni nada parecido. El resumen y el pedido los manda el sistema solo. Tu unico trabajo en cada turno es responder la duda del cliente y/o hacer LA pregunta del paso.",
     "- Cuando el cliente te dé un dato, confírmalo en máximo 2-3 palabras y pasa al siguiente paso. Usa '¡Perfecto! 🙌', 'Listo 👍', 'Claro ✅', 'Dale 🙌' — NUNCA uses 'Anotado'.",
     "- HAZ UNA SOLA PREGUNTA POR MENSAJE. Aunque falten varios datos, pregunta solo el siguiente en el flujo.",
