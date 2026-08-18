@@ -691,6 +691,41 @@ Deno.serve(async (req) => {
    NO se borra el pedido en espera: el cliente puede aparecer a los 40
    minutos con el comprobante en la mano.
    ══════════════════════════════════════════════════════════════════════ */
+/* ── NO REPETIR LA MISMA FRASE FIJA TRES VECES (Ivan, 17-ago) ──────────────
+   A quien pregunto "¿y no se puede en efectivo?" se le contesto la MISMA frase
+   de prepago tres veces seguidas, palabra por palabra. Una frase fija que no
+   responde y se repite es lo que hace que el cliente se vaya. A la SEGUNDA vez
+   se le pasa a una persona: si la explicacion no basto a la primera, no va a
+   bastar a la tercera.
+   Devuelve true si ya se escalo (y entonces no hay que mandar nada mas). */
+async function frenarBucle(convId: string, clave: string): Promise<boolean> {
+  try {
+    /* LA CUENTA VIVE EN SU PROPIA COLUMNA (`chat_conversations.bucles`), NO
+       dentro de pending_order_data: ese campo se reescribe entero varias veces
+       por mensaje con el estado del pedido, y se llevaba la cuenta por delante
+       — la frase se repetia igual aunque el contador estuviera puesto. Una
+       cuenta que no es del pedido no puede vivir dentro del pedido. */
+    const fila = await sbGet(
+      `/rest/v1/chat_conversations?id=eq.${convId}&select=bucles&limit=1`
+    ) as Array<Record<string, unknown>> | null;
+    const cuenta = ((fila?.[0]?.bucles || {}) as Record<string, number>);
+    const n = (Number(cuenta[clave]) || 0) + 1;
+    cuenta[clave] = n;
+    if (n >= 2) {
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+        human_takeover: true, ai_typing: false, bucles: cuenta,
+      });
+      console.log("bucle frenado, va a una persona:", clave, convId);
+      return true;
+    }
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { bucles: cuenta });
+    return false;
+  } catch (err) {
+    console.error("frenarBucle:", err);
+    return false;   // ante la duda, que conteste: quedarse callado es peor
+  }
+}
+
 async function recordarComprobante(convId: string): Promise<void> {
   const convRes = await sbGet(
     `/rest/v1/chat_conversations?id=eq.${convId}` +
@@ -1867,6 +1902,7 @@ INTENCION, no las palabras exactas.` },
     }
     // Para-llevar con prepago: no se puede pagar en efectivo → recordar la regla
     if (cambiaEfectivoPend && stPend && esLlevarPend && prepagoPend) {
+      if (await frenarBucle(convId, "llevar_efectivo")) return;
       const msgLl = getFraseTexto(frasesCfg.llevar_efectivo)
         || "Qué pena contigo 🙏 Para recoger tu pedido el pago debe hacerse por transferencia primero. Si prefieres efectivo, te lo preparamos cuando te acerques al local 🍟";
       await sendWaAndSave(convId, tenantId, msgLl, fromPhone, phoneId, accessToken);
@@ -2192,6 +2228,7 @@ INTENCION, no las palabras exactas.` },
       const prepagoRes  = domiciliosCfg?.llevar_prepago !== false;
       const bloqueoLlevarRes = esLlevarRes && prepagoRes && pagoNuevoRes && !esMetodoDigital(pagoNuevoRes, pagosCfg);
       if (cambiaPago && bloqueoLlevarRes) {
+        if (await frenarBucle(convId, "llevar_efectivo")) return;
         // Para-llevar + prepago: no se puede efectivo → explicar y mantener el resumen
         const msgLl = getFraseTexto(frasesCfg.llevar_efectivo)
           || "Qué pena contigo 🙏 Para recoger tu pedido el pago debe hacerse por transferencia primero. Si prefieres efectivo, te lo preparamos cuando te acerques al local 🍟";
@@ -2335,6 +2372,7 @@ INTENCION, no las palabras exactas.` },
         const esLlevarConf = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) || clasificarDireccion(state.direccion, domiciliosCfg, sinNomenclaturaCliente2).tipo === "para_llevar" : false;
         const exigePrepago = domiciliosCfg?.llevar_prepago !== false;
         if (esLlevarConf && exigePrepago) {
+          if (await frenarBucle(convId, "llevar_efectivo")) return;
           const msgLlevar = getFraseTexto(frasesCfg.llevar_efectivo) ||
             "Qué pena contigo 🙏 Si deseas que tu pedido esté listo cuando pases por él, el pago debe hacerse por transferencia primero. Si decides pagar en efectivo, con mucho gusto te puedes acercar al establecimiento y tu pedido se prepara una vez esté pago 🍟";
           // Se libera el método de pago: si el cliente responde con un método digital,
@@ -3788,7 +3826,9 @@ function extractPreferencias(text: string, cfg: Record<string, unknown>): string
       // El " y " corta SOLO cuando empieza otra idea ("y una adicion",
       // "y me regalas"). En "solo ajo y bbq" el " y " enumera salsas y
       // cortar ahi perdia el bbq.
-      const corte = resto.search(/[,.;]| pero | y (un|una|uno|dos|tres|el |la |los |las |me |para |tambien|ademas)/i);
+      /* "pocas salsas PARA RECOGER" llegaba entera a la comanda: el corte no
+         contemplaba que despues de la preferencia venga como se entrega. */
+      const corte = resto.search(/[,.;]| pero | para (recoger|recojer|llevar|domicilio)| a domicilio| y (un|una|uno|dos|tres|el |la |los |las |me |para |tambien|ademas)/i);
       let frase = (corte > 0 ? resto.slice(0, corte) : resto).trim();
       // Las cortesias del final no son parte de la preferencia: "poca salsa
       // por favor" tiene que llegar a la cocina como "poca salsa".
@@ -4839,10 +4879,15 @@ function validarLeido(
        el texto. Con 1-2 se conserva la tolerancia de sinonimos
        ("papitas" -> Papas). Sin regex a proposito. */
     const toksTexto = normalizarTexto(texto).split(" ").filter(Boolean);
+    /* Rastro = el cliente escribio algo parecido. Se admite el pedazo
+       (empieza-por / termina-en) y hasta dos letras de diferencia en palabras
+       largas, que es lo que hace falta para los sinonimos y los errores de
+       dedo ("papitas" -> Papas, "tocinta" -> Tocineta). */
     const conRastro = (nombre: string): boolean =>
       normalizarTexto(nombre).split(" ").filter(w => w.length >= 3)
         .some(w => toksTexto.some(t =>
-          t === w || t.startsWith(w) || w.startsWith(t) || (t.length > w.length && t.endsWith(w))));
+          t === w || t.startsWith(w) || w.startsWith(t) || (t.length > w.length && t.endsWith(w))
+          || (w.length >= 5 && t.length >= 5 && levenshtein(t, w) <= 2)));
 
     /* LA VARIANTE NO SE COBRA DOS VECES (pedido real 17-ago de Monica R., y
        otra vez en las pruebas del 18: "mixta personal" salio con adiciones
@@ -4864,10 +4909,18 @@ function validarLeido(
       candidatas = sinVariantes;
     }
 
-    if (candidatas.length >= 3) {
+    /* SIN RASTRO NO HAY ADICION (18-ago, tercera vez que aparece). El filtro
+       solo miraba cuando venian 3 o mas, y el caso caro venia de a dos: un
+       pedido de "salchipapa mixta personal" salio con adiciones Carne y Pollo
+       —lo que SIGNIFICA una mixta, explicado por el lector— y $19.000 de mas.
+       Ahora toda adicion tiene que haber dejado rastro en lo que escribio el
+       cliente. Los sinonimos siguen entrando por la tolerancia de dos letras;
+       lo que ya no entra es lo que nadie nombro. */
+    {
       const filtradas = candidatas.filter(conRastro);
       if (filtradas.length !== candidatas.length) {
-        console.log("[lector] volcado de adiciones descartado: " + candidatas.length + " -> " + filtradas.length);
+        console.log("[lector] adiciones sin rastro descartadas: "
+          + candidatas.filter(x => !filtradas.includes(x)).join(", "));
       }
       candidatas = filtradas;
     }

@@ -7692,3 +7692,51 @@ aparte: mover Combos escribe solo su puesto, mover una categoria escribe solo
 los `sort_order`, y volver a dejar todo igual no escribe nada.
 
 SQL: `sql/2026-08-18-combos-orden.sql`.
+
+---
+
+## 207 — Paco ya no repite la misma frase tres veces, y la tercera vez del volcado (18-ago-2026)
+
+### El bucle del prepago (Ivan, 17-ago)
+
+A quien pregunto *"¿y no se puede en efectivo?"* se le contesto la misma frase
+de prepago **tres veces seguidas, palabra por palabra**. Una frase fija que no
+responde y se repite es lo que hace que el cliente se vaya. Ahora, a la
+**segunda** vez que haria falta decir lo mismo, la conversacion pasa a una
+persona (`human_takeover`): si la explicacion no basto a la primera, no va a
+bastar a la tercera. Cubre las **tres** ramas que mandan esa frase (el pedido
+en espera de comprobante, el resumen y la confirmacion) — con una sola habria
+quedado el mismo bucle por otro camino.
+
+⚠️ **Donde vive la cuenta importo mas que la cuenta.** El primer intento la
+guardaba dentro de `pending_order_data`, y ahi se perdia: ese campo se
+reescribe entero varias veces por mensaje con el estado del pedido. La frase
+se repetia igual con el contador puesto. Vive en su propia columna,
+`chat_conversations.bucles` (`sql/2026-08-18-frenar-bucles.sql`). **Una cuenta
+que no es del pedido no puede vivir dentro del pedido.**
+
+### El volcado del lector, tercera aparicion — ahora si de raiz
+
+El 18 por la manana se le puso compuerta con 3 o mas adiciones; por la tarde el
+caso caro aparecio **de a dos**: un simple "salchipapa mixta personal" salio con
+adiciones *Carne* y *Pollo* —lo que SIGNIFICA una mixta, explicado por el
+lector— y **$19.000 de mas**. Ahora **toda** adicion tiene que haber dejado
+rastro en lo que escribio el cliente, sin excepcion por cantidad. Los sinonimos
+y los errores de dedo siguen entrando por una tolerancia de dos letras
+(`levenshtein <= 2` en palabras de 5 o mas); lo que ya no entra es lo que nadie
+nombro.
+
+Y la nota dejo de llevarse la entrega: "pocas salsas **para recoger**" llegaba
+asi a la comanda; el corte de la frase ahora tambien para en "para
+recoger/llevar/domicilio".
+
+`delay-reply` v314, smoke 200, 13 conversaciones de prueba borradas.
+Verificado: escala a persona a la segunda insistencia · no escala en un pedido
+normal · el caso caro queda en $34.000 en vez de $53.000 · "con tocineta" y
+"con tocineta y maicitos" siguen entrando · Mariam 3 lineas $61.000 ·
+correccion · notas.
+
+**Hueco pequeño conocido, anotado a proposito**: "papitas" ya no entra como
+adicion Papas — lo bota la compuerta vieja de "nacio de una palabra compuesta"
+(de "salchipapa" salia "papa" y costo $8.000 a un cliente real). Se pierde un
+cobro raro para no repetir un cobro de mas; si aparece de verdad, se afina.
