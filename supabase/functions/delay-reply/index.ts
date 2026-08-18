@@ -2177,6 +2177,66 @@ INTENCION, no las palabras exactas.` },
       }
     }
 
+    /* ── ¿ESTA CAMBIANDO LA DIRECCION? (18-ago) ────────────────────────
+       "mejor mandalo a la calle 15, barrio Bella Vista" despues del resumen:
+       Paco CONTESTABA QUE SI y el pedido conservaba la direccion vieja, el
+       barrio viejo y el domicilio viejo. El domiciliario salia para la otra
+       punta y el cobro quedaba mal — y como el bot dijo que si, nadie se
+       entera hasta que llama el cliente.
+
+       Cambiar la direccion invalida lo que DEPENDE de ella: el barrio y el
+       precio del domicilio se borran para que se vuelvan a calcular. Es la
+       regla que Sergio enuncio: al cambiar, se limpia lo que colgaba. */
+    {
+      /* SI EL PEDIDO YA SALIO A COCINA, ESTO NO LO ARREGLA UN BOT. Cambiar el
+         estado del chat no cambia la comanda que ya se imprimio ni el pedido
+         que ya esta en la pantalla de domicilios: el domiciliario saldria para
+         la direccion vieja igual, y encima el cliente se quedaria tranquilo
+         porque el bot le dijo que si. Con un pedido ya creado, la correccion
+         va a una persona. */
+      const dirNueva = String(leidoCorr.direccion || "").trim();
+      const barNuevo = String(leidoCorr.barrio || "").trim();
+      const esLlevarYa = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
+      const dirDistinta = !!dirNueva && normalizarTexto(dirNueva) !== normalizarTexto(state.direccion || "");
+      const barDistinto = !!barNuevo && normalizarTexto(barNuevo) !== normalizarTexto(state.barrio || "");
+      if (!esLlevarYa && (dirDistinta || barDistinto) && (state.direccion || state.barrio)) {
+        const yaCreado = await sbGet(
+          `/rest/v1/chat_conversations?id=eq.${convId}&select=order_id&limit=1`
+        ) as Array<Record<string, unknown>> | null;
+        if (yaCreado?.[0]?.order_id) {
+          const avisoDir = "Claro, yo le paso el cambio de dirección a la persona encargada "
+            + "para que lo ajuste antes de que salga 🙏 Un momento por favor.";
+          await sendWaAndSave(convId, tenantId, avisoDir, fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+            human_takeover: true, handoff_motivo: "cambio de direccion con el pedido ya enviado",
+            handoff_at: new Date().toISOString(),
+            last_message: avisoDir, last_message_at: new Date().toISOString(),
+            last_sender: "agent", last_read: false, ai_typing: false,
+          });
+          console.log("[correccion] direccion cambiada con pedido ya creado -> a una persona");
+          return;
+        }
+        if (dirDistinta) state.direccion = dirNueva;
+        /* El barrio y el domicilio cuelgan de la direccion: se recalculan. */
+        state.barrio = barNuevo || null;
+        /* `domi_mostrado` no es un campo del estado sino algo que escribe el
+           resumen; se limpia por el mismo camino por el que se escribe. */
+        (state as unknown as Record<string, unknown>).domi_mostrado = null;
+        (state as unknown as Record<string, unknown>).total_mostrado = null;
+        state.complemento_dir_pendiente = null;
+        state.direccion_heredada = false;
+        console.log("[correccion] direccion nueva:", state.direccion, "| barrio:", state.barrio);
+        try {
+          const sumMsg = await buildSummaryFromState(state, cfg, branchId, domiciliosCfg);
+          state.resumen_enviado = true;
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+          await sendWaAndSave(convId, tenantId, sumMsg, fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: sumMsg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+        } catch (err) { console.error("re-resumen tras cambiar direccion:", err); }
+        return;
+      }
+    }
+
     /* ¿ESTÁ AGREGANDO OTRO PLATO? (trampa de Sergio, 15-ago: "puedo agregar
        porfavor una salchi super queso" después del resumen se ignoraba y el
        bot repetía el mismo resumen — dos veces). Hasta hoy, tras el resumen
@@ -2201,8 +2261,19 @@ INTENCION, no las palabras exactas.` },
       productosNuevosEnTexto(clienteTexto, state, currentProductData, intenciones).length > 0
     );
     if (corrNombraProducto) console.log("[resumen] corrige el plato — sigue al flujo normal");
-    if ((leidoCorr.producto && (AGREGA_RE.test(clienteTexto) || intenciones.pedir === true)) || corrNombraProducto) {
-      console.log("[resumen] agrega otro plato:", JSON.stringify(leidoCorr.producto), "— sigue al flujo normal");
+    /* LA PUERTA SE ABRIA SOLO SI EL LECTOR DEVOLVIA `producto`, y despues del
+       resumen a menudo no lo devuelve: ya hay un plato en curso y el modelo
+       entiende el mensaje como un aNadido. Resultado: "agregame una coca cola
+       personal" caia al camino conversacional, donde el modelo REDACTABA un
+       resumen con la gaseosa incluida... que no estaba en el pedido. El total
+       decia $31.000 y la comanda llevaba solo la salchipapa.
+       Ahora tambien abre cuando el CATALOGO reconoce un plato nuevo en el
+       mensaje — la misma comprobacion determinista que usa la correccion. */
+    const platosNuevosPost = productosNuevosEnTexto(clienteTexto, state, currentProductData, intenciones);
+    const nombraPlatoNuevo = !!leidoCorr.producto || platosNuevosPost.length > 0;
+    if ((nombraPlatoNuevo && (AGREGA_RE.test(clienteTexto) || intenciones.pedir === true)) || corrNombraProducto) {
+      console.log("[resumen] agrega otro plato:",
+        JSON.stringify(leidoCorr.producto || platosNuevosPost.map(p => p.name)), "— sigue al flujo normal");
       state.resumen_enviado = false;
       /* "una salchi super queso" nombra el plato UNA vez → es el plato, no
          una adición (regla v255). Pero el lector y el clasificador, al ver el
@@ -2799,6 +2870,56 @@ INTENCION, no las palabras exactas.` },
     clienteTexto, state, currentProductData, currentStepId || pasoAntesId,
     pagosCfg, MODS_CACHE?.grupos || [], histLector,
   );
+
+  /* ── QUITAR VALE EN CUALQUIER MOMENTO (18-ago) ────────────────────────
+     "quitame la tocineta" solo se atendia DESPUES del resumen. Dicho antes
+     —que es cuando mas se dice, mientras se arma el pedido— no pasaba nada: la
+     adicion seguia puesta y se cobraba. Aqui se atiende con el mismo motor,
+     antes de que los extractores puedan volver a meter lo que se acaba de
+     sacar. */
+  if (!relectura && Array.isArray((leidoPedido as PedidoLeido).quitar)
+      && ((leidoPedido as PedidoLeido).quitar || []).length) {
+    const { quitados, quitarActual } = quitarDelPedido(state, (leidoPedido as PedidoLeido).quitar || []);
+    /* El plato EN CURSO solo se puede sacar si queda otro: si no, el cliente
+       se estaria quedando sin pedido y eso se pregunta, no se adivina. */
+    if (quitarActual && (state.items || []).length > 0) {
+      const ultimo = state.items[state.items.length - 1];
+      state.items = state.items.slice(0, -1);
+      state.producto = ultimo.producto;
+      state.producto_categoria = ultimo.categoria ?? null;
+      state.tamano = ultimo.tamano ?? null;
+      state.tipo = ultimo.tipo ?? null;
+      state.cantidad = ultimo.cantidad || 1;
+      state.adiciones = ultimo.adiciones ?? "";
+      state.preferencias = ultimo.preferencias ?? null;
+      state.tipos = {};
+      currentProductData = await loadProductData(state.producto!, branchId, state.producto_categoria);
+      if (currentProductData?.variables && state.tipo) {
+        for (const t of String(state.tipo).split(",").map(x => x.trim()).filter(Boolean)) {
+          for (const g of currentProductData.variables) {
+            if (state.tipos[g.id]) continue;
+            const ok = extractVariable(t, g.options || []);
+            if (ok) { state.tipos[g.id] = ok; break; }
+          }
+        }
+      }
+      quitados.push(quitarActual);
+    }
+    /* Y de la COLA (los platos que esperan turno): si pidio quitar uno que
+       todavia no ha entrado, tampoco tiene que entrar. */
+    if ((state.cola || []).length) {
+      const fuera = ((leidoPedido as PedidoLeido).quitar || []).map(x => normalizarTexto(String(x)));
+      const quedan = (state.cola || []).filter(x => !fuera.includes(normalizarTexto(x.nombre)));
+      if (quedan.length !== (state.cola || []).length) {
+        quitados.push(...(state.cola || []).filter(x => !quedan.includes(x)).map(x => x.nombre));
+        state.cola = quedan;
+      }
+    }
+    if (quitados.length) {
+      console.log("[quitar] fuera del pedido:", JSON.stringify(quitados));
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+    }
+  }
 
   const extracted = relectura ? {} : runExtractors(clienteTexto, state, currentStepId, pagosCfg, currentProductData, nombreConfirmar, intenciones, cfg, productoRecienDetectado, pasoAntesId, leidoPedido);
 
@@ -4094,6 +4215,17 @@ function clasificarMencion(
      manda sobre lo que adivine el modelo. El modelo decide donde el dueño no
      hablo, no donde ya hablo. */
   if (PIDE_OTRO_PLATO.test(antesTodo)) return "plato";
+
+  /* PERO "AGREGAME UNA COCA COLA" NO ES UN TOPPING. Los verbos de agregar
+     estan en los dos mundos: "agregale queso" le pone algo al plato, y
+     "agregame UNA coca cola" pide otro producto. Lo que los separa es el
+     ARTICULO: si detras del verbo viene "una / otra / dos", el cliente esta
+     nombrando una cosa aparte, no algo que va encima. Sin esto, "agregame una
+     coca cola personal" despues del resumen entraba como adicion — se cobraban
+     los $5.000 pero la gaseosa salia impresa como topping de la salchipapa, no
+     como su propia linea. */
+  const AGREGAR_CON_ARTICULO = new RegExp("(?:^|[^a-z])(?:agrega(?:me|r|s)?|anade(?:me)?|a" + "ñ" + "ade(?:me)?|anadir|suma(?:me)?|sumar)\\s+(?:un|una|unos|unas|otr[ao]s?|dos|tres|cuatro|[0-9]+)\\s+(?:de\\s+)?$", "i");
+  if (AGREGAR_CON_ARTICULO.test(antesTodo)) return "plato";
 
   /* Despues, LO QUE ENTENDIO EL MODELO: le lee la intencion al cliente escriba
      como escriba ("cn", "kon", "c/", o una vuelta rara que ninguna lista

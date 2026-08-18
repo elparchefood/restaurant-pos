@@ -7816,3 +7816,73 @@ un cobro equivocado de verdad:
 **El metodo queda montado y vale para cualquier reconocedor**: sacar las frases
 de `chat_messages`, extraer la funcion del codigo desplegado y correrla contra
 todas. Encontrar un fallo cuesta segundos en vez de una conversacion entera.
+
+---
+
+## 210 — Corregir a mitad del pedido: cambiar, agregar y quitar (18-ago-2026)
+
+La caja que Sergio tenia enunciada desde hace semanas —*cambiar reemplaza,
+agregar suma, quitar elimina*— estaba a un tercio: el 18 por la maNana quedo
+lista la de CAMBIAR de producto. Probando las otras dos aparecieron **tres
+fallos, y los tres le cobran mal al cliente o le mienten**.
+
+### 1. Quitar solo funcionaba despues del resumen
+
+"quitame la tocineta" dicho **mientras se arma el pedido** —que es cuando mas
+se dice— no hacia nada: la adicion seguia puesta y se cobraba. El motor de
+quitar vivia dentro del bloque del resumen. Ahora corre en cualquier momento,
+antes de que los extractores puedan volver a meter lo que se acaba de sacar, y
+ademas saca de **la cola** los platos que todavia no han entrado.
+
+### 2. Cambiar la direccion: Paco decia que si y no cambiaba nada
+
+"mejor mandalo a la calle 15 # 8-30, barrio Bella Vista" despues del resumen:
+Paco contestaba *"¡Claro! Entonces cambiamos la direccion..."* y el pedido
+conservaba **la direccion vieja, el barrio viejo y el domicilio viejo**. El
+domiciliario salia para la otra punta y el cliente se quedaba tranquilo porque
+el bot le dijo que si. Ahora se reemplaza y **se limpia lo que depende**: el
+barrio y el precio del domicilio se recalculan (probado: de Bolivar $8.000 a
+Bella Vista $5.000, total de $34.000 a $31.000).
+
+⚠️ Y un candado que no existia: **si el pedido YA salio a cocina** (la
+conversacion tiene `order_id`), cambiar el estado del chat no cambia la comanda
+impresa. Ahi la correccion va a **una persona**, con un mensaje que no promete
+nada que el bot no pueda cumplir.
+
+### 3. Agregar tras el resumen: el resumen decia una cosa y el pedido otra
+
+"agregame una coca cola personal" caia al camino conversacional, donde el
+modelo **redactaba** un resumen con la gaseosa incluida... que no estaba en el
+pedido. El total decia $31.000 y la comanda llevaba solo la salchipapa. Dos
+causas encadenadas:
+
+- La puerta de "agregar" solo abria si el lector devolvia `producto`, y despues
+  del resumen casi nunca lo devuelve (ya hay un plato en curso y lo lee como un
+  aNadido). Ahora tambien abre cuando **el catalogo** reconoce un plato nuevo en
+  el mensaje.
+- Y una vez abierta, "agregame UNA coca cola" entraba como **adicion**: los
+  verbos de agregar viven en los dos mundos. Lo que los separa es el ARTICULO —
+  "agregale queso" le pone algo al plato, "agregame UNA coca cola" pide otra
+  cosa. Sin eso se cobraban los $5.000 pero la gaseosa salia impresa como
+  topping de la salchipapa.
+
+### El cuarto fallo, que solo salio al probar el arreglo
+
+Con la puerta ya abierta, "agregame UNA coca cola" seguia entrando como
+adicion: la regla del articulo estaba escrita **despues** de que el modelo ya
+habia decidido (`intenciones.agregados`), asi que nunca corria. Subida junto a
+`PIDE_OTRO_PLATO` —las reglas que el dueNo enuncio van ANTES que el modelo—
+quedo en 4 de 4, con los controles de que "con super queso" y "agregale super
+queso" siguen siendo adicion.
+
+### Verificado
+
+Bateria final de 9 en el banco: quitar adicion · quitar producto · cambiar direccion
+· cambiar producto · agregar producto · cola de 3 ($61.000) · sin volcado ·
+notas y pago, y adicion de verdad. `delay-reply` v317, smoke 200, 37
+conversaciones de prueba borradas.
+
+⚠️ **Tercera vez en dos dias con la misma trampa del entorno**: un `` escrito
+por el camino de siempre llego partido y dejo un backspace invisible en el
+codigo. Se reconstruyo la expresion con `new RegExp` y cadenas explicitas. La
+comprobacion de `chr(8)` antes de desplegar es lo unico que lo caza.
