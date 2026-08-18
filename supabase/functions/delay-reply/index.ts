@@ -2672,17 +2672,25 @@ INTENCION, no las palabras exactas.` },
 
   // 14e-bis. Dirección recién capturada → validar barrio/complemento inmediatamente
   // (así la pregunta de barrio aparece justo después de la dirección, no al final del flujo)
-  if (extracted.direccion && state.direccion && state.producto && !state.complemento_dir_pendiente) {
+  /* Tambien cuando el conjunto llega como BARRIO (18-ago). "Para el: conjunto
+     portal de pomona" se guarda en `barrio`, no en `direccion`, asi que esta
+     compuerta —que es la que le avisa al dueNo del conjunto nuevo— no llegaba
+     ni a mirarlo. */
+  if ((extracted.direccion || extracted.barrio) && (state.direccion || state.barrio)
+      && state.producto && !state.complemento_dir_pendiente) {
     /* CONJUNTO QUE NO CONOCEMOS: se decide AQUI, en cuanto da la direccion.
        Si se dejara para el final, el bot se quedaria pidiendo un barrio que
        nunca va a poder resolver — que es justo el bucle que se corrigio.
        Se propone para que el dueño lo apruebe y la conversacion pasa a una
        persona, que es quien puede verificar si ese conjunto existe. */
-    if (sueneAConjunto(state.direccion)
-        && !esConjunto(ubicacionPedido(state), domiciliosCfg)
-        && !LLEVAR_REGEX.test(state.direccion.toLowerCase())
-        && lookupDomiPrice(ubicacionPedido(state), domiciliosCfg) === null) {
-      const nombreConj = state.direccion
+    /* Se mira la ubicacion COMPLETA (barrio + direccion), no solo la
+       direccion: el nombre del conjunto puede venir en cualquiera de las dos. */
+    const ubic = ubicacionPedido(state);
+    if (sueneAConjunto(ubic)
+        && !esConjunto(ubic, domiciliosCfg)
+        && !LLEVAR_REGEX.test(ubic.toLowerCase())
+        && lookupDomiPrice(ubic, domiciliosCfg) === null) {
+      const nombreConj = (sueneAConjunto(state.direccion || "") ? state.direccion : ubic)
         /* Si el pedido y la direccion vinieron en el MISMO mensaje ("me das
            una premium... para Villa Ernesto Torre 3"), el nombre es lo que
            va despues del ultimo "para": sin este corte se proponia el
@@ -2730,6 +2738,15 @@ INTENCION, no las palabras exactas.` },
          unidad. Pedirle "Carrera 9 # 63-25" a quien vive en un conjunto es lo
          que dejaba al cliente dando vueltas sin poder pedir. */
       const conjNom = esConjunto(ubicacionPedido(state), domiciliosCfg);
+      /* ⚠️ NO BASTA CON LA LISTA (18-ago). `esConjunto` solo dice que si cuando
+         el conjunto YA esta registrado. Un cliente escribio "conjunto portal de
+         pomona ... Casa 13" —la palabra "conjunto" en el mensaje— y como ese no
+         estaba en la lista, Paco le pidio "calle o carrera y numero": una calle
+         que no existe. El cliente ya habia dicho todo lo que hacia falta.
+         Si el mensaje DICE conjunto (o torre, edificio, apto...), se trata como
+         conjunto aunque no este registrado. La lista sirve para saber el
+         NOMBRE bonito; la palabra basta para saber que no tiene calle. */
+      const pareceConj = !!conjNom || sueneAConjunto(ubicacionPedido(state));
       const numCount = (state.direccion.match(/\d+/g) || []).length;
       /* NO SE PREGUNTA POR TORRE: se pregunta ABIERTO.
 
@@ -2739,8 +2756,10 @@ INTENCION, no las palabras exactas.` },
          son de casas y cuáles de torres — ni falta: preguntando abierto sirve
          para los dos, y también para los mixtos, que no caben en ninguna
          clasificación. */
-      const pregDetallada = conjNom
-        ? `¡Listo, ${conjNom}! 😊 ¿En qué casa o apartamento te lo dejamos?`
+      const pregDetallada = pareceConj
+        ? (conjNom
+            ? `¡Listo, ${conjNom}! 😊 ¿En qué casa o apartamento te lo dejamos?`
+            : "¡Listo! 😊 ¿En qué casa o apartamento te lo dejamos?")
         : (numCount >= 2
           ? "¡Casi! 😊 Le falta el número de tu casa. La dirección debe verse así: *Carrera 9 # 63-25* ¿Cómo es la completa?"
           : "Necesito la dirección completa para llegar 📍 Algo así: *Carrera 9 # 63-25* ¿Cómo es la tuya?");
@@ -2752,7 +2771,7 @@ INTENCION, no las palabras exactas.` },
          Y por eso también salía un mensaje de más antes de reconocerlo.
          La frase del dueño es sobre calles; un conjunto no tiene calle. */
       const pasoDirBis = pasos.find(p => p.campo === "direccion");
-      const pregIncompleta = conjNom ? pregDetallada
+      const pregIncompleta = pareceConj ? pregDetallada
         : ((pasoDirBis && pasoDirBis.preg_incompleta)
         || getFraseTexto(frasesCfg.preguntar_complemento_dir)
         || (yaHabiaPreguntadoDireccion ? pregDetallada : "La dirección está incompleta, ¿podrías dármela completa? 📍"));
@@ -2770,7 +2789,12 @@ INTENCION, no las palabras exactas.` },
          exigia "calle o carrera y numero" y era el que dejaba a "torres del
          bosque torre 3 apto 603" dando vueltas: la direccion esta completa,
          solo que un conjunto no tiene calle. */
-      if (!tieneCalle && !tieneNumeroBis && domiPrecioBis !== null && !esConjunto(ubicacionPedido(state), domiciliosCfg)) {
+      /* Y la MISMA regla aqui: esta era la rama que de verdad le pidio la calle
+         a quien vive en un conjunto. Tenia el control puesto contra la LISTA
+         (`esConjunto`) y no contra lo que el cliente dijo. */
+      if (!tieneCalle && !tieneNumeroBis && domiPrecioBis !== null
+          && !esConjunto(ubicacionPedido(state), domiciliosCfg)
+          && !sueneAConjunto(ubicacionPedido(state))) {
         // Solo dio el barrio sin calle ni número — pedir la dirección completa
         const pregCalle = getFraseTexto(frasesCfg.preguntar_calle_numero)
           || "Anotado el barrio 📍 ¿Y cuál es la dirección exacta? (calle o carrera y número)";
@@ -3086,13 +3110,20 @@ INTENCION, no las palabras exactas.` },
         /* El mismo caso del conjunto, que aquí no estaba contemplado: este
            camino le pedía "Carrera 9 # 63-25" a alguien que vive en uno. */
         const conjNomH = esConjunto(ubicacionPedido(state), domiciliosCfg);
-        const pregDetallada = conjNomH
-          ? `¡Listo, ${conjNomH}! 😊 ¿En qué casa o apartamento te lo dejamos?`
+        /* Mismo arreglo que en la rama de arriba (18-ago): si el mensaje DICE
+           conjunto/torre/edificio, se trata como conjunto aunque no este en la
+           lista del restaurante. Esta es la rama que de verdad contesto en el
+           caso de Sneider. */
+        const pareceConjH = !!conjNomH || sueneAConjunto(ubicacionPedido(state));
+        const pregDetallada = pareceConjH
+          ? (conjNomH
+              ? `¡Listo, ${conjNomH}! 😊 ¿En qué casa o apartamento te lo dejamos?`
+              : "¡Listo! 😊 ¿En qué casa o apartamento te lo dejamos?")
           : (numCount >= 2
             ? "¡Casi! 😊 Le falta el número de tu casa. La dirección debe verse así: *Carrera 9 # 63-25* ¿Cómo es la completa?"
             : "Necesito la dirección completa para llegar 📍 Algo así: *Carrera 9 # 63-25* ¿Cómo es la tuya?");
         const pasoDirH = pasos.find(p => p.campo === "direccion");
-        const pregIncompleta = conjNomH ? pregDetallada
+        const pregIncompleta = pareceConjH ? pregDetallada
           : ((pasoDirH && pasoDirH.preg_incompleta)
           || getFraseTexto(frasesCfg.preguntar_complemento_dir)
           || (yaHabiaPreguntadoDireccion ? pregDetallada : "La dirección está incompleta, ¿podrías dármela completa? 📍"));
@@ -3106,7 +3137,12 @@ INTENCION, no las palabras exactas.` },
         const domiPrecioH = lookupDomiPrice(ubicacionPedido(state), domiciliosCfg);
         const tieneCalleH = analizarDireccion(state.direccion).tieneVia;
         const tieneNumH   = /#\s*\d|no\.\s*\d|nro\.\s*\d|número\s*\d|numero\s*\d/.test(state.direccion);
-        if (!tieneCalleH && !tieneNumH && domiPrecioH !== null && !esConjunto(ubicacionPedido(state), domiciliosCfg)) {
+        /* A un conjunto NO se le pide calle. Contra la lista no bastaba:
+           "conjunto portal de pomona" no estaba registrado y por eso Paco le
+           pidio una carrera que no existe. */
+        if (!tieneCalleH && !tieneNumH && domiPrecioH !== null
+            && !esConjunto(ubicacionPedido(state), domiciliosCfg)
+            && !sueneAConjunto(ubicacionPedido(state))) {
           const pregCalle = getFraseTexto(frasesCfg.preguntar_calle_numero)
             || "Anotado el barrio 📍 ¿Y cuál es la dirección exacta? (calle o carrera y número)";
           state.complemento_dir_pendiente = pregCalle;

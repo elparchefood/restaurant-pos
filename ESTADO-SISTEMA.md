@@ -7110,3 +7110,57 @@ dejar instrumentacion a medias: el repo y produccion quedan identicos en
 Encontrar por que un mensaje con varios productos deja solo uno en el estado, y
 que el resto entren como `state.items`. El banco ya lo reproduce, asi que el
 ciclo de prueba es de minutos.
+
+---
+
+## 195 — A un conjunto se le pedía una calle que no existe (18-ago-2026)
+
+Sneider (573147454225) escribio: *"Para el : conjunto portal de pomona / Nombre :
+sneider Sánchez / Casa 13"* — la palabra "conjunto" y la casa, todo lo que hace
+falta. Paco respondio: *"Anotado el barrio 📍 ¿Y cuál es la dirección exacta?
+(calle o carrera y número)"*. Sergio tuvo que tomarla.
+
+### Causa raiz
+
+Todo el manejo de conjuntos se decidia con `esConjunto()`, que solo dice que si
+cuando el conjunto YA esta **registrado** en las zonas del restaurante. Hay 50
+registrados; "Portal de Pomona" no es uno.
+
+Existia `sueneAConjunto()` —la funcion que detecta las PALABRAS conjunto, torre,
+edificio, apto…— y su propio comentario decia para que era: *"no sirven para
+decidir un precio, pero si para saber que hay que preguntarle a un humano en vez
+de exigirle una calle que no existe"*. **No se estaba usando en el control que
+importaba.**
+
+Y hubo un segundo enredo: el precio SI se resolvio ($8.000, porque "Pomona" es
+un barrio registrado de esa zona — el mismo valor que cobro Sergio). Al haber
+precio, el flujo cayo en la rama de "solo dio el barrio, pidele calle y numero".
+
+### El arreglo
+
+Donde se decide si pedir la calle, ahora vale tanto la lista como la palabra:
+si el cliente DICE conjunto (o torre, edificio, apto…), se trata como conjunto
+aunque no este registrado — se le pide la unidad, no la calle. La lista sigue
+sirviendo para saludarlo por su nombre ("¡Listo, Torres del Bosque!").
+
+⚠️ **Estaba en DOS ramas hermanas.** Se corrigio primero la de la linea 2776 y
+la prueba salio igual de mal: la que de verdad contesta en este caso es la
+hermana de la 3111, con las mismas cuatro lineas copiadas. **Al corregir un
+control de direccion en delay-reply, buscar siempre su gemelo.**
+
+Ademas la compuerta que propone un CONJUNTO NUEVO para aprobar solo miraba
+`state.direccion`; el nombre del conjunto llega muchas veces en `barrio`. Ahora
+mira la ubicacion completa.
+
+**Verificado en el banco**, tres casos:
+
+| | Antes | Ahora |
+|---|---|---|
+| Conjunto con precio conocido (caso Sneider) | "dame calle y carrera" | Resumen directo: dirección tal cual, domicilio $8.000 |
+| Conjunto sin precio conocido | — | Sigue el flujo (encontro precio por cercania; revisar aparte) |
+| Barrio normal sin calle (control) | pide la calle | igual, sin cambios |
+
+Las 5 conversaciones de prueba se borraron. `delay-reply` v306, smoke test 200.
+
+**Nota:** en la prueba A se ve que el jugo HIT no entro al resumen — es el otro
+error, el de varios productos en un mensaje (entrada 194), que sigue pendiente.
