@@ -7254,3 +7254,72 @@ item en vez de corregir, y el "No" final que hizo perder la direccion— son la
 maquina de estado de la entrada 194. Este arreglo evita que esa conversacion
 entre en el enredo (el producto sale bien desde el primer mensaje), pero la
 correccion de pedidos sigue fragil y se ataca cuando Sergio cierre.
+
+---
+
+## 198 — Auditoria del servicio del 17-ago: lo que nadie reporto (18-ago-2026)
+
+Sergio pidio revisar TODAS las conversaciones de la noche buscando errores no
+reportados. Se leyeron las 20 conversaciones y se cruzaron con los 21 pedidos
+creados. Hallazgos, del mas grave al menor:
+
+### 1. Paula quedo esperando (operativo, urgente al momento de la auditoria)
+Paula (3205197188) escribio a las 02:40: pago una Coca-Cola que SI esta en su
+pedido ($5.000) y el domiciliario no se la entrego. Nadie le respondio. Su
+conversacion esta en pestaña humano, asi que Paco no va a contestar nunca.
+**Se le aviso a Sergio de inmediato.**
+
+### 2. Ivan: el bucle del "lugar publico" (Paco repitio lo MISMO 3 veces)
+Ivan dio su direccion: "Conjunto Okavango Casa A6 **en frente del colegio San
+Francisco**". La REFERENCIA (el colegio) hizo que se clasificara como entrega
+en lugar publico → frase fija de prepago. El cliente pregunto DOS veces si
+podia pagar en efectivo y Paco repitio la MISMA frase identica tres veces, sin
+escape ni pase a humano. Sergio lo tomo: "el sistema se volvio un poquito loco".
+**Dos bugs:** (a) una referencia despues de un conjunto no es el lugar de
+entrega; (b) una frase fija sin limite de repeticiones es un bucle — a la
+segunda vez que el cliente responda distinto de "si", debe pasar a humano.
+
+### 3. Monica Ramirez: "pollo" cobrado DOBLE (variante y adicion)
+Pidio "Maicitos especial pollo". El resumen dijo "Maicitos especial Pollo
+Personal **+ Pollo**": la misma palabra entro como sabor Y como adicion de
+pollo ($9.000 de mas). Sergio corrigio a mano. Familia de la colision
+variante/adicion (entradas 134/140), caso nuevo: la palabra que YA se uso como
+variante no puede entrar ademas como adicion.
+
+### 4. Shirley: el enredo llego a CREAR un pedido fantasma de $66.000
+A las 02:11:16 se creo un pedido con los DOS items del estado enredado (Mixta
+$25.000 + Premium Mixta $34.000). Sergio lo cancelo a tiempo. Confirma que el
+problema de la maquina de estado (entrada 194) no se queda en la conversacion:
+llega hasta pedidos reales.
+
+### 5. Juan Sebastian: "por nequi o llave" → el resumen dijo "billetera el parche food"
+Mapeo de pago equivocado en el primer resumen (se corrigio solo tras la
+pregunta del cliente). Revisar el mapeo de "llave"/"nequi": nunca debe caer en
+billetera.
+
+### 6. Las notas del cliente NO llegan a la comanda
+- Juana: "Efectivo. **Con 100**" (billete de 100 para el cambio) — no quedo en
+  ninguna nota del pedido. El domiciliario no tenia como saberlo.
+- Ivan: "te pago con un billete de 100" **dos veces** — tampoco quedo.
+- Jose David: "**con pocas salsas**" dos veces — no quedo, y al final llego
+  "llena de salsa": la unica QUEJA real de la noche, y era prevenible.
+Patron: el dato de "pago con billete de X" y las notas de cocina dichas fuera
+del momento exacto se pierden.
+
+### 7. Las llaves de Nequi fallaron para DOS clientes (operativo)
+Paula (01:51) y Juan Sebastian (02:06) reportaron por separado que la llave
+0092726260 no funcionaba. Sergio improviso dando 3246855568. No es bug de
+Paco, pero dos clientes en 15 minutos es patron: verificar la llave con Nequi.
+
+### Lo que SI funciono (para el registro de confiabilidad)
+- Juana: pedido completo de punta a punta SIN humano, con conjunto
+  ("mayorca" → zona Mallorca por el comparador tolerante).
+- Los arreglos de HOY ya operaron en vivo: "Conjunto Okavango" y "torres de
+  Milano" aceptados sin pedir calle (entrada 195), y la carta salio siempre en
+  imagenes.
+- Eider y otros: preguntas de ubicacion/horario respondidas bien.
+
+### A la cola de maNana (ya anotado)
+Bucle del lugar publico (2a) · referencia tras conjunto (2b) · variante cobrada
+como adicion (3) · mapeo llave→billetera (5) · notas y "billete de X" a la
+comanda (6). El 4 refuerza la prioridad de la tarea 0b/1 (maquina de estado).
