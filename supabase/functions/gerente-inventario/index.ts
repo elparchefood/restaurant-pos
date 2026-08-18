@@ -7,6 +7,11 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const OPENAI_KEY   = Deno.env.get("OPENAI_API_KEY") || Deno.env.get("OPENAI_KEY") || "";
 const H = { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" };
+/* ⚠️ `iv_existencias` nacio SIN permisos para service_role: el SELECT devolvia
+   403 y esta funcion contestaba "no encuentro insumos" para siempre. Es la
+   misma trampa de las recargas: una tabla creada por la API de gestion no le
+   da permiso a nadie sola. Si algun dia se crea otra tabla que el servidor
+   deba leer, hay que hacerle GRANT y `notify pgrst, 'reload schema'`. */
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 
 function json(b: unknown, s = 200) {
@@ -28,6 +33,22 @@ async function sbPost(path: string, body: unknown) {
   });
 }
 function num(v: unknown) { return Number(v) || 0; }
+
+/* Guardar existencias va por la MISMA puerta que usa la pantalla
+   (`fn_iv_fijar_existencia`) y no por un update directo: la fila de la sede
+   puede no existir todavia, y la RPC la crea. Lo que va en null no se toca. */
+async function fijarExistencia(
+  insumoId: string, sede: string | null,
+  campos: { stock?: number; servicio?: number; agotado?: boolean },
+): Promise<void> {
+  await sbPost(`/rpc/fn_iv_fijar_existencia`, {
+    p_insumo:   insumoId,
+    p_branch:   sede,
+    p_stock:    campos.stock    === undefined ? null : campos.stock,
+    p_servicio: campos.servicio === undefined ? null : campos.servicio,
+    p_agotado:  campos.agotado  === undefined ? null : campos.agotado,
+  });
+}
 function fmtNum(n: number) {
   // hasta 3 decimales, sin ceros sobrantes
   return (Math.round(n * 1000) / 1000).toString();
@@ -37,6 +58,11 @@ interface Insumo {
   id: string; nombre: string; buy_unit: string; use_unit: string;
   conversion: number; stock: number; precio: number; manual: boolean;
   sub: boolean; servicio: number; min: number; agotadoManual: boolean;
+  /* Como le dice la gente ademas de su nombre. Salen de `iv_insumo_alias`, que
+     ya se alimenta con las facturas del proveedor: "MANGUERA SEVILLA ROLLO" es
+     la Salchicha y "MAIZ CONGELADO KILO" son los Maicitos. Sin esto el gerente
+     escribe "maiz" o "salchicha manguera" y la linea se pierde en silencio. */
+  alias: string[];
 }
 interface Op {
   insumo_id: string; accion: "set" | "add" | "agotado" | "disponible" | "surtir";
@@ -128,6 +154,15 @@ function candidatos(linea: string, insumos: Insumo[]): Insumo[] {
       if (suyas.indexOf(w) >= 0) pts += 2;
       else if (nom.indexOf(w) >= 0) pts += 1;
     }
+    /* Los alias puntuan igual que el nombre: es como lo llama el gerente. */
+    for (const a of (i.alias || [])) {
+      const al = limpio(a);
+      const alp = al.split(" ");
+      for (const w of palabras) {
+        if (alp.indexOf(w) >= 0) pts += 2;
+        else if (al.indexOf(w) >= 0) pts += 1;
+      }
+    }
     return { i, pts };
   }).filter((x) => x.pts > 0).sort((a, b) => b.pts - a.pts);
   // Sin ningun parecido no se adivina: se manda todo y que el modelo decida.
@@ -180,7 +215,7 @@ async function parseConGPT(mensaje: string, insumos: Insumo[]): Promise<Parseo> 
 
 async function parseUnTrozo(mensaje: string, insumos: Insumo[], intento = 0, modelo = "gpt-4o"): Promise<Parseo> {
   const lista = insumos.map((i) =>
-    `- id:${i.id} | "${i.nombre}" | compra en: ${i.buy_unit} | 1 ${i.buy_unit} = ${fmtNum(i.conversion)} ${i.use_unit} | stock actual: ${fmtNum(i.stock)} ${i.buy_unit} | precio: ${fmtNum(i.precio)} por ${i.buy_unit}${i.manual ? " | CONTROL MANUAL (se marca disponible/agotado a mano, no por cantidad)" : ""}${i.sub ? ` | SUB-INVENTARIO (bodega:${fmtNum(i.stock)} / en servicio-nevera:${fmtNum(i.servicio)}). Se puede SURTIR (pasar de bodega a servicio/nevera)` : ""}`
+    `- id:${i.id} | "${i.nombre}"${i.alias?.length ? ` (tambien se le dice: ${i.alias.join(", ")})` : ""} | compra en: ${i.buy_unit} | 1 ${i.buy_unit} = ${fmtNum(i.conversion)} ${i.use_unit} | stock actual: ${fmtNum(i.stock)} ${i.buy_unit} | precio: ${fmtNum(i.precio)} por ${i.buy_unit}${i.manual ? " | CONTROL MANUAL (se marca disponible/agotado a mano, no por cantidad)" : ""}${i.sub ? ` | SUB-INVENTARIO (bodega:${fmtNum(i.stock)} / en servicio-nevera:${fmtNum(i.servicio)}). Se puede SURTIR (pasar de bodega a servicio/nevera)` : ""}`
   ).join("\n");
 
   const prompt = `Eres el asistente de inventario de un restaurante. El GERENTE te escribe por WhatsApp para actualizar o consultar el inventario. Debes devolver SOLO un JSON.
@@ -219,6 +254,11 @@ REGLAS:
    - "cantidad_dicha": el número tal como lo dijo, en ESA unidad (sin convertir).
    Ej.: "hay 10 unidades de Coca Cola" con compra en paq de 12 → cantidad_buy_unit: 0.833, unidad_dicha: "unidad", cantidad_dicha: 10.
    Esto es solo para RESPONDER en el mismo idioma del gerente; la actualización sigue usando cantidad_buy_unit.
+11. SUMAS EN LA MISMA LINEA — "2 paquetes + 11 unidades", "1 paquete (10 salchichas) + 1 unidad", "2 bultos y medio": eso es UN SOLO TOTAL del MISMO insumo, no dos operaciones. Suma las dos partes convirtiendo cada una y devuelve UNA sola op "set" con el total. Si devuelves dos, la segunda PISA a la primera y el inventario queda con lo poquito.
+12. NUNCA devuelvas una cantidad negativa. Si te da negativo, es que entendiste mal: vuelve a leer la linea.
+13. LINEAS CON VARIOS PRODUCTOS: "Pan (perro 10 unidades, sandwich 6, hamburguesa 3)" son TRES insumos distintos, cada uno con SU cantidad. No mezcles la cantidad de uno con otro.
+14. ERRORES DE DEDO EN LAS UNIDADES: "50kh"/"50 kg"/"50 kilos" es lo mismo (kg); "gr"/"grs"/"gramos" es g; "lb"/"libras" es libra. Si el numero viene pegado a la unidad ("50kg", "1kg"), separalo.
+15. "no hay" / "cero" / "se acabo" SIN cantidad = agotado. Pero "cero bodega (1 nevera)" NO es agotado: es set 0 en bodega y set 1 en servicio.
 10. Si no entiendes nada de inventario, devuelve ops vacío y consulta false.
 
 Formato EXACTO:
@@ -306,15 +346,57 @@ Deno.serve(async (req: Request) => {
     const branch_id = body.branch_id;
     const mensaje = String(body.message || body.mensaje || "").trim();
     const telGerente = String(body.phone || "");
+    /* MODO SIMULACION: entiende el mensaje y dice que HARIA, sin tocar nada.
+       Sirve para probar una lista larga antes de aplicarla de verdad — que es
+       justo lo que hace falta cuando el gerente cuenta todo el inventario. */
+    const simular = body.simular === true || body.dry === true;
     if (!branch_id || !mensaje) return json({ error: "branch_id y message requeridos" }, 400);
 
-    const rows = await sbGet(`/iv_insumos?branch_id=eq.${branch_id}&activo=eq.true&select=id,nombre,buy_unit,use_unit,conversion,stock,precio,control_manual,sub_inventario,stock_servicio,min_stock,agotado_manual`) as Array<Record<string, unknown>> | null;
-    const insumos: Insumo[] = (rows || []).map((i) => ({
-      id: i.id as string, nombre: i.nombre as string, buy_unit: (i.buy_unit as string) || "unidad", use_unit: (i.use_unit as string) || "unidad",
-      conversion: num(i.conversion) || 1, stock: num(i.stock), precio: num(i.precio), manual: !!i.control_manual,
-      sub: !!i.sub_inventario, servicio: num(i.stock_servicio),
-      min: num(i.min_stock), agotadoManual: !!i.agotado_manual,
-    }));
+
+    /* EL STOCK YA NO VIVE EN `iv_insumos` (18-ago). Cuando el inventario paso a
+       tener existencias por sede, las columnas `stock`, `stock_servicio` y
+       `agotado_manual` se renombraron a `*_migrado_no_usar` y el dato real se
+       mudo a `iv_existencias`. Esta funcion se quedo pidiendo las columnas
+       viejas: el SELECT devolvia **HTTP 400** y el gerente recibia siempre un
+       "no entendi" — no era que no entendiera el mensaje, es que nunca llego a
+       ver el inventario. Y los PATCH tampoco escribian nada.
+
+       Ahora se lee igual que la pantalla de Inventario: los insumos son de la
+       MARCA y las existencias de la SEDE. En modo global (el de El Parche) la
+       existencia es la fila con `branch_id` nulo. */
+    const brRows = await sbGet(`/branches?id=eq.${branch_id}&select=tenant_id,brand_id&limit=1`) as Array<Record<string, unknown>> | null;
+    const tenantG = brRows?.[0]?.tenant_id as string | undefined;
+    const brandG  = brRows?.[0]?.brand_id as string | undefined;
+    const marcaRows = brandG
+      ? await sbGet(`/brands?id=eq.${brandG}&select=inventario_modo&limit=1`) as Array<Record<string, unknown>> | null
+      : null;
+    const modoSede = String(marcaRows?.[0]?.inventario_modo || "global") === "sucursal";
+    const sedeExist: string | null = modoSede ? branch_id : null;
+
+    const filtroInsumo = brandG ? `brand_id=eq.${brandG}` : `branch_id=eq.${branch_id}`;
+    const rows = await sbGet(`/iv_insumos?${filtroInsumo}&activo=eq.true&select=id,nombre,buy_unit,use_unit,conversion,precio,control_manual,sub_inventario,min_stock,iv_existencias(branch_id,stock,stock_servicio,agotado_manual)`) as Array<Record<string, unknown>> | null;
+    const existenciaDe = (i: Record<string, unknown>): Record<string, unknown> => {
+      const arr = (i.iv_existencias as Array<Record<string, unknown>>) || [];
+      return arr.find((e) => ((e.branch_id as string | null) || null) === sedeExist) || {};
+    };
+    /* Los alias de todos los insumos, en un solo viaje. */
+    const aliasRows = await sbGet(`/iv_insumo_alias?tenant_id=eq.${tenantG}&select=insumo_id,alias`) as Array<Record<string, unknown>> | null;
+    const aliasPorInsumo: Record<string, string[]> = {};
+    for (const a of (aliasRows || [])) {
+      const k = a.insumo_id as string;
+      (aliasPorInsumo[k] ||= []).push(String(a.alias || ""));
+    }
+
+    const insumos: Insumo[] = (rows || []).map((i) => {
+      const ex = existenciaDe(i);
+      return {
+        id: i.id as string, nombre: i.nombre as string, buy_unit: (i.buy_unit as string) || "unidad", use_unit: (i.use_unit as string) || "unidad",
+        conversion: num(i.conversion) || 1, stock: num(ex.stock), precio: num(i.precio), manual: !!i.control_manual,
+        sub: !!i.sub_inventario, servicio: num(ex.stock_servicio),
+        min: num(i.min_stock), agotadoManual: !!ex.agotado_manual,
+        alias: aliasPorInsumo[i.id as string] || [],
+      };
+    });
     if (!insumos.length) return json({ reply: "No encuentro insumos en el inventario de esta sucursal." });
 
     const { ops, consulta, texto, consulta_ids, consulta_todo, fallo, sinEntender } = await parseConGPT(mensaje, insumos);
@@ -369,6 +451,16 @@ Deno.serve(async (req: Request) => {
     // Version corta de cada cambio. Con 28 cambios la respuesta detallada
     // pasaba de los 4096 caracteres que admite WhatsApp y no llegaba nunca.
     const compacto: Array<{ n: string; t: string }> = [];
+    if (simular) {
+      const prev = ops.map((op) => {
+        const ins = byId[op.insumo_id];
+        if (!ins) return `• (no encontre el insumo: ${op.insumo_id})`;
+        const dest = op.destino === "servicio" ? " → nevera/servicio" : (op.destino === "bodega" ? " → bodega" : "");
+        return `• ${ins.nombre}: ${op.accion.toUpperCase()} ${fmtCant(num(op.cantidad_buy_unit), ins, op.unidad_dicha, op.cantidad_dicha ?? null)}${dest}`;
+      });
+      return json({ simulacion: true, ops, reply: prev.join(String.fromCharCode(10)) || "(no entendi ninguna operacion)" });
+    }
+
     for (const op of ops) {
       const ins = byId[op.insumo_id];
       if (!ins) continue;
@@ -389,7 +481,7 @@ Deno.serve(async (req: Request) => {
         }
         const nuevaBodega = ins.stock - mover;
         const nuevoServicio = ins.servicio + mover;
-        await sbPatch(`/iv_insumos?id=eq.${ins.id}`, { stock: nuevaBodega, stock_servicio: nuevoServicio, updated_at: new Date().toISOString() });
+        await fijarExistencia(ins.id, sedeExist, { stock: nuevaBodega, servicio: nuevoServicio });
         ins.stock = nuevaBodega; ins.servicio = nuevoServicio;
         const parcial = mover < pedido ? " (bodega no alcanzaba para más)" : "";
         // Igual que set/add: primero lo entendible (unidades) y el paquete
@@ -412,7 +504,7 @@ Deno.serve(async (req: Request) => {
           continue;
         }
         const agotado = op.accion === "agotado";
-        await sbPatch(`/iv_insumos?id=eq.${ins.id}`, { agotado_manual: agotado, updated_at: new Date().toISOString() });
+        await fijarExistencia(ins.id, sedeExist, { agotado });
         hechos.push(agotado ? `• ⛔ *${ins.nombre}* marcado como AGOTADO` : `• ✅ *${ins.nombre}* habilitado (disponible)`);
         compacto.push({ n: ins.nombre, t: agotado ? "⛔ agotado" : "✅ disponible" });
         await auditar(branch_id, telGerente, mensaje, ins, op.accion, null, ins.stock, ins.stock);
@@ -430,10 +522,13 @@ Deno.serve(async (req: Request) => {
       else nuevo = cant; // set
       if (nuevo < 0) nuevo = 0;
 
-      const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
-      if (aServicio) patch.stock_servicio = nuevo; else patch.stock = nuevo;
-      if (op.accion === "add" && op.precio_buy_unit && num(op.precio_buy_unit) > 0) patch.precio = num(op.precio_buy_unit);
-      await sbPatch(`/iv_insumos?id=eq.${ins.id}`, patch);
+      const patch: Record<string, unknown> = {};
+      await fijarExistencia(ins.id, sedeExist, aServicio ? { servicio: nuevo } : { stock: nuevo });
+      /* El PRECIO si sigue viviendo en el insumo: es de la marca, no de la sede. */
+      if (op.accion === "add" && op.precio_buy_unit && num(op.precio_buy_unit) > 0) {
+        patch.precio = num(op.precio_buy_unit);
+        await sbPatch(`/iv_insumos?id=eq.${ins.id}`, { precio: patch.precio, updated_at: new Date().toISOString() });
+      }
       if (aServicio) ins.servicio = nuevo; else ins.stock = nuevo;
 
       const precioTxt = (op.accion === "add" && patch.precio) ? ` (precio ${fmtNum(num(patch.precio))}/${ins.buy_unit})` : "";

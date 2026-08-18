@@ -7886,3 +7886,63 @@ conversaciones de prueba borradas.
 por el camino de siempre llego partido y dejo un backspace invisible en el
 codigo. Se reconstruyo la expresion con `new RegExp` y cadenas explicitas. La
 comprobacion de `chr(8)` antes de desplegar es lo unico que lo caza.
+
+---
+
+## 211 — El inventario por WhatsApp llevaba dias MUERTO (18-ago-2026)
+
+Sergio: *"algo se daNo en el numero gerente, le digo que necesito modificar
+algo y no me entiende"*. No era el entendimiento: **la funcion nunca llegaba a
+ver el inventario**.
+
+### Dos fallos encadenados
+
+1. **El stock se mudo de tabla y nadie actualizo esta funcion.** Cuando el
+   inventario paso a existencias por sede, `iv_insumos.stock`,
+   `.stock_servicio` y `.agotado_manual` se renombraron a `*_migrado_no_usar` y
+   el dato real quedo en `iv_existencias`. `gerente-inventario` seguia pidiendo
+   las columnas viejas: **HTTP 400** en el SELECT y PATCH que no escribian
+   nada. Ahora lee como la pantalla (insumos de la MARCA + existencias de la
+   SEDE) y escribe por `fn_iv_fijar_existencia`, que crea la fila si no existe.
+
+2. **`iv_existencias` nacio SIN permisos para `service_role`** — la unica tabla
+   `iv_*` en ese estado. Con las columnas ya corregidas, el SELECT devolvia
+   **403** y el gerente recibia "No encuentro insumos". Es la misma trampa de
+   las recargas: una tabla creada por la API de gestion no le da permiso a
+   nadie sola. `GRANT` + `notify pgrst, 'reload schema'`.
+
+### Y ya que estaba, tres mejoras
+
+- **Modo simulacion** (`simular: true`): entiende la lista y dice que HARIA sin
+  tocar nada. Es lo que faltaba para poder cargar un conteo entero con
+  confianza: se revisa y despues se aplica.
+- **Los alias entran al reconocimiento.** `iv_insumo_alias` existia (la llenan
+  las facturas del proveedor) y esta funcion la ignoraba: "maiz", "salchicha
+  manguera" o "carne espaldilla" se perdian en silencio. Ahora puntuan igual
+  que el nombre y se le muestran al modelo. Cargados 17 alias con las palabras
+  que Sergio usa de verdad.
+- **Cuatro reglas nuevas** en el prompt, todas sacadas de fallos reales de su
+  conteo: "2 paquetes + 11 unidades" es UN total (antes la segunda op PISABA a
+  la primera y quedaba lo poquito) · nunca cantidades negativas · una linea con
+  varios productos ("Pan (perro 10, sandwich 6, hamburguesa 3)") son tres
+  insumos · errores de dedo en la unidad ("50kh" = 50 kg).
+
+### Medido con el conteo real de Sergio (38 lineas)
+
+| | Antes | Despues |
+|---|---|---|
+| Lineas entendidas | 0 (la funcion ni arrancaba) | 55 operaciones |
+| Papa "50kh" | 5 kg | **50 kg** |
+| Maiz, carne espaldilla, salsa roja | se perdian | entran por alias |
+| "2 paquetes + 11 unidades" | quedaba en 11 unidades | **2,39 paquetes** |
+| Pan hamburguesa | **-3** unidades | 3 unidades |
+
+Siguen mal 4 de 38 y quedan anotadas: "1 paquete (10) + 1 unidad" (la suma
+entre parentesis), "media unidad" leido como 0,1, "1 paquete" de una salsa que
+se compra por galon (unidad que no existe en el sistema), y una bodega que
+salio en 0. Con el modo simulacion se ven antes de aplicar.
+
+⚠️ **Cuarta vez con la trampa del entorno**: `join("
+")` escrito por el camino
+de siempre llego con un salto de linea DENTRO de la cadena → BOOT_ERROR, y la
+API reportando ACTIVE como siempre. Se resolvio con `String.fromCharCode(10)`.
