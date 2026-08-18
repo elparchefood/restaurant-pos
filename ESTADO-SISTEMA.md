@@ -7965,3 +7965,37 @@ lineas correctas.** El modelo pone el entendimiento, el codigo pone la cuenta.
 ")` escrito por el camino
 de siempre llego con un salto de linea DENTRO de la cadena → BOOT_ERROR, y la
 API reportando ACTIVE como siempre. Se resolvio con `String.fromCharCode(10)`.
+
+---
+
+## 212 — "Por ahora solo entiendo texto": tres fallos en fila (18-ago-2026)
+
+Sergio mando el conteo ya ordenado y el bot contesto *"Por ahora solo entiendo
+*texto* para el inventario"* — a un mensaje de texto. Rastreado, eran tres
+cosas encadenadas, y ninguna era la que decia el mensaje.
+
+1. **`factura-inventario` estaba rota por la misma mudanza** que
+   `gerente-inventario` (entrada 211): pedia `iv_insumos.stock`, recibia 400 y
+   contestaba "No encuentro insumos en el inventario de esta sede" a CUALQUIER
+   texto, en vez de su `sin_factura`.
+2. **El webhook tomaba esa respuesta como buena.** El texto del gerente pasa
+   primero por la funcion de facturas (por si esta confirmando una), y bastaba
+   con que contestara *cualquier cosa* para que el inventario por texto no
+   corriera. Ahora solo se le hace caso si de verdad hay una factura esperando
+   (`sin_factura !== true`).
+3. **El aviso colgaba de un `else` mal puesto**, y ese `else` PISABA lo que ya
+   estuviera escrito. Efecto secundario que nadie habia reportado: **mandar la
+   foto de una factura SIEMPRE respondia "solo entiendo texto"**, aunque la
+   factura se hubiera leido bien. Ahora el aviso solo sale si no hay respuesta,
+   y menciona las fotos, que si se entienden.
+
+### Y una bomba vieja encontrada de paso
+
+La version DESPLEGADA de `factura-inventario` tenia **cuatro backspaces** donde
+debia decir ``: la regla de "aplica todos los precios" no podia coincidir
+nunca. Es la misma trampa del entorno de las entradas 201/210/211, pero esta
+llevaba semanas viva en produccion. Reparada al mismo tiempo.
+
+⚠️ La funcion **no estaba en el repositorio** — solo desplegada. Ya quedo
+guardada en `supabase/functions/factura-inventario/`. Al bajarla con `/body` hay
+que reconstruir la primera linea, que llega mordida.

@@ -177,7 +177,11 @@ Deno.serve(async (req) => {
                     body: JSON.stringify({ branch_id, phone: fromPhone, message: bodyText }),
                   });
                   const fd = await fr.json();
-                  if (fd.reply) reply = fd.reply;
+                  /* SOLO si de verdad hay una factura esperando. Antes bastaba
+                     con que la funcion contestara CUALQUIER cosa: cuando se
+                     rompio por la mudanza del stock, devolvia "No encuentro
+                     insumos" a todo, y eso bloqueaba el inventario por texto. */
+                  if (fd.reply && fd.sin_factura !== true) reply = fd.reply;
                 } catch (_e) { /* si falla, sigue el flujo normal de texto */ }
               }
               if (!reply && msgType === "text" && bodyText) {
@@ -190,8 +194,16 @@ Deno.serve(async (req) => {
                   const gd = await gr.json();
                   reply = gd.reply || "No pude procesar eso 🤔.";
                 } catch (e) { console.error("gerente-inventario:", e); reply = "Hubo un error procesando el inventario."; }
-              } else {
-                reply = "👋 Hola. Por ahora solo entiendo *texto* para el inventario. Ej: “hay 3 kilos de carne” o “compré 2 pacas de gaseosa a 30 mil”.";
+              }
+              /* ESTE AVISO ES SOLO PARA LO QUE NO ES TEXTO NI FOTO (un audio,
+                 un sticker, una ubicacion). Estaba colgado de un `else` que
+                 pisaba CUALQUIER respuesta ya escrita: la foto de una factura
+                 se contestaba bien y acto seguido se sobrescribia con este
+                 mensaje — o sea que mandar una factura SIEMPRE respondia "solo
+                 entiendo texto". Y con el inventario por texto pasaba igual en
+                 cuanto la otra funcion contestaba algo. */
+              if (!reply) {
+                reply = "👋 Hola. Por ahora solo entiendo *texto* y *fotos de facturas* para el inventario. Ej: “hay 3 kilos de carne” o “compré 2 pacas de gaseosa a 30 mil”.";
               }
               if (phoneId && accessToken) {
                 try {
