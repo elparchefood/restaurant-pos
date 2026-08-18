@@ -7777,3 +7777,42 @@ lineas $61.000 · "ranchera con super queso" cobra la adicion $40.000.
 POSICION (el bloque 0 del arqueo) o por un PEDAZO de su nombre ("adicion"
 dentro de "Tradicionales") funciona hasta que alguien agrega algo parecido —
 y falla en silencio.
+
+---
+
+## 209 — El banco de frases reales (0d) (18-ago-2026)
+
+Ultimo punto del plan de intenciones. En vez de inventar frases de prueba, se
+sacaron **1.200 mensajes reales de clientes** de la base y se corrieron los
+reconocedores contra todos de una vez, fuera de linea (sin gastar un solo
+mensaje ni tocar una conversacion).
+
+### Lo que dijo la medida
+
+**Entrega (recoger).** De 16 frases reales que hablan de recoger, la lista
+deterministica falla en **2**: *"ya recojo la otra"* (la lista espera "la
+recojo", no "recojo la") y *"ya pasan por el, lo recoge Fabian"* (en tercera
+persona). **Las dos las resuelve bien el camino de INTENCION** — probadas en el
+banco, las tres guardan "Para recoger". Es la prueba de que el trabajo del 0a
+sirvio: la lista de frases dejo de ser lo que decide.
+
+**Pago.** De 61 frases reales que hablan de pago, tres salian raras y una era
+un cobro equivocado de verdad:
+
+- *"¿Que es billetera el parche food?"* dejaba el pedido cobrado **a la
+  billetera del cliente**. Preguntar por un metodo no es elegirlo. Candado: si
+  el mensaje es una pregunta y el clasificador no ve intencion de pago, los
+  nombres que aparecen son tema de conversacion — el mismo candado que ya tenia
+  preguntar un precio. Verificado que *"¿te transfiero?"* (una pregunta que SI
+  elige) sigue funcionando.
+- *"Me regalas el total para transferir"* no lo resuelve el texto; lo agarra el
+  clasificador por intencion. Sin cambio.
+- *"Billetera"* a secas se lee como transferencia. Es lo correcto en Colombia
+  (Nequi, Daviplata), y el saldo se nombra con "saldo" o "monedero". Queda
+  anotado por si algun dia molesta.
+
+`delay-reply` v316, smoke 200. Sin conversaciones de prueba en la base.
+
+**El metodo queda montado y vale para cualquier reconocedor**: sacar las frases
+de `chat_messages`, extraer la funcion del codigo desplegado y correrla contra
+todas. Encontrar un fallo cuesta segundos en vez de una conversacion entera.

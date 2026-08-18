@@ -5121,7 +5121,16 @@ function runExtractors(
     }
   }
   if (!state.pago && !result.pago) {
-    let p = extractPago(text, pagosCfg);
+    /* PREGUNTAR POR UN METODO NO ES ELEGIRLO. Salio del banco de frases
+       reales: "¿Que es billetera el parche food?" dejaba el pedido cobrado a
+       la billetera del cliente. Si el mensaje es una pregunta y el
+       clasificador no vio intencion de pago, los nombres que aparecen son
+       tema de conversacion. "¿te transfiero?" sigue funcionando: ahi el
+       clasificador SI ve la intencion. Es el mismo candado que el de
+       preguntar un precio. */
+    const soloPreguntaPago = intenciones.pregunta === true && !intenciones.pago
+      && (text.includes("?") || text.includes("¿"));
+    let p = soloPreguntaPago ? null : extractPago(text, pagosCfg);
     if (!p && intenciones.pago) {
       // El texto no lo reconocio, pero la intencion si. Se traduce al metodo
       // que el restaurante tenga configurado.
