@@ -264,9 +264,24 @@ Deno.serve(async (req) => {
                 msgSentAt,
               });
             } else if (msgType === "image" && mediaUrl) {
-              // Si hay pago pendiente y llega imagen, es el comprobante → verificar
+              /* ⚠️ AQUI PACO SE QUEDABA MUDO (17-ago). Si llegaba una imagen y NO
+                 habia pago pendiente, este bloque no hacia NADA: ni encolaba
+                 respuesta ni pasaba a humano. Una clienta mando la foto de la
+                 carta seNalando la salchipapa que queria y no le contesto nadie
+                 — el peor silencio posible, porque ella ya habia dicho lo que
+                 queria y creia estar pidiendo.
+                 Ahora la imagen que no es comprobante entra a la cola como
+                 cualquier mensaje, y es el cerebro (delay-reply) el que decide
+                 que hacer. Aqui no se duplica esa decision. */
               const convDetail = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=pago_pendiente&limit=1`);
               const pagoPendiente = convDetail?.[0]?.pago_pendiente as boolean | undefined;
+              if (!pagoPendiente && phoneId && accessToken) {
+                const msgSentAt = new Date(parseInt(msg.timestamp as string) * 1000).toISOString();
+                await queueAiReply({
+                  branchId: branch_id as string, tenantId: tenant_id as string,
+                  convId, fromPhone, phoneId, accessToken, msgSentAt,
+                });
+              }
               if (pagoPendiente) {
                 const VERIFY_URL = `${SUPABASE_URL}/functions/v1/verify-transfer`;
                 fetch(VERIFY_URL, {

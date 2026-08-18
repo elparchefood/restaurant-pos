@@ -6978,3 +6978,76 @@ del Oeste" se le devolvio su `veces` original (la prueba lo habia subido a 2).
 `web-pedido` sigue comparando EXACTO al crear el pedido. Hoy no molesta porque
 el barrio ya viene resuelto desde que se guardo la direccion, pero deberia usar
 el mismo comparador para no dar dos respuestas distintas. **Anotado.**
+
+---
+
+## 193 — Una foto dejaba a Paco MUDO (17-ago-2026)
+
+Mónica Hurtado (573136337891) mando la foto de la carta recortada, seNalando la
+salchipapa que queria, con el pie de foto "Me regalas porfa una de estas
+personal". **Paco no contesto nada** y tampoco paso la conversacion a humano.
+Sergio la tomo a mano tres minutos despues.
+
+### Causa raiz: un `else if` sin salida
+
+En `meta-webhook`, ante una imagen:
+```
+} else if (msgType === "image" && mediaUrl) {
+  if (pagoPendiente) { ...verify-transfer... }
+  // y si NO hay pago pendiente... NADA
+}
+```
+Ni se encolaba respuesta ni se pasaba a humano. El peor silencio posible: la
+clienta ya habia dicho lo que queria y creia estar pidiendo.
+
+**Y habia una segunda falla debajo.** `delay-reply` SI tenia una respuesta para
+mensajes solo-media ("por el momento solo puedo atenderte por texto"), pero:
+1. no se alcanzaba nunca, porque el webhook no encolaba;
+2. detectaba la imagen mirando si el body empezaba por `[imagen]` — con un pie
+   de foto escrito, no la reconocia como imagen.
+
+### El arreglo
+
+- **`meta-webhook` v64**: la imagen que NO es comprobante entra a la cola como
+  cualquier mensaje. La decision de que hacer no se duplica aqui: la toma el
+  cerebro.
+- **`delay-reply` v305**: la imagen se reconoce por su `media_type`, no por el
+  texto. Y una foto que no es comprobante **pasa a un humano** con motivo
+  "Mandó una foto (Paco no ve imágenes)".
+
+**Por que humano y no "solo puedo atenderte por texto":** es el contrato que
+definio Sergio — lo que se sale del flujo va a una persona, y eso NO es un
+error, es la valvula. Ella ya dijo lo que queria; mandarla a repetirlo por
+escrito la deja peor que el silencio. El error seria adivinar cual pidio.
+
+**La frase:** `cfg.handoff.frase` no existe en la configuracion de El Parche,
+asi que `pasarAHumano` habria cambiado la conversacion **sin decirle nada a la
+clienta** — el mismo silencio, solo que visible para Sergio. Se manda una frase
+propia: *"Uy, no alcanzo a ver las fotos 😅 Ya le paso tu mensaje a una persona
+del equipo 🍟"*. Dice lo que PASO, no lo que va a pasar: prometer "en un momento
+te atienden" ya costo un caso (entrada 176) y aqui dependeria de si hay alguien
+despierto. Si algun dia Sergio llena `handoff.frase`, manda la suya.
+
+**Verificado en el banco** (nada salio a ningun numero real):
+
+| | |
+|---|---|
+| Control: la misma pregunta SIN foto | Contesta el horario normal, NO pasa a humano |
+| Caso real: "Hola" → "¿tienen servicio?" → FOTO | Contesta las dos primeras, y con la foto avisa y pasa a humano |
+| `human_takeover` / motivo | `true` / "Mandó una foto (Paco no ve imágenes)" |
+
+Las 3 conversaciones de prueba se borraron. Smoke test de las dos funciones tras
+desplegar: `delay-reply` 200, `meta-webhook` 200 en POST y 403 en el GET con
+token falso — que es lo correcto.
+
+### Anotado para despues (no se hizo hoy)
+
+1. **`web-pedido` compara barrios EXACTO** al crear el pedido, mientras que
+   `web-acceso` ya usa el comparador tolerante. Hoy no molesta porque el barrio
+   viene resuelto desde que se guardo la direccion, pero deberian ser el mismo.
+2. **Leer la foto de la carta con vision.** Paco ya tiene infraestructura de
+   Vision (`analyze-menu` usa GPT-4o para importar cartas). Se podria intentar
+   reconocer que plato seNala el cliente. **No se hizo a proposito**: equivocarse
+   leyendo una foto es exactamente "cerrar mal", que es lo unico inaceptable
+   segun el contrato. Pasar a humano es la respuesta correcta hasta que se pueda
+   probar con muchas fotos reales.

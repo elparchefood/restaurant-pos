@@ -1699,7 +1699,50 @@ INTENCION, no las palabras exactas.` },
 
   (cfg as Record<string, unknown>)._varData = varDataObj;
 
-  const hasImagenBatch = batchMsgs.some(m => (m.body||"").startsWith("[imagen]") || (m.body||"").startsWith("[image]"));
+  /* La imagen se reconoce por su TIPO, no por el texto del cuerpo. Antes solo
+     se miraba si el body empezaba por "[imagen]", asi que una foto CON pie de
+     foto ("me regalas una de estas personal") no contaba como imagen y se
+     trataba como un mensaje de texto cualquiera. */
+  const hasImagenBatch = batchMsgs.some(m =>
+    m.media_type === "image" || (m.body||"").startsWith("[imagen]") || (m.body||"").startsWith("[image]"));
+
+  /* ── UNA FOTO QUE NO ES COMPROBANTE VA A UN HUMANO (17-ago) ─────────────
+     Paco no ve imagenes. Una clienta mando la foto de la carta seNalando la
+     salchipapa que queria: eso es exactamente el caso "se sale del flujo" que
+     Sergio definio — pasar a humano NO es un error, es la valvula; el error
+     seria inventar cual pidio.
+
+     Y NO se contesta "solo puedo atenderte por texto": ella ya dijo lo que
+     queria, y mandarla a repetirlo la deja peor que si nadie contestara. Se
+     pasa a una persona, que ve la foto y la atiende. */
+  if (hasImagenBatch && !convRow?.pago_pendiente) {
+    /* `pasarAHumano` manda la frase de traspaso SI esta configurada. Hoy no lo
+       esta (`cfg.handoff` no existe en ia_config), asi que sin esto la clienta
+       se quedaria igual de callada que antes — solo que ahora Sergio si lo
+       veria en su lista. El silencio es el error que estamos arreglando. */
+    const fraseCfg = String(((cfg.handoff as Record<string, unknown>) || {}).frase || "").trim();
+    if (!fraseCfg) {
+      /* Se dice lo que PASO, no lo que va a pasar: "ya le paso tu mensaje" es
+         verdad en el momento de escribirlo. Prometer "en un momento te
+         atienden" seria prometer algo que depende de si hay alguien despierto
+         — y prometer acciones ya nos costo un caso (entrada 176).
+         La frase se puede cambiar desde Configuracion cuando Sergio quiera:
+         si algun dia llena `handoff.frase`, manda la suya y no esta. */
+      const aviso = "Uy, no alcanzo a ver las fotos 😅 Ya le paso tu mensaje a una persona del equipo 🍟";
+      await sendWaAndSave(convId, tenantId, aviso, fromPhone, phoneId, accessToken);
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+        last_message: aviso, last_message_at: new Date().toISOString(),
+        last_sender: "agent", last_read: false, ai_typing: false,
+      });
+    }
+    await pasarAHumano(
+      convId, tenantId,
+      "Mandó una foto (Paco no ve imágenes)",
+      cfg as Record<string, unknown>, fromPhone, phoneId, accessToken,
+    );
+    return;
+  }
+
   if (soloMediaNoTexto) {
     if (convRow?.pago_pendiente && hasImagenBatch) {
       // imagen con pago pendiente → fluye a verify-transfer abajo
