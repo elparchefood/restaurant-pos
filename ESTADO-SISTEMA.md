@@ -7365,3 +7365,72 @@ compilaba y nunca casaba con nada. Se encontro mirando los BYTES de la linea.
 Regla reforzada: una regex JAMAS se escribe a un archivo via string normal de
 Python — o Edit tool, o `chr(92)`, y despues verificar los bytes. Y el
 desplegador ahora aborta si el archivo contiene 0x08.
+
+---
+
+## 200 — LA COLA: varios productos en un mensaje, y la entrega por intencion (18-ago-2026)
+
+El trabajo grande de la manana (tareas 0a y 1 de la cola, aprobadas por
+Sergio). Cierra los abiertos A1 (Emily) y A3 (Mariam/Shirley) del registro.
+
+### 1. La entrega se decide por INTENCION, la lista queda de respaldo
+
+En la rama 14e-PRE ("recoger manda sobre lo guardado"), que era de las que
+decidian solo por `LLEVAR_REGEX` (caida 3 veces): ahora mira primero
+`intenciones.entrega === "recoger"` — la lectura del clasificador que corre en
+cada mensaje. Si vino por la lista se guarda el texto del cliente (como
+siempre); si vino SOLO por la intencion se guarda la marca canonica "Para
+recoger", porque los 23 controles de rio abajo re-reconocen el texto con la
+lista y un "yo caigo por el" no lo pasarian. Cautela: si el mensaje trae una
+CALLE de verdad, la intencion no manda.
+
+Probado: "yo caigo por el pedido mas tarde" — forma que NINGUNA lista conocia —
+salta la direccion y sigue al nombre. Y "que puedo reclamar con mis puntos?" en
+mitad del pedido NO lo vuelve recoger.
+
+### 2. LA COLA: los demas platos del mismo mensaje
+
+`state.cola`: del mensaje con varios platos, el primero sigue el camino de
+siempre y los demas esperan con el TEXTO ORIGINAL guardado. Cuando el producto
+en curso completa lo suyo (tamano y variantes — el upsell es del pedido, no
+del producto), se archiva en items y el siguiente se promueve, resolviendo su
+tamano y variante desde ese texto ("coca cola personal" ya trae el tamano
+escrito). Lo que no se resuelva, lo pregunta el flujo como siempre.
+
+Reglas que salieron de las pruebas:
+- **La variante del primero no es otro plato**: "premium de carne y un hit"
+  encolaba un "1x Carne" fantasma ($56.000 en vez de $37.000). Las opciones del
+  producto recien detectado no entran a la cola, salvo con su propia palabra de
+  categoria pegada ("...y una SALCHIPAPA carne").
+- **La palabra de categoria de una bebida no es una adicion**: "un JUGO hit de
+  litro" dejaba un "⚠️ Sobre jugo: no esta incluido" en el resumen con el HIT
+  ya cobrado. Se descartan en silencio (jugo, gaseosa, bebida...).
+- La cola sobrevive al archivado del 14b y se resetea con el estado.
+- Lo ambiguo NO se encola: mejor que el flujo lo pregunte.
+
+### Bateria (banco, 8 corridas)
+
+| Prueba | Resultado |
+|---|---|
+| Mariam: 3 productos en un mensaje (x2 corridas) | Resumen con las 3 lineas · **$33.000 + $5.000 = lo que cobro Sergio** |
+| Premium carne + HIT litro en un mensaje | 2 lineas, $37.000; el sabor del HIT se pregunta solo |
+| "yo caigo por el pedido" (forma nunca vista) | recoger por intencion |
+| Pregunta de puntos en mitad del pedido | NO cambia la entrega |
+| Un solo producto (control) | identico a antes |
+| "y tambien me das una super queso" (control) | archiva y pregunta variante, como antes |
+
+`delay-reply` v310, smoke 200, 8 conversaciones de prueba borradas.
+
+### Hueco pre-existente anotado (no de este cambio)
+
+En el control del "tambien": a la pregunta de variante ("¿carne o pollo?") el
+cliente contesto "No" y Paco se quedo CALLADO (retomo al mensaje siguiente).
+Es anterior a la cola (la cola estaba vacia ahi). A la lista de la maquina de
+estado.
+
+### Que queda de la tarea 0
+- 0c (intencion de CORRECCION: "corrijo" suma en vez de reemplazar) y
+  0d (banco de frases) siguen pendientes.
+- 0b queda cubierto en la practica por la cola para el caso real (varios
+  productos por mensaje); pasar TODO el estado al extractor sigue siendo la
+  meta de fondo, pero ya sin un caso que lo urja.

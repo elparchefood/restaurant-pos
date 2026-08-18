@@ -13,7 +13,7 @@
 > un cliente real, se agrega AQUÍ su fila además de la entrada en
 > ESTADO-SISTEMA.md. Si esta lista se desactualiza, deja de servir.
 
-Última actualización: **17-ago-2026 (noche)** · Errores resueltos: **25** · Abiertos: **3**
+Última actualización: **17-ago-2026 (noche)** · Errores resueltos: **26** · Abiertos: **1**
 
 ---
 
@@ -95,12 +95,11 @@ con volumen real durante 2-3 semanas.
 
 | # | Fecha | Cliente | Qué vio el cliente | Estado |
 |---|-------|---------|--------------------|--------|
-| A1 | 17-ago | Emily | Pidió 3 salchipapas Y una gaseosa EN EL MISMO MENSAJE: la gaseosa no se sumó ($61.000 en vez de $69.000) | **Para el 17-ago con calma.** Causa: el extractor devuelve UN solo producto por mensaje. Ya hay dos redes de seguridad (v302): si una "adición" es en realidad un producto de la carta se agrega como línea, y el aviso ya no afirma "no va en el pedido" sino que pregunta cuál quiere. Lo de fondo — extractor multi-producto — es la pieza más delicada de Paco: hacerlo con el banco de 54 pedidos al lado, fuera de horario. |
 | 22 | 18-ago | Sneider | Dijo "conjunto portal de pomona ... Casa 13" y Paco le pidió calle y carrera — una calle que no existe | El control de conjunto se hacía contra la LISTA de conjuntos registrados (`esConjunto`), no contra lo que el cliente escribió. Portal de Pomona no estaba entre los 50 registrados | Si el mensaje dice conjunto/torre/edificio/apto, se trata como conjunto aunque no esté registrado: se le pide la unidad, no la calle. Corregido en las DOS ramas hermanas | 195 |
 | 23 | 18-ago | Sandra | Dijo "Pra pasar recogiendo" y Paco le siguió pidiendo la dirección | El reconocedor de RECOGER no tenía el GERUNDIO. Cubre "para recoger", "paso a recoger", "recogerlo"… pero no "pasar recogiendo" | Dos formas nuevas, atadas a un verbo de moverse para no confundir con las frases de puntos. 13 casos de prueba (7 sí / 6 no) | 196 |
 | 24 | 18-ago | Shirley | Escribió "premiun mixta personal" (errata) y Paco cotizó la salchipapa Mixta $26.000 en vez de la Premium mixta $34.000; los intentos de corregir la enredaron más | El buscador de productos comparaba EXACTO: "premiun" no casaba con nada y "mixta" sí | Se tolera UNA letra de error en nombres de 6+ letras, sin tocar palabras que ya son otro producto exacto. Reproducido: mismo resumen que cobró Sergio ($35.000+$5.000) | 197 |
+| 26 | 18-ago | Emily · Mariam · Shirley | Varios productos en UN mensaje: solo uno sobrevivía (Emily: gaseosa sin sumar; Mariam: $28.000 por $33.000; Shirley: pedido fantasma de $66.000) | La máquina de estado guardaba UN producto en curso; los demás platos del mismo mensaje se perdían sin rastro | **LA COLA**: el primero sigue su camino y los demás esperan; al completarse el actual se archiva y el siguiente se promueve, resolviendo tamaño/variante desde el texto original. Cierra A1 y A3 | 200 |
 | 25 | 18-ago | Francisco | (1) El pedido quedó a nombre de "Cuanto se demora" — su pregunta se capturó como nombre. (2) Dijo "pago con un billete de 100" y Paco le pidió el comprobante, pagando en efectivo | (1) Cuatro caminos capturan nombres y ninguno filtraba preguntas. (2) "billete" no era señal de efectivo para el clasificador y el redactor no tenía prohibido pedir comprobante en efectivo | Compuerta de preguntas en los CUATRO caminos + "billete" = efectivo + regla dura: en efectivo jamás se pide comprobante. Ahora responde la pregunta ("unos 30 min") y re-pregunta el nombre | 199 |
-| A3 | 18-ago | Mariam | Pidió salchipapa + coca cola + salsa en UN mensaje: la coca cola no entró al resumen y cobró $28.000 en vez de $33.000 | **REPRODUCIDO y localizado.** El extractor está BIEN (con su texto exacto devuelve los 3 productos y $32.000). Se pierde después: el resumen se arma del ESTADO de la conversación, que solo guarda UN producto del mensaje. La salsa entró por un camino de reparación; la bebida no entró por ninguno. Falta el arreglo de fondo en la máquina de estado. |
 | A2 | 15-ago | — | (riesgo latente, sin caso reportado) `resolverPedido` de verify-transfer tiene su PROPIO matching de items sin los tres desempates de la entrada 140 | Los totales salen bien (usan total_mostrado), pero un item de la comanda podría salir con nombre de la categoría equivocada. Revisar junto con A1. |
 
 ---

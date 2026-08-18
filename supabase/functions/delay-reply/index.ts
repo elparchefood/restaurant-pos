@@ -68,6 +68,13 @@ interface PacoState {
      cliente vuelve a escribir. */
   reserva_id?:        string | null;
   items:              SlotItem[];
+  /* LA COLA (18-ago): los demas platos de un MISMO mensaje. "salchipapa,
+     coca cola y salsa" traia tres y el estado solo guardaba uno — los otros
+     dos desaparecian (Mariam, $28.000 en vez de $33.000; el pedido fantasma
+     de Shirley). El primero sigue el camino de siempre; estos esperan aqui y
+     se promueven cuando el de en curso termina sus preguntas. `texto` guarda
+     el mensaje original para resolverles tamano y variante. */
+  cola?:              Array<{ nombre: string; cat: string; texto: string }>;
   resumen_enviado:            boolean;
   direccion_heredada:         boolean;
   complemento_dir_pendiente:  string | null;  // pregunta pendiente para completar la dirección
@@ -121,7 +128,7 @@ function newPacoState(): PacoState {
     producto: null, producto_categoria: null, tamano: null, tipo: null, cantidad: 1,
     adiciones: null, upsell: null, preferencias: null, direccion: null, barrio: null, pago: null, nombre: null, tipos: {},
     factura: null, programado: null, reserva: null,
-    items: [], resumen_enviado: false, direccion_heredada: false, complemento_dir_pendiente: null,
+    items: [], cola: [], resumen_enviado: false, direccion_heredada: false, complemento_dir_pendiente: null,
     last_activity: new Date(Date.now() - 30 * 60_000).toISOString(), // 30min atrás → sesionExpirada=true
     _v: 120,
   };
@@ -2513,6 +2520,46 @@ INTENCION, no las palabras exactas.` },
         return;
       }
       if (res) { productoDetectado = res.name; productoCategoriaDet = res.cat; }
+
+      /* LOS DEMAS PLATOS DEL MISMO MENSAJE VAN A LA COLA (18-ago). Antes se
+         tomaba matches[0] y el resto se PERDIA sin dejar rastro. Solo entran
+         los clasificados como PLATO (una adicion pedida "sobre" un plato no es
+         un plato aparte), resueltos contra el catalogo; lo ambiguo no se
+         adivina — mejor que el flujo lo pregunte despues. */
+      if (productoDetectado && matches.length > 1) {
+        const platosMsg = state.producto
+          ? matches            // nuevosEnTexto ya viene filtrado a platos
+          : mencionesClasificadas(clienteTexto, false, intenciones).filter(m => m.clase === "plato");
+        const vistos = new Set<string>([normalizarTexto(productoDetectado)]);
+        for (const it of state.items || []) if (it.producto) vistos.add(normalizarTexto(it.producto));
+        /* LA VARIANTE DEL PRIMERO NO ES OTRO PLATO. "premium de carne y un
+           hit": "carne" es el sabor de la Premium — y tambien existe como
+           salchipapa. Sin este filtro se encolaba un "1x Carne" fantasma.
+           Las opciones del producto recien detectado se excluyen, SALVO que
+           la mencion traiga su propia palabra de categoria pegada adelante
+           ("...y una SALCHIPAPA carne"): ahi si es un plato aparte. */
+        const filaPrimero = DYN_PROD_MAP.find(e =>
+          e.key === normalizarTexto(productoDetectado!) && (!productoCategoriaDet || e.cat === productoCategoriaDet))
+          || DYN_PROD_MAP.find(e => e.key === normalizarTexto(productoDetectado!));
+        const opcionesPrimero = new Set((filaPrimero?.opciones || []).map(o => normalizarTexto(o)));
+        const tNormCola = normalizarTexto(clienteTexto);
+        const CAT_PEGADA_RE = /(salchipapas?|salchi|hamburguesas?|perros?|sandwich|sanduche|bebidas?|jugos?|gaseosas?)\s+(?:de\s+)?$/;
+        for (const m of platosMsg) {
+          const n = normalizarTexto(m.name);
+          if (vistos.has(n)) continue;
+          if (opcionesPrimero.has(n)) {
+            const antes = tNormCola.slice(0, Math.max(0, tNormCola.indexOf(n)));
+            if (!CAT_PEGADA_RE.test(antes)) continue;   // es la variante del primero
+          }
+          const r2 = resolverCategoria(m.name);
+          if (!r2 || r2 === "ambiguo") continue;
+          vistos.add(n);
+          (state.cola = state.cola || []).push({ nombre: r2.name, cat: r2.cat, texto: clienteTexto.slice(0, 300) });
+        }
+        if ((state.cola || []).length) {
+          console.log("[cola] en espera:", (state.cola || []).map(x => x.nombre).join(", "));
+        }
+      }
     }
     // 2) Respaldo GPT (typos, formas raras) + validación contra el catálogo
     if (!productoDetectado) {
@@ -2601,6 +2648,7 @@ INTENCION, no las palabras exactas.` },
       const prevNom  = state.nombre;
       const prevUpsell = state.upsell;
       const prevItems = state.items;
+      const prevCola  = state.cola || [];
       state = newPacoState();
       state.producto  = productoDetectado;
       state.producto_categoria = productoCategoriaDet;
@@ -2609,6 +2657,7 @@ INTENCION, no las palabras exactas.` },
       state.pago      = prevPago;
       state.nombre    = prevNom;
       state.items     = [...prevItems, archived];
+      state.cola      = prevCola;   // los platos en espera sobreviven al cambio
       // UPSELL una sola vez por PEDIDO (regla de Sergio): si el cliente ya
       // respondió a las adiciones (sí o no), no se le vuelve a preguntar por
       // cada producto nuevo que agregue. El extractor sigue capturando
@@ -2703,12 +2752,26 @@ INTENCION, no las palabras exactas.` },
      El clasificador siempre estuvo bien: reconoce "recoger" y de primero. El
      problema era QUE le llegaba, no como decidia. Una direccion a medias no
      puede tapar al cliente diciendo que no necesita domicilio. */
-  if (LLEVAR_REGEX.test(clienteTexto.toLowerCase())) {
+  /* LA INTENCION DECIDE LA ENTREGA (18-ago, regla de Sergio: intenciones, no
+     texto exacto). Este reconocedor de lista cayo TRES veces (entradas 135,
+     171, 196), siempre por una forma de decir "recoger" que nadie habia
+     previsto — y el clasificador de intenciones, que corre en cada mensaje y
+     SI la entiende, no se consultaba aqui. Ahora el modelo decide primero y la
+     lista queda de respaldo para cuando el modelo devuelva null.
+     Cautela: si el mensaje trae una CALLE de verdad, la intencion no manda —
+     una direccion escrita pesa mas que la lectura del modelo. */
+  const dijoRecogerLista = LLEVAR_REGEX.test(clienteTexto.toLowerCase());
+  const dijoRecogerIntencion = intenciones.entrega === "recoger" && !CALLE_REGEX.test(clienteTexto);
+  if (dijoRecogerLista || dijoRecogerIntencion) {
     const clasifYa = state.direccion
       ? clasificarDireccion(state.direccion, domiciliosCfg, sinNomenclaturaCliente2)
       : null;
     if (!clasifYa || clasifYa.tipo !== "para_llevar") {
-      state.direccion = clienteTexto.trim();
+      /* Si vino por la lista se guarda el texto del cliente (siempre fue asi y
+         los 23 controles de rio abajo lo re-reconocen). Si vino SOLO por la
+         intencion, el texto puede ser cualquier cosa ("yo caigo por el") que
+         la lista no reconoce despues: se guarda la marca canonica. */
+      state.direccion = dijoRecogerLista ? clienteTexto.trim() : "Para recoger";
       state.direccion_heredada = false;
       state.complemento_dir_pendiente = null;   // ya no hay nada que completar
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
@@ -3127,6 +3190,72 @@ INTENCION, no las palabras exactas.` },
     await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: aviso, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
     console.log(`[domi] barrio sin zona ("${state.barrio}") — Paco se calla y espera el precio`);
     return;
+  }
+
+  /* ── PROMOCION DE LA COLA (18-ago) ─────────────────────────────────────
+     Cuando el producto en curso ya tiene resuelto lo SUYO (tamano y
+     variantes), el siguiente de la cola toma su lugar: el actual se archiva
+     en items y el nuevo intenta resolverse desde el TEXTO ORIGINAL donde el
+     cliente lo pidio ("coca cola personal" trae su tamano escrito). Lo que no
+     se resuelva, lo pregunta el flujo como siempre — por eso la promocion
+     para en cuanto el promovido necesita algo.
+     El upsell no frena la promocion: es UNA pregunta por pedido (regla de
+     Sergio), no una por producto. */
+  if (!relectura && (state.cola || []).length > 0) {
+    const listoElActual = (): boolean => {
+      if (!state.producto) return true;
+      if (!currentProductData) return false;
+      if ((currentProductData.presentations || []).length > 1 && !state.tamano) return false;
+      for (const g of (currentProductData.variables || [])) {
+        if ((g.options || []).length && !(state.tipos || {})[g.id]) return false;
+      }
+      return true;
+    };
+    let promovidos = 0, guardia = 0;
+    while ((state.cola || []).length > 0 && listoElActual() && guardia++ < 6) {
+      const sig = (state.cola as Array<{ nombre: string; cat: string; texto: string }>).shift()!;
+      if (state.producto) {
+        state.items = [...state.items, {
+          producto: state.producto, tamano: state.tamano, tipo: state.tipo,
+          cantidad: state.cantidad, adiciones: state.adiciones,
+          preferencias: state.preferencias, categoria: state.producto_categoria,
+        }];
+      }
+      state.producto = sig.nombre;
+      state.producto_categoria = sig.cat;
+      state.tamano = null; state.tipo = null; state.tipos = {}; state.preferencias = null;
+      state.cantidad = 1;
+      try {
+        /* "2 coca colas": el numero pegado al nombre, en el texto original. */
+        const kn = normalizarTexto(sig.nombre).split(" ")[0];
+        const mC = normalizarTexto(sig.texto).match(new RegExp("(\d+)\s+(?:[a-z]+\s+){0,2}" + kn));
+        if (mC) state.cantidad = Math.max(1, Math.min(20, parseInt(mC[1], 10)));
+      } catch (_) { /* queda en 1 */ }
+      if (state.adiciones !== null) state.adiciones = "";   // el upsell es del pedido
+      currentProductData = await loadProductData(state.producto, branchId, state.producto_categoria);
+      pasos = buildAllPasos(currentProductData, cfg, frasesCfg, nombreConfirmar, !!nombreKnown);
+      if (currentProductData) {
+        const tNorm = " " + normalizarTexto(sig.texto) + " ";
+        const presTxt = (currentProductData.presentations || [])
+          .filter(p => p.name && tNorm.includes(" " + normalizarTexto(p.name) + " "));
+        if (presTxt.length === 1) state.tamano = presTxt[0].name;
+        else if ((currentProductData.presentations || []).length === 1 && currentProductData.presentations[0].name) {
+          state.tamano = currentProductData.presentations[0].name;
+        }
+        for (const g of (currentProductData.variables || [])) {
+          const op = (g.options || []).find(o => o.name && tNorm.includes(" " + normalizarTexto(o.name) + " "));
+          if (op) {
+            state.tipos[g.id] = op.name;
+            state.tipo = state.tipo ? state.tipo + ", " + op.name : op.name;
+          }
+        }
+      }
+      promovidos++;
+      console.log("[cola] promovido: " + state.producto + " (quedan " + (state.cola || []).length + ")");
+    }
+    if (promovidos) {
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+    }
   }
 
   // 14g. Siguiente paso
@@ -5542,8 +5671,16 @@ function verificarAdiciones(
 
   const trozos = (s: string | null) => String(s || "").split(",").map(x => x.trim()).filter(Boolean);
 
+  /* LA PALABRA DE CATEGORIA DE UNA BEBIDA NO ES UNA ADICION (18-ago).
+     "un JUGO hit de litro": el HIT entra como producto y la palabra "jugo"
+     sobraba, caia aqui como adicion, no la admitia nadie y el resumen salia
+     con "⚠️ Sobre jugo: ... no esta incluido en el total" — confundiendo,
+     porque el HIT SI estaba cobrado. Son palabras de categoria, no
+     ingredientes: se descartan en silencio. */
+  const PALABRA_CATEGORIA = new Set(["jugo", "jugos", "gaseosa", "gaseosas", "bebida", "bebidas", "refresco", "soda", "botella"]);
+
   for (let i = 0; i < lineas.length; i++) {
-    const pedidas = trozos(lineas[i].adiciones);
+    const pedidas = trozos(lineas[i].adiciones).filter(a => !PALABRA_CATEGORIA.has(normalizarTexto(a)));
     if (!pedidas.length) continue;
     const suyas: string[] = [];
     for (const a of pedidas) {
