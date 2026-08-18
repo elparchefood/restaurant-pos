@@ -346,9 +346,11 @@ async function anotarBarrioNuevo(tenantId: string, branchId: string, barrio: str
     const b = String(barrio || "").trim();
     if (!b || b.length < 3 || b.length > 60) return;
     const prev = await sbGet(
-      `/pos_domi_aprendidos?branch_id=eq.${branchId}&barrio=ilike.${encodeURIComponent(b)}&select=id,veces&limit=1`
+      `/pos_domi_aprendidos?branch_id=eq.${branchId}&barrio=ilike.${encodeURIComponent(b)}&select=id,veces,descartado&limit=1`
     ) as Array<Record<string, unknown>> | null;
     const fila = prev?.[0];
+    /* Lo que el dueño marco como "no es un barrio" no vuelve a la lista. */
+    if (fila && fila.descartado === true) return;
     if (fila?.id) {
       await sbPatch(`/pos_domi_aprendidos?id=eq.${fila.id}`, {
         veces: (Number(fila.veces) || 1) + 1, updated_at: new Date().toISOString(),

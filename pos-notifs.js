@@ -117,6 +117,7 @@
         .select('id, barrio, veces, direccion, updated_at, created_at, tipo')
         .eq('tenant_id', st().tenantId)
         .eq('tipo', 'nuevo')
+        .eq('descartado', false)
         .order('veces', { ascending: false }).limit(5);
       (r.data || []).forEach(function (f) {
         var n = Number(f.veces) || 1;

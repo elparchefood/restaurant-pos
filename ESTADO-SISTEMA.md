@@ -7624,3 +7624,32 @@ resolver (entra marcado para que el dueño le ponga precio).
 ⚠️ Queda una copia del mismo bloque en TRES funciones. Es a proposito (las Edge
 Functions no comparten modulos), pero **si cambia la regla hay que cambiarla en
 delay-reply, web-acceso y web-pedido a la vez**.
+
+---
+
+## 205 — "No es un barrio": lo rechazado deja de volver (18-ago-2026)
+
+En la lista de barrios por aprobar se colaban **pedidos enteros**: "Me das una
+personal premium mixta, con adicion de salchicha" quedo guardado como un barrio
+porque el cliente escribio el pedido donde iba la direccion. El unico boton que
+habia, *Descartar*, **borra la fila** — y la frase volvia a la lista en cuanto
+otro cliente escribiera algo parecido. Una lista que se llena de basura se deja
+de mirar, y con ella se pierden los barrios de verdad.
+
+**Ahora hay dos botones distintos**, y la diferencia importa:
+
+| Boton | Que hace |
+|---|---|
+| Descartar | Borra esa propuesta. Si vuelve a pasar, vuelve a proponerse |
+| **No es un barrio** | La marca para siempre. Nunca vuelve |
+
+La marca es una columna `descartado` en `pos_domi_aprendidos`
+(`sql/2026-08-18-no-es-un-barrio.sql`, con indice parcial sobre los
+pendientes, que son los unicos que se consultan). La miran **las cuatro
+puertas**: la pantalla de aprobacion, la campana de avisos, y los dos sitios
+que aprenden barrios — `delay-reply` (conjuntos que Paco no conocia) y
+`web-acceso` (registro desde la pagina). Sin las cuatro, la frase entraria otra
+vez por el hueco que quedara.
+
+`delay-reply` v313 · `web-acceso` v19, ambas con smoke. La frase real que
+estaba colada ya quedo marcada: de 14 pendientes a 13.

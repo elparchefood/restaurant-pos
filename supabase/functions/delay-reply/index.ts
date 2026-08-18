@@ -7805,8 +7805,15 @@ async function proponerConjunto(
 ): Promise<void> {
   try {
     const yaVa = await sbGet(
-      `/rest/v1/pos_domi_aprendidos?tenant_id=eq.${tenantId}&barrio=eq.${encodeURIComponent(nombre)}&select=id,veces&limit=1`
+      `/rest/v1/pos_domi_aprendidos?tenant_id=eq.${tenantId}&barrio=eq.${encodeURIComponent(nombre)}&select=id,veces,descartado&limit=1`
     ) as Array<Record<string, unknown>> | null;
+    /* LO QUE EL DUEÑO YA DIJO QUE NO ES UN BARRIO NO VUELVE A PROPONERSE.
+       En la lista se colaban frases enteras ("Me das una personal premium
+       mixta, con adicion...") porque el cliente escribio el pedido donde iba
+       la direccion. Borrarlas no servia: al siguiente cliente que escribiera
+       algo parecido volvian. Ahora quedan marcadas y esta puerta las ignora,
+       sin contarlas siquiera. */
+    if (yaVa && yaVa.length && yaVa[0].descartado === true) return;
     if (yaVa && yaVa.length) {
       /* Ya estaba propuesto: se cuenta otra vez. Cuantas mas veces lo pidan,
          mas claro esta que hay que agregarlo. */

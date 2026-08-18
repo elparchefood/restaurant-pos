@@ -4500,7 +4500,7 @@ var _storedZonas = [];
     var bid = await cfgQrGetBranch();
     if (!bid) return;
     var r;
-    try { r = await sb.from('pos_domi_aprendidos').select('*').eq('branch_id', bid).order('veces', { ascending: false }); }
+    try { r = await sb.from('pos_domi_aprendidos').select('*').eq('branch_id', bid).eq('descartado', false).order('veces', { ascending: false }); }
     catch (e) { host.innerHTML = ''; return; }
     var items = (r && r.data) || [];
     /* La cuenta va en la fila plegada: con la fila cerrada, un "3 por aprobar"
@@ -4522,6 +4522,9 @@ var _storedZonas = [];
         '<button type="button" class="cfg-qr-btn primary domi-apr-add" data-i="' + i + '">' +
           (esCambio ? 'Actualizar precio' : 'Agregar a la tabla') + '</button>' +
         '<button type="button" class="cfg-qr-btn ghost domi-apr-del" data-i="' + i + '">Descartar</button>' +
+        (esCambio ? '' :
+          '<button type="button" class="cfg-qr-btn ghost domi-apr-no" data-i="' + i + '" ' +
+          'title="No volver a proponerlo: el cliente escribió otra cosa donde iba la dirección">No es un barrio</button>') +
       '</div>';
     };
     host.innerHTML = '<div class="domi-apr">' +
@@ -4541,6 +4544,9 @@ var _storedZonas = [];
     });
     host.querySelectorAll('.domi-apr-del').forEach(function (b) {
       b.addEventListener('click', function () { descartarAprendido(items[+b.dataset.i]); });
+    });
+    host.querySelectorAll('.domi-apr-no').forEach(function (b) {
+      b.addEventListener('click', function () { noEsUnBarrio(items[+b.dataset.i]); });
     });
   }
   // Mete el barrio en la zona de ese precio (o crea la zona si no existe).
@@ -4597,6 +4603,22 @@ var _storedZonas = [];
     window._domiAprobadosPendientes = [];
     try { cargarAprendidos(); } catch (e) {}
   };
+
+  /* "NO ES UN BARRIO" — distinto de Descartar.
+     Descartar borra la fila: la misma frase vuelve a la lista en cuanto otro
+     cliente escriba algo parecido. Esto la deja marcada para siempre, y las
+     tres puertas que aprenden barrios (el chat, la pagina y la campana) la
+     ignoran. Es lo que hacia falta para que la lista no se llene de pedidos
+     enteros escritos donde iba la direccion — y una lista llena de basura se
+     deja de mirar. */
+  async function noEsUnBarrio(x) {
+    try { await sb.from('pos_domi_aprendidos').update({ descartado: true }).eq('id', x.id); }
+    catch (e) { showToast('No se pudo guardar. Intenta de nuevo.'); return; }
+    var fila = document.querySelector('[data-aprendido="' + x.id + '"]');
+    if (fila) fila.style.display = 'none';
+    showToast('Listo: "' + String(x.barrio).slice(0, 28) + '" no volvera a proponerse.');
+    setTimeout(cargarAprendidos, 150);
+  }
 
   async function descartarAprendido(x, silencioso) {
     try { await sb.from('pos_domi_aprendidos').delete().eq('id', x.id); } catch (e) {}
