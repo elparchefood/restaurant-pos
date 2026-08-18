@@ -7494,3 +7494,65 @@ legitima ("con tocineta") sigue entrando.
 llegan partidos (el transporte reduce las barras) y se vuelven backspaces
 invisibles. Regla: anclas SIN barras invertidas, regex nuevas sin `` via
 heredoc (usar chr(92) o el Edit tool), y el desplegador ya aborta si hay 0x08.
+
+---
+
+## 202 — Los hallazgos de la auditoria del 17-ago, y tres minas mas (18-ago-2026)
+
+Segunda tanda del dia. Se cerraron los puntos 1b del plan (lo que la auditoria
+de las 20 conversaciones dejo anotado) y, persiguiendolos, aparecieron tres
+cobros equivocados que nadie habia reportado.
+
+### Lo que se venia arrastrando
+
+- **"Por nequi" quedaba cobrado del SALDO del cliente.** El lector recibe la
+  lista de metodos con sus nombres pelados; el saldo se llama *"Billetera El
+  Parche Food"*, y por llamarse billetera se llevaba cualquier "pago por
+  nequi". Ahora cada metodo va con lo que de verdad es (`Transferencia
+  (cualquier billetera digital: Nequi, Daviplata, llave, QR...)`, `Billetera
+  (SALDO PREPAGADO...)`), hay una regla explicita, y un candado deterministico
+  corrige al lector si el texto del cliente nombra una billetera digital.
+  Verificado 5 de 5: nequi · llave · QR · saldo · efectivo.
+- **Las notas se perdian.** "con POCAS salsas" no entraba porque el disparador
+  exigia "poca" y la ese del plural lo tapaba. Y el cambio del domiciliario
+  ("con un billete de 100", "no tengo sencillo") no se capturaba en ningun
+  lado — la unica queja real de esa noche. Ahora los dos llegan a la comanda.
+- **La variante ya no se cobra dos veces** (Monica R.): "maicitos especial de
+  pollo" no suma una adicion Pollo.
+
+### Las tres minas nuevas (todas cobraban de mas)
+
+1. **"Con pocas salsas" salia con una adicion Salsa de $2.000** — le cobraban
+   al cliente justo lo que pedia que le pusieran MENOS. Si delante del nombre
+   hay una palabra que resta (sin, poca, nada de, menos), es preferencia de
+   cocina, no adicion.
+2. **La variante explicada como adiciones**: "mixta personal" salio con
+   adiciones *Carne, Pollo* — $19.000 de mas. El lector explica que una mixta
+   ES carne y pollo, y esa explicacion entraba cobrada. Una opcion de variante
+   solo entra como adicion si el cliente la nombro.
+3. **El lector inventaba la variante y el tamano.** "salchipapa premium
+   personal" (sin decir sabor) salia como *Premium MIXTA* — y el sabor decide
+   el precio. Ahora, igual que las adiciones, un tamano o una variante que no
+   dejo rastro en el texto se descarta y Paco PREGUNTA.
+
+### Y dos del flujo
+
+- **"...con adicion de pollo PARA RECOGER" pedia la direccion.** El limpiador
+  de direcciones recorta en "para " y dejaba la palabra suelta *"recoger"*, que
+  ya no coincide con ninguna frase de recoger. Ahora cualquier forma suelta se
+  guarda como el canonico "Para recoger".
+- **Se perdia una linea del pedido**: en "premium de carne y UNA MIXTA
+  personal", la mixta se descartaba como si fuera el sabor de la primera. Un
+  articulo delante ("una", "otra", "dos") la vuelve plato propio; sin el
+  ("premium DE carne y un hit") sigue sin encolarse el fantasma. Ambos casos
+  verificados.
+
+### 0e — ya no existe
+
+El hueco anotado ("No" a la pregunta de variante deja a Paco callado) no se
+reprodujo: contesta *"Solo me falta este dato 😊"* y repite la pregunta, y a un
+"no se" recomienda. Se cierra sin tocar codigo.
+
+`delay-reply` v312, smoke 200, 45 conversaciones de prueba borradas.
+Bateria completa: cola de 3 platos ($61.000, 3 lineas), fantasma controlado,
+correccion, pregunta de precio, volcado x2, pagos 5/5, notas, adiciones.

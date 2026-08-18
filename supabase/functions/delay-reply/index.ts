@@ -2586,7 +2586,12 @@ INTENCION, no las palabras exactas.` },
           if (vistos.has(n)) continue;
           if (opcionesPrimero.has(n)) {
             const antes = tNormCola.slice(0, Math.max(0, tNormCola.indexOf(n)));
-            if (!CAT_PEGADA_RE.test(antes)) continue;   // es la variante del primero
+            /* Pero un ARTICULO delante lo vuelve plato propio: en "premium de
+               carne y UNA MIXTA personal" la mixta es otra salchipapa, no el
+               sabor de la primera — se perdia una linea entera del pedido. La
+               diferencia con "premium DE carne" es justo esa palabra. */
+            const ARTICULO_RE = /\b(un|una|otro|otra|dos|tres|cuatro|cinco|[0-9]+)\s+$/;
+            if (!CAT_PEGADA_RE.test(antes) && !ARTICULO_RE.test(antes)) continue;   // es la variante del primero
           }
           const r2 = resolverCategoria(m.name);
           if (!r2 || r2 === "ambiguo") continue;
@@ -3727,6 +3732,22 @@ async function pasarAHumano(
   await setTyping(convId, false);
 }
 
+/* PEDIR MENOS NO ES PEDIR MAS (pedido real, 17-ago): "una mixta CON POCAS
+   SALSAS" salia con una adicion "Salsa" de $2.000 — le cobraron al cliente por
+   justo lo que pedia que le pusieran MENOS. Si delante del nombre hay una
+   palabra que resta, eso es una preferencia de cocina, no una adicion. */
+function pideMenosDe(texto: string, nombre: string): boolean {
+  const bn = normalizarTexto(String(texto || ""));
+  const palabras = normalizarTexto(String(nombre || "")).split(/\s+/).filter(w => w.length >= 3);
+  for (const w of palabras) {
+    const i = bn.indexOf(w);
+    if (i < 0) continue;
+    const antes = bn.slice(Math.max(0, i - 30), i);
+    if (/(sin|poca|pocas|poco|pocos|poquita|poquito|nada de|menos|casi nada de)\s+(de\s+)?$/.test(antes)) return true;
+  }
+  return false;
+}
+
 // ── Preferencias de preparación ─────────────────────────────────────────────────
 // "sin ajo", "solo bbq", "poca salsa", "sin queso", "extra tocineta"...
 //
@@ -3753,7 +3774,10 @@ function extractPreferencias(text: string, cfg: Record<string, unknown>): string
     const dn = normalizarTexto(d);
     // El disparador debe ir suelto, no dentro de otra palabra: "sin" sí,
     // pero no el "sin" de "sinceramente".
-    const re = new RegExp("(^|[^a-z0-9])" + dn + "([^a-z0-9])", "g");
+    /* Con la terminacion suelta: "con POCAS salsas" no lo cogia porque exigia
+       "poca" seguido de algo que no fuera letra, y la "s" del plural lo tapaba.
+       Es la nota que se perdio en el pedido real del 17-ago. */
+    const re = new RegExp("(^|[^a-z0-9])" + dn + "[sa]?([^a-z0-9])", "g");
     let m: RegExpExecArray | null;
     while ((m = re.exec(bajo)) !== null) {
       const desde = m.index + m[1].length;
@@ -3774,6 +3798,15 @@ function extractPreferencias(text: string, cfg: Record<string, unknown>): string
     }
     if (frases.length >= 4) break;
   }
+  /* EL CAMBIO DEL DOMICILIARIO. "con un billete de 100", "tengo 50 mil",
+     "no tengo sencillo": el domiciliario tiene que salir con el cambio en la
+     mano. El 17-ago esto no llegaba a la comanda y produjo la unica queja real
+     de la noche. Es una nota del pedido, no una preferencia de cocina, pero va
+     por el mismo canal (notas de la comanda). */
+  const mBillete = bajo.match(/billetes? de ([0-9]{2,3})/);
+  if (mBillete) frases.push("cambio para billete de " + mBillete[1]);
+  else if (/no tengo sencillo|sin sencillo|no traigo sencillo/.test(bajo)) frases.push("el cliente no tiene sencillo");
+
   if (!frases.length) return null;
   // Sin repetidas y en el orden en que las dijo.
   const vistas: Record<string, boolean> = {};
@@ -3838,19 +3871,29 @@ function cfgPago(cfg: Record<string, unknown>): {
   };
 }
 
-function getMetodosPago(pagosCfg: Record<string, unknown> | null | undefined): Array<{ nombre: string; digital: boolean }> {
-  const lista = pagosCfg?.metodos as Array<{ nombre?: string; digital?: boolean }> | undefined;
+function getMetodosPago(pagosCfg: Record<string, unknown> | null | undefined): Array<{ nombre: string; digital: boolean; id: string }> {
+  const lista = pagosCfg?.metodos as Array<{ nombre?: string; digital?: boolean; id?: string }> | undefined;
   if (Array.isArray(lista) && lista.length > 0) {
     return lista
-      .map(m => ({ nombre: String(m?.nombre || "").trim(), digital: !!m?.digital }))
+      .map(m => ({ nombre: String(m?.nombre || "").trim(), digital: !!m?.digital, id: String(m?.id || "") }))
       .filter(m => m.nombre);
   }
-  const out: Array<{ nombre: string; digital: boolean }> = [];
-  if (pagosCfg?.efectivo)  out.push({ nombre: "Efectivo",  digital: false });
-  if (pagosCfg?.nequi)     out.push({ nombre: "Nequi",     digital: true });
-  if (pagosCfg?.daviplata) out.push({ nombre: "Daviplata", digital: true });
-  if (pagosCfg?.tarjeta)   out.push({ nombre: "Tarjeta",   digital: false });
+  const out: Array<{ nombre: string; digital: boolean; id: string }> = [];
+  if (pagosCfg?.efectivo)  out.push({ nombre: "Efectivo",  digital: false, id: "" });
+  if (pagosCfg?.nequi)     out.push({ nombre: "Nequi",     digital: true,  id: "" });
+  if (pagosCfg?.daviplata) out.push({ nombre: "Daviplata", digital: true,  id: "" });
+  if (pagosCfg?.tarjeta)   out.push({ nombre: "Tarjeta",   digital: false, id: "" });
   return out;
+}
+
+/* Los dos metodos INTERNOS del sistema (la billetera del cliente y sus puntos)
+   llevan el nombre del negocio: "Billetera El Parche Food". Eso los hacia ganar
+   por UNA palabra suelta — "pago por nequi" salia como "billetera el parche
+   food" (caso real de Juan Sebastian, 17-ago), y ese pago ni siquiera existe
+   como transferencia. Se reconocen por su nombre completo o por las palabras
+   que de verdad los nombran, nunca por un pedazo de la marca. */
+function esMetodoInterno(id: string): boolean {
+  return id === "__saldo" || id === "__puntos";
 }
 
 // ¿El método elegido es digital (QR + comprobante)? Decide la rama del resumen.
@@ -3868,15 +3911,39 @@ function esMetodoDigital(pago: string | null | undefined, pagosCfg: Record<strin
 function extractPago(text: string, pagosCfg: Record<string, unknown> | null | undefined): string | null {
   const t = normalizarTexto(text);
   const metodos = getMetodosPago(pagosCfg);
+  /* 0) Los INTERNOS solo por las palabras que de verdad los nombran. Va antes
+     de todo para que "con mi saldo" o "con puntos" —que no aparecen en el
+     nombre de marca— se resuelvan bien. */
+  const interno = (id: string) => metodos.find(m => m.id === id);
+  /* "billetera" NO cuenta aqui: en Colombia una billetera es Nequi o Daviplata,
+     o sea una TRANSFERENCIA. El lector traducia "por nequi" a "billetera" y
+     con eso el pago caia en el saldo del cliente. La billetera del sistema se
+     nombra con "saldo" o "monedero". */
+  if (/\b(saldo|monedero)\b/.test(t) && !/\b(nequi|daviplata|bancolombia|davivienda|transfer\w*)\b/.test(t)) {
+    const s = interno("__saldo");
+    if (s) return s.nombre.toLowerCase();
+  }
+  if (/\bpuntos?\b/.test(t)) {
+    const p = interno("__puntos");
+    if (p) return p.nombre.toLowerCase();
+  }
   // 1) Nombres configurados por el restaurante (frase completa o palabras de 4+ letras)
   for (const m of metodos) {
     const mn = normalizarTexto(m.nombre);
     if (!mn) continue;
     if (t.includes(mn)) return m.nombre.toLowerCase();
+    /* Un metodo interno NUNCA gana por una palabra suelta de la marca. */
+    if (esMetodoInterno(m.id)) continue;
     const palabras = mn.split(" ").filter(w => w.length >= 4);
     if (palabras.some(w => new RegExp(`\\b${w}\\b`).test(t))) return m.nombre.toLowerCase();
   }
-  // 2) Sinónimos generales → se mapean al método configurado equivalente
+  /* 2) Sinonimos generales -> el metodo digital configurado. Cualquier
+     billetera que nombre el cliente (nequi, daviplata, el banco, "por llave",
+     el QR) es UNA TRANSFERENCIA a la cuenta del restaurante. */
+  if (/\b(nequi|daviplata|bancolombia|davivienda|consignar|consignacion|llave|billetera|qr)\b/.test(t)) {
+    const dig = metodos.find(m => m.digital);
+    if (dig) return dig.nombre.toLowerCase();
+  }
   if (/\b(transfer(encia)?|transfe)\b/.test(t)) {
     const dig = metodos.find(m => m.digital);
     return dig ? dig.nombre.toLowerCase() : "transferencia";
@@ -4165,6 +4232,8 @@ function extractAdiciones(
   );
   const candidatas = [...adicionesReales, ...sueltas].filter(a => {
     const an = normalizarTexto(a);
+    /* "con pocas salsas" pide MENOS, no una adicion mas (ver pideMenosDe). */
+    if (pideMenosDe(text, a)) return false;
     if (yaEsPlato.has(an)) return false;
     /* Y tampoco un pedazo del nombre del plato que se está pidiendo: en "una
        salchipapa super queso", "queso" no es una adición. */
@@ -4484,7 +4553,17 @@ async function leerPedido(
   }));
   const adis = new Set<string>();
   for (const g of gruposMod) for (const o of g.options) adis.add(o.name);
-  const metodos = getMetodosPago(pagosCfg).map(m => m.nombre);
+  /* Los nombres solos engañan al lector: "Billetera El Parche Food" es el SALDO
+     PREPAGADO del cliente, pero por llamarse billetera se llevaba cualquier
+     "pago por nequi" (caso real de Juan Sebastian, 17-ago) — y ese pago
+     terminaba cobrado de un saldo que el cliente no tiene. Cada metodo va con
+     lo que de verdad es. */
+  const metodos = getMetodosPago(pagosCfg).map(m => {
+    if (m.id === "__saldo")  return `${m.nombre} (SALDO PREPAGADO que el cliente ya tiene cargado aqui)`;
+    if (m.id === "__puntos") return `${m.nombre} (pagar con sus PUNTOS de fidelidad)`;
+    if (m.digital) return `${m.nombre} (cualquier billetera digital: Nequi, Daviplata, llave, QR, consignacion)`;
+    return m.nombre;
+  });
 
   const yaHay = [
     state.producto ? `producto: ${state.producto}` : null,
@@ -4551,6 +4630,10 @@ REGLAS:
   gaseosa", "mejor el solo" -> quitar. Si dice "sin X" pero X NO está todavía en el
   pedido, no es quitar: es una preferencia de cómo lo quiere, y va fuera del JSON.
   Si dice "sin la adición" y solo lleva una, pon ESA en "quitar".
+- "pago": Nequi, Daviplata, "por llave", el QR, "te consigno", "te transfiero" son TODOS
+  el método de TRANSFERENCIA. El saldo prepagado y los puntos SOLO si el cliente los
+  nombra ("con mi saldo", "con los puntos"). Devuelve el nombre del método SIN el
+  paréntesis explicativo.
 - Usa los nombres EXACTOS de las listas de arriba. Si algo no está en las listas,
   déjalo fuera.
 
@@ -4654,18 +4737,43 @@ function validarLeido(
   /* TAMAÑO: tiene que ser una presentacion real del producto. */
   if (leido.tamano && productData?.presentations?.length) {
     const ok = extractPresentacion(String(leido.tamano), productData.presentations);
-    if (ok) out.tamano = ok;
+    /* Igual que las variantes: un tamano que no dejo rastro en el texto es
+       invento del lector, y el tamano tambien decide el precio. */
+    const toksTam = normalizarTexto(texto).split(/\s+/).filter(Boolean);
+    const tamConRastro = (nombre: string): boolean =>
+      normalizarTexto(nombre).split(/\s+/).filter(w => w.length >= 3)
+        .some(w => toksTam.some(t =>
+          t === w || t.startsWith(w) || w.startsWith(t) || (t.length > w.length && t.endsWith(w))));
+    if (ok && (tamConRastro(String(leido.tamano)) || tamConRastro(ok))) out.tamano = ok;
+    else if (ok) console.log("[lector] tamano sin rastro descartado: " + ok);
   }
 
   /* VARIANTES: cada una tiene que ser opcion de alguno de sus grupos. */
   if (Array.isArray(leido.variantes) && leido.variantes.length && productData?.variables?.length) {
+    /* COMPUERTA DE EVIDENCIA (hermana del volcado de adiciones): el lector a
+       veces se inventa la variante que el cliente nunca dijo — "salchipapa
+       premium personal" volvia "Premium MIXTA" y la variante decide el PRECIO.
+       Una variante solo entra si dejo rastro en el texto: o la palabra que el
+       lector dice que uso el cliente, o el nombre de la opcion resuelta. Se
+       tolera el pedazo (empieza-por / termina-en) para typos y plurales. */
+    const toksVar = normalizarTexto(texto).split(/\s+/).filter(Boolean);
+    const dejoRastro = (nombre: string): boolean =>
+      normalizarTexto(nombre).split(/\s+/).filter(w => w.length >= 3)
+        .some(w => toksVar.some(t =>
+          t === w || t.startsWith(w) || w.startsWith(t) || (t.length > w.length && t.endsWith(w))));
     const yaTipos: Record<string, string> = { ...(state.tipos || {}) };
     let cambio = false;
     for (const v of leido.variantes) {
       for (const g of productData.variables) {
         if (yaTipos[g.id]) continue;
         const ok = extractVariable(String(v), g.options || []);
-        if (ok) { yaTipos[g.id] = ok; cambio = true; break; }
+        if (ok) {
+          if (!dejoRastro(String(v)) && !dejoRastro(ok)) {
+            console.log("[lector] variante sin rastro descartada: " + ok);
+            continue;
+          }
+          yaTipos[g.id] = ok; cambio = true; break;
+        }
       }
     }
     if (cambio) {
@@ -4730,20 +4838,49 @@ function validarLeido(
        nombrar NINGUNA: con tres o mas, solo entran las que dejaron rastro en
        el texto. Con 1-2 se conserva la tolerancia de sinonimos
        ("papitas" -> Papas). Sin regex a proposito. */
+    const toksTexto = normalizarTexto(texto).split(" ").filter(Boolean);
+    const conRastro = (nombre: string): boolean =>
+      normalizarTexto(nombre).split(" ").filter(w => w.length >= 3)
+        .some(w => toksTexto.some(t =>
+          t === w || t.startsWith(w) || w.startsWith(t) || (t.length > w.length && t.endsWith(w))));
+
+    /* LA VARIANTE NO SE COBRA DOS VECES (pedido real 17-ago de Monica R., y
+       otra vez en las pruebas del 18: "mixta personal" salio con adiciones
+       Carne y Pollo, $19.000 de mas). El lector EXPLICA lo que significa la
+       variante —una mixta es carne y pollo— y esa explicacion entraba como
+       adiciones cobradas. Si el nombre es una opcion de variante del producto y
+       el cliente NO la nombro, no es una adicion. */
     let candidatas = reales;
+    const opcionesVar = new Set<string>();
+    for (const g of (productData?.variables || [])) {
+      for (const o of (g.options || [])) opcionesVar.add(normalizarTexto(o.name));
+    }
+    if (opcionesVar.size) {
+      const sinVariantes = candidatas.filter(r => !(opcionesVar.has(normalizarTexto(r)) && !conRastro(r)));
+      if (sinVariantes.length !== candidatas.length) {
+        console.log("[lector] adiciones que eran la variante descartadas: "
+          + candidatas.filter(r => !sinVariantes.includes(r)).join(", "));
+      }
+      candidatas = sinVariantes;
+    }
+
     if (candidatas.length >= 3) {
-      const toksTexto = normalizarTexto(texto).split(" ").filter(Boolean);
-      const conRastro = (nombre: string): boolean =>
-        normalizarTexto(nombre).split(" ").filter(w => w.length >= 3)
-          .some(w => toksTexto.some(t =>
-            t === w || t.startsWith(w) || w.startsWith(t) || (t.length > w.length && t.endsWith(w))));
       const filtradas = candidatas.filter(conRastro);
       if (filtradas.length !== candidatas.length) {
         console.log("[lector] volcado de adiciones descartado: " + candidatas.length + " -> " + filtradas.length);
       }
       candidatas = filtradas;
     }
+    /* PEDIR MENOS NO ES PEDIR MAS (pedido real, 17-ago): "una mixta CON POCAS
+       SALSAS" salio con una adicion "Salsa" de $2.000 — al cliente le cobraron
+       por algo que estaba pidiendo que le pusieran MENOS. Si justo antes del
+       nombre hay una palabra que resta ("sin", "poca", "nada de", "menos"), eso
+       es una preferencia de cocina, no una adicion. */
     const limpias = candidatas.filter(r => {
+      if (pideMenosDe(texto, r)) {
+        console.log("[lector] adicion descartada por ser un 'menos': " + r);
+        return false;
+      }
       if (nacioDeCompuesta(r)) return false;
       const rn = normalizarTexto(r);
       const esElPlatoMismo = rn === suyo || suyo.includes(rn);
@@ -4754,7 +4891,23 @@ function validarLeido(
 
   /* PAGO: tiene que ser un metodo configurado. */
   if (leido.pago && !state.pago) {
-    const ok = extractPago(String(leido.pago), pagosCfg);
+    let ok = extractPago(String(leido.pago), pagosCfg);
+    /* CANDADO: el lector puede equivocarse de METODO y ese error cobra de un
+       saldo que el cliente no tiene. Si lo que escribio el cliente nombra una
+       billetera digital, es una transferencia, diga lo que diga el lector. */
+    if (ok) {
+      const met = getMetodosPago(pagosCfg);
+      const elegido = met.find(m => normalizarTexto(m.nombre) === normalizarTexto(ok || ""));
+      const textoDigital = /\b(nequi|daviplata|bancolombia|davivienda|llave|qr|transfer\w*|consign\w*)\b/
+        .test(normalizarTexto(texto));
+      if (elegido && esMetodoInterno(elegido.id) && textoDigital) {
+        const dig = met.find(m => m.digital);
+        if (dig) {
+          console.log("[lector] pago corregido: " + ok + " -> " + dig.nombre);
+          ok = dig.nombre.toLowerCase();
+        }
+      }
+    }
     if (ok) out.pago = ok;
   }
 
@@ -5100,9 +5253,19 @@ function runExtractors(
    Solo se recorta si hay verbos de pedido — "carrera 9 para arriba" no se toca. */
 function limpiarDireccionCapturada(d: unknown): string {
   const t = String(d ?? "").trim();
+  /* LO QUE QUEDA DESPUES DE RECORTAR TIENE QUE SEGUIR SIENDO ENTENDIBLE. Con
+     "una premium con adicion de pollo PARA RECOGER" el recorte dejaba la
+     palabra suelta "recoger", que ya no coincide con ninguna frase de recoger
+     ("para recoger" si, "recoger" solo no) — y Paco le pedia la calle a quien
+     iba a pasar por el pedido. Cualquier forma de decir que recoge se guarda
+     con el mismo texto canonico. */
+  const esRecogerSuelto = (s: string) =>
+    /^(para\s+)?(recoger|recojer|llevar|recogerlo|recogerla|recogerlos|llevarlo|llevarla)[.!]?$/i.test(s.trim());
+  if (esRecogerSuelto(t)) return "Para recoger";
   if (/\b(me das|dame|quiero|quisiera|deseo|me haces|regalas|pedir|adici[oó]n)\b/i.test(t)
       && /\bpara\s+\S/i.test(t)) {
     const cola = t.replace(/^[\s\S]*\bpara\s+/i, "").trim();
+    if (esRecogerSuelto(cola)) return "Para recoger";
     if (cola.length >= 4) return cola;
   }
   return t;
