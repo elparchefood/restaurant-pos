@@ -7590,3 +7590,37 @@ delante): con el codigo viejo daba `grandes 0 · sencillo 0 · monedas 106.000`
 (el bloque 0, el primer resultado) se rompe el dia que alguien agrega otro
 igual mas arriba, y se rompe en silencio. Se identifica por etiqueta y se busca
 dentro de su contenedor.
+
+---
+
+## 204 — La pagina cobraba el domicilio con otra vara que el chat (18-ago-2026)
+
+`web-pedido` comparaba el barrio **letra por letra** contra la tabla de zonas,
+mientras Paco usa desde hace semanas el comparador tolerante. Dos verdades para
+lo mismo, y la que cobra mal es la de la pagina: cuando no encontraba el
+barrio, el pedido entraba con **domicilio en CERO** y alguien tenia que
+arreglarlo a mano.
+
+**Lo que se perdia** (medido contra la tabla real, 120 barrios + 51 conjuntos):
+
+- **Los 51 CONJUNTOS no se miraban siquiera** — el codigo leia `z.barrios` y
+  nunca `z.conjuntos`. Quien vive en Guayacanes del Rio, Luna Blanca u
+  Okavango pedia siempre con domicilio en cero.
+- **Los errores de dedo**: "bolibar" no era Bolivar.
+- **El barrio escrito DENTRO de la direccion**: "Calle 5 # 3-20 barrio
+  Bellavista" con la casilla del barrio vacia no resolvia nada. Ahora se busca
+  primero en la casilla y, si de ahi no sale, en la direccion completa.
+
+**El arreglo** es el mismo bloque de `web-acceso` —que a su vez viene de
+`delay-reply`— copiado tal cual: `normalizarTexto`, `levenshtein`,
+`fuzzyBarrioMatch` y `zonaDeTexto`, con la regla de quedarse con el nombre mas
+largo ("Bella Vista" antes que "Bella") para no cobrar la zona equivocada.
+
+`web-pedido` v15, smoke OK. Verificado corriendo el comparador ya desplegado
+contra los 171 lugares reales: Bellavista, "bella vista", "bolibar", el barrio
+dentro de la direccion y los conjuntos resuelven; un barrio inventado sigue sin
+resolver (entra marcado para que el dueño le ponga precio).
+
+⚠️ Queda una copia del mismo bloque en TRES funciones. Es a proposito (las Edge
+Functions no comparten modulos), pero **si cambia la regla hay que cambiarla en
+delay-reply, web-acceso y web-pedido a la vez**.

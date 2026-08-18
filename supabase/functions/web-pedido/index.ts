@@ -33,6 +33,133 @@ async function sha256(t: string) {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
   return btoa(String.fromCharCode(...new Uint8Array(d))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
+/* ── EL BARRIO SE COMPARA IGUAL QUE EN EL CHAT ────────────────────────────
+   Hasta hoy esta funcion comparaba el barrio LETRA POR LETRA: "bellavista"
+   no era "Bella Vista", "el recuerdo" no era "Recuerdo", y el pedido entraba
+   con domicilio en CERO aunque el barrio estuviera en la tabla desde siempre.
+   Dos verdades para lo mismo — Paco tolerante y la pagina exacta — y la que
+   cobra mal es la de la pagina. Este bloque es el MISMO de web-acceso (que a
+   su vez viene de delay-reply). Si cambia la regla, cambia en los tres.
+   ─────────────────────────────────────────────────────────────────────── */
+function normalizarTexto(s: string): string {
+  return s.toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/* Copia de delay-reply tambien: `fuzzyBarrioMatch` la usa para tolerar
+   una letra de diferencia. Sin ella la funcion reventaba en tiempo de
+   ejecucion (500) — el copiar-pegar se llevo la que llama, no la llamada. */
+function levenshtein(a: string, b: string): number {
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prevDiag = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j];
+      prev[j] = a[i - 1] === b[j - 1] ? prevDiag : 1 + Math.min(prev[j], prev[j - 1], prevDiag);
+      prevDiag = tmp;
+    }
+  }
+  return prev[b.length];
+}
+
+function fuzzyBarrioMatch(direccion: string, barrio: string): boolean {
+  const dirNorm = normalizarTexto(direccion);
+  const barNorm = normalizarTexto(barrio);
+  if (!dirNorm || !barNorm) return false;
+
+  // 1) El nombre aparece tal cual. Este camino nunca fallo y se conserva.
+  if (dirNorm.includes(barNorm)) return true;
+  const dirSinEsp = dirNorm.replace(/[ ]/g, "");
+  const barSinEsp = barNorm.replace(/[ ]/g, "");
+  if (dirSinEsp.includes(barSinEsp)) return true;
+
+  // 2) Palabras de relleno de una direccion: aparecen en casi todas y no
+  //    pueden ser las que hagan coincidir un barrio. Sin esto, "Catay"
+  //    coincidia con el "casa" de "Monteluna casa 45".
+  const RELLENO: Record<string, boolean> = {
+    calle: true, carrera: true, cra: true, kra: true, cr: true, kr: true,
+    avenida: true, av: true, transversal: true, diagonal: true, via: true,
+    casa: true, apto: true, apartamento: true, torre: true, bloque: true,
+    manzana: true, mz: true, lote: true, piso: true, interior: true,
+    barrio: true, conjunto: true, edificio: true, urbanizacion: true,
+    norte: true, sur: true, este: true, oeste: true, numero: true, no: true,
+  };
+
+  const dirWords = dirNorm.split(" ").filter(w => w && !RELLENO[w] && !/^[0-9#-]+$/.test(w));
+  const barWords = barNorm.split(" ").filter(Boolean);
+  if (!dirWords.length || !barWords.length) return false;
+
+  // 3) Un barrio de UNA palabra corta exige coincidencia exacta: con "Catay"
+  //    o "Toez" cualquier tolerancia produce falsos.
+  if (barWords.length === 1 && barSinEsp.length <= 6) {
+    return dirWords.includes(barNorm);
+  }
+
+  // 4) Tolerancia estricta: 1 letra en palabras cortas, 2 solo en largas.
+  //    Antes una palabra de 5 letras admitia 2 cambios (40% de la palabra) y
+  //    por eso "calle" pasaba por "bella".
+  const cerca = (a: string, b: string): boolean => {
+    if (a === b) return true;
+    const maxDist = b.length >= 8 ? 2 : 1;
+    return levenshtein(a, b) <= maxDist;
+  };
+
+  // Cada palabra del barrio debe encontrar SU propia palabra en la direccion:
+  // dos palabras del barrio no pueden apoyarse en la misma.
+  const usadas: Record<number, boolean> = {};
+  const todasCoinciden = barWords.every(bw => {
+    if (bw.length <= 2) {
+      const i = dirWords.findIndex((dw, k) => !usadas[k] && dw === bw);
+      if (i < 0) return false;
+      usadas[i] = true;
+      return true;
+    }
+    const i = dirWords.findIndex((dw, k) => !usadas[k] && cerca(dw, bw));
+    if (i < 0) return false;
+    usadas[i] = true;
+    return true;
+  });
+  if (todasCoinciden) return true;
+
+  // 5) Nombre largo escrito de corrido o con erratas ("bellohorizonte").
+  //    Se mantiene, pero mas estricto: 1 error cada 10 letras.
+  if (barSinEsp.length >= 10) {
+    const L = barSinEsp.length;
+    const maxDist = Math.floor(L / 10);
+    for (let i = 0; i <= dirSinEsp.length - L; i++) {
+      if (levenshtein(dirSinEsp.slice(i, i + L), barSinEsp) <= maxDist) return true;
+    }
+  }
+  return false;
+}
+
+/* Busca el barrio de la tabla que mejor case con lo que escribio el cliente.
+   Se queda con el nombre MAS LARGO — "Bella Vista" antes que "Bella" — para no
+   cobrar la zona equivocada. Misma regla que usa Paco. */
+function zonaDeTexto(domicilios: Record<string, unknown> | null, texto: string) {
+  if (!domicilios || !texto) return null;
+  const zonas = (domicilios.zonas as Array<Record<string, unknown>>) || [];
+  let mejor: { barrio: string; precio: number } | null = null;
+  for (const z of zonas) {
+    const lista = ((Array.isArray(z.barrios) ? z.barrios : []) as string[])
+      .concat((Array.isArray(z.conjuntos) ? z.conjuntos : []) as string[]);
+    for (const b of lista) {
+      if (!b) continue;
+      if (fuzzyBarrioMatch(texto, b) && (!mejor || b.length > mejor.barrio.length)) {
+        mejor = { barrio: b, precio: Number(z.precio) || 0 };
+      }
+    }
+  }
+  return mejor;
+}
+
 const norm = (s: unknown) =>
   String(s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
 
@@ -420,15 +547,12 @@ Deno.serve(async (req) => {
       // domicilio queda en cero y se muestra cuando el barrio ya se conozca.
       if (!direccion && !previo) return json({ ok: false, razon: "direccion", mensaje: "Escribe tu dirección." });
       const cfg = await sbGet(`/ia_config?branch_id=eq.${branchId}&select=domicilios&limit=1`) as Array<Record<string, unknown>> | null;
-      const zonas = ((cfg?.[0]?.domicilios || {}) as Record<string, unknown>).zonas;
-      if (Array.isArray(zonas)) {
-        for (const z of zonas as Array<Record<string, unknown>>) {
-          const bs = Array.isArray(z.barrios) ? z.barrios : [];
-          if (bs.some((x: unknown) => norm(x) === norm(barrio)) && norm(barrio)) {
-            domi = Number(z.precio) || 0; barrioConocido = true; break;
-          }
-        }
-      }
+      const domiCfg = (cfg?.[0]?.domicilios || {}) as Record<string, unknown>;
+      /* Se busca primero por lo que el cliente escribio como BARRIO y, si de
+         ahi no sale, dentro de la DIRECCION completa: mucha gente escribe el
+         barrio dentro de la direccion y deja la casilla vacia. */
+      const zona = zonaDeTexto(domiCfg, barrio) || zonaDeTexto(domiCfg, direccion);
+      if (zona) { domi = zona.precio; barrioConocido = true; }
       /* Barrio que la tabla no conoce: el pedido entra igual con domicilio en
          cero y MARCADO, para que el restaurante le ponga el valor. Rechazarlo
          sería perder la venta por un barrio mal escrito. */
