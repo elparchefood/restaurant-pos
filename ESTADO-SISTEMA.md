@@ -9086,3 +9086,55 @@ el resumen de cada prueba y **vuelve a calcular el precio contra la carta** —
 mirarlo a ojo no sirve: un plato mal cobrado se ve igual que uno bien cobrado.
 El empaque son $1.000 por pedido y no lo pagan Hamburguesas, Perros, Sandwich,
 Bebidas ni Adiciones.
+
+### 234b — Lo que aparecio despues, probando (19-ago-2026)
+
+**10. Un plato entero desaparecia del pedido** — *el peor de todos*
+"dos salchipapas mixtas FAMILIARES y una hit personal de lulo" salia con **la
+HIT sola, $15.000**: las dos salchipapas de $49.000 se perdian sin que nadie
+se enterara. `"mixtas"` no casa con `"mixta"`, asi que el buscador exacto no
+vio la salchipapa — pero SI vio la "hit", y como algo encontro, el respaldo que
+si entiende plurales (el modelo) ya no corria. Pedirla sola funcionaba
+justamente porque no encontraba nada y entraba el respaldo. El arreglo de una
+letra tampoco alcanzaba: pide nombres de 6 letras y "mixta" tiene 5. Ahora el
+buscador prueba tambien la forma plural, que es exacta y no adivina.
+
+**11. Paco negaba los combos**
+A "¿tienen combos?" contestaba **"no manejamos combos"** — y hay dos activos,
+que se venden por la pagina y por el POS. `delay-reply` no leia `pos_combos`
+**ni una sola vez**. Ahora van en la carta que Paco lee (nombre y precio) y,
+cuando alguien pide uno o pregunta cuales hay, lo atiende una persona: armar un
+combo (varios platos en una linea, con su precio y su descuento de inventario)
+sigue **pendiente**.
+
+**12. Preguntar cuatro veces lo mismo y nunca escalar**
+El tope de 4 intentos que pasa a una persona existia, pero **se reiniciaba
+entero** cuando cualquier otro dato cambiaba. Con "3 coca colas personales",
+cada respuesta llenaba otra cosa (direccion, nombre) y el contador volvia a
+cero: Paco pregunto el tamaNo cuatro veces sin parar. Ahora el campo que sigue
+vacio conserva su cuenta; los demas si se perdonan.
+
+**13. "Con adicion de tocineta" quedaba como nombre del cliente**
+La rama de varios renglones ya miraba las adiciones; la del mensaje de una sola
+linea no. **Cuatro caminos capturan nombres y cada regla hay que ponerla en
+los cuatro.**
+
+### Dos lecciones de metodo (que costaron el rato)
+
+**El arranque no es una prueba.** Mover el bloque de los combos dejo una llave
+suelta y una variable usada antes de existir: la funcion **compilaba**, la API
+decia **ACTIVE** y la llamada de humo devolvia **HTTP 200** — porque con un id
+que no existe sale por la puerta de atras antes de tocar el codigo. Paco quedo
+**mudo** y tres pruebas seguidas "pasaron". Ahora `humo.py` manda un mensaje de
+verdad y **exige respuesta**; sin ella no se sube nada.
+
+**Las barras invertidas llegan a la mitad.** Tres veces en esta sesion:
+`\d` quedo como la letra d, `\n` se volvio un salto de linea real dentro de una
+cadena, y un `\b` quedo como retroceso. En este archivo **las barras se
+construyen con `chr(92)` y los saltos con `String.fromCharCode(10)`** — nunca
+escritas a mano.
+
+### Estado final
+`delay-reply` **v319** en produccion, byte por byte igual a lo que se probo
+(comprobado descargando el cuerpo desplegado). Banco v233. **63 conversaciones
+de prueba borradas** y **cero pedidos creados** — el blindaje del banco aguanto.

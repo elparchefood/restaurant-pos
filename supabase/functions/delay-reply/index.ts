@@ -251,8 +251,22 @@ function categoriaMencionada(texto: string, cats: string[]): string | null {
 function matchProductosEnTexto(texto: string): Array<{ name: string; cat: string; pos: number }> {
   const t = " " + normalizarTexto(texto) + " ";
   const found: Array<{ name: string; cat: string; pos: number }> = [];
+  /* EN PLURAL TAMBIEN (19-ago, hallado en las pruebas). "dos salchipapas
+     MIXTAS familiares y una hit personal" salia con la HIT sola: las dos
+     salchipapas de $49.000 **desaparecian del pedido**.
+
+     El motivo: "mixtas" no casa con "mixta", asi que el buscador exacto no vio
+     la salchipapa — pero SI vio la "hit". Y como algo encontro, el respaldo
+     que si entiende plurales (el modelo) ya no corria. Pedirlo solo funcionaba
+     justamente porque no encontraba nada y entraba el respaldo.
+
+     El arreglo de una letra que hay abajo tampoco alcanzaba: pide nombres de
+     6 letras o mas y "mixta" tiene 5. Aqui va la forma plural completa, que es
+     exacta y no adivina nada. */
   for (const e of DYN_PROD_MAP) {
-    const idx = t.indexOf(" " + e.key + " ");
+    let idx = t.indexOf(" " + e.key + " ");
+    if (idx < 0) idx = t.indexOf(" " + e.key + "s ");
+    if (idx < 0) idx = t.indexOf(" " + e.key + "es ");
     if (idx >= 0) found.push({ name: e.name, cat: e.cat, pos: idx });
   }
   /* UNA LETRA DE ERROR NO CAMBIA EL PLATO (18-ago). Shirley escribio "premiun
@@ -1440,6 +1454,47 @@ INTENCION, no las palabras exactas.` },
       const k = kw.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
       return combinedLower.includes(k);
     }));
+    await cargarCombos(branchId);
+  /* ══ PIDIO UN COMBO ══════════════════════════════════════════════════════
+     Paco sabe que existen y cuanto valen (van en la carta que lee), pero no
+     sabe armarlos: un combo son varios platos en una linea, con su precio
+     propio y su propio descuento del inventario. Antes de esto contestaba
+     "no manejamos combos" — negando algo que el restaurante SI vende por la
+     pagina y por el POS, y perdiendo la venta.
+     Se le dice que si hay y lo cierra una persona. */
+  if (COMBOS_NOMBRES.length) {
+    /* Aqui todavia NO existe `clienteTexto` (se declara mas abajo): usarlo
+       tiraba la funcion entera y Paco se quedaba mudo, sin siquiera pasar la
+       conversacion a una persona. `combinedLower` es lo que hay a esta altura
+       y es el mismo texto del cliente, ya en minusculas. */
+    const tCombo = normalizarTexto(combinedLower);
+    const pedido = COMBOS_NOMBRES.find(n2 => {
+      const palabras = normalizarTexto(n2).split(" ").filter(w => w.length >= 4);
+      return palabras.length > 0 && palabras.every(w => tCombo.includes(w));
+    });
+    /* Y la pregunta suelta —"¿tienen combos?"— tambien: si no se nombra
+       ninguno en particular, se dicen los que hay. Antes contestaba que no
+       manejaba combos, que es exactamente lo contrario de la verdad. */
+    const preguntaPorCombos = !pedido && /(^|[^a-z])combos?([^a-z]|$)/i.test(tCombo);
+    if (pedido || preguntaPorCombos) {
+      const avisoCombo = pedido
+        ? `¡Claro que tenemos! 🍟 El *${pedido}* si lo manejamos. `
+          + "Dame un momento que te atiende alguien del local para armartelo 🙏"
+        : "¡Claro que sí! 🍟 Tenemos: "
+          + COMBOS_NOMBRES.map(n2 => "*" + n2 + "*").join(" y ")
+          + ". Dame un momento que te atiende alguien del local para armartelo 🙏";
+      await sendWaAndSave(convId, tenantId, avisoCombo, fromPhone, phoneId, accessToken);
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+        human_takeover: true, handoff_motivo: "pidio un combo (" + (pedido || "pregunto cuales hay") + ")",
+        handoff_at: new Date().toISOString(),
+        last_message: avisoCombo, last_message_at: new Date().toISOString(),
+        last_sender: "agent", last_read: false, ai_typing: false,
+      });
+      console.log("[combo] " + (pedido || "pregunta general") + " -> a una persona");
+      return;
+    }
+    }
+
     if (wantsMenu) {
       /* LA CARTA SE SUBE A META UNA VEZ Y SE REUTILIZA EL ID.
 
@@ -4779,6 +4834,17 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
   if (t.includes("?") || t.includes("¿")) return null;                   // preguntas no son nombres
   if (extractPago(t, null)) return null;
   if (isProductAttribute(t, productData)) return null;
+  /* UNA ADICION NO ES UN NOMBRE (19-ago, hallado en las pruebas). Justo cuando
+     Paco preguntaba el nombre, el cliente escribio "Con adicion de tocineta" y
+     el pedido quedo a nombre de eso — asi habria salido la comanda. La rama
+     de varios renglones ya miraba las adiciones; esta, la del mensaje de una
+     sola linea, no. Cuatro caminos capturan nombres y cada regla hay que
+     ponerla en todos. */
+  {
+    const tn = normalizarTexto(t);
+    if (getAdicionKeywords().some(k => k.length >= 4 &&
+        (tn === k || tn.includes(" " + k) || tn.startsWith(k + " ")))) return null;
+  }
   if (CALLE_REGEX.test(t) || LLEVAR_REGEX.test(t)) return null;
   if (/^\d+$/.test(t)) return null;
   // Un lugar tampoco pasa por la via del marcador ("es para Ciudad Jardín").
@@ -4886,6 +4952,9 @@ type PedidoLeido = {
      "mejor sin la adición" el bot no tenía forma de entender que había que
      sacar algo, y lo guardaba como una preferencia del plato. */
   quitar?: string[];
+  /* Lo que va ENCIMA de otro plato (no un plato aparte). El lector ya lo
+     devolvia; faltaba declararlo aqui. */
+  agregados?: string[];
 };
 
 async function leerPedido(
@@ -8091,6 +8160,27 @@ function lookupDomiPrice(direccion: string, domicilios: Record<string, unknown> 
 
 // ── buildMenuText ─────────────────────────────────────────────────────────────
 
+/* Los combos de esta sede, para saber cuando el cliente esta pidiendo uno.
+   Se llena al armar la carta, que ya corre en cada mensaje. */
+let COMBOS_NOMBRES: string[] = [];
+let COMBOS_SEDE = "";
+
+/* Los combos de la sede. Va aparte de la carta porque la rama que MANDA la
+   carta corre antes de armarla: "¿tienen combos?" entraba por ahi y se iba sin
+   que Paco supiera siquiera que existen. */
+async function cargarCombos(branchId: string): Promise<void> {
+  if (COMBOS_SEDE === branchId) return;
+  try {
+    const combos = await sbGet(
+      `/rest/v1/pos_combos?branch_id=eq.${branchId}&active=eq.true&select=name`
+    ) as Array<Record<string, unknown>> | null;
+    COMBOS_NOMBRES = (combos || []).map(c => String(c.name || "")).filter(Boolean);
+    COMBOS_SEDE = branchId;
+  } catch (err) {
+    console.error("[combo] no se pudieron cargar:", err);
+  }
+}
+
 async function buildMenuText(branchId: string): Promise<string> {
   const rows = await sbGet(
     `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true` +
@@ -8104,6 +8194,41 @@ async function buildMenuText(branchId: string): Promise<string> {
     byCategory[cat].push(p);
   }
   const lines: string[] = ["CARTA DEL RESTAURANTE (productos disponibles):"];
+
+  /* ══ LOS COMBOS EXISTEN (19-ago, hallado en las pruebas) ══════════════════
+     A "¿tienen combos?" Paco contestaba **"no manejamos combos"** — y el
+     restaurante tiene dos activos, que se venden por la pagina de clientes y
+     por el POS. Negar un producto que si existe es peor que no saberlo: el
+     cliente se va convencido de que no lo hay.
+
+     Paco todavia NO sabe armar un combo (son varios platos en una linea, con
+     su propio precio y su propio descuento del inventario), asi que aqui solo
+     se le dice que existen y cuanto valen. Cuando alguien pida uno, el bloque
+     de pedir combo lo pasa a una persona: se vende, pero lo cierra alguien que
+     sepa. Armarlo entero queda pendiente. */
+  try {
+    const combos = await sbGet(
+      `/rest/v1/pos_combos?branch_id=eq.${branchId}&active=eq.true&select=name,price,description,items`
+    ) as Array<Record<string, unknown>> | null;
+    if (combos && combos.length) {
+      lines.push(String.fromCharCode(10) + "[COMBOS]");
+      for (const c of combos) {
+        const dentro = (Array.isArray(c.items) ? c.items as Array<Record<string, unknown>> : [])
+          .map(x => {
+            const n2 = Number(x.cantidad) || 1;
+            return (n2 > 1 ? n2 + "x " : "") + String(x.nombre || "");
+          }).filter(Boolean).join(" + ");
+        let l = `- ${String(c.name)}: ${fmtPrice(Number(c.price) || 0)}`;
+        const desc = String(c.description || "") || dentro;
+        if (desc) l += ` — ${desc}`;
+        lines.push(l);
+      }
+      lines.push("(Los combos SI existen. Si el cliente pide uno, pasalo a una persona.)");
+      COMBOS_NOMBRES = combos.map(c => String(c.name || "")).filter(Boolean);
+    }
+  } catch (err) {
+    console.error("[carta] combos:", err);
+  }
   for (const [cat, items] of Object.entries(byCategory)) {
     lines.push(`\n[${cat.toUpperCase()}]`);
     for (const item of items) {
