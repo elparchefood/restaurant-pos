@@ -8771,3 +8771,46 @@ apruebe.
 ⚠️ El nombre `codigo_acceso` quedo quemado: Meta bloquea un tiempo el nombre de
 una plantilla borrada, y en las pruebas se borro una con ese nombre. Por eso el
 sistema espera **`acceso_codigo`**.
+
+---
+
+## 229 — El barrio se resuelve en el aviso (19-ago-2026)
+
+Sergio: *"al tocar la notificacion me lleva a la configuracion de barrios a
+llenarlo directamente en la lista y eso no debe suceder... deberia aparecerme un
+modal ya"*. Tenia razon: para poner UN numero eran cinco pasos — abrir
+Configuracion, buscar la fila, desplegarla, decidir a que zona pertenece y
+escribir el barrio a mano dentro de un cuadro de texto de otra zona.
+
+Ahora el aviso abre un modal ahi mismo: se ve el barrio, **la direccion que
+escribio el cliente** (hay nombres de conjunto que solos no dicen donde quedan),
+se pone el precio y queda guardado. Con los precios que ya usa a un toque —casi
+siempre el barrio nuevo cuesta lo mismo que alguno que ya tiene— y con el boton
+de "No es un barrio" para lo que se colo donde iba la direccion.
+
+### Lo que hace al guardar
+
+Escribe sobre los DATOS (`ia_config.domicilios.zonas`), no sobre los cuadros de
+texto de la pantalla de Configuracion, que era lo que hacia la version vieja:
+
+- Si el precio ya existe, entra a esa zona; si no, **se crea la zona**.
+- Un **conjunto** va a `conjuntos` y no a `barrios`: el asistente los trata
+  distinto (a un conjunto no le pide calle, le pide la casa).
+- Si el barrio ya estaba en otra zona, **se saca de la anterior** — dos precios
+  para el mismo barrio es cobrar distinto segun quien mire.
+- Se guarda el objeto `domicilios` ENTERO: es una sola columna jsonb, y escribir
+  solo las zonas se llevaria por delante el tiempo estimado, las copias del
+  recibo y si esta activo.
+- Y el pendiente se borra, asi que el aviso desaparece solo.
+
+### Verificado
+
+La logica corrida en un navegador contra las zonas reales de El Parche:
+
+| Caso | Resultado |
+|---|---|
+| Precio que ya existe (6.000) | entra a esa zona, junto a San Nicolas y La Paz |
+| Precio que no existe (15.000) | crea la zona y queda ordenada al final |
+| Un conjunto | va a `conjuntos`, no se mezcla con los barrios |
+| Barrio que ya estaba en otra zona | sale de la vieja, queda solo en la nueva |
+| El resto de la configuracion | intacta (activo, tiempo, copias) |

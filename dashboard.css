@@ -248,3 +248,69 @@
 ::-webkit-scrollbar-thumb { background: #DDE3EC; border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: #CBD5E1; }
 * { scrollbar-width: thin; scrollbar-color: #DDE3EC transparent; }
+
+/* ── El barrio se resuelve en el aviso ────────────────────────────────
+   Antes tocar el aviso llevaba a Configuración → Domicilios a buscar la fila y
+   escribir el barrio a mano dentro de un cuadro de texto: cinco pasos y otra
+   pantalla para poner un número. */
+.ntf-cap {
+  position: fixed; inset: 0; z-index: 1200; display: flex;
+  align-items: center; justify-content: center; padding: 20px;
+  background: rgba(15,23,42,.45);
+}
+.ntf-modal {
+  width: 100%; max-width: 420px; background: #fff; color: #0F172A;
+  border-radius: 18px; padding: 20px; box-shadow: 0 24px 60px rgba(0,0,0,.25);
+}
+.ntf-modal-hd { display: flex; align-items: flex-start; gap: 12px; }
+.ntf-modal-t { font-size: 18px; font-weight: 800; letter-spacing: -.01em; }
+.ntf-modal-s { font-size: 12.5px; color: #64748B; margin-top: 2px; }
+.ntf-x {
+  margin-left: auto; flex: none; width: 30px; height: 30px; border-radius: 9px;
+  border: 0; background: #F1F5F9; color: #64748B; cursor: pointer; font-size: 14px;
+}
+.ntf-x:hover { background: #E2E8F0; }
+/* La dirección que escribió el cliente: hay nombres de conjunto que solos no
+   dicen dónde quedan, y con la dirección se ubica de una. */
+.ntf-modal-dir {
+  margin-top: 14px; padding: 10px 12px; border-radius: 11px;
+  background: #F8FAFC; border: 1px solid #E2E8F0;
+}
+.ntf-modal-dir span { display: block; font-size: 11px; color: #94A3B8; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .05em; }
+.ntf-modal-dir b { display: block; font-size: 13.5px; margin-top: 2px; }
+.ntf-modal-lb { display: block; margin-top: 16px; font-size: 13px; font-weight: 600; }
+.ntf-modal-money {
+  display: flex; align-items: center; gap: 6px; margin-top: 7px;
+  border: 1.5px solid #CBD5E1; border-radius: 12px; padding: 0 12px;
+}
+.ntf-modal-money:focus-within { border-color: #5B6BFF; }
+.ntf-modal-money span { color: #94A3B8; font-weight: 700; }
+.ntf-modal-money input {
+  flex: 1; border: 0; outline: none; padding: 12px 0; font: inherit; font-size: 19px;
+  font-weight: 700; font-variant-numeric: tabular-nums; background: none; color: inherit;
+}
+/* Guardar en cero sería regalar el domicilio de ese barrio en cada pedido. */
+.ntf-modal-money input.malo { color: #DC2626; }
+.ntf-modal-sug { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.ntf-modal-sug > span { font-size: 11.5px; color: #94A3B8; }
+.ntf-chip {
+  border: 1px solid #CBD5E1; background: #fff; color: #334155; border-radius: 999px;
+  padding: 4px 11px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.ntf-chip:hover { border-color: #5B6BFF; color: #4453d6; background: #EEF2FF; }
+.ntf-modal-pie { display: flex; gap: 8px; margin-top: 18px; }
+.ntf-btn-no {
+  flex: none; padding: 11px 14px; border-radius: 11px; cursor: pointer;
+  border: 1px solid #E2E8F0; background: #fff; color: #64748B;
+  font: inherit; font-size: 13px; font-weight: 600;
+}
+.ntf-btn-no:hover { border-color: #CBD5E1; color: #334155; }
+.ntf-btn-ok {
+  flex: 1; padding: 11px 14px; border-radius: 11px; cursor: pointer; border: 0;
+  background: #5B6BFF; color: #fff; font: inherit; font-size: 14px; font-weight: 700;
+}
+.ntf-btn-ok:hover { background: #4453d6; }
+.ntf-btn-ok:disabled { opacity: .6; cursor: default; }
+.ntf-modal-nota { margin-top: 11px; font-size: 11.5px; color: #94A3B8; text-align: center; }

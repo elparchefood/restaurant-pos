@@ -137,9 +137,11 @@
           sub: (n > 1 ? n + ' clientes lo han escrito' : 'Un cliente lo escribio')
                + ' · hoy se cobra en $0',
           cuando: f.updated_at || f.created_at,
-          /* Se llega a la fila ABIERTA y con el bloque a la vista: el enlace
-             viejo (#domicilios) no hacia nada y aterrizaba en otra pantalla. */
-          ir: 'configuracion.html?s=chatia&tab=pedido&acc=p-domi&ver=domiAprendidos',
+          /* SE RESUELVE AQUI MISMO (19-ago, Sergio). Antes esto llevaba a
+             Configuracion → Domicilios a buscar la fila, decidir a que zona
+             pertenecia y escribir el barrio a mano dentro de un cuadro de
+             texto: cinco pasos y otra pantalla para poner UN numero. */
+          barrio: f,
           urgente: true,
         });
       });
@@ -198,7 +200,8 @@
     function fila(i) {
       var tint = TINTE[i.tipo] || TINTE.paso;
       var nuevo = vist.indexOf(i.id) < 0;
-      return '<button class="ntf-item' + (nuevo ? ' nuevo' : '') + (i.urgente ? ' urgente' : '') + '" data-ir="' + esc(i.ir || '') + '">'
+      return '<button class="ntf-item' + (nuevo ? ' nuevo' : '') + (i.urgente ? ' urgente' : '') + '"'
+        + ' data-id="' + esc(i.id) + '" data-ir="' + esc(i.ir || '') + '">'
         + '<span class="ntf-ico" style="background:' + tint[0] + ';color:' + tint[1] + '">' + (ICO[i.tipo] || ICO.paso) + '</span>'
         + '<span class="ntf-tx"><span class="ntf-t">' + esc(i.titulo) + '</span>'
         + '<span class="ntf-s">' + esc(i.sub || '') + (i.cuando ? ' · ' + hace(i.cuando) : '') + '</span></span>'
@@ -215,11 +218,183 @@
       h += resto.map(fila).join('');
     }
     panel.innerHTML = h;
-    panel.querySelectorAll('.ntf-item[data-ir]').forEach(function (b) {
+    panel.querySelectorAll('.ntf-item').forEach(function (b) {
       b.addEventListener('click', function () {
+        var it = items.filter(function (x) { return x.id === b.dataset.id; })[0];
+        /* El barrio se resuelve en un modal aqui mismo; los demas avisos siguen
+           llevando a su pantalla. */
+        if (it && it.barrio) { cerrarPanel(); modalBarrio(it.barrio); return; }
         if (b.dataset.ir) w.location.href = b.dataset.ir;
       });
     });
+  }
+
+  /* ══ EL BARRIO SE RESUELVE EN EL AVISO ═══════════════════════════════════
+     Pedido de Sergio (19-ago): tocar el aviso abría Configuración → Domicilios
+     y tocaba buscar la fila, decidir a qué zona pertenecía y escribir el barrio
+     a mano dentro de un cuadro de texto. Cinco pasos y otra pantalla para poner
+     un número.
+
+     Ahora se resuelve donde apareció: se confirma el lugar, se pone el precio,
+     y el barrio queda guardado en su zona — la misma tabla que consulta el
+     asistente y la página de clientes. Si el precio ya existe entra a esa zona;
+     si no, se crea. Es exactamente lo que hacía la pantalla de Configuración,
+     pero sobre los datos y no sobre los cuadros de texto. */
+  function modalBarrio(f) {
+    var viejo = document.getElementById('ntf-barrio-cap');
+    if (viejo) viejo.remove();
+
+    var cap = document.createElement('div');
+    cap.id = 'ntf-barrio-cap';
+    cap.className = 'ntf-cap';
+    cap.innerHTML =
+      '<div class="ntf-modal" role="dialog" aria-modal="true" aria-label="Precio del domicilio">' +
+        '<div class="ntf-modal-hd">' +
+          '<div>' +
+            '<div class="ntf-modal-t">' + esc(f.barrio || '') + '</div>' +
+            '<div class="ntf-modal-s">Un cliente guardó esta dirección en tu página' +
+              (Number(f.veces) > 1 ? ' · ' + f.veces + ' veces' : '') + '</div>' +
+          '</div>' +
+          '<button class="ntf-x" type="button" data-cerrar aria-label="Cerrar">✕</button>' +
+        '</div>' +
+
+        (f.direccion
+          ? '<div class="ntf-modal-dir"><span>Dirección que escribió</span><b>' + esc(f.direccion) + '</b></div>'
+          : '') +
+
+        '<label class="ntf-modal-lb" for="ntf-precio">¿Cuánto cobras el domicilio hasta ahí?</label>' +
+        '<div class="ntf-modal-money">' +
+          '<span>$</span>' +
+          '<input type="number" id="ntf-precio" min="0" step="500" inputmode="numeric" placeholder="0" autocomplete="off">' +
+        '</div>' +
+        /* Los precios que ya usa, de un toque: casi siempre el barrio nuevo
+           cuesta lo mismo que alguno que ya tiene. */
+        '<div class="ntf-modal-sug" id="ntf-sug"></div>' +
+
+        '<div class="ntf-modal-pie">' +
+          '<button class="ntf-btn-no" type="button" data-no>No es un barrio</button>' +
+          '<button class="ntf-btn-ok" type="button" data-ok>Guardar</button>' +
+        '</div>' +
+        '<div class="ntf-modal-nota">Queda guardado en tu tabla de zonas: lo van a usar la página y el asistente.</div>' +
+      '</div>';
+    document.body.appendChild(cap);
+
+    var input = cap.querySelector('#ntf-precio');
+    setTimeout(function () { if (input) input.focus(); }, 40);
+
+    /* Los precios que ya tiene, para no hacerle escribir lo que ya existe. */
+    zonasDe().then(function (zonas) {
+      var sug = cap.querySelector('#ntf-sug');
+      if (!sug || !zonas.length) return;
+      sug.innerHTML = '<span>Los que ya usas:</span>' + zonas
+        .map(function (z) { return Number(z.precio) || 0; })
+        .filter(function (p, i, a) { return p > 0 && a.indexOf(p) === i; })
+        .sort(function (a, b) { return a - b; })
+        .map(function (p) { return '<button type="button" class="ntf-chip" data-p="' + p + '">' + money(p) + '</button>'; })
+        .join('');
+      sug.querySelectorAll('.ntf-chip').forEach(function (c) {
+        c.onclick = function () { input.value = c.dataset.p; input.focus(); };
+      });
+    });
+
+    function fuera() { cap.remove(); document.removeEventListener('keydown', tecla); }
+    function tecla(ev) { if (ev.key === 'Escape') fuera(); }
+    document.addEventListener('keydown', tecla);
+    cap.addEventListener('click', function (ev) { if (ev.target === cap) fuera(); });
+    cap.querySelector('[data-cerrar]').onclick = fuera;
+
+    cap.querySelector('[data-no]').onclick = async function () {
+      /* "No es un barrio" es para lo que el cliente escribió donde iba la
+         dirección ("me das una personal mixta..."). Se marca descartado y no
+         vuelve a proponerse nunca. */
+      var s = sb(); if (!s) return;
+      await s.from('pos_domi_aprendidos').update({ descartado: true }).eq('id', f.id);
+      fuera(); cargar();
+    };
+
+    cap.querySelector('[data-ok]').onclick = async function () {
+      var p = Number(input.value);
+      if (!isFinite(p) || p <= 0) {
+        input.classList.add('malo');
+        input.focus();
+        setTimeout(function () { input.classList.remove('malo'); }, 1200);
+        return;
+      }
+      var btn = this;
+      btn.disabled = true; btn.textContent = 'Guardando…';
+      var ok = await guardarBarrio(f, p);
+      if (!ok) { btn.disabled = false; btn.textContent = 'Guardar'; return; }
+      fuera();
+      cargar();
+    };
+  }
+
+  /* Las zonas tal como están hoy. */
+  async function zonasDe() {
+    var s = sb(); if (!s || !st().branchId) return [];
+    try {
+      var r = await s.from('ia_config').select('domicilios').eq('branch_id', st().branchId).maybeSingle();
+      var d = (r.data && r.data.domicilios) || {};
+      return Array.isArray(d.zonas) ? d.zonas : [];
+    } catch (e) { return []; }
+  }
+
+  /* Mete el barrio en la zona de ese precio (la crea si no existe) y borra el
+     pendiente. Se guarda TODO el objeto `domicilios` de vuelta porque es una
+     sola columna jsonb: escribir solo las zonas borraría el resto (el tiempo
+     estimado, las copias del recibo, si está activo). */
+  async function guardarBarrio(f, precio) {
+    var s = sb(); if (!s || !st().branchId) return false;
+    try {
+      var r = await s.from('ia_config').select('domicilios').eq('branch_id', st().branchId).maybeSingle();
+      var dom = (r.data && r.data.domicilios) || {};
+      var zonas = Array.isArray(dom.zonas) ? dom.zonas.slice() : [];
+      var nombre = String(f.barrio || '').trim();
+      if (!nombre) return false;
+
+      /* Un conjunto va en su lista, no entre los barrios: el asistente los
+         trata distinto (a un conjunto no le pide calle, le pide la casa). */
+      var campo = (f.tipo === 'conjunto') ? 'conjuntos' : 'barrios';
+
+      /* Si ya estaba en otra zona con otro precio, se saca: dos precios para el
+         mismo barrio es cobrar distinto según quién mire. */
+      zonas = zonas.map(function (z) {
+        var c = Object.assign({}, z);
+        ['barrios', 'conjuntos'].forEach(function (k) {
+          if (!Array.isArray(c[k])) return;
+          c[k] = c[k].filter(function (b) {
+            return String(b).trim().toLowerCase() !== nombre.toLowerCase();
+          });
+        });
+        return c;
+      });
+
+      var zona = zonas.filter(function (z) { return Number(z.precio) === precio; })[0];
+      if (!zona) { zona = { precio: precio, barrios: [], conjuntos: [] }; zonas.push(zona); }
+      if (!Array.isArray(zona[campo])) zona[campo] = [];
+      zona[campo].push(nombre);
+      zonas.sort(function (a, b) { return (Number(a.precio) || 0) - (Number(b.precio) || 0); });
+
+      dom.zonas = zonas;
+      var up = await s.from('ia_config').update({ domicilios: dom }).eq('branch_id', st().branchId).select('id');
+      if (up.error || !up.data || !up.data.length) {
+        alert('No se pudo guardar: ' + ((up.error && up.error.message) || 'sin permisos'));
+        return false;
+      }
+      /* Ya tiene precio: sale de la lista de pendientes. */
+      await s.from('pos_domi_aprendidos').delete().eq('id', f.id);
+      return true;
+    } catch (e) {
+      console.error('[notifs] guardar barrio:', e);
+      alert('No se pudo guardar: ' + (e.message || e));
+      return false;
+    }
+  }
+
+  /* Cerrar el buzon sin duplicar la logica del interruptor: al abrir el modal
+     del barrio, dejar el panel abierto detras es ruido encima de ruido. */
+  function cerrarPanel() {
+    if (abierta) alternar();
   }
 
   function badge(n) {
