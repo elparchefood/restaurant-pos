@@ -146,7 +146,11 @@ async function canalWhatsApp(tenantId: string) {
    si lleva la advertencia de no compartirlo, el aviso de vencimiento y el boton
    de copiar. Por eso el mensaje no queda palabra por palabra igual al nuestro:
    dice lo mismo, con las palabras de Meta. */
-const PLANTILLA_CODIGO = "codigo_acceso";
+/* El nombre que Meta le puso a la plantilla. Se cambio a "acceso_codigo"
+   porque el nombre anterior quedo quemado: Meta bloquea por un tiempo el
+   nombre de una plantilla borrada, y en las pruebas se borro una con ese
+   nombre. Si algun dia se crea con otro nombre, se cambia aqui. */
+const PLANTILLA_CODIGO = "acceso_codigo";
 
 async function mandarCodigo(tenantId: string, telefono: string, codigo: string, negocio: string) {
   const wa = await canalWhatsApp(tenantId);

@@ -8713,3 +8713,61 @@ solo el pedido— lo que faltaba era DECIRLO:
 `Lomas de San Benito` entro con `origen = web` (la marca nueva funciona), precio
 0 y su direccion; el pedido quedo con `total 16.000` y `delivery_fee 0`, o sea
 cobrandole solo la comida.
+
+---
+
+## 228 — La verificacion de Meta, y el rodeo que no habia que dar (19-ago-2026)
+
+Para que el codigo de registro le llegue a quien NUNCA le ha escrito al negocio
+hace falta una plantilla de categoria AUTENTICACION, y esa categoria estaba
+bloqueada. Meta lo dijo con todas las letras al preguntarle por el estado de la
+cuenta (`health_status`):
+
+```
+WABA ..... AVAILABLE      APP ...... AVAILABLE
+BUSINESS . LIMITED   ->   141010: "The Business has not passed business verification"
+```
+
+### Lo que se probo antes de entenderlo
+
+Once caminos, todos con el mismo resultado: la plantilla de autenticacion en 8
+versiones de la API, con y sin boton, dejando que Meta recategorizara, desde la
+biblioteca de plantillas. Y el codigo metido en una plantilla de UTILIDAD —
+esa se creo y **Meta la rechazo sola** con motivo `INCORRECT_CATEGORY`, que es
+Meta diciendo que un codigo solo puede ir en autenticacion. De control, una
+plantilla de utilidad normal se creo sin problema en el mismo minuto: crear
+plantillas siempre funciono, lo bloqueado era esa categoria.
+
+### El rodeo (para no repetirlo)
+
+Se buscó un documento que uniera el nombre del negocio con el telefono, porque
+el primer rechazo decia eso. Se reviso el RUT (persona natural, con el telefono
+correcto pero no es un tipo aceptado), la factura de Claro Hogar (sin ningun
+telefono del cliente), la nota credito de Tigo/UNE (sin el numero, factura por
+contrato) y el extracto de Nequi (el numero SI aparece, pero como numero de
+cuenta). **Nada de eso hacia falta.**
+
+El camino corto era el que Meta ofrece de entrada: en la verificacion, elegir el
+**registro publico** del negocio. Ahi ya estaban el nombre, la direccion y la
+identificacion fiscal validados contra la fuente oficial, y lo unico pendiente
+era confirmar que Sergio es esa persona — se resolvio con un codigo al correo,
+sin subir un solo documento.
+
+Leccion, y es de metodo: cuando un formulario ofrece varios caminos, **mirar los
+que ofrece ANTES de resolver el que fallo**. Se gastaron dos horas persiguiendo
+un documento para un requisito que el camino corto ni siquiera pide.
+
+### Estado
+
+`pending_need_more_info` → **`pending`** (en revision). Al aprobar cae el error
+141010 y se puede crear la plantilla.
+
+`wa-plantillas` ya entiende la categoria AUTENTICACION (que no es una plantilla
+normal: Meta escribe el texto y solo se elige la advertencia de seguridad, los
+minutos de vencimiento y el boton de copiar), y `web-acceso` ya intenta la
+plantilla `acceso_codigo` antes de caer al texto plano. Falta solo que Meta
+apruebe.
+
+⚠️ El nombre `codigo_acceso` quedo quemado: Meta bloquea un tiempo el nombre de
+una plantilla borrada, y en las pruebas se borro una con ese nombre. Por eso el
+sistema espera **`acceso_codigo`**.
