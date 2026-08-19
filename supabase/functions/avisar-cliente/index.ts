@@ -66,9 +66,12 @@ function textoPedido(estado: string, esDomicilio: boolean, negocio: string) {
    hace que la proxima recarga sea mas grande, y en la notificacion es donde
    mas se ve. Sin bono no se menciona: un "+$0 de regalo" es peor que nada. */
 function textoRecarga(monto: number, bono: number, saldo: number) {
+  /* La frase del final la escogio Sergio de una lista de diez (19-ago). Corta
+     a proposito: en el celular la notificacion se corta a las dos lineas, y las
+     largas quedaban con puntos suspensivos en algunos telefonos. */
   const cuerpo = bono > 0
-    ? `Recargaste ${cop(monto)} y te regalamos ${cop(bono)}. Tienes ${cop(saldo)} listos: pide sin sacar la tarjeta 🍟`
-    : `Recargaste ${cop(monto)}. Tienes ${cop(saldo)} listos: pide sin sacar la tarjeta 🍟`;
+    ? `Recargaste ${cop(monto)} y te regalamos ${cop(bono)}. Tienes ${cop(saldo)} — ahora sí, a pedir 🍟`
+    : `Recargaste ${cop(monto)}. Tienes ${cop(saldo)} — ahora sí, a pedir 🍟`;
   return { titulo: "¡Recarga lista! 🎉", cuerpo };
 }
 

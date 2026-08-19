@@ -8432,6 +8432,10 @@ QUE paso. `avisar-pedido` se borro.
    Tienes $55.000 listos: pide sin sacar la tarjeta 🍟
 ```
 
+La frase del final la escogio Sergio de una lista de diez. Se descarto la
+primera que escribi ("pide sin sacar la tarjeta"): las frases del producto son
+decision suya, no mia.
+
 El bono se menciona **solo si existe**: un "+$0 de regalo" es peor que no decir
 nada. Y la etiqueta es fija (`recarga`), asi que dos recargas seguidas no dejan
 dos avisos — vale el ultimo, que trae el saldo bueno.
