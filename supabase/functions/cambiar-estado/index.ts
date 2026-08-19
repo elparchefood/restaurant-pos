@@ -79,10 +79,10 @@ Deno.serve(async (req: Request) => {
        Es best-effort y no se espera: si el aviso falla, el cambio de estado ya
        quedo guardado, que es lo que de verdad importa. */
     try {
-      fetch(`${SUPABASE_URL}/functions/v1/avisar-pedido`, {
+      fetch(`${SUPABASE_URL}/functions/v1/avisar-cliente`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ order_id, estado }),
+        body: JSON.stringify({ tipo: "pedido", order_id, estado }),
       }).catch(() => {});
     } catch (_e) { /* nunca bloquea el cambio de estado */ }
 

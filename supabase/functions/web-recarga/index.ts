@@ -278,6 +278,22 @@ Deno.serve(async (req) => {
         mensaje: String(r0?.motivo || "No pudimos acreditar esa recarga. Escríbenos y lo revisamos.") });
     }
 
+    /* EL AVISO AL CELULAR (19-ago, pedido de Sergio). Va aqui, con el
+       resultado ya en la mano: la funcion de la base devuelve lo acreditado,
+       el bono y el saldo, que es justo lo que dice el aviso. Best-effort y sin
+       esperar: si el aviso falla, la plata ya quedo acreditada, que es lo que
+       de verdad importa. */
+    try {
+      fetch(`${SUPABASE_URL}/functions/v1/avisar-cliente`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tipo: "recarga", cliente_id: clienteId,
+          monto, bono: Number(r0.bono || 0), saldo: Number(r0.saldo || 0),
+        }),
+      }).catch(() => {});
+    } catch (_e) { /* nunca bloquea la recarga */ }
+
     return json({
       ok: true, monto, bono: Number(r0.bono || 0), saldo: Number(r0.saldo || 0),
       descuadre: descuadre ? dicho : null,

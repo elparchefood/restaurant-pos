@@ -8407,3 +8407,53 @@ nadie ha aceptado todavia. Ahora al menos hay por donde aceptar.
 ⚠️ Y una nota para el futuro: la pagina se cachea por hora (`?v=AAAAMMDDHH`), asi
 que un cambio recien publicado puede tardar hasta 60 minutos en llegarle a quien
 ya tenia la app abierta. Al probar algo recien subido, recargar.
+
+---
+
+## 221 — Avisos de recarga, y una sola casa para todos (19-ago-2026)
+
+Sergio pidio el segundo tipo de aviso antes de estrenar el primero: **recarga
+acreditada**, con el monto, el bono y una frase que invite a pedir.
+
+### Se unificaron en `avisar-cliente`
+
+`avisar-pedido` nacio hace dos horas y ya hacia falta otro. Con dos funciones, el
+dia que cambie el formato del envio o se agregue una regla (no molestar de
+madrugada, apagar avisos por cliente) habria que acordarse de tocar las dos —
+y una se queda atras, que es el error de forma que mas caro sale aqui. Ahora hay
+UNA que recibe `tipo` y es dueña de todos los textos; quien la llama solo dice
+QUE paso. `avisar-pedido` se borro.
+
+### El texto de la recarga
+
+```
+🔔 ¡Recarga lista! 🎉
+   Recargaste $50.000 y te regalamos $5.000.
+   Tienes $55.000 listos: pide sin sacar la tarjeta 🍟
+```
+
+El bono se menciona **solo si existe**: un "+$0 de regalo" es peor que no decir
+nada. Y la etiqueta es fija (`recarga`), asi que dos recargas seguidas no dejan
+dos avisos — vale el ultimo, que trae el saldo bueno.
+
+### Dos disparadores, porque hay dos caminos
+
+- `web-recarga` — cuando el cliente recarga y el sistema verifica solo.
+- `clientes.js` — cuando **Sergio acredita a mano** desde el POS.
+
+No hay un punto unico donde converjan (la funcion de la base acredita en dos
+movimientos, plata y bono, y avisar desde un disparador dispararia dos veces o
+antes del bono). Los dos llamadores son una linea que entra a la MISMA funcion,
+que es donde vive el texto. Lo importante: **acreditar a mano se siente igual
+que la verificacion automatica** — si por un lado llega el aviso y por el otro
+no, el cliente cree que su recarga no entro.
+
+### Modo vista previa
+
+`previsualizar: true` devuelve el texto tal como le llegaria al cliente, sin
+mandar nada. Con eso se revisaron los ocho mensajes (tres recargas con y sin
+bono, y los cuatro estados en sus dos variantes) sin provocar una recarga real.
+Las cifras salen con formato colombiano: `$115.000`.
+
+⚠️ Sigue sin comprobarse el envio REAL: `pos_web_push` esta vacia hasta que
+alguien acepte el permiso. Todo lo demas del camino esta verificado.

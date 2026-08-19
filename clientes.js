@@ -253,6 +253,19 @@
       var f = (r.data || [])[0];
       if (!f || f.ok !== true) { alert((f && f.motivo) || 'No se pudo acreditar.'); return; }
       await sb.from('pos_recargas_solicitudes').update({ estado: 'aplicada' }).eq('id', p.id);
+      /* EL AVISO AL CELULAR DEL CLIENTE (19-ago). Acreditar a mano tiene que
+         sentirse igual que la verificacion automatica: si por un lado le llega
+         el aviso y por el otro no, el cliente cree que su recarga no entro.
+         Es best-effort: la plata ya quedo acreditada arriba. */
+      try {
+        fetch(SUPABASE_URL + '/functions/v1/avisar-cliente', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tipo: 'recarga', cliente_id: p.cliente_id,
+            monto: Number(f.acreditado) || monto, bono: Number(f.bono) || 0, saldo: Number(f.saldo) || 0,
+          }),
+        }).catch(function () {});
+      } catch (e) { /* nunca estorba a la acreditacion */ }
       alert('Acreditado: ' + COP(f.acreditado) + (f.bono > 0 ? ' + ' + COP(f.bono) + ' de bono' : ''));
       await cargarSolicitudes(); pintarSolicitudes();
     } catch (e) { console.error(e); alert('No se pudo acreditar: ' + (e.message || e)); }
