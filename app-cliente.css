@@ -2184,3 +2184,10 @@ html.tema-claro .ep-menu-it.malo { color: #8f2242; }
   color: var(--ink); font-size: 12.5px; line-height: 1.45;
 }
 .ep-domi-luego b { color: var(--oro-tx); }
+
+/* En el seguimiento los bloques van separados: el aviso de "falta que pagues"
+   quedaba pegado a la línea de tiempo y se leían como uno solo.
+   Va acotado a esta pantalla: `.ep-tile + .ep-tile` suelto movería el espaciado
+   de Perfil, Billetera y El local, que hoy se ven bien. */
+.ep-seguir .ep-tile + .ep-tile { margin-top: 14px; }
+.ep-seguir .ep-falta { margin-bottom: 2px; }

@@ -509,6 +509,35 @@
       pantallaDentro();
     });
 
+    /* Pagar desde el seguimiento: se rearma el pedido con lo que ya se sabe y
+       se abre la MISMA pantalla de pago de siempre, en vez de escribir una
+       segunda que se desincronizaria con la primera. */
+    var sgPagar = $('sg-pagar');
+    if (sgPagar) sgPagar.addEventListener('click', function () {
+      var p = S.pedidoVivo;
+      if (!p) return;
+      var tot = Math.max(Number(p.total) || 0,
+        (Number(p.subtotal) || 0) + (Number(p.empaque) || 0) + (Number(p.domicilio) || 0));
+      pedidoHecho = {
+        /* La pantalla de pago llama a web-pagar con `order_id`: con otro
+           nombre el boton habria dicho "No encontramos tu pedido". */
+        order_id: p.id, corto: p.corto,
+        subtotal: Number(p.subtotal) || 0,
+        domicilio: Number(p.domicilio) || 0,
+        empaque: Number(p.empaque) || 0,
+        total: Number(p.total) || tot,
+        pagado: false,
+        /* Sin precio de domicilio y siendo a domicilio, es el caso del barrio
+           que el restaurante todavia no conoce: la pantalla de pago lo explica. */
+        barrio_conocido: !(p.canal === 'domicilio' && !Number(p.domicilio)),
+        pago: (S.negocio && S.negocio.pago) || null,
+        puntos: Math.floor((Number(p.subtotal) || 0) / 1000),
+        ahorro: 0,
+        programado: false,
+      };
+      irA('pedido');
+    });
+
     var pgS = $('pg-saldo');
     if (pgS) pgS.addEventListener('click', function () { pagarPedido('saldo', null); });
     var pgC = $('pg-comp');
@@ -2751,7 +2780,8 @@
         '<span>' + COP(i.precio * i.cantidad) + '</span></div>';
     }).join('');
 
-    return '<div class="ep-sec-hd" style="margin-bottom:4px"><div>' +
+    return '<div class="ep-seguir">' +
+      '<div class="ep-sec-hd" style="margin-bottom:4px"><div>' +
         '<div class="ep-sec-t">Mi pedido</div>' +
         '<div class="ep-sec-s">' + (domi
           ? 'A domicilio' + (p.direccion ? ' · ' + esc(p.direccion) : '')
@@ -2760,9 +2790,19 @@
       '</div>' +
 
       (!p.pagado
-        ? '<div class="ep-tile" style="border-color:var(--accent)">' +
+        /* EL BOTON DE PAGAR TENIA QUE ESTAR AQUI (19-ago). Estaba escrito y lo
+           quite antes de subirlo porque llevaba a una pantalla vacia: la de
+           pago se arma con el pedido que se acaba de crear, y quien vuelve al
+           dia siguiente ya no lo tiene en memoria. Quitarlo dejo el problema
+           peor de lo que estaba: la pantalla decia "falta que pagues" y no
+           daba ninguna forma de pagar.
+           Ahora el pedido se reconstruye con lo que devuelve el seguimiento
+           mas los datos de pago del restaurante, y la pantalla de pago se abre
+           igual que si lo acabara de hacer. */
+        ? '<div class="ep-tile ep-falta" style="border-color:var(--accent)">' +
             '<div class="ep-tile-lbl" style="color:var(--oro-tx)">Falta que pagues</div>' +
             '<div class="ep-nota" style="margin-top:4px">Tu pedido está guardado. Apenas confirmemos el pago arrancamos.</div>' +
+            '<button class="ep-btn gold big" style="margin-top:14px" id="sg-pagar">Pagar ahora · ' + COP(total) + '</button>' +
           '</div>'
         : '') +
 
@@ -2788,7 +2828,8 @@
           '?text=' + encodeURIComponent('Hola, es sobre mi pedido #' + (p.corto || '')) + '">' +
           '💬 Escribirle al restaurante</a>'
         : '') +
-      '<button class="ep-btn ep-btn--ghost" style="margin-top:10px" data-ir="inicio">Volver al inicio</button>';
+      '<button class="ep-btn ep-btn--ghost" style="margin-top:10px" data-ir="inicio">Volver al inicio</button>' +
+    '</div>';
   }
 
   /* ── El carrito ────────────────────────────────────────────────────
