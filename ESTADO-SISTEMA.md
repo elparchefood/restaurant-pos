@@ -8966,3 +8966,123 @@ que ya se muestra en la comanda y aqui no se repite. Sin marcadores devuelve
 
 Probado con las direcciones reales de los ultimos pedidos, incluida una de dos
 lineas y una sin direccion.
+
+---
+
+## 233 — Borrado de los datos de prueba (19-ago-2026)
+
+Sergio: todo lo del 19-ago fue de pruebas, y las cajas con apertura de
+**$200.000** son de prueba en cualquier fecha (las reales tienen otros valores).
+
+Respaldo completo antes de tocar nada, en `Documents/Cobra-respaldos/` —
+**nunca en el repo**, que es publico y aqui hay telefonos y direcciones.
+
+Borrado: **5 pedidos** con sus 5 items, **8 cajas** (7 de $200.000 + la del
+dia). Quedan 308 pedidos y 21 cajas. Borrar una caja NO borra los pedidos de
+ese dia: no cuelgan de ella, asi que las ventas de julio siguen intactas.
+
+Y se deshizo lo que esos pedidos dejaron por el camino, que es lo que de
+verdad importa — si se borra el pedido pero le quedan los puntos, el saldo
+descontado y el inventario consumido, el sistema queda mintiendo en tres
+sitios a la vez:
+
+| | |
+|---|---|
+| Saldo | devuelto: $267.500 → **$345.000** (los $77.500 que "gasto" probando) |
+| Puntos | **61 → 0** |
+| Inventario | 13 insumos repuestos (3 carnes de hamburguesa, 0,6 de tomate…) |
+
+**El "ok" que era mentira**: el primer intento de reponer el inventario
+reporto exito y no cambio ni una fila. Las existencias de este restaurante
+viven con `branch_id` NULL (modo global) y los movimientos SI traen la sede,
+asi que el cruce por sede no encontro nada — y un UPDATE de cero filas no
+falla. **Contar las filas afectadas, no confiar en que la consulta no dio
+error.**
+
+---
+
+## 234 — Entrenamiento de Paco: 9 fallas reales corregidas (19-ago-2026)
+
+Se repitieron en el banco las conversaciones de los dias 15 al 19 en las que
+Sergio tuvo que meterse a mano (`human_takeover`), mas baterias propias de
+recoger/domicilio, productos, precios y cambios a mitad del pedido. **Ningun
+cliente real recibio un mensaje**: el banco no puede crear pedidos.
+
+### Lo que ya estaba bien
+Los dos errores de precio que Sergio corrigio a mano el 17 y el 18 (Monica,
+$36.000 → $27.000; Mariam, $28.000 → $33.000) **ya no se repiten**: los arreglos
+del 18 los cubrieron. Se comprobo con sus mensajes tal cual.
+
+### Lo que estaba mal y se corrigio
+
+**1. La cantidad de un plato se la llevaba otro** — *el mas caro*
+"una premium mixta personal y **2** coca colas personales" salia con **DOS
+salchipapas**: $85.000 en vez de $50.000. El lector devuelve UNA cantidad para
+todo el mensaje y el 2 de las gaseosas se lo quedaba el plato activo. Ahora se
+mira que producto de la carta aparece primero DESPUES del numero; si es otro,
+ese numero no es suyo.
+
+**2. El sabor no se podia cambiar**
+"una premium mixta personal … **cambiala a carne mejor**" seguia cobrando
+Mixta: $35.000 en vez de $30.000. El tamaNo si se dejaba cambiar y el sabor no.
+Ahora se reemplaza cuando el mensaje DICE que es un cambio (cambiala, mejor, en
+vez de, prefiero, que sea). Sin esas palabras no se toca — si no, "una premium
+mixta y una **adicion de carne**" se comeria el sabor elegido.
+
+**3. Un plato fantasma de $13.000**
+"salchipapa **maicitos especial** mixta personal" encolaba ademas la
+**MAICITOS** a secas — las dos existen en la carta. Si el nombre de uno esta
+contenido en el del otro son el mismo plato leido con distinto alcance: gana el
+largo, salvo que el cliente lo nombre dos veces.
+
+**4. La cantidad del segundo plato SIEMPRE era 1**
+`new RegExp("(\d+)\s+…")` — dentro de una cadena `\d` no es un digito, es la
+letra d. La expresion decia `(d+)s+` y no casaba nunca. Estaba asi desde antes.
+Ahora va con barras dobles. (Es la trampa de siempre: **las barras escritas a
+mano llegan a la mitad**; en este archivo se construyen con `chr(92)`.)
+
+**5. El punto de referencia convertia la casa en un local**
+"Conjunto Okavango Casa A6 **en frente del colegio** San Francisco": la palabra
+"colegio" hacia que la casa se clasificara como lugar publico, se le anulaba el
+efectivo y se le exigia transferencia. Ahora se le quita a la direccion lo que
+va despues de una frase de referencia (frente a, al lado de, cerca de, diagonal
+a…) antes de clasificar. Y un conjunto de la lista del dueNo es residencial
+aunque nombre un lugar publico.
+
+**6. La misma frase, tres veces**
+A Ivan se le mando la frase de prepago tres veces palabra por palabra mientras
+preguntaba "¿no se puede en efectivo?". El freno de bucle existia desde el
+17-ago pero **solo estaba conectado a su hermana** ("para llevar + efectivo").
+Ahora tambien a esta: a la segunda va a una persona.
+
+**7. La direccion se tragaba el mensaje entero**
+Sneider escribio en tres renglones "Para el : conjunto portal de pomona /
+Nombre : sneider Sanchez / Casa 13" y la comanda salia con **"Nombre : sneider
+Sanchez" metido dentro de la direccion**. Ahora se botan los renglones que son
+otro dato y se les quita la etiqueta de adelante: queda "conjunto portal de
+pomona, Casa 13".
+
+**8. El tamaNo que el cliente ya habia dicho**
+"un jugo hit **de litro**" y Paco preguntaba "¿litro o personal?". El mensaje
+traia los dos tamaNos de la HIT ("personal" era de la salchipapa) y no se
+elegia ninguno. Ahora manda el que esta pegado al nombre del producto.
+
+**9. "Catalana*" quedaba como nombre del cliente**
+El asterisco es como la gente se corrige en el chat. Se quita antes de mirar si
+es un barrio, y el barrio ahora **se puede corregir** — antes, puesto una vez,
+no se movia, y el domicilio se cobraba por el barrio equivocado.
+
+### Y dos cosas mas
+- **Cambiar platos con el pedido ya en cocina** ahora pasa a una persona, igual
+  que ya hacia el cambio de direccion. Antes Paco rearmaba el resumen y volvia
+  a preguntar el pago con la comanda ya impresa.
+- **"Adicione", "Salchipapa tradicionale"**: quitarle la "s" a todo dejaba eso
+  en un mensaje que lee el cliente. Ahora sigue la regla del idioma.
+
+### Como se probo
+`blindar_banco.py` + `runner.py` sobre `delay-reply-banco`. Se aNadio un paso
+de **compilacion (esbuild) antes de cada despliegue** y `cuadrar.py`, que lee
+el resumen de cada prueba y **vuelve a calcular el precio contra la carta** —
+mirarlo a ojo no sirve: un plato mal cobrado se ve igual que uno bien cobrado.
+El empaque son $1.000 por pedido y no lo pagan Hamburguesas, Perros, Sandwich,
+Bebidas ni Adiciones.

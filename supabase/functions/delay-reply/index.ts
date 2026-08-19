@@ -2135,6 +2135,42 @@ INTENCION, no las palabras exactas.` },
       pagosCfg, MODS_CACHE?.grupos || [],
       histCtx.slice(-4).map(h => `${h.direction === "in" ? "Cliente" : "Tú"}: ${String(h.body || "").slice(0, 120)}`).join("\n"),
     );
+    /* ══ EL PEDIDO YA ESTA EN COCINA: LOS CAMBIOS LOS HACE UNA PERSONA ══════
+       (19-ago). Para el cambio de DIRECCION esto ya existia; para los PLATOS
+       no. Un cliente que agrega una gaseosa despues de que su pedido salio a
+       cocina hacia que Paco rearmara el resumen y volviera a preguntar el
+       pago, como si el pedido no existiera — con la comanda ya impresa y el
+       plato en la plancha.
+
+       Quien tiene que decidir si todavia se alcanza a meter la gaseosa es la
+       cocina, no el bot. Se le avisa al cliente y pasa a una persona. */
+    const pideCambiarPlatos =
+      (Array.isArray(leidoCorr.quitar) && leidoCorr.quitar.length > 0)
+      || (Array.isArray(leidoCorr.agregados) && leidoCorr.agregados.length > 0)
+      /* Un producto IGUAL al que ya tiene no es un cambio: el lector repite lo
+         que hay cuando el cliente dice "si, la premium mixta". Solo cuenta si
+         es OTRO plato. */
+      || (!!leidoCorr.producto
+          && normalizarTexto(String(leidoCorr.producto)) !== normalizarTexto(state.producto || ""));
+    if (pideCambiarPlatos) {
+      const yaEnCocina = await sbGet(
+        `/rest/v1/chat_conversations?id=eq.${convId}&select=order_id&limit=1`
+      ) as Array<Record<string, unknown>> | null;
+      if (yaEnCocina?.[0]?.order_id) {
+        const avisoPlato = "Tu pedido ya está en cocina 🍳 Le paso el cambio a la persona "
+          + "encargada para ver si alcanza a entrar 🙏 Un momento por favor.";
+        await sendWaAndSave(convId, tenantId, avisoPlato, fromPhone, phoneId, accessToken);
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+          human_takeover: true, handoff_motivo: "cambio de platos con el pedido ya enviado",
+          handoff_at: new Date().toISOString(),
+          last_message: avisoPlato, last_message_at: new Date().toISOString(),
+          last_sender: "agent", last_read: false, ai_typing: false,
+        });
+        console.log("[correccion] platos cambiados con pedido ya creado -> a una persona");
+        return;
+      }
+    }
+
     if (Array.isArray(leidoCorr.quitar) && leidoCorr.quitar.length) {
       const { quitados, quitarActual } = quitarDelPedido(state, leidoCorr.quitar);
       /* El plato en curso solo se puede sacar si queda otro en el pedido. */
@@ -2654,7 +2690,24 @@ INTENCION, no las palabras exactas.` },
         const mismos = DYN_PROD_MAP.filter(e => e.key === normalizarTexto(primero.name));
         const cats = [...new Set(mismos.map(m => m.cat))];
         (state as unknown as Record<string, unknown>).producto_ambiguo = { nombre: primero.name, cats, intentos: 0 };
-        const singular = (s: string) => s.split(/\s+/).map(w => w.length > 3 ? w.replace(/s$/i, "") : w).join(" ");
+        /* EN SINGULAR, PERO EN ESPAÑOL (19-ago). Quitarle la "s" a todo dejaba
+           "Adicione" y "Salchipapa tradicionale" en un mensaje que lee el
+           cliente. La regla del idioma: si antes de la "es" hay consonante se
+           va la "es" (adicionES -> adicion, tradicionalES -> tradicional); si
+           hay vocal, solo la "s" (calientES -> caliente, bebidAS -> bebida). */
+        const singular = (s: string) => s.split(/\s+/).map(w => {
+          if (w.length <= 3) return w;
+          const b = w.toLowerCase();
+          if (!b.endsWith("s")) return w;
+          const sinS  = w.slice(0, -1);                    // calientes -> caliente
+          const sinES = b.endsWith("es") ? w.slice(0, -2) : null;  // adiciones -> adicion
+          /* Cual de las dos es: en espaNol una palabra puede terminar en n, l,
+             r, d, z, j o s, pero no en t ni en b. "adicion" vale, "calient"
+             no — asi sale "Adicion" y "Perro caliente" en vez de "Adicione" y
+             "Perro calient", que es lo que estaba leyendo el cliente. */
+          if (sinES && /[nlrdzjs]$/i.test(sinES)) return sinES;
+          return sinS;
+        }).join(" ");
         const opciones = cats.map(cq => capFirst(singular(cq).toLowerCase())).join(", ").replace(/, ([^,]+)$/, " o $1");
         const fraseAmb = (getFraseTexto(frasesCfg.elegir_categoria) ||
           "Tenemos {{producto}} en varias categorías 😋 ¿De cuál lo deseas? {{opciones_categoria}}")
@@ -2690,9 +2743,31 @@ INTENCION, no las palabras exactas.` },
         const opcionesPrimero = new Set((filaPrimero?.opciones || []).map(o => normalizarTexto(o)));
         const tNormCola = normalizarTexto(clienteTexto);
         const CAT_PEGADA_RE = /(salchipapas?|salchi|hamburguesas?|perros?|sandwich|sanduche|bebidas?|jugos?|gaseosas?)\s+(?:de\s+)?$/;
+        /* EL PLATO LEIDO A MEDIAS NO ES OTRO PLATO (19-ago, hallado en las
+           pruebas). "salchipapa MAICITOS ESPECIAL mixta personal" encolaba
+           ademas la MAICITOS a secas —las dos existen en la carta— y el pedido
+           salia con una salchipapa fantasma de $13.000 que nadie pidio.
+           Si el nombre de uno esta contenido en el del otro, son el mismo
+           plato leido con distinto alcance; gana el largo. Solo son dos platos
+           de verdad si el cliente lo nombro dos veces. */
+        const vecesEnTexto = (n2: string): number => {
+          const aguja = " " + n2 + " ";
+          let i = 0, c = 0;
+          for (;;) {
+            const p = tNormCola.indexOf(aguja, i);
+            if (p < 0) break;
+            c++; i = p + 1;
+          }
+          return c;
+        };
+        const nActivo = normalizarTexto(productoDetectado!);
         for (const m of platosMsg) {
           const n = normalizarTexto(m.name);
           if (vistos.has(n)) continue;
+          if (n !== nActivo && (nActivo.includes(n) || n.includes(nActivo)) && vecesEnTexto(n) < 2) {
+            console.log("[cola] descartado por ser el mismo plato: " + m.name + " vs " + productoDetectado);
+            continue;
+          }
           if (opcionesPrimero.has(n)) {
             const antes = tNormCola.slice(0, Math.max(0, tNormCola.indexOf(n)));
             /* Pero un ARTICULO delante lo vuelve plato propio: en "premium de
@@ -3443,7 +3518,10 @@ INTENCION, no las palabras exactas.` },
       try {
         /* "2 coca colas": el numero pegado al nombre, en el texto original. */
         const kn = normalizarTexto(sig.nombre).split(" ")[0];
-        const mC = normalizarTexto(sig.texto).match(new RegExp("(\d+)\s+(?:[a-z]+\s+){0,2}" + kn));
+        /* Las barras van DOBLES: dentro de una cadena "\d" no es un digito,
+           es la letra d — la expresion decia (d+)s+ y no casaba nunca, asi que
+           "2 coca colas" entraba siempre como 1. */
+        const mC = normalizarTexto(sig.texto).match(new RegExp("(\\d+)\\s+(?:[a-z]+\\s+){0,2}" + kn));
         if (mC) state.cantidad = Math.max(1, Math.min(20, parseInt(mC[1], 10)));
       } catch (_) { /* queda en 1 */ }
       if (state.adiciones !== null) state.adiciones = "";   // el upsell es del pedido
@@ -3451,14 +3529,45 @@ INTENCION, no las palabras exactas.` },
       pasos = buildAllPasos(currentProductData, cfg, frasesCfg, nombreConfirmar, !!nombreKnown);
       if (currentProductData) {
         const tNorm = " " + normalizarTexto(sig.texto) + " ";
+        /* Tambien en plural: "3 coca colas PERSONALES". */
+        const enTexto = (nom: string) => {
+          const b = normalizarTexto(nom);
+          return tNorm.includes(" " + b + " ")
+              || tNorm.includes(" " + b + "s ")
+              || tNorm.includes(" " + b + "es ");
+        };
         const presTxt = (currentProductData.presentations || [])
-          .filter(p => p.name && tNorm.includes(" " + normalizarTexto(p.name) + " "));
+          .filter(p => p.name && enTexto(p.name));
         if (presTxt.length === 1) state.tamano = presTxt[0].name;
+        /* MANDA EL QUE ESTA PEGADO AL PRODUCTO (19-ago). "una salchipapa
+           PERSONAL premium de carne y un jugo hit de LITRO" trae los dos
+           tamanos de la HIT en el mismo mensaje —"personal" es de la
+           salchipapa— asi que quedaban dos candidatos, no se elegia ninguno y
+           Paco preguntaba un tamano que el cliente acababa de dar.
+           El que esta al lado del nombre del producto es el suyo: se mide la
+           distancia y solo gana si uno esta claramente mas cerca. */
+        else if (presTxt.length > 1) {
+          const posEnTexto = (nom: string) => {
+            const b = normalizarTexto(nom);
+            for (const f of [" " + b + " ", " " + b + "s ", " " + b + "es "]) {
+              const i = tNorm.indexOf(f);
+              if (i >= 0) return i;
+            }
+            return -1;
+          };
+          const iProd = posEnTexto(currentProductData.name);
+          if (iProd >= 0) {
+            const conDist = presTxt
+              .map(p => ({ p, d: Math.abs(posEnTexto(p.name) - iProd) }))
+              .sort((a, b) => a.d - b.d);
+            if (conDist[0].d + 8 < conDist[1].d) state.tamano = conDist[0].p.name;
+          }
+        }
         else if ((currentProductData.presentations || []).length === 1 && currentProductData.presentations[0].name) {
           state.tamano = currentProductData.presentations[0].name;
         }
         for (const g of (currentProductData.variables || [])) {
-          const op = (g.options || []).find(o => o.name && tNorm.includes(" " + normalizarTexto(o.name) + " "));
+          const op = (g.options || []).find(o => o.name && enTexto(o.name));
           if (op) {
             state.tipos[g.id] = op.name;
             state.tipo = state.tipo ? state.tipo + ", " + op.name : op.name;
@@ -3594,6 +3703,13 @@ INTENCION, no las palabras exactas.` },
              (frases.publico_efectivo); esta es la de fabrica. */
           state.pago = null;
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+          /* Y NO SE REPITE (19-ago). El freno de bucle existia desde el
+             17-ago pero solo estaba conectado a su hermana, la de "para
+             llevar + efectivo". A Ivan se le mando esta MISMA frase tres
+             veces seguidas, palabra por palabra, mientras preguntaba "¿no se
+             puede en efectivo?". Si la explicacion no basto a la primera,
+             tampoco va a bastar a la tercera: a la segunda va a una persona. */
+          if (await frenarBucle(convId, "publico_efectivo")) return;
           const msgPub = getFraseTexto(frasesCfg.publico_efectivo)
             || "Para entregas en un lugar público o local, el pago se hace por transferencia antes del envío 🙏 ¿Te queda bien pagar por transferencia?";
           await sendWaAndSave(convId, tenantId, msgPub, fromPhone, phoneId, accessToken);
@@ -3695,7 +3811,20 @@ INTENCION, no las palabras exactas.` },
     const slotsAhora14 = JSON.stringify([state.producto, state.tamano, state.tipo,
       state.direccion, state.nombre, state.pago, state.adiciones, state.upsell,
       (state.items || []).length]);
-    if (slotsAhora14 !== slotsAntes14) st14.intentos = {};
+    /* PERO EL CAMPO QUE SIGUE VACIO NO PERDONA (19-ago, hallado en las
+       pruebas). "2 premium mixtas personales y 3 coca colas personales" dejo a
+       Paco preguntando el tamaNo de la Coca-Cola SIN PARAR: cada mensaje del
+       cliente llenaba otra cosa (la direccion, el nombre), el estado cambiaba
+       y el contador se reiniciaba entero — asi nunca llegaba a los 4 intentos
+       que lo pasan a una persona. El cliente contesto cuatro veces y ninguna
+       era lo que le preguntaban.
+       Los demas campos si se perdonan: lo que no se perdona es seguir sin lo
+       que se esta pidiendo. */
+    const cuentaDelCampo = st14.intentos[nextStep.campo] || 0;
+    if (slotsAhora14 !== slotsAntes14) {
+      st14.intentos = {};
+      if (cuentaDelCampo) st14.intentos[nextStep.campo] = cuentaDelCampo;
+    }
     intentoPaso = (st14.intentos[nextStep.campo] || 0) + 1;
     st14.intentos[nextStep.campo] = intentoPaso;
     if (intentoPaso >= 4) {
@@ -3821,10 +3950,17 @@ function _cualOpcion(text: string, nombres: string[]): string | null {
     if (encajan.length === 1) return encajan[0];
   }
 
-  /* 3. Palabra por palabra, para "litros" o "dulce" sueltos. */
+  /* 3. Palabra por palabra, para "litros" o "dulce" sueltos.
+
+     EN SINGULAR Y EN PLURAL (19-ago). "2 premium mixtas PERSONALES" no casaba
+     con la presentacion "Personal" —sobraba la "es"— y Paco preguntaba un
+     tamaNo que el cliente acababa de escribir. Quien pide dos cosas las
+     nombra en plural; es lo normal, no un caso raro. */
+  const raiz = (w: string) => w.replace(/es$/, "").replace(/s$/, "");
   const palabras = t.split(" ").filter(w => w.length >= 3);
   for (const w of palabras) {
-    const encajan = nombres.filter(n => normalizarTexto(n).split(" ").includes(w));
+    const encajan = nombres.filter(n => normalizarTexto(n).split(" ").some(p =>
+      p === w || raiz(p) === raiz(w)));
     if (encajan.length === 1) return encajan[0];
   }
   return null;
@@ -4445,6 +4581,40 @@ function limpiarPrefijoDireccion(s: string): string {
   return t2 || s;
 }
 
+
+/* LA DIRECCION NO SE TRAGA EL MENSAJE ENTERO (19-ago, pedido real de Sneider
+   del 18). Escribio, en tres renglones:
+
+       Para el : conjunto portal de pomona
+       Nombre : sneider Sanchez
+       Casa 13
+
+   Como ningun renglon tiene calle ni numero de via —es un conjunto, no los
+   necesita— la captura caia al ultimo recurso y guardaba EL TEXTO COMPLETO.
+   La comanda salia con "Nombre : sneider Sanchez" metido dentro de la
+   direccion, y eso es lo que lee el domiciliario.
+
+   Aqui se botan los renglones que son OTRO dato (nombre, telefono, pago) y se
+   le quita a los que quedan su etiqueta de adelante. Lo que sobra es el sitio.
+   Solo se usa cuando no hubo un renglon con calle: ese camino ya funcionaba. */
+const RENGLON_OTRO_DATO_RE = /^\s*(?:nombre|telefono|tel[\u00e9]fono|celular|cel|numero|n[\u00fa]mero|pago|m[\u00e9]todo|metodo|correo|email|cliente|pedido|orden|detalles?|nota|observaci[\u00f3]n)\s*[:.-]/i;
+const RENGLON_PREFIJO_RE = /^\s*(?:para\s+(?:el|la|los|las)?|direcci[\u00f3]n|direccion|dir|barrio|hacia|a)\s*[:.-]\s*/i;
+
+function direccionDeVariosRenglones(text: string): string | null {
+  const lineas = text.split(String.fromCharCode(10)).map(l => l.trim()).filter(Boolean);
+  if (lineas.length < 2) return null;
+  const utiles = lineas
+    .filter(l => !RENGLON_OTRO_DATO_RE.test(l))
+    .map(l => l.replace(RENGLON_PREFIJO_RE, "").trim())
+    .filter(Boolean);
+  if (!utiles.length) return null;
+  const junto = utiles.join(", ");
+  /* Si al limpiar no se quito nada, no hay nada que ganar: que siga el camino
+     de siempre y no se cambie el comportamiento que ya servia. */
+  if (junto.length >= text.trim().length) return null;
+  return junto;
+}
+
 function extractDireccion(text: string, isCurrentStep: boolean, productData: ProductData | null = null): string | null {
   const t = text.toLowerCase().trim();
   if (LLEVAR_REGEX.test(t)) return text.trim();
@@ -4461,7 +4631,8 @@ function extractDireccion(text: string, isCurrentStep: boolean, productData: Pro
   if (CALLE_REGEX.test(text) && (isCurrentStep || text.trim().length <= 65)) return text.trim();
   if (isCurrentStep && text.trim().length > 8) {
     if (!isProductAttribute(text, productData) && !extractPago(text, null) && !extractNombrePuro(text, productData)) {
-      return text.trim();
+      // Antes de guardar el mensaje entero, quitarle lo que es otro dato.
+      return direccionDeVariosRenglones(text) || text.trim();
     }
   }
   return null;
@@ -4537,6 +4708,10 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
   /* Un mensaje que es SOLO una cortesia no trae nombre, este o no en el paso
      del nombre. "porfa" a secas es lo que sigue a otra cosa, no una respuesta. */
   if (SOLO_CORTESIA_RE.test(text)) return null;
+  /* "Catalana*" — una palabra sola rematada en asterisco es como la gente se
+     corrige en el chat. Sea lo que sea que este corrigiendo, no es su nombre:
+     el pedido de Paula quedo a nombre de "Catalana*". */
+  if (/^\s*[a-záéíóúüñ]+\s*[*]+\s*$/i.test(text)) return null;
   /* NADIE SE LLAMA "EXACTAMENTE". A "¿el pedido va a nombre de Sergio?" el
      cliente contesto "exactamente" y quedo guardado como su nombre: asi salio
      en el resumen y asi habria salido en la comanda.
@@ -4592,7 +4767,10 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
   t = t.replace(/^(no|s[íi])[,.\s]+/i, "").trim();
   t = t.replace(/^(el\s+nombre\s+(es|va)\s*:?\s*|va\s+a\s+nombre\s+de\s+|a\s+nombre\s+de\s+|es\s+para\s+|me\s+llamo\s+|mi\s+nombre\s+es\s+|el\s+pedido\s+es\s+para\s+|soy\s+|es\s+)/i, "").trim();
   t = t.replace(/\s+(porfa|porfis|por\s+favor|gracias)[.!]*$/i, "").trim();
-  t = t.replace(/[.,;]+$/, "").trim();
+  /* "Catalana*" — el asterisco es como la gente corrige en el chat. Se quita
+     ANTES de mirar si es un barrio: con el asterisco pegado no casaba con
+     ninguna zona y el pedido quedo a nombre de "Catalana*". */
+  t = t.replace(/[.,;*_~!?]+$/, "").trim();
   if (t.length < 2 || t.length > 60) return null;
   if (NO_ES_NOMBRE_RE.test(t)) return null;                              // reclamos/meta ("ya te lo dije")
   if (ETIQUETA_PLANTILLA_RE.test(t)) return null;                        // "Telefono", "Direccion"...
@@ -4896,6 +5074,10 @@ function quitarDelPedido(
 /* Lo que el lector entendio, pasado por el filtro del catalogo. Devuelve solo
    los valores que de verdad existen — el modelo aporta el entendimiento, la
    carta pone el limite. */
+/* PALABRAS CON LAS QUE LA GENTE CORRIGE. Las usan dos sitios —el sabor y el
+   barrio— y una sola lista evita que se separen con el tiempo. */
+const PIDE_CAMBIO_RE_GLOBAL = /\b(?:cambia(?:me|la|lo|r|selo)?|c[\u00e1]mbia(?:la|lo|me)?|mejor|en\s+vez\s+de|en\s+lugar\s+de|prefiero|que\s+sea|h[\u00e1a]z(?:la|lo)|p[\u00f3o]n(?:la|lo|gale|me)|no,?\s+(?:mejor|que)|corrige|corr[\u00ed]geme|equivoqu[\u00e9e])\b/i;
+
 function validarLeido(
   leido: PedidoLeido,
   state: PacoState,
@@ -4937,16 +5119,30 @@ function validarLeido(
       normalizarTexto(nombre).split(/\s+/).filter(w => w.length >= 3)
         .some(w => toksVar.some(t =>
           t === w || t.startsWith(w) || w.startsWith(t) || (t.length > w.length && t.endsWith(w))));
+    /* EL SABOR SE PUEDE CAMBIAR (19-ago). El tamaNo si se dejaba cambiar y el
+       sabor no: a "una premium mixta personal ... CAMBIALA A CARNE MEJOR" el
+       resumen seguia diciendo Mixta y le cobraba $5.000 de mas por un plato
+       que ya no queria. El grupo resuelto se saltaba y punto.
+
+       No se abre del todo, porque abrirlo rompe el caso contrario: en "una
+       premium mixta y una ADICION DE CARNE", carne dejaria rastro y se comeria
+       el sabor elegido. Solo se reemplaza cuando el mensaje DICE que es un
+       cambio — cambiala, mejor, en vez de, prefiero, que sea. Sin esas
+       palabras, un grupo ya resuelto se sigue respetando. */
+    const pidioCambio = PIDE_CAMBIO_RE_GLOBAL.test(texto);
     const yaTipos: Record<string, string> = { ...(state.tipos || {}) };
     let cambio = false;
     for (const v of leido.variantes) {
       for (const g of productData.variables) {
-        if (yaTipos[g.id]) continue;
+        if (yaTipos[g.id] && !pidioCambio) continue;
         const ok = extractVariable(String(v), g.options || []);
         if (ok) {
           if (!dejoRastro(String(v)) && !dejoRastro(ok)) {
             console.log("[lector] variante sin rastro descartada: " + ok);
             continue;
+          }
+          if (yaTipos[g.id] && yaTipos[g.id] !== ok) {
+            console.log("[lector] sabor cambiado: " + yaTipos[g.id] + " -> " + ok);
           }
           yaTipos[g.id] = ok; cambio = true; break;
         }
@@ -5036,8 +5232,37 @@ function validarLeido(
     for (const g of (productData?.variables || [])) {
       for (const o of (g.options || [])) opcionesVar.add(normalizarTexto(o.name));
     }
-    if (opcionesVar.size) {
-      const sinVariantes = candidatas.filter(r => !(opcionesVar.has(normalizarTexto(r)) && !conRastro(r)));
+    /* LA VARIANTE QUE EL CLIENTE SI NOMBRO TAMPOCO SE COBRA DOS VECES
+       (19-ago, pedido real de Monica R. del 18: "salchi personal Maicitos
+       especial POLLO" se cobro $36.000 en vez de $27.000).
+
+       El filtro de abajo solo botaba la variante cuando el cliente NO la habia
+       nombrado — el caso de la mixta, donde el lector explica que una mixta es
+       carne y pollo. Pero aqui el cliente SI escribio "pollo": una sola vez, y
+       era el sabor. Se cobro como sabor Y como adicion.
+
+       La regla que ya existe para el plato ("un plato no es adicion de si
+       mismo salvo que lo diga dos veces") vale igual para el sabor: si esa
+       palabra ya quedo elegida como variante de ESTE pedido, nombrarla una vez
+       fue para elegirla. Solo si la dijo dos veces —"mixta con adicion de
+       pollo"— la segunda es de verdad una adicion.
+
+       Se mira la variante ELEGIDA, no la lista de opciones: "una mixta con
+       adicion de pollo" tiene a Pollo como opcion del grupo pero la elegida es
+       Mixta, asi que esa adicion es legitima y entra. */
+    const variantesElegidas = new Set(
+      Object.values(((out.tipos as Record<string, string>) || state.tipos || {}))
+        .map(v2 => normalizarTexto(String(v2))).filter(Boolean));
+    if (opcionesVar.size || variantesElegidas.size) {
+      const sinVariantes = candidatas.filter(r => {
+        const rn = normalizarTexto(r);
+        // Ya es el sabor elegido: nombrarlo una vez fue para elegirlo.
+        if (variantesElegidas.has(rn) && vecesQueLoDijo(r) < 2) return false;
+        // Es una opcion del grupo que el cliente nunca escribio: es la
+        // explicacion del lector, no un pedido.
+        if (opcionesVar.has(rn) && !conRastro(r)) return false;
+        return true;
+      });
       if (sinVariantes.length !== candidatas.length) {
         console.log("[lector] adiciones que eran la variante descartadas: "
           + candidatas.filter(r => !sinVariantes.includes(r)).join(", "));
@@ -5100,11 +5325,30 @@ function validarLeido(
     if (ok) out.pago = ok;
   }
 
-  /* BARRIO: tiene que estar entre los configurados. */
-  if (leido.barrio && !state.barrio) {
+  /* BARRIO: tiene que estar entre los configurados.
+
+     Y SE PUEDE CORREGIR (19-ago, caso real de Paula del 18). Escribio "catala
+     unidad residencial apto 701" y al renglon siguiente "Catalana*" — el
+     asterisco es como la gente se corrige en el chat. El barrio ya estaba
+     puesto, asi que la correccion se ignoro y el domicilio se cobro por el
+     barrio equivocado.
+     Se reemplaza solo si el mensaje DICE que es una correccion (el asterisco
+     o una palabra de cambio) y el barrio nuevo existe en las zonas: asi una
+     mencion de paso no mueve un dato que ya estaba bien. */
+  if (leido.barrio) {
     const dom = cfgGlobal.domicilios as Record<string, unknown> | null | undefined;
     const ok = extraerBarrio(String(leido.barrio), dom);
-    if (ok) out.barrio = ok;
+    const seCorrige = /[*]\s*$/.test(texto.trim()) || PIDE_CAMBIO_RE_GLOBAL.test(texto);
+    if (ok && (!state.barrio || (seCorrige && normalizarTexto(ok) !== normalizarTexto(state.barrio)))) {
+      if (state.barrio && state.barrio !== ok) {
+        console.log("[lector] barrio corregido: " + state.barrio + " -> " + ok);
+        /* El precio del domicilio cuelga del barrio: si cambia el barrio hay
+           que volver a mostrarlo, no dejar el que ya se dijo. */
+        out.domi_mostrado = null;
+        out.total_mostrado = null;
+      }
+      out.barrio = ok;
+    }
   }
 
   /* DIRECCION: tiene que traer via y numero. Un barrio suelto no es una
@@ -5157,8 +5401,38 @@ function validarLeido(
     }
   }
 
+  /* EL NUMERO ES DEL PLATO QUE TIENE AL LADO (19-ago, hallado en las pruebas).
+     "una premium mixta personal y 2 COCA COLAS personales" salia con DOS
+     salchipapas: el lector devuelve UNA cantidad para todo el mensaje, y el 2
+     de las gaseosas se lo quedaba el plato activo. Son $34.000 de mas en un
+     pedido de $45.000.
+
+     Antes de hacerle caso se mira que producto de la carta aparece PRIMERO
+     despues del numero. Si es otro, ese 2 no es del plato activo y se ignora
+     — el de la gaseosa lo lee la cola con su propio texto. */
   if (typeof leido.cantidad === "number" && leido.cantidad >= 1 && leido.cantidad <= 50) {
-    out.cantidad = Math.round(leido.cantidad);
+    let esMio = true;
+    if (leido.cantidad > 1 && texto && state.producto) {
+      const tn = normalizarTexto(texto);
+      const mNum = tn.match(new RegExp("(?:^|[^0-9])" + String(Math.round(leido.cantidad)) + "(?![0-9])"));
+      if (mNum && typeof mNum.index === "number") {
+        const desde = mNum.index + mNum[0].length;
+        const despues = tn.slice(desde, desde + 45);
+        const mio = normalizarTexto(state.producto).split(" ")[0];
+        let primero: string | null = null, mejor = 999;
+        for (const e of DYN_PROD_MAP) {
+          const k = String(e.key || "").split(" ")[0];
+          if (k.length < 3) continue;
+          const p = despues.indexOf(k);
+          if (p >= 0 && p < mejor) { mejor = p; primero = k; }
+        }
+        if (primero && primero !== mio) {
+          console.log("[lector] cantidad " + leido.cantidad + " es de \"" + primero + "\", no de \"" + mio + "\"");
+          esMio = false;
+        }
+      }
+    }
+    if (esMio) out.cantidad = Math.round(leido.cantidad);
   }
   return out;
 }
@@ -7613,18 +7887,34 @@ function clasificarDireccion(
      con "para X" quedaba como lugar publico -> prepago -> el flujo del pago
      se descarrilaba (trampa de Sergio, 15-ago). El espacio de relleno cubre
      el inicio y el final de la cadena. */
-  const dirPad = " " + dir.replace(/[,.;]/g, " ") + " ";
+  /* UN PUNTO DE REFERENCIA NO ES EL DESTINO (19-ago, pedido real de Ivan del
+     18). Escribio "Conjunto Okavango Casa A6 EN FRENTE DEL COLEGIO San
+     Francisco": la palabra "colegio" hizo que su casa quedara clasificada como
+     lugar publico, se le anulo el efectivo y se le exigio transferencia. La
+     entrega era a una casa dentro de un conjunto.
+
+     La gente ubica al domiciliario con lo que se ve desde la calle — el
+     colegio, el banco, el Exito — y eso es justo lo que hay en la lista de
+     lugares publicos. Antes de clasificar se le quita a la direccion lo que
+     va DESPUES de una frase de referencia, hasta la siguiente coma. El
+     destino esta antes; lo de despues es el mapa para llegar. */
+  const REFERENCIA_RE = /\b(?:en\s+frente|al\s+frente|frente|diagonal|al\s+lado|junto|contiguo|cerca|detr[ae]s|atr[a\u00e1]s|arriba|abajo|pasando|seguido|a\s+media\s+cuadra|a\s+una\s+cuadra|referencia)\s*(?:a|al|de|del|por)?\b[^,;\n]*/gi;
+  const dirRef = dir.replace(REFERENCIA_RE, " ").replace(/\s+/g, " ").trim();
+  const dirPad = " " + dirRef.replace(/[,.;]/g, " ") + " ";
   const tieneLugar = (lista: string[]) => lista.some(kw => {
     const k = kw.trim();
     return k.includes(" ")
-      ? dir.includes(k)                       // frases ("centro comercial") van como antes
+      ? dirRef.includes(k)                    // frases ("centro comercial") van como antes
       : dirPad.includes(" " + k + " ");       // palabras sueltas, completas
   });
   if (LLEVAR_REGEX.test(dir) || dir.includes("llevar") || dir.includes("recoger")) return { tipo: "para_llevar", requierePagoAdelantado: false };
   if (domicilios?.rechazar_lugares_publicos !== false) {
     if (tieneLugar(LUGARES_RECHAZADOS)) return { tipo: "rechazado", requierePagoAdelantado: false };
   }
-  if (tieneLugar(LUGARES_PUBLICOS)) {
+  /* Y un conjunto de la lista del dueNo es residencial aunque la direccion
+     nombre un lugar publico: ahi vive gente, no es un local. Va antes de la
+     clasificacion, no despues, porque despues ya se le anulo el efectivo. */
+  if (tieneLugar(LUGARES_PUBLICOS) && !esConjunto(dir, domicilios)) {
     const requiere = domicilios?.pago_adelantado_lugares_publicos !== false;
     return { tipo: "publico", requierePagoAdelantado: requiere };
   }
