@@ -129,18 +129,63 @@ async function canalWhatsApp(tenantId: string) {
   return meta.phone_id && meta.access_token ? { phoneId: meta.phone_id, token: meta.access_token } : null;
 }
 
+/* EL CODIGO SE MANDA POR PLANTILLA (19-ago) ─────────────────────────────────
+   El texto plano SOLO llega si esa persona le escribio al negocio en las
+   ultimas 24 horas — regla de Meta, no nuestra. Y quien se esta registrando
+   por primera vez normalmente NO ha escrito nunca: se quedaba esperando un
+   codigo que jamas iba a llegar. Es el caso mas comun que existe, y era
+   justo el que fallaba.
+
+   Una plantilla aprobada entra SIEMPRE, dentro y fuera de esa ventana. Por eso
+   se intenta primero la plantilla y el texto plano queda de respaldo: mientras
+   Meta no la apruebe (o si un restaurante todavia no la tiene creada), el
+   sistema sigue funcionando como hasta hoy en vez de dejar de mandar codigos.
+
+   ⚠️ En las plantillas de categoria AUTENTICACION el texto lo escribe META y no
+   se puede cambiar — es su politica para los codigos. Lo unico que se elige es
+   si lleva la advertencia de no compartirlo, el aviso de vencimiento y el boton
+   de copiar. Por eso el mensaje no queda palabra por palabra igual al nuestro:
+   dice lo mismo, con las palabras de Meta. */
+const PLANTILLA_CODIGO = "codigo_acceso";
+
 async function mandarCodigo(tenantId: string, telefono: string, codigo: string, negocio: string) {
   const wa = await canalWhatsApp(tenantId);
   if (!wa) return false;
-  /* Texto plano por ahora. Fuera de la ventana de 24 h Meta exige una plantilla
-     aprobada de categoría "Autenticación" — está pedida. Mientras llega, esto
-     funciona para quien haya escrito en las últimas 24 h. */
+  const para = "57" + telefono;
+  const url = `https://graph.facebook.com/v22.0/${wa.phoneId}/messages`;
+  const cabeceras = { "Authorization": `Bearer ${wa.token}`, "Content-Type": "application/json" };
+
+  /* 1. La plantilla. El codigo va DOS veces: en el cuerpo y en el boton de
+        copiar — asi lo pide Meta para que el boton sepa que copiar. */
+  try {
+    const rp = await fetch(url, {
+      method: "POST", headers: cabeceras,
+      body: JSON.stringify({
+        messaging_product: "whatsapp", to: para, recipient_type: "individual",
+        type: "template",
+        template: {
+          name: PLANTILLA_CODIGO,
+          language: { code: "es" },
+          components: [
+            { type: "body", parameters: [{ type: "text", text: codigo }] },
+            { type: "button", sub_type: "url", index: "0",
+              parameters: [{ type: "text", text: codigo }] },
+          ],
+        },
+      }),
+    });
+    if (rp.ok) return true;
+    /* No se cae al respaldo en silencio: si la plantilla existe y falla por
+       otra razon, hay que enterarse. */
+    console.error("[acceso] plantilla del codigo no salio:", (await rp.text()).slice(0, 300));
+  } catch (e) { console.error("[acceso] plantilla del codigo:", String(e).slice(0, 200)); }
+
+  /* 2. Respaldo: texto plano. Solo llega si escribio en las ultimas 24 h. */
   const cuerpo = `${codigo} es tu código para entrar a ${negocio}.\n\nVence en ${CODIGO_VIVE_MIN} minutos. No se lo compartas a nadie.`;
-  const r = await fetch(`https://graph.facebook.com/v22.0/${wa.phoneId}/messages`, {
-    method: "POST",
-    headers: { "Authorization": `Bearer ${wa.token}`, "Content-Type": "application/json" },
+  const r = await fetch(url, {
+    method: "POST", headers: cabeceras,
     body: JSON.stringify({
-      messaging_product: "whatsapp", to: "57" + telefono, recipient_type: "individual",
+      messaging_product: "whatsapp", to: para, recipient_type: "individual",
       type: "text", text: { body: cuerpo },
     }),
   });

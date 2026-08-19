@@ -8605,3 +8605,44 @@ Paco. El diagnostico de Sergio era exacto.
 La regla que quedo escrita en la cabecera del archivo: **la campana es para lo
 que pide una DECISION del dueño**. Un buzon que avisa de todo no lo lee nadie, y
 entonces tampoco sirve para lo que si importaba.
+
+---
+
+## 226 — El codigo de registro por plantilla (19-ago-2026)
+
+El codigo de verificacion se mandaba como texto plano, y eso **solo llega si esa
+persona le escribio al negocio en las ultimas 24 horas** (regla de Meta). Quien
+se registra por primera vez normalmente NO ha escrito nunca: se quedaba
+esperando un codigo que jamas iba a llegar. Era el caso mas comun, y era justo
+el que fallaba.
+
+### Lo que quedo hecho
+
+`mandarCodigo` intenta primero la **plantilla** `codigo_acceso` y deja el texto
+plano de respaldo. Mientras Meta no la apruebe —o si un restaurante todavia no
+la tiene— el sistema sigue funcionando como hasta hoy en vez de dejar de mandar
+codigos. El formato del envio ya esta verificado contra Meta: responde
+`132001 · Template name does not exist`, o sea que lo unico que falta es la
+plantilla, no el codigo.
+
+El codigo viaja DOS veces (cuerpo y boton), que es como Meta pide las de
+autenticacion para que el boton de copiar sepa que copiar.
+
+### Lo que NO se pudo hacer desde aqui
+
+El token que tenemos (el del alta guiada) **lee** plantillas pero no las crea:
+`Application does not have permission for this action`. Le falta
+`whatsapp_business_management`. La plantilla la crea Sergio a mano en WhatsApp
+Manager, o se pide ese permiso y se automatiza.
+
+### ⚠️ El texto NO puede ser identico al nuestro
+
+En las plantillas de categoria **AUTENTICACION** el texto lo escribe Meta y no
+se puede cambiar — es su politica para los codigos. Solo se elige si lleva la
+advertencia de no compartirlo, el aviso de vencimiento y el boton de copiar.
+Meterlo en una plantilla de otra categoria para conservar nuestras palabras
+seria peor: Meta rechaza (o sanciona) los codigos fuera de esa categoria.
+
+Configuracion pedida: nombre `codigo_acceso` · idioma es · autenticacion ·
+recomendacion de seguridad SI · vencimiento 10 minutos (igual que
+`CODIGO_VIVE_MIN`) · boton copiar codigo.
