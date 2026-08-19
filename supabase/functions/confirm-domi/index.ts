@@ -71,7 +71,12 @@ async function createWhatsappOrder(
 
   const allProducts = await sbGet(
     `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true` +
-    `&select=id,name,price,price_mode,presentations,variables`
+    /* LA CATEGORIA VIENE CON EL PRODUCTO (19-ago): sin ella la comanda decia
+       "SENCILLA" donde el POS manual dice "Hamburguesa · SENCILLA", y hay un
+       "CARNE" en sandwich, en hamburguesa y en perro — sin esa palabra nadie
+       sabe cual es. Los otros tres caminos de Paco (delay-reply,
+       extraer-pedido, verify-transfer) ya lo hacian; este se habia quedado. */
+    `&select=id,name,price,price_mode,presentations,variables,category_id(name,comanda_alias)`
   ) as Array<Record<string, unknown>> | null;
 
   if (!allProducts) {
@@ -154,14 +159,20 @@ async function createWhatsappOrder(
     }
 
     const itemTotal   = price * cantidad;
-    const displayName = [String(matched.name), presName, tipoGPT].filter(Boolean).join(" · ");
+    /* EL MISMO ORDEN QUE EL POS MANUAL: primero el tamaNo, y si no tiene, el
+       nombre en comanda de la categoria; despues el producto; despues la
+       variante. Antes iba al reves y sin categoria. */
+    const _cat = matched.category_id as Record<string, unknown> | null;
+    const _alias = _cat ? String(_cat.comanda_alias || _cat.name || "") : "";
+    const _etiqueta = String(presName || "") || _alias;
+    const displayName = [_etiqueta, String(matched.name), tipoGPT].filter(Boolean).join(" · ");
 
     items.push({
       product_id:    String(matched.id),
       product_name:  displayName,
       product_price: price, unit_price: price, total: itemTotal,
       quantity:      cantidad,
-      selections:    { mods: {}, pres: presName, vars: varsMap },
+      selections:    { mods: {}, pres: _etiqueta, vars: varsMap },
       branch_id:     branchId, tenant_id: tenantId || null, notes: null,
     });
 

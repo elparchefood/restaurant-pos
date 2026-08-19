@@ -8895,3 +8895,36 @@ Ahora es `.ep-punto-vivo`, el boton es su ancla, y late con un **halo que se
 abre hacia afuera** (`ep-onda`) mas un respiro del boton (`ep-llama`): un
 puntico quieto no dice "tocame", una onda si. Los dos se apagan con
 `prefers-reduced-motion`.
+
+### 231b — El cuarto camino, y los pedidos ya hechos (19-ago-2026)
+
+Sergio dijo "sigue mal" mirando la pantalla de ventas: eran los pedidos de
+ANTES del arreglo — el nombre se guarda al crear el pedido, no se recalcula.
+
+**Se barrio toda la historia** (`sql/2026-08-19-renombrar-items-viejos.py`):
+de 514 items, 484 ya estaban bien y **16 quedaron renombrados**. El script no
+inventa: parte el nombre viejo por `·`, saca el producto (que siempre iba
+primero), y si el pedazo siguiente es de verdad una presentacion de ESE
+producto, ese es el prefijo; si no, el prefijo es el nombre en comanda de la
+categoria. Solo toca `name` y `product_name` — ni precios, ni cantidades, ni
+el pedido.
+
+```
+SENCILLA                    ->  Hamburguesa · SENCILLA
+MAICITOS · Personal         ->  Personal · MAICITOS
+Premium · Personal · Mixta  ->  Personal · Premium · Mixta
+SÚPER QUESO · Único         ->  Hamburguesa · SÚPER QUESO · Único
+```
+
+**Y aparecio un cuarto camino mal**: 12 de los 16 no venian de la pagina sino
+del chat. Hay CUATRO sitios que crean items — `delay-reply`, `extraer-pedido`,
+`verify-transfer` y `confirm-domi`. Los tres primeros ya armaban el nombre
+bien; **`confirm-domi` se habia quedado atras** (`[producto, tamaNo, tipo]`,
+al reves y sin categoria). Corregido y desplegado (v15), con la misma consulta
+que ya usa `verify-transfer`.
+
+**Trampa de la herramienta, no del sistema**: el script de diagnostico decia
+"0 filas por corregir" porque leia la respuesta de Supabase con la codificacion
+de Windows: el `·` llegaba partido en dos y ninguna comparacion casaba. Al leer
+en UTF-8 aparecieron las 16. Si un barrido da cero, sospechar del lector antes
+que de los datos.
