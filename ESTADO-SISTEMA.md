@@ -8364,3 +8364,46 @@ nadie manda. Ahora dice exactamente los tres avisos que existen.
 ⚠️ **Lo que NO se pudo probar**: que el aviso llegue de verdad a un celular.
 Hacen falta cero pasos de codigo — solo que Sergio abra la app instalada y
 acepte el permiso. Hasta que alguien se suscriba, `pos_web_push` esta vacia.
+
+---
+
+## 220 — El seguimiento no aparecia: dos huecos (19-ago-2026)
+
+Sergio hizo un pedido y no vio nada: ni el estado ni el aviso. El servidor
+estaba bien —el pedido existe, `pedido-activo` lo devuelve completo con su
+estado, su hora, su direccion y sus lineas— asi que el problema estaba en los
+dos extremos.
+
+### 1. El pedido en curso solo se pedia al NAVEGAR
+
+`cargarPedidoVivo()` colgaba de `irA()`. Pero quien entra con la sesion abierta
+cae directo en `pantallaDentro()` **sin pasar por `irA`**, asi que el boton y la
+tarjeta no aparecian hasta irse a otra pestaNa y volver. Es EXACTAMENTE el mismo
+hueco que ya habia mordido con las promos y la carta — y que estaba anotado dos
+parrafos mas arriba en el mismo archivo, en `asegurarDatosInicio`. Ahora hay un
+`asegurarPedidoVivo()` hermano, llamado desde `pantallaDentro`.
+
+Con dos candados, porque `pantallaDentro` corre en CADA toque: uno mientras la
+consulta va en camino y otro de 15 segundos. Probado en un navegador: al
+arrancar hace **1 sola consulta** y con 10 toques seguidos sigue en 1.
+
+### 2. Los avisos no se podian encender
+
+El permiso se ofrecia UNA vez, al principio, y solo con la app instalada. Quien
+tocara "ahora no" —o quien entrara desde el navegador— **no tenia ninguna forma
+de activarlos despues**. Con los avisos del pedido recien estrenados eso pasa de
+detalle a estorbo: es la funcion nueva y no habia como encenderla.
+
+Bloque nuevo en **Perfil → Notificaciones**, que dice la verdad de cada caso:
+- *Encendidos* — con la lista de lo que se avisa.
+- *Apagados* — con el boton que pide el permiso y suscribe el celular.
+- *Bloqueados* — no se ofrece boton: el navegador no deja volver a preguntar, y
+  mandarlo a uno que no hace nada es peor. Se explica donde se desbloquea.
+- *Falta instalar la app* — en iPhone los avisos web solo existen instalada.
+
+⚠️ Sigue sin comprobarse que el aviso LLEGUE: `pos_web_push` esta vacia porque
+nadie ha aceptado todavia. Ahora al menos hay por donde aceptar.
+
+⚠️ Y una nota para el futuro: la pagina se cachea por hora (`?v=AAAAMMDDHH`), asi
+que un cambio recien publicado puede tardar hasta 60 minutos en llegarle a quien
+ya tenia la app abierta. Al probar algo recien subido, recargar.

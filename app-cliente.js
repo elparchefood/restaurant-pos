@@ -322,6 +322,31 @@
      tres tarjetas — parecía que se habían borrado. Se piden aquí, una sola vez,
      y cuando llegan se repinta. No se espera a que lleguen para pintar: primero
      se ve la pantalla, después se llena. */
+  /* EL PEDIDO EN CURSO SE PIDE AL PINTAR, no solo al navegar (corregido el
+     19-ago). Quien entra con la sesion abierta cae directo en `pantallaDentro`
+     sin pasar por `irA`, asi que el boton y la tarjeta del pedido NO aparecian
+     hasta que se fuera a otra pestaNa y volviera. Es el mismo hueco que ya
+     habia mordido con las promos y la carta, dos parrafos mas arriba.
+
+     Con dos candados para no entrar en bucle: uno mientras la consulta va en
+     camino, y otro de 15 segundos — `pantallaDentro` se llama en CADA toque de
+     la pantalla, y sin eso serian decenas de consultas por minuto. */
+  var pidiendoVivo = false, vivoAl = 0;
+  function asegurarPedidoVivo() {
+    if (pidiendoVivo) return;
+    if (Date.now() - vivoAl < 15000) return;
+    if (!leerToken()) return;
+    pidiendoVivo = true;
+    var antes = S.pedidoVivo ? String(S.pedidoVivo.id) + String(S.pedidoVivo.estado) : '';
+    cargarPedidoVivo().then(function () {
+      pidiendoVivo = false; vivoAl = Date.now();
+      var ahora = S.pedidoVivo ? String(S.pedidoVivo.id) + String(S.pedidoVivo.estado) : '';
+      /* Solo se repinta si CAMBIO algo: repintar por repintar le quita al
+         cliente lo que estuviera escribiendo. */
+      if (ahora !== antes) pantallaDentro();
+    }).catch(function () { pidiendoVivo = false; vivoAl = Date.now(); });
+  }
+
   var pidiendoInicio = false;
   function asegurarDatosInicio() {
     if (vista !== 'inicio' || pidiendoInicio) return;
@@ -343,6 +368,7 @@
       ofrecerInstalar();
       ofrecerNotificar();
     }
+    asegurarPedidoVivo();
     var c = S.cliente || {};
     var n = c.nivel || null;
     var e = S.negocio || {};
@@ -460,6 +486,28 @@
         copiarTexto(bc.dataset.copiar, bc);
       });
     });
+    /* Activar los avisos desde el Perfil. Pide el permiso y, si lo dan,
+       suscribe el celular ahi mismo y repinta para que el bloque ya diga
+       "Encendidos". */
+    var pfI = $('pf-instalar');
+    if (pfI) pfI.addEventListener('click', function () { pantallaInstalar(true); });
+
+    var pfA = $('pf-avisos');
+    if (pfA) pfA.addEventListener('click', async function () {
+      pfA.disabled = true; pfA.textContent = 'Un momento…';
+      try {
+        var permiso = await Notification.requestPermission();
+        try { localStorage.setItem('ep-notif-pedido', '1'); } catch (e) {}
+        if (permiso === 'granted') {
+          await suscribirPush();
+          aviso('Listo, te avisaremos de tu pedido', 'bien');
+        } else {
+          aviso('No se activaron. Puedes hacerlo desde los ajustes del navegador.', 'mal');
+        }
+      } catch (e) { console.error('[avisos]', e); }
+      pantallaDentro();
+    });
+
     var pgS = $('pg-saldo');
     if (pgS) pgS.addEventListener('click', function () { pagarPedido('saldo', null); });
     var pgC = $('pg-comp');
@@ -2092,7 +2140,54 @@
         '<button class="ep-btn ep-btn--ghost" style="margin-top:10px" data-diragregar="1">+ Agregar dirección</button>' +
       '</div>' +
 
+      bloqueAvisos() +
+
       '<button class="ep-btn ep-btn--ghost" style="margin-top:16px" data-salir="1">Cerrar sesión</button>';
+  }
+
+  /* ── LOS AVISOS SE PUEDEN ENCENDER DESDE AQUI (19-ago) ────────────────
+     Hasta hoy el permiso se ofrecia UNA sola vez, al principio y solo con la
+     app instalada. Quien tocara "ahora no" —o quien nunca viera el ofrecimiento
+     porque entro desde el navegador— no tenia NINGUNA forma de activarlos
+     despues. Con los avisos del pedido ya funcionando, eso pasa de detalle a
+     estorbo: es la funcion nueva y no habia como estrenarla.
+
+     Cada caso dice la verdad de lo que pasa, que es lo unico util aqui: el
+     navegador no deja volver a preguntar si ya dijeron que no. */
+  function bloqueAvisos() {
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) return '';
+    var p = Notification.permission;
+    var cuerpo;
+    if (p === 'granted') {
+      cuerpo = '<div class="ep-dato"><span>Avisos de tu pedido</span>' +
+        '<span style="color:var(--ok-tx)">Encendidos</span></div>' +
+        '<div class="ep-nota" style="margin-top:6px">Te avisamos cuando empecemos a prepararlo, ' +
+        'cuando salga y cuando te lo entreguemos.</div>';
+    } else if (p === 'denied') {
+      /* No se puede resolver desde la pagina: el navegador lo bloqueo. Decirle
+         "toca aqui para activarlos" seria mandarlo a un boton que no hace
+         nada. */
+      cuerpo = '<div class="ep-dato"><span>Avisos de tu pedido</span>' +
+        '<span style="color:var(--dim)">Bloqueados</span></div>' +
+        '<div class="ep-nota" style="margin-top:6px">Tu celular los tiene bloqueados para esta página. ' +
+        'Se activan desde los ajustes del navegador, en los permisos de este sitio.</div>';
+    } else if (!yaInstalada()) {
+      /* En iPhone las notificaciones web SOLO existen con la app instalada, y
+         en Android instalarla es lo que hace que lleguen con el celular
+         cerrado. Ofrecer el boton aqui seria ofrecer algo que va a fallar. */
+      cuerpo = '<div class="ep-dato"><span>Avisos de tu pedido</span>' +
+        '<span style="color:var(--dim)">Falta instalar la app</span></div>' +
+        '<div class="ep-nota" style="margin-top:6px">Instala esta página en tu celular y podrás activarlos.</div>' +
+        '<button class="ep-btn ep-btn--sec" style="margin-top:10px" id="pf-instalar">Cómo instalarla</button>';
+    } else {
+      cuerpo = '<div class="ep-dato"><span>Avisos de tu pedido</span>' +
+        '<span style="color:var(--dim)">Apagados</span></div>' +
+        '<div class="ep-nota" style="margin-top:6px">Para saber cuándo lo estamos preparando, ' +
+        'cuándo sale y cuándo llega.</div>' +
+        '<button class="ep-btn ep-btn--sec" style="margin-top:10px" id="pf-avisos">Activar los avisos</button>';
+    }
+    return '<div class="ep-tile" style="margin-top:12px">' +
+      '<div class="ep-tile-lbl">Notificaciones</div>' + cuerpo + '</div>';
   }
 
   // ── El local ────────────────────────────────────────────────────────
