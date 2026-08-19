@@ -8628,12 +8628,30 @@ plantilla, no el codigo.
 El codigo viaja DOS veces (cuerpo y boton), que es como Meta pide las de
 autenticacion para que el boton de copiar sepa que copiar.
 
-### Lo que NO se pudo hacer desde aqui
+### Lo que bloquea la creacion (y NO es el codigo)
 
-El token que tenemos (el del alta guiada) **lee** plantillas pero no las crea:
-`Application does not have permission for this action`. Le falta
-`whatsapp_business_management`. La plantilla la crea Sergio a mano en WhatsApp
-Manager, o se pide ese permiso y se automatiza.
+Primer diagnostico equivocado: crei que faltaba el permiso
+`whatsapp_business_management` porque un intento directo con la v22 devolvio
+"Application does not have permission". Falso: el modulo `wa-plantillas` que ya
+existia **si crea plantillas** con ese mismo token — se comprobo creando una de
+utilidad y borrandola enseguida.
+
+Lo que de verdad bloquea es el estado de la cuenta:
+
+```
+business_verification_status: pending_need_more_info
+```
+
+**El negocio no esta verificado en Meta** — le pidieron mas informacion y quedo
+a medias. Sin esa verificacion, Meta no deja crear plantillas de categoria
+AUTENTICACION (marketing y utilidad si, por eso las tres que hay funcionan).
+Eso solo lo puede resolver Sergio, subiendo los documentos en el Centro de
+seguridad de Meta Business.
+
+`wa-plantillas` quedo listo para el dia que se desbloquee: entiende la categoria
+AUTENTICACION, que no es una plantilla normal con otro nombre — Meta escribe el
+texto y solo se elige la advertencia de seguridad, los minutos de vencimiento y
+el boton de copiar.
 
 ### ⚠️ El texto NO puede ser identico al nuestro
 
