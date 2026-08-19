@@ -582,6 +582,14 @@ Deno.serve(async (req) => {
     const notas = [
       tipo === "domicilio" ? direccion : "",
       barrio ? `[barrio:${barrio.toUpperCase()}]` : "",
+      /* EL DOMICILIO QUEDA POR COBRAR (19-ago, regla de Sergio). Si el barrio
+         no esta en la tabla, el cliente paga solo su comida y NO se queda
+         esperando a que le confirmen el precio: el domicilio se lo cobra el
+         domiciliario al entregar.
+         Va en las notas porque de ahi sale la COMANDA, que es el papel que
+         lleva quien entrega: es el unico sitio donde ese aviso llega a quien
+         tiene que cobrar. */
+      (tipo === "domicilio" && !barrioConocido) ? "[DOMICILIO POR COBRAR]" : "",
       `[tel:${String(s.telefono || "")}]`,
       "[web]",
       String(b.notas || "").trim() ? "— " + String(b.notas).trim().slice(0, 200) : "",

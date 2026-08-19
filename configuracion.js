@@ -1055,6 +1055,19 @@ document.addEventListener('DOMContentLoaded', async function() {
       if (window.ciaAcc) ciaAcc(_acc);
       var f = document.querySelector('.cia-acc[data-acc="' + _acc + '"]');
       if (f) f.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      /* Y SI SE PIDIO UN PEDAZO CONCRETO de esa fila, se deja a la vista y se
+         resalta un momento (19-ago). La campana manda a los barrios sin precio:
+         llegar a la fila abierta pero con el bloque fuera de pantalla es
+         llegar a medias, y el dueño no encuentra lo que el aviso le prometio. */
+      var _ver = _q.get('ver');
+      if (!_ver) return;
+      setTimeout(function () {
+        var el = document.getElementById(_ver);
+        if (!el) return;
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.classList.add('cfg-resalta');
+        setTimeout(function () { el.classList.remove('cfg-resalta'); }, 2400);
+      }, 260);
     }, 400);
   } catch (e) { /* si el navegador no puede, se queda en la de siempre */ }
 
@@ -4515,12 +4528,28 @@ var _storedZonas = [];
       var esCambio = x.tipo === 'cambio';
       var precio = (Number(x.precio) || 0).toLocaleString('es-CO');
       var antes  = (Number(x.precio_tabla) || 0).toLocaleString('es-CO');
-      return '<div class="domi-apr-row" data-aprendido="' + x.id + '">' +
-        '<span class="domi-apr-nm">' + cfgQrEsc(x.barrio) + '</span>' +
-        '<span class="domi-apr-pr">' + (esCambio ? '<s>$' + antes + '</s> → ' : '') + '$' + precio + '</span>' +
+      /* SIN PRECIO = HAY QUE ESCRIBIRLO AQUI (19-ago). Los barrios que llegan
+         de la pagina de clientes y del asistente entran en $0: nadie les ha
+         puesto valor todavia, que es justamente lo que hay que decidir. La
+         fila mostraba "$0" y un boton "Agregar a la tabla" que lo habria
+         guardado en cero — o sea, regalando el domicilio. Ahora se escribe el
+         precio en la misma fila y de ahi sale.
+         Los que vienen de un cobro a mano SI traen precio: ese no se toca. */
+      var sinPrecio = !esCambio && (Number(x.precio) || 0) <= 0;
+      var celdaPrecio = sinPrecio
+        ? '<span class="domi-apr-pr"><span class="domi-apr-sig">$</span>' +
+            '<input type="number" class="domi-apr-in" data-i="' + i + '" min="0" step="500" ' +
+            'inputmode="numeric" placeholder="0"></span>'
+        : '<span class="domi-apr-pr">' + (esCambio ? '<s>$' + antes + '</s> → ' : '') + '$' + precio + '</span>';
+      /* La direccion que escribio el cliente ayuda a ubicar el barrio: hay
+         nombres que solos no dicen nada. */
+      var dirTxt = x.direccion ? '<span class="domi-apr-dir">' + cfgQrEsc(String(x.direccion).slice(0, 44)) + '</span>' : '';
+      return '<div class="domi-apr-row' + (sinPrecio ? ' sin-precio' : '') + '" data-aprendido="' + x.id + '">' +
+        '<span class="domi-apr-nm">' + cfgQrEsc(x.barrio) + dirTxt + '</span>' +
+        celdaPrecio +
         '<span class="domi-apr-n">' + (x.veces > 1 ? x.veces + ' veces' : '') + '</span>' +
         '<button type="button" class="cfg-qr-btn primary domi-apr-add" data-i="' + i + '">' +
-          (esCambio ? 'Actualizar precio' : 'Agregar a la tabla') + '</button>' +
+          (esCambio ? 'Actualizar precio' : (sinPrecio ? 'Guardar precio' : 'Agregar a la tabla')) + '</button>' +
         '<button type="button" class="cfg-qr-btn ghost domi-apr-del" data-i="' + i + '">Descartar</button>' +
         (esCambio ? '' :
           '<button type="button" class="cfg-qr-btn ghost domi-apr-no" data-i="' + i + '" ' +
@@ -4530,7 +4559,8 @@ var _storedZonas = [];
     host.innerHTML = '<div class="domi-apr">' +
       (nuevos.length
         ? '<div class="domi-apr-hd">⚠ ' + nuevos.length + ' barrio' + (nuevos.length === 1 ? '' : 's') +
-          ' que cobraste a mano y no está' + (nuevos.length === 1 ? '' : 'n') + ' en tu tabla</div>' +
+          ' sin precio en tu tabla' +
+          '<small>Mientras no tengan precio, ese domicilio se cobra en $0.</small></div>' +
           nuevos.map(fila).join('')
         : '') +
       (cambios.length
@@ -4540,7 +4570,32 @@ var _storedZonas = [];
         : '') +
       '</div>';
     host.querySelectorAll('.domi-apr-add').forEach(function (b) {
-      b.addEventListener('click', function () { agregarAprendido(items[+b.dataset.i]); });
+      b.addEventListener('click', function () {
+        var x = items[+b.dataset.i];
+        var campo = host.querySelector('.domi-apr-in[data-i="' + b.dataset.i + '"]');
+        if (campo) {
+          var v = Number(campo.value);
+          /* Sin precio no se guarda: dejarlo en cero es regalar el domicilio en
+             cada pedido de ese barrio, y nadie se entera. */
+          if (!isFinite(v) || v <= 0) {
+            campo.focus();
+            campo.classList.add('malo');
+            setTimeout(function () { campo.classList.remove('malo'); }, 1200);
+            return;
+          }
+          x = Object.assign({}, x, { precio: v });
+        }
+        agregarAprendido(x);
+      });
+    });
+    /* Enter guarda, que es lo que uno espera al escribir un numero. */
+    host.querySelectorAll('.domi-apr-in').forEach(function (inp) {
+      inp.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Enter') return;
+        ev.preventDefault();
+        var b = host.querySelector('.domi-apr-add[data-i="' + inp.dataset.i + '"]');
+        if (b) b.click();
+      });
     });
     host.querySelectorAll('.domi-apr-del').forEach(function (b) {
       b.addEventListener('click', function () { descartarAprendido(items[+b.dataset.i]); });

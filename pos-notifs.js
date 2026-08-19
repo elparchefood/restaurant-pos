@@ -137,7 +137,10 @@
           sub: (n > 1 ? n + ' clientes lo han escrito' : 'Un cliente lo escribio')
                + ' · hoy se cobra en $0',
           cuando: f.updated_at || f.created_at,
-          ir: 'configuracion.html#domicilios', urgente: true,
+          /* Se llega a la fila ABIERTA y con el bloque a la vista: el enlace
+             viejo (#domicilios) no hacia nada y aterrizaba en otra pantalla. */
+          ir: 'configuracion.html?s=chatia&tab=pedido&acc=p-domi&ver=domiAprendidos',
+          urgente: true,
         });
       });
     } catch (e) {}

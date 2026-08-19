@@ -2174,3 +2174,13 @@ html.tema-claro .ep-menu-it.malo { color: #8f2242; }
 .ep-paso.futuro .ep-paso-t { color: var(--dim); font-weight: 500; }
 .ep-paso.ahora .ep-paso-t { color: var(--oro-tx); }
 .ep-paso-h { font-size: 12px; color: var(--sub); font-variant-numeric: tabular-nums; margin-top: 1px; }
+
+/* El domicilio que todavía no tiene precio: se paga al recibir.
+   Va en dorado y no en rojo: no es un problema del cliente ni un error — es
+   cómo funciona mientras el restaurante le pone precio a su barrio. */
+.ep-domi-luego {
+  margin-top: 10px; padding: 10px 12px; border-radius: 12px;
+  background: rgba(227,176,75,.10); border: 1px solid rgba(227,176,75,.35);
+  color: var(--ink); font-size: 12.5px; line-height: 1.45;
+}
+.ep-domi-luego b { color: var(--oro-tx); }

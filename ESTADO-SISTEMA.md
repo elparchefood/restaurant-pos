@@ -8664,3 +8664,52 @@ seria peor: Meta rechaza (o sanciona) los codigos fuera de esa categoria.
 Configuracion pedida: nombre `codigo_acceso` · idioma es · autenticacion ·
 recomendacion de seguridad SI · vencimiento 10 minutos (igual que
 `CODIGO_VIVE_MIN`) · boton copiar codigo.
+
+---
+
+## 227 — El barrio nuevo: ponerle precio, y que el cliente no espere (19-ago-2026)
+
+Sergio hizo un pedido desde la pagina con una direccion que el sistema no
+conoce. **El aviso llego bien** (la campana ya solo trae los de la pagina), pero
+al tocarlo aterrizaba en Configuracion sin nada a la vista.
+
+### 1. El enlace no llevaba a ninguna parte
+
+Apuntaba a `configuracion.html#domicilios` y **el hash no lo lee nadie**: la
+pantalla abria en la pestaña que estuviera guardada. Ya existia el mecanismo
+bueno (`?s=&tab=&acc=`), solo que sin usar. Ahora el aviso lleva a
+`?s=chatia&tab=pedido&acc=p-domi&ver=domiAprendidos`: abre la pantalla, despliega
+la fila, deja el bloque a la vista y lo resalta un momento. Se le agrego el
+parametro `ver`, que faltaba.
+
+### 2. No habia donde escribir el precio
+
+La fila mostraba **"$0"** y un boton "Agregar a la tabla" que lo habria guardado
+asi — regalando el domicilio de ese barrio en cada pedido, sin que nadie se
+entere. Los que vienen de la pagina y del asistente entran en cero porque nadie
+les ha puesto valor: eso es justo lo que hay que decidir.
+
+Ahora esas filas traen **el precio escribible ahi mismo** (con la direccion del
+cliente debajo, que ayuda a ubicar barrios cuyo nombre solo no dice nada),
+Enter guarda, y guardar en cero no se deja. Las que vienen de un cobro a mano
+conservan su precio y no cambian.
+
+### 3. El cliente NO espera a que le confirmen (regla de Sergio)
+
+Si la direccion nueva la agrega al momento de pedir, **paga su comida ahora y el
+domicilio se lo cobra el domiciliario al entregar**. El servidor ya lo hacia
+bien —`total` es comida + empaque y `delivery_fee` queda en 0, asi que cobra
+solo el pedido— lo que faltaba era DECIRLO:
+
+- En la cuenta previa: *"Domicilio · lo pagas al recibir"* y un aviso explicando
+  que paga solo su pedido. Antes decia "se calcula al enviar", que no dice quien
+  paga ni cuando.
+- En "pedido recibido" y en el seguimiento, lo mismo.
+- Y en la **comanda**: `[DOMICILIO POR COBRAR]`. Ese papel es el que lleva quien
+  entrega — es el unico sitio donde el aviso llega a quien tiene que cobrar.
+
+### Verificado con su pedido real
+
+`Lomas de San Benito` entro con `origen = web` (la marca nueva funciona), precio
+0 y su direccion; el pedido quedo con `total 16.000` y `delivery_fee 0`, o sea
+cobrandole solo la comida.

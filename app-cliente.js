@@ -2771,8 +2771,10 @@
       '<div class="ep-tile">' +
         '<div class="ep-tile-lbl">Lo que pediste</div>' +
         '<div style="margin-top:6px">' + items +
-          (Number(p.domicilio) > 0 ? '<div class="ep-dato"><span>Domicilio</span><span>' + COP(p.domicilio) + '</span></div>' : '') +
-          '<div class="ep-total-fila grande"><span>Total</span><b>' + COP(total) + '</b></div>' +
+          (Number(p.domicilio) > 0
+            ? '<div class="ep-dato"><span>Domicilio</span><span>' + COP(p.domicilio) + '</span></div>'
+            : (domi ? '<div class="ep-dato"><span>Domicilio</span><span style="color:var(--oro-tx)">lo pagas al recibir</span></div>' : '')) +
+          '<div class="ep-total-fila grande"><span>' + (domi && !Number(p.domicilio) ? 'Pagaste' : 'Total') + '</span><b>' + COP(total) + '</b></div>' +
         '</div>' +
       '</div>' +
 
@@ -3264,7 +3266,7 @@
           : '') +
         (entrega === 'domicilio'
           ? '<div class="ep-total-fila"><span style="color:var(--sub)">Domicilio</span><span' +
-            (domiCta > 0 ? '>' + COP(domiCta) : ' style="color:var(--dim)">se calcula al enviar') + '</span></div>'
+            (domiCta > 0 ? '>' + COP(domiCta) : ' style="color:var(--oro-tx)">lo pagas al recibir') + '</span></div>'
           : '') +
         '<div class="ep-total-fila grande"><span>Total</span><b>' + COP(totalCta) + '</b></div>' +
         /* EL AHORRO DEL COMBO, donde el cliente esta mirando la plata (19-ago,
@@ -3273,6 +3275,15 @@
            escondido en la carta. Solo aparece si de verdad hay combo. */
         (carroAhorro() > 0
           ? '<div class="ep-ahorro">Te ahorras ' + COP(carroAhorro()) + ' por pedirlo en combo</div>'
+          : '') +
+        /* DIRECCION QUE EL RESTAURANTE TODAVIA NO CONOCE (19-ago, regla de
+           Sergio). El cliente NO se queda esperando a que le confirmen el
+           precio: paga su comida ahora y el domicilio se lo cobran al
+           entregarle. Decirlo aqui, antes de pagar, es lo que evita el reclamo
+           de "me cobraron algo que no estaba en el total". */
+        (entrega === 'domicilio' && domiCta <= 0
+          ? '<div class="ep-domi-luego">🛵 Todavía no tenemos el precio del domicilio para tu dirección. ' +
+            '<b>Pagas ahora solo tu pedido</b> y el domicilio se lo pagas al domiciliario cuando te llegue.</div>'
           : '') +
         '<div class="ep-gana">Ganarás +' + gana + ' puntos con este pedido</div>' +
       '</div>' +
@@ -3310,7 +3321,8 @@
         (d.domicilio ? '<div class="ep-total-fila"><span style="color:var(--sub)">Domicilio</span><span>' + COP(d.domicilio) + '</span></div>' : '') +
         '<div class="ep-total-fila grande"><span>Total a pagar</span><b>' + COP(d.total) + '</b></div>' +
         (d.domicilio === 0 && d.barrio_conocido === false
-          ? '<div class="ep-nota" style="margin-top:6px">El domicilio de tu barrio lo confirma el restaurante.</div>' : '') +
+          ? '<div class="ep-domi-luego">🛵 El domicilio lo pagas al recibir: te lo cobra el domiciliario. ' +
+            'Lo de arriba es solo tu pedido.</div>' : '') +
         /* LO QUE GANO CON ESTE PEDIDO (19-ago). Estaba solo en la cuenta previa
            y se perdia justo cuando el cliente mira si valio la pena. */
         (Number(d.ahorro) > 0
