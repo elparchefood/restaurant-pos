@@ -750,6 +750,9 @@
   border-bottom: 1px solid #ECEEF2;
   flex-shrink: 0;
 }
+/* La columna del nombre puede encoger. Sin esto, una direccion larga la
+   estiraria y empujaria el boton de los tres puntos fuera de la tarjeta. */
+.vs-rail-head > div:first-child { min-width: 0; }
 /* El nombre va SIEMPRE en una linea. Si no cabe se corta con "..." y al tocarlo
    se ve completo: un nombre largo partido en dos lineas empujaba la comanda
    hacia abajo, que es lo que de verdad hay que ver en esta tarjeta. */
@@ -793,6 +796,42 @@
   font-family: inherit;
 }
 .vs-pts-chip:hover { background: #EDE9FE; }
+
+/* PARA DONDE VA EL DOMICILIO (19-ago, pedido de Sergio). Estando aqui le
+   tocaba irse hasta el chat a mirar la direccion. Va debajo del nombre y los
+   puntos, que es donde no estorba: es lo primero que se necesita al tocar un
+   domicilio, pero no es lo que se cobra — por eso no compite con la comanda
+   ni con el total. */
+.vs-dir {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 9px;
+  padding: 8px 10px;
+  background: #F8FAFC;
+  border: 1px solid #ECEEF2;
+  border-radius: 9px;
+  min-width: 0;
+}
+.vs-dir-ico { flex: none; margin-top: 1px; color: #94A3B8; }
+.vs-dir-tx { min-width: 0; }
+/* La direccion se lee COMPLETA aunque sea larga: cortarla con puntos
+   suspensivos justo aqui seria devolverle el problema al domiciliario. */
+.vs-dir-calle {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0F172A;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.vs-dir-barrio {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-top: 2px;
+}
 .vs-rail-fixed-top {
   display: flex;
   flex-direction: column;

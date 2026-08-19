@@ -824,7 +824,7 @@
     try {
       var cajaStart = await getCajaSessionStart();
       var q = sb.from('pos_orders')
-        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, waiter_id, domiciliario, status, created_at, opened_at, delivery_status, delivered_at, estado, estado_at, cliente_id')
+        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, waiter_id, domiciliario, status, created_at, opened_at, delivery_status, delivered_at, estado, estado_at, cliente_id, notes')
         .eq('channel', 'domicilio')
         .not('status', 'eq', 'cancelled')
         .gte('created_at', cajaStart)
@@ -879,6 +879,10 @@
           min: mins,                 // en el estado actual
           minTotal: minsTotal,       // desde que entro el pedido
           estadoAt: r.estado_at || r.created_at || null,
+          /* PARA DONDE VA (19-ago, pedido de Sergio). Estando en la pantalla de
+             domicilios le tocaba irse hasta el chat a mirar la direccion. Vive
+             en las notas del pedido, que ya se traian para otras cosas. */
+          notas: r.notes || '',
         };
       });
     } catch(e) {
@@ -1801,6 +1805,7 @@
               <span class="vs-state-dot" style="background:${meta.color}"></span>${meta.label}
             </span>
           </div>
+          ${vsDireccionHTML(d)}
         </div>
         <div style="position:relative">
           <button class="lm-icon-sm" data-domi-action="menu" data-domi-id="${d.id}">${SVG_DOTS(14)}</button>
@@ -3946,6 +3951,48 @@
       .replace(/\s+/g, ' ')
       .trim();
     return t ? _esc(t) : '';
+  }
+
+  /* ══ PARA DONDE VA EL DOMICILIO ══════════════════════════════════════════
+     Las notas de un pedido a domicilio vienen siempre asi:
+
+         Carrera 55 # 2 c 11 [barrio:LOMAS DE SAN BENITO] [tel:324...] [web] — sin cebolla
+
+     La direccion es todo lo que va ANTES del primer marcador; el barrio sale
+     de su propio marcador. Lo que va despues del guion es la nota del cliente
+     y ya se muestra en la comanda, asi que aqui no se repite.
+
+     Se lee de las notas y no de una columna porque no existe tal columna: la
+     direccion nunca se guardo aparte, y los cuatro caminos que crean pedidos
+     (la pagina y los tres de Paco) la escriben aqui con este mismo formato. */
+  function vsDireccionDe(notas) {
+    var t = String(notas == null ? '' : notas);
+    if (!t.trim()) return null;
+    var mBarrio = t.match(/\[barrio:([^\]]*)\]/i);
+    var barrio = mBarrio ? mBarrio[1].trim() : '';
+    /* Todo lo anterior al primer marcador. Si no hay ninguno, no es un pedido
+       a domicilio con direccion: es una nota suelta y no se inventa nada. */
+    var corte = t.indexOf('[');
+    var dir = corte >= 0 ? t.slice(0, corte).trim() : '';
+    dir = dir.replace(/[—\-·,\s]+$/, '').trim();
+    if (!dir && !barrio) return null;
+    return { direccion: dir, barrio: barrio };
+  }
+
+  /* El bloque que lo muestra, debajo del nombre y los puntos: es lo primero
+     que se necesita al tocar un domicilio, pero no es lo que se cobra — por
+     eso va tranquilo y no compite con la comanda ni con el total. */
+  function vsDireccionHTML(d) {
+    if (d.canal !== 'domicilio') return '';
+    var x = vsDireccionDe(d.notas);
+    if (!x) return '';
+    return '<div class="vs-dir">'
+      + '<svg class="vs-dir-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+      +   '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>'
+      + '<div class="vs-dir-tx">'
+      +   (x.direccion ? '<div class="vs-dir-calle">' + _esc(x.direccion) + '</div>' : '')
+      +   (x.barrio ? '<div class="vs-dir-barrio">' + _esc(x.barrio) + '</div>' : '')
+      + '</div></div>';
   }
 
   function _esc(s) {

@@ -8928,3 +8928,41 @@ que ya usa `verify-transfer`.
 de Windows: el `·` llegaba partido en dos y ninguna comparacion casaba. Al leer
 en UTF-8 aparecieron las 16. Si un barrido da cero, sospechar del lector antes
 que de los datos.
+
+---
+
+## 232 — La direccion, en la misma comanda (19-ago-2026)
+
+Sergio, trabajando de verdad con la pantalla: al tocar un domicilio necesita
+saber **para donde va**, y le tocaba irse hasta el chat a buscarlo.
+
+Ahora el panel del domicilio muestra **direccion y barrio**, debajo del nombre
+y los puntos — donde el mismo pidio, "una parte donde no estorbe". Es lo
+primero que se necesita al tocar un domicilio, pero no es lo que se cobra: por
+eso va tranquilo y no compite con la comanda ni con el total.
+
+### De donde sale
+No hay columna de direccion: nunca se guardo aparte. Los cuatro caminos que
+crean pedidos (la pagina y los tres de Paco) la escriben en `notes`, siempre
+con el mismo formato:
+
+```
+Carrera 55 # 2 c 11 [barrio:LOMAS DE SAN BENITO] [tel:324...] [web] — sin cebolla
+```
+
+`vsDireccionDe()` toma todo lo anterior al primer marcador como direccion y el
+barrio de su propio marcador. Lo que va tras el guion es la nota del cliente,
+que ya se muestra en la comanda y aqui no se repite. Sin marcadores devuelve
+`null` y no se pinta nada: una nota suelta no es una direccion.
+
+`fetchDeliveries` no traia `notes`; ahora si.
+
+### Detalles de la pantalla
+- La direccion **no se corta con puntos suspensivos**: cortarla justo aqui
+  seria devolverle el problema al domiciliario. Envuelve en varias lineas.
+- `.vs-rail-head > div:first-child { min-width: 0 }` — sin eso una direccion
+  larga estiraba la columna y empujaba el boton de los tres puntos fuera de la
+  tarjeta.
+
+Probado con las direcciones reales de los ultimos pedidos, incluida una de dos
+lineas y una sin direccion.
