@@ -69,7 +69,7 @@ interface Insumo {
   alias: string[];
 }
 interface Op {
-  insumo_id: string; accion: "set" | "add" | "agotado" | "disponible" | "surtir";
+  insumo_id: string; accion: "set" | "add" | "agotado" | "disponible" | "surtir" | "precio";
   cantidad_buy_unit: number; precio_buy_unit?: number | null; texto: string;
   // A cuál de los dos niveles se refiere. Antes no existía y "hay 5 en servicio"
   // terminaba cambiando la BODEGA, que es justo lo contrario de lo que se pidió.
@@ -263,6 +263,7 @@ REGLAS:
 13. LINEAS CON VARIOS PRODUCTOS: "Pan (perro 10 unidades, sandwich 6, hamburguesa 3)" son TRES insumos distintos, cada uno con SU cantidad. No mezcles la cantidad de uno con otro.
 14. ERRORES DE DEDO EN LAS UNIDADES: "50kh"/"50 kg"/"50 kilos" es lo mismo (kg); "gr"/"grs"/"gramos" es g; "lb"/"libras" es libra. Si el numero viene pegado a la unidad ("50kg", "1kg"), separalo.
 15. "no hay" / "cero" / "se acabo" SIN cantidad = agotado. Pero "cero bodega (1 nevera)" NO es agotado: es set 0 en bodega y set 1 en servicio.
+16. SOLO EL PRECIO: "actualiza el precio del galon de salsa rosada en 45000", "el maiz ahora cuesta 8900 el kilo", "subio la papa a 380 mil el bulto", "cambia el precio de la tocineta a 32000" = accion "precio". NO toca la cantidad: cantidad_buy_unit va en 0 y el valor va en precio_buy_unit. En "unidad_dicha" pon la unidad a la que se refiere el precio ("galon", "kilo", "bulto", "paquete"); si no la dijo, null. "a 45 mil" = 45000, "a 380 mil" = 380000.
 10. Si no entiendes nada de inventario, devuelve ops vacío y consulta false.
 
 Formato EXACTO:
@@ -396,7 +397,7 @@ function recalcular(ops: Op[], byId: Record<string, Insumo>): void {
   for (const op of ops) {
     const ins = byId[op.insumo_id];
     if (!ins) continue;
-    if (op.accion === "agotado" || op.accion === "disponible") continue;
+    if (op.accion === "agotado" || op.accion === "disponible" || op.accion === "precio") continue;
     const dicha = Number(op.cantidad_dicha);
     if (!op.unidad_dicha || !isFinite(dicha)) continue;
     const bien = convertirDicho(dicha, String(op.unidad_dicha), ins);
@@ -424,7 +425,7 @@ function recalcular(ops: Op[], byId: Record<string, Insumo>): void {
 const TURNO_ABRIR = new RegExp("(abro|abrir|abre|iniciar|inicio de|empiezo|empezamos|arranco)" + String.fromCharCode(92) + "s+(el" + String.fromCharCode(92) + "s+)?turno", "i");
 const TURNO_CERRAR = new RegExp("(cierro|cerrar|cierra|terminar|termino|terminamos|finalizo|acabo)" + String.fromCharCode(92) + "s+(el" + String.fromCharCode(92) + "s+)?turno", "i");
 const TURNO_APLICAR = new RegExp("^" + String.fromCharCode(92) + "s*(aplica|aplicar|aplique|cambia|actualiza)" + String.fromCharCode(92) + "b", "i");
-const TURNO_NO = new RegExp("^" + String.fromCharCode(92) + "s*(no|nada|dejalo|dejala|asi esta bien|no apliques)", "i");
+const TURNO_NO = new RegExp("^\\s*(no|nada|dejalo|dejala|dejalas|asi esta bien|asi\\s+esta\\s+bien|no\\s+apliques|ninguna)\\s*[.!]*\\s*$", "i");
 
 function fmtPorcion(n: number): string {
   const r = Math.round(n * 10) / 10;
@@ -493,13 +494,22 @@ Deno.serve(async (req: Request) => {
 
     /* RESPUESTA A LAS RECOMENDACIONES DEL ULTIMO TURNO. Va antes de todo: no
        hace falta el modelo para leer un "aplica" o un "no". */
-    if (!modoAbrir && !modoCerrar && (TURNO_APLICAR.test(mensaje) || TURNO_NO.test(mensaje))) {
+    /* SOLO ES UNA RESPUESTA AL TURNO si parece una: corta, sin cifras y sin
+       hablar de precios ni de inventario. Sin esto, "actualiza el precio del
+       galon de salsa rosada en 45000" empieza por "actualiza" y se lo tragaba
+       el turno — paso en la primera prueba. */
+    const pareceRespuestaTurno = !modoAbrir && !modoCerrar
+      && (TURNO_APLICAR.test(mensaje) || TURNO_NO.test(mensaje))
+      && mensaje.trim().length <= 40
+      && !/[0-9]/.test(mensaje)
+      && !/precio|inventario|stock|hay|compre|compr[eé]/i.test(mensaje);
+    if (pareceRespuestaTurno) {
       const ult = await sbGet(`/iv_turnos?branch_id=eq.${branch_id}&estado=eq.cerrado&order=cerrado_en.desc&limit=1&select=id,analisis,cerrado_en`) as Array<Record<string, unknown>> | null;
       const turno = ult?.[0];
       const an = turno?.analisis as Record<string, unknown> | null;
-      if (!turno || !an) {
-        return json({ reply: "No tengo recomendaciones pendientes. Cierra un turno primero: “cierro turno con maiz 1.2 kg, ripio 1.4 kg”." });
-      }
+      /* Sin nada pendiente esto no era una respuesta al turno: era otra cosa
+         que empezaba parecido. Se deja seguir por el camino normal. */
+      if (turno && an) {
       if (TURNO_NO.test(mensaje)) {
         await sbPatch(`/iv_turnos?id=eq.${turno.id}`, { analisis: null });
         return json({ reply: "Listo, dejo las porciones como estan 👍" });
@@ -526,6 +536,7 @@ Deno.serve(async (req: Request) => {
       await sbPatch(`/iv_turnos?id=eq.${turno.id}`, { analisis: null });
       const NL = String.fromCharCode(10);
       return json({ reply: `✅ *Porciones actualizadas* (${ajustes.length})${NL}${NL}• ${nombres.join(NL + "• ")}${NL}${NL}No toque nada mas: ni precios, ni unidades, ni el resto de la receta.` });
+      }
     }
 
 
@@ -738,6 +749,42 @@ Deno.serve(async (req: Request) => {
    🧊 en servicio: *${decir(nuevoServicio, ins)}*
    📦 en bodega queda: ${decir(nuevaBodega, ins)}${parcial}`);
         compacto.push({ n: ins.nombre, t: `🧊 servicio: ${decir(nuevoServicio, ins)} · 📦 bodega: ${decir(nuevaBodega, ins)}` });
+        continue;
+      }
+
+      /* ── SOLO EL PRECIO ────────────────────────────────────────────────
+         "actualiza el precio del galon de salsa rosada en 45000". No toca la
+         cantidad ni nada mas: el precio es del insumo (de la marca), no de la
+         existencia de la sede. */
+      if (op.accion === "precio") {
+        const dado = num(op.precio_buy_unit);
+        if (dado <= 0) {
+          hechos.push(`• *${ins.nombre}*: no entendi el precio. Dimelo asi: “el precio del ${ins.buy_unit} de ${ins.nombre} es 45000”.`);
+          compacto.push({ n: ins.nombre, t: "precio no entendido" });
+          continue;
+        }
+        /* SI LO DIJO EN OTRA UNIDAD, se pasa a la de compra. "el kilo de papa a
+           8.900" con la papa en bultos de 43 kg son $382.700 el bulto: cobrar
+           8.900 por bulto dejaria el costo de los platos por el piso. */
+        let precioFinal = dado;
+        let nota = "";
+        const uDicha = op.unidad_dicha ? String(op.unidad_dicha) : "";
+        if (uDicha && limpiarUnidad(uDicha) !== limpiarUnidad(ins.buy_unit)) {
+          const porUnidad = convertirDicho(1, uDicha, ins);
+          if (porUnidad !== null && porUnidad > 0) {
+            precioFinal = dado / porUnidad;
+            nota = ` (dijiste ${fmtNum(dado)} por ${uDicha})`;
+          }
+        }
+        precioFinal = Math.round(precioFinal);
+        const antesP = ins.precio;
+        await sbPatch(`/iv_insumos?id=eq.${ins.id}`, { precio: precioFinal, updated_at: new Date().toISOString() });
+        ins.precio = precioFinal;
+        await auditar(branch_id, telGerente, mensaje, ins, "precio", precioFinal, antesP, precioFinal);
+        hechos.push(`• *${ins.nombre}* — 💲 PRECIO
+   de ${fmtNum(antesP)} a *${fmtNum(precioFinal)}* por ${ins.buy_unit}${nota}
+   (no toque la cantidad: sigue en ${decir(ins.stock, ins)})`);
+        compacto.push({ n: ins.nombre, t: `💲 ${fmtNum(precioFinal)}/${ins.buy_unit}` });
         continue;
       }
 

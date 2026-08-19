@@ -8098,3 +8098,61 @@ y `fn_iv_consumir_item` los recorre uno por uno.
 
 **Pendiente que salio de aqui:** hoy, si un item con receta no descuenta, nadie
 se entera. Falta un aviso que lo cace solo.
+
+---
+
+## 215 — Precios: por factura y por mensaje suelto (19-ago-2026)
+
+### 1. Por foto de factura — ya existia, comprobado que sigue vivo
+
+Sergio pidio verificarlo porque llevaba dias sin usarse. Se volvio a pasar **la
+foto real de su ultima factura** (QUESERA Y SALSAMENTARIA PORKIS, $163.500,
+guardada en `iv_facturas_pendientes`) y respondio bien: reconocio las 6 lineas,
+las emparejo con sus insumos y **detecto el cambio de precio**:
+
+```
+✅ Maicitos +2 kg
+    ⚠️ subió de $7.900 a $8.900
+Los precios con ⚠️ NO los cambio solo.
+Si alguno ya es el precio de siempre, dime: SÍ, actualiza el precio de Maicitos.
+```
+
+El criterio ya estaba bien pensado y se respeta: una subida fuerte **no se
+aplica sola**, hay que nombrarla (o decir "todos los precios").
+
+⚠️ **Pero la confirmacion estaba rota, y era culpa del arreglo de la entrada
+212**: `sedeF` se calculaba dentro de `cargarInsumos` y se usaba tambien al
+aplicar → `ReferenceError: sedeF is not defined`. Salio en la prueba de punta a
+punta, no leyendo. Ahora vive en `sedeExistencia(branch_id)`, que usan los dos
+momentos. Verificado con una factura de prueba de 0,001 kg: sumo la cantidad y
+cambio el precio, y se devolvio todo.
+
+⚠️ Y se confirmo que el `` reparado hoy importaba: la frase "todos los
+precios" es la que aplica todos de una.
+
+### 2. Por mensaje suelto — nuevo
+
+`actualiza el precio del galon de salsa rosada en 45000` · `el kilo de maiz
+ahora cuesta 8900` · `la papa subio a 380 mil el bulto`. Accion nueva `precio`:
+**solo toca el precio**, nunca la cantidad — y la respuesta lo dice
+expresamente ("no toque la cantidad: sigue en 3.500 g").
+
+Si el precio viene en otra unidad se convierte con el mismo motor determinista
+del inventario: "el kilo de papa a 8.900" con la papa en bultos de 43 kg son
+$382.700 el bulto. Cobrarlo como $8.900 por bulto dejaria el costo de los
+platos por el piso.
+
+### El fallo que solo aparecio probando
+
+`actualiza el precio...` empieza por "actualiza", y el comando del turno
+(`aplica|actualiza|cambia`) se lo tragaba: contestaba *"no tengo
+recomendaciones pendientes"*. Tres candados:
+- La respuesta al turno tiene que **parecer** una: corta (≤40 caracteres), sin
+  cifras y sin las palabras precio/inventario/stock/compre.
+- El "no" solo cuenta si el mensaje **es** eso. Antes "no hay salsa de ajo"
+  habria contestado "dejo las porciones como estan".
+- Y si no hay recomendaciones pendientes, el mensaje **sigue de largo** al
+  camino normal en vez de quedarse ahi.
+
+Los tres controles verificados. Precios de prueba devueltos a los de Sergio
+(los numeros los decide el).

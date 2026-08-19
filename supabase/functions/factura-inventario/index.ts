@@ -56,6 +56,18 @@ type Linea = {
   precio_raro?: boolean;        // el precio no cuadra con ese insumo
 };
 
+/* EN QUE FILA DE EXISTENCIAS se descuenta: la bolsa comun de la marca (modo
+   global) o la de esta sede. Vive aparte porque lo necesitan los dos momentos:
+   al leer la factura y al aplicarla. Tenerlo dentro de `cargarInsumos` costo un
+   "sedeF is not defined" que dejaba la confirmacion muerta. */
+async function sedeExistencia(branch_id: string): Promise<string | null> {
+  const br = await sbGet(`/branches?id=eq.${branch_id}&select=brand_id&limit=1`) as Array<Record<string, unknown>> | null;
+  const brand = br?.[0]?.brand_id as string | undefined;
+  if (!brand) return null;
+  const marca = await sbGet(`/brands?id=eq.${brand}&select=inventario_modo&limit=1`) as Array<Record<string, unknown>> | null;
+  return String(marca?.[0]?.inventario_modo || "global") === "sucursal" ? branch_id : null;
+}
+
 async function cargarInsumos(branch_id: string): Promise<Insumo[]> {
   /* EL STOCK VIVE EN `iv_existencias` (18-ago). Esta funcion pedia las columnas
      viejas de `iv_insumos` y el SELECT devolvia 400: contestaba "No encuentro
@@ -423,7 +435,7 @@ REGLAS:
       if (tocaPrecio) patch.precio = Math.round(nuevoPrecio);
       const pAny = patch as Record<string, unknown>;
       if (pAny.stock !== undefined) {
-        await sbPost(`/rpc/fn_iv_fijar_existencia`, { p_insumo: ins.id, p_branch: sedeF, p_stock: pAny.stock, p_servicio: null, p_agotado: null });
+        await sbPost(`/rpc/fn_iv_fijar_existencia`, { p_insumo: ins.id, p_branch: await sedeExistencia(branch_id), p_stock: pAny.stock, p_servicio: null, p_agotado: null });
         delete pAny.stock;
       }
       if (Object.keys(pAny).length) await sbPatch(`/iv_insumos?id=eq.${ins.id}`, patch);
