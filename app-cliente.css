@@ -1517,6 +1517,35 @@ button.ep-pub-foto { cursor: pointer; }
 }
 .ep-pub-hint { font-size: 11.5px; color: var(--dim); }
 
+/* EN EL CELULAR EL BANNER TOMA LA FORMA DE LA FOTO.
+   En escritorio la tarjeta vive en una rejilla de tres columnas y se estira
+   hasta igualar a sus hermanas: ahi la proporcion sale bien y no se toca. En el
+   celular ocupaba todo el ancho contra un alto fijo de 190 px, y con
+   `object-fit: cover` eso RECORTA — se perdian el precio y el borde del arte.
+   `--pub-ar` la calcula el JS con la foto mas alta de las que subio el dueNo;
+   el 1400/670 de aqui es solo el respaldo si no se pudo medir. */
+@media (max-width: 899px) {
+  /* `--pub-ar` la pone el JS con la forma de la foto que se esta viendo; el
+     1400/670 es solo el respaldo por si no se pudo medir. La transicion evita
+     que el alto pegue un brinco al rotar entre fotos de distinta forma. */
+  .ep-pub {
+    min-height: 0; aspect-ratio: var(--pub-ar, 1400 / 670);
+    transition: aspect-ratio .45s ease;
+    /* TOPE PARA LA TABLETA: esta franja llega hasta 899 px de ancho, y ahi la
+       proporcion pura daria un banner de 500 px de alto que se come la
+       pantalla. En un celular (430 px o menos) el alto natural no pasa de 240,
+       asi que el tope no estorba; en tableta recorta el alto y, gracias a
+       `contain`, la foto se achica en vez de cortarse. */
+    max-height: 320px;
+  }
+  /* `contain` es el seguro: si la medida fallara, la foto igual entra entera
+     en vez de recortarse. */
+  .ep-pub-foto img { object-fit: contain; }
+}
+@media (max-width: 899px) and (prefers-reduced-motion: reduce) {
+  .ep-pub { transition: none; }
+}
+
 /* ── La fila de hoy: el mensaje y tres platos ─────────────────────── */
 /* CUADRO 2x2, no fila (16-ago). El mensaje y el primer plato arriba; los otros
    dos debajo. Así el bloque es cuadrado y deja sitio a la billetera al lado. */

@@ -2235,6 +2235,29 @@
     if (!caja) return;
     var fotos = caja.querySelectorAll('.ep-pub-foto');
     var puntos = caja.querySelectorAll('.ep-pub-pt');
+
+    /* EL ALTO DEL BANNER EN EL CELULAR LO MANDA LA FOTO QUE SE ESTA VIENDO
+       (19-ago). En escritorio la tarjeta vive en una rejilla y se estira hasta
+       igualar a sus hermanas: ahi la proporcion sale bien y no se toca. En el
+       celular ocupaba todo el ancho contra un alto fijo, asi que la foto salia
+       RECORTADA — justo el arte que el dueNo diseNo, con su precio y su borde.
+
+       No sirve una proporcion fija para todas: hoy conviven 1400x670 y
+       1368x813. Con una sola medida, o se recorta una o le quedan franjas a la
+       otra. Asi que el cuadro toma la forma de CADA foto al pasar, con una
+       transicion suave para que el cambio de alto no de un brinco. */
+    function formaDe(k) {
+      var im = fotos[k] && fotos[k].querySelector('img');
+      if (!im || !im.naturalWidth || !im.naturalHeight) return;
+      caja.style.setProperty('--pub-ar', (im.naturalWidth / im.naturalHeight).toFixed(4));
+    }
+    /* La primera puede no haber cargado todavia. */
+    var prim = fotos[0] && fotos[0].querySelector('img');
+    if (prim) {
+      if (prim.complete) formaDe(0);
+      else prim.addEventListener('load', function () { formaDe(0); }, { once: true });
+    }
+
     if (fotos.length < 2) return;
 
     var i = 0;
@@ -2242,6 +2265,7 @@
       i = (k + fotos.length) % fotos.length;
       fotos.forEach(function (f, n) { f.classList.toggle('on', n === i); });
       puntos.forEach(function (p, n) { p.classList.toggle('on', n === i); });
+      formaDe(i);
     }
     puntos.forEach(function (p) {
       p.addEventListener('click', function (ev) {
