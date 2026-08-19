@@ -8256,3 +8256,41 @@ La logica corrida en un navegador con ocho casos y los datos reales:
 | Linea vieja sin el dato | (nada) |
 
 SQL en `sql/2026-08-19-combo-ahorro.sql`.
+
+---
+
+## 218 — La pantalla de "pedido recibido", pulida (19-ago-2026)
+
+Sergio hizo un pedido de prueba de punta a punta —**funciono completo**, es la
+primera vez que la pagina cobra de verdad— y de ahi salieron cuatro detalles.
+
+1. **El logo del restaurante en vez de la estrella.** Es el momento en que el
+   cliente acaba de confiar su plata; ver la marca vale mas que un adorno
+   generico. Sin logo queda la estrella.
+
+2. **Los datos de pago ahora se pueden USAR.** Eran una lista muda: la llave
+   estaba ahi pero tocaba copiarla a mano mirando la pantalla, y nadie
+   explicaba el procedimiento. Ahora el bloque entero abre un instructivo paso
+   a paso (el mismo formato del de recargas, que el cliente ya conoce), lo
+   anuncia con una pastilla *"¿Cómo transfiero?"*, y **la llave tiene su boton
+   de copiar en la pantalla**, sin necesidad de abrir nada. La funcion de
+   copiar salio del modal a un solo sitio: la usan los dos.
+
+3. **"Ya transferí" era un recuadro punteado gris** que parecia deshabilitado,
+   cuando es LA accion de quien no paga con saldo. Ahora es un boton con borde
+   dorado y su clip.
+
+4. **"Pago confirmado" no se leia.** El verde era `#7fe6ab`, pensado para fondo
+   oscuro: sobre el fondo claro da **1,21 de contraste** (medido). Se creo el
+   token `--ok-tx`, igual que se hizo con `--oro-tx`: **#86EFAC en oscuro
+   (11,1)** y **#166534 en claro (5,67)**, los dos por encima del minimo de
+   4,5. Ademas el aviso cambio de forma: circulo con el visto, titulo y
+   explicacion.
+
+   Y en esa misma pantalla ahora se dice **lo que gano**: cuanto se ahorro si
+   pidio combo y cuantos puntos sumo. Se calculan antes de vaciar el carrito,
+   porque despues no hay de donde sacarlos.
+
+⚠️ El contraste se midio con el algoritmo de WCAG en un navegador, mezclando el
+color del aviso con el fondo real de cada tema. La primera opcion (#15803D) se
+descarto ahi mismo: daba 3,99 en claro y 3,11 en oscuro.

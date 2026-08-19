@@ -445,6 +445,21 @@
         refrescarBono();
       });
     }
+    /* El bloque de datos de pago ENTERO abre las instrucciones — menos el
+       boton de copiar, que hace lo suyo sin abrir nada. */
+    var pgP = $('pg-pasos');
+    if (pgP) pgP.addEventListener('click', function (ev) {
+      if (ev.target.closest('[data-copiar]')) return;
+      abrirPasos('pedido');
+    });
+    /* Copiar la llave desde la pantalla, sin entrar al modal. Es el mismo
+       comportamiento del boton de adentro: el propio boton avisa que copio. */
+    document.querySelectorAll('.ep-pago [data-copiar]').forEach(function (bc) {
+      bc.addEventListener('click', function (ev) {
+        ev.preventDefault(); ev.stopPropagation();
+        copiarTexto(bc.dataset.copiar, bc);
+      });
+    });
     var pgS = $('pg-saldo');
     if (pgS) pgS.addEventListener('click', function () { pagarPedido('saldo', null); });
     var pgC = $('pg-comp');
@@ -1223,11 +1238,49 @@
       '</div>';
   }
 
-  function abrirPasos() {
+  /* COMO PAGAR EL PEDIDO, paso a paso. Mismo formato que el de la recarga: el
+     cliente que ya vio uno reconoce el otro. La llave va DENTRO del paso donde
+     se necesita, con su boton de copiar — no al final, donde tocaria
+     devolverse. */
+  function pasosPago() {
+    var d = pedidoHecho || {};
+    var p = d.pago || {};
+    var llave = p.llave ? String(p.llave) : '';
+    var via = p.via || p.banco || 'transferencia';
+    var caja = llave
+      ? '<div class="ep-llave">' +
+          '<div class="ep-llave-fila">' +
+            '<span class="ep-llave-n">' + esc(llave) + '</span>' +
+            '<button class="ep-copiar" type="button" data-copiar="' + esc(llave) + '">Copiar</button>' +
+          '</div>' +
+          (p.titular ? '<div class="ep-llave-t">' + esc(p.titular) + '</div>' : '') +
+        '</div>'
+      : '';
+    var pasos = [
+      ['Abre tu app del banco', 'Nequi, Daviplata, Bancolombia… la que uses', ''],
+      ['Transfiere ' + COP(d.total), 'A esta llave — tócala para copiarla', caja],
+      ['Toma foto del comprobante', 'El que te muestra el banco al terminar', ''],
+      ['Súbela con “Ya transferí”', 'Confirmamos el pago y arrancamos tu pedido', '']
+    ];
+    return '<div class="ep-tirador"></div>' +
+      '<div class="ep-ins-t">Cómo pagar tu pedido</div>' +
+      '<div class="ep-ins-lista">' + pasos.map(function (x, i) {
+        return '<div class="ep-ins">' +
+          '<span class="ep-ins-n">' + (i + 1) + '</span>' +
+          '<div class="ep-ins-b"><div class="ep-ins-tt">' + x[0] + '</div>' +
+            (x[1] ? '<div class="ep-ins-d">' + x[1] + '</div>' : '') + x[2] +
+          '</div></div>';
+      }).join('') + '</div>' +
+      '<div class="ep-ins-pie">' +
+        '<button class="ep-btn gold big" type="button" data-cerrar-pasos>Entendido</button>' +
+      '</div>';
+  }
+
+  function abrirPasos(cual) {
     if (document.querySelector('.ep-scrim.pasos')) return;
     var d = document.createElement('div');
     d.className = 'ep-scrim pasos';
-    d.innerHTML = '<div class="ep-sheet">' + pasosRecarga() + '</div>';
+    d.innerHTML = '<div class="ep-sheet">' + (cual === 'pedido' ? pasosPago() : pasosRecarga()) + '</div>';
     document.body.appendChild(d);
 
     function cerrar() {
@@ -1241,23 +1294,32 @@
     });
 
     var bc = d.querySelector('[data-copiar]');
-    if (bc) bc.addEventListener('click', function () {
-      var txt = bc.dataset.copiar;
-      /* Sin cuadros del navegador: el propio boton dice que copio. Y con
-         respaldo, porque el portapapeles moderno no existe fuera de https ni
-         en navegadores viejos. */
-      function listo() { bc.textContent = 'Copiado'; setTimeout(function () { bc.textContent = 'Copiar'; }, 1500); }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(txt).then(listo, respaldo);
-      } else respaldo();
-      function respaldo() {
-        var a = document.createElement('textarea');
-        a.value = txt; a.style.position = 'fixed'; a.style.opacity = '0';
-        document.body.appendChild(a); a.select();
-        try { document.execCommand('copy'); listo(); } catch (e) {}
-        a.remove();
-      }
-    });
+    if (bc) bc.addEventListener('click', function () { copiarTexto(bc.dataset.copiar, bc); });
+  }
+
+  /* COPIAR, en un solo sitio. Lo usan el modal y la pantalla del pedido; antes
+     vivia suelto dentro del modal y la pantalla no tenia como copiar nada.
+     Sin cuadros del navegador: el propio boton dice que copio. Y con respaldo,
+     porque el portapapeles moderno no existe fuera de https ni en navegadores
+     viejos. */
+  function copiarTexto(txt, btn) {
+    function listo() {
+      if (!btn) return;
+      var antes = btn.textContent;
+      btn.textContent = 'Copiado';
+      btn.classList.add('ok');
+      setTimeout(function () { btn.textContent = antes; btn.classList.remove('ok'); }, 1500);
+    }
+    function respaldo() {
+      var a = document.createElement('textarea');
+      a.value = txt; a.style.position = 'fixed'; a.style.opacity = '0';
+      document.body.appendChild(a); a.select();
+      try { document.execCommand('copy'); listo(); } catch (e) {}
+      a.remove();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(listo, respaldo);
+    } else respaldo();
   }
 
   /* POR QUE EL BOTON ESTA APAGADO (17-ago). Debajo del minimo el boton de
@@ -2887,8 +2949,17 @@
 
   function cuerpoConfirmado() {
     var d = pedidoHecho;
+    var llave = (d.pago && d.pago.llave) ? String(d.pago.llave) : '';
+    /* EL LOGO DEL RESTAURANTE, no una estrella generica (19-ago, Sergio): es el
+       momento en que el cliente acaba de confiar su plata, y ver la marca ahi
+       vale mas que un adorno. Si el restaurante no tiene logo, queda la
+       estrella de siempre. */
+    var sello = (S.negocio && S.negocio.logo)
+      ? '<div class="ep-ok-ico marca"><img src="' + esc(S.negocio.logo) + '" alt=""></div>'
+      : '<div class="ep-ok-ico">' + ico('estrella', 28) + '</div>';
+
     return '<div style="text-align:center;padding:26px 0 10px">' +
-        '<div class="ep-ok-ico">' + ico('estrella', 28) + '</div>' +
+        sello +
         '<div class="ep-saludo-n">' + (d.programado ? '¡Pedido programado!' : '¡Pedido recibido!') + '</div>' +
         '<div class="ep-perfil-t" style="margin-top:6px">' +
           (d.programado ? 'Lo preparamos apenas abramos.' : 'Ya lo tenemos. Falta el pago.') + '</div>' +
@@ -2899,18 +2970,43 @@
         '<div class="ep-total-fila grande"><span>Total a pagar</span><b>' + COP(d.total) + '</b></div>' +
         (d.domicilio === 0 && d.barrio_conocido === false
           ? '<div class="ep-nota" style="margin-top:6px">El domicilio de tu barrio lo confirma el restaurante.</div>' : '') +
+        /* LO QUE GANO CON ESTE PEDIDO (19-ago). Estaba solo en la cuenta previa
+           y se perdia justo cuando el cliente mira si valio la pena. */
+        (Number(d.ahorro) > 0
+          ? '<div class="ep-ahorro">Te ahorraste ' + COP(d.ahorro) + ' por pedirlo en combo</div>' : '') +
+        (Number(d.puntos) > 0
+          ? '<div class="ep-gana">Ganaste +' + d.puntos + ' puntos con este pedido</div>' : '') +
       '</div>' +
-      '<div class="ep-pago">' +
-        '<div class="ep-tile-lbl" style="margin-bottom:6px">Paga por transferencia</div>' +
-        (d.pago && d.pago.llave ? '<div class="ep-dato"><span>Llave / cuenta</span><span>' + esc(d.pago.llave) + '</span></div>' : '') +
+
+      /* LOS DATOS DE PAGO, y como usarlos. Antes era una lista de datos muda:
+         el cliente veia la llave pero tenia que copiarla a mano mirando la
+         pantalla, y nadie le explicaba el procedimiento. Ahora el bloque
+         ENTERO abre las instrucciones, lo dice con un boton visible, y la
+         llave se copia de un toque sin abrir nada. */
+      '<div class="ep-pago' + (llave ? ' clic' : '') + '"' + (llave ? ' id="pg-pasos"' : '') + '>' +
+        '<div class="ep-pago-hd">' +
+          '<div class="ep-tile-lbl">Paga por transferencia</div>' +
+          (llave ? '<span class="ep-pago-como">¿Cómo transfiero?</span>' : '') +
+        '</div>' +
+        (llave
+          ? '<div class="ep-dato llave"><span>Llave / cuenta</span>' +
+              '<span class="ep-llave-val">' + esc(llave) +
+                '<button class="ep-copiar" type="button" data-copiar="' + esc(llave) + '">Copiar</button>' +
+              '</span></div>'
+          : '') +
         (d.pago && d.pago.titular ? '<div class="ep-dato"><span>A nombre de</span><span>' + esc(d.pago.titular) + '</span></div>' : '') +
         '<div class="ep-dato"><span>Valor</span><span>' + COP(d.total) + '</span></div>' +
       '</div>' +
+
       /* Las dos formas de pagar, aquí mismo. Antes esto terminaba en "mándale
          el comprobante por WhatsApp" y el pedido quedaba esperando a que
          alguien lo verificara a mano. */
       (d.pagado
-        ? '<div class="ep-ok" style="margin-top:14px">Pago confirmado ✅ Ya estamos preparando tu pedido.</div>'
+        ? '<div class="ep-pagado">' +
+            '<span class="ep-pagado-ico">✓</span>' +
+            '<div><b>Pago confirmado</b>' +
+              '<span>Ya estamos preparando tu pedido.</span></div>' +
+          '</div>'
         : ((S.cliente && Number(S.cliente.saldo) >= Number(d.total))
             ? '<button class="ep-btn gold big" style="margin-top:14px" id="pg-saldo">' +
                 'Pagar con mi saldo · ' + COP(S.cliente.saldo) + '</button>'
@@ -2918,8 +3014,12 @@
                 ? '<div class="ep-nota" style="margin-top:12px">Tu saldo es ' + COP(S.cliente.saldo) +
                   ' y te faltan ' + COP(Number(d.total) - Number(S.cliente.saldo)) +
                   '. <a href="#" data-ir="billetera">Recargar</a></div>' : '')) +
-          '<label class="ep-upload" style="margin-top:10px"><input type="file" id="pg-comp" accept="image/*" hidden>' +
-            '<span id="pg-comp-lbl">Ya transferí · subir comprobante</span></label>') +
+          /* "Ya transferí" es la accion que MAS se usa cuando no se paga con
+             saldo, y era un recuadro punteado gris que parecia deshabilitado.
+             Ahora es un boton de verdad. */
+          '<label class="ep-btn ep-btn--sec" style="margin-top:10px" id="pg-comp-btn">' +
+            '<input type="file" id="pg-comp" accept="image/*" hidden>' +
+            '<span id="pg-comp-lbl">📎 Ya transferí · subir comprobante</span></label>') +
       '<button class="ep-btn ep-btn--ghost" style="margin-top:14px" data-ir="inicio">Volver al inicio</button>';
   }
 
@@ -2956,6 +3056,10 @@
       aviso(d.mensaje || 'No se pudo enviar.', 'mal');
       return;
     }
+    /* Lo que se ahorro y lo que gano se calculan ANTES de vaciar el carrito:
+       despues ya no hay de donde sacarlos. */
+    d.ahorro = carroAhorro();
+    d.puntos = Math.floor((Number(d.subtotal) || 0) / 1000);
     pedidoHecho = d;
     carro = [];
     pantallaDentro();
