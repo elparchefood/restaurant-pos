@@ -58,7 +58,14 @@
      aplicacion tiene que cargar despues de supabase, como estaba. -->
 <script>
   (function () {
-    var v = new Date().toISOString().slice(0, 13).replace(/\D/g, '');   // AAAAMMDDHH
+    /* EL SELLO manda sobre la hora (19-ago). La marca horaria sola dejaba
+       hasta 60 minutos de aplicacion vieja en los celulares que ya la tenian
+       abierta — y probando un arreglo, esa hora se vuelve "no funciona" cuando
+       en realidad ya estaba corregido: paso con los avisos de Sergio.
+       El sello se sube A MANO en cada cambio de la aplicacion; la hora sigue
+       ahi detras como red, para que un olvido cueste una hora y no la eternidad. */
+    var SELLO = '0819c';
+    var v = SELLO + new Date().toISOString().slice(0, 13).replace(/\D/g, '');   // sello + AAAAMMDDHH
     document.write('<link rel="stylesheet" href="../app-cliente.css?v=' + v + '">');
     document.write('<scr' + 'ipt src="../app-cliente.js?v=' + v + '"><\/scr' + 'ipt>');
   })();
