@@ -2397,6 +2397,15 @@
     for (var i = 0; i < carro.length; i++) t += carro[i].precio * carro[i].cantidad;
     return t;
   }
+  /* LO QUE SE AHORRA EN TODO EL PEDIDO. Suma solo las lineas de combo; si no
+     hay ninguna, da 0 y la cuenta no dice nada — anunciar "ahorras $0" es
+     peor que no decir nada. */
+  function carroAhorro() {
+    var t = 0;
+    for (var i = 0; i < carro.length; i++) t += (Number(carro[i].ahorro) || 0) * carro[i].cantidad;
+    return t;
+  }
+
   function carroCuantos() {
     var n = 0;
     for (var i = 0; i < carro.length; i++) n += carro[i].cantidad;
@@ -2719,6 +2728,10 @@
         precio: precioDe(sheet.p, sheet.talla, sheet.vars) + extrasDe(sheet.p, sheet.mods, sheet.talla),
         cantidad: sheet.cant,
         nota: sheet.nota || '',
+        /* CUANTO SE AHORRA por llevarlo en combo. Lo calcula la carta con los
+           precios de hoy; aqui solo se guarda para poder sumarlo en la cuenta.
+           Un producto suelto no trae este dato y vale 0. */
+        ahorro: Number(sheet.p.ahorro) > 0 ? Number(sheet.p.ahorro) : 0,
       });
       sheet = null; pintarSheet(); pantallaDentro();
     });
@@ -2851,6 +2864,13 @@
             (domiCta > 0 ? '>' + COP(domiCta) : ' style="color:var(--dim)">se calcula al enviar') + '</span></div>'
           : '') +
         '<div class="ep-total-fila grande"><span>Total</span><b>' + COP(totalCta) + '</b></div>' +
+        /* EL AHORRO DEL COMBO, donde el cliente esta mirando la plata (19-ago,
+           pedido de Sergio). Va debajo del total y antes de los puntos: es el
+           argumento mas fuerte que tiene el pedido y se pierde si queda
+           escondido en la carta. Solo aparece si de verdad hay combo. */
+        (carroAhorro() > 0
+          ? '<div class="ep-ahorro">Te ahorras ' + COP(carroAhorro()) + ' por pedirlo en combo</div>'
+          : '') +
         '<div class="ep-gana">Ganarás +' + gana + ' puntos con este pedido</div>' +
       '</div>' +
       (S.negocio && !S.negocio.abierto

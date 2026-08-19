@@ -8206,3 +8206,53 @@ aplicando el estilo a un elemento real para ver si el navegador lo acepta:
 
 ⚠️ No se probo en la pagina en vivo: entra con sesion de cliente y no se usan
 las credenciales de Sergio. Falta que el lo abra y confirme.
+
+---
+
+## 217 — El ahorro del combo, en la cuenta (19-ago-2026)
+
+Pedido de Sergio: en el resumen del pedido, donde el cliente ve el total y los
+puntos, decirle **cuanto se esta ahorrando** por llevarlo en combo. Es el
+argumento mas fuerte que tiene ese pedido y estaba invisible.
+
+### De donde sale el numero
+
+`fn_web_carta` ya arma cada combo con forma de producto; ahora ademas calcula
+`valor_normal` (lo que valdria cada cosa por separado) y `ahorro`. Dos
+decisiones que importan:
+
+- **Con el precio de HOY**, no con el que quedo copiado dentro del combo el dia
+  que se armo. Si el dueNo sube el precio de la Coca Cola y aqui siguiera el
+  viejo, le estariamos prometiendo al cliente un ahorro que no es. El precio
+  copiado solo se usa si el producto ya no existe.
+- **Nunca negativo**: si un combo quedo mas caro que sus partes, eso no es un
+  ahorro y no se dice nada. Callar es mejor que mentir, y mejor que gritarle al
+  dueNo que su combo esta mal armado delante del cliente.
+
+Con los combos reales: el Familiar de Hamburguesa vale $80.000 y por separado
+$110.000 → **ahorra $30.000**. El de Sandwich, $35.000 contra $39.000 →
+**$4.000**.
+
+### Donde se ve
+
+Debajo del Total y antes de los puntos, en verde y con su propio fondo: es
+plata que el cliente NO paga y no puede confundirse con un cargo mas. Suma
+todas las lineas de combo del carrito y multiplica por la cantidad. Si no hay
+combos no aparece nada — anunciar "ahorras $0" es peor que callar.
+
+### Verificado
+
+La logica corrida en un navegador con ocho casos y los datos reales:
+
+| Carrito | Dice |
+|---|---|
+| Un plato suelto | (nada) |
+| Combo Sandwich | Te ahorras $4.000 |
+| Combo Familiar | Te ahorras $30.000 |
+| Los dos combos | Te ahorras $34.000 |
+| Combo + plato suelto | Te ahorras $4.000 |
+| Tres Combos Sandwich | Te ahorras $12.000 |
+| Ahorro negativo | (nada) |
+| Linea vieja sin el dato | (nada) |
+
+SQL en `sql/2026-08-19-combo-ahorro.sql`.
