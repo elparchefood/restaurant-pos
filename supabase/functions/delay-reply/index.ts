@@ -8025,6 +8025,10 @@ async function proponerConjunto(
     await sbPost(`/rest/v1/pos_domi_aprendidos`, {
       tenant_id: tenantId, branch_id: branchId,
       barrio: nombre, direccion: direccion, veces: 1, tipo: "conjunto",
+      /* Lo aprendio el asistente atendiendo. Entra a la lista para que el dueño
+         le ponga precio cuando quiera, pero NO le suena la campana: con eso se
+         llenaba de avisos de cada pedido. */
+      origen: "chat",
       /* precio 0 = todavia no tiene. Es obligatorio en la tabla, y ponerlo en
          cero deja claro que falta que el dueño le asigne su zona. */
       precio: 0,

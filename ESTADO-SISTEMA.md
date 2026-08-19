@@ -8548,3 +8548,60 @@ es iOS). Comprobado contra seis aparatos:
 - **Cada restaurante necesita su propio `sw.js`** en su carpeta (el de El Parche
   tiene su ruta escrita adentro). Va con el alta automatica de la carpeta, ya
   anotada en `MULTITENANT-PENDIENTE.md`.
+
+---
+
+## 224 — Los avisos, con las palabras del restaurante (19-ago-2026)
+
+Los siete textos vivian escritos dentro de `avisar-cliente`: los mismos para
+todos y sin forma de cambiar una coma. Ahora se editan en **Mi página web → Qué
+ve el cliente → Avisos al celular**, y quedan en `tenants.web_avisos`.
+
+- **Lo que no se toque usa el de fabrica.** Nadie tiene que escribir siete
+  mensajes para empezar; y si un dueño borra los dos campos, esa clave se
+  elimina y vuelve sola al texto por defecto.
+- **Las variables se insertan con un boton** y se llaman en cristiano: "lo que
+  recargó", "el regalo", "su saldo", "nombre del negocio". Se meten donde esta
+  el cursor, no al final: quien esta corrigiendo la mitad de una frase no
+  quiere el nombre pegado al final.
+- **La muestra es una notificacion, no un cuadro de texto.** El limite real no
+  son los caracteres: son las dos lineas que el celular deja ver, y eso solo se
+  entiende viendolo. Se mueve mientras escribe.
+- **La recarga tiene DOS textos**, con bono y sin bono, en vez de uno con una
+  frase que aparece y desaparece: asi el dueño ve exactamente lo que llega en
+  cada caso.
+- Una variable mal escrita **se borra al enviar** en vez de salir en crudo en el
+  celular del cliente — aunque en la vista previa si se ve, para que la corrija.
+
+Verificado en los cuatro caminos: sin tocar nada, con texto propio, mezclando
+propios y de fabrica, y con una variable inventada.
+
+---
+
+## 225 — La campana dejo de gritar (19-ago-2026)
+
+Sergio: *"me llegan notificaciones de absolutamente todos los pedidos... ahi
+solo deben salir las personas que se registraron en la pagina y que el sistema
+no conoce su direccion"*.
+
+La campana traia las recargas, las solicitudes por confirmar Y todos los barrios
+de `pos_domi_aprendidos` — que se alimenta de TRES sitios: la pagina, Paco y el
+boton de crear pedido. O sea un aviso por cada pedido que tomaba el asistente.
+
+**Se comprobo antes de tocar**: los 5 barrios pendientes se cruzaron con los
+clientes que tienen sesion en la pagina y **ninguno** venia de ahi — todos de
+Paco. El diagnostico de Sergio era exacto.
+
+- Columna `origen` en `pos_domi_aprendidos` (`web` | `chat`). Los 14 que ya
+  estaban quedaron como `chat`, que es lo que el cruce mostro.
+- La campana **solo muestra los de `origen = 'web'`**: un cliente que guardo su
+  direccion y espera a que le digan cuanto cuesta llegarle. Lo que aprende Paco
+  sigue entrando a la lista para aprobar en Configuracion → Domicilios, pero sin
+  interrumpir.
+- **Las recargas salieron de la campana.** Las que hay que atender siguen en su
+  pantalla, Clientes, que es donde se aprueban. `fuenteRecargas` queda escrita
+  por si se quiere volver a colgar.
+
+La regla que quedo escrita en la cabecera del archivo: **la campana es para lo
+que pide una DECISION del dueño**. Un buzon que avisa de todo no lo lee nadie, y
+entonces tampoco sirve para lo que si importaba.

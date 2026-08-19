@@ -1,13 +1,16 @@
 /* pos-notifs.js — la campana de notificaciones del escritorio.
  *
- * El buzón de las cosas que le pasan al negocio y piden un vistazo. Hoy trae
- * dos fuentes de verdad; las demás (fechas de pago, avisos del sistema…) se
- * agregan como una fuente más sin tocar el armazón:
+ * El buzón de las cosas que PIDEN UNA DECISIÓN del dueño. Esa es la regla, y
+ * costó aprenderla: al principio traía también las recargas y todo lo que el
+ * asistente aprendía atendiendo, y con eso llegó a tener un aviso por cada
+ * pedido. Un buzón que avisa de todo no lo lee nadie, y entonces tampoco sirve
+ * para lo que sí importaba.
  *
- *  · RECARGAS de la página del cliente — solo si el restaurante la tiene
- *    activa. Una recarga es plata que entró: merece verse sin ir a buscarla.
- *    Y las solicitudes pendientes (recargas que la verificación automática no
- *    pudo confirmar) que esperan una decisión.
+ *  · BARRIOS SIN PRECIO que escribió un cliente al registrarse en la página.
+ *    Ese cliente está esperando a que le digan cuánto cuesta llegarle, y
+ *    mientras tanto su domicilio se cobra en CERO. Solo los de la página: lo
+ *    que aprende el asistente entra a la misma lista para aprobar, pero sin
+ *    interrumpir.
  *  · PRIMEROS PASOS — para una cuenta que arranca: qué falta configurar antes
  *    de vender (productos, mesas, métodos de pago), cada uno llevando a su
  *    pantalla. En cuanto todo está, el grupo desaparece solo.
@@ -118,6 +121,13 @@
         .eq('tenant_id', st().tenantId)
         .eq('tipo', 'nuevo')
         .eq('descartado', false)
+        /* SOLO LOS DE LA PAGINA DE CLIENTES (19-ago, Sergio). Lo que aprende el
+           asistente atendiendo pedidos tambien entra a la lista de barrios por
+           aprobar, pero NO suena aqui: la campana se estaba llenando con un
+           aviso por cada pedido que tomaba Paco.
+           Un cliente que guarda SU direccion en la pagina si es otra cosa:
+           esta esperando a que le digan cuanto cuesta llegarle. */
+        .eq('origen', 'web')
         .order('veces', { ascending: false }).limit(5);
       (r.data || []).forEach(function (f) {
         var n = Number(f.veces) || 1;
@@ -218,7 +228,13 @@
 
   var _items = [];
   async function cargar() {
-    var listas = await Promise.allSettled([fuenteRecargas(), fuenteBarrios(), fuentePrimerosPasos()]);
+    /* LAS RECARGAS SALIERON DE LA CAMPANA (19-ago, Sergio). Cada recarga y cada
+       solicitud por confirmar generaba su aviso, y entre eso y lo que aprendia
+       Paco el buzon dejaba de leerse. Las recargas por confirmar siguen —y son
+       lo unico que de verdad hay que atender— en su propia pantalla, Clientes,
+       que es donde se aprueban. `fuenteRecargas` se deja escrita por si algun
+       dia se quiere volver a colgar. */
+    var listas = await Promise.allSettled([fuenteBarrios(), fuentePrimerosPasos()]);
     _items = [];
     listas.forEach(function (r) { if (r.status === 'fulfilled') _items = _items.concat(r.value); });
     /* Lo urgente arriba; lo demás por fecha; los pasos van en su propio grupo. */

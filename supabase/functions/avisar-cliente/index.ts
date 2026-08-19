@@ -39,40 +39,71 @@ function cop(n: number) {
   return "$" + Math.round(Number(n) || 0).toLocaleString("es-CO");
 }
 
-/* EL TEXTO DE CADA AVISO, escrito desde el lado del cliente y no del sistema:
-   nadie quiere recibir "estado: en_preparacion". El de recoger dice algo
-   distinto al de domicilio, que es la diferencia que le importa a quien
-   espera. */
-function textoPedido(estado: string, esDomicilio: boolean, negocio: string) {
-  if (estado === "en_preparacion") {
-    return { titulo: "Manos a la obra 👨‍🍳", cuerpo: `En ${negocio} ya están preparando tu pedido.` };
-  }
-  if (estado === "listo") {
-    return esDomicilio
-      ? { titulo: "Tu pedido está listo", cuerpo: "Sale para tu casa en un momento." }
-      : { titulo: "¡Listo para recoger! 🛍️", cuerpo: `Te esperamos en ${negocio}.` };
-  }
-  if (estado === "en_camino") {
-    return { titulo: "Tu pedido va en camino 🛵", cuerpo: "Ya salió para tu dirección." };
-  }
-  if (estado === "entregado") {
-    return { titulo: "¡Buen provecho! 🍟", cuerpo: "Tu pedido fue entregado. Gracias por pedirnos." };
-  }
+/* ── LOS TEXTOS ────────────────────────────────────────────────────────────
+   Escritos desde el lado del cliente y no del sistema: nadie quiere recibir
+   "estado: en_preparacion". El de recoger dice algo distinto al de domicilio,
+   que es la diferencia que le importa a quien espera.
+
+   Estos son los DE FABRICA. Cada restaurante puede cambiarlos desde "Mi página
+   web" y quedan en `tenants.web_avisos`; lo que no cambie usa el de aqui, asi
+   que quien no toque nada sigue funcionando igual.
+
+   Las variables van entre llaves y las rellena `rellenar()`. Se escriben como
+   las diria un dueño de restaurante, no como las nombraria un programador. */
+const DE_FABRICA: Record<string, { titulo: string; cuerpo: string }> = {
+  preparacion:      { titulo: "Manos a la obra 👨‍🍳", cuerpo: "En {negocio} ya están preparando tu pedido." },
+  listo_domicilio:  { titulo: "Tu pedido está listo",  cuerpo: "Sale para tu casa en un momento." },
+  listo_recoger:    { titulo: "¡Listo para recoger! 🛍️", cuerpo: "Te esperamos en {negocio}." },
+  en_camino:        { titulo: "Tu pedido va en camino 🛵", cuerpo: "Ya salió para tu dirección." },
+  entregado:        { titulo: "¡Buen provecho! 🍟", cuerpo: "Tu pedido fue entregado. Gracias por pedirnos." },
+  recarga_con_bono: { titulo: "¡Recarga lista! 🎉", cuerpo: "Recargaste {monto} y te regalamos {bono}. Tienes {saldo} — ahora sí, a pedir 🍟" },
+  recarga_sin_bono: { titulo: "¡Recarga lista! 🎉", cuerpo: "Recargaste {monto}. Tienes {saldo} — ahora sí, a pedir 🍟" },
+};
+
+function rellenar(txt: string, datos: Record<string, string>) {
+  let t = String(txt || "");
+  for (const k of Object.keys(datos)) t = t.split("{" + k + "}").join(datos[k]);
+  /* Una variable que el dueño escribio mal (o que no existe en ese aviso) se
+     borra en vez de salir en crudo: es mejor una frase corta que una que diga
+     "{saldito}" en el celular del cliente. */
+  return t.replace(/\{[a-z_]{1,20}\}/gi, "").replace(/\s{2,}/g, " ").trim();
+}
+
+/* El texto que toca: el del restaurante si lo cambio, el de fabrica si no. */
+function textoDe(clave: string, propios: Record<string, unknown> | null, datos: Record<string, string>) {
+  const base = DE_FABRICA[clave];
+  if (!base) return null;
+  const mio = (propios && typeof propios === "object" ? propios[clave] : null) as Record<string, unknown> | null;
+  const titulo = (mio && String(mio.titulo || "").trim()) || base.titulo;
+  const cuerpo = (mio && String(mio.cuerpo || "").trim()) || base.cuerpo;
+  return { titulo: rellenar(titulo, datos), cuerpo: rellenar(cuerpo, datos) };
+}
+
+function claveDePedido(estado: string, esDomicilio: boolean) {
+  if (estado === "en_preparacion") return "preparacion";
+  if (estado === "listo")          return esDomicilio ? "listo_domicilio" : "listo_recoger";
+  if (estado === "en_camino")      return "en_camino";
+  if (estado === "entregado")      return "entregado";
   return null;
 }
 
-/* LA RECARGA. Sergio pidio tres cosas: que diga que fue exitosa, cuanto quedo,
-   y una frase que invite a pedir. El bono va SIEMPRE que exista — es lo que
-   hace que la proxima recarga sea mas grande, y en la notificacion es donde
-   mas se ve. Sin bono no se menciona: un "+$0 de regalo" es peor que nada. */
-function textoRecarga(monto: number, bono: number, saldo: number) {
-  /* La frase del final la escogio Sergio de una lista de diez (19-ago). Corta
-     a proposito: en el celular la notificacion se corta a las dos lineas, y las
-     largas quedaban con puntos suspensivos en algunos telefonos. */
-  const cuerpo = bono > 0
-    ? `Recargaste ${cop(monto)} y te regalamos ${cop(bono)}. Tienes ${cop(saldo)} — ahora sí, a pedir 🍟`
-    : `Recargaste ${cop(monto)}. Tienes ${cop(saldo)} — ahora sí, a pedir 🍟`;
-  return { titulo: "¡Recarga lista! 🎉", cuerpo };
+/* Los avisos que ese restaurante haya escrito a su manera. */
+async function avisosDe(tenantId: string): Promise<Record<string, unknown> | null> {
+  try {
+    const t = await sbGet(`/tenants?id=eq.${tenantId}&select=web_avisos&limit=1`) as Array<Record<string, unknown>> | null;
+    const a = t?.[0]?.web_avisos;
+    return (a && typeof a === "object") ? a as Record<string, unknown> : null;
+  } catch (_e) { return null; }
+}
+
+/* LA RECARGA. Hay DOS textos, con bono y sin bono, en vez de uno solo con una
+   frase que aparece y desaparece: asi el dueño ve exactamente lo que le va a
+   llegar al cliente en cada caso, sin tener que imaginarselo. Un "+$0 de
+   regalo" seria peor que no decir nada. */
+function textoRecarga(monto: number, bono: number, saldo: number, propios: Record<string, unknown> | null) {
+  return textoDe(bono > 0 ? "recarga_con_bono" : "recarga_sin_bono", propios, {
+    monto: cop(monto), bono: cop(bono), saldo: cop(saldo),
+  })!;
 }
 
 /* Manda el aviso a TODOS los celulares de ese cliente. Devuelve cuantos
@@ -138,8 +169,16 @@ Deno.serve(async (req: Request) => {
     // ── RECARGA ACREDITADA ──────────────────────────────────────────────
     if (tipo === "recarga") {
       const clienteId = String(b.cliente_id || "");
-      if (!clienteId) return json({ error: "cliente_id requerido" }, 400);
-      const t = textoRecarga(Number(b.monto || 0), Number(b.bono || 0), Number(b.saldo || 0));
+      if (!clienteId && !soloVer) return json({ error: "cliente_id requerido" }, 400);
+      /* De que restaurante son los textos. Quien llama suele mandarlo; si no,
+         se saca del propio cliente. */
+      let tenantR = String(b.tenant_id || "");
+      if (!tenantR && clienteId) {
+        const c = await sbGet(`/pos_clientes?id=eq.${clienteId}&select=tenant_id&limit=1`) as Array<Record<string, unknown>> | null;
+        tenantR = String(c?.[0]?.tenant_id || "");
+      }
+      const propiosR = tenantR ? await avisosDe(tenantR) : null;
+      const t = textoRecarga(Number(b.monto || 0), Number(b.bono || 0), Number(b.saldo || 0), propiosR);
       if (soloVer) return json({ ok: true, previsualizacion: t });
       /* Etiqueta fija: si recarga dos veces seguidas, el segundo aviso pisa al
          primero — y el que vale es el ultimo, que trae el saldo bueno. */
@@ -151,11 +190,13 @@ Deno.serve(async (req: Request) => {
     const orderId = String(b.order_id || "");
     const estado  = String(b.estado || "");
     if (!orderId || !estado) return json({ error: "order_id y estado requeridos" }, 400);
-    if (!textoPedido(estado, true, "x")) return json({ ok: true, razon: "estado_sin_aviso" });
+    if (!claveDePedido(estado, true)) return json({ ok: true, razon: "estado_sin_aviso" });
     if (soloVer) {
+      const propiosV = b.tenant_id ? await avisosDe(String(b.tenant_id)) : null;
+      const datosV = { negocio: String(b.negocio || "tu restaurante") };
       return json({ ok: true, previsualizacion: {
-        domicilio: textoPedido(estado, true, String(b.negocio || "El Parche Food")),
-        recoger:   textoPedido(estado, false, String(b.negocio || "El Parche Food")),
+        domicilio: textoDe(claveDePedido(estado, true)!,  propiosV, datosV),
+        recoger:   textoDe(claveDePedido(estado, false)!, propiosV, datosV),
       } });
     }
 
@@ -168,7 +209,9 @@ Deno.serve(async (req: Request) => {
     if (!o || !o.cliente_id) return json({ ok: true, razon: "sin_cliente" });
 
     const negocio = await nombreNegocio(String(o.tenant_id));
-    const t = textoPedido(estado, String(o.channel || "") === "domicilio", negocio)!;
+    const propios = await avisosDe(String(o.tenant_id));
+    const clave = claveDePedido(estado, String(o.channel || "") === "domicilio")!;
+    const t = textoDe(clave, propios, { negocio })!;
     const r = await enviar(String(o.cliente_id), t.titulo, t.cuerpo, "pedido-" + orderId);
     return json({ ok: true, ...r });
   } catch (e) {

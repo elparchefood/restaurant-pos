@@ -36,7 +36,7 @@
   var TABS = [
     { k: 'pagina',  t: 'Tu página',        secs: ['direccion', 'publicar'] },
     { k: 'horario', t: 'Cuándo abres',     secs: ['estado', 'mano', 'cierres', 'pedidos'] },
-    { k: 've',      t: 'Qué ve el cliente', secs: ['ve', 'destacados', 'fondo', 'publicidad'] },
+    { k: 've',      t: 'Qué ve el cliente', secs: ['ve', 'destacados', 'fondo', 'publicidad', 'avisos'] },
     { k: 'prueba',  t: 'Probar y medir',   secs: ['probar', 'comova'] },
   ];
 
@@ -115,7 +115,7 @@
     if (!tenantId) { $('pw-main').innerHTML = '<div class="pw-cargando">Tu cuenta no tiene un restaurante asignado. Vuelve a iniciar sesión.</div>'; return; }
 
     var r = await s.from('tenants')
-      .select('id,name,slug,web_activa,web_cerrado_manual,web_cerrado_hasta,web_cierres,web_programar_pedidos,web_visible,web_destacados,web_banner')
+      .select('id,name,slug,web_activa,web_cerrado_manual,web_cerrado_hasta,web_cierres,web_programar_pedidos,web_visible,web_destacados,web_banner,web_avisos')
       .eq('id', tenantId).maybeSingle();
     if (r.error || !r.data) { $('pw-main').innerHTML = '<div class="pw-cargando">No se pudo cargar. Recarga la pantalla.</div>'; return; }
     S.t = r.data;
@@ -211,6 +211,7 @@
       direccion: seccionDireccion, publicar: seccionPublicar, estado: seccionEstado,
       mano: seccionMano, cierres: seccionCierres, pedidos: seccionPedidos,
       ve: seccionVe, destacados: seccionDestacados, fondo: seccionFondo, publicidad: seccionPublicidad,
+      avisos: seccionAvisos,
       probar: seccionProbar, comova: seccionComoVa,
     };
     var tab = TABS.filter(function (x) { return x.k === S.tab; })[0] || TABS[0];
@@ -561,6 +562,114 @@
       '</section>';
   }
 
+  /* ── LOS AVISOS AL CELULAR ─────────────────────────────────────────
+     Los textos vivian escritos en el servidor: los mismos para todos los
+     restaurantes y sin forma de cambiarles una palabra. Aqui los edita cada
+     dueño; lo que no toque usa el de fabrica, asi que nadie tiene que escribir
+     siete mensajes para empezar a usarlo.
+
+     Las variables van entre llaves y se insertan con un boton: escribirlas a
+     mano es la forma mas facil de equivocarse, y una variable mal escrita se
+     borra sola al enviar en vez de salir en crudo en el celular del cliente. */
+  var AVISOS = [
+    { k: 'preparacion',  n: 'Empezamos a prepararlo',
+      d: 'Apenas el pedido entra a cocina.', vars: ['negocio'],
+      t: 'Manos a la obra 👨‍🍳', c: 'En {negocio} ya están preparando tu pedido.' },
+    { k: 'listo_domicilio', n: 'Listo · a domicilio',
+      d: 'Cuando lo marcas listo y va para la casa del cliente.', vars: [],
+      t: 'Tu pedido está listo', c: 'Sale para tu casa en un momento.' },
+    { k: 'listo_recoger', n: 'Listo · para recoger',
+      d: 'Cuando el cliente lo va a recoger en el local.', vars: ['negocio'],
+      t: '¡Listo para recoger! 🛍️', c: 'Te esperamos en {negocio}.' },
+    { k: 'en_camino',    n: 'Va en camino',
+      d: 'Cuando el domiciliario sale.', vars: [],
+      t: 'Tu pedido va en camino 🛵', c: 'Ya salió para tu dirección.' },
+    { k: 'entregado',    n: 'Entregado',
+      d: 'Al cerrar el pedido.', vars: [],
+      t: '¡Buen provecho! 🍟', c: 'Tu pedido fue entregado. Gracias por pedirnos.' },
+    { k: 'recarga_con_bono', n: 'Recarga con bono',
+      d: 'Cuando recargó y le diste regalo.', vars: ['monto', 'bono', 'saldo'],
+      t: '¡Recarga lista! 🎉', c: 'Recargaste {monto} y te regalamos {bono}. Tienes {saldo} — ahora sí, a pedir 🍟' },
+    { k: 'recarga_sin_bono', n: 'Recarga sin bono',
+      d: 'Cuando recargó por debajo del bono.', vars: ['monto', 'saldo'],
+      t: '¡Recarga lista! 🎉', c: 'Recargaste {monto}. Tienes {saldo} — ahora sí, a pedir 🍟' },
+  ];
+  /* Como se llama cada variable EN CRISTIANO. El dueño no tiene por que saber
+     que adentro se llama `saldo`. */
+  var VAR_NOM = {
+    negocio: 'nombre del negocio', monto: 'lo que recargó',
+    bono: 'el regalo', saldo: 'su saldo',
+  };
+  var EJEMPLO = { negocio: 'El Parche Food', monto: '$50.000', bono: '$5.000', saldo: '$55.000' };
+
+  function avisosDelDueno() {
+    var a = S.t.web_avisos;
+    return (a && typeof a === 'object') ? a : {};
+  }
+  /* Lo que hoy le llega al cliente: lo suyo si lo escribio, lo de fabrica si no. */
+  function avisoActual(x) {
+    var mio = avisosDelDueno()[x.k] || {};
+    return {
+      titulo: String(mio.titulo || '').trim() || x.t,
+      cuerpo: String(mio.cuerpo || '').trim() || x.c,
+      propio: !!(String(mio.titulo || '').trim() || String(mio.cuerpo || '').trim()),
+    };
+  }
+  function conEjemplo(txt) {
+    return String(txt || '').replace(/\{([a-z_]+)\}/gi, function (m, k) {
+      return EJEMPLO[k] !== undefined ? EJEMPLO[k] : m;
+    });
+  }
+
+  function seccionAvisos() {
+    var abierto = S.avisoAbierto || '';
+    var filas = AVISOS.map(function (x) {
+      var a = avisoActual(x);
+      var esta = abierto === x.k;
+      var chips = (x.vars || []).map(function (v) {
+        return '<button class="pw-var" data-avar="' + x.k + '|' + v + '" title="Insertar">' +
+          esc(VAR_NOM[v] || v) + '</button>';
+      }).join('');
+      return '<div class="pw-aviso' + (esta ? ' abierto' : '') + '">' +
+        '<button class="pw-aviso-cab" data-aviso="' + x.k + '">' +
+          '<div class="pw-aviso-tx"><b>' + esc(x.n) + '</b>' +
+            '<small>' + esc(x.d) + '</small></div>' +
+          (a.propio ? '<span class="pw-aviso-mio">Tuyo</span>' : '') +
+          '<span class="pw-aviso-fl">' + (esta ? '▲' : '▼') + '</span>' +
+        '</button>' +
+        (esta
+          ? '<div class="pw-aviso-cuerpo">' +
+              /* La muestra es una notificacion, no un cuadro de texto: es la
+                 unica forma de ver si cabe y si se entiende de una leida. */
+              '<div class="pw-notif" id="pw-notif-' + x.k + '">' +
+                '<span class="pw-notif-ico">' + esc((S.t.name || 'C').slice(0, 1).toUpperCase()) + '</span>' +
+                '<div><b id="pw-nv-t">' + esc(conEjemplo(a.titulo)) + '</b>' +
+                  '<span id="pw-nv-c">' + esc(conEjemplo(a.cuerpo)) + '</span></div>' +
+              '</div>' +
+              '<label class="pw-campo"><span>Título</span>' +
+                '<input class="pw-in" id="pw-av-t" maxlength="60" value="' + esc(a.titulo) + '"></label>' +
+              '<label class="pw-campo"><span>Mensaje</span>' +
+                '<textarea class="pw-in" id="pw-av-c" rows="2" maxlength="160">' + esc(a.cuerpo) + '</textarea></label>' +
+              (chips ? '<div class="pw-vars"><span>Insertar:</span>' + chips + '</div>' : '') +
+              '<div class="pw-aviso-btns">' +
+                '<button class="lm-btn-primary sm" data-avguardar="' + x.k + '">Guardar</button>' +
+                (a.propio ? '<button class="lm-btn-ghost sm" data-avreset="' + x.k + '">Volver al de fábrica</button>' : '') +
+              '</div>' +
+            '</div>'
+          : '') +
+      '</div>';
+    }).join('');
+
+    return '<section class="mw-card">' +
+      '<div class="mw-card-head"><div><h2 class="mw-h">Avisos al celular</h2>' +
+        '<p class="mw-sub">Lo que le llega al cliente cuando su pedido avanza o cuando recarga. ' +
+        'Toca uno para cambiarle las palabras.</p></div></div>' +
+      '<div class="pw-avisos">' + filas + '</div>' +
+      '<div class="mw-note"><span>Solo le llegan a quien tenga la página instalada y haya aceptado los avisos. ' +
+        'Máximo dos líneas: en el celular lo demás se corta.</span></div>' +
+      '</section>';
+  }
+
   function seccionPublicidad() {
     var lista = S.promos || [];
     var cuerpo = lista.length
@@ -796,6 +905,47 @@
         guardarFondo({ tipo: 'imagen', imagen: a.imagen || null, velo: Number(vel.value) });
       };
     }
+    /* ── LOS AVISOS ────────────────────────────────────────────────────
+       Se abre uno a la vez: siete cuadros de texto abiertos a la vez no se
+       leen, y de todos modos se edita de a uno. */
+    document.querySelectorAll('[data-aviso]').forEach(function (b) {
+      b.onclick = function () {
+        S.avisoAbierto = (S.avisoAbierto === b.dataset.aviso) ? '' : b.dataset.aviso;
+        pintar();
+      };
+    });
+    /* La muestra se mueve MIENTRAS escribe: es la unica forma de ver si el
+       mensaje cabe en dos lineas antes de guardarlo. */
+    var avT = $('pw-av-t'), avC = $('pw-av-c');
+    function verVivo() {
+      var t = $('pw-nv-t'), c = $('pw-nv-c');
+      if (t && avT) t.textContent = conEjemplo(avT.value);
+      if (c && avC) c.textContent = conEjemplo(avC.value);
+    }
+    if (avT) avT.oninput = verVivo;
+    if (avC) avC.oninput = verVivo;
+
+    document.querySelectorAll('[data-avar]').forEach(function (b) {
+      b.onclick = function () {
+        /* Se inserta donde tenga el cursor, no al final: si esta corrigiendo
+           la mitad de la frase, mandarla al final le daNa el mensaje. */
+        var v = b.dataset.avar.split('|')[1];
+        var campo = (document.activeElement === avT) ? avT : avC;
+        if (!campo) return;
+        var ini = campo.selectionStart, fin = campo.selectionEnd, txt = campo.value;
+        campo.value = txt.slice(0, ini) + '{' + v + '}' + txt.slice(fin);
+        campo.focus();
+        campo.selectionStart = campo.selectionEnd = ini + v.length + 2;
+        verVivo();
+      };
+    });
+    document.querySelectorAll('[data-avguardar]').forEach(function (b) {
+      b.onclick = function () { guardarAviso(b.dataset.avguardar); };
+    });
+    document.querySelectorAll('[data-avreset]').forEach(function (b) {
+      b.onclick = function () { guardarAviso(b.dataset.avreset, true); };
+    });
+
     var bf = $('pw-bnr-file');
     if (bf) bf.onchange = function () {
       if (this.files && this.files[0]) subirFondo(this.files[0]);
@@ -973,6 +1123,24 @@
     if (b.tipo === 'degradado') { delete b.imagen; delete b.velo; }
     if (b.tipo === 'imagen')    { delete b.color; delete b.color2; delete b.angulo; }
     await guardar({ web_banner: b }, msg);
+  }
+
+  /* Se guarda el objeto ENTERO de avisos con ese aviso cambiado. Vaciar los dos
+     campos equivale a volver al de fabrica: la clave se borra y el servidor cae
+     a su texto por defecto, sin dejar una fila vacia que nadie entiende. */
+  async function guardarAviso(clave, defabrica) {
+    var todos = Object.assign({}, avisosDelDueno());
+    if (defabrica) {
+      delete todos[clave];
+    } else {
+      var t = ($('pw-av-t') || {}).value || '';
+      var c = ($('pw-av-c') || {}).value || '';
+      if (!String(t).trim() && !String(c).trim()) delete todos[clave];
+      else todos[clave] = { titulo: String(t).trim(), cuerpo: String(c).trim() };
+    }
+    S.avisoAbierto = defabrica ? '' : clave;
+    await guardar({ web_avisos: Object.keys(todos).length ? todos : null },
+                  defabrica ? 'Volvió al texto de siempre' : 'Aviso guardado');
   }
 
   async function subirFondo(file) {

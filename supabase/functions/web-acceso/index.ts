@@ -360,6 +360,11 @@ async function anotarBarrioNuevo(tenantId: string, branchId: string, barrio: str
         tenant_id: tenantId, branch_id: branchId,
         barrio: b, precio: 0, tipo: "nuevo", precio_tabla: null,
         direccion: String(direccion || "").slice(0, 200),
+        /* DE DONDE SALIO. Este es el unico que le suena la campana al dueño:
+           un cliente guardando SU direccion en la pagina, esperando a que le
+           pongan precio. Lo que aprende el asistente atendiendo pedidos entra
+           igual a la lista, pero sin interrumpir a nadie. */
+        origen: "web",
       });
     }
   } catch (e) { console.error("[acceso] barrio nuevo:", String(e).slice(0, 200)); }
