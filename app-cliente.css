@@ -2120,15 +2120,47 @@ html.tema-claro .ep-menu-it.malo { color: #8f2242; }
    Aprobado el 19-ago. El boton vive en la cabecera, a la izquierda de la foto
    del cliente; la tarjeta, arriba del resumen. */
 
-/* El boton redondo con su aviso. */
-.ep-redondo.ep-pedido { border-color: var(--accent); color: var(--oro-tx); }
-.ep-punto {
-  position: absolute; top: -1px; right: -1px; width: 11px; height: 11px;
-  border-radius: 50%; background: var(--accent); border: 2px solid var(--bg);
-  animation: ep-late 2s ease-in-out infinite;
+/* El boton redondo con su aviso.
+
+   EL PUNTO SE FUE A LA ESQUINA DE LA PANTALLA (corregido el 19-ago). Dos
+   errores mios, uno encima del otro:
+
+   1. Se llamaba `.ep-punto`, que YA existia desde antes para el puntico de
+      "abierto / cerrado" del local. Mi regla, por ir despues, se lo comio: el
+      punto de abierto quedo con la forma del aviso.
+   2. `position: absolute` necesita que el padre este posicionado, y
+      `.ep-redondo` no lo estaba — asi que el punto se colgo del borde de la
+      PANTALLA en vez del boton.
+
+   Ahora tiene nombre propio, el boton es su ancla, y late con un halo que se
+   abre hacia afuera: un puntico quieto no dice "tocame", una onda si. */
+.ep-redondo.ep-pedido {
+  position: relative; border-color: var(--accent); color: var(--oro-tx);
+  animation: ep-llama 2.4s ease-in-out infinite;
 }
-@keyframes ep-late { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.22); } }
-@media (prefers-reduced-motion: reduce) { .ep-punto { animation: none; } }
+.ep-punto-vivo {
+  position: absolute; top: -2px; right: -2px; width: 11px; height: 11px;
+  border-radius: 50%; background: var(--accent); border: 2px solid var(--bg);
+}
+/* El halo: nace pegado al punto y se abre hasta desaparecer. Va detras del
+   punto para que no lo tape mientras crece. */
+.ep-punto-vivo::after {
+  content: ''; position: absolute; inset: -3px; border-radius: 50%;
+  border: 2px solid var(--accent);
+  animation: ep-onda 2.4s ease-out infinite;
+}
+@keyframes ep-onda {
+  0%        { transform: scale(.7); opacity: .85; }
+  70%, 100% { transform: scale(2.3); opacity: 0; }
+}
+/* Y el boton respira con el, para que el movimiento se lea como uno solo. */
+@keyframes ep-llama {
+  0%, 100%  { box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+  50%       { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ep-punto-vivo::after, .ep-redondo.ep-pedido { animation: none; }
+}
 
 /* La tarjeta del inicio: dice en que va sin tener que entrar. */
 .ep-vivo {

@@ -328,6 +328,24 @@ Deno.serve(async (req) => {
     const porId: Record<string, Record<string, unknown>> = {};
     (prods || []).forEach((p) => { porId[String(p.id)] = p; });
 
+    /* EL NOMBRE EN COMANDA DE LA CATEGORIA (19-ago). Un producto puede
+       llamarse solo "SENCILLA": la palabra "Hamburguesa" vive en la categoria,
+       y el POS manual la antepone siempre (tomar-pedido.js). Aqui no se traia,
+       asi que a la cocina le llegaba "SENCILLA" a secas y nadie sabia de que
+       plato hablaba. Se trae UNA vez para todo el pedido. */
+    const catNombre: Record<string, string> = {};
+    {
+      const cids = [...new Set((prods || []).map((p) => String(p.category_id || "")))].filter(Boolean);
+      if (cids.length) {
+        const cs = await sbGet(
+          `/pos_categories?id=in.(${cids.join(",")})&tenant_id=eq.${tenantId}&select=id,name,comanda_alias`
+        ) as Array<Record<string, unknown>> | null;
+        (cs || []).forEach((c) => {
+          catNombre[String(c.id)] = String(c.comanda_alias || "").trim() || String(c.name || "").trim();
+        });
+      }
+    }
+
     /* Los grupos de modificadores (las adiciones) viven en su propia tabla: se
        traen UNA vez para todo el pedido, no uno por línea. */
     const gruposMod: Record<string, Record<string, unknown>> = {};
@@ -415,7 +433,6 @@ Deno.serve(async (req) => {
       const cant = Math.max(1, Math.min(20, Number(it.cantidad) || 1));
       // El precio sale de la presentación si la hay; si no, del producto.
       let precio = Number(p.price) || 0;
-      let nombre = String(p.name || "");
       const presN = String(it.presentacion || "");
       let presIdx = -1;
       if (presN) {
@@ -424,8 +441,18 @@ Deno.serve(async (req) => {
         const pres = presIdx >= 0 ? lista[presIdx] : null;
         if (!pres) return json({ ok: false, razon: "presentacion", mensaje: "Esa presentación ya no existe." });
         precio = Number((pres as Record<string, unknown>).price) || precio;
-        nombre += " · " + String((pres as Record<string, unknown>).name);
       }
+      /* EL NOMBRE SE ARMA COMO EN EL POS MANUAL (19-ago): primero el tamaNo, y
+         si no tiene, el nombre en comanda de la categoria; despues el producto;
+         despues las variantes. Antes iba al reves y sin categoria, asi que el
+         mismo plato se llamaba "Hamburguesa · SENCILLA" pedido a mano y
+         "SENCILLA" pedido por la pagina — y "CARNE" a secas puede ser un
+         sandwich, una hamburguesa o un perro. Un solo nombre para los dos
+         caminos, o son dos verdades. */
+      const etiqueta = presIdx >= 0
+        ? String(((Array.isArray(p.presentations) ? p.presentations : [])[presIdx] as Record<string, unknown>).name || "")
+        : (catNombre[String(p.category_id || "")] || "");
+      let nombre = [etiqueta, String(p.name || "")].filter(Boolean).join(" · ");
 
       /* LA VARIANTE MANDA SOBRE EL PRECIO. Una Premium Mixta personal cuesta lo
          suyo, no lo que cuesta la Premium "a secas". Cada opcion trae un precio
@@ -522,7 +549,9 @@ Deno.serve(async (req) => {
         quantity: cant,
         /* Lo elegido, para la comanda y para el recibo: el tamaño, la variante
            y las adiciones que de verdad se cobraron. */
-        selections: { pres: presN || "", vars: varsSel, mods: modsSel },
+        /* `pres` guarda la ETIQUETA, no lo que mando el navegador: es lo que
+           lee la comanda, y el POS manual guarda ahi lo mismo. */
+        selections: { pres: etiqueta || "", vars: varsSel, mods: modsSel },
         notes: String(it.nota || "").slice(0, 120) || null,
         branch_id: branchId, tenant_id: tenantId,
       });

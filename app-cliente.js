@@ -911,7 +911,7 @@
        sin gritar, y se queda quieto si el celular pide menos movimiento. */
     var enCurso = S.pedidoVivo
       ? '<button class="ep-redondo ep-pedido" data-ir="seguir" title="Ver mi pedido" aria-label="Ver mi pedido">' +
-          ico('bolsa', 16) + '<span class="ep-punto"></span></button>'
+          ico('bolsa', 16) + '<span class="ep-punto-vivo"></span></button>'
       : '';
     return '<div class="ep-saludo-btns">' + (extra || '') + enCurso +
       /* El boton del tema se queda para el COMPUTADOR; en el celular se
@@ -2485,13 +2485,13 @@
          sea. El "Pedir" del velo es para que en el computador se vea que la
          tarjeta hace algo. */
       return '<button class="ep-hoy-card" data-plato="' + e.ci + '|' + e.pi + '"' +
-             ' aria-label="Pedir ' + esc(p.nombre) + '">' +
+             ' aria-label="Pedir ' + esc(nombrePlato(p)) + '">' +
         '<span class="ep-hoy-foto"' + (p.foto ? ' style="background-image:url(' + esc(p.foto) + ')"' : '') + '>' +
           medalla(p) +
           '<span class="ep-hoy-velo"><span class="ep-hoy-pedir">Pedir</span></span>' +
         '</span>' +
         '<span class="ep-hoy-tx">' +
-          '<span class="ep-hoy-nom">' + esc(p.nombre) + '</span>' +
+          '<span class="ep-hoy-nom">' + esc(nombrePlato(p)) + '</span>' +
           '<span class="ep-hoy-pre">' + (precio ? 'Desde ' + COP(precio) : esc(e.cat || '')) + '</span>' +
         '</span>' +
       '</button>';
@@ -2846,6 +2846,30 @@
   /* LO QUE SE AHORRA EN TODO EL PEDIDO. Suma solo las lineas de combo; si no
      hay ninguna, da 0 y la cuenta no dice nada — anunciar "ahorras $0" es
      peor que no decir nada. */
+  /* ══ COMO SE LLAMA EL PLATO ═══════════════════════════════════════════════
+     Un producto puede llamarse solo "SENCILLA" o "CARNE": la palabra que dice
+     que es ("Hamburguesa", "Perro", "Sandwich") vive en la CATEGORIA, en su
+     nombre en comanda. El POS manual la antepone siempre; la pagina no la
+     tenia, asi que el cliente veia "CARNE" en su resumen y en su historial sin
+     saber si era una hamburguesa, un perro o un sandwich — y hay uno de cada
+     uno con ese mismo nombre.
+
+     La regla es la del POS (tomar-pedido.js): manda el tamaNo si lo eligio; si
+     no, la etiqueta de la categoria. Despues el producto, despues las
+     variantes. En la carta NO se usa: ahi cada plato va bajo el titulo de su
+     categoria y "Hamburguesa · SENCILLA" debajo de "HAMBURGUESAS" sobra. */
+  function nombrePlato(p, presentacion, variantes) {
+    var etiqueta = presentacion || (p && p.etiqueta) || '';
+    var partes = [etiqueta, (p && (p.nombre || p.name)) || ''];
+    if (variantes && variantes.length) partes = partes.concat(variantes);
+    return partes.filter(Boolean).join(' · ');
+  }
+  /* Lo mismo para una linea del carrito, que ya trae todo resuelto. */
+  function nombreLinea(l) {
+    return [l.presentacion || l.etiqueta || '', l.nombre]
+      .concat(l.variantes || []).filter(Boolean).join(' · ');
+  }
+
   function carroAhorro() {
     var t = 0;
     for (var i = 0; i < carro.length; i++) t += (Number(carro[i].ahorro) || 0) * carro[i].cantidad;
@@ -3077,7 +3101,7 @@
       ? '<button class="ep-paso-atras" id="sh-back">← Atrás</button>' : '';
 
     var dentro = '<div class="ep-grab"></div>' + atras +
-      '<div class="ep-sheet-n">' + esc(p.nombre) + '</div>' +
+      '<div class="ep-sheet-n">' + esc(nombrePlato(p)) + '</div>' +
       (p.descripcion ? '<div class="ep-sheet-d">' + esc(p.descripcion) + '</div>' : '') +
       guia + opciones + nota + pie;
 
@@ -3168,6 +3192,9 @@
       carro.push({
         producto_id: sheet.p.id,
         nombre: sheet.p.nombre,
+        /* Como se llama su categoria en comanda: sin esto la linea dice
+           "CARNE" y no se sabe de que plato habla. */
+        etiqueta: sheet.p.etiqueta || '',
         presentacion: pres.length > 1 ? String(pres[sheet.talla].nombre) : '',
         variantes: variantesDe(sheet.p, sheet.vars),
         adiciones: nombresExtras(sheet.p, sheet.mods, sheet.talla),
@@ -3240,10 +3267,8 @@
     var c = S.cliente || {};
     var lineas = carro.map(function (l, i) {
       return '<div class="ep-linea">' +
-        '<div class="ep-linea-b"><div class="ep-linea-n">' + l.cantidad + '× ' + esc(l.nombre) +
-          ((l.variantes && l.variantes.length) ? ' · ' + esc(l.variantes.join(' · ')) : '') +
-          ((l.adiciones && l.adiciones.length) ? ' · + ' + esc(l.adiciones.join(', ')) : '') +
-          (l.presentacion ? ' · ' + esc(l.presentacion) : '') + '</div>' +
+        '<div class="ep-linea-b"><div class="ep-linea-n">' + l.cantidad + '× ' + esc(nombreLinea(l)) +
+          ((l.adiciones && l.adiciones.length) ? ' · + ' + esc(l.adiciones.join(', ')) : '') + '</div>' +
           (l.nota ? '<div class="ep-linea-s">' + esc(l.nota) + '</div>' : '') +
           '<div class="ep-cant ep-cant--carro">' +
             '<button data-cmenos="' + i + '">\u2212</button>' +

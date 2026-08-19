@@ -8814,3 +8814,84 @@ La logica corrida en un navegador contra las zonas reales de El Parche:
 | Un conjunto | va a `conjuntos`, no se mezcla con los barrios |
 | Barrio que ya estaba en otra zona | sale de la vieja, queda solo en la nueva |
 | El resto de la configuracion | intacta (activo, tiempo, copias) |
+
+---
+
+## 230 — El pedido inconcluso ya se puede pagar (19-ago-2026)
+
+Sergio dejo un pedido sin pagar y volvio a la pantalla de seguimiento: decia
+**"Falta que pagues"** y no ofrecia ninguna forma de pagar.
+
+No fue un olvido. El boton estaba escrito y **lo quite antes de subirlo**: la
+pantalla de pago se arma con el pedido que se acaba de crear (`pedidoHecho`),
+y quien vuelve mas tarde ya no lo tiene en memoria — el boton habria llevado a
+una pantalla vacia. Quitarlo dejo el problema peor de lo que estaba.
+
+**Ahora** el pedido se reconstruye desde `S.pedidoVivo` (lo que devuelve
+`web-acceso/pedido-activo`) mas `S.negocio.pago`, y se abre **la misma**
+pantalla de pago de siempre — saldo, "Ya transferi", el paso a paso y el boton
+de copiar la llave. No se escribio una segunda pantalla de pago: dos se
+desincronizan el dia que se cambie una.
+
+Trampa: `web-pagar` pide `order_id`, no `id`. Con el nombre equivocado el boton
+habria dicho "No encontramos tu pedido".
+
+`irA('pedido')` conserva `pedidoHecho` (`if (vista !== 'pedido') pedidoHecho = null`),
+asi que la navegacion no lo borra.
+
+### Y el aire entre los bloques
+`.ep-tile` no tiene margen: "Falta que pagues" y los estados se leian como uno
+solo. La separacion va **acotada a `.ep-seguir`** — `.ep-tile + .ep-tile` suelto
+habria movido Perfil, Billetera y El local, que estan bien.
+
+---
+
+## 231 — El plato tenia dos nombres segun por donde entrara (19-ago-2026)
+
+En la comanda de un pedido **manual**: `Hamburguesa · SENCILLA`.
+En la comanda del mismo plato pedido por **la pagina**: `SENCILLA`.
+
+### Por que
+El producto se llama de verdad **"SENCILLA"** y vive en la categoria
+**"HAMBURGUESAS"**. La palabra "Hamburguesa" sale del **nombre en comanda** de la
+categoria (`pos_categories.comanda_alias`). El POS manual lo antepone siempre:
+
+```js
+// tomar-pedido.js:1149
+const presLabel = pres.name || cat.comanda_alias || cat.name;
+const displayName = [presLabel, p.name, varLabels].filter(Boolean).join(' · ');
+```
+
+`web-pedido` no traia las categorias siquiera, y ademas armaba el nombre **al
+reves** (`producto · presentacion`).
+
+No es cosmetico: en esta carta hay un producto llamado **"CARNE" en tres
+categorias distintas** — sandwich, hamburguesa y perro. Sin la etiqueta, la
+cocina y el cliente ven "CARNE" y no hay forma de saber cual es.
+
+### Corregido en tres sitios, con una sola regla
+1. **`fn_web_carta`** — cada producto trae `etiqueta` =
+   `coalesce(nullif(c.comanda_alias,''), c.name)`. Los combos la traen vacia: su
+   nombre ya se explica solo. (`sql/2026-08-19-carta-etiqueta.sql`)
+2. **`web-pedido` v17** — trae `pos_categories` una vez por pedido y arma
+   `[etiqueta, producto, variantes]`, igual que el POS. `selections.pres` guarda
+   la etiqueta, no lo que mando el navegador.
+3. **`app-cliente.js`** — `nombrePlato()` y `nombreLinea()`: carrito, resumen,
+   hoja del plato y tarjetas del inicio. **En la cuadricula de la carta NO**: ahi
+   cada plato va bajo el titulo de su categoria y repetirlo sobra.
+
+Historial y seguimiento leen el nombre guardado, asi que quedan bien solos —
+para los pedidos NUEVOS. Los 4 items web de las pruebas conservan el nombre
+viejo: no se reescriben pedidos ya hechos.
+
+### El punto que titila estaba en la esquina de la pantalla
+Dos errores encima del otro:
+1. Se llamaba `.ep-punto`, **nombre que ya existia** para el puntico de
+   abierto/cerrado del local. Mi regla, por ir despues, se lo comio.
+2. `position: absolute` sin padre posicionado — `.ep-redondo` no tenia
+   `position: relative`, asi que se colgo del borde de la **pantalla**.
+
+Ahora es `.ep-punto-vivo`, el boton es su ancla, y late con un **halo que se
+abre hacia afuera** (`ep-onda`) mas un respiro del boton (`ep-llama`): un
+puntico quieto no dice "tocame", una onda si. Los dos se apagan con
+`prefers-reduced-motion`.
