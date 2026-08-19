@@ -25,12 +25,16 @@ async function sbPatch(path: string, body: unknown) {
   await fetch(`${SUPABASE_URL}/rest/v1${path}`, { method: "PATCH", headers: H, body: JSON.stringify(body) });
 }
 
-async function sbPost(path: string, body: unknown) {
-  return await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
+/* `devolver` pide la fila creada de vuelta: al abrir un turno hace falta su id
+   para colgarle las lineas. */
+async function sbPost(path: string, body: unknown, devolver = false) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
     method: "POST",
-    headers: { ...H, Prefer: "return=minimal" },
+    headers: { ...H, Prefer: devolver ? "return=representation" : "return=minimal" },
     body: JSON.stringify(body),
   });
+  if (!devolver) return r;
+  try { return await r.json(); } catch { return null; }
 }
 function num(v: unknown) { return Number(v) || 0; }
 
@@ -406,6 +410,71 @@ function recalcular(ops: Op[], byId: Record<string, Insumo>): void {
   }
 }
 
+
+/* ── TURNO DE CONSUMO ────────────────────────────────────────────────────────
+   Idea de Sergio (18-ago): hay insumos que la receta no controla porque manda
+   la mano de quien sirve — el maiz, el ripio, las salsas. Se abre turno
+   diciendo con cuanto se empieza y se cierra diciendo con cuanto se termina;
+   con eso el sistema despeja lo que DE VERDAD se gasto y recomienda la porcion
+   real de cada producto y cada presentacion (una familiar no es una personal).
+
+   Se aprovecha el mismo lector del inventario: entiende igual "maiz 3.5 kg" en
+   un turno que en una actualizacion, y la conversion la sigue haciendo el
+   codigo. Lo unico que cambia es DONDE se guarda el numero. */
+const TURNO_ABRIR = new RegExp("(abro|abrir|abre|iniciar|inicio de|empiezo|empezamos|arranco)" + String.fromCharCode(92) + "s+(el" + String.fromCharCode(92) + "s+)?turno", "i");
+const TURNO_CERRAR = new RegExp("(cierro|cerrar|cierra|terminar|termino|terminamos|finalizo|acabo)" + String.fromCharCode(92) + "s+(el" + String.fromCharCode(92) + "s+)?turno", "i");
+const TURNO_APLICAR = new RegExp("^" + String.fromCharCode(92) + "s*(aplica|aplicar|aplique|cambia|actualiza)" + String.fromCharCode(92) + "b", "i");
+const TURNO_NO = new RegExp("^" + String.fromCharCode(92) + "s*(no|nada|dejalo|dejala|asi esta bien|no apliques)", "i");
+
+function fmtPorcion(n: number): string {
+  const r = Math.round(n * 10) / 10;
+  return String(r % 1 === 0 ? Math.round(r) : r);
+}
+
+/* El texto que recibe el gerente al cerrar. Es la pieza que de verdad usa: si
+   no se entiende de una leida, el turno no sirve para nada. */
+function textoAnalisis(an: Record<string, unknown>): string {
+  const NL = String.fromCharCode(10);
+  const insumos = (an.insumos as Array<Record<string, unknown>>) || [];
+  if (!insumos.length) return "Cerre el turno, pero no habia insumos con conteo de inicio y fin.";
+  const partes: string[] = ["📋 *Turno cerrado*"];
+  let hayReco = false;
+  for (const i of insumos) {
+    const factor = i.factor === null || i.factor === undefined ? null : Number(i.factor);
+    const realU = Number(i.real_uso), teoU = Number(i.teorico_uso);
+    const uso = String(i.unidad_uso || "");
+    partes.push("");
+    partes.push(`*${i.insumo}* — gastaste ${fmtPorcion(realU)} ${uso}, las recetas decian ${fmtPorcion(teoU)} ${uso}`);
+    if (factor === null) {
+      partes.push("   (no se vendio nada que lo lleve, no puedo comparar)");
+      continue;
+    }
+    const pct = Math.round(Math.abs(factor - 1) * 100);
+    if (!i.confiable) {
+      const razon = Number(i.platos) < 10
+        ? `solo ${i.platos} platos, muy poquito para opinar`
+        : `la diferencia es de ${pct}%, muy chica para distinguirla de la bascula`;
+      partes.push(`   Diferencia del ${pct}% (${razon}). No cambio nada.`);
+      continue;
+    }
+    hayReco = true;
+    const verbo = factor > 1 ? "de mas" : "de menos";
+    partes.push(`   Se sirvio *${factor.toFixed(2)}x* la receta (${pct}% ${verbo}), en ${i.platos} platos.`);
+    partes.push("   Te recomiendo:");
+    for (const r of ((i.recetas as Array<Record<string, unknown>>) || [])) {
+      if (r.porcion_reco === null || r.porcion_reco === undefined) continue;
+      const nom = String(r.producto) + (r.presentacion === "unica" ? "" : ` ${r.presentacion}`);
+      partes.push(`   • ${nom}: ${fmtPorcion(Number(r.porcion_hoy))} → *${fmtPorcion(Number(r.porcion_reco))} ${uso}*  (${r.unidades} vendidas)`);
+    }
+  }
+  if (hayReco) {
+    partes.push("");
+    partes.push("⚠️ Esto reparte la diferencia pareja entre todos. Con mas turnos te puedo decir CUAL se va y cual no.");
+    partes.push("Responde *aplica* para cambiar todas las porciones, *aplica <palabra>* para solo las que la lleven (ej. “aplica familiar”), o *no* para dejarlas como estan.");
+  }
+  return partes.join(NL);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
@@ -418,6 +487,46 @@ Deno.serve(async (req: Request) => {
        justo lo que hace falta cuando el gerente cuenta todo el inventario. */
     const simular = body.simular === true || body.dry === true;
     if (!branch_id || !mensaje) return json({ error: "branch_id y message requeridos" }, 400);
+
+    const modoAbrir  = TURNO_ABRIR.test(mensaje);
+    const modoCerrar = TURNO_CERRAR.test(mensaje);
+
+    /* RESPUESTA A LAS RECOMENDACIONES DEL ULTIMO TURNO. Va antes de todo: no
+       hace falta el modelo para leer un "aplica" o un "no". */
+    if (!modoAbrir && !modoCerrar && (TURNO_APLICAR.test(mensaje) || TURNO_NO.test(mensaje))) {
+      const ult = await sbGet(`/iv_turnos?branch_id=eq.${branch_id}&estado=eq.cerrado&order=cerrado_en.desc&limit=1&select=id,analisis,cerrado_en`) as Array<Record<string, unknown>> | null;
+      const turno = ult?.[0];
+      const an = turno?.analisis as Record<string, unknown> | null;
+      if (!turno || !an) {
+        return json({ reply: "No tengo recomendaciones pendientes. Cierra un turno primero: “cierro turno con maiz 1.2 kg, ripio 1.4 kg”." });
+      }
+      if (TURNO_NO.test(mensaje)) {
+        await sbPatch(`/iv_turnos?id=eq.${turno.id}`, { analisis: null });
+        return json({ reply: "Listo, dejo las porciones como estan 👍" });
+      }
+      /* "aplica familiar" solo cambia las que lleven esa palabra. */
+      const filtro = mensaje.replace(TURNO_APLICAR, "").replace(/^\s*(las|los|la|el|todo|todas|todos)\s*/i, "").trim().toLowerCase();
+      const ajustes: Array<Record<string, unknown>> = [];
+      const nombres: string[] = [];
+      for (const i of ((an.insumos as Array<Record<string, unknown>>) || [])) {
+        if (!i.confiable) continue;
+        for (const r of ((i.recetas as Array<Record<string, unknown>>) || [])) {
+          if (r.porcion_reco === null || r.porcion_reco === undefined) continue;
+          const etiqueta = `${r.producto} ${r.presentacion}`.toLowerCase();
+          if (filtro && !etiqueta.includes(filtro) && !String(i.insumo).toLowerCase().includes(filtro)) continue;
+          ajustes.push({ receta_id: r.receta_id, pres_key: r.pres_key, porcion: r.porcion_reco });
+          nombres.push(`${r.producto}${r.presentacion === "unica" ? "" : " " + r.presentacion}: ${r.porcion_reco} ${i.unidad_uso}`);
+        }
+      }
+      if (!ajustes.length) {
+        return json({ reply: filtro ? `No encontre recomendaciones que digan “${filtro}”.` : "No hay recomendaciones que aplicar." });
+      }
+      const res = await sbPost(`/rpc/fn_turno_aplicar`, { p_turno: turno.id, p_ajustes: ajustes, p_por: telGerente });
+      if (!res.ok) return json({ reply: "No pude cambiar las porciones. Intenta otra vez en un momento." });
+      await sbPatch(`/iv_turnos?id=eq.${turno.id}`, { analisis: null });
+      const NL = String.fromCharCode(10);
+      return json({ reply: `✅ *Porciones actualizadas* (${ajustes.length})${NL}${NL}• ${nombres.join(NL + "• ")}${NL}${NL}No toque nada mas: ni precios, ni unidades, ni el resto de la receta.` });
+    }
 
 
     /* EL STOCK YA NO VIVE EN `iv_insumos` (18-ago). Cuando el inventario paso a
@@ -519,6 +628,74 @@ Deno.serve(async (req: Request) => {
     // pasaba de los 4096 caracteres que admite WhatsApp y no llegaba nunca.
     const compacto: Array<{ n: string; t: string }> = [];
     recalcular(ops, byId);
+
+    /* ── ABRIR / CERRAR TURNO ─────────────────────────────────────────────
+       Las cantidades ya vienen entendidas y convertidas por el mismo camino
+       del inventario; aqui solo cambia DONDE se guardan. */
+    if (modoAbrir || modoCerrar) {
+      const NL = String.fromCharCode(10);
+      const abiertos = await sbGet(`/iv_turnos?branch_id=eq.${branch_id}&estado=eq.abierto&order=abierto_en.desc&limit=1&select=id,abierto_en`) as Array<Record<string, unknown>> | null;
+      const abierto = abiertos?.[0];
+
+      if (modoAbrir) {
+        if (abierto) {
+          await sbPatch(`/iv_turnos?id=eq.${abierto.id}`, { estado: "descartado" });
+        }
+        const nuevo = await sbPost(`/iv_turnos`, {
+          tenant_id: tenantG, branch_id, estado: "abierto", abierto_por: telGerente,
+        }, true);
+        const filaT = Array.isArray(nuevo) ? (nuevo[0] as Record<string, unknown>) : null;
+        const turnoId = filaT?.id as string | undefined;
+        if (!turnoId) return json({ reply: "No pude abrir el turno. Intenta otra vez." });
+        const lineas = ops.filter((o) => byId[o.insumo_id])
+          .map((o) => ({ turno_id: turnoId, insumo_id: o.insumo_id, inicio: num(o.cantidad_buy_unit), repuesto: 0 }));
+        if (lineas.length) await sbPost(`/iv_turno_lineas`, lineas);
+        const dichos = lineas.map((l) => {
+          const ins = byId[l.insumo_id];
+          return `• ${ins.nombre}: ${decir(l.inicio, ins)}`;
+        });
+        const aviso = abierto ? NL + NL + "(habia un turno sin cerrar; lo descarte)" : "";
+        return json({ reply: `▶️ *Turno abierto* con:${NL}${dichos.join(NL)}${NL}${NL}Cuando termines dime *cierro turno con...* y te digo cuanto se gasto de verdad en cada plato.${aviso}` });
+      }
+
+      // CERRAR
+      if (!abierto) {
+        return json({ reply: "No hay ningun turno abierto. Empieza con “abro turno con maiz 3.5 kg, ripio 2 kg”." });
+      }
+      const turnoId = abierto.id as string;
+      /* Lo que entro DURANTE el turno (compras que el mismo gerente reporto).
+         Sin esto, reponer a mitad de jornada haria ver un gasto negativo. */
+      const compras = await sbGet(`/pos_gerente_ops?branch_id=eq.${branch_id}&accion=eq.add&created_at=gte.${encodeURIComponent(String(abierto.abierto_en))}&select=insumo_id,cantidad`) as Array<Record<string, unknown>> | null;
+      const repuestoPor: Record<string, number> = {};
+      for (const c of (compras || [])) {
+        const k = String(c.insumo_id || "");
+        if (!k) continue;
+        repuestoPor[k] = (repuestoPor[k] || 0) + num(c.cantidad);
+      }
+      for (const o of ops) {
+        if (!byId[o.insumo_id]) continue;
+        const yaHay = await sbGet(`/iv_turno_lineas?turno_id=eq.${turnoId}&insumo_id=eq.${o.insumo_id}&select=id`) as Array<Record<string, unknown>> | null;
+        const campos = { fin: num(o.cantidad_buy_unit), repuesto: repuestoPor[o.insumo_id] || 0 };
+        if (yaHay?.length) await sbPatch(`/iv_turno_lineas?id=eq.${yaHay[0].id}`, campos);
+        else await sbPost(`/iv_turno_lineas`, { turno_id: turnoId, insumo_id: o.insumo_id, ...campos });
+      }
+      await sbPatch(`/iv_turnos?id=eq.${turnoId}`, {
+        estado: "cerrado", cerrado_en: new Date().toISOString(), cerrado_por: telGerente,
+      });
+      const anRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/fn_turno_analisis`, {
+        method: "POST", headers: H, body: JSON.stringify({ p_turno: turnoId }),
+      });
+      const an = await anRes.json() as Record<string, unknown>;
+      await sbPatch(`/iv_turnos?id=eq.${turnoId}`, { analisis: an });
+
+      /* EL CIERRE TAMBIEN DEJA EL INVENTARIO AL DIA: es un conteo, y hacerlo
+         escribir dos veces seria pedirle lo mismo dos veces. */
+      for (const o of ops) {
+        if (!byId[o.insumo_id]) continue;
+        await fijarExistencia(o.insumo_id, sedeExist, { stock: num(o.cantidad_buy_unit) });
+      }
+      return json({ reply: textoAnalisis(an), turno: turnoId });
+    }
 
     if (simular) {
       const prev = ops.map((op) => {

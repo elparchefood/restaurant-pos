@@ -7999,3 +7999,102 @@ llevaba semanas viva en produccion. Reparada al mismo tiempo.
 ⚠️ La funcion **no estaba en el repositorio** — solo desplegada. Ya quedo
 guardada en `supabase/functions/factura-inventario/`. Al bajarla con `/body` hay
 que reconstruir la primera linea, que llega mordida.
+
+---
+
+## 213 — TURNO DE CONSUMO: la porcion real, no la del papel (19-ago-2026)
+
+Idea de Sergio: hay insumos que la receta no controla porque manda la mano de
+quien sirve — el maiz, el ripio, las salsas. Se abre turno diciendo con cuanto
+se empieza y se cierra diciendo con cuanto se termina; el sistema despeja lo que
+DE VERDAD se gasto y **recomienda la porcion real de cada producto y cada
+presentacion** (una familiar no es una personal, y una hamburguesa con maicitos
+no es una salchipapa).
+
+### Como funciona
+
+- `abro turno con maiz 5 kg, ripio 3 kg` → guarda con cuanto se empieza.
+- `cierro turno con maiz 2.3 kg` → calcula **real = inicio + repuesto − fin**,
+  lo compara con el teorico (que el inventario ya calcula en cada venta) y
+  devuelve la recomendacion por receta.
+- `aplica` / `aplica familiar` / `no` → cambia **solo la porcion**.
+
+Lo entiende el MISMO lector del inventario y la conversion la sigue haciendo el
+codigo (entrada 211): "maiz 3.5 kg" se entiende igual en un turno que en una
+actualizacion. Lo unico que cambia es donde se guarda el numero.
+
+### La honestidad del metodo, que es lo importante
+
+Al cerrar hay **un solo numero** (se gastaron 2.700 g) y **siete incognitas**
+(las siete recetas que llevan maiz). Una ecuacion con siete incognitas no se
+resuelve, asi que la etapa 1 reparte la diferencia pareja —con el supuesto
+declarado en el mensaje— y muestra el numero de cada receta en sus propios
+gramos. La etapa 2 (pendiente) usara varios turnos: como la mezcla de lo vendido
+cambia cada dia, con 10-15 turnos se puede despejar cada porcion por separado.
+
+Tres candados para no dar consejos malos: no opina con menos de 10 platos (seria
+la bascula), ni con diferencias bajo el 10% (ruido de medicion), y si el gasto
+se dispara sin mas ventas lo llama por su nombre — eso es merma, no porcion.
+
+### Lo que toca al aplicar
+
+Regla literal de Sergio: *"sin cambiar absolutamente nada mas, ni precios, ni
+unidad ni nada, solo cambiaria la porcion"*. `fn_turno_aplicar` escribe UNA
+llave dentro de `cantidades` con `jsonb_set` y nada mas; el resto de la receta
+(merma, insumo, las OTRAS presentaciones) queda intacto. Cada cambio deja
+rastro en `iv_receta_ajustes` (de cuanto a cuanto, que turno, quien aprobo).
+
+El cierre ademas **deja el inventario al dia**: es un conteo, y pedirlo dos
+veces seria absurdo.
+
+### Verificado contra ventas reales
+
+Turno sobre las ventas del 17-ago (17 platos, 2,0 kg teoricos), cerrado
+simulando 35% de mas:
+
+```
+Maicitos — gastaste 2700 g, las recetas decian 2000 g
+   Se sirvio 1.35x la receta (35% de mas), en 17 platos.
+   • Premium Familiar: 200 → 270 g   (2 vendidas)
+   • Premium Personal: 100 → 135 g   (8 vendidas)
+   • MAICITOS Personal: 100 → 135 g  (1 vendida)
+   • Maicitos Especial Personal: 100 → 135 g (5 vendidas)
+```
+
+`aplica familiar` cambio exactamente dos recetas y dejo las personales en 100.
+Recetas, existencias y turnos de prueba devueltos a como estaban.
+
+SQL en `sql/2026-08-19-turnos.sql`, `-turno-analisis.sql` y `-turno-aplicar.sql`.
+Marcados para turno: maiz, papa, queso, ripio y las cuatro salsas.
+
+---
+
+## 214 — Auditoria: cada canal descuenta igual (19-ago-2026)
+
+Sergio pidio comprobar que un plato descuente sus insumos venga de donde venga.
+**Ningun canal descuenta por su cuenta**: todos escriben el pedido en la base y
+ahi dos disparadores hacen el trabajo — `trg_iv_item_cocina` (al salir a cocina)
+y `trg_iv_orden_pagada` (al quedar pagado). `fn_iv_consumir_item` es idempotente,
+asi que pasar por los dos caminos descuenta una sola vez.
+
+Medido sobre **251 items reales de 14 dias** (solo productos con receta):
+
+| Origen | Items | Descontaron |
+|---|---:|---:|
+| Salon (chat) | 111 | 111 |
+| Domicilio (chat) | 72 | **70** |
+| Salon (manual) | 36 | 36 |
+| Venta rapida (manual) | 22 | 22 |
+| Venta rapida (chat) | 10 | 10 |
+
+Los dos fallos son el mismo caso: **dos HIT sin sabor capturado**. Las recetas
+del HIT son por variante, y con `vars: {}` no habia de donde descontar. No es
+del canal: es la captura de la variante, arreglada hoy.
+
+⚠️ De la **pagina de clientes no hay ni un pedido real todavia**, asi que ese
+camino esta verificado solo por codigo (nace `pendiente_pago` → `web-pagar` lo
+pasa a `paid` → dispara). Los combos si estan cubiertos: guardan `combo_items`
+y `fn_iv_consumir_item` los recorre uno por uno.
+
+**Pendiente que salio de aqui:** hoy, si un item con receta no descuenta, nadie
+se entera. Falta un aviso que lo cace solo.
