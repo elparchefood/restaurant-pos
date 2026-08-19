@@ -48,6 +48,10 @@ desincroniza — es el mismo error de forma de siempre.
 Bancolombia 0089912015 de El Parche Food"* dentro de la instrucción del modelo.
 **Arreglo:** ejemplo genérico, o la llave configurada del propio restaurante.
 
+### ✅ HECHO 19-ago — el fondo del mensaje ya no es el vino tinto de El Parche
+Entrada 216. `tenants.web_banner`: color, degradado o imagen propia con velo,
+configurable desde "Mi página web". **No volver a listarlo.**
+
 ## 2. Limita a qué restaurantes les sirve bien
 
 ### 2.1 El motor solo conoce 7 tipos de comida

@@ -1560,6 +1560,13 @@ button.ep-pub-foto { cursor: pointer; }
   padding: 16px; border-radius: 18px; color: #fff;
   background: linear-gradient(140deg, #2a1a1e 0%, #4a1226 100%);
 }
+/* EL VELO DEL FONDO CON FOTO. Cubre la tarjeta entera por debajo del texto:
+   sin el, el texto blanco desaparece sobre una foto clara. El texto y los
+   botones van despues en el HTML, asi que quedan encima sin necesidad de
+   z-index — salvo el contenido, que si se sube para que el velo no lo tape. */
+.ep-hoy-velo-fondo { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; }
+.ep-hoy-msg { position: relative; }
+.ep-hoy-msg > *:not(.ep-hoy-velo-fondo) { position: relative; z-index: 1; }
 .ep-hoy-t { font-size: 16px; font-weight: 700; line-height: 1.2; letter-spacing: -.02em; text-wrap: balance; }
 .ep-hoy-s { margin-top: 6px; font-size: 12px; line-height: 1.4; color: rgba(255,255,255,.8); }
 .ep-hoy-btns { display: flex; flex-direction: column; gap: 8px; }

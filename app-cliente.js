@@ -2187,6 +2187,34 @@
   /* La fila de cuatro: el mensaje con sus botones y tres platos de la carta.
      Aquí terminó el texto que vivía en el banner — justo encima de lo que se
      quiere que pidan, que es donde un gancho de venta sirve. */
+  /* Traduce lo que el dueNo eligio a estilo. Todo lo que no se entienda cae
+     al fondo de siempre: la pagina nunca se rompe por una configuracion rara. */
+  function fondoDelBanner() {
+    var b = (S.negocio && S.negocio.banner) || null;
+    if (!b || !b.tipo) return { style: '', velo: '' };
+    if (b.tipo === 'color' && b.color) {
+      return { style: 'background:' + esc(b.color), velo: '' };
+    }
+    if (b.tipo === 'degradado' && b.color) {
+      var ang = Number(b.angulo);
+      if (!isFinite(ang)) ang = 140;
+      var c2 = b.color2 || b.color;
+      return { style: 'background:linear-gradient(' + ang + 'deg,' + esc(b.color) + ' 0%,' + esc(c2) + ' 100%)', velo: '' };
+    }
+    if (b.tipo === 'imagen' && b.imagen) {
+      /* El velo va como una capa aparte y no como parte del fondo: asi la foto
+         puede moverse (cover/center) sin arrastrar el velo, y el texto —que va
+         despues en el HTML— queda por encima de los dos. */
+      var op = Number(b.velo);
+      if (!isFinite(op) || op < 0 || op > 1) op = 0.55;
+      return {
+        style: 'background-image:url(' + esc(b.imagen) + ');background-size:cover;background-position:center',
+        velo: '<span class="ep-hoy-velo-fondo" style="background:rgba(0,0,0,' + op.toFixed(2) + ')"></span>'
+      };
+    }
+    return { style: '', velo: '' };
+  }
+
   function filaDeHoy() {
     var b = BANNER_TEXTO;
     var platos = productosDelBanner().map(function (e) {
@@ -2210,8 +2238,15 @@
       '</button>';
     }).join('');
     if (!platos) return '';
+    /* EL FONDO DEL MENSAJE lo elige el dueNo desde "Mi pagina web": un color,
+       un degradado, o su propia foto. Con foto va SIEMPRE un velo oscuro
+       encima, porque el texto es blanco y sobre una imagen clara desaparece —
+       el velo no es decoracion, es lo que deja leer. Sin nada configurado
+       queda el vino tinto de siempre, que vive en el CSS. */
+    var fondo = fondoDelBanner();
     return '<div class="ep-hoy">' +
-      '<div class="ep-hoy-msg">' +
+      '<div class="ep-hoy-msg"' + (fondo.style ? ' style="' + fondo.style + '"' : '') + '>' +
+        fondo.velo +
         '<div><div class="ep-hoy-t">' + esc(b.titulo) + '</div>' +
           (b.sub ? '<div class="ep-hoy-s">' + esc(b.sub) + '</div>' : '') + '</div>' +
         '<div class="ep-hoy-btns">' +

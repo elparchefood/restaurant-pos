@@ -36,7 +36,7 @@
   var TABS = [
     { k: 'pagina',  t: 'Tu página',        secs: ['direccion', 'publicar'] },
     { k: 'horario', t: 'Cuándo abres',     secs: ['estado', 'mano', 'cierres', 'pedidos'] },
-    { k: 've',      t: 'Qué ve el cliente', secs: ['ve', 'destacados', 'publicidad'] },
+    { k: 've',      t: 'Qué ve el cliente', secs: ['ve', 'destacados', 'fondo', 'publicidad'] },
     { k: 'prueba',  t: 'Probar y medir',   secs: ['probar', 'comova'] },
   ];
 
@@ -115,7 +115,7 @@
     if (!tenantId) { $('pw-main').innerHTML = '<div class="pw-cargando">Tu cuenta no tiene un restaurante asignado. Vuelve a iniciar sesión.</div>'; return; }
 
     var r = await s.from('tenants')
-      .select('id,name,slug,web_activa,web_cerrado_manual,web_cerrado_hasta,web_cierres,web_programar_pedidos,web_visible')
+      .select('id,name,slug,web_activa,web_cerrado_manual,web_cerrado_hasta,web_cierres,web_programar_pedidos,web_visible,web_destacados,web_banner')
       .eq('id', tenantId).maybeSingle();
     if (r.error || !r.data) { $('pw-main').innerHTML = '<div class="pw-cargando">No se pudo cargar. Recarga la pantalla.</div>'; return; }
     S.t = r.data;
@@ -210,7 +210,7 @@
     var pinta = {
       direccion: seccionDireccion, publicar: seccionPublicar, estado: seccionEstado,
       mano: seccionMano, cierres: seccionCierres, pedidos: seccionPedidos,
-      ve: seccionVe, destacados: seccionDestacados, publicidad: seccionPublicidad,
+      ve: seccionVe, destacados: seccionDestacados, fondo: seccionFondo, publicidad: seccionPublicidad,
       probar: seccionProbar, comova: seccionComoVa,
     };
     var tab = TABS.filter(function (x) { return x.k === S.tab; })[0] || TABS[0];
@@ -467,6 +467,100 @@
   /* Las imagenes que rotan en el cuadro del inicio. Se guardan en el almacen y
      en la base va solo la direccion: una imagen dentro de la fila viajaria en
      cada visita a la pagina. */
+  /* ── EL FONDO DEL BANNER DE TEXTO ──────────────────────────────────
+     El bloque de "Pide hoy y suma puntos" era vino tinto para todos los
+     restaurantes: un color escrito en el CSS. Aqui el dueNo elige el suyo —
+     un color, un degradado o su propia foto.
+
+     Con foto va SIEMPRE un velo oscuro encima. No es un adorno: el texto es
+     blanco y sobre una foto clara desaparece. Por eso el velo se puede
+     graduar pero no apagar. */
+  var BANNER_PRESETS = [
+    { n: 'Vino',    a: '#2a1a1e', b: '#5d2233' },
+    { n: 'Noche',   a: '#111827', b: '#334155' },
+    { n: 'Café',    a: '#231a12', b: '#6b4423' },
+    { n: 'Bosque',  a: '#0f2417', b: '#276749' },
+    { n: 'Océano',  a: '#0c1e33', b: '#1a5f8a' },
+    { n: 'Ciruela', a: '#231436', b: '#6b21a8' },
+  ];
+
+  function bnr() {
+    var b = S.t.web_banner;
+    return (b && typeof b === 'object') ? b : { tipo: 'degradado', color: '#2a1a1e', color2: '#5d2233', angulo: 140 };
+  }
+
+  function bannerEstilo(b) {
+    if (b.tipo === 'color')     return 'background:' + esc(b.color || '#2a1a1e');
+    if (b.tipo === 'imagen' && b.imagen)
+      return 'background-image:url(' + esc(b.imagen) + ');background-size:cover;background-position:center';
+    var ang = isFinite(Number(b.angulo)) ? Number(b.angulo) : 140;
+    return 'background:linear-gradient(' + ang + 'deg,' + esc(b.color || '#2a1a1e') + ' 0%,' + esc(b.color2 || b.color || '#5d2233') + ' 100%)';
+  }
+
+  function seccionFondo() {
+    var b = bnr();
+    var velo = isFinite(Number(b.velo)) ? Number(b.velo) : 0.55;
+    var tipos = [['degradado', 'Degradado'], ['color', 'Un color'], ['imagen', 'Mi imagen']];
+
+    /* La muestra es el MISMO bloque que ve el cliente, con su texto y sus
+       botones: es la unica forma de saber si el texto se lee. Un cuadro de
+       color suelto no dice nada. */
+    var muestra = '<div class="pw-bnr-demo" style="' + bannerEstilo(b) + '">' +
+      (b.tipo === 'imagen' && b.imagen
+        ? '<span class="pw-bnr-velo" style="background:rgba(0,0,0,' + velo.toFixed(2) + ')"></span>' : '') +
+      '<div class="pw-bnr-demo-tx">' +
+        '<b>Pide hoy y suma puntos</b>' +
+        '<small>Cada pedido te acerca a tu próximo premio</small>' +
+        '<span class="pw-bnr-demo-btns"><i>Ver la carta</i><u>Mis puntos</u></span>' +
+      '</div></div>';
+
+    var cuerpo = '';
+    if (b.tipo === 'imagen') {
+      cuerpo =
+        '<div class="pw-bnr-fila">' +
+          '<button class="lm-btn-ghost sm" data-a="bnr-imagen">' + (b.imagen ? 'Cambiar la imagen' : 'Subir una imagen') + '</button>' +
+          (b.imagen ? '<button class="lm-icon-sm" data-a="bnr-quitar-img" title="Quitar">✕</button>' : '') +
+        '</div>' +
+        (b.imagen
+          ? '<label class="pw-bnr-velo-lb"><span>Qué tan oscura va la capa de encima</span>' +
+              '<input type="range" id="pw-bnr-velo" min="0.15" max="0.85" step="0.05" value="' + velo + '">' +
+              '<b id="pw-bnr-velo-n">' + Math.round(velo * 100) + '%</b></label>' +
+            '<div class="mw-note"><span>Esa capa es la que deja leer el texto. Si la bajas mucho, la foto se ve más pero las letras se pierden.</span></div>'
+          : '<div class="mw-note"><span>Que sea una foto ancha y sin texto: el texto lo pone la página encima.</span></div>');
+    } else {
+      var lista = BANNER_PRESETS.map(function (p, i) {
+        var est = b.tipo === 'color' ? 'background:' + p.a
+                : 'background:linear-gradient(140deg,' + p.a + ' 0%,' + p.b + ' 100%)';
+        return '<button class="pw-bnr-p" data-bnrp="' + i + '" style="' + est + '" title="' + esc(p.n) + '"></button>';
+      }).join('');
+      cuerpo =
+        '<div class="pw-bnr-presets">' + lista + '</div>' +
+        '<div class="pw-bnr-fila">' +
+          '<label class="pw-bnr-col"><span>' + (b.tipo === 'color' ? 'Color' : 'Color de arriba') + '</span>' +
+            '<input type="color" id="pw-bnr-c1" value="' + esc(b.color || '#2a1a1e') + '"></label>' +
+          (b.tipo === 'degradado'
+            ? '<label class="pw-bnr-col"><span>Color de abajo</span>' +
+                '<input type="color" id="pw-bnr-c2" value="' + esc(b.color2 || '#5d2233') + '"></label>' +
+              '<label class="pw-bnr-col"><span>Inclinación</span>' +
+                '<input type="range" id="pw-bnr-ang" min="0" max="360" step="10" value="' + (isFinite(Number(b.angulo)) ? Number(b.angulo) : 140) + '"></label>'
+            : '') +
+        '</div>';
+    }
+
+    return '<section class="mw-card">' +
+      '<div class="mw-card-head"><div><h2 class="mw-h">Fondo del mensaje</h2>' +
+        '<p class="mw-sub">El bloque de bienvenida que va en el inicio de tu página, junto a los tres platos.</p></div>' +
+        (S.t.web_banner ? '<button class="lm-btn-ghost sm" data-a="bnr-reset">Volver al de siempre</button>' : '') +
+      '</div>' +
+      muestra +
+      '<div class="pw-bnr-tipos">' + tipos.map(function (t) {
+        return '<button class="pw-bnr-tipo' + (b.tipo === t[0] ? ' on' : '') + '" data-bnrt="' + t[0] + '">' + t[1] + '</button>';
+      }).join('') + '</div>' +
+      cuerpo +
+      '<input type="file" id="pw-bnr-file" accept="image/*" hidden>' +
+      '</section>';
+  }
+
   function seccionPublicidad() {
     var lista = S.promos || [];
     var cuerpo = lista.length
@@ -639,6 +733,74 @@
       if (this.files && this.files[0]) subirImagen(this.files[0]);
       this.value = '';   // para poder escoger la MISMA imagen otra vez
     };
+
+    /* ── EL FONDO DEL MENSAJE ──────────────────────────────────────────
+       Los colores y la inclinacion se ven EN VIVO en la muestra y solo se
+       guardan al soltar: guardar en cada movimiento del dedo serian docenas
+       de escrituras y la pantalla parpadeando. */
+    document.querySelectorAll('[data-bnrt]').forEach(function (b) {
+      b.onclick = function () {
+        var t = b.dataset.bnrt, a = bnr();
+        var nuevo = { tipo: t };
+        if (t === 'color')     nuevo.color = a.color || '#2a1a1e';
+        if (t === 'degradado') { nuevo.color = a.color || '#2a1a1e'; nuevo.color2 = a.color2 || '#5d2233'; nuevo.angulo = isFinite(Number(a.angulo)) ? Number(a.angulo) : 140; }
+        if (t === 'imagen')    { nuevo.imagen = a.imagen || null; nuevo.velo = isFinite(Number(a.velo)) ? Number(a.velo) : 0.55; }
+        guardarFondo(nuevo);
+      };
+    });
+    document.querySelectorAll('[data-bnrp]').forEach(function (b) {
+      b.onclick = function () {
+        var p = BANNER_PRESETS[Number(b.dataset.bnrp)], a = bnr();
+        guardarFondo(a.tipo === 'color'
+          ? { tipo: 'color', color: p.a }
+          : { tipo: 'degradado', color: p.a, color2: p.b, angulo: isFinite(Number(a.angulo)) ? Number(a.angulo) : 140 });
+      };
+    });
+    var demo = document.querySelector('.pw-bnr-demo');
+    function enVivo() {
+      if (!demo) return;
+      var a = bnr();
+      var c1 = $('pw-bnr-c1'), c2 = $('pw-bnr-c2'), an = $('pw-bnr-ang');
+      var prev = {
+        tipo: a.tipo,
+        color: c1 ? c1.value : a.color,
+        color2: c2 ? c2.value : a.color2,
+        angulo: an ? Number(an.value) : a.angulo,
+      };
+      demo.setAttribute('style', bannerEstilo(prev));
+    }
+    ['pw-bnr-c1', 'pw-bnr-c2', 'pw-bnr-ang'].forEach(function (id) {
+      var el = $(id);
+      if (!el) return;
+      el.oninput = enVivo;
+      el.onchange = function () {
+        var a = bnr(), c1 = $('pw-bnr-c1'), c2 = $('pw-bnr-c2'), an = $('pw-bnr-ang');
+        var nuevo = { tipo: a.tipo };
+        if (c1) nuevo.color = c1.value;
+        if (a.tipo === 'degradado') {
+          nuevo.color2 = c2 ? c2.value : a.color2;
+          nuevo.angulo = an ? Number(an.value) : a.angulo;
+        }
+        guardarFondo(nuevo);
+      };
+    });
+    var vel = $('pw-bnr-velo');
+    if (vel) {
+      vel.oninput = function () {
+        var n = $('pw-bnr-velo-n'), capa = document.querySelector('.pw-bnr-velo');
+        if (n) n.textContent = Math.round(Number(vel.value) * 100) + '%';
+        if (capa) capa.style.background = 'rgba(0,0,0,' + Number(vel.value).toFixed(2) + ')';
+      };
+      vel.onchange = function () {
+        var a = bnr();
+        guardarFondo({ tipo: 'imagen', imagen: a.imagen || null, velo: Number(vel.value) });
+      };
+    }
+    var bf = $('pw-bnr-file');
+    if (bf) bf.onchange = function () {
+      if (this.files && this.files[0]) subirFondo(this.files[0]);
+      this.value = '';
+    };
   }
 
   function accion(a) {
@@ -658,6 +820,9 @@
     else if (a === 'prev-abrir') { window.open(urlPagina(), '_blank', 'noopener'); }
     else if (a === 'dest-limpiar') { guardar({ web_destacados: [] }, 'Los destacados vuelven a escogerse solos'); }
     else if (a === 'promo-nueva') { $('pw-promo-file').click(); }
+    else if (a === 'bnr-imagen') { $('pw-bnr-file').click(); }
+    else if (a === 'bnr-quitar-img') { guardarFondo({ tipo: 'imagen', imagen: null }, 'Quité la imagen'); }
+    else if (a === 'bnr-reset') { guardar({ web_banner: null }, 'El mensaje vuelve al fondo de siempre'); }
   }
 
   /* Un interruptor se bloquea mientras se guarda. Sin eso, dos clics seguidos
@@ -795,6 +960,36 @@
         img.src = URL.createObjectURL(file);
       } catch (e) { listo(file); }
     });
+  }
+
+  /* Se guarda el objeto ENTERO, no un campo suelto: mezclar el tipo viejo con
+     el color nuevo es como quedan las configuraciones a medias (una imagen
+     guardada con tipo "color" que no se ve por ningun lado). */
+  async function guardarFondo(nuevo, msg) {
+    var a = bnr();
+    var b = Object.assign({}, a, nuevo);
+    /* Lo que no pertenece al tipo elegido se limpia. */
+    if (b.tipo === 'color')     { delete b.color2; delete b.angulo; delete b.imagen; delete b.velo; }
+    if (b.tipo === 'degradado') { delete b.imagen; delete b.velo; }
+    if (b.tipo === 'imagen')    { delete b.color; delete b.color2; delete b.angulo; }
+    await guardar({ web_banner: b }, msg);
+  }
+
+  async function subirFondo(file) {
+    guardando(true);
+    try {
+      var blob = await encoger(file);
+      var nombre = 'banner/' + S.t.id + '/' + Date.now() + '.jpg';
+      var up = await sb().storage.from('chat-media').upload(nombre, blob, { upsert: true, contentType: 'image/jpeg' });
+      if (up.error) throw up.error;
+      var url = sb().storage.from('chat-media').getPublicUrl(nombre).data.publicUrl;
+      var a = bnr();
+      await guardarFondo({ tipo: 'imagen', imagen: url, velo: isFinite(Number(a.velo)) ? Number(a.velo) : 0.55 },
+                         'Listo, ese es el fondo de tu mensaje');
+    } catch (e) {
+      console.error('[fondo banner]', e);
+      toast('No se pudo subir la imagen: ' + ((e && e.message) || e));
+    } finally { guardando(false); }
   }
 
   async function subirImagen(file) {

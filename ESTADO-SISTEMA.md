@@ -8156,3 +8156,53 @@ recomendaciones pendientes"*. Tres candados:
 
 Los tres controles verificados. Precios de prueba devueltos a los de Sergio
 (los numeros los decide el).
+
+---
+
+## 216 — El fondo del mensaje, a gusto del restaurante (19-ago-2026)
+
+El bloque de bienvenida del inicio ("Pide hoy y suma puntos") era un degradado
+vino tinto **escrito en el CSS**: el mismo para todos los restaurantes. Uno de
+los residuos de la auditoria multi-restaurante, y Sergio pidio poder cambiarlo.
+
+### Tres formas, elegidas en "Mi pagina web" → Que ve el cliente
+
+- **Un color** · **Un degradado** (dos colores + inclinacion) · **Su propia
+  imagen**.
+- Seis combinaciones listas (Vino, Noche, Cafe, Bosque, Oceano, Ciruela) para
+  quien no quiera pelear con un selector de color.
+- Con imagen va **siempre un velo oscuro encima, graduable pero no apagable**:
+  el texto es blanco y sobre una foto clara desaparece. El velo no es un
+  adorno, es lo que deja leer — por eso el control dice "que tan oscura va la
+  capa de encima" y avisa que bajarla mucho pierde las letras.
+
+**La muestra es el bloque de verdad**, con su titulo, su subtitulo y sus dos
+botones. Un cuadro de color suelto no dice si el texto se lee; este si. Los
+colores y la inclinacion se mueven EN VIVO y solo se guardan al soltar: guardar
+en cada movimiento del dedo serian docenas de escrituras.
+
+### Como se guarda
+
+`tenants.web_banner` (jsonb) y `fn_web_publica` lo devuelve como una columna
+mas — la pagina del cliente ya recibia esa fila entera, asi que el dato llega
+solo. Nulo = el vino tinto de siempre, que sigue viviendo en el CSS.
+
+Al cambiar de tipo se limpia lo que no pertenece (una imagen guardada bajo
+tipo "color" es una configuracion a medias que despues nadie entiende).
+
+### Verificado
+
+Los tres tipos guardados de verdad y leidos por `fn_web_publica`. Y la funcion
+que traduce la configuracion a estilo, probada en un navegador con ocho casos,
+aplicando el estilo a un elemento real para ver si el navegador lo acepta:
+
+| Caso | Resultado |
+|---|---|
+| color · degradado · imagen | CSS valido y aplicado |
+| imagen sin velo | velo por defecto 0,55 |
+| velo absurdo (9) | vuelve a 0,55 |
+| imagen sin URL | sin estilo → queda el fondo de siempre |
+| intento de inyeccion en el color | escapado; el navegador lo ignora |
+
+⚠️ No se probo en la pagina en vivo: entra con sesion de cliente y no se usan
+las credenciales de Sergio. Falta que el lo abra y confirme.
