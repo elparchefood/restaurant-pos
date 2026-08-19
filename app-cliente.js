@@ -770,6 +770,7 @@
           '<button class="ep-gold" data-ir="carta">' + ico('bolsa', 15) + ' Pedir ahora</button>' +
         '</div>' +
       '</div>' +
+      tarjetaPedidoVivo() +
       '<div class="ep-over">' + saldo + puntos + tarjetaPublicidad() + '</div>' +
       /* Los destacados (cuadro 2x2) con la billetera al lado, y debajo la
          gráfica junto al historial. Cada zona es una fila de la página. */
@@ -810,7 +811,15 @@
       await Promise.all([cargarPromos(), cargarCarta()]);
       pantallaDentro();
     }
+    /* El inicio muestra el boton y la tarjeta del pedido en curso, asi que
+       tiene que saber si hay uno. Va aparte del bloque de arriba porque ese
+       solo corre la PRIMERA vez (cuando faltan carta o promos) y esto hay que
+       refrescarlo cada vez que se vuelve al inicio. */
+    if (vista === 'inicio') { await cargarPedidoVivo(); }
     if (vista === 'puntos') await cargarCatalogo();
+    if (vista === 'seguir') await cargarPedidoVivo();
+    /* El reloj SOLO vive mientras la pantalla esta abierta. */
+    relojSeguir(vista === 'seguir');
     catActiva = 0;
     window.scrollTo(0, 0);
     pantallaDentro();
@@ -818,7 +827,15 @@
 
   function botonesArriba(extra) {
     var c = S.cliente || {};
-    return '<div class="ep-saludo-btns">' + (extra || '') +
+    /* EL PEDIDO EN CURSO, a la izquierda de la foto (19-ago, sitio elegido por
+       Sergio). Solo existe mientras hay uno: un boton que lleva a una pantalla
+       vacia es peor que no tenerlo. El punto que late dice "hay algo pasando"
+       sin gritar, y se queda quieto si el celular pide menos movimiento. */
+    var enCurso = S.pedidoVivo
+      ? '<button class="ep-redondo ep-pedido" data-ir="seguir" title="Ver mi pedido" aria-label="Ver mi pedido">' +
+          ico('bolsa', 16) + '<span class="ep-punto"></span></button>'
+      : '';
+    return '<div class="ep-saludo-btns">' + (extra || '') + enCurso +
       /* El boton del tema se queda para el COMPUTADOR; en el celular se
          esconde (CSS) porque su opcion vive dentro del menu de la foto. */
       '<button class="ep-redondo ep-tema" data-tema="1" title="Cambiar el tema">' +
@@ -1784,9 +1801,13 @@
           '<div><div class="ep-inst-tit">¿Te avisamos?</div>' +
           '<div class="ep-inst-sub">Solo lo importante de tus pedidos.</div></div></div>' +
         '<ul class="ep-inst-por">' +
-          '<li>Cuando confirmamos tu pedido</li>' +
-          '<li>Cuando sale para tu casa</li>' +
-          '<li>Cuando ganas puntos o tienes un premio listo</li>' +
+          /* ESTO ES LO QUE DE VERDAD SE ENVIA (19-ago). Antes la lista era un
+             ejemplo para explicar la idea, y prometia avisos de puntos que
+             nadie manda. Pedir un permiso ofreciendo algo que no ocurre es la
+             forma mas rapida de que lo quiten. */
+          '<li>Cuando empezamos a preparar tu pedido</li>' +
+          '<li>Cuando sale para tu casa o queda listo para recoger</li>' +
+          '<li>Cuando te lo entregamos</li>' +
         '</ul>' +
         '<button class="ep-btn gold big ep-not-si" type="button">Sí, avísenme</button>' +
         '<button class="ep-btn ep-btn--ghost ep-not-no" type="button">Ahora no</button>' +
@@ -2319,6 +2340,28 @@
     '</div>';
   }
 
+  /* EL PEDIDO EN CURSO, TAMBIEN EN EL INICIO. El boton de la cabecera es
+     chiquito; esta tarjeta dice en que va sin tener que entrar. Solo aparece
+     mientras el pedido esta vivo. */
+  function tarjetaPedidoVivo() {
+    var p = S.pedidoVivo;
+    if (!p) return '';
+    var domi = p.canal === 'domicilio';
+    var pasos = domi ? PASOS_DOMI : PASOS_RECOGER;
+    var i = !p.pagado ? -1 : indiceDe(pasos, p.estado);
+    var titulo = !p.pagado ? 'Tu pedido espera el pago'
+      : (pasos[i] ? pasos[i].t : 'Tu pedido va en camino');
+    var desde = p.pagado ? horaCorta(p.estado_at) : horaCorta(p.creado);
+    return '<button class="ep-vivo" data-ir="seguir">' +
+        '<span class="ep-vivo-ico">' + ico('bolsa', 17) + '</span>' +
+        '<span class="ep-vivo-tx">' +
+          '<span class="ep-vivo-t">' + esc(titulo) + '</span>' +
+          '<span class="ep-vivo-s">' + (desde ? 'desde las ' + desde : 'toca para ver el detalle') + '</span>' +
+        '</span>' +
+        '<span class="ep-vivo-fl">›</span>' +
+      '</button>';
+  }
+
   /* LA PUBLICIDAD ROTA SOLA. Se llama después de pintar. Las fotos están
      apiladas y se cambia cuál se ve: con una sola tarjeta no hay scroll que
      valga, y así el cambio es suave y no salta.
@@ -2446,6 +2489,157 @@
       ubic +
       (filas ? '<div class="ep-tile"><div class="ep-tile-lbl" style="margin-bottom:4px">Horarios</div>' + filas + '</div>'
              : '<div class="ep-aviso">El restaurante todavía no ha publicado sus horarios.</div>');
+  }
+
+  /* ══ EL PEDIDO EN CURSO ═══════════════════════════════════════════════
+     Aprobado por Sergio el 19-ago. Cuatro pasos que se adaptan a si es
+     domicilio o para recoger, con la hora de lo que YA paso — nunca una hora
+     futura prometida. Los estados no se inventan: son los que el POS ya
+     escribe (`en_preparacion`, `listo`, `en_camino`, `entregado`). */
+  var relojPedido = null;
+
+  async function cargarPedidoVivo() {
+    var t = leerToken();
+    if (!t) { S.pedidoVivo = null; return; }
+    try {
+      var r = await fetch(SB_URL + '/functions/v1/web-acceso', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'pedido-activo', token: t }),
+      }).then(function (x) { return x.json(); });
+      S.pedidoVivo = (r && r.ok) ? (r.pedido || null) : null;
+    } catch (e) { /* sin conexion se deja lo que ya se tenia */ }
+  }
+
+  /* Se refresca sola cada 20 segundos mientras la pantalla esta abierta, y al
+     volver a la app. Es mas barato que mantener una conexion viva y el cliente
+     no nota la diferencia. El reloj se apaga al salir: dejarlo corriendo seria
+     gastarle bateria a alguien que ya se fue. */
+  function relojSeguir(encender) {
+    if (relojPedido) { clearInterval(relojPedido); relojPedido = null; }
+    if (!encender) return;
+    relojPedido = setInterval(async function () {
+      if (document.hidden || vista !== 'seguir') return;
+      var antes = S.pedidoVivo && S.pedidoVivo.estado;
+      await cargarPedidoVivo();
+      if (!S.pedidoVivo || S.pedidoVivo.estado !== antes) pantallaDentro();
+    }, 20000);
+  }
+
+  var PASOS_DOMI = [
+    { k: 'confirmado',     t: 'Pedido confirmado' },
+    { k: 'en_preparacion', t: 'En preparación' },
+    { k: 'en_camino',      t: 'En camino' },
+    { k: 'entregado',      t: 'Entregado' }
+  ];
+  var PASOS_RECOGER = [
+    { k: 'confirmado',     t: 'Pedido confirmado' },
+    { k: 'en_preparacion', t: 'En preparación' },
+    { k: 'listo',          t: 'Listo para recoger' },
+    { k: 'entregado',      t: 'Entregado' }
+  ];
+
+  function horaCorta(iso) {
+    if (!iso) return '';
+    try {
+      var d = new Date(iso);
+      /* Una fecha invalida NO lanza error: devuelve el texto "Invalid Date", y
+         eso terminaba impreso en la pantalla del cliente. Se comprueba. */
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+    } catch (e) { return ''; }
+  }
+
+  function indiceDe(pasos, estado) {
+    if (!estado) return 0;
+    for (var i = 0; i < pasos.length; i++) if (pasos[i].k === estado) return i;
+    /* Un estado que no esta en la lista (por ejemplo `listo` en un domicilio)
+       no puede tumbar la pantalla: se queda en preparacion, que es el ultimo
+       punto seguro. */
+    return 1;
+  }
+
+  /* El numero del restaurante, en formato para WhatsApp: solo digitos. */
+  function telefonoNegocio() {
+    var t = (S.negocio && S.negocio.telefono) ? String(S.negocio.telefono) : '';
+    t = t.replace(/[^0-9]/g, '');
+    if (!t) return '';
+    /* Un numero colombiano sin indicativo no abre el chat correcto. */
+    if (t.length === 10) t = '57' + t;
+    return t;
+  }
+
+  function cuerpoSeguir() {
+    var p = S.pedidoVivo;
+    if (!p) {
+      return '<div class="ep-vacio" style="margin-top:30px">No tienes ningún pedido en curso.' +
+        '<div style="margin-top:12px"><button class="ep-btn gold" data-ir="carta">Ver la carta</button></div></div>';
+    }
+    var domi = p.canal === 'domicilio';
+    var pasos = domi ? PASOS_DOMI : PASOS_RECOGER;
+    /* En que paso va. Sin pagar todavia, el primero es el pago: es lo que
+       falta y lo que el cliente puede resolver ahi mismo. */
+    var actual = !p.pagado ? -1 : Math.max(0, indiceDe(pasos, p.estado));
+
+    var lista = pasos.map(function (x, i) {
+      var hecho = actual > i, ahora = actual === i;
+      var clase = hecho ? 'hecho' : (ahora ? 'ahora' : 'futuro');
+      /* La hora solo se sabe con certeza para el paso en el que esta (el POS
+         guarda `estado_at`, que es CUANDO entro al actual) y para la creacion
+         del pedido. Inventar las intermedias seria mentir con precision. */
+      var h = i === 0 ? horaCorta(p.creado) : (ahora ? horaCorta(p.estado_at) : '');
+      return '<li class="ep-paso ' + clase + '">' +
+        '<span class="ep-bolita">' + (hecho ? '✓' : (ahora ? '•' : '')) + '</span>' +
+        '<div><div class="ep-paso-t">' + esc(x.t) + '</div>' +
+          (h ? '<div class="ep-paso-h">' + h + '</div>' : '') + '</div></li>';
+    }).join('');
+
+    /* El total del pedido no siempre trae el domicilio sumado (depende de por
+       donde se creo), asi que se toma el mayor entre lo guardado y la suma de
+       las partes: cobrarle de menos en la pantalla confunde al que ya pago. */
+    var total = Math.max(Number(p.total) || 0,
+      (Number(p.subtotal) || 0) + (Number(p.empaque) || 0) + (Number(p.domicilio) || 0));
+
+    var items = (p.items || []).map(function (i) {
+      return '<div class="ep-dato"><span>' + i.cantidad + '× ' + esc(i.nombre) + '</span>' +
+        '<span>' + COP(i.precio * i.cantidad) + '</span></div>';
+    }).join('');
+
+    return '<div class="ep-sec-hd" style="margin-bottom:4px"><div>' +
+        '<div class="ep-sec-t">Mi pedido</div>' +
+        '<div class="ep-sec-s">' + (domi
+          ? 'A domicilio' + (p.direccion ? ' · ' + esc(p.direccion) : '')
+          : 'Para recoger en el local') + '</div></div>' +
+        '<div class="ep-hd-der"><span class="ep-chip-rango">#' + esc(p.corto || '') + '</span></div>' +
+      '</div>' +
+
+      (!p.pagado
+        ? '<div class="ep-tile" style="border-color:var(--accent)">' +
+            '<div class="ep-tile-lbl" style="color:var(--oro-tx)">Falta que pagues</div>' +
+            '<div class="ep-nota" style="margin-top:4px">Tu pedido está guardado. Apenas confirmemos el pago arrancamos.</div>' +
+          '</div>'
+        : '') +
+
+      '<div class="ep-tile"><ul class="ep-pasos">' + lista + '</ul></div>' +
+
+      '<div class="ep-tile">' +
+        '<div class="ep-tile-lbl">Lo que pediste</div>' +
+        '<div style="margin-top:6px">' + items +
+          (Number(p.domicilio) > 0 ? '<div class="ep-dato"><span>Domicilio</span><span>' + COP(p.domicilio) + '</span></div>' : '') +
+          '<div class="ep-total-fila grande"><span>Total</span><b>' + COP(total) + '</b></div>' +
+        '</div>' +
+      '</div>' +
+
+      /* ESCRIBIRLE AL RESTAURANTE va al numero que el dueNo configuro en su
+         sucursal, con el pedido citado para que no tenga que explicar cual es.
+         Si no hay numero configurado el boton no existe: mandar a un WhatsApp
+         vacio es peor que no ofrecerlo. */
+      (telefonoNegocio()
+        ? '<a class="ep-btn ep-btn--sec" style="margin-top:14px" target="_blank" rel="noopener"' +
+          ' href="https://wa.me/' + esc(telefonoNegocio()) +
+          '?text=' + encodeURIComponent('Hola, es sobre mi pedido #' + (p.corto || '')) + '">' +
+          '💬 Escribirle al restaurante</a>'
+        : '') +
+      '<button class="ep-btn ep-btn--ghost" style="margin-top:10px" data-ir="inicio">Volver al inicio</button>';
   }
 
   /* ── El carrito ────────────────────────────────────────────────────
@@ -3073,6 +3267,7 @@
     if (vista === 'perfil')    return cuerpoPerfil();
     if (vista === 'local')     return cuerpoLocal();
     if (vista === 'pedido')    return cuerpoPedido();
+    if (vista === 'seguir')    return cuerpoSeguir();
     return cuerpoInicio(c, n, saludo);
   }
 

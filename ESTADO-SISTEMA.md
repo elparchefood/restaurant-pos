@@ -8294,3 +8294,73 @@ primera vez que la pagina cobra de verdad— y de ahi salieron cuatro detalles.
 ⚠️ El contraste se midio con el algoritmo de WCAG en un navegador, mezclando el
 color del aviso con el fondo real de cada tema. La primera opcion (#15803D) se
 descarto ahi mismo: daba 3,99 en claro y 3,11 en oscuro.
+
+---
+
+## 219 — Seguimiento del pedido y el primer aviso al celular (19-ago-2026)
+
+Maqueta aprobada por Sergio y construida. Tres piezas.
+
+### 1. Donde vive
+
+**Un boton en la cabecera del inicio, a la izquierda de la foto del cliente**
+(sitio elegido por el), con un punto dorado que late — y que se queda quieto si
+el celular pide menos movimiento. Solo existe mientras hay pedido: un boton que
+lleva a una pantalla vacia es peor que no tenerlo. Ademas una **tarjeta en el
+inicio** que ya dice en que va, para no obligar a entrar.
+
+### 2. La pantalla
+
+Cuatro pasos que se adaptan solos: a domicilio termina en *En camino →
+Entregado*; para recoger, en *Listo para recoger → Entregado*. **La hora es solo
+de lo que ya paso** — nunca una hora futura prometida (decision de Sergio).
+
+Los estados **no se inventan**: son los que el POS ya escribe
+(`en_preparacion`, `listo`, `en_camino`, `entregado`), asi que funciona con la
+operacion tal como es hoy, sin pedirle un paso extra a nadie. Si llega un
+estado que no encaja (un `listo` en un domicilio), la pantalla se queda en
+preparacion en vez de romperse.
+
+El dato lo sirve `web-acceso` con la accion nueva `pedido-activo`, que devuelve
+lo justo (en que va, a que hora, y que lleva) porque se pide cada 20 segundos.
+Activo = de las ultimas 24 horas y sin entregar; el corte por fecha evita que
+un pedido que nadie cerro se quede colgado para siempre en la cabecera.
+
+Y el boton de **escribirle al restaurante** abre WhatsApp con el numero de la
+sucursal (`branches.phone`, ahora servido por `fn_web_publica`) y el pedido
+citado. Sin numero configurado, el boton no aparece.
+
+### 3. El primer aviso al celular
+
+La infraestructura llevaba desde el 16-ago construida y sin estrenar. Sergio
+decidio que lo primero son los estados del pedido. Funcion nueva
+`avisar-pedido` (usa `npm:web-push` para la parte de criptografia, que a mano
+son 150 lineas de ECDH y AES-GCM), colgada de **`cambiar-estado`** — por ahi
+pasan TODOS los cambios (POS, chat y cron), asi que no hay tres sitios avisando
+y uno quedandose atras. Es best-effort: si el aviso falla, el cambio de estado
+ya quedo guardado.
+
+Detalles que importan: el aviso lleva **etiqueta por pedido**, asi el nuevo
+reemplaza al anterior en vez de amontonar tres; **no manda a donde ir**, porque
+cada restaurante tiene su carpeta y el service worker ya sabe cual es la suya; y
+una suscripcion que responde 404/410 **se borra** (ese celular desinstalo la
+app; guardarlo es acumular basura).
+
+Se corrigio tambien la letra del permiso: prometia "cuando ganas puntos", que
+nadie manda. Ahora dice exactamente los tres avisos que existen.
+
+### Verificado
+
+- La accion `pedido-activo` contra un **pedido real** (uno de hoy, en
+  preparacion): devuelve estado, hora, direccion, barrio y lineas.
+- `avisar-pedido` arranca, encuentra el pedido y su cliente, y responde
+  `sin_celulares` — correcto, porque todavia **nadie ha aceptado el permiso**.
+- Las funciones de la pantalla probadas en un navegador con 14 casos: en que
+  paso va con cada estado (incluido uno imposible y uno basura), el telefono en
+  cuatro formatos, y las fechas. Ahi salio un fallo: una fecha invalida imprimia
+  **"invalid date"** en la pantalla del cliente — `toLocaleTimeString` no lanza
+  error, devuelve ese texto. Blindado.
+
+⚠️ **Lo que NO se pudo probar**: que el aviso llegue de verdad a un celular.
+Hacen falta cero pasos de codigo — solo que Sergio abra la app instalada y
+acepte el permiso. Hasta que alguien se suscriba, `pos_web_push` esta vacia.

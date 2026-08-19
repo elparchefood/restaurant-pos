@@ -622,6 +622,59 @@ Deno.serve(async (req) => {
        La llave es el endpoint: el mismo celular no puede quedar dos veces. Si
        el cliente reinstala, llega uno nuevo y el viejo se cae solo cuando el
        navegador lo rechace al enviar. */
+    /* ── EL PEDIDO QUE ESTA EN CURSO ────────────────────────────────────
+       Lo pide la pantalla de seguimiento cada 20 segundos, asi que devuelve lo
+       justo: en que va, a que hora paso cada cosa y que lleva. Nada de la
+       ficha completa del cliente, que es mucho mas cara de armar. */
+    if (accion === "pedido-activo") {
+      const s = await sesionDe(String(b.token || ""));
+      if (!s) return json({ ok: false, razon: "sesion_vencida" });
+
+      /* ACTIVO = del ultimo dia y todavia sin entregar. El corte por fecha
+         evita que un pedido viejo que nadie cerro se quede colgado para
+         siempre en la cabecera del cliente. */
+      const desde = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      const rows = await sbGet(
+        `/pos_orders?cliente_id=eq.${s.cliente_id}&created_at=gte.${desde}` +
+        `&status=neq.cancelled&order=created_at.desc&limit=5` +
+        `&select=id,created_at,status,estado,estado_at,channel,total,subtotal,delivery_fee,` +
+        `paid_amount,delivered_at,notes,packaging_fee`
+      ) as Array<Record<string, unknown>> | null;
+
+      const vivos = (rows || []).filter((o) => String(o.estado || "") !== "entregado" && !o.delivered_at);
+      const o = vivos[0];
+      if (!o) return json({ ok: true, pedido: null });
+
+      /* Las lineas, para poder mostrar QUE pidio sin una segunda llamada. */
+      const its = await sbGet(
+        `/pos_order_items?order_id=eq.${o.id}&select=product_name,quantity,unit_price,selections`
+      ) as Array<Record<string, unknown>> | null;
+
+      const pagado = Number(o.paid_amount || 0) >= Number(o.total || 0) && Number(o.total || 0) > 0;
+      return json({
+        ok: true,
+        pedido: {
+          /* No hay numero de pedido en la base: se muestran los ultimos seis
+             del id, que es lo que ya se usa en otras pantallas. */
+          id: o.id, corto: String(o.id || "").slice(-6).toUpperCase(), creado: o.created_at,
+          canal: o.channel, estado: o.estado || null, estado_at: o.estado_at,
+          pagado, total: Number(o.total || 0), subtotal: Number(o.subtotal || 0),
+          domicilio: Number(o.delivery_fee || 0), empaque: Number(o.packaging_fee || 0),
+          /* La direccion es lo PRIMERO de las notas, antes de las etiquetas:
+             "Cra 9 # 21-46 [barrio:BOLIVAR] [tel:300...] [web]". Se corta en el
+             primer corchete. Asi se muestra sin inventar una columna nueva. */
+          direccion: String(o.notes || "").split("[")[0].trim() || null,
+          barrio: (String(o.notes || "").match(/barrio:([^\]]+)/) || [])[1] || null,
+          /* Cuantos pedidos vivos tiene: con dos, la pantalla ofrece cambiar. */
+          vivos: vivos.length,
+          items: (its || []).map((i) => ({
+            nombre: i.product_name, cantidad: Number(i.quantity || 1),
+            precio: Number(i.unit_price || 0),
+          })),
+        },
+      });
+    }
+
     if (accion === "push-suscribir") {
       const s = await sesionDe(String(b.token || ""));
       if (!s) return json({ ok: false, razon: "sesion_vencida" });

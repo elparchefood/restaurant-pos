@@ -2115,3 +2115,62 @@ html.tema-claro .ep-menu-it.malo { color: #8f2242; }
     padding-bottom: calc(var(--barra-alto) + 84px);
   }
 }
+
+/* ══ EL PEDIDO EN CURSO ═══════════════════════════════════════════════════
+   Aprobado el 19-ago. El boton vive en la cabecera, a la izquierda de la foto
+   del cliente; la tarjeta, arriba del resumen. */
+
+/* El boton redondo con su aviso. */
+.ep-redondo.ep-pedido { border-color: var(--accent); color: var(--oro-tx); }
+.ep-punto {
+  position: absolute; top: -1px; right: -1px; width: 11px; height: 11px;
+  border-radius: 50%; background: var(--accent); border: 2px solid var(--bg);
+  animation: ep-late 2s ease-in-out infinite;
+}
+@keyframes ep-late { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.22); } }
+@media (prefers-reduced-motion: reduce) { .ep-punto { animation: none; } }
+
+/* La tarjeta del inicio: dice en que va sin tener que entrar. */
+.ep-vivo {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  margin: 0 0 14px; padding: 13px 15px; text-align: left; cursor: pointer;
+  background: var(--surf); border: 1px solid var(--accent); border-radius: 16px;
+  color: var(--ink); font: inherit;
+}
+.ep-vivo:hover { background: var(--surf2); }
+.ep-vivo-ico {
+  flex: none; width: 36px; height: 36px; border-radius: 12px;
+  background: rgba(227,176,75,.14); color: var(--oro-tx);
+  display: flex; align-items: center; justify-content: center;
+}
+.ep-vivo-tx { flex: 1; min-width: 0; }
+.ep-vivo-t { display: block; font-size: 14px; font-weight: 700; }
+.ep-vivo-s { display: block; font-size: 12px; color: var(--sub); margin-top: 1px; }
+.ep-vivo-fl { flex: none; color: var(--oro-tx); font-size: 20px; line-height: 1; }
+
+/* La linea de tiempo. El hilo entre bolitas se dibuja con un pseudo-elemento
+   para no meter un div vacio por paso. */
+.ep-pasos { list-style: none; margin: 0; padding: 0; }
+.ep-paso {
+  display: grid; grid-template-columns: 24px 1fr; gap: 12px;
+  position: relative; padding-bottom: 18px;
+}
+.ep-paso:last-child { padding-bottom: 0; }
+.ep-paso::before {
+  content: ""; position: absolute; left: 11px; top: 24px; bottom: 0; width: 2px;
+  background: var(--line);
+}
+.ep-paso:last-child::before { display: none; }
+.ep-paso.hecho::before { background: var(--ok-tx); opacity: .5; }
+.ep-bolita {
+  width: 24px; height: 24px; border-radius: 50%; z-index: 1;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800;
+  background: var(--surf2); border: 2px solid var(--line); color: var(--dim);
+}
+.ep-paso.hecho .ep-bolita { background: #16A34A; border-color: #16A34A; color: #fff; }
+.ep-paso.ahora .ep-bolita { background: var(--bg); border-color: var(--accent); color: var(--oro-tx); }
+.ep-paso-t { font-size: 14px; font-weight: 600; }
+.ep-paso.futuro .ep-paso-t { color: var(--dim); font-weight: 500; }
+.ep-paso.ahora .ep-paso-t { color: var(--oro-tx); }
+.ep-paso-h { font-size: 12px; color: var(--sub); font-variant-numeric: tabular-nums; margin-top: 1px; }

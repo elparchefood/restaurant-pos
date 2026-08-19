@@ -72,6 +72,20 @@ Deno.serve(async (req: Request) => {
     }
     await sbPatch(`/pos_orders?id=eq.${order_id}`, patch);
 
+    /* EL AVISO AL CELULAR DEL CLIENTE (19-ago). Va AQUI y no en cada pantalla
+       porque por esta funcion pasan TODOS los cambios de estado: el POS, el
+       chat y el cron. Colgarlo en las pantallas seria el error de forma de
+       siempre — tres sitios avisando y uno quedandose atras.
+       Es best-effort y no se espera: si el aviso falla, el cambio de estado ya
+       quedo guardado, que es lo que de verdad importa. */
+    try {
+      fetch(`${SUPABASE_URL}/functions/v1/avisar-pedido`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ order_id, estado }),
+      }).catch(() => {});
+    } catch (_e) { /* nunca bloquea el cambio de estado */ }
+
     /* Cuanto duro en el estado ANTERIOR. El reloj de la tarjeta se reinicia en
        cada cambio (cuenta desde `estado_at`), y aqui queda el tramo cerrado
        para poder ver el desglose: cuanto tardo en prepararse y cuanto en el
