@@ -1724,6 +1724,18 @@
     return window.matchMedia('(display-mode: standalone)').matches ||
            navigator.standalone === true;
   }
+  /* EN IPHONE los avisos web SOLO existen con la app instalada — es una regla
+     de Apple, no una decision nuestra. En Android y en el computador funcionan
+     igual desde el navegador, asi que exigir la instalacion ahi les cerraba la
+     puerta a clientes que podian tenerlos perfectamente. */
+  function esIOS() {
+    return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+  function puedeAvisos() {
+    return ('Notification' in window) && ('serviceWorker' in navigator) &&
+           ('PushManager' in window) && (!esIOS() || yaInstalada());
+  }
   function esCelular() {
     return /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent) ||
            (window.innerWidth <= 820 && navigator.maxTouchPoints > 0);
@@ -1881,8 +1893,7 @@
   }
 
   function tocaNotificar() {
-    if (!('Notification' in window) || !('serviceWorker' in navigator)) return false;
-    if (!yaInstalada()) return false;                  // en iPhone solo instalada funciona
+    if (!puedeAvisos()) return false;   // en iPhone hace falta instalarla; en Android no
     if (Notification.permission !== 'default') return false;   // ya decidio
     try {
       if (localStorage.getItem('ep-notif-pedido')) return false;
@@ -2211,13 +2222,14 @@
         '<span style="color:var(--dim)">Bloqueados</span></div>' +
         '<div class="ep-nota" style="margin-top:6px">Tu celular los tiene bloqueados para esta página. ' +
         'Se activan desde los ajustes del navegador, en los permisos de este sitio.</div>';
-    } else if (!yaInstalada()) {
-      /* En iPhone las notificaciones web SOLO existen con la app instalada, y
-         en Android instalarla es lo que hace que lleguen con el celular
-         cerrado. Ofrecer el boton aqui seria ofrecer algo que va a fallar. */
+    } else if (!puedeAvisos()) {
+      /* Solo en iPhone: ahi los avisos web no existen sin la app instalada, y
+         ofrecer el boton seria ofrecer algo que va a fallar. En Android y en el
+         computador esta rama ya no se toca. */
       cuerpo = '<div class="ep-dato"><span>Avisos de tu pedido</span>' +
         '<span style="color:var(--dim)">Falta instalar la app</span></div>' +
-        '<div class="ep-nota" style="margin-top:6px">Instala esta página en tu celular y podrás activarlos.</div>' +
+        '<div class="ep-nota" style="margin-top:6px">En iPhone los avisos solo funcionan con la página ' +
+        'instalada en la pantalla de inicio. Es de un minuto.</div>' +
         '<button class="ep-btn ep-btn--sec" style="margin-top:10px" id="pf-instalar">Cómo instalarla</button>';
     } else {
       cuerpo = '<div class="ep-dato"><span>Avisos de tu pedido</span>' +

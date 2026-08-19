@@ -8511,3 +8511,40 @@ tocara. Todas corregidas.
   esperado; y si un celular responde 404/410 se borra solo.
 
 ⚠️ Falta lo unico que no se puede simular: un celular DE VERDAD suscrito.
+
+---
+
+## 223 — Los avisos LLEGAN (19-ago-2026)
+
+Confirmado con el celular de Sergio: quedo registrado (`web.push.apple.com`,
+iPhone) y salio el primer envio real. La cadena completa —permiso, registro,
+disparo por cambio de estado, envio— funciona de punta a punta.
+
+### Y de paso, quien mas quedaba por fuera
+
+Al revisar si "le va a funcionar a cualquiera", aparecio una restriccion que nos
+habiamos impuesto solos: la app exigia estar **instalada** para poder activar
+los avisos. En iPhone eso es una regla de Apple y no hay vuelta. **En Android y
+en el computador no**: ahi los avisos funcionan igual desde el navegador, y les
+estabamos cerrando la puerta a clientes que podian tenerlos perfectamente.
+
+Ahora la exigencia solo aplica donde de verdad existe (`puedeAvisos()` mira si
+es iOS). Comprobado contra seis aparatos:
+
+| Aparato | Antes | Ahora |
+|---|---|---|
+| iPhone con la app instalada | puede | puede |
+| iPhone solo en Safari | no puede | no puede (regla de Apple) |
+| Android con la app instalada | puede | puede |
+| **Android solo en Chrome** | **bloqueado** | **✅ puede** |
+| **Computador con Chrome** | **bloqueado** | **✅ puede** |
+| iPad solo en Safari | no puede | no puede |
+
+### Lo que sigue sin cubrir, y hay que saberlo
+
+- **Quien haya dicho que NO** al permiso no se recupera desde la pagina: el
+  navegador no deja volver a preguntar. El Perfil lo dice y explica donde
+  desbloquearlo.
+- **Cada restaurante necesita su propio `sw.js`** en su carpeta (el de El Parche
+  tiene su ruta escrita adentro). Va con el alta automatica de la carpeta, ya
+  anotada en `MULTITENANT-PENDIENTE.md`.
