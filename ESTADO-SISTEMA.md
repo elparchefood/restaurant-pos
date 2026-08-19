@@ -8461,3 +8461,53 @@ Las cifras salen con formato colombiano: `$115.000`.
 
 ⚠️ Sigue sin comprobarse el envio REAL: `pos_web_push` esta vacia hasta que
 alguien acepte el permiso. Todo lo demas del camino esta verificado.
+
+---
+
+## 222 — Por que no llegaba ningun aviso: el permiso no es el registro (19-ago-2026)
+
+Sergio: *"yo ya habia aceptado las notificaciones desde antes, ¿eso no cuenta?
+¿debo desinstalar la app?"*. No y no. Son **dos cosas distintas**: dar el
+permiso (el cuadro del celular) y quedar REGISTRADO en el servidor (guardar el
+endpoint del navegador en `pos_web_push`). Lo segundo nunca ocurrio: **cero
+celulares guardados**, con el permiso concedido desde hacia dias.
+
+### La causa: permiso denegado sobre la SECUENCIA
+
+`push-suscribir` devolvia `{ok:true}` **sin mirar el resultado del INSERT**, y
+el INSERT fallaba. Rastreado hasta el mensaje exacto de PostgREST:
+
+```
+42501 · permission denied for sequence pos_web_push_id_seq
+```
+
+No era la tabla: era la **secuencia** que genera su `id`. Es la tercera cara de
+la misma trampa (las recargas, `iv_existencias`, y ahora esto): lo creado por la
+API de gestion no le da permiso a nadie solo. Barrido de todo el esquema:
+`pos_web_push_id_seq` era la unica secuencia sin permiso, y de paso aparecieron
+6 tablas sin `SELECT` para el servidor (`meta_messages`, `pos_plan_historial`,
+`tuto_*`) que habrian dado el mismo fallo mudo el dia que alguna funcion las
+tocara. Todas corregidas.
+
+### Tres arreglos para que no vuelva a pasar mudo
+
+1. **`push-suscribir` comprueba que se guardo** y devuelve `no_se_guardo` si no.
+   Un `ok` que no mira el resultado es peor que un error.
+2. **El registro se repara solo**: con el permiso ya concedido, cada arranque
+   comprueba que el celular este registrado. Es barato (el navegador devuelve la
+   suscripcion que ya tiene) y arregla a todo el que estuviera en ese limbo
+   **sin pedirle que reinstale nada**.
+3. **El Perfil dice la verdad**: antes mostraba "Encendidos" solo por tener el
+   permiso — justo el caso de Sergio, verde en pantalla y nada llegando. Ahora
+   distingue *permiso concedido pero sin registrar* y ofrece terminarlo de un
+   toque.
+
+### Verificado
+
+- El registro guarda de verdad (antes: `ok` y cero filas; ahora: `ok` y la fila
+  ahi).
+- La cadena entera con un celular de mentira: `avisar-cliente` lo encuentra e
+  intenta enviar. Falla el envio porque las llaves son falsas, que es lo
+  esperado; y si un celular responde 404/410 se borra solo.
+
+⚠️ Falta lo unico que no se puede simular: un celular DE VERDAD suscrito.

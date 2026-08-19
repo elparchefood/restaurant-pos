@@ -683,11 +683,21 @@ Deno.serve(async (req) => {
       if (!endpoint || !p256dh || !auth) return json({ ok: false, razon: "faltan_datos" });
 
       /* Upsert por endpoint: si el celular ya estaba, se actualiza a que
-         cliente pertenece (puede que otra persona entre desde el mismo). */
-      await sbPost("/pos_web_push?on_conflict=endpoint", {
+         cliente pertenece (puede que otra persona entre desde el mismo).
+
+         ⚠️ SE COMPRUEBA QUE DE VERDAD SE GUARDO. Esto devolvia `ok` sin mirar
+         el resultado, y la tabla nacio SIN permisos para el servidor: el
+         INSERT fallaba en silencio, la pagina creia que el celular quedaba
+         registrado y el cliente se quedaba esperando avisos que no tenian a
+         donde llegar. Se descubrio con Sergio, que llevaba dias con el permiso
+         concedido y cero celulares guardados.
+         Es la MISMA trampa de `iv_existencias` y de las recargas: una tabla
+         creada por la API de gestion no le da permiso a nadie sola. */
+      const guardado = await sbPost("/pos_web_push?on_conflict=endpoint", {
         tenant_id: s.tenant_id, cliente_id: s.cliente_id,
         endpoint, p256dh, auth,
-      }, false, "resolution=merge-duplicates");
+      }, true, "resolution=merge-duplicates");
+      if (!guardado) return json({ ok: false, razon: "no_se_guardo" });
       return json({ ok: true });
     }
 

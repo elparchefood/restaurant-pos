@@ -365,6 +365,7 @@
     if (!yaOfreci) {
       yaOfreci = true;
       registrarAyudante();
+      asegurarPush();
       ofrecerInstalar();
       ofrecerNotificar();
     }
@@ -1919,6 +1920,9 @@
     } catch (e) { console.error('[sw]', e); return null; }
   }
 
+  /* Devuelve `true` solo si el celular quedo REGISTRADO en el servidor. Antes
+     se tragaba cualquier fallo en silencio, y por eso nadie se entero de que
+     habia permiso concedido pero cero celulares guardados. */
   async function suscribirPush() {
     try {
       var reg = await navigator.serviceWorker.ready;
@@ -1932,14 +1936,41 @@
         });
       }
       var j = sub.toJSON();
-      await fetch(ACCESO, {
+      var r = await fetch(ACCESO, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accion: 'push-suscribir', token: leerToken(), slug: S.slug,
           endpoint: j.endpoint, p256dh: j.keys && j.keys.p256dh, auth: j.keys && j.keys.auth,
         }),
-      });
-    } catch (e) { console.error('[push]', e); }
+      }).then(function (x) { return x.json(); });
+      S.pushOk = !!(r && r.ok);
+      return S.pushOk;
+    } catch (e) { console.error('[push]', e); S.pushOk = false; return false; }
+  }
+
+  /* ── EL REGISTRO SE REPARA SOLO (19-ago) ──────────────────────────────
+     Sergio tenia el permiso concedido desde antes y aun asi no le llegaba
+     nada: dar el permiso y quedar REGISTRADO son dos cosas distintas, y la
+     segunda solo ocurria en el instante en que se aceptaba el cuadro. Si eso
+     fallaba —o si el permiso se acepto antes de que existiera el registro,
+     que es justo su caso— nadie volvia a intentarlo nunca y el cliente se
+     quedaba con la ilusion de tener avisos.
+
+     Ahora, con el permiso ya concedido, se comprueba en cada arranque. Es
+     barato (el navegador devuelve la suscripcion que ya tiene) y arregla solo
+     a todo el que estuviera en ese limbo, sin pedirle que reinstale nada. */
+  var pushRevisado = false;
+  function asegurarPush() {
+    if (pushRevisado) return;
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+    if (Notification.permission !== 'granted') return;
+    if (!leerToken()) return;
+    pushRevisado = true;
+    suscribirPush().then(function (ok) {
+      /* Si se acababa de reparar, se repinta: el Perfil estaba diciendo otra
+         cosa. */
+      if (ok && vista === 'perfil') pantallaDentro();
+    });
   }
 
   function preguntar(opciones) {
@@ -2158,11 +2189,20 @@
     if (!('Notification' in window) || !('serviceWorker' in navigator)) return '';
     var p = Notification.permission;
     var cuerpo;
-    if (p === 'granted') {
+    if (p === 'granted' && S.pushOk) {
       cuerpo = '<div class="ep-dato"><span>Avisos de tu pedido</span>' +
         '<span style="color:var(--ok-tx)">Encendidos</span></div>' +
         '<div class="ep-nota" style="margin-top:6px">Te avisamos cuando empecemos a prepararlo, ' +
         'cuando salga y cuando te lo entreguemos.</div>';
+    } else if (p === 'granted') {
+      /* PERMISO SI, REGISTRO NO. Es el caso de quien acepto los avisos antes de
+         que existieran: el celular nunca quedo guardado en el servidor. Decir
+         "Encendidos" aqui seria mentirle — no le va a llegar nada. */
+      cuerpo = '<div class="ep-dato"><span>Avisos de tu pedido</span>' +
+        '<span style="color:var(--oro-tx)">Falta terminar de activarlos</span></div>' +
+        '<div class="ep-nota" style="margin-top:6px">Diste el permiso, pero este celular todavía ' +
+        'no quedó registrado. Se arregla de un toque.</div>' +
+        '<button class="ep-btn ep-btn--sec" style="margin-top:10px" id="pf-avisos">Terminar de activarlos</button>';
     } else if (p === 'denied') {
       /* No se puede resolver desde la pagina: el navegador lo bloqueo. Decirle
          "toca aqui para activarlos" seria mandarlo a un boton que no hace
