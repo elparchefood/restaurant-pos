@@ -11,21 +11,34 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="clientes.css?v=1791400000">
+<link rel="stylesheet" href="pos-core.css?v=1789840000">
+<link rel="stylesheet" href="clientes.css?v=1791420000">
 </head>
 <body>
-<div class="cl-root">
+<div id="app">
+
+  <!-- El menu del sistema. Vive en pos-nav.js: al entrar a Clientes no
+       desaparece, solo cambia lo de la derecha. -->
+  <aside id="sidebar"></aside>
+
+  <main id="main">
+  <div class="cl-root">
 
   <header class="cl-top">
-    <a class="cl-back" href="dashboard.html" aria-label="Regresar">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-      Regresar
-    </a>
     <div>
       <div class="cl-kicker" id="cl-negocio">Quién te compra y cada cuánto vuelve</div>
       <h1 class="cl-title">Clientes</h1>
     </div>
-    <div class="cl-top-right"></div>
+    <div class="cl-top-right">
+      <!-- SOLO PARA EL ADMINISTRADOR DE LA PLATAFORMA. Nace oculto a
+           proposito: visible de entrada, cada restaurante alcanzaria a
+           verlo antes de que el JavaScript lo esconda. -->
+      <a class="cl-back cl-pw" href="pagina-web.html?tab=clientes"
+         id="cl-nav-pw" style="display:none">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Clientes de la app
+      </a>
+    </div>
   </header>
 
   <main class="cl-main">
@@ -54,6 +67,7 @@
     </div>
 
   </main>
+  </main>
 </div>
 
 <script src="vendor/supabase-2.js?v=1789520000"></script>
@@ -62,6 +76,7 @@
 <script src="pos-perms.js?v=1790800000"></script>
 <script>if(window.posRequirePin) posRequirePin(['ventas.ver']);</script>
 <script src="pos-brand.js?v=1790530000"></script>
-<script src="clientes.js?v=1791400000"></script>
+<script src="pos-nav.js?v=1791420000"></script>
+<script src="clientes.js?v=1791420000"></script>
 </body>
 </html>

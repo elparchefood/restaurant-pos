@@ -301,6 +301,15 @@
     tenantId = window._pos.state.tenantId;
     if (!sb || !tenantId) { console.error('[clientes] sin sesión'); return; }
 
+    /* El atajo a "Mi pagina web" solo para el administrador de la
+       plataforma. Se pregunta por es_admin_plataforma(), la misma funcion
+       que abre ese modulo, para no inventar un segundo criterio que despues
+       se desincronice. Si falla, se queda oculto: es lo prudente. */
+    try {
+      var adm = await sb.rpc('es_admin_plataforma');
+      if (adm && adm.data === true) $('cl-nav-pw').style.display = '';
+    } catch (e) { /* oculto */ }
+
     $('cl-filas').innerHTML = '<div class="cl-cargando">Cargando…</div>';
     pintarFicha();
 

@@ -32,7 +32,10 @@ svg{display:block;flex-shrink:0;}
 ::-webkit-scrollbar-thumb{background:#DDE3EC;border-radius:99px;}
 
 /* ── Armazón ─────────────────────────────────────────────── */
-.cl-root{min-height:100%;display:flex;flex-direction:column;}
+/* Vive dentro de #main, al lado del menu. La ventana NO scrollea: scrollean
+   la lista y la ficha por separado, que es lo que deja comparar personas sin
+   perder de vista la barra de cuantos vuelven. */
+.cl-root{height:100%;display:flex;flex-direction:column;overflow:hidden;}
 .cl-top{background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;
   gap:18px;padding:14px 22px;flex-shrink:0;}
 .cl-back{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;background:#fff;
@@ -82,7 +85,7 @@ svg{display:block;flex-shrink:0;}
   font-size:11.5px;font-weight:600;color:var(--slate);cursor:pointer;}
 .cl-chip:hover{background:var(--cloud);}
 .cl-chip.on{background:var(--indigo-soft);border-color:var(--indigo);color:var(--indigo);font-weight:700;}
-.cl-li-scroll{flex:1;overflow-y:auto;min-height:220px;}
+.cl-li-scroll{flex:1;overflow-y:auto;min-height:0;}
 .cl-li-r{display:flex;align-items:center;gap:10px;padding:10px 13px;width:100%;background:none;
   border:0;border-bottom:1px solid var(--hairline);text-align:left;cursor:pointer;}
 .cl-li-r:hover{background:var(--cloud);}
@@ -147,7 +150,13 @@ svg{display:block;flex-shrink:0;}
   background:var(--cloud);border:1px dashed var(--border);border-radius:12px;line-height:1.55;}
 .cl-cargando{padding:30px 16px;text-align:center;color:var(--faint);font-size:12.5px;}
 
+/* El atajo a Mi pagina web. Violeta y no indigo: es lo unico de esta
+   pantalla que no ve un restaurante normal, y conviene que se note. */
+.cl-pw{border-color:#DDD6FE;color:#7C3AED;background:#F5F3FF;}
+.cl-pw:hover{background:#EDE9FE;color:#6D28D9;}
+
 @media (max-width:900px){
+  .cl-root{overflow-y:auto;}
   .cl-cuerpo{grid-template-columns:minmax(0,1fr);}
   .cl-lista{border-right:0;border-bottom:1px solid var(--border);}
   .cl-li-scroll{max-height:320px;}

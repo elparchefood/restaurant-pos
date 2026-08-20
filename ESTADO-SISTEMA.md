@@ -9674,3 +9674,58 @@ sistema: todo pasa por `fn_saldo_mover`, la llave del pedido es
 Function escribe `pos_saldo` por fuera. Es residuo de las pruebas del 19-ago
 hechas contra la API. Se cuadra cuando Sergio de la orden de borrar los datos
 de prueba.
+
+### 243 — El menu del sistema deja de desaparecer (20-ago-2026)
+
+Sergio: *"quiero que el bloque de menu de opciones izquierdo del dashboard no
+desaparezca, debe seguir ahi, solo se navega, no debe desaparecer al entrar en
+'clientes'"*.
+
+Clientes y Mi pagina web tenian cada una su propio encabezado con un boton
+"Regresar", asi que entrar a ellas era **salirse** del sistema y volver. Ahora
+las dos viven dentro del mismo armazon que el Dashboard: el menu se queda a la
+izquierda y solo cambia lo de la derecha. Se quito el boton "Regresar" de las
+dos: con el menu siempre a la vista ya no hace falta.
+
+**El menu era tres copias y ya se habian desincronizado.** Estaba escrito a
+mano en `dashboard.html`, `reservas.html` y `tutoriales.html`. A las dos
+ultimas **les faltaba "Clientes"**, asi que desde Reservas o Tutoriales no
+habia forma de llegar. Y el candado de "Mi pagina web" solo existia en el
+Dashboard: el mismo enlace estaba escondido en una pagina y ni existia en las
+otras dos.
+
+Ahora hay **`pos-nav.js`**: el menu se declara una sola vez y cada pagina pone
+nada mas el hueco.
+
+```html
+<aside id="sidebar"></aside>
+<script src="pos-nav.js"></script>
+```
+
+Agregar un modulo es agregar una linea a `MENU` y aparece en las cinco
+pantallas. El candado de plataforma tambien vive ahi, en un solo sitio.
+
+**Se pinta de una, no en `DOMContentLoaded`.** `dashboard.js` busca
+`sb-status` apenas arranca; si el menu llegara despues, ese `getElementById`
+seria null. Por eso `pos-nav.js` va siempre **antes** que el JS de la pagina.
+
+El CSS no se toco: el sidebar ya estaba en `pos-core.css`, que es compartido.
+La duplicacion era solo del HTML.
+
+**Cual esta abierta** se decide por el nombre del archivo, no por la direccion
+completa: "Cocina" apunta a `index.html?rol=kitchen` y con la query nunca
+coincidiria.
+
+**Ademas, un atajo desde Clientes.** Sergio pregunto donde habia quedado el
+boton del modulo de la pagina web. Estaba en el menu del Dashboard, pero desde
+Clientes no habia camino. Se agrego un boton violeta —el color de lo que solo
+ve el dueno de la plataforma— que entra **directo** a la pestana "Clientes de
+la app" con `pagina-web.html?tab=clientes`. Sin ese `?tab`, el atajo dejaba a
+Sergio en "Tu pagina" y tocaba buscar la pestana. Nace oculto y lo destapa
+`es_admin_plataforma()`, igual que el del menu.
+
+**Lo que se comprobo.** Con la sesion y la base fingidas, a 1440x900: el menu
+mide sus 224 px, el contenido 1216, "Clientes" y "Mi pagina web" quedan
+marcadas como activas cada una en su pantalla, `?tab=clientes` abre la pestana
+correcta, y ninguna de las dos desborda la ventana — en Clientes scrollean la
+lista y la ficha por separado, no la pagina.

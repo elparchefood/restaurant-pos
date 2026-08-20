@@ -148,6 +148,28 @@ Sin ellos, Postgres rechaza antes de evaluar la RLS y el error es `permission de
 grant select, insert, update, delete on public.mi_tabla to anon, authenticated, service_role;
 ```
 
+### El menú lateral vive en `pos-nav.js` — nunca copiarlo a mano
+
+Estuvo escrito a mano en tres páginas y se desincronizó: a Reservas y a
+Tutoriales les faltaba **Clientes**. Ahora se declara una sola vez en la lista
+`MENU` de `pos-nav.js` y cada página pone solo el hueco:
+
+```html
+<aside id="sidebar"></aside>
+<script src="pos-nav.js?v=..."></script>
+```
+
+Dos reglas al usarlo:
+
+- **`pos-nav.js` va antes que el JS de la página.** Se pinta de una, no en
+  `DOMContentLoaded`, porque `dashboard.js` busca `sb-status` apenas arranca.
+- **Un módulo nuevo es una línea en `MENU`**, nunca un `<a>` suelto en un HTML.
+
+Una pantalla del POS **no se sale del sistema para volver**: no se le pone
+botón "Regresar", se le pone el menú. Si el módulo es solo para la plataforma,
+se marca `soloPlataforma: true` y `pos-nav.js` lo destapa con
+`es_admin_plataforma()`.
+
 ### Qué va en Clientes y qué va en "Mi página web" (20-ago-2026)
 
 La línea no es de diseño, es de **a quién se le vende**:

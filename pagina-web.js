@@ -133,6 +133,12 @@
     await Promise.all([cargarMarca(tenantId), cargarHorario(tenantId), cargarEstado(tenantId),
                        cargarStats(tenantId), cargarProductos(tenantId), cargarPromos(tenantId),
                        cargarCombos(tenantId)]);
+
+    /* Desde Clientes se entra directo a "Clientes de la app": sin esto el
+       atajo dejaba al dueno en "Tu pagina" y tocaba buscar la pestana. */
+    var qTab = (new URLSearchParams(location.search)).get('tab');
+    if (qTab && TABS.some(function (x) { return x.k === qTab; })) S.tab = qTab;
+
     pintar();
   }
 

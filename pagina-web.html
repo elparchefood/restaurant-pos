@@ -11,16 +11,19 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="pagina-web.css?v=1791400000">
+<link rel="stylesheet" href="pos-core.css?v=1789840000">
+<link rel="stylesheet" href="pagina-web.css?v=1791420000">
 </head>
 <body>
 
-<div class="pw-root">
+<div id="app">
+
+  <!-- El mismo menu de todo el sistema. -->
+  <aside id="sidebar"></aside>
+
+  <main id="main">
+  <div class="pw-root">
   <header class="pw-top">
-    <a class="pw-back" href="dashboard.html" aria-label="Regresar">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-      Regresar
-    </a>
     <div>
       <div class="pw-kicker">Tu segundo canal, después del chat</div>
       <h1 class="pw-title">Mi página web</h1>
@@ -30,6 +33,7 @@
 
   <main class="pw-main" id="pw-main">
     <div class="pw-cargando">Cargando…</div>
+  </main>
   </main>
 </div>
 
@@ -46,6 +50,7 @@
 <script src="pos-brand.js?v=1790530000"></script>
 <script src="pos-notify.js?v=1790370000"></script>
 <script src="pos-qr.js?v=1791000000"></script>
-<script src="pagina-web.js?v=1791400000"></script>
+<script src="pos-nav.js?v=1791420000"></script>
+<script src="pagina-web.js?v=1791420000"></script>
 </body>
 </html>
