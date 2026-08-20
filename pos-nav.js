@@ -115,18 +115,38 @@
     caja.innerHTML = html;
   }
 
+  /* EL LETRERO DE ABAJO. Lo pinta este archivo, asi que tiene que resolverlo
+     este archivo: antes solo lo actualizaba dashboard.js, y en Clientes, Caja,
+     Reservas y las demas se quedaba en "cargando..." para siempre. */
+  function estado(ok) {
+    var e = document.getElementById('sb-status');
+    if (!e) return;
+    e.textContent = ok ? '● en linea' : '● sin conexion';
+    e.style.color = ok ? '#16A34A' : '#EF4444';
+  }
+
   /* El candado de "Mi página web": la misma función que abre ese módulo, para
      no inventar un segundo criterio que después se desincronice. Si falla, el
-     enlace se queda oculto, que es lo prudente. */
-  function abrirPlataforma() {
+     enlace se queda oculto, que es lo prudente.
+
+     De paso sirve de senal de vida: que la base conteste —aunque sea que NO es
+     administrador— ya prueba que hay conexion. */
+  function abrirPlataforma(intentos) {
     var s = (window._pos && window._pos.sb) || window.sb;
-    if (!s) { setTimeout(abrirPlataforma, 400); return; }
+    if (!s) {
+      /* Si el cliente de Supabase no aparece nunca, no se puede dejar el
+         letrero girando: a los ~8 segundos se dice que no hay conexion. */
+      if ((intentos || 0) > 20) { estado(false); return; }
+      setTimeout(function () { abrirPlataforma((intentos || 0) + 1); }, 400);
+      return;
+    }
     s.rpc('es_admin_plataforma').then(function (r) {
+      estado(true);
       if (r && r.data === true) {
         var a = document.getElementById('nav-pagina-web');
         if (a) a.style.display = '';
       }
-    }).catch(function () { /* oculto */ });
+    }).catch(function () { estado(false); });
   }
 
   pintar();

@@ -9729,3 +9729,48 @@ mide sus 224 px, el contenido 1216, "Clientes" y "Mi pagina web" quedan
 marcadas como activas cada una en su pantalla, `?tab=clientes` abre la pestana
 correcta, y ninguna de las dos desborda la ventana — en Clientes scrollean la
 lista y la ficha por separado, no la pagina.
+
+### 243b — Dos fallos del cambio anterior (20-ago-2026)
+
+Sergio, el mismo dia: *"1. esta pantalla no me deja hacer scroll entonces la
+informacion se corta. 2. En la parte inferior izquierda dice cargando y se
+queda ahi para siempre."*
+
+**1 · La ficha larga se cortaba sin barra para bajar.**
+
+`.cl-ficha` tenia `overflow-y:auto`, pero es un hijo de un **grid**, y un item
+de grid nace con `min-height:auto`: en vez de encogerse dentro de su celda,
+crece con su contenido. Asi que el `overflow-y` nunca se activaba y la ficha se
+cortaba contra el `overflow:hidden` del contenedor de arriba. Se arregla con
+`.cl-cuerpo > * { min-height: 0 }`.
+
+**Por que no se vio al probar.** El banco devolvia `[]` en los pedidos, asi que
+todas las fichas eran cortas y ninguna llegaba a necesitar scroll. La prueba
+confirmaba el caso facil. Se rehizo con 25 clientes y 18 pedidos por ficha, que
+es donde el fallo aparece, y ahi se verifico que baja hasta el ultimo pedido a
+1440x900 y a 1280x700.
+
+**2 · "cargando..." para siempre abajo a la izquierda.**
+
+El bloque `.sys-status` lo pinta ahora `pos-nav.js` en todas las pantallas,
+pero el unico que lo actualizaba era `dashboard.js`. Fuera del Escritorio nadie
+lo tocaba y se quedaba en "cargando..." eternamente.
+
+Lo resuelve `pos-nav.js`, que es quien lo pinta: la consulta de
+`es_admin_plataforma` que ya se hacia sirve de senal de vida —que la base
+conteste, aunque sea que NO es administrador, prueba que hay conexion— y pone
+"● en linea". Si el cliente de Supabase no aparece a los ~8 segundos, dice "●
+sin conexion" en vez de girar para siempre.
+
+**Regla que deja esto:** el que pinta un letrero es el que tiene que
+resolverlo. Repartir el pintado en un archivo y la actualizacion en otro es
+como se llega a un "cargando" eterno.
+
+**Pendiente que aparecio auditando.** `informes.html` e `historial.html` tienen
+**su propio menu, distinto y mas corto** que el de las demas, y les pasa el
+mismo "cargando" eterno. No se migraron: `historial.js` busca `sb-user-name`,
+`sb-role` y `sb-brand-name`, ids que solo existen en su menu propio, y
+cambiarselo sin mas lo romperia. Ademas **nueve pantallas no tienen menu
+lateral** —Ventas, Caja, Inventario, Domicilios, Configuracion, Pagos,
+Productos, Venta rapida y Chat IA—: al entrar a ellas el menu si desaparece.
+Queda para decidir con Sergio.

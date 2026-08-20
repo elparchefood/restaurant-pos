@@ -71,7 +71,12 @@ svg{display:block;flex-shrink:0;}
 .cl-lg i{width:9px;height:9px;border-radius:3px;flex-shrink:0;}
 
 /* ── Lista + ficha ───────────────────────────────────────── */
+/* `min-height:0` en los DOS hijos, no solo en el grid. Un item de grid nace
+   con `min-height:auto`: crece con su contenido en vez de encogerse, asi que
+   el `overflow-y:auto` de la ficha nunca se activaba y una ficha larga se
+   cortaba contra el `overflow:hidden` de arriba, sin barra para bajar. */
 .cl-cuerpo{flex:1;min-height:0;display:grid;grid-template-columns:330px minmax(0,1fr);}
+.cl-cuerpo > *{min-height:0;}
 .cl-lista{border-right:1px solid var(--border);display:flex;flex-direction:column;min-width:0;
   background:#fff;}
 .cl-li-top{padding:11px 13px;border-bottom:1px solid var(--hairline);display:flex;
