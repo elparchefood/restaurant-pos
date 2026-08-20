@@ -3339,6 +3339,26 @@
      —una cantidad, el tipo de entrega, el barrio— la cuenta guardada ya no
      sirve y se pide otra. Sin esa firma habría que acordarse de invalidarla en
      cada botón, y el día que se olvide uno, el cliente vería un total viejo. */
+  /* A DONDE VA EL PEDIDO — SALE DEL ESTADO, NO DEL DOM (20-ago).
+     `firmaCuenta` y `pedirCuenta` leian `$('pd-barrio')`, pero las dos corren
+     DENTRO de `cuerpoPedido()`, que todavia no ha insertado su HTML: lo que
+     leian era la pantalla ANTERIOR. Al escoger otra direccion se le pedia al
+     servidor la cuenta del barrio viejo.
+     La direccion elegida ya vive en `dirSel`, asi que se pregunta ahi. El unico
+     dato que no esta en el estado es el barrio TECLEADO a mano, y ese solo
+     existe cuando la direccion no trae barrio. */
+  function destinoActual() {
+    if (entrega !== 'domicilio') return { dir: '', barrio: '' };
+    var c = S.cliente || {};
+    var el = dirElegida(dirsDe(c), c);
+    var campo = $('pd-barrio');
+    var tecleado = (campo && campo.tagName === 'INPUT') ? String(campo.value || '').trim() : '';
+    return {
+      dir: el.dir || c.direccion || '',
+      barrio: el.barrio || tecleado || c.barrio || '',
+    };
+  }
+
   function firmaCuenta() {
     return JSON.stringify([
       canje ? ['canje', canje.id] : null,
@@ -3346,9 +3366,11 @@
         return [l.producto_id, l.presentacion, l.cantidad, l.precio, (l.adiciones || []).join('|')];
       }),
       entrega,
-      entrega === 'domicilio'
-        ? (($('pd-barrio') && $('pd-barrio').value) || (S.cliente && S.cliente.barrio) || '')
-        : '',
+      /* La direccion entra en la firma, no solo el barrio: dos direcciones del
+         mismo barrio son el mismo domicilio, pero si cambia el barrio hay que
+         volver a preguntar el precio. */
+      destinoActual().barrio,
+      destinoActual().dir,
     ]);
   }
 
@@ -3362,8 +3384,8 @@
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           previo: true, token: leerToken(), tipo: entrega,
-          direccion: entrega === 'domicilio' ? (($('pd-dir') && $('pd-dir').value) || (S.cliente && S.cliente.direccion) || '') : '',
-          barrio: entrega === 'domicilio' ? (($('pd-barrio') && $('pd-barrio').value) || (S.cliente && S.cliente.barrio) || '') : '',
+          direccion: destinoActual().dir,
+          barrio: destinoActual().barrio,
           canje: canje ? canje.id : undefined,
           items: canje ? [] : carro.map(function (l) {
             return { producto_id: l.producto_id, presentacion: l.presentacion, cantidad: l.cantidad,
@@ -3371,6 +3393,14 @@
           }),
         }),
       }).then(function (r) { return r.json(); });
+      /* EL CANDADO SE SUELTA ANTES DE REPINTAR (20-ago). `pantallaDentro()`
+         vuelve a pasar por `cuerpoPedido()`, que puede necesitar OTRA cuenta —
+         es justo lo que pasa al cambiar de direccion. Con el `pidiendoCuenta`
+         todavia en true, esa segunda peticion se cancelaba sola y la pantalla
+         se quedaba para siempre con la cuenta del barrio anterior: por eso
+         salia "no tenemos el precio del domicilio" aunque el barrio estuviera
+         en la tabla. */
+      pidiendoCuenta = false;
       if (d && d.ok) { S.cuenta = { firma: firma, datos: d }; pantallaDentro(); }
     } catch (e) {
       /* Sin conexión no se inventa un total: se queda el de los productos y el
@@ -3595,8 +3625,8 @@
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         token: leerToken(), tipo: entrega,
-        direccion: entrega === 'domicilio' ? (($('pd-dir') || {}).value || '') : '',
-        barrio:    entrega === 'domicilio' ? (($('pd-barrio') || {}).value || '') : '',
+        direccion: destinoActual().dir,
+        barrio:    destinoActual().barrio,
         notas: ($('pd-nota') || {}).value || '',
         /* TODO lo de cada línea, no solo el producto (16-ago): la cuenta previa
            sí mandaba variantes y adiciones, y esto no — así que el total que
