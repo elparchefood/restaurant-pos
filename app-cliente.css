@@ -2223,3 +2223,14 @@ html.tema-claro .ep-menu-it.malo { color: #8f2242; }
    de Perfil, Billetera y El local, que hoy se ven bien. */
 .ep-seguir .ep-tile + .ep-tile { margin-top: 14px; }
 .ep-seguir .ep-falta { margin-bottom: 2px; }
+
+/* ══ CANJE CON PUNTOS ═════════════════════════════════════════════════════
+   El premio se ve como cualquier plato del pedido, pero donde iria el precio
+   van los puntos: es lo que de verdad esta pagando. Se usa el morado de los
+   puntos, el mismo de la tarjeta y de los chips, para que se lea como "esto
+   sale de ahi" sin tener que explicarlo. */
+.ep-li-m--pts, .ep-pts-tx {
+  color: var(--oro-tx);
+  font-weight: 800;
+  white-space: nowrap;
+}

@@ -9283,3 +9283,65 @@ que acabamos de tapar, entrando por otra puerta.
 
 Probado en los dos sentidos: se metio un aviso a mano y aparecio; se corrio la
 funcion con el saldo sano ($18,85 = ~377 codigos) y lo borro sola.
+
+---
+
+## 237 — Canjear premios desde la página del cliente (19-ago-2026)
+
+Hasta hoy el catalogo de puntos era **solo una vitrina**: mostraba los premios
+y cuanto faltaba, pero el canje lo aplicaba el restaurante a mano al cobrar.
+Ahora el cliente lo pide solo.
+
+### Como funciona
+El premio **NO abre un camino aparte**: se traduce a un item normal y lo arma
+**el mismo codigo** que arma cualquier pedido — precios, presentacion,
+variantes, combos, empaque, domicilio. Un segundo camino habria que arreglarlo
+dos veces cada vez que cambie algo.
+
+Lo unico distinto viene despues, en la plata.
+
+### La plata (regla de Sergio, la misma de `pagos.js`)
+> "300 puntos no es igual a 8.000 pesos; en las ventas no se suma lo que no entro."
+
+El plato se entrega y **descuenta inventario**, pero su precio sale del total.
+Si el premio es mixto —1.000 pts + $20.000— esos $20.000 SI entraron a la caja
+y SI son venta; solo sale la diferencia.
+
+| Caso | Total a pagar | Estado |
+|---|---|---|
+| Premio simple, recoger | **$0** | `paid`, entra a cocina de una |
+| Premio simple, domicilio | **solo el domicilio** | `pendiente_pago` |
+| Premio mixto (pts + dinero), recoger | **la parte en dinero** | `pendiente_pago` |
+
+Comprobado con los tres: $0, $5.000 y $20.000.
+
+### En Cobra se ve como cualquier pedido
+`channel` normal (recoger → Rapidas, domicilio → Domicilios), `origen: web`,
+con **`payment_method: "puntos"`** y los campos `puntos_redimidos` /
+`puntos_valor`, exactamente como cuando se canjea en el local.
+
+**Y no deja de ser un canje porque pague el domicilio**: al cobrar, `web-pagar`
+pisaba el metodo con "Transferencia" y en Cobra desaparecia que el plato se
+habia canjeado. Ahora guarda **"Puntos + Transferencia"**. Los campos de puntos
+siguen intactos: de ahi salen los informes; esto es solo lo que se LEE.
+
+### Detalles
+- Los puntos se descuentan con **`fn_puntos_consumir`**, que bloquea la fila y
+  vuelve a comprobar el saldo: dos canjes a la vez no pueden gastar los mismos
+  puntos. Si falla, **el pedido se borra** — mejor que no exista a que exista
+  sin haberse cobrado.
+- **Sin nada que pagar, el pedido nace pagado y visible.** Dejarlo en
+  `pendiente_pago` lo escondia de todas las pantallas y el cliente esperaba
+  algo que ya habia pagado con puntos.
+- El canje vive **aparte del carrito**: es UNA cosa, no una lista. Mezclarlos
+  obligaria a decidir que pasa si alguien le suma una gaseosa a su premio —
+  hoy no se puede, y eso es mas facil de explicar que de programar.
+- Salirse de la pantalla del pedido **abandona el canje**, para que al volver no
+  aparezca un premio que el cliente ya habia soltado.
+- El boton "Pedirlo" **solo sale en los premios que ya alcanza**. A quien le
+  falta se le sigue mostrando todo el catalogo (regla de Sergio), pero un boton
+  que no se puede tocar solo frustra.
+
+Probado de punta a punta creando pedidos de verdad y **borrando todo despues**:
+pedidos, items, movimientos de puntos e inventario devuelto. Quedaron 0 pedidos
+del dia y los puntos del cliente de prueba en 0.

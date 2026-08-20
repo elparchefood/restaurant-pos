@@ -78,6 +78,17 @@ function mismaHora(a: unknown, b: unknown) {
    nunca. Se descubrio en el primer ensayo de punta a punta (16-ago).
    El estado se pone con `cambiar-estado`, la misma puerta que usan el POS y
    Paco, para que ademas quede el delivery_status de la pantalla de domicilios. */
+/* UN CANJE NO DEJA DE SER UN CANJE PORQUE PAGUE EL DOMICILIO (19-ago).
+   El pedido nace con `payment_method = "puntos"`, y al cobrar el domicilio
+   —o la parte en dinero de un premio mixto— esto lo pisaba con
+   "Transferencia": en Cobra desaparecia que el plato se habia canjeado, que
+   es justo lo que Sergio queria ver. Ahora se guardan los dos.
+   Los campos `puntos_redimidos` y `puntos_valor` siguen intactos: de ahi
+   salen los informes. Esto es solo lo que se LEE en pantalla. */
+function conPuntos(o: Record<string, unknown>, metodo: string): string {
+  return (Number(o.puntos_redimidos) || 0) > 0 ? "Puntos + " + metodo : metodo;
+}
+
 async function aCocina(orderId: string) {
   try {
     await sbPatch(`/pos_orders?id=eq.${orderId}`, { visible_cocina: true });
@@ -110,7 +121,7 @@ Deno.serve(async (req) => {
     /* El pedido tiene que ser SUYO y estar sin pagar. Sin esta comprobación,
        cualquiera podría pagar —o marcar como pagado— el pedido de otro. */
     const ords = await sbGet(
-      `/pos_orders?id=eq.${String(b.order_id || "")}&select=id,total,total_final,delivery_fee,status,cliente_id,branch_id,channel&limit=1`
+      `/pos_orders?id=eq.${String(b.order_id || "")}&select=id,total,total_final,delivery_fee,status,cliente_id,branch_id,channel,puntos_redimidos&limit=1`
     ) as Array<Record<string, unknown>> | null;
     const o = ords?.[0];
     if (!o || String(o.cliente_id) !== clienteId) {
@@ -152,7 +163,7 @@ Deno.serve(async (req) => {
          El metodo se guarda con el id de la configuracion (`__saldo`) para que
          todas las pantallas lo reconozcan igual que a los demas. */
       await sbPatch(`/pos_orders?id=eq.${o.id}`, {
-        status: "paid", payment_method: "__saldo", paid_amount: total,
+        status: "paid", payment_method: conPuntos(o, "__saldo"), paid_amount: total,
         closed_at: new Date().toISOString(),
       });
       await aCocina(String(o.id));
@@ -197,7 +208,7 @@ Deno.serve(async (req) => {
     }
 
     await sbPatch(`/pos_orders?id=eq.${o.id}`, {
-      status: "paid", payment_method: "Transferencia", paid_amount: total,
+      status: "paid", payment_method: conPuntos(o, "Transferencia"), paid_amount: total,
       closed_at: new Date().toISOString(),
     });
     await aCocina(String(o.id));

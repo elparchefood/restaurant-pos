@@ -446,6 +446,16 @@
     document.querySelectorAll('[data-ir]').forEach(function (b) {
       b.addEventListener('click', function () { irA(b.dataset.ir); });
     });
+    document.querySelectorAll('[data-canje]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var k = (S.catalogo || []).filter(function (x) { return String(x.id) === b.dataset.canje; })[0];
+        if (!k) return;
+        canje = k;
+        S.cuenta = null;        // la cuenta del carrito no vale para esto
+        irA('pedido');
+      });
+    });
+
     document.querySelectorAll('[data-cat]').forEach(function (b) {
       b.addEventListener('click', function () {
         /* Escoger una categoria vuelve a pintar la pantalla entera, y la tira
@@ -671,6 +681,11 @@
         if (r) quitarDireccion(b.dataset.dirquitar);
       });
     });
+    var cancelaCanje = $('pd-cancelar-canje');
+    if (cancelaCanje) cancelaCanje.addEventListener('click', function () {
+      canje = null; S.cuenta = null; irA('puntos');
+    });
+
     var env = $('pd-enviar');
     if (env) env.addEventListener('click', enviarPedido);
   }
@@ -919,6 +934,10 @@
     // Se trae lo que esa pestaña necesita ANTES de pintarla, para que no
     // aparezca vacia un instante y luego se llene de golpe.
     if (vista !== 'pedido') pedidoHecho = null;
+    /* Salirse de la pantalla del pedido es abandonar el canje. Dejarlo vivo
+       haria que al volver a "Tu pedido" apareciera un premio que el cliente ya
+       habia soltado. */
+    if (vista !== 'pedido' && canje) { canje = null; S.cuenta = null; }
     if (vista === 'carta')  await cargarCarta();
     /* El inicio necesita las dos cosas: las fotos del banner (promos) y la
        carta, porque las tres tarjetas son productos de verdad. */
@@ -1211,7 +1230,12 @@
           ? '<img src="' + esc(k.foto) + '" alt="">' : ico('gift', 19)) + '</span>' +
         '<div class="ep-redeem-body"><b>' + esc(k.nombre || '') + '</b>' +
           '<small>' + esc(sub) + '</small>' + barra + '</div>' +
-        '<span class="ep-btn ' + (it.falta === 0 ? 'light' : 'ghost') + ' sm">' + esc(precio) + '</span>' +
+        (it.falta === 0
+          /* EL BOTON SOLO CUANDO YA ALCANZA. A quien le falta se le sigue
+             mostrando lo que cuesta —esa es la regla de Sergio, ver todo el
+             catalogo— pero un boton que no se puede tocar solo frustra. */
+          ? '<button class="ep-btn light sm" data-canje="' + esc(k.id) + '">Pedirlo</button>'
+          : '<span class="ep-btn ghost sm">' + esc(precio) + '</span>') +
       '</div>';
     }
 
@@ -3249,6 +3273,11 @@
 
   // ── Pantalla del pedido ─────────────────────────────────────────────
   var entrega = 'recoger';
+  /* EL PREMIO QUE SE ESTA CANJEANDO. Va aparte del carrito a proposito: un
+     canje es UNA cosa, no una lista, y mezclarlo con el carrito obligaria a
+     decidir que pasa si alguien le suma una gaseosa a su premio. Hoy no se
+     puede, y eso es mas simple de explicar que de programar. */
+  var canje = null;
   var pedidoHecho = null;
   /* La escucha del SMS: se guarda para poder cancelarla al cambiar de pantalla. */
   var otpCancelar = null;
@@ -3260,6 +3289,7 @@
      cada botón, y el día que se olvide uno, el cliente vería un total viejo. */
   function firmaCuenta() {
     return JSON.stringify([
+      canje ? ['canje', canje.id] : null,
       carro.map(function (l) {
         return [l.producto_id, l.presentacion, l.cantidad, l.precio, (l.adiciones || []).join('|')];
       }),
@@ -3282,7 +3312,8 @@
           previo: true, token: leerToken(), tipo: entrega,
           direccion: entrega === 'domicilio' ? (($('pd-dir') && $('pd-dir').value) || (S.cliente && S.cliente.direccion) || '') : '',
           barrio: entrega === 'domicilio' ? (($('pd-barrio') && $('pd-barrio').value) || (S.cliente && S.cliente.barrio) || '') : '',
-          items: carro.map(function (l) {
+          canje: canje ? canje.id : undefined,
+          items: canje ? [] : carro.map(function (l) {
             return { producto_id: l.producto_id, presentacion: l.presentacion, cantidad: l.cantidad,
                      variantes: l.variantes, adiciones: l.adiciones, nota: l.nota };
           }),
@@ -3298,13 +3329,23 @@
 
   function cuerpoPedido() {
     if (pedidoHecho) return cuerpoConfirmado();
-    if (!carro.length) {
+    if (!canje && !carro.length) {
       return encabezado('Tu pedido') +
         '<div class="ep-vacio" style="padding:40px 0">Tu pedido está vacío.</div>' +
         '<button class="ep-btn ep-btn--ghost" data-ir="carta">Ver la carta</button>';
     }
     var c = S.cliente || {};
-    var lineas = carro.map(function (l, i) {
+    /* EL PREMIO SE VE COMO SE VE UN PLATO, pero sin los botones de cantidad ni
+       el de eliminar: un canje es uno y no se multiplica. En lugar del precio
+       dice lo que cuesta en puntos, que es lo que de verdad esta pagando. */
+    var lineas = canje
+      ? '<div class="ep-linea">' +
+          '<div class="ep-linea-b"><div class="ep-linea-n">1× ' + esc(canje.nombre || '') + '</div>' +
+            '<div class="ep-linea-s">Lo estás pidiendo con tus puntos</div></div>' +
+          '<div class="ep-li-m ep-li-m--pts">' + (Number(canje.puntos) || 0) + ' pts</div>' +
+        '</div>' +
+        '<button class="ep-link" id="pd-cancelar-canje" style="margin:2px 0 12px">Mejor no, volver a mis puntos</button>'
+      : carro.map(function (l, i) {
       return '<div class="ep-linea">' +
         '<div class="ep-linea-b"><div class="ep-linea-n">' + l.cantidad + '× ' + esc(nombreLinea(l)) +
           ((l.adiciones && l.adiciones.length) ? ' · + ' + esc(l.adiciones.join(', ')) : '') + '</div>' +
@@ -3365,7 +3406,15 @@
         '<input class="ep-in" id="pd-nota" maxlength="200" placeholder="Opcional"></label>' +
 
       '<div style="margin-top:18px">' +
-        '<div class="ep-total-fila"><span style="color:var(--sub)">Productos</span><span>' + COP(sub) + '</span></div>' +
+        (canje
+          /* En un canje el plato no se paga con plata: decir "Productos $0"
+             confunde. Se dice lo que de verdad esta entregando. */
+          ? '<div class="ep-total-fila"><span style="color:var(--sub)">Con tus puntos</span>' +
+            '<span class="ep-pts-tx">-' + (Number(canje.puntos) || 0) + ' pts</span></div>' +
+            (Number(canje.dinero) > 0
+              ? '<div class="ep-total-fila"><span style="color:var(--sub)">Parte en dinero</span><span>' + COP(Number(canje.dinero)) + '</span></div>'
+              : '')
+          : '<div class="ep-total-fila"><span style="color:var(--sub)">Productos</span><span>' + COP(sub) + '</span></div>') +
         (empaque > 0
           ? '<div class="ep-total-fila"><span style="color:var(--sub)">Empaque</span><span>' + COP(empaque) + '</span></div>'
           : '') +
@@ -3390,7 +3439,11 @@
           ? '<div class="ep-domi-luego">🛵 Todavía no tenemos el precio del domicilio para tu dirección. ' +
             '<b>Pagas ahora solo tu pedido</b> y el domicilio se lo pagas al domiciliario cuando te llegue.</div>'
           : '') +
-        '<div class="ep-gana">Ganarás +' + gana + ' puntos con este pedido</div>' +
+        (canje
+          ? (totalCta > 0
+              ? '<div class="ep-gana">Solo pagas ' + COP(totalCta) + '; el resto va con tus puntos</div>'
+              : '<div class="ep-gana">No pagas nada: va completo con tus puntos 🎁</div>')
+          : '<div class="ep-gana">Ganarás +' + gana + ' puntos con este pedido</div>') +
       '</div>' +
       (S.negocio && !S.negocio.abierto
         ? '<div class="ep-aviso">' + esc(S.negocio.detalle || 'Ahora está cerrado') + '. ' +
@@ -3400,8 +3453,10 @@
         : '') +
       '<button class="ep-btn ep-btn--main" id="pd-enviar" style="margin-top:16px"' +
         ((S.negocio && !S.negocio.abierto && !S.negocio.permite_programar) ? ' disabled' : '') +
-        '>Enviar mi pedido</button>' +
-      '<p class="ep-nota" style="text-align:center;margin-top:10px">Se paga por transferencia. Te mostramos los datos al enviarlo.</p>';
+        '>' + (canje ? 'Canjear mi premio' : 'Enviar mi pedido') + '</button>' +
+      (canje && totalCta === 0
+        ? '<p class="ep-nota" style="text-align:center;margin-top:10px">No tienes que pagar nada. Te avisamos cuando esté listo.</p>'
+        : '<p class="ep-nota" style="text-align:center;margin-top:10px">Se paga por transferencia. Te mostramos los datos al enviarlo.</p>');
   }
 
   function cuerpoConfirmado() {
@@ -3496,7 +3551,10 @@
            veía el cliente y el que se cobraba podían no coincidir, y a la
            cocina le llegaba una salchipapa sin decir si era mixta ni con qué
            adiciones. */
-        items: carro.map(function (l) {
+        /* En un canje va el premio y NO el carrito: el servidor lo traduce a
+           un item normal con su precio de verdad, y decide la plata. */
+        canje: canje ? canje.id : undefined,
+        items: canje ? [] : carro.map(function (l) {
           return {
             producto_id: l.producto_id, presentacion: l.presentacion,
             cantidad: l.cantidad, variantes: l.variantes || [],
@@ -3516,9 +3574,18 @@
     }
     /* Lo que se ahorro y lo que gano se calculan ANTES de vaciar el carrito:
        despues ya no hay de donde sacarlos. */
-    d.ahorro = carroAhorro();
-    d.puntos = Math.floor((Number(d.subtotal) || 0) / 1000);
+    d.ahorro = canje ? 0 : carroAhorro();
+    d.puntos = canje ? 0 : Math.floor((Number(d.subtotal) || 0) / 1000);
     pedidoHecho = d;
+    if (canje) {
+      /* Los puntos ya se gastaron en el servidor: el numero de la pantalla
+         tiene que reflejarlo o el cliente cree que sigue teniendo los mismos.
+         Y el catalogo se vuelve a pedir, porque con menos puntos cambian los
+         premios que ya alcanza. */
+      if (S.cliente) S.cliente.puntos = Math.max(0, (Number(S.cliente.puntos) || 0) - (Number(canje.puntos) || 0));
+      S.catalogo = null;
+      canje = null;
+    }
     carro = [];
     pantallaDentro();
   }

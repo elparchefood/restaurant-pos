@@ -16,6 +16,16 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+/* El telefono como lo guarda `pos_puntos`: 10 digitos, sin el 57. Es la misma
+   normalizacion que hace `fn_puntos_consumir` — si aqui se buscara distinto,
+   la comprobacion previa diria "no tienes puntos" y el descuento si los
+   encontraria (o al reves). */
+function telPuntos(t: string): string {
+  const d = String(t || "").replace(RE_NO_DIGITO, "");
+  return (d.length === 12 && d.slice(0, 2) === "57") ? d.slice(2) : d;
+}
+const RE_NO_DIGITO = new RegExp("[^0-9]", "g");
+
 async function sbGet(path: string) {
   const r = await fetch(`${SUPABASE_URL}/rest/v1${path}`, { headers: H });
   return r.ok ? await r.json() : null;
@@ -272,7 +282,30 @@ Deno.serve(async (req) => {
     if (!branchId) return json({ ok: false, razon: "sucursal", mensaje: "No pudimos tomar el pedido." });
 
     // ── 3. El pedido, con precios DEL CATÁLOGO ──
-    const items = Array.isArray(b.items) ? b.items as Array<Record<string, unknown>> : [];
+    /* ══ CANJE CON PUNTOS (19-ago, pedido de Sergio) ═══════════════════════
+       El premio NO abre un camino aparte: se traduce a un item normal y lo
+       arma **el mismo codigo** que arma cualquier pedido — precios,
+       presentacion, variantes, combos, empaque. Un segundo camino habria que
+       arreglarlo dos veces cada vez que cambie algo.
+
+       Lo unico distinto viene despues, en la plata: lo que se paga con puntos
+       no es venta. */
+    let canje: Record<string, unknown> | null = null;
+    let items = Array.isArray(b.items) ? b.items as Array<Record<string, unknown>> : [];
+    if (b.canje) {
+      const ks = await sbGet(
+        `/pos_puntos_catalogo?id=eq.${String(b.canje)}&tenant_id=eq.${tenantId}&activo=eq.true` +
+        `&select=id,product_id,pres_nombre,variantes,puntos,dinero,combo_id&limit=1`
+      ) as Array<Record<string, unknown>> | null;
+      canje = ks?.[0] || null;
+      if (!canje) return json({ ok: false, razon: "premio", mensaje: "Ese premio ya no está disponible." });
+      items = [{
+        producto_id: canje.combo_id ? "combo:" + String(canje.combo_id) : String(canje.product_id || ""),
+        presentacion: String(canje.pres_nombre || ""),
+        variantes: Array.isArray(canje.variantes) ? canje.variantes : [],
+        cantidad: 1,
+      }];
+    }
     if (!items.length) return json({ ok: false, razon: "vacio", mensaje: "Tu pedido está vacío." });
     if (items.length > 40) return json({ ok: false, razon: "muchos", mensaje: "Demasiados productos." });
 
@@ -596,8 +629,33 @@ Deno.serve(async (req) => {
 
        Lo que el cliente PAGA sigue siendo la suma de los dos; eso se le muestra
        y es lo que cobra web-pagar. */
+    /* LO CANJEADO CON PUNTOS NO ES VENTA (regla de Sergio, la misma que aplica
+       `pagos.js` al cobrar en el local): "300 puntos no es igual a 8.000 pesos;
+       en las ventas no se suma lo que no entro". El plato se entrega y descuenta
+       inventario, pero su precio sale del total.
+       Si el premio es mixto —1.000 pts + $20.000— esos $20.000 SI entraron a la
+       caja y SI son venta; solo sale la diferencia. */
+    const canjePuntos = canje ? (Number(canje.puntos) || 0) : 0;
+    const canjeDinero = canje ? (Number(canje.dinero) || 0) : 0;
+    const canjeValor  = canje ? Math.max(0, subtotal - canjeDinero) : 0;
+    if (canje) subtotal = canjeDinero;
+
     const total = subtotal + empaque;
     const aPagar = total + domi;
+
+    /* Que le alcance, ANTES de crear el pedido. El descuento de verdad lo hace
+       `fn_puntos_consumir` mas abajo, que bloquea la fila y vuelve a mirar: esto
+       es solo para no crear un pedido que va a morir. */
+    if (canje) {
+      const pts = await sbGet(
+        `/pos_puntos?tenant_id=eq.${tenantId}&telefono=eq.${telPuntos(String(s.telefono || ""))}&select=puntos&limit=1`
+      ) as Array<Record<string, unknown>> | null;
+      const tiene = Number(pts?.[0]?.puntos) || 0;
+      if (tiene < canjePuntos) {
+        return json({ ok: false, razon: "puntos",
+          mensaje: `Te faltan ${canjePuntos - tiene} puntos para este premio.` });
+      }
+    }
 
     // Solo la cuenta: aquí termina, sin crear pedido ni tocar nada.
     if (previo) {
@@ -633,10 +691,22 @@ Deno.serve(async (req) => {
          un pedido de la caja; sin esto no habia forma de saber cuales pedidos
          llegaron por la pagina, que es justo lo que mide la pantalla del dueño. */
       origen: "web",
-      status: "pendiente_pago",
+      /* SIN NADA QUE PAGAR, EL PEDIDO YA ESTA PAGADO. Un premio para recoger
+         sin parte en dinero no tiene pantalla de pago: dejarlo en
+         "pendiente_pago" lo escondia de todas las pantallas del restaurante y
+         el cliente se quedaba esperando algo que ya habia pagado con puntos. */
+      status: (canje && aPagar === 0) ? "paid" : "pendiente_pago",
       customer_name: cli?.[0]?.nombre || null,
       subtotal, total, total_final: total,
       delivery_fee: domi, packaging_fee: empaque,
+      /* Lo que hace que en Cobra se vea "pagado con puntos", igual que cuando
+         se canjea en el local: mismo metodo, mismos dos campos. */
+      ...(canje ? {
+        payment_method: "puntos",
+        puntos_redimidos: canjePuntos,
+        puntos_valor: canjeValor,
+        ...(aPagar === 0 ? { paid_amount: 0, closed_at: new Date().toISOString() } : {}),
+      } : {}),
       notes: notas, visible_cocina: false,
       estado: tipo === "domicilio" ? "en_preparacion" : null,
     }, true) as Array<Record<string, unknown>> | null;
@@ -659,6 +729,47 @@ Deno.serve(async (req) => {
       return json({ ok: false, razon: "items", mensaje: "No pudimos tomar tu pedido. Intenta de nuevo." });
     }
 
+    /* LOS PUNTOS SE DESCUENTAN AL FINAL, cuando el pedido ya existe entero.
+       `fn_puntos_consumir` bloquea la fila y vuelve a comprobar el saldo, asi
+       que dos canjes a la vez no pueden gastar los mismos puntos.
+       Si falla, el pedido se borra: mejor que no exista a que exista sin
+       haberse cobrado. */
+    if (canje) {
+      const consumo = await fetch(`${SUPABASE_URL}/rest/v1/rpc/fn_puntos_consumir`, {
+        method: "POST", headers: H,
+        body: JSON.stringify({
+          p_tenant: tenantId, p_branch: branchId,
+          p_telefono: String(s.telefono || ""), p_puntos: canjePuntos,
+          p_order: orderId, p_detalle: "Canje desde la página del cliente",
+          p_quien: "pagina",
+        }),
+      });
+      if (!consumo.ok) {
+        const err = (await consumo.text()).slice(0, 200);
+        console.error("[web-pedido] canje, puntos no descontados:", err);
+        await fetch(`${SUPABASE_URL}/rest/v1/pos_order_items?order_id=eq.${orderId}`, { method: "DELETE", headers: H });
+        await fetch(`${SUPABASE_URL}/rest/v1/pos_orders?id=eq.${orderId}`, { method: "DELETE", headers: H });
+        return json({ ok: false, razon: "puntos",
+          mensaje: err.indexOf("PUNTOS_INSUFICIENTES") >= 0
+            ? "No te alcanzan los puntos para este premio."
+            : "No pudimos aplicar tu canje. Intenta de nuevo." });
+      }
+
+      /* Si no queda nada por pagar, el pedido entra a cocina YA. Es lo mismo
+         que hace web-pagar al cobrar: sin esto queda pagado pero invisible. */
+      if (aPagar === 0) {
+        await fetch(`${SUPABASE_URL}/rest/v1/pos_orders?id=eq.${orderId}`, {
+          method: "PATCH", headers: H, body: JSON.stringify({ visible_cocina: true }),
+        });
+        try {
+          await fetch(`${SUPABASE_URL}/functions/v1/cambiar-estado`, {
+            method: "POST", headers: H,
+            body: JSON.stringify({ order_id: orderId, estado: "en_preparacion", sin_mensaje: true }),
+          });
+        } catch (e) { console.error("[web-pedido] canje a cocina:", String(e).slice(0, 200)); }
+      }
+    }
+
     // Los datos de pago, para que el cliente transfiera.
     const cfgP = await sbGet(`/ia_config?branch_id=eq.${branchId}&select=pagos&limit=1`) as Array<Record<string, unknown>> | null;
     const pagos = (cfgP?.[0]?.pagos || {}) as Record<string, unknown>;
@@ -666,6 +777,8 @@ Deno.serve(async (req) => {
     return json({
       ok: true, order_id: orderId, total: aPagar, pedido: total, empaque, domicilio: domi, subtotal,
       barrio_conocido: barrioConocido,
+      canje: canje ? { puntos: canjePuntos, dinero: canjeDinero, valor: canjeValor } : null,
+      pagado: !!(canje && aPagar === 0),
       programado: !abierto,
       pago: { llave: pagos.llave || "", titular: pagos.titular || "", banco: pagos.banco || "" },
     });
