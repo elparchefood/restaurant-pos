@@ -9914,3 +9914,69 @@ de paso arregla las cinco tarjetas individuales. Queda avisado a Sergio.
 
 Se verifico de paso que `fn_web_puntos_catalogo` **ya devolvia la foto tambien
 para los combos** (`co.photo_url`): no habia nada roto ahi.
+
+### 246 — El Perfil: foto, nombre, contrasena y niveles que se entienden (20-ago-2026)
+
+Cuatro cosas que pidio Sergio mirando su propio perfil.
+
+**1 · El icono de la foto ya no parece una alerta.** El boton de cambiar la
+foto usaba `--wine` (#8f2242): un circulo rojo dentro de la cara del cliente,
+que hacia preguntarse que estaba mal. Pasa al dorado de la marca y baja de 28 a
+26 px, pegado a la esquina.
+
+**2 · Se puede cambiar el nombre y la contrasena.** El nombre solo se ponia al
+registrarse: un error de dedo se quedaba para siempre, y ese nombre es el que
+sale en la comanda que se imprime en la cocina.
+
+Dos acciones nuevas en `web-acceso` (v30), las dos con la misma regla que ya
+usaban las demas: **quien es lo dice la SESION, nunca el navegador** — sin eso
+cualquiera podria renombrar a otro mandando su id.
+
+La contrasena pide la **actual** aunque la sesion este abierta. Un celular
+prestado o desbloqueado no puede convertirse en "cambio la clave y se quedo con
+la cuenta", que ademas tiene saldo adentro. Y la sesion **no** se cierra al
+cambiarla: quien la cambio es el que esta ahi.
+
+`preguntar()` aprendio campos de tipo `password`, que antes no existian.
+
+**3 · Los niveles, contados para que se entiendan y motiven.** Sergio: *"con
+las solas palabras no se entiende, deberia saber el cliente que eso significa
+que es un cliente de esa categoria"*.
+
+- El chip dice **"Eres cliente Estandar"**, no "Estandar" a secas.
+- La frase cambia con lo cerca que este, en vez del "0% del camino a Premium"
+  que ademas arrancaba desanimando:
+
+| Avance | Que dice |
+|---|---|
+| 0% | Con tus pedidos vas subiendo a cliente Premium |
+| 1–49% | Vas 25% del camino a cliente Premium |
+| 50–79% | Ya pasaste la mitad del camino a cliente Premium |
+| 80–99% | ¡Ya casi eres cliente Premium! |
+| tope | Estas en el nivel mas alto. No hay uno mejor. |
+
+- Y debajo, **que gana con el nivel**, que era lo que faltaba para que la
+  palabra significara algo: *"Por ser cliente Estandar, cada $50.000 que
+  recargas te damos $5.000 de regalo. Al subir de nivel ese regalo crece."* La
+  cifra sale de `S.cliente.recarga.bono_por_bloque`, que el servidor manda
+  segun el rango; si no viene, no se promete nada.
+
+**NUNCA se menciona el dinero gastado.** Los niveles tienen dos escalas a
+proposito y el cliente solo ve la de experiencia — decision de Sergio, ver la
+nota de niveles. Por eso el beneficio se cuenta por el lado de la recarga y no
+por el de "te faltan $X".
+
+**4 · Los avisos ya se podian reactivar** desde el Perfil (bloque del 19-ago).
+Lo unico que ningun boton puede resolver es cuando el celular quedo en
+**"bloqueado"**: ahi el navegador no vuelve a preguntar nunca, y la pantalla lo
+dice en vez de ofrecer un boton que no haria nada.
+
+**Lo que se comprobo.** Las dos acciones nuevas, contra produccion y con una
+credencial de prueba creada y borrada: nombre valido, nombre de una letra, sin
+sesion, contrasena actual mala, nueva corta, nueva igual a la vieja, cambio
+correcto, la vieja deja de servir, la nueva sirve, y **entrar** con la nueva.
+Nueve casos de error y exito, todos como debian. Los datos de prueba quedaron
+restaurados.
+
+En el banco se verificaron ademas los cinco tramos del nivel, el color del
+boton de la foto y los dos modales.

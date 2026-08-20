@@ -755,6 +755,61 @@ Deno.serve(async (req) => {
        ficha se pide en cada visita.
 
        Quién es lo dice la sesión: nadie puede cambiarle la foto a otro. */
+    /* ── CAMBIAR EL NOMBRE (20-ago-2026) ────────────────────────────────
+       Sergio: "quiero que desde aqui la persona tambien pueda cambiar su
+       nombre y su contrasena". Antes el nombre solo se ponia al registrarse y
+       un error de dedo se quedaba para siempre — y ese nombre es el que sale
+       en la comanda que se imprime en la cocina.
+
+       Quien es lo dice la SESION, nunca el navegador: sin eso cualquiera
+       podria renombrar a otro cliente mandando su id. */
+    if (accion === "nombre") {
+      const s = await sesionDe(String(b.token || ""));
+      if (!s) return json({ ok: false, razon: "sesion_vencida" });
+
+      const nombre = String(b.nombre || "").trim().replace(/\s+/g, " ").slice(0, 80);
+      if (nombre.length < 2) {
+        return json({ ok: false, razon: "nombre_corto", mensaje: "Escribe tu nombre." });
+      }
+      await sbPatch(`/pos_clientes?id=eq.${s.cliente_id}`, { nombre });
+      return json({ ok: true, cliente: await fichaCliente(String(s.tenant_id), String(s.cliente_id)) });
+    }
+
+    /* ── CAMBIAR LA CONTRASENA (20-ago-2026) ────────────────────────────
+       Se exige la ACTUAL aunque la sesion ya este abierta: un celular prestado
+       o desbloqueado no puede convertirse en "cambiar la clave y quedarse con
+       la cuenta", que ademas tiene saldo adentro.
+
+       El mensaje de error no distingue entre "esa no es tu clave" y cualquier
+       otra cosa: es la misma regla que ya usa ENTRAR. */
+    if (accion === "clave") {
+      const s = await sesionDe(String(b.token || ""));
+      if (!s) return json({ ok: false, razon: "sesion_vencida" });
+
+      const actual = String(b.actual || "");
+      const nueva  = String(b.nueva || "");
+      if (nueva.length < 6) {
+        return json({ ok: false, razon: "clave_corta", mensaje: "La contraseña debe tener al menos 6 caracteres." });
+      }
+      if (nueva === actual) {
+        return json({ ok: false, razon: "igual", mensaje: "Esa ya es tu contraseña. Escribe una distinta." });
+      }
+
+      const cr = await sbGet(`/pos_web_credenciales?cliente_id=eq.${s.cliente_id}&select=pass_hash&limit=1`) as Array<Record<string, unknown>> | null;
+      const guardado = cr?.[0]?.pass_hash ? String(cr[0].pass_hash) : "";
+      if (!guardado || !(await claveCuadra(actual, guardado))) {
+        return json({ ok: false, razon: "no_cuadra", mensaje: "Tu contraseña actual no es correcta." });
+      }
+
+      await sbPatch(`/pos_web_credenciales?cliente_id=eq.${s.cliente_id}`, {
+        pass_hash: await cifrarClave(nueva),
+        cambiada_at: new Date().toISOString(),
+      });
+      /* La sesion NO se cierra: quien cambio la clave es el que esta aqui, y
+         sacarlo de su propia cuenta solo lo asustaria. */
+      return json({ ok: true });
+    }
+
     if (accion === "foto") {
       const s = await sesionDe(String(b.token || ""));
       if (!s) return json({ ok: false, razon: "sesion_vencida" });

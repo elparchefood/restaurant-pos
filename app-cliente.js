@@ -685,6 +685,11 @@
     // Perfil: agregar / quitar direcciones.
     var addDir = document.querySelector('[data-diragregar]');
     if (addDir) addDir.addEventListener('click', pedirDireccionNueva);
+    document.querySelectorAll('[data-editar]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (b.dataset.editar === 'nombre') cambiarNombre(); else cambiarClave();
+      });
+    });
     document.querySelectorAll('[data-dirquitar]').forEach(function (b) {
       b.addEventListener('click', async function () {
         var r = await preguntar({
@@ -2213,8 +2218,14 @@
           '<div class="ep-preg-tit"></div>' +
           (o.texto ? '<p class="ep-aviso-txt ep-preg-sub"></p>' : '') +
           campos.map(function (c, i) {
+            /* `tipo` para poder pedir una contrasena sin que se lea por encima
+               del hombro. `autocomplete` le dice al celular que no la guarde
+               como si fuera un nombre. */
+            var tipo = c.tipo === 'password' ? 'password' : 'text';
             return '<label class="ep-campo"><span class="ep-lbl">' + esc(c.label || '') + '</span>' +
-              '<input class="ep-in" id="pg-c' + i + '" maxlength="' + (c.max || 160) + '" ' +
+              '<input class="ep-in" id="pg-c' + i + '" type="' + tipo + '" ' +
+              (tipo === 'password' ? 'autocomplete="new-password" ' : '') +
+              'maxlength="' + (c.max || 160) + '" ' +
               'placeholder="' + esc(c.placeholder || '') + '" value="' + esc(c.valor || '') + '"></label>';
           }).join('') +
           '<div class="ep-preg-btns">' +
@@ -2258,6 +2269,57 @@
         if (primero) primero.focus();
       }, 30);
     });
+  }
+
+  /* ── CAMBIAR EL NOMBRE Y LA CONTRASENA (20-ago, Sergio) ──────────────
+     El nombre solo se ponia al registrarse: un error de dedo se quedaba para
+     siempre, y ese nombre es el que sale en la comanda de la cocina. */
+  async function cambiarNombre() {
+    var c = S.cliente || {};
+    var r = await preguntar({
+      titulo: 'Tu nombre',
+      texto: 'Es el que ve el restaurante cuando pides.',
+      ok: 'Guardar',
+      campos: [{ clave: 'nombre', label: 'Nombre', valor: c.nombre || '',
+                 placeholder: 'Como quieres que te llamen', minimo: 2, max: 80 }],
+    });
+    if (!r) return;
+    try {
+      var d = await fetch(ACCESO, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'nombre', token: leerToken(), nombre: r.nombre }),
+      }).then(function (x) { return x.json(); });
+      if (!d.ok) { aviso(d.mensaje || 'No se pudo guardar tu nombre.', 'mal'); return; }
+      S.cliente = d.cliente || S.cliente;
+      aviso('Listo, ahora te llamas ' + (S.cliente.nombre || r.nombre), 'bien');
+      pantallaDentro();
+    } catch (e) { aviso('No se pudo guardar tu nombre.', 'mal'); }
+  }
+
+  /* Se pide la contrasena ACTUAL aunque la sesion este abierta: un celular
+     prestado no puede volverse "cambio la clave y se quedo con la cuenta", que
+     ademas tiene saldo adentro. */
+  async function cambiarClave() {
+    var r = await preguntar({
+      titulo: 'Cambiar tu contraseña',
+      texto: 'Escribe la que usas hoy y la nueva.',
+      ok: 'Cambiarla',
+      campos: [
+        { clave: 'actual', label: 'Tu contraseña de ahora', tipo: 'password', minimo: 1, max: 80 },
+        { clave: 'nueva',  label: 'La nueva', tipo: 'password', minimo: 6, max: 80,
+          placeholder: 'Mínimo 6 caracteres' },
+      ],
+    });
+    if (!r) return;
+    try {
+      var d = await fetch(ACCESO, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'clave', token: leerToken(),
+                               actual: r.actual, nueva: r.nueva }),
+      }).then(function (x) { return x.json(); });
+      if (!d.ok) { aviso(d.mensaje || 'No se pudo cambiar la contraseña.', 'mal'); return; }
+      aviso('Tu contraseña quedó cambiada', 'bien');
+    } catch (e) { aviso('No se pudo cambiar la contraseña.', 'mal'); }
   }
 
   async function guardarFoto(archivo) {
@@ -2349,6 +2411,44 @@
     return ok;
   }
 
+  /* EL NIVEL, CONTADO PARA QUE SE ENTIENDA Y MOTIVE (20-ago, Sergio).
+     Antes decia "0% del camino a Premium": una cifra que ademas de no explicar
+     nada, arranca desanimando a quien apenas empieza. Ahora el mensaje cambia
+     segun lo lejos que este, y debajo se dice QUE GANA con el nivel — que era
+     lo que faltaba para que la palabra "Estandar" significara algo.
+
+     NUNCA se menciona el dinero gastado. Los niveles tienen dos escalas a
+     proposito: el cliente ve la de experiencia y no puede deducir cuanto lleva
+     gastado, porque verlo asusta en vez de premiar. Es decision de Sergio. */
+  function bloqueNivel(n) {
+    var prog = Number(n.progreso) || 0;
+    var sig = n.siguiente ? esc(n.siguiente) : '';
+    var frase;
+    if (!n.siguiente)   frase = 'Estás en el nivel más alto. No hay uno mejor.';
+    else if (prog >= 80) frase = '¡Ya casi eres cliente ' + sig + '!';
+    else if (prog >= 50) frase = 'Ya pasaste la mitad del camino a cliente ' + sig;
+    else if (prog > 0)   frase = 'Vas ' + prog + '% del camino a cliente ' + sig;
+    else                 frase = 'Con tus pedidos vas subiendo a cliente ' + sig;
+
+    /* Lo que gana de verdad con el nivel, con SU cifra: la manda el servidor
+       con la ficha porque el bono depende del rango. Si no viene, no se promete
+       nada — es mejor no decir el beneficio que decir uno que no es. */
+    var g = reglaRecarga();
+    var premio = g.porBloque
+      ? '<div class="ep-nota" style="margin-top:10px">Por ser cliente ' + esc(n.nombre) +
+        ', cada ' + COP(g.bloque) + ' que recargas te damos <b>' + COP(g.porBloque) +
+        '</b> de regalo.' + (n.siguiente ? ' Al subir de nivel ese regalo crece.' : '') + '</div>'
+      : '';
+
+    return '<div class="ep-tile" style="margin-bottom:12px">' +
+      '<div class="ep-tile-lbl">Tu nivel</div>' +
+      '<div class="ep-tile-sub">' + frase + '</div>' +
+      '<div class="ep-bar" style="margin-top:12px"><i style="width:' + prog +
+        '%;background:' + esc(n.color || '#7C5CFF') + '"></i></div>' +
+      premio +
+    '</div>';
+  }
+
   function cuerpoPerfil() {
     var c = S.cliente || {};
     var n = c.nivel || null;
@@ -2362,16 +2462,14 @@
         '</label>' +
         '<div class="ep-perfil-n">' + esc(c.nombre || '') + '</div>' +
         '<div class="ep-perfil-t">' + esc(tel.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3')) + '</div>' +
-        (n ? '<span class="ep-chip-rango" style="color:' + esc(n.color || '') + '">' + esc(n.nombre) + '</span>' : '') +
+        /* "Eres cliente Estandar" y no solo "Estandar" (20-ago, Sergio): la
+           palabra sola no dice nada, y el cliente no tiene por que adivinar que
+           es una categoria suya. */
+        (n ? '<span class="ep-chip-rango" style="color:' + esc(n.color || '') + '">Eres cliente ' +
+          esc(n.nombre) + '</span>' : '') +
       '</div>' +
 
-      (n ? '<div class="ep-tile" style="margin-bottom:12px">' +
-        '<div class="ep-tile-lbl">Tu progreso</div>' +
-        '<div class="ep-tile-sub">' + (n.siguiente
-          ? (Number(n.progreso) || 0) + '% del camino a ' + esc(n.siguiente)
-          : 'Estás en el nivel más alto') + '</div>' +
-        '<div class="ep-bar" style="margin-top:12px"><i style="width:' + (Number(n.progreso) || 0) + '%;background:' + esc(n.color || '#7C5CFF') + '"></i></div>' +
-      '</div>' : '') +
+      (n ? bloqueNivel(n) : '') +
 
       '<div class="ep-stats">' +
         '<div class="ep-stat"><div class="ep-stat-v">' + ((n && n.pedidos) || (c.pedidos || []).length) + '</div><div class="ep-stat-l">Pedidos</div></div>' +
@@ -2398,6 +2496,17 @@
       '</div>' +
 
       bloqueAvisos() +
+
+      /* TU CUENTA (20-ago). Va despues de las direcciones y antes de cerrar
+         sesion: son los datos que uno viene a tocar de vez en cuando, no en
+         cada visita. */
+      '<div class="ep-tile" style="margin-top:12px">' +
+        '<div class="ep-tile-lbl" style="margin-bottom:8px">Tu cuenta</div>' +
+        '<div class="ep-dato"><span>Nombre</span>' +
+          '<button class="ep-link" data-editar="nombre">' + esc(c.nombre || 'Ponerlo') + ' ·  cambiar</button></div>' +
+        '<div class="ep-dato"><span>Contraseña</span>' +
+          '<button class="ep-link" data-editar="clave">Cambiarla</button></div>' +
+      '</div>' +
 
       '<button class="ep-btn ep-btn--ghost" style="margin-top:16px" data-salir="1">Cerrar sesión</button>';
   }
