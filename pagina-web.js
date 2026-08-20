@@ -670,6 +670,30 @@
       '</section>';
   }
 
+  /* Los sitios a los que puede llevar una imagen. El valor es lo que se guarda
+     en `pos_promos.ir_a` y lo entiende la app por su FORMA: una palabra es una
+     pantalla, "producto:<id>" es un plato, y lo que empiece por http es la web.
+     Asi, el dia que haya un cuarto tipo, no hay que migrar la tabla. */
+  var DESTINOS = [
+    { v: '',          n: 'Nada (la imagen no se puede tocar)' },
+    { v: 'carta',     n: 'La carta' },
+    { v: 'puntos',    n: 'Sus puntos y premios' },
+    { v: 'billetera', n: 'Su billetera' },
+    { v: 'local',     n: 'El local (horarios y dirección)' },
+  ];
+
+  function nombreDestino(v) {
+    var d = String(v || '');
+    if (!d) return '';
+    if (/^https?:\/\//i.test(d)) return 'Un enlace';
+    if (d.indexOf('producto:') === 0) {
+      var p = (S.productos || []).filter(function (x) { return String(x.id) === d.slice(9); })[0];
+      return p ? p.nombre : 'Un producto';
+    }
+    var e = DESTINOS.filter(function (x) { return x.v === d; })[0];
+    return e ? e.n : d;
+  }
+
   function seccionPublicidad() {
     var lista = S.promos || [];
     var cuerpo = lista.length
@@ -677,7 +701,14 @@
           return '<div class="pw-promo' + (p.activo ? '' : ' off') + '">' +
             '<span class="pw-promo-img"' + (p.imagen ? ' style="background-image:url(' + esc(p.imagen) + ')"' : '') + '></span>' +
             '<div class="pw-promo-tx"><b>' + esc(p.titulo || 'Sin título') + '</b>' +
-              '<small>' + (p.activo ? 'Se está mostrando' : 'Apagada') + '</small></div>' +
+              '<small>' + (p.activo ? 'Se está mostrando' : 'Apagada') + '</small>' +
+              /* A DONDE LLEVA (19-ago, pedido de Sergio). No hay boton visible
+                 encima de la imagen: se toca la imagen y ya. El dueNo pone el
+                 arte que quiera —con su propio "Pedir ahora" dibujado— y aqui
+                 solo se dice a donde va ese toque. */
+              '<button class="pw-promo-ir" data-pir="' + i + '">' +
+                (p.ir_a ? '↗ ' + esc(nombreDestino(p.ir_a)) : '+ ¿A dónde lleva?') +
+              '</button></div>' +
             '<div class="pw-promo-btns">' +
               (i > 0 ? '<button class="lm-icon-sm" data-psub="' + i + '" title="Subir">↑</button>' : '') +
               '<button class="lm-icon-sm" data-pver="' + i + '" title="' + (p.activo ? 'Apagar' : 'Encender') + '">' + (p.activo ? '◉' : '○') + '</button>' +
@@ -836,6 +867,9 @@
     });
     document.querySelectorAll('[data-pdel]').forEach(function (b) {
       b.onclick = function () { quitarPromo(Number(b.dataset.pdel)); };
+    });
+    document.querySelectorAll('[data-pir]').forEach(function (b) {
+      b.onclick = function () { modalDestino(Number(b.dataset.pir)); };
     });
     var f = $('pw-promo-file');
     if (f) f.onchange = function () {
@@ -1045,6 +1079,105 @@
     var a = tresPuestos(), t = a[i];
     a[i] = a[i - 1]; a[i - 1] = t;
     await guardar({ web_destacados: a.filter(function (x, n) { return x || n < ultimoLleno(a); }) }, 'Orden cambiado');
+  }
+
+  /* ══ A DONDE LLEVA UNA IMAGEN DEL BANNER ══════════════════════════════════
+     Tres formas de destino en una sola pantalla, porque para el dueNo es UNA
+     decision ("¿que pasa si la tocan?") y partirla en tres botones lo obliga a
+     entender la diferencia antes de elegir. */
+  function modalDestino(i) {
+    var p = (S.promos || [])[i];
+    if (!p) return;
+    var actual = String(p.ir_a || '');
+    var esWeb = /^https?:\/\//i.test(actual);
+    var esProd = actual.indexOf('producto:') === 0;
+
+    abrir('<div class="cc-modal mw-mo">' +
+      cabezaModal('¿A dónde lleva?', 'Cuando alguien toque esta imagen. No aparece ningún botón encima.') +
+      '<div class="mw-mo-body">' +
+        '<div class="pw-lista">' +
+          DESTINOS.map(function (d) {
+            var on = !esWeb && !esProd && actual === d.v;
+            return '<button class="pw-dest' + (on ? ' on' : '') + '" data-dst="' + esc(d.v) + '">' +
+              esc(d.n) + (on ? '<span>✓</span>' : '') + '</button>';
+          }).join('') +
+          '<button class="pw-dest' + (esProd ? ' on' : '') + '" data-dst-prod="1">' +
+            'Un producto de la carta' +
+            (esProd ? '<span>✓ ' + esc(nombreDestino(actual)) + '</span>' : '') +
+          '</button>' +
+        '</div>' +
+        '<label class="pw-campo" style="margin-top:14px"><span>Un enlace de internet</span>' +
+          '<input class="cc-input" id="pw-dst-url" placeholder="https://…" value="' +
+            (esWeb ? esc(actual) : '') + '"></label>' +
+        '<div class="mw-note" style="margin-top:8px"><span>Se abre en otra pestaña, ' +
+          'para no sacar al cliente de su pedido.</span></div>' +
+      '</div>' +
+      '<div class="mw-mo-foot">' +
+        '<button class="lm-btn-ghost" data-cerrar>Cancelar</button>' +
+        '<button class="lm-btn-primary" id="pw-dst-ok">Guardar</button>' +
+      '</div>' +
+    '</div>');
+
+    document.querySelectorAll('[data-dst]').forEach(function (b) {
+      b.onclick = function () { guardarDestino(i, b.dataset.dst); };
+    });
+    var pr = document.querySelector('[data-dst-prod]');
+    if (pr) pr.onclick = function () { S.destinoPara = i; S.buscar = ''; modalDestinoProducto(); };
+
+    $('pw-dst-ok').onclick = function () {
+      var u = ($('pw-dst-url').value || '').trim();
+      if (!u) return guardarDestino(i, '');
+      if (!/^https?:\/\//i.test(u)) u = 'https://' + u.replace(/^\/+/, '');
+      guardarDestino(i, u);
+    };
+  }
+
+  /* Elegir el plato reusa la MISMA lista de productos de los destacados: es la
+     misma pregunta y no hay razon para tener dos buscadores distintos. */
+  function modalDestinoProducto() {
+    abrir('<div class="cc-modal mw-mo">' +
+      cabezaModal('¿Cuál producto?', 'Al tocar la imagen se le abre este plato.') +
+      '<div class="mw-mo-body">' +
+        '<input class="cc-input" id="pw-buscar" placeholder="Busca por nombre…">' +
+        '<div class="pw-lista" id="pw-lista">' + listaProductos() + '</div>' +
+      '</div>' +
+      '<div class="mw-mo-foot"><button class="lm-btn-ghost" data-cerrar>Cancelar</button></div>' +
+    '</div>');
+    var b = $('pw-buscar');
+    b.focus();
+    b.oninput = function () {
+      S.buscar = this.value;
+      $('pw-lista').innerHTML = listaProductos();
+      engancharDestinoProd();
+    };
+    engancharDestinoProd();
+  }
+
+  function engancharDestinoProd() {
+    /* La lista de productos es la MISMA que la de los destacados y marca sus
+       filas con `data-elegir`. Se reusa tal cual: dos listas de lo mismo se
+       separan solas con el tiempo. */
+    document.querySelectorAll('#pw-lista [data-elegir]').forEach(function (b) {
+      b.onclick = function () { guardarDestino(S.destinoPara, 'producto:' + b.dataset.elegir); };
+    });
+  }
+
+  async function guardarDestino(i, valor) {
+    var p = (S.promos || [])[i];
+    if (!p) return;
+    try {
+      var r = await sb().from('pos_promos').update({ ir_a: valor || null }).eq('id', p.id).select('id');
+      /* Se comprueba que de verdad se guardo: un update de cero filas no falla
+         y dejaria la pantalla diciendo que quedo, sin que quedara. */
+      if (r.error || !r.data || !r.data.length) throw (r.error || new Error('no se guardo'));
+      p.ir_a = valor || null;
+      cerrarModal();
+      pintar();
+      toast(valor ? 'Listo, la imagen ya lleva a ese sitio' : 'La imagen ya no se puede tocar');
+    } catch (e) {
+      console.error('[promo destino]', e);
+      toast('No se pudo guardar el destino');
+    }
   }
 
   function modalProducto() {

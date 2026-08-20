@@ -9469,3 +9469,56 @@ cargar. Es literalmente "el mismo modal", no una copia.
 Se borraron `showAperturaModal()` y `confirmarApertura()` del panel (64 lineas).
 No quedan referencias: dejarlas seria dejar el camino viejo listo para que
 alguien lo vuelva a conectar.
+
+---
+
+## 241 — El banner: un solo tamaño, y cada imagen con su destino (19-ago-2026)
+
+### 1. El banner ya no cambia de tamaño
+Se habia hecho al reves esta misma tarde: el cuadro tomaba la forma de CADA
+foto al pasar, para no recortar el arte. En la practica **el banner crecia y
+encogia solo mientras rotaba** y la pagina entera brincaba con el. Sergio:
+*"eso no puede pasar; todas las imagenes deben ajustarse al tamaño de la
+imagen actual"*.
+
+Ahora manda la **primera** foto: se mide una vez al cargar y no se vuelve a
+tocar. Las demas se acomodan a ese cuadro. Se quito la transicion de
+`aspect-ratio` — animar un alto que ya no se mueve no hace falta, y si algun
+dia se moviera esa animacion seria justamente el brinco que se quito.
+
+Se conserva `object-fit: contain`: una foto de otra forma entra **completa**,
+con franjas a los lados, en vez de recortarse. Perder franja es feo; perder el
+precio que el dueNo dibujo en el arte es peor.
+
+### 2. Cada imagen puede llevar a un sitio
+**Sin boton visible**: se toca la imagen y ya. El dueNo pone el arte que quiera
+—con su propio "Pedir ahora" dibujado— y en Configuracion solo dice a donde va
+ese toque.
+
+La columna `pos_promos.ir_a` **ya existia** y `fn_web_promos` ya la devolvia;
+lo que faltaba era pantalla para llenarla y que la app entendiera mas de una
+clase de destino. Ahora son tres, y se distinguen por la **forma del texto**,
+no por un campo aparte — asi el dia que haya un cuarto tipo no hay que migrar
+la tabla:
+
+| Se guarda | Hace |
+|---|---|
+| `carta`, `puntos`, `billetera`, `local` | abre esa pantalla |
+| `producto:<id>` | abre la hoja de ese plato |
+| `https://…` | sale a la web, **en otra pestaña** |
+
+Detalles que costaron pensar:
+- **Se ESPERA a que la carta este pintada** antes de abrir la hoja del plato.
+  Con un temporizador a ojo, en un celular lento la hoja se abria sobre una
+  pantalla que todavia no existia.
+- Si el producto **ya no esta en la carta**, lleva a la carta en vez de no
+  hacer nada: un toque que no responde parece que la pagina esta rota.
+- El enlace externo va en otra pestaña: sacar al cliente a mitad de un pedido
+  seria perderle el carrito.
+- En Configuracion, el boton "¿A donde lleva?" va **debajo del nombre**, no en
+  la fila de iconos de la derecha: esos tres son acciones sobre la imagen
+  (subir, apagar, quitar) y este es un dato de la imagen.
+- La lista de productos del modal **es la misma** de los destacados
+  (`data-elegir`): dos listas de lo mismo se separan solas con el tiempo.
+- `guardarDestino` comprueba las filas afectadas: un update de cero filas no
+  falla y dejaria la pantalla diciendo que guardo sin haber guardado.

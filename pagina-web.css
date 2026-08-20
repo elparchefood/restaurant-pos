@@ -566,3 +566,29 @@ body{margin:0;background:var(--bg);font-family:'DM Sans',system-ui,-apple-system
 }
 .pw-var:hover { background: #e0e6ff; }
 .pw-aviso-btns { display: flex; gap: 8px; }
+
+/* ══ A DONDE LLEVA CADA IMAGEN DEL BANNER (19-ago) ════════════════════════
+   El boton va DEBAJO del nombre de la imagen, no en la fila de iconos de la
+   derecha: esos tres son acciones sobre la imagen (subirla, apagarla,
+   quitarla) y este es un dato de la imagen. Mezclarlos haria que se lea como
+   un cuarto icono y nadie sabria que hace. */
+.pw-promo-ir {
+  display: inline-flex; align-items: center; gap: 4px; margin-top: 5px;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font: 600 11.5px/1.2 inherit; color: #5B6BFF; text-align: left;
+}
+.pw-promo-ir:hover { text-decoration: underline; }
+
+/* Las opciones del modal: una lista de filas grandes, no un desplegable.
+   Son cinco y se leen todas de un golpe; un desplegable las esconde y obliga a
+   abrirlo para saber que hay. */
+.pw-dest {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%; text-align: left; cursor: pointer;
+  background: #fff; border: 1.5px solid #ECEEF2; border-radius: 11px;
+  padding: 11px 13px; margin-bottom: 7px;
+  font: 600 13.5px/1.3 inherit; color: #0F172A;
+}
+.pw-dest:hover { border-color: #C7D2FE; }
+.pw-dest.on { border-color: #5B6BFF; background: #EEF2FF; }
+.pw-dest span { font-size: 12px; font-weight: 700; color: #5B6BFF; white-space: nowrap; }

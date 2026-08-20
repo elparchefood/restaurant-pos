@@ -1587,7 +1587,9 @@ button.ep-pub-foto { cursor: pointer; }
      que el alto pegue un brinco al rotar entre fotos de distinta forma. */
   .ep-pub {
     min-height: 0; aspect-ratio: var(--pub-ar, 1400 / 670);
-    transition: aspect-ratio .45s ease;
+    /* SIN TRANSICION: ya no cambia. La proporcion se fija con la primera foto
+       y se queda; animar un alto que no se mueve no hace falta, y si algun dia
+       se moviera, esa animacion seria justamente el brinco que se quito. */
     /* TOPE PARA LA TABLETA: esta franja llega hasta 899 px de ancho, y ahi la
        proporcion pura daria un banner de 500 px de alto que se come la
        pantalla. En un celular (430 px o menos) el alto natural no pasa de 240,

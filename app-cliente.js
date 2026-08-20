@@ -444,7 +444,7 @@
     asegurarDatosInicio();
 
     document.querySelectorAll('[data-ir]').forEach(function (b) {
-      b.addEventListener('click', function () { irA(b.dataset.ir); });
+      b.addEventListener('click', function () { irADestino(b.dataset.ir); });
     });
     document.querySelectorAll('[data-canje]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -929,6 +929,58 @@
      `data-ir`: tambien el menu de la cuenta, que se pinta al vuelo y por eso
      no pasa por `enganchar`. Copiar estas lineas en el menu habria sido el
      patron que mas caro nos ha salido — dos caminos que se desincronizan. */
+  /* ══ A DONDE LLEVA UN TOQUE ═══════════════════════════════════════════════
+     (19-ago, pedido de Sergio para el banner.) Antes `data-ir` solo sabia de
+     pantallas de la app. Ahora una imagen de publicidad puede llevar a tres
+     sitios distintos, y el destino se guarda como texto en `pos_promos.ir_a`:
+
+       carta | puntos | billetera | perfil | local | inicio  → una pantalla
+       producto:<id>                                          → abre ese plato
+       https://...                                            → sale a la web
+
+     Se decide por la FORMA del texto y no por un campo aparte: asi el dia que
+     haya un cuarto tipo no hay que migrar la tabla.
+
+     Un enlace de afuera se abre en otra pestaNa: sacar al cliente de la pagina
+     a mitad de un pedido seria perderle el carrito. */
+  function irADestino(destino) {
+    var d = String(destino || '').trim();
+    if (!d) return;
+
+    if (/^https?:\/\//i.test(d)) {
+      window.open(d, '_blank', 'noopener');
+      return;
+    }
+
+    if (d.indexOf('producto:') === 0) {
+      var id = d.slice(9);
+      /* La carta puede no estar cargada todavia: se trae y despues se busca.
+         Si el producto ya no existe —lo quitaron de la carta— se lleva a la
+         carta en vez de no hacer nada: un toque que no responde parece que la
+         pagina esta rota. */
+      cargarCarta().then(async function () {
+        for (var ci = 0; ci < (S.carta || []).length; ci++) {
+          var ps = (S.carta[ci] || {}).productos || [];
+          for (var pi = 0; pi < ps.length; pi++) {
+            if (String(ps[pi].id) === id) {
+              /* Se ESPERA a que la carta este pintada antes de abrir la hoja
+                 del plato. Con un temporizador a ojo, en un celular lento la
+                 hoja se abria sobre una pantalla que todavia no existia. */
+              catActiva = ci;
+              if (vista !== 'carta') await irA('carta');
+              abrirPlato(ci, pi);
+              return;
+            }
+          }
+        }
+        irA('carta');
+      });
+      return;
+    }
+
+    irA(d);
+  }
+
   async function irA(k) {
     vista = k;
     // Se trae lo que esa pestaña necesita ANTES de pintarla, para que no
@@ -2613,26 +2665,27 @@
     var fotos = caja.querySelectorAll('.ep-pub-foto');
     var puntos = caja.querySelectorAll('.ep-pub-pt');
 
-    /* EL ALTO DEL BANNER EN EL CELULAR LO MANDA LA FOTO QUE SE ESTA VIENDO
-       (19-ago). En escritorio la tarjeta vive en una rejilla y se estira hasta
-       igualar a sus hermanas: ahi la proporcion sale bien y no se toca. En el
-       celular ocupaba todo el ancho contra un alto fijo, asi que la foto salia
-       RECORTADA — justo el arte que el dueNo diseNo, con su precio y su borde.
+    /* EL BANNER TIENE UN SOLO TAMAÑO (19-ago, correccion de Sergio).
 
-       No sirve una proporcion fija para todas: hoy conviven 1400x670 y
-       1368x813. Con una sola medida, o se recorta una o le quedan franjas a la
-       otra. Asi que el cuadro toma la forma de CADA foto al pasar, con una
-       transicion suave para que el cambio de alto no de un brinco. */
-    function formaDe(k) {
-      var im = fotos[k] && fotos[k].querySelector('img');
+       Antes el cuadro tomaba la forma de CADA foto al pasar: si el dueNo subia
+       una mas alta, el banner crecia y encogia solo mientras rotaba, y toda la
+       pagina brincaba con el. Verlo moverse solo es peor que cualquier franja.
+
+       Ahora manda la PRIMERA foto y las demas se acomodan a ese cuadro. Se
+       mide una sola vez, al cargar, y no se vuelve a tocar. Con `contain` las
+       que tengan otra forma entran completas —no se recorta el arte, que era
+       justo lo que se queria evitar— aunque les queden franjas a los lados.
+       La respuesta de fondo es subirlas todas del mismo tamaNo, y eso ya se
+       dice en la pantalla de configuracion. */
+    function fijarForma() {
+      var im = fotos[0] && fotos[0].querySelector('img');
       if (!im || !im.naturalWidth || !im.naturalHeight) return;
       caja.style.setProperty('--pub-ar', (im.naturalWidth / im.naturalHeight).toFixed(4));
     }
-    /* La primera puede no haber cargado todavia. */
     var prim = fotos[0] && fotos[0].querySelector('img');
     if (prim) {
-      if (prim.complete) formaDe(0);
-      else prim.addEventListener('load', function () { formaDe(0); }, { once: true });
+      if (prim.complete) fijarForma();
+      else prim.addEventListener('load', fijarForma, { once: true });
     }
 
     if (fotos.length < 2) return;
@@ -2642,7 +2695,6 @@
       i = (k + fotos.length) % fotos.length;
       fotos.forEach(function (f, n) { f.classList.toggle('on', n === i); });
       puntos.forEach(function (p, n) { p.classList.toggle('on', n === i); });
-      formaDe(i);
     }
     puntos.forEach(function (p) {
       p.addEventListener('click', function (ev) {
