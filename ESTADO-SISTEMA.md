@@ -10321,3 +10321,35 @@ recuperar al que se fue. "Perdidos" da 0 hoy, y eso es una buena noticia.
 con el filtro de puntos —los mismos 93 que cuenta la vista—, al armar otra vez
 agregó 0 y reportó los 93 ya existentes, y no dejó ningún teléfono repetido.
 Luego los otros cuatro filtros, todos exactos: 106, 2, 1.344 y 55.
+
+### 253b — Escoger la plantilla de una lista (20-ago-2026)
+
+Sergio, viendo su lista nueva: *"ni siquiera me da la opcion de colocar una
+plantilla en la lista, eso lo hiciste tu internamente la primera vez pero no
+existe esa opcion"*. Tenia razon en las dos cosas.
+
+**No habia donde escogerla.** `wcFiltrosActuales()` guardaba el filtro, la
+busqueda y si se excluye la lista negra — pero **no la plantilla**. La unica
+lista que la tenia era la que arme yo desde el servidor, escribiendo el nombre
+a mano en el JSON. Cualquier lista creada desde la pantalla nacia con
+"plantilla —" y sin manera de arreglarlo.
+
+Ahora **cada lista lleva su propio selector** con las plantillas **aprobadas**
+del restaurante. Solo las aprobadas: Meta rechaza el envio con una en revision,
+y ofrecerla seria ofrecer un error seguro. Se guarda al escogerla, asi que la
+proxima vez ya viene puesta.
+
+**Y el boton mentia.** Se apagaba con "Lista completada" cuando no habia
+pendientes — pero una lista **recien creada** tiene cero pendientes porque
+TODAVIA NO SE HA ARMADO, no porque este terminada. Era imposible estrenar una
+lista nueva. Ahora el boton dice lo que de verdad toca:
+
+| Situacion | Que dice |
+|---|---|
+| Sin plantilla escogida | Escoge una plantilla (apagado) |
+| Lista nueva, sin armar | **Armar y enviar** |
+| Con pendientes | Enviar tanda de hoy |
+| Ya se mandaron todos | **Buscar nuevos y enviar** |
+
+El ultimo importa: desde el ultimo envio pueden haber entrado contactos que
+cumplen los filtros, y `fn_wa_armar_lista` solo agrega a los que faltan.

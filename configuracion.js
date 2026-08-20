@@ -3143,8 +3143,41 @@ async function wlCargar() {
     host.innerHTML = '<div class="cfg-empty">No se pudo cargar: ' + (e.message || e) + '</div>';
     return;
   }
+  /* LAS PLANTILLAS APROBADAS (20-ago). Sin esto la lista se quedaba en
+     "plantilla -" y no habia forma de decir QUE se manda. Solo las aprobadas:
+     Meta rechaza el envio con una en revision, y ofrecerla seria ofrecer un
+     error seguro. */
+  try {
+    var rp = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/wa-plantillas', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'list', branch_id: bid }),
+    });
+    var dp = await rp.json();
+    _wlPlantillas = ((dp && dp.items) || []).filter(function (t) {
+      return String(t.estado || t.status || '').toUpperCase() === 'APPROVED';
+    });
+  } catch (e) { _wlPlantillas = []; }
+
   wlRender();
   wlCupo();
+}
+var _wlPlantillas = [];
+
+/* Escoger la plantilla de una lista. Queda guardada en la lista, asi que la
+   proxima vez ya viene puesta. */
+async function wlPlantilla(id, nombre){
+  var L = (_wlListas || []).filter(function (x) { return x.id === id; })[0];
+  if (!L) return;
+  var f = Object.assign({}, L.filtros || {}, { plantilla: nombre });
+  try {
+    var r = await sb.from('pos_wa_listas').update({ filtros: f }).eq('id', id);
+    if (r.error) throw r.error;
+    L.filtros = f;
+    wlRender();
+  } catch (e) {
+    var res = document.getElementById('wlRes-' + id);
+    if (res) res.textContent = 'No se pudo guardar la plantilla: ' + (e.message || e);
+  }
 }
 
 // Cuánto queda del cupo diario de Meta. Se pregunta al servidor porque la
@@ -3175,20 +3208,43 @@ function wlRender() {
   host.innerHTML = _wlListas.map(function (L) {
     var c = L._c || {};
     var pend = c.pendiente || 0, env = c.enviado || 0, fall = c.fallido || 0;
+    var plant = (L.filtros && L.filtros.plantilla) || '';
     var hechos = env + fall + (c.omitido || 0);
     var pct = L._total ? Math.round(hechos / L._total * 100) : 0;
     return '<div class="wl-row">'
       + '<div class="wl-top">'
       +   '<div><div class="wl-nom">' + (L.nombre || 'Lista') + '</div>'
-      +     '<div class="wl-sub">' + (L._total || 0) + ' contactos · plantilla <b>'
-      +       ((L.filtros && L.filtros.plantilla) || '—') + '</b></div></div>'
+      +     '<div class="wl-sub">' + (L._total || 0) + ' contactos'
+      +       (L._total ? '' : ' - se arman al enviar') + '</div>'
+      +     '<div style="margin-top:6px;display:flex;align-items:center;gap:7px;flex-wrap:wrap">'
+      +       '<span style="font-size:11.5px;color:#94A3B8">Plantilla</span>'
+      +       (_wlPlantillas.length
+                ? '<select class="inp" style="padding:5px 8px;font-size:12px;width:auto" '
+                  + 'onchange="wlPlantilla(\'' + L.id + '\', this.value)">'
+                  + '<option value="">Escoge una...</option>'
+                  + _wlPlantillas.map(function (t) {
+                      var n = t.nombre || t.name || '';
+                      return '<option value="' + n + '"' + (n === plant ? ' selected' : '') + '>' + n + '</option>';
+                    }).join('')
+                  + '</select>'
+                : '<span style="font-size:11.5px;color:#DC2626">No tienes plantillas aprobadas todavia</span>')
+      +     '</div></div>'
       +   (L.envio_activo
-            /* Armada: el servidor la esta terminando. El boton pasa a ser
-               el de detener, porque es lo unico que queda por decidir. */
+            /* Armada: el servidor la esta terminando. El boton pasa a ser el
+               de detener, porque es lo unico que queda por decidir. */
             ? '<button type="button" class="cfg-qr-btn ghost" onclick="wlDetener(\'' + L.id + '\')">Detener</button>'
-            : '<button type="button" class="cfg-qr-btn" onclick="wlEnviar(\'' + L.id + '\')" id="wlBtn-' + L.id + '"'
-              + (pend ? '' : ' disabled') + '>'
-              + (pend ? 'Enviar tanda de hoy' : 'Lista completada') + '</button>')
+            /* SIN PLANTILLA NO SE MANDA NADA: primero hay que escogerla. */
+            : !plant
+            ? '<button type="button" class="cfg-qr-btn" disabled>Escoge una plantilla</button>'
+            /* UNA LISTA RECIEN CREADA TIENE 0 PENDIENTES porque todavia no se
+               ha armado, no porque este terminada. Antes salia "Lista
+               completada" con el boton apagado y no habia como estrenarla. */
+            : (pend || !L._total)
+            ? '<button type="button" class="cfg-qr-btn" onclick="wlEnviar(\'' + L.id + '\')" id="wlBtn-' + L.id + '">'
+              + (pend ? 'Enviar tanda de hoy' : 'Armar y enviar') + '</button>'
+            /* Ya se mandaron todos. Se deja volver a armar: desde entonces
+               pueden haber entrado contactos nuevos que cumplen los filtros. */
+            : '<button type="button" class="cfg-qr-btn ghost" onclick="wlEnviar(\'' + L.id + '\')" id="wlBtn-' + L.id + '">Buscar nuevos y enviar</button>')
       + '</div>'
       + '<div class="wl-bar"><i style="width:' + pct + '%"></i></div>'
       + '<div class="wl-nums">'
