@@ -10594,3 +10594,14 @@ Lo que se hizo en `app-cliente.js` (+ un estilo en `app-cliente.css`):
 Instagram-Android y navegador normal): cada caso muestra sus pasos y el caso
 normal quedo identico a como estaba. Los 6 user agents reales tambien pasaron
 por un banco en Node.
+
+**Segunda vuelta (misma noche):** Sergio probo desde Instagram y no salia nada,
+ni en el login ni despues de entrar. Dos causas: (1) el aviso solo se ofrecia
+DESPUES de entrar a la cuenta, y quien llega desde la biografia llega sin
+sesion — ahora, si esta dentro de otra app, el aviso sale tambien en la
+pantalla de entrada (en navegadores normales sigue saliendo solo despues de
+entrar, como lo decidio Sergio); y (2) el `?v=` de cache es por HORA: su Safari
+pidio el archivo con esa marca minutos antes de publicar, el CDN guardo la
+version vieja bajo esa direccion (~10 min) y a Instagram le llego la misma
+copia vieja — por eso tampoco salia tras entrar. Eso se resuelve solo al
+vencer el cache o cambiar la hora.

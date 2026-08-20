@@ -4113,5 +4113,15 @@
       borrarToken();
     }
     pantallaEntrar('', false);
+    /* AQUI FALLABA LO DE INSTAGRAM (20-ago-2026, lo vio Sergio): el aviso de
+       instalar solo se ofrecia DESPUES de entrar a la cuenta — pero quien llega
+       desde la biografia de Instagram llega sin sesion, se queda en el login y
+       nunca ve nada. Justo esa persona es la que hay que sacar al navegador de
+       verdad ANTES de registrarse, porque si se registra dentro de Instagram su
+       sesion queda presa ahi. En navegadores normales se respeta la decision de
+       Sergio de ofrecerlo solo despues de entrar. */
+    if (enAppAjena() && tocaOfrecer()) {
+      setTimeout(function () { if (tocaOfrecer()) pantallaInstalar(false); }, 1200);
+    }
   })();
 })();
