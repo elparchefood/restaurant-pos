@@ -1234,7 +1234,7 @@
       '<span class="ep-pts-big">' + mios + '<small>pts</small></span>' +
       '<div class="ep-pts-tags">' +
         (c.puntos_ultimo ? '<span class="ep-pts-tag">+' + c.puntos_ultimo + ' pts en tu último pedido</span>' : '') +
-        '<span class="ep-pts-note">Ganas 1 punto por cada $1.000 de tus pedidos</span>' +
+        '<span class="ep-pts-note">Redímelos por lo que más te gusta</span>' +
       '</div>' +
       '<span class="ep-pts-gem"></span>' +
     '</div>' +
