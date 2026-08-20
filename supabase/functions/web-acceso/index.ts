@@ -152,6 +152,52 @@ async function canalWhatsApp(tenantId: string) {
    nombre. Si algun dia se crea con otro nombre, se cambia aqui. */
 const PLANTILLA_CODIGO = "acceso_codigo";
 
+/* ══ TERCER ESLABON: EL SMS ═══════════════════════════════════════════════
+   Meta no deja crear la plantilla de autenticacion en esta cuenta (categoria
+   bloqueada; MARKETING y UTILITY si entran, o sea que no es el token ni el
+   pago). Sin plantilla, el codigo por WhatsApp SOLO llega a quien escribio en
+   las ultimas 24 horas — y quien se registra por primera vez casi nunca ha
+   escrito. Sandra Villareal lo intento tres veces en dos dias y nunca entro.
+
+   Mientras Meta desbloquea, el codigo sale por SMS. Va de ULTIMO a proposito:
+   si WhatsApp funciona se usa WhatsApp, que es gratis y es donde el cliente ya
+   esta. El dia que Meta abra la categoria, esto deja de usarse solo — no hay
+   nada que deshacer.
+
+   Sin credenciales configuradas devuelve false y no estorba: la funcion se
+   comporta exactamente como antes. */
+async function mandarPorSms(telefono: string, codigo: string, negocio: string): Promise<boolean> {
+  const sid   = Deno.env.get("TWILIO_SID")   || "";
+  const token = Deno.env.get("TWILIO_TOKEN") || "";
+  const desde = Deno.env.get("TWILIO_FROM")  || "";
+  if (!sid || !token || !desde) return false;
+
+  /* SIN TILDES NI EMOJIS. Un SMS con acentos cambia de codificacion y pasa de
+     160 a 70 caracteres: el mensaje se parte en dos y se cobra doble. */
+  const texto = codigo + " es tu codigo para entrar a " + negocio
+    + ". Vence en " + CODIGO_VIVE_MIN + " minutos. No se lo compartas a nadie.";
+  const form = new URLSearchParams({
+    To: "+57" + telefono,
+    From: desde,
+    Body: texto,
+  });
+  try {
+    const r = await fetch("https://api.twilio.com/2010-04-01/Accounts/" + sid + "/Messages.json", {
+      method: "POST",
+      headers: {
+        "Authorization": "Basic " + btoa(sid + ":" + token),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: form.toString(),
+    });
+    if (r.ok) { console.log("[acceso] codigo enviado por SMS a " + telefono); return true; }
+    console.error("[acceso] SMS rechazado:", (await r.text()).slice(0, 300));
+  } catch (e) {
+    console.error("[acceso] SMS:", String(e).slice(0, 200));
+  }
+  return false;
+}
+
 async function mandarCodigo(tenantId: string, telefono: string, codigo: string, negocio: string) {
   const wa = await canalWhatsApp(tenantId);
   if (!wa) return false;
@@ -193,8 +239,11 @@ async function mandarCodigo(tenantId: string, telefono: string, codigo: string, 
       type: "text", text: { body: cuerpo },
     }),
   });
-  if (!r.ok) console.error("[acceso] Meta rechazo el codigo:", (await r.text()).slice(0, 300));
-  return r.ok;
+  if (r.ok) return true;
+  console.error("[acceso] Meta rechazo el codigo:", (await r.text()).slice(0, 300));
+
+  /* 3. WhatsApp no pudo. Va por SMS. */
+  return await mandarPorSms(telefono, codigo, negocio);
 }
 
 /* EL CLIENTE, BUSCADO COMO SE DEBE (15-ago). Antes se buscaba con

@@ -9138,3 +9138,56 @@ escritas a mano.
 `delay-reply` **v319** en produccion, byte por byte igual a lo que se probo
 (comprobado descargando el cuerpo desplegado). Banco v233. **63 conversaciones
 de prueba borradas** y **cero pedidos creados** — el blindaje del banco aguanto.
+
+---
+
+## 235 — El código de acceso, por SMS mientras Meta desbloquea (19-ago-2026)
+
+### El diagnostico, con pruebas
+Meta niega crear plantillas de categoria **AUTHENTICATION** en esta cuenta.
+Se aislo creando una plantilla de cada categoria con el MISMO token, el mismo
+dia: **MARKETING entro, UTILITY entro, AUTHENTICATION no** (error code 10,
+subcode 2388185). Las dos de prueba se borraron enseguida.
+
+Eso descarta: permisos de la app, token, salud de la cuenta (verificada,
+aprobada, calidad verde), metodo de pago (esta puesto y con historial de
+cobros) y el nombre quemado (con nombres nuevos falla igual). Sergio confirmo
+que **desde la interfaz de Meta da el mismo error**, asi que tampoco es el
+formato de la llamada.
+
+Trampa que costo tiempo: mandando el boton OTP **con texto propio**, Meta
+responde "los botones no pueden contener variables ni emojis" — un error de
+formato que TAPA el de permiso. Solo con el formato correcto sale el error de
+verdad. En las plantillas de autenticacion **el texto del boton lo escribe
+Meta**.
+
+Sin plantilla, el codigo por WhatsApp solo llega a quien escribio en las
+ultimas 24 h. Evidencia real: **Sandra Villareal lo intento 3 veces en 2 dias
+distintos y nunca entro** (ultimo mensaje suyo: 29-jul). Linda Fernandez si
+entro — habia escrito 2 horas antes. De 8 codigos pedidos, 4 usados.
+
+### La decision de Sergio
+No se quita el codigo del registro: *"esa cuenta va a manejar dinero y puntos,
+cualquiera puede poner el numero de otro y no tendriamos como verificarlo"*.
+El codigo se queda y mientras tanto sale por **SMS**.
+
+### Lo hecho
+`mandarPorSms()` en `web-acceso` (v25), como TERCER eslabon de la cadena que ya
+existia: plantilla → texto de WhatsApp → **SMS**. Va de ultimo a proposito: si
+WhatsApp funciona se usa WhatsApp, que es gratis y es donde el cliente ya esta.
+El dia que Meta abra la categoria, el SMS deja de usarse **solo** — no hay nada
+que deshacer.
+
+**Sin las credenciales configuradas devuelve false y no estorba**: hoy la
+funcion se comporta exactamente como antes. Faltan tres secretos:
+`TWILIO_SID`, `TWILIO_TOKEN`, `TWILIO_FROM`.
+
+El texto del SMS va **sin tildes**: con acentos el mensaje cambia de
+codificacion, pasa de 160 a 70 caracteres, se parte en dos y se cobra doble.
+
+### Lo que NO era (correccion)
+El `name_status: AVAILABLE_WITHOUT_REVIEW` del numero **no es una tarea
+pendiente**: significa "aprobado sin necesidad de revision". Se reporto como
+si hubiera que mandarlo a revisar y era falso. El icono amarillo del Centro de
+seguridad es por el **nivel de mensajeria** (TIER_250, el de entrada), que sube
+solo con volumen y calidad — no con un formulario.
