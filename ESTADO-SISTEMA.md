@@ -10134,3 +10134,50 @@ llena el 20% de la via, Premium al 70% llena el 85%, y VIP —el maximo— llena
 100% sin pasarse. La via empieza y termina en el centro exacto de las bolitas de
 los extremos (69 px y 347 px, contra centros en 69 y 347), y ya no queda ni un
 solo elemento `.ep-paso` dentro de la escalera.
+
+### 250 — El inventario descontado por pedidos de julio (20-ago-2026)
+
+Sergio: *"si le pregunto al bot cuantos panes de hamburguesa tenemos me dice que
+1... deberia haber 3"*. Su sospecha era que los pedidos de prueba borrados se
+habian llevado el inventario.
+
+**No fue eso.** Los pedidos de prueba nunca existieron como movimientos: los 7
+movimientos del pan apuntan a pedidos que siguen todos en la base.
+
+**Fue un lote del 19-ago a las 16:13**: 102 movimientos creados EN EL MISMO
+SEGUNDO, descontando por **9 pedidos del 20 y 25 de julio**. Esos pedidos son
+anteriores a que el inventario funcionara —las recetas se cargaron el 23 de
+julio y el primer movimiento real es del 30— asi que nunca debieron tocar las
+existencias. Muy probablemente lo disparo algo que ejecute yo esa tarde
+reponiendo el inventario de las pruebas; no se puede probar desde los datos, lo
+unico que queda es que los 102 nacieron a la vez.
+
+**La prueba de que estaba mal no es la fecha, es el resultado:** dejo dos
+insumos en stock **negativo** (Salsa de ajo −0,144 y Salsa de tomate −0,048).
+Un stock negativo no existe.
+
+Se llevo, entre 18 insumos: 28 quesos, 525 g de carne desmechada, 14 tocinetas,
+500 g de maicitos, 700 g de pollo, 4,5 kg de papa, 38 porciones de salsas y
+**2 panes de hamburguesa** — que es justo lo que Sergio vio.
+
+**La reversion** (`2026-08-20-revertir-descuento-julio.sql`) devolvio los 18
+insumos y marco los 102 movimientos como revertidos, para que no se puedan
+volver a aplicar ni contar dos veces. Los tres contadores dieron 18 / 102 / 18.
+
+**LA TRAMPA, otra vez:** `iv_existencias` tiene `branch_id` en NULL y los
+movimientos SI traen la sede. Cruzarlos por sede no casa ni una fila y el UPDATE
+"funciona" sin cambiar nada — ya paso una vez. Se agrupa solo por insumo y se
+cuentan las filas afectadas.
+
+**Verificado contra la lista que dio Sergio: los 40 renglones cuadran** — 23 de
+comida y 17 bebidas con su bodega y su nevera por separado. Dos ajustes hicieron
+falta ademas de reponer: la salsa de ajo quedo en −0,003 (se dejo en cero) y una
+Coca Cola Personal estaba contada en bodega cuando va en la nevera (el total, 8,
+si estaba bien).
+
+**PENDIENTE, no se toco.** El **Pollo** tiene `buy_unit` = kg con
+`conversion` = 2500: dice que un kilo trae 2.500 gramos. Si eso esta mal, cada
+receta esta descontando 2,5 veces menos pollo del que de verdad se usa. El stock
+(1 kg) coincide con lo que dijo Sergio, asi que el numero esta bien; lo dudoso
+es la conversion. Es dato suyo y hay que preguntarle si compra por kilo o por
+bolsa de 2,5 kg.
