@@ -9774,3 +9774,32 @@ cambiarselo sin mas lo romperia. Ademas **nueve pantallas no tienen menu
 lateral** —Ventas, Caja, Inventario, Domicilios, Configuracion, Pagos,
 Productos, Venta rapida y Chat IA—: al entrar a ellas el menu si desaparece.
 Queda para decidir con Sergio.
+
+### 243c — La ficha se queda quieta y solo baja el historial (20-ago-2026)
+
+Sergio: *"este panel no deberia tener scroll, deberia ser fijo, y tener solo un
+scroll interno para navegar en el historial de pedidos (y si es posible hacer
+todo lo que hay arriba un poco mas pequeño para que haga mas espacio y se
+alcance a ver la mayor cantidad de historial sin dar scroll)"*.
+
+Tenia razon: con la ficha entera scrolleando, para mirar el pedido de hace un
+mes tocaba perder de vista cuanto ha gastado esa persona, que es justo la
+comparacion que uno viene a hacer aqui.
+
+La ficha se partio en tres: **cabecera** y **cifras** quietas, y **el historial**
+como unica parte con barra propia (`.cl-f-cab` / `.cl-f-fijo` / `.cl-f-peds`).
+
+**Y se apreto todo lo de arriba**, porque cada pixel ahorrado es un pedido mas
+visible sin bajar: la cabecera (avatar 46→38, nombre 18→16), las tarjetas de
+cifras (valor 17→15), el bloque de puntos (22→18, barra 9→7) y tambien la
+franja y la barra de repeticion de la pantalla, que son alto que se le quita al
+historial.
+
+**El cambio que mas rindio no fue achicar letras.** Cada pedido gastaba un
+renglon entero solo para el metodo de pago. Se movio debajo del precio, en la
+columna derecha que estaba vacia: el pedido paso de 89 px a **53 px** de alto.
+
+Resultado medido a 1440x900: de **4 pedidos visibles sin bajar a 7**. A
+1280x700 son 4. Verificado ademas que la ficha ya no scrollea nunca, que el
+historial llega hasta el ultimo pedido, y que sigue igual al cambiar de cliente
+y al filtrar.

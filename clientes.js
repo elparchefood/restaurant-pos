@@ -216,7 +216,7 @@
     var c = S.sel;
     if (!c) {
       $('cl-ficha').innerHTML =
-        '<div class="cl-f-body"><div class="cl-vacio">' +
+        '<div class="cl-f-peds"><div class="cl-vacio">' +
         'Toca a una persona de la lista para ver todo lo suyo: cuánto ha gastado, ' +
         'cuántas veces ha vuelto, sus puntos y sus pedidos.</div></div>';
       return;
@@ -242,7 +242,7 @@
             (c.barrio ? '<span>· ' + esc(c.barrio) + '</span>' : '') +
           '</div></div>' +
       '</div>' +
-      '<div class="cl-f-body">' +
+      '<div class="cl-f-fijo">' +
         '<div class="cl-kpis">' +
           kpi('Ha gastado', COP(c.gastado)) +
           kpi('Pedidos', num(p)) +
@@ -262,7 +262,11 @@
           '<div class="cl-pt-b"><i style="width:' + prog + '%"></i></div>' +
           '<div class="cl-pt-s">1 punto por cada $ 1.000 de comida. El domicilio no da puntos.</div>' +
         '</div>' +
-        '<div><div class="cl-sec-t">Sus pedidos</div>' + listaPedidos() + '</div>' +
+      '</div>' +
+      /* El historial es lo unico que se mueve. Arriba queda quieto para poder
+         mirar cuanto ha gastado mientras se baja por sus pedidos. */
+      '<div class="cl-f-peds">' +
+        '<div class="cl-sec-t">Sus pedidos</div>' + listaPedidos() +
       '</div>';
   }
   function kpi(rotulo, valor) {
@@ -287,8 +291,9 @@
                : (o.payment_method || 'sin registrar');
       return '<div class="cl-ped">' +
         '<div><div class="cl-ped-t">' + esc(fechaCorta(o.created_at)) + ' · ' + esc(como) + '</div>' +
-          '<div class="cl-ped-s">' + esc(resumen || 'Sin detalle') + '<br>' + esc(pago) + '</div></div>' +
-        '<div class="cl-ped-v">' + COP(o.total_final != null ? o.total_final : o.total) + '</div>' +
+          '<div class="cl-ped-s">' + esc(resumen || 'Sin detalle') + '</div></div>' +
+        '<div><div class="cl-ped-v">' + COP(o.total_final != null ? o.total_final : o.total) + '</div>' +
+          '<div class="cl-ped-p">' + esc(pago) + '</div></div>' +
       '</div>';
     }).join('') + '</div>';
   }
