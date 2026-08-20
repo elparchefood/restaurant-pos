@@ -9395,3 +9395,42 @@ regla en `getCajaSessionStart()` de `ventas-salon.js`.
 ### Pendiente
 El pedido del **15-ago de $41.000** esta raro: figura `open` y sin metodo de
 pago, pero con $41.000 en `paid_amount`. Puede haberse quedado colgado.
+
+---
+
+## 239 — La app se veia mal en el iPhone 16 Pro (19-ago-2026)
+
+Sergio la instalo en el celular de su mama (iPhone 16 Pro) y **la foto de perfil
+quedaba casi debajo del icono de la bateria**. En su 13 Pro Max se veia bien.
+
+### Por que
+La pagina se pide con `viewport-fit=cover` y la barra de estado en
+`black-translucent`. Las dos cosas juntas significan que **el contenido empieza
+en el borde fisico de la pantalla**, por debajo de la hora, la señal y la
+bateria.
+
+Abajo eso ya se respetaba —`env(safe-area-inset-bottom)` en la barra de
+pestañas y en `--barra-alto`— pero **arriba no se respetaba en ninguna parte**.
+Lo unico que separaba el saludo del borde eran los `20px` fijos de `.ep-saludo`.
+
+Por eso dependia del telefono: cada modelo reserva un alto distinto arriba y el
+del 16 Pro es mas alto que el del 13 Pro Max. Los mismos 20px alcanzaban en uno
+y en el otro no.
+
+### El arreglo
+`padding-top: env(safe-area-inset-top)` en `.ep-scroll` (cubre TODAS las
+pantallas, no solo el inicio) y en `.ep-login`. De paso, `padding-left/right`
+en `.ep-app`: en horizontal la muesca se come un borde u otro segun hacia donde
+se gire.
+
+`env()` vale **0** donde no hay muesca —computador, Android sin notch, Safari
+con su propia barra— asi que no mueve nada donde ya estaba bien.
+
+Va **al final del archivo** a proposito: tiene que ganarle al `padding` corto
+que reescribe la regla de escritorio.
+
+### Lo que NO se pudo probar
+No hay forma de probarlo sin los telefonos. Se simulo reemplazando `env()` por
+los valores que reserva cada modelo (47px y 62px) y se comparo antes/despues:
+con el arreglo, el saludo y la foto quedan por debajo de la barra en los dos.
+**Falta que Sergio lo confirme en el 16 Pro.**

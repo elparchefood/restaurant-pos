@@ -2234,3 +2234,34 @@ html.tema-claro .ep-menu-it.malo { color: #8f2242; }
   font-weight: 800;
   white-space: nowrap;
 }
+
+/* ══ LA ZONA SEGURA DE ARRIBA ═════════════════════════════════════════════
+   (19-ago. En el iPhone 16 Pro de la mamá de Sergio la foto de perfil quedaba
+   casi debajo del icono de la batería; en su 13 Pro Max se veía bien.)
+
+   La página se pide con `viewport-fit=cover` y la barra de estado en
+   `black-translucent`: las dos cosas juntas significan que el contenido
+   EMPIEZA EN EL BORDE FÍSICO de la pantalla, por debajo de la hora, la señal y
+   la batería. Abajo ya se respetaba (`env(safe-area-inset-bottom)` en la barra
+   de pestañas); arriba no se respetaba en ninguna parte.
+
+   Por eso dependía del teléfono: cada modelo reserva un alto distinto, y el
+   del 16 Pro es más alto que el del 13 Pro Max. Los 20px fijos de `.ep-saludo`
+   alcanzaban en uno y en el otro no.
+
+   `env()` vale 0 donde no hay muesca —computador, Android sin notch, Safari
+   con su barra— así que esto no mueve nada donde ya estaba bien. Va al final
+   del archivo a propósito: tiene que ganarle al `padding` corto que reescribe
+   la regla de escritorio. */
+.ep-scroll { padding-top: env(safe-area-inset-top, 0px); }
+
+/* El login no scrollea y va centrado, pero su título puede quedar tapado en
+   una pantalla corta con el teclado abierto. */
+.ep-login { padding-top: calc(34px + env(safe-area-inset-top, 0px)); }
+
+/* Y en horizontal la muesca se come el borde izquierdo o el derecho según
+   hacia dónde se gire el teléfono. */
+.ep-app {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
