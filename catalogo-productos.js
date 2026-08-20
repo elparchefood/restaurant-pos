@@ -151,7 +151,7 @@ async function loadCombos() {
   try {
     const {data,error} = await sb.from('pos_combos').select('*').eq('tenant_id',S.tenantId).order('name');
     if(error||!data) return;
-    S.combos = data.map(c=>({id:c.id,name:c.name,desc:c.description||'',price:c.price||0,active:c.active!==false,photo:c.photo_url||null,items:c.items||[]}));
+    S.combos = data.map(c=>({id:c.id,name:c.name,desc:c.description||'',price:c.price||0,active:c.active!==false,photo:c.photo_url||null,items:c.items||[],medalla:c.medalla||'',medalla_valor:c.medalla_valor||null}));
   } catch(e){}
 }
 async function loadModifierGroups() {
@@ -187,7 +187,11 @@ async function saveCategoryToSupabase(c) {
 }
 async function saveComboToSupabase(c) {
   try {
-    const row={tenant_id:S.tenantId,branch_id:S.branchId,name:c.name,description:c.desc||null,price:c.price||0,active:c.active!==false,photo_url:c.photo||null,items:c.items||[]};
+    /* La medalla se guarda con los MISMOS nombres de columna que en los
+       productos: la pagina del cliente ya sabe pintarlos y no hay por que
+       tener dos maneras de decir lo mismo. El monto solo viaja con la
+       medalla que lo usa. */
+    const row={tenant_id:S.tenantId,branch_id:S.branchId,name:c.name,description:c.desc||null,price:c.price||0,active:c.active!==false,photo_url:c.photo||null,items:c.items||[],medalla:c.medalla||null,medalla_valor:(c.medalla==='ahorras'?(c.medalla_valor||null):null)};
     const isNew=!c.id||c.id.startsWith('c_');
     if(isNew){const {data,error}=await sb.from('pos_combos').insert([row]).select().single();if(error)throw error;return data.id;}
     else{await sb.from('pos_combos').update(row).eq('id',c.id).eq('tenant_id',S.tenantId);return c.id;}
@@ -817,11 +821,16 @@ var MEDALLAS_POS=[
   {v:'solo_hoy',    t:'Solo hoy',    bg:'#B25018', fg:'#FFFFFF'},
   {v:'ahorras',     t:'Ahorras…',    bg:'#1B7D44', fg:'#FFFFFF'},
 ];
-function _medallaPickerHTML(p){
+/* EL MISMO SELECTOR para productos y combos: cambia a quien le avisa, no el
+   dibujo. Dos copias eran la garantia de que un dia se agregara una etiqueta
+   nueva en una y no en la otra. */
+function _medallaPickerHTML(p,quien){
   var act=p.medalla||'';
+  var fn =(quien==='combo')?'setComboMedalla':'setProdMedalla';
+  var fnv=(quien==='combo')?'setComboMedallaValor':'setProdMedallaValor';
   return '<div style="display:flex;gap:9px;flex-wrap:wrap">'+MEDALLAS_POS.map(function(m){
     var on=act===m.v;
-    return '<button onclick="setProdMedalla(\''+m.v+'\')" '+
+    return '<button onclick="'+fn+'(\''+m.v+'\')" '+
       'style="padding:7px 15px;border-radius:999px;cursor:pointer;font:inherit;font-size:12px;font-weight:700;'+
       'background:'+m.bg+';color:'+m.fg+';'+
       'border:2px solid '+(on?'#5B6BFF':'#E2E8F0')+';'+
@@ -833,7 +842,7 @@ function _medallaPickerHTML(p){
     ? '<div style="margin-top:11px;max-width:230px"><span class="field-label">¿Cuánto ahorra?</span>'
       +'<div class="cc-money"><span class="cc-money-sym">$</span>'
       +'<input type="number" min="0" step="500" value="'+(p.medalla_valor||'')+'" placeholder="0" '
-      +'oninput="setProdMedallaValor(parseInt(this.value)||0)"></div>'
+      +'oninput="'+fnv+'(parseInt(this.value)||0)"></div>'
       +'<div style="font-size:11px;color:#94A3B8;margin-top:4px">Sin monto, la medalla no se muestra.</div></div>'
     : '');
 }
@@ -870,7 +879,7 @@ function openEditor(id,type){
     S.overlay='product';renderProductEditor();
   } else {
     const existing=id?S.combos.find(c=>c.id===id):null;
-    S.editCombo=existing?JSON.parse(JSON.stringify(existing)):{id:uid('c'),name:'',desc:'',price:0,active:true,photo:null,items:[],_photoFile:null};
+    S.editCombo=existing?JSON.parse(JSON.stringify(existing)):{id:uid('c'),name:'',desc:'',price:0,active:true,photo:null,items:[],medalla:'',medalla_valor:null,_photoFile:null};
     S.overlay='combo';renderComboEditor();
   }
 }
@@ -888,7 +897,7 @@ function renderProductEditor(){try{
      "vino" de un desplegable sin verlo no le dice nada a nadie.
      "Mas pedido" NO esta aqui a proposito — esa la decide la venta, no el
      dueño; si se pudiera poner a mano dejaria de significar algo. */
-  const medallaHTML=_medallaPickerHTML(p);
+  const medallaHTML=_medallaPickerHTML(p,'producto');
   const photoHTML=p.photo?'<div class="cc-photo-wrap"><img src="'+escHtml(p.photo)+'" alt=""><div class="cc-photo-overlay"><button class="cc-pill-btn" onclick="document.getElementById(\'prod-photo-input\').click()">'+icon('image',13)+' Cambiar</button><button class="cc-pill-btn danger" onclick="clearProdPhoto()">'+icon('trash',13)+' Quitar</button></div></div>':'<div class="cc-drop" ondragover="event.preventDefault();this.classList.add(\'over\')" ondragleave="this.classList.remove(\'over\')" ondrop="handleProdPhotoDrop(event)" onclick="document.getElementById(\'prod-photo-input\').click()"><div class="cc-drop-icon">'+icon('upload',20)+'</div><div style="font-size:13px;font-weight:700;color:#0F172A">Foto del producto</div><div style="font-size:11.5px;color:#94A3B8;margin-top:3px">Arrastra una imagen o <span style="color:#5B6BFF;font-weight:700">búscala en tu equipo</span></div></div><div class="cc-url-row"><span style="color:#94A3B8;display:flex">'+icon('link',14)+'</span><input id="prod-photo-url" placeholder="…o pega un enlace de imagen" style="flex:1;border:none;outline:none;background:transparent;font-family:inherit;font-size:12.5px"><button class="lm-link" onclick="useProdPhotoUrl()">Usar</button></div>';
   openOverlay('<div class="cc-overlay" onmousedown="handleOverlayClose(event)"><aside class="cc-drawer" onmousedown="event.stopPropagation()"><div class="cc-drawer-head"><div style="display:flex;align-items:center;gap:10px"><span class="cc-drawer-glyph" style="color:'+cat.color+';background:'+cat.tint+'">'+icon('box',17)+'</span><div><div class="cc-drawer-eyebrow">'+(isNew?'Nuevo producto':'Editar producto')+'</div><div class="cc-drawer-title" id="ed-prod-title">'+(escHtml(p.name)||'Sin nombre')+'</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div class="cc-drawer-body"><input type="file" id="prod-photo-input" accept="image/*" style="display:none" onchange="handleProdPhotoFile(this)"><input type="file" id="pres-photo-input" accept="image/*" style="display:none" onchange="handlePresPhotoFile(this)">'+photoHTML+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px"><label><span class="field-label">Nombre del producto</span><input class="cc-input" value="'+escHtml(p.name)+'" placeholder="Ej. Premium Mixta" oninput="setProdName(this.value)"></label><label><span class="field-label">Categoría</span><div class="cc-select"><select onchange="setProdCat(this.value)">'+catOptions+'</select><span class="cc-sel-arrow">'+icon('down',14)+'</span></div></label></div><div style="margin-top:12px"><label><span class="field-label">Descripción <span class="hint">· opcional</span></span><textarea class="cc-input" rows="2" placeholder="Ingredientes, detalles…" oninput="setProdDesc(this.value)">'+escHtml(p.desc||'')+'</textarea></label>'+'<div id="base-type-hint" class="base-picker" style="display:none"></div>'+'</div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Presentaciones</div><div class="cc-section-sub">Cada presentación tiene su propio precio. Ej: Personal, Familiar, Para llevar.</div></div><button class="lm-btn-ghost sm" onclick="addPres()">'+icon('plus',13)+' Agregar</button></div><div id="pres-list" style="display:flex;flex-direction:column;gap:8px">'+presRows+'</div></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Variables</div><div class="cc-section-sub">El cliente elige <strong>una</strong> opción por grupo.</div></div><button class="lm-btn-ghost sm" onclick="addVar()">'+icon('plus',13)+' Variable</button></div><div id="var-list">'+varSections+'</div></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Modificadores</div><div class="cc-section-sub">Activa los grupos que aplican a este producto.</div></div><button class="lm-btn-ghost sm" onclick="openModEditorInProduct()">'+icon('plus',13)+' Crear grupo</button></div><div id="mod-list">'+modRows+'</div></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Medalla en tu p\u00e1gina</div><div class="cc-section-sub">Se ve sobre la foto en los destacados de tu p\u00e1gina de clientes. La de <strong>M\u00e1s pedido</strong> se pone sola seg\u00fan tus ventas.</div></div></div>'+medallaHTML+'</div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Cómo se ve en la carta</div><div class="cc-section-sub">Solo afecta tu página de clientes.</div></div></div>'+_cartaTogglesHTML(p)+'</div></div><div class="cc-drawer-foot"><div style="display:flex;flex-direction:column"><span style="font-size:10.5px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Rango de precio</span><span id="ed-price-range" style="font-size:15px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">'+priceRange()+'</span></div><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button><button class="lm-btn-primary" id="save-prod-btn" '+(canSave?'':'disabled')+' onclick="saveProduct()">'+icon('check',14)+' Guardar</button></div></div></aside></div>');
   // Mostrar la base clicable al abrir (antes solo se detectaba al escribir)
@@ -1092,7 +1101,7 @@ function comboListo(){
 function renderComboEditor(){
   const c=S.editCombo,isNew=!S.combos.find(x=>x.id===c.id);
   const photoHTML=c.photo?'<div class="cc-photo-wrap"><img src="'+escHtml(c.photo)+'" alt=""><div class="cc-photo-overlay"><button class="cc-pill-btn" onclick="document.getElementById(\'combo-photo-input\').click()">'+icon('image',13)+' Cambiar</button><button class="cc-pill-btn danger" onclick="clearComboPhoto()">'+icon('trash',13)+' Quitar</button></div></div>':'<div class="cc-drop" onclick="document.getElementById(\'combo-photo-input\').click()"><div class="cc-drop-icon">'+icon('upload',20)+'</div><div style="font-size:13px;font-weight:700;color:#0F172A">Foto del combo</div><div style="font-size:11.5px;color:#94A3B8;margin-top:3px">Arrastra o <span style="color:#5B6BFF;font-weight:700">búscala</span></div></div>';
-  openOverlay('<div class="cc-overlay" onmousedown="handleOverlayClose(event)"><aside class="cc-drawer" onmousedown="event.stopPropagation()"><div class="cc-drawer-head"><div style="display:flex;align-items:center;gap:10px"><span class="cc-drawer-glyph" style="color:#8B5CF6;background:#F5F3FF">'+icon('combo',16)+'</span><div><div class="cc-drawer-eyebrow">'+(isNew?'Nuevo combo':'Editar combo')+'</div><div class="cc-drawer-title">'+(escHtml(c.name)||'Sin nombre')+'</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div class="cc-drawer-body"><input type="file" id="combo-photo-input" accept="image/*" style="display:none" onchange="handleComboPhotoFile(this)">'+photoHTML+'<div style="display:grid;grid-template-columns:1.6fr 1fr;gap:12px;margin-top:18px"><label><span class="field-label">Nombre del combo</span><input class="cc-input" value="'+escHtml(c.name)+'" placeholder="Ej. Combo El Parche x2" oninput="setComboName(this.value)"></label><label><span class="field-label">Precio del combo</span><div class="cc-money"><span class="cc-money-sym">$</span><input type="number" min="0" step="1000" value="'+(c.price||'')+'" placeholder="0" oninput="setComboPrice(parseInt(this.value)||0)"></div></label></div><div style="margin-top:12px"><label><span class="field-label">Descripción <span class="hint">· opcional</span></span><input class="cc-input" value="'+escHtml(c.desc||'')+'" placeholder="Ideal para compartir…" oninput="setComboDesc(this.value)"></label></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Productos incluidos</div><div class="cc-section-sub">Se eligen del catálogo. El combo se cobra al precio de arriba, no a la suma.</div></div><button class="lm-btn-ghost sm" onclick="addComboItem()">'+icon('plus',13)+' Producto</button></div><div id="combo-items">'+comboItemsHTML()+'</div><div id="combo-suma" class="cc-combo-suma">'+comboSumaHTML()+'</div></div></div><div class="cc-drawer-foot"><div style="display:flex;flex-direction:column"><span style="font-size:10.5px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Precio combo</span><span id="combo-price-display" style="font-size:15px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">'+fmt(c.price)+'</span></div><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button><button class="lm-btn-primary" id="save-combo-btn" '+(comboListo()?'':'disabled')+' onclick="saveCombo()">'+icon('check',14)+' Guardar</button></div></div></aside></div>');
+  openOverlay('<div class="cc-overlay" onmousedown="handleOverlayClose(event)"><aside class="cc-drawer" onmousedown="event.stopPropagation()"><div class="cc-drawer-head"><div style="display:flex;align-items:center;gap:10px"><span class="cc-drawer-glyph" style="color:#8B5CF6;background:#F5F3FF">'+icon('combo',16)+'</span><div><div class="cc-drawer-eyebrow">'+(isNew?'Nuevo combo':'Editar combo')+'</div><div class="cc-drawer-title">'+(escHtml(c.name)||'Sin nombre')+'</div></div></div><button class="lm-icon-sm" onclick="closeOverlay()">'+icon('x',15)+'</button></div><div class="cc-drawer-body"><input type="file" id="combo-photo-input" accept="image/*" style="display:none" onchange="handleComboPhotoFile(this)">'+photoHTML+'<div style="display:grid;grid-template-columns:1.6fr 1fr;gap:12px;margin-top:18px"><label><span class="field-label">Nombre del combo</span><input class="cc-input" value="'+escHtml(c.name)+'" placeholder="Ej. Combo El Parche x2" oninput="setComboName(this.value)"></label><label><span class="field-label">Precio del combo</span><div class="cc-money"><span class="cc-money-sym">$</span><input type="number" min="0" step="1000" value="'+(c.price||'')+'" placeholder="0" oninput="setComboPrice(parseInt(this.value)||0)"></div></label></div><div style="margin-top:12px"><label><span class="field-label">Descripción <span class="hint">· opcional</span></span><input class="cc-input" value="'+escHtml(c.desc||'')+'" placeholder="Ideal para compartir…" oninput="setComboDesc(this.value)"></label></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Etiqueta en tu página</div><div class="cc-section-sub">Se ve sobre la foto del combo en tu página de clientes, igual que en los productos. La de <strong>Más pedido</strong> se pone sola según tus ventas.</div></div></div><div id="combo-medalla-box">'+_medallaPickerHTML(c,'combo')+'</div></div><div class="cc-section"><div class="cc-section-head"><div><div class="cc-section-title">Productos incluidos</div><div class="cc-section-sub">Se eligen del catálogo. El combo se cobra al precio de arriba, no a la suma.</div></div><button class="lm-btn-ghost sm" onclick="addComboItem()">'+icon('plus',13)+' Producto</button></div><div id="combo-items">'+comboItemsHTML()+'</div><div id="combo-suma" class="cc-combo-suma">'+comboSumaHTML()+'</div></div></div><div class="cc-drawer-foot"><div style="display:flex;flex-direction:column"><span style="font-size:10.5px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Precio combo</span><span id="combo-price-display" style="font-size:15px;font-weight:800;color:#0F172A;font-variant-numeric:tabular-nums">'+fmt(c.price)+'</span></div><div style="display:flex;gap:8px"><button class="lm-btn-ghost" onclick="closeOverlay()">Cancelar</button><button class="lm-btn-primary" id="save-combo-btn" '+(comboListo()?'':'disabled')+' onclick="saveCombo()">'+icon('check',14)+' Guardar</button></div></div></aside></div>');
 }
 /* Cuanto costaria suelto, para que se vea el descuento que se esta dando. Sin
    esto el dueño pone el precio a ojo y puede terminar vendiendo a perdida. */
@@ -1116,6 +1125,14 @@ function refreshComboItems(){
   updateComboSaveBtn();
 }
 function setComboName(v){S.editCombo.name=v;updateComboSaveBtn();}
+/* Al cambiar de medalla se repinta el selector: el campo del monto de
+   "Ahorras" aparece o desaparece con ella. */
+function setComboMedalla(v){
+  S.editCombo.medalla=v;
+  if(v!=='ahorras') S.editCombo.medalla_valor=null;
+  const c=$('combo-medalla-box'); if(c) c.innerHTML=_medallaPickerHTML(S.editCombo,'combo');
+}
+function setComboMedallaValor(v){ S.editCombo.medalla_valor=v||null; }
 function setComboPrice(v){S.editCombo.price=v;const el=$('combo-price-display');if(el)el.textContent=fmt(v);const su=$('combo-suma');if(su)su.innerHTML=comboSumaHTML();updateComboSaveBtn();}
 function setComboDesc(v){S.editCombo.desc=v;}
 function setComboQty(i,v){const it=S.editCombo.items[i];if(it)it.cantidad=Math.max(1,v);const su=$('combo-suma');if(su)su.innerHTML=comboSumaHTML();}

@@ -10181,3 +10181,38 @@ receta esta descontando 2,5 veces menos pollo del que de verdad se usa. El stock
 (1 kg) coincide con lo que dijo Sergio, asi que el numero esta bien; lo dudoso
 es la conversion. Es dato suyo y hay que preguntarle si compra por kilo o por
 bolsa de 2,5 kg.
+
+### 251 — Los combos también llevan etiqueta (20-ago-2026)
+
+Sergio: *"quiero que en las configuraciones de producto yo pueda colocarle
+también etiquetas a los combos, es decir etiqueta más vendido, picante, etc.,
+las etiquetas que tenemos"*.
+
+Los productos ya tenían `medalla` y `medalla_valor`; los combos no. Se usan los
+**mismos nombres de columna** a propósito: la página del cliente ya sabe pintar
+esos dos campos, así que con que el combo los traiga se dibuja igual. Inventar
+un `etiqueta_combo` habría sido una segunda manera de decir lo mismo.
+
+**Había un cabo suelto de antes.** `fn_web_carta` mandaba los combos con
+`'medalla', null` escrito a mano: la página sabía pintar la etiqueta desde
+siempre, pero al combo nunca se la mandaban. Ahora manda la real.
+
+**El selector es EL MISMO** para productos y combos: `_medallaPickerHTML(p, quien)`
+cambia a quién le avisa —`setProdMedalla` o `setComboMedalla`— y nada más. Dos
+copias del selector eran la garantía de que un día se agregara una etiqueta
+nueva en una y no en la otra.
+
+**"Más pedido" sigue sin poderse poner a mano**, ni en productos ni en combos.
+La pone el sistema con las ventas de verdad; poder ponerla sería poder mentirle
+al cliente. Y **"Ahorras…"** es la única que pide monto: el campo aparece solo
+cuando se escoge, y el monto solo se guarda con ella.
+
+**Comprobado.** En la base: se le puso `picante` a un combo y `fn_web_carta` lo
+devolvió con su etiqueta, mientras los otros dos siguieron en `null` (se dejó
+todo en limpio después). Y la lógica del selector, corrida aparte: para producto
+llama a `setProdMedalla` y para combo a `setComboMedalla`, con las mismas 8
+etiquetas en los dos, el campo del monto solo con "Ahorras" y precargado.
+
+No se pudo probar la pantalla en el navegador: el catálogo exige sesión y PIN, y
+el banco no logró pasar las dos guardas. Queda para que Sergio abra el editor de
+un combo y lo vea.
