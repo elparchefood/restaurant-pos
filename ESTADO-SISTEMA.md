@@ -10395,3 +10395,40 @@ fichas, el mesero podría elegir la equivocada y el pedido no aparecería. Se
 buscó: **cero teléfonos con fichas duplicadas**. Los tres "Sergio" tienen
 números distintos, así que no aplica. Por eso NO se cambió la búsqueda a
 teléfono: habría sido más código para resolver un problema que no existe.
+
+### 255 — El historial anterior al registro: también ya funcionaba (20-ago-2026)
+
+Sergio: *"en el momento que el cliente se registre y entre en la app por primera
+vez ya deben aparecer sus puntos... pero también debe aparecer su historial
+incluso si ese historial sucedió antes de que el cliente se registrara"*.
+
+**Ya funciona, y se comprobó con una clienta de verdad.** La consulta del
+historial es `pos_orders?cliente_id=eq.X&status=neq.cancelled&order=created_at.desc`:
+**no tiene filtro de fecha**, así que trae lo de antes y lo de después del
+registro por igual.
+
+La razón de fondo es cómo se registra alguien: `crear-cuenta` **enlaza con la
+ficha que ya existe** para ese teléfono en vez de crear una nueva ("enlazar o
+crear — la misma operación"). Al enlazarse hereda todo: puntos, nivel, historial
+y direcciones.
+
+**La prueba.** Se abrió una sesión de diagnóstico para **Vilma Ortiz**, que
+tiene 3 pedidos desde el 26 de julio y **no está registrada** — justo el caso
+que describe Sergio. Si se registrara hoy, su app le mostraría:
+
+- **286 puntos** y su nivel;
+- sus **3 pedidos**, del 16-ago, 2-ago y 26-jul, con qué pidió, cuánto y los
+  puntos que ganó en cada uno.
+
+La sesión se borró al terminar.
+
+**Un número, una ficha — está garantizado por la base**, no por buena voluntad:
+`ux_clientes_tel` es un índice ÚNICO sobre (restaurante, últimos 10 dígitos del
+teléfono). No se pueden crear dos fichas con el mismo número aunque uno venga
+con indicativo y el otro sin él. Y las direcciones se acumulan dentro de la
+ficha: Isabel tiene 4, Cameron 3.
+
+**Lo único que conviene saber: el historial trae los últimos 8 pedidos.** Hoy el
+cliente con más tiene 5, así que nadie lo nota. Cuando alguien pase de 8 verá
+solo los últimos ocho. Se deja anotado para subirlo cuando Sergio quiera; no se
+cambió porque no lo pidió y afecta cuánto se descarga en cada visita.
