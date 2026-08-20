@@ -151,6 +151,26 @@
 
   /* Los primeros pasos de una cuenta nueva. Sin fecha: son estado, no evento.
      En cuanto el paso se cumple, desaparece de aquí solito. */
+  /* AVISOS DEL SISTEMA (19-ago, pedido de Sergio). Hoy solo hay uno —el saldo
+     de los SMS— pero la tabla es generica: el proximo entra sin tocar nada de
+     aqui. Los escribe `revisar-saldo-sms` por cron, no el navegador: el saldo
+     de Twilio se lee con credenciales que no pueden vivir en el front. */
+  async function fuenteSistema() {
+    var s = sb(); if (!s || !st().tenantId) return [];
+    try {
+      var r = await s.from('pos_avisos_sistema')
+        .select('clave,titulo,sub,urgente,ir,updated_at')
+        .eq('tenant_id', st().tenantId);
+      return (r.data || []).map(function (a) {
+        return {
+          id: 'sys-' + a.clave, tipo: 'sistema',
+          titulo: esc(a.titulo || ''), sub: esc(a.sub || ''),
+          cuando: a.updated_at, ir: a.ir || '', urgente: a.urgente === true,
+        };
+      });
+    } catch (e) { return []; }
+  }
+
   async function fuentePrimerosPasos() {
     var s = sb(); if (!s) return [];
     var items = [];
@@ -224,7 +244,12 @@
         /* El barrio se resuelve en un modal aqui mismo; los demas avisos siguen
            llevando a su pantalla. */
         if (it && it.barrio) { cerrarPanel(); modalBarrio(it.barrio); return; }
-        if (b.dataset.ir) w.location.href = b.dataset.ir;
+        if (!b.dataset.ir) return;
+        /* Un enlace de AFUERA (la consola de Twilio) se abre aparte: sacar al
+           dueNo del panel para volver a entrar es una molestia, y si estaba a
+           mitad de algo lo pierde. */
+        if (/^https?:/i.test(b.dataset.ir)) w.open(b.dataset.ir, '_blank', 'noopener');
+        else w.location.href = b.dataset.ir;
       });
     });
   }
@@ -412,7 +437,7 @@
        lo unico que de verdad hay que atender— en su propia pantalla, Clientes,
        que es donde se aprueban. `fuenteRecargas` se deja escrita por si algun
        dia se quiere volver a colgar. */
-    var listas = await Promise.allSettled([fuenteBarrios(), fuentePrimerosPasos()]);
+    var listas = await Promise.allSettled([fuenteSistema(), fuenteBarrios(), fuentePrimerosPasos()]);
     _items = [];
     listas.forEach(function (r) { if (r.status === 'fulfilled') _items = _items.concat(r.value); });
     /* Lo urgente arriba; lo demás por fecha; los pasos van en su propio grupo. */

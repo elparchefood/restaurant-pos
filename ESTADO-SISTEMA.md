@@ -9248,3 +9248,38 @@ En iPhone el autocompletado sigue funcionando igual: ahi lo resuelve el
 
 Comprobado con las dos formas: con `otp:true` llega con el renglon, con
 `otp:false` llega limpio. Las dos entregadas.
+
+---
+
+## 236 — Aviso en la campanita cuando se acabe el saldo de los SMS (19-ago-2026)
+
+Sergio: *"¿puedes avisarme cuando esté por agotarse el saldo de Twilio y mandar
+una notificación a la campanita?"*. Hace falta: los codigos de acceso salen por
+SMS mientras Meta no habilite la plantilla, y **si el saldo llega a cero dejan
+de salir sin avisar** — ningun cliente nuevo se podria registrar. Es el agujero
+que acabamos de tapar, entrando por otra puerta.
+
+### Como quedo
+- **`pos_avisos_sistema`** — tabla generica a proposito (`clave`), no
+  "avisos_de_twilio": el proximo aviso del sistema entra sin tocar la campana.
+  RLS por `current_tenant_id()`, y los `GRANT` puestos **a mano** (una tabla
+  creada por la API de administracion no otorga nada y la funcion se queda con
+  403 en silencio — leccion del mismo dia).
+- **`revisar-saldo-sms` v1** — lee el saldo de Twilio con las credenciales del
+  servidor (no pueden vivir en el navegador) y pone o quita el aviso. **Si el
+  saldo se repone, el aviso se va solo**: nadie tiene que cerrarlo.
+- **Cron `vigilar-saldo-sms`** — todos los dias a las 9 a.m. de Colombia.
+- **`fuenteSistema()`** en `pos-notifs.js`, colgada junto a las otras dos.
+
+### Decisiones
+- **Se avisa en CODIGOS, no en dolares.** "Quedan unos 40 códigos" se entiende
+  de una; "quedan 2 dólares" hay que traducirlo mentalmente. Umbrales de
+  arranque: aviso bajo US$5 (~75 codigos), urgente bajo US$2.
+- **Solo a quien usa la pagina de clientes** (`web_activa`). La cuenta de
+  Twilio es una sola para todo Cobra; a quien no manda SMS este aviso no le
+  dice nada.
+- **El enlace externo abre en otra pestaNa.** Mandar al dueNo a la consola de
+  Twilio dentro de la misma ventana le hace perder lo que estuviera haciendo.
+
+Probado en los dos sentidos: se metio un aviso a mano y aparecio; se corrio la
+funcion con el saldo sano ($18,85 = ~377 codigos) y lo borro sola.
