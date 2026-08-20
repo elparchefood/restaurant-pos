@@ -10530,3 +10530,33 @@ a mano y no el id.
 Sergio, el barrido lo tomó (`enviados: 1`), el movimiento quedó marcado
 `enviado`, y el push salió a sus **2 dispositivos**. El punto de prueba se
 revirtió: quedó en los 1.000 que tenía.
+
+### 258 — "Calculando" no es lo mismo que "no lo conozco" (20-ago-2026)
+
+Sergio: *"mientras la aplicación analiza cuánto cuesta el domicilio está
+saliendo el letrero de siempre... ese letrero debería salir exclusivamente para
+un cliente que de verdad no conozcamos el barrio. De resto se debería quedar
+cargando y luego aparecer."*
+
+**Es el mismo error de esta mañana, visto desde el otro lado.** Entonces el
+letrero salía porque la app mandaba mal el barrio; ahora salía porque la
+pantalla **solo distinguía dos estados** donde hay tres:
+
+| | Antes | Ahora |
+|---|---|---|
+| La cuenta no ha llegado | "no sabemos cuánto vale" | **calculando…** |
+| Llegó y el barrio no está | "no sabemos cuánto vale" | "lo pagas al recibir" + el letrero |
+| Llegó con su precio | $5.000 | $5.000 |
+
+La condición era `domicilio <= 0`, y mientras el servidor responde el domicilio
+vale cero — así que durante ese segundo el cliente leía que no conocemos su
+barrio aunque estuviera en la tabla desde siempre.
+
+**El dato ya venía; nadie lo miraba.** `web-pedido` devuelve `barrio_conocido`
+en la cuenta previa desde que se hizo. Ahora la pantalla pregunta por él en vez
+de deducirlo de un cero, que puede significar dos cosas distintas.
+
+**Comprobado con el servidor tardando 2,5 segundos a propósito**, en los dos
+casos: con barrio conocido pasa de "calculando…" a "$5.000" y el letrero no
+aparece nunca; con barrio desconocido pasa de "calculando…" a "lo pagas al
+recibir" y ahí sí sale el letrero.

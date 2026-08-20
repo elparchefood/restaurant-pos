@@ -3737,6 +3737,17 @@
        llega (o si falla la conexion) se muestra lo que se sabe. */
     var cta = (S.cuenta && S.cuenta.firma === firmaCuenta()) ? S.cuenta.datos : null;
     if (!cta) pedirCuenta();
+    /* TRES ESTADOS, NO DOS (20-ago, Sergio). Antes solo se miraba si el
+       domicilio valia mas de cero, y mientras la cuenta venia en camino eso
+       daba cero — asi que al cliente le salia "no sabemos cuanto vale" durante
+       el segundo que tarda el servidor, aunque su barrio estuviera en la tabla
+       de siempre. Son tres cosas distintas:
+         · todavia no se     → la cuenta no ha llegado
+         · no se conoce      → llego, y el servidor dice que ese barrio no esta
+         · se conoce         → llego con su precio
+       El servidor ya mandaba `barrio_conocido`; solo que nadie lo miraba. */
+    var calculando = !cta;
+    var barrioRaro = !!cta && cta.barrio_conocido === false;
     var empaque = cta ? Number(cta.empaque) || 0 : 0;
     var domiCta = cta ? Number(cta.domicilio) || 0 : 0;
     var totalCta = cta ? Number(cta.total) || 0 : sub;
@@ -3790,7 +3801,9 @@
           : '') +
         (entrega === 'domicilio'
           ? '<div class="ep-total-fila"><span style="color:var(--sub)">Domicilio</span><span' +
-            (domiCta > 0 ? '>' + COP(domiCta) : ' style="color:var(--oro-tx)">lo pagas al recibir') + '</span></div>'
+            (calculando ? ' style="color:var(--dim)">calculando…'
+             : domiCta > 0 ? '>' + COP(domiCta)
+             : ' style="color:var(--oro-tx)">lo pagas al recibir') + '</span></div>'
           : '') +
         '<div class="ep-total-fila grande"><span>Total</span><b>' + COP(totalCta) + '</b></div>' +
         /* EL AHORRO DEL COMBO, donde el cliente esta mirando la plata (19-ago,
@@ -3805,7 +3818,7 @@
            precio: paga su comida ahora y el domicilio se lo cobran al
            entregarle. Decirlo aqui, antes de pagar, es lo que evita el reclamo
            de "me cobraron algo que no estaba en el total". */
-        (entrega === 'domicilio' && domiCta <= 0
+        (entrega === 'domicilio' && barrioRaro
           ? '<div class="ep-domi-luego">🛵 Todavía no tenemos el precio del domicilio para tu dirección. ' +
             '<b>Pagas ahora solo tu pedido</b> y el domicilio se lo pagas al domiciliario cuando te llegue.</div>'
           : '') +
