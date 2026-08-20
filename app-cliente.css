@@ -2301,3 +2301,7 @@ html.tema-claro .ep-menu-it.malo { color: #8f2242; }
 .ep-block-n {font-size:11.5px;color:var(--dim);font-weight:600}
 
 @media (prefers-reduced-motion:reduce){ .ep-chev {transition:none} }
+
+/* El enlace de escape del formulario ("No la recuerdo"). Debajo de los campos y
+   arriba de los botones: es una salida, no la accion principal. */
+.ep-preg-link { display:block; margin:-2px 0 12px; font-size:12.5px; }

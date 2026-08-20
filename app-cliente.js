@@ -2228,6 +2228,10 @@
               'maxlength="' + (c.max || 160) + '" ' +
               'placeholder="' + esc(c.placeholder || '') + '" value="' + esc(c.valor || '') + '"></label>';
           }).join('') +
+          /* Una salida distinta a "aceptar" o "cancelar" — hoy, "olvide mi
+             contrasena". Va DEBAJO de los botones y como enlace, para que no
+             compita con la accion principal. */
+          (o.link ? '<button class="ep-link ep-preg-link" type="button">' + esc(o.link.texto) + '</button>' : '') +
           '<div class="ep-preg-btns">' +
             '<button class="ep-btn ep-btn--ghost ep-preg-no" type="button">' + esc(o.cancelar || 'Cancelar') + '</button>' +
             '<button class="ep-btn gold big ep-preg-si" type="button">' + esc(o.ok || 'Guardar') + '</button>' +
@@ -2259,6 +2263,12 @@
       function porTecla(e) {
         if (e.key === 'Escape') cerrar(null);
         if (e.key === 'Enter') { e.preventDefault(); aceptar(); }
+      }
+      if (o.link) {
+        cap.querySelector('.ep-preg-link').addEventListener('click', function () {
+          cerrar(null);
+          o.link.al();
+        });
       }
       cap.querySelector('.ep-preg-si').addEventListener('click', aceptar);
       cap.querySelector('.ep-preg-no').addEventListener('click', function () { cerrar(null); });
@@ -2309,6 +2319,7 @@
         { clave: 'nueva',  label: 'La nueva', tipo: 'password', minimo: 6, max: 80,
           placeholder: 'Mínimo 6 caracteres' },
       ],
+      link: { texto: 'No la recuerdo', al: olvideClave },
     });
     if (!r) return;
     try {
@@ -2320,6 +2331,27 @@
       if (!d.ok) { aviso(d.mensaje || 'No se pudo cambiar la contraseña.', 'mal'); return; }
       aviso('Tu contraseña quedó cambiada', 'bien');
     } catch (e) { aviso('No se pudo cambiar la contraseña.', 'mal'); }
+  }
+
+  /* ── "NO LA RECUERDO" (20-ago, Sergio) ───────────────────────────────
+     Quien no se acuerda de su contrasena se quedaba encerrado: el unico camino
+     para recuperarla estaba en la pantalla de ENTRAR, y a esa no llega quien ya
+     tiene la sesion abierta. Tendria que cerrar sesion a proposito para poder
+     recuperar su clave, que es justo lo que nadie se le ocurre.
+
+     No se inventa nada nuevo: se reusa el MISMO camino de siempre —codigo al
+     celular, verificar, escribir la clave nueva—, que ya se autocompleta solo
+     en Android y en iPhone. Al terminar queda con sesion abierta y la clave
+     cambiada, sin haber tenido que recordar la anterior. */
+  async function olvideClave() {
+    var c = S.cliente || {};
+    var tel = String(c.telefono || '').replace(/[^0-9]/g, '').slice(-10);
+    if (tel.length !== 10) {
+      aviso('No tenemos tu celular guardado. Escríbenos y lo arreglamos.', 'mal');
+      return;
+    }
+    S.tel = tel;
+    await pedirCodigo(tel, 'Te mandamos un código a tu celular. Escríbelo y creas tu contraseña nueva, sin necesidad de la anterior.');
   }
 
   async function guardarFoto(archivo) {

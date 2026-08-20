@@ -9980,3 +9980,31 @@ restaurados.
 
 En el banco se verificaron ademas los cinco tramos del nivel, el color del
 boton de la foto y los dos modales.
+
+### 246b — "No la recuerdo", desde adentro (20-ago-2026)
+
+Sergio: *"quiero que aqui si la persona no recuerda la contraseña actual pueda
+cambiarla de igual manera con un boton olvide mi contraseña"*.
+
+**El camino ya existia entero — pero solo desde AFUERA.** Pedir codigo,
+verificarlo y escribir una clave nueva es exactamente lo que hace el "olvide mi
+contraseña" de la pantalla de entrar, y esa accion **actualiza el `pass_hash`
+si el cliente ya tenia credencial**: o sea ya era un cambio de contraseña.
+
+Lo que faltaba era el acceso. Quien ya tiene la sesion abierta no llega nunca a
+la pantalla de entrar: tendria que **cerrar sesion a proposito** para poder
+recuperar su clave, que es justo lo que a nadie se le ocurre. Se quedaba
+encerrado en un modal que le pedia el dato que no tiene.
+
+Ahora el modal lleva un enlace **"No la recuerdo"** que arranca el mismo camino
+de siempre con su telefono ya puesto. No se invento nada: se reusa codigo que
+lleva dias en produccion, con su autocompletado de SMS incluido.
+
+`preguntar()` aprendio a llevar un enlace de escape (`o.link`), debajo de los
+campos y arriba de los botones — es una salida, no la accion principal.
+
+**Comprobado el ida y vuelta completo** en el banco: el enlace manda
+`pedir-codigo` con el celular del cliente y `otp:true`, sale la pantalla del
+codigo, al escribirlo aparece *"¡Hola de nuevo, Sergio! Escribe tu contraseña
+nueva y entras"* con **solo dos campos de clave — nunca se le pide la
+anterior**, y al guardar vuelve al Perfil con la sesion abierta.
