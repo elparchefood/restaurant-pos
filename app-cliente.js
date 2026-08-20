@@ -446,6 +446,16 @@
     document.querySelectorAll('[data-ir]').forEach(function (b) {
       b.addEventListener('click', function () { irADestino(b.dataset.ir); });
     });
+    document.querySelectorAll('[data-esc]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var t = b.dataset.esc.split(':');
+        /* Tocar el que ya esta abierto lo cierra: -1 en vez de borrar la clave,
+           porque `undefined` significa "todavia no ha escogido" y volveria a
+           abrir el de siempre. */
+        escalonAbierto[t[0]] = (escalonAbierto[t[0]] === Number(t[1])) ? -1 : Number(t[1]);
+        pantallaDentro();
+      });
+    });
     document.querySelectorAll('[data-canje]').forEach(function (b) {
       b.addEventListener('click', function () {
         var k = (S.catalogo || []).filter(function (x) { return String(x.id) === b.dataset.canje; })[0];
@@ -1295,14 +1305,73 @@
       '</div>';
     }
 
-    function grupo(titulo, g) {
+    /* LA IMAGEN DEL ESCALON (20-ago, idea de Sergio). No una cualquiera: la del
+       premio MAS CARO del grupo que tenga foto — es el mas apetecible y el que
+       da ganas de abrir. Y es SIEMPRE la misma: una que cambiara sola haria
+       sentir la pantalla rota. Si ninguno tiene foto queda el icono de regalo,
+       que es lo que se ve hoy en cada fila. */
+    function caratula(g2) {
+      var conFoto = g2.filter(function (x) { return x.k.foto; })
+                      .sort(function (a, b) { return (b.k.puntos || 0) - (a.k.puntos || 0); });
+      return conFoto.length
+        ? '<span class="ep-esc-ic"><img src="' + esc(conFoto[0].k.foto) + '" alt=""></span>'
+        : '<span class="ep-esc-ic vacia">' + ico('gift', 18) + '</span>';
+    }
+
+    /* POR ESCALONES, NO POR CATEGORIA (20-ago). La pregunta que trae el cliente
+       es "que me alcanza", no "que bebidas hay": el titulo del grupo se la
+       contesta antes de leer una sola tarjeta. Y sobre todo, la lista deja de
+       crecer: con cuarenta premios siguen siendo seis o siete renglones. */
+    function escalones(clave, g) {
+      var mapa = {}, orden = [];
+      g.forEach(function (it) {
+        var p = Number(it.k.puntos) || 0;
+        if (!mapa[p]) { mapa[p] = []; orden.push(p); }
+        mapa[p].push(it);
+      });
+      /* Un solo escalon no se pliega: un desplegable para una sola cosa es un
+         clic de mas y esconde justo lo que hay que ver. */
+      if (orden.length <= 1) return g.map(fila).join('');
+
+      if (escalonAbierto[clave] === undefined) {
+        /* En los que YA alcanza se abre el mas caro —su mejor premio—; en los
+           demas el mas barato, que es el que va a lograr primero. */
+        escalonAbierto[clave] = (clave === 'listos') ? orden[orden.length - 1] : orden[0];
+      }
+
+      return orden.map(function (pts) {
+        var g2 = mapa[pts], on = escalonAbierto[clave] === pts;
+        var alcanza = g2[0].falta === 0;
+        return '<div class="ep-esc' + (on ? ' abierto' : '') + '">' +
+          '<button class="ep-esc-h" data-esc="' + clave + ':' + pts + '">' +
+            caratula(g2) +
+            '<span class="ep-esc-pts">Con ' + pts + ' pts</span>' +
+            '<span class="ep-esc-n">' + g2.length + (g2.length === 1 ? ' premio' : ' premios') + '</span>' +
+            '<span class="ep-esc-est">' +
+              (alcanza
+                ? '<span class="ep-esc-tag ok">Ya te alcanza</span>'
+                : '<span class="ep-esc-tag">Te faltan ' + g2[0].falta + '</span>') +
+              '<svg class="ep-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+                'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' +
+                '<polyline points="6 9 12 15 18 9"/></svg>' +
+            '</span>' +
+          '</button>' +
+          '<div class="ep-esc-body">' + g2.map(fila).join('') + '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    function grupo(titulo, clave, g) {
       if (!g.length) return '';   // un titulo sin nada debajo solo estorba
-      return '<div class="ep-block"><div class="ep-block-h"><h3>' + titulo + '</h3></div>' +
-        g.map(fila).join('') + '</div>';
+      return '<div class="ep-block"><div class="ep-block-h"><h3>' + titulo + '</h3>' +
+        '<span class="ep-block-n">' + g.length + (g.length === 1 ? ' premio' : ' premios') + '</span></div>' +
+        escalones(clave, g) + '</div>';
     }
 
     var lista = cat.length
-      ? grupo('Ya puedes pedir', listos) + grupo('Te falta poco', cerca) + grupo('Para ir juntando', lejos)
+      ? grupo('Ya puedes pedir', 'listos', listos) +
+        grupo('Te falta poco', 'cerca', cerca) +
+        grupo('Para ir juntando', 'lejos', lejos)
       : '<div class="ep-vacio">Todavía no hay premios para canjear. Sigue sumando puntos.</div>';
 
     /* Como se redime: en Cobra lo aplica el restaurante al cobrar, no se manda
@@ -3329,6 +3398,10 @@
 
   // ── Pantalla del pedido ─────────────────────────────────────────────
   var entrega = 'recoger';
+  /* QUE ESCALON DE PREMIOS ESTA ABIERTO, por bloque. Fuera del pintado:
+     `pantallaDentro()` rearma el HTML entero y si viviera dentro se cerraria
+     solo cada vez que el cliente toca cualquier cosa. */
+  var escalonAbierto = {};
   /* EL BARRIO QUE EL CLIENTE TECLEA (20-ago). El campo se repintaba con
      `value=""` en cada pasada, asi que lo escrito se perdia y la pantalla
      volvia a preguntar la cuenta SIN barrio: el servidor devolvia $5.000 y

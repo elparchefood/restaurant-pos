@@ -9861,3 +9861,56 @@ pedido creado: `previo:true` calcula pero no escribe.
 **La regla que deja esto:** el estado de la pantalla no se guarda en el DOM. Un
 `$('...')` leido durante el armado del HTML devuelve la pantalla ANTERIOR, y de
 ahi salieron los tres fallos.
+
+### 245 — Los premios, por escalones de puntos (20-ago-2026)
+
+Sergio: *"proponme como organizar mejor la lista de premios, entre mas premios
+meto se convierte en una lista infinita dificil de visualizar"*. Y despues,
+sobre la maqueta: *"que cada salsa se vea aparte"* y *"me encantaria que cada
+desplegable tenga una imagen"*.
+
+**Cada premio sigue siendo su propia tarjeta.** No se junto ni se escondio
+ninguno: se propuso colapsar las cinco salsas en una sola y Sergio lo rechazo.
+Lo unico que cambia es como se agrupan.
+
+**Por lo que cuestan, no por categoria de comida.** La pregunta que trae el
+cliente es "que me alcanza", no "que bebidas hay": el titulo del grupo se la
+contesta antes de leer una sola tarjeta. Con los 11 premios de hoy, la pantalla
+pasa de **11 tarjetas seguidas a 6 renglones**:
+
+    Con 100 pts · 5 premios      Con 400 pts   · 1 premio
+    Con 200 pts · 2 premios      Con 1.000 pts · 1 premio
+    Con 300 pts · 1 premio       Con 1.500 pts · 1 premio
+
+Y deja de crecer: con cuarenta premios siguen siendo seis o siete renglones.
+
+**Cual nace abierto.** En "Ya puedes pedir", el escalon MAS CARO que alcanza —su
+mejor premio disponible—; en los otros dos bloques, el mas barato, que es el que
+va a lograr primero. Tocar el que ya esta abierto lo cierra.
+
+**Un escalon solo no se pliega.** Un desplegable para una sola cosa es un clic
+de mas y esconde justo lo que hay que ver.
+
+**La imagen del escalon: la del premio mas caro del grupo que tenga foto.** No
+"una cualquiera" como se planteo al principio, y sobre todo no al azar: una
+imagen que cambie sola hace sentir la pantalla rota. Es el premio mas apetecible
+y es siempre la misma. Sin fotos en el grupo, queda el icono de regalo de hoy.
+
+**Lo que se comprobo con los 11 premios reales**, en el banco:
+
+| Puntos | Que se ve |
+|---|---|
+| 0 | un bloque, 6 escalones, abierto el de 100 |
+| 450 | "Ya puedes pedir" con 4 escalones (abierto el de 400) y "Para ir juntando" con 2 (abierto el de 1.000), 9 botones de Pedirlo |
+| 1.200 | 5 escalones arriba (abierto el de 1.000) y "Te falta poco" **plano**, con un solo premio |
+
+Tambien que abrir y cerrar deja siempre uno solo abierto, y que las fotos
+cargan.
+
+**Lo unico que queda gris son las salsas**, porque el producto "Salsa" no tiene
+foto cargada. Son 5 de los 11 premios y es el escalon mas barato — el que mas
+gente va a ver. **Se arregla subiendo una foto al producto, no con codigo**, y
+de paso arregla las cinco tarjetas individuales. Queda avisado a Sergio.
+
+Se verifico de paso que `fn_web_puntos_catalogo` **ya devolvia la foto tambien
+para los combos** (`co.photo_url`): no habia nada roto ahi.
