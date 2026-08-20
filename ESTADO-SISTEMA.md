@@ -10432,3 +10432,60 @@ ficha: Isabel tiene 4, Cameron 3.
 cliente con más tiene 5, así que nadie lo nota. Cuando alguien pase de 8 verá
 solo los últimos ocho. Se deja anotado para subirlo cuando Sergio quiera; no se
 cambió porque no lo pidió y afecta cuánto se descarga en cada visita.
+
+### 256 — Auditoría de seguridad antes de lanzar (20-ago-2026)
+
+Sergio: *"dime si la app de clientes es totalmente segura tanto para ellos como
+para mí... que nadie pueda ponerse puntos, que nadie pueda hackear y ponerse
+saldo, y tampoco que ellos pierdan sus puntos o su saldo. Revisa si está
+totalmente segura para hoy poderla lanzar."*
+
+**Se encontró un agujero grave, y era explotable de verdad.**
+
+La llave `anon` va escrita en el JavaScript de la página — es pública por
+diseño, cualquiera la lee abriendo la consola. Y **58 funciones tenían permiso
+de ejecución para el público**, casi todas `SECURITY DEFINER`, o sea que se
+saltan la seguridad por fila a propósito.
+
+No se dedujo: **se probó**. Llamando desde fuera, sin ninguna sesión,
+`fn_puntos_regalar` **devolvió 1 y el punto quedó guardado** (se revirtió de
+inmediato). `fn_saldo_mover` llegó a insertar y solo la frenó una restricción
+del motivo. Entre las expuestas estaban también `pos_marcar_dueno`,
+`fn_credito_abonar`, `fn_recarga_aplicar` y todas las de inventario.
+
+**Por qué pasó.** El patrón `grant execute ... to anon, authenticated,
+service_role` se fue copiando de una migración a la siguiente sin preguntarse si
+`anon` hacía falta. Yo mismo lo repetí hoy con `fn_puntos_regalar`.
+
+**LA TRAMPA AL CERRARLO.** El primer intento revocó de `anon` y **no cambió ni
+un permiso**: el privilegio no venía de `anon`, venía de **PUBLIC** —PostgreSQL
+se lo da a toda función nueva— y `anon` heredaba de ahí. Hay que revocar de
+PUBLIC y devolverle el permiso explícito a `authenticated` (el POS) y
+`service_role` (las Edge Functions).
+
+Quedaron **5 funciones públicas** de 70: la carta, las promos, los datos del
+restaurante, el catálogo de premios y si está abierto. Lo que un visitante sin
+cuenta necesita ver, y nada más.
+
+**Lo que ya estaba bien** (verificado, no supuesto):
+
+| | |
+|---|---|
+| Tablas | **Todas cerradas.** Clientes, saldo, puntos, credenciales, sesiones, pedidos, chats: un desconocido no lee ninguna |
+| Precios | Los calcula el servidor con la carta; lo que mande el navegador no se usa |
+| Canje | Los puntos del premio salen de `pos_puntos_catalogo` por id, no del navegador |
+| Saldo y puntos | No pueden quedar negativos; se mueven con bloqueo `for update` y dejan libro |
+| Contraseñas | PBKDF2 de 120.000 vueltas, sal aleatoria, comparación en tiempo constante |
+| Código SMS | 3 intentos y se quema; 3 por hora y 8 por día por número |
+| Sesiones | Token largo, guardado en la base solo como hash, con vencimiento |
+
+**El segundo hallazgo, también cerrado.** La contraseña **no tenía límite de
+intentos**. Se agregó: ocho fallos seguidos y a esperar 15 minutos. Se cuenta
+por TELÉFONO y no por IP —la IP cambia sola en los datos del celular y bloquear
+por IP dejaría fuera a media ciudad si comparten salida—, y **un acierto borra
+el contador**, para que quien se equivocó tres veces y luego entró bien no
+quede cargado para la próxima.
+
+Probado: se frenó en el intento 9, el dueño legítimo con su clave correcta
+también quedó frenado mientras duraba el bloqueo (que es lo que debe pasar), y
+al pasar la ventana entró normal. Todos los datos de prueba se borraron.

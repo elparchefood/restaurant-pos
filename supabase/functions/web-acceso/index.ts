@@ -29,6 +29,7 @@ const CORS = {
 // ── Reglas del acceso ────────────────────────────────────────────────
 const CODIGO_VIVE_MIN     = 10;   // el código vence a los 10 minutos
 const CODIGO_INTENTOS      = 3;   // tres oportunidades y se quema
+const CLAVE_INTENTOS       = 8;   // ocho fallos seguidos y a esperar 15 minutos
 const CODIGOS_POR_HORA     = 3;   // tope por número: sin esto la página sería
 const CODIGOS_POR_DIA      = 8;   // una forma de llenarle el WhatsApp a alguien
 const SESION_CORTA_HORAS   = 12;
@@ -36,6 +37,13 @@ const SESION_LARGA_DIAS    = 90;  // la casilla "mantener mi sesión"
 const PBKDF2_VUELTAS       = 120000;
 
 // ── Base ─────────────────────────────────────────────────────────────
+async function sbRpc(fn: string, args: Record<string, unknown>) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST", headers: { ...H, "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  });
+  return r.ok ? await r.json() : null;
+}
 async function sbGet(path: string) {
   const r = await fetch(`${SUPABASE_URL}/rest/v1${path}`, { headers: H });
   return r.ok ? await r.json() : null;
@@ -1149,10 +1157,32 @@ Deno.serve(async (req) => {
       const malo = { ok: false, razon: "no_cuadra", mensaje: "El número o la contraseña no son correctos." };
       if (!clienteId) { await derivar(clave, aB64(aleatorio(16)), PBKDF2_VUELTAS); return json(malo); }
 
+      /* NO SE PRUEBAN CONTRASEÑAS SIN PARAR (20-ago). El codigo por SMS ya
+         tenia freno; esto no tenia ninguno. La clave se guarda con PBKDF2 de
+         120.000 vueltas, asi que cada intento es lento a proposito — pero
+         "lento" no es "imposible", y ademas cada intento gasta CPU del
+         servidor: probar en masa salia caro en las dos direcciones.
+
+         Se cuenta por TELEFONO y no por IP: la IP cambia sola en los datos del
+         celular, y bloquear por IP dejaria fuera a media ciudad si comparten
+         salida. */
+      const fallidos = await sbRpc("fn_web_intentos_fallidos", { p_tenant: tenantId, p_tel: tel });
+      if (Number(fallidos) >= CLAVE_INTENTOS) {
+        return json({ ok: false, razon: "muchos_intentos",
+          mensaje: "Demasiados intentos. Espera 15 minutos o entra con un código." });
+      }
+
       const cr = await sbGet(`/pos_web_credenciales?cliente_id=eq.${clienteId}&select=pass_hash&limit=1`) as Array<Record<string, unknown>> | null;
       const guardado = cr?.[0]?.pass_hash ? String(cr[0].pass_hash) : "";
       if (!guardado) return json({ ok: false, razon: "sin_clave", mensaje: "Todavía no has creado tu contraseña. Pide un código para crearla." });
-      if (!(await claveCuadra(clave, guardado))) return json(malo);
+      if (!(await claveCuadra(clave, guardado))) {
+        await sbPost(`/pos_web_intentos`, { tenant_id: tenantId, telefono: tel, ok: false });
+        return json(malo);
+      }
+      /* El acierto BORRA los fallidos: quien se equivoco tres veces y despues
+         entro bien no puede quedar con el contador cargado para la proxima. */
+      await fetch(`${SUPABASE_URL}/rest/v1/pos_web_intentos?tenant_id=eq.${tenantId}&telefono=eq.${tel}`,
+        { method: "DELETE", headers: H }).catch(() => {});
 
       const s = await abrirSesion(tenantId, clienteId, tel, !!b.recordar);
       return json({ ok: true, token: s.token, expira: s.expira, cliente: await fichaCliente(tenantId, clienteId) });
