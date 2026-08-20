@@ -412,75 +412,26 @@ async function handleSessionAction() {
     window.location.href = 'caja.html';
     return;
   }
-  // Aperturar caja: permiso caja.abrir; sin permiso pide PIN.
-  if (window.posGuard) window.posGuard('caja.abrir', showAperturaModal, 'Aperturar la caja requiere permiso de administrador.');
-  else showAperturaModal();
+  // Aperturar caja: permiso caja.abrir; sin permiso pide PIN. El permiso se
+  // pide AQUI, antes de salir: si se pidiera alla, cualquiera entraria a
+  // caja.html directo y se lo saltaria.
+  var irAAbrir = function () { window.location.href = 'caja.html?abrir=1'; };
+  if (window.posGuard) window.posGuard('caja.abrir', irAAbrir, 'Aperturar la caja requiere permiso de administrador.');
+  else irAAbrir();
 }
 
-function showAperturaModal() {
-  var ex = document.getElementById('modal-apertura-overlay');
-  if (ex) ex.remove();
-  var overlay = document.createElement('div');
-  overlay.id = 'modal-apertura-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(4px);z-index:9000;display:flex;align-items:center;justify-content:center';
-  var iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B6BFF" stroke-width="2.2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>';
-  overlay.innerHTML = '<div style="background:#fff;border-radius:16px;padding:28px 28px 24px;width:360px;max-width:90vw;box-shadow:0 20px 60px rgba(15,23,42,.18)">'
-    + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">'
-    + '<div style="width:40px;height:40px;border-radius:10px;background:#EEF2FF;display:flex;align-items:center;justify-content:center">' + iconSvg + '</div>'
-    + '<div><div style="font-weight:700;font-size:15px;color:#0F172A">Aperturar caja</div>'
-    + '<div style="font-size:12px;color:#64748B">Ingresa el dinero inicial de la caja</div></div></div>'
-    + '<label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px">Monto de apertura (COP)</label>'
-    + '<div style="position:relative;margin-bottom:20px">'
-    + '<span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94A3B8;font-weight:600">$</span>'
-    + '<input id="apertura-monto" type="number" min="0" step="1000" placeholder="0"'
-    + ' style="width:100%;border:1.5px solid #ECEEF2;border-radius:10px;padding:10px 12px 10px 28px;font-size:15px;font-weight:600;color:#0F172A;outline:none;box-sizing:border-box"'
-    + ' onfocus="this.style.borderColor=\'#5B6BFF\'" onblur="this.style.borderColor=\'#ECEEF2\'">'
-    + '</div>'
-    + '<div style="display:flex;gap:10px">'
-    + '<button onclick="document.getElementById(\'modal-apertura-overlay\').remove()"'
-    + ' style="flex:1;padding:10px;border:1.5px solid #ECEEF2;border-radius:10px;background:#fff;color:#64748B;font-size:14px;font-weight:600;cursor:pointer">Cancelar</button>'
-    + '<button id="btn-confirmar-apertura" onclick="confirmarApertura()"'
-    + ' style="flex:1;padding:10px;border:none;border-radius:10px;background:#5B6BFF;color:#fff;font-size:14px;font-weight:600;cursor:pointer">Aperturar</button>'
-    + '</div></div>';
-  document.body.appendChild(overlay);
-  setTimeout(function() { var el = document.getElementById('apertura-monto'); if (el) el.focus(); }, 50);
-}
+/* ══ LA APERTURA SE HACE EN UN SOLO SITIO (19-ago, pedido de Sergio) ══════
+   Aqui vivia un modal propio con UN campo: "monto de apertura". El de la
+   pantalla de Caja tiene tres pestañas que se SUMAN —lo que mete el cajero, el
+   arqueo de lo que hay en el cajon, y la base que quedo de ayer— y ademas
+   guarda el detalle en `apertura_detalle`.
 
-async function confirmarApertura() {
-  var input = document.getElementById('apertura-monto');
-  var amount = parseFloat(input ? input.value : 0) || 0;
-  var overlay = document.getElementById('modal-apertura-overlay');
-  var btn = document.getElementById('btn-confirmar-apertura');
-  if (btn) { btn.disabled = true; btn.textContent = 'Abriendo…'; }
-  var bid = S.branch ? S.branch.id : null;
-  var tid = S.branch ? S.branch.tenant_id : null;
-  var user = S.posUser;
-  var result = await sb.from('pos_sessions').insert({
-    branch_id:    bid,
-    tenant_id:    tid,
-    status:       'open',
-    shift_type:   new Date().getHours() < 15 ? 'Diurno' : 'Nocturno',
-    opening_cash: amount,
-    cashier_name: user ? user.name : null,
-    cashier_id:   user ? user.id   : null,
-    opened_at:    new Date().toISOString(),
-  }).select().single();
-  var data = result.data; var error = result.error;
-  if (!error && data) {
-    S.session = data;
-    if (overlay) overlay.remove();
-    $('hero-sub').textContent = 'Tu caja esta abierta. El sistema esta listo para registrar ventas de hoy.';
-    $('btn-session-lbl').textContent = 'Cerrar turno';
-    $('btn-session').style.background = '#DC2626';
-    var code = data.id.slice(-6).toUpperCase();
-    var stats = $('hero-stats');
-    if (stats) { var cells = stats.querySelectorAll('.hero-stat'); if (cells[0]) { var v = cells[0].querySelector('.hero-stat-value'); if (v) v.textContent = code; } }
-  } else {
-    if (btn) { btn.disabled = false; btn.textContent = 'Aperturar'; }
-    alert('Error al aperturar la caja. Revisa la configuración e inténtalo de nuevo.');
-    console.error(error);
-  }
-}
+   O sea que abrir desde el panel guardaba MENOS informacion que abrir desde
+   Caja, y el cierre de ese turno arrancaba sin el desglose. Dos modales para
+   la misma cosa, y el de aqui era el pobre.
+
+   No se copia el bueno para aca: seria mantener dos. El boton lleva a Caja con
+   el modal ya abierto, que es literalmente "el mismo modal". */
 
 async function verTurnoAnterior() {
   var ex2 = document.getElementById('modal-turno-overlay');

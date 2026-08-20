@@ -9434,3 +9434,38 @@ No hay forma de probarlo sin los telefonos. Se simulo reemplazando `env()` por
 los valores que reserva cada modelo (47px y 62px) y se comparo antes/despues:
 con el arreglo, el saludo y la foto quedan por debajo de la barra en los dos.
 **Falta que Sergio lo confirme en el 16 Pro.**
+
+---
+
+## 240 — Un solo modal para abrir la caja (19-ago-2026)
+
+Sergio: *"el modal de apertura aparece perfecto dentro de Caja, pero el boton
+del panel abre otro modal viejo; deberia abrir el mismo"*.
+
+Habia **dos**, y el del panel era el pobre:
+
+| | Panel (el viejo) | Caja (el bueno) |
+|---|---|---|
+| Entrada | un campo: "monto de apertura" | **tres pestañas que se SUMAN**: lo que mete el cajero + el arqueo de lo que hay en el cajon + la base que quedo de ayer |
+| Guarda | `opening_cash` | `opening_cash` **y `apertura_detalle`** con el desglose |
+
+O sea que abrir desde el panel arrancaba el turno **sin el desglose**, y el
+cierre de esa noche se quedaba sin con que comparar.
+
+### Como quedo
+**No se copio el bueno al panel**: seria mantener dos, y los dos se separan
+solos con el tiempo — que es justo como nacio este problema. El boton del panel
+lleva a `caja.html?abrir=1` y la pantalla de Caja abre su propio modal al
+cargar. Es literalmente "el mismo modal", no una copia.
+
+- El permiso `caja.abrir` se sigue pidiendo **en el panel, antes de salir**: si
+  se pidiera al llegar, cualquiera entraria a `caja.html` directo y se lo
+  saltaria.
+- Solo se abre si de verdad **no hay caja abierta**: con el enlace guardado y
+  la caja ya abierta, ese modal no tiene sentido.
+- El `?abrir=1` se borra de la barra de direcciones al abrirlo, para que
+  recargar no lo vuelva a lanzar.
+
+Se borraron `showAperturaModal()` y `confirmarApertura()` del panel (64 lineas).
+No quedan referencias: dejarlas seria dejar el camino viejo listo para que
+alguien lo vuelva a conectar.

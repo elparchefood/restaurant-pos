@@ -137,6 +137,19 @@ async function refreshAll() {
   renderHistSessionPicker();
   await applyHistSelection();
   updateStatusBar();
+
+  /* LLEGO DESDE EL PANEL A ABRIR CAJA. El boton del panel manda aqui con
+     `?abrir=1` en vez de tener su propio modal — asi hay UNO solo.
+     Se comprueba que de verdad no haya caja abierta: si alguien deja el enlace
+     guardado y vuelve mañana con la caja ya abierta, no tiene sentido
+     mostrarle el modal de abrir. */
+  try {
+    if (new URLSearchParams(location.search).get('abrir') === '1' && !S.session) {
+      openPanel('panel-abrir');
+      /* Se limpia de la barra de direcciones: si recarga, no vuelve a saltar. */
+      history.replaceState(null, '', location.pathname);
+    }
+  } catch (e) { console.warn('[caja] abrir automatico:', e); }
 }
 
 // ── Historial de ventas por turno de caja ──────────────────────
