@@ -9231,3 +9231,20 @@ WhatsApp: va derecho por SMS.
 
 Probado por el camino real (`pedir-codigo` de produccion): ventana cerrada →
 SMS → **entregado**, con el nombre bueno y la linea del autocompletado.
+
+### 235c — El renglon del autocompletado, solo donde sirve (19-ago-2026)
+
+El renglon `@cobrapos.app #codigo` es lo que deja al celular escribir el codigo
+solo, pero **se ve en el mensaje y afea**. Sergio pregunto si podia llegar
+limpio al iPhone y con el renglon al Android. Si.
+
+No se pregunta "¿eres Android?" (eso seria olfatear el navegador y se equivoca),
+sino **"¿este navegador sabe autocompletar?"** — `'OTPCredential' in window`,
+que es la condicion exacta que vuelve util ese renglon. La pagina lo manda en
+`pedir-codigo` y el servidor solo agrega la linea cuando viene en true.
+
+En iPhone el autocompletado sigue funcionando igual: ahi lo resuelve el
+`autocomplete="one-time-code"` del campo, no el texto del SMS.
+
+Comprobado con las dos formas: con `otp:true` llega con el renglon, con
+`otp:false` llega limpio. Las dos entregadas.

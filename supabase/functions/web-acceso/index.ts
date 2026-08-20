@@ -202,7 +202,7 @@ async function ventanaAbierta(tenantId: string, telefono: string): Promise<boole
    IDENTICO al de la barra de direcciones o el autocompletado no funciona. */
 const DOMINIO_APP = "cobrapos.app";
 
-async function mandarPorSms(telefono: string, codigo: string, negocio: string): Promise<boolean> {
+async function mandarPorSms(telefono: string, codigo: string, negocio: string, autocompleta = false): Promise<boolean> {
   const sid   = Deno.env.get("TWILIO_SID")   || "";
   const token = Deno.env.get("TWILIO_TOKEN") || "";
   const desde = Deno.env.get("TWILIO_FROM")  || "";
@@ -219,8 +219,9 @@ async function mandarPorSms(telefono: string, codigo: string, negocio: string): 
      campo. */
   const texto = codigo + " es tu codigo para entrar a " + negocio
     + ". Vence en " + CODIGO_VIVE_MIN + " minutos. No se lo compartas a nadie."
-    + String.fromCharCode(10) + String.fromCharCode(10)
-    + "@" + DOMINIO_APP + " #" + codigo;
+    + (autocompleta
+        ? String.fromCharCode(10) + String.fromCharCode(10) + "@" + DOMINIO_APP + " #" + codigo
+        : "");
   const form = new URLSearchParams({
     To: "+57" + telefono,
     From: desde,
@@ -243,7 +244,7 @@ async function mandarPorSms(telefono: string, codigo: string, negocio: string): 
   return false;
 }
 
-async function mandarCodigo(tenantId: string, telefono: string, codigo: string, negocio: string) {
+async function mandarCodigo(tenantId: string, telefono: string, codigo: string, negocio: string, autocompleta = false) {
   const wa = await canalWhatsApp(tenantId);
   if (!wa) return false;
   const para = "57" + telefono;
@@ -292,7 +293,7 @@ async function mandarCodigo(tenantId: string, telefono: string, codigo: string, 
   }
 
   /* 3. Fuera de la ventana, o WhatsApp no pudo. Va por SMS. */
-  return await mandarPorSms(telefono, codigo, negocio);
+  return await mandarPorSms(telefono, codigo, negocio, autocompleta);
 }
 
 /* EL CLIENTE, BUSCADO COMO SE DEBE (15-ago). Antes se buscaba con
@@ -927,7 +928,7 @@ Deno.serve(async (req) => {
           mensaje: "No pudimos preparar tu código. Intenta de nuevo en un momento." });
       }
 
-      const enviado = await mandarCodigo(tenantId, tel, codigo, String(negocio.name || "tu restaurante"));
+      const enviado = await mandarCodigo(tenantId, tel, codigo, String(negocio.name || "tu restaurante"), b.otp === true);
       if (!enviado) {
         // No salió: se quema para que no ocupe el cupo del cliente.
         await sbPatch(`/pos_web_codigos?id=eq.${filaId}`, { usado: true });

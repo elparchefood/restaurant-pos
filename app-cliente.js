@@ -165,7 +165,16 @@
   async function pedirCodigo(tel, aviso) {
     S.tel = tel;
     pinta('<div class="ep-login">' + cabecera() + '<p class="ep-lead">Enviando tu código…</p></div>');
-    var d = await acceso({ accion: 'pedir-codigo', telefono: tel });
+    /* SOLO EL QUE LO NECESITA (19-ago, pedido de Sergio). El renglon
+       "@cobrapos.app #codigo" del SMS es lo que deja al celular escribir el
+       codigo solo, pero se VE en el mensaje y afea. En iPhone no hace falta
+       —ahi lo resuelve el propio campo— asi que ahi el mensaje va limpio.
+       No se pregunta "¿eres Android?" sino "¿este navegador sabe hacerlo?",
+       que es la condicion exacta que vuelve util ese renglon. */
+    var d = await acceso({
+      accion: 'pedir-codigo', telefono: tel,
+      otp: (typeof window !== 'undefined' && 'OTPCredential' in window),
+    });
     if (!d.ok) return pantallaEntrar(d.mensaje || 'No pudimos enviarte el código.', true);
     pantallaCodigo(aviso || ('Te enviamos un código por WhatsApp al ' + tel + '.'));
   }
