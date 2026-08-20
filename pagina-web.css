@@ -593,12 +593,29 @@ body{margin:0;background:var(--bg);font-family:'DM Sans',system-ui,-apple-system
 .pw-dest.on { border-color: #5B6BFF; background: #EEF2FF; }
 .pw-dest span { font-size: 12px; font-weight: 700; color: #5B6BFF; white-space: nowrap; }
 
-/* El titulo de cada categoria dentro de la lista de productos. Pegajoso: con
-   50 platos, al bajar uno pierde de vista en que categoria va. */
+/* Cada categoria es una fila que se abre y se cierra. Con 53 productos, la
+   lista abierta era una tira larguisima aunque estuviera agrupada; asi se ven
+   los 8 titulos de un golpe. La cuenta a la derecha ayuda a saber donde tocar
+   sin abrir a ciegas. */
 .pw-grupo {
-  position: sticky; top: 0; z-index: 1;
-  background: #fff; padding: 9px 8px 5px;
-  font: 700 10.5px/1 inherit; color: #94A3B8;
-  text-transform: uppercase; letter-spacing: .07em;
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: none; border: 0; cursor: pointer; font-family: inherit;
+  padding: 10px 8px; border-radius: 9px; text-align: left;
 }
-.pw-grupo:first-child { padding-top: 2px; }
+.pw-grupo:hover { background: var(--surface-2); }
+.pw-grupo.on { background: var(--surface-2); }
+.pw-grupo-fl {
+  flex: none; color: #94A3B8; font-size: 15px; line-height: 1;
+  transition: transform .18s ease;
+}
+.pw-grupo.on .pw-grupo-fl { transform: rotate(90deg); }
+.pw-grupo-n {
+  flex: 1; min-width: 0; font: 700 11px/1.2 inherit; color: #475569;
+  text-transform: uppercase; letter-spacing: .06em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pw-grupo-c {
+  flex: none; font: 700 10.5px/1 inherit; color: #94A3B8;
+  background: var(--surface-3); border-radius: 999px; padding: 3px 7px;
+}
+.pw-grupo-in { padding-left: 4px; }

@@ -49,6 +49,7 @@
     productos: null,  // la carta, para el buscador de destacados
     promos: null,     // las imagenes de publicidad
     combos: null,     // para poder mandar una imagen a un combo
+    grupoAbierto: null, // que categoria esta desplegada en la lista
     buscar: '',       // lo que se escribio en el buscador de productos
     hueco: 0,         // que puesto de los tres se esta llenando
     prev: 'movil',
@@ -1167,8 +1168,10 @@
     b.oninput = function () {
       S.buscar = this.value;
       $('pw-lista').innerHTML = listaProductos(true);
+      engancharGrupos();
       engancharDestinoProd();
     };
+    engancharGrupos();
     engancharDestinoProd();
   }
 
@@ -1213,8 +1216,10 @@
     b.oninput = function () {
       S.buscar = this.value;
       $('pw-lista').innerHTML = listaProductos();
+      engancharGrupos();
       engancharLista();
     };
+    engancharGrupos();
     engancharLista();
   }
 
@@ -1246,18 +1251,55 @@
        manda una imagen ahi. Lo demas queda en el orden de la carta. */
     orden.sort(function (a, b) { return (b === 'Combos') - (a === 'Combos'); });
 
+    /* PLEGADAS, Y UNA A LA VEZ (19-ago, pedido de Sergio). Con 53 productos la
+       lista abierta era una tira larguisima aunque estuviera agrupada. Ahora se
+       ven los 8 titulos de un golpe y se abre el que interesa; abrir uno cierra
+       el otro, que es lo que de verdad ahorra espacio.
+
+       BUSCANDO SE ABREN TODAS: si el que busca "coca" tuviera que ademas
+       adivinar en que grupo cayo, el buscador no serviria de nada. */
+    var buscando = !!q;
     return orden.map(function (c) {
+      var abierto = buscando || S.grupoAbierto === c;
       /* Dentro del grupo, primero los que TIENEN foto: un destino sin foto se
          ve como un hueco gris, que es peor que no ponerlo. */
       var items = grupos[c].sort(function (a, b) { return (b.foto ? 1 : 0) - (a.foto ? 1 : 0); });
-      return '<div class="pw-grupo">' + esc(c) + '</div>' + items.map(function (p) {
-        return '<button class="pw-item" data-elegir="' + esc(p.id) + '">' +
-          '<span class="pw-item-foto"' + (p.foto ? ' style="background-image:url(' + esc(p.foto) + ')"' : '') + '></span>' +
-          '<span class="pw-item-tx"><b>' + esc(p.nombre) + '</b>' +
-            '<small>' + (p.foto ? '' : 'sin foto') + (p.hay ? '' : (p.foto ? '' : ' · ') + 'agotado') + '</small></span>' +
-        '</button>';
-      }).join('') + '</div>';
+      return '<div class="pw-grupo-caja">' +
+        '<button class="pw-grupo' + (abierto ? ' on' : '') + '" data-grupo="' + esc(c) + '">' +
+          '<span class="pw-grupo-fl">›</span>' +
+          '<span class="pw-grupo-n">' + esc(c) + '</span>' +
+          '<span class="pw-grupo-c">' + items.length + '</span>' +
+        '</button>' +
+        '<div class="pw-grupo-in"' + (abierto ? '' : ' hidden') + '>' + items.map(function (p) {
+          return '<button class="pw-item" data-elegir="' + esc(p.id) + '">' +
+            '<span class="pw-item-foto"' + (p.foto ? ' style="background-image:url(' + esc(p.foto) + ')"' : '') + '></span>' +
+            '<span class="pw-item-tx"><b>' + esc(p.nombre) + '</b>' +
+              '<small>' + (p.foto ? '' : 'sin foto') + (p.hay ? '' : (p.foto ? '' : ' · ') + 'agotado') + '</small></span>' +
+          '</button>';
+        }).join('') + '</div>' +
+      '</div>';
     }).join('');
+  }
+
+  /* El acordeon se abre y cierra EN LA PANTALLA, sin volver a armar la lista:
+     rearmarla obligaria a saber si esta se pidio con combos o sin ellos, y ese
+     es justo el tipo de dato que se olvida de pasar. `S.grupoAbierto` guarda
+     cual quedo abierto para que sobreviva a la busqueda. */
+  function engancharGrupos() {
+    document.querySelectorAll('[data-grupo]').forEach(function (b) {
+      b.onclick = function () {
+        var c = b.dataset.grupo;
+        var abrir = S.grupoAbierto !== c;
+        S.grupoAbierto = abrir ? c : null;
+        document.querySelectorAll('.pw-grupo-caja').forEach(function (caja) {
+          var cab = caja.querySelector('.pw-grupo');
+          var den = caja.querySelector('.pw-grupo-in');
+          var mio = cab && cab.dataset.grupo === c && abrir;
+          if (cab) cab.classList.toggle('on', !!mio);
+          if (den) den.hidden = !mio;
+        });
+      };
+    });
   }
 
   function engancharLista() {

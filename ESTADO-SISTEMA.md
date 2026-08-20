@@ -9548,3 +9548,24 @@ hacer el dia que se pruebe.
 
 La agrupacion si se dejo en las dos: no cambia que se guarda, solo como se ve,
 y buscar entre 53 productos es igual de incomodo en los dos sitios.
+
+### 241c — Las categorias se despliegan (19-ago-2026)
+
+Sergio: *"que las categorias sean desplegables para que no ocupen tanto
+espacio"*. Con 53 productos, agrupar no bastaba: seguia siendo una tira
+larguisima.
+
+Ahora se ven **los 8 titulos de un golpe**, con la cuenta de cada uno al lado
+para saber donde tocar sin abrir a ciegas. **Una a la vez**: abrir una cierra
+la otra, que es lo que de verdad ahorra espacio.
+
+**Buscando se abren todas.** Si quien escribe "coca" tuviera ademas que
+adivinar en que grupo cayo, el buscador no serviria de nada.
+
+El acordeon se abre y cierra **en la pantalla, sin volver a armar la lista**:
+rearmarla obligaria a saber si se pidio con combos o sin ellos, y ese es justo
+el dato que se olvida de pasar. `S.grupoAbierto` guarda cual quedo abierta para
+que sobreviva a la busqueda.
+
+Probado con los datos reales en los tres estados: cerrada, con una abierta, y
+buscando.
