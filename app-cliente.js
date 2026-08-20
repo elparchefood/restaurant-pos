@@ -653,7 +653,10 @@
        salir del campo) y no cada tecla, para no llamar al servidor once veces
        mientras escribe "Bellavista". */
     var barrioIn = $('pd-barrio');
-    if (barrioIn && barrioIn.tagName === 'INPUT') barrioIn.addEventListener('change', function () { pantallaDentro(); });
+    if (barrioIn && barrioIn.tagName === 'INPUT') barrioIn.addEventListener('change', function () {
+      barrioTecleado = String(this.value || '').trim();
+      pantallaDentro();
+    });
 
     // Escoger otra dirección (o agregar una) sin salirse del pedido.
     var dirSelEl = $('pd-dirsel');
@@ -664,6 +667,7 @@
         return;
       }
       dirSel = dirSelEl.value;
+      barrioTecleado = '';          // lo tecleado era para la direccion anterior
       S.cuenta = null;              // otra dirección puede ser otro domicilio
       pantallaDentro();
     });
@@ -3325,6 +3329,11 @@
 
   // ── Pantalla del pedido ─────────────────────────────────────────────
   var entrega = 'recoger';
+  /* EL BARRIO QUE EL CLIENTE TECLEA (20-ago). El campo se repintaba con
+     `value=""` en cada pasada, asi que lo escrito se perdia y la pantalla
+     volvia a preguntar la cuenta SIN barrio: el servidor devolvia $5.000 y
+     un instante despues la app se los borraba sola. Vive aqui, no en el DOM. */
+  var barrioTecleado = '';
   /* EL PREMIO QUE SE ESTA CANJEANDO. Va aparte del carrito a proposito: un
      canje es UNA cosa, no una lista, y mezclarlo con el carrito obligaria a
      decidir que pasa si alguien le suma una gaseosa a su premio. Hoy no se
@@ -3351,11 +3360,9 @@
     if (entrega !== 'domicilio') return { dir: '', barrio: '' };
     var c = S.cliente || {};
     var el = dirElegida(dirsDe(c), c);
-    var campo = $('pd-barrio');
-    var tecleado = (campo && campo.tagName === 'INPUT') ? String(campo.value || '').trim() : '';
     return {
       dir: el.dir || c.direccion || '',
-      barrio: el.barrio || tecleado || c.barrio || '',
+      barrio: el.barrio || barrioTecleado || c.barrio || '',
     };
   }
 
@@ -3479,7 +3486,8 @@
                 /* Sin barrio no se puede cobrar el domicilio: se pide, y solo
                    entonces. Antes se pedía siempre, aunque ya se supiera. */
                 '<label class="ep-campo" style="margin-bottom:10px"><span class="ep-lbl">Barrio</span>' +
-                  '<input class="ep-in" id="pd-barrio" value="" placeholder="Tu barrio"></label>') +
+                  '<input class="ep-in" id="pd-barrio" value="' + esc(barrioTecleado) +
+                    '" placeholder="Tu barrio"></label>') +
               '<input type="hidden" id="pd-dir" value="' + esc(elegida.dir || '') + '">' +
               (elegida.barrio ? '<input type="hidden" id="pd-barrio" value="' + esc(elegida.barrio) + '">' : '');
           })()
