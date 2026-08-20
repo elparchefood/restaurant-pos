@@ -10560,3 +10560,37 @@ de deducirlo de un cero, que puede significar dos cosas distintas.
 casos: con barrio conocido pasa de "calculando…" a "$5.000" y el letrero no
 aparece nunca; con barrio desconocido pasa de "calculando…" a "lo pagas al
 recibir" y ahí sí sale el letrero.
+
+
+---
+
+## 20-ago-2026 (noche) — El modal de instalar dentro de Instagram
+
+Sergio va a poner el enlace de la app en la biografia de Instagram, y ahi hay
+una trampa: Instagram abre los enlaces en **su propio navegador interno**, no
+en Safari ni en Chrome — y en ese navegador **no se puede instalar** la app
+(no tiene el boton Compartir de Safari ni el menu de Chrome). Peor: el modal
+de instalar le daba los pasos de Safari a alguien que no los tenia delante.
+
+Lo que se hizo en `app-cliente.js` (+ un estilo en `app-cliente.css`):
+
+- `enAppAjena()` — reconoce el navegador interno de Instagram, Facebook,
+  TikTok, Snapchat y Line por el `user agent` (es lo unico que dejan ver).
+- El modal ahora avisa primero **donde esta la persona** ("estas viendo esto
+  dentro de otra aplicacion y desde aqui no se puede instalar") y cambia los
+  pasos:
+  - **iPhone**: tres puntos → "Abrir en el navegador" → ya en Safari, tocar
+    Instalar. No hay forma tecnica de forzar Safari desde ahi (Apple no la da);
+    lo unico honesto es ensenar donde tocar.
+  - **Android**: boton **"Abrir en Chrome"** que SI funciona — un enlace
+    `intent://…#Intent;scheme=https;package=com.android.chrome;end` saca al
+    Chrome de verdad, donde el modal ya ofrece instalar de un toque. Se arma
+    sin el `#hash` de la URL para no romper el `;end` del intent.
+- `tocaOfrecer()` ajustado: antes en iPhone-sin-Safari no ofrecia nada, lo que
+  tambien silenciaba el caso Instagram-iPhone, que es justo donde mas se
+  necesita el aviso.
+
+**Comprobado en banco local con el user agent disfrazado** (Instagram-iPhone,
+Instagram-Android y navegador normal): cada caso muestra sus pasos y el caso
+normal quedo identico a como estaba. Los 6 user agents reales tambien pasaron
+por un banco en Node.

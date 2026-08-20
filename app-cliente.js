@@ -2025,7 +2025,10 @@
 
   function tocaOfrecer() {
     if (!esCelular() || yaInstalada()) return false;
-    if (esIOS() && !esSafari()) return false;   // en iPhone solo Safari instala
+    /* En iPhone solo Safari instala; con Chrome no hay nada que ofrecer. PERO
+       si esta dentro de Instagram/Facebook si conviene ofrecerlo, porque el
+       modal ahora le ensena a salir hacia Safari. */
+    if (esIOS() && !esSafari() && !enAppAjena()) return false;
     try {
       var v = Number(localStorage.getItem('ep-instalar-no') || 0);
       if (v && (Date.now() - v) < DIAS_ESPERA * 864e5) return false;
@@ -2033,7 +2036,52 @@
     return true;
   }
 
+  /* ── EL NAVEGADOR DE ADENTRO DE INSTAGRAM (20-ago-2026) ────────────────
+     Sergio: "si pongo el enlace en la biografia de Instagram, el celular lo
+     abre en el navegador fantasma que tiene Instagram, no en Safari".
+
+     Es cierto, y ademas ahi NO SE PUEDE INSTALAR: ese navegador no tiene el
+     boton Compartir de Safari ni el menu de Chrome. Peor todavia, hasta hoy el
+     modal le daba los pasos de Safari a alguien que no los tiene delante — una
+     instruccion imposible de seguir, que es peor que no decir nada.
+
+     Se reconoce por el nombre que se pone el navegador: Instagram y Facebook se
+     identifican en el `user agent`. Es lo unico que dejan ver. */
+  function enAppAjena() {
+    var ua = navigator.userAgent || '';
+    return /Instagram|FBAN|FBAV|FB_IAB|FBIOS|Line\/|TikTok|Snapchat/i.test(ua);
+  }
+
+  /* EN ANDROID SI SE PUEDE SACAR AL NAVEGADOR DE VERDAD. Un enlace `intent://`
+     le dice al sistema "abre esto con Chrome", y el sistema obedece aunque
+     estemos dentro de otra app.
+
+     EN IPHONE NO EXISTE ESA PUERTA: Apple no deja que una pagina mande a abrir
+     Safari. Cualquier truco que se lea por ahi (`x-safari-https://`) o no
+     funciona desde este navegador o dejo de funcionar hace rato. Lo unico
+     honesto es decirle donde tocar — y por suerte Instagram tiene la opcion. */
+  function abrirEnNavegadorDeVerdad() {
+    /* Sin el #hash: si la direccion trajera uno, se comeria el ;end del
+       intent y Android no sabria que hacer con el enlace. */
+    var url = (location.host + location.pathname + location.search);
+    location.href = 'intent://' + url + '#Intent;scheme=https;package=com.android.chrome;end';
+  }
+
   function pasosInstalar() {
+    /* Dentro de Instagram no sirven ni los pasos de iPhone ni los de Android:
+       hay que salir primero. */
+    if (enAppAjena()) {
+      return esIOS()
+        ? [
+            ['mas', 'Toca los <b>tres puntos</b> de arriba', 'En la esquina de arriba a la derecha, dentro de esta misma pantalla.'],
+            ['compartir', 'Elige <b>Abrir en el navegador</b>', 'También puede decir “Abrir en Safari”.'],
+            ['ok', 'Ya en Safari, vuelve a tocar <b>Instalar</b>', 'Ahí sí aparece el botón Compartir para agregarla.'],
+          ]
+        : [
+            ['mas', 'Toca <b>Abrir en Chrome</b>', 'El botón de aquí abajo te lleva solo.'],
+            ['ok', 'Ya en Chrome, toca <b>Instalar</b>', 'El navegador te lo ofrece de una.'],
+          ];
+    }
     if (esIOS()) {
       return [
         ['compartir', 'Toca <b>Compartir</b>', 'El cuadrito con la flecha hacia arriba, abajo en el centro.'],
@@ -2051,7 +2099,11 @@
     var viejo = document.querySelector('.ep-aviso-cap');
     if (viejo) viejo.remove();
 
-    var directo = !!instalador;   // en Android se puede instalar de un toque
+    /* Dentro del navegador de otra app NO se puede instalar, aunque por algun
+       motivo tuvieramos guardada la senal: primero hay que salir de ahi. */
+    var atrapado = enAppAjena();
+    var directo = !!instalador && !atrapado;  // en Android se instala de un toque
+    var puedeSalir = atrapado && !esIOS();    // solo Android tiene la puerta
     var cap = document.createElement('div');
     cap.className = 'ep-aviso-cap';
     cap.innerHTML =
@@ -2061,6 +2113,13 @@
           '<div><div class="ep-inst-tit">Ten ' + esc(S.negocio && S.negocio.nombre || 'la carta') + ' a un toque</div>' +
             '<div class="ep-inst-sub">Instálala en tu celular. Ocupa casi nada.</div></div>' +
         '</div>' +
+        /* Decirle DONDE ESTA antes de darle los pasos: sin esto no entiende por
+           que le pedimos salir de donde ya esta viendo la pagina. */
+        (atrapado
+          ? '<div class="ep-inst-ojo">Estás viendo esto dentro de otra aplicación ' +
+            '(Instagram, Facebook…) y desde aquí no se puede instalar. ' +
+            'Es un solo paso más:</div>'
+          : '') +
         '<ul class="ep-inst-por">' +
           '<li>Se abre sola, sin buscarla en el navegador</li>' +
           '<li>Te avisamos cuando tu pedido va en camino</li>' +
@@ -2073,6 +2132,11 @@
                 '<div><div class="ep-inst-p-t">' + p[1] + '</div>' +
                 '<div class="ep-inst-p-s">' + esc(p[2]) + '</div></div></div>';
             }).join('') + '</div>') +
+        /* En Android el sistema SI obedece un enlace `intent://`, asi que le
+           damos el boton en vez de hacerle buscar el menu. */
+        (puedeSalir
+          ? '<button class="ep-btn gold big ep-inst-chrome" type="button">Abrir en Chrome</button>'
+          : '') +
         '<button class="ep-btn ep-btn--ghost ep-inst-no" type="button">' +
           (directo ? 'Ahora no' : 'Entendido') + '</button>' +
       '</div>';
@@ -2086,6 +2150,11 @@
     }
     cap.querySelector('.ep-inst-no').onclick = function () { cerrar(!forzado); };
     cap.addEventListener('click', function (ev) { if (ev.target === cap) cerrar(!forzado); });
+
+    /* En Android atrapado dentro de otra app: el boton saca al navegador de
+       verdad, y alla el modal ya ofrece instalar de un toque. */
+    var bChrome = cap.querySelector('.ep-inst-chrome');
+    if (bChrome) bChrome.onclick = abrirEnNavegadorDeVerdad;
 
     var ya = cap.querySelector('.ep-inst-ya');
     if (ya) ya.onclick = async function () {
