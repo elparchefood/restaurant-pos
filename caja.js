@@ -104,13 +104,14 @@ async function refreshAll() {
   S.payMethods = _met;
 
   if (S.session) {
+    const desde = await inicioDelTurno(S.branchId, S.session);
     const [_ords, _its] = await Promise.all([
-      loadOrders(S.branchId, S.session.opened_at),
-      loadOrderItems(S.branchId, S.session.opened_at)
+      loadOrders(S.branchId, desde),
+      loadOrderItems(S.branchId, desde)
     ]);
     S.orders = _ords;
     S.items  = _its;
-    S.pagosMetodo = await loadPagosPorMetodo(S.branchId, S.session.opened_at, S.orders);
+    S.pagosMetodo = await loadPagosPorMetodo(S.branchId, desde, S.orders);
     // Recuperar arqueo guardado en la sesión (sobrevive recargas de página)
     if (S.session.arqueo_contado != null) S.arqueoContado = parseFloat(S.session.arqueo_contado);
     if (S.session.arqueo_denoms) S.arqueoDenoms = S.session.arqueo_denoms;
@@ -348,9 +349,12 @@ async function applyHistSelection(){
   const cont=document.getElementById('hist-lista');
   if(cont) cont.innerHTML='<div class="cj-empty-row">Cargando pedidos del turno…</div>';
   const until=sess.closed_at||new Date().toISOString();
+  /* El historial usa la MISMA regla que el turno en curso: si contara distinto,
+     un turno viejo mostraria unos pedidos y su cierre otros. */
+  const desdeH = await inicioDelTurno(S.branchId, sess);
   const [ords,its]=await Promise.all([
-    loadOrders(S.branchId, sess.opened_at, until),
-    loadOrderItems(S.branchId, sess.opened_at, until),
+    loadOrders(S.branchId, desdeH, until),
+    loadOrderItems(S.branchId, desdeH, until),
   ]);
   S.histOrdersAll=ords||[]; S.histItemsAll=its||[];
   renderHistFiltered();
@@ -449,6 +453,33 @@ async function loadActiveSession(branchId) {
     const { data } = await q;
     return (data && data[0]) || null;
   } catch(e) { console.error('loadActiveSession:',e); return null; }
+}
+
+/* ══ DESDE DONDE CUENTA UN TURNO ══════════════════════════════════════════
+   (19-ago, decision de Sergio.) NO desde que se abrio la caja, sino desde que
+   se cerro la ANTERIOR. Entre el cierre de anoche y la apertura de hoy queda
+   un hueco, y lo que caiga ahi —un domicilio de la pagina a las 4 de la tarde,
+   un pedido que tomo Paco antes de abrir— no lo contaba ningun cierre.
+
+   Ya habia pasado 4 veces por $246.000, y $205.000 de eso en efectivo: plata
+   que entro al cajon y no aparecia en el arqueo, asi que la caja daba sobrante
+   sin explicacion.
+
+   Si es la primera caja de todas no hay de donde arrancar: se queda con su
+   propia apertura. */
+async function inicioDelTurno(branchId, sess) {
+  if (!sess || !sess.opened_at) return null;
+  try {
+    const { data } = await sb.from('pos_sessions')
+      .select('closed_at')
+      .eq('branch_id', branchId)
+      .not('closed_at', 'is', null)
+      .lte('closed_at', sess.opened_at)
+      .order('closed_at', { ascending: false })
+      .limit(1);
+    if (data && data.length && data[0].closed_at) return data[0].closed_at;
+  } catch (e) { console.warn('[caja] inicio del turno:', e); }
+  return sess.opened_at;
 }
 
 async function loadOrders(branchId, sinceISO, untilISO) {

@@ -809,7 +809,32 @@
           .eq('status', 'open')
           .order('opened_at', { ascending: false })
           .limit(1);
-        if (r.data && r.data.length && r.data[0].opened_at) start = r.data[0].opened_at;
+        if (r.data && r.data.length && r.data[0].opened_at) {
+          start = r.data[0].opened_at;
+          /* ══ LA CAJA CUENTA DESDE QUE SE CERRO LA ANTERIOR ═══════════════
+             (19-ago, decision de Sergio). Antes contaba desde que se ABRIO, y
+             entre el cierre de anoche y la apertura de hoy quedaba un hueco:
+             un pedido que entraba a las 6:30 desaparecia de las pantallas en
+             cuanto se abria la caja a las 6:40, y su plata no entraba al
+             arqueo. **Le paso 4 veces, $246.000** — $205.000 de eso en
+             efectivo, plata que entro al cajon sin aparecer en el conteo.
+
+             Ahora el turno arranca donde termino el anterior: lo que llegue
+             con la caja cerrada entra a la siguiente al abrirla. Sin huecos.
+
+             Si no hay caja anterior (la primera de todas) se queda en su
+             propia apertura: no hay de donde arrancar. */
+          try {
+            var ant = await sb.from('pos_sessions')
+              .select('closed_at')
+              .eq('branch_id', branchId)
+              .not('closed_at', 'is', null)
+              .lte('closed_at', r.data[0].opened_at)
+              .order('closed_at', { ascending: false })
+              .limit(1);
+            if (ant.data && ant.data.length && ant.data[0].closed_at) start = ant.data[0].closed_at;
+          } catch (e) { /* se queda con la apertura */ }
+        }
       }
     } catch (e) { /* fallback abajo */ }
     if (!start) { var t = new Date(); t.setHours(0, 0, 0, 0); start = t.toISOString(); }

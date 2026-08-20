@@ -9345,3 +9345,53 @@ siguen intactos: de ahi salen los informes; esto es solo lo que se LEE.
 Probado de punta a punta creando pedidos de verdad y **borrando todo despues**:
 pedidos, items, movimientos de puntos e inventario devuelto. Quedaron 0 pedidos
 del dia y los puntos del cliente de prueba en 0.
+
+---
+
+## 238 — El hueco entre cajas: pedidos que no contaba nadie (19-ago-2026)
+
+Sergio pregunto: *"¿que pasa si Paco crea un pedido, o alguien pide en la
+pagina, dentro del horario pero con la caja todavia sin abrir?"*
+
+### Lo que pasaba
+El pedido **se crea sin problema** — ninguna funcion mira la caja. Entra a
+cocina, el cliente paga, no se pierde nada. Pero **quedaba fuera de la caja**:
+
+- Con la caja cerrada el pedido SI se veia (el filtro caia a "desde las 00:00").
+- **Al abrir la caja desaparecia** de Domicilios y de Rapidas.
+- Y el cierre solo contaba desde `opened_at`: **su plata nunca entraba al
+  arqueo**. Ese dia la caja daba sobrante sin explicacion.
+
+### Ya habia pasado — con datos
+Cuatro pedidos reales, **$246.000**, de los cuales **$205.000 en efectivo**:
+
+| Pedido | Se abrio la caja | Canal | Total |
+|---|---|---|---|
+| 15-ago 4:05 p.m. | 6:25 p.m. | domicilio | $41.000 |
+| 27-jul 3:23 p.m. | 6:40 p.m. | domicilio | $70.000 |
+| 23-jul 4:43 p.m. | 6:44 p.m. | salon | $47.000 |
+| 23-jul 3:44 p.m. | 6:44 p.m. | salon | $88.000 |
+
+### La regla nueva (decision de Sergio)
+> *"Que un pedido que entre a las 6:30 entre en la caja aunque yo la abra a las
+> 6:40; al abrirla se tienen que vincular los que se crearon con la caja
+> cerrada."*
+
+Un turno cuenta **desde que se cerro el anterior**, no desde que se abrio el.
+Los turnos quedan pegados uno detras de otro y no hay hueco posible. La primera
+caja de todas se queda con su propia apertura: no hay de donde arrancar.
+
+`inicioDelTurno()` en `caja.js` (turno en curso **y** historial — si contaran
+distinto, un turno viejo mostraria unos pedidos y su cierre otros) y la misma
+regla en `getCajaSessionStart()` de `ventas-salon.js`.
+
+### Comprobado antes de subirlo
+- **Ningun pedido cae en dos cajas** (verificado sobre los 305 del historico).
+- **Casi todos los turnos quedan identicos**; el unico que cambia es el 15-ago,
+  que pasa de 22 a 23 pedidos y recupera sus $41.000.
+- Los 4 que siguen sin caja son del 13 y 14 de junio, anteriores a la primera
+  caja que sobrevive — historia vieja, no un problema vivo.
+
+### Pendiente
+El pedido del **15-ago de $41.000** esta raro: figura `open` y sin metodo de
+pago, pero con $41.000 en `paid_amount`. Puede haberse quedado colgado.
