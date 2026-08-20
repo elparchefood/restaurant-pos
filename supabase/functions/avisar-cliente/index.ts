@@ -58,6 +58,10 @@ const DE_FABRICA: Record<string, { titulo: string; cuerpo: string }> = {
   entregado:        { titulo: "¡Buen provecho! 🍟", cuerpo: "Tu pedido fue entregado. Gracias por pedirnos." },
   recarga_con_bono: { titulo: "¡Recarga lista! 🎉", cuerpo: "Recargaste {monto} y te regalamos {bono}. Tienes {saldo} — ahora sí, a pedir 🍟" },
   recarga_sin_bono: { titulo: "¡Recarga lista! 🎉", cuerpo: "Recargaste {monto}. Tienes {saldo} — ahora sí, a pedir 🍟" },
+  /* PUNTOS (20-ago). El cuerpo dice los que gano Y el total: el numero suelto
+     no motiva, lo que motiva es ver el acumulado crecer. */
+  puntos_ganados:   { titulo: "+{puntos} puntos 🎁", cuerpo: "Ya tienes {total} puntos en {negocio}. Mira por qué los puedes cambiar." },
+  puntos_regalo:    { titulo: "Te regalamos {puntos} puntos 🎁", cuerpo: "Ya tienes {total} puntos en {negocio}. Un detalle de parte nuestra." },
 };
 
 function rellenar(txt: string, datos: Record<string, string>) {
@@ -183,6 +187,49 @@ Deno.serve(async (req: Request) => {
       /* Etiqueta fija: si recarga dos veces seguidas, el segundo aviso pisa al
          primero — y el que vale es el ultimo, que trae el saldo bueno. */
       const r = await enviar(clienteId, t.titulo, t.cuerpo, "recarga");
+      return json({ ok: true, ...r });
+    }
+
+    // ── PUNTOS GANADOS ──────────────────────────────────────────────────
+    /* Sergio (20-ago): "cualquier punto que ingrese quiero que le llegue la
+       notificacion". Da igual como entraron — comprando o porque el dueno se
+       los regalo—; lo unico que cambia es el texto, para que un regalo no se
+       lea como una compra. */
+    if (tipo === "puntos") {
+      const ganados = Math.round(Number(b.puntos || 0));
+      /* Solo cuando SUMAN. Un canje tambien deja movimiento, y avisar "usaste
+         200 puntos" con la misma alegria seria burlarse del cliente. */
+      if (ganados <= 0 && !soloVer) return json({ ok: true, razon: "no_suma" });
+
+      let clienteP = String(b.cliente_id || "");
+      let tenantP  = String(b.tenant_id || "");
+      /* Los puntos viven por TELEFONO, no por cliente: quien llama casi siempre
+         tiene el telefono a mano y no el id. Se resuelve aqui para que no lo
+         tenga que hacer cada quien. */
+      if (!clienteP && b.telefono && tenantP) {
+        const tel = String(b.telefono).replace(/[^0-9]/g, "").slice(-10);
+        const c = await sbGet(
+          `/pos_clientes?tenant_id=eq.${tenantP}&telefono=like.*${tel}&select=id&limit=1`
+        ) as Array<Record<string, unknown>> | null;
+        clienteP = String(c?.[0]?.id || "");
+      }
+      if (!clienteP && !soloVer) return json({ ok: true, razon: "sin_cliente" });
+      if (!tenantP && clienteP) {
+        const c = await sbGet(`/pos_clientes?id=eq.${clienteP}&select=tenant_id&limit=1`) as Array<Record<string, unknown>> | null;
+        tenantP = String(c?.[0]?.tenant_id || "");
+      }
+
+      const propiosP = tenantP ? await avisosDe(tenantP) : null;
+      const clave = String(b.motivo || "") === "regalo" ? "puntos_regalo" : "puntos_ganados";
+      const t = textoDe(clave, propiosP, {
+        puntos: String(ganados),
+        total: String(Math.round(Number(b.total || 0))),
+        negocio: String(b.negocio || "tu restaurante"),
+      });
+      if (soloVer) return json({ ok: true, previsualizacion: t });
+      /* Etiqueta fija: si gana puntos dos veces seguidas, el segundo aviso pisa
+         al primero — y el bueno es el ultimo, que trae el total al dia. */
+      const r = await enviar(clienteP, t.titulo, t.cuerpo, "puntos");
       return json({ ok: true, ...r });
     }
 

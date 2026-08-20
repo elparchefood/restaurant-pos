@@ -10489,3 +10489,44 @@ quede cargado para la próxima.
 Probado: se frenó en el intento 9, el dueño legítimo con su clave correcta
 también quedó frenado mientras duraba el bloqueo (que es lo que debe pasar), y
 al pasar la ventana entró normal. Todos los datos de prueba se borraron.
+
+### 257 — Aviso en la app cada vez que entran puntos (20-ago-2026)
+
+Sergio: *"quiero que llegue una notificación a las personas cada vez que ganen
+puntos. Ya sea por una venta o porque se los dé yo manualmente. Cualquier punto
+que ingrese."*
+
+**Ya existía el aviso por WhatsApp, no el de la app.** `aviso-puntos` barre los
+abonos y manda la plantilla de Meta; `avisar-cliente` manda el push pero solo
+sabía de recargas y de estados de pedido.
+
+Se agregó el tipo **`puntos`** a `avisar-cliente`, con textos distintos según
+cómo entraron — un regalo no se puede leer como una compra:
+
+| Cómo entraron | Lo que le llega |
+|---|---|
+| Comprando | **+146 puntos 🎁** · Ya tienes 286 puntos en El Parche Food |
+| Regalados por el dueño | **Te regalamos 200 puntos 🎁** · Un detalle de parte nuestra |
+
+El cuerpo dice los ganados **y el total**: el número suelto no motiva, lo que
+motiva es ver el acumulado crecer. Los textos son editables por el dueño, como
+los de pedido y recarga.
+
+**Solo cuando SUMAN.** Un canje también deja movimiento, y avisar "usaste 200
+puntos" con la misma alegría sería burlarse del cliente. Se comprueba y se
+devuelve `no_suma`.
+
+**Se cubren los dos caminos con un solo enganche.** El barrido de `aviso-puntos`
+ahora incluye también los movimientos de tipo `regalo`, no solo `acumulacion`,
+y dispara el push antes de mirar la configuración de WhatsApp: son dos canales
+distintos, y si el dueño tiene apagado el aviso por WhatsApp el cliente igual ve
+el suyo en la app. Es best-effort: si el push falla, el abono ya quedó guardado.
+
+**Los puntos viven por TELÉFONO, no por cliente**, así que `avisar-cliente`
+resuelve el cliente desde el teléfono. Quien llama casi siempre tiene el número
+a mano y no el id.
+
+**Probado de punta a punta contra producción:** se regaló 1 punto al número de
+Sergio, el barrido lo tomó (`enviados: 1`), el movimiento quedó marcado
+`enviado`, y el push salió a sus **2 dispositivos**. El punto de prueba se
+revirtió: quedó en los 1.000 que tenía.

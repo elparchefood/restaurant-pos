@@ -65,11 +65,11 @@ Deno.serve(async (req) => {
     // viejo confunde); se cierran como 'vencido' para que no se reintenten.
     const hace48h = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
     await sbPatch(
-      `/rest/v1/pos_puntos_movimientos?tipo=eq.acumulacion&aviso=is.null&created_at=lt.${hace48h}`,
+      `/rest/v1/pos_puntos_movimientos?tipo=in.(acumulacion,regalo)&aviso=is.null&created_at=lt.${hace48h}`,
       { aviso: "vencido" },
     );
     const cola = (await sbPatch(
-      `/rest/v1/pos_puntos_movimientos?tipo=eq.acumulacion&aviso=is.null&created_at=gte.${hace48h}`,
+      `/rest/v1/pos_puntos_movimientos?tipo=in.(acumulacion,regalo)&aviso=is.null&created_at=gte.${hace48h}`,
       { aviso: "enviando" },
       true,
     )) as Array<Record<string, unknown>> | null;
@@ -165,6 +165,23 @@ Deno.serve(async (req) => {
       const id = m.id;
       const marcar = (campos: Record<string, unknown>) =>
         sbPatch(`/rest/v1/pos_puntos_movimientos?id=eq.${id}`, campos);
+      /* EL AVISO EN LA APP (20-ago, Sergio: "cualquier punto que ingrese
+         quiero que le llegue la notificacion"). Va ANTES de mirar la config de
+         WhatsApp a proposito: son dos canales distintos y el push no cuesta ni
+         depende de Meta. Si el restaurante tiene apagado el aviso por WhatsApp,
+         el cliente igual ve el suyo en la app.
+         Es best-effort y no se espera: si el push falla, el abono ya quedo
+         guardado, que es lo que importa. */
+      try {
+        fetch(`${SUPABASE_URL}/functions/v1/avisar-cliente`, {
+          method: "POST", headers: H,
+          body: JSON.stringify({
+            tipo: "puntos", tenant_id: m.tenant_id, telefono: m.telefono,
+            puntos: m.puntos, total: m.saldo_despues, motivo: m.tipo,
+          }),
+        }).catch(() => {});
+      } catch (_e) { /* nunca estorba al aviso por WhatsApp */ }
+
       try {
         const d = await datosDe(String(m.branch_id));
         if (!d.activo) { await marcar({ aviso: "apagado" }); apagados++; continue; }
