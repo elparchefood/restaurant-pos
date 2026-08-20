@@ -10261,3 +10261,63 @@ direccion, una direccion sin `https://` se completa sola, la respuesta rapida
 sale como `QUICK_REPLY`, un enlace sin direccion y un boton sin texto se
 descartan, un texto largo se corta a 25, de cuatro botones solo entran 3, y sin
 botones no se agrega el componente.
+
+### 253 — Listas de envío: crearlas de verdad (20-ago-2026)
+
+Sergio: *"para enviar plantillas necesito listas de envío pero sólo tenemos una
+y la creaste tú... necesito poderlas crear yo"*, con filtros por todos los
+contactos, los que han chateado, los registrados, los que tienen puntos y los
+que se recomienden.
+
+**Tres cosas estaban rotas o faltaban, y las tres se descubrieron por partes.**
+
+**1 · Guardar una lista fallaba SIEMPRE.** `pos_wa_listas` tiene una regla de
+seguridad que exige `tenant_id` en cada fila —es lo que impide que un
+restaurante vea las listas de otro— y el `insert` no lo mandaba: *"new row
+violates row-level security policy"*. La única lista que existía la había creado
+yo **desde el servidor**, donde esa regla no aplica, así que el fallo estuvo
+tapado hasta que Sergio intentó crear la suya.
+
+**2 · Nadie llenaba la cola de destinatarios.** Se podían crear listas y se
+podía enviar, pero `pos_wa_envios` **solo se leía y se actualizaba**: no había
+una sola línea en todo el sistema que insertara ahí. Los 1.381 de la única
+campaña los metí yo a mano. Crear una lista y darle enviar no habría mandado
+nada.
+
+Lo resuelve **`fn_wa_armar_lista(lista)`**: lee los filtros guardados y mete en
+la cola a los que cumplen. Se puede llamar cuantas veces se quiera —no vuelve a
+meter a quien ya está—, así que armar otra vez solo agrega los contactos nuevos.
+Y manda **una sola vez por número**: el mismo teléfono puede estar dos veces en
+los contactos (con indicativo y sin él), y recibir la misma promoción dos veces
+es la forma más rápida de que alguien bloquee el número.
+
+**3 · La lista vieja se veía mal.** La había guardado con `{tipo:
+'sin_conversacion'}` y la pantalla lee `filtro`, así que salía como "Todos ·
+1415" en vez de los que nunca han escrito. Se migró al formato que la pantalla
+entiende.
+
+**Los filtros nuevos.** Los dos primeros que pidió ya existían; faltaban los que
+cruzan con la app. Se ampliaron la vista `v_wa_contactos` (con `registrado_app`,
+`puntos` y `saldo`) y la pantalla. Con sus 1.417 contactos de hoy:
+
+| Filtro | Cuántos |
+|---|---|
+| Todos | 1.417 |
+| Nunca han escrito a Cobra | 1.309 |
+| Ya escribieron | 108 |
+| Con pedidos | 71 |
+| **Con puntos** | 93 |
+| **Registrados en la app** | 2 |
+| **Con saldo** | 0 |
+| **Compraron una sola vez** | 55 |
+| **Nunca han pedido** | 1.346 |
+| **Hace más de 60 días que no piden** | 0 |
+
+Los tres últimos los recomendé yo: son los que sirven para una campaña de
+verdad — traer al que compró una vez, estrenar al que nunca ha pedido, y
+recuperar al que se fue. "Perdidos" da 0 hoy, y eso es una buena noticia.
+
+**Comprobado contra la base**, con una lista de prueba creada y borrada: armó 93
+con el filtro de puntos —los mismos 93 que cuenta la vista—, al armar otra vez
+agregó 0 y reportó los 93 ya existentes, y no dejó ningún teléfono repetido.
+Luego los otros cuatro filtros, todos exactos: 106, 2, 1.344 y 55.

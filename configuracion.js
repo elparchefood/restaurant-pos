@@ -3222,8 +3222,25 @@ async function wlEnviar(id) {
   if (btn) { btn.disabled = true; btn.textContent = 'Arrancando...'; }
 
   try {
+    /* 0. SE LLENA LA COLA CON LOS QUE CUMPLEN LOS FILTROS (20-ago). Este paso
+          no existia: se podian crear listas y se podia enviar, pero nadie metia
+          los destinatarios. La unica campana que habia funciono porque su cola
+          se lleno a mano desde el servidor. Se puede llamar cuantas veces se
+          quiera: no vuelve a meter a quien ya esta en la lista, asi que armar
+          otra vez solo agrega a los contactos nuevos. */
+    if (btn) btn.textContent = 'Armando la lista...';
+    var arm = await sb.rpc('fn_wa_armar_lista', { p_lista: id });
+    if (arm.error) throw arm.error;
+    var cuenta = (arm.data && arm.data[0]) || {};
+    if (!Number(cuenta.total)){
+      if (btn){ btn.disabled = false; btn.textContent = 'Enviar la tanda de hoy'; }
+      if (res) res.textContent = 'Esta lista no tiene ningun contacto que cumpla sus filtros.';
+      return;
+    }
+
     /* 1. Se ARMA: es lo unico imprescindible. A partir de aqui el reloj de la
           base continua la tanda cada 2 minutos, aunque se cierre todo. */
+    if (btn) btn.textContent = 'Arrancando...';
     var up = await sb.from('pos_wa_listas')
       .update({ envio_activo: true, envio_armado_at: new Date().toISOString() })
       .eq('id', id);
@@ -5647,12 +5664,27 @@ async function cfgQrPersist(){
    lista negra. Las listas guardan los FILTROS (no los contactos), así se
    recalculan solas.
    ══════════════════════════════════════════════════════════════════════════ */
-var WC = { items: [], filtro: 'todos', tope: 60, listas: [], branchId: '', sel: {} };
+var WC = { items: [], filtro: 'todos', tope: 60, listas: [], branchId: '', tenantId: '', sel: {} };
 
 async function wcBranch(){
   if (WC.branchId) return WC.branchId;
   WC.branchId = await cfgQrGetBranch();
   return WC.branchId;
+}
+/* EL RESTAURANTE, OBLIGATORIO PARA GUARDAR (20-ago). `pos_wa_listas` tiene una
+   regla de seguridad que exige `tenant_id` en cada fila —es lo que impide que
+   un restaurante vea las listas de otro—, y el insert no lo mandaba: guardar
+   fallaba SIEMPRE con "row violates row-level security policy". La unica lista
+   que existia la habia creado yo desde el servidor, donde esa regla no aplica,
+   asi que el fallo estuvo escondido hasta que Sergio intento crear la suya. */
+async function wcTenant(){
+  if (WC.tenantId) return WC.tenantId;
+  try {
+    var u = await sb.auth.getUser();
+    WC.tenantId = (u && u.data && u.data.user && u.data.user.user_metadata)
+      ? (u.data.user.user_metadata.tenant_id || '') : '';
+  } catch(e){ WC.tenantId = ''; }
+  return WC.tenantId;
 }
 function wcEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function wcTel(t){
@@ -5731,6 +5763,20 @@ function wcFiltrados(){
     if (WC.filtro === 'guardado'    && !x.guardado) return false;
     if (WC.filtro === 'pedidos'     && !((+x.n_pedidos||0) > 0)) return false;
     if (WC.filtro === 'sin_nombre'  && x.tiene_nombre) return false;
+    /* Los que cruzan con la app (20-ago). La vista ya los trae calculados: el
+       navegador no tiene que cruzar tres tablas por su cuenta. */
+    if (WC.filtro === 'registrado'  && !x.registrado_app) return false;
+    if (WC.filtro === 'puntos'      && !((+x.puntos||0) > 0)) return false;
+    if (WC.filtro === 'saldo'       && !((+x.saldo||0) > 0)) return false;
+    if (WC.filtro === 'una_vez'     && (+x.n_pedidos||0) !== 1) return false;
+    if (WC.filtro === 'sin_pedidos' && (+x.n_pedidos||0) > 0) return false;
+    if (WC.filtro === 'perdidos'){
+      /* Perdido es quien YA compro y lleva mas de 60 dias sin volver. Quien
+         nunca compro no esta perdido: nunca lo tuviste. */
+      if (!((+x.n_pedidos||0) > 0)) return false;
+      var u = x.ultimo_pedido ? new Date(x.ultimo_pedido).getTime() : 0;
+      if (!u || (Date.now() - u) < 60*24*60*60*1000) return false;
+    }
     if (q){
       // Se busca por nombre Y por número. El número solo se compara si lo que
       // escribieron tiene dígitos: si no, la búsqueda numérica queda vacía y
@@ -5852,6 +5898,9 @@ function wcFiltrosActuales(){
 var WC_FILTRO_LBL = {
   todos:'Todos', no_escribio:'Nunca han escrito a Cobra', escribio:'Ya escribieron',
   guardado:'Guardados en el celular', pedidos:'Con pedidos', sin_nombre:'Sin nombre real',
+  registrado:'Registrados en la app', puntos:'Con puntos', saldo:'Con saldo',
+  una_vez:'Compraron una sola vez', perdidos:'Hace mas de 60 dias que no piden',
+  sin_pedidos:'Nunca han pedido',
 };
 // Cuántos contactos tiene HOY una lista guardada (se recalcula al vuelo).
 function wcContarLista(f){
@@ -5902,9 +5951,12 @@ async function wcGuardarLista(){
   var nombre = (nEl.value||'').trim();
   if (!nombre){ setMsg('Ponle un nombre a la lista.', false); nEl.focus(); return; }
   var bid = await wcBranch(); if (!bid){ setMsg('No se pudo identificar la sede.', false); return; }
+  var tid = await wcTenant();
+  if (!tid){ setMsg('No se pudo identificar el restaurante. Cierra sesión y vuelve a entrar.', false); return; }
   var filtros = wcFiltrosActuales();
   try {
-    var r = await sb.from('pos_wa_listas').insert([{ branch_id: bid, nombre: nombre, filtros: filtros }]).select();
+    var r = await sb.from('pos_wa_listas')
+      .insert([{ tenant_id: tid, branch_id: bid, nombre: nombre, filtros: filtros }]).select();
     if (r.error) throw r.error;
     WC.listas.unshift((r.data||[])[0] || { id:'', nombre:nombre, filtros:filtros });
     nEl.value = '';

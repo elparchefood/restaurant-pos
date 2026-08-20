@@ -1538,6 +1538,15 @@
                   <button type="button" class="wc-chip"     data-f="pedidos"    onclick="wcFiltro('pedidos')">Con pedidos</button>
                   <button type="button" class="wc-chip"     data-f="escribio"   onclick="wcFiltro('escribio')">Ya escribieron</button>
                   <button type="button" class="wc-chip"     data-f="sin_nombre" onclick="wcFiltro('sin_nombre')">Sin nombre real</button>
+                  <!-- Los que cruzan con la app de clientes (20-ago). Antes solo
+                       se podia filtrar por lo que pasaba en WhatsApp; ahora
+                       tambien por lo que la persona tiene en su cuenta. -->
+                  <button type="button" class="wc-chip"     data-f="registrado"  onclick="wcFiltro('registrado')">Registrados en la app</button>
+                  <button type="button" class="wc-chip"     data-f="puntos"      onclick="wcFiltro('puntos')">Con puntos</button>
+                  <button type="button" class="wc-chip"     data-f="saldo"       onclick="wcFiltro('saldo')">Con saldo</button>
+                  <button type="button" class="wc-chip"     data-f="una_vez"     onclick="wcFiltro('una_vez')">Compraron una sola vez</button>
+                  <button type="button" class="wc-chip"     data-f="perdidos"    onclick="wcFiltro('perdidos')">Hace mas de 60 dias que no piden</button>
+                  <button type="button" class="wc-chip"     data-f="sin_pedidos" onclick="wcFiltro('sin_pedidos')">Nunca han pedido</button>
                 </div>
                 <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:#64748B;margin-bottom:12px;cursor:pointer">
                   <input type="checkbox" id="wcSoloEnviables" checked onchange="wcRender()" style="width:14px;height:14px">
@@ -2703,7 +2712,7 @@
 <script src="pos-notify.js?v=1790370000"></script>
 <script src="pos-vars.js?v=1790460000"></script>
 <script src="pos-vars-ui.js?v=1790530000"></script>
-<script src="configuracion.js?v=1791460000a"></script>
+<script src="configuracion.js?v=1791470000a"></script>
 </body>
 </html>
 
