@@ -1642,9 +1642,25 @@
                     <input class="inp" id="wtpPie" placeholder="Ej. El Parche Food" maxlength="60" oninput="wtpPreview()">
                   </div>
 
+                  <!-- LOS BOTONES (20-ago). Sin esto, una campaña terminaba en
+                       un mensaje que el cliente tenía que leer y actuar por su
+                       cuenta. El atajo pone la dirección de la app de clientes
+                       sola, que es para lo que se pidieron. -->
+                  <div class="field">
+                    <label class="field-lb">Botones <span style="color:#94A3B8;font-weight:400">(opcional · hasta 3)</span></label>
+                    <div id="wtpBotones" style="display:flex;flex-direction:column;gap:8px"></div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+                      <button type="button" class="cfg-qr-btn" onclick="wtpAgregarBotonApp()">+ Botón a mi app de clientes</button>
+                      <button type="button" class="cfg-qr-btn" onclick="wtpAgregarBoton('enlace')">+ Otro enlace</button>
+                      <button type="button" class="cfg-qr-btn" onclick="wtpAgregarBoton('respuesta')">+ Respuesta rápida</button>
+                    </div>
+                    <div class="field-hint" style="font-size:11px;color:#94A3B8;margin-top:6px">Meta permite máximo 3 botones y 25 caracteres en cada texto.</div>
+                  </div>
+
                   <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px;margin-bottom:12px">
                     <div style="font-size:11px;font-weight:700;color:#94A3B8;letter-spacing:.04em;margin-bottom:8px">ASÍ LE LLEGA AL CLIENTE</div>
                     <div id="wtpPrev" style="background:#DCF8C6;border-radius:10px;padding:10px 12px;font-size:13.5px;color:#0F172A;white-space:pre-wrap;line-height:1.45;max-width:300px">Escribe el mensaje…</div>
+                    <div id="wtpPrevBotones"></div>
                   </div>
 
                   <div class="cfg-qr-actions">
@@ -2687,7 +2703,7 @@
 <script src="pos-notify.js?v=1790370000"></script>
 <script src="pos-vars.js?v=1790460000"></script>
 <script src="pos-vars-ui.js?v=1790530000"></script>
-<script src="configuracion.js?v=1791010000a"></script>
+<script src="configuracion.js?v=1791460000a"></script>
 </body>
 </html>
 

@@ -10216,3 +10216,48 @@ etiquetas en los dos, el campo del monto solo con "Ahorras" y precargado.
 No se pudo probar la pantalla en el navegador: el catálogo exige sesión y PIN, y
 el banco no logró pasar las dos guardas. Queda para que Sergio abra el editor de
 un combo y lo vea.
+
+### 252 — Plantillas de WhatsApp con botones (20-ago-2026)
+
+Sergio: *"iba a crear una plantilla de whatsapp desde Cobra y mire que no tiene
+la opcion de crear la plantilla con botones, necesito que se pueda crear
+plantilla con botones, para que ese boton los mande a la app de clientes"*.
+
+Hasta hoy la plantilla era solo **cuerpo y pie**: una campana terminaba en un
+mensaje que el cliente tenia que leer y luego ir a buscar la pagina por su
+cuenta. El unico boton que existia era el de copiar el codigo, y solo en las de
+AUTENTICACION.
+
+**Dos tipos, no mas:**
+
+- **Enlace** — abre una direccion. Es el que pidio Sergio.
+- **Respuesta rapida** — mete una respuesta que el cliente toca.
+
+No se acepta el de **llamar**: el numero tendria que salir de la ficha del
+restaurante y no de lo que mande el navegador, y hoy nadie lo pide. Meterlo
+"por si acaso" seria una via para publicar un telefono equivocado.
+
+**El atajo "Botón a mi app de clientes"** arma el boton solo, con la direccion
+sacada del `slug` del restaurante y **no escrita a mano**: si manana cambia el
+nombre de la pagina, los botones nuevos siguen llevando al sitio correcto.
+
+**Los limites son de Meta y se respetan ANTES de mandar:** maximo 3 botones y 25
+caracteres de texto. Con tres, el boton de agregar se apaga — mejor eso que
+dejar que Meta rechace la plantilla despues de radicarla. Y un boton a medias
+(sin texto, o un enlace sin direccion) no viaja: haria rechazar la plantilla
+entera.
+
+**Los botones viven en `WTP.botones`, no en el DOM.** El formulario se repinta
+al agregar y al quitar; si se leyeran de los campos, cada repintado borraria lo
+escrito. Es la misma leccion del barrio de la app de clientes esta misma manana.
+
+La vista previa los dibuja **debajo** de la burbuja, en gris y separados, que es
+como los pinta WhatsApp — no dentro del texto verde.
+
+**Comprobado.** La funcion desplegada (v6) sigue respondiendo con una llamada
+real: lista las 3 plantillas aprobadas. Y la logica que arma los botones,
+corrida aparte con ocho casos: el boton a la app sale como `URL` con su
+direccion, una direccion sin `https://` se completa sola, la respuesta rapida
+sale como `QUICK_REPLY`, un enlace sin direccion y un boton sin texto se
+descartan, un texto largo se corta a 25, de cuatro botones solo entran 3, y sin
+botones no se agrega el componente.

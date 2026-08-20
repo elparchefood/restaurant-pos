@@ -156,6 +156,38 @@ Deno.serve(async (req) => {
       components.push(bodyComp);
       if (pie) components.push({ type: "FOOTER", text: pie.slice(0, 60) });
 
+      /* ── BOTONES (20-ago-2026) ────────────────────────────────────────────
+         Sergio: "necesito que se pueda crear plantilla con botones, para que
+         ese boton los mande a la app de clientes". Antes solo se mandaba cuerpo
+         y pie, asi que una campana terminaba en un mensaje que el cliente tenia
+         que leer y actuar por su cuenta.
+
+         Se aceptan los dos que sirven aqui y nada mas:
+           · enlace    → abre una direccion (la app de clientes)
+           · respuesta → mete una respuesta rapida que el cliente toca
+
+         NO se acepta el de llamar: el numero tendria que salir de la ficha del
+         restaurante y no de lo que mande el navegador, y hoy nadie lo pide.
+
+         Los limites son de Meta, no nuestros: 3 botones como maximo, 25
+         caracteres el texto, y en una plantilla de MARKETING o UTILITY los de
+         enlace y respuesta no se pueden mezclar con los de OTP. */
+      const botones = (Array.isArray(b.botones) ? b.botones : [])
+        .slice(0, 3)
+        .map((x: Record<string, unknown>) => {
+          const texto = String(x?.texto || "").trim().slice(0, 25);
+          const tipo  = String(x?.tipo || "enlace");
+          if (!texto) return null;
+          if (tipo === "respuesta") return { type: "QUICK_REPLY", text: texto };
+          let url = String(x?.url || "").trim();
+          if (!url) return null;
+          if (!/^https?:\/\//i.test(url)) url = "https://" + url.replace(/^\/+/, "");
+          return { type: "URL", text: texto, url: url.slice(0, 2000) };
+        })
+        .filter(Boolean);
+
+      if (botones.length) components.push({ type: "BUTTONS", buttons: botones });
+
       const r = await fetch(`${GRAPH}/${waba}/message_templates`, {
         method: "POST", headers: H,
         body: JSON.stringify({ name: nombre, language: idioma, category: categoria, components }),

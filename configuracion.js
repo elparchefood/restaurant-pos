@@ -5939,12 +5939,81 @@ async function wcBorrarLista(id){
    token de la cuenta de WhatsApp no puede quedar expuesto en el navegador.
    ══════════════════════════════════════════════════════════════════════════ */
 var WTP_FN = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/wa-plantillas';
-var WTP = { items: [], branchId: '' };
+var WTP = { items: [], branchId: '', botones: [], slugWeb: '' };
+
+/* ── LOS BOTONES DE LA PLANTILLA (20-ago-2026) ──────────────────────────
+   Sergio: "necesito que se pueda crear plantilla con botones, para que ese
+   boton los mande a la app de clientes". Antes la plantilla era solo texto: el
+   cliente leia la promocion y tenia que ir a buscar la pagina por su cuenta.
+
+   Los botones viven en `WTP.botones`, no en el DOM: el formulario se repinta al
+   agregar y al quitar, y si se leyeran de los campos se perderia lo escrito. */
+function wtpDireccionApp(){
+  /* La direccion de SU pagina, sacada del restaurante y no escrita a mano: si
+     manana cambia el nombre, el boton sigue llevando al sitio correcto. */
+  return 'https://cobrapos.app/' + String(WTP.slugWeb || '').trim();
+}
+function wtpAgregarBoton(tipo, texto, url){
+  if (WTP.botones.length >= 3) return;   // el tope es de Meta, no nuestro
+  WTP.botones.push({ tipo: tipo || 'enlace', texto: texto || '', url: url || '' });
+  wtpPintarBotones(); wtpPreview();
+}
+function wtpAgregarBotonApp(){ wtpAgregarBoton('enlace', 'Ver en la app', wtpDireccionApp()); }
+function wtpQuitarBoton(i){ WTP.botones.splice(i, 1); wtpPintarBotones(); wtpPreview(); }
+function wtpSetBotonTexto(i, v){ if (WTP.botones[i]) WTP.botones[i].texto = v; wtpPreview(); }
+function wtpSetBotonUrl(i, v){ if (WTP.botones[i]) WTP.botones[i].url = v; }
+function wtpPintarBotones(){
+  var caja = document.getElementById('wtpBotones');
+  if (!caja) return;
+  caja.innerHTML = WTP.botones.map(function(b, i){
+    var esEnlace = b.tipo === 'enlace';
+    return '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;' +
+        'background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:10px">' +
+      '<div style="flex:1;min-width:150px">' +
+        '<span style="font-size:11px;color:#94A3B8;font-weight:700">' +
+          (esEnlace ? 'ENLACE' : 'RESPUESTA RAPIDA') + '</span>' +
+        '<input class="inp" maxlength="25" placeholder="Texto del boton" value="' + wtpEsc(b.texto) + '" ' +
+          'oninput="wtpSetBotonTexto(' + i + ',this.value)" style="margin-top:4px">' +
+      '</div>' +
+      (esEnlace
+        ? '<div style="flex:2;min-width:200px"><span style="font-size:11px;color:#94A3B8;font-weight:700">A DONDE LLEVA</span>' +
+          '<input class="inp" placeholder="https://..." value="' + wtpEsc(b.url) + '" ' +
+            'oninput="wtpSetBotonUrl(' + i + ',this.value)" style="margin-top:4px"></div>'
+        : '') +
+      '<button type="button" class="cfg-qr-btn" onclick="wtpQuitarBoton(' + i + ')">Quitar</button>' +
+    '</div>';
+  }).join('');
+  /* Con tres ya no se puede agregar: mejor apagar el boton que dejar que Meta
+     rechace la plantilla despues de mandarla. */
+  var padre = caja.parentNode;
+  var mas = padre ? padre.querySelectorAll('.cfg-qr-btn') : [];
+  for (var k = 0; k < mas.length; k++){
+    var t = mas[k].textContent || '';
+    if (t.charAt(0) === '+'){
+      mas[k].disabled = WTP.botones.length >= 3;
+      mas[k].style.opacity = WTP.botones.length >= 3 ? '.45' : '';
+    }
+  }
+}
 
 async function wtpBranch(){
   if (WTP.branchId) return WTP.branchId;
   WTP.branchId = await cfgQrGetBranch();
   return WTP.branchId;
+}
+/* La direccion de la pagina de clientes sale del restaurante, no escrita a
+   mano: si manana cambia el nombre, los botones nuevos siguen bien. Si no se
+   puede leer, el atajo deja la direccion base y el dueno la completa. */
+async function wtpCargarSlug(){
+  if (WTP.slugWeb) return;
+  try {
+    var u = await sb.auth.getUser();
+    var tid = u && u.data && u.data.user && u.data.user.user_metadata
+      ? u.data.user.user_metadata.tenant_id : null;
+    if (!tid) return;
+    var r = await sb.from('tenants').select('slug').eq('id', tid).maybeSingle();
+    WTP.slugWeb = (r.data && r.data.slug) || '';
+  } catch(e){}
 }
 async function wtpCall(payload){
   var bid = await wtpBranch();
@@ -6187,6 +6256,17 @@ function wtpPreview(){
   if (prev){
     var p = (pie && pie.value) ? '\n\n' + pie.value : '';
     prev.textContent = (txt.trim() ? txt : 'Escribe el mensaje…') + p;
+    /* Los botones se dibujan DEBAJO de la burbuja, como los pinta WhatsApp: en
+       gris y separados, no dentro del texto verde. */
+    var cajaB = document.getElementById('wtpPrevBotones');
+    if (cajaB){
+      cajaB.innerHTML = (WTP.botones || []).filter(function(b){ return b.texto.trim(); })
+        .map(function(b){
+          return '<div style="background:#fff;border:1px solid #E2E8F0;border-radius:8px;' +
+            'padding:8px;text-align:center;font-size:13px;color:#1E88E5;font-weight:600;' +
+            'margin-top:4px;max-width:300px">' + wtpEsc(b.texto) + '</div>';
+        }).join('');
+    }
   }
 }
 // El pegado entra como texto plano: pegar HTML dentro del editor rompería
@@ -6213,6 +6293,7 @@ function wtpAbrirCreador(){
   if (!w) return;
   w.style.display = ''; if (hn) hn.style.display = 'none'; if (hc) hc.style.display = 'flex';
   if (l){ l.style.opacity = '.45'; l.style.pointerEvents = 'none'; }
+  WTP.botones = []; wtpPintarBotones(); wtpCargarSlug();
   var nom = document.getElementById('wtpNombre'); if (nom) nom.focus();
 }
 function wtpCerrarCreador(){
@@ -6241,6 +6322,11 @@ async function wtpCrear(){
   var d = await wtpCall({
     action:'create', nombre: nom.value, categoria: cat.value, idioma: 'es',
     cuerpo: d0.cuerpo, pie: pie.value.trim(), ejemplos: d0.ejemplos,
+    /* Solo los que estan completos: un boton sin texto, o un enlace sin
+       direccion, hace que Meta rechace la plantilla entera. */
+    botones: WTP.botones.filter(function(b){
+      return b.texto.trim() && (b.tipo === 'respuesta' || b.url.trim());
+    }),
   });
   btn.disabled = false; btn.textContent = 'Enviar a aprobación';
   if (d.error){ setMsg(d.error, false); return; }
@@ -6261,6 +6347,7 @@ async function wtpCrear(){
 
   setMsg('Plantilla enviada a Meta. Queda "En revisión" — puede tardar de unos minutos a 24 horas.', true);
   nom.value = ''; pie.value = '';
+  WTP.botones = []; wtpPintarBotones();
   if (cue) cue.innerHTML = '';
   wtpPreview(); wtpCerrarCreador(); wtpCargar();
 }
