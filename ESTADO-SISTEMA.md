@@ -9191,3 +9191,43 @@ pendiente**: significa "aprobado sin necesidad de revision". Se reporto como
 si hubiera que mandarlo a revisar y era falso. El icono amarillo del Centro de
 seguridad es por el **nivel de mensajeria** (TIER_250, el de entrada), que sube
 solo con volumen y calidad — no con un formulario.
+
+### 235b — El SMS funcionando, y el fallo que casi se cuela (19-ago-2026)
+
+**Cuenta Twilio lista.** Numero `+1 858 727 5874` (local de EE.UU., US$1,15/mes).
+Colombia ya venia habilitada en *Geo permissions*, no hubo que tocarla. Los
+tres secretos puestos: `TWILIO_SID`, `TWILIO_TOKEN`, `TWILIO_FROM`.
+
+Colombia **no vende numeros con SMS** (los suyos son solo de voz): se comprueba
+buscando con destino Colombia y no sale ninguno. Se usa un long code de EE.UU.
+— y segun las reglas de Twilio para Colombia, **el operador local reemplaza el
+remitente por un short code**, asi que al cliente le llega de un numero corto
+como los del banco, no de un +1. Los toll-free se descartaron: son para trafico
+dentro de EE.UU. El registro A2P 10DLC que Twilio pide en pantalla es para
+mandarle a numeros **estadounidenses**; a Colombia entrega sin registrar nada
+(comprobado: entregado).
+
+**Trampa que costo el diseNo inicial.** El respaldo se escribio como "si
+WhatsApp falla, manda SMS" — y esa premisa era falsa: **Meta responde 200 y
+despues no entrega**. En la primera prueba real el codigo "salio" por WhatsApp,
+la funcion lo dio por bueno y el SMS nunca se mando. Es exactamente lo que le
+paso a Sandra Villareal tres veces: sus tres codigos figuran como enviados.
+
+No se le puede preguntar a Meta si llego —el aviso de entrega es asincrono y el
+cliente espera AHORA— pero **el dato lo tenemos en casa**: `ventanaAbierta()`
+mira si esa persona escribio en las ultimas 24 h. Si no escribio, ni se intenta
+WhatsApp: va derecho por SMS.
+
+**Dos cosas mas que vio Sergio:**
+- El mensaje decia *"para entrar a elparche.foodpopayan"* — el nombre de la
+  CUENTA, que quedo registrada con el correo del dueNo. La pagina ya resolvia
+  esto (`fn_web_publica` saca el nombre de `brands`); `web-acceso` no, y era la
+  unica que le hablaba directo al cliente. Corregido: ahora dice *El Parche Food*.
+- **El codigo se autocompleta solo.** En iPhone ya lo hacia el
+  `autocomplete="one-time-code"` del campo. En Android hace falta la API WebOTP
+  y que el SMS termine con `@cobrapos.app #codigo` — formato exacto, dominio
+  exacto. Si no cuadra, el navegador lo ignora y no se rompe nada. Ademas, con
+  los 6 digitos puestos el formulario se envia solo.
+
+Probado por el camino real (`pedir-codigo` de produccion): ventana cerrada →
+SMS → **entregado**, con el nombre bueno y la linea del autocompletado.

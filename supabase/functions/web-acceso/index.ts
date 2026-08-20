@@ -166,6 +166,42 @@ const PLANTILLA_CODIGO = "acceso_codigo";
 
    Sin credenciales configuradas devuelve false y no estorba: la funcion se
    comporta exactamente como antes. */
+/* ¿ESTA DE VERDAD ABIERTA LA VENTANA DE 24 HORAS? (19-ago, tarde)
+
+   El respaldo por SMS se escribio para que entrara "si WhatsApp falla", y esa
+   era la premisa equivocada: **Meta responde 200 y despues no entrega**. El
+   codigo salia por WhatsApp, la funcion lo daba por bueno y el SMS no se
+   mandaba nunca — que es exactamente lo que le paso a Sandra Villareal tres
+   veces. Su codigo "se envio" las tres.
+
+   No se le puede preguntar a Meta si llego; el aviso de entrega es asincrono y
+   el cliente esta esperando AHORA. Pero el dato lo tenemos en casa: si esa
+   persona nos escribio en las ultimas 24 horas, la ventana esta abierta y el
+   texto plano llega. Si no, no llega — y no hay que intentarlo siquiera. */
+async function ventanaAbierta(tenantId: string, telefono: string): Promise<boolean> {
+  try {
+    const convs = await sbGet(
+      `/chat_conversations?tenant_id=eq.${tenantId}&contact_handle=eq.57${telefono}&select=id`
+    ) as Array<Record<string, unknown>> | null;
+    if (!convs || !convs.length) return false;
+    const ids = convs.map((c) => String(c.id)).join(",");
+    const desde = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const msgs = await sbGet(
+      `/chat_messages?conversation_id=in.(${ids})&direction=eq.in&sent_at=gte.${desde}&select=id&limit=1`
+    ) as unknown[] | null;
+    return !!(msgs && msgs.length);
+  } catch (e) {
+    /* Si no se puede saber, se asume cerrada: mandar el SMS cuesta $200 y que
+       el cliente no reciba nada cuesta el cliente. */
+    console.error("[acceso] ventana 24h:", String(e).slice(0, 200));
+    return false;
+  }
+}
+
+/* El dominio desde el que se sirve la pagina del cliente. Tiene que ser
+   IDENTICO al de la barra de direcciones o el autocompletado no funciona. */
+const DOMINIO_APP = "cobrapos.app";
+
 async function mandarPorSms(telefono: string, codigo: string, negocio: string): Promise<boolean> {
   const sid   = Deno.env.get("TWILIO_SID")   || "";
   const token = Deno.env.get("TWILIO_TOKEN") || "";
@@ -174,8 +210,17 @@ async function mandarPorSms(telefono: string, codigo: string, negocio: string): 
 
   /* SIN TILDES NI EMOJIS. Un SMS con acentos cambia de codificacion y pasa de
      160 a 70 caracteres: el mensaje se parte en dos y se cobra doble. */
+  /* LA ULTIMA LINEA ES PARA QUE EL CELULAR LO ESCRIBA SOLO (19-ago, pedido de
+     Sergio). Android rellena el codigo sin que el cliente lo copie, pero exige
+     un formato exacto: el ultimo renglon tiene que ser "@dominio #codigo", con
+     el dominio EXACTO desde el que se abrio la pagina. Si no cuadra, el
+     navegador lo ignora — no se rompe nada, solo deja de autocompletar.
+     En iPhone no hace falta: lo resuelve el `autocomplete="one-time-code"` del
+     campo. */
   const texto = codigo + " es tu codigo para entrar a " + negocio
-    + ". Vence en " + CODIGO_VIVE_MIN + " minutos. No se lo compartas a nadie.";
+    + ". Vence en " + CODIGO_VIVE_MIN + " minutos. No se lo compartas a nadie."
+    + String.fromCharCode(10) + String.fromCharCode(10)
+    + "@" + DOMINIO_APP + " #" + codigo;
   const form = new URLSearchParams({
     To: "+57" + telefono,
     From: desde,
@@ -230,7 +275,10 @@ async function mandarCodigo(tenantId: string, telefono: string, codigo: string, 
     console.error("[acceso] plantilla del codigo no salio:", (await rp.text()).slice(0, 300));
   } catch (e) { console.error("[acceso] plantilla del codigo:", String(e).slice(0, 200)); }
 
-  /* 2. Respaldo: texto plano. Solo llega si escribio en las ultimas 24 h. */
+  /* 2. Texto plano de WhatsApp — SOLO si la ventana esta abierta de verdad. */
+  const abierta = await ventanaAbierta(tenantId, telefono);
+  if (!abierta) console.log("[acceso] fuera de la ventana de 24h, va directo por SMS");
+  if (abierta) {
   const cuerpo = `${codigo} es tu código para entrar a ${negocio}.\n\nVence en ${CODIGO_VIVE_MIN} minutos. No se lo compartas a nadie.`;
   const r = await fetch(url, {
     method: "POST", headers: cabeceras,
@@ -241,8 +289,9 @@ async function mandarCodigo(tenantId: string, telefono: string, codigo: string, 
   });
   if (r.ok) return true;
   console.error("[acceso] Meta rechazo el codigo:", (await r.text()).slice(0, 300));
+  }
 
-  /* 3. WhatsApp no pudo. Va por SMS. */
+  /* 3. Fuera de la ventana, o WhatsApp no pudo. Va por SMS. */
   return await mandarPorSms(telefono, codigo, negocio);
 }
 
@@ -270,7 +319,23 @@ async function buscarCliente(tenantId: string, tel: string, campos = "id,nombre,
 async function restaurantePorSlug(slug: string) {
   const s = String(slug || "").toLowerCase().replace(/[^a-z0-9]/g, "");
   if (!s) return null;
-  const rows = await sbGet(`/tenants?slug=eq.${s}&select=id,name,slug,web_activa,status&limit=1`) as Array<Record<string, unknown>> | null;
+  /* EL NOMBRE DE LA MARCA, NO EL DE LA CUENTA (19-ago, lo vio Sergio).
+     El codigo llegaba diciendo "es tu codigo para entrar a
+     elparche.foodpopayan" — la cuenta quedo registrada con el correo del
+     dueNo. La pagina del cliente ya resolvia esto (fn_web_publica saca el
+     nombre de `brands`); esta funcion no, y era la unica que le hablaba
+     directo al cliente por WhatsApp y por SMS. */
+  const rows = await sbGet(
+    `/tenants?slug=eq.${s}&select=id,name,slug,web_activa,status,brands(name,created_at)&limit=1`
+  ) as Array<Record<string, unknown>> | null;
+  if (rows && rows[0]) {
+    const marcas = (rows[0].brands || []) as Array<Record<string, unknown>>;
+    const marca = marcas
+      .slice()
+      .sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")))[0];
+    const nom = String((marca && marca.name) || "").trim();
+    if (nom) rows[0].name = nom;
+  }
   return rows?.[0] || null;
 }
 

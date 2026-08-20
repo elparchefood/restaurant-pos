@@ -183,6 +183,34 @@
     '</div>');
     $('i-cod').focus();
 
+    /* QUE EL CELULAR LO ESCRIBA SOLO (19-ago, pedido de Sergio).
+       En iPhone ya lo hacia el `autocomplete="one-time-code"` del campo. En
+       Android hay que pedirlo: el navegador lee el SMS —solo el que termina
+       con "@cobrapos.app #codigo"— y lo entrega aqui. El cliente ni siquiera
+       tiene que salir de la pagina.
+
+       Va todo dentro de un `try`: en los navegadores que no lo tienen,
+       `navigator.credentials` no existe y no debe romper la pantalla. Y se
+       cancela al salir del formulario, para no dejar la escucha viva. */
+    try {
+      if (window.OTPCredential && navigator.credentials && window.AbortController) {
+        if (otpCancelar) otpCancelar.abort();
+        otpCancelar = new AbortController();
+        navigator.credentials.get({ otp: { transport: ['sms'] }, signal: otpCancelar.signal })
+          .then(function (cred) {
+            var campo = $('i-cod');
+            if (!cred || !cred.code || !campo) return;
+            campo.value = String(cred.code).replace(/\D/g, '').slice(0, 6);
+            /* Se envia solo: si el codigo ya esta completo, hacerle tocar
+               "Continuar" es un paso de mas que no aporta nada. */
+            if (campo.value.length === 6 && $('f-cod')) {
+              $('f-cod').dispatchEvent(new Event('submit', { cancelable: true }));
+            }
+          })
+          .catch(function () { /* lo cancelo el usuario o no llego: sin ruido */ });
+      }
+    } catch (e) { /* navegador sin soporte */ }
+
     $('f-cod').addEventListener('submit', async function (ev) {
       ev.preventDefault();
       var cod = ($('i-cod').value || '').replace(/\D/g, '');
@@ -3213,6 +3241,8 @@
   // ── Pantalla del pedido ─────────────────────────────────────────────
   var entrega = 'recoger';
   var pedidoHecho = null;
+  /* La escucha del SMS: se guarda para poder cancelarla al cambiar de pantalla. */
+  var otpCancelar = null;
 
   /* LA CUENTA, SIEMPRE DEL SERVIDOR ─────────────────────────────────────
      `firmaCuenta` describe el pedido tal como está ahora mismo: si cambia algo
