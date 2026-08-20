@@ -10053,3 +10053,45 @@ el nombre completo y devuelven el apellido aparte. En el banco: la ficha separa
 "Jose Antonio" / "Muñoz Perez" sin equivocarse, la edicion guarda y repinta, y
 el registro desde cero manda los dos campos. Los datos de prueba quedaron
 restaurados.
+
+### 248 — La tarjeta de saldo tiene personalidad (20-ago-2026)
+
+Sergio: *"quiero que la tarjeta de saldo tenga mas personalidad (no cambia la
+forma) solo cambie el diseño interior, el color, podemos poner patrones, poner
+un chip simulando el chip de tarjeta"*. Y de referencia, una Visa roja.
+
+Escogio: **la roja en tema oscuro y la negra con dorado en tema claro**. Sobre
+fondo claro el rojo encendido pesa demasiado y se come la pantalla; el carbon
+descansa y ademas hace juego con la tarjeta de puntos, que ya es dorada.
+
+**LA FORMA NO SE TOCO.** La muesca es una mascara CSS de seis capas con una
+advertencia escrita al lado —"no pongas box-shadow ni filter, la sombra se
+proyecta dentro de la muesca"—. No se cambio ni el radio, ni el padding, ni la
+mascara, ni el boton. **Solo el `background`.** Se comprobo despues: la mascara
+sigue teniendo sus 42 partes y el boton esta en el mismo pixel.
+
+**El primer intento del patron estaba mal y hubo que rehacerlo.** Se dibujaron
+ondas horizontales paralelas, y eso se lee como un rayado. Mirando la referencia
+de cerca, las lineas son curvas **anidadas** —una dentro de otra, apretandose
+hacia un lado—, el dibujo de un mapa de curvas de nivel. Se hicieron tres
+versiones (anillos, curvas de nivel, y las dos superpuestas) y Sergio escogio la
+tercera: en la foto se ven los dos dibujos a la vez.
+
+**Va dibujado, no es una imagen.** El patron es un SVG de texto dentro del
+propio `background`: unos kilobytes, nitido en cualquier pantalla y sin una
+peticion mas. Una foto se veria borrosa en un celular bueno.
+
+**El chip** es UN solo elemento vacio; todo el dibujo son tres degradados
+superpuestos en el CSS — los dos primeros hacen los contactos. Sin hijos que
+estorben ni imagen que cargar. El rotulo del saldo baja 54 px para dejarle su
+sitio.
+
+Se cubren las **dos maneras de estar en claro**: el interruptor de la app
+(`html.tema-claro`) y el del propio celular (`prefers-color-scheme`). Con solo
+la primera, a quien tuviera el celular en claro y no hubiera tocado el
+interruptor le habria salido la roja.
+
+**Comprobado** en las dos tarjetas —la del inicio y la de la Billetera— y en los
+dos temas: en oscuro el fondo rojo con sus 26 anillos y 30 curvas, en claro el
+negro con sus 50 rayas doradas, el chip dibujado en ambos, sin montarse con el
+texto y sin desbordar.

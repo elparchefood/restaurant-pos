@@ -848,6 +848,9 @@
         '<span class="ep-wc-exp"><svg class="ep-ic" width="13" height="13" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="m12 4.4 2.3 4.9 5.2.7-3.8 3.7.9 5.3-4.6-2.6-4.6 2.6.9-5.3L4.5 10l5.2-.7z"/></svg>' +
           '<span class="ep-wc-rank">' + esc(((n && n.nombre) || '').toUpperCase()) + '</span></span>' +
       '</div>' +
+      /* El chip, como el de una tarjeta de verdad (20-ago, idea de Sergio). Va
+         vacio a proposito: todo el dibujo esta en el CSS. */
+      '<span class="ep-wc-chip"></span>' +
       '<span class="ep-wc-lbl">Saldo disponible</span>' +
       '<div class="ep-wc-bal">' +
         '<span class="ep-wc-amt">' + COP(c.saldo) + '</span>' +
@@ -1670,6 +1673,9 @@
     /* La tarjeta, con la estructura del handoff: el boton va FUERA del recorte. */
     var tarjeta = '<div class="ep-wc-wrap" style="margin-bottom:14px"><div class="ep-wcard">' +
       '<div class="ep-wc-head"><span class="ep-wc-brand">' + esc((e.nombre || '').toUpperCase()) + '</span></div>' +
+      /* El chip, como el de una tarjeta de verdad (20-ago, idea de Sergio). Va
+         vacio a proposito: todo el dibujo esta en el CSS. */
+      '<span class="ep-wc-chip"></span>' +
       '<span class="ep-wc-lbl">Saldo disponible</span>' +
       '<div class="ep-wc-bal"><span class="ep-wc-amt">' + COP(c.saldo) + '</span>' +
         '<span class="ep-wc-spark"><svg class="ep-ic" width="19" height="19" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 3.6c.6 4.3 2.5 6.2 6.8 6.8-4.3.6-6.2 2.5-6.8 6.8-.6-4.3-2.5-6.2-6.8-6.8 4.3-.6 6.2-2.5 6.8-6.8z"/></svg></span></div>' +
