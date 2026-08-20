@@ -10605,3 +10605,8 @@ pidio el archivo con esa marca minutos antes de publicar, el CDN guardo la
 version vieja bajo esa direccion (~10 min) y a Instagram le llego la misma
 copia vieja — por eso tampoco salia tras entrar. Eso se resuelve solo al
 vencer el cache o cambiar la hora.
+
+**Tercera vuelta (decision de Sergio):** el modal de instalar ahora sale
+SIEMPRE al llegar, antes de iniciar sesion ("asi es mas efectivo"), en todos
+los navegadores — ya no solo dentro de Instagram. Si la persona lo cierra, los
+7 dias de espera evitan repetirselo al entrar. Sello de cache: `0820l`.
