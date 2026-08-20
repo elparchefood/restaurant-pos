@@ -10353,3 +10353,45 @@ lista nueva. Ahora el boton dice lo que de verdad toca:
 
 El ultimo importa: desde el ultimo envio pueden haber entrado contactos que
 cumplen los filtros, y `fn_wa_armar_lista` solo agrega a los que faltan.
+
+### 254 — Seguimiento de pedidos hechos en Cobra: ya funcionaba (20-ago-2026)
+
+Sergio pidió conectar los pedidos que **no** salen de la app —los que hace el
+mesero o los de mesa— para que el cliente registrado los vea en su app con el
+mismo seguimiento. *"No hay que hacer nada nuevo, lo único que tenemos que hacer
+es conectar los pedidos que se hacen directamente desde Cobra."*
+
+**No hubo nada que conectar: ya estaba.** Y se comprobó, en vez de suponerlo.
+
+`pedido-activo` busca **por `cliente_id`**, no por el origen del pedido. Da
+igual quién lo haya creado: si el pedido está a nombre de la ficha del cliente,
+aparece. Lo mismo el historial.
+
+**La prueba, de punta a punta.** Se creó un pedido como lo crearía un mesero
+—sin `origen: web`, con mesero y todo— a nombre de una clienta registrada:
+
+| Paso | Lo que vio la app |
+|---|---|
+| Pedido creado, en preparación | Lo muestra, con su corto, canal, total y qué pidió |
+| El mesero lo marca **listo** en Cobra | Cambia a "listo" |
+| Se marca **entregado** | Desaparece del seguimiento, como debe |
+
+El pedido de prueba se borró; quedaron 0. Antes de eso se verificó también con
+un pedido **real y viejo** de Linda isabela —hecho en Cobra el 14-ago—: sale en
+su historial dentro de la app.
+
+**El aviso al celular también sale solo.** Lo dispara `cambiar-estado`, por
+donde pasan TODOS los cambios: el POS, el chat y el cron. No hay que colgarlo de
+ninguna pantalla.
+
+**La única condición, y es la que Sergio ya puso:** el pedido tiene que estar a
+nombre de la ficha del cliente. Hoy, de 307 pedidos, **214 tienen cliente**. De
+los 91 que no, **73 son de mesa** —gente que llega, se sienta y come, sin nadie
+a quien vincular— y **ninguno es domicilio**: todos los domicilios tienen su
+cliente. Solo 2 tienen un nombre escrito a mano sin ficha.
+
+**Y un riesgo que se descartó midiendo:** si un mismo teléfono tuviera varias
+fichas, el mesero podría elegir la equivocada y el pedido no aparecería. Se
+buscó: **cero teléfonos con fichas duplicadas**. Los tres "Sergio" tienen
+números distintos, así que no aplica. Por eso NO se cambió la búsqueda a
+teléfono: habría sido más código para resolver un problema que no existe.
