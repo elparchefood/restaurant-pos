@@ -246,8 +246,15 @@
     var c = cli || {};
     var soloClave = !!yaEra && !abrirDatos;
     var campos = soloClave ? '' :
+        /* NOMBRE Y APELLIDO SEPARADOS (20-ago, Sergio). El campo `nombre` de
+           la ficha ya trae el nombre completo, asi que aqui se muestra sin el
+           apellido para no repetirlo dentro de su propia casilla. */
         '<label class="ep-campo"><span class="ep-lbl">Tu nombre</span>' +
-          '<input class="ep-in" id="d-nombre" autocomplete="name" maxlength="80" value="' + esc(c.nombre || '') + '" placeholder="Como quieres que te llamemos"></label>' +
+          '<input class="ep-in" id="d-nombre" autocomplete="given-name" maxlength="80" value="' +
+            esc(soloNombre(c)) + '" placeholder="Como quieres que te llamemos"></label>' +
+        '<label class="ep-campo"><span class="ep-lbl">Tu apellido</span>' +
+          '<input class="ep-in" id="d-apellido" autocomplete="family-name" maxlength="60" value="' +
+            esc(c.apellido || '') + '" placeholder="Tu apellido"></label>' +
         '<label class="ep-campo"><span class="ep-lbl">Dirección <span style="opacity:.6">· para tus domicilios</span></span>' +
           '<input class="ep-in" id="d-dir" autocomplete="street-address" maxlength="160" value="' + esc(c.direccion || '') + '" placeholder="Calle 5 # 10-20, apto 301"></label>' +
         '<label class="ep-campo"><span class="ep-lbl">Barrio</span>' +
@@ -283,7 +290,8 @@
       /* Se comprueba ANTES de mandar nada, y sin borrar lo que ya escribió:
          se vuelve a pintar la pantalla con sus datos y el aviso. */
       var cl1 = $('d-clave').value || '', cl2 = $('d-clave2').value || '';
-      var escrito = soloClave ? c : { nombre: $('d-nombre').value, direccion: $('d-dir').value, barrio: $('d-barrio').value };
+      var escrito = soloClave ? c : { nombre: $('d-nombre').value, apellido: $('d-apellido').value,
+                                      direccion: $('d-dir').value, barrio: $('d-barrio').value };
       if (cl1.length < 6) {
         return pantallaDatos(escrito, yaEra, teniaClave, 'La contraseña debe tener al menos 6 caracteres.', true, abrirDatos);
       }
@@ -294,13 +302,17 @@
       // En modo "solo clave" se mandan los datos que ya tenía, sin tocarlos.
       var envio = {
         accion: 'crear-cuenta', telefono: S.tel, pase: S.pase,
-        nombre: soloClave ? (c.nombre || '') : $('d-nombre').value,
+        nombre: soloClave ? soloNombre(c) : $('d-nombre').value,
+        apellido: soloClave ? (c.apellido || '') : $('d-apellido').value,
         direccion: soloClave ? (c.direccion || '') : $('d-dir').value,
         barrio: soloClave ? (c.barrio || '') : $('d-barrio').value,
         clave: cl1, recordar: $('d-recordar').checked,
       };
       var d = await acceso(envio);
-      if (!d.ok) return pantallaDatos({ nombre: envio.nombre, direccion: envio.direccion, barrio: envio.barrio },
+      /* Si algo falla se devuelve lo que ya habia escrito, para no hacerselo
+         teclear otra vez. Va como lo escribio: nombre y apellido separados. */
+      if (!d.ok) return pantallaDatos({ nombre: envio.nombre, apellido: envio.apellido,
+                                        direccion: envio.direccion, barrio: envio.barrio },
                                       yaEra, teniaClave, d.mensaje || 'No se pudo.', true, abrirDatos);
       guardarToken(d.token); S.cliente = d.cliente; pantallaDentro();
     });
@@ -2288,16 +2300,21 @@
     var c = S.cliente || {};
     var r = await preguntar({
       titulo: 'Tu nombre',
-      texto: 'Es el que ve el restaurante cuando pides.',
+      texto: 'Es el que ve el restaurante en tu pedido.',
       ok: 'Guardar',
-      campos: [{ clave: 'nombre', label: 'Nombre', valor: c.nombre || '',
-                 placeholder: 'Como quieres que te llamen', minimo: 2, max: 80 }],
+      campos: [
+        { clave: 'nombre',   label: 'Nombre', valor: soloNombre(c),
+          placeholder: 'Como quieres que te llamen', minimo: 2, max: 80 },
+        { clave: 'apellido', label: 'Apellido', valor: c.apellido || '',
+          placeholder: 'Tu apellido', max: 60 },
+      ],
     });
     if (!r) return;
     try {
       var d = await fetch(ACCESO, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accion: 'nombre', token: leerToken(), nombre: r.nombre }),
+        body: JSON.stringify({ accion: 'nombre', token: leerToken(),
+                               nombre: r.nombre, apellido: r.apellido }),
       }).then(function (x) { return x.json(); });
       if (!d.ok) { aviso(d.mensaje || 'No se pudo guardar tu nombre.', 'mal'); return; }
       S.cliente = d.cliente || S.cliente;
@@ -2481,6 +2498,18 @@
     '</div>';
   }
 
+  /* El nombre SIN el apellido. `nombre` guarda el completo —es lo que lee todo
+     el sistema— y el apellido viene aparte; restarlo es mas seguro que partir
+     por el primer espacio, que rompe los nombres compuestos. */
+  function soloNombre(c) {
+    var full = String((c && c.nombre) || '').trim();
+    var ape  = String((c && c.apellido) || '').trim();
+    if (!ape) return full;
+    var fin = full.toLowerCase().lastIndexOf(ape.toLowerCase());
+    if (fin > 0 && fin + ape.length === full.length) return full.slice(0, fin).trim();
+    return full;
+  }
+
   function cuerpoPerfil() {
     var c = S.cliente || {};
     var n = c.nivel || null;
@@ -2535,7 +2564,9 @@
       '<div class="ep-tile" style="margin-top:12px">' +
         '<div class="ep-tile-lbl" style="margin-bottom:8px">Tu cuenta</div>' +
         '<div class="ep-dato"><span>Nombre</span>' +
-          '<button class="ep-link" data-editar="nombre">' + esc(c.nombre || 'Ponerlo') + ' ·  cambiar</button></div>' +
+          '<button class="ep-link" data-editar="nombre">' + esc(soloNombre(c) || 'Ponerlo') + ' ·  cambiar</button></div>' +
+        '<div class="ep-dato"><span>Apellido</span>' +
+          '<button class="ep-link" data-editar="nombre">' + esc(c.apellido || 'Ponerlo') + ' ·  cambiar</button></div>' +
         '<div class="ep-dato"><span>Contraseña</span>' +
           '<button class="ep-link" data-editar="clave">Cambiarla</button></div>' +
       '</div>' +

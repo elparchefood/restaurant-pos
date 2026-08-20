@@ -10008,3 +10008,48 @@ campos y arriba de los botones — es una salida, no la accion principal.
 codigo, al escribirlo aparece *"¡Hola de nuevo, Sergio! Escribe tu contraseña
 nueva y entras"* con **solo dos campos de clave — nunca se le pide la
 anterior**, y al guardar vuelve al Perfil con la sesion abierta.
+
+### 247 — El apellido del cliente (20-ago-2026)
+
+Sergio: *"la app no pide apellido, debe pedir apellido en el registro inicial y
+tambien se puede cambiar en el perfil"*.
+
+**La decision que habia que tomar primero: donde vive el apellido.**
+
+Veinte archivos del sistema leen `pos_clientes.nombre` — la comanda que se
+imprime en cocina, Paco, los informes, el buscador del POS, los avisos. Si
+`nombre` pasara a ser solo el nombre de pila, el apellido dejaria de verse en
+todos esos sitios salvo que se toquen los veinte, y bastaria olvidar uno para
+que el mismo cliente saliera con apellido en una pantalla y sin el en otra.
+
+Asi que:
+
+- **`nombre` guarda el nombre COMPLETO** ("Sergio Abadia"). Todo el sistema gana
+  el apellido sin tocar una sola linea.
+- **`apellido` se guarda aparte**, solo para poder volver a separarlos al
+  editar.
+
+Es un dato derivado a proposito, y esta documentado en la columna para que nadie
+lo "corrija". Si alguien edita el nombre desde el POS, `apellido` puede quedar
+viejo; se recompone la proxima vez que el cliente lo edite desde su perfil.
+
+**Por que no se parte por el primer espacio.** "Jose Antonio Muñoz" quedaria como
+"Jose" + "Antonio Muñoz". Al mostrar el nombre sin apellido se RESTA el apellido
+guardado del final del nombre completo (`soloNombre`), que es exacto. Probado
+justo con ese caso.
+
+**Donde se ve:** el registro pide *Tu nombre* y *Tu apellido* por separado, y el
+perfil los muestra como dos renglones distintos en "Tu cuenta", cada uno
+editable.
+
+`web-acceso` v32: `nombreCompleto()` compone en un solo sitio, `crear-cuenta` y
+la accion `nombre` aceptan los dos campos, y `fichaCliente` devuelve `apellido`
+aparte. El apellido se manda siempre, aunque venga vacio: si el cliente lo borro
+a proposito, dejar el viejo seria devolverselo sin que lo pida.
+
+**Comprobado.** Contra produccion: nombre + apellido, nombres y apellidos
+compuestos, borrar el apellido, y espacios de sobra — los cuatro componen bien
+el nombre completo y devuelven el apellido aparte. En el banco: la ficha separa
+"Jose Antonio" / "Muñoz Perez" sin equivocarse, la edicion guarda y repinta, y
+el registro desde cero manda los dos campos. Los datos de prueba quedaron
+restaurados.

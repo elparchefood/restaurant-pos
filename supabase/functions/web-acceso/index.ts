@@ -550,8 +550,18 @@ async function precioDeBarrio(tenantId: string, barrio: string, direccion: strin
 }
 
 
+/* EL NOMBRE COMPLETO SE ARMA EN UN SOLO SITIO (20-ago). `nombre` es lo que lee
+   todo el sistema —la comanda de cocina, Paco, los informes—, asi que ahi va el
+   nombre COMPLETO; `apellido` se guarda aparte solo para poder volver a
+   separarlos al editar. Un nombre compuesto no se puede partir por el primer
+   espacio: "Jose Antonio Muñoz" quedaria como "Jose" + "Antonio Muñoz". */
+function nombreCompleto(nombre: string, apellido: string) {
+  return [String(nombre || "").trim(), String(apellido || "").trim()]
+    .filter(Boolean).join(" ").replace(/\s+/g, " ").slice(0, 80);
+}
+
 async function fichaCliente(tenantId: string, clienteId: string) {
-  const rows = await sbGet(`/pos_clientes?id=eq.${clienteId}&select=id,nombre,telefono,direccion,barrio,direcciones,foto_url&limit=1`) as Array<Record<string, unknown>> | null;
+  const rows = await sbGet(`/pos_clientes?id=eq.${clienteId}&select=id,nombre,apellido,telefono,direccion,barrio,direcciones,foto_url&limit=1`) as Array<Record<string, unknown>> | null;
   const c = rows?.[0];
   if (!c) return null;
   const tel = tel10(c.telefono);
@@ -643,6 +653,9 @@ async function fichaCliente(tenantId: string, clienteId: string) {
 
   return {
     id: c.id, nombre: c.nombre || "", telefono: tel,
+    /* El apellido aparte:  ya lo lleva dentro, pero el perfil
+       necesita los dos campos separados para poder editarlos. */
+    apellido: c.apellido || "",
     /* La foto de perfil. La página la pinta desde siempre (`c.foto`) pero aquí
        nunca se devolvía: quien ya tenía una, entraba y veía sus iniciales. */
     foto: c.foto_url || "",
@@ -767,11 +780,17 @@ Deno.serve(async (req) => {
       const s = await sesionDe(String(b.token || ""));
       if (!s) return json({ ok: false, razon: "sesion_vencida" });
 
-      const nombre = String(b.nombre || "").trim().replace(/\s+/g, " ").slice(0, 80);
-      if (nombre.length < 2) {
+      const pila     = String(b.nombre || "").trim().replace(/\s+/g, " ").slice(0, 80);
+      const apellido = String(b.apellido || "").trim().replace(/\s+/g, " ").slice(0, 60);
+      if (pila.length < 2) {
         return json({ ok: false, razon: "nombre_corto", mensaje: "Escribe tu nombre." });
       }
-      await sbPatch(`/pos_clientes?id=eq.${s.cliente_id}`, { nombre });
+      /* `apellido` se manda siempre, aunque venga vacio: si el cliente lo borro
+         a proposito, dejar el viejo seria devolverselo sin que lo pida. */
+      await sbPatch(`/pos_clientes?id=eq.${s.cliente_id}`, {
+        nombre: nombreCompleto(pila, apellido),
+        apellido: apellido || null,
+      });
       return json({ ok: true, cliente: await fichaCliente(String(s.tenant_id), String(s.cliente_id)) });
     }
 
@@ -1049,8 +1068,9 @@ Deno.serve(async (req) => {
         return json({ ok: false, razon: "pase", mensaje: "Se venció el tiempo. Vuelve a pedir tu código." });
       }
 
-      const clave  = String(b.clave || "");
-      const nombre = String(b.nombre || "").trim().slice(0, 80);
+      const clave    = String(b.clave || "");
+      const apellido = String(b.apellido || "").trim().replace(/\s+/g, " ").slice(0, 60);
+      const nombre   = nombreCompleto(String(b.nombre || ""), apellido);
       if (clave.length < 6) return json({ ok: false, razon: "clave_corta", mensaje: "La contraseña debe tener al menos 6 caracteres." });
 
       const direccion = String(b.direccion || "").trim().slice(0, 160);
@@ -1074,6 +1094,7 @@ Deno.serve(async (req) => {
         // escribió nada nuevo.
         const upd: Record<string, unknown> = { updated_at: new Date().toISOString() };
         if (nombre) upd.nombre = nombre;
+        if (apellido) upd.apellido = apellido;
         if (direccion) upd.direccion = direccion;
         if (barrio) upd.barrio = barrio;
         /* De paso se normaliza el telefono a 10 digitos: si esta fila venia con
@@ -1082,7 +1103,7 @@ Deno.serve(async (req) => {
         await sbPatch(`/pos_clientes?id=eq.${clienteId}`, upd);
       } else {
         const nuevo = await sbPost(`/pos_clientes`, {
-          tenant_id: tenantId, nombre, telefono: tel,
+          tenant_id: tenantId, nombre, apellido: apellido || null, telefono: tel,
           direccion: direccion || null, barrio: barrio || null,
           direcciones: direccion ? [{ dir: direccion, barrio }] : [],
           updated_at: new Date().toISOString(),
