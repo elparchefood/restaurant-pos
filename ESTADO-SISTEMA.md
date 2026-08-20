@@ -9522,3 +9522,29 @@ Detalles que costaron pensar:
   (`data-elegir`): dos listas de lo mismo se separan solas con el tiempo.
 - `guardarDestino` comprueba las filas afectadas: un update de cero filas no
   falla y dejaria la pantalla diciendo que guardo sin haber guardado.
+
+### 241b — La lista de productos, por categorias y con combos (19-ago-2026)
+
+Sergio, al usar el destino del banner: *"que el modal se organice por
+categorias y que tambien aparezcan los combos"*.
+
+Antes era **una sola tira** ordenada por "tiene foto". Con 50 platos, encontrar
+uno era bajar leyendo. Ahora va agrupada como la carta —que es como el dueNo
+los tiene en la cabeza— con el titulo de cada categoria **pegajoso**: al bajar,
+uno perdia de vista en que grupo iba.
+
+**Los combos van de primeros.** Son lo que el dueNo quiere empujar, y por eso
+justamente le manda una imagen.
+
+### Los combos NO se metieron en los destacados
+La lista es la misma para el destino del banner y para los destacados, asi que
+se agrego un parametro (`conCombos`) que **solo pide el destino**.
+
+Tecnicamente los combos SI funcionarian como destacados —en la carta del
+cliente llevan el id `combo:<uuid>` y el buscador de destacados compara por id—
+pero ese camino no esta probado, y meterlos "de paso" seria arriesgar una
+pantalla que hoy funciona por una comodidad. Queda como algo que se puede
+hacer el dia que se pruebe.
+
+La agrupacion si se dejo en las dos: no cambia que se guarda, solo como se ve,
+y buscar entre 53 productos es igual de incomodo en los dos sitios.

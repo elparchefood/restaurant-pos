@@ -48,6 +48,7 @@
     stats: null,
     productos: null,  // la carta, para el buscador de destacados
     promos: null,     // las imagenes de publicidad
+    combos: null,     // para poder mandar una imagen a un combo
     buscar: '',       // lo que se escribio en el buscador de productos
     hueco: 0,         // que puesto de los tres se esta llenando
     prev: 'movil',
@@ -123,7 +124,8 @@
     if (!Array.isArray(S.t.web_cierres)) S.t.web_cierres = [];
 
     await Promise.all([cargarMarca(tenantId), cargarHorario(tenantId), cargarEstado(tenantId),
-                       cargarStats(tenantId), cargarProductos(tenantId), cargarPromos(tenantId)]);
+                       cargarStats(tenantId), cargarProductos(tenantId), cargarPromos(tenantId),
+                       cargarCombos(tenantId)]);
     pintar();
   }
 
@@ -172,6 +174,21 @@
                  precio: p.price, hay: p.available !== false, cat: cats[p.category_id] || '' };
       });
     } catch (e) { S.productos = []; }
+  }
+
+  /* Los combos, para poder mandar una imagen del banner directo a uno. Van
+     aparte de `S.productos` porque NO son productos: viven en su propia tabla
+     y en la carta del cliente llevan el prefijo `combo:` en el id. */
+  async function cargarCombos(id) {
+    try {
+      var r = await sb().from('pos_combos')
+        .select('id,name,photo_url,price,active')
+        .eq('tenant_id', id).eq('active', true).order('name');
+      S.combos = (r.data || []).map(function (c) {
+        return { id: 'combo:' + c.id, nombre: c.name, foto: c.photo_url || '',
+                 precio: c.price, hay: true, cat: 'Combos' };
+      });
+    } catch (e) { S.combos = []; }
   }
 
   async function cargarPromos(id) {
@@ -687,8 +704,10 @@
     if (!d) return '';
     if (/^https?:\/\//i.test(d)) return 'Un enlace';
     if (d.indexOf('producto:') === 0) {
-      var p = (S.productos || []).filter(function (x) { return String(x.id) === d.slice(9); })[0];
-      return p ? p.nombre : 'Un producto';
+      var id = d.slice(9);
+      var p = (S.productos || []).concat(S.combos || [])
+        .filter(function (x) { return String(x.id) === id; })[0];
+      return p ? p.nombre : (id.indexOf('combo:') === 0 ? 'Un combo' : 'Un producto');
     }
     var e = DESTINOS.filter(function (x) { return x.v === d; })[0];
     return e ? e.n : d;
@@ -1139,7 +1158,7 @@
       cabezaModal('¿Cuál producto?', 'Al tocar la imagen se le abre este plato.') +
       '<div class="mw-mo-body">' +
         '<input class="cc-input" id="pw-buscar" placeholder="Busca por nombre…">' +
-        '<div class="pw-lista" id="pw-lista">' + listaProductos() + '</div>' +
+        '<div class="pw-lista" id="pw-lista">' + listaProductos(true) + '</div>' +
       '</div>' +
       '<div class="mw-mo-foot"><button class="lm-btn-ghost" data-cerrar>Cancelar</button></div>' +
     '</div>');
@@ -1147,7 +1166,7 @@
     b.focus();
     b.oninput = function () {
       S.buscar = this.value;
-      $('pw-lista').innerHTML = listaProductos();
+      $('pw-lista').innerHTML = listaProductos(true);
       engancharDestinoProd();
     };
     engancharDestinoProd();
@@ -1199,22 +1218,45 @@
     engancharLista();
   }
 
-  function listaProductos() {
+  /* LA LISTA, AGRUPADA POR CATEGORIA (19-ago, pedido de Sergio). Antes era una
+     sola tira ordenada por "tiene foto": con 50 platos, encontrar uno era
+     bajar leyendo. Agrupada se busca como en la carta, que es como el dueNo
+     los tiene en la cabeza.
+
+     `conCombos` solo lo pide el destino del banner. Los destacados NO lo
+     piden: ahi se guarda un id que la pagina del cliente busca entre los
+     productos, y meterle combos sin comprobar ese camino seria arriesgar una
+     pantalla que hoy funciona por una comodidad. */
+  function listaProductos(conCombos) {
     var q = (S.buscar || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-    /* Primero los que TIENEN foto: un destacado sin foto se ve como un hueco
-       gris en la página, que es peor que no destacar nada. */
-    var lista = (S.productos || []).filter(function (p) {
+    var todos = (S.productos || []).concat(conCombos ? (S.combos || []) : []);
+    var lista = todos.filter(function (p) {
       if (!q) return true;
       return p.nombre.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').indexOf(q) >= 0;
-    }).sort(function (a, b) { return (b.foto ? 1 : 0) - (a.foto ? 1 : 0); });
-
+    });
     if (!lista.length) return '<div class="mw-empty"><div class="mw-empty-t">Nada con ese nombre</div></div>';
-    return lista.slice(0, 60).map(function (p) {
-      return '<button class="pw-item" data-elegir="' + esc(p.id) + '">' +
-        '<span class="pw-item-foto"' + (p.foto ? ' style="background-image:url(' + esc(p.foto) + ')"' : '') + '></span>' +
-        '<span class="pw-item-tx"><b>' + esc(p.nombre) + '</b>' +
-          '<small>' + esc(p.cat || '') + (p.foto ? '' : ' · sin foto') + (p.hay ? '' : ' · agotado') + '</small></span>' +
-      '</button>';
+
+    var grupos = {}, orden = [];
+    lista.forEach(function (p) {
+      var c = p.cat || 'Sin categoría';
+      if (!grupos[c]) { grupos[c] = []; orden.push(c); }
+      grupos[c].push(p);
+    });
+    /* Los combos de primeros: son lo que el dueNo quiere empujar, y por eso
+       manda una imagen ahi. Lo demas queda en el orden de la carta. */
+    orden.sort(function (a, b) { return (b === 'Combos') - (a === 'Combos'); });
+
+    return orden.map(function (c) {
+      /* Dentro del grupo, primero los que TIENEN foto: un destino sin foto se
+         ve como un hueco gris, que es peor que no ponerlo. */
+      var items = grupos[c].sort(function (a, b) { return (b.foto ? 1 : 0) - (a.foto ? 1 : 0); });
+      return '<div class="pw-grupo">' + esc(c) + '</div>' + items.map(function (p) {
+        return '<button class="pw-item" data-elegir="' + esc(p.id) + '">' +
+          '<span class="pw-item-foto"' + (p.foto ? ' style="background-image:url(' + esc(p.foto) + ')"' : '') + '></span>' +
+          '<span class="pw-item-tx"><b>' + esc(p.nombre) + '</b>' +
+            '<small>' + (p.foto ? '' : 'sin foto') + (p.hay ? '' : (p.foto ? '' : ' · ') + 'agotado') + '</small></span>' +
+        '</button>';
+      }).join('') + '</div>';
     }).join('');
   }
 

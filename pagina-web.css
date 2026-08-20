@@ -592,3 +592,13 @@ body{margin:0;background:var(--bg);font-family:'DM Sans',system-ui,-apple-system
 .pw-dest:hover { border-color: #C7D2FE; }
 .pw-dest.on { border-color: #5B6BFF; background: #EEF2FF; }
 .pw-dest span { font-size: 12px; font-weight: 700; color: #5B6BFF; white-space: nowrap; }
+
+/* El titulo de cada categoria dentro de la lista de productos. Pegajoso: con
+   50 platos, al bajar uno pierde de vista en que categoria va. */
+.pw-grupo {
+  position: sticky; top: 0; z-index: 1;
+  background: #fff; padding: 9px 8px 5px;
+  font: 700 10.5px/1 inherit; color: #94A3B8;
+  text-transform: uppercase; letter-spacing: .07em;
+}
+.pw-grupo:first-child { padding-top: 2px; }
