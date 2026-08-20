@@ -11,72 +11,48 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="clientes.css?v=1789900000">
+<link rel="stylesheet" href="clientes.css?v=1791400000">
 </head>
 <body>
 <div class="cl-root">
 
-  <aside class="cl-side">
-    <div class="cl-brand">
-      <div class="cl-brand-logo" style="background:transparent;box-shadow:none;padding:0;overflow:hidden"><img src="assets/brand/cobra-logo.png?v=2" alt="Cobra POS" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block"></div>
-      <div><div class="cl-brand-name">Cobra POS</div><div class="cl-brand-sub" id="cl-negocio">Clientes</div></div>
+  <header class="cl-top">
+    <a class="cl-back" href="dashboard.html" aria-label="Regresar">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+      Regresar
+    </a>
+    <div>
+      <div class="cl-kicker" id="cl-negocio">Quién te compra y cada cuánto vuelve</div>
+      <h1 class="cl-title">Clientes</h1>
     </div>
-    <div class="cl-side-section">Clientes</div>
-    <nav class="cl-nav">
-      <button class="cl-nav-item" onclick="window.location.href='dashboard.html'">← Regresar</button>
-      <div class="cl-nav-divider"></div>
-      <button class="cl-nav-item on" data-vista="todos">Todos los clientes</button>
-      <!-- Solo tiene sentido para quien tiene página de clientes: sin página no
-           hay recargas ni solicitudes que revisar. -->
-      <button class="cl-nav-item" data-vista="recargas" data-solo-pagina hidden>Recargas</button>
-      <button class="cl-nav-item" data-vista="solicitudes" data-solo-pagina hidden>Solicitudes</button>
-    </nav>
-  </aside>
+    <div class="cl-top-right"></div>
+  </header>
 
   <main class="cl-main">
-    <header class="cl-top">
-      <div>
-        <h1>Clientes</h1>
-        <div class="sub">Quién te compra, cuánto y cada cuánto</div>
-      </div>
-    </header>
 
-    <section class="cl-body">
+    <!-- Las tres cifras que resumen la relación con la gente. -->
+    <div class="cl-franja" id="cl-franja"></div>
 
-      <!-- ============ TODOS ============ -->
-      <div id="scr-todos">
-        <div class="cl-kpis" id="cl-kpis"></div>
-        <input class="cl-buscar" id="cl-buscar" type="search" placeholder="Buscar por nombre o teléfono…" autocomplete="off">
-        <div class="cl-panel" id="cl-lista"></div>
-      </div>
+    <!-- Cuántos vuelven: la única pregunta que de verdad mueve el negocio. -->
+    <div class="cl-rep" id="cl-rep"></div>
 
-      <!-- ============ FICHA DE UN CLIENTE ============ -->
-      <div id="scr-ficha" hidden>
-        <div id="cl-ficha"></div>
-      </div>
-
-      <!-- ============ RECARGAS ============ -->
-      <div id="scr-recargas" hidden>
-        <div class="cl-rangos">
-          <button class="cl-rango" data-rango="hoy">Hoy</button>
-          <button class="cl-rango" data-rango="ayer">Ayer</button>
-          <button class="cl-rango" data-rango="semana">Últimos 7 días</button>
-          <button class="cl-rango on" data-rango="mes">Este mes</button>
-          <button class="cl-rango" data-rango="todo">Todo</button>
+    <!-- Lista a la izquierda, la persona a la derecha. Un solo camino. -->
+    <div class="cl-cuerpo">
+      <div class="cl-lista">
+        <div class="cl-li-top">
+          <input class="cl-buscar" id="cl-buscar" type="search" placeholder="Busca por nombre o teléfono…" autocomplete="off">
+          <div class="cl-chips" id="cl-chips">
+            <button class="cl-chip on" data-f="todos">Todos</button>
+            <button class="cl-chip" data-f="gastan">Los que más gastan</button>
+            <button class="cl-chip" data-f="repiten">Repiten</button>
+            <button class="cl-chip" data-f="una">Vinieron 1 vez</button>
+          </div>
         </div>
-        <div class="cl-kpis" id="cl-rc-kpis"></div>
-        <div class="cl-panel" id="cl-rc-lista"></div>
+        <div class="cl-li-scroll" id="cl-filas"></div>
       </div>
+      <div class="cl-ficha" id="cl-ficha"></div>
+    </div>
 
-      <!-- ============ SOLICITUDES ============ -->
-      <div id="scr-solicitudes" hidden>
-        <div class="cl-kpi" style="margin-bottom:14px">
-          <div class="cl-kpi-l">Recargas que el sistema no pudo confirmar solo. Revisa el comprobante y decide.</div>
-        </div>
-        <div id="cl-sol-lista"></div>
-      </div>
-
-    </section>
   </main>
 </div>
 
@@ -86,6 +62,6 @@
 <script src="pos-perms.js?v=1790800000"></script>
 <script>if(window.posRequirePin) posRequirePin(['ventas.ver']);</script>
 <script src="pos-brand.js?v=1790530000"></script>
-<script src="clientes.js?v=1789900000"></script>
+<script src="clientes.js?v=1791400000"></script>
 </body>
 </html>

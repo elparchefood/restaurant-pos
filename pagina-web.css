@@ -619,3 +619,89 @@ body{margin:0;background:var(--bg);font-family:'DM Sans',system-ui,-apple-system
   background: var(--surface-3); border-radius: 999px; padding: 3px 7px;
 }
 .pw-grupo-in { padding-left: 4px; }
+
+/* ═══════════════════════════════════════════════════════════════════
+ * CLIENTES DE LA APP (20-ago-2026)
+ * Tablas y no tarjetas: aquí uno viene a comparar filas (quién entró, quién
+ * tiene saldo), no a leer una a una. Por eso esta pestaña es la única sin la
+ * vista previa del celular al lado — necesita el ancho completo.
+ * ═══════════════════════════════════════════════════════════════════ */
+
+/* Sin la columna de la vista previa. */
+.mw-cols.sola{grid-template-columns:minmax(0,1fr);}
+
+/* El embudo */
+.pw-emb{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--border);
+  border-radius:12px;overflow:hidden;}
+.pw-emb-c{padding:13px 15px;border-right:1px solid var(--border-soft);min-width:0;}
+.pw-emb-c:last-child{border-right:none;}
+.pw-emb-v{font-size:21px;font-weight:800;margin-top:2px;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;}
+.pw-emb-b{height:4px;border-radius:999px;margin-top:9px;background:var(--surface-3);overflow:hidden;}
+.pw-emb-b i{display:block;height:100%;background:var(--violet,#8B5CF6);border-radius:999px;}
+
+/* Cifras chicas */
+.pw-mini3{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-bottom:14px;}
+.pw-mk{border:1px solid var(--border);border-radius:12px;padding:12px 13px;}
+.pw-mk-v{font-size:19px;font-weight:800;margin-top:2px;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;}
+
+/* Tablas */
+.pw-scr{overflow-x:auto;border:1px solid var(--border);border-radius:12px;}
+.pw-row{display:grid;align-items:center;gap:12px;padding:11px 14px;
+  border-bottom:1px solid var(--border-soft);}
+.pw-row:last-child{border-bottom:none;}
+.pw-cab{background:var(--surface-2);border-bottom:1px solid var(--border);padding:8px 14px;}
+.pw-cab div{font-size:9.5px;font-weight:800;color:var(--muted,#94A3B8);
+  text-transform:uppercase;letter-spacing:.08em;}
+.pw-ru{grid-template-columns:1.5fr .9fr .9fr .6fr .8fr .6fr .9fr 132px;min-width:900px;}
+.pw-rr{grid-template-columns:1.3fr 1fr .9fr .9fr 1fr;min-width:660px;}
+.pw-cn{display:flex;align-items:center;gap:9px;min-width:0;}
+.pw-cn b{display:block;font-size:12.5px;font-weight:700;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;}
+.pw-cn small{display:block;font-size:11px;color:var(--muted,#94A3B8);font-weight:500;}
+.pw-av{width:32px;height:32px;border-radius:10px;background:var(--surface-3);
+  color:var(--ink-3,#64748B);font-size:11.5px;font-weight:800;display:flex;
+  align-items:center;justify-content:center;flex-shrink:0;}
+.pw-num{font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;}
+.pw-tenue{font-size:11.5px;color:var(--ink-3,#64748B);}
+.pw-acc2{display:flex;gap:6px;justify-content:flex-end;}
+.lm-btn-ghost.pw-mini{padding:5px 10px;font-size:11.5px;border-radius:7px;}
+
+/* Vacíos con voz, no un guion suelto */
+.pw-vacio{padding:30px 20px;text-align:center;background:var(--surface-2);
+  border:1px dashed var(--border);border-radius:12px;}
+.pw-vacio b{display:block;font-size:14px;font-weight:700;margin-bottom:5px;}
+.pw-vacio p{margin:0 auto;font-size:12.5px;color:var(--ink-3,#64748B);
+  line-height:1.6;max-width:46ch;}
+
+/* Recargas por revisar */
+.pw-sol{display:flex;align-items:center;gap:14px;padding:13px 14px;border:1px solid #FDE68A;
+  background:#FFFBEB;border-radius:12px;margin-top:10px;flex-wrap:wrap;}
+.pw-sol-izq{flex:1;min-width:180px;display:flex;flex-direction:column;gap:3px;}
+.pw-sol-izq b{font-size:13.5px;}
+.pw-sol-izq small{color:#92400E;font-size:11.5px;}
+.pw-sol-img img{width:72px;height:72px;object-fit:cover;border-radius:10px;
+  border:1px solid var(--border);display:block;}
+.pw-sol-der{display:flex;gap:7px;}
+
+/* El modal de regalar */
+.pw-seg2 button{flex:1;justify-content:center;}
+.pw-rapidos{display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 4px;}
+.pw-rapidos button{padding:6px 11px;border:1px solid var(--border);border-radius:999px;
+  background:#fff;font-size:11.5px;font-weight:700;color:var(--ink-2,#475569);cursor:pointer;}
+.pw-rapidos button:hover{border-color:#DDD6FE;color:var(--violet,#8B5CF6);background:#F5F3FF;}
+.pw-conf{text-align:center;padding:6px 0 12px;}
+.pw-conf-v{font-size:30px;font-weight:800;letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums;}
+
+.mw-badge.vio{background:#F5F3FF;color:#8B5CF6;}
+.lm-btn-danger{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;background:#DC2626;
+  color:#fff;border:none;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;
+  white-space:nowrap;}
+.lm-btn-danger:hover{background:#B91C1C;}
+
+@media (max-width:900px){
+  .pw-emb,.pw-mini3{grid-template-columns:1fr;}
+  .pw-emb-c{border-right:none;border-bottom:1px solid var(--border-soft);}
+}

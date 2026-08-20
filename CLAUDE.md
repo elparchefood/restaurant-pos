@@ -148,6 +148,35 @@ Sin ellos, Postgres rechaza antes de evaluar la RLS y el error es `permission de
 grant select, insert, update, delete on public.mi_tabla to anon, authenticated, service_role;
 ```
 
+### Qué va en Clientes y qué va en "Mi página web" (20-ago-2026)
+
+La línea no es de diseño, es de **a quién se le vende**:
+
+- **`clientes.*`** lo ve **cualquier restaurante** que use Cobra. Solo datos de
+  clientes: pedidos, gasto, repetición, puntos. **Nada** de saldo, recargas,
+  registrados en la app ni botones de regalar.
+- **`pagina-web.js` → pestaña "Clientes de la app"** lo ve **solo**
+  `es_admin_plataforma()`. Ahí vive todo lo de la página de clientes, incluidas
+  las funciones de dar saldo y dar puntos a mano.
+
+Antes estaba mezclado y la pantalla de Clientes tenía que esconder media
+interfaz con `data-solo-pagina`. Si aparece un dato nuevo, la pregunta es
+siempre la misma: **¿lo puede ver un restaurante que no tiene página web?** Si
+la respuesta es no, no va en Clientes.
+
+### Regalar plata o puntos — siempre con motivo y siempre en su libro
+
+Un regalo **no es** una recarga: la recarga entró al banco, el regalo sale del
+bolsillo. Se registran con motivo distinto para que nunca se sumen juntos.
+
+- Saldo → `fn_saldo_mover(..., 'regalo', ...)`. **Nunca** un `update` a
+  `pos_saldo`: es la única función que deja rastro en `pos_saldo_mov`.
+- Puntos → `fn_puntos_regalar(...)`, tipo `'regalo'`. La llave de los puntos es
+  el **teléfono normalizado**, no el `cliente_id`.
+
+El motivo es obligatorio en la pantalla. Sin él, tres meses después nadie sabe
+por qué esa persona tiene saldo que no pagó.
+
 ### Índices únicos con columnas anulables
 En Postgres dos NULL no chocan, así que un `UNIQUE (a, b, c)` con `c` nulo permite duplicados.
 Usar `coalesce(c, '')` en un índice único cuando el nulo tiene significado (ej. "pestaña Base").

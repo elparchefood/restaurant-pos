@@ -38,6 +38,10 @@
     { k: 'horario', t: 'Cuándo abres',     secs: ['estado', 'mano', 'cierres', 'pedidos'] },
     { k: 've',      t: 'Qué ve el cliente', secs: ['ve', 'destacados', 'fondo', 'publicidad', 'avisos'] },
     { k: 'prueba',  t: 'Probar y medir',   secs: ['probar', 'comova'] },
+    /* La pestana de la app va de ultima y es ANCHA: son tablas, y la vista
+       previa del celular al lado las dejaria en una columna ilegible. */
+    { k: 'clientes', t: 'Clientes de la app', ancha: true,
+      secs: ['wEmbudo', 'wUsuarios', 'wSaldos', 'wDados', 'wSolicitudes'] },
   ];
 
   var S = {
@@ -54,6 +58,8 @@
     hueco: 0,         // que puesto de los tres se esta llenando
     prev: 'movil',
     tab: 'pagina',
+    web: null,        // lo de la app: embudo, usuarios, movimientos, solicitudes
+    dar: null,        // que se esta regalando en el modal
     recarga: 0,       // sube cada vez que se guarda algo, para refrescar la vista previa
     tel: '',
     cierre: 'hoy',    // la opción marcada en el modal de cerrar
@@ -231,6 +237,9 @@
       ve: seccionVe, destacados: seccionDestacados, fondo: seccionFondo, publicidad: seccionPublicidad,
       avisos: seccionAvisos,
       probar: seccionProbar, comova: seccionComoVa,
+      wEmbudo: seccionWebEmbudo, wUsuarios: seccionWebUsuarios,
+      wSaldos: seccionWebSaldos, wDados: seccionWebDados,
+      wSolicitudes: seccionWebSolicitudes,
     };
     var tab = TABS.filter(function (x) { return x.k === S.tab; })[0] || TABS[0];
 
@@ -239,14 +248,20 @@
         return '<button class="cc-tab' + (x.k === S.tab ? ' on' : '') + '" data-tab="' + x.k + '">' +
           esc(x.t) + avisoTab(x.k) + '</button>';
       }).join('') + '</div>' +
-      '<div class="mw-cols"><div class="mw-stack">' +
+      '<div class="mw-cols' + (tab.ancha ? ' sola' : '') + '"><div class="mw-stack">' +
         tab.secs.map(function (k) { return pinta[k](); }).join('') +
-      '</div>' + seccionPrevia() + '</div>';
+      '</div>' + (tab.ancha ? '' : seccionPrevia()) + '</div>';
 
     /* El QR solo existe en su pestaña; dibujarlo cuando no está pintado tiraría
        un error en la consola cada vez que se cambia de pestaña. */
     if (S.tab === 'pagina') dibujarQR();
     enganchar();
+    if (S.tab === 'clientes') {
+      engancharClientesApp();
+      /* Se piden los datos la PRIMERA vez que se abre la pestana, no al
+         cargar el modulo: son cinco consultas que casi nadie mira. */
+      if (!S.web) { S.web = {}; cargarClientesApp().then(pintar); }
+    }
   }
 
   /* Esconder no puede ser TAPAR: si algo esta cerrado o apagado, la pestaña lo
@@ -841,6 +856,475 @@
       '</section></aside>';
   }
 
+  /* ═══════════════════════════════════════════════════════════════════
+   * CLIENTES DE LA APP  ·  20-ago-2026
+   *
+   * POR QUÉ ESTÁ AQUÍ Y NO EN "CLIENTES":
+   * La pantalla de Clientes la ve cualquier restaurante que use Cobra. Esto —
+   * quién se registró en la app, cuánto saldo tiene, las recargas y los regalos
+   * que damos a mano — solo existe si hay página de clientes, y esa función hoy
+   * no se le vende a nadie. Mientras vivió allá, Clientes tenía que esconder
+   * media pantalla con `data-solo-pagina` y la ficha cambiaba de forma según el
+   * restaurante. Aquí, detrás del candado de es_admin_plataforma, cada cosa se
+   * lee entera.
+   *
+   * CUATRO TARJETAS, CUATRO TRABAJOS DISTINTOS:
+   *   1. Quién entra      → el embudo y la actividad de cada registrado.
+   *   2. Saldos y recargas→ la plata: qué entró y cuánta comida se debe.
+   *   3. Lo que he dado   → los regalos a mano, separados de lo que sí se pagó.
+   *   4. Por revisar      → las recargas que el sistema no pudo confirmar solo.
+   * ═══════════════════════════════════════════════════════════════════ */
+
+  // ── Traer los datos ────────────────────────────────────────────────
+  /* Cada consulta va por separado, no en un Promise.all: si una falla, las
+     otras tres tienen que seguir pintando. Un Promise.all ya nos dejó pantallas
+     congeladas sin un solo error en la consola. */
+  async function cargarClientesApp() {
+    var s = sb();
+    if (!s || !S.t) return;
+    var tid = S.t.id;
+    S.web = S.web || {};
+
+    try {
+      var e = await s.rpc('fn_web_embudo', { p_tenant: tid });
+      S.web.embudo = (e.data || [])[0] || null;
+    } catch (err) { console.error('[web/embudo]', err); S.web.embudo = null; }
+
+    try {
+      var u = await s.rpc('fn_web_usuarios', { p_tenant: tid });
+      S.web.usuarios = u.data || [];
+    } catch (err) { console.error('[web/usuarios]', err); S.web.usuarios = []; }
+
+    try {
+      var m = await s.from('pos_saldo_mov')
+        .select('id, created_at, monto, motivo, referencia, detalle, cliente_id, pos_clientes(nombre, telefono)')
+        .eq('tenant_id', tid)
+        .in('motivo', ['recarga', 'bono_recarga', 'regalo'])
+        .order('created_at', { ascending: false }).limit(300);
+      S.web.movs = m.data || [];
+    } catch (err) { console.error('[web/movs]', err); S.web.movs = []; }
+
+    try {
+      var p = await s.from('pos_puntos_movimientos')
+        .select('id, created_at, telefono, puntos, detalle, quien')
+        .eq('tenant_id', tid).eq('tipo', 'regalo')
+        .order('created_at', { ascending: false }).limit(200);
+      S.web.ptsRegalo = p.data || [];
+    } catch (err) { console.error('[web/ptsRegalo]', err); S.web.ptsRegalo = []; }
+
+    try {
+      var q = await s.from('pos_recargas_solicitudes')
+        .select('id, creado, monto_dicho, monto_leido, referencia, comprobante_url, estado, cliente_id, pos_clientes(nombre, telefono)')
+        /* Solo las que siguen abiertas. Con `neq('aplicada')` las descartadas
+           volvían a la lista y no había forma de sacarlas de la pantalla. */
+        .eq('tenant_id', tid).not('estado', 'in', '("aplicada","descartada")')
+        .order('creado', { ascending: false }).limit(200);
+      S.web.solicitudes = q.data || [];
+    } catch (err) { console.error('[web/solicitudes]', err); S.web.solicitudes = []; }
+  }
+
+  // ── Ayudas de esta pestaña ─────────────────────────────────────────
+  function inicialesPw(n) {
+    var t = String(n || '?').trim().split(/\s+/);
+    return ((t[0] || '?')[0] + ((t[1] || '')[0] || '')).toUpperCase();
+  }
+  function fechaPw(v) {
+    if (!v) return 'sin registro';
+    var d = new Date(v), hoy = new Date();
+    var mismoDia = d.toDateString() === hoy.toDateString();
+    var hora = d.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
+    if (mismoDia) return 'hoy, ' + hora;
+    return d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' }) + ', ' + hora;
+  }
+  function telPlano(t) { return String(t || '').replace(/[^0-9]/g, '').replace(/^57/, ''); }
+  function nombrePorTel(tel) {
+    var t = telPlano(tel);
+    var u = (S.web && S.web.usuarios || []).filter(function (x) { return telPlano(x.telefono) === t; })[0];
+    return u ? u.nombre : tel;
+  }
+  function cargandoPw(txt) { return '<div class="pw-cargando">' + esc(txt) + '</div>'; }
+
+  // ── 1 · QUIÉN ENTRA ────────────────────────────────────────────────
+  function seccionWebEmbudo() {
+    if (!S.web || !S.web.embudo) return '<section class="mw-card">' + cargandoPw('Cargando…') + '</section>';
+    var e = S.web.embudo;
+    var base = Number(e.pidieron) || 0;
+    var pasos = [
+      ['Pidieron su código', e.pidieron, num(e.codigos) + ' códigos enviados'],
+      ['Se registraron',     e.registrados, base ? Math.round(e.registrados / base * 100) + '% de los que lo pidieron' : '—'],
+      ['Activaron avisos',   e.con_avisos, 'reciben el estado del pedido'],
+      ['Pidieron por la app', e.con_pedido, Number(e.con_pedido) ? 'personas distintas' : 'todavía ninguno'],
+    ];
+    return '<section class="mw-card">' +
+      '<div class="mw-card-head"><div><h2 class="mw-h">Quién entra a tu página</h2>' +
+        '<p class="mw-sub">Dónde se cae la gente entre pedir el código y hacer el pedido.</p></div></div>' +
+      '<div class="pw-emb">' + pasos.map(function (p) {
+        var pct = base ? Math.round((Number(p[1]) || 0) / base * 100) : 0;
+        return '<div class="pw-emb-c"><div class="mw-eyebrow">' + esc(p[0]) + '</div>' +
+          '<div class="pw-emb-v">' + num(p[1]) + '</div>' +
+          '<div class="mw-sub">' + esc(p[2]) + '</div>' +
+          '<div class="pw-emb-b"><i style="width:' + pct + '%"></i></div></div>';
+      }).join('') + '</div></section>';
+  }
+
+  function seccionWebUsuarios() {
+    if (!S.web || !S.web.usuarios) return '<section class="mw-card">' + cargandoPw('Cargando…') + '</section>';
+    var us = S.web.usuarios;
+    var cuerpo;
+    if (!us.length) {
+      cuerpo = '<div class="pw-vacio"><b>Todavía nadie se ha registrado</b>' +
+        '<p>Cuando alguien pida su código y entre, aparece aquí con toda su actividad.</p></div>';
+    } else {
+      cuerpo = '<div class="pw-scr"><div class="pw-row pw-ru pw-cab">' +
+          '<div>Persona</div><div>Se registró</div><div>Última vez</div><div>Entradas</div>' +
+          '<div>Avisos</div><div>Pedidos</div><div>Saldo</div><div></div></div>' +
+        us.map(function (u, i) {
+          return '<div class="pw-row pw-ru">' +
+            '<div class="pw-cn"><div class="pw-av">' + esc(inicialesPw(u.nombre)) + '</div>' +
+              '<div><b>' + esc(u.nombre || 'Sin nombre') + '</b>' +
+              '<small>' + esc(u.telefono || '') + '</small></div></div>' +
+            '<div class="pw-tenue">' + esc(fechaPw(u.alta)) + '</div>' +
+            '<div class="pw-tenue">' + esc(fechaPw(u.ultimo)) + '</div>' +
+            '<div class="pw-num">' + num(u.entradas) + '</div>' +
+            '<div>' + (Number(u.avisos)
+              ? '<span class="mw-badge ok">Activos</span>'
+              : '<span class="mw-badge neutral">Apagados</span>') + '</div>' +
+            '<div class="pw-num">' + num(u.pedidos_app) + '</div>' +
+            '<div class="pw-num">' + COP(u.saldo) + '</div>' +
+            '<div class="pw-acc2">' +
+              '<button class="lm-btn-ghost pw-mini" data-dar="saldo" data-u="' + i + '">Saldo</button>' +
+              '<button class="lm-btn-ghost pw-mini" data-dar="puntos" data-u="' + i + '">Puntos</button>' +
+            '</div></div>';
+        }).join('') + '</div>';
+    }
+    return '<section class="mw-card">' +
+      '<div class="mw-card-head"><div><h2 class="mw-h">Registrados en la app</h2>' +
+        '<p class="mw-sub">Cada persona con su actividad. Desde aquí le das saldo o puntos.</p></div></div>' +
+      cuerpo + '</section>';
+  }
+
+  // ── 2 · SALDOS Y RECARGAS ──────────────────────────────────────────
+  function seccionWebSaldos() {
+    if (!S.web || !S.web.movs) return '<section class="mw-card">' + cargandoPw('Cargando…') + '</section>';
+    var recargado = 0, bonos = 0, nRec = 0;
+    S.web.movs.forEach(function (m) {
+      var v = Number(m.monto) || 0;
+      if (m.motivo === 'recarga') { recargado += v; nRec++; }
+      else if (m.motivo === 'bono_recarga') { bonos += v; }
+    });
+    /* El bono NO se suma al total recargado: la plata que entró de verdad son
+       las recargas. Sumarlos daría un total que no existe en el banco. */
+    var sinGastar = (S.web.usuarios || []).reduce(function (a, u) { return a + (Number(u.saldo) || 0); }, 0);
+
+    var recargas = S.web.movs.filter(function (m) {
+      return m.motivo === 'recarga' || m.motivo === 'bono_recarga';
+    });
+    var tabla = !recargas.length
+      ? '<div class="pw-vacio"><b>Nadie ha recargado todavía</b>' +
+        '<p>Cuando alguien consigne y el sistema lea el comprobante, la recarga y su bono aparecen aquí.</p></div>'
+      : '<div class="pw-scr"><div class="pw-row pw-rr pw-cab">' +
+          '<div>Persona</div><div>Movimiento</div><div>Monto</div><div>Le quedó</div><div>Cuándo</div></div>' +
+        recargas.map(function (m) {
+          var cli = m.pos_clientes || {};
+          var esBono = m.motivo === 'bono_recarga';
+          return '<div class="pw-row pw-rr">' +
+            '<div class="pw-cn"><div class="pw-av">' + esc(inicialesPw(cli.nombre)) + '</div>' +
+              '<div><b>' + esc(cli.nombre || 'Cliente') + '</b>' +
+              '<small>' + esc(cli.telefono || '') + '</small></div></div>' +
+            '<div>' + (esBono
+              ? '<span class="mw-badge ok">Bono' + (m.detalle ? ' · ' + esc(m.detalle) : '') + '</span>'
+              : '<span class="mw-badge brand">Recarga</span>') + '</div>' +
+            '<div class="pw-num">' + COP(m.monto) + '</div>' +
+            '<div class="pw-num">' + COP(m.saldo_post) + '</div>' +
+            '<div class="pw-tenue">' + esc(fechaPw(m.created_at)) + '</div></div>';
+        }).join('') + '</div>';
+
+    return '<section class="mw-card">' +
+      '<div class="mw-card-head"><div><h2 class="mw-h">Saldos y recargas</h2>' +
+        '<p class="mw-sub">La plata que ya te pagaron y todavía te pueden cobrar en comida.</p></div></div>' +
+      '<div class="pw-mini3">' +
+        miniK('Recargado por clientes', COP(recargado), num(nRec) + (nRec === 1 ? ' recarga' : ' recargas')) +
+        miniK('Bonos que regalaste', COP(bonos),
+              recargado ? (Math.round(bonos / recargado * 1000) / 10) + '% sobre lo recargado' : '—') +
+        miniK('Saldo sin gastar', COP(sinGastar), 'comida que aún les debes') +
+      '</div>' + tabla + '</section>';
+  }
+  function miniK(l, v, s) {
+    return '<div class="pw-mk"><div class="mw-eyebrow">' + esc(l) + '</div>' +
+      '<div class="pw-mk-v">' + esc(v) + '</div><div class="mw-sub">' + esc(s) + '</div></div>';
+  }
+
+  // ── 3 · LO QUE HE DADO ─────────────────────────────────────────────
+  /* Los regalos van SEPARADOS de las recargas a propósito: una recarga es plata
+     que entró al banco, un regalo es plata que sale del bolsillo. Verlos en la
+     misma lista fue justo lo que hizo que la pantalla vieja no se entendiera. */
+  function seccionWebDados() {
+    if (!S.web || !S.web.movs) return '<section class="mw-card">' + cargandoPw('Cargando…') + '</section>';
+    var regalos = (S.web.movs || []).filter(function (m) { return m.motivo === 'regalo'; })
+      .map(function (m) {
+        var cli = m.pos_clientes || {};
+        return { t: m.created_at, n: cli.nombre || 'Cliente', tel: cli.telefono || '',
+                 tipo: 'saldo', v: m.monto, mot: m.detalle };
+      })
+      .concat((S.web.ptsRegalo || []).map(function (p) {
+        return { t: p.created_at, n: nombrePorTel(p.telefono), tel: p.telefono,
+                 tipo: 'puntos', v: p.puntos, mot: p.detalle };
+      }))
+      .sort(function (a, b) { return new Date(b.t) - new Date(a.t); });
+
+    var cuerpo = !regalos.length
+      ? '<div class="pw-vacio"><b>Todavía no le has regalado nada a nadie</b>' +
+        '<p>Cuando des saldo o puntos a mano, cada regalo queda aquí con la persona, el monto, ' +
+        'el motivo que escribiste y la hora. Así nunca se confunde con lo que un cliente sí pagó.</p></div>'
+      : '<div class="pw-scr"><div class="pw-row pw-rr pw-cab">' +
+          '<div>Persona</div><div>Qué le diste</div><div>Cuánto</div><div>Motivo</div><div>Cuándo</div></div>' +
+        regalos.map(function (r) {
+          return '<div class="pw-row pw-rr">' +
+            '<div class="pw-cn"><div class="pw-av">' + esc(inicialesPw(r.n)) + '</div>' +
+              '<div><b>' + esc(r.n) + '</b><small>' + esc(r.tel) + '</small></div></div>' +
+            '<div><span class="mw-badge vio">' + (r.tipo === 'saldo' ? 'Saldo' : 'Puntos') + '</span></div>' +
+            '<div class="pw-num">' + (r.tipo === 'saldo' ? COP(r.v) : num(r.v) + ' pts') + '</div>' +
+            '<div class="pw-tenue">' + esc(r.mot || 'sin motivo') + '</div>' +
+            '<div class="pw-tenue">' + esc(fechaPw(r.t)) + '</div></div>';
+        }).join('') + '</div>';
+
+    return '<section class="mw-card">' +
+      '<div class="mw-card-head"><div><h2 class="mw-h">Lo que yo he dado</h2>' +
+        '<p class="mw-sub">Regalos a mano. Nada de esto entró plata a la caja.</p></div>' +
+        '<button class="cc-btn-ai" data-a="dar-regalo">Dar saldo o puntos</button></div>' +
+      cuerpo + '</section>';
+  }
+
+  // ── 4 · POR REVISAR ────────────────────────────────────────────────
+  function seccionWebSolicitudes() {
+    if (!S.web || !S.web.solicitudes) return '';
+    var ps = S.web.solicitudes;
+    if (!ps.length) return '';    // sin nada pendiente, la tarjeta no estorba
+    return '<section class="mw-card">' +
+      '<div class="mw-card-head"><div><h2 class="mw-h">Recargas por revisar</h2>' +
+        '<p class="mw-sub">El sistema no pudo confirmarlas solo. Mira el comprobante y decide.</p></div>' +
+        '<span class="mw-badge warn">' + num(ps.length) + ' pendiente' + (ps.length === 1 ? '' : 's') + '</span></div>' +
+      ps.map(function (p) {
+        var cli = p.pos_clientes || {};
+        return '<div class="pw-sol">' +
+          '<div class="pw-sol-izq"><b>' + esc(cli.nombre || 'Cliente') + '</b>' +
+            '<small>' + esc(cli.telefono || '') + ' · ' + esc(fechaPw(p.creado)) + '</small>' +
+            '<small>Dijo ' + COP(p.monto_dicho) + ' · el comprobante decía ' + COP(p.monto_leido) +
+              (p.referencia ? ' · Ref ' + esc(p.referencia) : '') + '</small></div>' +
+          (p.comprobante_url
+            ? '<a class="pw-sol-img" href="' + esc(p.comprobante_url) + '" target="_blank" rel="noopener">' +
+              '<img src="' + esc(p.comprobante_url) + '" alt="Comprobante"></a>' : '') +
+          '<div class="pw-sol-der">' +
+            '<button class="lm-btn-primary" data-sol-ok="' + esc(p.id) + '">Aprobar</button>' +
+            '<button class="lm-btn-ghost" data-sol-no="' + esc(p.id) + '">Descartar</button>' +
+          '</div></div>';
+      }).join('') + '</section>';
+  }
+
+  // ── Enganchar los botones de esta pestaña ──────────────────────────
+  function engancharClientesApp() {
+    document.querySelectorAll('[data-dar]').forEach(function (b) {
+      b.onclick = function () { modalDar(b.dataset.dar, Number(b.dataset.u)); };
+    });
+    document.querySelectorAll('[data-sol-ok]').forEach(function (b) {
+      b.onclick = function () { modalAprobar(b.dataset.solOk); };
+    });
+    document.querySelectorAll('[data-sol-no]').forEach(function (b) {
+      b.onclick = function () { modalDescartar(b.dataset.solNo); };
+    });
+  }
+
+  // ── Dar saldo o puntos ─────────────────────────────────────────────
+  /* Nunca un confirm() del navegador: es la ventana del sistema operativo, no
+     la del producto, y encima no deja escribir el motivo. */
+  function modalDar(modo, i) {
+    var us = (S.web && S.web.usuarios) || [];
+    if (!us.length) { toast('Todavía no hay nadie registrado en la app'); return; }
+    if (!(i >= 0) || !us[i]) i = 0;
+    S.dar = { modo: modo === 'puntos' ? 'puntos' : 'saldo', i: i };
+    pintarModalDar();
+  }
+
+  function pintarModalDar() {
+    var us = S.web.usuarios, d = S.dar, u = us[d.i];
+    var esS = d.modo === 'saldo';
+    var rapidos = esS ? [10000, 20000, 50000] : [100, 200, 500];
+
+    abrir('<div class="cc-modal mw-mo pw-mo-dar">' +
+      cabezaModal(esS ? 'Dar saldo' : 'Dar puntos',
+                  'Queda anotado con tu nombre y la hora.') +
+      '<div class="mw-mo-body">' +
+        '<div class="cc-seg pw-seg2">' +
+          '<button class="' + (esS ? 'on' : '') + '" data-dar-modo="saldo">Dar saldo</button>' +
+          '<button class="' + (esS ? '' : 'on') + '" data-dar-modo="puntos">Dar puntos</button>' +
+        '</div>' +
+        '<div class="cc-field" style="margin-top:14px"><label class="cc-label">¿A quién?</label>' +
+          '<select class="cc-input" id="pw-dar-quien">' +
+            us.map(function (x, k) {
+              return '<option value="' + k + '"' + (k === d.i ? ' selected' : '') + '>' +
+                esc(x.nombre || 'Sin nombre') + ' · ' + esc(x.telefono || '') + '</option>';
+            }).join('') +
+          '</select></div>' +
+        '<div class="cc-field"><label class="cc-label">' +
+          (esS ? 'Cuánto le vas a dar' : 'Cuántos puntos le vas a dar') + '</label>' +
+          '<div class="mw-urlinput"><span>' + (esS ? '$' : 'pts') + '</span>' +
+          '<input id="pw-dar-monto" inputmode="numeric" value="' + (esS ? '20.000' : '200') + '"></div></div>' +
+        '<div class="pw-rapidos">' + rapidos.map(function (v) {
+          return '<button data-dar-v="' + v + '">' + (esS ? COP(v) : num(v) + ' pts') + '</button>';
+        }).join('') + '</div>' +
+        '<div class="cc-field"><label class="cc-label">Por qué</label>' +
+          '<input class="cc-input" id="pw-dar-motivo" maxlength="80" ' +
+            'placeholder="Ej: recompensa, error en un pedido, prueba"></div>' +
+        '<div class="mw-note warn"><span>' + (esS
+          ? '<strong>Esto no es una recarga que la persona pagó.</strong> Es plata que tú regalas: no entra a la caja y sale aparte en el informe.'
+          : '<strong>Quedan marcados como regalo</strong>, aparte de los puntos que la persona gana comprando.') +
+          '</span></div>' +
+      '</div>' +
+      '<div class="mw-mo-foot"><button class="lm-btn-ghost" data-cerrar>Cancelar</button>' +
+        '<button class="cc-btn-ai" id="pw-dar-ok">Dárselo</button></div>' +
+    '</div>');
+
+    document.querySelectorAll('[data-dar-modo]').forEach(function (b) {
+      b.onclick = function () { S.dar.modo = b.dataset.darModo; pintarModalDar(); };
+    });
+    document.querySelectorAll('[data-dar-v]').forEach(function (b) {
+      b.onclick = function () {
+        $('pw-dar-monto').value = Number(b.dataset.darV).toLocaleString('es-CO');
+      };
+    });
+    $('pw-dar-quien').onchange = function () { S.dar.i = Number(this.value); };
+    $('pw-dar-ok').onclick = confirmarDar;
+  }
+
+  async function confirmarDar() {
+    var u = S.web.usuarios[S.dar.i];
+    var esS = S.dar.modo === 'saldo';
+    var v = parseInt(String($('pw-dar-monto').value || '').replace(/[^0-9]/g, ''), 10) || 0;
+    var motivo = ($('pw-dar-motivo').value || '').trim();
+    if (v <= 0) { toast('Escribe cuánto le vas a dar'); return; }
+    if (!motivo) { toast('Escribe por qué se lo das'); return; }
+
+    var btn = $('pw-dar-ok');
+    btn.disabled = true; btn.textContent = 'Dándoselo…';
+    var yo = (window._pos && window._pos.state && window._pos.state.user) || {};
+    try {
+      if (esS) {
+        await sb().rpc('fn_saldo_mover', {
+          p_tenant: S.t.id, p_cliente: u.cliente_id, p_motivo: 'regalo', p_monto: v,
+          p_branch: (window._pos.state.branchId || null), p_order: null,
+          p_ref: null, p_detalle: motivo, p_quien: yo.id || null,
+        });
+      } else {
+        await sb().rpc('fn_puntos_regalar', {
+          p_tenant: S.t.id, p_branch: (window._pos.state.branchId || null),
+          p_telefono: u.telefono, p_puntos: v, p_detalle: motivo,
+          p_quien: yo.email || 'administrador',
+        });
+      }
+      cerrarModal();
+      toast(esS ? 'Le diste ' + COP(v) + ' de saldo a ' + (u.nombre || 'el cliente')
+                : 'Le diste ' + num(v) + ' puntos a ' + (u.nombre || 'el cliente'));
+      await cargarClientesApp();
+      pintar();
+    } catch (e) {
+      console.error('[dar]', e);
+      btn.disabled = false; btn.textContent = 'Dárselo';
+      toast('No se pudo: ' + (e.message || e));
+    }
+  }
+
+  // ── Aprobar o descartar una recarga ────────────────────────────────
+  function solPorId(id) {
+    return (S.web.solicitudes || []).filter(function (x) { return String(x.id) === String(id); })[0];
+  }
+
+  function modalAprobar(id) {
+    var p = solPorId(id);
+    if (!p) return;
+    var cli = p.pos_clientes || {};
+    var monto = Number(p.monto_leido) || Number(p.monto_dicho) || 0;
+    abrir('<div class="cc-modal mw-mo">' +
+      cabezaModal('Acreditar la recarga', 'La plata queda disponible de inmediato en su app.') +
+      '<div class="mw-mo-body">' +
+        '<div class="pw-conf"><div class="pw-conf-v">' + COP(monto) + '</div>' +
+          '<div class="mw-sub">para ' + esc(cli.nombre || 'el cliente') +
+          (cli.telefono ? ' · ' + esc(cli.telefono) : '') + '</div></div>' +
+        '<div class="mw-note"><span>Se acredita por el mismo camino que la verificación ' +
+          'automática, así que el bono y el libro salen idénticos.</span></div>' +
+      '</div>' +
+      '<div class="mw-mo-foot"><button class="lm-btn-ghost" data-cerrar>Cancelar</button>' +
+        '<button class="lm-btn-primary" id="pw-sol-ok">Acreditar ' + COP(monto) + '</button></div>' +
+    '</div>');
+    $('pw-sol-ok').onclick = function () { aprobarRecarga(p, monto); };
+  }
+
+  async function aprobarRecarga(p, monto) {
+    var btn = $('pw-sol-ok');
+    btn.disabled = true; btn.textContent = 'Acreditando…';
+    try {
+      var r = await sb().rpc('fn_recarga_aplicar', {
+        p_tenant: S.t.id, p_cliente: p.cliente_id, p_monto: monto,
+        p_ref: p.referencia || ('manual:' + p.id),
+        p_branch: (window._pos.state.branchId || null), p_como: 'a mano',
+      });
+      var f = (r.data || [])[0];
+      if (!f || f.ok !== true) {
+        btn.disabled = false; btn.textContent = 'Acreditar ' + COP(monto);
+        toast((f && f.motivo) || 'No se pudo acreditar');
+        return;
+      }
+      await sb().from('pos_recargas_solicitudes').update({ estado: 'aplicada' }).eq('id', p.id);
+
+      /* EL AVISO AL CELULAR DEL CLIENTE (19-ago). Acreditar a mano tiene que
+         sentirse igual que la verificación automática: si por un lado le llega
+         el aviso y por el otro no, el cliente cree que su recarga no entró.
+         Es best-effort: la plata ya quedó acreditada arriba. */
+      try {
+        fetch(SUPABASE_URL + '/functions/v1/avisar-cliente', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tipo: 'recarga', cliente_id: p.cliente_id,
+            monto: Number(f.acreditado) || monto,
+            bono: Number(f.bono) || 0, saldo: Number(f.saldo) || 0,
+          }),
+        }).catch(function () {});
+      } catch (e) { /* nunca estorba a la acreditación */ }
+
+      cerrarModal();
+      toast('Acreditado ' + COP(f.acreditado) + (f.bono > 0 ? ' + ' + COP(f.bono) + ' de bono' : ''));
+      await cargarClientesApp();
+      pintar();
+    } catch (e) {
+      console.error('[aprobar]', e);
+      btn.disabled = false; btn.textContent = 'Acreditar ' + COP(monto);
+      toast('No se pudo acreditar: ' + (e.message || e));
+    }
+  }
+
+  function modalDescartar(id) {
+    var p = solPorId(id);
+    if (!p) return;
+    var cli = p.pos_clientes || {};
+    abrir('<div class="cc-modal mw-mo">' +
+      cabezaModal('Descartar la solicitud', 'No se le acredita nada al cliente.') +
+      '<div class="mw-mo-body">' +
+        '<div class="mw-note warn"><span>La solicitud de <strong>' + esc(cli.nombre || 'el cliente') +
+          '</strong> por ' + COP(p.monto_dicho) + ' desaparece de la lista. ' +
+          'Si consignó de verdad, le tocará mandar el comprobante otra vez.</span></div>' +
+      '</div>' +
+      '<div class="mw-mo-foot"><button class="lm-btn-ghost" data-cerrar>Cancelar</button>' +
+        '<button class="lm-btn-danger" id="pw-sol-no">Descartar</button></div>' +
+    '</div>');
+    $('pw-sol-no').onclick = async function () {
+      this.disabled = true; this.textContent = 'Descartando…';
+      try {
+        await sb().from('pos_recargas_solicitudes').update({ estado: 'descartada' }).eq('id', p.id);
+        cerrarModal(); toast('Solicitud descartada');
+        await cargarClientesApp(); pintar();
+      } catch (e) { toast('No se pudo descartar'); }
+    };
+  }
+
   // ── El QR ──────────────────────────────────────────────────────────
   function urlPagina() { return 'https://' + DOMINIO + (S.t.slug || ''); }
   function dibujarQR() {
@@ -1026,6 +1510,7 @@
     else if (a === 'promo-nueva') { $('pw-promo-file').click(); }
     else if (a === 'bnr-imagen') { $('pw-bnr-file').click(); }
     else if (a === 'bnr-quitar-img') { guardarFondo({ tipo: 'imagen', imagen: null }, 'Quité la imagen'); }
+    else if (a === 'dar-regalo') { modalDar('saldo', 0); }
     else if (a === 'bnr-reset') { guardar({ web_banner: null }, 'El mensaje vuelve al fondo de siempre'); }
   }
 

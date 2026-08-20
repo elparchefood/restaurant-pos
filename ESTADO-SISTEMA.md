@@ -9569,3 +9569,108 @@ que sobreviva a la busqueda.
 
 Probado con los datos reales en los tres estados: cerrada, con una abierta, y
 buscando.
+
+### 242 — Clientes y "Mi pagina web" quedan separados (20-ago-2026)
+
+Sergio: *"Las funciones deben estar perfectamente separadas. Una cosa son los
+clientes y todos los datos de los clientes porque eso lo van a poder ver todos
+los restaurantes. Y no puede estar combinado, debe estar aislado e
+independiente la parte donde pueda ver todo lo que tenga que ver con la pagina
+web porque eso no lo van a ver los duenos de restaurantes, solo lo voy a ver
+yo."*
+
+**El problema no era el diseno, era la mezcla.** La pantalla de Clientes tenia
+adentro Recargas, Solicitudes, y en la ficha las tarjetas de Saldo y "Ha
+recargado". Todo eso solo existe si el restaurante tiene pagina de clientes,
+asi que la pantalla vivia escondiendo media interfaz con `data-solo-pagina` y
+la ficha cambiaba de forma segun el restaurante. Se hicieron dos propuestas de
+rediseno antes de entender que ninguna cantidad de graficas arreglaba eso.
+
+**Que ve cada quien ahora**
+
+| Modulo | Quien lo ve | Que tiene |
+|---|---|---|
+| Clientes | cualquier restaurante | quien compra, cuanto gasta, cuantas veces vuelve, puntos, sus pedidos |
+| Mi pagina web -> "Clientes de la app" | solo `es_admin_plataforma()` | registrados en la app, saldos, recargas, regalos a mano, recargas por revisar |
+
+**Clientes** (`clientes.html/css/js`, reescritos)
+
+La pregunta de la pantalla no es *cuantos clientes tengo* sino **cuantos
+vuelven**. Por eso la barra de repeticion va arriba, antes de la lista: de los
+167 que han comprado, **139 vinieron una sola vez**. Ese es el numero que los
+puntos existen para mover, y en la version vieja no se veia por ningun lado.
+
+Tres cifras (te han comprado / han gastado / puntos sin usar), la barra, y
+abajo **un solo camino**: lista a la izquierda, la persona a la derecha. Se
+acabaron las dos pantallas separadas con boton de "volver".
+
+Los pedidos de cada persona se piden **solo al abrir su ficha**: traerlos todos
+de entrada eran cientos de filas que casi nadie mira.
+
+Se fue el sidebar propio y quedo el encabezado con "Regresar", igual que Mi
+pagina web. Con una sola vista, un menu lateral de un solo item se veia roto.
+
+**Mi pagina web -> "Clientes de la app"** (pestana nueva, `pagina-web.js`)
+
+Cuatro tarjetas, cuatro trabajos distintos, ninguno mezclado con otro:
+
+1. **Quien entra** — el embudo: pidieron codigo (4) -> se registraron (3) ->
+   activaron avisos (2) -> pidieron por la app (0). Sin esto no habia forma de
+   saber si el problema es que no llegan o que llegan y no terminan; a Sandra
+   le paso lo segundo tres veces antes del SMS.
+2. **Registrados en la app** — cada persona con su alta, ultima entrada,
+   cuantas veces entro, avisos y saldo. Ahi mismo los botones de dar.
+3. **Saldos y recargas** — recargado, bonos, saldo sin gastar y cada
+   movimiento. El bono **nunca se suma** al total recargado: la plata que entro
+   de verdad son las recargas.
+4. **Lo que yo he dado** — los regalos a mano, en su propia lista. Una recarga
+   es plata que entro al banco; un regalo es plata que sale del bolsillo. Verlos
+   juntos fue justo lo que hacia ilegible la pantalla vieja.
+
+Y **Recargas por revisar**, que se mudo de Clientes. La tarjeta **no aparece si
+no hay ninguna pendiente**: una tarjeta vacia permanente entrena a no mirarla.
+
+Es la unica pestana **ancha** (`ancha: true`): son tablas, y la vista previa del
+celular al lado las dejaba en una columna ilegible.
+
+**Dar saldo y dar puntos**
+
+Vive **solo aqui**, en ningun lugar de Clientes. Pide monto y **motivo
+obligatorio**, y queda anotado con el usuario y la hora. Se cambio el
+`confirm()` del navegador por modales del producto, tambien en aprobar y
+descartar recargas: la ventana del sistema operativo no deja escribir el motivo
+y no es la del producto.
+
+- Saldo -> `fn_saldo_mover(..., 'regalo', ...)`, que ya existia.
+- Puntos -> **`fn_puntos_regalar`**, nueva. Espejo exacto de
+  `fn_puntos_consumir`: misma normalizacion del telefono (que es la llave real
+  de los puntos, no el `cliente_id`). Tipo `'regalo'`, que es lo que despues
+  permite separarlos de los que la persona gano comprando.
+
+**Base de datos** (`2026-08-20-clientes-y-pagina-web.sql`)
+
+`fn_puntos_regalar`, `fn_web_usuarios` (toda la actividad de un registrado en
+una sola consulta en vez de cuatro por usuario) y `fn_web_embudo`. Con sus
+`grant execute`: sin eso PostgREST responde 404 aunque la funcion exista.
+
+`pos_puntos` **no tiene indice unico** por (tenant, telefono), asi que
+`fn_puntos_regalar` no puede usar `on conflict`: busca con bloqueo y crea la
+fila si no existia.
+
+**Lo que se comprobo**
+
+Banco de pruebas con la sesion y la base fingidas, para no entrar con la cuenta
+de nadie. Se verifico el render de las dos pantallas, los cuatro filtros, el
+buscador por nombre y por telefono, el cambio de ficha, las cinco tarjetas de
+la pestana nueva, el modal de dar (persona preseleccionada, montos rapidos,
+cambio saldo/puntos conservando la persona, motivo obligatorio), los modales de
+aprobar y descartar, y que en celular ninguna de las dos desborde: las tablas
+scrollean dentro de si mismas.
+
+**Un dato que aparecio por el camino.** El saldo de Sergio ($345.000) no cuadra
+con la suma de sus movimientos ($267.500). Se descarto que fuera un agujero del
+sistema: todo pasa por `fn_saldo_mover`, la llave del pedido es
+`ON DELETE SET NULL` (borrar un pedido no borra su movimiento) y ninguna Edge
+Function escribe `pos_saldo` por fuera. Es residuo de las pruebas del 19-ago
+hechas contra la API. Se cuadra cuando Sergio de la orden de borrar los datos
+de prueba.
