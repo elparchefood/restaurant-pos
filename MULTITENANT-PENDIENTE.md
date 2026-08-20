@@ -87,3 +87,21 @@ catálogo propio quita el sesgo y es barato.
 3. 2.1 → con el primer cliente que no venda salchipapas: ahí se sabe qué
    palabras necesita de verdad.
 4. Alta automática de la carpeta → con el segundo cliente.
+
+## Aviso del saldo de SMS — va a TODOS los que tengan la pagina encendida
+
+`revisar-saldo-sms` le pone el aviso de saldo bajo a **todos** los tenants con
+`web_activa = true`. La cuenta de Twilio es **una sola para toda la plataforma**
+(las credenciales son secretos del proyecto, no de cada restaurante), asi que
+ese saldo es de Sergio, no del restaurante que lo lea.
+
+Hoy no molesta: solo El Parche tiene la pagina encendida. **El dia que se le
+encienda a otro restaurante, le saldria un aviso sobre un saldo que no es suyo.**
+
+Arreglo: un secreto `TENANT_PLATAFORMA` con el id del dueNo de la plataforma y
+avisar solo a ese. No se hardcodea el id en el repo — es publico. Si el secreto
+no esta puesto, no se escribe ningun aviso (que falle callado es mejor que
+avisarle al que no es).
+
+Decidido asi con Sergio el 19-ago: por ahora no piensa vender la pagina de
+clientes, y prefiere dejarlo simple.
