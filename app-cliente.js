@@ -731,20 +731,49 @@
      que para uno con cuatro. */
   var ICO_PASO = ['circulo', 'estrella', 'corona', 'diamante'];
 
+  /* ── LA ESCALERA, COMO UN RIEL (20-ago-2026) ─────────────────────────
+     Se veia rota, y no por el diseño: la clase se llamaba `.ep-paso`, igual
+     que los pasos de la linea de tiempo del pedido. Como esa esta escrita
+     despues en la hoja, GANABA: la escalera heredaba su reparto en dos
+     columnas y el hilo vertical que une los pasos de un domicilio. De ahi las
+     "lineas raras". Ahora se llama `ep-rango*`, que no choca con nada.
+
+     El dibujo es una via horizontal con una parada por nivel: lo recorrido en
+     color, lo que falta en gris. Se lee el orden y el avance de un golpe, sin
+     tener que explicar nada. */
   function escalera(n) {
     var lista = S.niveles || [];
     if (!lista.length) return '';
     var actual = -1;
     for (var i = 0; i < lista.length; i++) if (n && lista[i].nombre === n.nombre) actual = i;
+
+    /* La via une los CENTROS de la primera y la ultima parada, no los bordes
+       de la tarjeta: si fuera de borde a borde, sobraria media parada a cada
+       lado y la linea se saldria por debajo de los iconos. */
+    var borde = 100 / (lista.length * 2);
+    /* Entre n paradas hay n-1 tramos. El avance suma el nivel alcanzado mas lo
+       que lleve dentro del suyo, para que la via crezca con cada pedido y no
+       solo al cambiar de rango. */
+    var tramos = Math.max(1, lista.length - 1);
+    var avance = Math.max(0, Math.min(1,
+      (Math.max(0, actual) + (Number(n && n.progreso) || 0) / 100) / tramos));
+
     var html = '';
     for (var j = 0; j < lista.length; j++) {
-      var hecho = j <= actual;
-      html += '<div class="ep-paso' + (hecho ? ' hecho' : '') + '" style="color:' +
-        esc(hecho ? (lista[j].color || '#e3b04b') : '') + '">' +
-        '<div class="ep-paso-o">' + ico(ICO_PASO[j] || 'circulo', 13) + '</div>' +
-        '<div class="ep-paso-l"' + (hecho ? ' style="color:inherit"' : '') + '>' + esc(lista[j].nombre) + '</div></div>';
+      var hecho = j <= actual, ahora = j === actual;
+      html += '<div class="ep-rango' + (hecho ? ' hecho' : '') + (ahora ? ' ahora' : '') +
+        '" style="color:' + esc(hecho ? (lista[j].color || '#e3b04b') : '') + '">' +
+        '<span class="ep-rango-o">' + ico(ICO_PASO[j] || 'circulo', 17) + '</span>' +
+        '<span class="ep-rango-l">' + esc(lista[j].nombre) + '</span>' +
+        (ahora ? '<span class="ep-rango-aqui">Estás aquí</span>' : '') +
+      '</div>';
     }
-    return '<div class="ep-escalera">' + html + '</div>';
+    return '<div class="ep-rangos">' +
+      '<span class="ep-rangos-via" style="left:' + borde.toFixed(3) + '%;right:' + borde.toFixed(3) + '%"></span>' +
+      '<span class="ep-rangos-ok" style="left:' + borde.toFixed(3) + '%;width:calc((100% - ' +
+        (borde * 2).toFixed(3) + '%) * ' + avance.toFixed(4) + ')"></span>' +
+      '<div class="ep-rangos-fila">' + html + '</div>' +
+    '</div>';
   }
 
   /* Panel "Mi billetera": el saldo grande, las cuatro cifras de un vistazo y la

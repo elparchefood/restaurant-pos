@@ -10095,3 +10095,42 @@ interruptor le habria salido la roja.
 dos temas: en oscuro el fondo rojo con sus 26 anillos y 30 curvas, en claro el
 negro con sus 50 rayas doradas, el chip dibujado en ambos, sin montarse con el
 texto y sin desbordar.
+
+### 249 — La escalera de niveles: era un choque de nombres (20-ago-2026)
+
+Sergio: *"los iconos de estandar, premium y vip estan como desorganizados, con
+unas lineas raras, no tiene sentido ni se entiende el flujo"*.
+
+**No era el diseño: eran dos componentes peleando por el mismo nombre.** La
+escalera de rangos se llamaba `.ep-paso` (linea 299 de la hoja) y los pasos de
+la **linea de tiempo del pedido** tambien (linea 2226). Como la del pedido esta
+escrita despues, ganaba, y le metia a la escalera:
+
+- `display:grid` de dos columnas → el icono a la izquierda y el nombre a la
+  derecha, descuadrados;
+- un `::before` que dibuja **una linea vertical de 2 px** → las "lineas raras"
+  que colgaban de cada icono. Es el hilo que une los pasos de un domicilio,
+  puesto donde no va.
+
+Se renombro a **`ep-rango*`**, que no choca con nada. Sin eso, cualquier arreglo
+se volvia a romper el dia que alguien tocara el seguimiento del pedido.
+
+**El dibujo nuevo — el riel** (escogido por Sergio entre tres propuestas): una
+via horizontal con una parada por nivel, lo recorrido en color y lo que falta en
+gris. El nivel actual lleva halo y la etiqueta "Estas aqui".
+
+Dos detalles que se calculan en el JS porque dependen de cuantos niveles tenga
+cada restaurante:
+
+- **La via une los CENTROS** de la primera y la ultima parada, no los bordes de
+  la tarjeta: de borde a borde sobraria media parada a cada lado y la linea se
+  saldria por debajo de los iconos.
+- **El relleno suma el nivel alcanzado MAS el avance dentro del suyo**, asi que
+  la via crece con cada pedido y no solo al cambiar de rango. Entre n paradas
+  hay n−1 tramos, no n.
+
+**Comprobado** en los tres estados con la escalera de El Parche: Estandar al 40%
+llena el 20% de la via, Premium al 70% llena el 85%, y VIP —el maximo— llena el
+100% sin pasarse. La via empieza y termina en el centro exacto de las bolitas de
+los extremos (69 px y 347 px, contra centros en 69 y 347), y ya no queda ni un
+solo elemento `.ep-paso` dentro de la escalera.

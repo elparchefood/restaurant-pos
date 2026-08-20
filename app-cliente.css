@@ -295,14 +295,40 @@ html.tema-claro .ep-nav.on {
 .ep-rango-nom { font-size: 17px; font-weight: 700; margin: 12px 0 8px; }
 .ep-bar { height: 5px; border-radius: 999px; background: var(--surf2); overflow: hidden; }
 .ep-bar i { display: block; height: 100%; border-radius: 999px; transition: width 1s cubic-bezier(.2,.8,.2,1); }
-.ep-escalera { display: flex; justify-content: space-between; gap: 6px; margin-top: auto; padding-top: 18px; }
-.ep-paso { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
-.ep-paso-o {
-  width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--line);
-  display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--dim);
+/* ── LA ESCALERA DE NIVELES, COMO UN RIEL (20-ago-2026) ──────────────────
+   OJO CON EL NOMBRE. Antes esto se llamaba `.ep-paso`, igual que los pasos de
+   la linea de tiempo del pedido (mas abajo en esta misma hoja). La de abajo
+   ganaba por ir despues, y le metia a la escalera su reparto en dos columnas
+   y el hilo vertical que une los pasos de un domicilio: por eso se veia
+   descuadrada y con lineas colgando. `ep-rango*` no choca con nada.
+
+   Una via, una parada por nivel, lo recorrido en color. Los bordes de la via
+   los pone el JS, porque dependen de cuantos niveles tenga el restaurante. */
+.ep-rangos { position: relative; margin-top: auto; padding: 14px 0 2px; }
+.ep-rangos-via, .ep-rangos-ok {
+  position: absolute; top: 33px; height: 3px; border-radius: 999px; pointer-events: none;
 }
-.ep-paso.hecho .ep-paso-o { border-color: currentColor; }
-.ep-paso-l { font-size: 10px; color: var(--dim); text-align: center; }
+.ep-rangos-via { background: var(--line); }
+/* El relleno va del gris del primer nivel al color del alcanzado. */
+.ep-rangos-ok { background: linear-gradient(90deg, #787C8B, currentColor); color: var(--accent); }
+.ep-rangos-fila { display: flex; position: relative; }
+.ep-rango { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 7px; min-width: 0; }
+.ep-rango-o {
+  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surf2); border: 2px solid var(--line); color: var(--dim);
+  position: relative; z-index: 1;
+}
+.ep-rango.hecho .ep-rango-o { border-color: currentColor; color: currentColor; background: var(--surf); }
+/* El halo marca DONDE ESTA sin necesidad de leer: es lo primero que se ve. */
+.ep-rango.ahora .ep-rango-o { box-shadow: 0 0 0 5px rgba(227,176,75,.14); }
+.ep-rango-l { font-size: 11.5px; font-weight: 600; color: var(--dim); text-align: center; }
+.ep-rango.hecho .ep-rango-l { color: var(--ink); }
+.ep-rango.ahora .ep-rango-l { color: currentColor; font-weight: 700; }
+.ep-rango-aqui {
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--accent); text-align: center;
+}
 
 /* ── Accesos rápidos ── */
 .ep-acts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
