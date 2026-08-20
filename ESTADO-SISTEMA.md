@@ -9803,3 +9803,61 @@ Resultado medido a 1440x900: de **4 pedidos visibles sin bajar a 7**. A
 1280x700 son 4. Verificado ademas que la ficha ya no scrollea nunca, que el
 historial llega hasta el ultimo pedido, y que sigue igual al cambiar de cliente
 y al filtrar.
+
+### 244 — El domicilio deja de decir "no conocemos el precio" (20-ago-2026)
+
+Sergio: *"cuando hago un pedido desde la app me aparece el letrero de 'no
+conocemos el valor del domicilio entonces pagas solo el pedido' pero tengo
+seleccionada mi direccion de bellavista y esa ya esta en el sistema... deberia
+realmente saber el valor del domi y solo mostrar ese letrero si realmente no
+conoce el barrio"*.
+
+**Lo primero fue descartar lo obvio, no arreglarlo.** El emparejador de barrios
+y la Edge Function estaban BIEN: se extrajeron `fuzzyBarrioMatch` y
+`zonaDeTexto` del codigo desplegado, se corrieron contra la tabla de zonas real
+y "Bellavista" contra "Bella Vista" devuelve $5.000. Despues se llamo a
+`web-pedido` de verdad con `previo:true` (que no crea nada) y tambien devolvio
+$5.000. El unico caso que da cero es barrio y direccion vacios.
+
+Asi que el problema era **lo que la app enviaba**. Se abrio la aplicacion real
+con una sesion de diagnostico y un espia sobre `fetch`, y el rastro lo mostro
+entero: al escoger la direccion de Bellavista, la unica peticion que salia
+llevaba `barrio: "Casa 21"` — la direccion ANTERIOR.
+
+**Dos causas encadenadas.**
+
+1. **El candado se soltaba tarde.** `pedirCuenta()` llamaba a `pantallaDentro()`
+   DENTRO del `try`, con `pidiendoCuenta` todavia en `true`. Ese repintado
+   necesita otra cuenta —es justo lo que pasa al cambiar de direccion— y esa
+   segunda peticion se cancelaba sola contra el candado. La pantalla se quedaba
+   para siempre con la cuenta del barrio viejo. Ahora se suelta antes.
+
+2. **Se leia el DOM que todavia no existe.** `firmaCuenta` y `pedirCuenta`
+   sacaban el barrio de `$('pd-barrio')`, pero las dos corren dentro de
+   `cuerpoPedido()`, que aun no ha insertado su HTML: leian la pantalla
+   anterior. Ahora el destino sale del estado (`destinoActual()` sobre
+   `dirElegida`), y la direccion tambien entra en la firma.
+
+**Y un tercero que solo aparecio al verificar.** Con el barrio escrito a mano,
+el servidor devolvia $5.000 y la pantalla seguia mostrando el letrero: el campo
+se repintaba con `value=""` en cada pasada, se perdia lo escrito y la app
+volvia a preguntar sin barrio. Lo tecleado vive ahora en el estado
+(`barrioTecleado`), el campo se pinta con ello, y se limpia al cambiar de
+direccion porque era de la anterior.
+
+**Comprobado en produccion, con la app de verdad:**
+
+| Caso | Antes | Ahora |
+|---|---|---|
+| Direccion guardada "Bellavista" | letrero | **$5.000** |
+| Direccion guardada "Casa 21" (Balmoral) | letrero | **$6.000** |
+| Tecleado "Bella Vista" | letrero | **$5.000** |
+| Tecleado "Ciudad Verde" | letrero | **$10.000** |
+| Tecleado "Barrio Que No Existe" | letrero | letrero (correcto) |
+
+La sesion de diagnostico se borro al terminar y se confirmo que no quedo ningun
+pedido creado: `previo:true` calcula pero no escribe.
+
+**La regla que deja esto:** el estado de la pantalla no se guarda en el DOM. Un
+`$('...')` leido durante el armado del HTML devuelve la pantalla ANTERIOR, y de
+ahi salieron los tres fallos.

@@ -148,6 +148,24 @@ Sin ellos, Postgres rechaza antes de evaluar la RLS y el error es `permission de
 grant select, insert, update, delete on public.mi_tabla to anon, authenticated, service_role;
 ```
 
+### El estado de la pantalla NO vive en el DOM (app de clientes)
+
+`cuerpoPedido()` y compañía **arman un string** y lo insertan después. Cualquier
+`$('pd-barrio')` leído mientras se arma devuelve **la pantalla anterior**. De
+ahí salieron los tres fallos del domicilio del 20-ago.
+
+- Lo que el usuario eligió va en una variable (`dirSel`, `barrioTecleado`), y el
+  HTML se pinta **desde** ella — nunca al revés.
+- Un campo que el usuario llena se repinta con su valor (`value="' + esc(x) + '"`),
+  nunca con `value=""`: si no, lo escrito se borra solo en el siguiente repintado.
+
+### Un candado se suelta antes de repintar, no después
+
+`pedirCuenta()` llamaba a `pantallaDentro()` dentro del `try`, con el candado
+`pidiendoCuenta` aún en `true`. Ese repintado suele necesitar otra petición, y
+se cancelaba sola contra el candado. Si una función se bloquea a sí misma,
+libera **antes** de disparar cualquier cosa que pueda volver a llamarla.
+
 ### El menú lateral vive en `pos-nav.js` — nunca copiarlo a mano
 
 Estuvo escrito a mano en tres páginas y se desincronizó: a Reservas y a
