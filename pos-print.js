@@ -377,7 +377,7 @@
        domicilio, un punto por cada mil. Se marcan como estimados para que el
        recibo hable en futuro y no prometa un saldo que aun no existe. */
     var basePuntos = (Number(order.subtotal) || 0) + (Number(order.packaging_fee) || 0);
-    var estimado = Math.floor(basePuntos / PUNTOS_POR_MIL);
+    var estimado = window.posPuntosDe ? posPuntosDe(basePuntos) : Math.floor(basePuntos / PUNTOS_POR_MIL);
     if (estimado > 0) {
       orderData.puntos_ganados   = estimado;
       orderData.puntos_estimados = true;
@@ -385,10 +385,12 @@
     }
   }
 
-  /* Un punto por cada mil pesos de producto. Es la misma regla que aplica la
-     respuesta rapida del chat; el dia que se haga configurable por restaurante,
-     los dos sitios tienen que leer de la configuracion. */
-  var PUNTOS_POR_MIL = 1000;
+  /* YA ES CONFIGURABLE (21-ago-2026): la regla sale de `posPuntosRegla()`
+     —branches.operacion_config— y este numero solo queda de respaldo por si
+     pos-core todavia no cargo. El aviso que estaba aqui («el dia que se haga
+     configurable, los dos sitios tienen que leer de la configuracion») ya
+     se cumplio: el chat y el recibo leen del mismo ayudante. */
+  var PUNTOS_POR_MIL = 1000;   // respaldo si pos-core aun no cargo
 
   var _printerCache = null;
   var _printerCacheTs = 0;

@@ -372,3 +372,41 @@ window.posPuntosPedido = function (o) {
   if (comida <= 0) comida = (parseFloat(o.total) || 0) - (parseFloat(o.delivery_fee) || 0);
   return Math.max(0, Math.floor(comida / 1000));
 };
+
+/* ══ LA REGLA DE PUNTOS DE ESTE RESTAURANTE (21-ago-2026) ══════════════
+   "1 punto por cada $1.000" era la economia de El Parche escrita a fuego en
+   cuatro sitios distintos (la ficha del cliente, el recibo, el chat y la
+   caja). Cualquier restaurante que comprara Cobra la heredaba sin poder
+   cambiarla. Ahora vive en `branches.operacion_config.puntos`, que pos-core
+   ya sincroniza a este equipo, asi que leerla no cuesta una consulta.
+
+   La MISMA regla la aplica el disparador de la base (`award_loyalty_points`):
+   estos ayudantes son solo para MOSTRAR y estimar, nunca para abonar. */
+window.posPuntosRegla = function () {
+  var r = { pesosPorPunto: 1000, activo: true };
+  try {
+    var op = JSON.parse(localStorage.getItem('pos.config.operacion.v1') || 'null');
+    var p = op && op.puntos;
+    if (p) {
+      var n = Number(p.pesos_por_punto);
+      if (n > 0) r.pesosPorPunto = n;
+      if (p.activo === false) r.activo = false;
+    }
+  } catch (e) { /* sin config: la de siempre */ }
+  return r;
+};
+/* Cuantos puntos da ESE gasto. Devuelve 0 si el restaurante no tiene
+   programa de puntos — asi ninguna pantalla promete lo que no existe. */
+window.posPuntosDe = function (pesos) {
+  var r = window.posPuntosRegla();
+  if (!r.activo) return 0;
+  return Math.floor((Number(pesos) || 0) / r.pesosPorPunto);
+};
+/* La frase para explicarla, con el numero del restaurante. Vacia si esta
+   apagado: mejor no decir nada que decir una regla que no se cumple. */
+window.posPuntosFrase = function () {
+  var r = window.posPuntosRegla();
+  if (!r.activo) return '';
+  var m = '$ ' + Math.round(r.pesosPorPunto).toLocaleString('es-CO');
+  return '1 punto por cada ' + m;
+};

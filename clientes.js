@@ -313,7 +313,9 @@
             '</div>' +
           '</div>' +
           '<div class="cl-pt-b"><i style="width:' + prog + '%"></i></div>' +
-          '<div class="cl-pt-s">1 punto por cada $ 1.000 de comida. El domicilio no da puntos.</div>' +
+          '<div class="cl-pt-s">' + (window.posPuntosFrase
+              ? (posPuntosFrase() ? posPuntosFrase() + ' de comida. El domicilio no da puntos.' : 'Este restaurante no tiene programa de puntos.')
+              : '1 punto por cada $ 1.000 de comida. El domicilio no da puntos.') + '</div>' +
           /* Su billetera, aqui mismo: la consulta completa de un vistazo. Solo
              cuando tiene algo — "$ 0" de alguien sin billetera no dice nada. */
           (Number(S.selSaldo) > 0

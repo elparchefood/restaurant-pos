@@ -11177,3 +11177,44 @@ del DOM con 0 elementos con texto cortado. TRAMPA encontrada y corregida antes
 de subir: el bloque quedo con sangria dentro de otro bloque y `dianTocar()` no
 habria sido alcanzable desde el `oninput` del HTML — las funciones de pantalla
 en configuracion.js van a NIVEL GLOBAL (columna 0), como `propInit`/`opInit`.
+
+
+---
+
+## 21-ago-2026 — La regla de puntos deja de ser la de El Parche
+
+Sergio (punto 9 de su lista): *"limpiar las cosas hardcodeadas de El Parche
+sin que afecte el funcionamiento que hemos logrado; el sistema Cobra no puede
+tener datos hardcodeados de mi restaurante"*.
+
+**"1 punto por cada $1.000" estaba escrito a fuego en 4 sitios** — el
+disparador de la base, el recibo impreso, el chat y la ficha del cliente. Un
+restaurante que comprara Cobra heredaba la economia de El Parche y ni siquiera
+podia APAGAR los puntos si no tiene programa de fidelidad.
+
+**Ahora vive en `branches.operacion_config.puntos`**
+(`{pesos_por_punto, activo}`), el mismo bloque del empaque y la propina.
+- `award_loyalty_points` (SQL `2026-08-21-puntos-configurables.sql`) lo lee de
+  la sede del pedido. Si `activo:false` no abona nada. Un valor raro (cero,
+  negativo, texto) cae al respaldo de 1.000 sin romper la venta.
+- `fn_puntos_regla(branch)` para las pantallas.
+- **Ayudante compartido en `pos-core.js`**: `posPuntosRegla()`,
+  `posPuntosDe(pesos)` y `posPuntosFrase()`. Lee del `localStorage` que
+  pos-core ya sincroniza, asi que no cuesta una consulta. Lo usan el recibo
+  (`pos-print.js` — el comentario que decia "el dia que se haga configurable,
+  los dos sitios tienen que leer de la configuracion" YA se cumplio), el chat
+  (`chat-ia.js`) y la ficha del cliente (`clientes.js`, que ademas dice "este
+  restaurante no tiene programa de puntos" cuando esta apagado).
+
+**RED DE SEGURIDAD:** sin configuracion se comporta EXACTAMENTE como hoy. El
+Parche no se entera del cambio.
+
+**Verificado:** en la base, pedido de $25.000 → 25 pts con la regla de siempre;
+en OTRA sede (Restaurante de Prueba, para no tocar la de El Parche) con 1 por
+cada $5.000 → 5 pts; con el programa apagado → ningun punto. En banco Node, 7
+casos del ayudante incluidos los valores daNados. Todo lo PRUEBA borrado y la
+sede de prueba restaurada.
+
+**Nota suelta:** quedo una fila vieja en `pos_puntos` (tel 3000000009, 30 pts,
+del backfill del 31-jul, sin ficha de cliente). NO se toco — no la cree yo.
+Preguntarle a Sergio si se borra.

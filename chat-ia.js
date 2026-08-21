@@ -3464,7 +3464,7 @@ async function datosPlantilla(claves) {
         d.total = total; d.total_productos = prod; d.domicilio = domi;
         /* 1 punto por cada $1.000 de productos y empaque. El domicilio NO da
            puntos: es la regla de oro, el domi nunca cuenta como venta. */
-        d.puntos_ganados = Math.floor(prod / 1000);
+        d.puntos_ganados = window.posPuntosDe ? posPuntosDe(prod) : Math.floor(prod / 1000);
       }
     } catch (e) {}
   }
