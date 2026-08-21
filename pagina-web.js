@@ -935,8 +935,12 @@
     var t = String(n || '?').trim().split(/\s+/);
     return ((t[0] || '?')[0] + ((t[1] || '')[0] || '')).toUpperCase();
   }
+  /* "sin registro" se leia como "esta persona no se registro", que es
+     justo lo contrario de lo que pasa: SI se registro (por eso esta en la
+     lista) y SI entro (por eso tiene entradas). Lo que faltaba era el dato
+     de la ultima visita. Con un guion no se afirma nada que no sea cierto. */
   function fechaPw(v) {
-    if (!v) return 'sin registro';
+    if (!v) return '—';
     var d = new Date(v), hoy = new Date();
     var mismoDia = d.toDateString() === hoy.toDateString();
     var hora = d.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });

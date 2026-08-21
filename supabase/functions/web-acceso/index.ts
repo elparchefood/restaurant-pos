@@ -363,6 +363,15 @@ async function abrirSesion(tenantId: string, clienteId: string, telefono: string
   await sbPost(`/pos_web_sesiones`, {
     tenant_id: tenantId, cliente_id: clienteId, telefono,
     token_hash: await sha256(token), recordar, expira_at: expira,
+    /* ENTRAR YA ES USAR. Antes esto quedaba nulo y solo se escribia cuando la
+       persona VOLVIA, asi que a todo el que se acababa de registrar la
+       pantalla del dueNo le mostraba "sin registro" en la columna de ultima
+       vez — como si no hubiera entrado nunca.
+
+       Paso con 18 de las 19 personas que llegaron el 21-ago desde la campana
+       de puntos: se habian registrado hacia minutos y el tablero las daba por
+       fantasmas. */
+    ultimo_uso: new Date().toISOString(),
   });
   return { token, expira };
 }
