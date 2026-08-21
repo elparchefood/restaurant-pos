@@ -283,6 +283,52 @@
 </div>
 
 <!-- Keypad -->
+<!-- ¿QUIÉN LO LLEVA? — sale al marcar el pedido "En camino".
+     Es obligatorio: un pedido no puede salir del restaurante sin que quede
+     escrito con quién salió. Si algo pasa en el camino, esa es la única
+     forma de saber a quién preguntarle. -->
+<div class="d-overlay" id="modal-quienlleva" hidden style="z-index:130">
+  <div class="d-modal" style="width:480px">
+    <div class="d-modal-head">
+      <div class="d-modal-title">&iquest;Qui&eacute;n lo lleva?</div>
+      <button class="d-modal-x" data-ql-cerrar title="Cancelar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="d-modal-body">
+      <div id="ql-pedido" style="font-size:12.5px;color:#64748B;margin-bottom:16px"></div>
+
+      <div class="d-seg" id="ql-tipo" style="display:inline-flex;gap:3px;background:#F1F5F9;padding:3px;border-radius:9px;margin-bottom:18px">
+        <button type="button" data-ql-tipo="interno" style="padding:7px 15px;border:0;background:transparent;border-radius:7px;font-family:inherit;font-size:12.5px;font-weight:600;color:#64748B;cursor:pointer">Domiciliario propio</button>
+        <button type="button" data-ql-tipo="externo" style="padding:7px 15px;border:0;background:transparent;border-radius:7px;font-family:inherit;font-size:12.5px;font-weight:600;color:#64748B;cursor:pointer">Empresa externa</button>
+      </div>
+
+      <!-- INTERNO -->
+      <div id="ql-pane-interno">
+        <div style="font-size:11.5px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.08em;margin-bottom:9px">Domiciliario</div>
+        <div id="ql-lista" style="display:flex;flex-direction:column;gap:7px;max-height:230px;overflow-y:auto"></div>
+        <div id="ql-sin-domis" style="display:none;padding:18px 14px;border:1px dashed #DCE0E8;border-radius:10px;background:#FBFBFD;color:#64748B;font-size:12.5px;line-height:1.6;text-align:center">
+          No tienes domiciliarios creados.<br>
+          Se crean en <b>Configuraci&oacute;n &rsaquo; Usuarios y roles</b>, con el rol de domiciliario.
+        </div>
+      </div>
+
+      <!-- EXTERNO -->
+      <div id="ql-pane-externo" hidden>
+        <div style="font-size:11.5px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.08em;margin-bottom:9px">M&oacute;vil</div>
+        <input id="ql-movil" inputmode="numeric" maxlength="6" placeholder="Ej. 27" style="width:100%;padding:10px 12px;border:1px solid #ECEEF2;border-radius:9px;font-family:inherit;font-size:13px;color:#0F172A;outline:none;background:#fff" />
+        <div style="font-size:11.5px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.08em;margin:16px 0 9px">Empresa</div>
+        <select id="ql-empresa" style="width:100%;padding:10px 12px;border:1px solid #ECEEF2;border-radius:9px;font-family:inherit;font-size:13px;color:#0F172A;outline:none;background:#fff"></select>
+        <div id="ql-sin-empresas" style="display:none;margin-top:10px;font-size:12px;color:#94A3B8;line-height:1.6">
+          Puedes guardar tus empresas en <b>Configuraci&oacute;n &rsaquo; Domicilios</b> para escogerlas de una lista.
+        </div>
+      </div>
+    </div>
+    <div class="d-modal-foot">
+      <button class="d-foot-cancel" data-ql-cerrar>Cancelar</button>
+      <button class="d-foot-next" id="ql-ok" disabled>Marcar en camino</button>
+    </div>
+  </div>
+</div>
+
 <div class="d-overlay" id="modal-keypad" hidden style="z-index:120">
   <div class="d-modal" style="width:420px">
     <div class="d-modal-head"><div class="d-modal-title">Precio del domicilio</div><button class="d-modal-x" data-close><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>

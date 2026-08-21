@@ -256,7 +256,7 @@ async function loadActiveOrders() {
   try {
     const { data: orders, error } = await sb
       .from('pos_orders')
-      .select('id, customer_name, channel, notes, payment_method, total, paid_amount, opened_at, delivery_status, delivery_fee, delivered_at,domi_courier,domi_pago,domi_movil')
+      .select('id, customer_name, channel, notes, payment_method, total, paid_amount, opened_at, delivery_status, delivery_fee, delivered_at,domi_courier,domi_pago,domi_movil,domiciliario,domiciliario_id,domi_empresa_id')
       .eq('branch_id', S.branchId)
       .in('channel', ['domicilio', 'whatsapp'])
       .eq('status', 'open')
@@ -332,7 +332,11 @@ function _orderRowToDelivery(o) {
     domiPago:     o.domi_pago || 'efectivo',
     movil:        o.domi_movil || '',
     cobramos:     false,
-    domiciliario: '—',
+    /* A QUIEN SE LE ASIGNO. Sin esto, el modal de "¿quién lo lleva?"
+       volveria a preguntar por un pedido que ya tiene domiciliario. */
+    domiciliarioId: o.domiciliario_id || null,
+    empresaId:      o.domi_empresa_id || null,
+    domiciliario: o.domiciliario || '—',
     min:          0,
     createdAt:    o.opened_at ? new Date(o.opened_at).getTime() : Date.now(),
     notas:        o.notes || '',
@@ -2004,6 +2008,18 @@ function advanceDelivery(id) {
   if (!d) return;
   const next = ESTADO_NEXT(d.estado);
   if (!next) return;
+
+  /* ANTES DE QUE EL PEDIDO SALGA, QUEDA ESCRITO CON QUIEN SALE.
+     Al recibirlo no se pregunta —ahi todavia no se sabe quien va a estar
+     libre—, pero al marcarlo "En camino" si es obligatorio: si el pedido
+     se pierde, se demora o el cliente reclama, esta es la unica forma de
+     saber a quien preguntarle. Si ya se habia asignado, no vuelve a
+     preguntar. */
+  if (next === 'camino' && !d.domiciliarioId && !d.movil) {
+    qlAbrir(d, function () { advanceDelivery(id); });
+    return;
+  }
+
   d.estado = next;
   // PERSISTIR el avance vía la función central 'cambiar-estado': escribe estado +
   // delivery_status + delivered_at, SINCRONIZA la pastilla/etiqueta del chat y
@@ -2390,4 +2406,205 @@ document.addEventListener('click', async function (ev) {
     try { typeof renderMonitor === "function" && renderMonitor(); } catch (e) {}
     if (typeof toast === 'function') toast('No se pudo cambiar: ' + r.error.message);
   }
+});
+
+/* ══════════════════════════════════════════════════════════════════
+   ¿QUIÉN LO LLEVA?  (21-ago-2026)
+
+   Sale al marcar un pedido "En camino" y es obligatorio.
+
+   Interno o externo se decide AQUI, por pedido: un domicilio puede irse
+   con el domiciliario de la casa y el siguiente con una empresa. Nunca
+   es una configuracion general del restaurante.
+   ══════════════════════════════════════════════════════════════════ */
+var QL = { d: null, seguir: null, tipo: 'interno', domiId: null, domis: null, empresas: null };
+
+function qlEsc(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/* Los domiciliarios del restaurante. Se reconocen por la CLAVE INTERNA
+   del rol, no por su nombre: el dueNo pudo haberlo renombrado a
+   "Repartidor" o a "Mensajero" y tienen que seguir apareciendo. */
+async function qlCargarDomis() {
+  if (QL.domis) return QL.domis;
+  try {
+    /* En dos pasos a proposito: primero CUAL es el rol de domiciliario en
+       este restaurante, y despues quien lo tiene. Una consulta anidada
+       seria mas corta, pero depende de como PostgREST bautice la relacion
+       y falla entera si eso cambia. */
+    var rr = await sb.from('pos_roles').select('id')
+      .eq('tenant_id', S.tenantId).eq('clave', 'domiciliario').maybeSingle();
+    var rolId = rr && rr.data && rr.data.id;
+    if (!rolId) { QL.domis = []; return QL.domis; }
+    var r = await sb.from('pos_users')
+      .select('id,name,vehiculo,placa')
+      .eq('tenant_id', S.tenantId)
+      .eq('role_id', rolId)
+      .eq('active', true)
+      .order('name');
+    QL.domis = (r && r.data) || [];
+  } catch (e) { console.error('[quien-lleva] domis:', e); QL.domis = []; }
+  return QL.domis;
+}
+
+async function qlCargarEmpresas() {
+  if (QL.empresas) return QL.empresas;
+  try {
+    var r = await sb.from('pos_domi_empresas')
+      .select('id,nombre').eq('tenant_id', S.tenantId).eq('activa', true).order('nombre');
+    QL.empresas = (r && r.data) || [];
+  } catch (e) { console.error('[quien-lleva] empresas:', e); QL.empresas = []; }
+  return QL.empresas;
+}
+
+async function qlAbrir(d, seguir) {
+  QL.d = d; QL.seguir = seguir; QL.domiId = null;
+  /* Se propone lo que ya traia el pedido, pero se puede cambiar. */
+  QL.tipo = d.courier === 'externo' ? 'externo' : 'interno';
+
+  var cab = $('ql-pedido');
+  if (cab) cab.innerHTML = 'Pedido <b>' + qlEsc(d.id) + '</b>'
+    + (d.cliente ? ' &middot; ' + qlEsc(d.cliente) : '');
+
+  var mv = $('ql-movil'); if (mv) mv.value = d.movil || '';
+
+  await qlCargarDomis();
+  await qlCargarEmpresas();
+  qlPintar();
+  openModal('modal-quienlleva');
+}
+
+function qlPintar() {
+  document.querySelectorAll('[data-ql-tipo]').forEach(function (b) {
+    var on = b.dataset.qlTipo === QL.tipo;
+    b.style.background = on ? '#fff' : 'transparent';
+    b.style.color      = on ? '#0F172A' : '#64748B';
+    b.style.fontWeight = on ? '700' : '600';
+    b.style.boxShadow  = on ? '0 1px 2px rgba(15,23,42,.1)' : 'none';
+  });
+  var pi = $('ql-pane-interno'), pe = $('ql-pane-externo');
+  if (pi) pi.hidden = QL.tipo !== 'interno';
+  if (pe) pe.hidden = QL.tipo !== 'externo';
+
+  /* ── Los domiciliarios ── */
+  var lista = $('ql-lista'), sin = $('ql-sin-domis');
+  var hay = (QL.domis || []).length;
+  if (sin)   sin.style.display   = hay ? 'none' : '';
+  if (lista) lista.style.display = hay ? '' : 'none';
+  if (lista && hay) {
+    lista.innerHTML = QL.domis.map(function (u) {
+      var on = QL.domiId === u.id;
+      var detalle = [u.vehiculo, u.placa].filter(Boolean).join(' &middot; ');
+      return '<button type="button" data-ql-domi="' + u.id + '"'
+        + ' style="display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:11px 13px;'
+        + 'border:1px solid ' + (on ? '#5B6BFF' : '#ECEEF2') + ';border-radius:10px;'
+        + 'background:' + (on ? '#EEF2FF' : '#fff') + ';font-family:inherit;cursor:pointer">'
+        + '<span style="width:8px;height:8px;border-radius:999px;flex-shrink:0;background:'
+        + (on ? '#5B6BFF' : '#CBD5E1') + '"></span>'
+        + '<span style="flex:1;min-width:0">'
+        + '<span style="display:block;font-size:13px;font-weight:600;color:' + (on ? '#5B6BFF' : '#0F172A') + '">' + qlEsc(u.name) + '</span>'
+        + (detalle ? '<span style="display:block;font-size:11.5px;color:#94A3B8;margin-top:2px">' + detalle + '</span>' : '')
+        + '</span></button>';
+    }).join('');
+    lista.querySelectorAll('[data-ql-domi]').forEach(function (b) {
+      b.onclick = function () { QL.domiId = b.dataset.qlDomi; qlPintar(); };
+    });
+  }
+
+  /* ── Las empresas ── */
+  var selE = $('ql-empresa'), sinE = $('ql-sin-empresas');
+  if (selE && !selE.dataset.listo) {
+    selE.innerHTML = '<option value="">Sin especificar</option>'
+      + (QL.empresas || []).map(function (e) {
+          return '<option value="' + e.id + '">' + qlEsc(e.nombre) + '</option>';
+        }).join('');
+    selE.dataset.listo = '1';
+  }
+  if (sinE) sinE.style.display = (QL.empresas || []).length ? 'none' : '';
+
+  /* ── El boton solo se habilita cuando ya se sabe quien lleva ── */
+  var ok = $('ql-ok');
+  if (ok) {
+    var mv = $('ql-movil');
+    var listo = QL.tipo === 'interno'
+      ? !!QL.domiId
+      : !!((mv && mv.value || '').trim());
+    ok.disabled = !listo;
+  }
+}
+
+function qlCerrar() {
+  closeModal('modal-quienlleva');
+  QL.d = null; QL.seguir = null;
+}
+
+async function qlConfirmar() {
+  var d = QL.d;
+  if (!d) return;
+  var campos = {};
+
+  if (QL.tipo === 'interno') {
+    if (!QL.domiId) return;
+    var u = (QL.domis || []).find(function (x) { return x.id === QL.domiId; });
+    d.domiciliarioId = QL.domiId;
+    d.domiciliario   = u ? u.name : '';
+    d.courier        = 'interno';
+    d.movil          = '';
+    campos = {
+      domiciliario_id: QL.domiId,
+      domiciliario:    d.domiciliario,
+      domi_courier:    'interno',
+      domi_movil:      null,
+      domi_empresa_id: null
+    };
+  } else {
+    var mv   = $('ql-movil');
+    var selE = $('ql-empresa');
+    var movil = ((mv && mv.value) || '').replace(/[^0-9a-zA-Z]/g, '').slice(0, 6);
+    if (!movil) return;
+    d.movil          = movil;
+    d.courier        = 'externo';
+    d.domiciliarioId = null;
+    d.empresaId      = (selE && selE.value) || null;
+    campos = {
+      domiciliario_id: null,
+      domi_courier:    'externo',
+      domi_movil:      movil,
+      domi_empresa_id: d.empresaId || null
+    };
+  }
+
+  if (d.supabaseId) {
+    try {
+      var r = await sb.from('pos_orders').update(campos).eq('id', d.supabaseId);
+      if (r && r.error) {
+        /* No se sigue adelante en silencio: si no quedo guardado, el pedido
+           saldria sin que nadie sepa con quien. */
+        toast('No se pudo guardar quién lo lleva: ' + r.error.message, 'warn');
+        return;
+      }
+    } catch (e) {
+      toast('No se pudo guardar quién lo lleva', 'warn');
+      return;
+    }
+  }
+
+  var seguir = QL.seguir;
+  qlCerrar();
+  if (seguir) seguir();
+}
+
+/* Los clics del modal. Van por delegacion en el documento porque el modal
+   se pinta de nuevo cada vez que se abre. */
+document.addEventListener('click', function (e) {
+  if (e.target.closest('[data-ql-cerrar]')) { qlCerrar(); return; }
+  var t = e.target.closest('[data-ql-tipo]');
+  if (t) { QL.tipo = t.dataset.qlTipo; qlPintar(); return; }
+  if (e.target.closest('#ql-ok')) { qlConfirmar(); return; }
+});
+document.addEventListener('input', function (e) {
+  if (e.target && e.target.id === 'ql-movil') qlPintar();
 });
