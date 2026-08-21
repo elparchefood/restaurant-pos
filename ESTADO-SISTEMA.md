@@ -3,6 +3,56 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Cerrar caja libera las mesas — 21-ago-2026
+
+Sergio encontró una mesa en **"Comiendo" con el cronómetro en 18 horas**, con la
+caja cerrada y el restaurante vacío. Su pedido llevaba pagado desde la noche
+anterior; lo que nunca se limpió fue la mesa.
+
+**El agujero está en el cobro adelantado**, que es como trabaja El Parche: al
+cobrar, la mesa pasa a `esperando` (todavía no le han servido), luego a
+`comiendo`... y a partir de ahí **nada la libera sola**. Alguien tiene que
+acordarse a mano, y a las once de la noche cerrando caja nadie se acuerda.
+
+Ahora `handleCloseSession` llama a `liberarMesasAlCerrar(branchId)`: deja todas
+las mesas de la sede en `libre` y borra `comiendo_at`, `esperando_at`,
+`pendiente_pago_at` y `sesion_at`. Mismo criterio que la limpieza de etiquetas
+del chat que ya existía: el día terminó, mañana el salón arranca limpio.
+
+⚠️ **El filtro por sede no es opcional.** Sin `branch_id`, esto le limpiaría el
+salón a todos los restaurantes del sistema, incluidos los que estén abiertos
+atendiendo en ese momento.
+
+**Además había 7 mesas marcadas `libre` pero con el cronómetro guardado**, una
+desde el 2 de agosto. Mientras están libres no molestan, pero es basura esperando
+a reaparecer. Por eso la función toca todas las mesas, no solo las ocupadas.
+Las de El Parche quedaron limpias: 8 mesas, 0 ocupadas, 0 con cronómetro.
+
+---
+
+## 🎨 Pantalla de Domicilios rehecha — 21-ago-2026
+
+Había quedado con el contenido **pegado al borde de la tarjeta**: usaba
+`.op-card` sin el `.op-card-body` que trae el relleno interno. No era cuestión de
+gusto sino de estructura.
+
+Rehecha con el patrón de Operación y DIAN: cabecera con icono y estado a la
+derecha, cuerpo con `.op-row` separadas, `.op-label` + `.op-hint` en cada una.
+
+- **De 3 tarjetas a 2.** La nota de "interno o externo se decide en cada pedido"
+  tenía tarjeta propia con icono, cuando es una aclaración: ahora vive dentro de
+  la tarjeta de empresas, que es de lo que habla.
+- El paso a paso de Google pasó de muro de texto a **7 pasos numerados**, con la
+  advertencia importante destacada dentro de su paso.
+- Estado vacío con icono y explicación, en vez de una línea de texto suelta.
+- La cabecera muestra cuántas empresas hay sin abrir nada.
+
+Se dejaron como **clases del sistema** (`cf-note`, `cf-pasos`, `cf-vacio`,
+`cf-barra`, `cf-fila`) para que la siguiente pantalla no vuelva a improvisar.
+Verificado midiendo en el navegador: **cero desbordes**.
+
+---
+
 ## 🟢 Barrios por aprobar y conjuntos — limpieza del 21-ago-2026
 
 ### El bucle que reportó Sergio
