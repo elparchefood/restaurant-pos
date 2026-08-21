@@ -206,10 +206,56 @@
     var c = S.clientes.find(function (x) { return String(x.id) === String(id); });
     if (!c) return;
     S.sel = c;
+    S.selSaldo = null;             // el saldo llega un instante despues
     pintarLista();
     pintarFicha();                 // primero con lo que ya se sabe
+    cargarSaldoFicha(c.id);
     await cargarPedidos(c.id);
     if (S.sel && String(S.sel.id) === String(id)) pintarFicha();
+  }
+
+  /* El saldo de su billetera, para poder consultarlo aqui mismo (20-ago,
+     pedido de Sergio: pasar la tarjeta y ver nombre, puntos y saldo). */
+  async function cargarSaldoFicha(id) {
+    try {
+      var r = await sb.from('pos_saldo').select('saldo')
+        .eq('tenant_id', tenantId).eq('cliente_id', id).limit(1);
+      S.selSaldo = (r.data && r.data[0]) ? Number(r.data[0].saldo) || 0 : 0;
+    } catch (e) { S.selSaldo = null; }
+    if (S.sel && String(S.sel.id) === String(id)) pintarFicha();
+  }
+
+  /* ── La tarjeta como llave de consulta ─────────────────────────────
+     Con la pantalla de Clientes abierta, acercar una tarjeta al lector abre
+     la ficha de su dueNo — sin buscarlo. Si esta abierto el modal de
+     vincular, ese manda (el modal escucha aparte). */
+  var _nfcClientes = false;
+  function arrancarLectorClientes() {
+    if (_nfcClientes || !window.posNfc) return;
+    _nfcClientes = true;
+    posNfc.setCtx(tenantId);
+    posNfc.escuchar(async function (uid) {
+      if (document.getElementById('clt-lista')) return;   // el modal de vincular esta abierto
+      try {
+        var t = await posNfc.buscar(uid);
+        if (!t) { avisoFlotante('La tarjeta ····' + uid.slice(-4) + ' no está vinculada a nadie'); return; }
+        var tel10 = String(t.telefono).replace(/[^0-9]/g, '').slice(-10);
+        var c = (S.clientes || []).find(function (x) {
+          return String(x.telefono || '').replace(/[^0-9]/g, '').slice(-10) === tel10;
+        });
+        if (!c) { avisoFlotante('La tarjeta es de ••• ' + tel10.slice(-4) + ', pero no está en esta lista'); return; }
+        abrirFicha(c.id);
+      } catch (e) { avisoFlotante('No se pudo leer la tarjeta: ' + (e.message || e)); }
+    });
+  }
+  function avisoFlotante(txt) {
+    var v = document.getElementById('cl-flot'); if (v) v.remove();
+    var d = document.createElement('div');
+    d.id = 'cl-flot';
+    d.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:10001;background:#0F172A;color:#fff;padding:12px 18px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 12px 30px -8px rgba(15,23,42,.5)';
+    d.textContent = txt;
+    document.body.appendChild(d);
+    setTimeout(function () { d.remove(); }, 3500);
   }
 
   function pintarFicha() {
@@ -268,6 +314,11 @@
           '</div>' +
           '<div class="cl-pt-b"><i style="width:' + prog + '%"></i></div>' +
           '<div class="cl-pt-s">1 punto por cada $ 1.000 de comida. El domicilio no da puntos.</div>' +
+          /* Su billetera, aqui mismo: la consulta completa de un vistazo. Solo
+             cuando tiene algo — "$ 0" de alguien sin billetera no dice nada. */
+          (Number(S.selSaldo) > 0
+            ? '<div class="cl-pt-s" style="margin-top:4px"><b>Saldo en su billetera: ' + COP(S.selSaldo) + '</b></div>'
+            : '') +
         '</div>' +
       '</div>' +
       /* El historial es lo unico que se mueve. Arriba queda quieto para poder
@@ -405,6 +456,7 @@
     sb       = window._pos.sb;
     tenantId = window._pos.state.tenantId;
     if (!sb || !tenantId) { console.error('[clientes] sin sesión'); return; }
+    try { arrancarLectorClientes(); } catch (e) {}
 
     /* El atajo a "Mi pagina web" solo para el administrador de la
        plataforma. Se pregunta por es_admin_plataforma(), la misma funcion

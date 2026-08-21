@@ -1167,7 +1167,7 @@
           if (String(x.telefono || '').replace(/[^0-9]/g, '').slice(-10) === tel10) i = k;
         });
         if (i < 0) { toast('La tarjeta es de ••• ' + tel10.slice(-4) + ', pero esa persona no está registrada en la app'); return; }
-        modalDar('saldo', i);
+        modalDar('recarga', i);
       } catch (e) { toast('No se pudo leer la tarjeta: ' + (e.message || e)); }
     });
   }
@@ -1177,22 +1177,28 @@
     var us = (S.web && S.web.usuarios) || [];
     if (!us.length) { toast('Todavía no hay nadie registrado en la app'); return; }
     if (!(i >= 0) || !us[i]) i = 0;
-    S.dar = { modo: modo === 'puntos' ? 'puntos' : 'saldo', i: i };
+    S.dar = { modo: modo === 'puntos' ? 'puntos' : modo === 'recarga' ? 'recarga' : 'saldo', i: i };
     pintarModalDar();
   }
 
   function pintarModalDar() {
     var us = S.web.usuarios, d = S.dar, u = us[d.i];
+    /* Tres modos, no dos (20-ago): RECARGAR es plata que el cliente PAGO
+       (entra a la caja, aplica minimo y bono por los mismos rangos de la
+       app); dar saldo y dar puntos son regalos tuyos. */
+    var esR = d.modo === 'recarga';
     var esS = d.modo === 'saldo';
-    var rapidos = esS ? [10000, 20000, 50000] : [100, 200, 500];
+    var rapidos = esR ? [40000, 50000, 100000] : esS ? [10000, 20000, 50000] : [100, 200, 500];
 
     abrir('<div class="cc-modal mw-mo pw-mo-dar">' +
-      cabezaModal(esS ? 'Dar saldo' : 'Dar puntos',
-                  'Queda anotado con tu nombre y la hora.') +
+      cabezaModal(esR ? 'Recargar su billetera' : esS ? 'Dar saldo' : 'Dar puntos',
+                  esR ? 'Plata que el cliente te pagó aquí en el local.'
+                      : 'Queda anotado con tu nombre y la hora.') +
       '<div class="mw-mo-body">' +
         '<div class="cc-seg pw-seg2">' +
+          '<button class="' + (esR ? 'on' : '') + '" data-dar-modo="recarga">Recargar</button>' +
           '<button class="' + (esS ? 'on' : '') + '" data-dar-modo="saldo">Dar saldo</button>' +
-          '<button class="' + (esS ? '' : 'on') + '" data-dar-modo="puntos">Dar puntos</button>' +
+          '<button class="' + (!esR && !esS ? 'on' : '') + '" data-dar-modo="puntos">Dar puntos</button>' +
         '</div>' +
         '<div class="cc-field" style="margin-top:14px"><label class="cc-label">¿A quién?</label>' +
           '<select class="cc-input" id="pw-dar-quien">' +
@@ -1202,22 +1208,25 @@
             }).join('') +
           '</select></div>' +
         '<div class="cc-field"><label class="cc-label">' +
-          (esS ? 'Cuánto le vas a dar' : 'Cuántos puntos le vas a dar') + '</label>' +
-          '<div class="mw-urlinput"><span>' + (esS ? '$' : 'pts') + '</span>' +
-          '<input id="pw-dar-monto" inputmode="numeric" value="' + (esS ? '20.000' : '200') + '"></div></div>' +
+          (esR ? 'Cuánto te pagó' : esS ? 'Cuánto le vas a dar' : 'Cuántos puntos le vas a dar') + '</label>' +
+          '<div class="mw-urlinput"><span>' + (esR || esS ? '$' : 'pts') + '</span>' +
+          '<input id="pw-dar-monto" inputmode="numeric" value="' + (esR ? '40.000' : esS ? '20.000' : '200') + '"></div></div>' +
         '<div class="pw-rapidos">' + rapidos.map(function (v) {
-          return '<button data-dar-v="' + v + '">' + (esS ? COP(v) : num(v) + ' pts') + '</button>';
+          return '<button data-dar-v="' + v + '">' + (esR || esS ? COP(v) : num(v) + ' pts') + '</button>';
         }).join('') + '</div>' +
+        (esR ? '' :
         '<div class="cc-field"><label class="cc-label">Por qué</label>' +
           '<input class="cc-input" id="pw-dar-motivo" maxlength="80" ' +
-            'placeholder="Ej: recompensa, error en un pedido, prueba"></div>' +
-        '<div class="mw-note warn"><span>' + (esS
+            'placeholder="Ej: recompensa, error en un pedido, prueba"></div>') +
+        '<div class="mw-note warn"><span>' + (esR
+          ? '<strong>Se acredita por el mismo camino que las recargas de la app:</strong> mismo mínimo y mismo bono por rangos. El bono sale solo, no lo sumes tú.'
+          : esS
           ? '<strong>Esto no es una recarga que la persona pagó.</strong> Es plata que tú regalas: no entra a la caja y sale aparte en el informe.'
           : '<strong>Quedan marcados como regalo</strong>, aparte de los puntos que la persona gana comprando.') +
           '</span></div>' +
       '</div>' +
       '<div class="mw-mo-foot"><button class="lm-btn-ghost" data-cerrar>Cancelar</button>' +
-        '<button class="cc-btn-ai" id="pw-dar-ok">Dárselo</button></div>' +
+        '<button class="cc-btn-ai" id="pw-dar-ok">' + (esR ? 'Recargar' : 'Dárselo') + '</button></div>' +
     '</div>');
 
     document.querySelectorAll('[data-dar-modo]').forEach(function (b) {
@@ -1234,16 +1243,42 @@
 
   async function confirmarDar() {
     var u = S.web.usuarios[S.dar.i];
+    var esR = S.dar.modo === 'recarga';
     var esS = S.dar.modo === 'saldo';
     var v = parseInt(String($('pw-dar-monto').value || '').replace(/[^0-9]/g, ''), 10) || 0;
-    var motivo = ($('pw-dar-motivo').value || '').trim();
-    if (v <= 0) { toast('Escribe cuánto le vas a dar'); return; }
-    if (!motivo) { toast('Escribe por qué se lo das'); return; }
+    var motivo = esR ? '' : ($('pw-dar-motivo').value || '').trim();
+    if (v <= 0) { toast(esR ? 'Escribe cuánto te pagó' : 'Escribe cuánto le vas a dar'); return; }
+    if (!esR && !motivo) { toast('Escribe por qué se lo das'); return; }
 
     var btn = $('pw-dar-ok');
-    btn.disabled = true; btn.textContent = 'Dándoselo…';
+    btn.disabled = true; btn.textContent = esR ? 'Recargando…' : 'Dándoselo…';
     var yo = (window._pos && window._pos.state && window._pos.state.user) || {};
     try {
+      if (esR) {
+        /* El MISMO camino de las recargas de la app: fn_recarga_aplicar pone
+           el minimo, calcula el bono por rangos y escribe el libro. La
+           referencia lleva la hora para que un doble clic no la duplique. */
+        var r = await sb().rpc('fn_recarga_aplicar', {
+          p_tenant: S.t.id, p_cliente: u.cliente_id, p_monto: v,
+          p_ref: 'local:' + u.cliente_id + ':' + Date.now(),
+          p_branch: (window._pos.state.branchId || null), p_como: 'en el local',
+          p_quien: yo.id || null,
+        });
+        if (r.error) throw r.error;
+        var f = (r.data || [])[0];
+        if (!f || f.ok !== true) {
+          btn.disabled = false; btn.textContent = 'Recargar';
+          toast((f && f.motivo) || 'No se pudo recargar');
+          return;
+        }
+        cerrarModal();
+        toast('Recarga de ' + COP(Number(f.acreditado) - Number(f.bono || 0)) +
+              (Number(f.bono) > 0 ? ' + bono de ' + COP(f.bono) : '') +
+              ' — le queda ' + COP(f.saldo));
+        await cargarClientesApp();
+        pintar();
+        return;
+      }
       if (esS) {
         await sb().rpc('fn_saldo_mover', {
           p_tenant: S.t.id, p_cliente: u.cliente_id, p_motivo: 'regalo', p_monto: v,

@@ -10793,3 +10793,14 @@ fila PRUEBA (borrada). **Falta la prueba con lector fisico real de Sergio.**
 la fila) o "Dejarla como esta". Nunca se sobreescribe en silencio. Verificado
 en banco con posNfc simulado. Y NOTA: antes de comprar el lector fisico,
 Sergio va a consultar cual — esperar esa consulta.
+
+**Consulta y recarga por tarjeta (mismos minutos):**
+- **Clientes**: acercar la tarjeta con la pantalla abierta ABRE LA FICHA de su
+  dueNo (nombre, gastado, pedidos, puntos), y la ficha ahora muestra tambien
+  el **saldo de su billetera** (pos_saldo por cliente_id; solo si > 0). Si el
+  modal de vincular esta abierto, ese manda.
+- **Pagina web → Dar saldo** ahora tiene TRES modos: **Recargar** (nuevo:
+  plata que el cliente pago en el local — va por `fn_recarga_aplicar`, el
+  MISMO camino de las recargas de la app: minimo, bono por rangos y libro
+  identicos; ref `local:<cliente>:<ts>` contra dobles clics), Dar saldo
+  (regalo) y Dar puntos. La tarjeta ahora abre el modal en modo Recargar.
