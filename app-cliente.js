@@ -17,8 +17,7 @@
   // restaurante: decia "esta pagina no esta disponible" sin mas.
   var ANON   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
   var ACCESO = SB_URL + '/functions/v1/web-acceso';
-  /* Version de ESTE archivo, para la huella y el diagnostico. Subirla junto
-     con el SELLO del index. */
+  /* Version de ESTE archivo. Subirla junto con el SELLO del index. */
   var VERSION_APP = '0820p';
 
   var LLAVE_SESION = 'cobra.web.sesion';
