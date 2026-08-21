@@ -1204,7 +1204,13 @@ function urShowToast(msg) {
 // La Edge Function corre server-side con service_role.
 async function manageUser(payload) {
   var { data: { session } } = await sb.auth.getSession();
-  var token = session ? session.access_token : SB_SVC;
+  /* Aqui se nombraba una variable que NO EXISTE en ningun archivo del
+     proyecto, asi que sin sesion esto reventaba con un ReferenceError en vez
+     de decir que la sesion se vencio. (Y menos mal que no existia: una clave
+     de servicio en este repo, que es publico, le daria a cualquiera acceso
+     total a la base de TODOS los restaurantes.) */
+  if (!session) throw new Error('Tu sesión se venció. Vuelve a entrar para poder guardar.');
+  var token = session.access_token;
   var res = await fetch(SB_URL + '/functions/v1/manage-user', {
     method: 'POST',
     headers: {
@@ -3210,8 +3216,9 @@ var _wlListas = [];
 
 // Mismo patrón que el resto de llamadas a Edge Functions (ver manageUser).
 async function wlToken() {
-  try { var s = await sb.auth.getSession(); return (s.data.session && s.data.session.access_token) || SB_SVC; }
-  catch (e) { return SB_SVC; }
+  /* Igual que arriba: sin sesion se devuelve null y quien llama decide. */
+  try { var s = await sb.auth.getSession(); return (s.data.session && s.data.session.access_token) || null; }
+  catch (e) { return null; }
 }
 
 async function wlCargar() {
