@@ -3,6 +3,49 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 El cursor no aparecía en los campos de texto (.exe) — 21-ago-2026
+
+Problema que llevaba **meses** molestando: se hacía clic en un campo de texto
+del ejecutable y el cursor no aparecía. Se arreglaba minimizando y restaurando
+la ventana, o yéndose a otra aplicación y volviendo.
+
+**Pasa en cualquier campo de todo el ejecutable**, lo que descarta que sea de
+una pantalla concreta: es de la ventana.
+
+### La causa
+
+`mainWindow.focus()` le dice a Windows "esta ventana está al frente". Pero
+Chromium lleva **su propia cuenta** de quién tiene el foco dentro de la página,
+y las dos se desincronizan: la ventana se ve activa y sin embargo la página
+cree que no lo está. Irse a otra aplicación y volver funcionaba porque ese ida
+y vuelta obliga a Chromium a recalcularlo.
+
+**El disparador más probable: la impresión.** `print-html-silent` crea una
+`BrowserWindow` oculta por CADA comanda. Aunque va con `show: false`, Windows
+la mete igual en la cadena del foco, y al cerrarse el foco no vuelve al campo
+donde estaba el cursor. Eso explica el "a veces": pasa después de imprimir, que
+en pleno servicio es todo el rato.
+
+### El arreglo, en tres capas
+
+1. **La ventana de impresión ya no puede tomar el foco** (`focusable: false`,
+   `skipTaskbar: true`) y al cerrarse se lo devuelve explícitamente a la
+   principal. Para imprimir no hace falta tener el foco.
+2. **`webContents.focus()` en `focus`, `restore` y `show`** de la ventana
+   principal: hace solo lo que antes había que hacer a mano cambiando de app.
+3. **Las ventanas emergentes** (el QR de WhatsApp, pantallas de conexión)
+   devuelven el foco a la principal al cerrarse.
+
+⚠️ **El código del ejecutable NO está en este repositorio.** Vive en
+`C:\Prueba Claude Code\cobra-pos-electron` y solo existe en el PC de Sergio.
+Si ese equipo se pierde, se pierde. Vale la pena subirlo a un repo aparte.
+
+Compilado en `dist-foco/` con `@electron/packager` (no electron-builder).
+Comparte el mismo perfil que la versión anterior (`app.getName()` = `cobra-pos`),
+así que **no hay que volver a iniciar sesión**.
+
+---
+
 ## 🔴→🟢 Las plantillas con variables NUNCA se pudieron enviar — 21-ago-2026
 
 Sergio mandó `puntos_app` a 95 personas y **fallaron las 95**. Meta devolvió
