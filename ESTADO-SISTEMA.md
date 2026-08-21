@@ -10726,3 +10726,24 @@ ReferenceError en function_logs, via analytics/endpoints/logs.all).
 
 **Pendiente de la primera prueba real de Sergio en caja** (no se pudo probar
 con sesion del POS de verdad por los guards de login).
+
+
+---
+
+## 20-ago-2026 (noche) — Canje con parte en dinero: total $0 y domicilio eterno
+
+Sergio canjeo un premio de 400 pts + $20.000 y la pantalla decia Total $0 /
+"no pagas nada", con el domicilio en "calculando..." infinito. UNA sola causa
+para los dos sintomas: en un canje el carrito va vacio a proposito, y
+`pedirCuenta()` tenia el guard `!carro.length` → la cuenta jamas se pedia →
+el domicilio nunca llegaba y el total caia al respaldo del carrito ($0).
+Arreglo en `app-cliente.js`: el guard deja pasar el canje
+(`!canje && !carro.length`), y el respaldo mientras llega la cuenta es
+`canje.dinero`, no el carrito. El servidor (`web-pedido`) siempre sumo bien:
+subtotal=dinero del canje, total=+empaque, aPagar=+domicilio. Sello `0820q`.
+
+**Limpiezas del mismo rato:** cliente de prueba 3001000000 BORRADO (0 puntos,
+0 pedidos, 0 chats; decision de Sergio: los otros dos Sergios son numeros
+distintos y NO se unifican). El borrado del 19-ago + cajas de $200.000 quedo
+VACIO: ya no existia nada con esas marcas — se limpio en su momento con la
+reversion del inventario. Memorias de esos pendientes retiradas.

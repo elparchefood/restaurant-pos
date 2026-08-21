@@ -18,7 +18,7 @@
   var ANON   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
   var ACCESO = SB_URL + '/functions/v1/web-acceso';
   /* Version de ESTE archivo. Subirla junto con el SELLO del index. */
-  var VERSION_APP = '0820p';
+  var VERSION_APP = '0820q';
 
   var LLAVE_SESION = 'cobra.web.sesion';
 
@@ -3757,7 +3757,12 @@
 
   var pidiendoCuenta = false;
   async function pedirCuenta() {
-    if (pidiendoCuenta || !carro.length) return;
+    /* EN UN CANJE EL CARRITO VA VACIO A PROPOSITO (el premio no es una linea
+       del carro), y este guard lo confundia con "no hay nada que cotizar":
+       la cuenta nunca se pedia, el domicilio se quedaba "calculando..." para
+       siempre y el total caia al respaldo del carrito — $0 — con $20.000 de
+       "parte en dinero" en la cara del cliente (20-ago, lo vio Sergio). */
+    if (pidiendoCuenta || (!canje && !carro.length)) return;
     var firma = firmaCuenta();
     pidiendoCuenta = true;
     try {
@@ -3844,7 +3849,10 @@
     var barrioRaro = !!cta && cta.barrio_conocido === false;
     var empaque = cta ? Number(cta.empaque) || 0 : 0;
     var domiCta = cta ? Number(cta.domicilio) || 0 : 0;
-    var totalCta = cta ? Number(cta.total) || 0 : sub;
+    /* Mientras la cuenta llega, el respaldo de un canje es su parte en
+       dinero, no el carrito (que en canje esta vacio): $0 aqui le decia al
+       cliente que no pagaba nada debiendo $20.000. */
+    var totalCta = cta ? Number(cta.total) || 0 : (canje ? Number(canje.dinero) || 0 : sub);
     // Los puntos se ganan sobre comida + empaque, nunca sobre el domicilio.
     var gana = Math.floor((cta ? (Number(cta.pedido) || sub) : sub) / 1000);
 
