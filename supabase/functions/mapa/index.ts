@@ -371,6 +371,96 @@ function canonizar(dir: string): Direccion {
   return { canonica, complemento: mayus(comp), estructurada: !!b };
 }
 
+/* ── LOS CONJUNTOS SE BUSCAN POR NOMBRE, NO POR NOMENCLATURA ─────────
+
+   Un conjunto cerrado es un sitio con nombre propio, y Google los tiene
+   guardados asi: "Conjunto Arrayanes del Uvo, Popayan" le basta.
+   Pedirle nomenclatura de calle a quien vive en un conjunto es pelear
+   con el problema equivocado — la casa 13 no tiene carrera ni numero.
+
+   Y hay una ganancia grande escondida aqui: TODOS los pedidos a un mismo
+   conjunto comparten UN punto, el de la porteria. Da igual si es la casa
+   13, la torre 2 apartamento 501 o el bloque C: el domiciliario llega a
+   la misma puerta. Asi que un conjunto se le pregunta a Google UNA vez
+   en la vida, no una por cada apartamento.
+
+   El Parche tiene 51 conjuntos configurados: son 51 consultas en total,
+   no una por cada cliente que viva en ellos.
+
+   La lista sale de lo que el restaurante ya tiene puesto en el flujo de
+   Paco (`ia_config.domicilios.zonas[].conjuntos[]`). No se inventa una
+   lista nueva ni se le pide al dueno que la vuelva a escribir.        */
+
+function normTexto(t: string): string {
+  return String(t || "").toLowerCase()
+    .normalize("NFD").replace(SIN_TILDES, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+//  Palabras que aparecen en casi todos los nombres y no distinguen nada.
+//  Sin quitarlas, "Conjunto Los Robles" y "Conjunto Las Palmas" se
+//  parecerian solo por el "conjunto".
+const RELLENO = /\b(conjunto|residencial|urbanizacion|urb|unidad|cerrado|agrupacion|villa|villas|los|las|el|la|de|del|y)\b/g;
+
+function nucleo(t: string): string {
+  return normTexto(t).replace(RELLENO, " ").replace(/\s+/g, " ").trim();
+}
+
+/*  ¿Este texto habla de alguno de los conjuntos del restaurante?
+    Devuelve el nombre TAL COMO lo escribio el dueno, que es el que se le
+    manda a Google. */
+function cualConjunto(texto: string, lista: string[]): string | null {
+  const t = normTexto(texto);
+  const tn = nucleo(texto);
+  if (!t) return null;
+  let mejor: string | null = null, mejorLargo = 0;
+  for (const c of lista) {
+    if (!c) continue;
+    const cn = nucleo(c);
+    if (!cn || cn.length < 4) continue;
+    //  Se queda con el nombre MAS LARGO que aparezca: entre "Portal" y
+    //  "Portal de Pomona", gana el segundo, que es el que de verdad
+    //  identifica el sitio.
+    if ((tn && tn.includes(cn)) || t.includes(normTexto(c))) {
+      if (cn.length > mejorLargo) { mejor = c; mejorLargo = cn.length; }
+    }
+  }
+  if (mejor) return mejor;
+
+  /*  LA GENTE ABREVIA. Quien vive en "Arrayanes del Uvo" escribe
+      "Arrayanes, torre 2 apto 501" y se queda tan tranquilo.
+
+      Asi que si el nombre completo no aparece, se prueba con la primera
+      palabra distintiva — PERO solo si esa palabra apunta a UN conjunto
+      y nada mas. En la lista de El Parche hay "Pinares del Rio" y
+      "Guayacanes del Rio": si se aceptara "rio" a secas, el domiciliario
+      acabaria en el conjunto equivocado. Ante la duda, no se adivina: se
+      devuelve nulo y la direccion se lee como una calle normal.        */
+  const palabras = tn.split(" ").filter((w) => w.length >= 5);
+  for (const w of palabras) {
+    const candidatos = lista.filter((c) => {
+      const ns = nucleo(c).split(" ");
+      return ns.includes(w);
+    });
+    if (candidatos.length === 1) return candidatos[0];
+  }
+  return null;
+}
+
+/*  La lista de conjuntos del restaurante, de todas sus sedes. Un conjunto
+    esta donde esta, sin importar por cual sede entre el pedido. */
+async function conjuntosDe(tenant: string): Promise<string[]> {
+  const filas = await sbSel(`ia_config?tenant_id=eq.${tenant}&select=domicilios`);
+  const fuera: string[] = [];
+  for (const f of filas) {
+    const dom = (f.domicilios || {}) as Record<string, unknown>;
+    const zonas = (dom.zonas as Array<{ conjuntos?: string[] }>) || [];
+    for (const z of zonas) for (const c of (z.conjuntos || [])) if (c) fuera.push(c);
+  }
+  return fuera;
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    ACCIONES
    ══════════════════════════════════════════════════════════════════════ */
@@ -467,10 +557,30 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
   const ciudad = String(body.ciudad || "").trim();
   if (!dir && !barrio) return mal("Falta la dirección");
 
-  const clave = normalizar(dir, barrio, ciudad);
+  /*  PRIMERO: ¿es un conjunto?
+
+      Si lo es, no hay nada que descifrar. Se le manda a Google el nombre
+      y ya, porque los conjuntos estan en Google por nombre. Y el punto se
+      guarda POR CONJUNTO, no por apartamento: la casa 13 y la torre 2
+      apto 501 llegan a la misma porteria, asi que comparten punto y a
+      Google se le pregunta una sola vez por todo el conjunto.
+
+      El nombre puede venir en la direccion o en el barrio: hay clientes
+      que escriben el conjunto en un campo y hay quien lo escribe en el
+      otro. Se miran los dos.                                          */
+  const lista = await conjuntosDe(tenant);
+  const conj = lista.length
+    ? (cualConjunto(dir, lista) || cualConjunto(barrio, lista))
+    : null;
+
+  const clave = conj
+    ? "conjunto " + nucleo(conj) + " " + normTexto(ciudad)
+    : normalizar(dir, barrio, ciudad);
   if (!clave) return mal("Falta la dirección");
 
-  const orden = canonizar(dir);
+  const orden = conj
+    ? { canonica: conj, complemento: "", estructurada: true }
+    : canonizar(dir);
 
   //  1) ¿Ya la tenemos, y todavia vale?
   //     `vence_at` solo lo llevan los puntos que calculo Google: sus
@@ -518,8 +628,10 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
       Y `components` amarra la busqueda al pais y al municipio. Sin eso,
       "Calle 5 # 4-30" existe en media Colombia y Google puede devolver
       la de otra ciudad sin avisar.                                      */
+  //  A un conjunto NO se le agrega el barrio: el nombre propio ya lo
+  //  identifica, y meterle mas palabras solo confunde la busqueda.
   const partes = [orden.canonica];
-  if (barrio) partes.push(barrio);
+  if (barrio && !conj) partes.push(barrio);
   if (ciudad) partes.push(ciudad);
   const texto = partes.filter(Boolean).join(", ");
 
@@ -585,6 +697,7 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
     aproximada,
     canonica: orden.canonica,
     complemento: orden.complemento,
+    conjunto: conj || null,
     le_mande_a_google: texto,
   });
 }

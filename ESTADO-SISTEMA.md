@@ -63,6 +63,37 @@ entregue ahí lo reemplaza**.
 Jerarquía en `fn_direccion_guardar`: `domiciliario` (4) > `cliente` (3) >
 `google` (2) > `google_aprox` (1).
 
+### Los conjuntos se buscan por NOMBRE, no por nomenclatura
+
+Idea de Sergio: un conjunto cerrado es un sitio con nombre propio y Google lo
+tiene guardado así. Pedirle "Carrera 9 # 63-25" a quien vive en un conjunto es
+pelear con el problema equivocado — la casa 13 no tiene carrera.
+
+Y hay una ganancia grande escondida: **todos los pedidos a un mismo conjunto
+comparten UN punto**, el de la portería. Da igual si es la casa 13, la torre 2
+apto 501 o el bloque C. Así que un conjunto se le pregunta a Google **una vez en
+la vida**, no una por cada apartamento.
+
+**El Parche tiene 51 conjuntos configurados: son 51 consultas en total.**
+
+La lista NO se inventa: sale de lo que el restaurante ya tiene puesto en el flujo
+de Paco (`ia_config.domicilios.zonas[].conjuntos[]`).
+
+Probado en vivo contra los 51 reales:
+
+| Lo que escribe el cliente | Lo que se le manda a Google |
+|---|---|
+| `conjunto arrayanes del uvo casa 13` | Arrayanes del Uvo |
+| `Arrayanes torre 2 apto 501` | Arrayanes del Uvo |
+| `casa 13` + barrio `Arrayanes del Uvo` | Arrayanes del Uvo |
+| `Cra 9B #63N-58` + `Bellavista` | Carrera 9B # 63 Norte-58 *(calle normal)* |
+
+**La abreviación se acepta, pero sin adivinar.** Si el nombre completo no aparece,
+se prueba con la primera palabra distintiva — y **solo si esa palabra apunta a un
+único conjunto**. En la lista hay "Pinares del Río" y "Guayacanes del Río": un
+`"conjunto del rio casa 2"` se deja como calle en vez de mandar al domiciliario
+al conjunto equivocado.
+
 ### Llave central de Cobra — decisión de Sergio
 
 `MAPAS_CLAVE_COBRA` (secreto del servidor): **una sola llave para todos los
