@@ -1,7 +1,86 @@
 # ESTADO DEL SISTEMA — Cobra POS
-> Última actualización: 2026-07-21
+> Última actualización: 2026-08-21
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
+
+## 🟢 Sesión 2026-08-21 (tarde) — Roles con nombre interno y base de domicilios
+
+### El problema de fondo: el rol se identificaba por su nombre visible
+
+Cobra le ofrece al dueño renombrar sus roles. Pero el sistema los reconocía
+**por ese mismo nombre**, así que renombrarlos rompía cosas en silencio:
+
+| Dónde | Qué pasaba |
+|---|---|
+| `pos-perms.js` | Buscaba los permisos con `rows[i].name.toLowerCase() === role`. Renombrar "Cajero" → "Cajera de mostrador" dejaba a todos los cajeros sin permisos, y por el *fail-open* terminaban con **acceso total**. |
+| `mesero-login.js` | Enrutaba con una tabla escrita a mano: `mesero/cajera/admin/cocina`. Los roles que Cobra siembra se llaman **Cajero, Cocinero y Domiciliario**: ninguno coincidía, así que a esas personas la app les decía *"tu rol no tiene una pantalla asignada"* y las sacaba. **Nunca pudieron entrar.** |
+| `pos_roles.system_role` | Estaba en `false` hasta para Administrador en los 4 restaurantes. El rol de administrador **se podía borrar**. |
+
+### La solución: `pos_roles.clave`
+
+Migración `supabase/sql/2026-08-21-roles-clave-interna.sql`.
+
+- **`clave`** = nombre INTERNO e inmutable: `admin | cajero | mesero | cocina |
+  domiciliario`. No se muestra, no se edita. `NULL` = rol propio del restaurante.
+- **`name`** = nombre VISIBLE. El dueño lo cambia cuando quiera; no afecta a nada.
+- Dos disparadores lo protegen: `trg_no_borrar_rol_sistema` (los 5 no se borran,
+  con mensaje legible) y `trg_clave_rol_inmutable` (un intento de cambiar la
+  clave se ignora en silencio, no revienta).
+- `system_role` **cambió de significado**: ahora marca "rol que siembra Cobra,
+  no se puede borrar" — ya no significa "administrador".
+
+⚠️ **Ese cambio de significado casi causa un agujero de seguridad.**
+`pos-perms.js` daba acceso total con `if (match.system_role)`. Al pasar los 5
+roles a `true`, eso le habría dado acceso total a **todos los meseros y
+domiciliarios del sistema**. Ahora la condición es `match.clave === 'admin'`.
+
+### Verificado con controles
+
+1. Borrar un rol del sistema → **negado** con mensaje legible.
+2. Renombrar → **funciona**, y la clave resiste el intento de cambiarla.
+3. Renombrado "Domiciliario" → "Mensajero en moto": su gente **se sigue
+   reconociendo** (el usuario guarda la clave, no el nombre).
+4. Efectivo pendiente: 2 pedidos = $58.000 ✔ · rol en `por_pedido` = 0 filas ✔ ·
+   ya entregado en caja = 0 filas ✔
+
+Las pruebas se hicieron en **"Restaurante de Prueba"**, nunca en El Parche, y
+las filas PRUEBA se borraron. *(Ojo: "Ana Prueba" y "Carlos Prueba" son cuentas
+de Sergio del 3-ago, no son basura de pruebas.)*
+
+### Lo demás que quedó hecho
+
+- **Usuarios y roles**: documento / vehículo / placa (opcionales) aparecen solos
+  cuando el rol escogido es el de domiciliario, y se detecta por la clave — así
+  sigue funcionando si el restaurante lo renombró.
+- **Interruptor del dinero** en la ficha del ROL: *en cada pedido* vs *al
+  terminar el turno* (`pos_roles.domi_dinero`).
+- **El rol propuesto al crear un usuario ya nunca es el de administrador.**
+  Antes era "el primero que no sea del sistema"; con los 5 marcados eso no
+  devolvía nada y caía en el primero de la lista, que es Administrador.
+- **Duplicar un rol del sistema** ya no crea una copia imborrable.
+- **Configuración › Domicilios** (pantalla nueva): cada restaurante guarda SUS
+  empresas de domicilio externo. Quitar una la marca inactiva, no la borra, para
+  que el historial siga diciendo con quién salió cada pedido.
+- **"(Rapid)" fuera del código.** Era la empresa de El Parche y se le mostraba a
+  todos los restaurantes.
+- **Modal "¿Quién lo lleva?"** al marcar *En camino*: obligatorio, interno →
+  lista de domiciliarios, externo → móvil + empresa. Si no se puede guardar, el
+  pedido **no avanza**.
+- **Caja › Arqueo**: bloque "Efectivo en poder de los domiciliarios", solo para
+  roles en `al_final`, con el mismo corte de turno que usa el arqueo.
+- **`meta-webhook` v68**: se guarda la ubicación que manda el cliente por
+  WhatsApp. Antes caía en el `else` final y se guardaba como el texto
+  `"[location]"`: las coordenadas se botaban.
+
+### Decidido por Sergio
+
+- **El mapa será Google**, conectado por cada restaurante con SU tarjeta. En el
+  onboarding se le indica que debe conectarla, **con la advertencia de que sin
+  eso no tendrá la función de mapas**. Detalle en `PLAN-APP-DOMICILIARIO.md`.
+- **La app del domiciliario sube de plan** (recomendado: Pro). Anotado en
+  `04-PLANES-COMERCIALES.md`, fuera del repo.
+
+---
 
 ---
 
