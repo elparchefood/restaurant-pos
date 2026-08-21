@@ -655,7 +655,8 @@ body{margin:0;background:var(--bg);font-family:'DM Sans',system-ui,-apple-system
 .pw-cab{background:var(--surface-2);border-bottom:1px solid var(--border);padding:8px 14px;}
 .pw-cab div{font-size:9.5px;font-weight:800;color:var(--muted,#94A3B8);
   text-transform:uppercase;letter-spacing:.08em;}
-.pw-ru{grid-template-columns:1.5fr .9fr .9fr .6fr .8fr .6fr .9fr 132px;min-width:900px;}
+/* Una columna mas: si la tienen instalada en su pantalla de inicio. */
+.pw-ru{grid-template-columns:1.5fr .9fr .9fr .55fr .9fr .75fr .55fr .85fr 132px;min-width:1000px;}
 .pw-rr{grid-template-columns:1.3fr 1fr .9fr .9fr 1fr;min-width:660px;}
 .pw-cn{display:flex;align-items:center;gap:9px;min-width:0;}
 .pw-cn b{display:block;font-size:12.5px;font-weight:700;white-space:nowrap;

@@ -1051,7 +1051,23 @@ Deno.serve(async (req) => {
         await sbPatch(`/pos_web_sesiones?id=eq.${s.id}`, { expira_at: new Date().toISOString() });
         return json({ ok: true });
       }
-      await sbPatch(`/pos_web_sesiones?id=eq.${s.id}`, { ultimo_uso: new Date().toISOString() });
+      /* SE ANOTA SI ENTRO DESDE LA APP INSTALADA O DESDE EL NAVEGADOR.
+
+         Pregunta de Sergio (21-ago): "¿podemos saber quién solo entró por el
+         navegador y quién ya la agregó a su pantalla de inicio?". Hasta hoy
+         no: ese dato vivía solo en el teléfono de la persona.
+
+         Importa para no mandarle "instálala" a quien ya la tiene, que es la
+         forma más rápida de que dejen de leer los mensajes.
+
+         Va por SESION porque es por aparato: la misma persona puede tenerla
+         instalada en el celular y entrar por el navegador del computador. */
+      const parche: Record<string, unknown> = { ultimo_uso: new Date().toISOString() };
+      if (typeof b.instalada === "boolean") parche.instalada = b.instalada;
+      const plat = String(b.plataforma || "");
+      if (plat === "ios" || plat === "android" || plat === "escritorio") parche.plataforma = plat;
+      await sbPatch(`/pos_web_sesiones?id=eq.${s.id}`, parche);
+
       const ficha = await fichaCliente(String(s.tenant_id), String(s.cliente_id));
       return json({ ok: true, cliente: ficha });
     }

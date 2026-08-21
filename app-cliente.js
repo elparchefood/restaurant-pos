@@ -4167,7 +4167,12 @@
     // ¿Ya tenía sesión abierta? (la casilla "mantener mi sesión")
     var t = leerToken();
     if (t) {
-      var d = await acceso({ accion: 'sesion', token: t });
+      /* Se le cuenta al servidor DESDE DONDE entro: instalada en la pantalla
+         de inicio, o el navegador de siempre. Es el unico momento en que se
+         puede saber, porque eso solo lo ve el propio telefono. */
+      var d = await acceso({ accion: 'sesion', token: t,
+        instalada: yaInstalada(),
+        plataforma: esIOS() ? 'ios' : (/android/i.test(navigator.userAgent) ? 'android' : 'escritorio') });
       if (d.ok) { S.cliente = d.cliente; return pantallaDentro(); }
       borrarToken();
     }

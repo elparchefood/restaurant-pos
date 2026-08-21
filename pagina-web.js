@@ -988,7 +988,7 @@
     } else {
       cuerpo = '<div class="pw-scr"><div class="pw-row pw-ru pw-cab">' +
           '<div>Persona</div><div>Se registró</div><div>Última vez</div><div>Entradas</div>' +
-          '<div>Avisos</div><div>Pedidos</div><div>Saldo</div><div></div></div>' +
+          '<div>En su celular</div><div>Avisos</div><div>Pedidos</div><div>Saldo</div><div></div></div>' +
         us.map(function (u, i) {
           return '<div class="pw-row pw-ru">' +
             '<div class="pw-cn"><div class="pw-av">' + esc(inicialesPw(u.nombre)) + '</div>' +
@@ -997,6 +997,18 @@
             '<div class="pw-tenue">' + esc(fechaPw(u.alta)) + '</div>' +
             '<div class="pw-tenue">' + esc(fechaPw(u.ultimo)) + '</div>' +
             '<div class="pw-num">' + num(u.entradas) + '</div>' +
+            /* INSTALADA O NO. Los tres estados son distintos y hay que verlos:
+               instalada / entró por el navegador / todavía no sabemos.
+               "No sabemos" no es "no la tiene": es que no ha vuelto a entrar
+               desde que el sistema empezó a preguntarlo (21-ago). Y sobre esto
+               se decide a quién mandarle la campaña de "instálala" — mandársela
+               a quien ya la tiene es la forma más rápida de que dejen de leer. */
+            '<div>' + (u.instalada === true
+              ? '<span class="mw-badge ok">Instalada</span>'
+              : u.instalada === false
+                ? '<span class="mw-badge neutral">Navegador</span>'
+                : '<span class="pw-tenue">—</span>')
+              + (u.plataforma ? ' <small class="pw-tenue">' + esc(u.plataforma) + '</small>' : '') + '</div>' +
             '<div>' + (Number(u.avisos)
               ? '<span class="mw-badge ok">Activos</span>'
               : '<span class="mw-badge neutral">Apagados</span>') + '</div>' +
