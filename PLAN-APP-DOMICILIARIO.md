@@ -4,6 +4,77 @@
 > (HTML/CSS/JS puro, 4 archivos). Este plan cubre **lo que hay que agregar en
 > Cobra** para que la app tenga de dónde leer, y después la APK.
 
+
+## ESTADO AL 21-ago-2026 (tarde) — todo lo de Cobra hecho; falta el mapa
+
+| Pieza | Estado |
+|---|---|
+| Ubicación que manda el cliente por WhatsApp | ✅ `meta-webhook` v68 |
+| Rol con nombre interno vs. nombre visible | ✅ `pos_roles.clave` |
+| Documento / vehículo / placa del domiciliario | ✅ salen solos con el rol |
+| Interruptor del dinero (en cada pedido / al final) | ✅ en la ficha del rol |
+| Empresas de domicilio externo | ✅ Configuración › Domicilios |
+| "Rapid" escrito a fuego | ✅ fuera del código |
+| Modal "¿Quién lo lleva?" al marcar En camino | ✅ obligatorio |
+| Caja: efectivo en poder de los domiciliarios | ✅ en el arqueo |
+| La app (web) | ✅ `domiciliario.html` |
+| La APK | ✅ `Cobra-Domicilios.apk` |
+| **El mapa** | ⬜ falta — es lo siguiente |
+
+### Probado de punta a punta (21-ago, en "Restaurante de Prueba")
+
+Con un domiciliario y dos pedidos de prueba, desde el celular:
+entrar → ver sus 2 pedidos con dirección y barrio → abrir el detalle (productos,
+cantidades, teléfono) → "Recogí el pedido" → **la base pasa a `camino`** →
+"Cobrar y entregar" con $50.000 sobre $46.000 → **cambio $4.000** →
+confirmar → **la base queda `entregado`, `efectivo`, `paid_amount 46.000`** →
+el turno muestra $46.000 en mano → **y el arqueo de la caja del restaurante
+muestra "PRUEBA Domiciliario · 1 pedido · $46.000"**. Todo borrado al terminar.
+
+También se comprobó que un monto menor al total **bloquea** el botón de cobrar.
+
+## Cómo se compila la APK
+
+Es una **capa delgada** sobre la web: apunta a la dirección en vivo, así que
+cada mejora de la app llega sola al celular **sin volver a compilar ni
+reinstalar**. Solo hay que recompilar si cambia el nombre, el icono, los
+permisos o la dirección.
+
+```
+appId    com.elparchefood.cobradomi      (distinto al del POS: son dos apps)
+apunta a https://elparchefood.github.io/restaurant-pos/domiciliario.html
+```
+
+Receta (Capacitor 8 + Android SDK ya instalados):
+
+```bash
+npm i @capacitor/core @capacitor/cli @capacitor/android
+npx cap add android
+# android/local.properties -> sdk.dir con BARRAS NORMALES:
+#   sdk.dir=C:/Users/USUARIO/AppData/Local/Android/Sdk
+cd android
+JAVA_HOME="C:/Program Files/Android Studio/jbr" ./gradlew assembleDebug
+```
+
+⚠️ **Dos trampas que ya costaron tiempo:**
+1. **Capacitor 8 exige Java 21.** El Java 17 del sistema falla con
+   `invalid source release: 21`. El 21 viene dentro de Android Studio
+   (`jbr`): hay que apuntarle `JAVA_HOME` ahí.
+2. **`local.properties` con barras normales.** Con barras invertidas
+   escapadas, Gradle responde *"El nombre de archivo... no son correctos"*,
+   que no dice nada de lo que pasa en realidad.
+
+Permisos que lleva: internet, ubicación (fina y aproximada), estado de red y
+poder abrir el marcador del teléfono. La ubicación **la pide Android en el
+momento**, no al instalar. La pantalla **no gira**: se usa manejando.
+
+### Lo que la app NO muestra, a propósito
+
+El diseño traía **kilómetros y minutos** en cada tarjeta. Sin mapa no hay forma
+de calcularlos, y **un número inventado en la pantalla de alguien que está
+manejando es peor que no poner nada**. Vuelven cuando se conecte Google.
+
+
 ---
 
 ## Las 5 reglas que puso Sergio
