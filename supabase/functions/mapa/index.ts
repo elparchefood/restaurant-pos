@@ -94,7 +94,14 @@ async function sbRpc(fn: string, args: Record<string, unknown>): Promise<unknown
     body: JSON.stringify(args),
   });
   if (!r.ok) { console.error("sbRpc", fn, await r.text()); return null; }
-  return r.json();
+  /*  UNA FUNCION QUE NO DEVUELVE NADA RESPONDE CON EL CUERPO VACIO, y
+      `r.json()` sobre un cuerpo vacio revienta. Aqui se caia CADA
+      direccion nueva: se guardaba bien en la base, pero la pantalla
+      recibia un error y el mapa no aparecia. El sintoma enganaba —
+      parecia que Google fallaba— y el problema estaba en esta linea. */
+  const txt = await r.text();
+  if (!txt) return null;
+  try { return JSON.parse(txt); } catch (e) { return null; }
 }
 
 async function sbUpsert(tabla: string, fila: Record<string, unknown>, onConflict: string) {

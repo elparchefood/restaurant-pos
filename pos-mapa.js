@@ -160,7 +160,18 @@
       //  Un punto que caiga fuera de la imagen no se dibuja: quedaria
       //  pegado al borde diciendo una mentira sobre donde esta.
       if (x < 0 || y < 0 || x > ancho || y > alto) return '';
-      return '<div style="position:absolute;left:' + x.toFixed(1) + 'px;top:' + y.toFixed(1) + 'px;'
+      /* EN PORCENTAJE, NO EN PIXELES.
+
+         Con pixeles, el alfiler se ubica segun el tamaNo que le PEDIMOS a
+         Google; pero si el recuadro termina mostrandose mas angosto —porque
+         el panel que lo contiene es mas chico, o por un borde de un pixel—,
+         la imagen se encoge y los alfileres NO. Medido: pedimos 620 de ancho
+         y se mostraron 598. Eso corre cada punto un 3,5%, que a este zoom son
+         unos 15 metros: el domiciliario tocando en la casa de al lado.
+
+         En porcentaje, el alfiler se encoge junto con la imagen y siempre cae
+         en el mismo punto del mapa, mida lo que mida el recuadro. */
+      return '<div style="position:absolute;left:' + (x / ancho * 100).toFixed(3) + '%;top:' + (y / alto * 100).toFixed(3) + '%;'
         + 'transform:translate(-50%,-50%);transition:left .8s linear,top .8s linear"'
         + ' data-mapa-pin="' + esc(p.tipo || 'destino') + '">'
         + svgPin(p.tipo)
@@ -181,8 +192,9 @@
        cliente quedaria dibujado a media cuadra de donde de verdad esta,
        y nadie se daria cuenta mirando la pantalla. */
     cont.innerHTML =
-      '<div style="position:relative;width:' + Math.round(ancho) + 'px;max-width:100%;'
-      + 'height:' + alto + 'px;margin:0 auto;border-radius:14px;'
+      '<div style="position:relative;box-sizing:border-box;width:' + Math.round(ancho) + 'px;max-width:100%;'
+      + 'aspect-ratio:' + Math.round(ancho) + '/' + alto + ';'
+      + 'margin:0 auto;border-radius:14px;'
       + 'overflow:hidden;border:1px solid #ECEEF2;background:#F1F5F9">'
       + '<img src="' + src + '" alt="Mapa" style="width:100%;height:100%;display:block">'
       + marcas
