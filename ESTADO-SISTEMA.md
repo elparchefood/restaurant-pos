@@ -11274,3 +11274,52 @@ frases ya estan en su base y la semilla solo corre con base vacia.
 variables intactas); y una conversacion PRUEBA contra el motor vivo confirmo
 que Paco SIGUE saliendo con "🍟 `Paco:`" y su emoji — ahora desde su config.
 Conversacion de prueba borrada.
+
+
+---
+
+## 21-ago-2026 — App del domiciliario: cimientos (y un bug gordo destapado)
+
+Sergio mando el diseNo de la APK del domiciliario y pidio revisar si cuadra
+con los datos antes de construir. Reglas suyas en `PLAN-APP-DOMICILIARIO.md`.
+
+### 🔴 BUG ENCONTRADO: no se podia crear un Cajero, un Cocinero ni un Domiciliario
+
+`pos_users.role` tenia un candado de la primera version
+(`CHECK role IN ('gerente','mesero','cajera','cocina')`), pero la pantalla de
+Usuarios guarda **el nombre del rol en minusculas**
+(`configuracion.js`: `role.name.toLowerCase()`). Los roles que Cobra siembra se
+llaman "Cajero", "Cocinero" y "Domiciliario" → 'cajero', 'cocinero',
+'domiciliario': **ninguno estaba permitido**. Crear ese usuario fallaba.
+Por eso en El Parche, despues de meses, solo existen un gerente y un mesero.
+Para vender era peor: un restaurante con roles propios ("Barista") no podia
+crear un solo usuario.
+**Arreglo** (`2026-08-21-roles-sin-candado.sql`): se quita el candado y se deja
+uno minimo (que no venga vacia). Quien manda de verdad es `role_id` →
+`pos_roles.perms`; el texto `role` solo lo usan dos comparaciones tolerantes
+(login.js y ventas-salon.js). **Verificado:** cajero, cocinero, domiciliario y
+barista ahora se crean; el vacio sigue rechazado.
+
+### Cimientos de la app (`2026-08-21-domiciliarios.sql`)
+- `pos_users` + `documento`, `vehiculo`, `placa` — **opcionales**, como pidio
+  Sergio: obligatorio solo nombre y credenciales.
+- `pos_roles.domi_dinero` = `'por_pedido'` (lo de hoy) | `'al_final'`.
+- `pos_orders` + `domiciliario_id` (el nombre en texto no sirve para "cuales
+  pedidos son mios": dos Juanes o un cambio de nombre y le muestra los de
+  otro), `domi_empresa_id` y `domi_entregado_caja`.
+- `pos_domi_empresas` — las empresas de domicilio externo de cada restaurante.
+  **NADA de "Rapid" escrito a fuego**: es la que usa El Parche hoy. Es solo
+  informativo.
+- `pos_domi_ubicaciones` — donde cae el GPS que manda la app.
+- `fn_domi_efectivo_pendiente(branch)` — cuanto efectivo lleva encima cada
+  domiciliario. Solo cuenta los roles `al_final` (los de `por_pedido` ya
+  entregaron), solo efectivo y solo lo no entregado aun.
+
+**Verificado en banco:** Juan (rol al_final) con 2 pedidos en efectivo →
+$75.000; Ana (por_pedido) NO aparece; la transferencia de $60.000 no se cuenta;
+al marcar uno como entregado en caja baja a $30.000. Todo lo PRUEBA borrado.
+
+### Lo que sigue
+Pantallas de Cobra (usuarios con los campos nuevos + interruptor del dinero ·
+empresas externas · el modal de "¿quien lo lleva?" al marcar EN CAMINO · el
+bloque de efectivo en caja) y despues la APK.
