@@ -9,10 +9,6 @@
 > y prefiera que ese gasto vaya a **su** cuenta y no al plan. En el producto sale
 > como *"Prefiero usar mi propia cuenta de Google"*, en Configuración › Domicilios.
 
-> Esto lo hace **cada restaurante con su propia cuenta y su propia tarjeta**.
-> Cobra no cobra nada por el mapa y tampoco paga el de nadie.
-> El mismo paso a paso está dentro del producto, en **Configuración › Domicilios**.
-
 ---
 
 ## Antes de empezar: ¿esto me va a costar plata?
