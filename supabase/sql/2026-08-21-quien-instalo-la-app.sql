@@ -40,11 +40,37 @@ AS $function$
        tiene" de quien no hemos visto entrar desde el 21-ago es afirmar algo
        que no nos consta, y sobre eso se decide a quien mandarle la campaña.
        No saber y saber que no son cosas distintas. */
-    (select bool_or(s.instalada) from pos_web_sesiones s
-      where s.cliente_id = cr.cliente_id and s.tenant_id = p_tenant),
-    (select max(s.plataforma) from pos_web_sesiones s
-      where s.cliente_id = cr.cliente_id and s.tenant_id = p_tenant
-        and s.plataforma is not null)
+    /* Lo que dijo el propio telefono al entrar... */
+    coalesce(
+      (select bool_or(s.instalada) from pos_web_sesiones s
+        where s.cliente_id = cr.cliente_id and s.tenant_id = p_tenant),
+      /* ...o lo que se deduce de sus avisos.
+
+         EN IPHONE LOS AVISOS SON IMPOSIBLES SIN INSTALAR LA APP: es regla de
+         Apple. Asi que si esta persona recibe avisos por el servidor de
+         Apple, la instalo. No es una suposicion, es la unica forma de que
+         ese dato exista.
+
+         Sirve para los que entraron ANTES de que el sistema empezara a
+         preguntarlo (21-ago) y no han vuelto: de otro modo saldrian como
+         "no sabemos" para siempre. */
+      (select true from pos_web_push w
+        where w.cliente_id = cr.cliente_id and w.tenant_id = p_tenant
+          and w.endpoint like '%push.apple.com%' limit 1)
+    ),
+    /* Igual con el sistema del telefono: la direccion a la que se manda el
+       aviso delata quien lo entrega. */
+    coalesce(
+      (select max(s.plataforma) from pos_web_sesiones s
+        where s.cliente_id = cr.cliente_id and s.tenant_id = p_tenant
+          and s.plataforma is not null),
+      (select case when w.endpoint like '%push.apple.com%' then 'ios'
+                   when w.endpoint like '%googleapis%'     then 'android'
+                   else null end
+         from pos_web_push w
+        where w.cliente_id = cr.cliente_id and w.tenant_id = p_tenant
+        order by w.creado desc limit 1)
+    )
   from pos_web_credenciales cr
   join pos_clientes c on c.id = cr.cliente_id
  where cr.tenant_id = p_tenant
