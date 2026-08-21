@@ -3,6 +3,105 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Sesión 2026-08-21 (noche) — Mapas de Google
+
+### La decisión y por qué el diseño es así
+
+Cada restaurante conecta **su propia cuenta de Google, con su propia tarjeta**.
+Eso significa que su clave **no es un dato de configuración más: es su plata**.
+Si baja al navegador, cualquiera que abra la pantalla puede sacarla y gastarle el
+cupo — y el cobro le llega a él, no a Cobra.
+
+Por eso **todo pasa por la Edge Function `mapa`**, que:
+- guarda la clave **cifrada** (AES-GCM con `MAPAS_MASTER_KEY`, un secreto del
+  servidor que no está en el repo);
+- **nunca la devuelve** — solo los últimos 4 caracteres, como pista;
+- **cuenta cada llamada y frena** al llegar al tope (9.000 por defecto);
+- saca el restaurante **del token**, no de lo que mande la pantalla: si no,
+  cualquiera podría gastarle el cupo a otro cambiando un número.
+
+Comprobado: la tabla `pos_mapas_config` no se puede leer desde el navegador ni
+anónimamente ni con sesión iniciada.
+
+### Precios, verificados el 21-ago-2026
+
+Google **retiró el crédito de 200 USD/mes en marzo de 2025**. Ahora cada API
+tiene su cupo gratis y **no se comparten**:
+
+| API | Gratis/mes | Después |
+|---|---|---|
+| Geocoding | 10.000 | 5 USD/1.000 |
+| Maps Static | 10.000 | 2 USD/1.000 |
+| Dynamic Maps (JS) | 10.000 | 7 USD/1.000 |
+
+**⚠️ Volver a verificarlos antes de prometer nada.** Ya cambiaron una vez.
+
+### Por qué mapa ESTÁTICO y no el dinámico
+
+El dinámico exige poner la clave en el navegador — justo lo que no se puede
+hacer. Además es el más caro. Cobra pide la **imagen** al servidor y **dibuja los
+puntos encima** con proyección de Mercator (`pos-mapa.js`).
+
+La ganancia real: **mover el punto del domiciliario no cuesta ni una llamada.**
+La imagen de fondo es siempre la misma. Con la otra forma, cada cuadra que
+avanzara sería una consulta más que pagar.
+
+La proyección se verificó contra valores conocidos: en zoom 0 el punto (0,0) cae
+en el píxel 128,128; 1 km a zoom 16 en Popayán da 419,5 px contra 419,0 esperados
+(0,11% de diferencia).
+
+### Dos fugas de costo encontradas y tapadas
+
+1. **"Cra 9B" y "Carrera 9 B" se normalizaban distinto** → la misma casa se le
+   preguntaba a Google **dos veces**. Ahora se separa número de letra y las
+   cuatro formas de escribir la misma dirección dan **una sola clave**.
+   Comprobado: 4 formas distintas → 4 aciertos en caché → **0 consultas**.
+2. **El recuadro del mapa iba a `width:100%` con `object-fit:cover`.** Si el
+   contenedor resultaba más ancho que la imagen (Google no la da de más de 640
+   px), el navegador la estiraba **pero los alfileres se seguían ubicando con la
+   cuenta original**: el punto del cliente habría quedado dibujado a media cuadra
+   de donde de verdad está, y nadie se daría cuenta mirando la pantalla.
+
+### Un error de permisos que ya había pasado antes
+
+`revoke all ... from anon, authenticated` **también le quita los permisos a
+`service_role`**, que es con quien trabaja el servidor. Resultado: la función no
+podía leer nada y respondía *"sin conectar"* sin decir por qué. Corregido en la
+migración para que una instalación nueva no lo repita.
+
+### La jerarquía de los puntos
+
+`fn_direccion_guardar` respeta este orden y **un punto de Google nunca pisa uno
+puesto por una persona que estaba parada ahí**:
+
+1. `domiciliario` — lo marcó su celular en la puerta del cliente. Gratis y exacto.
+2. `cliente` — lo mandó por WhatsApp. Gratis.
+3. `google` — calculado a partir del texto.
+
+Por eso el mapa **mejora solo** con el uso y el gasto en Google **baja** con el
+tiempo en vez de subir.
+
+### Lo que quedó
+
+- Migración `2026-08-21-mapas-google.sql`: `pos_mapas_config`, `pos_mapas_uso`,
+  `pos_direcciones_geo`, `fn_mapas_consumir` (con candado de fila), `fn_mapas_estado`,
+  `fn_mapas_tope`, `fn_direccion_guardar`.
+- Edge Function `mapa` (v3).
+- `pos-mapa.js` — el mapa reutilizable.
+- **Configuración › Domicilios › Mapas**: estado, consumo del mes con barra que
+  cambia de color, tope editable y el paso a paso completo dentro del producto.
+- **Domicilios › menú del pedido › Ver en el mapa**: restaurante, cliente y
+  domiciliario, refrescándose cada 15 s sin volver a pedir la imagen.
+- Guía aparte: `GUIA-CONECTAR-GOOGLE-MAPS.md`.
+
+### ⚠️ Lo único que falta probar
+
+**El mapa dibujado de verdad.** Todo lo demás está comprobado, pero para ver la
+imagen hace falta una clave de Google real, y esa la crea Sergio con su tarjeta.
+Sin clave, el camino de "sin conectar" está probado y avisa correctamente.
+
+---
+
 ## 🟢 Sesión 2026-08-21 (tarde) — Roles con nombre interno y base de domicilios
 
 ### El problema de fondo: el rol se identificaba por su nombre visible

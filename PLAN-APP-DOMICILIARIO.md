@@ -19,7 +19,7 @@
 | Caja: efectivo en poder de los domiciliarios | ✅ en el arqueo |
 | La app (web) | ✅ `domiciliario.html` |
 | La APK | ✅ `Cobra-Domicilios.apk` |
-| **El mapa** | ⬜ falta — es lo siguiente |
+| **El mapa** | ✅ hecho (21-ago noche) — falta que Sergio conecte su cuenta de Google para verlo dibujado. Ver `GUIA-CONECTAR-GOOGLE-MAPS.md` |
 
 ### Probado de punta a punta (21-ago, en "Restaurante de Prueba")
 
