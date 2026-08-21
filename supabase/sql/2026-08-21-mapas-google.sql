@@ -41,6 +41,11 @@ alter table pos_mapas_config enable row level security;
 --  Sin politicas: nadie con el rol del navegador entra. Solo service_role,
 --  que se salta RLS por definicion.
 revoke all on pos_mapas_config from anon, authenticated;
+--  ⚠️ REVOCAR TAMBIEN LE QUITA A service_role, que es con quien trabaja
+--  el servidor. Sin este grant, la Edge Function no puede leer la llave
+--  y todo responde 'sin conectar' sin decir por que. (Ya paso una vez
+--  con otra tabla; es facil de no ver porque el error no se muestra.)
+grant select, insert, update on pos_mapas_config to service_role;
 
 -- ── 2. EL CONTADOR DEL MES ────────────────────────────────────────────
 create table if not exists pos_mapas_uso (
@@ -51,6 +56,7 @@ create table if not exists pos_mapas_uso (
   primary key (tenant_id, mes, sku)
 );
 revoke all on pos_mapas_uso from anon, authenticated;
+grant select, insert, update on pos_mapas_uso to service_role;
 
 -- ── 3. LAS DIRECCIONES YA UBICADAS ────────────────────────────────────
 --  A Google se le pregunta UNA sola vez por direccion, y la respuesta se
@@ -87,6 +93,9 @@ create policy direcciones_geo_tenant on pos_direcciones_geo
   with check (tenant_id = (auth.jwt() -> 'user_metadata' ->> 'tenant_id')::uuid);
 grant select, insert, update on pos_direcciones_geo to authenticated;
 revoke all on pos_direcciones_geo from anon;
+--  El servidor tambien la lee: es donde mira ANTES de gastarle una
+--  consulta a Google.
+grant select, insert, update on pos_direcciones_geo to service_role;
 
 -- ── 4. CONSUMIR UNA LLAMADA, CON TOPE ─────────────────────────────────
 --  Suma y responde si se puede o no, en una sola operacion: dos pedidos

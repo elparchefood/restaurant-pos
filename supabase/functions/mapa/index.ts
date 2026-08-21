@@ -164,6 +164,12 @@ function normalizar(dir: string, barrio: string, ciudad: string): string {
     .replace(/\b(av|avda)\b/g, "avenida")
     .replace(/\b(apto|apt|ap)\b/g, "apartamento")
     .replace(/\b(nro|num|no)\b/g, "")
+    //  NUMERO Y LETRA SIEMPRE SEPARADOS. "Cra 9B" y "Carrera 9 B" son la
+    //  misma casa, pero sin esto quedan como "9b" y "9 b": dos claves
+    //  distintas, y a Google se le pregunta —y se le paga— DOS VECES por
+    //  la misma casa. Lo mismo con "63N-58" contra "63 N 58".
+    .replace(/(\d)([a-z])/g, "$1 $2")
+    .replace(/([a-z])(\d)/g, "$1 $2")
     .replace(/\s+/g, " ")
     .trim();
 }
