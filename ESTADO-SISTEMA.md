@@ -10826,3 +10826,42 @@ verdad (saldo 346.000) + push `saldo_regalo` disparado (enviados: 2).
 Usuario de prueba de auth borrado. NOTA: los regalos que se creyeron dados
 antes de hoy con "Dar saldo" NUNCA entraron — si algun cliente reclama, esa
 es la razon.
+
+
+---
+
+## 20-ago-2026 (noche) — Pedido de Paco sin la adicion (URGENTE, pedido real de Fernanda)
+
+Paco tomo perfecto "personal ranchera + super queso": el resumen dijo $40.000
++ $5.000 de domi y el cliente confirmo. El pedido se creo en $27.000, SIN la
+adicion, y la comanda salio sin el queso.
+
+**El pedido real se corrigio a mano al instante** (item con Super Queso
+$12.000, subtotal $39.000, total $45.000, total_final $40.000) y se le aviso
+a Sergio que la comanda ya impresa no llevaba el queso.
+
+**Causa raiz (delay-reply v322):** `buildOrderArgs` — el traductor entre el
+borrador confirmado y la creacion — copiaba nombre/tamano/tipo/cantidad/
+categoria/notas y NO copiaba `adiciones`. El resumen las cobraba (usa el
+estado directo) y la creacion las perdia. El dato ya estaba; nadie lo pasaba.
+Arreglo de una linea: `adiciones: i.adiciones || null` en el map.
+
+**Verificado en el banco de Paco** (conversacion PRUEBA 573000000098, estado
+sembrado + cola fabricada a mano + "si claro"): el pedido nace con
+`selections.mods` = Super Queso $12.000 y subtotal $39.000. Se necesito
+instrumentacion temporal (v323, logs [pedido/diag], retirada en v325) porque
+la primera corrida del banco resembro un estado ya consumido y confundio.
+OJO del banco: `chat_ai_queue` es UNIQUE por conversacion (se resetea
+processed/fire_at, no se inserta otra) y sin fila en esa cola el motor no
+procesa nada. Todo lo PRUEBA borrado (conversacion, mensajes, cola, pedidos,
+cliente).
+
+**Bug hermano destapado al reimprimir:** la comanda decia "+ [OBJECT OBJECT]".
+La reimpresion (`pos-print.js` posPrintOrder) arma las adiciones como objetos
+{name, qty, price} (para el recibo) y la plantilla de la comanda las pintaba
+con String(m). Ahora la plantilla acepta las dos formas. Sello pos-print
+v1791500000.
+
+**Nota:** los items del bot guardan `unit_price` = precio base y `total` con
+adiciones (el POS manual guarda unit_price CON adiciones). Preexistente, no
+se toco hoy; anotado por si algun informe compara unit_price.

@@ -2484,7 +2484,7 @@ INTENCION, no las palabras exactas.` },
           const clasifPP = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2);
           const domiPP = clasifPP.tipo === "para_llevar" ? 0 : lookupDomiPrice(ubicacionPedido(state), domiciliosCfg);
           try {
-            await createWhatsappOrder(buildOrderArgs(state, domiPP ?? 0), branchId, tenantId, fromPhone, cfg._operacion as Record<string, unknown> | null, convId);
+          await createWhatsappOrder(buildOrderArgs(state, domiPP ?? 0), branchId, tenantId, fromPhone, cfg._operacion as Record<string, unknown> | null, convId);
           } catch (err) { console.error("Error creando pedido (pago no previo):", err); }
         }
         /* LA ALARMA VIVE EN LA CONVERSACION, no en un vigilante que revisa a
@@ -7546,6 +7546,12 @@ function buildOrderArgs(state: PacoState, domiPrecio: number): Record<string, un
       tipo:      capFirst(i.tipo   || ""),
       cantidad:  i.cantidad,
       categoria: i.categoria || null,
+      /* LAS ADICIONES (20-ago-2026, pedido real de Fernanda). El borrador las
+         traia y el resumen las mostraba con su precio — pero ESTE traductor
+         no las copiaba, asi que el pedido nacia sin ellas y mas barato:
+         "ranchera + super queso" confirmada en $40.000 se creo en $27.000 y
+         la comanda salio sin el queso. El dato ya estaba; nadie lo pasaba. */
+      adiciones: i.adiciones || null,
       // Cómo lo quiere preparado. Va como nota del PRODUCTO (no del pedido)
       // para que la comanda de cocina lo muestre pegado a su plato: si va
       // suelta al final, el cocinero no sabe a cuál de los dos aplica.

@@ -53,7 +53,15 @@
       var line = '(' + qty + ') ' + name;
       var modsHtml = (it.mods && it.mods.length)
         ? it.mods.map(function(m) {
-            return '<div style="font-style:italic;font-size:12px;font-weight:700;margin-left:10px;margin-top:1px;margin-bottom:3px;">+ ' + String(m).toUpperCase() + '</div>';
+            /* La adicion llega de DOS formas segun quien imprime: como texto
+               (la comanda automatica) o como objeto {name, qty, price} (la
+               reimpresion, que arma los items pensando en el recibo). Con
+               String(m) a secas, el objeto salia "+ [OBJECT OBJECT]" en la
+               cocina — paso el 20-ago con el Super Queso de Fernanda. */
+            var txt = (m && typeof m === 'object')
+              ? (((Number(m.qty) || 1) > 1 ? (Number(m.qty)) + 'x ' : '') + (m.name || ''))
+              : String(m);
+            return '<div style="font-style:italic;font-size:12px;font-weight:700;margin-left:10px;margin-top:1px;margin-bottom:3px;">+ ' + txt.toUpperCase() + '</div>';
           }).join('')
         : '';
       var noteText = it.notes || it.note || '';
