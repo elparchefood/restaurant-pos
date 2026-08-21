@@ -173,10 +173,18 @@
         + '</div>';
     }).join('');
 
+    /* EL RECUADRO MIDE EXACTAMENTE LO QUE SE LE PIDIO A GOOGLE.
+       Antes iba a 'width:100%' con 'object-fit:cover': si el contenedor
+       resultaba mas ancho que la imagen (Google no la da de mas de 640
+       pixeles), el navegador la estiraba y recortaba... pero los alfileres
+       se siguen ubicando con la cuenta original. O sea que el punto del
+       cliente quedaria dibujado a media cuadra de donde de verdad esta,
+       y nadie se daria cuenta mirando la pantalla. */
     cont.innerHTML =
-      '<div style="position:relative;width:100%;height:' + alto + 'px;border-radius:14px;'
+      '<div style="position:relative;width:' + Math.round(ancho) + 'px;max-width:100%;'
+      + 'height:' + alto + 'px;margin:0 auto;border-radius:14px;'
       + 'overflow:hidden;border:1px solid #ECEEF2;background:#F1F5F9">'
-      + '<img src="' + src + '" alt="Mapa" style="width:100%;height:100%;object-fit:cover;display:block">'
+      + '<img src="' + src + '" alt="Mapa" style="width:100%;height:100%;display:block">'
       + marcas
       + '</div>';
 
