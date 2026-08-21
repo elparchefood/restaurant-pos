@@ -4947,6 +4947,15 @@ var _storedZonas = [];
   // ── Barrios cobrados a mano que NO están en la tabla ────────────────
   // El chat los va guardando solo cuando el operador escribe el domicilio
   // porque el sistema no reconoció el barrio. Aquí se aprueban con un clic.
+  /* Para comparar un nombre con lo que hay en la tabla: sin tildes, sin
+     signos y sin importar mayusculas. 'Río Verde' y 'RIO VERDE' son el
+     mismo sitio y no pueden contarse como dos. */
+  function _domiClave(t) {
+    return String(t == null ? '' : t).toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+
   async function cargarAprendidos() {
     var host = $('domiAprendidos');
     if (!host) return;
@@ -4956,6 +4965,67 @@ var _storedZonas = [];
     try { r = await sb.from('pos_domi_aprendidos').select('*').eq('branch_id', bid).eq('descartado', false).order('veces', { ascending: false }); }
     catch (e) { host.innerHTML = ''; return; }
     var items = (r && r.data) || [];
+
+    /* LO QUE YA APROBASTE NO VUELVE A SALIR (bug reportado por Sergio).
+
+       Aprobar NO borra la fila de la base: se guarda como pendiente y solo
+       se borra cuando el guardado sale bien. Eso es a proposito — si se
+       borrara al aprobar y el dueno no le diera a Guardar cambios, el barrio
+       desapareceria de los dos lados y se perderia el precio.
+
+       Pero descartar OTRA fila vuelve a dibujar la lista entera desde la
+       base, y los aprobados seguian ahi. Reaparecian como si no se hubieran
+       aprobado: uno aprobaba tres, descartaba uno, y los tres volvian. Se
+       entraba en un bucle del que no se salia.
+
+       Se ocultaban con `display:none` sobre la fila, y al redibujar esa fila
+       ya no existia. Ahora se filtran de los DATOS, que es lo unico que
+       sobrevive al redibujado. */
+    /* LO QUE YA ESTA RESUELTO EN LA TABLA NO SE VUELVE A PREGUNTAR.
+
+       De 11 propuestas que tenia Sergio, 6 proponian EXACTAMENTE lo que ya
+       estaba configurado: 'Okavango $6.000' cuando Okavango ya estaba a
+       $6.000, 'Monteluna cambia a $5.000' cuando ya valia $5.000. Son
+       propuestas viejas, de antes de que esos sitios entraran a la tabla.
+
+       Aprobarlas no hacia nada (el codigo ya evita duplicados) y
+       descartarlas una por una tampoco resolvia: la lista seguia llena de
+       cosas sin nada que decidir. Y una lista llena de ruido se deja de
+       mirar, que es justo lo contrario de para lo que existe.
+
+       Se borran de una vez: no hay nada que perder, el valor ya esta en la
+       tabla. Lo que SI se conserva es lo que propone un precio DISTINTO al
+       de la tabla — eso es una decision de verdad. */
+    var _tabla = {};
+    try {
+      var _cfgR = await sb.from('ia_config').select('domicilios').eq('branch_id', bid).maybeSingle();
+      var _zs = ((_cfgR && _cfgR.data && _cfgR.data.domicilios) || {}).zonas || [];
+      _zs.forEach(function (z) {
+        (z.barrios || []).concat(z.conjuntos || []).forEach(function (n) {
+          if (n) _tabla[_domiClave(n)] = Number(z.precio) || 0;
+        });
+      });
+    } catch (e) { _tabla = {}; }
+
+    var _resueltos = items.filter(function (x) {
+      var enTabla = _tabla[_domiClave(x.barrio)];
+      if (enTabla === undefined) return false;          // no esta: hay que decidir
+      var prop = Number(x.precio) || 0;
+      //  Sin precio propuesto y ya esta en la tabla -> no hay nada que hacer.
+      if (!prop) return true;
+      //  Propone lo mismo que ya vale -> tampoco.
+      return prop === enTabla;
+    });
+    if (_resueltos.length) {
+      var _ids = _resueltos.map(function (x) { return x.id; });
+      items = items.filter(function (x) { return _ids.indexOf(x.id) < 0; });
+      try { await sb.from('pos_domi_aprendidos').delete().in('id', _ids); } catch (e) {}
+    }
+
+    var yaAprobados = (window._domiAprobadosPendientes || []).map(function (a) { return a.id; });
+    if (yaAprobados.length) {
+      items = items.filter(function (x) { return yaAprobados.indexOf(x.id) < 0; });
+    }
     /* La cuenta va en la fila plegada: con la fila cerrada, un "3 por aprobar"
        es lo unico que le dice al dueno que hay algo que mirar ahi dentro. */
     var sum = document.getElementById('ciasum-p-domi');
