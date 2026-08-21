@@ -331,12 +331,38 @@
         });
       } catch (e) { caja.innerHTML = '<div style="font-size:12.5px;color:#DC2626">No se pudieron cargar: ' + esc(e.message || e) + '</div>'; }
     }
+    /* Tarjeta que YA es de otro: ADVERTIR y preguntar antes de pasarla
+       (pedido de Sergio, 20-ago: "que no nos vayamos a equivocar"). Nada se
+       sobreescribe sin un si explicito. */
+    function preguntarPasarla(uid, duena) {
+      var a = ov.querySelector('#clt-aviso');
+      a.style.display = 'block';
+      a.style.background = '#FFFBEB';
+      a.style.color = '#92400E';
+      var nom = (duena && duena.cliente && duena.cliente.nombre) || ('••• ' + String(duena.telefono).slice(-4));
+      a.innerHTML = '<b>Ojo:</b> la tarjeta ····' + esc(uid.slice(-4)) + ' ya está vinculada a <b>' + esc(nom) + '</b>.' +
+        '<div style="margin-top:8px;display:flex;gap:8px">' +
+          '<button id="clt-pasar" style="background:#F59E0B;color:#fff;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Sí, pasarla a ' + esc(c.nombre || 'este cliente') + '</button>' +
+          '<button id="clt-no" style="background:#fff;color:#475569;border:1px solid #ECEEF2;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Dejarla como está</button>' +
+        '</div>';
+      a.querySelector('#clt-no').onclick = function () { a.style.display = 'none'; };
+      a.querySelector('#clt-pasar').onclick = async function () {
+        try {
+          await posNfc.vincular(tel, uid, null, { forzar: true });
+          aviso('Listo: la tarjeta ····' + uid.slice(-4) + ' pasó de ' + nom + ' a ' + (c.nombre || 'este cliente') + '.', true);
+          pintarLista();
+        } catch (e2) { aviso('No se pudo pasar: ' + (e2.message || e2), false); }
+      };
+    }
     var soltar = posNfc.escuchar(async function (uid) {
       try {
         await posNfc.vincular(tel, uid);
         aviso('Tarjeta ····' + uid.slice(-4) + ' vinculada a ' + (c.nombre || 'este cliente') + '.', true);
         pintarLista();
-      } catch (e) { aviso(e.message || String(e), false); }
+      } catch (e) {
+        if (e && e.codigo === 'OCUPADA') { preguntarPasarla(uid, e.duena); return; }
+        aviso(e.message || String(e), false);
+      }
     });
     function cerrar() { soltar(); ov.remove(); }
     ov.querySelector('#clt-cerrar').onclick = cerrar;

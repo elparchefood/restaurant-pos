@@ -93,17 +93,28 @@
     return r.data || [];
   }
 
-  async function vincular(telefono, uid, quien) {
+  /* `forzar: true` PASA la tarjeta al nuevo dueNo (pedido de Sergio,
+     20-ago): nunca en silencio — la pantalla primero avisa de quien es y
+     pregunta; solo con ese si explicito se llama con forzar. */
+  async function vincular(telefono, uid, quien, opciones) {
     var s = sb(); if (!s) throw new Error('Sin conexión');
     var tel = String(telefono || '').replace(/[^0-9]/g, '').slice(-10);
     if (tel.length !== 10) throw new Error('El cliente necesita un celular a 10 dígitos.');
-    /* ¿Ya es de alguien? Una tarjeta = un dueNo; se dice de quien es en vez
-       de pisarlo en silencio. */
+    var forzar = !!(opciones && opciones.forzar);
     var ya = await buscar(uid);
-    if (ya && ya.telefono !== tel) {
+    if (ya && ya.telefono !== tel && !forzar) {
+      /* Una tarjeta = un dueNo; se dice de quien es en vez de pisarlo. */
       var e = new Error('Esa tarjeta ya es de ' + ((ya.cliente && ya.cliente.nombre) || ('••• ' + ya.telefono.slice(-4))) + '.');
       e.codigo = 'OCUPADA'; e.duena = ya;
       throw e;
+    }
+    if (ya && ya.telefono !== tel) {
+      var ru = await s.from('pos_tarjetas')
+        .update({ telefono: tel, quien: quien || null })
+        .eq('id', ya.id).eq('tenant_id', CTX.tenantId).select('id');
+      if (ru.error) throw ru.error;
+      if (!ru.data || !ru.data.length) throw new Error('No se pudo pasar la tarjeta.');
+      return { id: ya.id, uid: uid, telefono: tel, activa: true, pasada: true };
     }
     if (ya) return ya;   // ya estaba vinculada a este mismo cliente
     var r = await s.from('pos_tarjetas').insert({

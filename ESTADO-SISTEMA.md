@@ -10786,3 +10786,10 @@ texto derramado en un campo se limpia (OJO del banco: los setTimeout de una
 pestana en segundo plano se estiran a 1 s — la primera prueba "fallo" por
 eso, no por el codigo). En base: insert, UNIQUE del uid y delete probados con
 fila PRUEBA (borrada). **Falta la prueba con lector fisico real de Sergio.**
+
+**Ajuste (pedido de Sergio, misma noche):** tarjeta que ya es de otro cliente
+→ ADVERTENCIA con el nombre del dueNo actual y dos botones: "Si, pasarla a
+[nuevo]" (llama `vincular(..., {forzar:true})`, que actualiza el telefono de
+la fila) o "Dejarla como esta". Nunca se sobreescribe en silencio. Verificado
+en banco con posNfc simulado. Y NOTA: antes de comprar el lector fisico,
+Sergio va a consultar cual — esperar esa consulta.
