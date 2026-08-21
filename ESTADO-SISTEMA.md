@@ -10812,3 +10812,17 @@ clave `saldo_regalo`). `pagina-web.js` lo dispara al Dar saldo (best-effort,
 con el saldo que devuelve `fn_saldo_mover`), y el modo Recargar nuevo ahora
 dispara el aviso de recarga igual que la acreditacion de solicitudes.
 Vista previa del texto verificada contra la funcion viva.
+
+**BUG DESTAPADO POR LA PRUEBA DEL AVISO (20-ago, noche): "Dar saldo" estuvo
+roto EN SILENCIO desde siempre.** Sergio se regalo $1.000 y no paso nada. El
+rastro: cero movimientos de saldo en el dia. Reproducido con un usuario
+authenticated de prueba: `pos_saldo_mov_motivo_check` NO incluia 'regalo'
+(solo recarga/bono_recarga/consumo/ajuste/anulacion), asi que
+`fn_saldo_mover(motivo:'regalo')` reventaba — y la pantalla vieja no miraba
+`r.error`, decia "Le diste..." tan campante (la version nueva del mismo dia ya
+lo mira). Arreglo: constraint recreado CON 'regalo'
+(`2026-08-20-saldo-motivo-regalo.sql`) y el regalo de $1.000 aplicado de
+verdad (saldo 346.000) + push `saldo_regalo` disparado (enviados: 2).
+Usuario de prueba de auth borrado. NOTA: los regalos que se creyeron dados
+antes de hoy con "Dar saldo" NUNCA entraron — si algun cliente reclama, esa
+es la razon.
