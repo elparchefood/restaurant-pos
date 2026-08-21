@@ -51,7 +51,12 @@ async function creds(branchId: string) {
   const meta = (m || {}) as Record<string, string>;
   return {
     waba: meta.waba_id || "", token: meta.access_token || "",
-    phoneId: meta.phone_number_id || "", tenant: rows?.[0]?.tenant_id as string | undefined,
+    /* El canal guarda la llave como `phone_id` (asi la escribio la conexion
+       con Meta); `phone_number_id` se acepta tambien por si algun canal viejo
+       la trae con el nombre largo. 20-ago-2026: por buscar SOLO el nombre
+       largo, el envio de plantillas desde el chat decia "la sede no tiene
+       numero de WhatsApp" con el numero perfectamente conectado. */
+    phoneId: meta.phone_id || meta.phone_number_id || "", tenant: rows?.[0]?.tenant_id as string | undefined,
   };
 }
 

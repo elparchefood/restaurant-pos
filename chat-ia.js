@@ -1601,6 +1601,121 @@ function updateWaWindow() {
   }
 }
 
+/* ══ Chat nuevo desde cero (el boton + de arriba) ═════════════════
+   Para escribirle a alguien que nunca ha escrito: se crea el contacto y su
+   chat, y como esa persona no ha mandado nada, la ventana de 24 h nace
+   cerrada — el propio chat ofrece "Enviar plantilla", que es la unica forma
+   que WhatsApp permite de dar el primer paso. */
+function abrirNuevoChat() {
+  const ov = document.createElement('div');
+  ov.id = 'nc-ov';
+  ov.className = 'ci-tpl-ov';
+  ov.innerHTML = '<div class="ci-tpl-box">'
+    + '<div class="ci-tpl-head">Nuevo chat</div>'
+    + '<div class="ci-tpl-sub">Crea el contacto y ábrele un chat. Como aún no te ha escrito, WhatsApp solo deja empezar con una plantilla aprobada — el chat te la ofrece apenas se abra.</div>'
+    + '<div class="ci-tpl-campos">'
+    +   '<input class="ci-tpl-inp" id="nc-nombre" placeholder="Nombre" maxlength="60">'
+    +   '<input class="ci-tpl-inp" id="nc-tel" placeholder="Celular (10 dígitos)" inputmode="numeric" maxlength="10" oninput="this.value=this.value.replace(/[^0-9]/g,&quot;&quot;)">'
+    +   '<input class="ci-tpl-inp" id="nc-dir" placeholder="Dirección (opcional)" maxlength="120">'
+    + '</div>'
+    + '<div class="ci-tpl-err" id="nc-err" style="display:none"></div>'
+    + '<div class="ci-tpl-foot">'
+    +   '<button class="ci-tpl-btn ghost" onclick="document.getElementById(&quot;nc-ov&quot;).remove()">Cancelar</button>'
+    +   '<button class="ci-tpl-btn primary" id="nc-crear" onclick="crearNuevoChat()">Crear y abrir chat</button>'
+    + '</div></div>';
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+  document.getElementById('nc-nombre').focus();
+}
+function _ncError(msg) {
+  const e = document.getElementById('nc-err');
+  if (e) { e.textContent = msg; e.style.display = 'block'; }
+  const b = document.getElementById('nc-crear');
+  if (b) { b.disabled = false; b.textContent = 'Crear y abrir chat'; }
+}
+async function crearNuevoChat() {
+  const nombre = (document.getElementById('nc-nombre').value || '').trim();
+  const tel = (document.getElementById('nc-tel').value || '').replace(/[^0-9]/g, '');
+  const dir = (document.getElementById('nc-dir').value || '').trim();
+  if (!nombre) return _ncError('Escribe el nombre.');
+  if (tel.length !== 10) return _ncError('El celular va a 10 dígitos, como 3001234567.');
+  const btn = document.getElementById('nc-crear');
+  btn.disabled = true; btn.textContent = 'Creando…';
+  const handle = '57' + tel;
+  try {
+    /* ¿Ya existe un chat con ese número? Un número = una conversación, en
+       cualquier estado y en cualquier bandeja — por eso se pregunta a la base
+       y no a la lista de pantalla, que solo trae la vista activa. */
+    const ya = await sb.from('chat_conversations').select('id,contact_name,status')
+      .eq('branch_id', S.branchId).eq('channel', 'whatsapp')
+      .eq('contact_handle', handle).neq('status', 'preview').limit(1);
+    let convId = null;
+    if (ya.data && ya.data.length) {
+      convId = ya.data[0].id;
+      /* Si el chat existia sin nombre, este si se aprovecha. El que ya tiene
+         no se pisa: puede venir del propio cliente. */
+      if (!ya.data[0].contact_name) {
+        await sb.from('chat_conversations').update({ contact_name: nombre }).eq('id', convId);
+      }
+      showToast('Ese número ya tenía un chat: te lo abrí', 'info');
+    } else {
+      const wa = S.channels.find(c => c.channel === 'whatsapp') || {};
+      const ins = await sb.from('chat_conversations').insert({
+        tenant_id: S.tenantId, branch_id: S.branchId,
+        channel: 'whatsapp', channel_id: wa.id || null,
+        contact_name: nombre, contact_handle: handle,
+        status: 'open', unread_count: 0,
+        /* Un chat que TU abres es tuyo: va a la pestaña "Tú" y Paco no se
+           mete aunque el cliente conteste de noche. */
+        human_takeover: true,
+        last_sender: 'agent', last_message: 'Chat nuevo',
+        last_message_at: new Date().toISOString(),
+      }).select('id');
+      if (ins.error || !ins.data || !ins.data.length) {
+        return _ncError('No se pudo crear el chat: ' + ((ins.error && ins.error.message) || 'sin permisos'));
+      }
+      convId = ins.data[0].id;
+    }
+    /* La ficha de cliente: si el número ya la tiene, no se duplica (un número
+       = una ficha); solo se le completa lo que este vacío. */
+    const cli = await sb.from('pos_clientes').select('id,nombre,direccion,direcciones')
+      .eq('tenant_id', S.tenantId).like('telefono', '%' + tel).limit(1);
+    const fila = cli.data && cli.data[0];
+    if (!fila) {
+      const dirId = 'd' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+      await sb.from('pos_clientes').insert({
+        tenant_id: S.tenantId, branch_id: S.branchId,
+        nombre: nombre, telefono: tel,
+        direccion: dir || null,
+        direcciones: dir ? [{ id: dirId, dir: dir, barrio: '' }] : [],
+      });
+      S.clientesPorTel[tel] = { nombre: nombre, barrio: '' };
+    } else if (dir && !fila.direccion) {
+      const dirId = 'd' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+      const lista = Array.isArray(fila.direcciones) ? fila.direcciones : [];
+      lista.push({ id: dirId, dir: dir, barrio: '' });
+      await sb.from('pos_clientes').update({
+        direccion: dir, direcciones: lista, updated_at: new Date().toISOString(),
+      }).eq('id', fila.id);
+    }
+    document.getElementById('nc-ov')?.remove();
+    /* El chat vive en la pestaña "Tú": se cambia la vista para que al volver
+       a la lista siga a la vista, no desaparecido en otra bandeja. */
+    const bTu = document.querySelector('.ci-nav-btn[data-view="human"]');
+    if (bTu) { document.querySelectorAll('.ci-nav-btn').forEach(b => b.classList.remove('active')); bTu.classList.add('active'); }
+    S.activeView = 'human';
+    await loadConversations();
+    if (!S.conversations.find(c => c.id === convId)) {
+      const uno = await sb.from('chat_conversations').select('*').eq('id', convId).limit(1);
+      if (uno.data && uno.data.length) S.conversations.unshift(uno.data[0]);
+    }
+    renderConvList();
+    await selectConversation(convId);
+  } catch (e) {
+    _ncError('No se pudo crear el chat: ' + (e && e.message || e));
+  }
+}
+
 /* ══ Enviar plantilla (fuera de la ventana de 24 h) ══
    Solo se pueden enviar las que Meta ya APROBÓ. Se crean en
    Configuración → Chat IA → Plantillas. */
@@ -2034,6 +2149,9 @@ function showToast(msg, type = 'success') {
    EVENTOS
 ══════════════════════════════════════════════ */
 function wireEvents() {
+  // El + de arriba: chat nuevo desde cero (muerto hasta el 20-ago-2026).
+  const ncBtn = document.getElementById('newConvBtn');
+  if (ncBtn) ncBtn.addEventListener('click', abrirNuevoChat);
   $('filterToggle').addEventListener('click', () => {
     $('filterToggle').classList.toggle('active');
     $('filterWrap').classList.toggle('hidden');

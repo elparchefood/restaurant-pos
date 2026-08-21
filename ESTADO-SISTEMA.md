@@ -10620,3 +10620,34 @@ DE DEPURACION temporal bajo el login (`.ep-huella`, `huellaDepuracion()` en
 QUITARLA cuando Sergio confirme que el modal sale en su Instagram. Sello:
 `0820m`. Ojo: el index.html se cachea 10 min en el celular (max-age=600 del
 CDN), asi que dos intentos seguidos pueden ver la version vieja.
+
+
+---
+
+## 20-ago-2026 (noche) — Chat: boton + funcionando y plantillas desde el chat arregladas
+
+**1. El error al enviar plantillas desde el chat** (lo reporto Sergio): la
+funcion `wa-plantillas` (v7) buscaba la llave `phone_number_id` en
+`chat_channels.meta`, pero la conexion con Meta la guardo como `phone_id` —
+por eso podia LISTAR plantillas (no necesita el numero) pero el envio decia
+"la sede no tiene numero de WhatsApp". Ahora acepta las dos llaves. Comprobado
+enviando la plantilla `domis` real al WhatsApp de Sergio: `{ok:true}` y le llego.
+
+**2. El boton + del chat** (`newConvBtn` en `chat-ia.html`) estaba muerto: sin
+manejador. Ahora abre el modal "Nuevo chat" (`abrirNuevoChat` /
+`crearNuevoChat` en `chat-ia.js`): nombre + celular a 10 digitos + direccion
+opcional. Al crear:
+- Si el numero YA tiene chat (en cualquier bandeja/estado), se abre ese — un
+  numero = una conversacion; solo se le pone el nombre si no tenia.
+- Si no, se crea la conversacion (`human_takeover: true` → cae en la pestaña
+  "Tu" y Paco no se mete) y la vista salta a esa pestaña con el chat abierto.
+- La ficha de `pos_clientes` se crea solo si el telefono no tenia (un numero =
+  una ficha); si existia, solo se completa la direccion vacia.
+- Como el contacto nunca ha escrito, `waWindowInfo()` da ventana cerrada y el
+  propio chat ofrece "Enviar plantilla" — el unico primer paso que WhatsApp
+  permite. Ese envio es el del punto 1, ya arreglado.
+
+Verificado: forma exacta del INSERT probada con una fila PRUEBA (borrada), el
+modal probado aparte en banco (filtro de digitos y errores en linea). Lo que
+NO se pudo probar en banco: el flujo completo con sesion del POS (los guards
+de login lo impiden); la primera prueba real la hace Sergio desde el chat.
