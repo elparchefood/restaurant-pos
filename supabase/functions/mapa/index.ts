@@ -157,7 +157,24 @@ async function llaveDe(tenant: string): Promise<{ clave: string; propia: boolean
 }
 
 /* ── Pedir permiso al contador ────────────────────────────────────────── */
-async function consumir(tenant: string, sku: string): Promise<{ permitido: boolean; usado: number; tope: number }> {
+async function consumir(tenant: string, sku: string, propia: boolean): Promise<{ permitido: boolean; usado: number; tope: number; global?: boolean }> {
+  /*  DOS FRENOS, NO UNO.
+
+      El primero es por restaurante: que ninguno se dispare.
+
+      El segundo solo corre cuando se esta usando la llave de COBRA, y es
+      el que de verdad protege su tarjeta: veinte restaurantes portandose
+      bien pueden sumar una cuenta que nadie miro. El tope por
+      restaurante no lo ve, porque cada uno por separado va tranquilo. */
+  if (!propia) {
+    const tg = Number(Deno.env.get("MAPAS_TOPE_GLOBAL") || "18000");
+    const g = await sbRpc("fn_mapas_consumir_global", { p_sku: sku, p_tope: tg }) as
+      Array<{ permitido: boolean; usado: number; tope: number }> | null;
+    if (!g || !g.length || !g[0].permitido) {
+      console.error("[mapa] TOPE GLOBAL DE COBRA ALCANZADO", sku, g && g[0]);
+      return { permitido: false, usado: (g && g[0] && g[0].usado) || 0, tope: tg, global: true };
+    }
+  }
   const r = await sbRpc("fn_mapas_consumir", { p_tenant: tenant, p_sku: sku, p_n: 1 }) as
     Array<{ permitido: boolean; usado: number; tope: number }> | null;
   if (!r || !r.length) return { permitido: false, usado: 0, tope: 0 };
@@ -482,7 +499,7 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
   const cuenta = await llaveDe(tenant);
   if (!cuenta) return ok({ sin_conectar: true, canonica: orden.canonica });
 
-  const permiso = await consumir(tenant, "geocoding");
+  const permiso = await consumir(tenant, "geocoding", cuenta.propia);
   if (!permiso.permitido) {
     return ok({ tope_alcanzado: true, usado: permiso.usado, tope: permiso.tope });
   }
@@ -590,7 +607,7 @@ async function accEstatico(tenant: string, u: URL) {
   const h = Math.min(640, Math.max(100, Number(u.searchParams.get("h") || 400)));
   if (!isFinite(lat) || !isFinite(lng)) return mal("Faltan las coordenadas del centro");
 
-  const permiso = await consumir(tenant, "static");
+  const permiso = await consumir(tenant, "static", cuenta.propia);
   if (!permiso.permitido) {
     return new Response(JSON.stringify({ tope_alcanzado: true, usado: permiso.usado, tope: permiso.tope }),
       { status: 429, headers: JSON_H });
