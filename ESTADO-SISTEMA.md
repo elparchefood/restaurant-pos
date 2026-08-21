@@ -10920,3 +10920,11 @@ cliente reconocido — OJO: sin fila en pos_clientes el motor saluda de cero y
 resetea el estado): a "1 agua personal" respondio "ya tengo tu pedido: 1x
 Premium Mixta (Personal) y 1x Agua" con el AGUA BOTELLA como producto en
 curso y la Premium guardada en items. Todo lo PRUEBA borrado.
+
+**Ajuste (regla de Sergio, misma noche): identificar flexible, NOMBRAR con el
+catalogo.** En el banco Paco dijo "1x Agua Personal" — un producto que no
+existe (mezclo las palabras del cliente). delay-reply v328: instruccion en el
+prompt conversacional — al mencionar productos del pedido se usan EXACTAMENTE
+los nombres de la lista PEDIDO EN CURSO (los del catalogo), jamas como los
+dijo el cliente. El resumen formal ya usaba `matchedProd.name` y no se toco.
+Verificado en banco: resumen "1x AGUA BOTELLA", total $39.000 + $5.000 domi.

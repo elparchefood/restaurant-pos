@@ -6742,6 +6742,12 @@ async function buildConversationResponse(
   if (allItems.length === 0) {
     stateLines.push("- Sin producto todavía");
   } else {
+    /* EL NOMBRE DEL CATALOGO MANDA (20-ago-2026, regla de Sergio). El cliente
+       dijo "agua personal", Paco identifico bien el AGUA BOTELLA... y al
+       contestar la llamo "Agua Personal" — un producto que no existe.
+       Entender flexible, nombrar exacto: al hablar del pedido se usan los
+       nombres tal como estan aqui, nunca como los dijo el cliente. */
+    stateLines.push("⚠️ Al mencionar productos del pedido usa EXACTAMENTE los nombres de esta lista (son los del catálogo). JAMÁS los renombres con las palabras del cliente ni inventes variantes: si aquí dice AGUA BOTELLA, se llama agua botella, aunque el cliente haya dicho otra cosa.");
     for (const item of allItems) {
       const desc = [item.producto, item.tipo, item.tamano ? `(${item.tamano})` : null].filter(Boolean).join(" ");
       stateLines.push(`✅ ${item.cantidad}x ${desc}${item.adiciones && item.adiciones.length > 0 ? " + " + item.adiciones : item.adiciones === "" ? " (sin adición)" : ""}`);
