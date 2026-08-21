@@ -1386,6 +1386,69 @@
     </div>
 
     <!-- ─────── SECCIÓN: IMPUESTOS Y PROPINA ─────── -->
+    <div class="cf-screen" id="screen-domicilios">
+      <section class="cf-pagehead">
+        <div>
+          <div class="cf-eyebrow">Operaci&oacute;n</div>
+          <h2 class="cf-pagetitle">Domicilios</h2>
+        </div>
+      </section>
+
+      <section class="cf-body">
+        <div class="cf-gen-main">
+
+          <!-- ══ EMPRESAS DE DOMICILIO EXTERNO ══
+               Antes el nombre de la empresa estaba escrito dentro del codigo
+               (era "Rapid", la que usa El Parche) y se le mostraba a TODOS los
+               restaurantes del sistema. -->
+          <div class="op-card">
+            <div class="op-card-head">
+              <div class="op-card-icon" style="background:#EFF6FF;color:#0EA5E9"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 17.5h-6l-2-8h-3"/><path d="M9.5 9.5h6l1.5 5"/></svg></div>
+              <div>
+                <div class="op-card-title">Empresas de domicilio externo</div>
+                <div class="op-card-sub">Las que te prestan el servicio cuando no lo lleva tu propia gente.</div>
+              </div>
+            </div>
+
+            <div id="dm-lista" style="display:flex;flex-direction:column;gap:8px"></div>
+
+            <div id="dm-vacio" style="display:none;padding:22px 16px;text-align:center;color:#94A3B8;font-size:12.5px;line-height:1.6">
+              Todav&iacute;a no has guardado ninguna empresa.<br>
+              Si tus domicilios los llevan empresas externas, agr&eacute;galas ac&aacute;.
+            </div>
+
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <input class="cf-input" id="dm-nueva" placeholder="Nombre de la empresa" style="flex:1" maxlength="60" />
+              <input class="cf-input" id="dm-nueva-tel" placeholder="Tel&eacute;fono (opcional)" style="width:170px" maxlength="25" />
+              <button class="lm-btn-primary" id="dm-agregar">Agregar</button>
+            </div>
+
+            <div class="cf-fieldhint" style="margin-top:12px;line-height:1.6">
+              Esto es <b>solo informativo</b>: sirve para saber con qui&eacute;n sali&oacute; cada
+              domicilio. No cambia precios, ni ventas, ni ning&uacute;n c&aacute;lculo.
+            </div>
+          </div>
+
+          <!-- RECORDATORIO DE LA REGLA DE ORO -->
+          <div class="op-card">
+            <div class="op-card-head">
+              <div class="op-card-icon" style="background:#FFFBEB;color:#F59E0B"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+              <div>
+                <div class="op-card-title">Interno o externo se decide en cada pedido</div>
+                <div class="op-card-sub">No es una configuraci&oacute;n general.</div>
+              </div>
+            </div>
+            <div class="cf-fieldhint" style="line-height:1.7">
+              Un domicilio puede irse con tu domiciliario y el siguiente con una
+              empresa externa. Por eso la pregunta <b>&laquo;&iquest;qui&eacute;n lo lleva?&raquo;</b> aparece
+              al marcar el pedido como <b>En camino</b>, y no ac&aacute;.
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </div>
+
     <div class="cf-screen" id="screen-impuesto">
       <section class="cf-pagehead">
         <div>

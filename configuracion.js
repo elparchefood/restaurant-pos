@@ -211,6 +211,7 @@ var SECTION_LABELS = {
   operacion: 'Operación',
   creditos:  'Créditos',
   usuarios:  'Usuarios y roles',
+  domicilios:'Domicilios',
   chatia:    'Asistente IA'
 };
 
@@ -287,6 +288,14 @@ function setSection(sec) {
       $('crumb').textContent = 'Créditos';
       _ciaToggleTopbar(false);
       if (!window._crLoaded) { crInit(); window._crLoaded = true; }
+    }
+  } else if (sec === 'domicilios') {
+    var screenDm = $('screen-domicilios');
+    if (screenDm) {
+      screenDm.classList.add('on');
+      $('crumb').textContent = 'Domicilios';
+      _ciaToggleTopbar(false);
+      if (!window._dmLoaded) { dmInit(); window._dmLoaded = true; }
     }
   } else if (sec === 'usuarios') {
     var screenUr = $('screen-usuarios');
@@ -7539,3 +7548,133 @@ async function genQuitarLogo() {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', enganchar);
   else enganchar();
 })();
+
+/* ══════════════════════════════════════════════════════════════════
+   CONFIGURACION → DOMICILIOS
+
+   Las empresas de domicilio externo de CADA restaurante.
+
+   Hasta hoy el nombre de la empresa estaba escrito dentro del codigo:
+   decia "(Rapid)", que es la que usa El Parche, y se le mostraba a
+   todos los restaurantes del sistema —incluido uno que trabaje con otra
+   empresa, o con ninguna.
+
+   Es SOLO informativo: sirve para saber con quien salio cada domicilio.
+   No toca precios, ni ventas, ni ningun calculo.
+   ══════════════════════════════════════════════════════════════════ */
+var DM = { empresas: [], porBorrar: null };
+
+/* Nada de lo que escribe el usuario entra al HTML sin escapar: un
+   nombre de empresa con un < o una comilla romperia la fila entera. */
+function dmEsc(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+async function dmTenant() {
+  var t = window._pos && window._pos.state ? window._pos.state.tenantId : null;
+  if (t) return t;
+  var user = await cfgUsuario();
+  return (user && user.user_metadata && user.user_metadata.tenant_id) || null;
+}
+
+async function dmInit() {
+  var add = $('dm-agregar');
+  if (add) add.onclick = dmAgregar;
+  var inp = $('dm-nueva');
+  if (inp) inp.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); dmAgregar(); } };
+  await dmCargar();
+}
+
+async function dmCargar() {
+  var ten = await dmTenant();
+  if (!ten) return;
+  /* SIEMPRE filtrado por el restaurante. Una tabla de configuracion
+     leida sin este filtro devuelve la fila de OTRO negocio. */
+  var r = await sb.from('pos_domi_empresas')
+    .select('id,nombre,telefono,activa')
+    .eq('tenant_id', ten)
+    .eq('activa', true)
+    .order('nombre');
+  if (r.error) { console.error('[domicilios]', r.error.message); return; }
+  DM.empresas = r.data || [];
+  dmPintar();
+}
+
+function dmPintar() {
+  var cont = $('dm-lista'), vacio = $('dm-vacio');
+  if (!cont) return;
+  if (vacio) vacio.style.display = DM.empresas.length ? 'none' : '';
+  cont.innerHTML = DM.empresas.map(function (e) {
+    var esta = DM.porBorrar === e.id;
+    return '<div style="display:flex;align-items:center;gap:10px;padding:11px 13px;border:1px solid #ECEEF2;border-radius:10px;background:#fff">'
+      + '<span style="width:8px;height:8px;border-radius:999px;background:#0EA5E9;flex-shrink:0"></span>'
+      + '<span style="flex:1;min-width:0;font-size:13px;font-weight:600;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + dmEsc(e.nombre) + '</span>'
+      + (e.telefono ? '<span style="font-size:12px;color:#64748B;white-space:nowrap">' + dmEsc(e.telefono) + '</span>' : '')
+      + (esta
+          ? '<span style="font-size:12px;color:#64748B;white-space:nowrap">&iquest;Quitar?</span>'
+            + '<button class="lm-btn-ghost sm" data-dmno="1">No</button>'
+            + '<button class="cf-btn-danger" data-dmsi="' + e.id + '" style="padding:6px 12px;font-size:11.5px">S&iacute;, quitar</button>'
+          : '<button class="lm-btn-ghost sm" data-dmdel="' + e.id + '">Quitar</button>')
+      + '</div>';
+  }).join('');
+
+  /* La confirmacion va en la misma fila, no en un cuadro del navegador:
+     esos salen grises, con el dominio arriba, y no parecen del producto. */
+  cont.querySelectorAll('[data-dmdel]').forEach(function (b) {
+    b.onclick = function () { DM.porBorrar = b.dataset.dmdel; dmPintar(); };
+  });
+  cont.querySelectorAll('[data-dmno]').forEach(function (b) {
+    b.onclick = function () { DM.porBorrar = null; dmPintar(); };
+  });
+  cont.querySelectorAll('[data-dmsi]').forEach(function (b) {
+    b.onclick = function () { dmQuitar(b.dataset.dmsi); };
+  });
+}
+
+async function dmAgregar() {
+  var inp = $('dm-nueva'), tel = $('dm-nueva-tel');
+  var nombre = (inp && inp.value || '').trim();
+  if (!nombre) { if (inp) inp.focus(); return; }
+
+  /* Que no entre dos veces la misma empresa con otra mayuscula. */
+  var yaEsta = DM.empresas.some(function (e) {
+    return (e.nombre || '').toLowerCase().trim() === nombre.toLowerCase();
+  });
+  if (yaEsta) { showToast('"' + nombre + '" ya está en la lista'); if (inp) inp.select(); return; }
+
+  var ten = await dmTenant();
+  if (!ten) { showToast('No se pudo identificar el restaurante'); return; }
+  var r = await sb.from('pos_domi_empresas')
+    .insert({ tenant_id: ten, nombre: nombre, telefono: (tel && tel.value || '').trim() || null })
+    .select().single();
+  if (r.error) { showToast('No se pudo guardar: ' + r.error.message); return; }
+  if (inp) inp.value = '';
+  if (tel) tel.value = '';
+  DM.empresas.push(r.data);
+  DM.empresas.sort(function (a, b) { return (a.nombre || '').localeCompare(b.nombre || ''); });
+  dmPintar();
+  showToast(nombre + ' agregada');
+}
+
+async function dmQuitar(id) {
+  /* NO se borra la fila: se marca inactiva. Los pedidos viejos apuntan a
+     ella, y borrarla dejaria el historial diciendo con quien NO se sabe
+     que salio el domicilio. Deja de aparecer para escoger, y ya. */
+  var r = await sb.from('pos_domi_empresas').update({ activa: false }).eq('id', id);
+  if (r.error) { showToast('No se pudo quitar: ' + r.error.message); return; }
+  DM.porBorrar = null;
+  DM.empresas = DM.empresas.filter(function (e) { return e.id !== id; });
+  dmPintar();
+  showToast('Empresa quitada');
+}
+
+/* Para las demas pantallas: la lista de empresas activas del restaurante. */
+window.posDomiEmpresas = async function () {
+  var ten = await dmTenant();
+  if (!ten) return [];
+  var r = await sb.from('pos_domi_empresas')
+    .select('id,nombre').eq('tenant_id', ten).eq('activa', true).order('nombre');
+  return (r && r.data) || [];
+};
