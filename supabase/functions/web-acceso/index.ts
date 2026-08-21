@@ -699,16 +699,6 @@ Deno.serve(async (req) => {
     const accion = String(b.accion || "");
     const tel    = tel10(b.telefono);
 
-    /* ── DIAGNOSTICO (TEMPORAL, 20-ago-2026) ─────────────────────────────
-       El aviso de instalar no sale en el Instagram de Sergio y desde afuera
-       no se ve por que. La app manda al abrir que version cargo y que
-       decidio; se lee en la tabla `web_diag` y SE QUITA al resolver. */
-    if (accion === "diagnostico") {
-      const datos = (typeof b.datos === "object" && b.datos) ? b.datos : {};
-      await sbPost("/web_diag", { datos });
-      return json({ ok: true });
-    }
-
     /* ── SUS DIRECCIONES (16-ago) ────────────────────────────────────────
        El cliente pide desde varios lados —su casa, la oficina, donde la mamá—
        y volver a escribir la dirección en cada pedido es justo donde se

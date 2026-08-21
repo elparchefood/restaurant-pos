@@ -19,26 +19,8 @@
   var ACCESO = SB_URL + '/functions/v1/web-acceso';
   /* Version de ESTE archivo, para la huella y el diagnostico. Subirla junto
      con el SELLO del index. */
-  var VERSION_APP = '0820o';
+  var VERSION_APP = '0820p';
 
-  /* ── BEACON DE DIAGNOSTICO (TEMPORAL, 20-ago-2026) ──────────────────
-     En el Instagram de Sergio el aviso de instalar no sale y no hay consola
-     que mirar. La app reporta al abrir que version cargo y que decidio; se
-     lee en la tabla `web_diag` y ESTE BLOQUE SE QUITA al resolver.
-     Va lo primero de todo y en try: si algo mas adelante revienta, que el
-     reporte ya haya salido. */
-  try {
-    setTimeout(function () {
-      var d = { v: VERSION_APP, ua: navigator.userAgent || '', url: location.href };
-      try { d.ajena = enAppAjena(); } catch (e) { d.ajena = 'error: ' + e.message; }
-      try { d.ofrecer = tocaOfrecer(); d.motivo = porQueNoOfrecer(); } catch (e) { d.ofrecer = 'error: ' + e.message; }
-      try { d.instalada = yaInstalada(); } catch (e) {}
-      try { d.sesion = !!leerToken(); } catch (e) {}
-      try { d.modal = !!document.querySelector('.ep-inst'); } catch (e) {}
-      fetch(ACCESO, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accion: 'diagnostico', datos: d }) }).catch(function () {});
-    }, 4000);   // a los 4 s: para entonces el modal ya debio salir (sale a los 1,2 s)
-  } catch (e) {}
   var LLAVE_SESION = 'cobra.web.sesion';
 
   var S = { slug: window.COBRA_SLUG || '', negocio: null, cliente: null, tel: '', pase: null };
@@ -154,7 +136,6 @@
         '<button class="ep-link" id="b-olvide">Olvidé mi contraseña</button>' +
       '</div>' +
       '<p class="ep-nota">Entras con el mismo número con el que pides.</p>' +
-      huellaDepuracion() +
     '</div>');
 
     $('f-entrar').addEventListener('submit', async function (ev) {
@@ -2091,25 +2072,6 @@
     return false;
   }
 
-  /* HUELLA DE DEPURACION (temporal, 20-ago-2026): una linea diminuta bajo el
-     login que dice que version cargo y que decidio el aviso de instalar, para
-     leerla desde el propio Instagram sin poder conectar una consola. */
-  function porQueNoOfrecer() {
-    if (!esCelular()) return 'no es celular';
-    if (yaInstalada()) return 'ya instalada';
-    if (esIOS() && !esSafari() && !enAppAjena()) return 'iphone sin safari';
-    try {
-      if (enAppAjena()) return sessionStorage.getItem('ep-instalar-no-visita') ? 'cerrado en esta visita' : '';
-      var v = Number(localStorage.getItem('ep-instalar-no') || 0);
-      if (v && (Date.now() - v) < DIAS_ESPERA * 864e5) return 'lo cerraste hace poco';
-    } catch (e) {}
-    return '';
-  }
-  function huellaDepuracion() {
-    var m = porQueNoOfrecer();
-    return '<div class="ep-huella">' + VERSION_APP + ' &middot; nav interno: ' + (enAppAjena() ? 'si' : 'no') +
-           ' &middot; aviso: ' + (m ? 'no (' + m + ')' : 'si') + '</div>';
-  }
 
   /* EN ANDROID SI SE PUEDE SACAR AL NAVEGADOR DE VERDAD. Un enlace `intent://`
      le dice al sistema "abre esto con Chrome", y el sistema obedece aunque

@@ -10677,3 +10677,11 @@ y solo se calla (sessionStorage `ep-instalar-no-visita`) si se cierra en esa
 misma visita. En navegadores normales los 7 dias siguen. Verificado en banco:
 con el no-molestar puesto sale igual; cerrado → callado en la visita; visita
 nueva → sale. Sello `0820o`. El beacon sigue puesto hasta que Sergio confirme.
+
+**CERRADO (confirmado por Sergio: "ya sale el modal"):** se retiraron los
+andamios — el beacon y la huella de `app-cliente.js`, el estilo `.ep-huella`,
+la accion `diagnostico` de `web-acceso` (v35) y la tabla `web_diag` (drop).
+Sello final `0820p`. Queda en produccion: deteccion de navegador ajeno (por
+nombre y por lo que falta), aviso de instalar SIEMPRE al llegar (decision de
+Sergio), pasos de salida para iPhone y boton "Abrir en Chrome" en Android, y
+la espera de 7 dias solo en navegadores normales.
