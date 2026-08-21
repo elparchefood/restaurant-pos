@@ -744,7 +744,14 @@ vale una salchipapa; el precio lo lee, no lo recuerda.
 
 ---
 
-## FASE 3 — Verificar antes de vender
+## FASE 3 — LA FASE DE PRUEBAS (va de ULTIMA)
+
+⚠️ **Aclaracion de Sergio (21-ago-2026):** la fase 3 ES la fase de pruebas y va
+al FINAL de todo. Su nucleo es **crear una cuenta desde cero con otro
+restaurante** y probar funcion por funcion que todo sirva — no solo revisar
+infraestructura. Guion en `AUDITORIA-PRUEBAS.md`; cada funcion nueva que se
+construya se le agrega ahi su prueba, o no se va a probar.
+
 
 - [ ] Migración de región del servidor
 - [ ] Ensayo completo de alta de un restaurante nuevo
