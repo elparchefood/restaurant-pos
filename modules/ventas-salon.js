@@ -1141,9 +1141,9 @@
         ${renderSidebar(user, branch)}
         <main class="vs-main">
           ${renderTopbar(user)}
-          ${state.floor === '__domicilios__' ? renderDomicilioSummaryRow() : state.floor === '__rapidas__' ? renderQuickSummaryRow() : renderSummaryRow()}
           <section class="vs-body vs-body--fullgrid">
             <div class="vs-body-left">
+              ${state.floor === '__domicilios__' ? renderDomicilioSummaryRow() : state.floor === '__rapidas__' ? renderQuickSummaryRow() : renderSummaryRow()}
               ${state.floor === '__domicilios__' ? renderDomicilioGrid() : state.floor === '__rapidas__' ? renderQuickGrid() : renderGrid()}
             </div>
             <aside class="vs-rail" id="vs-rail">${state.floor === '__domicilios__' ? renderDomiRailContent() : state.floor === '__rapidas__' ? renderQuickRailContent() : renderRailContent()}</aside>
@@ -1347,19 +1347,7 @@
         <div class="vs-chips-track" id="vs-chips-track">
           ${chipsHtml}
         </div>
-        <div class="vs-metric-strip">
-          <div class="vs-metric-cell">
-            <div class="vs-metric-label">Ventas en curso</div>
-            <div class="vs-metric-value">${state.loading ? '—' : fmt(enCurso)}</div>
-            <div class="vs-metric-hint">${state.loading ? '…' : items + ' ítems activos'}</div>
-          </div>
-          <div class="vs-metric-divider"></div>
-          <div class="vs-metric-cell">
-            <div class="vs-metric-label">Tiempo promedio</div>
-            <div class="vs-metric-value">${state.loading ? '—' : tProm + ' min'}</div>
-            <div class="vs-metric-hint">atención por mesa</div>
-          </div>
-        </div>
+      
       </section>
     `;
   }
@@ -1396,19 +1384,7 @@
         <div class="vs-chips-track" id="vs-chips-track">
           ${chipsHtml}
         </div>
-        <div class="vs-metric-strip">
-          <div class="vs-metric-cell">
-            <div class="vs-metric-label">Domicilios activos</div>
-            <div class="vs-metric-value">${activos}</div>
-            <div class="vs-metric-hint">en curso ahora</div>
-          </div>
-          <div class="vs-metric-divider"></div>
-          <div class="vs-metric-cell">
-            <div class="vs-metric-label">Total en curso</div>
-            <div class="vs-metric-value">${fmtCurrency(totalVal)}</div>
-            <div class="vs-metric-hint">sin entregados</div>
-          </div>
-        </div>
+      
       </section>
     `;
   }
@@ -2266,19 +2242,7 @@
         <div class="vs-chips-track">
           ${chipsHtml || '<div style="padding:12px 0;color:#94A3B8;font-size:13px">Sin pedidos rápidos hoy</div>'}
         </div>
-        <div class="vs-metric-strip">
-          <div class="vs-metric-cell">
-            <div class="vs-metric-label">Activos ahora</div>
-            <div class="vs-metric-value">${active.length}</div>
-            <div class="vs-metric-hint">pedidos en curso</div>
-          </div>
-          <div class="vs-metric-divider"></div>
-          <div class="vs-metric-cell">
-            <div class="vs-metric-label">Total vendido hoy</div>
-            <div class="vs-metric-value">${fmt(total)}</div>
-            <div class="vs-metric-hint">ventas rápidas</div>
-          </div>
-        </div>
+      
       </section>
     `;
   }

@@ -10935,3 +10935,12 @@ muestra el movil — el boton "+ Movil del domiciliario" abre el campo ahi
 mismo (window.vsMovilEditar), guarda en pos_orders.domi_movil y queda
 "Lo llevo el Movil 27 (Rapid)". Mismo dato que el chip del monitor de
 Domicilios. Verificado en banco aislado.
+
+**Mas aire para la ficha (pedido de Sergio, 20-ago noche):** en Ventas se
+quitaron los bloques de metricas de la fila de arriba ("Domicilios activos /
+Total en curso", "Ventas en curso / Tiempo promedio") EN LAS TRES VISTAS
+(mesas, domicilios, venta rapida), y la fila de chips de estados bajo a vivir
+DENTRO de la columna izquierda — asi el riel derecho (la ficha del pedido)
+ocupa toda la altura desde la barra superior. CSS: .vs-summary-row sin
+padding propio (tambien en la media query tablet); .vs-body con padding-top.
+Los estilos .vs-metric-* quedaron sin uso (no se borraron).

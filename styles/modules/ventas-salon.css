@@ -420,11 +420,14 @@
 .lm-link:hover { text-decoration: underline; }
 
 /* ─── Summary row ─── */
+/* La fila de estados vive DENTRO de la columna izquierda (20-ago-2026,
+   pedido de Sergio): los bloques de metricas se quitaron y el riel derecho
+   gana toda la altura — la ficha ya no queda apretada. */
 .vs-summary-row {
   display: flex;
   align-items: stretch;
   gap: 12px;
-  padding: 16px 24px 12px;
+  padding: 0;
   flex-shrink: 0;
 }
 .vs-chips-track {
@@ -534,7 +537,7 @@
   display: grid;
   grid-template-columns: 1fr 340px;
   gap: 18px;
-  padding: 0 24px 24px;
+  padding: 16px 24px 24px;
   min-height: 0;
   overflow: hidden;
   overscroll-behavior: none;
@@ -1445,7 +1448,7 @@
 
   /* ── Chips compactos en tablet ── */
   .vs-summary-row {
-    padding: 10px 14px 8px;
+    padding: 0;
     gap: 8px;
   }
   .vs-chips-track {
