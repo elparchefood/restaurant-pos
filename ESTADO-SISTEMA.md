@@ -10804,3 +10804,11 @@ Sergio va a consultar cual — esperar esa consulta.
   MISMO camino de las recargas de la app: minimo, bono por rangos y libro
   identicos; ref `local:<cliente>:<ts>` contra dobles clics), Dar saldo
   (regalo) y Dar puntos. La tarjeta ahora abre el modal en modo Recargar.
+
+**Aviso al regalar saldo (pedido de Sergio):** `avisar-cliente` v8 con tipo
+`saldo_regalo` (texto de fabrica: "Te regalamos $X — ya tienes $Y en tu
+billetera de {negocio}"; personalizable por tenant en `web_avisos` con la
+clave `saldo_regalo`). `pagina-web.js` lo dispara al Dar saldo (best-effort,
+con el saldo que devuelve `fn_saldo_mover`), y el modo Recargar nuevo ahora
+dispara el aviso de recarga igual que la acreditacion de solicitudes.
+Vista previa del texto verificada contra la funcion viva.

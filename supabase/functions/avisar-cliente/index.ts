@@ -62,6 +62,9 @@ const DE_FABRICA: Record<string, { titulo: string; cuerpo: string }> = {
      no motiva, lo que motiva es ver el acumulado crecer. */
   puntos_ganados:   { titulo: "+{puntos} puntos 🎁", cuerpo: "Ya tienes {total} puntos en {negocio}. Mira por qué los puedes cambiar." },
   puntos_regalo:    { titulo: "Te regalamos {puntos} puntos 🎁", cuerpo: "Ya tienes {total} puntos en {negocio}. Un detalle de parte nuestra." },
+  /* SALDO REGALADO (20-ago, Sergio: que el regalo de saldo avise igual que el
+     de puntos). Distinto de la recarga: esto no lo pago el cliente. */
+  saldo_regalo:     { titulo: "Te regalamos {monto} 🎁", cuerpo: "Ya tienes {saldo} en tu billetera de {negocio}. Un detalle de parte nuestra." },
 };
 
 function rellenar(txt: string, datos: Record<string, string>) {
@@ -187,6 +190,27 @@ Deno.serve(async (req: Request) => {
       /* Etiqueta fija: si recarga dos veces seguidas, el segundo aviso pisa al
          primero — y el que vale es el ultimo, que trae el saldo bueno. */
       const r = await enviar(clienteId, t.titulo, t.cuerpo, "recarga");
+      return json({ ok: true, ...r });
+    }
+
+    // ── SALDO REGALADO ──────────────────────────────────────────────────
+    if (tipo === "saldo_regalo") {
+      const clienteS = String(b.cliente_id || "");
+      if (!clienteS && !soloVer) return json({ error: "cliente_id requerido" }, 400);
+      let tenantS = String(b.tenant_id || "");
+      if (!tenantS && clienteS) {
+        const c = await sbGet(`/pos_clientes?id=eq.${clienteS}&select=tenant_id&limit=1`) as Array<Record<string, unknown>> | null;
+        tenantS = String(c?.[0]?.tenant_id || "");
+      }
+      const propiosS = tenantS ? await avisosDe(tenantS) : null;
+      const t = textoDe("saldo_regalo", propiosS, {
+        monto: cop(Number(b.monto || 0)),
+        saldo: cop(Number(b.saldo || 0)),
+        negocio: tenantS ? await nombreNegocio(tenantS) : "tu restaurante",
+      })!;
+      if (soloVer) return json({ ok: true, previsualizacion: t });
+      /* Misma etiqueta que la recarga: en la billetera manda el ultimo saldo. */
+      const r = await enviar(clienteS, t.titulo, t.cuerpo, "recarga");
       return json({ ok: true, ...r });
     }
 

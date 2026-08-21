@@ -1271,6 +1271,18 @@
           toast((f && f.motivo) || 'No se pudo recargar');
           return;
         }
+        /* El aviso al celular, igual que cuando se acredita una solicitud:
+           misma plata, mismo aviso. Best-effort: la recarga ya entro. */
+        try {
+          fetch(SUPABASE_URL + '/functions/v1/avisar-cliente', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tipo: 'recarga', cliente_id: u.cliente_id,
+              monto: Number(f.acreditado) || v,
+              bono: Number(f.bono) || 0, saldo: Number(f.saldo) || 0,
+            }),
+          }).catch(function () {});
+        } catch (e2) {}
         cerrarModal();
         toast('Recarga de ' + COP(Number(f.acreditado) - Number(f.bono || 0)) +
               (Number(f.bono) > 0 ? ' + bono de ' + COP(f.bono) : '') +
@@ -1280,11 +1292,23 @@
         return;
       }
       if (esS) {
-        await sb().rpc('fn_saldo_mover', {
+        var rs = await sb().rpc('fn_saldo_mover', {
           p_tenant: S.t.id, p_cliente: u.cliente_id, p_motivo: 'regalo', p_monto: v,
           p_branch: (window._pos.state.branchId || null), p_order: null,
           p_ref: null, p_detalle: motivo, p_quien: yo.id || null,
         });
+        if (rs && rs.error) throw rs.error;
+        /* El aviso en su app (20-ago, Sergio: que el regalo de saldo avise
+           igual que el de puntos). Best-effort: el saldo ya quedo. */
+        try {
+          fetch(SUPABASE_URL + '/functions/v1/avisar-cliente', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tipo: 'saldo_regalo', cliente_id: u.cliente_id, tenant_id: S.t.id,
+              monto: v, saldo: Number(rs && rs.data) || 0,
+            }),
+          }).catch(function () {});
+        } catch (e3) {}
       } else {
         await sb().rpc('fn_puntos_regalar', {
           p_tenant: S.t.id, p_branch: (window._pos.state.branchId || null),
