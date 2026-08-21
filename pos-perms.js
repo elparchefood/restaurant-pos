@@ -36,6 +36,25 @@
      Ahora el dueño se le pregunta a la BASE, con es_dueno(). */
   var ADMIN_ROLES = [];
 
+  /* NOMBRE VIEJO → CLAVE INTERNA.
+     Durante aNos el sistema guardo en el usuario el NOMBRE del rol en
+     minusculas ('gerente', 'cajera'...). Eso sigue guardado en las cuentas
+     que ya existen, asi que hay que saber leerlo: sin esta tabla, las 4
+     cuentas de 'gerente' que hay hoy dejarian de reconocerse. */
+  var _ALIAS_ROL = {
+    admin:'admin', administrador:'admin', gerente:'admin', propietario:'admin', dueno:'admin',
+    cajero:'cajero', cajera:'cajero', caja:'cajero',
+    mesero:'mesero', mesera:'mesero',
+    cocina:'cocina', cocinero:'cocina', cocinera:'cocina', chef:'cocina',
+    domiciliario:'domiciliario', domiciliaria:'domiciliario',
+    repartidor:'domiciliario', repartidora:'domiciliario'
+  };
+  function posRolClave(v) {
+    var k = (v == null ? '' : String(v)).toLowerCase().trim();
+    return _ALIAS_ROL[k] || null;   // null = rol propio del restaurante
+  }
+  window.posRolClave = posRolClave;
+
   var _perms = null;   // array de ids, o '*' = todos, o null = aún cargando
   var _role  = null;
   var _fresco = false; // true solo cuando _perms vino confirmado de la base
@@ -154,19 +173,36 @@
       }
 
       var tenantId = meta.tenant_id;
-      var q = sb.from('pos_roles').select('name,perms,system_role');
+      var q = sb.from('pos_roles').select('clave,name,perms,system_role');
       if (tenantId) q = q.eq('tenant_id', tenantId);
       var rr = await q;
       if (rr && rr.error) throw rr.error;
       var rows = (rr && rr.data) || [];
-      var match = null;
-      for (var i = 0; i < rows.length; i++) {
-        if ((rows[i].name || '').toString().toLowerCase().trim() === role) { match = rows[i]; break; }
+
+      /* SE BUSCA POR LA CLAVE INTERNA, NO POR EL NOMBRE (21-ago-2026).
+         Antes esta comparacion era contra `name`, el nombre que el dueNo VE
+         Y PUEDE EDITAR. Osea que el dia que renombrara "Cajero" a "Cajera
+         de mostrador" —que es justamente lo que Cobra le ofrece hacer— sus
+         cajeros se quedaban sin permisos, y por el fail-open de abajo
+         terminaban con acceso TOTAL. La clave no cambia nunca. */
+      var claveBuscada = posRolClave(role);
+      var match = null, i;
+      for (i = 0; i < rows.length; i++) {
+        if (claveBuscada && rows[i].clave === claveBuscada) { match = rows[i]; break; }
+      }
+      if (!match) {   /* rol propio del restaurante: ese si va por nombre */
+        for (i = 0; i < rows.length; i++) {
+          if ((rows[i].name || '').toString().toLowerCase().trim() === role) { match = rows[i]; break; }
+        }
       }
       if (match) {
-        /* Tambien con '*': si el rol paso a ser del sistema, lo que un dato
-           viejo escondio tiene que volver a verse. */
-        if (match.system_role) { _perms = '*'; _fresco = true; _reEvaluarPuertas(); return; }
+        /* ACCESO TOTAL SOLO PARA EL ADMINISTRADOR.
+           Aqui decia `if (match.system_role)`, y `system_role` cambio de
+           significado: hoy marca los 5 roles que Cobra siembra para que no
+           se puedan BORRAR (admin, cajero, mesero, cocina, domiciliario).
+           Dejarlo asi le habria dado acceso total a todos los meseros y
+           domiciliarios del sistema. Quien manda es la clave. */
+        if (match.clave === 'admin') { _perms = '*'; _fresco = true; _reEvaluarPuertas(); return; }
         _perms = Array.isArray(match.perms) ? match.perms.slice() : [];
         _fresco = true;
         /* Solo se guarda lo confirmado. El '*' de un fallo no se guarda
