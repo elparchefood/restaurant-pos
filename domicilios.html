@@ -287,6 +287,27 @@
      Es obligatorio: un pedido no puede salir del restaurante sin que quede
      escrito con quién salió. Si algo pasa en el camino, esa es la única
      forma de saber a quién preguntarle. -->
+<!-- ══ EL MAPA DEL PEDIDO ══
+     Muestra el restaurante, la casa del cliente y —si lo lleva alguien de
+     la casa— por dónde va el domiciliario. El punto del domiciliario se
+     mueve solo: la imagen del fondo no se vuelve a pedir, así que moverlo
+     no le cuesta nada al restaurante. -->
+<div class="d-overlay" id="modal-mapa" hidden style="z-index:135">
+  <div class="d-modal" style="width:660px;max-width:96vw">
+    <div class="d-modal-head">
+      <div class="d-modal-title" id="mapa-titulo">Mapa del pedido</div>
+      <button class="d-modal-x" data-mapa-cerrar title="Cerrar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="d-modal-body">
+      <div id="mapa-lienzo" style="min-height:150px"></div>
+      <div id="mapa-pie" style="margin-top:14px;font-size:12.5px;color:#64748B;line-height:1.7"></div>
+    </div>
+    <div class="d-modal-foot" style="grid-template-columns:1fr">
+      <button class="d-foot-next" id="mapa-ruta">Abrir la ruta en Google Maps</button>
+    </div>
+  </div>
+</div>
+
 <div class="d-overlay" id="modal-quienlleva" hidden style="z-index:130">
   <div class="d-modal" style="width:480px">
     <div class="d-modal-head">
@@ -426,6 +447,7 @@
 <script src="pos-metodos.js?v=1790540000"></script>
 <script src="pos-saldo.js?v=1790470001"></script>
   <script src="pos-tabs.js?v=1789780000"></script>
+  <script src="pos-mapa.js?v=1791745000"></script>
   <script src="domicilios.js?v=1791745000"></script>
 </body>
 </html>

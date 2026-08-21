@@ -197,6 +197,10 @@ document.addEventListener('DOMContentLoaded', () => {
       S.tenantId = (user.user_metadata && user.user_metadata.tenant_id) || user.id;
       S.branchId    = (user.user_metadata && user.user_metadata.branch_id) || null;
       S.userId      = user.id || null;
+      /* La sede se ubica una sola vez y por detras: el mapa la necesita
+         para poder mostrar de donde sale el domicilio. Si falla, no pasa
+         nada — el mapa simplemente muestra un punto menos. */
+      mapaCargarSede();
       // Clientes compartidos: sube los que solo existían en este equipo y
       // trae la lista de la base. Si falla, se sigue con la caché local.
       if (window.posClientes) {
@@ -1971,6 +1975,10 @@ function renderKanCard(d) {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
         </button>
         <div id="dmenu-${d.id}" hidden style="position:absolute;right:0;top:100%;background:#fff;border:1.5px solid #ECEEF2;border-radius:10px;box-shadow:0 4px 16px rgba(15,23,42,.12);z-index:999;min-width:160px;padding:4px">
+          <button data-vermapa="${d.id}" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:#475569;border-radius:7px;text-align:left" onmouseover="this.style.background='#F8FAFC'" onmouseout="this.style.background='none'">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            Ver en el mapa
+          </button>
           <button data-canceldelivery="${d.id}" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:#DC2626;border-radius:7px;text-align:left" onmouseover="this.style.background='#FEF2F2'" onmouseout="this.style.background='none'">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             Cancelar pedido
@@ -2607,4 +2615,114 @@ document.addEventListener('click', function (e) {
 });
 document.addEventListener('input', function (e) {
   if (e.target && e.target.id === 'ql-movil') qlPintar();
+});
+
+/* ══════════════════════════════════════════════════════════════════
+   EL MAPA DEL PEDIDO  (21-ago-2026)
+
+   Tres puntos: el restaurante, la casa del cliente y —si lo lleva
+   alguien de la casa— el domiciliario.
+
+   El punto del cliente sale de la direccion escrita. Se le pregunta a
+   Google UNA sola vez por direccion y la respuesta queda guardada para
+   siempre: un restaurante reparte a las mismas casas todos los dias.
+   Y si un domiciliario ya entrego ahi, se usa EL punto que marco su
+   celular en la puerta, que es mas exacto que cualquier calculo.
+   ══════════════════════════════════════════════════════════════════ */
+var MAPA = { d: null, timer: null };
+
+async function mapaAbrir(id) {
+  var d = S.deliveries.find(function (x) { return String(x.id) === String(id); });
+  if (!d) return;
+  MAPA.d = d;
+
+  var t = $('mapa-titulo');
+  if (t) t.textContent = 'Pedido ' + d.id + (d.cliente ? ' · ' + d.cliente : '');
+  var lienzo = $('mapa-lienzo');
+  if (lienzo) lienzo.innerHTML = '<div style="padding:44px;text-align:center;color:#94A3B8;font-size:12.5px">Buscando la dirección…</div>';
+  openModal('modal-mapa');
+
+  await mapaPintar();
+  /* Mientras el modal este abierto, el punto del domiciliario se refresca
+     solo. NO se vuelve a pedir la imagen: solo se mueve el alfiler. */
+  if (MAPA.timer) clearInterval(MAPA.timer);
+  MAPA.timer = setInterval(mapaPintar, 15000);
+}
+
+function mapaCerrar() {
+  if (MAPA.timer) { clearInterval(MAPA.timer); MAPA.timer = null; }
+  MAPA.d = null;
+  closeModal('modal-mapa');
+}
+
+async function mapaPintar() {
+  var d = MAPA.d;
+  if (!d || !window.posMapa) return;
+  var lienzo = $('mapa-lienzo'), pie = $('mapa-pie');
+  var puntos = [], notas = [];
+
+  /* 1. El restaurante. */
+  if (S.sede && isFinite(S.sede.lat)) {
+    puntos.push({ lat: S.sede.lat, lng: S.sede.lng, tipo: 'negocio', etiqueta: 'Aquí' });
+  }
+
+  /* 2. La casa del cliente. */
+  var geo = await posMapa.ubicar(d.direccion || '', d.barrio || '', (S.ciudad || ''));
+  if (geo && isFinite(geo.lat)) {
+    puntos.push({ lat: geo.lat, lng: geo.lng, tipo: 'destino', etiqueta: d.cliente || 'Entrega' });
+    if (geo.origen === 'domiciliario') notas.push('El punto de entrega lo marcó un domiciliario en la puerta: es exacto.');
+    else if (geo.origen === 'cliente') notas.push('El punto lo mandó el cliente por WhatsApp.');
+    else if (geo.cache) notas.push('Esta dirección ya estaba ubicada: no costó ninguna consulta.');
+  } else if (geo && geo.sin_conectar) {
+    if (lienzo) lienzo.innerHTML = '';
+  } else if (geo && geo.no_encontrada) {
+    notas.push('Google no encontró esta dirección. Cuando un domiciliario entregue aquí, el punto queda guardado.');
+  }
+
+  /* 3. El domiciliario, si es de la casa. */
+  if (d.courier === 'interno' && d.domiciliarioId) {
+    var u = await posMapa.ultimaUbicacion(d.domiciliarioId);
+    if (u && isFinite(u.lat)) {
+      puntos.push({ lat: u.lat, lng: u.lng, tipo: 'domi', etiqueta: d.domiciliario || 'Domiciliario' });
+      var mins = Math.round((Date.now() - new Date(u.created_at).getTime()) / 60000);
+      notas.push(mins < 2 ? 'El domiciliario está compartiendo su ubicación ahora.'
+        : 'Última ubicación del domiciliario: hace ' + mins + ' min.');
+    } else {
+      notas.push('El domiciliario todavía no ha compartido su ubicación desde la app.');
+    }
+  } else if (d.courier === 'externo') {
+    notas.push('Este domicilio lo lleva una empresa externa, así que no se puede seguir en el mapa.');
+  }
+
+  if (lienzo) await posMapa.pintar(lienzo, { puntos: puntos, alto: 340 });
+  if (pie) pie.innerHTML = notas.map(function (n) { return '· ' + n; }).join('<br>');
+}
+
+/* La sede, ubicada una sola vez por sesión. */
+async function mapaCargarSede() {
+  try {
+    if (!S.branchId || !window.posMapa) return;
+    var r = await sb.from('branches').select('address,city').eq('id', S.branchId).maybeSingle();
+    var b = r && r.data;
+    if (!b) return;
+    S.ciudad = b.city || '';
+    if (!b.address) return;
+    var g = await posMapa.ubicar(b.address, '', b.city || '');
+    if (g && isFinite(g.lat)) S.sede = { lat: g.lat, lng: g.lng };
+  } catch (e) { /* sin sede en el mapa se sigue igual */ }
+}
+
+document.addEventListener('click', function (e) {
+  var v = e.target.closest('[data-vermapa]');
+  if (v) { mapaAbrir(v.dataset.vermapa); return; }
+  if (e.target.closest('[data-mapa-cerrar]')) { mapaCerrar(); return; }
+  if (e.target.closest('#mapa-ruta')) {
+    var d = MAPA.d;
+    if (!d) return;
+    var destino = [d.direccion, d.barrio, S.ciudad].filter(Boolean).join(', ');
+    if (!destino) { toast('Este pedido no tiene dirección'); return; }
+    window.open('https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(destino), '_blank');
+    return;
+  }
+  if (e.target.id === 'modal-mapa') mapaCerrar();
 });
