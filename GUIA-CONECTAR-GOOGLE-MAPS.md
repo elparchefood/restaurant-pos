@@ -1,5 +1,14 @@
 # Conectar Google Maps — paso a paso
 
+> **⚠️ ESTO YA NO HACE FALTA para el restaurante normal.**
+> Desde el 21-ago-2026 Cobra trae **su propia cuenta de Google** y los mapas
+> funcionan solos, sin que el dueño haga ningún trámite. El costo va dentro del
+> plan.
+>
+> Esta guía queda para el caso opcional: el restaurante que maneje mucho volumen
+> y prefiera que ese gasto vaya a **su** cuenta y no al plan. En el producto sale
+> como *"Prefiero usar mi propia cuenta de Google"*, en Configuración › Domicilios.
+
 > Esto lo hace **cada restaurante con su propia cuenta y su propia tarjeta**.
 > Cobra no cobra nada por el mapa y tampoco paga el de nadie.
 > El mismo paso a paso está dentro del producto, en **Configuración › Domicilios**.

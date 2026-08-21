@@ -3,6 +3,77 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 MAPAS ANDANDO — 21-ago-2026, probado contra Google de verdad
+
+**La llave de Cobra ya está puesta** (`MAPAS_CLAVE_COBRA`, proyecto de Google
+`cobra-pos`). Los mapas funcionan para todos los restaurantes **sin que ninguno
+haga ningún trámite**.
+
+Configuración del lado de Google:
+- Proyecto **Cobra POS** (`cobra-pos`), separado de `Automatization-make` para
+  poder ver su gasto aparte y poder transferirlo o apagarlo sin tocar el Gmail.
+- Solo **Geocoding API** y **Maps Static API** habilitadas.
+- Clave restringida a esas dos, sin restricción de aplicación (las llamadas
+  salen del servidor, no de un navegador).
+- Cuotas: **1.000/día** en cada una.
+- Moneda de la cuenta: **COP**.
+
+### Lo que se probó contra Google real
+
+| Caso | Resultado |
+|---|---|
+| `Carrera 9B # 63N-58`, Bellavista | **ROOFTOP** — la puerta exacta |
+| La misma escrita `cra 9 b 63 n 58` | mismas coordenadas, **de caché, gratis** |
+| `Calle 5 # 4-30`, Centro | RANGE_INTERPOLATED |
+| `Parque Caldas` | encontró el parque |
+| `Carrera 999 # 999-999` (inventada) | **APPROXIMATE → `google_aprox`** |
+
+5 consultas, **4 cobradas**. La imagen del mapa llegó correcta (1200×680 con
+scale=2) y en ella se ven Bella Vista, Carrera 9 y Calle 64 Norte: las
+coordenadas son las buenas.
+
+⚠️ **El caso de la dirección inventada es el importante.** Google **no** dijo
+"no la encontré": devolvió el centro de Popayán como si hubiera encontrado algo.
+Sin la comprobación de `location_type`, el domiciliario habría salido para el
+parque central. Queda guardada aparte, marcada, y el primer domiciliario que
+entregue de verdad la reemplaza.
+
+### Dos errores propios encontrados al probar
+
+1. **`sbRpc` reventaba con las funciones que no devuelven nada.** `r.json()`
+   sobre un cuerpo vacío lanza excepción, así que **fallaba CADA dirección
+   nueva**: se guardaba bien en la base pero la pantalla recibía "Error interno".
+   El síntoma engañaba —parecía que fallaba Google— y estaba en una línea de
+   lectura de respuesta. Encontrado instrumentando, no adivinando.
+
+2. **Los alfileres iban en píxeles y la imagen se encoge.** Medido: se pidieron
+   620 de ancho y se mostraron 598, porque el panel que la contiene era más
+   chico. Los alfileres se ubicaban con el sistema de 620 → **cada punto corrido
+   un 3,5%, unos 15 metros a zoom 18**: el domiciliario tocando en la casa de al
+   lado, y nadie se daría cuenta mirando la pantalla. Ahora van en **porcentaje**
+   y se encogen con la imagen. Verificado en un contenedor deliberadamente más
+   angosto: desviación de **0,01 px**.
+
+También se eliminó una versión vieja duplicada de `fn_direccion_guardar` (7
+argumentos) que dejaba a PostgREST sin saber cuál llamar.
+
+### Los dos frenos, en su sitio
+
+- Por restaurante: `pos_mapas_config.tope_mes` (9.000 por defecto).
+- **Global de Cobra**: `MAPAS_TOPE_GLOBAL` = 9.000 por SKU/mes, justo debajo de
+  las 10.000 gratis. Es el que protege la tarjeta de Cobra: veinte restaurantes
+  portándose bien suman una cuenta que el tope individual no ve.
+
+### Cuándo tocará subir el tope
+
+El cuello de botella es el **mapa estático**: con ~20 aperturas de mapa al día
+por restaurante, las 10.000 gratis se cruzan alrededor de los **16 restaurantes**.
+Las direcciones aguantan hasta ~66. **Las 20 aperturas/día son un supuesto, no
+un dato** — cuando haya clientes reales hay que mirarlo en `pos_mapas_uso` y
+ajustar con datos.
+
+---
+
 ## 🟢 Sesión 2026-08-21 (cierre) — Llave central y direcciones ordenadas
 
 ### ⚠️ Lo que dicen las condiciones de Google sobre guardar coordenadas
