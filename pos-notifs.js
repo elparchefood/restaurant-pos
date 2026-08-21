@@ -377,6 +377,25 @@
       var nombre = String(f.barrio || '').trim();
       if (!nombre) return false;
 
+      /* UNA DIRECCIÓN NO ES UNA ZONA.
+
+         Esta es la puerta por la que se coló en El Parche: desde la campana
+         se aprobó "Carrera 9 # 17AN-34 local 5 edificio chayani" y quedó
+         guardada como un barrio a $8.000. Una zona agrupa MUCHAS casas; la
+         dirección de un cliente agrupa una sola — y además deja escrito
+         dónde vive esa persona en la pantalla de precios.
+
+         Configuración ya lo rechaza; esta puerta también tenía que hacerlo,
+         o el arreglo servía a medias. */
+      var _dirRe = /\b(calle|cll|cl|carrera|carr|cra|kra|krr|kr|cr|avenida|avda|av|diagonal|diag|dg|transversal|transv|tvl|tv|autopista|autop)\s*[#N°o.-]*\s*\d/i;
+      if (_dirRe.test(String(nombre).trim())) {
+        var _msg = 'Eso es la dirección de un cliente, no una zona de precio. '
+                 + 'Si es un conjunto, agrégalo con su nombre desde Configuración › Domicilios.';
+        try { if (window.showToast) showToast(_msg); else console.warn('[notifs]', _msg); }
+        catch (e) { console.warn('[notifs]', _msg); }
+        return false;
+      }
+
       /* Un conjunto va en su lista, no entre los barrios: el asistente los
          trata distinto (a un conjunto no le pide calle, le pide la casa). */
       var campo = (f.tipo === 'conjunto') ? 'conjuntos' : 'barrios';
