@@ -7713,19 +7713,22 @@ async function dmCargar() {
 }
 
 function dmPintar() {
-  var cont = $('dm-lista'), vacio = $('dm-vacio');
+  var cont = $('dm-lista'), vacio = $('dm-vacio'), cuenta = $('dm-cuenta');
   if (!cont) return;
-  if (vacio) vacio.style.display = DM.empresas.length ? 'none' : '';
+  var n = DM.empresas.length;
+  if (vacio)  vacio.style.display = n ? 'none' : '';
+  if (cuenta) cuenta.textContent = n ? (n === 1 ? '1 empresa' : n + ' empresas') : '';
+
   cont.innerHTML = DM.empresas.map(function (e) {
     var esta = DM.porBorrar === e.id;
-    return '<div style="display:flex;align-items:center;gap:10px;padding:11px 13px;border:1px solid #ECEEF2;border-radius:10px;background:#fff">'
-      + '<span style="width:8px;height:8px;border-radius:999px;background:#0EA5E9;flex-shrink:0"></span>'
-      + '<span style="flex:1;min-width:0;font-size:13px;font-weight:600;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + dmEsc(e.nombre) + '</span>'
-      + (e.telefono ? '<span style="font-size:12px;color:#64748B;white-space:nowrap">' + dmEsc(e.telefono) + '</span>' : '')
+    return '<div class="cf-fila">'
+      + '<span class="cf-fila-punto"></span>'
+      + '<span class="cf-fila-t">' + dmEsc(e.nombre) + '</span>'
+      + (e.telefono ? '<span class="cf-fila-s">' + dmEsc(e.telefono) + '</span>' : '')
       + (esta
-          ? '<span style="font-size:12px;color:#64748B;white-space:nowrap">&iquest;Quitar?</span>'
+          ? '<span class="cf-fila-s">&iquest;Quitar?</span>'
             + '<button class="lm-btn-ghost sm" data-dmno="1">No</button>'
-            + '<button class="cf-btn-danger" data-dmsi="' + e.id + '" style="padding:6px 12px;font-size:11.5px">S&iacute;, quitar</button>'
+            + '<button class="cf-btn-danger" data-dmsi="' + e.id + '">S&iacute;, quitar</button>'
           : '<button class="lm-btn-ghost sm" data-dmdel="' + e.id + '">Quitar</button>')
       + '</div>';
   }).join('');
@@ -7742,7 +7745,6 @@ function dmPintar() {
     b.onclick = function () { dmQuitar(b.dataset.dmsi); };
   });
 }
-
 async function dmAgregar() {
   var inp = $('dm-nueva'), tel = $('dm-nueva-tel');
   var nombre = (inp && inp.value || '').trim();
@@ -7822,9 +7824,9 @@ async function mpInit() {
     if (!c) return;
     var abierto = c.style.display !== 'none';
     c.style.display = abierto ? 'none' : '';
-    ver.lastChild.nodeValue = abierto
-      ? ' Ver el paso a paso para conectarla'
-      : ' Ocultar el paso a paso';
+    ver.textContent = abierto
+      ? 'Ver el paso a paso'
+      : 'Ocultar el paso a paso';
   };
 
   var btn = $('mp-conectar');

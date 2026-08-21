@@ -1783,3 +1783,67 @@ div.master[data-tab].cia-active { display: flex !important; }
   100%    { box-shadow: 0 0 0 3px rgba(91,107,255,0); }
 }
 @media (prefers-reduced-motion: reduce) { .cfg-resalta { animation: none; } }
+
+/* ══════════════════════════════════════════════════════════════════════
+   PIEZAS COMPARTIDAS DE CONFIGURACIÓN  (21-ago-2026)
+
+   Salieron de rehacer la pantalla de Domicilios, que había quedado con el
+   contenido pegado al borde de la tarjeta: usaba `.op-card` sin el
+   `.op-card-body` que trae el relleno. Se dejan como clases y no como
+   estilos sueltos para que la siguiente pantalla no vuelva a improvisar.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Avisos dentro de una tarjeta. Mismo patrón que el resto del producto:
+   texto de color fuerte sobre fondo tenue del mismo matiz. */
+.cf-note { padding: 12px 14px; border-radius: 11px; font-size: 12.5px;
+  line-height: 1.65; border: 1px solid; }
+.cf-note b { font-weight: 700; }
+.cf-note-info { background: #F0F9FF; border-color: #BAE6FD; color: #0369A1; }
+.cf-note-warn { background: #FFFBEB; border-color: #FDE68A; color: #92400E; }
+.cf-note-bad  { background: #FEF2F2; border-color: #FECACA; color: #991B1B; }
+.cf-note-ok   { background: #F0FDF4; border-color: #BBF7D0; color: #166534; }
+
+/* Un paso a paso numerado. Los números van en su propia columna para que
+   el texto largo no se meta debajo del número. */
+.cf-pasos { margin: 0; padding: 0; list-style: none; counter-reset: paso;
+  display: flex; flex-direction: column; gap: 13px; }
+.cf-pasos li { counter-increment: paso; position: relative; padding-left: 34px;
+  font-size: 12.5px; line-height: 1.65; color: #475569; }
+.cf-pasos li::before { content: counter(paso); position: absolute; left: 0; top: 0;
+  width: 22px; height: 22px; border-radius: 999px; background: #EEF2FF; color: #5B6BFF;
+  font-size: 11px; font-weight: 800; display: flex; align-items: center;
+  justify-content: center; }
+.cf-pasos li b { color: #0F172A; font-weight: 700; }
+.cf-pasos a { color: #5B6BFF; font-weight: 600; }
+.cf-pasos code { background: #F1F5F9; padding: 1px 5px; border-radius: 4px;
+  font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; }
+/* La advertencia dentro de un paso: lo que de verdad se puede hacer mal. */
+.cf-pasos-ojo { display: block; margin-top: 7px; padding: 9px 11px; border-radius: 9px;
+  background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; font-size: 12px; }
+
+/* Cifras y claves: ancho fijo para que no bailen al actualizarse. */
+.cf-mono { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px;
+  font-weight: 600; color: #0F172A; font-variant-numeric: tabular-nums;
+  flex-shrink: 0; }
+
+/* Barra de consumo. El color lo pone el JS según qué tan lleno esté. */
+.cf-barra { height: 9px; border-radius: 999px; background: #F1F5F9; overflow: hidden; }
+.cf-barra > i { display: block; height: 100%; width: 0%; border-radius: 999px;
+  background: #16A34A; transition: width .3s, background .3s; }
+
+/* Estado vacío: dice qué falta y por qué, no solo "no hay nada". */
+.cf-vacio { display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 6px; text-align: center; padding: 30px 20px;
+  color: #CBD5E1; }
+.cf-vacio-t { font-size: 13px; font-weight: 700; color: #64748B; }
+.cf-vacio-s { font-size: 12px; color: #94A3B8; line-height: 1.55; max-width: 320px; }
+
+/* Una fila de la lista de empresas. */
+.cf-fila { display: flex; align-items: center; gap: 11px; padding: 12px 0;
+  border-bottom: 1px solid #F4F5F7; }
+.cf-fila:last-child { border-bottom: none; }
+.cf-fila-punto { width: 8px; height: 8px; border-radius: 999px; background: #0EA5E9;
+  flex-shrink: 0; }
+.cf-fila-t { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 700; color: #0F172A;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-fila-s { font-size: 12px; color: #64748B; white-space: nowrap; flex-shrink: 0; }

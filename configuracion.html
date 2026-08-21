@@ -13,7 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-vars.css?v=1790460000">
   <link rel="stylesheet" href="pos-core.css?v=1789840000">
-<link rel="stylesheet" href="configuracion.css?v=1791010000a">
+<link rel="stylesheet" href="configuracion.css?v=1791780000">
 </head>
 <body>
 <div class="cf-root">
@@ -1390,191 +1390,188 @@
       <section class="cf-pagehead">
         <div>
           <div class="cf-eyebrow">Operaci&oacute;n</div>
-          <h2 class="cf-pagetitle">Domicilios</h2>
+          <h1 class="cf-pagetitle">Domicilios</h1>
         </div>
       </section>
 
       <section class="cf-body">
         <div class="cf-gen-main">
 
-          <!-- ══ MAPAS: LA CUENTA DE GOOGLE DEL RESTAURANTE ══
-               El mapa es de Google y cada restaurante lo paga con SU tarjeta,
-               asi Cobra no carga con el costo de nadie. La llave se guarda
-               cifrada del lado del servidor: nunca baja al navegador, porque
-               quien la saque le gasta la plata al restaurante. -->
+          <!-- ══ MAPAS Y SEGUIMIENTO ══════════════════════════════════════
+               La llave de Google vive cifrada del lado del servidor y nunca
+               baja al navegador. Aqui solo se ve el estado y el consumo. -->
           <div class="op-card">
             <div class="op-card-head">
-              <div class="op-card-icon" style="background:#EEF2FF;color:#5B6BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
-              <div>
+              <div class="op-card-icon indigo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+              <div style="min-width:0;flex:1">
                 <div class="op-card-title">Mapas y seguimiento</div>
-                <div class="op-card-sub">Conecta tu cuenta de Google para ver a tus domiciliarios en el mapa.</div>
+                <div class="op-card-sub">Ver a tus domiciliarios y el punto de cada entrega.</div>
               </div>
-              <div class="op-state off" id="mp-estado" style="margin-left:auto">Sin conectar</div>
+              <div class="op-state on" id="mp-estado">Incluido en tu plan</div>
             </div>
 
-            <!-- EL MAPA VIENE CON EL PLAN (no tuvo que hacer nada) -->
-            <div id="mp-incluido" style="display:none">
-              <div style="padding:14px 16px;border-radius:12px;background:#F0FDF4;border:1px solid #BBF7D0;font-size:12.5px;color:#166534;line-height:1.7">
-                <b>Los mapas ya te funcionan.</b> Vienen incluidos en tu plan: no
-                tienes que crear ninguna cuenta ni poner ninguna tarjeta.
-              </div>
-              <button class="lm-btn-ghost" id="mp-usar-mia" style="margin-top:14px;width:100%;justify-content:center">
-                Prefiero usar mi propia cuenta de Google
-              </button>
-              <div class="cf-fieldhint" style="margin-top:10px;line-height:1.6">
-                Solo tiene sentido si manejas mucho volumen y quieres que ese
-                gasto vaya a tu cuenta y no al plan. Para un restaurante normal,
-                d&eacute;jalo como est&aacute;.
-              </div>
-            </div>
+            <div class="op-card-body">
 
-            <!-- SIN CONECTAR -->
-            <div id="mp-sin">
-              <div style="padding:14px 16px;border-radius:12px;background:#FFFBEB;border:1px solid #FDE68A;font-size:12.5px;color:#92400E;line-height:1.7">
-                <b>Cobra funciona sin esto.</b> Lo &uacute;nico que no vas a tener es el
-                mapa: ni ver por d&oacute;nde va el domiciliario, ni el punto exacto de
-                cada direcci&oacute;n. Todo lo dem&aacute;s sigue igual.
-              </div>
-
-              <div style="margin-top:16px;padding:14px 16px;border-radius:12px;background:#F0F9FF;border:1px solid #BAE6FD;font-size:12.5px;color:#0369A1;line-height:1.7">
-                <b>Para casi todos los restaurantes esto sale gratis.</b> Google regala
-                <b>10.000 consultas al mes</b> de cada tipo, y Cobra le pregunta una sola
-                vez por cada direcci&oacute;n nueva: la respuesta queda guardada para siempre.
-                Aun as&iacute;, Cobra <b>se frena solo</b> antes de llegar al l&iacute;mite, para que
-                nunca te llegue un cobro por algo que hizo el sistema.
-              </div>
-
-              <button class="lm-btn-ghost" id="mp-ver-pasos" style="margin-top:16px;width:100%;justify-content:center">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                Ver el paso a paso para conectarla
-              </button>
-
-              <!-- EL PASO A PASO -->
-              <div id="mp-pasos" style="display:none;margin-top:16px">
-                <div class="cf-fieldhint" style="line-height:1.8;color:#475569">
-                  <b style="color:#0F172A;font-size:13px">1. Entra a la consola de Google</b><br>
-                  Abre <a href="https://console.cloud.google.com/" target="_blank" rel="noopener" style="color:#5B6BFF;font-weight:600">console.cloud.google.com</a>
-                  con tu cuenta de Gmail. Arriba a la izquierda, crea un proyecto nuevo y ll&aacute;malo como quieras (por ejemplo, el nombre de tu restaurante).
-                  <br><br>
-                  <b style="color:#0F172A;font-size:13px">2. Activa la facturaci&oacute;n</b><br>
-                  En el men&uacute; busca <b>Facturaci&oacute;n</b> y agrega tu tarjeta. Google la pide
-                  aunque no vayas a pagar nada: es su forma de verificar que eres real.
-                  Mientras no te pases de las 10.000 consultas del mes, <b>no te cobra</b>.
-                  <br><br>
-                  <b style="color:#0F172A;font-size:13px">3. Activa las dos APIs que Cobra usa</b><br>
-                  Busca <b>APIs y servicios &rsaquo; Biblioteca</b> y activa estas dos, una por una:
-                  <br>&nbsp;&nbsp;&middot; <b>Geocoding API</b> &mdash; convierte la direcci&oacute;n escrita en un punto del mapa
-                  <br>&nbsp;&nbsp;&middot; <b>Maps Static API</b> &mdash; dibuja la imagen del mapa
-                  <br><br>
-                  <b style="color:#0F172A;font-size:13px">4. Crea la llave</b><br>
-                  En <b>APIs y servicios &rsaquo; Credenciales</b>, pulsa <b>Crear credenciales &rsaquo; Clave de API</b>.
-                  Te va a mostrar un texto largo que empieza por <code style="background:#F1F5F9;padding:1px 5px;border-radius:4px">AIza</code>. Ese es.
-                  <br><br>
-                  <b style="color:#0F172A;font-size:13px">5. Prot&eacute;gela (importante)</b><br>
-                  Entra a la llave reci&eacute;n creada y en <b>Restricciones de API</b> escoge
-                  <b>Restringir clave</b> y marca solo <b>Geocoding API</b> y <b>Maps Static API</b>.
-                  As&iacute;, si alguien te la copia, no puede usarla para nada m&aacute;s.
-                  <div style="margin-top:9px;padding:11px 13px;border-radius:10px;background:#FEF2F2;border:1px solid #FECACA;color:#991B1B">
-                    <b>Ojo con una cosa:</b> en <b>Restricciones de aplicaci&oacute;n</b> deja
-                    <b>Ninguna</b>. Cobra le pregunta a Google desde su servidor, no desde tu
-                    navegador, as&iacute; que si le pones restricci&oacute;n por sitio web, Google va a
-                    rechazar todas las consultas.
+              <!-- ── YA LE FUNCIONA, SIN HACER NADA ───────────────────── -->
+              <div id="mp-incluido" style="display:none">
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label" style="color:#15803D">Los mapas ya te funcionan</div>
+                    <div class="op-hint">Vienen incluidos en tu plan. No tienes que crear ninguna
+                      cuenta ni poner ninguna tarjeta.</div>
                   </div>
-                  <br>
-                  <b style="color:#0F172A;font-size:13px">6. P&oacute;nle un tope en Google tambi&eacute;n</b><br>
-                  En <b>APIs y servicios &rsaquo; Cuotas</b> puedes limitar cu&aacute;ntas consultas
-                  permite al d&iacute;a. Cobra ya se frena solo, pero un segundo cerrojo del lado
-                  de Google no sobra cuando hay una tarjeta de por medio.
-                  <br><br>
-                  <b style="color:#0F172A;font-size:13px">7. P&eacute;gala aqu&iacute; abajo</b><br>
-                  Cobra la va a <b>probar en el momento</b>. Si algo qued&oacute; mal, te lo dice
-                  enseguida y no tres d&iacute;as despu&eacute;s cuando un mapa no cargue.
+                  <span style="flex-shrink:0;color:#16A34A"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                </div>
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label">Usar mi propia cuenta de Google</div>
+                    <div class="op-hint">Solo tiene sentido con mucho volumen, si prefieres que ese
+                      gasto vaya a tu cuenta y no al plan. Para un restaurante normal, d&eacute;jalo as&iacute;.</div>
+                  </div>
+                  <button class="lm-btn-ghost sm" id="mp-usar-mia" style="flex-shrink:0">Conectar la m&iacute;a</button>
                 </div>
               </div>
 
-              <div style="display:flex;gap:8px;margin-top:16px">
-                <input class="cf-input" id="mp-clave" placeholder="Pega aqu&iacute; tu clave (empieza por AIza&hellip;)" style="flex:1" autocomplete="off" spellcheck="false" />
-                <button class="lm-btn-primary" id="mp-conectar">Conectar</button>
-              </div>
-              <div id="mp-error" style="display:none;margin-top:11px;padding:11px 13px;border-radius:10px;background:#FEF2F2;border:1px solid #FECACA;font-size:12.5px;color:#991B1B;line-height:1.6"></div>
-            </div>
-
-            <!-- YA CONECTADA -->
-            <div id="mp-con" style="display:none">
-              <div class="kv" style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #F1F5F9;font-size:13px">
-                <span style="color:#64748B">Tu clave</span>
-                <span style="font-weight:600">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull; <span id="mp-pista"></span></span>
-              </div>
-
-              <div style="margin-top:16px">
-                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px">
-                  <span style="font-size:12px;color:#64748B">Consultas de este mes</span>
-                  <span style="font-size:12px;color:#64748B" id="mp-uso-txt">&mdash;</span>
+              <!-- ── SIN CONECTAR (y sin llave de Cobra) ──────────────── -->
+              <div id="mp-sin">
+                <div class="op-row col" style="gap:10px">
+                  <div class="cf-note cf-note-warn">
+                    <b>Cobra funciona sin esto.</b> Lo &uacute;nico que no vas a tener es el mapa: ni ver
+                    por d&oacute;nde va el domiciliario, ni el punto exacto de cada direcci&oacute;n.
+                  </div>
+                  <div class="cf-note cf-note-info">
+                    <b>Para casi todos sale gratis.</b> Google regala <b>10.000 consultas al mes</b> de
+                    cada tipo, y Cobra pregunta una sola vez por cada direcci&oacute;n nueva. Aun as&iacute;
+                    <b>se frena solo</b> antes del l&iacute;mite, para que nunca te llegue un cobro por algo
+                    que hizo el sistema.
+                  </div>
                 </div>
-                <div style="height:9px;border-radius:999px;background:#F1F5F9;overflow:hidden">
-                  <i id="mp-barra" style="display:block;height:100%;width:0%;background:#16A34A;border-radius:999px;transition:width .3s"></i>
+
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label">&iquest;C&oacute;mo la conecto?</div>
+                    <div class="op-hint">Son 7 pasos en la consola de Google. Unos 10 minutos.</div>
+                  </div>
+                  <button class="lm-btn-ghost sm" id="mp-ver-pasos" style="flex-shrink:0">Ver el paso a paso</button>
                 </div>
-                <div style="font-size:11.5px;color:#94A3B8;margin-top:7px;line-height:1.6" id="mp-uso-detalle"></div>
+
+                <div id="mp-pasos" style="display:none;padding:2px 0 14px">
+                  <ol class="cf-pasos">
+                    <li><b>Crea el proyecto.</b> Entra a
+                      <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">console.cloud.google.com</a>
+                      con tu cuenta de Gmail y crea un proyecto nuevo.</li>
+                    <li><b>Activa la facturaci&oacute;n.</b> Busca <b>Facturaci&oacute;n</b> y agrega tu tarjeta.
+                      Google la pide aunque no vayas a pagar nada.</li>
+                    <li><b>Activa dos APIs</b> en <b>APIs y servicios &rsaquo; Biblioteca</b>:
+                      <b>Geocoding API</b> y <b>Maps Static API</b>. Solo esas dos.</li>
+                    <li><b>Crea la clave</b> en <b>Credenciales &rsaquo; Crear credenciales &rsaquo; Clave de API</b>.
+                      Empieza por <code>AIza</code>.</li>
+                    <li><b>Prot&eacute;gela.</b> En <b>Restricciones de API</b>, restringe a esas dos.
+                      <span class="cf-pasos-ojo">En <b>Restricciones de aplicaci&oacute;n</b> deja <b>Ninguna</b>:
+                      Cobra pregunta desde su servidor, no desde tu navegador, y con restricci&oacute;n
+                      por sitio web Google rechaza todo.</span></li>
+                    <li><b>P&oacute;nle un tope</b> en <b>Cuotas</b>. Con 1.000 al d&iacute;a vas sobrado.</li>
+                    <li><b>P&eacute;gala aqu&iacute; abajo.</b> Cobra la prueba en el momento.</li>
+                  </ol>
+                </div>
+
+                <div class="op-row col" style="gap:9px">
+                  <div class="op-label">Tu clave de Google</div>
+                  <div style="display:flex;gap:8px">
+                    <input class="cf-input" id="mp-clave" placeholder="Empieza por AIza&hellip;"
+                           style="flex:1" autocomplete="off" spellcheck="false" />
+                    <button class="lm-btn-primary" id="mp-conectar" style="flex-shrink:0">Conectar</button>
+                  </div>
+                  <div id="mp-error" class="cf-note cf-note-bad" style="display:none"></div>
+                </div>
               </div>
 
-              <div id="mp-aviso-tope" style="display:none;margin-top:14px;padding:11px 13px;border-radius:10px;background:#FFFBEB;border:1px solid #FDE68A;font-size:12.5px;color:#92400E;line-height:1.6"></div>
+              <!-- ── CONECTO LA SUYA ──────────────────────────────────── -->
+              <div id="mp-con" style="display:none">
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label">Tu clave</div>
+                    <div class="op-hint">Se guarda cifrada. Nunca baja a esta pantalla.</div>
+                  </div>
+                  <span class="cf-mono">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;<span id="mp-pista"></span></span>
+                </div>
 
-              <div class="cf-divider"></div>
-              <label class="cf-field">
-                <div class="cf-field-label">Frenar al llegar a</div>
-                <input class="cf-input" id="mp-tope" type="number" min="100" max="10000" step="100" />
-                <div class="cf-fieldhint">Google regala 10.000 al mes. Cobra se frena antes para que nunca pases de ah&iacute;.</div>
-              </label>
+                <div class="op-row col" style="gap:8px">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline">
+                    <div class="op-label">Consultas de este mes</div>
+                    <span class="cf-mono" id="mp-uso-txt">&mdash;</span>
+                  </div>
+                  <div class="cf-barra"><i id="mp-barra"></i></div>
+                  <div class="op-hint" id="mp-uso-detalle"></div>
+                  <div id="mp-aviso-tope" class="cf-note cf-note-warn" style="display:none"></div>
+                </div>
 
-              <button class="lm-btn-ghost" id="mp-desconectar" style="margin-top:8px;width:100%;justify-content:center;color:#DC2626">Desconectar mi cuenta de Google</button>
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label">Frenar al llegar a</div>
+                    <div class="op-hint">Google regala 10.000 al mes. Cobra se frena antes para que
+                      nunca pases de ah&iacute;.</div>
+                  </div>
+                  <input class="cf-input" id="mp-tope" type="number" min="100" max="10000" step="100"
+                         style="width:110px;flex-shrink:0;text-align:right" />
+                </div>
+
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label">Desconectar mi cuenta</div>
+                    <div class="op-hint">Vuelves a los mapas incluidos en el plan.</div>
+                  </div>
+                  <button class="cf-btn-danger" id="mp-desconectar" style="flex-shrink:0">Desconectar</button>
+                </div>
+              </div>
+
             </div>
           </div>
 
-          <!-- ══ EMPRESAS DE DOMICILIO EXTERNO ══
-               Antes el nombre de la empresa estaba escrito dentro del codigo
-               (era "Rapid", la que usa El Parche) y se le mostraba a TODOS los
+          <!-- ══ EMPRESAS DE DOMICILIO EXTERNO ═══════════════════════════
+               Antes el nombre estaba escrito dentro del codigo (era "Rapid",
+               la que usa El Parche) y se le mostraba a TODOS los
                restaurantes del sistema. -->
           <div class="op-card">
             <div class="op-card-head">
               <div class="op-card-icon" style="background:#EFF6FF;color:#0EA5E9"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 17.5h-6l-2-8h-3"/><path d="M9.5 9.5h6l1.5 5"/></svg></div>
-              <div>
+              <div style="min-width:0;flex:1">
                 <div class="op-card-title">Empresas de domicilio externo</div>
-                <div class="op-card-sub">Las que te prestan el servicio cuando no lo lleva tu propia gente.</div>
+                <div class="op-card-sub">Las que te prestan el servicio cuando no lo lleva tu gente.</div>
               </div>
+              <div class="op-state off" id="dm-cuenta"></div>
             </div>
 
-            <div id="dm-lista" style="display:flex;flex-direction:column;gap:8px"></div>
+            <div class="op-card-body">
+              <div id="dm-lista"></div>
 
-            <div id="dm-vacio" style="display:none;padding:22px 16px;text-align:center;color:#94A3B8;font-size:12.5px;line-height:1.6">
-              Todav&iacute;a no has guardado ninguna empresa.<br>
-              Si tus domicilios los llevan empresas externas, agr&eacute;galas ac&aacute;.
-            </div>
-
-            <div style="display:flex;gap:8px;margin-top:12px">
-              <input class="cf-input" id="dm-nueva" placeholder="Nombre de la empresa" style="flex:1" maxlength="60" />
-              <input class="cf-input" id="dm-nueva-tel" placeholder="Tel&eacute;fono (opcional)" style="width:170px" maxlength="25" />
-              <button class="lm-btn-primary" id="dm-agregar">Agregar</button>
-            </div>
-
-            <div class="cf-fieldhint" style="margin-top:12px;line-height:1.6">
-              Esto es <b>solo informativo</b>: sirve para saber con qui&eacute;n sali&oacute; cada
-              domicilio. No cambia precios, ni ventas, ni ning&uacute;n c&aacute;lculo.
-            </div>
-          </div>
-
-          <!-- RECORDATORIO DE LA REGLA DE ORO -->
-          <div class="op-card">
-            <div class="op-card-head">
-              <div class="op-card-icon" style="background:#FFFBEB;color:#F59E0B"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
-              <div>
-                <div class="op-card-title">Interno o externo se decide en cada pedido</div>
-                <div class="op-card-sub">No es una configuraci&oacute;n general.</div>
+              <div id="dm-vacio" class="cf-vacio">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 17.5h-6l-2-8h-3"/><path d="M9.5 9.5h6l1.5 5"/></svg>
+                <div class="cf-vacio-t">Todav&iacute;a no has guardado ninguna</div>
+                <div class="cf-vacio-s">Si tus domicilios los llevan empresas externas, agr&eacute;galas ac&aacute;.</div>
               </div>
-            </div>
-            <div class="cf-fieldhint" style="line-height:1.7">
-              Un domicilio puede irse con tu domiciliario y el siguiente con una
-              empresa externa. Por eso la pregunta <b>&laquo;&iquest;qui&eacute;n lo lleva?&raquo;</b> aparece
-              al marcar el pedido como <b>En camino</b>, y no ac&aacute;.
+
+              <div class="op-row col" style="gap:9px">
+                <div style="display:flex;gap:8px">
+                  <input class="cf-input" id="dm-nueva" placeholder="Nombre de la empresa" style="flex:1" maxlength="60" />
+                  <input class="cf-input" id="dm-nueva-tel" placeholder="Tel&eacute;fono (opcional)" style="width:170px;flex-shrink:0" maxlength="25" />
+                  <button class="lm-btn-primary" id="dm-agregar" style="flex-shrink:0">Agregar</button>
+                </div>
+                <div class="op-hint">Es <b>solo informativo</b>: sirve para saber con qui&eacute;n sali&oacute; cada
+                  domicilio. No cambia precios, ni ventas, ni ning&uacute;n c&aacute;lculo.</div>
+              </div>
+
+              <!-- La regla va aqui y no en su propia tarjeta: es sobre esto
+                   mismo, y una tarjeta entera para una nota le daba mas peso
+                   del que tiene. -->
+              <div class="op-row col">
+                <div class="cf-note cf-note-warn">
+                  <b>Interno o externo se decide en cada pedido.</b> Un domicilio puede irse con tu
+                  domiciliario y el siguiente con una empresa externa. Por eso la pregunta
+                  <b>&laquo;&iquest;qui&eacute;n lo lleva?&raquo;</b> aparece al marcar el pedido como
+                  <b>En camino</b>, y no ac&aacute;.
+                </div>
+              </div>
             </div>
           </div>
 
@@ -3167,7 +3164,7 @@
 <script src="pos-notify.js?v=1790370000"></script>
 <script src="pos-vars.js?v=1790460000"></script>
 <script src="pos-vars-ui.js?v=1790530000"></script>
-<script src="configuracion.js?v=1791775000"></script>
+<script src="configuracion.js?v=1791780000"></script>
 </body>
 </html>
 
