@@ -1836,6 +1836,35 @@ INTENCION, no las palabras exactas.` },
         .filter(Boolean);
       if (optArr.length > 0) varDataObj["variantes_" + slug] = listaNatural(optArr).toLowerCase();
     }
+    /* ALIAS POR PALABRA PROPIA (20-ago-2026, pedido real de Cristian). El
+       mapa solo indexaba el nombre COMPLETO: "1 agua personal" no casaba con
+       "AGUA BOTELLA" y el agua se perdio del pedido — Paco dio el total sin
+       ella y a Sergio le toco intervenir. Si una palabra de un nombre
+       compuesto es UNICA de ese producto (no la usa otro producto, ni una
+       categoria, ni una presentacion o variante de nadie), decirla es nombrar
+       ese producto: "agua" ES el Agua Botella en esta carta. Corta (<4) o
+       compartida, no vale — nada de adivinar. */
+    {
+      const cuenta: Record<string, number> = {};
+      for (const e of _prodMap) for (const w of e.key.split(" ")) if (w.length >= 4) cuenta[w] = (cuenta[w] || 0) + 1;
+      /* Palabras que en la CONVERSACION significan otra cosa: "mi premio" es
+         el canje de puntos, no la gaseosa PREMIO. Una de estas jamas es alias. */
+      const RESERVADAS = ["premio", "premios", "pedido", "pedidos", "carta", "menu",
+        "cuenta", "factura", "domicilio", "combo", "combos", "promo", "puntos"];
+      const vetadas = new Set<string>([..._catNames, ...RESERVADAS]);
+      for (const e of _prodMap) for (const o of e.opciones) for (const w of o.split(" ")) if (w) vetadas.add(w);
+      const alias: typeof _prodMap = [];
+      for (const e of _prodMap) {
+        const ws = e.key.split(" ");
+        if (ws.length < 2) continue;
+        for (const w of ws) {
+          if (w.length < 4 || cuenta[w] !== 1 || vetadas.has(w)) continue;
+          if (_prodMap.some(x => x.key === w)) continue;
+          alias.push({ key: w, name: e.name, cat: e.cat, opciones: e.opciones });
+        }
+      }
+      _prodMap.push(...alias);
+    }
     DYN_PROD_NAMES = [..._dynProd];
     DYN_ADICION_KEYWORDS = [..._dynAdi];
     DYN_PRODUCT_FULL = [..._prodFull];

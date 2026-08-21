@@ -10892,3 +10892,31 @@ viento≈vivento) → le antepuso el nombre canonico. Datos corregidos a mano
 - La fusion conjunto+unidad solo corre si el barrio NO tiene precio propio
   como barrio: un barrio conocido jamas se convierte en conjunto parecido.
 Verificado en banco Node (6 casos, incluidas las regresiones Catay/Asturias).
+
+
+---
+
+## 20-ago-2026 (noche) — "1 agua personal" que Paco ignoro (pedido real de Cristian)
+
+Al upsell el cliente contesto "1 agua personal" y Paco siguio de largo: total
+sin el agua, Sergio tuvo que apagar a Paco en ese chat y corregir a mano.
+
+**Causa:** el mapa de productos (`DYN_PROD_MAP`) solo indexa el nombre
+COMPLETO: "agua" no casa con "AGUA BOTELLA", y sin conector ("y tambien...")
+`NUEVO_PROD_REGEX` tampoco disparaba la busqueda de producto nuevo. El boton
+manual usa GPT con el menu completo, por eso si la vio.
+
+**Arreglo (delay-reply v327): ALIAS POR PALABRA PROPIA.** Al armar el mapa,
+si una palabra (>=4 letras) de un nombre compuesto es UNICA de ese producto —
+no la usa otro producto, ni una categoria, ni ninguna presentacion/variante —
+se indexa como alias: "agua"→AGUA BOTELLA, "coca"/"cola"→COCA COLA, etc.
+Con lista de RESERVADAS de la conversacion (premio, pedido, carta, menu,
+cuenta, combo, puntos...) para que "quiero mi premio" jamas meta la gaseosa
+PREMIO 1.5 al pedido — ese falso positivo se cazo ANTES de desplegar, en el
+banco Node con el catalogo real (61 productos, 15 alias generados).
+
+**Verificado en el banco de Paco** (conversacion PRUEBA con historia y
+cliente reconocido — OJO: sin fila en pos_clientes el motor saluda de cero y
+resetea el estado): a "1 agua personal" respondio "ya tengo tu pedido: 1x
+Premium Mixta (Personal) y 1x Agua" con el AGUA BOTELLA como producto en
+curso y la Premium guardada en items. Todo lo PRUEBA borrado.
