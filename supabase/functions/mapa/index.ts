@@ -128,13 +128,32 @@ async function quienLlama(req: Request): Promise<{ tenant: string; sub: string }
   return { tenant: String(tenant), sub: String(u.id || "") };
 }
 
-/* ── La llave del restaurante, descifrada ─────────────────────────────── */
-async function llaveDe(tenant: string): Promise<string | null> {
+/* ── QUE LLAVE SE USA PARA ESTE RESTAURANTE ──────────────────────────
+
+   Hay dos caminos, y el primero es el normal:
+
+   1. LA LLAVE DE COBRA (`MAPAS_CLAVE_COBRA`). Una sola, de Cobra, para
+      todos los restaurantes. El dueno no tiene que hacer NADA: abre
+      Cobra y el mapa ya funciona. El costo va dentro de lo que Cobra le
+      cobra por el plan.
+
+   2. LA LLAVE PROPIA DEL RESTAURANTE. Si conecta la suya, manda la
+      suya. Sirve para el que consume mucho —una cadena con varias
+      sedes— o para el que prefiere que el gasto vaya a su cuenta.
+
+   El tope por restaurante corre IGUAL en los dos casos, y es lo que
+   protege la tarjeta de Cobra en el primero: por mucho que un solo
+   restaurante se dispare, no puede vaciarle el cupo a los demas.       */
+async function llaveDe(tenant: string): Promise<{ clave: string; propia: boolean } | null> {
   const filas = await sbSel(`pos_mapas_config?tenant_id=eq.${tenant}&select=clave_cifrada,activo`);
   const c = filas[0];
-  if (!c || !c.activo || !c.clave_cifrada) return null;
-  try { return await descifrar(String(c.clave_cifrada)); }
-  catch (e) { console.error("descifrar", e); return null; }
+  if (c && c.activo && c.clave_cifrada) {
+    try { return { clave: await descifrar(String(c.clave_cifrada)), propia: true }; }
+    catch (e) { console.error("descifrar", e); }
+  }
+  const central = Deno.env.get("MAPAS_CLAVE_COBRA") || "";
+  if (central) return { clave: central, propia: false };
+  return null;
 }
 
 /* ── Pedir permiso al contador ────────────────────────────────────────── */
@@ -174,6 +193,167 @@ function normalizar(dir: string, barrio: string, ciudad: string): string {
     .trim();
 }
 
+/* ── DE COMO LO ESCRIBE LA GENTE A COMO LO ENTIENDE GOOGLE ───────────
+
+   Una misma casa llega escrita de mil formas:
+       "carrera 9 b # 63 n - 58 apto 502"
+       "Cra 9B #63N-58 Apto 502"
+       "KRA 9 B 63 N 58, apartamento 502"
+
+   Antes se le mandaba a Google el texto TAL CUAL lo escribio el cajero.
+   Google entiende bastante, pero no es lo mismo: mientras mas raro llega
+   el texto, mas se acerca a "no lo encontre" o —peor— a devolver el
+   centro del barrio como si fuera la casa.
+
+   Aqui se arma la forma CANONICA colombiana, que es la que usa el DANE y
+   con la que estan escritos los datos de Google en Colombia:
+       Carrera 9B # 63N-58
+
+   Y el complemento (apto, torre, interior) se SEPARA: Google no sabe que
+   hacer con "apto 502" y meterselo solo empeora el resultado. Al
+   domiciliario si se le muestra, que para eso sirve.                    */
+
+type Direccion = {
+  canonica: string;      // lo que se le manda a Google
+  complemento: string;   // apto / torre / interior — para el domiciliario
+  estructurada: boolean; // false = no se reconocio como direccion de calle
+};
+
+//  El orden importa: primero las compuestas ("avenida carrera") o
+//  "avenida" se comeria la palabra y quedaria mal.
+const VIAS: Array<[RegExp, string]> = [
+  [/^(?:av(?:enida)?\s*(?:cra|kra|carrera)|ac)\b/, "Avenida Carrera"],
+  [/^(?:av(?:enida)?\s*(?:cll|calle)|ak)\b/, "Avenida Calle"],
+  [/^(?:carrera|carr|cra|kra|krr|kr|cr|k)\b/, "Carrera"],
+  [/^(?:calle|cll|cl|ca)\b/, "Calle"],
+  [/^(?:avenida|avda|ave|av)\b/, "Avenida"],
+  [/^(?:diagonal|diag|dgn|dg)\b/, "Diagonal"],
+  [/^(?:transversal|transv|trans|tvl|tv|tr)\b/, "Transversal"],
+  [/^(?:circunvalar|circunv)\b/, "Circunvalar"],
+  [/^(?:circular|circ)\b/, "Circular"],
+  [/^(?:autopista|autop|auto)\b/, "Autopista"],
+  [/^(?:peatonal|peat)\b/, "Peatonal"],
+];
+
+//  Donde empieza lo que Google NO debe recibir.
+const COMPLEMENTO = new RegExp(
+  "\\b(apartamento|apartaestudio|apto|aptos|apt|ap|casa|torre|bloque|blq|bl|" +
+  "interior|int|piso|oficina|ofic|ofc|of|local|lc|conjunto|edificio|edif|ed|" +
+  "urbanizacion|urb|etapa|manzana|mzn|mz|lote|lt|garaje|parqueadero|porteria|" +
+  "unidad|agrupacion|barrio|br)\\b",
+);
+
+function limpiar(t: string): string {
+  return String(t || "")
+    .toLowerCase()
+    .normalize("NFD").replace(SIN_TILDES, "")
+    .replace(/[#º°]/g, " # ")     // #, º, ° -> separador
+    //  "No 63" / "Nro 63" -> "# 63". OJO: la "n" SOLA no cuenta nunca.
+    //  En "Carrera 9 B 63 N 58" esa N es NORTE; tomarla por "número"
+    //  partía la dirección y se perdía el "58", y el domiciliario se
+    //  quedaba con media dirección.
+    .replace(/\b(?:no|nro|num|numero)\.?\s*(?=\d)/g, " # ")
+    .replace(/[^a-z0-9#\-]+/g, " ")
+    .replace(/\s*-\s*/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function mayus(t: string): string {
+  return t.replace(/\b([a-z])/g, (m) => m.toUpperCase());
+}
+
+/*  numero + letra pegada.  "9 b" y "9b" dan los dos "9B".
+    La letra se deja PEGADA porque asi se escribe en Colombia
+    ("Carrera 9B") y asi estan los datos de Google aqui. */
+function numeroYLetra(t: string): { txt: string; resto: string } | null {
+  const m = t.match(/^(\d+)\s*/);
+  if (!m) return null;
+  let txt = m[1];
+  let resto = t.slice(m[0].length);
+
+  const CARD = /^(norte|sur|este|oeste|occidente|oriente)\b/;
+  const LETRA_CARD: Record<string, string> = { n: "Norte", s: "Sur", e: "Este", o: "Oeste" };
+
+  //  El punto cardinal escrito con todas sus letras se mira ANTES. Al
+  //  reves, "10 sur" se leia como el numero 10 mas una letra "su", y
+  //  salia "Calle 10SU".
+  let cardinal = "";
+  const cPalabra = resto.match(CARD);
+  if (cPalabra) {
+    cardinal = mayus(cPalabra[1]);
+    resto = resto.slice(cPalabra[0].length).trim();
+  } else {
+    //  Letras de nomenclatura, hasta 3 y que no sean el principio de otra
+    //  palabra.
+    const l = resto.match(/^([a-z]{1,3})(?![a-z])/);
+    if (l) {
+      let letras = l[1];
+      resto = resto.slice(l[0].length).trim();
+      /*  LA "N" SIEMPRE ES NORTE (confirmado por Sergio, que es quien
+          conoce la nomenclatura de Popayan). Y existen calles como "9BN",
+          que son la letra B MAS Norte: por eso el cardinal se separa de
+          la letra en vez de dejarlo pegado.
+          Con "9B" a secas no pasa nada, porque la B no es cardinal. */
+      const ultima = letras.slice(-1);
+      if (LETRA_CARD[ultima]) {
+        cardinal = LETRA_CARD[ultima];
+        letras = letras.slice(0, -1);
+      }
+      if (letras) txt += letras.toUpperCase();
+    }
+    const bis = resto.match(/^bis\b/);
+    if (bis) { txt += " Bis"; resto = resto.slice(3).trim(); }
+    if (!cardinal) {
+      const c2 = resto.match(CARD);
+      if (c2) { cardinal = mayus(c2[1]); resto = resto.slice(c2[0].length).trim(); }
+    }
+  }
+  if (cardinal) txt += " " + cardinal;
+
+  return { txt, resto: resto.trim() };
+}
+
+function canonizar(dir: string): Direccion {
+  const t = limpiar(dir);
+  if (!t) return { canonica: "", complemento: "", estructurada: false };
+
+  //  Se parte donde empieza el complemento: eso no va a Google.
+  const mComp = t.match(COMPLEMENTO);
+  const via = mComp ? t.slice(0, mComp.index).trim() : t;
+  const comp = mComp ? t.slice(mComp.index).trim() : "";
+
+  //  ¿Empieza por un tipo de via reconocible?
+  let tipo = "", resto = via;
+  for (const [re, nombre] of VIAS) {
+    const m = via.match(re);
+    if (m) { tipo = nombre; resto = via.slice(m[0].length).trim(); break; }
+  }
+
+  if (!tipo) {
+    /*  No es una direccion de calle: es un nombre propio ("Conjunto
+        Arrayanes del Uvo", "Centro Comercial Campanario"). Se manda tal
+        cual, que para eso Google es bueno buscando nombres. */
+    return { canonica: mayus(t), complemento: "", estructurada: false };
+  }
+
+  const a = numeroYLetra(resto);
+  if (!a) return { canonica: mayus(via), complemento: mayus(comp), estructurada: false };
+
+  //  Despues del "#" viene la via que cruza, y tras el "-" la placa.
+  let r = a.resto.replace(/^#\s*/, "").trim();
+  const b = numeroYLetra(r);
+
+  let canonica = tipo + " " + a.txt;
+  if (b) {
+    canonica += " # " + b.txt;
+    const placa = b.resto.match(/^-?\s*(\d+)/);
+    if (placa) canonica += "-" + placa[1];
+  }
+
+  return { canonica, complemento: mayus(comp), estructurada: !!b };
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    ACCIONES
    ══════════════════════════════════════════════════════════════════════ */
@@ -186,8 +366,14 @@ async function accEstado(tenant: string) {
   const e = (r && r[0]) || {};
   const tope = Number(e.tope || 9000);
   const usado = Number(e.geocoding || 0) + Number(e.estatico || 0);
+  //  ¿Hay llave de Cobra para todos? Entonces el mapa YA le funciona
+  //  aunque no haya conectado nada, y la pantalla no puede decirle
+  //  "sin conectar" como si le faltara algo por hacer.
+  const incluido = !!Deno.env.get("MAPAS_CLAVE_COBRA");
   return ok({
     activo: !!e.activo,
+    incluido,
+    funcionando: !!e.activo || incluido,
     pista: e.pista || null,
     tope,
     geocoding: Number(e.geocoding || 0),
@@ -251,8 +437,13 @@ async function accDesconectar(tenant: string) {
   return ok({ ok: true });
 }
 
-/* Direccion → punto. Mira PRIMERO lo que ya se sabe: a Google solo se le
-   pregunta por lo que nunca se le ha preguntado. */
+/* Direccion → punto.
+
+   El orden importa, y es todo lo contrario de "preguntarle a Google":
+
+   1. Lo que YA se sabe. Gratis y al instante.
+   2. Solo si nunca se ha preguntado, se le pregunta a Google — pero con
+      la direccion ya ORDENADA, no como la escribio el cajero.           */
 async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
   const dir = String(body.direccion || "").trim();
   const barrio = String(body.barrio || "").trim();
@@ -262,50 +453,123 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
   const clave = normalizar(dir, barrio, ciudad);
   if (!clave) return mal("Falta la dirección");
 
-  //  1) ¿Ya la tenemos? Gratis y al instante.
+  const orden = canonizar(dir);
+
+  //  1) ¿Ya la tenemos, y todavia vale?
+  //     `vence_at` solo lo llevan los puntos que calculo Google: sus
+  //     condiciones dejan guardarlos 30 dias. Los que puso una persona
+  //     (el domiciliario en la puerta, el cliente por WhatsApp) son
+  //     nuestros, no caducan nunca, y ademas son mejores.
   const guardada = await sbSel(
-    `pos_direcciones_geo?tenant_id=eq.${tenant}&clave=eq.${encodeURIComponent(clave)}&select=lat,lng,origen`);
+    `pos_direcciones_geo?tenant_id=eq.${tenant}&clave=eq.${encodeURIComponent(clave)}` +
+    `&select=lat,lng,origen,exactitud,canonica,vence_at`);
   if (guardada.length) {
     const g = guardada[0];
-    return ok({ lat: g.lat, lng: g.lng, origen: g.origen, cache: true });
+    const vencida = g.vence_at ? new Date(String(g.vence_at)) < new Date() : false;
+    if (!vencida) {
+      return ok({
+        lat: g.lat, lng: g.lng, origen: g.origen,
+        exactitud: g.exactitud || null,
+        canonica: g.canonica || orden.canonica,
+        complemento: orden.complemento,
+        aproximada: String(g.origen) === "google_aprox",
+        cache: true,
+      });
+    }
   }
 
-  //  2) Hay que preguntarle a Google.
-  const key = await llaveDe(tenant);
-  if (!key) return ok({ sin_conectar: true }, {});
+  //  2) Toca preguntarle a Google.
+  const cuenta = await llaveDe(tenant);
+  if (!cuenta) return ok({ sin_conectar: true, canonica: orden.canonica });
 
   const permiso = await consumir(tenant, "geocoding");
   if (!permiso.permitido) {
     return ok({ tope_alcanzado: true, usado: permiso.usado, tope: permiso.tope });
   }
 
-  const texto = [dir, barrio, ciudad, "Colombia"].filter(Boolean).join(", ");
-  const r = await fetch("https://maps.googleapis.com/maps/api/geocode/json?address="
-    + encodeURIComponent(texto) + "&region=co&key=" + encodeURIComponent(key));
+  /*  LO QUE SE LE MANDA A GOOGLE.
+
+      Antes iba el texto tal cual lo escribio el cajero. Google entiende
+      bastante, pero no es lo mismo: mientras mas raro le llega, mas se
+      acerca a "no lo encontre" o —peor— a devolver el centro del barrio
+      como si fuera la casa.
+
+      Ahora va la forma canonica colombiana ("Carrera 9B # 63 Norte-58"),
+      que es como estan escritos los datos de Google en Colombia, y SIN el
+      complemento: "apto 502" no le dice nada y solo le estorba.
+
+      Y `components` amarra la busqueda al pais y al municipio. Sin eso,
+      "Calle 5 # 4-30" existe en media Colombia y Google puede devolver
+      la de otra ciudad sin avisar.                                      */
+  const partes = [orden.canonica];
+  if (barrio) partes.push(barrio);
+  if (ciudad) partes.push(ciudad);
+  const texto = partes.filter(Boolean).join(", ");
+
+  let comp = "country:CO";
+  if (ciudad) comp += "|locality:" + ciudad;
+
+  const url = "https://maps.googleapis.com/maps/api/geocode/json"
+    + "?address=" + encodeURIComponent(texto)
+    + "&components=" + encodeURIComponent(comp)
+    + "&region=co&language=es"
+    + "&key=" + encodeURIComponent(cuenta.clave);
+
+  const r = await fetch(url);
   const j = await r.json().catch(() => null);
 
   if (j?.status === "ZERO_RESULTS") {
     //  Google tampoco la encontro. Se responde que no, sin inventar un
     //  punto: un punto equivocado manda al domiciliario a otra casa.
-    return ok({ no_encontrada: true });
+    return ok({ no_encontrada: true, canonica: orden.canonica, complemento: orden.complemento });
   }
   if (j?.status !== "OK" || !j?.results?.length) {
     const msg = j?.error_message || j?.status || "Google no respondió";
-    await sbUpsert("pos_mapas_config",
-      { tenant_id: tenant, ultimo_error: String(msg), updated_at: new Date().toISOString() }, "tenant_id");
+    if (cuenta.propia) {
+      await sbUpsert("pos_mapas_config",
+        { tenant_id: tenant, ultimo_error: String(msg), updated_at: new Date().toISOString() }, "tenant_id");
+    }
+    console.error("[mapa] geocode", msg);
     return ok({ fallo: String(msg) });
   }
 
-  const loc = j.results[0].geometry?.location;
-  const tipo = j.results[0].geometry?.location_type;   // ROOFTOP es el mas exacto
+  const res0 = j.results[0];
+  const loc = res0.geometry?.location;
+  const tipo = String(res0.geometry?.location_type || "");
   if (!loc) return ok({ no_encontrada: true });
+
+  /*  QUE TAN EXACTO ES LO QUE DEVOLVIO.
+
+      ROOFTOP            = la puerta. Exacto.
+      RANGE_INTERPOLATED = calculado entre dos numeros de la cuadra. Sirve.
+      GEOMETRIC_CENTER   = el centro de la via. Sirve para llegar cerca.
+      APPROXIMATE        = NO encontro la casa: devolvio el centro del
+                           barrio o del pueblo.
+
+      Ese ultimo caso es el peligroso: es un punto que se ve perfectamente
+      normal en el mapa y esta a kilometros. Se guarda aparte
+      (`google_aprox`) para no volver a pagar por preguntarlo, pero queda
+      marcado, la pantalla lo advierte, y el primer domiciliario que
+      entregue ahi lo reemplaza por el punto de verdad.                  */
+  const aproximada = tipo === "APPROXIMATE" || !tipo;
+  const origen = aproximada ? "google_aprox" : "google";
 
   await sbRpc("fn_direccion_guardar", {
     p_tenant: tenant, p_clave: clave, p_direccion: dir, p_barrio: barrio,
-    p_lat: loc.lat, p_lng: loc.lng, p_origen: "google",
+    p_lat: loc.lat, p_lng: loc.lng, p_origen: origen,
+    p_place_id: res0.place_id || null,
+    p_exactitud: tipo || null,
+    p_canonica: orden.canonica,
   });
 
-  return ok({ lat: loc.lat, lng: loc.lng, origen: "google", exactitud: tipo || null });
+  return ok({
+    lat: loc.lat, lng: loc.lng, origen,
+    exactitud: tipo || null,
+    aproximada,
+    canonica: orden.canonica,
+    complemento: orden.complemento,
+    le_mande_a_google: texto,
+  });
 }
 
 /* La imagen del mapa. Se devuelve la IMAGEN, no la direccion de Google:
@@ -316,8 +580,8 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
    forma, cada vez que el domiciliario avanza una cuadra habria que
    pedirle a Google una imagen nueva, y eso SI se paga. */
 async function accEstatico(tenant: string, u: URL) {
-  const key = await llaveDe(tenant);
-  if (!key) return mal("Este restaurante no tiene conectada su cuenta de Google", 409);
+  const cuenta = await llaveDe(tenant);
+  if (!cuenta) return mal("Todavía no hay una cuenta de Google conectada para los mapas", 409);
 
   const lat = Number(u.searchParams.get("lat"));
   const lng = Number(u.searchParams.get("lng"));
@@ -335,7 +599,7 @@ async function accEstatico(tenant: string, u: URL) {
   const url = "https://maps.googleapis.com/maps/api/staticmap"
     + `?center=${lat},${lng}&zoom=${zoom}&size=${w}x${h}&scale=2`
     + "&maptype=roadmap&language=es&region=co"
-    + "&key=" + encodeURIComponent(key);
+    + "&key=" + encodeURIComponent(cuenta.clave);
 
   const r = await fetch(url);
   if (!r.ok) {

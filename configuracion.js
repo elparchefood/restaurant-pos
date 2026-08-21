@@ -7730,6 +7730,13 @@ async function mpInit() {
   var inp = $('mp-clave');
   if (inp) inp.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); mpConectar(); } };
 
+  var mia = $('mp-usar-mia');
+  if (mia) mia.onclick = function () {
+    var caja = $('mp-incluido'), sin = $('mp-sin');
+    if (caja) caja.style.display = 'none';
+    if (sin) sin.style.display = '';
+  };
+
   var des = $('mp-desconectar');
   if (des) des.onclick = mpDesconectar;
 
@@ -7749,14 +7756,24 @@ async function mpCargar() {
 
 function mpPintar(e) {
   var sin = $('mp-sin'), con = $('mp-con'), chip = $('mp-estado');
-  var activo = !!(e && e.activo);
-  if (sin) sin.style.display = activo ? 'none' : '';
-  if (con) con.style.display = activo ? '' : 'none';
+  var propia = !!(e && e.activo);        // conecto SU cuenta
+  var incluido = !!(e && e.incluido);    // el mapa viene con el plan
+
+  /* SI EL MAPA YA LE FUNCIONA, NO SE LE PIDE NADA.
+     Decirle 'sin conectar' a alguien que ya tiene mapas es mandarlo a
+     hacer un tramite de 20 minutos que no necesita. Solo el que quiera
+     pasar el gasto a su propia cuenta abre el paso a paso. */
+  if (sin) sin.style.display = (propia || incluido) ? 'none' : '';
+  if (con) con.style.display = propia ? '' : 'none';
+
+  var extra = $('mp-incluido');
+  if (extra) extra.style.display = (incluido && !propia) ? '' : 'none';
+
   if (chip) {
-    chip.textContent = activo ? 'Conectada' : 'Sin conectar';
-    chip.className = 'op-state ' + (activo ? 'on' : 'off');
+    chip.textContent = propia ? 'Tu cuenta' : (incluido ? 'Incluido en tu plan' : 'Sin conectar');
+    chip.className = 'op-state ' + ((propia || incluido) ? 'on' : 'off');
   }
-  if (!activo) return;
+  if (!propia) return;
 
   if ($('mp-pista')) $('mp-pista').textContent = e.pista || '';
   if ($('mp-tope')) $('mp-tope').value = e.tope || 9000;
