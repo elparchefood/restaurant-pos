@@ -236,11 +236,18 @@
     $('cl-ficha').innerHTML =
       '<div class="cl-f-cab">' +
         '<div class="cl-av">' + esc(iniciales(c.nombre)) + '</div>' +
-        '<div><div class="cl-f-n">' + esc(c.nombre || 'Sin nombre') + '</div>' +
+        '<div style="flex:1;min-width:0"><div class="cl-f-n">' + esc(c.nombre || 'Sin nombre') + '</div>' +
           '<div class="cl-f-t">' + sello +
             (c.telefono ? '<span>' + esc(c.telefono) + '</span>' : '') +
             (c.barrio ? '<span>· ' + esc(c.barrio) + '</span>' : '') +
           '</div></div>' +
+        /* La tarjeta fisica del cliente: vincular, ver y quitar. Solo tiene
+           sentido con telefono — la tarjeta apunta al numero, no a la ficha. */
+        (c.telefono
+          ? '<button class="cl-tarjeta-btn" id="cl-tarjeta" type="button" title="Tarjeta física del cliente">' +
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M6 15h.01M10 15h4"/></svg>' +
+            ' Tarjeta</button>'
+          : '') +
       '</div>' +
       '<div class="cl-f-fijo">' +
         '<div class="cl-kpis">' +
@@ -268,6 +275,73 @@
       '<div class="cl-f-peds">' +
         '<div class="cl-sec-t">Sus pedidos</div>' + listaPedidos() +
       '</div>';
+    var bt = document.getElementById('cl-tarjeta');
+    if (bt) bt.onclick = function () { modalTarjeta(c); };
+  }
+
+  /* ── La tarjeta fisica ─────────────────────────────────────────────
+     El modal escucha el lector SOLO mientras esta abierto. Vincular es
+     acercar la tarjeta; si ya es de otro cliente, se dice de quien. */
+  function modalTarjeta(c) {
+    if (!window.posNfc) return;
+    posNfc.setCtx(tenantId);
+    var tel = String(c.telefono || '').replace(/[^0-9]/g, '').slice(-10);
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;padding:20px';
+    ov.innerHTML =
+      '<div style="background:#fff;border-radius:16px;width:420px;max-width:94vw;padding:20px 22px;box-shadow:0 30px 70px -20px rgba(15,23,42,.4)">' +
+        '<div style="font-size:15.5px;font-weight:800;color:#0F172A;letter-spacing:-.02em">Tarjeta de ' + esc(c.nombre || 'este cliente') + '</div>' +
+        '<div id="clt-lista" style="margin:12px 0"><div style="font-size:12.5px;color:#94A3B8">Buscando sus tarjetas…</div></div>' +
+        '<div style="display:flex;align-items:center;gap:10px;padding:14px;border:1.5px dashed #DCE0E8;border-radius:12px;background:#FBFBFD">' +
+          '<div class="cl-nfc-onda" style="width:34px;height:34px;border-radius:999px;background:#EEF2FF;display:flex;align-items:center;justify-content:center;color:#5B6BFF;flex-shrink:0">' +
+            '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8.5a7 7 0 0 1 12 0"/><path d="M8.5 11.5a3.5 3.5 0 0 1 7 0"/><circle cx="12" cy="15" r="1"/></svg>' +
+          '</div>' +
+          '<div style="font-size:12.5px;color:#475569;line-height:1.5"><b>Acerca una tarjeta al lector</b> para vincularla a este cliente. No hay que tocar nada más.</div>' +
+        '</div>' +
+        '<div id="clt-aviso" style="display:none;font-size:12.5px;margin-top:10px;padding:9px 12px;border-radius:9px"></div>' +
+        '<div style="display:flex;justify-content:flex-end;margin-top:16px">' +
+          '<button id="clt-cerrar" style="background:#fff;color:#475569;border:1px solid #ECEEF2;padding:9px 14px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit">Cerrar</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+
+    function aviso(txt, bien) {
+      var a = ov.querySelector('#clt-aviso');
+      a.style.display = 'block';
+      a.style.background = bien ? '#DCFCE7' : '#FEF2F2';
+      a.style.color = bien ? '#16A34A' : '#DC2626';
+      a.textContent = txt;
+    }
+    async function pintarLista() {
+      var caja = ov.querySelector('#clt-lista');
+      try {
+        var ts = await posNfc.tarjetasDe(tel);
+        if (!ts.length) { caja.innerHTML = '<div style="font-size:12.5px;color:#94A3B8">Todavía no tiene tarjeta.</div>'; return; }
+        caja.innerHTML = ts.map(function (t) {
+          return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 11px;border:1px solid #ECEEF2;border-radius:10px;margin-bottom:6px">' +
+            '<div style="font-size:12.5px;color:#0F172A;font-weight:600">Tarjeta ····' + esc(String(t.uid).slice(-4)) + '</div>' +
+            '<button data-quitar="' + esc(t.id) + '" style="background:none;border:none;color:#DC2626;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Quitar</button>' +
+          '</div>';
+        }).join('');
+        caja.querySelectorAll('[data-quitar]').forEach(function (b) {
+          b.onclick = async function () {
+            try { await posNfc.desvincular(b.dataset.quitar); aviso('Tarjeta quitada.', true); pintarLista(); }
+            catch (e) { aviso('No se pudo quitar: ' + (e.message || e), false); }
+          };
+        });
+      } catch (e) { caja.innerHTML = '<div style="font-size:12.5px;color:#DC2626">No se pudieron cargar: ' + esc(e.message || e) + '</div>'; }
+    }
+    var soltar = posNfc.escuchar(async function (uid) {
+      try {
+        await posNfc.vincular(tel, uid);
+        aviso('Tarjeta ····' + uid.slice(-4) + ' vinculada a ' + (c.nombre || 'este cliente') + '.', true);
+        pintarLista();
+      } catch (e) { aviso(e.message || String(e), false); }
+    });
+    function cerrar() { soltar(); ov.remove(); }
+    ov.querySelector('#clt-cerrar').onclick = cerrar;
+    ov.addEventListener('click', function (e) { if (e.target === ov) cerrar(); });
+    pintarLista();
   }
   function kpi(rotulo, valor) {
     return '<div class="cl-kpi"><div class="cl-kpi-l">' + esc(rotulo) + '</div>' +

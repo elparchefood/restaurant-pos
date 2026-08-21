@@ -180,3 +180,13 @@ svg{display:block;flex-shrink:0;}
   .cl-fr{border-right:0;border-bottom:1px solid var(--border);}
   .cl-top{flex-wrap:wrap;gap:12px;}
 }
+
+
+/* Boton de la tarjeta fisica en la cabecera de la ficha (20-ago-2026). */
+.cl-tarjeta-btn {
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+  padding: 7px 12px; background: #fff; color: #475569;
+  border: 1px solid #ECEEF2; border-radius: 9px;
+  font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.cl-tarjeta-btn:hover { background: #F8FAFC; color: #0F172A; }

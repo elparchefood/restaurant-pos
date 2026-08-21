@@ -267,6 +267,7 @@
       /* Se piden los datos la PRIMERA vez que se abre la pestana, no al
          cargar el modulo: son cinco consultas que casi nadie mira. */
       if (!S.web) { S.web = {}; cargarClientesApp().then(pintar); }
+      arrancarLectorPW();
     }
   }
 
@@ -1143,7 +1144,36 @@
   // ── Dar saldo o puntos ─────────────────────────────────────────────
   /* Nunca un confirm() del navegador: es la ventana del sistema operativo, no
      la del producto, y encima no deja escribir el motivo. */
+  /* ── La tarjeta fisica al dar saldo o puntos (20-ago-2026) ─────────
+     Con la pestana de clientes abierta, acercar la tarjeta de alguien al
+     lector abre "Dar saldo" YA parado en esa persona: nada de buscarla en la
+     lista. Si la tarjeta no esta vinculada o su dueNo no esta registrado en
+     la app, se dice. */
+  var _nfcPW = false;
+  function arrancarLectorPW() {
+    if (_nfcPW || !window.posNfc) return;
+    _nfcPW = true;
+    var t = (window._pos && window._pos.state && window._pos.state.tenantId) || null;
+    posNfc.setCtx(t);
+    posNfc.escuchar(async function (uid) {
+      if (S.tab !== 'clientes' || !S.web) return;   // solo en la pestana de clientes
+      try {
+        var tj = await posNfc.buscar(uid);
+        if (!tj) { toast('Esa tarjeta (····' + uid.slice(-4) + ') no está vinculada a nadie'); return; }
+        var tel10 = String(tj.telefono).replace(/[^0-9]/g, '').slice(-10);
+        var us = (S.web && S.web.usuarios) || [];
+        var i = -1;
+        us.forEach(function (x, k) {
+          if (String(x.telefono || '').replace(/[^0-9]/g, '').slice(-10) === tel10) i = k;
+        });
+        if (i < 0) { toast('La tarjeta es de ••• ' + tel10.slice(-4) + ', pero esa persona no está registrada en la app'); return; }
+        modalDar('saldo', i);
+      } catch (e) { toast('No se pudo leer la tarjeta: ' + (e.message || e)); }
+    });
+  }
+
   function modalDar(modo, i) {
+    arrancarLectorPW();
     var us = (S.web && S.web.usuarios) || [];
     if (!us.length) { toast('Todavía no hay nadie registrado en la app'); return; }
     if (!(i >= 0) || !us[i]) i = 0;

@@ -10747,3 +10747,42 @@ subtotal=dinero del canje, total=+empaque, aPagar=+domicilio. Sello `0820q`.
 distintos y NO se unifican). El borrado del 19-ago + cajas de $200.000 quedo
 VACIO: ya no existia nada con esas marcas — se limpio en su momento con la
 reversion del inventario. Memorias de esos pendientes retiradas.
+
+
+---
+
+## 20-ago-2026 (noche) — Tarjetas fisicas NFC/RFID
+
+Pedido de Sergio: lector NFC en el local — vincular tarjetas a clientes, pagar
+con la tarjeta y recargar con la tarjeta.
+
+**Como funciona el lector:** los lectores USB baratos (NFC 13,56 MHz y RFID
+125 kHz) se hacen pasar por TECLADO: al acercar la tarjeta "escriben" su
+numero y un Enter en milesimas. `pos-nfc.js` (nuevo) caza esa rafaga
+(digitos/hex, huecos < 80 ms, Enter al final, minimo 6): sin drivers, igual en
+el .exe y el navegador. Si el cursor estaba en un campo, el numero derramado
+se retira del campo. Solo escucha cuando alguna pantalla lo pide
+(`posNfc.escuchar` devuelve el des-escuchar).
+
+**La tarjeta apunta al TELEFONO** (como los puntos): tabla `pos_tarjetas`
+(tenant_id, uid UNIQUE por tenant, telefono, activa) con RLS por tenant,
+authenticated con CRUD y anon sin nada. SQL en
+`supabase/sql/2026-08-20-tarjetas-nfc.sql`.
+
+**Donde vive:**
+- **Clientes** (todas las marcas): boton "Tarjeta" en la ficha → modal que
+  lista sus tarjetas (····4F2A, Quitar) y vincula acercando la tarjeta al
+  lector. Si ya es de otro, dice de quien es en vez de pisarla.
+- **Caja/pagos**: acercar la tarjeta IDENTIFICA al cliente (igual que dar su
+  numero) y ademas AUTORIZA su billetera — la tarjeta fisica es la prueba de
+  que el dueNo esta presente, asi que NO se pide el codigo por SMS
+  (`SP.tarjetaTel`; cambiar de cliente mata la autorizacion). Tarjeta sin
+  vincular → modal que manda a Clientes.
+- **Pagina web → Clientes de la app**: con esa pestana abierta, la tarjeta
+  abre "Dar saldo" parado en esa persona (para recargas en persona).
+
+**Verificado en banco:** la rafaga sincrona se lee, la lenta (humano) no, y el
+texto derramado en un campo se limpia (OJO del banco: los setTimeout de una
+pestana en segundo plano se estiran a 1 s — la primera prueba "fallo" por
+eso, no por el codigo). En base: insert, UNIQUE del uid y delete probados con
+fila PRUEBA (borrada). **Falta la prueba con lector fisico real de Sergio.**

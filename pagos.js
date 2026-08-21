@@ -576,6 +576,16 @@ async function _sdAcceso(cuerpo) {
 }
 function _sdCobrarConCodigo(def, amount) {
   var tel = String(SP.clienteTel || '').replace(/[^0-9]/g, '').slice(-10);
+  /* Con la TARJETA en el lector no se pide codigo: la tarjeta fisica es la
+     prueba de que el dueNo esta presente. El codigo por SMS queda para quien
+     paga solo con su numero. */
+  if (SP.tarjetaTel && String(SP.tarjetaTel).replace(/[^0-9]/g, '').slice(-10) === tel) {
+    SP.payments.push({ id: Date.now(), method: def.nombre, methodKey: def.key,
+                       methodTipo: 'saldo', amount: amount, received: amount });
+    SP.entry = 0;
+    renderAll();
+    return;
+  }
   if (tel.length !== 10) {
     _sdModalBase('Falta el celular', '<div style="font-size:13px;color:#475569;line-height:1.55">La billetera está atada al celular del cliente y esta ficha no tiene uno válido. Corrige el teléfono del cliente y vuelve a intentar.</div>', null);
     return;
@@ -1897,8 +1907,34 @@ function pgCliente() {
 
 /* Se guarda en el pedido AL INSTANTE, no al finalizar: si el cajero se sale a
    mitad de camino, el cliente ya quedó asociado y los puntos no se pierden. */
+/* ── La tarjeta fisica en la caja (20-ago-2026) ───────────────────────
+   Acercar la tarjeta al lector IDENTIFICA al cliente (igual que dar su
+   numero) y ademas AUTORIZA su billetera: tener la tarjeta en la mano es la
+   prueba de que la cuenta es suya, asi que no se le pide el codigo por SMS.
+   Sin tarjeta, el codigo sigue siendo obligatorio. */
+var _nfcListo = false;
+function pgArrancarLector() {
+  if (_nfcListo || !window.posNfc) return;
+  _nfcListo = true;
+  var _st = (window._pos && window._pos.state) || {};
+  posNfc.setCtx(_st.tenantId || SP.tenantId);
+  posNfc.escuchar(async function (uid) {
+    try {
+      var t = await posNfc.buscar(uid);
+      if (!t) { _sdModalBase('Tarjeta sin vincular', '<div style="font-size:13px;color:#475569;line-height:1.55">Esta tarjeta (····' + uid.slice(-4) + ') no está vinculada a ningún cliente. Se vincula desde <b>Clientes</b>, en la ficha de la persona.</div>', null); return; }
+      if (!t.activa) { _sdModalBase('Tarjeta desactivada', '<div style="font-size:13px;color:#475569">Esta tarjeta está desactivada.</div>', null); return; }
+      var nombre = (t.cliente && t.cliente.nombre) || ('Cliente ••• ' + t.telefono.slice(-4));
+      await pgGuardarCliente((t.cliente && t.cliente.id) || null, nombre, t.telefono);
+      SP.tarjetaTel = t.telefono;   // la posesion de la tarjeta autoriza su billetera
+    } catch (e) { console.error('[pagos] tarjeta:', e); }
+  });
+}
+try { pgArrancarLector(); } catch (e) {}
+
 async function pgGuardarCliente(id, nombre, tel) {
   SP.clienteId = id; SP.cliente = nombre || ''; SP.clienteTel = tel || '';
+  /* Cambiar de cliente mata la autorizacion de la tarjeta anterior. */
+  if (SP.tarjetaTel && String(SP.tarjetaTel).replace(/[^0-9]/g, '').slice(-10) !== String(tel || '').replace(/[^0-9]/g, '').slice(-10)) SP.tarjetaTel = null;
   try {
     await sb.from('pos_orders').update({
       cliente_id: id,

@@ -1,0 +1,125 @@
+/* pos-nfc.js — el lector de tarjetas del POS.
+ *
+ * COMO FUNCIONA UN LECTOR USB BARATO (NFC o RFID): se hace pasar por un
+ * TECLADO. Al acercar la tarjeta "escribe" su numero y un Enter, todo en
+ * milesimas — mucho mas rapido de lo que teclea un humano. Eso es lo que se
+ * caza aqui: una rafaga de digitos/letras hex con menos de 80 ms entre
+ * teclas, terminada en Enter. No hay drivers, y funciona igual en el .exe y
+ * en el navegador (paridad Electron/web).
+ *
+ * La tarjeta esta atada al TELEFONO del cliente, igual que los puntos: la
+ * ficha puede duplicarse, el numero no.
+ */
+(function (w) {
+  'use strict';
+
+  function sb() { return w._pos && w._pos.sb; }
+  var CTX = { tenantId: null };
+
+  /* ── La caza de la rafaga ──────────────────────────────────────────── */
+  var buf = '', ultimo = 0, robado = 0;
+  var MIN = 6;         // ningun uid real tiene menos
+  var HUECO = 80;      // ms entre teclas: un humano casi nunca baja de 100
+  var oyentes = [];
+
+  document.addEventListener('keydown', function (ev) {
+    if (!oyentes.length) return;              // nadie esperando: ni tocar el teclado
+    var ahora = Date.now();
+    if (ahora - ultimo > HUECO) { buf = ''; robado = 0; }
+    ultimo = ahora;
+
+    if (ev.key === 'Enter') {
+      if (buf.length >= MIN) {
+        var uid = buf.toUpperCase();
+        buf = ''; ultimo = 0;
+        /* El lector escribe donde este el foco: si el cajero tenia el cursor
+           en un campo, el numero se le metio ahi. Se le saca. */
+        var el = document.activeElement;
+        if (robado && el && ('value' in el) && typeof el.value === 'string' &&
+            el.value.toUpperCase().endsWith(uid.slice(-robado))) {
+          el.value = el.value.slice(0, el.value.length - robado);
+        }
+        robado = 0;
+        ev.preventDefault(); ev.stopPropagation();
+        oyentes.slice().forEach(function (fn) { try { fn(uid); } catch (e) { console.error('[nfc]', e); } });
+      }
+      return;
+    }
+    if (/^[0-9a-zA-Z]$/.test(ev.key)) {
+      buf += ev.key;
+      var el2 = document.activeElement;
+      if (el2 && ('value' in el2)) robado++;   // va cayendo en un campo
+    } else if (ev.key.length === 1) {
+      buf = ''; robado = 0;                    // un simbolo raro: no es tarjeta
+    }
+  }, true);
+
+  /* Escuchar tarjetas. Devuelve la funcion para dejar de escuchar — cada
+     pantalla escucha SOLO mientras su modal o su vista lo necesita. */
+  function escuchar(fn) {
+    oyentes.push(fn);
+    return function () {
+      var i = oyentes.indexOf(fn);
+      if (i >= 0) oyentes.splice(i, 1);
+    };
+  }
+
+  /* ── La base ───────────────────────────────────────────────────────── */
+  function setCtx(t) { CTX.tenantId = t || null; }
+
+  // La tarjeta y, si existe, la ficha del cliente al que apunta.
+  async function buscar(uid) {
+    var s = sb(); if (!s) throw new Error('Sin conexión');
+    var r = await s.from('pos_tarjetas').select('id,uid,telefono,activa')
+      .eq('tenant_id', CTX.tenantId).eq('uid', uid).limit(1);
+    if (r.error) throw r.error;
+    var t = r.data && r.data[0];
+    if (!t) return null;
+    var c = await s.from('pos_clientes').select('id,nombre,telefono')
+      .eq('tenant_id', CTX.tenantId).like('telefono', '%' + t.telefono).limit(5);
+    var tel10 = String(t.telefono).replace(/[^0-9]/g, '').slice(-10);
+    var ficha = (c.data || []).find(function (x) {
+      return String(x.telefono || '').replace(/[^0-9]/g, '').slice(-10) === tel10;
+    }) || null;
+    return { id: t.id, uid: t.uid, telefono: t.telefono, activa: t.activa, cliente: ficha };
+  }
+
+  async function tarjetasDe(telefono) {
+    var s = sb(); if (!s) throw new Error('Sin conexión');
+    var tel = String(telefono || '').replace(/[^0-9]/g, '').slice(-10);
+    var r = await s.from('pos_tarjetas').select('id,uid,activa,created_at')
+      .eq('tenant_id', CTX.tenantId).eq('telefono', tel).order('created_at');
+    if (r.error) throw r.error;
+    return r.data || [];
+  }
+
+  async function vincular(telefono, uid, quien) {
+    var s = sb(); if (!s) throw new Error('Sin conexión');
+    var tel = String(telefono || '').replace(/[^0-9]/g, '').slice(-10);
+    if (tel.length !== 10) throw new Error('El cliente necesita un celular a 10 dígitos.');
+    /* ¿Ya es de alguien? Una tarjeta = un dueNo; se dice de quien es en vez
+       de pisarlo en silencio. */
+    var ya = await buscar(uid);
+    if (ya && ya.telefono !== tel) {
+      var e = new Error('Esa tarjeta ya es de ' + ((ya.cliente && ya.cliente.nombre) || ('••• ' + ya.telefono.slice(-4))) + '.');
+      e.codigo = 'OCUPADA'; e.duena = ya;
+      throw e;
+    }
+    if (ya) return ya;   // ya estaba vinculada a este mismo cliente
+    var r = await s.from('pos_tarjetas').insert({
+      tenant_id: CTX.tenantId, uid: uid, telefono: tel, quien: quien || null,
+    }).select('id');
+    if (r.error) throw r.error;
+    return { id: r.data[0].id, uid: uid, telefono: tel, activa: true };
+  }
+
+  async function desvincular(id) {
+    var s = sb(); if (!s) throw new Error('Sin conexión');
+    var r = await s.from('pos_tarjetas').delete().eq('id', id).eq('tenant_id', CTX.tenantId).select('id');
+    if (r.error) throw r.error;
+    return !!(r.data && r.data.length);
+  }
+
+  w.posNfc = { setCtx: setCtx, escuchar: escuchar, buscar: buscar,
+               tarjetasDe: tarjetasDe, vincular: vincular, desvincular: desvincular };
+})(window);
