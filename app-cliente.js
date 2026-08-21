@@ -17,6 +17,28 @@
   // restaurante: decia "esta pagina no esta disponible" sin mas.
   var ANON   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
   var ACCESO = SB_URL + '/functions/v1/web-acceso';
+  /* Version de ESTE archivo, para la huella y el diagnostico. Subirla junto
+     con el SELLO del index. */
+  var VERSION_APP = '0820n';
+
+  /* ── BEACON DE DIAGNOSTICO (TEMPORAL, 20-ago-2026) ──────────────────
+     En el Instagram de Sergio el aviso de instalar no sale y no hay consola
+     que mirar. La app reporta al abrir que version cargo y que decidio; se
+     lee en la tabla `web_diag` y ESTE BLOQUE SE QUITA al resolver.
+     Va lo primero de todo y en try: si algo mas adelante revienta, que el
+     reporte ya haya salido. */
+  try {
+    setTimeout(function () {
+      var d = { v: VERSION_APP, ua: navigator.userAgent || '', url: location.href };
+      try { d.ajena = enAppAjena(); } catch (e) { d.ajena = 'error: ' + e.message; }
+      try { d.ofrecer = tocaOfrecer(); d.motivo = porQueNoOfrecer(); } catch (e) { d.ofrecer = 'error: ' + e.message; }
+      try { d.instalada = yaInstalada(); } catch (e) {}
+      try { d.sesion = !!leerToken(); } catch (e) {}
+      try { d.modal = !!document.querySelector('.ep-inst'); } catch (e) {}
+      fetch(ACCESO, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'diagnostico', datos: d }) }).catch(function () {});
+    }, 4000);   // a los 4 s: para entonces el modal ya debio salir (sale a los 1,2 s)
+  } catch (e) {}
   var LLAVE_SESION = 'cobra.web.sesion';
 
   var S = { slug: window.COBRA_SLUG || '', negocio: null, cliente: null, tel: '', pase: null };
@@ -2078,7 +2100,7 @@
   }
   function huellaDepuracion() {
     var m = porQueNoOfrecer();
-    return '<div class="ep-huella">0820m &middot; nav interno: ' + (enAppAjena() ? 'si' : 'no') +
+    return '<div class="ep-huella">' + VERSION_APP + ' &middot; nav interno: ' + (enAppAjena() ? 'si' : 'no') +
            ' &middot; aviso: ' + (m ? 'no (' + m + ')' : 'si') + '</div>';
   }
 

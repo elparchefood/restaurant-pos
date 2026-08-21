@@ -10660,3 +10660,11 @@ mismo en el modal de plantillas. (2) el boton + se cortaba: la fila de arriba
 suma mas que la columna (366px); ahora el que cede es el texto "Asistente"
 (puntos suspensivos) y los botones no se encogen nunca. Verificado en banco al
 ancho minimo (300px).
+
+**Quinta vuelta — beacon:** en el Instagram de Sergio sigue sin salir nada (ya
+sin sesion) y no hay consola que mirar. Se puso un BEACON temporal: la app, a
+los 4 s de abrir, manda a `web-acceso` (v34, accion `diagnostico`) la version
+cargada, el user agent, que decidio `enAppAjena`/`tocaOfrecer` y si el modal
+esta en pantalla; cae en la tabla `web_diag` (solo service_role — OJO: el
+`revoke all from public` le quito el INSERT tambien a service_role y hubo que
+devolverselo). QUITAR beacon + accion + tabla al resolver. Sello `0820n`.
