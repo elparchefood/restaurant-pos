@@ -560,6 +560,103 @@ function _sdAvisoSinSaldo(necesita, yaApuntado, disponible) {
   });
 }
 
+/* ── Pago con billetera: el codigo al celular ─────────────────────────
+   Al tocar "Agregar pago" el codigo YA sale volando (plantilla → WhatsApp →
+   SMS, el mismo canal del registro) y el modal queda esperando a que el
+   cliente se lo dicte al cajero. Sin codigo valido no se apunta nada. */
+var _SD_ACCESO = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/web-acceso';
+async function _sdAcceso(cuerpo) {
+  var tok = '';
+  try { tok = (await sb.auth.getSession()).data.session.access_token; } catch (e) {}
+  var r = await fetch(_SD_ACCESO, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Object.assign({ pos_token: tok }, cuerpo)),
+  });
+  return r.json();
+}
+function _sdCobrarConCodigo(def, amount) {
+  var tel = String(SP.clienteTel || '').replace(/[^0-9]/g, '').slice(-10);
+  if (tel.length !== 10) {
+    _sdModalBase('Falta el celular', '<div style="font-size:13px;color:#475569;line-height:1.55">La billetera está atada al celular del cliente y esta ficha no tiene uno válido. Corrige el teléfono del cliente y vuelve a intentar.</div>', null);
+    return;
+  }
+  var oculto = '••• ' + tel.slice(-4);
+  var cuerpo = ''
+    + '<div style="font-size:13px;color:#475569;line-height:1.55;margin-bottom:12px">Le enviamos un código de 6 dígitos al celular <b>' + oculto + '</b>. Pídeselo al cliente: es la prueba de que la cuenta es suya.</div>'
+    + '<input id="sdCod" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ECEEF2;border-radius:10px;font-size:22px;letter-spacing:8px;text-align:center;font-family:inherit;font-variant-numeric:tabular-nums" oninput="this.value=this.value.replace(/[^0-9]/g,&quot;&quot;)">'
+    + '<div id="sdCodErr" style="display:none;font-size:12.5px;color:#DC2626;margin-top:8px"></div>'
+    + '<div id="sdCodEstado" style="font-size:12px;color:#94A3B8;margin-top:8px">Enviando el código…</div>';
+  var ov = _sdModalBase('Confirmar pago con billetera', cuerpo, [
+    { txt: 'Cancelar', ghost: true, fn: function () { ov.remove(); } },
+    { txt: 'Reenviar código', ghost: true, id: 'sdReenviar', fn: function () { _sdMandarCodigo(ov, tel, amount); } },
+    { txt: 'Confirmar ' + _payMoney(amount), id: 'sdConfirmar', fn: async function () {
+        var inp = ov.querySelector('#sdCod');
+        var cod = (inp.value || '').replace(/[^0-9]/g, '');
+        var err = ov.querySelector('#sdCodErr');
+        if (cod.length !== 6) { err.textContent = 'El código es de 6 dígitos.'; err.style.display = 'block'; return; }
+        var btn = ov.querySelector('#sdConfirmar');
+        btn.disabled = true; btn.textContent = 'Verificando…';
+        var d = {};
+        try { d = await _sdAcceso({ accion: 'pago-verificar', telefono: tel, codigo: cod }); }
+        catch (e) { d = { ok: false, mensaje: 'Sin conexión con el servidor.' }; }
+        if (!d.ok) {
+          err.textContent = d.mensaje || 'No se pudo verificar.'; err.style.display = 'block';
+          btn.disabled = false; btn.textContent = 'Confirmar ' + _payMoney(amount);
+          return;
+        }
+        ov.remove();
+        SP.payments.push({ id: Date.now(), method: def.nombre, methodKey: def.key,
+                           methodTipo: 'saldo', amount: amount, received: amount });
+        SP.entry = 0;
+        renderAll();
+      } },
+  ]);
+  var inp0 = ov.querySelector('#sdCod'); if (inp0) inp0.focus();
+  _sdMandarCodigo(ov, tel, amount);
+}
+async function _sdMandarCodigo(ov, tel, monto) {
+  var est = ov.querySelector('#sdCodEstado');
+  var re = ov.querySelector('#sdReenviar');
+  if (re) re.disabled = true;
+  if (est) { est.textContent = 'Enviando el código…'; est.style.color = '#94A3B8'; }
+  var d = {};
+  /* El monto viaja para que el mensaje diga "para pagar $ X": el cliente
+     distingue un codigo de pago de uno de entrada con solo leerlo. */
+  try { d = await _sdAcceso({ accion: 'pago-codigo', telefono: tel, monto: monto }); }
+  catch (e) { d = { ok: false, mensaje: 'Sin conexión con el servidor.' }; }
+  if (!ov.isConnected) return;   // el cajero ya cerro el modal
+  if (d.ok) {
+    if (est) { est.textContent = 'Código enviado. Vence en ' + (d.vence_en_min || 10) + ' minutos.'; est.style.color = '#16A34A'; }
+    /* Reenviar se despierta a los 20 s: antes de eso el mensaje va en camino
+       y reenviar solo gastaria el cupo del cliente. */
+    setTimeout(function () { if (re && ov.isConnected) re.disabled = false; }, 20000);
+  } else {
+    if (est) { est.textContent = d.mensaje || 'No se pudo enviar el código.'; est.style.color = '#DC2626'; }
+    if (re) re.disabled = false;
+  }
+}
+function _sdModalBase(titulo, cuerpoHTML, botones) {
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;padding:20px';
+  var b = (botones || [{ txt: 'Entendido', fn: function () { ov.remove(); } }]).map(function (x, i) {
+    return '<button data-sdb="' + i + '"' + (x.id ? ' id="' + x.id + '"' : '') + ' style="' + (x.ghost
+      ? 'background:#fff;color:#475569;border:1px solid #ECEEF2'
+      : 'background:#5B6BFF;color:#fff;border:none;box-shadow:0 2px 8px -2px rgba(91,107,255,.45)')
+      + ';padding:10px 14px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit">' + x.txt + '</button>';
+  }).join('');
+  ov.innerHTML = '<div style="background:#fff;border-radius:16px;width:400px;max-width:94vw;padding:20px 22px;box-shadow:0 30px 70px -20px rgba(15,23,42,.4);font-family:inherit">'
+    + '<div style="font-size:15.5px;font-weight:800;color:#0F172A;letter-spacing:-.02em;margin-bottom:10px">' + titulo + '</div>'
+    + cuerpoHTML
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap">' + b + '</div>'
+    + '</div>';
+  (botones || [{ fn: function () { ov.remove(); } }]).forEach(function (x, i) {
+    var el = ov.querySelector('[data-sdb="' + i + '"]');
+    if (el) el.addEventListener('click', function () { x.fn(); });
+  });
+  document.body.appendChild(ov);
+  return ov;
+}
+
 // Al tocar "Aplicar" con el método Crédito, primero hay que elegir a quién.
 async function crElegirPersona(monto) {
   var lista = [];
@@ -653,10 +750,11 @@ async function applyPayment() {
       _sdAvisoSinSaldo(amount, _yaConSaldo);
       return;
     }
-    SP.payments.push({ id: Date.now(), method: def.nombre, methodKey: def.key,
-                       methodTipo: 'saldo', amount: amount, received: amount });
-    SP.entry = 0;
-    renderAll();
+    /* DAR EL NUMERO NO BASTA (20-ago-2026, decision de Sergio): antes de
+       apuntar el pago se le manda un codigo al celular del dueNo de la cuenta
+       y el pago solo entra con ese codigo en la mano. Quien no tenga el
+       celular del cliente, no gasta su plata. */
+    _sdCobrarConCodigo(def, amount);
     return;
   }
 

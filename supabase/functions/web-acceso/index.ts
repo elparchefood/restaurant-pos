@@ -210,7 +210,10 @@ async function ventanaAbierta(tenantId: string, telefono: string): Promise<boole
    IDENTICO al de la barra de direcciones o el autocompletado no funciona. */
 const DOMINIO_APP = "cobrapos.app";
 
-async function mandarPorSms(telefono: string, codigo: string, negocio: string, autocompleta = false): Promise<boolean> {
+/* `frase` dice PARA QUE es el codigo ("para entrar a X" / "para pagar $Y en
+   X"): el cliente distingue un codigo de pago de uno de entrada con solo
+   leerlo — se lo esta dictando al cajero. */
+async function mandarPorSms(telefono: string, codigo: string, negocio: string, autocompleta = false, frase = ""): Promise<boolean> {
   const sid   = Deno.env.get("TWILIO_SID")   || "";
   const token = Deno.env.get("TWILIO_TOKEN") || "";
   const desde = Deno.env.get("TWILIO_FROM")  || "";
@@ -225,7 +228,7 @@ async function mandarPorSms(telefono: string, codigo: string, negocio: string, a
      navegador lo ignora — no se rompe nada, solo deja de autocompletar.
      En iPhone no hace falta: lo resuelve el `autocomplete="one-time-code"` del
      campo. */
-  const texto = codigo + " es tu codigo para entrar a " + negocio
+  const texto = codigo + " es tu codigo " + (frase || ("para entrar a " + negocio))
     + ". Vence en " + CODIGO_VIVE_MIN + " minutos. No se lo compartas a nadie."
     + (autocompleta
         ? String.fromCharCode(10) + String.fromCharCode(10) + "@" + DOMINIO_APP + " #" + codigo
@@ -252,16 +255,18 @@ async function mandarPorSms(telefono: string, codigo: string, negocio: string, a
   return false;
 }
 
-async function mandarCodigo(tenantId: string, telefono: string, codigo: string, negocio: string, autocompleta = false) {
+async function mandarCodigo(tenantId: string, telefono: string, codigo: string, negocio: string, autocompleta = false, frase = "") {
   const wa = await canalWhatsApp(tenantId);
-  if (!wa) return false;
+  if (!wa) return frase ? await mandarPorSms(telefono, codigo, negocio, autocompleta, frase) : false;
   const para = "57" + telefono;
   const url = `https://graph.facebook.com/v22.0/${wa.phoneId}/messages`;
   const cabeceras = { "Authorization": `Bearer ${wa.token}`, "Content-Type": "application/json" };
 
   /* 1. La plantilla. El codigo va DOS veces: en el cuerpo y en el boton de
-        copiar — asi lo pide Meta para que el boton sepa que copiar. */
-  try {
+        copiar — asi lo pide Meta para que el boton sepa que copiar.
+     Con frase propia (pago) NO se intenta: el texto de esa plantilla lo
+     escribe Meta y diria "entrar", no "pagar". */
+  if (!frase) try {
     const rp = await fetch(url, {
       method: "POST", headers: cabeceras,
       body: JSON.stringify({
@@ -288,7 +293,7 @@ async function mandarCodigo(tenantId: string, telefono: string, codigo: string, 
   const abierta = await ventanaAbierta(tenantId, telefono);
   if (!abierta) console.log("[acceso] fuera de la ventana de 24h, va directo por SMS");
   if (abierta) {
-  const cuerpo = `${codigo} es tu código para entrar a ${negocio}.\n\nVence en ${CODIGO_VIVE_MIN} minutos. No se lo compartas a nadie.`;
+  const cuerpo = `${codigo} es tu código ${frase || ("para entrar a " + negocio)}.\n\nVence en ${CODIGO_VIVE_MIN} minutos. No se lo compartas a nadie.`;
   const r = await fetch(url, {
     method: "POST", headers: cabeceras,
     body: JSON.stringify({
@@ -301,7 +306,7 @@ async function mandarCodigo(tenantId: string, telefono: string, codigo: string, 
   }
 
   /* 3. Fuera de la ventana, o WhatsApp no pudo. Va por SMS. */
-  return await mandarPorSms(telefono, codigo, negocio, autocompleta);
+  return await mandarPorSms(telefono, codigo, negocio, autocompleta, frase);
 }
 
 /* EL CLIENTE, BUSCADO COMO SE DEBE (15-ago). Antes se buscaba con
@@ -952,6 +957,83 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    /* ── PAGO CON BILLETERA EN CAJA (20-ago-2026) ────────────────────────
+       Dar el numero no basta para gastar la plata de otro: el cajero pide un
+       codigo que SOLO llega al celular del dueNo de la cuenta. Dos acciones,
+       exclusivas del POS: exigen la sesion de un usuario del sistema
+       (pos_token) y el tenant sale de esa sesion, no del cuerpo — nadie de
+       afuera puede pedir codigos ni validar pagos a nombre del restaurante.
+       Reusa el mismo canal del registro (plantilla → WhatsApp → SMS) y la
+       misma tabla `pos_web_codigos`, con motivo propio `pago`: un codigo de
+       entrar no autoriza un pago, ni al reves. */
+    if (accion === "pago-codigo" || accion === "pago-verificar") {
+      const uResp = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${String(b.pos_token || "")}` },
+      });
+      if (!uResp.ok) return json({ ok: false, razon: "sin_permiso", mensaje: "Tu sesión del sistema venció. Vuelve a entrar." });
+      const usr = await uResp.json().catch(() => ({}));
+      const tPos = String(usr?.user_metadata?.tenant_id || "");
+      if (!tPos) return json({ ok: false, razon: "sin_permiso", mensaje: "Tu usuario no tiene negocio asignado." });
+      if (tel.length !== 10) return json({ ok: false, razon: "telefono", mensaje: "El cliente entra con su celular a 10 dígitos." });
+
+      if (accion === "pago-codigo") {
+        const desdeHora = new Date(Date.now() - 3600000).toISOString();
+        const desdeDia  = new Date(Date.now() - 86400000).toISOString();
+        const ultHora = await sbGet(`/pos_web_codigos?tenant_id=eq.${tPos}&telefono=eq.${tel}&created_at=gte.${desdeHora}&select=id`) as unknown[] | null;
+        const ultDia  = await sbGet(`/pos_web_codigos?tenant_id=eq.${tPos}&telefono=eq.${tel}&created_at=gte.${desdeDia}&select=id`) as unknown[] | null;
+        if ((ultHora?.length || 0) >= CODIGOS_POR_HORA || (ultDia?.length || 0) >= CODIGOS_POR_DIA) {
+          return json({ ok: false, razon: "muchos_intentos", mensaje: "A ese número ya le enviamos varios códigos. Espera un rato." });
+        }
+        const codigo = String(Math.floor(100000 + Math.random() * 900000));
+        // Se guarda primero, se manda despues — misma leccion del registro.
+        const guardado = await sbPost(`/pos_web_codigos`, {
+          tenant_id: tPos, telefono: tel,
+          codigo_hash: await sha256(codigo + "|" + tel),
+          motivo: "pago",
+          expira_at: new Date(Date.now() + CODIGO_VIVE_MIN * 60000).toISOString(),
+        }, true) as Array<Record<string, unknown>> | null;
+        const filaId = guardado?.[0]?.id ? String(guardado[0].id) : "";
+        if (!filaId) return json({ ok: false, razon: "no_se_guardo", mensaje: "No se pudo preparar el código. Intenta de nuevo." });
+        const tRow = await sbGet(`/tenants?id=eq.${tPos}&select=name,brands(name,created_at)&limit=1`) as Array<Record<string, unknown>> | null;
+        const marcas = (tRow?.[0]?.brands || []) as Array<Record<string, unknown>>;
+        const nombreNegocio = String(marcas[0]?.name || tRow?.[0]?.name || "tu restaurante");
+        /* El mensaje dice QUE es un pago y CUANTO. Sin tildes: el SMS con
+           acentos se parte y se cobra doble. */
+        const monto = Math.round(Number(b.monto) || 0);
+        const frase = monto > 0
+          ? "para pagar $ " + monto.toLocaleString("es-CO") + " en " + nombreNegocio
+          : "para pagar en " + nombreNegocio;
+        const enviado = await mandarCodigo(tPos, tel, codigo, nombreNegocio, true, frase);
+        if (!enviado) {
+          await sbPatch(`/pos_web_codigos?id=eq.${filaId}`, { usado: true });
+          return json({ ok: false, razon: "no_salio", mensaje: "No se pudo enviar el código a ese celular." });
+        }
+        return json({ ok: true, vence_en_min: CODIGO_VIVE_MIN });
+      }
+
+      // pago-verificar: SOLO valida y quema. Nada de pases ni fichas: esos
+      // son del registro, y aqui abririan la puerta a cambiarle la clave a
+      // un cliente desde la caja.
+      const codigo = String(b.codigo || "").replace(/[^0-9]/g, "");
+      const rows = await sbGet(
+        `/pos_web_codigos?tenant_id=eq.${tPos}&telefono=eq.${tel}&usado=eq.false&motivo=eq.pago&order=created_at.desc&select=*&limit=1`
+      ) as Array<Record<string, unknown>> | null;
+      const c = rows?.[0];
+      if (!c) return json({ ok: false, razon: "sin_codigo", mensaje: "No hay código vigente. Envía uno nuevo." });
+      if (new Date(String(c.expira_at)).getTime() < Date.now()) {
+        return json({ ok: false, razon: "vencido", mensaje: "Ese código ya venció. Envía uno nuevo." });
+      }
+      if (Number(c.intentos) >= CODIGO_INTENTOS) {
+        return json({ ok: false, razon: "quemado", mensaje: "Demasiados intentos con ese código. Envía uno nuevo." });
+      }
+      if (!igualesSinFiltrar(await sha256(codigo + "|" + tel), String(c.codigo_hash))) {
+        await sbPatch(`/pos_web_codigos?id=eq.${c.id}`, { intentos: Number(c.intentos) + 1 });
+        return json({ ok: false, razon: "no_coincide", mensaje: `Ese código no es. Quedan ${CODIGO_INTENTOS - Number(c.intentos) - 1} intentos.` });
+      }
+      await sbPatch(`/pos_web_codigos?id=eq.${c.id}`, { usado: true });
+      return json({ ok: true });
+    }
+
     // ── sesion / salir: no necesitan restaurante, el token ya lo dice ──
     if (accion === "sesion" || accion === "salir") {
       const s = await sesionDe(String(b.token || ""));
@@ -1023,8 +1105,10 @@ Deno.serve(async (req) => {
     // ── 2. VERIFICAR CÓDIGO ──────────────────────────────────────────
     if (accion === "verificar-codigo") {
       const codigo = String(b.codigo || "").replace(/\D/g, "");
+      /* Los codigos de PAGO no cuentan aqui: uno pedido en caja no puede
+         terminar registrando una cuenta o cambiando una clave. */
       const rows = await sbGet(
-        `/pos_web_codigos?tenant_id=eq.${tenantId}&telefono=eq.${tel}&usado=eq.false&order=created_at.desc&select=*&limit=1`
+        `/pos_web_codigos?tenant_id=eq.${tenantId}&telefono=eq.${tel}&usado=eq.false&motivo=neq.pago&order=created_at.desc&select=*&limit=1`
       ) as Array<Record<string, unknown>> | null;
       const c = rows?.[0];
       if (!c) return json({ ok: false, razon: "sin_codigo", mensaje: "Pide un código nuevo." });

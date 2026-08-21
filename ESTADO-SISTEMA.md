@@ -10685,3 +10685,44 @@ Sello final `0820p`. Queda en produccion: deteccion de navegador ajeno (por
 nombre y por lo que falta), aviso de instalar SIEMPRE al llegar (decision de
 Sergio), pasos de salida para iPhone y boton "Abrir en Chrome" en Android, y
 la espera de 7 dias solo en navegadores normales.
+
+
+---
+
+## 20-ago-2026 (noche) — Codigo al celular para pagar con Billetera en caja
+
+Decision de Sergio: dar el numero NO basta para gastar el saldo de una cuenta.
+Al tocar "Agregar pago" con el metodo Billetera, se le manda un codigo de 6
+digitos al celular del dueNo y el pago solo se apunta con ese codigo.
+
+**Servidor (`web-acceso` v38):** dos acciones nuevas, `pago-codigo` y
+`pago-verificar`, EXCLUSIVAS del POS: exigen `pos_token` (la sesion de un
+usuario del sistema, validada contra /auth/v1/user) y el tenant sale de esa
+sesion — nadie de afuera puede pedir codigos ni validar. Reusan la tabla
+`pos_web_codigos` con motivo `pago` y todos los topes del registro (3/hora,
+10/dia, vence a los 10 min, 3 intentos y se quema). Aislamiento en los dos
+sentidos: `pago-verificar` solo mira motivo `pago`, y `verificar-codigo` (el
+del registro) ahora EXCLUYE motivo `pago` — un codigo de caja no puede
+registrar cuentas ni cambiar claves, ni al reves. El envio reusa la cascada
+del registro con una FRASE propia: "para pagar $ 25.500 en El Parche" (pedido
+de Sergio: que diga que es para pagar y cuanto). Con frase propia NO se
+intenta la plantilla de Meta (su texto diria "entrar"); va por WhatsApp texto
+si la ventana de 24 h esta abierta, y si no, por SMS.
+
+**Caja (`pagos.js`):** en el metodo saldo, tras validar que alcanza, ya no se
+apunta directo: `_sdCobrarConCodigo` manda el codigo de una (con el monto) y
+abre el modal — celular oculto (••• 1234), campo de 6 digitos, "Reenviar
+codigo" (dormido 20 s), y "Confirmar $X" que llama `pago-verificar`; solo con
+`ok` se apunta el pago. Modal propio estilo Lumen, nada de alert().
+
+**Verificado:** envio real con monto al celular de Sergio (WhatsApp texto, la
+ventana estaba abierta); codigo equivocado rechazado contando intentos; token
+invalido rechazado; codigo de pago rechazado en el registro; tope de 3/hora
+salto durante la prueba (funciona). Usuario de prueba de auth creado y
+BORRADO; codigos de prueba quemados. Trampa que costo una vuelta: un parche
+con `assert` fallido no escribe NADA — quedaron dos lineas usando `frase` sin
+firma que la recibiera y la funcion entera daba "Algo fallo" (se vio con
+ReferenceError en function_logs, via analytics/endpoints/logs.all).
+
+**Pendiente de la primera prueba real de Sergio en caja** (no se pudo probar
+con sesion del POS de verdad por los guards de login).
