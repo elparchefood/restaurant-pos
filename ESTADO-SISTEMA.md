@@ -10651,3 +10651,12 @@ Verificado: forma exacta del INSERT probada con una fila PRUEBA (borrada), el
 modal probado aparte en banco (filtro de digitos y errores en linea). Lo que
 NO se pudo probar en banco: el flujo completo con sesion del POS (los guards
 de login lo impiden); la primera prueba real la hace Sergio desde el chat.
+
+**Retoques (mismos minutos, los vio Sergio):** (1) el modal era ilegible — la
+caja de `.ci-tpl-ov` es oscura fija pero cuelga de `<body>`, donde las
+variables de texto valen las del tema claro: titulo tinta-oscura sobre caja
+oscura. Se fijaron los valores oscuros EN el overlay, lo que de paso curaba lo
+mismo en el modal de plantillas. (2) el boton + se cortaba: la fila de arriba
+suma mas que la columna (366px); ahora el que cede es el texto "Asistente"
+(puntos suspensivos) y los botones no se encogen nunca. Verificado en banco al
+ancho minimo (300px).

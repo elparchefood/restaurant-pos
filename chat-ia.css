@@ -186,6 +186,7 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 }
 .ci-list-titlerow {
   display: flex; align-items: center; justify-content: space-between;
+  gap: 8px;
   margin-bottom: 10px;
 }
 .ci-list-title {
@@ -194,7 +195,7 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 }
 .ci-list-sub { font-size: 12px; font-weight: 400; color: var(--text-4); }
 
-.ci-head-btns { display: flex; gap: 5px; }
+.ci-head-btns { display: flex; gap: 5px; flex-shrink: 0; }
 
 .ci-icon-btn {
   width: 30px; height: 30px;
@@ -873,8 +874,17 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 }
 .ci-wa-tplbtn:hover { background: #FFD98F; }
 
-/* Modal para enviar una plantilla aprobada */
+/* Modal para enviar una plantilla aprobada (y el de chat nuevo).
+   La caja es oscura SIEMPRE (#131620 fijo), pero el modal cuelga de <body>,
+   donde las variables valen las del tema claro — titulo tinta-oscura sobre
+   caja oscura: invisible (20-ago-2026, lo vio Sergio en el modal nuevo).
+   Aqui se fijan los valores oscuros para todo lo que viva en este overlay. */
 .ci-tpl-ov {
+  --border:  rgba(255,255,255,.09);
+  --text-1:  #EDEEF2;
+  --text-2:  #A6A9B6;
+  --text-3:  #787C8B;
+  --text-4:  #585C6B;
   position: fixed; inset: 0; z-index: 9999;
   background: rgba(6,8,14,.6);
   display: flex; align-items: center; justify-content: center; padding: 20px;
@@ -1800,11 +1810,15 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 
 /* ── Asistente IA: selector de 3 modos ───────────────────────────── */
 /* Barra compacta del Asistente IA (cabecera de la lista de chats) */
-.ci-ia-bar{display:flex;align-items:center;gap:8px;padding:5px 5px 5px 9px;background:var(--bg);border:1px solid var(--border);border-radius:10px}
+/* La fila de arriba no cabia completa en la columna (366px) y el boton +
+   quedaba cortado (20-ago-2026). El que cede es el texto "Asistente" — se
+   recorta con puntos suspensivos; los botones de la derecha y los modos del
+   bot no se encogen nunca. */
+.ci-ia-bar{display:flex;align-items:center;gap:8px;padding:5px 5px 5px 9px;background:var(--bg);border:1px solid var(--border);border-radius:10px;min-width:0;flex:0 1 auto}
 .ci-ia-status{display:flex;align-items:center;gap:7px;min-width:0}
 .ci-ia-dot{width:8px;height:8px;border-radius:50%;background:#94A3B8;flex-shrink:0;transition:.2s}
-.ci-ia-lbl{font-size:11.5px;font-weight:700;color:var(--text-3);white-space:nowrap}
-.ci-ia-seg{display:flex;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:2px}
+.ci-ia-lbl{font-size:11.5px;font-weight:700;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ci-ia-seg{display:flex;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:2px;flex-shrink:0}
 .ia-modo-btn{border:none;background:transparent;padding:4px 7px;font-size:10.5px;font-weight:700;border-radius:6px;color:var(--text-4);cursor:pointer;transition:.15s;white-space:nowrap}
 .ia-modo-btn:hover{color:var(--text-2)}
 .ia-modo-btn.on{color:#fff}
