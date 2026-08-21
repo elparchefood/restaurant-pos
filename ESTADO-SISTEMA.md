@@ -3,6 +3,88 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Sesión 2026-08-21 (cierre) — Llave central y direcciones ordenadas
+
+### ⚠️ Lo que dicen las condiciones de Google sobre guardar coordenadas
+
+Google permite guardar **las coordenadas que él calcula por 30 días corridos**,
+no más. Los `place_id` sí se pueden guardar para siempre.
+
+**Pero las coordenadas que ponemos nosotros no son de Google y no caducan:**
+el celular del domiciliario en la puerta del cliente, y la ubicación que el
+cliente manda por WhatsApp. Por eso `vence_at` solo se llena para `origen`
+`google` / `google_aprox`.
+
+Esto refuerza algo que ya era cierto: **cada entrega hace el mapa más barato**,
+porque cambia un punto alquilado por uno propio.
+
+Migración: `2026-08-21-direcciones-caducidad.sql` (+ `place_id`, `exactitud`,
+`vence_at`, `canonica`, y `fn_direcciones_caducar()`).
+
+### Las direcciones se ordenan antes de mandarlas a Google
+
+Antes se le mandaba a Google el texto **tal cual lo escribió el cajero**. Ahora
+`canonizar()` arma la forma canónica colombiana. Las seis formas de escribir la
+casa de El Parche dan **una sola cadena**:
+
+    carrera 9 b # 63 n - 58 apto 502   ┐
+    Cra 9B #63N-58 Apto 502            │
+    KRA 9 B 63 N 58, apartamento 502   ├─► "Carrera 9B # 63 Norte-58"
+    cra 9b No 63n 58                   │    (+ complemento "Apto 502" aparte)
+    kra 9 b # 63 n 58                  │
+    CARRERA 9B No. 63N-58              ┘
+
+Reglas que puso Sergio, que conoce la nomenclatura de Popayán:
+- **número** se escribe `#`, o a veces `No` / `No.`
+- **la "N" SIEMPRE es Norte**
+- existen calles tipo **"9BN"** = letra B **más** Norte → se separan
+
+⚠️ **Dos errores propios encontrados probando esto:**
+1. La regla de "No → #" se comía la **"N" de Norte**, partía la dirección y
+   **se perdía el "58"**: el domiciliario quedaba con media dirección.
+2. `"Calle 10 sur"` se leía como el número 10 más una letra "su" → `"Calle 10SU"`.
+   El cardinal ahora se mira **antes** que la letra.
+
+Además: el **complemento** (apto, torre, interior) **ya no se le manda a
+Google** — no lo entiende y empeora el resultado. Al domiciliario sí se le
+muestra.
+
+Y se filtra con `components=country:CO|locality:<ciudad>`. Sin eso, "Calle 5 #
+4-30" existe en media Colombia y Google puede devolver la de otra ciudad.
+
+### Se marca cuando Google NO encontró la casa
+
+`location_type = APPROXIMATE` significa que Google devolvió **el centro del
+barrio o del pueblo**, no la casa. Es el caso peligroso: se ve perfectamente
+normal en el mapa y está a kilómetros. Se guarda como `google_aprox` (para no
+volver a pagar por preguntarlo), queda marcado, y **el primer domiciliario que
+entregue ahí lo reemplaza**.
+
+Jerarquía en `fn_direccion_guardar`: `domiciliario` (4) > `cliente` (3) >
+`google` (2) > `google_aprox` (1).
+
+### Llave central de Cobra — decisión de Sergio
+
+`MAPAS_CLAVE_COBRA` (secreto del servidor): **una sola llave para todos los
+restaurantes**, para que nadie tenga que hacer ningún trámite. El costo va
+dentro del plan.
+
+- Si el restaurante conectó **su** llave, manda la suya.
+- Si no, se usa la de Cobra.
+- La pantalla lo distingue: *"Incluido en tu plan"* vs *"Tu cuenta"*, y **no le
+  pide nada** a quien ya tiene mapas funcionando.
+
+**Dos frenos, no uno.** El de siempre por restaurante, y —solo cuando se usa la
+llave de Cobra— un **tope global** (`MAPAS_TOPE_GLOBAL`, por defecto 18.000).
+El tope por restaurante no sirve para esto: veinte restaurantes portándose bien
+suman una cuenta que nadie miró.
+
+**Para encenderlo:** crear UNA llave de Google en la cuenta de Cobra y ponerla
+como secreto `MAPAS_CLAVE_COBRA`. Nada más. Mientras no exista, todo funciona
+como antes (cada restaurante conecta la suya, o no hay mapa).
+
+---
+
 ## 🟢 Sesión 2026-08-21 (noche) — Mapas de Google
 
 ### La decisión y por qué el diseño es así
