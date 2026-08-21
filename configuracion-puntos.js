@@ -282,7 +282,16 @@ function ptElegir(productId) {
     var on = !!g;
     return '<label class="pt-pres-row">'
       + '<input type="checkbox" class="pt-chk-pres" data-pres="' + ptEsc(pr.id || '') + '"'
-      +   ' data-nombre="' + ptEsc(pr.name || 'Único') + '"' + (on ? ' checked' : '') + '>'
+      /* SE GUARDA EL NOMBRE DE VERDAD, NO EL ROTULO.
+
+         "Único" es lo que se ENSEÑA cuando la presentacion no tiene nombre;
+         no es su nombre. Al guardarlo como si lo fuera, el premio quedaba
+         apuntando a una presentacion inexistente: al reclamarlo, la pagina
+         del cliente se quedaba "calculando el domicilio" para siempre (paso
+         el 21-ago con la hamburguesa DOBLE CARNE).
+
+         El identificador va aparte y es el que de verdad manda. */
+      +   ' data-nombre="' + ptEsc(pr.name || '') + '"' + (on ? ' checked' : '') + '>'
       + '<span class="pt-pres-n">' + ptEsc(pr.name || 'Único') + '</span>'
       + '<span class="pt-pres-p">'
       +   '<input type="number" min="1" step="1" class="pt-inp-pts" placeholder="puntos"'

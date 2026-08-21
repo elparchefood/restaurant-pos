@@ -3765,6 +3765,9 @@
     if (pidiendoCuenta || (!canje && !carro.length)) return;
     var firma = firmaCuenta();
     pidiendoCuenta = true;
+    /* Cada intento arranca limpio: si no, un error de hace dos direcciones
+       se queda pegado en pantalla aunque la nueva cuenta salga bien. */
+    S.cuentaError = null;
     try {
       var d = await fetch(SB_URL + '/functions/v1/web-pedido', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -3788,6 +3791,21 @@
          en la tabla. */
       pidiendoCuenta = false;
       if (d && d.ok) { S.cuenta = { firma: firma, datos: d }; pantallaDentro(); }
+      else if (d && d.mensaje) {
+        /* SI EL SERVIDOR DICE QUE NO, SE DICE. NO SE DEJA GIRANDO.
+
+           Paso el 21-ago: un premio nuevo tenia mal guardada la presentacion,
+           el servidor respondia "esa presentacion ya no existe" y esta linea
+           lo tiraba a la basura. El cliente veia "calculando…" para siempre,
+           sin ninguna pista de que habia fallado, y desde el restaurante no
+           habia forma de saberlo.
+
+           Girar para siempre es la peor respuesta posible: el cliente no sabe
+           si esperar, si recargar o si el sitio esta roto. Se dice lo que
+           pasa, aunque sea feo. */
+        S.cuentaError = String(d.mensaje);
+        pantallaDentro();
+      }
     } catch (e) {
       /* Sin conexión no se inventa un total: se queda el de los productos y el
          cliente vera el desglose completo al enviar. */
@@ -3845,7 +3863,9 @@
          · no se conoce      → llego, y el servidor dice que ese barrio no esta
          · se conoce         → llego con su precio
        El servidor ya mandaba `barrio_conocido`; solo que nadie lo miraba. */
-    var calculando = !cta;
+    /* Si el servidor ya dijo que algo esta mal, esto NO sigue 'calculando':
+       se muestra el problema. Girar sin fin no es esperar, es no informar. */
+    var calculando = !cta && !S.cuentaError;
     var barrioRaro = !!cta && cta.barrio_conocido === false;
     var empaque = cta ? Number(cta.empaque) || 0 : 0;
     var domiCta = cta ? Number(cta.domicilio) || 0 : 0;
@@ -3906,6 +3926,12 @@
             (calculando ? ' style="color:var(--dim)">calculando…'
              : domiCta > 0 ? '>' + COP(domiCta)
              : ' style="color:var(--oro-tx)">lo pagas al recibir') + '</span></div>'
+          : '') +
+        (S.cuentaError
+          ? '<div class="ep-aviso" style="margin:10px 0;padding:11px 13px;border-radius:11px;'
+            + 'background:rgba(220,38,38,.12);border:1px solid rgba(220,38,38,.35);'
+            + 'color:#FCA5A5;font-size:13px;line-height:1.55">' + esc(S.cuentaError)
+            + '<br><span style="opacity:.8">Escríbenos por WhatsApp y te lo resolvemos.</span></div>'
           : '') +
         '<div class="ep-total-fila grande"><span>Total</span><b>' + COP(totalCta) + '</b></div>' +
         /* EL AHORRO DEL COMBO, donde el cliente esta mirando la plata (19-ago,

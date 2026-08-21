@@ -295,12 +295,18 @@ Deno.serve(async (req) => {
     if (b.canje) {
       const ks = await sbGet(
         `/pos_puntos_catalogo?id=eq.${String(b.canje)}&tenant_id=eq.${tenantId}&activo=eq.true` +
-        `&select=id,product_id,pres_nombre,variantes,puntos,dinero,combo_id&limit=1`
+        `&select=id,product_id,pres_id,pres_nombre,variantes,puntos,dinero,combo_id&limit=1`
       ) as Array<Record<string, unknown>> | null;
       canje = ks?.[0] || null;
       if (!canje) return json({ ok: false, razon: "premio", mensaje: "Ese premio ya no está disponible." });
       items = [{
         producto_id: canje.combo_id ? "combo:" + String(canje.combo_id) : String(canje.product_id || ""),
+        /* EL IDENTIFICADOR MANDA SOBRE EL NOMBRE. El premio guarda los dos, y
+           el id (`pr_dzccrv`) es exacto: no cambia si le renombran la
+           presentación, y no se confunde con el rótulo que enseña la pantalla
+           cuando la presentación no tiene nombre. Buscar por nombre fue lo que
+           dejó el domicilio "calculando..." para siempre. */
+        pres_id: String(canje.pres_id || ""),
         presentacion: String(canje.pres_nombre || ""),
         variantes: Array.isArray(canje.variantes) ? canje.variantes : [],
         cantidad: 1,
@@ -468,9 +474,35 @@ Deno.serve(async (req) => {
       let precio = Number(p.price) || 0;
       const presN = String(it.presentacion || "");
       let presIdx = -1;
-      if (presN) {
+      const presId = String(it.pres_id || "");
+      if (presN || presId) {
         const lista = Array.isArray(p.presentations) ? p.presentations : [];
-        presIdx = lista.findIndex((x: Record<string, unknown>) => norm(x.name) === norm(presN));
+
+        //  1º por identificador: exacto, y sobrevive a que la renombren.
+        if (presId) {
+          presIdx = lista.findIndex((x: Record<string, unknown>) => String(x.id || "") === presId);
+        }
+        //  2º por nombre, para lo que venga del carrito normal.
+        if (presIdx < 0) {
+          presIdx = lista.findIndex((x: Record<string, unknown>) => norm(x.name) === norm(presN));
+        }
+
+        /* UN PRODUCTO CON UNA SOLA PRESENTACION NO TIENE AMBIGUEDAD.
+
+           Paso el 21-ago con un premio nuevo (DOBLE CARNE, 500 puntos): al
+           reclamarlo, el domicilio se quedaba "calculando..." para siempre.
+
+           El motivo: la presentacion de ese producto NO TIENE NOMBRE (es un
+           producto de precio unico), y la pantalla de premios habia guardado
+           la palabra "Único" —que es solo el rotulo que enseña cuando no hay
+           nombre—. Aqui se buscaba "Único" contra un nombre vacio, no casaba,
+           y se respondia error. El cliente solo pinta el total cuando la
+           respuesta viene bien, asi que se quedaba girando sin decir nada.
+
+           Si el producto tiene UNA sola presentacion, es esa y no hay nada
+           que adivinar. Con varias si importa cual, y ahi si se rechaza. */
+        if (presIdx < 0 && lista.length === 1) presIdx = 0;
+
         const pres = presIdx >= 0 ? lista[presIdx] : null;
         if (!pres) return json({ ok: false, razon: "presentacion", mensaje: "Esa presentación ya no existe." });
         precio = Number((pres as Record<string, unknown>).price) || precio;
@@ -482,9 +514,15 @@ Deno.serve(async (req) => {
          "SENCILLA" pedido por la pagina — y "CARNE" a secas puede ser un
          sandwich, una hamburguesa o un perro. Un solo nombre para los dos
          caminos, o son dos verdades. */
-      const etiqueta = presIdx >= 0
+      /* Y si la presentacion NO TIENE NOMBRE, manda la categoria — no se deja
+         el hueco. Un producto de precio unico no tiene tamaño que anunciar,
+         pero "DOBLE CARNE" a secas no dice si es hamburguesa, sandwich o
+         perro. Con la categoria queda "Hamburguesa · DOBLE CARNE", igual que
+         en la comanda cuando se toma a mano. */
+      const presNombre = presIdx >= 0
         ? String(((Array.isArray(p.presentations) ? p.presentations : [])[presIdx] as Record<string, unknown>).name || "")
-        : (catNombre[String(p.category_id || "")] || "");
+        : "";
+      const etiqueta = presNombre || (catNombre[String(p.category_id || "")] || "");
       let nombre = [etiqueta, String(p.name || "")].filter(Boolean).join(" · ");
 
       /* LA VARIANTE MANDA SOBRE EL PRECIO. Una Premium Mixta personal cuesta lo
