@@ -849,7 +849,7 @@
     try {
       var cajaStart = await getCajaSessionStart();
       var q = sb.from('pos_orders')
-        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, waiter_id, domiciliario, status, created_at, opened_at, delivery_status, delivered_at, estado, estado_at, cliente_id, notes')
+        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, waiter_id, domiciliario, status, created_at, opened_at, delivery_status, delivered_at, estado, estado_at, cliente_id, notes, domi_movil')
         .eq('channel', 'domicilio')
         .not('status', 'eq', 'cancelled')
         .gte('created_at', cajaStart)
@@ -900,6 +900,8 @@
           // reparte. Estaban confundidos y la tarjeta decia "Domiciliario: Chat IA".
           cajero:       r.waiter_name || _vsUsr[r.waiter_id] || '',
           domiciliario: r.domiciliario || '',
+          /* El movil de Rapid, si el despacho lo anoto (20-ago). */
+          movil: r.domi_movil || '',
           clienteId: r.cliente_id || null,
           min: mins,                 // en el estado actual
           minTotal: minsTotal,       // desde que entro el pedido
@@ -1860,6 +1862,7 @@
         </div>
         ${vsQuienRow(d.cajero, d.domiciliario,
             '<span style="font-size:11px;font-weight:600;color:'+payColor+';background:'+payBg+';padding:3px 8px;border-radius:6px">'+payLabel+'</span>')}
+        ${d.movil ? '<div style="margin:2px 0 0;font-size:12px;font-weight:700;color:#0F766E">Lo llevó el Móvil ' + _esc(d.movil) + ' (Rapid)</div>' : ''}
 
       </div>
 

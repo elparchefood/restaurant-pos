@@ -256,7 +256,7 @@ async function loadActiveOrders() {
   try {
     const { data: orders, error } = await sb
       .from('pos_orders')
-      .select('id, customer_name, channel, notes, payment_method, total, paid_amount, opened_at, delivery_status, delivery_fee, delivered_at,domi_courier,domi_pago')
+      .select('id, customer_name, channel, notes, payment_method, total, paid_amount, opened_at, delivery_status, delivery_fee, delivered_at,domi_courier,domi_pago,domi_movil')
       .eq('branch_id', S.branchId)
       .in('channel', ['domicilio', 'whatsapp'])
       .eq('status', 'open')
@@ -330,6 +330,7 @@ function _orderRowToDelivery(o) {
     metodo:       metodo,
     courier:      o.domi_courier || 'externo',
     domiPago:     o.domi_pago || 'efectivo',
+    movil:        o.domi_movil || '',
     cobramos:     false,
     domiciliario: '—',
     min:          0,
@@ -1942,6 +1943,16 @@ function renderKanCard(d) {
          ${svgInline(d.domiPago === 'transferencia' ? 'transfer' : 'cash', 11)} Domi ${d.domiPago === 'transferencia' ? 'transferido' : 'en efectivo'}</button>`
     : '';
 
+  /* EL MOVIL DE RAPID (20-ago, pedido de Sergio): el numero que la central
+     asigna queda EN el pedido. Cuando dias despues pregunten "¿que movil lo
+     llevo?", la respuesta esta aqui y en el historial, no en la memoria.
+     Un toque abre el campo; Enter o salir guarda. Solo domicilios externos. */
+  const movilChip = (d.courier === 'externo')
+    ? `<button class="d-tag js-domi-movil" data-id="${d.supabaseId || ''}"
+         style="border:none;cursor:pointer;color:${d.movil ? '#0F766E' : '#94A3B8'};background:${d.movil ? '#CCFBF1' : '#F1F5F9'}"
+         title="El móvil de la central que llevó este pedido">
+         ${svgInline('scooter', 11)} ${d.movil ? 'Móvil ' + d.movil : '+ Móvil'}</button>`
+    : '';
   const totalSub = (d.courier === 'externo' && !d.cobramos) ? ' <span class="sub">· dom. aparte</span>' : '';
   const advBtn   = next
     ? `<button class="d-adv" data-advance="${d.id}">${KAN_BTN[d.estado] || ''} ${svgInline('arrowr', 12)}</button>`
@@ -1970,7 +1981,7 @@ function renderKanCard(d) {
       <span class="d-tag" style="color:#475569;background:#F1F5F9">${svgInline('bag', 11)} ${d.items}</span>
       ${courierBadge}
     </div>
-    <div class="d-domi-row">${pagoRow}${domiChip}</div>
+    <div class="d-domi-row">${pagoRow}${domiChip}${movilChip}</div>
     <div class="d-domi-tot">
       <div class="d-domi-money">${fmt(M.cobrar)}${totalSub}</div>
       ${advBtn}
@@ -2336,6 +2347,33 @@ function attachEvents() {
    Se engancha al documento entero para que siga funcionando cuando las
    tarjetas se vuelvan a dibujar (que es todo el rato). */
 document.addEventListener('click', async function (ev) {
+  const bm = ev.target.closest && ev.target.closest('.js-domi-movil');
+  if (bm) {
+    ev.stopPropagation();
+    const idm = bm.dataset.id;
+    const dm = (S.deliveries || []).find(x => String(x.supabaseId) === String(idm));
+    if (!idm || !dm) return;
+    /* El chip se vuelve campo ahi mismo: sin ventana, es un dato de despacho
+       que se anota en caliente. */
+    if (bm.querySelector('input')) return;
+    bm.innerHTML = '<input inputmode="numeric" maxlength="6" value="' + (dm.movil || '') + '"' +
+      ' style="width:52px;border:none;background:transparent;font:inherit;color:inherit;outline:none" placeholder="Móvil">';
+    const inp = bm.querySelector('input');
+    inp.focus(); inp.select();
+    let guardado = false;
+    const guardar = async function () {
+      if (guardado) return; guardado = true;
+      const v = (inp.value || '').trim().slice(0, 6);
+      dm.movil = v;
+      try { typeof renderMonitor === 'function' && renderMonitor(); } catch (e) {}
+      const r = await sb.from('pos_orders').update({ domi_movil: v || null }).eq('id', idm);
+      if (r && r.error && typeof toast === 'function') toast('No se pudo guardar el móvil: ' + r.error.message);
+    };
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); guardar(); } });
+    inp.addEventListener('blur', guardar);
+    inp.addEventListener('click', function (e) { e.stopPropagation(); });
+    return;
+  }
   const b = ev.target.closest && ev.target.closest('.js-domi-pago');
   if (!b) return;
   ev.stopPropagation();

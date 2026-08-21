@@ -98,7 +98,10 @@ function applyFilters() {
       const client = (o.customer_name || '').toLowerCase();
       const turno  = ('Turno #' + String(o.turno || 0).padStart(3,'0')).toLowerCase();
       const canal  = (o.channel || '').toLowerCase();
-      return waiter.includes(q) || table.includes(q) || client.includes(q) || turno.includes(q) || canal.includes(q);
+      /* El MOVIL de Rapid (20-ago): "27" o "movil 27" trae los pedidos que
+         llevo ese movil — el caso inverso de "¿que movil llevo este pedido?". */
+      const movil  = o.domi_movil ? ('movil ' + String(o.domi_movil)).toLowerCase() : '';
+      return waiter.includes(q) || table.includes(q) || client.includes(q) || turno.includes(q) || canal.includes(q) || (movil && movil.includes(q));
     });
   }
 
@@ -215,6 +218,7 @@ function renderDetail(o) {
           <span>${waiter}</span>
           <span class="hs-dsub-sep">·</span>
           <span>${canal}</span>
+          ${o.domi_movil ? `<span class="hs-dsub-sep">·</span><span style="color:#0F766E;font-weight:700">Móvil ${o.domi_movil}</span>` : ''}
           ${canalBadge(o.channel)}
           ${statusBadge(o.status)}
         </div>

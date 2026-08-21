@@ -5437,7 +5437,10 @@ function validarLeido(
          direccion completa es la union de los dos — botarla dejaba al bot
          preguntando "¿en que casa?" a quien ya la habia dicho (trampa de
          Sergio, 15-ago, y en bucle). */
-      const conjDelBarrio = leido.barrio ? esConjunto(String(leido.barrio), domIns) : null;
+      /* Y si ese barrio YA tiene precio propio como barrio, ES un barrio:
+         no se le busca conjunto parecido ni se le reescribe la direccion. */
+      const conjDelBarrio = (leido.barrio && lookupDomiPrice(String(leido.barrio), domIns) === null)
+        ? esConjunto(String(leido.barrio), domIns) : null;
       if (conjDelBarrio && /\d/.test(d)
           && /(torre|bloque|interior|apto|apartamento|apart|casa|piso|int\b|bl\b)/i.test(d)) {
         out.direccion = `${conjDelBarrio} ${d}`;
@@ -8516,7 +8519,15 @@ function fuzzyBarrioMatch(direccion: string, barrio: string): boolean {
   const cerca = (a: string, b: string): boolean => {
     if (a === b) return true;
     const maxDist = b.length >= 8 ? 2 : 1;
-    return levenshtein(a, b) <= maxDist;
+    if (levenshtein(a, b) > maxDist) return false;
+    /* PARA NOMBRES DE UNA SOLA PALABRA la errata ademas tiene que EMPEZAR
+       igual (20-ago-2026, pedido real de Fernanda): "viento" —de "Villa del
+       viento", un barrio de verdad— quedaba a 1 letra del conjunto "Vivento"
+       y el pedido salio con una direccion que la clienta nunca dijo. Un
+       error de dedo real ("balmorral" por "Balmoral") conserva el arranque;
+       dos palabras distintas casi nunca. */
+    if (barWords.length === 1) return a.slice(0, 3) === b.slice(0, 3);
+    return true;
   };
 
   // Cada palabra del barrio debe encontrar SU propia palabra en la direccion:

@@ -10865,3 +10865,30 @@ v1791500000.
 **Nota:** los items del bot guardan `unit_price` = precio base y `total` con
 adiciones (el POS manual guarda unit_price CON adiciones). Preexistente, no
 se toco hoy; anotado por si algun informe compara unit_price.
+
+
+---
+
+## 20-ago-2026 (noche) — El movil de Rapid queda en el pedido + "Vivento"
+
+**1. Movil del domiciliario externo (pedido de Sergio, aprobado "si dale"):**
+columna `pos_orders.domi_movil` (SQL `2026-08-20-domi-movil.sql`). En la
+tarjeta del monitor de Domicilios (solo externos) hay un chip "+ Movil": un
+toque lo vuelve campo, Enter/salir guarda (optimista, con deshacer si falla).
+Se ve: chip verde "Movil 27" en la tarjeta, "Lo llevo el Movil 27 (Rapid)" en
+el panel del domicilio en Ventas, y "· Movil 27" en el detalle del historial.
+Buscar "27" o "movil 27" en el historial trae los pedidos de ese movil.
+
+**2. "Vivento" (pedido real de Fernanda, mismo dia):** el pedido salio con
+direccion "Vivento Calle57n..." que la clienta jamas dijo. Cadena: la
+direccion "Calle57n" (pegada) no parecio tener via → el motor intento
+completarla con el conjunto del barrio → `esConjunto("Villa del viento")`
+caso con el conjunto REAL "Vivento" (fuzzyBarrioMatch tolera 1 letra:
+viento≈vivento) → le antepuso el nombre canonico. Datos corregidos a mano
+(pedido y ficha de la clienta). Arreglos (delay-reply v326):
+- `cerca()` en fuzzyBarrioMatch: un nombre de UNA palabra solo tolera la
+  errata si ADEMAS arranca con las mismas 3 letras ("balmorral"→Balmoral si;
+  "viento"→Vivento no). Costo asumido: errata en la 1.a letra ya no pasa.
+- La fusion conjunto+unidad solo corre si el barrio NO tiene precio propio
+  como barrio: un barrio conocido jamas se convierte en conjunto parecido.
+Verificado en banco Node (6 casos, incluidas las regresiones Catay/Asturias).
