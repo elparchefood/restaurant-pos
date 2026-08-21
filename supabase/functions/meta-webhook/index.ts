@@ -112,6 +112,31 @@ Deno.serve(async (req) => {
               const btn = (msg.button as Record<string, unknown>) || {};
               bodyText = String(btn.text || btn.payload || "").trim() || "[button]";
 
+            } else if (msgType === "location") {
+              /* LA UBICACION DEL CLIENTE SE PERDIA (21-ago-2026). Este tipo
+                 caia en el "else" del final y se guardaba como el texto
+                 "[location]": las coordenadas —que son el dato mas valioso
+                 que manda un cliente, con la precision del GPS de su
+                 celular— se botaban. Con ellas, el domiciliario llega a la
+                 puerta en vez de al barrio.
+                 Se guardan en el cuerpo con la misma forma que ya usan las
+                 ubicaciones que el restaurante ENVIA, para que el chat las
+                 pinte igual. */
+              const loc = (msg.location as Record<string, unknown>) || {};
+              const lat = Number(loc.latitude), lng = Number(loc.longitude);
+              mediaType = "location";
+              if (isFinite(lat) && isFinite(lng)) {
+                bodyText = JSON.stringify({
+                  lat, lng,
+                  name: String(loc.name || "").trim() || undefined,
+                  addr: String(loc.address || "").trim() || undefined,
+                });
+              } else {
+                /* Sin coordenadas no hay nada que guardar, pero el mensaje
+                   SI existio: se deja constancia en vez de perderlo. */
+                bodyText = "[ubicación sin coordenadas]";
+              }
+
             } else if (["sticker", "image", "video", "audio", "document"].includes(msgType)) {
               const mediaObj = (msg[msgType] as Record<string, unknown>) || {};
               const mediaId  = mediaObj.id as string;

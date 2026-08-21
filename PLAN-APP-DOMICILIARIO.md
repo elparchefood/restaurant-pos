@@ -105,3 +105,62 @@ para recoger**. Mapeo:
 | `listo` (asignado a él) | **Asignado** |
 | `camino` | **En camino** |
 | `entregado` | **Entregado** |
+
+
+---
+
+## El mapa — decidido por Sergio el 21-ago-2026
+
+**Google Maps, no el gratuito.** Cada restaurante conecta **su propia** cuenta
+de Google con su tarjeta, asi que el consumo va contra su cupo y **Cobra no
+carga con el costo de nadie**. En los primeros pasos (onboarding) se le indica
+que debe conectarla, **con la advertencia de que sin eso no tendra la funcion
+de mapas**.
+
+Se le explico la alternativa (dibujar con OpenStreetMap gratis y usar Google
+solo para BUSCAR direcciones, con lo que todos tendrian mapa sin tarjeta) y
+Sergio prefirio Google para todo. Consecuencia aceptada: **sin tarjeta
+conectada no hay mapa**, ni siquiera para probar.
+
+Reglas que igual se respetan:
+1. **La clave NUNCA en el navegador** — se guarda cifrada del lado del
+   servidor y las llamadas pasan por ahi. Si queda expuesta, se la roban y el
+   consumo se lo cobran al restaurante.
+2. **Con contador y tope**: Cobra lleva la cuenta del mes y se frena antes del
+   limite. Un dueNo de restaurante no puede descubrir un cobro de Google por
+   algo que hizo el sistema.
+3. **Cobra funciona sin mapa**: se pierde el seguimiento, nada mas. El punto
+   exacto de cada direccion lo sigue poniendo el domiciliario al entregar.
+
+⚠️ Los precios de Google Maps cambiaron en 2025 y pueden volver a cambiar:
+**verificar la tabla vigente el dia que se conecte**, no planear con cifras
+viejas.
+
+## Por que NO se usa la busqueda automatica gratuita (probado, no supuesto)
+
+Se probaron direcciones REALES de El Parche contra Nominatim (OpenStreetMap):
+- "Carrera 9 B # 63 N 58" (el propio restaurante) → **no la encuentra**
+- "Conjunto Arrayanes del Uvo" → no lo encuentra
+- "Conjunto Residencial Balmoral" → no lo encuentra
+- "Bellavista" → devuelve **la escuela** Bellavista, no el barrio
+- "El Uvo" → devuelve **una cancha de futbol**
+Y de control: encuentra el Parque Caldas y el Campanario, pero **NO la
+Catedral de Popayan**. No es un fallo tecnico: es que Popayan esta mapeada a
+medias en OSM y la nomenclatura colombiana ("63 N 58") no la sabe leer.
+
+## De donde salen entonces los puntos exactos
+
+1. **El domiciliario al entregar** — su celular esta en la puerta del cliente.
+   Gratis, exacto, se acumula solo. Es el principal.
+2. **La ubicacion que manda el cliente por WhatsApp** — ya se captura
+   (meta-webhook v68, 21-ago; antes se guardaba como "[location]" y las
+   coordenadas se botaban). Se guarda **por DIRECCION, no por cliente**: uno
+   puede pedir a la casa y a la oficina.
+3. **Pedirla en el flujo de Paco** — caja OPCIONAL que cada restaurante activa,
+   enganchada al aviso de "en preparacion" que ya existe. El Parche NO la va a
+   usar (trabaja con externos).
+4. **Google**, para el que conecte su cuenta.
+
+⚠️ **Ojo con El Parche:** usa domiciliarios EXTERNOS, asi que no tendra app ni
+seguimiento. Todo esto es funcion para VENDER, no para su operacion diaria.
+Lo que a el le sirve es el movil + la empresa externa (hecho el 20-ago).
