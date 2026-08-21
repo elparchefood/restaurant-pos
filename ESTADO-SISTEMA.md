@@ -11045,3 +11045,42 @@ Datos de prueba REVERTIDOS (Ripio volvio a 3,79 kg / $11.200) y facturas
 PRUEBA borradas. TRAMPA del banco: mandar tildes por curl desde Git Bash las
 rompe ("el ma z") — el JSON hay que escribirlo en UTF-8 con Python; el codigo
 estaba bien y la falla era del propio banco.
+
+
+---
+
+## 21-ago-2026 — Borre los horarios de Sergio (mi error) + dos arreglos
+
+**LO QUE PASO, sin adornos:** anoche, para probar a Paco, consulte el horario
+con `select horarios from ia_config limit 1` **SIN filtrar por sede**. Hay 5
+restaurantes; la base devolvio el de otro, que estaba vacio. Con esa lectura
+equivocada di por hecho que el de El Parche tambien lo estaba, puse uno
+temporal, y al terminar lo "restaure" a NULL: **borre los horarios reales de
+Sergio**. No habia copia en ningun lado (ni en branches.operacion_config, ni
+en la FAQ, ni en instrucciones) — le toco reescribirlos a mano. Encima lo
+documente como hecho verificado. Regla escrita en memoria:
+[[feedback-config-filtrar-por-sede]].
+Reconstruccion que si sirvio: los pedidos de 60 dias mostraban el patron real
+(dom/lun/jue/vie/sab, 18:30-22:30) y coincidio exacto con lo que Sergio
+reconfiguro.
+
+**ARREGLO 1 — el motor ya no inventa horarios ajenos (delay-reply v334).**
+Cuando `ia_config.horarios` es NULL, el codigo tenia escritos A FUEGO los
+horarios de El Parche (18:30-22:30): un restaurante nuevo que no llenara esa
+pantalla heredaba los de otro negocio y su bot abria/cerraba a la hora
+equivocada sin que nadie se enterara — veneno para la venta multi-tenant.
+Ahora sin horario se atiende con normalidad (no se le frena el negocio a
+nadie) pero `horaAperturaHoy`/`horaCierreHoy` quedan vacios, asi que ni el
+prompt ni las frases de cerrado mencionan una hora que no sabemos.
+
+**ARREGLO 2 — un `` que se volvio RETROCESO invisible (chr 8).** Al revisar
+el archivo aparecio `chr(8)` dentro del regex de las palabras de puntos:
+`/<retroceso>(premios?|puntos?|...)<retroceso>/gi` — la trampa del transporte
+de barras, otra vez, metida anoche en el parche de "quitar las palabras de
+puntos antes de mirar si ademas pide comida". El regex no casaba NUNCA, asi
+que ese arreglo llevaba desde anoche sin funcionar en produccion (volvia a
+salir el "¿que se te antoja?" de mas tras preguntar por premios). Corregido y
+verificado en el codigo VIVO (0 retrocesos).
+**Leccion de metodo:** el `assert chr(8) not in src` hay que correrlo sobre el
+ARCHIVO YA ESCRITO, no solo sobre la variable del parche — anoche paso porque
+el retroceso lo introdujo una edicion posterior por heredoc.

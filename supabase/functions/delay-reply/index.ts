@@ -1030,11 +1030,18 @@ async function processConversation(convId: string, relectura = false): Promise<v
       horaCierreHoy   = formatHora(cierra, fmtHora);
     }
   } else {
-    const totalMinutes = colHourNum * 60 + colMinNum;
-    isBeforeOpen = totalMinutes < (18 * 60 + 30);
-    isOpen = !isBeforeOpen && totalMinutes < (22 * 60 + 30);
-    horaAperturaHoy = fmtHora === "24h" ? "18:30" : "6:30pm";
-    horaCierreHoy   = fmtHora === "24h" ? "22:30" : "10:30pm";
+    /* SIN HORARIO CONFIGURADO NO SE INVENTA UNO (21-ago-2026). Aqui estaban
+       escritos a fuego los horarios de El Parche (18:30-22:30): un restaurante
+       nuevo que no llenara la pantalla de Horarios heredaba los de otro
+       negocio, y su bot abria o cerraba a la hora equivocada sin que nadie se
+       enterara. Ahora se atiende con normalidad (no se le frena el negocio a
+       nadie) pero NO se le dice al cliente una hora que no sabemos: con los
+       dos textos vacios, ni el prompt ni las frases de cerrado hablan de
+       horas. */
+    isOpen = true;
+    isBeforeOpen = false;
+    horaAperturaHoy = "";
+    horaCierreHoy   = "";
   }
 
   const pedidosProg       = !!(cfg.pedidos_programados);
@@ -2192,7 +2199,7 @@ INTENCION, no las palabras exactas.` },
            gaseosa PREMIO del catalogo — las palabras de ESTA conversacion se
            quitan antes de mirar si el mensaje ademas pide comida, o el flujo
            seguia y soltaba un "¿que se te antoja?" de mas. */
-        const sinPalabrasPuntos = clienteTexto.replace(/(premios?|puntos?|catalogo|redimir|redimo|canjear|canjeo|reclamar|reclamo)/gi, " ");
+        const sinPalabrasPuntos = clienteTexto.replace(/\b(premios?|puntos?|catalogo|redimir|redimo|canjear|canjeo|reclamar|reclamo)\b/gi, " ");
         if (!mencionaProductoCatalogo(sinPalabrasPuntos)) return;
       }
     }
