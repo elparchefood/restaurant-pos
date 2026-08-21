@@ -1661,6 +1661,35 @@
     out[n - 1] += fee - out.reduce(function (a, b) { return a + b; }, 0);
     return out;
   }
+  /* Editor del movil de Rapid, en el panel del domicilio (20-ago-2026). */
+  window.vsMovilEditar = function (btn, orderId) {
+    if (btn.querySelector('input')) return;
+    var d = (state.deliveries || []).find(function (x) { return String(x.id) === String(orderId); });
+    var actual = (d && d.movil) || '';
+    btn.style.background = '#F1F5F9';
+    btn.innerHTML = 'Móvil <input inputmode="numeric" maxlength="6" value="' + _esc(actual) + '"'
+      + ' style="width:56px;border:1px solid #ECEEF2;border-radius:6px;background:#fff;font:inherit;color:#0F172A;outline:none;padding:2px 6px" placeholder="27">';
+    var inp = btn.querySelector('input');
+    inp.focus(); inp.select();
+    var guardado = false;
+    async function guardar() {
+      if (guardado) return; guardado = true;
+      var v = (inp.value || '').replace(/[^0-9a-zA-Z]/g, '').slice(0, 6);
+      if (d) d.movil = v;
+      btn.innerHTML = v ? 'Lo llevó el Móvil ' + _esc(v) + ' (Rapid)' : '+ Móvil del domiciliario';
+      btn.style.color = v ? '#0F766E' : '#94A3B8';
+      btn.style.background = v ? '#CCFBF1' : '#F1F5F9';
+      try {
+        var sbRef = (window._pos && window._pos.sb) || window.sb;
+        var r = await sbRef.from('pos_orders').update({ domi_movil: v || null }).eq('id', orderId);
+        if (r && r.error) console.error('[ventas] movil:', r.error.message);
+      } catch (e) { console.error('[ventas] movil:', e); }
+    }
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); guardar(); } });
+    inp.addEventListener('blur', guardar);
+    inp.addEventListener('click', function (e) { e.stopPropagation(); });
+  };
+
   // Adiciones del ítem (selections.mods) → [{name, price, qty}]
   function vsAdiciones(it) {
     const mods = (it && it.selections && it.selections.mods) || {};
@@ -1862,7 +1891,15 @@
         </div>
         ${vsQuienRow(d.cajero, d.domiciliario,
             '<span style="font-size:11px;font-weight:600;color:'+payColor+';background:'+payBg+';padding:3px 8px;border-radius:6px">'+payLabel+'</span>')}
-        ${d.movil ? '<div style="margin:2px 0 0;font-size:12px;font-weight:700;color:#0F766E">Lo llevó el Móvil ' + _esc(d.movil) + ' (Rapid)</div>' : ''}
+        ${(function () {
+          /* EL MOVIL SE ANOTA AQUI MISMO (20-ago, Sergio despacha desde esta
+             pantalla): un toque abre el campo, Enter o salir guarda en
+             pos_orders.domi_movil. El mismo dato que el chip del monitor. */
+          return '<button type="button" onclick="window.vsMovilEditar(this, &quot;' + d.id + '&quot;)"'
+            + ' style="margin:4px 0 0;border:none;cursor:pointer;font-size:12px;font-weight:700;padding:4px 10px;border-radius:8px;font-family:inherit;'
+            + (d.movil ? 'color:#0F766E;background:#CCFBF1' : 'color:#94A3B8;background:#F1F5F9') + '">'
+            + (d.movil ? 'Lo llevó el Móvil ' + _esc(d.movil) + ' (Rapid)' : '+ Móvil del domiciliario') + '</button>';
+        })()}
 
       </div>
 

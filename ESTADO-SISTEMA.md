@@ -10928,3 +10928,10 @@ prompt conversacional — al mencionar productos del pedido se usan EXACTAMENTE
 los nombres de la lista PEDIDO EN CURSO (los del catalogo), jamas como los
 dijo el cliente. El resumen formal ya usaba `matchedProd.name` y no se toco.
 Verificado en banco: resumen "1x AGUA BOTELLA", total $39.000 + $5.000 domi.
+
+**El movil tambien se ANOTA desde Ventas (pedido de Sergio: "necesito que
+vaya en esa tarjeta"):** el panel del domicilio en ventas-salon ya no solo
+muestra el movil — el boton "+ Movil del domiciliario" abre el campo ahi
+mismo (window.vsMovilEditar), guarda en pos_orders.domi_movil y queda
+"Lo llevo el Movil 27 (Rapid)". Mismo dato que el chip del monitor de
+Domicilios. Verificado en banco aislado.
