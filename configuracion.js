@@ -5225,9 +5225,31 @@ var _storedZonas = [];
        .forEach(function (z) { addZoneRow(z.precio, z.barrios, z.conjuntos); });
   }
 
+  /* UNA DIRECCIÓN NO ES UNA ZONA.
+
+     Se coló en la tabla de El Parche: "Carrera 9 # 17AN-34 local 5 edificio
+     chayani" quedó guardada como si fuera un barrio, a $8.000. Una zona
+     agrupa MUCHAS casas; la dirección de un cliente concreto agrupa una
+     sola — y además deja escrito dónde vive esa persona en una pantalla de
+     precios que ve cualquiera con acceso a Configuración.
+
+     Se reconoce por lo que la delata: un tipo de vía seguido de números.
+     "Villa del Viento", "Torres de San Eduardo" o "Real Pomona etapa 2"
+     pasan sin problema; "Calle57n #10-46" y "CR 17 Nro 55 N 83" no.
+     Probado contra los 179 nombres que ya tiene El Parche: no rechaza
+     ninguno de los buenos.
+
+     Se avisa y NO se guarda, en vez de guardarlo callado. */
+  var _DIR_COMPLETA = /\b(calle|cll|cl|carrera|carr|cra|kra|krr|kr|cr|avenida|avda|av|diagonal|diag|dg|transversal|transv|tvl|tv|autopista|autop)\s*[#N°o.-]*\s*\d/i;
+
+  function _esDireccion(t) {
+    return _DIR_COMPLETA.test(String(t || '').trim());
+  }
+
   function readZones() {
     var rows = document.querySelectorAll('.zone-row');
     var result = [];
+    var rechazadas = [];
     rows.forEach(function (r) {
       var precio = r.querySelector('.zone-precio') ? parseInt(r.querySelector('.zone-precio').value) || 0 : 0;
       var txt = r.querySelector('.zone-barrios') ? r.querySelector('.zone-barrios').value : '';
@@ -5236,10 +5258,20 @@ var _storedZonas = [];
       var conjuntos = txc.split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
       /* Vale la zona si tiene barrios O conjuntos: puede haber zonas que sean
          solo conjuntos. */
+      //  Las direcciones completas se apartan: no entran a la tabla.
+      barrios.filter(_esDireccion).forEach(function (x) { rechazadas.push(x); });
+      conjuntos.filter(_esDireccion).forEach(function (x) { rechazadas.push(x); });
+      barrios   = barrios.filter(function (x) { return !_esDireccion(x); });
+      conjuntos = conjuntos.filter(function (x) { return !_esDireccion(x); });
+
       if (precio > 0 && (barrios.length || conjuntos.length)) {
         result.push({ precio: precio, barrios: barrios, conjuntos: conjuntos });
       }
     });
+    if (rechazadas.length) {
+      showToast('No se guardó como zona: "' + String(rechazadas[0]).slice(0, 46)
+        + '". Eso es la dirección de un cliente, no una zona.');
+    }
     return result;
   }
 
