@@ -2,22 +2,39 @@
    LUMEN POS · TABLET MESERO — Lógica de login
    - Autentica con Supabase Auth (email + password)
    - Lee perfil del usuario → detecta rol
-   - Redirige según rol:
-       mesero   → ventas.html
-       cajera   → (futuro) cajera.html
-       admin    → (futuro) dashboard.html
-       cocina   → (futuro) cocina.html
+   - Redirige según la CLAVE INTERNA del rol (no su nombre, que el dueño
+     del restaurante puede cambiar cuando quiera)
    ============================================================ */
 
 const SUPABASE_URL = 'https://tblujfduscslxjmrjbdr.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
 
-// Rutas por rol — ajustar cuando existan las demás páginas
+/* RUTAS POR LA CLAVE INTERNA DEL ROL, NO POR SU NOMBRE (21-ago-2026).
+
+   Esta tabla estaba escrita con los nombres 'mesero', 'cajera', 'admin' y
+   'cocina'. Pero los roles que Cobra le siembra a cada restaurante se
+   llaman Cajero, Cocinero y Domiciliario: ninguno de esos tres coincidia,
+   asi que a esas personas la app les respondia "tu rol no tiene una
+   pantalla asignada" y las sacaba. Nunca pudieron entrar.
+
+   Ahora se enruta por la clave interna, que no cambia aunque el dueNo
+   renombre el rol. */
 const ROLE_ROUTES = {
-  mesero:  'mesero-turno.html',
-  cajera:  'mesero-turno.html',  // temporal hasta que exista cajera.html
-  admin:   'mesero-turno.html',  // temporal hasta que exista dashboard.html
-  cocina:  'mesero-turno.html',  // temporal hasta que exista cocina.html
+  mesero: 'mesero-turno.html',
+  cajero: 'mesero-turno.html',   // hasta que exista su propia pantalla
+  admin:  'mesero-turno.html',
+  cocina: 'mesero-turno.html',
+};
+
+/* Nombre viejo guardado en la cuenta → clave interna. Las cuentas que ya
+   existen tienen escrito el nombre en minusculas ('gerente', 'cajera'). */
+const ALIAS_ROL = {
+  admin:'admin', administrador:'admin', gerente:'admin', propietario:'admin',
+  cajero:'cajero', cajera:'cajero', caja:'cajero',
+  mesero:'mesero', mesera:'mesero',
+  cocina:'cocina', cocinero:'cocina', cocinera:'cocina', chef:'cocina',
+  domiciliario:'domiciliario', domiciliaria:'domiciliario',
+  repartidor:'domiciliario', repartidora:'domiciliario'
 };
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -92,7 +109,7 @@ async function handleLogin() {
     // 2. Leer perfil para obtener rol
     const { data: profile, error: profileError } =
       await sb.from('pos_users')
-        .select('role, branch_id, tenant_id, name')
+        .select('role, branch_id, tenant_id, name, role_id, pos_roles(clave,name)')
         .eq('auth_user_id', userId)
         .maybeSingle();
 
@@ -102,11 +119,20 @@ async function handleLogin() {
       return;
     }
 
-    const role = (profile.role || '').toLowerCase();
-    const route = ROLE_ROUTES[role];
+    /* La clave sale del rol ASIGNADO (pos_roles.clave). Si esa cuenta
+       todavia no tiene rol asignado, se traduce el texto viejo. */
+    const rolAsignado = profile.pos_roles || null;
+    const nombreRol   = (rolAsignado && rolAsignado.name) || profile.role || '';
+    const clave = (rolAsignado && rolAsignado.clave) ||
+                  ALIAS_ROL[(profile.role || '').toLowerCase().trim()] || '';
+    const route = ROLE_ROUTES[clave];
 
     if (!route) {
-      showError(`El rol "${profile.role}" no tiene una pantalla asignada en esta app.`);
+      /* El domiciliario tiene SU PROPIA app: no se le deja entrar aqui por
+         error, se le dice cual abrir. */
+      showError(clave === 'domiciliario'
+        ? 'Esta app es para el personal del salon. Como domiciliario, entra por la app de domicilios con estas mismas credenciales.'
+        : `El rol "${nombreRol}" todavia no tiene una pantalla en esta app.`);
       await sb.auth.signOut();
       return;
     }
@@ -116,7 +142,8 @@ async function handleLogin() {
       data: {
         tenant_id: profile.tenant_id || null,
         branch_id: profile.branch_id || null,
-        role:      role,
+        role:      clave,          // la clave: no cambia si renombran el rol
+        role_nombre: nombreRol,    // el nombre visible, solo para mostrar
         name:      profile.name || email,
       }
     });

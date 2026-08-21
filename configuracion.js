@@ -1220,7 +1220,7 @@ async function urLoad() {
   // Roles
   var rolesRes = await sb.from('pos_roles').select('*').eq('tenant_id', tenantId).order('created_at');
   UR.roles = (rolesRes.data || []).map(function(r){
-    return { id: r.id, name: r.name, color: r.color, system: r.system_role, perms: r.perms || [] };
+    return { id: r.id, clave: r.clave || null, name: r.name, color: r.color, system: r.system_role, dinero: r.domi_dinero || 'por_pedido', perms: r.perms || [] };
   });
 
   // Usuarios (pos_users) — solo los del tenant
@@ -1239,9 +1239,16 @@ async function urLoad() {
         var re=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         var base = u.role_id || (role ? role.id : null);
         if(re.test(base)) return base;
-        var saved = UR.roles.find(function(r){ return re.test(r.id) && !r.system; });
+        /* Antes: "el primero que no sea del sistema". Desde que los 5 roles
+           que Cobra siembra quedaron marcados como del sistema (para que no
+           se puedan borrar), esa busqueda no devuelve nada en un restaurante
+           que no haya creado roles propios. */
+        var saved = urRolPorDefecto(UR.roles);
         return saved ? saved.id : null;
       })(),
+      documento:   u.documento || '',
+      vehiculo:    u.vehiculo  || '',
+      placa:       u.placa     || '',
       sucursales:  u.sucursales || [],
       rolesPorSuc: {},          // se llena abajo, desde pos_usuario_sucursal
       active:      u.active !== false
@@ -1289,7 +1296,7 @@ async function urCreateAuthUser(u, tenantId, branchId) {
     metadata: {
       tenant_id: tenantId,
       branch_id: branchId,
-      role: role ? role.name.toLowerCase() : 'empleado',
+      role: urRolTexto(role),
       nombre: u.name
     }
   });
@@ -1301,11 +1308,14 @@ async function urCreateAuthUser(u, tenantId, branchId) {
     name:         u.name,
     email:        u.email,
     phone:        '',
-    role:         role ? role.name.toLowerCase() : 'empleado',
+    role:         urRolTexto(role),
     role_id:      safeUUID(u.roleId),
     tenant_id:    safeUUID(tenantId),
     branch_id:    safeUUID(branchId),
     active:       u.active !== false,
+    documento:    u.documento || null,
+    vehiculo:     u.vehiculo  || null,
+    placa:        u.placa     || null,
     sucursales:   u.sucursales || [],
     auth_user_id: safeUUID(authUserId),
     pass_temp:    u.pass
@@ -1315,6 +1325,37 @@ async function urCreateAuthUser(u, tenantId, branchId) {
   return insertRes.data;
 }
 
+/* QUE SE GUARDA EN EL TEXTO `role` DEL USUARIO.
+
+   Antes se guardaba `role.name.toLowerCase()`, o sea el nombre que el dueNo
+   VE Y PUEDE EDITAR. El dia que renombrara "Cajero" a "Cajera de mostrador",
+   sus cajeros quedaban guardados como 'cajera de mostrador' y ninguna
+   pantalla los reconocia.
+
+   Ahora se guarda la CLAVE INTERNA, que no cambia nunca. Los roles propios
+   del restaurante (los que crea el dueNo) no tienen clave: esos si van por
+   nombre, y esta bien, porque a esos el sistema no les da un trato especial.
+   El nombre visible se saca del rol cuando hay que mostrarlo. */
+function urRolTexto(role) {
+  if (!role) return 'empleado';
+  return role.clave || (role.name || '').toLowerCase().trim() || 'empleado';
+}
+
+/* EL ROL QUE SE PROPONE AL CREAR UN USUARIO NUEVO.
+   Nunca el de administrador: proponer acceso total por descuido es como se
+   crean las cuentas con mas permisos de los que debian. Se propone el de
+   mesero, que es el mas comun y el mas limitado. */
+function urRolPorDefecto(roles) {
+  var uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  var validos = (roles || []).filter(function(r){ return uuidRe.test(r.id); });
+  var pref = ['mesero','cajero','cocina','domiciliario'];
+  for (var i = 0; i < pref.length; i++) {
+    var m = validos.find(function(r){ return r.clave === pref[i]; });
+    if (m) return m;
+  }
+  return validos.find(function(r){ return r.clave !== 'admin'; }) || validos[0] || null;
+}
+
 // ── Actualizar usuario ────────────────────────────────────────
 async function urUpdateAuthUser(u) {
   var role = urRoleById(u.roleId);
@@ -1322,9 +1363,12 @@ async function urUpdateAuthUser(u) {
   var upd = {
     name:       u.name,
     email:      u.email,
-    role:       role ? role.name.toLowerCase() : 'empleado',
+    role:       urRolTexto(role),
     role_id:    safeUUID(u.roleId),
     active:     u.active !== false,
+    documento:  u.documento || null,
+    vehiculo:   u.vehiculo  || null,
+    placa:      u.placa     || null,
     sucursales: u.sucursales || [],
     pass_temp:  u.pass
   };
@@ -1362,8 +1406,12 @@ async function urSaveRole(r) {
     delete r._isNew;
     _permsInvalidar();
     var res = await sb.from('pos_roles').insert({
-      tenant_id: tenantId, name: r.name, color: r.color,
-      system_role: !!r.system, perms: r.perms
+      /* Un rol que crea el restaurante NUNCA es del sistema ni lleva clave:
+         la clave es solo de los 5 que siembra Cobra. Antes se copiaba
+         `r.system` del objeto en memoria, y duplicar un rol del sistema
+         creaba una copia que tampoco se podia borrar. */
+      tenant_id: tenantId, name: r.name, color: r.color, clave: null,
+      system_role: false, perms: r.perms, domi_dinero: r.dinero || 'por_pedido'
     }).select().single();
     if (res.error) { r._isNew = true; throw new Error(res.error.message); }
     if (res.data) r.id = res.data.id;
@@ -1372,7 +1420,9 @@ async function urSaveRole(r) {
     if (!safeRoleId) { console.warn('urSaveRole: r.id no es UUID valido:', r.id); return; }
     _permsInvalidar();
     await sb.from('pos_roles').update({
-      name: r.name, color: r.color, perms: r.perms
+      /* `clave` NO se manda nunca: es interna y la base la protege igual. */
+      name: r.name, color: r.color, perms: r.perms,
+      domi_dinero: r.dinero || 'por_pedido'
     }).eq('id', safeRoleId);
   }
 }
@@ -1511,6 +1561,54 @@ function urUpdateRolesSummary() {
 }
 
 // ── Inspector usuario ─────────────────────────────────────────
+/* ── LO DEL DOMICILIARIO ────────────────────────────────────────────
+   Los campos de documento/vehiculo/placa y el interruptor del dinero
+   NO se muestran siempre: aparecen solos cuando el rol escogido es el
+   de domiciliario. Y se reconoce por la CLAVE INTERNA, no por como se
+   llame: un restaurante puede haberlo renombrado a "Repartidor" o a
+   "Mensajero" y tiene que seguir funcionando igual. */
+function urEsRolDomi(role) {
+  return !!(role && role.clave === 'domiciliario');
+}
+
+/* Pinta los datos del domiciliario en la ficha del usuario. */
+function urPintarDomiUsuario(u) {
+  var caja = $('ur-u-domi');
+  if (!caja) return;
+  var role = urRoleById(u && u.roleId);
+  var mostrar = urEsRolDomi(role);
+  caja.style.display = mostrar ? '' : 'none';
+  if (!mostrar) return;
+  var doc = $('ur-u-documento'), veh = $('ur-u-vehiculo'), pla = $('ur-u-placa');
+  if (doc) { doc.value = u.documento || ''; doc.oninput = function(){ u.documento = doc.value.trim(); }; }
+  if (veh) { veh.value = u.vehiculo  || ''; veh.onchange = function(){ u.vehiculo  = veh.value; }; }
+  if (pla) { pla.value = u.placa     || ''; pla.oninput = function(){ u.placa = pla.value.trim().toUpperCase(); }; }
+}
+
+/* Pinta el interruptor del dinero en la ficha del ROL. */
+function urPintarDomiRol(r) {
+  var caja = $('ur-r-domi');
+  if (!caja) return;
+  var mostrar = urEsRolDomi(r);
+  caja.style.display = mostrar ? '' : 'none';
+  if (!mostrar) return;
+  if (!r.dinero) r.dinero = 'por_pedido';
+  var hint = $('ur-r-dinero-hint');
+  var textos = {
+    por_pedido: 'El domiciliario entrega la plata de cada pedido al volver. Entra a la caja como una venta normal.',
+    al_final:   'Trae todo al terminar el turno. La venta se cuenta igual, pero la caja te va a mostrar cuanto efectivo lleva encima y debe entregar.'
+  };
+  var btns = document.querySelectorAll('#ur-r-dinero button');
+  Array.prototype.forEach.call(btns, function(b){
+    b.classList.toggle('on', b.dataset.dinero === r.dinero);
+    b.onclick = function(){
+      r.dinero = b.dataset.dinero;
+      urPintarDomiRol(r);
+    };
+  });
+  if (hint) hint.textContent = textos[r.dinero] || '';
+}
+
 function urSelectUser(id) {
   UR.selectedUserId=id; UR.selectedRoleId=null;
   urRenderUsers();
@@ -1538,9 +1636,11 @@ function urSelectUser(id) {
     urUpdateRolDot(u.roleId);
     sel.onchange=function(){
       u.roleId=sel.value; urUpdateRolDot(sel.value);
+      urPintarDomiUsuario(u);   // los campos del domiciliario aparecen/se van
       urRenderUsers();
     };
   }
+  urPintarDomiUsuario(u);
   urSetUserStateUI(u);
   var sw=$('ur-u-state-sw');
   if(sw) sw.onclick=function(){
@@ -1707,6 +1807,7 @@ function urSelectRole(id) {
       urRenderRoles();
     };
   });
+  urPintarDomiRol(r);
   urRenderPerms(r);
   var foot=$('ur-role-foot');
   if(foot){
@@ -1894,9 +1995,7 @@ function urRenderPerms(r) {
 
 // ── CRUD ─────────────────────────────────────────────────────
 async function urAddUser() {
-  var uuidRe=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  var savedRoles=UR.roles.filter(function(r){return uuidRe.test(r.id);});
-  var defaultRole=savedRoles.find(function(r){return !r.system;})||savedRoles[0]||null;
+  var defaultRole = urRolPorDefecto(UR.roles);
   var u={ id: urGenId('u'), name:'', email:'', pass: urGenPass(), roleId: defaultRole?defaultRole.id:'', sucursales:[], active:true, _isNew:true };
   UR.users.push(u);
   urRenderUsers();

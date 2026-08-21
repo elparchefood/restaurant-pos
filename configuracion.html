@@ -536,6 +536,37 @@
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                 </div>
               </label>
+
+              <!-- Datos del domiciliario. Aparecen SOLOS al escoger el rol de
+                   domiciliario y son OPCIONALES: obligatorio solo el nombre y
+                   las credenciales. Si hay un accidente o un reclamo, saber
+                   que moto era vale oro. -->
+              <div id="ur-u-domi" style="display:none">
+                <div class="cf-divider"></div>
+                <div class="cf-field-label" style="margin-bottom:8px">Datos del domiciliario <span style="color:#94A3B8;font-weight:500">· opcionales</span></div>
+                <label class="cf-field">
+                  <div class="cf-field-label">Documento</div>
+                  <input class="cf-input" id="ur-u-documento" placeholder="Ej. 1061234567" />
+                </label>
+                <label class="cf-field">
+                  <div class="cf-field-label">Veh&iacute;culo</div>
+                  <div class="cf-select">
+                    <select id="ur-u-vehiculo">
+                      <option value="">Sin especificar</option>
+                      <option value="moto">Moto</option>
+                      <option value="bicicleta">Bicicleta</option>
+                      <option value="carro">Carro</option>
+                      <option value="a_pie">A pie</option>
+                    </select>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </div>
+                </label>
+                <label class="cf-field">
+                  <div class="cf-field-label">Placa</div>
+                  <input class="cf-input" id="ur-u-placa" placeholder="Ej. ABC12D" style="text-transform:uppercase" />
+                </label>
+              </div>
+
               <label class="cf-field">
                 <div class="cf-field-label">Estado</div>
                 <div class="cf-statusrow">
@@ -614,6 +645,19 @@
                   <button class="cf-swatch" style="background:#0D9488;color:#0D9488" data-color="#0D9488"></button>
                 </div>
               </label>
+
+              <!-- Solo aparece en el rol de domiciliario. Es del ROL, no de
+                   cada persona: un restaurante trabaja de una sola manera. -->
+              <div id="ur-r-domi" style="display:none">
+                <div class="cf-divider"></div>
+                <div class="cf-field-label" style="margin-bottom:8px">&iquest;Cu&aacute;ndo entrega el dinero?</div>
+                <div class="cf-seg" id="ur-r-dinero">
+                  <button type="button" data-dinero="por_pedido" class="on">En cada pedido</button>
+                  <button type="button" data-dinero="al_final">Al terminar el turno</button>
+                </div>
+                <div class="cf-fieldhint" id="ur-r-dinero-hint" style="margin-top:8px"></div>
+              </div>
+
               <div class="cf-divider"></div>
               <div class="cf-perm-toprow">
                 <div class="cf-field-label" style="margin:0">Permisos</div>
