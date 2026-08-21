@@ -2010,6 +2010,33 @@ async function handleOpenSession(openingCash, shiftType, detalle) {
   } catch(e) { console.error(e); showToast('Error al abrir caja'); }
 }
 
+/* Deja TODAS las mesas de la sede en libre, sin estado ni cronómetro.
+
+   El filtro por sede no es opcional: sin él esto le limpiaría el salón a
+   todos los restaurantes del sistema, incluidos los que están abiertos
+   atendiendo en ese momento. */
+async function liberarMesasAlCerrar(branchId) {
+  if (!branchId) { console.warn('liberar mesas: sin sede, no se toca nada'); return; }
+  const r = await sb.from('pos_tables').update({
+    status: 'libre',
+    current_order_id: null,
+    //  Los cronómetros también: si quedan, mañana la mesa aparece libre
+    //  pero contando horas desde anoche.
+    comiendo_at: null,
+    esperando_at: null,
+    pendiente_pago_at: null,
+    sesion_at: null,
+    /*  Se tocan TODAS, no solo las que se ven ocupadas. Hay mesas que
+        figuran libres pero conservan el cronómetro de días atrás: El Parche
+        tenía siete así, una desde el 2 de agosto. Mientras están libres no
+        molestan, pero es basura esperando a reaparecer. */
+  }).eq('branch_id', branchId).select('id');
+
+  if (r.error) { console.warn('liberar mesas:', r.error.message); return; }
+  const n = (r.data || []).length;
+  if (n) console.log('[caja] mesas liberadas al cerrar:', n);
+}
+
 async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoContado) {
   try {
     // Cerrar la sesion activa con datos de cierre (incluye arqueo si se hizo)
@@ -2036,6 +2063,22 @@ async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoCon
     // tablero arranque limpio y los clientes que vuelvan a escribir aparezcan
     // como consulta nueva. Los pedidos quedan intactos en Ventas/Informes.
     try { await limpiarEtiquetasEstadoChat(S.branchId); } catch(e) { console.warn('limpiar etiquetas estado:', e); }
+
+    /* Y las mesas quedan libres, sin ningún estado colgando.
+
+       Pasó de verdad: una mesa amaneció en "Comiendo" con el cronómetro en
+       18 horas, con la caja cerrada y el restaurante vacío. Su pedido ya
+       estaba pagado desde la noche anterior — lo que no se limpió fue la mesa.
+
+       El agujero está en el cobro adelantado: al cobrar, la mesa pasa a
+       "esperando" (todavía no le han servido), después a "comiendo"... y ahí
+       ya nada la libera sola. Alguien tiene que acordarse de hacerlo a mano,
+       y a las once de la noche cerrando caja nadie se acuerda.
+
+       Cerrar la caja es el momento exacto para esto: el día terminó, no queda
+       nadie sentado. Igual que con las etiquetas del chat, mañana el salón
+       arranca limpio. */
+    try { await liberarMesasAlCerrar(S.branchId); } catch(e) { console.warn('liberar mesas:', e); }
 
     // Imprimir el cierre ANTES de refrescar (refreshAll limpia S.session/arqueo)
     try {
