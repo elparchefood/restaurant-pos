@@ -3,6 +3,90 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Barrios por aprobar y conjuntos — limpieza del 21-ago-2026
+
+### El bucle que reportó Sergio
+
+*"Apruebo 3, descarto 1, y los 3 aprobados vuelven a aparecer."*
+
+Aprobar **no** borra la fila de `pos_domi_aprendidos`: se guarda como pendiente
+y solo se borra cuando el guardado sale bien. Eso es a propósito — si se borrara
+al aprobar y el dueño no diera a *Guardar cambios*, el barrio desaparecería de
+los dos lados. Pero **descartar otra fila redibuja la lista entera desde la
+base**, y los aprobados seguían ahí. Se ocultaban con `display:none` sobre la
+fila, y esa fila ya no existía tras redibujar. Ahora se filtran de los **datos**,
+que es lo único que sobrevive al redibujado.
+
+### La causa de fondo: 7 de 11 propuestas ya estaban resueltas
+
+Proponían **exactamente** lo que ya estaba configurado: *"Okavango $6.000"*
+cuando Okavango ya valía $6.000, *"Monteluna cambia a $5.000"* cuando ya valía
+$5.000. Son propuestas viejas, de antes de que esos sitios entraran a la tabla.
+Aprobarlas no hacía nada y descartarlas una por una tampoco resolvía.
+
+Ahora se limpian solas al cargar. **Se conserva lo que propone un precio
+DISTINTO** al de la tabla — eso sí es una decisión.
+
+Quedaron 4 pendientes de verdad: Milán Club House, Reserva del Oeste, Edificio
+Torino (que es una dirección → *"No es un barrio"*) y **Torres de Milano**, que
+propone $5.000 contra los $6.000 de la tabla.
+
+### ⚠️ Una dirección guardada como zona de precio
+
+`Carrera 9 # 17AN-34 local 5 edificio chayani` estaba en la lista de **barrios**,
+a $8.000. Una zona agrupa muchas casas; la dirección de un cliente agrupa una
+sola — y además deja escrito dónde vive esa persona en una pantalla de precios.
+
+Corregido conservando el precio: quedó como conjunto **"Edificio Chayani"** en la
+misma zona de $8.000, así que a ese cliente no le cambia nada.
+
+**Y se cerraron las DOS puertas:**
+- `configuracion.js` → `readZones()`
+- `pos-notifs.js` → la campana, **que era por donde entró** (aprobar desde la
+  notificación escribe directo en `ia_config.domicilios`, sin pasar por la
+  pantalla)
+
+La comprobación reconoce tipo de vía + números. Probada contra los **179 nombres
+reales** de El Parche: **cero falsos positivos**. "Villa del Viento", "Torres de
+San Eduardo" y "Real Pomona etapa 2" pasan; "Calle57n #10-46" y "CR 17 Nro 55 N
+83" no.
+
+### Conjuntos: lo que enseñó probar con datos reales
+
+Sergio dio dos reglas que el código no podía deducir:
+1. **"N" siempre es Norte**, y existen calles tipo "9BN" = letra B **más** Norte.
+2. **San Eduardo** es barrio Y conjunto: *"Torres de San Eduardo"* solo se
+   reconoce cuando la dirección dice **"torre"**, porque el barrio también tiene
+   casas normales.
+
+Tres errores propios salieron al implementarlas, y ninguno habría aparecido con
+ejemplos inventados:
+
+| Error | Consecuencia |
+|---|---|
+| La regla de abreviación corría también sobre el barrio | `Carrera 8k N 66 BN 26` + barrio SAN EDUARDO → "Torres de San Eduardo". `Casa 13` + POMONA → "Real Pomona" |
+| El barrio "Bosque" emparejaba con el conjunto "Villa del Bosque" | `Bloque 7 Casa 10` iba a otro conjunto; los pedidos dicen que es **Claros del Bosque** |
+| La regla de plurales quitaba "-es" | **"torres" quedaba en "torr"** y nunca casaba con "torre" — justo la palabra de la regla de San Eduardo |
+
+Resultado: **12 de 12** en el banco de casos, y **11 de 11** direcciones reales
+ubicadas, ninguna aproximada.
+
+### Tabla de El Parche después de la limpieza
+
+**8 zonas · 118 barrios · 61 conjuntos.** Verificado contra respaldo después de
+CADA escritura: ningún nombre perdido, ningún precio cambiado. Los respaldos
+quedan en Descargas (`respaldo-domicilios-elparche-*.json`).
+
+Agregados: Mallorca y El Bambú (movidos de barrio), Condominio Marsella, Real
+Pomona, Campo Real, Condominio Monserrat, Reserva del Bosque, Puerto Madero,
+Torres de San Eduardo y Edificio Chayani.
+
+**NO se movieron Pomona, Bosque, San Eduardo ni Villa del Viento**: son barrios
+de verdad que contienen conjuntos adentro. Moverlos habría roto las direcciones
+de calle normales que hay en ellos — comprobado.
+
+---
+
 ## 🟢 MAPAS ANDANDO — 21-ago-2026, probado contra Google de verdad
 
 **La llave de Cobra ya está puesta** (`MAPAS_CLAVE_COBRA`, proyecto de Google
