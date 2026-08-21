@@ -1187,6 +1187,115 @@
       </div>
     </div>
 
+    <!-- ─────── SECCIÓN: FACTURACIÓN ELECTRÓNICA (DIAN) ─────── -->
+    <div class="cf-screen" id="screen-dian">
+      <section class="cf-pagehead">
+        <div>
+          <div class="cf-eyebrow">Configuración de cobro</div>
+          <h2 class="cf-pagetitle">Facturación electrónica</h2>
+        </div>
+        <button class="lm-btn-primary" id="dian-btn-save" disabled>Guardar cambios</button>
+      </section>
+
+      <section class="cf-body">
+        <div class="cf-gen-main">
+
+          <!-- ══ ESTADO: cuántas facturas quedan ══
+               Va ARRIBA y en grande a propósito: quedarse sin números para
+               tra un viernes en la noche es el peor momento para enterarse,
+               y pedirle otra resolución a la DIAN toma días. -->
+          <div class="op-card" id="dian-estado-card">
+            <div class="op-card-head">
+              <div class="op-card-icon" style="background:#EEF2FF;color:#5B6BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+              <div>
+                <div class="op-card-title">Tu resolución</div>
+                <div class="op-card-sub" id="dian-estado-sub">Todavía no has cargado ninguna.</div>
+              </div>
+              <div class="op-state off" id="dian-state" style="margin-left:auto">Sin configurar</div>
+            </div>
+            <div id="dian-barra-wrap" class="is-hidden" style="padding:4px 2px 2px">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px">
+                <span style="font-size:22px;font-weight:800;letter-spacing:-.02em" id="dian-quedan">—</span>
+                <span style="font-size:12px;color:#64748B" id="dian-usados">—</span>
+              </div>
+              <div style="height:9px;border-radius:999px;background:#F1F5F9;overflow:hidden">
+                <i id="dian-barra" style="display:block;height:100%;width:0%;background:#5B6BFF;border-radius:999px;transition:width .3s"></i>
+              </div>
+              <div class="is-hidden" id="dian-alerta" style="margin-top:11px;padding:10px 13px;border-radius:10px;background:#FFFBEB;border:1px solid #FDE68A;font-size:12.5px;color:#92400E;line-height:1.5"></div>
+            </div>
+          </div>
+
+          <!-- ══ LOS DATOS DE LA RESOLUCIÓN ══ -->
+          <div class="op-card">
+            <div class="op-card-head">
+              <div class="op-card-icon" style="background:#F5F3FF;color:#8B5CF6"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="13" x2="14" y2="13"/></svg></div>
+              <div>
+                <div class="op-card-title">Datos de la resolución DIAN</div>
+                <div class="op-card-sub">Cópialos tal cual del documento que te dio la DIAN.</div>
+              </div>
+            </div>
+
+            <div class="imp-campos">
+              <div class="imp-fila">
+                <div class="iv-field-label">Número de resolución</div>
+                <div class="imp-fila-c">
+                  <input id="dian-resolucion" class="iv-input" style="max-width:280px" placeholder="Ej. 18764000001234" oninput="dianTocar()">
+                </div>
+              </div>
+              <div class="imp-fila">
+                <div class="iv-field-label">Prefijo</div>
+                <div class="imp-fila-c">
+                  <input id="dian-prefijo" class="iv-input" style="max-width:120px;text-transform:uppercase" maxlength="6" placeholder="Ej. FE" oninput="dianTocar()">
+                  <span style="font-size:12px;color:#64748B">Las letras que van antes del número. Si tu resolución no tiene, déjalo vacío.</span>
+                </div>
+              </div>
+              <div class="imp-fila">
+                <div class="iv-field-label">Rango autorizado</div>
+                <div class="imp-fila-c">
+                  <span style="font-size:12.5px;color:#64748B">Desde</span>
+                  <input id="dian-desde" class="iv-input" type="number" min="1" style="max-width:150px" placeholder="1" oninput="dianTocar()">
+                  <span style="font-size:12.5px;color:#64748B">hasta</span>
+                  <input id="dian-hasta" class="iv-input" type="number" min="1" style="max-width:150px" placeholder="5000" oninput="dianTocar()">
+                </div>
+              </div>
+              <div class="imp-fila">
+                <div class="iv-field-label">Vence el</div>
+                <div class="imp-fila-c">
+                  <input id="dian-vence" class="iv-input" type="date" style="max-width:190px" oninput="dianTocar()">
+                  <span style="font-size:12px;color:#64748B">La fecha que dice tu resolución. Te avisamos antes.</span>
+                </div>
+              </div>
+              <div class="imp-fila" id="dian-fila-actual">
+                <div class="iv-field-label">Última factura emitida</div>
+                <div class="imp-fila-c">
+                  <span id="dian-actual" style="font-size:15px;font-weight:700;color:#0F172A">—</span>
+                  <span style="font-size:12px;color:#64748B">Este número lo lleva el sistema. No se puede editar: repetir o saltar un consecutivo es un problema con la DIAN.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ══ EL PROVEEDOR (todavía no conectado) ══ -->
+          <div class="op-card">
+            <div class="op-card-head">
+              <div class="op-card-icon" style="background:#F1F5F9;color:#64748B"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></div>
+              <div>
+                <div class="op-card-title">Conexión con la DIAN</div>
+                <div class="op-card-sub">Quién manda tus facturas a la DIAN por ti.</div>
+              </div>
+              <div class="op-state off" id="dian-prov-state" style="margin-left:auto">Sin conectar</div>
+            </div>
+            <div style="padding:2px;font-size:12.5px;color:#475569;line-height:1.55">
+              Las facturas no se le mandan a la DIAN directamente: se envían a través de un
+              <b>proveedor autorizado</b>, que las firma y las radica. Esta parte se conecta
+              cuando tengas tu proveedor contratado — te guiamos en el paso a paso.
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </div>
+
     <!-- ─────── SECCIÓN: IMPUESTOS Y PROPINA ─────── -->
     <div class="cf-screen" id="screen-impuesto">
       <section class="cf-pagehead">
@@ -2755,7 +2864,7 @@
 </div>
 <script src="vendor/supabase-2.js?v=1789520000"></script>
 <script src="pos-core.js?v=1790770000"></script>
-<script src="pos-cfg-nav.js?v=1790220000"></script>
+<script src="pos-cfg-nav.js?v=1791610000"></script>
 <script>posCfgNav.render('mesas');</script>
 <script src="pos-cache.js?v=1790500000"></script>
   <script src="pos-plan.js?v=1790500000"></script>
@@ -2773,7 +2882,7 @@
 <script src="pos-notify.js?v=1790370000"></script>
 <script src="pos-vars.js?v=1790460000"></script>
 <script src="pos-vars-ui.js?v=1790530000"></script>
-<script src="configuracion.js?v=1791600000a"></script>
+<script src="configuracion.js?v=1791610000a"></script>
 </body>
 </html>
 

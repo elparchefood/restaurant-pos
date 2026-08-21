@@ -11160,3 +11160,20 @@ emitir; el mismo pedido dos veces → devuelve el 506 las dos veces
 
 **Lo que sigue** (sin depender del proveedor): la PANTALLA de configuracion
 (cargar resolucion y rangos) y el asistente de habilitacion del §5.1-bis.
+
+**Pantalla de la resolucion DIAN (misma tarde):** Configuracion → Ventas →
+**Facturación DIAN** (`screen-dian`, entrada nueva en `pos-cfg-nav.js`).
+Tres tarjetas: (1) ESTADO arriba y en grande — cuantas facturas quedan, barra
+que cambia de color (azul <75%, ambar >=75%, rojo >=90%) y alerta que dice QUE
+HACER, no solo que algo pasa; avisa tambien si la resolucion vence en <=45
+dias o ya vencio. (2) Los DATOS de la resolucion. (3) El proveedor, todavia
+sin conectar. El consecutivo se MUESTRA pero no se puede editar a proposito.
+**Validacion delicada:** si ya se emitieron facturas, el rango nuevo tiene que
+seguir cubriendo el ultimo numero usado — mover el piso debajo de una factura
+emitida la dejaria fuera de la resolucion; se rechaza con el numero exacto.
+**Verificado en banco aislado:** 4 estados (sin configurar / nueva / 92% /
+agotada) con sus textos, colores y porcentajes; 5 casos de guardado; medidas
+del DOM con 0 elementos con texto cortado. TRAMPA encontrada y corregida antes
+de subir: el bloque quedo con sangria dentro de otro bloque y `dianTocar()` no
+habria sido alcanzable desde el `oninput` del HTML — las funciones de pantalla
+en configuracion.js van a NIVEL GLOBAL (columna 0), como `propInit`/`opInit`.

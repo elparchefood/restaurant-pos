@@ -263,6 +263,14 @@ function setSection(sec) {
       if (!window._opLoaded) { opInit(); window._opLoaded = true; }
       propInit();
     }
+  } else if (sec === 'dian') {
+    var screenDian = $('screen-dian');
+    if (screenDian) {
+      screenDian.classList.add('on');
+      $('crumb').textContent = 'Facturación DIAN';
+      _ciaToggleTopbar(false);
+      if (!window._dianLoaded) { dianInit(); window._dianLoaded = true; }
+    }
   } else if (sec === 'puntos') {
     var screenPt = $('screen-puntos');
     if (screenPt) {
@@ -3541,6 +3549,166 @@ async function crGuardar() {
 
 // ── Impuestos y propina ───────────────────────────────────────────────
 // Comparte _opDraft / _opSaved con Operación (mismo blob operacion_config).
+/* ══ FACTURACION ELECTRONICA — la resolucion de la DIAN (21-ago-2026) ══
+   Aqui SOLO se cargan los datos de la resolucion. El consecutivo (el
+   numero de cada factura) NO se toca desde aqui a proposito: lo lleva la
+   base con bloqueo, porque repetir o saltar un numero no es un error de
+   pantalla, es un problema legal. */
+var _dianRango = null;
+function dianTenant() {
+  return (window._pos && window._pos.state && window._pos.state.tenantId) || null;
+}
+function dianBranch() {
+  return (window._pos && window._pos.state && window._pos.state.branchId) || null;
+}
+
+function dianTocar() {
+  var b = $('dian-btn-save');
+  if (b) b.disabled = false;
+}
+
+async function dianInit() {
+  var b = $('dian-btn-save');
+  if (b) b.onclick = dianGuardar;
+  await dianCargar();
+}
+
+async function dianCargar() {
+  try {
+    var r = await sb.from('pos_facturacion_rangos')
+      .select('id,resolucion,prefijo,desde,hasta,actual,vence_at')
+      .eq('tenant_id', dianTenant()).eq('activo', true).limit(1);
+    _dianRango = (r.data && r.data[0]) || null;
+  } catch (e) { console.error('[dian] cargar:', e); _dianRango = null; }
+  dianPintar();
+}
+
+function dianPintar() {
+  var d = _dianRango;
+  var set = function (id, v) { var el = $(id); if (el) el.value = v == null ? '' : v; };
+  set('dian-resolucion', d && d.resolucion);
+  set('dian-prefijo',    d && d.prefijo);
+  set('dian-desde',      d && d.desde);
+  set('dian-hasta',      d && d.hasta);
+  set('dian-vence',      d && d.vence_at);
+
+  var estado = $('dian-state'), sub = $('dian-estado-sub'), wrap = $('dian-barra-wrap');
+  var actualEl = $('dian-actual');
+  if (!d) {
+    if (estado) { estado.textContent = 'Sin configurar'; estado.className = 'op-state off'; }
+    if (sub) sub.textContent = 'Todavía no has cargado ninguna.';
+    if (wrap) wrap.classList.add('is-hidden');
+    if (actualEl) actualEl.textContent = '—';
+    return;
+  }
+  var total   = (Number(d.hasta) - Number(d.desde) + 1) || 0;
+  var usados  = Math.max(0, (Number(d.actual) - Number(d.desde) + 1));
+  var quedan  = Math.max(0, Number(d.hasta) - Number(d.actual));
+  var pct     = total > 0 ? Math.min(100, Math.round((usados / total) * 100)) : 0;
+
+  if (estado) { estado.textContent = 'Activa'; estado.className = 'op-state on'; }
+  if (sub) sub.textContent = 'Resolución ' + (d.resolucion || '—') +
+    (d.vence_at ? ' · vence el ' + dianFecha(d.vence_at) : '');
+  if (wrap) wrap.classList.remove('is-hidden');
+  if (actualEl) actualEl.textContent = Number(d.actual) < Number(d.desde)
+    ? 'Ninguna todavía' : (d.prefijo || '') + d.actual;
+
+  var q = $('dian-quedan');
+  if (q) q.textContent = quedan.toLocaleString('es-CO') + (quedan === 1 ? ' factura disponible' : ' facturas disponibles');
+  var u = $('dian-usados');
+  if (u) u.textContent = 'Usaste ' + usados.toLocaleString('es-CO') + ' de ' + total.toLocaleString('es-CO') + ' (' + pct + '%)';
+  var barra = $('dian-barra');
+  if (barra) {
+    barra.style.width = pct + '%';
+    /* El color avisa antes que el texto: verde tranquilo, ambar hay que
+       moverse, rojo ya es urgente. */
+    barra.style.background = pct >= 90 ? '#DC2626' : pct >= 75 ? '#F59E0B' : '#5B6BFF';
+  }
+
+  /* LA ALERTA. Pedirle otra resolucion a la DIAN toma dias, asi que avisa
+     con margen y dice QUE HACER, no solo que algo pasa. */
+  var al = $('dian-alerta');
+  if (al) {
+    var msg = '';
+    if (quedan === 0) {
+      msg = '<b>Se acabaron los números de esta resolución.</b> No se pueden emitir más facturas hasta que cargues una nueva. Pídela en el portal de la DIAN.';
+    } else if (pct >= 90) {
+      msg = '<b>Te quedan ' + quedan + ' facturas.</b> Pide ya la resolución nueva en el portal de la DIAN: se demora unos días en salir.';
+    } else if (pct >= 75) {
+      msg = 'Vas por el ' + pct + '% del rango. Ve pidiendo la resolución nueva para no quedarte sin números.';
+    }
+    var dias = dianDiasPara(d.vence_at);
+    if (dias !== null && dias <= 45 && dias >= 0) {
+      msg += (msg ? '<br><br>' : '') + '<b>La resolución vence en ' + dias + ' días</b> (' + dianFecha(d.vence_at) + ').';
+    } else if (dias !== null && dias < 0) {
+      msg = '<b>Esta resolución ya venció</b> el ' + dianFecha(d.vence_at) + '. No se puede facturar con ella.';
+    }
+    al.innerHTML = msg;
+    al.classList.toggle('is-hidden', !msg);
+  }
+}
+
+function dianFecha(f) {
+  if (!f) return '';
+  var p = String(f).slice(0, 10).split('-');
+  var M = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return p[2] + ' ' + (M[Number(p[1]) - 1] || '') + ' ' + p[0];
+}
+function dianDiasPara(f) {
+  if (!f) return null;
+  var hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  return Math.round((new Date(String(f).slice(0, 10) + 'T00:00:00') - hoy) / 86400000);
+}
+
+async function dianGuardar() {
+  var res    = ($('dian-resolucion').value || '').trim();
+  var pref   = ($('dian-prefijo').value || '').trim().toUpperCase();
+  var desde  = parseInt($('dian-desde').value, 10);
+  var hasta  = parseInt($('dian-hasta').value, 10);
+  var vence  = ($('dian-vence').value || '') || null;
+  var b = $('dian-btn-save');
+
+  if (!res) return showToast('Escribe el número de la resolución.');
+  if (!(desde > 0) || !(hasta > 0)) return showToast('Escribe el rango: desde qué número hasta cuál.');
+  if (hasta < desde) return showToast('El "hasta" no puede ser menor que el "desde".');
+
+  b.disabled = true; b.textContent = 'Guardando…';
+  try {
+    if (_dianRango) {
+      /* CAMBIAR EL RANGO DE UNA RESOLUCION EN USO ES DELICADO: si ya se
+         emitieron facturas, el nuevo rango tiene que seguir cubriendo el
+         ultimo numero usado. Si no, se rechaza — mover el piso debajo de
+         una factura ya emitida la deja fuera de la resolucion. */
+      if (Number(_dianRango.actual) >= Number(_dianRango.desde) &&
+          (desde > Number(_dianRango.actual) || hasta < Number(_dianRango.actual))) {
+        b.disabled = false; b.textContent = 'Guardar cambios';
+        return showToast('Ya emitiste la factura ' + (_dianRango.prefijo || '') + _dianRango.actual +
+          ' con esta resolución, así que el rango tiene que seguir incluyéndola. ' +
+          'Si es una resolución NUEVA, primero desactiva la actual.');
+      }
+      var up = await sb.from('pos_facturacion_rangos')
+        .update({ resolucion: res, prefijo: pref, desde: desde, hasta: hasta, vence_at: vence })
+        .eq('id', _dianRango.id).select('id');
+      if (up.error) throw up.error;
+    } else {
+      var ins = await sb.from('pos_facturacion_rangos').insert({
+        tenant_id: dianTenant(), branch_id: dianBranch(),
+        resolucion: res, prefijo: pref, desde: desde, hasta: hasta,
+        /* `actual` arranca en desde-1: aun no se ha emitido ninguna. */
+        actual: desde - 1, vence_at: vence, activo: true,
+      }).select('id');
+      if (ins.error) throw ins.error;
+    }
+    await dianCargar();
+    b.textContent = 'Guardar cambios';
+    showToast('Resolución guardada 👍');
+  } catch (e) {
+    console.error('[dian] guardar:', e);
+    b.disabled = false; b.textContent = 'Guardar cambios';
+    showToast('No se pudo guardar: ' + (e.message || e));
+  }
+}
+
 function propInit() {
   propRender();
   propBind();
