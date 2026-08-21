@@ -11218,3 +11218,22 @@ sede de prueba restaurada.
 **Nota suelta:** quedo una fila vieja en `pos_puntos` (tel 3000000009, 30 pts,
 del backfill del 31-jul, sin ficha de cliente). NO se toco — no la cree yo.
 Preguntarle a Sergio si se borra.
+
+**Y su PANTALLA (misma tarde, pedido de Sergio):** Configuracion → Equipo →
+**Puntos** ahora abre con la tarjeta "Cómo se ganan los puntos": interruptor
+de encendido/apagado y el campo "1 punto por cada $___". Guarda con `opSave`,
+o sea que hereda la sincronizacion entre equipos, los reintentos y el aviso si
+falla — nada de un guardado paralelo.
+**Lo que hace entendible la pantalla:** un EJEMPLO EN VIVO ("Un pedido de
+$30.000 le da 6 puntos al cliente") que se actualiza mientras se teclea; un
+numero suelto no dice nada. Y la nota de abajo dejo de tener la regla escrita
+a mano: ahora dice la del restaurante, o "los puntos estan apagados".
+**Topes que evitan un desastre:** minimo $100 (con 1 peso por punto, un pedido
+de $30.000 regalaria 30.000 puntos y el programa se rompe en una noche) y
+maximo $1.000.000. Apagar NO borra los puntos que ya tienen los clientes, y se
+lo dice.
+**Verificado en banco:** estado inicial, cambio a $5.000, guardado, apagado y
+su guardado; 6 casos de topes; medidas del DOM con 0 textos cortados; HTML
+entero por el analizador sin errores.
+**Tambien:** borrada la fila huerfana de `pos_puntos` (tel 3000000009, 30 pts
+del backfill de julio) — Sergio dio la orden.

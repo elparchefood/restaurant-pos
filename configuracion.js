@@ -278,6 +278,7 @@ function setSection(sec) {
       $('crumb').textContent = 'Puntos';
       _ciaToggleTopbar(false);
       if (!window._ptLoaded) { ptInit(); window._ptLoaded = true; }
+      try { ptReglaInit(); } catch (e) { console.error('[puntos] regla:', e); }
     }
   } else if (sec === 'creditos') {
     var screenCr = $('screen-creditos');
@@ -3707,6 +3708,89 @@ async function dianGuardar() {
     b.disabled = false; b.textContent = 'Guardar cambios';
     showToast('No se pudo guardar: ' + (e.message || e));
   }
+}
+
+/* ══ LA REGLA DE PUNTOS DE ESTE RESTAURANTE (21-ago-2026) ═════════════
+   Vive en el MISMO blob que Operacion (branches.operacion_config), asi que
+   se guarda con `opSave` y hereda su sincronizacion entre equipos, sus
+   reintentos y su aviso si falla. Nada de un guardado paralelo. */
+var _ptReglaDraft = null;
+
+function ptReglaInit() {
+  var op = opLoad() || {};
+  var pu = op.puntos || {};
+  _ptReglaDraft = {
+    activo: pu.activo !== false,
+    pesos: Number(pu.pesos_por_punto) > 0 ? Number(pu.pesos_por_punto) : 1000,
+  };
+  var inp = $('pt-pesos');
+  if (inp) inp.value = _ptReglaDraft.pesos;
+  ptReglaPintar();
+  var b = $('pt-regla-save');
+  if (b) b.disabled = true;
+}
+
+function ptReglaPintar() {
+  var d = _ptReglaDraft; if (!d) return;
+  var sw = $('pt-toggle-sw'), st = $('pt-regla-state'), campos = $('pt-regla-campos');
+  if (sw) {
+    sw.classList.toggle('on', d.activo);
+    var lb = sw.querySelector('.iv-switch-label');
+    if (lb) lb.textContent = d.activo ? 'Sí' : 'No';
+  }
+  if (st) { st.textContent = d.activo ? 'Activo' : 'Apagado'; st.className = 'op-state ' + (d.activo ? 'on' : 'off'); }
+  if (campos) campos.classList.toggle('is-hidden', !d.activo);
+  var hint = $('pt-toggle-hint');
+  if (hint) hint.textContent = d.activo
+    ? 'Los clientes acumulan puntos en cada pedido y los cambian por productos de la lista de abajo.'
+    : 'Nadie acumula puntos y la lista de abajo no se usa. Los puntos que ya tengan tus clientes NO se borran.';
+
+  /* EL EJEMPLO EN VIVO: es lo que de verdad se entiende. Un numero suelto
+     ("1 punto por cada 1000") no dice nada; "un pedido de $30.000 da 30
+     puntos" si. */
+  var ej = $('pt-ejemplo');
+  if (ej) {
+    var por = Number(d.pesos) > 0 ? Number(d.pesos) : 1000;
+    var demo = 30000;
+    ej.textContent = 'Un pedido de $ 30.000 le da ' + Math.floor(demo / por) + ' puntos al cliente.';
+  }
+  var nota = $('pt-nota-regla');
+  if (nota) nota.textContent = d.activo
+    ? ('Los clientes acumulan 1 punto por cada $ ' + Number(d.pesos || 1000).toLocaleString('es-CO') + ' de comida y empaque (el domicilio no suma).')
+    : 'Ahora mismo los puntos están apagados: nadie acumula.';
+}
+
+function ptToggleActivo() {
+  if (!_ptReglaDraft) return;
+  _ptReglaDraft.activo = !_ptReglaDraft.activo;
+  ptReglaPintar();
+  ptReglaTocar();
+}
+
+function ptReglaTocar() {
+  var inp = $('pt-pesos');
+  if (inp && _ptReglaDraft) _ptReglaDraft.pesos = parseInt(inp.value, 10) || 0;
+  ptReglaPintar();
+  var b = $('pt-regla-save');
+  if (b) b.disabled = false;
+}
+
+function ptGuardarRegla() {
+  var d = _ptReglaDraft; if (!d) return;
+  var por = parseInt(d.pesos, 10);
+  /* Un valor absurdo aqui sale caro: con 1 peso por punto, un pedido de
+     $30.000 regala 30.000 puntos y el programa queda roto en una noche. */
+  if (d.activo && (!(por > 0))) return showToast('Escribe cuántos pesos vale un punto.');
+  if (d.activo && por < 100) return showToast('Ese valor es muy bajo: un pedido normal regalaría cientos de puntos. Usa al menos $100.');
+  if (d.activo && por > 1000000) return showToast('Ese valor es muy alto: nadie ganaría un solo punto.');
+
+  var op = opLoad() || {};
+  op.puntos = { pesos_por_punto: d.activo ? por : (por > 0 ? por : 1000), activo: !!d.activo };
+  opSave(op);
+  var b = $('pt-regla-save');
+  if (b) b.disabled = true;
+  showToast(d.activo ? 'Listo: 1 punto por cada $ ' + por.toLocaleString('es-CO') : 'Los puntos quedaron apagados');
+  ptReglaPintar();
 }
 
 function propInit() {

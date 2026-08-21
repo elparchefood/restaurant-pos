@@ -370,13 +370,58 @@
         <button class="lm-btn-primary" onclick="ptNuevo()">＋ Agregar producto</button>
       </section>
       <section class="cf-body-solo">
+        <!-- ══ CÓMO SE GANAN LOS PUNTOS ══
+             La regla era "1 punto por cada $1.000" escrita a fuego: la
+             economía de El Parche metida en el código de todos. Ahora cada
+             restaurante pone la suya, o apaga los puntos si no tiene
+             programa de fidelidad. (21-ago-2026) -->
+        <div class="op-card" id="pt-regla-card">
+          <div class="op-card-head">
+            <div class="op-card-icon" style="background:#FFFBEB;color:#B45309"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+            <div>
+              <div class="op-card-title">Cómo se ganan los puntos</div>
+              <div class="op-card-sub">Cuánto tiene que gastar un cliente para ganarse un punto.</div>
+            </div>
+            <div class="op-state on" id="pt-regla-state" style="margin-left:auto">Activo</div>
+          </div>
+
+          <div class="iv-toggle" id="pt-toggle" onclick="ptToggleActivo()">
+            <div style="flex:1">
+              <div class="tt">¿Tu restaurante da puntos por las compras?</div>
+              <div class="tx" id="pt-toggle-hint">Los clientes acumulan puntos en cada pedido y los cambian por productos de la lista de abajo.</div>
+            </div>
+            <span class="iv-switch on" id="pt-toggle-sw"><span class="iv-switch-label">Sí</span><span class="iv-switch-track"><span class="iv-switch-knob"></span></span></span>
+          </div>
+
+          <div id="pt-regla-campos" class="imp-campos">
+            <div class="imp-fila">
+              <div class="iv-field-label">1 punto por cada</div>
+              <div class="imp-fila-c">
+                <span style="font-size:13px;color:#64748B">$</span>
+                <input id="pt-pesos" class="iv-input" type="number" min="100" step="100" style="max-width:140px" oninput="ptReglaTocar()">
+                <span style="font-size:12.5px;color:#64748B">de comida y empaque</span>
+              </div>
+            </div>
+            <div class="imp-fila">
+              <div class="iv-field-label">Así queda</div>
+              <div class="imp-fila-c">
+                <span id="pt-ejemplo" style="font-size:13.5px;color:#0F172A;font-weight:600">—</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;justify-content:flex-end;padding-top:4px">
+            <button class="lm-btn-primary" id="pt-regla-save" onclick="ptGuardarRegla()" disabled>Guardar</button>
+          </div>
+        </div>
+
         <div class="cr-note">
           Los puntos son <b>un método de pago más</b>: nada sale gratis, simplemente se paga con
           puntos en vez de dinero. Solo se pueden pagar así los productos que estén en esta lista.
           Si alguien intenta pagar con puntos algo que no está aquí, la pantalla de cobro lo rechaza.
           <br><br>
-          Los clientes acumulan <b>1 punto por cada $1.000</b> de comida y empaque (el domicilio no
-          suma). Lo acumulan solo si el pedido queda con un cliente identificado.
+          <span id="pt-nota-regla">Los clientes acumulan puntos por su comida y empaque; el domicilio no suma.</span>
+          Lo acumulan solo si el pedido queda con un cliente identificado.
         </div>
         <div class="pt-kpis" id="pt-kpis"></div>
         <div class="pt-lista" id="pt-lista"></div>
@@ -2882,7 +2927,7 @@
 <script src="pos-notify.js?v=1790370000"></script>
 <script src="pos-vars.js?v=1790460000"></script>
 <script src="pos-vars-ui.js?v=1790530000"></script>
-<script src="configuracion.js?v=1791610000a"></script>
+<script src="configuracion.js?v=1791630000a"></script>
 </body>
 </html>
 
