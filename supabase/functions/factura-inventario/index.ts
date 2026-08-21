@@ -51,6 +51,8 @@ type Insumo = { id: string; nombre: string; buy_unit: string; use_unit: string; 
 type Linea = {
   desc: string; cantidad: number; valor_total: number;
   insumo_id?: string | null; insumo?: string; factor?: number;
+  /* Se sabe QUE insumo es pero no CUANTAS unidades trae el empaque. */
+  duda_cantidad?: boolean;
   buy_unit?: string; cant_final?: number; precio_unit?: number; precio_viejo?: number;
   ok?: boolean;                 // reconocido → se puede aplicar
   precio_raro?: boolean;        // el precio no cuadra con ese insumo
@@ -123,6 +125,23 @@ function chocan(a: string | null, b: string | null): boolean {
 // Resuelve una línea de la factura contra los insumos: primero por SINÓNIMO ya
 // aprendido; si no, por nombre + UNIDAD del empaque. Si no queda 100% claro,
 // se pregunta: meter el insumo equivocado daña el inventario en silencio.
+/* CUANTAS UNIDADES NUESTRAS TRAE UN EMPAQUE DE LA FACTURA. El proveedor lo
+   escribe en la descripcion: "CAJAx10pqt" son 10, no 1. (21-ago-2026: por no
+   leerlo, 10 kilos de maiz entraron como 1 kilo Y el precio del kilo paso de
+   $7.900 a $79.000 — el mismo error dañaba las dos cosas.) */
+function multiploDelEmpaque(desc: string): number {
+  const m = String(desc || "").match(new RegExp("x\\s*(\\d{1,4})", "i"));
+  const n = m ? Number(m[1]) : 0;
+  return (n > 1 && n <= 500) ? n : 1;
+}
+/* EL PRECIO NO MIENTE: si el kilo nos vale $7.900 y esta linea lo deja en
+   $79.000, el empaque NO es el que creemos. Se usa para aceptar o dudar. */
+function razonPrecio(valorTotal: number, cantFinal: number, precioConocido: number): number {
+  if (!(cantFinal > 0) || !(precioConocido > 0)) return 1;
+  return (valorTotal / cantFinal) / precioConocido;
+}
+const precioCuadra = (r: number) => r <= 2.5 && r >= 0.4;
+
 function resolver(l: Linea, insumos: Insumo[], alias: Array<Record<string, unknown>>): Linea {
   const d = norm(l.desc);
   const a = alias.find((x) => {
@@ -132,11 +151,32 @@ function resolver(l: Linea, insumos: Insumo[], alias: Array<Record<string, unkno
   if (a) {
     const ins = insumos.find((i) => i.id === String(a.insumo_id));
     if (ins) {
-      const factor = num(a.factor) || 1;
-      const cantFinal = l.cantidad * factor;
-      return { ...l, insumo_id: ins.id, insumo: ins.nombre, factor, buy_unit: ins.buy_unit,
-        cant_final: cantFinal, precio_viejo: ins.precio,
-        precio_unit: cantFinal > 0 ? l.valor_total / cantFinal : 0, ok: true };
+      /* EL SINONIMO DICE QUE INSUMO ES, PERO NO CUANTO TRAE ESTE EMPAQUE.
+         Un alias corto ("maiz") se traga cualquier descripcion que lo
+         contenga, y su factor viejo se aplicaba a ciegas — saltandose el
+         control de precio que si hace la busqueda por nombre. Ahora el precio
+         manda tambien aqui: si con el factor del alias la cuenta no cuadra,
+         se prueba con lo que dice el empaque, y si tampoco, se PREGUNTA. */
+      const facAlias = num(a.factor) || 1;
+      const facEmpaque = multiploDelEmpaque(l.desc);
+      const rAlias = razonPrecio(l.valor_total, l.cantidad * facAlias, ins.precio);
+      const rEmpaque = razonPrecio(l.valor_total, l.cantidad * facEmpaque, ins.precio);
+      const factor = precioCuadra(rAlias) ? facAlias
+                   : precioCuadra(rEmpaque) ? facEmpaque
+                   : 0;   // 0 = ninguna cuenta cuadra: no se adivina
+      if (factor > 0) {
+        const cantFinal = l.cantidad * factor;
+        return { ...l, insumo_id: ins.id, insumo: ins.nombre, factor, buy_unit: ins.buy_unit,
+          cant_final: cantFinal, precio_viejo: ins.precio,
+          precio_unit: cantFinal > 0 ? l.valor_total / cantFinal : 0, ok: true };
+      }
+      /* Se sabe QUE es, pero no CUANTO trae: se pregunta en vez de meter una
+         cantidad inventada y un precio diez veces mayor. Es una duda DISTINTA
+         de "no se que insumo es", y se pregunta distinto. */
+      return { ...l, insumo_id: null, insumo: ins.nombre, factor: 1, buy_unit: ins.buy_unit,
+        cant_final: l.cantidad, precio_viejo: ins.precio,
+        precio_unit: l.cantidad > 0 ? l.valor_total / l.cantidad : 0,
+        precio_raro: true, duda_cantidad: true, ok: false };
     }
   }
 
@@ -161,13 +201,21 @@ function resolver(l: Linea, insumos: Insumo[], alias: Array<Record<string, unkno
   const rival = puntajes.length > 1 ? puntajes[1].p : 0;
   const pu = l.cantidad > 0 ? l.valor_total / l.cantidad : 0;
   const razon = mejor.precio > 0 && pu > 0 ? pu / mejor.precio : 1;
+  /* Si el precio no cuadra de a uno, puede ser un empaque multiple: se prueba
+     con lo que dice la descripcion ("CAJAx10pqt") antes de dudar. */
+  const facE = multiploDelEmpaque(l.desc);
+  const rE = razonPrecio(l.valor_total, l.cantidad * facE, mejor.precio);
+  const usaEmpaque = facE > 1 && !precioCuadra(razon) && precioCuadra(rE);
   // Seguro solo si: gana claro Y el precio es coherente. El precio delata
   // empaques distintos (una caja de 10 cuesta 10 veces más que la unidad).
-  const claro = pts >= 8 && (pts - rival) >= 3 && razon <= 2.5 && razon >= 0.4;
+  const claro = pts >= 8 && (pts - rival) >= 3 && (precioCuadra(razon) || usaEmpaque);
 
   if (claro) {
-    return { ...l, insumo_id: mejor.id, insumo: mejor.nombre, factor: 1, buy_unit: mejor.buy_unit,
-      cant_final: l.cantidad, precio_viejo: mejor.precio, precio_unit: pu, ok: true };
+    const fac = usaEmpaque ? facE : 1;
+    const cf = l.cantidad * fac;
+    return { ...l, insumo_id: mejor.id, insumo: mejor.nombre, factor: fac, buy_unit: mejor.buy_unit,
+      cant_final: cf, precio_viejo: mejor.precio,
+      precio_unit: cf > 0 ? l.valor_total / cf : 0, ok: true };
   }
   return { ...l, insumo_id: null, insumo: puntajes.slice(0, 2).map((x) => x.i.nombre).join(" o "),
     precio_unit: pu, precio_viejo: mejor.precio,
@@ -190,6 +238,12 @@ function armarMensaje(prov: string, total: number, lineas: Linea[]): string {
     for (const l of listos) {
       const sube = cambioFuerte(l);
       t += `✅ ${l.insumo} +${fmtNum(l.cant_final || 0)} ${l.buy_unit}`;
+      /* SI EL EMPAQUE TRAE VARIAS, SE DICE. Es la cuenta que mas facil se
+         equivoca (la caja de 10 que entro como 1), asi que se muestra para
+         que el gerente la pueda desmentir de un vistazo. */
+      if (num(l.factor) > 1) {
+        t += `\n    (${fmtNum(l.cantidad)} × ${fmtNum(num(l.factor))} por empaque)`;
+      }
       if (sube) {
         const arriba = (l.precio_unit || 0) > (l.precio_viejo || 0);
         t += `\n    ${arriba ? "⚠️ subió" : "↓ bajó"} de ${fmtCOP(l.precio_viejo || 0)} a ${fmtCOP(l.precio_unit || 0)}`;
@@ -201,13 +255,21 @@ function armarMensaje(prov: string, total: number, lineas: Linea[]): string {
     t += `\n*No estoy seguro:*\n`;
     for (const l of dudas) {
       t += `❓ "${l.desc}" (${fmtNum(l.cantidad)})`;
-      if (l.precio_raro) {
+      if (l.duda_cantidad) {
+        /* Se sabe que es; lo que no cuadra es CUANTO trae el empaque. */
+        t += ` — sé que es *${l.insumo}*, pero no me cuadra cuánto trae: a ese precio ` +
+             `saldría a ${fmtCOP(l.precio_unit || 0)} y lo tienes a ${fmtCOP(l.precio_viejo || 0)}. ` +
+             `¿Cuántos ${l.buy_unit} trae ese empaque?\n`;
+      } else if (l.precio_raro) {
         t += ` — ¿es *${l.insumo}*? El precio no cuadra: la factura da ${fmtCOP(l.precio_unit || 0)} y lo tienes a ${fmtCOP(l.precio_viejo || 0)}.\n`;
       } else {
         t += l.insumo ? ` — ¿es *${l.insumo}*?\n` : ` — ¿a qué insumo corresponde?\n`;
       }
     }
-    t += `\nDime por ejemplo: _"la manguera es salchicha"_ y lo guardo para siempre.\n`;
+    const hayCant = dudas.some((l) => l.duda_cantidad);
+    t += hayCant
+      ? `\nDime por ejemplo: _"la caja trae 10 kilos"_, o _"la manguera es salchicha"_ si es otro insumo.\n`
+      : `\nDime por ejemplo: _"la manguera es salchicha"_ y lo guardo para siempre.\n`;
   }
   // Si hay subidas de verdad, se explica ahi mismo como aceptarlas. Un aviso
   // que no dice que hacer con el solo sirve para preocupar.
@@ -216,8 +278,12 @@ function armarMensaje(prov: string, total: number, lineas: Linea[]): string {
     t += `\n_Los precios con ⚠️ NO los cambio solo._ Si alguno ya es el precio ` +
       `de siempre, dime por ejemplo: *SÍ, actualiza el precio de ${conSubida[0].insumo}*.\n`;
   }
+  /* SE LE DICE QUE PUEDE DEJAR ALGO POR FUERA (21-ago-2026). Antes solo se
+     ofrecia SI o NO, y "aplica todo menos el maiz" —que es como habla
+     cualquiera— caia en el "si" y se aplicaba todo. */
   t += listos.length
-    ? `\nResponde *SÍ* para aplicar${dudas.length ? " lo que está listo" : ""}.`
+    ? `\nResponde *SÍ* para aplicar${dudas.length ? " lo que está listo" : ""}` +
+      (listos.length > 1 ? `, o *aplica todo menos ${listos[0].insumo}* si quieres dejar alguno por fuera.` : `.`)
     : `\nDime a qué insumo corresponde cada uno y los aplico.`;
   return t;
 }
@@ -400,10 +466,41 @@ REGLAS:
     }
 
     // ── Confirmó: aplicar lo reconocido ────────────────────────────────
-    const aplicar = lineas.filter((l) => l.ok && l.insumo_id);
+    let aplicar = lineas.filter((l) => l.ok && l.insumo_id);
     if (!aplicar.length) return json({ reply: "Todavía no hay nada que pueda aplicar. Dime a qué insumo corresponde cada línea." });
     // Lo que dijo DESPUES del "sí" es donde pide los precios.
     const resto = m.replace(new RegExp("^(si|dale|aplica|confirmo|ok|correcto)\\b"), "").trim();
+
+    /* "APLICA TODO MENOS EL MAIZ" — Y SE OBEDECE (21-ago-2026, lo vio Sergio).
+       "aplica" hacia juego con el "sí" y se metia TODO, incluido justo lo que
+       pidio dejar por fuera: decirle que si y hacer lo contrario es peor que
+       no entenderle. Lo que va despues de menos/excepto/sin son los que NO
+       entran. */
+    const mExcl = resto.match(new RegExp("(?:menos|excepto|salvo|sin)\\s+(.+)$"));
+    const excluidos: string[] = [];
+    if (mExcl) {
+      const pedidas = new Set(String(mExcl[1]).split(new RegExp("[^a-z0-9]+")).filter((w) => w.length >= 3));
+      const fuera = aplicar.filter((l) => {
+        const nom = norm(l.insumo || "") + " " + norm(l.desc || "");
+        return nom.split(new RegExp("[^a-z0-9]+")).some((w) => w.length >= 3 && pedidas.has(w));
+      });
+      if (fuera.length) {
+        for (const l of fuera) excluidos.push(String(l.insumo || l.desc));
+        const ids = new Set(fuera.map((l) => l.desc));
+        aplicar = aplicar.filter((l) => !ids.has(l.desc));
+        /* Lo excluido NO se aplica y TAMPOCO se aprende como sinonimo: si el
+           gerente lo saco es porque algo no cuadraba. */
+        lineas = lineas.map((l) => ids.has(l.desc) ? { ...l, ok: false } : l);
+      } else {
+        /* Pidio excluir algo que no esta en la factura: se dice, no se
+           aplica todo callado. */
+        return json({ reply: `No encontré *${String(mExcl[1])}* en esta factura 🤔. Dime el nombre como aparece en la lista y lo dejo por fuera, o responde *SÍ* para aplicar todo.` });
+      }
+      if (!aplicar.length) {
+        await sbPatch(`/iv_facturas_pendientes?id=eq.${f.id}`, { estado: "descartada" });
+        return json({ reply: "Entonces no quedó nada por aplicar. No toqué el inventario 👍" });
+      }
+    }
     const todosLosPrecios = /\btodos?\b[^.]{0,20}\bprecios?\b/.test(resto) && !/(no|ning)/.test(resto);
 
     // Una palabra solo sirve para señalar a un insumo si no la comparte con
@@ -459,9 +556,14 @@ REGLAS:
       }
     }
     await sbPatch(`/iv_facturas_pendientes?id=eq.${f.id}`, { estado: "aplicada" });
-    const quedan = lineas.filter((l) => !l.ok).length;
+    /* Lo EXCLUIDO no cuenta como "no supe a que insumo va": si se marca ok
+       false para no aplicarlo, el cierre decia las dos cosas del mismo
+       renglon y se contradecia solo. */
+    const excl = new Set(excluidos.map((x) => norm(x)));
+    const quedan = lineas.filter((l) => !l.ok && !excl.has(norm(l.insumo || ""))).length;
     return json({
       reply: `✅ *Inventario actualizado*\n${hechos.join("\n")}` +
+        (excluidos.length ? `\n\n🚫 *No toqué* (me dijiste que lo dejara por fuera): ${excluidos.join(", ")}` : "") +
         (sinTocar.length ? `\n\n*Precios que dejé como estaban:*\n${sinTocar.join("\n")}` +
           `\n\nSi alguno ya es el precio de siempre, dímelo y lo cambio.` : "") +
         (quedan ? `\n\nQuedaron ${quedan} sin aplicar porque no supe a qué insumo van. Mándame la foto otra vez cuando quieras enseñármelos.` : ""),

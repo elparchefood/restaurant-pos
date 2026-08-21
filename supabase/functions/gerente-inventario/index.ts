@@ -514,22 +514,47 @@ Deno.serve(async (req: Request) => {
         await sbPatch(`/iv_turnos?id=eq.${turno.id}`, { analisis: null });
         return json({ reply: "Listo, dejo las porciones como estan 👍" });
       }
-      /* "aplica familiar" solo cambia las que lleven esa palabra. */
-      const filtro = mensaje.replace(TURNO_APLICAR, "").replace(/^\s*(las|los|la|el|todo|todas|todos)\s*/i, "").trim().toLowerCase();
+      /* "aplica familiar" solo cambia las que lleven esa palabra, y
+         "aplica todo menos la personal" cambia todas MENOS esas (21-ago-2026:
+         asi habla el gerente, y antes esa frase no cambiaba nada y respondia
+         "no encontre recomendaciones que digan menos la personal"). */
+      const dicho = mensaje.replace(TURNO_APLICAR, "").trim().toLowerCase();
+      const mMenos = dicho.match(new RegExp("(?:menos|excepto|salvo|sin)\\s+(.+)$"));
+      const excluir = mMenos
+        ? String(mMenos[1]).replace(new RegExp("^\\s*(las|los|la|el)\\s*"), "").trim()
+        : "";
+      const filtro = excluir
+        ? ""
+        : dicho.replace(new RegExp("^\\s*(las|los|la|el|todo|todas|todos)\\s*", "i"), "").trim();
       const ajustes: Array<Record<string, unknown>> = [];
       const nombres: string[] = [];
+      const dejados: string[] = [];
       for (const i of ((an.insumos as Array<Record<string, unknown>>) || [])) {
         if (!i.confiable) continue;
         for (const r of ((i.recetas as Array<Record<string, unknown>>) || [])) {
           if (r.porcion_reco === null || r.porcion_reco === undefined) continue;
           const etiqueta = `${r.producto} ${r.presentacion}`.toLowerCase();
+          if (excluir && (etiqueta.includes(excluir) || String(i.insumo).toLowerCase().includes(excluir))) {
+            dejados.push(`${r.producto}${r.presentacion === "unica" ? "" : " " + r.presentacion}`);
+            continue;
+          }
           if (filtro && !etiqueta.includes(filtro) && !String(i.insumo).toLowerCase().includes(filtro)) continue;
           ajustes.push({ receta_id: r.receta_id, pres_key: r.pres_key, porcion: r.porcion_reco });
           nombres.push(`${r.producto}${r.presentacion === "unica" ? "" : " " + r.presentacion}: ${r.porcion_reco} ${i.unidad_uso}`);
         }
       }
       if (!ajustes.length) {
+        if (excluir) {
+          return json({ reply: dejados.length
+            ? "Entonces no queda nada por cambiar. Dejo las porciones como estan 👍"
+            : `No encontre nada que se llame “${excluir}” para dejarlo por fuera. Dime el nombre como aparece en la lista.` });
+        }
         return json({ reply: filtro ? `No encontre recomendaciones que digan “${filtro}”.` : "No hay recomendaciones que aplicar." });
+      }
+      if (excluir && !dejados.length) {
+        /* Pidio dejar algo por fuera que no existe: se le dice, no se aplica
+           todo callado — ese fue el error de la factura del maiz. */
+        return json({ reply: `No encontre nada que se llame “${excluir}” en las recomendaciones 🤔. Dime el nombre como aparece en la lista y lo dejo por fuera, o responde *aplica* para cambiarlas todas.` });
       }
       const res = await sbPost(`/rpc/fn_turno_aplicar`, { p_turno: turno.id, p_ajustes: ajustes, p_por: telGerente });
       if (!res.ok) return json({ reply: "No pude cambiar las porciones. Intenta otra vez en un momento." });

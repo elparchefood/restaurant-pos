@@ -10992,3 +10992,56 @@ JUEVES — media hora se perdio por poner el horario de prueba en "miercoles";
 limpieza reventaba la transaccion entera; (3) el horario de ia_config estaba
 NULL (usa el default 18:30-22:30 del codigo) — se abrio temporalmente para
 el banco y quedo RESTAURADO a null (verificado).
+
+
+---
+
+## 21-ago-2026 — Factura del gerente: la caja de 10 y el "menos el maiz"
+
+Sergio mando la factura de la compra. Dos fallas, y la segunda es de las
+graves (obedecer lo contrario de lo que se le dijo).
+
+**FALLA 1 — 10 kilos de maiz entraron como 1, Y el precio se multiplico x10.**
+La linea decia `MAIZ CONGELAD CAJAx10pqt`, 1 caja, $79.000. Entro como 1 kg y
+el precio del kilo paso de $7.900 a $79.000 (dañaba stock Y costeo).
+*Causa raiz:* el camino del SINONIMO se saltaba el control de precio. Existia
+un alias viejo "maiz" (factor 1) y el buscador lo acepta si la descripcion lo
+CONTIENE (`d.includes(an)`) — "maiz congelad cajax10pqt" contiene "maiz". Con
+eso aplicaba factor 1 a ciegas. La busqueda por NOMBRE si tenia el control de
+precio (`razon` 0.4–2.5) y habria dudado: $79.000/$7.900 = 10.
+*Arreglo (factura-inventario v17):* `multiploDelEmpaque()` lee el "x10" de la
+descripcion (tope 500, para que "BOLx4000g" —gramos— no cuente), y
+`razonPrecio()`+`precioCuadra()` ahora se aplican TAMBIEN en el camino del
+alias: se prueba el factor del alias, luego el del empaque, y si ninguno
+cuadra NO se adivina — se pregunta ("se que es Maicitos, pero no me cuadra
+cuanto trae... ¿cuantos kg trae ese empaque?", duda_cantidad). La busqueda por
+nombre tambien prueba el multiplo antes de dudar.
+*Datos corregidos a mano:* Maicitos 3,8 → **12,8 kg** y precio $79.000 →
+**$7.900/kg**; el alias `MAIZ CONGELAD CAJAx10pqt` quedo con factor 10.
+Auditados los demas alias con multiplicador: solo BBQ "x4000g" (gramos, bien).
+
+**FALLA 2 — "aplica todo menos el maiz" aplico TODO, incluido el maiz.**
+El regex de confirmacion `^(si|dale|aplica|...)` hacia juego con "aplica" y el
+resto de la frase solo se miraba para los PRECIOS; las exclusiones no existian.
+*Arreglo:* se leen menos/excepto/salvo/sin y esas lineas quedan fuera (no se
+aplican y tampoco se aprenden como sinonimo). Si pide excluir algo que no esta
+en la factura, PREGUNTA en vez de aplicar todo callado. Si al excluir no queda
+nada, descarta sin tocar el inventario. El cierre dice "🚫 No toqué: X" y ya
+no se contradice con el "no supe a que insumo van".
+
+**Mas conversacional (lo pidio Sergio):** el resumen ahora muestra el multiplo
+cuando lo hay ("1 × 10 por empaque") para poder desmentirlo de un vistazo, la
+duda de CANTIDAD se pregunta distinto de la duda de IDENTIDAD, y el cierre
+ofrece la salida que antes no existia: "*aplica todo menos <insumo>*".
+Lo mismo en el flujo de TURNOS de gerente-inventario (v30): "aplica todo menos
+la personal" ahora excluye; antes respondia "no encontre recomendaciones que
+digan menos la personal".
+
+**Verificado:** los 4 renglones reales de la factura de hoy resueltos en banco
+Node (maiz→10, ripio/salchicha/tomate→1, y el x4000g sin falso positivo); 7
+frases de exclusion; y punta a punta contra la funcion viva — factura de 2
+lineas con "aplica todo menos el maíz": aplico Ripio, dejo Maicitos intacto.
+Datos de prueba REVERTIDOS (Ripio volvio a 3,79 kg / $11.200) y facturas
+PRUEBA borradas. TRAMPA del banco: mandar tildes por curl desde Git Bash las
+rompe ("el ma z") — el JSON hay que escribirlo en UTF-8 con Python; el codigo
+estaba bien y la falla era del propio banco.
