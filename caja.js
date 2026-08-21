@@ -201,6 +201,52 @@ function cjPedidosSinCobrar(orders){
   }).filter(function(x){ return x.falta > 0; });
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   EFECTIVO EN PODER DE LOS DOMICILIARIOS  (21-ago-2026)
+
+   Solo aplica cuando el rol de domiciliario esta puesto en "trae el
+   dinero al terminar el turno" (Configuracion > Usuarios y roles). Con
+   la otra opcion, el domiciliario entrega la plata de cada pedido al
+   volver y esa plata ya esta en el cajon: no hay nada que avisar.
+
+   La cuenta la hace la base (fn_domi_efectivo_pendiente) y no la
+   pantalla, para que el arqueo y los informes den lo mismo.
+   ══════════════════════════════════════════════════════════════════ */
+async function cjPintarDomisEfectivo(){
+  var box = document.getElementById('arqueo-domis');
+  if (!box) return;
+  box.classList.add('is-hidden');
+  try {
+    if (!S.branchId) return;
+    /* EL MISMO CORTE QUE EL ARQUEO, con la misma funcion que ya usa la
+       pantalla. Con otro corte, el bloque diria un numero y el arqueo
+       otro, y el cajero no sabria a cual creerle. */
+    var desde = await inicioDelTurno(S.branchId, S.session);
+    var r = await sb.rpc('fn_domi_efectivo_pendiente', { p_branch: S.branchId, p_desde: desde });
+    if (r && r.error) { console.warn('[caja] efectivo domis:', r.error.message); return; }
+    var filas = (r && r.data) || [];
+    if (!filas.length) return;
+
+    var total = filas.reduce(function(a, f){ return a + (Number(f.efectivo) || 0); }, 0);
+    var tt = document.getElementById('arqueo-domis-tt');
+    var ds = document.getElementById('arqueo-domis-ds');
+    if (tt) tt.textContent = filas.length === 1
+      ? 'Un domiciliario lleva ' + COPF(total) + ' encima'
+      : filas.length + ' domiciliarios llevan ' + COPF(total) + ' encima';
+    if (ds) ds.innerHTML = filas.map(function(f){
+      var n = Number(f.pedidos) || 0;
+      return '<div>· <strong>' + cjEscDomi(f.nombre) + '</strong> — ' + COPF(Number(f.efectivo) || 0)
+           + ' <span style="opacity:.75">(' + n + (n === 1 ? ' pedido' : ' pedidos') + ')</span></div>';
+    }).join('');
+    box.classList.remove('is-hidden');
+  } catch (e) { console.warn('[caja] efectivo domis:', e); }
+}
+
+function cjEscDomi(v){
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 /* El aviso va ANTES de que el cajero vea la diferencia: si sale después, ya se
    asustó buscando un error que no existe. */
 function cjPintarPendientes(){
@@ -1163,7 +1209,10 @@ function openPanel(id) {
   if (id === 'panel-abrir') { try { apPreparar(); } catch(e) { console.error('apertura:', e); } }
   // Al abrir el arqueo se recalcula el aviso de pedidos sin cobrar: el cajero
   // pudo haber cobrado alguno desde que cargó la pantalla.
-  if (id === 'panel-arqueo') { try { cjPintarPendientes(); } catch(e) { console.warn('pendientes:', e); } }
+  if (id === 'panel-arqueo') {
+    try { cjPintarPendientes(); } catch(e) { console.warn('pendientes:', e); }
+    try { cjPintarDomisEfectivo(); } catch(e) { console.warn('efectivo domis:', e); }
+  }
 }
 function closePanel(id){ document.getElementById(id)?.classList.add('is-hidden'); }
 window.openPanel  = openPanel;

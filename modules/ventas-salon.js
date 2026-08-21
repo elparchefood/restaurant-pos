@@ -900,7 +900,11 @@
           // reparte. Estaban confundidos y la tarjeta decia "Domiciliario: Chat IA".
           cajero:       r.waiter_name || _vsUsr[r.waiter_id] || '',
           domiciliario: r.domiciliario || '',
-          /* El movil de Rapid, si el despacho lo anoto (20-ago). */
+          /* El movil de la empresa externa, si el despacho lo anoto
+             (20-ago). El nombre de la empresa sale de la lista que cada
+             restaurante guarda en Configuracion > Domicilios: aqui decia
+             "Rapid" a fuego, que es la que usa El Parche, y se le mostraba
+             a todos los restaurantes del sistema. */
           movil: r.domi_movil || '',
           clienteId: r.cliente_id || null,
           min: mins,                 // en el estado actual
@@ -1637,7 +1641,7 @@
     out[n - 1] += fee - out.reduce(function (a, b) { return a + b; }, 0);
     return out;
   }
-  /* Editor del movil de Rapid, en el panel del domicilio (20-ago-2026). */
+  /* Editor del movil de la empresa externa, en el panel del domicilio. */
   window.vsMovilEditar = function (btn, orderId) {
     if (btn.querySelector('input')) return;
     var d = (state.deliveries || []).find(function (x) { return String(x.id) === String(orderId); });
@@ -1652,7 +1656,7 @@
       if (guardado) return; guardado = true;
       var v = (inp.value || '').replace(/[^0-9a-zA-Z]/g, '').slice(0, 6);
       if (d) d.movil = v;
-      btn.innerHTML = v ? 'Lo llevó el Móvil ' + _esc(v) + ' (Rapid)' : '+ Móvil del domiciliario';
+      btn.innerHTML = v ? 'Lo llevó el Móvil ' + _esc(v) : '+ Móvil del domiciliario';
       btn.style.color = v ? '#0F766E' : '#94A3B8';
       btn.style.background = v ? '#CCFBF1' : '#F1F5F9';
       try {
@@ -1874,7 +1878,7 @@
           return '<button type="button" onclick="window.vsMovilEditar(this, &quot;' + d.id + '&quot;)"'
             + ' style="margin:4px 0 0;border:none;cursor:pointer;font-size:12px;font-weight:700;padding:4px 10px;border-radius:8px;font-family:inherit;'
             + (d.movil ? 'color:#0F766E;background:#CCFBF1' : 'color:#94A3B8;background:#F1F5F9') + '">'
-            + (d.movil ? 'Lo llevó el Móvil ' + _esc(d.movil) + ' (Rapid)' : '+ Móvil del domiciliario') + '</button>';
+            + (d.movil ? 'Lo llevó el Móvil ' + _esc(d.movil) : '+ Móvil del domiciliario') + '</button>';
         })()}
 
       </div>
