@@ -310,8 +310,8 @@ es una multa esperando.
 
 | # | Fase | Qué incluye |
 |---|---|---|
-| 0 | **Confirmar proveedor** | Las 5 preguntas del §4. Sin esto no se escribe código. |
-| 1 | **Configuración + consecutivo** | Credenciales, rangos, bloqueo del número, alertas |
+| 0 | **Confirmar proveedor** | Las 5 preguntas del §4. Sin esto no se escribe código. 🟡 **Correo redactado y listo para enviar: `CORREO-PROVEEDOR-DIAN.md`** (21-ago) |
+| 1 | **Configuración + consecutivo** | Credenciales, rangos, bloqueo del número, alertas. ✅ **BASE HECHA (21-ago)**: `pos_facturacion_rangos`, `pos_facturas`, `fn_factura_numero` (bloqueo de fila, un pedido = una factura, rango agotado no emite) y `fn_factura_rango_estado` (alerta de %). SQL: `supabase/sql/2026-08-21-facturacion-dian-base.sql`. Falta la PANTALLA de configuración. |
 | 1b | **Asistente de habilitación** | Los 7 pasos del §5.1-bis, con prueba en sandbox |
 | 2 | **Emisión en sandbox** | Edge Function, tabla `pos_facturas`, CUFE de prueba |
 | 3 | **Cola y reintento** | Recibo provisional, reenvío automático, idempotencia |

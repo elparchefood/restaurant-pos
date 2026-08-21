@@ -11120,3 +11120,43 @@ estructura, 43 campos `data-frase`, todos a la misma profundidad (leccion de
 un ARREGLO (lista), no un texto, asi que necesita otra forma de guardarlo —
 `readFrases` guarda cadenas. El saludo normal ya es configurable por
 `apertura`/`apertura_conocido`, asi que no urge.
+
+
+---
+
+## 21-ago-2026 — Facturacion electronica DIAN: arrancamos (etapa 1, cimientos)
+
+Sergio: *"facturacion electronica hagamoslo ya entonces"*.
+
+**Etapa 0 (proveedor):** correo redactado y listo para enviar en
+`CORREO-PROVEEDOR-DIAN.md` — las 5 preguntas que definen la arquitectura
+(multi-empresa, precio real, quien custodia el certificado, tiempo de
+habilitacion, quien reintenta si la DIAN se cae), con una tabla de "que cambia
+segun lo que respondan". Recomendado Alanube; Factus como plan B.
+
+**Etapa 1 (lo que NO depende del proveedor): HECHA.**
+`supabase/sql/2026-08-21-facturacion-dian-base.sql`:
+- `pos_facturacion_rangos` — la resolucion DIAN de cada restaurante (prefijo,
+  desde, hasta, actual, vencimiento). Indice unico: UNA sola activa por
+  prefijo y sede, o el consecutivo se partiria en dos series.
+- `pos_facturas` — las emitidas, con estado, CUFE y la respuesta cruda del
+  proveedor. **Dos indices unicos que son la proteccion legal:** el numero no
+  se repite jamas, y un pedido no puede tener dos facturas vivas.
+- `fn_factura_numero()` — el consecutivo CON BLOQUEO DE FILA (`for update`).
+  Nunca se calcula en el navegador. Si el pedido ya tiene factura devuelve esa
+  (`ya_existia`) en vez de emitir otra: reintentar no duplica. Si el rango se
+  agoto NO emite (`rango_agotado`) — inventar un numero fuera de la resolucion
+  es ilegal.
+- `fn_factura_rango_estado()` — % consumido, para avisar antes de quedarse sin
+  numeros (pedir otra resolucion a la DIAN toma dias).
+- RLS por tenant en las dos tablas, y las funciones con el REVOKE a PUBLIC
+  hecho a proposito (PostgreSQL le da EXECUTE a PUBLIC por defecto y `anon` lo
+  hereda — quitarselo solo a anon no sirve de nada).
+
+**Verificado en banco:** 6 cajas pidiendo numero A LA VEZ → 500,501,502,503,
+504,505 sin repetir ni saltar; la 7a con el rango lleno → `rango_agotado` sin
+emitir; el mismo pedido dos veces → devuelve el 506 las dos veces
+(`ya_existia`); la alerta de rango calculo 63.6%. Datos de prueba borrados.
+
+**Lo que sigue** (sin depender del proveedor): la PANTALLA de configuracion
+(cargar resolucion y rangos) y el asistente de habilitacion del §5.1-bis.
