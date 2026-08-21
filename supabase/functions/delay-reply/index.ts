@@ -1053,6 +1053,15 @@ async function processConversation(convId: string, relectura = false): Promise<v
     const et = (frasesCfg as Record<string, unknown>).etiqueta_ia;
     if (et !== undefined && et !== null) ETIQUETA_IA = String(getFraseTexto(et) || "").trim();
   }
+  /* EL EMOJI TAMBIEN ES DEL RESTAURANTE (21-ago-2026). Las papas fritas de El
+     Parche estaban escritas a fuego en 23 mensajes del motor: una pizzeria que
+     comprara Cobra saludaba a sus clientes con papas fritas. Ahora sale de
+     `frases.emoji`; si el restaurante no pone ninguno, los mensajes salen
+     limpios — mejor sin emoji que con el de otro negocio. */
+  {
+    const em = (frasesCfg as Record<string, unknown>).emoji;
+    EMOJI_NEG = em == null ? "" : String(getFraseTexto(em) || "").trim();
+  }
   const domiciliosCfg     = cfg.domicilios as Record<string, unknown> | null | undefined;
   /* LAS CUENTAS QUE ESCOGIO EL DUEÑO en la caja de Pago del canvas. Se filtra
      aqui, en el origen, y no en los nueve sitios que preguntan por los metodos:
@@ -1083,7 +1092,7 @@ async function processConversation(convId: string, relectura = false): Promise<v
       cerradoInfo = { tipo: "antes", frase: reemplazar(f) };
     } else if (horaAperturaHoy) {
       const f = getFraseTexto(frasesCfg.fuera_horario)
-        || "Por hoy ya terminamos nuestra jornada 🍟 Volvemos {{proximo_dia}}. ¡Gracias por escribirnos!";
+        || `Por hoy ya terminamos nuestra jornada${emo()} Volvemos {{proximo_dia}}. ¡Gracias por escribirnos!`;
       cerradoInfo = { tipo: "despues", frase: reemplazar(f) };
     } else {
       const f = getFraseTexto(frasesCfg.dia_cerrado)
@@ -1346,7 +1355,7 @@ INTENCION, no las palabras exactas.` },
     if (!pedidoEnCurso) {
       const chao = getFraseTexto(frasesCfg.despedida)
         || getFraseTexto(frasesCfg.cierre)
-        || "¡Con mucho gusto! 😊 Aquí estamos cuando se te antoje algo 🍟";
+        || `¡Con mucho gusto! 😊 Aquí estamos cuando se te antoje algo${emo()}`;
       await sendWaAndSave(convId, tenantId, chao, fromPhone, phoneId, accessToken);
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: chao, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
       return;
@@ -1485,9 +1494,9 @@ INTENCION, no las palabras exactas.` },
     const preguntaPorCombos = !pedido && /(^|[^a-z])combos?([^a-z]|$)/i.test(tCombo);
     if (pedido || preguntaPorCombos) {
       const avisoCombo = pedido
-        ? `¡Claro que tenemos! 🍟 El *${pedido}* si lo manejamos. `
+        ? `¡Claro que tenemos!${emo()} El *${pedido}* si lo manejamos. `
           + "Dame un momento que te atiende alguien del local para armartelo 🙏"
-        : "¡Claro que sí! 🍟 Tenemos: "
+        : `¡Claro que sí!${emo()} Tenemos: `
           + COMBOS_NOMBRES.map(n2 => "*" + n2 + "*").join(" y ")
           + ". Dame un momento que te atiende alguien del local para armartelo 🙏";
       await sendWaAndSave(convId, tenantId, avisoCombo, fromPhone, phoneId, accessToken);
@@ -1920,7 +1929,7 @@ INTENCION, no las palabras exactas.` },
          — y prometer acciones ya nos costo un caso (entrada 176).
          La frase se puede cambiar desde Configuracion cuando Sergio quiera:
          si algun dia llena `handoff.frase`, manda la suya y no esta. */
-      const aviso = "Uy, no alcanzo a ver las fotos 😅 Ya le paso tu mensaje a una persona del equipo 🍟";
+      const aviso = `Uy, no alcanzo a ver las fotos 😅 Ya le paso tu mensaje a una persona del equipo${emo()}`;
       await sendWaAndSave(convId, tenantId, aviso, fromPhone, phoneId, accessToken);
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
         last_message: aviso, last_message_at: new Date().toISOString(),
@@ -1995,7 +2004,7 @@ INTENCION, no las palabras exactas.` },
     if (cambiaEfectivoPend && stPend && esLlevarPend && prepagoPend) {
       if (await frenarBucle(convId, "llevar_efectivo")) return;
       const msgLl = getFraseTexto(frasesCfg.llevar_efectivo)
-        || "Qué pena contigo 🙏 Para recoger tu pedido el pago debe hacerse por transferencia primero. Si prefieres efectivo, te lo preparamos cuando te acerques al local 🍟";
+        || `Qué pena contigo 🙏 Para recoger tu pedido el pago debe hacerse por transferencia primero. Si prefieres efectivo, te lo preparamos cuando te acerques al local${emo()}`;
       await sendWaAndSave(convId, tenantId, msgLl, fromPhone, phoneId, accessToken);
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgLl, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
       return;
@@ -2130,7 +2139,7 @@ INTENCION, no las palabras exactas.` },
         await sbPatch(`/rest/v1/pos_saldo_mov?referencia=eq.${encodeURIComponent(refDR)}`, { order_id: orderIdDR });
         const sal2 = await sbRpcDR("fn_saldo_cliente", { p_tenant: tenantId, p_cliente: spDR.cliente });
         const resta = Math.round(Number(Array.isArray(sal2) ? (sal2[0] as Record<string, unknown>)?.saldo : sal2) || 0);
-        const okMsg = `¡Pago confirmado! 🎉 Pagaste ${fmtCOP(totalDR)} con tu Billetera y te quedan ${fmtCOP(resta)}. Tu pedido ya está en preparación 🍟`;
+        const okMsg = `¡Pago confirmado! 🎉 Pagaste ${fmtCOP(totalDR)} con tu Billetera y te quedan ${fmtCOP(resta)}. Tu pedido ya está en preparación${emo()}`;
         await sendWaAndSave(convId, tenantId, okMsg, fromPhone, phoneId, accessToken);
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
           pending_order_data: null, pago_pendiente: false,
@@ -2179,7 +2188,7 @@ INTENCION, no las palabras exactas.` },
          redimir aunque nombre sus puntos. */
       if (pideRedimir) {
         const msgR = "¡Los premios se redimen desde nuestra app! 🎁 Regístrate con este mismo número y ahí ves tus puntos, el catálogo completo de premios y los rediemes tú mismo, facilito.";
-        if (urlAppP) await sendWaBotonApp(convId, tenantId, msgR, "Abrir la app 🍟", urlAppP, fromPhone, phoneId, accessToken);
+        if (urlAppP) await sendWaBotonApp(convId, tenantId, msgR, `Abrir la app${emo()}`, urlAppP, fromPhone, phoneId, accessToken);
         else await sendWaAndSave(convId, tenantId, msgR, fromPhone, phoneId, accessToken);
         respondido = true;
       } else if (pideSaldoPts) {
@@ -2188,7 +2197,7 @@ INTENCION, no las palabras exactas.` },
         const msgP = pts > 0
           ? `Tienes ${pts.toLocaleString("es-CO")} puntos 🎉 En nuestra app los ves al día, sigues tu progreso y los rediemes por premios.`
           : "Aún no tienes puntos registrados 😊 En cada compra ganas 1 punto por cada $1.000 — da tu número al pedir y empiezas a acumular. En nuestra app los ves y los rediemes.";
-        if (urlAppP) await sendWaBotonApp(convId, tenantId, msgP, "Abrir la app 🍟", urlAppP, fromPhone, phoneId, accessToken);
+        if (urlAppP) await sendWaBotonApp(convId, tenantId, msgP, `Abrir la app${emo()}`, urlAppP, fromPhone, phoneId, accessToken);
         else await sendWaAndSave(convId, tenantId, msgP, fromPhone, phoneId, accessToken);
         respondido = true;
       }
@@ -2274,7 +2283,7 @@ INTENCION, no las palabras exactas.` },
         const perfilS  = (cfg.perfil as Record<string, string>) || {};
         const botNm    = botCfgS.nombre || perfilS.nombre || "tu asistente virtual";
         const restNm   = String(vd.restaurante || "");
-        bienvenida = `¡Hola! Soy ${botNm}${restNm ? `, el asistente virtual de ${restNm}` : ""} 🤖 ¿Qué deseas pedir? 🍟`;
+        bienvenida = `¡Hola! Soy ${botNm}${restNm ? `, el asistente virtual de ${restNm}` : ""} 🤖 ¿Qué deseas pedir?${emo()}`;
       }
       await sendWaAndSave(convId, tenantId, bienvenida, fromPhone, phoneId, accessToken);
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: bienvenida, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
@@ -2570,7 +2579,7 @@ INTENCION, no las palabras exactas.` },
         if (await frenarBucle(convId, "llevar_efectivo")) return;
         // Para-llevar + prepago: no se puede efectivo → explicar y mantener el resumen
         const msgLl = getFraseTexto(frasesCfg.llevar_efectivo)
-          || "Qué pena contigo 🙏 Para recoger tu pedido el pago debe hacerse por transferencia primero. Si prefieres efectivo, te lo preparamos cuando te acerques al local 🍟";
+          || `Qué pena contigo 🙏 Para recoger tu pedido el pago debe hacerse por transferencia primero. Si prefieres efectivo, te lo preparamos cuando te acerques al local${emo()}`;
         await sendWaAndSave(convId, tenantId, msgLl, fromPhone, phoneId, accessToken);
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgLl, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
         return;
@@ -2657,7 +2666,7 @@ INTENCION, no las palabras exactas.` },
         const decirYSoltarPago = async (msg: string, boton: boolean) => {
           state.pago = null;   // que pueda escoger otro metodo sin trabarse
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
-          if (boton && urlApp) await sendWaBotonApp(convId, tenantId, msg, "Abrir la app 🍟", urlApp, fromPhone, phoneId, accessToken);
+          if (boton && urlApp) await sendWaBotonApp(convId, tenantId, msg, `Abrir la app${emo()}`, urlApp, fromPhone, phoneId, accessToken);
           else await sendWaAndSave(convId, tenantId, msg + (urlApp ? "\n\n👉 " + urlApp : ""), fromPhone, phoneId, accessToken);
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
         };
@@ -2770,7 +2779,7 @@ INTENCION, no las palabras exactas.` },
         if (esLlevarConf && exigePrepago) {
           if (await frenarBucle(convId, "llevar_efectivo")) return;
           const msgLlevar = getFraseTexto(frasesCfg.llevar_efectivo) ||
-            "Qué pena contigo 🙏 Si deseas que tu pedido esté listo cuando pases por él, el pago debe hacerse por transferencia primero. Si decides pagar en efectivo, con mucho gusto te puedes acercar al establecimiento y tu pedido se prepara una vez esté pago 🍟";
+            `Qué pena contigo 🙏 Si deseas que tu pedido esté listo cuando pases por él, el pago debe hacerse por transferencia primero. Si decides pagar en efectivo, con mucho gusto te puedes acercar al establecimiento y tu pedido se prepara una vez esté pago${emo()}`;
           // Se libera el método de pago: si el cliente responde con un método digital,
           // el flujo re-envía el resumen y sigue por la rama del QR/comprobante.
           state.pago = null;
@@ -2806,7 +2815,7 @@ INTENCION, no las palabras exactas.` },
         } else if (cierreFrase.modo === "fija" && cierreFrase.texto) {
           closeMsg = cierreFrase.texto;
         } else {
-          closeMsg = "En un momento enviamos tu pedido 🍟 ¡Con muchísimo gusto!";
+          closeMsg = `En un momento enviamos tu pedido${emo()} ¡Con muchísimo gusto!`;
         }
         await sendWaAndSave(convId, tenantId, closeMsg, fromPhone, phoneId, accessToken);
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
@@ -3529,7 +3538,7 @@ INTENCION, no las palabras exactas.` },
       if (mencionaNoDigital || pagoNoDigitalPrevio) {
         // El cliente quiere efectivo en un pedido para llevar → explicar la regla
         const msgLlevarEf = getFraseTexto(frasesCfg.llevar_efectivo) ||
-          "Qué pena contigo 🙏 Si deseas que tu pedido esté listo cuando pases por él, el pago debe hacerse por transferencia primero. Si decides pagar en efectivo, con mucho gusto te puedes acercar al establecimiento y tu pedido se prepara una vez esté pago 🍟";
+          `Qué pena contigo 🙏 Si deseas que tu pedido esté listo cuando pases por él, el pago debe hacerse por transferencia primero. Si decides pagar en efectivo, con mucho gusto te puedes acercar al establecimiento y tu pedido se prepara una vez esté pago${emo()}`;
         state.pago = metodoDigital ? metodoDigital.nombre.toLowerCase() : null;
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
         await sendWaAndSave(convId, tenantId, msgLlevarEf, fromPhone, phoneId, accessToken);
@@ -5142,7 +5151,7 @@ function buildProductPasos(productData: ProductData, frasesCfg: Record<string, u
     if (!vg.options || vg.options.length === 0) continue;
     const opciones = listaNatural(vg.options.map(o => o.name.toLowerCase()));
     const frase = getFraseCfg(frasesCfg.preguntar_variable);
-    const texto = (frase.texto || "¿La deseas con {opciones}? 🍟")
+    const texto = (frase.texto || `¿La deseas con {opciones}?${emo()}`)
       .replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
     const guia  = frase.guia
       ? frase.guia.replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones)
@@ -6195,7 +6204,7 @@ function getFlowPasos(cfg: Record<string, unknown>, frasesCfg: Record<string, un
     { id: "upsell",        campo: "adiciones", modo: upsell.modo,  texto: upsell.texto  || "¿Deseas agregar algo más a tu pedido? 🤩", guia: upsell.guia },
     { id: "confirmar_dir", campo: "direccion", modo: "conversacional", guia: "Pregunta de forma amigable si el pedido va a la misma dirección que el pedido anterior" },
     { id: "direccion",     campo: "direccion", modo: destino.modo, texto: destino.texto || "Con gusto, ¿para dónde va tu pedido? ☺️", guia: destino.guia },
-    { id: "nombre",        campo: "nombre",    modo: "conversacional", texto: nombreConfirmar ? undefined : (nombre.texto || "¿A nombre de quién se recibe el pedido? 🍟"), guia: nombreGuia },
+    { id: "nombre",        campo: "nombre",    modo: "conversacional", texto: nombreConfirmar ? undefined : (nombre.texto || `¿A nombre de quién se recibe el pedido?${emo()}`), guia: nombreGuia },
     { id: "pago",          campo: "pago",      modo: pago.modo,    texto: pago.texto    || "¿Cómo nos vas a pagar? ({{metodos_pago}}) ☺️", guia: pago.guia },
   ];
 }
@@ -6314,7 +6323,7 @@ function procesarFlujoCanvas(
         /* Como habla la gente: "carne o pollo", "mixta, carne o pollo". La
            lista con comas ("carne, pollo") suena a formulario. */
         const opciones = listaNatural(vg.options.map(o => o.name.toLowerCase()));
-        let vTexto = (texto || "¿La deseas con {opciones}? 🍟").replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
+        let vTexto = (texto || `¿La deseas con {opciones}?${emo()}`).replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
         /* Sirve en los dos sentidos: que a la frase le falte una opcion real,
            o que NOMBRE UNA QUE ESTE PRODUCTO NO TIENE. Lo segundo es lo que se
            escapaba: "¿La prefieres mixta, de carne o de pollo?" pasaba el
@@ -6324,7 +6333,7 @@ function procesarFlujoCanvas(
           /* La de reemplazo tampoco puede usar el nombre del grupo: "¿Primer
              Ingrediente?" es un nombre de sistema y el cliente no lo entiende
              —lo dijo Sergio viendo la conversación real—. */
-          vTexto = `¿La deseas con ${opciones}? 🍟`;
+          vTexto = `¿La deseas con ${opciones}?${emo()}`;
         }
         const vGuia = (guia || `Pregunta por "${vg.name}". SOLO estas opciones exactas: ${opciones}. Jamás menciones otra.`)
           .replace(/\{label\}/g, vg.name).replace(/\{opciones\}/g, opciones);
@@ -6526,7 +6535,7 @@ function procesarFlujoCanvas(
            mismo, si la hizo — es una moneda al aire, y por eso costo verlo.
            Ahora se respeta el modo que escogio el dueño: si puso frase fija,
            sale una frase fija (la de confirmar, no la de preguntar). */
-        const preguntaNombre = texto || "¿A nombre de quién se recibe el pedido? 🍟";
+        const preguntaNombre = texto || `¿A nombre de quién se recibe el pedido?${emo()}`;
         const esFija = modo === "fija";
         out.push({
           id: "nombre", campo: "nombre",
@@ -7372,7 +7381,7 @@ async function buildSummaryFromState(
   const confirmFrase = preguntaPagoEnResumen
     || getFraseTexto(frases.resumen_confirmacion)
     || "¿Lo confirmamos o hay algo que cambiar?";
-  const totalDesc    = getFraseTexto(frases.resumen_total_desconocido) || "ya te confirmamos el total ☺️🍟";
+  const totalDesc    = getFraseTexto(frases.resumen_total_desconocido) || `ya te confirmamos el total ☺️${emo()}`;
 
   // Modo del resumen: "fija" (plantilla exacta con variables) o "conversacional" (GPT libre)
   const resumenCfg  = getFraseCfg(frases.resumen);
@@ -7489,7 +7498,7 @@ async function buildSummaryFromState(
         ? " + " + adiCobradas.map(a => a.nombre).join(", ")
         : "";
       const tamStr  = item.tamano ? ` ${item.tamano}` : "";
-      productoLines.push(`🍟 ${item.cantidad}x ${display}${tamStr}${adStr}`);
+      productoLines.push(`${EMOJI_NEG ? EMOJI_NEG + " " : ""}${item.cantidad}x ${display}${tamStr}${adStr}`);
       /* Para el empaque hace falta saber QUE producto y QUE presentacion es:
          la configuracion permite eximir una categoria entera o cobrar distinto
          segun el tamaño. Se guardan los ids del catalogo, no los nombres. */
@@ -8083,7 +8092,11 @@ async function createWhatsappOrder(
 
    Se cambia o se apaga sin tocar codigo, en frases.etiqueta_ia. Vacio = sin
    etiqueta. ══════════════════════════════════════════════════════════════ */
-let ETIQUETA_IA = "🍟 `Paco:`";
+let ETIQUETA_IA = "";      // la pone el restaurante en frases.etiqueta_ia
+/* El emoji del restaurante. `emo()` lo devuelve CON su espacio delante, o
+   cadena vacia: asi un mensaje sin emoji no queda con doble espacio. */
+let EMOJI_NEG = "";
+function emo(): string { return EMOJI_NEG ? " " + EMOJI_NEG : ""; }
 
 function conEtiqueta(msg: string): string {
   const t = String(msg || "");

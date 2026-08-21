@@ -2204,47 +2204,64 @@ function wireEvents() {
    Igual que WhatsApp: escribes "/" y aparece la lista; sigues escribiendo
    la palabra clave y se filtra; Enter o clic la pega lista para enviar.
 ══════════════════════════════════════════════ */
-// Semilla inicial para un restaurante NUEVO (base vacia). Solo frases
-// genericas: nada de direcciones, coordenadas ni cuentas bancarias — eso es
-// de cada negocio y se configura en su pantalla. Aqui estuvo sembrada la
-// direccion, la ubicacion y la cuenta de El Parche, y un restaurante nuevo
-// se las habria mandado a SUS clientes.
+// Semilla inicial para un restaurante NUEVO (base vacia). SOLO frases
+// genericas: nada de direcciones, coordenadas, cuentas bancarias, platos ni
+// emojis de una cocina en particular — eso es de cada negocio.
+//
+// Aqui estuvo sembrada la direccion, la ubicacion y la cuenta de El Parche,
+// y despues (hasta el 21-ago-2026) su CARTA y su emoji: un restaurante nuevo
+// abria el chat y encontraba "¿la deseas con pollo o carne?", "super queso",
+// "salsas de maiz o chedar" y papas fritas en cada frase. Tambien decia
+// "buenas noches" en todo, que asume que el negocio solo abre de noche.
+//
+// A El Parche esto NO le cambia nada: sus 41 frases ya estan guardadas en su
+// base; la semilla solo corre cuando un restaurante no tiene ninguna.
 const DEFAULT_QUICK_REPLIES = [
-  { k:'gracias',  t:'¡Muchas gracias por preferirnos! Esperamos poder servirte nuevamente.' },
-  { k:'gracias2', t:'Muchas gracias ☺️' },
-  { k:'buenas',   t:'Buenas noches, cuéntame ¿En qué te podemos ayudar? ☺️🍟' },
-  { k:'servicio', t:'Claro que si 🍟¿Qué deseas? ☺️' },
-  { k:'carta',    t:'Buenas noches, ¿cómo estás?; con gusto ya te envío nuestra carta 😊' },
-  { k:'menu',     t:'¿Qué se te antoja? 🍟☺️', img:'@menu' },
-  { k:'adicion',  t:'Perfecto, deseas adicionar alguna bebida, salchicha ranchera, súper queso o alguna de nuestras salsas especiales (maíz o chedar)? 🤩' },
-  { k:'pollo',    t:'La deseas con pollo, carne o mixta? 😋' },
-  { k:'pollo2',   t:'¿La deseas con pollo o carne? 🍟☺️' },
-  { k:'chorizo',  t:'¿La deseas con chorizo o tocineta? 😋' },
-  { k:'Nombre',   t:'A nombre de quien se recibe el pedido?🍟' },
-  { k:'Movil',    t:'Me podrías confirmar el móvil porfa 🙏🏽' },
-  { k:'pedirdomi2', t:'Buenas noches, me envias un movil por favor, graciaaaas☺️' },
-  { k:'ubicacioncliente', t:'Me podrías enviar la ubicación porfavor para que el domi pueda llegar más fácil ☺️🙏🏽' },
-  { k:'cuanto',   t:'Me confirmas por favor con cuanto pagas porfavor, para enviarte regreso 😀' },
-  { k:'efectivotransferencia', t:'Con gusto, me confirmas si el pago es transferencia o efectivo? para pasar tu pedido a cocina🍟☺️' },
-  { k:'QR2',      t:'Te comparto el código QR para que puedas realizar tu pago ☺️\n\nRecuerda enviarnos tu comprobante de pago😁', img:'@qr' },
-  { k:'comprobante', t:'Quedo pendiente del comprobante para poderte preparar ☺️' },
-  /* Estas dos eran las unicas "dinamicas", y su texto ni se leia: se devolvia
-     una frase escrita en el codigo. Ahora son plantillas normales y cualquiera
-     puede editarlas o hacer otras iguales. El valor del domicilio sale del
-     borrador del pedido, que es donde ya esta calculado por barrio. */
-  { k:'total',    t:'Con gusto, serían {total_productos} de tu pedido y {domicilio} del domicilio, total {total} 😊\nEn un momento enviamos tu pedido 🍟' },
-  { k:'puntos',   t:'Acabas de ganar {puntos_ganados} puntos con tu compra 🎉\nCuando nos visites o vuelvas a pedir, recuerda dar tu número de celular para seguir acumulando y redimirlos en productos de {negocio} 🍟' },
-  { k:'30',       t:'Tu pedido tarda 30 minutos aproximadamente 🍟' },
-  { k:'40',       t:'Tu pedido tarda 40 minutos aproximadamente 🍟' },
-  { k:'saturaso', t:'Hola! 😎 En este momento nos encontramos saturados, por lo que no estamos brindando servicio temporalmente.\nEstamos trabajando para poder tomar tu pedido lo antes posible!\nGracias por tu paciencia. 😊' },
-  { k:'Listo',    t:'Ya puedes pasar por tu pedido 🍟😊' },
-  { k:'llevar',   t:'Con mucho gusto, apenas esté lista te aviso para que pases ☺️🍟' },
-  { k:'PEDIDOMESA', t:'Si deseas consumir tu pedido en el establecimiento, este se realiza directamente en el punto; Por medio de WhatsApp solo recibimos para domicilio y para recoger. Te esperamos☺️🍟' },
-  { k:'Noches',   t:'Buenas noches 🍟😊' },
-  { k:'Close',    t:'Buenas noches, por el día de hoy ya terminamos nuestra jornada.\nGracias por tu mensaje, esperamos atenderte en una próxima oportunidad.☺️🍟🫶🏼' },
-  { k:'Descanso', t:'Buenas noches, el día de ayer no teníamos servicio pero cuéntame ¿En qué te podemos ayudar? ☺️🍟' },
-  { k:'Gusto',    t:'Con muchisimo gusto, estamos para servirte 🫶🏼☺️' },
-  { k:'gusto',    t:'Con muchísimo gusto, estamos para servirte 🍟☺️' },
+  /* SALUDOS Y CORTESIA */
+  { k:'saludo',    t:'¡Hola! ¿Cómo estás? Cuéntame, ¿en qué te podemos ayudar? ☺️' },
+  { k:'gracias',   t:'¡Muchas gracias por preferirnos! Esperamos poder servirte nuevamente.' },
+  { k:'gusto',     t:'Con muchísimo gusto, estamos para servirte ☺️' },
+
+  /* LA CARTA */
+  { k:'carta',     t:'¡Con gusto! Ya te envío nuestra carta 😊' },
+  { k:'menu',      t:'¿Qué se te antoja? ☺️', img:'@menu' },
+
+  /* TOMAR EL PEDIDO
+     Estas dependen de lo que venda cada negocio: se dejan como ejemplo para
+     que el dueNo las reescriba con SUS opciones. */
+  { k:'adicion',   t:'Perfecto, ¿deseas agregarle algo más a tu pedido? 🤩' },
+  { k:'variante',  t:'¿Cómo la prefieres? 😋' },
+  { k:'nombre',    t:'¿A nombre de quién se recibe el pedido?' },
+
+  /* DOMICILIO */
+  { k:'direccion', t:'¿Me confirmas la dirección de entrega, por favor? 🙏' },
+  { k:'ubicacion', t:'¿Me podrías enviar tu ubicación, por favor? Así el domiciliario llega más fácil ☺️🙏' },
+  { k:'movil',     t:'¿Me confirmas el número de celular, por favor? 🙏' },
+
+  /* PAGO */
+  { k:'comopagas', t:'Con gusto. ¿El pago es en efectivo o por transferencia? ☺️' },
+  { k:'concuanto', t:'¿Con cuánto vas a pagar? Así te llevamos el cambio 😀' },
+  { k:'qr',        t:'Te comparto el código QR para que puedas realizar tu pago ☺️\n\nRecuerda enviarnos el comprobante 😁', img:'@qr' },
+  { k:'comprobante', t:'Quedo pendiente del comprobante para poder prepararte el pedido ☺️' },
+
+  /* TIEMPOS Y ESTADO
+     Los minutos son un ejemplo: cada restaurante pone los suyos. */
+  { k:'tiempo',    t:'Tu pedido tarda 30 minutos aproximadamente ☺️' },
+  { k:'listo',     t:'¡Tu pedido ya está listo! Puedes pasar por él 😊' },
+  { k:'llevar',    t:'Con mucho gusto. Apenas esté listo te aviso para que pases ☺️' },
+  { k:'encamino',  t:'¡Tu pedido va en camino! 🛵' },
+
+  /* SITUACIONES */
+  { k:'saturado',  t:'¡Hola! 😎 En este momento estamos saturados y no podemos tomar más pedidos por ahora.\nEstamos trabajando para atenderte lo antes posible. ¡Gracias por tu paciencia! 😊' },
+  { k:'cerrado',   t:'Por hoy ya terminamos nuestra jornada. Gracias por escribirnos, esperamos atenderte en una próxima oportunidad ☺️' },
+  { k:'solomesa',  t:'Para consumir en el establecimiento, el pedido se toma directamente en el punto. Por WhatsApp recibimos solo domicilios y para recoger. ¡Te esperamos! ☺️' },
+
+  /* CON DATOS DEL PEDIDO
+     Lo que va entre llaves lo reemplaza el sistema con los datos reales.
+     Antes estas dos eran "dinamicas" y su texto ni se leia: devolvian una
+     frase escrita en el codigo. Ahora son plantillas normales, editables. */
+  { k:'total',     t:'Con gusto, serían {total_productos} de tu pedido y {domicilio} del domicilio, total {total} 😊\nEn un momento lo enviamos.' },
+  { k:'puntos',    t:'¡Acabas de ganar {puntos_ganados} puntos con tu compra! 🎉\nCuando vuelvas a pedir, recuerda dar tu número de celular para seguir acumulando y redimirlos en productos de {negocio}.' },
 ];
 
 function qrEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }

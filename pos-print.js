@@ -199,7 +199,7 @@
     var total    = Number(order.total || 0) || (subtotal+empaque+domi-descuento+Number(order.tip||0));
     var footer = '';
     try { footer = localStorage.getItem('pos.config.recibo.footer') || ''; } catch(e){}
-    if (!footer) footer = '¡Gracias por tu pedido! 🍟';
+    if (!footer) footer = '¡Gracias por tu pedido!';   // sin emoji: lo pone cada restaurante en su pie
 
     var sep = '<div style="border-top:1px dashed #000;margin:7px 0"></div>';
     var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;font-size:12.5px;width:72mm;max-width:72mm;margin:0;padding:8px 6px;color:#000;line-height:1.35}table{width:100%;border-collapse:collapse}td{word-break:break-word}.pcol{width:26%;white-space:nowrap;text-align:right;vertical-align:top}</style></head><body>';

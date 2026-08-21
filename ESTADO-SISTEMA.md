@@ -11237,3 +11237,40 @@ su guardado; 6 casos de topes; medidas del DOM con 0 textos cortados; HTML
 entero por el analizador sin errores.
 **Tambien:** borrada la fila huerfana de `pos_puntos` (tel 3000000009, 30 pts
 del backfill de julio) — Sergio dio la orden.
+
+
+---
+
+## 21-ago-2026 — Fuera el emoji y las frases de El Parche del codigo
+
+Sigue el punto 9 de Sergio. **41 apariciones** de las papas fritas de El
+Parche en codigo vivo (23 en el motor, 17 en el chat, 1 en el recibo): una
+pizzeria que comprara Cobra saludaba a sus clientes con papas fritas.
+
+**EL ORDEN IMPORTO:** primero se le guardo a El Parche su identidad actual en
+`ia_config.frases` (`etiqueta_ia` = "🍟 `Paco:`" y `emoji` = "🍟") y SOLO
+DESPUES se neutralizo el codigo — asi no hubo ni un segundo con su bot sin
+emoji. (Ojo: escribir el emoji por curl desde Git Bash lo convierte en "??";
+hay que mandar el JSON en UTF-8 desde Python.)
+
+**Motor (delay-reply v336):** `EMOJI_NEG` sale de `frases.emoji` y `emo()` lo
+devuelve CON su espacio delante, o vacio — asi un mensaje sin emoji no queda
+con doble espacio. Los 23 mensajes usan `${emo()}`. `ETIQUETA_IA` ya no nace
+con "🍟 `Paco:`" sino vacia. El resumen del pedido antepone el emoji del
+restaurante solo si lo tiene.
+
+**Chat (`chat-ia.js`):** la semilla `DEFAULT_QUICK_REPLIES` era la carta de El
+Parche — "¿la deseas con pollo o carne?", "super queso", "salsas de maiz o
+chedar", papas fritas en cada frase, y "buenas noches" en todo (asume que el
+negocio solo abre de noche). Reescrita: **24 frases genericas** agrupadas por
+momento (saludo, carta, pedido, domicilio, pago, tiempos, situaciones y las
+dos con variables), sin duplicados. **A El Parche no le cambia nada:** sus 41
+frases ya estan en su base y la semilla solo corre con base vacia.
+
+**Recibo (`pos-print.js`):** el pie por defecto ya no lleva emoji.
+
+**Verificado:** 0 apariciones en los tres archivos; la semilla nueva evaluada
+(24 frases, sin claves repetidas, sin rastros de la carta, con sus imagenes y
+variables intactas); y una conversacion PRUEBA contra el motor vivo confirmo
+que Paco SIGUE saliendo con "🍟 `Paco:`" y su emoji — ahora desde su config.
+Conversacion de prueba borrada.
