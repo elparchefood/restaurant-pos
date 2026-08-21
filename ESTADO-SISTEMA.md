@@ -11084,3 +11084,39 @@ verificado en el codigo VIVO (0 retrocesos).
 **Leccion de metodo:** el `assert chr(8) not in src` hay que correrlo sobre el
 ARCHIVO YA ESCRITO, no solo sobre la variable del parche — anoche paso porque
 el retroceso lo introdujo una edicion posterior por heredoc.
+
+
+---
+
+## 21-ago-2026 — Nada del restaurante queda escrito por dentro (frases de Paco)
+
+Regla de Sergio: *"esos textos deben ser personalizables y nada debe quedar
+interno en el codigo; todo lo que tenga que ver con el restaurante se debe ver
+en el frontend, en las configuraciones del asistente o en el flujo, asi cada
+restaurante lo personaliza"*.
+
+**Auditoria:** el motor usaba 33 claves de `frases`; solo 19 tenian fila en
+Configuracion → Mensajes. **14 hablaban con el cliente usando texto escrito por
+mi, sin forma de cambiarlo.**
+
+**Se agregaron 11 filas** (`configuracion.html`, cada una con su explicacion de
+cuando se usa): despedida · pasar_humano · reintento_2 · reintento_3 ·
+comprobante_recibido · consultando_domi · lugar_rechazado · publico_efectivo ·
+preguntar_barrio · preguntar_calle_numero · preguntar_complemento_dir. No hizo
+falta tocar JS: `applyFrases`/`readFrases` recorren `[data-frase]` solos.
+
+**BUG SILENCIOSO ENCONTRADO DE PASO:** la casilla "Preguntar tamaño"
+(`preguntar_tamano`) **no la leia nadie** — el motor buscaba solo
+`preguntar_presentacion`. Sergio tenia escrito ahi *"¿La deseas personal o
+familiar? 😋"* y el bot usaba el texto de fabrica. Arreglado en el motor
+(v335): acepta las dos llaves. Se le agrego la pista de `{opciones}` y una fila
+nueva para `preguntar_variable` (la pregunta del sabor/tipo).
+
+**Verificado:** el HTML entero pasado por un analizador — 0 errores de
+estructura, 43 campos `data-frase`, todos a la misma profundidad (leccion de
+[[feedback_html_estructura]]: un `</div>` de mas dejo una pantalla en blanco).
+
+**Queda 1 clave sin pantalla:** `bienvenidas` (banco de saludos que rotan). Es
+un ARREGLO (lista), no un texto, asi que necesita otra forma de guardarlo —
+`readFrases` guarda cadenas. El saludo normal ya es configurable por
+`apertura`/`apertura_conocido`, asi que no urge.

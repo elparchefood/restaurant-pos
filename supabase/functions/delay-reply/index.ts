@@ -5127,7 +5127,11 @@ function buildProductPasos(productData: ProductData, frasesCfg: Record<string, u
   const pasos: PasoDefinicion[] = [];
   if (productData.presentations.length > 1) {
     const opciones = productData.presentations.map(p => p.name).join(" o ");
-    const frase = getFraseCfg(frasesCfg.preguntar_presentacion);
+    /* LA PANTALLA LLAMA A ESTO "Preguntar tamaNo" y el motor buscaba solo
+       `preguntar_presentacion`: lo que Sergio escribio en esa casilla se
+       tiraba a la basura y el bot usaba el texto de fabrica (21-ago-2026).
+       Se aceptan las dos llaves. */
+    const frase = getFraseCfg(frasesCfg.preguntar_presentacion || frasesCfg.preguntar_tamano);
     const texto = (frase.texto || "¿La quieres {opciones}? 😋").replace(/\{opciones\}/g, opciones);
     const guia  = frase.guia
       ? frase.guia.replace(/\{opciones\}/g, opciones)

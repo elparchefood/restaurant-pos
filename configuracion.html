@@ -2274,7 +2274,13 @@
                   </div>
                   <div class="field">
                     <label class="field-lb">Preguntar tamaño / presentación</label>
-                    <textarea class="txa" data-frase="preguntar_tamano" placeholder="Ej. ¿Lo quieres sencillo o doble?"></textarea>
+                    <div class="field-hint">Escribe <code>{opciones}</code> y el asistente pone ahí los tamaños reales del producto (ej. “personal o familiar”).</div>
+                    <textarea class="txa" data-frase="preguntar_tamano" placeholder="Ej. ¿La quieres {opciones}? 😋"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Preguntar la variante (sabor, tipo, punto)</label>
+                    <div class="field-hint">Usa <code>{opciones}</code> para las opciones y <code>{label}</code> para el nombre del grupo (ej. “sabor”).</div>
+                    <textarea class="txa" data-frase="preguntar_variable" placeholder="Ej. ¿La deseas con {opciones}? 🍟"></textarea>
                   </div>
                   <div class="field">
                     <label class="field-lb">Preguntar dirección de entrega</label>
@@ -2402,6 +2408,61 @@
                   <div class="field">
                     <label class="field-lb">Cierre al confirmar pedido</label>
                     <textarea class="txa" data-frase="cierre_pedido" placeholder="Ej. En un momento enviamos tu pedido 🍟 ¡Con muchísimo gusto!"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Despedida (el cliente se despide sin pedir)</label>
+                    <div class="field-hint">Cuando el cliente dice “gracias” o “chao” y NO hay un pedido en curso.</div>
+                    <textarea class="txa" data-frase="despedida" placeholder="Ej. ¡Con mucho gusto! 😊 Aquí estamos cuando se te antoje algo."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Pasar a una persona del equipo</label>
+                    <div class="field-hint">Cuando el cliente pide hablar con una persona, o el asistente no logra entenderle.</div>
+                    <textarea class="txa" data-frase="pasar_humano" placeholder="Ej. Claro que sí 🙏 Ya le aviso a alguien del equipo para que te atienda."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">No entendió — segundo intento</label>
+                    <div class="field-hint">La segunda vez que pregunta lo mismo. Sirve para no sonar repetitivo.</div>
+                    <textarea class="txa" data-frase="reintento_2" placeholder="Ej. Solo me falta este dato para poder seguir 😊"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">No entendió — tercer intento</label>
+                    <div class="field-hint">La tercera vez. Después de esta, el asistente pasa la conversación a una persona.</div>
+                    <textarea class="txa" data-frase="reintento_3" placeholder="Ej. Perdón si no me hice entender 🙏 ¿Me lo escribes una vez más?"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Comprobante recibido</label>
+                    <div class="field-hint">Apenas llega la foto del pago, antes de verificarlo.</div>
+                    <textarea class="txa" data-frase="comprobante_recibido" placeholder="Ej. ¡Recibimos tu comprobante! 🧾 Lo revisamos y te confirmamos en un momento 🙏"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Consultando el valor del domicilio</label>
+                    <div class="field-hint">Cuando el barrio no está en la tabla y hay que confirmar el precio.</div>
+                    <textarea class="txa" data-frase="consultando_domi" placeholder="Ej. Déjame confirmarte el valor del domicilio hasta allá, es un momento 🙏"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">No hacemos domicilios a ese lugar</label>
+                    <div class="field-hint">Cuando la dirección cae en una zona marcada como “no se reparte”.</div>
+                    <textarea class="txa" data-frase="lugar_rechazado" placeholder="Ej. Lo sentimos, no llegamos hasta allá 😊 Puedes pasar a recogerlo si quieres."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Lugar público: solo transferencia</label>
+                    <div class="field-hint">Cuando la entrega es en un parque, esquina o sitio público.</div>
+                    <textarea class="txa" data-frase="publico_efectivo" placeholder="Ej. Para entregas en un lugar público el pago se hace por transferencia antes del envío 🙏"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Preguntar el barrio</label>
+                    <div class="field-hint">Cuando hace falta el barrio para poder cobrar el domicilio.</div>
+                    <textarea class="txa" data-frase="preguntar_barrio" placeholder="Ej. ¿Para qué barrio va tu pedido? Así te confirmo el domicilio."></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">Preguntar la calle y el número</label>
+                    <div class="field-hint">Ya dio el barrio pero falta la dirección exacta.</div>
+                    <textarea class="txa" data-frase="preguntar_calle_numero" placeholder="Ej. Anotado el barrio 📍 ¿Y cuál es la dirección exacta? (calle o carrera y número)"></textarea>
+                  </div>
+                  <div class="field">
+                    <label class="field-lb">La dirección está incompleta</label>
+                    <div class="field-hint">Tiene calle y número pero falta el detalle para poder entregar.</div>
+                    <textarea class="txa" data-frase="preguntar_complemento_dir" placeholder="Ej. ¿Me confirmas la casa, torre o apartamento? 🙏"></textarea>
                   </div>
                 </div>
               </div>
@@ -2712,7 +2773,7 @@
 <script src="pos-notify.js?v=1790370000"></script>
 <script src="pos-vars.js?v=1790460000"></script>
 <script src="pos-vars-ui.js?v=1790530000"></script>
-<script src="configuracion.js?v=1791480000a"></script>
+<script src="configuracion.js?v=1791600000a"></script>
 </body>
 </html>
 
