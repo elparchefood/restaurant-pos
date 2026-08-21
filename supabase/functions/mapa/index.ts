@@ -417,7 +417,7 @@ function nucleo(t: string): string {
 /*  ¿Este texto habla de alguno de los conjuntos del restaurante?
     Devuelve el nombre TAL COMO lo escribio el dueno, que es el que se le
     manda a Google. */
-function cualConjunto(texto: string, lista: string[]): string | null {
+function cualConjunto(texto: string, lista: string[], estricto = false): string | null {
   const t = normTexto(texto);
   const tn = nucleo(texto);
   if (!t) return null;
@@ -445,24 +445,51 @@ function cualConjunto(texto: string, lista: string[]): string | null {
     return x.split(" ").filter(Boolean);
   }
 
+  //  "torre" y "torres" son la misma palabra para esto.
+  function raiz(w: string): string {
+    /*  Solo se quita la "s" final. Con la regla de "-es" que tenia antes,
+        "torres" quedaba en "torr" y ya no casaba con "torre": justo el caso
+        de "Torres de San Eduardo", que era para lo que se hizo. Lo que
+        importa aqui no es acertar el singular de verdad, sino que las dos
+        formas caigan en lo mismo — y para eso basta la "s". */
+    return w.length > 3 && w.endsWith("s") ? w.slice(0, -1) : w;
+  }
+  const palabrasTexto = new Set(palabras(tn).map(raiz));
+
   let mejor: string | null = null, mejorLargo = 0;
   for (const c of lista) {
     if (!c) continue;
     const cn = nucleo(c);
     if (!cn || cn.length < 4) continue;
+    const pc = palabras(cn);
 
     //  Si lo que queda del nombre es UNA sola palabra y encima es de las
     //  genericas, tiene que abrir el texto para valer.
-    const pc = palabras(cn);
     if (pc.length === 1 && GENERICAS.has(pc[0])) {
-      const pt = palabras(tn);
-      if (pt[0] !== pc[0]) continue;
+      /*  Y si la pregunta viene del campo BARRIO, ni asi: tiene que ser el
+          nombre completo, identico.
+
+          El caso real: el barrio "Bosque" y el conjunto "Villa del Bosque"
+          se reducen los dos a "bosque". Un "Bloque 7 Casa 10" en el barrio
+          Bosque acababa emparejado con Villa del Bosque, cuando los propios
+          pedidos dicen que ese bloque y casa son de Claros del Bosque.    */
+      if (estricto && normTexto(c) !== t) continue;
+      if (palabras(tn)[0] !== pc[0]) continue;
     }
 
-    //  Se queda con el nombre MAS LARGO que aparezca: entre "Portal" y
-    //  "Portal de Pomona", gana el segundo, que es el que de verdad
-    //  identifica el sitio.
-    if ((tn && tn.includes(cn)) || t.includes(normTexto(c))) {
+    /*  TODAS las palabras del nombre tienen que estar en el texto, aunque
+        vengan sueltas y en desorden.
+
+        Esto es lo que hace funcionar la regla de Sergio para San Eduardo:
+        "Torres de San Eduardo" solo se reconoce si la direccion dice
+        "torre" — porque San Eduardo tambien es un barrio con casas
+        normales, y ahi la palabra "torre" es lo unico que distingue.
+        Con el barrio a secas faltaria "torres" y no empareja.            */
+    const todasPresentes = pc.every((w) => palabrasTexto.has(raiz(w)));
+
+    if (todasPresentes || (tn && tn.includes(cn)) || t.includes(normTexto(c))) {
+      //  Gana el nombre MAS LARGO: entre "Portal" y "Portal de Pomona",
+      //  el segundo es el que de verdad identifica el sitio.
       if (cn.length > mejorLargo) { mejor = c; mejorLargo = cn.length; }
     }
   }
@@ -477,6 +504,23 @@ function cualConjunto(texto: string, lista: string[]): string | null {
       "Guayacanes del Rio": si se aceptara "rio" a secas, el domiciliario
       acabaria en el conjunto equivocado. Ante la duda, no se adivina: se
       devuelve nulo y la direccion se lee como una calle normal.        */
+  /*  EN MODO ESTRICTO NO SE ABREVIA.
+
+      Esta regla existe para que quien vive en "Arrayanes del Uvo" pueda
+      escribir solo "Arrayanes". Pero cuando el texto viene del BARRIO —o
+      de barrio y direccion mezclados— es demasiado suelta:
+
+        "Carrera 8k N 66 BN 26" + barrio SAN EDUARDO  -> emparejaba con
+        "Torres de San Eduardo" por la palabra "eduardo", cuando esa
+        direccion es una casa normal del barrio.
+
+        "Casa 13" + barrio POMONA -> emparejaba con "Real Pomona" por la
+        palabra "pomona", cuando Pomona es el barrio y no sabemos en cual
+        de sus conjuntos vive.
+
+      Abreviar solo vale sobre lo que la persona ESCRIBIO como direccion. */
+  if (estricto) return null;
+
   //  Y tampoco vale abreviar con una palabra generica, aunque en ESTA
   //  lista apunte a uno solo: manana el restaurante agrega otro conjunto
   //  con "bosque" en el nombre y el emparejamiento cambia de sitio sin que
@@ -641,7 +685,9 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
       es un "casa 45" que por si solo no dice donde.                      */
   const lista = await conjuntosDe(tenant);
   const conj = lista.length
-    ? (cualConjunto(dir, lista) || (direccionSinNombre(dir) ? cualConjunto(barrio, lista) : null))
+    ? (cualConjunto(dir, lista)
+        || cualConjunto(dir + " " + barrio, lista, true)
+        || (direccionSinNombre(dir) ? cualConjunto(barrio, lista, true) : null))
     : null;
 
   const clave = conj
@@ -671,6 +717,7 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
         canonica: g.canonica || orden.canonica,
         complemento: orden.complemento,
         aproximada: String(g.origen) === "google_aprox",
+        conjunto: conj || null,
         cache: true,
       });
     }
