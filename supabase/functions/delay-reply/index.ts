@@ -2057,6 +2057,147 @@ INTENCION, no las palabras exactas.` },
   const pagosText      = buildPagosText(pagosCfg);
   const domiciliosText = buildDomiciliosText(domiciliosCfg);
 
+  /* ── ESPERANDO EL CODIGO DE LA BILLETERA (20-ago-2026) ────────────────
+     El pago quedo a un codigo de distancia: lo unico que puede pasar aqui es
+     que llegue el codigo, que pida reenvio, o que cambie de metodo. */
+  {
+    const spDR = (state as unknown as Record<string, unknown>).saldo_pago as { total?: number; cliente?: string } | undefined;
+    if (spDR && Number(spDR.total) > 0 && spDR.cliente) {
+      const tel10DR = String(fromPhone || "").replace(/\D/g, "").slice(-10);
+      const tNorm = normalizarTexto(clienteTexto);
+      const codTxt = (clienteTexto.match(/\b\d{6}\b/) || [])[0] || "";
+      const decir = async (m: string) => {
+        await sendWaAndSave(convId, tenantId, m, fromPhone, phoneId, accessToken);
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: m, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+      };
+      if (codTxt) {
+        const filas = await sbGet(`/rest/v1/pos_web_codigos?tenant_id=eq.${tenantId}&telefono=eq.${tel10DR}&usado=eq.false&motivo=eq.pago&order=created_at.desc&select=*&limit=1`);
+        const c = filas?.[0];
+        if (!c) { await decir("Ese código ya no está vigente 🙏 Escríbeme *reenviar* y te mando uno nuevo."); return; }
+        if (new Date(String(c.expira_at)).getTime() < Date.now()) { await decir("Ese código ya venció 🙏 Escríbeme *reenviar* y te mando uno nuevo."); return; }
+        if (Number(c.intentos) >= 3) { await decir("Ese código se bloqueó por intentos 🙏 Escríbeme *reenviar* y te mando uno nuevo."); return; }
+        if ((await sha256DR(codTxt + "|" + tel10DR)) !== String(c.codigo_hash)) {
+          await sbPatch(`/rest/v1/pos_web_codigos?id=eq.${c.id}`, { intentos: Number(c.intentos) + 1 });
+          await decir(`Ese código no es 🤔 Te quedan ${3 - Number(c.intentos) - 1} intentos.`);
+          return;
+        }
+        await sbPatch(`/rest/v1/pos_web_codigos?id=eq.${c.id}`, { usado: true });
+        /* PRIMERO LA PLATA, DESPUES LA COCINA: si el descuento falla, no debe
+           existir un pedido en preparacion sin pagar. */
+        const totalDR = Math.round(Number(spDR.total));
+        const refDR = "wa:" + convId + ":" + Date.now();
+        const mov = await sbRpcDR("fn_saldo_mover", {
+          p_tenant: tenantId, p_cliente: spDR.cliente, p_motivo: "consumo",
+          p_monto: -totalDR, p_branch: branchId, p_order: null,
+          p_ref: refDR, p_detalle: "Pago con billetera por WhatsApp",
+        });
+        if (mov === null) {
+          delete (state as unknown as Record<string, unknown>).saldo_pago;
+          state.pago = null;
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+          await decir("No pudimos descontar tu saldo 🙏 ¿Pagas en efectivo o por transferencia?");
+          return;
+        }
+        delete (state as unknown as Record<string, unknown>).saldo_pago;
+        const dirDR = state.direccion || "";
+        const domiDR = LLEVAR_REGEX.test(dirDR.toLowerCase()) ? 0 : (lookupDomiPrice(ubicacionPedido(state), domiciliosCfg) ?? 0);
+        let orderIdDR: string | null = null;
+        try {
+          orderIdDR = await createWhatsappOrder(buildOrderArgs(state, domiDR), branchId, tenantId, fromPhone, cfg._operacion as Record<string, unknown> | null, convId);
+        } catch (err) { console.error("[billetera] creando pedido:", err); }
+        if (!orderIdDR) {
+          /* La plata vuelve: el pedido no se pudo crear. */
+          await sbRpcDR("fn_saldo_mover", {
+            p_tenant: tenantId, p_cliente: spDR.cliente, p_motivo: "anulacion",
+            p_monto: totalDR, p_branch: branchId, p_order: null,
+            p_ref: refDR + ":anul", p_detalle: "Devolución: el pedido no se pudo crear",
+          });
+          await decir("Algo falló creando tu pedido y tu saldo quedó intacto 🙏 Intenta de nuevo en un momento.");
+          return;
+        }
+        /* El pedido nace PAGADO, con el mismo sello que usa la app. */
+        await sbPatch(`/rest/v1/pos_orders?id=eq.${orderIdDR}`, {
+          status: "paid", payment_method: "__saldo", paid_amount: totalDR,
+          closed_at: new Date().toISOString(),
+        });
+        await sbPatch(`/rest/v1/pos_saldo_mov?referencia=eq.${encodeURIComponent(refDR)}`, { order_id: orderIdDR });
+        const sal2 = await sbRpcDR("fn_saldo_cliente", { p_tenant: tenantId, p_cliente: spDR.cliente });
+        const resta = Math.round(Number(Array.isArray(sal2) ? (sal2[0] as Record<string, unknown>)?.saldo : sal2) || 0);
+        const okMsg = `¡Pago confirmado! 🎉 Pagaste ${fmtCOP(totalDR)} con tu Billetera y te quedan ${fmtCOP(resta)}. Tu pedido ya está en preparación 🍟`;
+        await sendWaAndSave(convId, tenantId, okMsg, fromPhone, phoneId, accessToken);
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+          pending_order_data: null, pago_pendiente: false,
+          last_message: okMsg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false,
+        });
+        return;
+      }
+      if (/reenv|no me (ha )?llegado|no llego|otro codigo/.test(tNorm)) {
+        const marcaDR = await marcaDeDR(branchId);
+        const ok = await enviarCodigoPagoDR(tenantId, tel10DR, Number(spDR.total), marcaDR);
+        await decir(ok ? "Listo, te enviamos un código nuevo por SMS 😊 Escríbemelo aquí."
+                       : "Ya te enviamos varios códigos hace poco 🙏 Espera unos minutos, o paga en efectivo o por transferencia.");
+        if (!ok) { delete (state as unknown as Record<string, unknown>).saldo_pago; state.pago = null; await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state }); }
+        return;
+      }
+      const otroPago = extractPago(clienteTexto, pagosCfg);
+      const metS = getMetodosPago(pagosCfg).find(m => m.id === "__saldo");
+      if (otroPago && (!metS || normalizarTexto(otroPago) !== normalizarTexto(metS.nombre))) {
+        /* Cambio de opinion: se suelta la billetera y el flujo normal sigue
+           con el metodo nuevo — sin return. */
+        delete (state as unknown as Record<string, unknown>).saldo_pago;
+        state.pago = otroPago;
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+      } else {
+        await decir("Estoy esperando el código de 6 dígitos que te llegó por SMS 😊 Si no te llegó, escríbeme *reenviar*.");
+        return;
+      }
+    }
+  }
+
+  /* ── PREGUNTAS DE PUNTOS (20-ago-2026, version simplificada por Sergio) ──
+     "¿cuantos puntos tengo?" -> el saldo, directo. "¿como redimo / que
+     premios hay?" -> a la APP con un boton: alli se registra, ve sus puntos,
+     el catalogo y redime. Si el mensaje ADEMAS pide comida, se responde lo de
+     puntos y el flujo sigue (leccion de la carta: nada de returns a ciegas). */
+  {
+    const tNormP = normalizarTexto(clienteTexto);
+    const pideSaldoPts = /\b(cuantos?|cuanto)\b[^.]*\bpuntos\b|\bmis puntos\b|\bpuntos tengo\b|\bcomo van mis puntos\b/.test(tNormP);
+    const pideRedimir = /\b(redimir|redimo|canjear|canjeo|reclamar|reclamo)\b|\bpremios?\b|\bcatalogo\b/.test(tNormP)
+      && !/\bpremio\s*1\b/.test(tNormP);
+    if ((pideSaldoPts || pideRedimir) && !(state as unknown as Record<string, unknown>).saldo_pago) {
+      const tel10P = String(fromPhone || "").replace(/\D/g, "").slice(-10);
+      const urlAppP = await urlAppDR(tenantId);
+      let respondido = false;
+      /* El verbo de REDIMIR manda: "como redimo mis puntos" es la pregunta de
+         redimir aunque nombre sus puntos. */
+      if (pideRedimir) {
+        const msgR = "¡Los premios se redimen desde nuestra app! 🎁 Regístrate con este mismo número y ahí ves tus puntos, el catálogo completo de premios y los rediemes tú mismo, facilito.";
+        if (urlAppP) await sendWaBotonApp(convId, tenantId, msgR, "Abrir la app 🍟", urlAppP, fromPhone, phoneId, accessToken);
+        else await sendWaAndSave(convId, tenantId, msgR, fromPhone, phoneId, accessToken);
+        respondido = true;
+      } else if (pideSaldoPts) {
+        const f = await sbGet(`/rest/v1/pos_puntos?tenant_id=eq.${tenantId}&telefono=eq.${tel10P}&select=puntos&limit=1`);
+        const pts = Math.round(Number(f?.[0]?.puntos) || 0);
+        const msgP = pts > 0
+          ? `Tienes ${pts.toLocaleString("es-CO")} puntos 🎉 En nuestra app los ves al día, sigues tu progreso y los rediemes por premios.`
+          : "Aún no tienes puntos registrados 😊 En cada compra ganas 1 punto por cada $1.000 — da tu número al pedir y empiezas a acumular. En nuestra app los ves y los rediemes.";
+        if (urlAppP) await sendWaBotonApp(convId, tenantId, msgP, "Abrir la app 🍟", urlAppP, fromPhone, phoneId, accessToken);
+        else await sendWaAndSave(convId, tenantId, msgP, fromPhone, phoneId, accessToken);
+        respondido = true;
+      }
+      if (respondido) {
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: "(puntos)", last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+        /* Si el mensaje era SOLO la pregunta, aqui se acaba; si ademas trae
+           pedido, el flujo sigue y lo captura. OJO: "premio" tambien es la
+           gaseosa PREMIO del catalogo — las palabras de ESTA conversacion se
+           quitan antes de mirar si el mensaje ademas pide comida, o el flujo
+           seguia y soltaba un "¿que se te antoja?" de mas. */
+        const sinPalabrasPuntos = clienteTexto.replace(/(premios?|puntos?|catalogo|redimir|redimo|canjear|canjeo|reclamar|reclamo)/gi, " ");
+        if (!mencionaProductoCatalogo(sinPalabrasPuntos)) return;
+      }
+    }
+  }
+
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 10. Saludo → bienvenida Paco
@@ -2489,6 +2630,63 @@ INTENCION, no las palabras exactas.` },
       // Rama digital (QR + comprobante) decidida por el flag "digital" del método
       // configurado en Pagos — ya no por nombres fijos en código.
       const esTransferencia = esMetodoDigital(state.pago, pagosCfg);
+
+      /* ── PAGO CON LA BILLETERA (20-ago-2026, pedido de Sergio) ─────────
+         Tres escenarios, y Paco reconoce los tres:
+           1. sin cuenta en la app  -> instalar/registrarse/recargar (boton)
+           2. con cuenta, sin saldo -> recargar en la app (boton)
+           3. con saldo             -> codigo por SMS, y al recibirlo se
+              descuenta y el pedido queda PAGADO — mismo camino que la caja. */
+      const metSaldoDR = getMetodosPago(pagosCfg).find(m => m.id === "__saldo");
+      const esPagoSaldoDR = !!metSaldoDR && (() => {
+        const pg = normalizarTexto(String(state.pago || ""));
+        if (!pg) return false;
+        const nm = normalizarTexto(metSaldoDR.nombre);
+        return pg === nm || nm.includes(pg) || pg.includes(nm) || /\b(saldo|monedero)\b/.test(pg);
+      })();
+      if (esPagoSaldoDR) {
+        const tel10DR = String(fromPhone || "").replace(/\D/g, "").slice(-10);
+        const urlApp = await urlAppDR(tenantId);
+        const decirYSoltarPago = async (msg: string, boton: boolean) => {
+          state.pago = null;   // que pueda escoger otro metodo sin trabarse
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+          if (boton && urlApp) await sendWaBotonApp(convId, tenantId, msg, "Abrir la app 🍟", urlApp, fromPhone, phoneId, accessToken);
+          else await sendWaAndSave(convId, tenantId, msg + (urlApp ? "\n\n👉 " + urlApp : ""), fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+        };
+        const totalDR = Math.round(Number((state as unknown as Record<string, unknown>).total_mostrado) || 0);
+        if (totalDR <= 0) {
+          await decirYSoltarPago("Para pagar con tu Billetera necesito el total cerrado del pedido y aún me falta un dato 🙏 ¿Prefieres pagar en efectivo o por transferencia?", false);
+          return;
+        }
+        const cliDR = await clienteBilleteraDR(tenantId, tel10DR);
+        if (!cliDR || !cliDR.registrado) {
+          // Escenario 1: sin cuenta en la app.
+          await decirYSoltarPago("Para pagar con la Billetera necesitas tu cuenta en nuestra app 😊 Instálala, regístrate con este mismo número y recarga tu saldo — ahí mismo ves tus puntos y premios. Mientras tanto, ¿pagas en efectivo o por transferencia?", true);
+          return;
+        }
+        const salDR0 = await sbRpcDR("fn_saldo_cliente", { p_tenant: tenantId, p_cliente: cliDR.id });
+        const saldoDR = Math.round(Number(Array.isArray(salDR0) ? (salDR0[0] as Record<string, unknown>)?.saldo : salDR0) || 0);
+        if (saldoDR < totalDR) {
+          // Escenario 2: cuenta si, saldo no alcanza.
+          const falta = totalDR - saldoDR;
+          await decirYSoltarPago(`Tu Billetera tiene ${fmtCOP(saldoDR)} y el pedido es ${fmtCOP(totalDR)} — te faltan ${fmtCOP(falta)} 🙏 Puedes recargar en la app y me avisas, o pagas en efectivo o por transferencia.`, true);
+          return;
+        }
+        // Escenario 3: hay saldo — el codigo viaja por SMS, como en la caja.
+        const marcaDR = await marcaDeDR(branchId);
+        const enviado = await enviarCodigoPagoDR(tenantId, tel10DR, totalDR, marcaDR);
+        if (!enviado) {
+          await decirYSoltarPago("No pudimos enviarte el código de confirmación a tu celular 🙏 ¿Pagas en efectivo o por transferencia?", false);
+          return;
+        }
+        (state as unknown as Record<string, unknown>).saldo_pago = { total: totalDR, cliente: cliDR.id };
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+        const msgCod = `Tu Billetera tiene ${fmtCOP(saldoDR)} 🎉 Te acabamos de enviar un código de 6 dígitos por mensaje de texto (SMS): escríbemelo aquí y confirmo tu pago de ${fmtCOP(totalDR)}.`;
+        await sendWaAndSave(convId, tenantId, msgCod, fromPhone, phoneId, accessToken);
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgCod, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+        return;
+      }
 
       if (esTransferencia) {
         // Prioridad: nodo del canvas conectado a la salida "transferencia" del Resumen
@@ -4303,6 +4501,17 @@ function extractPago(text: string, pagosCfg: Record<string, unknown> | null | un
   if (/\b(saldo|monedero)\b/.test(t) && !/\b(nequi|daviplata|bancolombia|davivienda|transfer\w*)\b/.test(t)) {
     const s = interno("__saldo");
     if (s) return s.nombre.toLowerCase();
+  }
+  /* "billetera EL PARCHE" (con la marca) SI es el saldo del sistema — lo que
+     no vale es "billetera" a secas, que en Colombia es Nequi. Se reconoce por
+     "billetera" + una palabra propia del nombre del metodo (20-ago-2026,
+     pedido de Sergio: que Paco entienda que es la Billetera El Parche). */
+  {
+    const s2 = interno("__saldo");
+    if (s2 && /\bbilletera\b/.test(t)) {
+      const propias = normalizarTexto(s2.nombre).split(" ").filter(w => w.length >= 4 && w !== "billetera");
+      if (propias.some(w => t.includes(w))) return s2.nombre.toLowerCase();
+    }
   }
   if (/\bpuntos?\b/.test(t)) {
     const p = interno("__puntos");
@@ -8647,6 +8856,103 @@ async function setTyping(convId: string, typing: boolean): Promise<void> {
 }
 
 // ── Supabase helpers ──────────────────────────────────────────────────────────
+
+/* ══ BILLETERA Y PUNTOS EN EL CHAT (20-ago-2026, pedido de Sergio) ══════
+   Paco cobra con la Billetera (mismo camino que la caja: codigo por SMS,
+   descuento con fn_saldo_mover) y responde por los puntos mandando a la app
+   con un BOTON. Los ayudantes viven aqui juntos. */
+async function sha256DR(txt: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(txt));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+async function sbRpcDR(fn: string, args: Record<string, unknown>): Promise<unknown> {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  });
+  if (!r.ok) { console.error(`[rpc ${fn}]`, (await r.text()).slice(0, 200)); return null; }
+  return await r.json().catch(() => null);
+}
+async function marcaDeDR(branchId: string): Promise<string> {
+  const b = await sbGet(`/rest/v1/branches?id=eq.${branchId}&select=name,brands(name)`);
+  const mk = b?.[0]?.brands as { name?: string } | Array<{ name?: string }> | null;
+  return String((Array.isArray(mk) ? mk[0]?.name : mk?.name) || b?.[0]?.name || "el restaurante");
+}
+async function urlAppDR(tenantId: string): Promise<string | null> {
+  const t = await sbGet(`/rest/v1/tenants?id=eq.${tenantId}&select=slug,web_activa`);
+  const slug = String(t?.[0]?.slug || "").trim();
+  if (!slug || t?.[0]?.web_activa === false) return null;
+  return `https://cobrapos.app/${slug}/`;
+}
+/* La ficha del cliente por su telefono (ultimos 10), y si tiene cuenta en la
+   app (pos_web_credenciales). La identidad es el numero que escribe. */
+async function clienteBilleteraDR(tenantId: string, tel10: string): Promise<{ id: string; registrado: boolean } | null> {
+  const filas = await sbGet(`/rest/v1/pos_clientes?tenant_id=eq.${tenantId}&telefono=like.*${tel10}&select=id,telefono&limit=5`);
+  const c = (filas || []).find((x) => String(x.telefono || "").replace(/\D/g, "").slice(-10) === tel10);
+  if (!c) return null;
+  const cred = await sbGet(`/rest/v1/pos_web_credenciales?cliente_id=eq.${c.id}&select=cliente_id&limit=1`);
+  return { id: String(c.id), registrado: !!(cred && cred.length) };
+}
+/* El codigo de pago por SMS — mismo canal y misma tabla que la caja
+   (pos_web_codigos, motivo 'pago'): un solo libro de codigos, mismos topes. */
+async function enviarCodigoPagoDR(tenantId: string, tel10: string, monto: number, marca: string): Promise<boolean> {
+  const desdeHora = new Date(Date.now() - 3600000).toISOString();
+  const ult = await sbGet(`/rest/v1/pos_web_codigos?tenant_id=eq.${tenantId}&telefono=eq.${tel10}&created_at=gte.${desdeHora}&select=id`);
+  if ((ult?.length || 0) >= 3) return false;
+  const codigo = String(Math.floor(100000 + Math.random() * 900000));
+  const fila = await fetch(`${SUPABASE_URL}/rest/v1/pos_web_codigos`, {
+    method: "POST",
+    headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json", "Prefer": "return=representation" },
+    body: JSON.stringify({
+      tenant_id: tenantId, telefono: tel10,
+      codigo_hash: await sha256DR(codigo + "|" + tel10),
+      motivo: "pago", expira_at: new Date(Date.now() + 10 * 60000).toISOString(),
+    }),
+  });
+  if (!fila.ok) return false;
+  const sid = Deno.env.get("TWILIO_SID") || "", tok = Deno.env.get("TWILIO_TOKEN") || "", desde = Deno.env.get("TWILIO_FROM") || "";
+  if (!sid || !tok || !desde) return false;
+  // Sin tildes: un SMS con acentos se parte y se cobra doble.
+  const texto = codigo + " es tu codigo para pagar $ " + Math.round(monto).toLocaleString("es-CO") + " en " + marca
+    + ". Vence en 10 minutos. No se lo compartas a nadie.";
+  const r = await fetch("https://api.twilio.com/2010-04-01/Accounts/" + sid + "/Messages.json", {
+    method: "POST",
+    headers: { "Authorization": "Basic " + btoa(sid + ":" + tok), "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ To: "+57" + tel10, From: desde, Body: texto }).toString(),
+  });
+  if (!r.ok) { console.error("[billetera] SMS:", (await r.text()).slice(0, 200)); return false; }
+  return true;
+}
+/* Mensaje con BOTON que abre la app (pedido de Sergio: boton, no enlace
+   pelado). Si Meta rechaza el interactivo, cae a texto con el enlace. */
+async function sendWaBotonApp(
+  convId: string, tenantId: string, texto: string, botonTexto: string, url: string,
+  fromPhone: string, phoneId: string, accessToken: string,
+): Promise<void> {
+  const cuerpo = conEtiqueta(texto);
+  const r = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual",
+      type: "interactive",
+      interactive: {
+        type: "cta_url",
+        body: { text: cuerpo },
+        action: { name: "cta_url", parameters: { display_text: botonTexto.slice(0, 20), url } },
+      },
+    }),
+  });
+  if (r.ok) {
+    const d = await r.json() as Record<string, unknown>;
+    const sentId = ((d.messages as Array<Record<string, unknown>>)?.[0]?.id as string) || "";
+    await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot", body: cuerpo + "\n\n[" + botonTexto + "] " + url, delivery_status: "sent", external_id: sentId || null, sent_at: new Date().toISOString() });
+  } else {
+    console.error("[boton app] Meta:", (await r.text()).slice(0, 200));
+    await sendWaAndSave(convId, tenantId, texto + "\n\n👉 " + url, fromPhone, phoneId, accessToken);
+  }
+}
 
 async function sbGet(path: string): Promise<Array<Record<string, unknown>> | null> {
   const res = await fetch(`${SUPABASE_URL}${path}`, {

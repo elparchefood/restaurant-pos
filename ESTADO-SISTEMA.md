@@ -10944,3 +10944,51 @@ DENTRO de la columna izquierda — asi el riel derecho (la ficha del pedido)
 ocupa toda la altura desde la barra superior. CSS: .vs-summary-row sin
 padding propio (tambien en la media query tablet); .vs-body con padding-top.
 Los estilos .vs-metric-* quedaron sin uso (no se borraron).
+
+
+---
+
+## 20-ago-2026 (madrugada del 21) — Paco cobra con la Billetera y responde por los puntos
+
+Pedido de Sergio, encima del plan PLAN-PUNTOS-EN-CHAT.md pero SIMPLIFICADO por
+el mismo: redimir NO se explica por chat — se manda a la app con un BOTON.
+Motor delay-reply v329→v332.
+
+**1. Pago con Billetera El Parche por WhatsApp — tres escenarios:**
+- Sin cuenta en la app (sin pos_web_credenciales) → "instala, registrate con
+  este numero y recarga" + BOTON a la app; el pago se suelta para que escoja
+  otro metodo.
+- Con cuenta pero sin saldo suficiente → cifras exactas ("tienes $X, el
+  pedido es $Y, te faltan $Z") + boton para recargar.
+- Con saldo → codigo de 6 digitos por SMS (misma tabla pos_web_codigos motivo
+  'pago', mismos topes de la caja), Paco lo pide en el chat, y al recibirlo:
+  PRIMERO descuenta (fn_saldo_mover consumo, ref wa:<conv>:<ts>), LUEGO crea
+  el pedido; si el pedido falla, la plata VUELVE (anulacion). El pedido nace
+  status paid / payment_method __saldo / paid_amount, y el movimiento se
+  amarra al order_id. 3 intentos de codigo; "reenviar" manda otro (tope
+  3/hora); si en la espera dice otro metodo, se suelta la billetera y sigue.
+- "billetera + palabra de la marca" (billetera EL PARCHE) ya cuenta como el
+  saldo en extractPago; "billetera" a secas sigue siendo transferencia.
+- El total cobrado es state.total_mostrado (el del resumen que el cliente
+  confirmo, comida+empaque+domi); sin total cerrado no se ofrece.
+
+**2. Puntos en el chat:** "¿cuantos puntos tengo?" → saldo de pos_puntos por
+tel10 + boton a la app. "¿como redimo / premios / catalogo?" → mensaje que
+manda a la app (registrarse, ver puntos, catalogo y redimir) + BOTON
+(interactive cta_url; si Meta lo rechaza cae a texto con enlace). El verbo de
+redimir manda sobre "mis puntos". Si el mensaje ademas pide comida, responde
+lo de puntos Y el flujo sigue — quitando antes las palabras de puntos
+(premio tambien es la gaseosa PREMIO) para no soltar un "¿que se te antoja?"
+de mas.
+
+**Verificado en banco completo** (PRUEBA 3000000095, todo borrado al final):
+esc1 y esc2 con sus textos y boton; esc3 punta a punta con codigo malo
+(cuenta intentos) y bueno (saldo 50.000→17.000, pedido pagado __saldo, mov
+amarrado); pregunta de saldo (respondio los 28 pts que el propio banco gano
+al pagar — regalo de la prueba: pagar con billetera TAMBIEN acumula puntos);
+pregunta de redimir con boton. TRAMPAS del banco: (1) el 20-ago-2026 es
+JUEVES — media hora se perdio por poner el horario de prueba en "miercoles";
+(2) $$ dentro de comillas dobles de bash es el PID: el ultimo select de la
+limpieza reventaba la transaccion entera; (3) el horario de ia_config estaba
+NULL (usa el default 18:30-22:30 del codigo) — se abrio temporalmente para
+el banco y quedo RESTAURADO a null (verificado).
