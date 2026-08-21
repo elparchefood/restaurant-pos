@@ -7592,6 +7592,7 @@ async function dmInit() {
   var inp = $('dm-nueva');
   if (inp) inp.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); dmAgregar(); } };
   await dmCargar();
+  await mpInit();
 }
 
 async function dmCargar() {
@@ -7685,3 +7686,172 @@ window.posDomiEmpresas = async function () {
     .select('id,nombre').eq('tenant_id', ten).eq('activa', true).order('nombre');
   return (r && r.data) || [];
 };
+
+/* ══════════════════════════════════════════════════════════════════
+   MAPAS — la cuenta de Google de cada restaurante  (21-ago-2026)
+
+   La llave NO se guarda desde aqui ni se lee desde aqui: todo pasa por
+   la funcion `mapa` del servidor, que la cifra y nunca la devuelve. Lo
+   unico que ve esta pantalla son los ultimos 4 caracteres, para que el
+   dueno reconozca cual puso.
+
+   Por que tanto cuidado: la llave es de SU cuenta y de SU tarjeta. Si
+   baja al navegador, cualquiera que abra esta pantalla puede sacarla y
+   gastarle el cupo, y el cobro le llega a el.
+   ══════════════════════════════════════════════════════════════════ */
+var MP = { estado: null };
+
+async function mpLlamar(cuerpo) {
+  var ses = await sb.auth.getSession();
+  var tok = ses && ses.data && ses.data.session && ses.data.session.access_token;
+  if (!tok) throw new Error('Tu sesión se venció. Vuelve a entrar.');
+  var r = await fetch(SB_URL + '/functions/v1/mapa', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
+    body: JSON.stringify(cuerpo)
+  });
+  return await r.json();
+}
+
+async function mpInit() {
+  var ver = $('mp-ver-pasos');
+  if (ver) ver.onclick = function () {
+    var c = $('mp-pasos');
+    if (!c) return;
+    var abierto = c.style.display !== 'none';
+    c.style.display = abierto ? 'none' : '';
+    ver.lastChild.nodeValue = abierto
+      ? ' Ver el paso a paso para conectarla'
+      : ' Ocultar el paso a paso';
+  };
+
+  var btn = $('mp-conectar');
+  if (btn) btn.onclick = mpConectar;
+  var inp = $('mp-clave');
+  if (inp) inp.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); mpConectar(); } };
+
+  var des = $('mp-desconectar');
+  if (des) des.onclick = mpDesconectar;
+
+  var tope = $('mp-tope');
+  if (tope) tope.onchange = mpGuardarTope;
+
+  await mpCargar();
+}
+
+async function mpCargar() {
+  try {
+    var e = await mpLlamar({ accion: 'estado' });
+    MP.estado = e;
+    mpPintar(e);
+  } catch (err) { console.warn('[mapas]', err.message); }
+}
+
+function mpPintar(e) {
+  var sin = $('mp-sin'), con = $('mp-con'), chip = $('mp-estado');
+  var activo = !!(e && e.activo);
+  if (sin) sin.style.display = activo ? 'none' : '';
+  if (con) con.style.display = activo ? '' : 'none';
+  if (chip) {
+    chip.textContent = activo ? 'Conectada' : 'Sin conectar';
+    chip.className = 'op-state ' + (activo ? 'on' : 'off');
+  }
+  if (!activo) return;
+
+  if ($('mp-pista')) $('mp-pista').textContent = e.pista || '';
+  if ($('mp-tope')) $('mp-tope').value = e.tope || 9000;
+
+  var usado = (e.geocoding || 0) + (e.estatico || 0);
+  var tope = e.tope || 9000;
+  var pct = Math.min(100, Math.round(usado * 100 / Math.max(1, tope)));
+
+  if ($('mp-uso-txt')) $('mp-uso-txt').textContent = usado + ' de ' + tope;
+  var barra = $('mp-barra');
+  if (barra) {
+    barra.style.width = pct + '%';
+    /* Verde tranquilo, amarillo al 75%, rojo al 90%: el dueno tiene que
+       poder ver de un vistazo si se va a quedar sin mapa a mitad de mes. */
+    barra.style.background = pct >= 90 ? '#DC2626' : (pct >= 75 ? '#F59E0B' : '#16A34A');
+  }
+  if ($('mp-uso-detalle')) {
+    $('mp-uso-detalle').innerHTML = 'Direcciones consultadas: <b>' + (e.geocoding || 0)
+      + '</b> &middot; Mapas dibujados: <b>' + (e.estatico || 0) + '</b>'
+      + '<br>Google te regala ' + (e.gratis_google || 10000).toLocaleString('es-CO')
+      + ' de cada uno al mes.';
+  }
+
+  var aviso = $('mp-aviso-tope');
+  if (aviso) {
+    if (pct >= 90) {
+      aviso.style.display = '';
+      aviso.innerHTML = pct >= 100
+        ? '<b>Llegaste al tope.</b> El mapa deja de cargar hasta el mes entrante. Si necesitas más, sube el número de abajo — pero revisa primero cuánto te está cobrando Google.'
+        : '<b>Ya vas en el ' + pct + '% del tope.</b> Cuando llegue al 100%, el mapa deja de cargar hasta el mes entrante.';
+    } else { aviso.style.display = 'none'; }
+  }
+
+  if (e.error && $('mp-error')) {
+    $('mp-error').style.display = '';
+    $('mp-error').textContent = 'Último aviso de Google: ' + e.error;
+  }
+}
+
+async function mpConectar() {
+  var inp = $('mp-clave'), btn = $('mp-conectar'), err = $('mp-error');
+  var clave = (inp && inp.value || '').trim();
+  if (err) err.style.display = 'none';
+  if (!clave) { if (inp) inp.focus(); return; }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Probando…'; }
+  try {
+    var r = await mpLlamar({ accion: 'guardar', clave: clave });
+    if (r && r.error) {
+      if (err) { err.style.display = ''; err.textContent = r.error; }
+      return;
+    }
+    if (inp) inp.value = '';
+    showToast('Tu cuenta de Google quedó conectada');
+    await mpCargar();
+  } catch (e) {
+    if (err) { err.style.display = ''; err.textContent = e.message; }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Conectar'; }
+  }
+}
+
+async function mpDesconectar() {
+  var btn = $('mp-desconectar');
+  /* Dos toques, no un cuadro de dialogo del navegador. */
+  if (btn && btn.dataset.seguro !== '1') {
+    btn.dataset.seguro = '1';
+    btn.textContent = '¿Seguro? Toca otra vez para desconectar';
+    setTimeout(function () {
+      if (btn.dataset.seguro === '1') {
+        btn.dataset.seguro = '';
+        btn.textContent = 'Desconectar mi cuenta de Google';
+      }
+    }, 4000);
+    return;
+  }
+  if (btn) { btn.dataset.seguro = ''; btn.textContent = 'Desconectando…'; }
+  try {
+    await mpLlamar({ accion: 'desconectar' });
+    showToast('Cuenta de Google desconectada');
+    await mpCargar();
+  } catch (e) { showToast('No se pudo desconectar'); }
+  finally { if (btn) btn.textContent = 'Desconectar mi cuenta de Google'; }
+}
+
+async function mpGuardarTope() {
+  var inp = $('mp-tope');
+  var v = Math.max(100, Math.min(10000, Number(inp && inp.value) || 9000));
+  if (inp) inp.value = v;
+  var ten = await dmTenant();
+  if (!ten) return;
+  /* El tope SI se puede escribir desde aqui: es un numero del dueno, no
+     un secreto. La llave no: esa solo la toca el servidor. */
+  var r = await sb.rpc('fn_mapas_tope', { p_tenant: ten, p_tope: v });
+  if (r && r.error) { showToast('No se pudo guardar el tope'); return; }
+  showToast('Se frenará al llegar a ' + v.toLocaleString('es-CO'));
+  await mpCargar();
+}
