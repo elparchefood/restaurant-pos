@@ -421,11 +421,44 @@ function cualConjunto(texto: string, lista: string[]): string | null {
   const t = normTexto(texto);
   const tn = nucleo(texto);
   if (!t) return null;
+  /*  ⚠️ PALABRAS QUE NO IDENTIFICAN NADA POR SI SOLAS.
+
+      Encontrado con pedidos REALES de El Parche: "Reserva del Bosque Bloque
+      1 Casa 8" se emparejo con el conjunto "Villa del Bosque", que es OTRO
+      sitio. El culpable fue la palabra "bosque": el nucleo de "Villa del
+      Bosque" es solo "bosque", y "reserva bosque" lo contiene.
+
+      Al domiciliario se le habrian dado las coordenadas del conjunto
+      equivocado, con toda confianza y sin ningun aviso. Por eso un nombre
+      que se reduce a una de estas palabras exige que ademas sea la PRIMERA
+      del texto: "Bosque casa 8" si es Villa del Bosque; "Reserva del
+      Bosque casa 8" no lo es.                                            */
+  const GENERICAS = new Set([
+    "bosque", "bosques", "rio", "río", "villa", "portal", "altos", "alto",
+    "reserva", "ciudadela", "torres", "torre", "mirador", "prados", "prado",
+    "colinas", "colina", "jardines", "jardin", "parque", "parques", "sol",
+    "campo", "campos", "valle", "lago", "lagos", "mar", "norte", "sur",
+    "centro", "nuevo", "nueva", "san", "santa", "casa", "casas", "vista",
+  ]);
+
+  function palabras(x: string): string[] {
+    return x.split(" ").filter(Boolean);
+  }
+
   let mejor: string | null = null, mejorLargo = 0;
   for (const c of lista) {
     if (!c) continue;
     const cn = nucleo(c);
     if (!cn || cn.length < 4) continue;
+
+    //  Si lo que queda del nombre es UNA sola palabra y encima es de las
+    //  genericas, tiene que abrir el texto para valer.
+    const pc = palabras(cn);
+    if (pc.length === 1 && GENERICAS.has(pc[0])) {
+      const pt = palabras(tn);
+      if (pt[0] !== pc[0]) continue;
+    }
+
     //  Se queda con el nombre MAS LARGO que aparezca: entre "Portal" y
     //  "Portal de Pomona", gana el segundo, que es el que de verdad
     //  identifica el sitio.
@@ -444,15 +477,34 @@ function cualConjunto(texto: string, lista: string[]): string | null {
       "Guayacanes del Rio": si se aceptara "rio" a secas, el domiciliario
       acabaria en el conjunto equivocado. Ante la duda, no se adivina: se
       devuelve nulo y la direccion se lee como una calle normal.        */
-  const palabras = tn.split(" ").filter((w) => w.length >= 5);
-  for (const w of palabras) {
-    const candidatos = lista.filter((c) => {
-      const ns = nucleo(c).split(" ");
-      return ns.includes(w);
-    });
+  //  Y tampoco vale abreviar con una palabra generica, aunque en ESTA
+  //  lista apunte a uno solo: manana el restaurante agrega otro conjunto
+  //  con "bosque" en el nombre y el emparejamiento cambia de sitio sin que
+  //  nadie toque una linea de codigo.
+  const sueltas = palabras(tn).filter((w) => w.length >= 5 && !GENERICAS.has(w));
+  for (const w of sueltas) {
+    const candidatos = lista.filter((c) => palabras(nucleo(c)).includes(w));
     if (candidatos.length === 1) return candidatos[0];
   }
   return null;
+}
+
+/*  ¿La direccion se queda sin decir un nombre propio?
+
+    "casa 45" o "apto 302" no dicen donde queda nada: ahi el barrio es lo
+    unico que hay y toca usarlo. "Reserva del Bosque Bloque 1" si dice un
+    nombre, y entonces el barrio sobra —y estorba, porque puede emparejar
+    con otro conjunto parecido.
+
+    Se quitan las palabras de relleno, las de complemento (casa, torre,
+    apto, bloque...) y los numeros. Si no queda nada, no habia nombre.   */
+function direccionSinNombre(dir: string): boolean {
+  const t = normTexto(dir).replace(RELLENO, " ")
+    .replace(/\b(casa|apartamento|apto|apt|ap|torre|bloque|blq|bl|interior|int|piso|oficina|ofic|of|local|lc|etapa|lote|lt|manzana|mz|unidad|numero|nro|num|no)\b/g, " ")
+    .replace(/\b\d+[a-z]?\b/g, " ")
+    .replace(/\b[a-z]\b/g, " ")
+    .replace(/\s+/g, " ").trim();
+  return t.length === 0;
 }
 
 /*  La lista de conjuntos del restaurante, de todas sus sedes. Un conjunto
@@ -575,9 +627,21 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
       El nombre puede venir en la direccion o en el barrio: hay clientes
       que escriben el conjunto en un campo y hay quien lo escribe en el
       otro. Se miran los dos.                                          */
+  /*  EL BARRIO SOLO SE MIRA SI LA DIRECCION NO DICE UN NOMBRE.
+
+      Encontrado con pedidos reales: "Reserva del Bosque Bloque 1 Casa 8"
+      con el barrio escrito como "Bosque". La direccion no coincidia con
+      ningun conjunto de la lista —correcto, "Reserva del Bosque" no esta
+      registrado— pero entonces se caia al barrio, y "Bosque" si emparejaba
+      con "Villa del Bosque". Resultado: las coordenadas de OTRO conjunto,
+      dadas con toda confianza.
+
+      La direccion siempre es mas especifica que el barrio. Si trae un
+      nombre propio, manda ella; el barrio solo sirve cuando la direccion
+      es un "casa 45" que por si solo no dice donde.                      */
   const lista = await conjuntosDe(tenant);
   const conj = lista.length
-    ? (cualConjunto(dir, lista) || cualConjunto(barrio, lista))
+    ? (cualConjunto(dir, lista) || (direccionSinNombre(dir) ? cualConjunto(barrio, lista) : null))
     : null;
 
   const clave = conj
