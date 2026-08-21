@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cobra — Domicilios</title>
+<meta name="theme-color" content="#FCFCFD">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="domiciliario.css">
+</head>
+<body>
+<!-- ══ ENTRAR ══
+     El domiciliario NO se registra solo: su cuenta la crea el restaurante en
+     Configuración › Usuarios y roles. Aquí solo entra con lo que le dieron. -->
+<div class="ov center" id="ov-login" hidden style="background:#FCFCFD;backdrop-filter:none">
+  <div class="modal" style="box-shadow:none;border:none;background:transparent;max-width:360px">
+    <div class="sh-body" style="gap:16px">
+      <div class="wordmark" style="justify-content:center;margin-bottom:4px"><i></i>cobra</div>
+      <div style="text-align:center">
+        <div style="font-size:20px;font-weight:600;letter-spacing:-.035em">Entra a tu turno</div>
+        <div style="font-size:12.5px;color:var(--ink-3);margin-top:5px;line-height:1.6">Con el usuario y la contrase&ntilde;a que te dio el restaurante.</div>
+      </div>
+      <input class="inp" id="lg-email" type="email" inputmode="email" autocapitalize="off" autocorrect="off" placeholder="Usuario o correo">
+      <input class="inp" id="lg-pass" type="password" placeholder="Contrase&ntilde;a">
+      <div class="note" id="lg-error" style="background:var(--danger-tint);border-color:var(--danger-border);color:#991B1B" hidden></div>
+      <button class="btn-p" id="lg-entrar">Entrar</button>
+      <div style="font-size:11.5px;color:var(--muted);text-align:center;line-height:1.6">&iquest;No puedes entrar? Pide en el restaurante que revisen tu usuario.</div>
+    </div>
+  </div>
+</div>
+
+<div class="dev" id="app">
+
+<div class="sb"><span class="tnum" id="sb-hora">7:42</span><div class="sb-r"><span>4G</span><span class="sb-bar"></span></div></div>
+
+<div class="top">
+  <button class="circ" id="btn-perfil-top" aria-label="Perfil"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></button>
+  <div class="wordmark"><i></i>cobra</div>
+  <button class="circ" id="btn-avisos" aria-label="Avisos"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"></path><path d="M13.7 21a2 2 0 0 1-3.4 0"></path></svg><span class="dot-n"></span></button>
+</div>
+
+<!-- ══ VISTA: INICIO ══ -->
+<div class="view on" id="v-inicio">
+  <div class="body" id="inicio-body">
+
+    <div class="hero" id="hero-inicio">
+      <div class="hero-hi">Buenas noches, Julián</div>
+      <div class="hero-t">Tienes <b>3 pedidos</b><br>por entregar</div>
+      <button class="hero-cta" id="cta-entrega-actual" data-pedido="1042">Continuar entrega · #1042<i><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg></i></button>
+      <div class="hero-strip">
+        <div class="hs"><div class="hs-l">Por cobrar</div><div class="hs-v tnum" id="hs-porcobrar">$ 117.500</div></div>
+        <div class="hs"><div class="hs-l">En mano</div><div class="hs-v tnum" id="hs-enmano">$ 52.000</div></div>
+        <div class="hs"><div class="hs-l">Entregados</div><div class="hs-v tnum" id="hs-entregados">2</div></div>
+      </div>
+    </div>
+
+    <div class="tiles">
+      <button class="tile" id="tile-pedidos"><span class="tile-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12l2 6H4z"></path><path d="M4 8v12h16V8"></path></svg></span>Pedidos<span class="tile-n" id="tile-pedidos-n">3</span></button>
+      <button class="tile" id="tile-ruta"><span class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg></span>Ruta</button>
+      <button class="tile" id="tile-turno"><span class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="3"></rect><path d="M2 10h20"></path><path d="M17 15h.01"></path></svg></span>Turno</button>
+      <button class="tile" id="tile-perfil"><span class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>Perfil</button>
+    </div>
+
+    <div class="sec"><span class="sec-l">Entrega en curso</span><button class="sec-a" id="link-ver-todos">Ver todos <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg></button></div>
+
+    <button class="feat" id="feat-1042" data-pedido="1042">
+      <div class="feat-top">
+        <div class="ph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12l2 6H4z"></path><path d="M4 8v12h16V8"></path></svg></div>
+        <div style="flex:1;min-width:0">
+          <div class="row"><span class="feat-name">Laura Restrepo</span><span class="badge b-brand" style="margin-left:auto">En camino</span></div>
+          <div class="feat-sub">#1042 · Cra 34 #9-18, apto 502<br>Manila</div>
+        </div>
+      </div>
+      <div class="feat-foot">
+        <span class="badge b-neutral">Cobrar $ 46.500</span>
+        <span class="sep"></span><span class="meta-i"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"></circle><circle cx="18" cy="5" r="3"></circle><path d="M9 19h6a3 3 0 0 0 3-3V8"></path></svg>2,1 km</span>
+        <span class="sep"></span><span class="meta-i"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>8 min</span>
+        <span style="margin-left:auto;color:var(--faint)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg></span>
+      </div>
+    </button>
+
+    <div class="sec"><span class="sec-l">Siguientes</span></div>
+
+    <button class="card" id="card-1043" data-pedido="1043">
+      <div class="row"><span class="no tnum">#1043</span><span class="badge b-warn">Asignado</span><span class="money tnum">$ 28.000</span></div>
+      <div><div class="cli">Andrés Gil</div><div class="addr" style="margin-top:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg><span>Calle 10 #38-42, of. 201 · Poblado</span></div></div>
+      <div class="feat-foot">
+        <span class="badge b-ok">Pagado · Nequi</span>
+        <span class="sep"></span><span class="meta-i">3,4 km</span>
+        <span class="sep"></span><span class="meta-i">12 min</span>
+      </div>
+    </button>
+
+    <button class="card" id="card-1044" data-pedido="1044">
+      <div class="row"><span class="no tnum">#1044</span><span class="badge b-warn">Asignado</span><span class="money tnum">$ 71.000</span></div>
+      <div><div class="cli">Marcela Vélez</div><div class="addr" style="margin-top:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg><span>Cra 43A #7-50, torre 2 apto 1104 · Provenza</span></div></div>
+      <div class="feat-foot">
+        <span class="badge b-neutral">Cobrar $ 71.000</span>
+        <span class="sep"></span><span class="meta-i">4,8 km</span>
+        <span class="sep"></span><span class="meta-i">15 min</span>
+      </div>
+    </button>
+
+    <div class="sec"><span class="sec-l">Mi turno</span><button class="sec-a" id="link-turno">Detalle <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg></button></div>
+
+    <div class="list">
+      <div class="li"><div class="li-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2.5"></circle></svg></div><div><div class="li-t">Efectivo en mano</div><div class="li-s">Se entrega en caja al cierre</div></div><div class="li-v tnum" id="li-efectivo">$ 52.000</div></div>
+      <div class="li"><div class="li-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></div><div><div class="li-t">Turno abierto</div><div class="li-s">Desde 5:00 p. m.</div></div><div class="li-v tnum" style="color:var(--ink-3)">6 h</div></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ VISTA: PEDIDOS ══ -->
+<div class="view" id="v-pedidos">
+  <div class="body" style="padding-bottom:0;flex:0 0 auto;gap:10px"><div><div class="eyebrow" id="fecha">Viernes, 21 de agosto</div><h1 class="h2" style="margin-top:3px">Mis pedidos</h1></div></div>
+
+  <div class="chips" id="chips">
+    <button class="fchip on" data-filtro="activos">Activos<span>3</span></button>
+    <button class="fchip" data-filtro="camino">En camino<span>1</span></button>
+    <button class="fchip" data-filtro="entregado">Entregados<span>2</span></button>
+  </div>
+
+  <div class="body" style="padding-top:0" id="lista">
+    <button class="card" data-pedido="1042">
+      <div class="row"><span class="no tnum">#1042</span><span class="badge b-brand">En camino</span><span class="money tnum">$ 46.500</span></div>
+      <div><div class="cli">Laura Restrepo</div><div class="addr" style="margin-top:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg><span>Cra 34 #9-18, apto 502 · Manila</span></div></div>
+      <div class="feat-foot"><span class="badge b-neutral">Cobrar $ 46.500</span><span class="sep"></span><span class="meta-i">2,1 km</span><span class="sep"></span><span class="meta-i">8 min</span></div>
+    </button>
+    <button class="card" data-pedido="1043">
+      <div class="row"><span class="no tnum">#1043</span><span class="badge b-warn">Asignado</span><span class="money tnum">$ 28.000</span></div>
+      <div><div class="cli">Andrés Gil</div><div class="addr" style="margin-top:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg><span>Calle 10 #38-42, of. 201 · Poblado</span></div></div>
+      <div class="feat-foot"><span class="badge b-ok">Pagado · Nequi</span><span class="sep"></span><span class="meta-i">3,4 km</span><span class="sep"></span><span class="meta-i">12 min</span></div>
+    </button>
+    <button class="card" data-pedido="1044">
+      <div class="row"><span class="no tnum">#1044</span><span class="badge b-warn">Asignado</span><span class="money tnum">$ 71.000</span></div>
+      <div><div class="cli">Marcela Vélez</div><div class="addr" style="margin-top:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg><span>Cra 43A #7-50, torre 2 apto 1104 · Provenza</span></div></div>
+      <div class="feat-foot"><span class="badge b-neutral">Cobrar $ 71.000</span><span class="sep"></span><span class="meta-i">4,8 km</span><span class="sep"></span><span class="meta-i">15 min</span></div>
+    </button>
+  </div>
+</div>
+
+<!-- ══ VISTA: TURNO ══ -->
+<div class="view" id="v-turno">
+  <div class="body">
+    <div><div class="eyebrow">Turno abierto · 5:00 p. m.</div><h1 class="h2" style="margin-top:3px">Mi turno</h1></div>
+
+    <div class="hero">
+      <div class="hs-l">Efectivo en mano</div>
+      <div style="font-size:38px;font-weight:500;letter-spacing:-.045em;margin-top:10px;line-height:1" class="tnum" id="t-efectivo">$ 52.000</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:9px">Entrégalo en caja al cerrar el turno</div>
+      <div class="hero-strip">
+        <div class="hs"><div class="hs-l">Digital</div><div class="hs-v tnum" id="t-digital">$ 39.000</div></div>
+        <div class="hs"><div class="hs-l">Entregados</div><div class="hs-v tnum" id="t-nped">2</div></div>
+        <div class="hs"><div class="hs-l">Pendientes</div><div class="hs-v tnum" id="t-pend">3</div></div>
+      </div>
+    </div>
+
+    <div class="sec"><span class="sec-l">Recibido en el turno</span></div>
+    <div class="list" id="t-lista">
+      <div class="li"><div class="li-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2.5"></circle></svg></div><div><div class="li-t">#1039 · Daniel Cardona</div><div class="li-s">Efectivo recibido · 6:12 p. m.</div></div><div class="li-v tnum" style="color:var(--success)">$ 52.000</div></div>
+      <div class="li"><div class="li-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 10l9-6 9 6"></path><path d="M5 10v9h14v-9"></path><path d="M3 19h18"></path></svg></div><div><div class="li-t">#1036 · Sara Muñoz</div><div class="li-s">Ya venía pago · Bancolombia · 5:48 p. m.</div></div><div class="li-v tnum" style="color:var(--ink-3)">$ 39.000</div></div>
+    </div>
+
+    <button class="btn-o brand" id="btn-resumen-caja">Enviar resumen a caja</button>
+    <button class="btn-p" id="btn-cerrar-turno">Cerrar turno y entregar efectivo</button>
+  </div>
+</div>
+
+<!-- ══ VISTA: PERFIL ══ -->
+<div class="view" id="v-perfil">
+  <div class="body">
+    <div><div class="eyebrow">Cuenta</div><h1 class="h2" style="margin-top:3px">Mi perfil</h1></div>
+
+    <div class="prof">
+      <div class="avatar">JO</div>
+      <div>
+        <div style="font-size:18px;font-weight:600;letter-spacing:-.03em">Julián Ospina</div>
+        <div style="font-size:12.5px;color:var(--ink-3);margin-top:2px">Domiciliario · Sede Manila</div>
+        <div class="badge b-ok" style="margin-top:9px">En turno</div>
+      </div>
+    </div>
+
+    <div class="box">
+      <div class="kv"><span>Documento</span><span class="tnum">CC 1.020.884.117</span></div>
+      <div class="kv"><span>Celular</span><span class="tnum">320 447 8812</span></div>
+      <div class="kv"><span>Vehículo</span><span>Moto AKT 125</span></div>
+      <div class="kv"><span>Placa</span><span>JXK 42D</span></div>
+      <div class="kv"><span>Turno</span><span>5:00 p. m. — 11:00 p. m.</span></div>
+      <div class="kv"><span>Rol</span><span style="color:var(--brand)">Domiciliario</span></div>
+    </div>
+
+    <div class="sec"><span class="sec-l">Permisos del rol</span></div>
+    <div class="list" id="permisos">
+      <div class="li"><div class="li-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg></div><div><div class="li-t">Ver pedidos asignados</div><div class="li-s">Solo los propios</div></div></div>
+      <div class="li"><div class="li-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg></div><div><div class="li-t">Cobrar contra entrega</div><div class="li-s">Efectivo y transferencia</div></div></div>
+      <div class="li"><div class="li-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg></div><div><div class="li-t">Compartir su ubicación</div><div class="li-s">Mientras el turno esté abierto</div></div></div>
+    </div>
+
+    <button class="btn-o" id="btn-ubicacion-perfil">Compartir mi ubicación ahora</button>
+    <button class="btn-o danger" id="btn-logout">Cerrar sesión</button>
+  </div>
+</div>
+
+<!-- ══ BARRA INFERIOR ══ -->
+<div class="tabs">
+  <button class="tab on" data-tab="inicio"><span class="tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M9 22V12h6v10"></path></svg></span>Inicio</button>
+  <button class="tab" data-tab="pedidos"><span class="tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v13H3V3h5"></path><path d="M8 3v5l4-2 4 2V3"></path><path d="M3 16l3 5h12l3-5"></path></svg><span class="tab-n" id="tab-n">3</span></span>Pedidos</button>
+  <button class="fab" id="fab-ubicacion" aria-label="Compartir ubicación"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></button>
+  <button class="tab" data-tab="turno"><span class="tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="3"></rect><path d="M2 10h20"></path><path d="M17 15h.01"></path></svg></span>Turno</button>
+  <button class="tab" data-tab="perfil"><span class="tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>Perfil</button>
+</div>
+
+<!-- ══ OVERLAY 1: DETALLE DE PEDIDO (bottom sheet) — oculto por defecto ══ -->
+<div class="ov" id="ov-detalle" hidden>
+  <div class="sheet" id="sheet-detalle">
+    <span class="grab"></span>
+    <div class="sh-head">
+      <span class="no tnum" id="detalle-no">#1042</span>
+      <span class="badge b-brand" id="detalle-estado">En camino</span>
+      <button class="btn-o" style="width:auto;min-height:36px;padding:0 13px;font-size:12px;margin-left:auto;border-radius:11px" id="btn-cerrar-detalle">Cerrar</button>
+    </div>
+    <div class="sh-body">
+      <div class="box">
+        <div class="cli" style="font-size:17px" id="detalle-cliente">Laura Restrepo</div>
+        <div class="addr"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg><span id="detalle-dir">Cra 34 #9-18, apto 502<br>Manila</span></div>
+        <div class="kv"><span>Celular</span><span class="tnum" id="detalle-tel">315 872 4409</span></div>
+        <div class="kv"><span>Recibido</span><span id="detalle-hora">7:18 p. m.</span></div>
+        <div class="qgrid" style="margin-top:2px">
+          <button class="qbtn" id="btn-llamar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19 19 0 0 1-8.3-2.9 18.6 18.6 0 0 1-5.7-5.7A19 19 0 0 1 2.9 5 2 2 0 0 1 4.9 2.8h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L9 10.6a15 15 0 0 0 5.7 5.7l1.2-1.2a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"></path></svg>Llamar</button>
+          <button class="qbtn" id="btn-ruta"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"></path><path d="M9 3v15"></path><path d="M15 6v15"></path></svg>Ver ruta</button>
+        </div>
+      </div>
+
+      <div class="note" id="detalle-nota"><b>Nota:</b> Portería pide llamar antes de subir. Sin cebolla en una.</div>
+
+      <div class="box">
+        <div class="eyebrow">Pedido</div>
+        <!-- Lo pinta domiciliario.js con los renglones reales del pedido. -->
+        <div id="detalle-items"></div>
+        <div class="tot"><span style="font-size:13px;color:var(--ink-3);font-weight:600">Total</span><b class="tnum" id="detalle-total">$ 46.500</b></div>
+        <div class="badge b-neutral" style="align-self:flex-start" id="detalle-pago">Pago contra entrega</div>
+      </div>
+
+      <button class="btn-o" id="btn-ubicacion-detalle"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"></path><path d="M9 3v15"></path><path d="M15 6v15"></path></svg> Compartir mi ubicación</button>
+    </div>
+    <div class="sh-foot">
+      <button class="btn-p" id="btn-accion-principal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg> Cobrar y entregar</button>
+      <div style="font-size:11.5px;color:var(--muted);text-align:center" id="detalle-aviso-pago" hidden>Este pedido ya está pago. Solo entrega.</div>
+      <div class="change" id="detalle-entregado" hidden><span>Entregado a las 6:12 p. m.</span><b class="tnum">$ 52.000</b></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ OVERLAY 2: COBRO CONTRA ENTREGA (modal) — oculto por defecto ══ -->
+<div class="ov center" id="ov-cobro" hidden>
+  <div class="modal" id="modal-cobro">
+    <div class="sh-head"><div><div class="eyebrow" id="cobro-no">Pedido #1042</div><div style="font-size:18px;font-weight:600;letter-spacing:-.03em;margin-top:4px">Cobrar contra entrega</div></div></div>
+    <div class="sh-body">
+      <div class="box" style="background:#FAFAFF;border-color:var(--brand-ring)">
+        <div class="kv"><span>Total a cobrar</span><b class="tnum" id="cobro-total" style="margin-left:auto;font-size:24px;font-weight:600;letter-spacing:-.035em">$ 46.500</b></div>
+      </div>
+      <div class="seg" id="cobro-seg">
+        <button class="on" data-tipo="efectivo">Efectivo</button>
+        <button data-tipo="transfer">Transferencia</button>
+      </div>
+
+      <div id="cobro-efectivo">
+        <div class="eyebrow" style="margin-bottom:8px">¿Con cuánto pagó?</div>
+        <div class="cash-grid">
+          <button class="cash" data-monto="46500"><span class="tnum">Exacto · $ 46.500</span></button>
+          <button class="cash" data-monto="50000"><span class="tnum">$ 50.000</span></button>
+          <button class="cash" data-monto="100000"><span class="tnum">$ 100.000</span></button>
+          <button class="cash" data-monto="otro">Otro monto</button>
+        </div>
+      </div>
+      <input class="inp tnum" id="cobro-otro" inputmode="numeric" placeholder="0" hidden>
+      <div id="cambio-slot">
+        <div class="change" id="cobro-cambio" hidden><span>Cambio para el cliente</span><b class="tnum" id="cobro-cambio-valor">$ 3.500</b></div>
+        <div class="note" id="cobro-insuficiente" style="background:var(--danger-tint);border-color:var(--danger-border);color:#991B1B" hidden>El monto recibido es menor al total.</div>
+      </div>
+
+      <div class="box" id="cobro-transfer" hidden>
+        <!-- LA CUENTA ES LA DEL RESTAURANTE, no una escrita aqui. Estaban
+             sembrados el Nequi y el nombre de El Parche: cualquier otro
+             restaurante habria mandado a sus clientes a pagarle a El Parche. -->
+        <div class="kv"><span>Cuenta</span><span id="cobro-cuenta">&mdash;</span></div>
+        <div class="kv"><span>Titular</span><span id="cobro-titular">&mdash;</span></div>
+        <div style="font-size:12px;color:var(--muted)">Verifica el comprobante antes de confirmar.</div>
+      </div>
+    </div>
+    <div class="sh-foot">
+      <button class="btn-p" id="btn-cobrar" disabled><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg> Confirmar cobro y entrega</button>
+      <button class="btn-o" id="btn-volver-detalle">Volver</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TOAST — oculto por defecto ══ -->
+<div class="toast" id="toast" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg><span id="toast-msg">Pedido #1042 entregado</span></div>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="domiciliario.js"></script>
+</body>
+</html>
