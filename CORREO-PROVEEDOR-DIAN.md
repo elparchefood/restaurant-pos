@@ -1,5 +1,19 @@
 # Correo para el proveedor de facturación electrónica
 
+> ## ✅ SOLICITUD ENVIADA — 21-ago-2026
+> Se envió por el **formulario de sandbox de Alanube** (`alanube.co/colombia`),
+> no por correo. Datos con los que quedó radicada:
+> **Empresa:** Cobra POS · **Correo:** sergio@cobrapos.app ·
+> **Cargo:** CEO/CTO · **Software:** Desarrollo propio ·
+> **País:** Colombia · **Volumen:** Baja (1.001–20.000/mes)
+> Las 5 preguntas fueron en el campo Mensaje.
+>
+> **Esperando:** credenciales de sandbox + respuestas. Si no contestan en
+> 3 días hábiles, reenviar por correo directo con este mismo texto.
+> **Pendiente de decidir Sergio:** cuál restaurante hace la habilitación real
+> (ver la advertencia del RUT, abajo).
+
+
 **Para:** Alanube (comercial / soporte técnico)
 **Copia sugerida:** Factus, con el mismo texto, para comparar precios.
 
@@ -70,3 +84,21 @@ Cobra POS
 | **3** — el certificado pasa por Cobra | Toca custodiar material sensible: cifrado, permisos y responsabilidad legal. **Se evita si se puede.** |
 | **5** — reintentan ellos | Nos ahorra toda la cola de reintento. |
 | **5** — reintentamos nosotros | Hay que construir cola, idempotencia y recibo provisional. Ya está en el plan por si acaso. |
+
+
+---
+
+## ⚠️ ANTES DE TOCAR EL RUT DE NADIE — leer esto
+
+Registrar en el RUT la responsabilidad de **facturar electrónicamente** NO es
+un trámite reversible ni cosmético: **obliga** a ese negocio a emitir factura
+electrónica por sus ventas, de ahí en adelante. Un restaurante que hoy no
+factura casi nunca pasaría a tener que hacerlo siempre.
+
+Por eso este paso NO se hace "para ir adelantando". Se decide primero:
+1. ¿Quién va a ser el restaurante piloto de la habilitación real?
+2. ¿Ese negocio ya está obligado a facturar electrónicamente, o se estaría
+   asumiendo una obligación nueva?
+
+El sandbox NO necesita NIT real ni RUT: se puede construir y probar TODO sin
+tocar el RUT de nadie. El RUT solo hace falta en la ultima fase.
