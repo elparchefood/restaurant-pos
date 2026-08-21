@@ -132,6 +132,7 @@
         '<button class="ep-link" id="b-olvide">Olvidé mi contraseña</button>' +
       '</div>' +
       '<p class="ep-nota">Entras con el mismo número con el que pides.</p>' +
+      huellaDepuracion() +
     '</div>');
 
     $('f-entrar').addEventListener('submit', async function (ev) {
@@ -2049,7 +2050,36 @@
      identifican en el `user agent`. Es lo unico que dejan ver. */
   function enAppAjena() {
     var ua = navigator.userAgent || '';
-    return /Instagram|FBAN|FBAV|FB_IAB|FBIOS|Line\/|TikTok|Snapchat/i.test(ua);
+    /* Los que se presentan con nombre propio. */
+    if (/Instagram|FBAN|FBAV|FB_IAB|FBIOS|Line\/|TikTok|musical_ly|Snapchat/i.test(ua)) return true;
+    /* Los que no se presentan (20-ago: en el iPhone de Sergio, Instagram no
+       salia con el metodo de arriba). Se les nota por lo que les FALTA:
+       - Android: todo navegador interno lleva "; wv)" en su identificacion.
+       - iPhone: Safari siempre dice "Safari"; Chrome dice "CriOS", Firefox
+         "FxiOS", Edge "EdgiOS", Opera "OPT". Un iPhone que no dice ninguno
+         esta dentro de la ventana de otra app. */
+    if (/; wv\)/i.test(ua)) return true;
+    if (esIOS() && !yaInstalada() && !esSafari() && !/crios|fxios|edgios|opt\/|duckduckgo/i.test(ua)) return true;
+    return false;
+  }
+
+  /* HUELLA DE DEPURACION (temporal, 20-ago-2026): una linea diminuta bajo el
+     login que dice que version cargo y que decidio el aviso de instalar, para
+     leerla desde el propio Instagram sin poder conectar una consola. */
+  function porQueNoOfrecer() {
+    if (!esCelular()) return 'no es celular';
+    if (yaInstalada()) return 'ya instalada';
+    if (esIOS() && !esSafari() && !enAppAjena()) return 'iphone sin safari';
+    try {
+      var v = Number(localStorage.getItem('ep-instalar-no') || 0);
+      if (v && (Date.now() - v) < DIAS_ESPERA * 864e5) return 'lo cerraste hace poco';
+    } catch (e) {}
+    return '';
+  }
+  function huellaDepuracion() {
+    var m = porQueNoOfrecer();
+    return '<div class="ep-huella">0820m &middot; nav interno: ' + (enAppAjena() ? 'si' : 'no') +
+           ' &middot; aviso: ' + (m ? 'no (' + m + ')' : 'si') + '</div>';
   }
 
   /* EN ANDROID SI SE PUEDE SACAR AL NAVEGADOR DE VERDAD. Un enlace `intent://`

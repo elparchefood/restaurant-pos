@@ -10610,3 +10610,13 @@ vencer el cache o cambiar la hora.
 SIEMPRE al llegar, antes de iniciar sesion ("asi es mas efectivo"), en todos
 los navegadores — ya no solo dentro de Instagram. Si la persona lo cierra, los
 7 dias de espera evitan repetirselo al entrar. Sello de cache: `0820l`.
+
+**Cuarta vuelta (rastrear, no adivinar):** desde Instagram seguia sin salir
+nada. Dos medidas: (1) deteccion reforzada — ademas del nombre en el user
+agent, ahora se reconoce el navegador interno por lo que le FALTA (Android:
+"; wv)"; iPhone: no dice Safari ni CriOS/FxiOS/EdgiOS/OPT); y (2) una HUELLA
+DE DEPURACION temporal bajo el login (`.ep-huella`, `huellaDepuracion()` en
+`app-cliente.js`): "0820m · nav interno: si/no · aviso: si/no (motivo)".
+QUITARLA cuando Sergio confirme que el modal sale en su Instagram. Sello:
+`0820m`. Ojo: el index.html se cachea 10 min en el celular (max-age=600 del
+CDN), asi que dos intentos seguidos pueden ver la version vieja.
