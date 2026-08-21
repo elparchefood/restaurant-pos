@@ -79,11 +79,59 @@ Deno.serve(async (req) => {
     const cola = await sbGet(
       `/rest/v1/pos_wa_envios?lista_id=eq.${listaId}&estado=eq.pendiente` +
       `&order=orden.asc,created_at.asc&limit=${cuantos}` +
-      `&select=id,telefono,etiqueta,plantilla,idioma`
-    ) as Array<Record<string, string>> | null;
+      `&select=id,telefono,etiqueta,plantilla,idioma,params`
+    ) as Array<Record<string, unknown>> | null;
 
     if (!cola || !cola.length) {
       return json({ ok: true, enviados: 0, fallidos: 0, pendientes: 0, mensaje: "No quedan contactos pendientes en esta lista." });
+    }
+
+    /* ── QUE NO SE QUEMEN 95 INTENTOS POR UN DATO QUE FALTA ──────────────
+
+       Paso de verdad el 21-ago: la plantilla `puntos_app` dice "Tienes {{1}}
+       Puntos" y se mandaba sin ese dato. Meta rechazo las 95, una por una,
+       y solo se supo mirando el error guardado.
+
+       Ahora se comprueba ANTES de mandar la primera: se le pregunta a Meta
+       cuantas variables tiene la plantilla y se compara con las que se
+       tienen. Si no cuadran, no se manda NADA y se dice exactamente que
+       falta. Mejor parar entero que gastar el cupo del dia —y la reputacion
+       del numero— en mensajes que Meta va a rechazar igual. */
+    if (meta.waba_id) {
+      try {
+        const rt = await fetch(
+          `https://graph.facebook.com/v22.0/${meta.waba_id}/message_templates` +
+          `?name=${encodeURIComponent(String(cola[0].plantilla || ""))}&fields=name,components&limit=5`,
+          { headers: { "Authorization": `Bearer ${meta.access_token}` } },
+        );
+        const tj = await rt.json() as Record<string, unknown>;
+        const def = ((tj.data as Array<Record<string, unknown>>) || [])[0];
+        if (def) {
+          const body = ((def.components as Array<Record<string, unknown>>) || [])
+            .find((x) => String(x.type).toUpperCase() === "BODY");
+          const texto = String(body?.text || "");
+          //  Cuantos {{n}} distintos tiene el texto de la plantilla.
+          const esperados = new Set(
+            (texto.match(/\{\{\s*\d+\s*\}\}/g) || []).map((m) => m.replace(/\D/g, "")),
+          ).size;
+          const tengo = Array.isArray(cola[0].params) ? (cola[0].params as unknown[]).length : 0;
+          if (esperados !== tengo) {
+            return json({
+              ok: false, razon: "variables",
+              enviados: 0, fallidos: 0,
+              mensaje: esperados > tengo
+                ? `La plantilla "${cola[0].plantilla}" necesita ${esperados} dato(s) `
+                  + `y esta lista no los tiene. No se envió nada. `
+                  + `Vuelve a armar la lista, o revisa que el filtro sea el que llena ese dato.`
+                : `La plantilla "${cola[0].plantilla}" no lleva variables, pero la lista `
+                  + `está mandando ${tengo}. No se envió nada.`,
+            });
+          }
+        }
+      } catch (e) {
+        //  Si Meta no responde, no se bloquea el envio: se sigue como antes.
+        console.warn("[wa-enviar-lista] no se pudo verificar la plantilla:", e);
+      }
     }
 
     /* La funcion no puede correr indefinidamente: el servidor la corta. Con 250
@@ -103,13 +151,38 @@ Deno.serve(async (req) => {
         await sbPatch(`/rest/v1/pos_wa_envios?id=eq.${c.id}`, { estado: "omitido", error: "teléfono inválido" });
         continue;
       }
+      /* LAS VARIABLES DE LA PLANTILLA, RELLENAS DE VERDAD.
+
+         Aqui estaba el error que hizo fallar las 95: se mandaba la plantilla
+         pelada, sin `components`, y Meta respondia siempre lo mismo:
+
+           (#132000) number of localizable_params (0)
+                     does not match the expected number of params (1)
+
+         La plantilla `puntos_app` dice "Tienes {{1}} Puntos en total". Ese
+         {{1}} son los puntos de ESA persona, y salen de `params`, que se
+         llena al armar la lista (fn_wa_armar_lista).
+
+         Van en el mismo orden en que estan en la plantilla: el primero es
+         {{1}}, el segundo {{2}}. Si la lista no tiene variables, no se manda
+         `components` y todo queda como antes. */
+      const vals = Array.isArray(c.params) ? (c.params as unknown[]) : [];
+      const tpl: Record<string, unknown> = {
+        name: c.plantilla, language: { code: String(c.idioma || "es") },
+      };
+      if (vals.length) {
+        tpl.components = [{
+          type: "body",
+          parameters: vals.map((v) => ({ type: "text", text: String(v ?? "") })),
+        }];
+      }
+
       try {
         const res = await fetch(`https://graph.facebook.com/v22.0/${meta.phone_id}/messages`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${meta.access_token}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            messaging_product: "whatsapp", to: tel, type: "template",
-            template: { name: c.plantilla, language: { code: c.idioma || "es" } },
+            messaging_product: "whatsapp", to: tel, type: "template", template: tpl,
           }),
         });
         const data = await res.json() as Record<string, unknown>;

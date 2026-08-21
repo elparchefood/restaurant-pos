@@ -3,6 +3,52 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 Las plantillas con variables NUNCA se pudieron enviar — 21-ago-2026
+
+Sergio mandó `puntos_app` a 95 personas y **fallaron las 95**. Meta devolvió
+siempre lo mismo:
+
+    (#132000) number of localizable_params (0)
+              does not match the expected number of params (1)
+
+La plantilla dice **"Tienes {{1}} Puntos en total"** y `wa-enviar-lista`
+construía el envío **sin `components`**, o sea sin ningún dato para esa
+variable.
+
+⚠️ **El fallo llevaba ahí desde siempre.** La campaña anterior (1.380 mensajes,
+1 solo fallo) funcionó únicamente porque su plantilla no tiene variables. Nadie
+lo notó hasta la primera plantilla que sí las tenía.
+
+### Lo que se arregló
+
+1. **`pos_wa_envios.params` (jsonb)** — guarda, por persona, con qué se rellena
+   cada variable: `["131"]` llena `{{1}}`.
+2. **`fn_wa_armar_lista`** lo llena según el filtro de la lista, que es lo que de
+   verdad dice de qué trata la campaña: `puntos` → los puntos de esa persona,
+   `saldo` → su saldo. Con separador de miles, como los ve en la app.
+3. **El envío arma `components`** cuando hay params. Sin params se manda como
+   antes, así que las plantillas sin variables no cambian.
+
+### Y el freno para que no se repita
+
+Antes de mandar la primera, se le pregunta a Meta cuántas variables tiene la
+plantilla y se compara con las que se tienen. **Si no cuadran no se manda nada**
+y se dice qué falta.
+
+Quemar 95 intentos —y con ellos el cupo del día y la reputación del número— en
+mensajes que Meta va a rechazar igual, es peor que no mandar. Verificado en los
+cuatro casos: envía cuando cuadra, frena cuando falta un dato y cuando sobra.
+
+Si Meta no responde a esa consulta, **no se bloquea el envío**: se sigue como
+antes. Un chequeo de seguridad no puede convertirse en un punto de falla.
+
+### Estado
+
+Cola rearmada: **95 pendientes, 95 con sus puntos**. Ejemplo real de lo que le
+llega al primero: *"Tienes 60 Puntos en total"*.
+
+---
+
 ## 🟢 Cerrar caja libera las mesas — 21-ago-2026
 
 Sergio encontró una mesa en **"Comiendo" con el cronómetro en 18 horas**, con la
