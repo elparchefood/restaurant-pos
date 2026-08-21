@@ -19,7 +19,7 @@
   var ACCESO = SB_URL + '/functions/v1/web-acceso';
   /* Version de ESTE archivo, para la huella y el diagnostico. Subirla junto
      con el SELLO del index. */
-  var VERSION_APP = '0820n';
+  var VERSION_APP = '0820o';
 
   /* ── BEACON DE DIAGNOSTICO (TEMPORAL, 20-ago-2026) ──────────────────
      En el Instagram de Sergio el aviso de instalar no sale y no hay consola
@@ -2052,7 +2052,13 @@
        si esta dentro de Instagram/Facebook si conviene ofrecerlo, porque el
        modal ahora le ensena a salir hacia Safari. */
     if (esIOS() && !esSafari() && !enAppAjena()) return false;
+    /* DENTRO DE INSTAGRAM la espera de 7 dias no aplica (20-ago-2026: el
+       beacon mostro que eso era lo que callaba el aviso — se cerro una vez en
+       una prueba y quedo mudo una semana). Ahi el aviso es la unica salida y
+       quien llega de la biografia lo necesita SIEMPRE; solo se calla si lo
+       cierra en esa misma visita. En navegadores normales, los 7 dias siguen. */
     try {
+      if (enAppAjena()) return !sessionStorage.getItem('ep-instalar-no-visita');
       var v = Number(localStorage.getItem('ep-instalar-no') || 0);
       if (v && (Date.now() - v) < DIAS_ESPERA * 864e5) return false;
     } catch (e) {}
@@ -2093,6 +2099,7 @@
     if (yaInstalada()) return 'ya instalada';
     if (esIOS() && !esSafari() && !enAppAjena()) return 'iphone sin safari';
     try {
+      if (enAppAjena()) return sessionStorage.getItem('ep-instalar-no-visita') ? 'cerrado en esta visita' : '';
       var v = Number(localStorage.getItem('ep-instalar-no') || 0);
       if (v && (Date.now() - v) < DIAS_ESPERA * 864e5) return 'lo cerraste hace poco';
     } catch (e) {}
@@ -2198,7 +2205,12 @@
       cap.remove();
       /* Solo se apunta el "ahora no" cuando el cliente lo cierra el mismo. Si
          se cierra porque acepto instalar, no hay nada que recordar. */
-      if (recordar) { try { localStorage.setItem('ep-instalar-no', String(Date.now())); } catch (e) {} }
+      if (recordar) {
+        try {
+          if (enAppAjena()) sessionStorage.setItem('ep-instalar-no-visita', '1');
+          else localStorage.setItem('ep-instalar-no', String(Date.now()));
+        } catch (e) {}
+      }
     }
     cap.querySelector('.ep-inst-no').onclick = function () { cerrar(!forzado); };
     cap.addEventListener('click', function (ev) { if (ev.target === cap) cerrar(!forzado); });

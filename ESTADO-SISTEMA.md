@@ -10668,3 +10668,12 @@ cargada, el user agent, que decidio `enAppAjena`/`tocaOfrecer` y si el modal
 esta en pantalla; cae en la tabla `web_diag` (solo service_role — OJO: el
 `revoke all from public` le quito el INSERT tambien a service_role y hubo que
 devolverselo). QUITAR beacon + accion + tabla al resolver. Sello `0820n`.
+
+**RESUELTO (beacon, fila id=3):** la version nueva SI llegaba y la deteccion
+SI funcionaba; lo que callaba el aviso era la espera de 7 dias — en una prueba
+del dia el modal se cerro dentro de Instagram y quedo mudo. Arreglo: dentro de
+un navegador ajeno la espera de 7 dias NO aplica; el aviso sale en cada visita
+y solo se calla (sessionStorage `ep-instalar-no-visita`) si se cierra en esa
+misma visita. En navegadores normales los 7 dias siguen. Verificado en banco:
+con el no-molestar puesto sale igual; cerrado → callado en la visita; visita
+nueva → sale. Sello `0820o`. El beacon sigue puesto hasta que Sergio confirme.
