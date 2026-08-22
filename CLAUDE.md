@@ -21,9 +21,20 @@ Después de cada cambio importante, corrección compleja o decisión de diseño,
 
 ---
 
-## 1. Regla crítica — Paridad Electron / Web (OBLIGATORIA)
+## 1. Regla crítica — La sesión debe funcionar igual en Electron y en Web
 
-**Todo cambio debe funcionar IGUAL en el ejecutable Electron que en el navegador web.**
+**Lo que NO se puede romper es la SESIÓN**: si un módulo crea su propio cliente
+Supabase sin la clave de almacenamiento correcta, en el .exe saca al usuario al
+login. Eso es lo que causó el problema real y lo que hay que respetar.
+
+> ⚠️ Corregido el 22-ago-2026 por Sergio. Antes esta sección decía "todo cambio
+> debe funcionar IGUAL en el ejecutable que en el navegador", como si fuera una
+> ley general. **Esa regla nunca existió y es falsa**: el .exe existe
+> justamente PORQUE hay cosas que el navegador no puede hacer —la impresora es
+> el motivo por el que se creó—. Generalizar así hacía descartar funciones
+> válidas solo por ser exclusivas del ejecutable (p. ej. un lector NFC con
+> driver). Si algo solo puede vivir en el .exe, se hace en el .exe y se avisa
+> en la web.
 
 El ejecutable carga `https://cobrapos.app/` — es la misma web, pero tiene su propio almacenamiento de localStorage separado del Chrome del sistema.
 
