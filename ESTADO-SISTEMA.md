@@ -3,6 +3,27 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Paco: las frases del canvas ya no traen opciones escritas a mano — 21-ago-2026
+
+Sergio revisó el canvas y encontró las frases de tamaño y variante con las
+opciones escritas adentro ("¿La quieres personal o familiar?") — el rastro
+viejo de algo que ya se había decidido distinto. El problema: si un día
+renombra las presentaciones (Familiar → Grande), la frase queda mintiendo, el
+filtro `presentacionesMalCitadas` la descarta y Paco cae a la frase seca de
+repuesto, perdiendo el tono.
+
+**Cambio (solo configuración, el motor no se tocó):** en `ia_config` de la
+sede de El Parche (`66e5f12d…`), los pasos `tamano` y `tipo` del
+`flujo_pasos` quedaron como `¿La quieres {opciones}? 😋` y
+`¿La deseas con {opciones}? 🍟`; el respaldo `frases.preguntar_tamano`
+también pasó a `{opciones}`. El motor reemplaza `{opciones}` con las opciones
+reales de cada producto ANTES del filtro, así que la frase nunca puede citar
+mal. Verificado: los 7 pasos del flujo intactos y en su orden.
+
+Regla para recordar: en el canvas, las frases de tamaño/variante van SIEMPRE
+con `{opciones}` (y `{label}` si se quiere el nombre del grupo), nunca con las
+opciones escritas a mano.
+
 ## 🔴→🟢 El aviso de agotado por sabor no salía NUNCA — 21-ago-2026
 
 Sergio: *"el HIT litro de mango está agotado pero si me meto a hacer un pedido
