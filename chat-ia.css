@@ -22,7 +22,10 @@
   --accent-bg2:rgba(124,92,255,.09);
   --violet:    #9B85FF;
   --success:   #16A34A;
-  --font:      'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* 'Noto Color Emoji' va AL FINAL a proposito: el navegador solo llega ahi
+     para los caracteres que DM Sans no tiene, o sea los emojis. Las letras
+     no cambian de aspecto. */
+  --font:      'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif, 'Noto Color Emoji';
   /* canales */
   --wa:  #25D366;
   --ig:  #E1306C;

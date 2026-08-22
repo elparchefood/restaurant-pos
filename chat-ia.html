@@ -11,11 +11,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- LOS EMOJIS A COLOR. Sin esto Windows los dibuja con su propia fuente
+       (Segoe UI Emoji), que no se parece a la del telefono: por eso Sergio
+       buscaba uno en el cuadro y no lo reconocia. Ojo: los de iPhone son de
+       Apple y no se pueden repartir; esta es la de Google, libre, y hace que
+       el cuadro y los mensajes se vean IGUAL entre si. -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap" rel="stylesheet">
   <script src="vendor/supabase-2.js?v=1789520000"></script>
 <script src="pos-cache.js?v=1790510000"></script>
   <script src="pos-perms.js?v=1791745000"></script>
   <script>if(window.posRequirePin) posRequirePin('chat.usar');</script>
-  <link rel="stylesheet" href="chat-ia.css?v=1791820000">
+  <link rel="stylesheet" href="chat-ia.css?v=1791830000">
   <link rel="stylesheet" href="pos-vars.css?v=1789710000">
 </head>
 <body>
@@ -406,8 +412,10 @@
   <script src="pos-vars-ui.js?v=1790530000"></script>
   <script src="pos-metodos.js?v=1790540000"></script>
 <script src="pos-saldo.js?v=1790470001"></script>
-<!-- pos-mapa dibuja el mapa de las burbujas de ubicacion. Va ANTES de
-     chat-ia.js para que window.posMapa ya exista al pintar el hilo. -->
+<!-- Como se llama cada emoji en espanol, para que el buscador encuentre. -->
+<script src="pos-emoji-nombres.js?v=1791830000"></script>
+<!-- pos-mapa dibuja el mapa de las burbujas de ubicacion. Los dos van ANTES
+     de chat-ia.js: cuando se pinta el hilo ya tienen que existir. -->
 <script src="pos-mapa.js?v=1791830000"></script>
 <script src="chat-ia.js?v=1791830000"></script>
 <script src="pos-impuestos.js?v=1"></script>
