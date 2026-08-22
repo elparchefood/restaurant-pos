@@ -60,15 +60,31 @@ Deno.serve(async (req: Request) => {
          y pagados "abiertos" (caso real: Isabella y Andres). Si la plata ya
          esta completa, al entregarlo se cierra solo. Si falta plata (efectivo
          contraentrega sin registrar), queda open para cobrarlo en caja. */
+      /* ANTES esto era leer-y-decidir con un try/catch que tragaba cualquier
+         error sin dejar rastro: el 21-ago tres pedidos entregados y pagados
+         quedaron "open" y la caja no dejaba cerrar el turno (tercera vez que
+         le pasaba a Sergio). Ahora la condicion y el cierre viajan JUNTOS en
+         un UPDATE de la base (fn_cerrar_si_pagado): no hay lectura intermedia
+         que pueda fallar por su lado. Y CADA entrega queda anotada en
+         pos_diag con su resultado — si vuelve a quedar uno abierto, el
+         rastro dice por que. */
+      let cerro = -1;   // -1 = la llamada misma fallo
       try {
-        const ordPago = await sbGet(`/pos_orders?id=eq.${order_id}&select=status,paid_amount,total`) as Array<Record<string, unknown>> | null;
-        const op = ordPago?.[0];
-        if (op && String(op.status) === "open"
-            && Number(op.paid_amount || 0) >= Number(op.total || 0) && Number(op.total || 0) > 0) {
-          patch.status = "paid";
-          patch.closed_at = new Date().toISOString();
-        }
-      } catch (_e) { /* si no se puede leer, el cambio de estado sigue igual */ }
+        const rc = await fetch(`${SUPABASE_URL}/rest/v1/rpc/fn_cerrar_si_pagado`, {
+          method: "POST", headers: { ...H, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_order: order_id }),
+        });
+        if (rc.ok) cerro = Number(await rc.json());
+        else console.error("[cerrar-si-pagado]", rc.status, (await rc.text()).slice(0, 200));
+      } catch (e) { console.error("[cerrar-si-pagado]", String(e).slice(0, 200)); }
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/pos_diag`, {
+          method: "POST", headers: { ...H, "Content-Type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify({ donde: "cambiar-estado/entregado",
+            mensaje: `pedido ${order_id} cierre=${cerro}`,
+            extra: { order_id, cerro } }),
+        });
+      } catch (_e) { /* el rastro nunca frena la entrega */ }
     }
     await sbPatch(`/pos_orders?id=eq.${order_id}`, patch);
 

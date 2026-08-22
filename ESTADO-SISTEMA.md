@@ -3,6 +3,35 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 La caja no dejaba cerrar por pedidos ya entregados y pagados — 21-ago-2026
+
+Sergio (tercera vez): el cierre de caja listaba 3 domicilios de Paco (Mónica,
+Brenda, Miguel) como "Abiertos" — pero estaban entregados y pagados por
+transferencia. Causa: nacen `status='open'` a propósito (si nacen "paid"
+desaparecen de la pantalla de domicilios en pleno reparto) y el cierre al
+entregarse (cambiar-estado, 15-ago) era **leer-y-decidir con un try/catch que
+tragaba errores sin dejar rastro**: cuando esa lectura fallaba, el pedido
+quedaba open para siempre y nadie se enteraba hasta el cierre del turno.
+(La función probada en frío SÍ funcionaba — el fallo era intermitente y por
+eso "pasaba varias veces": sin rastro, imposible saber cuándo.)
+
+**Arreglo en tres capas** (`supabase/sql/2026-08-21-cerrar-si-pagado.sql` +
+cambiar-estado v19 + caja.js):
+1. **`fn_cerrar_si_pagado(order)`**: la condición y el cierre viajan JUNTOS en
+   un UPDATE (`status='open' and paid_amount>=total` → `paid`). No hay lectura
+   intermedia que pueda fallar por su lado.
+2. **Rastro**: cada entrega anota en `pos_diag` (`cambiar-estado/entregado`,
+   `cierre=1/0/-1`). Si vuelve a quedar uno abierto, el rastro dice cuándo y
+   por qué.
+3. **Cinturón en la caja** (`getPedidosAbiertos`): entregado + pagado completo
+   no cuenta como pedido vivo aunque su status diga open (solo
+   rapido/domicilio; una mesa se cierra cobrándola). Cubre pedidos viejos y
+   cualquier camino que se salte la función.
+
+Los 3 de la noche quedaron reparados con la misma condición (más
+`delivered_at`). Probado en Restaurante de Prueba: pedido pagado → entregar lo
+cierra (`cierre=1` en el rastro); filas de prueba borradas.
+
 ## 🟢 Paco: la nota de cocina ahora se ENTIENDE, no se caza por palabras (motor v344) — 21-ago-2026
 
 Sergio, tras el arreglo del "solo eso": *"no debería ser un capturador de

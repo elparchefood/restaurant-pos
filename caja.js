@@ -781,6 +781,15 @@ async function getPedidosAbiertos() {
     // Vivo = en un estado de trabajo, o con saldo pendiente, o (venta rápida/domicilio)
     // que aún NO esté ENTREGADO. No se puede cerrar la caja con algo sin entregar.
     return (data || []).filter(o => {
+      /* CINTURON (21-ago): entregado Y pagado completo NO es un pedido vivo,
+         diga lo que diga su `status`. Tres veces la caja se nego a cerrar por
+         pedidos de Paco ya entregados y pagados cuyo status quedo 'open'. El
+         cierre de verdad lo hace fn_cerrar_si_pagado al entregarse; esto
+         cubre los viejos y cualquier camino que se lo salte. Solo aplica a
+         rapido/domicilio: una mesa se cierra cobrandola, no entregandola. */
+      if (!o.table_id && o.delivered_at && o.estado === 'entregado'
+          && (parseFloat(o.total) || 0) > 0
+          && (parseFloat(o.paid_amount) || 0) >= (parseFloat(o.total) || 0) - 1) return false;
       if (ESTADO_ABIERTO.indexOf(o.status) >= 0) return true;
       const tot = parseFloat(o.total_final ?? o.total) || 0;
       if (tot > 0 && (parseFloat(o.paid_amount) || 0) < tot - 1) return true;
