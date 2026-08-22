@@ -3,6 +3,46 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Paco: contexto del pedido en curso — 21-ago-2026 (motor v341)
+
+Cuatro errores de una sola conversación real (Anyi, 573217521976), corregidos
+en caliente durante el servicio. La cascada completa: el pedido quedó a nombre
+de **"Apenas este lista"**, la nota *"las salsas aparte"* recibió tres veces
+*"Quedó pendiente del comprobante"*, y cuando la clienta la reenvió —con el
+pedido ya pagado y en cocina— Paco leyó "salsas", la casó con el producto
+Salsa del catálogo y **arrancó un pedido nuevo**: sabor, adiciones, dirección
+y hasta *"¿va a nombre de Apenas este lista?"*.
+
+### Los 4 arreglos
+
+1. **`FRASE_TEMPORAL_RE`** — una frase que empieza con palabra de tiempo
+   (apenas, cuando, ahorita, tan pronto…) o habla de que algo esté listo/salga
+   no es un nombre. Aplicada en las dos ramas de `extractNombre`, como exige la
+   regla de "cada candado en todos los caminos".
+2. **Esperando comprobante ya no responde lo mismo a todo.** Tres casos:
+   instrucción de cocina → **se anota en `pending_order_data.preferencias`**
+   (el pedido se crea desde ahí al verificar el pago, así que sale en la
+   comanda) y se confirma; cortesía ("Ok", "gracias") → silencio; otra cosa →
+   recordatorio una vez y a la segunda `frenarBucle` lo pasa a una persona.
+3. **`quitarReenvio`** — reconoce el formato con que WhatsApp copia mensajes
+   (`[21/8, 6:55 p.m.] Nombre: …`) y saca el contenido limpio.
+4. **Guardia de pedido en curso** — si la conversación tiene `order_id` de un
+   pedido activo (< 6 h, sin entregar, no cancelado) y llega una instrucción de
+   cocina o un reenvío, **no se arranca flujo nuevo**: se avisa al cliente y
+   pasa a una persona con el texto en `handoff_motivo` — mismo patrón que ya
+   existía para cambios de plato y dirección. `PIDE_NUEVO_RE` protege el caso
+   legítimo: *"quiero **otra** salchipapa sin cebolla"* sí es pedido nuevo.
+
+### Verificación
+
+Banco de 26 casos con los **textos reales** de la conversación (más nombres
+reales como control): todos pasan. `deno check` no agregó errores (los 10 que
+reporta ya estaban antes y no bloquean; la función corre así hace meses).
+Desplegado v341, código vivo verificado (sin chr(8), marcadores presentes),
+arranca bien.
+
+---
+
 ## 🔴→🟢 El cursor no aparecía en los campos de texto (.exe) — 21-ago-2026
 
 Problema que llevaba **meses** molestando: se hacía clic en un campo de texto

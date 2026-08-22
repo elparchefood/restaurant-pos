@@ -2014,6 +2014,40 @@ INTENCION, no las palabras exactas.` },
       pagoPendienteViejo = true;
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pago_pendiente: false, pending_order_data: null, recordar_at: null });
     } else {
+      /* MIENTRAS SE ESPERA EL COMPROBANTE, NO TODO ES "MANDA EL COMPROBANTE".
+
+         Caso real (21-ago): la clienta escribio "Ok", despues "Lo mas rapido
+         que puedas gracias" y despues "Las salsas aparte por favor, porque
+         tenemos niNos" — y a LAS TRES les llego la misma respuesta: "Quedo
+         pendiente del comprobante". La nota de las salsas se perdio y la
+         clienta tuvo que reenviarla despues, con el pedido ya en cocina.
+
+         Tres casos distintos, tres respuestas distintas:
+         1. Una instruccion de cocina -> SE ANOTA en el pedido pendiente (el
+            pedido se crea desde ahi cuando el pago se verifique, asi que la
+            nota sale en la comanda) y se le confirma a la clienta.
+         2. Una cortesia ("Ok", "gracias") -> silencio. Ya sabe que debe
+            mandar el comprobante; repetirselo es ruido.
+         3. Otra cosa que no se entiende -> el recordatorio UNA vez; a la
+            segunda, mejor una persona (frenarBucle ya hace esa cuenta). */
+      const instrPend = quitarReenvio(clienteTexto);
+      if (stPend && esInstruccionCocina(instrPend.texto)) {
+        const notaPend = extractPreferencias(instrPend.texto, cfg) || instrPend.texto.slice(0, 120);
+        const previasPend = stPend.preferencias ? stPend.preferencias + ", " : "";
+        if (!previasPend.toLowerCase().includes(notaPend.toLowerCase())) {
+          stPend.preferencias = previasPend + notaPend;
+        }
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: stPend });
+        const msgNota = `¡Anotado! 📝 ${notaPend}. Sigo pendiente del comprobante para prepararte el pedido 🧾`;
+        await sendWaAndSave(convId, tenantId, msgNota, fromPhone, phoneId, accessToken);
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgNota, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+        return;
+      }
+      if (SOLO_CORTESIA_RE.test(clienteTexto)) {
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { ai_typing: false });
+        return;
+      }
+      if (await frenarBucle(convId, "esperar_comprobante")) return;
       const msgRecordatorio = getFraseTexto(frasesCfg.esperar_comprobante)
         || "Quedó pendiente del comprobante para poderte preparar ☺️ Envíamelo como imagen 🧾";
       await sendWaAndSave(convId, tenantId, msgRecordatorio, fromPhone, phoneId, accessToken);
@@ -2051,6 +2085,70 @@ INTENCION, no las palabras exactas.` },
      dirección (progreso real) y el contador le pegó el "perdón si no me hice
      entender" a la PRIMERA pregunta del barrio. Contar sin mirar el progreso
      castiga al que colabora. */
+  /* ── ¿HAY UN PEDIDO EN CURSO Y ESTO ES UNA NOTA SOBRE EL? (21-ago) ────
+
+     Caso real: con su pedido ya pagado y en cocina, la clienta reenvio "Las
+     salsas aparte por favor". Paco no tenia memoria de ese pedido: leyo
+     "salsas", lo caso con el producto Salsa del catalogo y arranco un pedido
+     NUEVO — pregunto el sabor, ofrecio adiciones, volvio a pedir direccion y
+     nombre. La clienta solo queria avisarle algo a la cocina.
+
+     La regla de Sergio: Paco debe ser consciente del pedido que esta en
+     curso. Si hay un pedido creado hace poco y todavia sin entregar, y el
+     mensaje es una instruccion de cocina o un reenvio, NO es un pedido
+     nuevo: es sobre ESE. Y como la comanda ya esta impresa, quien decide si
+     la nota alcanza a entrar es una persona, no el bot — igual que ya pasa
+     con los cambios de plato y de direccion. */
+  {
+    const reenv = quitarReenvio(clienteTexto);
+    const esNotaCocina = esInstruccionCocina(reenv_texto(reenv));
+    if ((esNotaCocina || reenv.esReenvio) && !state.producto && (state.items || []).length === 0
+        && !PIDE_NUEVO_RE.test(reenv_texto(reenv))) {
+      const convPed = await sbGet(
+        `/rest/v1/chat_conversations?id=eq.${convId}&select=order_id&limit=1`
+      ) as Array<Record<string, unknown>> | null;
+      const oid = convPed?.[0]?.order_id;
+      if (oid) {
+        const ped = await sbGet(
+          `/rest/v1/pos_orders?id=eq.${oid}&select=status,delivery_status,opened_at&limit=1`
+        ) as Array<Record<string, unknown>> | null;
+        const p0 = ped?.[0];
+        const horas = p0?.opened_at ? (Date.now() - new Date(String(p0.opened_at)).getTime()) / 3600000 : 999;
+        const activo = !!p0 && p0.status !== "cancelled"
+          && p0.delivery_status !== "entregado" && horas < 6;
+        if (activo && esNotaCocina) {
+          const avisoNota = "¡Listo! Le paso tu nota a la cocina para tu pedido que ya está en preparación 🍳🙏";
+          await sendWaAndSave(convId, tenantId, avisoNota, fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+            human_takeover: true,
+            handoff_motivo: "nota de cocina con el pedido ya en preparación: \"" + reenv_texto(reenv).slice(0, 140) + "\"",
+            handoff_at: new Date().toISOString(),
+            last_message: avisoNota, last_message_at: new Date().toISOString(),
+            last_sender: "agent", last_read: false, ai_typing: false,
+          });
+          console.log("[pedido en curso] nota de cocina -> a una persona");
+          return;
+        }
+        if (activo && reenv.esReenvio) {
+          /* Un reenvio con el pedido en cocina casi siempre es "no me leyeron
+             esto". Sea lo que sea, no se arranca un pedido nuevo con el: lo
+             mira una persona. */
+          const avisoReenv = "Ya te leo 🙏 Le paso tu mensaje a la persona encargada de tu pedido.";
+          await sendWaAndSave(convId, tenantId, avisoReenv, fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+            human_takeover: true,
+            handoff_motivo: "mensaje reenviado con el pedido en preparación: \"" + reenv_texto(reenv).slice(0, 140) + "\"",
+            handoff_at: new Date().toISOString(),
+            last_message: avisoReenv, last_message_at: new Date().toISOString(),
+            last_sender: "agent", last_read: false, ai_typing: false,
+          });
+          console.log("[pedido en curso] reenvio -> a una persona");
+          return;
+        }
+      }
+    }
+  }
+
   const slotsAntes14 = JSON.stringify([state.producto, state.tamano, state.tipo,
     state.direccion, state.nombre, state.pago, state.adiciones, state.upsell,
     (state.items || []).length]);
@@ -4290,6 +4388,45 @@ function isProductAttribute(text: string, productData: ProductData | null): bool
 //
 // El restaurante puede configurar una frase de espera desde el canvas
 // (ia_config.handoff.frase). Si no la pone, silencio.
+/* ¿EL MENSAJE ES UN REENVIO? (21-ago, caso real). La clienta reenvio sus
+   propios mensajes y llegaron con el formato con que WhatsApp los copia:
+
+       [21/8, 6:55 p.m.] Sofi: Las salsas aparte por favor
+
+   Paco leyo eso como texto normal, encontro la palabra "salsas" —que es un
+   producto del catalogo— y ARRANCO UN PEDIDO NUEVO de salsas: pregunto el
+   sabor, ofrecio adiciones y volvio a pedir la direccion, con el pedido real
+   ya pagado y en cocina. Aqui se reconoce el formato y se saca el contenido
+   limpio, sin las fechas ni los nombres. */
+const REENVIO_LINEA_RE = /^\s*\[\d{1,2}\/\d{1,2}(?:\/\d{2,4})?,?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:[ap]\.?\s*m\.?)?\]\s*[^:\n]{1,60}:\s*/i;
+
+function reenv_texto(r: { texto: string; esReenvio: boolean }): string { return r.texto; }
+
+function quitarReenvio(text: string): { texto: string; esReenvio: boolean } {
+  const lineas = String(text || "").split("\n");
+  let hubo = false;
+  const limpias = lineas.map((ln) => {
+    if (REENVIO_LINEA_RE.test(ln)) { hubo = true; return ln.replace(REENVIO_LINEA_RE, "").trim(); }
+    return ln;
+  });
+  return { texto: limpias.join("\n").trim(), esReenvio: hubo };
+}
+
+/* ¿ES UNA INSTRUCCION DE COCINA? "Las salsas aparte", "sin cebolla", "que no
+   le pongan picante", "poquito de ajo". No es un plato nuevo ni un dato del
+   pedido: es COMO preparar lo que ya se pidio. */
+/* Pero si el mensaje PIDE algo nuevo ("quiero otra salchipapa sin cebolla"),
+   no es una nota sobre el pedido en cocina: es un pedido mas, y el flujo
+   normal debe atenderlo. El verbo de pedir es lo que separa las dos cosas. */
+const PIDE_NUEVO_RE = /\b(quier[oe]|quisiera|me\s+das|dame|me\s+haces|me\s+manda[sn]?|env[ií]ame|deseo|antoja|pedir|ordenar|otr[oa]\s+(pedido|salchipapa|hamburguesa|premium|mixta|sandwich|s[aá]ndwich))\b/i;
+
+function esInstruccionCocina(text: string): boolean {
+  const t = normalizarTexto(String(text || ""));
+  if (!t || t.length > 300) return false;
+  if (/\bsin\s+embargo\b/.test(t)) return false;
+  return /\b(aparte|separad[oa]s?|sin\s+[a-z]{3,}|no\s+le\s+(pongan?|echen?|agreguen?)|que\s+no\s+(tenga|lleve|traiga)|poquit[oa]|bien\s+(asad|cocid|dorad|hech)[oa]s?|al\s+clima|sin\s+hielo)\b/.test(t);
+}
+
 async function pasarAHumano(
   convId: string,
   tenantId: string,
@@ -5000,6 +5137,15 @@ const NO_ES_NOMBRE_RE = /\b(ya\s+te\s+lo\s+dije|ya\s+lo\s+dije|ya\s+te\s+dije|ya
    nombre que capturar. */
 const PREGUNTA_NO_NOMBRE_RE = /(\?|¿|\b(cuant[oa]s?|cu[aá]nt[oa]s?|cuando|cu[aá]ndo|donde|d[oó]nde|demoran?|tardan?|llegan?|cuestan?|valen?|q(?:ue)?\s+horas?|hasta\s+q)\b)/i;
 
+/* UNA FRASE DE TIEMPO NO ES UN NOMBRE (21-ago, caso real). La clienta
+   contesto "Apenas este lista" —hablando de CUANDO pasaba a recoger su
+   salchipapa— y el pedido quedo a nombre de "Apenas este lista". Paco hasta
+   pregunto despues "¿el pedido va a nombre de Apenas este lista?".
+   Una frase que empieza con una palabra de tiempo (apenas, cuando, ahorita,
+   tan pronto...) o que habla de que algo este listo/salga/llegue es una
+   condicion, no una persona. */
+const FRASE_TEMPORAL_RE = /^\s*(apenas|cuando|cu[aá]ndo|ahorita|ahora|ya\s+casi|tan\s+pronto|ni\s+bien|luego|despu[eé]s|mientras|en\s+cuanto|a\s+penas)\b|\b(est[eé]n?\s+list[oa]s?|este\s+list[oa]|salga|llegue|termine)\b/i;
+
 const ETIQUETA_PLANTILLA_RE = /^\s*(tel[eé]fono|direcci[oó]n|pedido|pago|nombre|detalles?|cliente|barrio|celular|numero|n[uú]mero|datos|observaci[oó]n(es)?|nota s?)\s*[:.]?\s*$/i;
 
 /* UNA CORTESIA NO ES UN NOMBRE. Sergio mando la direccion en dos mensajes y
@@ -5053,6 +5199,7 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
         if (esRechazoDeMas(ln)) continue;
         if (ETIQUETA_PLANTILLA_RE.test(ln)) continue;   // "Telefono", "Direccion"...
         if (PREGUNTA_NO_NOMBRE_RE.test(ln)) continue;   // "Cuanto se demora" no es un nombre
+        if (FRASE_TEMPORAL_RE.test(ln)) continue;      // "Apenas este lista" tampoco
         const lnNorm = normalizarTexto(ln);
         if (getAdicionKeywords().some(k => k.length >= 4 && new RegExp(`\\b${k}\\b`).test(lnNorm))) continue;
         if (extractPago(ln, null)) continue;
@@ -5084,6 +5231,7 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
   if (NO_ES_NOMBRE_RE.test(t)) return null;                              // reclamos/meta ("ya te lo dije")
   if (ETIQUETA_PLANTILLA_RE.test(t)) return null;                        // "Telefono", "Direccion"...
   if (PREGUNTA_NO_NOMBRE_RE.test(t)) return null;                        // una pregunta no es un nombre
+  if (FRASE_TEMPORAL_RE.test(t)) return null;                            // "Apenas este lista" no es un nombre
   if (esSoloConfirmacion(t)) return null;                                // "si", "dale", "ok"…
   if (t.includes("?") || t.includes("¿")) return null;                   // preguntas no son nombres
   if (extractPago(t, null)) return null;
