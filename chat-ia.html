@@ -15,7 +15,7 @@
 <script src="pos-cache.js?v=1790510000"></script>
   <script src="pos-perms.js?v=1791745000"></script>
   <script>if(window.posRequirePin) posRequirePin('chat.usar');</script>
-  <link rel="stylesheet" href="chat-ia.css?v=1790570000">
+  <link rel="stylesheet" href="chat-ia.css?v=1791820000">
   <link rel="stylesheet" href="pos-vars.css?v=1789710000">
 </head>
 <body>
@@ -170,6 +170,9 @@
         <div>
           <div class="ci-chat-name" id="chatName"></div>
           <div class="ci-chat-meta" id="chatMeta"></div>
+          <!-- Los canales del MISMO cliente. Solo aparece si tiene mas de uno:
+               con uno solo no hay nada que alternar y quitaria sitio al nombre. -->
+          <div class="ci-canales" id="chatCanales" style="display:none"></div>
         </div>
       </div>
       <div class="ci-chat-actions">
@@ -403,7 +406,7 @@
   <script src="pos-vars-ui.js?v=1790530000"></script>
   <script src="pos-metodos.js?v=1790540000"></script>
 <script src="pos-saldo.js?v=1790470001"></script>
-<script src="chat-ia.js?v=1791745000"></script>
+<script src="chat-ia.js?v=1791820000"></script>
 <script src="pos-impuestos.js?v=1"></script>
 <script src="pos-print.js?v=1791745000"></script>
 <script src="pos-brand.js?v=1790530000"></script>

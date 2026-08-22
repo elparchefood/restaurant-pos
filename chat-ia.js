@@ -464,18 +464,33 @@ function renderConvList() {
 S.clientesPorTel = S.clientesPorTel || {};
 async function loadClientes() {
   try {
+    /* Se trae TAMBIEN el id y las redes: en Instagram y Messenger no hay
+       telefono con que buscar, y la ficha se encuentra por `cliente_id`. */
     const { data } = await sb.from('pos_clientes')
-      .select('nombre,telefono,barrio').eq('tenant_id', S.tenantId).limit(5000);
+      .select('id,nombre,telefono,barrio,instagram_usuario,facebook_nombre')
+      .eq('tenant_id', S.tenantId).limit(5000);
     const mapa = {};
+    const porId = {};
     (data || []).forEach(function (c) {
+      const ficha = { nombre: c.nombre, barrio: c.barrio, telefono: c.telefono,
+                      instagram: c.instagram_usuario, facebook: c.facebook_nombre };
       const t = String(c.telefono || '').replace(/\D/g, '').slice(-10);
-      if (t.length === 10) mapa[t] = { nombre: c.nombre, barrio: c.barrio };
+      if (t.length === 10) mapa[t] = ficha;
+      if (c.id) porId[c.id] = ficha;
     });
     S.clientesPorTel = mapa;
+    S.clientesPorId  = porId;
   } catch (e) { console.warn('loadClientes:', e && e.message); }
 }
 function clienteDe(conv) {
   if (!conv) return null;
+  /* SI LA CONVERSACION YA SABE DE QUE CLIENTE ES, esa es la respuesta. En
+     Instagram y Messenger el `contact_handle` es un id de Meta y buscar por
+     telefono no encuentra nada — quedaban como "sin guardar" estando
+     guardados. */
+  if (conv.cliente_id && S.clientesPorId && S.clientesPorId[conv.cliente_id]) {
+    return S.clientesPorId[conv.cliente_id];
+  }
   const t = String(conv.contact_handle || '').replace(/\D/g, '').slice(-10);
   const hit = (t && S.clientesPorTel[t]) || null;
   /* CLIENTE CREADO DESPUES DE ABRIR LA PANTALLA (15-ago): el mapa se carga al
@@ -1294,6 +1309,78 @@ function renderBadges() {
   renderFilters();
 }
 
+/* ══ EL MISMO CLIENTE, SUS TRES CANALES (22-ago-2026, pedido de Sergio) ══
+   "Si un cliente escribe desde Facebook o Instagram y el mismo cliente
+   escribe desde WhatsApp, no van a ser dos chats independientes: va a ser la
+   misma ventana, y en la barra de arriba una pestañita para alternar."
+
+   Lo que las hermana es `cliente_id`: lo escribe fn_cliente_vincular_red
+   cuando el cliente da su numero por una red, y ya quedaron enlazadas las
+   conversaciones de WhatsApp que tenian su telefono.
+
+   Se usa el cliente y NO el telefono del contacto porque en Instagram el
+   `contact_handle` es un id de Meta, no un numero: emparejar por texto ahi
+   no encuentra nada.                                                      */
+function hermanasDe(conv) {
+  if (!conv || !conv.cliente_id) return [];
+  return S.conversations.filter(function (c) {
+    return c.cliente_id === conv.cliente_id;
+  }).sort(function (a, b) {
+    /* Orden fijo, no por actividad: si se movieran de sitio en cada mensaje,
+       el operador tocaria el canal equivocado sin darse cuenta.
+       OJO con el `||`: WhatsApp vale 0, y en JavaScript `0 || 9` da 9 — con
+       `||` WhatsApp se iba al FINAL. Lo cazo el banco de pruebas. */
+    var orden = { whatsapp: 0, instagram: 1, facebook: 2, tiktok: 3 };
+    var oa = orden[a.channel]; if (oa === undefined) oa = 9;
+    var ob = orden[b.channel]; if (ob === undefined) ob = 9;
+    return oa - ob;
+  });
+}
+
+/* ¿Se le puede escribir libremente por ese canal? Meta solo lo permite
+   dentro de las 24 h siguientes al ultimo mensaje del cliente. Se calcula
+   con `last_message_at` + `last_sender`, que es lo que hay en la lista sin
+   tener que cargar los mensajes de cada canal. */
+function canalAbierto(c) {
+  if (!c || !c.last_message_at) return false;
+  if (c.last_sender !== "contact") {
+    /* Si el ultimo fue nuestro, no se sabe cuando escribio el cliente: se
+       tira por lo conservador solo si ya paso mucho tiempo. */
+    return (Date.now() - new Date(c.last_message_at).getTime()) < 24 * 3600000;
+  }
+  return (Date.now() - new Date(c.last_message_at).getTime()) < 24 * 3600000;
+}
+
+function renderCanalSwitch(conv) {
+  var cont = $("chatCanales");
+  if (!cont) return;
+  var hs = hermanasDe(conv);
+  /* Con un solo canal no hay nada que alternar: la pestaNa sobra y solo
+     quitaria sitio al nombre del cliente. */
+  if (hs.length < 2) { cont.style.display = "none"; cont.innerHTML = ""; return; }
+  cont.style.display = "flex";
+  cont.innerHTML = hs.map(function (c) {
+    var m = CHANNELS[c.channel] || {};
+    var activa = c.id === conv.id;
+    var abierto = canalAbierto(c);
+    var sinLeer = (c.unread_count || 0) > 0;
+    return "<button type=\"button\" class=\"ci-canal-tab" + (activa ? " on" : "") + (abierto ? "" : " cerrado") + "\"" +
+      " data-conv=\"" + escHtml(c.id) + "\"" +
+      " title=\"" + escHtml((m.label || c.channel) + (abierto ? "" : " · pasaron mas de 24 h, solo con plantilla")) + "\">" +
+      (GLYPH[m.key] || "") +
+      "<span>" + escHtml(m.label || c.channel) + "</span>" +
+      (sinLeer ? "<i class=\"ci-canal-n\">" + c.unread_count + "</i>" : "") +
+      (abierto ? "" : "<i class=\"ci-canal-lock\">·</i>") +
+    "</button>";
+  }).join("");
+  cont.querySelectorAll("[data-conv]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var id = b.dataset.conv;
+      if (id && id !== S.activeConvId) openConversation(id);
+    });
+  });
+}
+
 function renderChatHeader(conv) {
   updateHumanToggleBtn(!!conv.human_takeover);
   updatePagoConfirmBtn(!!conv.pago_pendiente);
@@ -1317,6 +1404,7 @@ function renderChatHeader(conv) {
   $('chatMeta').innerHTML   = `
     <span class="ci-chan-chip chip-${meta.key}">${GLYPH[meta.key]||''}${meta.label||''}</span>
     <span class="ci-presence">${conv.is_online ? '<span class="ci-dot-live"></span> en línea' : 'visto recientemente'} · ${escHtml(conv.contact_handle||'')}</span>`;
+  renderCanalSwitch(conv);
 }
 
 /* ══════════════ LISTA NEGRA — aviso en el chat ══════════════

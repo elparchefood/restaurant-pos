@@ -2062,3 +2062,22 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .ci-pagina-cancel{margin-top:16px;width:100%;padding:11px;border:1px solid #E2E8F0;
   border-radius:10px;background:#fff;color:#475569;font-weight:700;font-size:13px;
   cursor:pointer;font-family:inherit;}
+
+/* ══ LOS CANALES DEL MISMO CLIENTE (22-ago) ══════════════════════════════
+   Alternar entre el WhatsApp, el Instagram y el Messenger de una persona sin
+   salir de la caja del chat. Va debajo del nombre, pequeño: es navegacion,
+   no el protagonista. */
+.ci-canales{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap;}
+.ci-canal-tab{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border,#ECEEF2);
+  background:#fff;font-family:inherit;font-size:11px;font-weight:600;color:var(--ink-3,#64748B);
+  padding:3px 9px;border-radius:999px;cursor:pointer;line-height:1.6;}
+.ci-canal-tab:hover{background:var(--surface-2,#F8FAFC);color:var(--ink,#0F172A);}
+.ci-canal-tab.on{background:#EEF2FF;border-color:#5B6BFF;color:#5B6BFF;font-weight:700;}
+.ci-canal-tab svg{width:11px;height:11px;}
+/* Sin leer en OTRO canal: es justo lo que hay que ver de un vistazo. */
+.ci-canal-n{font-style:normal;font-size:9.5px;font-weight:800;color:#fff;background:#DC2626;
+  border-radius:999px;padding:0 5px;min-width:15px;text-align:center;}
+/* Pasadas 24 h Meta no deja escribir libre: se avisa ANTES de tocar, no
+   despues de escribir un mensaje que no iba a salir. */
+.ci-canal-tab.cerrado{opacity:.62;border-style:dashed;}
+.ci-canal-lock{font-style:normal;color:#B45309;font-weight:800;}
