@@ -931,7 +931,9 @@ function convRowHTML(c) {
   const cli      = clienteDe(c);
   const label    = (cli && cli.nombre) || c.contact_name || c.contact_handle || '?';
   const initials = avatarInitials(label);
-  const avatarUrl = c.contact_avatar_url || null;
+  /* Misma regla en la lista: el chat de WhatsApp de alguien que ya escribio
+     por Instagram lleva su cara, no unas iniciales. */
+  const avatarUrl = fotoDe(c);
   const isUnread = isRealUnread(c);
   const isActive = c.id === S.activeConvId;
   const time     = formatTime(c.last_message_at);
@@ -1351,6 +1353,34 @@ function canalAbierto(c) {
   return (Date.now() - new Date(c.last_message_at).getTime()) < 24 * 3600000;
 }
 
+/* ══ QUE FOTO LLEVA CADA CHAT (22-ago-2026, regla de Sergio) ═════════════
+   "Si la persona escribio por WhatsApp y por Instagram, el chat SIEMPRE
+   tendra la foto de Instagram. Si escribio por las tres, cuando toquemos
+   Facebook sale la de Facebook, cuando toquemos Instagram la de Instagram, y
+   cuando toquemos WhatsApp sale la de la PRIMERA red de la que escribio, sin
+   contar WhatsApp — para que nunca quede sin foto."
+
+   Asi las iniciales quedan SOLO para quien nunca ha escrito por una red, que
+   es el unico caso en que de verdad no hay ninguna foto: WhatsApp no entrega
+   la del cliente y nunca lo hara.
+
+   "La primera red de la que escribio" es la conversacion mas ANTIGUA que no
+   sea WhatsApp: la fecha en que se creo ES la primera vez que escribio por
+   ahi. Se prefiere la mas vieja y no la mas reciente para que la cara del
+   cliente no cambie cada vez que estrena una red. */
+function fotoDe(conv) {
+  if (!conv) return null;
+  /* Cada canal manda sobre lo suyo: si esta conversacion tiene su propia
+     foto, esa es. Solo se hereda cuando no hay ninguna. */
+  if (conv.contact_avatar_url) return conv.contact_avatar_url;
+  var prestadas = hermanasDe(conv).filter(function (c) {
+    return c.channel !== "whatsapp" && c.contact_avatar_url;
+  }).sort(function (a, b) {
+    return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+  });
+  return prestadas.length ? prestadas[0].contact_avatar_url : null;
+}
+
 function renderCanalSwitch(conv) {
   var cont = $("chatCanales");
   if (!cont) return;
@@ -1399,7 +1429,7 @@ function renderChatHeader(conv) {
      no la da nunca. La lista de chats ya la pintaba, el encabezado no.
      Si el enlace falla —caducan— se cae a las iniciales de siempre en vez de
      dejar un cuadro roto. */
-  const foto = conv.contact_avatar_url || '';
+  const foto = fotoDe(conv) || '';
   $('chatAv').innerHTML = `
     ${foto
       ? `<img src="${escHtml(foto)}" alt="" style="width:100%;height:100%;border-radius:13px;object-fit:cover;display:block"
