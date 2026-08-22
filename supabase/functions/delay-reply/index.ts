@@ -4525,6 +4525,12 @@ function extractPreferencias(text: string, cfg: Record<string, unknown>): string
       // Las cortesias del final no son parte de la preferencia: "poca salsa
       // por favor" tiene que llegar a la cocina como "poca salsa".
       frase = frase.replace(/[ ]+(por[ ]+favor|porfavor|porfa|porfis|gracias)[ .!]*$/i, "").trim();
+      /* "solo eso", "solamente esto": es un CIERRE ("no quiero nada mas"),
+         no una preferencia de cocina. Pedido real de Miguel (21-ago): su
+         respuesta al upsell "No solo eso, pago por transferencia" llego a la
+         comanda como nota "solo eso". El disparador "solo" sigue vivo para
+         lo que si es preferencia ("solo bbq", "solo ajo"). */
+      if (/^(?:solo|solamente|unicamente)s?[ ]+(?:eso|esto|aquello|asi|ya)([^a-z0-9]|$)/.test(normalizarTexto(frase))) continue;
       if (frase.length >= 4 && frase.length <= 60) frases.push(frase);
       if (frases.length >= 4) break;
     }
@@ -8070,11 +8076,17 @@ async function createWhatsappOrder(
     const tamanoGPT = String(prod.tamano  || "").trim();
     const tipoGPT   = String(prod.tipo    || "").trim();
     const cantidad  = Math.max(1, Number(prod.cantidad) || 1);
+    /* LA NOTA DE COCINA (21-ago, pedidos reales de Brenda y Miguel). El
+       resumen la decia ("Sin pollo") y el traductor la mandaba en `notas` —
+       pero aqui se escribia notes:null fijo y la comanda salia limpia. El
+       mismo agujero de las adiciones del 20-ago: el dato ya estaba, nadie
+       lo pasaba. pos-print ya la imprime pegada a su plato ("Nota: ..."). */
+    const notaItem  = String(prod.notas || "").trim() || null;
     const matched = matchCatalogo(allProducts, nombreGPT, String(prod.categoria || "") || null);
 
     if (!matched) {
       const fallbackName = [nombreGPT, tamanoGPT, tipoGPT].filter(Boolean).join(" · ");
-      items.push({ product_id: null, name: fallbackName || "Producto WhatsApp", product_name: fallbackName || "Producto WhatsApp", product_price: 0, unit_price: 0, total: 0, quantity: cantidad, selections: { mods: {}, pres: tamanoGPT, vars: {} }, branch_id: branchId, tenant_id: tenantId || null, notes: null });
+      items.push({ product_id: null, name: fallbackName || "Producto WhatsApp", product_name: fallbackName || "Producto WhatsApp", product_price: 0, unit_price: 0, total: 0, quantity: cantidad, selections: { mods: {}, pres: tamanoGPT, vars: {} }, branch_id: branchId, tenant_id: tenantId || null, notes: notaItem });
       continue;
     }
 
@@ -8126,7 +8138,7 @@ async function createWhatsappOrder(
     const displayName = nombreComanda(
       String(matched.name), presName, tipoGPT,
       matched.category_id as Record<string, unknown> | null);
-    items.push({ product_id: String(matched.id), name: displayName, product_name: displayName, product_price: price, unit_price: price, total: itemTotal, quantity: cantidad, selections: { mods: modsMap, pres: presName, vars: varsMap }, branch_id: branchId, tenant_id: tenantId || null, notes: null });
+    items.push({ product_id: String(matched.id), name: displayName, product_name: displayName, product_price: price, unit_price: price, total: itemTotal, quantity: cantidad, selections: { mods: modsMap, pres: presName, vars: varsMap }, branch_id: branchId, tenant_id: tenantId || null, notes: notaItem });
     orderTotal += itemTotal;
     /* El empaque puede depender del producto, de su presentacion o de la
        categoria, asi que se guarda con que se cobro cada linea. */

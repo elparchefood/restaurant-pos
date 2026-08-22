@@ -3,6 +3,31 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 Paco: las notas de cocina no llegaban al pedido (motor v343) — 21-ago-2026
+
+Dos errores de la misma noche, reportados por Sergio con los pedidos reales:
+
+**1. La nota se decía pero no se guardaba** (Brenda: "Sin pollo"; el resumen
+lo mostró `↳ Sin pollo` y la comanda salió limpia). Causa: el traductor sí
+mandaba `notas: i.preferencias`, pero `createWhatsappOrder` escribía
+`notes: null` FIJO en las dos ramas del armado de líneas — **idéntico al bug
+de las adiciones del 20-ago**: el dato ya estaba, nadie lo pasaba. Ahora
+`notaItem` viaja a `pos_order_items.notes`, que `pos-print` ya imprime pegado
+a su plato ("Nota: …"). Tercer caso del patrón "el dato YA se extrae y nadie
+lo lee" — al tocar un traductor, revisar TODOS los campos, no solo el del bug.
+
+**2. "solo eso" entraba como nota** (Miguel: respondió al upsell "No solo
+eso, pago por transferencia" y la comanda decía `↳ solo eso`). Causa:
+`extractPreferencias` captura el disparador con su frase ("solo bbq" →
+correcto), y "solo eso" pasaba el filtro de longitud. Ahora un disparador
+seguido de cierre (`eso/esto/aquello/asi/ya`) se descarta: es "no quiero nada
+más", no una preferencia de cocina.
+
+**Probado** (banco de 18 casos con la función real, `banco-prefs.js`): los 6
+cierres de hoy → null; los 12 que ya funcionaban ("sin pollo", "solo bbq",
+"salsas aparte", "poca salsa", el cambio del domiciliario…) → intactos.
+Desplegado v343, arranque verificado.
+
 ## 🟢 Paco: las frases del canvas ya no traen opciones escritas a mano — 21-ago-2026
 
 Sergio revisó el canvas y encontró las frases de tamaño y variante con las
