@@ -1922,22 +1922,37 @@
                   <input class="inp" id="wcBuscar" placeholder="Buscar por nombre o número…" style="flex:1;min-width:180px" oninput="wcRender()">
                 </div>
 
-                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px" id="wcFiltros">
-                  <button type="button" class="wc-chip on"  data-f="todos"      onclick="wcFiltro('todos')">Todos</button>
-                  <button type="button" class="wc-chip"     data-f="no_escribio" onclick="wcFiltro('no_escribio')">Nunca han escrito a Cobra</button>
-                  <button type="button" class="wc-chip"     data-f="guardado"   onclick="wcFiltro('guardado')">Guardados en el celular</button>
-                  <button type="button" class="wc-chip"     data-f="pedidos"    onclick="wcFiltro('pedidos')">Con pedidos</button>
-                  <button type="button" class="wc-chip"     data-f="escribio"   onclick="wcFiltro('escribio')">Ya escribieron</button>
-                  <button type="button" class="wc-chip"     data-f="sin_nombre" onclick="wcFiltro('sin_nombre')">Sin nombre real</button>
-                  <!-- Los que cruzan con la app de clientes (20-ago). Antes solo
-                       se podia filtrar por lo que pasaba en WhatsApp; ahora
-                       tambien por lo que la persona tiene en su cuenta. -->
-                  <button type="button" class="wc-chip"     data-f="registrado"  onclick="wcFiltro('registrado')">Registrados en la app</button>
-                  <button type="button" class="wc-chip"     data-f="puntos"      onclick="wcFiltro('puntos')">Con puntos</button>
-                  <button type="button" class="wc-chip"     data-f="saldo"       onclick="wcFiltro('saldo')">Con saldo</button>
-                  <button type="button" class="wc-chip"     data-f="una_vez"     onclick="wcFiltro('una_vez')">Compraron una sola vez</button>
-                  <button type="button" class="wc-chip"     data-f="perdidos"    onclick="wcFiltro('perdidos')">Hace mas de 60 dias que no piden</button>
-                  <button type="button" class="wc-chip"     data-f="sin_pedidos" onclick="wcFiltro('sin_pedidos')">Nunca han pedido</button>
+                <!-- ANTES ERAN BOTONES; con 16 filtros ya no cabian (21-ago,
+                     pedido de Sergio). Un solo desplegable agrupado: WhatsApp /
+                     Pedidos / La app. Las listas guardadas siguen usando las
+                     mismas claves de filtro, asi que ninguna se dana. -->
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;align-items:center">
+                  <label for="wcFiltroSel" style="font-size:12px;color:#64748B;font-weight:600">Mostrar:</label>
+                  <select class="inp" id="wcFiltroSel" style="flex:1;min-width:230px;max-width:420px" onchange="wcFiltro(this.value)">
+                    <option value="todos" selected>Todos los contactos</option>
+                    <optgroup label="Por WhatsApp">
+                      <option value="no_escribio">Nunca han escrito a Cobra</option>
+                      <option value="escribio">Ya escribieron</option>
+                      <option value="escribio_sin_pedido">Escribieron pero nunca pidieron</option>
+                      <option value="guardado">Guardados en el celular</option>
+                      <option value="sin_nombre">Sin nombre real</option>
+                    </optgroup>
+                    <optgroup label="Por pedidos">
+                      <option value="pedidos">Con pedidos</option>
+                      <option value="una_vez">Compraron una sola vez</option>
+                      <option value="frecuentes">Frecuentes (3 o más pedidos)</option>
+                      <option value="perdidos">Hace más de 60 días que no piden</option>
+                      <option value="sin_pedidos">Nunca han pedido</option>
+                    </optgroup>
+                    <optgroup label="Por la app">
+                      <option value="registrado">Registrados en la app</option>
+                      <option value="registrado_sin_app">Se registraron pero NO la instalaron</option>
+                      <option value="instalada">Tienen la app instalada</option>
+                      <option value="instalada_sin_pedidos">La instalaron y no han pedido</option>
+                      <option value="puntos">Con puntos</option>
+                      <option value="saldo">Con saldo en la billetera</option>
+                    </optgroup>
+                  </select>
                 </div>
                 <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:#64748B;margin-bottom:12px;cursor:pointer">
                   <input type="checkbox" id="wcSoloEnviables" checked onchange="wcRender()" style="width:14px;height:14px">
@@ -3164,7 +3179,7 @@
 <script src="pos-notify.js?v=1790370000"></script>
 <script src="pos-vars.js?v=1790460000"></script>
 <script src="pos-vars-ui.js?v=1790530000"></script>
-<script src="configuracion.js?v=1791780000"></script>
+<script src="configuracion.js?v=1791780001"></script>
 </body>
 </html>
 

@@ -6273,7 +6273,10 @@ function wcStats(){
 }
 function wcFiltro(f){
   WC.filtro = f; WC.tope = 60;
-  document.querySelectorAll('#wcFiltros .wc-chip').forEach(function(b){ b.classList.toggle('on', b.dataset.f === f); });
+  /* Los filtros dejaron de ser botones: son un desplegable (21-ago). Al
+     aplicar una lista guardada hay que reflejar su filtro en el control. */
+  var sel = document.getElementById('wcFiltroSel');
+  if (sel && sel.value !== f) sel.value = f;
   wcRender();
 }
 // Contactos que pasan los filtros actuales.
@@ -6295,6 +6298,14 @@ function wcFiltrados(){
     if (WC.filtro === 'saldo'       && !((+x.saldo||0) > 0)) return false;
     if (WC.filtro === 'una_vez'     && (+x.n_pedidos||0) !== 1) return false;
     if (WC.filtro === 'sin_pedidos' && (+x.n_pedidos||0) > 0) return false;
+    /* Para la campana de instalar la app (21-ago): a quien se registro sin
+       instalarla se le manda el tutorial + bono; a quien la instalo y no ha
+       pedido, un empujon para estrenar su saldo de bienvenida. */
+    if (WC.filtro === 'registrado_sin_app'    && !(x.registrado_app && !x.instalada_app)) return false;
+    if (WC.filtro === 'instalada'             && !x.instalada_app) return false;
+    if (WC.filtro === 'instalada_sin_pedidos' && !(x.instalada_app && (+x.n_pedidos||0) === 0)) return false;
+    if (WC.filtro === 'escribio_sin_pedido'   && !(x.ya_escribio && (+x.n_pedidos||0) === 0)) return false;
+    if (WC.filtro === 'frecuentes'            && !((+x.n_pedidos||0) >= 3)) return false;
     if (WC.filtro === 'perdidos'){
       /* Perdido es quien YA compro y lleva mas de 60 dias sin volver. Quien
          nunca compro no esta perdido: nunca lo tuviste. */
@@ -6333,6 +6344,7 @@ function wcRender(){
     if (x.ya_escribio)   tags.push('<span style="font-size:9.5px;font-weight:700;color:#16A34A;background:#DCFCE7;padding:2px 6px;border-radius:999px">Ya escribió</span>');
     if ((+x.n_pedidos||0)>0) tags.push('<span style="font-size:9.5px;font-weight:700;color:#5B6BFF;background:#EEF0FF;padding:2px 6px;border-radius:999px">'+x.n_pedidos+' pedido'+((+x.n_pedidos)>1?'s':'')+'</span>');
     if (x.guardado)      tags.push('<span style="font-size:9.5px;font-weight:700;color:#64748B;background:#F1F5F9;padding:2px 6px;border-radius:999px">Guardado</span>');
+    if (x.instalada_app) tags.push('<span style="font-size:9.5px;font-weight:700;color:#7C3AED;background:#F5F3FF;padding:2px 6px;border-radius:999px">App instalada</span>');
     if (x.en_lista_negra) tags.push('<span style="font-size:9.5px;font-weight:700;color:#DC2626;background:#FEE2E2;padding:2px 6px;border-radius:999px">Lista negra</span>');
     if (x.no_atender)    tags.push('<span style="font-size:9.5px;font-weight:700;color:#B45309;background:#FEF3C7;padding:2px 6px;border-radius:999px" title="El cliente pidió no recibir envíos. Se atiende normal.">Sin envíos</span>');
     return '<div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border-bottom:1px solid #F1F5F9'
@@ -6426,6 +6438,11 @@ var WC_FILTRO_LBL = {
   registrado:'Registrados en la app', puntos:'Con puntos', saldo:'Con saldo',
   una_vez:'Compraron una sola vez', perdidos:'Hace mas de 60 dias que no piden',
   sin_pedidos:'Nunca han pedido',
+  registrado_sin_app:'Se registraron pero NO la instalaron',
+  instalada:'Tienen la app instalada',
+  instalada_sin_pedidos:'La instalaron y no han pedido',
+  escribio_sin_pedido:'Escribieron pero nunca pidieron',
+  frecuentes:'Frecuentes (3 o mas pedidos)',
 };
 // Cuántos contactos tiene HOY una lista guardada (se recalcula al vuelo).
 function wcContarLista(f){

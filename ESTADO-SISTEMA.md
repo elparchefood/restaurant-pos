@@ -3,6 +3,37 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Listas de envío: desplegable + filtros de la app — 21-ago-2026
+
+Pedido de Sergio: filtros nuevos para las listas de plantillas (registrados que
+no instalaron, instalaron y no han pedido, y recomendados), y que los filtros
+dejen de ser botones — con 16 ya no cabían — y sean un desplegable.
+
+**Qué cambió:**
+- `v_wa_contactos` tiene una columna nueva `instalada_app` (misma evidencia que
+  la pantalla de registrados: sesión con `instalada=true` o huella de push de
+  Apple). SQL: `supabase/sql/2026-08-21-listas-filtro-instalada.sql` (aplicada).
+- Los chips de `configuracion.html` se reemplazaron por un `<select>` agrupado
+  (Por WhatsApp / Por pedidos / Por la app). Las listas guardadas usan las
+  mismas claves de filtro: ninguna se daña. `wcFiltro()` sincroniza el select.
+- **5 filtros nuevos**: `registrado_sin_app`, `instalada`,
+  `instalada_sin_pedidos`, `escribio_sin_pedido` (escribieron pero nunca
+  pidieron), `frecuentes` (3+ pedidos). Están en los TRES sitios que filtran:
+  la pantalla (`wcFiltrados`), las etiquetas (`WC_FILTRO_LBL`) y la función
+  del servidor que llena la cola al enviar.
+- **Arreglo de seguridad en `fn_wa_armar_lista`**: su CASE terminaba en
+  `else true` — un filtro que la función no conociera habría enviado la
+  plantilla a TODOS los contactos en silencio. Ahora un filtro desconocido
+  frena con `FILTRO_DESCONOCIDO` (probado). SQL:
+  `supabase/sql/2026-08-21-armar-lista-filtros-nuevos.sql` (aplicada).
+- Cada contacto con la app instalada muestra una etiqueta morada
+  "App instalada" en la lista.
+
+**Probado** (21-ago, Restaurante de Prueba): filtro nuevo arma la cola sin
+error; filtro inventado frena con error; filas PRUEBA borradas. Conteos reales
+de El Parche al momento del cambio: 26 registrados sin instalar, 3 con la app,
+1 instaló sin pedir, 37 escribieron sin pedir, 5 frecuentes.
+
 ## 🟢 Bono de $5.000 por instalar la app — 21-ago-2026
 
 Pedido de Sergio: cuando alguien se registra y entra desde la app **instalada en su
