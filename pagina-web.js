@@ -1297,9 +1297,13 @@
             '<small>' + esc(cli.telefono || '') + ' · ' + esc(fechaPw(p.creado)) + '</small>' +
             '<small>Dijo ' + COP(p.monto_dicho) + ' · el comprobante decía ' + COP(p.monto_leido) +
               (p.referencia ? ' · Ref ' + esc(p.referencia) : '') + '</small></div>' +
+          /* La miniatura de 72px no deja LEER el comprobante, que es justo lo
+             que hay que hacer antes de aprobar plata. Abre una ventana propia
+             con la foto grande; el enlace a otra pestana no servia en el .exe. */
           (p.comprobante_url
-            ? '<a class="pw-sol-img" href="' + esc(p.comprobante_url) + '" target="_blank" rel="noopener">' +
-              '<img src="' + esc(p.comprobante_url) + '" alt="Comprobante"></a>' : '') +
+            ? '<button class="pw-sol-img" data-ver-comp="' + esc(p.id) + '" title="Ver el comprobante grande">' +
+              '<img src="' + esc(p.comprobante_url) + '" alt="Comprobante">' +
+              '<span class="pw-lupa">Ampliar</span></button>' : '') +
           '<div class="pw-sol-der">' +
             '<button class="lm-btn-primary" data-sol-ok="' + esc(p.id) + '">Aprobar</button>' +
             '<button class="lm-btn-ghost" data-sol-no="' + esc(p.id) + '">Descartar</button>' +
@@ -1312,6 +1316,41 @@
   }
 
   // ── Enganchar los botones de esta pestaña ──────────────────────────
+  /* VER EL COMPROBANTE DE VERDAD (21-ago, pedido de Sergio). Se muestra a
+     tamano completo con la plata que dijo el cliente y la que leyo el sistema
+     al lado: es la comparacion que hay que hacer para decidir, y tenerla en la
+     misma ventana evita ir y volver. Con zoom, porque las referencias de
+     Bancolombia salen en letra chiquita. */
+  function verComprobante(id) {
+    var p = (S.web && S.web.solicitudes || []).filter(function (x) { return String(x.id) === String(id); })[0];
+    if (!p || !p.comprobante_url) return;
+    var cli = p.pos_clientes || {};
+    var cuadra = Number(p.monto_dicho) === Number(p.monto_leido);
+    abrir('<div class="cc-modal pw-comp">' +
+      cabezaModal('Comprobante de ' + esc(cli.nombre || 'un cliente'),
+                  esc(cli.telefono || '') + ' · ' + esc(fechaPw(p.creado))) +
+      '<div class="pw-comp-datos">' +
+        '<div><div class="mw-eyebrow">Dijo que consignó</div><b>' + COP(p.monto_dicho) + '</b></div>' +
+        '<div><div class="mw-eyebrow">El comprobante dice</div><b class="' + (cuadra ? 'ok' : 'no') + '">' +
+          COP(p.monto_leido) + '</b></div>' +
+        (p.referencia ? '<div><div class="mw-eyebrow">Referencia</div><b>' + esc(p.referencia) + '</b></div>' : '') +
+      '</div>' +
+      (cuadra ? '' : '<div class="mw-note warn"><span>Los dos números no coinciden. Mira bien la foto antes de decidir.</span></div>') +
+      '<div class="pw-comp-foto" id="pw-comp-foto">' +
+        '<img src="' + esc(p.comprobante_url) + '" alt="Comprobante"></div>' +
+      '<div class="mw-mo-foot">' +
+        '<button class="lm-btn-ghost" id="pw-comp-zoom">Acercar</button>' +
+        '<button class="lm-btn-ghost" data-cerrar>Cerrar</button></div>' +
+    '</div>');
+    /* Acercar y alejar con el mismo boton: dos estados, no una barra. */
+    var z = $('pw-comp-zoom'), caja = $('pw-comp-foto');
+    if (z && caja) z.onclick = function () {
+      var cerca = caja.classList.toggle('cerca');
+      z.textContent = cerca ? 'Alejar' : 'Acercar';
+      if (cerca) caja.scrollTop = 0;
+    };
+  }
+
   function engancharClientesApp() {
     /* Cambiar de sub-pestana empieza de cero en la lista nueva: dejar el tope
        de la anterior haria que una lista se abriera con 200 filas sin razon. */
@@ -1339,6 +1378,9 @@
     };
     document.querySelectorAll('[data-dar]').forEach(function (b) {
       b.onclick = function () { modalDar(b.dataset.dar, Number(b.dataset.u)); };
+    });
+    document.querySelectorAll('[data-ver-comp]').forEach(function (b) {
+      b.onclick = function () { verComprobante(b.dataset.verComp); };
     });
     document.querySelectorAll('[data-sol-ok]').forEach(function (b) {
       b.onclick = function () { modalAprobar(b.dataset.solOk); };

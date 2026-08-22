@@ -717,6 +717,25 @@ body{margin:0;background:var(--bg);font-family:'DM Sans',system-ui,-apple-system
   border:1px solid var(--border);display:block;}
 .pw-sol-der{display:flex;gap:7px;}
 
+/* El comprobante, para verlo de verdad (21-ago) */
+.pw-sol-img{position:relative;border:none;background:none;padding:0;cursor:zoom-in;display:block;flex:none;}
+.pw-lupa{position:absolute;left:0;right:0;bottom:0;font-size:9px;font-weight:700;color:#fff;
+  background:rgba(15,23,42,.62);border-radius:0 0 10px 10px;padding:2px 0;text-align:center;}
+.pw-comp{width:620px;max-width:96vw;}
+.pw-comp-datos{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:11px;
+  padding:0 18px 12px;}
+.pw-comp-datos b{font-size:16px;font-weight:800;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;display:block;margin-top:2px;}
+.pw-comp-datos b.ok{color:#15803D;}
+.pw-comp-datos b.no{color:#B45309;}
+.pw-comp-foto{max-height:56vh;overflow:auto;background:var(--surface-3);margin:0 18px;
+  border-radius:12px;border:1px solid var(--border);}
+.pw-comp-foto img{width:100%;display:block;}
+/* Acercado: la foto se sale del ancho a proposito y la caja se arrastra. */
+.pw-comp-foto.cerca{cursor:grab;}
+.pw-comp-foto.cerca img{width:200%;max-width:none;}
+
+
 /* El modal de regalar */
 .pw-seg2 button{flex:1;justify-content:center;}
 .pw-rapidos{display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 4px;}
