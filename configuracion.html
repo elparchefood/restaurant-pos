@@ -1947,6 +1947,12 @@
                     <optgroup label="Por la app">
                       <option value="registrado">Registrados en la app</option>
                       <option value="registrado_sin_app">Se registraron pero NO la instalaron</option>
+                      <!-- Los tres siguientes REPARTEN el grupo de arriba por
+                           aparato, sin traslapes: asi cada quien recibe UN solo
+                           mensaje — el video de su celular o el general. -->
+                      <option value="sin_app_iphone">— y usan iPhone</option>
+                      <option value="sin_app_android">— y usan Android</option>
+                      <option value="sin_app_sin_dato">— y no sabemos su aparato</option>
                       <option value="instalada">Tienen la app instalada</option>
                       <option value="instalada_sin_pedidos">La instalaron y no han pedido</option>
                       <option value="puntos">Con puntos</option>
@@ -3179,7 +3185,7 @@
 <script src="pos-notify.js?v=1790370000"></script>
 <script src="pos-vars.js?v=1790460000"></script>
 <script src="pos-vars-ui.js?v=1790530000"></script>
-<script src="configuracion.js?v=1791780001"></script>
+<script src="configuracion.js?v=1791780002"></script>
 </body>
 </html>
 

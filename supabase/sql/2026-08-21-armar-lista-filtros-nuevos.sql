@@ -42,7 +42,8 @@ begin
   if v_filtro not in ('todos','no_escribio','escribio','guardado','pedidos',
                       'sin_nombre','registrado','puntos','saldo','una_vez',
                       'sin_pedidos','perdidos','registrado_sin_app','instalada',
-                      'instalada_sin_pedidos','escribio_sin_pedido','frecuentes') then
+                      'instalada_sin_pedidos','escribio_sin_pedido','frecuentes',
+                      'sin_app_iphone','sin_app_android','sin_app_sin_dato') then
     raise exception 'FILTRO_DESCONOCIDO: %', v_filtro;
   end if;
 
@@ -78,6 +79,11 @@ begin
              when 'instalada_sin_pedidos' then c.instalada_app and c.n_pedidos = 0
              when 'escribio_sin_pedido'   then c.ya_escribio and c.n_pedidos = 0
              when 'frecuentes'            then c.n_pedidos >= 3
+             -- Reparto por aparato de 'registrado_sin_app', sin traslapes:
+             -- video de iPhone, video de Android o la plantilla general.
+             when 'sin_app_iphone'   then c.registrado_app and not c.instalada_app and c.plataforma_app = 'ios'
+             when 'sin_app_android'  then c.registrado_app and not c.instalada_app and c.plataforma_app = 'android'
+             when 'sin_app_sin_dato' then c.registrado_app and not c.instalada_app and c.plataforma_app is null
              else false   -- inalcanzable por el freno de arriba; false por si acaso
            end
   ),

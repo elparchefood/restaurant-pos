@@ -3,6 +3,23 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Listas de envío: filtros por aparato (iPhone / Android / sin dato) — 21-ago-2026
+
+Para la campaña del tutorial de instalación: tres filtros que REPARTEN el
+grupo "se registraron pero no la instalaron" por aparato, **sin traslapes** —
+a cada persona le llega UN solo mensaje: el video de iPhone, el de Android o
+la plantilla general.
+
+- `v_wa_contactos` ganó la columna `plataforma_app` ('ios'/'android'/null):
+  huella de push de Apple o sesión iOS ganan; si no, sesión Android; solo PC
+  o nada = null. SQL: `supabase/sql/2026-08-21-listas-filtro-aparato.sql`
+  (aplicada).
+- Filtros `sin_app_iphone`, `sin_app_android`, `sin_app_sin_dato` en los tres
+  sitios (pantalla, etiquetas, `fn_wa_armar_lista`).
+- Conteos de El Parche al momento: 3 iPhone + 1 Android + 21 sin dato = 25.
+- **Primer bono real en vivo**: Cameron Ruiz instaló la app durante el turno
+  y recibió sus $5.000 automáticamente (quedó con $35.000).
+
 ## 🟢 Listas de envío: desplegable + filtros de la app — 21-ago-2026
 
 Pedido de Sergio: filtros nuevos para las listas de plantillas (registrados que

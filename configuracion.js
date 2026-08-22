@@ -6302,6 +6302,12 @@ function wcFiltrados(){
        instalarla se le manda el tutorial + bono; a quien la instalo y no ha
        pedido, un empujon para estrenar su saldo de bienvenida. */
     if (WC.filtro === 'registrado_sin_app'    && !(x.registrado_app && !x.instalada_app)) return false;
+    /* Los tres de abajo REPARTEN 'registrado_sin_app' por aparato, sin
+       traslapes: el video de iPhone, el de Android o la plantilla general.
+       Nadie cae en dos grupos, nadie recibe el mensaje dos veces. */
+    if (WC.filtro === 'sin_app_iphone'   && !(x.registrado_app && !x.instalada_app && x.plataforma_app === 'ios')) return false;
+    if (WC.filtro === 'sin_app_android'  && !(x.registrado_app && !x.instalada_app && x.plataforma_app === 'android')) return false;
+    if (WC.filtro === 'sin_app_sin_dato' && !(x.registrado_app && !x.instalada_app && !x.plataforma_app)) return false;
     if (WC.filtro === 'instalada'             && !x.instalada_app) return false;
     if (WC.filtro === 'instalada_sin_pedidos' && !(x.instalada_app && (+x.n_pedidos||0) === 0)) return false;
     if (WC.filtro === 'escribio_sin_pedido'   && !(x.ya_escribio && (+x.n_pedidos||0) === 0)) return false;
@@ -6439,6 +6445,9 @@ var WC_FILTRO_LBL = {
   una_vez:'Compraron una sola vez', perdidos:'Hace mas de 60 dias que no piden',
   sin_pedidos:'Nunca han pedido',
   registrado_sin_app:'Se registraron pero NO la instalaron',
+  sin_app_iphone:'Sin la app y usan iPhone',
+  sin_app_android:'Sin la app y usan Android',
+  sin_app_sin_dato:'Sin la app, aparato sin dato',
   instalada:'Tienen la app instalada',
   instalada_sin_pedidos:'La instalaron y no han pedido',
   escribio_sin_pedido:'Escribieron pero nunca pidieron',
