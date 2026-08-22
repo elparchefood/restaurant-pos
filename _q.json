@@ -1,0 +1,1 @@
+{"query": "select count(*) n from pos_direcciones_geo"}

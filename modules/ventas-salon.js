@@ -1846,6 +1846,10 @@
         <div style="position:relative">
           <button class="lm-icon-sm" data-domi-action="menu" data-domi-id="${d.id}">${SVG_DOTS(14)}</button>
           <div id="vs-domi-menu-${d.id}" hidden style="position:absolute;right:0;top:100%;background:#fff;border:1.5px solid #ECEEF2;border-radius:10px;box-shadow:0 4px 16px rgba(15,23,42,.12);z-index:999;min-width:170px;padding:4px">
+            <button data-domi-action="vermapa" data-domi-id="${d.id}" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:#475569;border-radius:7px;text-align:left" onmouseover="this.style.background='#F8FAFC'" onmouseout="this.style.background='none'">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              Ver en el mapa
+            </button>
             <button data-domi-action="cancel" data-domi-id="${d.id}" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:#DC2626;border-radius:7px;text-align:left" onmouseover="this.style.background='#FEF2F2'" onmouseout="this.style.background='none'">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               Cancelar pedido
@@ -2707,6 +2711,12 @@
         if (action === 'menu') {
           const drop = document.getElementById('vs-domi-menu-' + id);
           if (drop) drop.hidden = !drop.hidden;
+          return;
+        }
+        if (action === 'vermapa') {
+          const drop0 = document.getElementById('vs-domi-menu-' + id);
+          if (drop0) drop0.hidden = true;
+          vsMapaAbrir(d);
           return;
         }
         if (action === 'cancel') {
@@ -4026,6 +4036,85 @@
       +   (x.direccion ? '<div class="vs-dir-calle">' + _esc(x.direccion) + '</div>' : '')
       +   (x.barrio ? '<div class="vs-dir-barrio">' + _esc(x.barrio) + '</div>' : '')
       + '</div></div>';
+  }
+
+  /* ══ VER EN EL MAPA, SIN SALIR DE POR SALON (21-ago, pedido de Sergio) ══
+     El visor ya existia en Domicilio express; aqui se reutiliza pos-mapa.js
+     tal cual —la llave nunca baja al navegador, la imagen la da el servidor
+     y los alfileres los dibuja Cobra encima—. En esta pantalla van dos
+     puntos: el restaurante y la casa del cliente. El seguimiento del
+     domiciliario en vivo sigue viviendo en Domicilio express, que es donde
+     esta el dato de quien lo lleva. */
+  var MAPA_VS = { sede: null, ciudad: '', cargada: false };
+
+  async function vsMapaSede() {
+    if (MAPA_VS.cargada) return;
+    MAPA_VS.cargada = true;    // una sola vez por sesion, acierte o no
+    try {
+      var sb = (window._pos && window._pos.sb) || window.sb;
+      var bid = window._pos && window._pos.state && window._pos.state.branchId;
+      if (!sb || !bid || !window.posMapa) return;
+      var r = await sb.from('branches').select('address,city').eq('id', bid).maybeSingle();
+      var b = r && r.data;
+      if (!b) return;
+      MAPA_VS.ciudad = b.city || '';
+      if (!b.address) return;
+      var g = await posMapa.ubicar(b.address, '', b.city || '');
+      if (g && isFinite(g.lat)) MAPA_VS.sede = { lat: g.lat, lng: g.lng };
+    } catch (e) { /* sin sede el mapa igual muestra al cliente */ }
+  }
+
+  async function vsMapaAbrir(d) {
+    if (!window.posMapa) return;
+    var x = vsDireccionDe(d.notas);
+    if (!x) {
+      if (typeof toast === 'function') toast('Este pedido no tiene dirección');
+      return;
+    }
+    var viejo = document.getElementById('vs-mapa-overlay');
+    if (viejo) viejo.remove();
+    var ov = document.createElement('div');
+    ov.id = 'vs-mapa-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.32);backdrop-filter:blur(2px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px';
+    ov.innerHTML = '<div style="width:640px;max-width:96vw;max-height:90vh;background:#fff;border-radius:18px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 30px 70px -20px rgba(15,23,42,.4)">'
+      + '<div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid #F1F5F9">'
+      +   '<div style="flex:1;min-width:0">'
+      +     '<div style="font-size:14.5px;font-weight:800;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + _esc(d.cliente || 'Domicilio') + '</div>'
+      +     '<div style="font-size:11.5px;color:#94A3B8">' + _esc([x.direccion, x.barrio].filter(Boolean).join(' · ')) + '</div>'
+      +   '</div>'
+      +   '<button id="vs-mapa-ruta" class="lm-btn-ghost" style="padding:6px 10px;font-size:11.5px">Cómo llegar</button>'
+      +   '<button id="vs-mapa-cerrar" class="lm-icon-sm" title="Cerrar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'
+      + '</div>'
+      + '<div id="vs-mapa-lienzo" style="min-height:200px"><div style="padding:44px;text-align:center;color:#94A3B8;font-size:12.5px">Buscando la dirección…</div></div>'
+      + '<div id="vs-mapa-pie" style="padding:10px 18px;font-size:11.5px;color:#64748B;border-top:1px solid #F1F5F9"></div>'
+      + '</div>';
+    document.body.appendChild(ov);
+    var cerrar = function () { ov.remove(); };
+    ov.addEventListener('click', function (e) { if (e.target === ov) cerrar(); });
+    ov.querySelector('#vs-mapa-cerrar').addEventListener('click', cerrar);
+    ov.querySelector('#vs-mapa-ruta').addEventListener('click', function () {
+      var destino = [x.direccion, x.barrio, MAPA_VS.ciudad].filter(Boolean).join(', ');
+      window.open('https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(destino), '_blank');
+    });
+
+    var puntos = [], notas = [];
+    await vsMapaSede();
+    if (MAPA_VS.sede) puntos.push({ lat: MAPA_VS.sede.lat, lng: MAPA_VS.sede.lng, tipo: 'negocio', etiqueta: 'Aquí' });
+    var geo = await posMapa.ubicar(x.direccion, x.barrio, MAPA_VS.ciudad);
+    if (geo && isFinite(geo.lat)) {
+      puntos.push({ lat: geo.lat, lng: geo.lng, tipo: 'destino', etiqueta: d.cliente || 'Entrega' });
+      if (geo.origen === 'domiciliario') notas.push('El punto de entrega lo marcó un domiciliario en la puerta: es exacto.');
+      else if (geo.origen === 'cliente') notas.push('El punto lo mandó el cliente por WhatsApp.');
+      else if (geo.cache) notas.push('Esta dirección ya estaba ubicada: no costó ninguna consulta.');
+    } else if (geo && geo.no_encontrada) {
+      notas.push('Google no encontró esta dirección. Cuando un domiciliario entregue aquí, el punto queda guardado.');
+    }
+    if (d.domiciliario) notas.push('Para seguir al domiciliario en vivo, ábrelo en Domicilio express.');
+
+    var lienzo = ov.querySelector('#vs-mapa-lienzo');
+    var pie = ov.querySelector('#vs-mapa-pie');
+    if (lienzo) await posMapa.pintar(lienzo, { puntos: puntos, alto: 340 });
+    if (pie) pie.innerHTML = notas.map(function (n) { return '· ' + n; }).join('<br>');
   }
 
   function _esc(s) {

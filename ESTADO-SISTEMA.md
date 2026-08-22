@@ -3,6 +3,26 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Mapa en Ventas › Por salón + primer dibujo real comprobado — 21-ago-2026
+
+Sergio buscó el mapa en Por salón › Domicilios y no estaba: solo existía en
+Domicilio express (menú ⋮ de cada tarjeta → "Ver en el mapa").
+
+**Qué cambió:**
+- **Por salón › Domicilios › menú ⋮ del domicilio seleccionado → "Ver en el
+  mapa"**: ventana propia con restaurante + casa del cliente y botón "Cómo
+  llegar". Reutiliza `pos-mapa.js` tal cual (la llave nunca baja al
+  navegador). La dirección sale de las notas del pedido (`vsDireccionDe`).
+  El seguimiento del domiciliario en vivo sigue solo en Domicilio express,
+  que es donde está el dato de quién lo lleva.
+- `ventas.html` ahora carga `pos-mapa.js`.
+
+**Primer dibujo real comprobado** (21-ago, Restaurante de Prueba, usuario
+temporal borrado al terminar): `estado` → llave de Cobra incluida y
+funcionando; `geocodificar` "Carrera 9 # 24N-83, Popayán" → ROOFTOP exacto;
+`estatico` → PNG real de 131 KB (Campanario, Carrera 9). Era lo único que
+faltaba probar de la sesión de mapas. Caché de prueba borrado.
+
 ## 🟢 Listas de envío: filtros por aparato (iPhone / Android / sin dato) — 21-ago-2026
 
 Para la campaña del tutorial de instalación: tres filtros que REPARTEN el
