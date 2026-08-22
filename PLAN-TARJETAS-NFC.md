@@ -1,7 +1,10 @@
 # Plan — Tarjeta física de El Parche (NTAG424 DNA)
 
-> Decidido con Sergio el 22-ago-2026. **Tarjetas YA COMPRADAS** (3 de prueba).
-> Falta el lector. Todo lo de abajo está decidido, no es una propuesta.
+> Decidido con Sergio el 22-ago-2026. **Tarjetas y lector YA COMPRADOS.**
+> Todo lo de abajo está decidido, no es una propuesta.
+>
+> **Estado:** esperando que lleguen (~7 de septiembre). Al llegar, ver
+> "Primera prueba" al final — en ese orden y sin saltarse pasos.
 
 ## Para qué es la tarjeta (palabras de Sergio)
 
@@ -45,12 +48,47 @@ técnica, que sí es específica y correcta.
 **Verificación al recibirlas**: app *NFC Tools* en Android → leer → debe decir
 **NTAG 424 DNA**. Si dice NTAG215, devolver.
 
-## Lo que falta comprar: el lector
+## El lector — COMPRADO (22-ago)
 
-Dos requisitos que lo acotan:
+**Cryptnox USB NFC Reader USB-C** (Amazon, vendido por Cryptnox) —
+**COP 128.090**, negro, entrega ~7 de septiembre. ASIN `B0DVM5WHY6`.
+
+Lo eligió Sergio; es mejor opción que las tres que yo había propuesto: más
+barato que el ACR1252U ($198.252), negro (todos los ACR122U de Amazon salen
+blancos) y es el único que **nombra NTAG** explícitamente.
+
+**Lo que lo hace servir:**
+- **USB 2.0 CCID (PC/SC)** ← lo decisivo: es el canal por el que se le mandan
+  a la tarjeta los comandos APDU para programar SUN/SDM.
+- ISO 14443 A/B · **DESFire** (misma familia criptográfica Type 4) · NTAG
+- 106/212/424/**848 kbps** (la velocidad máxima de las NTAG424)
+- Sin instalar software, alimentado por USB, adaptador USB-C→USB-A incluido
+
+### ⚠️ Dos advertencias del propio fabricante
+
+1. **NO es apto para ambiente de fritanga.** El anuncio presume "IP54 a prueba
+   de polvo", pero sus propias instrucciones dicen *"solo para uso en
+   interiores, en ambientes limpios y secos, evite el polvo o la humedad"*.
+   Se contradicen. **Va en sitio protegido de salpicaduras**, no junto a la
+   freidora. (Yo había vendido el IP54 como aguante para el mostrador: era
+   falso, corregido.)
+2. **Distancia de lectura: 1 a 3 cm.** El cliente **apoya** la tarjeta sobre el
+   lector, no la agita a distancia. Hay que explicárselo o parecerá que falla.
+
+Revisar que el computador de la caja tenga puerto libre; el adaptador a USB-A
+figura como "opcional incluido" (redacción ambigua del anuncio).
+
+### ⚠️ Lo único que NINGÚN anuncio garantiza
+
+**Programar las NTAG424** (activar SUN/SDM). Ni este ni los ACR lo mencionan.
+Se confirma con el lector en la mano. Amazon da **30 días de devolución** si no
+pudiera.
+
+### Requisitos que se usaron para elegirlo (por si hay que reemplazarlo)
+
 1. **Leer el CONTENIDO (NDEF), no solo el UID.** Casi todos los lectores
    baratos de "emulación de teclado" solo escriben el UID — esos NO sirven.
-2. **Poder ESCRIBIR**, para programar cada tarjeta (ver abajo).
+2. **Poder ESCRIBIR**, para programar cada tarjeta.
 
 ## ⚠️ La seguridad viene APAGADA de fábrica
 
@@ -111,3 +149,25 @@ pasa a ser suya. El cajero no hace nada.
    repetidos: ese es el candado antirrepetición).
 4. El universal link de Apple para el registro por acercamiento.
 5. La pantalla de vincular tarjeta ↔ cliente y el tope por transacción.
+
+## Primera prueba cuando lleguen (EN ESTE ORDEN)
+
+Cada paso confirma el anterior. No saltarse ninguno: si algo falla, se sabe
+exactamente qué devolver y no se pierde el pedido grande.
+
+1. **¿La tarjeta es de verdad una NTAG424?** — App *NFC Tools* en Android,
+   pestaña Leer, acercar. Debe decir **NTAG 424 DNA**. Si dice NTAG215, se
+   devuelven las tarjetas (no el lector).
+2. **¿El computador ve el lector?** — Conectarlo. Debe aparecer sin instalar
+   nada (es CCID estándar). Si no aparece, es problema del lector.
+3. **¿El lector lee la tarjeta?** — Acercarla a 1–3 cm. Debe detectar el chip
+   y devolver su UID de 7 bytes.
+4. **¿El lector puede PROGRAMARLA?** — El paso decisivo y el único que ningún
+   anuncio garantiza: activar SUN/SDM con nuestra clave. Si esto no funciona,
+   el lector se devuelve dentro de los 30 días de Amazon.
+5. **¿Cada toque da un código distinto?** — La prueba final. Leer la misma
+   tarjeta tres veces: el código debe cambiar siempre. **Si se repite, no hay
+   seguridad y hay que parar antes de entregar ninguna tarjeta a un cliente.**
+
+Solo después de que los 5 pasen: mandar a imprimir las 100 con el diseño de
+El Parche.
