@@ -1716,10 +1716,28 @@ function updateWaWindow() {
   const composer = $('composer');
   const w = waWindowInfo();
   if (w.applies && !w.open) {
-    const chLbl = (CHANNELS[(w.conv && w.conv.channel) || 'whatsapp'] || {}).label || 'WhatsApp';
-    banner.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'
-      + '<div style="flex:1"><b>Pasaron más de 24 horas</b> desde el último mensaje del cliente. ' + escHtml(chLbl) + ' no permite enviar mensajes libres fuera de esa ventana — se necesita una <b>plantilla aprobada</b>.</div>'
-      + '<button class="ci-wa-tplbtn" onclick="abrirEnviarPlantilla()">Enviar plantilla</button>';
+    const canal24 = (w.conv && w.conv.channel) || 'whatsapp';
+    const chLbl = (CHANNELS[canal24] || {}).label || 'WhatsApp';
+    const reloj = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+    /* LAS PLANTILLAS SON DE WHATSAPP, NO DE META (22-ago-2026). El boton
+       'Enviar plantilla' llama a wa-plantillas, que manda
+       `messaging_product: whatsapp`: en Instagram y Messenger no puede
+       funcionar. Prometia algo que no podia cumplir.
+
+       En esas dos redes lo unico que hoy se puede es que una PERSONA le
+       escriba desde su propia cuenta —Meta solo deja pasada la ventana con la
+       etiqueta de agente humano, y solo para mensajes de humanos, no de un
+       bot—. Asi que se dice eso, que es la verdad y ademas es accionable. */
+    if (canal24 === 'instagram' || canal24 === 'facebook') {
+      banner.innerHTML = reloj
+        + '<div style="flex:1"><b>Pasaron más de 24 horas</b> desde el último mensaje del cliente. '
+        + escHtml(chLbl) + ' ya no deja responder por aquí.<br>'
+        + 'Escríbele tú desde ' + escHtml(chLbl) + ', o espera a que él vuelva a escribir.</div>';
+    } else {
+      banner.innerHTML = reloj
+        + '<div style="flex:1"><b>Pasaron más de 24 horas</b> desde el último mensaje del cliente. ' + escHtml(chLbl) + ' no permite enviar mensajes libres fuera de esa ventana — se necesita una <b>plantilla aprobada</b>.</div>'
+        + '<button class="ci-wa-tplbtn" onclick="abrirEnviarPlantilla()">Enviar plantilla</button>';
+    }
     banner.style.display = 'flex';
     if (composer) composer.classList.add('ci-composer--locked');
   } else {
