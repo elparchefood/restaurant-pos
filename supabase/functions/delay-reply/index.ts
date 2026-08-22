@@ -5144,6 +5144,15 @@ const PREGUNTA_NO_NOMBRE_RE = /(\?|¿|\b(cuant[oa]s?|cu[aá]nt[oa]s?|cuando|cu[a
    Una frase que empieza con una palabra de tiempo (apenas, cuando, ahorita,
    tan pronto...) o que habla de que algo este listo/salga/llegue es una
    condicion, no una persona. */
+/* UNA FORMA DE PAGO NO ES UN NOMBRE — NI MAL ESCRITA (21-ago, caso real).
+   La clienta mando todo en un mensaje y remato con "Pago tranferencia" (sin
+   la primera ese). El filtro de pagos no reconocio la palabra por el error
+   de dedo, la linea tenia forma de nombre, y el pedido salio a nombre de
+   "Pago tranferencia" — con la clienta GUARDADA como Monica Ramirez.
+   La gente escribe rapido en el chat: el filtro tiene que aguantar las
+   formas comunes de equivocarse, no solo la palabra perfecta. */
+const PAGO_NO_NOMBRE_RE = /\b(pag[oa]s?|pagar[ae]?|pague|transferencias?|tranferencias?|trasferencias?|transferensias?|transfiero|transferir|consignar|consignacion|consigno|efectivo|nequi|daviplata|bancolombia|billetera|comprobante|qr)\b/i;
+
 const FRASE_TEMPORAL_RE = /^\s*(apenas|cuando|cu[aá]ndo|ahorita|ahora|ya\s+casi|tan\s+pronto|ni\s+bien|luego|despu[eé]s|mientras|en\s+cuanto|a\s+penas)\b|\b(est[eé]n?\s+list[oa]s?|este\s+list[oa]|salga|llegue|termine)\b/i;
 
 const ETIQUETA_PLANTILLA_RE = /^\s*(tel[eé]fono|direcci[oó]n|pedido|pago|nombre|detalles?|cliente|barrio|celular|numero|n[uú]mero|datos|observaci[oó]n(es)?|nota s?)\s*[:.]?\s*$/i;
@@ -5200,6 +5209,7 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
         if (ETIQUETA_PLANTILLA_RE.test(ln)) continue;   // "Telefono", "Direccion"...
         if (PREGUNTA_NO_NOMBRE_RE.test(ln)) continue;   // "Cuanto se demora" no es un nombre
         if (FRASE_TEMPORAL_RE.test(ln)) continue;      // "Apenas este lista" tampoco
+        if (PAGO_NO_NOMBRE_RE.test(ln)) continue;      // "Pago tranferencia" menos
         const lnNorm = normalizarTexto(ln);
         if (getAdicionKeywords().some(k => k.length >= 4 && new RegExp(`\\b${k}\\b`).test(lnNorm))) continue;
         if (extractPago(ln, null)) continue;
@@ -5232,6 +5242,7 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
   if (ETIQUETA_PLANTILLA_RE.test(t)) return null;                        // "Telefono", "Direccion"...
   if (PREGUNTA_NO_NOMBRE_RE.test(t)) return null;                        // una pregunta no es un nombre
   if (FRASE_TEMPORAL_RE.test(t)) return null;                            // "Apenas este lista" no es un nombre
+  if (PAGO_NO_NOMBRE_RE.test(t)) return null;                            // una forma de pago tampoco, ni mal escrita
   if (esSoloConfirmacion(t)) return null;                                // "si", "dale", "ok"…
   if (t.includes("?") || t.includes("¿")) return null;                   // preguntas no son nombres
   if (extractPago(t, null)) return null;
@@ -6188,7 +6199,20 @@ function runExtractors(
       else if (!/^no\b/.test(normalizarTexto(text))) result.nombre = nombreWa;
     } else {
       const n = extractNombre(text, isNombreStep, productData, (cfgGlobal.domicilios as Record<string, unknown> | null) || null);
-      if (n) result.nombre = n;
+      /* CON UN CLIENTE YA GUARDADO, EL NOMBRE SE CONFIRMA — NO SE COSECHA
+         DEL TEXTO LIBRE (regla de Sergio, 21-ago).
+
+         Monica Ramirez estaba guardada con su nombre desde un pedido
+         anterior. Mando todo en un mensaje, una linea suelta se colo como
+         nombre, y el flujo NUNCA llego a preguntar "¿va a nombre de Monica
+         Ramirez?" porque el campo ya estaba lleno con basura.
+
+         Si el cliente es conocido, un nombre pescado del texto libre solo
+         vale cuando lo dijo EXPLICITAMENTE ("a nombre de Carlos", "me
+         llamo..."): puede estar pidiendo para otra persona y eso se
+         respeta. Todo lo demas se ignora, para que el flujo llegue al paso
+         del nombre y confirme el guardado, que es el dato de verdad. */
+      if (n && (isNombreStep || !nombreWa || NOMBRE_MARCADOR_RE.test(text))) result.nombre = n;
     }
   }
   return result;

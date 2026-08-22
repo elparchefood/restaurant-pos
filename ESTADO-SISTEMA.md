@@ -33,6 +33,28 @@ y hasta *"¿va a nombre de Apenas este lista?"*.
    existía para cambios de plato y dirección. `PIDE_NUEVO_RE` protege el caso
    legítimo: *"quiero **otra** salchipapa sin cebolla"* sí es pedido nuevo.
 
+### Segundo caso la misma noche (motor v342)
+
+Mientras se corregía el primero, Paco tomó otro pedido a nombre de **"Pago
+tranferencia"** (573206534380) — la clienta mandó todo en un mensaje y remató
+con esa línea, **mal escrita, sin la primera ese**, con lo que `extractPago` no
+la reconoció. Y la clienta estaba **guardada como Mónica Ramírez**.
+
+Dos arreglos más:
+
+1. **`PAGO_NO_NOMBRE_RE`** — las formas de pago no son nombres **ni mal
+   escritas**: tranferencia, trasferencia, transferensia, efectivo, nequi,
+   daviplata, comprobante… El filtro aguanta los errores de dedo comunes, no
+   solo la palabra perfecta.
+2. **Regla de Sergio: con cliente guardado, el nombre se CONFIRMA, no se
+   cosecha.** Si el cliente ya existe con nombre, un nombre pescado del texto
+   libre solo vale si fue explícito ("a nombre de Carlos" — puede pedir para
+   otra persona). Todo lo demás se ignora, para que el flujo llegue al paso del
+   nombre y pregunte "¿va a nombre de Mónica Ramírez?", que es el dato real.
+
+El pedido de esa noche se corrigió a mano (d4268ea0…, `customer_name` →
+Mónica Ramírez). El cliente guardado nunca se dañó.
+
 ### Verificación
 
 Banco de 26 casos con los **textos reales** de la conversación (más nombres
