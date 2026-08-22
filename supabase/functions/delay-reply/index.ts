@@ -1575,7 +1575,16 @@ INTENCION, no las palabras exactas.` },
       let imgsOk = 0;
       for (const imgUrl of menuImagenes) {
         try {
-          const mediaId = await idDeMeta(imgUrl);
+          /* EL ID SUBIDO SOLO VALE EN WHATSAPP (22-ago). Esos ids viven en el
+             almacen de WhatsApp; Instagram y Messenger no los conocen. Con la
+             carta ya subida y guardada en cache, Paco intentaba mandarla por
+             Instagram con un id de WhatsApp y contestaba "ahora mismo no puedo
+             enviarte la carta" — probado por Sergio con su Instagram real.
+             Alla se manda el ENLACE PUBLICO de la imagen, que es lo que esa
+             API entiende. */
+          const canalCarta = await canalDe(convId);
+          const usaId = canalCarta !== "instagram" && canalCarta !== "facebook";
+          const mediaId = usaId ? await idDeMeta(imgUrl) : "";
           // Si la subida fallo se intenta por link, como antes: peor, pero es
           // mejor que no mandar nada.
           const foto = mediaId ? { id: mediaId } : { link: imgUrl };
