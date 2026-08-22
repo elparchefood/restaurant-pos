@@ -1,7 +1,39 @@
 # ESTADO DEL SISTEMA — Cobra POS
-> Última actualización: 2026-08-21
+> Última actualización: 2026-08-22
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
+
+## 🔴→🟢 La letra "L" en vez del logo, a ratos — 22-ago-2026
+
+Sergio: *"en la parte superior izquierda aparece una letra L, pero a veces sí
+aparece el logo de Cobra. Es intermitente."* Y debajo decía **"Mi negocio"** en
+vez de "El Parche Food".
+
+**Por qué pasaba.** El HTML de la barra traía la letra `L` como relleno, y
+`pos-brand.js` la reemplazaba por el logo después. Dos cosas chocaban:
+
+1. La barra de Ventas la dibuja JavaScript y **se vuelve a dibujar en cada
+   acción** — abrir una mesa, avanzar un domicilio: `render()` se llama 15
+   veces. Cada redibujado escribía la `L` de nuevo.
+2. El vigilante de `pos-brand.js` que la repintaba **se apaga a los 20
+   segundos**, a propósito, para no gastar procesador (fue parte del arreglo de
+   velocidad). Pasado ese rato, ningún redibujado se repintaba.
+
+De ahí lo intermitente: si el último redibujado caía dentro de los primeros 20
+segundos, se veía el logo; si caía después, quedaba la `L` hasta recargar.
+Justo por eso no se reproducía "probando rápido".
+
+**El arreglo.** El logo va **escrito en el HTML**, no pintado después. No
+depende de que nadie llegue a tiempo. Igual en `tomar-pedido.html` y
+`venta-rapida.html`, donde causaba un parpadeo de la `L` al cargar.
+
+El renglón de abajo decía "Mi negocio" cuando la sede todavía no había
+respondido; ahora usa el nombre que `pos-brand.js` ya tiene guardado en el
+equipo, y muestra solo el nombre del restaurante como el resto de pantallas.
+
+> **La lección, que ya se repitió antes:** un elemento que se dibuja por código
+> no puede depender de que alguien pase después a arreglarlo. Se escribe bien
+> desde el principio. Commit `9cbf36f`.
 
 ## 🔴→🟢 "Pagos por confirmar" se quedaba encendido para siempre — 22-ago-2026
 
