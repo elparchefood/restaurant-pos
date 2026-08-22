@@ -412,11 +412,29 @@
   /* Se ofrece UNA vez por visita, no en cada repintado: `pantallaDentro` se
      llama cada vez que el cliente toca algo, y ofrecer en cada toque seria
      insoportable. */
+  /* LE CUENTA AL SERVIDOR DESDE QUE APARATO ENTRO — TAMBIEN LA PRIMERA VEZ.
+
+     Antes esto solo pasaba al RESTAURAR una sesion guardada (accion
+     'sesion' al cargar la pagina). El que se acababa de registrar entraba
+     por otro camino y nunca reportaba: de 27 sesiones de un dia, solo 5
+     tenian el dato, y la pantalla del dueNo mostraba guiones por todas
+     partes. Entrar es entrar, venga por donde venga. */
+  function reportarAparato() {
+    try {
+      var t = leerToken();
+      if (!t) return;
+      acceso({ accion: 'sesion', token: t,
+        instalada: yaInstalada(),
+        plataforma: esIOS() ? 'ios' : (/android/i.test(navigator.userAgent) ? 'android' : 'escritorio') });
+    } catch (e) { /* si falla, no puede frenar la pantalla */ }
+  }
+
   var yaOfreci = false;
   function pantallaDentro() {
     if (!yaOfreci) {
       yaOfreci = true;
       registrarAyudante();
+      reportarAparato();
       asegurarPush();
       ofrecerInstalar();
       ofrecerNotificar();

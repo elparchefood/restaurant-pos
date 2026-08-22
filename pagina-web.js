@@ -1003,12 +1003,20 @@
                desde que el sistema empezó a preguntarlo (21-ago). Y sobre esto
                se decide a quién mandarle la campaña de "instálala" — mandársela
                a quien ya la tiene es la forma más rápida de que dejen de leer. */
-            '<div>' + (u.instalada === true
-              ? '<span class="mw-badge ok">Instalada</span>'
-              : u.instalada === false
-                ? '<span class="mw-badge neutral">Navegador</span>'
-                : '<span class="pw-tenue">—</span>')
-              + (u.plataforma ? ' <small class="pw-tenue">' + esc(u.plataforma) + '</small>' : '') + '</div>' +
+            /* Nunca un guion pelado: 'sin dato' dice lo que pasa (esa persona
+               no ha vuelto a entrar desde que el sistema pregunta), y el
+               aparato se escribe como lo dice la gente: iPhone, Android, PC. */
+            '<div>' + (function () {
+              var ap = u.plataforma === 'ios' ? 'iPhone'
+                     : u.plataforma === 'android' ? 'Android'
+                     : u.plataforma === 'escritorio' ? 'PC' : '';
+              var chip = u.instalada === true
+                ? '<span class="mw-badge ok">Instalada</span>'
+                : u.instalada === false
+                  ? '<span class="mw-badge neutral">Navegador</span>'
+                  : '<span class="pw-tenue">sin dato</span>';
+              return chip + (ap ? ' <small class="pw-tenue">' + ap + '</small>' : '');
+            })() + '</div>' +
             '<div>' + (Number(u.avisos)
               ? '<span class="mw-badge ok">Activos</span>'
               : '<span class="mw-badge neutral">Apagados</span>') + '</div>' +
