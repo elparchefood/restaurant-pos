@@ -1450,7 +1450,19 @@ INTENCION, no las palabras exactas.` },
       .replace(/\s+/g, " ")
       .trim();
     const combinedLower = batchMsgs.map(m => limpiar(m.body)).join(" ");
-    const menuKw = ["la carta","el menú","el menu","dame la carta","ver la carta","su carta","ver el menú","ver el menu","muestrame la carta","que tienen de menu","que tienen","que hay","qué hay","que tienes","qué tienes","que tiene","qué tiene","que tienen","qué tienen","tienen de","precio","precios","los precios","lista de precios","que precios","qué precios","cuanto cuesta","cuánto cuesta","cuanto vale","cuánto vale","cuanto valen","cuánto valen","cuanto sale","cuánto sale"];
+    const menuKw = ["la carta","el menú","el menu","dame la carta","ver la carta","su carta","ver el menú","ver el menu","muestrame la carta","que tienen de menu","precio","precios","los precios","lista de precios","que precios","qué precios","cuanto cuesta","cuánto cuesta","cuanto vale","cuánto vale","cuanto valen","cuánto valen","cuanto sale","cuánto sale"];
+    /* "que hay", "que tienen" y parecidos NO van como subcadena: "porfa que
+       hay ninos en la casa" mandaba la carta entera y se tragaba la nota de
+       cocina (banco, 21-ago). Y "tienen de" casaba hasta con "tienen
+       descuento". Solo cuentan como PREGUNTA: al inicio del mensaje (tras un
+       saludo si lo hay) o con signo de interrogacion. Cualquier otra forma
+       de pedir la carta la entiende el clasificador (intenciones.carta). */
+    const PREG_CARTA_RE = /^(hola |buenas( noches| tardes)? |buenos dias |y )*(que|q) (hay|tienen|tienes|tiene|venden|manejan)([^a-z]|$)/;
+    const pideCartaPregunta = batchMsgs.some(m => {
+      const t = limpiar(m.body);
+      return PREG_CARTA_RE.test(t)
+        || (/(\?|¿)/.test(m.body || "") && /(^|[^a-z])(que|q) (hay|tienen|tienes|tiene)([^a-z]|$)/.test(t));
+    });
     const isExact  = ["carta","menu","el menu","precios","precio"].includes(combinedLower);
     /* La lista de frases nunca va a cubrir todas las formas de pedir la carta
        ("me mandas carta?", "tienes carta", "la carta porfa"). Basta con que
@@ -1466,7 +1478,7 @@ INTENCION, no las palabras exactas.` },
        entero en vez del precio del domicilio. */
     const wantsMenu = !extraRespondido && !cartaSuprimida   // la categoría en texto ya respondió: la carta sobra
       && intenciones.precio !== true && intenciones.domicilio !== true
-      && (intenciones.carta === true || isExact || palabraSuelta || menuKw.some(kw => {
+      && (intenciones.carta === true || isExact || palabraSuelta || pideCartaPregunta || menuKw.some(kw => {
       const k = kw.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
       return combinedLower.includes(k);
     }));
@@ -5378,6 +5390,11 @@ type PedidoLeido = {
   /* Lo que va ENCIMA de otro plato (no un plato aparte). El lector ya lo
      devolvia; faltaba declararlo aqui. */
   agregados?: string[];
+  /* La nota de cocina ENTENDIDA, no cazada por palabras (21-ago, pedido de
+     Sergio: "siempre debe entender intenciones"). El dia que un cliente
+     diga las cosas de manera totalmente diferente, esto es lo que lo
+     entiende; el capturador de palabras queda solo de respaldo. */
+  nota?: string;
 };
 
 async function leerPedido(
@@ -5454,7 +5471,8 @@ OPCIONES REALES de este producto (usa EXACTAMENTE estos nombres, no inventes):
 Devuelve SOLO este JSON con lo que ESTE mensaje aporta (omite lo que no diga):
 {"producto":string|null,"cantidad":number|null,"tamano":string|null,
  "variantes":[string],"adiciones":[string],"direccion":string|null,
- "barrio":string|null,"nombre":string|null,"pago":string|null,"quitar":[string]}
+ "barrio":string|null,"nombre":string|null,"pago":string|null,"quitar":[string],
+ "nota":string|null}
 
 REGLAS:
 - "1.5", "litro y medio", "la de litro y medio" -> el tamaño "1.5 Litros" si esa es
@@ -5471,11 +5489,21 @@ REGLAS:
   SOLO es adición si el cliente la nombró como palabra propia. JAMÁS saques una
   adición de un pedazo del nombre de un plato: de "salchipapa" NO sale la adición
   "papas" ni "salchicha" — "salchipapa mixta" es UN plato y CERO adiciones.
+  Tampoco saques adiciones de una INSTRUCCIÓN de preparación: en "las papas bien
+  doraditas" o "la salsa aparte", "papas" y "salsa" son parte de la nota, NO
+  adiciones. Adición es solo lo que el cliente pide AGREGAR y pagar.
 - "quitar": lo que quiere SACAR de lo que YA tiene, con el nombre exacto de arriba.
   "mejor sin la adición", "quítame el chorizo", "ya no quiero la tocineta", "sin la
   gaseosa", "mejor el solo" -> quitar. Si dice "sin X" pero X NO está todavía en el
-  pedido, no es quitar: es una preferencia de cómo lo quiere, y va fuera del JSON.
+  pedido, no es quitar: es una instrucción de cómo lo quiere, y va en "nota".
   Si dice "sin la adición" y solo lleva una, pon ESA en "quitar".
+- "nota": instrucciones REALES de preparación o entrega, dichas con CUALQUIER
+  palabra: "sin salsas", "las salsas aparte porque hay niños" -> "salsas aparte",
+  "las papas bien doraditas" -> "papas bien doradas", "que no pique nada",
+  "córtala en dos". Escríbela CORTA, lista para la comanda de cocina.
+  NO es nota: cerrar el pedido ("no solo eso", "eso es todo", "así está bien",
+  "nada más"), cortesías, confirmaciones ni preguntas -> null. Tampoco es nota
+  lo que ya va en otro campo (una adición, un tamaño, una forma de pago).
 - "pago": Nequi, Daviplata, "por llave", el QR, "te consigno", "te transfiero" son TODOS
   el método de TRANSFERENCIA. El saldo prepagado y los puntos SOLO si el cliente los
   nombra ("con mi saldo", "con los puntos"). Devuelve el nombre del método SIN el
@@ -5491,7 +5519,7 @@ ${historial}`;
       method: "POST",
       headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gpt-4o-mini", max_tokens: 220, temperature: 0,
+        model: "gpt-4o-mini", max_tokens: 260, temperature: 0,
         response_format: { type: "json_object" },
         messages: [{ role: "system", content: sys }, { role: "user", content: texto }],
       }),
@@ -5981,7 +6009,12 @@ function runExtractors(
   // solo al pedir. Por eso se lee siempre y se sSUMA a lo que ya había, en vez
   // de reemplazarlo: el cliente puede agregar condiciones de a poco.
   {
-    const pref = extractPreferencias(text, cfgGlobal);
+    /* LO ENTENDIDO VA PRIMERO, igual que en todos los demas campos: la nota
+       la pone el lector (entiende cualquier forma de decirlo); el capturador
+       de palabras solo actua si el lector no dio nada — es el respaldo para
+       cuando el modelo falle o se caiga, no la primera opcion. */
+    const notaLeida = String((leido as PedidoLeido).nota || "").trim().slice(0, 120);
+    const pref = notaLeida || extractPreferencias(text, cfgGlobal);
     if (pref) {
       const previas = state.preferencias ? state.preferencias + ", " : "";
       const juntas = (previas + pref).split(", ");
@@ -6056,7 +6089,25 @@ function runExtractors(
     if (!esRespuestaVariante) {
       const a = extractAdiciones(text, isUpsellStep, intenciones,
         state.producto, (state.items || []).map(i => i.producto || ""));
-      if (a !== null) result.adiciones = a;
+      if (a !== null) {
+        /* UNA PALABRA QUE VIVE DENTRO DE LA NOTA NO ES UNA ADICION (banco,
+           21-ago): "la salsa en un vasito aparte" agregaba una Salsa cobrada,
+           y "las papas bien doraditas" una porcion de Papas. Si la palabra
+           esta en la nota capturada de ESTE mensaje, la nota manda. Y si el
+           filtro vacia la lista, no se marca nada: dejar "" diria que el
+           cliente ya respondio al ofrecimiento, y no lo hizo. */
+        const notaMsg = normalizarTexto(String((leido as PedidoLeido).nota || "") || (extractPreferencias(text, cfgGlobal) || ""));
+        let a2 = a;
+        if (a && notaMsg) {
+          const partes = a.split(", ").filter(x =>
+            !normalizarTexto(x).split(" ").some(w => w.length >= 4 && notaMsg.includes(w)));
+          if (partes.length < a.split(", ").length) {
+            console.log(`[adicion] fuera por vivir en la nota: "${a}" -> "${partes.join(", ")}"`);
+          }
+          a2 = partes.join(", ");
+        }
+        if (a2 !== "" || a === "") result.adiciones = a2;
+      }
     }
   }
   /* CONTESTAR CON UN PRODUCTO TAMBIEN ES CONTESTAR. Si a "¿quieres agregarle
@@ -6121,7 +6172,13 @@ function runExtractors(
     const tLowDir = text.toLowerCase();
     const esPreguntaDir = text.includes("?")
       || /^\s*(cuanto|cuánto|que|qué|cual|cuál|como|cómo|donde|dónde|hay|tienen|tienes|a\s+como|de\s+a?\s*(k|que|qué))\b/.test(tLowDir);
-    const senalDireccion = /\b(calle|carrera|cra|cll|kra|avenida|av|diagonal|transversal|manzana|barrio|conjunto|torre|apto|apartamento|casa|vereda)\b/.test(tLowDir)
+    /* "casa", "torre" y "apto" SOLO cuentan con numero al lado ("casa 4",
+       "torre 3"). Sueltas son conversacion: "que hay ninos en la casa" era
+       senal de direccion y el extractor forzado se tragaba el mensaje ENTERO
+       como direccion (banco, 21-ago) — la nota de cocina se perdia y la
+       conversacion quedaba dando vueltas pidiendo la direccion exacta. */
+    const senalDireccion = /\b(calle|carrera|cra|cll|kra|avenida|av|diagonal|transversal|manzana|barrio|conjunto|vereda)\b/.test(tLowDir)
+      || /\b(casa|torre|apto|apartamento|bloque|mz)\s*\.?\s*(n\.?o?\.?\s*)?#?\d/.test(tLowDir)
       || text.includes("#")
       || LLEVAR_REGEX.test(tLowDir);
     /* Se exigen SENALES de direccion siempre que no estemos en el paso de la

@@ -3,6 +3,60 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Paco: la nota de cocina ahora se ENTIENDE, no se caza por palabras (motor v344) — 21-ago-2026
+
+Sergio, tras el arreglo del "solo eso": *"no debería ser un capturador de
+texto… el día que un cliente diga las cosas de manera totalmente diferente no
+va a poder entender. Siempre debe entender intenciones."*
+
+Tenía razón y la arquitectura ya lo decía: el lector del pedido (`leerPedido`)
+"entiende, no compara texto" — pero su propia instrucción mandaba las
+preferencias **fuera** del JSON, así que quedaron huérfanas en el capturador
+de palabras clave (`extractPreferencias`).
+
+**Cambio:** el lector gana el campo `nota` — instrucciones reales de
+preparación o entrega dichas con CUALQUIER palabra ("la salsa en un vasito
+separado", "las papas bien doraditas", "que no pique"), escritas cortas y
+listas para la comanda. Con la regla explícita de qué NO es nota: cierres
+("no solo eso", "eso es todo"), cortesías, confirmaciones, ni lo que ya va en
+otro campo. En `runExtractors` rige la misma jerarquía de todos los campos:
+**lo entendido va primero; el capturador de palabras queda solo de respaldo**
+para cuando el modelo falle o se caiga (por eso no se borró).
+
+**Probado en el banco de Paco** (delay-reply-banco reconstruido con el código
+nuevo, 3 rondas, conversaciones PRUEBA borradas al terminar):
+- *"me la hacen con las papas bien doraditas y que no pique nada"* (cero
+  palabras clave) → `↳ papas bien doradas, que no pique nada` en el resumen.
+- *"Me le mandan la salsa en un vasito separado porfa que hay niños en la
+  casa"* → `↳ salsas aparte`.
+- *"No solo eso, pago por transferencia"* → sin nota, resumen limpio.
+- Regresión (pedido normal en efectivo) → idéntico a antes.
+
+**Tres trampas más que el banco destapó en la primera ronda, arregladas en la
+misma v344:**
+1. **"que hay" como subcadena mandaba la carta**: el mensaje del vasito
+   contiene "…que hay niños…" y Paco mandó la carta entera, tragándose la
+   nota. Las preguntas genéricas ("que hay", "que tienen") ahora solo cuentan
+   ancladas al inicio del mensaje o con signo de pregunta; cualquier otra
+   forma de pedir la carta la entiende el clasificador (intenciones.carta).
+   Y "tienen de" casaba hasta con "tienen descuento" — fuera de la lista.
+2. **"casa" suelta era señal de dirección**: "…niños en la casa" disparaba el
+   extractor forzado y el mensaje ENTERO quedaba como dirección (la
+   conversación se enredaba pidiendo la dirección exacta en bucle). "casa",
+   "torre", "apto", "bloque" ahora solo cuentan con número al lado ("casa 4").
+3. **Una palabra dentro de la nota se volvía adición cobrada**: "la salsa en
+   un vasito aparte" agregaba una Salsa, y "las papas bien doraditas" una
+   porción de Papas ($8.000 de más). Si la palabra vive en la nota capturada
+   de ese mensaje, la nota manda y la adición se descarta. También quedó la
+   regla en el prompt del lector.
+
+**Bug PREEXISTENTE encontrado de paso (NO es de estos cambios — bisección con
+v343 en el banco lo reproduce igual): "Me regalas 2 salchipapas…" termina
+cobrando 1x.** El eco conversacional dice "Dos salchipapas" pero
+`state.cantidad` queda en 1. Cobra de MENOS. Registrado como tarea aparte con
+el método de rastreo; no adivinar: instrumentar leerPedido → validarLeido →
+mergeSlots en el banco.
+
 ## 🔴→🟢 Paco: las notas de cocina no llegaban al pedido (motor v343) — 21-ago-2026
 
 Dos errores de la misma noche, reportados por Sergio con los pedidos reales:
