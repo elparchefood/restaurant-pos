@@ -384,6 +384,54 @@ async function guardarCanal(
     display = String(ig.username || ig.id);
   }
 
+  /* ══ LA FOTO DEL CANAL (22-ago-2026) ══════════════════════════════════
+     Para que en "Canales conectados" cada red se vea con su cara, igual que
+     WhatsApp. Cada una se pide por SU camino —comprobado contra Meta—:
+       Instagram  /{ig_id}?fields=profile_picture_url
+       Facebook   /{page_id}/picture?redirect=false
+       (con `fields=picture{url}` Meta responde error de sintaxis)
+
+     Y NO se guarda el enlace de Meta: viene firmado y CADUCA. A la foto de
+     WhatsApp ya le paso —quedo rota una semana en el panel—, y por eso desde
+     entonces se guarda en nuestro propio almacenamiento. Aqui igual.
+
+     Si algo de esto falla, el canal se conecta lo mismo: quedarse sin foto
+     es un detalle, no poder conectar es un problema. */
+  try {
+    const idFoto = channel === "instagram"
+      ? String((page.instagram_business_account as Record<string, unknown> | undefined)?.id || "")
+      : pageId;
+    const urlFoto = channel === "instagram"
+      ? `${GRAPH}/${idFoto}?fields=profile_picture_url&access_token=${encodeURIComponent(pageToken)}`
+      : `${GRAPH}/${pageId}/picture?redirect=false&width=400&height=400&access_token=${encodeURIComponent(pageToken)}`;
+    const rf = await fetch(urlFoto);
+    const df = await rf.json().catch(() => ({})) as Record<string, unknown>;
+    const remota = String(df.profile_picture_url || ((df.data as Record<string, unknown>) || {}).url || "");
+    if (remota) {
+      const img = await fetch(remota);
+      if (img.ok) {
+        const bytes = new Uint8Array(await img.arrayBuffer());
+        const ruta = `perfiles/${channel}-${pageId}.jpg`;
+        const up = await fetch(`${SUPABASE_URL}/storage/v1/object/chat-media/${ruta}`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${SUPABASE_SERVICE_KEY}`,
+            "Content-Type": "image/jpeg",
+            "x-upsert": "true",
+          },
+          body: bytes,
+        });
+        if (up.ok) {
+          meta.profile_picture_url = `${SUPABASE_URL}/storage/v1/object/public/chat-media/${ruta}`;
+        } else {
+          console.error("[foto canal] no se pudo guardar:", (await up.text()).slice(0, 200));
+        }
+      }
+    } else if (df.error) {
+      console.error("[foto canal]", JSON.stringify(df.error).slice(0, 200));
+    }
+  } catch (e) { console.error("[foto canal]", String(e).slice(0, 200)); }
+
   /* Suscribir la pagina a los avisos: es para lo que sirve
      `pages_manage_metadata`. Sin esto no llega ni un mensaje. */
   try {
