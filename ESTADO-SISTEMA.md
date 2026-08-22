@@ -3,6 +3,43 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 Adición en OTRO tamaño: se cobra aparte (motor v351) — 22-ago-2026
+
+Caso real de Yubeli (21-ago, 10:27 pm): pidió una Maicitos Especial Carne
+**Familiar** y luego aclaró *"La adición de ranchera **personal**"*. Sergio lo
+facturó a mano: el plato + la **Adición Ranchera Personal** como producto
+suelto de la categoría Adiciones.
+
+**Lo que de verdad pasaba** (reproducido en el banco, no supuesto): Paco no se
+quedó corto — **cobró de más**. Aceptó la Ranchera como adición **Familiar
+($28.000)** e **ignoró por completo** la aclaración de la clienta. La adición
+Personal vale **$14.000**: **$14.000 de sobrecosto** que Sergio corrigió a mano
+sin que el sistema avisara nada.
+
+**La regla de Sergio, implementada:** dentro de un plato familiar solo caben
+adiciones familiares — así está armada la carta (`mod_group_pres` ata cada
+grupo de modificadores a UNA presentación). Cuando el cliente pide una adición
+de otro tamaño, deja de ser una adición de ese plato y pasa a ser un producto
+suelto de la categoría **Adiciones**, que existe justo para eso.
+
+- El lector gana el campo `adicion_otro_tamano` — lo ENTIENDE, no lo caza por
+  palabras.
+- Se valida contra el catálogo y **solo dentro de la categoría Adiciones**.
+  ⚠️ Buscarlo en toda la carta sería un error caro: "Ranchera" también es una
+  SALCHIPAPA de $28.000, y cobraría un plato entero en vez de una adición de
+  $14.000 — peor que el bug original.
+- Entra por la **cola**, el camino que Paco ya usa para varios platos en un
+  mensaje: hereda precio por presentación, empaque y resumen sin inventar nada.
+- **Se quita de las adiciones del plato**: si se quedara, se cobraría dos
+  veces (una como adición del tamaño equivocado y otra como producto).
+
+**Probado en el banco** con la conversación real de Yubeli:
+`1x Salchipapa Maicitos especial Carne Familiar` + `1x Adición Ranchera
+Personal` = **$67.000** (52.000 + 14.000 + 1.000 de empaque), idéntico a lo que
+facturó Sergio. Antes: $86.000.
+**Regresión**: las adiciones normales (mismo tamaño o sin tamaño dicho) siguen
+pegadas a su plato — `+ Ranchera`, `+ Chorizo`. Sin cambios.
+
 ## 🟢 El teléfono en Instagram/Messenger y el cliente unificado (motor v350) — 22-ago-2026
 
 Punto 3 de Sergio: en las redes solo llega un id de Meta, no un teléfono — y

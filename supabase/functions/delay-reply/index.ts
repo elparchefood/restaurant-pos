@@ -58,6 +58,9 @@ interface PacoState {
      unico que llega es un id de Meta, y sin telefono no hay cliente al que
      pegarle el pedido, los puntos ni el saldo. null = sin preguntar. */
   telefono:           string | null;
+  /* La adicion que hay que cobrar aparte, mientras se procesa. Se limpia en
+     cuanto entra a la cola: es un recado, no un dato del pedido. */
+  adicion_suelta?: { nombre: string; tamano: string; cat: string } | null;
   /* Por donde llego esta conversacion. Lo pone el motor al arrancar; sirve
      para que los pasos sepan si estan en WhatsApp o en una red. */
   canal?:             string;
@@ -3436,6 +3439,45 @@ INTENCION, no las palabras exactas.` },
        Best-effort a proposito: si esto falla, el pedido NO se cae — el
        numero ya quedo en el estado y el pedido puede seguir. Se anota el
        error para poder rastrearlo. */
+    /* ══ LA ADICION DE OTRO TAMAÑO SE COBRA APARTE ══════════════════════
+       Caso real de Yubeli (21-ago): pidio una Maicitos Especial FAMILIAR
+       "con adicion de ranchera PERSONAL". Dentro de un plato familiar solo
+       caben adiciones familiares, asi que Paco le cobro la familiar de
+       $28.000 — $14.000 de mas — y la aclaracion de la clienta se ignoro.
+       Sergio lo arreglo a mano facturando la adicion suelta, que existe en
+       la carta como producto propio. Esto hace eso mismo, solo.
+
+       Entra por la COLA, que es el camino que ya usa Paco para varios platos
+       en un mensaje: asi hereda el precio por presentacion, el empaque y el
+       resumen sin inventar nada nuevo. */
+    if (extracted.adicion_suelta) {
+      const ad = extracted.adicion_suelta as { nombre: string; tamano: string; cat: string };
+      const yaEnCola = (state.cola || []).some(c =>
+        normalizarTexto(c.nombre || "") === normalizarTexto(ad.nombre));
+      const yaEsItem = (state.items || []).some(i =>
+        normalizarTexto(i.producto || "") === normalizarTexto(ad.nombre));
+      if (!yaEnCola && !yaEsItem) {
+        (state.cola = state.cola || []).push({
+          nombre: ad.nombre, cat: ad.cat,
+          /* El texto lleva el tamaño porque de ahi lo lee el flujo cuando le
+             toque el turno a este producto. Sin el, volveria a preguntarlo. */
+          texto: `1 ${ad.nombre} ${ad.tamano}`,
+        });
+        console.log(`[adicion aparte] "${ad.nombre} ${ad.tamano}" se cobra como producto suelto`);
+      }
+      /* Y SE QUITA de las adiciones del plato: si se queda, se cobraria dos
+         veces —una como adicion del tamaño equivocado y otra como producto—. */
+      const quitarN = normalizarTexto(ad.nombre);
+      const limpiar = (txt: string | null) => {
+        const quedan = String(txt || "").split(",").map(x => x.trim()).filter(Boolean)
+          .filter(x => { const nx = normalizarTexto(x); return !(nx === quitarN || nx.includes(quitarN) || quitarN.includes(nx)); });
+        return quedan.join(", ");
+      };
+      state.adiciones = limpiar(state.adiciones);
+      (state.items || []).forEach(i => { i.adiciones = limpiar(i.adiciones ?? null); });
+      state.adicion_suelta = null;
+    }
+
     if (extracted.telefono && (state.canal === "instagram" || state.canal === "facebook")) {
       try {
         /* `fromPhone` en estos canales ES el id de la persona en la red (asi
@@ -5452,6 +5494,12 @@ type PedidoLeido = {
      diga las cosas de manera totalmente diferente, esto es lo que lo
      entiende; el capturador de palabras queda solo de respaldo. */
   nota?: string;
+  /* UNA ADICION EN OTRO TAMAÑO (22-ago-2026, caso real de Yubeli).
+     Dentro de una salchipapa familiar solo caben adiciones familiares: asi
+     esta armada la carta. Cuando el cliente pide una adicion de OTRO tamaño,
+     no es una adicion de ese plato — es un producto suelto de la categoria
+     Adiciones, que existe justo para eso. */
+  adicion_otro_tamano?: { nombre?: string; tamano?: string } | null;
 };
 
 async function leerPedido(
@@ -5529,6 +5577,7 @@ Devuelve SOLO este JSON con lo que ESTE mensaje aporta (omite lo que no diga):
 {"producto":string|null,"cantidad":number|null,"tamano":string|null,
  "variantes":[string],"adiciones":[string],"direccion":string|null,
  "barrio":string|null,"nombre":string|null,"pago":string|null,"quitar":[string],
+ "adicion_otro_tamano":{"nombre":string,"tamano":string}|null,
  "nota":string|null}
 
 REGLAS:
@@ -5554,6 +5603,12 @@ REGLAS:
   gaseosa", "mejor el solo" -> quitar. Si dice "sin X" pero X NO está todavía en el
   pedido, no es quitar: es una instrucción de cómo lo quiere, y va en "nota".
   Si dice "sin la adición" y solo lleva una, pon ESA en "quitar".
+- "adicion_otro_tamano": si el cliente pide una adición diciendo un TAMAÑO
+  DISTINTO al del plato. Ej: el plato es FAMILIAR y pide "la adición de
+  ranchera PERSONAL" -> {"nombre":"Ranchera","tamano":"Personal"}. Eso NO va
+  en "adiciones": se cobra aparte porque dentro de un plato familiar solo
+  caben adiciones familiares. Si el tamaño que dice es el MISMO del plato, o
+  no dice ninguno, va en "adiciones" como siempre y esto queda null.
 - "nota": instrucciones REALES de preparación o entrega, dichas con CUALQUIER
   palabra: "sin salsas", "las salsas aparte porque hay niños" -> "salsas aparte",
   "las papas bien doraditas" -> "papas bien doradas", "que no pique nada",
@@ -5983,6 +6038,30 @@ function validarLeido(
         && !mencionaProductoCatalogo(n) && !esLugar
         && !celularValido(n)) {
       out.nombre = n;
+    }
+  }
+
+  /* ══ LA ADICION QUE VA APARTE ═══════════════════════════════════════════
+     Se comprueba contra el catalogo: tiene que existir un producto con ese
+     nombre EN LA CATEGORIA DE ADICIONES. Buscarlo en toda la carta seria un
+     error caro: "Ranchera" tambien es una SALCHIPAPA de $28.000, y se
+     cobraria un plato entero en vez de una adicion de $14.000. */
+  {
+    const ao = leido.adicion_otro_tamano;
+    const nomAo = String(ao?.nombre || "").trim();
+    const tamAo = String(ao?.tamano || "").trim();
+    if (nomAo && tamAo) {
+      const n = normalizarTexto(nomAo);
+      const enAdiciones = DYN_PROD_MAP.filter(e => /adicion/.test(normalizarTexto(e.cat)));
+      /* Primero la coincidencia exacta; si no, la que lo contenga ("ranchera"
+         encuentra "adicion ranchera"). */
+      const hit = enAdiciones.find(e => e.key === n)
+              || enAdiciones.find(e => e.key.includes(n) || n.includes(e.key));
+      if (hit) {
+        out.adicion_suelta = { nombre: hit.name, tamano: tamAo, cat: hit.cat };
+      } else {
+        console.log(`[adicion aparte] "${nomAo}" no existe como producto en Adiciones — se deja como adicion normal`);
+      }
     }
   }
 
