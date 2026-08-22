@@ -1,6 +1,18 @@
 # -*- coding: utf-8 -*-
-"""Reconstruye el cuadro de emojis COMPLETO desde la lista oficial de Unicode,
-   en el orden oficial, y regenera los nombres en espanol para buscarlos."""
+"""Reconstruye el cuadro de emojis COMPLETO desde la lista oficial de Unicode.
+
+   Genera DOS cosas que tienen que ir siempre juntas:
+     · pos-emoji-nombres.js   (como se llama cada emoji, para buscarlo)
+     · _emoji_data.js         (la lista EMOJI_DATA que se pega en chat-ia.js)
+
+   Antes de correrlo hay que bajar tres archivos AL LADO de este script:
+     curl -O https://unicode.org/Public/emoji/latest/emoji-test.txt
+     curl -o cldr_es.json     https://raw.githubusercontent.com/unicode-org/cldr-json/main/cldr-json/cldr-annotations-full/annotations/es/annotations.json
+     curl -o cldr_es_der.json https://raw.githubusercontent.com/unicode-org/cldr-json/main/cldr-json/cldr-annotations-derived-full/annotationsDerived/es/annotations.json
+
+   Se corre cuando salga una version nueva de Unicode. No editar los dos
+   archivos generados a mano: se desincronizan y el buscador deja de
+   encontrar emojis que si estan en el cuadro."""
 import io, re, json, unicodedata
 
 R = 'C:/Users/USUARIO/AppData/Local/Temp/restaurant-pos/'
